@@ -319,6 +319,7 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/systemd.md` | Manual page for systemd subsystem |
 | `usr/share/doc/mios/manual/sysusers.d.md` | Manual pages distilled from the source comments of sysusers.d, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/tests.md` | Manual pages distilled from the source comments of tests, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/thesis.md` | Core thesis, nature, designed vs. observed scope, and architectural pillars for MiOS. |
 | `usr/share/doc/mios/manual/tmpfiles.d.md` | Manual pages distilled from the source comments of tmpfiles.d, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/tools.md` | Manual pages distilled from the source comments of tools, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/user.md` | Manual pages distilled from the source comments of user, sanitized, each passage anchored to the comment it came from. |
@@ -327,5 +328,5 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/workflows.md` | Manual pages distilled from the source comments of workflows, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/xdg-desktop-portal.md` | Manual pages distilled from the source comments of xdg-desktop-portal, sanitized, each passage anchored to the comment it came from. |
 
-<!-- derived from the AI-hint headers of 109 file(s) matching usr/share/doc/mios/manual/*.md -->
+<!-- derived from the AI-hint headers of 110 file(s) matching usr/share/doc/mios/manual/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->

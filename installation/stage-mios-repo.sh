@@ -70,29 +70,14 @@ DATA_LABEL="$(mios_ssot_value 'cat.data_partition' 'label' 'MiOS-Data')"
 
 
 render_loopback() {
-    cat <<LOOP
-menuentry "Install MiOS (Immutable bootc Workstation & Agentic AI OS)" {
-    search --set=root --label ${DATA_LABEL}
-    set iso=/Live_Operating_Systems/MiOS.iso
-    loopback loop \$iso
-    linux (loop)/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=${DATA_LABEL}:\$iso quiet
-    initrd (loop)/images/pxeboot/initrd.img
-}
-menuentry "Install MiOS from OCI archive (rescue: bootc install --transport oci-archive)" {
-    search --set=root --label ${DATA_LABEL}
-    set iso=/Live_Operating_Systems/MiOS.iso
-    loopback loop \$iso
-    linux (loop)/images/pxeboot/vmlinuz rd.live.image inst.ks=hd:LABEL=${REPO_LABEL}:/ventoy/mios-oci-install.ks quiet
-    initrd (loop)/images/pxeboot/initrd.img
-}
-menuentry "MiOS Live / Rescue Environment" {
-    search --set=root --label ${DATA_LABEL}
-    set iso=/Live_Operating_Systems/MiOS.iso
-    loopback loop \$iso
-    linux (loop)/images/pxeboot/vmlinuz rd.live.image quiet
-    initrd (loop)/images/pxeboot/initrd.img
-}
-LOOP
+    local tmpl="$ROOT/cat/loopback.cfg"
+    if [[ -f "$tmpl" ]]; then
+        sed -e "s/@@REPO_LABEL@@/${REPO_LABEL}/g" \
+            -e "s/@@DATA_LABEL@@/${DATA_LABEL}/g" \
+            "$tmpl"
+    else
+        die "Template $tmpl missing at cat/loopback.cfg"
+    fi
 }
 
 mnt_for_label() {
@@ -149,19 +134,30 @@ else
     log_warn "vendor SSOT $SSOT missing -- brain mios.toml not staged"
 fi
 if (( DRY_RUN )); then
-    log_info "[dry-run] would render loopback -> $REPO_MP/ventoy/mios-loopback.cfg"
+    log_info "[dry-run] would render loopback -> $REPO_MP/ventoy/mios-loopback.cfg and $DATA_MP/ventoy/ventoy_grub.cfg"
 else
-    mkdir -p "$REPO_MP/ventoy"
+    mkdir -p "$REPO_MP/ventoy" "$DATA_MP/ventoy"
     render_loopback > "$REPO_MP/ventoy/mios-loopback.cfg"
+    render_loopback > "$DATA_MP/ventoy/ventoy_grub.cfg"
 fi
-log_ok "staged boot menu: ventoy/mios-loopback.cfg"
+log_ok "staged boot menu: ventoy/mios-loopback.cfg and ventoy/ventoy_grub.cfg"
+
+KS_SRC="$ROOT/usr/share/mios/ventoy/mios-oci-install.ks"
+if [[ -f "$KS_SRC" ]]; then
+    stage_file "$KS_SRC" "$REPO_MP/ventoy/mios-oci-install.ks"
+    log_ok "staged Kickstart -> $REPO_MP/ventoy/mios-oci-install.ks"
+else
+    log_err "$KS_SRC missing -- Kickstart payload unavailable"
+    exit 1
+fi
 
 SRC_TAR="$BUILD/oci-archive/mios-${VERSION}.tar"
 if [[ -f "$SRC_TAR" ]]; then
     stage_file "$SRC_TAR" "$REPO_MP/mios-latest.tar"
     log_ok "staged oci-archive -> $REPO_MP/mios-latest.tar"
 else
-    log_warn "$SRC_TAR missing -- run 'just oci-archive' (Path B / bootc install unavailable)"
+    log_err "$SRC_TAR missing -- run 'just oci-archive' (Path B / bootc install unavailable)"
+    exit 1
 fi
 
 ISO_SRC="$(first_glob "$BUILD/iso/*.iso" "$BUILD/bootiso/*.iso" "$BUILD/usb-installer/*.iso")"

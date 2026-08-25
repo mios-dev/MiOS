@@ -7,6 +7,10 @@ import sys
 logging.basicConfig(level=logging.INFO, format="[seed-db-config] %(levelname)s: %(message)s")
 log = logging.getLogger("seed-db-config")
 
+def get_seeded_sections(data: dict) -> list:
+    """Returns top-level SSOT section keys that seed-db-config seeds into config_kv."""
+    return [k for k in data.keys() if k not in ("verbs", "packages")]
+
 def get_pg_config():
     e = os.environ
     return {
@@ -79,7 +83,7 @@ def main():
                     (json.dumps(defaults),)
                 )
 
-                kv_sections = [k for k in data.keys() if k not in ("verbs", "packages")]
+                kv_sections = get_seeded_sections(data)
                 for sec in kv_sections:
                     sec_data = data.get(sec) or {}
                     if not isinstance(sec_data, dict):

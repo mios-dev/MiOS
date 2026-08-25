@@ -13,6 +13,7 @@ if mount | grep "type composefs" >/dev/null; then
     echo "[greenboot] SUCCESS: root is mounted as composefs"
 else
     echo "[greenboot] ERROR: composefs requested but not active"
+    exit 1
 fi
 
 if command -v composefs-info >/dev/null; then

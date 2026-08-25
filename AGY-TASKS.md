@@ -10464,7 +10464,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a shipped surface missing from the generated index makes the index a partial truth, which is the hardest kind to notice.
 **Dep:** AGY-1612
 
-## AGY-1618 -- Drive mios-unit-gen --check to zero drift  (WS-EVIDENCE | P0 | L)
+## AGY-1618 -- Drive mios-unit-gen --check to zero drift  (WS-EVIDENCE | P0 | L)  **DONE**
 **Goal:** Every systemd unit in the tree is what the SSOT renders.
 **What+How:** `--check` used to render units in memory and print PASS without comparing; repaired, it reported 66 rendered / 66 drifted / 0 matching. Work the remainder down unit by unit: for each, decide whether the SSOT or the shipped file is right, fix the losing side, and re-run. Do not regenerate wholesale -- some shipped units carry hand-edits that encode real behaviour and must move into `[units]` first.
 **Where:** `tools/native/mios-unit-gen/, usr/lib/systemd/system/, usr/share/mios/mios.toml [units]`
@@ -10474,7 +10474,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a projection that does not match its output is not a projection; it is two hand-maintained copies with extra steps.
 **Dep:** none
 
-## AGY-1619 -- Audit every check for vacuous pass conditions  (WS-EVIDENCE | P0 | L)
+## AGY-1619 -- Audit every check for vacuous pass conditions  (WS-EVIDENCE | P0 | L)  **DONE**
 **Goal:** No gate passes because it found nothing to look at.
 **What+How:** Known instances: `check_desktop_launchers` passed because `[desktop.launchers]` was absent, leaving 9 shipped launchers ungoverned; `check_no_inert_ssot_tables` and `check_doc_refs_resolve` wrote violations to stderr while the wrapper read stdout, so `_violation` was never called; `check_resolver_differential_parity` skipped silently when a tool was missing; bake-smoke prints OK on empty lists. Systematically: for each registered check, construct the empty-input case and confirm it FAILS rather than passes. Where a skip is legitimate, it must be loud and gated by `MIOS_DRIFT_REQUIRE_TOOLS`.
 **Where:** `automation/98-drift-checks.sh, tests/drift-gate-negatives.sh`
@@ -10784,7 +10784,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** an allowlist without reasons becomes a list nobody dares to shrink.
 **Dep:** AGY-1631
 
-## AGY-1650 -- Write the reader's entry point  (WS-THESIS | P0 | M)
+## AGY-1650 -- Write the reader's entry point  (WS-THESIS | P0 | M)  **DONE**
 **Goal:** A person arriving at the repository can find the idea in one file.
 **What+How:** The deliverable is the repository, small enough to read. Write the entry document that states the four-part thesis, points at the one file that defines the OS, shows one projection end to end, names what is observed versus designed, and links the ADRs in reading order. Derive its numbers from the gates so it cannot go stale.
 **Where:** `README.md, ROADMAP.md, usr/share/doc/mios/manual/`
@@ -10804,7 +10804,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a privilege register with no justification per entry becomes a list that only grows, which is the opposite of what a register is for.
 **Dep:** none
 
-## AGY-1652 -- Make secret handling provable end to end  (WS-SECURITY | P0 | L)
+## AGY-1652 -- Make secret handling provable end to end  (WS-SECURITY | P0 | L)  **DONE**
 **Goal:** No secret is ever committed, logged, or baked.
 **What+How:** Add a gate that scans the tracked tree and the built image for credential shapes -- tokens, private keys, connection strings with passwords -- with an allowlist of test fixtures that must be explicitly marked. Extend it to the bake: a secret reaching a layer is not removable by a later layer. Cover the paths where secrets legitimately live at runtime (clevis, the credential store) and prove those are never in the image.
 **Where:** `automation/98-drift-checks.sh, automation/build/, usr/share/mios/sys/Containerfile*, usr/lib/mios/`
@@ -11064,7 +11064,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the task runner is the project's public interface for contributors; broken targets there are the first thing a newcomer hits.
 **Dep:** none
 
-## AGY-1678 -- Prove the golden-master tests compare against something  (WS-EVIDENCE | P0 | S)
+## AGY-1678 -- Prove the golden-master tests compare against something  (WS-EVIDENCE | P0 | S)  **DONE**
 **Goal:** No test diffs a tree against a copy of itself.
 **What+How:** A golden-master test was found diffing the tree against a copy of itself, which passes unconditionally. Audit every golden/snapshot test: confirm the expected output is stored independently of the generated output, and that corrupting the generator turns the test red. This is the same family as the unit-gen `--check` that printed PASS without comparing.
 **Where:** `tools/native/mios-unit-gen/tests/golden/, tools/test_*.py, src/mios-rs/`
@@ -11144,7 +11144,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** moving prose from comments into a directory nobody reads is not documentation, it is relocation.
 **Dep:** AGY-1616
 
-## AGY-1686 -- Write down what MiOS is, in the repository  (WS-THESIS | P0 | S)
+## AGY-1686 -- Write down what MiOS is, in the repository  (WS-THESIS | P0 | S)  **DONE**
 **Goal:** The project states its own nature.
 **What+How:** MiOS is a research vehicle and a proof of an idea, not a product. Its thesis has four parts that stand or fall together, its deliverable is the repository itself, its deployment scope is universal -- blades, mesh, bare metal, VM, WSL, cloud -- and today it is observed only on a dev VM and WSL. Write that down plainly, including the gap between scope and observation, and link it from the README as the first thing a reader meets.
 **Where:** `README.md, ROADMAP.md, usr/share/doc/mios/manual/`
@@ -11424,7 +11424,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** an operator following `installation/README.md` currently reaches a hard failure or, upstream, the wrong mode -- there is no path in this repository that installs the system it describes.
 **Dep:** none
 
-## AGY-1751 -- Stop mios-bootstrap swallowing the install mode  (WS-DEPLOY | P0 | S)
+## AGY-1751 -- Stop mios-bootstrap swallowing the install mode  (WS-DEPLOY | P0 | S)  **DONE**
 **Goal:** `_install_core bootc` runs bootc.
 **What+How:** `TYPE=""` at :118, the lenient `*)` branch at :134-144 pushes a positional `bootc` into `PASSTHROUGH` and breaks, and :1605 dispatches `do_install_core "${TYPE:-fhs}"`. Every positional mode therefore degrades to fhs. Read the mode from the positional tail the way mios.git now does, and reject a mode that is neither `fhs` nor `bootc` instead of silently defaulting.
 **Where:** `C:\mios-bootstrap\installation\mios-install.sh (:118, :134-144, :1605)`
@@ -11434,7 +11434,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the offline kickstart path routes through this file, so an operator asking for the immutable install currently gets the mutable one and is told it succeeded.
 **Dep:** none
 
-## AGY-1752 -- One build output directory, derived, read by every consumer  (WS-DEPLOY | P0 | M)
+## AGY-1752 -- One build output directory, derived, read by every consumer  (WS-DEPLOY | P0 | M)  **DONE**
 **Goal:** Artifacts land where the things that consume them look.
 **What+How:** Four consumers disagree: `iso:` writes `build/iso`, `usb-installer:` globs `build/*.iso build/bootiso/*.iso`, `verify-images` globs a third set, `stage-mios-repo.sh:167` a fourth -- and all four are wrong under bootc-image-builder's per-type layout. Declare the output root and the per-type subdirectory in the SSOT and project it into every consumer, the way ports already are.
 **Where:** `Justfile, installation/stage-mios-repo.sh, build-mios.ps1, usr/share/mios/mios.toml ([deploy])`
@@ -11454,7 +11454,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the only thing standing between an empty build tree and a publish is a test that returns success over zero files.
 **Dep:** AGY-1752
 
-## AGY-1754 -- Stage the Path-B payload where its own boot entry points  (WS-DEPLOY | P0 | M)
+## AGY-1754 -- Stage the Path-B payload where its own boot entry points  (WS-DEPLOY | P0 | M)  **DONE**
 **Goal:** The kickstart and the image archive are on the stick, at the paths the boot entry names.
 **What+How:** `stage-mios-repo.sh` creates `$REPO_MP/ventoy/` and writes only `mios-loopback.cfg`; nothing anywhere copies `usr/share/mios/ventoy/mios-oci-install.ks`, which the menu boots as `inst.ks=hd:LABEL=<repo>:/ventoy/mios-oci-install.ks`. Copy it. Stage the oci-archive to the `/mnt/mios-repo/mios-latest.tar` path `tools/install.sh:12` defaults to. And make the stager exit non-zero when a required payload is absent instead of warning and printing DONE.
 **Where:** `installation/stage-mios-repo.sh, usr/share/mios/ventoy/mios-oci-install.ks, tools/install.sh`
@@ -11464,7 +11464,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the immutable install is fully written and has never had its inputs delivered to the medium.
 **Dep:** AGY-1752
 
-## AGY-1755 -- Put the immutable-install entry in the menu Ventoy actually loads  (WS-DEPLOY | P0 | M)
+## AGY-1755 -- Put the immutable-install entry in the menu Ventoy actually loads  (WS-DEPLOY | P0 | M)  **DONE**
 **Goal:** The operator can select the bootc install from the boot menu.
 **What+How:** `mios-loopback.cfg` is rendered onto the MiOS-Repo partition under a name Ventoy does not read, and `cat/resources/ventoy/ventoy_grub.cfg` -- the menu that is copied onto the Ventoy partition and is loaded -- chainloads Fedora-Server, MiOS-Xbox, MiOS_PE and SystemRescue with no MiOS entry at all. Emit one menu, from the SSOT labels, onto the Ventoy partition, containing the immutable entry.
 **Where:** `installation/stage-mios-repo.sh, C:\mios-bootstrap\cat\resources\ventoy\ventoy_grub.cfg, C:\mios-bootstrap\installation\MiOS-Cat.bat`
@@ -11524,7 +11524,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** it is the second installer in this repository that reports completion having done nothing.
 **Dep:** none
 
-## AGY-1761 -- Ship an image that can update itself  (WS-DEPLOY | P0 | M)
+## AGY-1761 -- Ship an image that can update itself  (WS-DEPLOY | P0 | M)  **DONE**
 **Goal:** The published image has exactly one working OS update mechanism.
 **What+How:** `automation/50-uupd-installer.sh` disables `bootc-fetch-apply-updates.timer` and `rpm-ostreed-automatic.timer` unconditionally, then only warns when `uupd.timer` is missing. Four layers swallow the failure: a skip-if-unavailable repo, `install_packages_strict` also passing `--skip-unavailable` (`automation/lib/packages.sh:181-190`), the warn, and `mios.toml:10159` `fatal = false`. In `ghcr.io/mios-dev/mios:latest` the audit found no uupd package, no uupd units, and the bootc timer disabled. Do not disable the fallback until the replacement is verified present; make the phase fatal; add a gate over the built image.
 **Where:** `automation/50-uupd-installer.sh, automation/lib/packages.sh, usr/share/mios/mios.toml ([pipeline], [packages.updater]), automation/98-drift-checks.sh`
@@ -11544,7 +11544,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the documented way to update MiOS currently pulls a git repository or asks a language model about the word "update".
 **Dep:** AGY-1761
 
-## AGY-1763 -- Make the required health checks capable of failing  (WS-DEPLOY | P0 | M)
+## AGY-1763 -- Make the required health checks capable of failing  (WS-DEPLOY | P0 | M)  **DONE**
 **Goal:** A required greenboot check that detects a fault reports one.
 **What+How:** `15-composefs-verity.sh` prints `ERROR: composefs requested but not active` and falls through to `exit 0`; `/usr/lib/ostree/prepare-root.conf` is present with `enabled = verity` in the published image, so this branch is live. `50-mios-core.sh` is `command -v miosd || exit 0`, and miosd ships only at `/usr/libexec/mios/miosd`, off PATH, with no `greenboot` subcommand among its 19. Make the composefs failure exit 1. For the core check, either give miosd a real greenboot subcommand and an absolute path, or remove the file -- a required check that no-ops is worse than none.
 **Where:** `usr/lib/greenboot/check/required.d/15-composefs-verity.sh, etc/greenboot/check/required.d/50-mios-core.sh, src/mios-rs/miosd/`
@@ -11574,7 +11574,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** it is a wheel-group account with an empty crypted password field on an installer medium.
 **Dep:** AGY-1752
 
-## AGY-1766 -- Stop the partition-label gate substituting a literal for the SSOT  (WS-GATES | P0 | S)
+## AGY-1766 -- Stop the partition-label gate substituting a literal for the SSOT  (WS-GATES | P0 | S)  **DONE**
 **Goal:** The label gate reads the SSOT or fails.
 **What+How:** `98-drift-checks.sh:4668` resolves the label as `grep -A 5 '\[cat\.repo_partition\]' â¦ | â¦ || echo "MiOS-Repo"` under `set -euo pipefail`. When the table is missing, grep returns 1, pipefail propagates, the fallback fires, and the gate compares consumers against a hardcoded literal. Parse with `tomllib` as `tools/check-variant-registry.py` does, treat a missing key as a violation, and extend the consumer set to `usr/share/mios/ventoy/mios-oci-install.ks` and `cat/loopback.cfg`, which also carry the label.
 **Where:** `automation/98-drift-checks.sh (check_repo_partition_label_ssot), tests/drift-gate-negatives.sh`
@@ -11584,7 +11584,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** it will report green through the entire variant rename it exists to police.
 **Dep:** none
 
-## AGY-1767 -- Stop a comment satisfying the offline-install gate  (WS-GATES | P0 | S)
+## AGY-1767 -- Stop a comment satisfying the offline-install gate  (WS-GATES | P0 | S)  **DONE**
 **Goal:** The offline-install invariant is asserted against executable code.
 **What+How:** `:4599` runs `grep -q '\--transport oci-archive' tools/install.sh` with no comment filter, and that string occurs only on line 3, inside the AI-hint. The real command at :77 carries no `--transport` flag at all. `:4589` returns 0 when the file is absent. The sibling network-token filter at :4605 applies `grep -v '^\s*#'` to `grep -n` output whose lines start with `NN:`, so it never excludes anything. Strip comments before asserting, make an absent file a violation, fix the filter, and extend the scope to `usr/share/mios/ventoy/mios-kickstart.cfg`, whose :97 `git clone https://github.com/mios-dev/mios-bootstrap.git` is the actual network call in the offline path.
 **Where:** `automation/98-drift-checks.sh (check_offline_install_invariant), tools/install.sh, usr/share/mios/ventoy/mios-kickstart.cfg, tests/drift-gate-negatives.sh`
@@ -11594,7 +11594,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** this is the gate the entire offline claim rests on, and it currently reads a docstring.
 **Dep:** none
 
-## AGY-1768 -- Replace six hardcoded Rust passes and the parity harness that hides them  (WS-GATES | P0 | M)
+## AGY-1768 -- Replace six hardcoded Rust passes and the parity harness that hides them  (WS-GATES | P0 | M)  **DONE**
 **Goal:** The native runner does not certify the deploy plane it never inspects.
 **What+How:** `src/mios-rs/miosd/src/drift/deploy.rs` is 82 lines and all six `run(&self, _ctx)` bodies are a single `Verdict::Pass(...)`, registered at `mod.rs:297-302` and counted into the summary. `Verdict::Skip` exists and is unused. Implement them against the bash equivalents, or return `Skip` and stop counting them as passes. Then make `tests/drift-parity.sh` compare: it currently runs both sides with `|| true`, greps the Rust log, deletes both logs and prints "Parity check completed successfully" without ever comparing them.
 **Where:** `src/mios-rs/miosd/src/drift/deploy.rs, src/mios-rs/miosd/src/drift/mod.rs, tests/drift-parity.sh`
@@ -11604,7 +11604,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** six checks named after the deploy plane's most broken surfaces return a literal string.
 **Dep:** AGY-1767
 
-## AGY-1769 -- Make the bake-budget gate measure size  (WS-GATES | P0 | M)
+## AGY-1769 -- Make the bake-budget gate measure size  (WS-GATES | P0 | M)  **DONE**
 **Goal:** The gate compares projected image size to the SSOT budget it names.
 **What+How:** `budget` is parsed from `[build.bake].runner_disk_budget_gb` and then appears only inside the failure message; the sole live assertion is a hardcoded `[[ "$count" -gt 30 ]]` over TSV row count. Twelve mutations -- budget 1, 0, -5, a string, key deleted, 321 images, a 20.7 TB TSV, an empty TSV, a deleted TSV, malformed SSOT, absent SSOT, broken python3 -- all returned 0. The clean tree already violates the stated property: `bound-images.tsv` lines 13-14 are the ~20 GB sglang and ~27 GB vllm images against a 40 GB budget. Record real sizes at SBOM time, sum the Day-0 tier, compare to the budget, and make every missing input a violation.
 **Where:** `automation/98-drift-checks.sh (check_bake_budget), usr/share/mios/artifacts/sbom/bound-images.tsv, usr/share/mios/mios.toml ([build.bake]), tests/drift-gate-negatives.sh`
@@ -11624,7 +11624,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the gate will stay silently off on the day someone turns the feature on, which is the only day it matters.
 **Dep:** none
 
-## AGY-1771 -- Make the DB seed gate measure coverage, and stop its test faking the proof  (WS-GATES | P0 | M)
+## AGY-1771 -- Make the DB seed gate measure coverage, and stop its test faking the proof  (WS-GATES | P0 | M)  **DONE**
 **Goal:** A new unseeded SSOT section is caught.
 **What+How:** `98-drift-checks.sh:5294` reads `if "kv_sections = [k for k in data.keys()" not in seed_code and sec_name not in seed_code:`. `seed-db-config.py:82` contains that literal, so the first conjunct is False for every section and `and` short-circuits -- `uncovered` is unconditionally empty. Adding new top-level tables, narrowing the seeder to an allowlist, or emptying its loop while keeping the line as a comment all pass; deleting either audited file passes via the `isfile` guard at :5279. Factor the seeder's selection into a callable, import it, and diff the selected set against the SSOT keys. Make the missing-file guard a violation. And delete `tests/drift-gate-negatives.sh:1715` -- the `sed` that sabotages the seeder is the only reason the negative test passes; without it the test dies with "Check_db_seed_coverage passed despite unseeded section in mios.toml".
 **Where:** `automation/98-drift-checks.sh (check_db_seed_coverage), usr/libexec/mios/seed-db-config.py, tests/drift-gate-negatives.sh`
@@ -11737,7 +11737,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a task list where "done" is unverifiable is a list that reports progress it has not made, and every plan built on it inherits the error.
 **Dep:** AGY-1780
 
-## AGY-1784 -- Fail the build on any verb whose backend is a stub  (WS-CI | P0 | M)
+## AGY-1784 -- Fail the build on any verb whose backend is a stub  (WS-CI | P0 | M)  **DONE**
 **Goal:** A shipped command either works or the build stops.
 **What+How:** `resolve_install_core` was `CMD=(echo "MiOS installer core executed in ${mode} mode")` -- it printed a phase banner, logged preflight success, exited 0 and installed nothing, in the path that installs the operating system. `[verbs.update]` has no `cmd` at all. Add a gate that fails when a verb's backend is a stub: an entry point whose entire body is echoes, `true`, or a comment; a declared verb with no `cmd`; a `cmd` naming a path that does not exist. Run it over `usr/libexec/mios/`, `installation/` and `[verbs.*]`, and register the stubs that are deliberate with a reason and a shrink-only ceiling.
 **Where:** `automation/98-drift-checks.sh, tools/, usr/share/mios/mios.toml, usr/libexec/mios/, installation/`
@@ -11747,7 +11747,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a stub that reports success is indistinguishable from a working command to an operator and to every test, and this repository has shipped at least one in its install path.
 **Dep:** none
 
-## AGY-1800 -- Give miosd tests, starting with the check registry that decides every verdict  (WS-LANG | P0 | L)
+## AGY-1800 -- Give miosd tests, starting with the check registry that decides every verdict  (WS-LANG | P0 | L)  **DONE**
 **Goal:** The daemon that runs the drift checks proves it runs them.
 **What+How:** miosd is 3550 source lines across 25 files and contains not one test, so `cargo test --workspace` prints "test result: ok. 0 passed" for it -- a line indistinguishable from a crate whose tests all passed. It is also the crate with the most authority in the repository: `drift/mod.rs:352 run_all` decides whether a check passed, `run_checks_cli` at :397 is what a caller invokes, and `drift/regen.rs:11 regen_and_diff` is the regenerate-and-compare primitive most projection checks are built on. Start there rather than at the leaves. Write tests that construct a `DriftCtx` over a temporary tree and assert: `run_all` returns false when one registered check fails; a `filter` that matches nothing is an error rather than a silent pass; `regen_and_diff` reports a difference when the target is hand-edited and none when it is not; and `soft` mode is distinguishable from a real pass in the return value, not only in the output. Then work outward through the twenty-three `drift/*.rs` modules.
 **Where:** `src/mios-rs/miosd/src/drift/mod.rs, src/mios-rs/miosd/src/drift/regen.rs, src/mios-rs/miosd/src/bake_plan.rs, src/mios-rs/miosd/src/main.rs`

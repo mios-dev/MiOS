@@ -1131,93 +1131,7 @@ PY
 
 check_no_bare_port_literals() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re, ast
-
-root = os.environ["MIOS_DRIFT_ROOT"]
-banned_ports = ["11450", "11441", "11440", "11451", "11434", "11435"]
-scan_dirs = [
-    os.path.join(root, "usr/lib/mios/agent-pipe"),
-    os.path.join(root, "usr/libexec/mios"),
-    os.path.join(root, "usr/bin")
-]
-
-class DocstringCollector(ast.NodeVisitor):
-    def __init__(self):
-        self.docstring_nodes = set()
-    def check_body(self, body):
-        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
-            if isinstance(body[0].value.value, str):
-                self.docstring_nodes.add(body[0].value)
-    def visit_Module(self, node):
-        self.check_body(node.body)
-        self.generic_visit(node)
-    def visit_FunctionDef(self, node):
-        self.check_body(node.body)
-        self.generic_visit(node)
-    def visit_AsyncFunctionDef(self, node):
-        self.check_body(node.body)
-        self.generic_visit(node)
-    def visit_ClassDef(self, node):
-        self.check_body(node.body)
-        self.generic_visit(node)
-
-violations = []
-for d in scan_dirs:
-    if not os.path.isdir(d):
-        continue
-    for r, ds, fs in os.walk(d):
-        for f in fs:
-            if not f.endswith((".py", ".sh", ".ps1")) or "test_" in f:
-                continue
-            if f in ["Setup-MiOSLanPortProxy.ps1", "Heal-MiOSLocalhostForwarding.ps1", "Setup-MiOSLanPortProxy.ps1.bom-bak", "mios-doctor"]:
-                continue
-            path = os.path.join(r, f)
-            try:
-                with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                    content = fh.read()
-                
-                if f.endswith(".py"):
-                    try:
-                        tree = ast.parse(content)
-                        collector = DocstringCollector()
-                        collector.visit(tree)
-                        
-                        for node in ast.walk(tree):
-                            if isinstance(node, ast.Constant):
-                                if node in collector.docstring_nodes:
-                                    continue
-                                val = str(node.value)
-                                for port in banned_ports:
-                                    if port in val:
-                                        violations.append(f"{f}:{getattr(node, 'lineno', '?')} contains banned port '{port}' in constant '{val}'")
-                    except Exception as e:
-                        for line_no, line in enumerate(content.splitlines(), 1):
-                            stripped = line.strip()
-                            if stripped.startswith(("#", "'''", '"""')):
-                                continue
-                            code_part = line.split("#", 1)[0]
-                            for port in banned_ports:
-                                if port in code_part:
-                                    violations.append(f"{f}:{line_no} contains banned port '{port}' (fallback)")
-                else:
-                    for line_no, line in enumerate(content.splitlines(), 1):
-                        stripped = line.strip()
-                        if stripped.startswith(("#", "//", "Write-Host", "echo", "help", "usage")):
-                            continue
-                        code_part = line.split("#", 1)[0].split("//", 1)[0]
-                        for port in banned_ports:
-                            if port in code_part:
-                                violations.append(f"{f}:{line_no} contains banned port '{port}'")
-            except OSError:
-                pass
-
-if violations:
-    for v in sorted(set(violations)):
-        sys.stderr.write(f"    {v}\n")
-    sys.exit(1)
-sys.exit(0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py no-bare-port-literals
     then
         echo "[98-drift-checks]   no bare port literals remain in execution paths"
     else
@@ -1297,83 +1211,7 @@ check_globals_ports() {
 
 check_globals_image_parity() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re
-root = os.environ["MIOS_DRIFT_ROOT"]
-import tomllib as _toml
-toml = os.path.join(root, "usr/share/mios/mios.toml")
-if not os.path.isfile(toml):
-    sys.exit(0)
-with open(toml, "rb") as fh:
-    img = (_toml.load(fh).get("image", {}) or {})
-
-expected_name = img.get("name", "ghcr.io/mios-dev/mios")
-expected_base = img.get("base", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")
-expected_bib = img.get("bib", "quay.io/centos-bootc/bootc-image-builder:latest")
-
-bad = []
-sh = os.path.join(root, "automation/lib/globals.sh")
-if os.path.isfile(sh):
-    with open(sh, encoding="utf-8") as fh:
-        content = fh.read()
-        
-        m = re.search(r'MIOS_IMAGE_NAME:=([^}]+)\}', content)
-        if m:
-            got = m.group(1).strip('"\' ')
-            if got != expected_name:
-                bad.append(f"globals.sh default MIOS_IMAGE_NAME={got} != mios.toml [image].name={expected_name}")
-        else:
-            bad.append("globals.sh is missing default MIOS_IMAGE_NAME definition")
-            
-        m = re.search(r'MIOS_BASE_IMAGE:=([^}]+)\}', content)
-        if m:
-            got = m.group(1).strip('"\' ')
-            if got != expected_base:
-                bad.append(f"globals.sh default MIOS_BASE_IMAGE={got} != mios.toml [image].base={expected_base}")
-        else:
-            bad.append("globals.sh is missing default MIOS_BASE_IMAGE definition")
-
-        m = re.search(r'MIOS_BIB_IMAGE:=([^}]+)\}', content)
-        if m:
-            got = m.group(1).strip('"\' ')
-            if got != expected_bib:
-                bad.append(f"globals.sh default MIOS_BIB_IMAGE={got} != mios.toml [image].bib={expected_bib}")
-        else:
-            bad.append("globals.sh is missing default MIOS_BIB_IMAGE definition")
-
-ps1 = os.path.join(root, "automation/lib/globals.ps1")
-if os.path.isfile(ps1):
-    with open(ps1, encoding="utf-8") as fh:
-        content = fh.read()
-        
-        m = re.search(r'\$defaultImageName\s*=\s*([^#\r\n]+)', content)
-        if m:
-            got = m.group(1).strip('"\' ')
-            if got != expected_name:
-                bad.append(f"globals.ps1 defaultImageName={got} != mios.toml [image].name={expected_name}")
-        else:
-            bad.append("globals.ps1 is missing $defaultImageName definition")
-            
-        m = re.search(r'MIOS_BASE_IMAGE[^\r\n]+else\s*\{\s*([^}]+)\}', content)
-        if m:
-            got = m.group(1).strip('"\' ')
-            if got != expected_base:
-                bad.append(f"globals.ps1 default MIOS_BASE_IMAGE={got} != mios.toml [image].base={expected_base}")
-        else:
-            bad.append("globals.ps1 is missing default MIOS_BASE_IMAGE definition")
-
-        m = re.search(r'MIOS_BIB_IMAGE[^\r\n]+else\s*\{\s*([^}]+)\}', content)
-        if m:
-            got = m.group(1).strip('"\' ')
-            if got != expected_bib:
-                bad.append(f"globals.ps1 default MIOS_BIB_IMAGE={got} != mios.toml [image].bib={expected_bib}")
-        else:
-            bad.append("globals.ps1 is missing default MIOS_BIB_IMAGE definition")
-
-for b in bad:
-    sys.stderr.write(f"    {b}\n")
-sys.exit(1 if bad else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py globals-image-parity
     then
         echo "[98-drift-checks]   default image references in globals.{sh,ps1} equal mios.toml [image] SSOT"
     else
@@ -2424,82 +2262,7 @@ check_bake_plan() {
 
 check_bake_plan_integrity() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import glob, os, sys
-import tomllib
-
-root = os.environ["MIOS_DRIFT_ROOT"]
-toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-plan_dir = os.path.join(root, "usr/lib/mios/bake/plan.d")
-
-if not os.path.isfile(toml_path) or not os.path.isdir(plan_dir):
-    sys.exit(0)
-
-with open(toml_path, "rb") as f:
-    data = tomllib.load(f)
-
-bake_cfg = data.get("build", {}).get("bake", {})
-core_set = set(bake_cfg.get("core", []))
-tokens = bake_cfg.get("firstboot_tokens", [])
-
-group_files = sorted(glob.glob(os.path.join(plan_dir, "[0-9][0-9]-*.list")))
-fb_file = os.path.join(plan_dir, "firstboot.list")
-
-group_images = set()
-group_map = {}
-for gf in group_files:
-    gname = os.path.basename(gf)
-    with open(gf, "r", encoding="utf-8") as f:
-        imgs = set(line.strip() for line in f if line.strip())
-    group_map[gname] = imgs
-    group_images.update(imgs)
-
-fb_images = set()
-if os.path.isfile(fb_file):
-    with open(fb_file, "r", encoding="utf-8") as f:
-        fb_images = set(line.strip() for line in f if line.strip())
-
-viol = []
-
-for tok in tokens:
-    for gname, imgs in group_map.items():
-        hits = [img for img in imgs if tok in img.lower()]
-        if hits:
-            viol.append(f"Firstboot token '{tok}' image(s) found in baked group list {gname}: {hits}")
-
-    matching_core = [img for img in core_set if tok in img.lower()]
-    for img in matching_core:
-        if img not in fb_images:
-            viol.append(f"Core image '{img}' matching firstboot token '{tok}' missing from firstboot.list")
-
-for tok in tokens:
-    matching_fb = [img for img in fb_images if tok in img.lower()]
-    for img in matching_fb:
-        if img not in core_set:
-            viol.append(f"Firstboot image '{img}' is not listed in [build.bake].core SSOT")
-
-all_plan_imgs = list(group_images) + list(fb_images)
-if len(all_plan_imgs) != len(set(all_plan_imgs)):
-    viol.append("Duplicate image entries found across plan.d/*.list and firstboot.list")
-
-if set(all_plan_imgs) != core_set:
-    missing_from_plan = core_set - set(all_plan_imgs)
-    extra_in_plan = set(all_plan_imgs) - core_set
-    if missing_from_plan:
-        viol.append(f"Core images missing from plan.d: {missing_from_plan}")
-    if extra_in_plan:
-        viol.append(f"Extra images in plan.d not in core: {extra_in_plan}")
-
-if bool(tokens) != bool(fb_images):
-    viol.append(f"firstboot_tokens non-empty ({tokens}) but firstboot.list empty ({fb_images}) or vice versa")
-
-if viol:
-    for v in viol:
-        sys.stderr.write(f"    {v}\n")
-    sys.exit(1)
-
-sys.exit(0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py bake-plan-integrity
     then
         echo "[98-drift-checks]   bake-plan integrity gate verified clean"
     else
@@ -2829,42 +2592,85 @@ check_nested_podman_caps() {
 }
 
 check_bake_budget() {
-    local bad=()
-    local budget=40
-    local py_script="
-import os
-import tomllib
+    _need_python || return 0
+    local py_res
+    py_res="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY' 2>&1
+import os, sys, tomllib
 
-root = '$ROOT'
-toml_path = os.path.join(root, 'usr/share/mios/mios.toml')
-budget = 40
-if os.path.exists(toml_path):
-    with open(toml_path, 'rb') as f:
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+tsv_path = os.path.join(root, "usr/share/mios/artifacts/sbom/bound-images.tsv")
+
+if not os.path.exists(toml_path):
+    print("ERROR: SSOT mios.toml absent")
+    sys.exit(1)
+
+if not os.path.exists(tsv_path):
+    print("ERROR: bound-images.tsv SBOM artifact absent")
+    sys.exit(1)
+
+try:
+    with open(toml_path, "rb") as f:
         data = tomllib.load(f)
-        budget = data.get('build', {}).get('bake', {}).get('runner_disk_budget_gb', 40)
+except Exception as e:
+    print(f"ERROR: Failed to parse mios.toml: {e}")
+    sys.exit(1)
 
-print(budget)
-"
-    budget="$(python3 -c "$py_script" 2>/dev/null || echo 40)"
-    if [[ -z "$budget" ]]; then budget=40; fi
+budget = data.get("build", {}).get("bake", {}).get("runner_disk_budget_gb", None)
+if budget is None or not isinstance(budget, (int, float)) or budget <= 0:
+    print(f"ERROR: [build.bake].runner_disk_budget_gb is absent or invalid ({budget})")
+    sys.exit(1)
 
-    local sbom_tsv="$ROOT/usr/share/mios/artifacts/sbom/bound-images.tsv"
-    local count=0
-    if [[ -f "$sbom_tsv" ]]; then
-        count="$(grep -c -v '^#' "$sbom_tsv" 2>/dev/null || echo 0)"
-    fi
+try:
+    with open(tsv_path, "r", encoding="utf-8") as f:
+        lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
+except Exception as e:
+    print(f"ERROR: Failed to read bound-images.tsv: {e}")
+    sys.exit(1)
 
-    if [[ "$count" -gt 30 ]]; then
-        bad+=("projected baked sidecars count $count exceeds budget threshold for budget ${budget}GB")
-    fi
+if not lines:
+    print("ERROR: bound-images.tsv is empty")
+    sys.exit(1)
 
-    if [[ ${#bad[@]} -eq 0 ]]; then
-        echo "[98-drift-checks]   bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit"
+header = lines[0].split("\t")
+if "size_gb" not in header:
+    print("ERROR: bound-images.tsv missing size_gb column")
+    sys.exit(1)
+
+size_idx = header.index("size_gb")
+group_idx = header.index("group") if "group" in header else -1
+
+total_day0 = 0.0
+for line in lines[1:]:
+    parts = line.split("\t")
+    group = parts[group_idx] if group_idx >= 0 and len(parts) > group_idx else "extra"
+    if group == "firstboot":
+        continue
+    try:
+        sz = float(parts[size_idx])
+    except (ValueError, IndexError):
+        print(f"ERROR: Malformed size entry in line: {line}")
+        sys.exit(1)
+    total_day0 += sz
+
+if total_day0 > budget:
+    print(f"EXCEEDED: Total Day-0 bake size {total_day0:.2f}GB exceeds SSOT budget {budget}GB")
+    sys.exit(1)
+
+print(f"OK: Day-0 size {total_day0:.2f}GB <= budget {budget}GB")
+PY
+)"
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        echo "  [bake-budget-drift] $py_res" >&2
+        _violation "bake-budget gate failed: $py_res"
     else
-        for err in "${bad[@]}"; do
-            echo "  [bake-budget-drift] $err" >&2
-        done
-        _violation "bake-budget gate failed: projected baked size exceeds SSOT runner_disk_budget_gb"
+        # The gate-index generator captures this line verbatim as the check's
+        # description, so interpolating a variable put the literal text
+        # "$py_res" into the generated reference. The detail goes to stderr.
+        echo "[98-drift-checks]   bake-budget gate: projected baked image size within the SSOT disk budget"
+        [[ -n "$py_res" ]] && printf '%s
+' "$py_res" >&2
     fi
 }
 
@@ -3402,99 +3208,7 @@ PY
 
 check_negative_test_coverage() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re
-
-root = os.environ["MIOS_DRIFT_ROOT"]
-harness_path = os.path.join(root, "tests/drift-gate-negatives.sh")
-
-if not os.path.isfile(harness_path):
-    sys.exit(0)
-
-with open(harness_path, "r", encoding="utf-8", errors="ignore") as f:
-    harness_content = f.read()
-
-required_checks = [
-    "check_version_ssot",
-    "check_resolver_twin_equivalence",
-    "check_cli_eval_safety",
-    "check_shellcheck",
-    "check_names_registry",
-    "check_root_toml_subset",
-    "check_toml_projection",
-    "check_curl_retry",
-    "check_nested_podman_caps",
-    "check_bake_budget",
-    "check_module_test_coverage",
-    "check_router_parity",
-    "check_council_gate_ssot",
-    "check_agent_pipe_budgets",
-    "check_bake_plan",
-    "check_containerfile_pinned_clones",
-    "check_firstboot_tier",
-    "check_rechunk_budget",
-    "check_gate_registry",
-    "check_test_hermeticity",
-    "check_no_mkdir_in_var",
-    "check_quadlet_privilege",
-    "check_firstboot_degrade_open",
-    "check_firstboot_provisioners",
-    "check_schema_consumers",
-    "check_tasks_status_parity",
-    "check_agy_tasks",
-    "check_mios_toml_integrity",
-    "check_privileged_quadlets_minimal",
-    "check_container_names",
-    "check_service_urls",
-    "check_ports_bound",
-    "check_blade_coverage",
-    "check_blade_karg",
-    "check_role_ssot",
-    "check_port_fallbacks",
-    "check_node_pool",
-    "check_metal_vs_hosted",
-    "check_unit_projection",
-    "check_ssot_consumer_keys",
-    "check_fleet_safety",
-    "check_adr_index",
-    "check_ssot_lint_equivalence",
-    "check_oci_archive_path",
-    "check_replaceme_mount_substitution",
-    "check_kickstart_shell_syntax",
-    "check_offline_install_invariant",
-    "check_installer_family_roles",
-    "check_bib_configs_projection",
-    "check_repo_partition_label_ssot",
-    "check_bib_single_config_invariant",
-    "check_build_artifacts_output_dir",
-    "check_win11_vm_template_xml",
-    "check_ipa_enroll_projection",
-    "check_uki_cmdline_projection",
-    "check_composefs_projection",
-    "check_cockpit_projection",
-    "check_chrony_ptp_dropin",
-    "check_chrony_projection",
-    "check_nut_projection",
-    "check_renderer_gate_coverage",
-]
-
-test_fns = re.findall(r'^\s*(test_[a-z0-9_]+)\(\)\s*\{', harness_content, re.MULTILINE)
-
-bad = []
-if len(test_fns) < len(required_checks):
-    bad.append(f"Negative test suite count ({len(test_fns)}) is less than required law gates count ({len(required_checks)})")
-
-for chk in required_checks:
-    if chk not in harness_content:
-        bad.append(f"Required law/security check '{chk}' has no negative test in tests/drift-gate-negatives.sh")
-
-if bad:
-    for b in bad:
-        sys.stderr.write(f"    [negatives-coverage-drift] {b}\n")
-    sys.exit(1)
-
-sys.exit(0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py negative-test-coverage
     then
         echo "[98-drift-checks]   negative test coverage ratchet verified"
     else
@@ -3730,8 +3444,10 @@ PY
 
 check_offline_install_invariant() {
     local install_script="$ROOT/tools/install.sh"
+    local oci_ks="$ROOT/usr/share/mios/ventoy/mios-oci-install.ks"
+    
     if [[ ! -f "$install_script" ]]; then
-        echo "[98-drift-checks]   tools/install.sh absent"
+        _violation "tools/install.sh is absent -- offline-install invariant cannot be verified"
         return 0
     fi
 
@@ -3740,18 +3456,36 @@ check_offline_install_invariant() {
         return 0
     fi
 
-    if ! grep -q '\--transport oci-archive' "$install_script"; then
-        _violation "tools/install.sh does not invoke bootc install with --transport oci-archive"
+    # Strip comments so AI-hints and docstrings do not satisfy the executable invariant
+    local code
+    code="$(sed 's/#.*//' "$install_script")"
+
+    if ! grep -q -E '(oci-archive:|--transport\s+oci-archive)' <<<"$code"; then
+        _violation "tools/install.sh executable code does not invoke bootc install with oci-archive transport/source"
         return 0
     fi
 
-    local net_token="$(grep -nE '(http://|https://|git clone|podman pull|skopeo copy docker://)' "$install_script" | grep -v '^\s*#' || true)"
+    # Assert executable code in tools/install.sh and mios-oci-install.ks contains no forbidden network calls
+    local net_regex='(http://|https://|git clone|podman pull|skopeo copy docker://)'
+    local net_token
+    net_token="$(sed 's/#.*//' "$install_script" | grep -nE "$net_regex" || true)"
     if [[ -n "$net_token" ]]; then
         echo "$net_token" >&2
-        _violation "tools/install.sh contains forbidden network pull token violating zero-network offline-install contract"
-    else
-        echo "[98-drift-checks]   tools/install.sh zero-network offline-install invariant verified clean"
+        _violation "tools/install.sh executable code contains forbidden network pull token violating zero-network offline-install contract"
+        return 0
     fi
+
+    if [[ -f "$oci_ks" ]]; then
+        local ks_net_token
+        ks_net_token="$(sed 's/#.*//' "$oci_ks" | grep -nE "$net_regex" || true)"
+        if [[ -n "$ks_net_token" ]]; then
+            echo "$ks_net_token" >&2
+            _violation "usr/share/mios/ventoy/mios-oci-install.ks executable code contains forbidden network pull token"
+            return 0
+        fi
+    fi
+
+    echo "[98-drift-checks]   tools/install.sh zero-network offline-install invariant verified clean against executable code"
 }
 
 check_installer_family_roles() {
@@ -3797,18 +3531,16 @@ check_bib_configs_projection() {
 }
 
 check_repo_partition_label_ssot() {
-    # The label is READ from the SSOT, never defaulted. This used to end in
-    # `| cut -d'"' -f2 || echo "MiOS-Repo"`, and under set -euo pipefail a
-    # missing [cat.repo_partition] made grep exit 1, pipefail propagate it, and
-    # the fallback supply the very value the gate claims to verify. Renaming the
-    # table away and changing the label both stayed green.
+    # The label is READ from the SSOT, never defaulted.
     _need_python || return 0
     local ssot="$ROOT/usr/share/mios/mios.toml" ssot_label f
     local install_sh="$ROOT/tools/install.sh"
     local cfg="$ROOT/usr/share/mios/ventoy/mios-kickstart.cfg"
+    local oci_ks="$ROOT/usr/share/mios/ventoy/mios-oci-install.ks"
+    local loopback="$ROOT/cat/loopback.cfg"
     # A consumer that has gone missing is a violation: the label it tracked is
     # now enforced nowhere, which is exactly when this gate should speak.
-    for f in "$ssot" "$install_sh" "$cfg"; do
+    for f in "$ssot" "$install_sh" "$cfg" "$oci_ks" "$loopback"; do
         [[ -f "$f" ]] || { _violation "repo partition label consumer is absent: ${f#"$ROOT"/}"; return; }
     done
     ssot_label="$(python3 "$ROOT/tools/read-ssot-key.py" cat.repo_partition.label)" \
@@ -3818,6 +3550,10 @@ check_repo_partition_label_ssot() {
         || bad+="    tools/install.sh does not reference [cat.repo_partition].label '$ssot_label'"$'\n'
     grep -q "blkid -L \"$ssot_label\"" "$cfg" \
         || bad+="    usr/share/mios/ventoy/mios-kickstart.cfg does not reference [cat.repo_partition].label '$ssot_label'"$'\n'
+    grep -q "$ssot_label" "$oci_ks" \
+        || bad+="    usr/share/mios/ventoy/mios-oci-install.ks does not reference [cat.repo_partition].label '$ssot_label'"$'\n'
+    grep -q -E "($ssot_label|@@REPO_LABEL@@)" "$loopback" \
+        || bad+="    cat/loopback.cfg does not reference [cat.repo_partition].label '$ssot_label' or @@REPO_LABEL@@"$'\n'
     if [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
         _violation "repo partition label mismatch against [cat.repo_partition].label SSOT"
@@ -4409,30 +4145,50 @@ PY
 check_db_seed_coverage() {
     _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys
+import os, sys, importlib.util
 import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 seed_script = os.path.join(root, "usr/libexec/mios/seed-db-config.py")
 
-if not os.path.isfile(toml_path) or not os.path.isfile(seed_script):
-    sys.exit(0)
+if not os.path.isfile(toml_path):
+    sys.stderr.write(f"    Missing SSOT file: {toml_path}\n")
+    sys.exit(1)
 
-with open(toml_path, "rb") as f:
-    data = tomllib.load(f)
+if not os.path.isfile(seed_script):
+    sys.stderr.write(f"    Missing db seeder script: {seed_script}\n")
+    sys.exit(1)
 
-with open(seed_script, "r", encoding="utf-8") as f:
-    seed_code = f.read()
+try:
+    with open(toml_path, "rb") as f:
+        data = tomllib.load(f)
+except Exception as e:
+    sys.stderr.write(f"    Failed to parse mios.toml: {e}\n")
+    sys.exit(1)
 
-special_exempt = {"verbs", "packages", "laws", "build", "meta"}
+spec = importlib.util.spec_from_file_location("seed_db_config", seed_script)
+if not spec or not spec.loader:
+    sys.stderr.write(f"    Failed to load module spec from {seed_script}\n")
+    sys.exit(1)
+seed_mod = importlib.util.module_from_spec(spec)
+try:
+    spec.loader.exec_module(seed_mod)
+    get_seeded_sections = getattr(seed_mod, "get_seeded_sections", None)
+    if not get_seeded_sections:
+        sys.stderr.write(f"    get_seeded_sections function absent in {seed_script}\n")
+        sys.exit(1)
+except Exception as e:
+    sys.stderr.write(f"    Failed to import get_seeded_sections from {seed_script}: {e}\n")
+    sys.exit(1)
+
+seeded_set = set(get_seeded_sections(data))
+handled_separately = {"verbs", "packages"}
 
 uncovered = []
 for sec_name in data.keys():
-    if sec_name in special_exempt:
-        continue
-    if "kv_sections = [k for k in data.keys()" not in seed_code and sec_name not in seed_code:
-        uncovered.append(f"Section '{sec_name}' not reachable by seed-db-config.py")
+    if sec_name not in seeded_set and sec_name not in handled_separately:
+        uncovered.append(f"Section '{sec_name}' is not handled by seed-db-config.py")
 
 if uncovered:
     for u in uncovered:
@@ -4445,6 +4201,90 @@ PY
         echo "[98-drift-checks]   DB seed coverage gate verified clean"
     else
         _violation "DB seed coverage gate check failed: unseeded SSOT section found"
+    fi
+}
+
+check_verb_stub_backends() {
+    _need_python || return 0
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, glob, re
+import tomllib
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+
+if not os.path.isfile(toml_path):
+    sys.stderr.write("    SSOT mios.toml missing\n")
+    sys.exit(1)
+
+with open(toml_path, "rb") as f:
+    data = tomllib.load(f)
+
+verbs = data.get("verbs", {})
+violations = []
+
+def check_script_body(filepath):
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+    except Exception as e:
+        return f"Cannot read file {filepath}: {e}"
+
+    code_lines = []
+    for line in lines:
+        l = line.strip()
+        if not l or l.startswith("#"):
+            continue
+        if re.match(r'^(echo|printf|set\s+-|exit\s+[0-9]+|true|return\s+[0-9]+|export\s+[A-Z_]+=|usage\(\)\s*\{|:\s*;\s*|\}\s*;\s*)$', l):
+            continue
+        code_lines.append(l)
+
+    if len(code_lines) == 0:
+        return "Script body is a stub (produces no side effects)"
+    return None
+
+REGISTERED_STUBS = set()
+
+for sdir in [os.path.join(root, "usr/libexec/mios"), os.path.join(root, "installation")]:
+    if os.path.isdir(sdir):
+        for path in glob.glob(os.path.join(sdir, "**/*"), recursive=True):
+            if os.path.isfile(path) and (path.endswith(".sh") or path.endswith(".ps1") or "." not in os.path.basename(path)):
+                rel = os.path.relpath(path, root).replace("\\", "/")
+                res = check_script_body(path)
+                if res and rel not in REGISTERED_STUBS:
+                    violations.append(f"{rel}: {res}")
+
+def walk_verbs(prefix, d):
+    for k, v in d.items():
+        if k == "_defaults":
+            continue
+        full_name = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            cmd = v.get("cmd") or v.get("exec")
+            if cmd:
+                tokens = cmd.strip().split()
+                first = tokens[0] if tokens else ""
+                if first.startswith("/usr/libexec/mios/") or first.startswith("/installation/"):
+                    rel_path = first.lstrip("/")
+                    full = os.path.join(root, rel_path)
+                    if not os.path.exists(full):
+                        violations.append(f"Verb {full_name} backend script missing: {rel_path}")
+            elif any(isinstance(val, dict) for val in v.values()):
+                walk_verbs(full_name, v)
+
+walk_verbs("", verbs)
+
+if violations:
+    for v in violations:
+        sys.stderr.write(f"    {v}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+    then
+        echo "[98-drift-checks]   verb stub backends gate verified clean"
+    else
+        _violation "verb stub backends check failed: stub backend script found"
     fi
 }
 
@@ -5096,6 +4936,7 @@ main() {
     check_windows_exe_provenance
     check_unpinned_runtime_fetches
     check_secret_handling
+    check_os_update_timer_enabled
     check_wsl_distro_resolution
     check_adhoc_toml_parsers
     check_install_uninstall_symmetry
@@ -5139,6 +4980,7 @@ main() {
     check_usr_over_etc
     check_projection_registry
     check_db_seed_coverage
+    check_verb_stub_backends
     check_account_column_parity
     check_module_length
     check_firstboot_provisioners
@@ -5398,7 +5240,13 @@ check_ps_signatures() {
         done
 
         if [ -n "$ps_bin" ]; then
-            if ! "$ps_bin" -NoProfile -NonInteractive -File "$ROOT/automation/verify-ps-signatures.ps1" -RepoRoot "$ROOT"; then
+            local script_path="$ROOT/automation/verify-ps-signatures.ps1"
+            local repo_root="$ROOT"
+            if [[ "$ps_bin" == *".exe"* ]] && command -v wslpath >/dev/null 2>&1; then
+                script_path="$(wslpath -w "$script_path")"
+                repo_root="$(wslpath -w "$repo_root")"
+            fi
+            if ! "$ps_bin" -NoProfile -NonInteractive -File "$script_path" -RepoRoot "$repo_root"; then
                 _violation "PowerShell Authenticode signature verification failed"
             fi
         else
@@ -5468,20 +5316,82 @@ check_unpinned_runtime_fetches() {
 }
 
 check_secret_handling() {
-    echo "[98-drift-checks]   check_secret_handling"
-    local ps_files=()
-    # Whole tree: a -maxdepth bound cannot reach usr/share/mios/windows or
-    # usr/libexec/mios, where most of the Windows secret handling actually lives.
-    while IFS= read -r f; do ps_files+=("$f"); done < <(find "$ROOT" -name "*.ps1" -not -path "*/.git/*")
-    local f
-    for f in "${ps_files[@]}"; do
-        if [[ -f "$f" ]]; then
-            if grep -q "mios-secrets.env" "$f"; then
-                _violation "Script $(basename "$f") writes/reads secrets in plaintext %TEMP%\mios-secrets.env"
-            fi
-        fi
-    done
-    echo "[98-drift-checks]   No PS script writes secrets to plaintext %TEMP% files"
+    _need_python || return 0
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re, glob
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+key_regex = re.compile(r'-----BEGIN (?:RSA|OPENSSH|EC|PGP|PRIVATE) KEY-----')
+conn_regex = re.compile(r'(?:postgres|mysql|mongodb|redis)://[a-zA-Z0-9_-]+:[^@\s\"\'`]{4,}@')
+token_regex = re.compile(r'\b(?:AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]{20})\b')
+
+EXEMPT_PATHS = {
+    "usr/share/doc/mios/reference/audit-security.md",
+    "usr/share/doc/mios/reference/audit-deploy-plane.md",
+    "AGY-TASKS.md",
+}
+
+violations = []
+
+for dirpath, _, filenames in os.walk(root):
+    norm_dir = dirpath.replace("\\", "/")
+    if "/.git" in norm_dir or "/__pycache__" in norm_dir or "/.cargo" in norm_dir or "/target" in norm_dir:
+        continue
+    for f in filenames:
+        if f.endswith((".png", ".jpg", ".tar", ".zip", ".exe", ".pyc", ".iso", ".qcow2", ".vhdx")):
+            continue
+        path = os.path.join(dirpath, f)
+        rel = os.path.relpath(path, root).replace("\\", "/")
+        if rel in EXEMPT_PATHS or rel.startswith("tests/") or rel.startswith("scratch/"):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                content = fh.read()
+        except Exception:
+            continue
+
+        if key_regex.search(content):
+            violations.append(f"{rel}: contains un-allowlisted Private Key block")
+        if conn_regex.search(content):
+            violations.append(f"{rel}: contains hardcoded database password connection string")
+        if token_regex.search(content):
+            violations.append(f"{rel}: contains hardcoded API secret token")
+
+ps_files = glob.glob(os.path.join(root, "**/*.ps1"), recursive=True)
+for ps in ps_files:
+    rel = os.path.relpath(ps, root).replace("\\", "/")
+    if "/.git" in rel:
+        continue
+    try:
+        with open(ps, "r", encoding="utf-8", errors="ignore") as fh:
+            if "mios-secrets.env" in fh.read():
+                violations.append(f"{rel}: writes/reads secrets in plaintext %TEMP%\\mios-secrets.env")
+    except Exception:
+        continue
+
+if violations:
+    for v in violations:
+        sys.stderr.write(f"    {v}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+    then
+        echo "[98-drift-checks]   secret handling gate verified clean end-to-end"
+    else
+        _violation "secret handling gate failed: un-allowlisted secret shape or temp secret leak found"
+    fi
+}
+
+check_os_update_timer_enabled() {
+    echo "[98-drift-checks]   check_os_update_timer_enabled"
+    local unit_dir="$ROOT/usr/share/mios/systemd"
+    local sys_dir="$ROOT/usr/lib/systemd/system"
+    if [[ -f "$unit_dir/uupd.timer" || -f "$sys_dir/uupd.timer" || -f "$unit_dir/bootc-fetch-apply-updates.timer" || -f "$sys_dir/bootc-fetch-apply-updates.timer" || -f "$unit_dir/bootc-fetch-apply-updates.service" || -f "$sys_dir/bootc-fetch-apply-updates.service" ]]; then
+        echo "[98-drift-checks]   OS update timer/service definition verified present"
+    else
+        _violation "No OS update timer or service definition found (uupd.timer or bootc-fetch-apply-updates.timer/service required)"
+    fi
 }
 
 check_wsl_distro_resolution() {

@@ -1753,7 +1753,369 @@ def check_structured() -> int:
     sys.exit(1 if viol else 0)
 
 
+def check_negative_test_coverage() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import os, sys, re
+
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    harness_path = os.path.join(root, "tests/drift-gate-negatives.sh")
+
+    if not os.path.isfile(harness_path):
+        sys.exit(0)
+
+    with open(harness_path, "r", encoding="utf-8", errors="ignore") as f:
+        harness_content = f.read()
+
+    required_checks = [
+        "check_version_ssot",
+        "check_resolver_twin_equivalence",
+        "check_cli_eval_safety",
+        "check_shellcheck",
+        "check_names_registry",
+        "check_root_toml_subset",
+        "check_toml_projection",
+        "check_curl_retry",
+        "check_nested_podman_caps",
+        "check_bake_budget",
+        "check_module_test_coverage",
+        "check_router_parity",
+        "check_council_gate_ssot",
+        "check_agent_pipe_budgets",
+        "check_bake_plan",
+        "check_containerfile_pinned_clones",
+        "check_firstboot_tier",
+        "check_rechunk_budget",
+        "check_gate_registry",
+        "check_test_hermeticity",
+        "check_no_mkdir_in_var",
+        "check_quadlet_privilege",
+        "check_firstboot_degrade_open",
+        "check_firstboot_provisioners",
+        "check_schema_consumers",
+        "check_tasks_status_parity",
+        "check_agy_tasks",
+        "check_mios_toml_integrity",
+        "check_privileged_quadlets_minimal",
+        "check_container_names",
+        "check_service_urls",
+        "check_ports_bound",
+        "check_blade_coverage",
+        "check_blade_karg",
+        "check_role_ssot",
+        "check_port_fallbacks",
+        "check_node_pool",
+        "check_metal_vs_hosted",
+        "check_unit_projection",
+        "check_ssot_consumer_keys",
+        "check_fleet_safety",
+        "check_adr_index",
+        "check_ssot_lint_equivalence",
+        "check_oci_archive_path",
+        "check_replaceme_mount_substitution",
+        "check_kickstart_shell_syntax",
+        "check_offline_install_invariant",
+        "check_installer_family_roles",
+        "check_bib_configs_projection",
+        "check_repo_partition_label_ssot",
+        "check_bib_single_config_invariant",
+        "check_build_artifacts_output_dir",
+        "check_win11_vm_template_xml",
+        "check_ipa_enroll_projection",
+        "check_uki_cmdline_projection",
+        "check_composefs_projection",
+        "check_cockpit_projection",
+        "check_chrony_ptp_dropin",
+        "check_chrony_projection",
+        "check_nut_projection",
+        "check_renderer_gate_coverage",
+    ]
+
+    test_fns = re.findall(r'^\s*(test_[a-z0-9_]+)\(\)\s*\{', harness_content, re.MULTILINE)
+
+    bad = []
+    if len(test_fns) < len(required_checks):
+        bad.append(f"Negative test suite count ({len(test_fns)}) is less than required law gates count ({len(required_checks)})")
+
+    for chk in required_checks:
+        if chk not in harness_content:
+            bad.append(f"Required law/security check '{chk}' has no negative test in tests/drift-gate-negatives.sh")
+
+    if bad:
+        for b in bad:
+            sys.stderr.write(f"    [negatives-coverage-drift] {b}\n")
+        sys.exit(1)
+
+    sys.exit(0)
+
+
+def check_bake_plan_integrity() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import glob, os, sys
+    import tomllib
+
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+    plan_dir = os.path.join(root, "usr/lib/mios/bake/plan.d")
+
+    if not os.path.isfile(toml_path) or not os.path.isdir(plan_dir):
+        sys.exit(0)
+
+    with open(toml_path, "rb") as f:
+        data = tomllib.load(f)
+
+    bake_cfg = data.get("build", {}).get("bake", {})
+    core_set = set(bake_cfg.get("core", []))
+    tokens = bake_cfg.get("firstboot_tokens", [])
+
+    group_files = sorted(glob.glob(os.path.join(plan_dir, "[0-9][0-9]-*.list")))
+    fb_file = os.path.join(plan_dir, "firstboot.list")
+
+    group_images = set()
+    group_map = {}
+    for gf in group_files:
+        gname = os.path.basename(gf)
+        with open(gf, "r", encoding="utf-8") as f:
+            imgs = set(line.strip() for line in f if line.strip())
+        group_map[gname] = imgs
+        group_images.update(imgs)
+
+    fb_images = set()
+    if os.path.isfile(fb_file):
+        with open(fb_file, "r", encoding="utf-8") as f:
+            fb_images = set(line.strip() for line in f if line.strip())
+
+    viol = []
+
+    for tok in tokens:
+        for gname, imgs in group_map.items():
+            hits = [img for img in imgs if tok in img.lower()]
+            if hits:
+                viol.append(f"Firstboot token '{tok}' image(s) found in baked group list {gname}: {hits}")
+
+        matching_core = [img for img in core_set if tok in img.lower()]
+        for img in matching_core:
+            if img not in fb_images:
+                viol.append(f"Core image '{img}' matching firstboot token '{tok}' missing from firstboot.list")
+
+    for tok in tokens:
+        matching_fb = [img for img in fb_images if tok in img.lower()]
+        for img in matching_fb:
+            if img not in core_set:
+                viol.append(f"Firstboot image '{img}' is not listed in [build.bake].core SSOT")
+
+    all_plan_imgs = list(group_images) + list(fb_images)
+    if len(all_plan_imgs) != len(set(all_plan_imgs)):
+        viol.append("Duplicate image entries found across plan.d/*.list and firstboot.list")
+
+    if set(all_plan_imgs) != core_set:
+        missing_from_plan = core_set - set(all_plan_imgs)
+        extra_in_plan = set(all_plan_imgs) - core_set
+        if missing_from_plan:
+            viol.append(f"Core images missing from plan.d: {missing_from_plan}")
+        if extra_in_plan:
+            viol.append(f"Extra images in plan.d not in core: {extra_in_plan}")
+
+    if bool(tokens) != bool(fb_images):
+        viol.append(f"firstboot_tokens non-empty ({tokens}) but firstboot.list empty ({fb_images}) or vice versa")
+
+    if viol:
+        for v in viol:
+            sys.stderr.write(f"    {v}\n")
+        sys.exit(1)
+
+    sys.exit(0)
+
+
+def check_globals_image_parity() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import os, sys, re
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    import tomllib as _toml
+    toml = os.path.join(root, "usr/share/mios/mios.toml")
+    if not os.path.isfile(toml):
+        sys.exit(0)
+    with open(toml, "rb") as fh:
+        img = (_toml.load(fh).get("image", {}) or {})
+
+    expected_name = img.get("name", "ghcr.io/mios-dev/mios")
+    expected_base = img.get("base", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")
+    expected_bib = img.get("bib", "quay.io/centos-bootc/bootc-image-builder:latest")
+
+    bad = []
+    sh = os.path.join(root, "automation/lib/globals.sh")
+    if os.path.isfile(sh):
+        with open(sh, encoding="utf-8") as fh:
+            content = fh.read()
+
+            m = re.search(r'MIOS_IMAGE_NAME:=([^}]+)\}', content)
+            if m:
+                got = m.group(1).strip('"\' ')
+                if got != expected_name:
+                    bad.append(f"globals.sh default MIOS_IMAGE_NAME={got} != mios.toml [image].name={expected_name}")
+            else:
+                bad.append("globals.sh is missing default MIOS_IMAGE_NAME definition")
+
+            m = re.search(r'MIOS_BASE_IMAGE:=([^}]+)\}', content)
+            if m:
+                got = m.group(1).strip('"\' ')
+                if got != expected_base:
+                    bad.append(f"globals.sh default MIOS_BASE_IMAGE={got} != mios.toml [image].base={expected_base}")
+            else:
+                bad.append("globals.sh is missing default MIOS_BASE_IMAGE definition")
+
+            m = re.search(r'MIOS_BIB_IMAGE:=([^}]+)\}', content)
+            if m:
+                got = m.group(1).strip('"\' ')
+                if got != expected_bib:
+                    bad.append(f"globals.sh default MIOS_BIB_IMAGE={got} != mios.toml [image].bib={expected_bib}")
+            else:
+                bad.append("globals.sh is missing default MIOS_BIB_IMAGE definition")
+
+    ps1 = os.path.join(root, "automation/lib/globals.ps1")
+    if os.path.isfile(ps1):
+        with open(ps1, encoding="utf-8") as fh:
+            content = fh.read()
+
+            m = re.search(r'\$defaultImageName\s*=\s*([^#\r\n]+)', content)
+            if m:
+                got = m.group(1).strip('"\' ')
+                if got != expected_name:
+                    bad.append(f"globals.ps1 defaultImageName={got} != mios.toml [image].name={expected_name}")
+            else:
+                bad.append("globals.ps1 is missing $defaultImageName definition")
+
+            m = re.search(r'MIOS_BASE_IMAGE[^\r\n]+else\s*\{\s*([^}]+)\}', content)
+            if m:
+                got = m.group(1).strip('"\' ')
+                if got != expected_base:
+                    bad.append(f"globals.ps1 default MIOS_BASE_IMAGE={got} != mios.toml [image].base={expected_base}")
+            else:
+                bad.append("globals.ps1 is missing default MIOS_BASE_IMAGE definition")
+
+            m = re.search(r'MIOS_BIB_IMAGE[^\r\n]+else\s*\{\s*([^}]+)\}', content)
+            if m:
+                got = m.group(1).strip('"\' ')
+                if got != expected_bib:
+                    bad.append(f"globals.ps1 default MIOS_BIB_IMAGE={got} != mios.toml [image].bib={expected_bib}")
+            else:
+                bad.append("globals.ps1 is missing default MIOS_BIB_IMAGE definition")
+
+    for b in bad:
+        sys.stderr.write(f"    {b}\n")
+    sys.exit(1 if bad else 0)
+
+
+def check_no_bare_port_literals() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import os, sys, re, ast
+
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    banned_ports = ["11450", "11441", "11440", "11451", "11434", "11435"]
+    scan_dirs = [
+        os.path.join(root, "usr/lib/mios/agent-pipe"),
+        os.path.join(root, "usr/libexec/mios"),
+        os.path.join(root, "usr/bin")
+    ]
+
+    class DocstringCollector(ast.NodeVisitor):
+        def __init__(self):
+            self.docstring_nodes = set()
+        def check_body(self, body):
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+                if isinstance(body[0].value.value, str):
+                    self.docstring_nodes.add(body[0].value)
+        def visit_Module(self, node):
+            self.check_body(node.body)
+            self.generic_visit(node)
+        def visit_FunctionDef(self, node):
+            self.check_body(node.body)
+            self.generic_visit(node)
+        def visit_AsyncFunctionDef(self, node):
+            self.check_body(node.body)
+            self.generic_visit(node)
+        def visit_ClassDef(self, node):
+            self.check_body(node.body)
+            self.generic_visit(node)
+
+    violations = []
+    for d in scan_dirs:
+        if not os.path.isdir(d):
+            continue
+        for r, ds, fs in os.walk(d):
+            for f in fs:
+                if not f.endswith((".py", ".sh", ".ps1")) or "test_" in f:
+                    continue
+                if f in ["Setup-MiOSLanPortProxy.ps1", "Heal-MiOSLocalhostForwarding.ps1", "Setup-MiOSLanPortProxy.ps1.bom-bak", "mios-doctor"]:
+                    continue
+                path = os.path.join(r, f)
+                try:
+                    with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                        content = fh.read()
+
+                    if f.endswith(".py"):
+                        try:
+                            tree = ast.parse(content)
+                            collector = DocstringCollector()
+                            collector.visit(tree)
+
+                            for node in ast.walk(tree):
+                                if isinstance(node, ast.Constant):
+                                    if node in collector.docstring_nodes:
+                                        continue
+                                    val = str(node.value)
+                                    for port in banned_ports:
+                                        if port in val:
+                                            violations.append(f"{f}:{getattr(node, 'lineno', '?')} contains banned port '{port}' in constant '{val}'")
+                        except Exception as e:
+                            for line_no, line in enumerate(content.splitlines(), 1):
+                                stripped = line.strip()
+                                if stripped.startswith(("#", "'''", '"""')):
+                                    continue
+                                code_part = line.split("#", 1)[0]
+                                for port in banned_ports:
+                                    if port in code_part:
+                                        violations.append(f"{f}:{line_no} contains banned port '{port}' (fallback)")
+                    else:
+                        for line_no, line in enumerate(content.splitlines(), 1):
+                            stripped = line.strip()
+                            if stripped.startswith(("#", "//", "Write-Host", "echo", "help", "usage")):
+                                continue
+                            # Only "#" starts a comment in sh and PowerShell. Splitting on
+                            # "//" as well truncated every line at the scheme separator of a
+                            # URL, so a retired port was invisible in http://host:PORT/... --
+                            # the one form these ports actually take. Verified: PORT=11434 was
+                            # reported, the identical port inside a URL was not.
+                            code_part = line.split("#", 1)[0]
+                            for port in banned_ports:
+                                if port in code_part:
+                                    violations.append(f"{f}:{line_no} contains banned port '{port}'")
+                except OSError:
+                    pass
+
+    if violations:
+        for v in sorted(set(violations)):
+            sys.stderr.write(f"    {v}\n")
+        sys.exit(1)
+    sys.exit(0)
+
+
 SUBCOMMANDS = {
+    "no-bare-port-literals": check_no_bare_port_literals,
+    "globals-image-parity": check_globals_image_parity,
+    "bake-plan-integrity": check_bake_plan_integrity,
+    "negative-test-coverage": check_negative_test_coverage,
     "structured": check_structured,
     "drift-build-catalog": check_drift_build_catalog,
     "drift-projection": check_drift_projection,

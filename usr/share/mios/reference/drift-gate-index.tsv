@@ -74,7 +74,7 @@
 73	check_curl_retry	curl/wget build network fetches carry
 74	check_resolver_ssot_refs	mios-resolve-latest derives its image refs from [image.sidecars]
 75	check_nested_podman_caps	nested-podman capability flags & reference doc verified
-76	check_bake_budget	bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit
+76	check_bake_budget	bake-budget gate: projected baked image size within the SSOT disk budget
 77	check_clevis_luks	clevis LUKS SSOT projection check
 78	check_metal_vfio	MiOS-Metal vfio-pci SSOT projection check
 79	check_router_parity	Router Stage-2 parity gate satisfied
@@ -92,7 +92,7 @@
 91	check_replaceme_mount_substitution	Justfile absent
 92	check_kickstart_shell_syntax	embedded kickstart %post shell syntax verified clean with bash -n
 93	check_bib_rootfs_label_policy	Justfile absent
-94	check_offline_install_invariant	tools/install.sh absent
+94	check_offline_install_invariant	tools/install.sh zero-network offline-install invariant verified clean against executable code
 95	check_installer_family_roles	installer family role markers verified unique across all installers
 96	check_bib_configs_projection	BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT
 97	check_repo_partition_label_ssot	repo partition label consumers match [cat.repo_partition].label SSOT
@@ -115,91 +115,93 @@
 114	check_ps_signatures	check_ps_signatures
 115	check_windows_exe_provenance	check_windows_exe_provenance
 116	check_unpinned_runtime_fetches	check_unpinned_runtime_fetches
-117	check_secret_handling	check_secret_handling
-118	check_wsl_distro_resolution	check_wsl_distro_resolution
-119	check_adhoc_toml_parsers	check_adhoc_toml_parsers
-120	check_install_uninstall_symmetry	check_install_uninstall_symmetry
-121	check_ps_port_fallback_ssot	check_ps_port_fallback_ssot
-122	check_github_slug_casing	check_github_slug_casing
-123	check_ps_encoding_and_bom	check_ps_encoding_and_bom
-124	check_unit_dependency_closure	check_unit_dependency_closure
-125	check_docs_ratchet	check_docs_ratchet
-126	check_header_integrity	check_header_integrity
-127	check_legibility_ratchet	check_legibility_ratchet
-128	check_docs_ratchet_monotone	check_docs_ratchet_monotone
-129	check_comment_lex_equivalence	check_comment_lex_equivalence
-130	check_no_generated_prose_in_resolvers	check_no_generated_prose_in_resolvers
-131	check_manual_generated	check_manual_generated
-132	check_manual_ledger	the corpus ledger regenerates verbatim from the tracked tree
-133	check_comment_landing	every pruned comment still lands in a doc
-134	check_credential_literals	check_credential_literals
-135	check_redact_coverage	check_redact_coverage
-136	check_task_schema	check_task_schema
-137	check_daemon_governor	check_daemon_governor
-138	check_manual_links	check_manual_links
-139	check_doc_port_scheme	check_doc_port_scheme
-140	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged
-141	check_renderer_gate_coverage	renderer gate coverage verified clean
-142	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree
-143	check_negative_coverage	negative test coverage gate: all dispatched checks are covered or exempt
-144	check_verb_templates	verb templates compile and validate against SSOT args
-145	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
-146	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
-147	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
-148	check_desktop_launchers	check_no_inert_ssot_tables
-149	check_guacamole_consistency	check_guacamole_consistency
-150	check_no_inert_ssot_tables	check_no_inert_ssot_tables
-151	check_doc_refs_resolve	check_doc_refs_resolve
-152	check_resolver_differential_parity	check_resolver_differential_parity
-153	check_generator_host_parity	check_generator_host_parity
-154	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
-155	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
-156	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
-157	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
-158	check_db_seed_coverage	DB seed coverage gate verified clean
-159	check_account_column_parity	account column parity gate verified clean
-160	check_module_length	check_module_length
-161	check_firstboot_provisioners	check_no_inert_ssot_tables
-162	check_schema_consumers	check_schema_consumers
-163	check_tasks_status_parity	check_no_inert_ssot_tables
-164	check_agy_tasks	check_no_inert_ssot_tables
-165	check_mios_toml_integrity	check_no_inert_ssot_tables
-166	check_privileged_quadlets_minimal	check_no_inert_ssot_tables
-167	check_container_names	check_no_inert_ssot_tables
-168	check_service_urls	check_no_inert_ssot_tables
-169	check_ports_bound	check_no_inert_ssot_tables
-170	check_blade_coverage	check_no_inert_ssot_tables
-171	check_blade_karg	check_no_inert_ssot_tables
-172	check_blade_reconcile_schema	check_blade_reconcile_schema
-173	check_role_ssot	check_no_inert_ssot_tables
-174	check_port_fallbacks	check_no_inert_ssot_tables
-175	check_node_pool	check_no_inert_ssot_tables
-176	check_metal_vs_hosted	check_no_inert_ssot_tables
-177	check_unit_projection	check_no_inert_ssot_tables
-178	check_ssot_consumer_keys	check_no_inert_ssot_tables
-179	check_fleet_safety	check_no_inert_ssot_tables
-180	check_adr_index	check_adr_index
-181	check_vendored_assets_non_stub	vendored assets dir absent
-182	check_resolved_env_lossless	resolved environment is lossless
-183	check_no_duplicate_value_key	value-duplication within the recorded ratchet ceiling
-184	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
-185	check_value_aliases	value-alias consistency verified
-186	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
-187	check_bash_phase_ratchet	bash phase script count ratchet check
-188	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
-189	check_negatives_are_effective	negative-test effectiveness check
-190	check_pipefail_grep_lint	pipefail grep lint check
-191	check_skip_list_covered	checking the agent-pipe skip list lives in the SSOT
-192	check_ai_manifests_fresh	checking AI manifest freshness
-193	check_ports_category_schema	checking port category schema (allocation + collisions)
-194	check_globals_generated	checking generated globals resolvers match SSOT
-195	check_ci_suite_coverage	check_ci_suite_coverage
-196	check_manpages	check_manpages
-197	check_rust_test_coverage	check_rust_test_coverage
-198	check_header_comment_syntax	check_header_comment_syntax
-199	check_variant_registry	check_variant_registry
-200	check_deploy_formats	check_deploy_formats
-201	check_verify_images	check_verify_images
-202	check_temp_fixture_cleanup	check_temp_fixture_cleanup
-203	check_negatives_registered	check_negatives_registered
-204	check_leaked_fixtures	check_leaked_fixtures
+117	check_secret_handling	secret handling
+118	check_os_update_timer_enabled	check_os_update_timer_enabled
+119	check_wsl_distro_resolution	check_wsl_distro_resolution
+120	check_adhoc_toml_parsers	check_adhoc_toml_parsers
+121	check_install_uninstall_symmetry	check_install_uninstall_symmetry
+122	check_ps_port_fallback_ssot	check_ps_port_fallback_ssot
+123	check_github_slug_casing	check_github_slug_casing
+124	check_ps_encoding_and_bom	check_ps_encoding_and_bom
+125	check_unit_dependency_closure	check_unit_dependency_closure
+126	check_docs_ratchet	check_docs_ratchet
+127	check_header_integrity	check_header_integrity
+128	check_legibility_ratchet	check_legibility_ratchet
+129	check_docs_ratchet_monotone	check_docs_ratchet_monotone
+130	check_comment_lex_equivalence	check_comment_lex_equivalence
+131	check_no_generated_prose_in_resolvers	check_no_generated_prose_in_resolvers
+132	check_manual_generated	check_manual_generated
+133	check_manual_ledger	the corpus ledger regenerates verbatim from the tracked tree
+134	check_comment_landing	every pruned comment still lands in a doc
+135	check_credential_literals	check_credential_literals
+136	check_redact_coverage	check_redact_coverage
+137	check_task_schema	check_task_schema
+138	check_daemon_governor	check_daemon_governor
+139	check_manual_links	check_manual_links
+140	check_doc_port_scheme	check_doc_port_scheme
+141	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged
+142	check_renderer_gate_coverage	renderer gate coverage verified clean
+143	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree
+144	check_negative_coverage	negative test coverage gate: all dispatched checks are covered or exempt
+145	check_verb_templates	verb templates compile and validate against SSOT args
+146	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
+147	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
+148	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
+149	check_desktop_launchers	check_no_inert_ssot_tables
+150	check_guacamole_consistency	check_guacamole_consistency
+151	check_no_inert_ssot_tables	check_no_inert_ssot_tables
+152	check_doc_refs_resolve	check_doc_refs_resolve
+153	check_resolver_differential_parity	check_resolver_differential_parity
+154	check_generator_host_parity	check_generator_host_parity
+155	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
+156	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
+157	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
+158	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
+159	check_db_seed_coverage	DB seed coverage gate verified clean
+160	check_verb_stub_backends	verb stub backends gate verified clean
+161	check_account_column_parity	account column parity gate verified clean
+162	check_module_length	check_module_length
+163	check_firstboot_provisioners	check_no_inert_ssot_tables
+164	check_schema_consumers	check_schema_consumers
+165	check_tasks_status_parity	check_no_inert_ssot_tables
+166	check_agy_tasks	check_no_inert_ssot_tables
+167	check_mios_toml_integrity	check_no_inert_ssot_tables
+168	check_privileged_quadlets_minimal	check_no_inert_ssot_tables
+169	check_container_names	check_no_inert_ssot_tables
+170	check_service_urls	check_no_inert_ssot_tables
+171	check_ports_bound	check_no_inert_ssot_tables
+172	check_blade_coverage	check_no_inert_ssot_tables
+173	check_blade_karg	check_no_inert_ssot_tables
+174	check_blade_reconcile_schema	check_blade_reconcile_schema
+175	check_role_ssot	check_no_inert_ssot_tables
+176	check_port_fallbacks	check_no_inert_ssot_tables
+177	check_node_pool	check_no_inert_ssot_tables
+178	check_metal_vs_hosted	check_no_inert_ssot_tables
+179	check_unit_projection	check_no_inert_ssot_tables
+180	check_ssot_consumer_keys	check_no_inert_ssot_tables
+181	check_fleet_safety	check_no_inert_ssot_tables
+182	check_adr_index	check_adr_index
+183	check_vendored_assets_non_stub	vendored assets dir absent
+184	check_resolved_env_lossless	resolved environment is lossless
+185	check_no_duplicate_value_key	value-duplication within the recorded ratchet ceiling
+186	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+187	check_value_aliases	value-alias consistency verified
+188	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
+189	check_bash_phase_ratchet	bash phase script count ratchet check
+190	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
+191	check_negatives_are_effective	negative-test effectiveness check
+192	check_pipefail_grep_lint	pipefail grep lint check
+193	check_skip_list_covered	checking the agent-pipe skip list lives in the SSOT
+194	check_ai_manifests_fresh	checking AI manifest freshness
+195	check_ports_category_schema	checking port category schema (allocation + collisions)
+196	check_globals_generated	checking generated globals resolvers match SSOT
+197	check_ci_suite_coverage	check_ci_suite_coverage
+198	check_manpages	check_manpages
+199	check_rust_test_coverage	check_rust_test_coverage
+200	check_header_comment_syntax	check_header_comment_syntax
+201	check_variant_registry	check_variant_registry
+202	check_deploy_formats	check_deploy_formats
+203	check_verify_images	check_verify_images
+204	check_temp_fixture_cleanup	check_temp_fixture_cleanup
+205	check_negatives_registered	check_negatives_registered
+206	check_leaked_fixtures	check_leaked_fixtures

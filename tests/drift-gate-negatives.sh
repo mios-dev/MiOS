@@ -1730,8 +1730,6 @@ test_db_seed_coverage() {
     echo "" >> "$toml_file"
     echo "[unseeded_bogus_test_section]" >> "$toml_file"
     echo "Key = \"value\"" >> "$toml_file"
-    
-    sed -i 's/kv_sections = \[k for k in data.keys()/kv_sections = \[\] # removed for test/' "$seed_script"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_db_seed_coverage >/dev/null 2>&1; then
         echo "$orig_val" > "$toml_file"
@@ -3660,6 +3658,38 @@ test_header_integrity() {
     log "check_header_integrity negative test passed"
 }
 
+test_os_update_timer_enabled() {
+    log "Testing check_os_update_timer_enabled"
+    local sys_dir="${ROOT}/usr/lib/systemd/system"
+    local probe="${sys_dir}/bootc-fetch-apply-updates.timer"
+    local backed_up=0
+    if [[ -f "$probe" ]]; then
+        mv "$probe" "${probe}.negtest"
+        backed_up=1
+    fi
+    if _neg_gate check_os_update_timer_enabled; then
+        [[ $backed_up -eq 1 ]] && mv "${probe}.negtest" "$probe"
+        die "check_os_update_timer_enabled passed despite missing OS update timer definition"
+    fi
+    [[ $backed_up -eq 1 ]] && mv "${probe}.negtest" "$probe"
+    _neg_gate check_os_update_timer_enabled || die "check_os_update_timer_enabled failed after restoration"
+    log "check_os_update_timer_enabled negative test passed"
+}
+
+test_verb_stub_backends() {
+    log "Testing check_verb_stub_backends"
+    local probe="${ROOT}/usr/libexec/mios/mios-negtest-stub.sh"
+    printf '#!/usr/bin/env bash\n# AI-hint: probe stub\n\n' > "$probe"
+    git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
+    if _neg_gate check_verb_stub_backends; then
+        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
+        die "check_verb_stub_backends passed despite stub script body"
+    fi
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
+    _neg_gate check_verb_stub_backends || die "check_verb_stub_backends failed after restoration"
+    log "check_verb_stub_backends negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3835,6 +3865,8 @@ _run_test test_leaked_fixtures
     _run_test test_header_comment_syntax
     _run_test test_repo_partition_label_ssot
     _run_test test_rust_test_coverage
+    _run_test test_os_update_timer_enabled
+    _run_test test_verb_stub_backends
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s

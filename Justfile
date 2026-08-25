@@ -309,8 +309,8 @@ all: build oci-archive raw iso usb-installer qcow2 vhdx wsl2
     @echo "[NEXT] Run 'just verify-images' to confirm artifact integrity"
 
 usb-installer: iso
-    @mkdir -p build/usb-installer
-    @isos=$$(ls build/*.iso build/bootiso/*.iso 2>/dev/null); \
+	@mkdir -p build/usb-installer
+	@isos=$$(ls build/iso/*.iso build/iso/bootiso/*.iso build/*.iso build/bootiso/*.iso 2>/dev/null); \
     if [ -n "$$isos" ]; then \
         for src in $$isos; do \
             [ -f "$$src" ] || continue; \

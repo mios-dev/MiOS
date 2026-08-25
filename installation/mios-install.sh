@@ -295,17 +295,9 @@ resolve_config() {
 
 resolve_install_core() {
     local mode="${1:-fhs}"
-    # This is NOT the installer. The core -- host detection, the overlay merge,
-    # the package phase, the user profile -- lives in mios-bootstrap's
-    # do_install_core, and installation/mios-install.sh is in
-    # [bootstrap.sync].not_mirrored so this copy never received it.
-    #
-    # It used to read:  CMD=(echo "MiOS installer core executed in ${mode} mode")
-    # which printed a phase banner, an "[ OK ] Preflight checks passed" line and
-    # exited 0 having installed nothing. An operator could not tell that apart
-    # from a successful install, and neither could a test.
-    #
-    # Failing is the honest behaviour until the core is ported here.
+    if [[ "$mode" != "fhs" && "$mode" != "bootc" ]]; then
+        die "Unknown install mode '${mode}'. Supported modes: fhs, bootc"
+    fi
     log_err "The installer core is not implemented in this repository."
     log_err "It lives in mios-bootstrap: installation/mios-install.sh do_install_core."
     log_err "Requested mode: ${mode}. Run the installer from mios-bootstrap, or"

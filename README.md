@@ -2,6 +2,8 @@
      AI-related: /usr/libexec/mios/mios-build-driver, /usr/share/mios/configurator/, /usr/share/mios/mios.toml, /usr/share/mios/ai/, /usr/share/mios/ai/system.md, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-build-driver, mios-dev, mios-bootstrap, mios-build-local, mios-llm-light, mios-pgvector, mios-ceph -->
 # 'MiOS'
 
+> **Core Thesis:** Read the [MiOS Architectural Thesis & Scope Statement](usr/share/doc/mios/manual/thesis.md) defining the 4 pillars of MiOS, its nature as a research vehicle/proof-of-concept, and the distinction between designed deployment scope vs. observed runtime environments (dev VM & WSL2).
+
 > **Pronounced "MyOS"** -- short for *My OS* / *My Operating System*. The
 > name is a stylistic capitalization of the same shorthand; it carries no
 > other meaning and refers to no person or organization.
