@@ -81,8 +81,8 @@ class TestExtractedChecks(unittest.TestCase):
                 "cannot be acted on" % (name, r.returncode))
 
     def test_the_shell_gate_calls_the_module_not_a_heredoc(self):
-        gate = open(os.path.join(_ROOT, "automation/98-drift-checks.sh"),
-                    encoding="utf-8", errors="replace").read()
+        with open(os.path.join(_ROOT, "automation/98-drift-checks.sh"), encoding="utf-8", errors="replace") as fh:
+            gate = fh.read()
         for name in MOD.SUBCOMMANDS:
             self.assertIn("tools/drift-checks.py %s" % name, gate,
                           "check_%s no longer dispatches to the module"

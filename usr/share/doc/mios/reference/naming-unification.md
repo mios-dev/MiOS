@@ -95,7 +95,7 @@ From the 2026-07-10 ultracode inventory (418 userenv + 121 globals + 635 misc +
   MIOS_SECTION_KEY` transform in `mios_toml.py` + a generator that emits
   `naming.generated.txt`. Resolve the `[ports]` prefix decision. No renames yet.
 - **Phase 1 — resolver becomes deterministic.** Replace the 418-entry `userenv.sh`
-  table with the generic transform (both parity copies; drift-check 27). Emit BOTH
+  table with the generic transform (both parity copies; drift-check 27 `check_bootstrap_sync` / `check_userenv_parity`). Emit BOTH
   the new canonical name AND the legacy name (compat shim) for one release.
 - **Phase 2 — repoint every reader**, domain by domain, lowest-blast-radius first
   (AI-plane ~3-4 readers each; ports 5-16; identity/colors moderate). Update

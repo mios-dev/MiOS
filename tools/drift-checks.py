@@ -2648,6 +2648,373 @@ def check_bootstrap_ports_drift() -> int:
     sys.exit(0)
 
 
+def check_rbac_tiers() -> int:
+    import os, sys
+    import tomllib as _toml
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    p = os.path.join(root, "usr/share/mios/mios.toml")
+    if not os.path.isfile(p):
+        return 0
+    with open(p, "rb") as fh:
+        d = _toml.load(fh)
+    tiers = [str(x).strip().lower()
+             for x in ((d.get("ai") or {}).get("permission_tiers")
+                       or ["read", "write", "interactive"]) if str(x).strip()]
+    bad = []
+    for sect in ("agents", "users"):
+        for name, cfg in (d.get(sect) or {}).items():
+            if not isinstance(cfg, dict):
+                continue
+            mp = str(cfg.get("max_permission") or "").strip().lower()
+            if mp and mp not in tiers:
+                bad.append(f"    [{sect}.{name}].max_permission={mp!r} not in {tiers}")
+    for b in bad:
+        sys.stderr.write(b + "\n")
+    return 1 if bad else 0
+
+
+def check_ai_manifest() -> int:
+    import os, sys, json
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
+    try:
+        import mios_manifest as man
+    except Exception as e:
+        sys.stderr.write(f"    cannot import mios_manifest ({e}) -- skipping\n")
+        return 0
+    toml = os.path.join(root, "usr/share/mios/mios.toml")
+    out = os.path.join(root, "usr/share/mios/ai/v1/tools.generated.json")
+    try:
+        gen = man.project_verb_catalog(man.load_verbs_from_toml(toml))
+    except Exception as e:
+        sys.stderr.write(f"    verb-catalog projection failed: {e}\n")
+        return 1
+    try:
+        with open(out, encoding="utf-8") as fh:
+            committed = json.load(fh)
+    except (OSError, ValueError) as e:
+        sys.stderr.write(f"    committed manifest unreadable ({out}): {e}\n")
+        return 1
+    diffs = man.diff_manifest(gen, committed)
+    for d in diffs[:30]:
+        sys.stderr.write("    " + d + "\n")
+    return 1 if diffs else 0
+
+
+def check_capability_manifest() -> int:
+    import os, sys, json
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
+    try:
+        import mios_capreg as cap
+    except Exception as e:
+        sys.stderr.write(f"    cannot import mios_capreg ({e}) -- skipping\n")
+        return 0
+    toml = os.path.join(root, "usr/share/mios/mios.toml")
+    out = os.path.join(root, "usr/share/mios/ai/v1/capabilities.generated.json")
+    try:
+        gen = cap.project_from_toml(toml, ceiling="interactive")
+    except Exception as e:
+        sys.stderr.write(f"    capability projection failed: {e}\n")
+        return 1
+    try:
+        with open(out, encoding="utf-8") as fh:
+            committed = json.load(fh).get("data", [])
+    except (OSError, ValueError) as e:
+        sys.stderr.write(f"    committed capabilities manifest unreadable ({out}): {e}\n")
+        return 1
+    diffs = cap.diff_capabilities(gen, committed)
+    for d in diffs[:30]:
+        sys.stderr.write("    " + d + "\n")
+    return 1 if diffs else 0
+
+
+def check_surface_parity() -> int:
+    import os, sys, json
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
+    try:
+        import mios_surface as surf
+    except Exception as e:
+        sys.stderr.write(f"    cannot import mios_surface ({e}) -- skipping\n")
+        return 0
+    server = os.path.join(root, "usr/lib/mios/agent-pipe/server.py")
+    out = os.path.join(root, "usr/share/mios/ai/v1/surface.generated.json")
+    if not os.path.isfile(server):
+        sys.stderr.write("    server.py absent -- skipping\n")
+        return 0
+    try:
+        gen = surf.project_package(server)
+    except Exception as e:
+        sys.stderr.write(f"    surface projection failed: {e}\n")
+        return 1
+    try:
+        with open(out, encoding="utf-8") as fh:
+            committed = json.load(fh)
+    except (OSError, ValueError) as e:
+        sys.stderr.write(f"    committed surface golden unreadable ({out}): {e}\n")
+        return 1
+    diffs = surf.diff_surface(gen, committed)
+    for d in diffs[:40]:
+        sys.stderr.write("    " + d + "\n")
+    if len(diffs) > 40:
+        sys.stderr.write(f"    ... and {len(diffs) - 40} more\n")
+    return 1 if diffs else 0
+
+
+def check_container_ports() -> int:
+    import os, sys, re
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    import tomllib as _toml
+
+    p = os.path.join(root, "usr/share/mios/mios.toml")
+    if not os.path.isfile(p):
+        return 0
+
+    with open(p, "rb") as fh:
+        d = _toml.load(fh)
+    ports = d.get("ports") or {}
+
+    port_vals = {name: val for name, val in ports.items() if name != "stack_id" and isinstance(val, int)}
+
+    viol = []
+    quadlet_dirs = ["usr/share/containers/systemd", "etc/containers/systemd"]
+    for qd in quadlet_dirs:
+        dir_path = os.path.join(root, qd)
+        if not os.path.isdir(dir_path):
+            continue
+        for dp, _dn, files in os.walk(dir_path):
+            for fn in files:
+                if not fn.endswith(".container"):
+                    continue
+                path = os.path.join(dp, fn)
+                try:
+                    lines = open(path, encoding="utf-8", errors="ignore").readlines()
+                except OSError:
+                    continue
+                for idx, line in enumerate(lines, 1):
+                    active = re.sub(r'#.*', '', line).strip()
+                    if not active:
+                        continue
+                    for name, val in port_vals.items():
+                        cleaned = re.sub(r'\$\{MIOS_PORT_[A-Z0-9_]+:-' + str(val) + r'\}', '', active)
+                        if re.search(rf'\b{val}\b', cleaned):
+                            if val in (8080, 3002) and (":" + str(val) in cleaned or "=" + str(val) in cleaned and not cleaned.startswith("PublishPort=")):
+                                continue
+                            viol.append(f"{fn}:{idx}: manual port literal {val} for '{name}' used in active line: {line.strip()}")
+
+    for v in viol:
+        print(v)
+    return 1 if viol else 0
+
+
+def check_agent_pipe_budgets() -> int:
+    import os, sys, re
+    import tomllib
+
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+    if not os.path.isfile(toml_path):
+        return 0
+
+    with open(toml_path, "rb") as f:
+        data = tomllib.load(f)
+
+    agent_pipe = data.get("agent_pipe", {})
+    dispatch = data.get("dispatch", {})
+
+    def key_in_dict(d, k):
+        if not isinstance(d, dict):
+            return False
+        if k in d:
+            return True
+        return any(key_in_dict(v, k) for v in d.values() if isinstance(v, dict))
+
+    search_dir = os.path.join(root, "usr/lib/mios/agent-pipe")
+    if not os.path.isdir(search_dir):
+        search_dir = root
+
+    code = ""
+    for r, ds, fs in os.walk(search_dir):
+        for f in fs:
+            if f.endswith(".py"):
+                try:
+                    with open(os.path.join(r, f), "r", encoding="utf-8", errors="ignore") as fh:
+                        code += fh.read() + "\n"
+                except OSError:
+                    pass
+
+    budget_keys = [
+        "tool_max_iters", "replan_max", "no_progress_window",
+        "max_consecutive_failures", "wall_clock_budget_s", "reflexion_enable",
+        "swarm_max_width", "max_dispatch_depth", "default_hop_budget"
+    ]
+    missing = []
+    for k in budget_keys:
+        if not key_in_dict(agent_pipe, k) and not key_in_dict(dispatch, k):
+            missing.append(f"{k} (missing from mios.toml)")
+            continue
+        pattern = rf"['\"]{k}['\"]"
+        if not re.search(pattern, code) and k not in code:
+            missing.append(k)
+
+    if missing:
+        sys.stderr.write(f"    Missing code consumers or TOML definitions for budget keys: {missing}\n")
+        return 1
+    return 0
+
+
+def check_verb_backends() -> int:
+    import os, sys, re
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    import tomllib as _toml
+    p = os.path.join(root, "usr/share/mios/mios.toml")
+    if not os.path.isfile(p):
+        return 0
+    with open(p, "rb") as fh:
+        d = _toml.load(fh)
+    libexec = os.path.join(root, "usr/libexec/mios")
+    usrbin = os.path.join(root, "usr/bin")
+    def _exists(t):
+        return os.path.isfile(os.path.join(libexec, t)) or os.path.isfile(os.path.join(usrbin, t))
+    missing = {}
+    for name, cfg in (d.get("verbs", {}) or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        cmd = cfg.get("cmd", "")
+        if name == "update" and not cmd:
+            missing.setdefault("update missing cmd key", []).append(name)
+            continue
+        if not isinstance(cmd, str) or not cmd:
+            continue
+        for tok in set(re.findall(r"\bmios-[a-z0-9-]+", cmd)):
+            if not _exists(tok):
+                missing.setdefault(tok, []).append(name)
+    for t, vs in sorted(missing.items()):
+        sys.stderr.write(f"    {t} <- [verbs.*] {sorted(vs)} (backend not on disk)\n")
+    return 1 if missing else 0
+
+
+def check_python_untested_ratchet() -> int:
+    import sys, os
+    root_dir = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    base_file = os.path.join(root_dir, "usr/share/mios/reference/python-untested-baseline.txt")
+    if not os.path.isfile(base_file):
+        return 0
+    with open(base_file, encoding="utf-8") as f:
+        allowed = set(line.strip() for line in f if line.strip() and not line.startswith("#"))
+
+    untested = []
+    for scan_dir in ['tools', os.path.join('usr', 'libexec', 'mios')]:
+        full_scan = os.path.join(root_dir, scan_dir)
+        if not os.path.isdir(full_scan):
+            continue
+        for f in os.listdir(full_scan):
+            if not f.endswith('.py') or f.startswith('test_') or f == '__init__.py':
+                continue
+            rel = f"{scan_dir}/{f}".replace("\\", "/")
+            norm_stem = f[:-3].replace("-", "_")
+            test1 = os.path.join(full_scan, f"test_{f}")
+            test2 = os.path.join(full_scan, f"test_{f[:-3]}.py")
+            test3 = os.path.join(full_scan, f"test_{norm_stem}.py")
+            if not (os.path.exists(test1) or os.path.exists(test2) or os.path.exists(test3)):
+                if rel not in allowed:
+                    untested.append(rel)
+
+    if untested:
+        for u in untested:
+            sys.stderr.write(f"    untested python module not in baseline: {u}\n")
+        return 1
+
+    return 0
+
+
+def check_canonical_bools() -> int:
+    import sys, os
+    import tomllib
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    toml_path = os.environ.get("MIOS_TOML", os.path.join(root, "usr/share/mios/mios.toml"))
+    if not os.path.isfile(toml_path):
+        return 0
+    with open(toml_path, "rb") as f:
+        data = tomllib.load(f)
+
+    verbs = data.get("verbs", {})
+    for vname, vcfg in verbs.items():
+        if vname == "_defaults":
+            continue
+        if not isinstance(vcfg, dict):
+            continue
+        if "hidden" in vcfg:
+            val = vcfg["hidden"]
+            if not isinstance(val, bool):
+                print(f"Non-canonical hidden value in verb '{vname}': {val!r} (must be true/false)")
+                return 1
+        if "sensitive" in vcfg:
+            val = vcfg["sensitive"]
+            if not isinstance(val, bool):
+                print(f"Non-canonical sensitive value in verb '{vname}': {val!r} (must be true/false)")
+                return 1
+        params = vcfg.get("params", {})
+        if isinstance(params, dict):
+            for p_name, p_cfg in params.items():
+                if not isinstance(p_cfg, dict):
+                    continue
+                if "required" in p_cfg:
+                    req = p_cfg["required"]
+                    if not isinstance(req, bool):
+                        print(f"Non-canonical required value in verb '{vname}' param '{p_name}': {req!r} (must be true/false)")
+                        return 1
+                if "default" in p_cfg and p_cfg.get("type") == "boolean":
+                    d = p_cfg["default"]
+                    if not isinstance(d, bool):
+                        print(f"Non-canonical default boolean value in verb '{vname}' param '{p_name}': {d!r} (must be true/false)")
+                        return 1
+    return 0
+
+
+def check_dag_integrity() -> int:
+    import os, sys, re
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    violations = []
+
+    scan_dirs = [
+        os.path.join(root, "usr/lib/systemd/system"),
+        os.path.join(root, "usr/share/containers/systemd"),
+    ]
+
+    for d in scan_dirs:
+        if not os.path.isdir(d):
+            continue
+        for f in os.listdir(d):
+            fpath = os.path.join(d, f)
+            if not os.path.isfile(fpath) or not f.endswith((".service", ".container", ".pod")):
+                continue
+            try:
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
+                    content = fh.read()
+                
+                after_requires_targets = []
+                for line in content.splitlines():
+                    m = re.match(r"^[ \t]*(After|Requires)[ \t]*=[ \t]*(.*)$", line, re.IGNORECASE)
+                    if m:
+                        after_requires_targets.extend(m.group(2).split())
+
+                is_local_img = "Image=localhost/" in content
+                is_webtools_pod = f == "mios-webtools.pod"
+                if is_local_img or is_webtools_pod:
+                    if "mios-webtools-firstboot.service" not in after_requires_targets:
+                        violations.append(f"{f} uses local image/pod but lacks 'After=... mios-webtools-firstboot.service'")
+            except OSError:
+                pass
+
+    if violations:
+        for v in sorted(violations):
+            sys.stderr.write(f"    {v}\n")
+        return 1
+    return 0
+
+
 SUBCOMMANDS = {
     "bootstrap-ports-drift": check_bootstrap_ports_drift,
     "agent-schema": check_agent_schema,
@@ -2663,7 +3030,6 @@ SUBCOMMANDS = {
     "structured": check_structured,
     "drift-build-catalog": check_drift_build_catalog,
     "drift-projection": check_drift_projection,
-    "drift-build-catalog": check_drift_build_catalog,
     "unwired-modules": check_unwired_modules,
     "no-duplicate-value-key": check_no_duplicate_value_key,
     "no-inert-ssot-tables": check_no_inert_ssot_tables,
@@ -2671,6 +3037,16 @@ SUBCOMMANDS = {
     "resolver-differential-parity": check_resolver_differential_parity,
     "legibility-ratchet": check_legibility_ratchet,
     "header-integrity": check_header_integrity,
+    "rbac-tiers": check_rbac_tiers,
+    "ai-manifest": check_ai_manifest,
+    "capability-manifest": check_capability_manifest,
+    "surface-parity": check_surface_parity,
+    "container-ports": check_container_ports,
+    "agent-pipe-budgets": check_agent_pipe_budgets,
+    "verb-backends": check_verb_backends,
+    "python-untested-ratchet": check_python_untested_ratchet,
+    "canonical-bools": check_canonical_bools,
+    "dag-integrity": check_dag_integrity,
 }
 
 

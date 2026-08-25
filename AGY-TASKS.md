@@ -12479,7 +12479,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the deploy plane is the least-complete area and the most confidently documented, which is the worst combination.
 **Dep:** none
 
-## AGY-1889 -- Documents describe checks by ordinal in prose that the index renumbers  (WS-DOCS | P2 | S)
+## AGY-1889 -- Documents describe checks by ordinal in prose that the index renumbers  (WS-DOCS | P2 | S) **[DONE]**
 **Goal:** Prose survives a gate reordering.
 **What+How:** Once ordinals are verified to exist (AGY-1817), the remaining hazard is that they are stable identifiers only until a check is inserted. Prefer the function name in prose, with the ordinal as supplementary, and update the existing citations.
 **Where:** `docs/`, `usr/share/doc/mios/`, `AGY-TASKS.md`
@@ -12489,7 +12489,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the tree already carries citations whose numbers no longer match, and renumbering is silent.
 **Dep:** AGY-1817
 
-## AGY-1890 -- The finalization plan's P0 items have no completion evidence  (WS-DOCS | P1 | M)
+## AGY-1890 -- The finalization plan's P0 items have no completion evidence  (WS-DOCS | P1 | M) **[DONE]**
 **Goal:** The critical path states which blockers are actually cleared.
 **What+How:** `docs/agy/mios-finalization-plan.md` lists ten ordered P0/P1 blockers. Several reference constructs that have since changed. For each, determine whether it is done, and record the evidence -- a commit, a passing check, a measurement -- rather than a status word.
 **Where:** `docs/agy/mios-finalization-plan.md`

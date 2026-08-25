@@ -12,7 +12,7 @@ authoring seed**. **Postgres/pgvector** (`mios-pgvector`, `db=mios`, in `/var`) 
 **LIVE RUNTIME SSOT**. On first boot a deterministic seeder projects the baked TOML →
 DB; thereafter the DB is authoritative and every resolver reads the DB with TOML as a
 **fail-open** fallback. A DB→TOML materialize step regenerates the file for the next
-image build. Same regenerate-and-diff discipline as the theme SSOT (drift check 25),
+image build. Same regenerate-and-diff discipline as the theme SSOT (drift check 25 `check_container_ports`),
 now spanning the build boundary.
 
 **Storage law.** Ground-truth values stay in typed relational columns; every

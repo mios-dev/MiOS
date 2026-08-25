@@ -253,30 +253,7 @@ check_module_boundary() {
 
 check_rbac_tiers() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys
-root = os.environ["MIOS_DRIFT_ROOT"]
-import tomllib as _toml
-p = os.path.join(root, "usr/share/mios/mios.toml")
-if not os.path.isfile(p):
-    sys.exit(0)
-with open(p, "rb") as fh:
-    d = _toml.load(fh)
-tiers = [str(x).strip().lower()
-         for x in ((d.get("ai") or {}).get("permission_tiers")
-                   or ["read", "write", "interactive"]) if str(x).strip()]
-bad = []
-for sect in ("agents", "users"):
-    for name, cfg in (d.get(sect) or {}).items():
-        if not isinstance(cfg, dict):
-            continue
-        mp = str(cfg.get("max_permission") or "").strip().lower()
-        if mp and mp not in tiers:
-            bad.append(f"    [{sect}.{name}].max_permission={mp!r} not in {tiers}")
-for b in bad:
-    sys.stderr.write(b + "\n")
-sys.exit(1 if bad else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py rbac-tiers
     then
         echo "[98-drift-checks]   RBAC max_permission tiers all valid"
     else
@@ -296,33 +273,7 @@ check_agent_schema() {
 
 check_ai_manifest() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, json
-root = os.environ["MIOS_DRIFT_ROOT"]
-sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
-try:
-    import mios_manifest as man
-except Exception as e:  # noqa: BLE001 -- module absent on a bare checkout -> skip
-    sys.stderr.write(f"    cannot import mios_manifest ({e}) -- skipping\n")
-    sys.exit(0)
-toml = os.path.join(root, "usr/share/mios/mios.toml")
-out  = os.path.join(root, "usr/share/mios/ai/v1/tools.generated.json")
-try:
-    gen = man.project_verb_catalog(man.load_verbs_from_toml(toml))
-except Exception as e:  # noqa: BLE001
-    sys.stderr.write(f"    verb-catalog projection failed: {e}\n")
-    sys.exit(1)
-try:
-    with open(out, encoding="utf-8") as fh:
-        committed = json.load(fh)
-except (OSError, ValueError) as e:
-    sys.stderr.write(f"    committed manifest unreadable ({out}): {e}\n")
-    sys.exit(1)
-diffs = man.diff_manifest(gen, committed)
-for d in diffs[:30]:
-    sys.stderr.write("    " + d + "\n")
-sys.exit(1 if diffs else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py ai-manifest
     then
         echo "[98-drift-checks]   ai/v1 verb-catalog manifest in sync with mios.toml SSOT"
     else
@@ -511,33 +462,7 @@ check_raw_toml_readers() {
 
 check_capability_manifest() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, json
-root = os.environ["MIOS_DRIFT_ROOT"]
-sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
-try:
-    import mios_capreg as cap
-except Exception as e:  # noqa: BLE001 -- module absent on a bare checkout -> skip
-    sys.stderr.write(f"    cannot import mios_capreg ({e}) -- skipping\n")
-    sys.exit(0)
-toml = os.path.join(root, "usr/share/mios/mios.toml")
-out = os.path.join(root, "usr/share/mios/ai/v1/capabilities.generated.json")
-try:
-    gen = cap.project_from_toml(toml, ceiling="interactive")
-except Exception as e:  # noqa: BLE001
-    sys.stderr.write(f"    capability projection failed: {e}\n")
-    sys.exit(1)
-try:
-    with open(out, encoding="utf-8") as fh:
-        committed = json.load(fh).get("data", [])
-except (OSError, ValueError) as e:
-    sys.stderr.write(f"    committed capabilities manifest unreadable ({out}): {e}\n")
-    sys.exit(1)
-diffs = cap.diff_capabilities(gen, committed)
-for d in diffs[:30]:
-    sys.stderr.write("    " + d + "\n")
-sys.exit(1 if diffs else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py capability-manifest
     then
         echo "[98-drift-checks]   ai/v1 capability manifest in sync with mios.toml SSOT"
     else
@@ -547,38 +472,7 @@ PY
 
 check_surface_parity() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, json
-root = os.environ["MIOS_DRIFT_ROOT"]
-sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
-try:
-    import mios_surface as surf
-except Exception as e:  # noqa: BLE001 -- module absent on a bare checkout -> skip
-    sys.stderr.write(f"    cannot import mios_surface ({e}) -- skipping\n")
-    sys.exit(0)
-server = os.path.join(root, "usr/lib/mios/agent-pipe/server.py")
-out = os.path.join(root, "usr/share/mios/ai/v1/surface.generated.json")
-if not os.path.isfile(server):
-    sys.stderr.write("    server.py absent -- skipping\n")
-    sys.exit(0)
-try:
-    gen = surf.project_package(server)
-except Exception as e:  # noqa: BLE001
-    sys.stderr.write(f"    surface projection failed: {e}\n")
-    sys.exit(1)
-try:
-    with open(out, encoding="utf-8") as fh:
-        committed = json.load(fh)
-except (OSError, ValueError) as e:
-    sys.stderr.write(f"    committed surface golden unreadable ({out}): {e}\n")
-    sys.exit(1)
-diffs = surf.diff_surface(gen, committed)
-for d in diffs[:40]:
-    sys.stderr.write("    " + d + "\n")
-if len(diffs) > 40:
-    sys.stderr.write(f"    ... and {len(diffs) - 40} more\n")
-sys.exit(1 if diffs else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py surface-parity
     then
         echo "[98-drift-checks]   server.py public surface matches the committed golden"
     else
@@ -833,55 +727,7 @@ check_hummingbird() {
 check_container_ports() {
     _need_python || return 0
     local tmp; tmp="$(mktemp)"
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - >"$tmp" 2>&1 <<'PY'
-import os, sys, re
-root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-import tomllib as _toml
-
-p = os.path.join(root, "usr/share/mios/mios.toml")
-if not os.path.isfile(p):
-    sys.exit(0)
-
-with open(p, "rb") as fh:
-    d = _toml.load(fh)
-ports = d.get("ports") or {}
-
-port_vals = {name: val for name, val in ports.items() if name != "stack_id" and isinstance(val, int)}
-
-viol = []
-quadlet_dirs = ["usr/share/containers/systemd", "etc/containers/systemd"]
-for qd in quadlet_dirs:
-    dir_path = os.path.join(root, qd)
-    if not os.path.isdir(dir_path):
-        continue
-    for dp, _dn, files in os.walk(dir_path):
-        for fn in files:
-            if not fn.endswith(".container"):
-                continue
-            path = os.path.join(dp, fn)
-            try:
-                lines = open(path, encoding="utf-8", errors="ignore").readlines()
-            except OSError:
-                continue
-            for idx, line in enumerate(lines, 1):
-                active = re.sub(r'#.*', '', line).strip()
-                if not active:
-                    continue
-                for name, val in port_vals.items():
-                    # [A-Z0-9_]+ not [A-Z_]+ -- port names carry digits
-                    # (CRAWL4AI, K3S_API), so the old pattern failed to strip
-                    # their ${...:-N} form and then flagged the fallback it had
-                    # just failed to remove.
-                    cleaned = re.sub(r'\$\{MIOS_PORT_[A-Z0-9_]+:-' + str(val) + r'\}', '', active)
-                    if re.search(rf'\b{val}\b', cleaned):
-                        if val in (8080, 3002) and (":" + str(val) in cleaned or "=" + str(val) in cleaned and not cleaned.startswith("PublishPort=")):
-                            continue
-                        viol.append(f"{fn}:{idx}: manual port literal {val} for '{name}' used in active line: {line.strip()}")
-
-for v in viol:
-    print(v)
-sys.exit(1 if viol else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py container-ports >"$tmp" 2>&1
     then
         echo "[98-drift-checks]   no manual port literals in container definitions"
         rm -f "$tmp"
@@ -920,61 +766,7 @@ check_agent_pipe_budgets() {
     fi
 
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re
-import tomllib
-
-root = os.environ["MIOS_DRIFT_ROOT"]
-toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-if not os.path.isfile(toml_path):
-    sys.exit(0)
-
-with open(toml_path, "rb") as f:
-    data = tomllib.load(f)
-
-agent_pipe = data.get("agent_pipe", {})
-dispatch = data.get("dispatch", {})
-
-def key_in_dict(d, k):
-    if not isinstance(d, dict):
-        return False
-    if k in d:
-        return True
-    return any(key_in_dict(v, k) for v in d.values() if isinstance(v, dict))
-
-search_dir = os.path.join(root, "usr/lib/mios/agent-pipe")
-if not os.path.isdir(search_dir):
-    search_dir = root
-
-code = ""
-for r, ds, fs in os.walk(search_dir):
-    for f in fs:
-        if f.endswith(".py"):
-            try:
-                with open(os.path.join(r, f), "r", encoding="utf-8", errors="ignore") as fh:
-                    code += fh.read() + "\n"
-            except OSError:
-                pass
-
-budget_keys = [
-    "tool_max_iters", "replan_max", "no_progress_window",
-    "max_consecutive_failures", "wall_clock_budget_s", "reflexion_enable",
-    "swarm_max_width", "max_dispatch_depth", "default_hop_budget"
-]
-missing = []
-for k in budget_keys:
-    if not key_in_dict(agent_pipe, k) and not key_in_dict(dispatch, k):
-        missing.append(f"{k} (missing from mios.toml)")
-        continue
-    pattern = rf"['\"]{k}['\"]"
-    if not re.search(pattern, code) and k not in code:
-        missing.append(k)
-
-if missing:
-    sys.stderr.write(f"    Missing code consumers or TOML definitions for budget keys: {missing}\n")
-    sys.exit(1)
-sys.exit(0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py agent-pipe-budgets
     then
         echo "[98-drift-checks]   all [agent_pipe] budget variables have code consumers"
     else
@@ -1024,36 +816,7 @@ check_userenv_parity() {
 
 check_verb_backends() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re
-root = os.environ["MIOS_DRIFT_ROOT"]
-import tomllib as _toml
-p = os.path.join(root, "usr/share/mios/mios.toml")
-if not os.path.isfile(p):
-    sys.exit(0)
-with open(p, "rb") as fh:
-    d = _toml.load(fh)
-libexec = os.path.join(root, "usr/libexec/mios")
-usrbin = os.path.join(root, "usr/bin")
-def _exists(t):
-    return os.path.isfile(os.path.join(libexec, t)) or os.path.isfile(os.path.join(usrbin, t))
-missing = {}
-for name, cfg in (d.get("verbs", {}) or {}).items():
-    if not isinstance(cfg, dict):
-        continue
-    cmd = cfg.get("cmd", "")
-    if name == "update" and not cmd:
-        missing.setdefault("update missing cmd key", []).append(name)
-        continue
-    if not isinstance(cmd, str) or not cmd:
-        continue
-    for tok in set(re.findall(r"\bmios-[a-z0-9-]+", cmd)):
-        if not _exists(tok):
-            missing.setdefault(tok, []).append(name)
-for t, vs in sorted(missing.items()):
-    sys.stderr.write(f"    {t} <- [verbs.*] {sorted(vs)} (backend not on disk)\n")
-sys.exit(1 if missing else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py verb-backends
     then
         echo "[98-drift-checks]   every [verbs.*].cmd mios-* backend resolves on disk"
     else

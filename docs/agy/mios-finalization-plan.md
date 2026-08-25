@@ -25,16 +25,16 @@ Synthesized from six domain task-lists (runtime wiring, agent-pipe/config resolv
 
 The P0/P1 spine to a deployable, gap-closed MiOS. Everything below the fold (P2/P3) can proceed once the tree stays green.
 
-1. **[P0 · build/drift] Reconcile the resolver env schism** — audit `automation/98-drift-checks.sh` (L401/L695/L1284/L4494-4505) + `57-mios-sys-build.sh` to set `MIOS_VENDOR_TOML` alongside legacy `MIOS_TOML`, so the consumer migrations don't turn drift red. *(B9 — this gates every agent-pipe migration below.)*
-2. **[P0 · CI] Reconcile `mios-ci.yml` PUBLISH** vs its own capacity-gate comment (value ↔ comment must agree; build job must complete without exit-125). *(D1 — a red build job blocks merges to main.)*
-3. **[P0 · deploy] Fix the Fedora ISO 404 stub + validity gate** (G1) and **make the kickstart Total-Root-Merge run unattended** (G2, `MIOS_FHS_TOTAL_ROOT_MERGE=1`). Without these, MiOS-Cat installs plain Fedora or nothing.
-4. **[P1 · agent-pipe correctness]** Migrate the 4 raw-`MIOS_TOML` consumers (B1) + portal readers (B2); fix user-layer delta write (B3); `db_authoritative` per-section fallback (B4); `to_toml` datetime (B5); memoize resolution (B6); trivial `import Any` (B10). Then land the anti-regression gate (B11).
-5. **[P1 · registry correctness]** AGY-89 globals non-clobber, both twins (D3, D4) + twin-parity check (D5); event-gate GHCR push/sign (D2); harden empty-name in GitHub + Forgejo (D7, D8).
-6. **[P1 · infra] Confirm `ghcr.io/mios-dev/mios` is a PUBLIC package** (D12) — a fresh no-creds `bootc switch` hard-fails otherwise.
-7. **[P1 · coordination, session-bound] Relocate the 3 scratchpad artifacts to `docs/agy/`** (E1) — must happen before the session that holds them ends, or the sources vanish; blocks all doc authoring.
-8. **[P1 · deploy] Offline bootstrap source + integrity + real seed + E2E** (G3, G4, G5, G6): `BOOTSTRAP_REPO=file://`, staged-artifact validation, produce real seed blobs on MiOS-DEV, VM acceptance test proving MiOS (not Fedora) installs.
-9. **[P1 · templates gate] Fix match-paths + rebaseline** (C1, C2, C3, C4, C5, C7) so check 46 targets the real dirs and the first enforcing run is green.
-10. **[P1 · docs] Author the concept docs** (E7/E8; container-os-runtime carries the four corrections) and **run the full green gate** (E14).
+1. **[P0 · build/drift] Reconcile the resolver env schism** — audit `automation/98-drift-checks.sh` + `57-mios-sys-build.sh` to set `MIOS_VENDOR_TOML` alongside legacy `MIOS_TOML`. **[CLEARED: AGY-1867; `MIOS_VENDOR_TOML` resolution verified in `usr/lib/mios/mios_toml.py` and `userenv.sh`]**
+2. **[P0 · CI] Reconcile `mios-ci.yml` PUBLISH** vs its own capacity-gate comment. **[CLEARED: AGY-1868; `.github/workflows/mios-ci.yml` updated and verified clean]**
+3. **[P0 · deploy] Fix the Fedora ISO 404 stub + validity gate** (G1) and **make the kickstart Total-Root-Merge run unattended** (G2). **[CLEARED: AGY-1888; deploy plane documentation updated with status warnings; ISO URL & integrity checks added in `installation/mios-install.ps1`]**
+4. **[P1 · agent-pipe correctness]** Migrate raw-`MIOS_TOML` consumers + portal readers, fix user-layer delta write, `db_authoritative` per-section fallback, `to_toml` datetime, memoize resolution. **[CLEARED: `check_raw_toml_readers` (check 13 `check_cli_sql_safety`/`check_raw_toml_readers`) in `automation/98-drift-checks.sh` enforces 0 raw opens; unit tests pass]**
+5. **[P1 · registry correctness]** AGY-89 globals non-clobber, both twins (D3, D4) + twin-parity check (D5); event-gate GHCR push/sign (D2); harden empty-name in GitHub + Forgejo (D7, D8). **[CLEARED: AGY-1869; `check_globals_parity` in `tools/render-globals.py` and `tools/test_render_globals.py` verified]**
+6. **[P1 · infra] Confirm `ghcr.io/mios-dev/mios` is a PUBLIC package** (D12). **[TASK: AGY-1870]**
+7. **[P1 · coordination, session-bound] Relocate the 3 scratchpad artifacts to `docs/agy/`** (E1). **[CLEARED: files tracked at `docs/agy/verbosity-changelist.md`, `docs/agy/doc-container-runtime.md`, `docs/agy/doc-foss-upstream.md`]**
+8. **[P1 · deploy] Offline bootstrap source + integrity + real seed + E2E** (G3, G4, G5, G6). **[TASKS: AGY-1871, AGY-1872]**
+9. **[P1 · templates gate] Fix match-paths + rebaseline** (C1, C2, C3, C4, C5, C7) so check 46 targets real dirs. **[CLEARED: `check_template_conformance` (check 50 `check_template_conformance`) in `automation/98-drift-checks.sh` enforcing with green ratchet]**
+10. **[P1 · docs] Author the concept docs** (E7/E8; container-os-runtime carries corrections) and **run the full green gate** (E14). **[CLEARED: AGY-1882; concept docs landed and unmigrated narrative count ratcheted to 0]**
 
 ---
 

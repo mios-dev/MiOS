@@ -970,6 +970,8 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_DOCS_LANDING_MIN_WORD_RATIO:=0.9}"
 : "${MIOS_DOCS_LINK_BASE:=repo}"
 : "${MIOS_DOCS_LLM_PAYLOAD_GLOBS:=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**}"
+: "${MIOS_DOCS_MANUAL_MIN_TABLES:=156}"
+: "${MIOS_DOCS_MANUAL_MIN_UNITS:=135}"
 : "${MIOS_DOCS_MANUAL_MIN_VERBS:=132}"
 : "${MIOS_DOCS_MAX_OVERLONG_HINTS:=0}"
 : "${MIOS_DOCS_MAX_STALE_REFS:=0}"
