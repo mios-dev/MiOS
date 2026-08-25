@@ -200,11 +200,33 @@ def check_legibility_ratchet() -> int:
         except OSError:
             pass
 
+    def _is_generated(rel):
+        """True for a file that declares itself a machine projection.
+
+        The shell/PowerShell ceilings exist to drive HAND-WRITTEN glue down as it
+        migrates to Rust. automation/lib/globals.{sh,ps1} are rendered in full from
+        mios.toml, so they grow whenever the operator declares a config key -- growth
+        that cannot be "earned back" except by deleting operator configuration. Counting
+        them measured the wrong thing: a [cat] -> [field] rename that added keys pushed
+        the PowerShell ceiling over its floor with no hand-written line involved.
+        Excluding them LOWERS both floors by ~5.3k lines, so the ratchet binds strictly
+        tighter on the code it actually governs.
+        """
+        try:
+            with open(os.path.join(root, rel.replace("/", os.sep)),
+                      encoding="utf-8", errors="replace") as fh:
+                head = fh.read(600).upper()
+        except OSError:
+            return False
+        return "GENERATED" in head and "DO NOT EDIT" in head
+
     measured = {
         "max_tracked_files": len(rels),
         "max_tracked_mb": round(nbytes / 1048576),
-        "max_shell_lines": lines([r for r in rels if r.endswith((".sh", ".bash"))]),
-        "max_ps_lines": lines([r for r in rels if r.endswith((".ps1", ".psm1"))]),
+        "max_shell_lines": lines([r for r in rels
+                                  if r.endswith((".sh", ".bash")) and not _is_generated(r)]),
+        "max_ps_lines": lines([r for r in rels
+                               if r.endswith((".ps1", ".psm1")) and not _is_generated(r)]),
         "max_automation_phases": len([r for r in rels if r.startswith("automation/")
                                       and r.endswith(".sh") and r[11:13].isdigit()]),
         "max_libexec_verbs": len([r for r in rels if r.startswith("usr/libexec/mios/")
@@ -2348,7 +2370,222 @@ def check_firstboot_tier() -> int:
     sys.exit(0)
 
 
+def check_gate_registry() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import glob, os, sys, re
+
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    script_path = os.path.join(root, "automation/98-drift-checks.sh")
+
+    if not os.path.isfile(script_path):
+        sys.exit(0)
+
+    with open(script_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    def_re = re.compile(r"^(check_[a-z0-9_]+)\s*\(\)\s*\{")
+    main_call_re = re.compile(r"^\s*(check_[a-z0-9_]+)\s*($|#|;|\|\||&&)")
+
+    defined_counts = {}
+    in_main = False
+    main_calls = []
+
+    for line in lines:
+        line_clean = line.split("#")[0].strip()
+        if line_clean == "main() {":
+            in_main = True
+            continue
+        if in_main and line_clean.startswith("echo \"[98-drift-checks] ----------"):
+            in_main = False
+            continue
+
+        m_def = def_re.match(line)
+        if m_def:
+            name = m_def.group(1)
+            defined_counts[name] = defined_counts.get(name, 0) + 1
+
+        if in_main:
+            m_call = main_call_re.match(line_clean)
+            if m_call:
+                main_calls.append(m_call.group(1))
+
+    bad = []
+
+    for name, count in defined_counts.items():
+        if count > 1:
+            bad.append(f"Duplicate function definition found in 98-drift-checks.sh: {name} (defined {count} times)")
+
+    for name in defined_counts.keys():
+        calls = main_calls.count(name)
+        if calls == 0:
+            bad.append(f"Defined check function is not registered in main(): {name}")
+        elif calls > 1:
+            bad.append(f"Defined check function is called multiple times in main(): {name} ({calls} times)")
+
+    for call in main_calls:
+        if call not in defined_counts:
+            bad.append(f"main() calls unregistered/undefined check function: {call}")
+
+    sh_text = "".join(lines)
+    tool_checks = glob.glob(os.path.join(root, "tools/check-*.py"))
+
+    for tc in tool_checks:
+        tc_name = os.path.basename(tc)
+        if tc_name not in sh_text:
+            with open(tc, "r", encoding="utf-8", errors="ignore") as tcf:
+                tc_head = [tcf.readline() for _ in range(3)]
+            tc_hint = "".join(tc_head).lower()
+            if "drift check" in tc_hint or "drift-check" in tc_hint:
+                bad.append(f"tools/{tc_name} claims drift-check identity in AI-hint but is not referenced in 98-drift-checks.sh")
+
+    if bad:
+        for b in bad:
+            sys.stderr.write(f"    [gate-registry-drift] {b}\n")
+        sys.exit(1)
+
+    sys.exit(0)
+
+
+def check_names_registry() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import os, sys, re, subprocess
+
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    violations = []
+
+    ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
+    committed_ref = ""
+    if os.path.isfile(ref_file):
+        try:
+            with open(ref_file, "r", encoding="utf-8") as fh:
+                committed_ref = fh.read()
+        except Exception as e:
+            violations.append(f"Failed to read committed referenced_names.txt: {e}")
+
+    gen_script = os.path.join(root, "tools/generate-names-registry.py")
+    registry_file = os.path.join(root, "usr/share/mios/names.generated.txt")
+
+    if not os.path.isfile(gen_script):
+        violations.append("tools/generate-names-registry.py missing")
+    elif not os.path.isfile(registry_file):
+        violations.append("usr/share/mios/names.generated.txt missing")
+    else:
+        try:
+            with open(registry_file, "r", encoding="utf-8") as fh:
+                committed_data = fh.read()
+            res = subprocess.run([sys.executable, gen_script], capture_output=True, text=True, check=True)
+            fresh_data = res.stdout
+
+            fresh_lines = [l.strip() for l in fresh_data.splitlines() if l.strip()]
+            committed_lines = [l.strip() for l in committed_data.splitlines() if l.strip()]
+
+            if fresh_lines != committed_lines:
+                violations.append("usr/share/mios/names.generated.txt is stale. Please run tools/generate-names-registry.py.")
+        except Exception as e:
+            violations.append(f"Failed to check names registry generation: {e}")
+
+    fresh_ref = ""
+    if os.path.isfile(ref_file):
+        try:
+            with open(ref_file, "r", encoding="utf-8") as fh:
+                fresh_ref = fh.read()
+        except Exception as e:
+            violations.append(f"Failed to read fresh referenced_names.txt: {e}")
+
+    if fresh_ref != committed_ref:
+        try:
+            with open(ref_file, "w", encoding="utf-8") as fh:
+                fh.write(committed_ref)
+        except Exception:
+            pass
+        violations.append("usr/share/mios/referenced_names.txt is stale. Please run tools/generate-names-registry.py.")
+
+    if violations:
+        for v in sorted(violations):
+            sys.stderr.write(f"    {v}\n")
+        sys.exit(1)
+    sys.exit(0)
+
+
+def check_agent_schema() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import os, sys, re
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    import tomllib as _toml
+    p = os.path.join(root, "usr/share/mios/mios.toml")
+    if not os.path.isfile(p):
+        sys.exit(0)
+    with open(p, "rb") as fh:
+        d = _toml.load(fh)
+    ag = dict(d.get("agents") or {})
+    defs = ag.pop("_defaults", {}) if isinstance(ag.get("_defaults"), dict) else {}
+    CANON = {"kind","endpoint","model","role","job","default","fanout","enabled","lane",
+             "sub_lane","health_gate","transport","timeout_s","strengths","cpu_endpoint",
+             "cpu_model","failover_agents","denied_verbs","allowed_verbs","max_permission",
+             "api","vram_mb","ram_mb","tool_capable","research_only","auth","trust",
+             "engines","nodes","backend","privilege_group"}
+    def _local(ep):
+        h = re.sub(r'^[a-z]+://', '', str(ep)).split('/')[0].rsplit(':', 1)[0]
+        return h in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "")
+    bad, warn, ndefault = [], [], 0
+    REQUIRED_FIELDS = {"role", "job", "lane", "health_gate"}
+    for name, cfg in ag.items():
+        if name.startswith("_") or not isinstance(cfg, dict):
+            continue
+        if not cfg:
+            bad.append(f"    [agents.{name}] agent table is empty")
+            continue
+        for req_k in REQUIRED_FIELDS:
+            if req_k not in cfg:
+                bad.append(f"    [agents.{name}] missing required field {req_k!r} in block")
+        if "model" not in cfg and "endpoint" not in cfg:
+            bad.append(f"    [agents.{name}] must declare 'model' or 'endpoint' in block")
+        m = {**defs, **cfg}
+        kind = str(m.get("kind", "")).strip().lower()
+        ep = str(m.get("endpoint", "")).strip()
+        enabled = bool(m.get("enabled", True))
+        hg = bool(m.get("health_gate", False))
+        if bool(m.get("default", False)):
+            ndefault += 1
+        loc = _local(ep)
+        if loc and not bool(m.get("default", False)) and enabled and kind in ("", "local-http") and not hg:
+            bad.append(f"    [agents.{name}] LOCAL + non-default + enabled but no health_gate=true (or enabled=false): a dead endpoint is treated as live -> DAG sink -> merged_chars=0")
+        if kind == "cli":
+            if not (hg or not enabled):
+                bad.append(f"    [agents.{name}] kind=cli must set health_gate=true OR enabled=false")
+            if int(m.get("timeout_s", 0) or 0) <= 0:
+                bad.append(f"    [agents.{name}] kind=cli must set timeout_s>0 (fail-fast budget)")
+        if kind == "node" and not (str(m.get("api", "")).strip() and str(m.get("lane", "")).strip()):
+            bad.append(f"    [agents.{name}] kind=node must set api + lane")
+        if kind in ("remote-http", "edge", "mobile") and not hg:
+            bad.append(f"    [agents.{name}] kind={kind} must set health_gate=true")
+        if re.search(r':\d{2,5}(/|$)', ep) and "${MIOS_PORT" not in ep:
+            warn.append(f"    [agents.{name}].endpoint bare :PORT literal (use ${{MIOS_PORT_*}}): {ep}")
+        for k in cfg:
+            if k not in CANON:
+                warn.append(f"    [agents.{name}] unknown key {k!r} (not in the canonical agent schema)")
+    if ndefault > 1:
+        bad.append(f"    {ndefault} [agents.*] set default=true; at most one is allowed")
+    for w in warn:
+        sys.stdout.write("[98-drift-checks]   (advisory)" + w + "\n")
+    for b in bad:
+        sys.stderr.write(b + "\n")
+    sys.exit(1 if bad else 0)
+
+
 SUBCOMMANDS = {
+    "agent-schema": check_agent_schema,
+    "names-registry": check_names_registry,
+    "gate-registry": check_gate_registry,
     "firstboot-tier": check_firstboot_tier,
     "cephfs-ssot": check_cephfs_ssot,
     "verb-stub-backends": check_verb_stub_backends,

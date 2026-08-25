@@ -34,6 +34,9 @@ This document is derived directly from `usr/share/mios/mios.toml`.
 | inference | cpu_node | 8510 |
 | inference | vllm | 8520 |
 | inference | sglang | 8530 |
+| node | ai_legacy | 8640 |
+| node | field_live_chat | 8642 |
+| node | node | 8650 |
 | sidecar | guacd | 8560 |
 | sidecar | redis | 8565 |
 | sidecar | otelcol_otlp | 8575 |

@@ -56,7 +56,7 @@ A thin entrypoint (installed `/usr/libexec/mios/mios-apply`) parameterized by:
 - `MIOS_SUBSTRATE ∈ { oci-bake, bootc-live, wsl-dev, fhs-host }`
 - `MIOS_ROOT` (default `/`; `/tmp/build` in the bake)
 
-It: (1) **materializes git=$ROOT** via shared `lib/root-merge.sh` (extract of `build-mios.ps1:3628-3733`; no-op when `oci-bake` since the tree is already at $ROOT); (2) **selects stages** by a new per-stage header `# MIOS_APPLY_CLASS=<universal|bake-only|boot-only|dev-only|hardware-gated>`; (3) **runs them** through build.sh's existing loop (`build.sh:293-329`) extracted to `lib/stage-runner.sh`; (4) runs post-checks (99-postcheck/38-ssot-lint/38-drift-checks) in every substrate.
+It: (1) **materializes git=$ROOT** via shared `lib/root-merge.sh` (extract of `build-mios.ps1:3628-3733`; no-op when `oci-bake` since the tree is already at $ROOT); (2) **selects stages** by a new per-stage header `# MIOS_APPLY_CLASS=<universal|bake-only|boot-only|dev-only|hardware-gated>`; (3) **runs them** through build.sh's existing loop (`build.sh:293-329`) extracted to `lib/stage-runner.sh`; (4) runs post-checks (99-postcheck/97-ssot-lint/automation/98-drift-checks.sh) in every substrate.
 
 `build.sh` shrinks to: `exec env MIOS_SUBSTRATE=oci-bake MIOS_ROOT="${CTX:-/}" mios-apply "$@"` — **Containerfile:121 never changes**; the bake stays bit-identical.
 

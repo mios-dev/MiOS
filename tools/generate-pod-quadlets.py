@@ -212,6 +212,12 @@ def load_volumes(toml_path: str) -> dict:
     return d.get("volumes") or d.get("volume") or {}
 
 
+def load_images(toml_path: str) -> dict:
+    with open(toml_path, "rb") as f:
+        d = tomllib.load(f)
+    return d.get("images") or d.get("image") or {}
+
+
 def load_enabled_quadlets(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
@@ -272,6 +278,7 @@ def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
         return _selftest()
     check = "--check" in argv
+    list_mode = "--list" in argv
     global _SIDECARS
     _SIDECARS = load_sidecars(TOML)
     enabled_map = load_enabled_quadlets(TOML)
@@ -280,13 +287,14 @@ def main(argv: "list[str]") -> int:
     containers = load_containers(TOML)
     networks = load_networks(TOML)
     volumes = load_volumes(TOML)
+    images = load_images(TOML)
 
     for name in enabled_map:
         if name not in containers:
             print(f"[pod-gen] ERROR: key '{name}' in [quadlets.enable] does not map to any container in [containers]", file=sys.stderr)
             return 1
 
-    if not pods and not containers and not networks and not volumes:
+    if not pods and not containers and not networks and not volumes and not images:
         print("[pod-gen] no Quadlets in SSOT -- nothing to do")
         return 0
 
@@ -315,7 +323,8 @@ def main(argv: "list[str]") -> int:
         generated_files.add(os.path.basename(out))
         for m in [str(x).split("#", 1)[0].strip() for x in (spec.get("members") or [])]:
             if m and not os.path.exists(os.path.join(OUT_DIR, f"{m}.container")):
-                print(f"[pod-gen] WARN {name}: member {m}.container missing", file=sys.stderr)
+                if not list_mode:
+                    print(f"[pod-gen] WARN {name}: member {m}.container missing", file=sys.stderr)
                 member_miss += 1
         active_units += 1
         if check:
@@ -328,15 +337,17 @@ def main(argv: "list[str]") -> int:
                       file=sys.stderr)
                 drift += 1
             continue
-        with open(out, "w", encoding="utf-8", newline="\n") as f:
-            f.write(text)
-        wrote += 1
-        print(f"[pod-gen]   wrote {out}")
+        if not list_mode:
+            with open(out, "w", encoding="utf-8", newline="\n") as f:
+                f.write(text)
+            wrote += 1
+            print(f"[pod-gen]   wrote {out}")
 
     categories = [
         (containers, "container"),
         (networks, "network"),
-        (volumes, "volume")
+        (volumes, "volume"),
+        (images, "image"),
     ]
 
     for specs, unit_type in categories:
@@ -352,7 +363,7 @@ def main(argv: "list[str]") -> int:
                         print(f"[pod-gen] DRIFT {out} should not exist (disabled in SSOT)", file=sys.stderr)
                         drift += 1
                 else:
-                    if os.path.exists(out):
+                    if os.path.exists(out) and not list_mode:
                         os.remove(out)
                         print(f"[pod-gen]   removed disabled {out}")
                 continue
@@ -371,15 +382,21 @@ def main(argv: "list[str]") -> int:
                           file=sys.stderr)
                     drift += 1
                 continue
-            with open(out, "w", encoding="utf-8", newline="\n") as f:
-                f.write(text)
-            wrote += 1
-            print(f"[pod-gen]   wrote {out}")
+            if not list_mode:
+                with open(out, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(text)
+                wrote += 1
+                print(f"[pod-gen]   wrote {out}")
+
+    if list_mode:
+        for fname in sorted(generated_files):
+            print(fname)
+        return 0
 
     if check:
         shipped = set()
         for file in os.listdir(OUT_DIR):
-            if os.path.isfile(os.path.join(OUT_DIR, file)) and file.endswith((".container", ".pod", ".network", ".volume")):
+            if os.path.isfile(os.path.join(OUT_DIR, file)) and file.endswith((".container", ".pod", ".network", ".volume", ".image")):
                 shipped.add(file)
         orphans = shipped - generated_files
         if orphans:

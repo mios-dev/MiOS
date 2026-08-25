@@ -117,7 +117,7 @@ This document is derived directly from `usr/share/mios/mios.toml`.
 | `mios theme` | dev_vm | Sync bibata/GTK/Qt themes |
 | `mios tool_search` |  |  |
 | `mios tune` | dev_vm | System-wide CPU isolation & latency tuning |
-| `mios update` | windows | Re-run the bootstrap (cache-busted) |
+| `mios update` | all | Check and perform OS updates via bootc |
 | `mios user` | dev_vm | Initialize user space (dotfiles/XDG) |
 | `mios vault` |  |  |
 | `mios verify_launch` |  |  |

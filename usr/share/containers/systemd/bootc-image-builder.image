@@ -1,5 +1,7 @@
-# AI-hint: Quadlet image definition for bootc-image-builder to embed the container image for offline MiOS self-build disk generation.
+# AI-hint: MiOS bootc-image-builder image. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [images.bootc-image-builder] in mios.toml.
 # /usr/share/containers/systemd/bootc-image-builder.image
+
 [Image]
 Image=quay.io/centos-bootc/bootc-image-builder:latest
 

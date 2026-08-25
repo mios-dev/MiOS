@@ -17,8 +17,27 @@ import mios_registry as reg  # noqa: E402  -- pure projection core
 TOML = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
 PKG_DIR = os.environ.get("MIOS_PACKAGES_DIR", "/usr/share/mios/ai/v1/packages")
 REGISTRY = os.path.join(PKG_DIR, "registry.json")
-ENABLED = str(os.environ.get("MIOS_PACKAGE_REGISTRY", "")).strip().lower() in (
-    "1", "true", "yes", "on")
+def _is_enabled() -> bool:
+    env = os.environ.get("MIOS_PACKAGE_REGISTRY", "").strip().lower()
+    if env:
+        return env in ("1", "true", "yes", "on")
+    try:
+        import tomllib as _toml
+    except ImportError:
+        import tomli as _toml
+    try:
+        if os.path.isfile(TOML):
+            with open(TOML, "rb") as fh:
+                data = _toml.load(fh)
+            val = (data.get("ai") or {}).get("package_registry", False)
+            if isinstance(val, bool):
+                return val
+            return str(val).strip().lower() in ("1", "true", "yes", "on")
+    except Exception:
+        pass
+    return False
+
+ENABLED = _is_enabled()
 AUTHOR = os.environ.get("MIOS_PACKAGE_AUTHOR", "mios")
 VERSION = os.environ.get("MIOS_PACKAGE_VERSION", "0.0.0")
 

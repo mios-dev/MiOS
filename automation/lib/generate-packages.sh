@@ -3,7 +3,27 @@
 # AI-doc: usr/share/doc/mios/manual/lib.md
 set -euo pipefail
 
-_enabled="$(printf '%s' "${MIOS_PACKAGE_REGISTRY:-false}" | tr '[:upper:]' '[:lower:]')"
+_enabled_val=""
+if [[ -n "${MIOS_PACKAGE_REGISTRY:-}" ]]; then
+    _enabled_val="$MIOS_PACKAGE_REGISTRY"
+else
+    _toml="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+    if [[ -f "$_toml" ]]; then
+        _enabled_val=$(python3 -c '
+import sys, os
+try:
+    import tomllib as t
+except ImportError:
+    import tomli as t
+with open(sys.argv[1], "rb") as f:
+    d = t.load(f)
+val = (d.get("ai") or {}).get("package_registry", False)
+print("true" if val else "false")
+' "$_toml" 2>/dev/null || echo "false")
+    fi
+fi
+
+_enabled="$(printf '%s' "${_enabled_val:-false}" | tr '[:upper:]' '[:lower:]')"
 case "$_enabled" in
     1|true|yes|on)
         : ;;

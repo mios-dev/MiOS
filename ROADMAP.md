@@ -39,14 +39,16 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 
 ### Honest state, measured rather than asserted
 
+<!-- ROADMAP_METRICS_START -->
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 2,383 | The reading surface. |
-| Tracked size | 202 MB | Two vendored assets are most of it. |
-| Shell / Python / PowerShell / Rust | 46k / 106k / 33k / 9k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 3.6x. |
-| Drift checks | 181 | Falsifiability audited per check, not assumed. |
-| Units reproducing from SSOT | 27 of 66 | 39 registered as drifting: the largest hole in part 1 of the thesis. |
+| Tracked files | 2,613 | The reading surface. |
+| Tracked size | 197 MB | Two vendored assets are most of it. |
+| Shell / Python / PowerShell / Rust | 43k / 110k / 25k / 11k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 2.2x. |
+| Drift checks | 207 | Falsifiability audited per check, not assumed. |
+| Units reproducing from SSOT | 15 faithful of 174 | 55 registered as drifting: the largest hole in part 1 of the thesis. |
+<!-- ROADMAP_METRICS_END -->
 
 ### The four open campaigns
 
@@ -492,7 +494,7 @@ theme: Deployment & Sovereignty
 status: done
 priority: P1
 laws: [1, 7, 8, 9, 12]
-ssot_keys: ["cat", "cat.repo_partition", "cat.data_partition", "editions", "colors"]
+ssot_keys: ["editions", "colors"]
 adr: [8]
 deps: [WS-MDRIVE]
 acceptance: |
@@ -518,7 +520,7 @@ theme: Deployment & Sovereignty
 status: done
 priority: P1
 laws: [8, 12]
-ssot_keys: ["cat.repo_partition", "cat.data_partition", "cat.models", "ai.bake_models"]
+ssot_keys: ["ai.bake_models"]
 adr: [8]
 deps: [WS-CAT, WS-BAKEGATE]
 acceptance: |
@@ -562,7 +564,7 @@ theme: Deployment & Sovereignty
 status: done
 priority: P2
 laws: [1, 8, 9]
-ssot_keys: ["cat"]
+ssot_keys: []
 adr: [8]
 deps: [WS-CAT]
 acceptance: |
@@ -830,7 +832,7 @@ theme: Deployment & Sovereignty
 status: done
 priority: P1
 laws: [1, 3, 4, 12]
-ssot_keys: ["cat.drivepath", "build.bake"]
+ssot_keys: ["build.bake"]
 adr: [13, 14]
 deps: []
 acceptance: |

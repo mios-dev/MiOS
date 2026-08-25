@@ -14,15 +14,15 @@ the base bootc host: the AI plane, the container plane and a Windows guest on on
 .br
 Runs on: bare metal or a virtual machine.
 .TP
-.B MiOS\-Cat (partial)
-the portable edition: a Ventoy USB or NVMe carrying the image, the repository and the models to run, install and deploy with no network
-.br
-Runs on: removable USB or NVMe.
-.TP
 .B MiOS\-DEV (partial)
 the development host: builds, bakes and gates the image, and runs MiOS itself as the container machine
 .br
 Runs on: a WSL2 machine on a workstation.
+.TP
+.B MiOS\-Field (partial)
+the portable edition: a Ventoy USB or NVMe carrying the image, the repository and the models to run, install and deploy with no network
+.br
+Runs on: removable USB or NVMe.
 .TP
 .B MiOS\-Metal (design)
 the metal\-owning firmware: a small headless bootc hypervisor\-router that binds the GPUs and NICs and hosts MiOS as a guest

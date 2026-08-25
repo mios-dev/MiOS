@@ -39,6 +39,9 @@ ports.chrome_cdp_worker  MIOS_PORTS_CHROME_CDP_WORKER
 ports.otelcol_otlp  MIOS_PORTS_OTELCOL_OTLP
 ports.otelcol_ui  MIOS_PORTS_OTELCOL_UI
 ports.pxe_hub_api  MIOS_PORTS_PXE_HUB_API
+ports.ai_legacy  MIOS_PORTS_AI_LEGACY
+ports.field_live_chat  MIOS_PORTS_FIELD_LIVE_CHAT
+ports.node  MIOS_PORTS_NODE
 ports.stale_fallbacks  MIOS_PORTS_STALE_FALLBACKS
 ports.unbound  MIOS_PORTS_UNBOUND
 ports.categories.edge.base  MIOS_PORTS_CATEGORIES_EDGE_BASE
@@ -96,6 +99,10 @@ ports.categories.bridge.base  MIOS_PORTS_CATEGORIES_BRIDGE_BASE
 ports.categories.bridge.stride  MIOS_PORTS_CATEGORIES_BRIDGE_STRIDE
 ports.categories.bridge.members  MIOS_PORTS_CATEGORIES_BRIDGE_MEMBERS
 ports.categories.bridge.doc  MIOS_PORTS_CATEGORIES_BRIDGE_DOC
+ports.categories.node.base  MIOS_PORTS_CATEGORIES_NODE_BASE
+ports.categories.node.stride  MIOS_PORTS_CATEGORIES_NODE_STRIDE
+ports.categories.node.members  MIOS_PORTS_CATEGORIES_NODE_MEMBERS
+ports.categories.node.doc  MIOS_PORTS_CATEGORIES_NODE_DOC
 ai.vision_grounding_enable  MIOS_AI_VISION_GROUNDING_ENABLE
 ai.vision_grounding_model  MIOS_AI_VISION_GROUNDING_MODEL
 ai.kernel_dispatch  MIOS_AI_KERNEL_DISPATCH

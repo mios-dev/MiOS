@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # MIOS_INSTALLER_ROLE=fhs-overlay-installer
-# AI-hint: Installs the MiOS FHS overlay onto non-bootc Fedora hosts by syncing usr/etc/var/srv directories, materi...
+# AI-hint: Installs the MiOS FHS overlay onto non-bootc Fedora hosts by syncing usr/, etc/, var/, and srv/ directories, materializing required users/groups, and configuring services.
 # AI-doc: usr/share/doc/mios/manual/automation.md
 
 set -euo pipefail
 
 if command -v bootc >/dev/null 2>&1 && bootc status --format=json 2>/dev/null | grep -q '"booted"'; then
     echo "[FAIL] This host is bootc-managed. install.sh is for non-bootc Fedora hosts" >&2
-    echo "       Use 'sudo bootc switch ghcr.io/MiOS-DEV/mios:latest' instead" >&2
+    echo "       Use 'sudo bootc switch ghcr.io/mios-dev/mios:latest' instead" >&2
     exit 1
 fi
 
@@ -16,14 +16,16 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo "[INFO] 'MiOS' system installer running from ${REPO_ROOT}"
 
+applied=0
 if [[ "${REPO_ROOT}" != "/" ]]; then
     for d in usr etc var srv; do
         if [[ -d "${REPO_ROOT}/${d}" ]]; then
             echo "[INFO] Applying overlay: ${d}/"
             rsync -aH --info=stats1 "${REPO_ROOT}/${d}/" "/${d}/"
+            applied=$((applied + 1))
         fi
     done
 
@@ -31,6 +33,12 @@ if [[ "${REPO_ROOT}" != "/" ]]; then
         echo "[INFO] Materializing /v1 discovery surface"
         install -d /v1
         rsync -aH "${REPO_ROOT}/v1/" "/v1/"
+        applied=$((applied + 1))
+    fi
+
+    if [[ $applied -eq 0 ]]; then
+        echo "[FAIL] No overlay directories (usr, etc, var, srv, v1) found in ${REPO_ROOT}" >&2
+        exit 1
     fi
 else
     echo "[INFO] Running directly from root, skipping overlay sync"

@@ -219,6 +219,7 @@ passage carries an anchor back to the comment it came from.
 |---|---|
 | `usr/share/doc/mios/manual/access.md` | Manual pages distilled from the source comments of access, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/agent-pipe.md` | Manual pages distilled from the source comments of agent-pipe, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/agent_pipe.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
 | `usr/share/doc/mios/manual/automation.md` | Manual pages distilled from the source comments of automation, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/btop.md` | Manual pages distilled from the source comments of btop, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/ch01-introduction-and-core-concepts.md` | Chapter 01: Introduction and Core Concepts. Defines the dual nature of MiOS as an immutable, bootc Fedora workstation and a local agentic OS. Explains how the Git repository tree directly mirrors the... |
@@ -314,6 +315,7 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/scheduler.md` | Manual pages distilled from the source comments of scheduler, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/searxng.md` | Manual pages distilled from the source comments of searxng, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/src.md` | Manual pages distilled from the source comments of src, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/ssot.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
 | `usr/share/doc/mios/manual/support.md` | Manual pages distilled from the source comments of support, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/system.md` | Manual pages distilled from the source comments of system, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/systemd.md` | Manual page for systemd subsystem |
@@ -328,5 +330,5 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/workflows.md` | Manual pages distilled from the source comments of workflows, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/xdg-desktop-portal.md` | Manual pages distilled from the source comments of xdg-desktop-portal, sanitized, each passage anchored to the comment it came from. |
 
-<!-- derived from the AI-hint headers of 110 file(s) matching usr/share/doc/mios/manual/*.md -->
+<!-- derived from the AI-hint headers of 112 file(s) matching usr/share/doc/mios/manual/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->

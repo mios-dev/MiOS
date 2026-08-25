@@ -96,7 +96,7 @@
 95	check_offline_install_invariant	tools/install.sh zero-network offline-install invariant verified clean against executable code
 96	check_installer_family_roles	installer family role markers verified unique across all installers
 97	check_bib_configs_projection	BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT
-98	check_repo_partition_label_ssot	repo partition label consumers match [cat.repo_partition].label SSOT
+98	check_repo_partition_label_ssot	repo partition label consumers match [field.repo_partition].label SSOT
 99	check_bib_single_config_invariant	Justfile absent
 100	check_build_artifacts_output_dir	build output dir consumers absent
 101	check_win11_vm_template_xml	win11 VM template or SSOT absent

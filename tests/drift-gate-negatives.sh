@@ -445,6 +445,31 @@ EOF
     log "Check_agent_pipe_budgets negative test passed"
 }
 
+test_agent_schema() {
+    log "Testing check_agent_schema"
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$toml_file")"
+
+    python3 - "$toml_file" << 'EOF'
+import sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+new = t.replace('health_gate = true', '# health_gate removed', 1)
+open(p, "w", encoding="utf-8").write(new)
+EOF
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agent_schema >/dev/null 2>&1; then
+        echo "$orig_val" > "$toml_file"
+        die "check_agent_schema passed despite missing health_gate in [agents.hermes]"
+    fi
+
+    echo "$orig_val" > "$toml_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agent_schema >/dev/null 2>&1 \
+        || die "check_agent_schema failed after restoration"
+    log "check_agent_schema negative test passed"
+}
+
 test_bake_tokens() {
     log "Testing check_bake_plan with bogus firstboot token"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
@@ -992,6 +1017,20 @@ test_chpasswd_plaintext() {
     python3 "${ROOT}/usr/libexec/mios/mios-hardcode-lint" "${ROOT}" >/dev/null 2>&1 \
         || die "Mios-hardcode-lint failed after restoration"
     log "Test_chpasswd_plaintext negative test passed"
+}
+
+test_hardcode_lint_anchored_allowlist() {
+    log "Testing mios-hardcode-lint anchored allowlist matching"
+    local probe="${ROOT}/usr/bin/test_anchored_probe.sh"
+    echo 'x="http://localhost:8080"' > "$probe"
+
+    python3 "${ROOT}/usr/libexec/mios/mios-hardcode-lint" "${ROOT}" >/dev/null 2>&1 && {
+        rm -f "$probe"
+        die "Mios-hardcode-lint passed despite localhost:8080 when allowlist has localhost:80"
+    }
+
+    rm -f "$probe"
+    log "Test_hardcode_lint_anchored_allowlist passed"
 }
 
 test_build_artifacts_output_dir() {
@@ -3114,11 +3153,11 @@ test_repo_partition_label_ssot() {
 
     # Rename the table the label lives in. The old gate defaulted to the literal
     # "MiOS-Repo" when the anchor vanished, so it passed on exactly this change.
-    sed 's|\[cat\.repo_partition\]|[mios_negtest_gone.repo_partition]|' "$bak" > "$toml"
+    sed 's|\[field\.repo_partition\]|[mios_negtest_gone.repo_partition]|' "$bak" > "$toml"
 
     _neg_gate check_repo_partition_label_ssot && {
         cp "$bak" "$toml"; rm -f "$bak"
-        die "check_repo_partition_label_ssot passed with [cat.repo_partition] renamed away"
+        die "check_repo_partition_label_ssot passed with [field.repo_partition] renamed away"
     }
 
     cp "$bak" "$toml"; rm -f "$bak"
@@ -3754,6 +3793,7 @@ _run_test test_leaked_fixtures
     _run_test test_router_parity
     _run_test test_council_gate_ssot
     _run_test test_agent_pipe_budgets
+    _run_test test_agent_schema
     _run_test test_bake_tokens
     _run_test test_bake_unresolved_image
     _run_test test_containerfile_pinned_clones
@@ -3808,6 +3848,7 @@ _run_test test_leaked_fixtures
     _run_test test_repo_partition_label_ssot
     _run_test test_bib_single_config_invariant
     _run_test test_chpasswd_plaintext
+    _run_test test_hardcode_lint_anchored_allowlist
     _run_test test_build_artifacts_output_dir
     _run_test test_win11_vm_template_xml
     _run_test test_ipa_enroll_projection

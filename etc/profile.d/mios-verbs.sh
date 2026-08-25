@@ -94,10 +94,14 @@ mios() {
             ;;
         update)
             shift
-            if [[ -x /mnt/m/MiOS/bin/mios-update.ps1 ]]; then
-                echo "Mios update: re-run irm|iex Get-MiOS.ps1 from Windows side" >&2
+            if command -v mios-update >/dev/null 2>&1; then
+                exec mios-update "$@"
+            elif [[ -x /usr/bin/mios-update ]]; then
+                exec /usr/bin/mios-update "$@"
+            else
+                echo "Mios update: /usr/bin/mios-update is absent" >&2
+                return 1
             fi
-            mios pull
             ;;
         help|"-h"|"--help"|"")
             cat <<'EOH'

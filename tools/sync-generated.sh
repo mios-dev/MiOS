@@ -85,10 +85,11 @@ main() {
     step "4a/6 seat-vs-blade comparison (derived from [blade.*])"
     MIOS_ROOT="$ROOT" "$PY" tools/generate-metal-vs-hosted.py >/dev/null
 
-    step "4b/6 gate + pipeline + ADR indexes"
+    step "4b/6 gate + pipeline + ADR + roadmap indexes"
     "$PY" tools/generate-gate-index.py >/dev/null
     "$PY" tools/generate-pipeline-index.py >/dev/null
     "$PY" tools/generate-adr-index.py >/dev/null
+    "$PY" tools/roadmap-index.py >/dev/null
 
     step "4c/6 blade projections (drop-ins + the deploy-time karg)"
     "$PY" tools/generate-blade-dropins.py >/dev/null

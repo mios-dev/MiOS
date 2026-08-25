@@ -1,7 +1,9 @@
-# AI-hint: Quadlet image representation for the heavy vLLM inference container.
+# AI-hint: MiOS mios-llm-heavy image. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [images.mios-llm-heavy] in mios.toml.
 # /usr/share/containers/systemd/mios-llm-heavy.image
+
 [Image]
-Image=${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}
+Image=docker.io/vllm/vllm-openai:latest
 
 [Service]
 TimeoutStartSec=3600

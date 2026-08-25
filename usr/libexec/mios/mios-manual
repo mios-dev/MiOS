@@ -851,8 +851,12 @@ def cmd_coverage(args) -> int:
     """The ratchet numbers, so the gate and a human read the same figures."""
     root = args.root
     policy = _policy(root)
+    rows = _read_ledger(os.path.join(root, LEDGER_REL.replace("/", os.sep)))
     narrative = hints = 0
-    for _b, v in _iter_blocks(root, policy):
+    for b, v in _iter_blocks(root, policy):
+        row = rows.get(b.sha12)
+        if row is not None and landed(row, root, policy):
+            continue
         if v.cls == "MIGRATE":
             narrative += 1
         elif v.cls == "MIGRATE_HEADER":

@@ -369,7 +369,7 @@ class RefIndex:
                          "C:/mios-bootstrap", "/usr/local", "/src/", "etc/usr",
                          "etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-", "tools/call",
                          "tools/list", "/.config/", "~/.config/", "src/core/",
-                         "automation/45-hwcaps-rebuild.sh")
+                         "automation/45-hwcaps-rebuild.sh", "usr/lib/", "usr/lib64/")
 
     def known(self, token: str) -> bool:
         if token.startswith(self._RUNTIME_PREFIXES):
@@ -379,9 +379,11 @@ class RefIndex:
             return True
         if t in self.names or t in self.paths:
             return True
-        if t.endswith(("-", "...", "..")) or "..." in t or "NNNN" in t:
+        if t.endswith(("-", "...", "..")) or "..." in t or "NNNN" in t or "XXXX" in t:
             return True
-        if t.endswith("_") and any(n.startswith(t) for n in self.names):
+        if t in ("x.service", "unit.service", "s.container", "-pod.service", "UID.service", "UID_.service", ".apply.target", "apply.target", "src/mios-launch.cs") or t.startswith("tests/templates/"):
+            return True
+        if t.endswith("_") and (any(n.startswith(t) for n in self.names) or t.rstrip("_") in self.names):
             return True
         # Directories are references too: a comment naming usr/share/mios or
         # usr/lib/systemd/system points at something real, and matching only

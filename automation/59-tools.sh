@@ -1,6 +1,6 @@
 #!/bin/bash
 # MIOS_APPLY_CLASS=universal
-# AI-hint: Sets executable permissions for the core mios- suite of CLI tools in /usr/bin/ and installs auxiliary scripts like mios-toggle-hea...
+# AI-hint: Sets executable permissions for the core mios- suite of CLI tools in /usr/bin/ and installs auxiliary scripts like mios-toggle-headless.
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

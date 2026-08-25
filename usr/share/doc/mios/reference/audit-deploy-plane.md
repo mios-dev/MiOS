@@ -1,5 +1,5 @@
-<!-- AI-hint: Audit of the MiOS DEPLOY plane (the least-done area, ~15-25%): traces the OFFLINE immutable-bootc install chain (Justfile oci-archive/BIB -> mios-stage-oci-archive -> tools/install.sh -> cat/loopback.cfg + ventoy.json) end-to-end, proves the immutable leg is ORPHANED (MiOS-Cat.bat stages only mutable Fedora), and gives a sequenced plan + drop-in staging bridge / loopback-from-SSOT template / first-boot MOK-UKI enrollment to make one USB offline-install REAL MiOS (bootc/ostree) in every format. -->
-<!-- AI-related: cat/loopback.cfg, tools/install.sh, installation/MiOS-Cat.bat, usr/libexec/mios/mios-stage-oci-archive, usr/libexec/mios/mios-build-driver, usr/share/mios/ventoy/ventoy.json, usr/share/mios/ventoy/mios-kickstart.cfg, config/artifacts/{bib,iso,qcow2,vhdx,wsl2}.toml, Justfile, automation/98-drift-checks.sh, usr/share/mios/mios.toml [deployment]/[deploy.artifacts]/[cat], usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md, automation/76-uki-render.sh -->
+<!-- AI-hint: Audit of the MiOS DEPLOY plane (the least-done area, ~15-25%): traces the OFFLINE immutable-bootc install chain (Justfile oci-archive/BIB -> mios-stage-oci-archive -> tools/install.sh -> field/loopback.cfg + ventoy.json) end-to-end, proves the immutable leg is ORPHANED (MiOS-Cat.bat stages only mutable Fedora), and gives a sequenced plan + drop-in staging bridge / loopback-from-SSOT template / first-boot MOK-UKI enrollment to make one USB offline-install REAL MiOS (bootc/ostree) in every format. -->
+<!-- AI-related: field/loopback.cfg, tools/install.sh, installation/MiOS-Cat.bat, usr/libexec/mios/mios-stage-oci-archive, usr/libexec/mios/mios-build-driver, usr/share/mios/ventoy/ventoy.json, usr/share/mios/ventoy/mios-kickstart.cfg, config/artifacts/{bib,iso,qcow2,vhdx,wsl2}.toml, Justfile, automation/98-drift-checks.sh, usr/share/mios/mios.toml [deployment]/[deploy.artifacts]/[cat], usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md, automation/76-uki-render.sh -->
 
 # MiOS DEPLOY-Plane Audit — Offline Immutable Install (bare-metal, VM, ISO, Ventoy)
 
@@ -132,7 +132,7 @@ Runs on Linux/WSL. Stages every built artifact + a from-SSOT loopback menu onto 
 #!/usr/bin/env bash
 # MIOS_INSTALLER_ROLE=usb-artifact-stager
 # AI-hint: Stages built immutable-MiOS artifacts (oci-archive tar, Anaconda-bootc ISO, raw/qcow2/vhdx, brain) onto a mounted Ventoy USB (MiOS-Repo + MiOS-Data) and renders the from-SSOT loopback menu, so one USB offline-installs the REAL bootc image. Zero-network. Companion to tools/install.sh + mios-stage-oci-archive.
-# AI-related: usr/libexec/mios/mios-stage-oci-archive, tools/install.sh, cat/loopback.cfg, usr/share/mios/ventoy/ventoy.json, usr/share/mios/mios.toml [cat.repo_partition]/[cat.data_partition]/[deploy.artifacts]
+# AI-related: usr/libexec/mios/mios-stage-oci-archive, tools/install.sh, field/loopback.cfg, usr/share/mios/ventoy/ventoy.json, usr/share/mios/mios.toml [cat.repo_partition]/[cat.data_partition]/[deploy.artifacts]
 set -euo pipefail
 
 # --- Resolve ROOT + SSOT labels (no hardcoding; degrade-open to canonical) ---

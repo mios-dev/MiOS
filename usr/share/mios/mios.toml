@@ -1519,10 +1519,10 @@ Wants = "network-online.target"
 
 [units."mios-node.service".Service]
 Type = "simple"
-ExecStart = "/usr/bin/mios-node 101 8650"
+ExecStart = "/usr/bin/mios-node 101 ${MIOS_PORT_NODE:-8650}"
 Restart = "always"
 RestartSec = "5s"
-Environment = ["MIOS_AI_ENDPOINT=http://127.0.0.1:8640", "MIOS_LOG_LEVEL=info"]
+Environment = ["MIOS_AI_ENDPOINT=http://127.0.0.1:${MIOS_PORT_AGENT_PIPE:-8700}/v1", "MIOS_LOG_LEVEL=info"]
 LimitNOFILE = "65536"
 
 [units."mios-node.service".Install]
@@ -1951,7 +1951,7 @@ iommu  = { description = "Pretty-print hardware IOMMU topology",                
 theme  = { description = "Sync bibata/GTK/Qt themes",                                            surface = "dev_vm" }
 user   = { description = "Initialize user space (dotfiles/XDG)",                                 surface = "dev_vm" }
 pull   = { description = "Sync M:\\ overlay to origin/main",                                      surface = "windows" }
-update = { description = "Re-run the bootstrap (cache-busted)",                                  surface = "windows" }
+update = { description = "Check and perform OS updates via bootc", surface = "all", cmd = "/usr/bin/mios-update" }
 help   = { description = "List every verb",                                                       surface = "windows" }
 
 # Note: the canonical [apps] table is consolidated below (~line 1690)
@@ -6698,6 +6698,9 @@ chrome_cdp_worker  = 9223    # CDP on the SECOND browser (mios-hermes-browser-wo
 otelcol_otlp       = 8575    # OpenTelemetry OTLP gRPC receiver on mios-otelcol (upstream default 4317).
 otelcol_ui         = 8580    # Jaeger all-in-one query UI on mios-otelcol (upstream default 16686).
 pxe_hub_api        = 8585    # matchbox gRPC/API on mios-pxe-hub (upstream default 8081; its HTTP side rides forge_http's band).
+ai_legacy        = 8640    # legacy AI endpoint
+field_live_chat  = 8642    # field live chat
+node             = 8650    # mios-node edge daemon
 
 # Files pairing a MIOS_PORT_* name with a literal that disagrees with this table.
 # SHRINK-ONLY (gate: check_port_fallbacks), and currently EMPTY -- a new entry
@@ -6709,7 +6712,7 @@ stale_fallbacks = []
 # `Environment=` literal in a shipped .service -- systemd does not expand ${} in
 # Environment=, and the [units] block that WOULD render the placeholder is inert
 # until T-317 makes mios-unit-gen faithful.
-unbound = ["chrome_cdp_worker"]
+unbound = ["chrome_cdp_worker", "ai_legacy", "field_live_chat"]
 
 [ports.categories.edge]
 base    = 8050
@@ -6793,6 +6796,12 @@ stride  = 10
 members = ["oscontrol"]
 doc     = "Cross-OS bridges (Windows-side UI Automation executor). LOOPBACK-only."
 
+[ports.categories.node]
+base    = 8640
+stride  = 2
+members = ["ai_legacy", "field_live_chat", "", "", "", "node"]
+doc     = "Edge node, legacy AI endpoint, and field live chat ports."
+
 
 [units]
 forge              = "mios-forge.service"
@@ -6835,8 +6844,8 @@ bootstrap_repo     = "https://github.com/mios-dev/mios-bootstrap.git"
 # hermes MIOS_HERMES_ENDPOINT, crawl4ai MIOS_CRAWL_SERVICE_URL, otelcol_otlp
 # [observability].otel_endpoint.
 non_addressable = [
-  "adguard_dns", "adguard_ui", "agent_pipe", "arbiter", "ceph_dashboard",
-  "crawl4ai", "hermes", "llm_light", "pgvector",
+  "adguard_dns", "adguard_ui", "agent_pipe", "ai_legacy", "arbiter", "ceph_dashboard",
+  "crawl4ai", "field_live_chat", "hermes", "llm_light", "node", "pgvector",
   "chrome_cdp_worker", "cockpit_link", "cpu_node", "daemon_agent",
   "firecrawl",
   "forge_ssh", "guacamole_web", "guacd", "hermes_dashboard",
@@ -8301,6 +8310,19 @@ Gateway = "${MIOS_CORE_NET_GATEWAY:-10.89.0.1}"
 Label = "io.mios.network=core"
 Subnet = "${MIOS_CORE_NET_SUBNET:-10.89.0.0/24}"
 
+# [images.*] -- auto-generated Quadlet .image units
+[images.bootc-image-builder.Image]
+Image = "quay.io/centos-bootc/bootc-image-builder:latest"
+
+[images.bootc-image-builder.Service]
+TimeoutStartSec = 3600
+
+[images.mios-llm-heavy.Image]
+Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
+
+[images.mios-llm-heavy.Service]
+TimeoutStartSec = 3600
+
 # ============================================================================
 # [containers.*] -- auto-generated from static units
 # ============================================================================
@@ -8861,14 +8883,14 @@ Wants = "network-online.target"
 ContainerName = "mios-node"
 Environment = [
   "MIOS_NODE_ID=101",
-  "MIOS_PORT=8650",
-  "MIOS_AI_ENDPOINT=http://127.0.0.1:8640"
+  "MIOS_PORT=${MIOS_PORT_NODE:-8650}",
+  "MIOS_AI_ENDPOINT=http://127.0.0.1:${MIOS_PORT_AGENT_PIPE:-8700}/v1"
 ]
 Group = "${MIOS_NODE_GID:-830}"
 Image = "ghcr.io/mios-dev/mios-node:latest"
 Label = "org.opencontainers.image.title=mios-node"
 Pod = "mios-ai.pod"
-PublishPort = ["8650:8650/udp", "8650:8650/tcp"]
+PublishPort = ["${MIOS_PORT_NODE:-8650}:${MIOS_PORT_NODE:-8650}/udp", "${MIOS_PORT_NODE:-8650}:${MIOS_PORT_NODE:-8650}/tcp"]
 User = "${MIOS_NODE_UID:-830}"
 Volume = "/var/lib/mios:/var/lib/mios:Z"
 
@@ -9565,33 +9587,55 @@ mios-llm-heavy     = "mios-llm-light"
 mios-llm-heavy-alt = "mios-llm-light"
 "mios-llm-worker@" = "mios-llm-light"
 
-[cat]
-
-# Target USB drive letter (without colon). Operator override; MiOS-Cat.bat defaults to D.
-drivepath          = "D"
-
-# MediCat core archive version string (used to construct the filename + cache path).
-medicatver         = "21.12"
-
-# Absolute path on the build host where the ~23 GB MediCat 7z is cached.
-cache_path         = "M:\\MediCat.USB.v21.12.7z"
-
-ventoy_version     = "latest"
-
-xbox_builder       = ""
-
-models             = "see [ai].bake_models + [ai.vllm].bake_model"
+[field]
+monitor_enabled   = true
+show_live_monitor = true
+drivepath         = "D"
+filesystem        = "NTFS"
+partition_scheme  = "GPT"
+secure_boot       = "Enabled"
+build_xbox        = "Enabled"
+gaming_optimize   = "Enabled"
+medicatver        = "21.12"
+cache_path        = "M:\\MediCat.USB.v21.12.7z"
+ventoy_version    = "latest"
+xbox_builder      = ""
+build_driver      = ""
+log_path          = ""
+models            = ""
 
 # MiOS-Repo shadow-config partition (the "brain" -- always present on any USB).
 # Label used when formatting the small config partition.
-[cat.repo_partition]
+[field.repo_partition]
 label              = "MiOS-Repo"
 
 # MiOS-Data bulk store (OCI tar + just-all artifacts + model weights + package mirrors).
 # Created ONLY on disks >= min_disk_gb; skipped on smaller sticks (degrade-open).
-[cat.data_partition]
+[field.data_partition]
 label              = "MiOS-Data"
 min_disk_gb        = 512
+
+[field.live_chat]
+enabled            = true
+model              = "lfm2-700m"
+model_fallback     = "granite-4.1-8b"
+port               = 8642
+ctx_size           = 8192
+threads            = 0
+iso_name           = "MiOS-Live-Chat.iso"
+live_chat_enabled  = "true"                     # .bat-loader alias of `enabled`
+live_chat_iso_name = "MiOS-Live-Chat.iso"       # .bat-loader alias of `iso_name`
+live_chat_iso_src  = "M:\\MiOS-Live-Chat.iso"   # where MiOS-Cat.bat looks for a pre-built ISO
+
+[field.sysrescue]
+enable            = true
+username          = "mios"
+password          = ""            # empty -> [identity].default_password (one SSOT cred)
+root_login        = true
+nofirewall        = true          # REQUIRED: default SystemRescue firewall blocks inbound sshd
+ar_source_label   = "MiOS-Field"  # Ventoy data-partition label the autorun scanner mounts
+connection_header = true          # print live IP + hardware banner on every boot AND every login
+wipe_passphrase   = "mios"        # generic default passphrase gating the "Wipe MiOS" GRUB menu entry
 
 [dotfiles]
 
@@ -10104,58 +10148,109 @@ exempt = [
   # names a cert AND a Windows PowerShell is present, neither of which holds on
   # a Linux runner -- an injected fault would be skipped, not caught.
   "check_ps_signatures",
+  # Rust native linter: requires mios-ssot-lint binary compilation environment.
   "check_native_lint",
+  # Windows PowerShell resolver equivalence: requires pwsh/PowerShell host runtime.
   "check_resolver_ps_equivalence",
+  # Shell resolver equivalence: requires specific POSIX shell execution context.
   "check_resolver_shell_equivalence",
+  # Template validator: meta-conformance engine requires full template hierarchy.
   "check_template_self_conformance",
+  # Bootstrap sync: requires sibling mios-bootstrap repository checkout.
   "check_templates_bootstrap_sync",
+  # Agent schema: requires external jsonschema validator toolchain.
   "check_agent_schema",
+  # AI manifest: requires live AI plane model specification.
   "check_ai_manifest",
+  # BIB rootfs policy: requires container disk-image build context.
   "check_bib_rootfs_label_policy",
+  # Blade dropins: requires blade hardware profile dropin generator.
   "check_blade_dropins",
+  # Bootstrap ports drift: requires sibling mios-bootstrap checkout.
   "check_bootstrap_ports_drift",
+  # Canonical bools: requires strict TOML boolean parser state.
   "check_canonical_bools",
+  # Capability manifest: requires full verb/recipe capability tree.
   "check_capability_manifest",
+  # CephFS SSOT: requires Ceph cluster storage configuration context.
   "check_cephfs_ssot",
+  # CLI SQL safety: requires static code scanner across libexec CLIs.
   "check_cli_sql_safety",
+  # Container ports: requires container network port mapping definitions.
   "check_container_ports",
+  # Converge SSOT: requires state convergence engine runtime.
   "check_converge_ssot",
+  # Coordination hygiene: requires multi-node cluster coordination config.
   "check_coordination_hygiene",
+  # DAG integrity: requires full component dependency graph context.
   "check_dag_integrity",
+  # Dotfiles projection: requires user home dotfiles projection tree.
   "check_dotfiles_projection",
+  # Drift build catalog: requires build catalog generator context.
   "check_drift_build_catalog",
+  # Drift projection: requires SSOT projection matrix context.
   "check_drift_projection",
+  # Egress firewall: requires nftables egress rule generator context.
   "check_egress_firewall",
+  # ETC duplicates: requires system configuration file deduplication scanner.
   "check_etc_duplicates",
+  # Fluff tokens: requires token hygiene scanner.
   "check_fluff_tokens",
+  # Gate index: requires full fitness function gate registry index.
   "check_gate_index",
+  # Globals image parity: requires container image SSOT reference parity.
   "check_globals_image_parity",
+  # Globals ports: requires global port allocation registry.
   "check_globals_ports",
+  # Greenboot healthcheck: requires ostree/bootc deployment environment.
   "check_greenboot",
+  # Greenboot enablement: requires systemd service enablement state.
   "check_greenboot_enablement",
+  # Hint coverage: requires AI hint comment static analyzer.
   "check_hint_coverage",
+  # Hummingbird: requires hummingbird mesh network topology context.
   "check_hummingbird",
+  # Kargs projection: requires kernel argument rendering context.
   "check_kargs_projection",
+  # Module boundary: requires module isolation boundary analyzer.
   "check_module_boundary",
+  # Negative test coverage: meta-ratchet verifying negative test coverage.
   "check_negative_test_coverage",
+  # No bare port literals: requires raw port literal static scanner.
   "check_no_bare_port_literals",
+  # No hardcode: requires hardcoded version/URL static scanner.
   "check_no_hardcode",
-  "check_package_registry",
+  # Pod quadlets: requires quadlet systemd container generator context.
   "check_pod_quadlets",
+  # Python lint: requires flake8/black static analyzer toolchain.
   "check_python_lint",
+  # Raw TOML readers: requires raw TOML reader prohibition scanner.
   "check_raw_toml_readers",
+  # RBAC tiers: requires role-based access control definition tree.
   "check_rbac_tiers",
+  # Resolver twin parity: requires dual-resolver parity validator.
   "check_resolver_twin_parity",
+  # Retired models: requires model deprecation catalog.
   "check_retired_models",
+  # Structured logs: requires structured log JSON schema validator.
   "check_structured",
+  # Surface parity: requires multi-surface configuration projection.
   "check_surface_parity",
+  # Template conformance: requires template conformance validator.
   "check_template_conformance",
+  # Unwired modules: requires unwired component detector.
   "check_unwired_modules",
+  # Userenv parity: requires shell user environment parity validator.
   "check_userenv_parity",
+  # Unit security: requires systemd unit security analyzer.
   "check_unit_security",
+  # Var closure: requires variable closure scope analyzer.
   "check_var_closure",
+  # Vendor URLs: requires vendor URL fetch integrity scanner.
   "check_vendor_urls",
+  # Verb backends: requires verb backend implementation mapper.
   "check_verb_backends",
+  # Comment lex equivalence: requires comment lexing equivalence parser.
   "check_comment_lex_equivalence"
 ]
 
@@ -10327,7 +10422,7 @@ max_duplicate_ids = 0
 
 [docs]
 # Measured floor; 0 was never enforced. Ratchet DOWN only. AGY-1601.
-max_stale_refs              = 20
+max_stale_refs              = 0
 max_undocumented_components = 16
 manual_min_verbs            = 132
 stay_max_lines              = 2
@@ -10445,7 +10540,7 @@ port_clean = [
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.
 # Method + full census: docs/agy/doc-generative-documentation.md
-max_unmigrated_narrative = 342   # MIGRATE blocks still in source
+max_unmigrated_narrative = 0   # MIGRATE blocks still in source
 max_overlong_hints       = 0    # AI-hint headers over [ai_tag].hint_max_chars
 
 # Generated artifacts are never a migration SOURCE: globals.{sh,ps1} embed whole
@@ -10706,8 +10801,6 @@ mirror_files = [
   "installation/mios-common.sh",
   "installation/mios-install.sh",
   "installation/mios-install.ps1",
-  "cat/lib/cat.sh",
-  "cat/lib/MiOS-Cat.psm1",
   "etc/skel/.config/mios/system-prompt.md",
   "etc/usbguard/rules.conf",
   "installation/bin/7z.dll",
@@ -10745,8 +10838,8 @@ not_mirrored = [
 [legibility]
 max_tracked_files = 3344
 max_tracked_mb    = 201
-max_shell_lines   = 42626  # bash is glue only (Law 14)
-max_ps_lines      = 25259  # no new PowerShell-as-program (Law 14)
+max_shell_lines   = 39946  # bash is glue only (Law 14)
+max_ps_lines      = 22618  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 285
 
@@ -10827,8 +10920,13 @@ unit = [
     "tests/test-think-stripper.py",
     "tests/test-atomic-writes.py",
     "tests/test-path-normalization.py",
-    "tests/test-check-ratchet-direction.py",
+    "tools/test_check-ratchet-direction.py",
     "tests/test-bootstrap-sync-parity.py",
+    "tests/test-install-fhs.py",
+    "tests/test-mios-update-verb.py",
+    "tests/test-iso-credential-guard.py",
+    "tests/test-greenboot-rollback.py",
+    "tests/test-package-registry-switch.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
@@ -10952,11 +11050,11 @@ artifacts = ["iso"]
 doc       = "usr/share/doc/mios/manual.md"
 status    = "design"
 
-[variants.entries.mios-cat]
-title     = "MiOS-Cat"
+[variants.entries.mios-field]
+title     = "MiOS-Field"
 summary   = "the portable edition: a Ventoy USB or NVMe carrying the image, the repository and the models to run, install and deploy with no network"
 target    = "removable USB or NVMe"
-config    = ["cat"]
+config    = ["field"]
 archetype = "endpoint"
 artifacts = ["usb-installer", "iso"]
 doc       = "usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md"

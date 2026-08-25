@@ -237,8 +237,9 @@ raw: build
 
 iso: build
     mkdir -p build/iso
+    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH"; exit 1; fi
     @TMPTOML="$(mktemp /tmp/mios-iso-XXXXXX.toml)" && \
-        sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH:-}|g" \
+        sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
             -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
             ./config/artifacts/iso.toml > "$$TMPTOML" && \
         sudo podman run --rm -it --privileged \

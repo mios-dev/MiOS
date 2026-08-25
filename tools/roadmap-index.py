@@ -256,6 +256,92 @@ def main(argv):
             index_lines.append("")
     index_content = "\n".join(index_lines)
 
+    def generate_metrics_table(root: str) -> str:
+        import subprocess
+        out = subprocess.run(["git", "-C", root, "ls-files"], capture_output=True, text=True, check=False).stdout.splitlines()
+        tracked = [f for f in out if f.strip()]
+        file_count = len(tracked)
+
+        total_bytes = 0
+        sh_l = py_l = ps_l = rs_l = 0
+        for f in tracked:
+            p = os.path.join(root, f)
+            if not os.path.isfile(p):
+                continue
+            try:
+                sz = os.path.getsize(p)
+                total_bytes += sz
+            except OSError:
+                pass
+
+            ext = os.path.splitext(f)[1].lower()
+            if ext in ('.sh', '.py', '.ps1', '.rs'):
+                try:
+                    with open(p, 'r', encoding='utf-8', errors='replace') as fh:
+                        lc = sum(1 for _ in fh)
+                        if ext == '.sh': sh_l += lc
+                        elif ext == '.py': py_l += lc
+                        elif ext == '.ps1': ps_l += lc
+                        elif ext == '.rs': rs_l += lc
+                except OSError:
+                    pass
+
+        size_mb = int(round(total_bytes / (1024 * 1024)))
+        sh_k = round(sh_l / 1000)
+        py_k = round(py_l / 1000)
+        ps_k = round(ps_l / 1000)
+        rs_k = round(rs_l / 1000)
+        ratio = (ps_l / rs_l) if rs_l > 0 else 0.0
+
+        drift_count = 0
+        gate_sh = os.path.join(root, "automation/98-drift-checks.sh")
+        if os.path.isfile(gate_sh):
+            try:
+                with open(gate_sh, "r", encoding="utf-8", errors="replace") as fh:
+                    txt = fh.read()
+                m_pos = txt.find("main() {")
+                if m_pos != -1:
+                    checks = re.findall(r"^\s*(check_[a-z0-9_]+)\s*$", txt[m_pos:], re.MULTILINE)
+                    drift_count = len(checks)
+            except OSError:
+                pass
+
+        declared_cnt = 0
+        drift_units_cnt = 0
+        shipped_cnt = 0
+        toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+        if os.path.isfile(toml_path):
+            try:
+                with open(toml_path, "rb") as fh:
+                    data = tomllib.load(fh)
+                declared = {k for k, v in (data.get("units") or {}).items() if isinstance(v, dict)}
+                declared_cnt = len(declared)
+                drift_list = (data.get("unit_projection") or {}).get("drift") or []
+                drift_units_cnt = len(drift_list)
+            except OSError:
+                pass
+
+        unit_dir = os.path.join(root, "usr/lib/systemd/system")
+        if os.path.isdir(unit_dir):
+            for _, _, fns in os.walk(unit_dir):
+                shipped_cnt += len(fns)
+
+        faithful_cnt = max(0, declared_cnt - drift_units_cnt)
+
+        table_lines = [
+            "| | Measured | Note |",
+            "|---|---:|---|",
+            f"| Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |",
+            f"| Tracked files | {file_count:,} | The reading surface. |",
+            f"| Tracked size | {size_mb} MB | Two vendored assets are most of it. |",
+            f"| Shell / Python / PowerShell / Rust | {sh_k}k / {py_k}k / {ps_k}k / {rs_k}k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it {ratio:.1f}x. |",
+            f"| Drift checks | {drift_count} | Falsifiability audited per check, not assumed. |",
+            f"| Units reproducing from SSOT | {faithful_cnt} faithful of {shipped_cnt} | {drift_units_cnt} registered as drifting: the largest hole in part 1 of the thesis. |",
+        ]
+        return "\n".join(table_lines) + "\n"
+
+    metrics_content = generate_metrics_table(ROOT)
+
     with open(roadmap_path, "r", encoding="utf-8") as f:
         file_text = f.read()
 
@@ -270,6 +356,7 @@ def main(argv):
 
     try:
         new_text = file_text
+        new_text = replace_section(new_text, "<!-- ROADMAP_METRICS_START -->", "<!-- ROADMAP_METRICS_END -->", metrics_content)
         new_text = replace_section(new_text, "<!-- ROADMAP_ROLLUP_START -->", "<!-- ROADMAP_ROLLUP_END -->", rollup_content)
         new_text = replace_section(new_text, "<!-- ROADMAP_INDEX_START -->", "<!-- ROADMAP_INDEX_END -->", index_content)
         new_text = replace_section(new_text, "<!-- ROADMAP_TOC_START -->", "<!-- ROADMAP_TOC_END -->", toc_content)
@@ -286,7 +373,7 @@ def main(argv):
 
     with open(roadmap_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(new_text)
-    print("[roadmap-index] Successfully regenerated Table of Contents, Index, and Rollup in ROADMAP.md")
+    print("[roadmap-index] Successfully regenerated Table of Contents, Index, Metrics, and Rollup in ROADMAP.md")
     return 0
 
 if __name__ == "__main__":

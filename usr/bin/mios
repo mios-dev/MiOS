@@ -12,16 +12,7 @@ import subprocess
 import sys
 from typing import Any, Iterable
 
-try:
-    from openai import OpenAI                      # openai>=1.55
-except ImportError:
-    sys.stderr.write(
-        "mios: openai SDK missing. Install via:\n"
-        "    sudo dnf install -y python3-openai      # Fedora 44+\n"
-        "  OR\n"
-        "    pip install --user 'openai>=1.55'\n"
-    )
-    sys.exit(127)
+OpenAI = None  # Loaded lazily if needed for chat/LLM calls
 
 def _resolve_ai_config() -> tuple[str, str]:
     env_ep = os.environ.get("MIOS_AI_ENDPOINT")
@@ -344,6 +335,7 @@ KNOWN_VERBS = {
     "user":   ["/usr/libexec/mios/user-setup.sh"],
     "flight": ["/usr/libexec/mios/flight-control.sh"],
     "models": ["/usr/libexec/mios/mios-models"],
+    "update": ["/usr/bin/mios-update"],
     "help":   None,        # special-cased below
 }
 
@@ -520,10 +512,16 @@ def main(argv: list[str]) -> int:
     if first in KNOWN_VERBS and KNOWN_VERBS[first] is not None:
         cmd = KNOWN_VERBS[first]
         target = cmd[0]
-        if pathlib.Path(target).is_file() or subprocess.run(
+        root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or (
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if os.path.isabs(__file__) else None
+        )
+        resolved_target = os.path.join(root, target.lstrip("/\\")) if root else target
+        if pathlib.Path(target).is_file() or (root and pathlib.Path(resolved_target).is_file()) or subprocess.run(
             ["sh", "-c", f"command -v {target}"], capture_output=True, text=True
         ).returncode == 0:
-            os.execvp(cmd[0], cmd + argv[2:])
+            exec_target = target if pathlib.Path(target).is_file() else (resolved_target if root and pathlib.Path(resolved_target).is_file() else target)
+            os.execvp(exec_target, [exec_target] + cmd[1:] + argv[2:])
 
     use_tools  = False
     schema_obj = None
@@ -580,6 +578,17 @@ def main(argv: list[str]) -> int:
                 session["last_app"] = str(_last)
                 save_session(session)
                 return 0 if _ok else 1
+
+    try:
+        from openai import OpenAI
+    except ImportError:
+        sys.stderr.write(
+            "mios: openai SDK missing. Install via:\n"
+            "    sudo dnf install -y python3-openai      # Fedora 44+\n"
+            "  OR\n"
+            "    pip install --user 'openai>=1.55'\n"
+        )
+        sys.exit(127)
 
     client = OpenAI(base_url=ENDPOINT, api_key=API_KEY, default_headers={"x-mios-reasoning-ok": "true"})
     is_orchestrator = ":8640" in ENDPOINT or "/agent-pipe" in ENDPOINT

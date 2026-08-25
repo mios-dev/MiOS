@@ -286,61 +286,7 @@ PY
 
 check_agent_schema() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re
-root = os.environ["MIOS_DRIFT_ROOT"]
-import tomllib as _toml
-p = os.path.join(root, "usr/share/mios/mios.toml")
-if not os.path.isfile(p):
-    sys.exit(0)
-with open(p, "rb") as fh:
-    d = _toml.load(fh)
-ag = dict(d.get("agents") or {})
-defs = ag.pop("_defaults", {}) if isinstance(ag.get("_defaults"), dict) else {}
-CANON = {"kind","endpoint","model","role","job","default","fanout","enabled","lane",
-         "sub_lane","health_gate","transport","timeout_s","strengths","cpu_endpoint",
-         "cpu_model","failover_agents","denied_verbs","allowed_verbs","max_permission",
-         "api","vram_mb","ram_mb","tool_capable","research_only","auth","trust",
-         "engines","nodes","backend","privilege_group"}
-def _local(ep):
-    h = re.sub(r'^[a-z]+://', '', str(ep)).split('/')[0].rsplit(':', 1)[0]
-    return h in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "")
-bad, warn, ndefault = [], [], 0
-for name, cfg in ag.items():
-    if name.startswith("_") or not isinstance(cfg, dict):
-        continue
-    m = {**defs, **cfg}
-    kind = str(m.get("kind", "")).strip().lower()
-    ep = str(m.get("endpoint", "")).strip()
-    enabled = bool(m.get("enabled", True))
-    hg = bool(m.get("health_gate", False))
-    if bool(m.get("default", False)):
-        ndefault += 1
-    loc = _local(ep)
-    if loc and not bool(m.get("default", False)) and enabled and kind in ("", "local-http") and not hg:
-        bad.append(f"    [agents.{name}] LOCAL + non-default + enabled but no health_gate=true (or enabled=false): a dead endpoint is treated as live -> DAG sink -> merged_chars=0")
-    if kind == "cli":
-        if not (hg or not enabled):
-            bad.append(f"    [agents.{name}] kind=cli must set health_gate=true OR enabled=false")
-        if int(m.get("timeout_s", 0) or 0) <= 0:
-            bad.append(f"    [agents.{name}] kind=cli must set timeout_s>0 (fail-fast budget)")
-    if kind == "node" and not (str(m.get("api", "")).strip() and str(m.get("lane", "")).strip()):
-        bad.append(f"    [agents.{name}] kind=node must set api + lane")
-    if kind in ("remote-http", "edge", "mobile") and not hg:
-        bad.append(f"    [agents.{name}] kind={kind} must set health_gate=true")
-    if re.search(r':\d{2,5}(/|$)', ep) and "${MIOS_PORT" not in ep:
-        warn.append(f"    [agents.{name}].endpoint bare :PORT literal (use ${{MIOS_PORT_*}}): {ep}")
-    for k in cfg:
-        if k not in CANON:
-            warn.append(f"    [agents.{name}] unknown key {k!r} (not in the canonical agent schema)")
-if ndefault > 1:
-    bad.append(f"    {ndefault} [agents.*] set default=true; at most one is allowed")
-for w in warn:
-    sys.stdout.write("[98-drift-checks]   (advisory)" + w + "\n")
-for b in bad:
-    sys.stderr.write(b + "\n")
-sys.exit(1 if bad else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py agent-schema
     then
         echo "[98-drift-checks]   agent-schema contract satisfied"
     else
@@ -385,11 +331,36 @@ PY
 }
 
 check_package_registry() {
-    local _en="$(printf '%s' "${MIOS_PACKAGE_REGISTRY:-false}" | tr '[:upper:]' '[:lower:]')"
+    local _en_val=""
+    if [[ -n "${MIOS_PACKAGE_REGISTRY:-}" ]]; then
+        _en_val="$MIOS_PACKAGE_REGISTRY"
+    else
+        _en_val=$(MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 -c '
+import sys, os
+try:
+    import tomllib as t
+except ImportError:
+    import tomli as t
+toml = os.environ.get("MIOS_TOML", "")
+if os.path.isfile(toml):
+    with open(toml, "rb") as f:
+        d = t.load(f)
+    val = (d.get("ai") or {}).get("package_registry", False)
+    print("true" if val else "false")
+else:
+    print("false")
+' 2>/dev/null || echo "false")
+    fi
+    local _en="$(printf '%s' "${_en_val:-false}" | tr '[:upper:]' '[:lower:]')"
     case "$_en" in
         1|true|yes|on) : ;;
         *)
-            echo "[98-drift-checks]   package registry dormant"
+            local _reg_file="$ROOT/usr/share/mios/ai/v1/packages/registry.json"
+            if [[ -f "$_reg_file" ]]; then
+                _violation "package_registry is dormant in mios.toml [ai].package_registry but registry.json exists -- remove stale file or turn feature on"
+            else
+                echo "[98-drift-checks]   package registry dormant"
+            fi
             return 0 ;;
     esac
     _need_python || return 0
@@ -942,6 +913,13 @@ bootstrap_repo_path = main_data.get("bootstrap", {}).get("bootstrap_repo", "C:/m
 if sys.platform != "win32" and bootstrap_repo_path.startswith("C:/"):
     bootstrap_repo_path = "/mnt/c/" + bootstrap_repo_path[3:]
 
+# CI clones the bootstrap repo into RUNNER_TEMP, which is neither the SSOT path
+# nor a sibling, and names it in MIOS_BOOTSTRAP_ROOT. An explicit override wins
+# over both guesses; mios-sync-toml resolves it the same way.
+_env_bs = (os.environ.get("MIOS_BOOTSTRAP_ROOT") or "").strip()
+if _env_bs and os.path.isdir(_env_bs):
+    bootstrap_repo_path = _env_bs
+
 if not os.path.isdir(bootstrap_repo_path):
     bootstrap_repo_path = os.path.join(os.path.dirname(root), "mios-bootstrap")
 
@@ -1124,6 +1102,9 @@ for name, cfg in (d.get("verbs", {}) or {}).items():
     if not isinstance(cfg, dict):
         continue
     cmd = cfg.get("cmd", "")
+    if name == "update" and not cmd:
+        missing.setdefault("update missing cmd key", []).append(name)
+        continue
     if not isinstance(cmd, str) or not cmd:
         continue
     for tok in set(re.findall(r"\bmios-[a-z0-9-]+", cmd)):
@@ -1217,65 +1198,7 @@ check_names_registry() {
         echo "[98-drift-checks]   names registry"
         return 0
     fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re, subprocess
-
-root = os.environ["MIOS_DRIFT_ROOT"]
-violations = []
-
-ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
-committed_ref = ""
-if os.path.isfile(ref_file):
-    try:
-        with open(ref_file, "r", encoding="utf-8") as fh:
-            committed_ref = fh.read()
-    except Exception as e:
-        violations.append(f"Failed to read committed referenced_names.txt: {e}")
-
-gen_script = os.path.join(root, "tools/generate-names-registry.py")
-registry_file = os.path.join(root, "usr/share/mios/names.generated.txt")
-
-if not os.path.isfile(gen_script):
-    violations.append("tools/generate-names-registry.py missing")
-elif not os.path.isfile(registry_file):
-    violations.append("usr/share/mios/names.generated.txt missing")
-else:
-    try:
-        with open(registry_file, "r", encoding="utf-8") as fh:
-            committed_data = fh.read()
-        res = subprocess.run([sys.executable, gen_script], capture_output=True, text=True, check=True)
-        fresh_data = res.stdout
-        
-        fresh_lines = [l.strip() for l in fresh_data.splitlines() if l.strip()]
-        committed_lines = [l.strip() for l in committed_data.splitlines() if l.strip()]
-        
-        if fresh_lines != committed_lines:
-            violations.append("usr/share/mios/names.generated.txt is stale. Please run tools/generate-names-registry.py.")
-    except Exception as e:
-        violations.append(f"Failed to check names registry generation: {e}")
-
-fresh_ref = ""
-if os.path.isfile(ref_file):
-    try:
-        with open(ref_file, "r", encoding="utf-8") as fh:
-            fresh_ref = fh.read()
-    except Exception as e:
-        violations.append(f"Failed to read fresh referenced_names.txt: {e}")
-
-if fresh_ref != committed_ref:
-    try:
-        with open(ref_file, "w", encoding="utf-8") as fh:
-            fh.write(committed_ref)
-    except Exception:
-        pass
-    violations.append("usr/share/mios/referenced_names.txt is stale. Please run tools/generate-names-registry.py.")
-
-if violations:
-    for v in sorted(violations):
-        sys.stderr.write(f"    {v}\n")
-    sys.exit(1)
-sys.exit(0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py names-registry
     then
         echo "[98-drift-checks]   names registry matches generate-names-registry.py"
     else
@@ -1878,12 +1801,12 @@ check_deploy_plane() {
     local bad=""
     local ks_file=""
     for cand in "$ROOT/usr/share/mios/ventoy/mios-kickstart.cfg" \
-                "${BOOTSTRAP_DIR:-}/cat/resources/ventoy/mios-kickstart.cfg" \
-                "/c/mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
-                "/mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
-                "C:/mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
-                "$ROOT/../mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
-                "$ROOT/cat/resources/ventoy/mios-kickstart.cfg"; do
+                "${BOOTSTRAP_DIR:-}/field/resources/ventoy/mios-kickstart.cfg" \
+                "/c/mios-bootstrap/field/resources/ventoy/mios-kickstart.cfg" \
+                "/mios-bootstrap/field/resources/ventoy/mios-kickstart.cfg" \
+                "C:/mios-bootstrap/field/resources/ventoy/mios-kickstart.cfg" \
+                "$ROOT/../mios-bootstrap/field/resources/ventoy/mios-kickstart.cfg" \
+                "$ROOT/field/resources/ventoy/mios-kickstart.cfg"; do
         if [[ -n "$cand" && -f "$cand" ]]; then
             ks_file="$cand"
             break
@@ -1903,12 +1826,12 @@ check_deploy_plane() {
 
     local ventoy_json=""
     for cand in "$ROOT/usr/share/mios/ventoy/ventoy.json" \
-                "${BOOTSTRAP_DIR:-}/cat/resources/ventoy/ventoy.json" \
-                "/c/mios-bootstrap/cat/resources/ventoy/ventoy.json" \
-                "/mios-bootstrap/cat/resources/ventoy/ventoy.json" \
-                "C:/mios-bootstrap/cat/resources/ventoy/ventoy.json" \
-                "$ROOT/../mios-bootstrap/cat/resources/ventoy/ventoy.json" \
-                "$ROOT/cat/resources/ventoy/ventoy.json"; do
+                "${BOOTSTRAP_DIR:-}/field/resources/ventoy/ventoy.json" \
+                "/c/mios-bootstrap/field/resources/ventoy/ventoy.json" \
+                "/mios-bootstrap/field/resources/ventoy/ventoy.json" \
+                "C:/mios-bootstrap/field/resources/ventoy/ventoy.json" \
+                "$ROOT/../mios-bootstrap/field/resources/ventoy/ventoy.json" \
+                "$ROOT/field/resources/ventoy/ventoy.json"; do
         if [[ -n "$cand" && -f "$cand" ]]; then
             ventoy_json="$cand"
             break
@@ -2943,80 +2866,7 @@ check_rechunk_budget() {
 
 check_gate_registry() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import glob, os, sys, re
-
-root = os.environ["MIOS_DRIFT_ROOT"]
-script_path = os.path.join(root, "automation/98-drift-checks.sh")
-
-if not os.path.isfile(script_path):
-    sys.exit(0)
-
-with open(script_path, "r", encoding="utf-8") as f:
-    lines = f.readlines()
-
-def_re = re.compile(r"^(check_[a-z0-9_]+)\s*\(\)\s*\{")
-main_call_re = re.compile(r"^\s*(check_[a-z0-9_]+)\s*($|#|;|\|\||&&)")
-
-defined_counts = {}
-in_main = False
-main_calls = []
-
-for line in lines:
-    line_clean = line.split("#")[0].strip()
-    if line_clean == "main() {":
-        in_main = True
-        continue
-    if in_main and line_clean.startswith("echo \"[98-drift-checks] ----------"):
-        in_main = False
-        continue
-
-    m_def = def_re.match(line)
-    if m_def:
-        name = m_def.group(1)
-        defined_counts[name] = defined_counts.get(name, 0) + 1
-
-    if in_main:
-        m_call = main_call_re.match(line_clean)
-        if m_call:
-            main_calls.append(m_call.group(1))
-
-bad = []
-
-for name, count in defined_counts.items():
-    if count > 1:
-        bad.append(f"Duplicate function definition found in 98-drift-checks.sh: {name} (defined {count} times)")
-
-for name in defined_counts.keys():
-    calls = main_calls.count(name)
-    if calls == 0:
-        bad.append(f"Defined check function is not registered in main(): {name}")
-    elif calls > 1:
-        bad.append(f"Defined check function is called multiple times in main(): {name} ({calls} times)")
-
-for call in main_calls:
-    if call not in defined_counts:
-        bad.append(f"main() calls unregistered/undefined check function: {call}")
-
-sh_text = "".join(lines)
-tool_checks = glob.glob(os.path.join(root, "tools/check-*.py"))
-
-for tc in tool_checks:
-    tc_name = os.path.basename(tc)
-    if tc_name not in sh_text:
-        with open(tc, "r", encoding="utf-8", errors="ignore") as tcf:
-            tc_head = [tcf.readline() for _ in range(3)]
-        tc_hint = "".join(tc_head).lower()
-        if "drift check" in tc_hint or "drift-check" in tc_hint:
-            bad.append(f"tools/{tc_name} claims drift-check identity in AI-hint but is not referenced in 98-drift-checks.sh")
-
-if bad:
-    for b in bad:
-        sys.stderr.write(f"    [gate-registry-drift] {b}\n")
-    sys.exit(1)
-
-sys.exit(0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py gate-registry
     then
         echo "[98-drift-checks]   gate registry integrity verified"
     else
@@ -3240,6 +3090,9 @@ for block in recipe_blocks:
             if "REPLACEME" in cfg_text or "AAAA_REPLACE" in cfg_text:
                 if "sed " not in block_text and "sed -e" not in block_text:
                     bad.append(f"Recipe '{recipe_name}' mounts '{cfg}' containing REPLACEME tokens without credential-substituting sed")
+                if "REPLACEME_WITH_SHA512_HASH" in cfg_text:
+                    if "MIOS_USER_PASSWORD_HASH:-" in block_text or "[ -z \"${MIOS_USER_PASSWORD_HASH" not in block_text:
+                        bad.append(f"Recipe '{recipe_name}' mounts '{cfg}' with REPLACEME_WITH_SHA512_HASH without asserting non-empty MIOS_USER_PASSWORD_HASH")
 
 if bad:
     for b in bad:
@@ -3429,28 +3282,28 @@ check_repo_partition_label_ssot() {
     local install_sh="$ROOT/tools/install.sh"
     local cfg="$ROOT/usr/share/mios/ventoy/mios-kickstart.cfg"
     local oci_ks="$ROOT/usr/share/mios/ventoy/mios-oci-install.ks"
-    local loopback="$ROOT/cat/loopback.cfg"
+    local loopback="$ROOT/field/loopback.cfg"
     # A consumer that has gone missing is a violation: the label it tracked is
     # now enforced nowhere, which is exactly when this gate should speak.
     for f in "$ssot" "$install_sh" "$cfg" "$oci_ks" "$loopback"; do
         [[ -f "$f" ]] || { _violation "repo partition label consumer is absent: ${f#"$ROOT"/}"; return; }
     done
-    ssot_label="$(python3 "$ROOT/tools/read-ssot-key.py" cat.repo_partition.label)" \
-        || { _violation "[cat.repo_partition].label is absent from the SSOT -- the label its consumers track is undefined"; return; }
+    ssot_label="$(python3 "$ROOT/tools/read-ssot-key.py" field.repo_partition.label)" \
+        || { _violation "[field.repo_partition].label is absent from the SSOT -- the label its consumers track is undefined"; return; }
     local bad=""
     grep -q "blkid -L \"$ssot_label\"" "$install_sh" \
-        || bad+="    tools/install.sh does not reference [cat.repo_partition].label '$ssot_label'"$'\n'
+        || bad+="    tools/install.sh does not reference [field.repo_partition].label '$ssot_label'"$'\n'
     grep -q "blkid -L \"$ssot_label\"" "$cfg" \
-        || bad+="    usr/share/mios/ventoy/mios-kickstart.cfg does not reference [cat.repo_partition].label '$ssot_label'"$'\n'
+        || bad+="    usr/share/mios/ventoy/mios-kickstart.cfg does not reference [field.repo_partition].label '$ssot_label'"$'\n'
     grep -q "$ssot_label" "$oci_ks" \
-        || bad+="    usr/share/mios/ventoy/mios-oci-install.ks does not reference [cat.repo_partition].label '$ssot_label'"$'\n'
+        || bad+="    usr/share/mios/ventoy/mios-oci-install.ks does not reference [field.repo_partition].label '$ssot_label'"$'\n'
     grep -q -E "($ssot_label|@@REPO_LABEL@@)" "$loopback" \
-        || bad+="    cat/loopback.cfg does not reference [cat.repo_partition].label '$ssot_label' or @@REPO_LABEL@@"$'\n'
+        || bad+="    field/loopback.cfg does not reference [field.repo_partition].label '$ssot_label' or @@REPO_LABEL@@"$'\n'
     if [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
-        _violation "repo partition label mismatch against [cat.repo_partition].label SSOT"
+        _violation "repo partition label mismatch against [field.repo_partition].label SSOT"
     else
-        echo "[98-drift-checks]   repo partition label consumers match [cat.repo_partition].label SSOT"
+        echo "[98-drift-checks]   repo partition label consumers match [field.repo_partition].label SSOT"
     fi
 }
 
@@ -5697,6 +5550,31 @@ if ceil_narr is None or ceil_hint is None or ceil_stale is None or ceil_undoc is
 # CI and this gate's own negative test could not breach it.
 # The reference index is built once and passed in: staleness is now measured cleanly.
 refindex = mc.RefIndex.build(root)
+ledger_path = os.path.join(root, "usr/share/mios/reference/manual-corpus.tsv")
+rows = {}
+if os.path.isfile(ledger_path):
+    with open(ledger_path, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip(): continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) == 14:
+                rows[parts[5]] = dict(zip(["path","start_line","end_line","lines","words","sha12","class","reason","as","stale","landed_doc","landed_anchor","landed_words","pruned"], parts))
+
+def _landed(row):
+    doc = row.get("landed_doc") or ""
+    if not doc: return False
+    p = os.path.join(root, doc.replace("/", os.sep))
+    if not os.path.isfile(p): return False
+    try:
+        with open(p, encoding="utf-8", errors="replace") as fh: text = fh.read()
+    except OSError: return False
+    if ("mios-src:" + row["sha12"]) not in text: return False
+    try:
+        want = int(row.get("words") or 0)
+        got = int(row.get("landed_words") or 0)
+    except ValueError: return False
+    return got >= pol.landing_min_word_ratio * want
+
 narr = hints = stale = 0
 for rel, full in mc.iter_source_files(root):
     try:
@@ -5706,6 +5584,9 @@ for rel, full in mc.iter_source_files(root):
     for b in blocks:
         b = mc.Block(**{**b.__dict__, "path": rel})
         v = mc.classify(b, pol, refindex)
+        row = rows.get(b.sha12)
+        if row is not None and _landed(row):
+            continue
         if v.cls == "MIGRATE":
             narr += 1
         elif v.cls == "MIGRATE_HEADER":

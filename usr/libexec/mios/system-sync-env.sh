@@ -59,7 +59,7 @@ EOF
     [[ -n "${MIOS_USER_GROUPS:-}" ]]   && emit MIOS_USER_GROUPS "${MIOS_USER_GROUPS}"
     emit MIOS_DEFAULT_PASSWORD "${MIOS_DEFAULT_PASSWORD:-mios}"
 
-    emit MIOS_AI_ENDPOINT "${MIOS_AI_ENDPOINT:-http://localhost:8640/v1}"
+    emit MIOS_AI_ENDPOINT "${MIOS_AI_ENDPOINT:-http://localhost:${MIOS_PORT_AGENT_PIPE:-8700}/v1}"
     emit MIOS_AI_MODEL "${MIOS_AI_MODEL:-granite4.1:8b}"
     emit MIOS_AI_EMBED_MODEL "${MIOS_AI_EMBED_MODEL:-nomic-embed-text}"
     _ai_backend="${MIOS_AI_BACKEND:-${MIOS_HERMES_BACKEND_URL:-}}"

@@ -1,4 +1,4 @@
-# AI-hint: Provides Open WebUI tools for direct desktop interaction (vision, AT-SPI grounding, input actions) and document generation via the mios-lau...
+# AI-hint: Provides Open WebUI tools for direct desktop interaction (vision, AT-SPI grounding, input actions) and document generation via the mios-launcher.
 # AI-doc: usr/share/doc/mios/manual/tools.md
 """
 title: MiOS Computer Use

@@ -157,3 +157,90 @@ bash tests/drift-gate-negatives.sh
 Note: A stale installed MiOS on the host machine can fake SSOT-projection drift if `/etc/mios` or `/usr/share/mios` contains un-projected overrides. Always run with `MIOS_DRIFT_ROOT` pointing explicitly to the local workspace root.
 
 <!-- mios-src:agy-1620 from docs/manual/tests.md -->
+### Import this before importing `server`. Nine suites each...
+
+Import this before importing `server`.
+
+Nine suites each pointed the import search at the INSTALLED directory. A CI
+runner has no such directory, so importing the server raised and every one of
+those suites failed -- which is why none was ever wired into a workflow. A
+developer machine that does have MiOS installed ran them against the installed
+copy instead of the working tree, so the change under test was not the code
+being tested.
+
+Resolving from this file's own location fixes both: the repository copy comes
+first, and the installed directory stays as a fallback for a suite executed
+outside a checkout.
+
+<!-- mios-src:0ab56d83257e from tests/_agentpipe_path.py:3-15 -->
+
+### The suite mutates tracked files and is supposed to put them...
+
+The suite mutates tracked files and is supposed to put them back. A test that
+dies between the two leaks its fixture into the tree. Five reached the working
+tree in one session -- an injected table in the shipped SQL schema, a root
+password in a Ventoy firstboot script, a rewritten cockpit port, a capability
+requirement replaced by an injected name, a port entry repeated twice -- and
+each one surfaced as some unrelated suite failing, so the cost was paid several
+times before anyone read the diff.
+
+Snapshot everything the suite can reach before running, and put back whatever a
+test failed to restore. The target list is derived from this file's own source,
+so a test that starts touching a new path is covered without anyone updating a
+list.
+
+<!-- mios-src:59b3532038ab from tests/drift-gate-negatives.sh:10-21 -->
+
+### 55-bake-quickshell.sh was renumbered to 66-. The whole body...
+
+55-bake-quickshell.sh was renumbered to 66-. The whole body used to sit
+inside `if [[ -f ]]`, so once the file moved the test skipped everything
+and logged "passed" -- a test that reports success precisely when its
+subject is gone. A missing target is now a failure.
+
+<!-- mios-src:5b27437275f6 from tests/drift-gate-negatives.sh:1762-1765 -->
+
+### Subshell
+
+Subshell: die() exits the test, not the suite. One CI run then reports
+every failure instead of the first, which is what turned a queue of
+latent breakages into one round trip each.
+
+<!-- mios-src:56662eab3f3b from tests/drift-gate-negatives.sh:2935-2937 -->
+
+### REQUIRE_TOOLS is forwarded deliberately
+
+REQUIRE_TOOLS is forwarded deliberately: checks that shell out to a built
+binary choose between "skip" and "fail" on it, so a test that cannot set
+it cannot exercise the failing path -- the path that matters.
+Output is kept, not discarded: "failed after restoration" with no reason
+has cost two CI round trips, and die() prints this on the way out.
+
+<!-- mios-src:f84b0295a436 from tests/drift-gate-negatives.sh:2942-2946 -->
+
+### A C-style header in a systemd unit is not a comment: the...
+
+A C-style header in a systemd unit is not a comment: the line is rejected,
+and one such line in a WSL config failed a build twenty-nine minutes in.
+
+<!-- mios-src:252855120d3e from tests/drift-gate-negatives.sh:3134-3135 -->
+
+### The previous probe flipped `enabled` from false to true...
+
+The previous probe flipped `enabled` from false to true, but the key has
+been true for some time, so the sed matched nothing and the test asserted
+against an unmodified tree. The check requires every merge-rule key to
+have a table carrying origin_node and logical_ts, so declaring a rule with
+no such table is the edit that loses data silently on rejoin (ADR-0017 D5).
+
+<!-- mios-src:52fddbc14295 from tests/drift-gate-negatives.sh:3570-3574 -->
+
+### The old probe moved bootc-fetch-apply-updates.timer aside...
+
+The old probe moved bootc-fetch-apply-updates.timer aside, but that file
+ships from an RPM and has never existed in this tree: it moved nothing and
+the check "failed" for a reason the test never created -- a broken probe
+and a broken check agreeing. The check now asserts the SSOT declares an
+updater package and a bake phase wires its timer, so break the wiring.
+
+<!-- mios-src:76296fd5fe57 from tests/drift-gate-negatives.sh:3728-3732 -->

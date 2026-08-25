@@ -570,3 +570,132 @@ A page for a verb that no longer exists answers confidently and wrongly,
 so the renderer owns the whole directory rather than only adding to it.
 
 <!-- mios-src:0842226a2209 from tools/render-manpages.py:182-183 -->
+### A crate with no tests passes `cargo test` every time. The...
+
+A crate with no tests passes `cargo test` every time.
+
+The workspace run prints `test result: ok. 0 passed` for each such crate, which
+reads exactly like a crate whose tests all passed. Ten crates and roughly 5,600
+lines are in that state, miosd alone being 3,550 of them, so the suite's green
+says far less than it appears to.
+
+The ceiling is shrink-only: a crate may be registered as untested with a reason,
+and the count may only fall.
+
+<!-- mios-src:ed048d889332 from tools/check-rust-test-coverage.py:4-13 -->
+
+### A task without a Verify line is a task anyone can call...
+
+A task without a Verify line is a task anyone can call done.
+
+Every field here exists because its absence let something through. Verify is an
+exact command whose failure is the proof; Do NOT names the dodge that would
+satisfy the task falsely -- raising a ceiling, wrapping a hint, spelling a check
+name in a log line. Dep is checked because a dependency pointing at a
+non-existent id is an ordering nobody can follow, and ids are counted because 25
+of them are already used twice, which makes every Dep naming one ambiguous.
+
+<!-- mios-src:ac3def8cf78a from tools/check-task-schema.py:4-12 -->
+
+### The id below which the schema is not yet demanded. It lives...
+
+The id below which the schema is not yet demanded. It lives in the SSOT as a
+shrink-only ratchet, not as a constant here, so retro-fitting a batch of older
+tasks is a measurable step rather than an edit nobody notices. A task marked
+DONE is exempt whatever its id: it has already been done, so a Verify line
+added now would be one nobody checked.
+
+<!-- mios-src:3c264cead283 from tools/check-task-schema.py:22-26 -->
+
+### `## AGY-106..122 -- Campaign banner` covers every id in the...
+
+`## AGY-106..122 -- Campaign banner` covers every id in the range, so
+a Dep naming one of them names a task that exists -- but the banner
+plus its individual children is the NORMAL shape, not a collision, so
+only individual headings count toward the duplicate ceiling.
+
+<!-- mios-src:dbcbe1d51ba6 from tools/check-task-schema.py:62-65 -->
+
+### Prove the artifact gate can fail. `publish` depends on...
+
+Prove the artifact gate can fail.
+
+`publish` depends on `verify-images` to establish that the artifacts it is
+about to push are real. The version that shipped ended on a failure counter
+that stays zero when the glob loop matches nothing, so an empty build tree
+passed it. A gate that cannot fail is worth less than no gate, because the
+pipeline is built as though it were checking something.
+
+So this drives the real verifier three ways -- an empty tree, a complete set of
+fixtures, and the same set with one artifact removed -- and fails unless the
+verdicts come back reject, accept, reject-naming-the-missing-format. It also
+holds the wiring in place: the recipe must delegate here, `publish` must depend
+on it, and every format the `all` target builds must declare where its output
+lands.
+
+<!-- mios-src:d227112fa354 from tools/check-verify-images.py:4-18 -->
+
+### True for a file that declares itself a machine projection....
+
+True for a file that declares itself a machine projection.
+
+        The shell/PowerShell ceilings exist to drive HAND-WRITTEN glue down as it
+        migrates to Rust. automation/lib/globals.{sh,ps1} are rendered in full from
+        mios.toml, so they grow whenever the operator declares a config key -- growth
+        that cannot be "earned back" except by deleting operator configuration. Counting
+        them measured the wrong thing: a [cat] -> [field] rename that added keys pushed
+        the PowerShell ceiling over its floor with no hand-written line involved.
+        Excluding them LOWERS both floors by ~5.3k lines, so the ratchet binds strictly
+        tighter on the code it actually governs.
+
+<!-- mios-src:263ae92f5edd from tools/drift-checks.py:204-214 -->
+
+### One value, one name, ratcheted against the baseline ledger....
+
+One value, one name, ratcheted against the baseline ledger.
+
+    Lifted out of its heredoc in the shell gate: 211 lines that nothing
+    could import or lint, where a syntax error surfaced only when the
+    check ran.
+
+<!-- mios-src:cec6026d93d8 from tools/drift-checks.py:292-297 -->
+
+### resolve the live environment...
+
+--- resolve the live environment -------------------------------------------
+Git Bash cannot resolve an absolute path given as a script argument when
+bash.exe is launched from Windows Python: both /usr/share/mios/... and /c/MiOS/...
+exit 127 "No such file", because /c is resolved against the MSYS root
+rather than the drive. The same file runs when passed RELATIVE to a cwd.
+The gate passes an absolute $ROOT, so on Windows this check reported "the
+resolver produced no environment" -- a gate that could not run at all,
+rather than one that passed or failed.
+
+<!-- mios-src:0b1e45142858 from tools/drift-checks.py:373-380 -->
+
+### Return (current, what-write-mode-would-produce) for path....
+
+Return (current, what-write-mode-would-produce) for path.
+
+        check-mode used to compare only the VALUE, via a tolerant
+        minsize\s*=\s*"..." regex, while write-mode ALSO normalised the
+        spacing. So a file carrying aligned padding passed --check and was
+        still rewritten by the generator: the gate reported in-sync on a file
+        the generator would change. A check that does not compare what the
+        writer produces cannot detect the drift the writer creates, so both
+        modes now derive from this one rendering.
+
+<!-- mios-src:19d72f55f759 from tools/generate-bib-configs.py:49-58 -->
+
+### Verify every deployment format the SSOT declares actually...
+
+Verify every deployment format the SSOT declares actually produced a file.
+
+The gate this replaces walked a glob list and ended on the failure counter, so
+a tree with no artifacts in it counted zero failures and returned success --
+and `publish` depends on it to prove the artifacts are real before the push.
+The required set is now derived from `[deploy.formats]`: every format that
+declares output globs must match at least one file, that file must clear the
+size floor, and its leading bytes must be the ones its format is defined by.
+
+<!-- mios-src:78492b2882e5 from tools/verify-images.py:4-12 -->

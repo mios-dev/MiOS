@@ -15,7 +15,7 @@ Scope: 67 findings across 40 pipeline scripts under `C:\MiOS\automation` (+ `aut
 | `successfully` | 5 | 20-fapolicyd-trust:24, 35-gpu-passthrough:57, 54-bake-hyprland:153, 55-bake-quickshell:121, 56-bake-surfer:109 |
 | `complete` / `Done.` banner (no artifact named) | 7 | 14-generate-quadlets:41, 16-render-ports:50, 20-services:47, 26-grd:15, 35-gpu-pv-shim:73, 39-desktop-polish:43 (+ `installed` banner 13-ceph-k3s:124) |
 | `BAKED IN` (all-caps emphasis) | 2 | 52-bake-kvmfr:121, 53-bake-lookingglass-client:130 |
-| `... drift detected` (parenthetical restating `_violation`) | 3 | 38-drift-checks:1328, :1390, :1489 |
+| `... drift detected` (parenthetical restating `_violation`) | 3 | 98-drift-checks.sh:1278, :1358, :2936 |
 | marketing adjective (`pure build-up`, `Universal Dark Theme`, `Final desktop polish`) | 4 | 10-gnome:31, 30-locale-theme:21, 39-desktop-polish:20 & :43 |
 | decorative `!` | 1 | 35-gpu-pv-shim:40 |
 
@@ -27,7 +27,7 @@ Purge list for a pipeline-wide lint rule: **successfully, complete/Done (bare), 
 2. **Unconditional success on a conditional/skippable path** — asserts an artifact a guard may have skipped (5): 11-hardware:94 (NVIDIA_PRESENT=0), 13-ceph-k3s:124 (K3s download/checksum skips), 40-flatpak-bake:156 (`|| true` makes FAILED unreachable), build-mios:549 (venv guarded by `command -v python3`), 98-boot-config:40 (timeout value never read).
 3. **Mislabeled unit/artifact set** — header names a narrower or different set than the loop touches (4): 44-podman-machine-compat:36 (enables sshd + qemu-guest-agent), 45-nvidia-cdi-refresh:32 (also nvidia-persistenced), 55-quickshell:64 ("panels" = one Config.qml), 30-locale-theme:92 ("all toolkits").
 4. **One specific cause asserted where code cannot distinguish** (2): 37-selinux:167 (any `checkmodule`/`semodule_package` non-zero), 01-repos:92 ("warnings" = failed dnf transaction).
-5. **Contradicts adjacent comment/config** (remainder): install-bootstrap:176 ("non-destructive" vs `rsync -aH` with no `--ignore-existing`), 38-drift-checks:1800/:1802 (claims `userenv.sh` verification the body never runs), 20-services:47 ("v1.4" vs CHANGELOG v1.3).
+5. **Contradicts adjacent comment/config** (remainder): install-bootstrap:176 ("non-destructive" vs `rsync -aH` with no `--ignore-existing`), 98-drift-checks.sh:1800/:1802 (claims `userenv.sh` verification the body never runs), 20-services:47 ("v1.4" vs CHANGELOG v1.3).
 
 ### Count table by verdict
 

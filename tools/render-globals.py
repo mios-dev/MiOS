@@ -296,14 +296,40 @@ def render_ps1(exports: dict, names: list, version_fallback: str) -> str:
     return "\n".join(lines)
 
 
+def check_globals_parity(sh_body: str, ps_body: str) -> list[str]:
+    """Assert key-set parity between globals.sh and globals.ps1."""
+    sh_keys = {m.group(1) for m in re.finditer(r'(?::\s*"\$\{|\[\s*-n\s*"\$\{|export\s+)(MIOS_[A-Z0-9_]+)', sh_body)}
+    ps_keys = {m.group(1) for m in re.finditer(r'\$script:(MIOS_[A-Z0-9_]+)\s*=', ps_body)}
+
+    ps_keys_common = {k for k in ps_keys if not k.startswith("MIOS_WIN_")}
+    sh_keys_common = set(sh_keys)
+
+    problems = []
+    missing_in_ps = sorted(sh_keys_common - ps_keys_common)
+    if missing_in_ps:
+        problems.append(f"keys in globals.sh but missing in globals.ps1: {', '.join(missing_in_ps)}")
+    missing_in_sh = sorted(ps_keys_common - sh_keys_common)
+    if missing_in_sh:
+        problems.append(f"keys in globals.ps1 but missing in globals.sh: {', '.join(missing_in_sh)}")
+    return problems
+
+
 def main() -> int:
     check = "--check" in sys.argv
     exports = build_exports()
     version_fallback = exports.get("MIOS_META_VERSION") or exports.get("MIOS_VERSION") or "0.3.0"
     names = ordered_names(exports)
 
-    outputs = {SH_OUT: render_sh(exports, names, version_fallback),
-               PS_OUT: render_ps1(exports, names, version_fallback)}
+    sh_body = render_sh(exports, names, version_fallback)
+    ps_body = render_ps1(exports, names, version_fallback)
+    outputs = {SH_OUT: sh_body, PS_OUT: ps_body}
+
+    parity_problems = check_globals_parity(sh_body, ps_body)
+    if parity_problems:
+        sys.stderr.write("[render-globals] globals.sh / globals.ps1 parity check failed:\n")
+        for p in parity_problems:
+            sys.stderr.write(f"    {p}\n")
+        return 1
 
     drifted = []
     for path, body in outputs.items():

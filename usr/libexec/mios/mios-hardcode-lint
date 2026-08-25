@@ -145,9 +145,14 @@ def _is_routable_ip(ip_str: str) -> bool:
         return False
     return True
 
+def _anchor_pattern(pat: str) -> str:
+    prefix = r'(?<!\d)' if not pat.startswith('^') and not pat.startswith(r'\b') and not pat.startswith(r'(?<!') else ''
+    suffix = r'(?!\d)' if not pat.endswith('$') and not pat.endswith(r'\b') and not pat.endswith(r'(?!\d)') else ''
+    return prefix + pat + suffix
+
 def _check_ports_ips_py(text: str, filename: str, exempt_patterns: list[str]) -> list[tuple[int, str]]:
     violations = []
-    exempt_rx = [re.compile(pat) for pat in exempt_patterns]
+    exempt_rx = [re.compile(_anchor_pattern(pat)) for pat in exempt_patterns]
     try:
         toks = list(tokenize.generate_tokens(io.StringIO(text).readline))
     except (tokenize.TokenError, IndentationError, SyntaxError):
@@ -201,7 +206,7 @@ def _check_ports_ips_py(text: str, filename: str, exempt_patterns: list[str]) ->
 def _check_ports_ips(text: str, filename: str, exempt_patterns: list[str]) -> list[tuple[int, str]]:
     violations = []
     lines = text.split('\n')
-    exempt_rx = [re.compile(pat) for pat in exempt_patterns]
+    exempt_rx = [re.compile(_anchor_pattern(pat)) for pat in exempt_patterns]
     for idx, line in enumerate(lines, 1):
         stripped = line.strip()
         if stripped.startswith('#') or stripped.startswith('//') or stripped.startswith(';'):

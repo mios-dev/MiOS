@@ -55,3 +55,13 @@ mios-gui-watch.ps1 + the MiOSWallpaper/MiOS-GuiWatch Run keys:
   "gui-watch"            -> standalone WSLg window-centering loop (also run as a thread inside host).
 
 <!-- mios-src:0d6d907a715f from tools/native/mios-wallpaperd/src/main.rs:1-13 -->
+### Everything a peer needs to converge, tombstones included....
+
+Everything a peer needs to converge, tombstones included.
+
+An LWW-Element-Set converges only if the remove-set travels with the
+add-set. Replicating `active_elements` instead means a delete is visible
+on the node that made it and nowhere else: the peer never hears that the
+key died, keeps its own live copy, and the two disagree forever.
+
+<!-- mios-src:c17a92a65b83 from src/mios-rs/mios-node/src/state_sync.rs:181-186 -->

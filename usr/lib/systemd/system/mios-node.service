@@ -8,10 +8,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/mios-node 101 8650
+ExecStart=/usr/bin/mios-node 101 ${MIOS_PORT_NODE:-8650}
 Restart=always
 RestartSec=5s
-Environment=MIOS_AI_ENDPOINT=http://127.0.0.1:8640
+Environment=MIOS_AI_ENDPOINT=http://127.0.0.1:${MIOS_PORT_AGENT_PIPE:-8700}/v1
 Environment=MIOS_LOG_LEVEL=info
 LimitNOFILE=65536
 

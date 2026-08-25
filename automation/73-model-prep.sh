@@ -78,16 +78,9 @@ if [[ "$baked" -gt 0 ]]; then
 else
     mios_log "No GGUFs baked"
 fi
-exit 0
 
 # AI-hint: Bakes vLLM model weights into the image at /usr/share/mios/vllm/model if MIOS_VLLM_BAKE_MODEL is set, enabling offline serving via the mios-llm-heavy-alt Quadlet for air-gapped environments.
 # AI-related: /usr/share/mios/vllm/model, mios-llm-heavy-alt, mios-grounding, mios-llm-heavy-alt.container
-set -euo pipefail
-
-source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
-    mios_warn "Lib/common.sh unavailable"
-    exit 0
-}
 
 MODEL="${MIOS_VLLM_BAKE_MODEL:-}"
 SEED_DIR="/usr/share/mios/vllm/model"
@@ -96,8 +89,7 @@ if [[ -z "$MODEL" ]]; then
     mios_log "MIOS_VLLM_BAKE_MODEL empty"
     rm -rf "$SEED_DIR" 2>/dev/null || true
     ln -sf /var/lib/mios/vllm/model "$SEED_DIR"
-    exit 0
-fi
+else
 
 if [[ -L "$SEED_DIR" ]]; then
     rm -f "$SEED_DIR"
@@ -149,4 +141,5 @@ fi
 
 seed_size="$(du -sh "$SEED_DIR" 2>/dev/null | awk '{print $1}')"
 mios_ok "Baked ${MODEL} -> ${SEED_DIR}"
+fi
 exit 0

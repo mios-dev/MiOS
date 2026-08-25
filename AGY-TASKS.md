@@ -989,8 +989,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## AGY-90 -- Apply the fact-checked pipeline log-message changelist  (WS-DOCS | P2 | M)  **[DONE]**
 **Goal:** E-06 Test and documentation harness -- what the pipeline PRINTS matches what the pipeline DOES.
-**What+How:** A read-only fact-check audited every pipeline output string across `automation/*.sh`: 67 findings over 40 scripts -- 25 `inaccurate` (lines claiming work the code does not do, unconditional success on skippable paths, mislabeled unit sets), 27 `vague`, 12 `fluff`, 3 `redundant`. Apply the changelist as verbatim old->new Edits, prioritizing the 25 `inaccurate` (report Section 2a); confirm each `current` string still matches before editing (lines may have shifted) and SKIP with a note on any non-match or any finding you disagree with. Critically, `38-drift-checks.sh:1800` mislabels check (30): its DESCRIPTION claims it reads `userenv.sh` when the body only diffs `names.generated.txt` against `referenced_names.txt` -- fix the DESCRIPTION to match the code and do NOT touch the check logic.
-**Where:** `automation/*.sh`, `automation/38-drift-checks.sh:1800`, changelist at `C:\MiOS\docs\agy\verbosity-changelist.md` (fallback raw JSON `...\tasks\wrm19e0hr.output`, report at `.result.report`)
+**What+How:** A read-only fact-check audited every pipeline output string across `automation/*.sh`: 67 findings over 40 scripts -- 25 `inaccurate` (lines claiming work the code does not do, unconditional success on skippable paths, mislabeled unit sets), 27 `vague`, 12 `fluff`, 3 `redundant`. Apply the changelist as verbatim old->new Edits, prioritizing the 25 `inaccurate` (report Section 2a); confirm each `current` string still matches before editing (lines may have shifted) and SKIP with a note on any non-match or any finding you disagree with. Critically, `automation/98-drift-checks.sh:1800` mislabels check (30): its DESCRIPTION claims it reads `userenv.sh` when the body only diffs `names.generated.txt` against `referenced_names.txt` -- fix the DESCRIPTION to match the code and do NOT touch the check logic.
+**Where:** `automation/*.sh`, `automation/98-drift-checks.sh:1800`, changelist at `C:\MiOS\docs\agy\verbosity-changelist.md` (fallback raw JSON `...\tasks\wrm19e0hr.output`, report at `.result.report`)
 **Done When:** the inaccurate log lines state what the code actually does, the drift-gate stays GREEN, and the run reports N applied / N skipped with a reason per skip.
 **Why:** 25 log lines currently tell an operator that work succeeded or ran when it was skipped -- that is worse than silence, because it sends debugging in the wrong direction.
 **Dep:** none
@@ -1015,8 +1015,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## AGY-93 -- Work the owner=agy finalization queue by phase, after the AGY-92 blockers  (WS-CONFIG | P1 | L)  **[DONE]**
 **Goal:** E-11 Unified config surface -- every reader resolves through the shared layered resolver, and the release/registry/template/doc tails close behind it.
-**What+How:** The Finalization Master Plan (deduped across the audit, MiOS-Metal, container-runtime, registry, verbosity and deploy investigations) is at `C:\MiOS\docs\agy\mios-finalization-plan.md` with the Definition of Done, critical path and per-owner queues. Work the owner=agy queue in order. **P0:** (a) reconcile the legacy `MIOS_TOML` vs resolver `MIOS_VENDOR/HOST/USER_TOML` env schism across `38-drift-checks.sh` (L522/L779/L1973/L2007) and `57-mios-sys-build.sh` -- this GATES every agent-pipe migration below; (b) reconcile the `mios-ci.yml` PUBLISH literal against its own lines 26-38 capacity-gate comment. **P1 agent-pipe correctness:** migrate the raw-`MIOS_TOML` consumers (oscontrol L162; routing L83/L135; verbcatalog L67/L610) and the portal readers (L118/L989/L996/L290) onto `_toml_section`/`load_merged`; fix the user-layer write to persist a DELTA instead of freezing vendor defaults; make `db_authoritative` fall back PER SECTION so a DB miss never yields an empty agent registry; fix `to_toml` datetime serialization; memoize resolution so `_toml_section`/`get` stop reconnecting to Postgres per call; then land the anti-regression gate and an offline `test_mios_toml.py` covering the db branch. **P1 registry:** AGY-89's non-clobber fix in BOTH sh/ps1 twins plus a `MIOS_IMAGE_NAME`/`MIOS_IMAGE_REF` twin-parity drift check; event-gate GHCR push/sign so it never runs on PRs; harden empty-`MIOS_IMAGE_NAME` on GitHub and Forgejo. **P1 templates:** point conformance match-paths at `usr/lib/systemd/system` and `usr/share/containers/systemd` where the ~73 units and ~22 quadlets actually live, rebaseline `conformance-grandfathered.list` to the ~23 real offenders, and wire `tools/compile-templates.py` into the drift-gate or delete it. **P1 docs:** author the four AGY-91 concept docs from `C:\MiOS\docs\agy\{doc-container-runtime,doc-foss-upstream,image-resolution,doc-mios-metal}.md`, template-conformant with check-46 green and cross-reffed, then run the full green gate.
-**Where:** `C:\MiOS\docs\agy\mios-finalization-plan.md`, `automation/38-drift-checks.sh` (L522/L779/L1973/L2007), `automation/57-mios-sys-build.sh`, `.github/workflows/mios-ci.yml:26-38`, `usr/lib/mios/agent-pipe/` (oscontrol, routing, verbcatalog, portal), `automation/lib/globals.{sh,ps1}`, `conformance-grandfathered.list`, `tools/compile-templates.py`, `usr/share/doc/mios/concepts/`
+**What+How:** The Finalization Master Plan (deduped across the audit, MiOS-Metal, container-runtime, registry, verbosity and deploy investigations) is at `C:\MiOS\docs\agy\mios-finalization-plan.md` with the Definition of Done, critical path and per-owner queues. Work the owner=agy queue in order. **P0:** (a) reconcile the legacy `MIOS_TOML` vs resolver `MIOS_VENDOR/HOST/USER_TOML` env schism across `automation/98-drift-checks.sh` (L401/L695/L1284/L4494-4505) and `57-mios-sys-build.sh` -- this GATES every agent-pipe migration below; (b) reconcile the `mios-ci.yml` PUBLISH literal against its own lines 26-38 capacity-gate comment. **P1 agent-pipe correctness:** migrate the raw-`MIOS_TOML` consumers (oscontrol L162; routing L83/L135; verbcatalog L67/L610) and the portal readers (L118/L989/L996/L290) onto `_toml_section`/`load_merged`; fix the user-layer write to persist a DELTA instead of freezing vendor defaults; make `db_authoritative` fall back PER SECTION so a DB miss never yields an empty agent registry; fix `to_toml` datetime serialization; memoize resolution so `_toml_section`/`get` stop reconnecting to Postgres per call; then land the anti-regression gate and an offline `test_mios_toml.py` covering the db branch. **P1 registry:** AGY-89's non-clobber fix in BOTH sh/ps1 twins plus a `MIOS_IMAGE_NAME`/`MIOS_IMAGE_REF` twin-parity drift check; event-gate GHCR push/sign so it never runs on PRs; harden empty-`MIOS_IMAGE_NAME` on GitHub and Forgejo. **P1 templates:** point conformance match-paths at `usr/lib/systemd/system` and `usr/share/containers/systemd` where the ~73 units and ~22 quadlets actually live, rebaseline `conformance-grandfathered.list` to the ~23 real offenders, and wire `tools/compile-templates.py` into the drift-gate or delete it. **P1 docs:** author the four AGY-91 concept docs from `C:\MiOS\docs\agy\{doc-container-runtime,doc-foss-upstream,image-resolution,doc-mios-metal}.md`, template-conformant with check-46 green and cross-reffed, then run the full green gate.
+**Where:** `C:\MiOS\docs\agy\mios-finalization-plan.md`, `automation/98-drift-checks.sh` (L401/L695/L1284/L4494-4505), `automation/57-mios-sys-build.sh`, `.github/workflows/mios-ci.yml:26-38`, `usr/lib/mios/agent-pipe/` (oscontrol, routing, verbcatalog, portal), `automation/lib/globals.{sh,ps1}`, `conformance-grandfathered.list`, `tools/compile-templates.py`, `usr/share/doc/mios/concepts/`
 **Done When:** each phase leaves its drift-impact green, the AGY-92 blockers are cleared, and progress is reported per phase rather than as one lump.
 **Why:** the `MIOS_TOML` schism blocks every agent-pipe resolver migration behind it, the template conformance check currently scans directories where no units live (so it validates nothing), and the registry/doc tails are the remaining gap between "gate green" and "finalized MiOS".
 **Dep:** AGY-92 (P0 blockers first); supersedes the "full batch arrives later" note in AGY-92
@@ -11444,7 +11444,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** `just all` currently dies at `usb-installer` after hours of building, because the recipe cannot see the ISO its own dependency produced.
 **Dep:** none
 
-## AGY-1753 -- Make verify-images fail when there is nothing to verify  (WS-DEPLOY | P1 | S)
+## AGY-1753 -- Make verify-images fail when there is nothing to verify  (WS-DEPLOY | P1 | S) **[DONE]**
 **Goal:** The gate `just publish` depends on cannot pass over an empty set.
 **What+How:** `verify-images` ends `[ "$fail" -eq 0 ]`, which is true when the loop matched nothing; run against an empty `build/` it prints `0 artifact passed, 0 failed` and returns 0, and `publish: all verify-images` proceeds. Require a minimum artifact set derived from the SSOT deploy formats, and fail when any declared format produced nothing.
 **Where:** `Justfile (verify-images, publish), usr/share/mios/mios.toml ([deploy.formats])`
@@ -11514,7 +11514,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** it carries an installer role marker and a curl-pipe docstring, so it reads as a supported way in.
 **Dep:** none
 
-## AGY-1760 -- Make the FHS installer find the tree it is supposed to install  (WS-DEPLOY | P1 | S)
+## AGY-1760 -- Make the FHS installer find the tree it is supposed to install  (WS-DEPLOY | P1 | S) **[DONE]**
 **Goal:** The overlay installer applies an overlay.
 **What+How:** `automation/install-fhs.sh:19` sets `REPO_ROOT` to its own directory, `automation/`, where `usr etc var srv` do not exist -- so the loop at :23-30 never runs and the script prints `[ OK ] MiOS system installer complete`. Resolve the repository root, and fail when none of the overlay directories are found. Fix the GHCR reference at :10, which prints `ghcr.io/MiOS-DEV/mios:latest` where GHCR paths must be lowercase and the SSOT says `ghcr.io/mios-dev/mios:latest`.
 **Where:** `automation/install-fhs.sh, automation/install.sh`
@@ -11534,7 +11534,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** every machine installed from this image is frozen at install time and nothing anywhere says so.
 **Dep:** none
 
-## AGY-1762 -- Make `mios update` reach bootc on every surface  (WS-DEPLOY | P1 | S)
+## AGY-1762 -- Make `mios update` reach bootc on every surface  (WS-DEPLOY | P1 | S) **[DONE]**
 **Goal:** The update verb updates the operating system.
 **What+How:** `[verbs.update]` has a description, a `surface`, and no `cmd`. Interactively, `etc/profile.d/mios-verbs.sh:95-101` routes it to `mios pull`, a `git reset --hard` of a Windows drive. Non-interactively `mios-verbs.sh:3` returns early and `/usr/bin/mios` handles it -- and `KNOWN_VERBS` at :317-348 has no `update`, so the string is sent to the Hermes agent as a prompt. `usr/bin/mios-update` is a correct bootc wrapper nothing calls. Give the verb a `cmd`, add it to `KNOWN_VERBS`, and make `check_verb_backends` treat a `cmd`-less verb as a violation instead of skipping it.
 **Where:** `usr/share/mios/mios.toml ([verbs.update]), etc/profile.d/mios-verbs.sh, usr/bin/mios, automation/98-drift-checks.sh (check_verb_backends)`
@@ -11554,7 +11554,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the checks that gate a rollback currently pass over the exact conditions they were written to catch.
 **Dep:** none
 
-## AGY-1764 -- Watch a greenboot rollback happen once  (WS-DEPLOY | P1 | M)
+## AGY-1764 -- Watch a greenboot rollback happen once  (WS-DEPLOY | P1 | M) **[DONE]**
 **Goal:** The automatic rollback is observed, not inferred.
 **What+How:** greenboot 0.16.3, bootc 1.16.7 and `08_greenboot.cfg` are all present and correct, `greenboot-set-rollback-trigger.service` is enabled, and no rollback has ever been seen: in a container `greenboot health-check` prints "Container environment detected; skipping reboot and rollback handling", `/boot/grub2/grubenv` does not exist, and `grep -rn rollback tests/` returns zero. Deploy an image with a deliberately failing required check on real hardware or a UEFI VM and let the boot counter run out. Note the ordering hazard: `required.d` runs lexically and greenboot stops at the first failure, so `10-mios-composefs.sh` failing means `15-` and `50-` never execute.
 **Where:** `usr/lib/greenboot/, etc/greenboot/, tests/`
@@ -11564,7 +11564,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** rollback is the safety net under every future update, and nobody has seen it catch anything.
 **Dep:** AGY-1763
 
-## AGY-1765 -- Guard the ISO credential the way the sibling recipes do  (WS-DEPLOY | P1 | S)
+## AGY-1765 -- Guard the ISO credential the way the sibling recipes do  (WS-DEPLOY | P1 | S) **[DONE]**
 **Goal:** The installer medium cannot ship an empty password.
 **What+How:** `Justfile:251` and `:267` guard `MIOS_USER_PASSWORD_HASH` for qcow2 and vhdx; the `iso` recipe at :234-247 does not, and its sed at :237 uses the `:-` empty default. Run unset, it produces `user --name=mios --groups=wheel,render,video --iscrypted --password=` and a malformed sshkey line. Add the same guard, and make `check_replaceme_mount_substitution` assert the substituted value is non-empty rather than asserting the recipe contains `sed`.
 **Where:** `Justfile (iso), config/artifacts/iso.toml, automation/98-drift-checks.sh (check_replaceme_mount_substitution)`
@@ -11614,7 +11614,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** it advertises a guard over the exact publish-capacity failure that has already blocked this project, while the operator-facing knob is decorative.
 **Dep:** none
 
-## AGY-1770 -- Wire the package-registry switch to the gate that reads it  (WS-GATES | P2 | S)
+## AGY-1770 -- Wire the package-registry switch to the gate that reads it  (WS-GATES | P2 | S) **[DONE]**
 **Goal:** Turning the feature on in the SSOT arms its gate.
 **What+How:** `98-drift-checks.sh:482-487` gates on `${MIOS_PACKAGE_REGISTRY:-false}`. Nothing writes that variable: it appears only in this check, `automation/lib/generate-packages.sh:6` and `usr/libexec/mios/mios-registry`, all readers; it is in no globals resolver and in no env-snapshot output. Flipping `mios.toml:5545 package_registry = true` with no `registry.json` anywhere returns 0 and prints "package registry dormant". Resolve the flag from `[ai].package_registry` through the shared resolver, keep the env var as an override, apply the same fix to the generator, and make the disabled branch assert the dormant invariant rather than returning 0.
 **Where:** `automation/98-drift-checks.sh (check_package_registry), automation/lib/generate-packages.sh, usr/share/mios/mios.toml ([ai].package_registry, [testing].negative_coverage_exempt)`
@@ -11644,7 +11644,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the deploy audit's worst findings all sat behind gates the suite reported green, and two thirds of the suite is still unmeasured.
 **Dep:** AGY-1730
 
-## AGY-1773 -- Empty or justify the negative-coverage exemption list  (WS-GATES | P1 | M)
+## AGY-1773 -- Empty or justify the negative-coverage exemption list  (WS-GATES | P1 | M) **[DONE]**
 **Goal:** No gate is excused from proving it can fail.
 **What+How:** `[testing].negative_coverage_exempt.exempt` holds 55 entries, and it contains exactly the gates most suspected of being unfailable -- `check_no_hardcode`, `check_unit_security`, `check_package_registry`, `check_hummingbird`, `check_greenboot`, `check_greenboot_enablement`. 157 test functions cover 202 gates. Write a negative test for each exempt gate, or record in the SSOT a reason a reader can check, and delete the rest.
 **Where:** `usr/share/mios/mios.toml ([testing].negative_coverage_exempt), tests/drift-gate-negatives.sh, automation/98-drift-checks.sh (check_negative_test_coverage)`
@@ -11654,7 +11654,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the exemption list is the mechanism by which unfailable gates stay unfailable and read as covered.
 **Dep:** AGY-1772
 
-## AGY-1774 -- Reconcile the two [cat] tables and the two MiOS-Cat.bat copies  (WS-DEPLOY | P1 | M)
+## AGY-1774 -- Reconcile the two [cat] tables and the two MiOS-Cat.bat copies  (WS-DEPLOY | P1 | M) **[DONE]**
 **Goal:** One statement of the portable edition's configuration across both repositories.
 **What+How:** `usr/share/mios/mios.toml:9478` `[cat]` has seven keys; `C:\mios-bootstrap\mios.toml:1624` `[cat]` has fourteen, including `monitor_enabled`, `filesystem`, `partition_scheme`, `secure_boot`, `build_xbox`, `gaming_optimize`, `build_driver` and `log_path`, which mios.git does not have -- plus `[cat.live_chat]` and `[cat.sysrescue]`, and `ar_source_label = "MiOS-Cat"` at :1678. The two `installation/MiOS-Cat.bat` copies are untracked (`.gitignore:63`) and 51 lines apart. `cat/resources/ventoy/Render-Sysrescue.ps1:18` defaults `$PartitionLabel` from `[cat].partition_label`, a key that exists in neither file. Decide which repository owns which key, mirror deliberately, and delete the dangling reference.
 **Where:** `usr/share/mios/mios.toml ([cat]), C:\mios-bootstrap\mios.toml ([cat]), installation/MiOS-Cat.bat (both copies), C:\mios-bootstrap\cat\resources\ventoy\Render-Sysrescue.ps1`
@@ -11664,7 +11664,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** Law 15 requires both repositories to agree on shared SSOT surfaces, and a rename across a divergence produces two half-renamed trees.
 **Dep:** AGY-1766
 
-## AGY-1775 -- Rename the portable variant from Cat to Field  (WS-VARIANT | P2 | L)
+## AGY-1775 -- Rename the portable variant from Cat to Field  (WS-VARIANT | P2 | L) **[DONE]**
 **Goal:** The portable edition has a name that is not a coreutils command or someone else's project.
 **What+How:** Rename `mios-cat`/`MiOS-Cat` to `mios-field`/`MiOS-Field` across `[variants.entries]`, the `[cat]` config tables in both repositories, the partition and volume labels, the launchers, the gates, the generated env surfaces and the docs, and rename `cat/` to `field/` in mios-bootstrap. `MIOS-FIELD` is 10 characters, inside the 11-character FAT32/exFAT volume-label cap that disqualifies Courier and Outpost. Regenerate `globals.sh`/`globals.ps1`, `env-baseline.txt`, `manifest.json` and the man pages rather than hand-editing them.
 **Where:** `usr/share/mios/mios.toml ([cat], [variants]), C:\mios-bootstrap\mios.toml, installation/, cat/, C:\mios-bootstrap\cat\, automation/98-drift-checks.sh, tools/render-manpages.py, usr/share/doc/mios/`
@@ -11707,7 +11707,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** rollback is the property that makes immutable updates safe to take automatically; untested it is a hope, and every deployed machine is one bad upgrade from being unreachable.
 **Dep:** none
 
-## AGY-1781 -- Prove every Quadlet is generated, including the ones carrying hand-edits  (WS-SYSTEMD | P1 | M) [from T-005]
+## AGY-1781 -- Prove every Quadlet is generated, including the ones carrying hand-edits  (WS-SYSTEMD | P1 | M) [from T-005] **[DONE]**
 **Goal:** No container unit is hand-maintained, and the gate proves it.
 **What+How:** T-005 is marked done-by-code and `check_pod_quadlets` reports all 26 units matching the SSOT. Establish whether that covers every shipped `.container`/`.pod`/`.network`/`.volume` unit or only the 26 the generator knows: list every such file under `usr/share/containers/systemd/`, diff that set against what `tools/generate-pod-quadlets.py` emits, and account for every file in neither set. For any unit carrying a hand-edit that encodes real behaviour, move that behaviour into `[units]`/`[containers.*]` in the SSOT before the file is regenerated -- do not delete the edit.
 **Where:** `tools/generate-pod-quadlets.py, usr/share/containers/systemd/, usr/share/mios/mios.toml, automation/98-drift-checks.sh`
@@ -11717,7 +11717,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a unit outside the generator's set is a unit the SSOT does not describe, and the gate reporting "all 26 match" says nothing about the ones it never looked at.
 **Dep:** none
 
-## AGY-1782 -- Make check_agent_schema fail on the omission it was written for  (WS-A2 | P1 | S) [from T-007]
+## AGY-1782 -- Make check_agent_schema fail on the omission it was written for  (WS-A2 | P1 | S) [from T-007] **[DONE]**
 **Goal:** A malformed agent block cannot merge.
 **What+How:** T-007 is marked done-by-code and `check_agent_schema` reports the contract satisfied. That is the same shape as three gates already found this session that were green while the property they named was violated. Establish which it is: remove `health_gate` from one `[agents.*]` block, run the check, and record the exit code. Do the same for each field the schema claims to require, and for an agent block that is empty. Every omission the task named must produce a non-zero exit; repair the check for any that does not, and add the missing negative test.
 **Where:** `automation/98-drift-checks.sh (check_agent_schema), tests/drift-gate-negatives.sh, usr/share/mios/mios.toml ([agents])`
@@ -12339,7 +12339,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** review fatigue from mechanical churn is how real changes get waved through.
 **Dep:** none
 
-## AGY-1865 -- Three live ports have no key in `[ports]`  (WS-SSOT | P1 | M)
+## AGY-1865 -- Three live ports have no key in `[ports]`  (WS-SSOT | P1 | M) **[DONE]**
 **Goal:** Every port the system uses is allocated from the SSOT.
 **What+How:** Ports 8650, 8640 and 8642 appear in live configuration and none has a key in `[ports]` -- confirmed by resolving each value against the flattened table. Ports are allocated from `[ports.categories]` by base and stride rather than hand-assigned, so add these to the right category in member order and let the renderer derive them.
 **Where:** `usr/share/mios/mios.toml`, `tools/render-ports.py`, `automation/lib/globals.sh`
@@ -12349,7 +12349,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the endpoint literal is already recorded as canonical in one place and different in another, which is what an unallocated port produces.
 **Dep:** none
 
-## AGY-1866 -- `MIOS_AI_ENDPOINT` points at two different ports in two places  (WS-SSOT | P1 | S)
+## AGY-1866 -- `MIOS_AI_ENDPOINT` points at two different ports in two places  (WS-SSOT | P1 | S) **[DONE]**
 **Goal:** One endpoint value, derived once.
 **What+How:** The canonical AI endpoint is recorded as Hermes on 8642, while `mios-node.service` sets `MIOS_AI_ENDPOINT=http://127.0.0.1:8640`. One is wrong. Determine which, then derive the unit's value from the same key every other consumer reads.
 **Where:** `usr/share/mios/mios.toml`, `usr/lib/systemd/system/mios-node.service`, `etc/mios/install.env`
@@ -12359,7 +12359,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** two values for one endpoint means one caller is talking to the wrong service or to nothing.
 **Dep:** AGY-1865
 
-## AGY-1867 -- The hardcode lint's allowlist is unanchored and exempts more than intended  (WS-SSOT | P1 | M)
+## AGY-1867 -- The hardcode lint's allowlist is unanchored and exempts more than intended  (WS-SSOT | P1 | M) **[DONE]**
 **Goal:** An allowlisted port exempts that port, not every value containing it.
 **What+How:** `mios-hardcode-lint` matches allowlist entries unanchored, so an entry spuriously exempts other literals that contain it as a substring. Anchor the match, then re-run the lint and expect new findings -- those are real hardcodes the bug was hiding.
 **Where:** `usr/libexec/mios/`, `usr/share/mios/mios.toml`
@@ -12369,7 +12369,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** an allowlist that over-matches turns a lint into a formality.
 **Dep:** none
 
-## AGY-1868 -- Seven components had no SSOT port key and the list was never closed out  (WS-SSOT | P2 | M)
+## AGY-1868 -- Seven components had no SSOT port key and the list was never closed out  (WS-SSOT | P2 | M) **[DONE]**
 **Goal:** No component allocates its own port.
 **What+How:** A prior sweep identified seven components with no SSOT port key. Re-run that identification against the current tree -- the set has moved -- and allocate a key for each from the appropriate category.
 **Where:** `usr/share/mios/mios.toml`, `tools/render-ports.py`
@@ -12379,7 +12379,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** an unallocated port collides silently, and collisions surface as an intermittent service failure at boot.
 **Dep:** AGY-1865
 
-## AGY-1869 -- Port keys are rendered into globals with different wiring per platform  (WS-SSOT | P2 | M)
+## AGY-1869 -- Port keys are rendered into globals with different wiring per platform  (WS-SSOT | P2 | M) **[DONE]**
 **Goal:** The two globals files are produced by the same path.
 **What+How:** A recorded asymmetry has `globals.sh` wired first and `globals.ps1` last, so a change can land in one and not the other. Both are generated from the same SSOT; make them a single generation step producing both, and assert parity.
 **Where:** `tools/render-globals.py`, `automation/lib/globals.sh`, `automation/lib/globals.ps1`
@@ -12389,7 +12389,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the artefacts step already failed once because one of the two was regenerated and the other was not.
 **Dep:** none
 
-## AGY-1880 -- The roadmap's "measured rather than asserted" table is asserted  (WS-DOCS | P1 | M)
+## AGY-1880 -- The roadmap's "measured rather than asserted" table is asserted  (WS-DOCS | P1 | M) **[DONE]**
 **Goal:** The headline metrics are generated from the tree they describe.
 **What+How:** `ROADMAP.md` carries a table headed "Honest state, measured rather than asserted". Every figure in it is stale: tracked files 2,383 against 2,597 measured; drift checks 181 against 204 rows in the generated index; units 27 of 66 against 15 faithful of 122 shipped. The table is hand-maintained. Generate it, the way the rollup and workstream index between the existing marker comments already are.
 **Where:** `ROADMAP.md`, `tools/roadmap-index.py`, `tools/sync-generated.sh`
@@ -12399,7 +12399,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** a document that claims measurement and delivers assertion is worse than one that admits it is a summary.
 **Dep:** none
 
-## AGY-1881 -- Six documents reference a gate file that has been renamed  (WS-DOCS | P1 | S)
+## AGY-1881 -- Six documents reference a gate file that has been renamed  (WS-DOCS | P1 | S) **[DONE]**
 **Goal:** Doc references resolve to files that exist.
 **What+How:** `38-drift-checks.sh` is referenced by `AGY-TASKS.md`, `docs/agy/doc-git-root-unification.md`, `docs/agy/doc-install-family.md`, `docs/agy/impl-db-accounts.md`, `docs/agy/mios-finalization-plan.md` and `docs/agy/verbosity-changelist.md`; the finalization plan alone cites it four times, including specific line numbers. The gate is now `automation/98-drift-checks.sh` and those line numbers no longer point at what the prose describes. Update the references and re-derive the line citations against the current file.
 **Where:** `docs/agy/`, `AGY-TASKS.md`
@@ -12409,7 +12409,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the finalization plan is the document the whole P0 spine is read from.
 **Dep:** none
 
-## AGY-1882 -- 1,724 narrative comments are unharvested  (WS-DOCS | P2 | L)
+## AGY-1882 -- 1,724 narrative comments are unharvested  (WS-DOCS | P2 | L) **[DONE]**
 **Goal:** The generated manual reflects what the code says about itself.
 **What+How:** The roadmap's third campaign counts 1,724 narrative comments not yet harvested into the generated documentation. `manual-corpus.tsv` already censuses them with a STAY/DROP classification. Work the STAY set in batches, harvesting each into the manual surface its file maps to, and drive the unharvested count down as a ratchet.
 **Where:** `usr/share/mios/reference/manual-corpus.tsv`, `usr/share/doc/mios/`, `tools/generate-manual.py`

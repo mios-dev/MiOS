@@ -136,5 +136,27 @@ class TestGeneratedFilesAreParseable(unittest.TestCase):
                              f"illegal PowerShell identifier: {name}")
 
 
+class TestGlobalsParity(unittest.TestCase):
+    def test_rendered_globals_have_key_parity(self):
+        exports = rg.build_exports()
+        names = rg.ordered_names(exports)
+        sh_body = rg.render_sh(exports, names, "0.3.0")
+        ps_body = rg.render_ps1(exports, names, "0.3.0")
+        problems = rg.check_globals_parity(sh_body, ps_body)
+        self.assertEqual(problems, [])
+
+    def test_missing_key_in_ps_fails_parity_check(self):
+        sh_body = ': "${MIOS_TEST_KEY:=1234}"\n'
+        ps_body = '$script:MIOS_OTHER_KEY = 1234\n'
+        problems = rg.check_globals_parity(sh_body, ps_body)
+        self.assertTrue(any("missing in globals.ps1" in p for p in problems))
+
+    def test_missing_key_in_sh_fails_parity_check(self):
+        sh_body = ': "${MIOS_OTHER_KEY:=1234}"\n'
+        ps_body = '$script:MIOS_TEST_KEY = 1234\n'
+        problems = rg.check_globals_parity(sh_body, ps_body)
+        self.assertTrue(any("missing in globals.sh" in p for p in problems))
+
+
 if __name__ == "__main__":
     unittest.main()

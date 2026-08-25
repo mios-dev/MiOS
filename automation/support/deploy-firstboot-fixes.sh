@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: Automates the deployment of firstboot binaries and systemd drop-in configurations, then triggers and validates the mios-hermes-firstboo...
+# AI-hint: Automates the deployment of firstboot binaries and systemd drop-in configurations, then triggers and validates the mios-hermes-firstboot.service unit.
 # AI-doc: usr/share/doc/mios/manual/support.md
 set -euo pipefail
 

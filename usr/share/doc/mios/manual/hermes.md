@@ -99,3 +99,31 @@ alongside this one to override any of the above. The local file is
 merged on top, so partial overrides (e.g. just `backend.model`) work.
 
 <!-- mios-src:e486948c548d from usr/share/mios/hermes/config.yaml:138-140 -->
+### DEPRECATED
+
+DEPRECATED: This config has been migrated to the [gateway] section of mios.toml
+/usr/share/mios/hermes/config-worker.yaml -- MiOS-seeded NON-THIN Hermes WORKER
+(Hermes-Agent 0.13.x schema). Copied to /var/lib/mios/hermes-worker/config.yaml
+(the worker's HERMES_HOME) by hermes-worker-firstboot; that path is NEVER touched
+by mios-hermes-firstboot (which only re-thins /var/lib/mios/hermes/config.yaml),
+so this worker config is durable across boots.
+
+This is the P1 worker: a REAL agent that runs its OWN
+native browser_*/CDP + terminal + file + skills tool loop, doing its OWN
+inference on the heavy lane (:11441 mios-heavy, SGLang, --tool-call-parser
+qwen25 = native OpenAI tool_calls). It serves the OpenAI /v1 surface on :8643
+and is the WORKER-DISPATCH target of [agents.hermes].endpoint in mios.toml.
+
+The :8642 gateway (hermes-agent.service) is UNAFFECTED -- it stays the thin
+Discord/CLI gateway. This worker enables ONLY the api_server platform (NO
+Discord token => no contention for the host-global discord-bot-token scope
+lock held by the :8642 gateway).
+
+LOOP-SAFETY: this worker hits the REAL :11441 model lane for inference, so it
+never relays back to :8700. mcp_servers.mios stays DISABLED here (the relay's
+MIOS_AGENT_PIPE_URL=:8700 would let a worker re-enter the orchestrator ->
+:8700 -> council -> worker cycle). The worker's native toolsets already give
+it terminal/file/web/browser/skills without the MCP relay. The P0 hop-budget/
+Via guard (_HOP_HEADER/_VIA_HEADER, server.py) is the backstop either way.
+
+<!-- mios-src:28f89470ae3b from usr/share/mios/hermes/config-worker.yaml:1-24 -->

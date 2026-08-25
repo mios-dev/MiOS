@@ -43,7 +43,7 @@ for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
 done
 unset _ue
 
-export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8640/v1}"
+export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:${MIOS_PORT_AGENT_PIPE:-8700}/v1}"
 export MIOS_AI_GATEWAY_MODEL="${MIOS_AI_GATEWAY_MODEL:-MiOS-Agent}"
 export MIOS_AI_MODEL="${MIOS_AI_MODEL:-granite4.1:8b}"
 export MIOS_AI_EMBED_MODEL="${MIOS_AI_EMBED_MODEL:-nomic-embed-text}"

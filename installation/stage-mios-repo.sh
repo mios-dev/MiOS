@@ -70,13 +70,13 @@ DATA_LABEL="$(mios_ssot_value 'cat.data_partition' 'label' 'MiOS-Data')"
 
 
 render_loopback() {
-    local tmpl="$ROOT/cat/loopback.cfg"
+    local tmpl="$ROOT/field/loopback.cfg"
     if [[ -f "$tmpl" ]]; then
         sed -e "s/@@REPO_LABEL@@/${REPO_LABEL}/g" \
             -e "s/@@DATA_LABEL@@/${DATA_LABEL}/g" \
             "$tmpl"
     else
-        die "Template $tmpl missing at cat/loopback.cfg"
+        die "Template $tmpl missing at field/loopback.cfg"
     fi
 }
 
