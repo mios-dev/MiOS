@@ -12499,7 +12499,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the plan says nothing new starts until the spine closes, so an inaccurate spine mis-sequences everything after it.
 **Dep:** AGY-1881
 
-## AGY-1891 -- 53 Python heredocs remain embedded in the shell gate  (WS-LANG | P2 | L)
+## AGY-1891 -- 53 Python heredocs remain embedded in the shell gate  (WS-LANG | P2 | L)**[DONE]**
 **Goal:** Gate logic lives where it can be imported, linted and tested.
 **What+How:** 2,340 lines of Python remain inside `98-drift-checks.sh` as heredocs. Inside one, a syntax error surfaces only when the check runs, and nothing can unit-test the logic. Extract them into `tools/drift-checks.py` subcommands, largest first, following the established procedure: copy the body verbatim, register the subcommand, prove the extracted body parses, splice the shell to call it, then prove old and new give the same verdict on both a clean tree and a broken one.
 **Where:** `automation/98-drift-checks.sh`, `tools/drift-checks.py`, `tools/test_drift-checks.py`
@@ -12509,7 +12509,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Law 14 makes bash thin glue, and a check that cannot be tested is a check nobody has verified.
 **Dep:** none
 
-## AGY-1892 -- Eleven Rust crates assert nothing while cargo reports ok  (WS-LANG | P1 | L)
+## AGY-1892 -- Eleven Rust crates assert nothing while cargo reports ok  (WS-LANG | P1 | L)**[DONE]**
 **Goal:** A crate's passing test run means something was checked.
 **What+How:** `[rust.untested_crates]` records the crates with no meaningful assertions; `cargo test` reports ok for each because a suite with no tests passes. Write tests for the behaviour that matters in each, starting with the crates whose failure is most costly rather than the smallest ones.
 **Where:** `tools/native/`, `src/mios-rs/`, `usr/share/mios/mios.toml`
@@ -12519,7 +12519,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** a green test run over empty suites is the most convincing possible false signal.
 **Dep:** AGY-1800
 
-## AGY-1893 -- The Rust coverage gate counts crates, not assertions  (WS-LANG | P2 | M)
+## AGY-1893 -- The Rust coverage gate counts crates, not assertions  (WS-LANG | P2 | M)**[DONE]**
 **Goal:** The gate measures whether tests can fail.
 **What+How:** `tools/check-rust-test-coverage.py` checks crates against the untested register. A crate can leave the register with one trivial test. Strengthen it: require each crate's suite to contain at least one assertion against the crate's own public surface, and consider a mutation spot-check for the load-bearing crates.
 **Where:** `tools/check-rust-test-coverage.py`, `tools/native/`, `src/mios-rs/`
@@ -12529,7 +12529,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the register exists because counting was already shown to be insufficient here.
 **Dep:** AGY-1892
 
-## AGY-1894 -- Nine verbs evaluate agent-supplied arguments  (WS-LANG | P1 | L)
+## AGY-1894 -- Nine verbs evaluate agent-supplied arguments  (WS-LANG | P1 | L)**[DONE]**
 **Goal:** No verb passes agent input to a shell evaluator.
 **What+How:** The debt register records nine verbs using `eval` on arguments that can originate from an agent; ten files under `usr/libexec/mios/` currently use `eval`. Rewrite each to dispatch on an explicit allowlist of actions with arguments passed as array elements, never re-parsed.
 **Where:** `usr/libexec/mios/`, `usr/lib/mios/`
@@ -12539,7 +12539,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the agent plane is reachable over the network, which makes this the tree's highest-severity debt item.
 **Dep:** none
 
-## AGY-1895 -- The bare-metal install leg does not install MiOS  (WS-DEPLOY | P1 | L)
+## AGY-1895 -- The bare-metal install leg does not install MiOS  (WS-DEPLOY | P1 | L)**[DONE]**
 **Goal:** A bare-metal install produces a bootc MiOS system.
 **What+How:** The USB and Ventoy machinery boots, but the install path runs a plain Fedora installation rather than deploying the MiOS bootc image, and `tools/install.sh` referenced by that path is absent. The correct BIB-produced installer exists in design but is disconnected and unbuilt. Wire the built installer into the boot path so the installed system is the OCI image, and make the absent script either exist or stop being referenced.
 **Where:** `installation/`, `cat/`, `config/artifacts/`, `automation/`
@@ -12549,7 +12549,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the deploy plane is the least-complete area of the roadmap and this is its central claim.
 **Dep:** none
 
-## AGY-1896 -- `installation/mios-install.sh` swallows the install mode  (WS-DEPLOY | P1 | S)
+## AGY-1896 -- `installation/mios-install.sh` swallows the install mode  (WS-DEPLOY | P1 | S)**[DONE]**
 **Goal:** A positional install type selects that type.
 **What+How:** The mirrored bug fixed in the main repo remains in `mios-bootstrap`: `TYPE` initialises empty, the permissive final branch pushes a positional argument such as `bootc` into the passthrough array instead of setting `TYPE`, and the dispatch then falls back to the default. The generator earlier in the same file emits exactly that positional form. Mirror the fix.
 **Where:** `mios-bootstrap/installation/mios-install.sh`
@@ -12559,7 +12559,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Law 15 requires the mirrored surface to match, and an installer that silently installs the wrong type is the worst kind of quiet failure.
 **Dep:** none
 
-## AGY-1897 -- The image cannot update itself  (WS-DEPLOY | P1 | M)
+## AGY-1897 -- The image cannot update itself  (WS-DEPLOY | P1 | M)**[DONE]**
 **Goal:** A running MiOS can move to a newer image.
 **What+How:** The self-update path is unproven end to end. Establish what `bootc switch` and the update verb do on a live system, fix what is broken, and prove a running instance can reach a newer image and roll back.
 **Where:** `usr/libexec/mios/`, `usr/share/mios/mios.toml`, `installation/`
@@ -12569,7 +12569,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** an OS that cannot update itself is a one-shot install.
 **Dep:** AGY-1895
 
-## AGY-1898 -- Offline dependencies are not staged or verified  (WS-DEPLOY | P1 | L)
+## AGY-1898 -- Offline dependencies are not staged or verified  (WS-DEPLOY | P1 | L)**[DONE]**
 **Goal:** An install works with no network.
 **What+How:** The offline bootstrap needs a local source, integrity verification and a real seed. `bootc install --transport oci` can install from a local OCI archive, which fills the bare-metal leg without a registry. Stage the required artefacts onto the media, verify them by digest at install time, and prove the whole path with the network disconnected.
 **Where:** `installation/`, `cat/`, `automation/`, `config/artifacts/`

@@ -234,3 +234,15 @@ pub mod util {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_util_wide() {
+        let w = util::wide("hello");
+        assert_eq!(w, vec![104, 101, 108, 108, 111, 0]);
+    }
+}
+

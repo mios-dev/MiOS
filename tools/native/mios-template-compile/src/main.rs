@@ -182,3 +182,39 @@ fn main() {
         success_count
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_mock_vals() {
+        let root = Path::new("/nonexistent_dir_12345");
+        let mocks = get_mock_vals(root);
+        assert_eq!(mocks.get("name").unwrap(), "mockname");
+        assert_eq!(mocks.get("PascalName").unwrap(), "MockName");
+    }
+
+    #[test]
+    fn test_compile_template_json() {
+        let mut mocks = HashMap::new();
+        mocks.insert("name".to_string(), "foo".to_string());
+        let content = r#"{"key": "{{name}}"}"#;
+        let err = compile_template("json-schema", content, &mocks);
+        assert!(err.is_none());
+
+        let invalid = r#"{"key": "{{name}}""#;
+        let err_inv = compile_template("json-schema", invalid, &mocks);
+        assert!(err_inv.is_some());
+    }
+
+    #[test]
+    fn test_compile_template_toml() {
+        let mut mocks = HashMap::new();
+        mocks.insert("name".to_string(), "bar".to_string());
+        let content = "key = \"{{name}}\"\n";
+        let err = compile_template("toml-config", content, &mocks);
+        assert!(err.is_none());
+    }
+}
+

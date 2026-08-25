@@ -82,9 +82,17 @@ fi
 # Resolve.
 # ---------------------------------------------------------------------------
 
-SSOT_TYPE=""; SSOT_FALLBACK=""; SSOT_ARCHETYPES=""; SSOT_CAPS_LEGAL=""; SSOT_ALIASES=""
-# TD-1: eval-safe, input=shlex.quote()d output of _ssot_query reading the vendor mios.toml, not agent-controlled
-eval "$(_ssot_query)"
+while read -r _line || [[ -n "$_line" ]]; do
+    [[ -z "$_line" || "$_line" =~ ^# ]] && continue
+    if [[ "$_line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+        _k="${BASH_REMATCH[1]}"
+        _v="${BASH_REMATCH[2]}"
+        if [[ "$_v" =~ ^\'(.*)\'$ ]] || [[ "$_v" =~ ^\"(.*)\"$ ]]; then
+            _v="${BASH_REMATCH[1]}"
+        fi
+        declare -g "$_k=$_v"
+    fi
+done < <(_ssot_query)
 
 _picked="$(_resolve_role)"
 RAW_ROLE="${_picked%%$'\t'*}"

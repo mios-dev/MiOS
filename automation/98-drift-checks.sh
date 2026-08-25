@@ -2941,8 +2941,10 @@ check_pipefail_grep_lint() {
 check_skip_list_covered() {
     echo "[98-drift-checks]   checking the agent-pipe skip list lives in the SSOT"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py skip-list-covered)"
-    )" || { _violations_from "check_skip_list_covered: " "$out"; return; }
+    # Declared separately: `local out=$(cmd)` returns the status of `local`, not of
+    # cmd, which would make this check unable to fail.
+    local out
+    out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py skip-list-covered)" \n        || { _violations_from "check_skip_list_covered: " "$out"; return; }
     echo "[98-drift-checks]   the skip list is SSOT-owned and no workflow shadows it"
 }
 
@@ -3545,8 +3547,7 @@ check_wsl_distro_resolution() {
 # --- no ad-hoc regex/string TOML parsing used where canonical resolver exists ---
 check_adhoc_toml_parsers() {
     echo "[98-drift-checks] no ad-hoc regex/string TOML parsing used where canonical resolver exists"
-    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py adhoc-toml-parsers)"
-    )" || {
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py adhoc-toml-parsers)" || {
         _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   No ad-hoc regex TOML parsers outside the shared resolver"
 }
@@ -3558,8 +3559,7 @@ check_adhoc_toml_parsers() {
 # --- installer script side effects have exact symmetric uninstall counterparts ---
 check_install_uninstall_symmetry() {
     echo "[98-drift-checks] installer script side effects have exact symmetric uninstall counterparts"
-    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py install-uninstall-symmetry)"
-    )" || {
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py install-uninstall-symmetry)" || {
         _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   Uninstall-MiOS.ps1 removes every artifact in [windows.owned_artifacts]"
 }
@@ -3571,8 +3571,7 @@ check_install_uninstall_symmetry() {
 # --- PowerShell port fallback defaults equal mios.toml [ports] SSOT ---
 check_ps_port_fallback_ssot() {
     echo "[98-drift-checks] PowerShell port fallback defaults equal mios.toml [ports] SSOT"
-    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py ps-port-fallback-ssot)"
-    )" || {
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py ps-port-fallback-ssot)" || {
         _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   PowerShell port fallbacks all match mios.toml [ports]"
 }
@@ -3593,8 +3592,7 @@ check_github_slug_casing() {
 # --- PowerShell script files use UTF-8 encoding without byte-order marks ---
 check_ps_encoding_and_bom() {
     echo "[98-drift-checks] PowerShell script files use UTF-8 encoding without byte-order marks"
-    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py ps-encoding-and-bom)"
-    )" || {
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py ps-encoding-and-bom)" || {
         _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   PowerShell BOMs match content: non-ASCII scripts carry one, ASCII scripts do not"
 }
@@ -3610,7 +3608,6 @@ check_unit_security() {
     command -v python3 >/dev/null 2>&1 || py_bin="python"
     local out
     if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py unit-security "$ROOT")"; then
-    )"; then
         echo "[98-drift-checks]   WARNING: systemd unit security check flagged unconfined services" >&2
         return 0
     fi
@@ -3630,8 +3627,7 @@ check_unit_dependency_closure() {
     fi
     local py_bin="python3"
     command -v python3 >/dev/null 2>&1 || py_bin="python"
-    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py unit-dependency-closure "$ROOT")"
-    )" || {
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py unit-dependency-closure "$ROOT")" || {
         _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   All systemd unit and Quadlet dependency references resolved cleanly"
 }
@@ -3640,8 +3636,7 @@ check_unit_dependency_closure() {
 # --- documentation coverage count meets or exceeds established ratchet floor ---
 check_docs_ratchet() {
     echo "[98-drift-checks] documentation coverage count meets or exceeds established ratchet floor"
-    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py docs-ratchet)"
-    )" || {
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py docs-ratchet)" || {
         _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   documentation ratchet holding (narrative + hint + stale-ref ceilings)"
 }
@@ -3869,8 +3864,7 @@ check_resolver_differential_parity() {
 # --- code generators produce identical output regardless of host OS ---
 check_generator_host_parity() {
     echo "[98-drift-checks] code generators produce identical output regardless of host OS"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py generator-host-parity)"
-)" || {
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py generator-host-parity)" || {
         _violations_from "check_generator_host_parity: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
@@ -3881,7 +3875,6 @@ check_doc_port_scheme() {
     # Law 5/7: contract docs name [ports] keys; retired lane numbers must not return.
     local lists pat f hits
     lists="$(cd "$ROOT" && python3 tools/drift-checks.py doc-port-scheme)"
-)"
     pat="${lists%%$'\n'*}"
     if [[ -z "$pat" ]]; then
         _violation "check_doc_port_scheme: [docs].retired_ports is empty or unreadable"
@@ -3909,8 +3902,7 @@ check_doc_port_scheme() {
 # --- blade reconciliation schema conforms to hardware capability specs ---
 check_blade_reconcile_schema() {
     echo "[98-drift-checks] blade reconciliation schema conforms to hardware capability specs"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py blade-reconcile-schema)"
-    )" || {
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py blade-reconcile-schema)" || {
         _violations_from "check_blade_reconcile_schema: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }

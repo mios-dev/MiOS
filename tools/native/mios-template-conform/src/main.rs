@@ -22,7 +22,7 @@ fn load_grandfathered(root: &Path) -> HashSet<String> {
         content
             .lines()
             .map(|l| l.trim().to_string())
-            .filter(|l| !l.is_empty())
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
             .collect()
     } else {
         HashSet::new()
@@ -232,3 +232,34 @@ fn main() {
         std::process::exit(1);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_grandfathered_nonexistent() {
+        let root = Path::new("/nonexistent_dir_12345");
+        let gf = load_grandfathered(root);
+        assert!(gf.is_empty());
+    }
+
+    #[test]
+    fn test_load_grandfathered_mock() {
+        let dir = std::env::temp_dir().join("mios_tmpl_conform_test");
+        let gf_dir = dir.join("usr/share/mios/templates");
+        let _ = fs::create_dir_all(&gf_dir);
+        let gf_path = gf_dir.join("conformance-grandfathered.list");
+        fs::write(&gf_path, "file1.py\nfile2.sh\n# comment\n\nfile3.rs\n").unwrap();
+
+        let gf = load_grandfathered(&dir);
+        assert!(gf.contains("file1.py"));
+        assert!(gf.contains("file2.sh"));
+        assert!(gf.contains("file3.rs"));
+        assert!(!gf.contains("# comment"));
+
+        let _ = fs::remove_file(gf_path);
+        let _ = fs::remove_dir_all(dir);
+    }
+}
+

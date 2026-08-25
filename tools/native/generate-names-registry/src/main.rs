@@ -220,3 +220,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     generate_referenced_vars(&root)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_alias_for() {
+        assert_eq!(
+            alias_for("ai.vllm.v1_engine"),
+            Some("MIOS_VLLM_USE_V1".to_string())
+        );
+        assert_eq!(
+            alias_for("ai.vllm.max_model_len"),
+            Some("MIOS_VLLM_MAX_MODEL_LEN".to_string())
+        );
+        assert_eq!(
+            alias_for("ai.sglang.unified_radix_tree"),
+            Some("MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE".to_string())
+        );
+        assert_eq!(
+            alias_for("ai.sglang.hierarchical_cache"),
+            Some("MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE".to_string())
+        );
+        assert_eq!(alias_for("ports.http"), None);
+    }
+
+    #[test]
+    fn test_walk_value() {
+        let toml_str = r#"
+        [ports]
+        http = 80
+        https = 443
+        "#;
+        let val: toml::Value = toml::from_str(toml_str).unwrap();
+        let mut results = Vec::new();
+        walk_value(&val, "", &mut results);
+        assert_eq!(
+            results,
+            vec![
+                ("ports.http".to_string(), "MIOS_PORTS_HTTP".to_string()),
+                ("ports.https".to_string(), "MIOS_PORTS_HTTPS".to_string()),
+            ]
+        );
+    }
+}
+

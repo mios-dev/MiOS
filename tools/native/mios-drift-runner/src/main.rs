@@ -19,15 +19,24 @@ fn run_resolver_check(surface: &str) -> bool {
     }
 }
 
+fn parse_surface(cmd_name: &str) -> Option<&str> {
+    if cmd_name.starts_with("check_resolver_") || cmd_name.starts_with("--resolver-") {
+        Some(
+            cmd_name
+                .trim_start_matches("--resolver-")
+                .trim_start_matches("check_resolver_"),
+        )
+    } else {
+        None
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     let root = env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
 
     if let Some(cmd_name) = args.first() {
-        if cmd_name.starts_with("check_resolver_") || cmd_name.starts_with("--resolver-") {
-            let surface = cmd_name
-                .trim_start_matches("--resolver-")
-                .trim_start_matches("check_resolver_");
+        if let Some(surface) = parse_surface(cmd_name) {
             let ok = run_resolver_check(surface);
             if ok {
                 println!("[mios-drift-runner] Resolver check {} PASSED", surface);
@@ -99,3 +108,16 @@ fn main() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_surface() {
+        assert_eq!(parse_surface("check_resolver_shell"), Some("shell"));
+        assert_eq!(parse_surface("--resolver-python"), Some("python"));
+        assert_eq!(parse_surface("other_cmd"), None);
+    }
+}
+

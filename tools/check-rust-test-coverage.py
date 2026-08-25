@@ -22,10 +22,55 @@ except ModuleNotFoundError:  # pragma: no cover
 
 WORKSPACES = ("src/mios-rs", "tools/native")
 TEST_MARKERS = ("#[test]", "#[tokio::test]", "#[rstest]")
+PRIMITIVE_WORDS = {"true", "false", "Ok", "Err", "Some", "None", "self", "Self"}
+
+
+def extract_assertions(body: str) -> list[tuple[str, str]]:
+    assertions = []
+    pattern = re.compile(r'\b(assert(?:_eq|_ne|_matches)?)\s*!\s*\(', re.MULTILINE)
+    for match in pattern.finditer(body):
+        macro_name = match.group(1)
+        start = match.end()
+        depth = 1
+        i = start
+        in_str = False
+        str_char = None
+        escape = False
+        while i < len(body) and depth > 0:
+            ch = body[i]
+            if escape:
+                escape = False
+            elif ch == '\\' and in_str:
+                escape = True
+            elif in_str:
+                if ch == str_char:
+                    in_str = False
+            elif ch in ('"', "'"):
+                in_str = True
+                str_char = ch
+            elif ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+            i += 1
+        if depth == 0:
+            args_str = body[start:i-1]
+            assertions.append((macro_name, args_str))
+    return assertions
+
+
+def is_meaningful_assertion(args_str: str) -> bool:
+    no_strings = re.sub(r'"([^"\\]|\\.)*"', '""', args_str)
+    no_strings = re.sub(r"'([^'\\]|\\.)*'", "''", no_strings)
+    no_comments = re.sub(r'//.*', '', no_strings)
+    tokens = re.findall(r'\b[A-Za-z_][A-Za-z0-9_]*\b', no_comments)
+    non_primitive = [t for t in tokens if t not in PRIMITIVE_WORDS]
+    return len(non_primitive) > 0
 
 
 def crate_tests(root: str, ws: str, crate: str) -> int:
-    n = 0
+    has_test_func = False
+    meaningful_asserts = 0
     for sub in ("src", "tests", "benches"):
         base = os.path.join(root, ws, crate, sub)
         for dirpath, _dirs, files in os.walk(base):
@@ -37,8 +82,15 @@ def crate_tests(root: str, ws: str, crate: str) -> int:
                                 errors="replace").read()
                 except OSError:
                     continue
-                n += sum(body.count(m) for m in TEST_MARKERS)
-    return n
+                if any(m in body for m in TEST_MARKERS):
+                    has_test_func = True
+                for _m_name, args in extract_assertions(body):
+                    if is_meaningful_assertion(args):
+                        meaningful_asserts += 1
+    if has_test_func and meaningful_asserts > 0:
+        return meaningful_asserts
+    return 0
+
 
 
 def crate_lines(root: str, ws: str, crate: str) -> int:

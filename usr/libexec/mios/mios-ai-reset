@@ -39,8 +39,7 @@ _do() {
     if [ "$DRY_RUN" = 1 ]; then
         printf "  [dry-run] %s\n" "$*"
     else
-        # TD-1: eval-safe, input=internal hardcoded paths and variables, not agent-controlled
-        eval "$@"
+        "$@"
     fi
 }
 
@@ -62,9 +61,9 @@ echo "════════════════════════�
 
 echo
 echo "── stop services ──"
-_do "systemctl stop hermes-agent.service mios-open-webui.service \
+_do systemctl stop hermes-agent.service mios-open-webui.service \
     mios-log-watcher.service mios-cron-director.service \
-    mios-hermes-browser.service 2>/dev/null"
+    mios-hermes-browser.service 2>/dev/null || true
 [ "$DRY_RUN" = 0 ] && sleep 2
 
 echo
@@ -78,12 +77,12 @@ for f in state.db state.db-shm state.db-wal \
          channel_directory.json gateway_state.json \
          .skills_prompt_snapshot.json; do
     [ -e "$H/$f" ] || continue
-    _do "rm -f \"$H/$f\""
+    _do rm -f "$H/$f"
 done
 for d in sessions logs memories; do
     [ -d "$H/$d" ] || continue
-    _do "rm -rf \"$H/$d\""
-    _do "install -d -o mios-hermes -g mios-hermes -m 0700 \"$H/$d\""
+    _do rm -rf "$H/$d"
+    _do install -d -o mios-hermes -g mios-hermes -m 0700 "$H/$d"
 done
 
 echo
@@ -93,11 +92,9 @@ for d in /var/home/mios/.hermes /home/mios/.hermes /root/.hermes; do
     _check_safe "$d"
     [ -n "$d" ] || continue
     case "$d" in */.hermes) ;; *) continue ;; esac
-    _do "rm -f \"$d\"/state.db* \"$d\"/kanban.db* \"$d\"/response_store.db* \
-        \"$d\"/channel_directory.json \"$d\"/gateway_state.json \
-        \"$d\"/.skills_prompt_snapshot.json"
+    _do find "$d" -maxdepth 1 \( -name 'state.db*' -o -name 'kanban.db*' -o -name 'response_store.db*' -o -name 'channel_directory.json' -o -name 'gateway_state.json' -o -name '.skills_prompt_snapshot.json' \) -delete 2>/dev/null || true
     for sub in sessions logs memories; do
-        [ -d "$d/$sub" ] && _do "rm -rf \"$d/$sub\"/* \"$d/$sub\"/.[!.]* 2>/dev/null"
+        [ -d "$d/$sub" ] && _do find "$d/$sub" -mindepth 1 -delete 2>/dev/null || true
     done
     echo "  $d"
 done
@@ -141,14 +138,14 @@ fi
 
 echo
 echo "── observability state ──"
-_do "rm -f /var/lib/mios/log-watcher/*.jsonl /var/lib/mios/log-watcher/*.json 2>/dev/null"
-_do "rm -f /var/lib/mios/cron-director/*.json 2>/dev/null"
+_do find /var/lib/mios/log-watcher -name '*.jsonl' -o -name '*.json' -delete 2>/dev/null || true
+_do find /var/lib/mios/cron-director -name '*.json' -delete 2>/dev/null || true
 echo "  log-watcher + cron-director cleared"
 
 echo
 echo "── /tmp AI temp ──"
-_do "rm -f /tmp/agent-debug-recording.jsonl /tmp/agent-debug*.jsonl 2>/dev/null"
-_do "rm -rf /tmp/hermes-* /tmp/mios-agent-* /tmp/owui-* /tmp/.hermes* 2>/dev/null"
+_do find /tmp -maxdepth 1 -name 'agent-debug*.jsonl' -delete 2>/dev/null || true
+_do find /tmp -maxdepth 1 \( -name 'hermes-*' -o -name 'mios-agent-*' -o -name 'owui-*' -o -name '.hermes*' \) -exec rm -rf {} + 2>/dev/null || true
 
 echo
 echo "── browser sidecar profile ──"
@@ -157,14 +154,14 @@ for d in /var/lib/mios/hermes-browser /run/mios-hermes-browser; do
     _check_safe "$d"
     [ -n "$d" ] || continue
     case "$d" in */hermes-browser|*/mios-hermes-browser) ;; *) continue ;; esac
-    _do "find \"$d\" -mindepth 1 -delete 2>/dev/null"
+    _do find "$d" -mindepth 1 -delete 2>/dev/null || true
     echo "  $d"
 done
 
 echo
 echo "── opencode subagent caches ──"
 for base in /var/lib/mios/hermes /var/home/mios /home/mios; do
-    _do "rm -rf \"$base/.local/share/opencode\" \"$base/.cache/opencode\" 2>/dev/null"
+    _do rm -rf "$base/.local/share/opencode" "$base/.cache/opencode"
 done
 
 if [ "$DRY_RUN" = 0 ]; then

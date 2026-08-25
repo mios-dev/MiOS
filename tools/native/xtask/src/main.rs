@@ -3,9 +3,13 @@
 use std::env;
 use std::process::Command;
 
+fn parse_task(args: &[String]) -> &str {
+    args.first().map(|s| s.as_str()).unwrap_or("help")
+}
+
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
-    let task = args.first().map(|s| s.as_str()).unwrap_or("help");
+    let task = parse_task(&args);
 
     match task {
         "build-resolver" => {
@@ -35,3 +39,17 @@ fn main() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_task() {
+        assert_eq!(parse_task(&[]), "help");
+        assert_eq!(parse_task(&["build-resolver".to_string()]), "build-resolver");
+        assert_eq!(parse_task(&["regen".to_string()]), "regen");
+        assert_eq!(parse_task(&["unknown".to_string()]), "unknown");
+    }
+}
+

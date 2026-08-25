@@ -275,9 +275,7 @@ case "$sub" in
     left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|maximize-pos)
         pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window $sub: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
-        export LAYOUT_JSON="$_layout"
-        # TD-1: eval-safe, input=internal integers and layout bounds, not agent-controlled
-        eval "$(python3 - "$sub" "$hwnd" <<'PYEOF'
+        read -r _x _y _w _h <<< "$(python3 - "$sub" "$hwnd" <<'PYEOF'
 import sys, json, os
 try:
     layout = json.loads(os.environ.get('LAYOUT_JSON', '{}'))
@@ -288,8 +286,7 @@ except Exception:
 pos = sys.argv[1]
 hwnd = sys.argv[2]
 if pos == 'maximize-pos':
-    print(f"mios-pc-control window-move {hwnd} {wx} {wy} >/dev/null;")
-    print(f"mios-pc-control window-resize {hwnd} {ww} {wh} >/dev/null;")
+    print(f"{wx} {wy} {ww} {wh}")
     sys.exit(0)
 w, h, x, y = ww, wh, wx, wy
 if pos == 'left': w = ww//2
@@ -300,10 +297,14 @@ elif pos == 'top-left': w = ww//2; h = wh//2
 elif pos == 'top-right': w = ww//2; h = wh//2; x = wx + ww//2
 elif pos == 'bottom-left': w = ww//2; h = wh//2; y = wy + wh//2
 elif pos == 'bottom-right': w = ww//2; h = wh//2; x = wx + ww//2; y = wy + wh//2
-print(f"mios-pc-control window-move {hwnd} {x} {y} >/dev/null;")
-print(f"mios-pc-control window-resize {hwnd} {w} {h} >/dev/null;")
+print(f"{x} {y} {w} {h}")
 PYEOF
 )"
+        if [[ -n "${_x:-}" && -n "${_y:-}" && -n "${_w:-}" && -n "${_h:-}" ]]; then
+            mios-pc-control window-move "$hwnd" "$_x" "$_y" >/dev/null
+            mios-pc-control window-resize "$hwnd" "$_w" "$_h" >/dev/null
+        fi
+        unset LAYOUT_JSON
         unset LAYOUT_JSON
         ;;
     left-half|right-half|top-half|bottom-half)

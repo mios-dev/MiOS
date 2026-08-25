@@ -114,3 +114,31 @@ fn main() {
         version_val
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_toml_version() {
+        let dir = std::env::temp_dir().join("mios_version_test_toml");
+        let _ = fs::create_dir_all(&dir);
+        let file_path = dir.join("test.toml");
+        fs::write(&file_path, "[meta]\nmios_version = \"1.2.3\"\n").unwrap();
+        assert_eq!(extract_toml_version(&file_path), Some("1.2.3".to_string()));
+        let _ = fs::remove_file(file_path);
+        let _ = fs::remove_dir(dir);
+    }
+
+    #[test]
+    fn test_extract_containerfile_version() {
+        let dir = std::env::temp_dir().join("mios_version_test_cf");
+        let _ = fs::create_dir_all(&dir);
+        let file_path = dir.join("Containerfile");
+        fs::write(&file_path, "ARG MIOS_VERSION=\"1.2.3\"\n").unwrap();
+        assert_eq!(extract_containerfile_version(&file_path), Some("1.2.3".to_string()));
+        let _ = fs::remove_file(file_path);
+        let _ = fs::remove_dir(dir);
+    }
+}
+

@@ -3173,14 +3173,7 @@ def check_cli_eval_safety() -> int:
                 
                 code_part = line.split("#")[0].strip()
                 if re.search(r'\beval\b', code_part):
-                    has_comment = False
-                    if idx > 0:
-                        prev_line = lines[idx - 1].strip()
-                        if re.match(r'^#\s*TD-1:\s*eval-safe,\s*input=.+,\s*not agent-controlled', prev_line):
-                            has_comment = True
-                    
-                    if not has_comment:
-                        viol.append(f"{fn}:{idx+1} has unverified eval: {line.strip()}")
+                    viol.append(f"{fn}:{idx+1} has eval: {line.strip()}")
 
     if viol:
         for v in viol:

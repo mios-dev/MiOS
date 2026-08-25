@@ -292,3 +292,33 @@ fn main() {
     let json = serde_json::to_string_pretty(&blocks).unwrap();
     println!("{}", json);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_style_for() {
+        assert_eq!(style_for("foo.py"), "#");
+        assert_eq!(style_for("bar.rs"), "//");
+        assert_eq!(style_for("baz.md"), "<!--");
+    }
+
+    #[test]
+    fn test_strip_line() {
+        assert_eq!(strip_line("# Hello world"), "Hello world");
+        assert_eq!(strip_line("// Test line"), "Test line");
+        assert_eq!(strip_line("<!-- Comment -->"), "Comment");
+    }
+
+    #[test]
+    fn test_lex_generic() {
+        let src = "# Header comment\n# Second line\n\nfn main() {}\n";
+        let blocks = lex_generic("test.py", src, "#");
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].start_line, 1);
+        assert_eq!(blocks[0].end_line, 2);
+        assert_eq!(blocks[0].lines, 2);
+    }
+}
+

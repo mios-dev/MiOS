@@ -31,8 +31,7 @@ HCRON=/var/lib/mios/hermes/cron
 sec()  { printf "\n── %s ──\n" "$*"; }
 ok()   { printf "  ✓  %s\n" "$*"; }
 note() { printf "     %s\n" "$*"; }
-# TD-1: eval-safe, input=internal hardcoded commands, not agent-controlled
-run()  { if [ "$DRY_RUN" = 1 ]; then printf "  [dry-run] %s\n" "$*"; else eval "$@"; fi; }
+run()  { if [ "$DRY_RUN" = 1 ]; then printf "  [dry-run] %s\n" "$*"; else "$@"; fi; }
 
 echo "════════════════════════════════════════════════════════════════"
 printf "  mios ai clear -- DAY-0 GLOBAL CLEAN SLATE%s\n" "$([ "$DRY_RUN" = 1 ] && echo '  (DRY RUN)')"
@@ -47,19 +46,23 @@ if [ "$DRY_RUN" = 0 ] && [ "$ASSUME_YES" = 0 ]; then
 fi
 
 sec "1. stop AI writers (pgvector stays up so we can clear it)"
-run "systemctl stop hermes-agent.service mios-agent-pipe.service mios-daemon.service \
+run systemctl stop hermes-agent.service mios-agent-pipe.service mios-daemon.service \
      mios-log-watcher.service mios-cron-director.service mios-hermes-browser.service \
-     mios-open-webui.service 2>/dev/null"
+     mios-open-webui.service 2>/dev/null || true
 [ "$DRY_RUN" = 0 ] && sleep 2
 ok "writers stopped"
 
 sec "2. Hermes scheduled jobs (the daily Discord report source)"
 if [ -f "$HCRON/jobs.json" ]; then
-    run "printf '[]' > '$HCRON/jobs.json'"
-    run "chown mios-ai:mios-ai '$HCRON/jobs.json' 2>/dev/null || true"
+    if [ "$DRY_RUN" = 1 ]; then
+        printf "  [dry-run] truncate %s\n" "$HCRON/jobs.json"
+    else
+        printf '[]' > "$HCRON/jobs.json"
+        chown mios-ai:mios-ai "$HCRON/jobs.json" 2>/dev/null || true
+    fi
     ok "cron/jobs.json emptied -- AMD-stock + trending-topic posters stopped"
 fi
-[ -d "$HCRON/output" ] && { run "find '$HCRON/output' -mindepth 1 -delete 2>/dev/null"; ok "cron/output cleared"; }
+[ -d "$HCRON/output" ] && { run find "$HCRON/output" -mindepth 1 -delete 2>/dev/null || true; ok "cron/output cleared"; }
 
 sec "3. pgvector agent state -> Day-0 (preserve knowledge identity tables)"
 _CLEAR="alias app_install directory_entry event kanban log_digest mios_rag \
@@ -67,11 +70,11 @@ _CLEAR="alias app_install directory_entry event kanban log_digest mios_rag \
         skill_invocation sys_env tool_call"
 _sql=""
 for t in $_CLEAR; do _sql="${_sql}TRUNCATE TABLE IF EXISTS ${t} RESTART IDENTITY CASCADE;"; done
-run "'${PG_QUERY}' \"\${_sql}\" >/dev/null 2>&1 || true"
+run "$PG_QUERY" "$_sql" >/dev/null 2>&1 || true
 ok "pgvector runtime tables + RAG cleared (identity/registry preserved)"
 
 sec "4. agent-env inventory + suggestion caches"
-run "find /var/lib/mios/agent-env -mindepth 1 -delete 2>/dev/null || true"
+run find /var/lib/mios/agent-env -mindepth 1 -delete 2>/dev/null || true
 ok "agent-env caches cleared (windows-apps / suggestions regenerate on demand)"
 
 sec "5. conversational clean-slate (Hermes state / OWUI chats / observ / browser / opencode)"
@@ -82,7 +85,7 @@ else
 fi
 
 sec "6. re-seed Day-0 RAG + restart remaining services"
-run "systemctl start mios-agent-pipe.service mios-daemon.service 2>/dev/null"
+run systemctl start mios-agent-pipe.service mios-daemon.service 2>/dev/null || true
 if [ "$DRY_RUN" = 0 ]; then
     _rag=/usr/libexec/mios/mios-rag
     [ -x "$_rag" ] || _rag="$(command -v mios-rag 2>/dev/null)"

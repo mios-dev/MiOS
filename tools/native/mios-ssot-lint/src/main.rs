@@ -285,3 +285,26 @@ fn main() {
     }
     process::exit(1);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_directive_line() {
+        assert!(is_directive_line("ExecStart=/usr/bin/foo"));
+        assert!(is_directive_line("Environment=MIOS_PORT=80"));
+        assert!(!is_directive_line("Description=Test"));
+    }
+
+    #[test]
+    fn test_extract_placeholders() {
+        let line = "ExecStart=/bin/app --port=${MIOS_PORT:-8080} --host=${MIOS_HOST}";
+        let mut refs = BTreeSet::new();
+        extract_placeholders(line, &mut refs);
+        assert!(refs.contains("MIOS_PORT"));
+        assert!(refs.contains("MIOS_HOST"));
+        assert_eq!(refs.len(), 2);
+    }
+}
+

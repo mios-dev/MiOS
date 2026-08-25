@@ -29,6 +29,8 @@
         "ventoy_color": "#F35C15"
     },
     "menu_alias": [
+        { "image": "/Live_Operating_Systems/MiOS.iso", "alias": "Install MiOS (Immutable bootc Workstation & Agentic AI OS)" },
+        { "image": "/MiOS.iso", "alias": "Install MiOS (Immutable bootc Workstation & Agentic AI OS)" },
         { "image": "/Live_Operating_Systems/Fedora-Server.iso", "alias": "Deploy MiOS Linux (Fedora Server + MiOS Sovereign Overlay)" },
         { "image": "/Fedora-Server.iso", "alias": "Deploy MiOS Linux (Fedora Server + MiOS Sovereign Overlay)" },
         { "image": "/Live_Operating_Systems/MiOS-Xbox.iso", "alias": "Deploy MiOS-Xbox (Windows Gaming Edition - CompactOS)" },
@@ -40,6 +42,8 @@
         { "image": "/SystemRescue/SystemRescue.iso", "alias": "SystemRescue Arch Linux (Diagnostics & Disk Tools)" }
     ],
     "menu_tip": [
+        { "image": "/Live_Operating_Systems/MiOS.iso", "tip": "Deploy MiOS bootc -- Immutable container-based OS (ghcr.io/mios-dev/mios) via offline bootc install" },
+        { "image": "/MiOS.iso", "tip": "Deploy MiOS bootc -- Immutable container-based OS (ghcr.io/mios-dev/mios) via offline bootc install" },
         { "image": "/Live_Operating_Systems/Fedora-Server.iso", "tip": "Deploy MiOS Linux -- Bare-Metal Fedora Server + MiOS Sovereign FHS Overlay & Local AI Engine" },
         { "image": "/Fedora-Server.iso", "tip": "Deploy MiOS Linux -- Bare-Metal Fedora Server + MiOS Sovereign FHS Overlay & Local AI Engine" },
         { "image": "/Live_Operating_Systems/MiOS-Xbox.iso", "tip": "Deploy MiOS-Xbox -- Windows 11 Gaming Edition with CompactOS Compression & Debloated Gaming Stack" },
@@ -75,6 +79,14 @@
         }
     ],
     "kickstart":[
+        {
+            "image": "/Live_Operating_Systems/MiOS.iso",
+            "template": "/ventoy/mios-oci-install.ks"
+        },
+        {
+            "image": "/MiOS.iso",
+            "template": "/ventoy/mios-oci-install.ks"
+        },
         {
             "image": "/Live_Operating_Systems/Fedora-Server.iso",
             "template": "/ventoy/mios-kickstart.cfg"
