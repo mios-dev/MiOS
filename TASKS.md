@@ -705,6 +705,34 @@
 | T-791 | P2 | open | Kernel/PstoreTest | Automated kernel panic injection, ramoops log preservation, and database ingestion test suite |
 | T-792 | P1 | open | AI/EXL2Engine | Dynamic EXL2 fractional bitrate execution engine and fused CUDA kernel manager in llama-swap |
 | T-793 | P2 | open | AI/EXL2Test | Automated 70B EXL2 model VRAM fitting (<24GB), 100 tok/s speedup, and perplexity test suite |
+| T-794 | P1 | open | Storage/CephSnapshot | Atomic CephFS subvolume snapshot scheduler and instant rollback daemon in mios-ceph-snap |
+| T-795 | P2 | open | Storage/CephSnapTest | Automated CephFS snapshot creation (<10ms), retention rotation, and rollback test suite |
+| T-796 | P1 | open | AI/PrefixCache | Radix Tree prefix KV-cache sharing engine in llama-swap |
+| T-797 | P2 | open | AI/PrefixTest | Automated shared prompt prefix hit rate (>95%) and sub-5ms TTFT benchmark suite |
+| T-798 | P1 | open | Security/USBGuard | Declarative USBGuard device authorization daemon and read-only storage mounter |
+| T-799 | P2 | open | Security/USBTest | Automated BadUSB device rejection, read-only mount enforcement, and audit test suite |
+| T-800 | P1 | open | Memory/THPCompaction | Transparent Huge Pages (THP madvise) and proactive memory compaction manager |
+| T-801 | P2 | open | Memory/THPTest | Automated 2MB/1GB huge page allocation, sub-1ms allocation latency, and TLB benchmark suite |
+| T-802 | P1 | open | Network/XDPFastpath | Native eBPF XDP network fastpath and WireGuard packet router in mios-xdp |
+| T-803 | P2 | open | Network/XDPTest | Automated 10M pps packet routing throughput, sub-microsecond XDP latency, and DDoS test suite |
+| T-804 | P1 | open | AI/BitNetTernary | BitNet b1.58 ternary tensor execution engine and pure integer addition GEMM kernels |
+| T-805 | P2 | open | AI/BitNetTest | Automated 70B BitNet RAM fitting (<14GB), 200 tok/s CPU speedup, and energy benchmark suite |
+| T-806 | P1 | open | Virtualization/SquashFSNBD | SquashFS template streaming over Unix-socket NBD with ephemeral RAM overlay in mios-microvm |
+| T-807 | P2 | open | Virtualization/NBDTest | Automated 100-microVM concurrent boot latency (<15ms) and shared SquashFS NBD test suite |
+| T-808 | P1 | open | AI/FP6KVCache | Dynamic FP6 (E3M2) KV-cache quantizer and bit-packed CUDA kernel manager in llama-swap |
+| T-809 | P2 | open | AI/FP6Test | Automated 62.5% KV memory savings, FP6 reasoning accuracy (>99.8%), and packing benchmark suite |
+| T-810 | P1 | open | AI/SVDLLMFactor | SVD-LLM low-rank matrix factorization engine and residual adapter dispatcher |
+| T-811 | P2 | open | AI/SVDTest | Automated 70% memory bandwidth reduction, outlier preservation, and perplexity test suite |
+| T-812 | P1 | open | AI/SparseTensorCores | 2:4 hardware structural sparsity engine and Sparse Tensor Core dispatcher in llama-swap |
+| T-813 | P2 | open | AI/SparseTest | Automated 2x Sparse Tensor Core throughput speedup and 2:4 pruning accuracy benchmark suite |
+| T-814 | P1 | open | AI/TernaryCompiler | Automated TriLM / BitNet ternary quantization compiler and bitpacker in mios-quantize-ternary |
+| T-815 | P2 | open | AI/TernaryTest | Automated ternary compilation speed, MSE reconstruction parity (<0.02), and bitpack test suite |
+| T-816 | P1 | open | Network/mDNSDiscovery | Declarative Avahi mDNS service publisher and ZeroConf peer resolver in mios-mdns |
+| T-817 | P2 | open | Network/mDNSTest | Automated local mDNS service advertising, sub-200ms peer discovery, and offline test suite |
+| T-818 | P1 | open | AI/SpeculativeDraft | Draft-model speculative decoding and parallel target verification engine in llama-swap |
+| T-819 | P2 | open | AI/SpecDraftTest | Automated speculative decoding speedup (>2.0x) and target output parity benchmark suite |
+| T-820 | P1 | open | Memory/OOMProtection | Proactive systemd-oomd PSI pressure manager and cgroup hierarchy protector |
+| T-821 | P2 | open | Memory/OOMTest | Automated memory exhaustion stress test, worker eviction, and daemon survival test suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -8493,4 +8521,284 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2390
 **Status:** open | **Domain:** AI/EXL2Test | **Who:** agent
 **Converted:** AGY-2391 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-794 -- Atomic CephFS subvolume snapshot scheduler and instant rollback daemon in mios-ceph-snap (WS-STRG | P1 | M)
+**Goal:** Take atomic CephFS .snap/ snapshots in <10ms, rotate retention, and roll back workspaces instantaneously.
+**What+How:** Implement `usr/libexec/mios/mios-ceph-snap` and systemd timer. Create scheduled point-in-time snapshots in `/workspaces/<ws>/.snap/<timestamp>`; enforce retention policy (12 hourly, 7 daily, 4 weekly); implement instant rollback verb `mios snapshot rollback <name>` cloning snap metadata back into target subvolume root in <10ms with zero file copy overhead; log snapshot states to PostgreSQL `storage_snapshots`.
+**Where:** usr/libexec/mios/mios-ceph-snap, usr/lib/systemd/system/mios-ceph-snap.timer
+**Done When:** Snapshot manager takes atomic subvolume snapshots in <10ms and restores workspaces instantaneously.
+**Why:** Instantaneous point-in-time snapshots protect against agent workspace corruption and accidental data deletion.
+**Dep:** AGY-2391
+**Status:** open | **Domain:** Storage/CephSnapshot | **Who:** agent
+**Converted:** AGY-2392 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-795 -- Automated CephFS snapshot creation (<10ms), retention rotation, and rollback test suite (WS-STRG | P2 | S)
+**Goal:** Verify in automated CI that snapshot creation takes <10ms and rollback restores 100% SHA-256 data integrity.
+**What+How:** Add `tests/test-ceph-snapshot-rollback.sh`. Populate CephFS volume with 10,000 files; take snapshot via `mios-ceph-snap`; measure creation latency (assert < 10ms); corrupt 500 files; trigger rollback; assert all 10,000 files match pre-corruption SHA-256 checksums 100%; test retention pruner correctly removes oldest snapshots.
+**Where:** tests/test-ceph-snapshot-rollback.sh, tools/ci-suites.py
+**Done When:** Test suite validates microsecond snapshot creation, data integrity restoration, and automated pruning.
+**Why:** Continuous testing ensures distributed storage snapshot operations maintain reliable instant recovery capabilities.
+**Dep:** AGY-2392
+**Status:** open | **Domain:** Storage/CephSnapTest | **Who:** agent
+**Converted:** AGY-2393 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-796 -- Radix Tree prefix KV-cache sharing engine in llama-swap (WS-AI | P1 | M)
+**Goal:** Index prompt prefixes in a Radix Tree to share KV blocks across subagents and achieve <5ms TTFT.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `enable_prefix_caching: true` with Radix Tree block manager; hash incoming token sequences in 16-token chunks; match prefix nodes in Radix Tree; increment reference counts on shared KV blocks; bypass prefill compute on cached subtrees; and deliver Time-To-First-Token in <5ms for shared agent system prompts.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine shares KV blocks via Radix Tree and delivers sub-5ms TTFT on shared prefixes.
+**Why:** Radix Tree prefix caching eliminates redundant GPU prefill computations across multi-agent swarms.
+**Dep:** AGY-2393
+**Status:** open | **Domain:** AI/PrefixCache | **Who:** agent
+**Converted:** AGY-2394 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-797 -- Automated shared prompt prefix hit rate (>95%) and sub-5ms TTFT benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that prefix caching achieves >95% cache hit rate and TTFT is <5ms.
+**What+How:** Add `tests/test-radix-prefix-caching.sh`. Dispatch 50 multi-turn conversation prompts sharing common system prompt; measure Time-To-First-Token on cache hit; assert TTFT < 5.0ms; assert Radix Tree cache hit rate > 95.0%; assert generated tokens match uncached baseline with 100% token parity.
+**Where:** tests/test-radix-prefix-caching.sh, tools/ci-suites.py
+**Done When:** Test suite validates high Radix Tree cache hit rates, sub-5ms TTFT acceleration, and token parity.
+**Why:** Continuous testing ensures prefix caching mechanics maintain extreme responsiveness across multi-turn sessions.
+**Dep:** AGY-2394
+**Status:** open | **Domain:** AI/PrefixTest | **Who:** agent
+**Converted:** AGY-2395 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-798 -- Declarative USBGuard device authorization daemon and read-only storage mounter (WS-SEC | P1 | M)
+**Goal:** Enforce USBGuard policies, authenticate MiOS-USB keys, and mount mass storage strictly read-only.
+**What+How:** Implement `usr/libexec/mios/mios-usbguard` and `automation/48-smartcard.sh`. Write `/etc/usbguard/rules.conf` authorizing built-in hubs, keyboards, and enrolled MiOS-USB tokens; reject unauthorized HID injection devices (BadUSB); configure udisks2 to mount external untrusted USB mass storage exclusively under `/run/media/untrusted/` with `ro,nosuid,nodev,noexec`; log USB insertion events to PostgreSQL `security_events`.
+**Where:** usr/libexec/mios/mios-usbguard, /etc/usbguard/rules.conf
+**Done When:** USBGuard blocks unauthorized devices and enforces read-only mounts on external storage.
+**Why:** Declarative USB security blocks BadUSB keystroke injection attacks and prevents accidental data contamination.
+**Dep:** AGY-2395
+**Status:** open | **Domain:** Security/USBGuard | **Who:** agent
+**Converted:** AGY-2396 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-799 -- Automated BadUSB device rejection, read-only mount enforcement, and audit test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that unapproved USB HID devices are blocked in <10ms and USB storage is 100% read-only.
+**What+How:** Add `tests/test-usbguard-device-authorization.sh`. Emulate virtual USB keyboard injection via `dummy_hcd` / `gadgetfs`; assert USBGuard blocks device and emits security audit event; emulate USB mass storage device; assert storage mounts with `ro,nosuid,nodev,noexec`; attempt file write (assert returns EROFS).
+**Where:** tests/test-usbguard-device-authorization.sh, tools/ci-suites.py
+**Done When:** Test suite validates instant BadUSB blocking, secure mount flag enforcement, and event logging.
+**Why:** Continuous testing ensures hardware peripheral security policies remain strictly enforced across OS updates.
+**Dep:** AGY-2396
+**Status:** open | **Domain:** Security/USBTest | **Who:** agent
+**Converted:** AGY-2397 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-800 -- Transparent Huge Pages (THP madvise) and proactive memory compaction manager (WS-NODE | P1 | M)
+**Goal:** Configure THP in madvise mode with proactive background compaction and khugepaged defragmentation.
+**What+How:** Implement `automation/24-cpu-affinity.sh` and `/etc/sysctl.d/20-memory.conf`. Set `vm.compaction_proactiveness = 20`, `/sys/kernel/mm/transparent_hugepage/enabled = madvise`, and `/sys/kernel/mm/transparent_hugepage/defrag = defer+madvise`; configure `khugepaged` scan sleep to 10,000ms; instruct `llama-swap`, `vLLM`, and microVM hypervisors to advise large buffers via `madvise(MADV_HUGEPAGE)`; accelerate memory bandwidth by up to 25%.
+**Where:** automation/24-cpu-affinity.sh, /etc/sysctl.d/20-memory.conf
+**Done When:** Kernel allocates huge pages via madvise and defragments memory in the background asynchronously.
+**Why:** THP madvise reduces TLB cache misses and accelerates large AI tensor computations by up to 25% without memory bloat.
+**Dep:** AGY-2397
+**Status:** open | **Domain:** Memory/THPCompaction | **Who:** agent
+**Converted:** AGY-2398 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-801 -- Automated 2MB/1GB huge page allocation, sub-1ms allocation latency, and TLB benchmark suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that 16GB allocations use 2MB pages with <1ms allocation latency and zero TLB stalls.
+**What+How:** Add `tests/test-thp-madvise-allocation.sh`. Allocate 16GB memory buffer with `madvise(MADV_HUGEPAGE)`; measure allocation time; assert 99th-percentile allocation latency < 1.0ms; verify `/proc/meminfo` `AnonHugePages` reflects > 95% huge page coverage; measure TLB miss rate via `perf stat`; assert TLB miss reduction > 80% compared to 4KB baseline.
+**Where:** tests/test-thp-madvise-allocation.sh, tools/ci-suites.py
+**Done When:** Test suite validates instant huge page allocation, high coverage ratio, and low TLB miss rate.
+**Why:** Continuous testing ensures memory management configurations preserve peak memory bandwidth for large AI workloads.
+**Dep:** AGY-2398
+**Status:** open | **Domain:** Memory/THPTest | **Who:** agent
+**Converted:** AGY-2399 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-802 -- Native eBPF XDP network fastpath and WireGuard packet router in mios-xdp (WS-NODE | P1 | M)
+**Goal:** Attach native XDP eBPF programs at NIC driver layer to process 10M+ pps and forward WireGuard packets directly.
+**What+How:** Implement `usr/libexec/mios/mios-xdp` and `automation/36-netavark.sh`. Compile C eBPF XDP programs; attach to physical network interfaces via `ip link set dev <iface> xdp obj /usr/lib/mios/ebpf/xdp_router.o`; parse Ethernet/IP/UDP headers in NIC RX ring buffer; forward encrypted WireGuard packets directly to virtual interfaces via `XDP_REDIRECT`; drop unauthorized flood traffic with `XDP_DROP` before `sk_buff` allocation.
+**Where:** usr/libexec/mios/mios-xdp, usr/lib/mios/ebpf/xdp_router.c
+**Done When:** XDP eBPF driver programs route packets and drop flood traffic at hardware line rate.
+**Why:** Native driver-level XDP unlocks 10M+ packets/sec line-rate throughput for high-speed multi-node AI clusters.
+**Dep:** AGY-2399
+**Status:** open | **Domain:** Network/XDPFastpath | **Who:** agent
+**Converted:** AGY-2400 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-803 -- Automated 10M pps packet routing throughput, sub-microsecond XDP latency, and DDoS test suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that native XDP routes >10M pps and drops flood traffic in <500ns per packet.
+**What+How:** Add `tests/test-ebpf-xdp-throughput.sh`. Generate synthetic 10M pps packet stream via `pktgen`; assert XDP program processes packets at wire speed; measure packet forwarding latency (assert 99th percentile < 1.0 microsecond); inject syn flood packets; assert XDP drops flood packets with < 0.5% host CPU overhead.
+**Where:** tests/test-ebpf-xdp-throughput.sh, tools/ci-suites.py
+**Done When:** Test suite validates line-rate packet processing, sub-microsecond latency, and wire-speed flood filtering.
+**Why:** Continuous testing ensures eBPF networking programs maintain peak throughput and robust line-rate security.
+**Dep:** AGY-2400
+**Status:** open | **Domain:** Network/XDPTest | **Who:** agent
+**Converted:** AGY-2401 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-804 -- BitNet b1.58 ternary tensor execution engine and pure integer addition GEMM kernels (WS-AI | P1 | M)
+**Goal:** Execute BitNet b1.58 ternary models via integer addition/subtraction GEMM to fit 70B models in 14GB RAM.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and `llama.cpp` engine. Detect `bitnet_b1_58` quantized tensor formats; unpack 2-bit bitpacked weights into ternary states (-1, 0, 1); dispatch pure integer addition/subtraction GEMM kernels (AVX-512 VNNI / ARM Neon); bypass floating-point multipliers; fit 70B parameter models into 13.6GB system RAM; achieve >200 tok/s token decoding throughput on modern multicore CPUs.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine loads BitNet b1.58 models and executes pure integer addition kernels on CPU.
+**Why:** BitNet b1.58 ternary execution brings massive 70B model reasoning to low-power CPU nodes and laptops at ultra-fast speeds.
+**Dep:** AGY-2401
+**Status:** open | **Domain:** AI/BitNetTernary | **Who:** agent
+**Converted:** AGY-2402 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-805 -- Automated 70B BitNet RAM fitting (<14GB), 200 tok/s CPU speedup, and energy benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 70B BitNet fits in <14GB RAM, achieves >200 tok/s on CPU, and reduces energy by 10x.
+**What+How:** Add `tests/test-bitnet-ternary-throughput.sh`. Benchmark 70B BitNet b1.58 model on multicore CPU; assert peak RAM consumption < 14.0 GB; assert token decoding throughput > 200.0 tok/s; measure package power via RAPL hwmon; assert energy per token is reduced by > 80% compared to INT4 baseline.
+**Where:** tests/test-bitnet-ternary-throughput.sh, tools/ci-suites.py
+**Done When:** Test suite validates strict RAM fitting bounds, >200 tok/s CPU throughput, and 10x energy efficiency.
+**Why:** Continuous testing ensures BitNet integer kernel updates preserve peak token speeds and minimal energy footprints.
+**Dep:** AGY-2402
+**Status:** open | **Domain:** AI/BitNetTest | **Who:** agent
+**Converted:** AGY-2403 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-806 -- SquashFS template streaming over Unix-socket NBD with ephemeral RAM overlay in mios-microvm (WS-VFIO | P1 | M)
+**Goal:** Export compressed SquashFS templates over Unix NBD sockets and boot microVMs with RAM COW overlays in <15ms.
+**What+How:** Implement `usr/libexec/mios/mios-microvm` and `automation/42-microvm-runtime.sh`. Export compressed base rootfs SquashFS image over local Unix domain socket using `qemu-nbd --socket=/run/mios/nbd.sock --read-only`; launch Cloud-Hypervisor microVM attaching virtual block device mapped to NBD socket; in guest initramfs, mount NBD read-only and overlay tmpfs RAM upperdir; spawn 100 concurrent VMs sharing single 800MB template.
+**Where:** usr/libexec/mios/mios-microvm, automation/42-microvm-runtime.sh
+**Done When:** Virtualization manager streams SquashFS templates over NBD and boots microVMs in <15ms.
+**Why:** SquashFS NBD streaming enables massive microVM sandbox density with near-zero memory and disk footprints.
+**Dep:** AGY-2403
+**Status:** open | **Domain:** Virtualization/SquashFSNBD | **Who:** agent
+**Converted:** AGY-2404 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-807 -- Automated 100-microVM concurrent boot latency (<15ms) and shared SquashFS NBD test suite (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that 100 microVMs boot concurrently in <15ms each from a single SquashFS NBD export.
+**What+How:** Add `tests/test-microvm-squashfs-nbd.sh`. Export 800MB test SquashFS template over NBD socket; spawn 100 parallel microVMs; measure per-VM boot latency (assert average < 15.0ms); perform simultaneous file writes in all 100 VMs; assert 100% data isolation; terminate all VMs; assert host disk utilization remains unchanged.
+**Where:** tests/test-microvm-squashfs-nbd.sh, tools/ci-suites.py
+**Done When:** Test suite validates instant microVM concurrency, template sharing, and isolated RAM overlay execution.
+**Why:** Continuous testing ensures virtualization storage pipelines maintain ultra-fast provisioning and zero disk degradation.
+**Dep:** AGY-2404
+**Status:** open | **Domain:** Virtualization/NBDTest | **Who:** agent
+**Converted:** AGY-2405 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-808 -- Dynamic FP6 (E3M2) KV-cache quantizer and bit-packed CUDA kernel manager in llama-swap (WS-AI | P1 | M)
+**Goal:** Quantize KV caches to 6-bit FP6 (E3M2) packed in 3-byte pairs for 62.5% VRAM savings and 99.8% precision.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `kv_cache_dtype: fp6_e3m2`; bit-pack 4 6-bit floats into contiguous 3-byte memory blocks; implement fused CUDA/HIP dequantization kernels unpacking FP6 to FP16 in GPU registers during flash-attention computation; reduce KV VRAM footprint by 62.5% compared to FP16 while maintaining near-perfect mathematical precision.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine quantizes KV caches dynamically to bit-packed FP6 with fused CUDA kernels.
+**Why:** FP6 quantization fills the sweet spot between FP8 capacity and FP4 fidelity, enabling large reasoning contexts on 16GB/24GB GPUs.
+**Dep:** AGY-2405
+**Status:** open | **Domain:** AI/FP6KVCache | **Who:** agent
+**Converted:** AGY-2406 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-809 -- Automated 62.5% KV memory savings, FP6 reasoning accuracy (>99.8%), and packing benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that FP6 KV cache cuts memory by 62.5% and maintains >99.8% reasoning accuracy parity.
+**What+How:** Add `tests/test-fp6-kv-cache-precision.sh`. Benchmark multi-step code and math problems with FP16 vs FP6 KV caches; assert FP6 memory footprint is <= 38.5% of FP16; assert reasoning benchmark pass rate >= 99.8% of FP16; verify 0 memory packing corruption across 100,000 token allocations.
+**Where:** tests/test-fp6-kv-cache-precision.sh, tools/ci-suites.py
+**Done When:** Test suite validates 62.5% memory reduction, high reasoning fidelity, and bit-packing alignment.
+**Why:** Continuous testing ensures intermediate floating-point quantization formats maintain high accuracy across models.
+**Dep:** AGY-2406
+**Status:** open | **Domain:** AI/FP6Test | **Who:** agent
+**Converted:** AGY-2407 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-810 -- SVD-LLM low-rank matrix factorization engine and residual adapter dispatcher (WS-AI | P1 | M)
+**Goal:** Decompose model matrices into truncated SVD factors (U*V) and quantized residuals (R) for 70% bandwidth savings.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and model loader. Implement SVD-LLM matrix decomposition loader; split projection matrices $W$ into rank-64 low-rank factors ($U \in \mathbb{R}^{m \times 64}, V \in \mathbb{R}^{64 \times n}$) in FP16 plus 2-bit quantized residual matrix $R$; execute fused forward pass $y = x(UV + R)$; preserve high-magnitude outlier activations; reduce memory bus bandwidth by 70%.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine loads SVD-factored models and executes fused low-rank residual projections.
+**Why:** SVD-LLM low-rank factorization preserves critical outlier channels while drastically slashing memory bandwidth demands.
+**Dep:** AGY-2407
+**Status:** open | **Domain:** AI/SVDLLMFactor | **Who:** agent
+**Converted:** AGY-2408 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-811 -- Automated 70% memory bandwidth reduction, outlier preservation, and perplexity test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that SVD-LLM cuts memory bandwidth by 70% and perplexity delta is <0.02.
+**What+How:** Add `tests/test-svd-llm-factorization.sh`. Benchmark memory bandwidth via hardware counters (`nvmlDeviceGetMemoryInfo` / `perf`); assert memory transfer volume is reduced by > 70%; evaluate wikitext-2 perplexity; assert perplexity degradation is < 0.020 compared to uncompressed ground truth; verify outlier token activations maintain 100% numerical stability.
+**Where:** tests/test-svd-llm-factorization.sh, tools/ci-suites.py
+**Done When:** Test suite validates 70% bandwidth reduction, outlier preservation, and low perplexity degradation.
+**Why:** Continuous testing ensures matrix factorization algorithms maintain extreme compression efficiency without degrading output quality.
+**Dep:** AGY-2408
+**Status:** open | **Domain:** AI/SVDTest | **Who:** agent
+**Converted:** AGY-2409 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-812 -- 2:4 hardware structural sparsity engine and Sparse Tensor Core dispatcher in llama-swap (WS-AI | P1 | M)
+**Goal:** Execute 2:4 structurally sparse weights via Sparse Tensor Core mma.sp instructions for 2x matrix throughput.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `structural_sparsity_2_4: true` for NVIDIA GPUs (`sm_80`+); load 2:4 pruned SparseGPT weight matrices; dispatch native CUDA `mma.sp` PTX instructions; compress non-zero elements into 2-bit metadata indices; double arithmetic matrix multiply compute throughput while retaining >99.2% benchmark accuracy.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine executes 2:4 structural sparsity via Sparse Tensor Cores at >1.8x speedup.
+**Why:** 2:4 structural sparsity doubles GPU compute throughput on Ampere/Ada/Blackwell architectures with near-zero accuracy loss.
+**Dep:** AGY-2409
+**Status:** open | **Domain:** AI/SparseTensorCores | **Who:** agent
+**Converted:** AGY-2410 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-813 -- Automated 2x Sparse Tensor Core throughput speedup and 2:4 pruning accuracy benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 2:4 sparse models achieve >1.8x matrix speedup and retain >99.2% code accuracy.
+**What+How:** Add `tests/test-sparse-tensor-cores.sh`. Benchmark dense vs 2:4 sparse GEMM forward passes on GPU; assert matrix multiply speedup > 1.80x; run HumanEval coding evaluation; assert coding accuracy pass@1 >= 99.2% of dense model baseline; verify zero GPU exception faults.
+**Where:** tests/test-sparse-tensor-cores.sh, tools/ci-suites.py
+**Done When:** Test suite validates >1.8x matrix acceleration, Sparse Tensor Core execution, and high coding accuracy.
+**Why:** Continuous testing ensures 2:4 structural sparsity kernels maintain hardware acceleration without degrading code quality.
+**Dep:** AGY-2410
+**Status:** open | **Domain:** AI/SparseTest | **Who:** agent
+**Converted:** AGY-2411 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-814 -- Automated TriLM / BitNet ternary quantization compiler and bitpacker in mios-quantize-ternary (WS-AI | P1 | M)
+**Goal:** Quantize FP16 models to ternary {-1, 0, 1} via optimal thresholding and bitpack 4 weights/byte into .tri containers.
+**What+How:** Implement `usr/bin/mios-quantize-ternary`. Ingest SafeTensors/GGUF model tensors; calculate optimal per-matrix threshold $\Delta = \frac{0.7}{n} \sum |W_{ij}|$; quantize values to ternary alphabet $\{-1, 0, 1\}$; bitpack 4 ternary values into 1 byte (2 bits per value: `00` for 0, `01` for +1, `10` for -1); write metadata scales; export to `.tri` format for instant `llama-swap` execution.
+**Where:** usr/bin/mios-quantize-ternary, usr/share/mios/llamacpp/llama-swap.yaml
+**Done When:** Ternary compiler quantizes FP16 models to bitpacked ternary containers in under 2 minutes.
+**Why:** Automated ternary compilation converts heavy floating-point models into ultra-lightweight integer models effortlessly.
+**Dep:** AGY-2411
+**Status:** open | **Domain:** AI/TernaryCompiler | **Who:** agent
+**Converted:** AGY-2412 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-815 -- Automated ternary compilation speed, MSE reconstruction parity (<0.02), and bitpack test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that ternary compilation finishes in <2 min for 7B models with MSE loss <0.02.
+**What+How:** Add `tests/test-ternary-quantization-compiler.sh`. Run `mios-quantize-ternary` on synthetic 7B test model; measure compilation duration (assert < 120s); unpack generated `.tri` binary; compute mean squared error (MSE) against scaled ground truth; assert reconstruction MSE < 0.020; verify 100% valid bitpacking layout.
+**Where:** tests/test-ternary-quantization-compiler.sh, tools/ci-suites.py
+**Done When:** Test suite validates high-speed ternary model compilation, mathematical MSE parity, and bitpacking fidelity.
+**Why:** Continuous testing ensures weight quantization toolchains produce accurate, highly compressed model representations.
+**Dep:** AGY-2412
+**Status:** open | **Domain:** AI/TernaryTest | **Who:** agent
+**Converted:** AGY-2413 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-816 -- Declarative Avahi mDNS service publisher and ZeroConf peer resolver in mios-mdns (WS-NODE | P1 | M)
+**Goal:** Publish local AI and mesh services via Avahi mDNS and resolve peer nodes in <200ms without central servers.
+**What+How:** Implement `usr/libexec/mios/mios-mdns` and `automation/43-dns-split.sh`. Write XML service descriptors under `/etc/avahi/services/` for `_openai._tcp` (port 11450), `_searxng._tcp` (port 8888), and `_forgejo._tcp` (port 3000); listen for mDNS multicast queries over LAN and WireGuard broadcast interfaces; resolve peer services dynamically into `nss-mdns`; populate `/run/mios/discovered-peers.json` for agent routing.
+**Where:** usr/libexec/mios/mios-mdns, /etc/avahi/services/mios.service
+**Done When:** Avahi publishes local services and discovers peer endpoints over mDNS in <200ms.
+**Why:** Decentralized ZeroConf mDNS discovery allows nodes and edge devices to discover local AI clusters instantly.
+**Dep:** AGY-2413
+**Status:** open | **Domain:** Network/mDNSDiscovery | **Who:** agent
+**Converted:** AGY-2414 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-817 -- Automated local mDNS service advertising, sub-200ms peer discovery, and offline test suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that mDNS advertises 100% of local services and discovers peers in <200ms offline.
+**What+How:** Add `tests/test-avahi-mdns-discovery.sh`. Start Avahi daemon in test namespace; publish `_openai._tcp` and `_searxng._tcp` service records; run discovery probe via `avahi-browse`; assert both services resolve with valid TXT record metadata; assert discovery latency < 200ms in isolated offline network.
+**Where:** tests/test-avahi-mdns-discovery.sh, tools/ci-suites.py
+**Done When:** Test suite validates ZeroConf service publication, TXT record parsing, and rapid peer resolution.
+**Why:** Continuous testing ensures local service discovery mechanics operate seamlessly in offline edge environments.
+**Dep:** AGY-2414
+**Status:** open | **Domain:** Network/mDNSTest | **Who:** agent
+**Converted:** AGY-2415 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-818 -- Draft-model speculative decoding and parallel target verification engine in llama-swap (WS-AI | P1 | M)
+**Goal:** Generate K=5 candidate tokens via small draft model and verify concurrently in single target forward pass.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `speculative_model: qwen2.5-0.5b-instruct-q4_k_m.gguf` with `num_speculative_tokens: 5`; sample 5 candidate tokens using fast draft model (<5ms); evaluate candidate sequence concurrently across target 72B model in a single forward pass; accept matching tokens via rejection sampling; achieve 2.0x to 3.0x throughput speedup with 100% target distribution parity.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine executes draft-model speculative decoding and achieves >2.0x speedup.
+**Why:** Speculative drafting bypasses memory bandwidth bottlenecks, tripling 70B parameter model generation speeds.
+**Dep:** AGY-2415
+**Status:** open | **Domain:** AI/SpeculativeDraft | **Who:** agent
+**Converted:** AGY-2416 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-819 -- Automated speculative decoding speedup (>2.0x) and target output parity benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that draft speculative decoding achieves >2.0x speedup and 100% mathematical token parity.
+**What+How:** Add `tests/test-draft-speculative-decoding.sh`. Benchmark token decoding with and without 0.5B draft model on 70B target model; assert throughput speedup > 2.00x; set greedy sampling (temperature=0); assert output token stream is 100.0% identical to autoregressive target model execution.
+**Where:** tests/test-draft-speculative-decoding.sh, tools/ci-suites.py
+**Done When:** Test suite validates >2x throughput acceleration, rejection sampling correctness, and exact output parity.
+**Why:** Continuous testing ensures speculative drafting algorithms maintain significant speedups without altering model reasoning.
+**Dep:** AGY-2416
+**Status:** open | **Domain:** AI/SpecDraftTest | **Who:** agent
+**Converted:** AGY-2417 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-820 -- Proactive systemd-oomd PSI pressure manager and cgroup hierarchy protector (WS-NODE | P1 | M)
+**Goal:** Configure systemd-oomd with 50% PSI thresholds, protect core system slices, and evict subagent workers first.
+**What+How:** Implement `automation/24-cpu-affinity.sh` and `/etc/systemd/oomd.conf`. Configure `DefaultMemoryPressureDurationSec=5s` with `DefaultMemoryPressureLimit=50%`; protect `system.slice` and `init.scope` with `OOMScoreAdjust=-1000` and `ManagedOOMPreference=omit`; configure `user@.service` and subagent container slices with `ManagedOOMMemoryPressure=kill` and `ManagedOOMPreference=avoid` on user desktop apps; log kill actions to PostgreSQL `security_events`.
+**Where:** automation/24-cpu-affinity.sh, /etc/systemd/oomd.conf
+**Done When:** Systemd-oomd evicts runaway worker cgroups under PSI pressure and preserves system stability.
+**Why:** Proactive PSI-based memory reclamation prevents destructive system freezes and guarantees continuous OS availability.
+**Dep:** AGY-2417
+**Status:** open | **Domain:** Memory/OOMProtection | **Who:** agent
+**Converted:** AGY-2418 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-821 -- Automated memory exhaustion stress test, worker eviction, and daemon survival test suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that 100% memory exhaustion evicts worker cgroups in <5s with 0 system daemon crashes.
+**What+How:** Add `tests/test-systemd-oomd-psi.sh`. Spawn synthetic memory balloon inside subagent slice; measure time until `systemd-oomd` triggers kill action (assert < 5.0s); verify `system.slice` daemons (systemd, journald, sshd, hyprland) suffer 0 kills; query PostgreSQL `security_events`; assert termination event is logged with full cgroup attribution.
+**Where:** tests/test-systemd-oomd-psi.sh, tools/ci-suites.py
+**Done When:** Test suite validates targeted subagent eviction, zero system service degradation, and forensic audit logging.
+**Why:** Continuous testing ensures memory protection policies reliably prevent system lockups during peak AI loads.
+**Dep:** AGY-2418
+**Status:** open | **Domain:** Memory/OOMTest | **Who:** agent
+**Converted:** AGY-2419 carries this forward with a Verify line that fails when the behaviour is absent.
 
