@@ -4030,7 +4030,7 @@ def check_value_aliases() -> int:
         return 0
 
     env = {}
-    sub_env = dict(os.environ, MIOS_ROOT=root, MIOS_DRIFT_ROOT=root, MIOS_VENDOR_TOML=os.path.join(root, "usr/share/mios/mios.toml"))
+    sub_env = dict(os.environ, MIOS_ROOT=root, MIOS_DRIFT_ROOT=root, MIOS_VENDOR_TOML=os.path.join(root, "usr/share/mios/mios.toml"), MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL="false")
     proc = subprocess.run(["bash", snap], capture_output=True, text=True, env=sub_env)
     if proc.returncode != 0:
         return 0  # snapshot unavailable -> do not false-fail
