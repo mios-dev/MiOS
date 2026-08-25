@@ -691,6 +691,10 @@
 | T-777 | P1 | open | Desktop/HyprlandQuickshell | Hyprland + Quickshell native desktop environment and direct DRM scanout manager |
 | T-778 | P1 | open | Desktop/LivingWallpaper | Cross-platform MiOS Living Wallpaper engine and reactive state shader daemon |
 | T-779 | P2 | open | Desktop/HyprlandTest | Automated Hyprland direct scanout (<1ms latency) and Living Wallpaper render test suite |
+| T-780 | P1 | open | AI/ASTDiff | Tree-Sitter AST structural diff engine and 2-peer review gate in agent-pipe |
+| T-781 | P2 | open | AI/ASTDiffTest | Automated AST structural diff calculation and 2-peer review merge gating test suite |
+| T-782 | P1 | open | Security/LivepatchMOK | Cryptographic MOK livepatch signature gate and IMA measurement logger in mios-livepatch |
+| T-783 | P2 | open | Security/LivepatchTest | Automated livepatch signature verification, unsigned module rejection, and IMA test suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -8339,4 +8343,44 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2376
 **Status:** open | **Domain:** Desktop/HyprlandTest | **Who:** agent
 **Converted:** AGY-2377 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-780 -- Tree-Sitter AST structural diff engine and 2-peer review gate in agent-pipe (WS-ORCH | P1 | M)
+**Goal:** Parse code patches into Tree-Sitter ASTs, compute semantic structural diffs, and gate merges with 2 peer reviews.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_ast_diff.py`. Ingest code modifications across Python, Rust, Go, TypeScript, and C; parse syntax trees via Tree-Sitter grammar bindings; compute AST-level semantic diff graph ignoring whitespace and comment reshuffling; dispatch structural diffs to Reviewer and Security Auditor subagent roles; require 2/2 consensus approvals before promoting patch to master branch.
+**Where:** usr/lib/mios/agent-pipe/mios_ast_diff.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** Agent pipeline parses Tree-Sitter ASTs and enforces 2-peer review gating on structural diffs.
+**Why:** AST structural diffing eliminates whitespace noise and focuses peer review on genuine logic and type mutations.
+**Dep:** AGY-2377
+**Status:** open | **Domain:** AI/ASTDiff | **Who:** agent
+**Converted:** AGY-2378 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-781 -- Automated AST structural diff calculation and 2-peer review merge gating test suite (WS-ORCH | P2 | S)
+**Goal:** Verify in automated CI that AST diffing flags 100% of semantic syntax mutations and merges only on 2/2 approval.
+**What+How:** Add `tests/test-ast-diff-peer-review.sh`. Generate 20 test code modifications (pure whitespace, comment edits, function signature changes, security vulnerabilities); assert AST diff correctly distinguishes cosmetic from semantic edits; simulate peer approvals; assert patches merge only when both Reviewer and Security roles approve.
+**Where:** tests/test-ast-diff-peer-review.sh, tools/ci-suites.py
+**Done When:** Test suite validates AST diff precision, cosmetic change filtering, and 2-peer review consensus gating.
+**Why:** Continuous testing ensures autonomous code merging pipelines maintain high software quality and security.
+**Dep:** AGY-2378
+**Status:** open | **Domain:** AI/ASTDiffTest | **Who:** agent
+**Converted:** AGY-2379 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-782 -- Cryptographic MOK livepatch signature gate and IMA measurement logger in mios-livepatch (WS-BOOT | P1 | M)
+**Goal:** Verify livepatch signatures against MOK keyring and record hashes in IMA log before applying ftrace redirect.
+**What+How:** Implement `usr/libexec/mios/mios-livepatch` and `automation/51-livepatch.sh`. Verify livepatch `.ko` binary against enrolled MOK public key via `modinfo -F sig_key`; record module SHA-256 hash in kernel IMA runtime measurement log (`/sys/kernel/security/ima/ascii_runtime_measurements`); load module via `kpatch load`; redirect vulnerable kernel functions in <100ms; log remediation event to PostgreSQL `security_events`.
+**Where:** usr/libexec/mios/mios-livepatch, automation/51-livepatch.sh
+**Done When:** Livepatch manager validates MOK signatures and logs IMA measurements before applying kernel patches.
+**Why:** Cryptographic livepatch verification allows zero-downtime CVE remediation while preventing unauthorized kernel code injection.
+**Dep:** AGY-2379
+**Status:** open | **Domain:** Security/LivepatchMOK | **Who:** agent
+**Converted:** AGY-2380 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-783 -- Automated livepatch signature verification, unsigned module rejection, and IMA test suite (WS-BOOT | P2 | S)
+**Goal:** Verify in automated CI that signed livepatches apply in <100ms and unsigned modules are 100% rejected.
+**What+How:** Add `tests/test-livepatch-mok-ima.sh`. Build signed and unsigned livepatch test modules; attempt loading unsigned module (assert rejected with exit code 1); load signed module; assert `ftrace` redirects function execution in < 100ms; verify IMA measurement log contains valid SHA-256 entry for the module.
+**Where:** tests/test-livepatch-mok-ima.sh, tools/ci-suites.py
+**Done When:** Test suite validates strict MOK signature gating, rapid ftrace redirection, and IMA attestation logging.
+**Why:** Continuous testing ensures kernel livepatching maintains zero downtime without compromising kernel security boundaries.
+**Dep:** AGY-2380
+**Status:** open | **Domain:** Security/LivepatchTest | **Who:** agent
+**Converted:** AGY-2381 carries this forward with a Verify line that fails when the behaviour is absent.
 

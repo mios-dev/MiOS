@@ -2592,7 +2592,7 @@ tests/drift-gate-negatives.sh	3613	3613	1	13	ed114f39f07f	STAY	inline-scoped		0	
 tests/drift-gate-negatives.sh	3628	3630	3	39	39864b27e093	STAY	midsize-why		0				0
 tests/drift-gate-negatives.sh	3649	3650	2	26	a750c6dbaa25	STAY	midsize-why		0				0
 tests/drift-gate-negatives.sh	3661	3661	1	14	b533a0d6737a	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3662	3662	1	15	42800675d7f6	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	3662	3662	1	15	a6db91cd33b2	STAY	inline-scoped		0				0
 tests/drift-gate-negatives.sh	3680	3682	3	29	fe6811056750	STAY	midsize-why		0				0
 tests/drift-gate-negatives.sh	3693	3695	3	28	d15a1ae75b02	STAY	midsize-why		0				0
 tests/drift-gate-negatives.sh	3708	3708	1	5	9667d78e073a	STAY	inline-scoped		0				0
