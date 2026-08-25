@@ -35,6 +35,27 @@ def mkroot(adrs):
     for fn, fm in adrs.items():
         with open(os.path.join(d, fn), "w", encoding="utf-8") as fh:
             fh.write("<!-- AI-hint: x -->\n---\n" + fm + "\n---\n\n# body\n")
+    # --check also validates that the accepted ADRs still describe the SSOT, so
+    # a fixture with no mios.toml fails on ADR-0009 before it ever reaches the
+    # index-freshness assertion this test is about. Give it the minimum the
+    # validator requires, so both halves are exercised rather than one masking
+    # the other.
+    write_ssot(root)
+    return root
+
+
+def write_ssot(root, dotfiles=True, meta=True):
+    """Write the minimal SSOT that validate_adr_ssot_consistency accepts."""
+    p = os.path.join(root, "usr", "share", "mios")
+    os.makedirs(p, exist_ok=True)
+    body = ""
+    if meta:
+        body += '[meta]\nmios_version = "0.0.0-test"\n\n'
+    if dotfiles:
+        body += "[dotfiles]\n\n[dotfiles.registry]\n\n"
+    body += '[image]\nref = "ghcr.io/example/x:latest"\n'
+    with open(os.path.join(p, "mios.toml"), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(body)
     return root
 
 
@@ -122,12 +143,46 @@ def t_idempotent():
         shutil.rmtree(root, ignore_errors=True)
 
 
+def t_ssot_consistency_can_fail():
+    """The SSOT half of --check must be falsifiable, not merely satisfied.
+
+    mkroot now writes an SSOT that the validator accepts. That makes the other
+    assertions reachable, but it would also hide a validator that never objects
+    to anything -- so drop each required piece in turn and require --check to
+    name the ADR it violates.
+    """
+    for kwargs, adr in (({"dotfiles": False}, "ADR-0010"),
+                        ({"meta": False}, "ADR-0009")):
+        root = mkroot({"0001-first.md": _FM1})
+        try:
+            rc, out = run(root)
+            check(f"generate succeeds before the {adr} break", rc == 0, out)
+            write_ssot(root, **kwargs)          # re-write it, now incomplete
+            rc, out = run(root, "--check")
+            check(f"--check fails and names {adr}",
+                  rc == 1 and adr in out, out)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    # And the absent-SSOT case the fixture change was made to stop masking.
+    root = mkroot({"0001-first.md": _FM1})
+    try:
+        run(root)
+        os.remove(os.path.join(root, "usr", "share", "mios", "mios.toml"))
+        rc, out = run(root, "--check")
+        check("--check fails when mios.toml is absent entirely",
+              rc == 1 and "mios.toml is missing" in out, out)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def main():
     t_front_matter_parsing()
     t_collect_and_order()
     t_render_points_at_the_baked_adrs()
     t_check_mode()
     t_idempotent()
+    t_ssot_consistency_can_fail()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
 
