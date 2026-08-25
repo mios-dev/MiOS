@@ -17060,3 +17060,413 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures speech recognition optimizations preserve high accuracy and real-time responsiveness.
 **Dep:** AGY-2335
 
+## AGY-2337 -- Active-Active CephFS MDS metadata clustering and dynamic subtree partitioner  (WS-STRG | P1 | M)
+**Goal:** Deploy 2+ active MDS ranks with dynamic subtree pinning for >50,000 metadata file operations/s.
+**What+How:** Implement `automation/39-ceph-mds.sh`. Set CephFS `max_mds = 2` and configure standby replay daemons; apply dynamic subtree partitioning attributes on `/workspaces/` directories using `setfattr -n ceph.dir.pin -v <rank>`; balance subagent directory hierarchies across MDS rank 0 and rank 1; configure automatic standby failover in <2s.
+**Where:** automation/39-ceph-mds.sh, usr/share/containers/systemd/mios-ceph.container
+**Verify:** Run concurrent 10,000-file creation benchmark across 2 subagent groups; verify metadata load is distributed across both active MDS daemons and file creation rate exceeds 50,000 ops/s.
+**Do NOT:** Run single-rank MDS deployments in production multi-node cluster configurations.
+**Done When:** CephFS operates multi-active MDS daemons with dynamic subtree metadata partitioning.
+**Why:** Active-Active MDS metadata clustering prevents CPU bottlenecks during large-scale concurrent agent builds.
+**Dep:** AGY-2336
+
+## AGY-2338 -- Automated multi-MDS metadata throughput (>50,000 ops/s) and standby failover test suite  (WS-STRG | P2 | S)
+**Goal:** Verify in automated CI that active-active MDS achieves >50,000 ops/s and standby MDS takes over in <2s on rank crash.
+**What+How:** Add `tests/test-ceph-mds-active-active.sh`. Spawn 2 active MDS + 1 standby daemon; execute `mdtest` benchmark; assert composite metadata creation rate > 50,000 ops/s; kill MDS rank 0; assert standby MDS transitions to active in < 2.0s without I/O errors.
+**Where:** tests/test-ceph-mds-active-active.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-ceph-mds-active-active.sh`; verify metadata throughput and standby takeover SLA pass 100%.
+**Do NOT:** Skip multi-MDS failover validation in CI test tier 2.
+**Done When:** Test suite validates high-throughput active-active MDS scaling and sub-2s metadata failover.
+**Why:** Continuous testing ensures distributed metadata clusters maintain high throughput and seamless fault tolerance.
+**Dep:** AGY-2337
+
+## AGY-2339 -- Declarative Netavark network isolation and rootless nftables firewall manager  (WS-APP | P1 | M)
+**Goal:** Configure Netavark with rootless nftables chains and restrict container port bindings to loopback/mesh IPs.
+**What+How:** Implement `automation/36-netavark.sh`. Write `/etc/containers/networks/mios-mesh.json` defining private isolated bridge; apply rootless `nftables` firewall rules blocking container-to-container traffic across distinct network bridges; configure Quadlet container generation templates to bind host ports strictly to `127.0.0.1:<port>` or `10.0.0.0/8` WireGuard mesh IPs, preventing exposure to public interfaces.
+**Where:** automation/36-netavark.sh, /etc/containers/networks/mios-mesh.json
+**Verify:** Spawn 2 containers on separate bridges; attempt direct ping and TCP connection between them; verify packets are dropped by nftables and verify ports are inaccessible from external LAN interface.
+**Do NOT:** Use `--net=host` for containers exposing sensitive internal databases or agent orchestration endpoints.
+**Done When:** Netavark isolates container network bridges and binds ports strictly to loopback and mesh IPs.
+**Why:** Declarative network firewalling prevents compromised containers from moving laterally or exposing internal ports to LANs.
+**Dep:** AGY-2338
+
+## AGY-2340 -- Automated container network isolation, lateral traversal block, and port audit test suite  (WS-APP | P2 | S)
+**Goal:** Verify in automated CI that inter-bridge container traffic is 100% blocked and 0 internal ports leak to 0.0.0.0.
+**What+How:** Add `tests/test-netavark-firewall-isolation.sh`. Launch test containers across 3 isolated Netavark networks; execute port scans using `nmap`; assert inter-bridge traffic is blocked (100% packet loss); scan external interface; assert 0 container services listen on `0.0.0.0`.
+**Where:** tests/test-netavark-firewall-isolation.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-netavark-firewall-isolation.sh`; verify network isolation and port binding assertions pass 100%.
+**Do NOT:** Skip container network security validation in CI test tier 2.
+**Done When:** Test suite validates strict Netavark network isolation, firewall packet dropping, and zero port leaks.
+**Why:** Continuous testing ensures container networking updates maintain airtight perimeter and lateral defense boundaries.
+**Dep:** AGY-2339
+
+## AGY-2341 -- Point-to-point Varlink IPC socket activator and typed interface compiler in mios-varlink  (WS-NODE | P1 | M)
+**Goal:** Expose typed Varlink JSON-RPC interfaces over point-to-point Unix sockets with systemd socket activation.
+**What+How:** Implement `usr/lib/mios/ipc/org.mios.varlink` and `automation/47-varlink.sh`. Define typed Varlink interfaces for `org.mios.Model` (swap, status), `org.mios.Storage` (scrub, snapshot), and `org.mios.Agent` (dispatch, session); write systemd socket units under `/usr/lib/systemd/system/org.mios.*.socket`; implement lightweight Python/Rust Varlink handler dispatching JSON-RPC calls with zero message bus broker hops.
+**Where:** usr/lib/mios/ipc/org.mios.varlink, automation/47-varlink.sh
+**Verify:** Execute `varlink call unix:/run/mios/org.mios.Model org.mios.Model.GetActiveModel`; verify response returns structured JSON matching schema in <1ms without D-Bus broker involvement.
+**Do NOT:** Route high-throughput agent-to-daemon IPC through legacy D-Bus session/system message buses.
+**Done When:** System services expose typed Varlink interfaces activated on-demand via systemd sockets.
+**Why:** Point-to-point Varlink IPC eliminates broker daemon bottlenecks and provides strict schema validation.
+**Dep:** AGY-2340
+
+## AGY-2342 -- Automated Varlink schema validation, sub-1ms RPC round-trip, and socket activation test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that Varlink RPC latency is <1ms and invalid schemas are rejected with type errors.
+**What+How:** Add `tests/test-varlink-socket-activation.sh`. Validate syntax of all `org.mios.*.varlink` schema files; send 1,000 Varlink RPC calls over socket; assert 99th-percentile roundtrip latency < 1.0ms; send payload with missing required fields; assert server returns type-safe `org.varlink.service.InvalidParameter` error.
+**Where:** tests/test-varlink-socket-activation.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-varlink-socket-activation.sh`; verify schema validity, socket activation, and latency SLA pass 100%.
+**Do NOT:** Skip Varlink schema testing in CI test tier 2.
+**Done When:** Test suite validates Varlink interface schemas, sub-1ms RPC throughput, and error handling.
+**Why:** Continuous testing ensures host IPC interfaces remain robust, fast, and strictly schema-compliant.
+**Dep:** AGY-2341
+
+## AGY-2343 -- Declarative systemd-homed LUKS2 user enclave configurator and TPM2/FIDO2 key manager  (WS-SEC | P1 | M)
+**Goal:** Provision /home/mios as a systemd-homed LUKS2 Btrfs container bound to TPM 2.0 and FIDO2 PIN.
+**What+How:** Implement `automation/41-systemd-homed.sh`. Configure `homectl create mios --storage=luks --fs-type=btrfs --tpm2-device=auto --fido2-device=auto`; configure auto-unlocking on login; automatically unmount and purge cryptographic key material from RAM (`explicit_bzero`) upon session logout; format user storage record as portable `.home` container.
+**Where:** automation/41-systemd-homed.sh, /etc/pam.d/systemd-home
+**Verify:** Log in as user `mios`; verify `/home/mios` mounts LUKS2 subvolume; log out; verify volume locks immediately and memory contains zero residual plaintext keys.
+**Do NOT:** Store unencrypted user home directories on persistent shared storage drives.
+**Done When:** Systemd-homed manages encrypted user enclaves with TPM2/FIDO2 key protection.
+**Why:** Systemd-homed LUKS2 enclaves protect user credentials and private keys from offline physical disk extraction.
+**Dep:** AGY-2342
+
+## AGY-2344 -- Automated systemd-homed LUKS2 unlock, key zeroization, and portable migration test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that home enclaves lock on logout and unlock in <200ms with TPM2/FIDO2.
+**What+How:** Add `tests/test-systemd-homed-luks.sh`. Create test user via `homectl`; simulate login and record mount latency (assert < 200ms); write test file; simulate logout; inspect `/dev/mapper/`; assert LUKS device is deactivated and RAM contains 0 plaintext keys; copy `.home` file to second node; assert seamless unlocking with same credentials.
+**Where:** tests/test-systemd-homed-luks.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-systemd-homed-luks.sh`; verify unlock latency, deactivation, and migration assertions pass 100%.
+**Do NOT:** Skip user enclave validation in CI test tier 2.
+**Done When:** Test suite validates LUKS2 home container lifecycle, key zeroization, and cross-node migration.
+**Why:** Continuous testing ensures user security enclaves protect private files reliably without causing login delays.
+**Dep:** AGY-2343
+
+## AGY-2345 -- Zero-copy SSE/WebSocket token streamer and TCP_NODELAY socket flusher in agent-pipe  (WS-AI | P1 | M)
+**Goal:** Stream OpenAI-compatible SSE token deltas with TCP_NODELAY and adaptive backpressure for <1ms latency.
+**What+How:** Implement `usr/lib/mios/agent-pipe/server.py`. Stream chunked token deltas over HTTP SSE (`text/event-stream`) and WebSockets; set `socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)` to disable Nagle algorithm; implement non-blocking coroutine stream feeder with bounded buffer queues to enforce backpressure when slow clients fall behind.
+**Where:** usr/lib/mios/agent-pipe/server.py, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Stream 500-token completion to client; verify tokens arrive individually with inter-token arrival latency matching model generation rate and per-chunk network overhead <1ms.
+**Do NOT:** Buffer multi-token responses in memory before flushing chunks to streaming HTTP clients.
+**Done When:** Agent gateway streams individual token deltas over SSE with immediate TCP flushing.
+**Why:** Zero-copy immediate socket flushing eliminates streaming stutter and delivers instant perceived AI responses.
+**Dep:** AGY-2344
+
+## AGY-2346 -- Automated 100-stream concurrent token chunk latency (<1ms) and backpressure benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 100 concurrent SSE streams deliver token chunks in <1ms without buffer bloat.
+**What+How:** Add `tests/test-sse-token-streaming.sh`. Connect 100 concurrent HTTP SSE clients to `agent-pipe`; generate streaming completions simultaneously; measure chunk dispatch time at gateway; assert 99th-percentile chunk latency < 1.0ms; introduce artificial slow consumer; assert gateway applies backpressure without affecting peer streams.
+**Where:** tests/test-sse-token-streaming.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-sse-token-streaming.sh`; verify latency SLA and backpressure isolation assertions pass 100%.
+**Do NOT:** Skip streaming concurrency validation in CI test tier 2.
+**Done When:** Test suite validates sub-1ms token chunk dispatch and robust backpressure handling across 100 concurrent streams.
+**Why:** Continuous testing ensures streaming inference gateways maintain real-time responsiveness under high client concurrency.
+**Dep:** AGY-2345
+
+## AGY-2347 -- Build-time Quadlet container image pre-warmer and zstd chunked layer optimizer  (WS-BUILD | P1 | M)
+**Goal:** Pre-pull and unpack Quadlet container images into /var/lib/containers/storage during build time.
+**What+How:** Implement `automation/92-prewarm.sh`. Read enabled Quadlets from `mios.toml` `[quadlets.enable]`; pull container images during image synthesis phase; unpack layers directly into `/var/lib/containers/storage` using zstd chunked format; execute `podman image prune -f` to purge dangling build layers; verify all baked Quadlets can start offline on Day-0 boot in <100ms.
+**Where:** automation/92-prewarm.sh, automation/90-export.sh
+**Verify:** Boot freshly built image in offline mode (no network); verify `systemctl start mios-pgvector` launches container in <100ms with zero network requests.
+**Do NOT:** Require live internet access on initial boot to download essential core Quadlet container images.
+**Done When:** Build pipeline bakes pre-warmed, zstd-compressed Quadlet layers directly into container storage.
+**Why:** Build-time container pre-warming enables instant offline Day-0 boot and eliminates first-run download delays.
+**Dep:** AGY-2346
+
+## AGY-2348 -- Automated Day-0 container start latency (<100ms) and zero-download verification test suite  (WS-BUILD | P2 | S)
+**Goal:** Verify in automated CI that pre-warmed Quadlets start in <100ms without internet access.
+**What+How:** Add `tests/test-quadlet-prewarm-offline.sh`. Disconnect network interfaces in test container; start 5 pre-warmed Quadlet containers (pgvector, open-webui, searxng, llm-light, forgejo); measure startup latency; assert all 5 containers reach healthy state in < 100ms; assert 0 HTTP/DNS requests are emitted.
+**Where:** tests/test-quadlet-prewarm-offline.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-quadlet-prewarm-offline.sh`; verify offline startup SLA and zero-download assertions pass 100%.
+**Do NOT:** Skip offline container pre-warm testing in CI test tier 3.
+**Done When:** Test suite validates offline container startup speed and complete layer pre-warming.
+**Why:** Continuous testing ensures container image pre-warming scripts never omit enabled Quadlet dependencies.
+**Dep:** AGY-2347
+
+## AGY-2349 -- Sanitized systemd-coredump configurator and automated minidump extractor in mios-crash  (WS-DIAG | P1 | M)
+**Goal:** Configure systemd-coredump for zstd compression, exclude secret memory, and extract stack minidumps.
+**What+How:** Implement `automation/44-coredump.sh`. Write `/etc/systemd/coredump.conf` with `Storage=journal`, `Compress=yes`, `MaxUse=1G`, `KeepFree=5G`; integrate `coredumpctl` hook extracting demangled C/Rust stack minidumps into PostgreSQL `bug_tracker`; verify memory marked with `MADV_DONTDUMP` is stripped from core dumps; purge raw binary memory cores immediately after minidump extraction.
+**Where:** automation/44-coredump.sh, /etc/systemd/coredump.conf
+**Verify:** Trigger synthetic segfault in test process holding `MADV_DONTDUMP` secret memory; verify minidump captures clean demangled stack trace and secret memory string is absent from extracted dump.
+**Do NOT:** Write uncompressed 64GB raw core dump files to persistent rootfs or persist secret key memory in crash dumps.
+**Done When:** Systemd-coredump captures sanitized minidumps in journal/database and purges raw memory dumps.
+**Why:** Sanitized minidump extraction enables instant autonomous crash diagnosis without risking credential leakage or disk bloat.
+**Dep:** AGY-2348
+
+## AGY-2350 -- Automated crash minidump extraction, secret exclusion, and raw core purge test suite  (WS-DIAG | P2 | S)
+**Goal:** Verify in automated CI that segfaults generate <1MB structured minidumps and zero raw core files persist on disk.
+**What+How:** Add `tests/test-coredump-sanitization.sh`. Crash test program allocating known canary secret with `MADV_DONTDUMP`; run `coredumpctl list`; assert crash is cataloged in journal; query PostgreSQL `bug_tracker`; assert demangled stack trace is recorded; search disk `/var/lib/systemd/coredump/`; assert 0 uncompressed core files remain.
+**Where:** tests/test-coredump-sanitization.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-coredump-sanitization.sh`; verify minidump creation and secret exclusion pass 100%.
+**Do NOT:** Skip coredump sanitization testing in CI test tier 2.
+**Done When:** Test suite validates structured minidump generation, secret exclusion, and raw core file cleanup.
+**Why:** Continuous testing ensures crash diagnostics maintain complete privacy protection and zero filesystem bloat.
+**Dep:** AGY-2349
+
+## AGY-2351 -- Dynamic WireGuard endpoint roaming daemon and adaptive Path MTU prober in mios-mesh-roam  (WS-NODE | P1 | M)
+**Goal:** Handle netlink IP changes, update WireGuard peer endpoints in <50ms, and adapt MTU dynamically (1280-1420).
+**What+How:** Implement `usr/libexec/mios/mios-mesh-roam`. Listen to Linux kernel netlink route/address change events (`RTM_NEWADDR`); immediately send authenticated WireGuard handshake/keepalive packets to update peer dynamic endpoint mappings; run periodic ICMP Path MTU Discovery probes to clamp interface MTU between 1280 and 1420 bytes, preventing packet fragmentation over mobile tunnels.
+**Where:** usr/libexec/mios/mios-mesh-roam, usr/lib/systemd/system/mios-mesh-roam.service
+**Verify:** Simulate Wi-Fi to cellular interface switch; verify `wg show` updates endpoint IP in <50ms and persistent SSH/Varlink session continues without dropping.
+**Do NOT:** Require static IP addresses for client nodes or hardcode 1500-byte MTUs on overlay tunnel interfaces.
+**Done When:** Mesh roaming daemon preserves active connections across network handoffs and adapts MTU dynamically.
+**Why:** Dynamic endpoint roaming ensures edge nodes and laptops maintain continuous cluster connectivity while traveling.
+**Dep:** AGY-2350
+
+## AGY-2352 -- Automated network interface handoff, sub-50ms roaming, and PMTU clamping test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that network interface switching updates peer endpoints in <50ms with 0 packet drops.
+**What+How:** Add `tests/test-wireguard-endpoint-roaming.sh`. Establish active TCP data stream over WireGuard test interface; switch client source IP via netlink command; assert `mios-mesh-roam` detects event and updates peer endpoint in < 50ms; assert TCP stream continues without connection reset; test MTU clamping with reduced path MTU (assert interface MTU clamps to 1280).
+**Where:** tests/test-wireguard-endpoint-roaming.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-wireguard-endpoint-roaming.sh`; verify roaming latency SLA and MTU clamping pass 100%.
+**Do NOT:** Skip network roaming validation in CI test tier 2.
+**Done When:** Test suite validates sub-50ms WireGuard endpoint roaming and adaptive MTU negotiation.
+**Why:** Continuous testing ensures mesh networking updates preserve resilient roaming across diverse network conditions.
+**Dep:** AGY-2351
+
+## AGY-2353 -- StreamingLLM attention sink pinner and rolling KV eviction manager in llama-swap  (WS-AI | P1 | M)
+**Goal:** Pin first 4 tokens as attention sinks and maintain rolling 32k KV window for perpetual streaming.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml`. Configure `streaming_llm: true` with `attention_sink_tokens: 4` and `rolling_kv_window: 32768`; pin positions 0..3 in KV cache permanently; implement FIFO circular buffer shifting for positions >=4 once window capacity is exceeded; adjust positional RoPE embeddings dynamically to sustain smooth token generation indefinitely without memory growth.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run continuous 50,000-token streaming loop; verify VRAM utilization remains locked at 32k allocation and generated tokens maintain coherent syntax throughout.
+**Do NOT:** Evict initial attention sink tokens or trigger out-of-memory crashes on long context streams.
+**Done When:** Inference engine maintains attention sinks and slides rolling KV window perpetually.
+**Why:** StreamingLLM allows autonomous agents to stream millions of tokens continuously without context window overflow crashes.
+**Dep:** AGY-2352
+
+## AGY-2354 -- Automated 100,000-token infinite streaming perplexity stability and zero-OOM test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 100,000-token generation maintains stable perplexity (<15.0) and 0 OOM errors.
+**What+How:** Add `tests/test-streamingllm-perplexity.sh`. Stream 100,000 continuous tokens through `llama-swap`; measure perplexity every 1,000 tokens; assert perplexity variance < 5% across full sequence; assert process memory delta is 0 bytes after 32k window saturation; assert 0 OOM crashes.
+**Where:** tests/test-streamingllm-perplexity.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-streamingllm-perplexity.sh`; verify perplexity stability and zero-OOM assertions pass 100%.
+**Do NOT:** Skip infinite context validation in CI test tier 2.
+**Done When:** Test suite validates stable perplexity and constant memory bounds across 100k generated tokens.
+**Why:** Continuous testing ensures attention sink eviction mechanisms preserve language modeling quality over long runs.
+**Dep:** AGY-2353
+
+## AGY-2355 -- Dynamic quantization kernel auto-dispatcher (Marlin / ExLlamaV2 / GGUF) in mios-quant-dispatch  (WS-AI | P1 | M)
+**Goal:** Auto-dispatch Marlin INT4/FP16 kernels on Tensor Cores, ExLlamaV2 on AWQ/GPTQ, and GGUF to llama.cpp.
+**What+How:** Implement `usr/libexec/mios/mios-quant-dispatch` and `llama-swap.yaml` kernel mapper. Inspect incoming model weight format (Marlin, AWQ, GPTQ, GGUF) and GPU hardware architecture (`sm_80`+ for Marlin Tensor Cores, RDNA/CDNA for ROCm HIP, CPU vector threads for GGUF); dynamically bind fastest execution engine and dispatch compiled Marlin GEMM kernels for >3.5x token decoding throughput.
+**Where:** usr/libexec/mios/mios-quant-dispatch, usr/share/mios/llamacpp/llama-swap.yaml
+**Verify:** Load INT4 Marlin model on NVIDIA GPU; verify inference uses Marlin kernels and achieves >3.5x tokens/second over standard unoptimized baseline.
+**Do NOT:** Run CPU software dequantization loops for models loaded into GPU VRAM.
+**Done When:** Quantization dispatcher dynamically selects and executes optimal hardware dequantization kernels.
+**Why:** Hardware-tuned dequantization kernels maximize inference speeds across all quantized model formats.
+**Dep:** AGY-2354
+
+## AGY-2356 -- Automated multi-format quantization throughput (>3.5x speedup) and perplexity parity test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that Marlin kernels achieve >3.5x speedup and maintain <0.1 perplexity delta from FP16.
+**What+How:** Add `tests/test-quantization-kernel-throughput.sh`. Benchmark token generation across Marlin, AWQ, GPTQ, and GGUF model formats; assert Marlin decoding speedup > 3.50x on Tensor Core GPUs; compute wikitext-2 perplexity delta; assert perplexity degradation is < 0.10 compared to unquantized FP16 ground truth.
+**Where:** tests/test-quantization-kernel-throughput.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-quantization-kernel-throughput.sh`; verify speedup SLA and perplexity parity pass 100%.
+**Do NOT:** Skip quantization throughput testing on GPU-equipped CI test runners.
+**Done When:** Test suite validates hardware dequantization acceleration and mathematical precision parity.
+**Why:** Continuous testing ensures quantization kernel updates maintain peak token speeds without degrading output quality.
+**Dep:** AGY-2355
+
+## AGY-2357 -- Cilium native BGP peering and dual-stack ECMP LoadBalancer ingress manager  (WS-NODE | P1 | M)
+**Goal:** Configure Cilium BGP Control Plane with ECMP to announce service VIPs directly to upstream routers.
+**What+How:** Implement `automation/34-k3s-cilium.sh`. Deploy `CiliumBGPPeeringPolicy` and `CiliumLoadBalancerIPPool`; peer k3s node eBPF datapaths to local upstream routers (FRR / BGP ToR switches); announce dual-stack IPv4/IPv6 LoadBalancer Virtual IPs with Equal-Cost Multi-Path (ECMP); enable BFD (Bidirectional Forwarding Detection) for sub-100ms path failover without external MetalLB.
+**Where:** automation/34-k3s-cilium.sh, usr/share/mios/k8s/cilium-bgp.yaml
+**Verify:** Deploy test LoadBalancer service; verify upstream BGP router learns VIP routes across all k3s nodes and routes traffic with ECMP distribution.
+**Do NOT:** Rely on legacy external iptables-based load balancers or manual NodePort port mappings.
+**Done When:** Cilium BGP Control Plane announces LoadBalancer VIPs to upstream routers with sub-100ms BFD failover.
+**Why:** Native BGP VIP announcement enables enterprise-grade high availability and load balancing for cluster services.
+**Dep:** AGY-2356
+
+## AGY-2358 -- Automated BGP VIP announcement, sub-100ms ECMP failover, and zero-iptables routing test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that BGP VIP routes announce in <1s and BFD detects node failure in <100ms.
+**What+How:** Add `tests/test-cilium-bgp-ecmp.sh`. Emulate upstream router via FRR container; apply `CiliumBGPPeeringPolicy`; assert BGP session establishes and VIP routes are received; terminate 1 cluster node; assert BFD detects failure and router withdraws path in < 100ms without packet loss on surviving paths.
+**Where:** tests/test-cilium-bgp-ecmp.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-cilium-bgp-ecmp.sh`; verify BGP peering and sub-100ms BFD failover pass 100%.
+**Do NOT:** Skip BGP routing validation in CI test tier 2.
+**Done When:** Test suite validates automated BGP peering, ECMP VIP route propagation, and rapid BFD failover.
+**Why:** Continuous testing ensures Kubernetes networking updates maintain resilient upstream routing and zero downtime.
+**Dep:** AGY-2357
+
+## AGY-2359 -- Declarative Bcachefs multi-device tiering and transparent SSD caching manager  (WS-STRG | P1 | M)
+**Goal:** Configure multi-tier Bcachefs (foreground=nvme, background=hdd) with transparent zstd compression.
+**What+How:** Implement `automation/37-bcachefs.sh`. Format multi-disk targets via `bcachefs format --foreground_target=nvme --background_target=hdd --compression=zstd:1 --metadata_replicas=2`; mount under `/var/lib/mios/tiered-storage/`; configure background rebalance daemon flushing dirty cache blocks during idle periods; log tiering metrics to PostgreSQL `storage_telemetry`.
+**Where:** automation/37-bcachefs.sh, /etc/fstab
+**Verify:** Write 50GB file to tiered mount; verify write bursts exceed 10 GB/s on NVMe tier and verify dirty blocks migrate to background tier during idle periods.
+**Do NOT:** Require manual user file movement scripts across discrete un-tiered disk mounts.
+**Done When:** Bcachefs manages multi-device tiering and transparent SSD caching seamlessly in-kernel.
+**Why:** Bcachefs tiering combines NVMe write burst speeds with high-capacity bulk drive density transparently.
+**Dep:** AGY-2358
+
+## AGY-2360 -- Automated Bcachefs tiering burst write throughput (>10 GB/s) and migration test suite  (WS-STRG | P2 | S)
+**Goal:** Verify in automated CI that Bcachefs absorbs >10 GB/s writes and migrates blocks without data corruption.
+**What+How:** Add `tests/test-bcachefs-tiered-storage.sh`. Create virtual multi-device Bcachefs pool; run `fio` sequential write test against foreground tier; assert throughput > 10.0 GB/s; trigger rebalance pass; assert all blocks migrate to background tier; compute SHA-256 hash; assert 100.0% data integrity.
+**Where:** tests/test-bcachefs-tiered-storage.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-bcachefs-tiered-storage.sh`; verify write burst throughput and migration hash parity pass 100%.
+**Do NOT:** Skip Bcachefs filesystem testing in CI test tier 2.
+**Done When:** Test suite validates Bcachefs burst write performance, transparent migration, and SHA-256 data integrity.
+**Why:** Continuous testing ensures next-generation filesystem drivers maintain data durability and peak I/O performance.
+**Dep:** AGY-2359
+
+## AGY-2361 -- Dynamic FP8 (E4M3) KV-cache quantizer and per-head scale manager in llama-swap  (WS-AI | P1 | M)
+**Goal:** Quantize KV caches to 8-bit FP8 (E4M3) with per-head scaling to cut VRAM consumption by 50%.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `kv_cache_dtype: fp8_e4m3` for GPUs supporting native FP8 compute (`sm_89`, `sm_90`, RDNA3/CDNA3); calculate dynamic per-head scaling factors during attention projections; store keys and values in 8-bit FP8 representation; evaluate attention matrices using FP8 Tensor Core kernels.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 128k-token reasoning prompt; verify KV cache VRAM footprint is halved (e.g. 8GB -> 4GB) and response tokens match FP16 baseline with >99.5% accuracy.
+**Do NOT:** Fall back to unquantized FP32 KV caches when hardware supports native FP8 / FP16 storage.
+**Done When:** Inference engine quantizes KV caches dynamically to FP8 with per-head scaling.
+**Why:** FP8 KV caching doubles concurrent session density and enables massive context windows on consumer GPUs.
+**Dep:** AGY-2360
+
+## AGY-2362 -- Automated 128k-context FP8 KV capacity (2x) and perplexity parity (<0.05 delta) test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that FP8 KV cache halves memory usage and degrades perplexity by <0.05.
+**What+How:** Add `tests/test-fp8-kv-cache-capacity.sh`. Benchmark memory consumption and needle-in-a-haystack retrieval across 128k tokens with FP16 vs FP8 KV caches; assert FP8 memory footprint is < 52% of FP16; assert needle retrieval accuracy remains 100.0%; assert perplexity delta is < 0.05.
+**Where:** tests/test-fp8-kv-cache-capacity.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-fp8-kv-cache-capacity.sh`; verify 2x capacity increase and retrieval accuracy pass 100%.
+**Do NOT:** Skip FP8 KV cache validation on supported GPU CI runners.
+**Done When:** Test suite validates 50% KV memory savings, 100% retrieval accuracy, and low perplexity delta.
+**Why:** Continuous testing ensures FP8 attention kernel updates maintain retrieval fidelity over massive context lengths.
+**Dep:** AGY-2361
+
+## AGY-2363 -- Ephemeral containerized DKMS engine and MOK kernel module signer in mios-dkms  (WS-BUILD | P1 | M)
+**Goal:** Compile out-of-tree .ko drivers inside bubblewrap, sign with local MOK key, and cache in /var/lib/dkms/.
+**What+How:** Implement `usr/libexec/mios/mios-dkms` and `automation/50-dkms-runtime.sh`. Launch ephemeral bubblewrap container with kernel headers; compile driver sources against active UKI kernel; sign compiled `.ko` binaries using Machine Owner Key (`/etc/pki/akmods/certs/public_key.der`); write modules to `/var/lib/dkms/<kver>/`; cache binaries indexed by kernel build hash to prevent re-compilation across boots.
+**Where:** usr/libexec/mios/mios-dkms, automation/50-dkms-runtime.sh
+**Verify:** Trigger DKMS build for virtual test module; verify compilation executes inside bubblewrap sandbox, signs `.ko` with MOK, and loads via `modprobe` with 0 rootfs mutations.
+**Do NOT:** Install build compilers or mutate immutable `/usr` rootfs layers on host system.
+**Done When:** DKMS subsystem compiles and signs out-of-tree drivers inside isolated containers.
+**Why:** Ephemeral containerized DKMS enables custom hardware support while preserving the immutable bootc root filesystem.
+**Dep:** AGY-2362
+
+## AGY-2364 -- Automated out-of-tree module compilation, MOK signature verification, and cache test suite  (WS-BUILD | P2 | S)
+**Goal:** Verify in automated CI that DKMS builds test module in <15s and MOK signature passes modinfo verification.
+**What+How:** Add `tests/test-dkms-container-build.sh`. Build mock kernel module via `mios-dkms`; assert compilation finishes in < 15s; run `modinfo` on output `.ko`; assert MOK cryptographic signature is valid; reboot test environment; assert module loads instantly from `/var/lib/dkms/` cache without triggering re-compilation.
+**Where:** tests/test-dkms-container-build.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-dkms-container-build.sh`; verify compilation speed, MOK signature, and cache hit pass 100%.
+**Do NOT:** Skip DKMS driver testing in CI test tier 2.
+**Done When:** Test suite validates sandboxed DKMS module compilation, signature validation, and binary caching.
+**Why:** Continuous testing ensures custom kernel module building remains secure and reliable across kernel updates.
+**Dep:** AGY-2363
+
+## AGY-2365 -- Lock-free POSIX shared memory circular ring IPC engine in mios-shm-ring  (WS-NODE | P1 | M)
+**Goal:** Allocate POSIX shared memory in /dev/shm with atomic lock-free SPSC circular rings and eventfd signaling.
+**What+How:** Implement `usr/libexec/mios/mios-shm-ring`. Create shared memory blocks via `shm_open` / `memfd_create` mounted in `/dev/shm/mios/`; implement lock-free single-producer single-consumer (SPSC) ring buffer with C11 atomic head/tail pointers and memory barriers; use `eventfd` / `epoll` for low-overhead async notification; stream uncompressed video frames and audio PCM with zero intermediate copies.
+**Where:** usr/libexec/mios/mios-shm-ring, automation/40-shm-ipc.sh
+**Verify:** Transfer 1,000 4K video frames between 2 isolated processes; verify per-frame transfer latency is <1us and CPU memory usage remains flat.
+**Do NOT:** Base64-encode binary media streams into JSON over TCP sockets or dump frames to disk files.
+**Done When:** Shared-memory ring engine transfers high-bandwidth frames with sub-microsecond latency.
+**Why:** Zero-copy lock-free shared memory delivers extreme IPC throughput for real-time multi-modal AI streaming.
+**Dep:** AGY-2364
+
+## AGY-2366 -- Automated 4K 60FPS video frame transfer (<1us latency) and zero-copy benchmark suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that shared-memory rings sustain 60 FPS 4K transfers with <1us latency.
+**What+How:** Add `tests/test-shm-ring-throughput.sh`. Stream 10,000 uncompressed 4K frames (33MB each) through `mios-shm-ring`; assert 99th-percentile transfer latency < 1.0 microsecond; assert total throughput exceeds 2.0 GB/s with < 1.0% host CPU load; assert 0 frame drops or ring buffer corruptions.
+**Where:** tests/test-shm-ring-throughput.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-shm-ring-throughput.sh`; verify sub-microsecond latency SLA and zero-copy assertions pass 100%.
+**Do NOT:** Skip shared memory IPC testing in CI test tier 2.
+**Done When:** Test suite validates microsecond latency, high-bandwidth data transfers, and lock-free ring stability.
+**Why:** Continuous testing ensures shared memory IPC optimizations maintain rock-solid performance under heavy multi-modal streaming.
+**Dep:** AGY-2365
+
+## AGY-2367 -- Intel oneAPI Level Zero PagedAttention engine and XMX SYCL matrix kernels in IPEX  (WS-VFIO | P1 | M)
+**Goal:** Configure Level Zero runtime and XMX SYCL kernels for 16-token PagedAttention blocks on Intel Arc/Battlemage.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and IPEX/OpenVINO configuration. Enable Level Zero runtime via `ZE_ENABLE_PCI_ID_DEVICE_ORDER=1`; implement 16-token PagedAttention virtual block manager; execute tensor operations using Intel Xe Matrix Extensions (XMX) systolic arrays over SYCL; compact fragmented memory blocks asynchronously in dedicated oneAPI command queues.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 20 concurrent inference requests on Intel Arc GPU; verify memory allocator achieves >90% VRAM utilization and token decoding runs on XMX matrix engines.
+**Do NOT:** Disable discrete Intel Arc GPU compute acceleration or force CPU fallback on supported Intel hardware.
+**Done When:** Intel GPU inference lane executes PagedAttention via oneAPI Level Zero and XMX kernels.
+**Why:** Level Zero XMX acceleration brings high-density local inference to Intel Arc and Xe workstation graphics.
+**Dep:** AGY-2366
+
+## AGY-2368 -- Automated Intel Arc PagedAttention concurrency (30 streams) and VRAM utilization test suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that Intel Arc PagedAttention sustains 30 concurrent streams with >90% VRAM efficiency.
+**What+How:** Add `tests/test-intel-arc-pagedattention.sh`. Launch 30 concurrent inference sessions on Intel Arc GPU; monitor VRAM via `xpu-smi`; assert 0 memory allocation errors; assert VRAM utilization exceeds 90.0%; assert token accuracy matches CPU reference baseline.
+**Where:** tests/test-intel-arc-pagedattention.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-intel-arc-pagedattention.sh`; verify concurrency throughput and VRAM efficiency pass 100%.
+**Do NOT:** Skip Intel GPU testing on Intel Arc CI runners.
+**Done When:** Test suite validates high-concurrency Intel Arc batch capacity and XMX execution correctness.
+**Why:** Continuous testing ensures Intel GPU drivers and oneAPI optimizations maintain reliable high-density inference.
+**Dep:** AGY-2367
+
+## AGY-2369 -- Microscaling MXFP4 (E2M1) KV-cache quantizer and block-32 scale vector manager in llama-swap  (WS-AI | P1 | M)
+**Goal:** Quantize keys and values to 4-bit MXFP4 with block-32 scale vectors for 75% VRAM savings and 4x density.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `kv_cache_dtype: mxfp4_e2m1` on hardware with microscaling tensor core support (Blackwell, RDNA4); group vector elements into 32-value blocks with shared 8-bit scale factor (E8M0); evaluate attention via hardware sub-byte matrix kernels; reduce KV-cache VRAM allocation to 25% of uncompressed FP16.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 64k-token inference session with MXFP4 KV cache; verify VRAM consumption is reduced by 75% and token accuracy matches FP16 baseline with >99.0% fidelity.
+**Do NOT:** Use naive scalar 4-bit quantization without block scaling vectors that degrade attention accuracy.
+**Done When:** Inference engine quantizes KV caches dynamically to MXFP4 with block-32 scale vectors.
+**Why:** MXFP4 KV caching achieves 4x memory density, enabling massive concurrent agent swarms on local workstations.
+**Dep:** AGY-2368
+
+## AGY-2370 -- Automated 4x context density, MXFP4 attention accuracy (>99.0%), and memory benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that MXFP4 KV cache achieves 4x density and preserves >99.0% attention score parity.
+**What+How:** Add `tests/test-mxfp4-kv-cache-density.sh`. Benchmark multi-turn conversation memory consumption across FP16, FP8, and MXFP4; assert MXFP4 memory footprint is <= 27% of FP16; assert attention map cosine similarity exceeds 0.990; verify zero out-of-bounds scale overflows.
+**Where:** tests/test-mxfp4-kv-cache-density.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-mxfp4-kv-cache-density.sh`; verify 4x density scaling and accuracy assertions pass 100%.
+**Do NOT:** Skip microscaling quantization validation on supported GPU CI runners.
+**Done When:** Test suite validates 4x memory density, high attention fidelity, and numerical stability.
+**Why:** Continuous testing ensures sub-byte microscaling KV caching maintains extreme memory efficiency and numerical precision.
+**Dep:** AGY-2369
+
+## AGY-2371 -- Dynamic K-Quants mixed-precision layer slicer (Q4_K_M / Q5_K_M / Q6_K) in llama-swap  (WS-AI | P1 | M)
+**Goal:** Quantize attention heads at Q5_K/Q6_K and FFN layers at Q4_K_M to fit 32B models into 16GB VRAM budgets.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml`. Configure dynamic mixed-precision quantization mappings; retain Q5_K_M / Q6_K precision for `attn_v`, `attn_output`, and `token_embd` tensors; slice `ffn_gate`, `ffn_down`, and `ffn_up` matrices to Q4_K_M; fit 32B Qwen/DeepSeek models into 15.2GB VRAM; execute AVX-512/CUDA GEMV integer kernels with zero precision truncation errors.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Load 32B coder model with mixed K-quants; verify total VRAM usage is <16GB and output code tokens match FP16 ground truth with >99.0% semantic equivalence.
+**Do NOT:** Apply uniform low-bit quantization across attention projection matrices.
+**Done When:** Inference engine loads mixed-precision K-Quant models fitting 32B weights into 16GB VRAM.
+**Why:** Mixed-precision K-Quants preserve critical attention head resolution while fitting heavy models into consumer VRAM.
+**Dep:** AGY-2370
+
+## AGY-2372 -- Automated 32B model VRAM fitting (<16GB) and perplexity parity test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 32B Q4_K_M/Q5_K_M models fit in <16GB VRAM and perplexity delta is <0.03.
+**What+How:** Add `tests/test-kquants-mixed-precision.sh`. Load 32B mixed-quantized model in `llama-swap`; measure peak VRAM allocation; assert peak VRAM < 15.8 GB; run wikitext-2 perplexity evaluation; assert perplexity degradation is < 0.030 compared to unquantized baseline.
+**Where:** tests/test-kquants-mixed-precision.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-kquants-mixed-precision.sh`; verify VRAM budget constraint and perplexity assertions pass 100%.
+**Do NOT:** Skip K-Quant precision validation in CI test tier 2.
+**Done When:** Test suite validates strict VRAM fitting bounds, execution stability, and near-FP16 perplexity.
+**Why:** Continuous testing ensures quantization profiles maintain high language reasoning fidelity within tight hardware constraints.
+**Dep:** AGY-2371
+
+## AGY-2373 -- Semantic memory distillation daemon and non-blocking vector reindexer in mios-mem-compact  (WS-AI | P1 | M)
+**Goal:** Distill intermediate agent scratchpads into summary vectors and execute non-blocking REINDEX CONCURRENTLY.
+**What+How:** Implement `usr/libexec/mios/mios-mem-compact` and systemd maintenance timer. Query scratchpad entries older than 14 days; generate consolidated semantic summaries via fast LLM pass; insert distilled embeddings into `long_term_knowledge`; purge pruned scratchpad rows; execute `VACUUM (ANALYZE)` and `REINDEX INDEX CONCURRENTLY` on HNSW indices without locking active agent read queries.
+**Where:** usr/libexec/mios/mios-mem-compact, usr/lib/systemd/system/mios-mem-compact.timer
+**Verify:** Insert 50k temporary scratchpad vectors; run `mios-mem-compact`; verify scratchpad rows are pruned into distilled summary vectors and HNSW index is rebuilt without blocking concurrent read queries.
+**Do NOT:** Acquire exclusive table locks that block active agent tool loops during database maintenance.
+**Done When:** Memory compaction daemon distills scratchpads and reindexes vector tables non-blockingly.
+**Why:** Periodic distillation prevents memory bloat while preserving key semantic insights and sub-5ms query latency.
+**Dep:** AGY-2372
+
+## AGY-2374 -- Automated vector memory compaction, disk reclamation, and non-blocking query test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that memory compaction reclaims >60% table disk space while queries proceed with <5ms latency.
+**What+How:** Add `tests/test-pgvector-memory-compaction.sh`. Populate database with 100,000 ephemeral step records; run continuous background vector similarity queries; trigger `mios-mem-compact`; assert query latency remains < 5ms throughout compaction pass; assert table and index disk space is reduced by > 60%; assert 0 query timeouts.
+**Where:** tests/test-pgvector-memory-compaction.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-pgvector-memory-compaction.sh`; verify space reclamation and non-blocking query SLA pass 100%.
+**Do NOT:** Skip database compaction testing in CI test tier 2.
+**Done When:** Test suite validates non-blocking vector reindexing, disk space reclamation, and sustained query throughput.
+**Why:** Continuous testing ensures long-term database maintenance routines never disrupt real-time agent execution.
+**Dep:** AGY-2373
+
+## AGY-2375 -- Hyprland + Quickshell native desktop environment and direct DRM scanout manager  (WS-APP | P1 | M)
+**Goal:** Deploy Hyprland with Quickshell desktop UI, direct DRM scanout, and GNOME apps/GDM session fallback.
+**What+How:** Implement `automation/27-desktop.sh` and `/etc/hypr/hyprland.conf`. Configure Hyprland as primary session with `render:direct_scanout = 1`; integrate Quickshell for declarative Qt/QML status bars, launcher, and notifications; configure GDM session entries for Hyprland primary and GNOME fallback; bind GNOME core apps (Nautilus, Loupe, Disks) with dark Adwaita styling.
+**Where:** automation/27-desktop.sh, /etc/hypr/hyprland.conf, usr/share/quickshell/mios/
+**Verify:** Log in via GDM; verify Hyprland launches with Quickshell panel in <300ms; verify fullscreen video activates direct DRM scanout bypassing composition shaders.
+**Do NOT:** Hardcode GNOME Shell as the mandatory sole desktop environment.
+**Done When:** Hyprland and Quickshell launch as primary desktop with direct scanout and GNOME fallback.
+**Why:** Hyprland + Quickshell provides sub-millisecond input response, ultra-smooth animations, and modular tiling.
+**Dep:** AGY-2374
+
+## AGY-2376 -- Cross-platform MiOS Living Wallpaper engine and reactive state shader daemon  (WS-APP | P1 | M)
+**Goal:** Implement GPU-accelerated living wallpaper reacting to system telemetry across Hyprland, GNOME, and Windows.
+**What+How:** Implement `usr/libexec/mios/mios-wallpaper` and WebGL/GLSL shader engine. Render animated procedural wallpaper reacting in real time to CPU/GPU utilization, AI inference token flow, and audio spectrum; bind to Hyprland via `hyprpaper`/Quickshell canvas, GNOME background portal, and Windows Terminal/desktop helper; synchronize palette dynamically with `mios.toml` theme colors.
+**Where:** usr/libexec/mios/mios-wallpaper, usr/share/mios/wallpapers/
+**Verify:** Run inference burst; verify living wallpaper particles pulse in synchronization with token generation rate across both Linux Hyprland and Windows desktop surfaces.
+**Do NOT:** Render living wallpaper on CPU software blitters or consume >1% GPU compute at idle.
+**Done When:** Living wallpaper engine renders reactive procedural visuals across all supported desktop platforms.
+**Why:** Living wallpaper unifies MiOS visual identity and provides intuitive ambient feedback of AI system activity.
+**Dep:** AGY-2375
+
+## AGY-2377 -- Automated Hyprland direct scanout (<1ms latency) and Living Wallpaper render test suite  (WS-APP | P2 | S)
+**Goal:** Verify in automated CI that Hyprland activates direct scanout and living wallpaper consumes <0.5% GPU.
+**What+How:** Add `tests/test-hyprland-direct-scanout.sh`. Launch headless Hyprland session via `WLR_BACKENDS=headless`; spawn fullscreen client; inspect DRM plane state via `hyprctl`; assert direct scanout is active with sub-1ms presentation latency; run `mios-wallpaper`; assert shader FPS locks to 60Hz and GPU compute utilization < 0.5%.
+**Where:** tests/test-hyprland-direct-scanout.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-hyprland-direct-scanout.sh`; verify scanout activation and wallpaper efficiency pass 100%.
+**Do NOT:** Skip desktop compositor validation in CI test tier 2.
+**Done When:** Test suite validates Hyprland direct scanout, Quickshell initialization, and low-power living wallpaper rendering.
+**Why:** Continuous testing ensures desktop rendering pipelines maintain ultra-low latency and peak visual fluidity.
+**Dep:** AGY-2376
+

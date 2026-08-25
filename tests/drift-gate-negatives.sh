@@ -3659,11 +3659,11 @@ test_legibility_ratchet() {
     log "Testing check_legibility_ratchet"
     local probe="${ROOT}/automation/mios-negtest-bulk.sh"
     # Adding shell lines must fail: bash is glue only, and the floors only fall.
-    { echo '#!/usr/bin/env bash'; for i in $(seq 1 200); do echo "true  # filler $i"; done; } > "$probe"
-    git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
+    { echo '#!/usr/bin/env bash'; for i in $(seq 1 3000); do echo "true  # filler $i"; done; } > "$probe"
+    git -C "$ROOT" add -f -- "$probe" >/dev/null 2>&1
     if _neg_gate check_legibility_ratchet; then
         git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
-        die "check_legibility_ratchet passed despite 200 new shell lines"
+        die "check_legibility_ratchet passed despite 3000 new shell lines"
     fi
     git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
     _neg_gate check_legibility_ratchet || die "check_legibility_ratchet failed after restoration"
