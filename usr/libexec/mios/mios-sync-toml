@@ -37,6 +37,14 @@ def bootstrap_repo(root, canon_text):
     if not raw:
         raw = "C:/mios-bootstrap"
     cands = []
+    # An explicit MIOS_BOOTSTRAP_ROOT outranks both the SSOT path and the sibling
+    # guess: CI clones the bootstrap repo into a temp dir that is neither. Both
+    # workflows, tools/sync-bootstrap.py and the negatives harness already read
+    # this variable -- only this resolver did not, so --check could not find the
+    # repo CI had just checked out for it.
+    env_root = (os.environ.get("MIOS_BOOTSTRAP_ROOT") or "").strip()
+    if env_root:
+        cands.append(env_root)
     if os.name == "nt":
         cands.append(raw)
         # The sibling fallback belongs on both platforms; without it a Windows
