@@ -14,6 +14,10 @@ pub const EXCLUDED_SECTIONS: &[&str] = &[
     // them emitted two dozen constants no consumer reads.
     "ci",
     "tests",
+    // Rendered to unit files by mios-unit-gen, which parses mios.toml
+    // itself and never reads globals; projecting them emitted 739
+    // constants no consumer reads.
+    "units",
 ];
 
 pub const WALK_MOSTLY_DEAD: &[&str] =

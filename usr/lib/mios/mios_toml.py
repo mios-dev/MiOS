@@ -717,7 +717,7 @@ def process_val(dotted, v, stack_offset=0):
 # The CI suite registry is read from the TOML directly by its own reader.
 # Projecting it produced two dozen shell constants no consumer reads,
 # including whole comma-joined suite lists, in both generated resolvers.
-EXCLUDED_SECTIONS = {"containers", "verbs", "recipes", "packages", "dotfiles", "btop", "theme", "install_phases", "messages", "ci", "tests"}
+EXCLUDED_SECTIONS = {"containers", "verbs", "recipes", "packages", "dotfiles", "btop", "theme", "install_phases", "messages", "ci", "tests", "units"}
 WALK_MOSTLY_DEAD = {"ai", "image", "bootstrap", "profile", "sandbox", "security"}
 WALK_EMIT_KEEP = {
     "MIOS_AI_BAKE_MODELS", "MIOS_AI_DIR", "MIOS_AI_EMBED_MODEL", "MIOS_AI_ENDPOINT",
