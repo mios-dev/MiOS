@@ -7387,28 +7387,29 @@ usr/lib/mios/mios_comments.py	363	371	9	88	89c739e01b60	MIGRATE	narrative-histor
 usr/lib/mios/mios_comments.py	386	388	3	26	66ae89093185	STAY	midsize-why		0				0
 usr/lib/mios/mios_comments.py	391	393	3	34	e88367d664cb	STAY	midsize-why		0				0
 usr/lib/mios/mios_comments.py	396	399	4	45	48a4567c0926	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	415	419	5	22	1c386d6ea87e	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	436	438	3	30	51020272f944	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	440	442	3	26	6cc8ac9aaa3e	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	408	411	4	44	6a210a84a0c0	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	421	425	5	22	1c386d6ea87e	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	442	444	3	30	51020272f944	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	446	448	3	26	6cc8ac9aaa3e	STAY	midsize-why		0				0
 usr/lib/mios/mios_comments.py	458	463	6	59	be7e0f6ee742	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:be7e0f6ee742	59	1
 usr/lib/mios/mios_comments.py	486	492	7	57	2c1e4d0345bf	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/lib.md	mios-src:2c1e4d0345bf	57	1
-usr/lib/mios/mios_comments.py	501	505	5	59	21b9b68bc9ad	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	515	515	1	3	bf8be58f731f	STAY	inline-scoped		0				0
-usr/lib/mios/mios_comments.py	539	539	1	6	557f12f1b9d7	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	543	543	1	5	015ac6d85bb1	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	507	511	5	59	21b9b68bc9ad	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	521	521	1	3	bf8be58f731f	STAY	inline-scoped		0				0
+usr/lib/mios/mios_comments.py	545	545	1	6	557f12f1b9d7	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	549	549	1	5	015ac6d85bb1	STAY	inline-scoped		0				0
 usr/lib/mios/mios_comments.py	578	583	6	32	1fe018524038	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:1fe018524038	32	1
-usr/lib/mios/mios_comments.py	593	596	4	40	dafb8ac5a8dd	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	631	631	1	12	227946e3ec70	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	659	663	5	27	59777b4abd6a	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	687	689	3	8	8af49aed9ab4	STAY	midsize-why		0				0
-usr/lib/mios/mios_comments.py	701	701	1	12	8da47b8dc44d	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	706	706	1	11	3e57f606594f	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	709	709	1	9	937854dba39c	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	713	713	1	12	92c4d24a225e	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	717	717	1	2	cb3c888536b0	DROP	banner		0				0
-usr/lib/mios/mios_comments.py	724	724	1	3	4fefbba9bc0d	DROP	banner		0				0
-usr/lib/mios/mios_comments.py	747	748	2	25	df82d71fef33	STAY	local-scoped		0				0
-usr/lib/mios/mios_comments.py	752	752	1	6	0786321d45f1	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	599	602	4	40	dafb8ac5a8dd	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	637	637	1	12	227946e3ec70	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	665	669	5	27	59777b4abd6a	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	693	695	3	8	8af49aed9ab4	STAY	midsize-why		0				0
+usr/lib/mios/mios_comments.py	707	707	1	12	8da47b8dc44d	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	712	712	1	11	3e57f606594f	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	715	715	1	9	937854dba39c	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	719	719	1	12	92c4d24a225e	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	723	723	1	2	cb3c888536b0	DROP	banner		0				0
+usr/lib/mios/mios_comments.py	730	730	1	3	4fefbba9bc0d	DROP	banner		0				0
+usr/lib/mios/mios_comments.py	753	754	2	25	df82d71fef33	STAY	local-scoped		0				0
+usr/lib/mios/mios_comments.py	758	758	1	6	0786321d45f1	STAY	local-scoped		0				0
 usr/lib/mios/mios_comments.py	793	799	7	68	91b1f37a187d	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:91b1f37a187d	68	1
 usr/lib/mios/mios_comments.py	811	819	9	81	f3e774fcaabb	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/lib.md	mios-src:f3e774fcaabb	81	1
 usr/lib/mios/mios_db_config.py	1	1	1	14	9d0f9f16e7c9	STAY	ai-header		0				0

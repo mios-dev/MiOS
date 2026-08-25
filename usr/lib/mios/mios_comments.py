@@ -405,6 +405,12 @@ class RefIndex:
         out = []
         for m in self._TOKEN.finditer(text):
             tok = m.group(0)
+            # A path token that runs straight into "{" is the literal prefix of a
+            # template, not a path: baseurl=.../rpms/updates-released-f{ver}/...
+            # matches up to the brace and can never resolve, so it was reported
+            # as a dangling reference for as long as the template existed.
+            if text[m.end():m.end() + 1] == "{":
+                continue
             if any(a in tok or fnmatch.fnmatchcase(tok, a) for a in allow):
                 continue
             if not self.known(tok):

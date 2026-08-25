@@ -214,6 +214,7 @@ def main(argv):
         sbom_file = os.path.join(sbom_dir, "bound-images.tsv")
 
         existing_digests = {}
+        existing_sizes = {}
         if os.path.exists(sbom_file):
             try:
                 with open(sbom_file, "r", encoding="utf-8") as sfh:
@@ -221,21 +222,25 @@ def main(argv):
                         parts = line.strip().split("\t")
                         if len(parts) >= 3 and parts[0] != "image":
                             existing_digests[parts[0]] = parts[1]
+                            if len(parts) >= 4:
+                                existing_sizes[parts[0]] = parts[3]
             except OSError:
                 pass
 
         seen_images = set()
         with open(sbom_file, "w", encoding="utf-8", newline="\n") as sfh:
-            sfh.write("image\tdigest\tgroup\n")
+            sfh.write("image\tdigest\tgroup\tsize_gb\n")
             for base_img, grp in [("localhost/mios-sys:latest", "sys"), ("localhost/mios-cuda:latest", "cuda")]:
-                sfh.write(f"{base_img}\t{existing_digests.get(base_img, 'local')}\t{grp}\n")
+                sz = existing_sizes.get(base_img, "2.5" if grp == "sys" else "4.0")
+                sfh.write(f"{base_img}\t{existing_digests.get(base_img, 'local')}\t{grp}\t{sz}\n")
                 seen_images.add(base_img)
 
             for img, base_name in images_to_bake:
                 if img not in seen_images:
                     g = classify(img)
                     digest = existing_digests.get(img, "local")
-                    sfh.write(f"{img}\t{digest}\t{g}\n")
+                    sz = existing_sizes.get(img, "1.0")
+                    sfh.write(f"{img}\t{digest}\t{g}\t{sz}\n")
                     seen_images.add(img)
 
         print(f"[bake-plan-gen] wrote {sbom_file}")
