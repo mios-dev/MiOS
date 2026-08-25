@@ -3660,19 +3660,21 @@ test_header_integrity() {
 
 test_os_update_timer_enabled() {
     log "Testing check_os_update_timer_enabled"
-    local sys_dir="${ROOT}/usr/lib/systemd/system"
-    local probe="${sys_dir}/bootc-fetch-apply-updates.timer"
-    local backed_up=0
-    if [[ -f "$probe" ]]; then
-        mv "$probe" "${probe}.negtest"
-        backed_up=1
-    fi
+    # The old probe moved bootc-fetch-apply-updates.timer aside, but that file
+    # ships from an RPM and has never existed in this tree: it moved nothing and
+    # the check "failed" for a reason the test never created -- a broken probe
+    # and a broken check agreeing. The check now asserts the SSOT declares an
+    # updater package and a bake phase wires its timer, so break the wiring.
+    local installer="${ROOT}/automation/50-uupd-installer.sh"
+    [[ -f "$installer" ]] || die "50-uupd-installer.sh is absent; the probe cannot run"
+    mv "$installer" "${installer}.negtest"
     if _neg_gate check_os_update_timer_enabled; then
-        [[ $backed_up -eq 1 ]] && mv "${probe}.negtest" "$probe"
-        die "check_os_update_timer_enabled passed despite missing OS update timer definition"
+        mv "${installer}.negtest" "$installer"
+        die "check_os_update_timer_enabled passed despite no bake phase enabling the update timer"
     fi
-    [[ $backed_up -eq 1 ]] && mv "${probe}.negtest" "$probe"
-    _neg_gate check_os_update_timer_enabled || die "check_os_update_timer_enabled failed after restoration"
+    mv "${installer}.negtest" "$installer"
+    _neg_gate check_os_update_timer_enabled \
+        || die "check_os_update_timer_enabled failed after restoration"
     log "check_os_update_timer_enabled negative test passed"
 }
 

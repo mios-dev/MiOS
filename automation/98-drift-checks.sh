@@ -5262,10 +5262,8 @@ EXEMPT_PATHS = {
 
 violations = []
 
-for dirpath, _, filenames in os.walk(root):
-    norm_dir = dirpath.replace("\\", "/")
-    if "/.git" in norm_dir or "/__pycache__" in norm_dir or "/.cargo" in norm_dir or "/target" in norm_dir:
-        continue
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [d for d in dirnames if d not in (".git", "__pycache__", ".cargo", "target", "node_modules", ".venv")]
     for f in filenames:
         if f.endswith((".png", ".jpg", ".tar", ".zip", ".exe", ".pyc", ".iso", ".qcow2", ".vhdx")):
             continue
