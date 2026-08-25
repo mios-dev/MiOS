@@ -504,6 +504,8 @@
 | T-516 | P1 | open | Kernel/FlightRecorder | In-kernel eBPF circular flight recorder ring and crash diagnostic parser |
 | T-517 | P1 | open | AI/Webhooks | HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe |
 | T-518 | P1 | open | AI/WebSocket | Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) |
+| T-519 | P1 | open | Hardware/NUMA | Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator |
+| T-520 | P2 | open | Hardware/P2PTest | Automated inter-GPU P2P bandwidth and memory latency validation benchmark |
 
 ---
 
@@ -5468,4 +5470,24 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2115
 **Status:** open | **Domain:** AI/WebSocket | **Who:** agent
 **Converted:** AGY-2116 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-519 -- Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator (WS-VFIO | P1 | M)
+**Goal:** Map GPU interconnect matrix and bind inference workers to local NUMA CPU nodes.
+**What+How:** Implement `usr/libexec/mios/mios-gpu-numa`. Query `nvidia-smi topo -m` and `/sys/bus/pci/devices/*/numa_node`, generate Quadlet environment files setting `CUDA_VISIBLE_DEVICES`, `NCCL_P2P_LEVEL`, and wrap worker unit execution in `numactl --cpunodebind=X --membind=X`.
+**Where:** usr/libexec/mios/mios-gpu-numa, usr/share/containers/systemd/mios-llm-heavy.container
+**Done When:** NUMA affinity generator binds multi-GPU workers to optimal local CPU nodes automatically.
+**Why:** NUMA memory and PCIe affinity alignment maximizes tensor copy throughput and prevents cross-socket bus contention.
+**Dep:** AGY-2116
+**Status:** open | **Domain:** Hardware/NUMA | **Who:** agent
+**Converted:** AGY-2117 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-520 -- Automated inter-GPU P2P bandwidth and memory latency validation benchmark (WS-VFIO | P2 | S)
+**Goal:** Verify in automated benchmarks that inter-GPU peer-to-peer memory copies achieve wire speed.
+**What+How:** Add `tests/test-gpu-p2p-bandwidth.sh`. Execute `p2pBandwidthLatencyTest` or PyTorch distributed tensor transfer across all GPU pairs, asserting that P2P transfers succeed without falling back to host system RAM.
+**Where:** tests/test-gpu-p2p-bandwidth.sh, tools/ci-suites.py
+**Done When:** Benchmark suite confirms inter-GPU P2P transfer rates meet physical bus capacity.
+**Why:** Continuous P2P bandwidth validation catches PCIe bridge misconfigurations and IOMMU group issues.
+**Dep:** AGY-2117
+**Status:** open | **Domain:** Hardware/P2PTest | **Who:** agent
+**Converted:** AGY-2118 carries this forward with a Verify line that fails when the behaviour is absent.
 

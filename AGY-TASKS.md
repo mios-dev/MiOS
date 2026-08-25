@@ -14861,3 +14861,23 @@ makes that table generated so the two cannot diverge again.
 **Why:** Streaming agent telemetry provides full visibility into agent reasoning and tool executions for UI dashboards.
 **Dep:** AGY-2115
 
+## AGY-2117 -- Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator  (WS-VFIO | P1 | M)
+**Goal:** Map GPU interconnect matrix and bind inference workers to local NUMA CPU nodes.
+**What+How:** Implement `usr/libexec/mios/mios-gpu-numa`. Query `nvidia-smi topo -m` and `/sys/bus/pci/devices/*/numa_node`, generate Quadlet environment files setting `CUDA_VISIBLE_DEVICES`, `NCCL_P2P_LEVEL`, and wrap worker unit execution in `numactl --cpunodebind=X --membind=X`.
+**Where:** usr/libexec/mios/mios-gpu-numa, usr/share/containers/systemd/mios-llm-heavy.container
+**Verify:** Run on multi-GPU node; verify `mios-gpu-numa` detects P2P matrix and assigns worker processes to aligned NUMA sockets.
+**Do NOT:** Cross-bind GPU workers to remote NUMA nodes across UPI/Infinity Fabric links.
+**Done When:** NUMA affinity generator binds multi-GPU workers to optimal local CPU nodes automatically.
+**Why:** NUMA memory and PCIe affinity alignment maximizes tensor copy throughput and prevents cross-socket bus contention.
+**Dep:** AGY-2116
+
+## AGY-2118 -- Automated inter-GPU P2P bandwidth and memory latency validation benchmark  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated benchmarks that inter-GPU peer-to-peer memory copies achieve wire speed.
+**What+How:** Add `tests/test-gpu-p2p-bandwidth.sh`. Execute `p2pBandwidthLatencyTest` or PyTorch distributed tensor transfer across all GPU pairs, asserting that P2P transfers succeed without falling back to host system RAM.
+**Where:** tests/test-gpu-p2p-bandwidth.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-gpu-p2p-bandwidth.sh`; verify P2P transfer matrix reports enabled status across all adjacent GPUs.
+**Do NOT:** Skip P2P validation on multi-GPU hardware profiles in CI test tier 2.
+**Done When:** Benchmark suite confirms inter-GPU P2P transfer rates meet physical bus capacity.
+**Why:** Continuous P2P bandwidth validation catches PCIe bridge misconfigurations and IOMMU group issues.
+**Dep:** AGY-2117
+
