@@ -8,7 +8,11 @@ from __future__ import annotations
 import sys
 
 import _agentpipe_path  # noqa: F401
-import server
+try:
+    from mios_pipe.routing.turn import _strip_think_tags
+except ImportError:
+    import server
+    _strip_think_tags = server._strip_think_tags
 
 
 CASES = [
@@ -39,7 +43,7 @@ CASES = [
 def main() -> int:
     fails = 0
     for inp, expected in CASES:
-        got = server._strip_think_tags(inp)
+        got = _strip_think_tags(inp)
         if got.strip() != expected.strip():
             print(f"  FAIL  input  = {inp!r}")
             print(f"        expect = {expected!r}")

@@ -65,8 +65,10 @@ def main():
         sys.exit(0)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w", encoding="utf-8", newline="\n") as f:
+    tmp_path = output_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(tsv_content)
+    os.replace(tmp_path, output_path)
 
     print(f"Generated {output_path} with {len(rows)} pipeline stages.")
 

@@ -275,6 +275,7 @@ is generated, its generator is here.
 | `tools/check-port-fallbacks.py` | Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. |
 | `tools/check-ports-bound.py` | Drift gate for allocated-but-unbound ports. |
 | `tools/check-privileged-quadlets.py` | Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651). |
+| `tools/check-ratchet-direction.py` | Drift check check_ratchet_direction -- asserts that shrink-only ratchet ceilings in mios.toml never increase over HEAD. |
 | `tools/check-redact-coverage.py` | DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
 | `tools/check-role-ssot.py` | Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is. |
@@ -375,7 +376,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 123 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 124 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

@@ -526,6 +526,9 @@ def check_unwired_modules() -> int:
     root = os.environ["MIOS_DRIFT_ROOT"]
     pipe = os.path.join(root, "usr/lib/mios/agent-pipe")
     if not os.path.isdir(pipe):
+        if os.environ.get("MIOS_DRIFT_REQUIRE_TOOLS") == "1":
+            sys.stderr.write(f"FAIL: agent-pipe directory missing at {pipe} (MIOS_DRIFT_REQUIRE_TOOLS=1)\n")
+            sys.exit(1)
         sys.exit(0)  # nothing to check on a bare checkout
 
     import tomllib as _toml
@@ -2201,7 +2204,153 @@ def check_verb_stub_backends() -> int:
     sys.exit(0)
 
 
+def check_cephfs_ssot() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import os, sys
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    viol = []
+
+    import tomllib as _toml
+
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+    if _toml is None:
+        sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping CephFS check\n")
+    elif os.path.isfile(toml_path):
+        with open(toml_path, "rb") as fh:
+            data = _toml.load(fh)
+        cephfs = data.get("storage", {}).get("cephfs", {}) or {}
+        enable = cephfs.get("enable", False)
+
+        if enable:
+            monitors = cephfs.get("monitors", [])
+            if not monitors or monitors == ["127.0.0.1:6789"]:
+                viol.append("[storage.cephfs].monitors must be set to actual monitor IPs when enable=true")
+
+            cache_override = cephfs.get("xdg_cache_home_override", "")
+            hostnames = [m.split(":")[0] for m in monitors]
+            if ("ceph" in cache_override.lower() or 
+                    "/tenants/" in cache_override or 
+                    cache_override.startswith("/home/") or 
+                    any(h in cache_override for h in hostnames if h)):
+                viol.append("[storage.cephfs].xdg_cache_home_override must be local tmpfs, NEVER CephFS (MDS storm hazard)")
+
+            hot_pool = cephfs.get("data_pool_hot", "")
+            bulk_pool = cephfs.get("data_pool_bulk", "")
+            if hot_pool and bulk_pool and hot_pool == bulk_pool:
+                viol.append("[storage.cephfs] data_pool_hot and data_pool_bulk must be distinct pools for tiering")
+
+            prov_script = cephfs.get("provision_script", "")
+            if prov_script:
+                rel_path = prov_script.lstrip("/")
+                repo_path = os.path.join(root, rel_path)
+                if not os.path.exists(repo_path) and not os.path.exists(prov_script):
+                    viol.append(f"[storage.cephfs].provision_script path '{prov_script}' does not exist on disk")
+
+            if cephfs.get("automount_enable", False):
+                mount_tmpl = os.path.join(root, "usr/share/mios/systemd/home-@.mount.tmpl")
+                if not os.path.exists(mount_tmpl):
+                    viol.append("home-@.mount.tmpl is missing from usr/share/mios/systemd/ but [storage.cephfs].automount_enable is true")
+
+        import re
+        tmpls = [
+            os.path.join(root, "usr/share/mios/systemd/home-@.mount.tmpl"),
+            os.path.join(root, "usr/share/mios/systemd/home-@.automount.tmpl"),
+        ]
+        setup_script = os.path.join(root, "automation/firstboot/mios-cephfs-mount-setup.sh")
+        setup_code = ""
+        if os.path.exists(setup_script):
+            with open(setup_script, "r", encoding="utf-8", errors="ignore") as sf:
+                setup_code = sf.read()
+
+        for tmpl in tmpls:
+            if os.path.exists(tmpl):
+                with open(tmpl, "r", encoding="utf-8", errors="ignore") as tf:
+                    tokens = set(re.findall(r"\$\{MIOS_CEPHFS_([A-Z0-9_]+)\}", tf.read()))
+                for tok in tokens:
+                    key = tok.lower()
+                    if key not in cephfs:
+                        viol.append(f"Template token ${{MIOS_CEPHFS_{tok}}} has no corresponding key '{key}' in [storage.cephfs]")
+                    if setup_code and f"MIOS_CEPHFS_{tok}" not in setup_code:
+                        viol.append(f"Template token ${{MIOS_CEPHFS_{tok}}} is not substituted by mios-cephfs-mount-setup.sh")
+
+    for v in viol:
+        sys.stderr.write(f"    {v}\n")
+    sys.exit(1 if viol else 0)
+
+
+def check_firstboot_tier() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import os, sys, glob
+    import tomllib
+
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+    fb_list = os.path.join(root, "usr/lib/mios/bake/plan.d/firstboot.list")
+    qdir = os.path.join(root, "usr/share/containers/systemd")
+    bdir = os.path.join(root, "usr/lib/bootc/bound-images.d")
+
+    if not os.path.isfile(toml_path) or not os.path.isfile(fb_list):
+        sys.exit(0)
+
+    with open(toml_path, "rb") as f:
+        data = tomllib.load(f)
+
+    firstboot_tokens = data.get("build", {}).get("bake", {}).get("firstboot_tokens", [])
+    if not firstboot_tokens:
+        sys.exit(0)
+
+    fb_just = data.get("build", {}).get("bake", {}).get("firstboot_justifications", {})
+    for tok in firstboot_tokens:
+        if tok not in fb_just or not fb_just[tok]:
+            bad.append(f"firstboot token '{tok}' has no justification in [build.bake.firstboot_justifications]")
+
+    bad = []
+    with open(fb_list, "r", encoding="utf-8") as fh:
+        for line in fh:
+            img = line.strip()
+            if not img or img.startswith("#"):
+                continue
+            if not any(tok and tok in img for tok in firstboot_tokens):
+                bad.append(f"firstboot.list entry '{img}' matches no token in firstboot_tokens")
+
+    if os.path.isdir(bdir):
+        for q in sorted(glob.glob(os.path.join(qdir, "*.container")) + glob.glob(os.path.join(qdir, "*.image"))):
+            name = os.path.basename(q)
+            img = ""
+            try:
+                with open(q, "r", encoding="utf-8", errors="ignore") as fh:
+                    for line in fh:
+                        if line.strip().startswith("Image="):
+                            img = line.strip()[6:].strip()
+                            break
+            except OSError:
+                pass
+            if any(tok and tok in img for tok in firstboot_tokens):
+                if os.path.lexists(os.path.join(bdir, name)):
+                    bad.append(f"Firstboot-tier Quadlet '{name}' ({img}) is wrongly symlinked under bound-images.d")
+
+    consumer_script = os.path.join(root, "usr/libexec/mios/mios-ai-firstboot")
+    if os.path.isfile(consumer_script):
+        with open(consumer_script, "r", encoding="utf-8", errors="ignore") as fh:
+            if "firstboot.list" not in fh.read():
+                bad.append("usr/libexec/mios/mios-ai-firstboot does not reference firstboot.list")
+
+    if bad:
+        for b in bad:
+            sys.stderr.write(f"    {b}\n")
+        sys.exit(1)
+    sys.exit(0)
+
+
 SUBCOMMANDS = {
+    "firstboot-tier": check_firstboot_tier,
+    "cephfs-ssot": check_cephfs_ssot,
     "verb-stub-backends": check_verb_stub_backends,
     "no-bare-port-literals": check_no_bare_port_literals,
     "globals-image-parity": check_globals_image_parity,

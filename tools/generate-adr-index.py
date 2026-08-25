@@ -168,8 +168,10 @@ def main() -> int:
             return 1
         print(f"{OUT} matches the {len(rows)} baked ADR(s) and SSOT consistency checks pass")
         return 0
-    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(body)
+    os.replace(tmp_path, path)
     print(f"wrote {OUT} from {len(rows)} ADR(s)")
     return 0
 

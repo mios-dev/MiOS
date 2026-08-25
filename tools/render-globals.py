@@ -327,7 +327,7 @@ def main() -> int:
         if drifted:
             sys.stderr.write("[render-globals] resolvers are stale vs SSOT:\n")
             for p in drifted:
-                sys.stderr.write(f"    {os.path.relpath(p, ROOT)}\n")
+                sys.stderr.write(f"    {os.path.relpath(p, ROOT).replace(os.sep, '/').replace('\\\\', '/')}\n")
             sys.stderr.write("    run: python3 tools/render-globals.py\n")
             return 1
         print(f"[render-globals] both resolvers match SSOT ({len(names)} constants)")

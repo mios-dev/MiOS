@@ -79,8 +79,10 @@ def main():
     # separator, so regenerating on Windows produced a CRLF file differing
     # from the committed LF one in every row. The gate diffs generated
     # against committed, so that fired on who ran it, not on real drift.
-    with open(output_path, "w", encoding="utf-8", newline="\n") as f:
+    tmp_path = output_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(tsv_content)
+    os.replace(tmp_path, output_path)
 
     print(f"Generated {output_path} with {len(check_names)} gate entries.")
 

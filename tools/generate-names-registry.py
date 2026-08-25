@@ -139,9 +139,11 @@ def generate_referenced_vars(root):
     
     ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
     os.makedirs(os.path.dirname(ref_file), exist_ok=True)
-    with open(ref_file, "w", encoding="utf-8", newline="\n") as f:
+    tmp_ref = ref_file + ".tmp"
+    with open(tmp_ref, "w", encoding="utf-8", newline="\n") as f:
         for r in sorted(refs):
             f.write(f"{r}\n")
+    os.replace(tmp_ref, ref_file)
 
 def main():
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
@@ -163,10 +165,12 @@ def main():
             
     names_file = os.path.join(root, "usr/share/mios/names.generated.txt")
     os.makedirs(os.path.dirname(names_file), exist_ok=True)
-    with open(names_file, "w", encoding="utf-8", newline="\n") as f:
-        for path, env_name in all_pairs:
-            f.write(f"{path}  {env_name}\n")
-            print(f"{path}  {env_name}")
+    tmp_names = names_file + ".tmp"
+    with open(tmp_names, "w", encoding="utf-8", newline="\n") as f:
+        for path_str, env_name in all_pairs:
+            f.write(f"{path_str}  {env_name}\n")
+            print(f"{path_str}  {env_name}")
+    os.replace(tmp_names, names_file)
         
     generate_referenced_vars(root)
     return 0

@@ -18,10 +18,14 @@ _should_health_probe = None
 _probe_auth_headers = None
 NODE_LIVENESS_TTL_S = 45.0
 NODE_LIVENESS_CONNECT_S = 6.0
-_THINK_OPENERS = ()
-_THINK_CAP_RE = None
-_THINK_CAP_UNCLOSED_RE = None
-_THINK_ORPHAN_RE = None
+_THINK_TAGS = r"think|thinking|thought|reasoning|reflection|scratchpad"
+_THINK_OPENERS = ("<think", "<thought", "<reason", "<reflect", "<scratch")
+_THINK_CAP_RE = re.compile(
+    rf"<({_THINK_TAGS})\b[^>]*>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
+_THINK_CAP_UNCLOSED_RE = re.compile(
+    rf"<({_THINK_TAGS})\b[^>]*>(.*)$", re.DOTALL | re.IGNORECASE)
+_THINK_ORPHAN_RE = re.compile(
+    rf"</?({_THINK_TAGS})\b[^>]*>\s*", re.IGNORECASE)
 
 
 _INJECTED = frozenset((
@@ -123,7 +127,9 @@ def _split_think_tags(text: str) -> tuple[str, str]:
     if m:
         thoughts.append((m.group(2) or "").strip())
         answer = _THINK_CAP_UNCLOSED_RE.sub("", answer)
-    answer = _THINK_ORPHAN_RE.sub("", answer).strip()
+    answer = _THINK_ORPHAN_RE.sub("", answer)
+    answer = re.sub(r"[ \t]+", " ", answer)
+    answer = re.sub(r"\n\s*\n", "\n", answer).strip()
     reasoning = "\n\n".join(t for t in thoughts if t).strip()
     return reasoning, answer
 

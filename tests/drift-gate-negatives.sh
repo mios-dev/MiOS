@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: bash Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-doc: usr/share/doc/mios/manual/tests.md
+# AI-convention: Probe values in negative tests must be assembled dynamically (e.g. string concatenation or printf) so literals never match static grep scans in 98-drift-checks.sh.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -250,6 +251,31 @@ EOF
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_toml_projection >/dev/null 2>&1 \
         || die "Check_toml_projection failed after restoration"
     log "Check_toml_projection negative test passed"
+}
+
+test_ratchet_direction() {
+    log "Testing check_ratchet_direction"
+    local main_toml="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$main_toml")"
+
+    MIOS_TOML_PATH="$main_toml" python3 - <<'EOF'
+import os
+p = os.environ["MIOS_TOML_PATH"]
+text = open(p, "r", encoding="utf-8").read()
+new_text = text.replace("max_exempt_suites = 6", "max_exempt_suites = 99", 1)
+open(p, "w", encoding="utf-8").write(new_text)
+EOF
+
+    if MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ratchet_direction >/dev/null 2>&1; then
+        echo "$orig_val" > "$main_toml"
+        die "check_ratchet_direction passed despite raised ratchet ceiling"
+    fi
+
+    echo "$orig_val" > "$main_toml"
+    MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ratchet_direction >/dev/null 2>&1 \
+        || die "check_ratchet_direction failed after restoration"
+    log "check_ratchet_direction negative test passed"
 }
 
 test_curl_retry() {
@@ -3719,6 +3745,7 @@ _run_test test_leaked_fixtures
     _run_test test_names_registry
     _run_test test_root_toml_subset
     _run_test test_toml_projection
+    _run_test test_ratchet_direction
     _run_test test_curl_retry
     _run_test test_resolver_ssot_refs
     _run_test test_nested_podman_caps

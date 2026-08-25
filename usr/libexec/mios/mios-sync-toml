@@ -6,7 +6,7 @@ import os
 import re
 import sys
 
-PROJECTED = ["ports", "colors"]
+PROJECTED = ["ports", "colors", "debloat", "xbox_features"]
 
 
 def repo_root():
@@ -117,8 +117,9 @@ def main():
     if bs:
         targets.append(os.path.join(bs, "mios.toml"))
     else:
-        sys.stderr.write("[mios-sync-toml] note: bootstrap repo not found alongside; "
-                         "projecting the root copy only.\n")
+        sys.stderr.write("[mios-sync-toml] ERROR: bootstrap repository mios-bootstrap not found alongside\n")
+        if check or os.environ.get("MIOS_REQUIRE_BOOTSTRAP") == "1" or os.environ.get("MIOS_DRIFT_REQUIRE_TOOLS") == "1":
+            sys.exit(1)
 
     stale = []
     for tgt in targets:
@@ -135,8 +136,10 @@ def main():
             if check:
                 print("[mios-sync-toml] DRIFT: %s -- %s differ from canonical" % (tgt, label))
             else:
-                with open(tgt, "w", encoding="utf-8", newline="") as f:
+                tmp = tgt + ".tmp"
+                with open(tmp, "w", encoding="utf-8", newline="") as f:
                     f.write("".join(new_lines))
+                os.replace(tmp, tgt)
                 print("[mios-sync-toml] projected %s into %s" % (label, tgt))
         else:
             print("[mios-sync-toml] up-to-date: %s" % tgt)

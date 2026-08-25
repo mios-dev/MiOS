@@ -25,7 +25,7 @@ def main() -> int:
     for path in TARGETS:
         if not os.path.isfile(path):
             continue
-        rel = os.path.relpath(path, ROOT)
+        rel = os.path.relpath(path, ROOT).replace(os.sep, "/").replace("\\", "/")
         with open(path, "r", encoding="utf-8", errors="replace") as fh:
             for line_no, line in enumerate(fh, 1):
                 if "AI-hint:" in line:

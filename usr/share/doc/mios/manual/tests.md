@@ -137,4 +137,23 @@ AI-related: ../97-ssot-lint.sh, ../34-render-quadlets.sh, ../../tools/lib/useren
 AI-functions: _mk_fixture, _expect, main
 
 <!-- mios-src:a64282216d09 from automation/tests/test-97-ssot-lint.sh:1-4 -->
+### Linux Clean Worktree Test & Drift Gate Execution
 
+To run the full suite of drift checks and negative gate tests on a clean Linux environment:
+
+```bash
+# Set repository environment variables
+export MIOS_DRIFT_ROOT="$(pwd)"
+export MIOS_DRIFT_CHECK_ROOT="$(pwd)"
+export MIOS_DRIFT_REQUIRE_TOOLS=1
+
+# Run full drift check suite
+bash automation/98-drift-checks.sh
+
+# Run negative gate tests
+bash tests/drift-gate-negatives.sh
+```
+
+Note: A stale installed MiOS on the host machine can fake SSOT-projection drift if `/etc/mios` or `/usr/share/mios` contains un-projected overrides. Always run with `MIOS_DRIFT_ROOT` pointing explicitly to the local workspace root.
+
+<!-- mios-src:agy-1620 from docs/manual/tests.md -->

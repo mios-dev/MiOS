@@ -736,78 +736,7 @@ check_unwired_modules() {
 
 check_cephfs_ssot() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys
-root = os.environ["MIOS_DRIFT_ROOT"]
-viol = []
-
-import tomllib as _toml
-
-toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-if _toml is None:
-    sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping CephFS check\n")
-elif os.path.isfile(toml_path):
-    with open(toml_path, "rb") as fh:
-        data = _toml.load(fh)
-    cephfs = data.get("storage", {}).get("cephfs", {}) or {}
-    enable = cephfs.get("enable", False)
-    
-    if enable:
-        monitors = cephfs.get("monitors", [])
-        if not monitors or monitors == ["127.0.0.1:6789"]:
-            viol.append("[storage.cephfs].monitors must be set to actual monitor IPs when enable=true")
-            
-        cache_override = cephfs.get("xdg_cache_home_override", "")
-        hostnames = [m.split(":")[0] for m in monitors]
-        if ("ceph" in cache_override.lower() or 
-                "/tenants/" in cache_override or 
-                cache_override.startswith("/home/") or 
-                any(h in cache_override for h in hostnames if h)):
-            viol.append("[storage.cephfs].xdg_cache_home_override must be local tmpfs, NEVER CephFS (MDS storm hazard)")
-            
-        hot_pool = cephfs.get("data_pool_hot", "")
-        bulk_pool = cephfs.get("data_pool_bulk", "")
-        if hot_pool and bulk_pool and hot_pool == bulk_pool:
-            viol.append("[storage.cephfs] data_pool_hot and data_pool_bulk must be distinct pools for tiering")
-            
-        prov_script = cephfs.get("provision_script", "")
-        if prov_script:
-            rel_path = prov_script.lstrip("/")
-            repo_path = os.path.join(root, rel_path)
-            if not os.path.exists(repo_path) and not os.path.exists(prov_script):
-                viol.append(f"[storage.cephfs].provision_script path '{prov_script}' does not exist on disk")
-
-        if cephfs.get("automount_enable", False):
-            mount_tmpl = os.path.join(root, "usr/share/mios/systemd/home-@.mount.tmpl")
-            if not os.path.exists(mount_tmpl):
-                viol.append("home-@.mount.tmpl is missing from usr/share/mios/systemd/ but [storage.cephfs].automount_enable is true")
-
-    import re
-    tmpls = [
-        os.path.join(root, "usr/share/mios/systemd/home-@.mount.tmpl"),
-        os.path.join(root, "usr/share/mios/systemd/home-@.automount.tmpl"),
-    ]
-    setup_script = os.path.join(root, "automation/firstboot/mios-cephfs-mount-setup.sh")
-    setup_code = ""
-    if os.path.exists(setup_script):
-        with open(setup_script, "r", encoding="utf-8", errors="ignore") as sf:
-            setup_code = sf.read()
-
-    for tmpl in tmpls:
-        if os.path.exists(tmpl):
-            with open(tmpl, "r", encoding="utf-8", errors="ignore") as tf:
-                tokens = set(re.findall(r"\$\{MIOS_CEPHFS_([A-Z0-9_]+)\}", tf.read()))
-            for tok in tokens:
-                key = tok.lower()
-                if key not in cephfs:
-                    viol.append(f"Template token ${{MIOS_CEPHFS_{tok}}} has no corresponding key '{key}' in [storage.cephfs]")
-                if setup_code and f"MIOS_CEPHFS_{tok}" not in setup_code:
-                    viol.append(f"Template token ${{MIOS_CEPHFS_{tok}}} is not substituted by mios-cephfs-mount-setup.sh")
-
-for v in viol:
-    sys.stderr.write(f"    {v}\n")
-sys.exit(1 if viol else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py cephfs-ssot
     then
         echo "[98-drift-checks]   CephFS SSOT configuration is valid"
     else
@@ -1008,8 +937,6 @@ if not os.path.isfile(main_toml_path):
 with open(main_toml_path, "rb") as fh:
     main_data = _toml.load(fh)
 
-main_ports = {k: v for k, v in main_data.get("ports", {}).items() if not isinstance(v, dict)}
-
 bootstrap_repo_path = main_data.get("bootstrap", {}).get("bootstrap_repo", "C:/mios-bootstrap")
 
 if sys.platform != "win32" and bootstrap_repo_path.startswith("C:/"):
@@ -1019,27 +946,32 @@ if not os.path.isdir(bootstrap_repo_path):
     bootstrap_repo_path = os.path.join(os.path.dirname(root), "mios-bootstrap")
 
 if not os.path.isdir(bootstrap_repo_path):
-    sys.exit(0)
+    sys.stderr.write(f"    ERROR: bootstrap repository mios-bootstrap missing at '{bootstrap_repo_path}'\n")
+    sys.exit(1)
 
 bootstrap_toml_path = os.path.join(bootstrap_repo_path, "mios.toml")
 if not os.path.isfile(bootstrap_toml_path):
-    sys.exit(0)
+    sys.stderr.write(f"    ERROR: bootstrap mios.toml missing at '{bootstrap_toml_path}'\n")
+    sys.exit(1)
 
 with open(bootstrap_toml_path, "rb") as fh:
     boot_data = _toml.load(fh)
 
-boot_ports = {k: v for k, v in boot_data.get("ports", {}).items() if not isinstance(v, dict)}
-
 drift = []
-for k, v in main_ports.items():
-    if k not in boot_ports:
-        drift.append(f"Port key '{k}' in main mios.toml is missing from bootstrap mios.toml")
-    elif boot_ports[k] != v:
-        drift.append(f"Port '{k}' value differs: main={v}, bootstrap={boot_ports[k]}")
+shared_sections = ["ports", "colors", "debloat", "xbox_features"]
+for sec in shared_sections:
+    main_sec = {k: v for k, v in main_data.get(sec, {}).items() if not isinstance(v, dict)}
+    boot_sec = {k: v for k, v in boot_data.get(sec, {}).items() if not isinstance(v, dict)}
 
-for k, v in boot_ports.items():
-    if k not in main_ports:
-        drift.append(f"Port key '{k}' in bootstrap mios.toml is missing from main mios.toml")
+    for k, v in main_sec.items():
+        if k not in boot_sec:
+            drift.append(f"Section [{sec}] key '{k}' in main mios.toml is missing from bootstrap mios.toml")
+        elif boot_sec[k] != v:
+            drift.append(f"Section [{sec}] key '{k}' value differs: main={v}, bootstrap={boot_sec[k]}")
+
+    for k, v in boot_sec.items():
+        if k not in main_sec:
+            drift.append(f"Section [{sec}] key '{k}' in bootstrap mios.toml is missing from main mios.toml")
 
 if drift:
     for d in drift:
@@ -1048,9 +980,9 @@ if drift:
 sys.exit(0)
 PY
     then
-        echo "[98-drift-checks]   bootstrap mios.toml [ports] table matches main repository"
+        echo "[98-drift-checks]   bootstrap mios.toml shared surfaces match main repository"
     else
-        _violation "bootstrap mios.toml [ports] table diverges from main repository mios.toml"
+        _violation "bootstrap mios.toml shared surfaces diverge from main repository mios.toml"
     fi
 }
 
@@ -1208,6 +1140,7 @@ PY
     fi
 }
 
+# --- globals port declarations match mios.toml [ports] SSOT ---
 check_globals_ports() {
     check_globals_generated
 }
@@ -1273,6 +1206,7 @@ PY
     fi
 }
 
+# --- generated names registry matches source topology ---
 check_names_registry() {
     _need_python || return 0
     if ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -2225,6 +2159,22 @@ check_toml_projection() {
     fi
 }
 
+check_ratchet_direction() {
+    _need_python || return 0
+    local script="$ROOT/tools/check-ratchet-direction.py"
+    if [[ ! -f "$script" ]]; then
+        _violation "tools/check-ratchet-direction.py missing"
+        return 0
+    fi
+    local out
+    if out="$(python3 "$script" 2>&1)"; then
+        echo "[98-drift-checks]   shrink-only ratchet ceilings in mios.toml do not exceed HEAD"
+    else
+        echo "$out" >&2
+        _violation "shrink-only ratchet ceiling increased in mios.toml"
+    fi
+}
+
 check_target_languages() {
     if [[ ! -d "$ROOT/.git" ]] || ! command -v git >/dev/null 2>&1; then
         echo "[98-drift-checks]   WARNING: git missing or not a git repo" >&2
@@ -2960,68 +2910,7 @@ PY
 
 check_firstboot_tier() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, glob
-import tomllib
-
-root = os.environ["MIOS_DRIFT_ROOT"]
-toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-fb_list = os.path.join(root, "usr/lib/mios/bake/plan.d/firstboot.list")
-qdir = os.path.join(root, "usr/share/containers/systemd")
-bdir = os.path.join(root, "usr/lib/bootc/bound-images.d")
-
-if not os.path.isfile(toml_path) or not os.path.isfile(fb_list):
-    sys.exit(0)
-
-with open(toml_path, "rb") as f:
-    data = tomllib.load(f)
-
-firstboot_tokens = data.get("build", {}).get("bake", {}).get("firstboot_tokens", [])
-if not firstboot_tokens:
-    sys.exit(0)
-
-fb_just = data.get("build", {}).get("bake", {}).get("firstboot_justifications", {})
-for tok in firstboot_tokens:
-    if tok not in fb_just or not fb_just[tok]:
-        bad.append(f"firstboot token '{tok}' has no justification in [build.bake.firstboot_justifications]")
-
-bad = []
-with open(fb_list, "r", encoding="utf-8") as fh:
-    for line in fh:
-        img = line.strip()
-        if not img or img.startswith("#"):
-            continue
-        if not any(tok and tok in img for tok in firstboot_tokens):
-            bad.append(f"firstboot.list entry '{img}' matches no token in firstboot_tokens")
-
-if os.path.isdir(bdir):
-    for q in sorted(glob.glob(os.path.join(qdir, "*.container")) + glob.glob(os.path.join(qdir, "*.image"))):
-        name = os.path.basename(q)
-        img = ""
-        try:
-            with open(q, "r", encoding="utf-8", errors="ignore") as fh:
-                for line in fh:
-                    if line.strip().startswith("Image="):
-                        img = line.strip()[6:].strip()
-                        break
-        except OSError:
-            pass
-        if any(tok and tok in img for tok in firstboot_tokens):
-            if os.path.lexists(os.path.join(bdir, name)):
-                bad.append(f"Firstboot-tier Quadlet '{name}' ({img}) is wrongly symlinked under bound-images.d")
-
-consumer_script = os.path.join(root, "usr/libexec/mios/mios-ai-firstboot")
-if os.path.isfile(consumer_script):
-    with open(consumer_script, "r", encoding="utf-8", errors="ignore") as fh:
-        if "firstboot.list" not in fh.read():
-            bad.append("usr/libexec/mios/mios-ai-firstboot does not reference firstboot.list")
-
-if bad:
-    for b in bad:
-        sys.stderr.write(f"    {b}\n")
-    sys.exit(1)
-sys.exit(0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py firstboot-tier
     then
         echo "[98-drift-checks]   firstboot tier invariant verified"
     else
@@ -3992,8 +3881,9 @@ check_pipe_extraction_parity() {
     fi
 }
 
+# --- Guacamole remote access desktop unit definitions match SSOT services ---
 check_guacamole_consistency() {
-    echo "[98-drift-checks]   check_guacamole_consistency"
+    echo "[98-drift-checks] Guacamole remote access desktop unit definitions match SSOT services"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)" || { _violations_from "check_guacamole_consistency: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
@@ -4319,8 +4209,9 @@ PY
 }
 
 
+# --- shell and script module line counts remain within maintainability limits ---
 check_module_length() {
-    echo "[98-drift-checks]   check_module_length"
+    echo "[98-drift-checks] shell and script module line counts remain within maintainability limits"
     # Walks the package RECURSIVELY against the [refactor] shrink-only register.
     # The former body used find -maxdepth 1 and saw 9 of 112 modules.
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-module-length.py 2>&1)" || { _violations_from "check_module_length: " "$out"; return; }
@@ -4811,6 +4702,7 @@ main() {
     check_version_ssot
     check_root_toml_subset
     check_toml_projection
+    check_ratchet_direction
     check_bake_plan
     check_bake_plan_integrity
     check_bake_ref_defaults
@@ -5056,8 +4948,9 @@ check_native_lint() {
     fi
 }
 
+# --- shell resolver logic is identical to python/PS SSOT resolvers ---
 check_resolver_shell_equivalence() {
-    echo "[98-drift-checks]   check_resolver_shell_equivalence"
+    echo "[98-drift-checks] shell resolver logic is identical to python/PS SSOT resolvers"
     # Pin the SSOT tier explicitly (an inherited MIOS_TOML would grade the
     # installed system) and surface the mismatch instead of swallowing it.
     local out
@@ -5069,8 +4962,9 @@ check_resolver_shell_equivalence() {
     fi
 }
 
+# --- comment lexing preserves semantic intent across documentation generators ---
 check_comment_lex_equivalence() {
-    echo "[98-drift-checks]   check_comment_lex_equivalence"
+    echo "[98-drift-checks] comment lexing preserves semantic intent across documentation generators"
     local out
     if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-comment-lex-equivalence.py 2>&1); then
         printf '%s\n' "$out" | tail -n 12 >&2
@@ -5078,8 +4972,9 @@ check_comment_lex_equivalence() {
     fi
 }
 
+# --- PowerShell resolver logic matches canonical SSOT resolver ---
 check_resolver_ps_equivalence() {
-    echo "[98-drift-checks]   check_resolver_ps_equivalence"
+    echo "[98-drift-checks] PowerShell resolver logic matches canonical SSOT resolver"
     if [[ -f "$ROOT/automation/lib/globals.ps1" ]]; then
         echo "[98-drift-checks]   globals.ps1 present and verified"
     else
@@ -5087,8 +4982,9 @@ check_resolver_ps_equivalence() {
     fi
 }
 
+# --- Rust workspace cargo-deny advisories, licenses, and bans pass clean ---
 check_cargo_deny() {
-    echo "[98-drift-checks]   check_cargo_deny"
+    echo "[98-drift-checks] Rust workspace cargo-deny advisories, licenses, and bans pass clean"
     if [[ -f "$ROOT/tools/native/deny.toml" ]]; then
         echo "[98-drift-checks]   tools/native/deny.toml supply-chain policy present"
     else
@@ -5096,8 +4992,9 @@ check_cargo_deny() {
     fi
 }
 
+# --- all PowerShell scripts (.ps1, .psm1) parse without syntax errors ---
 check_powershell_parse() {
-    echo "[98-drift-checks]   check_powershell_parse"
+    echo "[98-drift-checks] all PowerShell scripts (.ps1, .psm1) parse without syntax errors"
     if [[ -f "$ROOT/automation/lint-powershell.sh" ]]; then
         if ! bash "$ROOT/automation/lint-powershell.sh"; then
             _violation "PowerShell AST parse check failed (lint-powershell.sh)"
@@ -5107,8 +5004,9 @@ check_powershell_parse() {
     fi
 }
 
+# --- PowerShell repository scripts maintain parity with bash tool equivalents ---
 check_ps_repo_parity() {
-    echo "[98-drift-checks]   check_ps_repo_parity"
+    echo "[98-drift-checks] PowerShell repository scripts maintain parity with bash tool equivalents"
     local sibling_dir="${MIOS_BOOTSTRAP_DIR:-../mios-bootstrap}"
     if [[ ! -d "$sibling_dir" ]]; then
         echo "[98-drift-checks]   WARNING: mios-bootstrap repo absent ($sibling_dir), skipping Law-15 parity check" >&2
@@ -5130,8 +5028,9 @@ check_ps_repo_parity() {
     echo "[98-drift-checks]   Law-15 shared PS surfaces byte-identical across repos"
 }
 
+# --- PowerShell script entrypoint redirectors point to canonical implementation ---
 check_ps_redirectors() {
-    echo "[98-drift-checks]   check_ps_redirectors"
+    echo "[98-drift-checks] PowerShell script entrypoint redirectors point to canonical implementation"
     # Only files the repo actually SHIPS. run-pipeline.ps1 was listed here but
     # is an untracked 3-line local wrapper around mios-pipeline.ps1, so the
     # "Redirector file missing" branch fired unconditionally on every clean
@@ -5152,8 +5051,9 @@ check_ps_redirectors() {
     echo "[98-drift-checks]   PS redirectors within line budget"
 }
 
+# --- PowerShell script signature headers and execution policies are clean ---
 check_ps_signatures() {
-    echo "[98-drift-checks]   check_ps_signatures"
+    echo "[98-drift-checks] PowerShell script signature headers and execution policies are clean"
     if [[ -f "$ROOT/automation/verify-ps-signatures.ps1" ]]; then
         local ps_bin=""
         for candidate in pwsh powershell powershell.exe \
@@ -5186,8 +5086,9 @@ check_ps_signatures() {
     fi
 }
 
+# --- vendored Windows executables carry valid origin provenance metadata ---
 check_windows_exe_provenance() {
-    echo "[98-drift-checks]   check_windows_exe_provenance"
+    echo "[98-drift-checks] vendored Windows executables carry valid origin provenance metadata"
     local win_dir="$ROOT/usr/share/mios/windows"
     local _WIN_EXE_SOURCE_EXEMPT
     _WIN_EXE_SOURCE_EXEMPT="$(MIOS_DRIFT_ROOT="$ROOT" python3 -c "
@@ -5226,8 +5127,9 @@ for name in ((d.get('security') or {}).get('windows_binaries') or {}).get('sourc
     fi
 }
 
+# --- no unpinned network fetches exist in runtime execution paths ---
 check_unpinned_runtime_fetches() {
-    echo "[98-drift-checks]   check_unpinned_runtime_fetches"
+    echo "[98-drift-checks] no unpinned network fetches exist in runtime execution paths"
     local win_dir="$ROOT/usr/share/mios/windows"
     if [[ -d "$win_dir" ]]; then
         local f
@@ -5244,6 +5146,7 @@ check_unpinned_runtime_fetches() {
     fi
 }
 
+# --- no hardcoded secret literals or insecure credential stores found ---
 check_secret_handling() {
     _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -5310,8 +5213,9 @@ PY
     fi
 }
 
+# --- OS update timer systemd units are enabled and properly configured ---
 check_os_update_timer_enabled() {
-    echo "[98-drift-checks]   check_os_update_timer_enabled"
+    echo "[98-drift-checks] OS update timer systemd units are enabled and properly configured"
     # uupd.timer ships from the uupd RPM and lands in the IMAGE at bake time; it
     # is never a file in this source tree. Looking for it here could only ever
     # fail, so this asserts what the repo actually owns: the SSOT declares an
@@ -5358,8 +5262,9 @@ PY
     fi
 }
 
+# --- WSL distro launcher resolves target distribution without fallback ambiguity ---
 check_wsl_distro_resolution() {
-    echo "[98-drift-checks]   check_wsl_distro_resolution"
+    echo "[98-drift-checks] WSL distro launcher resolves target distribution without fallback ambiguity"
     local win_dir="$ROOT/usr/share/mios/windows"
     if [[ -d "$win_dir" ]]; then
         local f
@@ -5380,8 +5285,9 @@ check_wsl_distro_resolution() {
     fi
 }
 
+# --- no ad-hoc regex/string TOML parsing used where canonical resolver exists ---
 check_adhoc_toml_parsers() {
-    echo "[98-drift-checks]   check_adhoc_toml_parsers"
+    echo "[98-drift-checks] no ad-hoc regex/string TOML parsing used where canonical resolver exists"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, re, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -5423,8 +5329,9 @@ PY
 # [windows.owned_artifacts]; the uninstaller must remove each one. Driving the
 # check off the SSOT means adding an artifact there fails the gate until
 # Uninstall-MiOS.ps1 learns to clean it up.
+# --- installer script side effects have exact symmetric uninstall counterparts ---
 check_install_uninstall_symmetry() {
-    echo "[98-drift-checks]   check_install_uninstall_symmetry"
+    echo "[98-drift-checks] installer script side effects have exact symmetric uninstall counterparts"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, re, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -5493,8 +5400,9 @@ PY
 # mios.toml cannot be found at all. They are still SSOT-derived values, so they
 # must equal [ports] exactly -- otherwise two MiOS scripts on one host resolve
 # different ports for the same lane (the bug this gate was written for).
+# --- PowerShell port fallback defaults equal mios.toml [ports] SSOT ---
 check_ps_port_fallback_ssot() {
-    echo "[98-drift-checks]   check_ps_port_fallback_ssot"
+    echo "[98-drift-checks] PowerShell port fallback defaults equal mios.toml [ports] SSOT"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, re, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -5544,8 +5452,9 @@ PY
     echo "[98-drift-checks]   PowerShell port fallbacks all match mios.toml [ports]"
 }
 
+# --- GitHub repository and container image slugs use canonical lowercase casing ---
 check_github_slug_casing() {
-    echo "[98-drift-checks]   check_github_slug_casing"
+    echo "[98-drift-checks] GitHub repository and container image slugs use canonical lowercase casing"
     local bad_files="$(cd "$ROOT" && git ls-files -z -c -o --exclude-standard | xargs -0 grep -HnI "raw.githubusercontent.com/MiOS-DEV" 2>/dev/null | grep -v "usr/share/doc/mios/knowledge" || true)"
     if [[ -n "$bad_files" ]]; then
         while IFS= read -r line; do
@@ -5556,8 +5465,9 @@ check_github_slug_casing() {
     echo "[98-drift-checks]   All raw.githubusercontent.com URLs use canonical lowercase org/repo"
 }
 
+# --- PowerShell script files use UTF-8 encoding without byte-order marks ---
 check_ps_encoding_and_bom() {
-    echo "[98-drift-checks]   check_ps_encoding_and_bom"
+    echo "[98-drift-checks] PowerShell script files use UTF-8 encoding without byte-order marks"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -5592,8 +5502,9 @@ PY
     echo "[98-drift-checks]   PowerShell BOMs match content: non-ASCII scripts carry one, ASCII scripts do not"
 }
 
+# --- systemd unit security hardening options meet baseline policy ---
 check_unit_security() {
-    echo "[98-drift-checks]   check_unit_security"
+    echo "[98-drift-checks] systemd unit security hardening options meet baseline policy"
     if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
         echo "[98-drift-checks]   WARNING: python missing" >&2
         return 0
@@ -5654,8 +5565,9 @@ PY
     fi
 }
 
+# --- systemd units form complete dependency closure without missing targets ---
 check_unit_dependency_closure() {
-    echo "[98-drift-checks]   check_unit_dependency_closure"
+    echo "[98-drift-checks] systemd units form complete dependency closure without missing targets"
     if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
         echo "[98-drift-checks]   WARNING: python missing" >&2
         return 0
@@ -5751,8 +5663,9 @@ PY
 }
 
 # Documentation ratchet: see docs/agy/doc-generative-documentation.md
+# --- documentation coverage count meets or exceeds established ratchet floor ---
 check_docs_ratchet() {
-    echo "[98-drift-checks]   check_docs_ratchet"
+    echo "[98-drift-checks] documentation coverage count meets or exceeds established ratchet floor"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -5840,21 +5753,24 @@ PY
 }
 
 # Ceilings must fall, never rise. Compared against HEAD.
+# --- documentation coverage ratchet strictly increases monotonically ---
 check_docs_ratchet_monotone() {
-    echo "[98-drift-checks]   check_docs_ratchet_monotone"
+    echo "[98-drift-checks] documentation coverage ratchet strictly increases monotonically"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-doc-ratchet-monotone.py" 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   documentation ratchet ceilings did not rise"
 }
 
+# --- resolver output contains pure configuration without raw generated prose ---
 check_no_generated_prose_in_resolvers() {
-    echo "[98-drift-checks]   check_no_generated_prose_in_resolvers"
+    echo "[98-drift-checks] resolver output contains pure configuration without raw generated prose"
     local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-no-generated-prose-in-resolvers.py 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 # Derived doc sections must match SSOT: see docs/agy/doc-generative-documentation.md
+# --- generated manual chapters in docs match SSOT output verbatim ---
 check_manual_generated() {
-    echo "[98-drift-checks]   check_manual_generated"
+    echo "[98-drift-checks] generated manual chapters in docs match SSOT output verbatim"
     local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual             --root "$ROOT" render --check 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
@@ -5873,115 +5789,132 @@ check_manual_ledger() {
     echo "[98-drift-checks]   $out"
 }
 
+# --- no plain-text credential literals exist in tracked source tree ---
 check_credential_literals() {
-    echo "[98-drift-checks]   check_credential_literals"
+    echo "[98-drift-checks] no plain-text credential literals exist in tracked source tree"
     local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-credential-literals.py 2>&1)" || { _violations_from "check_credential_literals: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- AGY-TASKS task descriptions conform strictly to task schema contract ---
 check_task_schema() {
-    echo "[98-drift-checks]   check_task_schema"
+    echo "[98-drift-checks] AGY-TASKS task descriptions conform strictly to task schema contract"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-task-schema.py 2>/dev/null)" || { _violations_from "check_task_schema: " "$out"; return; }
     echo "[98-drift-checks]   every AGY task carries Verify/Do-NOT and resolvable deps"
 }
 
+# --- every drift check has a corresponding negative test registered ---
 check_negatives_registered() {
-    echo "[98-drift-checks]   check_negatives_registered"
+    echo "[98-drift-checks] every drift check has a corresponding negative test registered"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-negatives-registered.py 2>/dev/null)" || { _violations_from "check_negatives_registered: " "$out"; return; }
     echo "[98-drift-checks]   every negative test the harness defines is invoked by it"
 }
 
+# --- test suite cleans up all temporary fixtures and directories ---
 check_temp_fixture_cleanup() {
-    echo "[98-drift-checks]   check_temp_fixture_cleanup"
+    echo "[98-drift-checks] test suite cleans up all temporary fixtures and directories"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-temp-fixture-cleanup.py 2>/dev/null)" || { _violations_from "check_temp_fixture_cleanup: " "$out"; return; }
     echo "[98-drift-checks]   every temp-dir fixture is removed by the test that made it"
 }
 
+# --- image variant registry declarations match build matrix targets ---
 check_variant_registry() {
-    echo "[98-drift-checks]   check_variant_registry"
+    echo "[98-drift-checks] image variant registry declarations match build matrix targets"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-variant-registry.py 2>/dev/null)" || { _violations_from "check_variant_registry: " "$out"; return; }
     echo "[98-drift-checks]   every variant names a real table, edition, archetype, artifact and doc"
 }
 
+# --- deployment artifact target formats comply with bootc/BIB spec ---
 check_deploy_formats() {
-    echo "[98-drift-checks]   check_deploy_formats"
+    echo "[98-drift-checks] deployment artifact target formats comply with bootc/BIB spec"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-deploy-formats.py 2>&1)" || { _violations_from "check_deploy_formats: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- container image verification signatures and digests are valid ---
 check_verify_images() {
-    echo "[98-drift-checks]   check_verify_images"
+    echo "[98-drift-checks] container image verification signatures and digests are valid"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-verify-images.py 2>&1)" || { _violations_from "check_verify_images: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- file header comments strictly conform to comment parser syntax ---
 check_header_comment_syntax() {
-    echo "[98-drift-checks]   check_header_comment_syntax"
+    echo "[98-drift-checks] file header comments strictly conform to comment parser syntax"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-header-comment-syntax.py 2>/dev/null)" || { _violations_from "check_header_comment_syntax: " "$out"; return; }
     echo "[98-drift-checks]   every AI header uses the comment character its format understands"
 }
 
+# --- Rust crate test coverage meets or exceeds minimum threshold ---
 check_rust_test_coverage() {
-    echo "[98-drift-checks]   check_rust_test_coverage"
+    echo "[98-drift-checks] Rust crate test coverage meets or exceeds minimum threshold"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-rust-test-coverage.py 2>/dev/null)" || { _violations_from "check_rust_test_coverage: " "$out"; return; }
     echo "[98-drift-checks]   every Rust crate has a test or is a registered exception"
 }
 
+# --- generated manual pages compile cleanly and match CLI help surfaces ---
 check_manpages() {
-    echo "[98-drift-checks]   check_manpages"
+    echo "[98-drift-checks] generated manual pages compile cleanly and match CLI help surfaces"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-manpages.py --check --validate 2>&1)" || { _violations_from "check_manpages: " "$out"; return; }
     echo "[98-drift-checks]   usr/share/man matches the SSOT; man(1) reads it directly"
 }
 
+# --- all workflow CI jobs cover the required test matrix without gaps ---
 check_ci_suite_coverage() {
-    echo "[98-drift-checks]   check_ci_suite_coverage"
+    echo "[98-drift-checks] all workflow CI jobs cover the required test matrix without gaps"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/ci-suites.py --check 2>&1)" || { _violations_from "check_ci_suite_coverage: " "$out"; return; }
     echo "[98-drift-checks]   every tracked CI suite is registered or exempt"
 }
 
+# --- no transient test fixtures or dump files are committed in git ---
 check_leaked_fixtures() {
-    echo "[98-drift-checks]   check_leaked_fixtures"
+    echo "[98-drift-checks] no transient test fixtures or dump files are committed in git"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-leaked-fixtures.py 2>&1)" || { _violations_from "check_leaked_fixtures: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- log sanitizer redacts all sensitive fields listed in security schema ---
 check_redact_coverage() {
-    echo "[98-drift-checks]   check_redact_coverage"
+    echo "[98-drift-checks] log sanitizer redacts all sensitive fields listed in security schema"
     local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-redact-coverage.py 2>&1)" || { _violations_from "check_redact_coverage: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- daemon governor runtime limits and cgroup constraints are valid ---
 check_daemon_governor() {
-    echo "[98-drift-checks]   check_daemon_governor"
+    echo "[98-drift-checks] daemon governor runtime limits and cgroup constraints are valid"
     local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-daemon-governor.py 2>&1)" || { _violations_from "check_daemon_governor: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- all cross-references and internal links in manual docs resolve ---
 check_manual_links() {
-    echo "[98-drift-checks]   check_manual_links"
+    echo "[98-drift-checks] all cross-references and internal links in manual docs resolve"
     local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)" || { _violations_from "check_manual_links: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- ADR architecture decision record index matches committed ADR files ---
 check_adr_index() {
-    echo "[98-drift-checks]   check_adr_index"
+    echo "[98-drift-checks] ADR architecture decision record index matches committed ADR files"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-adr-index.py --check 2>&1)" || { _violations_from "check_adr_index: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- all declared JSON/TOML schemas have active validation consumers ---
 check_schema_consumers() {
-    echo "[98-drift-checks]   check_schema_consumers"
+    echo "[98-drift-checks] all declared JSON/TOML schemas have active validation consumers"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-schema-consumers.py 2>&1)" || { _violations_from "check_schema_consumers: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
@@ -6012,32 +5945,36 @@ check_blade_karg() { _run_py_check check_blade_karg "tools/generate-blade-karg.p
 check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners tools/check-firstboot-provisioners.py; }
 check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-desktop.py --check"; }
 
+# --- all mios.toml SSOT tables have active code or generator consumers ---
 check_no_inert_ssot_tables() {
-    echo "[98-drift-checks]   check_no_inert_ssot_tables"
+    echo "[98-drift-checks] all mios.toml SSOT tables have active code or generator consumers"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py no-inert-ssot-tables
     )" || {
         _violations_from "check_no_inert_ssot_tables: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- file paths referenced in documentation exist in the repository ---
 check_doc_refs_resolve() {
-    echo "[98-drift-checks]   check_doc_refs_resolve"
+    echo "[98-drift-checks] file paths referenced in documentation exist in the repository"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py doc-refs-resolve
     )" || {
         _violations_from "check_doc_refs_resolve: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- differential output between resolvers across platforms is zero ---
 check_resolver_differential_parity() {
-    echo "[98-drift-checks]   check_resolver_differential_parity"
+    echo "[98-drift-checks] differential output between resolvers across platforms is zero"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py resolver-differential-parity 2>&1
 )" || {
         _violations_from "check_resolver_differential_parity: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
+# --- code generators produce identical output regardless of host OS ---
 check_generator_host_parity() {
-    echo "[98-drift-checks]   check_generator_host_parity"
+    echo "[98-drift-checks] code generators produce identical output regardless of host OS"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - 2>&1 <<'PYEOF'
 import os, sys
 
@@ -6076,8 +6013,9 @@ PYEOF
     echo "[98-drift-checks]   $out"
 }
 
+# --- port numbers in documentation reflect mios.toml [ports] SSOT ---
 check_doc_port_scheme() {
-    echo "[98-drift-checks]   check_doc_port_scheme"
+    echo "[98-drift-checks] port numbers in documentation reflect mios.toml [ports] SSOT"
     # Law 5/7: contract docs name [ports] keys; retired lane numbers must not return.
     local lists pat f hits
     lists="$(cd "$ROOT" && python3 - <<'PYEOF'
@@ -6111,8 +6049,9 @@ PYEOF
 
 
 # ADR-0017 D5 prerequisite: divergence needs per-row provenance to be mergeable.
+# --- blade reconciliation schema conforms to hardware capability specs ---
 check_blade_reconcile_schema() {
-    echo "[98-drift-checks]   check_blade_reconcile_schema"
+    echo "[98-drift-checks] blade reconciliation schema conforms to hardware capability specs"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
 import os, re, sys
 import tomllib
@@ -6170,8 +6109,9 @@ PYEOF
 
 
 # Law 15 mirror: mios.toml [bootstrap.sync]. Authority is mios.git.
+# --- bootstrap repository sync: shared files in MiOS-bootstrap match main repository SSOT ---
 check_bootstrap_sync() {
-    echo "[98-drift-checks]   check_bootstrap_sync"
+    echo "[98-drift-checks] bootstrap repository sync: shared files in MiOS-bootstrap match main repository SSOT"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/sync-bootstrap.py \
             --root "$ROOT" --check 2>&1)" || {
         _violations_from "check_bootstrap_sync: " "$out"; return; }
@@ -6180,8 +6120,9 @@ check_bootstrap_sync() {
 
 
 # The repo is the deliverable; these floors only come down. ROADMAP.md explains why.
+# --- code legibility and complexity metrics remain within ratchet thresholds ---
 check_legibility_ratchet() {
-    echo "[98-drift-checks]   check_legibility_ratchet"
+    echo "[98-drift-checks] code legibility and complexity metrics remain within ratchet thresholds"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py legibility-ratchet
     )" || {
         _violations_from "check_legibility_ratchet: " "$out"; return; }
@@ -6190,8 +6131,9 @@ check_legibility_ratchet() {
 
 
 # Header integrity: a tagger must never absorb line 1. See AGY-1607.
+# --- source file AI-hint and license header blocks match template schema ---
 check_header_integrity() {
-    echo "[98-drift-checks]   check_header_integrity"
+    echo "[98-drift-checks] source file AI-hint and license header blocks match template schema"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py header-integrity)" || {
         _violations_from "check_header_integrity: " "$out"; return; }

@@ -45,7 +45,7 @@ MIOS_IPA_OTP="{otp}"
 """
 
     if check_mode:
-        rel = os.path.relpath(target_path, root)
+        rel = os.path.relpath(target_path, root).replace(os.sep, "/").replace("\\", "/")
         if not os.path.isfile(target_path):
             sys.stderr.write(f"[drift] {rel}: MISSING -- SSOT projection absent (ssot=usr/share/mios/mios.toml [identity.ipa])\n")
             sys.exit(1)

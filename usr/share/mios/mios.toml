@@ -6179,6 +6179,14 @@ pkgs = [
     "python3-cryptography",
 ]
 
+[virt.v2v]
+enabled = false
+output_storage = "default"
+output_network = "default"
+output_format = "qcow2"
+default_input = "disk"
+
+
 [packages.containers]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
@@ -10695,6 +10703,11 @@ mirror_files = [
   "build-mios.ps1",
   "installation/UNIFY.md",
   "installation/mios-common.ps1",
+  "installation/mios-common.sh",
+  "installation/mios-install.sh",
+  "installation/mios-install.ps1",
+  "cat/lib/cat.sh",
+  "cat/lib/MiOS-Cat.psm1",
   "etc/skel/.config/mios/system-prompt.md",
   "etc/usbguard/rules.conf",
   "installation/bin/7z.dll",
@@ -10706,7 +10719,7 @@ mirror_toml_tables = ["ports"]
 # Deliberately NOT mirrored; reasons in installation/UNIFY.md.
 not_mirrored = [
   "install.sh", "install.ps1", "bootstrap.sh", "bootstrap.ps1",
-  "installation/mios-common.sh", "README.md", "CLAUDE.md", "AGENTS.md",
+  "README.md", "CLAUDE.md", "AGENTS.md",
   "GEMINI.md", ".gitignore", "VERSION",
   ".clinerules",
   ".cursorrules",
@@ -10750,7 +10763,7 @@ sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 [ci]
 # Shrink-only. An exemption is a suite that cannot currently run, not a suite
 # that need not: each carries the reason it was measured to fail.
-max_exempt_suites = 7
+max_exempt_suites = 6
 # Harnesses, not suites. They execute the tiers rather than asserting anything
 # themselves, so they are covered without consuming the exemption ratchet.
 runners = ["tests/run-suites.sh"]
@@ -10811,6 +10824,11 @@ unit = [
     "tests/test-launch-args.py",
     "tests/test-refine-guard.py",
     "tests/test-refine-guards.py",
+    "tests/test-think-stripper.py",
+    "tests/test-atomic-writes.py",
+    "tests/test-path-normalization.py",
+    "tests/test-check-ratchet-direction.py",
+    "tests/test-bootstrap-sync-parity.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
@@ -10855,7 +10873,6 @@ tier = "unit"
 "tests/test-directory-dispatch.sh" = "dispatch returns no hits without a populated directory index, and the suite indexes hits[0] unguarded -- AGY-1715"
 "tests/test-expand-from.py" = "the open-url-fallback-chain skill resolves to not_found, so the suite sees 0 steps where it expects 3 -- AGY-1716"
 "tests/test-reflection.py" = "needs a reachable refine backend; every connection attempt fails and reflection returns None -- AGY-1717"
-"tests/test-think-stripper.py" = "the stripper leaves the separator behind, so removing a think block yields a doubled space or blank line -- AGY-1718"
 
 # The MiOS product line, named once. Each variant used to be a different shape:
 # an edition entry, its own table, or only a machine name. status is measured:

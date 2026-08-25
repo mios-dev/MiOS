@@ -51,6 +51,10 @@ lint-shell:
     @echo "[lint-shell] Running shellcheck"
     bash ./automation/lint-shell.sh
 
+drift-parity:
+    @echo "[drift-parity] Running differential parity harness"
+    bash ./tests/drift-parity.sh
+
 ps-gate:
     @echo "[ps-gate] Running PowerShell AST parse, PSScriptAnalyzer, Pester, and Signature gates"
     bash ./automation/lint-powershell.sh
