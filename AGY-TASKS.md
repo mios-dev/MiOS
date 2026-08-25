@@ -14941,3 +14941,63 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous device testing ensures container isolation boundaries are preserved across Podman updates.
 **Dep:** AGY-2123
 
+## AGY-2125 -- Composefs fs-verity root filesystem sealing and atomic image descriptor validator  (WS-BOOT | P1 | M)
+**Goal:** Mount immutable /usr using Composefs and fs-verity block-level signature verification.
+**What+How:** Implement `automation/91-composefs-seal.sh`. Enable `composefs=yes` in ostree configuration, generate fs-verity digests for all baked `/usr` files, and seal the root descriptor hash in initramfs cmdline.
+**Where:** automation/91-composefs-seal.sh, Containerfile
+**Verify:** Attempt to modify a binary in `/usr/bin/`; verify filesystem write returns read-only error and tampered blocks return `EIO`.
+**Do NOT:** Allow unverified or unsigned composefs image descriptors in production bootloader entries.
+**Done When:** Composefs seals the root filesystem and fs-verity blocks runtime binary modifications.
+**Why:** Cryptographic composefs sealing guarantees that system binaries cannot be tampered with while running.
+**Dep:** AGY-2124
+
+## AGY-2126 -- Global per-user encrypted CephFS subvolume manager with remote snapshot replication  (WS-USER | P1 | M)
+**Goal:** Provision and replicate independent encrypted home subvolumes across cluster nodes per user.
+**What+How:** Implement `usr/libexec/mios/mios-user-cephfs`. Create CephFS subvolumes for each registered user in PostgreSQL `users_registry`, apply per-user `fscrypt` encryption, and schedule hourly delta snapshots replicated to remote mesh nodes.
+**Where:** usr/libexec/mios/mios-user-cephfs, usr/lib/systemd/system/mios-user-snapshot@.timer
+**Verify:** Create user; verify CephFS subvolume mounts at `/var/home/<user>` with independent encryption and snapshots replicate over mesh.
+**Do NOT:** Expose privileged root or admin home directories to unprivileged tenant CephFS subvolumes.
+**Done When:** CephFS user manager provisions encrypted home subvolumes and replicates remote snapshots automatically.
+**Why:** Per-user CephFS subvolumes enable roaming multi-seat user workspaces with zero-knowledge snapshot security.
+**Dep:** AGY-2125
+
+## AGY-2127 -- Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser  (WS-NODE | P1 | M)
+**Goal:** Declare known hardware blades with TPM Endorsement Key fingerprints in mios.toml for automated zero-touch enrollment.
+**What+How:** Implement `usr/libexec/mios/mios-blade-enroll`. Parse `[cluster.blades]` in `mios.toml`, validate TPM EK public certificates and MAC addresses, and generate declarative hardware admission manifests for the cluster coordinator.
+**Where:** usr/libexec/mios/mios-blade-enroll, usr/share/mios/mios.toml [cluster.blades]
+**Verify:** Declare test blade with mock TPM EK fingerprint; verify `mios-blade-enroll` parses identity and generates admission policy.
+**Do NOT:** Permit enrollment of blades with missing or wildcard TPM EK certificates.
+**Done When:** SSOT parser registers declared hardware blades with valid TPM EK fingerprints.
+**Why:** Declarative pre-enrollment establishes an explicit hardware root-of-trust before blades connect to the mesh.
+**Dep:** AGY-2126
+
+## AGY-2128 -- Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon  (WS-NODE | P1 | M)
+**Goal:** Verify remote TPM quotes against pre-enrolled SSOT declarations and onboard authenticated blades automatically.
+**What+How:** Implement `usr/libexec/mios/mios-attest-server`. On node connection, challenge blade for a TPM 2.0 Quote over PCRs 0, 7, 11; verify signature against pre-enrolled EK; on match, issue WireGuard peer keys and CephFS OSD tokens; on mismatch, quarantine node.
+**Where:** usr/libexec/mios/mios-attest-server, usr/lib/systemd/system/mios-attest.service
+**Verify:** Simulate TPM Quote exchange; verify authenticated node is provisioned into mesh and unauthorized node is rejected with audit alert.
+**Do NOT:** Grant CephFS or cluster credentials to nodes failing PCR 7/11 measured boot validation.
+**Done When:** Attestation daemon authenticates pre-enrolled blades and provisions cluster mesh access automatically.
+**Why:** Automated remote attestation delivers zero-touch bare-metal scaling with complete cryptographic assurance.
+**Dep:** AGY-2127
+
+## AGY-2129 -- Peripheral hardware health evaluator and non-fatal Greenboot degradation reporter  (WS-BOOT | P1 | S)
+**Goal:** Evaluate peripheral driver health on boot and log degraded hardware states without blocking OS startup.
+**What+How:** Implement `/etc/greenboot/check/subsystems.d/20-hardware-degrade.sh`. Probe network, audio, and display controller states; if a non-critical peripheral fails, record degraded state in PostgreSQL `hardware_inventory` and exit 0 to allow Greenboot promotion.
+**Where:** /etc/greenboot/check/subsystems.d/20-hardware-degrade.sh, usr/lib/greenboot/check/subsystems.d/
+**Verify:** Simulate a missing Wi-Fi firmware blob; verify greenboot evaluates script as non-fatal pass and logs degraded hardware notice.
+**Do NOT:** Fail critical system boot on secondary peripheral driver errors.
+**Done When:** Greenboot hardware evaluator logs degraded peripherals gracefully without blocking system promotion.
+**Why:** Degrade-not-refuse ensures portable bootability across diverse consumer laptops and custom motherboards.
+**Dep:** AGY-2128
+
+## AGY-2130 -- Automated network and audio fallback manager with operator desktop alert daemon  (WS-NET | P2 | S)
+**Goal:** Switch to secondary interfaces on primary hardware failure and display actionable remediation alerts.
+**What+How:** Implement `usr/libexec/mios/mios-hardware-fallback`. If Wi-Fi is uninitialized, automatically activate Ethernet or USB tethering; if hardware audio fails, activate PipeWire dummy sink; and emit a desktop notification with suggested firmware packages.
+**Where:** usr/libexec/mios/mios-hardware-fallback, usr/lib/systemd/user/mios-hardware-fallback.service
+**Verify:** Disable Wi-Fi interface; verify fallback manager activates Ethernet and emits desktop remediation notification.
+**Do NOT:** Leave the system with zero network or audio routing when secondary interfaces are present.
+**Done When:** Hardware fallback manager routes traffic to secondary devices and alerts operator automatically.
+**Why:** Automated fallback ensures users retain system connectivity and diagnostics even when specific hardware lacks drivers.
+**Dep:** AGY-2129
+

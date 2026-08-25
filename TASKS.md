@@ -512,6 +512,12 @@
 | T-524 | P1 | open | Hardware/IPKVM | Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner |
 | T-525 | P1 | open | Hardware/CDI | Scoped CDI specification generator for NVIDIA/AMD/Intel rootless Podman containers |
 | T-526 | P2 | open | Hardware/CDITest | Rootless container GPU device isolation and cgroup v2 eBPF device filter test suite |
+| T-527 | P1 | open | Boot/Composefs | Composefs fs-verity root filesystem sealing and atomic image descriptor validator |
+| T-528 | P1 | open | Storage/CephFSUser | Global per-user encrypted CephFS subvolume manager with remote snapshot replication |
+| T-529 | P1 | open | Node/PreEnroll | Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser |
+| T-530 | P1 | open | Node/Attestation | Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon |
+| T-531 | P1 | open | Hardware/Fallback | Peripheral hardware health evaluator and non-fatal Greenboot degradation reporter |
+| T-532 | P2 | open | Hardware/Alert | Automated network and audio fallback manager with operator desktop alert daemon |
 
 ---
 
@@ -5556,4 +5562,64 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2123
 **Status:** open | **Domain:** Hardware/CDITest | **Who:** agent
 **Converted:** AGY-2124 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-527 -- Composefs fs-verity root filesystem sealing and atomic image descriptor validator (WS-BOOT | P1 | M)
+**Goal:** Mount immutable /usr using Composefs and fs-verity block-level signature verification.
+**What+How:** Implement `automation/91-composefs-seal.sh`. Enable `composefs=yes` in ostree configuration, generate fs-verity digests for all baked `/usr` files, and seal the root descriptor hash in initramfs cmdline.
+**Where:** automation/91-composefs-seal.sh, Containerfile
+**Done When:** Composefs seals the root filesystem and fs-verity blocks runtime binary modifications.
+**Why:** Cryptographic composefs sealing guarantees that system binaries cannot be tampered with while running.
+**Dep:** AGY-2124
+**Status:** open | **Domain:** Boot/Composefs | **Who:** agent
+**Converted:** AGY-2125 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-528 -- Global per-user encrypted CephFS subvolume manager with remote snapshot replication (WS-USER | P1 | M)
+**Goal:** Provision and replicate independent encrypted home subvolumes across cluster nodes per user.
+**What+How:** Implement `usr/libexec/mios/mios-user-cephfs`. Create CephFS subvolumes for each registered user in PostgreSQL `users_registry`, apply per-user `fscrypt` encryption, and schedule hourly delta snapshots replicated to remote mesh nodes.
+**Where:** usr/libexec/mios/mios-user-cephfs, usr/lib/systemd/system/mios-user-snapshot@.timer
+**Done When:** CephFS user manager provisions encrypted home subvolumes and replicates remote snapshots automatically.
+**Why:** Per-user CephFS subvolumes enable roaming multi-seat user workspaces with zero-knowledge snapshot security.
+**Dep:** AGY-2125
+**Status:** open | **Domain:** Storage/CephFSUser | **Who:** agent
+**Converted:** AGY-2126 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-529 -- Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser (WS-NODE | P1 | M)
+**Goal:** Declare known hardware blades with TPM Endorsement Key fingerprints in mios.toml for automated zero-touch enrollment.
+**What+How:** Implement `usr/libexec/mios/mios-blade-enroll`. Parse `[cluster.blades]` in `mios.toml`, validate TPM EK public certificates and MAC addresses, and generate declarative hardware admission manifests for the cluster coordinator.
+**Where:** usr/libexec/mios/mios-blade-enroll, usr/share/mios/mios.toml [cluster.blades]
+**Done When:** SSOT parser registers declared hardware blades with valid TPM EK fingerprints.
+**Why:** Declarative pre-enrollment establishes an explicit hardware root-of-trust before blades connect to the mesh.
+**Dep:** AGY-2126
+**Status:** open | **Domain:** Node/PreEnroll | **Who:** agent
+**Converted:** AGY-2127 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-530 -- Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon (WS-NODE | P1 | M)
+**Goal:** Verify remote TPM quotes against pre-enrolled SSOT declarations and onboard authenticated blades automatically.
+**What+How:** Implement `usr/libexec/mios/mios-attest-server`. On node connection, challenge blade for a TPM 2.0 Quote over PCRs 0, 7, 11; verify signature against pre-enrolled EK; on match, issue WireGuard peer keys and CephFS OSD tokens; on mismatch, quarantine node.
+**Where:** usr/libexec/mios/mios-attest-server, usr/lib/systemd/system/mios-attest.service
+**Done When:** Attestation daemon authenticates pre-enrolled blades and provisions cluster mesh access automatically.
+**Why:** Automated remote attestation delivers zero-touch bare-metal scaling with complete cryptographic assurance.
+**Dep:** AGY-2127
+**Status:** open | **Domain:** Node/Attestation | **Who:** agent
+**Converted:** AGY-2128 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-531 -- Peripheral hardware health evaluator and non-fatal Greenboot degradation reporter (WS-BOOT | P1 | S)
+**Goal:** Evaluate peripheral driver health on boot and log degraded hardware states without blocking OS startup.
+**What+How:** Implement `/etc/greenboot/check/subsystems.d/20-hardware-degrade.sh`. Probe network, audio, and display controller states; if a non-critical peripheral fails, record degraded state in PostgreSQL `hardware_inventory` and exit 0 to allow Greenboot promotion.
+**Where:** /etc/greenboot/check/subsystems.d/20-hardware-degrade.sh, usr/lib/greenboot/check/subsystems.d/
+**Done When:** Greenboot hardware evaluator logs degraded peripherals gracefully without blocking system promotion.
+**Why:** Degrade-not-refuse ensures portable bootability across diverse consumer laptops and custom motherboards.
+**Dep:** AGY-2128
+**Status:** open | **Domain:** Hardware/Fallback | **Who:** agent
+**Converted:** AGY-2129 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-532 -- Automated network and audio fallback manager with operator desktop alert daemon (WS-NET | P2 | S)
+**Goal:** Switch to secondary interfaces on primary hardware failure and display actionable remediation alerts.
+**What+How:** Implement `usr/libexec/mios/mios-hardware-fallback`. If Wi-Fi is uninitialized, automatically activate Ethernet or USB tethering; if hardware audio fails, activate PipeWire dummy sink; and emit a desktop notification with suggested firmware packages.
+**Where:** usr/libexec/mios/mios-hardware-fallback, usr/lib/systemd/user/mios-hardware-fallback.service
+**Done When:** Hardware fallback manager routes traffic to secondary devices and alerts operator automatically.
+**Why:** Automated fallback ensures users retain system connectivity and diagnostics even when specific hardware lacks drivers.
+**Dep:** AGY-2129
+**Status:** open | **Domain:** Hardware/Alert | **Who:** agent
+**Converted:** AGY-2130 carries this forward with a Verify line that fails when the behaviour is absent.
 
