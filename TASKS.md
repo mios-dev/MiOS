@@ -508,6 +508,60 @@
 | T-594 | P2 | open | Network/KillSwitchTest | Automated VPN disconnect IP leak prevention and local mesh routing verification test suite |
 | T-595 | P1 | open | Network/NATTraversal | Tiered NAT traversal engine (UPnP, NAT-PMP, STUN hole punching, DERP relay) in mios-nat-traversal |
 | T-596 | P2 | open | Network/NATTest | Automated symmetric NAT hole punching and DERP relay failover test suite |
+| T-597 | P1 | open | Storage/Bcachefs | Declarative Bcachefs multi-device storage tiering configurator in automation |
+| T-598 | P2 | open | Storage/BcachefsTest | Automated Bcachefs tier promotion and hot/cold block migration benchmark suite |
+| T-599 | P1 | open | Telemetry/LogArchive | Structured Parquet log archival daemon and episodic vector indexer in mios-log-archiver |
+| T-600 | P2 | open | Telemetry/LogTest | Automated journal compaction, Parquet query performance, and vector retrieval benchmark suite |
+| T-601 | P1 | open | Network/ServiceMesh | Declarative Traefik / Envoy service mesh proxy generator and Unix socket router |
+| T-602 | P2 | open | Network/MeshTest | Automated service mesh routing, Unix socket latency, and OpenTelemetry trace propagation test suite |
+| T-603 | P1 | open | Git/Worktree | Ephemeral subagent git worktree lifecycle manager and branch pruner in agent-pipe |
+| T-604 | P2 | open | Git/WorktreeTest | Automated subagent worktree creation, merge, and scratch cleanup test suite |
+| T-605 | P1 | open | AI/HTTPXTransport | Async HTTPX transport client pool and stream decoder in agent-pipe |
+| T-606 | P2 | open | AI/HTTPXTest | Automated HTTPX async transport, Unix socket adapter, and stream benchmark suite |
+| T-607 | P1 | open | UI/LibeiInput | Libei emulated input provider and Wayland portal input injector in mios-pc-control |
+| T-608 | P2 | open | UI/InputTest | Automated synthetic mouse/keyboard input injection and session boundary test suite |
+| T-609 | P1 | open | Database/Vacuum | Declarative PostgreSQL autovacuum tuner, pg_cron scheduler, and concurrent HNSW reindexer |
+| T-610 | P2 | open | Database/MaintTest | Automated PostgreSQL dead tuple vacuuming and concurrent HNSW index reindexing test suite |
+| T-611 | P1 | open | Hardware/Watchdog | Tiered hardware watchdog driver configurator and systemd watchdog integration |
+| T-612 | P2 | open | Hardware/WDTTest | Automated systemd daemon freeze watchdog timeout and recovery test suite |
+| T-613 | P1 | open | Audio/BluetoothHD | WirePlumber high-fidelity Bluetooth policy manager and virtual loopback provisioner |
+| T-614 | P2 | open | Audio/LoopbackTest | Automated PipeWire Bluetooth codec negotiation and virtual loopback isolation test suite |
+| T-615 | P1 | open | Git/MergeFuzz | Continuous differential AST git merge fuzzing harness and mutation generator |
+| T-616 | P2 | open | Git/MergeStressTest | Automated AST merge conflict stress test and compiler syntax verification suite |
+| T-617 | P1 | open | Hardware/IOMMU | Strict IOMMU DMA remapper and PCIe ACS group validator in automation |
+| T-618 | P2 | open | Hardware/IOMMUTest | Automated IOMMU group isolation and peer-to-peer DMA containment test suite |
+| T-619 | P1 | open | Config/DriftAudit | Declarative configuration drift auditor and 3-way OCI overlay reconciler |
+| T-620 | P2 | open | Config/DriftTest | Automated configuration drift detection and state reconciliation test suite |
+| T-621 | P1 | open | Cluster/RaftLeader | Embedded Raft consensus coordinator and Patroni HA database failover engine |
+| T-622 | P2 | open | Cluster/RaftTest | Automated Raft leader election, split-brain partition prevention, and failover test suite |
+| T-623 | P1 | open | Hardware/FanControl | Multi-zone hysteresis PID fan curve controller and hwmon sensor mapper in mios-fand |
+| T-624 | P2 | open | Hardware/FanTest | Automated thermal load ramp, fan curve hysteresis, and acoustic stabilization benchmark suite |
+| T-625 | P1 | open | UI/WebRTCStream | PipeWire DMA-BUF WebRTC remote desktop streamer and portal authorization bridge |
+| T-626 | P2 | open | UI/WebRTCTest | Automated WebRTC zero-copy video encode latency and session authorization test suite |
+| T-627 | P1 | open | Security/SecretMem | Secure in-memory secret enclave runtime (mlock, MADV_DONTDUMP, explicit_bzero) |
+| T-628 | P2 | open | Security/MemDumpTest | Automated memory dump secret leakage and zeroization verification test suite |
+| T-629 | P1 | open | AI/VRAMSwap | Dynamic host RAM layer swapping and LRU KV-cache paging manager in llama-swap |
+| T-630 | P2 | open | AI/VRAMTest | Automated multi-model VRAM swapping, KV-cache paging latency, and session preservation test suite |
+| T-631 | P1 | open | AI/GPUSched | CUDA/ROCm compute stream priority scheduler and background preemption manager |
+| T-632 | P2 | open | AI/GPUSchedTest | Automated GPU compute preemption latency and training resumption verification test suite |
+| T-633 | P1 | open | Hardware/Energyd | Declarative RAPL / NVML hardware energy metering and chassis power cap manager |
+| T-634 | P2 | open | Hardware/EnergyTest | Automated power cap enforcement and carbon-aware batch scheduling benchmark suite |
+| T-635 | P1 | open | AI/PromptCache | Radix tree prefix hash cache manager and prompt KV warm-starter in llama-swap |
+| T-636 | P2 | open | AI/PromptCacheTest | Automated prefix cache hit rate and sub-20ms time-to-first-token benchmark suite |
+| T-637 | P1 | open | AI/PagedAttention | PagedAttention virtual block memory manager and asynchronous KV defragmenter |
+| T-638 | P2 | open | AI/PagedAttnTest | Automated PagedAttention fragmentation resistance and 100-session concurrency benchmark suite |
+| T-639 | P1 | open | Storage/DiskHealth | Predictive S.M.A.R.T. drive health monitor and automated CephFS evacuation manager |
+| T-640 | P2 | open | Storage/EvacTest | Automated S.M.A.R.T. predictive failure simulation and proactive data evacuation test suite |
+| T-641 | P1 | open | Kernel/CrashTriage | Headless kernel crash dump triage engine (drgn / crash) and symbol resolver |
+| T-642 | P2 | open | Kernel/TriageTest | Automated kernel vmcore analysis and PostgreSQL bug ticket creation test suite |
+| T-643 | P1 | open | Security/USBGuard | Declarative USBGuard policy generator and desktop authorization notifier in automation |
+| T-644 | P2 | open | Security/BadUSBTest | Automated BadUSB keystroke injection block and USB authorization test suite in virtual USB sandbox |
+| T-645 | P1 | open | App/StateSnapshot | Per-app Flatpak state subvolume snapshotter and rollback manager in mios-app-snapshot |
+| T-646 | P2 | open | App/RollbackTest | Automated Flatpak application state corruption and instant rollback test suite |
+| T-647 | P1 | open | Build/LiveISO | Hybrid live ISO and iPXE netboot artifact synthesis pipeline using BIB |
+| T-648 | P2 | open | Build/NetbootTest | Automated headless QEMU iPXE netboot and live ISO installation test suite |
+| T-649 | P1 | open | AI/TensorKernels | GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher |
+| T-650 | P2 | open | AI/KernelTest | Automated GPU Tensor Core throughput and GEMM dispatch latency benchmark suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -6326,4 +6380,544 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2193
 **Status:** open | **Domain:** Network/NATTest | **Who:** agent
 **Converted:** AGY-2194 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-597 -- Declarative Bcachefs multi-device storage tiering configurator in automation (WS-STRG | P1 | M)
+**Goal:** Format and configure multi-device Bcachefs pools with NVMe hot targets and HDD bulk storage tiers.
+**What+How:** Implement `automation/13-bcachefs-tiering.sh`. Parse `[storage.bcachefs_tiers]` in `mios.toml`; format multi-device filesystem with `bcachefs format --label=nvme.hot /dev/nvme0n1 --label=hdd.bulk /dev/sda --foreground_target=nvme.hot --promote_target=nvme.hot --background_target=hdd.bulk`; configure `/etc/fstab` mount options.
+**Where:** automation/13-bcachefs-tiering.sh, automation/12-disk-partition.sh
+**Done When:** Bcachefs configurator provisions multi-device storage tiers with automated block promotion/demotion.
+**Why:** In-kernel multi-device tiering delivers 5GB/s+ model weight loading speeds without wasting expensive NVMe capacity on cold backups.
+**Dep:** AGY-2194
+**Status:** open | **Domain:** Storage/Bcachefs | **Who:** agent
+**Converted:** AGY-2195 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-598 -- Automated Bcachefs tier promotion and hot/cold block migration benchmark suite (WS-STRG | P2 | S)
+**Goal:** Verify in automated benchmarks that frequently accessed blocks promote to NVMe and achieve >3GB/s read throughput.
+**What+How:** Add `tests/test-bcachefs-tier-promotion.sh`. Write cold file to HDD tier; repeatedly read file; assert Bcachefs promotes extents to NVMe tier and read throughput ramps from 150MB/s to >3GB/s.
+**Where:** tests/test-bcachefs-tier-promotion.sh, tools/ci-suites.py
+**Done When:** Benchmark suite confirms in-kernel block promotion delivers high-throughput NVMe read performance.
+**Why:** Continuous testing ensures filesystem upgrades maintain kernel block caching and promotion efficiency.
+**Dep:** AGY-2195
+**Status:** open | **Domain:** Storage/BcachefsTest | **Who:** agent
+**Converted:** AGY-2196 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-599 -- Structured Parquet log archival daemon and episodic vector indexer in mios-log-archiver (WS-RAG | P1 | M)
+**Goal:** Compress historical journal logs to columnar Parquet files and index diagnostic error clusters into pgvector.
+**What+How:** Implement `usr/libexec/mios/mios-log-archiver`. Configure `journald.conf` with `SystemMaxUse=2G`; hourly worker exports expired journal logs to compressed Parquet files under `/var/log/archive/`; clusters warnings/errors; generates embeddings via `nomic-embed-text`; and inserts vectors into `system_logs_rag` table.
+**Where:** usr/libexec/mios/mios-log-archiver, usr/lib/systemd/system/mios-log-archiver.timer
+**Done When:** Log archiver compacts journal logs to Parquet and indexes error clusters into pgvector automatically.
+**Why:** Columnar log compaction saves 85%+ disk space while vector indexing enables instant natural-language root cause diagnosis.
+**Dep:** AGY-2196
+**Status:** open | **Domain:** Telemetry/LogArchive | **Who:** agent
+**Converted:** AGY-2197 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-600 -- Automated journal compaction, Parquet query performance, and vector retrieval benchmark suite (WS-RAG | P2 | S)
+**Goal:** Verify in automated CI that Parquet compression achieves >80% reduction and vector queries return in <50ms.
+**What+How:** Add `tests/test-log-parquet-rag.sh`. Ingest 50,000 synthetic log records; assert Parquet file size is <20% of raw journal text; query semantic error 'kernel out of memory'; assert pgvector returns matching log record in <50ms.
+**Where:** tests/test-log-parquet-rag.sh, tools/ci-suites.py
+**Done When:** Test suite validates Parquet log compression and semantic diagnostic vector retrieval.
+**Why:** Continuous testing ensures telemetry systems deliver fast diagnostic answers without bloating host disk usage.
+**Dep:** AGY-2197
+**Status:** open | **Domain:** Telemetry/LogTest | **Who:** agent
+**Converted:** AGY-2198 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-601 -- Declarative Traefik / Envoy service mesh proxy generator and Unix socket router (WS-NET | P1 | M)
+**Goal:** Generate dynamic proxy routing configurations from mios.toml with Unix socket fast-paths and W3C trace propagation.
+**What+How:** Implement `usr/libexec/mios/mios-mesh-gen`. Parse `[network.routes]` in `mios.toml`; generate Traefik / Envoy dynamic configuration binding localhost traffic to `/run/mios/sockets/*.sock` Unix domain sockets; configure mTLS for cross-node routes; and inject W3C `traceparent` headers.
+**Where:** usr/libexec/mios/mios-mesh-gen, usr/share/containers/systemd/mios-traefik.container
+**Done When:** Mesh generator creates declarative proxy routing rules and binds Unix sockets dynamically.
+**Why:** Declarative service mesh provides high-performance Unix socket routing locally and encrypted mTLS across nodes.
+**Dep:** AGY-2198
+**Status:** open | **Domain:** Network/ServiceMesh | **Who:** agent
+**Converted:** AGY-2199 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-602 -- Automated service mesh routing, Unix socket latency, and OpenTelemetry trace propagation test suite (WS-NET | P2 | S)
+**Goal:** Verify in automated CI that proxy routing achieves <1ms latency over Unix sockets and propagates trace IDs.
+**What+How:** Add `tests/test-service-mesh-routing.sh`. Send 1,000 HTTP requests through proxy over Unix socket; assert latency < 1ms; assert upstream receives valid W3C `traceparent` header and metrics record in OpenTelemetry collector.
+**Where:** tests/test-service-mesh-routing.sh, tools/ci-suites.py
+**Done When:** Test suite validates service mesh routing speed, Unix socket efficiency, and trace propagation.
+**Why:** Continuous testing ensures proxy upgrades do not introduce latency overhead or drop distributed trace contexts.
+**Dep:** AGY-2199
+**Status:** open | **Domain:** Network/MeshTest | **Who:** agent
+**Converted:** AGY-2200 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-603 -- Ephemeral subagent git worktree lifecycle manager and branch pruner in agent-pipe (WS-GIT | P1 | M)
+**Goal:** Manage isolated git worktrees for subagents and prune merged branches and scratch directories automatically.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_worktree.py`. On subagent spawn, create `git worktree add /tmp/agent-workspaces/<subagent_id> -b agent/<subagent_id>`; on completion or failure, commit verified diffs, execute `git worktree remove --force`, delete merged branch, and scrub `/var/lib/mios/ai/scratch/<subagent_id>/`.
+**Where:** usr/lib/mios/agent-pipe/mios_worktree.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** Worktree manager provisions and cleans up subagent worktrees and topic branches deterministically.
+**Why:** Isolated worktrees enable concurrent subagent operations without stepping on active developer files.
+**Dep:** AGY-2200
+**Status:** open | **Domain:** Git/Worktree | **Who:** agent
+**Converted:** AGY-2201 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-604 -- Automated subagent worktree creation, merge, and scratch cleanup test suite (WS-GIT | P2 | S)
+**Goal:** Verify in automated CI that 10 concurrent subagent worktrees merge and clean up with 0 leftover artifacts.
+**What+How:** Add `tests/test-agent-worktree-lifecycle.sh`. Launch 10 parallel subagent tasks creating and deleting worktrees; assert all 10 changes merge cleanly; assert `git worktree list` shows only main branch and scratch directory has 0 orphaned files.
+**Where:** tests/test-agent-worktree-lifecycle.sh, tools/ci-suites.py
+**Done When:** Test suite validates subagent worktree isolation, merging, and zero-residual cleanup.
+**Why:** Continuous testing ensures autonomous agents do not leak temporary files or lock git working trees.
+**Dep:** AGY-2201
+**Status:** open | **Domain:** Git/WorktreeTest | **Who:** agent
+**Converted:** AGY-2202 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-605 -- Async HTTPX transport client pool and stream decoder in agent-pipe (WS-AI | P1 | M)
+**Goal:** Implement native HTTPX async transport pooling with Unix domain socket support and stream decoding.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_httpx.py`. Wrap `httpx.AsyncClient` with HTTP/2 connection multiplexing, custom `UDSHTTPTransport` for local container sockets, streaming response parsing via Trafilatura, and structured HTTPX response conversion for agent tool pipelines.
+**Where:** usr/lib/mios/agent-pipe/mios_httpx.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** HTTPX transport pool handles async web requests and local UDS container streams natively.
+**Why:** Native HTTPX transports provide high-throughput async streaming, HTTP/2 multiplexing, and UDS fast-paths.
+**Dep:** AGY-2202
+**Status:** open | **Domain:** AI/HTTPXTransport | **Who:** agent
+**Converted:** AGY-2203 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-606 -- Automated HTTPX async transport, Unix socket adapter, and stream benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that HTTPX transport achieves >500 req/s on UDS and parses streaming responses in <20ms.
+**What+How:** Add `tests/test-httpx-async-transports.sh`. Benchmark HTTPX async transport against local mock UDS server and remote HTTP/2 endpoint; assert UDS throughput > 500 req/s, stream chunk latency < 20ms, and connection reuse > 99%.
+**Where:** tests/test-httpx-async-transports.sh, tools/ci-suites.py
+**Done When:** Test suite validates HTTPX connection pooling, stream decoding, and UDS transport performance.
+**Why:** Continuous testing ensures HTTPX client upgrades do not introduce stream buffering regressions.
+**Dep:** AGY-2203
+**Status:** open | **Domain:** AI/HTTPXTest | **Who:** agent
+**Converted:** AGY-2204 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-607 -- Libei emulated input provider and Wayland portal input injector in mios-pc-control (WS-APP | P1 | M)
+**Goal:** Inject synthetic mouse clicks and keyboard events securely over the Libei emulated input protocol.
+**What+How:** Implement `usr/libexec/mios/mios-libei-injector`. Connect to `org.freedesktop.portal.RemoteDesktop` or Libei EIS socket; request emulated pointer and keyboard devices; map normalized coordinates to Wayland display pixels; and render on-screen visual ripple indicators during automated clicks.
+**Where:** usr/libexec/mios/mios-libei-injector, usr/bin/mios-pc-control
+**Done When:** Libei input injector emits synthetic clicks, keypresses, and gestures over Wayland securely.
+**Why:** Libei input emulation provides safe, session-scoped desktop automation without opening system-wide keylogging attack vectors.
+**Dep:** AGY-2204
+**Status:** open | **Domain:** UI/LibeiInput | **Who:** agent
+**Converted:** AGY-2205 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-608 -- Automated synthetic mouse/keyboard input injection and session boundary test suite (WS-APP | P2 | S)
+**Goal:** Verify in automated CI that synthetic input events trigger expected UI actions and respect session boundaries.
+**What+How:** Add `tests/test-libei-synthetic-input.sh`. Launch headless Wayland compositor (Weston/Mutter); emit synthetic mouse move, click, and typing events; assert focused test window receives keystrokes and button press events with <5ms latency.
+**Where:** tests/test-libei-synthetic-input.sh, tools/ci-suites.py
+**Done When:** Test suite validates Libei synthetic input delivery and event timing precision.
+**Why:** Continuous testing ensures Wayland compositor updates do not break autonomous GUI computer use.
+**Dep:** AGY-2205
+**Status:** open | **Domain:** UI/InputTest | **Who:** agent
+**Converted:** AGY-2206 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-609 -- Declarative PostgreSQL autovacuum tuner, pg_cron scheduler, and concurrent HNSW reindexer (WS-RAG | P1 | M)
+**Goal:** Optimize PostgreSQL table maintenance with tuned autovacuum, nightly pg_cron schedules, and concurrent HNSW reindexing.
+**What+How:** Implement `automation/43-pg-maintenance.sh`. Configure `/etc/postgresql/postgresql.conf.d/10-maintenance.conf` with aggressive autovacuum scale factors for high-churn tables; deploy `pg_cron` extension to execute `REINDEX TABLE CONCURRENTLY` on vector indices at 03:00 UTC; configure `archive_command` with `zstd` WAL compression.
+**Where:** automation/43-pg-maintenance.sh, usr/share/containers/systemd/mios-pgvector.container
+**Done When:** PostgreSQL maintenance daemon vacuums tables and reindexes HNSW indices with zero service downtime.
+**Why:** Continuous non-blocking maintenance preserves sub-10ms vector search latency and prevents database disk bloat.
+**Dep:** AGY-2206
+**Status:** open | **Domain:** Database/Vacuum | **Who:** agent
+**Converted:** AGY-2207 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-610 -- Automated PostgreSQL dead tuple vacuuming and concurrent HNSW index reindexing test suite (WS-RAG | P2 | S)
+**Goal:** Verify in automated CI that concurrent reindexing succeeds during live read/write queries with zero deadlocks.
+**What+How:** Add `tests/test-pgvector-maintenance-concurrency.sh`. Run continuous concurrent vector search and insert workloads while triggering `REINDEX TABLE CONCURRENTLY`; assert zero deadlocks, zero dropped queries, and index scan latency remains < 15ms.
+**Where:** tests/test-pgvector-maintenance-concurrency.sh, tools/ci-suites.py
+**Done When:** Test suite validates that PostgreSQL autovacuum and concurrent reindexing operate safely under active load.
+**Why:** Continuous testing ensures database maintenance algorithms never disrupt live agent reasoning loops.
+**Dep:** AGY-2207
+**Status:** open | **Domain:** Database/MaintTest | **Who:** agent
+**Converted:** AGY-2208 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-611 -- Tiered hardware watchdog driver configurator and systemd watchdog integration (WS-BOOT | P1 | M)
+**Goal:** Configure hardware /dev/watchdog devices and systemd RuntimeWatchdogSec to recover frozen nodes automatically.
+**What+How:** Implement `automation/21-watchdog.sh`. Probe hardware watchdog modules (`iTCO_wdt`, `sp5100_tco`, `ipmi_watchdog`); configure `/etc/systemd/system.conf.d/10-watchdog.conf` with `RuntimeWatchdogSec=30s`, `RebootWatchdogSec=60s`, and `KExecWatchdogSec=180s`; configure `WatchdogSec=15s` on core agent Quadlets.
+**Where:** automation/21-watchdog.sh, etc/systemd/system.conf.d/10-watchdog.conf
+**Done When:** Watchdog configurator binds hardware watchdog and enforces systemd service ping loops.
+**Why:** Hardware watchdogs guarantee autonomous node recovery from hard kernel deadlocks or unresponsive agent daemons.
+**Dep:** AGY-2208
+**Status:** open | **Domain:** Hardware/Watchdog | **Who:** agent
+**Converted:** AGY-2209 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-612 -- Automated systemd daemon freeze watchdog timeout and recovery test suite (WS-BOOT | P2 | S)
+**Goal:** Verify in automated CI that an unresponsive daemon triggers systemd service restart via watchdog timeout.
+**What+How:** Add `tests/test-systemd-watchdog-restart.sh`. Launch test daemon with `WatchdogSec=5s`; freeze daemon event loop with `kill -STOP`; assert systemd detects missed pings, terminates frozen process with `SIGABRT`, and restarts unit within 10s.
+**Where:** tests/test-systemd-watchdog-restart.sh, tools/ci-suites.py
+**Done When:** Test suite validates that missed watchdog pings trigger automated service recovery.
+**Why:** Continuous testing ensures systemd watchdog policies recover stalled agent processes without manual operator intervention.
+**Dep:** AGY-2209
+**Status:** open | **Domain:** Hardware/WDTTest | **Who:** agent
+**Converted:** AGY-2210 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-613 -- WirePlumber high-fidelity Bluetooth policy manager and virtual loopback provisioner (WS-APP | P1 | M)
+**Goal:** Configure WirePlumber for LDAC/AptX HD codec auto-negotiation and deploy persistent virtual audio loopbacks.
+**What+How:** Implement `automation/26-wireplumber-hd.sh`. Configure `/etc/wireplumber/wireplumber.conf.d/50-bluez.conf` to prioritize LDAC > AptX-HD > AAC; create `/etc/pipewire/pipewire.conf.d/20-virtual-loopbacks.conf` defining `Virtual-Agent-Mic` and `Virtual-Agent-Speaker` nodes with sample rate locked to 48kHz.
+**Where:** automation/26-wireplumber.sh, usr/share/pipewire/pipewire.conf.d/
+**Done When:** WirePlumber negotiates high-bitrate Bluetooth codecs and creates isolated virtual audio loopback channels.
+**Why:** High-fidelity Bluetooth codecs and virtual loopbacks deliver audiophile-grade playback and echo-free agent voice isolation.
+**Dep:** AGY-2210
+**Status:** open | **Domain:** Audio/BluetoothHD | **Who:** agent
+**Converted:** AGY-2211 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-614 -- Automated PipeWire Bluetooth codec negotiation and virtual loopback isolation test suite (WS-APP | P2 | S)
+**Goal:** Verify in automated CI that virtual audio loopbacks prevent acoustic cross-talk and maintain 0 buffer xruns.
+**What+How:** Add `tests/test-pipewire-virtual-loopbacks.sh`. Stream test tone into `Virtual-Agent-Speaker`; record from `Virtual-Agent-Mic`; assert isolation attenuation > 60dB and assert `pw-top` reports 0 buffer errors over 60s stream.
+**Where:** tests/test-pipewire-virtual-loopbacks.sh, tools/ci-suites.py
+**Done When:** Test suite validates audio isolation and zero-crackling performance across virtual audio sinks.
+**Why:** Continuous testing ensures audio server upgrades maintain acoustic isolation between voice synthesis and microphone input.
+**Dep:** AGY-2211
+**Status:** open | **Domain:** Audio/LoopbackTest | **Who:** agent
+**Converted:** AGY-2212 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-615 -- Continuous differential AST git merge fuzzing harness and mutation generator (WS-GIT | P1 | M)
+**Goal:** Generate randomized structural AST code mutations and fuzz Tree-Sitter semantic merge algorithms.
+**What+How:** Implement `tools/fuzz-git-merge.py`. Generate randomized Python, Rust, and TOML AST mutations; create diverging branch pairs; invoke `mios-git-ast-merge`; verify merged code parses with Tree-Sitter and compiles with `ruff`/`cargo check`; and log any crashes to PostgreSQL `bug_tracker`.
+**Where:** tools/fuzz-git-merge.py, usr/libexec/mios/mios-git-ast-merge
+**Done When:** Differential merge fuzzer stress-tests AST merge algorithms and logs reproducible reproducers.
+**Why:** Continuous merge fuzzing guarantees that automated agent code merges never introduce silent syntax corruptions.
+**Dep:** AGY-2212
+**Status:** open | **Domain:** Git/MergeFuzz | **Who:** agent
+**Converted:** AGY-2213 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-616 -- Automated AST merge conflict stress test and compiler syntax verification suite (WS-GIT | P2 | S)
+**Goal:** Verify in automated CI that high-concurrency AST merges maintain 100% compiler syntax correctness.
+**What+How:** Add `tests/test-git-merge-concurrency.sh`. Simulate 20 concurrent agent branches editing shared TOML and Python modules; execute automated batch merge; assert all resulting files pass `taplo lint` and `python -m py_compile` with zero errors.
+**Where:** tests/test-git-merge-concurrency.sh, tools/ci-suites.py
+**Done When:** Test suite validates high-concurrency AST merge stability and compiler correctness.
+**Why:** Continuous testing ensures that multi-agent development swarms can collaborate without merge collisions.
+**Dep:** AGY-2213
+**Status:** open | **Domain:** Git/MergeStressTest | **Who:** agent
+**Converted:** AGY-2214 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-617 -- Strict IOMMU DMA remapper and PCIe ACS group validator in automation (WS-VFIO | P1 | M)
+**Goal:** Enforce hardware IOMMU translation (iommu=force) and validate PCIe ACS isolation before device assignment.
+**What+How:** Implement `automation/27-iommu-guard.sh`. Configure UKI kargs `intel_iommu=on amd_iommu=on iommu=force iommu.passthrough=0`; implement `usr/libexec/mios/mios-iommu-validate` to parse `/sys/kernel/iommu_groups/`, verifying target passthrough devices reside in isolated IOMMU groups with ACS enabled.
+**Where:** automation/27-iommu.sh, usr/libexec/mios/mios-iommu-validate
+**Done When:** IOMMU guard validates hardware isolation and blocks unsafe DMA device passthrough.
+**Why:** Strict IOMMU DMA remapping prevents virtual machines and peripheral firmware from tampering with host RAM.
+**Dep:** AGY-2214
+**Status:** open | **Domain:** Hardware/IOMMU | **Who:** agent
+**Converted:** AGY-2215 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-618 -- Automated IOMMU group isolation and peer-to-peer DMA containment test suite (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that devices in separate IOMMU groups cannot execute unauthorized peer DMA reads.
+**What+How:** Add `tests/test-iommu-dma-containment.sh`. Simulate virtual PCIe device in isolated IOMMU group; attempt DMA read to memory address outside allocated guest RAM; assert kernel IOMMU hardware fault event is logged in dmesg and access is blocked.
+**Where:** tests/test-iommu-dma-containment.sh, tools/ci-suites.py
+**Done When:** Test suite validates hardware IOMMU DMA containment and fault logging.
+**Why:** Continuous testing ensures kernel updates maintain strict IOMMU memory protection boundaries.
+**Dep:** AGY-2215
+**Status:** open | **Domain:** Hardware/IOMMUTest | **Who:** agent
+**Converted:** AGY-2216 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-619 -- Declarative configuration drift auditor and 3-way OCI overlay reconciler (WS-CONFIG | P1 | M)
+**Goal:** Audit /etc configuration drift against mios.toml and provide atomic reconciliation commands.
+**What+How:** Implement `usr/libexec/mios/mios-drift-audit`. Compute SHA-256 digests of files in `/etc/mios/` and `/etc/` against vendor `/usr/share/mios/`; flag uncommitted drift in `mios status` and MOTD; implement `mios config sync --reconcile` to commit valid delta to `mios.toml` or reset drifted files back to immutable vendor state.
+**Where:** usr/libexec/mios/mios-drift-audit, usr/lib/mios/cli/cmd_config.py
+**Done When:** Drift auditor detects un-tracked /etc modifications and reconciles state with SSOT cleanly.
+**Why:** Continuous drift auditing preserves immutable reproducibility without sacrificing operator customization.
+**Dep:** AGY-2216
+**Status:** open | **Domain:** Config/DriftAudit | **Who:** agent
+**Converted:** AGY-2217 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-620 -- Automated configuration drift detection and state reconciliation test suite (WS-CONFIG | P2 | S)
+**Goal:** Verify in automated CI that drift detection flags all /etc modifications and reconciliation restores base state.
+**What+How:** Add `tests/test-config-drift-reconcile.sh`. Inject 5 modified configuration files in `/etc/`; assert `mios-drift-audit` detects all 5 files with exact SHA-256 diffs; trigger `mios config sync --reset`; assert all 5 files restore to matching vendor hashes.
+**Where:** tests/test-config-drift-reconcile.sh, tools/ci-suites.py
+**Done When:** Test suite validates configuration drift auditing and atomic state reconciliation.
+**Why:** Continuous testing ensures system configuration integrity remains deterministic across self-rebuilding cycles.
+**Dep:** AGY-2217
+**Status:** open | **Domain:** Config/DriftTest | **Who:** agent
+**Converted:** AGY-2218 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-621 -- Embedded Raft consensus coordinator and Patroni HA database failover engine (WS-NODE | P1 | M)
+**Goal:** Manage distributed Raft cluster consensus, leader election, and sub-3s PostgreSQL database failover.
+**What+How:** Implement `automation/60-cluster-raft.sh`. Deploy lightweight embedded Raft coordinator (etcd / k3s); deploy Patroni HA manager in `usr/share/containers/systemd/mios-patroni.container`; enforce quorum gating on state changes; and promote standby database to leader in <3s upon leader heartbeat timeout.
+**Where:** automation/60-cluster.sh, usr/share/containers/systemd/mios-patroni.container
+**Done When:** Raft coordinator elects cluster leaders and executes sub-3s database failover cleanly.
+**Why:** Embedded Raft consensus eliminates single points of failure across multi-blade local clusters.
+**Dep:** AGY-2218
+**Status:** open | **Domain:** Cluster/RaftLeader | **Who:** agent
+**Converted:** AGY-2219 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-622 -- Automated Raft leader election, split-brain partition prevention, and failover test suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that network partitions isolate minority nodes and prevent split-brain writes.
+**What+How:** Add `tests/test-cluster-raft-partition.sh`. Create a 3-node virtual cluster; partition Node 3 using `iptables`; assert Node 1 & 2 maintain quorum and accept writes; assert Node 3 blocks writes and rejoins state machine cleanly upon network recovery.
+**Where:** tests/test-cluster-raft-partition.sh, tools/ci-suites.py
+**Done When:** Test suite validates Raft quorum preservation and split-brain write rejection.
+**Why:** Continuous testing guarantees cluster state machine correctness under real-world network partition failures.
+**Dep:** AGY-2219
+**Status:** open | **Domain:** Cluster/RaftTest | **Who:** agent
+**Converted:** AGY-2220 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-623 -- Multi-zone hysteresis PID fan curve controller and hwmon sensor mapper in mios-fand (WS-NODE | P1 | M)
+**Goal:** Modulate chassis and GPU fans smoothly across multi-zone PID curves with 5°C hysteresis to eliminate acoustic pulsing.
+**What+How:** Implement `usr/libexec/mios/mios-fand`. Discover `/sys/class/hwmon/` PWM controls and IPMI fan channels; parse `[hardware.fan_zones]` in `mios.toml`; compute PID target RPM based on zone temperatures (CPU, GPU, NVMe); enforce 5°C hysteresis deadbands; and rate-limit RPM ramp transitions to <200 RPM/sec.
+**Where:** usr/libexec/mios/mios-fand, usr/lib/systemd/system/mios-fand.service
+**Done When:** Fan daemon regulates multi-zone fan RPMs smoothly with hysteresis and acoustic damping.
+**Why:** Smooth multi-zone fan control ensures silent idle operation and effective cooling during sustained AI training.
+**Dep:** AGY-2220
+**Status:** open | **Domain:** Hardware/FanControl | **Who:** agent
+**Converted:** AGY-2221 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-624 -- Automated thermal load ramp, fan curve hysteresis, and acoustic stabilization benchmark suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that fan speed controller eliminates rapid oscillations and stabilizes junction temperatures.
+**What+How:** Add `tests/test-fan-pid-hysteresis.sh`. Simulate step-function temperature swings; assert fan PWM values change monotonically without rapid oscillation (hysteresis stability); assert simulated temperatures remain within target cooling bounds.
+**Where:** tests/test-fan-pid-hysteresis.sh, tools/ci-suites.py
+**Done When:** Test suite validates PID fan curve smoothness, monotonic ramp rates, and hysteresis damping.
+**Why:** Continuous testing ensures fan controller updates do not cause acoustic whining or thermal runaways.
+**Dep:** AGY-2221
+**Status:** open | **Domain:** Hardware/FanTest | **Who:** agent
+**Converted:** AGY-2222 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-625 -- PipeWire DMA-BUF WebRTC remote desktop streamer and portal authorization bridge (WS-APP | P1 | M)
+**Goal:** Stream 4K60 desktop video over WebRTC with <15ms latency using zero-copy PipeWire DMA-BUF hardware encoding.
+**What+How:** Implement `usr/bin/mios-remote`. Request screen cast stream via `org.freedesktop.portal.ScreenCast`; capture DMA-BUF GPU surfaces directly into hardware NVENC/VA-API encoder; transmit encrypted H.264/AV1 stream over WebRTC; and display an active session indicator on GNOME top bar with instant revoke button.
+**Where:** usr/bin/mios-remote, usr/libexec/mios/mios-webrtc-streamer
+**Done When:** WebRTC streamer transmits hardware-accelerated desktop video with portal authorization.
+**Why:** Zero-copy DMA-BUF WebRTC streaming provides fluid remote assistance without taxing CPU cores.
+**Dep:** AGY-2222
+**Status:** open | **Domain:** UI/WebRTCStream | **Who:** agent
+**Converted:** AGY-2223 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-626 -- Automated WebRTC zero-copy video encode latency and session authorization test suite (WS-APP | P2 | S)
+**Goal:** Verify in automated CI that DMA-BUF encoding achieves <15ms latency and unapproved streams are blocked.
+**What+How:** Add `tests/test-webrtc-stream-latency.sh`. Launch test Wayland display; initiate remote stream; measure frame encode and transmission latency; assert latency < 15ms; assert stream connection is rejected when portal authorization dialog is declined.
+**Where:** tests/test-webrtc-stream-latency.sh, tools/ci-suites.py
+**Done When:** Test suite validates WebRTC encode performance, zero-copy throughput, and portal security gating.
+**Why:** Continuous testing ensures display server updates do not introduce video lag or bypass screen-sharing permissions.
+**Dep:** AGY-2223
+**Status:** open | **Domain:** UI/WebRTCTest | **Who:** agent
+**Converted:** AGY-2224 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-627 -- Secure in-memory secret enclave runtime (mlock, MADV_DONTDUMP, explicit_bzero) (WS-SEC | P1 | M)
+**Goal:** Isolate decrypted tokens in memory-locked, non-dumpable pages with compiler-barrier zeroization.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_secret_mem.py`. Allocate secret byte buffers via `sodium_malloc` or `posix_memalign` + `mlock`; mark memory pages with `madvise(MADV_DONTDUMP)` and `MADV_WIPEONFORK`; implement context manager executing `ctypes.CDLL(None).explicit_bzero` on scope exit.
+**Where:** usr/lib/mios/agent-pipe/mios_secret_mem.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** Secret memory allocator pins memory, blocks core dump inclusion, and zeroes memory deterministically.
+**Why:** Memory pinning and zeroization prevent credential harvesting from swap files and post-crash memory forensics.
+**Dep:** AGY-2224
+**Status:** open | **Domain:** Security/SecretMem | **Who:** agent
+**Converted:** AGY-2225 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-628 -- Automated memory dump secret leakage and zeroization verification test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that process core dumps and swap files contain zero recoverable secrets.
+**What+How:** Add `tests/test-secret-memory-protection.sh`. Run test process holding secret in protected enclave; generate core dump via `gcore`; search core dump bytes with `grep` for secret plaintext; assert exactly 0 occurrences found and assert buffer zeroes on scope completion.
+**Where:** tests/test-secret-memory-protection.sh, tools/ci-suites.py
+**Done When:** Test suite validates that protected secret memory never leaks into process core dumps.
+**Why:** Continuous testing ensures memory security flags remain effective across C-runtime and compiler upgrades.
+**Dep:** AGY-2225
+**Status:** open | **Domain:** Security/MemDumpTest | **Who:** agent
+**Converted:** AGY-2226 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-629 -- Dynamic host RAM layer swapping and LRU KV-cache paging manager in llama-swap (WS-AI | P1 | M)
+**Goal:** Stream model layers from pinned host RAM and page inactive conversation KV-caches to system memory dynamically.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml`. Configure `llama-swap` memory manager with `swap_mode: dynamic`, `pinned_host_ram: true`, and `kv_cache_paging: lru`; keep active conversation KV-caches hot in VRAM while paging background session slots to host system RAM over PCIe.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Llama-swap streams model weights and pages conversational KV-caches dynamically without OOM.
+**Why:** Dynamic VRAM offloading and KV-cache paging allow consumer GPUs to host multiple large models concurrently.
+**Dep:** AGY-2226
+**Status:** open | **Domain:** AI/VRAMSwap | **Who:** agent
+**Converted:** AGY-2227 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-630 -- Automated multi-model VRAM swapping, KV-cache paging latency, and session preservation test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that multi-model switching occurs in <500ms and active session state is 100% retained.
+**What+How:** Add `tests/test-llama-swap-vram-paging.sh`. Alternate queries across coder, vision, and chat models in 20 concurrent turns; assert model swap time < 500ms; assert zero CUDA OOM exceptions and 100% token generation accuracy across paged sessions.
+**Where:** tests/test-llama-swap-vram-paging.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-500ms model swapping and zero-loss KV-cache paging under heavy memory pressure.
+**Why:** Continuous testing ensures memory management algorithms maintain fast inference switching on consumer hardware.
+**Dep:** AGY-2227
+**Status:** open | **Domain:** AI/VRAMTest | **Who:** agent
+**Converted:** AGY-2228 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-631 -- CUDA/ROCm compute stream priority scheduler and background preemption manager (WS-AI | P1 | M)
+**Goal:** Prioritize interactive voice/chat streams on high-priority GPU compute queues and preempt background training tasks.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_gpu_sched.py`. Create CUDA streams with `cudaStreamCreateWithPriority(-1)`; assign high-priority streams to Whisper STT and Kokoro TTS; assign low-priority streams to background QLoRA fine-tuning; pause low-priority batches during active voice interaction.
+**Where:** usr/lib/mios/agent-pipe/mios_gpu_sched.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** GPU scheduler preempts low-priority kernels and executes interactive voice turns in <50ms.
+**Why:** Compute stream preemption guarantees crisp conversational voice response times without stopping background AI training.
+**Dep:** AGY-2228
+**Status:** open | **Domain:** AI/GPUSched | **Who:** agent
+**Converted:** AGY-2229 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-632 -- Automated GPU compute preemption latency and training resumption verification test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that high-priority voice inference achieves <50ms latency during heavy background load.
+**What+How:** Add `tests/test-gpu-stream-preemption.sh`. Spawn synthetic heavy matrix multiply background kernel; send concurrent high-priority inference request; assert time-to-first-token < 50ms and assert background kernel resumes and completes with 0 tensor errors.
+**Where:** tests/test-gpu-stream-preemption.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-50ms high-priority inference execution under heavy compute load.
+**Why:** Continuous testing ensures kernel driver updates maintain GPU compute preemption guarantees.
+**Dep:** AGY-2229
+**Status:** open | **Domain:** AI/GPUSchedTest | **Who:** agent
+**Converted:** AGY-2230 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-633 -- Declarative RAPL / NVML hardware energy metering and chassis power cap manager (WS-NODE | P1 | M)
+**Goal:** Meter real-time CPU/GPU energy consumption and dynamically enforce chassis wattage caps.
+**What+How:** Implement `usr/libexec/mios/mios-energyd`. Read `/sys/class/powercap/intel-rapl` and NVML power sensors; parse `[power.chassis_cap_watts]` in `mios.toml`; if total power exceeds cap, dynamically lower GPU power limits via `nvidia-smi -pl` and throttle background cgroup slices; log energy metrics to PostgreSQL `energy_telemetry`.
+**Where:** usr/libexec/mios/mios-energyd, usr/lib/systemd/system/mios-energyd.service
+**Done When:** Energy daemon meters power in real time and throttles accelerators to enforce power caps.
+**Why:** Declarative power capping prevents electrical breaker trips and optimizes thermal efficiency on multi-accelerator nodes.
+**Dep:** AGY-2230
+**Status:** open | **Domain:** Hardware/Energyd | **Who:** agent
+**Converted:** AGY-2231 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-634 -- Automated power cap enforcement and carbon-aware batch scheduling benchmark suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that total power consumption strictly respects declared wattage limits.
+**What+How:** Add `tests/test-power-cap-enforcement.sh`. Generate synthetic multi-GPU load; assert total power draw saturates at target cap without exceeding threshold by >2%; assert background jobs throttle gracefully without crashing.
+**Where:** tests/test-power-cap-enforcement.sh, tools/ci-suites.py
+**Done When:** Test suite validates strict power cap compliance and smooth workload modulation.
+**Why:** Continuous testing ensures energy management updates maintain power protection guarantees.
+**Dep:** AGY-2231
+**Status:** open | **Domain:** Hardware/EnergyTest | **Who:** agent
+**Converted:** AGY-2232 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-635 -- Radix tree prefix hash cache manager and prompt KV warm-starter in llama-swap (WS-AI | P1 | M)
+**Goal:** Cache pre-computed KV-cache states in a Radix tree to achieve sub-20ms TTFT on shared prompt prefixes.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml`. Configure `llama-swap` with `prefix_caching: radix` and `hash_prefix_tokens: true`; on incoming requests, compute token prefix hash, match cached Radix tree nodes for system instructions and MCP tools, and stream tokens directly from warm KV state.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine reuses warm KV caches for static prompt prefixes across agent turns.
+**Why:** Prefix caching eliminates redundant prompt processing and delivers 10x faster agent tool-loop response times.
+**Dep:** AGY-2232
+**Status:** open | **Domain:** AI/PromptCache | **Who:** agent
+**Converted:** AGY-2233 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-636 -- Automated prefix cache hit rate and sub-20ms time-to-first-token benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that prefix caching achieves >95% hit rates and sub-20ms TTFT.
+**What+How:** Add `tests/test-prefix-cache-benchmark.sh`. Execute 50 agent queries sharing common system prompts; assert prefix cache hit rate > 95%; assert TTFT < 20ms on cached turns; assert token generation output is bit-for-bit identical to cold evaluation.
+**Where:** tests/test-prefix-cache-benchmark.sh, tools/ci-suites.py
+**Done When:** Test suite validates prefix cache hit efficiency and sub-20ms TTFT performance.
+**Why:** Continuous testing ensures inference engine upgrades maintain prompt cache reuse and acceleration.
+**Dep:** AGY-2233
+**Status:** open | **Domain:** AI/PromptCacheTest | **Who:** agent
+**Converted:** AGY-2234 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-637 -- PagedAttention virtual block memory manager and asynchronous KV defragmenter (WS-AI | P1 | M)
+**Goal:** Manage KV-cache in 16/32-token virtual memory blocks and defragment VRAM pools asynchronously.
+**What+How:** Configure `llama-swap` with PagedAttention block manager (`block_size: 32`, `virtual_paging: true`); implement asynchronous block allocator tracking free/used physical pages; compact fragmented page indices during inter-token generation gaps; and reclaim released session blocks without GPU kernel execution stalls.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** PagedAttention block manager allocates and defragments KV memory dynamically with zero stall barriers.
+**Why:** Virtual block paging eliminates VRAM waste from internal fragmentation and quadruples concurrent conversational capacity.
+**Dep:** AGY-2234
+**Status:** open | **Domain:** AI/PagedAttention | **Who:** agent
+**Converted:** AGY-2235 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-638 -- Automated PagedAttention fragmentation resistance and 100-session concurrency benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that PagedAttention supports 100 concurrent dynamic conversations with 0 fragmentation loss.
+**What+How:** Add `tests/test-pagedattention-fragmentation.sh`. Generate 100 concurrent streams with randomized token lengths (100 to 8,000 tokens); measure memory waste percentage; assert fragmentation waste < 4% and assert all 100 streams complete with 100% token generation validity.
+**Where:** tests/test-pagedattention-fragmentation.sh, tools/ci-suites.py
+**Done When:** Test suite validates high-concurrency memory efficiency and zero-fragmentation resilience.
+**Why:** Continuous testing ensures inference memory algorithms maximize concurrency across multi-agent workflows.
+**Dep:** AGY-2235
+**Status:** open | **Domain:** AI/PagedAttnTest | **Who:** agent
+**Converted:** AGY-2236 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-639 -- Predictive S.M.A.R.T. drive health monitor and automated CephFS evacuation manager (WS-STRG | P1 | M)
+**Goal:** Monitor drive wear counters via smartd and trigger proactive CephFS OSD drain before hardware failure.
+**What+How:** Implement `usr/libexec/mios/mios-disk-evac`. Poll `/dev/nvme*` and `/dev/sd*` via `smartctl --json`; compute composite drive health score; when NVMe `percentage_used > 95` or available spare falls below threshold, emit desktop/MOTD alert, mark CephFS OSD `out`, and replicate local user snapshots to healthy peer nodes.
+**Where:** usr/libexec/mios/mios-disk-evac, usr/lib/systemd/system/mios-disk-evac.timer
+**Done When:** Drive health monitor catches degraded wear indicators and evacuates data proactively.
+**Why:** Predictive drive failure detection and proactive migration eliminate data loss risks on high-write AI workloads.
+**Dep:** AGY-2236
+**Status:** open | **Domain:** Storage/DiskHealth | **Who:** agent
+**Converted:** AGY-2237 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-640 -- Automated S.M.A.R.T. predictive failure simulation and proactive data evacuation test suite (WS-STRG | P2 | S)
+**Goal:** Verify in automated CI that predictive failure thresholds trigger clean CephFS OSD drain and snapshot replication.
+**What+How:** Add `tests/test-smart-disk-evacuation.sh`. Inject mock degrading S.M.A.R.T. JSON into daemon; assert `mios-disk-evac` marks OSD out within 5s; assert Ceph rebalances placement groups across surviving OSDs with 0 degraded object losses.
+**Where:** tests/test-smart-disk-evacuation.sh, tools/ci-suites.py
+**Done When:** Test suite validates automated S.M.A.R.T. predictive failure alerting and data evacuation.
+**Why:** Continuous testing ensures storage clustering algorithms reliably prevent data loss under hardware degradation.
+**Dep:** AGY-2237
+**Status:** open | **Domain:** Storage/EvacTest | **Who:** agent
+**Converted:** AGY-2238 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-641 -- Headless kernel crash dump triage engine (drgn / crash) and symbol resolver (WS-DIAG | P1 | M)
+**Goal:** Decompress /var/crash/vmcore.zst, extract demangled C/Rust backtraces headlessly, and file bug reports into PostgreSQL.
+**What+How:** Implement `usr/libexec/mios/mios-crash-triage`. On post-panic reboot, decompress `/var/crash/vmcore.zst`; invoke `drgn` script loading `/usr/lib/debug/lib/modules/$(uname -r)/vmlinux`; extract call stacks, faulting instructions, and module names; demangle Rust/C symbols; format markdown incident report; and insert into `bug_tracker` table in PostgreSQL.
+**Where:** usr/libexec/mios/mios-crash-triage, usr/lib/systemd/system/mios-crash-triage.service
+**Done When:** Crash triage service extracts demangled stack traces from vmcore dumps and records bug reports.
+**Why:** Automated headless crash triage provides instant root-cause diagnostics directly to autonomous self-healing coding agents.
+**Dep:** AGY-2238
+**Status:** open | **Domain:** Kernel/CrashTriage | **Who:** agent
+**Converted:** AGY-2239 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-642 -- Automated kernel vmcore analysis and PostgreSQL bug ticket creation test suite (WS-DIAG | P2 | S)
+**Goal:** Verify in automated CI that crash triage parses panic callstacks and generates valid bug tickets in <30s.
+**What+How:** Add `tests/test-kernel-crash-triage.sh`. Ingest synthetic panic vmcore containing null pointer dereference in kernel module; assert `mios-crash-triage` extracts offending module name, lines of code, and registers in <30s; assert PostgreSQL `bug_tracker` contains new ticket with verified schema.
+**Where:** tests/test-kernel-crash-triage.sh, tools/ci-suites.py
+**Done When:** Test suite validates automated vmcore symbol demangling, stack parsing, and database reporting.
+**Why:** Continuous testing ensures kernel debugging toolchains remain operational across new kernel minor releases.
+**Dep:** AGY-2239
+**Status:** open | **Domain:** Kernel/TriageTest | **Who:** agent
+**Converted:** AGY-2240 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-643 -- Declarative USBGuard policy generator and desktop authorization notifier in automation (WS-SEC | P1 | M)
+**Goal:** Enforce in-kernel USB device authorization, whitelist known peripherals, and prompt on new devices.
+**What+How:** Implement `automation/48-usbguard.sh`. Generate baseline `/etc/usbguard/rules.conf` from pre-enrolled hardware in `mios.toml`; implement `usr/libexec/mios/mios-usbguard-notify` to listen on DBus; on new device insertion, present desktop dialog with vendor/product IDs; on approval, append authorized rule to persistent policy.
+**Where:** automation/48-usbguard.sh, usr/libexec/mios/mios-usbguard-notify
+**Done When:** USBGuard blocks rogue USB devices and grants access upon operator authorization.
+**Why:** Declarative USB authorization neutralizes BadUSB hardware attacks and rogue peripheral tampering.
+**Dep:** AGY-2240
+**Status:** open | **Domain:** Security/USBGuard | **Who:** agent
+**Converted:** AGY-2241 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-644 -- Automated BadUSB keystroke injection block and USB authorization test suite in virtual USB sandbox (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that virtual USB keyboard devices are blocked until explicitly authorized.
+**What+How:** Add `tests/test-usbguard-badusb-block.sh`. Emulate a virtual USB HID keyboard device using `dummy_hcd` / `gadgetfs`; attempt to inject keystrokes; assert kernel blocks device packets; trigger simulated authorization API; assert device unlocks and keystrokes are received.
+**Where:** tests/test-usbguard-badusb-block.sh, tools/ci-suites.py
+**Done When:** Test suite validates that unauthorized USB devices cannot communicate with the kernel.
+**Why:** Continuous testing ensures kernel USB subsystem updates maintain peripheral authorization security.
+**Dep:** AGY-2241
+**Status:** open | **Domain:** Security/BadUSBTest | **Who:** agent
+**Converted:** AGY-2242 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-645 -- Per-app Flatpak state subvolume snapshotter and rollback manager in mios-app-snapshot (WS-APP | P1 | M)
+**Goal:** Provision ~/.var/app/<app-id>/ as discrete subvolumes and provide atomic per-application state rollback.
+**What+How:** Implement `usr/libexec/mios/mios-app-snapshot`. On new Flatpak install or first launch, create dedicated subvolume at `~/.var/app/<app_id>/`; take read-only delta snapshot before updates; implement `mios app rollback <app_id>` to restore previous working snapshot without touching other user files.
+**Where:** usr/libexec/mios/mios-app-snapshot, usr/lib/mios/cli/cmd_app.py
+**Done When:** Application snapshotter captures per-app state deltas and executes instant rollbacks.
+**Why:** Per-app state rollbacks allow instant recovery from corrupted browser profiles or IDE plugins with zero blast radius.
+**Dep:** AGY-2242
+**Status:** open | **Domain:** App/StateSnapshot | **Who:** agent
+**Converted:** AGY-2243 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-646 -- Automated Flatpak application state corruption and instant rollback test suite (WS-APP | P2 | S)
+**Goal:** Verify in automated CI that per-app rollback restores exact working state in <1s with 0 cross-app pollution.
+**What+How:** Add `tests/test-flatpak-app-rollback.sh`. Initialize test app state; create pre-update snapshot; inject random data corruption into app database; trigger `mios app rollback`; assert file hashes match pre-corruption snapshot and neighboring app states are unchanged.
+**Where:** tests/test-flatpak-app-rollback.sh, tools/ci-suites.py
+**Done When:** Test suite validates per-app state snapshots, corruption isolation, and instant rollback integrity.
+**Why:** Continuous testing ensures filesystem snapshot mechanics preserve reliable per-application rollback capabilities.
+**Dep:** AGY-2243
+**Status:** open | **Domain:** App/RollbackTest | **Who:** agent
+**Converted:** AGY-2244 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-647 -- Hybrid live ISO and iPXE netboot artifact synthesis pipeline using BIB (WS-BOOT | P1 | M)
+**Goal:** Generate bootable hybrid ISOs and iPXE netboot kernel/initrd bundles from the target OCI container image.
+**What+How:** Implement `automation/92-export-iso.sh`. Invoke `bootc-image-builder` inside `podman-MiOS-DEV` with `--type iso` and `--type anaconda-iso`; generate iPXE boot script `/var/lib/tftp/mios-boot.ipxe`; embed pre-enrolled cluster join secrets and auto-partition kickstart scripts for zero-touch bare-metal provisioning.
+**Where:** automation/92-export-iso.sh, automation/90-export.sh
+**Done When:** BIB pipeline exports bootable hybrid ISOs and iPXE netboot bundles automatically.
+**Why:** Automated recovery media synthesis guarantees rapid disaster recovery and zero-touch bare-metal cluster expansion.
+**Dep:** AGY-2244
+**Status:** open | **Domain:** Build/LiveISO | **Who:** agent
+**Converted:** AGY-2245 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-648 -- Automated headless QEMU iPXE netboot and live ISO installation test suite (WS-BOOT | P2 | S)
+**Goal:** Verify in automated CI that synthesized ISO and iPXE netboot artifacts boot and install to disk in <180s.
+**What+How:** Add `tests/test-ipxe-netboot-install.sh`. Spawn QEMU VM configured with iPXE ROM and blank virtual disk; boot via local TFTP/HTTP netboot server; assert unattended installer partitions drive, pulls OCI image, and completes installation in <180s.
+**Where:** tests/test-ipxe-netboot-install.sh, tools/ci-suites.py
+**Done When:** Test suite validates unattended iPXE netboot and disk deployment in virtualized microVMs.
+**Why:** Continuous testing ensures that OS image upgrades never produce unbootable ISO or network rescue media.
+**Dep:** AGY-2245
+**Status:** open | **Domain:** Build/NetbootTest | **Who:** agent
+**Converted:** AGY-2246 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-649 -- GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher (WS-AI | P1 | M)
+**Goal:** Detect GPU compute capability and dispatch pre-compiled architecture-tuned FlashAttention-3 and CUTLASS kernels.
+**What+How:** Implement `usr/libexec/mios/mios-gpu-arch-probe`. Detect SM compute capability (`sm_80`, `sm_89`, `sm_90a`, `gfx1100`); generate Quadlet environment setting `FLASH_ATTN_VERSION` and `CUTLASS_SM_ARCH`; bind pre-compiled optimized GEMM libraries; and execute auto-tuning pass on first boot.
+**Where:** usr/libexec/mios/mios-gpu-arch-probe, automation/20-drivers.sh
+**Done When:** Kernel dispatcher detects GPU architecture and loads optimal Tensor Core GEMM kernels dynamically.
+**Why:** Architecture-specific Tensor Core kernels maximize token generation throughput and minimize inference energy consumption.
+**Dep:** AGY-2246
+**Status:** open | **Domain:** AI/TensorKernels | **Who:** agent
+**Converted:** AGY-2247 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-650 -- Automated GPU Tensor Core throughput and GEMM dispatch latency benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that FlashAttention-3 and CUTLASS achieve >90% of peak theoretical Tensor Core FLOPS.
+**What+How:** Add `tests/test-gpu-tensor-throughput.sh`. Benchmark GEMM and attention kernels across batch sizes (1, 4, 16, 64); measure TFLOPS and memory bandwidth utilization; assert throughput reaches >90% of theoretical peak on target architecture.
+**Where:** tests/test-gpu-tensor-throughput.sh, tools/ci-suites.py
+**Done When:** Test suite validates Tensor Core FLOPS utilization and low kernel launch latency.
+**Why:** Continuous testing ensures inference kernel upgrades do not introduce performance regressions.
+**Dep:** AGY-2247
+**Status:** open | **Domain:** AI/KernelTest | **Who:** agent
+**Converted:** AGY-2248 carries this forward with a Verify line that fails when the behaviour is absent.
 

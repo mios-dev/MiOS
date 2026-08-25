@@ -3762,6 +3762,23 @@ test_verb_stub_backends() {
     log "check_verb_stub_backends negative test passed"
 }
 
+test_package_registry() {
+    log "Testing check_package_registry"
+    local reg_file="${ROOT}/usr/share/mios/ai/v1/packages/registry.json"
+    mkdir -p "$(dirname "$reg_file")"
+    echo '{"stale": true}' > "$reg_file"
+
+    if _neg_gate check_package_registry; then
+        rm -f "$reg_file"
+        die "check_package_registry passed despite stale registry.json with dormant package_registry"
+    fi
+
+    rm -f "$reg_file"
+    _neg_gate check_package_registry \
+        || die "check_package_registry failed after restoration"
+    log "check_package_registry negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3942,6 +3959,7 @@ _run_test test_leaked_fixtures
     _run_test test_rust_test_coverage
     _run_test test_os_update_timer_enabled
     _run_test test_verb_stub_backends
+    _run_test test_package_registry
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s
