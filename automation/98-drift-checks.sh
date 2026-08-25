@@ -2944,7 +2944,8 @@ check_skip_list_covered() {
     # Declared separately: `local out=$(cmd)` returns the status of `local`, not of
     # cmd, which would make this check unable to fail.
     local out
-    out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py skip-list-covered)" \n        || { _violations_from "check_skip_list_covered: " "$out"; return; }
+    out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py skip-list-covered)" \
+        || { _violations_from "check_skip_list_covered: " "$out"; return; }
     echo "[98-drift-checks]   the skip list is SSOT-owned and no workflow shadows it"
 }
 

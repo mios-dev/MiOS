@@ -43,7 +43,7 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 2,611 | The reading surface. |
+| Tracked files | 2,635 | The reading surface. |
 | Tracked size | 197 MB | Two vendored assets are most of it. |
 | Shell / Python / PowerShell / Rust | 41k / 112k / 25k / 11k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 2.2x. |
 | Drift checks | 207 | Falsifiability audited per check, not assumed. |
@@ -72,7 +72,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
 - **Done**: 25
-- **Active**: 7
+- **Active**: 8
 - **Proposed**: 2
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -90,6 +90,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 - `WS-LANG` — Language-per-domain unification — Rust for native tooling, bash demoted to thin glue ✅
 - `WS-TEMPLATE` — Compiled file-pattern system — one template per file type + conformance check + Law-14 ✅
 - `WS-DEBT` — Technical-debt register — TD-1..TD-8 (shell-mass, version drift, resolver twin, monolith decomposition) (proposed)
+- `WS-DIFFCYCLE` — Shutdown Diff Snapshotting, Boot Cycle Accrual & HITL Image Roll-in Pipeline (active)
 
 **AI-Plane & Orchestration**
 - `WS-DEPRED` — AI-plane dependency reduction (Hermes→agent-pipe collapse + sidecar consolidations) ✅
@@ -439,6 +440,57 @@ ROADMAP.md + TASKS.md are now the **singular** planning SSOT. Folded in:
 - Retired the old `combine_roadmaps.py` script.
 
 A master index sits at the top of each file; every task carries **Who / What / Where / When / How** + Done-When.
+
+## WS-DIFFCYCLE — Shutdown Diff Snapshotting, Boot Cycle Accrual & HITL Image Roll-in Pipeline
+<!--
+id: WS-DIFFCYCLE
+title: Shutdown Diff Snapshotting, Boot Cycle Accrual & HITL Image Roll-in Pipeline
+theme: OS-Image & Build
+status: active
+priority: P1
+laws: [1, 3, 7, 8, 12]
+ssot_keys: ["build.bake", "security"]
+adr: [1, 8, 14]
+deps: [WS-BUILD]
+acceptance: |
+  System shutdowns snapshot filesystem and git diffs, boot cycles accrue and classify changes, human-in-the-loop auditing permits selective staging, and podman-MiOS-DEV automatically bakes approved diffs into next-boot OCI images with greenboot verification.
+-->
+
+### DIFFCYCLE-01 — Systemd shutdown hook capturing pre-poweroff filesystem and git diffs  **[P1]**
+- **What:** Record all configuration and operational changes made during a boot cycle before system shutdown or reboot into an immutable snapshot.
+- **Why:** Continuous self-evolution requires capturing all live human and agent modifications before power state transitions.
+- **Files:** `usr/libexec/mios/mios-diff-snapshot`, `usr/lib/systemd/system-shutdown/mios-diff-snapshot`, `usr/lib/systemd/system/mios-diff-snapshot.service`.
+- **Accept:** Diff snapshot is written to `/var/lib/mios/snapshots/boot-diffs/` on every shutdown and reboot.
+- **Deps:** none.
+
+### DIFFCYCLE-02 — Boot cycle diff accrual analyzer classifying safe vs high-risk changes on startup  **[P1]**
+- **What:** Parse accrued boot diffs on startup, categorize changes against security policies (safe: dotfiles, skills, Wi-Fi profiles; high-risk: root binaries, kernel args, PAM auth), and emit an audit ledger.
+- **Why:** Automated image synthesis must differentiate between harmless cosmetic preferences and consequential system security changes.
+- **Files:** `usr/libexec/mios/mios-diff-accrue`, `usr/share/mios/mios.toml`.
+- **Accept:** Startup analyzer categorizes accrued diffs and prepares structured audit reports for operator review.
+- **Deps:** `DIFFCYCLE-01`.
+
+### DIFFCYCLE-03 — Quickshell and CLI interactive diff auditor enabling operator approval of accrued diffs  **[P2]**
+- **What:** Present an interactive UI in Quickshell (`DiffReview.qml`) and CLI (`mios diff audit`) allowing the operator to review, approve, or reject accrued diffs before baking.
+- **Why:** Human-in-the-loop oversight ensures the operator maintains ultimate sovereignty over what gets baked into the OS image.
+- **Files:** `usr/share/mios/shell/components/DiffReview.qml`, `usr/libexec/mios/mios-diff-audit`.
+- **Accept:** Operators can visually audit and approve accrued boot diffs through desktop GUI or terminal CLI.
+- **Deps:** `DIFFCYCLE-02`.
+
+### DIFFCYCLE-04 — Autonomous image rolling service staging approved diffs for background OCI image synthesis  **[P1]**
+- **What:** Commit approved diffs to local git root, trigger `podman-MiOS-DEV` build pipeline in the background with low priority, and stage resulting image via `bootc switch --staged`.
+- **Why:** Closing the loop from live operational diffs to rebuilt immutable OCI layers makes MiOS a genuinely self-evolving operating system.
+- **Files:** `usr/libexec/mios/mios-diff-bake`, `usr/lib/systemd/system/mios-diff-bake.service`.
+- **Accept:** Approved configuration diffs are automatically baked into a new OCI image and staged for next boot.
+- **Deps:** `DIFFCYCLE-03`.
+
+### DIFFCYCLE-05 — Greenboot post-bake health gate with automated fallback on diff-induced regressions  **[P1]**
+- **What:** Add greenboot verification script checking that all baked services initialize cleanly; if any service fails, trigger `bootc rollback` and quarantine the offending diff.
+- **Why:** Automated self-rebuilding must be paired with automated rollback to guarantee 100% system uptime and reliability.
+- **Files:** `/etc/greenboot/check/required.d/60-mios-diff-bake-verify.sh`, `usr/lib/greenboot/check/required.d/`.
+- **Accept:** Greenboot validates newly baked image health and guarantees safe automated fallback on regressions.
+- **Deps:** `DIFFCYCLE-04`.
+
 
 # AI-Plane & Orchestration
 

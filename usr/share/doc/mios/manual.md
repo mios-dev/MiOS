@@ -297,6 +297,36 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [A Filter That Denies Nothing Is Worse Than None](manual/ch62-sandbox-seccomp.md#62_nothing_is_worse): Details the three refusals and the wrapper's exit-126 stance.
   * [Environment vs Artifact](manual/ch62-sandbox-seccomp.md#62_environment_vs_artifact): Explains what a two-tier test may skip on and what it may never skip.
   * [Two Argv Builders, One Executor](manual/ch62-sandbox-seccomp.md#62_two_argv_builders): Records the divergence left for T-309 rather than changed blind.
+* **[Chapter 63: Diff Snapshotting, Boot-Cycle Accrual & HITL Image Roll-in Pipeline](manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md)**
+  * [Pre-Poweroff Snapshot](manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md#63_pre_poweroff_snapshot): Captures uncommitted filesystem and git diffs before power-off.
+  * [Startup Diff Accrual](manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md#63_startup_diff_accrual): Classifies accrued diffs into safe additive vs high-risk tiers.
+  * [Interactive HITL Review](manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md#63_interactive_hitl_review): Quickshell UI and CLI diff auditing workflows.
+  * [Autonomous Bake and Greenboot](manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md#63_autonomous_bake_and_greenboot): Autonomous OCI image synthesis and regression rollback.
+* **[Chapter 64: AIOS Engine Preemptive Scheduling, Priority Gating & DCI Structured Deliberation](manual/ch64-engine-preemptive-scheduling-and-dci-deliberation.md)**
+  * [Priority Scheduling Preemption](manual/ch64-engine-preemptive-scheduling-and-dci-deliberation.md#64_priority_scheduling_preemption): Token-boundary preemption and KV slot paging.
+  * [Consequentiality-Gated DCI](manual/ch64-engine-preemptive-scheduling-and-dci-deliberation.md#64_consequentiality_gated_dci): 4-agent structured deliberation with tension tracking.
+  * [Progressive Retrieval and LOO](manual/ch64-engine-preemptive-scheduling-and-dci-deliberation.md#64_progressive_retrieval_loo): Manifest-guided search and IntrospecLOO reputation scoring.
+* **[Chapter 65: Edge Micro-Mesh 16-Byte Wire Protocol, Dual-Tier Sandboxing & Hierarchical Work-Stealing](manual/ch65-edge-micro-mesh-binary-wire-protocol-and-sandboxing.md)**
+  * [Binary Wire Protocol](manual/ch65-edge-micro-mesh-binary-wire-protocol-and-sandboxing.md#65_binary_wire_protocol): 16-byte binary framing with ChaCha20-Poly1305 encryption.
+  * [Dual-Tier Sandboxing](manual/ch65-edge-micro-mesh-binary-wire-protocol-and-sandboxing.md#65_dual_tier_sandboxing): Fuel-bounded Wasm and rootless Podman containers.
+  * [Hierarchical Work-Stealing](manual/ch65-edge-micro-mesh-binary-wire-protocol-and-sandboxing.md#65_hierarchical_work_stealing): Multi-tier work distribution across Local, LAN, and WAN.
+* **[Chapter 66: V5 Database Authority Inversion, CephFS Storage Tiering & Disaster Recovery](manual/ch66-v5-authority-inversion-and-cephfs-tiering.md)**
+  * [V5 Authority Inversion](manual/ch66-v5-authority-inversion-and-cephfs-tiering.md#66_v5_authority_inversion): PostgreSQL config_kv live authority and atomic materialization.
+  * [CephFS Storage Tiering](manual/ch66-v5-authority-inversion-and-cephfs-tiering.md#66_cephfs_storage_tiering): Local NVMe fast tier and distributed CephFS subvolume quotas.
+  * [Disaster Recovery](manual/ch66-v5-authority-inversion-and-cephfs-tiering.md#66_disaster_recovery): Pre-upgrade zstd backups and transactional database migrations.
+* **[Chapter 67: Discrete GPU VFIO Passthrough, Looking Glass B6 IVSHMEM & Inter-VM Audio](manual/ch67-discrete-gpu-vfio-looking-glass-and-displays.md)**
+  * [Dynamic VFIO Switching](manual/ch67-discrete-gpu-vfio-looking-glass-and-displays.md#67_dynamic_vfio_switching): PCIe IOMMU isolation and dynamic driver unbind/rebind.
+  * [Looking Glass B6](manual/ch67-discrete-gpu-vfio-looking-glass-and-displays.md#67_looking_glass_b6): Shared memory framebuffers and SPICE direct socket input.
+  * [PipeWire JACK Audio](manual/ch67-discrete-gpu-vfio-looking-glass-and-displays.md#67_pipewire_jack_audio): Sub-5ms Scream inter-VM audio bridge.
+* **[Chapter 68: Living Wallpaper WebGL Shaders, FOSS Licensing & Real-Time Theme Synchronization](manual/ch68-living-wallpaper-shaders-and-ssot-theme-engine.md)**
+  * [Living Wallpaper Shader](manual/ch68-living-wallpaper-shaders-and-ssot-theme-engine.md#68_living_wallpaper_shader): GPU load-adaptive WebGL/WGSL shaders and license filter.
+  * [Live Theme Sync](manual/ch68-living-wallpaper-shaders-and-ssot-theme-engine.md#68_live_theme_sync): Multi-surface real-time IPC and signal theme propagation.
+* **[Chapter 69: Autonomous Epistemic Evolution, /learn Distillation & Model Fine-Tuning](manual/ch69-autonomous-epistemic-evolution-and-learn-loop.md)**
+  * [Four-Stage Epistemic Loop](manual/ch69-autonomous-epistemic-evolution-and-learn-loop.md#69_four_stage_epistemic_loop): Experience, distillation, dual persistence, and OCI image bake-in.
+* **[Chapter 70: Upstream Technology Registry, Upstream Adoption Playbook & FOSS Drift Auditing](manual/ch70-upstream-technology-registry-and-ecosystem-advances.md)**
+  * [Upstream Registry](manual/ch70-upstream-technology-registry-and-ecosystem-advances.md#70_upstream_registry): Comprehensive mapping of upstream components and roles.
+  * [Drift Auditing](manual/ch70-upstream-technology-registry-and-ecosystem-advances.md#70_drift_auditing): Automated upstream drift detection and validation playbooks.
+
 
 ---
 
@@ -371,6 +401,14 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch60-durable-quota.md` | Chapter 60: Durable Quota. Records why a per-principal budget that lives only in memory is not a budget at all -- every restart, including a bootc upgrade, hands an exhausted account a fresh... |
 | `usr/share/doc/mios/manual/ch61-run-template-replay.md` | Chapter 61: Run-Template Replay. Records why the capture half of the run-template feature was write-only for so long: templates were keyed by a hash of the PLAN's shape, which can only be computed... |
 | `usr/share/doc/mios/manual/ch62-sandbox-seccomp.md` | Chapter 62: Sandbox Seccomp. Records what the risk-tier dispatch sandbox actually did before T-230 -- bwrap really was exec'd and really did jail the filesystem and the network, while the confined... |
+| `usr/share/doc/mios/manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md` | Chapter 63: Diff Snapshotting, Boot-Cycle Accrual & HITL Image Roll-in Pipeline. |
+| `usr/share/doc/mios/manual/ch64-engine-preemptive-scheduling-and-dci-deliberation.md` | Chapter 64: AIOS Engine Preemptive Scheduling, Priority Gating & DCI Structured Deliberation. |
+| `usr/share/doc/mios/manual/ch65-edge-micro-mesh-binary-wire-protocol-and-sandboxing.md` | Chapter 65: Edge Micro-Mesh 16-Byte Wire Protocol, Dual-Tier Sandboxing & Hierarchical Work-Stealing. |
+| `usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md` | Chapter 66: V5 Database Authority Inversion, CephFS Storage Tiering & Disaster Recovery. |
+| `usr/share/doc/mios/manual/ch67-discrete-gpu-vfio-looking-glass-and-displays.md` | Chapter 67: Discrete GPU VFIO Passthrough, Looking Glass B6 IVSHMEM & Inter-VM Audio. |
+| `usr/share/doc/mios/manual/ch68-living-wallpaper-shaders-and-ssot-theme-engine.md` | Chapter 68: Living Wallpaper WebGL Shaders, FOSS Licensing & Real-Time Theme Synchronization. |
+| `usr/share/doc/mios/manual/ch69-autonomous-epistemic-evolution-and-learn-loop.md` | Chapter 69: Autonomous Epistemic Evolution, /learn Distillation & Model Fine-Tuning. |
+| `usr/share/doc/mios/manual/ch70-upstream-technology-registry-and-ecosystem-advances.md` | Chapter 70: Upstream Ecosystem Registry, Upstream Adoption Playbook & FOSS Drift Auditing. |
 
-<!-- derived from the AI-hint headers of 62 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 70 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

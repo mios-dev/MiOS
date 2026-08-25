@@ -451,6 +451,11 @@
 | T-463 | P2 | open | UX/Biometrics | Screen lock manager with biometric FIDO2 and fingerprint authentication integration |
 | T-464 | P3 | open | UX/FocusAudio | Ambient background audio generator for deep focus programming sessions |
 | T-465 | P1 | open | UX/Clipboard | Cross-platform clipboard synchronizer between host and virtual machines with redaction |
+| T-466 | P1 | open | Deploy/DiffSnapshot | Systemd shutdown hook capturing pre-poweroff filesystem and git diffs |
+| T-467 | P1 | open | State/DiffAccrual | Boot cycle diff accrual analyzer classifying safe vs high-risk changes on startup |
+| T-468 | P2 | open | UX/DiffAuditor | Quickshell and CLI interactive diff auditor enabling operator approval of accrued diffs |
+| T-469 | P1 | open | Build/ImageBake | Autonomous image rolling service staging approved diffs for background OCI image synthesis |
+| T-470 | P1 | open | Kernel/Greenboot | Greenboot post-bake health gate with automated fallback on diff-induced regressions |
 
 ---
 
@@ -4885,4 +4890,54 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2062
 **Status:** open | **Domain:** UX/Clipboard | **Who:** agent
 **Converted:** AGY-2063 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-466 -- Systemd shutdown hook capturing pre-poweroff filesystem and git diffs (WS-DIFFCYCLE | P1 | M)
+**Goal:** Record all configuration and operational changes made during a boot cycle before system shutdown or reboot.
+**What+How:** Implement `usr/libexec/mios/mios-diff-snapshot` and systemd unit `usr/lib/systemd/system-shutdown/mios-diff-snapshot`. On SIGTERM/shutdown, compute git diffs on `/` (`.git ≡ /`), capture `/etc` file modifications, and write an immutable JSON snapshot to `/var/lib/mios/snapshots/boot-diffs/<timestamp-boot-id>.json`.
+**Where:** usr/libexec/mios/mios-diff-snapshot, usr/lib/systemd/system-shutdown/mios-diff-snapshot, usr/lib/systemd/system/mios-diff-snapshot.service
+**Done When:** System shutdown hooks capture and persist boot cycle diff records reliably across reboots and power-offs.
+**Why:** Continuous self-evolution requires capturing all live human and agent modifications before power state transitions.
+**Dep:** AGY-2063
+**Status:** open | **Domain:** Deploy/DiffSnapshot | **Who:** agent
+**Converted:** AGY-2064 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-467 -- Boot cycle diff accrual analyzer classifying safe vs high-risk changes on startup (WS-DIFFCYCLE | P1 | M)
+**Goal:** Inspect historical diff snapshots on boot and classify changes into safe auto-rollable vs high-risk modifications.
+**What+How:** Build `usr/libexec/mios/mios-diff-accrue`. Parse accrued boot diffs, categorize changes against policy in `[security.diff_policy]` (safe: dotfiles, skills, Wi-Fi profiles; high-risk: root binaries, kernel args, PAM auth), and emit an audit ledger.
+**Where:** usr/libexec/mios/mios-diff-accrue, usr/share/mios/mios.toml
+**Done When:** Startup analyzer categorizes accrued diffs and prepares structured audit reports for operator review.
+**Why:** Automated image synthesis must differentiate between harmless cosmetic preferences and consequential system security changes.
+**Dep:** AGY-2064
+**Status:** open | **Domain:** State/DiffAccrual | **Who:** agent
+**Converted:** AGY-2065 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-468 -- Quickshell and CLI interactive diff auditor enabling operator approval of accrued diffs (WS-DIFFCYCLE | P2 | M)
+**Goal:** Present an interactive UI allowing the operator to review, approve, or reject accrued diffs before baking.
+**What+How:** Implement `usr/share/mios/shell/components/DiffReview.qml` in Quickshell and CLI command `mios diff audit`. Display side-by-side file diffs with checkboxes for selective staging into the next image layer.
+**Where:** usr/share/mios/shell/components/DiffReview.qml, usr/libexec/mios/mios-diff-audit
+**Done When:** Operators can visually audit and approve accrued boot diffs through desktop GUI or terminal CLI.
+**Why:** Human-in-the-loop oversight ensures the operator maintains ultimate sovereignty over what gets baked into the OS image.
+**Dep:** AGY-2065
+**Status:** open | **Domain:** UX/DiffAuditor | **Who:** agent
+**Converted:** AGY-2066 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-469 -- Autonomous image rolling service staging approved diffs for background OCI image synthesis (WS-DIFFCYCLE | P1 | L)
+**Goal:** Synthesize a new OCI image layer incorporating approved diffs inside the podman-MiOS-DEV container.
+**What+How:** Implement `usr/libexec/mios/mios-diff-bake`. Commit approved diffs to local git root, trigger `podman-MiOS-DEV` build pipeline in the background with low CPU/IO priority, and stage resulting image via `bootc switch --staged`.
+**Where:** usr/libexec/mios/mios-diff-bake, usr/lib/systemd/system/mios-diff-bake.service
+**Done When:** Approved configuration diffs are automatically baked into a new OCI image and staged for next boot.
+**Why:** Closing the loop from live operational diffs to rebuilt immutable OCI layers makes MiOS a genuinely self-evolving operating system.
+**Dep:** AGY-2066
+**Status:** open | **Domain:** Build/ImageBake | **Who:** agent
+**Converted:** AGY-2067 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-470 -- Greenboot post-bake health gate with automated fallback on diff-induced regressions (WS-DIFFCYCLE | P1 | M)
+**Goal:** Verify the health of the newly baked diff image on next boot with immediate atomic rollback if health checks fail.
+**What+How:** Add greenboot verification script `/etc/greenboot/check/required.d/60-mios-diff-bake-verify.sh`. Check that all baked services initialize cleanly; if any service fails, trigger `bootc rollback` and quarantine the offending diff in the audit ledger.
+**Where:** /etc/greenboot/check/required.d/60-mios-diff-bake-verify.sh, usr/lib/greenboot/check/required.d/
+**Done When:** Greenboot validates newly baked image health and guarantees safe automated fallback on regressions.
+**Why:** Automated self-rebuilding must be paired with automated rollback to guarantee 100% system uptime and reliability.
+**Dep:** AGY-2067
+**Status:** open | **Domain:** Kernel/Greenboot | **Who:** agent
+**Converted:** AGY-2068 carries this forward with a Verify line that fails when the behaviour is absent.
 
