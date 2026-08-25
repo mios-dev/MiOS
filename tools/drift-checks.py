@@ -349,7 +349,17 @@ def check_no_duplicate_value_key() -> int:
 
 
     # --- resolve the live environment -------------------------------------------
-    proc = subprocess.run(["bash", snap_tool], capture_output=True, text=True, errors="replace")
+    # Git Bash cannot resolve an absolute path given as a script argument when
+    # bash.exe is launched from Windows Python: both C:/MiOS/... and /c/MiOS/...
+    # exit 127 "No such file", because /c is resolved against the MSYS root
+    # rather than the drive. The same file runs when passed RELATIVE to a cwd.
+    # The gate passes an absolute $ROOT, so on Windows this check reported "the
+    # resolver produced no environment" -- a gate that could not run at all,
+    # rather than one that passed or failed.
+    _cwd = os.path.dirname(os.path.abspath(snap_tool)) or None
+    _snap = os.path.basename(snap_tool)
+    proc = subprocess.run(["bash", _snap], capture_output=True, text=True,
+                          errors="replace", cwd=_cwd)
     if proc.returncode != 0:
         emit("mios-env-snapshot exited %d -- the resolver produced no environment, so this gate has no data" % proc.returncode)
         for tail in (proc.stderr or "").strip().splitlines()[-5:]:

@@ -269,8 +269,11 @@ if __name__ == "__main__":
                     print(f"[generate-ai-manifest] Missing manifest file: {output_file}", file=sys.stderr)
                     has_drift = True
             finally:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except OSError:
+                    pass
         else:
             if output_file.endswith(".gz"):
                 generate_gzipped_manifest(target_dir, output_file, recursive)
