@@ -1,5 +1,5 @@
 <!-- AI-hint: Defines engine-level priority preemption and consequentiality-gated Deliberative Collective Intelligence (DCI). -->
-<!-- AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_sched.py, usr/lib/mios/agent-pipe/mios_deliberate.py, usr/share/mios/mios.toml [dispatch], [ai.lanes] -->
+<!-- AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_sched.py, usr/lib/mios/agent-pipe/mios_dci.py, usr/share/mios/mios.toml [dispatch], [ai.lanes] -->
 ---
 adr: 0019
 title: "Preemptive context switching, priority scheduling, and consequentiality-gated deliberation"
@@ -44,6 +44,10 @@ Structured Deliberative Collective Intelligence (DCI) multi-agent debate is trig
 Context retrieval utilizes hierarchical manifest matching:
 * Fast vector similarity over high-level component manifests narrows search scope before pulling detailed code files and AST triples.
 * Re-ranking using a local cross-encoder (`bge-reranker-large`) ensures high precision@5 retrieval before prompt injection.
+
+## Rationale
+
+Preemptive GPU scheduling ensures sub-second interactive latency for human operator requests while allowing background agentic reflection and distillation to run continuously on host hardware.
 
 ## Consequences
 

@@ -6,7 +6,7 @@
 > (`what directory` / `what's here?`) that surfaced four chat-quality defects,
 > traced to root cause by a 6-agent code audit of the `agent-pipe` orchestrator
 > (`:8640`), cross-checked against 2025–2026 upstream native patterns. Companion
-> to [`native-openai-visibility-and-aios-mapping.md`](native-openai-visibility-and-aios-mapping.md)
+> to [`chat-quality-and-visibility-standards.md`](chat-quality-and-visibility-standards.md)
 > and to `MIOS-GAP-REGISTER-2026-06-27.md`. Not tracked by the 108-task backlog.
 > Timeless: describe the WHY, not the date. Every fix is SSOT-/model-driven,
 > flag-gated, degrade-open (Law 7).

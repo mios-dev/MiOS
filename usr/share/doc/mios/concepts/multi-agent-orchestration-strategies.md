@@ -1,5 +1,5 @@
 <!-- AI-hint: Reality-checked landscape of multi-agent orchestration strategies (OpenAI Agents SDK / Swarm, MCP, LangGraph/CrewAI/ADK, structured deliberation, document-mutation coordination, progressive-disclosure retrieval, identity-aware delegation, contribution evaluation) mapped onto the existing MiOS agent plane, with a MiOS gap register feeding ROADMAP Part 13 / T-154..T-161. -->
-<!-- AI-related: usr/lib/mios/agent-pipe/server.py, usr/share/mios/agents/, ROADMAP.md (Part 13), TASKS.md (T-154..T-161), research/native-openai-visibility-and-aios-mapping.md, research/multi-harness-orchestration-factcheck-2026-06-19.md -->
+<!-- AI-related: usr/lib/mios/agent-pipe/server.py, usr/share/mios/agents/, ROADMAP.md (Part 13), TASKS.md (T-154..T-161), usr/share/doc/mios/concepts/chat-quality-and-visibility-standards.md -->
 
 # Multi-Agent Orchestration Strategies — Landscape, Reality-Check, and MiOS Mapping
 

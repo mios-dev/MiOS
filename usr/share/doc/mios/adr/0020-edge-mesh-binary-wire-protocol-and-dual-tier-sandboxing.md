@@ -1,5 +1,5 @@
 <!-- AI-hint: Specifies the 16-byte binary wire protocol, dual-tier Wasm/container sandboxing, and hierarchical work-stealing for mios-node. -->
-<!-- AI-related: src/mios-rs/crates/mios-node/, usr/share/mios/mios.toml [blade.mesh], [nodes], [nodes.limits] -->
+<!-- AI-related: usr/lib/systemd/system/mios-node.service, usr/share/mios/mios.toml [blade.mesh], [nodes], [nodes.limits] -->
 ---
 adr: 0020
 title: "Edge micro-mesh 16-byte binary wire protocol, dual-tier sandboxing, and hierarchical work-stealing"
@@ -50,6 +50,10 @@ Task offloading follows a strict hierarchy:
 
 ### 4. CRDT Distributed State Reconciliation
 Mesh state uses LWW-Element-Set and Vector Clock CRDTs for seamless multi-master divergence during network partitions, reconciling automatically upon link restoration.
+
+## Rationale
+
+A binary wire protocol paired with dual-tier sandboxing allows low-latency edge mesh task offloading while ensuring cryptographically verified execution isolation.
 
 ## Consequences
 

@@ -1,5 +1,5 @@
 <!-- AI-hint: Specification for the Autonomous Epistemic Evolution and Continuous Learning Loop in MiOS. -->
-<!-- AI-related: usr/share/doc/mios/adr/0018-shutdown-diff-snapshotting-and-boot-cycle-accrual.md, usr/libexec/mios/mios-skill-synthesizer, usr/share/mios/postgres/schema-init.sql -->
+<!-- AI-related: usr/share/doc/mios/adr/0018-shutdown-diff-snapshotting-and-boot-cycle-accrual.md, usr/libexec/mios/mios-skill-clone, usr/share/mios/postgres/schema-init.sql -->
 # Autonomous Epistemic Evolution & Continuous Learning Loop
 
 ## 1. Overview

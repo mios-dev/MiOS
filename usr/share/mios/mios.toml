@@ -11174,4 +11174,3 @@ min_bytes = 4194304
 max_untested_crates = 0
 
 [rust.untested_crates]
-

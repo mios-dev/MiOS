@@ -1,5 +1,5 @@
 <!-- AI-hint: Research for a MiOS "living wallpaper" -- a GPU-accelerated animated mesh-gradient background derived from the SSOT [colors] palette, cross-surface (Windows + Linux GNOME/Wayland + optional Hyprland/Quickshell), with a permissive-license triage (MiOS ships as a distributable OS, so Commons Clause / non-OSI deps are disqualifying). Feeds ROADMAP WS-WBRAND (WBRAND-04..06) / TASKS T-162..T-164. -->
-<!-- AI-related: src/autounattend/New-MiOSISO.ps1 (Set-MiOSIdentityOffline gradient wallpaper), usr/share/mios/mios.toml ([colors]/[branding]/[theme]), ROADMAP.md (WS-WBRAND), research/multi-agent-orchestration-strategies-2026-07-05.md -->
+<!-- AI-related: src/autounattend/New-MiOSISO.ps1 (Set-MiOSIdentityOffline gradient wallpaper), usr/share/mios/mios.toml ([colors]/[branding]/[theme]), ROADMAP.md (WS-WBRAND), usr/share/doc/mios/concepts/multi-agent-orchestration-strategies.md -->
 
 # MiOS Living Wallpaper — Animated GPU Mesh-Gradient from SSOT Palette
 

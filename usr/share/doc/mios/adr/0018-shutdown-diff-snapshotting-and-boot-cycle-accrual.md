@@ -1,5 +1,5 @@
 <!-- AI-hint: Captures pre-poweroff diffs, accrues them across boot cycles, provides interactive HITL review, and rolls approved diffs into new immutable OCI layers. -->
-<!-- AI-related: usr/libexec/mios/mios-diff-snapshot, usr/libexec/mios/mios-diff-accrue, usr/libexec/mios/mios-diff-audit, usr/libexec/mios/mios-diff-bake, usr/share/mios/mios.toml [build.bake], [security.diff_policy], /etc/greenboot/check/required.d/60-mios-diff-bake-verify.sh -->
+<!-- AI-related: usr/share/mios/mios.toml, usr/share/doc/mios/manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md -->
 ---
 adr: 0018
 title: "Shutdown diff snapshotting, boot-cycle diff accrual, and HITL image roll-in pipeline"
@@ -58,6 +58,10 @@ When diffs are approved:
 On the next boot:
 * Greenboot health check `/etc/greenboot/check/required.d/60-mios-diff-bake-verify.sh` validates that all services initialize cleanly.
 * If any service panics or fails health checks, Greenboot automatically initiates an atomic rollback to the previous deployment and marks the offending diff as quarantined in the audit ledger.
+
+## Rationale
+
+Autonomous boot-cycle accrual eliminates mutable layer divergence on immutable OCI nodes while retaining human oversight via HITL diff auditing before image bakes.
 
 ## Consequences
 

@@ -14461,3 +14461,403 @@ makes that table generated so the two cannot diverge again.
 **Why:** Broken filesystem ACLs compromise container isolation and expose private user data across tenant boundaries.
 **Dep:** AGY-2075
 
+## AGY-2077 -- Declarative nftables inter-container firewall rule generator  (WS-SEC | P1 | M)
+**Goal:** Enforce strict default-deny network segmentation between Podman sidecar containers.
+**What+How:** Implement `automation/45-firewall-gen.sh`. Parse `[network.firewall.container_matrix]` in `mios.toml`, generate custom `nftables` table `inet mios_container_isolate`, and apply drop rules for undeclared cross-container TCP/UDP paths.
+**Where:** automation/45-firewall.sh, usr/lib/systemd/system/mios-firewall.service
+**Verify:** Attempt connection from `mios-open-webui` directly to `mios-pgvector` port 5432; verify packet is dropped by `nftables`.
+**Do NOT:** Permit unrestricted bridge forwarding across sidecar containers.
+**Done When:** Nftables generator applies least-privilege inter-container routing rules automatically on startup.
+**Why:** Micro-segmentation prevents compromised front-end containers from accessing sensitive internal database ports.
+**Dep:** AGY-2076
+
+## AGY-2078 -- Container bridge lateral movement penetration test in CI test suites  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that isolated containers cannot establish unauthorized lateral network connections.
+**What+How:** Add `tests/test-container-network-isolate.sh`. Spawn two test containers on the Podman bridge; assert that undeclared port probes time out and declared routes succeed.
+**Where:** tests/test-container-network-isolate.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-container-network-isolate.sh`; verify network isolation tests pass with 100% assertions met.
+**Do NOT:** Skip lateral network isolation tests in CI test tier 2.
+**Done When:** Automated CI test verifies container network isolation boundaries continuously.
+**Why:** Continuous testing ensures firewall rules do not silently regress during system updates.
+**Dep:** AGY-2077
+
+## AGY-2079 -- Dynamic Node Capability Profiler & Model Format Selector in agent-pipe  (WS-AI | P1 | M)
+**Goal:** Dynamically select optimal model quantization formats based on reported node hardware capabilities.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_model_alloc.py`. Inspect node telemetry (VRAM, compute backend, supported quantization kernels) and automatically route requests to optimal backends (vLLM for FP8/AWQ on heavy GPUs, llama.cpp for GGUF on consumer GPUs/CPUs).
+**Where:** usr/lib/mios/agent-pipe/mios_model_alloc.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Request a model on an 8GB GPU blade; verify format selector chooses GGUF Q4_K_M on llama.cpp; request on a 48GB GPU node and verify selection routes to FP8 on vLLM.
+**Do NOT:** Hardcode static model formats to specific hostnames; resolve dynamically from node capability telemetry.
+**Done When:** Model allocation engine selects optimal quantization formats dynamically based on live node telemetry.
+**Why:** Heterogeneous cluster nodes require adaptive model format selection to maximize throughput and prevent OOM errors.
+**Dep:** AGY-2078
+
+## AGY-2080 -- Automated On-Demand GGUF Quantization and Format Transcoding Service  (WS-AI | P2 | M)
+**Goal:** Transcode raw HuggingFace weights into optimized GGUF quantizations on-demand for local inference.
+**What+How:** Implement `usr/libexec/mios/mios-quantize`. Wrap `llama-quantize` to automatically convert downloaded 16-bit safetensors weights into target GGUF quants (Q4_K_M, Q8_0) during background model ingestion.
+**Where:** usr/libexec/mios/mios-quantize, usr/lib/systemd/system/mios-quantize@.service
+**Verify:** Ingest an unquantized safetensors model; verify `mios-quantize` converts weights to GGUF format and verifies tensor checksums.
+**Do NOT:** Block interactive inference requests while running background quantization jobs; schedule with low CPU/IO priority.
+**Done When:** Automated transcoding service converts raw model weights to target quantizations on-demand.
+**Why:** On-demand quantization allows operators to ingest arbitrary open-source models and optimize them automatically for their hardware.
+**Dep:** AGY-2079
+
+## AGY-2081 -- Pre-Push Secret Sanitization & Sensitive Token Detection Hook  (WS-GIT | P1 | S)
+**Goal:** Prevent accidental git pushes of private keys, passwords, or personal access tokens.
+**What+How:** Implement `.git/hooks/pre-push` invoking `usr/libexec/mios/mios-git-sanitize`. Scan outgoing git commit trees with regex detectors for API keys, SSH private keys, and `secrets.env` tokens, blocking push on detection.
+**Where:** usr/libexec/mios/mios-git-sanitize, automation/10-bootstrap.sh
+**Verify:** Attempt to push a test commit containing a fake API key; verify the pre-push hook blocks the push with exit code 1.
+**Do NOT:** Allow bypass of pre-push secret scanning on production branches.
+**Done When:** Pre-push hook scans all outgoing commits and blocks secret leakage reliably.
+**Why:** Leaked credentials in public git repositories cause severe security breaches and invalidate sovereignty.
+**Dep:** AGY-2080
+
+## AGY-2082 -- Bi-Directional Dual-Remote Git Synchronization Daemon with Safe Divergence Gate  (WS-GIT | P1 | M)
+**Goal:** Synchronize commits concurrently between GitHub and local Forgejo with safe divergence handling.
+**What+How:** Implement `usr/libexec/mios/mios-git-sync`. Configure dual push URLs (`origin` pointing to both GitHub and Forgejo); if remote divergence occurs, fetch remote refs, compute 3-way diff, and notify operator via desktop notification instead of force-pushing.
+**Where:** usr/libexec/mios/mios-git-sync, usr/lib/systemd/user/mios-git-sync.service
+**Verify:** Commit a change; trigger `mios-git-sync`; verify commit replicates to both GitHub and Forgejo; simulate remote divergence and verify sync pauses safely.
+**Do NOT:** Execute `git push --force` during automated dual-remote synchronization.
+**Done When:** Dual-remote sync daemon replicates commits across GitHub and Forgejo with safe conflict gating.
+**Why:** Equal-publisher parity guarantees local sovereignty on Forgejo while maintaining public open-source release on GitHub.
+**Dep:** AGY-2081
+
+## AGY-2083 -- Linux PSI (Pressure Stall Information) monitor daemon in agent-pipe  (WS-SCHED | P1 | M)
+**Goal:** Sample Linux PSI metrics continuously and signal throttling events to inference workers.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_psi.py`. Read `/proc/pressure/cpu`, `/proc/pressure/memory`, and `/proc/pressure/io` every 2 seconds; emit warning events when `some avg10 > 40.0` and critical events when `some avg10 > 70.0`.
+**Where:** usr/lib/mios/agent-pipe/mios_psi.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Simulate high CPU/memory pressure using `stress-ng`; verify `mios_psi.py` detects pressure threshold and triggers throttling callback.
+**Do NOT:** Block the main async event loop while reading sysfs pressure files.
+**Done When:** PSI monitor detects system resource saturation in real time with sub-2s latency.
+**Why:** Early detection of CPU/memory pressure prevents system lockups and audio/video stuttering in interactive sessions.
+**Dep:** AGY-2082
+
+## AGY-2084 -- Dynamic cgroup v2 cpu.max and memory.high pressure-adaptive controller  (WS-SCHED | P1 | M)
+**Goal:** Throttle background daemon resource consumption dynamically based on live PSI pressure events.
+**What+How:** Implement `usr/libexec/mios/mios-cgroup-throttle`. On PSI critical signals, dynamically write restrictive quota (`cpu.max 20000 100000`, `memory.high`) to `/sys/fs/cgroup/system.slice/mios-background.slice` and restore default limits when pressure subsides.
+**Where:** usr/libexec/mios/mios-cgroup-throttle, usr/lib/systemd/system/mios-cgroup-throttle.service
+**Verify:** Trigger a heavy background compile while running an interactive benchmark; verify background slice throttles CPU to 20% during pressure.
+**Do NOT:** Throttle the interactive desktop user slice or system critical units.
+**Done When:** Dynamic cgroup controller restricts background slices under pressure and recovers automatically.
+**Why:** Enforcing cgroup limits under pressure guarantees that foreground interactive tasks always receive required CPU cycles.
+**Dep:** AGY-2083
+
+## AGY-2085 -- Unprivileged containerized QLoRA fine-tuning engine using Unsloth  (WS-AI | P2 | L)
+**Goal:** Execute lightweight 4-bit QLoRA fine-tuning on local GPUs during system idle states.
+**What+How:** Implement `usr/libexec/mios/mios-finetune-qlora` running inside `usr/share/containers/systemd/mios-finetune.container`. Ingest verified Q&A datasets from `/var/lib/mios/ai/dataset/`, train a LoRA adapter against `mios-opencode`, and output adapter weights to `/var/lib/mios/llamacpp/adapters/`.
+**Where:** usr/libexec/mios/mios-finetune-qlora, usr/share/containers/systemd/mios-finetune.container
+**Verify:** Run fine-tuning on a 100-sample dataset; verify LoRA adapter trains to convergence and exports valid `.gguf` adapter weights.
+**Do NOT:** Run fine-tuning when host is running on battery power or active interactive inference is engaged.
+**Done When:** QLoRA fine-tuning engine trains domain adapters cleanly inside unprivileged containers.
+**Why:** Continuous local adaptation allows the coding model to specialize in the operator's specific codebase patterns.
+**Dep:** AGY-2084
+
+## AGY-2086 -- Automated LoRA adapter benchmark evaluator and catastrophic forgetting guard  (WS-AI | P2 | M)
+**Goal:** Validate newly trained LoRA adapters against canonical regression benchmarks before activation.
+**What+How:** Implement `usr/libexec/mios/mios-eval-adapter`. Evaluate newly trained adapter on standard HumanEval / FHS benchmarks; reject adapter if coding accuracy drops below base model baseline.
+**Where:** usr/libexec/mios/mios-eval-adapter, usr/share/mios/ai/dataset/benchmark.jsonl
+**Verify:** Evaluate a trained adapter against baseline; verify benchmark report outputs pass/fail status based on regression thresholds.
+**Do NOT:** Deploy adapters that exhibit catastrophic forgetting on general coding tasks.
+**Done When:** Benchmark evaluator gates adapter deployment on regression-free evaluation passes.
+**Why:** Preventing catastrophic forgetting ensures that domain fine-tuning does not degrade general reasoning abilities.
+**Dep:** AGY-2085
+
+## AGY-2087 -- Declarative Flatpak permission lockdown profiles in /etc/flatpak/overrides/  (WS-APP | P1 | S)
+**Goal:** Bake restrictive Flatpak permission overrides into the immutable image.
+**What+How:** Implement `automation/51-flatpak-overrides.sh`. Generate override profiles under `usr/share/flatpak/overrides/global` disabling `socket=x11`, disallowing `filesystem=host`, and enforcing `--socket=wayland` and portal mediation.
+**Where:** automation/51-flatpak-overrides.sh, usr/share/flatpak/overrides/
+**Verify:** Launch a test Flatpak application; verify `flatpak info --show-permissions` reflects Wayland-only socket and restricted filesystem scopes.
+**Do NOT:** Grant `--filesystem=home` or `--filesystem=host` in global override policies.
+**Done When:** Global Flatpak override profile enforces least-privilege sandbox boundaries across all installed desktop apps.
+**Why:** Restricting Flatpak permissions prevents untrusted desktop apps from snooping key events or reading host configuration files.
+**Dep:** AGY-2086
+
+## AGY-2088 -- XDG Desktop Portal permission and socket boundary verification suite  (WS-APP | P2 | S)
+**Goal:** Verify in automated tests that sandboxed Flatpaks cannot bypass XDG portals.
+**What+How:** Add `tests/test-flatpak-portal-sandbox.sh`. Execute a sandboxed Flatpak process attempting direct `/etc/shadow` reads and X11 display socket connections, asserting that both attempts fail with access denied.
+**Where:** tests/test-flatpak-portal-sandbox.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-flatpak-portal-sandbox.sh`; verify sandbox escape probes are blocked and portal tests pass.
+**Do NOT:** Skip portal boundary validation in CI test tier 2.
+**Done When:** Verification suite confirms sandbox containment for all baked Flatpak applications.
+**Why:** Continuous portal testing ensures sandbox restrictions are not bypassed by application updates.
+**Dep:** AGY-2087
+
+## AGY-2089 -- virtiofsd POSIX/OFD lock translation and cache policy configurator  (WS-STRG | P1 | S)
+**Goal:** Enforce mutual write exclusion on shared host-guest filesystems across Windows and Linux.
+**What+How:** Implement `automation/48-virtiofsd-config.sh`. Configure `virtiofsd` systemd units with `--posix-lock --flock --cache=auto --announce-submounts`, mapping guest lock requests to Linux Open File Description locks.
+**Where:** automation/48-virtiofsd-config.sh, usr/lib/systemd/system/virtiofsd@.service
+**Verify:** Start `virtiofsd`; verify command line includes `--posix-lock --flock` and locks are visible in `/proc/locks`.
+**Do NOT:** Disable file locking on shared read-write host-guest volumes.
+**Done When:** Virtiofs daemon translates guest file lock requests to host OFD locks deterministically.
+**Why:** Cross-platform lock translation prevents silent data corruption when host and guest modify shared files concurrently.
+**Dep:** AGY-2088
+
+## AGY-2090 -- Cross-platform concurrent write and lock contention test suite in QEMU  (WS-STRG | P2 | M)
+**Goal:** Verify in automated integration tests that concurrent host-guest writes honor mutual exclusion locks.
+**What+How:** Add `tests/test-virtiofs-lock-contention.sh`. Spawn a QEMU guest with virtiofs mount; execute simultaneous file lock and write operations from host and guest, asserting that lock contention is honored with zero data loss.
+**Where:** tests/test-virtiofs-lock-contention.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-virtiofs-lock-contention.sh`; verify all lock acquisition and release assertions pass.
+**Do NOT:** Skip lock contention testing in CI tier 3.
+**Done When:** Test suite validates cross-platform file locking integrity in virtualized integration runs.
+**Why:** Automated verification ensures hypervisor storage upgrades do not break file locking semantics.
+**Dep:** AGY-2089
+
+## AGY-2091 -- TPM 2.0 PCR 7/11 systemd-creds automated secret sealing and enrollment script  (WS-SEC | P1 | M)
+**Goal:** Seal host master secrets cryptographically to TPM 2.0 PCR 7 and PCR 11 measurements.
+**What+How:** Implement `usr/libexec/mios/mios-tpm-seal`. Seal `/etc/mios/secrets.env` using `systemd-creds encrypt --with-key=tpm2 --tpm2-pcrs=7+11` on first boot or UKI kernel upgrade, outputting `/etc/mios/secrets.env.tpm2`.
+**Where:** usr/libexec/mios/mios-tpm-seal, automation/10-bootstrap.sh
+**Verify:** Run `mios-tpm-seal`; verify `/etc/mios/secrets.env.tpm2` is created and `systemd-creds decrypt` recovers plaintext on genuine boot.
+**Do NOT:** Seal secrets to volatile PCRs like PCR 10 that change across non-kernel events.
+**Done When:** Master credentials are sealed to hardware TPM 2.0 bound strictly to PCR 7 and 11.
+**Why:** TPM sealing guarantees credentials remain inaccessible if disks are stolen or unauthorized kernels booted.
+**Dep:** AGY-2090
+
+## AGY-2092 -- Offline split-key emergency recovery and TPM unseal failure test suite  (WS-SEC | P2 | M)
+**Goal:** Verify emergency recovery passphrases can restore sealed secrets when TPM unsealing fails.
+**What+How:** Implement `usr/libexec/mios/mios-tpm-recover` and integration test `tests/test-tpm2-unseal-failure.sh`. Simulate PCR mismatch in virtual TPM; verify unseal fails with access denied and recovery passphrase restores plaintext.
+**Where:** usr/libexec/mios/mios-tpm-recover, tests/test-tpm2-unseal-failure.sh
+**Verify:** Run `tests/test-tpm2-unseal-failure.sh`; verify tamper detection and recovery pass assertions.
+**Do NOT:** Store emergency recovery keys unencrypted on the target host.
+**Done When:** Emergency recovery tool successfully restores sealed vault data following simulated TPM lockouts.
+**Why:** Robust emergency recovery ensures operators can regain access to their data if motherboard firmware is updated.
+**Dep:** AGY-2091
+
+## AGY-2093 -- Udev hotplug handler for dynamic Thunderbolt/USB4 eGPU and PCIe accelerator re-enumeration  (WS-VFIO | P1 | S)
+**Goal:** Detect external GPU hotplug events and trigger automated driver binding and CDI updates.
+**What+How:** Implement `usr/lib/udev/rules.d/99-mios-egpu.rules` and `usr/libexec/mios/mios-egpu-hotplug`. On PCIe add/remove events for VGA/3D display controllers, authorize Thunderbolt device if required, trigger driver probe, and execute CDI refresh.
+**Where:** usr/lib/udev/rules.d/99-mios-egpu.rules, usr/libexec/mios/mios-egpu-hotplug
+**Verify:** Simulate a PCIe hotplug uevent via `udevadm trigger`; verify `mios-egpu-hotplug` executes and detects the new device ID.
+**Do NOT:** Block udev workers with synchronous long-running compilation scripts.
+**Done When:** Udev rules detect hotplugged GPUs and trigger automated provisioning immediately.
+**Why:** External eGPUs allow mobile laptops and modular workstations to dynamically expand AI compute capacity.
+**Dep:** AGY-2092
+
+## AGY-2094 -- Zero-downtime CDI re-generation and inference engine live reload daemon  (WS-AI | P2 | M)
+**Goal:** Update CDI specs and notify inference daemons of newly available GPU compute lanes dynamically.
+**What+How:** Implement `usr/libexec/mios/mios-cdi-reload`. Run `nvidia-ctk cdi generate` or ROCm equivalent, update PostgreSQL `hardware_devices` table, and send `SIGHUP` to `mios-llm-light` to reload its device map without dropping active connections.
+**Where:** usr/libexec/mios/mios-cdi-reload, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Trigger CDI reload while an inference stream is active; verify the stream completes uninterrupted and new GPU becomes visible for subsequent turns.
+**Do NOT:** Restart inference containers abruptly during active user chat requests.
+**Done When:** CDI specifications update and inference engines recognize hotplugged GPUs with zero session downtime.
+**Why:** Zero-downtime device updates ensure smooth operator experience when docking or connecting accelerators.
+**Dep:** AGY-2093
+
+## AGY-2095 -- systemd-resolved to mios-adguard split-horizon DNS routing configurator  (WS-NET | P1 | S)
+**Goal:** Route system DNS queries through local AdGuard Home with split-horizon resolution for .mios domains.
+**What+How:** Implement `automation/46-dns-config.sh`. Configure `/etc/systemd/resolved.conf.d/10-adguard.conf` pointing `DNS=127.0.0.1:5353` and `Domains=~mios ~cluster.local`, with AdGuard Home forwarding external queries over encrypted DoH.
+**Where:** automation/46-dns-config.sh, usr/share/containers/systemd/mios-adguard.container
+**Verify:** Resolve `blade-0.mios` (assert Headscale IP returned) and `kernel.org` (assert DoH upstream query resolved).
+**Do NOT:** Allow unencrypted cleartext DNS queries over port 53 to leak to public WAN.
+**Done When:** System DNS resolves internal mesh hostnames and external DoH queries seamlessly through AdGuard Home.
+**Why:** Split-horizon encrypted DNS blocks telemetry tracking and secures name resolution across private and public domains.
+**Dep:** AGY-2094
+
+## AGY-2096 -- DNS-over-HTTPS leak prevention and encrypted query test suite  (WS-NET | P2 | S)
+**Goal:** Verify in automated CI that no cleartext DNS requests escape to public interfaces.
+**What+How:** Add `tests/test-dns-leak-prevention.sh`. Capture network traffic on the default gateway during DNS lookups, asserting that 0 packets escape on UDP/TCP port 53 and all queries utilize TLS port 443/853.
+**Where:** tests/test-dns-leak-prevention.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-dns-leak-prevention.sh`; verify zero cleartext DNS packets are detected.
+**Do NOT:** Skip DNS leak validation in CI test tier 2.
+**Done When:** Automated test suite confirms zero DNS leaks across system and container network interfaces.
+**Why:** Continuous testing ensures DNS encryption policies remain airtight across system upgrades.
+**Dep:** AGY-2095
+
+## AGY-2097 -- Multi-surface theme renderer with ANSI OSC 4/10/11 PTY injector and GTK/QT CSS generator  (WS-LANG | P1 | M)
+**Goal:** Render and apply SSOT theme palettes across GTK3/4, QT6, and terminal PTYs live.
+**What+How:** Implement `usr/libexec/mios/mios-theme-render`. Parse `[colors]` in `mios.toml`, generate `~/.config/gtk-4.0/gtk.css`, QT stylesheet overrides, and iterate through `/dev/pts/*` writing ANSI OSC 4/10/11 escape sequences to update terminal palettes on the fly.
+**Where:** usr/libexec/mios/mios-theme-render, etc/skel/.config/gtk-4.0/gtk.css
+**Verify:** Trigger theme update from CLI; verify active terminal window and GTK file chooser reflect new background/foreground colors immediately.
+**Do NOT:** Require closing or restarting active terminal windows to pick up theme changes.
+**Done When:** Theme renderer propagates color palette updates across GTK, QT, and active PTYs with zero restarts.
+**Why:** Instant multi-surface theme synchronization provides a cohesive, polished operator aesthetic.
+**Dep:** AGY-2096
+
+## AGY-2098 -- Real-time DBus and WebGL wallpaper theme synchronization bus  (WS-LANG | P2 | S)
+**Goal:** Notify GNOME and mios-wallpaperd of theme updates in real time via DBus and Unix domain sockets.
+**What+How:** Implement theme event emitter in `usr/libexec/mios/mios-theme-broadcast`. Emit DBus `org.freedesktop.portal.Settings` signal for dark/light mode and send updated color uniforms over `/run/user/$UID/mios-wallpaper.sock` to update WebGL shaders.
+**Where:** usr/libexec/mios/mios-theme-broadcast, usr/lib/systemd/user/mios-wallpaper.service
+**Verify:** Switch theme palette; verify living wallpaper background gradients smoothly transition colors in real time.
+**Do NOT:** Block the theme renderer while waiting for individual DBus listeners to acknowledge.
+**Done When:** Theme broadcast bus synchronizes GNOME settings and living wallpaper shaders in real time.
+**Why:** Real-time shader and desktop theme synchronization delivers a responsive, living desktop environment.
+**Dep:** AGY-2097
+
+## AGY-2099 -- Headless QEMU KVM/TCG microVM boot and Greenboot verification test runner  (WS-BUILD | P1 | M)
+**Goal:** Execute automated headless microVM boot tests in CI with KVM acceleration and TCG fallback.
+**What+How:** Implement `tests/test-microvm-boot.sh`. Launch `qemu-system-x86_64` using `/dev/kvm` if accessible or `-accel tcg,thread=multi` if nested, capture serial console output to logfile, and verify `greenboot` health check succeeds in <120s.
+**Where:** tests/test-microvm-boot.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-microvm-boot.sh`; verify microVM boots cleanly and script returns exit 0 upon verified greenboot completion.
+**Do NOT:** Hard-fail tests when `/dev/kvm` is missing; always fall back gracefully to multi-threaded TCG.
+**Done When:** Headless microVM test runner boots generated images and validates greenboot health in automated CI.
+**Why:** MicroVM boot testing catches bootloader, kernel module, and systemd regressions before physical hardware deployment.
+**Dep:** AGY-2098
+
+## AGY-2100 -- Automated boot-failure and Greenboot atomic rollback recovery test suite  (WS-BUILD | P1 | M)
+**Goal:** Verify in automated microVM testing that boot failure triggers automatic bootc rollback.
+**What+How:** Implement `tests/test-greenboot-rollback.sh`. Inject a failing systemd health check into a staging OCI image, boot in QEMU microVM, and assert that Greenboot fails 3 boot attempts and automatically rolls back to the previous working deployment.
+**Where:** tests/test-greenboot-rollback.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-greenboot-rollback.sh`; verify greenboot triggers automatic rollback and microVM reboots into working state.
+**Do NOT:** Allow failing OS upgrades to brick unbootable systems without triggering automatic rollback.
+**Done When:** Test suite validates automatic greenboot rollback on simulated boot failure.
+**Why:** Guaranteed atomic rollback is the core reliability foundation of immutable bootc operating systems.
+**Dep:** AGY-2099
+
+## AGY-2101 -- Atomic DNF5 package installation pipeline with local cache staging  (WS-BUILD | P1 | M)
+**Goal:** Ensure repeatable, fast RPM package layering with persistent local cache in OCI image builds.
+**What+How:** Update `automation/30-packages.sh` to execute DNF5 with `--setopt=cachedir=/var/cache/dnf5 --setopt=keepcache=1 --setopt=clean_requirements_on_remove=1`, parsing package sets from `mios.toml` and retrying transient network mirror drops with exponential backoff.
+**Where:** automation/30-packages.sh, Containerfile
+**Verify:** Run image build; verify DNF5 caches RPMs in `/var/cache/dnf5` and re-runs execute in <30s utilizing local cache.
+**Do NOT:** Execute `--nodeps` or `--skip-broken` in production image build scripts.
+**Done When:** DNF5 builds execute atomically with local caching and automated mirror failover.
+**Why:** Hermetic package caching accelerates build cycles and provides offline build repeatability.
+**Dep:** AGY-2100
+
+## AGY-2102 -- Upstream mirror failover and RPM transaction integrity verification test  (WS-BUILD | P2 | S)
+**Goal:** Verify in automated tests that package installation recovers from mirror failures without corruption.
+**What+How:** Add `tests/test-dnf5-mirror-failover.sh`. Simulate a primary mirror network failure; assert DNF5 automatically fails over to secondary mirror and successfully completes package installation.
+**Where:** tests/test-dnf5-mirror-failover.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-dnf5-mirror-failover.sh`; verify mirror failover is handled cleanly and transaction commits.
+**Do NOT:** Skip package manager resiliency testing in CI tier 2.
+**Done When:** Automated test suite validates DNF5 mirror failover and transaction integrity.
+**Why:** Resilient package management prevents intermittent network blips from breaking image compilation.
+**Dep:** AGY-2101
+
+## AGY-2103 -- Scream virtual audio to PipeWire JACK low-latency receiver daemon  (WS-VFIO | P1 | S)
+**Goal:** Bridge Windows/Linux VM guest audio to host PipeWire engine with sub-5ms latency.
+**What+How:** Implement `automation/25-audio-scream.sh`. Deploy `scream` user service receiving PCM streams over IVSHMEM or UDP `:4010` and routing directly to PipeWire JACK sink with `PIPEWIRE_LATENCY=128/48000`.
+**Where:** automation/25-audio.sh, usr/lib/systemd/user/mios-scream.service
+**Verify:** Start VM audio playback; verify `pw-top` shows scream sink running at 48kHz / 128 quantum with 0 buffer errors.
+**Do NOT:** Route VM audio through high-latency pulseaudio TCP sockets.
+**Done When:** Scream receiver bridges VM audio to PipeWire with sub-5ms latency and zero crackling.
+**Why:** Low-latency audio is essential for gaming VMs and real-time voice synthesis agents.
+**Dep:** AGY-2102
+
+## AGY-2104 -- Automated audio buffer underrun and latency jitter benchmark suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated benchmarks that inter-VM audio achieves sub-5ms round-trip latency.
+**What+How:** Add `tests/test-audio-latency-jitter.sh`. Play a test pulse from guest VM through Scream bridge and record on host loopback; assert round-trip latency is <5ms and jitter is <1ms.
+**Where:** tests/test-audio-latency-jitter.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-audio-latency-jitter.sh`; verify latency metrics pass all SLA thresholds.
+**Do NOT:** Skip audio latency testing in CI test tier 2.
+**Done When:** Benchmark suite confirms inter-VM audio latency meets the sub-5ms performance SLA.
+**Why:** Continuous latency testing ensures audio optimizations do not degrade across kernel updates.
+**Dep:** AGY-2103
+
+## AGY-2105 -- A/B UKI staging and systemd-ukify compilation pipeline with baked kargs  (WS-BOOT | P1 | M)
+**Goal:** Compile and sign staged UKI images with updated kernel command-line parameters safely.
+**What+How:** Implement `usr/libexec/mios/mios-ukify-stage`. Parse `[kernel.kargs]` in `mios.toml`, assemble kernel + initrd + baked kargs into `/boot/EFI/Linux/mios-next.efi` via `ukify`, sign with project release key, and register a one-shot `systemd-boot` entry.
+**Where:** usr/libexec/mios/mios-ukify-stage, automation/20-drivers.sh
+**Verify:** Trigger UKI rebuild with new karg `mios.test=1`; verify `/boot/EFI/Linux/mios-next.efi` is generated with valid signature and baked cmdline.
+**Do NOT:** Overwrite active `/boot/EFI/Linux/mios.efi` directly before verified boot.
+**Done When:** UKI compilation service builds staged UKIs with baked kargs and registers A/B boot entries.
+**Why:** Baked UKI kargs maintain cryptographic boot integrity while A/B staging prevents bricked bootloaders.
+**Dep:** AGY-2104
+
+## AGY-2106 -- Automated UKI A/B boot promotion and Greenboot validation gate  (WS-BOOT | P1 | M)
+**Goal:** Promote staged UKIs to default only after Greenboot verifies hardware boot success.
+**What+How:** Implement `/etc/greenboot/check/required.d/10-uki-promote.sh`. On successful boot of `mios-next.efi`, atomically rename `mios-next.efi` to `mios.efi` and update `loader.conf` default entry; if boot fails, systemd-boot falls back to previous UKI.
+**Where:** /etc/greenboot/check/required.d/10-uki-promote.sh, usr/lib/greenboot/check/required.d/
+**Verify:** Simulate successful boot of staged UKI; verify greenboot promotes binary to default `/boot/EFI/Linux/mios.efi`.
+**Do NOT:** Promote staged UKIs if greenboot health checks fail.
+**Done When:** Greenboot gate automatically promotes verified staged UKI binaries to default boot entries.
+**Why:** Automated promotion guarantees that unverified kernel parameter modifications do not persist across crashes.
+**Dep:** AGY-2105
+
+## AGY-2107 -- Hermetic multi-stage Podman OCI image synthesis and Syft SBOM generation pipeline  (WS-BUILD | P1 | M)
+**Goal:** Synthesize OCI container images in rootless Podman and generate machine-readable SPDX SBOMs.
+**What+How:** Implement `automation/90-export-sbom.sh`. Execute `podman build -t localhost:5000/mios:latest .` inside `podman-MiOS-DEV`, extract package bill of materials using `syft packages oci-dir:... -o spdx-json`, and embed SBOM in `/usr/share/doc/mios/sbom.json`.
+**Where:** automation/90-export.sh, Containerfile
+**Verify:** Build image; verify `/usr/share/doc/mios/sbom.json` exists, is valid SPDX JSON, and enumerates all installed RPMs and Flatpaks.
+**Do NOT:** Omit transitive package dependencies from generated SBOM manifests.
+**Done When:** Build pipeline compiles OCI image and generates verifiable SPDX SBOM automatically.
+**Why:** Cryptographic SBOMs guarantee supply-chain transparency and enable automated vulnerability scanning.
+**Dep:** AGY-2106
+
+## AGY-2108 -- Local Cosign image signing and registry push validation gate  (WS-BUILD | P1 | M)
+**Goal:** Sign next-generation OCI image manifests with host Ed25519 keys and push to local registry.
+**What+How:** Implement `usr/libexec/mios/mios-cosign-publish`. Sign the OCI image manifest digest using `cosign sign --key /etc/pki/containers/cosign.key localhost:5000/mios:latest`, push signature to local registry (`:5000`), and verify signature before initiating `bootc switch`.
+**Where:** usr/libexec/mios/mios-cosign-publish, usr/lib/systemd/system/mios-registry.service
+**Verify:** Sign image; run `cosign verify --key /etc/pki/containers/cosign.pub localhost:5000/mios:latest`; verify signature verification passes.
+**Do NOT:** Push unsigned OCI images to production registries or trigger bootc switch without signature validation.
+**Done When:** Cosign publish tool signs images and verifies signatures before host deployment transitions.
+**Why:** Cryptographic image signatures ensure that only authentic, verified OS images are booted onto the host.
+**Dep:** AGY-2107
+
+## AGY-2109 -- In-kernel eBPF network flow aggregation probe and mios-netflowd collector daemon  (WS-SEC | P1 | M)
+**Goal:** Aggregate container and host network flows in kernel eBPF maps to minimize monitoring overhead.
+**What+How:** Implement `usr/src/bpf/mios_netflow.bpf.c` and `usr/libexec/mios/mios-netflowd`. Attach TC/sockops eBPF program to track connection 5-tuples and packet rates in per-CPU hash maps, flushing 10s flow summaries to userspace over eBPF ring buffers.
+**Where:** usr/src/bpf/mios_netflow.bpf.c, usr/libexec/mios/mios-netflowd
+**Verify:** Generate network traffic; verify `mios-netflowd` outputs summarized 10s flow vectors with <1% CPU overhead.
+**Do NOT:** Log uncompressed raw packet payloads to disk for standard connection monitoring.
+**Done When:** eBPF flow probe aggregates network connections and streams summarized telemetry to userspace.
+**Why:** In-kernel aggregation provides high-resolution network visibility without causing I/O bottleneck.
+**Dep:** AGY-2108
+
+## AGY-2110 -- Jensen-Shannon divergence anomaly alarm and PostgreSQL threat_events vector sink  (WS-SEC | P1 | M)
+**Goal:** Detect anomalous network connection patterns and log security events into PostgreSQL.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_net_anomaly.py`. Compare incoming 10s flow distributions against baseline using Jensen-Shannon divergence; when divergence > 0.35, generate vector embedding and insert into `threat_events` table.
+**Where:** usr/lib/mios/agent-pipe/mios_net_anomaly.py, usr/share/mios/postgres/schema-init.sql
+**Verify:** Simulate port scan; verify `mios_net_anomaly.py` detects distribution shift and inserts threat event row into PostgreSQL.
+**Do NOT:** Trigger alerts on small sample windows (<100 events); enforce minimum statistical window floor.
+**Done When:** Anomaly detector flags abnormal network traffic shifts and stores threat vectors in PostgreSQL.
+**Why:** Statistical anomaly detection identifies stealthy lateral movement and beaconing without fragile signature rules.
+**Dep:** AGY-2109
+
+## AGY-2111 -- Unified mios CLI engine with dynamic TTY formatting and POSIX exit codes  (WS-CLI | P1 | M)
+**Goal:** Provide ergonomic human terminal outputs with seamless machine-parsable JSON scripting.
+**What+How:** Implement `usr/bin/mios`. Use Typer/Click to build unified entry point; inspect `sys.stdout.isatty()` to render Rich tables/spinners on terminals and switch to clean JSON when piped or when `--json` / `--yaml` is passed.
+**Where:** usr/bin/mios, usr/lib/mios/cli/
+**Verify:** Run `mios status` in terminal (assert colored table); run `mios status --json` | jq (assert valid JSON parse).
+**Do NOT:** Emit ANSI color escape codes when stdout is redirected to non-TTY pipes.
+**Done When:** Unified CLI formats outputs adaptively and supports --json/--yaml across all core verbs.
+**Why:** Dual-format CLI output enables seamless script automation for agents and high ergonomics for operators.
+**Dep:** AGY-2110
+
+## AGY-2112 -- Dynamic plugin loader and subcommand discovery in /usr/libexec/mios/plugins/  (WS-CLI | P2 | S)
+**Goal:** Allow dynamic registration of third-party and experimental subcommands without modifying core CLI code.
+**What+How:** Implement `usr/lib/mios/cli/plugin_loader.py`. Discover executable scripts and Python modules under `/usr/libexec/mios/plugins/` and `/var/lib/mios/plugins/`, registering them dynamically into `mios --help` and dispatch table.
+**Where:** usr/lib/mios/cli/plugin_loader.py, usr/bin/mios
+**Verify:** Drop a script `mios-testcmd` into `/usr/libexec/mios/plugins/`; verify `mios testcmd` executes the script cleanly.
+**Do NOT:** Execute unvalidated plugins from world-writable directories.
+**Done When:** Dynamic plugin loader registers and executes external subcommands automatically.
+**Why:** Subcommand extensibility allows modular feature expansion without touching base system binaries.
+**Dep:** AGY-2111
+
+## AGY-2113 -- Reserved memory kdump kernel deployment and automated zstd crash dump extractor  (WS-DIAG | P1 | M)
+**Goal:** Capture minimal compressed kernel crash dumps on panics and reboot safely.
+**What+How:** Implement `automation/22-kdump-config.sh`. Configure `crashkernel=256M` in UKI kargs, deploy minimal kdump initramfs to `/boot/initramfs-kdump.img`, and write compressed `vmcore` bundles with `zstd` to `/var/crash/` before triggering safe reboot.
+**Where:** automation/22-kdump-config.sh, etc/kdump.conf
+**Verify:** Trigger a simulated kernel crash via `sysrq-trigger`; verify kdump kernel executes, writes `/var/crash/vmcore.zst`, and reboots back into working system.
+**Do NOT:** Write uncompressed monolithic core dumps exceeding 1GB to root partition.
+**Done When:** Kdump captures compressed crash dumps to persistent storage and reboots safely on panics.
+**Why:** Forensic crash dumps provide essential diagnostics to troubleshoot driver panics and hardware faults.
+**Dep:** AGY-2112
+
+## AGY-2114 -- In-kernel eBPF circular flight recorder ring and crash diagnostic parser  (WS-DIAG | P1 | M)
+**Goal:** Record last 60 seconds of kernel syscalls, I/O latency, and GPU events in a circular ring.
+**What+How:** Implement `usr/src/bpf/mios_flightrec.bpf.c` and parser `usr/libexec/mios/mios-crash-parse`. Maintain in-kernel circular ring buffer of active task states and GPU commands; on panic or post-boot crash analysis, format timeline into markdown diagnostic report.
+**Where:** usr/src/bpf/mios_flightrec.bpf.c, usr/libexec/mios/mios-crash-parse
+**Verify:** Run crash parser on test dump; verify timeline outputs last 60s of agent syscalls and GPU fence commands in chronological order.
+**Do NOT:** Allocate non-paged memory pools exceeding 64MB for the flight recorder ring.
+**Done When:** eBPF flight recorder logs rolling kernel states and crash parser reconstructs pre-panic events.
+**Why:** A rolling flight recorder reveals the exact sequence of agent operations leading up to a system crash.
+**Dep:** AGY-2113
+
+## AGY-2115 -- HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe  (WS-ORCH | P1 | M)
+**Goal:** Ingest and queue incoming webhooks securely with cryptographic signature verification and deduplication.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_webhook.py`. Verify `X-Hub-Signature-256` against configured secrets, compute idempotency payload hash, insert into PostgreSQL `agent_inbox`, and trigger asynchronous agent worker dispatch.
+**Where:** usr/lib/mios/agent-pipe/mios_webhook.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Post a valid signed GitHub webhook payload; verify payload queues into `agent_inbox` and agent triggers; post an invalid signature and verify HTTP 401 rejection.
+**Do NOT:** Execute unsigned webhook payloads or duplicate identical payload hashes within the deduplication window.
+**Done When:** Webhook receiver validates cryptographic signatures and queues events idempotently.
+**Why:** Authenticated webhook ingestion allows autonomous event-driven triggers without opening unauthenticated attack surfaces.
+**Dep:** AGY-2114
+
+## AGY-2116 -- Authenticated WebSocket real-time agent execution token stream (/v1/events/ws)  (WS-ORCH | P1 | M)
+**Goal:** Stream live agent thought tokens, tool calls, and step status over WebSockets to dashboards and consoles.
+**What+How:** Implement `/v1/events/ws` in `usr/lib/mios/agent-pipe/server.py`. Authenticate connecting clients via bearer tokens; subscribe to internal agent event bus; and stream JSON-RPC event chunks for reasoning, tool execution, and output tokens.
+**Where:** usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_events.py
+**Verify:** Connect a WebSocket client to `/v1/events/ws`; trigger an agent prompt; verify client receives real-time JSON-RPC chunks of streaming output.
+**Do NOT:** Buffer entire agent responses before streaming over WebSocket connections.
+**Done When:** WebSocket endpoint streams real-time execution events with sub-50ms latency.
+**Why:** Streaming agent telemetry provides full visibility into agent reasoning and tool executions for UI dashboards.
+**Dep:** AGY-2115
+
