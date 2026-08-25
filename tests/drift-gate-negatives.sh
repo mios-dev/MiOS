@@ -2662,7 +2662,7 @@ test_value_aliases() {
     [[ -f "$f" ]] || { log "Value-aliases.tsv absent"; return 0; }
     local backup; backup="$(mktemp)"
     cp "$f" "$backup"
-    printf 'MIOS_PG_USER\tMIOS_PGVECTOR_USER\tderive\n' >> "$f"
+    printf 'MIOS_A2A_COUNCIL\tMIOS_A2A_DISCOVER_PORT\tderive\n' >> "$f"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1 && die "Check_value_aliases passed despite a derive-pair with divergent values"
     cp "$backup" "$f"; rm -f "$backup"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1 \
