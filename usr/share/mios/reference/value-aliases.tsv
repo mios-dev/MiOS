@@ -167,4 +167,3 @@ MIOS_STORAGE_CEPHFS_PROVISION_SCRIPT	MIOS_CEPHFS_PROVISION_SCRIPT	derive	# famil
 MIOS_STORAGE_CEPHFS_SUBVOLUME_MODE	MIOS_CEPHFS_SUBVOLUME_MODE	derive	# family 5 cephfs
 MIOS_STORAGE_CEPHFS_TENANT_ID	MIOS_CEPHFS_TENANT_ID	derive	# family 5 cephfs
 MIOS_PORTS_SSH	MIOS_SSH_PORT	keep-distinct	# family 1 false-friend: 8222=actual host sshd, 2222=reserved canonical operator-SSH port (mios.toml:7906)
-MIOS_PG_USER	MIOS_PGVECTOR_USER	derive

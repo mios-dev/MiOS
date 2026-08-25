@@ -39,13 +39,14 @@ jobs:
         # closed under MIOS_DRIFT_REQUIRE_TOOLS=1. The list is [ci.python] in
         # the SSOT so every publisher installs the same set.
         run: |
+          set +e
           sudo apt-get update -qq
-          sudo apt-get install -y shellcheck powershell dotnet-sdk-8.0 bubblewrap || true
+          sudo apt-get install -y shellcheck powershell dotnet-sdk-8.0 bubblewrap
           packages="$(python3 ./tools/ci-suites.py --python-packages)"
           # shellcheck disable=SC2086
           python3 -m pip install --quiet --disable-pip-version-check $packages \
-            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages $packages \
-            || true
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages $packages
+          set -e
 
       - name: Generated artifacts match the SSOT
         run: |

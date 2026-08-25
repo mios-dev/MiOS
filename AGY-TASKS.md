@@ -14716,7 +14716,7 @@ makes that table generated so the two cannot diverge again.
 **What+How:** Add `tests/test-dnf5-mirror-failover.sh`. Simulate a primary mirror network failure; assert DNF5 automatically fails over to secondary mirror and successfully completes package installation.
 **Where:** tests/test-dnf5-mirror-failover.sh, tools/ci-suites.py
 **Verify:** Run `tests/test-dnf5-mirror-failover.sh`; verify mirror failover is handled cleanly and transaction commits.
-**Do NOT:** Skip package manager resiliency testing in CI tier 2.
+**Do NOT:** Skip package manager resiliency testing in CI test tier 2.
 **Done When:** Automated test suite validates DNF5 mirror failover and transaction integrity.
 **Why:** Resilient package management prevents intermittent network blips from breaking image compilation.
 **Dep:** AGY-2101
@@ -14880,4 +14880,64 @@ makes that table generated so the two cannot diverge again.
 **Done When:** Benchmark suite confirms inter-GPU P2P transfer rates meet physical bus capacity.
 **Why:** Continuous P2P bandwidth validation catches PCIe bridge misconfigurations and IOMMU group issues.
 **Dep:** AGY-2117
+
+## AGY-2119 -- Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool  (WS-DURA | P1 | M)
+**Goal:** Encrypt mutable filesystem domains independently and export inert ciphertext snapshots.
+**What+How:** Implement `usr/libexec/mios/mios-storage-segregate`. Configure distinct LUKS2 / fscrypt encryption keys for `/var/home/`, `/var/lib/mios/`, and `pgvector`; export raw encrypted snapshot streams where ciphertext can be transported or archived without decrypting on transit.
+**Where:** usr/libexec/mios/mios-storage-segregate, automation/40-backup.sh
+**Verify:** Create snapshots of `/var/home` and `/var/lib/mios`; verify snapshots export as inert encrypted chunk archives with non-overlapping keys.
+**Do NOT:** Use a single shared master key across all mutable storage domains.
+**Done When:** Storage segregater enforces independent per-domain encryption and exports inert encrypted snapshots.
+**Why:** Independent domain encryption ensures a breach in one subsystem does not compromise user home data or database vaults.
+**Dep:** AGY-2118
+
+## AGY-2120 -- Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator  (WS-DURA | P1 | M)
+**Goal:** Transport inert encrypted snapshots to untrusted remote storage and validate restoration offline.
+**What+How:** Implement `usr/libexec/mios/mios-snapshot-transport`. Stream encrypted snapshot blobs over WireGuard/SSH to remote CephFS/S3 without sending encryption keys; implement `mios-snapshot-restore` to reconstruct filesystem domains from offline media using local recovery keys.
+**Where:** usr/libexec/mios/mios-snapshot-transport, usr/libexec/mios/mios-snapshot-restore
+**Verify:** Transport snapshot to an untrusted test server; assert the remote server cannot read plaintext; restore on a clean target host using local key.
+**Do NOT:** Transmit decryption keys or passphrases to remote storage servers.
+**Done When:** Snapshot transport replicates encrypted blobs and recovery validator restores domains successfully offline.
+**Why:** Zero-knowledge snapshot transport guarantees absolute privacy across untrusted cloud or off-site storage targets.
+**Dep:** AGY-2119
+
+## AGY-2121 -- Signed Proxy WoL with SecureON payload and peer wake daemon  (WS-NODE | P1 | S)
+**Goal:** Wake sleeping cluster blades securely via authenticated proxy peers using hardware SecureON passwords.
+**What+How:** Implement `usr/libexec/mios/mios-wol-proxy`. The mesh coordinator issues an authenticated wake RPC to an active LAN peer blade; the peer emits a magic packet with target MAC and hardware SecureON password, and monitors for mesh re-connection.
+**Where:** usr/libexec/mios/mios-wol-proxy, usr/lib/systemd/system/mios-wol-proxy.service
+**Verify:** Send wake request for sleeping node; verify target node receives magic packet with SecureON payload, powers on, and joins mesh.
+**Do NOT:** Emit unauthenticated WoL broadcasts across public network interfaces.
+**Done When:** Proxy WoL daemon wakes sleeping blades securely on incoming workload dispatch.
+**Why:** Authenticated remote wake enables low-power cluster standby while maintaining instant node availability.
+**Dep:** AGY-2120
+
+## AGY-2122 -- Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner  (WS-NODE | P1 | M)
+**Goal:** Manage hardware IP-KVM devices and bare-metal provisioning over an isolated servicing mesh.
+**What+How:** Implement `usr/libexec/mios/mios-ipkvm-manager`. Configure dedicated low-bandwidth WireGuard management mesh (`10.200.0.0/16`); interface with OpenBMC / PiKVM / Redfish APIs to control ATX power, stream hardware consoles, and mount virtual ISO media for bare-metal installs.
+**Where:** usr/libexec/mios/mios-ipkvm-manager, usr/share/mios/mios.toml [management_mesh]
+**Verify:** Issue `mios power cycle blade-1 --oob`; verify IP-KVM triggers hardware ATX power cycle and displays BIOS boot stream.
+**Do NOT:** Mix high-bandwidth container AI inference traffic onto the low-bandwidth OOB management mesh.
+**Done When:** IP-KVM manager controls hardware power and mounts virtual media over isolated management mesh.
+**Why:** Out-of-Band IP-KVM management guarantees total remote bare-metal control even during OS crashes or BIOS configuration.
+**Dep:** AGY-2121
+
+## AGY-2123 -- Scoped CDI specification generator for NVIDIA/AMD/Intel rootless Podman containers  (WS-VFIO | P1 | M)
+**Goal:** Generate least-privilege CDI JSON specifications mapping allocated GPU device nodes to rootless containers.
+**What+How:** Implement `usr/libexec/mios/mios-cdi-gen`. Detect host GPUs (NVIDIA/AMD/Intel), generate JSON specs in `/etc/cdi/` declaring exact char device nodes (`/dev/nvidia0`, `/dev/nvidiactl`, `/dev/nvidia-uvm`, `/dev/dri/renderD128`) with UID/GID namespace mappings.
+**Where:** usr/libexec/mios/mios-cdi-gen, automation/20-drivers.sh
+**Verify:** Run `podman run --device nvidia.com/gpu=0 alpine nvidia-smi`; verify GPU executes without `--privileged`.
+**Do NOT:** Expose `/dev/mem` or raw unmapped PCIe sysfs paths to rootless containers in CDI specs.
+**Done When:** CDI generator creates scoped GPU specifications for rootless containers automatically.
+**Why:** Scoped CDI specifications prevent containerized AI processes from accessing unauthorized host devices.
+**Dep:** AGY-2122
+
+## AGY-2124 -- Rootless container GPU device isolation and cgroup v2 eBPF device filter test suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that rootless containers cannot access unassigned GPU nodes.
+**What+How:** Add `tests/test-cdi-device-isolate.sh`. Launch a rootless container with GPU 0 allocated; assert inside container that attempts to open `/dev/nvidia1` or unallocated DRM nodes fail with `EPERM` via cgroup v2 device filter.
+**Where:** tests/test-cdi-device-isolate.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-cdi-device-isolate.sh`; verify device containment tests pass with 100% assertions met.
+**Do NOT:** Skip CDI device isolation tests in CI test tier 2.
+**Done When:** Automated test suite confirms cgroup v2 device filter blocks unauthorized GPU access.
+**Why:** Continuous device testing ensures container isolation boundaries are preserved across Podman updates.
+**Dep:** AGY-2123
 

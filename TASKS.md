@@ -506,6 +506,12 @@
 | T-518 | P1 | open | AI/WebSocket | Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) |
 | T-519 | P1 | open | Hardware/NUMA | Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator |
 | T-520 | P2 | open | Hardware/P2PTest | Automated inter-GPU P2P bandwidth and memory latency validation benchmark |
+| T-521 | P1 | open | Storage/Encryption | Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool |
+| T-522 | P1 | open | Storage/ZeroKnowledge | Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator |
+| T-523 | P1 | open | Network/WoL | Signed Proxy WoL with SecureON payload and peer wake daemon |
+| T-524 | P1 | open | Hardware/IPKVM | Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner |
+| T-525 | P1 | open | Hardware/CDI | Scoped CDI specification generator for NVIDIA/AMD/Intel rootless Podman containers |
+| T-526 | P2 | open | Hardware/CDITest | Rootless container GPU device isolation and cgroup v2 eBPF device filter test suite |
 
 ---
 
@@ -5490,4 +5496,64 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2117
 **Status:** open | **Domain:** Hardware/P2PTest | **Who:** agent
 **Converted:** AGY-2118 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-521 -- Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool (WS-DURA | P1 | M)
+**Goal:** Encrypt mutable filesystem domains independently and export inert ciphertext snapshots.
+**What+How:** Implement `usr/libexec/mios/mios-storage-segregate`. Configure distinct LUKS2 / fscrypt encryption keys for `/var/home/`, `/var/lib/mios/`, and `pgvector`; export raw encrypted snapshot streams where ciphertext can be transported or archived without decrypting on transit.
+**Where:** usr/libexec/mios/mios-storage-segregate, automation/40-backup.sh
+**Done When:** Storage segregater enforces independent per-domain encryption and exports inert encrypted snapshots.
+**Why:** Independent domain encryption ensures a breach in one subsystem does not compromise user home data or database vaults.
+**Dep:** AGY-2118
+**Status:** open | **Domain:** Storage/Encryption | **Who:** agent
+**Converted:** AGY-2119 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-522 -- Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator (WS-DURA | P1 | M)
+**Goal:** Transport inert encrypted snapshots to untrusted remote storage and validate restoration offline.
+**What+How:** Implement `usr/libexec/mios/mios-snapshot-transport`. Stream encrypted snapshot blobs over WireGuard/SSH to remote CephFS/S3 without sending encryption keys; implement `mios-snapshot-restore` to reconstruct filesystem domains from offline media using local recovery keys.
+**Where:** usr/libexec/mios/mios-snapshot-transport, usr/libexec/mios/mios-snapshot-restore
+**Done When:** Snapshot transport replicates encrypted blobs and recovery validator restores domains successfully offline.
+**Why:** Zero-knowledge snapshot transport guarantees absolute privacy across untrusted cloud or off-site storage targets.
+**Dep:** AGY-2119
+**Status:** open | **Domain:** Storage/ZeroKnowledge | **Who:** agent
+**Converted:** AGY-2120 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-523 -- Signed Proxy WoL with SecureON payload and peer wake daemon (WS-NODE | P1 | S)
+**Goal:** Wake sleeping cluster blades securely via authenticated proxy peers using hardware SecureON passwords.
+**What+How:** Implement `usr/libexec/mios/mios-wol-proxy`. The mesh coordinator issues an authenticated wake RPC to an active LAN peer blade; the peer emits a magic packet with target MAC and hardware SecureON password, and monitors for mesh re-connection.
+**Where:** usr/libexec/mios/mios-wol-proxy, usr/lib/systemd/system/mios-wol-proxy.service
+**Done When:** Proxy WoL daemon wakes sleeping blades securely on incoming workload dispatch.
+**Why:** Authenticated remote wake enables low-power cluster standby while maintaining instant node availability.
+**Dep:** AGY-2120
+**Status:** open | **Domain:** Network/WoL | **Who:** agent
+**Converted:** AGY-2121 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-524 -- Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner (WS-NODE | P1 | M)
+**Goal:** Manage hardware IP-KVM devices and bare-metal provisioning over an isolated servicing mesh.
+**What+How:** Implement `usr/libexec/mios/mios-ipkvm-manager`. Configure dedicated low-bandwidth WireGuard management mesh (`10.200.0.0/16`); interface with OpenBMC / PiKVM / Redfish APIs to control ATX power, stream hardware consoles, and mount virtual ISO media for bare-metal installs.
+**Where:** usr/libexec/mios/mios-ipkvm-manager, usr/share/mios/mios.toml [management_mesh]
+**Done When:** IP-KVM manager controls hardware power and mounts virtual media over isolated management mesh.
+**Why:** Out-of-Band IP-KVM management guarantees total remote bare-metal control even during OS crashes or BIOS configuration.
+**Dep:** AGY-2121
+**Status:** open | **Domain:** Hardware/IPKVM | **Who:** agent
+**Converted:** AGY-2122 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-525 -- Scoped CDI specification generator for NVIDIA/AMD/Intel rootless Podman containers (WS-VFIO | P1 | M)
+**Goal:** Generate least-privilege CDI JSON specifications mapping allocated GPU device nodes to rootless containers.
+**What+How:** Implement `usr/libexec/mios/mios-cdi-gen`. Detect host GPUs (NVIDIA/AMD/Intel), generate JSON specs in `/etc/cdi/` declaring exact char device nodes (`/dev/nvidia0`, `/dev/nvidiactl`, `/dev/nvidia-uvm`, `/dev/dri/renderD128`) with UID/GID namespace mappings.
+**Where:** usr/libexec/mios/mios-cdi-gen, automation/20-drivers.sh
+**Done When:** CDI generator creates scoped GPU specifications for rootless containers automatically.
+**Why:** Scoped CDI specifications prevent containerized AI processes from accessing unauthorized host devices.
+**Dep:** AGY-2122
+**Status:** open | **Domain:** Hardware/CDI | **Who:** agent
+**Converted:** AGY-2123 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-526 -- Rootless container GPU device isolation and cgroup v2 eBPF device filter test suite (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that rootless containers cannot access unassigned GPU nodes.
+**What+How:** Add `tests/test-cdi-device-isolate.sh`. Launch a rootless container with GPU 0 allocated; assert inside container that attempts to open `/dev/nvidia1` or unallocated DRM nodes fail with `EPERM` via cgroup v2 device filter.
+**Where:** tests/test-cdi-device-isolate.sh, tools/ci-suites.py
+**Done When:** Automated test suite confirms cgroup v2 device filter blocks unauthorized GPU access.
+**Why:** Continuous device testing ensures container isolation boundaries are preserved across Podman updates.
+**Dep:** AGY-2123
+**Status:** open | **Domain:** Hardware/CDITest | **Who:** agent
+**Converted:** AGY-2124 carries this forward with a Verify line that fails when the behaviour is absent.
 
