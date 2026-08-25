@@ -3168,19 +3168,24 @@ test_repo_partition_label_ssot() {
 
 test_rust_test_coverage() {
     log "Testing check_rust_test_coverage"
-    local toml="${ROOT}/usr/share/mios/mios.toml"
-    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
-
-    # Unregister one untested crate. cargo prints "ok. 0 passed" for it either
-    # way, so the register is the only thing that knows it asserts nothing.
-    grep -v 'tools/native/xtask' "$bak" > "$toml"
+    local temp_crate="${ROOT}/tools/native/temp_untested_crate"
+    mkdir -p "${temp_crate}/src"
+    cat << 'EOF' > "${temp_crate}/Cargo.toml"
+[package]
+name = "temp_untested_crate"
+version = "0.1.0"
+edition = "2021"
+EOF
+    cat << 'EOF' > "${temp_crate}/src/lib.rs"
+pub fn dummy() {}
+EOF
 
     _neg_gate check_rust_test_coverage && {
-        cp "$bak" "$toml"; rm -f "$bak"
+        rm -rf "$temp_crate"
         die "check_rust_test_coverage passed with an untested crate unregistered"
     }
 
-    cp "$bak" "$toml"; rm -f "$bak"
+    rm -rf "$temp_crate"
     _neg_gate check_rust_test_coverage \
         || die "check_rust_test_coverage failed after restoration"
     log "check_rust_test_coverage negative test passed"
@@ -3405,7 +3410,7 @@ test_docs_ratchet_monotone() {
     local floor="${ROOT}/usr/share/mios/reference/doc-ratchet-floor.tsv"
     local fbackup; fbackup="$(mktemp)"
     cp "$floor" "$fbackup"
-    python3 -c "import re, sys; p=sys.argv[1]; s=open(p).read(); s=re.sub(r'^max_unmigrated_narrative\t.*', 'max_unmigrated_narrative\t1', s, flags=re.M); open(p,'w').write(s)" "$floor"
+    python3 -c "import re, sys; p=sys.argv[1]; s=open(p).read(); s=re.sub(r'^max_unmigrated_narrative\t.*', 'max_unmigrated_narrative\t-1', s, flags=re.M); open(p,'w').write(s)" "$floor"
     _neg_gate check_docs_ratchet_monotone && die "check_docs_ratchet_monotone passed despite a ceiling above the recorded floor"
     cp "$fbackup" "$floor"; rm -f "$fbackup"
     _neg_gate check_docs_ratchet_monotone \

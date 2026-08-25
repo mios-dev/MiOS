@@ -3340,11 +3340,13 @@ def check_greenboot() -> int:
 def check_router_intent_coverage() -> int:
     import sys, json, re, glob, os
 
-    if len(sys.argv) >= 3:
-        corpus_file, root_dir = sys.argv[1], sys.argv[2]
+    if len(sys.argv) >= 4:
+        corpus_file, root_dir = sys.argv[2], sys.argv[3]
+    elif len(sys.argv) == 3:
+        corpus_file, root_dir = sys.argv[2], os.environ.get("MIOS_DRIFT_ROOT", ".")
     else:
         root_dir = os.environ.get("MIOS_DRIFT_ROOT", ".")
-        corpus_file = os.path.join(root_dir, "tests/router_corpus.json")
+        corpus_file = os.path.join(root_dir, "usr/lib/mios/agent-pipe/tests/router_corpus.json")
 
     if not os.path.isfile(corpus_file):
         return 0
@@ -4018,6 +4020,7 @@ def check_value_aliases() -> int:
     import sys, subprocess, os
     if len(sys.argv) >= 3:
         snap, tsv = sys.argv[1], sys.argv[2]
+        root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     else:
         root = os.environ.get("MIOS_DRIFT_ROOT", ".")
         snap = os.path.join(root, "usr/libexec/mios/mios-env-snapshot")
@@ -4027,7 +4030,8 @@ def check_value_aliases() -> int:
         return 0
 
     env = {}
-    proc = subprocess.run(["bash", snap], capture_output=True, text=True)
+    sub_env = dict(os.environ, MIOS_ROOT=root, MIOS_DRIFT_ROOT=root, MIOS_VENDOR_TOML=os.path.join(root, "usr/share/mios/mios.toml"))
+    proc = subprocess.run(["bash", snap], capture_output=True, text=True, env=sub_env)
     if proc.returncode != 0:
         return 0  # snapshot unavailable -> do not false-fail
     for line in proc.stdout.splitlines():

@@ -15121,3 +15121,523 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous thermal testing ensures cooling algorithms operate reliably under sustained AI workloads.
 **Dep:** AGY-2141
 
+## AGY-2143 -- MOK-signed kpatch livepatching manager and late CPU microcode reload daemon  (WS-SEC | P1 | M)
+**Goal:** Apply emergency kernel security livepatches and late microcode updates without system reboots.
+**What+How:** Implement `usr/libexec/mios/mios-livepatch`. Verify MOK signature on candidate `.ko` livepatch, load into kernel via `kpatch load`, reload processor microcode via `/sys/devices/system/cpu/microcode/reload`, and stage full UKI update for next boot.
+**Where:** usr/libexec/mios/mios-livepatch, usr/lib/systemd/system/mios-livepatch.service
+**Verify:** Apply a test kernel livepatch; verify `kpatch list` reports patch active and `dmesg` confirms zero user processes stopped.
+**Do NOT:** Load unsigned livepatch modules into production kernels.
+**Done When:** Livepatch manager verifies signatures, applies in-memory patches, and reloads microcode seamlessly.
+**Why:** Livepatching allows critical kernel vulnerability remediation on high-uptime clusters with zero service downtime.
+**Dep:** AGY-2142
+
+## AGY-2144 -- Zero-downtime kernel livepatch verification and regression test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that livepatching does not destabilize running container or hypervisor processes.
+**What+How:** Add `tests/test-kernel-livepatch.sh`. Run active memory/IO workload; apply test livepatch; assert workload continues execution without page faults or context loss.
+**Where:** tests/test-kernel-livepatch.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-kernel-livepatch.sh`; verify livepatch loads cleanly and active workload passes all integrity checks.
+**Do NOT:** Skip livepatch stability tests in CI test tier 2.
+**Done When:** Test suite validates zero-downtime kernel livepatching under active system workload.
+**Why:** Continuous livepatch testing ensures security hot-fixes do not introduce kernel stability regressions.
+**Dep:** AGY-2143
+
+## AGY-2145 -- Semantic KV-cache context compaction engine and episodic summary generator in agent-pipe  (WS-AI | P1 | M)
+**Goal:** Compact historical tool outputs at 75% context capacity while preserving essential reasoning milestones.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_context_compact.py`. Monitor active conversation token count; at 75% context capacity, summarize intermediate tool results into concise structured milestones, archive full episode to PostgreSQL `agent_episodes`, and prune verbose tokens from active context.
+**Where:** usr/lib/mios/agent-pipe/mios_context_compact.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Simulate a 100-turn agent session exceeding 32k tokens; verify compaction triggers, reduces context to <40%, and preserves goal constraints.
+**Do NOT:** Truncate canonical system instructions or the latest user turn during context compaction.
+**Done When:** Context compaction engine compresses historical trajectory and writes episodic milestones to PostgreSQL.
+**Why:** Semantic compaction enables infinite-horizon agent execution loops without hitting model context boundaries.
+**Dep:** AGY-2144
+
+## AGY-2146 -- Automated multi-turn context compaction and trajectory recall test suite  (WS-AI | P2 | M)
+**Goal:** Verify in automated integration tests that agents retain knowledge across context compaction events.
+**What+How:** Add `tests/test-agent-context-compaction.sh`. Run a multi-step agent task across 60 turns; trigger compaction; assert that agent correctly recalls facts stated in turn 2 after compaction.
+**Where:** tests/test-agent-context-compaction.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-agent-context-compaction.sh`; verify fact recall assertions pass 100% after compaction.
+**Do NOT:** Skip context compaction recall validation in CI test tier 2.
+**Done When:** Test suite validates factual recall and goal continuity across context compaction cycles.
+**Why:** Continuous testing guarantees that context compaction does not cause agent amnesia during long tasks.
+**Dep:** AGY-2145
+
+## AGY-2147 -- Hardware OPAL 2.0 SED / LUKS2 automated disk partitioning and TPM enrollment  (WS-STRG | P1 | M)
+**Goal:** Partition physical drives with hardware-level OPAL SED or LUKS2 encryption sealed to TPM 2.0.
+**What+How:** Implement `automation/12-disk-partition.sh`. Detect OPAL 2.0 SED hardware capabilities; if supported, configure hardware-level encryption via `sedutil-cli`; otherwise format LUKS2 with AES-XTS-256 bound to TPM 2.0 PCR 7/11, establishing separate userspace and database partitions.
+**Where:** automation/12-disk-partition.sh, automation/10-bootstrap.sh
+**Verify:** Run disk partition tool on test drive; verify drive reports encrypted status and unlocks automatically via TPM 2.0 on verified boot.
+**Do NOT:** Leave unencrypted plaintext data partitions on physical NVMe/HDD disks.
+**Done When:** Disk partitioner provisions hardware OPAL SED / LUKS2 encryption on all physical drives automatically.
+**Why:** Hardware-level disk encryption guarantees data security at rest against physical drive theft.
+**Dep:** AGY-2146
+
+## AGY-2148 -- Cockpit Storage integration module for CephFS tiered CRUSH pools and local encrypted volume monitoring  (WS-STRG | P1 | M)
+**Goal:** Integrate Cockpit Storage UI with CephFS tiered storage pools and local encrypted partition health.
+**What+How:** Implement `usr/share/cockpit/mios-storage/`. Extend Cockpit storage UI to display CephFS CRUSH rule tiering (NVMe hot pool vs HDD cold pool), SMART drive health metrics, and LUKS2/OPAL encryption status in a unified dashboard.
+**Where:** usr/share/cockpit/mios-storage/, usr/share/containers/systemd/mios-cockpit.container
+**Verify:** Open Cockpit UI `:9090`; verify Storage tab displays physical NVMe/HDD health, encryption locks, and CephFS pool metrics.
+**Do NOT:** Require raw terminal CLI commands to inspect basic drive health and CephFS pool allocations.
+**Done When:** Cockpit Storage module renders physical disk encryption and CephFS pool status in web console.
+**Why:** A visual storage management console allows operators to monitor disk health and storage tiers intuitively.
+**Dep:** AGY-2147
+
+## AGY-2149 -- Ephemeral Bubblewrap subagent isolation engine with scoped bind-mounts in agent-pipe  (WS-ORCH | P1 | M)
+**Goal:** Isolate autonomous subagent tool execution inside lightweight bubblewrap sandboxes.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_subagent_sandbox.py`. Wrap subagent execution in `bwrap --ro-bind /usr /usr --ro-bind /etc /etc --bind <workspace> <workspace> --unshare-all --tmpfs /tmp`, restricting subagent file access strictly to assigned target working directories.
+**Where:** usr/lib/mios/agent-pipe/mios_subagent_sandbox.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Spawn a subagent attempting to write to `/etc/`; verify write returns `EROFS` read-only error while writes to `<workspace>` succeed.
+**Do NOT:** Allow subagents to execute unconfined commands on the host filesystem without sandbox boundaries.
+**Done When:** Bubblewrap sandbox restricts subagent filesystem mutations to designated workspace folders.
+**Why:** Scoped sandboxing prevents misprompted or compromised subagents from modifying system files or parent directories.
+**Dep:** AGY-2148
+
+## AGY-2150 -- Transient systemd-run subagent cgroup quota enforcer and escape test suite  (WS-ORCH | P2 | S)
+**Goal:** Enforce strict CPU and memory cgroup limits on subagents and verify escape resistance in CI.
+**What+How:** Implement `usr/libexec/mios/mios-subagent-run` and integration test `tests/test-subagent-sandbox-escape.sh`. Launch subagents via `systemd-run --user --scope -p MemoryMax=4G -p CPUQuota=200%`; assert that fork bombs and out-of-boundary path escapes are blocked.
+**Where:** usr/libexec/mios/mios-subagent-run, tests/test-subagent-sandbox-escape.sh
+**Verify:** Run `tests/test-subagent-sandbox-escape.sh`; verify memory exhaustion is killed by OOM killer and escape probes fail.
+**Do NOT:** Skip subagent sandbox security validation in CI test tier 2.
+**Done When:** Test suite validates that subagent cgroup quotas and sandbox isolation withstand escape attempts.
+**Why:** Cgroup quotas prevent rogue subagents from consuming host resources or triggering system-wide memory exhaustion.
+**Dep:** AGY-2149
+
+## AGY-2151 -- Cryptographic Merkle-tree agent audit chain recorder and Ed25519 block signer  (WS-SEC | P1 | M)
+**Goal:** Record agent steps and tool executions into an unforgeable Merkle-chained audit log in PostgreSQL.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_audit_chain.py`. Compute SHA-256 digest of each agent step payload (tool calls, diffs, timestamps) chaining to previous block hash; sign with host node Ed25519 key; and insert into append-only table `agent_audit_chain`.
+**Where:** usr/lib/mios/agent-pipe/mios_audit_chain.py, usr/share/mios/postgres/schema-init.sql
+**Verify:** Execute 5 agent tool operations; verify `agent_audit_chain` contains 5 linked blocks with valid Ed25519 signatures.
+**Do NOT:** Allow updating or deleting rows in `agent_audit_chain`; enforce append-only database triggers.
+**Done When:** Audit chain engine signs agent execution blocks and enforces Merkle linkage in PostgreSQL.
+**Why:** Cryptographic audit chaining provides mathematical proof of agent actions and prevents post-hoc log tampering.
+**Dep:** AGY-2150
+
+## AGY-2152 -- Automated audit chain cryptographic verification and tamper-detection validator  (WS-SEC | P2 | S)
+**Goal:** Verify Merkle tree hash continuity and signature validity across agent execution records.
+**What+How:** Implement `usr/libexec/mios/mios-audit-verify`. Traverse `agent_audit_chain` records, recompute hash tree, verify node public key signatures; if any record was modified or deleted, output cryptographic mismatch alert.
+**Where:** usr/libexec/mios/mios-audit-verify, tools/ci-suites.py
+**Verify:** Run `mios-audit-verify` on valid chain (assert exit 0); simulate row tampering in PostgreSQL (assert exit 1 with alert).
+**Do NOT:** Skip cryptographic signature checks during audit log inspection.
+**Done When:** Audit verifier validates Merkle chain continuity and detects simulated log tampering accurately.
+**Why:** Continuous audit verification guarantees integrity of historical agent decisions and compliance provenance.
+**Dep:** AGY-2151
+
+## AGY-2153 -- Tree-Sitter AST semantic merge resolver for multi-agent git conflicts  (WS-GIT | P1 | M)
+**Goal:** Resolve git code conflicts semantically at the AST node level using Tree-Sitter parsers.
+**What+How:** Implement `usr/libexec/mios/mios-git-ast-merge`. Parse base, current, and incoming files into Tree-Sitter syntax trees for Python, Rust, Shell, TOML; merge independent AST node additions/modifications semantically; and output resolved source files.
+**Where:** usr/libexec/mios/mios-git-ast-merge, usr/libexec/mios/mios-git-rebase
+**Verify:** Create concurrent non-overlapping function additions in a Python module; run `mios-git-ast-merge`; verify merged file contains both functions cleanly.
+**Do NOT:** Commit syntactically malformed files or unparsed conflict markers to git branches.
+**Done When:** AST merge engine resolves non-overlapping structural code conflicts automatically.
+**Why:** AST-level semantic merging eliminates line-based git merge conflicts and accelerates autonomous agent development.
+**Dep:** AGY-2152
+
+## AGY-2154 -- Automated AST merge syntax compilation and regression test gate  (WS-GIT | P2 | S)
+**Goal:** Verify in automated gates that AST-merged files pass syntax checks and unit tests before staging.
+**What+How:** Implement syntax validation gate in `usr/libexec/mios/mios-merge-validate`. On AST merge completion, run native language linters (`cargo check`, `ruff check`, `taplo lint`, `shellcheck`); reject merge and alert if any syntax check fails.
+**Where:** usr/libexec/mios/mios-merge-validate, tools/ci-suites.py
+**Verify:** Simulate an invalid AST merge; verify `mios-merge-validate` flags syntax error and rejects merge transaction.
+**Do NOT:** Stage or commit files that fail syntax or linter verification.
+**Done When:** Validation gate enforces 100% syntax and linter compliance on all auto-merged code.
+**Why:** Syntax gating guarantees that automated merge operations never break system buildability.
+**Dep:** AGY-2153
+
+## AGY-2155 -- Headless QEMU Syzkaller / KASAN kernel and eBPF fuzzing test harness  (WS-BUILD | P1 | L)
+**Goal:** Execute automated continuous fuzzing against custom eBPF programs and storage modules in QEMU microVMs.
+**What+How:** Implement `tests/fuzz/run-syzkaller-fuzz.sh`. Launch KASAN/KMSAN instrumented kernel in headless QEMU; target syzkaller syscall descriptions at `bpf()`, `virtiofs`, and `bcachefs` ioctls; and stream execution logs to crash monitor.
+**Where:** tests/fuzz/run-syzkaller-fuzz.sh, usr/share/containers/systemd/mios-syzkaller.container
+**Verify:** Run 5-minute fuzz test; verify syzkaller boots microVM, executes 100k fuzz mutations, and reports zero unhandled panics.
+**Do NOT:** Run fuzz testing on bare-metal production hosts with persistent data volumes mounted.
+**Done When:** Syzkaller fuzzing harness executes automated nightly fuzz cycles in isolated microVMs.
+**Why:** Continuous kernel fuzzing catches memory safety vulnerabilities and driver deadlocks prior to release.
+**Dep:** AGY-2154
+
+## AGY-2156 -- Automated fuzz crash deduplication and PostgreSQL bug_tracker reproducer logger  (WS-BUILD | P2 | M)
+**Goal:** Deduplicate crash stack traces and log minimal C reproducers into PostgreSQL.
+**What+How:** Implement `usr/libexec/mios/mios-fuzz-triage`. Parse syzkaller crash logs, extract KASAN backtraces, deduplicate by callstack hash, generate minimal C reproducers, and insert issue records into `bug_tracker` table in PostgreSQL.
+**Where:** usr/libexec/mios/mios-fuzz-triage, usr/share/mios/postgres/schema-init.sql
+**Verify:** Feed a simulated KASAN crash log to `mios-fuzz-triage`; verify stack trace is parsed and single deduplicated issue is inserted into PostgreSQL.
+**Do NOT:** Log duplicate crash reports for identical stack trace hashes.
+**Done When:** Crash triage parser deduplicates kernel crash logs and stores minimal reproducers in PostgreSQL.
+**Why:** Automated triage provides actionable C reproducers directly to autonomous coding agents for self-healing.
+**Dep:** AGY-2155
+
+## AGY-2157 -- Network-wide roaming multi-seat session orchestrator and GPU assignment manager  (WS-USER | P1 | M)
+**Goal:** Orchestrate multi-seat hardware assignment dynamically for roaming users across any cluster blade.
+**What+How:** Implement `usr/libexec/mios/mios-seat-router`. Authenticate users against PostgreSQL `users_registry`; dynamically assign available physical GPU outputs (`seat0`, `seat1`) or virtual display heads; mount encrypted user CephFS home volumes; and balance GPU allocations across concurrent local/remote users.
+**Where:** usr/libexec/mios/mios-seat-router, usr/lib/systemd/system/mios-seat-router.service
+**Verify:** Log in User A on GPU 0 and User B on GPU 1; verify independent Wayland sessions launch; log out User A and verify User B can claim GPU 0.
+**Do NOT:** Hardcode static user logins to specific physical chassis or GPU device IDs.
+**Done When:** Seat router assigns GPUs and manages multi-user physical/remote desktop sessions network-wide.
+**Why:** Dynamic multi-seat allows arbitrary users to roam across cluster blades and utilize available GPU hardware seamlessly.
+**Dep:** AGY-2156
+
+## AGY-2158 -- Dynamic cross-node Wayland session checkpoint and migration protocol  (WS-USER | P1 | M)
+**Goal:** Migrate active Wayland desktop sessions and application states seamlessly across cluster blades.
+**What+How:** Implement `usr/libexec/mios/mios-session-migrate`. Checkpoint running user container/Wayland state via headless compositor bridge; synchronize state to CephFS; and re-attach session to a new physical seat or remote Moonlight/Sunshine stream on target node.
+**Where:** usr/libexec/mios/mios-session-migrate, usr/share/containers/systemd/mios-wayland-bridge.container
+**Verify:** Trigger session migration from Blade A to Blade B; verify user desktop applications restore on Blade B without losing window state.
+**Do NOT:** Terminate user application processes when disconnecting from physical display seats.
+**Done When:** Session migration protocol transfers active desktop sessions across cluster nodes cleanly.
+**Why:** Cross-node session migration provides continuous, ubiquitous desktop access across physical towers and remote thin clients.
+**Dep:** AGY-2157
+
+## AGY-2159 -- Multi-master divergent git DAG reconciliation engine and consensus commit signer  (WS-GIT | P1 | M)
+**Goal:** Reconcile divergent git branches from offline peer nodes into a unified linear commit history.
+**What+How:** Implement `usr/libexec/mios/mios-git-reconcile`. Fetch remote peer branches into `refs/remotes/peers/`; calculate LCA (lowest common ancestor); apply AST semantic rebase across non-overlapping commits; sign consensus reconciliation commit; and update both Forgejo and GitHub atomically.
+**Where:** usr/libexec/mios/mios-git-reconcile, usr/libexec/mios/mios-git-sync
+**Verify:** Simulate two divergent commit DAGs created offline; run `mios-git-reconcile`; verify branches merge into a clean linear history without data loss.
+**Do NOT:** Execute uncoordinated force-pushes that destroy peer node commits.
+**Done When:** Reconciliation engine merges divergent git DAGs and signs consensus commits automatically.
+**Why:** Multi-master reconciliation enables resilient offline-first blade operation and seamless mesh synchronization.
+**Dep:** AGY-2158
+
+## AGY-2160 -- Automated offline divergence simulation and multi-forge synchronization test suite  (WS-GIT | P2 | S)
+**Goal:** Verify in automated CI that divergent peer branches reconcile cleanly across multiple git forges.
+**What+How:** Add `tests/test-git-multi-master-reconcile.sh`. Spawn two test git repos; create divergent commits offline; trigger reconciliation; assert that both test remotes reflect identical merged DAGs with zero dropped commits.
+**Where:** tests/test-git-multi-master-reconcile.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-git-multi-master-reconcile.sh`; verify reconciliation assertions pass 100%.
+**Do NOT:** Skip multi-master divergence testing in CI test tier 2.
+**Done When:** Test suite validates git reconciliation across divergent multi-master topologies.
+**Why:** Continuous reconciliation testing guarantees that decentralized git operations remain mathematically robust.
+**Dep:** AGY-2159
+
+## AGY-2161 -- In-kernel udev netlink hardware change monitor and PostgreSQL hardware_inventory recorder  (WS-NODE | P1 | M)
+**Goal:** Monitor hardware topology changes via udev netlink sockets and maintain live inventory in PostgreSQL.
+**What+How:** Implement `usr/libexec/mios/mios-hwmon`. Listen on kernel netlink socket for udev events; detect PCIe, NVMe, USB, and memory topology changes; record state transitions in PostgreSQL `hardware_inventory` and `hardware_events`; and trigger CDI/NUMA re-profiling on addition.
+**Where:** usr/libexec/mios/mios-hwmon, usr/lib/systemd/system/mios-hwmon.service
+**Verify:** Simulate a PCIe device insert/remove via uevent; verify `hardware_events` logs event and node capacity updates.
+**Do NOT:** Poll `lspci` in tight loops; use asynchronous netlink socket event streams.
+**Done When:** Hardware monitor logs device state transitions and maintains PostgreSQL inventory in real time.
+**Why:** Real-time hardware inventory tracking allows immediate cluster scheduling adaptation when accelerators change.
+**Dep:** AGY-2160
+
+## AGY-2162 -- PCIe link width degradation detector and hardware anomaly alert test suite  (WS-NODE | P2 | S)
+**Goal:** Detect PCIe link training degradation (e.g. x16 dropping to x1) and emit diagnostic alerts.
+**What+How:** Implement `usr/libexec/mios/mios-pcie-check` and test `tests/test-pcie-link-degradation.sh`. Compare current link speed/width (`/sys/bus/pci/devices/*/current_link_width`) against maximum capabilities; if link degraded, log warning and emit desktop notification.
+**Where:** usr/libexec/mios/mios-pcie-check, tests/test-pcie-link-degradation.sh
+**Verify:** Run `tests/test-pcie-link-degradation.sh`; simulate link degradation; assert alert triggers with specific bus ID.
+**Do NOT:** Ignore PCIe link degradation that cuts GPU or NVMe throughput.
+**Done When:** Link width detector catches degraded PCIe buses and alerts the operator automatically.
+**Why:** Catching PCIe link width training errors prevents silent 90%+ bandwidth drops on GPU inference.
+**Dep:** AGY-2161
+
+## AGY-2163 -- PTP IEEE 1588 hardware timestamping and Chrony NTS smooth clock synchronization daemon  (WS-NODE | P1 | M)
+**Goal:** Synchronize cluster clocks with sub-microsecond PTP hardware timestamps and smooth NTS slewing.
+**What+How:** Implement `automation/47-time-sync.sh`. Deploy `ptp4l` and `phc2sys` with NIC hardware timestamping on LAN mesh; configure Chrony with Network Time Security (NTS) and smooth slewing (`makestep 0 0` after boot) to protect PostgreSQL transaction ordering.
+**Where:** automation/47-time.sh, usr/lib/systemd/system/ptp4l.service
+**Verify:** Start PTP daemon; verify `chronyc sources -v` reports NTS authentication and `ptp4l` reports clock offset < 1 microsecond.
+**Do NOT:** Step clocks backward abruptly while PostgreSQL or CephFS daemons are active.
+**Done When:** Time sync service maintains sub-microsecond clock synchronization and smooth slew rates.
+**Why:** Monotonic high-precision clocks are critical for distributed Raft consensus, eBPF telemetry, and Merkle audit chains.
+**Dep:** AGY-2162
+
+## AGY-2164 -- Clock offset jitter and monotonic timestamp ordering validation test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that cluster node clock offsets stay within 1ms and timestamps remain strictly monotonic.
+**What+How:** Add `tests/test-clock-sync-monotonicity.sh`. Sample timestamps from 100 concurrent threads across simulated nodes; assert clock offset < 1ms and assert 100% monotonic non-decreasing timestamp ordering.
+**Where:** tests/test-clock-sync-monotonicity.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-clock-sync-monotonicity.sh`; verify all clock monotonicity assertions pass.
+**Do NOT:** Skip clock monotonicity validation in CI test tier 2.
+**Done When:** Test suite validates monotonic clock ordering and tight offset tolerance.
+**Why:** Continuous testing ensures network upgrades do not introduce clock drift that invalidates audit trails.
+**Dep:** AGY-2163
+
+## AGY-2165 -- SPIFFE/SPIRE workload identity agent and ephemeral 24h mTLS certificate rotator  (WS-SEC | P1 | M)
+**Goal:** Issue short-lived 24h X.509 SVID certificates to cluster services and rotate in-memory with zero downtime.
+**What+How:** Implement `automation/49-spiffe.sh`. Deploy `spire-agent` attesting to node TPM 2.0; expose SPIFFE Workload API Unix socket (`/run/spire/sockets/agent.sock`) to Podman containers; rotate 24h X.509 certificates and keys dynamically before expiration.
+**Where:** automation/49-spiffe.sh, usr/share/containers/systemd/mios-spire.container
+**Verify:** Fetch SVID certificate from workload API socket; verify certificate validity is 24h and subject matches `spiffe://mios.cluster/node/blade-1/workload/agent-pipe`.
+**Do NOT:** Issue multi-year static certificates for inter-node service communication.
+**Done When:** SPIRE agent rotates ephemeral mTLS certificates automatically across cluster workloads.
+**Why:** Ephemeral cryptographic identities eliminate long-lived credential theft risks in distributed agent meshes.
+**Dep:** AGY-2164
+
+## AGY-2166 -- Automated mTLS authentication enforcement and certificate rotation verification test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that inter-node RPCs require valid mTLS certificates and reject expired keys.
+**What+How:** Add `tests/test-mtls-workload-rotation.sh`. Connect to peer RPC endpoint with valid SVID (assert HTTP 200); connect with expired/revoked SVID (assert TLS handshake failure); verify active connection sustains in-memory cert rotation.
+**Where:** tests/test-mtls-workload-rotation.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-mtls-workload-rotation.sh`; verify all mTLS authentication assertions pass.
+**Do NOT:** Skip mTLS enforcement testing in CI test tier 2.
+**Done When:** Test suite validates strict mTLS enforcement and seamless in-memory certificate rotation.
+**Why:** Continuous testing ensures that cluster workload communications remain mutually authenticated.
+**Dep:** AGY-2165
+
+## AGY-2167 -- Ephemeral Cloud-Hypervisor microVM orchestrator and Virtio-VSOCK agent tool bridge  (WS-VFIO | P1 | M)
+**Goal:** Spawn ephemeral microVMs in <50ms with Virtio-VSOCK host communication for untrusted agent tasks.
+**What+How:** Implement `usr/libexec/mios/mios-microvm-exec`. Launch `cloud-hypervisor` with direct kernel boot (`--kernel /boot/vmlinuz --initramfs ...`), attach virtiofs workspace, route agent tool IPC over Virtio-VSOCK (`AF_VSOCK:5200`), and destroy microVM memory on completion.
+**Where:** usr/libexec/mios/mios-microvm-exec, usr/share/containers/systemd/mios-microvm.container
+**Verify:** Execute untrusted script via `mios-microvm-exec`; verify execution boots in <50ms, executes inside isolated KVM guest, and exits cleanly.
+**Do NOT:** Permit microVMs to access host network interfaces without explicit proxy authorization.
+**Done When:** MicroVM orchestrator executes untrusted tasks inside ephemeral hypervisor sandboxes with VSOCK IPC.
+**Why:** MicroVM isolation provides true hardware-level virtualization security for untrusted code execution.
+**Dep:** AGY-2166
+
+## AGY-2168 -- MicroVM sub-50ms boot latency and VSOCK IPC throughput benchmark suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that ephemeral microVMs spawn in <50ms and transfer data at >1GB/s over VSOCK.
+**What+How:** Add `tests/test-microvm-vsock-performance.sh`. Benchmark microVM spawn time from invocation to first guest instruction; transfer 1GB test stream over VSOCK; assert boot latency < 50ms and transfer throughput > 1GB/s.
+**Where:** tests/test-microvm-vsock-performance.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-microvm-vsock-performance.sh`; verify performance SLA assertions pass 100%.
+**Do NOT:** Skip microVM performance benchmarking in CI test tier 2.
+**Done When:** Benchmark suite confirms microVM boot times and VSOCK throughput meet sub-50ms targets.
+**Why:** Continuous performance testing ensures virtualization overhead remains imperceptible for rapid agent tool loops.
+**Dep:** AGY-2167
+
+## AGY-2169 -- Hardware-tiered modern model matrix allocator for Consumer, Prosumer, and Poweruser nodes  (WS-AI | P1 | M)
+**Goal:** Map modern open-weight models dynamically across hardware tiers (3B for entry consumer, 8B for average consumer, 32B for prosumer, 70B for poweruser).
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_tier_allocator.py`. Detect node VRAM and compute capacity; assign optimal modern model architectures (Qwen2.5-Coder, DeepSeek-R1-Distill, Llama-3.x) with balanced quantizations (GGUF Q4_K_M to FP8) mapped cleanly to `llama-swap.yaml`.
+**Where:** usr/lib/mios/agent-pipe/mios_tier_allocator.py, usr/share/mios/llamacpp/llama-swap.yaml
+**Verify:** Simulate 8GB VRAM (assert 8B model allocated); simulate 24GB VRAM (assert 32B model allocated); simulate multi-GPU 48GB+ (assert 70B allocated).
+**Do NOT:** Hardcode proprietary model endpoints or enforce fixed vendor model names in AI configuration.
+**Done When:** Tier allocator assigns modern open-weight models matching target node hardware capacity automatically.
+**Why:** Hardware-tiered allocation ensures optimal inference speed and reasoning quality across diverse consumer and prosumer PCs.
+**Dep:** AGY-2168
+
+## AGY-2170 -- Automated modern open-weight model curator and local benchmark profiler  (WS-AI | P1 | M)
+**Goal:** Curate and benchmark modern open-weight model releases automatically for local inference lanes.
+**What+How:** Implement `usr/libexec/mios/mios-model-curator`. Ingest verified open-source GGUF/safetensors releases, execute local HumanEval/FHS coding benchmarks on target hardware, and update local model rosters when newer models outperform baselines.
+**Where:** usr/libexec/mios/mios-model-curator, usr/share/mios/ai/benchmarks/
+**Verify:** Run `mios-model-curator --evaluate`; verify local benchmark scores are recorded in PostgreSQL `model_benchmarks` table.
+**Do NOT:** Deploy unverified experimental model checkpoints without passing local benchmark regression suites.
+**Done When:** Model curator evaluates modern model weights and promotes top performers to active inference lanes.
+**Why:** Automated curation keeps MiOS equipped with the latest modern AI advancements without manual operator intervention.
+**Dep:** AGY-2169
+
+## AGY-2171 -- Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler  (WS-NODE | P1 | M)
+**Goal:** Detect AC/DC power supply state transitions and adapt active inference models and CPU governors.
+**What+How:** Implement `usr/libexec/mios/mios-powerd`. Listen to udev `power_supply` subsystem; on DC battery transition, switch `llama-swap` default model to lightweight 3B/8B GGUF, pause background fine-tuning containers, and write `power` to `/sys/devices/system/cpu/cpu*/power/energy_performance_preference`.
+**Where:** usr/libexec/mios/mios-powerd, usr/lib/systemd/system/mios-powerd.service
+**Verify:** Simulate DC battery event via udev; verify `mios-powerd` switches active model to 3B/8B GGUF and CPU EPP switches to `power`.
+**Do NOT:** Run unconstrained multi-GPU heavy training while operating on battery power.
+**Done When:** Power daemon modulates inference lane allocations and CPU power profiles based on power supply state.
+**Why:** Battery-aware power modulation extends mobile laptop runtime while preserving local AI assistance.
+**Dep:** AGY-2170
+
+## AGY-2172 -- Automated AC/DC power profile transition and battery runtime benchmark suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated benchmarks that DC power transitions reduce host power draw by >50%.
+**What+How:** Add `tests/test-power-profile-transitions.sh`. Simulate AC to DC switch; assert active GPU power cap drops, CPU frequencies scale down, and background container slices enter suspended cgroup states.
+**Where:** tests/test-power-profile-transitions.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-power-profile-transitions.sh`; verify power savings metrics pass all threshold assertions.
+**Do NOT:** Skip power transition validation in CI test tier 2.
+**Done When:** Test suite validates automated power profile downscaling under simulated DC operation.
+**Why:** Continuous power testing guarantees energy-efficient performance on portable laptops and edge devices.
+**Dep:** AGY-2171
+
+## AGY-2173 -- Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue  (WS-LANG | P1 | M)
+**Goal:** Render procedural living wallpaper shaders that throttle to 0 FPS when desktop is occluded by open windows.
+**What+How:** Implement `usr/libexec/mios/mios-wallpaperd`. Listen on Wayland layer-shell protocol; monitor desktop window occlusion; suspend rendering to 0 FPS when occluded; render at 30/60 FPS via low-priority Vulkan compute queue; and accept system telemetry uniforms over `/run/user/$UID/mios-wallpaper.sock`.
+**Where:** usr/libexec/mios/mios-wallpaperd, usr/lib/systemd/user/mios-wallpaper.service
+**Verify:** Launch full-screen window; verify `mios-wallpaperd` GPU compute drops to 0%; minimize windows and verify smooth 60 FPS rendering resumes.
+**Do NOT:** Consume high-priority GPU graphics queues or exceed 2% total GPU utilization on wallpaper rendering.
+**Done When:** Living wallpaper engine renders reactive procedural shaders and throttles on window occlusion.
+**Why:** Occlusion-aware frame pacing delivers fluid desktop aesthetics while preserving 98%+ GPU capacity for AI inference.
+**Dep:** AGY-2172
+
+## AGY-2174 -- Real-time wallpaper occlusion frame pacing and GPU load benchmark suite  (WS-LANG | P2 | S)
+**Goal:** Verify in automated CI that wallpaper rendering drops to 0 FPS on window occlusion and GPU load stays < 2%.
+**What+How:** Add `tests/test-wallpaper-occlusion-throttle.sh`. Simulate window focus and fullscreen events; measure GPU compute duty cycle; assert GPU load < 2% during visible rendering and 0% during occlusion.
+**Where:** tests/test-wallpaper-occlusion-throttle.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-wallpaper-occlusion-throttle.sh`; verify all frame pacing and GPU load assertions pass.
+**Do NOT:** Skip wallpaper performance benchmarking in CI test tier 2.
+**Done When:** Test suite validates that wallpaper rendering throttles to 0 FPS on window occlusion.
+**Why:** Continuous testing ensures wallpaper shaders never cause GPU frame drops or interfere with AI inference.
+**Dep:** AGY-2173
+
+## AGY-2175 -- Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe  (WS-ORCH | P1 | M)
+**Goal:** Discover and convert MCP tools to OpenAI function schemas dynamically based on mios.toml declarations.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_mcp.py`. Parse `[mcp.servers]` in `mios.toml`; spawn configured stdio subprocesses or connect to authenticated SSE endpoints; query `tools/list` via JSON-RPC; convert input schemas into OpenAI `tools` definitions; and route tool calls to target MCP server.
+**Where:** usr/lib/mios/agent-pipe/mios_mcp.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Declare a test stdio MCP server in `mios.toml`; trigger agent prompt; verify agent discovers MCP tool and executes tool call successfully.
+**Do NOT:** Hardcode static tool definitions inside agent prompts; discover dynamically from active MCP servers.
+**Done When:** MCP manager discovers tools and routes executions across stdio and SSE transport protocols dynamically.
+**Why:** Declarative MCP support enables seamless integration of arbitrary tools without modifying core orchestration code.
+**Dep:** AGY-2174
+
+## AGY-2176 -- Automated MCP tool discovery, execution handshake, and schema validation test suite  (WS-ORCH | P2 | S)
+**Goal:** Verify in automated CI that MCP tool discovery, schema translation, and execution handshakes pass 100%.
+**What+How:** Add `tests/test-mcp-gateway-handshake.sh`. Spawn mock MCP server over stdio; assert `agent-pipe` parses tool schemas; trigger test function call; assert mock server returns result and agent incorporates output into response.
+**Where:** tests/test-mcp-gateway-handshake.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-mcp-gateway-handshake.sh`; verify all schema and execution assertions pass.
+**Do NOT:** Skip MCP protocol integration testing in CI test tier 2.
+**Done When:** Test suite validates MCP dynamic schema conversion and tool execution pipelines.
+**Why:** Continuous testing ensures MCP protocol updates remain wire-compatible with standard agent interfaces.
+**Dep:** AGY-2175
+
+## AGY-2177 -- Three-stage acoustic filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free activation  (WS-AI | P1 | M)
+**Goal:** Filter microphone noise, detect speech with Silero VAD, and trigger wake-word activation with <0.1% CPU overhead.
+**What+How:** Implement `usr/libexec/mios/mios-wakeword`. Configure PipeWire filter-chain with RNNoise suppressor; stream audio to Silero VAD; on voice activity, pass audio chunks to OpenWakeWord model; on wake phrase detection, trigger streaming Whisper STT session.
+**Where:** usr/libexec/mios/mios-wakeword, usr/lib/systemd/user/mios-wakeword.service
+**Verify:** Speak wake-phrase in a noisy room; verify RNNoise filters background hiss, VAD triggers, OpenWakeWord recognizes phrase, and STT activates in <100ms.
+**Do NOT:** Run continuous GPU Whisper inference during silent idle periods.
+**Done When:** Three-stage acoustic filter detects wake-words accurately with minimal idle CPU utilization.
+**Why:** Staged acoustic filtering provides always-on hands-free activation without battery drain or GPU contention.
+**Dep:** AGY-2176
+
+## AGY-2178 -- Automated acoustic noise rejection, VAD accuracy, and wake-word trigger benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that RNNoise and OpenWakeWord achieve >98% accuracy and <0.5% false positive rate.
+**What+How:** Add `tests/test-acoustic-wakeword-pipeline.sh`. Feed noisy audio clips containing positive wake phrases and negative speech; assert true positive rate > 98%, false positive rate < 0.5%, and CPU utilization < 0.2% on single core.
+**Where:** tests/test-acoustic-wakeword-pipeline.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-acoustic-wakeword-pipeline.sh`; verify all accuracy and performance SLA assertions pass.
+**Do NOT:** Skip acoustic front-end testing in CI test tier 2.
+**Done When:** Test suite validates wake-word precision, noise rejection, and low CPU overhead.
+**Why:** Continuous testing ensures acoustic updates do not degrade wake sensitivity or increase false activations.
+**Dep:** AGY-2177
+
+## AGY-2179 -- Multi-user Nix subsystem and /nix persistent store integration in bootc OCI image  (WS-BUILD | P1 | M)
+**Goal:** Integrate multi-user Nix subsystem into immutable Fedora bootc image with /nix bound to persistent /var/nix.
+**What+How:** Implement `automation/34-nix-core.sh`. Create `/nix` mountpoint in base image, configure systemd-tmpfiles link `L+ /nix - - - - /var/nix`, enable `nix-daemon.service`, and configure multi-user sandbox build flags in `/etc/nix/nix.conf`.
+**Where:** automation/34-nix.sh, usr/lib/tmpfiles.d/50-nix.conf
+**Verify:** Boot deployed image; run `nix-env --version` as unprivileged user; verify `nix-daemon` communicates over socket and installs packages to `/nix/store`.
+**Do NOT:** Mount `/nix` as a volatile tmpfs; persist `/nix/store` on `/var/nix`.
+**Done When:** Nix subsystem provisions multi-user package store on immutable bootc host seamlessly.
+**Why:** Nix integration enables bit-for-bit reproducible user packages and hermetic compiler toolchains on an immutable OS.
+**Dep:** AGY-2178
+
+## AGY-2180 -- Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project  (WS-DOTFILES | P1 | M)
+**Goal:** Generate declarative Nix flakes from mios.toml to manage user dotfiles and package generations atomically.
+**What+How:** Implement `usr/libexec/mios/mios-nix-project`. Parse `[dotfiles]`, `[packages]`, and `[shell]` in `mios.toml`, render pure `/etc/mios/flake.nix`, and activate user environment via `nix profile` with atomic rollback generations.
+**Where:** usr/libexec/mios/mios-nix-project, usr/share/mios/nix/flake-template.nix
+**Verify:** Declare new CLI tool in `mios.toml`; run `mios-nix-project`; verify tool installs to user profile and previous generation is preserved for instant rollback.
+**Do NOT:** Mutate host `/usr/bin/` binaries when projecting user-level package additions.
+**Done When:** Nix projection generator translates SSOT declarations to atomic user package generations.
+**Why:** Declarative Nix projections provide atomic user package rollbacks that mirror system-level bootc rollbacks.
+**Dep:** AGY-2179
+
+## AGY-2181 -- Hermetic multi-language pre-commit linter and auto-formatter hook in mios-git-pre-commit  (WS-GIT | P1 | M)
+**Goal:** Execute parallel linter checks (cargo clippy, ruff, taplo, shellcheck) and format staged files before git commits.
+**What+How:** Implement `usr/libexec/mios/mios-git-pre-commit`. On `git commit`, extract staged file list; execute `ruff check --fix`, `taplo format`, `cargo clippy`, `shellcheck` concurrently; stage formatted diffs; and block commit if any fatal syntax errors remain.
+**Where:** usr/libexec/mios/mios-git-pre-commit, .git/hooks/pre-commit
+**Verify:** Stage a python file with trailing whitespace and unformatted TOML; run git commit; verify pre-commit hook formats files and commits cleanly.
+**Do NOT:** Allow bypass of pre-commit linters via `--no-verify` in automated agent workflows.
+**Done When:** Pre-commit hook validates syntax and auto-formats multi-language source files on commit.
+**Why:** Hermetic pre-commit linting guarantees that code entering the git history is clean, formatted, and error-free.
+**Dep:** AGY-2180
+
+## AGY-2182 -- Automated pre-commit linter violation rejection and auto-format test suite  (WS-GIT | P2 | S)
+**Goal:** Verify in automated CI that intentional syntax and lint violations are rejected by pre-commit hooks.
+**What+How:** Add `tests/test-git-pre-commit-hook.sh`. Stage a Python file with a deliberate syntax error; attempt commit; assert commit fails with exit 1 and diagnostic output indicates line/column of error.
+**Where:** tests/test-git-pre-commit-hook.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-git-pre-commit-hook.sh`; verify rejection of invalid syntax and pass of formatted files.
+**Do NOT:** Skip pre-commit hook validation in CI test tier 2.
+**Done When:** Test suite validates that pre-commit hooks reject malformed syntax and format valid code.
+**Why:** Continuous hook testing ensures developer and agent workstations enforce uniform code quality gates.
+**Dep:** AGY-2181
+
+## AGY-2183 -- Declarative NVIDIA MIG / AMD ROCm hardware slice configurator and dynamic CDI generator  (WS-VFIO | P1 | M)
+**Goal:** Configure hardware GPU slices (MIG / ROCm partition) from mios.toml and generate scoped CDI device profiles.
+**What+How:** Implement `usr/libexec/mios/mios-gpu-mig`. Parse `[gpu.mig_instances]` in `mios.toml`; invoke `nvidia-smi mig -cgi` or ROCm partition APIs; generate CDI JSON specs in `/etc/cdi/` declaring exact slice UUIDs (`nvidia.com/mig=1g.10gb`); and bind slices to dedicated Quadlet units.
+**Where:** usr/libexec/mios/mios-gpu-mig, automation/20-drivers.sh
+**Verify:** Configure 2 MIG instances on supported GPU; verify `nvidia-smi` reports 2 distinct GPU instances and CDI specs generate in `/etc/cdi/`.
+**Do NOT:** Expose full physical GPU device nodes to containers assigned to specific MIG slices.
+**Done When:** MIG configurator partitions hardware GPU instances and binds CDI profiles automatically.
+**Why:** Hardware GPU slicing guarantees dedicated compute and memory bandwidth for latency-sensitive voice and agent workloads.
+**Dep:** AGY-2182
+
+## AGY-2184 -- Multi-instance GPU compute isolation and fault boundary verification test suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that GPU compute slices enforce hard memory boundaries and fault isolation.
+**What+How:** Add `tests/test-gpu-mig-isolation.sh`. Spawn two containers on adjacent MIG slices; trigger a CUDA memory fault/OOM in Container A; assert Container B continues executing inference without interruption or VRAM corruption.
+**Where:** tests/test-gpu-mig-isolation.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-gpu-mig-isolation.sh`; verify fault containment and performance isolation pass 100%.
+**Do NOT:** Skip MIG isolation testing on supported hardware CI profiles.
+**Done When:** Test suite validates that GPU hardware slices provide complete fault and memory isolation.
+**Why:** Hardware fault isolation ensures that a crash in background model fine-tuning never takes down interactive OS voice assistance.
+**Dep:** AGY-2183
+
+## AGY-2185 -- Zero-configuration mDNS/DNS-SD peer discovery and automated WireGuard peering daemon  (WS-NET | P1 | M)
+**Goal:** Discover local MiOS nodes automatically on LAN subnets via mDNS/DNS-SD and initiate secure WireGuard mesh peering.
+**What+How:** Implement `usr/libexec/mios/mios-peer-discover`. Announce `_mios-node._tcp` over mDNS via `avahi-publish-service` or `systemd-resolved`; browse local network for cluster coordinators; on discovery, execute cryptographic mutual TLS handshake and register WireGuard tunnel endpoints automatically.
+**Where:** usr/libexec/mios/mios-peer-discover, usr/lib/systemd/system/mios-peer-discover.service
+**Verify:** Boot two fresh nodes on same LAN subnet; verify nodes discover each other via mDNS within 5s and establish active WireGuard link.
+**Do NOT:** Accept peering handshakes from unverified nodes that fail cryptographic public key verification.
+**Done When:** Peer discovery daemon locates local nodes and establishes encrypted mesh tunnels automatically.
+**Why:** Zero-configuration discovery enables seamless plug-and-play bare-metal cluster expansion.
+**Dep:** AGY-2184
+
+## AGY-2186 -- Automated LAN peer discovery, cryptographic handshake, and mesh join test suite  (WS-NET | P2 | S)
+**Goal:** Verify in automated CI that mDNS discovery triggers authenticated WireGuard mesh connection.
+**What+How:** Add `tests/test-mdns-auto-peering.sh`. Spawn two virtual network namespaces; broadcast mDNS advertisement; assert peer discovers service, exchanges ECDSA keys, and confirms ping connectivity over WireGuard interface in <10s.
+**Where:** tests/test-mdns-auto-peering.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-mdns-auto-peering.sh`; verify discovery and peering SLA assertions pass 100%.
+**Do NOT:** Skip peer discovery validation in CI test tier 2.
+**Done When:** Test suite validates zero-conf mDNS discovery and authenticated WireGuard tunnel setup.
+**Why:** Continuous networking tests ensure discovery protocols remain functional across firewall and router topologies.
+**Dep:** AGY-2185
+
+## AGY-2187 -- LRU container image garbage collector and block deduplicator daemon in mios-container-gc  (WS-STRG | P1 | M)
+**Goal:** Prune unreferenced container build layers when storage exceeds 80% and deduplicate identical blocks.
+**What+How:** Implement `usr/libexec/mios/mios-container-gc`. Monitor `/var` disk capacity; when utilization >80%, execute `podman image prune -a --filter until=168h` skipping pinned images in `mios.toml`; invoke `duperemove` on container storage layers to reclaim redundant blocks.
+**Where:** usr/libexec/mios/mios-container-gc, usr/lib/systemd/system/mios-container-gc.timer
+**Verify:** Simulate 85% storage usage with dangling build layers; trigger `mios-container-gc`; verify dangling layers are pruned and pinned sidecars remain untouched.
+**Do NOT:** Prune active database volumes or pinned Quadlet container base images during garbage collection.
+**Done When:** Container GC daemon reclaims storage space and deduplicates OCI layer blocks automatically.
+**Why:** Automated layer pruning prevents disk exhaustion on continuous self-developing AI workstations.
+**Dep:** AGY-2186
+
+## AGY-2188 -- Automated container layer pruning threshold and deduplication verification test suite  (WS-STRG | P2 | S)
+**Goal:** Verify in automated CI that storage GC reclaims disk space without corrupting active container layers.
+**What+How:** Add `tests/test-container-gc-reclaim.sh`. Build 5 test images with shared and dangling layers; trigger `mios-container-gc`; assert disk space reclaimed > 2GB and assert active containers restart without missing layer errors.
+**Where:** tests/test-container-gc-reclaim.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-container-gc-reclaim.sh`; verify space reclamation and container layer integrity pass 100%.
+**Do NOT:** Skip container storage GC validation in CI test tier 2.
+**Done When:** Test suite validates storage reclamation and layer integrity across container prune cycles.
+**Why:** Continuous testing ensures storage garbage collection never removes active or pinned container images.
+**Dep:** AGY-2187
+
+## AGY-2189 -- Declarative FIDO2 pam_u2f and ssh-ed25519-sk hardware key enrollment tool in mios-fido2-enroll  (WS-SEC | P1 | M)
+**Goal:** Enroll hardware security keys for touch-based sudo elevation, git signing, and WebAuthn web console login.
+**What+How:** Implement `usr/libexec/mios/mios-fido2-enroll`. Generate `/etc/u2f_mappings` via `pamu2fcfg`, configure `/etc/pam.d/sudo` with `auth sufficient pam_u2f.so cue`, generate resident `ssh-ed25519-sk` signing key, and register WebAuthn credential in Open WebUI / Cockpit.
+**Where:** usr/libexec/mios/mios-fido2-enroll, automation/10-bootstrap.sh
+**Verify:** Enroll virtual/physical FIDO2 key; run `sudo -v`; verify prompt requests physical key touch and authenticates on presence confirmation.
+**Do NOT:** Disable user-presence touch verification (`nouserpresence`) in production PAM configurations.
+**Done When:** FIDO2 enrollment tool configures pam_u2f, SSH-SK keys, and WebAuthn credentials seamlessly.
+**Why:** Hardware-backed FIDO2 authentication provides phishing-proof security for administrative privileges and code signing.
+**Dep:** AGY-2188
+
+## AGY-2190 -- Automated FIDO2 user presence challenge and authentication test suite in virtual USB sandbox  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that PAM and SSH reject operations when FIDO2 presence challenge is unacknowledged.
+**What+How:** Add `tests/test-fido2-pam-authentication.sh`. Emulate a virtual USB CTAP2 token; assert `pam_u2f` succeeds on touch simulation; assert `pam_u2f` times out and fails when touch event is not emitted.
+**Where:** tests/test-fido2-pam-authentication.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-fido2-pam-authentication.sh`; verify touch verification and timeout rejection pass 100%.
+**Do NOT:** Skip hardware token authentication testing in CI test tier 2.
+**Done When:** Test suite validates that FIDO2 authentication strictly enforces physical presence challenges.
+**Why:** Continuous testing ensures PAM security policies cannot be bypassed by automated background attacks.
+**Dep:** AGY-2189
+
+## AGY-2191 -- Declarative nftables VPN kill-switch and fwmark split-tunnel manager  (WS-NET | P1 | M)
+**Goal:** Enforce strict default-drop on non-VPN WAN traffic while split-routing local cluster mesh packets via fwmark.
+**What+How:** Implement `usr/libexec/mios/mios-vpn-killswitch`. Configure `nftables` table `inet mios_vpn_guard`; drop non-VPN packets destined for public WAN; apply `meta mark set 0x100` to local cluster CIDRs (`10.0.0.0/8`, `192.168.0.0/16`) to route via physical interface; ensure DNS queries route only to local AdGuard DoH.
+**Where:** usr/libexec/mios/mios-vpn-killswitch, automation/45-firewall.sh
+**Verify:** Sever VPN interface; attempt curl to public IP (assert connection dropped by kill-switch); curl local blade `10.0.0.2` (assert connection succeeds via split-tunnel).
+**Do NOT:** Permit cleartext WAN fallback when VPN interface encounters handshake timeout or network reset.
+**Done When:** VPN kill-switch blocks WAN traffic during tunnel drop while keeping local mesh accessible.
+**Why:** A strict firewall kill-switch prevents accidental IP leakage while preserving local cluster control.
+**Dep:** AGY-2190
+
+## AGY-2192 -- Automated VPN disconnect IP leak prevention and local mesh routing verification test suite  (WS-NET | P2 | S)
+**Goal:** Verify in automated CI that simulated VPN drops leak 0 public packets and local mesh stays responsive.
+**What+How:** Add `tests/test-vpn-killswitch-leak.sh`. Simulate VPN disconnect during active HTTP transfer; capture packets on physical interface; assert exactly 0 non-mesh packets escape to WAN and ping to local mesh peers continues uninterrupted.
+**Where:** tests/test-vpn-killswitch-leak.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-vpn-killswitch-leak.sh`; verify leak prevention and local routing assertions pass 100%.
+**Do NOT:** Skip VPN kill-switch validation in CI test tier 2.
+**Done When:** Test suite validates that firewall kill-switch blocks WAN leakage and maintains local mesh traffic.
+**Why:** Continuous testing ensures firewall rules prevent privacy leaks across VPN reconnect events.
+**Dep:** AGY-2191
+
+## AGY-2193 -- Tiered NAT traversal engine (UPnP, NAT-PMP, STUN hole punching, DERP relay) in mios-nat-traversal  (WS-NET | P1 | M)
+**Goal:** Establish direct P2P WireGuard and WebRTC connections through consumer NAT routers with automated DERP relay fallback.
+**What+How:** Implement `usr/libexec/mios/mios-nat-traversal`. Request UPnP / NAT-PMP / PCP port leases on local router; if unavailable, negotiate STUN/ICE UDP hole punching between peer endpoints; if symmetric NAT blocks direct packets, route encrypted traffic through Headscale DERP relays automatically.
+**Where:** usr/libexec/mios/mios-nat-traversal, automation/44-mdns-peering.sh
+**Verify:** Deploy two nodes behind double-NAT routers; verify `mios-nat-traversal` establishes direct UDP WireGuard peering or falls back cleanly to DERP relay with <50ms latency.
+**Do NOT:** Fail connection attempts when routers have UPnP disabled; always fall back gracefully to DERP relays.
+**Done When:** NAT traversal engine establishes direct or relayed peer connectivity through arbitrary firewall topologies.
+**Why:** Automated NAT traversal allows remote blades and mobile laptops to join the cluster mesh without router reconfiguration.
+**Dep:** AGY-2192
+
+## AGY-2194 -- Automated symmetric NAT hole punching and DERP relay failover test suite  (WS-NET | P2 | S)
+**Goal:** Verify in automated CI that peer connections seamlessly fall back from direct UDP to DERP relays.
+**What+How:** Add `tests/test-nat-traversal-fallback.sh`. Simulate symmetric NAT blocking direct UDP traffic; assert `mios-nat-traversal` detects packet loss, engages DERP relay within 3s, and maintains active TCP/UDP data streams.
+**Where:** tests/test-nat-traversal-fallback.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-nat-traversal-fallback.sh`; verify relay failover and throughput assertions pass 100%.
+**Do NOT:** Skip NAT fallback testing in CI test tier 2.
+**Done When:** Test suite validates NAT traversal negotiation and seamless relay failover.
+**Why:** Continuous testing ensures mesh nodes maintain connectivity across diverse corporate and home network environments.
+**Dep:** AGY-2193
+
