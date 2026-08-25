@@ -47,9 +47,11 @@ mod tests {
     #[test]
     fn test_parse_task() {
         assert_eq!(parse_task(&[]), "help");
-        assert_eq!(parse_task(&["build-resolver".to_string()]), "build-resolver");
+        assert_eq!(
+            parse_task(&["build-resolver".to_string()]),
+            "build-resolver"
+        );
         assert_eq!(parse_task(&["regen".to_string()]), "regen");
         assert_eq!(parse_task(&["unknown".to_string()]), "unknown");
     }
 }
-

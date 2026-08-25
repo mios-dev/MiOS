@@ -465,7 +465,10 @@ mod tests {
             "ghcr.io/org/app:latest"
         );
         assert_eq!(
-            resolve_image_val("${MIOS_CUSTOM_IMAGE:-docker.io/library/redis:alpine}", &sidecars),
+            resolve_image_val(
+                "${MIOS_CUSTOM_IMAGE:-docker.io/library/redis:alpine}",
+                &sidecars
+            ),
             "docker.io/library/redis:alpine"
         );
     }
@@ -481,9 +484,14 @@ mod tests {
         members.insert("vllm".to_string(), vec!["vllm".to_string()]);
         members.insert("sglang".to_string(), vec!["sglang".to_string()]);
 
-        assert_eq!(classify("quay.io/vllm/vllm:v0.6.0", &groups, &members), "vllm");
-        assert_eq!(classify("docker.io/sglang:latest", &groups, &members), "sglang");
+        assert_eq!(
+            classify("quay.io/vllm/vllm:v0.6.0", &groups, &members),
+            "vllm"
+        );
+        assert_eq!(
+            classify("docker.io/sglang:latest", &groups, &members),
+            "sglang"
+        );
         assert_eq!(classify("docker.io/other:1.0", &groups, &members), "extra");
     }
 }
-

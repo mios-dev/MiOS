@@ -321,4 +321,3 @@ mod tests {
         assert_eq!(blocks[0].lines, 2);
     }
 }
-

@@ -307,4 +307,3 @@ mod tests {
         assert_eq!(refs.len(), 2);
     }
 }
-
