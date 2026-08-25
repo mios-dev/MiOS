@@ -562,6 +562,34 @@
 | T-648 | P2 | open | Build/NetbootTest | Automated headless QEMU iPXE netboot and live ISO installation test suite |
 | T-649 | P1 | open | AI/TensorKernels | GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher |
 | T-650 | P2 | open | AI/KernelTest | Automated GPU Tensor Core throughput and GEMM dispatch latency benchmark suite |
+| T-651 | P1 | open | AI/ReactiveLoop | Asyncio/epoll reactive event loop and PostgreSQL LISTEN/NOTIFY dispatcher in agent-pipe |
+| T-652 | P2 | open | AI/ReactiveTest | Automated reactive agent wakeup latency (<5ms) and zero idle CPU benchmark suite |
+| T-653 | P1 | open | AI/CouncilSwarm | Multi-agent 3-peer council swarm and weighted Byzantine consensus engine in agent-pipe |
+| T-654 | P2 | open | AI/CouncilTest | Automated multi-agent council voting, hallucination rejection, and shadow sandbox test suite |
+| T-655 | P1 | open | AI/SpeculativeDecode | Dynamic speculative decoding draft pairing and adaptive draft-length manager in llama-swap |
+| T-656 | P2 | open | AI/SpeculativeTest | Automated speculative decoding speedup (3x) and mathematical output equivalence benchmark suite |
+| T-657 | P1 | open | Hardware/CPUAffinity | Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator |
+| T-658 | P2 | open | Hardware/CPUTest | Automated vendor-agnostic CPU core pinning, thread isolation, and jitter benchmark suite |
+| T-659 | P1 | open | Telemetry/MeshLogs | Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink |
+| T-660 | P2 | open | Telemetry/LogMeshTest | Automated multi-node log streaming, partition buffering, and central query test suite |
+| T-661 | P1 | open | Security/CVEScan | Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator |
+| T-662 | P2 | open | Security/CVETest | Automated Critical CVE rejection and supply-chain vulnerability gate test suite |
+| T-663 | P1 | open | Hardware/GPUHeat | Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon |
+| T-664 | P2 | open | Hardware/GPUHeatTest | Automated inter-GPU P2P bandwidth telemetry and tensor bottleneck detection test suite |
+| T-665 | P1 | open | Security/SystemdAudit | Declarative systemd unit hardening generator and security audit gate |
+| T-666 | P2 | open | Security/SystemdTest | Automated systemd unit security exposure score (<3.0) and seccomp filter verification test suite |
+| T-667 | P1 | open | Memory/OOMD | Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies |
+| T-668 | P2 | open | Memory/OOMDTest | Automated memory pressure stall injection and protected service survival test suite |
+| T-669 | P1 | open | AI/TrainElastic | Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager |
+| T-670 | P2 | open | AI/TrainElasticTest | Automated training preemption, async checkpoint verification, and zero-loss step resumption test suite |
+| T-671 | P1 | open | AI/MultiModalWS | Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe |
+| T-672 | P2 | open | AI/MultiModalTest | Automated concurrent multi-modal streaming latency (<100ms) and temporal alignment test suite |
+| T-673 | P1 | open | Virtualization/MicroVM | Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge |
+| T-674 | P2 | open | Virtualization/MicroVMTest | Automated sub-50ms microVM boot time, vsock throughput, and breakout containment test suite |
+| T-675 | P1 | open | AI/ContextCompactor | Hierarchical semantic context compactor and invariant pinning manager in agent-pipe |
+| T-676 | P2 | open | AI/CompactorTest | Automated long-horizon (100k+ token) conversation compaction and intent retention test suite |
+| T-677 | P1 | open | Hardware/USBSurge | Udev USB over-current event handler and port power cycling daemon |
+| T-678 | P2 | open | Hardware/SurgeTest | Automated USB over-current fault simulation, port isolation, and power recovery test suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -6920,4 +6948,284 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2247
 **Status:** open | **Domain:** AI/KernelTest | **Who:** agent
 **Converted:** AGY-2248 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-667 -- Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies (WS-BOOT | P1 | M)
+**Goal:** Configure systemd-oomd to kill thrashing background tasks at 50% PSI and protect core desktop/database services.
+**What+How:** Implement `automation/26-oomd.sh`. Write `/etc/systemd/oomd.conf` with `DefaultMemoryPressureDurationSec=10s`; configure `system.slice` and `user.slice` with `ManagedOOMMemoryPressure=kill` and `ManagedOOMMemoryPressureLimit=50%`; protect `gnome-shell.service`, `mios-pgvector.service`, and `mios-llm-light.service` with `ManagedOOMPreference=avoid`.
+**Where:** automation/26-oomd.sh, /etc/systemd/oomd.conf.d/10-mios.conf
+**Done When:** Systemd-oomd mitigates memory thrashing by killing low-priority cgroups and protecting core services.
+**Why:** Declarative PSI-based OOM mitigation prevents kernel swap thrashing and desktop lockups under extreme RAM pressure.
+**Dep:** AGY-2264
+**Status:** open | **Domain:** Memory/OOMD | **Who:** agent
+**Converted:** AGY-2265 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-668 -- Automated memory pressure stall injection and protected service survival test suite (WS-BOOT | P2 | S)
+**Goal:** Verify in automated CI that background memory hogs are evicted in <10s while protected daemons survive.
+**What+How:** Add `tests/test-systemd-oomd-psi.sh`. Launch memory stress container in background slice with 150% RAM allocation; monitor `/proc/pressure/memory`; assert `systemd-oomd` kills runaway container within 10s and assert PostgreSQL continues accepting queries.
+**Where:** tests/test-systemd-oomd-psi.sh, tools/ci-suites.py
+**Done When:** Test suite validates that systemd-oomd reliably kills thrashing slices and preserves critical services.
+**Why:** Continuous testing ensures memory management updates maintain system responsiveness under severe memory pressure.
+**Dep:** AGY-2265
+**Status:** open | **Domain:** Memory/OOMDTest | **Who:** agent
+**Converted:** AGY-2266 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-651 -- Asyncio/epoll reactive event loop and PostgreSQL LISTEN/NOTIFY dispatcher in agent-pipe (WS-ORCH | P1 | M)
+**Goal:** Implement zero-polling reactive agent wakeups using Linux epoll, inotify, and PostgreSQL LISTEN/NOTIFY.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_reactive_loop.py`. Sleep idle subagent execution coroutines on Linux epoll; register asynchronous listeners on PostgreSQL `LISTEN agent_inbox_channel`; watch workspace paths via Linux `inotify`; and resume subagent tasks in <5ms upon event arrival with 0% idle CPU draw.
+**Where:** usr/lib/mios/agent-pipe/mios_reactive_loop.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** Reactive loop wakes subagents in <5ms on database and filesystem events with zero idle CPU overhead.
+**Why:** Reactive event loops enable hundreds of concurrent agents to sleep efficiently without draining battery or CPU.
+**Dep:** AGY-2248
+**Status:** open | **Domain:** AI/ReactiveLoop | **Who:** agent
+**Converted:** AGY-2249 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-652 -- Automated reactive agent wakeup latency (<5ms) and zero idle CPU benchmark suite (WS-ORCH | P2 | S)
+**Goal:** Verify in automated CI that PostgreSQL LISTEN/NOTIFY wakes idle agents in <5ms with 0% CPU consumption.
+**What+How:** Add `tests/test-reactive-agent-wakeup.sh`. Spawn 50 idle subagent workers; measure idle CPU usage; emit 100 random NOTIFY events; assert wake-to-execution latency < 5ms and assert 0 missed wake signals.
+**Where:** tests/test-reactive-agent-wakeup.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-50ms reactive wakeups and zero-polling CPU efficiency.
+**Why:** Continuous testing ensures event dispatcher optimizations maintain low latency and high concurrency.
+**Dep:** AGY-2249
+**Status:** open | **Domain:** AI/ReactiveTest | **Who:** agent
+**Converted:** AGY-2250 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-653 -- Multi-agent 3-peer council swarm and weighted Byzantine consensus engine in agent-pipe (WS-ORCH | P1 | M)
+**Goal:** Deliberate high-impact system mutations across a 3-agent council and enforce 2/3 majority consensus.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_council.py`. On critical tool calls (system config, firewall, UKI kargs), fan out proposal concurrently to Coder, Security Auditor, and Architect agents; aggregate independent chain-of-thought reviews; compute weighted voting score; execute candidate diff in shadow bubblewrap sandbox; and abort if consensus falls below 2/3.
+**Where:** usr/lib/mios/agent-pipe/mios_council.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** Council swarm evaluates proposals concurrently and enforces 2/3 majority consensus.
+**Why:** Multi-agent deliberation eliminates single-model hallucinations and protects system integrity from adversarial prompts.
+**Dep:** AGY-2250
+**Status:** open | **Domain:** AI/CouncilSwarm | **Who:** agent
+**Converted:** AGY-2251 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-654 -- Automated multi-agent council voting, hallucination rejection, and shadow sandbox test suite (WS-ORCH | P2 | S)
+**Goal:** Verify in automated CI that council consensus rejects hallucinated/malicious actions and accepts valid patches.
+**What+How:** Add `tests/test-agent-council-consensus.sh`. Feed 10 valid patches and 10 malicious prompt injection proposals to council engine; assert all 10 valid patches achieve >=2/3 consensus and execute in sandbox; assert all 10 malicious proposals are rejected with detailed dissenting audit logs.
+**Where:** tests/test-agent-council-consensus.sh, tools/ci-suites.py
+**Done When:** Test suite validates multi-agent Byzantine consensus accuracy and shadow sandbox containment.
+**Why:** Continuous testing ensures autonomous agent swarms maintain reliable self-governance and safety boundaries.
+**Dep:** AGY-2251
+**Status:** open | **Domain:** AI/CouncilTest | **Who:** agent
+**Converted:** AGY-2252 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-655 -- Dynamic speculative decoding draft pairing and adaptive draft-length manager in llama-swap (WS-AI | P1 | M)
+**Goal:** Pair heavy models with lightweight draft models and adapt draft lengths dynamically for 3x token speedups.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml`. Configure `speculative_drafting: true`; pair target models with matched draft models (`draft_model: qwen2.5-0.5b-instruct.Q4_K_M.gguf`); draft 5 tokens speculatively; verify batch tokens in parallel in a single target model forward pass; and adapt draft length based on exponential moving average acceptance rate.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Speculative decoding engine pairs draft models and accelerates token generation throughput.
+**Why:** Speculative decoding delivers 3x faster local LLM generation without degrading output accuracy.
+**Dep:** AGY-2252
+**Status:** open | **Domain:** AI/SpeculativeDecode | **Who:** agent
+**Converted:** AGY-2253 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-656 -- Automated speculative decoding speedup (3x) and mathematical output equivalence benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that speculative decoding achieves >2.5x speedup and outputs identical tokens.
+**What+How:** Add `tests/test-speculative-decoding-throughput.sh`. Generate 50 code completions with and without speculative decoding; assert output text is bit-for-bit identical; assert generation tok/s increases by >2.5x on GPU hardware.
+**Where:** tests/test-speculative-decoding-throughput.sh, tools/ci-suites.py
+**Done When:** Test suite validates speculative decoding speedup and mathematical token equivalence.
+**Why:** Continuous testing ensures draft model pairing maintains deterministic, regression-free acceleration.
+**Dep:** AGY-2253
+**Status:** open | **Domain:** AI/SpeculativeTest | **Who:** agent
+**Converted:** AGY-2254 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-657 -- Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator (WS-VFIO | P1 | M)
+**Goal:** Discover CPU/NUMA topology on boot across Intel, AMD, ARM and partition performance/efficiency cores dynamically.
+**What+How:** Implement `automation/24-cpu-affinity.sh` and `usr/libexec/mios/mios-cpu-topology`. On boot, inspect `/sys/devices/system/cpu/`, classify cores into abstract performance, efficiency, and latency-critical sets across Intel P/E, AMD 3D V-Cache dual-CCD, and multi-socket NUMA; generate systemd slice `cpuset.cpus` definitions for `realtime.slice`, `interactive.slice`, and `background.slice`.
+**Where:** automation/24-cpu-affinity.sh, usr/libexec/mios/mios-cpu-topology
+**Done When:** CPU topology allocator discovers core layouts on boot and partitions systemd slices dynamically.
+**Why:** Vendor-agnostic core partitioning guarantees jitter-free real-time audio and microVM performance across any CPU architecture.
+**Dep:** AGY-2254
+**Status:** open | **Domain:** Hardware/CPUAffinity | **Who:** agent
+**Converted:** AGY-2255 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-658 -- Automated vendor-agnostic CPU core pinning, thread isolation, and jitter benchmark suite (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that real-time threads achieve <500us scheduling jitter during heavy background load.
+**What+How:** Add `tests/test-cpu-topology-affinity.sh`. Run `cyclictest` on isolated latency-critical cores while running `stress-ng` across background efficiency cores; assert maximum scheduling latency < 500us and zero thread migration across slice boundaries.
+**Where:** tests/test-cpu-topology-affinity.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-500us real-time scheduling latency and robust core isolation under heavy load.
+**Why:** Continuous testing ensures kernel scheduling updates maintain deterministic real-time audio and microVM execution.
+**Dep:** AGY-2255
+**Status:** open | **Domain:** Hardware/CPUTest | **Who:** agent
+**Converted:** AGY-2256 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-659 -- Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink (WS-NODE | P1 | M)
+**Goal:** Stream node journald logs over WireGuard mesh to central PostgreSQL cluster_logs table with local ring buffering.
+**What+How:** Implement `automation/49-fluentbit-logs.sh`. Deploy `fluent-bit` system service on each blade; ingest `systemd-journald` streams; buffer logs in local 128MB memory ring during mesh outages; forward compressed records over WireGuard mTLS to coordinator; and insert into partitioned table `cluster_logs` with vector embeddings in PostgreSQL.
+**Where:** automation/49-fluentbit.sh, usr/share/containers/systemd/mios-fluentbit.container
+**Done When:** Fluent Bit streams node telemetry to central PostgreSQL sink with network partition buffering.
+**Why:** Centralized encrypted log aggregation gives operators and autonomous agents a unified cluster-wide diagnostic pane.
+**Dep:** AGY-2256
+**Status:** open | **Domain:** Telemetry/MeshLogs | **Who:** agent
+**Converted:** AGY-2257 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-660 -- Automated multi-node log streaming, partition buffering, and central query test suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that log forwarders buffer 10,000 logs during network drops and flush on reconnection.
+**What+How:** Add `tests/test-fluentbit-mesh-buffering.sh`. Sever network between worker and coordinator; generate 10,000 log lines on worker; reconnect network; assert central coordinator receives all 10,000 logs with 0 dropped entries and correct chronological ordering.
+**Where:** tests/test-fluentbit-mesh-buffering.sh, tools/ci-suites.py
+**Done When:** Test suite validates cluster log streaming reliability and zero-loss partition recovery.
+**Why:** Continuous testing guarantees telemetry integrity during mesh network reconnections and blade failovers.
+**Dep:** AGY-2257
+**Status:** open | **Domain:** Telemetry/LogMeshTest | **Who:** agent
+**Converted:** AGY-2258 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-661 -- Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator (WS-BUILD | P1 | M)
+**Goal:** Scan synthesized OCI container images with Trivy/Grype and block deployment on Critical CVSS >= 9.0 vulnerabilities.
+**What+How:** Implement `automation/93-cve-scan.sh`. Scan target OCI image archive using `trivy image --severity CRITICAL,HIGH --format json -o /usr/share/doc/mios/cve-report.json localhost:5000/mios:latest`; parse results; abort image publication with exit code 1 if unpatched Critical CVEs with known exploits are detected.
+**Where:** automation/93-cve-scan.sh, automation/90-export.sh
+**Done When:** Vulnerability scanner audits OCI image archives and generates machine-readable CVE reports.
+**Why:** Automated vulnerability gating prevents known security flaws from entering the immutable host operating system.
+**Dep:** AGY-2258
+**Status:** open | **Domain:** Security/CVEScan | **Who:** agent
+**Converted:** AGY-2259 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-662 -- Automated Critical CVE rejection and supply-chain vulnerability gate test suite (WS-BUILD | P2 | S)
+**Goal:** Verify in automated CI that intentional Critical CVE injections are blocked and clean images pass.
+**What+How:** Add `tests/test-oci-cve-scanner.sh`. Scan baseline OCI image; assert zero unpatched Critical vulnerabilities; inject mock package with known Critical CVE; assert `automation/93-cve-scan.sh` exits with code 1 and outputs structured vulnerability summary.
+**Where:** tests/test-oci-cve-scanner.sh, tools/ci-suites.py
+**Done When:** Test suite validates that vulnerability gates reliably catch and block vulnerable container images.
+**Why:** Continuous testing ensures supply-chain scanner rules and feeds remain effective against emerging threats.
+**Dep:** AGY-2259
+**Status:** open | **Domain:** Security/CVETest | **Who:** agent
+**Converted:** AGY-2260 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-663 -- Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon (WS-VFIO | P1 | M)
+**Goal:** Sample inter-GPU NVLink/PCIe throughput in real time and render live tensor heatmaps in Cockpit and CLI.
+**What+How:** Implement `usr/libexec/mios/mios-gpu-heatd`. Poll NVML / DCGM and ROCm-SMI link counters every 1s; compute NxN P2P throughput matrix; stream matrix JSON over `/run/mios/gpu-heat.sock`; and render ASCII/SVG heatmap in `mios gpu status` and Cockpit GPU dashboard.
+**Where:** usr/libexec/mios/mios-gpu-heatd, usr/share/cockpit/mios-gpu/
+**Done When:** GPU heatmap daemon samples interconnect throughput and renders live matrix telemetry.
+**Why:** Real-time P2P bandwidth visualization identifies PCIe lane degradation and tensor bottlenecks instantly.
+**Dep:** AGY-2260
+**Status:** open | **Domain:** Hardware/GPUHeat | **Who:** agent
+**Converted:** AGY-2261 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-664 -- Automated inter-GPU P2P bandwidth telemetry and tensor bottleneck detection test suite (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that interconnect profiler samples matrix telemetry with <0.1% CPU overhead.
+**What+How:** Add `tests/test-gpu-interconnect-profiler.sh`. Simulate distributed multi-GPU tensor traffic; verify `mios-gpu-heatd` captures bandwidth changes within 1s; assert profiler CPU overhead < 0.1% and WebSocket streaming latency < 20ms.
+**Where:** tests/test-gpu-interconnect-profiler.sh, tools/ci-suites.py
+**Done When:** Test suite validates P2P bandwidth telemetry precision and low-overhead matrix sampling.
+**Why:** Continuous testing ensures GPU monitoring daemons do not degrade active inference performance.
+**Dep:** AGY-2261
+**Status:** open | **Domain:** Hardware/GPUHeatTest | **Who:** agent
+**Converted:** AGY-2262 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-665 -- Declarative systemd unit hardening generator and security audit gate (WS-SEC | P1 | M)
+**Goal:** Audit systemd service security exposures with systemd-analyze security and enforce exposure scores < 3.0.
+**What+How:** Implement `automation/47-systemd-harden.sh`. Generate systemd drop-in snippets under `/etc/systemd/system/*.service.d/10-harden.conf`; inject `ProtectSystem=strict`, `ProtectHome=read-only`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, `MemoryDenyWriteExecute=yes`, and `SystemCallFilter=~@mount @reboot @swap @clock @raw-io`; audit units and fail build if exposure score >= 3.0.
+**Where:** automation/47-systemd-harden.sh, tests/test-systemd-security-exposure.sh
+**Done When:** Systemd hardening script injects least-privilege sandboxing drop-ins and passes security audits.
+**Why:** Declarative systemd sandboxing protects the host by containing compromised daemons inside restricted namespaces.
+**Dep:** AGY-2262
+**Status:** open | **Domain:** Security/SystemdAudit | **Who:** agent
+**Converted:** AGY-2263 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-666 -- Automated systemd unit security exposure score (<3.0) and seccomp filter verification test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that all systemd services maintain exposure score < 3.0 and seccomp filters block dangerous calls.
+**What+How:** Add `tests/test-systemd-security-exposure.sh`. Parse `systemd-analyze security --json=pretty`; assert all MiOS core and Quadlet units have `exposure < 3.0`; execute test process in sandbox attempting raw socket and mount syscalls; assert kernel kills process with SIGSYS.
+**Where:** tests/test-systemd-security-exposure.sh, tools/ci-suites.py
+**Done When:** Test suite validates least-privilege systemd sandboxing and seccomp filter enforcement.
+**Why:** Continuous testing ensures systemd unit additions maintain strict sandboxing and containment guarantees.
+**Dep:** AGY-2263
+**Status:** open | **Domain:** Security/SystemdTest | **Who:** agent
+**Converted:** AGY-2264 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-669 -- Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager (WS-AI | P1 | M)
+**Goal:** Stream async optimizer checkpoints to NVMe and resume pre-empted fine-tuning jobs via TorchElastic.
+**What+How:** Implement `usr/lib/mios/ai/train_elastic.py`. Stream non-blocking `torch.save` / `safetensors` state dictionaries to background worker thread writing to `/var/lib/mios/ai/checkpoints/`; handle `SIGTERM` / `SIGUSR1` preemption by flushing current step state in <2s; on node restart, resume training automatically via TorchElastic from last verified step.
+**Where:** usr/lib/mios/ai/train_elastic.py, usr/share/containers/systemd/mios-train.container
+**Done When:** Elastic training engine streams async checkpoints and resumes training automatically after preemption.
+**Why:** Asynchronous checkpointing and elastic resumption protect long model fine-tuning runs from unexpected system restarts.
+**Dep:** AGY-2266
+**Status:** open | **Domain:** AI/TrainElastic | **Who:** agent
+**Converted:** AGY-2267 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-670 -- Automated training preemption, async checkpoint verification, and zero-loss step resumption test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that preemption halts training in <2s and restarts resume with bit-for-bit weight consistency.
+**What+How:** Add `tests/test-pytorch-elastic-checkpoint.sh`. Run test LoRA fine-tuning session; inject 3 randomized SIGTERM preemption events; verify each shutdown completes in <2s; assert final trained model weights match an unbroken training run within floating-point tolerance.
+**Where:** tests/test-pytorch-elastic-checkpoint.sh, tools/ci-suites.py
+**Done When:** Test suite validates async checkpoint timing, zero-loss step recovery, and final model parity.
+**Why:** Continuous testing ensures training infrastructure withstands power cuts, thermal capping, and node failovers.
+**Dep:** AGY-2267
+**Status:** open | **Domain:** AI/TrainElasticTest | **Who:** agent
+**Converted:** AGY-2268 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-671 -- Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe (WS-ORCH | P1 | M)
+**Goal:** Process concurrent voice audio and vision frames over duplex WebSockets without blocking voice synthesis.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_multimodal_ws.py`. Ingest Opus audio packets and JPEG/DMA-BUF frames over `/v1/realtime` WebSocket; dispatch audio to streaming Whisper STT; dispatch video frames to background vision model; stream generated response tokens to Kokoro TTS audio buffer; execute MCP tool calls in non-blocking asyncio tasks.
+**Where:** usr/lib/mios/agent-pipe/mios_multimodal_ws.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** Multi-modal WebSocket pipeline streams concurrent audio, vision, and tool results fluidly.
+**Why:** Duplex multi-modal streaming delivers natural real-time conversational agent experiences while understanding desktop context.
+**Dep:** AGY-2268
+**Status:** open | **Domain:** AI/MultiModalWS | **Who:** agent
+**Converted:** AGY-2269 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-672 -- Automated concurrent multi-modal streaming latency (<100ms) and temporal alignment test suite (WS-ORCH | P2 | S)
+**Goal:** Verify in automated CI that multi-modal WebSocket streams maintain <100ms voice latency under heavy vision load.
+**What+How:** Add `tests/test-multimodal-websocket-latency.sh`. Stream 30s of synthetic voice audio and 10 FPS screen capture; assert speech-to-audio response latency < 100ms; assert vision frame annotations match active audio timestamps with zero frame starvation.
+**Where:** tests/test-multimodal-websocket-latency.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-100ms conversational latency and seamless multi-modal temporal synchronization.
+**Why:** Continuous testing ensures agent orchestrator optimizations preserve fluid real-time multi-modal interaction.
+**Dep:** AGY-2269
+**Status:** open | **Domain:** AI/MultiModalTest | **Who:** agent
+**Converted:** AGY-2270 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-673 -- Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge (WS-VFIO | P1 | M)
+**Goal:** Launch hardware KVM microVM sandboxes in <50ms with zero-copy AF_VSOCK command execution.
+**What+How:** Implement `usr/bin/mios-microvm`. Direct-boot minimal Linux kernel and alpine initramfs via Firecracker / Cloud-Hypervisor over `/dev/kvm`; attach read-only rootfs via virtio-blk; establish `AF_VSOCK` communication channel for stdin/stdout; execute untrusted script; and immediately destroy VM process and release memory pages.
+**Where:** usr/bin/mios-microvm, usr/libexec/mios/microvm-init
+**Done When:** MicroVM manager spins up ephemeral hardware-isolated environments in <50ms over vsock.
+**Why:** MicroVM sandboxing isolates untrusted subagent code execution behind real hardware virtualization boundaries.
+**Dep:** AGY-2270
+**Status:** open | **Domain:** Virtualization/MicroVM | **Who:** agent
+**Converted:** AGY-2271 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-674 -- Automated sub-50ms microVM boot time, vsock throughput, and breakout containment test suite (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that microVMs boot in <50ms and synthetic breakout exploits cannot access host files.
+**What+How:** Add `tests/test-microvm-sandbox-containment.sh`. Measure microVM boot time across 20 iterations; assert average boot time < 50ms; execute simulated dirty COW / container breakout exploit inside guest; assert host kernel and root filesystem remain 100% uncompromised.
+**Where:** tests/test-microvm-sandbox-containment.sh, tools/ci-suites.py
+**Done When:** Test suite validates microVM boot speed, vsock bandwidth, and strict virtualization containment.
+**Why:** Continuous testing ensures virtualization hypervisors maintain impenetrable isolation for autonomous code execution.
+**Dep:** AGY-2271
+**Status:** open | **Domain:** Virtualization/MicroVMTest | **Who:** agent
+**Converted:** AGY-2272 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-675 -- Hierarchical semantic context compactor and invariant pinning manager in agent-pipe (WS-ORCH | P1 | M)
+**Goal:** Pin core system invariants and compact intermediate conversation turns into semantic summaries at context limits.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_context_compactor.py`. Monitor active session token counts; when usage reaches 85% of model limit, pin initial system rules, user constraints, and last 10 turns; invoke fast 3B model to summarize intermediate turns into structured recap; archive raw message turns into PostgreSQL `conversation_history`; and inject recap as `<CONVERSATION_SUMMARY>`.
+**Where:** usr/lib/mios/agent-pipe/mios_context_compactor.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** Context compactor compresses long-horizon conversation histories while preserving system invariants.
+**Why:** Semantic compaction enables multi-day agent coding sessions to proceed indefinitely without hitting hard context limits.
+**Dep:** AGY-2272
+**Status:** open | **Domain:** AI/ContextCompactor | **Who:** agent
+**Converted:** AGY-2273 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-676 -- Automated long-horizon (100k+ token) conversation compaction and intent retention test suite (WS-ORCH | P2 | S)
+**Goal:** Verify in automated CI that semantic compaction retains 100% of pinned architectural rules across 100k tokens.
+**What+How:** Add `tests/test-context-compactor-retention.sh`. Generate synthetic 100k-token agent dialog with 5 injected hidden constraint tokens; trigger compaction passes; query model on original hidden constraints; assert model recalls all 5 constraints with 100% precision from the compacted context.
+**Where:** tests/test-context-compactor-retention.sh, tools/ci-suites.py
+**Done When:** Test suite validates that compacted context retains critical instructions and constraint facts.
+**Why:** Continuous testing ensures context management algorithms preserve essential reasoning data across long agent runs.
+**Dep:** AGY-2273
+**Status:** open | **Domain:** AI/CompactorTest | **Who:** agent
+**Converted:** AGY-2274 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-677 -- Udev USB over-current event handler and port power cycling daemon (WS-NODE | P1 | M)
+**Goal:** Catch USB over-current kernel events, isolate the faulting port, and cycle port power safely.
+**What+How:** Implement `usr/libexec/mios/mios-usb-surge` and `/etc/udev/rules.d/98-usb-overcurrent.rules`. On kernel over-current uevent, write `suspended` to `/sys/bus/usb/devices/.../power/control`; display desktop notification with physical port number; wait 5s thermal cool-down; attempt soft port reset via `usbreset`; log incident to PostgreSQL `hardware_faults`.
+**Where:** usr/libexec/mios/mios-usb-surge, /etc/udev/rules.d/98-usb-overcurrent.rules
+**Done When:** USB surge daemon catches over-current faults, suspends port power, and recovers port after cool-down.
+**Why:** Automated USB over-current isolation prevents permanent motherboard hardware damage from faulty peripherals.
+**Dep:** AGY-2274
+**Status:** open | **Domain:** Hardware/USBSurge | **Who:** agent
+**Converted:** AGY-2275 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-678 -- Automated USB over-current fault simulation, port isolation, and power recovery test suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that simulated USB over-current faults isolate in <500ms and log to PostgreSQL.
+**What+How:** Add `tests/test-usb-overcurrent-isolation.sh`. Inject synthetic USB over-current netlink uevent into udev; assert `mios-usb-surge` cuts port power within 500ms; verify cool-down timer and assert recovery power-cycle executes cleanly.
+**Where:** tests/test-usb-overcurrent-isolation.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-500ms USB power cutoff and structured fault database logging.
+**Why:** Continuous testing ensures hardware protection daemons reliably safeguard physical ports.
+**Dep:** AGY-2275
+**Status:** open | **Domain:** Hardware/SurgeTest | **Who:** agent
+**Converted:** AGY-2276 carries this forward with a Verify line that fails when the behaviour is absent.
 

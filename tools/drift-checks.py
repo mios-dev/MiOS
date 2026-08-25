@@ -4018,8 +4018,8 @@ def check_v2v_import_ssot() -> int:
 
 def check_value_aliases() -> int:
     import sys, subprocess, os
-    if len(sys.argv) >= 3:
-        snap, tsv = sys.argv[1], sys.argv[2]
+    if len(sys.argv) >= 4:
+        snap, tsv = sys.argv[2], sys.argv[3]
         root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     else:
         root = os.environ.get("MIOS_DRIFT_ROOT", ".")

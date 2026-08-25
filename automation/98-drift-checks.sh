@@ -40,6 +40,7 @@ VIOLATIONS=0
 _violation() {
     echo "[98-drift-checks] VIOLATION: $*" >&2
     VIOLATIONS=$((VIOLATIONS + 1))
+    return 1
 }
 
 _need_python() {
@@ -59,6 +60,7 @@ _violations_from() {
     while IFS= read -r line; do
         [[ -n "$line" ]] && _violation "${__prefix}${line}"
     done <<<"$__blob"
+    return 1
 }
 
 
