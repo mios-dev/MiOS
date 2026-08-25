@@ -699,6 +699,12 @@
 | T-785 | P2 | open | AI/CPUGEMMTest | Automated CPU quantized GEMM throughput (>30 tok/s) and SIMD dispatch test suite |
 | T-786 | P1 | open | Audio/AECFilter | PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter |
 | T-787 | P2 | open | Audio/AECTest | Automated acoustic echo cancellation (>40dB suppression) and full-duplex test suite |
+| T-788 | P1 | open | Desktop/WebRTCStream | Hardware-accelerated PipeWire WebRTC desktop video streamer in mios-screen-stream |
+| T-789 | P2 | open | Desktop/WebRTCTest | Automated 4K 60FPS WebRTC desktop stream latency (<30ms) and encoder test suite |
+| T-790 | P1 | open | Kernel/PstoreCrash | Persistent pstore ramoops kernel crash buffer manager and post-mortem extractor in mios-pstore |
+| T-791 | P2 | open | Kernel/PstoreTest | Automated kernel panic injection, ramoops log preservation, and database ingestion test suite |
+| T-792 | P1 | open | AI/EXL2Engine | Dynamic EXL2 fractional bitrate execution engine and fused CUDA kernel manager in llama-swap |
+| T-793 | P2 | open | AI/EXL2Test | Automated 70B EXL2 model VRAM fitting (<24GB), 100 tok/s speedup, and perplexity test suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -8427,4 +8433,64 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2384
 **Status:** open | **Domain:** Audio/AECTest | **Who:** agent
 **Converted:** AGY-2385 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-788 -- Hardware-accelerated PipeWire WebRTC desktop video streamer in mios-screen-stream (WS-APP | P1 | M)
+**Goal:** Capture DMA-BUF frames from PipeWire, encode via NVENC/VAAPI/AMF, and stream over WebRTC with <30ms latency.
+**What+How:** Implement `usr/libexec/mios/mios-screen-stream` and `automation/27-desktop.sh`. Capture desktop video buffer from PipeWire using DMA-BUF zero-copy memory import; initialize hardware encoder (NVIDIA NVENC, Intel VAAPI, AMD AMF) for H.264 / AV1; stream RTP/WebRTC video directly to browser client or agent vision pipeline; dynamically modulate bitrate and resolution based on RTCP feedback.
+**Where:** usr/libexec/mios/mios-screen-stream, automation/27-desktop.sh
+**Done When:** Screen streamer encodes PipeWire DMA-BUF frames on GPU hardware and streams over WebRTC.
+**Why:** Hardware-accelerated WebRTC streaming delivers crisp, instantaneous remote desktop visualization for humans and agents.
+**Dep:** AGY-2385
+**Status:** open | **Domain:** Desktop/WebRTCStream | **Who:** agent
+**Converted:** AGY-2386 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-789 -- Automated 4K 60FPS WebRTC desktop stream latency (<30ms) and encoder test suite (WS-APP | P2 | S)
+**Goal:** Verify in automated CI that WebRTC stream delivers 60 FPS 4K video with <30ms latency and 0 frame tearing.
+**What+How:** Add `tests/test-webrtc-screen-stream.sh`. Launch `mios-screen-stream` against virtual Hyprland display; connect headless WebRTC client; stream 1,000 frames of high-motion video; measure frame-to-client timestamp latency (assert < 30ms); assert hardware encoder utilization > 0 and host CPU load < 2.0%.
+**Where:** tests/test-webrtc-screen-stream.sh, tools/ci-suites.py
+**Done When:** Test suite validates hardware-accelerated WebRTC streaming, 60 FPS delivery, and low CPU load.
+**Why:** Continuous testing ensures remote desktop streaming updates maintain ultra-low latency and peak video fluidity.
+**Dep:** AGY-2386
+**Status:** open | **Domain:** Desktop/WebRTCTest | **Who:** agent
+**Converted:** AGY-2387 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-790 -- Persistent pstore ramoops kernel crash buffer manager and post-mortem extractor in mios-pstore (WS-BOOT | P1 | M)
+**Goal:** Reserve 16MB RAM for ramoops in UKI kargs, log kernel panics atomically, and ingest into database on boot.
+**What+How:** Implement `usr/libexec/mios/mios-pstore` and `automation/10-systemd-boot.sh`. Bake `ramoops.mem_address=0x1f0000000 ramoops.mem_size=0x1000000 ramoops.record_size=262144 ramoops.console_size=262144` into signed UKI kargs (Invariant 2); on boot, mount `/sys/fs/pstore/`; extract `dmesg-ramoops-*` panic logs; parse demangled call traces and hardware registers; insert into PostgreSQL `panic_telemetry`; purge processed files to reset buffer.
+**Where:** usr/libexec/mios/mios-pstore, usr/lib/systemd/system/mios-pstore.service
+**Done When:** Pstore ramoops preserves kernel panic backtraces across reboots and extracts them automatically.
+**Why:** Persistent RAM crash logging guarantees forensic trace availability even during hard hardware watchdog resets.
+**Dep:** AGY-2387
+**Status:** open | **Domain:** Kernel/PstoreCrash | **Who:** agent
+**Converted:** AGY-2388 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-791 -- Automated kernel panic injection, ramoops log preservation, and database ingestion test suite (WS-BOOT | P2 | S)
+**Goal:** Verify in automated CI that injected kernel panics are preserved in ramoops and ingested with 100% trace fidelity.
+**What+How:** Add `tests/test-pstore-ramoops-ingestion.sh`. Ingest synthetic kernel panic into virtual ramoops buffer; trigger `mios-pstore`; assert panic reason, CPU registers, and stack backtrace are parsed; query PostgreSQL `panic_telemetry`; assert record contains exact matching function symbols; verify `/sys/fs/pstore/` buffer is cleared.
+**Where:** tests/test-pstore-ramoops-ingestion.sh, tools/ci-suites.py
+**Done When:** Test suite validates ramoops log preservation, stack trace parsing, and database recording.
+**Why:** Continuous testing ensures kernel crash telemetry systems reliably capture diagnostic data during critical failures.
+**Dep:** AGY-2388
+**Status:** open | **Domain:** Kernel/PstoreTest | **Who:** agent
+**Converted:** AGY-2389 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-792 -- Dynamic EXL2 fractional bitrate execution engine and fused CUDA kernel manager in llama-swap (WS-AI | P1 | M)
+**Goal:** Execute EXL2 fractional bitrate models (2.0-8.0 bpw) via fused CUDA kernels to fit 70B models in 24GB VRAM.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and ExLlamaV2 engine integration. Configure runtime loader for EXL2 multi-bitrate tensors; map attention projections (`q_proj`, `k_proj`, `v_proj`, `o_proj`) to 4.5-6.0 bpw and feed-forward matrices to 2.2-3.2 bpw; dispatch fused CUDA dequantize-matmul kernels; fit 70B parameter models into 21.8GB VRAM; generate tokens at >100 tok/s on single RTX 3090/4090 GPUs.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine loads EXL2 models and executes fused CUDA kernels at >100 tok/s.
+**Why:** Fractional EXL2 quantization allows high-accuracy 70B models to run at blazing speeds on standard 24GB GPUs.
+**Dep:** AGY-2389
+**Status:** open | **Domain:** AI/EXL2Engine | **Who:** agent
+**Converted:** AGY-2390 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-793 -- Automated 70B EXL2 model VRAM fitting (<24GB), 100 tok/s speedup, and perplexity test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 70B EXL2 fits in <24GB VRAM, generates >100 tok/s, and maintains <0.04 perplexity delta.
+**What+How:** Add `tests/test-exl2-quantization-speedup.sh`. Benchmark 70B EXL2 model generation on 24GB GPU; assert peak VRAM consumption < 23.0 GB; assert token decoding throughput > 100.0 tok/s; compute wikitext-2 perplexity delta; assert perplexity degradation < 0.040 compared to unquantized FP16.
+**Where:** tests/test-exl2-quantization-speedup.sh, tools/ci-suites.py
+**Done When:** Test suite validates strict VRAM fitting bounds, >100 tok/s token throughput, and low perplexity delta.
+**Why:** Continuous testing ensures EXL2 kernel updates preserve peak token generation speeds and low memory footprints.
+**Dep:** AGY-2390
+**Status:** open | **Domain:** AI/EXL2Test | **Who:** agent
+**Converted:** AGY-2391 carries this forward with a Verify line that fails when the behaviour is absent.
 
