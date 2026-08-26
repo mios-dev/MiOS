@@ -24,6 +24,8 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-ai.target` | `usr/lib/systemd/system` | MiOS AI Services Target |
 | `mios-aios-refresh.service` | `usr/lib/systemd/system` | MiOS' AIOS refresh -- regenerate SSOT-driven role SYSTEMs + discover the A2A fleet |
 | `mios-aios-refresh.timer` | `usr/lib/systemd/system` | Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discovery) |
+| `mios-backup-pgvector.service` | `usr/lib/systemd/system` | MiOS PostgreSQL+pgvector Automated zstd Snapshot Service |
+| `mios-backup-pgvector.timer` | `usr/lib/systemd/system` | Daily and Pre-Upgrade Automated PostgreSQL+pgvector Backup Timer |
 | `mios-boot-diag.service` | `usr/lib/systemd/system` | MiOS' Boot Diagnostic -- prints service status to console |
 | `mios-bootc-switch.path` | `usr/lib/systemd/system` | MiOS' watch for Forgejo Runner build output -> bootc switch |
 | `mios-bootc-switch.service` | `usr/lib/systemd/system` | MiOS' bootc-switch from local build sentinel |
@@ -117,6 +119,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-pxe-hub.container` | `usr/share/containers/systemd` | MiOS' PXE Boot Hub |
 | `mios-role.service` | `usr/lib/systemd/system` | MiOS' System Init & Role Engine |
 | `mios-searxng.container` | `usr/share/containers/systemd` | MiOS' SearXNG metasearch (privacy-respecting search proxy) |
+| `mios-secret-init.service` | `usr/lib/systemd/system` | MiOS Quadlet Secrets Environment Initialization |
 | `mios-selinux-init.service` | `usr/lib/systemd/system` | MiOS' SELinux Policy Loader |
 | `mios-shell-session-gc.service` | `usr/lib/systemd/system` | Reap idle MiOS shell sessions |
 | `mios-shell-session-gc.timer` | `usr/lib/systemd/system` | Periodic reap of idle MiOS shell sessions |
@@ -135,6 +138,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-userdb-render.service` | `usr/lib/systemd/system` | MiOS' PostgreSQL account systemd userdb drop-in renderer |
 | `mios-verify-root.service` | `usr/lib/systemd/system` | MiOS' Root Filesystem Verification |
 | `mios-verify.service` | `usr/lib/systemd/system` | MiOS' Cryptographic Integrity Audit (fs-verity) |
+| `mios-vfio-setup.service` | `usr/lib/systemd/system` | MiOS VFIO & Looking Glass B6 IVSHMEM Setup |
 | `mios-waydroid-init.service` | `usr/lib/systemd/system` | MiOS' Waydroid Android Initialization |
 | `mios-webtools-crawl4ai.container` | `usr/share/containers/systemd` | MiOS' web-tools crawl4ai slim engine (Chrome-CDP primary + camoufox fallback) |
 | `mios-webtools-firecrawl-api.container` | `usr/share/containers/systemd` | MiOS' web-tools firecrawl API (v1.0.0, self-host no-auth) |
@@ -161,5 +165,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (153 unit(s)) -->
+<!-- derived from tracked unit files (157 unit(s)) -->
 <!-- /MIOS-GEN:units -->
