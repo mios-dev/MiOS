@@ -354,10 +354,10 @@
 | T-366 | P1 | done | Grammar/Constrained | Structured output JSON schema compiler utilizing constrained decoding grammar engines |
 | T-367 | P2 | done | Execution/Batching | Asynchronous tool execution batching for non-dependent parallel tool invocations |
 | T-368 | P1 | done | Runtime/Lifecycle | Graceful worker shutdown and SIGTERM drain handler in server.py |
-| T-369 | P2 | open | Routing/Dynamic | Hot-reload of model routing tables without dropping active WebSocket and SSE streams |
-| T-370 | P1 | open | VRAM/Eviction | Per-lane VRAM watermark monitor and emergency KV-cache eviction daemon |
-| T-371 | P1 | open | Orchestration/Tension | Tension-tracking ledger in DCI deliberation to quantify unresolved objections |
-| T-372 | P2 | open | Memory/Compaction | Cross-turn episodic memory compaction into hierarchical semantic trees |
+| T-369 | P2 | done | Routing/Dynamic | Hot-reload of model routing tables without dropping active WebSocket and SSE streams |
+| T-370 | P1 | done | VRAM/Eviction | Per-lane VRAM watermark monitor and emergency KV-cache eviction daemon |
+| T-371 | P1 | done | Orchestration/Tension | Tension-tracking ledger in DCI deliberation to quantify unresolved objections |
+| T-372 | P2 | done | Memory/Compaction | Cross-turn episodic memory compaction into hierarchical semantic trees |
 | T-373 | P2 | open | Retrieval/Rerank | Vector similarity re-ranking using local cross-encoder model in RAG pipeline |
 | T-374 | P2 | open | Vision/Desktop | Multi-modal visual RAG pipeline extracting UI screenshot embeddings for desktop state reasoning |
 | T-375 | P2 | open | Memory/Decay | Temporal decay scoring on memory retrieval vectors to prioritize recent system state changes |
@@ -4421,7 +4421,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Routing tables reload dynamically on signal with zero dropped connections or client errors.
 **Why:** Operator model additions and weight upgrades must not interrupt long-running interactive or background sessions.
 **Dep:** AGY-1966
-**Status:** open | **Domain:** Routing/Dynamic | **Who:** agent
+**Status:** done | **Domain:** Routing/Dynamic | **Who:** agent
 **Converted:** AGY-1967 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-370 -- Per-lane VRAM watermark monitor and emergency KV-cache eviction daemon (WS-AI | P1 | M)
@@ -4431,7 +4431,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** VRAM watchdog prevents GPU allocation panics by maintaining a 5% safety margin on GPU memory pools.
 **Why:** Uncontrolled KV cache growth under multi-agent load will trigger kernel GPU panics and drop entire inference lanes.
 **Dep:** AGY-1967
-**Status:** open | **Domain:** VRAM/Eviction | **Who:** agent
+**Status:** done | **Domain:** VRAM/Eviction | **Who:** agent
 **Converted:** AGY-1968 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-371 -- Tension-tracking ledger in DCI deliberation to quantify unresolved objections (WS-ORCH | P1 | M)
@@ -4441,7 +4441,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Tension ledger tracks objections through to resolution and includes residual caveats in the final Decision Packet.
 **Why:** Formal tension tracking prevents premature convergence where dominant agents ignore valid security challenges.
 **Dep:** AGY-1939
-**Status:** open | **Domain:** Orchestration/Tension | **Who:** agent
+**Status:** done | **Domain:** Orchestration/Tension | **Who:** agent
 **Converted:** AGY-1969 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-372 -- Cross-turn episodic memory compaction into hierarchical semantic trees (WS-RAG | P2 | M)
@@ -4451,7 +4451,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Episodic memory compacts automatically and provides relevant factual recall on subsequent queries.
 **Why:** Uncompacted chat logs consume excessive database storage and slow down semantic search recall.
 **Dep:** AGY-1969
-**Status:** open | **Domain:** Memory/Compaction | **Who:** agent
+**Status:** done | **Domain:** Memory/Compaction | **Who:** agent
 **Converted:** AGY-1970 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-373 -- Vector similarity re-ranking using local cross-encoder model in RAG pipeline (WS-RAG | P2 | M)

@@ -10954,6 +10954,10 @@ unit = [
     "tests/test-json-grammar-compiler.py",
     "tests/test-tool-batch.py",
     "tests/test-drain-handler.py",
+    "tests/test-route-reload.py",
+    "tests/test-vram-watchdog.py",
+    "tests/test-tension-ledger.py",
+    "tests/test-memory-compaction.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

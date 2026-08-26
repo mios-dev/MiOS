@@ -2844,6 +2844,9 @@ tests/test-lint-shell-coverage.sh	32	32	1	4	28308e3a757f	STAY	inline-scoped		0		
 tests/test-looking-glass-setup.py	1	3	3	19	8adfd2770c29	STAY	ai-header		0				0
 tests/test-looking-glass-setup.py	4	4	1	13	3f93baeabb65	STAY	local-scoped		0				0
 tests/test-looking-glass-setup.py	27	27	1	10	94a254e3f72e	STAY	local-scoped		0				0
+tests/test-memory-compaction.py	1	3	3	17	b98a16328ff7	STAY	ai-header		0				0
+tests/test-memory-compaction.py	4	4	1	10	de2f62b59e20	STAY	local-scoped		0				0
+tests/test-memory-compaction.py	27	27	1	8	a3e7bad1e928	STAY	local-scoped		0				0
 tests/test-mios-manual-harvest.sh	1	3	3	26	fef780a91bbd	STAY	ai-header		0				0
 tests/test-mios-manual-harvest.sh	22	22	1	14	ff3ef40e38af	STAY	local-scoped		0				0
 tests/test-mios-manual-harvest.sh	87	88	2	23	88bb3901306e	STAY	local-scoped		0				0
@@ -2939,6 +2942,10 @@ tests/test-role-apply-precedence.sh	123	123	1	5	83dd56668b9f	STAY	local-scoped		
 tests/test-role-apply-precedence.sh	131	131	1	7	951164a68d20	STAY	local-scoped		0				0
 tests/test-role-apply-precedence.sh	137	137	1	5	6465f1bf2c8a	STAY	local-scoped		0				0
 tests/test-role-apply-precedence.sh	143	143	1	6	87697885eed2	STAY	local-scoped		0				0
+tests/test-route-reload.py	1	3	3	15	f2d9f1436986	STAY	ai-header		0				0
+tests/test-route-reload.py	4	4	1	10	2bf44e6f8b96	STAY	local-scoped		0				0
+tests/test-route-reload.py	20	20	1	9	786aed9c91b3	STAY	local-scoped		0				0
+tests/test-route-reload.py	27	27	1	5	2dc6f0432771	STAY	local-scoped		0				0
 tests/test-sample-tune.py	1	3	3	14	f55196f09f9d	STAY	ai-header		0				0
 tests/test-sample-tune.py	4	4	1	11	85e068c80b77	STAY	local-scoped		0				0
 tests/test-sample-tune.py	20	20	1	9	251dbc9f4bf8	STAY	local-scoped		0				0
@@ -2980,6 +2987,12 @@ tests/test-shm-kv.py	20	20	1	9	86f8051d0269	STAY	local-scoped		0				0
 tests/test-speculative-decoding-config.py	1	3	3	17	8933fed291a6	STAY	ai-header		0				0
 tests/test-speculative-decoding-config.py	4	4	1	11	f5f57a51bed2	STAY	local-scoped		0				0
 tests/test-speculative-decoding-config.py	19	19	1	8	ec2815311ff7	STAY	local-scoped		0				0
+tests/test-tension-ledger.py	1	3	3	14	875bddeffd00	STAY	ai-header		0				0
+tests/test-tension-ledger.py	4	4	1	11	415732812ecc	STAY	local-scoped		0				0
+tests/test-tension-ledger.py	20	20	1	7	70df4906deb6	STAY	local-scoped		0				0
+tests/test-tension-ledger.py	27	27	1	5	b4be218fd881	STAY	local-scoped		0				0
+tests/test-tension-ledger.py	32	32	1	4	6e4b057aaf06	STAY	local-scoped		0				0
+tests/test-tension-ledger.py	36	36	1	7	ca0a3da116a8	STAY	local-scoped		0				0
 tests/test-theme-merge.py	1	3	3	18	9dfcac286a81	STAY	ai-header		0				0
 tests/test-think-stripper.py	1	3	3	23	2c5329220be3	STAY	ai-header		0				0
 tests/test-think-stripper.py	4	6	2	17	3c4013021e97	STAY	local-scoped		0				0
@@ -2990,6 +3003,11 @@ tests/test-tool-batch.py	21	21	1	8	93181224c479	STAY	local-scoped		0				0
 tests/test-tool-timeout.py	1	3	3	18	e3d42f912c23	STAY	ai-header		0				0
 tests/test-tool-timeout.py	4	4	1	11	a1d170c5ccbb	STAY	local-scoped		0				0
 tests/test-tool-timeout.py	21	21	1	7	d57fe9dd60f6	STAY	local-scoped		0				0
+tests/test-vram-watchdog.py	1	3	3	16	7bfdd51b8617	STAY	ai-header		0				0
+tests/test-vram-watchdog.py	4	4	1	11	daff453ac51a	STAY	local-scoped		0				0
+tests/test-vram-watchdog.py	27	27	1	7	280b725c7525	STAY	local-scoped		0				0
+tests/test-vram-watchdog.py	32	32	1	4	668c8d8895c0	STAY	local-scoped		0				0
+tests/test-vram-watchdog.py	37	37	1	4	f919201586d4	STAY	local-scoped		0				0
 tests/test-wallpaper-service.py	1	3	3	17	505f67173061	STAY	ai-header		0				0
 tests/test-wallpaper-service.py	4	4	1	11	6cdd670a737d	STAY	local-scoped		0				0
 tests/test-wallpaper-service.py	18	18	1	8	1c8122210188	STAY	local-scoped		0				0
@@ -6156,6 +6174,10 @@ usr/lib/mios/agent-pipe/mios_registry.py	19	21	3	31	89d98e97487f	STAY	midsize-wh
 usr/lib/mios/agent-pipe/mios_registry.py	42	44	3	21	a429b5c9bce8	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/mios_registry.py	70	71	2	20	75a6235876b6	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_reputation.py	1	1	1	5	dbbcc95a9d1e	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_route_reload.py	1	2	2	13	84d1b291701f	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_route_reload.py	3	6	3	19	3ecaca080001	STAY	midsize-why		0				0
+usr/lib/mios/agent-pipe/mios_route_reload.py	16	16	1	6	d340e3f5a055	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_route_reload.py	33	33	1	9	97b4302f73c9	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_router.py	1	1	1	5	1ed0f223fea9	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_routing.py	1	1	1	5	7f40b4730536	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_ruleof2.py	1	1	1	5	62393137c891	STAY	ai-header		0				0
@@ -6255,6 +6277,12 @@ usr/lib/mios/agent-pipe/mios_template.py	90	90	1	9	ed1d76214a60	STAY	local-scope
 usr/lib/mios/agent-pipe/mios_template.py	97	97	1	9	e616893f5ec5	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_template.py	107	107	1	10	bca5815e94ac	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_template.py	129	129	1	10	8ed5e1f54667	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_tension.py	1	2	2	13	81d131c5e0f7	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_tension.py	3	6	3	19	bb04f1406f70	STAY	midsize-why		0				0
+usr/lib/mios/agent-pipe/mios_tension.py	14	14	1	9	8177b6e47eaf	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_tension.py	28	28	1	8	812ff8d4fe4a	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_tension.py	37	37	1	3	ee607c9b50cd	STAY	inline-scoped		0				0
+usr/lib/mios/agent-pipe/mios_tension.py	49	49	1	10	dd4c7b6dc51c	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_tokenize.py	1	1	1	5	e6f3f2155f76	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_tool_batch.py	1	2	2	13	35f975a6d801	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_tool_batch.py	3	6	3	18	20a6f7b65835	STAY	midsize-why		0				0
@@ -8292,6 +8320,11 @@ usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1	347	353	7	43	82739bd24264	MIG
 usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1	366	374	9	81	ef9ce2ef6f33	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:ef9ce2ef6f33	81	0
 usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1	390	396	7	64	9a6c3ef60a2c	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:9a6c3ef60a2c	64	0
 usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1	408	409	2	18	64f76fe1cfd7	STAY	local-scoped		0				0
+usr/libexec/mios/ai/vram-watchdog.py	1	3	3	15	bf681e7e1481	STAY	ai-header		0				0
+usr/libexec/mios/ai/vram-watchdog.py	4	7	3	22	3f5a7001d8c4	STAY	midsize-why		0				0
+usr/libexec/mios/ai/vram-watchdog.py	17	17	1	8	67510d064550	STAY	local-scoped		0				0
+usr/libexec/mios/ai/vram-watchdog.py	23	23	1	8	22b9e12fdacf	STAY	local-scoped		0				0
+usr/libexec/mios/ai/vram-watchdog.py	31	31	1	9	97814413c38a	STAY	local-scoped		0				0
 usr/libexec/mios/automation/35-xrdp-enhanced-session.sh	1	3	3	17	51f402748562	STAY	ai-header		0				0
 usr/libexec/mios/bootc-switch-from-build.sh	1	3	3	25	2a37a9d953f2	STAY	ai-header		0				0
 usr/libexec/mios/capability-audit.sh	1	3	3	25	43d913ee44ea	STAY	ai-header		0				0
@@ -8430,6 +8463,9 @@ usr/libexec/mios/node/wasm_sandbox.py	108	108	1	4	01fe121697aa	STAY	local-scoped
 usr/libexec/mios/node/wasm_sandbox.py	121	121	1	5	96960faaac99	STAY	local-scoped		0				0
 usr/libexec/mios/oscap-scan.py	1	3	3	24	6708faf01d22	STAY	ai-header		0				0
 usr/libexec/mios/oscap-scan.py	57	57	1	3	603ebecccd83	STAY	inline-scoped		0				0
+usr/libexec/mios/rag/memory-compact.py	1	3	3	14	be62d46cf947	STAY	ai-header		0				0
+usr/libexec/mios/rag/memory-compact.py	4	7	3	17	80026d2a30af	STAY	midsize-why		0				0
+usr/libexec/mios/rag/memory-compact.py	17	17	1	9	5b2d9c2c3321	STAY	local-scoped		0				0
 usr/libexec/mios/rasterize-mios-icons.sh	1	4	4	19	a02210070268	STAY	ai-header		0				0
 usr/libexec/mios/reconcile-blade.py	1	4	4	20	e11b699e7c91	STAY	ai-header		0				0
 usr/libexec/mios/reconcile-blade.py	5	12	7	53	1f760e9abf57	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:1f760e9abf57	53	0
@@ -10088,20 +10124,20 @@ usr/share/mios/mios.toml	10872	10878	7	64	351d4a832370	MIGRATE	narrative-rationa
 usr/share/mios/mios.toml	10880	10881	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	10885	10885	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	10894	10894	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10958	10958	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10964	10965	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10992	10993	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11002	11005	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	11007	11008	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11012	11014	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11020	11020	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11022	11024	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11090	11093	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11095	11095	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11174	11175	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11180	11184	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	11186	11189	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11192	11197	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	10962	10962	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	10968	10969	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	10996	10997	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11006	11009	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	11011	11012	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11016	11018	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11024	11024	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11026	11028	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11094	11097	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11099	11099	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11178	11179	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11184	11188	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	11190	11193	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11196	11201	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/openwebui/tools/mios_computer_use.py	1	2	2	22	8c252dd7a941	STAY	ai-header		0				0
 usr/share/mios/openwebui/tools/mios_computer_use.py	3	42	39	219	9cde6af7c1f5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tools.md	mios-src:9cde6af7c1f5	219	0
 usr/share/mios/openwebui/tools/mios_computer_use.py	63	64	2	19	4ba014eb5e64	STAY	local-scoped		0				0
