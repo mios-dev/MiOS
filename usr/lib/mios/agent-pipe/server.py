@@ -2283,6 +2283,23 @@ from mios_reflect import (   # noqa: E402
     _recent_tool_history,
     _judge_answer_satisfied,
 )
+from mios_persona import (   # noqa: E402  -- T-384 Dynamic Agent Persona Synthesis
+    DomainCategory,
+    PersonaClassifier,
+    PersonaSynthesizer,
+    classify_intent as classify_persona_intent,
+    synthesize_persona_prompt,
+    get_domain_guidelines,
+)
+from mios_deliberate import (   # noqa: E402  -- T-385 Bounded Reflection Loop Convergence
+    DeliberationConfig,
+    DeliberationState,
+    DeliberationTurn,
+    SemanticDeltaCalculator,
+    BoundedDeliberationEngine,
+    calculate_semantic_delta,
+    run_bounded_deliberation,
+)
 
 
 

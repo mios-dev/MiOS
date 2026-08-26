@@ -13491,7 +13491,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Federated multi-agent networks must protect against spoofed agent nodes and malicious task injection.
 **Dep:** AGY-1978
 
-## AGY-1980 -- Autonomous self-healing code remediation agent triggered on systemd unit failures  (WS-ORCH | P1 | L)
+## AGY-1980 -- Autonomous self-healing code remediation agent triggered on systemd unit failures  (WS-ORCH | P1 | L) **[DONE]**
 **Goal:** Automatically diagnose and remediate failed services using local LLM reasoning and journald logs.
 **What+How:** Create `usr/libexec/mios/mios-self-heal`. Listen for `systemd` unit failure events, capture the last 100 journald error lines, formulate a diagnostic prompt to `agent-pipe`, and apply safe configuration corrections or restart recipes.
 **Where:** usr/libexec/mios/mios-self-heal, usr/lib/systemd/system/mios-self-heal.service
@@ -13501,7 +13501,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** A resilient autonomous operating system should diagnose and recover from transient service failures without human intervention.
 **Dep:** AGY-1979
 
-## AGY-1981 -- Synthetic training data pipeline generating Q&A pairs from local system documentation  (WS-AI | P2 | M)
+## AGY-1981 -- Synthetic training data pipeline generating Q&A pairs from local system documentation  (WS-AI | P2 | M) **[DONE]**
 **Goal:** Generate fine-tuning Q&A datasets from local markdown documentation and architectural ADRs.
 **What+How:** Implement `usr/libexec/mios/mios-synthetic-qa`. Walk `/usr/share/doc/mios/`, generate question-answer pairs with multi-turn reasoning steps, and save as JSONL in `/var/lib/mios/ai/dataset/`.
 **Where:** usr/libexec/mios/mios-synthetic-qa, usr/share/doc/mios/
@@ -13511,7 +13511,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Domain-specific synthetic datasets enable effective local fine-tuning for the `mios-opencode` model.
 **Dep:** AGY-1980
 
-## AGY-1982 -- Dynamic agent persona synthesis based on task domain classification  (WS-AI | P2 | S)
+## AGY-1982 -- Dynamic agent persona synthesis based on task domain classification  (WS-AI | P2 | S) **[DONE]**
 **Goal:** Tailor system prompt instructions dynamically according to the specific domain of the user request.
 **What+How:** Implement persona classifier in `usr/lib/mios/agent-pipe/mios_persona.py`. Inject specialized domain guidelines (e.g. Linux Kernel Engineer, Database Administrator, Security Auditor) based on intent detection.
 **Where:** usr/lib/mios/agent-pipe/mios_persona.py, usr/lib/mios/agent-pipe/server.py
@@ -13521,7 +13521,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Specialized domain personas produce higher quality, more rigorous responses for technical tasks.
 **Dep:** AGY-1981
 
-## AGY-1983 -- Bounded reflection loops with convergence criteria to prevent circular reasoning  (WS-AI | P2 | S)
+## AGY-1983 -- Bounded reflection loops with convergence criteria to prevent circular reasoning  (WS-AI | P2 | S) **[DONE]**
 **Goal:** Cap self-reflection and critic loops to a maximum number of iterations with diminishing-return exit criteria.
 **What+How:** Add iteration counters and semantic delta checks in `usr/lib/mios/agent-pipe/mios_deliberate.py`. If two successive reflection turns produce less than 5% semantic delta, terminate the loop and synthesize the final answer.
 **Where:** usr/lib/mios/agent-pipe/mios_deliberate.py, usr/lib/mios/agent-pipe/server.py
@@ -13531,7 +13531,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Unbounded reflection loops waste compute tokens without meaningfully improving output quality.
 **Dep:** AGY-1982
 
-## AGY-1984 -- Async TCP frame reader and writer actor in mios-node using Tokio  (WS-NODE | P1 | M)
+## AGY-1984 -- Async TCP frame reader and writer actor in mios-node using Tokio  (WS-NODE | P1 | M) **[DONE]**
 **Goal:** Handle high-concurrency binary wire connections efficiently using Tokio asynchronous I/O.
 **What+How:** Implement connection handling actor in `src/mios-rs/crates/mios-node/src/net.rs` using `tokio::net::TcpListener` and `tokio_util::codec::Framed`. Process 16-byte headers and route payloads via channels.
 **Where:** src/mios-rs/crates/mios-node/src/net.rs, src/mios-rs/crates/mios-node/src/main.rs
@@ -13541,7 +13541,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Edge micro-nodes must manage mesh connections concurrently without exhausting system thread pools.
 **Dep:** AGY-1944
 
-## AGY-1985 -- Node heartbeat monitor and automatic dead-peer eviction from cluster routing table  (WS-NODE | P2 | S)
+## AGY-1985 -- Node heartbeat monitor and automatic dead-peer eviction from cluster routing table  (WS-NODE | P2 | S) **[DONE]**
 **Goal:** Detect unresponsive edge nodes and prune them from routing tables after missed heartbeats.
 **What+How:** Implement heartbeat timer in `src/mios-rs/crates/mios-node/src/heartbeat.rs`. Send Heartbeat frames (`Opcode 0x01`) every 5 seconds; mark nodes dead after 3 consecutive missed heartbeats and notify `agent-pipe`.
 **Where:** src/mios-rs/crates/mios-node/src/heartbeat.rs, src/mios-rs/crates/mios-node/src/state.rs
@@ -13551,7 +13551,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Routing tasks to disconnected edge nodes causes execution timeouts and task failures.
 **Dep:** AGY-1984
 
-## AGY-1986 -- Ed25519 mutual handshake and session key derivation for inter-node wire encryption  (WS-NODE | P1 | M)
+## AGY-1986 -- Ed25519 mutual handshake and session key derivation for inter-node wire encryption  (WS-NODE | P1 | M) **[DONE]**
 **Goal:** Encrypt all inter-node binary wire traffic with authenticated session keys using ChaCha20-Poly1305.
 **What+How:** Implement handshake in `src/mios-rs/crates/mios-node/src/crypto.rs` using X25519 key exchange authenticated with Ed25519 node identities. Encrypt binary frame payloads with derived ChaCha20-Poly1305 symmetric keys.
 **Where:** src/mios-rs/crates/mios-node/src/crypto.rs, src/mios-rs/crates/mios-node/Cargo.toml

@@ -413,6 +413,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_daemons.py` | Re-export shim for mios_pipe.kernel.daemons |
 | `usr/lib/mios/agent-pipe/mios_dag_exec.py` | Re-export shim for mios_pipe.routing.dag_exec |
 | `usr/lib/mios/agent-pipe/mios_dci.py` | Re-export shim for mios_pipe.routing.dci |
+| `usr/lib/mios/agent-pipe/mios_deliberate.py` | Bounded reflection loops with convergence criteria to prevent circular reasoning. |
 | `usr/lib/mios/agent-pipe/mios_dispatch.py` | Verb->bash DISPATCH chokepoint extracted VERBATIM from server.py (refactor R7 wave). |
 | `usr/lib/mios/agent-pipe/mios_dispatcher.py` | Re-export shim for mios_pipe.routing.dispatcher |
 | `usr/lib/mios/agent-pipe/mios_drain_handler.py` | Graceful worker shutdown and SIGTERM drain handler in server.py. |
@@ -445,6 +446,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_oscontrol.py` | Re-export shim for mios_pipe.routing.oscontrol |
 | `usr/lib/mios/agent-pipe/mios_owui.py` | Re-export shim for mios_pipe.routing.owui |
 | `usr/lib/mios/agent-pipe/mios_pdp.py` | Re-export shim for mios_pipe.access.pdp |
+| `usr/lib/mios/agent-pipe/mios_persona.py` | Dynamic agent persona synthesis based on task domain classification. |
 | `usr/lib/mios/agent-pipe/mios_pg.py` | Re-export shim for mios_pipe.memory.pg |
 | `usr/lib/mios/agent-pipe/mios_pipe/__init__.py` | root of mios_pipe package. Sanitizes empty MIOS_* env vars on import so |
 | `usr/lib/mios/agent-pipe/mios_pipe/access/__init__.py` | access manager package |
@@ -796,7 +798,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 410 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 412 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

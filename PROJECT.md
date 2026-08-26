@@ -1,72 +1,78 @@
-# Project: MiOS Roadmap Tasks Execution & CI Parity
+# Project: MiOS Roadmap Workstreams (T-382 Onwards)
 
 ## Architecture
-MiOS is an immutable, bootc/OCI-shaped Fedora workstation that is also a local, self-replicating agentic AI operating system.
-All runtime verbs and extensions follow strict Architectural Laws:
-- Modular Libexec Layout: All new domain verbs reside under `usr/libexec/mios/<domain>/` to preserve the `max_libexec_verbs = 285/285` ceiling.
-- Python/Rust Runtime Implementation: Implemented in Python standard library or compiled Rust to preserve `ps_lines = 22618/22618`.
-- Hermetic Test Suites: Authored under `tests/test-*.py` using standard `unittest` and registered in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
-- SSOT Synchronization & CI Parity: `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`, and 7 machine projections synced via `tools/sync-generated.sh`.
+- Module boundaries:
+  - AI Plane (`usr/libexec/mios/ai/`, `usr/lib/systemd/system/mios-self-heal.service`): Self-healing remediation agent (`self_heal.py`) and synthetic Q&A generation pipeline (`synthetic_qa.py`).
+  - Agent-Pipe (`usr/lib/mios/agent-pipe/`): Dynamic persona synthesis (`mios_persona.py`) and bounded reflection loop convergence (`mios_deliberate.py`).
+  - Distributed Micro-Node Mesh (`src/mios-rs/mios-node/`, `usr/libexec/mios/node/`): Async Tokio TCP frame codecs, heartbeat monitor with 3-strike dead-peer eviction, and Ed25519/X25519/ChaCha20-Poly1305 mutual handshake and AEAD wire encryption.
+  - CI & SSOT Registries: `usr/share/mios/mios.toml`, `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`, machine projections generated via `sync-generated.sh`.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | MCP-01 Sandbox | Bubblewrap namespace and filesystem isolation for external MCP tool servers | M1 | T-377 / AGY-1975 |
-| 2 | SEC-06 HITL Approval | Interactive human-in-the-loop permission escalation prompts for destructive MCP tools | M2 | T-378 / AGY-1976 |
-| 3 | GRAPH-01 Knowledge Traversal | Recursive CTE knowledge traversal across pgvector knowledge triples | M3 | T-379 / AGY-1977 |
-| 4 | PROMPT-01 Context Pruning | Contextual prompt compression and selective linguistic token pruning (~25% savings) | M4 | T-380 / AGY-1978 |
-| 5 | A2A-01 Attestation | Agent-to-Agent mutual capability exchange and Ed25519 cryptographic attestation | M5 | T-381 / AGY-1979 |
-| 6 | CI Suites & SSOT Sync | Test suite registration in mios.toml, task parity updates, sync-generated, and 7 CI validation passes | M6 | R2, R3, R4 |
+| 1 | T-382 / AGY-1980 | Autonomous self-healing code remediation agent triggered on systemd failures | M1 | Survey (TASKS.md / AGY-TASKS.md) |
+| 2 | T-383 / AGY-1981 | Synthetic training Q&A data pipeline generating datasets from local documentation | M1 | Survey (TASKS.md / AGY-TASKS.md) |
+| 3 | T-384 / AGY-1982 | Dynamic agent persona synthesis based on task domain classification | M1 | Survey (TASKS.md / AGY-TASKS.md) |
+| 4 | T-385 / AGY-1983 | Bounded reflection loop convergence with semantic delta metrics | M1 | Survey (TASKS.md / AGY-TASKS.md) |
+| 5 | T-386 / AGY-1984 | Async Tokio TCP frame reader and writer actor for mios-node | M2 | Survey (TASKS.md / AGY-TASKS.md) |
+| 6 | T-387 / AGY-1985 | Node heartbeat monitor and automatic 3-strike dead-peer eviction | M2 | Survey (TASKS.md / AGY-TASKS.md) |
+| 7 | T-388 / AGY-1986 | Ed25519 mutual handshake and ChaCha20-Poly1305 wire encryption | M2 | Survey (TASKS.md / AGY-TASKS.md) |
+| 8 | CI & SSOT Sync | CI suite registration, 8-field schema task parity, SSOT machine projections sync, and 7 CI checks verification | M3 | Survey (Tooling / CI) |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | M1-MCP-Sandbox | Implement `usr/libexec/mios/mcp/sandbox.py` + `tests/test-mcp-sandbox.py` (T-377) | none | DONE |
-| 2 | M2-SEC-Approval | Implement `usr/libexec/mios/sec/approval.py` + `tests/test-hitl-approval.py` (T-378) | M1 | DONE |
-| 3 | M3-GRAPH-Traversal | Implement `usr/libexec/mios/graph/traversal.py` + `tests/test-knowledge-graph.py` (T-379) | M2 | DONE |
-| 4 | M4-PROMPT-Pruning | Implement `usr/libexec/mios/prompt/pruning.py` + `tests/test-prompt-pruning.py` (T-380) | M3 | DONE |
-| 5 | M5-A2A-Attestation | Implement `usr/libexec/mios/a2a/attestation.py` + `tests/test-a2a-attestation.py` (T-381) | M4 | DONE |
-| 6 | M6-CI-Sync-Commit | Register tests in `mios.toml`, update `TASKS.md`, `AGY-TASKS.md`, run `roadmap-index.py`, `sync-generated.sh`, pass all 7 CI checks, commit and push | M1-M5 | DONE |
-
-## Interface Contracts
-### M1: MCP Sandbox ↔ Agent-Pipe
-- `McpSandbox(server_name: str, allow_net: bool = False, custom_ro_binds: list[str] = None)`
-- `build_command(inner_cmd: list[str]) -> list[str]`
-- Wraps target execution with `bwrap --die-with-parent --new-session --unshare-all --ro-bind /usr /usr ...`
-
-### M2: HITL Approval ↔ Tool Dispatch
-- `ApprovalEngine(patterns: list[str] = None, ttl_seconds: int = 120)`
-- `requires_approval(command: str) -> bool`
-- `create_request(tool_name: str, command: str) -> ApprovalRequest`
-- `approve(request_id: str, operator: str) -> str` (token)
-- `validate_token(request_id: str, token: str) -> bool`
-
-### M3: Knowledge Graph ↔ pgvector / CTE Traversal
-- `KnowledgeGraph(db_uri: str = None)`
-- `add_triple(subject: str, predicate: str, object_: str, properties: dict = None)`
-- `get_recursive_dependencies(root: str, max_depth: int = 5) -> list[str]`
-- `traverse(root: str, max_depth: int = 5) -> list[dict]`
-
-### M4: Prompt Compressor ↔ Agent Pipeline
-- `PromptPruner(min_ratio: float = 0.20)`
-- `compress(text: str) -> tuple[str, dict]`
-- Prunes redundant filler, boilerplate, duplicate headings while preserving code blocks and syntax verbatim.
-
-### M5: A2A Authenticator ↔ Peer Nodes
-- `A2AAuthenticator(node_id: int, private_key: bytes, public_key: bytes)`
-- `create_card(agent_name: str, capabilities: list[str], ttl_seconds: int = 3600) -> dict`
-- `verify_card(card: dict, trusted_public_key: bytes) -> bool`
+| 1 | M1: AI Plane & Agent-Pipe | T-382 (Self-heal), T-383 (Synthetic QA), T-384 (Persona), T-385 (Reflection) | none | DONE |
+| 2 | M2: Mesh Protocol & Node | T-386 (Async Frame), T-387 (Heartbeat Eviction), T-388 (Wire Crypto) | none | DONE |
+| 3 | M3: Registries & CI Sync | CI test suites registration, TASKS/AGY-TASKS parity, SSOT sync, 7 CI gates verification, and clean commit | M1, M2 | IN_PROGRESS |
 
 ## Code Layout
-- `usr/libexec/mios/mcp/sandbox.py`: MCP bubblewrap namespace sandbox engine
-- `usr/libexec/mios/sec/approval.py`: Interactive HITL approval and permission escalation engine
-- `usr/libexec/mios/graph/traversal.py`: Recursive CTE knowledge graph traversal engine
-- `usr/libexec/mios/prompt/pruning.py`: Contextual prompt compression and token pruning engine
-- `usr/libexec/mios/a2a/attestation.py`: A2A cryptographic capability attestation engine
-- `tests/test-mcp-sandbox.py`: Unit test suite for M1
-- `tests/test-hitl-approval.py`: Unit test suite for M2
-- `tests/test-knowledge-graph.py`: Unit test suite for M3
-- `tests/test-prompt-pruning.py`: Unit test suite for M4
-- `tests/test-a2a-attestation.py`: Unit test suite for M5
-- `usr/share/mios/mios.toml`: SSOT registry containing `[ci.tiers] unit` test registrations
-- `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`: Project task registries
+- `usr/libexec/mios/ai/self_heal.py` — Autonomous self-healing diagnostic daemon (modular subdirectory preserves `max_libexec_verbs = 285/285`)
+- `usr/lib/systemd/system/mios-self-heal.service` — Systemd service unit for self-healing daemon
+- `usr/libexec/mios/ai/synthetic_qa.py` — Synthetic Q&A generator from documentation and ADRs
+- `usr/lib/mios/agent-pipe/mios_persona.py` — Dynamic agent persona synthesis and intent classification
+- `usr/lib/mios/agent-pipe/mios_deliberate.py` — Bounded reflection loops with convergence criteria
+- `src/mios-rs/mios-node/src/net.rs` / `usr/libexec/mios/node/wire.py` — Async Tokio frame reader and writer
+- `src/mios-rs/mios-node/src/heartbeat.rs` / `usr/libexec/mios/node/discovery.py` — Node heartbeat monitor & dead-peer eviction
+- `src/mios-rs/mios-node/src/crypto.rs` / `usr/libexec/mios/node/wire.py` — Ed25519/X25519/ChaCha20-Poly1305 wire encryption
+- `tests/test-self-healing.py` — Test suite for T-382
+- `tests/test-synthetic-qa.py` — Test suite for T-383
+- `tests/test-agent-persona.py` — Test suite for T-384
+- `tests/test-bounded-reflection.py` — Test suite for T-385
+- `tests/test-node-async-net.py` — Test suite for T-386
+- `tests/test-node-heartbeat-eviction.py` — Test suite for T-387
+- `tests/test-node-crypto-handshake.py` — Test suite for T-388
+- `usr/share/mios/mios.toml` — SSOT configuration with `[ci.tiers] unit` test registration
+- `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md` — Task registries and roadmap index
+
+## Interface Contracts
+### `self_heal.py` ↔ `systemd` / `agent-pipe`
+- Captures journald error logs (`journalctl -u <unit> -n 100`)
+- Enforces circuit breaker (max 3 restarts / 15 min)
+- Strictly forbids writes to `/usr` (only `/etc` overrides and `/var` configuration)
+- Logs RCA to `/var/log/mios/self-heal.log`
+
+### `synthetic_qa.py` ↔ Local Markdown Corpus
+- Harvests docs from `/usr/share/doc/mios/` and `cat/ADR-*.md`
+- Redacts secrets, tokens, credentials before emitting JSONL records
+- Emits multi-turn Q&A format compatible with `mios-opencode` fine-tuning
+
+### `mios_persona.py` ↔ `agent-pipe/server.py`
+- Classifies user request domain across 6 categories (`kernel_systems`, `database_storage`, `security_crypto`, `networking_mesh`, `ai_inference`, `devops_ci`, `generalist`)
+- Injects specialized domain guidelines while preserving canonical system prompt laws
+
+### `mios_deliberate.py` ↔ `agent-pipe/server.py`
+- Evaluates semantic delta between reflection iterations
+- Exits early if delta < 0.05 ("converged_diminishing_returns") or iteration >= 3 ("max_iterations")
+
+### `net.rs` / `wire.py` ↔ Micro-Node Mesh
+- 16-byte fixed binary header framing (`0x4D49`, version 1, opcode, node_id, payload_len, CRC32)
+- Async stream decoding and encoding over Tokio TCP connections
+
+### `heartbeat.rs` / `discovery.py` ↔ Routing Table
+- 5s heartbeat interval, 3-strike dead peer detection (15s eviction threshold)
+- Emits peer eviction events and prunes routing table
+
+### `crypto.rs` / `wire.py` ↔ Inter-Node Security
+- Ed25519 node identity signatures + X25519 ECDH key exchange
+- HKDF-SHA256 key derivation -> ChaCha20-Poly1305 AEAD payload encryption

@@ -120,6 +120,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-role.service` | `usr/lib/systemd/system` | MiOS' System Init & Role Engine |
 | `mios-searxng.container` | `usr/share/containers/systemd` | MiOS' SearXNG metasearch (privacy-respecting search proxy) |
 | `mios-secret-init.service` | `usr/lib/systemd/system` | MiOS Quadlet Secrets Environment Initialization |
+| `mios-self-heal.service` | `usr/lib/systemd/system` | MiOS Autonomous Self-Healing Code Remediation Agent |
 | `mios-selinux-init.service` | `usr/lib/systemd/system` | MiOS' SELinux Policy Loader |
 | `mios-shell-session-gc.service` | `usr/lib/systemd/system` | Reap idle MiOS shell sessions |
 | `mios-shell-session-gc.timer` | `usr/lib/systemd/system` | Periodic reap of idle MiOS shell sessions |
@@ -165,5 +166,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (157 unit(s)) -->
+<!-- derived from tracked unit files (158 unit(s)) -->
 <!-- /MIOS-GEN:units -->

@@ -1,0 +1,19 @@
+# AI-hint: Systemd service unit for the autonomous self-healing code remediation agent.
+# AI-related: usr/libexec/mios/ai/self_heal.py, /var/log/mios/self-heal.log
+[Unit]
+Description=MiOS Autonomous Self-Healing Code Remediation Agent
+After=network-online.target mios-agent-pipe.service
+Wants=network-online.target
+ConditionPathExists=/usr/libexec/mios/ai/self_heal.py
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /usr/libexec/mios/ai/self_heal.py --daemon
+Restart=on-failure
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

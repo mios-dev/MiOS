@@ -367,13 +367,13 @@
 | T-379 | P2 | done | Graph/Knowledge | Distributed graph traversal over pgvector knowledge triples with recursive CTEs |
 | T-380 | P2 | done | Prompt/Pruning | Contextual prompt compression using selective linguistic token pruning |
 | T-381 | P1 | done | Federation/A2A | Agent-to-Agent mutual capability exchange protocol and cryptographic attestation |
-| T-382 | P1 | open | Agent/SelfHealing | Autonomous self-healing code remediation agent triggered on systemd unit failures |
-| T-383 | P2 | open | Synthetic/Data | Synthetic training data pipeline generating Q&A pairs from local system documentation |
-| T-384 | P2 | open | Agent/Persona | Dynamic agent persona synthesis based on task domain classification |
-| T-385 | P2 | open | Reasoning/Convergence | Bounded reflection loops with convergence criteria to prevent circular reasoning |
-| T-386 | P1 | open | Mesh/Protocol | Async TCP frame reader and writer actor in mios-node using Tokio |
-| T-387 | P2 | open | Mesh/Heartbeat | Node heartbeat monitor and automatic dead-peer eviction from cluster routing table |
-| T-388 | P1 | open | Mesh/Crypto | Ed25519 mutual handshake and session key derivation for inter-node wire encryption |
+| T-382 | P1 | done | Agent/SelfHealing | Autonomous self-healing code remediation agent triggered on systemd unit failures |
+| T-383 | P2 | done | Synthetic/Data | Synthetic training data pipeline generating Q&A pairs from local system documentation |
+| T-384 | P2 | done | Agent/Persona | Dynamic agent persona synthesis based on task domain classification |
+| T-385 | P2 | done | Reasoning/Convergence | Bounded reflection loops with convergence criteria to prevent circular reasoning |
+| T-386 | P1 | done | Mesh/Protocol | Async TCP frame reader and writer actor in mios-node using Tokio |
+| T-387 | P2 | done | Mesh/Heartbeat | Node heartbeat monitor and automatic dead-peer eviction from cluster routing table |
+| T-388 | P1 | done | Mesh/Crypto | Ed25519 mutual handshake and session key derivation for inter-node wire encryption |
 | T-389 | P2 | open | Edge/Hardware | Wasm host import for local hardware GPIO and I2C access on embedded edge nodes |
 | T-390 | P2 | open | Kernel/Scheduler | Dynamic CPU core pinning and cgroup limits for mios-node worker threads |
 | T-391 | P2 | open | State/CRDT | CRDT state compaction and snapshot garbage collection in mios-node |
@@ -4551,7 +4551,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Self-healing daemon detects failed services, logs root cause analysis, and resolves common configuration faults automatically.
 **Why:** A resilient autonomous operating system should diagnose and recover from transient service failures without human intervention.
 **Dep:** AGY-1979
-**Status:** open | **Domain:** Agent/SelfHealing | **Who:** agent
+**Status:** done | **Domain:** Agent/SelfHealing | **Who:** agent
 **Converted:** AGY-1980 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-383 -- Synthetic training data pipeline generating Q&A pairs from local system documentation (WS-AI | P2 | M)
@@ -4561,7 +4561,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Synthetic dataset pipeline generates thousands of high-fidelity Q&A pairs from system documentation.
 **Why:** Domain-specific synthetic datasets enable effective local fine-tuning for the `mios-opencode` model.
 **Dep:** AGY-1980
-**Status:** open | **Domain:** Synthetic/Data | **Who:** agent
+**Status:** done | **Domain:** Synthetic/Data | **Who:** agent
 **Converted:** AGY-1981 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-384 -- Dynamic agent persona synthesis based on task domain classification (WS-AI | P2 | S)
@@ -4571,7 +4571,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Persona manager enriches system prompts with domain-specific expertise while maintaining canonical project laws.
 **Why:** Specialized domain personas produce higher quality, more rigorous responses for technical tasks.
 **Dep:** AGY-1981
-**Status:** open | **Domain:** Agent/Persona | **Who:** agent
+**Status:** done | **Domain:** Agent/Persona | **Who:** agent
 **Converted:** AGY-1982 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-385 -- Bounded reflection loops with convergence criteria to prevent circular reasoning (WS-AI | P2 | S)
@@ -4581,7 +4581,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Reflection loops terminate deterministically based on iteration limits and semantic convergence checks.
 **Why:** Unbounded reflection loops waste compute tokens without meaningfully improving output quality.
 **Dep:** AGY-1982
-**Status:** open | **Domain:** Reasoning/Convergence | **Who:** agent
+**Status:** done | **Domain:** Reasoning/Convergence | **Who:** agent
 **Converted:** AGY-1983 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-386 -- Async TCP frame reader and writer actor in mios-node using Tokio (WS-NODE | P1 | M)
@@ -4591,7 +4591,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Async network actor handles hundreds of concurrent connections with low memory footprint and sub-millisecond dispatch.
 **Why:** Edge micro-nodes must manage mesh connections concurrently without exhausting system thread pools.
 **Dep:** AGY-1944
-**Status:** open | **Domain:** Mesh/Protocol | **Who:** agent
+**Status:** done | **Domain:** Mesh/Protocol | **Who:** agent
 **Converted:** AGY-1984 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-387 -- Node heartbeat monitor and automatic dead-peer eviction from cluster routing table (WS-NODE | P2 | S)
@@ -4601,7 +4601,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Heartbeat monitor updates node liveness state and purges dead nodes reliably.
 **Why:** Routing tasks to disconnected edge nodes causes execution timeouts and task failures.
 **Dep:** AGY-1984
-**Status:** open | **Domain:** Mesh/Heartbeat | **Who:** agent
+**Status:** done | **Domain:** Mesh/Heartbeat | **Who:** agent
 **Converted:** AGY-1985 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-388 -- Ed25519 mutual handshake and session key derivation for inter-node wire encryption (WS-NODE | P1 | M)
@@ -4611,7 +4611,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inter-node communication is end-to-end encrypted with mutual cryptographic authentication.
 **Why:** Protecting inter-node agent coordination against eavesdropping and tampering is a critical security requirement.
 **Dep:** AGY-1985
-**Status:** open | **Domain:** Mesh/Crypto | **Who:** agent
+**Status:** done | **Domain:** Mesh/Crypto | **Who:** agent
 **Converted:** AGY-1986 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-389 -- Wasm host import for local hardware GPIO and I2C access on embedded edge nodes (WS-NODE | P2 | M)

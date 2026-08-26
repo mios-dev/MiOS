@@ -55,6 +55,7 @@ def _install_stubs():
     fastapi.APIRouter = lambda *a, **k: _App()
     fastapi.Request = object
     fastapi.WebSocket = object
+    fastapi.BackgroundTasks = object
     responses = types.ModuleType("fastapi.responses")
     for _c in ("HTMLResponse", "JSONResponse", "RedirectResponse",
                "Response", "StreamingResponse"):
