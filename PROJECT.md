@@ -36,8 +36,8 @@ MiOS is an immutable, bootc/OCI-shaped Fedora workstation that is also a local, 
 - **M1**: Removed `usr/share/mios/templates/toml-config.bak`. All 26 templates pass `tools/compile-templates.py`.
 - **M2**: Implemented `usr/libexec/mios/diff-accrual.py`, `usr/libexec/mios/diff-accrual.sh`, and `tests/test-diff-accrual.py`. Unit tests passing (3/3 tests).
 - **M3**: Implemented `usr/libexec/mios/mios-node-wire.py` and `tests/test-node-wire.py`. Unit tests passing (8/8 tests). Registered in `usr/share/mios/mios.toml` `[ci.tiers.unit]`.
-- **M4**: Synchronized task statuses, schemas, and counts across `TASKS.md`, `AGY-TASKS.md`, and `ROADMAP.md`.
-- **M5**: 6/6 repository CI verification gates passed, automated unit tests verified, git staging and commit completed on `main`.
+- **M4**: Synchronized `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md` for `T-872..T-874`, `T-890..T-892`, and `AGY-2470..AGY-2472`, `AGY-2488..AGY-2490` with full 8-field schema compliance.
+- **M5**: Executed all 6 CI verification gates (100% PASS), committed changes to `main` (`5e96206bbeae6452e1c6d67e45ea922cbc18ca20`), clean working tree.
 
 ## Interface Contracts
 ### `WS-DIFFCYCLE` (`usr/libexec/mios/diff-accrual.sh` / `tests/test-diff-accrual.sh`)

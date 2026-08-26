@@ -18391,7 +18391,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures additive vector quantization algorithms preserve accuracy at extreme sub-2-bit compression levels.
 **Dep:** AGY-2468
 
-## AGY-2470 -- Ephemeral microVM memory snapshot hibernator and instant RAM restorer in mios-microvm-snap  (WS-VFIO | P1 | M) **[DONE]**
+## AGY-2470 -- Ephemeral microVM memory snapshot hibernator and instant RAM restorer in mios-microvm-snap  (WS-VFIO | P1 | M)
 **Goal:** Hibernate idle microVMs by dumping RAM to disk in <20ms and restore state instantly in <10ms upon wakeup.
 **What+How:** Implement `usr/libexec/mios/mios-microvm-snap` and `automation/42-microvm-runtime.sh`. Send `vm.pause` command to Cloud-Hypervisor Unix domain socket API; write guest RAM pages and vCPU registers to `/run/mios/vmsnap/<vm_id>.snap` in <20ms; release host RAM memory mapping; on event trigger, invoke `vm.resume` pointing to snapshot file; restore execution in <10ms with zero running process state loss.
 **Where:** usr/libexec/mios/mios-microvm-snap, automation/42-microvm-runtime.sh
@@ -18401,7 +18401,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** MicroVM snapshot hibernation enables thousands of paused subagent sandboxes to reside on a host with zero RAM waste.
 **Dep:** AGY-2469
 
-## AGY-2471 -- Automated microVM snapshot latency (<20ms), instant resume (<10ms), and state test suite  (WS-VFIO | P2 | S) **[DONE]**
+## AGY-2471 -- Automated microVM snapshot latency (<20ms), instant resume (<10ms), and state test suite  (WS-VFIO | P2 | S)
 **Goal:** Verify in automated CI that microVM hibernation takes <20ms, resume takes <10ms, and state integrity is 100%.
 **What+How:** Add `tests/test-microvm-snapshot-resume.sh`. Launch test microVM with memory counter loop; trigger `mios-microvm-snap hibernate`; measure snapshot write latency (assert < 20.0ms); assert host RAM utilization drops; trigger `mios-microvm-snap resume`; measure resume latency (assert < 10.0ms); assert memory counter continues incrementing without lost ticks.
 **Where:** tests/test-microvm-snapshot-resume.sh, tools/ci-suites.py
@@ -18411,7 +18411,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures memory hibernation pipelines maintain rapid wakeup speeds and zero data corruption.
 **Dep:** AGY-2470
 
-## AGY-2472 -- GPTQ-Marlin 2D tiled layout converter and fused Tensor Core GEMM dispatcher in llama-swap  (WS-AI | P1 | M) **[DONE]**
+## AGY-2472 -- GPTQ-Marlin 2D tiled layout converter and fused Tensor Core GEMM dispatcher in llama-swap  (WS-AI | P1 | M)
 **Goal:** Reformat GPTQ weights into Marlin 2D tiled layouts and dispatch fused INT4/FP16 Tensor Core kernels for 3.8x speedup.
 **What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `quantization: gptq_marlin`; reorder GPTQ weight matrices into Marlin 2D tiled format during model load; dispatch fused Marlin dequantize-GEMM CUDA kernels on Ampere/Ada/Hopper Tensor Cores; saturate >90% of hardware memory bus bandwidth (>900 GB/s on PCIe 4.0/5.0 GPUs); achieve >3.8x matrix throughput over FP16 baseline.
 **Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
@@ -18571,7 +18571,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures batch scheduling updates preserve real-time streaming responsiveness.
 **Dep:** AGY-2486
 
-## AGY-2488 -- Declarative Landlock and Bubblewrap ephemeral sandbox wrapper in mios-exec-sandbox  (WS-SEC | P1 | M) **[DONE]**
+## AGY-2488 -- Declarative Landlock and Bubblewrap ephemeral sandbox wrapper in mios-exec-sandbox  (WS-SEC | P1 | M)
 **Goal:** Wrap subagent tool commands in unprivileged Landlock + bwrap namespaces to isolate rootfs and network in <5ms.
 **What+How:** Implement `usr/bin/mios-exec-sandbox` and `automation/24-cpu-affinity.sh`. Wrap tool and shell command execution with bubblewrap (`bwrap --ro-bind / / --tmpfs /tmp --proc /proc --dev /dev --unshare-all`); apply unprivileged Landlock LSM rules restricting filesystem writes strictly to caller-specified scratch workspace; drop all Linux capabilities (`cap_set_proc`); isolate network namespace unless `--network` is explicitly enabled; launch sandboxes in <5ms with zero root privileges.
 **Where:** usr/bin/mios-exec-sandbox, usr/share/mios/ai/system.md
@@ -18581,7 +18581,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Unprivileged Landlock and bubblewrap sandboxing guarantees subagents cannot harm host files or escape execution boundaries.
 **Dep:** AGY-2487
 
-## AGY-2489 -- Automated <5ms sandbox launch latency, write denial, and network isolation test suite  (WS-SEC | P2 | S) **[DONE]**
+## AGY-2489 -- Automated <5ms sandbox launch latency, write denial, and network isolation test suite  (WS-SEC | P2 | S)
 **Goal:** Verify in automated CI that mios-exec-sandbox spawns in <5ms, blocks 100% of host writes, and isolates network.
 **What+How:** Add `tests/test-landlock-bwrap-sandbox.sh`. Execute 100 benchmark commands via `mios-exec-sandbox`; measure spawn latency (assert average < 5.0ms); attempt writes to `/etc`, `/usr`, `/var`; assert 100% of write operations fail with EPERM/EROFS; attempt external socket connect without `--network`; assert network traffic is 100% dropped.
 **Where:** tests/test-landlock-bwrap-sandbox.sh, tools/ci-suites.py
@@ -18591,7 +18591,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures execution isolation mechanisms remain active and performant across system updates.
 **Dep:** AGY-2488
 
-## AGY-2490 -- OmniQuant learnable clipping and equivalent transformation optimizer in mios-quantize-omniquant  (WS-AI | P1 | M) **[DONE]**
+## AGY-2490 -- OmniQuant learnable clipping and equivalent transformation optimizer in mios-quantize-omniquant  (WS-AI | P1 | M)
 **Goal:** Optimize learnable clipping bounds and transformation matrices in <15min to run 3-bit models with >99.4% accuracy.
 **What+How:** Implement `usr/bin/mios-quantize-omniquant` and `llama-swap.yaml` integration. Formulate weight/activation clipping and scaling as a differentiable optimization problem (Learnable Weight Clipping - LWC, Learnable Equivalent Transformation - LET); optimize clipping parameters $(\gamma, \beta)$ on calibration samples in <15 minutes with zero base weight fine-tuning; quantize to 3-bit/4-bit; dispatch fused CUTLASS W3A16/W4A4 Tensor Core kernels for >3.6x matrix compute acceleration.
 **Where:** usr/bin/mios-quantize-omniquant, usr/share/mios/llamacpp/llama-swap.yaml

@@ -1,5 +1,5 @@
 # path	start_line	end_line	lines	words	sha12	class	reason	as	stale	landed_doc	landed_anchor	landed_words	pruned
-.devcontainer/install-root-overlay.sh	1	3	3	31	094931fbe262	STAY	ai-header		0				0
+.devcontainer/install-root-overlay.sh	1	3	3	30	094931fbe262	STAY	ai-header		0				0
 .forgejo/workflows/build-mios.yml	1	2	2	29	03639af37e12	STAY	ai-header		0				0
 .forgejo/workflows/build-mios.yml	1	18	18	147	a58a0dbdcdd6	STAY	ai-header		0	usr/share/doc/mios/manual/workflows.md	mios-src:a58a0dbdcdd6	147	1
 .forgejo/workflows/build-mios.yml	17	22	6	63	1328de9fd76a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:1328de9fd76a	63	1
@@ -9807,20 +9807,20 @@ usr/share/mios/mios.toml	10872	10878	7	64	351d4a832370	MIGRATE	narrative-rationa
 usr/share/mios/mios.toml	10880	10881	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	10885	10885	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	10894	10894	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10935	10935	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10941	10942	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10969	10970	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10979	10982	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	10984	10985	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10989	10991	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	10997	10997	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10999	11001	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11067	11070	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11072	11072	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11151	11152	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11157	11161	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	11163	11166	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11169	11174	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	10933	10933	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	10939	10940	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	10967	10968	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	10977	10980	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	10982	10983	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	10987	10989	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	10995	10995	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	10997	10999	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11065	11068	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11070	11070	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11149	11150	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11155	11159	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	11161	11164	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11167	11172	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/openwebui/tools/mios_computer_use.py	1	2	2	22	8c252dd7a941	STAY	ai-header		0				0
 usr/share/mios/openwebui/tools/mios_computer_use.py	3	42	39	219	9cde6af7c1f5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tools.md	mios-src:9cde6af7c1f5	219	0
 usr/share/mios/openwebui/tools/mios_computer_use.py	63	64	2	19	4ba014eb5e64	STAY	local-scoped		0				0

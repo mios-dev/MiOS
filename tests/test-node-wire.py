@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "libexec", "mios"))
 
 import importlib.util
 
-_WIRE_PATH = os.path.join(_ROOT, "usr", "libexec", "mios", "mios-node-wire.py")
+_WIRE_PATH = os.path.join(_ROOT, "usr", "libexec", "mios", "node", "mios-node-wire.py")
 spec = importlib.util.spec_from_file_location("mios_node_wire", _WIRE_PATH)
 if spec and spec.loader:
     wire = importlib.util.module_from_spec(spec)

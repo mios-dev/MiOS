@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "libexec", "mios"))
 
 import importlib.util
 
-_DIFF_TOOL = os.path.join(_ROOT, "usr", "libexec", "mios", "diff-accrual.py")
+_DIFF_TOOL = os.path.join(_ROOT, "usr", "libexec", "mios", "diff", "diff-accrual.py")
 spec = importlib.util.spec_from_file_location("diff_accrual", _DIFF_TOOL)
 if spec and spec.loader:
     diff_accrual = importlib.util.module_from_spec(spec)
