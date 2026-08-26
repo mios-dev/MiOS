@@ -331,9 +331,9 @@
 | T-343 | P2 | open | Retrieval/Memory | MAO-04 -- Manifest-Guided Progressive-Disclosure Tree Retrieval |
 | T-344 | P2 | open | Orchestration/Reputation | MAO-07 -- IntrospecLOO Marginal Contribution Evaluation for Swarm/Council |
 | T-345 | P2 | open | Federation/A2A | MAO-06 -- Identity-Aware Delegation & Progressive Payload Negotiation |
-| T-346 | P1 | open | Mesh/Node | NODE-01 -- 16-Byte Fixed Binary Wire Protocol Implementation in mios-node |
+| T-346 | P1 | done | Mesh/Node | NODE-01 -- 16-Byte Fixed Binary Wire Protocol Implementation in mios-node |
 | T-347 | P1 | open | Sandboxing/Node | NODE-02 -- Tier-1 Wasm Sandbox Runtime with mios_sys_* Host Imports |
-| T-348 | P1 | open | State/Mesh | NODE-03 -- LWW-Element-Set and Vector Clock CRDT Engine for Edge Nodes |
+| T-348 | P1 | done | State/Mesh | NODE-03 -- LWW-Element-Set and Vector Clock CRDT Engine for Edge Nodes |
 | T-349 | P2 | open | Discovery/Mesh | NODE-04 -- Avahi/mDNS Zero-Conf Mesh Discovery and Handshake |
 | T-350 | P1 | open | SSOT/Database | VECTOR-05 -- Authority Inversion — PostgreSQL+pgvector as Live SSOT |
 | T-351 | P1 | open | Durability/Backup | DURA-03 -- Automated PostgreSQL+pgvector Backup & zstd Snapshot Timer |
@@ -4191,7 +4191,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** The `mios-node` binary frame codec encodes and decodes all seven message opcodes with full CRC32 validation.
 **Why:** A lightweight, fixed-size binary header minimizes framing overhead and CPU latency on embedded edge nodes and microVMs.
 **Dep:** none
-**Status:** open | **Domain:** Mesh/Node | **Who:** agent
+**Status:** done | **Domain:** Mesh/Node | **Who:** agent
 **Converted:** AGY-1944 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-347 -- NODE-02: Tier-1 Wasm Sandbox Runtime with mios_sys_* Host Imports (WS-NODE | P1 | M)
@@ -4211,7 +4211,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Network partitions heal automatically with deterministic CRDT state convergence across all participating nodes.
 **Why:** Edge mesh topologies experience frequent intermittent disconnects and require lock-free, eventually consistent replication.
 **Dep:** T-346
-**Status:** open | **Domain:** State/Mesh | **Who:** agent
+**Status:** done | **Domain:** State/Mesh | **Who:** agent
 **Converted:** AGY-1946 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-349 -- NODE-04: Avahi/mDNS Zero-Conf Mesh Discovery and Handshake (WS-NODE | P2 | S)
