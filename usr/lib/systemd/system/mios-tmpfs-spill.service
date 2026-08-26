@@ -1,0 +1,17 @@
+# AI-hint: Systemd service for automated tmpfs memory pressure spillover to NVMe storage.
+# AI-related: usr/lib/systemd/system/mios-tmpfs-spill.timer, usr/libexec/mios/mem/mios-tmpfs-spill
+
+[Unit]
+Description=MiOS Automated tmpfs Spill-to-NVMe Manager
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/libexec/mios/mem/mios-tmpfs-spill --check --source-dir /tmp --target-dir /var/tmp/spill --psi-threshold 60.0
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

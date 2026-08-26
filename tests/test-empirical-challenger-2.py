@@ -1,27 +1,32 @@
 #!/usr/bin/env python3
-# AI-hint: Comprehensive adversarial test suite authored by Challenger 2 for T-377..T-381.
-# AI-related: usr/libexec/mios/mcp/sandbox.py, usr/libexec/mios/sec/approval.py, usr/libexec/mios/graph/traversal.py, usr/libexec/mios/prompt/pruning.py, usr/libexec/mios/a2a/attestation.py
+# AI-hint: Comprehensive empirical adversarial test suite authored by Challenger 2 for T-404..T-412.
+# AI-related: usr/libexec/mios/storage/mios-bench-storage, usr/libexec/mios/sec/mios-luks-rotate, usr/libexec/mios/mem/mios-tmpfs-spill, usr/libexec/mios/log/mios-log-streamer, usr/libexec/mios/storage/mios-backup-remote, usr/libexec/mios/db/mios-db-doctor.py, usr/libexec/mios/db/mios-db-migrate.py, usr/share/containers/systemd/mios-radosgw.container
 """
 MiOS Empirical Adversarial Test Harness (Challenger 2).
 
-Executes stress-testing, boundary attacks, cyclic recursion tests, cryptographic
-malleability checks, AST preservation tests, and fuzzing payloads against:
-- MCP Bubblewrap Sandbox Engine (T-377 / MCP-01)
-- Interactive HITL Permission Escalation & Approval Engine (T-378 / SEC-06)
-- Recursive CTE Knowledge Graph Traversal Engine (T-379 / GRAPH-01)
-- Contextual Prompt Compression & Token Pruning Engine (T-380 / PROMPT-01)
-- A2A Cryptographic Capability Attestation Engine (T-381 / A2A-01)
+Executes stress-testing, boundary attacks, simulated memory pressure,
+fuzzing payloads, security exclusions, SQL injection defense, and
+zero-downtime safety checks against:
+- T-404: Ceph RADOS Gateway Quadlet S3 Container
+- T-405: LUKS2 Zero-Downtime Key Rotation Engine (mios-luks-rotate)
+- T-407: SQLite / PostgreSQL Database Doctor (mios-db-doctor)
+- T-408: Remote Delta Snapshot Backup Synchronizer (mios-backup-remote)
+- T-409: Storage Performance Benchmark Harness (mios-bench-storage)
+- T-410: Automated tmpfs Spill-to-NVMe Manager (mios-tmpfs-spill)
+- T-411: Unified Journald Log Aggregation & pgvector Streamer (mios-log-streamer)
+- T-412: Zero-Downtime Database Migration Runner (mios-db-migrate)
 """
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import importlib.machinery
 import importlib.util
 import json
+import math
 import os
 import secrets
+import shutil
+import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -33,627 +38,462 @@ _ROOT = os.path.normpath(os.path.join(_HERE, "..")) if os.path.basename(_HERE) =
 
 
 def load_module(name: str, rel_path: str) -> Any:
+    from importlib.machinery import SourceFileLoader
     full_path = os.path.join(_ROOT, rel_path)
-    spec = importlib.util.spec_from_file_location(name, full_path)
+    loader = SourceFileLoader(name, full_path)
+    spec = importlib.util.spec_from_loader(name, loader)
     if spec and spec.loader:
         mod = importlib.util.module_from_spec(spec)
         sys.modules[name] = mod
         spec.loader.exec_module(mod)
         return mod
-    loader = importlib.machinery.SourceFileLoader(name, full_path)
-    spec = importlib.util.spec_from_loader(name, loader)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    raise ImportError(f"Could not load module {name} from {full_path}")
 
 
-sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios"))
-sys.path.insert(0, os.path.join(_ROOT, "lib", "mios"))
-
-mcp_mod = load_module("mcp_sandbox", "usr/libexec/mios/mcp/sandbox.py")
-approval_mod = load_module("hitl_approval", "usr/libexec/mios/sec/approval.py")
-graph_mod = load_module("graph_traversal", "usr/libexec/mios/graph/traversal.py")
-prompt_mod = load_module("prompt_pruning", "usr/libexec/mios/prompt/pruning.py")
-a2a_mod = load_module("a2a_attestation", "usr/libexec/mios/a2a/attestation.py")
-
-
-class TestAdversarialMcpSandbox(unittest.TestCase):
-    """Adversarial testing on McpSandbox path traversal, argument injection, and policy isolation."""
-
-    def test_path_traversal_and_disallowed_roots(self) -> None:
-        sb = mcp_mod.McpSandbox(server_name="test-adversary")
-
-        # Disallowed system root paths must raise ValueError
-        disallowed_paths = [
-            "/etc",
-            "/etc/shadow",
-            "/etc/../etc/passwd",
-            "/usr",
-            "/usr/bin/../../etc",
-            "/boot",
-            "/boot/efi",
-            "/sys",
-            "/sys/kernel",
-            "/root",
-            "/root/.ssh/id_rsa",
-            "/bin",
-            "/sbin",
-            "/lib",
-            "/lib64",
-            "/dev",
-            "/dev/sda",
-            "/proc",
-            "/proc/sys/net",
-            "C:\\etc\\shadow",
-            "C:/usr/local/bin",
-            "C:\\boot\\grub2",
-        ]
-
-        for path in disallowed_paths:
-            with self.assertRaises(ValueError, msg=f"Path {path!r} should be disallowed for writable mounting"):
-                sb.validate_rw_path(path)
-
-            with self.assertRaises(ValueError, msg=f"add_rw_bind should fail for path {path!r}"):
-                sb.add_rw_bind(path)
-
-            with self.assertRaises(ValueError, msg=f"set_workspace_dir should fail for path {path!r}"):
-                sb.set_workspace_dir(path)
-
-    def test_allowed_custom_and_workspace_paths(self) -> None:
-        sb = mcp_mod.McpSandbox(server_name="test-allowed")
-
-        allowed_paths = [
-            "/var/lib/mios/workspace",
-            "/var/tmp/mcp-test",
-            "/tmp/custom_scratch",
-            "/home/mios/project",
-            "/opt/app/data",
-        ]
-
-        for path in allowed_paths:
-            norm = sb.validate_rw_path(path)
-            self.assertTrue(norm.startswith("/"))
-
-        sb.add_rw_bind("/var/data", "/var/data")
-        sb.add_ro_bind("/opt/models", "/opt/models")
-        sb.set_workspace_dir("/var/tmp/mcp-test")
-
-        cmd = sb.build_command(["python3", "server.py"])
-        self.assertIn("--bind", cmd)
-        self.assertIn("/var/data", cmd)
-        self.assertIn("--ro-bind", cmd)
-        self.assertIn("/opt/models", cmd)
-        self.assertIn("--chdir", cmd)
-        self.assertIn("/var/tmp/mcp-test", cmd)
-
-    def test_network_isolation_and_flag_integrity(self) -> None:
-        # Default: network unshared
-        sb_isolated = mcp_mod.McpSandbox(server_name="isolated", allow_net=False)
-        cmd_iso = sb_isolated.build_command(["ls"])
-        self.assertIn("--unshare-net", cmd_iso)
-        self.assertNotIn("--share-net", cmd_iso)
-        self.assertIn("--die-with-parent", cmd_iso)
-        self.assertIn("--new-session", cmd_iso)
-        self.assertIn("--unshare-all", cmd_iso)
-
-        # Allow network
-        sb_net = mcp_mod.McpSandbox(server_name="networked", allow_net=True)
-        cmd_net = sb_net.build_command(["ls"])
-        self.assertIn("--share-net", cmd_net)
-        self.assertNotIn("--unshare-net", cmd_net)
-
-    def test_invalid_parameters_and_injection_payloads(self) -> None:
-        # Empty server name
-        with self.assertRaises(ValueError):
-            mcp_mod.McpSandbox(server_name="")
-        with self.assertRaises(ValueError):
-            mcp_mod.McpSandbox(server_name="   ")
-
-        sb = mcp_mod.McpSandbox(server_name="test")
-        # Empty inner command
-        with self.assertRaises(ValueError):
-            sb.build_command([])
-
-        # Empty src for ro_bind
-        with self.assertRaises(ValueError):
-            sb.add_ro_bind("")
-
-        # Empty workspace_dir
-        with self.assertRaises(ValueError):
-            sb.set_workspace_dir("")
-
-        # Invalid tuple types in constructor
-        with self.assertRaises(TypeError):
-            mcp_mod.McpSandbox(server_name="test", custom_ro_binds=[123])  # type: ignore
-
-        # Command with malicious argument payloads
-        malicious_cmd = ["bash", "-c", "rm -rf /", "; reboot", "$(cat /etc/shadow)"]
-        cmd = sb.build_command(malicious_cmd)
-        # Verify arguments are appended at the end intact without shell interpretation
-        self.assertEqual(cmd[-5:], malicious_cmd)
+# Load target modules under test
+mod_bench = load_module("bench_storage", "usr/libexec/mios/storage/mios-bench-storage")
+mod_luks = load_module("luks_rotate", "usr/libexec/mios/sec/mios-luks-rotate")
+mod_spill = load_module("tmpfs_spill", "usr/libexec/mios/mem/mios-tmpfs-spill")
+mod_log = load_module("log_streamer", "usr/libexec/mios/log/mios-log-streamer")
+mod_backup = load_module("backup_remote", "usr/libexec/mios/storage/mios-backup-remote")
+mod_doctor = load_module("db_doctor", "usr/libexec/mios/db/mios-db-doctor.py")
+mod_migrate = load_module("db_migrate", "usr/libexec/mios/db/mios-db-migrate.py")
 
 
-class TestAdversarialHITLApproval(unittest.TestCase):
-    """Adversarial testing on HITL ApprovalEngine cryptographic token integrity, state transitions, and patterns."""
+class TestAdversarialBenchStorage(unittest.TestCase):
+    """Adversarial testing on mios-bench-storage: percentile math, profile bounds, and cleanup."""
 
-    def test_cryptographic_token_forgery_attacks(self) -> None:
-        engine = approval_mod.ApprovalEngine(secret_key=b"A" * 32, ttl_seconds=120)
-        req = engine.create_request(tool_name="bash_exec", command="rm -rf /var/cache/temp")
-        valid_token = engine.approve(req.request_id, operator="admin")
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="mios-bench-adv-")
 
-        # 1. Authentic token validates
-        self.assertTrue(engine.validate_token(req.request_id, valid_token))
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
 
-        # 2. Token replay on wrong request_id
-        req2 = engine.create_request(tool_name="bash_exec", command="rm -rf /var/cache/temp")
-        self.assertFalse(engine.validate_token(req2.request_id, valid_token))
+    def test_percentile_boundary_conditions(self):
+        """Stress-test percentile function with empty, 1-element, duplicates, and extreme percentiles."""
+        # 1. Empty list
+        self.assertEqual(mod_bench.percentile([], 50), 0.0)
+        self.assertEqual(mod_bench.percentile([], 0), 0.0)
+        self.assertEqual(mod_bench.percentile([], 100), 0.0)
 
-        # 3. Token replay on modified command (command injection after approval)
-        req_tampered_cmd = approval_mod.ApprovalRequest(
-            request_id=req.request_id,
-            tool_name="bash_exec",
-            command="rm -rf /",  # Attacker modified command
-            status=approval_mod.Status.APPROVED,
-            token=valid_token,
-            ttl_seconds=120,
+        # 2. Single element
+        self.assertEqual(mod_bench.percentile([42.5], 0), 42.5)
+        self.assertEqual(mod_bench.percentile([42.5], 50), 42.5)
+        self.assertEqual(mod_bench.percentile([42.5], 100), 42.5)
+
+        # 3. Two elements
+        data = [10.0, 20.0]
+        self.assertEqual(mod_bench.percentile(data, 0), 10.0)
+        self.assertEqual(mod_bench.percentile(data, 50), 15.0)
+        self.assertEqual(mod_bench.percentile(data, 100), 20.0)
+
+        # 4. Large list with duplicate values
+        data_dup = [100.0] * 50
+        self.assertEqual(mod_bench.percentile(data_dup, 95), 100.0)
+
+    def test_quick_benchmark_execution_and_guaranteed_cleanup(self):
+        """Execute full benchmark and verify scratch file lifecycle and cleanup."""
+        report = mod_bench.run_full_storage_benchmark(
+            target_dir=self.tmpdir,
+            file_size_mb=4,
+            duration_sec=0.1,
+            fsync_iterations=5,
+            profile="edge_llm",
         )
-        engine._requests[req.request_id] = req_tampered_cmd
-        self.assertFalse(engine.validate_token(req.request_id, valid_token))
+        self.assertIn("iops_rand_read_4k", report)
+        self.assertIn("fsync_latency_us", report)
+        self.assertIn("assessment", report)
+        self.assertEqual(report["assessment"]["profile"], "edge_llm")
 
-        # 4. Bit-flip attack in token signature
-        raw_b64 = valid_token + "=" * (-len(valid_token) % 4)
-        raw_bytes = bytearray(base64.urlsafe_b64decode(raw_b64))
-        raw_bytes[-1] ^= 0x01  # Flip one bit in signature
-        forged_token = base64.urlsafe_b64encode(raw_bytes).decode("ascii").rstrip("=")
-        self.assertFalse(engine.validate_token(req.request_id, forged_token))
+        # Verify no scratch files (.dat) were leaked in target_dir
+        remaining = [f for f in os.listdir(self.tmpdir) if f.startswith("mios_bench_scratch_")]
+        self.assertEqual(len(remaining), 0, f"Leaked scratch files: {remaining}")
 
-        # 5. Token generated with different secret key
-        rogue_engine = approval_mod.ApprovalEngine(secret_key=b"B" * 32, ttl_seconds=120)
-        rogue_token = rogue_engine._generate_token(req.request_id, "admin", time.time(), "rm -rf /var/cache/temp")
-        self.assertFalse(engine.validate_token(req.request_id, rogue_token))
+    def test_inference_floor_evaluation_matrix(self):
+        """Adversarially test hardware inference floor boundary decisions."""
+        mock_metrics_pass = {
+            "iops_rand_read_4k": 3500,
+            "iops_rand_write_4k": 1600,
+            "mbps_seq_read_1m": 300.0,
+            "mbps_seq_write_1m": 150.0,
+            "fsync_latency_us": {"p95_us": 12000.0},
+        }
+        res_pass = mod_bench.evaluate_inference_floors(mock_metrics_pass, profile_name="edge_llm")
+        self.assertTrue(res_pass["meets_ai_inference_floors"])
 
-        # 6. Truncated / malformed tokens
-        self.assertFalse(engine.validate_token(req.request_id, ""))
-        self.assertFalse(engine.validate_token(req.request_id, "invalid_token_string"))
-        self.assertFalse(engine.validate_token(req.request_id, valid_token[:10]))
+        # Test failure if even 1 metric misses floor
+        mock_metrics_fail = dict(mock_metrics_pass)
+        mock_metrics_fail["mbps_seq_read_1m"] = 249.0  # Required: 250.0
+        res_fail = mod_bench.evaluate_inference_floors(mock_metrics_fail, profile_name="edge_llm")
+        self.assertFalse(res_fail["meets_ai_inference_floors"])
+        self.assertFalse(res_fail["evaluations"]["mbps_seq_read_1m"]["passed"])
 
-    def test_state_machine_and_expiration_transitions(self) -> None:
-        engine = approval_mod.ApprovalEngine(ttl_seconds=10)
-        req = engine.create_request(tool_name="bash", command="wipefs -a /dev/sdb")
 
-        # Initial state: PENDING
-        self.assertEqual(req.status, approval_mod.Status.PENDING)
-        self.assertFalse(engine.is_executable(req.request_id))
+class TestAdversarialLUKSRotate(unittest.TestCase):
+    """Adversarial testing on mios-luks-rotate: key validation aborts, slot exhaustion, and log safety."""
 
-        # Reject request
-        self.assertTrue(engine.reject(req.request_id, reason="Denied by policy"))
-        self.assertEqual(req.status, approval_mod.Status.REJECTED)
-        self.assertFalse(engine.is_executable(req.request_id))
+    def test_key_rotation_aborts_and_preserves_old_slot_on_failure(self):
+        """CRITICAL: If test_passphrase fails on newly added slot, abort without touching old slot."""
+        calls = []
 
-        # Cannot approve rejected request
-        with self.assertRaises(ValueError):
-            engine.approve(req.request_id)
+        def mock_runner(cmd, input=None, capture_output=True, text=True, check=True):
+            cmd_str = " ".join(cmd)
+            calls.append((cmd_str, input))
+            if "luksDump" in cmd_str:
+                return subprocess.CompletedProcess(cmd, 0, stdout='{"keyslots":{"0":{"state":"active"}}}', stderr="")
+            elif "luksHeaderBackup" in cmd_str:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            elif "luksAddKey" in cmd_str:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            elif "--test-passphrase" in cmd_str:
+                # First check (current key) passes; second check (new key) FAILS
+                if input and "old_secret" in input:
+                    return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="Decryption failed")
+            elif "luksKillSlot" in cmd_str:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-        # Create fresh request and approve
-        req2 = engine.create_request(tool_name="bash", command="wipefs -a /dev/sdb")
-        tok2 = engine.approve(req2.request_id)
-        self.assertEqual(req2.status, approval_mod.Status.APPROVED)
-        self.assertTrue(engine.is_executable(req2.request_id))
-        self.assertTrue(engine.validate_token(req2.request_id, tok2))
+        dev = mod_luks.LUKSDevice(runner=mock_runner)
+        tmpdir = tempfile.mkdtemp()
+        engine = mod_luks.LUKSRotationEngine(luks_device=dev, backup_root=tmpdir)
 
-        # Cannot approve already approved request a second time
-        with self.assertRaises(ValueError):
-            engine.approve(req2.request_id)
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                engine.rotate_key("/dev/sda2", current_passphrase="old_secret", new_passphrase="bad_new_secret")
+            self.assertIn("ABORTED ROTATION", str(ctx.exception))
 
-        # Cannot reject already approved request
-        self.assertFalse(engine.reject(req2.request_id))
+            # Verify that luksKillSlot was NOT called with slot 0 (the active old slot)
+            killed_slots = [c[0] for c in calls if "luksKillSlot" in c[0]]
+            for k in killed_slots:
+                self.assertNotIn("luksKillSlot /dev/sda2 0", k, "CRITICAL ERROR: Old slot 0 was killed despite new key verification failure!")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
-        # Simulate expiration
-        req2.expires_at = time.time() - 10
-        self.assertTrue(req2.is_expired())
-        self.assertFalse(engine.is_executable(req2.request_id))
-        self.assertFalse(engine.validate_token(req2.request_id, tok2))
+    def test_no_free_keyslots_rejection(self):
+        """Verify engine refuses to rotate if all keyslots are occupied."""
+        # 32 active slots
+        all_slots_json = json.dumps({"keyslots": {str(i): {"state": "active"} for i in range(32)}})
 
-        # Purge expired requests
-        purged = engine.purge_expired()
-        self.assertGreaterEqual(purged, 1)
-        self.assertIsNone(engine.get_request(req2.request_id))
+        def mock_runner(cmd, input=None, capture_output=True, text=True, check=True):
+            if "luksDump" in " ".join(cmd):
+                return subprocess.CompletedProcess(cmd, 0, stdout=all_slots_json, stderr="")
+            elif "--test-passphrase" in " ".join(cmd):
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-    def test_high_risk_pattern_detection_fuzzing(self) -> None:
-        engine = approval_mod.ApprovalEngine()
+        dev = mod_luks.LUKSDevice(runner=mock_runner)
+        engine = mod_luks.LUKSRotationEngine(luks_device=dev)
+        with self.assertRaises(RuntimeError) as ctx:
+            engine.rotate_key("/dev/nvme0n1p3", current_passphrase="valid_pass")
+        self.assertIn("No available free keyslots", str(ctx.exception))
 
-        high_risk_samples = [
-            "rm -rf /",
-            "rm -fr /home/user",
-            "rm -r /var/log",
-            "rm --recursive --force /tmp/test",
-            "mkfs.ext4 /dev/nvme0n1p1",
-            "mkfs.xfs /dev/sda",
-            "fdisk /dev/sdb",
-            "gdisk /dev/sdc",
-            "parted /dev/sdd mklabel gpt",
-            "sfdisk /dev/sde",
-            "wipefs -a /dev/sdf",
-            "dd if=/dev/zero of=/dev/sda bs=1M",
-            "dd if=/dev/urandom of=/dev/nvme0n1",
-            "bootc switch quay.io/repo/img:tag",
-            "bootc rollback",
-            "bootc edit",
-            "cryptsetup luksFormat /dev/loop0",
-            "cryptsetup luksErase /dev/loop0",
-            "iptables -F",
-            "iptables --flush",
-            "ip6tables -X",
-            "nft flush ruleset",
-            "nft delete table inet filter",
-            "lvremove -f /dev/vg0/lv0",
-            "vgremove vg0",
-            "pvremove /dev/sdb1",
-            "btrfs subvolume delete /mnt/subvol",
-            "zpool destroy tank",
-            "zfs destroy -r pool/dataset",
-            "reboot",
-            "shutdown -h now",
-            "poweroff",
-            "halt",
-            "init 0",
-            "init 6",
+
+class TestAdversarialTmpfsSpill(unittest.TestCase):
+    """Adversarial testing on mios-tmpfs-spill: security exclusions, PSI triggers, and LRU eviction."""
+
+    def setUp(self):
+        self.src_dir = tempfile.mkdtemp(prefix="mios-tmpfs-src-")
+        self.tgt_dir = tempfile.mkdtemp(prefix="mios-tmpfs-tgt-")
+
+    def tearDown(self):
+        shutil.rmtree(self.src_dir, ignore_errors=True)
+        shutil.rmtree(self.tgt_dir, ignore_errors=True)
+
+    def test_security_sensitive_exclusion_matrix(self):
+        """Adversarially verify that no crypto keys, tokens, ssh/gpg sockets, or credentials are spilled."""
+        sensitive_files = [
+            "id_rsa", "id_ed25519", "server.key", "ca.crt", "tls.pem",
+            "access_token.jwt", "bearer_token", "admin.password", "app.secret",
+            "ssh-agent.1234", "gpg-agent.socket", "X11-unix.sock", "systemd.lock",
         ]
+        for sname in sensitive_files:
+            p = os.path.join(self.src_dir, sname)
+            with open(p, "wb") as f:
+                f.write(b"TOP_SECRET_CREDENTIALS_" * 100000)  # > 1MB
 
-        for cmd in high_risk_samples:
-            self.assertTrue(engine.requires_approval(cmd), msg=f"Command {cmd!r} must require approval")
+        # Create 1 legitimate big file
+        legit_path = os.path.join(self.src_dir, "large_cache.bin")
+        with open(legit_path, "wb") as f:
+            f.write(b"LEGITIMATE_CACHE_DATA_" * 100000)
 
-        safe_samples = [
-            "ls -la /etc",
-            "cat /etc/os-release",
-            "grep -rn 'TODO' .",
-            "python3 -m unittest",
-            "git status",
-            "git log -n 5",
-            "podman ps -a",
-            "systemctl status mios-llm-light",
-            "echo 'hello world'",
-            "find . -name '*.py'",
-        ]
+        # Trigger spill under high PSI
+        res = mod_spill.evaluate_and_spill(
+            source_dir=self.src_dir,
+            target_dir=self.tgt_dir,
+            mock_psi=75.0,  # > 60%
+            min_file_size=1024 * 1024,
+        )
 
-        for cmd in safe_samples:
-            self.assertFalse(engine.requires_approval(cmd), msg=f"Command {cmd!r} should be safe")
+        self.assertTrue(res["spill_action_taken"])
+        self.assertEqual(res["files_spilled"], 1)
+        self.assertEqual(res["spilled_details"][0]["source"], legit_path)
 
+        # Ensure all sensitive files remain regular non-symlinked files in src_dir
+        for sname in sensitive_files:
+            p = os.path.join(self.src_dir, sname)
+            self.assertTrue(os.path.exists(p))
+            self.assertFalse(os.path.islink(p), f"Security sensitive file {sname} was improperly symlinked/spilled!")
 
-class TestAdversarialKnowledgeGraph(unittest.TestCase):
-    """Adversarial testing on KnowledgeGraph cyclic graphs, depth bounds, SQL injection, and CTE generation."""
+    def test_lru_quota_eviction_and_broken_symlink_cleanup(self):
+        """Verify oldest spilled files are evicted when exceeding max_spill_bytes and broken symlinks purged."""
+        # Create 3 files of 1MB each
+        f1 = os.path.join(self.src_dir, "file1.dat")
+        f2 = os.path.join(self.src_dir, "file2.dat")
+        f3 = os.path.join(self.src_dir, "file3.dat")
 
-    def setUp(self) -> None:
-        self.kg = graph_mod.KnowledgeGraph(db_path=":memory:")
+        with open(f1, "wb") as f:
+            f.write(b"A" * (1024 * 1024))
+        time.sleep(0.01)
+        with open(f2, "wb") as f:
+            f.write(b"B" * (1024 * 1024))
+        time.sleep(0.01)
+        with open(f3, "wb") as f:
+            f.write(b"C" * (1024 * 1024))
 
-    def tearDown(self) -> None:
-        self.kg.close()
+        # Set quota to 2.5MB (file1 + file2 + file3 = 3.0MB -> file1 must be evicted)
+        res = mod_spill.evaluate_and_spill(
+            source_dir=self.src_dir,
+            target_dir=self.tgt_dir,
+            mock_psi=80.0,
+            min_file_size=512 * 1024,
+            max_spill_bytes=int(2.5 * 1024 * 1024),
+        )
 
-    def test_cyclic_graph_termination_and_cycle_prevention(self) -> None:
-        # Construct multi-node cyclic graph:
-        # A -> B -> C -> A (cycle)
-        # B -> D -> E -> B (sub-cycle)
-        # C -> F -> G (tail)
-        # A -> A (self-loop)
-        triples = [
-            ("A", "depends_on", "B"),
-            ("B", "depends_on", "C"),
-            ("C", "depends_on", "A"),  # Cycle 1
-            ("B", "depends_on", "D"),
-            ("D", "depends_on", "E"),
-            ("E", "depends_on", "B"),  # Cycle 2
-            ("C", "depends_on", "F"),
-            ("F", "depends_on", "G"),
-            ("A", "depends_on", "A"),  # Self loop
-        ]
-        self.kg.add_triples(triples)
+        self.assertTrue(res["spill_action_taken"])
+        self.assertEqual(res["files_spilled"], 3)
+        self.assertEqual(res["evicted_files"], 1)
 
-        # 1. Traversal from A with max_depth=10 must terminate without infinite loop
-        steps = self.kg.traverse(root="A", max_depth=10, direction="forward")
-        self.assertIsInstance(steps, list)
-        self.assertLessEqual(len(steps), 20)
+        ledger = mod_spill.load_spill_ledger(self.tgt_dir)
+        self.assertLessEqual(ledger["total_spilled_bytes"], int(2.5 * 1024 * 1024))
 
-        # 2. get_recursive_dependencies deduplicates reachable nodes
-        deps = self.kg.get_recursive_dependencies(root="A", max_depth=10)
-        self.assertIn("B", deps)
-        self.assertIn("C", deps)
-        self.assertIn("D", deps)
-        self.assertIn("E", deps)
-        self.assertIn("F", deps)
-        self.assertIn("G", deps)
-        # Root "A" is not in its own dependencies list
-        self.assertNotIn("A", deps)
-        # List elements are strictly unique
-        self.assertEqual(len(deps), len(set(deps)))
+    def test_unspill_full_restoration(self):
+        """Verify unspill cleanly restores symlinks back to physical files."""
+        fpath = os.path.join(self.src_dir, "workload.dat")
+        test_content = b"RESTORATION_INTEGRITY_CHECK_" * 50000
+        with open(fpath, "wb") as f:
+            f.write(test_content)
 
-    def test_depth_ceiling_boundaries(self) -> None:
-        # Linear chain: N0 -> N1 -> N2 -> ... -> N20
-        chain = [(f"N_{i}", "links", f"N_{i+1}") for i in range(20)]
-        self.kg.add_triples(chain)
+        mod_spill.evaluate_and_spill(
+            source_dir=self.src_dir,
+            target_dir=self.tgt_dir,
+            mock_psi=90.0,
+            min_file_size=500 * 1024,
+        )
+        self.assertTrue(os.path.islink(fpath))
 
-        # Depth = 1
-        deps_1 = self.kg.get_recursive_dependencies(root="N_0", max_depth=1)
-        self.assertEqual(deps_1, ["N_1"])
-
-        # Depth = 3
-        deps_3 = self.kg.get_recursive_dependencies(root="N_0", max_depth=3)
-        self.assertEqual(deps_3, ["N_1", "N_2", "N_3"])
-
-        # Depth = 5
-        deps_5 = self.kg.get_recursive_dependencies(root="N_0", max_depth=5)
-        self.assertEqual(deps_5, ["N_1", "N_2", "N_3", "N_4", "N_5"])
-
-    def test_reverse_backward_traversal(self) -> None:
-        triples = [
-            ("app", "requires", "db"),
-            ("db", "requires", "storage"),
-            ("storage", "requires", "disk"),
-        ]
-        self.kg.add_triples(triples)
-
-        # Reverse traversal from disk
-        steps = self.kg.traverse(root="disk", max_depth=5, direction="backward")
-        self.assertTrue(any(s["subject"] == "storage" for s in steps))
-        self.assertTrue(any(s["subject"] == "db" for s in steps))
-        self.assertTrue(any(s["subject"] == "app" for s in steps))
-
-    def test_sql_injection_payloads_and_unicode_safety(self) -> None:
-        malicious_triples = [
-            ("node' OR '1'='1", "predicate\"; DROP TABLE knowledge_graph; --", "target'--"),
-            ("MiOS_🚀_AI", "speaks", "日本語_Prompt_🤖"),
-            ("<xml>test & 'quote'</xml>", "relates_to", '{"json": "value"}'),
-        ]
-
-        props = {"key'": "val\"ue", "nested": {"count": 100}}
-        emb = [0.1, -0.2, 0.5, 0.999]
-
-        for s, p, o in malicious_triples:
-            row_id = self.kg.add_triple(s, p, o, properties=props, embedding=emb)
-            self.assertGreater(row_id, 0)
-
-        # Verify table integrity (not dropped by SQL injection attempt)
-        deps = self.kg.get_dependencies("node' OR '1'='1")
-        self.assertEqual(deps, ["target'--"])
-
-        # Check export
-        exported = self.kg.export_graph()
-        self.assertEqual(exported["count"], 3)
-        self.assertIn("MiOS_🚀_AI", exported["nodes"])
-
-    def test_recursive_cte_sql_generation(self) -> None:
-        pg_sql = self.kg.generate_recursive_cte_sql(root="agent_pipe", max_depth=4, dialect="postgres")
-        self.assertIn("WITH RECURSIVE graph_walk AS", pg_sql)
-        self.assertIn("ARRAY[subject, object]", pg_sql)
-        self.assertIn("NOT (kg.object = ANY(gw.path))", pg_sql)
-
-        sqlite_sql = self.kg.generate_recursive_cte_sql(root="agent_pipe", max_depth=4, dialect="sqlite")
-        self.assertIn("WITH RECURSIVE graph_walk", sqlite_sql)
-        self.assertIn("instr(gw.path, ',' || kg.object || ',') = 0", sqlite_sql)
+        # Unspill
+        restored_cnt, restored_b = mod_spill.unspill_files(target_dir=self.tgt_dir)
+        self.assertEqual(restored_cnt, 1)
+        self.assertFalse(os.path.islink(fpath))
+        self.assertTrue(os.path.isfile(fpath))
+        with open(fpath, "rb") as f:
+            self.assertEqual(f.read(), test_content)
 
 
-class TestAdversarialPromptPruning(unittest.TestCase):
-    """Adversarial testing on PromptPruner AST/code preservation, multilingual support, and edge cases."""
+class TestAdversarialLogStreamer(unittest.TestCase):
+    """Adversarial testing on mios-log-streamer: malformed streams, SQL injection, and vector math."""
 
-    def setUp(self) -> None:
-        self.pruner = prompt_mod.PromptPruner()
-
-    def test_code_block_keyword_and_ast_preservation(self) -> None:
-        # Code containing identical text to boilerplate phrases
-        code_sample = '''```python
-def please_note_that():
-    """In order to test AST preservation."""
-    let_me_know = True
-    if due_to_the_fact_that:
-        # Please be advised that code comments must be preserved
-        return "Hope this helps!"
-    return "Cheers,"
-```'''
-
-        input_text = f"""Please note that here is the code:
-{code_sample}
-I hope this helps you out! Feel free to ask if you have any questions."""
-
-        compressed, stats = self.pruner.compress(input_text, target_ratio=0.25, preserve_code=True)
-
-        # Code block MUST be preserved character-for-character
-        self.assertIn(code_sample, compressed)
-        # Conversational outer boilerplate must be stripped
-        self.assertNotIn("Feel free to ask", compressed)
-        self.assertNotIn("I hope this helps", compressed)
-        self.assertGreater(stats["reduction_ratio"], 0.10)
-
-    def test_inline_code_preservation(self) -> None:
-        input_text = "In order to run the tool, please note that you must execute `rm -rf in order to clean`."
-        compressed, _ = self.pruner.compress(input_text, target_ratio=0.25, preserve_code=True)
-        self.assertIn("`rm -rf in order to clean`", compressed)
-        self.assertTrue(compressed.startswith("To run the tool"))
-
-    def test_multilingual_unicode_and_emojis(self) -> None:
-        multilingual_text = "Please note that MiOS 🚀 是一个 self-replicating agentic AI 操作系统。In order to build it, use `mios build`."
-        compressed, stats = self.pruner.compress(multilingual_text, target_ratio=0.20, preserve_code=True)
-
-        self.assertIn("MiOS 🚀 是一个 self-replicating agentic AI 操作系统。", compressed)
-        self.assertIn("`mios build`", compressed)
-        self.assertGreaterEqual(stats["reduction_ratio"], 0.0)
-
-    def test_extreme_inputs_and_fuzzing(self) -> None:
-        # Empty string
-        c_empty, s_empty = self.pruner.compress("")
-        self.assertEqual(c_empty, "")
-        self.assertEqual(s_empty["reduction_ratio"], 0.0)
-
-        # Whitespace-only string returns as-is with 0 reduction ratio
-        ws_input = "   \n\n\t   \n  "
-        c_ws, s_ws = self.pruner.compress(ws_input)
-        self.assertEqual(c_ws, ws_input)
-        self.assertEqual(s_ws["reduction_ratio"], 0.0)
-
-        # Massive text (50,000 chars)
-        repeated = "Please note that in order to verify system state, it is critically necessary to check status.\n" * 500
-        c_huge, s_huge = self.pruner.compress(repeated, target_ratio=0.30)
-        self.assertGreater(s_huge["reduction_ratio"], 0.20)
-        self.assertLess(len(c_huge), len(repeated))
-
-    def test_chat_messages_array_pruning(self) -> None:
-        messages = [
-            {"role": "system", "content": "Please note that you must follow Architectural Laws."},
+    def test_hostile_journal_stream_and_sql_injection_defense(self):
+        """Feed adversarial SQL injection payloads and malformed json to journal parser."""
+        hostile_records = [
+            # 1. SQL Injection attempt
             {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "In order to deploy the container, what is the command?"},
-                    {"type": "image_url", "image_url": {"url": "http://example.com/img.png"}},
-                ],
+                "PRIORITY": 2,
+                "MESSAGE": "'); DROP TABLE system_logs; SELECT pg_sleep(10); --",
+                "_SYSTEMD_UNIT": "malicious'; DROP TABLE users; --.service",
+                "__REALTIME_TIMESTAMP": "1724688000000000",
+            },
+            # 2. Binary message payload
+            {
+                "PRIORITY": 3,
+                "MESSAGE": [0xDE, 0xAD, 0xBE, 0xEF, 0x48, 0x65, 0x6C, 0x6C, 0x6F],
+                "SYSLOG_IDENTIFIER": "kernel",
+            },
+            # 3. High priority filter exclusion (debug level 7)
+            {
+                "PRIORITY": 7,
+                "MESSAGE": "Standard debug trace",
+                "_SYSTEMD_UNIT": "systemd.service",
+            },
+            # 4. Missing required fields
+            {
+                "PRIORITY": 1,
             },
         ]
 
-        pruned_msgs, stats = self.pruner.prune_messages(messages, target_ratio=0.25)
-        self.assertEqual(len(pruned_msgs), 2)
-        self.assertIn("You must follow Architectural Laws.", pruned_msgs[0]["content"])
-        self.assertEqual(pruned_msgs[1]["content"][1]["type"], "image_url")
-        self.assertGreater(stats["reduction_ratio"], 0.10)
+        parsed = []
+        for r in hostile_records:
+            p = mod_log.parse_journal_record(r, max_priority=3)
+            if p:
+                parsed.append(p)
+
+        # Records 1 & 2 should parse; 3 (priority 7) and 4 (empty message) should be filtered
+        self.assertEqual(len(parsed), 2)
+
+        # Check SQL formatting safety
+        parsed[0]["emb"] = [0.1] * 768
+        parsed[1]["emb"] = [0.2] * 768
+        sql = mod_log.format_sql_insert(parsed)
+
+        # Single quotes must be doubled for SQL escape
+        self.assertIn("malicious''; DROP TABLE users; --.service", sql)
+        self.assertIn("'''); DROP TABLE system_logs; SELECT pg_sleep(10); --", sql)
+
+    def test_vector_embeddings_mathematical_properties(self):
+        """Verify deterministic embeddings are 768-dim, unit normalized (L2=1.0), and deterministic."""
+        text1 = "[sshd.service] Failed password for root from 192.168.1.100 port 22 ssh2"
+        text2 = "[systemd] Started MiOS Autonomous Agent Daemon."
+
+        emb1_a = mod_log.generate_deterministic_embedding(text1, dim=768)
+        emb1_b = mod_log.generate_deterministic_embedding(text1, dim=768)
+        emb2 = mod_log.generate_deterministic_embedding(text2, dim=768)
+
+        # 1. Dimension check
+        self.assertEqual(len(emb1_a), 768)
+        self.assertEqual(len(emb2), 768)
+
+        # 2. Determinism check
+        self.assertEqual(emb1_a, emb1_b)
+        self.assertNotEqual(emb1_a, emb2)
+
+        # 3. Unit norm check (sum of squares ~ 1.0)
+        norm1 = math.sqrt(sum(x * x for x in emb1_a))
+        norm2 = math.sqrt(sum(x * x for x in emb2))
+        self.assertAlmostEqual(norm1, 1.0, delta=0.01)
+        self.assertAlmostEqual(norm2, 1.0, delta=0.01)
 
 
-class TestAdversarialA2AAttestation(unittest.TestCase):
-    """Adversarial testing on A2AAuthenticator Ed25519 signatures, clock skew, tampering, and negotiation."""
+class TestAdversarialBackupRemote(unittest.TestCase):
+    """Adversarial testing on mios-backup-remote: chunk boundary edge cases and delta deduplication."""
 
-    def test_ed25519_signature_tampering_attacks(self) -> None:
-        auth = a2a_mod.A2AAuthenticator.generate_keypair(node_id=101)
-        card = auth.create_card(
-            agent_name="node-101-agent",
-            capabilities=["chat", "inference", "storage"],
-            ttl_seconds=3600,
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="mios-backup-adv-")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_chunking_boundary_sizes(self):
+        """Test hashing on 0-byte, 1-byte, exact chunk boundary, and cross-boundary files."""
+        # 0 bytes
+        p0 = os.path.join(self.tmpdir, "zero.dat")
+        open(p0, "wb").close()
+        c0 = mod_backup.hash_file_chunks(p0, chunk_size=1024)
+        self.assertEqual(len(c0), 0)
+
+        # Exact boundary: 2048 bytes with chunk_size 1024 -> exactly 2 chunks
+        p2048 = os.path.join(self.tmpdir, "exact.dat")
+        with open(p2048, "wb") as f:
+            f.write(b"X" * 2048)
+        c2048 = mod_backup.hash_file_chunks(p2048, chunk_size=1024)
+        self.assertEqual(len(c2048), 2)
+        self.assertEqual(c2048[0]["length"], 1024)
+        self.assertEqual(c2048[1]["length"], 1024)
+
+        # Cross boundary: 2049 bytes with chunk_size 1024 -> 3 chunks (1024, 1024, 1)
+        p2049 = os.path.join(self.tmpdir, "cross.dat")
+        with open(p2049, "wb") as f:
+            f.write(b"Y" * 2049)
+        c2049 = mod_backup.hash_file_chunks(p2049, chunk_size=1024)
+        self.assertEqual(len(c2049), 3)
+        self.assertEqual(c2049[2]["length"], 1)
+
+    def test_delta_plan_deduplication_accuracy(self):
+        """Verify delta plan accurately detects unchanged vs modified chunks across snapshots."""
+        src_dir = os.path.join(self.tmpdir, "data")
+        os.makedirs(src_dir, exist_ok=True)
+
+        f_static = os.path.join(src_dir, "static.bin")
+        f_mut = os.path.join(src_dir, "mut.bin")
+
+        with open(f_static, "wb") as f:
+            f.write(b"STATIC_CHUNK_DATA_" * 1000)
+        with open(f_mut, "wb") as f:
+            f.write(b"MUTABLE_INITIAL_" * 1000)
+
+        # Baseline snapshot
+        m1 = mod_backup.create_snapshot_manifest(src_dir, snapshot_id="snap1", chunk_size=4096)
+
+        # Mutate second file
+        with open(f_mut, "wb") as f:
+            f.write(b"MUTABLE_MODIFIED_PAYLOAD_" * 1000)
+
+        # Second snapshot
+        m2 = mod_backup.create_snapshot_manifest(src_dir, snapshot_id="snap2", chunk_size=4096)
+
+        plan = mod_backup.compute_delta_plan(m2, baseline_manifest=m1)
+        self.assertGreater(plan["new_chunks_count"], 0)
+        self.assertGreater(plan["reused_chunks_count"], 0)
+        self.assertGreater(plan["dedup_ratio_pct"], 0.0)
+
+
+class TestAdversarialDbDoctorAndMigrate(unittest.TestCase):
+    """Adversarial testing on mios-db-doctor and mios-db-migrate."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="mios-db-adv-")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_db_doctor_garbage_and_corrupt_files(self):
+        """Verify db doctor ignores non-sqlite files and creates backup before repair."""
+        # 1. 0-byte file
+        p_zero = os.path.join(self.tmpdir, "empty.db")
+        open(p_zero, "wb").close()
+
+        # 2. Random garbage file
+        p_rand = os.path.join(self.tmpdir, "garbage.sqlite")
+        with open(p_rand, "wb") as f:
+            f.write(os.urandom(1024))
+
+        doc = mod_doctor.DbDoctor(sqlite_paths=[self.tmpdir])
+        found = doc.find_sqlite_databases()
+        self.assertEqual(len(found), 0, "Non-sqlite files were falsely discovered")
+
+    def test_db_migrate_checksum_tampering_detection(self):
+        """Verify migration runner detects post-application script modification."""
+        mig_dir = os.path.join(self.tmpdir, "migrations")
+        os.makedirs(mig_dir, exist_ok=True)
+
+        m1_path = os.path.join(mig_dir, "0001_init.sql")
+        with open(m1_path, "w", encoding="utf-8") as f:
+            f.write("CREATE TABLE test_table (id INT);\n")
+
+        migrator = mod_migrate.DbMigrator(
+            migrations_dir=mig_dir,
+            mock=True,
         )
 
-        # 1. Valid card verifies
-        self.assertTrue(a2a_mod.verify_card(card, trusted_public_key=auth.public_key_hex))
+        # Apply initial migration
+        res = migrator.migrate()
+        self.assertEqual(res["total_applied"], 1)
 
-        # 2. Modify capability after signing
-        tampered_cap_card = dict(card)
-        tampered_cap_card["capabilities"] = ["chat", "inference", "storage", "admin_root"]
-        self.assertFalse(a2a_mod.verify_card(tampered_cap_card, trusted_public_key=auth.public_key_hex))
+        # Tamper with migration file on disk
+        with open(m1_path, "w", encoding="utf-8") as f:
+            f.write("CREATE TABLE test_table (id INT, tampered_col TEXT);\n")
 
-        # 3. Modify agent_name
-        tampered_name_card = dict(card)
-        tampered_name_card["agent_name"] = "imposter-agent"
-        self.assertFalse(a2a_mod.verify_card(tampered_name_card, trusted_public_key=auth.public_key_hex))
+        # Re-run: must detect checksum mismatch
+        with self.assertRaises(RuntimeError) as ctx:
+            migrator.migrate()
+        self.assertIn("checksum mismatch", str(ctx.exception).lower())
 
-        # 4. Modify node_id
-        tampered_node_card = dict(card)
-        tampered_node_card["node_id"] = 999
-        self.assertFalse(a2a_mod.verify_card(tampered_node_card, trusted_public_key=auth.public_key_hex))
 
-        # 5. Flip 1 bit in hex signature
-        sig_hex = card["sig"]
-        corrupted_sig = ("0" if sig_hex[0] != "0" else "1") + sig_hex[1:]
-        tampered_sig_card = dict(card)
-        tampered_sig_card["sig"] = corrupted_sig
-        self.assertFalse(a2a_mod.verify_card(tampered_sig_card, trusted_public_key=auth.public_key_hex))
+def main() -> int:
+    suite = unittest.TestSuite()
+    for test_class in [
+        TestAdversarialBenchStorage,
+        TestAdversarialLUKSRotate,
+        TestAdversarialTmpfsSpill,
+        TestAdversarialLogStreamer,
+        TestAdversarialBackupRemote,
+        TestAdversarialDbDoctorAndMigrate,
+    ]:
+        suite.addTests(unittest.TestLoader().loadTestsFromTestCase(test_class))
 
-        # 6. Truncated / empty signature
-        tampered_trunc_card = dict(card)
-        tampered_trunc_card["sig"] = sig_hex[:32]
-        self.assertFalse(a2a_mod.verify_card(tampered_trunc_card, trusted_public_key=auth.public_key_hex))
-
-    def test_public_key_substitution_and_impersonation(self) -> None:
-        auth_legit = a2a_mod.A2AAuthenticator.generate_keypair(node_id=1)
-        auth_attacker = a2a_mod.A2AAuthenticator.generate_keypair(node_id=1)
-
-        # Attacker signs a card claiming to be Node 1
-        attacker_card = auth_attacker.create_card(
-            agent_name="node-1-agent",
-            capabilities=["admin"],
-            ttl_seconds=3600,
-            node_id=1,
-        )
-
-        # Verifying against legitimate node's public key MUST fail
-        self.assertFalse(a2a_mod.verify_card(attacker_card, trusted_public_key=auth_legit.public_key_hex))
-
-        # Attacker puts legit public key in card but signed with attacker private key
-        forged_card = dict(attacker_card)
-        forged_card["public_key"] = auth_legit.public_key_hex
-        self.assertFalse(a2a_mod.verify_card(forged_card, trusted_public_key=auth_legit.public_key_hex))
-
-    def test_clock_skew_and_timestamp_boundary_attacks(self) -> None:
-        auth = a2a_mod.A2AAuthenticator.generate_keypair(node_id=2)
-        now = time.time()
-
-        # 1. Issued in the future (beyond clock skew limit)
-        future_card = auth.create_card(
-            agent_name="agent-fut",
-            capabilities=["test"],
-            issued_at=int(now + 300),  # +300s
-            ttl_seconds=3600,
-        )
-        self.assertFalse(a2a_mod.verify_card(future_card, max_clock_skew=60, now_ts=now))
-
-        # 2. Issued in the future (within clock skew limit)
-        skew_allowed_card = auth.create_card(
-            agent_name="agent-skew",
-            capabilities=["test"],
-            issued_at=int(now + 30),  # +30s
-            ttl_seconds=3600,
-        )
-        self.assertTrue(a2a_mod.verify_card(skew_allowed_card, max_clock_skew=60, now_ts=now))
-
-        # 3. Card expired
-        expired_card = auth.create_card(
-            agent_name="agent-exp",
-            capabilities=["test"],
-            issued_at=int(now - 4000),
-            ttl_seconds=3600,  # expired 400s ago
-        )
-        self.assertFalse(a2a_mod.verify_card(expired_card, max_clock_skew=60, now_ts=now))
-
-        # 4. Inverted timestamps (expires_at <= issued_at)
-        inverted_card = auth.create_card(
-            agent_name="agent-inv",
-            capabilities=["test"],
-            issued_at=int(now),
-            ttl_seconds=-10,  # negative TTL
-        )
-        self.assertFalse(a2a_mod.verify_card(inverted_card, max_clock_skew=60, now_ts=now))
-
-    def test_capability_negotiation(self) -> None:
-        auth = a2a_mod.A2AAuthenticator.generate_keypair(node_id=3)
-        card = auth.create_card(
-            agent_name="agent-mesh",
-            capabilities=["chat", "code_eval", "search"],
-            ttl_seconds=3600,
-        )
-
-        # Exact match
-        ok, caps = a2a_mod.negotiate_capabilities(card, ["chat", "code_eval"], trusted_key=auth.public_key_hex)
-        self.assertTrue(ok)
-        self.assertEqual(caps, ["chat", "code_eval"])
-
-        # Missing required capability
-        ok_fail, missing = a2a_mod.negotiate_capabilities(
-            card, ["chat", "root_admin", "gpu_render"], trusted_key=auth.public_key_hex
-        )
-        self.assertFalse(ok_fail)
-        self.assertEqual(missing, ["root_admin", "gpu_render"])
-
-        # Tampered card negotiation
-        tampered = dict(card)
-        tampered["capabilities"] = ["chat", "root_admin"]
-        ok_tampered, missing_tampered = a2a_mod.negotiate_capabilities(
-            tampered, ["root_admin"], trusted_key=auth.public_key_hex
-        )
-        self.assertFalse(ok_tampered)
-        self.assertEqual(missing_tampered, [])
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    return 0 if result.wasSuccessful() else 1
 
 
 if __name__ == "__main__":
-    suite = unittest.TestSuite()
-    loader = unittest.TestLoader()
-    suite.addTests(loader.loadTestsFromTestCase(TestAdversarialMcpSandbox))
-    suite.addTests(loader.loadTestsFromTestCase(TestAdversarialHITLApproval))
-    suite.addTests(loader.loadTestsFromTestCase(TestAdversarialKnowledgeGraph))
-    suite.addTests(loader.loadTestsFromTestCase(TestAdversarialPromptPruning))
-    suite.addTests(loader.loadTestsFromTestCase(TestAdversarialA2AAttestation))
-
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-    sys.exit(0 if result.wasSuccessful() else 1)
+    sys.exit(main())

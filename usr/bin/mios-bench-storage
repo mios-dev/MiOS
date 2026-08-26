@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# AI-hint: Storage performance benchmark CLI wrapper testing IOPS, throughput, and fsync latency against AI inference floors.
+# AI-related: usr/libexec/mios/storage/mios-bench-storage, tests/test-bench-storage.py
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BENCH_BIN="/usr/libexec/mios/storage/mios-bench-storage"
+
+if [[ ! -f "$BENCH_BIN" ]]; then
+    # Relative resolution when running from repo checkout
+    BENCH_BIN="$(cd "$SCRIPT_DIR/../libexec/mios/storage" 2>/dev/null && pwd)/mios-bench-storage"
+fi
+
+if [[ ! -f "$BENCH_BIN" ]]; then
+    echo "Error: mios-bench-storage binary not found in /usr/libexec/mios/storage" >&2
+    exit 1
+fi
+
+exec /usr/bin/python3 "$BENCH_BIN" "$@"

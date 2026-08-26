@@ -1443,3 +1443,22 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ── system_logs: unified journald stream with pgvector semantic indexing (T-411) ───
+CREATE TABLE IF NOT EXISTS system_logs (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    unit        text NOT NULL,
+    priority    integer NOT NULL,
+    message     text NOT NULL,
+    metadata    jsonb DEFAULT '{}'::jsonb,
+    emb         vector(768),
+    ts          timestamptz DEFAULT now(),
+    origin_node text NOT NULL DEFAULT 'local'
+);
+CREATE INDEX IF NOT EXISTS system_logs_emb_hnsw
+    ON system_logs USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX IF NOT EXISTS system_logs_unit_ts ON system_logs (unit, ts DESC);
+CREATE INDEX IF NOT EXISTS system_logs_priority_ts ON system_logs (priority, ts DESC);
+CREATE INDEX IF NOT EXISTS system_logs_ts ON system_logs (ts DESC);
+CREATE INDEX IF NOT EXISTS system_logs_origin ON system_logs (origin_node);
+

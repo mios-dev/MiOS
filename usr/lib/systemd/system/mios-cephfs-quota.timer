@@ -1,0 +1,14 @@
+# AI-hint: Systemd timer for periodic CephFS dynamic quota reconciliation and violation checks.
+# AI-related: usr/lib/systemd/system/mios-cephfs-quota.service, usr/libexec/mios/storage/mios-cephfs-quota
+
+[Unit]
+Description=Periodic CephFS Tenant Dynamic Quota Enforcement Timer
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

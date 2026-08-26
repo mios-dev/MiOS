@@ -13683,8 +13683,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-1999 -- Automated VACUUM ANALYZE and HNSW vector index rebuilding timer in pgvector  (WS-DURA | P2 | S)
 **Goal:** Maintain optimal pgvector search recall and query performance under frequent embedding inserts.
-**What+How:** Create `usr/libexec/mios/mios-pgvector-optimize` triggered weekly via systemd timer. Run `VACUUM (ANALYZE, PARALLEL 4)` and `REINDEX INDEX CONCURRENTLY` on all `hnsw` vector indices.
-**Where:** usr/libexec/mios/mios-pgvector-optimize, usr/lib/systemd/system/mios-pgvector-optimize.timer
+**What+How:** Create `usr/libexec/mios/db/mios-pgvector-optimize.py` triggered weekly via systemd timer. Run `VACUUM (ANALYZE, PARALLEL 4)` and `REINDEX INDEX CONCURRENTLY` on all `hnsw` vector indices.
+**Where:** usr/libexec/mios/db/mios-pgvector-optimize.py, usr/lib/systemd/system/mios-pgvector-optimize.timer, usr/lib/systemd/system/mios-pgvector-optimize.service
 **Verify:** Insert 50,000 vector embeddings; run optimize script; verify query latency drops and index fragmentation is eliminated.
 **Do NOT:** Run non-concurrent re-indexing that blocks live read queries during active user sessions.
 **Done When:** Automated index maintenance timer prevents vector performance degradation over time.
@@ -13693,8 +13693,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2000 -- Transactional ledger replication across CephFS pools with integrity hashing  (WS-STRG | P1 | M)
 **Goal:** Replicate critical task and audit ledgers across distributed CephFS storage pools with cryptographic integrity.
-**What+How:** Implement ledger replication in `usr/libexec/mios/mios-ledger-sync`. Write signed journal blocks to `/var/lib/mios/cephfs/ledger/` and verify SHA-256 integrity hashes on peer nodes.
-**Where:** usr/libexec/mios/mios-ledger-sync, usr/share/mios/mios.toml
+**What+How:** Implement ledger replication in `usr/libexec/mios/storage/mios-ledger-sync`. Write signed journal blocks to `/var/lib/mios/cephfs/ledger/` and verify SHA-256 integrity hashes on peer nodes.
+**Where:** usr/libexec/mios/storage/mios-ledger-sync, usr/lib/systemd/system/mios-ledger-sync.service, usr/share/mios/mios.toml
 **Verify:** Append a record on node 1; verify node 2 receives the replicated ledger block and verifies cryptographic hash.
 **Do NOT:** Permit unhashed file transfers across distributed storage partitions.
 **Done When:** Ledger replication synchronizes audit journals across cluster nodes with verified cryptographic integrity.
@@ -13703,8 +13703,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2001 -- CephFS dynamic quota enforcement per tenant subvolume  (WS-STRG | P2 | S)
 **Goal:** Prevent any single user or agent workspace from exhausting shared distributed CephFS storage.
-**What+How:** Implement quota enforcement in `usr/libexec/mios/mios-cephfs-quota`. Apply `ceph.quota.max_bytes` and `ceph.quota.max_files` extended attributes on user subvolume roots based on `[storage.quotas]` in `mios.toml`.
-**Where:** usr/libexec/mios/mios-cephfs-quota, usr/share/mios/mios.toml
+**What+How:** Implement quota enforcement in `usr/libexec/mios/storage/mios-cephfs-quota`. Apply `ceph.quota.max_bytes` and `ceph.quota.max_files` extended attributes on user subvolume roots based on `[storage.quotas]` in `mios.toml`.
+**Where:** usr/libexec/mios/storage/mios-cephfs-quota, usr/lib/systemd/system/mios-cephfs-quota.service, usr/lib/systemd/system/mios-cephfs-quota.timer, usr/share/mios/mios.toml
 **Verify:** Attempt to write a file exceeding the subvolume byte quota; verify the write is rejected with `EDQUOT` Disk quota exceeded.
 **Do NOT:** Apply global cluster quotas without per-user subvolume isolation.
 **Done When:** CephFS directory quotas enforce disk boundaries per tenant automatically.
@@ -13723,8 +13723,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2003 -- Encrypted volume key rotation service for LUKS2 and dm-crypt Ceph OSD drives  (WS-SEC | P1 | M)
 **Goal:** Rotate volume encryption keys periodically without unmounting active storage pools.
-**What+How:** Implement `usr/libexec/mios/mios-luks-rotate`. Add a new passphrase/keyfile to a free LUKS2 keyslot via `cryptsetup luksAddKey`, verify unlocking, and retire the old keyslot via `cryptsetup luksKillSlot`.
-**Where:** usr/libexec/mios/mios-luks-rotate, usr/lib/systemd/system/mios-luks-rotate.service
+**What+How:** Implement `usr/libexec/mios/sec/mios-luks-rotate`. Add a new passphrase/keyfile to a free LUKS2 keyslot via `cryptsetup luksAddKey`, verify unlocking, and retire the old keyslot via `cryptsetup luksKillSlot`.
+**Where:** usr/libexec/mios/sec/mios-luks-rotate, usr/lib/systemd/system/mios-luks-rotate.service, usr/lib/systemd/system/mios-luks-rotate.timer
 **Verify:** Trigger key rotation on a test encrypted loop device; verify the new key unlocks the drive and the old key is revoked.
 **Do NOT:** Kill an existing keyslot before verifying the new keyslot functions properly.
 **Done When:** LUKS2 volume keys rotate seamlessly in-place with zero downtime.
@@ -13733,8 +13733,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2004 -- Hot-standby PostgreSQL replica provisioning over local cluster nodes  (WS-DURA | P1 | L)
 **Goal:** Provide instant database failover capability by streaming WAL logs to a standby PostgreSQL replica.
-**What+How:** Implement replication orchestrator in `usr/libexec/mios/mios-pg-replica`. Configure streaming replication with `pg_basebackup` and physical replication slots between primary and secondary MiOS nodes.
-**Where:** usr/libexec/mios/mios-pg-replica, usr/share/containers/systemd/mios-pgvector.container
+**What+How:** Implement replication orchestrator in `usr/libexec/mios/db/mios-pg-replica.py`. Configure streaming replication with `pg_basebackup` and physical replication slots between primary and secondary MiOS nodes.
+**Where:** usr/libexec/mios/db/mios-pg-replica.py, usr/lib/systemd/system/mios-pg-replica.service, usr/share/containers/systemd/mios-pgvector.container
 **Verify:** Write data to primary; verify replica applies changes within 50ms; simulate primary failure and confirm replica promotes to primary.
 **Do NOT:** Allow replica promotion without fencing the old primary to prevent split-brain writes.
 **Done When:** Streaming replication keeps standby database in sync with sub-50ms replication lag.
@@ -13743,8 +13743,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2005 -- Database corruption detector and automated repair script for SQLite and PostgreSQL stores  (WS-DURA | P2 | S)
 **Goal:** Detect and repair corrupted database pages and indices automatically after sudden power outages.
-**What+How:** Implement `usr/libexec/mios/mios-db-doctor`. Run `PRAGMA integrity_check` on SQLite stores and `pg_checksums` on PostgreSQL data dirs during greenboot boot health validation.
-**Where:** usr/libexec/mios/mios-db-doctor, /etc/greenboot/check/required.d/55-mios-db-check.sh
+**What+How:** Implement `usr/libexec/mios/db/mios-db-doctor.py`. Run `PRAGMA integrity_check` on SQLite stores and `pg_checksums` on PostgreSQL data dirs during greenboot boot health validation.
+**Where:** usr/libexec/mios/db/mios-db-doctor.py, usr/lib/greenboot/check/required.d/55-mios-db-check.sh
 **Verify:** Simulate corrupted index page; verify `mios-db-doctor` flags corruption and executes `REINDEX` or restores from snapshot.
 **Do NOT:** Run destructive SQLite `.dump` recovery over healthy databases.
 **Done When:** Database doctor detects corrupted pages and restores operational integrity automatically on boot.
@@ -13753,8 +13753,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2006 -- Fast delta snapshot transfer for remote off-site backup synchronization  (WS-DURA | P2 | M)
 **Goal:** Transfer compressed block-level incremental backups to off-site storage targets efficiently.
-**What+How:** Implement `usr/libexec/mios/mios-backup-remote` using `zstd` chunked deltas and `rsync`/`rclone`. Transmit only changed database blocks and model delta layers to the configured remote endpoint.
-**Where:** usr/libexec/mios/mios-backup-remote, usr/share/mios/mios.toml
+**What+How:** Implement `usr/libexec/mios/storage/mios-backup-remote` using `zstd` chunked deltas and `rsync`/`rclone`. Transmit only changed database blocks and model delta layers to the configured remote endpoint.
+**Where:** usr/libexec/mios/storage/mios-backup-remote, usr/lib/systemd/system/mios-backup-remote.service, usr/lib/systemd/system/mios-backup-remote.timer, usr/share/mios/mios.toml
 **Verify:** Generate a baseline backup; add 10MB of data; verify delta backup transmits only the 10MB diff payload.
 **Do NOT:** Re-transmit multi-gigabyte static database files when incremental block deltas are available.
 **Done When:** Remote backup synchronizer transfers incremental deltas with minimal bandwidth consumption.
@@ -13763,8 +13763,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2007 -- Storage performance benchmark tool (mios-bench-storage) testing IOPS and latency  (WS-STRG | P2 | S)
 **Goal:** Verify local NVMe and CephFS storage performance meets minimum throughput thresholds for AI inference.
-**What+How:** Build `usr/libexec/mios/mios-bench-storage` utilizing `fio`. Measure random 4K read/write IOPS, sequential 1M throughput, and fsync latency, outputting results as JSON.
-**Where:** usr/libexec/mios/mios-bench-storage, usr/share/doc/mios/reference/
+**What+How:** Build `usr/libexec/mios/storage/mios-bench-storage` and `usr/bin/mios-bench-storage`. Measure random 4K read/write IOPS, sequential 1M throughput, and fsync latency, outputting results as JSON.
+**Where:** usr/libexec/mios/storage/mios-bench-storage, usr/bin/mios-bench-storage, usr/share/doc/mios/reference/
 **Verify:** Run `mios-bench-storage --json`; verify structured performance metrics are output and validated against hardware floors.
 **Do NOT:** Execute destructive write benchmarks on active data partitions; use dedicated temporary scratch files.
 **Done When:** Storage benchmark reports accurate IOPS and bandwidth telemetry for system diagnostics.
@@ -13773,8 +13773,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2008 -- Automated tmpfs spill-to-NVMe manager under memory pressure conditions  (WS-STRG | P2 | M)
 **Goal:** Prevent system OOM kills by spilling large in-memory `/tmp` files to fast NVMe swap storage.
-**What+How:** Implement `usr/libexec/mios/mios-tmpfs-spill` monitoring memory pressure events via Linux PSI (`/proc/pressure/memory`). Automatically migrate large temporary build files to `/var/tmp/mios/` when memory pressure exceeds 60%.
-**Where:** usr/libexec/mios/mios-tmpfs-spill, usr/lib/systemd/system/mios-tmpfs-spill.service
+**What+How:** Implement `usr/libexec/mios/mem/mios-tmpfs-spill` monitoring memory pressure events via Linux PSI (`/proc/pressure/memory`). Automatically migrate large temporary build files to `/var/tmp/spill/` when memory pressure exceeds 60%.
+**Where:** usr/libexec/mios/mem/mios-tmpfs-spill, usr/lib/systemd/system/mios-tmpfs-spill.service, usr/lib/systemd/system/mios-tmpfs-spill.timer
 **Verify:** Allocate large memory files in `/tmp`; verify spill daemon detects PSI threshold and migrates files to NVMe.
 **Do NOT:** Migrate security-sensitive RAM keys or secrets to persistent disk files.
 **Done When:** Tmpfs spill manager prevents out-of-memory lockups during large parallel compilation jobs.
@@ -13783,8 +13783,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2009 -- Unified log aggregation pipeline streaming journald events to pgvector  (WS-DURA | P2 | M)
 **Goal:** Enable natural-language semantic querying over historical system logs and error traces.
-**What+How:** Implement `usr/libexec/mios/mios-log-streamer` reading systemd `journald` JSON streams via `sd-journal`. Filter critical and error level messages, compute vector embeddings, and insert into the `system_logs` table.
-**Where:** usr/libexec/mios/mios-log-streamer, usr/share/mios/postgres/schema-init.sql
+**What+How:** Implement `usr/libexec/mios/log/mios-log-streamer` reading systemd `journald` JSON streams via `sd-journal`. Filter critical and error level messages, compute vector embeddings, and insert into the `system_logs` table.
+**Where:** usr/libexec/mios/log/mios-log-streamer, usr/lib/systemd/system/mios-log-streamer.service, usr/share/mios/postgres/schema-init.sql
 **Verify:** Trigger a systemd service error; perform semantic query in agent-pipe for 'service failure'; verify the log event is recalled.
 **Do NOT:** Stream verbose debug logs into vector embeddings to avoid embedding pipeline saturation.
 **Done When:** Critical system log events are indexed into pgvector for conversational diagnostic queries.
@@ -13793,8 +13793,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2010 -- Zero-downtime database schema migration runner with rollback safety checks  (WS-DURA | P1 | M)
 **Goal:** Execute database schema updates transactionally with automated rollback on SQL syntax or constraint failure.
-**What+How:** Build `usr/libexec/mios/mios-db-migrate`. Wrap each migration script in an explicit PostgreSQL transaction block (`BEGIN ... COMMIT`), check schema version in `schema_version` table, and execute `ROLLBACK` on error.
-**Where:** usr/libexec/mios/mios-db-migrate, usr/share/mios/postgres/migrations/
+**What+How:** Build `usr/libexec/mios/db/mios-db-migrate.py`. Wrap each migration script in an explicit PostgreSQL transaction block (`BEGIN ... COMMIT`), check schema version in `schema_version` table, and execute `ROLLBACK` on error.
+**Where:** usr/libexec/mios/db/mios-db-migrate.py, usr/share/mios/postgres/migrations/
 **Verify:** Apply a migration containing an intentional SQL syntax error; verify transaction rolls back cleanly with zero schema corruption.
 **Do NOT:** Execute schema migrations without recording migration ID and checksum in the version tracking ledger.
 **Done When:** Migration runner applies database upgrades safely with atomic rollback guarantees.

@@ -6675,6 +6675,7 @@ code_server        = 8900     # code-server (VS Code in a browser; matches image
 k3s_api            = 8450     # K3s Kubernetes API
 guacamole_web      = 8220     # mios-guacamole browser desktop
 ceph_dashboard     = 8460     # Ceph dashboard
+radosgw            = 8470     # Ceph RADOS Gateway (S3 object storage)
 rdp                = 8300     # GNOME Remote Desktop / xRDP
 pgvector           = 8600     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; sole agent DB since the WS-A3 cutover)
 llm_light          = 8500    # mios-llm-light: the primary llama.cpp multi-model + KV-paging lane (WS-10, FOSS; served via the upstream llama-swap proxy image)
@@ -6750,7 +6751,7 @@ doc     = "Source forge and CI (Forgejo web + git-over-ssh)."
 [ports.categories.cluster]
 base    = 8450
 stride  = 10
-members = ["k3s_api", "ceph_dashboard"]
+members = ["k3s_api", "ceph_dashboard", "radosgw"]
 doc     = "Cluster orchestration and storage control planes."
 
 [ports.categories.inference]
@@ -6852,7 +6853,7 @@ non_addressable = [
   "firecrawl",
   "forge_ssh", "guacamole_web", "guacd", "hermes_dashboard",
   "k3s_api", "mcp", "model_router", "opencode_gateway", "oscontrol",
-  "otelcol_otlp", "prefilter", "pxe_hub_api", "rdp", "redis",
+  "otelcol_otlp", "prefilter", "pxe_hub_api", "radosgw", "rdp", "redis",
   "sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm",
 ]
 
@@ -7002,7 +7003,8 @@ members     = [
   "mios-pxe-hub",
   "mios-k3s",
   "mios-guacamole",
-  "mios-guacd"
+  "mios-guacd",
+  "mios-radosgw"
 ]
 doc = """Consolidated system services pod."""
 
@@ -7905,6 +7907,7 @@ mios-guacamole        = true
 mios-pxe-hub          = true
 mios-guacd            = true
 mios-adguard          = true
+mios-radosgw          = true
 
 [env]
 MIOS_URL_TERRA_REPO = "https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo"
@@ -8268,6 +8271,125 @@ provision_script                = "/usr/libexec/mios/mios-cephfs-provision"
 automount_enable                = true
 automount_idle_timeout_s        = 600    # Unmount idle home dirs after 10 min
 
+# ----------------------------------------------------------------------------
+# [storage.ledger] -- T-402: Transactional ledger replication across CephFS pools
+# ----------------------------------------------------------------------------
+[storage.ledger]
+enable                          = true
+sync_interval_s                 = 60
+ledger_dir                      = "/var/lib/mios/cephfs/ledger"
+hash_algo                       = "sha256"
+
+# ----------------------------------------------------------------------------
+# [storage.quotas] -- T-403: CephFS dynamic quota enforcement per tenant
+# ----------------------------------------------------------------------------
+[storage.quotas]
+enable                          = true
+default_max_bytes               = "100GiB"
+default_max_files               = 1000000
+warn_threshold_pct              = 80
+critical_threshold_pct          = 90
+
+# ----------------------------------------------------------------------------
+# [storage.s3_gateway] -- T-404: S3-compatible object storage gateway (radosgw)
+# ----------------------------------------------------------------------------
+[storage.s3_gateway]
+enable                          = true
+port_key                        = "radosgw"
+bind_address                    = "127.0.0.1"
+data_dir                        = "/var/lib/mios/radosgw"
+
+# ----------------------------------------------------------------------------
+# [storage.backup] -- T-408: Fast delta snapshot remote backup transfer
+# ----------------------------------------------------------------------------
+[storage.backup]
+enable                          = true
+chunk_size_bytes                = 4194304
+compression                     = "zstd"
+zstd_level                      = 3
+retention_count                 = 7
+
+# ----------------------------------------------------------------------------
+# [storage.bench] -- T-409: Storage performance benchmark tool
+# ----------------------------------------------------------------------------
+[storage.bench]
+enable                          = true
+scratch_dir                     = "/var/tmp/mios-bench"
+default_block_size              = 4096
+test_duration_s                 = 5
+
+# ----------------------------------------------------------------------------
+# [database.pgvector_maintenance] -- T-401: Automated VACUUM & HNSW reindex
+# ----------------------------------------------------------------------------
+[database.pgvector_maintenance]
+enable                          = true
+vacuum_parallel_workers         = 4
+dead_tuple_threshold_ratio      = 0.10
+schedule                        = "weekly"
+reindex_concurrently            = true
+
+# ----------------------------------------------------------------------------
+# [database.replication] -- T-406: Hot-standby PostgreSQL replica provisioning
+# ----------------------------------------------------------------------------
+[database.replication]
+enable                          = true
+slot_prefix                     = "mios_blade_"
+max_lag_bytes                   = 67108864
+health_check_interval_s         = 15
+fence_enforcement               = true
+
+# ----------------------------------------------------------------------------
+# [database.doctor] -- T-407: Database corruption detector and automated repair
+# ----------------------------------------------------------------------------
+[database.doctor]
+enable                          = true
+greenboot_check_enable          = true
+auto_repair_reindex             = true
+vacuum_on_fragmentation         = true
+non_destructive_only            = true
+
+# ----------------------------------------------------------------------------
+# [database.migration] -- T-412: Zero-downtime database schema migration runner
+# ----------------------------------------------------------------------------
+[database.migration]
+enable                          = true
+migrations_dir                  = "/usr/share/mios/postgres/migrations"
+version_table                   = "schema_version"
+atomic_transactions             = true
+integrity_check                 = true
+
+# ----------------------------------------------------------------------------
+# [security.luks_rotate] -- T-405: Encrypted volume key rotation service
+# ----------------------------------------------------------------------------
+[security.luks_rotate]
+enable                          = true
+rotation_interval_days          = 90
+header_backup_dir               = "/var/lib/mios/luks-headers"
+key_length_bytes                = 64
+
+# ----------------------------------------------------------------------------
+# [memory.tmpfs_spill] -- T-410: Automated tmpfs spill-to-NVMe manager
+# ----------------------------------------------------------------------------
+[memory.tmpfs_spill]
+enable                          = true
+psi_some_threshold_pct          = 60.0
+psi_window_seconds              = 10
+spill_target_dir                = "/var/tmp/spill"
+min_file_size_bytes             = 10485760
+max_spill_quota_bytes           = 53687091200
+
+# ----------------------------------------------------------------------------
+# [logging.pipeline] -- T-411: Unified log aggregation pipeline streaming to pgvector
+# ----------------------------------------------------------------------------
+[logging.pipeline]
+enable                          = true
+streamer_service                = "mios-log-streamer.service"
+min_priority                    = 3
+batch_size                      = 50
+flush_interval_s                = 5
+target_table                    = "system_logs"
+embedding_dim                   = 768
+
 
 # ============================================================================
 # [converge.*] -- Converged-Resource Architecture (Part 10)
@@ -8387,6 +8509,45 @@ After = "network-online.target"
 ConditionPathExists = "/etc/ceph/ceph.conf"
 ConditionVirtualization = "!container"
 Description = "'MiOS' Ceph Monitor (Podman-native)"
+Wants = "network-online.target"
+
+[containers.mios-radosgw.Container]
+ContainerName = "mios-radosgw"
+Exec = 'radosgw -d --cluster ceph --name client.rgw.gateway --rgw-frontends="beast endpoint=127.0.0.1:${MIOS_PORT_RADOSGW:-8470}"'
+Group = "root"
+HealthCmd = "/usr/bin/curl -sf http://127.0.0.1:8470/ || exit 1"
+HealthInterval = "30s"
+HealthRetries = 3
+HealthTimeout = "5s"
+Image = "${MIOS_CEPH_IMAGE:-quay.io/ceph/ceph:v19}"
+Label = [
+  "io.podman_desktop.openInBrowser=http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/",
+  "org.opencontainers.image.title=mios-radosgw",
+  "org.opencontainers.image.url=http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/"
+]
+Pod = "mios-system.pod"
+PublishPort = "127.0.0.1:${MIOS_PORT_RADOSGW:-8470}:8470"
+User = "root"
+Volume = [
+  "/etc/ceph:/etc/ceph:Z",
+  "/var/lib/ceph:/var/lib/ceph:Z",
+  "/var/lib/mios/radosgw:/var/lib/radosgw:Z"
+]
+
+[containers.mios-radosgw.Install]
+WantedBy = "multi-user.target"
+
+[containers.mios-radosgw.Service]
+Delegate = "yes"
+Restart = "always"
+RestartSec = "10s"
+
+[containers.mios-radosgw.Unit]
+After = "network-online.target mios-ceph.container"
+ConditionPathExists = "/etc/ceph/ceph.conf"
+ConditionVirtualization = "!container"
+Description = "'MiOS' Ceph RADOS Gateway (S3 Object Storage)"
+Documentation = "file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md"
 Wants = "network-online.target"
 
 
@@ -10998,6 +11159,19 @@ unit = [
     "tests/test-node-m1-adversarial.py",
     "tests/test-node-wasm-hardware.py",
     "tests/test-node-watchdog.py",
+    "tests/test-pgvector-optimize.py",
+    "tests/test-pg-replica.py",
+    "tests/test-db-doctor.py",
+    "tests/test-db-migrate.py",
+    "tests/test-ledger-sync.py",
+    "tests/test-cephfs-quota.py",
+    "tests/test-radosgw-gateway.py",
+    "tests/test-luks-rotate.py",
+    "tests/test-backup-remote.py",
+    "tests/test-bench-storage.py",
+    "tests/test-tmpfs-spill.py",
+    "tests/test-log-streamer.py",
+    "tests/test-adversarial-t401-t406.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

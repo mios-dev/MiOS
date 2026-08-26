@@ -1,0 +1,18 @@
+# AI-hint: Systemd service for PostgreSQL hot-standby replication monitoring and state management.
+# AI-related: usr/libexec/mios/db/mios-pg-replica.py, tests/test-pg-replica.py, usr/share/containers/systemd/mios-pgvector.container
+
+[Unit]
+Description=MiOS PostgreSQL Hot-Standby Streaming Replication Service
+Documentation=man:pg_basebackup(1) man:pg_stat_replication(1) file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+After=network.target mios-pgvector.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/libexec/mios/db/mios-pg-replica.py --action health
+RemainAfterExit=yes
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

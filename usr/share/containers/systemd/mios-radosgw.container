@@ -1,0 +1,38 @@
+# AI-hint: MiOS mios-radosgw container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-radosgw] in mios.toml.
+# /usr/share/containers/systemd/mios-radosgw.container
+
+[Unit]
+After=network-online.target mios-ceph.container
+ConditionPathExists=/etc/ceph/ceph.conf
+ConditionVirtualization=!container
+Description='MiOS' Ceph RADOS Gateway (S3 Object Storage)
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+Wants=network-online.target
+
+[Container]
+ContainerName=mios-radosgw
+Exec=radosgw -d --cluster ceph --name client.rgw.gateway --rgw-frontends="beast endpoint=127.0.0.1:${MIOS_PORT_RADOSGW:-8470}"
+Group=root
+HealthCmd=/usr/bin/curl -sf http://127.0.0.1:8470/ || exit 1
+HealthInterval=30s
+HealthRetries=3
+HealthTimeout=5s
+Image=quay.io/ceph/ceph:${MIOS_VERSION_CEPH}
+Label=io.podman_desktop.openInBrowser=http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/
+Label=org.opencontainers.image.title=mios-radosgw
+Label=org.opencontainers.image.url=http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/
+Pod=mios-system.pod
+PublishPort=127.0.0.1:${MIOS_PORT_RADOSGW:-8470}:8470
+User=root
+Volume=/etc/ceph:/etc/ceph:Z
+Volume=/var/lib/ceph:/var/lib/ceph:Z
+Volume=/var/lib/mios/radosgw:/var/lib/radosgw:Z
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Delegate=yes
+Restart=always
+RestartSec=10s

@@ -34,6 +34,7 @@ is the obvious case, since it cannot float.
 | bridge | oscontrol | 8950 |
 | cluster | k3s_api | 8450 |
 | cluster | ceph_dashboard | 8460 |
+| cluster | radosgw | 8470 |
 | data | pgvector | 8600 |
 | desktop | rdp | 8300 |
 | desktop | ttyd_bash | 8310 |

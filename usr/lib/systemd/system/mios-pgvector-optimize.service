@@ -1,0 +1,17 @@
+# AI-hint: Systemd service for automated weekly pgvector VACUUM ANALYZE and concurrent HNSW index rebuilding.
+# AI-related: usr/lib/systemd/system/mios-pgvector-optimize.timer, usr/libexec/mios/db/mios-pgvector-optimize.py, tests/test-pgvector-optimize.py
+
+[Unit]
+Description=MiOS pgvector Database Optimization Service
+Documentation=man:vacuumdb(1) file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+After=network.target mios-pgvector.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/libexec/mios/db/mios-pgvector-optimize.py --parallel 4
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

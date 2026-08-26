@@ -386,18 +386,18 @@
 | T-398 | P1 | done | SSOT/Validator | Rust implementation of SSOT mios.toml validation and type checker |
 | T-399 | P1 | done | CLI/Dispatcher | High-performance binary CLI dispatcher (/usr/bin/mios) in Rust |
 | T-400 | P2 | done | Hardware/Watchdog | Hardware watchdog timer integration (/dev/watchdog) in mios-node |
-| T-401 | P2 | open | Database/Index | Automated VACUUM ANALYZE and HNSW vector index rebuilding timer in pgvector |
-| T-402 | P1 | open | Storage/Replication | Transactional ledger replication across CephFS pools with integrity hashing |
-| T-403 | P2 | open | Storage/Quota | CephFS dynamic quota enforcement per tenant subvolume |
-| T-404 | P2 | open | Storage/ObjectStore | S3-compatible object storage gateway (radosgw) sidecar for bulk model distribution |
-| T-405 | P1 | open | Security/Encryption | Encrypted volume key rotation service for LUKS2 and dm-crypt Ceph OSD drives |
-| T-406 | P1 | open | Database/HA | Hot-standby PostgreSQL replica provisioning over local cluster nodes |
-| T-407 | P2 | open | Database/Integrity | Database corruption detector and automated repair script for SQLite and PostgreSQL stores |
-| T-408 | P2 | open | Storage/Snapshot | Fast delta snapshot transfer for remote off-site backup synchronization |
-| T-409 | P2 | open | Storage/Benchmark | Storage performance benchmark tool (mios-bench-storage) testing IOPS and latency |
-| T-410 | P2 | open | Memory/Pressure | Automated tmpfs spill-to-NVMe manager under memory pressure conditions |
-| T-411 | P2 | open | Logging/Streaming | Unified log aggregation pipeline streaming journald events to pgvector |
-| T-412 | P1 | open | Database/Migration | Zero-downtime database schema migration runner with rollback safety checks |
+| T-401 | P2 | done | Database/Index | Automated VACUUM ANALYZE and HNSW vector index rebuilding timer in pgvector |
+| T-402 | P1 | done | Storage/Replication | Transactional ledger replication across CephFS pools with integrity hashing |
+| T-403 | P2 | done | Storage/Quota | CephFS dynamic quota enforcement per tenant subvolume |
+| T-404 | P2 | done | Storage/ObjectStore | S3-compatible object storage gateway (radosgw) sidecar for bulk model distribution |
+| T-405 | P1 | done | Security/Encryption | Encrypted volume key rotation service for LUKS2 and dm-crypt Ceph OSD drives |
+| T-406 | P1 | done | Database/HA | Hot-standby PostgreSQL replica provisioning over local cluster nodes |
+| T-407 | P2 | done | Database/Integrity | Database corruption detector and automated repair script for SQLite and PostgreSQL stores |
+| T-408 | P2 | done | Storage/Snapshot | Fast delta snapshot transfer for remote off-site backup synchronization |
+| T-409 | P2 | done | Storage/Benchmark | Storage performance benchmark tool (mios-bench-storage) testing IOPS and latency |
+| T-410 | P2 | done | Memory/Pressure | Automated tmpfs spill-to-NVMe manager under memory pressure conditions |
+| T-411 | P2 | done | Logging/Streaming | Unified log aggregation pipeline streaming journald events to pgvector |
+| T-412 | P1 | done | Database/Migration | Zero-downtime database schema migration runner with rollback safety checks |
 | T-413 | P1 | open | Virtualization/IOMMU | Automated IOMMU group parsing and ACS override recommendation tool |
 | T-414 | P1 | open | Virtualization/VFIO | Dynamic VFIO device unbind and rebind script without host reboot |
 | T-415 | P1 | open | Display/Input | Looking Glass B6 spice-direct host input client configuration and keybinding integration |
@@ -4736,32 +4736,32 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 
 ## T-401 -- Automated VACUUM ANALYZE and HNSW vector index rebuilding timer in pgvector (WS-DURA | P2 | S)
 **Goal:** Maintain optimal pgvector search recall and query performance under frequent embedding inserts.
-**What+How:** Create `usr/libexec/mios/mios-pgvector-optimize` triggered weekly via systemd timer. Run `VACUUM (ANALYZE, PARALLEL 4)` and `REINDEX INDEX CONCURRENTLY` on all `hnsw` vector indices.
-**Where:** usr/libexec/mios/mios-pgvector-optimize, usr/lib/systemd/system/mios-pgvector-optimize.timer
+**What+How:** Create `usr/libexec/mios/db/mios-pgvector-optimize.py` triggered weekly via systemd timer. Run `VACUUM (ANALYZE, PARALLEL 4)` and `REINDEX INDEX CONCURRENTLY` on all `hnsw` vector indices.
+**Where:** usr/libexec/mios/db/mios-pgvector-optimize.py, usr/lib/systemd/system/mios-pgvector-optimize.timer, usr/lib/systemd/system/mios-pgvector-optimize.service
 **Done When:** Automated index maintenance timer prevents vector performance degradation over time.
 **Why:** HNSW vector indices degrade in search quality and latency without periodic maintenance under high mutation load.
 **Dep:** AGY-1949
-**Status:** open | **Domain:** Database/Index | **Who:** agent
+**Status:** done | **Domain:** Database/Index | **Who:** agent
 **Converted:** AGY-1999 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-402 -- Transactional ledger replication across CephFS pools with integrity hashing (WS-STRG | P1 | M)
 **Goal:** Replicate critical task and audit ledgers across distributed CephFS storage pools with cryptographic integrity.
-**What+How:** Implement ledger replication in `usr/libexec/mios/mios-ledger-sync`. Write signed journal blocks to `/var/lib/mios/cephfs/ledger/` and verify SHA-256 integrity hashes on peer nodes.
-**Where:** usr/libexec/mios/mios-ledger-sync, usr/share/mios/mios.toml
+**What+How:** Implement ledger replication in `usr/libexec/mios/storage/mios-ledger-sync`. Write signed journal blocks to `/var/lib/mios/cephfs/ledger/` and verify SHA-256 integrity hashes on peer nodes.
+**Where:** usr/libexec/mios/storage/mios-ledger-sync, usr/lib/systemd/system/mios-ledger-sync.service, usr/share/mios/mios.toml
 **Done When:** Ledger replication synchronizes audit journals across cluster nodes with verified cryptographic integrity.
 **Why:** Distributed multi-agent systems require tamper-evident shared ledgers for security auditing.
 **Dep:** AGY-1950
-**Status:** open | **Domain:** Storage/Replication | **Who:** agent
+**Status:** done | **Domain:** Storage/Replication | **Who:** agent
 **Converted:** AGY-2000 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-403 -- CephFS dynamic quota enforcement per tenant subvolume (WS-STRG | P2 | S)
 **Goal:** Prevent any single user or agent workspace from exhausting shared distributed CephFS storage.
-**What+How:** Implement quota enforcement in `usr/libexec/mios/mios-cephfs-quota`. Apply `ceph.quota.max_bytes` and `ceph.quota.max_files` extended attributes on user subvolume roots based on `[storage.quotas]` in `mios.toml`.
-**Where:** usr/libexec/mios/mios-cephfs-quota, usr/share/mios/mios.toml
+**What+How:** Implement quota enforcement in `usr/libexec/mios/storage/mios-cephfs-quota`. Apply `ceph.quota.max_bytes` and `ceph.quota.max_files` extended attributes on user subvolume roots based on `[storage.quotas]` in `mios.toml`.
+**Where:** usr/libexec/mios/storage/mios-cephfs-quota, usr/lib/systemd/system/mios-cephfs-quota.service, usr/lib/systemd/system/mios-cephfs-quota.timer, usr/share/mios/mios.toml
 **Done When:** CephFS directory quotas enforce disk boundaries per tenant automatically.
 **Why:** Multi-tenant storage pools require strict quota enforcement to ensure fair capacity distribution.
 **Dep:** AGY-2000
-**Status:** open | **Domain:** Storage/Quota | **Who:** agent
+**Status:** done | **Domain:** Storage/Quota | **Who:** agent
 **Converted:** AGY-2001 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-404 -- S3-compatible object storage gateway (radosgw) sidecar for bulk model distribution (WS-STRG | P2 | M)
@@ -4771,87 +4771,87 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** RADOS S3 gateway serves bulk model blobs to worker nodes with high parallel read bandwidth.
 **Why:** Object storage protocols allow efficient chunked streaming of massive model weights across cluster nodes.
 **Dep:** AGY-2001
-**Status:** open | **Domain:** Storage/ObjectStore | **Who:** agent
+**Status:** done | **Domain:** Storage/ObjectStore | **Who:** agent
 **Converted:** AGY-2002 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-405 -- Encrypted volume key rotation service for LUKS2 and dm-crypt Ceph OSD drives (WS-SEC | P1 | M)
 **Goal:** Rotate volume encryption keys periodically without unmounting active storage pools.
-**What+How:** Implement `usr/libexec/mios/mios-luks-rotate`. Add a new passphrase/keyfile to a free LUKS2 keyslot via `cryptsetup luksAddKey`, verify unlocking, and retire the old keyslot via `cryptsetup luksKillSlot`.
-**Where:** usr/libexec/mios/mios-luks-rotate, usr/lib/systemd/system/mios-luks-rotate.service
+**What+How:** Implement `usr/libexec/mios/sec/mios-luks-rotate`. Add a new passphrase/keyfile to a free LUKS2 keyslot via `cryptsetup luksAddKey`, verify unlocking, and retire the old keyslot via `cryptsetup luksKillSlot`.
+**Where:** usr/libexec/mios/sec/mios-luks-rotate, usr/lib/systemd/system/mios-luks-rotate.service, usr/lib/systemd/system/mios-luks-rotate.timer
 **Done When:** LUKS2 volume keys rotate seamlessly in-place with zero downtime.
 **Why:** Cryptographic compliance requires periodic rotation of data-at-rest encryption keys.
 **Dep:** AGY-2002
-**Status:** open | **Domain:** Security/Encryption | **Who:** agent
+**Status:** done | **Domain:** Security/Encryption | **Who:** agent
 **Converted:** AGY-2003 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-406 -- Hot-standby PostgreSQL replica provisioning over local cluster nodes (WS-DURA | P1 | L)
 **Goal:** Provide instant database failover capability by streaming WAL logs to a standby PostgreSQL replica.
-**What+How:** Implement replication orchestrator in `usr/libexec/mios/mios-pg-replica`. Configure streaming replication with `pg_basebackup` and physical replication slots between primary and secondary MiOS nodes.
-**Where:** usr/libexec/mios/mios-pg-replica, usr/share/containers/systemd/mios-pgvector.container
+**What+How:** Implement replication orchestrator in `usr/libexec/mios/db/mios-pg-replica.py`. Configure streaming replication with `pg_basebackup` and physical replication slots between primary and secondary MiOS nodes.
+**Where:** usr/libexec/mios/db/mios-pg-replica.py, usr/lib/systemd/system/mios-pg-replica.service, usr/share/containers/systemd/mios-pgvector.container
 **Done When:** Streaming replication keeps standby database in sync with sub-50ms replication lag.
 **Why:** High-availability cluster blades must survive sudden hardware failure without losing recent agent memory.
 **Dep:** AGY-2003
-**Status:** open | **Domain:** Database/HA | **Who:** agent
+**Status:** done | **Domain:** Database/HA | **Who:** agent
 **Converted:** AGY-2004 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-407 -- Database corruption detector and automated repair script for SQLite and PostgreSQL stores (WS-DURA | P2 | S)
 **Goal:** Detect and repair corrupted database pages and indices automatically after sudden power outages.
-**What+How:** Implement `usr/libexec/mios/mios-db-doctor`. Run `PRAGMA integrity_check` on SQLite stores and `pg_checksums` on PostgreSQL data dirs during greenboot boot health validation.
-**Where:** usr/libexec/mios/mios-db-doctor, /etc/greenboot/check/required.d/55-mios-db-check.sh
+**What+How:** Implement `usr/libexec/mios/db/mios-db-doctor.py`. Run `PRAGMA integrity_check` on SQLite stores and `pg_checksums` on PostgreSQL data dirs during greenboot boot health validation.
+**Where:** usr/libexec/mios/db/mios-db-doctor.py, usr/lib/greenboot/check/required.d/55-mios-db-check.sh
 **Done When:** Database doctor detects corrupted pages and restores operational integrity automatically on boot.
 **Why:** Abrupt power cuts or disk hardware glitches can corrupt database b-trees and halt system startup.
 **Dep:** AGY-2004
-**Status:** open | **Domain:** Database/Integrity | **Who:** agent
+**Status:** done | **Domain:** Database/Integrity | **Who:** agent
 **Converted:** AGY-2005 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-408 -- Fast delta snapshot transfer for remote off-site backup synchronization (WS-DURA | P2 | M)
 **Goal:** Transfer compressed block-level incremental backups to off-site storage targets efficiently.
-**What+How:** Implement `usr/libexec/mios/mios-backup-remote` using `zstd` chunked deltas and `rsync`/`rclone`. Transmit only changed database blocks and model delta layers to the configured remote endpoint.
-**Where:** usr/libexec/mios/mios-backup-remote, usr/share/mios/mios.toml
+**What+How:** Implement `usr/libexec/mios/storage/mios-backup-remote` using `zstd` chunked deltas and `rsync`/`rclone`. Transmit only changed database blocks and model delta layers to the configured remote endpoint.
+**Where:** usr/libexec/mios/storage/mios-backup-remote, usr/lib/systemd/system/mios-backup-remote.service, usr/lib/systemd/system/mios-backup-remote.timer, usr/share/mios/mios.toml
 **Done When:** Remote backup synchronizer transfers incremental deltas with minimal bandwidth consumption.
 **Why:** Off-site disaster recovery must be bandwidth-efficient to run reliably over residential uplinks.
 **Dep:** AGY-2005
-**Status:** open | **Domain:** Storage/Snapshot | **Who:** agent
+**Status:** done | **Domain:** Storage/Snapshot | **Who:** agent
 **Converted:** AGY-2006 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-409 -- Storage performance benchmark tool (mios-bench-storage) testing IOPS and latency (WS-STRG | P2 | S)
 **Goal:** Verify local NVMe and CephFS storage performance meets minimum throughput thresholds for AI inference.
-**What+How:** Build `usr/libexec/mios/mios-bench-storage` utilizing `fio`. Measure random 4K read/write IOPS, sequential 1M throughput, and fsync latency, outputting results as JSON.
-**Where:** usr/libexec/mios/mios-bench-storage, usr/share/doc/mios/reference/
+**What+How:** Build `usr/libexec/mios/storage/mios-bench-storage` and `usr/bin/mios-bench-storage`. Measure random 4K read/write IOPS, sequential 1M throughput, and fsync latency, outputting results as JSON.
+**Where:** usr/libexec/mios/storage/mios-bench-storage, usr/bin/mios-bench-storage, usr/share/doc/mios/reference/
 **Done When:** Storage benchmark reports accurate IOPS and bandwidth telemetry for system diagnostics.
 **Why:** Underperforming storage drives cause severe bottlenecks during KV slot paging and model loading.
 **Dep:** AGY-2006
-**Status:** open | **Domain:** Storage/Benchmark | **Who:** agent
+**Status:** done | **Domain:** Storage/Benchmark | **Who:** agent
 **Converted:** AGY-2007 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-410 -- Automated tmpfs spill-to-NVMe manager under memory pressure conditions (WS-STRG | P2 | M)
 **Goal:** Prevent system OOM kills by spilling large in-memory `/tmp` files to fast NVMe swap storage.
-**What+How:** Implement `usr/libexec/mios/mios-tmpfs-spill` monitoring memory pressure events via Linux PSI (`/proc/pressure/memory`). Automatically migrate large temporary build files to `/var/tmp/mios/` when memory pressure exceeds 60%.
-**Where:** usr/libexec/mios/mios-tmpfs-spill, usr/lib/systemd/system/mios-tmpfs-spill.service
+**What+How:** Implement `usr/libexec/mios/mem/mios-tmpfs-spill` monitoring memory pressure events via Linux PSI (`/proc/pressure/memory`). Automatically migrate large temporary build files to `/var/tmp/spill/` when memory pressure exceeds 60%.
+**Where:** usr/libexec/mios/mem/mios-tmpfs-spill, usr/lib/systemd/system/mios-tmpfs-spill.service, usr/lib/systemd/system/mios-tmpfs-spill.timer
 **Done When:** Tmpfs spill manager prevents out-of-memory lockups during large parallel compilation jobs.
 **Why:** Large build jobs can quickly exhaust RAM tmpfs on edge devices with limited physical memory.
 **Dep:** AGY-2007
-**Status:** open | **Domain:** Memory/Pressure | **Who:** agent
+**Status:** done | **Domain:** Memory/Pressure | **Who:** agent
 **Converted:** AGY-2008 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-411 -- Unified log aggregation pipeline streaming journald events to pgvector (WS-DURA | P2 | M)
 **Goal:** Enable natural-language semantic querying over historical system logs and error traces.
-**What+How:** Implement `usr/libexec/mios/mios-log-streamer` reading systemd `journald` JSON streams via `sd-journal`. Filter critical and error level messages, compute vector embeddings, and insert into the `system_logs` table.
-**Where:** usr/libexec/mios/mios-log-streamer, usr/share/mios/postgres/schema-init.sql
+**What+How:** Implement `usr/libexec/mios/log/mios-log-streamer` reading systemd `journald` JSON streams via `sd-journal`. Filter critical and error level messages, compute vector embeddings, and insert into the `system_logs` table.
+**Where:** usr/libexec/mios/log/mios-log-streamer, usr/lib/systemd/system/mios-log-streamer.service, usr/share/mios/postgres/schema-init.sql
 **Done When:** Critical system log events are indexed into pgvector for conversational diagnostic queries.
 **Why:** Allowing agents to semantically search system logs dramatically accelerates automated troubleshooting.
 **Dep:** AGY-2008
-**Status:** open | **Domain:** Logging/Streaming | **Who:** agent
+**Status:** done | **Domain:** Logging/Streaming | **Who:** agent
 **Converted:** AGY-2009 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-412 -- Zero-downtime database schema migration runner with rollback safety checks (WS-DURA | P1 | M)
 **Goal:** Execute database schema updates transactionally with automated rollback on SQL syntax or constraint failure.
-**What+How:** Build `usr/libexec/mios/mios-db-migrate`. Wrap each migration script in an explicit PostgreSQL transaction block (`BEGIN ... COMMIT`), check schema version in `schema_version` table, and execute `ROLLBACK` on error.
-**Where:** usr/libexec/mios/mios-db-migrate, usr/share/mios/postgres/migrations/
+**What+How:** Build `usr/libexec/mios/db/mios-db-migrate.py`. Wrap each migration script in an explicit PostgreSQL transaction block (`BEGIN ... COMMIT`), check schema version in `schema_version` table, and execute `ROLLBACK` on error.
+**Where:** usr/libexec/mios/db/mios-db-migrate.py, usr/share/mios/postgres/migrations/
 **Done When:** Migration runner applies database upgrades safely with atomic rollback guarantees.
 **Why:** Failed database migrations must never leave the persistent agent datastore in an inconsistent half-applied state.
 **Dep:** AGY-2009
-**Status:** open | **Domain:** Database/Migration | **Who:** agent
+**Status:** done | **Domain:** Database/Migration | **Who:** agent
 **Converted:** AGY-2010 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-413 -- Automated IOMMU group parsing and ACS override recommendation tool (WS-VFIO | P1 | S)

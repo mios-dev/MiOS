@@ -1,0 +1,18 @@
+# AI-hint: Systemd service for remote off-site delta snapshot backup synchronization.
+# AI-related: usr/lib/systemd/system/mios-backup-remote.timer, usr/libexec/mios/storage/mios-backup-remote
+
+[Unit]
+Description=MiOS Remote Delta Snapshot Backup Synchronization Service
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+After=network.target mios-backup-pgvector.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/libexec/mios/storage/mios-backup-remote --source /var/lib/mios/backups --dest /var/lib/mios/remote-backups --verify --retention-count 7
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

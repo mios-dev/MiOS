@@ -1,0 +1,20 @@
+# AI-hint: Systemd service for automated LUKS2 and dm-crypt encryption key rotation on Ceph OSD drives.
+# AI-related: usr/libexec/mios/sec/mios-luks-rotate, usr/lib/systemd/system/mios-luks-rotate.timer, tests/test-luks-rotate.py
+
+[Unit]
+Description=MiOS LUKS2 Drive Encryption Key Rotation Service
+Documentation=file:///usr/share/doc/mios/manual/sec.md
+After=local-fs.target cryptsetup.target
+Wants=cryptsetup.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/sec/mios-luks-rotate auto-rotate
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=300s
+
+[Install]
+WantedBy=multi-user.target

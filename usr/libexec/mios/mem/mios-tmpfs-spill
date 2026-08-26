@@ -1,0 +1,541 @@
+#!/usr/bin/env python3
+# AI-hint: Automated tmpfs spill-to-NVMe manager monitoring Linux PSI (/proc/pressure/memory) and migrating temporary data with LRU eviction.
+# AI-related: usr/lib/systemd/system/mios-tmpfs-spill.service, usr/lib/systemd/system/mios-tmpfs-spill.timer, tests/test-tmpfs-spill.py
+# AI-functions: read_memory_pressure_psi, get_available_memory_ratio, scan_spillable_files, execute_spill_file, enforce_spill_quota_lru, unspill_files, main
+"""
+MiOS Automated tmpfs Spill-to-NVMe Manager (mios-tmpfs-spill).
+Monitors system memory pressure via /proc/pressure/memory (>60% PSI threshold)
+and available RAM, automatically spilling inactive /tmp files to NVMe storage (/var/tmp/spill/).
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import fnmatch
+import json
+import os
+import shutil
+import stat
+import sys
+import time
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+DEFAULT_PSI_THRESHOLD = 60.0        # 60% PSI some avg10 threshold
+DEFAULT_MIN_RAM_RATIO = 0.15        # Minimum 15% RAM available before emergency spill
+DEFAULT_MIN_FILE_SIZE = 1024 * 1024 # 1MB minimum file size to consider
+DEFAULT_MAX_SPILL_BYTES = 10 * 1024 * 1024 * 1024 # 10GB max spill storage
+DEFAULT_SOURCE_DIR = "/tmp"
+DEFAULT_TARGET_DIR = "/var/tmp/spill"
+LEDGER_FILENAME = ".spill_ledger.json"
+
+# Exclusion patterns for security sensitive, system lock, and IPC files
+SECURITY_EXCLUSIONS = [
+    "*.key", "*.pem", "*.crt", "*.pub", "*.secret", "*token*", "*.jwt",
+    "*credential*", "*password*", "*id_rsa*", "*id_ed25519*",
+    "ssh-*", "gpg-*", "keyring*", ".X11-unix*", ".ICE-unix*",
+    "*.sock", "*.pid", "*.lock", "*systemd*", ".font-unix*",
+]
+
+
+def read_memory_pressure_psi(
+    proc_path: str = "/proc/pressure/memory",
+    mock_psi: Optional[float] = None,
+) -> Dict[str, float]:
+    """
+    Reads Linux PSI memory pressure statistics from /proc/pressure/memory.
+    Returns parsed avg10, avg60, avg300 and total stall microseconds for 'some' and 'full'.
+    """
+    if mock_psi is not None:
+        return {
+            "some_avg10": float(mock_psi),
+            "some_avg60": float(mock_psi) * 0.9,
+            "some_avg300": float(mock_psi) * 0.8,
+            "full_avg10": float(mock_psi) * 0.5,
+            "available": True,
+        }
+
+    # Environment override for container / CI environments
+    env_mock = os.environ.get("MIOS_MOCK_PSI")
+    if env_mock is not None:
+        try:
+            val = float(env_mock)
+            return {
+                "some_avg10": val,
+                "some_avg60": val * 0.9,
+                "some_avg300": val * 0.8,
+                "full_avg10": val * 0.5,
+                "available": True,
+            }
+        except ValueError:
+            pass
+
+    metrics: Dict[str, float] = {
+        "some_avg10": 0.0,
+        "some_avg60": 0.0,
+        "some_avg300": 0.0,
+        "full_avg10": 0.0,
+        "available": False,
+    }
+
+    if not os.path.exists(proc_path):
+        return metrics
+
+    try:
+        with open(proc_path, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split()
+                if not parts:
+                    continue
+                prefix = parts[0]  # 'some' or 'full'
+                kv = {}
+                for item in parts[1:]:
+                    if "=" in item:
+                        k, v = item.split("=", 1)
+                        try:
+                            kv[k] = float(v)
+                        except ValueError:
+                            pass
+                if prefix == "some":
+                    metrics["some_avg10"] = kv.get("avg10", 0.0)
+                    metrics["some_avg60"] = kv.get("avg60", 0.0)
+                    metrics["some_avg300"] = kv.get("avg300", 0.0)
+                elif prefix == "full":
+                    metrics["full_avg10"] = kv.get("avg10", 0.0)
+        metrics["available"] = True
+    except Exception:
+        metrics["available"] = False
+
+    return metrics
+
+
+def get_available_memory_ratio(
+    meminfo_path: str = "/proc/meminfo",
+    mock_ratio: Optional[float] = None,
+) -> float:
+    """Reads /proc/meminfo and returns available RAM as a fraction (0.0 to 1.0)."""
+    if mock_ratio is not None:
+        return float(mock_ratio)
+
+    env_mock = os.environ.get("MIOS_MOCK_RAM_RATIO")
+    if env_mock is not None:
+        try:
+            return float(env_mock)
+        except ValueError:
+            pass
+
+    if not os.path.exists(meminfo_path):
+        return 1.0
+
+    mem_total = 0
+    mem_avail = 0
+    try:
+        with open(meminfo_path, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    k = parts[0].rstrip(":")
+                    v = int(parts[1])
+                    if k == "MemTotal":
+                        mem_total = v
+                    elif k == "MemAvailable":
+                        mem_avail = v
+        if mem_total > 0:
+            return mem_avail / float(mem_total)
+    except Exception:
+        pass
+    return 1.0
+
+
+def is_file_security_sensitive(filename: str, filepath: str) -> bool:
+    """Checks if a file matches security exclusions or special file types."""
+    lower_name = filename.lower()
+    for pat in SECURITY_EXCLUSIONS:
+        if fnmatch.fnmatch(lower_name, pat.lower()):
+            return True
+        if fnmatch.fnmatch(filepath.lower(), pat.lower()):
+            return True
+    return False
+
+
+def load_spill_ledger(target_dir: str) -> Dict[str, Any]:
+    """Loads the spill ledger tracking files currently migrated to NVMe."""
+    ledger_path = os.path.join(target_dir, LEDGER_FILENAME)
+    if os.path.exists(ledger_path):
+        try:
+            with open(ledger_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "version": 1,
+        "spilled_files": {},  # spilled_rel_path -> {orig_path, size, spilled_at, mtime}
+        "total_spilled_bytes": 0,
+    }
+
+
+def save_spill_ledger(target_dir: str, ledger: Dict[str, Any]) -> None:
+    """Persists spill ledger to target directory."""
+    os.makedirs(target_dir, exist_ok=True)
+    ledger_path = os.path.join(target_dir, LEDGER_FILENAME)
+    temp_path = f"{ledger_path}.tmp"
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(ledger, f, indent=2)
+    os.replace(temp_path, ledger_path)
+
+
+def scan_spillable_files(
+    source_dir: str = DEFAULT_SOURCE_DIR,
+    min_size_bytes: int = DEFAULT_MIN_FILE_SIZE,
+) -> List[Dict[str, Any]]:
+    """
+    Scans source_dir for regular non-symlinked files eligible for spilling.
+    Sorted by LRU (access/modification time ascending: oldest accessed first) and size descending.
+    """
+    eligible = []
+    if not os.path.exists(source_dir):
+        return eligible
+
+    for root, dirs, files in os.walk(source_dir):
+        # Don't descend into hidden system socket / lock dirs
+        dirs[:] = [d for d in dirs if not is_file_security_sensitive(d, os.path.join(root, d))]
+
+        for fname in files:
+            fpath = os.path.join(root, fname)
+
+            # Skip symlinks, sockets, FIFOs, special files
+            try:
+                lstat = os.lstat(fpath)
+                if not stat.S_ISREG(lstat.st_mode):
+                    continue
+            except OSError:
+                continue
+
+            if is_file_security_sensitive(fname, fpath):
+                continue
+
+            fsize = lstat.st_size
+            if fsize >= min_size_bytes:
+                atime = getattr(lstat, "st_atime", lstat.st_mtime)
+                eligible.append({
+                    "path": fpath,
+                    "filename": fname,
+                    "size": fsize,
+                    "mtime": lstat.st_mtime,
+                    "atime": atime,
+                })
+
+    # Sort: oldest accessed first, largest size second
+    eligible.sort(key=lambda x: (x["atime"], -x["size"]))
+    return eligible
+
+
+def execute_spill_file(
+    src_path: str,
+    target_dir: str = DEFAULT_TARGET_DIR,
+    ledger: Optional[Dict[str, Any]] = None,
+) -> Tuple[bool, str, int]:
+    """
+    Migrates src_path to target_dir and replaces src_path with a symlink to the spilled file.
+    Returns: (success: bool, target_path: str, bytes_spilled: int)
+    """
+    if not os.path.isfile(src_path) or os.path.islink(src_path):
+        return False, "Not a regular file or is already a symlink", 0
+
+    os.makedirs(target_dir, exist_ok=True)
+    fname = os.path.basename(src_path)
+    file_size = os.path.getsize(src_path)
+    file_mtime = os.path.getmtime(src_path)
+
+    # Unique destination filename
+    dest_name = f"spill_{int(time.time())}_{os.getpid()}_{fname}"
+    dest_path = os.path.join(target_dir, dest_name)
+
+    try:
+        # Move file to target
+        shutil.move(src_path, dest_path)
+
+        # Create symlink pointing from src_path to dest_path
+        try:
+            os.symlink(dest_path, src_path)
+        except OSError as sym_err:
+            # Fallback if symlink fails on Windows/NTFS without privileges: move back
+            if os.path.exists(dest_path) and not os.path.exists(src_path):
+                shutil.move(dest_path, src_path)
+            return False, f"Symlink creation failed: {sym_err}", 0
+
+        # Update ledger
+        if ledger is not None:
+            ledger["spilled_files"][dest_name] = {
+                "orig_path": os.path.abspath(src_path),
+                "dest_path": os.path.abspath(dest_path),
+                "size": file_size,
+                "spilled_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "mtime": file_mtime,
+            }
+            ledger["total_spilled_bytes"] = sum(v["size"] for v in ledger["spilled_files"].values())
+
+        return True, dest_path, file_size
+    except Exception as e:
+        return False, str(e), 0
+
+
+def enforce_spill_quota_lru(
+    target_dir: str,
+    max_spill_bytes: int = DEFAULT_MAX_SPILL_BYTES,
+    ledger: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """
+    Enforces maximum storage quota in target_dir using LRU eviction.
+    Removes oldest spilled files when total bytes exceeds max_spill_bytes.
+    """
+    if ledger is None:
+        ledger = load_spill_ledger(target_dir)
+
+    total_bytes = ledger.get("total_spilled_bytes", 0)
+    evicted_files = []
+
+    if total_bytes <= max_spill_bytes:
+        return evicted_files
+
+    # Sort spilled files by spilled_at timestamp (oldest first)
+    spilled_items = sorted(
+        ledger["spilled_files"].items(),
+        key=lambda x: x[1].get("spilled_at", ""),
+    )
+
+    for dest_name, meta in spilled_items:
+        if total_bytes <= max_spill_bytes:
+            break
+        dest_path = meta.get("dest_path", os.path.join(target_dir, dest_name))
+        orig_path = meta.get("orig_path")
+
+        # Evict dest_path
+        if os.path.exists(dest_path):
+            try:
+                os.remove(dest_path)
+            except OSError:
+                pass
+
+        # Remove broken symlink if still pointing to evicted file
+        if orig_path and os.path.islink(orig_path):
+            try:
+                os.remove(orig_path)
+            except OSError:
+                pass
+
+        total_bytes -= meta.get("size", 0)
+        del ledger["spilled_files"][dest_name]
+        evicted_files.append(dest_path)
+
+    ledger["total_spilled_bytes"] = total_bytes
+    save_spill_ledger(target_dir, ledger)
+    return evicted_files
+
+
+def unspill_files(
+    target_dir: str = DEFAULT_TARGET_DIR,
+    ledger: Optional[Dict[str, Any]] = None,
+) -> Tuple[int, int]:
+    """
+    Restores spilled files back to their original locations if possible.
+    Returns: (files_restored, bytes_restored)
+    """
+    if ledger is None:
+        ledger = load_spill_ledger(target_dir)
+
+    restored_count = 0
+    restored_bytes = 0
+    remaining_files = {}
+
+    for dest_name, meta in ledger.get("spilled_files", {}).items():
+        dest_path = meta.get("dest_path", os.path.join(target_dir, dest_name))
+        orig_path = meta.get("orig_path")
+
+        if not os.path.exists(dest_path) or not orig_path:
+            continue
+
+        try:
+            # If original location is currently a symlink, remove it and restore file
+            if os.path.islink(orig_path):
+                os.remove(orig_path)
+            elif os.path.exists(orig_path):
+                # Target exists as regular file; do not overwrite
+                remaining_files[dest_name] = meta
+                continue
+
+            shutil.move(dest_path, orig_path)
+            restored_count += 1
+            restored_bytes += meta.get("size", 0)
+        except Exception:
+            remaining_files[dest_name] = meta
+
+    ledger["spilled_files"] = remaining_files
+    ledger["total_spilled_bytes"] = sum(v["size"] for v in remaining_files.values())
+    save_spill_ledger(target_dir, ledger)
+    return restored_count, restored_bytes
+
+
+def evaluate_and_spill(
+    source_dir: str = DEFAULT_SOURCE_DIR,
+    target_dir: str = DEFAULT_TARGET_DIR,
+    psi_threshold: float = DEFAULT_PSI_THRESHOLD,
+    min_ram_ratio: float = DEFAULT_MIN_RAM_RATIO,
+    min_file_size: int = DEFAULT_MIN_FILE_SIZE,
+    max_spill_bytes: int = DEFAULT_MAX_SPILL_BYTES,
+    mock_psi: Optional[float] = None,
+    mock_ram_ratio: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Evaluates current memory pressure and executes spilling if thresholds are exceeded."""
+    psi = read_memory_pressure_psi(mock_psi=mock_psi)
+    ram_ratio = get_available_memory_ratio(mock_ratio=mock_ram_ratio)
+
+    psi_val = psi.get("some_avg10", 0.0)
+    is_under_pressure = (psi_val >= psi_threshold) or (ram_ratio <= min_ram_ratio)
+
+    result: Dict[str, Any] = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "memory_psi_some_avg10": psi_val,
+        "available_ram_ratio": round(ram_ratio, 4),
+        "pressure_threshold_psi": psi_threshold,
+        "is_under_pressure": is_under_pressure,
+        "spill_action_taken": False,
+        "files_scanned": 0,
+        "files_spilled": 0,
+        "bytes_spilled": 0,
+        "evicted_files": 0,
+        "spilled_details": [],
+    }
+
+    if not is_under_pressure:
+        return result
+
+    # Load ledger
+    ledger = load_spill_ledger(target_dir)
+
+    # Scan for spill candidates
+    candidates = scan_spillable_files(source_dir=source_dir, min_size_bytes=min_file_size)
+    result["files_scanned"] = len(candidates)
+
+    spilled_count = 0
+    spilled_bytes = 0
+    spilled_details = []
+
+    for c in candidates:
+        ok, dest_path, b_spilled = execute_spill_file(
+            src_path=c["path"],
+            target_dir=target_dir,
+            ledger=ledger,
+        )
+        if ok:
+            spilled_count += 1
+            spilled_bytes += b_spilled
+            spilled_details.append({
+                "source": c["path"],
+                "target": dest_path,
+                "size": b_spilled,
+            })
+
+    if spilled_count > 0:
+        save_spill_ledger(target_dir, ledger)
+        # Enforce quota
+        evicted = enforce_spill_quota_lru(target_dir, max_spill_bytes=max_spill_bytes, ledger=ledger)
+        result["evicted_files"] = len(evicted)
+        result["spill_action_taken"] = True
+        result["files_spilled"] = spilled_count
+        result["bytes_spilled"] = spilled_bytes
+        result["spilled_details"] = spilled_details
+
+    return result
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="MiOS Automated tmpfs Spill-to-NVMe Manager")
+    parser.add_argument("--check", action="store_true", help="One-shot check memory pressure and spill if needed")
+    parser.add_argument("--watch", "--daemon", action="store_true", help="Continuous monitoring daemon")
+    parser.add_argument("--interval", type=float, default=5.0, help="Watch loop interval in seconds (default: 5.0)")
+    parser.add_argument("--source-dir", default=DEFAULT_SOURCE_DIR, help="Source tmpfs directory (default: /tmp)")
+    parser.add_argument("--target-dir", default=DEFAULT_TARGET_DIR, help="Target NVMe spill directory (default: /var/tmp/spill)")
+    parser.add_argument("--psi-threshold", type=float, default=DEFAULT_PSI_THRESHOLD, help="PSI memory pressure threshold (default: 60.0%%)")
+    parser.add_argument("--min-file-size", type=int, default=DEFAULT_MIN_FILE_SIZE, help="Minimum file size to spill in bytes (default: 1MB)")
+    parser.add_argument("--max-spill-bytes", type=int, default=DEFAULT_MAX_SPILL_BYTES, help="Maximum storage quota for spilled files (default: 10GB)")
+    parser.add_argument("--unspill", action="store_true", help="Restore spilled files back to original tmpfs locations")
+    parser.add_argument("--status", action="store_true", help="Display current pressure and spilled files status")
+    parser.add_argument("--mock-psi", type=float, default=None, help="Simulate PSI pressure value for testing")
+    parser.add_argument("--mock-ram-ratio", type=float, default=None, help="Simulate available RAM ratio (0.0..1.0) for testing")
+    parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+
+    args = parser.parse_args()
+
+    if args.unspill:
+        restored_count, restored_bytes = unspill_files(target_dir=args.target_dir)
+        if args.json:
+            print(json.dumps({"unspill_count": restored_count, "unspill_bytes": restored_bytes}))
+        else:
+            print(f"[mios-tmpfs-spill] Restored {restored_count} files ({restored_bytes} bytes) to tmpfs.")
+        return 0
+
+    if args.status:
+        psi = read_memory_pressure_psi(mock_psi=args.mock_psi)
+        ram_ratio = get_available_memory_ratio(mock_ratio=args.mock_ram_ratio)
+        ledger = load_spill_ledger(args.target_dir)
+        status_report = {
+            "psi_some_avg10": psi.get("some_avg10", 0.0),
+            "ram_available_ratio": round(ram_ratio, 4),
+            "psi_threshold": args.psi_threshold,
+            "spilled_files_count": len(ledger.get("spilled_files", {})),
+            "total_spilled_bytes": ledger.get("total_spilled_bytes", 0),
+        }
+        if args.json:
+            print(json.dumps(status_report, indent=2))
+        else:
+            print(f"[mios-tmpfs-spill] Status:")
+            print(f"  PSI some avg10:    {status_report['psi_some_avg10']:.1f}% (threshold: {args.psi_threshold}%)")
+            print(f"  RAM Available:     {status_report['ram_available_ratio']*100:.1f}%")
+            print(f"  Spilled to NVMe:   {status_report['spilled_files_count']} files ({status_report['total_spilled_bytes']} bytes)")
+        return 0
+
+    if args.watch:
+        print(f"[mios-tmpfs-spill] Monitoring memory pressure on {args.source_dir} -> {args.target_dir} (interval: {args.interval}s, threshold: {args.psi_threshold}%)...")
+        try:
+            while True:
+                res = evaluate_and_spill(
+                    source_dir=args.source_dir,
+                    target_dir=args.target_dir,
+                    psi_threshold=args.psi_threshold,
+                    min_file_size=args.min_file_size,
+                    max_spill_bytes=args.max_spill_bytes,
+                    mock_psi=args.mock_psi,
+                    mock_ram_ratio=args.mock_ram_ratio,
+                )
+                if res["spill_action_taken"]:
+                    print(f"[{res['timestamp']}] Spilled {res['files_spilled']} files ({res['bytes_spilled']} bytes) to NVMe (PSI={res['memory_psi_some_avg10']}%)")
+                time.sleep(args.interval)
+        except KeyboardInterrupt:
+            print("\n[mios-tmpfs-spill] Daemon stopped.")
+        return 0
+
+    # Default / --check one-shot mode
+    res = evaluate_and_spill(
+        source_dir=args.source_dir,
+        target_dir=args.target_dir,
+        psi_threshold=args.psi_threshold,
+        min_file_size=args.min_file_size,
+        max_spill_bytes=args.max_spill_bytes,
+        mock_psi=args.mock_psi,
+        mock_ram_ratio=args.mock_ram_ratio,
+    )
+
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        if res["spill_action_taken"]:
+            print(f"[mios-tmpfs-spill] Memory pressure detected (PSI={res['memory_psi_some_avg10']}%). Spilled {res['files_spilled']} files ({res['bytes_spilled']} bytes).")
+        else:
+            print(f"[mios-tmpfs-spill] Memory pressure normal (PSI={res['memory_psi_some_avg10']}%, RAM={res['available_ram_ratio']*100:.1f}%). No action required.")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

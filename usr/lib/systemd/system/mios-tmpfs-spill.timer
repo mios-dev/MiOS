@@ -1,0 +1,14 @@
+# AI-hint: Systemd timer for periodic memory pressure evaluation and tmpfs spillover.
+# AI-related: usr/lib/systemd/system/mios-tmpfs-spill.service, usr/libexec/mios/mem/mios-tmpfs-spill
+
+[Unit]
+Description=MiOS Periodic Memory Pressure & tmpfs Spillover Monitor Timer
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

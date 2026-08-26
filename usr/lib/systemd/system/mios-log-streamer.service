@@ -1,0 +1,20 @@
+# AI-hint: Systemd service for streaming journald error logs into pgvector system_logs table.
+# AI-related: usr/libexec/mios/log/mios-log-streamer, usr/share/mios/postgres/schema-init.sql
+
+[Unit]
+Description=MiOS Unified Journald Log Aggregation & pgvector Vector Streamer
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+After=network.target mios-pgvector.service mios-llm-light.service
+Wants=mios-pgvector.service mios-llm-light.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/libexec/mios/log/mios-log-streamer --priority 3 --batch-size 25 --flush-interval 2.0
+Restart=always
+RestartSec=5s
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

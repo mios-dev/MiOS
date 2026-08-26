@@ -1,0 +1,20 @@
+# AI-hint: Systemd service for CephFS dynamic quota reconciliation and monitoring.
+# AI-related: usr/libexec/mios/storage/mios-cephfs-quota, usr/lib/systemd/system/mios-cephfs-quota.timer, tests/test-cephfs-quota.py
+
+[Unit]
+Description=MiOS CephFS Tenant Dynamic Quota Enforcement Service
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+After=network-online.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/storage/mios-cephfs-quota reconcile --check
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=180s
+
+[Install]
+WantedBy=multi-user.target

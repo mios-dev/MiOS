@@ -1,0 +1,14 @@
+# AI-hint: Systemd timer for monthly automated LUKS2 disk encryption key rotation.
+# AI-related: usr/lib/systemd/system/mios-luks-rotate.service, usr/libexec/mios/sec/mios-luks-rotate
+
+[Unit]
+Description=Monthly Automated LUKS2 Disk Encryption Key Rotation Timer
+Documentation=file:///usr/share/doc/mios/manual/sec.md
+
+[Timer]
+OnCalendar=monthly
+Persistent=true
+RandomizedDelaySec=3600
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,14 @@
+# AI-hint: Systemd timer for weekly automated pgvector VACUUM ANALYZE and HNSW index optimization.
+# AI-related: usr/lib/systemd/system/mios-pgvector-optimize.service, usr/libexec/mios/db/mios-pgvector-optimize.py, tests/test-pgvector-optimize.py
+
+[Unit]
+Description=Weekly Automated pgvector Index & Table Maintenance Timer
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,519 @@
+#!/usr/bin/env python3
+# AI-hint: Transactional ledger replication across CephFS pools with SHA-256 integrity verification.
+# AI-related: usr/lib/systemd/system/mios-ledger-sync.service, tests/test-ledger-sync.py, usr/share/mios/mios.toml
+# AI-functions: canonical_json, compute_hash, compute_hmac, Block, LedgerChain, LedgerSyncEngine, main
+"""
+MiOS CephFS Transactional Ledger Replication & Integrity Verification Engine.
+Provides tamper-evident audit journal replication with SHA-256 block hashing and sequence continuity.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import hashlib
+import hmac
+import json
+import os
+import sys
+from typing import Any, Dict, List, Optional, Tuple
+
+# Shared layered-mios.toml resolver support if present
+_LIB_PATH = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+if os.path.isdir(_LIB_PATH) and _LIB_PATH not in sys.path:
+    sys.path.insert(0, _LIB_PATH)
+
+try:
+    import mios_toml  # noqa: E402
+except ImportError:
+    mios_toml = None
+
+
+GENESIS_PREV_HASH = "0" * 64
+
+
+def canonical_json(data: Any) -> str:
+    """Return deterministic, sorted, compact JSON string for cryptographic hashing."""
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def compute_hash(content: str | bytes) -> str:
+    """Calculate SHA-256 hex digest of UTF-8 string or byte sequence."""
+    if isinstance(content, str):
+        content = content.encode("utf-8")
+    return hashlib.sha256(content).hexdigest()
+
+
+def compute_hmac(key: str | bytes, content: str | bytes) -> str:
+    """Calculate HMAC-SHA256 hex digest for block authentication."""
+    if isinstance(key, str):
+        key = key.encode("utf-8")
+    if isinstance(content, str):
+        content = content.encode("utf-8")
+    return hmac.new(key, content, hashlib.sha256).hexdigest()
+
+
+class Block:
+    """Represents a single tamper-evident, cryptographically linked ledger block."""
+
+    def __init__(
+        self,
+        index: int,
+        timestamp: str,
+        prev_hash: str,
+        payload: Dict[str, Any],
+        payload_hash: str,
+        block_hash: str,
+        signature: Optional[str] = None,
+    ) -> None:
+        self.index = index
+        self.timestamp = timestamp
+        self.prev_hash = prev_hash
+        self.payload = payload
+        self.payload_hash = payload_hash
+        self.block_hash = block_hash
+        self.signature = signature
+
+    @classmethod
+    def create(
+        cls,
+        index: int,
+        prev_hash: str,
+        payload: Dict[str, Any],
+        timestamp: Optional[str] = None,
+        secret_key: Optional[str] = None,
+    ) -> Block:
+        """Construct a new cryptographically valid block with canonical hashes."""
+        if timestamp is None:
+            timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        
+        payload_canonical = canonical_json(payload)
+        payload_hash = compute_hash(payload_canonical)
+
+        header_str = f"{index}:{timestamp}:{prev_hash}:{payload_hash}"
+        block_hash = compute_hash(header_str)
+
+        signature = None
+        if secret_key:
+            signature = compute_hmac(secret_key, block_hash)
+
+        return cls(
+            index=index,
+            timestamp=timestamp,
+            prev_hash=prev_hash,
+            payload=payload,
+            payload_hash=payload_hash,
+            block_hash=block_hash,
+            signature=signature,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize block to dictionary."""
+        data: Dict[str, Any] = {
+            "index": self.index,
+            "timestamp": self.timestamp,
+            "prev_hash": self.prev_hash,
+            "payload": self.payload,
+            "payload_hash": self.payload_hash,
+            "block_hash": self.block_hash,
+        }
+        if self.signature is not None:
+            data["signature"] = self.signature
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Block:
+        """Deserialize block from dictionary."""
+        required = ["index", "timestamp", "prev_hash", "payload", "payload_hash", "block_hash"]
+        for key in required:
+            if key not in data:
+                raise ValueError(f"Corrupted block missing field '{key}'")
+        return cls(
+            index=int(data["index"]),
+            timestamp=str(data["timestamp"]),
+            prev_hash=str(data["prev_hash"]),
+            payload=data["payload"],
+            payload_hash=str(data["payload_hash"]),
+            block_hash=str(data["block_hash"]),
+            signature=data.get("signature"),
+        )
+
+    def validate_integrity(
+        self,
+        prev_block: Optional[Block] = None,
+        secret_key: Optional[str] = None,
+    ) -> Tuple[bool, Optional[str]]:
+        """Verify block internal consistency, parent linkage, and HMAC signature."""
+        expected_payload_hash = compute_hash(canonical_json(self.payload))
+        if self.payload_hash != expected_payload_hash:
+            return False, f"Block {self.index} payload hash mismatch (computed {expected_payload_hash} != stored {self.payload_hash})"
+
+        header_str = f"{self.index}:{self.timestamp}:{self.prev_hash}:{self.payload_hash}"
+        expected_block_hash = compute_hash(header_str)
+        if self.block_hash != expected_block_hash:
+            return False, f"Block {self.index} block hash mismatch (computed {expected_block_hash} != stored {self.block_hash})"
+
+        if prev_block is None:
+            if self.index != 0:
+                return False, f"Genesis block index must be 0, got {self.index}"
+            if self.prev_hash != GENESIS_PREV_HASH:
+                return False, f"Genesis block prev_hash must be '{GENESIS_PREV_HASH}', got '{self.prev_hash}'"
+        else:
+            if self.index != prev_block.index + 1:
+                return False, f"Sequence discontinuity: block {self.index} followed {prev_block.index}"
+            if self.prev_hash != prev_block.block_hash:
+                return False, f"Block {self.index} prev_hash '{self.prev_hash}' does not match parent block_hash '{prev_block.block_hash}'"
+
+        if secret_key:
+            if not self.signature:
+                return False, f"Block {self.index} missing signature when secret_key enforcement is enabled"
+            expected_sig = compute_hmac(secret_key, self.block_hash)
+            if not hmac.compare_digest(self.signature, expected_sig):
+                return False, f"Block {self.index} signature verification failed"
+
+        return True, None
+
+
+class LedgerChain:
+    """Manages an on-disk, append-only directory or file store of ledger blocks."""
+
+    def __init__(self, ledger_dir: str) -> None:
+        self.ledger_dir = os.path.abspath(ledger_dir)
+        self.blocks_dir = os.path.join(self.ledger_dir, "blocks")
+        self.journal_file = os.path.join(self.ledger_dir, "ledger.jsonl")
+        self.head_file = os.path.join(self.ledger_dir, "head.json")
+        self._ensure_dirs()
+
+    def _ensure_dirs(self) -> None:
+        os.makedirs(self.blocks_dir, exist_ok=True)
+
+    def _block_filename(self, index: int) -> str:
+        return os.path.join(self.blocks_dir, f"block_{index:08d}.json")
+
+    def get_blocks(self) -> List[Block]:
+        """Read all blocks from disk sorted by sequence index."""
+        blocks: List[Block] = []
+        if not os.path.exists(self.blocks_dir):
+            return blocks
+
+        filenames = sorted(
+            [f for f in os.listdir(self.blocks_dir) if f.startswith("block_") and f.endswith(".json")]
+        )
+        for fname in filenames:
+            fpath = os.path.join(self.blocks_dir, fname)
+            with open(fpath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                blocks.append(Block.from_dict(data))
+        return blocks
+
+    def get_head(self) -> Optional[Block]:
+        """Retrieve the latest block in the chain."""
+        blocks = self.get_blocks()
+        return blocks[-1] if blocks else None
+
+    def get_block(self, index: int) -> Optional[Block]:
+        """Retrieve a specific block by its sequence index."""
+        fpath = self._block_filename(index)
+        if not os.path.exists(fpath):
+            return None
+        with open(fpath, "r", encoding="utf-8") as f:
+            return Block.from_dict(json.load(f))
+
+    def append(self, payload: Dict[str, Any], secret_key: Optional[str] = None) -> Block:
+        """Append a new transaction block atomically to the ledger."""
+        head = self.get_head()
+        if head is None:
+            new_index = 0
+            prev_hash = GENESIS_PREV_HASH
+        else:
+            new_index = head.index + 1
+            prev_hash = head.block_hash
+
+        block = Block.create(
+            index=new_index,
+            prev_hash=prev_hash,
+            payload=payload,
+            secret_key=secret_key,
+        )
+
+        self._commit_block(block)
+        return block
+
+    def _commit_block(self, block: Block) -> None:
+        """Write block atomically to discrete file, append to journal, update head."""
+        fpath = self._block_filename(block.index)
+        tmp_fpath = f"{fpath}.tmp"
+        block_dict = block.to_dict()
+
+        with open(tmp_fpath, "w", encoding="utf-8") as f:
+            json.dump(block_dict, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_fpath, fpath)
+
+        # Append to continuous journal
+        with open(self.journal_file, "a", encoding="utf-8") as f:
+            f.write(canonical_json(block_dict) + "\n")
+            f.flush()
+
+        # Update head pointer
+        tmp_head = f"{self.head_file}.tmp"
+        with open(tmp_head, "w", encoding="utf-8") as f:
+            json.dump({
+                "latest_index": block.index,
+                "latest_hash": block.block_hash,
+                "updated_at": block.timestamp,
+            }, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_head, self.head_file)
+
+    def verify(self, secret_key: Optional[str] = None) -> Tuple[bool, int, List[str]]:
+        """Verify the integrity of the entire block chain."""
+        blocks = self.get_blocks()
+        if not blocks:
+            return True, 0, []
+
+        errors: List[str] = []
+        prev_block: Optional[Block] = None
+
+        for b in blocks:
+            ok, err = b.validate_integrity(prev_block=prev_block, secret_key=secret_key)
+            if not ok and err:
+                errors.append(err)
+            prev_block = b
+
+        return (len(errors) == 0), len(blocks), errors
+
+
+class LedgerSyncEngine:
+    """Orchestrates secure replication between CephFS storage pools or nodes."""
+
+    def __init__(self, secret_key: Optional[str] = None) -> None:
+        self.secret_key = secret_key
+
+    def replicate(
+        self,
+        src_path: str,
+        dst_path: str,
+        reconciliation_log: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Replicate blocks from source pool/dir to destination pool/dir.
+        Enforces cryptographic verification of source blocks before writing,
+        and guarantees destination chain continuity.
+        """
+        src_chain = LedgerChain(src_path)
+        dst_chain = LedgerChain(dst_path)
+
+        # 1. Source chain integrity check
+        src_valid, src_count, src_errors = src_chain.verify(secret_key=self.secret_key)
+        if not src_valid:
+            raise ValueError(f"Source ledger integrity failure: {'; '.join(src_errors)}")
+
+        src_blocks = src_chain.get_blocks()
+        dst_blocks = dst_chain.get_blocks()
+
+        # 2. Destination chain integrity check
+        dst_valid, dst_count, dst_errors = dst_chain.verify(secret_key=self.secret_key)
+        if not dst_valid:
+            raise ValueError(f"Destination ledger integrity failure before sync: {'; '.join(dst_errors)}")
+
+        # 3. Check for divergence
+        common_len = min(len(src_blocks), len(dst_blocks))
+        for i in range(common_len):
+            if src_blocks[i].block_hash != dst_blocks[i].block_hash:
+                raise ValueError(
+                    f"Ledger fork/divergence detected at block index {i}: "
+                    f"source hash {src_blocks[i].block_hash} != dest hash {dst_blocks[i].block_hash}"
+                )
+
+        # 4. Copy missing blocks in order
+        synced_count = 0
+        for i in range(len(dst_blocks), len(src_blocks)):
+            block = src_blocks[i]
+            # Extra validation before commit
+            prev = dst_chain.get_head()
+            ok, err = block.validate_integrity(prev_block=prev, secret_key=self.secret_key)
+            if not ok:
+                raise ValueError(f"Block {block.index} rejected during sync: {err}")
+            dst_chain._commit_block(block)
+            synced_count += 1
+
+        # 5. Final post-sync destination verification
+        dst_valid_after, dst_total, post_errors = dst_chain.verify(secret_key=self.secret_key)
+        if not dst_valid_after:
+            raise RuntimeError(f"Post-sync destination integrity check failed: {'; '.join(post_errors)}")
+
+        head = dst_chain.get_head()
+        report = {
+            "status": "synchronized",
+            "source_dir": src_path,
+            "dest_dir": dst_path,
+            "synced_blocks": synced_count,
+            "total_blocks": dst_total,
+            "latest_index": head.index if head else -1,
+            "latest_hash": head.block_hash if head else GENESIS_PREV_HASH,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+
+        # Write reconciliation audit record if requested
+        if reconciliation_log:
+            os.makedirs(os.path.dirname(os.path.abspath(reconciliation_log)), exist_ok=True)
+            with open(reconciliation_log, "a", encoding="utf-8") as f:
+                f.write(canonical_json(report) + "\n")
+
+        return report
+
+
+def load_storage_ledger_config() -> Dict[str, Any]:
+    """Load storage.ledger configuration from mios.toml layers."""
+    cfg = {
+        "enable": True,
+        "default_hot_pool": "/var/lib/mios/cephfs/ledger/hot",
+        "default_bulk_pool": "/var/lib/mios/cephfs/ledger/bulk",
+        "reconciliation_log": "/var/log/mios/ledger-reconciliation.log",
+        "secret_key": None,
+    }
+    if mios_toml:
+        try:
+            data = mios_toml.load_merged()
+            sec = mios_toml.section(data, "storage.ledger")
+            for k, v in sec.items():
+                cfg[k] = v
+        except Exception:
+            pass
+    return cfg
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="MiOS CephFS Transactional Ledger Replication & Integrity Verification Engine"
+    )
+    parser.add_argument("--json", action="store_true", help="Format output as JSON")
+    parser.add_argument("--secret-key", type=str, default=None, help="HMAC secret key for block authentication")
+
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+
+    # append
+    p_append = subparsers.add_parser("append", help="Append new transaction payload to ledger")
+    p_append.add_argument("--dir", type=str, required=True, help="Ledger directory")
+    p_append.add_argument("--payload", type=str, required=True, help="JSON string or file path containing payload")
+
+    # verify
+    p_verify = subparsers.add_parser("verify", help="Verify cryptographic chain integrity")
+    p_verify.add_argument("--dir", type=str, required=True, help="Ledger directory")
+
+    # sync / replicate
+    p_sync = subparsers.add_parser("sync", help="Replicate and reconcile ledgers across CephFS pools")
+    p_sync.add_argument("--src", type=str, default=None, help="Source ledger directory")
+    p_sync.add_argument("--dst", type=str, default=None, help="Destination ledger directory")
+    p_sync.add_argument("--reconciliation-log", type=str, default=None, help="Path to reconciliation audit log")
+
+    # status
+    p_status = subparsers.add_parser("status", help="Query chain status and latest block")
+    p_status.add_argument("--dir", type=str, required=True, help="Ledger directory")
+
+    args = parser.parse_args()
+
+    cfg = load_storage_ledger_config()
+    secret_key = args.secret_key or os.environ.get("MIOS_LEDGER_SECRET_KEY") or cfg.get("secret_key")
+
+    if not args.command:
+        # Default action when run as service: perform sync between configured hot and bulk pools
+        src = cfg.get("default_hot_pool", "/var/lib/mios/cephfs/ledger/hot")
+        dst = cfg.get("default_bulk_pool", "/var/lib/mios/cephfs/ledger/bulk")
+        rec_log = cfg.get("reconciliation_log", "/var/log/mios/ledger-reconciliation.log")
+        try:
+            engine = LedgerSyncEngine(secret_key=secret_key)
+            report = engine.replicate(src, dst, reconciliation_log=rec_log)
+            if args.json:
+                print(json.dumps(report, indent=2))
+            else:
+                print(f"[OK] Ledger sync complete: {report['synced_blocks']} blocks synced (total {report['total_blocks']})")
+            return 0
+        except Exception as e:
+            sys.stderr.write(f"[ERROR] Ledger sync failed: {e}\n")
+            return 1
+
+    if args.command == "append":
+        chain = LedgerChain(args.dir)
+        payload_str = args.payload
+        if os.path.exists(payload_str):
+            with open(payload_str, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        else:
+            try:
+                payload = json.loads(payload_str)
+            except json.JSONDecodeError as e:
+                sys.stderr.write(f"Invalid JSON payload: {e}\n")
+                return 1
+
+        block = chain.append(payload, secret_key=secret_key)
+        if args.json:
+            print(json.dumps(block.to_dict(), indent=2))
+        else:
+            print(f"[OK] Block {block.index} appended (hash: {block.block_hash[:16]}...)")
+        return 0
+
+    elif args.command == "verify":
+        chain = LedgerChain(args.dir)
+        valid, count, errors = chain.verify(secret_key=secret_key)
+        result = {
+            "valid": valid,
+            "block_count": count,
+            "errors": errors,
+            "ledger_dir": args.dir,
+        }
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            if valid:
+                print(f"[OK] Ledger chain valid ({count} blocks checked).")
+            else:
+                print(f"[FAIL] Ledger chain verification failed ({len(errors)} errors):")
+                for err in errors:
+                    print(f"  - {err}")
+        return 0 if valid else 1
+
+    elif args.command == "sync":
+        src = args.src or cfg.get("default_hot_pool", "/var/lib/mios/cephfs/ledger/hot")
+        dst = args.dst or cfg.get("default_bulk_pool", "/var/lib/mios/cephfs/ledger/bulk")
+        rec_log = args.reconciliation_log or cfg.get("reconciliation_log")
+        try:
+            engine = LedgerSyncEngine(secret_key=secret_key)
+            report = engine.replicate(src, dst, reconciliation_log=rec_log)
+            if args.json:
+                print(json.dumps(report, indent=2))
+            else:
+                print(f"[OK] Ledger sync complete: {report['synced_blocks']} blocks synced (total {report['total_blocks']})")
+            return 0
+        except Exception as e:
+            sys.stderr.write(f"[ERROR] Ledger sync failed: {e}\n")
+            return 1
+
+    elif args.command == "status":
+        chain = LedgerChain(args.dir)
+        valid, count, errors = chain.verify(secret_key=secret_key)
+        head = chain.get_head()
+        status_info = {
+            "ledger_dir": args.dir,
+            "valid": valid,
+            "total_blocks": count,
+            "head": head.to_dict() if head else None,
+            "errors": errors,
+        }
+        if args.json:
+            print(json.dumps(status_info, indent=2))
+        else:
+            print(f"Ledger: {args.dir}")
+            print(f"Blocks: {count} (Valid: {valid})")
+            if head:
+                print(f"Head: Index {head.index} | Hash {head.block_hash[:16]}... | Timestamp {head.timestamp}")
+        return 0
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

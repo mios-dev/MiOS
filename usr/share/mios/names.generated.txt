@@ -14,6 +14,7 @@ ports.code_server  MIOS_PORTS_CODE_SERVER
 ports.k3s_api  MIOS_PORTS_K3S_API
 ports.guacamole_web  MIOS_PORTS_GUACAMOLE_WEB
 ports.ceph_dashboard  MIOS_PORTS_CEPH_DASHBOARD
+ports.radosgw  MIOS_PORTS_RADOSGW
 ports.rdp  MIOS_PORTS_RDP
 ports.pgvector  MIOS_PORTS_PGVECTOR
 ports.llm_light  MIOS_PORTS_LLM_LIGHT
@@ -537,6 +538,10 @@ security.mtls.validity_days  MIOS_SECURITY_MTLS_VALIDITY_DAYS
 security.luks.enabled  MIOS_SECURITY_LUKS_ENABLED
 security.luks.pin  MIOS_SECURITY_LUKS_PIN
 security.luks.pcrs  MIOS_SECURITY_LUKS_PCRS
+security.luks_rotate.enable  MIOS_SECURITY_LUKS_ROTATE_ENABLE
+security.luks_rotate.rotation_interval_days  MIOS_SECURITY_LUKS_ROTATE_ROTATION_INTERVAL_DAYS
+security.luks_rotate.header_backup_dir  MIOS_SECURITY_LUKS_ROTATE_HEADER_BACKUP_DIR
+security.luks_rotate.key_length_bytes  MIOS_SECURITY_LUKS_ROTATE_KEY_LENGTH_BYTES
 code_mode.socket  MIOS_CODE_MODE_SOCKET
 code_mode.call_timeout_s  MIOS_CODE_MODE_CALL_TIMEOUT_S
 code_mode.enable  MIOS_CODE_MODE_ENABLE
