@@ -342,10 +342,10 @@
 | T-354 | P1 | done | Hardware/VFIO | VFIO-01 -- Full-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer |
 | T-355 | P1 | done | Security/Secrets | SEC-05 -- Quadlet Credential Hardening & 0600 secrets.env Rotation Service |
 | T-356 | P1 | done | Deploy/Cat | CAT-05 -- MiOS-Cat Tri-Launcher Hardening & MiOS-Repo vs MiOS-Data Staging |
-| T-357 | P1 | open | Windows/Install | WISO-09 -- DISM-Native Windows 11 Driver Slipstreaming & WLAN/LAN Driver Pack |
-| T-358 | P2 | open | UX/Branding | WALL-02 -- Unified Rust-native Living Wallpaper Service (mios-wallpaperd) |
-| T-359 | P1 | open | Scheduling/Quota | Dynamic token-bucket rate limiter and per-tenant burst quotas in agent-pipe |
-| T-360 | P2 | open | Metrics/Observability | Continuous batch preemption metrics exporter for Prometheus on port 8640 |
+| T-357 | P1 | done | Windows/Install | WISO-09 -- DISM-Native Windows 11 Driver Slipstreaming & WLAN/LAN Driver Pack |
+| T-358 | P2 | done | UX/Branding | WALL-02 -- Unified Rust-native Living Wallpaper Service (mios-wallpaperd) |
+| T-359 | P1 | done | Scheduling/Quota | Dynamic token-bucket rate limiter and per-tenant burst quotas in agent-pipe |
+| T-360 | P2 | done | Metrics/Observability | Continuous batch preemption metrics exporter for Prometheus on port 8640 |
 | T-361 | P1 | open | Inference/Drafting | Speculative decoding multi-model lane configuration with quantized draft models |
 | T-362 | P2 | open | Context/Retention | Adaptive context window truncation with needle-in-a-haystack retention heuristics |
 | T-363 | P1 | open | Memory/SharedMemory | Zero-copy KV-cache transfer over shared memory between co-located Python worker processes |
@@ -4301,7 +4301,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Windows 11 installs zero-touch with functional networking out-of-the-box on mainstream hardware.
 **Why:** Unattended offline provisioning fails completely if network adapters are unrecognized post-install.
 **Dep:** none
-**Status:** open | **Domain:** Windows/Install | **Who:** agent
+**Status:** done | **Domain:** Windows/Install | **Who:** agent
 **Converted:** AGY-1955 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-358 -- WALL-02: Unified Rust-native Living Wallpaper Service (mios-wallpaperd) (WS-LANG | P2 | M)
@@ -4311,7 +4311,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** The native Rust wallpaper daemon runs silently as a Windows service and dynamically reflects system theme changes.
 **Why:** Native compiled wallpaper rendering eliminates memory bloat, avoids console flashing, and ensures unified cross-platform branding.
 **Dep:** none
-**Status:** open | **Domain:** UX/Branding | **Who:** agent
+**Status:** done | **Domain:** UX/Branding | **Who:** agent
 **Converted:** AGY-1956 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-359 -- Dynamic token-bucket rate limiter and per-tenant burst quotas in agent-pipe (WS-SCHED | P1 | M)
@@ -4321,7 +4321,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Rate limiter enforces token quotas per tenant and returns standard 429 responses under burst load.
 **Why:** Unchecked autonomous agents can exhaust inference lane bandwidth and starve user-interactive sessions.
 **Dep:** AGY-1938
-**Status:** open | **Domain:** Scheduling/Quota | **Who:** agent
+**Status:** done | **Domain:** Scheduling/Quota | **Who:** agent
 **Converted:** AGY-1957 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-360 -- Continuous batch preemption metrics exporter for Prometheus on port 8640 (WS-AI | P2 | S)
@@ -4331,7 +4331,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Prometheus endpoint reports preemption counters and slot swap histograms accurately.
 **Why:** Visibility into tensor preemption and KV slot churn is essential for tuning scheduling heuristics.
 **Dep:** AGY-1957
-**Status:** open | **Domain:** Metrics/Observability | **Who:** agent
+**Status:** done | **Domain:** Metrics/Observability | **Who:** agent
 **Converted:** AGY-1958 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-361 -- Speculative decoding multi-model lane configuration with quantized draft models (WS-AI | P1 | M)
