@@ -346,10 +346,10 @@
 | T-358 | P2 | done | UX/Branding | WALL-02 -- Unified Rust-native Living Wallpaper Service (mios-wallpaperd) |
 | T-359 | P1 | done | Scheduling/Quota | Dynamic token-bucket rate limiter and per-tenant burst quotas in agent-pipe |
 | T-360 | P2 | done | Metrics/Observability | Continuous batch preemption metrics exporter for Prometheus on port 8640 |
-| T-361 | P1 | open | Inference/Drafting | Speculative decoding multi-model lane configuration with quantized draft models |
-| T-362 | P2 | open | Context/Retention | Adaptive context window truncation with needle-in-a-haystack retention heuristics |
-| T-363 | P1 | open | Memory/SharedMemory | Zero-copy KV-cache transfer over shared memory between co-located Python worker processes |
-| T-364 | P2 | open | Tooling/Timeout | Tool-call latency profiling and dead-lock watchdog timeout in agent-pipe tool loop |
+| T-361 | P1 | done | Inference/Drafting | Speculative decoding multi-model lane configuration with quantized draft models |
+| T-362 | P2 | done | Context/Retention | Adaptive context window truncation with needle-in-a-haystack retention heuristics |
+| T-363 | P1 | done | Memory/SharedMemory | Zero-copy KV-cache transfer over shared memory between co-located Python worker processes |
+| T-364 | P2 | done | Tooling/Timeout | Tool-call latency profiling and dead-lock watchdog timeout in agent-pipe tool loop |
 | T-365 | P2 | open | Inference/Sampling | Dynamic temperature and top-p scheduler based on task entropy estimation |
 | T-366 | P1 | open | Grammar/Constrained | Structured output JSON schema compiler utilizing constrained decoding grammar engines |
 | T-367 | P2 | open | Execution/Batching | Asynchronous tool execution batching for non-dependent parallel tool invocations |
@@ -4341,7 +4341,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Speculative decoding runs stably with measurable throughput improvements across standard benchmarks.
 **Why:** Speculative decoding significantly reduces time-to-first-token and tokens-per-second on local GPU hardware.
 **Dep:** AGY-1958
-**Status:** open | **Domain:** Inference/Drafting | **Who:** agent
+**Status:** done | **Domain:** Inference/Drafting | **Who:** agent
 **Converted:** AGY-1959 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-362 -- Adaptive context window truncation with needle-in-a-haystack retention heuristics (WS-AI | P2 | M)
@@ -4351,7 +4351,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Context trimmer maintains long-running conversations within model token ceilings without losing system instructions.
 **Why:** Long-running autonomous agent sessions will fail if context windows are exceeded or improperly pruned.
 **Dep:** AGY-1959
-**Status:** open | **Domain:** Context/Retention | **Who:** agent
+**Status:** done | **Domain:** Context/Retention | **Who:** agent
 **Converted:** AGY-1960 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-363 -- Zero-copy KV-cache transfer over shared memory between co-located Python worker processes (WS-SCHED | P1 | L)
@@ -4361,7 +4361,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Workers read and write shared memory tensors with strict concurrency locking and zero memory leaks.
 **Why:** Serialization of multi-gigabyte KV caches across local Unix sockets consumes unnecessary CPU and memory bandwidth.
 **Dep:** AGY-1960
-**Status:** open | **Domain:** Memory/SharedMemory | **Who:** agent
+**Status:** done | **Domain:** Memory/SharedMemory | **Who:** agent
 **Converted:** AGY-1961 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-364 -- Tool-call latency profiling and dead-lock watchdog timeout in agent-pipe tool loop (WS-AI | P2 | S)
@@ -4371,7 +4371,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Tool invocations enforce timeouts strictly and record latency metrics for performance profiling.
 **Why:** Unresponsive external tools or network calls can lock worker processes and degrade total system responsiveness.
 **Dep:** AGY-1961
-**Status:** open | **Domain:** Tooling/Timeout | **Who:** agent
+**Status:** done | **Domain:** Tooling/Timeout | **Who:** agent
 **Converted:** AGY-1962 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-365 -- Dynamic temperature and top-p scheduler based on task entropy estimation (WS-AI | P2 | S)

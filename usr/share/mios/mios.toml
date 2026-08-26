@@ -10946,6 +10946,10 @@ unit = [
     "tests/test-wallpaper-service.py",
     "tests/test-agent-pipe-quota.py",
     "tests/test-agent-pipe-preempt.py",
+    "tests/test-speculative-decoding-config.py",
+    "tests/test-context-trim.py",
+    "tests/test-shm-kv.py",
+    "tests/test-tool-timeout.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

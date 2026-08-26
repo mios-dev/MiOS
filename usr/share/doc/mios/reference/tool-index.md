@@ -595,6 +595,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_secset.py` | Re-export shim for mios_pipe.access.secset |
 | `usr/lib/mios/agent-pipe/mios_selfimprove.py` | Re-export shim for mios_pipe.lifecycle.selfimprove |
 | `usr/lib/mios/agent-pipe/mios_selfimprove_act.py` | Re-export shim for mios_pipe.lifecycle.selfimprove_act |
+| `usr/lib/mios/agent-pipe/mios_shm_kv.py` | POSIX shared memory zero-copy KV-cache transfer between co-located worker processes. |
 | `usr/lib/mios/agent-pipe/mios_skills.py` | SKILLS execution cluster extracted verbatim from server.py (refactor R7/mios_skills wave). |
 | `usr/lib/mios/agent-pipe/mios_slo.py` | Re-export shim for mios_pipe.scheduler.slo |
 | `usr/lib/mios/agent-pipe/mios_smartroute.py` | Re-export shim for mios_pipe.routing.smartroute |
@@ -604,6 +605,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_swarm.py` | Re-export shim for mios_pipe.routing.swarm |
 | `usr/lib/mios/agent-pipe/mios_template.py` | Renders an SSOT verb command template into the broker bash line. |
 | `usr/lib/mios/agent-pipe/mios_tokenize.py` | Re-export shim for mios_pipe.context.tokenize |
+| `usr/lib/mios/agent-pipe/mios_tool_timeout.py` | Tool-call latency profiling and dead-lock watchdog timeout in agent-pipe tool loop. |
 | `usr/lib/mios/agent-pipe/mios_toolconflict.py` | Re-export shim for mios_pipe.routing.toolconflict |
 | `usr/lib/mios/agent-pipe/mios_toolexec.py` | Re-export shim for mios_pipe.routing.toolexec |
 | `usr/lib/mios/agent-pipe/mios_toolsearch.py` | Re-export shim for mios_pipe.routing.toolsearch |
@@ -786,7 +788,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 400 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 402 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs
