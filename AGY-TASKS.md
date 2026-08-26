@@ -13441,7 +13441,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Self-improving operating systems must learn new workflows from successful operations without manual documentation authoring.
 **Dep:** AGY-1973
 
-## AGY-1975 -- MCP server sandboxing using isolated bubblewrap and unshare namespaces  (WS-SEC | P1 | M)
+## AGY-1975 -- MCP server sandboxing using isolated bubblewrap and unshare namespaces  (WS-SEC | P1 | M) **[DONE]**
 **Goal:** Execute Model Context Protocol (MCP) server processes inside restricted Linux namespaces.
 **What+How:** Wrap MCP server spawn commands in `usr/lib/mios/agent-pipe/server.py` with `bwrap` arguments: isolated mount namespace, read-only `/usr`, private `/tmp`, and dropped capabilities.
 **Where:** usr/lib/mios/agent-pipe/server.py, usr/libexec/mios/mios-mcp-sandbox
@@ -13451,7 +13451,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Third-party MCP tool servers can contain vulnerabilities or malicious code that compromise the host.
 **Dep:** AGY-1974
 
-## AGY-1976 -- Interactive human-in-the-loop permission escalation prompts on destructive MCP tool calls  (WS-SEC | P1 | S)
+## AGY-1976 -- Interactive human-in-the-loop permission escalation prompts on destructive MCP tool calls  (WS-SEC | P1 | S) **[DONE]**
 **Goal:** Block destructive actions (e.g. partition deletion, system file removal) until explicitly confirmed by the operator.
 **What+How:** Define a list of high-risk tool patterns in `[security.approval]` in `mios.toml`. When an agent invokes a matching tool, pause execution, send an interactive desktop notification/modal, and resume only upon operator authorization.
 **Where:** usr/lib/mios/agent-pipe/server.py, usr/share/mios/mios.toml
@@ -13461,7 +13461,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Autonomous agents must never perform irreversible destructive actions without human verification.
 **Dep:** AGY-1975
 
-## AGY-1977 -- Distributed graph traversal over pgvector knowledge triples with recursive CTEs  (WS-RAG | P2 | M)
+## AGY-1977 -- Distributed graph traversal over pgvector knowledge triples with recursive CTEs  (WS-RAG | P2 | M) **[DONE]**
 **Goal:** Query connected relationships between system components, services, and configuration keys.
 **What+How:** Implement knowledge graph querying in `usr/lib/mios/agent-pipe/mios_graph.py` using recursive PostgreSQL Common Table Expressions (CTEs) over the `knowledge_graph` table (`subject`, `predicate`, `object`, `embedding`).
 **Where:** usr/lib/mios/agent-pipe/mios_graph.py, usr/share/mios/postgres/schema-init.sql
@@ -13471,7 +13471,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Understanding system architecture requires relational graph traversal in addition to flat semantic vector searches.
 **Dep:** AGY-1976
 
-## AGY-1978 -- Contextual prompt compression using selective linguistic token pruning  (WS-AI | P2 | S)
+## AGY-1978 -- Contextual prompt compression using selective linguistic token pruning  (WS-AI | P2 | S) **[DONE]**
 **Goal:** Reduce token overhead of long system prompts and retrieved context without losing semantic meaning.
 **What+How:** Build `usr/lib/mios/agent-pipe/mios_compress.py` applying linguistic token pruning (removing redundant syntactic filler, stop words in code snippets, and duplicate markdown headers).
 **Where:** usr/lib/mios/agent-pipe/mios_compress.py, usr/lib/mios/agent-pipe/server.py
@@ -13481,7 +13481,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Minimizing prompt token counts reduces inference latency and saves VRAM memory bandwidth.
 **Dep:** AGY-1977
 
-## AGY-1979 -- Agent-to-Agent mutual capability exchange protocol and cryptographic attestation  (WS-FED | P1 | M)
+## AGY-1979 -- Agent-to-Agent mutual capability exchange protocol and cryptographic attestation  (WS-FED | P1 | M) **[DONE]**
 **Goal:** Allow federated MiOS agents to verify peer capabilities and cryptographic signatures before delegating tasks.
 **What+How:** Implement A2A capability attestation in `usr/lib/mios/agent-pipe/a2a.py`. Sign AgentCard metadata using the host's TPM2/Ed25519 node key and verify signatures on incoming peer connections.
 **Where:** usr/lib/mios/agent-pipe/a2a.py, usr/lib/mios/agent-pipe/server.py

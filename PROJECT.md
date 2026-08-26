@@ -1,71 +1,72 @@
-# Project: MiOS Open Roadmap & Runtime Integration
+# Project: MiOS Roadmap Tasks Execution & CI Parity
 
 ## Architecture
-- Submodule isolation under `usr/libexec/mios/` preserving `max_libexec_verbs = 285`.
-- Native Linux FHS folder layout across `usr/`, `etc/`, `var/`.
-- Single AI endpoint contract (`MIOS_AI_ENDPOINT`) and Quadlet container services.
-- Immutable bootc/ostree UKI + composefs verity security chain.
-- Discrete GPU passthrough via `vfio-pci` + Looking Glass B6 IVSHMEM (`kvmfr`).
-- Quadlet secrets isolation via `EnvironmentFile=/etc/mios/secrets.env` (0600).
-- Multi-partition deployment staging (`MiOS-Repo` config vs `MiOS-Data` bulk storage).
+MiOS is an immutable, bootc/OCI-shaped Fedora workstation that is also a local, self-replicating agentic AI operating system.
+All runtime verbs and extensions follow strict Architectural Laws:
+- Modular Libexec Layout: All new domain verbs reside under `usr/libexec/mios/<domain>/` to preserve the `max_libexec_verbs = 285/285` ceiling.
+- Python/Rust Runtime Implementation: Implemented in Python standard library or compiled Rust to preserve `ps_lines = 22618/22618`.
+- Hermetic Test Suites: Authored under `tests/test-*.py` using standard `unittest` and registered in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+- SSOT Synchronization & CI Parity: `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`, and 7 machine projections synced via `tools/sync-generated.sh`.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Wasm Sandbox Engine | Tier-1 Wasm sandbox with fuel bounding, 64MB limit, and `mios_sys_*` host imports (T-347 / NODE-02) | M1 | Survey |
-| 2 | Vector SSOT Authority | PostgreSQL + pgvector as live runtime SSOT with lossless bidirectional TOML materialization (T-350 / VECTOR-05) | M1 | Survey |
-| 3 | CephFS PAM Provisioning | Multi-tenant user CephFS auto-provisioning & CephX auth with PAM integration (T-352 / STRG-11) | M2 | Survey |
-| 4 | UKI & Boot Chain Verity | UKI PE magic, PCR measurements (4/7/11), and composefs fs-verity verification (T-353 / SEC-04) | M2 | Survey |
-| 5 | Quadlet Secrets Hardening | 0600 `/etc/mios/secrets.env` rotation service and elimination of grandfathered literals (T-355 / SEC-05) | M2 | Survey |
-| 6 | Discrete VFIO & Looking Glass | Full-device GPU passthrough & Looking Glass B6 IVSHMEM memory validation (T-354 / VFIO-01) | M3 | Survey |
-| 7 | MiOS-Cat Staging Separation | Multi-partition USB staging keeping OCI image archives strictly on `MiOS-Data` (T-356 / CAT-05) | M3 | Survey |
-| 8 | CI Test Suites & Registry Sync | Unit test authoring, registration in `mios.toml` `[ci.tiers].unit`, and CI suite verification | M4 | Survey |
-| 9 | Task Registry & Parity Gates | `TASKS.md`, `AGY-TASKS.md`, and `ROADMAP.md` 8-field schema and parity verification across all 7 CI checks | M5 | Survey |
+| 1 | MCP-01 Sandbox | Bubblewrap namespace and filesystem isolation for external MCP tool servers | M1 | T-377 / AGY-1975 |
+| 2 | SEC-06 HITL Approval | Interactive human-in-the-loop permission escalation prompts for destructive MCP tools | M2 | T-378 / AGY-1976 |
+| 3 | GRAPH-01 Knowledge Traversal | Recursive CTE knowledge traversal across pgvector knowledge triples | M3 | T-379 / AGY-1977 |
+| 4 | PROMPT-01 Context Pruning | Contextual prompt compression and selective linguistic token pruning (~25% savings) | M4 | T-380 / AGY-1978 |
+| 5 | A2A-01 Attestation | Agent-to-Agent mutual capability exchange and Ed25519 cryptographic attestation | M5 | T-381 / AGY-1979 |
+| 6 | CI Suites & SSOT Sync | Test suite registration in mios.toml, task parity updates, sync-generated, and 7 CI validation passes | M6 | R2, R3, R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Runtime Core | T-347 (Wasm Sandbox) & T-350 (Vector SSOT Authority) | none | DONE |
-| M2 | Storage & Security | T-352 (CephFS PAM), T-353 (UKI / fs-verity), T-355 (Quadlet Creds) | M1 | DONE |
-| M3 | VFIO & Deployment | T-354 (VFIO Looking Glass) & T-356 (MiOS-Cat Staging) | M2 | DONE |
-| M4 | Test Suites & CI Registration | Unit test execution & CI suite registration in `mios.toml` | M1, M2, M3 | DONE |
-| M5 | Registry Sync & Gate Verification | Update `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`, pass all 7 CI gates, commit and push | M4 | DONE |
+| 1 | M1-MCP-Sandbox | Implement `usr/libexec/mios/mcp/sandbox.py` + `tests/test-mcp-sandbox.py` (T-377) | none | DONE |
+| 2 | M2-SEC-Approval | Implement `usr/libexec/mios/sec/approval.py` + `tests/test-hitl-approval.py` (T-378) | M1 | DONE |
+| 3 | M3-GRAPH-Traversal | Implement `usr/libexec/mios/graph/traversal.py` + `tests/test-knowledge-graph.py` (T-379) | M2 | DONE |
+| 4 | M4-PROMPT-Pruning | Implement `usr/libexec/mios/prompt/pruning.py` + `tests/test-prompt-pruning.py` (T-380) | M3 | DONE |
+| 5 | M5-A2A-Attestation | Implement `usr/libexec/mios/a2a/attestation.py` + `tests/test-a2a-attestation.py` (T-381) | M4 | DONE |
+| 6 | M6-CI-Sync-Commit | Register tests in `mios.toml`, update `TASKS.md`, `AGY-TASKS.md`, run `roadmap-index.py`, `sync-generated.sh`, pass all 7 CI checks, commit and push | M1-M5 | DONE |
 
 ## Interface Contracts
+### M1: MCP Sandbox ↔ Agent-Pipe
+- `McpSandbox(server_name: str, allow_net: bool = False, custom_ro_binds: list[str] = None)`
+- `build_command(inner_cmd: list[str]) -> list[str]`
+- Wraps target execution with `bwrap --die-with-parent --new-session --unshare-all --ro-bind /usr /usr ...`
 
-### Wasm Sandbox (`usr/libexec/mios/node/wasm_sandbox.py`)
-- Class: `WasmSandboxEngine(config: WasmExecutionConfig)`
-- Config: `max_memory_bytes: int = 64 * 1024 * 1024`, `max_fuel: int = 1_000_000`
-- Exit codes: 0 (success), 124 (fuel exhausted), 137 (memory limit exceeded)
-- Host imports: `mios_sys_read`, `mios_sys_write`, `mios_sys_log`, `mios_sys_time`, `mios_sys_exit`
+### M2: HITL Approval ↔ Tool Dispatch
+- `ApprovalEngine(patterns: list[str] = None, ttl_seconds: int = 120)`
+- `requires_approval(command: str) -> bool`
+- `create_request(tool_name: str, command: str) -> ApprovalRequest`
+- `approve(request_id: str, operator: str) -> str` (token)
+- `validate_token(request_id: str, token: str) -> bool`
 
-### Config SSOT Materializer (`usr/libexec/mios/materialize-config-toml.py`)
-- Functions: `escape_toml_key(key: str) -> str`, `format_toml_value(val: Any) -> str`
-- Query: `config_kv` (layer = 0) and `domain_verb` / `verb` tables to generate valid TOML string.
+### M3: Knowledge Graph ↔ pgvector / CTE Traversal
+- `KnowledgeGraph(db_uri: str = None)`
+- `add_triple(subject: str, predicate: str, object_: str, properties: dict = None)`
+- `get_recursive_dependencies(root: str, max_depth: int = 5) -> list[str]`
+- `traverse(root: str, max_depth: int = 5) -> list[dict]`
 
-### CephFS Provisioner (`usr/libexec/mios/mios-cephfs-provision`)
-- CLI: `mios-cephfs-provision validate <user> <group>`, `create <user> <group>`, `delete <user>`
-- PAM module: `usr/lib/pam.d/mios-cephfs-auth` invoking `pam_exec.so /usr/libexec/mios/mios-cephfs-provision validate %u %g`
+### M4: Prompt Compressor ↔ Agent Pipeline
+- `PromptPruner(min_ratio: float = 0.20)`
+- `compress(text: str) -> tuple[str, dict]`
+- Prunes redundant filler, boilerplate, duplicate headings while preserving code blocks and syntax verbatim.
 
-### Boot Chain Verifier (`usr/libexec/mios/sec/verify-boot-chain.py`)
-- Class: `BootChainVerifier`
-- Methods: `verify_fsverity_digest()`, `verify_pcr_measurements()`, `check_uki_structure()`
-- CLI: `--check`, `--mock`, `--json`
-
-### Quadlet Secrets Hardener (`usr/libexec/mios/sec/rotate-quadlet-secrets.py`)
-- Class: `QuadletSecretsHardener`
-- Target: `/etc/mios/secrets.env` (mode `0600`)
-- Service: `usr/lib/systemd/system/mios-secret-init.service`
-
-### Looking Glass Setup (`usr/libexec/mios/vfio/setup-looking-glass.py`)
-- Class: `LookingGlassManager(shm_path: str, size_mb: int)`
-- Methods: `generate_ivshmem_xml()`, `validate_shm_allocation()`
+### M5: A2A Authenticator ↔ Peer Nodes
+- `A2AAuthenticator(node_id: int, private_key: bytes, public_key: bytes)`
+- `create_card(agent_name: str, capabilities: list[str], ttl_seconds: int = 3600) -> dict`
+- `verify_card(card: dict, trusted_public_key: bytes) -> bool`
 
 ## Code Layout
-- Core submodules: `usr/libexec/mios/{node,sec,vfio,db}/`
-- Systemd units: `usr/lib/systemd/system/`
-- PAM configuration: `usr/lib/pam.d/`
-- Quadlet definitions: `usr/share/containers/systemd/`
-- Test suites: `tests/test-*.py`
-- CI configuration: `usr/share/mios/mios.toml`
-- Task registries: `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`
+- `usr/libexec/mios/mcp/sandbox.py`: MCP bubblewrap namespace sandbox engine
+- `usr/libexec/mios/sec/approval.py`: Interactive HITL approval and permission escalation engine
+- `usr/libexec/mios/graph/traversal.py`: Recursive CTE knowledge graph traversal engine
+- `usr/libexec/mios/prompt/pruning.py`: Contextual prompt compression and token pruning engine
+- `usr/libexec/mios/a2a/attestation.py`: A2A cryptographic capability attestation engine
+- `tests/test-mcp-sandbox.py`: Unit test suite for M1
+- `tests/test-hitl-approval.py`: Unit test suite for M2
+- `tests/test-knowledge-graph.py`: Unit test suite for M3
+- `tests/test-prompt-pruning.py`: Unit test suite for M4
+- `tests/test-a2a-attestation.py`: Unit test suite for M5
+- `usr/share/mios/mios.toml`: SSOT registry containing `[ci.tiers] unit` test registrations
+- `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`: Project task registries

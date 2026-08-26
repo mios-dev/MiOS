@@ -362,11 +362,11 @@
 | T-374 | P2 | done | Vision/Desktop | Multi-modal visual RAG pipeline extracting UI screenshot embeddings for desktop state reasoning |
 | T-375 | P2 | done | Memory/Decay | Temporal decay scoring on memory retrieval vectors to prioritize recent system state changes |
 | T-376 | P2 | done | Skills/Synthesis | Automatic skill synthesis and extraction from successful multi-step task execution traces |
-| T-377 | P1 | open | Sandboxing/MCP | MCP server sandboxing using isolated bubblewrap and unshare namespaces |
-| T-378 | P1 | open | Security/Approval | Interactive human-in-the-loop permission escalation prompts on destructive MCP tool calls |
-| T-379 | P2 | open | Graph/Knowledge | Distributed graph traversal over pgvector knowledge triples with recursive CTEs |
-| T-380 | P2 | open | Prompt/Pruning | Contextual prompt compression using selective linguistic token pruning |
-| T-381 | P1 | open | Federation/A2A | Agent-to-Agent mutual capability exchange protocol and cryptographic attestation |
+| T-377 | P1 | done | Sandboxing/MCP | MCP server sandboxing using isolated bubblewrap and unshare namespaces |
+| T-378 | P1 | done | Security/Approval | Interactive human-in-the-loop permission escalation prompts on destructive MCP tool calls |
+| T-379 | P2 | done | Graph/Knowledge | Distributed graph traversal over pgvector knowledge triples with recursive CTEs |
+| T-380 | P2 | done | Prompt/Pruning | Contextual prompt compression using selective linguistic token pruning |
+| T-381 | P1 | done | Federation/A2A | Agent-to-Agent mutual capability exchange protocol and cryptographic attestation |
 | T-382 | P1 | open | Agent/SelfHealing | Autonomous self-healing code remediation agent triggered on systemd unit failures |
 | T-383 | P2 | open | Synthetic/Data | Synthetic training data pipeline generating Q&A pairs from local system documentation |
 | T-384 | P2 | open | Agent/Persona | Dynamic agent persona synthesis based on task domain classification |
@@ -4501,7 +4501,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** All MCP tool servers run in unprivileged bubblewrap sandboxes with strictly scoped filesystem access.
 **Why:** Third-party MCP tool servers can contain vulnerabilities or malicious code that compromise the host.
 **Dep:** AGY-1974
-**Status:** open | **Domain:** Sandboxing/MCP | **Who:** agent
+**Status:** done | **Domain:** Sandboxing/MCP | **Who:** agent
 **Converted:** AGY-1975 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-378 -- Interactive human-in-the-loop permission escalation prompts on destructive MCP tool calls (WS-SEC | P1 | S)
@@ -4511,7 +4511,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Destructive tool calls block reliably until approved by the operator via desktop UI or API confirmation.
 **Why:** Autonomous agents must never perform irreversible destructive actions without human verification.
 **Dep:** AGY-1975
-**Status:** open | **Domain:** Security/Approval | **Who:** agent
+**Status:** done | **Domain:** Security/Approval | **Who:** agent
 **Converted:** AGY-1976 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-379 -- Distributed graph traversal over pgvector knowledge triples with recursive CTEs (WS-RAG | P2 | M)
@@ -4521,7 +4521,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Knowledge graph engine resolves multi-hop component dependencies with sub-10ms query latency.
 **Why:** Understanding system architecture requires relational graph traversal in addition to flat semantic vector searches.
 **Dep:** AGY-1976
-**Status:** open | **Domain:** Graph/Knowledge | **Who:** agent
+**Status:** done | **Domain:** Graph/Knowledge | **Who:** agent
 **Converted:** AGY-1977 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-380 -- Contextual prompt compression using selective linguistic token pruning (WS-AI | P2 | S)
@@ -4531,7 +4531,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Prompt compressor delivers ~25% token savings on long retrieval context blocks.
 **Why:** Minimizing prompt token counts reduces inference latency and saves VRAM memory bandwidth.
 **Dep:** AGY-1977
-**Status:** open | **Domain:** Prompt/Pruning | **Who:** agent
+**Status:** done | **Domain:** Prompt/Pruning | **Who:** agent
 **Converted:** AGY-1978 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-381 -- Agent-to-Agent mutual capability exchange protocol and cryptographic attestation (WS-FED | P1 | M)
@@ -4541,7 +4541,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Peer agents authenticate and negotiate capabilities over cryptographically verified AgentCards.
 **Why:** Federated multi-agent networks must protect against spoofed agent nodes and malicious task injection.
 **Dep:** AGY-1978
-**Status:** open | **Domain:** Federation/A2A | **Who:** agent
+**Status:** done | **Domain:** Federation/A2A | **Who:** agent
 **Converted:** AGY-1979 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-382 -- Autonomous self-healing code remediation agent triggered on systemd unit failures (WS-ORCH | P1 | L)

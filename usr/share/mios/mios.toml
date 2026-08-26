@@ -10962,6 +10962,11 @@ unit = [
     "tests/test-visual-rag.py",
     "tests/test-temporal-decay.py",
     "tests/test-skill-synthesizer.py",
+    "tests/test-mcp-sandbox.py",
+    "tests/test-hitl-approval.py",
+    "tests/test-knowledge-graph.py",
+    "tests/test-prompt-pruning.py",
+    "tests/test-a2a-attestation.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
