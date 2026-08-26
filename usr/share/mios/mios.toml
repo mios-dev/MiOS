@@ -11172,6 +11172,20 @@ unit = [
     "tests/test-tmpfs-spill.py",
     "tests/test-log-streamer.py",
     "tests/test-adversarial-t401-t406.py",
+    "tests/test-iommu-parser.py",
+    "tests/test-vfio-bind.py",
+    "tests/test-looking-glass-config.py",
+    "tests/test-pipewire-bridge.py",
+    "tests/test-vtpm-provision.py",
+    "tests/test-hugepages-mgr.py",
+    "tests/test-virtiofs-mount.py",
+    "tests/test-cpu-governor.py",
+    "tests/test-battery-passthrough.py",
+    "tests/test-usb-hotplug.py",
+    "tests/test-multimonitor-sync.py",
+    "tests/test-gpu-thermal-watchdog.py",
+    "tests/test-adversarial-virt-display.py",
+    "tests/test-adversarial-hw-power.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

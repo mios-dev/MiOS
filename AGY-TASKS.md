@@ -13801,7 +13801,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Failed database migrations must never leave the persistent agent datastore in an inconsistent half-applied state.
 **Dep:** AGY-2009
 
-## AGY-2011 -- Automated IOMMU group parsing and ACS override recommendation tool  (WS-VFIO | P1 | S)
+## AGY-2011 -- Automated IOMMU group parsing and ACS override recommendation tool  (WS-VFIO | P1 | S) **[DONE]**
 **Goal:** Audit PCIe IOMMU groupings and detect device isolation conflicts before launching VFIO passthrough.
 **What+How:** Build `usr/libexec/mios/mios-iommu-audit`. Enumerate `/sys/kernel/iommu_groups/`, verify target GPU is in an isolated group, and warn if ACS override kernel parameter is required.
 **Where:** usr/libexec/mios/mios-iommu-audit, usr/share/doc/mios/reference/vfio-guide.md
@@ -13811,7 +13811,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Improper IOMMU groupings prevent discrete GPU passthrough and risk guest memory corruption.
 **Dep:** AGY-1952
 
-## AGY-2012 -- Dynamic VFIO device unbind and rebind script without host reboot  (WS-VFIO | P1 | M)
+## AGY-2012 -- Dynamic VFIO device unbind and rebind script without host reboot  (WS-VFIO | P1 | M) **[DONE]**
 **Goal:** Dynamically switch GPU between host driver (NVIDIA/amdgpu) and `vfio-pci` without rebooting.
 **What+How:** Implement `usr/libexec/mios/mios-gpu-switch`. Unbind display manager from target GPU, unbind device from host driver, and bind to `vfio-pci` (and reverse on guest shutdown).
 **Where:** usr/libexec/mios/mios-gpu-switch, usr/lib/systemd/system/mios-gpu-switch@.service
@@ -13821,7 +13821,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Dynamic GPU switching allows the operator to repurpose the discrete GPU between local inference and VM gaming on demand.
 **Dep:** AGY-2011
 
-## AGY-2013 -- Looking Glass B6 spice-direct host input client configuration and keybinding integration  (WS-VFIO | P1 | M)
+## AGY-2013 -- Looking Glass B6 spice-direct host input client configuration and keybinding integration  (WS-VFIO | P1 | M) **[DONE]**
 **Goal:** Provide seamless, zero-latency mouse and keyboard capture between host Wayland and guest VM.
 **What+How:** Configure Looking Glass B6 client in `usr/share/mios/looking-glass/client.ini` with SPICE direct socket input (`/var/run/libvirt/qemu/guest-spice.sock`) and configure ScrollLock capture toggle in Hyprland/GNOME.
 **Where:** usr/share/mios/looking-glass/client.ini, usr/share/mios/hyprland/hyprland.conf
@@ -13831,7 +13831,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Low-latency direct input capture is essential for high-performance interactive VM workloads.
 **Dep:** AGY-2012
 
-## AGY-2014 -- Audio low-latency JACK and PipeWire inter-VM audio bridge with sub-5ms delay  (WS-VFIO | P2 | M)
+## AGY-2014 -- Audio low-latency JACK and PipeWire inter-VM audio bridge with sub-5ms delay  (WS-VFIO | P2 | M) **[DONE]**
 **Goal:** Stream crystal-clear, low-latency audio from guest virtual machines into the host PipeWire graph.
 **What+How:** Configure IVSHMEM / Scream audio sink in QEMU guest definitions and stream audio into host PipeWire via `pipewire-jack` on `/dev/shm/scream`.
 **Where:** usr/share/mios/virt/scream.xml, usr/lib/systemd/system/scream.service
@@ -13841,7 +13841,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Real-time gaming and audio editing inside virtual machines requires synchronized, crackle-free audio transport.
 **Dep:** AGY-2013
 
-## AGY-2015 -- Virtual TPM2 (swtpm) automated provisioning for Secure Boot Windows 11 guests  (WS-VFIO | P1 | S)
+## AGY-2015 -- Virtual TPM2 (swtpm) automated provisioning for Secure Boot Windows 11 guests  (WS-VFIO | P1 | S) **[DONE]**
 **Goal:** Automatically provision software TPM2 devices for virtual machines to meet Windows 11 hardware requirements.
 **What+How:** Update VM provisioning scripts in `usr/libexec/mios/mios-vm-create` to initialize `swtpm socket` instances with persistent state in `/var/lib/libvirt/swtpm/<vm_id>/`.
 **Where:** usr/libexec/mios/mios-vm-create, usr/share/mios/virt/template-win11.xml
@@ -13851,7 +13851,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Windows 11 mandates a hardware or software TPM 2.0 device for boot security and BitLocker encryption.
 **Dep:** AGY-2014
 
-## AGY-2016 -- Hugepages automatic allocation and compaction manager for KVM guests  (WS-VFIO | P2 | M)
+## AGY-2016 -- Hugepages automatic allocation and compaction manager for KVM guests  (WS-VFIO | P2 | M) **[DONE]**
 **Goal:** Allocate 1GB and 2MB Hugepages dynamically to eliminate memory translation overhead in guest VMs.
 **What+How:** Implement `usr/libexec/mios/mios-hugepages-alloc`. Calculate VM memory requirements, allocate hugepages via `/sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages`, and mount hugetlbfs before VM launch.
 **Where:** usr/libexec/mios/mios-hugepages-alloc, usr/lib/systemd/system/mios-hugepages.service
@@ -13861,7 +13861,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Hugepages drastically reduce TLB misses and improve memory throughput for compute and gaming workloads.
 **Dep:** AGY-2015
 
-## AGY-2017 -- VirtIO-FS shared directory mount with POSIX ACL and ID mapping for guest access  (WS-VFIO | P2 | M)
+## AGY-2017 -- VirtIO-FS shared directory mount with POSIX ACL and ID mapping for guest access  (WS-VFIO | P2 | M) **[DONE]**
 **Goal:** Share files between host and virtual machine guests at near-native disk read/write speeds.
 **What+How:** Configure `virtiofsd` in `usr/libexec/mios/mios-virtiofs-setup` mapping `/var/home/mios/Shared` into QEMU with DAX (Direct Access) memory window enabled.
 **Where:** usr/libexec/mios/mios-virtiofs-setup, usr/share/mios/virt/template-win11.xml
@@ -13871,7 +13871,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** High-performance inter-VM data sharing eliminates the need for slow network shares or virtual disk copying.
 **Dep:** AGY-2016
 
-## AGY-2018 -- Automatic CPU governor switching to performance mode during active guest execution  (WS-VFIO | P2 | S)
+## AGY-2018 -- Automatic CPU governor switching to performance mode during active guest execution  (WS-VFIO | P2 | S) **[DONE]**
 **Goal:** Lock CPU clocks to maximum frequencies when a virtual machine or heavy inference turn is running.
 **What+How:** Implement libvirt hook script in `/etc/libvirt/hooks/qemu` to switch CPU governor to `performance` via `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor` on VM start and restore `powersave` on stop.
 **Where:** /etc/libvirt/hooks/qemu, usr/libexec/mios/mios-cpu-governor
@@ -13881,7 +13881,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Frequency scaling latency causes frame drops and stuttering in real-time virtual machine workloads.
 **Dep:** AGY-2017
 
-## AGY-2019 -- Guest battery and power state passthrough for laptop VM deployments  (WS-VFIO | P3 | S)
+## AGY-2019 -- Guest battery and power state passthrough for laptop VM deployments  (WS-VFIO | P3 | S) **[DONE]**
 **Goal:** Pass physical laptop battery level and AC power status to virtual machine guests.
 **What+How:** Implement ACPI battery forwarding daemon in `usr/libexec/mios/mios-battery-sync` reading `/sys/class/power_supply/BAT0/` and injecting QEMU guest ACPI events via QMP.
 **Where:** usr/libexec/mios/mios-battery-sync, usr/lib/systemd/system/mios-battery-sync.service
@@ -13891,7 +13891,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Virtual machine guests running on mobile laptops need battery telemetry to manage power-saving features.
 **Dep:** AGY-2018
 
-## AGY-2020 -- USB hotplug manager routing external controllers and headsets dynamically to guests  (WS-VFIO | P2 | S)
+## AGY-2020 -- USB hotplug manager routing external controllers and headsets dynamically to guests  (WS-VFIO | P2 | S) **[DONE]**
 **Goal:** Automatically attach USB gaming controllers and audio headsets to virtual machines upon connection.
 **What+How:** Implement udev rule in `usr/lib/udev/rules.d/90-mios-usb-passthrough.rules` invoking `virsh attach-device` when matching vendor/product IDs are plugged in.
 **Where:** usr/lib/udev/rules.d/90-mios-usb-passthrough.rules, usr/libexec/mios/mios-usb-hotplug
@@ -13901,7 +13901,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Seamless peripheral routing eliminates manual XML editing when connecting controllers or VR headsets.
 **Dep:** AGY-2019
 
-## AGY-2021 -- Multi-monitor Looking Glass display synchronizer across heterogeneous displays  (WS-VFIO | P2 | M)
+## AGY-2021 -- Multi-monitor Looking Glass display synchronizer across heterogeneous displays  (WS-VFIO | P2 | M) **[DONE]**
 **Goal:** Support multi-display virtual machines with independent Looking Glass client windows.
 **What+How:** Configure multi-head IVSHMEM devices (`/dev/kvmfr0`, `/dev/kvmfr1`) in QEMU and launch synchronized Looking Glass client instances bound to respective Wayland outputs.
 **Where:** usr/share/mios/looking-glass/multi-head.sh, usr/share/mios/virt/template-win11.xml
@@ -13911,7 +13911,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Power users require dual or triple monitor setups for productive virtualized workflows.
 **Dep:** AGY-2020
 
-## AGY-2022 -- GPU thermal and clock frequency watchdog preventing guest thermal throttling  (WS-VFIO | P2 | S)
+## AGY-2022 -- GPU thermal and clock frequency watchdog preventing guest thermal throttling  (WS-VFIO | P2 | S) **[DONE]**
 **Goal:** Monitor discrete GPU junction temperature and adjust fan curves to maintain peak performance.
 **What+How:** Build `usr/libexec/mios/mios-gpu-thermals` reading GPU temperature sensors via sysfs/NVML. Dynamically adjust cooling fan duty cycle to keep junction temperatures under 80C.
 **Where:** usr/libexec/mios/mios-gpu-thermals, usr/lib/systemd/system/mios-gpu-thermals.service

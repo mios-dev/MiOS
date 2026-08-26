@@ -398,18 +398,18 @@
 | T-410 | P2 | done | Memory/Pressure | Automated tmpfs spill-to-NVMe manager under memory pressure conditions |
 | T-411 | P2 | done | Logging/Streaming | Unified log aggregation pipeline streaming journald events to pgvector |
 | T-412 | P1 | done | Database/Migration | Zero-downtime database schema migration runner with rollback safety checks |
-| T-413 | P1 | open | Virtualization/IOMMU | Automated IOMMU group parsing and ACS override recommendation tool |
-| T-414 | P1 | open | Virtualization/VFIO | Dynamic VFIO device unbind and rebind script without host reboot |
-| T-415 | P1 | open | Display/Input | Looking Glass B6 spice-direct host input client configuration and keybinding integration |
-| T-416 | P2 | open | Audio/PipeWire | Audio low-latency JACK and PipeWire inter-VM audio bridge with sub-5ms delay |
-| T-417 | P1 | open | Virtualization/vTPM | Virtual TPM2 (swtpm) automated provisioning for Secure Boot Windows 11 guests |
-| T-418 | P2 | open | Virtualization/Memory | Hugepages automatic allocation and compaction manager for KVM guests |
-| T-419 | P2 | open | Virtualization/VirtIOFS | VirtIO-FS shared directory mount with POSIX ACL and ID mapping for guest access |
-| T-420 | P2 | open | Hardware/Power | Automatic CPU governor switching to performance mode during active guest execution |
-| T-421 | P3 | open | Hardware/Battery | Guest battery and power state passthrough for laptop VM deployments |
-| T-422 | P2 | open | Hardware/USB | USB hotplug manager routing external controllers and headsets dynamically to guests |
-| T-423 | P2 | open | Display/MultiMonitor | Multi-monitor Looking Glass display synchronizer across heterogeneous displays |
-| T-424 | P2 | open | Hardware/Thermal | GPU thermal and clock frequency watchdog preventing guest thermal throttling |
+| T-413 | P1 | done | Virtualization/IOMMU | Automated IOMMU group parsing and ACS override recommendation tool |
+| T-414 | P1 | done | Virtualization/VFIO | Dynamic VFIO device unbind and rebind script without host reboot |
+| T-415 | P1 | done | Display/Input | Looking Glass B6 spice-direct host input client configuration and keybinding integration |
+| T-416 | P2 | done | Audio/PipeWire | Audio low-latency JACK and PipeWire inter-VM audio bridge with sub-5ms delay |
+| T-417 | P1 | done | Virtualization/vTPM | Virtual TPM2 (swtpm) automated provisioning for Secure Boot Windows 11 guests |
+| T-418 | P2 | done | Virtualization/Memory | Hugepages automatic allocation and compaction manager for KVM guests |
+| T-419 | P2 | done | Virtualization/VirtIOFS | VirtIO-FS shared directory mount with POSIX ACL and ID mapping for guest access |
+| T-420 | P2 | done | Hardware/Power | Automatic CPU governor switching to performance mode during active guest execution |
+| T-421 | P3 | done | Hardware/Battery | Guest battery and power state passthrough for laptop VM deployments |
+| T-422 | P2 | done | Hardware/USB | USB hotplug manager routing external controllers and headsets dynamically to guests |
+| T-423 | P2 | done | Display/MultiMonitor | Multi-monitor Looking Glass display synchronizer across heterogeneous displays |
+| T-424 | P2 | done | Hardware/Thermal | GPU thermal and clock frequency watchdog preventing guest thermal throttling |
 | T-425 | P1 | open | Security/UKI | UKI signing key generation and TPM2 NV index enrollment script |
 | T-426 | P1 | open | Security/ComposeFS | Composefs manifest signature verification against hardware PCR measurements |
 | T-427 | P1 | open | Security/Cosign | Cosign container image signature verification during bootc upgrade |
@@ -4861,7 +4861,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** IOMMU audit tool accurately reports PCIe isolation topology and flags shared device conflicts.
 **Why:** Improper IOMMU groupings prevent discrete GPU passthrough and risk guest memory corruption.
 **Dep:** AGY-1952
-**Status:** open | **Domain:** Virtualization/IOMMU | **Who:** agent
+**Status:** done | **Domain:** Virtualization/IOMMU | **Who:** agent
 **Converted:** AGY-2011 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-414 -- Dynamic VFIO device unbind and rebind script without host reboot (WS-VFIO | P1 | M)
@@ -4871,7 +4871,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** GPU switches between host AI inference and guest virtual machine passthrough dynamically.
 **Why:** Dynamic GPU switching allows the operator to repurpose the discrete GPU between local inference and VM gaming on demand.
 **Dep:** AGY-2011
-**Status:** open | **Domain:** Virtualization/VFIO | **Who:** agent
+**Status:** done | **Domain:** Virtualization/VFIO | **Who:** agent
 **Converted:** AGY-2012 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-415 -- Looking Glass B6 spice-direct host input client configuration and keybinding integration (WS-VFIO | P1 | M)
@@ -4881,7 +4881,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Looking Glass input client captures and releases input cleanly with native gaming responsiveness.
 **Why:** Low-latency direct input capture is essential for high-performance interactive VM workloads.
 **Dep:** AGY-2012
-**Status:** open | **Domain:** Display/Input | **Who:** agent
+**Status:** done | **Domain:** Display/Input | **Who:** agent
 **Converted:** AGY-2013 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-416 -- Audio low-latency JACK and PipeWire inter-VM audio bridge with sub-5ms delay (WS-VFIO | P2 | M)
@@ -4891,7 +4891,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Shared memory audio bridge routes guest sound to host PipeWire with sub-5ms latency.
 **Why:** Real-time gaming and audio editing inside virtual machines requires synchronized, crackle-free audio transport.
 **Dep:** AGY-2013
-**Status:** open | **Domain:** Audio/PipeWire | **Who:** agent
+**Status:** done | **Domain:** Audio/PipeWire | **Who:** agent
 **Converted:** AGY-2014 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-417 -- Virtual TPM2 (swtpm) automated provisioning for Secure Boot Windows 11 guests (WS-VFIO | P1 | S)
@@ -4901,7 +4901,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Software TPM2 devices provision automatically for every newly created guest VM.
 **Why:** Windows 11 mandates a hardware or software TPM 2.0 device for boot security and BitLocker encryption.
 **Dep:** AGY-2014
-**Status:** open | **Domain:** Virtualization/vTPM | **Who:** agent
+**Status:** done | **Domain:** Virtualization/vTPM | **Who:** agent
 **Converted:** AGY-2015 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-418 -- Hugepages automatic allocation and compaction manager for KVM guests (WS-VFIO | P2 | M)
@@ -4911,7 +4911,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Hugepage manager allocates dedicated memory pools dynamically and frees them upon VM termination.
 **Why:** Hugepages drastically reduce TLB misses and improve memory throughput for compute and gaming workloads.
 **Dep:** AGY-2015
-**Status:** open | **Domain:** Virtualization/Memory | **Who:** agent
+**Status:** done | **Domain:** Virtualization/Memory | **Who:** agent
 **Converted:** AGY-2016 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-419 -- VirtIO-FS shared directory mount with POSIX ACL and ID mapping for guest access (WS-VFIO | P2 | M)
@@ -4921,7 +4921,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** VirtIO-FS shares host directories with guest VMs at near-native NVMe speeds.
 **Why:** High-performance inter-VM data sharing eliminates the need for slow network shares or virtual disk copying.
 **Dep:** AGY-2016
-**Status:** open | **Domain:** Virtualization/VirtIOFS | **Who:** agent
+**Status:** done | **Domain:** Virtualization/VirtIOFS | **Who:** agent
 **Converted:** AGY-2017 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-420 -- Automatic CPU governor switching to performance mode during active guest execution (WS-VFIO | P2 | S)
@@ -4931,7 +4931,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** CPU frequency scaling adapts automatically based on guest VM lifecycle events.
 **Why:** Frequency scaling latency causes frame drops and stuttering in real-time virtual machine workloads.
 **Dep:** AGY-2017
-**Status:** open | **Domain:** Hardware/Power | **Who:** agent
+**Status:** done | **Domain:** Hardware/Power | **Who:** agent
 **Converted:** AGY-2018 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-421 -- Guest battery and power state passthrough for laptop VM deployments (WS-VFIO | P3 | S)
@@ -4941,7 +4941,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Laptop power and battery status reflect accurately inside guest operating systems.
 **Why:** Virtual machine guests running on mobile laptops need battery telemetry to manage power-saving features.
 **Dep:** AGY-2018
-**Status:** open | **Domain:** Hardware/Battery | **Who:** agent
+**Status:** done | **Domain:** Hardware/Battery | **Who:** agent
 **Converted:** AGY-2019 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-422 -- USB hotplug manager routing external controllers and headsets dynamically to guests (WS-VFIO | P2 | S)
@@ -4951,7 +4951,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Designated USB peripherals attach and detach dynamically based on udev hardware events.
 **Why:** Seamless peripheral routing eliminates manual XML editing when connecting controllers or VR headsets.
 **Dep:** AGY-2019
-**Status:** open | **Domain:** Hardware/USB | **Who:** agent
+**Status:** done | **Domain:** Hardware/USB | **Who:** agent
 **Converted:** AGY-2020 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-423 -- Multi-monitor Looking Glass display synchronizer across heterogeneous displays (WS-VFIO | P2 | M)
@@ -4961,7 +4961,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Multi-monitor VM setups render across separate Wayland displays with synchronized input capture.
 **Why:** Power users require dual or triple monitor setups for productive virtualized workflows.
 **Dep:** AGY-2020
-**Status:** open | **Domain:** Display/MultiMonitor | **Who:** agent
+**Status:** done | **Domain:** Display/MultiMonitor | **Who:** agent
 **Converted:** AGY-2021 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-424 -- GPU thermal and clock frequency watchdog preventing guest thermal throttling (WS-VFIO | P2 | S)
@@ -4971,7 +4971,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** GPU thermal watchdog maintains safe operational temperatures and prevents clock throttling.
 **Why:** Thermal throttling reduces GPU compute throughput and causes frame pacing inconsistencies in VMs.
 **Dep:** AGY-2021
-**Status:** open | **Domain:** Hardware/Thermal | **Who:** agent
+**Status:** done | **Domain:** Hardware/Thermal | **Who:** agent
 **Converted:** AGY-2022 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-425 -- UKI signing key generation and TPM2 NV index enrollment script (WS-SEC | P1 | M)
