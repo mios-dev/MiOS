@@ -332,16 +332,16 @@
 | T-344 | P2 | open | Orchestration/Reputation | MAO-07 -- IntrospecLOO Marginal Contribution Evaluation for Swarm/Council |
 | T-345 | P2 | open | Federation/A2A | MAO-06 -- Identity-Aware Delegation & Progressive Payload Negotiation |
 | T-346 | P1 | done | Mesh/Node | NODE-01 -- 16-Byte Fixed Binary Wire Protocol Implementation in mios-node |
-| T-347 | P1 | open | Sandboxing/Node | NODE-02 -- Tier-1 Wasm Sandbox Runtime with mios_sys_* Host Imports |
+| T-347 | P1 | done | Sandboxing/Node | NODE-02 -- Tier-1 Wasm Sandbox Runtime with mios_sys_* Host Imports |
 | T-348 | P1 | done | State/Mesh | NODE-03 -- LWW-Element-Set and Vector Clock CRDT Engine for Edge Nodes |
 | T-349 | P2 | done | Discovery/Mesh | NODE-04 -- Avahi/mDNS Zero-Conf Mesh Discovery and Handshake |
-| T-350 | P1 | open | SSOT/Database | VECTOR-05 -- Authority Inversion — PostgreSQL+pgvector as Live SSOT |
+| T-350 | P1 | done | SSOT/Database | VECTOR-05 -- Authority Inversion — PostgreSQL+pgvector as Live SSOT |
 | T-351 | P1 | done | Durability/Backup | DURA-03 -- Automated PostgreSQL+pgvector Backup & zstd Snapshot Timer |
-| T-352 | P2 | open | Storage/CephFS | STRG-11 -- Multi-tenant CephFS User Directory & CephX Auto-Provisioning |
-| T-353 | P1 | open | Security/Boot | SEC-04 -- UKI and fs-verity Boot Chain End-to-End Verification |
-| T-354 | P1 | open | Hardware/VFIO | VFIO-01 -- Full-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer |
-| T-355 | P1 | open | Security/Secrets | SEC-05 -- Quadlet Credential Hardening & 0600 secrets.env Rotation Service |
-| T-356 | P1 | open | Deploy/Cat | CAT-05 -- MiOS-Cat Tri-Launcher Hardening & MiOS-Repo vs MiOS-Data Staging |
+| T-352 | P2 | done | Storage/CephFS | STRG-11 -- Multi-tenant CephFS User Directory & CephX Auto-Provisioning |
+| T-353 | P1 | done | Security/Boot | SEC-04 -- UKI and fs-verity Boot Chain End-to-End Verification |
+| T-354 | P1 | done | Hardware/VFIO | VFIO-01 -- Full-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer |
+| T-355 | P1 | done | Security/Secrets | SEC-05 -- Quadlet Credential Hardening & 0600 secrets.env Rotation Service |
+| T-356 | P1 | done | Deploy/Cat | CAT-05 -- MiOS-Cat Tri-Launcher Hardening & MiOS-Repo vs MiOS-Data Staging |
 | T-357 | P1 | open | Windows/Install | WISO-09 -- DISM-Native Windows 11 Driver Slipstreaming & WLAN/LAN Driver Pack |
 | T-358 | P2 | open | UX/Branding | WALL-02 -- Unified Rust-native Living Wallpaper Service (mios-wallpaperd) |
 | T-359 | P1 | open | Scheduling/Quota | Dynamic token-bucket rate limiter and per-tenant burst quotas in agent-pipe |
@@ -4201,7 +4201,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Guest WebAssembly binaries run deterministically within fuel and memory constraints, returning structured results to the host.
 **Why:** Tier-1 Wasm sandboxing allows safe execution of offloaded compute tasks across heterogeneous edge architectures without root privileges.
 **Dep:** T-346
-**Status:** open | **Domain:** Sandboxing/Node | **Who:** agent
+**Status:** done | **Domain:** Sandboxing/Node | **Who:** agent
 **Converted:** AGY-1945 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-348 -- NODE-03: LWW-Element-Set and Vector Clock CRDT Engine for Edge Nodes (WS-NODE | P1 | M)
@@ -4231,7 +4231,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** The database serves as the runtime authority and `materialize-config-toml.py` produces an identical, valid `mios.toml` artifact.
 **Why:** A database-backed SSOT allows fine-grained transactional updates and live agent edits while preserving human-readable TOML exports.
 **Dep:** none
-**Status:** open | **Domain:** SSOT/Database | **Who:** agent
+**Status:** done | **Domain:** SSOT/Database | **Who:** agent
 **Converted:** AGY-1948 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-351 -- DURA-03: Automated PostgreSQL+pgvector Backup & zstd Snapshot Timer (WS-DURA | P1 | S)
@@ -4251,7 +4251,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** User logins automatically provision and mount secure CephFS home volumes with dedicated cryptographic keys.
 **Why:** Multi-tenant cluster deployments require cryptographic tenant isolation on shared distributed storage pools.
 **Dep:** none
-**Status:** open | **Domain:** Storage/CephFS | **Who:** agent
+**Status:** done | **Domain:** Storage/CephFS | **Who:** agent
 **Converted:** AGY-1950 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-353 -- SEC-04: UKI and fs-verity Boot Chain End-to-End Verification (WS-SEC | P1 | M)
@@ -4261,7 +4261,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** The system boots with Secure Boot enforcing, composefs rootfs verified, and greenboot health checks report green.
 **Why:** Hardware-enforced cryptographic rootfs verification guarantees the immutable operating system has not been tampered with offline.
 **Dep:** none
-**Status:** open | **Domain:** Security/Boot | **Who:** agent
+**Status:** done | **Domain:** Security/Boot | **Who:** agent
 **Converted:** AGY-1951 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-354 -- VFIO-01: Full-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer (WS-VFIO | P1 | M)
@@ -4271,7 +4271,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Discrete GPU binds to VFIO cleanly on boot and Looking Glass connects with sub-frame display latency.
 **Why:** Running high-performance CUDA workloads and gaming guests inside virtual machines requires dedicated physical GPU hardware passthrough.
 **Dep:** none
-**Status:** open | **Domain:** Hardware/VFIO | **Who:** agent
+**Status:** done | **Domain:** Hardware/VFIO | **Who:** agent
 **Converted:** AGY-1952 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-355 -- SEC-05: Quadlet Credential Hardening & 0600 secrets.env Rotation Service (WS-SEC | P1 | M)
@@ -4281,7 +4281,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** All credentials are dynamically generated, stored in `0600` files, and `check_credential_literals` reports 0 grandfathered violations.
 **Why:** Hardcoded credentials in world-readable unit files represent a severe privilege escalation and lateral movement risk.
 **Dep:** none
-**Status:** open | **Domain:** Security/Secrets | **Who:** agent
+**Status:** done | **Domain:** Security/Secrets | **Who:** agent
 **Converted:** AGY-1953 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-356 -- CAT-05: MiOS-Cat Tri-Launcher Hardening & MiOS-Repo vs MiOS-Data Staging (WS-CAT | P1 | M)
@@ -4291,7 +4291,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** MiOS-Cat stages files cleanly to their respective partition targets across PowerShell, bash, and Batch launchers with zero path drift.
 **Why:** Clean partition separation ensures the core system configuration remains compact and portable across various USB drive capacities.
 **Dep:** none
-**Status:** open | **Domain:** Deploy/Cat | **Who:** agent
+**Status:** done | **Domain:** Deploy/Cat | **Who:** agent
 **Converted:** AGY-1954 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-357 -- WISO-09: DISM-Native Windows 11 Driver Slipstreaming & WLAN/LAN Driver Pack (WS-WISO | P1 | M)
