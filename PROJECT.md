@@ -24,7 +24,7 @@
 |---|------|-------|-------------|--------|
 | 1 | M1: AI Plane & Agent-Pipe | T-382 (Self-heal), T-383 (Synthetic QA), T-384 (Persona), T-385 (Reflection) | none | DONE |
 | 2 | M2: Mesh Protocol & Node | T-386 (Async Frame), T-387 (Heartbeat Eviction), T-388 (Wire Crypto) | none | DONE |
-| 3 | M3: Registries & CI Sync | CI test suites registration, TASKS/AGY-TASKS parity, SSOT sync, 7 CI gates verification, and clean commit | M1, M2 | IN_PROGRESS |
+| 3 | M3: Registries & CI Sync | CI test suites registration, TASKS/AGY-TASKS parity, SSOT sync, 7 CI gates verification, and clean commit | M1, M2 | DONE |
 
 ## Code Layout
 - `usr/libexec/mios/ai/self_heal.py` — Autonomous self-healing diagnostic daemon (modular subdirectory preserves `max_libexec_verbs = 285/285`)
