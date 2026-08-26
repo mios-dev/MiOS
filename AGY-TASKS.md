@@ -19231,3 +19231,83 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures hardware-bound token authentication remains reliable across host and blade configurations.
 **Dep:** AGY-2552
 
+## AGY-2554 -- Kangaroo draftless self-speculative early-exit engine in llama-swap  (WS-AI | P1 | M)
+**Goal:** Route shallow layer representations to exit adapters and reuse primary KV-cache for >1.9x speedup with 0MB extra VRAM.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and `llama.cpp` engine. Configure `speculative_mode: self_early_exit`; tap intermediate representations at layer $L_{exit} = \lfloor N / 4 \rfloor$ (e.g. layer 8/32); evaluate a lightweight 2-layer linear projection head to generate $k=3$ draft candidate tokens; verify candidate sequences in a single target full-depth forward pass; share and update the primary PagedAttention KV-cache directly without allocating secondary model memory; achieve 1.9x to 2.4x decoding throughput with 0MB additional VRAM.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 70B model with Kangaroo self-speculation; verify VRAM consumption is identical to standard autoregressive baseline, generation speedup is >1.9x, and token output matches exact greedy trajectory.
+**Do NOT:** Allocate a separate full-sized draft model in VRAM or disable early-exit speculative execution.
+**Done When:** Inference engine executes Kangaroo draftless self-speculative early-exit decoding at >1.9x speedup.
+**Why:** Kangaroo self-speculation delivers massive decoding speedups without requiring any extra VRAM for separate draft models.
+**Dep:** AGY-2553
+
+## AGY-2555 -- Automated 1.9x self-speculative speedup, 0MB VRAM overhead, and token parity test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that Kangaroo achieves >1.9x speedup, 0MB extra VRAM overhead, and 100% token parity.
+**What+How:** Add `tests/test-kangaroo-self-speculation.sh`. Benchmark generation speed on 70B model with and without Kangaroo self-speculation; assert throughput speedup > 1.90x; record peak VRAM allocation via NVML (assert delta <= 50MB); assert 100.0% exact token match under greedy decoding; verify 0 KV-cache synchronization corruptions.
+**Where:** tests/test-kangaroo-self-speculation.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-kangaroo-self-speculation.sh`; verify 1.9x speedup SLA, zero VRAM overhead, and output parity pass 100%.
+**Do NOT:** Skip self-speculation testing in CI test tier 2.
+**Done When:** Test suite validates >1.9x generation acceleration, zero memory overhead, and exact token parity.
+**Why:** Continuous testing ensures draftless self-speculative mechanisms maintain maximum acceleration and numerical exactness.
+**Dep:** AGY-2554
+
+## AGY-2556 -- Hardware BHI_DIS_S enforcer and universal BHB history clearing guard in mios-bhi-guard  (WS-SEC | P1 | M)
+**Goal:** Enable BHI_DIS_S in SPEC_CTRL and execute 32-branch history clearing loops to eliminate Spectre-BHI in <150ns.
+**What+How:** Implement `usr/libexec/mios/mios-bhi-guard` and `automation/24-cpu-affinity.sh`. Configure `spectre_bhi=auto` in UKI kernel; detect CPU BHI capabilities at boot; enable `BHI_DIS_S` bit (bit 10) in `MSR_IA32_SPEC_CTRL` on modern Intel/AMD processors; on processors lacking hardware BHI disable, execute a 32-iteration unrolled branch history clearing sequence upon domain context switch; flush Branch History Buffer in <150ns; prevent cross-privilege speculative indirect branch hijacking with <0.4% overhead.
+**Where:** usr/libexec/mios/mios-bhi-guard, automation/24-cpu-affinity.sh
+**Verify:** Execute synthetic Spectre-BHI gadget steering exploit across security domains; verify BHB clearing prevents speculative target takeover and attack fails 100% of trials.
+**Do NOT:** Disable CPU branch prediction globally or leave the branch history buffer uncleared across untrusted sandboxes.
+**Done When:** Security guard enforces BHI_DIS_S and BHB clearing across security domains in <150ns.
+**Why:** Hardware BHI_DIS_S and BHB clearing protect kernel indirect branches from speculative gadget steering.
+**Dep:** AGY-2555
+
+## AGY-2557 -- Automated Spectre-BHI mitigation verification (<150ns latency) and /proc test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that BHI mitigations execute in <150ns and /proc sysfs reports mitigated status.
+**What+How:** Add `tests/test-bhi-branch-history-guard.sh`. Execute `mios-bhi-guard` during domain transition; measure BHB clearing latency via `rdtsc` (assert < 150 nanoseconds); inspect `/sys/devices/system/cpu/vulnerabilities/bhi`; assert status reports `Mitigation: BHI_DIS_S` or `Mitigation: Branch History Buffer clearing`; run synthetic BHI gadget injection; assert 0 kernel speculative branch diversions across 100,000 trials.
+**Where:** tests/test-bhi-branch-history-guard.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-bhi-branch-history-guard.sh`; verify sub-150ns clearing SLA, sysfs vulnerability status, and zero exploit pass 100%.
+**Do NOT:** Skip BHI vulnerability testing in CI test tier 2.
+**Done When:** Test suite validates microsecond BHB clearing, kernel vulnerability reporting, and total Spectre-BHI immunity.
+**Why:** Continuous testing ensures branch history injection mitigations remain active across microcode and kernel updates.
+**Dep:** AGY-2556
+
+## AGY-2558 -- DBQ double-binarized dual-POPCOUNT matrix engine in llama-swap  (WS-AI | P1 | M)
+**Goal:** Factorize weights into 2 binary sign matrices with channel scales for >350 tok/s on CPU in 18.0GB RAM.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and `llama.cpp` CPU engine. Configure `quantization: dbq_2bit`; factorize weight matrices into two complementary 1-bit binary sign matrices ($W \approx s_1 B_1 + s_2 B_2$ where $B_1, B_2 \in \{-1, +1\}$) with per-channel FP16 scale factors; evaluate dot products using dual AVX-512 `_mm512_popcnt_epi64` / ARM `CNT` hardware instructions; eliminate 90% of integer/float multipliers; fit 70B parameter models into 18.0GB RAM; achieve >350 tok/s CPU generation speed.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 70B DBQ model on CPU; verify system allocates <18.5GB RAM, decoding throughput exceeds 350 tok/s on multicore CPU, and wikitext-2 perplexity degradation is <0.020.
+**Do NOT:** Decompress dual binary matrices into FP32 floats in memory or require arithmetic multiplier hardware for matrix evaluation.
+**Done When:** Inference engine executes DBQ dual-POPCOUNT matrix operations at >350 tok/s on CPU.
+**Why:** Double-Binarized Quantization enables 2-bit models to achieve high fidelity while executing on lightweight integer hardware.
+**Dep:** AGY-2557
+
+## AGY-2559 -- Automated 350 tok/s CPU throughput, dual-binary POPCOUNT, and RAM fitting test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that DBQ achieves >350 tok/s on CPU, fits in <18.5GB RAM, and retains perplexity <0.020 delta.
+**What+How:** Add `tests/test-dbq-dual-popcount.sh`. Benchmark 70B DBQ model on CPU; record hardware execution counters via `perf stat`; assert arithmetic multiplier instructions <= 10% of standard baseline; assert peak RAM <= 18.50 GB; assert token generation throughput > 350.0 tok/s; evaluate wikitext-2 perplexity; assert perplexity degradation is < 0.020.
+**Where:** tests/test-dbq-dual-popcount.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-dbq-dual-popcount.sh`; verify 350 tok/s throughput SLA, sub-18.5GB RAM budget, and perplexity pass 100%.
+**Do NOT:** Skip DBQ dual-POPCOUNT testing in CI test tier 2.
+**Done When:** Test suite validates >350 tok/s CPU decoding speed, minimal multiplier use, and low perplexity loss.
+**Why:** Continuous testing ensures double-binarized inference pipelines maintain high computational speed and small memory footprints.
+**Dep:** AGY-2558
+
+## AGY-2560 -- Automated IBT/BTI landing pad enforcer and control-flow compiler in mios-ibt-guard  (WS-SEC | P1 | M)
+**Goal:** Enforce -fcf-protection=full / -mbranch-protection=standard to insert ENDBR64/BTI landing pads and trap illegal jumps in <5ns.
+**What+How:** Implement `usr/libexec/mios/mios-ibt-guard` and `automation/24-cpu-affinity.sh`. Configure GCC, Clang, and Rust build profiles with `-fcf-protection=full` on x86_64 and `-mbranch-protection=standard` on ARM64; verify every valid function entry and indirect jump destination begins with `ENDBR64` (0xF3 0x0F 0x1E 0xFA) or `BTI c` landing pad instructions; enforce hardware control-flow tracking in CPU execution pipelines; trap illegal indirect jumps landing on arbitrary instruction offsets with `#CP` (Control Protection Exception) in <5ns with <0.5% overhead.
+**Where:** usr/libexec/mios/mios-ibt-guard, automation/24-cpu-affinity.sh
+**Verify:** Attempt synthetic jump to mid-instruction gadget offset without landing pad; verify CPU immediately raises Control Protection Exception in <5ns and execution is cleanly aborted.
+**Do NOT:** Ban indirect calls and function pointers or leave indirect branch targets uninstrumented in compiled binaries.
+**Done When:** Security runtime and build toolchain enforce IBT/BTI landing pad verification across all binaries and kernel modules.
+**Why:** Indirect Branch Tracking prevents Return/Jump-Oriented Programming (ROP/JOP) gadget hijacking in hardware.
+**Dep:** AGY-2559
+
+## AGY-2561 -- Automated IBT/BTI illegal jump trapping (<5ns) and binary landing pad test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that 100% of function entry points carry landing pads and illegal jumps are trapped in <5ns.
+**What+How:** Add `tests/test-ibt-landing-pad-enforcement.sh`. Compile test module via `mios-ibt-guard`; disassemble output with `objdump -d`; assert 100.0% of exported and indirect functions start with `endbr64` or `bti c`; execute test program attempting an unaligned jump to a target lacking landing pad; assert kernel raises `#CP` / `SIGSEGV` in < 5.0 nanoseconds; verify execution overhead is < 0.50%.
+**Where:** tests/test-ibt-landing-pad-enforcement.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-ibt-landing-pad-enforcement.sh`; verify 100% landing pad coverage, sub-5ns exception latency, and <0.5% overhead pass 100%.
+**Do NOT:** Skip IBT/BTI landing pad disassembly validation in CI test tier 2.
+**Done When:** Test suite validates landing pad opcode presence, hardware exception trapping, and minimal CPU overhead.
+**Why:** Continuous testing ensures hardware-enforced control-flow integrity instructions are uniformly emitted across all binaries.
+**Dep:** AGY-2560
+
