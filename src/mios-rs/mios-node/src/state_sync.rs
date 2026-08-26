@@ -61,6 +61,33 @@ pub struct StateStore {
     persistence_path: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CompactionConfig {
+    pub tombstone_ttl_ns: u64,           // default: 24 * 3600 * 1_000_000_000 (24h)
+    pub min_compaction_interval_ns: u64, // default: 3600 * 1_000_000_000 (1h)
+    pub max_tombstones_threshold: usize, // e.g. 1000 tombstones triggers compaction
+}
+
+impl Default for CompactionConfig {
+    fn default() -> Self {
+        Self {
+            tombstone_ttl_ns: 24 * 3600 * 1_000_000_000,
+            min_compaction_interval_ns: 3600 * 1_000_000_000,
+            max_tombstones_threshold: 1000,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CompactionStats {
+    pub initial_elements: usize,
+    pub active_elements: usize,
+    pub tombstones_purged: usize,
+    pub tombstones_retained: usize,
+    pub disk_bytes_reclaimed: u64,
+    pub duration_us: u64,
+}
+
 impl StateStore {
     pub fn new(node_id: u32) -> Self {
         Self {
@@ -81,6 +108,85 @@ impl StateStore {
 
         store.persistence_path = Some(path_str);
         Ok(store)
+    }
+
+    pub fn count_tombstones(&self) -> usize {
+        self.elements.values().filter(|e| e.is_deleted).count()
+    }
+
+    pub fn total_elements_count(&self) -> usize {
+        self.elements.len()
+    }
+
+    /// Compacts tombstones older than `ttl_ns` relative to `current_time_ns`.
+    /// Retains active elements and fresh unexpired tombstones.
+    pub fn compact_tombstones(&mut self, current_time_ns: u64, ttl_ns: u64) -> CompactionStats {
+        let start = std::time::Instant::now();
+        let initial_elements = self.elements.len();
+
+        let mut keys_to_purge = Vec::new();
+        let mut active_count = 0;
+        let mut tombstones_retained = 0;
+
+        for (key, elem) in &self.elements {
+            if elem.is_deleted {
+                let age = current_time_ns.saturating_sub(elem.timestamp_ns);
+                if age > ttl_ns {
+                    keys_to_purge.push(key.clone());
+                } else {
+                    tombstones_retained += 1;
+                }
+            } else {
+                active_count += 1;
+            }
+        }
+
+        let tombstones_purged = keys_to_purge.len();
+        for key in keys_to_purge {
+            self.elements.remove(&key);
+        }
+
+        CompactionStats {
+            initial_elements,
+            active_elements: active_count,
+            tombstones_purged,
+            tombstones_retained,
+            disk_bytes_reclaimed: 0,
+            duration_us: start.elapsed().as_micros() as u64,
+        }
+    }
+
+    /// Compacts in-memory tombstones and flushes clean snapshot to disk while truncating append WAL log.
+    pub fn compact_disk_storage(&mut self, current_time_ns: u64, ttl_ns: u64) -> Result<CompactionStats> {
+        let mut stats = self.compact_tombstones(current_time_ns, ttl_ns);
+
+        if let Some(ref path_str) = self.persistence_path {
+            let log_path = format!("{}.log", path_str);
+            let initial_log_size = fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
+
+            // 1. Save clean snapshot
+            self.save_to_disk(path_str)?;
+
+            // 2. Truncate log file and write current state elements
+            let tmp_log_path = format!("{}.log.tmp", path_str);
+            {
+                let mut file = OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(&tmp_log_path)?;
+                for elem in self.elements.values() {
+                    let line = serde_json::to_string(elem)?;
+                    writeln!(file, "{}", line)?;
+                }
+            }
+            fs::rename(tmp_log_path, &log_path)?;
+
+            let new_log_size = fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
+            stats.disk_bytes_reclaimed = initial_log_size.saturating_sub(new_log_size);
+        }
+
+        Ok(stats)
     }
 
     pub fn set(&mut self, key: String, value: Vec<u8>) {
@@ -267,5 +373,74 @@ mod tests {
 
         let loaded = StateStore::load_from_disk(&path, 101).unwrap();
         assert_eq!(loaded.get("persistent.key"), Some(&b"data".to_vec()));
+    }
+
+    #[test]
+    fn test_crdt_tombstone_compaction_ttl() {
+        let mut store = StateStore::new(101);
+
+        // 1. Active key: should never be purged
+        store.set("active.key".to_string(), b"live_value".to_vec());
+
+        // 2. Fresh tombstone: deleted at t = 1000s
+        store.set("fresh.deleted".to_string(), b"val".to_vec());
+        store.delete("fresh.deleted");
+        if let Some(elem) = store.elements.get_mut("fresh.deleted") {
+            elem.timestamp_ns = 1_000_000_000_000; // 1000s
+        }
+
+        // 3. Stale tombstone: deleted at t = 100s
+        store.set("stale.deleted".to_string(), b"val".to_vec());
+        store.delete("stale.deleted");
+        if let Some(elem) = store.elements.get_mut("stale.deleted") {
+            elem.timestamp_ns = 100_000_000_000; // 100s
+        }
+
+        assert_eq!(store.total_elements_count(), 3);
+        assert_eq!(store.count_tombstones(), 2);
+
+        // Run compaction at current_time = 1050s with TTL = 200s
+        // Stale tombstone age = 1050 - 100 = 950s > 200s -> purged
+        // Fresh tombstone age = 1050 - 1000 = 50s <= 200s -> retained
+        let current_time_ns = 1_050_000_000_000;
+        let ttl_ns = 200_000_000_000;
+
+        let stats = store.compact_tombstones(current_time_ns, ttl_ns);
+        assert_eq!(stats.initial_elements, 3);
+        assert_eq!(stats.active_elements, 1);
+        assert_eq!(stats.tombstones_purged, 1);
+        assert_eq!(stats.tombstones_retained, 1);
+
+        // Verify remaining store contents
+        assert_eq!(store.total_elements_count(), 2);
+        assert_eq!(store.get("active.key"), Some(&b"live_value".to_vec()));
+        assert!(store.elements.contains_key("fresh.deleted"));
+        assert!(!store.elements.contains_key("stale.deleted"));
+    }
+
+    #[test]
+    fn test_crdt_compact_disk_storage() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+
+        let mut store = StateStore::with_persistence(101, &path).unwrap();
+        store.set("k1".to_string(), b"v1".to_vec());
+        store.set("k2".to_string(), b"v2".to_vec());
+        store.delete("k2");
+
+        if let Some(elem) = store.elements.get_mut("k2") {
+            elem.timestamp_ns = 10_000_000_000; // old timestamp
+        }
+
+        let current_time_ns = 1_000_000_000_000;
+        let ttl_ns = 100_000_000_000;
+
+        let stats = store.compact_disk_storage(current_time_ns, ttl_ns).unwrap();
+        assert_eq!(stats.tombstones_purged, 1);
+        assert_eq!(store.total_elements_count(), 1);
+
+        let reloaded = StateStore::load_from_disk(&path, 101).unwrap();
+        assert_eq!(reloaded.get("k1"), Some(&b"v1".to_vec()));
+        assert_eq!(reloaded.total_elements_count(), 1);
     }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for WS-NODE 16-byte fixed binary wire protocol framing & dispatch.
-# AI-doc: usr/share/doc/mios/manual/ch55-edge-mesh-binary-wire-protocol.md
+# AI-doc: usr/share/doc/mios/manual/node.md
 """Unit test suite for WS-NODE binary framing, CRC32 verification, and opcode dispatch."""
 
 from __future__ import annotations

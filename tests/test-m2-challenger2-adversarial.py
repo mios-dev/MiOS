@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Comprehensive adversarial stress test suite for T-388 Ed25519 Mutual Handshake & ChaCha20-Poly1305 Wire AEAD.
 # AI-related: usr/libexec/mios/node/crypto.py, usr/libexec/mios/node/wire.py, src/mios-rs/mios-node/src/crypto.rs
-# AI-doc: usr/share/doc/mios/manual/ch55-edge-mesh-binary-wire-protocol.md
+# AI-doc: usr/share/doc/mios/manual/node.md
 """
 Adversarial Stress Test Suite for Milestone 2 / T-388 (Challenger 2):
 1. Cryptographic Handshake Adversarial Tests:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Multi-modal visual RAG pipeline extracting UI screenshot embeddings for desktop state reasoning.
-# AI-related: tests/test-visual-rag.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: tests/test-visual-rag.py, usr/share/doc/mios/manual/ai.md
 """
 MiOS Multi-Modal Visual RAG Engine.
 Captures desktop frames, computes embedding hashes, and indexes visual memory records for UI agents.

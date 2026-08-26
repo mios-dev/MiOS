@@ -84,264 +84,10 @@ pub fn hkdf_sha256(salt: &[u8], ikm: &[u8], info: &[u8], len: usize) -> Vec<u8> 
 // 2. RFC 7748 X25519 Curve Arithmetic (Montgomery Ladder)
 // ============================================================================
 
-// Field element modulo 2^255 - 19 represented as 10 26-bit limbs (or u128 / u64 limbs)
-// Using 64-bit limbs for clarity and speed
-#[derive(Clone, Copy, Debug)]
-struct Fe([u64; 5]); // 5 limbs of 51 bits each: sum_i Fe[i] * 2^(51*i)
-
-impl Fe {
-    const ZERO: Self = Fe([0, 0, 0, 0, 0]);
-    const ONE: Self = Fe([1, 0, 0, 0, 0]);
-
-    fn from_bytes(b: &[u8; 32]) -> Self {
-        let mut out = [0u64; 5];
-        let mut words = [0u64; 4];
-        for i in 0..4 {
-            words[i] = LittleEndian::read_u64(&b[i * 8..(i + 1) * 8]);
-        }
-        let mask51 = (1u64 << 51) - 1;
-        out[0] = words[0] & mask51;
-        out[1] = ((words[0] >> 51) | (words[1] << 13)) & mask51;
-        out[2] = ((words[1] >> 38) | (words[2] << 26)) & mask51;
-        out[3] = ((words[2] >> 25) | (words[3] << 39)) & mask51;
-        out[4] = (words[3] >> 12) & ((1u64 << 51) - 1);
-        Fe(out)
-    }
-
-    fn to_bytes(&self) -> [u8; 32] {
-        let mut t = *self;
-        t.reduce();
-        t.reduce();
-
-        // strictly reduce modulo 2^255 - 19
-        let mut q = (19 * t.0[0]) >> 51;
-        q = (19 * t.0[1] + q) >> 51;
-        q = (19 * t.0[2] + q) >> 51;
-        q = (19 * t.0[3] + q) >> 51;
-        q = (t.0[4] + q) >> 51;
-
-        t.0[0] += 19 * q;
-        let mut carry = t.0[0] >> 51;
-        t.0[0] &= (1u64 << 51) - 1;
-        for i in 1..5 {
-            t.0[i] += carry;
-            carry = t.0[i] >> 51;
-            t.0[i] &= (1u64 << 51) - 1;
-        }
-
-        let mut out = [0u8; 32];
-        let w0 = t.0[0] | (t.0[1] << 51);
-        let w1 = (t.0[1] >> 13) | (t.0[2] << 38);
-        let w2 = (t.0[2] >> 26) | (t.0[3] << 25);
-        let w3 = (t.0[3] >> 39) | (t.0[4] << 12);
-
-        LittleEndian::write_u64(&mut out[0..8], w0);
-        LittleEndian::write_u64(&mut out[8..16], w1);
-        LittleEndian::write_u64(&mut out[16..24], w2);
-        LittleEndian::write_u64(&mut out[24..32], w3);
-        out
-    }
-
-    fn reduce(&mut self) {
-        let mask51 = (1u64 << 51) - 1;
-        let c4 = self.0[4] >> 51;
-        self.0[4] &= mask51;
-        self.0[0] += c4 * 19;
-
-        let mut c = 0u64;
-        for i in 0..5 {
-            self.0[i] += c;
-            c = self.0[i] >> 51;
-            self.0[i] &= mask51;
-        }
-        self.0[0] += c * 19;
-    }
-
-    fn add(&self, rhs: &Self) -> Self {
-        Fe([
-            self.0[0] + rhs.0[0],
-            self.0[1] + rhs.0[1],
-            self.0[2] + rhs.0[2],
-            self.0[3] + rhs.0[3],
-            self.0[4] + rhs.0[4],
-        ])
-    }
-
-    fn sub(&self, rhs: &Self) -> Self {
-        // Bias by multiples of (2^255 - 19) to prevent underflow
-        const BIAS: [u64; 5] = [
-            0x7fffffffffffda * 2,
-            0x7ffffffffffffeu64 * 2,
-            0x7ffffffffffffeu64 * 2,
-            0x7ffffffffffffeu64 * 2,
-            0x7ffffffffffffeu64 * 2,
-        ];
-        Fe([
-            self.0[0] + BIAS[0] - rhs.0[0],
-            self.0[1] + BIAS[1] - rhs.0[1],
-            self.0[2] + BIAS[2] - rhs.0[2],
-            self.0[3] + BIAS[3] - rhs.0[3],
-            self.0[4] + BIAS[4] - rhs.0[4],
-        ])
-    }
-
-    fn mul(&self, rhs: &Self) -> Self {
-        let a = &self.0;
-        let b = &rhs.0;
-        let mut r = [0u128; 5];
-
-        let mul19 = |x: u128| -> u128 { x * 19 };
-
-        r[0] = (a[0] as u128) * (b[0] as u128)
-            + mul19((a[1] as u128) * (b[4] as u128))
-            + mul19((a[2] as u128) * (b[3] as u128))
-            + mul19((a[3] as u128) * (b[2] as u128))
-            + mul19((a[4] as u128) * (b[1] as u128));
-
-        r[1] = (a[0] as u128) * (b[1] as u128)
-            + (a[1] as u128) * (b[0] as u128)
-            + mul19((a[2] as u128) * (b[4] as u128))
-            + mul19((a[3] as u128) * (b[3] as u128))
-            + mul19((a[4] as u128) * (b[2] as u128));
-
-        r[2] = (a[0] as u128) * (b[2] as u128)
-            + (a[1] as u128) * (b[1] as u128)
-            + (a[2] as u128) * (b[0] as u128)
-            + mul19((a[3] as u128) * (b[4] as u128))
-            + mul19((a[4] as u128) * (b[3] as u128));
-
-        r[3] = (a[0] as u128) * (b[3] as u128)
-            + (a[1] as u128) * (b[2] as u128)
-            + (a[2] as u128) * (b[1] as u128)
-            + (a[3] as u128) * (b[0] as u128)
-            + mul19((a[4] as u128) * (b[4] as u128));
-
-        r[4] = (a[0] as u128) * (b[4] as u128)
-            + (a[1] as u128) * (b[3] as u128)
-            + (a[2] as u128) * (b[2] as u128)
-            + (a[3] as u128) * (b[1] as u128)
-            + (a[4] as u128) * (b[0] as u128);
-
-        let mask51 = (1u128 << 51) - 1;
-        let mut c = 0u128;
-        let mut out = [0u64; 5];
-        for i in 0..5 {
-            let total = r[i] + c;
-            out[i] = (total & mask51) as u64;
-            c = total >> 51;
-        }
-        out[0] += (c * 19) as u64;
-        let mut res = Fe(out);
-        res.reduce();
-        res
-    }
-
-    fn mul_const(&self, k: u64) -> Self {
-        let mut out = [0u64; 5];
-        for i in 0..5 {
-            out[i] = self.0[i] * k;
-        }
-        let mut res = Fe(out);
-        res.reduce();
-        res
-    }
-
-    fn sqr(&self) -> Self {
-        self.mul(self)
-    }
-
-    fn invert(&self) -> Self {
-        // Fermat's Little Theorem: a^(p-2) mod p where p = 2^255 - 19
-        let mut t = *self;
-        for _ in 1..254 {
-            t = t.sqr().mul(self);
-        }
-        // compute via standard addition chain
-        let z2 = self.sqr().mul(self);
-        let mut z9 = z2.sqr();
-        for _ in 0..2 { z9 = z9.sqr(); }
-        z9 = z9.mul(&z2);
-        let z11 = z9.sqr().mul(self);
-        let mut z2_5_0 = z11.sqr();
-        for _ in 0..4 { z2_5_0 = z2_5_0.sqr(); }
-        z2_5_0 = z2_5_0.mul(&z9);
-        let mut z2_10_0 = z2_5_0.sqr();
-        for _ in 0..9 { z2_10_0 = z2_10_0.sqr(); }
-        z2_10_0 = z2_10_0.mul(&z2_5_0);
-        let mut z2_20_0 = z2_10_0.sqr();
-        for _ in 0..19 { z2_20_0 = z2_20_0.sqr(); }
-        z2_20_0 = z2_20_0.mul(&z2_10_0);
-        let mut z2_40_0 = z2_20_0.sqr();
-        for _ in 0..39 { z2_40_0 = z2_40_0.sqr(); }
-        z2_40_0 = z2_40_0.mul(&z2_20_0);
-        let mut z2_50_0 = z2_40_0.sqr();
-        for _ in 0..9 { z2_50_0 = z2_50_0.sqr(); }
-        z2_50_0 = z2_50_0.mul(&z2_10_0);
-        let mut z2_100_0 = z2_50_0.sqr();
-        for _ in 0..49 { z2_100_0 = z2_100_0.sqr(); }
-        z2_100_0 = z2_100_0.mul(&z2_50_0);
-        let mut z2_200_0 = z2_100_0.sqr();
-        for _ in 0..99 { z2_200_0 = z2_200_0.sqr(); }
-        z2_200_0 = z2_200_0.mul(&z2_100_0);
-        let mut z2_250_0 = z2_200_0.sqr();
-        for _ in 0..49 { z2_250_0 = z2_250_0.sqr(); }
-        z2_250_0 = z2_250_0.mul(&z2_50_0);
-        let mut t0 = z2_250_0.sqr();
-        for _ in 0..4 { t0 = t0.sqr(); }
-        t0 = t0.mul(&z11);
-        t0
-    }
-
-    fn cswap(a: &mut Self, b: &mut Self, swap: u64) {
-        let mask = if swap != 0 { 0xFFFFFFFFFFFFFFFF } else { 0 };
-        for i in 0..5 {
-            let x = mask & (a.0[i] ^ b.0[i]);
-            a.0[i] ^= x;
-            b.0[i] ^= x;
-        }
-    }
-}
-
 pub fn x25519(k: &[u8; 32], u: &[u8; 32]) -> [u8; 32] {
-    let mut clamped_k = *k;
-    clamped_k[0] &= 248;
-    clamped_k[31] &= 127;
-    clamped_k[31] |= 64;
-
-    let x1 = Fe::from_bytes(u);
-    let mut x2 = Fe::ONE;
-    let mut z2 = Fe::ZERO;
-    let mut x3 = x1;
-    let mut z3 = Fe::ONE;
-    let mut swap = 0u64;
-
-    for i in (0..255).rev() {
-        let bit = ((clamped_k[i / 8] >> (i % 8)) & 1) as u64;
-        swap ^= bit;
-        Fe::cswap(&mut x2, &mut x3, swap);
-        Fe::cswap(&mut z2, &mut z3, swap);
-        swap = bit;
-
-        let a = x2.add(&z2);
-        let aa = a.sqr();
-        let b = x2.sub(&z2);
-        let bb = b.sqr();
-        let e = aa.sub(&bb);
-        let c = x3.add(&z3);
-        let d = x3.sub(&z3);
-        let da = d.mul(&a);
-        let cb = c.mul(&b);
-
-        x3 = da.add(&cb).sqr();
-        z3 = x1.mul(&da.sub(&cb).sqr());
-        x2 = aa.mul(&bb);
-        z2 = e.mul(&aa.add(&e.mul_const(121665)));
-    }
-
-    Fe::cswap(&mut x2, &mut x3, swap);
-    Fe::cswap(&mut z2, &mut z3, swap);
-
-    x2.mul(&z2.invert()).to_bytes()
+    let point = curve25519_dalek::montgomery::MontgomeryPoint(*u);
+    let result = point.mul_clamped(*k);
+    result.0
 }
 
 pub const X25519_BASEPOINT: [u8; 32] = [
@@ -417,19 +163,30 @@ pub fn chacha20_crypt(key: &[u8; 32], counter: u32, nonce: &[u8; 12], data: &[u8
     out
 }
 
-// Poly1305 one-time authenticator modulo 2^130 - 5
+// Poly1305 one-time authenticator modulo 2^130 - 5 using 26-bit limbs
 pub fn poly1305_mac(key: &[u8; 32], msg: &[u8]) -> [u8; 16] {
     let mut r = [0u8; 16];
     r.copy_from_slice(&key[0..16]);
-    // Clamp r
+    // Clamp r per RFC 7539
     r[3] &= 15; r[7] &= 15; r[11] &= 15; r[15] &= 15;
     r[4] &= 252; r[8] &= 252; r[12] &= 252;
 
-    let r_u128 = LittleEndian::read_u128(&r);
-    let s_u128 = LittleEndian::read_u128(&key[16..32]);
+    let r0 = (LittleEndian::read_u32(&r[0..4]) as u64) & 0x3ffffff;
+    let r1 = ((LittleEndian::read_u32(&r[3..7]) >> 2) as u64) & 0x3ffff03;
+    let r2 = ((LittleEndian::read_u32(&r[6..10]) >> 4) as u64) & 0x3ffc0ff;
+    let r3 = ((LittleEndian::read_u32(&r[9..13]) >> 6) as u64) & 0x3f03fff;
+    let r4 = ((LittleEndian::read_u32(&r[12..16]) >> 8) as u64) & 0x00fffff;
 
-    let mut h: u128 = 0;
-    let p: u128 = (1u128 << 130) - 5; // pseudo 130-bit prime
+    let s1 = r1 * 5;
+    let s2 = r2 * 5;
+    let s3 = r3 * 5;
+    let s4 = r4 * 5;
+
+    let mut h0: u64 = 0;
+    let mut h1: u64 = 0;
+    let mut h2: u64 = 0;
+    let mut h3: u64 = 0;
+    let mut h4: u64 = 0;
 
     let mut offset = 0;
     while offset < msg.len() {
@@ -438,13 +195,70 @@ pub fn poly1305_mac(key: &[u8; 32], msg: &[u8]) -> [u8; 16] {
         block[..chunk_len].copy_from_slice(&msg[offset..offset + chunk_len]);
         block[chunk_len] = 1; // 0x01 byte appended
 
-        let n = LittleEndian::read_u128(&block[0..16]) | ((block[16] as u128) << 128);
-        h = (h + n) % p;
-        h = ((h as u128).wrapping_mul(r_u128)) % p;
+        let w0 = (LittleEndian::read_u32(&block[0..4]) as u64) & 0x3ffffff;
+        let w1 = ((LittleEndian::read_u32(&block[3..7]) >> 2) as u64) & 0x3ffffff;
+        let w2 = ((LittleEndian::read_u32(&block[6..10]) >> 4) as u64) & 0x3ffffff;
+        let w3 = ((LittleEndian::read_u32(&block[9..13]) >> 6) as u64) & 0x3ffffff;
+        let w4 = ((LittleEndian::read_u32(&block[12..16]) >> 8) as u64) | ((block[16] as u64) << 24);
+
+        h0 += w0;
+        h1 += w1;
+        h2 += w2;
+        h3 += w3;
+        h4 += w4;
+
+        let d0 = (h0 as u128) * (r0 as u128) + (h1 as u128) * (s4 as u128) + (h2 as u128) * (s3 as u128) + (h3 as u128) * (s2 as u128) + (h4 as u128) * (s1 as u128);
+        let d1 = (h0 as u128) * (r1 as u128) + (h1 as u128) * (r0 as u128) + (h2 as u128) * (s4 as u128) + (h3 as u128) * (s3 as u128) + (h4 as u128) * (s2 as u128);
+        let d2 = (h0 as u128) * (r2 as u128) + (h1 as u128) * (r1 as u128) + (h2 as u128) * (r0 as u128) + (h3 as u128) * (s4 as u128) + (h4 as u128) * (s3 as u128);
+        let d3 = (h0 as u128) * (r3 as u128) + (h1 as u128) * (r2 as u128) + (h2 as u128) * (r1 as u128) + (h3 as u128) * (r0 as u128) + (h4 as u128) * (s4 as u128);
+        let d4 = (h0 as u128) * (r4 as u128) + (h1 as u128) * (r3 as u128) + (h2 as u128) * (r2 as u128) + (h3 as u128) * (r1 as u128) + (h4 as u128) * (r0 as u128);
+
+        let mut c: u128;
+        c = d0 >> 26; h0 = (d0 & 0x3ffffff) as u64;
+        let td1 = d1 + c; c = td1 >> 26; h1 = (td1 & 0x3ffffff) as u64;
+        let td2 = d2 + c; c = td2 >> 26; h2 = (td2 & 0x3ffffff) as u64;
+        let td3 = d3 + c; c = td3 >> 26; h3 = (td3 & 0x3ffffff) as u64;
+        let td4 = d4 + c; c = td4 >> 26; h4 = (td4 & 0x3ffffff) as u64;
+        h0 += (c * 5) as u64;
+        c = (h0 >> 26) as u128; h0 &= 0x3ffffff;
+        h1 += c as u64;
+
         offset += chunk_len;
     }
 
-    let tag_val = (h + s_u128) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    // Fully reduce
+    let mut c = h0 >> 26; h0 &= 0x3ffffff;
+    h1 += c; c = h1 >> 26; h1 &= 0x3ffffff;
+    h2 += c; c = h2 >> 26; h2 &= 0x3ffffff;
+    h3 += c; c = h3 >> 26; h3 &= 0x3ffffff;
+    h4 += c; c = h4 >> 26; h4 &= 0x3ffffff;
+    h0 += c * 5; c = h0 >> 26; h0 &= 0x3ffffff;
+    h1 += c;
+
+    // Compute h + 5
+    let mut g0 = h0 + 5; c = g0 >> 26; g0 &= 0x3ffffff;
+    let mut g1 = h1 + c; c = g1 >> 26; g1 &= 0x3ffffff;
+    let mut g2 = h2 + c; c = g2 >> 26; g2 &= 0x3ffffff;
+    let mut g3 = h3 + c; c = g3 >> 26; g3 &= 0x3ffffff;
+    let g4 = (h4 + c).wrapping_sub(1 << 26);
+
+    let mask = (g4 >> 63).wrapping_sub(1);
+    let nmask = !mask;
+    h0 = (h0 & nmask) | (g0 & mask);
+    h1 = (h1 & nmask) | (g1 & mask);
+    h2 = (h2 & nmask) | (g2 & mask);
+    h3 = (h3 & nmask) | (g3 & mask);
+    h4 = (h4 & nmask) | (g4 & mask);
+
+    let h128 = (h0 as u128)
+        | ((h1 as u128) << 26)
+        | ((h2 as u128) << 52)
+        | ((h3 as u128) << 78)
+        | ((h4 as u128) << 104);
+
+    let s_val = LittleEndian::read_u128(&key[16..32]);
+    let tag_val = h128.wrapping_add(s_val);
+
     let mut tag = [0u8; 16];
     LittleEndian::write_u128(&mut tag, tag_val);
     tag

@@ -336,6 +336,10 @@ KNOWN_VERBS = {
     "flight": ["/usr/libexec/mios/flight-control.sh"],
     "models": ["/usr/libexec/mios/mios-models"],
     "update": ["/usr/bin/mios-update"],
+    "check":  ["/usr/libexec/mios/miosd", "check"],
+    "status": ["/usr/libexec/mios/mios-system-status"],
+    "logs":   ["journalctl", "-u", "miosd.service", "-f"],
+    "backup": ["/usr/libexec/mios/mios-backup"],
     "help":   None,        # special-cased below
 }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automatic skill synthesis and extraction from successful multi-step task execution traces.
-# AI-related: tests/test-skill-synthesizer.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: tests/test-skill-synthesizer.py, usr/share/doc/mios/manual/ai.md
 """
 MiOS Autonomous Skill Synthesizer.
 Extracts successful multi-step tool call sequences and formats them into reusable SKILL.md documents.

@@ -227,9 +227,11 @@ passage carries an anchor back to the comment it came from.
 <!-- MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->
 | File | What it is |
 |---|---|
+| `usr/share/doc/mios/manual/a2a.md` | Manual pages distilled from the source comments of a2a, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/access.md` | Manual pages distilled from the source comments of access, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/agent-pipe.md` | Manual pages distilled from the source comments of agent-pipe, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/agent_pipe.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
+| `usr/share/doc/mios/manual/ai.md` | Manual pages distilled from the source comments of ai, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/automation.md` | Manual pages distilled from the source comments of automation, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/btop.md` | Manual pages distilled from the source comments of btop, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/ch01-introduction-and-core-concepts.md` | Chapter 01: Introduction and Core Concepts. Defines the dual nature of MiOS as an immutable, bootc Fedora workstation and a local agentic OS. Explains how the Git repository tree directly mirrors the... |
@@ -307,11 +309,13 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/containers.md` | Manual pages distilled from the source comments of containers, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/context.md` | Manual pages distilled from the source comments of context, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/crawl4ai.md` | Manual pages distilled from the source comments of crawl4ai, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/diff.md` | Manual pages distilled from the source comments of diff, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/drift.md` | Manual pages distilled from the source comments of drift, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/embeddings.md` | Manual pages distilled from the source comments of embeddings, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/evals.md` | Manual pages distilled from the source comments of evals, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/federation.md` | Manual pages distilled from the source comments of federation, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/firstboot.md` | Manual page for firstboot subsystem |
+| `usr/share/doc/mios/manual/graph.md` | Manual pages distilled from the source comments of graph, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/hermes.md` | Manual pages distilled from the source comments of hermes, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/identity.md` | Manual pages distilled from the source comments of identity, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/installation.md` | Manual pages distilled from the source comments of installation, sanitized, each passage anchored to the comment it came from. |
@@ -320,18 +324,22 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/lib.md` | Manual pages distilled from the source comments of lib, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/lifecycle.md` | Manual pages distilled from the source comments of lifecycle, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/llamacpp.md` | Manual pages distilled from the source comments of llamacpp, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/mcp.md` | Manual pages distilled from the source comments of mcp, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/memory.md` | Manual pages distilled from the source comments of memory, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/mios.md` | Manual pages distilled from the source comments of mios, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/mios_pipe.md` | Manual pages distilled from the source comments of mios_pipe, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/node.md` | Manual pages distilled from the source comments of node, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/observability.md` | Manual pages distilled from the source comments of observability, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/opencode-gateway.md` | Manual pages distilled from the source comments of opencode-gateway, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/owui.md` | Manual pages distilled from the source comments of owui, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/powershell.md` | Manual pages distilled from the source comments of powershell, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/profile.d.md` | Manual pages distilled from the source comments of profile.d, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/prompt.md` | Manual pages distilled from the source comments of prompt, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/root.md` | Manual pages distilled from the source comments of root, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/routing.md` | Manual pages distilled from the source comments of routing, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/scheduler.md` | Manual pages distilled from the source comments of scheduler, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/searxng.md` | Manual pages distilled from the source comments of searxng, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/sec.md` | Manual pages distilled from the source comments of sec, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/src.md` | Manual pages distilled from the source comments of src, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/ssot.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
 | `usr/share/doc/mios/manual/support.md` | Manual pages distilled from the source comments of support, sanitized, each passage anchored to the comment it came from. |
@@ -348,5 +356,5 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/workflows.md` | Manual pages distilled from the source comments of workflows, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/xdg-desktop-portal.md` | Manual pages distilled from the source comments of xdg-desktop-portal, sanitized, each passage anchored to the comment it came from. |
 
-<!-- derived from the AI-hint headers of 120 file(s) matching usr/share/doc/mios/manual/*.md -->
+<!-- derived from the AI-hint headers of 128 file(s) matching usr/share/doc/mios/manual/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->

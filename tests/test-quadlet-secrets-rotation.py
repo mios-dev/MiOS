@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for WS-SEC Quadlet secret 0600 permissions and rotation.
-# AI-related: usr/libexec/mios/sec/rotate-quadlet-secrets.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: usr/libexec/mios/sec/rotate-quadlet-secrets.py, usr/share/doc/mios/manual/sec.md
 """Automated tests for WS-SEC Quadlet secret file permissions audit and token rotation."""
 
 from __future__ import annotations

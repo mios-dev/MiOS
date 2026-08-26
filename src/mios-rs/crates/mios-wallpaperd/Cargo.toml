@@ -1,6 +1,10 @@
+# AI-hint: Cargo manifest for mios-wallpaperd daemon crate.
+# AI-related: src/mios-rs/Cargo.toml
+
 [package]
 name = "mios-wallpaperd"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+

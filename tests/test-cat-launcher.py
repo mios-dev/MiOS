@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for WS-CAT tri-launcher hardening and staging separation.
-# AI-related: usr/libexec/mios/cat/launcher.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: usr/libexec/mios/cat/launcher.py, usr/share/doc/mios/manual/ch02-installation-and-deployment.md
 """Automated tests for WS-CAT tri-launcher modes, read-only repo mounts, and data staging."""
 
 from __future__ import annotations

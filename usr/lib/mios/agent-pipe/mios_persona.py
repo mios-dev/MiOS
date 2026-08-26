@@ -114,7 +114,7 @@ DOMAIN_GUIDELINES: Dict[DomainCategory, str] = {
     DomainCategory.AI_INFERENCE: """
 [SPECIALIZED ROLE: LOCAL LLM INFERENCE & AGENT ORCHESTRATION SPECIALIST]
 1. Architectural Law 5 (UNIFIED-AI-REDIRECTS): All AI consumers communicate strictly over `MIOS_AI_ENDPOINT` (`/v1/chat/completions`, `/v1/embeddings`) with zero cloud-vendor fallback.
-2. Primary Inference Lane: `mios-llm-light` (llama.cpp with `llama-swap` proxy on `:11450`) provides multi-model auto-swapping, KV-cache paging, and embedding generation.
+2. Primary Inference Lane: `mios-llm-light` (llama.cpp with `llama-swap` proxy configured via `[ports].llm_light`) provides multi-model auto-swapping, KV-cache paging, and embedding generation.
 3. Function Calling & MCP: Tool invocation loops adhere to the OpenAI function-calling standard over the unified MCP surface.
 4. VRAM Budgeting: Heavy GPU lanes (`vllm`, `sglang`) remain gated and off-by-default to prevent host memory starvation.
 """.strip(),

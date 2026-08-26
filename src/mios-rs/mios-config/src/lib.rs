@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use thiserror::Error;
 
+pub mod validator;
+pub use validator::{MiosValidator, ValidationError, ValidationReport, ValidationWarning};
+
 #[derive(Error, Debug, Diagnostic)]
 #[error("Failed to load MiOS configuration: {message}")]
 pub struct ConfigError {

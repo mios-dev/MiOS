@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Quadlet container secrets enforcement (0600 permissions) and automated credential rotation.
-# AI-related: tests/test-quadlet-secrets-rotation.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: tests/test-quadlet-secrets-rotation.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Quadlet Secrets Permission Hardening and Rotation Engine.
 Enforces 0600 permissions on container environment files and rotates secret keys securely.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit and integration test suite for T-386 / AGY-1984 async TCP framing and stream buffering.
-# AI-doc: usr/share/doc/mios/manual/ch55-edge-mesh-binary-wire-protocol.md
+# AI-doc: usr/share/doc/mios/manual/node.md
 """
 Unit and integration test suite for WS-NODE: Async TCP frame reader, writer actor,
 stream buffer management, partial packet chunking, and channel dispatch.

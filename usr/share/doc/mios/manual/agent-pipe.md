@@ -1261,3 +1261,23 @@ because the defect is behavioural; flags-with-arguments are pinned too, since
 that is what the narrowed character class could plausibly break.
 
 <!-- mios-src:7b5bbd956f27 from usr/lib/mios/agent-pipe/test_mios_dispatch_redos.py:4-12 -->
+### Bounded Reflection Loop Convergence (T-385 / AGY-1983)...
+
+Bounded Reflection Loop Convergence (T-385 / AGY-1983)
+
+Implements bounded deliberation and reflection loops with semantic delta scoring,
+enforcing deterministic termination when refinement reaches diminishing returns (delta < 0.05)
+or encounters the maximum iteration ceiling (default: 3) to prevent token waste and circular debate.
+
+<!-- mios-src:10cd7e103e6b from usr/lib/mios/agent-pipe/mios_deliberate.py:4-10 -->
+
+### Dynamic Agent Persona Synthesis (T-384 / AGY-1982)...
+
+Dynamic Agent Persona Synthesis (T-384 / AGY-1982)
+
+Classifies user query intent across 6 specialized technical domains (Kernel/Systems,
+Database/Storage, Security/Crypto, Networking/Mesh, AI/Inference, DevOps/CI) and
+synthesizes enriched system prompts with domain-specific technical rigor and guidelines
+while strictly preserving canonical project laws and OpenAI endpoint contracts.
+
+<!-- mios-src:d583386802a0 from usr/lib/mios/agent-pipe/mios_persona.py:4-11 -->

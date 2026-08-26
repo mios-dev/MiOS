@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Comprehensive adversarial stress testing harness for Milestone 2 (T-386 Async TCP Framing and T-387 Heartbeat Eviction).
 # AI-related: usr/libexec/mios/node/wire.py, usr/libexec/mios/node/discovery.py
-# AI-doc: usr/share/doc/mios/manual/ch55-edge-mesh-binary-wire-protocol.md
+# AI-doc: usr/share/doc/mios/manual/node.md
 """
 Adversarial Stress Test Suite for Milestone 2:
 1. Async TCP Framing & Wire Codec (T-386)

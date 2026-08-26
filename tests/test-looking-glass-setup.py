@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for WS-VFIO Looking Glass B6 IVSHMEM and VFIO setup.
-# AI-related: usr/libexec/mios/vfio/setup-looking-glass.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: usr/libexec/mios/vfio/setup-looking-glass.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
 """Automated tests for WS-VFIO Looking Glass IVSHMEM XML generation and shared memory validation."""
 
 from __future__ import annotations

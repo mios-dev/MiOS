@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Cross-turn episodic memory compaction into hierarchical semantic trees.
-# AI-related: tests/test-memory-compaction.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: tests/test-memory-compaction.py, usr/share/doc/mios/manual/ai.md
 """
 MiOS Episodic Memory Compactor.
 Summarizes multi-turn conversations into concise factual nodes linked in the PostgreSQL fact ledger.

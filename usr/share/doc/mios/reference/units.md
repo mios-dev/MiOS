@@ -161,10 +161,11 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-wslg-env.service` | `usr/lib/systemd/user` | Import WSLg display environment into the systemd --user manager |
 | `mios-wslg-permissions-fix.service` | `usr/lib/systemd/system` | MiOS': chmod /mnt/wslg/runtime-dir to 0700 so weston accepts it as XDG_RUNTIME_DIR |
 | `mios-xdg-userdir-init.service` | `usr/lib/systemd/system` | MiOS XDG User Directories Initialization |
+| `miosd.service` | `usr/lib/systemd/system` | MiOS Native System Daemon & Supervisor (Rust miosd) |
 | `var-home.mount` | `usr/lib/systemd/system` | CephFS mount for user home directories |
 | `var-lib-containers.mount` | `usr/lib/systemd/system` | CephFS mount for Podman container storage |
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (158 unit(s)) -->
+<!-- derived from tracked unit files (159 unit(s)) -->
 <!-- /MIOS-GEN:units -->

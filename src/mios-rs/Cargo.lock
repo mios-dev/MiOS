@@ -786,6 +786,7 @@ dependencies = [
  "figment",
  "miette",
  "serde",
+ "serde_json",
  "thiserror",
  "toml",
 ]
@@ -800,6 +801,7 @@ dependencies = [
  "chrono",
  "clap",
  "crc32fast",
+ "curve25519-dalek",
  "ed25519-dalek",
  "serde",
  "serde_json",
@@ -812,12 +814,15 @@ dependencies = [
 name = "miosd"
 version = "0.3.0"
 dependencies = [
+ "chrono",
  "clap",
  "mios-build",
  "mios-config",
  "regex",
  "serde",
+ "serde_json",
  "tempfile",
+ "tokio",
  "toml",
 ]
 

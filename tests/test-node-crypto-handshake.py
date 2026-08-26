@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for T-388 / AGY-1986 Ed25519 mutual handshake and ChaCha20-Poly1305 wire encryption.
-# AI-doc: usr/share/doc/mios/manual/ch55-edge-mesh-binary-wire-protocol.md
+# AI-doc: usr/share/doc/mios/manual/node.md
 """
 Unit test suite for WS-NODE: Ed25519 node identity signing/verification, X25519 Diffie-Hellman
 key exchange, HKDF-SHA256 session key derivation, ChaCha20-Poly1305 authenticated symmetric payload

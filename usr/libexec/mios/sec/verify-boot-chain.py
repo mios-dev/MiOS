@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: End-to-end UKI, PCR measurements (4, 7, 11), and fs-verity boot chain verification.
-# AI-related: tests/test-boot-chain-verify.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: tests/test-boot-chain-verify.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS UKI and fs-verity Cryptographic Boot Chain Verifier.
 Validates Unified Kernel Image integrity, TPM2 PCR measurements, and fs-verity digests.

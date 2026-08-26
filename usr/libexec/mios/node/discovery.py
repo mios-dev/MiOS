@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Avahi/mDNS zero-conf mesh discovery, node heartbeat monitor, 3-strike dead-peer eviction, and Ed25519 authentication handshake.
 # AI-related: src/mios-rs/mios-node/src/heartbeat.rs, src/mios-rs/mios-node/src/node.rs, tests/test-node-heartbeat-eviction.py, tests/test-node-discovery.py
-# AI-doc: usr/share/doc/mios/manual/ch55-edge-mesh-binary-wire-protocol.md
+# AI-doc: usr/share/doc/mios/manual/node.md
 """
 MiOS Edge Node Mesh Discovery, Heartbeat Monitor & Dead-Peer Eviction Engine (T-387 / AGY-1985).
 Manages zero-conf peer announcements, periodic 5s heartbeats, 3-strike dead peer detection (15s eviction threshold),

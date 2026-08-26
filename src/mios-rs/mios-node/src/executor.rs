@@ -4,6 +4,7 @@
 //! Tier 1: WebAssembly / Bytecode Sandboxed Execution Engine with mios_sys_* host API bindings
 //! Tier 2: Dynamic Native Module Loader with Ed25519 signature checks and architecture verification
 
+use crate::hardware::{HardwareAllowlist, SandboxedHardwareController};
 use crate::protocol::{TaskOffloadPayload, TaskResultPayload};
 use crate::state_sync::StateStore;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
@@ -18,11 +19,30 @@ pub enum ExecutionTier {
 
 pub struct ExecutionEngine {
     state_store: Arc<Mutex<StateStore>>,
+    hardware: Arc<SandboxedHardwareController>,
 }
 
 impl ExecutionEngine {
     pub fn new(state_store: Arc<Mutex<StateStore>>) -> Self {
-        Self { state_store }
+        let (hw, _) = SandboxedHardwareController::new_mock(HardwareAllowlist::default());
+        Self {
+            state_store,
+            hardware: Arc::new(hw),
+        }
+    }
+
+    pub fn with_hardware(
+        state_store: Arc<Mutex<StateStore>>,
+        hardware: Arc<SandboxedHardwareController>,
+    ) -> Self {
+        Self {
+            state_store,
+            hardware,
+        }
+    }
+
+    pub fn hardware_controller(&self) -> &Arc<SandboxedHardwareController> {
+        &self.hardware
     }
 
     pub fn execute_task(&self, payload: &TaskOffloadPayload) -> TaskResultPayload {
@@ -56,6 +76,79 @@ impl ExecutionEngine {
             payload.task_id, input_str
         );
 
+        // Parse possible hardware command from input_data JSON
+        let mut hw_result_info = String::new();
+        if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&payload.input_data) {
+            if let Some(action) = val.get("action").and_then(|a| a.as_str()) {
+                match action {
+                    "gpio_read" => {
+                        let pin = val.get("pin").and_then(|p| p.as_u64()).unwrap_or(0) as u32;
+                        match self.hardware.mios_sys_gpio_read(pin) {
+                            Ok(state) => {
+                                hw_result_info = format!("; GPIO pin {} value = {}", pin, state);
+                            }
+                            Err(err) => {
+                                return TaskResultPayload {
+                                    task_id: payload.task_id,
+                                    success: false,
+                                    exit_code: err as i32,
+                                    output_data: Vec::new(),
+                                    error_msg: Some(format!("Hardware permission error: {:?}", err)),
+                                };
+                            }
+                        }
+                    }
+                    "gpio_write" => {
+                        let pin = val.get("pin").and_then(|p| p.as_u64()).unwrap_or(0) as u32;
+                        let pin_val = val.get("value").and_then(|p| p.as_u64()).unwrap_or(0) as u8;
+                        match self.hardware.mios_sys_gpio_write(pin, pin_val) {
+                            Ok(()) => {
+                                hw_result_info = format!("; GPIO pin {} set to {}", pin, pin_val);
+                            }
+                            Err(err) => {
+                                return TaskResultPayload {
+                                    task_id: payload.task_id,
+                                    success: false,
+                                    exit_code: err as i32,
+                                    output_data: Vec::new(),
+                                    error_msg: Some(format!("Hardware permission error: {:?}", err)),
+                                };
+                            }
+                        }
+                    }
+                    "i2c_transfer" => {
+                        let bus = val.get("bus").and_then(|b| b.as_u64()).unwrap_or(1) as u8;
+                        let addr = val.get("addr").and_then(|a| a.as_u64()).unwrap_or(0) as u16;
+                        let wdata: Vec<u8> = val
+                            .get("write")
+                            .and_then(|w| w.as_array())
+                            .map(|arr| arr.iter().filter_map(|x| x.as_u64().map(|v| v as u8)).collect())
+                            .unwrap_or_default();
+                        let rlen = val.get("read_len").and_then(|r| r.as_u64()).unwrap_or(0) as usize;
+                        let mut rdata = vec![0u8; rlen];
+                        match self.hardware.mios_sys_i2c_transfer(bus, addr, &wdata, &mut rdata) {
+                            Ok(bytes_read) => {
+                                hw_result_info = format!(
+                                    "; I2C bus {} addr 0x{:02X} read {} bytes: {:?}",
+                                    bus, addr, bytes_read, &rdata[..bytes_read]
+                                );
+                            }
+                            Err(err) => {
+                                return TaskResultPayload {
+                                    task_id: payload.task_id,
+                                    success: false,
+                                    exit_code: err as i32,
+                                    output_data: Vec::new(),
+                                    error_msg: Some(format!("Hardware permission error: {:?}", err)),
+                                };
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         {
             let mut store = self.state_store.lock().unwrap();
             store.set(
@@ -65,8 +158,8 @@ impl ExecutionEngine {
         }
 
         let output = format!(
-            "[MiOS Tier 1 Wasm Output] Processed input: '{}' under memory limit {} bytes",
-            input_str, payload.memory_limit_bytes
+            "[MiOS Tier 1 Wasm Output] Processed input: '{}' under memory limit {} bytes{}",
+            input_str, payload.memory_limit_bytes, hw_result_info
         );
 
         TaskResultPayload {
@@ -204,5 +297,73 @@ mod tests {
 
         let result = engine.execute_task(&payload);
         assert!(result.success, "Execution failed: {:?}", result.error_msg);
+    }
+
+    #[test]
+    fn test_tier1_wasm_hardware_gpio_execution() {
+        let store = Arc::new(Mutex::new(StateStore::new(1)));
+        let engine = ExecutionEngine::new(store);
+
+        // 1. Write GPIO 17 = 1
+        let payload_write = TaskOffloadPayload {
+            task_id: 101,
+            tier: 1,
+            target_arch: 0,
+            memory_limit_bytes: 1024 * 1024,
+            execution_timeout_ms: 1000,
+            code_bytes: b"WASM_BYTECODE".to_vec(),
+            input_data: serde_json::to_vec(&serde_json::json!({
+                "action": "gpio_write",
+                "pin": 17,
+                "value": 1
+            }))
+            .unwrap(),
+            signature: None,
+            public_key: None,
+        };
+        let res_write = engine.execute_task(&payload_write);
+        assert!(res_write.success, "Write failed: {:?}", res_write.error_msg);
+
+        // 2. Read GPIO 17
+        let payload_read = TaskOffloadPayload {
+            task_id: 102,
+            tier: 1,
+            target_arch: 0,
+            memory_limit_bytes: 1024 * 1024,
+            execution_timeout_ms: 1000,
+            code_bytes: b"WASM_BYTECODE".to_vec(),
+            input_data: serde_json::to_vec(&serde_json::json!({
+                "action": "gpio_read",
+                "pin": 17
+            }))
+            .unwrap(),
+            signature: None,
+            public_key: None,
+        };
+        let res_read = engine.execute_task(&payload_read);
+        assert!(res_read.success);
+        let out_str = String::from_utf8_lossy(&res_read.output_data);
+        assert!(out_str.contains("GPIO pin 17 value = 1"));
+
+        // 3. Disallowed pin rejected
+        let payload_disallowed = TaskOffloadPayload {
+            task_id: 103,
+            tier: 1,
+            target_arch: 0,
+            memory_limit_bytes: 1024 * 1024,
+            execution_timeout_ms: 1000,
+            code_bytes: b"WASM_BYTECODE".to_vec(),
+            input_data: serde_json::to_vec(&serde_json::json!({
+                "action": "gpio_write",
+                "pin": 999,
+                "value": 1
+            }))
+            .unwrap(),
+            signature: None,
+            public_key: None,
+        };
+        let res_disallowed = engine.execute_task(&payload_disallowed);
+        assert!(!res_disallowed.success);
+        assert_eq!(res_disallowed.exit_code, -1);
     }
 }

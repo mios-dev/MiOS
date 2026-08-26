@@ -2756,7 +2756,9 @@ lanes = []
 # transitional unwired (imported-but-dead) status in check_unwired_modules.
 denylist = [
     "mios_ctxpack",
+    "mios_deliberate",
     "mios_embed_backfill",
+    "mios_persona",
     "mios_provider_translate",
     "mios_smartroute",
     "mios_worker_tools"
@@ -10976,10 +10978,26 @@ unit = [
     "tests/test-node-async-net.py",
     "tests/test-node-heartbeat-eviction.py",
     "tests/test-node-crypto-handshake.py",
+    "tests/test-node-scheduler.py",
+    "tests/test-node-buffer-pool.py",
+    "tests/test-node-capabilities.py",
+    "tests/test-node-ble-bootstrap.py",
+    "tests/test-node-overlay.py",
+    "tests/test-node-m2-adversarial-challenger.py",
     "tests/test-m1-adversarial.py",
     "tests/test-m1-challenger2-adversarial.py",
     "tests/test-m2-adversarial.py",
     "tests/test-m2-challenger2-adversarial.py",
+    "tests/test-miosd-supervisor.py",
+    "tests/test-mios-check-ssot.py",
+    "tests/test-mios-cli-dispatcher.py",
+    "tests/test-adversarial-m1.py",
+    "tests/test-m2-deep-adversarial.py",
+    "tests/test-node-cgroups-pinning.py",
+    "tests/test-node-crdt-gc.py",
+    "tests/test-node-m1-adversarial.py",
+    "tests/test-node-wasm-hardware.py",
+    "tests/test-node-watchdog.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

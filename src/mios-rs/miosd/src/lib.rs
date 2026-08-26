@@ -7,4 +7,6 @@
 #![warn(clippy::unwrap_used, clippy::panic, clippy::todo)]
 
 pub mod bake_plan;
+pub mod cli;
+pub mod daemon;
 pub mod drift;

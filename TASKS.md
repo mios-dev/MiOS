@@ -374,18 +374,18 @@
 | T-386 | P1 | done | Mesh/Protocol | Async TCP frame reader and writer actor in mios-node using Tokio |
 | T-387 | P2 | done | Mesh/Heartbeat | Node heartbeat monitor and automatic dead-peer eviction from cluster routing table |
 | T-388 | P1 | done | Mesh/Crypto | Ed25519 mutual handshake and session key derivation for inter-node wire encryption |
-| T-389 | P2 | open | Edge/Hardware | Wasm host import for local hardware GPIO and I2C access on embedded edge nodes |
-| T-390 | P2 | open | Kernel/Scheduler | Dynamic CPU core pinning and cgroup limits for mios-node worker threads |
-| T-391 | P2 | open | State/CRDT | CRDT state compaction and snapshot garbage collection in mios-node |
-| T-392 | P1 | open | Mesh/Offloading | Task offloading priority queue in mios-node with work-stealing scheduler |
-| T-393 | P2 | open | Memory/BufferPool | Zero-copy network buffer pooling to reduce memory allocations in mios-node |
-| T-394 | P2 | open | Mesh/Capability | Edge node capability advertising in Announce frames |
-| T-395 | P3 | open | Mesh/Bluetooth | BLE beaconing for offline local mesh bootstrap |
-| T-396 | P1 | open | Mesh/Fallback | Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned |
-| T-397 | P1 | open | Runtime/Daemon | Standalone compiled miosd daemon in Rust replacing Python supervisor loops |
-| T-398 | P1 | open | SSOT/Validator | Rust implementation of SSOT mios.toml validation and type checker |
-| T-399 | P1 | open | CLI/Dispatcher | High-performance binary CLI dispatcher (/usr/bin/mios) in Rust |
-| T-400 | P2 | open | Hardware/Watchdog | Hardware watchdog timer integration (/dev/watchdog) in mios-node |
+| T-389 | P2 | done | Edge/Hardware | Wasm host import for local hardware GPIO and I2C access on embedded edge nodes |
+| T-390 | P2 | done | Kernel/Scheduler | Dynamic CPU core pinning and cgroup limits for mios-node worker threads |
+| T-391 | P2 | done | State/CRDT | CRDT state compaction and snapshot garbage collection in mios-node |
+| T-392 | P1 | done | Mesh/Offloading | Task offloading priority queue in mios-node with work-stealing scheduler |
+| T-393 | P2 | done | Memory/BufferPool | Zero-copy network buffer pooling to reduce memory allocations in mios-node |
+| T-394 | P2 | done | Mesh/Capability | Edge node capability advertising in Announce frames |
+| T-395 | P3 | done | Mesh/Bluetooth | BLE beaconing for offline local mesh bootstrap |
+| T-396 | P1 | done | Mesh/Fallback | Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned |
+| T-397 | P1 | done | Runtime/Daemon | Standalone compiled miosd daemon in Rust replacing Python supervisor loops |
+| T-398 | P1 | done | SSOT/Validator | Rust implementation of SSOT mios.toml validation and type checker |
+| T-399 | P1 | done | CLI/Dispatcher | High-performance binary CLI dispatcher (/usr/bin/mios) in Rust |
+| T-400 | P2 | done | Hardware/Watchdog | Hardware watchdog timer integration (/dev/watchdog) in mios-node |
 | T-401 | P2 | open | Database/Index | Automated VACUUM ANALYZE and HNSW vector index rebuilding timer in pgvector |
 | T-402 | P1 | open | Storage/Replication | Transactional ledger replication across CephFS pools with integrity hashing |
 | T-403 | P2 | open | Storage/Quota | CephFS dynamic quota enforcement per tenant subvolume |
@@ -4621,7 +4621,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Wasm sandbox exposes safe, permission-gated hardware interfaces for IoT edge devices.
 **Why:** Edge agents often run on single-board computers (Raspberry Pi, industrial gateways) that require sensor telemetry.
 **Dep:** AGY-1986
-**Status:** open | **Domain:** Edge/Hardware | **Who:** agent
+**Status:** done | **Domain:** Edge/Hardware | **Who:** agent
 **Converted:** AGY-1987 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-390 -- Dynamic CPU core pinning and cgroup limits for mios-node worker threads (WS-NODE | P2 | S)
@@ -4631,7 +4631,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Worker processes obey cgroup resource limits and CPU affinity masks strictly.
 **Why:** Edge nodes must maintain interactive responsiveness and stability while processing compute tasks.
 **Dep:** AGY-1987
-**Status:** open | **Domain:** Kernel/Scheduler | **Who:** agent
+**Status:** done | **Domain:** Kernel/Scheduler | **Who:** agent
 **Converted:** AGY-1988 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-391 -- CRDT state compaction and snapshot garbage collection in mios-node (WS-NODE | P2 | M)
@@ -4641,7 +4641,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** CRDT garbage collector prunes obsolete tombstones and stabilizes memory consumption.
 **Why:** Without garbage collection, CRDT delete tombstones accumulate indefinitely and exhaust node RAM.
 **Dep:** AGY-1988
-**Status:** open | **Domain:** State/CRDT | **Who:** agent
+**Status:** done | **Domain:** State/CRDT | **Who:** agent
 **Converted:** AGY-1989 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-392 -- Task offloading priority queue in mios-node with work-stealing scheduler (WS-NODE | P1 | M)
@@ -4651,7 +4651,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Work-stealing scheduler balances task queues across heterogeneous nodes automatically.
 **Why:** Static task placement leads to unbalanced clusters where fast nodes sit idle while slow nodes are overloaded.
 **Dep:** AGY-1989
-**Status:** open | **Domain:** Mesh/Offloading | **Who:** agent
+**Status:** done | **Domain:** Mesh/Offloading | **Who:** agent
 **Converted:** AGY-1990 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-393 -- Zero-copy network buffer pooling to reduce memory allocations in mios-node (WS-NODE | P2 | S)
@@ -4661,7 +4661,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Buffer pool recycles frame memory with zero per-packet heap allocations in the hot path.
 **Why:** Frequent memory allocations in network framing loops degrade throughput and cause garbage collection pauses.
 **Dep:** AGY-1990
-**Status:** open | **Domain:** Memory/BufferPool | **Who:** agent
+**Status:** done | **Domain:** Memory/BufferPool | **Who:** agent
 **Converted:** AGY-1991 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-394 -- Edge node capability advertising in Announce frames (WS-NODE | P2 | S)
@@ -4671,7 +4671,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Edge nodes advertise verified hardware specs and appear in the central cluster node registry.
 **Why:** The scheduler requires accurate node capability telemetry to make optimal task placement decisions.
 **Dep:** AGY-1991
-**Status:** open | **Domain:** Mesh/Capability | **Who:** agent
+**Status:** done | **Domain:** Mesh/Capability | **Who:** agent
 **Converted:** AGY-1992 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-395 -- BLE beaconing for offline local mesh bootstrap (WS-NODE | P3 | M)
@@ -4681,7 +4681,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** BLE discovery enables zero-touch initial network provisioning for headless edge blades.
 **Why:** Headless edge nodes without Ethernet ports need an out-of-band discovery mechanism for initial onboarding.
 **Dep:** AGY-1992
-**Status:** open | **Domain:** Mesh/Bluetooth | **Who:** agent
+**Status:** done | **Domain:** Mesh/Bluetooth | **Who:** agent
 **Converted:** AGY-1993 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-396 -- Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned (WS-NODE | P1 | M)
@@ -4691,7 +4691,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Mesh routing switches between LAN and WAN overlay transports automatically based on reachability.
 **Why:** Distributed nodes must maintain mesh federation across remote home offices and multi-site deployments.
 **Dep:** AGY-1993
-**Status:** open | **Domain:** Mesh/Fallback | **Who:** agent
+**Status:** done | **Domain:** Mesh/Fallback | **Who:** agent
 **Converted:** AGY-1994 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-397 -- Standalone compiled miosd daemon in Rust replacing Python supervisor loops (WS-LANG | P1 | L)
@@ -4701,7 +4701,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** The native `miosd` daemon replaces loose Python supervisor scripts with sub-15MB RAM utilization.
 **Why:** Native compiled system daemons drastically reduce system memory footprint and eliminate Python interpreter overhead.
 **Dep:** AGY-1994
-**Status:** open | **Domain:** Runtime/Daemon | **Who:** agent
+**Status:** done | **Domain:** Runtime/Daemon | **Who:** agent
 **Converted:** AGY-1995 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-398 -- Rust implementation of SSOT mios.toml validation and type checker (WS-LANG | P1 | M)
@@ -4711,7 +4711,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** `mios-check` validates the complete SSOT file with rich terminal error formatting and instant execution.
 **Why:** Pre-commit and build-time schema validation must be instantaneous to provide fast feedback to developers.
 **Dep:** AGY-1995
-**Status:** open | **Domain:** SSOT/Validator | **Who:** agent
+**Status:** done | **Domain:** SSOT/Validator | **Who:** agent
 **Converted:** AGY-1996 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-399 -- High-performance binary CLI dispatcher (/usr/bin/mios) in Rust (WS-LANG | P1 | M)
@@ -4721,7 +4721,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Compiled `mios` CLI binary replaces shell dispatcher with sub-5ms command invocation latency.
 **Why:** The primary user-facing CLI should have zero startup latency and provide robust argument parsing and help menus.
 **Dep:** AGY-1996
-**Status:** open | **Domain:** CLI/Dispatcher | **Who:** agent
+**Status:** done | **Domain:** CLI/Dispatcher | **Who:** agent
 **Converted:** AGY-1997 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-400 -- Hardware watchdog timer integration (/dev/watchdog) in mios-node (WS-NODE | P2 | S)
@@ -4731,7 +4731,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Watchdog integration guarantees autonomous reboot recovery for unattended edge devices.
 **Why:** Unattended remote edge hardware requires hardware watchdog resets to recover from hard deadlocks.
 **Dep:** AGY-1997
-**Status:** open | **Domain:** Hardware/Watchdog | **Who:** agent
+**Status:** done | **Domain:** Hardware/Watchdog | **Who:** agent
 **Converted:** AGY-1998 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-401 -- Automated VACUUM ANALYZE and HNSW vector index rebuilding timer in pgvector (WS-DURA | P2 | S)

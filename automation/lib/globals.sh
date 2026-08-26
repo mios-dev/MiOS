@@ -992,7 +992,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 [ -n "${MIOS_DOCS_SIGNALS_WHY+x}" ] || MIOS_DOCS_SIGNALS_WHY='\b(because|so that|otherwise|avoid|prevents?|must not|never|do not|fail-open|fail-closed|deliberately|intentionally|noqa|workaround|upstream bug|race|deadlock)\b'
 : "${MIOS_DOCS_STAY_MAX_LINES:=2}"
 : "${MIOS_DOCS_STAY_MAX_WORDS:=25}"
-: "${MIOS_DRIFT_DENYLIST:=mios_ctxpack,mios_embed_backfill,mios_provider_translate,mios_smartroute,mios_worker_tools}"
+: "${MIOS_DRIFT_DENYLIST:=mios_ctxpack,mios_deliberate,mios_embed_backfill,mios_persona,mios_provider_translate,mios_smartroute,mios_worker_tools}"
 : "${MIOS_DRIFT_MONITOR_AXES:=verdict,intent}"
 : "${MIOS_DRIFT_MONITOR_ENABLE:=false}"
 : "${MIOS_DRIFT_MONITOR_MIN_SAMPLES:=30}"

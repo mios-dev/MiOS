@@ -1,3 +1,6 @@
+# AI-hint: Systemd service for PostgreSQL+pgvector automated zstd backup snapshots.
+# AI-related: usr/lib/systemd/system/mios-backup-pgvector.timer, usr/libexec/mios/db/mios-backup-pgvector.py
+
 [Unit]
 Description=MiOS PostgreSQL+pgvector Automated zstd Snapshot Service
 Documentation=man:pg_dump(1) file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
@@ -9,3 +12,6 @@ ExecStart=/usr/bin/python3 /usr/libexec/mios/db/mios-backup-pgvector.py --retent
 User=root
 StandardOutput=journal
 StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

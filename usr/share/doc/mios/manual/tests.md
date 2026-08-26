@@ -244,3 +244,188 @@ and a broken check agreeing. The check now asserts the SSOT declares an
 updater package and a bake phase wires its timer, so break the wiring.
 
 <!-- mios-src:76296fd5fe57 from tests/drift-gate-negatives.sh:3728-3732 -->
+### Adversarial Verification Suite (Challenger 1). Executes...
+
+Adversarial Verification Suite (Challenger 1).
+
+Executes stress tests, edge cases, boundary conditions, fuzzing payloads,
+and security attack scenarios across the roadmap modules:
+- T-377: MCP Bubblewrap Sandbox Engine
+- T-378: HITL Interactive Approval Engine
+- T-379: Knowledge Graph Recursive CTE Traversal
+- T-380: Contextual Prompt Token Pruning Engine
+- T-381: Agent-to-Agent (A2A) Ed25519 Attestation
+
+<!-- mios-src:fef635956dcf from tests/test-adversarial-roadmap.py:4-14 -->
+
+### Adversarial Observation
+
+Adversarial Observation: When operator username contains a colon (e.g. 'admin:ops'),
+        token serialization creates extra delimiters, causing validation failure.
+
+<!-- mios-src:8346ccde2a47 from tests/test-adversarial-roadmap.py:219-222 -->
+
+### MiOS Empirical Adversarial Test Harness (Challenger 2)....
+
+MiOS Empirical Adversarial Test Harness (Challenger 2).
+
+Executes stress-testing, boundary attacks, cyclic recursion tests, cryptographic
+malleability checks, AST preservation tests, and fuzzing payloads against:
+- MCP Bubblewrap Sandbox Engine (T-377 / MCP-01)
+- Interactive HITL Permission Escalation & Approval Engine (T-378 / SEC-06)
+- Recursive CTE Knowledge Graph Traversal Engine (T-379 / GRAPH-01)
+- Contextual Prompt Compression & Token Pruning Engine (T-380 / PROMPT-01)
+- A2A Cryptographic Capability Attestation Engine (T-381 / A2A-01)
+
+<!-- mios-src:2d05ccc7a701 from tests/test-empirical-challenger-2.py:4-14 -->
+
+### Adversarial Stress Test Suite for Milestone 1: 1....
+
+Adversarial Stress Test Suite for Milestone 1:
+1. Self-Healing Circuit Breaker & Safe Remediation Engine (T-382)
+   - Rapid bursts of failures (100 rapid events)
+   - Multi-unit isolation & interleaved failure/recovery sequences
+   - Circuit breaker window expiration & quarantine timing
+   - Invalid / binary / corrupted journal logs
+   - Malformed & traversal /usr immutability attack paths
+   - Corrupted state JSON recovery and schema validation
+   - SafeConfigEditor atomic file operations & error handling
+
+2. Synthetic Training Q&A Data Pipeline (T-383)
+   - Secret redactor: nested keys (JSON/YAML/TOML/Env), multi-line keys (RSA/EC/SSH), tokens, bearer auth
+   - Secret redactor: multi-word passwords inside quotes
+   - Secret redactor: false-positive preservation on standard prose and config keys
+   - Hierarchical markdown parser: 6-level deep headers, header level jumping, headers inside code blocks
+   - Unclosed code fences, malformed tables, empty sections, unicode/emoji handling
+   - Q&A synthesis schema adherence & JSONL single-line validation
+
+<!-- mios-src:d333e27d454b from tests/test-m1-adversarial.py:4-22 -->
+
+### Adversarial Stress Test Suite for Milestone 1 (Challenger...
+
+Adversarial Stress Test Suite for Milestone 1 (Challenger 2):
+1. Dynamic Persona Synthesis (T-384 / AGY-1982)
+   - Conflicting multi-domain queries & score balancing across 6 specialized domains
+   - Zero-keyword, whitespace, punctuation, and emoji-only inputs
+   - Multilingual queries (Chinese, Japanese, French, German, Russian, Arabic)
+   - Adversarial prompt injections & canonical law override resistance
+   - Boundary confidence thresholds & synthesis idempotency
+   - Long-text stress (50,000+ words) & zero degradation
+
+2. Bounded Reflection Loop Convergence (T-385 / AGY-1983)
+   - Identical successive texts (0.0 delta) -> instant diminishing returns exit
+   - Sub-5% micro-edits in realistic paragraph -> diminishing returns exit
+   - Oscillating / adversarial critiques -> strict max_iteration ceiling enforcement
+   - Semantic delta mathematical properties (identity, range [0, 1], high disjoint delta)
+   - Configurable max_iterations and min_iterations enforcement
+   - Extreme corpus size (10,000+ words) delta calculation performance
+   - Critique approval pattern matching & false-positive negation analysis
+   - Deliberation state tracking & dictionary serialization integrity
+
+<!-- mios-src:863b31713931 from tests/test-m1-challenger2-adversarial.py:4-23 -->
+
+### Adversarial Stress Test Suite for Milestone 2: 1. Async TCP...
+
+Adversarial Stress Test Suite for Milestone 2:
+1. Async TCP Framing & Wire Codec (T-386)
+   - Byte-by-byte (1-byte chunk) stream feeding across 50 multi-opcode frames
+   - Irregular/randomized chunk slicing across packet boundaries
+   - High-concurrency async TCP client/server throughput (30 concurrent clients, 300 frames)
+   - Corrupted CRC32 injection across head, middle, and tail of payload
+   - Corrupted magic, version, opcode, and underflow rejection
+   - Oversized payload length header rejection (> 64MB)
+   - Zero-byte payload valid frame roundtrip (CRC32=0)
+   - Stream buffer partial frame drainage and resume
+   - NodeWireDispatcher error response generation for unhandled opcodes
+
+2. Heartbeat Monitor & Dead-Peer Eviction (T-387)
+   - Mathematical boundary precision (0s, 4.999s, 5.0s, 9.999s, 10.0s, 14.999s, 15.0s)
+   - Rapid flapping and state churn across 20 peers for 100 timesteps
+   - Mass simultaneous eviction of 100 peers in a single sweep
+   - Complete listener notification dispatch on mass eviction
+   - Clean re-admission after eviction with strike and state reset
+   - Local node ID self-filtering rejection
+   - Monotonic time jitter / backward timestamp protection
+   - Custom threshold configuration lifecycle
+
+<!-- mios-src:2212811d9cc6 from tests/test-m2-adversarial.py:5-27 -->
+
+### Adversarial Stress Test Suite for Milestone 2 / T-388...
+
+Adversarial Stress Test Suite for Milestone 2 / T-388 (Challenger 2):
+1. Cryptographic Handshake Adversarial Tests:
+   - Exhaustive single-bit and multi-byte signature tampering across Init and Resp packets (all 64 bytes fuzzed).
+   - Signature truncation (< 64 bytes) and extension (> 64 bytes) rejection.
+   - Forged identity pubkeys and ephemeral pubkeys injection / MITM rejection.
+   - Imposter node identity spoofing and unauthorized packet creation.
+   - Replay attack resilience and ephemeral key freshness (no key reuse).
+   - Key derivation symmetry, directional TX/RX key separation, and anti-reflection guarantee.
+
+2. Wire AEAD Encryption Adversarial Tests:
+   - Exhaustive bit-flip fuzzing across all payload ciphertext bytes.
+   - Exhaustive bit-flip fuzzing across all 16 bytes of the Poly1305 MAC tag.
+   - Ciphertext truncation (< 16 bytes) and partial MAC tag drop handling.
+   - AAD / Node ID spoofing and cross-node ciphertext injection rejection.
+   - Strict nonce sequence progression, out-of-order packet drop, and wire replay attack prevention.
+   - High-volume multi-frame stream stress (1,000 frames) with boundary payload sizes (0B, 1B, 15B, 16B, 17B, 64B, 65B, 64KB).
+   - Layered defense validation: Wire CRC32 transport integrity vs Poly1305 cryptographic authenticity.
+
+3. Concurrency & RFC Standards Compliance:
+   - Concurrent multi-session thread isolation across 20 distinct mesh nodes.
+   - Session renegotiation & zero cross-session decryption leakage.
+   - RFC 8439 / RFC 7748 / RFC 5869 cryptographic correctness verification.
+
+<!-- mios-src:d20bb811f899 from tests/test-m2-challenger2-adversarial.py:5-28 -->
+
+### Unit and integration test suite for WS-NODE: Async TCP...
+
+Unit and integration test suite for WS-NODE: Async TCP frame reader, writer actor,
+stream buffer management, partial packet chunking, and channel dispatch.
+
+<!-- mios-src:328b88702d66 from tests/test-node-async-net.py:4-7 -->
+
+### Unit test suite for WS-NODE
+
+Unit test suite for WS-NODE: Ed25519 node identity signing/verification, X25519 Diffie-Hellman
+key exchange, HKDF-SHA256 session key derivation, ChaCha20-Poly1305 authenticated symmetric payload
+encryption, MAC tag validation, tamper detection, and imposter rejection.
+
+<!-- mios-src:8f6cd66980af from tests/test-node-crypto-handshake.py:4-8 -->
+
+### Unit test suite for WS-NODE
+
+Unit test suite for WS-NODE: Heartbeat interval (5s), 3-strike dead peer detection (15s threshold),
+degraded status transitions, routing table pruning, eviction event dispatching, and re-admission.
+
+<!-- mios-src:559815f2ca99 from tests/test-node-heartbeat-eviction.py:4-7 -->
+### 1. T-392: Stress & Invariant Tests for Work-Stealing...
+
+=========================================================================
+1. T-392: Stress & Invariant Tests for Work-Stealing Scheduler
+=========================================================================
+
+<!-- mios-src:0862d143d1c2 from src/mios-rs/mios-node/tests/mesh_m2_stress_challenger_test.rs:23-25 -->
+
+### 2. T-393: Stress & Invariant Tests for Zero-Copy Buffer Pool
+
+=========================================================================
+2. T-393: Stress & Invariant Tests for Zero-Copy Buffer Pool
+=========================================================================
+
+<!-- mios-src:ea343ab95afb from src/mios-rs/mios-node/tests/mesh_m2_stress_challenger_test.rs:170-172 -->
+
+### 1. T-392: Stress & Invariant Tests for Work-Stealing...
+
+-------------------------------------------------------------------------
+1. T-392: Stress & Invariant Tests for Work-Stealing Scheduler
+-------------------------------------------------------------------------
+
+<!-- mios-src:7b8e2b29186c from tests/test-node-m2-adversarial-challenger.py:59-61 -->
+
+### 2. T-393: Stress & Invariant Tests for Zero-Copy Buffer Pool
+
+-------------------------------------------------------------------------
+2. T-393: Stress & Invariant Tests for Zero-Copy Buffer Pool
+-------------------------------------------------------------------------
+
+<!-- mios-src:844288c053a9 from tests/test-node-m2-adversarial-challenger.py:155-157 -->

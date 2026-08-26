@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for WS-NODE mDNS zero-conf mesh discovery and handshake.
-# AI-related: usr/libexec/mios/node/discovery.py, src/mios-rs/mios-node/src/discovery.rs
+# AI-related: usr/libexec/mios/node/discovery.py, usr/share/doc/mios/manual/node.md
 """Automated tests for WS-NODE mDNS zero-conf discovery, packet validation, and challenge handshake."""
 
 from __future__ import annotations

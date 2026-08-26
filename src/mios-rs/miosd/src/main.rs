@@ -172,6 +172,40 @@ enum Commands {
     },
     /// Run native greenboot health check validation
     Greenboot,
+    /// Run native Tokio async supervisor daemon (telemetry, theme, backup, watchdog, state.json)
+    Daemon {
+        /// Directory for persistent daemon state (state.json)
+        #[arg(long, default_value = "/var/lib/mios/daemon")]
+        state_dir: String,
+        /// Telemetry and watchdog cycle interval in seconds
+        #[arg(long, default_value_t = 5)]
+        interval_secs: u64,
+        /// Execute a single supervisor tick and exit
+        #[arg(long)]
+        once: bool,
+        /// Optional hardware watchdog device path
+        #[arg(long)]
+        watchdog_dev: Option<String>,
+    },
+    /// Validate SSOT mios.toml syntax, schema, port collisions, Law 7, and ratchets
+    Check {
+        /// Path to mios.toml configuration file
+        #[arg(default_value = "/usr/share/mios/mios.toml")]
+        path: String,
+        /// Emit structured JSON validation report
+        #[arg(long)]
+        json: bool,
+        /// Explicit validation mode flag
+        #[arg(long)]
+        check: bool,
+    },
+    /// Binary CLI dispatcher forwarding verbs or falling back to OpenAI chat stream
+    #[command(disable_help_flag = true)]
+    Cli {
+        /// CLI arguments forwarded to verb handler
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
 }
 
 fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -579,7 +613,21 @@ fn run_render_ports(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let prog_name = args.first().and_then(|a| std::path::Path::new(a).file_name()).and_then(|f| f.to_str()).unwrap_or("");
+    if prog_name == "mios" || prog_name.starts_with("mios-cli") {
+        let rc = miosd::cli::dispatch(args);
+        std::process::exit(rc);
+    }
+    if prog_name == "mios-check" {
+        let path = args.get(1).map(|s| s.as_str()).unwrap_or("/usr/share/mios/mios.toml");
+        let report = mios_config::MiosValidator::validate_file(path);
+        println!("{}", report.format_human());
+        std::process::exit(if report.is_valid { 0 } else { 1 });
+    }
+
     let cli = Cli::parse();
 
     match &cli.command {
@@ -724,6 +772,61 @@ fn main() {
                 eprintln!("[miosd] Overlay bind images error: {}", e);
                 std::process::exit(1);
             }
+        }
+        Commands::Daemon {
+            state_dir,
+            interval_secs,
+            once,
+            watchdog_dev,
+        } => {
+            let config = miosd::daemon::DaemonConfig {
+                state_dir: std::path::PathBuf::from(state_dir),
+                interval_secs: *interval_secs,
+                watchdog_dev: watchdog_dev.clone(),
+                backup_interval_secs: 3600,
+                run_once: *once,
+            };
+            let supervisor = miosd::daemon::Supervisor::new(config);
+            let shutdown = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let shutdown_clone = shutdown.clone();
+
+            tokio::spawn(async move {
+                #[cfg(unix)]
+                {
+                    use tokio::signal::unix::{signal, SignalKind};
+                    if let Ok(mut sigterm) = signal(SignalKind::terminate()) {
+                        sigterm.recv().await;
+                        shutdown_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+                #[cfg(not(unix))]
+                {
+                    let _ = tokio::signal::ctrl_c().await;
+                    shutdown_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            });
+
+            if let Err(e) = supervisor.run(shutdown).await {
+                eprintln!("[miosd] Daemon supervisor error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::Check { path, json, check: _ } => {
+            let report = mios_config::MiosValidator::validate_file(path);
+            if *json {
+                println!("{}", report.to_json());
+            } else {
+                print!("{}", report.format_human());
+            }
+            if !report.is_valid {
+                std::process::exit(1);
+            }
+        }
+        Commands::Cli { args } => {
+            let mut full_args = vec!["mios".to_string()];
+            full_args.extend(args.clone());
+            let rc = miosd::cli::dispatch(full_args);
+            std::process::exit(rc);
         }
     }
 }

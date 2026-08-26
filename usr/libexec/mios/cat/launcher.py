@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: MiOS-Cat tri-launcher hardening and repo vs mutable data path staging.
-# AI-related: tests/test-cat-launcher.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: tests/test-cat-launcher.py, usr/share/doc/mios/manual/ch02-installation-and-deployment.md
 """
 MiOS-Cat Tri-Launcher & Staging Engine.
 Enforces read-only repo bind mounts and isolated mutable data staging for dev, staging, and prod modes.

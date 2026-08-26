@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Contextual prompt compression and selective linguistic token pruning engine.
-# AI-related: tests/test-prompt-pruning.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: tests/test-prompt-pruning.py, usr/share/doc/mios/manual/prompt.md
 """
 MiOS Contextual Prompt Compression & Token Pruning Engine (PROMPT-01 / T-380 / AGY-1978).
 

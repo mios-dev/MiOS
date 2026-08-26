@@ -167,6 +167,70 @@ class StateStore:
             json.dump(data, f, indent=2)
         os.replace(tmp_path, out_path)
 
+    def count_tombstones(self) -> int:
+        return sum(1 for e in self.elements.values() if e.is_deleted)
+
+    def total_elements_count(self) -> int:
+        return len(self.elements)
+
+    def compact_tombstones(
+        self, ttl_s: float = 86400.0, current_time_s: Optional[float] = None
+    ) -> Dict[str, int]:
+        """
+        Compacts tombstone entries older than `ttl_s`.
+        Strict invariant: Never purges fresh tombstones within the TTL horizon or active keys.
+        """
+        now_ns = int(current_time_s * 1e9) if current_time_s is not None else time.time_ns()
+        ttl_ns = int(ttl_s * 1e9)
+
+        initial_count = len(self.elements)
+        keys_to_purge = []
+        active_count = 0
+        tombstones_retained = 0
+
+        for key, elem in self.elements.items():
+            if elem.is_deleted:
+                age_ns = max(0, now_ns - elem.timestamp_ns)
+                if age_ns > ttl_ns:
+                    keys_to_purge.append(key)
+                else:
+                    tombstones_retained += 1
+            else:
+                active_count += 1
+
+        for k in keys_to_purge:
+            del self.elements[k]
+
+        return {
+            "initial_elements": initial_count,
+            "active_elements": active_count,
+            "tombstones_purged": len(keys_to_purge),
+            "tombstones_retained": tombstones_retained,
+            "remaining_elements": len(self.elements),
+        }
+
+    def compact_disk_storage(
+        self, ttl_s: float = 86400.0, current_time_s: Optional[float] = None
+    ) -> Dict[str, int]:
+        """
+        Compacts tombstones and flushes an atomic snapshot to disk while truncating the append WAL.
+        """
+        stats = self.compact_tombstones(ttl_s=ttl_s, current_time_s=current_time_s)
+        if self.persistence_path:
+            # 1. Save clean snapshot
+            self.save_to_disk(self.persistence_path)
+
+            # 2. Truncate append log and write remaining state
+            log_file = self.persistence_path + ".log"
+            tmp_log = self.persistence_path + ".log.tmp"
+            os.makedirs(os.path.dirname(os.path.abspath(tmp_log)), exist_ok=True)
+            with open(tmp_log, "w", encoding="utf-8") as f:
+                for elem in self.elements.values():
+                    f.write(json.dumps(elem.to_dict()) + "\n")
+            os.replace(tmp_log, log_file)
+
+        return stats
+
     def load_from_disk(self, path: str) -> None:
         if not os.path.exists(path):
             return

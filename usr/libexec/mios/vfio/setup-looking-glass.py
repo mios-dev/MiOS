@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Looking Glass B6 IVSHMEM shared memory setup and VFIO passthrough validation.
-# AI-related: tests/test-looking-glass-setup.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: tests/test-looking-glass-setup.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
 """
 MiOS Looking Glass B6 Shared Memory & VFIO Configuration Utility.
 Manages IVSHMEM device node permissions, shm allocation (64MB/128MB), and domain XML generation.

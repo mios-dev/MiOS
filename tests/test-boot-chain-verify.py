@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for WS-SEC UKI and fs-verity boot chain verification.
-# AI-related: usr/libexec/mios/sec/verify-boot-chain.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: usr/libexec/mios/sec/verify-boot-chain.py, usr/share/doc/mios/manual/sec.md
 """Automated tests for WS-SEC UKI PE headers, PCR 4/7/11 checks, and fs-verity digests."""
 
 from __future__ import annotations

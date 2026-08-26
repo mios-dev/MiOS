@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for WS-AI / PROMPT-01 contextual prompt compression and token pruning.
-# AI-related: usr/libexec/mios/prompt/pruning.py, usr/share/doc/mios/manual/ch02-architecture.md
+# AI-related: usr/libexec/mios/prompt/pruning.py, usr/share/doc/mios/manual/prompt.md
 """
 Automated unit tests for linguistic token pruning, AST/code syntax preservation,
 message list compression, and CLI execution.

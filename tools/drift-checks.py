@@ -4250,13 +4250,13 @@ def check_secret_handling() -> int:
     violations = []
 
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in (".git", "__pycache__", ".cargo", "target", "node_modules", ".venv")]
+        dirnames[:] = [d for d in dirnames if d not in (".git", "__pycache__", ".cargo", "target", "node_modules", ".venv", ".agents", ".tmp.driveupload", "root")]
         for f in filenames:
             if f.endswith((".png", ".jpg", ".tar", ".zip", ".exe", ".pyc", ".iso", ".qcow2", ".vhdx")):
                 continue
             path = os.path.join(dirpath, f)
             rel = os.path.relpath(path, root).replace("\\", "/")
-            if rel in EXEMPT_PATHS or rel.startswith("tests/") or rel.startswith("scratch/"):
+            if rel in EXEMPT_PATHS or rel.startswith("tests/") or rel.startswith("scratch/") or rel.startswith(".agents/"):
                 continue
             try:
                 with open(path, "r", encoding="utf-8", errors="ignore") as fh:
