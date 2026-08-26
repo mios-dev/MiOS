@@ -587,6 +587,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_reflect.py` | Re-export shim for mios_pipe.routing.reflect |
 | `usr/lib/mios/agent-pipe/mios_registry.py` | WS-A17 versioned agent/tool package format + local registry projection. |
 | `usr/lib/mios/agent-pipe/mios_reputation.py` | Re-export shim for mios_pipe.identity.reputation |
+| `usr/lib/mios/agent-pipe/mios_rerank.py` | Vector similarity re-ranking using local cross-encoder model in RAG pipeline. |
 | `usr/lib/mios/agent-pipe/mios_route_reload.py` | Hot-reload of model routing tables without dropping active streams. |
 | `usr/lib/mios/agent-pipe/mios_router.py` | Re-export shim for mios_pipe.routing.router |
 | `usr/lib/mios/agent-pipe/mios_routing.py` | Re-export shim for mios_pipe.routing.routing |
@@ -608,6 +609,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_surface.py` | Pure stdlib (ast) extractor of the server.py PUBLIC SURFACE for the refactor parity gate (refactor WS R0). |
 | `usr/lib/mios/agent-pipe/mios_swarm.py` | Re-export shim for mios_pipe.routing.swarm |
 | `usr/lib/mios/agent-pipe/mios_template.py` | Renders an SSOT verb command template into the broker bash line. |
+| `usr/lib/mios/agent-pipe/mios_temporal_decay.py` | Temporal decay scoring on memory retrieval vectors to prioritize recent state changes. |
 | `usr/lib/mios/agent-pipe/mios_tension.py` | Tension-tracking ledger in DCI deliberation to quantify unresolved objections. |
 | `usr/lib/mios/agent-pipe/mios_tokenize.py` | Re-export shim for mios_pipe.context.tokenize |
 | `usr/lib/mios/agent-pipe/mios_tool_batch.py` | Asynchronous tool execution batching for non-dependent parallel tool invocations. |
@@ -794,7 +796,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 408 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 410 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

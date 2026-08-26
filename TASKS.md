@@ -358,10 +358,10 @@
 | T-370 | P1 | done | VRAM/Eviction | Per-lane VRAM watermark monitor and emergency KV-cache eviction daemon |
 | T-371 | P1 | done | Orchestration/Tension | Tension-tracking ledger in DCI deliberation to quantify unresolved objections |
 | T-372 | P2 | done | Memory/Compaction | Cross-turn episodic memory compaction into hierarchical semantic trees |
-| T-373 | P2 | open | Retrieval/Rerank | Vector similarity re-ranking using local cross-encoder model in RAG pipeline |
-| T-374 | P2 | open | Vision/Desktop | Multi-modal visual RAG pipeline extracting UI screenshot embeddings for desktop state reasoning |
-| T-375 | P2 | open | Memory/Decay | Temporal decay scoring on memory retrieval vectors to prioritize recent system state changes |
-| T-376 | P2 | open | Skills/Synthesis | Automatic skill synthesis and extraction from successful multi-step task execution traces |
+| T-373 | P2 | done | Retrieval/Rerank | Vector similarity re-ranking using local cross-encoder model in RAG pipeline |
+| T-374 | P2 | done | Vision/Desktop | Multi-modal visual RAG pipeline extracting UI screenshot embeddings for desktop state reasoning |
+| T-375 | P2 | done | Memory/Decay | Temporal decay scoring on memory retrieval vectors to prioritize recent system state changes |
+| T-376 | P2 | done | Skills/Synthesis | Automatic skill synthesis and extraction from successful multi-step task execution traces |
 | T-377 | P1 | open | Sandboxing/MCP | MCP server sandboxing using isolated bubblewrap and unshare namespaces |
 | T-378 | P1 | open | Security/Approval | Interactive human-in-the-loop permission escalation prompts on destructive MCP tool calls |
 | T-379 | P2 | open | Graph/Knowledge | Distributed graph traversal over pgvector knowledge triples with recursive CTEs |
@@ -4461,7 +4461,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Re-ranker integration improves precision@5 retrieval benchmarks with sub-100ms added latency.
 **Why:** Bi-encoder vector search alone fails to capture fine-grained semantic subtleties that cross-encoders resolve accurately.
 **Dep:** AGY-1970
-**Status:** open | **Domain:** Retrieval/Rerank | **Who:** agent
+**Status:** done | **Domain:** Retrieval/Rerank | **Who:** agent
 **Converted:** AGY-1971 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-374 -- Multi-modal visual RAG pipeline extracting UI screenshot embeddings for desktop state reasoning (WS-AI | P2 | L)
@@ -4471,7 +4471,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Visual memory indexes desktop screenshots periodically and enables visual state reasoning for UI automation agents.
 **Why:** Autonomous desktop agents require visual grounding to debug graphical application errors and verify UI states.
 **Dep:** AGY-1971
-**Status:** open | **Domain:** Vision/Desktop | **Who:** agent
+**Status:** done | **Domain:** Vision/Desktop | **Who:** agent
 **Converted:** AGY-1972 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-375 -- Temporal decay scoring on memory retrieval vectors to prioritize recent system state changes (WS-RAG | P2 | S)
@@ -4481,7 +4481,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Retrieval scoring balances semantic similarity with recency decay factors dynamically.
 **Why:** System configuration and environment states change over time; stale memory entries cause agents to make outdated assumptions.
 **Dep:** AGY-1972
-**Status:** open | **Domain:** Memory/Decay | **Who:** agent
+**Status:** done | **Domain:** Memory/Decay | **Who:** agent
 **Converted:** AGY-1973 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-376 -- Automatic skill synthesis and extraction from successful multi-step task execution traces (WS-ORCH | P2 | M)
@@ -4491,7 +4491,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** High-performing execution traces are automatically converted into documented, reusable skills.
 **Why:** Self-improving operating systems must learn new workflows from successful operations without manual documentation authoring.
 **Dep:** AGY-1973
-**Status:** open | **Domain:** Skills/Synthesis | **Who:** agent
+**Status:** done | **Domain:** Skills/Synthesis | **Who:** agent
 **Converted:** AGY-1974 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-377 -- MCP server sandboxing using isolated bubblewrap and unshare namespaces (WS-SEC | P1 | M)

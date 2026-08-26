@@ -2915,6 +2915,10 @@ tests/test-quadlet-secrets-rotation.py	29	29	1	12	7a87e71c50ca	STAY	local-scoped
 tests/test-quadlet-secrets-rotation.py	60	60	1	6	50729ff13a7a	STAY	local-scoped		0				0
 tests/test-quadlet-secrets-rotation.py	62	62	1	6	92114ebc1779	STAY	local-scoped		0				0
 tests/test-quadlet-secrets-rotation.py	68	68	1	4	4b8c45f4fe6c	STAY	local-scoped		0				0
+tests/test-rag-rerank.py	1	3	3	13	91740fc98279	STAY	ai-header		0				0
+tests/test-rag-rerank.py	4	4	1	10	21a29cae01a8	STAY	local-scoped		0				0
+tests/test-rag-rerank.py	20	20	1	6	790e7adc2f4d	STAY	local-scoped		0				0
+tests/test-rag-rerank.py	32	32	1	7	dbd2c4da7358	STAY	local-scoped		0				0
 tests/test-refine-guard.py	1	3	3	24	2ff03fd4fb09	STAY	ai-header		0				0
 tests/test-refine-guard.py	9	9	1	2	458f7e85be09	STAY	inline-scoped		0				0
 tests/test-refine-guard.py	11	11	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
@@ -2984,9 +2988,18 @@ tests/test-seat-auth-posture.sh	101	101	1	13	bba1a28d34ac	STAY	local-scoped		0		
 tests/test-shm-kv.py	1	3	3	18	42fce61a4514	STAY	ai-header		0				0
 tests/test-shm-kv.py	4	4	1	11	4c1e826de929	STAY	local-scoped		0				0
 tests/test-shm-kv.py	20	20	1	9	86f8051d0269	STAY	local-scoped		0				0
+tests/test-skill-synthesizer.py	1	3	3	14	1569efa91e83	STAY	ai-header		0				0
+tests/test-skill-synthesizer.py	4	4	1	10	488de9922651	STAY	local-scoped		0				0
+tests/test-skill-synthesizer.py	27	27	1	7	5e72d811a91f	STAY	local-scoped		0				0
 tests/test-speculative-decoding-config.py	1	3	3	17	8933fed291a6	STAY	ai-header		0				0
 tests/test-speculative-decoding-config.py	4	4	1	11	f5f57a51bed2	STAY	local-scoped		0				0
 tests/test-speculative-decoding-config.py	19	19	1	8	ec2815311ff7	STAY	local-scoped		0				0
+tests/test-temporal-decay.py	1	3	3	14	6fa55da558ec	STAY	ai-header		0				0
+tests/test-temporal-decay.py	4	4	1	11	78ec38ebe895	STAY	local-scoped		0				0
+tests/test-temporal-decay.py	20	20	1	8	0381c83ca71b	STAY	local-scoped		0				0
+tests/test-temporal-decay.py	27	27	1	8	eabd9aff9e48	STAY	local-scoped		0				0
+tests/test-temporal-decay.py	29	29	1	8	d5917a298ba9	STAY	local-scoped		0				0
+tests/test-temporal-decay.py	34	34	1	11	8f860dac838d	STAY	local-scoped		0				0
 tests/test-tension-ledger.py	1	3	3	14	875bddeffd00	STAY	ai-header		0				0
 tests/test-tension-ledger.py	4	4	1	11	415732812ecc	STAY	local-scoped		0				0
 tests/test-tension-ledger.py	20	20	1	7	70df4906deb6	STAY	local-scoped		0				0
@@ -3003,6 +3016,9 @@ tests/test-tool-batch.py	21	21	1	8	93181224c479	STAY	local-scoped		0				0
 tests/test-tool-timeout.py	1	3	3	18	e3d42f912c23	STAY	ai-header		0				0
 tests/test-tool-timeout.py	4	4	1	11	a1d170c5ccbb	STAY	local-scoped		0				0
 tests/test-tool-timeout.py	21	21	1	7	d57fe9dd60f6	STAY	local-scoped		0				0
+tests/test-visual-rag.py	1	3	3	16	31a9b52201d5	STAY	ai-header		0				0
+tests/test-visual-rag.py	4	4	1	10	897089094535	STAY	local-scoped		0				0
+tests/test-visual-rag.py	27	27	1	8	c1d87202ccae	STAY	local-scoped		0				0
 tests/test-vram-watchdog.py	1	3	3	16	7bfdd51b8617	STAY	ai-header		0				0
 tests/test-vram-watchdog.py	4	4	1	11	daff453ac51a	STAY	local-scoped		0				0
 tests/test-vram-watchdog.py	27	27	1	7	280b725c7525	STAY	local-scoped		0				0
@@ -6174,6 +6190,11 @@ usr/lib/mios/agent-pipe/mios_registry.py	19	21	3	31	89d98e97487f	STAY	midsize-wh
 usr/lib/mios/agent-pipe/mios_registry.py	42	44	3	21	a429b5c9bce8	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/mios_registry.py	70	71	2	20	75a6235876b6	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_reputation.py	1	1	1	5	dbbcc95a9d1e	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_rerank.py	1	2	2	14	80ddde091da7	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_rerank.py	3	6	3	15	7e356e96eac1	STAY	midsize-why		0				0
+usr/lib/mios/agent-pipe/mios_rerank.py	15	15	1	7	4c54082f20b7	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_rerank.py	21	21	1	11	ce0db83baa0e	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_rerank.py	30	30	1	10	98ff3edc15b6	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_route_reload.py	1	2	2	13	84d1b291701f	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_route_reload.py	3	6	3	19	3ecaca080001	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/mios_route_reload.py	16	16	1	6	d340e3f5a055	STAY	local-scoped		0				0
@@ -6277,6 +6298,11 @@ usr/lib/mios/agent-pipe/mios_template.py	90	90	1	9	ed1d76214a60	STAY	local-scope
 usr/lib/mios/agent-pipe/mios_template.py	97	97	1	9	e616893f5ec5	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_template.py	107	107	1	10	bca5815e94ac	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_template.py	129	129	1	10	8ed5e1f54667	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_temporal_decay.py	1	2	2	16	44d5c2e1f8ae	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_temporal_decay.py	3	6	3	15	3cd07d6622fb	STAY	midsize-why		0				0
+usr/lib/mios/agent-pipe/mios_temporal_decay.py	16	16	1	8	ee69be432fcb	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_temporal_decay.py	27	27	1	4	c7ace3a6661b	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_temporal_decay.py	34	34	1	9	7d6cdae97c0a	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_tension.py	1	2	2	13	81d131c5e0f7	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_tension.py	3	6	3	19	bb04f1406f70	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/mios_tension.py	14	14	1	9	8177b6e47eaf	STAY	local-scoped		0				0
@@ -8320,6 +8346,14 @@ usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1	347	353	7	43	82739bd24264	MIG
 usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1	366	374	9	81	ef9ce2ef6f33	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:ef9ce2ef6f33	81	0
 usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1	390	396	7	64	9a6c3ef60a2c	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:9a6c3ef60a2c	64	0
 usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1	408	409	2	18	64f76fe1cfd7	STAY	local-scoped		0				0
+usr/libexec/mios/ai/skill-synthesizer.py	1	3	3	17	038e239adc24	STAY	ai-header		0				0
+usr/libexec/mios/ai/skill-synthesizer.py	4	7	3	17	321c63b19099	STAY	midsize-why		0				0
+usr/libexec/mios/ai/skill-synthesizer.py	17	17	1	7	48bd63630ecb	STAY	local-scoped		0				0
+usr/libexec/mios/ai/skill-synthesizer.py	25	25	1	7	fd59e87a1906	STAY	local-scoped		0				0
+usr/libexec/mios/ai/visual-rag.py	1	3	3	18	0639f9feab17	STAY	ai-header		0				0
+usr/libexec/mios/ai/visual-rag.py	4	7	3	19	41e50a436a13	STAY	midsize-why		0				0
+usr/libexec/mios/ai/visual-rag.py	18	18	1	9	efee21144e82	STAY	local-scoped		0				0
+usr/libexec/mios/ai/visual-rag.py	24	24	1	8	b6bcecbef4dc	STAY	local-scoped		0				0
 usr/libexec/mios/ai/vram-watchdog.py	1	3	3	15	bf681e7e1481	STAY	ai-header		0				0
 usr/libexec/mios/ai/vram-watchdog.py	4	7	3	22	3f5a7001d8c4	STAY	midsize-why		0				0
 usr/libexec/mios/ai/vram-watchdog.py	17	17	1	8	67510d064550	STAY	local-scoped		0				0
@@ -10124,20 +10158,20 @@ usr/share/mios/mios.toml	10872	10878	7	64	351d4a832370	MIGRATE	narrative-rationa
 usr/share/mios/mios.toml	10880	10881	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	10885	10885	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	10894	10894	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10962	10962	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10968	10969	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	10996	10997	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11006	11009	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	11011	11012	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11016	11018	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11024	11024	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11026	11028	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11094	11097	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11099	11099	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11178	11179	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11184	11188	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	11190	11193	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11196	11201	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	10966	10966	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	10972	10973	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11000	11001	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11010	11013	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	11015	11016	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11020	11022	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11028	11028	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11030	11032	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11098	11101	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11103	11103	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11182	11183	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11188	11192	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	11194	11197	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11200	11205	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/openwebui/tools/mios_computer_use.py	1	2	2	22	8c252dd7a941	STAY	ai-header		0				0
 usr/share/mios/openwebui/tools/mios_computer_use.py	3	42	39	219	9cde6af7c1f5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tools.md	mios-src:9cde6af7c1f5	219	0
 usr/share/mios/openwebui/tools/mios_computer_use.py	63	64	2	19	4ba014eb5e64	STAY	local-scoped		0				0
