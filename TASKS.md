@@ -835,6 +835,38 @@
 | T-921 | P2 | open | Security/UFFDTest | Automated UFFD_USER_MODE_ONLY demand-paging (<1us latency) and kernel fault test suite |
 | T-922 | P1 | open | AI/SpecInferTree | SpecInfer dynamic multi-draft tree engine and 2D tree-attention mask verifier in llama-swap |
 | T-923 | P2 | open | AI/SpecInferTest | Automated 2.8x SpecInfer speedup, tree-attention mask validity, and token parity test suite |
+| T-924 | P1 | open | AI/BiLLMA1W1 | BiLLM A1W1 pure bitwise XNOR-POPCOUNT matrix engine in llama-swap |
+| T-925 | P2 | open | AI/BiLLMA1W1Test | Automated 400 tok/s CPU throughput, multiplier elimination, and RAM fitting test suite |
+| T-926 | P1 | open | Security/IMAAppraise | In-kernel IMA appraisal and signed xattr verifier in UKI bootchain |
+| T-927 | P2 | open | Security/IMATest | Automated IMA binary appraisal, tampered executable rejection, and latency test suite |
+| T-928 | P1 | open | AI/TriLMKernel | TriLM fused 1.58-bit ternary GPU kernel and warp-specialized accumulator in llama-swap |
+| T-929 | P2 | open | AI/TriLMTest | Automated 3.8x GPU ternary speedup, 14GB VRAM fitting, and perplexity test suite |
+| T-930 | P1 | open | Security/UFFDWriteProtect | userfaultfd write-protection engine and dirty page tracker in mios-uffd-guard |
+| T-931 | P2 | open | Security/UFFDWPTest | Automated UFFDIO_WRITEPROTECT intercept latency (<1us), dirty page logging test suite |
+| T-932 | P1 | open | AI/SparseGPT | SparseGPT 2:4 structural sparsity compiler and fused mma.sp Tensor Core engine |
+| T-933 | P2 | open | AI/SparseTest | Automated 2.0x sparse speedup, 2:4 structural validation, and accuracy test suite |
+| T-934 | P1 | open | Security/LandlockScope | Dynamic Landlock scoped IPC and signal isolation guard in mios-exec-sandbox |
+| T-935 | P2 | open | Security/LandlockScopeTest | Automated Landlock scoped abstract socket and signal denial (<1us) test suite |
+| T-936 | P1 | open | AI/SpQRKernel | SpQR outlier isolation compiler and fused sparse-dense CUDA engine in llama-swap |
+| T-937 | P2 | open | AI/SpQRTest | Automated 3.5x SpQR speedup, <0.5% outlier density, and perplexity test suite |
+| T-938 | P1 | open | Security/RSBGuard | Dynamic RSB buffer stuffing and context-switch underflow guard in mios-rsb-guard |
+| T-939 | P2 | open | Security/RSBTest | Automated ret2spec RSB underflow mitigation (<100ns latency) and context-switch test suite |
+| T-940 | P1 | open | AI/PipelinedSpec | Asynchronous staged speculative pipelining engine and lockless queue in llama-swap |
+| T-941 | P2 | open | AI/PipelinedTest | Automated 3.2x pipelined speculative speedup, queue throughput, and token parity test suite |
+| T-942 | P1 | open | Security/SLSGuard | Automated Straight-Line Speculation (SLS) compiler enforcer and post-branch traps |
+| T-943 | P2 | open | Security/SLSTest | Automated SLS post-return trap verification (<5ns barrier) and disassembly test suite |
+| T-944 | P1 | open | AI/BiLoRA | Bi-LoRA binary low-rank adapter engine and sign-scaled integer dispatcher in mios-finetune-bilora |
+| T-945 | P2 | open | AI/BiLoRATest | Automated 8x adapter RAM reduction, 3.6x speedup, and fine-tuning accuracy test suite |
+| T-946 | P1 | open | Security/SSBDGuard | Dynamic SSBD context-switch enforcer and speculative store isolation guard in mios-ssbd-guard |
+| T-947 | P2 | open | Security/SSBDTest | Automated Spectre v4 / SSB mitigation verification (<500ns MSR toggle) and /proc test suite |
+| T-948 | P1 | open | AI/MXFP8Engine | OCP MXFP8 microscaled tensor core engine and block exponent scaler in llama-swap |
+| T-949 | P2 | open | AI/MXFP8Test | Automated 2.8x MXFP8 speedup, dynamic range overflow prevention, and loss test suite |
+| T-950 | P1 | open | Security/UniversalMemTag | Universal hardware-agnostic memory safety and tagging negotiator in mios-mem-tag-guard |
+| T-951 | P2 | open | Security/UniversalMemTest | Automated cross-architecture memory tagging negotiation and violation test suite |
+| T-952 | P1 | open | AI/AQLMKernel | AQLM 2-bit multi-codebook vector engine and fused CUDA dequant kernel in llama-swap |
+| T-953 | P2 | open | AI/AQLMTest | Automated 2-bit AQLM 18.2GB VRAM fitting, 3.6x speedup, and perplexity test suite |
+| T-954 | P1 | open | Auth/MiOSUSB | Dedicated MiOS-USB global hardware key and FIDO2/PKCS#11 multi-node enrolment |
+| T-955 | P2 | open | Auth/MiOSUSBTest | Automated MiOS-USB FIDO2 token challenge-response (<10ms) and multi-node auth test suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -9923,4 +9955,324 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2520
 **Status:** open | **Domain:** AI/SpecInferTest | **Who:** agent
 **Converted:** AGY-2521 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-924 -- BiLLM A1W1 pure bitwise XNOR-POPCOUNT matrix engine in llama-swap (WS-AI | P1 | M)
+**Goal:** Binarize weights/activations to 1-bit signs and compute matrix products via XNOR-POPCOUNT for >400 tok/s in <9.5GB RAM.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and `llama.cpp` CPU engine. Implement BiLLM A1W1 kernel; quantize intermediate activations and base weights into 1-bit binary sign vectors packed 64 elements per `uint64_t`; compute matrix dot products using AVX-512 `_mm512_popcnt_epi64` / CUDA `__popcll(a ^ ~b)` bitwise XNOR-POPCOUNT instructions; calculate dot products via $y = s_w s_a (2 \cdot \text{popcnt}(w \odot x) - d)$; eliminate 100% of arithmetic multiplier units; fit 70B parameter models into 9.4GB RAM; achieve >400 tok/s CPU token generation throughput.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine executes BiLLM A1W1 via pure bitwise XNOR-POPCOUNT kernels at >400 tok/s on CPU.
+**Why:** BiLLM A1W1 enables large 70B parameter models to run at lightning speed on low-power, multiplier-constrained mobile and edge devices.
+**Dep:** AGY-2521
+**Status:** open | **Domain:** AI/BiLLMA1W1 | **Who:** agent
+**Converted:** AGY-2522 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-925 -- Automated 400 tok/s CPU throughput, multiplier elimination, and RAM fitting test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that BiLLM A1W1 sustains >400 tok/s on CPU, allocates <9.5GB RAM, and uses 0 multipliers.
+**What+How:** Add `tests/test-billm-a1w1-throughput.sh`. Benchmark 70B BiLLM A1W1 model on multicore CPU; monitor CPU hardware execution counters via `perf stat`; assert integer and float multiplier instruction counts = 0; assert peak process RAM < 9.5 GB; assert token generation throughput > 400.0 tok/s; verify wikitext-2 perplexity delta is < 0.045.
+**Where:** tests/test-billm-a1w1-throughput.sh, tools/ci-suites.py
+**Done When:** Test suite validates >400 tok/s CPU decoding speed, zero arithmetic multiplications, and low perplexity degradation.
+**Why:** Continuous testing ensures fully binarized 1-bit inference pipelines maintain maximum throughput and minimal memory footprints.
+**Dep:** AGY-2522
+**Status:** open | **Domain:** AI/BiLLMA1W1Test | **Who:** agent
+**Converted:** AGY-2523 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-926 -- In-kernel IMA appraisal and signed xattr verifier in UKI bootchain (WS-SEC | P1 | M)
+**Goal:** Enforce ima_appraise=enforce in UKI kernel command line to verify security.ima xattrs and block tampered binaries.
+**What+How:** Update `automation/02-uki-bootloader.sh` and `automation/24-cpu-affinity.sh`. Bake `ima_appraise=enforce ima_policy=appraise_tcb ima_hash=sha256` into the signed UKI bootloader configuration; sign `security.ima` extended attributes on all executable binaries and shared libraries during OCI build pipeline; verify cryptographic SHA-256 hash in kernel VFS layer before execution (`bprm_check_security`); block modified, corrupted, or unsigned binary execution with `EACCES` in <50ns.
+**Where:** automation/02-uki-bootloader.sh, etc/cmdline.d/02-security.conf
+**Done When:** Kernel blocks execution of tampered binaries via IMA appraisal and validates signed extended attributes.
+**Why:** In-kernel IMA appraisal cryptographically guarantees that only untampered, signed binaries can execute on the operating system.
+**Dep:** AGY-2523
+**Status:** open | **Domain:** Security/IMAAppraise | **Who:** agent
+**Converted:** AGY-2524 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-927 -- Automated IMA binary appraisal, tampered executable rejection, and latency test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that IMA appraisal blocks modified binaries with EACCES and validates signed files in <50ns.
+**What+How:** Add `tests/test-ima-appraisal-enforce.sh`. Execute valid signed test binary; assert execution succeeds; tamper with test binary payload; attempt execution; assert execution fails with `EACCES`; measure kernel appraisal verification overhead (assert < 50.0 nanoseconds); inspect `/sys/kernel/security/ima/runtime_measurements`; verify measurement log is populated.
+**Where:** tests/test-ima-appraisal-enforce.sh, tools/ci-suites.py
+**Done When:** Test suite validates cryptographic file appraisal, tampered executable denial, and low verification overhead.
+**Why:** Continuous testing ensures rootfs integrity verification remains active and resilient across kernel upgrades.
+**Dep:** AGY-2524
+**Status:** open | **Domain:** Security/IMATest | **Who:** agent
+**Converted:** AGY-2525 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-928 -- TriLM fused 1.58-bit ternary GPU kernel and warp-specialized accumulator in llama-swap (WS-AI | P1 | M)
+**Goal:** Pack 4 ternary weights per byte and dispatch fused CUDA kernels to run 70B models at >3.8x speedup in 14GB VRAM.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `quantization: trilm_ternary_gpu`; store 1.58-bit ternary weights $\{-1, 0, 1\}$ packed 4 values per `uint8_t`; load into GPU shared memory; execute warp-specialized CUDA dequant-and-accumulate kernels that perform fused add/subtract operations on FP16/BF16 activations without float multipliers; achieve >3.8x matrix multiply speedup over FP16 baseline; fit 70B parameter models into 13.8GB VRAM.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine executes TriLM fused 1.58-bit ternary CUDA kernels on GPU Tensor Cores at >3.8x speedup.
+**Why:** TriLM GPU kernels enable 70B parameter reasoning models to fit entirely within consumer 16GB GPUs at breakthrough speeds.
+**Dep:** AGY-2525
+**Status:** open | **Domain:** AI/TriLMKernel | **Who:** agent
+**Converted:** AGY-2526 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-929 -- Automated 3.8x GPU ternary speedup, 14GB VRAM fitting, and perplexity test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 70B TriLM fits in <14GB VRAM, achieves >3.8x speedup, and perplexity delta is <0.030.
+**What+How:** Add `tests/test-trilm-gpu-gemm.sh`. Benchmark 70B TriLM model on GPU; monitor VRAM allocation via NVML; assert peak VRAM < 14.0 GB; assert matrix multiply execution speedup > 3.80x; evaluate wikitext-2 perplexity; assert perplexity degradation is < 0.030 compared to unquantized baseline; verify 0 CUDA kernel synchronization errors.
+**Where:** tests/test-trilm-gpu-gemm.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-14GB residency, fast warp-specialized execution, and low perplexity degradation.
+**Why:** Continuous testing ensures ternary GPU kernels maintain high computational speed and exact numerical stability.
+**Dep:** AGY-2526
+**Status:** open | **Domain:** AI/TriLMTest | **Who:** agent
+**Converted:** AGY-2527 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-930 -- userfaultfd write-protection engine and dirty page tracker in mios-uffd-guard (WS-SEC | P1 | M)
+**Goal:** Enable UFFD_FEATURE_PAGEFAULT_FLAG_WP to intercept and track memory page writes in <1us without mprotect overhead.
+**What+How:** Update `usr/libexec/mios/mios-uffd-guard` and `automation/42-microvm-runtime.sh`. Request `UFFD_FEATURE_PAGEFAULT_FLAG_WP` upon descriptor registration; apply `UFFDIO_WRITEPROTECT` across microVM guest memory and subagent scratch arenas; intercept write faults in user-space; mark dirty page bitmaps in <1us; unprotect faulting page or perform copy-on-write without kernel page table traversal; prevent unauthorized buffer tampering.
+**Where:** usr/libexec/mios/mios-uffd-guard, automation/42-microvm-runtime.sh
+**Done When:** Memory virtualization runtime tracks dirty pages and protects buffers via UFFD write-protection in <1us.
+**Why:** userfaultfd write-protection enables ultra-fast incremental memory checkpointing and microVM live migration with zero mprotect penalties.
+**Dep:** AGY-2527
+**Status:** open | **Domain:** Security/UFFDWriteProtect | **Who:** agent
+**Converted:** AGY-2528 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-931 -- Automated UFFDIO_WRITEPROTECT intercept latency (<1us), dirty page logging test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that UFFD write-protect intercepts writes in <1us and tracks 100% of dirty pages.
+**What+How:** Add `tests/test-userfaultfd-write-protect.sh`. Register 100MB memory region with `UFFDIO_WRITEPROTECT`; execute 1,000 random page write operations; measure user-space fault resolution latency (assert < 1.0 microsecond per fault); assert dirty page bitmap matches modified address set 100.0%; assert 0 segmentation faults.
+**Where:** tests/test-userfaultfd-write-protect.sh, tools/ci-suites.py
+**Done When:** Test suite validates microsecond fault intercept latency, exact dirty page tracking, and zero memory corruption.
+**Why:** Continuous testing ensures memory protection and dirty tracking runtimes maintain high performance across kernel updates.
+**Dep:** AGY-2528
+**Status:** open | **Domain:** Security/UFFDWPTest | **Who:** agent
+**Converted:** AGY-2529 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-932 -- SparseGPT 2:4 structural sparsity compiler and fused mma.sp Tensor Core engine (WS-AI | P1 | M)
+**Goal:** Prune weights to 2:4 structural sparsity with Hessian compensation to double Tensor Core throughput at >99.2% accuracy.
+**What+How:** Implement `usr/bin/mios-quantize-sparsegpt` and `llama-swap.yaml` integration. Ingest dense model weights; compute inverse Hessian error matrices on calibration samples; prune weights to 2:4 structural pattern (2 non-zeros per 4 consecutive weights) in <30 minutes; compress non-zero values into half-size arrays alongside 2-bit metadata indices; dispatch hardware `mma.sp` sparse Tensor Core instructions via CUTLASS; achieve 2.0x matrix math speedup on Ampere/Ada/Hopper GPUs while retaining >99.2% coding benchmark accuracy.
+**Where:** usr/bin/mios-quantize-sparsegpt, usr/share/mios/llamacpp/llama-swap.yaml
+**Done When:** Compiler prunes models to 2:4 sparsity and inference engine executes fused mma.sp sparse Tensor Core kernels.
+**Why:** 2:4 structural sparsity leverages hardware sparse Tensor Cores to double matrix math throughput without accuracy loss.
+**Dep:** AGY-2529
+**Status:** open | **Domain:** AI/SparseGPT | **Who:** agent
+**Converted:** AGY-2530 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-933 -- Automated 2.0x sparse speedup, 2:4 structural validation, and accuracy test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that SparseGPT achieves >1.95x speedup on GPU and retains >99.2% HumanEval pass@1 score.
+**What+How:** Add `tests/test-sparsegpt-2to4-gemm.sh`. Benchmark dense vs 2:4 sparse forward passes on GPU; assert GEMM throughput speedup > 1.95x; verify 100% of weight blocks satisfy exact 2:4 sparsity constraints; evaluate HumanEval coding benchmark; assert pass@1 accuracy >= 99.2% of uncompressed baseline; verify 0 metadata indexing faults.
+**Where:** tests/test-sparsegpt-2to4-gemm.sh, tools/ci-suites.py
+**Done When:** Test suite validates >1.95x matrix acceleration, exact 2:4 structural patterns, and high coding accuracy.
+**Why:** Continuous testing ensures hardware-accelerated structural sparsity maintains high speed and reasoning precision.
+**Dep:** AGY-2530
+**Status:** open | **Domain:** AI/SparseTest | **Who:** agent
+**Converted:** AGY-2531 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-934 -- Dynamic Landlock scoped IPC and signal isolation guard in mios-exec-sandbox (WS-SEC | P1 | M)
+**Goal:** Enforce Landlock ABI v5 scoped rulesets to isolate abstract Unix sockets and signals within subagent sandboxes in <1us.
+**What+How:** Update `usr/bin/mios-exec-sandbox` and `automation/24-cpu-affinity.sh`. Query Landlock ABI v5 capabilities; apply `LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET` and `LANDLOCK_SCOPE_SIGNAL` to sandbox ruleset; restrict abstract socket creation, connection, and POSIX signal transmission (`kill`, `sigqueue`) exclusively to processes within the same sandbox domain; block cross-sandbox socket sniffing and unauthorized IPC access in <1us without requiring root.
+**Where:** usr/bin/mios-exec-sandbox, usr/share/mios/ai/system.md
+**Done When:** Sandbox guard isolates abstract Unix sockets and process signals dynamically across Landlock ABI v5.
+**Why:** Scoped Landlock IPC rules prevent rogue subagents from hijacking host abstract sockets or terminating other agent processes.
+**Dep:** AGY-2531
+**Status:** open | **Domain:** Security/LandlockScope | **Who:** agent
+**Converted:** AGY-2532 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-935 -- Automated Landlock scoped abstract socket and signal denial (<1us) test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that Landlock blocks cross-sandbox signals and abstract sockets in <1us.
+**What+How:** Add `tests/test-landlock-scoped-ipc.sh`. Spawn two isolated sandbox domains A and B; create abstract socket in domain A; attempt connection from domain B; assert connect returns `EPERM` in < 1.0 microsecond; attempt `kill(pid_A, SIGTERM)` from domain B; assert kill returns `EPERM`; assert domain A child process connects to domain A socket with 100% success.
+**Where:** tests/test-landlock-scoped-ipc.sh, tools/ci-suites.py
+**Done When:** Test suite validates microsecond abstract socket isolation, signal protection, and flawless intra-sandbox IPC.
+**Why:** Continuous testing ensures inter-process isolation boundaries remain strictly enforced across kernel updates.
+**Dep:** AGY-2532
+**Status:** open | **Domain:** Security/LandlockScopeTest | **Who:** agent
+**Converted:** AGY-2533 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-936 -- SpQR outlier isolation compiler and fused sparse-dense CUDA engine in llama-swap (WS-AI | P1 | M)
+**Goal:** Isolate top 0.5% outlier weights in CSR sparse format and quantize remainder to 3-bit for 3.5x speedup.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `quantization: spqr_3bit`; identify sensitive outlier weights ($\le 0.5\%$ of total parameters) with high Hessian sensitivity; store outliers in Compressed Sparse Row (CSR) FP16 representation; quantize remaining 99.5% weights into 3-bit asymmetric vector groups with 16-element sub-blocks; dispatch fused sparse-dense CUDA kernels ($y = X W_{3bit} + X W_{sparse}$) on Tensor Cores in a single memory pass; achieve >3.5x matrix math speedup over FP16 baseline.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine executes SpQR fused sparse-dense CUDA kernels on GPU Tensor Cores at >3.5x speedup.
+**Why:** SpQR preserves sensitive outlier weights in high-precision sparse formats, unlocking near-FP16 quality on 3-bit models.
+**Dep:** AGY-2533
+**Status:** open | **Domain:** AI/SpQRKernel | **Who:** agent
+**Converted:** AGY-2534 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-937 -- Automated 3.5x SpQR speedup, <0.5% outlier density, and perplexity test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that SpQR achieves >3.4x speedup, outlier density <0.5%, and perplexity delta <0.015.
+**What+How:** Add `tests/test-spqr-sparse-dense-gemm.sh`. Benchmark 70B SpQR model on GPU; assert GEMM execution speedup > 3.40x; compute ratio of sparse FP16 outlier elements (assert <= 0.50% of total weights); evaluate wikitext-2 perplexity; assert perplexity degradation is < 0.015 compared to dense FP16 baseline; verify 0 CSR sparse indexing faults.
+**Where:** tests/test-spqr-sparse-dense-gemm.sh, tools/ci-suites.py
+**Done When:** Test suite validates >3.4x matrix acceleration, minimal outlier overhead, and near-zero perplexity loss.
+**Why:** Continuous testing ensures mixed-precision sparse-quantized pipelines maintain high speed and reasoning accuracy.
+**Dep:** AGY-2534
+**Status:** open | **Domain:** AI/SpQRTest | **Who:** agent
+**Converted:** AGY-2535 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-938 -- Dynamic RSB buffer stuffing and context-switch underflow guard in mios-rsb-guard (WS-SEC | P1 | M)
+**Goal:** Execute 32-entry benign call/ret loops on domain switchouts to overwrite RSB in <100ns and prevent ret2spec.
+**What+How:** Implement `usr/libexec/mios/mios-rsb-guard` and `automation/24-cpu-affinity.sh`. Configure `spectre_v2=auto,retpoline` in UKI kernel; intercept security domain task switchouts; execute an unrolled 32-iteration inline assembly loop issuing benign `call`/`add $8, %rsp` sequences; overwrite all 32 entries of the CPU hardware Return Stack Buffer (RSB) in <100ns; prevent nested function return underflows from falling back to untrusted BTB speculative predictions; eliminate ret2spec vulnerabilities with zero impact on general compute threads.
+**Where:** usr/libexec/mios/mios-rsb-guard, automation/24-cpu-affinity.sh
+**Done When:** Security guard overwrites 32 RSB entries on security domain context switches in <100ns.
+**Why:** Dynamic RSB stuffing eliminates ret2spec underflow hijacking while preserving native hardware call/return performance.
+**Dep:** AGY-2535
+**Status:** open | **Domain:** Security/RSBGuard | **Who:** agent
+**Converted:** AGY-2536 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-939 -- Automated ret2spec RSB underflow mitigation (<100ns latency) and context-switch test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that RSB stuffing executes in <100ns and blocks 100% of ret2spec underflow exploits.
+**What+How:** Add `tests/test-rsb-underflow-mitigation.sh`. Execute `mios-rsb-guard` during domain transition; measure RSB stuffing latency via `rdtsc` timestamp counters (assert < 100 nanoseconds); run synthetic ret2spec underflow attack across 100,000 deep call stacks; assert 0 poisoned branch targets executed; verify system compute throughput benchmarks degrade by < 0.2%.
+**Where:** tests/test-rsb-underflow-mitigation.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-100ns RSB stuffing, complete underflow neutralization, and negligible overhead.
+**Why:** Continuous testing ensures hardware Return Stack Buffer protections remain effective across kernel and compiler toolchains.
+**Dep:** AGY-2536
+**Status:** open | **Domain:** Security/RSBTest | **Who:** agent
+**Converted:** AGY-2537 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-940 -- Asynchronous staged speculative pipelining engine and lockless queue in llama-swap (WS-AI | P1 | M)
+**Goal:** Decouple draft worker and target verifier over lockless ring buffer to overlap computation for >3.2x speedup.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `speculative_pipeline: async_overlapped`; bind lightweight draft model/head to auxiliary compute device (GPU-1, NPU, or CPU); stream speculative token candidate trees into a lockless circular DMA ring buffer; execute target model verification passes concurrently on primary GPU (GPU-2); hide 100% of draft generation latency; achieve 3.2x to 4.2x decoding throughput with exact mathematical token output parity.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine executes asynchronous staged speculative pipelining across compute devices at >3.2x speedup.
+**Why:** Speculative pipelining completely hides draft model compute latency by overlapping drafting and target verification across devices.
+**Dep:** AGY-2537
+**Status:** open | **Domain:** AI/PipelinedSpec | **Who:** agent
+**Converted:** AGY-2538 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-941 -- Automated 3.2x pipelined speculative speedup, queue throughput, and token parity test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that pipelined speculation achieves >3.2x speedup and 100% greedy token parity.
+**What+How:** Add `tests/test-pipelined-speculation.sh`. Benchmark generation throughput with and without async speculative pipelining on 70B model; assert throughput speedup > 3.20x; measure DMA lockless queue latency (assert queue pop latency < 50 microseconds); verify 100.0% exact token match under greedy decoding; assert 0 deadlocks across 10,000 requests.
+**Where:** tests/test-pipelined-speculation.sh, tools/ci-suites.py
+**Done When:** Test suite validates >3.2x generation acceleration, microsecond queue streaming, and exact token parity.
+**Why:** Continuous testing ensures asynchronous draft pipelining maintains high concurrency and lock-free memory safety.
+**Dep:** AGY-2538
+**Status:** open | **Domain:** AI/PipelinedTest | **Who:** agent
+**Converted:** AGY-2539 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-942 -- Automated Straight-Line Speculation (SLS) compiler enforcer and post-branch traps (WS-SEC | P1 | M)
+**Goal:** Enforce -mharden-sls=all and insert INT3/ISB barriers after returns and jumps to stop speculative overrun in <5ns.
+**What+How:** Implement `usr/libexec/mios/mios-sls-guard` and `automation/24-cpu-affinity.sh`. Configure GCC/Clang and Rust build profiles with `-mharden-sls=all`; place serializing `INT3` (0xCC) instructions immediately after unconditional `ret` and `jmp` instructions on x86_64; place `DSB SYS; ISB` / `SB` speculation barriers on ARM64; prevent processor instruction fetch pipelines from speculatively decoding instructions past unconditional control-flow transfers in <5ns with <0.3% overhead.
+**Where:** usr/libexec/mios/mios-sls-guard, automation/24-cpu-affinity.sh
+**Done When:** Compiler and security runtime enforce SLS hardening across all built binaries with post-branch trap instructions.
+**Why:** Straight-Line Speculation hardening eliminates speculative instruction overrun past returns without hurting execution speed.
+**Dep:** AGY-2539
+**Status:** open | **Domain:** Security/SLSGuard | **Who:** agent
+**Converted:** AGY-2540 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-943 -- Automated SLS post-return trap verification (<5ns barrier) and disassembly test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that 100% of return instructions carry post-branch INT3/ISB traps and overhead is <0.3%.
+**What+How:** Add `tests/test-sls-speculation-hardening.sh`. Compile test module via `mios-sls-guard`; disassemble output with `objdump -d`; assert 100.0% of `ret` and `jmp` instructions have immediate `int3` (0xcc) trailing opcodes; run performance benchmark; assert CPU cycle overhead < 0.30%; verify 0 illegal instruction faults during normal execution.
+**Where:** tests/test-sls-speculation-hardening.sh, tools/ci-suites.py
+**Done When:** Test suite validates post-branch trap opcodes on all unconditional jumps, zero fault rate, and minimal overhead.
+**Why:** Continuous testing ensures compiler toolchains consistently emit speculative execution traps across all architecture targets.
+**Dep:** AGY-2540
+**Status:** open | **Domain:** Security/SLSTest | **Who:** agent
+**Converted:** AGY-2541 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-944 -- Bi-LoRA binary low-rank adapter engine and sign-scaled integer dispatcher in mios-finetune-bilora (WS-AI | P1 | M)
+**Goal:** Binarize LoRA adapter weights to 1-bit signs with learnable scalar scales for 8x RAM savings and >3.6x speedup.
+**What+How:** Implement `usr/bin/mios-finetune-bilora` and `llama-swap.yaml` integration. Decompose parameter adaptation updates into binary low-rank projection matrix ($B \in \{-1, +1\}^{d \times r}$) and float scaling vector ($\alpha \in \mathbb{R}^d$) alongside continuous down-projection matrix ($A \in \mathbb{R}^{r \times k}$); evaluate adapter forward passes via integer sign additions/subtractions without float multipliers; reduce adapter memory footprint by 8x; achieve >3.6x adapter inference speedup on CPU/NPU edge devices while retaining >99.2% task adaptation accuracy.
+**Where:** usr/bin/mios-finetune-bilora, usr/share/mios/llamacpp/llama-swap.yaml
+**Done When:** Training and inference runtime fine-tunes and executes Bi-LoRA binary adapters at >3.6x speedup.
+**Why:** Bi-LoRA enables parameter-efficient specialized adaptation of 1-bit models directly on edge devices with minimal RAM.
+**Dep:** AGY-2541
+**Status:** open | **Domain:** AI/BiLoRA | **Who:** agent
+**Converted:** AGY-2542 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-945 -- Automated 8x adapter RAM reduction, 3.6x speedup, and fine-tuning accuracy test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that Bi-LoRA achieves 8x RAM savings, >3.6x speedup, and >99.2% task adaptation accuracy.
+**What+How:** Add `tests/test-bilora-adapter.sh`. Run 100 fine-tuning iterations with Bi-LoRA on test model; assert adapter parameter memory footprint is <= 12.5% of standard FP16 LoRA (8x reduction); benchmark forward pass speedup (assert > 3.60x); evaluate task adaptation benchmark; assert task accuracy >= 99.2% of unquantized LoRA baseline; verify 0 gradient binarization underflow errors.
+**Where:** tests/test-bilora-adapter.sh, tools/ci-suites.py
+**Done When:** Test suite validates 8x memory compression, rapid integer forward passes, and high adaptation fidelity.
+**Why:** Continuous testing ensures binary low-rank adaptation maintains high learning capacity and ultra-low resource usage.
+**Dep:** AGY-2542
+**Status:** open | **Domain:** AI/BiLoRATest | **Who:** agent
+**Converted:** AGY-2543 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-946 -- Dynamic SSBD context-switch enforcer and speculative store isolation guard in mios-ssbd-guard (WS-SEC | P1 | M)
+**Goal:** Enforce targeted SSBD via prctl on untrusted subagents to toggle hardware SSBD bit in <500ns and block Spectre v4.
+**What+How:** Implement `usr/libexec/mios/mios-ssbd-guard` and `automation/24-cpu-affinity.sh`. Configure `spec_store_bypass_disable=prctl` in UKI kernel; intercept untrusted subagent processes upon sandbox creation; invoke `prctl(PR_SET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS, PR_SPEC_FORCE_DISABLE, 0, 0)`; toggle hardware `SSBD` bit in `MSR_IA32_SPEC_CTRL` upon context switch in <500ns; prevent out-of-order speculative loads from bypassing uncommitted stores; eliminate Spectre v4 without global performance penalties.
+**Where:** usr/libexec/mios/mios-ssbd-guard, automation/24-cpu-affinity.sh
+**Done When:** Security guard enforces targeted SSBD on untrusted sandboxes and disables speculative store bypass in <500ns.
+**Why:** Targeted SSBD enforcement neutralizes Spectre v4 memory disclosure while preserving peak performance for trusted system services.
+**Dep:** AGY-2543
+**Status:** open | **Domain:** Security/SSBDGuard | **Who:** agent
+**Converted:** AGY-2544 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-947 -- Automated Spectre v4 / SSB mitigation verification (<500ns MSR toggle) and /proc test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that SSBD disables store bypass in <500ns and /proc status reports force thread disabled.
+**What+How:** Add `tests/test-ssbd-store-bypass-disable.sh`. Execute `mios-ssbd-guard` on test process; measure MSR toggle latency via `rdtsc` (assert < 500 nanoseconds); inspect `/proc/<pid>/status`; assert line contains `Speculation_Store_Bypass: force thread disabled`; run synthetic Spectre v4 memory disambiguation exploit; assert 0 stale store bytes recovered across 100,000 trials.
+**Where:** tests/test-ssbd-store-bypass-disable.sh, tools/ci-suites.py
+**Done When:** Test suite validates microsecond SSBD activation, /proc kernel status compliance, and complete Spectre v4 neutralization.
+**Why:** Continuous testing ensures speculative store bypass mitigations remain active and enforceable across CPU microcode updates.
+**Dep:** AGY-2544
+**Status:** open | **Domain:** Security/SSBDTest | **Who:** agent
+**Converted:** AGY-2545 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-948 -- OCP MXFP8 microscaled tensor core engine and block exponent scaler in llama-swap (WS-AI | P1 | M)
+**Goal:** Group E4M3/E5M2 values into 32-element blocks with E8M0 shared exponents for >2.8x speedup and 99.9% convergence.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `quantization: ocp_mxfp8`; structure weight and activation matrices into 32-element microscopic blocks with shared 8-bit scale exponents ($E_8M_0$); dispatch hardware native OCP microscaled Tensor Core GEMM instructions on Hopper/Blackwell or fused CUTLASS emulators on Ampere; achieve >2.8x matrix math throughput over FP16 baseline; fit 70B parameter fine-tuning into 35.5GB VRAM.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference and training engine executes OCP MXFP8 microscaled Tensor Core kernels at >2.8x speedup.
+**Why:** OCP standard MXFP8 microscaling enables high-density Tensor Core acceleration with wide dynamic range and zero gradient clipping.
+**Dep:** AGY-2545
+**Status:** open | **Domain:** AI/MXFP8Engine | **Who:** agent
+**Converted:** AGY-2546 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-949 -- Automated 2.8x MXFP8 speedup, dynamic range overflow prevention, and loss test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that MXFP8 achieves >2.75x speedup and retains >99.9% loss convergence on 70B training.
+**What+How:** Add `tests/test-mxfp8-microscaling-gemm.sh`. Benchmark dense FP16 vs MXFP8 forward and backward passes on GPU; assert GEMM execution speedup > 2.75x; inject high-dynamic-range gradient spike; assert shared E8M0 scale exponent adjusts dynamically with 0 NaN/Inf overflows; assert training loss delta vs unquantized baseline is < 0.005.
+**Where:** tests/test-mxfp8-microscaling-gemm.sh, tools/ci-suites.py
+**Done When:** Test suite validates >2.75x matrix acceleration, automatic dynamic range scaling, and high training convergence.
+**Why:** Continuous testing ensures OCP microscaling formats reliably preserve gradient accuracy across deep network training.
+**Dep:** AGY-2546
+**Status:** open | **Domain:** AI/MXFP8Test | **Who:** agent
+**Converted:** AGY-2547 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-950 -- Universal hardware-agnostic memory safety and tagging negotiator in mios-mem-tag-guard (WS-SEC | P1 | M)
+**Goal:** Probe CPU architecture dynamically; enable ARM64 MTE, x86_64 Shadow Stack/CET, or software fallback in <1us.
+**What+How:** Implement `usr/libexec/mios/mios-mem-tag-guard` and `automation/24-cpu-affinity.sh`. Detect hardware capabilities at boot/runtime in a vendor-agnostic manner; on ARM64 with MTE enable `PROT_MTE` and `PR_MTE_TCF_SYNC` to trap tag mismatches in <10ns; on x86_64 with CET enable `PR_SET_SHADOW_STACK_STATUS` and memory protection keys (MPK); on legacy or unsupported CPUs fall back gracefully to user-space bounds validation; ensure 100% hardware-agnostic memory safety across all MiOS platforms.
+**Where:** usr/libexec/mios/mios-mem-tag-guard, automation/24-cpu-affinity.sh
+**Done When:** Security runtime dynamically negotiates hardware memory tagging across ARM64, x86_64, and fallback architectures.
+**Why:** Universal hardware memory tagging provides state-of-the-art memory safety across every supported CPU vendor architecture.
+**Dep:** AGY-2547
+**Status:** open | **Domain:** Security/UniversalMemTag | **Who:** agent
+**Converted:** AGY-2548 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-951 -- Automated cross-architecture memory tagging negotiation and violation test suite (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that memory safety negotiator enables MTE/CET or fallback in <1us with 0 crash loops.
+**What+How:** Add `tests/test-universal-memory-tagging.sh`. Execute `mios-mem-tag-guard` across simulated ARM64 MTE, x86_64 CET, and unextended generic CPU environments; assert initialization latency < 1.0 microsecond; inject synthetic heap out-of-bounds write; assert memory violation is cleanly trapped and logged with 0 whole-system kernel panics.
+**Where:** tests/test-universal-memory-tagging.sh, tools/ci-suites.py
+**Done When:** Test suite validates multi-architecture capability negotiation, accurate violation trapping, and robust fallback handling.
+**Why:** Continuous testing ensures universal memory safety mechanisms function reliably across diverse hardware topologies.
+**Dep:** AGY-2548
+**Status:** open | **Domain:** Security/UniversalMemTest | **Who:** agent
+**Converted:** AGY-2549 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-952 -- AQLM 2-bit multi-codebook vector engine and fused CUDA dequant kernel in llama-swap (WS-AI | P1 | M)
+**Goal:** Quantize weights into 2 shared 8D codebooks (2-bit average) and dispatch fused CUDA kernels in 18.2GB VRAM.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `quantization: aqlm_2bit`; represent weight matrices as the additive sum of $M=2$ codebook lookups across 8-dimensional sub-vectors ($W_{i,j} \approx C_1[idx_1] + C_2[idx_2]$); cache codebooks in GPU shared memory; execute fused AQLM matrix-vector kernels on Tensor Cores; fit 70B parameter models into 18.2GB VRAM; achieve >3.6x memory reduction with <0.025 wikitext-2 perplexity degradation.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference engine executes AQLM 2-bit multi-codebook vector kernels on GPU Tensor Cores at <18.5GB VRAM.
+**Why:** AQLM additive vector quantization achieves the highest accuracy among all sub-3-bit compression formats.
+**Dep:** AGY-2549
+**Status:** open | **Domain:** AI/AQLMKernel | **Who:** agent
+**Converted:** AGY-2550 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-953 -- Automated 2-bit AQLM 18.2GB VRAM fitting, 3.6x speedup, and perplexity test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 70B AQLM fits in <18.5GB VRAM, achieves >3.5x compression, and perplexity delta <0.025.
+**What+How:** Add `tests/test-aqlm-vector-quant.sh`. Benchmark 70B AQLM model on GPU; assert peak VRAM <= 18.50 GB; assert model file compression ratio >= 3.50x; evaluate wikitext-2 perplexity; assert perplexity degradation is < 0.025 compared to unquantized baseline; verify 0 codebook shared-memory bank conflicts.
+**Where:** tests/test-aqlm-vector-quant.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-18.5GB residency, fast codebook lookup, and high perplexity retention.
+**Why:** Continuous testing ensures additive multi-codebook vector quantization maintains stable memory usage and exact numerical precision.
+**Dep:** AGY-2550
+**Status:** open | **Domain:** AI/AQLMTest | **Who:** agent
+**Converted:** AGY-2551 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-954 -- Dedicated MiOS-USB global hardware key and FIDO2/PKCS#11 multi-node enrolment (WS-AUTH | P1 | M)
+**Goal:** Enrol and bind user/node authentication to physical MiOS-USB hardware tokens via FIDO2 and PKCS#11 in <10ms.
+**What+How:** Implement `usr/libexec/mios/mios-usb-auth` and `automation/18-crypto-auth.sh`. Support dedicated/graduated MiOS-USB hardware tokens globally across all Blades and Nodes; enrol hardware-backed FIDO2 resident credentials (`sk-ssh-ed25519@openssh.com`) and PKCS#11 cryptographic certificates; integrate with PAM (`pam_fido2.so`) and SSH daemons; verify physical user presence / PIN challenge in <10ms; provide seamless hardware-authenticated rootless cluster federation without cloud identity providers.
+**Where:** usr/libexec/mios/mios-usb-auth, automation/18-crypto-auth.sh
+**Done When:** Authentication subsystem enrols and validates MiOS-USB hardware keys across all blades and edge nodes.
+**Why:** Dedicated MiOS-USB hardware keys provide cryptographic, physical presence-backed authentication across all nodes.
+**Dep:** AGY-2551
+**Status:** open | **Domain:** Auth/MiOSUSB | **Who:** agent
+**Converted:** AGY-2552 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-955 -- Automated MiOS-USB FIDO2 token challenge-response (<10ms) and multi-node auth test suite (WS-AUTH | P2 | S)
+**Goal:** Verify in automated CI that MiOS-USB FIDO2 challenge completes in <10ms and authenticates cluster nodes.
+**What+How:** Add `tests/test-mios-usb-hardware-auth.sh`. Emulate virtual FIDO2 / PKCS#11 USB token via `uhid` / `softhsm2`; issue SSH authentication and PAM elevation requests via `mios-usb-auth`; measure cryptographic challenge-response latency (assert < 10.0 milliseconds); verify 100% authentication success with correct token; assert authentication failure when token is detached; verify 0 private key disk leaks.
+**Where:** tests/test-mios-usb-hardware-auth.sh, tools/ci-suites.py
+**Done When:** Test suite validates microsecond token challenge verification, multi-node PAM integration, and zero key leakage.
+**Why:** Continuous testing ensures hardware-bound token authentication remains reliable across host and blade configurations.
+**Dep:** AGY-2552
+**Status:** open | **Domain:** Auth/MiOSUSBTest | **Who:** agent
+**Converted:** AGY-2553 carries this forward with a Verify line that fails when the behaviour is absent.
 
