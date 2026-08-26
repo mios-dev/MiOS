@@ -334,7 +334,7 @@
 | T-346 | P1 | done | Mesh/Node | NODE-01 -- 16-Byte Fixed Binary Wire Protocol Implementation in mios-node |
 | T-347 | P1 | open | Sandboxing/Node | NODE-02 -- Tier-1 Wasm Sandbox Runtime with mios_sys_* Host Imports |
 | T-348 | P1 | done | State/Mesh | NODE-03 -- LWW-Element-Set and Vector Clock CRDT Engine for Edge Nodes |
-| T-349 | P2 | open | Discovery/Mesh | NODE-04 -- Avahi/mDNS Zero-Conf Mesh Discovery and Handshake |
+| T-349 | P2 | done | Discovery/Mesh | NODE-04 -- Avahi/mDNS Zero-Conf Mesh Discovery and Handshake |
 | T-350 | P1 | open | SSOT/Database | VECTOR-05 -- Authority Inversion — PostgreSQL+pgvector as Live SSOT |
 | T-351 | P1 | open | Durability/Backup | DURA-03 -- Automated PostgreSQL+pgvector Backup & zstd Snapshot Timer |
 | T-352 | P2 | open | Storage/CephFS | STRG-11 -- Multi-tenant CephFS User Directory & CephX Auto-Provisioning |
@@ -4221,7 +4221,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Newly booted edge nodes discover the host cluster via mDNS and appear in `/v1/cluster/nodes` automatically.
 **Why:** Zero-touch edge onboarding eliminates manual network configuration when adding worker blades to a MiOS mesh.
 **Dep:** T-346
-**Status:** open | **Domain:** Discovery/Mesh | **Who:** agent
+**Status:** done | **Domain:** Discovery/Mesh | **Who:** agent
 **Converted:** AGY-1947 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-350 -- VECTOR-05: Authority Inversion — PostgreSQL+pgvector as Live SSOT (WS-VECTOR | P1 | L)

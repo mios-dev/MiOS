@@ -10932,6 +10932,7 @@ unit = [
     "tests/test-diff-accrual.py",
     "tests/test-node-wire.py",
     "tests/test-node-crdt.py",
+    "tests/test-node-discovery.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
