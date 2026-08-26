@@ -10929,6 +10929,8 @@ unit = [
     "tests/test-iso-credential-guard.py",
     "tests/test-greenboot-rollback.py",
     "tests/test-package-registry-switch.py",
+    "tests/test-diff-accrual.py",
+    "tests/test-node-wire.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
@@ -11174,4 +11176,3 @@ min_bytes = 4194304
 max_untested_crates = 0
 
 [rust.untested_crates]
-

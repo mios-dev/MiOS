@@ -783,9 +783,9 @@
 | T-869 | P2 | open | AI/AsymQuantTest | Automated 3.6x asymmetric GEMM speedup, register fusion, and perplexity test suite |
 | T-870 | P1 | open | AI/AQLMVector | AQLM additive vector quantization engine and multi-codebook CUDA lookup kernel in llama-swap |
 | T-871 | P2 | open | AI/AQLMTest | Automated 70B AQLM VRAM fitting (<16GB), lookup speed, and perplexity test suite |
-| T-872 | P1 | open | Virtualization/VMSnap | Ephemeral microVM memory snapshot hibernator and instant RAM restorer in mios-microvm-snap |
-| T-873 | P2 | open | Virtualization/VMSnapTest | Automated microVM snapshot latency (<20ms), instant resume (<10ms), and state test suite |
-| T-874 | P1 | open | AI/GPTQMarlin | GPTQ-Marlin 2D tiled layout converter and fused Tensor Core GEMM dispatcher in llama-swap |
+| T-872 | P1 | done | Virtualization/VMSnap | Ephemeral microVM memory snapshot hibernator and instant RAM restorer in mios-microvm-snap |
+| T-873 | P2 | done | Virtualization/VMSnapTest | Automated microVM snapshot latency (<20ms), instant resume (<10ms), and state test suite |
+| T-874 | P1 | done | AI/GPTQMarlin | GPTQ-Marlin 2D tiled layout converter and fused Tensor Core GEMM dispatcher in llama-swap |
 | T-875 | P2 | open | AI/MarlinTest | Automated 3.8x Marlin throughput speedup, memory bandwidth, and perplexity test suite |
 | T-876 | P1 | open | AI/LookaheadNgram | Lookahead N-gram prompt-lookup speculative decoding engine in llama-swap |
 | T-877 | P2 | open | AI/LookaheadTest | Automated 1.8x code/JSON generation speedup, zero-VRAM overhead, and token parity test suite |
@@ -801,9 +801,9 @@
 | T-887 | P2 | open | AI/KVOffloadTest | Automated 1M token context offloading, sub-2ms swap latency, and zero-crash test suite |
 | T-888 | P1 | open | AI/ChunkedPrefill | Interleaved chunked prefill scheduler and iteration-level batcher in llama-swap |
 | T-889 | P2 | open | AI/ChunkedTest | Automated chunked prefill streaming jitter (<5ms) and concurrent throughput test suite |
-| T-890 | P1 | open | Security/ExecSandbox | Declarative Landlock and Bubblewrap ephemeral sandbox wrapper in mios-exec-sandbox |
-| T-891 | P2 | open | Security/ExecTest | Automated <5ms sandbox launch latency, write denial, and network isolation test suite |
-| T-892 | P1 | open | AI/OmniQuant | OmniQuant learnable clipping and equivalent transformation optimizer in mios-quantize-omniquant |
+| T-890 | P1 | done | Security/ExecSandbox | Declarative Landlock and Bubblewrap ephemeral sandbox wrapper in mios-exec-sandbox |
+| T-891 | P2 | done | Security/ExecTest | Automated <5ms sandbox launch latency, write denial, and network isolation test suite |
+| T-892 | P1 | done | AI/OmniQuant | OmniQuant learnable clipping and equivalent transformation optimizer in mios-quantize-omniquant |
 | T-893 | P2 | open | AI/OmniTest | Automated 15-minute OmniQuant optimization, 3.6x speedup, and 3-bit perplexity test suite |
 | T-894 | P1 | open | AI/BinaryEmbed | 1-bit binary embedding quantizer and hardware Hamming distance matcher in mios-embed-binary |
 | T-895 | P2 | open | AI/BinaryEmbedTest | Automated 32x embedding RAM reduction, 10M comparison/sec, and MRR test suite |
@@ -9411,7 +9411,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Virtualization manager hibernates microVMs in <20ms and restores execution in <10ms.
 **Why:** MicroVM snapshot hibernation enables thousands of paused subagent sandboxes to reside on a host with zero RAM waste.
 **Dep:** AGY-2469
-**Status:** open | **Domain:** Virtualization/VMSnap | **Who:** agent
+**Status:** done | **Domain:** Virtualization/VMSnap | **Who:** agent
 **Converted:** AGY-2470 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-873 -- Automated microVM snapshot latency (<20ms), instant resume (<10ms), and state test suite (WS-VFIO | P2 | S)
@@ -9421,7 +9421,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-20ms snapshot dump, sub-10ms resume latency, and perfect guest state preservation.
 **Why:** Continuous testing ensures memory hibernation pipelines maintain rapid wakeup speeds and zero data corruption.
 **Dep:** AGY-2470
-**Status:** open | **Domain:** Virtualization/VMSnapTest | **Who:** agent
+**Status:** done | **Domain:** Virtualization/VMSnapTest | **Who:** agent
 **Converted:** AGY-2471 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-874 -- GPTQ-Marlin 2D tiled layout converter and fused Tensor Core GEMM dispatcher in llama-swap (WS-AI | P1 | M)
@@ -9431,7 +9431,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inference engine loads GPTQ-Marlin models and executes fused 2D tiled Tensor Core kernels at >3.8x speedup.
 **Why:** GPTQ-Marlin restructures tensor layouts to saturate physical memory bandwidth, delivering near-theoretical GPU inference speeds.
 **Dep:** AGY-2471
-**Status:** open | **Domain:** AI/GPTQMarlin | **Who:** agent
+**Status:** done | **Domain:** AI/GPTQMarlin | **Who:** agent
 **Converted:** AGY-2472 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-875 -- Automated 3.8x Marlin throughput speedup, memory bandwidth, and perplexity test suite (WS-AI | P2 | S)
@@ -9591,7 +9591,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Execution sandbox isolates untrusted commands in <5ms and blocks unauthorized filesystem modifications.
 **Why:** Unprivileged Landlock and bubblewrap sandboxing guarantees subagents cannot harm host files or escape execution boundaries.
 **Dep:** AGY-2487
-**Status:** open | **Domain:** Security/ExecSandbox | **Who:** agent
+**Status:** done | **Domain:** Security/ExecSandbox | **Who:** agent
 **Converted:** AGY-2488 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-891 -- Automated <5ms sandbox launch latency, write denial, and network isolation test suite (WS-SEC | P2 | S)
@@ -9601,7 +9601,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-5ms sandbox provisioning, read-only host protection, and network isolation.
 **Why:** Continuous testing ensures execution isolation mechanisms remain active and performant across system updates.
 **Dep:** AGY-2488
-**Status:** open | **Domain:** Security/ExecTest | **Who:** agent
+**Status:** done | **Domain:** Security/ExecTest | **Who:** agent
 **Converted:** AGY-2489 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-892 -- OmniQuant learnable clipping and equivalent transformation optimizer in mios-quantize-omniquant (WS-AI | P1 | M)
@@ -9611,7 +9611,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** OmniQuant optimizer compiles 3-bit models in <15min and inference engine executes fused Tensor Core kernels.
 **Why:** OmniQuant's learnable equivalent transforms eliminate quantization distortion, unlocking high-accuracy 3-bit models.
 **Dep:** AGY-2489
-**Status:** open | **Domain:** AI/OmniQuant | **Who:** agent
+**Status:** done | **Domain:** AI/OmniQuant | **Who:** agent
 **Converted:** AGY-2490 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-893 -- Automated 15-minute OmniQuant optimization, 3.6x speedup, and 3-bit perplexity test suite (WS-AI | P2 | S)

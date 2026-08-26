@@ -65,6 +65,7 @@ docs/agy/w10-live-boot/*
 !/powershell/**
 !/ROADMAP.md
 !/TASKS.md
+!/PROJECT.md
 !/research/
 /research/*
 !/research/multi-agent-orchestration-strategies-2026-07-05.md
