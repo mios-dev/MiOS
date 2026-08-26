@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily and Pre-Upgrade Automated PostgreSQL+pgvector Backup Timer
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

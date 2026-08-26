@@ -336,7 +336,7 @@
 | T-348 | P1 | done | State/Mesh | NODE-03 -- LWW-Element-Set and Vector Clock CRDT Engine for Edge Nodes |
 | T-349 | P2 | done | Discovery/Mesh | NODE-04 -- Avahi/mDNS Zero-Conf Mesh Discovery and Handshake |
 | T-350 | P1 | open | SSOT/Database | VECTOR-05 -- Authority Inversion — PostgreSQL+pgvector as Live SSOT |
-| T-351 | P1 | open | Durability/Backup | DURA-03 -- Automated PostgreSQL+pgvector Backup & zstd Snapshot Timer |
+| T-351 | P1 | done | Durability/Backup | DURA-03 -- Automated PostgreSQL+pgvector Backup & zstd Snapshot Timer |
 | T-352 | P2 | open | Storage/CephFS | STRG-11 -- Multi-tenant CephFS User Directory & CephX Auto-Provisioning |
 | T-353 | P1 | open | Security/Boot | SEC-04 -- UKI and fs-verity Boot Chain End-to-End Verification |
 | T-354 | P1 | open | Hardware/VFIO | VFIO-01 -- Full-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer |
@@ -4241,7 +4241,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Daily automated database backups execute via systemd timer and older snapshots are rotated according to retention policy.
 **Why:** Immutable OS upgrades must never risk data loss in the mutable `/var` agent datastore; durable automated backups are essential for disaster recovery.
 **Dep:** none
-**Status:** open | **Domain:** Durability/Backup | **Who:** agent
+**Status:** done | **Domain:** Durability/Backup | **Who:** agent
 **Converted:** AGY-1949 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-352 -- STRG-11: Multi-tenant CephFS User Directory & CephX Auto-Provisioning (WS-STRG | P2 | M)

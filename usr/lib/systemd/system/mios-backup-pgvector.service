@@ -1,0 +1,11 @@
+[Unit]
+Description=MiOS PostgreSQL+pgvector Automated zstd Snapshot Service
+Documentation=man:pg_dump(1) file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+After=network.target mios-pgvector.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/libexec/mios/db/mios-backup-pgvector.py --retention-days 7
+User=root
+StandardOutput=journal
+StandardError=journal
