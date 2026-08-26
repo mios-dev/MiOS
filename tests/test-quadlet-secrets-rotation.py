@@ -48,6 +48,37 @@ class TestQuadletSecretsRotation(unittest.TestCase):
         self.assertEqual(len(token), 64)
         self.assertTrue(line.startswith("AGENT_AUTH_TOKEN="))
 
+    def test_init_secrets_env_non_destructive(self):
+        with tempfile.TemporaryDirectory(prefix="mios-sec-init-") as tmpdir:
+            sec_file = os.path.join(tmpdir, "secrets.env")
+            with open(sec_file, "w", encoding="utf-8") as f:
+                f.write("POSTGRES_PASSWORD=my_existing_db_password_123\n")
+
+            hardener = rotate_quadlet_secrets.QuadletSecretsHardener(secrets_dir=tmpdir)
+            secrets_map = hardener.init_secrets_env(secrets_file=sec_file)
+
+            # Assert pre-existing password is NOT disrupted
+            self.assertEqual(secrets_map["POSTGRES_PASSWORD"], "my_existing_db_password_123")
+            # Assert missing default keys were generated
+            self.assertIn("MIOS_DEFAULT_PASSWORD", secrets_map)
+            self.assertIn("K3S_TOKEN", secrets_map)
+            self.assertIn("WEBUI_SECRET_KEY", secrets_map)
+            self.assertEqual(len(secrets_map["K3S_TOKEN"]), 64)
+
+            # Re-read file from disk
+            with open(sec_file, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("POSTGRES_PASSWORD=my_existing_db_password_123", content)
+            self.assertIn("K3S_TOKEN=", content)
+
+    def test_service_unit_file(self):
+        svc_path = os.path.join(_ROOT, "usr", "lib", "systemd", "system", "mios-secret-init.service")
+        self.assertTrue(os.path.exists(svc_path), f"Service file missing at {svc_path}")
+        with open(svc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("rotate-quadlet-secrets.py --init", content)
+        self.assertIn("[Install]", content)
+
 
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestQuadletSecretsRotation)

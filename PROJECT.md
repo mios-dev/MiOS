@@ -1,65 +1,71 @@
-# Project: MiOS Task Backlog Implementation & CI Gate Parity
+# Project: MiOS Open Roadmap & Runtime Integration
 
 ## Architecture
-MiOS is an immutable, bootc/OCI-shaped Fedora workstation that is also a local, self-replicating, agentic AI operating system. The system layout mirrors the root filesystem (`.git` is `/`):
-- `automation/`: Image build, overlay, and drift check scripts.
-- `usr/share/mios/`: Singular SSOT (`mios.toml`), profiles, branding, templates.
-- `usr/libexec/mios/`: Runtime utilities, tools, and daemon interfaces.
-- `usr/lib/mios/`: Python core services (`agent-pipe` FastAPI server, daemons).
-- `etc/mios/`: Host-level override layer.
-- `src/mios-rs/` & `tools/native/`: Rust workspaces for daemon, build driver, and drift checker tooling.
-- `tools/`: CI validation scripts, AST checkers, code generators.
-- `tests/`: Automated test suites and regression tests.
+- Submodule isolation under `usr/libexec/mios/` preserving `max_libexec_verbs = 285`.
+- Native Linux FHS folder layout across `usr/`, `etc/`, `var/`.
+- Single AI endpoint contract (`MIOS_AI_ENDPOINT`) and Quadlet container services.
+- Immutable bootc/ostree UKI + composefs verity security chain.
+- Discrete GPU passthrough via `vfio-pci` + Looking Glass B6 IVSHMEM (`kvmfr`).
+- Quadlet secrets isolation via `EnvironmentFile=/etc/mios/secrets.env` (0600).
+- Multi-partition deployment staging (`MiOS-Repo` config vs `MiOS-Data` bulk storage).
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Template Drift Hygiene | Remove un-tracked backup artifacts (`toml-config.bak`) to satisfy `compile-templates.py` and `98-drift-checks.sh` | M1 | CI Survey |
-| 2 | Shutdown Diff Snapshotting | Capture `/var` mutations on shutdown into versioned diffs (`WS-DIFFCYCLE`, ADR-0018, T-872, AGY-2470) | M2 | TASKS.md / ADR-0018 |
-| 3 | Boot Cycle Accrual Engine | Accrue and roll in verified runtime diffs across boot cycles (T-873, AGY-2471) | M2 | TASKS.md / ADR-0018 |
-| 4 | Edge Wire 16B Framing | Verify and enforce 16-byte fixed binary header framing (`0x4D49` magic, CRC32, opcodes) (WS-NODE, ADR-0020, T-890, AGY-2488) | M3 | TASKS.md / ADR-0020 |
-| 5 | Micro-Mesh Opcode Dispatch | Implement wire message handler and opcode dispatching logic for task offload and state sync (T-891, AGY-2489) | M3 | TASKS.md / ADR-0020 |
-| 6 | Automated Test Coverage | Provide unit and regression tests in `tests/` registered in `tools/ci-suites.py` for all implemented features | M2, M3 | R2 / ci-suites.py |
-| 7 | Task Schema & Parity Sync | Update `TASKS.md`, `AGY-TASKS.md`, and `ROADMAP.md` in lockstep with 100% 8-field schema compliance | M4 | R1, R3 |
-| 8 | CI Gate Verification & Git Finalization | Execute all 6 CI gates, verify clean working tree, and finalize commits to `main` | M5 | R3, R4 |
+| 1 | Wasm Sandbox Engine | Tier-1 Wasm sandbox with fuel bounding, 64MB limit, and `mios_sys_*` host imports (T-347 / NODE-02) | M1 | Survey |
+| 2 | Vector SSOT Authority | PostgreSQL + pgvector as live runtime SSOT with lossless bidirectional TOML materialization (T-350 / VECTOR-05) | M1 | Survey |
+| 3 | CephFS PAM Provisioning | Multi-tenant user CephFS auto-provisioning & CephX auth with PAM integration (T-352 / STRG-11) | M2 | Survey |
+| 4 | UKI & Boot Chain Verity | UKI PE magic, PCR measurements (4/7/11), and composefs fs-verity verification (T-353 / SEC-04) | M2 | Survey |
+| 5 | Quadlet Secrets Hardening | 0600 `/etc/mios/secrets.env` rotation service and elimination of grandfathered literals (T-355 / SEC-05) | M2 | Survey |
+| 6 | Discrete VFIO & Looking Glass | Full-device GPU passthrough & Looking Glass B6 IVSHMEM memory validation (T-354 / VFIO-01) | M3 | Survey |
+| 7 | MiOS-Cat Staging Separation | Multi-partition USB staging keeping OCI image archives strictly on `MiOS-Data` (T-356 / CAT-05) | M3 | Survey |
+| 8 | CI Test Suites & Registry Sync | Unit test authoring, registration in `mios.toml` `[ci.tiers].unit`, and CI suite verification | M4 | Survey |
+| 9 | Task Registry & Parity Gates | `TASKS.md`, `AGY-TASKS.md`, and `ROADMAP.md` 8-field schema and parity verification across all 7 CI checks | M5 | Survey |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Template & Drift Hygiene | Resolve `usr/share/mios/templates/toml-config.bak` and verify drift-check gates | none | DONE |
-| M2 | Shutdown Diff Snapshotting (`WS-DIFFCYCLE`) | Implement shutdown diff snapshotting & boot cycle accrual (`usr/libexec/mios/`, `tests/`) | M1 | DONE |
-| M3 | Edge Micro-Mesh Wire Protocol (`WS-NODE`) | Implement 16-byte wire framing, opcode dispatch, and validation tests | M1 | DONE |
-| M4 | Task Registry & Parity Synchronization | Update task metadata in `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md` | M2, M3 | DONE |
-| M5 | CI Gate Verification & Git Commit Finalization | 100% verification across all 6 gates, clean working tree, commit to `main` | M4 | DONE |
-
-## Key Milestone Outputs
-- **M1**: Removed `usr/share/mios/templates/toml-config.bak`. All 26 templates pass `tools/compile-templates.py`.
-- **M2**: Implemented `usr/libexec/mios/diff-accrual.py`, `usr/libexec/mios/diff-accrual.sh`, and `tests/test-diff-accrual.py`. Unit tests passing (3/3 tests).
-- **M3**: Implemented `usr/libexec/mios/mios-node-wire.py` and `tests/test-node-wire.py`. Unit tests passing (8/8 tests). Registered in `usr/share/mios/mios.toml` `[ci.tiers.unit]`.
-- **M4**: Synchronized `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md` for `T-872..T-874`, `T-890..T-892`, and `AGY-2470..AGY-2472`, `AGY-2488..AGY-2490` with full 8-field schema compliance.
-- **M5**: Executed all 6 CI verification gates (100% PASS), committed changes to `main` (`5e96206bbeae6452e1c6d67e45ea922cbc18ca20`), clean working tree.
+| M1 | Runtime Core | T-347 (Wasm Sandbox) & T-350 (Vector SSOT Authority) | none | DONE |
+| M2 | Storage & Security | T-352 (CephFS PAM), T-353 (UKI / fs-verity), T-355 (Quadlet Creds) | M1 | DONE |
+| M3 | VFIO & Deployment | T-354 (VFIO Looking Glass) & T-356 (MiOS-Cat Staging) | M2 | DONE |
+| M4 | Test Suites & CI Registration | Unit test execution & CI suite registration in `mios.toml` | M1, M2, M3 | DONE |
+| M5 | Registry Sync & Gate Verification | Update `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`, pass all 7 CI gates, commit and push | M4 | DONE |
 
 ## Interface Contracts
-### `WS-DIFFCYCLE` (`usr/libexec/mios/diff-accrual.sh` / `tests/test-diff-accrual.sh`)
-- Input: `/var` state snapshot directory, ostree deployment commit metadata.
-- Output: Versioned diff archive in `/var/lib/mios/diffs/diff-<timestamp>.tar.zst` and JSON ledger at `/var/run/mios/accrued-diffs.json`.
-- Return Code: `0` on successful snapshot/accrual, non-zero with diagnostic log on conflict.
 
-### `WS-NODE` Wire Protocol (`src/mesh/` / `usr/libexec/mios/mios-node-wire.py` / `tests/test-node-wire.py`)
-- Header Format: 16 bytes Network Byte Order (`>HBBIII` / `!2sBBIII`).
-  - Bytes 0..1: `0x4D 0x49` (`MI`)
-  - Byte 2: `0x01` (Version)
-  - Byte 3: Opcode (`0x01`..`0x07`)
-  - Bytes 4..7: `NodeID` (`u32`)
-  - Bytes 8..11: `PayloadLen` (`u32`)
-  - Bytes 12..15: `CRC32` (`u32`)
-- Return: Validated frame or error packet.
+### Wasm Sandbox (`usr/libexec/mios/node/wasm_sandbox.py`)
+- Class: `WasmSandboxEngine(config: WasmExecutionConfig)`
+- Config: `max_memory_bytes: int = 64 * 1024 * 1024`, `max_fuel: int = 1_000_000`
+- Exit codes: 0 (success), 124 (fuel exhausted), 137 (memory limit exceeded)
+- Host imports: `mios_sys_read`, `mios_sys_write`, `mios_sys_log`, `mios_sys_time`, `mios_sys_exit`
+
+### Config SSOT Materializer (`usr/libexec/mios/materialize-config-toml.py`)
+- Functions: `escape_toml_key(key: str) -> str`, `format_toml_value(val: Any) -> str`
+- Query: `config_kv` (layer = 0) and `domain_verb` / `verb` tables to generate valid TOML string.
+
+### CephFS Provisioner (`usr/libexec/mios/mios-cephfs-provision`)
+- CLI: `mios-cephfs-provision validate <user> <group>`, `create <user> <group>`, `delete <user>`
+- PAM module: `usr/lib/pam.d/mios-cephfs-auth` invoking `pam_exec.so /usr/libexec/mios/mios-cephfs-provision validate %u %g`
+
+### Boot Chain Verifier (`usr/libexec/mios/sec/verify-boot-chain.py`)
+- Class: `BootChainVerifier`
+- Methods: `verify_fsverity_digest()`, `verify_pcr_measurements()`, `check_uki_structure()`
+- CLI: `--check`, `--mock`, `--json`
+
+### Quadlet Secrets Hardener (`usr/libexec/mios/sec/rotate-quadlet-secrets.py`)
+- Class: `QuadletSecretsHardener`
+- Target: `/etc/mios/secrets.env` (mode `0600`)
+- Service: `usr/lib/systemd/system/mios-secret-init.service`
+
+### Looking Glass Setup (`usr/libexec/mios/vfio/setup-looking-glass.py`)
+- Class: `LookingGlassManager(shm_path: str, size_mb: int)`
+- Methods: `generate_ivshmem_xml()`, `validate_shm_allocation()`
 
 ## Code Layout
-- Automation & Linters: `automation/`
-- Runtime Utilities: `usr/libexec/mios/`
-- Configurations & SSOT: `usr/share/mios/`
-- Python Core Services: `usr/lib/mios/`
-- CI & Schema Tools: `tools/`
-- Automated Tests: `tests/`
-- Task Registries: `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`
+- Core submodules: `usr/libexec/mios/{node,sec,vfio,db}/`
+- Systemd units: `usr/lib/systemd/system/`
+- PAM configuration: `usr/lib/pam.d/`
+- Quadlet definitions: `usr/share/containers/systemd/`
+- Test suites: `tests/test-*.py`
+- CI configuration: `usr/share/mios/mios.toml`
+- Task registries: `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`

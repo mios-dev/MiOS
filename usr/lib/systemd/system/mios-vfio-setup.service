@@ -1,0 +1,15 @@
+# AI-hint: Systemd unit to initialize and verify Looking Glass B6 IVSHMEM device node and permissions on boot.
+# AI-related: /usr/libexec/mios/vfio/setup-looking-glass.py, libvirtd.service, mios-kvmfr-load.service
+[Unit]
+Description=MiOS VFIO & Looking Glass B6 IVSHMEM Setup
+ConditionVirtualization=!container
+After=systemd-modules-load.service mios-kvmfr-load.service
+Before=libvirtd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/vfio/setup-looking-glass.py --verify
+
+[Install]
+WantedBy=multi-user.target

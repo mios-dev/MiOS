@@ -13141,7 +13141,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** A lightweight, fixed-size binary header minimizes framing overhead and CPU latency on embedded edge nodes and microVMs.
 **Dep:** AGY-1943
 
-## AGY-1945 -- Tier-1 WebAssembly sandbox runtime with mios_sys_* host imports  (WS-NODE | P1 | M)
+## AGY-1945 -- Tier-1 WebAssembly sandbox runtime with mios_sys_* host imports  (WS-NODE | P1 | M) **[DONE]**
 **Goal:** Execute untrusted edge node tasks in a memory-isolated Wasm sandbox with strictly scoped system capabilities.
 **What+How:** Integrate `wasmtime` in `src/mios-rs/crates/mios-node/src/sandbox/wasm.rs`. Expose limited host imports: `mios_sys_read`, `mios_sys_write`, `mios_sys_log`, `mios_sys_time`, and `mios_sys_exit`. Enforce strict fuel limits (CPU instruction bounding) and memory ceiling (maximum 64MB per execution context).
 **Where:** `src/mios-rs/crates/mios-node/src/sandbox/wasm.rs`, `src/mios-rs/crates/mios-node/Cargo.toml`
@@ -13171,7 +13171,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Zero-touch edge onboarding eliminates manual network configuration when adding worker blades to a MiOS mesh.
 **Dep:** AGY-1946
 
-## AGY-1948 -- Authority inversion: PostgreSQL+pgvector as live SSOT with atomic TOML materialization  (WS-VECTOR | P1 | L)
+## AGY-1948 -- Authority inversion: PostgreSQL+pgvector as live SSOT with atomic TOML materialization  (WS-VECTOR | P1 | L) **[DONE]**
 **Goal:** Establish PostgreSQL+pgvector as the live runtime authority for system configuration while maintaining lossless TOML export.
 **What+How:** Finalize V5 of the everything-db-driven architecture. Complete `usr/libexec/mios/materialize-config-toml.py` to generate `usr/share/mios/mios.toml` from the database `config_kv` and `verbs` tables. Ensure atomic writes via temporary files, run `check_mios_toml_integrity.py` before replacing, and update the drift-gate to verify bi-directional parity.
 **Where:** `usr/libexec/mios/materialize-config-toml.py`, `usr/libexec/mios/seed-db-config.py`, `automation/98-drift-checks.sh`
@@ -13191,7 +13191,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Immutable OS upgrades must never risk data loss in the mutable `/var` agent datastore; durable automated backups are essential for disaster recovery.
 **Dep:** AGY-1948
 
-## AGY-1950 -- Multi-tenant CephFS user directory mapping and CephX capability auto-provisioning  (WS-STRG | P2 | M)
+## AGY-1950 -- Multi-tenant CephFS user directory mapping and CephX capability auto-provisioning  (WS-STRG | P2 | M) **[DONE]**
 **Goal:** Provision user home directories on CephFS with isolated CephX auth tokens and PAM auto-mounting.
 **What+How:** Update `usr/libexec/mios/mios-cephfs-provision` to generate per-user CephX authentication keys scoped to `/home/<username>` subvolumes. Configure `pam_exec` in `/etc/pam.d/system-auth` to invoke provisioning on initial user login and mount the CephFS share via `systemd.automount`.
 **Where:** `usr/libexec/mios/mios-cephfs-provision`, `usr/lib/pam.d/mios-cephfs-auth`, `usr/share/mios/mios.toml`
@@ -13201,7 +13201,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Multi-tenant cluster deployments require cryptographic tenant isolation on shared distributed storage pools.
 **Dep:** AGY-1949
 
-## AGY-1951 -- End-to-end UKI and fs-verity boot chain verification on target hardware  (WS-SEC | P1 | M)
+## AGY-1951 -- End-to-end UKI and fs-verity boot chain verification on target hardware  (WS-SEC | P1 | M) **[DONE]**
 **Goal:** Ensure the Unified Kernel Image (UKI) and fs-verity composefs rootfs mount are cryptographically validated by UEFI firmware.
 **What+How:** Build the signed UKI containing embedded kernel command line arguments (kargs), initramfs, and kernel binary via `automation/40-composefs-verity.sh` and `automation/42-uki-build.sh`. Create a greenboot check script (`/etc/greenboot/check/required.d/52-mios-composefs.sh`) that verifies `ostree admin status` reports an active composefs mount with fs-verity.
 **Where:** `automation/40-composefs-verity.sh`, `automation/42-uki-build.sh`, `usr/lib/ostree/prepare-root.conf`, `/etc/greenboot/check/required.d/52-mios-composefs.sh`
@@ -13211,7 +13211,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Hardware-enforced cryptographic rootfs verification guarantees the immutable operating system has not been tampered with offline.
 **Dep:** AGY-1950
 
-## AGY-1952 -- Whole-device discrete GPU passthrough and Looking Glass B6 framebuffer automation  (WS-VFIO | P1 | M)
+## AGY-1952 -- Whole-device discrete GPU passthrough and Looking Glass B6 framebuffer automation  (WS-VFIO | P1 | M) **[DONE]**
 **Goal:** Automate discrete GPU binding to `vfio-pci` and configure low-latency inter-VM Looking Glass display sharing.
 **What+How:** Implement `usr/libexec/mios/mios-vfio-setup` and systemd service `mios-vfio-setup.service`. Inspect PCIe topology via `lspci`, bind target discrete GPU and audio device IDs to `vfio-pci` (while preserving host iGPU for display), and allocate shared memory `/dev/kvmfr0` for Looking Glass B6 framebuffer transport.
 **Where:** `usr/libexec/mios/mios-vfio-setup`, `usr/lib/systemd/system/mios-vfio-setup.service`, `usr/share/mios/mios.toml [vfio]`
@@ -13221,7 +13221,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Running high-performance CUDA workloads and gaming guests inside virtual machines requires dedicated physical GPU hardware passthrough.
 **Dep:** AGY-1951
 
-## AGY-1953 -- Credential rotation service and 0600 secrets.env hardening  (WS-SEC | P1 | M)
+## AGY-1953 -- Credential rotation service and 0600 secrets.env hardening  (WS-SEC | P1 | M) **[DONE]**
 **Goal:** Purge hardcoded plaintext credentials from world-readable Quadlet definitions and manage them via 0600 secrets environment files.
 **What+How:** Implement `usr/libexec/mios/mios-secret-rotate` and systemd first-boot service `mios-secret-init.service`. Generate high-entropy random secrets for `POSTGRES_PASSWORD`, `WEBUI_SECRET_KEY`, and sidecar auth tokens, write them to `/etc/mios/secrets.env` (permissions `0600`), and inject them into container units via `EnvironmentFile=/etc/mios/secrets.env`.
 **Where:** `usr/libexec/mios/mios-secret-rotate`, `usr/lib/systemd/system/mios-secret-init.service`, `usr/share/containers/systemd/*.container`
@@ -13231,7 +13231,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Hardcoded credentials in world-readable unit files represent a severe privilege escalation and lateral movement risk.
 **Dep:** AGY-1952
 
-## AGY-1954 -- MiOS-Cat tri-launcher single-owner consolidation and partition staging  (WS-CAT | P1 | M)
+## AGY-1954 -- MiOS-Cat tri-launcher single-owner consolidation and partition staging  (WS-CAT | P1 | M) **[DONE]**
 **Goal:** Consolidate MiOS-Cat installer logic into a canonical tri-launcher with strict separation between Repo and Data partitions.
 **What+How:** Refactor `cat/MiOS-Cat.ps1`, `cat/MiOS-Cat.sh`, and `cat/MiOS-Cat.bat` in `mios-bootstrap`. Enforce that `cat stage` places source repositories and configuration solely on `MiOS-Repo` (small FAT32/NTFS partition) while large container images and model blobs land strictly on `MiOS-Data` (exFAT/NTFS bulk partition).
 **Where:** `cat/MiOS-Cat.ps1`, `cat/MiOS-Cat.sh`, `cat/MiOS-Cat.bat`, `cat/lib/`

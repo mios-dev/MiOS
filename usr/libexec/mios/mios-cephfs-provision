@@ -44,18 +44,40 @@ def load_cephfs_config() -> dict:
             cfg[k] = v
     return cfg
 
+def resolve_uid_number(uid_str: str) -> int:
+    """Resolve numeric UID from integer or string username."""
+    s = str(uid_str).strip()
+    if s.isdigit():
+        return int(s)
+    if pwd is not None:
+        try:
+            return pwd.getpwnam(s).pw_uid
+        except Exception:
+            pass
+    return 1000
+
 def get_user_info(uid_str: str):
-    """Retrieve username and gid from uid."""
+    """Retrieve username and gid from uid or username string."""
     try:
-        uid = int(uid_str)
-        if pwd is not None:
-            pw = pwd.getpwuid(uid)
-            return pw.pw_name, pw.pw_gid
+        s = str(uid_str).strip()
+        if s.isdigit():
+            uid = int(s)
+            if pwd is not None:
+                pw = pwd.getpwuid(uid)
+                return pw.pw_name, pw.pw_gid
+            else:
+                return f"user_{s}", uid
         else:
-            return f"user_{uid_str}", int(uid_str)
+            if pwd is not None:
+                pw = pwd.getpwnam(s)
+                return pw.pw_name, pw.pw_gid
+            else:
+                return s, 1000
     except Exception as e:
-        sys.stderr.write(f"Failed to lookup UID {uid_str}: {e}\n")
-        return f"user_{uid_str}", int(uid_str)
+        sys.stderr.write(f"Failed to lookup UID/user {uid_str}: {e}\n")
+        if str(uid_str).isdigit():
+            return f"user_{uid_str}", int(uid_str)
+        return str(uid_str), 1000
 
 def run_cmd(args: list, check=True) -> subprocess.CompletedProcess:
     """Helper to run a system command safely."""
@@ -92,7 +114,7 @@ def log_event(action: str, uid: int, gid: int, tenant_id: str, summary: str):
 def cmd_validate(uid_str: str, cfg: dict) -> int:
     """Validate user subvolume and keyring. Create if absent."""
     username, gid = get_user_info(uid_str)
-    uid = int(uid_str)
+    uid = resolve_uid_number(uid_str)
     subvol = f"{uid}-home"
     group = f"{cfg['tenant_id']}-users"
     
@@ -119,8 +141,12 @@ def cmd_validate(uid_str: str, cfg: dict) -> int:
 
 def cmd_create(uid_str: str, gid_str: str, cfg: dict) -> int:
     """Create CephFS subvolume and path-scoped CephX keyring."""
-    username, _ = get_user_info(uid_str)
-    uid, gid = int(uid_str), int(gid_str)
+    username, detected_gid = get_user_info(uid_str)
+    uid = resolve_uid_number(uid_str)
+    if str(gid_str).strip().isdigit():
+        gid = int(str(gid_str).strip())
+    else:
+        gid = detected_gid
     subvol = f"{uid}-home"
     group = f"{cfg['tenant_id']}-users"
     
@@ -170,7 +196,7 @@ def cmd_create(uid_str: str, gid_str: str, cfg: dict) -> int:
 def cmd_delete(uid_str: str, cfg: dict) -> int:
     """Delete CephFS subvolume and revoke CephX keyring."""
     username, gid = get_user_info(uid_str)
-    uid = int(uid_str)
+    uid = resolve_uid_number(uid_str)
     subvol = f"{uid}-home"
     group = f"{cfg['tenant_id']}-users"
     

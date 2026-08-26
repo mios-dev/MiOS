@@ -37,6 +37,25 @@ class TestLookingGlassSetup(unittest.TestCase):
         lg = setup_looking_glass.LookingGlassManager()
         self.assertTrue(lg.validate_shm_allocation(mock=True))
 
+    def test_mock_kvmfr_validation(self):
+        lg = setup_looking_glass.LookingGlassManager()
+        self.assertTrue(lg.validate_kvmfr_device(mock=True))
+
+    def test_verify_all_mock(self):
+        lg = setup_looking_glass.LookingGlassManager(size_mb=64)
+        res = lg.verify_all(mock=True)
+        self.assertEqual(res["status"], "pass")
+        self.assertEqual(res["checks"]["shm_allocation"], "pass")
+        self.assertEqual(res["checks"]["kvmfr_device"], "pass")
+
+    def test_service_unit_file(self):
+        svc_path = os.path.join(_ROOT, "usr", "lib", "systemd", "system", "mios-vfio-setup.service")
+        self.assertTrue(os.path.exists(svc_path), f"Service file missing at {svc_path}")
+        with open(svc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("setup-looking-glass.py --verify", content)
+        self.assertIn("[Install]", content)
+
 
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestLookingGlassSetup)

@@ -44,6 +44,26 @@ class TestCephFSProvision(unittest.TestCase):
         self.assertTrue(len(username) > 0)
         self.assertIsInstance(gid, int)
 
+    def test_user_info_lookup_string_username(self):
+        username, gid = cephfs_provision.get_user_info("mios")
+        self.assertTrue(len(username) > 0)
+        self.assertIsInstance(gid, int)
+
+    def test_resolve_uid_number(self):
+        uid_num = cephfs_provision.resolve_uid_number("1000")
+        self.assertEqual(uid_num, 1000)
+        uid_str = cephfs_provision.resolve_uid_number("mios")
+        self.assertIsInstance(uid_str, int)
+
+    def test_pam_auth_file_exists(self):
+        pam_path = os.path.join(_ROOT, "usr", "lib", "pam.d", "mios-cephfs-auth")
+        self.assertTrue(os.path.exists(pam_path), f"PAM file missing at {pam_path}")
+        with open(pam_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("pam_exec.so", content)
+        self.assertIn("mios-cephfs-provision", content)
+        self.assertIn("validate %u %g", content)
+
 
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestCephFSProvision)

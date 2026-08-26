@@ -1,0 +1,4 @@
+#%PAM-1.0
+# AI-hint: Modular PAM session integration for CephFS multi-tenant home provisioning.
+# AI-related: /usr/libexec/mios/mios-cephfs-provision, /usr/share/mios/mios.toml
+session optional pam_exec.so /usr/libexec/mios/mios-cephfs-provision validate %u %g

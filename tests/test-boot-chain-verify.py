@@ -55,6 +55,12 @@ class TestBootChainVerify(unittest.TestCase):
         }
         self.assertFalse(verifier.verify_pcr_measurements(invalid_len))
 
+    def test_cli_mock_and_json_verification(self):
+        rc = verify_boot_chain.run_verification(mock=True, json_output=False)
+        self.assertEqual(rc, 0)
+        rc_json = verify_boot_chain.run_verification(mock=True, json_output=True)
+        self.assertEqual(rc_json, 0)
+
 
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBootChainVerify)
