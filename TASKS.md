@@ -350,10 +350,10 @@
 | T-362 | P2 | done | Context/Retention | Adaptive context window truncation with needle-in-a-haystack retention heuristics |
 | T-363 | P1 | done | Memory/SharedMemory | Zero-copy KV-cache transfer over shared memory between co-located Python worker processes |
 | T-364 | P2 | done | Tooling/Timeout | Tool-call latency profiling and dead-lock watchdog timeout in agent-pipe tool loop |
-| T-365 | P2 | open | Inference/Sampling | Dynamic temperature and top-p scheduler based on task entropy estimation |
-| T-366 | P1 | open | Grammar/Constrained | Structured output JSON schema compiler utilizing constrained decoding grammar engines |
-| T-367 | P2 | open | Execution/Batching | Asynchronous tool execution batching for non-dependent parallel tool invocations |
-| T-368 | P1 | open | Runtime/Lifecycle | Graceful worker shutdown and SIGTERM drain handler in server.py |
+| T-365 | P2 | done | Inference/Sampling | Dynamic temperature and top-p scheduler based on task entropy estimation |
+| T-366 | P1 | done | Grammar/Constrained | Structured output JSON schema compiler utilizing constrained decoding grammar engines |
+| T-367 | P2 | done | Execution/Batching | Asynchronous tool execution batching for non-dependent parallel tool invocations |
+| T-368 | P1 | done | Runtime/Lifecycle | Graceful worker shutdown and SIGTERM drain handler in server.py |
 | T-369 | P2 | open | Routing/Dynamic | Hot-reload of model routing tables without dropping active WebSocket and SSE streams |
 | T-370 | P1 | open | VRAM/Eviction | Per-lane VRAM watermark monitor and emergency KV-cache eviction daemon |
 | T-371 | P1 | open | Orchestration/Tension | Tension-tracking ledger in DCI deliberation to quantify unresolved objections |
@@ -4381,7 +4381,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Sampling scheduler classifies prompt intent and applies optimal hyperparameter presets dynamically.
 **Why:** Deterministic code generation requires zero-entropy greedy decoding to prevent syntax and logic hallucinations.
 **Dep:** AGY-1962
-**Status:** open | **Domain:** Inference/Sampling | **Who:** agent
+**Status:** done | **Domain:** Inference/Sampling | **Who:** agent
 **Converted:** AGY-1963 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-366 -- Structured output JSON schema compiler utilizing constrained decoding grammar engines (WS-AI | P1 | M)
@@ -4391,7 +4391,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Structured output requests enforce GBNF grammars at the inference layer with zero JSON parsing failures.
 **Why:** Grammar-based token masking eliminates invalid JSON outputs and costly validation-retry cycles.
 **Dep:** AGY-1963
-**Status:** open | **Domain:** Grammar/Constrained | **Who:** agent
+**Status:** done | **Domain:** Grammar/Constrained | **Who:** agent
 **Converted:** AGY-1964 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-367 -- Asynchronous tool execution batching for non-dependent parallel tool invocations (WS-AI | P2 | M)
@@ -4401,7 +4401,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Read-only parallel tool calls execute concurrently with measurable reduction in total turn latency.
 **Why:** Sequential execution of independent tool calls introduces unnecessary latency in multi-tool agent interactions.
 **Dep:** AGY-1964
-**Status:** open | **Domain:** Execution/Batching | **Who:** agent
+**Status:** done | **Domain:** Execution/Batching | **Who:** agent
 **Converted:** AGY-1965 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-368 -- Graceful worker shutdown and SIGTERM drain handler in server.py (WS-AI | P1 | S)
@@ -4411,7 +4411,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Server drains connections and flushes pending database events before cleanly exiting on systemd stop signals.
 **Why:** Abrupt service termination corrupts in-flight task records and drops client connections.
 **Dep:** AGY-1965
-**Status:** open | **Domain:** Runtime/Lifecycle | **Who:** agent
+**Status:** done | **Domain:** Runtime/Lifecycle | **Who:** agent
 **Converted:** AGY-1966 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-369 -- Hot-reload of model routing tables without dropping active WebSocket and SSE streams (WS-AI | P2 | M)

@@ -415,6 +415,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_dci.py` | Re-export shim for mios_pipe.routing.dci |
 | `usr/lib/mios/agent-pipe/mios_dispatch.py` | Verb->bash DISPATCH chokepoint extracted VERBATIM from server.py (refactor R7 wave). |
 | `usr/lib/mios/agent-pipe/mios_dispatcher.py` | Re-export shim for mios_pipe.routing.dispatcher |
+| `usr/lib/mios/agent-pipe/mios_drain_handler.py` | Graceful worker shutdown and SIGTERM drain handler in server.py. |
 | `usr/lib/mios/agent-pipe/mios_embed_backfill.py` | Re-export shim for mios_pipe.memory.embed_backfill |
 | `usr/lib/mios/agent-pipe/mios_endpoints.py` | Pure endpoint capability detection extracted verbatim from server.py (strangler-fig refactor R-wave). |
 | `usr/lib/mios/agent-pipe/mios_evict.py` | Re-export shim for mios_pipe.scheduler.evict |
@@ -422,6 +423,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_firewall.py` | Re-export shim for mios_pipe.access.firewall |
 | `usr/lib/mios/agent-pipe/mios_gateway_queue.py` | In-process asyncio.Queue gateway producer-consumer seam (CONV-02). |
 | `usr/lib/mios/agent-pipe/mios_gossip.py` | Re-export shim for mios_pipe.kernel.gossip |
+| `usr/lib/mios/agent-pipe/mios_grammar.py` | Structured output JSON schema compiler utilizing constrained decoding grammar engines. |
 | `usr/lib/mios/agent-pipe/mios_grounding.py` | Re-export shim for mios_pipe.context.grounding |
 | `usr/lib/mios/agent-pipe/mios_hitl.py` | Re-export shim for mios_pipe.access.hitl |
 | `usr/lib/mios/agent-pipe/mios_hitlflow.py` | Re-export shim for mios_pipe.access.hitlflow |
@@ -588,6 +590,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_router.py` | Re-export shim for mios_pipe.routing.router |
 | `usr/lib/mios/agent-pipe/mios_routing.py` | Re-export shim for mios_pipe.routing.routing |
 | `usr/lib/mios/agent-pipe/mios_ruleof2.py` | Re-export shim for mios_pipe.routing.ruleof2 |
+| `usr/lib/mios/agent-pipe/mios_sample_tune.py` | Dynamic sampling hyperparameter scheduler based on task entropy estimation. |
 | `usr/lib/mios/agent-pipe/mios_sandbox.py` | Re-export shim for mios_pipe.access.sandbox |
 | `usr/lib/mios/agent-pipe/mios_sched.py` | Re-export shim for mios_pipe.scheduler.sched |
 | `usr/lib/mios/agent-pipe/mios_scratchpad.py` | In-process SQLite vector store (sqlite-vec) scratchpad module for ephemeral tool outputs (CONV-08). |
@@ -605,6 +608,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_swarm.py` | Re-export shim for mios_pipe.routing.swarm |
 | `usr/lib/mios/agent-pipe/mios_template.py` | Renders an SSOT verb command template into the broker bash line. |
 | `usr/lib/mios/agent-pipe/mios_tokenize.py` | Re-export shim for mios_pipe.context.tokenize |
+| `usr/lib/mios/agent-pipe/mios_tool_batch.py` | Asynchronous tool execution batching for non-dependent parallel tool invocations. |
 | `usr/lib/mios/agent-pipe/mios_tool_timeout.py` | Tool-call latency profiling and dead-lock watchdog timeout in agent-pipe tool loop. |
 | `usr/lib/mios/agent-pipe/mios_toolconflict.py` | Re-export shim for mios_pipe.routing.toolconflict |
 | `usr/lib/mios/agent-pipe/mios_toolexec.py` | Re-export shim for mios_pipe.routing.toolexec |
@@ -788,7 +792,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 402 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 406 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs
