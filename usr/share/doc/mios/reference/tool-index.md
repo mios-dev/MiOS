@@ -429,6 +429,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_hitlflow.py` | Re-export shim for mios_pipe.access.hitlflow |
 | `usr/lib/mios/agent-pipe/mios_hopbudget.py` | Re-export shim for mios_pipe.routing.hopbudget |
 | `usr/lib/mios/agent-pipe/mios_http_caps.py` | Re-export shim for mios_pipe.federation.http_caps |
+| `usr/lib/mios/agent-pipe/mios_httpx.py` | Async HTTPX transport client pool and stream decoder for MiOS agent-pipe. |
 | `usr/lib/mios/agent-pipe/mios_interop.py` | Re-export shim for mios_pipe.routing.interop |
 | `usr/lib/mios/agent-pipe/mios_jsonsalvage.py` | Re-export shim for mios_pipe.routing.jsonsalvage |
 | `usr/lib/mios/agent-pipe/mios_kernel.py` | Re-export shim for mios_pipe.kernel.kernel |
@@ -627,6 +628,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_vision.py` | Re-export shim for mios_pipe.routing.vision |
 | `usr/lib/mios/agent-pipe/mios_web_research.py` | Re-export shim for mios_pipe.routing.web_research |
 | `usr/lib/mios/agent-pipe/mios_worker_tools.py` | Re-export shim for mios_pipe.memory.worker_tools |
+| `usr/lib/mios/agent-pipe/mios_worktree.py` | Ephemeral subagent git worktree lifecycle manager and branch pruner for MiOS agent-pipe. |
 | `usr/lib/mios/agent-pipe/server.py` | FastAPI gateway service on the `agent_pipe` port that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to th... |
 | `usr/lib/mios/agent-pipe/test_lora_endpoints.py` | Standalone assert-script unit test for LoRA list/load endpoints (CONV-06). |
 | `usr/lib/mios/agent-pipe/test_mios_a2a.py` | Stdlib unit test for the extracted A2A federation publish surface (mios_a2a). |
@@ -811,7 +813,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 426 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 428 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

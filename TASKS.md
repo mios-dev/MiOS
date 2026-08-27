@@ -514,16 +514,16 @@
 | T-600 | P2 | done | Telemetry/LogTest | Automated journal compaction, Parquet query performance, and vector retrieval benchmark suite |
 | T-601 | P1 | done | Network/ServiceMesh | Declarative Traefik / Envoy service mesh proxy generator and Unix socket router |
 | T-602 | P2 | done | Network/MeshTest | Automated service mesh routing, Unix socket latency, and OpenTelemetry trace propagation test suite |
-| T-603 | P1 | open | Git/Worktree | Ephemeral subagent git worktree lifecycle manager and branch pruner in agent-pipe |
-| T-604 | P2 | open | Git/WorktreeTest | Automated subagent worktree creation, merge, and scratch cleanup test suite |
-| T-605 | P1 | open | AI/HTTPXTransport | Async HTTPX transport client pool and stream decoder in agent-pipe |
-| T-606 | P2 | open | AI/HTTPXTest | Automated HTTPX async transport, Unix socket adapter, and stream benchmark suite |
-| T-607 | P1 | open | UI/LibeiInput | Libei emulated input provider and Wayland portal input injector in mios-pc-control |
-| T-608 | P2 | open | UI/InputTest | Automated synthetic mouse/keyboard input injection and session boundary test suite |
-| T-609 | P1 | open | Database/Vacuum | Declarative PostgreSQL autovacuum tuner, pg_cron scheduler, and concurrent HNSW reindexer |
-| T-610 | P2 | open | Database/MaintTest | Automated PostgreSQL dead tuple vacuuming and concurrent HNSW index reindexing test suite |
-| T-611 | P1 | open | Hardware/Watchdog | Tiered hardware watchdog driver configurator and systemd watchdog integration |
-| T-612 | P2 | open | Hardware/WDTTest | Automated systemd daemon freeze watchdog timeout and recovery test suite |
+| T-603 | P1 | done | Git/Worktree | Ephemeral subagent git worktree lifecycle manager and branch pruner in agent-pipe |
+| T-604 | P2 | done | Git/WorktreeTest | Automated subagent worktree creation, merge, and scratch cleanup test suite |
+| T-605 | P1 | done | AI/HTTPXTransport | Async HTTPX transport client pool and stream decoder in agent-pipe |
+| T-606 | P2 | done | AI/HTTPXTest | Automated HTTPX async transport, Unix socket adapter, and stream benchmark suite |
+| T-607 | P1 | done | UI/LibeiInput | Libei emulated input provider and Wayland portal input injector in mios-pc-control |
+| T-608 | P2 | done | UI/InputTest | Automated synthetic mouse/keyboard input injection and session boundary test suite |
+| T-609 | P1 | done | Database/Vacuum | Declarative PostgreSQL autovacuum tuner, pg_cron scheduler, and concurrent HNSW reindexer |
+| T-610 | P2 | done | Database/MaintTest | Automated PostgreSQL dead tuple vacuuming and concurrent HNSW index reindexing test suite |
+| T-611 | P1 | done | Hardware/Watchdog | Tiered hardware watchdog driver configurator and systemd watchdog integration |
+| T-612 | P2 | done | Hardware/WDTTest | Automated systemd daemon freeze watchdog timeout and recovery test suite |
 | T-613 | P1 | open | Audio/BluetoothHD | WirePlumber high-fidelity Bluetooth policy manager and virtual loopback provisioner |
 | T-614 | P2 | open | Audio/LoopbackTest | Automated PipeWire Bluetooth codec negotiation and virtual loopback isolation test suite |
 | T-615 | P1 | open | Git/MergeFuzz | Continuous differential AST git merge fuzzing harness and mutation generator |
@@ -6763,7 +6763,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Worktree manager provisions and cleans up subagent worktrees and topic branches deterministically.
 **Why:** Isolated worktrees enable concurrent subagent operations without stepping on active developer files.
 **Dep:** AGY-2200
-**Status:** open | **Domain:** Git/Worktree | **Who:** agent
+**Status:** done | **Domain:** Git/Worktree | **Who:** agent
 **Converted:** AGY-2201 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-604 -- Automated subagent worktree creation, merge, and scratch cleanup test suite (WS-GIT | P2 | S)
@@ -6773,7 +6773,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates subagent worktree isolation, merging, and zero-residual cleanup.
 **Why:** Continuous testing ensures autonomous agents do not leak temporary files or lock git working trees.
 **Dep:** AGY-2201
-**Status:** open | **Domain:** Git/WorktreeTest | **Who:** agent
+**Status:** done | **Domain:** Git/WorktreeTest | **Who:** agent
 **Converted:** AGY-2202 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-605 -- Async HTTPX transport client pool and stream decoder in agent-pipe (WS-AI | P1 | M)
@@ -6783,7 +6783,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** HTTPX transport pool handles async web requests and local UDS container streams natively.
 **Why:** Native HTTPX transports provide high-throughput async streaming, HTTP/2 multiplexing, and UDS fast-paths.
 **Dep:** AGY-2202
-**Status:** open | **Domain:** AI/HTTPXTransport | **Who:** agent
+**Status:** done | **Domain:** AI/HTTPXTransport | **Who:** agent
 **Converted:** AGY-2203 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-606 -- Automated HTTPX async transport, Unix socket adapter, and stream benchmark suite (WS-AI | P2 | S)
@@ -6793,7 +6793,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates HTTPX connection pooling, stream decoding, and UDS transport performance.
 **Why:** Continuous testing ensures HTTPX client upgrades do not introduce stream buffering regressions.
 **Dep:** AGY-2203
-**Status:** open | **Domain:** AI/HTTPXTest | **Who:** agent
+**Status:** done | **Domain:** AI/HTTPXTest | **Who:** agent
 **Converted:** AGY-2204 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-607 -- Libei emulated input provider and Wayland portal input injector in mios-pc-control (WS-APP | P1 | M)
@@ -6803,7 +6803,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Libei input injector emits synthetic clicks, keypresses, and gestures over Wayland securely.
 **Why:** Libei input emulation provides safe, session-scoped desktop automation without opening system-wide keylogging attack vectors.
 **Dep:** AGY-2204
-**Status:** open | **Domain:** UI/LibeiInput | **Who:** agent
+**Status:** done | **Domain:** UI/LibeiInput | **Who:** agent
 **Converted:** AGY-2205 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-608 -- Automated synthetic mouse/keyboard input injection and session boundary test suite (WS-APP | P2 | S)
@@ -6813,7 +6813,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates Libei synthetic input delivery and event timing precision.
 **Why:** Continuous testing ensures Wayland compositor updates do not break autonomous GUI computer use.
 **Dep:** AGY-2205
-**Status:** open | **Domain:** UI/InputTest | **Who:** agent
+**Status:** done | **Domain:** UI/InputTest | **Who:** agent
 **Converted:** AGY-2206 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-609 -- Declarative PostgreSQL autovacuum tuner, pg_cron scheduler, and concurrent HNSW reindexer (WS-RAG | P1 | M)
@@ -6823,7 +6823,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** PostgreSQL maintenance daemon vacuums tables and reindexes HNSW indices with zero service downtime.
 **Why:** Continuous non-blocking maintenance preserves sub-10ms vector search latency and prevents database disk bloat.
 **Dep:** AGY-2206
-**Status:** open | **Domain:** Database/Vacuum | **Who:** agent
+**Status:** done | **Domain:** Database/Vacuum | **Who:** agent
 **Converted:** AGY-2207 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-610 -- Automated PostgreSQL dead tuple vacuuming and concurrent HNSW index reindexing test suite (WS-RAG | P2 | S)
@@ -6833,7 +6833,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that PostgreSQL autovacuum and concurrent reindexing operate safely under active load.
 **Why:** Continuous testing ensures database maintenance algorithms never disrupt live agent reasoning loops.
 **Dep:** AGY-2207
-**Status:** open | **Domain:** Database/MaintTest | **Who:** agent
+**Status:** done | **Domain:** Database/MaintTest | **Who:** agent
 **Converted:** AGY-2208 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-611 -- Tiered hardware watchdog driver configurator and systemd watchdog integration (WS-BOOT | P1 | M)
@@ -6843,7 +6843,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Watchdog configurator binds hardware watchdog and enforces systemd service ping loops.
 **Why:** Hardware watchdogs guarantee autonomous node recovery from hard kernel deadlocks or unresponsive agent daemons.
 **Dep:** AGY-2208
-**Status:** open | **Domain:** Hardware/Watchdog | **Who:** agent
+**Status:** done | **Domain:** Hardware/Watchdog | **Who:** agent
 **Converted:** AGY-2209 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-612 -- Automated systemd daemon freeze watchdog timeout and recovery test suite (WS-BOOT | P2 | S)
@@ -6853,7 +6853,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that missed watchdog pings trigger automated service recovery.
 **Why:** Continuous testing ensures systemd watchdog policies recover stalled agent processes without manual operator intervention.
 **Dep:** AGY-2209
-**Status:** open | **Domain:** Hardware/WDTTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/WDTTest | **Who:** agent
 **Converted:** AGY-2210 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-613 -- WirePlumber high-fidelity Bluetooth policy manager and virtual loopback provisioner (WS-APP | P1 | M)
