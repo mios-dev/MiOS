@@ -544,16 +544,16 @@
 | T-630 | P2 | done | AI/VRAMTest | Automated multi-model VRAM swapping, KV-cache paging latency, and session preservation test suite |
 | T-631 | P1 | done | AI/GPUSched | CUDA/ROCm compute stream priority scheduler and background preemption manager |
 | T-632 | P2 | done | AI/GPUSchedTest | Automated GPU compute preemption latency and training resumption verification test suite |
-| T-633 | P1 | open | Hardware/Energyd | Declarative RAPL / NVML hardware energy metering and chassis power cap manager |
-| T-634 | P2 | open | Hardware/EnergyTest | Automated power cap enforcement and carbon-aware batch scheduling benchmark suite |
-| T-635 | P1 | open | AI/PromptCache | Radix tree prefix hash cache manager and prompt KV warm-starter in llama-swap |
-| T-636 | P2 | open | AI/PromptCacheTest | Automated prefix cache hit rate and sub-20ms time-to-first-token benchmark suite |
-| T-637 | P1 | open | AI/PagedAttention | PagedAttention virtual block memory manager and asynchronous KV defragmenter |
-| T-638 | P2 | open | AI/PagedAttnTest | Automated PagedAttention fragmentation resistance and 100-session concurrency benchmark suite |
-| T-639 | P1 | open | Storage/DiskHealth | Predictive S.M.A.R.T. drive health monitor and automated CephFS evacuation manager |
-| T-640 | P2 | open | Storage/EvacTest | Automated S.M.A.R.T. predictive failure simulation and proactive data evacuation test suite |
-| T-641 | P1 | open | Kernel/CrashTriage | Headless kernel crash dump triage engine (drgn / crash) and symbol resolver |
-| T-642 | P2 | open | Kernel/TriageTest | Automated kernel vmcore analysis and PostgreSQL bug ticket creation test suite |
+| T-633 | P1 | done | Hardware/Energyd | Declarative RAPL / NVML hardware energy metering and chassis power cap manager |
+| T-634 | P2 | done | Hardware/EnergyTest | Automated power cap enforcement and carbon-aware batch scheduling benchmark suite |
+| T-635 | P1 | done | AI/PromptCache | Radix tree prefix hash cache manager and prompt KV warm-starter in llama-swap |
+| T-636 | P2 | done | AI/PromptCacheTest | Automated prefix cache hit rate and sub-20ms time-to-first-token benchmark suite |
+| T-637 | P1 | done | AI/PagedAttention | PagedAttention virtual block memory manager and asynchronous KV defragmenter |
+| T-638 | P2 | done | AI/PagedAttnTest | Automated PagedAttention fragmentation resistance and 100-session concurrency benchmark suite |
+| T-639 | P1 | done | Storage/DiskHealth | Predictive S.M.A.R.T. drive health monitor and automated CephFS evacuation manager |
+| T-640 | P2 | done | Storage/EvacTest | Automated S.M.A.R.T. predictive failure simulation and proactive data evacuation test suite |
+| T-641 | P1 | done | Kernel/CrashTriage | Headless kernel crash dump triage engine (drgn / crash) and symbol resolver |
+| T-642 | P2 | done | Kernel/TriageTest | Automated kernel vmcore analysis and PostgreSQL bug ticket creation test suite |
 | T-643 | P1 | open | Security/USBGuard | Declarative USBGuard policy generator and desktop authorization notifier in automation |
 | T-644 | P2 | open | Security/BadUSBTest | Automated BadUSB keystroke injection block and USB authorization test suite in virtual USB sandbox |
 | T-645 | P1 | open | App/StateSnapshot | Per-app Flatpak state subvolume snapshotter and rollback manager in mios-app-snapshot |
@@ -7063,7 +7063,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Energy daemon meters power in real time and throttles accelerators to enforce power caps.
 **Why:** Declarative power capping prevents electrical breaker trips and optimizes thermal efficiency on multi-accelerator nodes.
 **Dep:** AGY-2230
-**Status:** open | **Domain:** Hardware/Energyd | **Who:** agent
+**Status:** done | **Domain:** Hardware/Energyd | **Who:** agent
 **Converted:** AGY-2231 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-634 -- Automated power cap enforcement and carbon-aware batch scheduling benchmark suite (WS-NODE | P2 | S)
@@ -7073,7 +7073,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates strict power cap compliance and smooth workload modulation.
 **Why:** Continuous testing ensures energy management updates maintain power protection guarantees.
 **Dep:** AGY-2231
-**Status:** open | **Domain:** Hardware/EnergyTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/EnergyTest | **Who:** agent
 **Converted:** AGY-2232 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-635 -- Radix tree prefix hash cache manager and prompt KV warm-starter in llama-swap (WS-AI | P1 | M)
@@ -7083,7 +7083,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inference engine reuses warm KV caches for static prompt prefixes across agent turns.
 **Why:** Prefix caching eliminates redundant prompt processing and delivers 10x faster agent tool-loop response times.
 **Dep:** AGY-2232
-**Status:** open | **Domain:** AI/PromptCache | **Who:** agent
+**Status:** done | **Domain:** AI/PromptCache | **Who:** agent
 **Converted:** AGY-2233 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-636 -- Automated prefix cache hit rate and sub-20ms time-to-first-token benchmark suite (WS-AI | P2 | S)
@@ -7093,7 +7093,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates prefix cache hit efficiency and sub-20ms TTFT performance.
 **Why:** Continuous testing ensures inference engine upgrades maintain prompt cache reuse and acceleration.
 **Dep:** AGY-2233
-**Status:** open | **Domain:** AI/PromptCacheTest | **Who:** agent
+**Status:** done | **Domain:** AI/PromptCacheTest | **Who:** agent
 **Converted:** AGY-2234 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-637 -- PagedAttention virtual block memory manager and asynchronous KV defragmenter (WS-AI | P1 | M)
@@ -7103,7 +7103,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** PagedAttention block manager allocates and defragments KV memory dynamically with zero stall barriers.
 **Why:** Virtual block paging eliminates VRAM waste from internal fragmentation and quadruples concurrent conversational capacity.
 **Dep:** AGY-2234
-**Status:** open | **Domain:** AI/PagedAttention | **Who:** agent
+**Status:** done | **Domain:** AI/PagedAttention | **Who:** agent
 **Converted:** AGY-2235 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-638 -- Automated PagedAttention fragmentation resistance and 100-session concurrency benchmark suite (WS-AI | P2 | S)
@@ -7113,7 +7113,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-concurrency memory efficiency and zero-fragmentation resilience.
 **Why:** Continuous testing ensures inference memory algorithms maximize concurrency across multi-agent workflows.
 **Dep:** AGY-2235
-**Status:** open | **Domain:** AI/PagedAttnTest | **Who:** agent
+**Status:** done | **Domain:** AI/PagedAttnTest | **Who:** agent
 **Converted:** AGY-2236 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-639 -- Predictive S.M.A.R.T. drive health monitor and automated CephFS evacuation manager (WS-STRG | P1 | M)
@@ -7123,7 +7123,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Drive health monitor catches degraded wear indicators and evacuates data proactively.
 **Why:** Predictive drive failure detection and proactive migration eliminate data loss risks on high-write AI workloads.
 **Dep:** AGY-2236
-**Status:** open | **Domain:** Storage/DiskHealth | **Who:** agent
+**Status:** done | **Domain:** Storage/DiskHealth | **Who:** agent
 **Converted:** AGY-2237 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-640 -- Automated S.M.A.R.T. predictive failure simulation and proactive data evacuation test suite (WS-STRG | P2 | S)
@@ -7133,7 +7133,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates automated S.M.A.R.T. predictive failure alerting and data evacuation.
 **Why:** Continuous testing ensures storage clustering algorithms reliably prevent data loss under hardware degradation.
 **Dep:** AGY-2237
-**Status:** open | **Domain:** Storage/EvacTest | **Who:** agent
+**Status:** done | **Domain:** Storage/EvacTest | **Who:** agent
 **Converted:** AGY-2238 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-641 -- Headless kernel crash dump triage engine (drgn / crash) and symbol resolver (WS-DIAG | P1 | M)
@@ -7143,7 +7143,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Crash triage service extracts demangled stack traces from vmcore dumps and records bug reports.
 **Why:** Automated headless crash triage provides instant root-cause diagnostics directly to autonomous self-healing coding agents.
 **Dep:** AGY-2238
-**Status:** open | **Domain:** Kernel/CrashTriage | **Who:** agent
+**Status:** done | **Domain:** Kernel/CrashTriage | **Who:** agent
 **Converted:** AGY-2239 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-642 -- Automated kernel vmcore analysis and PostgreSQL bug ticket creation test suite (WS-DIAG | P2 | S)
@@ -7153,7 +7153,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates automated vmcore symbol demangling, stack parsing, and database reporting.
 **Why:** Continuous testing ensures kernel debugging toolchains remain operational across new kernel minor releases.
 **Dep:** AGY-2239
-**Status:** open | **Domain:** Kernel/TriageTest | **Who:** agent
+**Status:** done | **Domain:** Kernel/TriageTest | **Who:** agent
 **Converted:** AGY-2240 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-643 -- Declarative USBGuard policy generator and desktop authorization notifier in automation (WS-SEC | P1 | M)
