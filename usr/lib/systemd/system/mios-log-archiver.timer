@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly MiOS Journal Log Parquet Compaction Timer
+Documentation=https://github.com/mios-dev/mios
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

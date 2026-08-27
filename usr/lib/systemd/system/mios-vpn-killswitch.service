@@ -1,0 +1,16 @@
+[Unit]
+Description=MiOS Declarative nftables VPN Kill-Switch and Split-Tunnel Guard
+Documentation=man:nft(8) https://github.com/mios-dev/mios
+After=network-pre.target
+Before=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/net/vpn_killswitch.py --interface wg0
+ExecStop=/usr/libexec/mios/net/vpn_killswitch.py --flush
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

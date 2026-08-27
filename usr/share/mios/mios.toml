@@ -11262,6 +11262,12 @@ unit = [
     "tests/test-container-gc-lru.py",
     "tests/test-fido2-hardware-sandbox.py",
     "tests/test-empirical-stress-t583-t592.py",
+    "tests/test-vpn-killswitch.py",
+    "tests/test-nat-traversal.py",
+    "tests/test-bcachefs-tiering.py",
+    "tests/test-log-archiver-rag.py",
+    "tests/test-service-mesh-proxy.py",
+    "tests/test-empirical-stress-t593-t602.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

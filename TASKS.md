@@ -504,16 +504,16 @@
 | T-590 | P2 | done | Storage/GCTest | Automated container layer pruning threshold and deduplication verification test suite |
 | T-591 | P1 | done | Security/FIDO2 | Declarative FIDO2 pam_u2f and ssh-ed25519-sk hardware key enrollment tool in mios-fido2-enroll |
 | T-592 | P2 | done | Security/FIDO2Test | Automated FIDO2 user presence challenge and authentication test suite in virtual USB sandbox |
-| T-593 | P1 | open | Network/VPNKillSwitch | Declarative nftables VPN kill-switch and fwmark split-tunnel manager |
-| T-594 | P2 | open | Network/KillSwitchTest | Automated VPN disconnect IP leak prevention and local mesh routing verification test suite |
-| T-595 | P1 | open | Network/NATTraversal | Tiered NAT traversal engine (UPnP, NAT-PMP, STUN hole punching, DERP relay) in mios-nat-traversal |
-| T-596 | P2 | open | Network/NATTest | Automated symmetric NAT hole punching and DERP relay failover test suite |
-| T-597 | P1 | open | Storage/Bcachefs | Declarative Bcachefs multi-device storage tiering configurator in automation |
-| T-598 | P2 | open | Storage/BcachefsTest | Automated Bcachefs tier promotion and hot/cold block migration benchmark suite |
-| T-599 | P1 | open | Telemetry/LogArchive | Structured Parquet log archival daemon and episodic vector indexer in mios-log-archiver |
-| T-600 | P2 | open | Telemetry/LogTest | Automated journal compaction, Parquet query performance, and vector retrieval benchmark suite |
-| T-601 | P1 | open | Network/ServiceMesh | Declarative Traefik / Envoy service mesh proxy generator and Unix socket router |
-| T-602 | P2 | open | Network/MeshTest | Automated service mesh routing, Unix socket latency, and OpenTelemetry trace propagation test suite |
+| T-593 | P1 | done | Network/VPNKillSwitch | Declarative nftables VPN kill-switch and fwmark split-tunnel manager |
+| T-594 | P2 | done | Network/KillSwitchTest | Automated VPN disconnect IP leak prevention and local mesh routing verification test suite |
+| T-595 | P1 | done | Network/NATTraversal | Tiered NAT traversal engine (UPnP, NAT-PMP, STUN hole punching, DERP relay) in mios-nat-traversal |
+| T-596 | P2 | done | Network/NATTest | Automated symmetric NAT hole punching and DERP relay failover test suite |
+| T-597 | P1 | done | Storage/Bcachefs | Declarative Bcachefs multi-device storage tiering configurator in automation |
+| T-598 | P2 | done | Storage/BcachefsTest | Automated Bcachefs tier promotion and hot/cold block migration benchmark suite |
+| T-599 | P1 | done | Telemetry/LogArchive | Structured Parquet log archival daemon and episodic vector indexer in mios-log-archiver |
+| T-600 | P2 | done | Telemetry/LogTest | Automated journal compaction, Parquet query performance, and vector retrieval benchmark suite |
+| T-601 | P1 | done | Network/ServiceMesh | Declarative Traefik / Envoy service mesh proxy generator and Unix socket router |
+| T-602 | P2 | done | Network/MeshTest | Automated service mesh routing, Unix socket latency, and OpenTelemetry trace propagation test suite |
 | T-603 | P1 | open | Git/Worktree | Ephemeral subagent git worktree lifecycle manager and branch pruner in agent-pipe |
 | T-604 | P2 | open | Git/WorktreeTest | Automated subagent worktree creation, merge, and scratch cleanup test suite |
 | T-605 | P1 | open | AI/HTTPXTransport | Async HTTPX transport client pool and stream decoder in agent-pipe |
@@ -6663,7 +6663,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** VPN kill-switch blocks WAN traffic during tunnel drop while keeping local mesh accessible.
 **Why:** A strict firewall kill-switch prevents accidental IP leakage while preserving local cluster control.
 **Dep:** AGY-2190
-**Status:** open | **Domain:** Network/VPNKillSwitch | **Who:** agent
+**Status:** done | **Domain:** Network/VPNKillSwitch | **Who:** agent
 **Converted:** AGY-2191 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-594 -- Automated VPN disconnect IP leak prevention and local mesh routing verification test suite (WS-NET | P2 | S)
@@ -6673,7 +6673,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that firewall kill-switch blocks WAN leakage and maintains local mesh traffic.
 **Why:** Continuous testing ensures firewall rules prevent privacy leaks across VPN reconnect events.
 **Dep:** AGY-2191
-**Status:** open | **Domain:** Network/KillSwitchTest | **Who:** agent
+**Status:** done | **Domain:** Network/KillSwitchTest | **Who:** agent
 **Converted:** AGY-2192 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-595 -- Tiered NAT traversal engine (UPnP, NAT-PMP, STUN hole punching, DERP relay) in mios-nat-traversal (WS-NET | P1 | M)
@@ -6683,7 +6683,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** NAT traversal engine establishes direct or relayed peer connectivity through arbitrary firewall topologies.
 **Why:** Automated NAT traversal allows remote blades and mobile laptops to join the cluster mesh without router reconfiguration.
 **Dep:** AGY-2192
-**Status:** open | **Domain:** Network/NATTraversal | **Who:** agent
+**Status:** done | **Domain:** Network/NATTraversal | **Who:** agent
 **Converted:** AGY-2193 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-596 -- Automated symmetric NAT hole punching and DERP relay failover test suite (WS-NET | P2 | S)
@@ -6693,7 +6693,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates NAT traversal negotiation and seamless relay failover.
 **Why:** Continuous testing ensures mesh nodes maintain connectivity across diverse corporate and home network environments.
 **Dep:** AGY-2193
-**Status:** open | **Domain:** Network/NATTest | **Who:** agent
+**Status:** done | **Domain:** Network/NATTest | **Who:** agent
 **Converted:** AGY-2194 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-597 -- Declarative Bcachefs multi-device storage tiering configurator in automation (WS-STRG | P1 | M)
@@ -6703,7 +6703,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Bcachefs configurator provisions multi-device storage tiers with automated block promotion/demotion.
 **Why:** In-kernel multi-device tiering delivers 5GB/s+ model weight loading speeds without wasting expensive NVMe capacity on cold backups.
 **Dep:** AGY-2194
-**Status:** open | **Domain:** Storage/Bcachefs | **Who:** agent
+**Status:** done | **Domain:** Storage/Bcachefs | **Who:** agent
 **Converted:** AGY-2195 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-598 -- Automated Bcachefs tier promotion and hot/cold block migration benchmark suite (WS-STRG | P2 | S)
@@ -6713,7 +6713,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Benchmark suite confirms in-kernel block promotion delivers high-throughput NVMe read performance.
 **Why:** Continuous testing ensures filesystem upgrades maintain kernel block caching and promotion efficiency.
 **Dep:** AGY-2195
-**Status:** open | **Domain:** Storage/BcachefsTest | **Who:** agent
+**Status:** done | **Domain:** Storage/BcachefsTest | **Who:** agent
 **Converted:** AGY-2196 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-599 -- Structured Parquet log archival daemon and episodic vector indexer in mios-log-archiver (WS-RAG | P1 | M)
@@ -6723,7 +6723,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Log archiver compacts journal logs to Parquet and indexes error clusters into pgvector automatically.
 **Why:** Columnar log compaction saves 85%+ disk space while vector indexing enables instant natural-language root cause diagnosis.
 **Dep:** AGY-2196
-**Status:** open | **Domain:** Telemetry/LogArchive | **Who:** agent
+**Status:** done | **Domain:** Telemetry/LogArchive | **Who:** agent
 **Converted:** AGY-2197 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-600 -- Automated journal compaction, Parquet query performance, and vector retrieval benchmark suite (WS-RAG | P2 | S)
@@ -6733,7 +6733,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates Parquet log compression and semantic diagnostic vector retrieval.
 **Why:** Continuous testing ensures telemetry systems deliver fast diagnostic answers without bloating host disk usage.
 **Dep:** AGY-2197
-**Status:** open | **Domain:** Telemetry/LogTest | **Who:** agent
+**Status:** done | **Domain:** Telemetry/LogTest | **Who:** agent
 **Converted:** AGY-2198 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-601 -- Declarative Traefik / Envoy service mesh proxy generator and Unix socket router (WS-NET | P1 | M)
@@ -6743,7 +6743,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Mesh generator creates declarative proxy routing rules and binds Unix sockets dynamically.
 **Why:** Declarative service mesh provides high-performance Unix socket routing locally and encrypted mTLS across nodes.
 **Dep:** AGY-2198
-**Status:** open | **Domain:** Network/ServiceMesh | **Who:** agent
+**Status:** done | **Domain:** Network/ServiceMesh | **Who:** agent
 **Converted:** AGY-2199 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-602 -- Automated service mesh routing, Unix socket latency, and OpenTelemetry trace propagation test suite (WS-NET | P2 | S)
@@ -6753,7 +6753,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates service mesh routing speed, Unix socket efficiency, and trace propagation.
 **Why:** Continuous testing ensures proxy upgrades do not introduce latency overhead or drop distributed trace contexts.
 **Dep:** AGY-2199
-**Status:** open | **Domain:** Network/MeshTest | **Who:** agent
+**Status:** done | **Domain:** Network/MeshTest | **Who:** agent
 **Converted:** AGY-2200 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-603 -- Ephemeral subagent git worktree lifecycle manager and branch pruner in agent-pipe (WS-GIT | P1 | M)

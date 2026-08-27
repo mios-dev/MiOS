@@ -1,0 +1,14 @@
+[Unit]
+Description=MiOS Structured Parquet Log Archiver and Vector Indexer
+Documentation=man:journald.conf(5) https://github.com/mios-dev/mios
+After=systemd-journald.service mios-pgvector.service
+Wants=mios-pgvector.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/telemetry/log_archiver.py --archive-dir /var/log/archive
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

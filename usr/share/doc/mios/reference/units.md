@@ -102,6 +102,8 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-llm-heavy.container` | `usr/share/containers/systemd` | MiOS' vLLM heavy lane (OpenAI /v1, PagedAttention + APC; gated) |
 | `mios-llm-light.container` | `usr/share/containers/systemd` | MiOS' LLM-Light (llama.cpp multi-model + KV-paging lane, served via the upstream llama-swap proxy, FOSS) |
 | `mios-llm-worker@.container` | `usr/share/containers/systemd` | MiOS' swarm worker %i (single-model llama-server, FOSS) |
+| `mios-log-archiver.service` | `usr/lib/systemd/system` | MiOS Structured Parquet Log Archiver and Vector Indexer |
+| `mios-log-archiver.timer` | `usr/lib/systemd/system` | Hourly MiOS Journal Log Parquet Compaction Timer |
 | `mios-log-streamer.service` | `usr/lib/systemd/system` | MiOS Unified Journald Log Aggregation & pgvector Vector Streamer |
 | `mios-luks-enroll.service` | `usr/lib/systemd/system` | Enroll LUKS keys automatically using TPM2 |
 | `mios-luks-rotate.service` | `usr/lib/systemd/system` | MiOS LUKS2 Drive Encryption Key Rotation Service |
@@ -157,6 +159,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-verify-root.service` | `usr/lib/systemd/system` | MiOS' Root Filesystem Verification |
 | `mios-verify.service` | `usr/lib/systemd/system` | MiOS' Cryptographic Integrity Audit (fs-verity) |
 | `mios-vfio-setup.service` | `usr/lib/systemd/system` | MiOS VFIO & Looking Glass B6 IVSHMEM Setup |
+| `mios-vpn-killswitch.service` | `usr/lib/systemd/system` | MiOS Declarative nftables VPN Kill-Switch and Split-Tunnel Guard |
 | `mios-wakeword.service` | `usr/lib/systemd/user` | MiOS Three-Stage Acoustic Wake-Word Daemon |
 | `mios-wallpaper.service` | `usr/lib/systemd/user` | MiOS' Living Wallpaper Occlusion Engine Daemon |
 | `mios-waydroid-init.service` | `usr/lib/systemd/system` | MiOS' Waydroid Android Initialization |
@@ -186,5 +189,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (178 unit(s)) -->
+<!-- derived from tracked unit files (181 unit(s)) -->
 <!-- /MIOS-GEN:units -->
