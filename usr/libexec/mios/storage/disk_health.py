@@ -69,20 +69,49 @@ class SmartHealthMonitor:
 
     def parse_smart_json(self, device_path: str, data: Dict[str, Any]) -> DriveHealth:
         """Parses nvme-cli / smartctl JSON payload and calculates health score."""
-        pct_used = float(data.get("percentage_used", data.get("percent_used", 10.0)))
-        spare = float(data.get("available_spare", data.get("avail_spare", 100.0)))
-        media_errors = int(data.get("media_errors", data.get("media_and_data_integrity_errors", 0)))
-        temp_c = float(data.get("temperature", data.get("temperature_c", 40.0)))
-        crit_warn = int(data.get("critical_warning", 0))
+        def _safe_float(val: Any, default: float = 0.0) -> float:
+            if val is None:
+                return default
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return default
+
+        def _safe_int(val: Any, default: int = 0) -> int:
+            if val is None:
+                return default
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                return default
+
+        pct_val = data.get("percentage_used") if data.get("percentage_used") is not None else data.get("percent_used")
+        pct_used = _safe_float(pct_val, 10.0)
+
+        spare_val = data.get("available_spare") if data.get("available_spare") is not None else data.get("avail_spare")
+        spare = _safe_float(spare_val, 100.0)
+
+        media_val = data.get("media_errors") if data.get("media_errors") is not None else data.get("media_and_data_integrity_errors")
+        media_errors = _safe_int(media_val, 0)
+
+        temp_val = data.get("temperature") if data.get("temperature") is not None else data.get("temperature_c")
+        temp_c = _safe_float(temp_val, 40.0)
+
+        crit_warn = _safe_int(data.get("critical_warning"), 0)
 
         reallocated = 0
-        ata_smart = data.get("ata_smart_attributes", {}).get("table", [])
-        for attr in ata_smart:
-            if attr.get("name") in ("Reallocated_Sector_Ct", "Reallocated_Event_Count"):
-                reallocated = max(reallocated, int(attr.get("raw", {}).get("value", 0)))
+        ata_smart_attr = data.get("ata_smart_attributes")
+        if isinstance(ata_smart_attr, dict):
+            ata_smart = ata_smart_attr.get("table", [])
+            if isinstance(ata_smart, list):
+                for attr in ata_smart:
+                    if isinstance(attr, dict) and attr.get("name") in ("Reallocated_Sector_Ct", "Reallocated_Event_Count"):
+                        raw_obj = attr.get("raw", {})
+                        raw_val = raw_obj.get("value", 0) if isinstance(raw_obj, dict) else raw_obj
+                        reallocated = max(reallocated, _safe_int(raw_val, 0))
 
         if "reallocated_sectors" in data:
-            reallocated = int(data["reallocated_sectors"])
+            reallocated = _safe_int(data.get("reallocated_sectors"), reallocated)
 
         drive_type = "nvme" if "nvme" in device_path else "sata"
 

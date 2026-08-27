@@ -564,16 +564,16 @@
 | T-650 | P2 | done | AI/KernelTest | Automated GPU Tensor Core throughput and GEMM dispatch latency benchmark suite |
 | T-651 | P1 | done | AI/ReactiveLoop | Asyncio/epoll reactive event loop and PostgreSQL LISTEN/NOTIFY dispatcher in agent-pipe |
 | T-652 | P2 | done | AI/ReactiveTest | Automated reactive agent wakeup latency (<5ms) and zero idle CPU benchmark suite |
-| T-653 | P1 | open | AI/CouncilSwarm | Multi-agent 3-peer council swarm and weighted Byzantine consensus engine in agent-pipe |
-| T-654 | P2 | open | AI/CouncilTest | Automated multi-agent council voting, hallucination rejection, and shadow sandbox test suite |
-| T-655 | P1 | open | AI/SpeculativeDecode | Dynamic speculative decoding draft pairing and adaptive draft-length manager in llama-swap |
-| T-656 | P2 | open | AI/SpeculativeTest | Automated speculative decoding speedup (3x) and mathematical output equivalence benchmark suite |
-| T-657 | P1 | open | Hardware/CPUAffinity | Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator |
-| T-658 | P2 | open | Hardware/CPUTest | Automated vendor-agnostic CPU core pinning, thread isolation, and jitter benchmark suite |
-| T-659 | P1 | open | Telemetry/MeshLogs | Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink |
-| T-660 | P2 | open | Telemetry/LogMeshTest | Automated multi-node log streaming, partition buffering, and central query test suite |
-| T-661 | P1 | open | Security/CVEScan | Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator |
-| T-662 | P2 | open | Security/CVETest | Automated Critical CVE rejection and supply-chain vulnerability gate test suite |
+| T-653 | P1 | done | AI/CouncilSwarm | Multi-agent 3-peer council swarm and weighted Byzantine consensus engine in agent-pipe |
+| T-654 | P2 | done | AI/CouncilTest | Automated multi-agent council voting, hallucination rejection, and shadow sandbox test suite |
+| T-655 | P1 | done | AI/SpeculativeDecode | Dynamic speculative decoding draft pairing and adaptive draft-length manager in llama-swap |
+| T-656 | P2 | done | AI/SpeculativeTest | Automated speculative decoding speedup (3x) and mathematical output equivalence benchmark suite |
+| T-657 | P1 | done | Hardware/CPUAffinity | Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator |
+| T-658 | P2 | done | Hardware/CPUTest | Automated vendor-agnostic CPU core pinning, thread isolation, and jitter benchmark suite |
+| T-659 | P1 | done | Telemetry/MeshLogs | Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink |
+| T-660 | P2 | done | Telemetry/LogMeshTest | Automated multi-node log streaming, partition buffering, and central query test suite |
+| T-661 | P1 | done | Security/CVEScan | Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator |
+| T-662 | P2 | done | Security/CVETest | Automated Critical CVE rejection and supply-chain vulnerability gate test suite |
 | T-663 | P1 | open | Hardware/GPUHeat | Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon |
 | T-664 | P2 | open | Hardware/GPUHeatTest | Automated inter-GPU P2P bandwidth telemetry and tensor bottleneck detection test suite |
 | T-665 | P1 | open | Security/SystemdAudit | Declarative systemd unit hardening generator and security audit gate |
@@ -7283,7 +7283,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Council swarm evaluates proposals concurrently and enforces 2/3 majority consensus.
 **Why:** Multi-agent deliberation eliminates single-model hallucinations and protects system integrity from adversarial prompts.
 **Dep:** AGY-2250
-**Status:** open | **Domain:** AI/CouncilSwarm | **Who:** agent
+**Status:** done | **Domain:** AI/CouncilSwarm | **Who:** agent
 **Converted:** AGY-2251 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-654 -- Automated multi-agent council voting, hallucination rejection, and shadow sandbox test suite (WS-ORCH | P2 | S)
@@ -7293,7 +7293,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates multi-agent Byzantine consensus accuracy and shadow sandbox containment.
 **Why:** Continuous testing ensures autonomous agent swarms maintain reliable self-governance and safety boundaries.
 **Dep:** AGY-2251
-**Status:** open | **Domain:** AI/CouncilTest | **Who:** agent
+**Status:** done | **Domain:** AI/CouncilTest | **Who:** agent
 **Converted:** AGY-2252 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-655 -- Dynamic speculative decoding draft pairing and adaptive draft-length manager in llama-swap (WS-AI | P1 | M)
@@ -7303,7 +7303,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Speculative decoding engine pairs draft models and accelerates token generation throughput.
 **Why:** Speculative decoding delivers 3x faster local LLM generation without degrading output accuracy.
 **Dep:** AGY-2252
-**Status:** open | **Domain:** AI/SpeculativeDecode | **Who:** agent
+**Status:** done | **Domain:** AI/SpeculativeDecode | **Who:** agent
 **Converted:** AGY-2253 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-656 -- Automated speculative decoding speedup (3x) and mathematical output equivalence benchmark suite (WS-AI | P2 | S)
@@ -7313,7 +7313,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates speculative decoding speedup and mathematical token equivalence.
 **Why:** Continuous testing ensures draft model pairing maintains deterministic, regression-free acceleration.
 **Dep:** AGY-2253
-**Status:** open | **Domain:** AI/SpeculativeTest | **Who:** agent
+**Status:** done | **Domain:** AI/SpeculativeTest | **Who:** agent
 **Converted:** AGY-2254 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-657 -- Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator (WS-VFIO | P1 | M)
@@ -7323,7 +7323,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** CPU topology allocator discovers core layouts on boot and partitions systemd slices dynamically.
 **Why:** Vendor-agnostic core partitioning guarantees jitter-free real-time audio and microVM performance across any CPU architecture.
 **Dep:** AGY-2254
-**Status:** open | **Domain:** Hardware/CPUAffinity | **Who:** agent
+**Status:** done | **Domain:** Hardware/CPUAffinity | **Who:** agent
 **Converted:** AGY-2255 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-658 -- Automated vendor-agnostic CPU core pinning, thread isolation, and jitter benchmark suite (WS-VFIO | P2 | S)
@@ -7333,7 +7333,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-500us real-time scheduling latency and robust core isolation under heavy load.
 **Why:** Continuous testing ensures kernel scheduling updates maintain deterministic real-time audio and microVM execution.
 **Dep:** AGY-2255
-**Status:** open | **Domain:** Hardware/CPUTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/CPUTest | **Who:** agent
 **Converted:** AGY-2256 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-659 -- Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink (WS-NODE | P1 | M)
@@ -7343,7 +7343,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Fluent Bit streams node telemetry to central PostgreSQL sink with network partition buffering.
 **Why:** Centralized encrypted log aggregation gives operators and autonomous agents a unified cluster-wide diagnostic pane.
 **Dep:** AGY-2256
-**Status:** open | **Domain:** Telemetry/MeshLogs | **Who:** agent
+**Status:** done | **Domain:** Telemetry/MeshLogs | **Who:** agent
 **Converted:** AGY-2257 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-660 -- Automated multi-node log streaming, partition buffering, and central query test suite (WS-NODE | P2 | S)
@@ -7353,7 +7353,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates cluster log streaming reliability and zero-loss partition recovery.
 **Why:** Continuous testing guarantees telemetry integrity during mesh network reconnections and blade failovers.
 **Dep:** AGY-2257
-**Status:** open | **Domain:** Telemetry/LogMeshTest | **Who:** agent
+**Status:** done | **Domain:** Telemetry/LogMeshTest | **Who:** agent
 **Converted:** AGY-2258 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-661 -- Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator (WS-BUILD | P1 | M)
@@ -7363,7 +7363,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Vulnerability scanner audits OCI image archives and generates machine-readable CVE reports.
 **Why:** Automated vulnerability gating prevents known security flaws from entering the immutable host operating system.
 **Dep:** AGY-2258
-**Status:** open | **Domain:** Security/CVEScan | **Who:** agent
+**Status:** done | **Domain:** Security/CVEScan | **Who:** agent
 **Converted:** AGY-2259 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-662 -- Automated Critical CVE rejection and supply-chain vulnerability gate test suite (WS-BUILD | P2 | S)
@@ -7373,7 +7373,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that vulnerability gates reliably catch and block vulnerable container images.
 **Why:** Continuous testing ensures supply-chain scanner rules and feeds remain effective against emerging threats.
 **Dep:** AGY-2259
-**Status:** open | **Domain:** Security/CVETest | **Who:** agent
+**Status:** done | **Domain:** Security/CVETest | **Who:** agent
 **Converted:** AGY-2260 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-663 -- Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon (WS-VFIO | P1 | M)

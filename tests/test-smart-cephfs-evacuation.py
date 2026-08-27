@@ -74,6 +74,26 @@ class TestSmartCephfsEvacuation(unittest.TestCase):
         for ev in self.monitor.evacuation_events:
             self.assertEqual(ev["rebalance_loss"], 0)
 
+    def test_malformed_smart_json_none_values(self):
+        """Test parser resilience against None and malformed fields."""
+        malformed_data = {
+            "percentage_used": None,
+            "available_spare": None,
+            "media_errors": "not_an_int",
+            "temperature": None,
+            "critical_warning": None,
+            "ata_smart_attributes": None,
+            "reallocated_sectors": None,
+        }
+        h = self.monitor.parse_smart_json("/dev/nvme0n1", malformed_data)
+        self.assertFalse(h.is_degraded)
+        self.assertEqual(h.percentage_used, 10.0)
+        self.assertEqual(h.available_spare, 100.0)
+        self.assertEqual(h.media_errors, 0)
+        self.assertEqual(h.temperature_c, 40.0)
+        self.assertEqual(h.reallocated_sectors, 0)
+        self.assertEqual(h.critical_warning, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

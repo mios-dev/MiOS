@@ -50,6 +50,18 @@ Call Trace:
         self.assertEqual(rep.registers["CR2"], "0000000000000010")
         self.assertGreater(len(rep.callstack), 1)
 
+    def test_dmesg_empty_rsp_handling(self):
+        """Test parsing oops block with empty or bare RSP line does not crash."""
+        oops_sample = """
+BUG: unable to handle page fault
+RIP: 0010:vmlinux_crash+0x10/0x20
+RSP:
+CR2: 0000000000000000
+        """
+        rep = self.engine.parse_dmesg_oops(oops_sample)
+        self.assertNotIn("RSP", rep.registers)
+        self.assertEqual(rep.registers["CR2"], "0000000000000000")
+
     def test_rust_symbol_demangling(self):
         """Test demangling Rust symbol names into structured module paths."""
         mangled = "_RNvNtCs1234_4core3fmt10write_char"

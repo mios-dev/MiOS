@@ -97,7 +97,9 @@ class KernelCrashTriageEngine:
             elif line_s.startswith("RIP:"):
                 registers["RIP"] = line_s.split("RIP:")[1].strip()
             elif line_s.startswith("RSP:"):
-                registers["RSP"] = line_s.split("RSP:")[1].strip().split()[0]
+                rsp_tokens = line_s.split("RSP:")[1].strip().split()
+                if rsp_tokens:
+                    registers["RSP"] = rsp_tokens[0]
             elif line_s.startswith("RAX:"):
                 parts = line_s.split()
                 for p in parts:

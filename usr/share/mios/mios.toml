@@ -8515,7 +8515,7 @@ Wants = "network-online.target"
 ContainerName = "mios-radosgw"
 Exec = 'radosgw -d --cluster ceph --name client.rgw.gateway --rgw-frontends="beast endpoint=127.0.0.1:${MIOS_PORT_RADOSGW:-8470}"'
 Group = "root"
-HealthCmd = "/usr/bin/curl -sf http://127.0.0.1:8470/ || exit 1"
+HealthCmd = "/usr/bin/curl -sf http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/ || exit 1"
 HealthInterval = "30s"
 HealthRetries = 3
 HealthTimeout = "5s"
@@ -8526,7 +8526,7 @@ Label = [
   "org.opencontainers.image.url=http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/"
 ]
 Pod = "mios-system.pod"
-PublishPort = "127.0.0.1:${MIOS_PORT_RADOSGW:-8470}:8470"
+PublishPort = "127.0.0.1:${MIOS_PORT_RADOSGW:-8470}:${MIOS_PORT_RADOSGW:-8470}"
 User = "root"
 Volume = [
   "/etc/ceph:/etc/ceph:Z",
@@ -11298,6 +11298,12 @@ unit = [
     "tests/test-tensor-kernels.py",
     "tests/test-reactive-loop.py",
     "tests/test-empirical-stress-t643-t652.py",
+    "tests/test-council-consensus.py",
+    "tests/test-speculative-decoding.py",
+    "tests/test-cpu-topology.py",
+    "tests/test-mesh-logs.py",
+    "tests/test-cve-scan.py",
+    "tests/test-empirical-stress-t653-t662.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
