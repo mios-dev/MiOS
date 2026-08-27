@@ -19,7 +19,6 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Union
 
-
 class CosignVerifier:
     """Verifies Cosign OCI container image signatures, Rekor proofs, and container policy.json rules."""
 
@@ -183,7 +182,6 @@ class CosignVerifier:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Cosign & OCI Signature Verifier")
     parser.add_argument("--image", default="ghcr.io/mios-dev/mios:latest", help="Container image reference")
@@ -242,7 +240,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

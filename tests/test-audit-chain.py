@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestAuditChain(unittest.TestCase):
     """Test suite for cryptographic audit chain verification, Ed25519 signatures, and Merkle proofs."""
 
@@ -178,7 +177,6 @@ class TestAuditChain(unittest.TestCase):
         with patch.object(sys, "argv", ["audit_chain.py", "--mock", "--status", "--json"]):
             code = audit_chain.main()
             self.assertEqual(code, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

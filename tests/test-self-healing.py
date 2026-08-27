@@ -28,7 +28,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load self_heal module from {_SELF_HEAL_PATH}")
 
-
 class TestSelfHealing(unittest.TestCase):
     """Validates self-healing agent diagnostics, circuit breaker, and immutability invariants."""
 
@@ -203,12 +202,10 @@ class TestSelfHealing(unittest.TestCase):
         self.assertEqual(last_rca["unit_name"], fake_unit)
         self.assertEqual(last_rca["failure_type"], "MISSING_VAR_DIRECTORY")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestSelfHealing)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

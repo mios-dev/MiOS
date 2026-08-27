@@ -14,7 +14,6 @@ from mios_pipe.context.scratchpad import (
 
 _test_conv_var = contextvars.ContextVar("test_conv_key", default="chat_test_123")
 
-
 class TestScratchpad(unittest.TestCase):
 
     def setUp(self):
@@ -48,7 +47,6 @@ class TestScratchpad(unittest.TestCase):
         dq = _scratchpad_for("chat_test_123")
         self.assertEqual(len(dq), 5)
         self.assertEqual(dq[-1]["note"], "Checkpoint note 9")
-
 
 if __name__ == "__main__":
     unittest.main()

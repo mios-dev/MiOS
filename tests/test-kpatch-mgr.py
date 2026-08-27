@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from kpatch_mgr import MAX_PATCH_LATENCY_MS, KernelLivepatchManager
 
-
 class TestKpatchMgr(unittest.TestCase):
     def setUp(self):
         self.mgr = KernelLivepatchManager(dry_run=True)
@@ -28,7 +27,6 @@ class TestKpatchMgr(unittest.TestCase):
         res = self.mgr.apply_signed_livepatch("CVE-2026-9999", "kernel_execve", mock_is_signed=False)
         self.assertFalse(res.is_applied)
         self.assertFalse(res.is_mok_signed)
-
 
 if __name__ == "__main__":
     unittest.main()

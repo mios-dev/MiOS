@@ -24,7 +24,6 @@ from typing import Any, Dict, Generator, List, Optional, Tuple
 
 logger = logging.getLogger("mios.synthetic_qa")
 
-
 @dataclasses.dataclass
 class MarkdownChunk:
     doc_path: str
@@ -38,7 +37,6 @@ class MarkdownChunk:
 
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
-
 
 class MarkdownHierarchicalParser:
     """
@@ -129,7 +127,6 @@ class MarkdownHierarchicalParser:
             logger.warning("Failed to parse markdown file '%s': %s", file_path, e)
             return []
 
-
 class SecretRedactor:
     """
     Redacts passwords, tokens, API keys, private keys, and credentials
@@ -168,7 +165,6 @@ class SecretRedactor:
             })
         record["messages"] = sanitized_messages
         return record
-
 
 class QASynthesizer:
     """
@@ -286,7 +282,6 @@ class QASynthesizer:
 
         return records
 
-
 class SyntheticQAPipeline:
     """
     Coordinates document harvesting, hierarchical parsing, Q&A synthesis,
@@ -354,7 +349,6 @@ class SyntheticQAPipeline:
             logger.error("Failed to export JSONL dataset to '%s': %s", output_path, e)
             raise
 
-
 def find_default_search_paths() -> List[str]:
     paths = []
     # Check repository root paths
@@ -369,7 +363,6 @@ def find_default_search_paths() -> List[str]:
         if os.path.exists(c):
             paths.append(c)
     return paths or ["."]
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Synthetic Training Q&A Data Pipeline")
@@ -412,7 +405,6 @@ def main() -> int:
         print(f"Exported {len(records)} synthetic Q&A records to '{args.output_file}'.")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -39,7 +39,6 @@ except ImportError:
             SandboxedHardwareController,
         )
 
-
 class WasmExecutionConfig:
     """Configures limits and sandboxing parameters for Tier-1 Wasm tasks."""
 
@@ -54,7 +53,6 @@ class WasmExecutionConfig:
         self.max_fuel = max_fuel
         self.timeout_ms = timeout_ms
         self.allowlist = allowlist or HardwareAllowlist()
-
 
 class ExecutionResult:
     """Structured result returned by the Wasm sandbox execution."""
@@ -76,7 +74,6 @@ class ExecutionResult:
         self.output_data = output_data
         self.logs = logs
         self.error_msg = error_msg
-
 
 class HostImports:
     """Sandboxed host system interface (mios_sys_*) for Wasm guest modules."""
@@ -131,7 +128,6 @@ class HostImports:
             f"mios_sys_i2c_transfer(bus={bus}, addr=0x{addr:02X}) -> err={err}, len={len(rdata)}"
         )
         return int(err), rdata
-
 
 class WasmSandboxEngine:
     """Executes sandboxed compute tasks within memory, fuel, and hardware permission limits."""

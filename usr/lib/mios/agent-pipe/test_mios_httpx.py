@@ -8,7 +8,6 @@ import unittest
 sys.path.insert(0, os.path.dirname(__file__))
 from mios_httpx import MiOSAsyncHTTPTransport
 
-
 class TestMiOSAsyncHTTPTransport(unittest.TestCase):
     def test_fetch_endpoint_mock(self):
         transport = MiOSAsyncHTTPTransport(mock_mode=True)
@@ -21,7 +20,6 @@ class TestMiOSAsyncHTTPTransport(unittest.TestCase):
         res = asyncio.run(transport.fetch_endpoint("http+unix://%2Frun%2Fmios%2Fpipe.sock/status"))
         self.assertTrue(res["is_unix_socket"])
         self.assertEqual(res["status_code"], 200)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,14 +23,12 @@ logger = logging.getLogger("mios-gpu-powerd")
 
 MAX_D3COLD_WAKE_MS = 150.0
 
-
 @dataclass
 class GPUPowerState:
     power_state: str  # "D0_Active", "D3hot_Idle", "D3cold_Sleep"
     current_wattage: float
     aspm_state: str  # "L1.2", "L1.1", "Disabled"
     wake_latency_ms: float = 0.0
-
 
 class GPUPowerManager:
     """Manages PCIe ASPM power transitions and sub-150ms D3cold wakeups."""
@@ -74,13 +72,11 @@ class GPUPowerManager:
         )
         return state
 
-
 def main():
     mgr = GPUPowerManager(dry_run=True)
     mgr.transition_to_d3cold()
     state = mgr.wake_gpu_for_inference()
     print(f"Wake latency: {state.wake_latency_ms:.2f} ms")
-
 
 if __name__ == "__main__":
     main()

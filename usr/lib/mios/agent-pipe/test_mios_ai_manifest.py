@@ -10,13 +10,11 @@ import mios_manifest as man
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 CAT = {
     "open_app": {"section": "Win", "desc": "launch", "tier": "core",
@@ -26,7 +24,6 @@ CAT = {
     "web_search": {"section": "Web", "desc": "search", "permission": "read",
                    "parallel_limit": 3},
 }
-
 
 def t_project():
     mani = man.project_verb_catalog(CAT)
@@ -44,12 +41,10 @@ def t_project():
     check("project: read-default permission", next(
         e for e in mani["data"] if e["name"] == "list_windows")["permission"] == "read")
 
-
 def t_deterministic():
     a = json.dumps(man.project_verb_catalog(CAT), sort_keys=True)
     b = json.dumps(man.project_verb_catalog(dict(reversed(list(CAT.items())))), sort_keys=True)
     check("deterministic: insertion-order-independent", a == b)
-
 
 def t_diff():
     base = man.project_verb_catalog(CAT)
@@ -67,14 +62,12 @@ def t_diff():
           any("registry_kind" in x for x in man.diff_manifest(base, bad)))
     check("diff: missing committed -> flagged", man.diff_manifest(base, None) != [])
 
-
 def main():
     t_project()
     t_deterministic()
     t_diff()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

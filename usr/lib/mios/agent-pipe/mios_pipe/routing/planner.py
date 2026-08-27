@@ -19,7 +19,6 @@ from mios_pipe.routing import replay as _replay   # T-225 intent-keyed replay
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 PLANNER_ENABLED = os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_ENABLED", "true",
 ).lower() not in {"false", "0", "no"}
@@ -48,7 +47,6 @@ _AGENT_REGISTRY: dict = {}
 _PLANNER_SYSTEM: Optional[str] = None
 _VERB_CATALOG: dict = {}
 _ROUTING_DOMAINS: dict = {}
-
 
 def configure(*, verb_catalog_rendered=None, recipe_catalog_rendered=None,
               agent_catalog_rendered=None, routed_domain_var=None,
@@ -89,7 +87,6 @@ def configure(*, verb_catalog_rendered=None, recipe_catalog_rendered=None,
         _build_planner_system()
     if replay_templates is not None:
         globals()["_replay_templates"] = replay_templates
-
 
 def _build_planner_system() -> None:
     """Build _PLANNER_SYSTEM from the injected rendered catalogs (verbatim
@@ -250,7 +247,6 @@ def _build_planner_system() -> None:
     "- Output JSON ONLY -- no preamble, no markdown, no commentary."
     )
 
-
 def _action_domain_verbs() -> set:
     """Union of verbs across ALL action domains. A native GUI action spans several
     write-domains (apps_windows focus_window + computer_use cu_type/cu_key), so the
@@ -261,7 +257,6 @@ def _action_domain_verbs() -> set:
             for _v in (_dc.get("verbs") or []):
                 out.add(str(_v))
     return out
-
 
 def _planner_system_for(domain: Optional[str]) -> str:
     """Stage-2 of the domain router: return the planner system prompt with the
@@ -283,9 +278,7 @@ def _planner_system_for(domain: Optional[str]) -> str:
         return _PLANNER_SYSTEM.replace(_VERB_CATALOG_RENDERED, block, 1)
     return _PLANNER_SYSTEM
 
-
 _replay_templates = None   # injected: async () -> list[dict] of stored templates
-
 
 def _replay_cfg() -> tuple:
     """(enabled, threshold, candidates) from [run_template]. Read at call time so
@@ -302,7 +295,6 @@ def _replay_cfg() -> tuple:
     except (TypeError, ValueError):
         cand = 50
     return en, thr, max(1, cand)
-
 
 async def _replay_lookup(user_text: str) -> "Optional[dict]":
     """A stored DAG for a repeated intent, or None to plan.
@@ -328,7 +320,6 @@ async def _replay_lookup(user_text: str) -> "Optional[dict]":
     except Exception as e:  # noqa: BLE001 -- degrade-open: a replay bug must never block planning
         log.debug("run-template replay skipped: %s", e)
         return None
-
 
 async def decompose_intent(user_text: str) -> Optional[dict]:
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
@@ -411,7 +402,6 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
     parsed["intent"] = _ut[:2000]
     return parsed
 
-
 def _topological_order(nodes: list[dict]) -> list[dict]:
     """Return nodes in dependency order. Unknown / cyclic deps fall
     back to declaration order so we never hang."""
@@ -428,7 +418,6 @@ def _topological_order(nodes: list[dict]) -> list[dict]:
     for n in nodes:
         visit(n.get("id"))
     return out
-
 
 def _dag_levels(nodes: list[dict]) -> list[list[dict]]:
     by_id = {n.get("id"): n for n in nodes

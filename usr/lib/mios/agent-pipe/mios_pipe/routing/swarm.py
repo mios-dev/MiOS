@@ -33,8 +33,6 @@ from mios_council_diversity import apply_council_gates, note_aggregator
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 SWARM_MAX_WIDTH = 6
 SWARM_MAX_CPU_NODES = 2
 SWARM_DEEPEN_ENABLED = False
@@ -74,7 +72,6 @@ _db_fire = None
 _db_post = None
 _db_create = None
 _embed_one = None
-
 
 def configure(*, swarm_max_width=None, swarm_max_cpu_nodes=None,
               swarm_deepen_enabled=None, slow_lane_block_chars=None,
@@ -183,7 +180,6 @@ def configure(*, swarm_max_width=None, swarm_max_cpu_nodes=None,
     if usage_estimate is not None:
         _usage_estimate = usage_estimate
 
-
 def _reroute_dead_nodes(dag: dict, live: set) -> list:
     if not live:
         return []
@@ -205,7 +201,6 @@ def _reroute_dead_nodes(dag: dict, live: set) -> list:
         moved.append((n.get("id"), ag, alt))
         n["agent"] = alt
     return moved
-
 
 def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
                           include_research: bool = False) -> dict:
@@ -308,7 +303,6 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
     summary = "; ".join(str(t.get("title") or "")[:60]
                         for t in tasks if isinstance(t, dict))[:200]
     return {"summary": summary, "nodes": nodes}
-
 
 async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                              streaming: bool, chat_id: str, model: str,
@@ -831,7 +825,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         "mios_sources": _sources_metadata(_dag_refs) if _dag_refs else [],
     })
 
-
 async def _plan_swarm(user_text: str, history: list = None) -> list:
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
         return []
@@ -911,7 +904,6 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
         tasks.append({"target_agent": agent, "refined_text": task,
                       "title": (query or task)[:72]})
     return tasks
-
 
 async def _expand_facets(user_text: str, existing: list, target_n: int,
                          history: Optional[list] = None) -> list:

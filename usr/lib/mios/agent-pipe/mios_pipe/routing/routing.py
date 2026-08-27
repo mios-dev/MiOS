@@ -7,7 +7,6 @@ import os
 import re
 from typing import Optional
 
-
 log = None
 _COMPOUND_ACTION_ALT = ""
 _COMPOUND_CONNECTIVE_ALT = ""
@@ -16,7 +15,6 @@ _LAUNCH_TRIGGERS = frozenset()
 _LAUNCH_FILLERS = []
 _LAUNCH_LEAD_WORDS = frozenset()
 _LAUNCH_TRAIL_WORDS = frozenset()
-
 
 def configure(*, logger=None, compound_action_alt=None, compound_connective_alt=None,
               fastpath_verbs=None,
@@ -42,7 +40,6 @@ def configure(*, logger=None, compound_action_alt=None, compound_connective_alt=
         _LAUNCH_LEAD_WORDS = launch_lead_words
     if launch_trail_words is not None:
         _LAUNCH_TRAIL_WORDS = launch_trail_words
-
 
 def _load_routing_domains() -> tuple[dict, bool]:
     try:
@@ -85,7 +82,6 @@ def _load_routing_domains() -> tuple[dict, bool]:
             print(f"routing domains load failed: {e}", file=sys.stderr)
         return {}, False
 
-
 def _load_routing_phrases(key: str) -> list:
     """Load a deterministic-launch SSOT phrase list from mios.toml [routing].<key>,
     lowercased + de-duplicated, longest-first (so multi-word phrases strip before
@@ -105,7 +101,6 @@ def _load_routing_phrases(key: str) -> list:
             print(f"routing phrases load failed ({key}): {e}", file=sys.stderr)
         return []
 
-
 def _load_launch_fillers() -> list:
     """Trailing courtesy/location phrases (SSOT mios.toml [routing].launch_filler_
     phrases) stripped from a deterministic launch target so 'open notepad for me'
@@ -113,7 +108,6 @@ def _load_launch_fillers() -> list:
  (e2e: filler bled into the app name, and 'on my desktop'
     forced the launch into the LLM path which mis-classified it as discovery)."""
     return _load_routing_phrases("launch_filler_phrases")
-
 
 def _deterministic_action_route(user_text: str) -> Optional[dict]:
     t = (user_text or "").strip()

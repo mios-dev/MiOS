@@ -18,7 +18,6 @@ import subprocess
 import sys
 from typing import Any, Dict, Optional
 
-
 class LockdownProbe:
     """Probes Linux kernel lockdown state, SecureBoot NVRAM, and module signature enforcement."""
 
@@ -134,7 +133,6 @@ class LockdownProbe:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Kernel Lockdown Mode & Integrity Probe")
     parser.add_argument("--probe", action="store_true", help="Probe kernel lockdown and security status")
@@ -166,7 +164,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

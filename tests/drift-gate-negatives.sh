@@ -1576,10 +1576,6 @@ test_sbom_metadata() {
     log "Test_sbom_metadata negative test passed"
 }
 
-
-
-
-
 test_negative_coverage() {
     log "Testing check_negative_coverage"
     local checks_sh="${ROOT}/automation/98-drift-checks.sh"
@@ -1827,7 +1823,6 @@ test_account_column_parity() {
         || die "Check_account_column_parity failed after restoration"
     log "Test_account_column_parity negative test passed"
 }
-
 
 test_ssot_consumer_keys() {
     log "Testing check_ssot_consumer_keys"
@@ -3978,5 +3973,4 @@ _run_test test_leaked_fixtures
 }
 
 main "$@"
-
 

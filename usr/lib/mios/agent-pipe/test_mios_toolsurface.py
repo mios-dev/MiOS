@@ -10,7 +10,6 @@ from mios_pipe.routing.toolsurface import (
     configure,
 )
 
-
 def mock_verb_to_openai_tool(name, cfg):
     return {
         "type": "function",
@@ -20,7 +19,6 @@ def mock_verb_to_openai_tool(name, cfg):
             "parameters": {"type": "object", "properties": {}},
         },
     }
-
 
 class TestToolSurface(unittest.TestCase):
 
@@ -49,7 +47,6 @@ class TestToolSurface(unittest.TestCase):
         surface = _worker_tools_surface()
         res = asyncio.run(_select_child_tools(surface, "read a file", cap=1))
         self.assertEqual(len(res), 1)
-
 
 if __name__ == "__main__":
     unittest.main()

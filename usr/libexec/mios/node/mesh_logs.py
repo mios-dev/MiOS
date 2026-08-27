@@ -24,7 +24,6 @@ logger = logging.getLogger("mios-mesh-logs")
 
 MAX_BUFFER_RECORDS = 10000
 
-
 @dataclass
 class LogRecord:
     node_id: str
@@ -32,7 +31,6 @@ class LogRecord:
     unit: str
     severity: str
     message: str
-
 
 class MeshLogForwarder:
     """Manages encrypted log forwarding and local ring buffering during partitions."""
@@ -69,7 +67,6 @@ class MeshLogForwarder:
             logger.info(f"Reconnected: Flushed {flushed_count} buffered logs to central cluster.")
         return flushed_count
 
-
 def main():
     fwd = MeshLogForwarder(dry_run=True)
     fwd.set_network_state(False)
@@ -77,7 +74,6 @@ def main():
         fwd.ingest_journal_entry("mios-hermes.service", "INFO", f"Turn {i} completed")
     fwd.set_network_state(True)
     print(f"Total flushed: {len(fwd.flushed_records)}")
-
 
 if __name__ == "__main__":
     main()

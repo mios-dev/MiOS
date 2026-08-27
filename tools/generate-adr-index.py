@@ -11,7 +11,6 @@ ADR_DIR = os.path.join("usr", "share", "doc", "mios", "adr")
 OUT = "ADR.md"
 _SCALAR = re.compile(r"^([a-z_]+):\s*(.*)$")
 
-
 def parse_front_matter(path: str) -> dict:
     """The `---`-delimited YAML head of an ADR, as a flat dict. Scalars stay
     strings; `[a, b]` lists become lists. Deliberately minimal -- the ADR head
@@ -38,7 +37,6 @@ def parse_front_matter(path: str) -> dict:
             out[key] = val
     return out
 
-
 def collect(root: str) -> list:
     d = os.path.join(root, ADR_DIR)
     if not os.path.isdir(d):
@@ -60,7 +58,6 @@ def collect(root: str) -> list:
             "ssot": fm.get("ssot_keys") or [],
         })
     return rows
-
 
 def render(rows: list) -> str:
     n = len(rows)
@@ -100,7 +97,6 @@ def render(rows: list) -> str:
     out.append("<!-- derived from the front-matter of "
                f"{n} file(s) under {ADR_DIR.replace(os.sep, '/')}/ -->")
     return "\n".join(out) + "\n"
-
 
 def validate_adr_ssot_consistency(root: str) -> list[str]:
     """Verify that claims made by accepted ADRs match the current SSOT configuration."""
@@ -143,7 +139,6 @@ def validate_adr_ssot_consistency(root: str) -> list[str]:
 
     return violations
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     check = "--check" in sys.argv
@@ -177,7 +172,6 @@ def main() -> int:
     os.replace(tmp_path, path)
     print(f"wrote {OUT} from {len(rows)} ADR(s)")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

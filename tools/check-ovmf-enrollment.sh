@@ -1,7 +1,6 @@
 #!/bin/bash
 # AI-hint: Validates if the system contains pre-enrolled Secure Boot OVMF_VARS files (e.g., OVMF_VARS.secboot.fd) versus standard blank files to ensure firmware compatibility.
 
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

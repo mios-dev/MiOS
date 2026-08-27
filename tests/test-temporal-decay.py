@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_temporal_decay import TemporalDecayScorer
 
-
 class TestTemporalDecay(unittest.TestCase):
     """Validates temporal decay factor computation and ranking adjustments."""
 
@@ -34,12 +33,10 @@ class TestTemporalDecay(unittest.TestCase):
         # Recent record should outrank decayed old record despite lower raw similarity
         self.assertEqual(ranked[0]["id"], "recent_record")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestTemporalDecay)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

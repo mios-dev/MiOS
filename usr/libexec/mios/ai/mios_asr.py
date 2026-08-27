@@ -15,13 +15,11 @@ from typing import Generator, List
 
 log = logging.getLogger("mios_asr")
 
-
 @dataclass
 class AudioChunk:
     pcm_data: bytes
     timestamp_ms: float
     is_speech: bool = False
-
 
 class SileroVAD:
     """Quantized Silero VAD detector for 30ms PCM windows."""
@@ -35,7 +33,6 @@ class SileroVAD:
             return False
         energy = sum(abs(b - 128) for b in pcm_30ms) / max(len(pcm_30ms), 1)
         return energy > 5.0
-
 
 class StreamingASREngine:
     """

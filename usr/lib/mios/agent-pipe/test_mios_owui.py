@@ -9,13 +9,11 @@ import mios_owui as owui
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_passthrough_plain():
     q = "What is the capital of France?"
@@ -31,14 +29,12 @@ def t_passthrough_plain():
     check("plain: stray '</context>' alone unchanged",
           owui.strip_owui_scaffold(q5) == q5)
 
-
 def t_empty_and_whitespace():
     check("empty: '' -> ''", owui.strip_owui_scaffold("") == "")
     check("empty: None -> None", owui.strip_owui_scaffold(None) is None)
     ws = "   \n\t  "
     check("whitespace: non-empty whitespace unchanged (not trimmed)",
           owui.strip_owui_scaffold(ws) == ws)
-
 
 def t_trailing_after_context():
     scaffold = (
@@ -60,7 +56,6 @@ def t_trailing_after_context():
     check("trailing: no marker sentence leak",
           "respond to the user query" not in out.lower())
 
-
 def t_trailing_multiline_question():
     scaffold = (
         "### Task:\nRespond to the user query using the provided context.\n"
@@ -73,7 +68,6 @@ def t_trailing_multiline_question():
           out == "First line of my real question.\nSecond line continues it.",
           repr(out))
 
-
 def t_explicit_user_query_tag():
     scaffold = (
         "### Task:\nRespond to the user query using the provided context.\n"
@@ -83,7 +77,6 @@ def t_explicit_user_query_tag():
     out = owui.strip_owui_scaffold(scaffold)
     check("tag: <user_query> extracted", out == "What is photosynthesis?", repr(out))
     check("tag: angle brackets stripped from result", "<" not in out and ">" not in out)
-
 
 def t_alternate_payload_tags():
     for tag in ("query", "question", "prompt"):
@@ -95,13 +88,11 @@ def t_alternate_payload_tags():
         out = owui.strip_owui_scaffold(scaffold)
         check(f"tag: <{tag}> extracted", out == f"Genuine {tag} text here", repr(out))
 
-
 def t_user_query_tag_alone_triggers():
     scaffold = "<user_query>Just the question</user_query>"
     out = owui.strip_owui_scaffold(scaffold)
     check("tag-trigger: <user_query> alone recognised + extracted",
           out == "Just the question", repr(out))
-
 
 def t_empty_tag_falls_through():
     scaffold = (
@@ -112,7 +103,6 @@ def t_empty_tag_falls_through():
     )
     out = owui.strip_owui_scaffold(scaffold)
     check("empty-tag: does not return empty string", out != "", repr(out))
-
 
 def t_head_before_task():
     scaffold = (
@@ -127,7 +117,6 @@ def t_head_before_task():
     check("head: no scaffold leak", "### task:" not in out.lower()
           and "<context>" not in out.lower())
 
-
 def t_marker_only_title_task():
     scaffold = (
         "Generate a concise, 3-5 word title summarizing the chat history.\n"
@@ -136,7 +125,6 @@ def t_marker_only_title_task():
     out = owui.strip_owui_scaffold(scaffold)
     check("marker-only: recognised but not isolable -> unchanged (no drop)",
           out == scaffold, repr(out))
-
 
 def t_each_marker_detected():
     for marker in owui.OWUI_TEMPLATE_MARKERS:
@@ -149,7 +137,6 @@ def t_each_marker_detected():
         check(f"marker: '{marker[:24]}...' triggers strip",
               out == "RECOVERED_QUESTION", repr(out))
 
-
 def t_marker_case_insensitive():
     scaffold = (
         "RESPOND TO THE USER QUERY USING THE PROVIDED CONTEXT.\n"
@@ -160,7 +147,6 @@ def t_marker_case_insensitive():
     check("case: uppercase marker + tag detected and stripped",
           out == "The actual question.", repr(out))
 
-
 def t_task_plus_context_combo_trigger():
     scaffold = (
         "### Task:\nDo the thing.\n"
@@ -170,7 +156,6 @@ def t_task_plus_context_combo_trigger():
     out = owui.strip_owui_scaffold(scaffold)
     check("combo: '### task:' + '</context>' triggers + recovers trailing",
           out == "Genuine combo question?", repr(out))
-
 
 def t_trailing_boilerplate_rejected():
     scaffold = (
@@ -183,7 +168,6 @@ def t_trailing_boilerplate_rejected():
     check("reject-trailing: falls through to head when trailing is boilerplate",
           out == "Leading real question.", repr(out))
 
-
 def t_idempotent_on_clean_output():
     scaffold = (
         "### Task:\nRespond to the user query using the provided context.\n"
@@ -195,7 +179,6 @@ def t_idempotent_on_clean_output():
     check("idempotent: second strip is a no-op", once == twice == "How do plants make energy?",
           f"{once!r} / {twice!r}")
 
-
 def t_markers_constant_shape():
     m = owui.OWUI_TEMPLATE_MARKERS
     check("markers: is a tuple", isinstance(m, tuple))
@@ -204,7 +187,6 @@ def t_markers_constant_shape():
           all(isinstance(x, str) and x == x.lower() and x for x in m))
     check("markers: includes the core RAG sentence",
           "respond to the user query using the provided context" in m)
-
 
 def main():
     t_passthrough_plain()
@@ -225,7 +207,6 @@ def main():
     t_markers_constant_shape()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -18,7 +18,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "libexec", "mios", "node"))
 
 import discovery
 
-
 class TestNodeHeartbeatEviction(unittest.TestCase):
     """Validates 5s heartbeat interval, 3-strike dead peer eviction, and routing table lifecycle."""
 
@@ -149,12 +148,10 @@ class TestNodeHeartbeatEviction(unittest.TestCase):
         self.assertIn(10, active_ids)
         self.assertIn(20, active_ids)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeHeartbeatEviction)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

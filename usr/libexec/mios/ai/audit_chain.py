@@ -34,7 +34,6 @@ try:
 except ImportError:
     _HAS_CRYPTOGRAPHY = False
 
-
 class Ed25519Signer:
     """Signer using standard cryptography.ed25519 if available, or deterministic HMAC-SHA512 fallback."""
 
@@ -112,7 +111,6 @@ class Ed25519Signer:
         expected = hmac.new(self._private_key, data, hashlib.sha512).hexdigest()[:128]
         return signature_hex == expected
 
-
 class MerkleTree:
     """Binary Merkle tree implementation for batched block verification."""
 
@@ -183,12 +181,10 @@ class MerkleTree:
                 current = hashlib.sha256(f"{current}{sibling}".encode("utf-8")).hexdigest()
         return current == expected_root
 
-
 def compute_payload_hash(payload: Any) -> str:
     """Deterministic SHA-256 hash of JSON payload."""
     serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-
 
 def compute_block_hash(
     index: int,
@@ -201,7 +197,6 @@ def compute_block_hash(
     """Compute canonical SHA-256 block hash."""
     raw = f"{index}:{timestamp}:{prev_hash}:{agent_id}:{event_type}:{payload_hash}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
 
 class AuditChainRecorder:
     """Recorder maintaining the append-only cryptographic audit chain."""
@@ -430,7 +425,6 @@ class AuditChainRecorder:
             "head_block_hash": chain[-1]["block_hash"],
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Cryptographic Merkle Audit Chain & Block Signer (T-553)"
@@ -494,7 +488,6 @@ def main() -> int:
         print(json.dumps(result, indent=2))
 
     return 0 if result.get("success", True) or result.get("valid", True) else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestSubagentCgroups(unittest.TestCase):
     """Test suite for subagent Bubblewrap isolation, cgroup enforcement, and path escape detection."""
 
@@ -137,7 +136,6 @@ class TestSubagentCgroups(unittest.TestCase):
         with patch.object(sys, "argv", ["mios_subagent_sandbox.py", "--dry-run", "--json"]):
             code = mios_subagent_sandbox.main()
             self.assertEqual(code, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

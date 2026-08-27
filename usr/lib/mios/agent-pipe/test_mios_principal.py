@@ -9,7 +9,6 @@ import unittest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from mios_pipe.identity.principal import text_digest, build_claims, build_metadata, verify, TABLE, METADATA_KEY
 
-
 class TestPrincipal(unittest.TestCase):
     """Test signed A2A delegation principal claims and digests."""
 
@@ -51,7 +50,6 @@ class TestPrincipal(unittest.TestCase):
         verdict, reason, claims = verify(None, "text", verify_fn=lambda p, c: (True, "ok"))
         self.assertIsNone(verdict)
         self.assertEqual(reason, "absent")
-
 
 if __name__ == "__main__":
     unittest.main()

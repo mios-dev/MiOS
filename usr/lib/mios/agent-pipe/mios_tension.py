@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-
 class TensionLedger:
     """Maintains objection records and resolution status during agent deliberation."""
 

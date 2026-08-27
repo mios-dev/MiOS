@@ -24,7 +24,6 @@ from typing import Any, Dict, List, Optional, Tuple
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-opal-luks")
 
-
 @dataclass
 class PartitionSpec:
     """Specification for a disk partition."""
@@ -34,7 +33,6 @@ class PartitionSpec:
     mount_point: str
     encrypted_type: str = "none"  # "opal2", "luks2", "none"
     part_num: int = 1
-
 
 @dataclass
 class DiskDevice:
@@ -53,14 +51,12 @@ class DiskDevice:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
-
 DEFAULT_LAYOUT: List[PartitionSpec] = [
     PartitionSpec(name="ESP", size_gb=1.0, fs_type="vfat", mount_point="/boot/efi", encrypted_type="none", part_num=1),
     PartitionSpec(name="MiOS-Root", size_gb=64.0, fs_type="ext4", mount_point="/", encrypted_type="luks2", part_num=2),
     PartitionSpec(name="MiOS-Home", size_gb=200.0, fs_type="xfs", mount_point="/var/home", encrypted_type="luks2", part_num=3),
     PartitionSpec(name="MiOS-Data", size_gb=0.0, fs_type="xfs", mount_point="/var/lib/pgsql", encrypted_type="luks2", part_num=4),
 ]
-
 
 class OpalLuksPartitionEngine:
     """Engine managing OPAL 2.0 SED hardware encryption, LUKS2, and GPT partitioning."""
@@ -410,7 +406,6 @@ class OpalLuksPartitionEngine:
             "message": f"GPT partition table successfully written to {disk_path}.",
         }
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MiOS Hardware OPAL 2.0 SED & LUKS2 TPM Partitioning Engine (T-549)")
     parser.add_argument("--scan", action="store_true", help="Scan and list storage devices with SED and LUKS status")
@@ -421,7 +416,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mock", action="store_true", help="Run with simulated storage devices for safe testing")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
     return parser.parse_args()
-
 
 def main() -> int:
     args = parse_args()
@@ -476,7 +470,6 @@ def main() -> int:
         if args.json:
             print(json.dumps({"status": "error", "error": str(e)}, indent=2))
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

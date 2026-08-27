@@ -10,13 +10,11 @@ import mios_evict as ev
 _fails = 0
 TABLE = "knowledge"
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_where_parameterized():
     w = ev.evict_where(with_ttl=False)
@@ -29,7 +27,6 @@ def t_where_parameterized():
     wt = ev.evict_where(with_ttl=True)
     check("where: TTL predicate parameterized", "make_interval(days => %(ttl_days)s)" in wt)
     check("where: no interpolated literal Nd", "90d" not in wt)
-
 
 def t_sql_shapes():
     where = ev.evict_where(with_ttl=True)
@@ -45,12 +42,10 @@ def t_sql_shapes():
           dsql == "DELETE FROM knowledge WHERE id = ANY(%(ids)s)", dsql)
     check("delete: no legacy 'DELETE knowledge:'", "knowledge:" not in dsql)
 
-
 def t_params():
     p = ev.evict_params(2, 90, 50)
     check("params: typed", p == {"min_access": 2, "ttl_days": 90, "limit": 50})
     check("params: limit floored >=0", ev.evict_params(0, 0, -5)["limit"] == 0)
-
 
 def t_parse():
     check("parse_count: pulls c", ev.parse_count([{"c": 42}]) == 42)
@@ -60,7 +55,6 @@ def t_parse():
     check("parse_ids: skips non-int", ev.parse_ids([{"id": 5}, {"id": None}, {"nope": 1}]) == [5])
     check("parse_ids: empty -> []", ev.parse_ids([]) == [])
 
-
 def t_plan_sweep():
     p = ev.plan_sweep(total=1000, ttl_candidates=30, max_rows=900, batch=50)
     check("plan: ttl within batch", p["ttl_delete"] == 30)
@@ -68,7 +62,6 @@ def t_plan_sweep():
     check("plan: cap uses remaining batch", p["cap_delete"] == 20)
     p2 = ev.plan_sweep(total=100, ttl_candidates=0, max_rows=900, batch=50)
     check("plan: no overflow -> no cap delete", p2["overflow"] == 0 and p2["cap_delete"] == 0)
-
 
 def main():
     t_where_parameterized()
@@ -78,7 +71,6 @@ def main():
     t_plan_sweep()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

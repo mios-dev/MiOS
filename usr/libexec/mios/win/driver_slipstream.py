@@ -45,7 +45,6 @@ KNOWN_DEVICE_CLASSES = {
     "Display": "Display Adapter",
 }
 
-
 @dataclass
 class DriverPackage:
     """Discovered driver package (.inf) and its parsed hardware metadata."""
@@ -60,7 +59,6 @@ class DriverPackage:
     has_catalog: bool = False
     is_valid: bool = True
 
-
 @dataclass
 class DismCommandPlan:
     """Constructed DISM servicing command sequence."""
@@ -71,7 +69,6 @@ class DismCommandPlan:
     mount_command: str
     add_driver_command: str
     unmount_command: str
-
 
 class DriverSlipstreamEngine:
     """Indexes driver repositories and drives WIM driver injection."""
@@ -277,7 +274,6 @@ class DriverSlipstreamEngine:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Windows Wi-Fi, Ethernet & VirtIO Driver Slipstream Servicer"
@@ -320,7 +316,6 @@ def main() -> int:
         else:
             print(f"[driver_slipstream] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -242,7 +242,6 @@ function Invoke-LegacyScript {
     if ($LASTEXITCODE -ne 0) { throw "$Script failed with exit $LASTEXITCODE" }
 }
 
-
 $script:_BuildScriptInvoked = $false
 
 function Invoke-BuildScriptOnce {

@@ -11,16 +11,13 @@ from mios_grounding import _capability_grounding
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _VERB_CATALOG: dict = {}
 _MODEL_NAME_TO_VERB: dict = {}
 CATALOG_FAIL_MODE = "warn"
 
-
 _INJECTED = frozenset((
     "_VERB_CATALOG", "_MODEL_NAME_TO_VERB", "CATALOG_FAIL_MODE",
 ))
-
 
 def configure(**deps) -> None:
     """Inject the server-owned catalog globals + config under their EXACT original
@@ -32,7 +29,6 @@ def configure(**deps) -> None:
     for _k, _v in deps.items():
         if _k in _INJECTED:
             g[_k] = _v
-
 
 def _normalize_verb_catalog_entry(entry: dict) -> dict:
     if not isinstance(entry, dict):
@@ -53,7 +49,6 @@ def _normalize_verb_catalog_entry(entry: dict) -> dict:
                 norm_params[k] = v
         entry["params"] = norm_params
     return entry
-
 
 def _load_verb_catalog() -> dict:
     """Parse mios.toml [verbs.*] sections into the canonical verb
@@ -211,9 +206,7 @@ def _load_verb_catalog() -> dict:
 
     return cat
 
-
 _DB_UNREACHABLE = False
-
 
 def _load_verb_catalog_from_db() -> dict:
     global _DB_UNREACHABLE
@@ -313,7 +306,6 @@ def _load_verb_catalog_from_db() -> dict:
         return {}
     return cat
 
-
 def _normalize_verb_catalog_entry(vcfg: dict) -> dict:
     import copy
     v = copy.deepcopy(vcfg)
@@ -406,7 +398,6 @@ def _normalize_verb_catalog_entry(vcfg: dict) -> dict:
         v["params"] = None
     return v
 
-
 def _compare_catalogs(toml_cat: dict, db_cat: dict) -> set[str]:
     divs = set()
     for vname in set(toml_cat.keys()) | set(db_cat.keys()):
@@ -424,7 +415,6 @@ def _compare_catalogs(toml_cat: dict, db_cat: dict) -> set[str]:
                 divs.add(f"verbs.{vname}")
     return divs
 
-
 def _verb_arg_synonyms_from_catalog(cat: dict) -> dict:
     """Project verb catalog's per-arg `aliases` lists into the legacy
     {verb: {arg: [alias,...]}} shape `_arg_with_synonyms` consumes.
@@ -441,7 +431,6 @@ def _verb_arg_synonyms_from_catalog(cat: dict) -> dict:
             if aliases:
                 syn.setdefault(vname, {})[str(argname)] = [str(a) for a in aliases]
     return syn
-
 
 def _render_verb_catalog(cat: dict, include_rare: bool = True) -> str:
     """Render the verb catalog as the prose block the planner consumes.
@@ -469,7 +458,6 @@ def _render_verb_catalog(cat: dict, include_rare: bool = True) -> str:
         parts.append("")
     return "\n".join(parts).rstrip()
 
-
 def _identity_answer() -> str:
     cap = _capability_grounding(_VERB_CATALOG)
     if not cap:
@@ -485,11 +473,9 @@ def _identity_answer() -> str:
             "area:\n\n" + body + "\n\nJust ask in plain English and I'll pick the "
             "right tools to do it.")
 
-
 def _load_verb_arg_synonyms() -> dict:
     """Compat shim -- existing callers still hit this name."""
     return _verb_arg_synonyms_from_catalog(_VERB_CATALOG)
-
 
 def _build_model_name_map(cat: dict) -> dict:
     rev: dict = {}
@@ -538,7 +524,6 @@ def _build_model_name_map(cat: dict) -> dict:
                 + "; ".join(collisions))
     return rev
 
-
 def _resolve_verb_key(name: str) -> str:
     """Map a model-facing tool name (possibly a P1 model_name alias) back to its
     canonical verb key. Identity for names that are already keys or unknown. Cheap +
@@ -548,7 +533,6 @@ def _resolve_verb_key(name: str) -> str:
     if name in _VERB_CATALOG:
         return name
     return _MODEL_NAME_TO_VERB.get(name, name)
-
 
 def _load_recipe_catalog() -> dict:
     out: dict = {}
@@ -570,7 +554,6 @@ def _load_recipe_catalog() -> dict:
             raise
     return out
 
-
 def _render_recipe_catalog(rec: dict) -> str:
     if not rec:
         return ""
@@ -582,7 +565,6 @@ def _render_recipe_catalog(rec: dict) -> str:
         lines.append(f"  {name}({args})".ljust(34)
                      + f"-- {cfg.get('description', '')}{tag}")
     return "\n".join(lines)
-
 
 def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
     args_raw = cfg.get("args") or []
@@ -631,7 +613,6 @@ def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
         "x-mios-recipe": name,
         "x-mios-permission": cfg.get("permission", "read"),
     }
-
 
 def _verb_to_openai_tool(vname: str, vcfg: dict) -> dict:
     props: dict = {}

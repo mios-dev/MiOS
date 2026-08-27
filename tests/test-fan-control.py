@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from fand import MultiZonePIDFanController, FanZoneConfig
 
-
 class TestFanControl(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-fan-test-")
@@ -112,7 +111,6 @@ class TestFanControl(unittest.TestCase):
         status = self.controller.get_status()
         self.assertEqual(status["hysteresis_deg"], 5.0)
         self.assertIn("cpu", status["zones"])
-
 
 if __name__ == "__main__":
     unittest.main()

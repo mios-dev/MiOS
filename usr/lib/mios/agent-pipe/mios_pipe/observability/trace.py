@@ -8,16 +8,13 @@ import time
 import uuid
 from typing import Dict, List, Optional
 
-
 def new_trace_id() -> str:
     """A fresh trace id (16 hex chars)."""
     return uuid.uuid4().hex[:16]
 
-
 def new_span_id() -> str:
     """A fresh span id (8 hex chars)."""
     return uuid.uuid4().hex[:8]
-
 
 class Span:
     """One timed stage within a trace."""
@@ -66,7 +63,6 @@ class Span:
             "duration_ms": self.duration_ms,
             "attrs": self.attrs,
         }
-
 
 class Tracer:
     """Bounded in-memory span buffer + id factory for one agent-pipe process."""

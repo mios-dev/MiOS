@@ -10,14 +10,12 @@ import mios_trace as tr
 
 _fails = 0
 
-
 def check(name: str, cond: bool, detail: str = "") -> None:
     global _fails
     tag = "PASS" if cond else "FAIL"
     if not cond:
         _fails += 1
     print(f"[{tag}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_ids():
     a = {tr.new_trace_id() for _ in range(200)}
@@ -26,7 +24,6 @@ def t_ids():
     check("ids: span ids unique", len(b) == 200)
     check("ids: trace id len 16", len(tr.new_trace_id()) == 16)
     check("ids: span id len 8", len(tr.new_span_id()) == 8)
-
 
 def t_span_lifecycle():
     s = tr.Span("t1", "s1", "", "route", {"k": "v"})
@@ -45,12 +42,10 @@ def t_span_lifecycle():
           "name", "status", "duration_ms", "ts", "attrs"})
     check("span: attrs preserved", dd["attrs"] == {"k": "v"})
 
-
 def t_error_status():
     s = tr.Span("t", "s", "", "dispatch")
     s.finish("error", "ValueError")
     check("span: error status + name", s.status == "error" and s.error == "ValueError")
-
 
 def t_record_and_get():
     T = tr.Tracer(enabled=True, max_traces=8, max_spans_per_trace=8)
@@ -64,13 +59,11 @@ def t_record_and_get():
     check("buffer: parent linkage intact", spans[1]["parent_id"] == "r")
     check("buffer: unknown trace -> []", T.get_trace("nope") == [])
 
-
 def t_disabled_noop():
     T = tr.Tracer(enabled=False)
     T.record(tr.Span("x", "y", "", "n").finish())
     check("disabled: records nothing", T.get_trace("x") == [])
     check("disabled: stats enabled False", T.stats()["enabled"] is False)
-
 
 def t_span_cap():
     T = tr.Tracer(enabled=True, max_traces=8, max_spans_per_trace=3)
@@ -82,7 +75,6 @@ def t_span_cap():
     check("cap: recent() reports total seen past the cap",
           T.recent(1)[0]["seen"] == 10, f"{T.recent(1)}")
 
-
 def t_trace_eviction():
     T = tr.Tracer(enabled=True, max_traces=3, max_spans_per_trace=8)
     for i in range(5):
@@ -90,7 +82,6 @@ def t_trace_eviction():
     check("evict: at most max_traces retained", T.stats()["traces"] == 3, f"{T.stats()}")
     check("evict: oldest trace dropped", T.get_trace("tr0") == [] and T.get_trace("tr1") == [])
     check("evict: newest traces kept", len(T.get_trace("tr4")) == 1)
-
 
 def t_lru_touch():
     T = tr.Tracer(enabled=True, max_traces=2, max_spans_per_trace=8)
@@ -102,7 +93,6 @@ def t_lru_touch():
     check("lru: untouched trace B evicted", T.get_trace("B") == [])
     check("lru: new trace C present", len(T.get_trace("C")) == 1)
 
-
 def t_recent_shape():
     T = tr.Tracer(enabled=True)
     T.record(tr.Span("z", "r", "", "request").finish())
@@ -112,7 +102,6 @@ def t_recent_shape():
     check("recent: reports root span name", rec[0]["root"] == "request", f"{rec[0]}")
     st = T.stats()
     check("stats: counts traces+spans", st["traces"] == 1 and st["spans"] == 2)
-
 
 def main() -> int:
     t_ids()
@@ -126,7 +115,6 @@ def main() -> int:
     t_recent_shape()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

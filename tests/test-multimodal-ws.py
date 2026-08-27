@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from multimodal_ws import MAX_VOICE_LATENCY_MS, MultiModalStreamingPipeline
 
-
 class TestMultiModalWS(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.pipe = MultiModalStreamingPipeline(dry_run=True)
@@ -29,7 +28,6 @@ class TestMultiModalWS(unittest.IsolatedAsyncioTestCase):
         """Test heavy background vision stream does not push voice latency above 100ms."""
         turn = await self.pipe.process_multimodal_turn("turn_heavy_vis", audio_frames=5, video_frames=10)
         self.assertLess(turn.voice_latency_ms, MAX_VOICE_LATENCY_MS)
-
 
 if __name__ == "__main__":
     unittest.main()

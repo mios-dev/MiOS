@@ -16,7 +16,6 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _is_action_domain = None
 _current_date_str = None
 _current_year = None
@@ -49,7 +48,6 @@ WEB_RESEARCH_USE_NEWS_CATEGORY = False
 WEB_RESEARCH_TIME_RANGE = ""
 WEB_RESEARCH_RECENCY_RANGE = "month"
 WEB_RESEARCH_MAX_ATTEMPTS = 5
-
 
 def configure(*, is_action_domain=None, current_date_str=None, current_year=None,
               anchor_tokens=None, shares_anchor=None, url_has_path=None,
@@ -122,7 +120,6 @@ def configure(*, is_action_domain=None, current_date_str=None, current_year=None
     if web_research_recency_range is not None: WEB_RESEARCH_RECENCY_RANGE = web_research_recency_range
     if web_research_max_attempts is not None: WEB_RESEARCH_MAX_ATTEMPTS = web_research_max_attempts
 
-
 def _url_has_path(u: str) -> bool:
     """True when a URL points DEEPER than a site front page (has a real path) --
     a STRUCTURAL article-vs-homepage signal for ranking news results (no topic /
@@ -136,7 +133,6 @@ def _url_has_path(u: str) -> bool:
     except Exception:  # noqa: BLE001
         return True
 
-
 _MD_IMG_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _EMPTY_LINK_RE = re.compile(r"\[\s*\]\([^)]*\)")
 _NAV_BULLET_RE = re.compile(r"(?m)^\s*[\*\-+]\s*\[[^\]]*\]\([^)]*\)\s*$")
@@ -144,7 +140,6 @@ _INLINE_LINK_RE = re.compile(r"\[([^\]]+)\]\((?:https?|ftp|mailto|javascript)[^)
 _DATA_URI_RE = re.compile(r"\(data:[^)]*\)")
 _EMPTY_BULLET_RE = re.compile(r"(?m)^\s*[\*\-+]\s*[)\]\s]*$")
 _MULTI_BLANK_RE = re.compile(r"\n{3,}")
-
 
 def _clean_web_text(s: str) -> str:
     """Strip structural site-chrome from one fetched page's text so the block
@@ -164,7 +159,6 @@ def _clean_web_text(s: str) -> str:
     except Exception:  # noqa: BLE001 -- never let cleanup break grounding
         return s
 
-
 def _load_anchor_stopwords() -> frozenset:
     """Resolve the anchor stopword screen from SSOT: a CSV env override (rendered from
     mios.toml by the userenv slot map) -> the layered mios.toml [search].anchor_stopwords
@@ -177,12 +171,10 @@ def _load_anchor_stopwords() -> frozenset:
         return frozenset(str(x).strip().lower() for x in _v if str(x).strip())
     return frozenset()
 
-
 _ANCHOR_STOPWORDS = _load_anchor_stopwords()
 _CJK = ("぀-ヿ㄀-ㄯ㐀-䶿一-鿿"
         "豈-﫿가-힯")
 _ANCHOR_TOKEN_RE = re.compile(rf"[{_CJK}]|[^\W_{_CJK}]+")
-
 
 def _anchor_tokens(text: str) -> set:
     """Content tokens of `text` for topical-overlap anchoring: unicode-aware word tokens
@@ -203,14 +195,12 @@ def _anchor_tokens(text: str) -> set:
         out.add(t)
     return out
 
-
 def _shares_anchor(text: str, anchor: set) -> bool:
     """True when `text` shares >=1 content token with `anchor`. Degrades OPEN
     when the anchor is too thin (<2 tokens) to judge -- never over-filter."""
     if len(anchor) < 2:
         return True
     return bool(_anchor_tokens(text) & anchor)
-
 
 _LINK_RANK_DEFAULTS = {
     "link_rank_mode": "heuristic",  # "heuristic" (structural, default) | "embed" (opt-in; degrade-open)
@@ -223,7 +213,6 @@ _LINK_RANK_DEFAULTS = {
     "min_score": 2,       # drop shallow generic / utility links scoring below this
     "top_n": 6,           # keep at most this many ranked article links
 }
-
 
 def _link_rank_cfg() -> dict:
     """Resolve the article-link scorer's mode + weights/thresholds from SSOT
@@ -252,7 +241,6 @@ def _link_rank_cfg() -> dict:
     except Exception:  # noqa: BLE001 -- degrade-open: any error -> full structural defaults
         return dict(_LINK_RANK_DEFAULTS)
     return cfg
-
 
 def _rank_links_by_structure(cands: list, src_url: str, anchor: set,
                              cfg: Optional[dict] = None) -> list:
@@ -288,10 +276,8 @@ def _rank_links_by_structure(cands: list, src_url: str, anchor: set,
     scored.sort(key=lambda x: x[0], reverse=True)
     return [u for _s, u in scored[:cfg["top_n"]]]
 
-
 def _rank_links_embed(cands: list, src_url: str, anchor: set, cfg: dict):
     return None
-
 
 def _rank_links(cands: list, src_url: str, anchor: set,
                 cfg: Optional[dict] = None) -> list:
@@ -312,7 +298,6 @@ def _rank_links(cands: list, src_url: str, anchor: set,
                       exc_info=True)
     return _rank_links_by_structure(cands, src_url, anchor, cfg)
 
-
 def _is_port_open(port: int, host: str = "127.0.0.1") -> bool:
     import socket
     try:
@@ -322,7 +307,6 @@ def _is_port_open(port: int, host: str = "127.0.0.1") -> bool:
             return True
     except Exception:
         return False
-
 
 async def _web_research_enrich(query: str, refined: Optional[dict],
                                emit=None, quick: bool = False) -> str:
@@ -759,7 +743,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             "one; NEVER invent a system spec, price, or fact the content lacks:\n\n"
             + "\n\n".join(blocks))
 
-
 def _src_turn_key() -> str:
     """Stable per-turn key shared by the primary + every council/DAG secondary.
     Prefers the explicit turn-id (propagated to sub-requests) over the per-request
@@ -775,7 +758,6 @@ def _src_turn_key() -> str:
     except Exception:  # noqa: BLE001
         return ""
 
-
 def _src_turn_init() -> None:
     """Open a fresh registry bucket for THIS turn (call once at chat_completions
     entry, after _conv_key_var is set). Trims the registry to its cap."""
@@ -789,7 +771,6 @@ def _src_turn_init() -> None:
                 _SOURCES_REGISTRY.pop(_old, None)
         except Exception:  # noqa: BLE001
             pass
-
 
 def _src_record(items) -> None:
     """Record real (title,url) pairs from a web_search/extract result list into BOTH
@@ -822,7 +803,6 @@ def _src_record(items) -> None:
     except Exception:  # noqa: BLE001 -- never break tool execution
         pass
 
-
 def _src_collected() -> list:
     """Deduped (by url, order-preserved) sources from the contextvar bucket AND the
     turn registry (cross-agent), capped to MAX_SOURCES."""
@@ -848,7 +828,6 @@ def _src_collected() -> list:
             break
     return _out
 
-
 def _sources_markdown(refs: list) -> str:
     """A deterministic '**Sources:**' markdown list of the REAL urls (numbered)."""
     if not refs:
@@ -856,12 +835,10 @@ def _sources_markdown(refs: list) -> str:
     return "\n\n**Sources:**\n" + "\n".join(
         f"{i + 1}. {(_t or _u)[:90]} — {_u}" for i, (_t, _u) in enumerate(refs))
 
-
 def _sources_metadata(refs: list) -> list:
     """Structured citation metadata (operator 'A2A or metadata'): real {n,title,url}
     objects attached to the response so clients render citations from REAL sources."""
     return [{"n": i + 1, "title": _t, "url": _u} for i, (_t, _u) in enumerate(refs)]
-
 
 def _sources_annotations(refs: list, text: str) -> list:
     out: list = []
@@ -883,7 +860,6 @@ def _sources_annotations(refs: list, text: str) -> list:
         })
     return out
 
-
 def _filter_relevant_sources(refs: list, *texts: str) -> list:
     if not refs:
         return refs
@@ -903,11 +879,9 @@ def _filter_relevant_sources(refs: list, *texts: str) -> list:
             _kept.append((_t, _u))
     return _kept if _kept else refs
 
-
 _SRC_LINE_RE = re.compile(
     r"^\s*\d+\.\s+(.*?)\s+[—\-]+\s+(https?://\S+?)\s*$", re.MULTILINE)
 _SRC_URL_RE = re.compile(r"https?://[^\s\)\]\}<>\"']+")
-
 
 def _src_record_from_text(text: str) -> None:
     """Harvest sources from an answer's appended Sources block; fall back to bare
@@ -920,7 +894,6 @@ def _src_record_from_text(text: str) -> None:
         _items = [{"title": "", "url": _u} for _u in _SRC_URL_RE.findall(text)]
     if _items:
         _src_record(_items)
-
 
 def _harvest_sub_sources(rj, content: str) -> None:
     """Pull a dispatched sub-agent's REAL sources into the parent turn: prefer the

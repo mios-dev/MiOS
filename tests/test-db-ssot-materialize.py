@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load materialize-config-toml module from {_MAT_PATH}")
 
-
 class TestDBSSOTMaterialize(unittest.TestCase):
     """Validates TOML key escaping, value formatting, list/dict serialization, and integrity."""
 
@@ -40,12 +39,10 @@ class TestDBSSOTMaterialize(unittest.TestCase):
         self.assertEqual(mat.format_toml_value(["a", "b", 123]), '["a", "b", 123]')
         self.assertEqual(mat.format_toml_value({"port": 8640, "host": "127.0.0.1"}), '{host = "127.0.0.1", port = 8640}')
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestDBSSOTMaterialize)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

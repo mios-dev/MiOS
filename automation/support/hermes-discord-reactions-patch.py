@@ -91,7 +91,6 @@ def _find_target_block(lines: list[str]) -> tuple[int, int]:
             break
     return (start_idx, end_idx)
 
-
 def main(path: str) -> int:
     p = pathlib.Path(path)
     if not p.is_file():
@@ -130,7 +129,6 @@ def main(path: str) -> int:
         f"{len(src)} -> {len(new_src)} chars; replaced "
         f"{end_idx - start_idx} lines)\n")
     return 0
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

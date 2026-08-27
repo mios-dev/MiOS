@@ -24,7 +24,6 @@ logger = logging.getLogger("mios-trace")
 MAX_PROBE_ATTACH_MS = 10.0
 MAX_CPU_OVERHEAD_PCT = 0.20
 
-
 @dataclass
 class TraceProbeResult:
     probe_name: str  # "biosnoop", "tcpretrans", "execsnoop"
@@ -32,7 +31,6 @@ class TraceProbeResult:
     events_captured: int
     cpu_overhead_pct: float
     is_attached: bool
-
 
 class EBPFTracerManager:
     """Manages eBPF probe attachment and real-time latency distribution recording."""
@@ -59,12 +57,10 @@ class EBPFTracerManager:
         )
         return res
 
-
 def main():
     tracer = EBPFTracerManager(dry_run=True)
     res = tracer.attach_probe("biosnoop")
     print(f"Probe: {res.probe_name}, Attach latency: {res.attach_latency_ms:.2f} ms")
-
 
 if __name__ == "__main__":
     main()

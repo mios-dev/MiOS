@@ -21,7 +21,6 @@ DEFAULT_DERP_RELAYS = [
     {"region": "eu-central", "host": "derp3.mios.mesh", "port": 8443, "latency_ms": 65.2},
 ]
 
-
 class NATTraversalEngine:
     """Discovers NAT topology and establishes direct P2P WireGuard / WebRTC channels or DERP relay fallbacks."""
 
@@ -125,7 +124,6 @@ class NATTraversalEngine:
             "tier_details": derp_res,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Tiered NAT Traversal Engine")
     parser.add_argument("--port", type=int, default=51820, help="Local WireGuard / WebRTC port")
@@ -146,7 +144,6 @@ def main():
         res = engine.establish_traversal_channel(peer_endpoint=args.peer)
 
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

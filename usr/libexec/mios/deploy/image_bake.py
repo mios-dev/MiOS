@@ -28,7 +28,6 @@ DEFAULT_HISTORY_PATH = "/var/lib/mios/diffs/bake-history.json"
 DEFAULT_QUARANTINE_PATH = "/var/lib/mios/diffs/quarantine.json"
 DEFAULT_IMAGE_REF = "localhost/mios:latest"
 
-
 def atomic_write_json(target_path: str, data: Any) -> None:
     """Write JSON data to disk using an atomic replace pattern to prevent corruption."""
     parent = os.path.dirname(os.path.abspath(target_path))
@@ -52,7 +51,6 @@ def atomic_write_json(target_path: str, data: Any) -> None:
                 os.remove(tmp_file)
             except OSError:
                 pass
-
 
 class ImageBakeEngine:
     """Engine executing autonomous background OCI image synthesis and deployment staging."""
@@ -409,7 +407,6 @@ class ImageBakeEngine:
         self.record_history(bake_record)
         return bake_record
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="MiOS WS-DIFFCYCLE (T-469) Autonomous Background OCI Image Synthesis Service",
@@ -527,7 +524,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             sys.stderr.write(f"[image-bake] Error: {exc}\n")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

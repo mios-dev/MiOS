@@ -27,7 +27,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestPTPTimeSync(unittest.TestCase):
     """Test suite for PTP time sync capabilities, smooth slewing config generation, and monotonic clock guarantees."""
 
@@ -160,7 +159,6 @@ Hardware Receive Filter Modes:
             data = json.loads(stdout_buf.getvalue())
             self.assertTrue(data["strictly_monotonic"])
             self.assertEqual(data["jitter_status"], "PASS")
-
 
 if __name__ == "__main__":
     unittest.main()

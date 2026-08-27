@@ -13,5 +13,4 @@
 
 The compositor config `usr/share/mios/hyprland/hyprland.conf` hardcodes the entire glass stack:
 
-
 *Audit completed and reconciled against SSOT.*

@@ -9,7 +9,6 @@ from typing import Callable, Optional
 
 from mios_config import _toml_section
 
-
 def _as_int(v, default: int = 0) -> int:
     """Coerce an optional capacity value to int, falling back to ``default`` when it
     is unset/blank/non-numeric (mirrors server._opt_int_mb's tolerant coercion)."""
@@ -22,7 +21,6 @@ def _as_int(v, default: int = 0) -> int:
             return int(default)
         except (TypeError, ValueError):
             return 0
-
 
 def local_blade_name() -> str:
     try:
@@ -37,7 +35,6 @@ def local_blade_name() -> str:
             return str(socket.gethostname() or "").strip()
         except Exception:  # noqa: BLE001
             return ""
-
 
 def load_blade_pool(local_blade: str, local_vram_budget_mb,
                     local_load_ceil: Optional[float] = None) -> dict:
@@ -74,7 +71,6 @@ def load_blade_pool(local_blade: str, local_vram_budget_mb,
             pool[name] = entry
     return pool
 
-
 def endpoint_blade_map(registry: dict, endpoint_key: Callable[[str], str],
                        local_blade: str) -> dict:
     out: dict = {}
@@ -95,7 +91,6 @@ def endpoint_blade_map(registry: dict, endpoint_key: Callable[[str], str],
         out[key] = str(cfg.get("blade") or "").strip() or local_blade
     return out
 
-
 def blade_for_endpoint(ep_blade_map: dict, endpoint_key: Callable[[str], str],
                        ep: str, local_blade: str) -> str:
     """The blade an endpoint lives on; degrade-open to the LOCAL blade when unknown."""
@@ -103,7 +98,6 @@ def blade_for_endpoint(ep_blade_map: dict, endpoint_key: Callable[[str], str],
         return str(ep_blade_map.get(endpoint_key(ep)) or local_blade)
     except Exception:  # noqa: BLE001 -- degrade-open: unknown endpoint -> local blade
         return local_blade
-
 
 def blade_vram_budget(blade_pool: dict, blade_name: str, local_vram_budget_mb) -> int:
     """The VRAM budget (MB) for a blade, degrading OPEN to the LOCAL scalar when the

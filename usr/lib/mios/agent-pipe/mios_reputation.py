@@ -18,13 +18,11 @@ from typing import Any, Callable
 
 log = logging.getLogger(__name__)
 
-
 @dataclass
 class PeerContribution:
     """One peer's moves in a council session."""
     peer_id:  str
     moves:    list[dict[str, Any]] = field(default_factory=list)
-
 
 @dataclass
 class ReputationRecord:
@@ -34,10 +32,8 @@ class ReputationRecord:
     eval_count:  int   = 0
     updated_at:  float = field(default_factory=time.monotonic)
 
-
 # Callable: (session result without peer) -> float quality score
 QualityFn = Callable[[list[PeerContribution], str | None], float]
-
 
 def _default_quality(contributions: list[PeerContribution],
                      exclude_peer: str | None) -> float:
@@ -52,7 +48,6 @@ def _default_quality(contributions: list[PeerContribution],
         return 0.0
     included_moves = sum(len(c.moves) for c in included)
     return included_moves / total_moves
-
 
 class ReputationEngine:
     """

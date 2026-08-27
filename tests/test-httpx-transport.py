@@ -9,7 +9,6 @@ import asyncio
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "mios", "agent-pipe"))
 from mios_httpx import MiOSAsyncHTTPTransport
 
-
 class TestMiOSAsyncHTTPTransport(unittest.TestCase):
     def setUp(self):
         self.transport = MiOSAsyncHTTPTransport(mock_mode=True)
@@ -38,7 +37,6 @@ class TestMiOSAsyncHTTPTransport(unittest.TestCase):
         chunks = asyncio.run(run_stream())
         self.assertEqual(len(chunks), 3)
         self.assertIn("[DONE]", chunks[-1])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,7 +13,6 @@ import unittest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 
-
 class TestRADOSGWGateway(unittest.TestCase):
     """Validates Quadlet container unit definition, port binding, S3 configuration, and localhost isolation."""
 
@@ -80,12 +79,10 @@ class TestRADOSGWGateway(unittest.TestCase):
         self.assertIn("curl", content)
         self.assertIn("8470", content)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestRADOSGWGateway)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -44,10 +44,8 @@ _reclaim_idle_vram = None
 _ENDPOINT_RESERVED: dict = {}
 _dispatch_num = None
 
-
 class _SloShed(Exception):
     """Raised by _admit to SHED a best_effort dispatch under contention (WS-SCHED-SLO)."""
-
 
 def configure(*, priority_queue_enable=None, tenant_quota_enable=None,
               slo_shed_enable=None, admit_enable=None, admit_max_wait=None,
@@ -119,7 +117,6 @@ def configure(*, priority_queue_enable=None, tenant_quota_enable=None,
     if dispatch_num is not None:
         _dispatch_num = dispatch_num
 
-
 def _parse_lane_caps(spec: str) -> dict:
     out: dict = {}
     for part in (spec or "").split(","):
@@ -131,7 +128,6 @@ def _parse_lane_caps(spec: str) -> dict:
             except ValueError:
                 pass
     return out
-
 
 @contextlib.asynccontextmanager
 async def _priority_gate(priority: float):
@@ -157,7 +153,6 @@ async def _priority_gate(priority: float):
         return
     yield
 
-
 def _parse_lane_priority(s: str) -> dict:
     """'gpu:8,cpu:7,...' -> {lane: prio}. Always carries a _default."""
     out = {"_default": 5.0}
@@ -170,7 +165,6 @@ def _parse_lane_priority(s: str) -> dict:
                 pass
     return out
 
-
 def _lane_sem(key: str) -> asyncio.Semaphore:
     """The concurrency gate for ONE hardware lane / engine / node."""
     key = str(key or "gpu").lower().strip() or "gpu"
@@ -181,13 +175,11 @@ def _lane_sem(key: str) -> asyncio.Semaphore:
         _LANE_SEMS[key] = asyncio.Semaphore(max(1, n))
     return _LANE_SEMS[key]
 
-
 def _endpoint_key(ep: str) -> str:
     """host:port of an endpoint URL."""
     s = str(ep or "")
     s = s.split("://", 1)[-1]
     return s.split("/", 1)[0] or s
-
 
 def _endpoint_sem(ep: str) -> asyncio.Semaphore:
     """Concurrency gate for ONE inference endpoint."""
@@ -195,7 +187,6 @@ def _endpoint_sem(ep: str) -> asyncio.Semaphore:
     if key not in _ENDPOINT_SEMS:
         _ENDPOINT_SEMS[key] = asyncio.Semaphore(max(1, ENDPOINT_CONCURRENCY))
     return _ENDPOINT_SEMS[key]
-
 
 async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
                   est_mb: int = 0, *, foreground: bool = True) -> None:

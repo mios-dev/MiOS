@@ -20,11 +20,9 @@ from mios_sched import PriorityGate
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok, detail))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 @contextlib.contextmanager
 def _sched_cfg(cfg: dict, mode_env=None):
@@ -46,7 +44,6 @@ def _sched_cfg(cfg: dict, mode_env=None):
             os.environ.pop("MIOS_SCHED_PRIORITY_MODE", None)
         else:
             os.environ["MIOS_SCHED_PRIORITY_MODE"] = _saved_env
-
 
 async def t_basic_bound() -> None:
     """cap permits issue immediately; the (cap+1)th blocks until a release."""
@@ -71,7 +68,6 @@ async def t_basic_bound() -> None:
     g.release()
     _check("basic: drained to full", g.available == g.cap, f"avail={g.available}")
 
-
 async def t_priority_reorder() -> None:
     """A later HIGH-priority waiter is served before an earlier LOW one."""
     g = PriorityGate(1)
@@ -92,7 +88,6 @@ async def t_priority_reorder() -> None:
     await asyncio.gather(t_low, t_high)
     _check("priority: high before low", order == ["high", "low"], f"order={order}")
 
-
 async def t_fifo_tiebreak() -> None:
     """Equal priority -> earliest arrival wins."""
     g = PriorityGate(1)
@@ -111,7 +106,6 @@ async def t_fifo_tiebreak() -> None:
     g.release()
     await asyncio.gather(a, b)
     _check("fifo tie-break: a before b", order == ["a", "b"], f"order={order}")
-
 
 async def t_anti_starvation() -> None:
     """An aged low-priority waiter is served ahead of a fresh high-priority one."""
@@ -132,7 +126,6 @@ async def t_anti_starvation() -> None:
     await asyncio.gather(t_low, t_high)
     _check("anti-starvation: aged low first", order == ["low", "high"],
            f"order={order}")
-
 
 async def t_cancel_while_queued() -> None:
     """Cancelling a still-queued waiter (case a) leaks no permit."""
@@ -155,7 +148,6 @@ async def t_cancel_while_queued() -> None:
     g.release()
     _check("cancel-queued: no leak", g.available == 1, f"avail={g.available}")
 
-
 async def t_cancel_after_grant() -> None:
     """Cancelling a just-granted waiter (case b) hands the permit back."""
     g = PriorityGate(1)
@@ -177,7 +169,6 @@ async def t_cancel_after_grant() -> None:
     _check("cancel-granted: no leak",
            g.queued == 0 and g.available == 1,
            f"queued={g.queued} avail={g.available}")
-
 
 async def t_cap_never_exceeded() -> None:
     """Under heavy mixed-priority load the cap is never exceeded."""
@@ -203,8 +194,6 @@ async def t_cap_never_exceeded() -> None:
     _check("load: all completed", done == 40, f"done={done}")
     _check("load: drained to full", g.available == cap, f"avail={g.available}")
 
-
-
 async def t_tenant_default_off() -> None:
     """tenant_cap=0 (the default) -> the tenant arg is inert: pick is PURE priority and
     nothing is tracked, byte-identical to the pre-V5 gate."""
@@ -226,7 +215,6 @@ async def t_tenant_default_off() -> None:
     _check("tenant default-off: pure priority (tenant ignored)", order == ["high", "low"],
            f"order={order}")
     _check("tenant default-off: nothing tracked", g.tenant_inflight("A") == 0)
-
 
 async def t_tenant_fair_share() -> None:
     """Under contention, a freed slot goes to a tenant UNDER its cap even over a
@@ -271,7 +259,6 @@ async def t_tenant_fair_share() -> None:
            g.available == g.cap and g.tenant_inflight("A") == 0
            and g.tenant_inflight("B") == 0, f"avail={g.available}")
 
-
 async def t_tenant_degrade_open() -> None:
     """When the ONLY live waiter's tenant is at its cap, the gate degrades OPEN and
     serves it anyway -- the per-tenant cap must NEVER wedge admission."""
@@ -293,7 +280,6 @@ async def t_tenant_degrade_open() -> None:
            order == ["A2"], f"order={order}")
     g.release(tenant="A")
     _check("tenant degrade-open: drained to full", g.available == g.cap, f"avail={g.available}")
-
 
 async def t_tenant_none_uncapped() -> None:
     """A None tenant (system/daemon, no forwarded owner) is NEVER capped -> pure priority
@@ -317,8 +303,6 @@ async def t_tenant_none_uncapped() -> None:
            f"order={order}")
     _check("tenant none-uncapped: None never tracked", g.tenant_inflight(None) == 0)
 
-
-
 def _configure_helpers(*, offload_cpu: bool = False, slow_cap: int = 12,
                        default_cap: int = 24, agent_lane=None) -> None:
     M.configure(
@@ -331,7 +315,6 @@ def _configure_helpers(*, offload_cpu: bool = False, slow_cap: int = 12,
         _OFFLOAD_ENGINES=("cpu", "igpu", "accelerator"),
         _agent_lane=agent_lane if agent_lane is not None else (lambda cfg: "gpu"),
     )
-
 
 async def t_lane_tool_cap() -> None:
     """Explicit per-lane entry > slow-lane fallback > DEFAULT_TOOL_CAP; slow_cap=0 opts out."""
@@ -348,7 +331,6 @@ async def t_lane_tool_cap() -> None:
     _check("lane_tool_cap: slow_cap=0 -> default", M._lane_tool_cap("cpu") == 24,
            f"got={M._lane_tool_cap('cpu')}")
 
-
 async def t_agent_offload_engine() -> None:
     """Off -> None always; on -> first _OFFLOAD_ENGINES member present, else None."""
     _configure_helpers(offload_cpu=False)
@@ -364,7 +346,6 @@ async def t_agent_offload_engine() -> None:
            M._agent_offload_engine({"engines": {"gpu": {}}}) is None)
     _check("offload_engine: missing engines key -> None",
            M._agent_offload_engine({}) is None)
-
 
 async def t_resolve_autonomous_priority() -> None:
     """Numeric env wins; a word maps via _AUTO_PRIO_WORDS; unknown -> 1.0 floor."""
@@ -385,7 +366,6 @@ async def t_resolve_autonomous_priority() -> None:
             os.environ.pop("MIOS_AUTONOMOUS_PRIORITY", None)
         else:
             os.environ["MIOS_AUTONOMOUS_PRIORITY"] = _saved
-
 
 async def t_sched_priority() -> None:
     """DEFAULT path (empty [sched]) reproduces the historical scoring byte-for-byte.
@@ -409,7 +389,6 @@ async def t_sched_priority() -> None:
         cx = M._sched_priority({"tasks": [1, 2, 3], "hint_tools": [1, 2, 3, 4]})
         _check("sched_priority: complexity from steps+hints", cx["complexity"] == 6,
                f"got={cx}")
-
 
 async def t_sched_priority_ssot_override() -> None:
     """An injected [sched] table changes the tiers + weights as configured (proves the
@@ -440,7 +419,6 @@ async def t_sched_priority_ssot_override() -> None:
                M._sched_priority({"intent": "dispatch"})["urgency"] == 6,
                f"got={M._sched_priority({'intent': 'dispatch'})}")
 
-
 async def t_sched_priority_model_hook() -> None:
     """priority_mode='model' PREFERS an already-present numeric refined.urgency /
     refined.complexity over the lexical scan; an absent signal falls back to lexical.
@@ -458,7 +436,6 @@ async def t_sched_priority_model_hook() -> None:
         _check("sched_model: ssot mode ignores numeric urgency (byte-identical)",
                ss["urgency"] == 5, f"got={ss}")
 
-
 async def t_sched_priority_unicode() -> None:
     """Urgency matching is Unicode-casefold, not ASCII-gated: a non-ASCII SSOT term
     matches a differently-cased input where a plain .lower() would NOT (casefold folds
@@ -472,7 +449,6 @@ async def t_sched_priority_unicode() -> None:
         _check("sched_unicode: non-member -> default urgency", miss["urgency"] == 5,
                f"got={miss}")
 
-
 async def t_lane_sem_key() -> None:
     """sub_lane > custom lane > delegate to _agent_lane for a base category."""
     _configure_helpers(agent_lane=lambda cfg: "delegated")
@@ -484,7 +460,6 @@ async def t_lane_sem_key() -> None:
            f"got={M._lane_sem_key({'lane': 'gpu'})}")
     _check("lane_sem_key: no lane delegates to _agent_lane",
            M._lane_sem_key({}) == "delegated")
-
 
 async def main() -> int:
     for t in (t_basic_bound, t_priority_reorder, t_fifo_tiebreak,
@@ -500,7 +475,6 @@ async def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

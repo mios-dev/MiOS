@@ -9,7 +9,6 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from mios_pipe.routing.dag_validate import validate_dag, DAGValidationVerdict
 
-
 class TestDAGValidate(unittest.TestCase):
     """Test Kahn topological classification and validation over plan nodes."""
 
@@ -88,7 +87,6 @@ class TestDAGValidate(unittest.TestCase):
         self.assertFalse(verdict.is_valid)
         self.assertIn(verdict.status, ("orphan_roots", "cycle_nodes"))
         self.assertEqual(len(verdict.remediation_order), 3)
-
 
 if __name__ == "__main__":
     unittest.main()

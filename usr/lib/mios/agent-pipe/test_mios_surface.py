@@ -20,25 +20,20 @@ A_CONST = 1
 B_CONST, C_CONST = 2, 3
 TYPED: int = 4
 
-
 @app.get("/health")
 def health():
     return "ok"
-
 
 @app.post("/v1/chat/completions")
 async def chat_completions(req):
     return req
 
-
 @app.middleware("http")
 async def _mw(request, call_next):
     return await call_next(request)
 
-
 def scrub(x):  # defined locally here, BEFORE the move
     return x
-
 
 class Widget:
     def method(self):  # nested def must NOT appear as a top-level name
@@ -52,13 +47,11 @@ _AFTER_MOVE = _BEFORE.replace(
     "def scrub(x):  # defined locally here, BEFORE the move\n    return x\n\n\n", "",
 )
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _project(src):
     fd, path = tempfile.mkstemp(suffix=".py")
@@ -68,7 +61,6 @@ def _project(src):
         return s.project_surface(path)
     finally:
         os.unlink(path)
-
 
 def _project_package(files, entry):
     """Write a synthetic multi-file package to a fresh temp dir, project the whole
@@ -83,7 +75,6 @@ def _project_package(files, entry):
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
-
 def t_routes():
     proj = _project(_BEFORE)
     routes = set(proj["routes"])
@@ -92,7 +83,6 @@ def t_routes():
     check("route: middleware is NOT a route", not any("_mw" in r for r in routes), routes)
     check("route: exactly 2 routes", proj["counts"]["routes"] == 2, str(proj["counts"]))
     check("route: sorted", proj["routes"] == sorted(proj["routes"]))
-
 
 def t_provided():
     prov = set(_project(_BEFORE)["provided"])
@@ -104,7 +94,6 @@ def t_provided():
     check("provided: plain import binds top pkg (os)", "os" in prov)
     check("provided: from-import names", {"scrub", "_xlate"} <= prov)
 
-
 def t_move_reimport_zero_diff():
     before = _project(_BEFORE)
     after = _project(_AFTER_MOVE)
@@ -112,7 +101,6 @@ def t_move_reimport_zero_diff():
     check("move: scrub still provided after (via import)", "scrub" in set(after["provided"]))
     diffs = s.diff_surface(after, before)
     check("move+reimport is ZERO-diff", diffs == [], " | ".join(diffs))
-
 
 def t_real_drop():
     before = _project(_BEFORE)
@@ -126,7 +114,6 @@ def t_real_drop():
     check("drop: REMOVED symbol flagged", "REMOVED 'removed_symbol'" in blob, blob)
     check("identical == clean", s.diff_surface(before, before) == [])
 
-
 _ROUTER_FIXTURE = '''\
 from fastapi import APIRouter
 
@@ -134,36 +121,29 @@ r = APIRouter(prefix="/v1/x")
 empty = APIRouter(prefix="")
 orphan = APIRouter(prefix="/orphan")
 
-
 @r.get("/y")
 def handler_y():
     return 1
-
 
 @r.post("/z")
 async def handler_z(req):
     return req
 
-
 @empty.get("/e")
 def handler_e():
     return 2
-
 
 @orphan.get("/o")
 def handler_o():
     return 3
 
-
 @app.get("/plain")
 def plain_handler():
     return 4
 
-
 app.include_router(r, prefix="/api")
 app.include_router(empty)
 '''
-
 
 def t_router_routes():
     routes = set(_project(_ROUTER_FIXTURE)["routes"])
@@ -173,7 +153,6 @@ def t_router_routes():
     check("router: un-mounted uses router prefix only", "GET /orphan/o -> handler_o" in routes, routes)
     check("router: @app route unchanged alongside routers", "GET /plain -> plain_handler" in routes, routes)
     check("router: no mis-ordered path", not any("/v1/x/api" in rt for rt in routes), routes)
-
 
 def t_router_method_set_matches_app():
     methods = list(s._ROUTE_METHODS)
@@ -190,7 +169,6 @@ def t_router_method_set_matches_app():
     check("router covers the full recognised method set", len(router_methods) == len(methods),
           f"{len(router_methods)} of {len(methods)}")
 
-
 def t_app_to_router_zero_diff():
     as_app = _project('@app.get("/api/v1/x/y")\ndef h():\n    return 1\n')
     as_router = _project(
@@ -206,7 +184,6 @@ def t_app_to_router_zero_diff():
           set(as_app["routes"]) == set(as_router["routes"]),
           f"{as_app['routes']} vs {as_router['routes']}")
 
-
 def t_router_dynamic_prefix():
     routes = set(_project(
         'PFX = make_prefix()\n'
@@ -217,23 +194,19 @@ def t_router_dynamic_prefix():
     )["routes"])
     check("dynamic prefix collapses path to <dynamic>", "GET <dynamic> -> h" in routes, routes)
 
-
 _PKG_MOD_X = '''\
 from fastapi import APIRouter
 
 router_x = APIRouter(prefix="/v1/x")
 
-
 @router_x.get("/y")
 def handler_y():
     return 1
-
 
 @router_x.post("/z")
 async def handler_z(req):
     return req
 '''
-
 
 def t_package_cross_file_include():
     files = {
@@ -258,7 +231,6 @@ def t_package_cross_file_include():
     prov = set(proj["provided"])
     check("package: provided is entry-only (sibling handler absent)",
           "handler_y" not in prov and "router_x" in prov, sorted(prov))
-
 
 def t_package_app_to_sibling_zero_diff():
     as_app = _project('@app.get("/api/v1/x/y")\ndef h():\n    return 1\n')
@@ -287,7 +259,6 @@ def t_package_app_to_sibling_zero_diff():
           set(as_app["routes"]) == set(as_pkg["routes"]),
           f"{as_app['routes']} vs {as_pkg['routes']}")
 
-
 def t_package_one_level_nesting():
     files = {
         "mios_nest.py": (
@@ -313,7 +284,6 @@ def t_package_one_level_nesting():
     check("package nesting: child composed /api/p/sub/c/leaf",
           "GET /api/p/sub/c/leaf -> leaf_handler" in routes, routes)
 
-
 def t_package_unresolved_degrades():
     files = {
         "mios_routes_x.py": _PKG_MOD_X,
@@ -335,7 +305,6 @@ def t_package_unresolved_degrades():
     check("package unresolved: deterministic across repeated calls",
           _project_package(files, "entry.py") == proj)
 
-
 def t_package_dynamic_mount_degrades():
     files = {
         "mios_routes_x.py": _PKG_MOD_X,
@@ -350,7 +319,6 @@ def t_package_dynamic_mount_degrades():
     routes = set(_project_package(files, "entry.py")["routes"])
     check("package dynamic mount: path collapses, handler preserved",
           "GET <dynamic> -> handler_y" in routes, routes)
-
 
 def t_package_superset_of_surface_on_current_tree():
     server = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
@@ -372,7 +340,6 @@ def t_package_superset_of_surface_on_current_tree():
     check("package preserves the provided count",
           pkg["counts"]["provided"] == surf["counts"]["provided"], str(pkg["counts"]))
 
-
 def main():
     t_routes()
     t_provided()
@@ -390,7 +357,6 @@ def main():
     t_package_superset_of_surface_on_current_tree()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

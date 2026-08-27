@@ -24,7 +24,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-
 @dataclass
 class FIDO2Device:
     path: str
@@ -36,7 +35,6 @@ class FIDO2Device:
     resident_keys_supported: bool = True
     serial_number: Optional[str] = None
 
-
 @dataclass
 class U2FKeyMapping:
     username: str
@@ -44,7 +42,6 @@ class U2FKeyMapping:
     public_key: str
     user_presence: str = "+presence"
     pin_verification: str = "+pin"
-
 
 class FIDO2SecurityManager:
     """Manages FIDO2 authenticators, PAM enrollment, and SSH security key synthesis."""
@@ -186,7 +183,6 @@ class FIDO2SecurityManager:
         except Exception as exc:
             return False, {"error": str(exc)}
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS FIDO2 & Security Key Manager")
     parser.add_argument("--discover", action="store_true", help="List connected FIDO2 authenticators")
@@ -236,7 +232,6 @@ def main() -> int:
             print(f"  - {d.product_name} ({d.manufacturer}) at {d.path} [PIN: {d.pin_required}]")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

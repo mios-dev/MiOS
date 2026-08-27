@@ -11,19 +11,16 @@ import mios_batch as mb
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def t_key():
     check("key: strips scheme + /v1", mb.batch_key("http://localhost:8442/v1", "mios-heavy") == "localhost:8442|mios-heavy")
     check("key: bare endpoint", mb.batch_key("localhost:8450", "x") == "localhost:8450|x")
     check("key: distinct models differ", mb.batch_key("e", "a") != mb.batch_key("e", "b"))
-
 
 def t_native_bypass():
     hints = ["8442", "8441", "8450"]  # SGLang / vLLM / llama-swap local lanes
@@ -32,7 +29,6 @@ def t_native_bypass():
     check("native: llama.cpp lane bypassed", mb.is_native_batch("http://localhost:8450/v1", hints) is True)
     check("non-native: remote API NOT bypassed", mb.is_native_batch("https://api.example.com/v1", hints) is False)
     check("non-native: empty hints -> nothing bypassed", mb.is_native_batch("http://localhost:8442", []) is False)
-
 
 def t_window_size():
     w = mb.CoalesceWindow(interval_s=10.0, max_size=3)
@@ -43,7 +39,6 @@ def t_window_size():
     check("window: at max_size -> flush", w.should_flush(0.3) is True)
     check("window: flush returns count + resets", w.flush() == 3 and w.pending == 0)
 
-
 def t_window_interval():
     w = mb.CoalesceWindow(interval_s=0.05, max_size=100)
     w.add(1000.0)
@@ -52,7 +47,6 @@ def t_window_interval():
     w0 = mb.CoalesceWindow(interval_s=0.0, max_size=100)
     w0.add(0.0)
     check("window: zero interval -> immediate flush", w0.should_flush(0.0) is True)
-
 
 async def _coalescer_cases():
     C = mb.Coalescer
@@ -104,10 +98,8 @@ async def _coalescer_cases():
           a["group_size"] == 1 and b["group_size"] == 1, f"{a} {b}")
     check("coalescer: sequential holds leave nothing behind", c.open_groups == 0)
 
-
 def t_coalescer():
     asyncio.run(_coalescer_cases())
-
 
 def main():
     t_key()
@@ -117,7 +109,6 @@ def main():
     t_coalescer()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

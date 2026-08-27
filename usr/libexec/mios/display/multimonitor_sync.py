@@ -44,7 +44,6 @@ SYNTHETIC_PRESETS: Dict[str, List[Dict[str, Any]]] = {
     ],
 }
 
-
 class MultiMonitorSyncManager:
     """Calculates multi-head display geometry, IVSHMEM allocation, cursor warp, and launchers."""
 
@@ -340,7 +339,6 @@ class MultiMonitorSyncManager:
             "mock": mock or os.name == "nt",
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Multi-Monitor Looking Glass Display Geometry & Synchronizer Utility."
@@ -443,7 +441,6 @@ def main() -> int:
         sys.stdout.write(result_text + ("\n" if not result_text.endswith("\n") else ""))
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

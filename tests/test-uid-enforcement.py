@@ -19,7 +19,6 @@ except ImportError:
     uid_enforce = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(uid_enforce)
 
-
 class TestUidEnforcement(unittest.TestCase):
     def test_generate_sysusers_remediation(self):
         conf = uid_enforce.generate_sysusers_remediation("mios", 1000)
@@ -57,7 +56,6 @@ class TestUidEnforcement(unittest.TestCase):
     def test_subuid_subgid_parsing(self):
         res = uid_enforce.check_subuid_subgid("nonexistent_user_xyz")
         self.assertFalse(res["subuid_valid"])
-
 
 if __name__ == "__main__":
     unittest.main()

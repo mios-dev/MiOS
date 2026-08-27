@@ -23,7 +23,6 @@ SESSION_PREFIX = "mios-"
 _SAFE = re.compile(r"[^A-Za-z0-9_-]+")
 _NONCE_RE = re.compile(r"^[0-9a-f]{16,}$")
 
-
 def session_key(session_id, *, max_len: int = 48) -> str:
     """A tmux-safe session name: unsafe chars collapse, namespaced, length-capped
     with a digest tail so two long ids never collide. See ch56."""
@@ -39,24 +38,20 @@ def session_key(session_id, *, max_len: int = 48) -> str:
         cleaned = cleaned[: max_len - 9] + "-" + digest
     return SESSION_PREFIX + cleaned
 
-
 def session_path(session_id, root: str) -> str:
     """The per-session state dir under `root`. Uses session_key, so it inherits
     the same escape-proofing -- a `../` in the id cannot walk out."""
     return f"{root.rstrip('/')}/{session_key(session_id)}"
-
 
 def new_nonce() -> str:
     """A fresh per-command nonce. 128 bits: an attacker who controls command
     output cannot guess the marker for the command currently in flight."""
     return secrets.token_hex(16)
 
-
 def tmux_conf(history_limit: int = 50000) -> str:
     """The tmux.conf every invocation is started with. history-limit has to
     arrive this way, not via set-option -- why: ch56."""
     return f"set -g history-limit {int(history_limit)}\n"
-
 
 def tmux_argv(action: str, session_id, *, command: str = "",
               socket_name: str = "mios", shell: str = "/bin/bash",
@@ -82,12 +77,10 @@ def tmux_argv(action: str, session_id, *, command: str = "",
         return base + ["list-sessions", "-F", "#{session_name} #{session_activity}"]
     return []
 
-
 def session_init_cmd() -> str:
     """First line into a new session: silence the PTY echo and the prompt, so a
     capture is output rather than a terminal transcript. See ch56."""
     return "stty -echo 2>/dev/null; PS1=''; PS2=''; clear 2>/dev/null || true\n"
-
 
 def wrap_command(command: str, nonce: str) -> str:
     """Frame `command` between BEGIN/END sentinels carrying a per-command nonce.
@@ -99,7 +92,6 @@ def wrap_command(command: str, nonce: str) -> str:
     return (f"printf '%s%s\\n' \"{MARKER_PREFIX}\" \"{n}-BEGIN\"\n"
             f"{command}\n"
             f"printf '%s%s\\n' \"{MARKER_PREFIX}\" \"{n} $? $PWD\"\n")
-
 
 def parse_result(raw: str, nonce: str) -> Optional[dict]:
     """-> {output, exit_code, cwd}, or None while unfinished. Output is exactly
@@ -133,7 +125,6 @@ def parse_result(raw: str, nonce: str) -> Optional[dict]:
         nl = body.find("\n", b_idx)
         body = body[nl + 1:] if nl != -1 else ""
     return {"output": body.strip("\n"), "exit_code": exit_code, "cwd": cwd}
-
 
 def is_idle(last_activity, now=None, *, idle_s: float = 1800.0) -> bool:
     """True when a session has been idle longer than `idle_s` -- the reaper's

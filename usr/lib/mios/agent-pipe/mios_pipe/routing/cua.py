@@ -16,7 +16,6 @@ import mios_cua  # noqa: E402
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 CUA_ENABLE = None
 _dispatch_mios_verb_inner = None
 _get_client = None
@@ -26,7 +25,6 @@ VISION_MODEL = None
 VISION_ENDPOINT = None
 CUA_MAX_STEPS = None
 _HIDPI_SCALE_FACTOR = 1.0
-
 
 def configure(*, cua_enable=None, dispatch_mios_verb_inner=None, get_client=None,
               vision_backend_failed=None, backend_key=None, vision_model=None,
@@ -52,13 +50,11 @@ def configure(*, cua_enable=None, dispatch_mios_verb_inner=None, get_client=None
     if hidpi_scale_factor is not None:
         _HIDPI_SCALE_FACTOR = hidpi_scale_factor
 
-
 _W_TENSOR = 1000
 _H_TENSOR = 1000
 _W_ORIG = 1920
 _H_ORIG = 1080
 _LAST_SCREENSHOT_PATH = None
-
 
 PLATFORMS = ("windows", "linux")
 
@@ -84,7 +80,6 @@ GOAL_REACHED = "goal_reached"
 MAX_STEPS = "max_steps"
 STALLED = "stalled"
 
-
 def resolve_verb(action: str, platform: str) -> "Optional[str]":
     """Map a logical computer-use action to the platform's verb name. Fail-closed:
     an unknown action OR an unknown platform -> None, so the caller refuses to
@@ -92,7 +87,6 @@ def resolve_verb(action: str, platform: str) -> "Optional[str]":
     a = str(action or "").strip().lower()
     p = str(platform or "").strip().lower()
     return _ACTION_VERB.get(a, {}).get(p)
-
 
 def observation_digest(obs: object) -> str:
     """A stable digest of one observation (a screenshot's bytes/path/hash, or the
@@ -103,12 +97,10 @@ def observation_digest(obs: object) -> str:
         return hashlib.sha256(bytes(obs)).hexdigest()
     return hashlib.sha256(str(obs).strip().encode("utf-8", "replace")).hexdigest()
 
-
 def observation_changed(prev: object, cur: object) -> bool:
     """Did the screen change after the last action? Identical observations mean
     the action had no visible effect -- a stall signal."""
     return observation_digest(prev) != observation_digest(cur)
-
 
 def parse_verify_verdict(text: object) -> dict:
     s = str(text or "")
@@ -126,7 +118,6 @@ def parse_verify_verdict(text: object) -> dict:
             return {"done": True, "reason": "sentinel"}
     return {"done": False, "reason": "unparsed-or-not-done"}
 
-
 def loop_status(*, step: int, max_steps: int, goal_done: bool,
                 stall_count: int, max_stall: int = 2) -> str:
     """The terminal decision after each VERIFY phase. Goal-reached wins (a final
@@ -140,7 +131,6 @@ def loop_status(*, step: int, max_steps: int, goal_done: bool,
     if stall_count >= max_stall:
         return STALLED
     return RUNNING
-
 
 class CuaTrace:
     """Append-only record of a computer-use loop for the result/audit: each step's
@@ -168,7 +158,6 @@ class CuaTrace:
                 "status": self.status, "n_steps": len(self.steps),
                 "steps": self.steps, "reached": self.status == GOAL_REACHED}
 
-
 async def v1_computer_use_logic(request: Request) -> JSONResponse:
     if not CUA_ENABLE:
         return JSONResponse({"object": "mios.computer_use",
@@ -195,9 +184,7 @@ async def v1_computer_use_logic(request: Request) -> JSONResponse:
         return JSONResponse({"object": "mios.computer_use", "error": str(e)},
                             status_code=200)
 
-
 cua_router = APIRouter()
-
 
 @cua_router.post("/v1/computer-use")
 async def v1_computer_use(request: Request) -> JSONResponse:
@@ -205,12 +192,10 @@ async def v1_computer_use(request: Request) -> JSONResponse:
     (same module)."""
     return await v1_computer_use_logic(request)
 
-
 def _cua_extract_png(result: dict) -> "Optional[str]":
     out = str((result or {}).get("output") or "")
     m = re.search(r"(/[^\s\"']+\.png|[A-Za-z]:[\\/][^\s\"']+\.png)", out)
     return m.group(1) if m else None
-
 
 async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tuple":
     verb = mios_cua.resolve_verb("screenshot", platform)
@@ -255,7 +240,6 @@ async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tu
     except Exception:  # noqa: BLE001 -- degrade-open: no image -> VLM stop
         return None, path
 
-
 async def _cua_vlm_json(system: str, user_text: str,
                         image_uri: "Optional[str]") -> dict:
     if not (image_uri and (VISION_MODEL or "").strip()):
@@ -282,7 +266,6 @@ async def _cua_vlm_json(system: str, user_text: str,
     except Exception:  # noqa: BLE001 -- degrade-open
         return {}
 
-
 def bounds_contain(bounds, x, y):
     if not bounds:
         return False
@@ -306,7 +289,6 @@ def bounds_contain(bounds, x, y):
                 return left <= x <= (left + width) and top <= y <= (top + height)
     return False
 
-
 async def wait_for_stable_element(platform: str, session_id: Optional[str] = None):
     prev_digest = None
     verb = mios_cua.resolve_verb("list_windows", platform)
@@ -320,7 +302,6 @@ async def wait_for_stable_element(platform: str, session_id: Optional[str] = Non
             break
         prev_digest = cur_digest
         await asyncio.sleep(0.3)
-
 
 async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session_id: Optional[str] = None) -> dict:
     x_raw = float(args.get("x", 0))
@@ -373,7 +354,6 @@ async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session
                         return res_click
 
     return await _dispatch_mios_verb_inner(verb, args_scaled, session_id=session_id)
-
 
 async def _cua_loop(goal: str, platform: str = "windows",
                     max_steps: "Optional[int]" = None,

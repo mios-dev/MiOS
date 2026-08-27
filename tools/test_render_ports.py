@@ -8,7 +8,6 @@ import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
-
 def load_module():
     spec = importlib.util.spec_from_file_location(
         "render_ports", os.path.join(_HERE, "render-ports.py"))
@@ -16,9 +15,7 @@ def load_module():
     spec.loader.exec_module(mod)
     return mod
 
-
 rp = load_module()
-
 
 def _schema(**overrides):
     data = {
@@ -44,7 +41,6 @@ def _schema(**overrides):
     }
     data["ports"].update(overrides)
     return data
-
 
 class TestDerivePorts(unittest.TestCase):
     def test_base_plus_index_times_stride(self):
@@ -75,7 +71,6 @@ class TestDerivePorts(unittest.TestCase):
 
     def test_no_categories_is_a_noop(self):
         self.assertEqual(rp.derive_ports({"ports": {"ssh": 22}}), {})
-
 
 class TestFindViolations(unittest.TestCase):
     def test_clean_schema_has_no_violations(self):
@@ -114,7 +109,6 @@ class TestFindViolations(unittest.TestCase):
         problems = rp.find_violations(data)
         self.assertTrue(any("derives" in p for p in problems), problems)
 
-
 class TestCategoryBand(unittest.TestCase):
     def test_band_spans_first_to_last_member(self):
         self.assertEqual(
@@ -125,7 +119,6 @@ class TestCategoryBand(unittest.TestCase):
     def test_empty_category_is_a_point(self):
         self.assertEqual(rp.category_band({"base": 8700, "members": []}),
                          (8700, 8700))
-
 
 class TestRenderTable(unittest.TestCase):
     def test_rewrites_values_and_keeps_comments(self):
@@ -143,7 +136,6 @@ class TestRenderTable(unittest.TestCase):
         text = "[ports]\nhermes = 1\n\n[other]\nhermes = 1\n"
         out = rp.render_table(text, {"hermes": 8720})
         self.assertEqual(out.count("8720"), 1)
-
 
 class TestSweeperSkipsItsOwnEvidence(unittest.TestCase):
     """A fixture carrying a deliberately stale literal is how the sweeper is
@@ -166,7 +158,6 @@ class TestSweeperSkipsItsOwnEvidence(unittest.TestCase):
                  for p in rp._sweep_files(root)}
         self.assertIn("usr/libexec/mios/mios-open-url", swept)
         self.assertGreater(len(swept), 200)
-
 
 class TestStackIdOffset(unittest.TestCase):
     def test_stack_id_offset_shifts_non_pinned_ports(self):
@@ -194,7 +185,6 @@ class TestStackIdOffset(unittest.TestCase):
 
         vals = list(shifted_ports.values())
         self.assertEqual(len(vals), len(set(vals)), "Collisions detected in shifted ports")
-
 
 class TestQuadletPortFallbacks(unittest.TestCase):
     def test_quadlet_port_fallbacks_match_ssot(self):
@@ -231,7 +221,6 @@ class TestQuadletPortFallbacks(unittest.TestCase):
                 tested += 1
 
         self.assertGreater(tested, 40, f"Expected >40 Quadlet port fallbacks tested, got {tested}")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,7 +14,6 @@ STATUSES = ("shipping", "partial", "design")
 REQUIRED = ("title", "summary", "target", "config", "archetype", "artifacts",
             "doc", "status")
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or os.getcwd()
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
@@ -109,7 +108,6 @@ def main() -> int:
              sum(1 for v in entries.values() if v.get("status") == "partial"),
              len(design)), file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

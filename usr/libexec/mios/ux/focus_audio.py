@@ -45,11 +45,9 @@ try:
 except ImportError:
     mios_toml = None
 
-
 DEFAULT_SAMPLE_RATE = 44100
 DEFAULT_DURATION_SEC = 5.0
 DEFAULT_VOLUME = 70
-
 
 @dataclass
 class FocusPreset:
@@ -59,7 +57,6 @@ class FocusPreset:
     channels: int  # 1 for mono, 2 for stereo (binaural)
     frequency_range: str
     recommended_use: str
-
 
 AVAILABLE_PRESETS: Dict[str, FocusPreset] = {
     "pink_noise": FocusPreset(
@@ -112,7 +109,6 @@ AVAILABLE_PRESETS: Dict[str, FocusPreset] = {
         recommended_use="Deep flow state, complex mathematical reasoning (Headphones Required).",
     ),
 }
-
 
 class FocusAudioSynthesizer:
     """Generates procedural PCM audio buffers for focus soundscapes."""
@@ -345,7 +341,6 @@ class FocusAudioSynthesizer:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Offline Procedural Focus Audio Synthesizer (T-464)"
@@ -430,7 +425,6 @@ def main() -> int:
         else:
             print(f"[focus_audio] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

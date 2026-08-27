@@ -26,14 +26,12 @@ _spec.loader.exec_module(sb)
 FAILED: list[str] = []
 PASSED = 0
 
-
 def check(name, got, want):
     global PASSED
     if got == want:
         PASSED += 1
     else:
         FAILED.append(f"{name}: got {got!r}, want {want!r}")
-
 
 def test_manifest_is_declared_in_ssot():
     sync, data = sb.load_manifest(ROOT)   # (the [bootstrap.sync] table, whole SSOT)
@@ -42,7 +40,6 @@ def test_manifest_is_declared_in_ssot():
     declared = bool(sync.get("mirror_files") or sync.get("mirror_tables"))
     check("manifest-declares-something", declared, True)
     check("ssot-loaded", "ports" in data, True)
-
 
 def test_dry_run_does_not_write():
     """Without --apply the mirror must report and change nothing."""
@@ -58,7 +55,6 @@ def test_dry_run_does_not_write():
         except Exception:
             pass
         check("dry-run-leaves-file", open(target, encoding="utf-8").read(), before)
-
 
 def test_table_rewrite_does_not_duplicate():
     """A mirrored table must be REWRITTEN, never appended a second time."""
@@ -81,7 +77,6 @@ def test_table_rewrite_does_not_duplicate():
         except ImportError:
             pass
 
-
 def main() -> int:
     test_manifest_is_declared_in_ssot()
     test_dry_run_does_not_write()
@@ -90,7 +85,6 @@ def main() -> int:
     for f in FAILED:
         print(f"  FAIL {f}")
     return 1 if FAILED else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

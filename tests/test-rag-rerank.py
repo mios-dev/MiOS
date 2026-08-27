@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_rerank import CrossEncoderReranker
 
-
 class TestRagRerank(unittest.TestCase):
     """Validates candidate scoring and top-k truncation."""
 
@@ -32,12 +31,10 @@ class TestRagRerank(unittest.TestCase):
         # doc_perfect has highest keyword overlap with query
         self.assertEqual(results[0]["id"], "doc_perfect")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestRagRerank)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

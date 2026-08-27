@@ -20,9 +20,7 @@ import shutil
 import sys
 from typing import Any, Dict, List, Optional
 
-
 VM_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
-
 
 def validate_vm_id(vm_id: str) -> str:
     """Sanitizes and validates VM identifier."""
@@ -31,11 +29,9 @@ def validate_vm_id(vm_id: str) -> str:
         raise ValueError(f"Invalid VM ID '{vm_id}': Must contain only alphanumeric characters, dashes, and underscores.")
     return cleaned
 
-
 def to_posix_path(p: str) -> str:
     """Normalizes path with forward slashes for Linux/libvirt XML compatibility."""
     return p.replace("\\", "/")
-
 
 class VTPMProvisioner:
     """Manages swtpm TPM2 lifecycle, socket generation, and libvirt XML configuration."""
@@ -207,7 +203,6 @@ class VTPMProvisioner:
             "ctrl_socket_path": ctrl_path,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Virtual TPM2 (swtpm) Provisioning and Domain XML Generator."
@@ -278,7 +273,6 @@ def main() -> int:
 
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

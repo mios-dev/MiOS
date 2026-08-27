@@ -21,7 +21,6 @@ except ModuleNotFoundError:  # pragma: no cover
 K3S_SERVER = "[Container]\nExec=k3s server --disable=traefik\n"
 K3S_JOIN = "[Container]\nEnvironment=K3S_URL=https://blade-01:6443\nExec=k3s agent\n"
 
-
 def data(accepted=(), max_accepted=None, max_nodes=6, grantors=2,
          hazards_table=True, requires=("controller",)):
     arche = {"headless": ["service-plane"]}
@@ -41,7 +40,6 @@ def data(accepted=(), max_accepted=None, max_nodes=6, grantors=2,
         d["blades"]["hazards"] = h
     return d
 
-
 def tree(k3s_body=K3S_SERVER, ha_body=""):
     root = tempfile.mkdtemp()
     qd = os.path.join(root, "usr/share/containers/systemd")
@@ -55,10 +53,8 @@ def tree(k3s_body=K3S_SERVER, ha_body=""):
             fh.write(ha_body)
     return root
 
-
 def only(viols, needle):
     return [v for v in viols if needle in v]
-
 
 class TestK3sDetector(unittest.TestCase):
     def setUp(self):
@@ -95,7 +91,6 @@ class TestK3sDetector(unittest.TestCase):
         self.assertIn("ctl0", detail)
         self.assertIn("K3S_URL", detail)
 
-
 class TestPacemakerDetector(unittest.TestCase):
     def setUp(self):
         self.roots = []
@@ -120,7 +115,6 @@ class TestPacemakerDetector(unittest.TestCase):
         r = tree()
         self.roots.append(r)
         self.assertNotIn("pacemaker-unfenced", mod.detect(data(), r))
-
 
 class TestRegister(unittest.TestCase):
     def setUp(self):
@@ -176,7 +170,6 @@ class TestRegister(unittest.TestCase):
         self.assertTrue(only(mod.violations(data(("k3s-multi-server",), 9), self.root),
                              "lower it to 1"))
 
-
 class TestRealTree(unittest.TestCase):
     def setUp(self):
         with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
@@ -200,7 +193,6 @@ class TestRealTree(unittest.TestCase):
     def test_the_ceiling_equals_the_register(self):
         self.assertEqual(mod.max_accepted(self.real),
                          len(mod.register(self.real)))
-
 
 if __name__ == "__main__":
     unittest.main()

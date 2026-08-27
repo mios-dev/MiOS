@@ -27,7 +27,6 @@ import mios_a2a_principal as _a2a_pp
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 app = None
 _AGENT_REGISTRY: dict = {}
 _VERB_CATALOG: dict = {}
@@ -56,7 +55,6 @@ _passport_load_public = None
 _check_inbound_principal = None
 _reload_membership = None
 _MCP_POOL = None
-
 
 def configure(*, app=None, agent_registry=None, verb_catalog=None,
               scratchpads=None, agent_lane=None, agent_skill_tags=None,
@@ -133,7 +131,6 @@ def configure(*, app=None, agent_registry=None, verb_catalog=None,
     if reload_membership is not None:
         g["_reload_membership"] = reload_membership
 
-
 A2A_PROTOCOL_VERSION = str(
     os.environ.get("MIOS_A2A_PROTOCOL_VERSION")
     or (_toml_section("a2a") or {}).get("protocol_version")
@@ -152,19 +149,16 @@ _A2A_TEXT_MEDIA_TYPE = "text/plain"
 _A2A_ERROR_DOMAIN = "a2a-protocol.org"
 _A2A_ERRINFO_TYPE = "type.googleapis.com/google.rpc.ErrorInfo"
 
-
 def _a2a_role_v1(role) -> str:
     """Normalise a Message role to its v1.0 token (liberal in / strict out)."""
     r = str(role or "").strip()
     return _A2A_ROLE_TO_V1.get(r.lower(), r if r.startswith("ROLE_") else _ROLE_USER)
-
 
 def _a2a_text_part(text: str) -> dict:
     """A v1.0 A2A text Part: the `text` member (v1.0 discriminates Parts by which
     member is present, NOT by a `kind` tag) plus its mediaType. v0.3's `kind:"text"`
     is gone."""
     return {"text": str(text or ""), "mediaType": _A2A_TEXT_MEDIA_TYPE}
-
 
 from mios_pipe.federation.agentcard_sign import (
     _JWS_ALG_EDDSA,
@@ -177,14 +171,12 @@ from mios_pipe.federation.agentcard_sign import (
     _verify_agent_card_signature as _verify_agent_card_signature_raw,
 )
 
-
 def _agent_card_signature(card: dict) -> "Optional[dict]":
     return _agent_card_signature_raw(
         card,
         load_priv_fn=_passport_load_priv,
         kid_fn=_passport_kid,
     )
-
 
 def _verify_agent_card_signature(card: dict, *, public_key=None) -> "tuple[Optional[bool], str]":
     return _verify_agent_card_signature_raw(
@@ -193,7 +185,6 @@ def _verify_agent_card_signature(card: dict, *, public_key=None) -> "tuple[Optio
         load_pub_fn=_passport_load_public,
         passport_agent_name=PASSPORT_AGENT_NAME,
     )
-
 
 def _build_agent_card() -> dict:
     """Render the A2A v1.0 AgentCard from MiOS SSOT (no hardcoded skills).
@@ -277,16 +268,13 @@ def _build_agent_card() -> dict:
         card["signatures"] = [_sig]
     return card
 
-
 AGENT_PASSPORT_VERSION = "0.1.0"
-
 
 def _canonical_json(obj) -> bytes:
     """Canonical JSON for signing: sorted keys at every depth, no whitespace,
     UTF-8 -- deterministic bytes for cross-implementation Ed25519 verification."""
     return json.dumps(obj, sort_keys=True, separators=(",", ":"),
                       ensure_ascii=False).encode("utf-8")
-
 
 def _build_agent_passport() -> dict:
     """Render the Open Agent Passport (v0.1.0) from MiOS SSOT, Ed25519-signed when
@@ -381,9 +369,7 @@ def _build_agent_passport() -> dict:
             "passport verifiable. The document is schema-valid as-is.")
     return doc
 
-
 AGNTCY_OASF_SCHEMA_VERSION = "0.7.0"
-
 
 def _build_agntcy_manifest() -> dict:
     """Render the MiOS agent in OASF shape. SSOT-derived (no hardcoded
@@ -483,7 +469,6 @@ def _build_agntcy_manifest() -> dict:
         },
     }
 
-
 async def a2a_skill_directory_logic() -> JSONResponse:
     """Logic for GET /a2a/skills (server.py keeps the thin @app route)."""
     try:
@@ -516,8 +501,6 @@ async def a2a_skill_directory_logic() -> JSONResponse:
         return JSONResponse({"object": "mios.a2a.skill_directory",
                              "error": str(e), "skills": []})
 
-
-
 def _a2a_messages_for(key: str) -> list:
     dq = _SCRATCHPADS.get(key)
     if not dq:
@@ -541,7 +524,6 @@ def _a2a_messages_for(key: str) -> list:
         })
     return msgs
 
-
 def _a2a_context(ctx_id: str) -> dict:
     """A2A/ACP-shaped shared inter-agent context for a conversation: the
     contextId + the agent Message history other agents read for continuity."""
@@ -550,8 +532,6 @@ def _a2a_context(ctx_id: str) -> dict:
         "protocolVersion": A2A_PROTOCOL_VERSION,
         "messages": _a2a_messages_for(ctx_id),
     }
-
-
 
 def _principal_mode() -> str:
     raw = str(os.environ.get(
@@ -564,10 +544,8 @@ def _principal_mode() -> str:
         return "verify"
     return "off"
 
-
 _A2A_PRINCIPAL_MODE = _principal_mode()
 _A2A_PRINCIPAL_REQUIRE = _A2A_PRINCIPAL_MODE == "enforce"
-
 
 def _a2a_principal_audit(outcome: str, reason: str, claims) -> None:
     """FED-G6 verify-tier audit: emit ONE structured (JSON) record for a principal
@@ -584,7 +562,6 @@ def _a2a_principal_audit(outcome: str, reason: str, claims) -> None:
     except Exception:  # noqa: BLE001 -- audit must never block the request
         pass
 
-
 def _a2a_principal_metadata(text: str, peer_id: str,
                            context_id: Optional[str]) -> Optional[dict]:
     """{'claims':…, 'passport':envelope|None} to attach as message.metadata
@@ -598,10 +575,8 @@ def _a2a_principal_metadata(text: str, peer_id: str,
     return _a2a_pp.build_metadata(PASSPORT_AGENT_NAME, principal, peer_id,
                                   context_id, text, _passport_sign)
 
-
 _CRL_PATH = os.environ.get("MIOS_CRL_PATH", "/usr/share/mios/ai/v1/crl.json")
 _CRL_CACHE: dict = {"mtime": -1.0, "crl": None}
-
 
 def _load_crl() -> "mios_crl.CRL":
     """WS-A10 principal/cert revocation list, loaded from MIOS_CRL_PATH (a JSON
@@ -618,8 +593,6 @@ def _load_crl() -> "mios_crl.CRL":
     except Exception:  # noqa: BLE001 -- missing/unreadable -> empty CRL (inert)
         return _CRL_CACHE["crl"] if _CRL_CACHE["crl"] is not None else mios_crl.CRL()
 
-
-
 def _crl_fingerprint(token: str) -> str:
     """Stable, NON-SECRET id for a caller key: sha256 of the bearer token. The CRL
     stores this fingerprint rather than the raw token, and the inbound gate hashes a
@@ -627,14 +600,12 @@ def _crl_fingerprint(token: str) -> str:
     persisting the credential itself."""
     return "sha256:" + hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()
 
-
 def _crl_reload() -> "mios_crl.CRL":
     """Force a re-read of the CRL from disk, BYPASSING the mtime cache. Used right
     after a write so a freshly-revoked id is live on the very next check even when the
     filesystem's mtime resolution is too coarse to register the change."""
     _CRL_CACHE["mtime"] = -1.0
     return _load_crl()
-
 
 def _crl_persist_revoke(ids) -> int:
     """Append revocation ids to the CRL file (_CRL_PATH) in the {"revoked":[...]} shape
@@ -665,7 +636,6 @@ def _crl_persist_revoke(ids) -> int:
     _crl_reload()                         # cache-bust so the next check sees it
     return added
 
-
 def _caller_key_revoked(token, entry=None) -> bool:
     try:
         crl = _load_crl()
@@ -684,7 +654,6 @@ def _caller_key_revoked(token, entry=None) -> bool:
     except Exception:  # noqa: BLE001 -- degrade-open
         return False
 
-
 def _revoke_ids_from_body(body) -> list:
     """The CRL id(s) a revoke request names. A raw `token` is converted to its
     (non-secret) fingerprint; an explicit id/fingerprint/kid/principal is taken
@@ -701,7 +670,6 @@ def _revoke_ids_from_body(body) -> list:
         if v and str(v).strip():
             ids.append(str(v).strip())
     return list(dict.fromkeys(ids))       # de-dup, order-stable
-
 
 async def caller_key_revoke_logic(request) -> JSONResponse:
     _tok = (request.headers.get("authorization") or "").removeprefix("Bearer ").strip()
@@ -726,7 +694,6 @@ async def caller_key_revoke_logic(request) -> JSONResponse:
     return JSONResponse(content={"object": "mios.crl.revoke", "revoked": ids,
                                  "added": added, "crl_size": len(_load_crl())})
 
-
 def _a2a_verify_principal(in_msg: dict) -> "tuple[Optional[bool], str, dict]":
     md = in_msg.get("metadata") if isinstance(in_msg, dict) else None
     verdict, reason, claims = _a2a_pp.verify(
@@ -741,8 +708,6 @@ def _a2a_verify_principal(in_msg: dict) -> "tuple[Optional[bool], str, dict]":
             pass
     return verdict, reason, claims
 
-
-
 _A2A_TASKS: "collections.OrderedDict[str, dict]" = collections.OrderedDict()
 _A2A_TASKS_LOCK = asyncio.Lock()
 _A2A_TASKS_MAX = int(os.environ.get("MIOS_A2A_TASKS_MAX", "512"))
@@ -756,10 +721,8 @@ _A2A_REASON_TASK_NOT_CANCELABLE = "TASK_NOT_CANCELABLE"
 _A2A_REASON_UNSUPPORTED_OP = "UNSUPPORTED_OPERATION"
 _A2A_REASON_INVALID_ARGUMENT = "INVALID_ARGUMENT"
 
-
 def _a2a_now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
-
 
 def _a2a_text_from_message(msg: dict) -> str:
     """Concatenate the text of a Message's text Parts. LIBERAL on input: accepts a
@@ -779,7 +742,6 @@ def _a2a_text_from_message(msg: dict) -> str:
             if t:
                 out.append(str(t))
     return "\n".join(out)
-
 
 def _a2a_make_task(context_id: str, in_msg: dict) -> dict:
     """Create a fresh Task in state=TASK_STATE_SUBMITTED with the inbound Message in
@@ -801,7 +763,6 @@ def _a2a_make_task(context_id: str, in_msg: dict) -> dict:
         "artifacts": [],
     }
 
-
 async def _a2a_task_record(task: dict) -> None:
     """Insert/refresh a Task in the LRU store; evict oldest beyond cap."""
     tid = task.get("id")
@@ -813,15 +774,11 @@ async def _a2a_task_record(task: dict) -> None:
         while len(_A2A_TASKS) > _A2A_TASKS_MAX:
             _A2A_TASKS.popitem(last=False)
 
-
-
 _A2A_PUSH_CONFIGS: dict = {}            # task_id -> {cfg_id: {url, token, …}}
 _A2A_PUSH_LOCK = asyncio.Lock()
 
-
 def _a2a_make_push_cfg_id() -> str:
     return uuid.uuid4().hex
-
 
 def _redact_payload(val: Any) -> Any:
     try:
@@ -836,7 +793,6 @@ def _redact_payload(val: Any) -> Any:
     except Exception:
         pass
     return val
-
 
 async def _a2a_fire_push_notifications(task: dict) -> None:
     """POST the Task envelope to every webhook registered for this task_id.
@@ -866,7 +822,6 @@ async def _a2a_fire_push_notifications(task: dict) -> None:
             await client.post(url, json=task_redacted, headers=headers, timeout=10.0)
         except Exception as e:  # noqa: BLE001
             log.warning("a2a push notification to %s failed: %s", url, e)
-
 
 async def _a2a_dispatch_send(task: dict) -> dict:
     text = _a2a_text_from_message((task.get("history") or [{}])[0])
@@ -917,10 +872,8 @@ async def _a2a_dispatch_send(task: dict) -> dict:
     await _a2a_fire_push_notifications(task)
     return task
 
-
 def _a2a_rpc_ok(mid, result: dict) -> dict:
     return {"jsonrpc": "2.0", "id": mid, "result": result}
-
 
 def _a2a_rpc_err(mid, code: int, message: str, data=None,
                  *, reason=None, metadata=None) -> dict:
@@ -939,7 +892,6 @@ def _a2a_rpc_err(mid, code: int, message: str, data=None,
             info["metadata"] = {k: str(v) for k, v in metadata.items()}
         e["data"] = [info]
     return {"jsonrpc": "2.0", "id": mid, "error": e}
-
 
 async def _a2a_jsonrpc_dispatch(msg: dict) -> dict:
     mid = msg.get("id")
@@ -1120,9 +1072,7 @@ async def _a2a_jsonrpc_dispatch(msg: dict) -> dict:
 
     return _a2a_rpc_err(mid, -32601, f"unknown method: {method}")
 
-
 _A2A_STREAM_ENABLED = os.environ.get("MIOS_A2A_STREAM", "1") != "0"
-
 
 def _a2a_sse(mid, result=None, error=None) -> bytes:
     """One A2A JSON-RPC-over-SSE frame (data: <json>\\n\\n)."""
@@ -1132,7 +1082,6 @@ def _a2a_sse(mid, result=None, error=None) -> bytes:
     else:
         payload["result"] = result
     return ("data: " + json.dumps(payload) + "\n\n").encode("utf-8")
-
 
 async def _a2a_stream_response(msg: dict) -> StreamingResponse:
     mid = msg.get("id")
@@ -1160,8 +1109,6 @@ async def _a2a_stream_response(msg: dict) -> StreamingResponse:
 
     return StreamingResponse(_gen(), media_type="text/event-stream")
 
-
-
 async def a2a_jsonrpc_logic(request) -> JSONResponse:
     """POST /a2a JSON-RPC 2.0 entry-point logic. Routes message/send, tasks/get,
     tasks/cancel, tasks/list (streaming + push tracked separately, returned as the
@@ -1186,7 +1133,6 @@ async def a2a_jsonrpc_logic(request) -> JSONResponse:
             _a2a_rpc_err(None, -32600, "invalid request"), status_code=400)
     return JSONResponse(await _a2a_jsonrpc_dispatch(body))
 
-
 async def a2a_skills_list_logic() -> JSONResponse:
     """GET /v1/a2a/skills logic: the federated skill catalog -- every skill any
     ready peer declared, with the peer(s) that publish it. Reads the live
@@ -1207,7 +1153,6 @@ async def a2a_skills_list_logic() -> JSONResponse:
                 })
             skills.append({"id": sid, "peers": entries})
     return JSONResponse({"object": "mios.a2a.skills", "skills": skills})
-
 
 async def a2a_dispatch_logic(request) -> JSONResponse:
     """POST /v1/a2a/dispatch logic: forward a message to a chosen A2A peer.
@@ -1246,7 +1191,6 @@ async def a2a_dispatch_logic(request) -> JSONResponse:
     return JSONResponse(await _a2a_send_message_to_peer(
         peer_id, text, context_id=context_id))
 
-
 async def passport_verify_logic(request) -> JSONResponse:
     """POST /passport/verify logic: structured (ok, reason) verdict over a posted
     passport envelope (optionally op-hash-bound to a (table, fields) payload),
@@ -1275,7 +1219,6 @@ async def passport_verify_logic(request) -> JSONResponse:
         "alg": envelope.get("alg"),
     })
 
-
 async def passport_public_key_logic(agent: str = "") -> JSONResponse:
     """GET /passport/public-key logic: return the requested agent's public PEM
     (defaults to this service's own identity). Lets external integrators bootstrap
@@ -1297,25 +1240,20 @@ async def passport_public_key_logic(agent: str = "") -> JSONResponse:
         "public_key_pem": pem,
     })
 
-
 a2a_router = APIRouter()
-
 
 @a2a_router.get("/a2a/skills")
 async def a2a_skill_directory(request: Request) -> JSONResponse:
     return await a2a_skill_directory_logic()
 
-
 @a2a_router.get("/a2a/contexts/{context_id}")
 async def a2a_context_get(context_id: str) -> JSONResponse:
     return JSONResponse(_a2a_context(context_id))
-
 
 @a2a_router.get("/v1/contexts/{context_id}")
 async def a2a_context_get_v1(context_id: str) -> JSONResponse:
     """/v1 convenience alias for the A2A shared context."""
     return JSONResponse(_a2a_context(context_id))
-
 
 @a2a_router.post("/a2a")
 async def a2a_jsonrpc(request: Request) -> JSONResponse:
@@ -1326,13 +1264,11 @@ async def a2a_jsonrpc(request: Request) -> JSONResponse:
     until an auth gate ships. Routes to a2a_jsonrpc_logic (same module)."""
     return await a2a_jsonrpc_logic(request)
 
-
 @a2a_router.post("/a2a/jsonrpc")
 async def a2a_jsonrpc_alias(request: Request) -> JSONResponse:
     """Explicit alias for clients that expect the conventional /a2a/jsonrpc
     path. Delegates to the same dispatcher."""
     return await a2a_jsonrpc(request)
-
 
 @a2a_router.post("/a2a/peers/reload")
 async def a2a_peers_reload(request: Request) -> JSONResponse:
@@ -1346,7 +1282,6 @@ async def a2a_peers_reload(request: Request) -> JSONResponse:
     out = await _reload_membership(reason="api")
     return JSONResponse(content={"object": "mios.membership.reload", **out})
 
-
 @a2a_router.post("/v1/admin/keys/revoke")
 async def caller_key_revoke(request: Request) -> JSONResponse:
     """FED-G8: revoke a caller key -- append its id to the CRL + hot-reload so the
@@ -1355,20 +1290,15 @@ async def caller_key_revoke(request: Request) -> JSONResponse:
     caller_key_revoke_logic (same module)."""
     return await caller_key_revoke_logic(request)
 
-
-
-
 @a2a_router.get("/.well-known/agent-card.json")
 async def a2a_agent_card() -> JSONResponse:
     """A2A AgentCard at the spec well-known path."""
     return JSONResponse(_build_agent_card())
 
-
 @a2a_router.get("/.well-known/agent.json")
 async def a2a_agent_card_legacy() -> JSONResponse:
     """Legacy A2A well-known path (pre-0.3 clients)."""
     return JSONResponse(_build_agent_card())
-
 
 @a2a_router.get("/.well-known/agent-passport.json")
 async def agent_passport() -> JSONResponse:
@@ -1377,14 +1307,12 @@ async def agent_passport() -> JSONResponse:
     AgentCard (capabilities) at /.well-known/agent-card.json."""
     return JSONResponse(_build_agent_passport())
 
-
 @a2a_router.get("/.well-known/agntcy-manifest.json")
 async def agntcy_manifest_wellknown() -> JSONResponse:
     """AGNTCY OASF manifest at the conventional well-known path so a
     discovery directory can scrape this MiOS instance the same way A2A
     clients scrape the agent card."""
     return JSONResponse(_build_agntcy_manifest())
-
 
 @a2a_router.get("/v1/a2a/peers")
 async def a2a_peers_list() -> JSONResponse:
@@ -1408,14 +1336,12 @@ async def a2a_peers_list() -> JSONResponse:
     return JSONResponse({"object": "mios.a2a.peers", "peers": peers,
                          "reputation": _A2A_REPUTATION.snapshot()})  # #54
 
-
 @a2a_router.get("/v1/a2a/skills")
 async def a2a_skills_list() -> JSONResponse:
     """Federated skill catalog: every skill any ready peer declared, with the
     peer(s) that publish it. Routing layer for capability-based dispatch. Calls
     a2a_skills_list_logic (same module)."""
     return await a2a_skills_list_logic()
-
 
 @a2a_router.post("/v1/a2a/dispatch")
 async def a2a_dispatch(request: Request) -> JSONResponse:
@@ -1426,14 +1352,12 @@ async def a2a_dispatch(request: Request) -> JSONResponse:
     a2a_dispatch_logic (same module)."""
     return await a2a_dispatch_logic(request)
 
-
 @a2a_router.post("/passport/verify")
 async def passport_verify(request: Request) -> JSONResponse:
     """Cross-agent verification: any agent POSTs {envelope, payload?} and gets a
     structured (ok, reason) response without holding the signer's private key.
     Calls passport_verify_logic (same module)."""
     return await passport_verify_logic(request)
-
 
 @a2a_router.get("/passport/public-key")
 async def passport_public_key(agent: str = "") -> JSONResponse:
@@ -1443,13 +1367,11 @@ async def passport_public_key(agent: str = "") -> JSONResponse:
     passport_public_key_logic (same module)."""
     return await passport_public_key_logic(agent)
 
-
 @a2a_router.get("/v1/agent-card")
 async def a2a_agent_card_alias() -> JSONResponse:
     """Convenience alias under /v1 for clients that don't probe
     the well-known path."""
     return JSONResponse(_build_agent_card())
-
 
 @a2a_router.get("/v1/agntcy/manifest")
 async def agntcy_manifest_v1() -> JSONResponse:

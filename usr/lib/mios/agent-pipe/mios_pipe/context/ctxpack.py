@@ -7,7 +7,6 @@ from typing import Callable, List, Optional
 
 import mios_tokenize
 
-
 class PackResult:
     """The outcome of a pack(): kept/dropped items + token accounting."""
 
@@ -26,7 +25,6 @@ class PackResult:
             "used_tokens": self.used_tokens,
             "budget": self.budget,
         }
-
 
 def pack(items: List, budget: int, *,
          text_of: Optional[Callable] = None,
@@ -52,18 +50,15 @@ def pack(items: List, budget: int, *,
     dropped = [e[1] for e in enriched if e[0] not in kept_idx]
     return PackResult(kept, dropped, used, avail)
 
-
 def _default_text(item) -> str:
     if isinstance(item, dict):
         return str(item.get("text") or "")
     return str(item)
 
-
 def _default_priority(item):
     if isinstance(item, dict):
         return item.get("priority", 0)
     return 0
-
 
 def _num(v) -> float:
     try:

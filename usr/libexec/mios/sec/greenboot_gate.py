@@ -34,7 +34,6 @@ HEALTH_CHECK_SERVICES = [
 ]
 HEALTH_ENDPOINT_URL = "http://127.0.0.1:8640/v1/models"
 
-
 def atomic_write_json(target_path: str, data: Any) -> None:
     """Write JSON data to disk using an atomic replace pattern to prevent corruption."""
     parent = os.path.dirname(os.path.abspath(target_path))
@@ -58,7 +57,6 @@ def atomic_write_json(target_path: str, data: Any) -> None:
                 os.remove(tmp_file)
             except OSError:
                 pass
-
 
 class GreenbootGateEngine:
     """Engine verifying post-bake deployment health and executing automated rollback & quarantine."""
@@ -367,7 +365,6 @@ class GreenbootGateEngine:
             "quarantine": quarantine_res,
         }
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="MiOS WS-DIFFCYCLE (T-470) Greenboot Post-Bake Health Gate & Automated Fallback",
@@ -493,7 +490,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             sys.stderr.write(f"[greenboot-gate] Error: {exc}\n")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

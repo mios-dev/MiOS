@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 from typing import Dict, List
 
-
 def load_verbs_from_toml(toml_path: str) -> Dict[str, dict]:
     """Parse mios.toml [verbs.*] into {name: spec}, section-gated exactly like
     the agent-pipe _load_verb_catalog (entries lacking `section` are the
@@ -24,7 +23,6 @@ def load_verbs_from_toml(toml_path: str) -> Dict[str, dict]:
             if isinstance(cfg, dict) and "section" in cfg:
                 out[str(name)] = cfg
     return out
-
 
 def project_verb_catalog(catalog: Dict[str, dict], *, version: str = "v1") -> dict:
     """Render the verb catalog into a deterministic manifest object. Stable:
@@ -65,7 +63,6 @@ def project_verb_catalog(catalog: Dict[str, dict], *, version: str = "v1") -> di
         "count": len(data),
         "data": data,
     }
-
 
 def diff_manifest(generated: dict, committed: dict) -> List[str]:
     """Return a list of human-readable differences between a freshly-generated

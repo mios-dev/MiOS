@@ -17,11 +17,9 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
-
 def data(btype, archetypes=("hybrid", "endpoint")):
     return {"blade": {"type": btype,
                       "archetypes": {a: [] for a in archetypes}}}
-
 
 class TestRender(unittest.TestCase):
     def test_emits_a_single_bare_kargs_array(self):
@@ -48,7 +46,6 @@ class TestRender(unittest.TestCase):
     def test_absent_blade_section_is_refused(self):
         with self.assertRaises(SystemExit):
             mod.render({})
-
 
 class TestShippedTree(unittest.TestCase):
     def test_the_committed_karg_matches_the_ssot(self):
@@ -77,7 +74,6 @@ class TestShippedTree(unittest.TestCase):
         with open(os.path.join(_ROOT, "usr/libexec/mios/role-apply"),
                   encoding="utf-8") as fh:
             self.assertIn("blade.sh", fh.read())
-
 
 if __name__ == "__main__":
     unittest.main()

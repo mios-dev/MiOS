@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestStorageVerify(unittest.TestCase):
     """Test suite for partition 4K/1MB alignment math, block SHA-256 digest comparison, fake capacity probe, and CLI."""
 
@@ -89,12 +88,10 @@ class TestStorageVerify(unittest.TestCase):
             exit_code = storage_verify.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestStorageVerify)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

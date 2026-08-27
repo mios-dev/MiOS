@@ -12,7 +12,6 @@ import os
 import sys
 from typing import Dict, List, Tuple
 
-
 class MemoryCompactor:
     """Extracts architectural constraints and key facts from conversation turns."""
 

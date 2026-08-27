@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_sample_tune import SamplingScheduler
 
-
 class TestSampleTune(unittest.TestCase):
     """Validates sampling hyperparameter tuning for deterministic vs creative tasks."""
 
@@ -31,12 +30,10 @@ class TestSampleTune(unittest.TestCase):
         self.assertEqual(params["temperature"], 0.7)
         self.assertEqual(params["mode"], "creative")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestSampleTune)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

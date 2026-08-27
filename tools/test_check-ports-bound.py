@@ -17,13 +17,11 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
-
 def data(ports=None, unbound=None):
     d = {"ports": dict(ports or {})}
     if unbound is not None:
         d["ports"]["unbound"] = list(unbound)
     return d
-
 
 class TestPortKeys(unittest.TestCase):
     def test_stack_id_is_not_a_port(self):
@@ -31,7 +29,6 @@ class TestPortKeys(unittest.TestCase):
 
     def test_the_register_itself_is_not_a_port(self):
         self.assertEqual(mod.port_keys(data({"a": 1}, ["a"])), {"a"})
-
 
 class TestClassify(unittest.TestCase):
     def test_referenced_port_is_clean(self):
@@ -64,7 +61,6 @@ class TestClassify(unittest.TestCase):
     def test_whitespace_entries_are_ignored(self):
         self.assertEqual(mod.classify(data({"a": 1, "b": 2}, [" b ", ""]), {"a"}), [])
 
-
 class TestSkipSurfaces(unittest.TestCase):
     def test_ssot_and_docs_cannot_prove_a_binding(self):
         # A port mentioned only where ports are DESCRIBED is still unbound.
@@ -77,7 +73,6 @@ class TestSkipSurfaces(unittest.TestCase):
                   "usr/lib/systemd/system/mios-agent-pipe.service",
                   "usr/lib/mios/agent-pipe/server.py"):
             self.assertFalse(p.startswith(mod.SKIP_PREFIXES), p)
-
 
 class TestShippedTree(unittest.TestCase):
     def setUp(self):
@@ -96,7 +91,6 @@ class TestShippedTree(unittest.TestCase):
         ref = mod.referenced_ports(_ROOT, mod.port_keys(self.real))
         for k in ("guacd", "redis", "pxe_hub_api", "forge_ssh"):
             self.assertIn(k, ref, k)
-
 
 if __name__ == "__main__":
     unittest.main()

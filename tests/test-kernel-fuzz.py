@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load fuzz_harness module from {_MODULE_PATH}")
 
-
 class TestKernelFuzz(unittest.TestCase):
     """Validates Syzkaller configuration synthesis, serial crash parsing, and fuzz execution."""
 
@@ -83,7 +82,6 @@ class TestKernelFuzz(unittest.TestCase):
                 mock_print.assert_called()
                 parsed = json.loads(mock_print.call_args[0][0])
                 self.assertEqual(parsed["status"], "crashes_detected")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -12,7 +12,6 @@ import mios_verity as v
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
@@ -24,7 +23,6 @@ def check(name, cond, detail=""):
         enc = sys.stdout.encoding or "ascii"
         print(line.encode(enc, "replace").decode(enc))
 
-
 def t_strip_figures():
     answer = "Deals as low as $184 are available. Prices drop to $999 today."
     haystack = "We found fares around $184 on the route."
@@ -32,13 +30,11 @@ def t_strip_figures():
     check("strip: keeps grounded $184", "$184" in out, out)
     check("strip: drops ungrounded $999", "$999" not in out, out)
 
-
 def t_strip_failsafe():
     answer = "It costs $500 and is 12% off."
     check("strip: empty-haystack untouched",
           v._strip_ungrounded_figures(answer, "no numbers here") == answer)
     check("strip: empty answer untouched", v._strip_ungrounded_figures("", "x $5") == "")
-
 
 def t_strip_unicode_sentence():
     answer = "東京の価格は $184 です。大阪の価格は $999 です。"
@@ -46,7 +42,6 @@ def t_strip_unicode_sentence():
     out = v._strip_ungrounded_figures(answer, haystack)
     check("strip(cjk): keeps grounded 東京/$184", "$184" in out and "東京" in out, out)
     check("strip(cjk): drops ungrounded 大阪/$999", "$999" not in out and "大阪" not in out, out)
-
 
 def t_abbr_from_ssot():
     answer = "Items etc. $999 listed. Final price $184 today."
@@ -61,9 +56,7 @@ def t_abbr_from_ssot():
           "Items etc" in out_split and "$999" not in out_split, out_split)
     v.configure(abbreviations=list(v._ABBR_DEFAULT))
 
-
 _SENT = "The capital of France is Paris."
-
 
 class _FakeResp:
     status_code = 200
@@ -71,7 +64,6 @@ class _FakeResp:
 
     def json(self):
         return {"choices": [{"message": {"content": _SENT}}]}
-
 
 class _FakeClient:
     def __init__(self, *a, **k):
@@ -86,14 +78,11 @@ class _FakeClient:
     async def post(self, url, **k):
         return _FakeResp()
 
-
 async def _ath(*a, **k):
     return []
 
-
 async def _averd(*a, **k):
     return []
-
 
 def _wire_stubs():
     pv = contextvars.ContextVar("proposal", default=None)
@@ -117,11 +106,9 @@ def _wire_stubs():
     v.httpx = types.SimpleNamespace(AsyncClient=_FakeClient, HTTPError=Exception)
     v._env_grounding = lambda: "ENV"
 
-
 def t_polish_empty():
     out = asyncio.run(v.polish_response("", {"intended_outcome": "x"}))
     check("polish: empty raw -> None", out is None)
-
 
 def t_polish_passthrough():
     _wire_stubs()
@@ -132,9 +119,7 @@ def t_polish_passthrough():
         original_user_text="What is the capital of France?"))
     check("polish: passes canned model output through", out == _SENT, repr(out))
 
-
 _CLARIFY_TOKEN = "Zyxqq-wuvil-3?"
-
 
 class _FakeClarifyClient:
     def __init__(self, *a, **k):
@@ -154,10 +139,8 @@ class _FakeClarifyClient:
                 "content": _j.dumps({"question": _CLARIFY_TOKEN})}}]},
         )
 
-
 def t_clarify_empty():
     check("clarify: empty answer -> ''", asyncio.run(v._clarify_question("zzv-qmx", "")) == "")
-
 
 def t_clarify_extracts_question():
     saved = v.httpx
@@ -167,7 +150,6 @@ def t_clarify_extracts_question():
     finally:
         v.httpx = saved
     check("clarify: extracts model 'question' field", out == _CLARIFY_TOKEN, repr(out))
-
 
 def main():
     t_strip_figures()
@@ -180,7 +162,6 @@ def main():
     t_clarify_extracts_question()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -480,7 +480,6 @@ else
     mios_skip "$_bind_dir not present -- binder loop did not run"
 fi
 
-
 mios_log "Run build-time capability benchmark"
 if command -v python3 >/dev/null 2>&1; then
     python3 -c '

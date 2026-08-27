@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_pipe.access.quota import QuotaTracker, QuotaVerdict
 
-
 class TestAgentPipeQuota(unittest.TestCase):
     """Validates token-bucket sliding windows, budget enforcement, and tenant isolation."""
 
@@ -46,12 +45,10 @@ class TestAgentPipeQuota(unittest.TestCase):
         self.assertFalse(v2.allowed)
         self.assertIn("budget exceeded", v2.reason)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestAgentPipeQuota)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

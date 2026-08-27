@@ -32,7 +32,6 @@ BASIC_DATA_GUID = "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7"
 SECTOR_SIZE = 512
 ALIGNMENT_SECTORS = 2048  # 1MB alignment
 
-
 @dataclass
 class PartitionInfo:
     """Specification and geometry for a partition on target media."""
@@ -47,7 +46,6 @@ class PartitionInfo:
     size_mb: int
     bootable: bool = False
 
-
 @dataclass
 class DeviceInfo:
     """Metadata describing a block storage device."""
@@ -58,7 +56,6 @@ class DeviceInfo:
     is_removable: bool
     bus_type: str
     partitions: List[str] = field(default_factory=list)
-
 
 class UsbFormatEngine:
     """Engine for inspecting, validating, and formatting removable USB media."""
@@ -304,7 +301,6 @@ class UsbFormatEngine:
         result = self.execute_format(dev, layout)
         return result
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS-Cat Removable USB Hybrid GPT/MBR Partition Formatter"
@@ -348,7 +344,6 @@ def main() -> int:
         else:
             print(f"[usb_format] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

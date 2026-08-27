@@ -24,7 +24,6 @@ WORKSPACES = ("src/mios-rs", "tools/native")
 TEST_MARKERS = ("#[test]", "#[tokio::test]", "#[rstest]")
 PRIMITIVE_WORDS = {"true", "false", "Ok", "Err", "Some", "None", "self", "Self"}
 
-
 def extract_assertions(body: str) -> list[tuple[str, str]]:
     assertions = []
     pattern = re.compile(r'\b(assert(?:_eq|_ne|_matches)?)\s*!\s*\(', re.MULTILINE)
@@ -58,7 +57,6 @@ def extract_assertions(body: str) -> list[tuple[str, str]]:
             assertions.append((macro_name, args_str))
     return assertions
 
-
 def is_meaningful_assertion(args_str: str) -> bool:
     no_strings = re.sub(r'"([^"\\]|\\.)*"', '""', args_str)
     no_strings = re.sub(r"'([^'\\]|\\.)*'", "''", no_strings)
@@ -66,7 +64,6 @@ def is_meaningful_assertion(args_str: str) -> bool:
     tokens = re.findall(r'\b[A-Za-z_][A-Za-z0-9_]*\b', no_comments)
     non_primitive = [t for t in tokens if t not in PRIMITIVE_WORDS]
     return len(non_primitive) > 0
-
 
 def crate_tests(root: str, ws: str, crate: str) -> int:
     has_test_func = False
@@ -91,8 +88,6 @@ def crate_tests(root: str, ws: str, crate: str) -> int:
         return meaningful_asserts
     return 0
 
-
-
 def crate_lines(root: str, ws: str, crate: str) -> int:
     n = 0
     base = os.path.join(root, ws, crate, "src")
@@ -106,7 +101,6 @@ def crate_lines(root: str, ws: str, crate: str) -> int:
                 except OSError:
                     pass
     return n
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or os.getcwd()
@@ -159,7 +153,6 @@ def main() -> int:
     print("[check-rust-test-coverage] %d crate(s); %d untested and registered"
           " (ceiling %s)" % (seen, len(untested), ceiling), file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

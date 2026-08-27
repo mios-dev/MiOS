@@ -10,7 +10,6 @@ import mios_toolconflict as tc
 
 _fails = 0
 
-
 def check(name: str, cond: bool, detail: str = "") -> None:
     global _fails
     tag = "PASS" if cond else "FAIL"
@@ -18,10 +17,8 @@ def check(name: str, cond: bool, detail: str = "") -> None:
         _fails += 1
     print(f"[{tag}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _run(coro):
     return asyncio.run(coro)
-
 
 async def _peak_under(gate: tc.ConflictGate, verbs, n_each: int = 4, hold: float = 0.02):
     """Launch n_each concurrent guarded bodies for each verb in `verbs`; return
@@ -52,13 +49,11 @@ async def _peak_under(gate: tc.ConflictGate, verbs, n_each: int = 4, hold: float
     await asyncio.gather(*tasks)
     return peak, group_peak
 
-
 async def t_noop():
     g = tc.ConflictGate()  # empty -> serializes nothing
     peak, _ = await _peak_under(g, ["anything"], n_each=5)
     check("no-op: unconstrained verb runs fully concurrent", peak == 5, f"peak={peak}")
     check("no-op: constrains() false", not g.constrains("anything"))
-
 
 async def t_parallel_limit():
     g = tc.ConflictGate(limits={"open_app": 1, "pair": 2})
@@ -67,19 +62,16 @@ async def t_parallel_limit():
     peak2, _ = await _peak_under(g, ["pair"], n_each=6)
     check("parallel_limit=2: at most 2 concurrent", peak2 == 2, f"peak={peak2}")
 
-
 async def t_conflict_group():
     g = tc.ConflictGate(groups={"focus_window": "ui", "pc_type": "ui"})
     peak, gpeak = await _peak_under(g, ["focus_window", "pc_type"], n_each=3)
     check("conflict_group: cross-verb mutual exclusion", gpeak.get("ui") == 1, f"group_peak={gpeak}")
     check("conflict_group: global peak == 1 (one member at a time)", peak == 1, f"peak={peak}")
 
-
 async def t_distinct_groups():
     g = tc.ConflictGate(groups={"a": "ga", "b": "gb"})
     peak, _ = await _peak_under(g, ["a", "b"], n_each=2)
     check("distinct groups run concurrently", peak >= 2, f"peak={peak}")
-
 
 async def t_group_and_limit_no_deadlock():
     g = tc.ConflictGate(limits={"v": 1}, groups={"v": "g", "w": "g"})
@@ -91,7 +83,6 @@ async def t_group_and_limit_no_deadlock():
               f"peak={peak} gpeak={gpeak}")
     except asyncio.TimeoutError:
         check("group+limit: completes (no deadlock)", False, "DEADLOCK/timeout")
-
 
 async def t_cancellation_no_leak():
     g = tc.ConflictGate(limits={"v": 1})
@@ -119,12 +110,10 @@ async def t_cancellation_no_leak():
     check("cancellation-safe: in_flight drained", not g.stats()["in_flight"]["verbs"],
           f"in_flight={g.stats()['in_flight']}")
 
-
 async def _acquire_once(g, verb):
     async with g.guard(verb):
         await asyncio.sleep(0)
     return True
-
 
 async def t_release_on_exception():
     g = tc.ConflictGate(limits={"v": 1})
@@ -140,7 +129,6 @@ async def t_release_on_exception():
     ok = await asyncio.wait_for(_acquire_once(g, "v"), timeout=1.0)
     check("release-on-exception: permit freed after body raises", ok is True)
     check("release-on-exception: in_flight drained", not g.stats()["in_flight"]["verbs"])
-
 
 def t_from_catalog():
     cat = {
@@ -165,7 +153,6 @@ def t_from_catalog():
     st = g.stats()
     check("from_catalog: stats groups list", st["groups"] == ["desktop_ui"], f"{st['groups']}")
 
-
 def main() -> int:
     _run(t_noop())
     _run(t_parallel_limit())
@@ -178,7 +165,6 @@ def main() -> int:
     total = "ok" if _fails == 0 else f"{_fails} FAILED"
     print(f"\n{total}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

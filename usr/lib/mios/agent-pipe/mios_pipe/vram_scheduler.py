@@ -41,7 +41,6 @@ class _SloShed(Exception):
     SLO). Caught at the fan-out call sites -> the node drops from the merge (the
     swarm already tolerates a dead/empty node); never raised for interactive."""
 
-
 _HOST_STATS_CACHE = {"t": 0.0, "v": None}
 _RESIDENT_CACHE: dict = {}   # ep -> {"t":ts,"v":[models]}
 _ADMIT_SEQ = 0  # monotonic tie-breaker for priority waits
@@ -52,7 +51,6 @@ NODES_RESEARCH_ONLY = str(os.environ.get("MIOS_NODES_RESEARCH_ONLY")
 VRAM_RECLAIM_IDLE = str(os.environ.get("MIOS_VRAM_RECLAIM_IDLE")
                         or _DISPATCH_TOML.get("vram_reclaim_idle", "true")
                         ).strip().lower() not in {"0", "false", "no", "off"}
-
 
 def _parse_lane_priority(s: str) -> dict:
     """'gpu:8,cpu:7,...' -> {lane: prio}. Always carries a _default."""
@@ -66,7 +64,6 @@ def _parse_lane_priority(s: str) -> dict:
                 pass
     return out
 
-
 _LANE_PRIORITY = _parse_lane_priority(
     os.environ.get("MIOS_LANE_PRIORITY")
     or _DISPATCH_TOML.get("lane_priority",
@@ -74,7 +71,6 @@ _LANE_PRIORITY = _parse_lane_priority(
 _ACTIVE_MODELS: "collections.Counter" = collections.Counter()
 _ACTIVE_LOCK = asyncio.Lock()
 _ENDPOINT_RESERVED: dict = {}
-
 
 def _lane_sem(key: str) -> asyncio.Semaphore:
     """The concurrency gate for ONE hardware lane / engine / node (lazily
@@ -91,7 +87,6 @@ def _lane_sem(key: str) -> asyncio.Semaphore:
         _LANE_SEMS[key] = asyncio.Semaphore(max(1, n))
     return _LANE_SEMS[key]
 
-
 def _endpoint_key(ep: str) -> str:
     """host:port of an endpoint URL -- the identity of the physical inference
  daemon. Strips scheme + path so http://localhost:11434
@@ -99,7 +94,6 @@ def _endpoint_key(ep: str) -> str:
     s = str(ep or "")
     s = s.split("://", 1)[-1]          # drop scheme
     return s.split("/", 1)[0] or s     # keep host:port
-
 
 def _endpoint_sem(ep: str) -> asyncio.Semaphore:
     """Concurrency gate for ONE inference endpoint (the physical inference backend),
@@ -111,7 +105,6 @@ def _endpoint_sem(ep: str) -> asyncio.Semaphore:
     if key not in _ENDPOINT_SEMS:
         _ENDPOINT_SEMS[key] = asyncio.Semaphore(max(1, ENDPOINT_CONCURRENCY))
     return _ENDPOINT_SEMS[key]
-
 
 async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
                  est_mb: int = 0, *, foreground: bool = True) -> None:

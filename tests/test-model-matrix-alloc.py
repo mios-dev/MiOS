@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestModelMatrixAlloc(unittest.TestCase):
     """Test suite for hardware-tiered model selection, VRAM headroom limits, and llama-swap projection."""
 
@@ -112,7 +111,6 @@ class TestModelMatrixAlloc(unittest.TestCase):
         with patch.object(sys, "argv", ["model_matrix_alloc.py", "--mock", "--vram", "24", "--json"]):
             code = model_matrix_alloc.main()
             self.assertEqual(code, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

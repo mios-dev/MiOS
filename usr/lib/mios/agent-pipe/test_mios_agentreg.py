@@ -18,15 +18,12 @@ import tempfile as _tempfile
 
 _mkdtemp_orig = _tempfile.mkdtemp
 
-
 def _mkdtemp_cleaned(*a, **kw):
     _d = _mkdtemp_orig(*a, **kw)
     _atexit.register(_shutil.rmtree, _d, True)
     return _d
 
-
 _tempfile.mkdtemp = _mkdtemp_cleaned
-
 
 _orig_open = builtins.open
 
@@ -45,16 +42,13 @@ def _set_open_mock(exclude_suffixes=None, fail_all_toml=False):
 def _reset_open_mock():
     builtins.open = _orig_open
 
-
 _fails = 0
-
 
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 class _Log:
     def warning(self, *a, **k):
@@ -63,18 +57,15 @@ class _Log:
     def info(self, *a, **k):
         pass
 
-
 def _opt_int_mb(v):
     try:
         return int(float(v)) if v is not None and str(v).strip() != "" else 0
     except Exception:
         return 0
 
-
 def _is_remote_endpoint(ep):
     ep = ep or ""
     return bool(ep) and ("localhost" not in ep) and ("127.0.0.1" not in ep)
-
 
 reg.configure(
     is_remote_endpoint=_is_remote_endpoint,
@@ -83,7 +74,6 @@ reg.configure(
     catalog_fail_mode="warn",
     nodes_research_only=False,
 )
-
 
 def t_build_agent_engines():
     entry = {"lane": "", "endpoint": "http://h:1/v1", "model": "m",
@@ -96,7 +86,6 @@ def t_build_agent_engines():
     check("engines: cpu twin folded", eng.get("cpu", {}).get("endpoint") == "http://c:3/v1")
     check("engines: explicit model", eng["gpu"]["model"] == "gm")
 
-
 def t_load_agent_registry(monkeypatched_toml):
     _saved = reg._toml_section
     reg._toml_section = lambda section: {}
@@ -106,7 +95,6 @@ def t_load_agent_registry(monkeypatched_toml):
         reg._toml_section = _saved
     check("registry: empty toml -> hermes fallback", "hermes" in r, str(list(r.keys())))
     check("registry: hermes fallback default", r["hermes"].get("default") is True)
-
 
 def t_load_node_pool():
     _saved = reg._toml_section
@@ -138,7 +126,6 @@ def t_load_node_pool():
     check("nodes: research_only honours injected NODES_RESEARCH_ONLY=False",
           pot["research_only"] is False)
 
-
 def t_health_gate_via_registry():
     agents = {
         "_defaults": {"role": "general", "strengths": ["x"]},
@@ -166,12 +153,10 @@ def t_health_gate_via_registry():
           reg._AGENT_AUTH_BY_HOSTPORT.get("10.1.2.3:9000") == "Authorization: Bearer tok123",
           str(dict(reg._AGENT_AUTH_BY_HOSTPORT)))
 
-
 # Ports are ALLOCATED from [ports.categories], so a hardcoded literal here goes
 # stale the moment a category base moves. Read the same env the module reads.
 _LIGHT_PORT = os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")
 _CPU_PORT = os.environ.get("MIOS_PORT_CPU_NODE", "8510")
-
 
 def t_agent_lane():
     check("lane: explicit wins", reg._agent_lane({"lane": "IGPU"}) == "igpu")
@@ -182,7 +167,6 @@ def t_agent_lane():
           reg._agent_lane({"endpoint": f"http://h:{_CPU_PORT}/v1"}) == "cpu")
     check("lane: cpu model inferred", reg._agent_lane({"model": "mios-agent-cpu"}) == "cpu")
     check("lane: default gpu", reg._agent_lane({"endpoint": "http://h:9999/v1"}) == "gpu")
-
 
 def t_render_agent_catalog():
     check("catalog: empty registry -> ''", reg._render_agent_catalog({}) == "")
@@ -195,7 +179,6 @@ def t_render_agent_catalog():
     check("catalog: explicit lane shown", "[gpu lane]" in out, out)
     check("catalog: inferred cpu lane shown", "[cpu lane]" in out, out)
     check("catalog: fallback blurb from role+strengths", "research (web)" in out, out)
-
 
 def t_role_system():
     import os
@@ -212,7 +195,6 @@ def t_role_system():
     finally:
         if _saved is not None:
             reg.configure(role_system_dir=_saved)
-
 
 def t_dedup_pool_by_target():
     registry = {
@@ -242,7 +224,6 @@ def t_dedup_pool_by_target():
           len(reg._dedup_pool_by_target(["a", "c", "peer"])) <= 2, str(capped))
     reg.configure(swarm_max_width=10)  # restore for any later test
 
-
 def main():
     t_build_agent_engines()
     t_load_agent_registry(None)
@@ -254,7 +235,6 @@ def main():
     t_dedup_pool_by_target()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -13,7 +13,6 @@ import stat
 
 _fails = 0
 
-
 def _gatekeeper_path():
     """Resolve the MCP gatekeeper script: the installed path in-image, else the
     source-tree copy. The CI drift-gate runs this test from a source checkout
@@ -32,7 +31,6 @@ def check(name, cond, detail=""):
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_sandbox_gate_parsing():
     """Verify that [security.mcp_sandbox].enable is read correctly from config."""
@@ -55,7 +53,6 @@ def t_sandbox_gate_parsing():
           mc.MCP_SANDBOX_ENABLE is False, f"got {mc.MCP_SANDBOX_ENABLE}")
     check("sandbox-gate: MCP_SANDBOX_GATEKEEPER path set",
           mc.MCP_SANDBOX_GATEKEEPER == "/usr/libexec/mios/mcp-server-runner")
-
 
 def t_gatekeeper_traversal_blocking():
     """Verify the gatekeeper script blocks directory traversal patterns."""
@@ -112,7 +109,6 @@ def t_gatekeeper_traversal_blocking():
     check("gatekeeper-traversal: /etc/shadow blocked",
           exit_code3 == "1", f"exit={exit_code3}")
 
-
 def t_gatekeeper_write_path_validation():
     """Verify the gatekeeper's _validate_write_path function."""
     gatekeeper = _gatekeeper_path()
@@ -153,7 +149,6 @@ def t_gatekeeper_write_path_validation():
     check("gatekeeper-write-path: /etc/passwd blocked",
           exit_code2 == "1", f"exit={exit_code2}")
 
-
 def t_spawn_routes_through_gatekeeper():
     """Verify _McpStdioClient._spawn prepends gatekeeper when sandbox is enabled."""
     import mios_pipe.federation.mcp as mc
@@ -189,7 +184,6 @@ def t_spawn_routes_through_gatekeeper():
         mc.MCP_SANDBOX_GATEKEEPER = orig_gatekeeper
         os.unlink(fake_gk)
 
-
 def t_spawn_direct_when_disabled():
     """Verify _McpStdioClient._spawn runs command directly when sandbox is disabled."""
     import mios_pipe.federation.mcp as mc
@@ -213,7 +207,6 @@ def t_spawn_direct_when_disabled():
               _args == ["hello"], f"got {_args}")
     finally:
         mc.MCP_SANDBOX_ENABLE = orig_enable
-
 
 def t_fapolicyd_rules_structure():
     """Verify fapolicyd.rules has MCP execution carve-outs and still ends with deny_audit."""
@@ -243,7 +236,6 @@ def t_fapolicyd_rules_structure():
              if l.strip() and not l.strip().startswith("#")]
     check("fapolicyd-rules: last rule is deny_audit",
           lines[-1].startswith("deny_audit"), f"got: {lines[-1]}")
-
 
 def main():
     print("=== Running T-032 Hermetic MCP Sandboxing Tests ===")

@@ -33,7 +33,6 @@ except ImportError:
     else:
         raise
 
-
 class TestPromptPruning(unittest.TestCase):
     """Validates compression ratio, syntax preservation, and header deduplication."""
 
@@ -293,12 +292,10 @@ class TestPromptPruning(unittest.TestCase):
         c5, s5 = self.pruner.compress(text, target_ratio=0.5)
         self.assertGreater(s5["reduction_ratio"], 0.30)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestPromptPruning)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

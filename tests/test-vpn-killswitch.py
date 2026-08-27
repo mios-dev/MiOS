@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "net"))
 from vpn_killswitch import VPNKillSwitchManager, DEFAULT_VPN_TABLE, DEFAULT_FWMARK
 
-
 class TestVPNKillSwitchManager(unittest.TestCase):
     def setUp(self):
         self.mgr = VPNKillSwitchManager(
@@ -51,7 +50,6 @@ class TestVPNKillSwitchManager(unittest.TestCase):
         res_flush = self.mgr.flush_rules()
         self.assertEqual(res_flush["status"], "dry_run")
         self.assertFalse(res_flush["flushed"])
-
 
 if __name__ == "__main__":
     unittest.main()

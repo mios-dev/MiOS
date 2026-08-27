@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/libexec/mios/diag")
 from coredump_sanitizer import CoredumpSanitizer
 
-
 def test_minidump_extraction_and_purge():
     """Verify segfaults produce <1MB sanitized minidumps and purge raw cores."""
     sanitizer = CoredumpSanitizer()
@@ -14,7 +13,6 @@ def test_minidump_extraction_and_purge():
     assert minidump.size_kb < 1024 # < 1MB
     assert len(minidump.stack_trace) > 0
     assert sanitizer.raw_cores_on_disk == 0, "Raw core file must be purged from disk"
-
 
 if __name__ == "__main__":
     test_minidump_extraction_and_purge()

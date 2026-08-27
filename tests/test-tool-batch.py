@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_tool_batch import ToolBatcher
 
-
 class TestToolBatch(unittest.TestCase):
     """Validates tool call partitioning and concurrent batch execution."""
 
@@ -51,12 +50,10 @@ class TestToolBatch(unittest.TestCase):
         self.assertIn("OK_view_file", results)
         self.assertIn("OK_replace_file_content", results)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestToolBatch)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -17,7 +17,6 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional
 
-
 class VramSanitizer:
     """Discovers GPU devices, scrubs VRAM buffers, and verifies container memory isolation."""
 
@@ -178,7 +177,6 @@ class VramSanitizer:
             "audit_passed": len(findings) == 0,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS GPU VRAM Memory Sanitization Engine")
     parser.add_argument("--scrub", action="store_true", help="Scrub and zeroize GPU VRAM memory")
@@ -243,7 +241,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -45,7 +45,6 @@ _PROBE = (
     " 'urls': d.get('urls',{})}))" % _ROOT
 )
 
-
 def _resolve(host_toml=None, vendor_only=False) -> dict:
     env = dict(os.environ)
     env.pop("MIOS_PROBE_VENDOR", None)
@@ -62,11 +61,9 @@ def _resolve(host_toml=None, vendor_only=False) -> dict:
         raise AssertionError("resolver failed: %s" % out.stderr.strip()[-400:])
     return json.loads(out.stdout)
 
-
 def _usr_state() -> str:
     return subprocess.run(["git", "-C", _ROOT, "status", "--porcelain", "usr/"],
                           capture_output=True, text=True, check=False).stdout
-
 
 class TestOffloadIsAnOverlay(unittest.TestCase):
     """ADR-0016 Decision 1: offload is an addressing change, nothing more."""
@@ -132,7 +129,6 @@ class TestOffloadIsAnOverlay(unittest.TestCase):
         finally:
             os.unlink(path)
 
-
 class TestCanonicalAddressIsTheKeyConsumersRead(unittest.TestCase):
     """The measurement that corrects Decision 1 -- pinned so it cannot rot back."""
 
@@ -169,7 +165,6 @@ class TestCanonicalAddressIsTheKeyConsumersRead(unittest.TestCase):
         for value in urls.values():
             if isinstance(value, str):
                 self.assertRegex(value, r"^https?://")
-
 
 if __name__ == "__main__":
     unittest.main()

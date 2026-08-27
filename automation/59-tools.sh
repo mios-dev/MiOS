@@ -9,7 +9,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mios_log "Configure MiOS CLI tools"
 
-
 TOOLS=(
     mios
     mios-backup

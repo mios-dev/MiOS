@@ -28,7 +28,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load backup_remote module from {_BACKUP_REMOTE_PATH}")
 
-
 class TestBackupRemote(unittest.TestCase):
     """Validates chunk hashing, manifest creation, delta plan computation, zstd staging, sync, and verification."""
 
@@ -186,12 +185,10 @@ class TestBackupRemote(unittest.TestCase):
         remaining = [f for f in os.listdir(manifest_dir) if f.startswith("manifest_")]
         self.assertEqual(len(remaining), 7)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBackupRemote)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

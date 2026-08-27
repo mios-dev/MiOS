@@ -39,7 +39,6 @@ try:
 except ImportError:
     mios_toml = None
 
-
 @dataclass
 class StatusBarState:
     """Current live snapshot of local AI brain and system telemetry."""
@@ -53,7 +52,6 @@ class StatusBarState:
     total_tokens_session: int = 1420
     endpoint_healthy: bool = True
     timestamp: float = field(default_factory=time.time)
-
 
 class StatusBarEngine:
     """Status bar telemetry bridge and QML component generator."""
@@ -241,7 +239,6 @@ Rectangle {{
                 time.sleep(interval_sec)
         return snapshots
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS System Status Bar AI Component & QML Bridge"
@@ -310,7 +307,6 @@ def main() -> int:
         else:
             print(f"[status_bar] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

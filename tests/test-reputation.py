@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/lib/mios/agent-pipe")
 from mios_reputation import ReputationEngine, PeerContribution
 
-
 def _make_contributions():
     return [
         PeerContribution(peer_id="agent-a",
@@ -14,14 +13,12 @@ def _make_contributions():
                          moves=[]),   # contributed nothing
     ]
 
-
 def test_records_returned_for_all_peers():
     """evaluate_session() returns one ReputationRecord per peer."""
     engine = ReputationEngine(dry_run=True)
     records = engine.evaluate_session("sess-1", _make_contributions())
     peer_ids = {r.peer_id for r in records}
     assert peer_ids == {"agent-a", "agent-b", "agent-c"}
-
 
 def test_low_contributor_gets_low_delta():
     """Peer with no moves gets a lower delta than peers with moves."""
@@ -32,7 +29,6 @@ def test_low_contributor_gets_low_delta():
     assert by_id["agent-c"].delta <= by_id["agent-a"].delta, (
         "Empty contributor should have lower marginal value")
 
-
 def test_eval_count_increments():
     """eval_count increments on each session evaluation for a peer."""
     engine = ReputationEngine(dry_run=True)
@@ -41,7 +37,6 @@ def test_eval_count_increments():
     rec = engine.get_reputation("agent-a")
     assert rec.eval_count == 2, f"Expected eval_count=2, got {rec.eval_count}"
 
-
 def test_sorted_peers_descending():
     """sorted_peers() returns highest-score peers first."""
     engine = ReputationEngine(dry_run=True)
@@ -49,7 +44,6 @@ def test_sorted_peers_descending():
     peers = engine.sorted_peers()
     scores = [p.score for p in peers]
     assert scores == sorted(scores, reverse=True), "Peers not in descending score order"
-
 
 if __name__ == "__main__":
     test_records_returned_for_all_peers()

@@ -13,7 +13,6 @@ try:
 except ModuleNotFoundError:  # pragma: no cover -- py<3.11
     import tomli as tomllib  # type: ignore
 
-
 def _ssot_pgvector_port() -> int:
     """[ports].pgvector, read rather than restated: this assertion used to carry
     its own literal, and that literal was a retired port."""
@@ -29,11 +28,9 @@ def _ssot_pgvector_port() -> int:
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_config_dsn() -> None:
     env = {"MIOS_PG_HOST": "h", "MIOS_PORT_PGVECTOR": "5544",
@@ -47,13 +44,11 @@ def t_config_dsn() -> None:
     _check("config: local defaults", d["host"] == "localhost" and d["port"] == want
            and d["user"] == "mios" and d["dbname"] == "mios", "%s (SSOT port %d)" % (d, want))
 
-
 def t_vector_literal() -> None:
     _check("vec: format", P.vector_literal([0.1, 0.2, 0.3]) == "[0.1,0.2,0.3]",
            P.vector_literal([0.1, 0.2, 0.3]))
     _check("vec: empty", P.vector_literal([]) == "[]")
     _check("vec: coerces ints", P.vector_literal([1, 2]) == "[1.0,2.0]")
-
 
 def t_build_insert() -> None:
     sql, params = P.build_insert("knowledge",
@@ -65,7 +60,6 @@ def t_build_insert() -> None:
     _check("insert: no value interpolation", "hi" not in sql and "yo" not in sql)
     _check("insert: params bound", params["q"] == "hi" and params["answer"] == "yo")
     _check("insert: emb -> literal", params["emb"] == "[0.1,0.2]", str(params["emb"]))
-
 
 def t_build_insert_jsonb() -> None:
     sql, params = P.build_insert("event",
@@ -79,7 +73,6 @@ def t_build_insert_jsonb() -> None:
     _check("jsonb: list serialized", params["sources"] == '["u:remember", "url"]',
            str(params["sources"]))
 
-
 def t_build_recall() -> None:
     sql, params = P.build_recall("knowledge", k=5)
     _check("recall: cosine op", "emb <=> %(qvec)s::vector" in sql, sql)
@@ -87,7 +80,6 @@ def t_build_recall() -> None:
     _check("recall: order+limit", "ORDER BY emb <=> %(qvec)s::vector LIMIT %(k)s" in sql)
     _check("recall: filters null emb", "WHERE emb IS NOT NULL" in sql)
     _check("recall: k bound", params["k"] == 5)
-
 
 def t_build_recall_emb_version() -> None:
     sql, params = P.build_recall("knowledge", k=3, emb_version="v2")
@@ -111,7 +103,6 @@ def t_build_recall_emb_version() -> None:
     _check("emb_ver: keeps NULL/un-stamped row", _kept(None) is True)
     _check("emb_ver: excludes mismatched row", _kept("v1") is False)
 
-
 def t_build_fts_query() -> None:
     sql, params = P.build_fts_query("knowledge", k=5)
     _check("fts: expr on knowledge", "fts @@ plainto_tsquery('simple', %(query_text)s)" in sql, sql)
@@ -126,11 +117,9 @@ def t_build_fts_query() -> None:
     _check("fts: expr on agent_memory", "to_tsvector('simple', coalesce(fact, '') || ' ' || coalesce(scope, ''))" in sql_am, sql_am)
     _check("fts: emb_version on agent_memory", "emb_version = %(emb_version)s" in sql_am, sql_am)
 
-
 def t_recall_tuning() -> None:
     _check("tuning: ef_search", P.recall_tuning(120) == "SET hnsw.ef_search = 120;",
            P.recall_tuning(120))
-
 
 def t_rid_to_pg_id() -> None:
     _check("rid: legacy numeric tail", P.rid_to_pg_id("knowledge:123") == 123)
@@ -140,7 +129,6 @@ def t_rid_to_pg_id() -> None:
     _check("rid: alpha legacy id -> None", P.rid_to_pg_id("knowledge:abc") is None)
     _check("rid: None -> None", P.rid_to_pg_id(None) is None)
     _check("rid: empty -> None", P.rid_to_pg_id("") is None)
-
 
 def t_rls_owner_scope() -> None:
     sql, params = P.build_set_owner("alice")
@@ -200,11 +188,9 @@ def t_rls_owner_scope() -> None:
             os.environ["MIOS_PRINCIPAL_BIND_MODE"] = _prior_bm
         P._RLS_UNVERIFIED_WARNED = False
 
-
 class _FakeInfo:
     def __init__(self) -> None:
         self.transaction_status = 0   # 0 == IDLE (psycopg pq.TransactionStatus.IDLE)
-
 
 class _FakeCursor:
     def __init__(self, conn) -> None:
@@ -226,7 +212,6 @@ class _FakeCursor:
     async def fetchall(self):
         return list(self.conn.fetch_rows)
 
-
 class _FakeTxn:
     def __init__(self, conn) -> None:
         self.conn = conn
@@ -241,7 +226,6 @@ class _FakeTxn:
         self.conn._in_txn = False
         self.conn.info.transaction_status = 0
         return False
-
 
 class _FakeConn:
     def __init__(self) -> None:
@@ -277,7 +261,6 @@ class _FakeConn:
         self.closed = True
         return False
 
-
 class _FakeAsyncConnection:
     opened: list = []   # class-level connect log
 
@@ -286,7 +269,6 @@ class _FakeAsyncConnection:
         c = _FakeConn()
         cls.opened.append(c)
         return c
-
 
 def _install_fake_psycopg() -> None:
     mod = types.ModuleType("psycopg")
@@ -298,13 +280,11 @@ def _install_fake_psycopg() -> None:
     sys.modules["psycopg.rows"] = rows
     _FakeAsyncConnection.opened = []
 
-
 async def _two_executes(*, owner1=None):
     _FakeAsyncConnection.opened = []
     await P.execute("SELECT 1", fetch=False, rls_owner=owner1)
     await P.execute("SELECT 2", fetch=False)
     return list(_FakeAsyncConnection.opened)
-
 
 def _set_env(**kw):
     """Set/clear env vars, returning a restore callable (snapshot+restore)."""
@@ -323,7 +303,6 @@ def _set_env(**kw):
             os.environ[k] = v
     return _restore
 
-
 def t_pool_default_off_per_call_connect() -> None:
     _install_fake_psycopg()
     restore = _set_env(MIOS_PG_POOL_ENABLE=None)
@@ -340,7 +319,6 @@ def t_pool_default_off_per_call_connect() -> None:
     finally:
         P._POOL = None
         restore()
-
 
 def t_pool_on_reuses_connection() -> None:
     _install_fake_psycopg()
@@ -360,7 +338,6 @@ def t_pool_on_reuses_connection() -> None:
         P._POOL = None
         restore()
 
-
 class _PoisonPool:
     """A pool whose checkout always fails -- exercises _conn's degrade-open path."""
     async def acquire(self, cfg=None):
@@ -368,7 +345,6 @@ class _PoisonPool:
 
     async def release(self, *a, **k):
         return None
-
 
 def t_pool_degrade_open_poisoned() -> None:
     _install_fake_psycopg()
@@ -388,7 +364,6 @@ def t_pool_degrade_open_poisoned() -> None:
     finally:
         P._POOL = None
         restore()
-
 
 def t_pool_no_owner_guc_leak() -> None:
     _install_fake_psycopg()
@@ -415,7 +390,6 @@ def t_pool_no_owner_guc_leak() -> None:
         P._POOL = None
         P._RLS_UNVERIFIED_WARNED = False
         restore()
-
 
 def t_pool_checkin_cleans_connection() -> None:
     _install_fake_psycopg()
@@ -446,7 +420,6 @@ def t_pool_checkin_cleans_connection() -> None:
     _check("pool checkin: a broken connection is discarded, not reused",
            pool2._free == [] and pool2._size == 0)
 
-
 def t_pool_warm_and_exhaustion() -> None:
     _install_fake_psycopg()
 
@@ -476,7 +449,6 @@ def t_pool_warm_and_exhaustion() -> None:
     _check("pool exhaust: the ephemeral conn is opened beyond the cap (never blocks)",
            len(opened2) == 2, f"opened={len(opened2)}")
 
-
 def main() -> int:
     for t in (t_config_dsn, t_vector_literal, t_build_insert, t_build_insert_jsonb,
               t_build_recall, t_build_recall_emb_version, t_build_fts_query, t_recall_tuning,
@@ -489,7 +461,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

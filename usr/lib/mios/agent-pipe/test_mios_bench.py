@@ -9,17 +9,14 @@ import mios_bench as b
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _close(a, c, tol=1e-9):
     return abs(a - c) <= tol
-
 
 def t_pass_at_k():
     check("pass@1 == c/n", _close(b.pass_at_k(10, 7, 1), 0.7))
@@ -29,7 +26,6 @@ def t_pass_at_k():
     check("pass@k exact (4,2,2)=5/6", _close(b.pass_at_k(4, 2, 2), 5.0 / 6.0))
     check("pass@k monotonic in k",
           b.pass_at_k(8, 3, 1) <= b.pass_at_k(8, 3, 2) <= b.pass_at_k(8, 3, 3))
-
 
 def t_pass_hat_k():
     check("pass^1 == c/n", _close(b.pass_hat_k(10, 7, 1), 0.7))
@@ -43,14 +39,12 @@ def t_pass_hat_k():
           b.pass_hat_k(n, c, k) <= b.pass_at_k(n, c, 1) + 1e-12
           and b.pass_at_k(n, c, 1) <= b.pass_at_k(n, c, k) + 1e-12)
 
-
 def t_iid():
     check("iid pass^k = p**k (0.9,8)~=0.4305", _close(b.iid_pass_hat_k(0.9, 8), 0.9 ** 8, 1e-9))
     check("iid ~56% reliability at k=8 for p=0.93", 0.55 <= b.iid_pass_hat_k(0.93, 8) <= 0.57)
     check("iid p=1 -> 1", _close(b.iid_pass_hat_k(1.0, 8), 1.0))
     check("iid k=0 -> 1", _close(b.iid_pass_hat_k(0.5, 0), 1.0))
     check("iid clamps p>1", _close(b.iid_pass_hat_k(2.0, 3), 1.0))
-
 
 def t_aggregate():
     tasks = [(4, 2), (4, 4), (1, 1)]   # last has n<k, skipped at k=2
@@ -60,7 +54,6 @@ def t_aggregate():
         b.aggregate_pass_at_k(tasks, 2), (b.pass_at_k(4, 2, 2) + 1.0) / 2.0))
     check("agg empty -> 0", b.aggregate_pass_hat_k([], 2) == 0.0)
     check("agg all-too-small -> 0", b.aggregate_pass_hat_k([(1, 1)], 3) == 0.0)
-
 
 def t_pass_and_k_rate():
     tasks = [(4, 4), (4, 2), (1, 1)]
@@ -77,7 +70,6 @@ def t_pass_and_k_rate():
           b.aggregate_pass_and_k_rate([(4, 4), (4, 2)], 2)
           != b.aggregate_pass_hat_k([(4, 4), (4, 2)], 2))
 
-
 def t_percentile():
     check("pctl p50 interp [100,200,300]=200", _close(b.percentile([100, 200, 300], 50), 200.0))
     check("pctl p95 [100,200,300]=290", _close(b.percentile([100, 200, 300], 95), 290.0))
@@ -85,7 +77,6 @@ def t_percentile():
     check("pctl empty -> 0", b.percentile([], 50) == 0.0)
     check("pctl p0/p100 = min/max", _close(b.percentile([5, 1, 9], 0), 1.0)
           and _close(b.percentile([5, 1, 9], 100), 9.0))
-
 
 def t_classic_rollup():
     recs = [
@@ -105,7 +96,6 @@ def t_classic_rollup():
     check("classic: empty -> safe zeros", b.classic_rollup([])["n"] == 0
           and b.classic_rollup([])["security"] == 1.0)
 
-
 def main():
     t_pass_at_k()
     t_pass_hat_k()
@@ -116,7 +106,6 @@ def main():
     t_classic_rollup()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

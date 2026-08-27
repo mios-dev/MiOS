@@ -8,7 +8,6 @@ import unittest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "check_variant_registry", os.path.join(_HERE, "check-variant-registry.py"))
@@ -16,15 +15,12 @@ def _load():
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
-
 
 def _ssot():
     import tomllib
     with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh)
-
 
 class TestVariantRegistry(unittest.TestCase):
     def setUp(self):
@@ -75,7 +71,6 @@ class TestVariantRegistry(unittest.TestCase):
         body = open(p, encoding="utf-8").read()
         for spec in self.entries.values():
             self.assertIn(spec["title"].replace("-", chr(92) + "-"), body)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

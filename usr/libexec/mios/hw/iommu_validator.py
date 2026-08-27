@@ -7,7 +7,6 @@ import os
 import sys
 from typing import Dict, List, Optional, Any
 
-
 class IOMMUValidator:
     """Inspects /sys/kernel/iommu_groups and validates strict device isolation for VFIO GPU passthrough."""
 
@@ -82,7 +81,6 @@ class IOMMUValidator:
 
         return {"status": "not_found", "target_bdf": target_bdf}
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS IOMMU & PCIe ACS Group Validator")
     parser.add_argument("--scan", action="store_true", help="Scan and list all IOMMU groups")
@@ -98,7 +96,6 @@ def main():
         res = validator.scan_iommu_groups()
 
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

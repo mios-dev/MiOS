@@ -23,7 +23,6 @@ _conv_key_var = None
 _mios_pg = None
 _db_write = None
 
-
 def configure(*, scratchpad_enable=None, scratchpad_persist=None,
               scratchpad_max=None, scratchpad_max_chats=None,
               scratchpad_summary_chars=None, scratchpad_ttl_s=None,
@@ -55,13 +54,11 @@ def configure(*, scratchpad_enable=None, scratchpad_persist=None,
     if db_write is not None:
         _db_write = db_write
 
-
 def _scratchpad_key(body: dict, fallback: str = "default") -> str:
     """Per-chat scratchpad key: the OpenAI-standard metadata.chat_id."""
     meta = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
     return str(meta.get("chat_id") or meta.get("session_id")
                or body.get("chat_id") or fallback)
-
 
 def _scratchpad_for(key: str) -> collections.deque:
     dq = _SCRATCHPADS.get(key)
@@ -73,7 +70,6 @@ def _scratchpad_for(key: str) -> collections.deque:
     else:
         _SCRATCHPADS.move_to_end(key)
     return dq
-
 
 async def _scratchpad_rehydrate(key: str) -> None:
     """On the FIRST turn of a chat after an agent-pipe restart, repopulate
@@ -110,7 +106,6 @@ async def _scratchpad_rehydrate(key: str) -> None:
         except Exception:
             continue
 
-
 def _scratchpad_note(agent: str, text: str, *, lane: str = "",
                      phase: str = "") -> None:
     """Append one agent's checkpoint to the CURRENT chat's rolling log."""
@@ -130,7 +125,6 @@ def _scratchpad_note(agent: str, text: str, *, lane: str = "",
             }, now_fields=("ts",))
         except Exception:
             pass
-
 
 def _scratchpad_render() -> str:
     """Render the current chat's recent (non-stale) checkpoints as an inline

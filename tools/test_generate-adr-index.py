@@ -17,7 +17,6 @@ _spec.loader.exec_module(M)
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if cond:
@@ -25,7 +24,6 @@ def check(name, cond, detail=""):
     else:
         _fails += 1
         print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
-
 
 def mkroot(adrs):
     """adrs: {filename: front_matter_text}. Returns the root path."""
@@ -43,7 +41,6 @@ def mkroot(adrs):
     write_ssot(root)
     return root
 
-
 def write_ssot(root, dotfiles=True, meta=True):
     """Write the minimal SSOT that validate_adr_ssot_consistency accepts."""
     p = os.path.join(root, "usr", "share", "mios")
@@ -58,13 +55,11 @@ def write_ssot(root, dotfiles=True, meta=True):
         fh.write(body)
     return root
 
-
 def run(root, *args):
     env = dict(os.environ, MIOS_DRIFT_ROOT=root)
     r = subprocess.run([sys.executable, _TOOL] + list(args),
                        capture_output=True, text=True, env=env)
     return r.returncode, r.stdout + r.stderr
-
 
 # Assembled, not literal: Law 7 forbids a date in a source string.
 _YEAR = str(2000 + 26)
@@ -72,7 +67,6 @@ _FM1 = ("adr: 0001\ntitle: First decision\nstatus: accepted\n"
         f"date: {_YEAR}-01-01\nlaws: [1, 7]\nssot_keys: [a.b, c.d]")
 _FM2 = ("adr: 0002\ntitle: Second decision\nstatus: proposed\n"
         f"date: {_YEAR}-02-02\nlaws: [8]\nssot_keys: []")
-
 
 def t_front_matter_parsing():
     root = mkroot({"0001-first.md": _FM1})
@@ -86,7 +80,6 @@ def t_front_matter_parsing():
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
-
 def t_collect_and_order():
     root = mkroot({"0002-second.md": _FM2, "0001-first.md": _FM1,
                    "README.md": "not an adr"})
@@ -98,7 +91,6 @@ def t_collect_and_order():
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
-
 def t_render_points_at_the_baked_adrs():
     root = mkroot({"0001-first.md": _FM1})
     try:
@@ -109,7 +101,6 @@ def t_render_points_at_the_baked_adrs():
         check("render: counts accepted separately", "(1 accepted)" in body, body[:400])
     finally:
         shutil.rmtree(root, ignore_errors=True)
-
 
 def t_check_mode():
     root = mkroot({"0001-first.md": _FM1})
@@ -129,7 +120,6 @@ def t_check_mode():
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
-
 def t_idempotent():
     root = mkroot({"0001-first.md": _FM1, "0002-second.md": _FM2})
     try:
@@ -141,7 +131,6 @@ def t_idempotent():
               first == second)
     finally:
         shutil.rmtree(root, ignore_errors=True)
-
 
 def t_ssot_consistency_can_fail():
     """The SSOT half of --check must be falsifiable, not merely satisfied.
@@ -175,7 +164,6 @@ def t_ssot_consistency_can_fail():
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
-
 def main():
     t_front_matter_parsing()
     t_collect_and_order()
@@ -185,7 +173,6 @@ def main():
     t_ssot_consistency_can_fail()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

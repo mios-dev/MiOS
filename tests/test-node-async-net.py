@@ -19,7 +19,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "libexec", "mios", "node"))
 
 import wire
 
-
 class TestAsyncNetFraming(unittest.IsolatedAsyncioTestCase):
     """Asynchronous test cases for Tokio/asyncio TCP frame reader, writer, and buffer."""
 
@@ -178,12 +177,10 @@ class TestAsyncNetFraming(unittest.IsolatedAsyncioTestCase):
         await client.close()
         await server.stop()
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestAsyncNetFraming)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

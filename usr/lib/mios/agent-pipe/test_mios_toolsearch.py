@@ -8,10 +8,8 @@ import math
 
 import mios_toolsearch as ts
 
-
 def _run(coro):
     return asyncio.run(coro)
-
 
 def _cos(a, b):
     if not a or not b or len(a) != len(b):
@@ -23,15 +21,12 @@ def _cos(a, b):
         return 0.0
     return dot / (na * nb)
 
-
 _QVEC = {"find on the web": [1.0, 0.0], "": None}
-
 
 def _embed_stub(text, prefix=None):
     async def _inner():
         return _QVEC.get(text, [1.0, 0.0])
     return _inner()
-
 
 def _reset(*, verb_emb=None, mcp_emb=None, catalog=None, mcp_tools=None,
            embed_one=_embed_stub):
@@ -45,14 +40,12 @@ def _reset(*, verb_emb=None, mcp_emb=None, catalog=None, mcp_tools=None,
     ts._MCP_EMBEDDINGS.clear()
     ts._MCP_EMBEDDINGS.update(mcp_emb or {})
 
-
 _CATALOG = {
     "web_search": {"tier": "core", "sig": "web_search(q)", "desc": "search the web"},
     "read_file": {"tier": "common", "sig": "read_file(p)", "desc": "read a file"},
     "reboot": {"tier": "rare", "sig": "reboot()", "desc": "reboot the host"},
 }
 _VERB_EMB = {"web_search": [1.0, 0.0], "read_file": [0.0, 1.0]}
-
 
 def test_tool_search_ranks_and_caps():
     _reset(verb_emb=_VERB_EMB, catalog=_CATALOG)
@@ -63,7 +56,6 @@ def test_tool_search_ranks_and_caps():
     assert data["hits"][0]["name"] == "web_search", data
     assert data["hits"][0]["score"] >= 0.99, data
 
-
 def test_tool_search_filters_and_detail():
     _reset(verb_emb=_VERB_EMB, catalog=_CATALOG)
     resp = _run(ts.tool_search_logic(query="find on the web", limit=5,
@@ -72,7 +64,6 @@ def test_tool_search_filters_and_detail():
     names = [h["name"] for h in data["hits"]]
     assert names == ["read_file"], data
     assert set(data["hits"][0].keys()) == {"name", "score"}, data["hits"][0]
-
 
 def test_tool_search_includes_mcp():
     mcp_tools = {"mcp.srv.query": {"namespace": "duckdb_", "tier": "rare",
@@ -88,7 +79,6 @@ def test_tool_search_includes_mcp():
     names2 = [h["name"] for h in json.loads(resp2.body)["hits"]]
     assert names2 == ["mcp.srv.query"], names2
 
-
 def test_tool_search_substring_fallback():
     def _none(_t, *args, **kwargs):
         async def _inner():
@@ -101,13 +91,11 @@ def test_tool_search_substring_fallback():
     names = [h["name"] for h in data["hits"]]
     assert "read_file" in names and "web_search" not in names, data
 
-
 def test_tool_embedding_lookup():
     _reset(verb_emb={"a": [1.0]}, mcp_emb={"mcp.x.y": [2.0]})
     assert ts._tool_embedding("a") == [1.0]
     assert ts._tool_embedding("mcp.x.y") == [2.0]
     assert ts._tool_embedding("missing") is None
-
 
 def test_app_search_ranks():
     _reset()
@@ -134,7 +122,6 @@ def test_app_search_ranks():
     assert len(data["hits"]) == 1 and data["hits"][0]["name"] == "Browser", data
     assert data["inventory_size"] == 2, data
 
-
 def test_cosine_known_vectors():
     assert ts._cosine([1.0, 0.0], [1.0, 0.0]) == 1.0
     assert ts._cosine([1.0, 0.0], [0.0, 1.0]) == 0.0
@@ -145,7 +132,6 @@ def test_cosine_known_vectors():
     assert ts._cosine([1.0, 2.0], [1.0]) == 0.0
     assert ts._cosine([0.0, 0.0], [1.0, 1.0]) == 0.0
 
-
 def test_verb_embed_text_shapes():
     txt = ts._verb_embed_text("web_search",
                               {"model_name": "search_the_web", "desc": "search the web",
@@ -153,7 +139,6 @@ def test_verb_embed_text_shapes():
     assert txt == ("search_the_web: search the web\n"
                    "Example requests: find news | look it up"), txt
     assert ts._verb_embed_text("reboot", {"desc": "reboot the host"}) == "reboot: reboot the host"
-
 
 def test_verb_embed_fingerprint_deterministic_and_stale():
     cat = {
@@ -172,7 +157,6 @@ def test_verb_embed_fingerprint_deterministic_and_stale():
     _reset(catalog=cat3)
     assert ts._verb_embed_fingerprint() != fp1
 
-
 def test_embedding_prefix_hygiene():
     embedded_calls = []
 
@@ -189,7 +173,6 @@ def test_embedding_prefix_hygiene():
 
     _run(ts._mcp_embed_new_tools())
     assert any(prefix == "search_document: " for _, prefix in embedded_calls), embedded_calls
-
 
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]

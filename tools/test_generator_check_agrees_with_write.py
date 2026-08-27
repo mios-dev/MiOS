@@ -28,7 +28,6 @@ import unittest
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _GATE = os.path.join(_ROOT, "automation", "98-drift-checks.sh")
 
-
 def _projection_pairs():
     """(generator, [targets]) as declared by the gate's evidence emitter."""
     with open(_GATE, encoding="utf-8", errors="replace") as fh:
@@ -41,7 +40,6 @@ def _projection_pairs():
         if len(args) >= 2 and args[0].endswith(".py"):
             pairs.append((args[0], args[1:]))
     return pairs
-
 
 class GeneratorCheckAgreesWithWrite(unittest.TestCase):
     def test_the_gate_declares_projection_pairs(self):
@@ -107,7 +105,6 @@ class GeneratorCheckAgreesWithWrite(unittest.TestCase):
                     cr, body,
                     "%s (written by %s) contains CR; pin the write with "
                     'newline="\n"' % (rel, gen))
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

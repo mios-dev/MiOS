@@ -78,7 +78,6 @@ Cross-refs: theme-ssot-projection (projection engine + check 25), mios-flatten-c
 (shared `mios_toml.py`, drift-gates 25-28, load-bearing-verb caution). New drift-gates
 land in `automation/98-drift-checks.sh` (29+). Tasks: **T-242–T-247** (V0–V5).
 
-
 ## V1 Config read-path Flip & Rollback Runbook
 
 Database authority is designed to be flipped safely and reverted instantly.

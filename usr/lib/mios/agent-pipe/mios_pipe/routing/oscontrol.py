@@ -22,8 +22,6 @@ from mios_knowledge import _store_knowledge
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 OS_CONTROL_LAUNCH_VERIFY_S = 16.0
 OS_CONTROL_LAUNCH_POLL_S = 1.5
 OS_CONTROL_RETRY_ATTEMPTS = 2
@@ -46,7 +44,6 @@ _strip_think_tags = None
 
 _FASTPATH_VERBS: frozenset = frozenset()
 _VERB_CATALOG: dict = {}
-
 
 def configure(*, os_control_launch_verify_s=None, os_control_launch_poll_s=None,
               os_control_retry_attempts=None, os_control_retry_settle_s=None,
@@ -99,9 +96,7 @@ def configure(*, os_control_launch_verify_s=None, os_control_launch_poll_s=None,
     if verb_catalog is not None:
         g["_VERB_CATALOG"] = verb_catalog
 
-
 _OSCONTROL_ENDPOINTS_CACHE: Optional[list] = None
-
 
 def _load_oscontrol_endpoints() -> list:
     global _OSCONTROL_ENDPOINTS_CACHE
@@ -139,7 +134,6 @@ def _load_oscontrol_endpoints() -> list:
         _OSCONTROL_ENDPOINTS_CACHE = []
         return []
 
-
 async def _remote_enumerate_windows_one(ep: dict,
                                         timeout_s: float = 3.5) -> list:
     """GET <url>/windows on one Windows-native executor + normalise the
@@ -169,7 +163,6 @@ async def _remote_enumerate_windows_one(ep: dict,
         wcopy.setdefault("_source", label)
         norm.append(wcopy)
     return norm
-
 
 async def _enumerate_windows() -> dict:
     async def _local() -> list:
@@ -222,7 +215,6 @@ async def _enumerate_windows() -> dict:
             await asyncio.sleep(OS_CONTROL_ENUM_RETRY_SETTLE_S)
     return {"ok": any_ok, "count": len(merged), "windows": merged}
 
-
 def _window_key(w: dict) -> tuple:
     """Stable identity for diffing snapshots: prefer hwnd, else (title, proc)."""
     if not isinstance(w, dict):
@@ -231,7 +223,6 @@ def _window_key(w: dict) -> tuple:
     if hw not in (None, "", 0):
         return ("hwnd", str(hw))
     return ("tp", str(w.get("title", "")), str(w.get("proc", "")))
-
 
 def _window_diff(before: dict, after: dict) -> dict:
     """opened = windows in AFTER not in BEFORE; closed = the reverse."""
@@ -243,7 +234,6 @@ def _window_diff(before: dict, after: dict) -> dict:
     closed = [b[k] for k in (b.keys() - a.keys())]
     return {"opened": opened, "closed": closed}
 
-
 def _win_titles(wins: Optional[list]) -> str:
     out = []
     for w in (wins or [])[:12]:
@@ -253,7 +243,6 @@ def _win_titles(wins: Optional[list]) -> str:
                 out.append(t)
     return ", ".join(out)
 
-
 def _window_delta_text(diff: dict) -> str:
     bits = []
     if diff.get("opened"):
@@ -261,7 +250,6 @@ def _window_delta_text(diff: dict) -> str:
     if diff.get("closed"):
         bits.append(f"closed: {_win_titles(diff['closed'])}")
     return "; ".join(bits) or "no visible window change detected"
-
 
 def _index_window_event(tool: str, args: dict, before: dict, after: dict,
                         diff: dict, session_id: Optional[str]) -> None:
@@ -291,17 +279,14 @@ def _index_window_event(tool: str, args: dict, before: dict, after: dict,
     _scratchpad_note("os-control", f"{tool} {target} -> {delta}",
                      lane="window", phase="action")
 
-
 def _os_target(args: dict) -> str:
     if not isinstance(args, dict):
         return ""
     return str(args.get("app") or args.get("title") or args.get("name")
                or args.get("url") or "").strip().lower()
 
-
 def _win_hay(w: dict) -> str:
     return (str(w.get("title", "")) + " " + str(w.get("proc", ""))).lower()
-
 
 async def _center_windows(wins: list) -> list:
     eps = {e.get("label"): e.get("url")
@@ -339,7 +324,6 @@ async def _center_windows(wins: list) -> list:
             log.debug("auto-center on %s failed: %s", src, e)
     return done
 
-
 def _launch_proc_patterns(args: dict, result: dict) -> list:
     pats: list = []
     blob = str(result.get("output") or "") + " " + str(result.get("stderr") or "")
@@ -357,7 +341,6 @@ def _launch_proc_patterns(args: dict, result: dict) -> list:
     if t and len(t) >= 3 and t not in pats:
         pats.append(t)
     return pats
-
 
 async def _proc_present(patterns: list) -> bool:
     """True if ANY pattern matches a running process command line (global
@@ -393,7 +376,6 @@ async def _proc_present(patterns: list) -> bool:
                 pass
     return False
 
-
 def _verify_os_action(tool: str, args: dict, result: dict,
                       before: dict, after: dict, wdiff: dict) -> bool:
     """Did the OS-control action ACTUALLY take effect ('the
@@ -428,10 +410,8 @@ def _verify_os_action(tool: str, args: dict, result: dict,
         return bool(wdiff.get("closed")) or ok
     return ok
 
-
 _LAST_OPENED_WINDOW: dict = {}
 _LAST_OPENED_WINDOW_CAP = int(os.environ.get("MIOS_LAST_WINDOW_CAP", "256") or 256)
-
 
 def _record_last_opened_window(wdiff: dict) -> None:
     """Remember the first window a launch opened for THIS conversation (best-effort)."""
@@ -447,7 +427,6 @@ def _record_last_opened_window(wdiff: dict) -> None:
         _LAST_OPENED_WINDOW.clear()  # crude bound; conversations are ephemeral
     _LAST_OPENED_WINDOW[_key] = _titles[0]
     log.info("recorded last-opened window for conv %r -> %r", _key, _titles[0])
-
 
 async def _respond_os_control(
     tool: str, args: dict, refined: Optional[dict], *,
@@ -716,7 +695,6 @@ async def _respond_os_control(
             "finish_reason": "stop",
         }],
     })
-
 
 def _render_os_control_verbs() -> str:
     """One line per fast-path verb (name(sig) -- desc) for the refine prompt, so

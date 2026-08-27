@@ -19,7 +19,6 @@ from gpu_terminal import MAX_KEYSTROKE_LATENCY_MS, MIN_GLYPH_THROUGHPUT_CPS, GPU
 from ceph_heal import MAX_CLIENT_LATENCY_DEGRADATION_PCT, CephSelfHealingOrchestrator
 from rocm_paged_attn import MIN_VRAM_UTILIZATION_PCT, ROCmPagedAttentionManager
 
-
 class TestEmpiricalStressT723T732(unittest.TestCase):
     # --- 1. Macaroon Auth High-Volume Replay Attack Storm Stress Tests ---
     def test_macaroon_auth_replay_storm_50_tokens(self):
@@ -66,7 +65,6 @@ class TestEmpiricalStressT723T732(unittest.TestCase):
             res = mgr.allocate_and_benchmark_streams(s)
             self.assertEqual(res.oom_errors_count, 0)
             self.assertGreaterEqual(res.vram_utilization_pct, MIN_VRAM_UTILIZATION_PCT)
-
 
 if __name__ == "__main__":
     unittest.main()

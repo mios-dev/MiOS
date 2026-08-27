@@ -23,8 +23,6 @@ import mios_tokenize  # WS-A5 tokenizer seam -- token estimate for the ctx clamp
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 VISION_MODEL = ""
 VISION_ENDPOINT = ""
 _BACKEND_KEY = ""
@@ -39,7 +37,6 @@ _agent_contract = None
 _pick_tool_backend = None
 _select_child_tools = None
 _tool_call_sig = None
-
 
 def configure(*, vision_model=None, vision_endpoint=None, backend_key=None,
               default_tool_cap=None, verb_catalog=None, get_client=None,
@@ -76,7 +73,6 @@ def configure(*, vision_model=None, vision_endpoint=None, backend_key=None,
     if tool_call_sig is not None:
         _tool_call_sig = tool_call_sig
 
-
 def _messages_have_image(messages: list) -> bool:
     """True if any message carries OpenAI vision content (a content list with
     an image_url / input_image part) -- the signal to route this turn to the
@@ -92,12 +88,10 @@ def _messages_have_image(messages: list) -> bool:
                     return True
     return False
 
-
 _VISION_UNAVAILABLE_MSG = (
     "I can't read images right now — the local vision model isn't loaded on this "
     "machine. Image understanding returns once the vision model is provisioned; "
     "text questions still work normally.")
-
 
 def _vision_backend_failed(status: int, body_text: str) -> bool:
     """True when a vision-backend response means the VLM did NOT actually run
@@ -111,14 +105,12 @@ def _vision_backend_failed(status: int, body_text: str) -> bool:
                                   "no router for", "failed to load model",
                                   "image inputs are not supported"))
 
-
 _VISION_FETCH_FAILED_MSG = (
     "I couldn't open that image — the link didn't return a viewable image (it may "
     "be a web page, a video, or unreachable). Upload the image directly, or share a "
     "direct image link (.png/.jpg/.gif), and I'll describe what's actually in it.")
 
 _VISION_MAX_BYTES = int(os.environ.get("MIOS_VISION_MAX_BYTES", str(40 * 1024 * 1024)))
-
 
 def _vision_msg_response(msg: str, streaming: bool, chat_id: str, model: str) -> Any:
     """An honest vision message as a real OpenAI assistant turn (chat.completion /
@@ -135,10 +127,8 @@ def _vision_msg_response(msg: str, streaming: bool, chat_id: str, model: str) ->
                      "message": {"role": "assistant", "content": msg},
                      "finish_reason": "stop"}]}, status_code=200)
 
-
 def _vision_unavailable_response(streaming: bool, chat_id: str, model: str) -> Any:
     return _vision_msg_response(_VISION_UNAVAILABLE_MSG, streaming, chat_id, model)
-
 
 def _resolve_media_url_from_html(html: str) -> Optional[str]:
     """Resolve a media-asset URL from a page's HTML metadata -- GENERIC (JSON-LD
@@ -157,7 +147,6 @@ def _resolve_media_url_from_html(html: str) -> Optional[str]:
         if m:
             return m.group(1)
     return None
-
 
 async def _vision_inline_remote_images(messages: list) -> bool:
     import io as _io
@@ -214,7 +203,6 @@ async def _vision_inline_remote_images(messages: list) -> bool:
                 log.warning("vision image inline failed for %s: %s", _url[:80], _e)
                 ok = False
     return ok
-
 
 async def _vision_complete(body: dict, streaming: bool, chat_id: str,
                            model: str) -> Any:
@@ -282,7 +270,6 @@ async def _vision_complete(body: dict, streaming: bool, chat_id: str,
 
     return StreamingResponse(_gen(), media_type="text/event-stream")
 
-
 def _has_client_tools(body: dict) -> bool:
     """True when the CALLER supplied its own OpenAI tools[] -- the signal that this
     is client-side tool-calling (the client executes the functions and wants
@@ -291,7 +278,6 @@ def _has_client_tools(body: dict) -> bool:
     (zero regression). Empty/missing tools -> False (normal orchestration)."""
     t = body.get("tools")
     return isinstance(t, list) and len(t) > 0
-
 
 _CLIENT_TOOLS_IDENTITY = (
     "You are MiOS AI, the local agentic assistant of MiOS (a private, offline-first "
@@ -315,7 +301,6 @@ _CLIENT_TOOLS_IDENTITY = (
     "verify, never assume \"Windows 10\")."
 )
 
-
 def _client_tools_mios_surface() -> list:
     """The MiOS verb catalog projected as OpenAI tools, for merging into a
     client-tools turn. Non-rare only -- the catalog's own [verbs.*].tier is the
@@ -331,7 +316,6 @@ def _client_tools_mios_surface() -> list:
             continue
     return out
 
-
 def _client_tools_is_mios(name: str, client_names: set) -> bool:
     if not name:
         return False
@@ -339,7 +323,6 @@ def _client_tools_is_mios(name: str, client_names: set) -> bool:
         return _resolve_verb_key(name) in _VERB_CATALOG
     except Exception:  # noqa: BLE001
         return False
-
 
 def _client_tools_inject_identity(messages: list) -> list:
     _contract = _agent_contract()
@@ -350,7 +333,6 @@ def _client_tools_inject_identity(messages: list) -> list:
         msgs[0]["content"] = lead + "\n\n" + base
         return msgs
     return [{"role": "system", "content": lead}] + msgs
-
 
 async def _client_tools_backend(req: dict) -> dict:
     try:
@@ -409,7 +391,6 @@ async def _client_tools_backend(req: dict) -> dict:
         except Exception as _e:  # noqa: BLE001
             log.warning("client-tools light-lane fallback failed: %s", _e)
     return {}
-
 
 async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
                              max_iters: int = 6) -> dict:
@@ -518,7 +499,6 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
                 "please rephrase or ask again."}
     return last
 
-
 def _client_tools_wrap(msg: dict, chat_id: str, model: str) -> dict:
     return {
         "id": chat_id, "object": "chat.completion", "model": model,
@@ -527,7 +507,6 @@ def _client_tools_wrap(msg: dict, chat_id: str, model: str) -> dict:
             "index": 0, "message": msg,
             "finish_reason": "tool_calls" if msg.get("tool_calls") else "stop"}],
     }
-
 
 async def _client_tools_sse(msg: dict, chat_id: str,
                             model: str) -> AsyncGenerator[bytes, None]:
@@ -557,7 +536,6 @@ async def _client_tools_sse(msg: dict, chat_id: str,
         yield _chunk({}, finish="stop")
     yield b"data: [DONE]\n\n"
 
-
 def _name_is_verb(name) -> bool:
     """True if a tool name resolves to a real MiOS verb (the client already carries
     the MiOS surface -- e.g. Hermes via its mios MCP client)."""
@@ -567,7 +545,6 @@ def _name_is_verb(name) -> bool:
         return _resolve_verb_key(str(name)) in _VERB_CATALOG
     except Exception:  # noqa: BLE001
         return False
-
 
 async def _client_tools_stream_relay(body: dict, chat_id: str, model: str) -> Any:
     _url, _mdl = await _pick_tool_backend()
@@ -603,7 +580,6 @@ async def _client_tools_stream_relay(body: dict, chat_id: str, model: str) -> An
 
     return StreamingResponse(_gen(), media_type="text/event-stream")
 
-
 async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
                                  model: str) -> Any:
     client_names: set = set()
@@ -627,7 +603,6 @@ async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
     except Exception as e:  # noqa: BLE001
         log.warning("client-tools hybrid loop failed (%s) -> verbatim relay", e)
         return await _client_tools_relay(body, streaming)
-
 
 async def _client_tools_relay(body: dict, streaming: bool) -> Any:
     """Degrade path: the original verbatim passthrough (browser tools only). Used

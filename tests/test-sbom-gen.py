@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from sbom_gen import SBOMGenerator
 
-
 class TestSBOMGen(unittest.TestCase):
     def setUp(self):
         self.gen = SBOMGenerator(dry_run=True)
@@ -23,7 +22,6 @@ class TestSBOMGen(unittest.TestCase):
         self.assertEqual(res.total_packages_scanned, 70)
         self.assertTrue(res.is_signature_valid)
         self.assertTrue(res.cosign_attestation_signature.startswith("cosign_sig_"))
-
 
 if __name__ == "__main__":
     unittest.main()

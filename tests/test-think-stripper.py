@@ -18,7 +18,6 @@ except (ImportError, ModuleNotFoundError):
         print("SKIP: httpx/server dependencies not available")
         sys.exit(0)
 
-
 CASES = [
     ("clean string with no think tags", "clean string with no think tags"),
     (
@@ -43,7 +42,6 @@ CASES = [
     ),
 ]
 
-
 def main() -> int:
     fails = 0
     for inp, expected in CASES:
@@ -56,7 +54,6 @@ def main() -> int:
         else:
             print(f"  PASS  {inp[:60]!r}")
     return 1 if fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

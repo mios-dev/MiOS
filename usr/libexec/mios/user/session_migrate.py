@@ -27,7 +27,6 @@ import tempfile
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-
 @dataclasses.dataclass
 class WindowDescriptor:
     """Represents a Wayland surface / window state."""
@@ -45,7 +44,6 @@ class WindowDescriptor:
 
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
-
 
 @dataclasses.dataclass
 class SessionCheckpoint:
@@ -90,7 +88,6 @@ class SessionCheckpoint:
         data_copy = dict(data)
         data_copy["windows"] = windows
         return cls(**data_copy)
-
 
 class WaylandCompositorBridge:
     """Interfaces with Wayland compositor to query/restore client window states."""
@@ -179,7 +176,6 @@ class WaylandCompositorBridge:
         # In live system, invoke hyprctl / swaymsg dispatch rules
         return True
 
-
 class SessionCheckpointStore:
     """Manages persistent session checkpoint storage on CephFS / local disk."""
 
@@ -239,7 +235,6 @@ class SessionCheckpointStore:
                 except Exception:
                     pass
         return results
-
 
 class SessionMigrateEngine:
     """Orchestrates cross-node desktop session migration and state transfer."""
@@ -329,7 +324,6 @@ class SessionMigrateEngine:
             return True, f"Session '{session_id}' migrated from {self.node_name} to {target_node} ({target_seat})."
 
         return True, f"Session '{session_id}' transferred to node '{target_node}' via CephFS sync."
-
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
@@ -437,7 +431,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"MiOS Session Migration Protocol: {status_data['status']} on {status_data['node_name']}")
         print(f"Checkpoints in store: {status_data['available_checkpoints']}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

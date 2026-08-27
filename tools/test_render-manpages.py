@@ -17,7 +17,6 @@ _ROOT = os.path.dirname(_HERE)
 KNOWN = {".TH", ".SH", ".SS", ".B", ".I", ".BR", ".IR", ".TP", ".PP",
          ".LP", ".br", ".nf", ".fi", ".RS", ".RE", ".sp", ".IP"}
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "render_manpages", os.path.join(_HERE, "render-manpages.py"))
@@ -25,15 +24,12 @@ def _load():
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
-
 
 def _ssot():
     import tomllib
     with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh)
-
 
 class TestRoffEscaping(unittest.TestCase):
     def test_a_leading_dot_is_neutralised(self):
@@ -51,7 +47,6 @@ class TestRoffEscaping(unittest.TestCase):
 
     def test_plain_prose_is_untouched(self):
         self.assertEqual("plain words here", MOD.roff("plain words here"))
-
 
 class TestPages(unittest.TestCase):
     def setUp(self):
@@ -96,7 +91,6 @@ class TestPages(unittest.TestCase):
             self.assertTrue(os.path.isfile(full), "%s is not shipped" % rel)
             with open(full, encoding="utf-8") as fh:
                 self.assertEqual(body, fh.read(), "%s is stale" % rel)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

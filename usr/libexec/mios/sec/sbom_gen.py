@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-sbom-gen")
 
-
 @dataclass
 class SBOMGenerationResult:
     cyclonedx_path: str
@@ -29,7 +28,6 @@ class SBOMGenerationResult:
     total_packages_scanned: int
     cosign_attestation_signature: str
     is_signature_valid: bool
-
 
 class SBOMGenerator:
     """Generates standardized SBOM manifests and attaches Cosign supply-chain attestations."""
@@ -57,12 +55,10 @@ class SBOMGenerator:
         )
         return res
 
-
 def main():
     gen = SBOMGenerator(dry_run=True)
     res = gen.generate_image_sbom(["systemd", "podman", "hermes_agent", "sqlite"])
     print(f"SBOM: {res.cyclonedx_path}, Sig: {res.cosign_attestation_signature}")
-
 
 if __name__ == "__main__":
     main()

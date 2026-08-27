@@ -29,22 +29,18 @@ try:
 except ImportError:  # pragma: no cover
     raise ImportError("cryptography package is required for A2A attestation")
 
-
 def canonical_json(obj: Any) -> bytes:
     """RFC-8785 JSON Canonicalization Scheme (JCS) deterministic bytes."""
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-
 
 def _b64u(b: bytes) -> str:
     """RFC-7515 §2 BASE64URL without padding."""
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
 
-
 def _b64u_decode(s: str) -> bytes:
     """Decode base64 or base64url string with padding restoration."""
     raw = str(s or "").strip()
     return base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
-
 
 def _load_pub_key(key_input: Union[bytes, str, Ed25519PublicKey]) -> Ed25519PublicKey:
     """Loads an Ed25519PublicKey from an object, raw bytes, hex string, PEM, or base64."""
@@ -81,7 +77,6 @@ def _load_pub_key(key_input: Union[bytes, str, Ed25519PublicKey]) -> Ed25519Publ
                 pass
     raise ValueError(f"Unsupported public key format or invalid Ed25519 key: {key_input!r}")
 
-
 def _load_priv_key(key_input: Union[bytes, str, Ed25519PrivateKey]) -> Ed25519PrivateKey:
     """Loads an Ed25519PrivateKey from an object, raw 32-byte seed, hex string, PEM, or file."""
     if isinstance(key_input, Ed25519PrivateKey):
@@ -116,7 +111,6 @@ def _load_priv_key(key_input: Union[bytes, str, Ed25519PrivateKey]) -> Ed25519Pr
             except Exception:
                 pass
     raise ValueError(f"Unsupported private key format or invalid Ed25519 seed: {key_input!r}")
-
 
 class A2AAuthenticator:
     """
@@ -361,7 +355,6 @@ class A2AAuthenticator:
             missing = [c for c in req_list if c not in card_set]
             return False, missing
 
-
 def verify_card(
     card: dict,
     trusted_public_key: Union[bytes, str, Ed25519PublicKey, None] = None,
@@ -375,7 +368,6 @@ def verify_card(
         max_clock_skew=max_clock_skew,
         now_ts=now_ts,
     )
-
 
 def negotiate_capabilities(
     client_card: dict,
@@ -391,7 +383,6 @@ def negotiate_capabilities(
         max_clock_skew=max_clock_skew,
     )
 
-
 def _parse_card_input(raw: str) -> dict:
     """Parses a card from a raw JSON string or file path."""
     raw_str = raw.strip()
@@ -399,7 +390,6 @@ def _parse_card_input(raw: str) -> dict:
         with open(raw_str, "r", encoding="utf-8") as f:
             return json.load(f)
     return json.loads(raw_str)
-
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="MiOS A2A Cryptographic Attestation and Capability Engine")
@@ -494,7 +484,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0 if ok else 1
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -16,11 +16,9 @@ import sys
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _enrich_keep(hints, explicit, dvset, core, local_state):
     keep = set(dvset) | set(explicit)
@@ -28,12 +26,10 @@ def _enrich_keep(hints, explicit, dvset, core, local_state):
         keep |= set(core)
     return [h for h in hints if h in keep]
 
-
 APPS = {"list_windows", "focus_window", "close_window", "maximize_window"}
 SYS = {"system_status", "sys_env", "process_list", "container_status"}
 FILES = {"fs_search", "text_view", "directory_lookup"}
 CORE = {"system_status", "mios_apps", "process_list", "container_status", "list_windows"}
-
 
 def t_compound_cross_domain() -> None:
     out = _enrich_keep(
@@ -42,7 +38,6 @@ def t_compound_cross_domain() -> None:
         dvset=APPS, core=CORE, local_state=True)
     _check("compound: explicit cross-domain verb kept", "system_status" in out, str(out))
     _check("compound: domain verb kept", "list_windows" in out, str(out))
-
 
 def t_local_state_core() -> None:
     out = _enrich_keep(
@@ -53,7 +48,6 @@ def t_local_state_core() -> None:
            "system_status" in out, str(out))
     _check("local_state: core process_list survives", "process_list" in out, str(out))
 
-
 def t_no_overground() -> None:
     out = _enrich_keep(
         hints=["fs_search", "system_status"],
@@ -63,7 +57,6 @@ def t_no_overground() -> None:
            "system_status" not in out, str(out))
     _check("no-overground: domain verb kept", "fs_search" in out, str(out))
 
-
 def t_no_domain() -> None:
     out = _enrich_keep(
         hints=["list_windows", "system_status"],
@@ -72,7 +65,6 @@ def t_no_domain() -> None:
     _check("subset: only explicit kept when dvset empty",
            set(out) == {"list_windows", "system_status"}, str(out))
 
-
 def main() -> int:
     for t in (t_compound_cross_domain, t_local_state_core, t_no_overground, t_no_domain):
         t()
@@ -80,7 +72,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

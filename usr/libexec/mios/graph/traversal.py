@@ -16,7 +16,6 @@ import sqlite3
 import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-
 class KnowledgeGraph:
     """Knowledge Graph store supporting recursive CTE traversals, dependency resolution, and cycle prevention."""
 
@@ -506,7 +505,6 @@ SELECT * FROM graph_walk;"""
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     """CLI execution entrypoint for Knowledge Graph operations."""
     parser = argparse.ArgumentParser(
@@ -638,7 +636,6 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(json.dumps(dump_data, indent=2))
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

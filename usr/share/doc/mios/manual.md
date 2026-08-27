@@ -327,7 +327,6 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [Upstream Registry](manual/ch70-upstream-technology-registry-and-ecosystem-advances.md#70_upstream_registry): Comprehensive mapping of upstream components and roles.
   * [Drift Auditing](manual/ch70-upstream-technology-registry-and-ecosystem-advances.md#70_drift_auditing): Automated upstream drift detection and validation playbooks.
 
-
 ---
 
 ## The chapter files

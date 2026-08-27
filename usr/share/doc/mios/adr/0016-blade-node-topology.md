@@ -651,7 +651,6 @@ going to provide are precisely the ones the Mini does not have yet.** The gap be
 products is not that hosted instances are missing capability — it is that the Mini-only tier is the
 least built tier in the tree, and it is the only tier that cannot be filled by adding a peer.
 
-
 ### 11. Four axes the operator settled, and what each one costs
 
 Decision 10 drew the ownership line and left five axes open. Four are answered here. Each changes
@@ -722,7 +721,6 @@ conflict-is-error rule in ADR-0017 D5 — a shadow copy that diverges during a p
 case that ADR says an operator must resolve. Second, replication is not free: every write costs
 bandwidth on the mesh, and the mesh plane is the one that is not baked yet (D10). CephFS
 shadow-copies over a link that does not exist is the ordering problem to solve first.
-
 
 ### 12. The four consequences of D11, settled — and the two tensions they leave
 
@@ -808,7 +806,6 @@ usually pointless. That is T-338 axis 7.
 This also depends on the plane that is not baked: handing a default route to a peer is a mesh
 operation (a Tailscale exit node, in the current implementation), and `mesh` has no package and no
 wiring. Ordering matters — the uplink failover cannot be built before the mesh is.
-
 
 ### 13. Research findings that closed two directives
 
@@ -955,7 +952,6 @@ One package was genuinely missing and is added: **`pcs-web-ui`**, the HA cluster
 fronts. Without it the HA stack ships with no management surface, which is precisely the gap the
 requirement names.
 
-
 ### 15. Native patterns everywhere — and the reconciliation that makes a fleet of one ordinary
 
 > *"Automatic syncing and native patterns for high availabilities and Kubernetes."*
@@ -1020,7 +1016,6 @@ Two consequences worth stating before anyone builds on it:
   encrypted in place — the only path is adding encrypted OSDs and rebalancing. This is therefore a
   **day-0 decision for every Mini**, and shipping a Mini with unencrypted OSDs commits its operator
   to a data migration later.
-
 
 ## Consequences
 

@@ -14,11 +14,9 @@ except ModuleNotFoundError:  # pragma: no cover -- py<3.11
 
 TOML = "usr/share/mios/mios.toml"
 
-
 def containers(data: dict) -> set:
     """Every Quadlet container the SSOT declares."""
     return set(data.get("containers") or {})
-
 
 def long_running_units(root: str) -> set:
     """Shipped .service units that stay up. A oneshot needs no blade gate: it
@@ -45,13 +43,11 @@ def long_running_units(root: str) -> set:
             out.add(name[:-len(".service")])
     return out
 
-
 def all_units(data: dict, root: str) -> set:
     """Units that MUST carry a classification: containers and long-running
     services. Containers and native units share ONE namespace -- a Quadlet named
     `x` generates `x.service` -- so one classification covers both spellings."""
     return containers(data) | long_running_units(root)
-
 
 def known_units(data: dict, root: str) -> set:
     """Every shipped unit stem, any type. Wider than all_units on purpose: a
@@ -65,16 +61,13 @@ def known_units(data: dict, root: str) -> set:
                 out.add(name.rsplit(".", 1)[0])
     return out
 
-
 def seat_side(data: dict) -> list:
     """Units a seat deliberately runs -- a positive claim, not debt."""
     reg = (data.get("blade") or {}).get("seat_side") or []
     return [str(x).strip() for x in reg if str(x).strip()]
 
-
 # Ordering only. After= does not activate anything, so it never propagates a gate.
 _PULL_KEYS = ("Requires=", "BindsTo=", "Requisite=", "Wants=")
-
 
 def unit_pulls(root: str) -> dict:
     """{unit-stem: {dependency-stem, ...}} over every shipped unit of any type.
@@ -106,12 +99,10 @@ def unit_pulls(root: str) -> dict:
             out[name.rsplit(".", 1)[0]] = deps
     return out
 
-
 def soft_ok(data: dict) -> list:
     """Units whose pull on a gated unit is soft and that degrade without it."""
     reg = (data.get("blade") or {}).get("soft_ok") or []
     return [str(x).strip() for x in reg if str(x).strip()]
-
 
 def dependency_violations(data: dict, root: str) -> list:
     """A unit activating a gated unit must carry its capabilities (ADR-0016 D4)."""
@@ -131,7 +122,6 @@ def dependency_violations(data: dict, root: str) -> list:
                     % (stem, "/".join(sorted(hit)),
                        "/".join(sorted(need - have))))
     return viol
-
 
 def port_namers(data: dict, root: str) -> dict:
     """{port-key: {unit-stem, ...}} over every shipped unit that names a port,
@@ -160,7 +150,6 @@ def port_namers(data: dict, root: str) -> dict:
                     out[key].add(stem)
     return out
 
-
 def person_facing(data: dict) -> set:
     """Ports whose client is the human: anything with a browser-openable [urls]
     entry, plus the front door [ai].endpoint resolves. Derived, not declared."""
@@ -173,7 +162,6 @@ def person_facing(data: dict) -> set:
     out |= {m.lower() for m in
             re.findall(r"\$\{MIOS_PORT_([A-Z0-9_]+)\}", endpoint)}
     return out
-
 
 def seat_dead_weight(data: dict, root: str) -> list:
     """A seat-side unit whose port only a gated unit dials is dead weight. The
@@ -195,7 +183,6 @@ def seat_dead_weight(data: dict, root: str) -> list:
                     % ("/".join(sorted(binders)), key, ", ".join(sorted(others))))
     return viol
 
-
 def requires(data: dict) -> dict:
     """{service: [capability, ...]} from [blade.requires]."""
     out = {}
@@ -204,7 +191,6 @@ def requires(data: dict) -> dict:
             caps = [caps]
         out[svc] = [str(c).strip() for c in (caps or []) if str(c).strip()]
     return out
-
 
 def archetype_caps(data: dict) -> set:
     """Every capability some archetype can grant."""
@@ -216,12 +202,10 @@ def archetype_caps(data: dict) -> set:
             out.add(str(c).strip())
     return {c for c in out if c}
 
-
 def register(data: dict) -> list:
     """The shrink-only ungated register, in declaration order."""
     reg = (data.get("blade") or {}).get("ungated") or []
     return [str(x).strip() for x in reg if str(x).strip()]
-
 
 def classify(data: dict, root: str = ".") -> list:
     """Return the violations; empty means every unit has exactly one answer."""
@@ -275,7 +259,6 @@ def classify(data: dict, root: str = ".") -> list:
     viol.extend(seat_dead_weight(data, root))
     return viol
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     path = os.path.join(root, TOML)
@@ -300,7 +283,6 @@ def main() -> int:
           % (len(must), len(set(req) & must), len(seat_side(data)),
              len(register(data)), len(set(req) - must)))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

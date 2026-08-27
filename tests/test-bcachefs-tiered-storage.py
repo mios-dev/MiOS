@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/libexec/mios/storage")
 from bcachefs_tier import BcachefsTierManager
 
-
 def test_bcachefs_burst_write_throughput():
     """Verify Bcachefs absorbs burst writes at >10 GB/s with SHA-256 integrity."""
     mgr = BcachefsTierManager()
@@ -12,7 +11,6 @@ def test_bcachefs_burst_write_throughput():
 
     assert res["throughput_gbs"] > 10.0, f"Throughput {res['throughput_gbs']} <= 10.0 GB/s SLA"
     assert mgr.blocks["blk-001"].tier == "foreground_nvme"
-
 
 def test_bcachefs_migration_integrity():
     """Verify background migration preserves block hashes without corruption."""
@@ -24,7 +22,6 @@ def test_bcachefs_migration_integrity():
     assert migrated == 1
     assert mgr.blocks["blk-002"].tier == "background_hdd"
     assert mgr.blocks["blk-002"].data_hash == initial_hash, "Hash mismatch after migration"
-
 
 if __name__ == "__main__":
     test_bcachefs_burst_write_throughput()

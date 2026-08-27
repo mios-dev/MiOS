@@ -40,7 +40,6 @@ boot = load_module("verify_boot_chain", "usr/libexec/mios/sec/verify-boot-chain.
 sec = load_module("rotate_quadlet_secrets", "usr/libexec/mios/sec/rotate-quadlet-secrets.py")
 lg = load_module("setup_looking_glass", "usr/libexec/mios/vfio/setup-looking-glass.py")
 
-
 class TestAdversarialWasmSandbox(unittest.TestCase):
     """Stress tests on Wasm Sandbox fuel, memory, opcodes, and host imports."""
 
@@ -126,7 +125,6 @@ class TestAdversarialWasmSandbox(unittest.TestCase):
         self.assertTrue(host.exited)
         self.assertEqual(host.exit_code, 42)
 
-
 class TestAdversarialTOMLMaterializer(unittest.TestCase):
     """Stress tests on TOML key escaping and value formatting against the TOML spec."""
 
@@ -211,7 +209,6 @@ class TestAdversarialTOMLMaterializer(unittest.TestCase):
         with self.assertRaises(Exception):
             tomllib.loads(f"key = {res_none}\n")
 
-
 class TestAdversarialCephFSProvisioner(unittest.TestCase):
     """Stress tests on CephFS Provisioner UID resolution, user lookup, and argument handling."""
 
@@ -259,7 +256,6 @@ class TestAdversarialCephFSProvisioner(unittest.TestCase):
         p = subprocess.run([sys.executable, script_path], capture_output=True, text=True)
         self.assertEqual(p.returncode, 0)
         self.assertIn("CephFS storage integration is disabled", p.stdout)
-
 
 class TestAdversarialBootChainVerifier(unittest.TestCase):
     """Stress tests on UKI PE header magic, PCR measurements, and fs-verity digests."""
@@ -335,7 +331,6 @@ class TestAdversarialBootChainVerifier(unittest.TestCase):
         rc_mock = boot.run_verification(mock=True, json_output=True)
         self.assertEqual(rc_mock, 0)
 
-
 class TestAdversarialQuadletSecrets(unittest.TestCase):
     """Stress tests on Quadlet secrets token entropy, idempotency, and permission hardening."""
 
@@ -399,7 +394,6 @@ class TestAdversarialQuadletSecrets(unittest.TestCase):
             self.assertIn(f2, fixed)
             self.assertNotIn(f3, fixed)
 
-
 class TestAdversarialLookingGlass(unittest.TestCase):
     """Stress tests on Looking Glass IVSHMEM sizing, XML generation, and verification."""
 
@@ -424,7 +418,6 @@ class TestAdversarialLookingGlass(unittest.TestCase):
             self.assertEqual(res_real["status"], "fail")
             self.assertEqual(res_real["checks"]["shm_allocation"], "fail")
             self.assertEqual(res_real["checks"]["kvmfr_device"], "fail")
-
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()

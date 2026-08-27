@@ -27,7 +27,6 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-
 class Act(str, Enum):
     PROPOSE   = "propose"
     CHALLENGE = "challenge"
@@ -36,13 +35,11 @@ class Act(str, Enum):
     SYNTHESIZE = "synthesize"
     CONCEDE   = "concede"
 
-
 class Archetype(str, Enum):
     FRAMER     = "Framer"
     EXPLORER   = "Explorer"
     CHALLENGER = "Challenger"
     INTEGRATOR = "Integrator"
-
 
 @dataclass
 class Move:
@@ -51,7 +48,6 @@ class Move:
     act:       Act
     content:   str
     timestamp: float = field(default_factory=time.monotonic)
-
 
 @dataclass
 class DecisionPacket:
@@ -75,7 +71,6 @@ class DecisionPacket:
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2)
-
 
 class DCISession:
     """
@@ -152,7 +147,6 @@ class DCISession:
             round_count=round_count,
             consensus_score=consensus_score,
         )
-
 
 def _default_responder(archetype: Archetype,
                        history: list[Move],

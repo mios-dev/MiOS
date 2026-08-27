@@ -25,7 +25,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _MIOS_FIND = os.path.join(_HERE, "mios-find")
 _LIB = os.path.abspath(os.path.join(_HERE, "..", "..", "lib", "mios"))
 
-
 def _extract_ranker_source():
     """Pull the fast-path-B python heredoc (the block that defines rank())."""
     with open(_MIOS_FIND, "r", encoding="utf-8") as f:
@@ -47,9 +46,7 @@ def _extract_ranker_source():
             return b
     raise AssertionError("could not locate the ranker python block in mios-find")
 
-
 _RANKER_SRC = _extract_ranker_source()
-
 
 def run_ranker(query, entries, toml_text):
     """Exec the extracted ranker with a stubbed inventory + a temp MIOS_TOML.
@@ -106,12 +103,10 @@ def run_ranker(query, entries, toml_text):
     winner = stdout_lines[0] if (code == 0 and stdout_lines) else None
     return winner, code, err.getvalue()
 
-
 _NO_RANKER_CFG = """
     [some-other-section]
     x = 1
 """
-
 
 class CategoryPriorityFromSSOT(unittest.TestCase):
     ENTRIES = [
@@ -134,7 +129,6 @@ class CategoryPriorityFromSSOT(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(winner, "SHIM")
 
-
 class TierOrderingFromSSOT(unittest.TestCase):
     ENTRIES = [
         {"name": "foobar", "category": "windows-app", "launch": "PREFIX"},
@@ -155,7 +149,6 @@ class TierOrderingFromSSOT(unittest.TestCase):
         winner, code, _ = run_ranker("foo", self.ENTRIES, cfg)
         self.assertEqual(code, 0)
         self.assertEqual(winner, "WORD")
-
 
 class FuzzyBoundsFromSSOT(unittest.TestCase):
     ENTRIES = [
@@ -186,7 +179,6 @@ class FuzzyBoundsFromSSOT(unittest.TestCase):
         winner, code, _ = run_ranker("discrod", self.ENTRIES, cfg)
         self.assertEqual(code, 1)
         self.assertIsNone(winner)
-
 
 class MultiTokenFuzzyMatching(unittest.TestCase):
     ENTRIES = [

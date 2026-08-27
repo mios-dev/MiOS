@@ -12,23 +12,19 @@ from mios_pipe.routing import run_template as RT
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 A = "search the web for the latest linux kernel CVEs and summarise the top three"
-
 
 def _wire(rows, *, enable=True, db_read=None):
     RT.configure(run_template_enable=enable, pg_primary=True,
                  pg_mirror=lambda t, r: rows.append(r),
                  db_create=lambda *a, **k: "x", db_post=lambda s: s,
                  db_fire=lambda x: None, db_read=db_read or (lambda *a, **k: None))
-
 
 def t_class():
     a = {"nodes": [{"id": 1, "tool": "web_search"}, {"id": 2, "tool": "summarize", "deps": [1]}]}
@@ -43,7 +39,6 @@ def t_class():
           RT._run_template_class(a) != RT._run_template_class(d))
     check("class: an empty DAG still classes without raising",
           isinstance(RT._run_template_class({}), str))
-
 
 def t_capture():
     rows = []
@@ -68,7 +63,6 @@ def t_capture():
     check("capture: a DAG with no intent still stores, with an empty key",
           len(rows) == 1 and rows[0].get("intent_key") == "", str(rows[:1]))
 
-
 def t_capture_disabled():
     rows = []
     _wire(rows, enable=False)
@@ -76,7 +70,6 @@ def t_capture_disabled():
         {"summary": "s", "intent": A, "nodes": [{"id": 1, "tool": "web_search"}]}, "s")
     check("capture: the disabled flag writes nothing", rows == [])
     _wire([], enable=True)
-
 
 def t_load():
     seen = {}
@@ -121,7 +114,6 @@ def t_load():
           asyncio.run(RT.load_run_templates(5)) == [])
     _wire([], enable=True)
 
-
 def main():
     t_class()
     t_capture()
@@ -129,7 +121,6 @@ def main():
     t_load()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -13,16 +13,13 @@ from mios_pipe.routing import replay as R
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 A = "search the web for the latest linux kernel CVEs and summarise the top three"
-
 
 def t_keying():
     check("key: word ORDER does not change the key",
@@ -39,7 +36,6 @@ def t_keying():
     check("tokens: sorted + unique",
           R.normalize_tokens("beta alpha beta") == ("alpha", "beta"))
 
-
 def t_similarity():
     check("sim: identical sets score 1.0",
           R.similarity(("a", "b"), ("b", "a")) == 1.0)
@@ -50,11 +46,9 @@ def t_similarity():
     check("sim: half overlap scores 1/3 (Jaccard, not overlap-coefficient)",
           abs(R.similarity(("a", "b"), ("b", "c")) - (1 / 3)) < 1e-9)
 
-
 def _tpl(intent, nodes=1):
     return {"intent": intent, "intent_key": R.intent_key(intent),
             "dag": {"nodes": [{"id": i + 1, "tool": "web_search"} for i in range(nodes)]}}
-
 
 def t_match():
     T = [_tpl(A, nodes=2)]
@@ -85,7 +79,6 @@ def t_match():
     check("match: the score is returned even on a miss, so the decision is auditable",
           R.match_template("search the web for linux kernel CVEs", T, 0.85)[1] > 0)
 
-
 def t_capture_roundtrip():
     """A captured template must be matchable by the turn that produced it --
     the whole feature is dead if the capture stores no usable intent key."""
@@ -105,7 +98,6 @@ def t_capture_roundtrip():
     rows.clear()
     RT._capture_run_template({"summary": "s", "nodes": []}, "sess1")
     check("capture: an empty DAG is not stored", rows == [])
-
 
 def t_planner_replay():
     """The Done-When, counted at the HTTP layer: a repeat spends ZERO planning
@@ -187,7 +179,6 @@ def t_planner_replay():
         P.PLANNER_ENABLED, P.PLANNER_SHORT_PROMPT_CHARS, P.PLANNER_SHORT_PROMPT_WORDS = enabled, chars, words
         P.configure(build_dispatch_cmd=prev_build)
 
-
 def main():
     t_keying()
     t_similarity()
@@ -196,7 +187,6 @@ def main():
     t_planner_replay()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

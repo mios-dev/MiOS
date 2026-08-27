@@ -26,7 +26,6 @@ logger = logging.getLogger("mios-prompt-cache")
 TTFT_TARGET_MS = 20.0  # Max acceptable time-to-first-token on warm prefix cache
 MATCH_LATENCY_MAX_MS = 10.0
 
-
 @dataclass
 class RadixNode:
     prefix_hash: str
@@ -37,7 +36,6 @@ class RadixNode:
     last_hit_ts: float = field(default_factory=time.time)
     metadata: Dict[str, Any] = field(default_factory=dict)
     children: Dict[int, RadixNode] = field(default_factory=dict)
-
 
 class RadixPromptCacheManager:
     """Manages hierarchical radix-tree pre-computed KV-cache states for shared token prefixes."""
@@ -204,7 +202,6 @@ class RadixPromptCacheManager:
             "sub_20ms_target_met": self.hit_rate > 90.0 if self.total_queries >= 10 else True,
         }
 
-
 def main():
     mgr = RadixPromptCacheManager(dry_run=True)
     messages = [
@@ -216,7 +213,6 @@ def main():
     res = mgr.coordinate_slot_reuse("sess_001", tokens)
     print(json.dumps(res, indent=2))
     print(json.dumps(mgr.get_stats(), indent=2))
-
 
 if __name__ == "__main__":
     main()

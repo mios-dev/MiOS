@@ -16,13 +16,11 @@ _fails = 0
 
 GENERIC = "http://core.example/v1"
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_binding_api():
     check("binding: top-level api, case-folded", e._binding_api({"api": "Llamacpp"}, None) == "llamacpp")
@@ -33,7 +31,6 @@ def t_binding_api():
           e._binding_api({"api": "openai", "engines": {"cpu": {"api": "vllm"}}}, "cpu") == "vllm")
     check("binding: falls back to top-level when engine has no api",
           e._binding_api({"api": "v1", "engines": {"cpu": {}}}, "cpu") == "v1")
-
 
 def t_tool_choice():
     check("tool_choice: api=llamacpp -> False",
@@ -47,7 +44,6 @@ def t_tool_choice():
     check("tool_choice: generic OpenAI endpoint -> True",
           e._endpoint_supports_tool_choice(GENERIC, {}) is True)
 
-
 def t_parallel():
     check("parallel: heavy-lane port hint (11441) -> True",
           e._endpoint_supports_parallel_tools("http://h:11441/v1") is True)
@@ -55,7 +51,6 @@ def t_parallel():
           e._endpoint_supports_parallel_tools(GENERIC) is False)
     check("parallel: light-lane port -> False",
           e._endpoint_supports_parallel_tools("http://h:11434/v1") is False)
-
 
 def t_is_llamacpp():
     check("llamacpp: api=llamacpp -> True", e._endpoint_is_llamacpp(GENERIC, {"api": "llamacpp"}) is True)
@@ -65,7 +60,6 @@ def t_is_llamacpp():
           e._endpoint_is_llamacpp("http://h:11436/v1", {}) is True)
     check("llamacpp: generic OpenAI endpoint -> False", e._endpoint_is_llamacpp(GENERIC, {}) is False)
 
-
 def main():
     t_binding_api()
     t_tool_choice()
@@ -73,7 +67,6 @@ def main():
     t_is_llamacpp()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

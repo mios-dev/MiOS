@@ -11381,6 +11381,12 @@ unit = [
     "tests/test-mxfp4-kv-cache-density.py",
     "tests/test-kquants-mixed-precision.py",
     "tests/test-empirical-stress-t765-t774.py",
+    "tests/test-self-replicate-build.py",
+    "tests/test-microvm-live-migration.py",
+    "tests/test-seat-blade-transition.py",
+    "tests/test-swarm-pss-memory.py",
+    "tests/test-tensor-pipeline-rpc.py",
+    "tests/test-empirical-stress-t966-t975.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

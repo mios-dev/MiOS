@@ -92,7 +92,6 @@ MODEL_CATALOG = {
     },
 }
 
-
 def detect_host_hardware(mock: bool = False, mock_vram_gb: Optional[float] = None) -> Dict[str, Any]:
     """Detect available GPU VRAM and System RAM."""
     if mock:
@@ -148,7 +147,6 @@ def detect_host_hardware(mock: bool = False, mock_vram_gb: Optional[float] = Non
         "cpu_cores": os.cpu_count() or 4,
         "source": "hardware_probe",
     }
-
 
 class ModelMatrixAllocator:
     """Allocator determining optimal model matrix assignments and VRAM budgeting."""
@@ -309,7 +307,6 @@ class ModelMatrixAllocator:
                 sys.stderr.write(f"[model-matrix-alloc] YAML project error: {exc}\n")
             return False
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Hardware-Tiered Model Matrix Allocator (T-571)"
@@ -349,7 +346,6 @@ def main() -> int:
         print(json.dumps(result, indent=2))
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

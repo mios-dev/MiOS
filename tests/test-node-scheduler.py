@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load scheduler module from {_SCHED_PATH}")
 
-
 class TestNodeScheduler(unittest.TestCase):
     """Validates work-stealing priority scheduling, pin invariants, and router offloading."""
 
@@ -158,12 +157,10 @@ class TestNodeScheduler(unittest.TestCase):
         self.assertEqual(len(executed), total_tasks)
         self.assertEqual(len(set(executed)), total_tasks)  # No duplicate execution
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeScheduler)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

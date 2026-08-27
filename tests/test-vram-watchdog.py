@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load vram-watchdog module from {_VRAM_PATH}")
 
-
 class TestVramWatchdog(unittest.TestCase):
     """Validates VRAM ratio computation and eviction decisions."""
 
@@ -39,12 +38,10 @@ class TestVramWatchdog(unittest.TestCase):
         self.assertTrue(needs_evict)
         self.assertAlmostEqual(ratio, 0.96)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestVramWatchdog)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

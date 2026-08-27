@@ -230,8 +230,6 @@ from mios_dci import (   # noqa: E402
     dci_critic_pass,
 )
 
-
-
 from mios_pipe.access.authn import (
     _apply_outbound_auth,
     _load_backend_key,
@@ -241,11 +239,6 @@ from mios_pipe.access.authn import (
     _bind_host,
     configure as _configure_authn,
 )
-
-
-
-
-
 
 # MIOS_WEB_RESEARCH_* env vars stay as runtime overrides; the trailing literal is
 _WEB_TOML = _toml_section("web_research")
@@ -297,14 +290,12 @@ if _OTEL_ENABLE:
     except Exception as otel_err:
         logging.getLogger("mios-agent-pipe").warning("Failed to initialize OpenTelemetry trace provider: %s", otel_err)
 
-
 def _current_trace_id() -> str:
     """The active request's trace id ('' when untraced)."""
     try:
         return _trace_id_var.get() or ""
     except Exception:  # noqa: BLE001
         return ""
-
 
 @contextlib.asynccontextmanager
 async def _trace_span(name: str, **attrs):
@@ -329,7 +320,6 @@ async def _trace_span(name: str, **attrs):
             span.finish("ok")
         _TRACER.record(span)
 
-
 def _traced_stage(name: str):
     """Decorator: emit a span around each call of an async pipeline-stage fn."""
     def deco(fn):
@@ -339,7 +329,6 @@ def _traced_stage(name: str):
                 return await fn(*a, **kw)
         return wrapper
     return deco
-
 
 EMB_MODEL = os.environ.get("MIOS_PGVECTOR_EMB_MODEL", "nomic-embed-text")
 EMB_VERSION = os.environ.get("MIOS_PGVECTOR_EMB_VERSION", "nomic-768-v1")
@@ -381,7 +370,6 @@ NODE_LIVENESS_TTL_S = float(os.environ.get("MIOS_NODE_LIVENESS_TTL_S", "45"))
 NODE_LIVENESS_CONNECT_S = float(os.environ.get("MIOS_NODE_LIVENESS_CONNECT_S", "6"))
 _NODE_LIVE: dict = {}  # name -> (probed_ts, reachable)
 
-
 def _is_remote_endpoint(ep: str) -> bool:
     """True when `ep` is a non-empty REMOTE endpoint (a tailnet/LAN host that can
     come and go), False for empty or localhost/127.0.0.1/::1 (always-local lanes)."""
@@ -392,14 +380,10 @@ def _is_remote_endpoint(ep: str) -> bool:
     host = (netloc.rsplit(":", 1)[0] if ":" in netloc else netloc).strip("[]").lower()
     return host not in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "")
 
-
 def _should_health_probe(cfg: dict) -> bool:
     if cfg.get("health_gate"):
         return True
     return _is_remote_endpoint(cfg.get("endpoint", ""))
-
-
-
 
 SLOW_LANES = set(x.strip() for x in os.environ.get(
     "MIOS_SLOW_LANES", "igpu,mobile,accelerator,cpu").split(",") if x.strip())
@@ -420,11 +404,9 @@ from mios_pipe.scheduler.admission import (
     configure as _configure_admission,
 )
 
-
 LANE_TOOL_CAP = _parse_lane_caps(
     os.environ.get("MIOS_LANE_TOOL_CAP")
     or str(_toml_section("dispatch").get("lane_tool_cap", "igpu:15,mobile:15")))
-
 
 SLOW_LANE_TOOL_CAP = int(os.environ.get(
     "MIOS_SLOW_LANE_TOOL_CAP",
@@ -433,7 +415,6 @@ SLOW_LANE_TOOL_CAP = int(os.environ.get(
 DEFAULT_TOOL_CAP = int(os.environ.get(
     "MIOS_DEFAULT_TOOL_CAP",
     str(_toml_section("dispatch").get("default_tool_cap", 24))) or 24)
-
 
 DAG_NODE_MAX_TOKENS = _dispatch_num("MIOS_DAG_NODE_MAX_TOKENS", "dag_node_max_tokens", 800)
 DAG_NODE_SLOW_MAX_TOKENS = _dispatch_num(
@@ -513,9 +494,6 @@ _GLOBAL_PRIORITY_GATE = PriorityGate(
     GLOBAL_DISPATCH_CONCURRENCY, PRIORITY_STARVATION_S,
     tenant_cap=(TENANT_MAX_CONCURRENCY if TENANT_QUOTA_ENABLE else 0))
 
-
-
-
 LLM_NUM_PREDICT_CAP = _dispatch_num(
     "MIOS_LLM_NUM_PREDICT_CAP", "llm_num_predict_cap", 2048)
 LLM_NUM_PREDICT_CAP_CPU = _dispatch_num(
@@ -527,12 +505,9 @@ REQUEST_CANCEL_POLL_S = _dispatch_num(
     "MIOS_REQUEST_CANCEL_POLL_S", "request_cancel_poll_s", 2.0, float)
 _CHAT_CANCEL: dict = {}
 
-
-
 MAX_DISPATCH_DEPTH = _dispatch_num("MIOS_MAX_DISPATCH_DEPTH", "max_dispatch_depth", int(_DISPATCH_TOML.get("default_hop_budget", 2)))
 _dispatch_depth_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_dispatch_depth", default=0)
-
 
 def _dispatch_depth() -> int:
     """Current fan-out hop depth for this async context (0 at the turn entry)."""
@@ -540,7 +515,6 @@ def _dispatch_depth() -> int:
         return int(_dispatch_depth_var.get(0))
     except Exception:  # noqa: BLE001
         return 0
-
 
 def _enter_dispatch_hop() -> int:
     """Increment + return the new fan-out depth for THIS context (child tasks
@@ -553,18 +527,15 @@ def _enter_dispatch_hop() -> int:
         pass
     return d
 
-
 def _depth_exhausted() -> bool:
     """True when a further fan-out hop would exceed MAX_DISPATCH_DEPTH -> the
     caller must degrade CLOSED to single-agent (no _plan_swarm / no fanout)."""
     return mios_hopbudget.depth_exhausted(_dispatch_depth(), MAX_DISPATCH_DEPTH)  # WS-4 pure guard
 
-
 _HOP_HEADER = "X-MiOS-Hop"      # dispatch depth seen so far (Max-Forwards-style budget)
 _VIA_HEADER = "X-MiOS-Via"      # comma-separated agent-id chain (Via-style loop detect)
 _via_chain_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_via_chain", default="")
-
 
 def _hop_via_headers() -> dict:
     """Headers to stamp on a worker sub-dispatch so the recursion bound survives the
@@ -575,7 +546,6 @@ def _hop_via_headers() -> dict:
         return {_HOP_HEADER: str(_dispatch_depth() + 1), _VIA_HEADER: _chain}
     except Exception:  # noqa: BLE001 -- never break a dispatch on the loop-guard
         return {}
-
 
 def _seed_hop_from_headers(hop_hdr, via_hdr) -> None:
     """At chat_completions entry: seed the dispatch depth FROM the incoming X-MiOS-Hop
@@ -599,7 +569,6 @@ def _seed_hop_from_headers(hop_hdr, via_hdr) -> None:
 
 _AUTO_PRIO_WORDS = {"low": 1.0, "normal": 5.0, "medium": 5.0, "high": 9.0}
 sys.modules["mios_sched"].configure(_AUTO_PRIO_WORDS=_AUTO_PRIO_WORDS)
-
 
 AUTONOMOUS_PRIORITY = _resolve_autonomous_priority()
 
@@ -649,7 +618,6 @@ mios_slo.configure(
         "interactive_priority", 7.0)),
 )
 
-
 from mios_pipe.vram_scheduler import (
     _SloShed,
     _parse_lane_priority,
@@ -695,14 +663,9 @@ _configure_vram_scheduler(
     _dispatch_num=globals().get('_dispatch_num'),
 )
 
-
 RUNAWAY_REAP_ENABLE = str(os.environ.get("MIOS_RUNAWAY_REAP")
                           or _DISPATCH_TOML.get("runaway_reap", "true")
                           ).strip().lower() in {"1", "true", "yes"}
-
-
-
-
 
 SWARM_DECOMPOSE_DEFAULT = os.environ.get(
     "MIOS_SWARM_DECOMPOSE_DEFAULT", "true").lower() not in {"false", "0", "no"}
@@ -740,7 +703,6 @@ _configure_authn(
     auth_hostports=_AUTH_HOSTPORTS,
     agent_auth_by_hostport=_AGENT_AUTH_BY_HOSTPORT,
 )
-
 
 DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
 DB_USER = os.environ.get("MIOS_DB_USER", "root")
@@ -780,8 +742,6 @@ sys.modules["mios_a2a_principal"].configure(
     passport_agent_name=PASSPORT_AGENT_NAME,
 )
 _db_down_until: float = 0.0
-
-
 
 _TOKENIZER_BACKEND = str(os.environ.get("MIOS_TOKENIZER_BACKEND", "tiktoken")).strip().lower()
 if _TOKENIZER_BACKEND not in ("", "heuristic"):
@@ -944,7 +904,6 @@ async def lifespan(app):
         await asyncio.gather(*(c.close() for c in clients),
                              return_exceptions=True)
 
-
 app = FastAPI(
     title="MiOS Agent Pipe",
     version="0.2.0",
@@ -954,7 +913,6 @@ app = FastAPI(
     ),
     lifespan=lifespan,
 )
-
 
 def _check_user_cephfs(uid_str: str, tenant_id: str, fs_name: str, keyring_dir: str):
     import os
@@ -983,7 +941,6 @@ def _check_user_cephfs(uid_str: str, tenant_id: str, fs_name: str, keyring_dir: 
         "subvolume_path": subvolume_path
     }
 
-
 @app.get("/v1/storage/cephfs/users")
 async def cephfs_users():
     import os
@@ -1007,7 +964,6 @@ async def cephfs_users():
         except Exception:
             pass
     return users
-
 
 @app.get("/v1/storage/cephfs/health")
 async def cephfs_health():
@@ -1040,7 +996,6 @@ async def cephfs_health():
         "df": df_data
     }
 
-
 @app.post("/v1/inference/lora/load")
 async def lora_load(request: Request):
     heavy_mode = os.environ.get("MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE", "dual")
@@ -1068,7 +1023,6 @@ async def lora_load(request: Request):
         log.error("Failed to load LoRA adapter on heavy backend: %s", e)
         return JSONResponse(status_code=500, content={"error": f"Failed to load LoRA adapter: {e}"})
 
-
 @app.get("/v1/inference/lora/list")
 async def lora_list():
     heavy_mode = os.environ.get("MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE", "dual")
@@ -1095,19 +1049,14 @@ async def lora_list():
         log.error("Failed to list LoRA adapters on heavy backend: %s", e)
         return {"adapters": [], "enabled": True}
 
-
-
 from mios_pipe.kernel.httpclient import (   # noqa: E402  -- WS-A6/T-226 chokepoint
     _batch_request_hook, _get_client, configure as _configure_httpclient)
-
-
 
 import mios_audit   # noqa: E402
 AUDIT_CHAIN_ENABLE = str(
     os.environ.get("MIOS_AUDIT_CHAIN_ENABLE")
     or _toml_section("audit").get("chain_enable", "true")).strip().lower() \
     in {"1", "true", "yes"}
-
 
 from mios_pipe.db import (
     client as _db_client,
@@ -1159,13 +1108,6 @@ sys.modules["mios_dci"].configure(
     apply_outbound_auth=_apply_outbound_auth,
 )
 
-
-
-
-
-
-
-
 VRAM_CHECKPOINT_ENABLE = os.environ.get(
     "MIOS_VRAM_CHECKPOINT", "true").lower() not in {"false", "0", "no"}
 VRAM_BUDGET_MB = int(os.environ.get("MIOS_VRAM_BUDGET_MB", "23000"))
@@ -1176,7 +1118,6 @@ VRAM_COLOAD_RESERVE_MB = _dispatch_num(
     "MIOS_VRAM_COLOAD_RESERVE_MB", "vram_coload_reserve_mb", 3000)
 VRAM_COLOAD_EST_MB = _dispatch_num(
     "MIOS_VRAM_COLOAD_EST_MB", "vram_coload_est_mb", 5000)
-
 
 from mios_pipe.scheduler.vram import (
     _checkpoint_keep_models,
@@ -1196,16 +1137,11 @@ from mios_pipe.scheduler.vram import (
     _reclaim_idle_vram,
 )
 
-
-
 _OFFLOAD_ENGINES = ("cpu", "igpu", "accelerator")  # local light lanes, off the dGPU
-
-
 
 def _agent_engines(cfg: dict) -> list:
     """The compute engines an agent has a binding for (sorted)."""
     return sorted((cfg.get("engines") or {}).keys())
-
 
 _CPU_LANE_HINTS = tuple(h.strip() for h in os.environ.get(
     "MIOS_CPU_LANE_HINTS",
@@ -1214,7 +1150,6 @@ _CPU_LANE_HINTS = tuple(h.strip() for h in os.environ.get(
 _CPU_LANE_MICRO_MODEL = (os.environ.get("MIOS_CPU_LANE_MICRO_MODEL")
                          or str(_DISPATCH_TOML.get("cpu_lane_micro_model", "granite4.1:8b")))  # qwen3:1.7b retired
 
-
 def _cap_cpu_lane_model(ep: str, model: str) -> str:
     _local = ("localhost" in (ep or "")) or ("127.0.0.1" in (ep or ""))
     if (_local and _CPU_LANE_MICRO_MODEL
@@ -1222,15 +1157,11 @@ def _cap_cpu_lane_model(ep: str, model: str) -> str:
         return _CPU_LANE_MICRO_MODEL
     return model
 
-
 def _is_slow_lane_ep(ep: str) -> bool:
     """True for a CPU/iGPU light-lane endpoint (same _CPU_LANE_HINTS the model-cap
     uses): local CPU :11435, the remote potato CPU (…:11435) and the Windows iGPU
     :11436 all match; the dGPU :11434 and remote GPU lanes do not."""
     return bool(ep) and any(h and h in ep for h in _CPU_LANE_HINTS)
-
-
-
 
 def _agent_binding(cfg: dict, engine: Optional[str] = None) -> tuple:
     """Resolve (endpoint, model) to run an agent on a SPECIFIC engine. With
@@ -1248,11 +1179,9 @@ def _agent_binding(cfg: dict, engine: Optional[str] = None) -> tuple:
         _ep = BACKEND.rstrip("/")
     return _ep, _cap_cpu_lane_model(_ep, str(cfg.get("model", "")))
 
-
 DISPATCH_OFFLOAD_CPU = str(os.environ.get("MIOS_DISPATCH_OFFLOAD_CPU")
                           or _DISPATCH_TOML.get("offload_cpu", "false")
                           ).strip().lower() in {"1", "true", "yes"}
-
 
 from mios_endpoints import (  # noqa: E402
     _binding_api,
@@ -1265,7 +1194,6 @@ from mios_endpoints import (  # noqa: E402
     _KV_PAGING_HINTS,
     _endpoint_is_llamacpp,
 )
-
 
 KV_PAGING_ENABLE = (
     str(os.environ.get("MIOS_KV_PAGING")
@@ -1326,15 +1254,11 @@ _COST_MODEL = mios_cost.CostModel(
     remote_usd_per_mtok=float(_COST_CFG.get("remote_usd_per_mtok", 0.0) or 0.0))
 _COST_LEDGER = mios_cost.CostLedger()
 
-
 SANDBOX_ENFORCE = (
     str(os.environ.get("MIOS_SANDBOX_ENFORCE")
         or _DISPATCH_TOML.get("sandbox_enforce", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
 _SANDBOX_SELF_CONFINED = ("mios-sandbox-exec", "mios-coderun")
-
-
-
 
 from mios_provider_translate import (  # noqa: E402
     ANTH_REJECT_KEYS as _ANTH_REJECT_KEYS,
@@ -1349,9 +1273,6 @@ from mios_provider_translate import (  # noqa: E402
     gemini_resp_to_oai as _gemini_resp_to_oai,
 )
 
-
-
-
 def _opt_int_mb(v) -> int:
     """Coerce an optional [nodes.*] vram_mb / ram_mb to int MB; 0 when unset/bad
     (0 = 'unknown' -> per-endpoint admission falls back to the flat estimate)."""
@@ -1359,7 +1280,6 @@ def _opt_int_mb(v) -> int:
         return int(float(v)) if v is not None and str(v).strip() != "" else 0
     except Exception:  # noqa: BLE001
         return 0
-
 
 from mios_agentreg import (  # noqa: E402
     _build_agent_engines,
@@ -1378,18 +1298,15 @@ sys.modules["mios_agentreg"].configure(
     nodes_research_only=NODES_RESEARCH_ONLY,
 )
 
-
 _AGENT_REGISTRY = _load_agent_registry()
 try:
     _load_node_pool(_AGENT_REGISTRY)
 except Exception as _e:  # noqa: BLE001 -- never block startup on the node pool
     log.warning("node pool injection failed: %s", _e)
 
-
 _LOCAL_BLADE = ""
 _BLADE_POOL: dict = {}
 _ENDPOINT_BLADE: dict = {}
-
 
 def _rebuild_blade_topology() -> None:
     """(Re)build the V4/V5 blade maps from the current registry + [blades.*] SSOT."""
@@ -1403,9 +1320,7 @@ def _rebuild_blade_topology() -> None:
     except Exception as _e:  # noqa: BLE001 -- the admission helpers already degrade-open
         log.warning("blade topology build failed: %s; local-scalar fallback", _e)
 
-
 _rebuild_blade_topology()
-
 
 def _load_dispatch_cfg() -> dict:
     cfg = {"enable": True, "fanout_min": 1, "fanout_max": 2,
@@ -1428,13 +1343,7 @@ def _load_dispatch_cfg() -> dict:
         or "relevance"
     return cfg
 
-
 _DISPATCH_CFG = _load_dispatch_cfg()
-
-
-
-
-
 
 sys.modules["mios_sched"].configure(
     LANE_TOOL_CAP=LANE_TOOL_CAP,
@@ -1446,9 +1355,6 @@ sys.modules["mios_sched"].configure(
     _agent_lane=_agent_lane,
 )
 
-
-
-
 from mios_promptfmt import (  # noqa: E402  (pure prompt text-block formatters, moved verbatim)
     _council_role_lens,
     _format_satisfaction_block,
@@ -1456,7 +1362,6 @@ from mios_promptfmt import (  # noqa: E402  (pure prompt text-block formatters, 
     _build_agent_hint,
     _multi_task_preamble,
 )
-
 
 def _agent_skill_tags(cfg: dict) -> list[str]:
     """Canonical skill tags for an agent: role + inference lane + declared
@@ -1475,14 +1380,11 @@ def _agent_skill_tags(cfg: dict) -> list[str]:
             tags.add(s)
     return sorted(t for t in tags if t)
 
-
 from mios_fanout import _pick_fanout_agents  # noqa: E402
-
 
 _AGENT_CHROME_RE = re.compile(
     r"^[ \t]*>?[ \t]*\w{2,10}[ \t]*·[ \t]*[\w./:+-]{2,}[ \t]*$",
     re.MULTILINE)
-
 
 def _strip_agent_chrome(text: str) -> str:
     """Remove a sub-agent's leaked mode/model chrome line(s) from its output.
@@ -1492,7 +1394,6 @@ def _strip_agent_chrome(text: str) -> str:
     stripped = _AGENT_CHROME_RE.sub("", text)
     return stripped.strip() if stripped.strip() != text.strip() else text
 
-
 from mios_agent_call import (  # noqa: E402
     _call_agent_complete, _call_agent_complete_inner, _call_agent_stream_inner,
     _record_cost,
@@ -1500,37 +1401,25 @@ from mios_agent_call import (  # noqa: E402
     _rr_eligible, _rr_slice, _rr_run,
     _trip_breaker, _num_predict_cap_for)
 
-
 from mios_toolexec import (   # noqa: E402
     _RESCUE_XML_RE, _RESCUE_PARAM_RE, _RESCUE_FENCE_RE, _RESCUE_TOOLCALL_RE)
-
-
-
 
 from mios_toolexec import (   # noqa: E402
     _norm_tool_call, _rescue_tool_calls, _verb_result_cap,
     _cap_verb_result, _format_tool_error, _exec_tool_calls,
     _record_mcp_tool_call, _allowed_tool_names)
 
-
 from mios_secondary_loop import _tool_call_sig  # noqa: E402
-
-
-
 
 from mios_secondary_loop import _DISCLAIM_MARKERS, _looks_like_disclaimer  # noqa: E402
 
-
 from mios_secondary_loop import _TOOL_NUDGE  # noqa: E402
-
 
 SECONDARY_REPLAN_MAX = int(os.environ.get("MIOS_SECONDARY_REPLAN_MAX", "") or _AGENT_PIPE_TOML.get("replan_max", 5))
 DAG_REPLAN_MAX = int(os.environ.get("MIOS_DAG_REPLAN_MAX", "1") or 1)
 from mios_secondary_loop import _REPLAN_NUDGE  # noqa: E402
 
-
 from mios_secondary_loop import _tmsgs_indicate_failure  # noqa: E402
-
 
 _DAEMON_DIAGNOSE_MODEL = os.environ.get("MIOS_DAEMON_MODEL", _STACK_MODEL)
 _DAEMON_DIAGNOSE_ENDPOINT = os.environ.get(
@@ -1538,12 +1427,9 @@ _DAEMON_DIAGNOSE_ENDPOINT = os.environ.get(
 _DAEMON_DIAGNOSE_ENABLE = os.environ.get(
     "MIOS_DAEMON_DIAGNOSE", "true").strip().lower() not in ("0", "false", "no")
 
-
 from mios_secondary_loop import _daemon_diagnose  # noqa: E402
 
-
 from mios_secondary_loop import _v1_secondary_tool_loop  # noqa: E402
-
 
 from mios_pipe.streaming import (
     call_agent_stream as _call_agent_stream,
@@ -1566,7 +1452,6 @@ _configure_streaming(
     _strip_agent_chrome=_strip_agent_chrome,
 )
 
-
 from mios_verbcatalog import (  # noqa: E402
     _load_verb_catalog,
     _verb_arg_synonyms_from_catalog,
@@ -1581,7 +1466,6 @@ from mios_verbcatalog import (  # noqa: E402
     _verb_to_openai_tool,
 )
 sys.modules["mios_verbcatalog"].configure(CATALOG_FAIL_MODE=CATALOG_FAIL_MODE)
-
 
 NATIVE_LOOP_CAPABILITY_GROUNDING = os.environ.get(
     "MIOS_NATIVE_LOOP_CAPABILITY_GROUNDING", "true").strip().lower() not in (
@@ -1605,21 +1489,16 @@ from mios_grounding import (   # noqa: E402
     _client_env,
 )
 
-
 _VERB_CATALOG = _load_verb_catalog()
 _TOOL_CONFLICT = mios_toolconflict.ConflictGate.from_catalog(_VERB_CATALOG)
 
-
 _MODEL_NAME_TO_VERB = _build_model_name_map(_VERB_CATALOG)
-
 
 sys.modules["mios_verbcatalog"].configure(
     _VERB_CATALOG=_VERB_CATALOG, _MODEL_NAME_TO_VERB=_MODEL_NAME_TO_VERB)
 
-
 _VERB_ARG_SYNONYMS = _load_verb_arg_synonyms()
 _VERB_CATALOG_RENDERED = _render_verb_catalog(_VERB_CATALOG)
-
 
 from mios_routing import (  # noqa: E402
     _load_routing_domains,
@@ -1627,7 +1506,6 @@ from mios_routing import (  # noqa: E402
     _load_launch_fillers,
     _deterministic_action_route,
 )
-
 
 _ROUTING_DOMAINS, _ROUTING_ENABLE = _load_routing_domains()
 
@@ -1640,11 +1518,6 @@ sys.modules["mios_classify"].configure(
     db_post=_db_post,
     db_fire=_db_fire,
 )
-
-
-
-
-
 
 _LAUNCH_FILLERS = _load_launch_fillers()
 _LAUNCH_LEAD_WORDS = frozenset(_load_routing_phrases("launch_target_lead_phrases"))
@@ -1681,7 +1554,6 @@ _PC_INPUT_VERBS = frozenset(
 )
 _FASTPATH_VERBS = _OS_CONTROL_VERBS | _SCHEDULE_VERBS | _MEMORY_VERBS | _PC_INPUT_VERBS
 
-
 from mios_oscontrol import (   # noqa: E402  (R9: OS-control fast-path + window verify, moved verbatim)
     _OSCONTROL_ENDPOINTS_CACHE, _load_oscontrol_endpoints,
     _remote_enumerate_windows_one, _enumerate_windows, _window_key,
@@ -1694,7 +1566,6 @@ from mios_oscontrol import (   # noqa: E402  (R9: OS-control fast-path + window 
 sys.modules["mios_oscontrol"].configure(
     fastpath_verbs=_FASTPATH_VERBS, verb_catalog=_VERB_CATALOG)
 
-
 _OS_CONTROL_VERBS_RENDERED = _render_os_control_verbs()
 
 _OS_CONTROL_ACTION_VERBS = frozenset(
@@ -1706,7 +1577,6 @@ _LAUNCH_VERBS = frozenset({"open_app", "launch_app", "launch_verified", "open_ur
 _LAUNCH_TRIGGERS = frozenset(
     v.split("_", 1)[0] for v in _LAUNCH_VERBS if v in _FASTPATH_VERBS)
 
-
 sys.modules["mios_routing"].configure(
     logger=log,
     compound_action_alt=_COMPOUND_ACTION_ALT,
@@ -1717,7 +1587,6 @@ sys.modules["mios_routing"].configure(
     launch_lead_words=_LAUNCH_LEAD_WORDS,
     launch_trail_words=_LAUNCH_TRAIL_WORDS,
 )
-
 
 OS_CONTROL_RETRY_ATTEMPTS = int(os.environ.get("MIOS_OS_CONTROL_RETRY", "2") or 2)
 OS_CONTROL_RETRY_SETTLE_S = float(
@@ -1735,22 +1604,12 @@ TYPE_RETRY_MAX = int(os.environ.get("MIOS_TYPE_RETRY_MAX", "2") or 2)
 OS_CONTROL_REPLY_MAX_TOKENS = int(
     os.environ.get("MIOS_OS_CONTROL_REPLY_MAX_TOKENS", "200"))
 
-
-
-
 _RECIPE_CATALOG = _load_recipe_catalog()
 _RECIPE_CATALOG_RENDERED = _render_recipe_catalog(_RECIPE_CATALOG)
 
-
 _AGENT_CATALOG_RENDERED = _render_agent_catalog(_AGENT_REGISTRY)
 
-
-
-
-
-
 _BYPASS_NEGATIVE_CHARS = set("?/\\:@$~")
-
 
 def _is_trivial_bypass(s: str) -> bool:
     if not s:
@@ -1766,9 +1625,6 @@ def _is_trivial_bypass(s: str) -> bool:
         return False
     return True
 
-
-
-
 _AGENT_CONTRACT_PATHS = (
     os.path.expanduser("~/.config/mios/MiOS.md"),
     "/etc/mios/MiOS.md",
@@ -1777,7 +1633,6 @@ _AGENT_CONTRACT_PATHS = (
     "/etc/mios/ai/agent-contract.md",
     "/usr/share/mios/ai/agent-contract.md",
 )
-
 
 def _load_agent_contract() -> str:
     for _p in _AGENT_CONTRACT_PATHS:
@@ -1793,18 +1648,14 @@ def _load_agent_contract() -> str:
             continue
     return ""
 
-
 _AGENT_CONTRACT = _load_agent_contract()
-
 
 def _agent_contract() -> str:
     """The universal runtime contract presented to EVERY agent + sub-agent.
     Empty string when the overlay .md is missing (degrade open)."""
     return _AGENT_CONTRACT
 
-
 _ROLE_SYSTEM_DIR = "/etc/mios/ai/v1/role-systems"
-
 
 sys.modules["mios_agentreg"].configure(
     agent_registry=_AGENT_REGISTRY,
@@ -1814,7 +1665,6 @@ sys.modules["mios_agentreg"].configure(
     effort_default=EFFORT_DEFAULT,
     swarm_max_width=SWARM_MAX_WIDTH,
 )
-
 
 WORKER_TOOLS_ENABLE = os.environ.get(
     "MIOS_WORKER_TOOLS", "true").lower() not in {"false", "0", "no"}
@@ -1863,7 +1713,6 @@ from mios_worker_tools import (   # noqa: E402
 )
 _WORKER_TOOLS_CORE_CACHE: "Optional[list]" = None
 
-
 from mios_pipe.routing.toolsurface import (
     _worker_tools_surface,
     _worker_tools_surface_async,
@@ -1871,11 +1720,6 @@ from mios_pipe.routing.toolsurface import (
     _tool_pref_block,
     configure as _configure_toolsurface,
 )
-
-
-
-
-
 
 SCRATCHPAD_ENABLE = os.environ.get(
     "MIOS_SCRATCHPAD_ENABLE", "true").lower() not in {"false", "0", "no"}
@@ -1891,7 +1735,6 @@ _conv_key_var: "contextvars.ContextVar" = contextvars.ContextVar(
 
 _client_env_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_client_env", default=None)
-
 
 def _turn_tenant() -> "Optional[str]":
     try:
@@ -1941,10 +1784,6 @@ _SRC_TURN_HEADER = "X-MiOS-Turn"
 _src_turn_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_src_turn", default=None)
 
-
-
-
-
 from mios_pipe.context.scratchpad import (
     _scratchpad_key,
     _scratchpad_for,
@@ -1953,9 +1792,6 @@ from mios_pipe.context.scratchpad import (
     _scratchpad_render,
     configure as _configure_scratchpad,
 )
-
-
-
 
 from mios_refine import (  # noqa: E402
     _REFINE_SYSTEM,
@@ -1966,12 +1802,10 @@ from mios_refine import (  # noqa: E402
 )
 refine_intent = _traced_stage("refine")(refine_intent)  # noqa: E402  WS-A8 span
 
-
 RAG_ENABLED = os.environ.get(
     "MIOS_AGENT_PIPE_RAG_ENABLED", "true").lower() not in {"false", "0", "no"}
 RAG_BIN = os.environ.get("MIOS_RAG_BIN", "/usr/libexec/mios/mios-rag")
 RAG_K = int(os.environ.get("MIOS_AGENT_PIPE_RAG_K", "4"))
-
 
 async def _rag_enrich(query: str) -> str:
     """Enrich stage: pull RAG context from the vector store
@@ -2001,7 +1835,6 @@ async def _rag_enrich(query: str) -> str:
     return ("MiOS knowledge relevant to this request (retrieved; cite/use "
             "if helpful, ignore if not):\n" + "\n".join(lines))
 
-
 def _current_date_str() -> str:
     env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
     for _src in (env.get("date"), env.get("datetime")):
@@ -2016,7 +1849,6 @@ sys.modules["mios_grounding"].configure(   # noqa: E402
     current_date_str=_current_date_str,
     check_inbound_principal=_check_inbound_principal,
 )
-
 
 from mios_web_research import (   # noqa: E402
     _is_port_open,
@@ -2047,7 +1879,6 @@ from mios_web_research import (   # noqa: E402
     _SRC_LINE_RE,
     _SRC_URL_RE,
 )
-
 
 async def _read_tool_enrich(refined: Optional[dict],
                             session_id: Optional[str]) -> str:
@@ -2129,13 +1960,6 @@ async def _read_tool_enrich(refined: Optional[dict],
             "⟪… OUTPUT TRUNCATED …⟫ the list is INCOMPLETE -- say it continues "
             "('…and more not shown') and do NOT fabricate the omitted entries, "
             "PIDs, names, or counts:\n\n" + "\n\n".join(blocks))
-
-
-
-
-
-
-
 
 _POLISH_SYSTEM = (
     "Write your answer in ENGLISH. Use another language ONLY if the\n"
@@ -2275,7 +2099,6 @@ _POLISH_SYSTEM = (
     "Output the polished answer ONLY -- no prose around it, no JSON.\n"
 )
 
-
 from mios_reflect import (   # noqa: E402
     _inline_satisfaction_check,
     reflect_on_step_failure,
@@ -2301,9 +2124,6 @@ from mios_deliberate import (   # noqa: E402  -- T-385 Bounded Reflection Loop C
     run_bounded_deliberation,
 )
 
-
-
-
 _THINK_TAGS = r"think|thinking|thought|reasoning|reflection|scratchpad"
 _THINK_BLOCK_RE = re.compile(
     rf"<({_THINK_TAGS})\b[^>]*>.*?</\1>\s*", re.DOTALL | re.IGNORECASE)
@@ -2316,7 +2136,6 @@ _THINK_CAP_RE = re.compile(
     rf"<({_THINK_TAGS})\b[^>]*>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
 _THINK_CAP_UNCLOSED_RE = re.compile(
     rf"<({_THINK_TAGS})\b[^>]*>(.*)$", re.DOTALL | re.IGNORECASE)
-
 
 KNOWLEDGE_STORE_ENABLED = os.environ.get(
     "MIOS_KNOWLEDGE_STORE", "true").strip().lower() not in ("0", "false", "no")
@@ -2345,7 +2164,6 @@ _RECALL_POSSESSIVE_RE = re.compile(
     re.I
 )
 
-
 from mios_knowledge import (   # noqa: E402
     _recall_floor,
     _row_age_seconds,
@@ -2365,7 +2183,6 @@ from mios_knowledge import (   # noqa: E402
     _recall_agent_memory,
     kg_lookup,
 )
-
 
 KNOWLEDGE_RANK_OUTCOME = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_OUTCOME", "rank_outcome", 0.05, float)
 KNOWLEDGE_RANK_HOT = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_HOT", "rank_hot", 0.03, float)
@@ -2392,19 +2209,11 @@ KNOWLEDGE_EVICT_MIN_ACCESS = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_EVICT_MIN_ACCESS
 KNOWLEDGE_EVICT_BATCH = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_EVICT_BATCH", "evict_batch", 500, int)
 _KNOWLEDGE_URL_RE = re.compile(r"https?://[^\s\"'<>)\]]+")
 
-
-
-
 SKILLS_EPISODIC_DIR = os.environ.get(
     "MIOS_SKILLS_EPISODIC_DIR", "/var/lib/mios/ai/skills/episodic")
 SKILLS_EPISODIC_ENABLED = os.environ.get(
     "MIOS_SKILLS_EPISODIC_ENABLED",
     "true").lower() not in {"false", "0", "no"}
-
-
-
-
-
 
 # MIOS_AGENT_MEMORY_RECALL=1. Same allowed-injection class as _recall_knowledge
 AGENT_MEMORY_RECALL_ENABLED = str(
@@ -2413,8 +2222,6 @@ AGENT_MEMORY_TABLE = os.environ.get("MIOS_AGENT_MEMORY_TABLE", "agent_memory")
 AGENT_MEMORY_RECALL_K = int(os.environ.get("MIOS_AGENT_MEMORY_RECALL_K", "3"))
 AGENT_MEMORY_RECALL_MIN_SCORE = float(
     os.environ.get("MIOS_AGENT_MEMORY_RECALL_MIN_SCORE", "0.45"))
-
-
 
 _MEMORY_PROVIDER_NAME = str(
     os.environ.get("MIOS_MEMORY_PROVIDER")
@@ -2434,15 +2241,7 @@ mios_memory.configure_letta(
     db_fire=_db_fire
 )
 
-
-
-
-
-
 from mios_daemons import _kv_gc_sweep_once, _kv_gc_loop, _consolidate_memory_loop   # noqa: E402,F401
-
-
-
 
 from mios_verity import (   # noqa: E402
     VERITY_FACTCHECK,
@@ -2452,9 +2251,6 @@ from mios_verity import (   # noqa: E402
     polish_response,
     _clarify_question,
 )
-
-
-
 
 SKILLS_ENABLED = os.environ.get(
     "MIOS_SKILLS_ENABLE", "true",
@@ -2466,10 +2262,6 @@ SKILLS_WINDOW_HOURS = int(os.environ.get("MIOS_SKILLS_WINDOW_HOURS", "168"))
 SKILLS_AUTO_PROMOTE_THRESHOLD = float(os.environ.get(
     "MIOS_SKILLS_AUTO_PROMOTE_THRESHOLD", "0.85"))
 
-
-
-
-
 from mios_skills import (  # noqa: E402
     _skill_fetch, _skill_list, execute_skill, _skill_to_openai_tool,
     _make_schema_strict, _mcp_tool_to_openai_tool,
@@ -2478,15 +2270,12 @@ from mios_skills import (  # noqa: E402
     _slug_for_skill, _render_skill_md, _write_skill_md_fire,
 )
 
-
 CRITIC_REFINE_ENABLED = os.environ.get(
     "MIOS_AGENT_PIPE_CRITIC_REFINE", "1") not in ("0", "false", "False", "")
 CRITIC_REFINE_MAX = int(os.environ.get(
     "MIOS_AGENT_PIPE_CRITIC_REFINE_MAX", "1"))
 CRITIC_REFINE_MIN_CHARS = int(os.environ.get(
     "MIOS_AGENT_PIPE_CRITIC_REFINE_MIN_CHARS", "500"))
-
-
 
 _HIGH_PRIVILEGE_CURATED = {
     "service_restart",
@@ -2540,13 +2329,11 @@ if _env_allowlist:
 else:
     _ALLOWLIST_HOSTS = set(_DEFAULT_ALLOWLIST_HOSTS)
 
-
 from mios_firewall import (   # noqa: E402
     _is_external_url,
     _classify_verb_taint,
     _session_is_tainted,
 )
-
 
 PROVENANCE_TAINT_ENABLE = str(
     os.environ.get("MIOS_SECURITY_PROVENANCE_TAINT")
@@ -2564,9 +2351,6 @@ QUARANTINE_MODE = str(
     or _toml_section("security").get("quarantine_mode", "off")
 ).strip().lower()
 
-
-
-
 def _is_action_domain(domain: Optional[str]) -> bool:
     """Data-driven action-vs-research split: a routed [routing.domains] domain is
     an ACTION domain (decompose into EXECUTABLE tool steps, not research facets)
@@ -2580,13 +2364,7 @@ def _is_action_domain(domain: Optional[str]) -> bool:
     return any(str((_VERB_CATALOG.get(str(v)) or {}).get("permission", "")).lower()
                == "write" for v in verbs)
 
-
-
-
 @_traced_stage("route")  # WS-A8: emit a span around domain routing
-
-
-
 
 async def _needs_compute(user_text: str) -> bool:
     if not (user_text or "").strip():
@@ -2624,13 +2402,11 @@ async def _needs_compute(user_text: str) -> bool:
         log.debug("compute-need judge failed (-> no compute): %s", e)
         return False
 
-
 from mios_planner import (   # noqa: E402
     decompose_intent,
     _topological_order,
     _dag_levels,
 )
-
 
 _REFLECT_SYSTEM = (
     "You are MiOS-Agent's single-step reflection pass. A planner\n"
@@ -2657,13 +2433,11 @@ _REFLECT_SYSTEM = (
     "  the dispatcher will abort the chain.\n"
 )
 
-
 from mios_pipe.observability.session_events import (
     _emit_session_event,
     _sanitize_tool_text,
     configure as _configure_session_events,
 )
-
 
 _HITL_TOML = _toml_section("hitl")
 HITL_ENABLE = str(os.environ.get("MIOS_HITL_ENABLE")
@@ -2675,11 +2449,9 @@ HITL_SCOPE = _hitl_parse_scope(
     str(os.environ.get("MIOS_HITL_VERBS") or _HITL_TOML.get("verbs", "")),
     _HIGH_PRIVILEGE_VERBS)
 
-
 from mios_hitlflow import (   # noqa: E402
     _hitl_is_approved, _hitl_record_pending, _hitl_gate,
     hitlflow_router, hitl_pending, hitl_approve)
-
 
 _ATR_TOML = _toml_section("ai") or {}
 ASK_TO_RUN_ENABLE = str(
@@ -2697,39 +2469,19 @@ ASK_CLARIFY_JUDGE_ENABLE = str(
     os.environ.get("MIOS_ASK_CLARIFY_JUDGE")
     or _ATR_TOML.get("ask_clarify_judge", "false")).strip().lower() in {"1", "true", "yes"}
 
-
-
-
 from mios_hitlflow import _classify_approval_reply  # noqa: E402
-
 
 from mios_hitlflow import (   # noqa: E402
     _read_recent_pending, _mark_pending_decided,
     _ask_to_run_completion, _maybe_run_pending_approval)
 
-
 from mios_hitlflow import _recent_reflections  # noqa: E402
 
-
-
-
-
-
-
-
-
-
 from mios_hitlflow import _action_hash, _pending_hash  # noqa: E402
-
 
 DISPATCH_DEDUP = os.environ.get(
     "MIOS_DISPATCH_DEDUP", "true").lower() not in {"false", "0", "no"}
 _dispatch_inflight: dict[str, "asyncio.Future"] = {}
-
-
-
-
-
 
 from mios_dag_exec import (   # noqa: E402  (R8: DAG execution entrypoints, moved verbatim)
     _deepen_until_barrier, _execute_dag_node, _record_dag_node_row,
@@ -2740,17 +2492,7 @@ from mios_dag_exec import (   # noqa: E402  (R8: DAG execution entrypoints, move
     _substitute_ek_refs, _fit_context, _node_deepens, _reap_cpu_lane,
 )
 
-
-
-
-
-
-
-
-
-
 from mios_swarm import _agent_dag_from_tasks, _reroute_dead_nodes  # noqa: E402
-
 
 _SWARM_SYSTEM_HEAD = (
     "You are the MiOS SWARM planner. Split the user's request into INDEPENDENT "
@@ -2831,13 +2573,10 @@ _SWARM_SYSTEM_HEAD = (
 )
 _SWARM_SYSTEM = _SWARM_SYSTEM_HEAD + _AGENT_CATALOG_RENDERED
 
-
 from mios_swarm import _plan_swarm, _expand_facets  # noqa: E402
 _plan_swarm = _traced_stage("plan")(_plan_swarm)  # noqa: E402  WS-A8 span
 
-
 from mios_swarm import _respond_agent_dag  # noqa: E402
-
 
 from mios_dispatch import (   # noqa: E402
     _TEMPLATE_PH_RE, _TemplateAbort, _template_to_cmd, _build_dispatch_cmd,
@@ -2882,8 +2621,6 @@ sys.modules["mios_dispatch"].configure(
     letta_dispatch_handler=mios_memory.letta_dispatch_handler,
     agent_registry=_AGENT_REGISTRY,
 )
-
-
 
 sys.modules["mios_skills"].configure(
     db_read=_db_read,
@@ -3000,14 +2737,8 @@ sys.modules["mios_turn"].configure(
     _THINK_ORPHAN_RE=_THINK_ORPHAN_RE,
 )
 
-
-
-
-
-
 _CAP_SKILLS_DIR = os.environ.get("MIOS_SKILLS_SEED_DIR", "/usr/share/mios/skills")
 _CAP_SKILLS_CACHE: "Optional[dict]" = None
-
 
 def _cap_skills() -> dict:
     """Load the structured JSON skills once (cached). Degrade-open -> {}."""
@@ -3018,11 +2749,6 @@ def _cap_skills() -> dict:
         except Exception:  # noqa: BLE001
             _CAP_SKILLS_CACHE = {}
     return _CAP_SKILLS_CACHE
-
-
-
-
-
 
 from mios_a2a import (   # noqa: E402
     A2A_PROTOCOL_VERSION,
@@ -3115,13 +2841,11 @@ sys.modules["mios_a2a"].configure(
 )
 app.include_router(a2a_router)
 
-
 _DRIFT_AXIS_LABELS = {
     # Each axis names how to pull ONE label out of a satisfaction-verdict row.
     "verdict": lambda row: str(row.get("kind") or ""),
     "intent": lambda row: str((row.get("payload") or {}).get("refine_intent") or ""),
 }
-
 
 def _drift_payload(row) -> dict:
     """Normalize a verdict row's payload, which arrives as a dict from pg and
@@ -3133,7 +2857,6 @@ def _drift_payload(row) -> dict:
         except Exception:  # noqa: BLE001
             return {}
     return p if isinstance(p, dict) else {}
-
 
 def _drift_live_window(rows: list, axis: str):
     """Fold verdict rows into one axis's (distribution, observations).
@@ -3152,7 +2875,6 @@ def _drift_live_window(rows: list, axis: str):
         if label:
             labels.append(label)
     return _drift.histogram(labels), len(labels)
-
 
 async def _drift_baseline(axis: str) -> dict:
     """The frozen reference distribution for one axis, or {} when none exists
@@ -3177,7 +2899,6 @@ async def _drift_baseline(axis: str) -> dict:
             return {}
     return d if isinstance(d, dict) else {}
 
-
 def _drift_snapshot(axis: str, dist: dict, samples: int, kind: str) -> None:
     """Record one drift_snapshot row through the unified write seam.
     Best-effort: a failed write re-seeds on the next poll, never 500s."""
@@ -3191,7 +2912,6 @@ def _drift_snapshot(axis: str, dist: dict, samples: int, kind: str) -> None:
         }, now_fields=("ts",))
     except Exception:  # noqa: BLE001
         log.debug("drift: could not record %s snapshot for %s", kind, axis)
-
 
 @app.get("/v1/drift")
 async def v1_drift() -> JSONResponse:
@@ -3240,7 +2960,6 @@ async def v1_drift() -> JSONResponse:
     return JSONResponse({"enabled": True, "seeded": seeded,
                          "window": int(DRIFT_MONITOR_WINDOW),
                          "samples": counts, **report})
-
 
 @app.get("/v1/agents")
 async def v1_agents_directory(request: Request) -> JSONResponse:
@@ -3304,26 +3023,6 @@ async def v1_agents_directory(request: Request) -> JSONResponse:
         "data": sorted(roster, key=lambda a: a["name"]),
     })
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 KERNEL_ROUTE = (
     str(os.environ.get("MIOS_KERNEL_ROUTE")
         or _DISPATCH_TOML.get("kernel_route", "false"))
@@ -3333,7 +3032,6 @@ KERNEL_DISPATCH = (
     str(os.environ.get("MIOS_KERNEL_DISPATCH")
         or _DISPATCH_TOML.get("kernel_dispatch", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
-
 
 async def _kernel_dag_handler(decision, *, refined=None, session_id=None, **ctx):
     """Dispatcher 'dag' handler -> the real DAG runner (a genuine Stage-2
@@ -3351,13 +3049,11 @@ async def _kernel_dag_handler(decision, *, refined=None, session_id=None, **ctx)
         )
     return await execute_dag(refined or {}, session_id=session_id)
 
-
 def _kernel_stage2b(mode: str):
     async def _handler(decision, **ctx):
         raise NotImplementedError(
             f"kernel execution for mode {mode!r} has no registered dispatcher handler in chat.py.")
     return _handler
-
 
 _KERNEL = mios_kernel.Kernel(
     router=mios_router.Router(),
@@ -3374,22 +3070,8 @@ _KERNEL = mios_kernel.Kernel(
     tools=_VERB_CATALOG,                     # ToolManager seam (verb surface)
     access=_pdp)                             # AccessManager seam (PDP gate)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 _OFFLINE_ENFORCE = os.environ.get(
     "MIOS_OFFLINE_ENFORCE", "true").lower() not in {"false", "0", "no"}
-
 
 def _is_local_endpoint(url: str) -> bool:
     """True if `url`'s host is LOCAL to the operator (loopback / tailnet /
@@ -3425,7 +3107,6 @@ def _is_local_endpoint(url: str) -> bool:
         return False                          # any other public IPv4
     return False
 
-
 def _offline_posture() -> dict:
     """Classify every configured inference/embedding endpoint + agent binding
     as local-or-external. Used by the startup guard + /v1/offline-status."""
@@ -3457,16 +3138,6 @@ def _offline_posture() -> dict:
         "checks": checks,
     }
 
-
-
-
-
-
-
-
-
-
-
 _MCP_CLIENT_TOOLS: dict = {}      # "mcp.<sid>.<tool>" -> tool metadata
 _MCP_CLIENT_LOCK = asyncio.Lock()
 
@@ -3490,14 +3161,6 @@ from mios_mcp import (  # noqa: E402
 )
 app.include_router(mcp_router)
 
-
-
-
-
-
-
-
-
 _A2A_PEER_REGISTRY_PATHS = [
     "/usr/share/mios/ai/v1/a2a-peers.json",                          # vendor
     "/etc/mios/ai/v1/a2a-peers.json",                                # host
@@ -3515,7 +3178,6 @@ A2A_COUNCIL = os.environ.get(
 ).strip().lower() in ("1", "true", "yes", "on")
 A2A_SELF_ID = str(os.environ.get(
     "MIOS_A2A_SELF_ID", _A2A_CFG.get("self_id", "local-mios"))).strip().lower()
-
 
 from mios_a2a_client import (   # noqa: E402
     _a2a_self_peer_url,
@@ -3557,7 +3219,6 @@ globals()["passport_verify_logic"] = sys.modules["mios_a2a"].passport_verify_log
 globals()["passport_public_key_logic"] = (
     sys.modules["mios_a2a"].passport_public_key_logic)
 
-
 MEMBERSHIP_WATCH_ENABLE = str(
     os.environ.get("MIOS_MEMBERSHIP_WATCH")
     or (_A2A_CFG.get("membership_watch", "true"))).strip().lower() in {"1", "true", "yes"}
@@ -3570,7 +3231,6 @@ except (TypeError, ValueError):
 _MEMBERSHIP_WATCH_PATHS = list(_A2A_PEER_REGISTRY_PATHS) + [
     "/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
     os.path.expanduser("~/.config/mios/mios.toml")]
-
 
 async def _reload_membership(reason: str = "manual") -> dict:
     """Re-read the agent/node registry + A2A peer registry from disk and refresh the
@@ -3611,42 +3271,21 @@ async def _reload_membership(reason: str = "manual") -> dict:
     log.info("membership reloaded (%s): %s", reason, out)
     return out
 
-
 from mios_daemons import _membership_watch_loop   # noqa: E402
-
-
-
 
 sys.modules["mios_a2a"].configure(
     check_inbound_principal=_check_inbound_principal,
     reload_membership=_reload_membership,
 )
 
-
-
-
-
-
-
-
-
-
 from mios_daemons import _gossip_loop   # noqa: E402
-
-
-
 
 REPUTATION_FLUSH_S = _dispatch_num("MIOS_REPUTATION_FLUSH_S", "reputation_flush_s",
                                    300.0, cast=float)
 
-
 from mios_daemons import _reputation_restore, _reputation_flush   # noqa: E402
 
-
-
-
 _SELFIMPROVE_SEEN: set = set()
-
 
 sys.modules["mios_daemons"].configure(
     _get_client=_get_client,
@@ -3672,24 +3311,15 @@ from mios_daemons import (daemons_router, selfimprove_report_ep,   # noqa: E402,
                           selfimprove_proposals_ep)
 app.include_router(daemons_router)
 
-
-
-
-
-
-
-
 _VERB_EMBED_MODEL = os.environ.get(
     "MIOS_VERB_EMBED_MODEL", "nomic-embed-text")
 _VERB_EMBED_URL = os.environ.get(
     "MIOS_VERB_EMBED_URL", _LIGHT_BASE + "/v1/embeddings")
 
-
 _EMBED_FAIL_LOG_INTERVAL = float(
     os.environ.get("MIOS_EMBED_FAIL_LOG_INTERVAL", "60") or 60)
 _embed_fail_last_log = 0.0
 _embed_fail_suppressed = 0
-
 
 async def _embed_one(text: str, prefix: Optional[str] = "search_query: ") -> Optional[list[float]]:
     """Single-vector embed over OpenAI /v1/embeddings ({input} -> {data:[{embedding}]})
@@ -3732,13 +3362,11 @@ async def _embed_one(text: str, prefix: Optional[str] = "search_query: ") -> Opt
             _embed_fail_suppressed += 1
     return None
 
-
 from mios_toolsearch import (  # noqa: E402
     _cosine,
     _verb_embed_text,
     _verb_embed_fingerprint,
 )
-
 
 sys.modules["mios_knowledge"].configure(   # noqa: E402
     db_fire=_db_fire,
@@ -3792,7 +3420,6 @@ sys.modules["mios_knowledge"].configure(   # noqa: E402
     knowledge_rag_rerank=(os.environ.get("MIOS_RAG_RERANK", "").strip().lower() not in ("0", "false", "no") if "MIOS_RAG_RERANK" in os.environ else _toml_section("ai").get("rag_rerank", False)),
 )
 
-
 sys.modules["mios_web_research"].configure(   # noqa: E402
     is_action_domain=_is_action_domain,
     current_date_str=_current_date_str,
@@ -3829,7 +3456,6 @@ sys.modules["mios_web_research"].configure(   # noqa: E402
     web_research_max_attempts=WEB_RESEARCH_MAX_ATTEMPTS,
 )
 
-
 sys.modules["mios_worker_tools"].configure(
     verb_catalog=_VERB_CATALOG,
     resolve_verb_key=_resolve_verb_key,
@@ -3853,7 +3479,6 @@ sys.modules["mios_worker_tools"].configure(
         or (_toml_section("worker_tools") or {}).get("tool_priority_core_first", True)
     ).strip().lower() not in {"false", "0", "no"},
 )
-
 
 sys.modules["mios_toolexec"].configure(
     read_tool_enrich_chars=READ_TOOL_ENRICH_CHARS,
@@ -3888,7 +3513,6 @@ sys.modules["mios_toolexec"].configure(
     otel_tracer=_otel_tracer,
 )
 
-
 sys.modules["mios_firewall"].configure(
     taint_verbs=_TAINT_VERBS,
     provenance_taint_enable=PROVENANCE_TAINT_ENABLE,
@@ -3900,7 +3524,6 @@ sys.modules["mios_firewall"].configure(
     internal_tld_suffixes=((_toml_section("security") or {}).get(
         "internal_tld_suffixes") or None),
 )
-
 
 sys.modules["mios_policy"].configure(
     verb_catalog=_VERB_CATALOG,
@@ -3917,7 +3540,6 @@ sys.modules["mios_policy"].configure(
     db_create=_db_create,
 )
 
-
 sys.modules["mios_secondary_loop"].configure(
     secondary_tool_max_iters=SECONDARY_TOOL_MAX_ITERS,
     secondary_replan_max=SECONDARY_REPLAN_MAX,
@@ -3931,7 +3553,6 @@ sys.modules["mios_secondary_loop"].configure(
     db_fire=_db_fire,
     db_post=_db_post,
 )
-
 
 sys.modules["mios_agent_call"].configure(
     healthgate_connect_timeout=HEALTHGATE_CONNECT_TIMEOUT,
@@ -4042,7 +3663,6 @@ sys.modules["mios_dag_exec"].configure(
     pg_mirror=_pg_mirror,
 )
 
-
 from mios_toolsearch import (   # noqa: E402
     _VERB_EMBEDDINGS,
     _VERB_EMBEDDINGS_LOCK,
@@ -4073,7 +3693,6 @@ sys.modules["mios_toolsearch"].configure(
 )
 app.include_router(toolsearch_router)
 
-
 sys.modules["mios_mcp"].configure(
     get_client=_get_client,
     mcp_client_tools=_MCP_CLIENT_TOOLS,
@@ -4082,11 +3701,6 @@ sys.modules["mios_mcp"].configure(
     invalidate_worker_cache=lambda: globals().__setitem__(
         "_WORKER_TOOLS_FULL_CACHE", None),
 )
-
-
-
-
-
 
 from mios_portal import (  # noqa: E402
     PORTAL_PUBLIC_HOST, _portal_toml, _PORTAL_TOML, _pcfg, PORTAL_PASSWORD,
@@ -4121,7 +3735,6 @@ sys.modules["mios_portal"].configure(
     agent_registry=_AGENT_REGISTRY, sanitize_tool_text=_sanitize_tool_text,
     websockets=websockets)
 app.include_router(portal_router)
-
 
 from mios_http_caps import (  # noqa: E402
     _skill_to_mcp_resource, _recipe_to_mcp_resource, _verb_to_mcp_resource,
@@ -4158,28 +3771,11 @@ from mios_audit import audit_router, chain_verify   # noqa: E402,F401
 mios_audit.configure(chain_enable=AUDIT_CHAIN_ENABLE, pg_execute=_mios_pg.execute)
 app.include_router(audit_router)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 VISION_ENABLE = os.environ.get(
     "MIOS_AGENT_PIPE_VISION", "true").lower() not in ("0", "false", "no", "")
 VISION_MODEL = os.environ.get("MIOS_AGENT_PIPE_VISION_MODEL", "qwen3-vl:4b")
 VISION_ENDPOINT = os.environ.get(
     "MIOS_AGENT_PIPE_VISION_ENDPOINT", _LIGHT_BASE).rstrip("/")
-
 
 from mios_vision import (   # noqa: E402  (R9: VISION responders, moved verbatim)
     _messages_have_image, _vision_backend_failed, _vision_msg_response,
@@ -4188,13 +3784,11 @@ from mios_vision import (   # noqa: E402  (R9: VISION responders, moved verbatim
     _VISION_UNAVAILABLE_MSG, _VISION_FETCH_FAILED_MSG, _VISION_MAX_BYTES,
 )
 
-
 CUA_ENABLE = (
     str(os.environ.get("MIOS_CUA_ENABLE")
         or _DISPATCH_TOML.get("cua_enable", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
 CUA_MAX_STEPS = _dispatch_num("MIOS_CUA_MAX_STEPS", "cua_max_steps", 12)
-
 
 from mios_cua import (   # noqa: E402  (WS-8 computer-use I/O half, moved verbatim)
     _cua_extract_png, _cua_screenshot_uri, _cua_vlm_json, _cua_loop,
@@ -4216,7 +3810,6 @@ sys.modules["mios_cua"].configure(
 )
 app.include_router(cua_router)
 
-
 from mios_lanes_resolver import (   # noqa: E402  (lane-resolver cluster, moved verbatim)
     _heavy_lane_up, _lane_resolver, _pick_tool_backend, _heavy_probe, _LANE_RESOLVER,
 )
@@ -4224,7 +3817,6 @@ sys.modules["mios_lanes_resolver"].configure(
     _get_client=_get_client,
     _is_remote_endpoint=_is_remote_endpoint,
 )
-
 
 from mios_vision import (   # noqa: E402  (R9: client-tools hybrid loop, moved verbatim)
     _has_client_tools, _client_tools_mios_surface, _client_tools_is_mios,
@@ -4248,7 +3840,6 @@ sys.modules["mios_vision"].configure(
     tool_call_sig=_tool_call_sig,
 )
 
-
 sys.modules["mios_oscontrol"].configure(
     os_control_launch_verify_s=OS_CONTROL_LAUNCH_VERIFY_S,
     os_control_launch_poll_s=OS_CONTROL_LAUNCH_POLL_S,
@@ -4269,7 +3860,6 @@ sys.modules["mios_oscontrol"].configure(
     inline_satisfaction_check=_inline_satisfaction_check,
     strip_think_tags=_strip_think_tags,
 )
-
 
 LOCAL_STATE_FASTPATH = os.environ.get(
     "MIOS_LOCAL_STATE_FASTPATH", "true").lower() not in {"false", "0", "no"}
@@ -4301,7 +3891,6 @@ _LOCAL_STATE_SYSTEM = (
     "- Clean markdown (grouped lists or a table). No 'based on the telemetry' "
     "preamble, no narration. Reply in the user's language.\n")
 
-
 def _polish_post(endpoint, model, messages, max_tokens, temperature=0.0):
     """(url, payload) for a polish/format call on an OpenAI /v1 endpoint. MiOS is
     /v1-only (llama.cpp / mios-llm-light), so this always targets
@@ -4312,7 +3901,6 @@ def _polish_post(endpoint, model, messages, max_tokens, temperature=0.0):
     return (base + "/v1/chat/completions",
             {"model": model, "messages": messages, "stream": False,
              "max_tokens": max_tokens, "temperature": temperature})
-
 
 sys.modules["mios_verity"].configure(   # noqa: E402
     refine_timeout_s=REFINE_TIMEOUT_S,
@@ -4338,7 +3926,6 @@ sys.modules["mios_verity"].configure(   # noqa: E402
     abbreviations=(_toml_section("verity").get("sentence_abbreviations") or None),
 )
 
-
 sys.modules["mios_reflect"].configure(   # noqa: E402
     db_read=_db_read,
     db_write=_db_write,
@@ -4357,7 +3944,6 @@ sys.modules["mios_reflect"].configure(   # noqa: E402
     consensus_timeout_s=CONSENSUS_TIMEOUT_S,
     consensus_weight_floor=CONSENSUS_WEIGHT_FLOOR,
 )
-
 
 NATIVE_LOOP_ENABLE = str(
     os.environ.get("MIOS_NATIVE_LOOP", "true")).strip().lower() not in {"false", "0", "no"}
@@ -4424,15 +4010,12 @@ _NATIVE_LOOP_REFLECTION_PROSE = (
     "comprehensive report is available', and never ask the user to narrow or specify a "
     "request you can already partly answer. Deliver the digest of what you found.")
 
-
 from mios_native_loop import (  # noqa: E402
     _respond_native_loop_direct, _respond_local_state,
     _format_local_state, _formulate_web_query, _formulate_compute_snippet,
 )
 
-
 from mios_tokenize import _usage_estimate  # noqa: E402
-
 
 sys.modules["mios_hitlflow"].configure(
     hitl_enable=HITL_ENABLE,
@@ -4458,7 +4041,6 @@ sys.modules["mios_hitlflow"].configure(
     dispatch_mios_verb=dispatch_mios_verb,
 )
 app.include_router(hitlflow_router)
-
 
 sys.modules["mios_native_loop"].configure(
     _LOCAL_STATE_SYSTEM=_LOCAL_STATE_SYSTEM,
@@ -4524,7 +4106,6 @@ sys.modules["mios_native_loop"].configure(
     _DEBUG_ENABLE=_DEBUG_ENABLE,
 )
 
-
 sys.modules["mios_swarm"].configure(
     swarm_max_width=SWARM_MAX_WIDTH,
     swarm_max_cpu_nodes=SWARM_MAX_CPU_NODES,
@@ -4564,8 +4145,6 @@ sys.modules["mios_swarm"].configure(
     db_create=_db_create,
     embed_one=_embed_one,
 )
-
-
 
 from mios_pipe.auth import (
     usage_completeness_mw as _usage_completeness_mw,
@@ -4618,9 +4197,6 @@ _configure_auth(
 
 app.middleware("http")(_usage_completeness_mw)
 app.middleware("http")(_inbound_auth_mw)
-
-
-
 
 __import__("mios_chat")
 sys.modules["mios_chat"].configure(
@@ -4768,7 +4344,6 @@ globals()["responses_api_logic"] = sys.modules["mios_chat"].responses_api_logic
 globals()["hitl_approve_logic"] = sys.modules["mios_hitlflow"].hitl_approve_logic
 globals()["v1_computer_use_logic"] = sys.modules["mios_cua"].v1_computer_use_logic
 
-
 __import__("mios_clusterhealth")
 from mios_clusterhealth import (   # noqa: E402
     _resolve_failover_chain,
@@ -4859,10 +4434,6 @@ globals()["portal_login_page_logic"] = sys.modules["mios_portal"].portal_login_p
 globals()["portal_login_logic"] = sys.modules["mios_portal"].portal_login_logic
 globals()["portal_page_logic"] = sys.modules["mios_portal"].portal_page_logic
 
-
-
-
-
 def main() -> int:
     host = _bind_host(_API_REQUIRE_AUTH, os.environ.get("MIOS_BIND_HOST", ""))
     log.info("starting on %s:%d -> backend=%s model=%s "
@@ -4877,7 +4448,6 @@ def main() -> int:
         access_log=False,
     )
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -20,7 +20,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "libexec", "mios", "node"))
 import crypto
 import wire
 
-
 class TestNodeCryptoHandshake(unittest.TestCase):
     """Validates mutual Ed25519 authentication, X25519 ECDH, HKDF derivation, and AEAD frame encryption."""
 
@@ -207,12 +206,10 @@ class TestNodeCryptoHandshake(unittest.TestCase):
         self.assertEqual(session_b.rx_nonce, 3)
         self.assertEqual(p3, b"packet 3")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeCryptoHandshake)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

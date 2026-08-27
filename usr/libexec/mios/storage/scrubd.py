@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-scrubd")
 
 MAX_PSI_PRESSURE_THRESHOLD = 20.0
 
-
 @dataclass
 class StorageScrubReport:
     filesystem: str
@@ -32,7 +31,6 @@ class StorageScrubReport:
     psi_io_pressure_avg: float
     was_throttled: bool
     interactive_latency_degradation_pct: float
-
 
 class StorageScrubManager:
     """Manages background integrity scrubs and pressure-adaptive throttling."""
@@ -60,12 +58,10 @@ class StorageScrubManager:
         )
         return report
 
-
 def main():
     mgr = StorageScrubManager(dry_run=True)
     res = mgr.execute_pool_scrub("/var", 5000, True)
     print(f"Pool: {res.filesystem}, Repaired: {res.bit_rot_blocks_repaired}")
-
 
 if __name__ == "__main__":
     main()

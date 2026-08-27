@@ -26,4 +26,3 @@ import wire
 if __name__ == "__main__":
     sys.exit(wire.main())
 
-

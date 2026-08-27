@@ -21,7 +21,6 @@ from scrubd import StorageScrubManager
 from ebpf_trace import MAX_CPU_OVERHEAD_PCT, MAX_PROBE_ATTACH_MS, EBPFTracerManager
 from thermald import MAX_STABILIZED_TEMP_C, ThermalGovernorManager
 
-
 class TestEmpiricalStressT713T722(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-stress-t713-")
@@ -75,7 +74,6 @@ class TestEmpiricalStressT713T722(unittest.TestCase):
             st = gov.evaluate_thermal_sample(temp)
             if temp >= 85.0:
                 self.assertEqual(st.current_epp, "balance_performance")
-
 
 if __name__ == "__main__":
     unittest.main()

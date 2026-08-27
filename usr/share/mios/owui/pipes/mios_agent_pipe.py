@@ -48,14 +48,12 @@ from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
 
 import aiohttp
 
-
 QWEN_FUNCTION_RE = re.compile(
     r"<function=([a-zA-Z_-]+)>\s*"
     r"(?:<parameter=([a-zA-Z_-]+)>\s*(.*?)\s*</parameter>\s*)*"
     r"</function>(?:\s*</tool_call>)?",
     re.DOTALL,
 )
-
 
 NARRATION_LEADERS = [
     r"^let me\b", r"^let.s\b", r"^i.ll\b", r"^i.m going to\b",
@@ -72,7 +70,6 @@ NARRATION_LEADERS = [
 ]
 NARRATION_RES = [re.compile(p, re.IGNORECASE) for p in NARRATION_LEADERS]
 
-
 def _is_narration_line(line: str) -> bool:
     s = line.strip()
     if not s:
@@ -81,7 +78,6 @@ def _is_narration_line(line: str) -> bool:
         if pat.search(s):
             return True
     return False
-
 
 HERMES_TAIL_PATH = "/var/lib/mios/hermes-tail/latest.json"
 TAIL_POLL_INTERVAL_S = 0.4
@@ -95,8 +91,6 @@ _TAIL_ICONS = {
     "subagent_done":  "✓",
     "tool_call":      "🛠️ ",
 }
-
-
 
 import base64 as _base64
 import urllib.parse as _urlparse  # noqa: F401  (reserved for record-id quoting)
@@ -113,7 +107,6 @@ _DB_NS   = os.environ.get("MIOS_DB_NS",   "mios")
 _DB_DB   = os.environ.get("MIOS_DB_DB",   "mios")
 _DB_AUTH = "Basic " + _base64.b64encode(f"{_DB_USER}:{_DB_PASS}".encode()).decode()
 _DB_DOWN_UNTIL: float = 0.0
-
 
 async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
     """Best-effort retired database write/query. Returns the parsed list of
@@ -147,7 +140,6 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
         _DB_DOWN_UNTIL = time.time() + 30
         return None
 
-
 def _db_create(table: str, fields: dict, *,
                now_fields: tuple = (),
                extra: str = "") -> str:
@@ -172,7 +164,6 @@ def _db_create(table: str, fields: dict, *,
         sql += " " + extra
     return sql + ";"
 
-
 def _db_fire(coro: Awaitable) -> None:
     """Schedule a DB coroutine without blocking the caller. Silently
     no-ops outside an active event loop (callers may invoke from sync
@@ -183,15 +174,12 @@ def _db_fire(coro: Awaitable) -> None:
         return
     loop.create_task(coro)
 
-
 _ENV_SENTINELS = frozenset({"", "unknown", "none", "null", "n/a", "undefined"})
-
 
 def _env_ok(v) -> bool:
     """True when v is a REAL env value (non-empty, not an absent-value sentinel)."""
     s = str(v if v is not None else "").strip()
     return bool(s) and s.lower() not in _ENV_SENTINELS
-
 
 class Pipe:
     class Valves(BaseModel):
@@ -618,7 +606,6 @@ class Pipe:
                 await asyncio.wait_for(stop.wait(), timeout=TAIL_POLL_INTERVAL_S)
             except asyncio.TimeoutError:
                 continue
-
 
     _CONVERSATIONAL_RE = re.compile(
         r"^\s*((?:hi|hello|hey|yo|howdy)(?:\s+(?:there|y[’']?all|everyone|all|guys|friend|friends|bot))?|"
@@ -2003,7 +1990,6 @@ class Pipe:
         except Exception:
             pass  # persona is best-effort; never break the turn
 
-
         _chat_id = ""
         if isinstance(__metadata__, dict):
             _chat_id = str(__metadata__.get("chat_id") or "")
@@ -2067,7 +2053,6 @@ class Pipe:
                 if isinstance(raw, str):
                     _last_user_text = raw
                 break
-
 
         last_user_idx = -1
         for i in range(len(messages) - 1, -1, -1):

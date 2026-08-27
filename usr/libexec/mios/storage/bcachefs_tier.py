@@ -15,13 +15,11 @@ from typing import Dict
 
 log = logging.getLogger("bcachefs_tier")
 
-
 @dataclass
 class StorageBlock:
     data_hash: str
     tier: str # 'foreground_nvme', 'background_hdd'
     dirty: bool = False
-
 
 class BcachefsTierManager:
     """

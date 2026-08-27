@@ -17,7 +17,6 @@ PKG = os.path.join("usr", "lib", "mios", "agent-pipe")
 # of this gate. Shims are excluded -- they are ~28 lines of lazy re-export.
 SUBDIRS = ("mios_pipe", ".")
 
-
 def load_policy(root: str) -> tuple:
     """Return (max_lines, {path: recorded_lines}) from [refactor]."""
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
@@ -30,7 +29,6 @@ def load_policy(root: str) -> tuple:
             recorded[str(row["path"])] = int(row.get("lines") or 0)
     return max_lines, recorded
 
-
 def _is_shim(path: str) -> bool:
     """A lazy re-export shim (~28 lines) is not a module worth sizing."""
     try:
@@ -39,11 +37,9 @@ def _is_shim(path: str) -> bool:
     except OSError:
         return False
 
-
 def _count(path: str) -> int:
     with open(path, "rb") as fh:
         return sum(1 for _ in fh)
-
 
 def scan(root: str) -> tuple:
     """Return (violations, checked). A violation is a human-readable string."""
@@ -99,7 +95,6 @@ def scan(root: str) -> tuple:
             f"[refactor].oversize names a file that no longer exists: {rel}")
     return bad, checked
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     bad, checked = scan(root)
@@ -111,7 +106,6 @@ def main() -> int:
     print(f"agent-pipe modules within the size ratchet "
           f"(checked={checked} limit={max_lines} grandfathered={len(recorded)})")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

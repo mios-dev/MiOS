@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load visual-rag module from {_VIS_PATH}")
 
-
 class TestVisualRag(unittest.TestCase):
     """Validates screenshot hashing and visual metadata record schema."""
 
@@ -35,12 +34,10 @@ class TestVisualRag(unittest.TestCase):
         self.assertEqual(record["byte_size"], len(sample_frame))
         self.assertEqual(len(record["image_hash"]), 64)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestVisualRag)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -13,5 +13,4 @@ def _strip_empty_mios_env() -> None:
         for _k in [k for k in list(os.environ) if k.startswith("MIOS_") and os.environ.get(k) == ""]:
             os.environ.pop(_k, None)
 
-
 _strip_empty_mios_env()

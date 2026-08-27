@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load crash_dedupe module from {_MODULE_PATH}")
 
-
 class TestCrashDedupe(unittest.TestCase):
     """Validates stack normalization, hash deduplication, reproducer extraction, and bug recording."""
 
@@ -95,7 +94,6 @@ bpf$BPF_PROG_LOAD(0x1, &(0x7f0000)=..., 0x80)
                 parsed = json.loads(mock_print.call_args[0][0])
                 self.assertEqual(parsed["status"], "ok")
                 self.assertIn("bugs", parsed)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,7 +9,6 @@ import unittest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from mios_pipe.mcp_dispatch import build_mcp_tool_envelope
 
-
 class TestMcpDispatch(unittest.TestCase):
     """Test MCP tool envelope builder."""
 
@@ -19,7 +18,6 @@ class TestMcpDispatch(unittest.TestCase):
         self.assertEqual(env["id"], "call_123")
         self.assertEqual(env["function"]["name"], "query_db")
         self.assertEqual(env["function"]["arguments"], {"query": "hello"})
-
 
 if __name__ == "__main__":
     unittest.main()

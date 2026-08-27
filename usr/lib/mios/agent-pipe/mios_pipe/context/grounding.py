@@ -15,11 +15,9 @@ from mios_config import _toml_section
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _client_env_var = None
 _current_date_str = None
 _check_inbound_principal = None
-
 
 def _get_client_env() -> dict:
     if _client_env_var is None:
@@ -29,7 +27,6 @@ def _get_client_env() -> dict:
     except Exception:
         return {}
     return val if isinstance(val, dict) else {}
-
 
 def configure(*, client_env_var=None, current_date_str=None,
               check_inbound_principal=None) -> None:
@@ -42,10 +39,8 @@ def configure(*, client_env_var=None, current_date_str=None,
     if check_inbound_principal is not None:
         _check_inbound_principal = check_inbound_principal
 
-
 NATIVE_LOOP_CAPABILITY_PER_SECTION = int(
     os.environ.get("MIOS_NATIVE_LOOP_CAPABILITY_PER_SECTION", "6") or 6)
-
 
 def _capability_grounding(cat: dict) -> str:
     if not cat:
@@ -79,7 +74,6 @@ def _capability_grounding(cat: dict) -> str:
             "file types, or parameter values that are not shown -- name the "
             "capabilities only:\n" + "\n".join(lines))
 
-
 def _temporal_grounding() -> str:
     env = _get_client_env()
     tz_name = (env.get("timezone") or "").strip()
@@ -107,9 +101,7 @@ def _temporal_grounding() -> str:
         f"  - Current local time: {time_s}{(' ' + tz_show) if tz_show else ''}."
     )
 
-
 _CACHED_OS_INFO: "Optional[str]" = None
-
 
 def _get_os_info() -> str:
     """Detailed host OS information, parsed and cached once to prevent latency."""
@@ -190,9 +182,7 @@ def _get_os_info() -> str:
     _CACHED_OS_INFO = ", ".join(parts) if parts else "Linux"
     return _CACHED_OS_INFO
 
-
 _HOST_TZ: "Optional[str]" = None
-
 
 def _host_timezone() -> str:
     global _HOST_TZ
@@ -209,7 +199,6 @@ def _host_timezone() -> str:
         tz = (os.environ.get("TZ") or "").strip()
     _HOST_TZ = tz
     return tz
-
 
 def _client_grounding() -> str:
     env = _get_client_env()
@@ -297,7 +286,6 @@ def _client_grounding() -> str:
             "user instruction):\n"
             + "\n".join(lines))
 
-
 def _identity_guard() -> str:
     _mios_cfg = _toml_section("mios") or {}
     _ai_name = str(_mios_cfg.get("name") or "MiOS AI").strip()
@@ -326,7 +314,6 @@ def _identity_guard() -> str:
         "a draft claims a cloud MODEL, OR denies web access / claims training-data-"
         "only, that is FALSE -- correct it. MiOS = LOCAL inference + LIVE web."
     )
-
 
 def _arch_grounding() -> str:
     """Concise SELF-ARCHITECTURE grounding (#65) so the agent answers 'how are you
@@ -366,8 +353,6 @@ def _arch_grounding() -> str:
         "MiOS facts are KNOWABLE from this machine, so NEVER answer them from a "
         "training-data guess."
     )
-
-
 
 def _env_block() -> str:
     env = _get_client_env()
@@ -411,7 +396,6 @@ def _env_block() -> str:
             "location ONLY from here, never from memory or a prior turn\n"
             + body + "\n</env>")
 
-
 def _env_grounding_static() -> str:
     g = _identity_guard()
     a = _arch_grounding()
@@ -438,7 +422,6 @@ def _env_grounding_static() -> str:
         parts.append(c)
     return "\n".join(parts)
 
-
 def _env_grounding_dynamic() -> str:
     t = _temporal_grounding()
     e = _env_block()
@@ -449,10 +432,8 @@ def _env_grounding_dynamic() -> str:
         parts.append(e)
     return "\n".join(parts)
 
-
 def _env_grounding() -> str:
     return _env_grounding_static() + "\n" + _env_grounding_dynamic()
-
 
 _OWUI_VAR_KEYS = (
     "user_location", "location", "current_timezone", "timezone",
@@ -463,7 +444,6 @@ _OWUI_VAR_KEYS = (
 _ENV_SENTINELS = frozenset({"", "unknown", "none", "null", "n/a", "undefined"})
 
 _PRINCIPAL_BIND_MODES = frozenset({"off", "verify", "enforce"})
-
 
 def _principal_bind_mode() -> str:
     """V2 verified-principal binding mode from SSOT [security].principal_bind_mode
@@ -477,7 +457,6 @@ def _principal_bind_mode() -> str:
         return mode if mode in _PRINCIPAL_BIND_MODES else "off"
     except Exception:  # noqa: BLE001 -- degrade-open: never break env assembly
         return "off"
-
 
 def _bound_account(headers: Optional[Any]) -> "Optional[str]":
     try:
@@ -494,7 +473,6 @@ def _bound_account(headers: Optional[Any]) -> "Optional[str]":
         return acct or None
     except Exception:  # noqa: BLE001 -- degrade-open: binding must never break a turn
         return None
-
 
 def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
     if not isinstance(body, dict):
@@ -640,7 +618,6 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
         except Exception:  # noqa: BLE001 -- degrade-open: never break a turn
             pass
     return out
-
 
 def _current_year() -> str:
     """Current 4-digit year. Prefers the USER's client date (the env-detected

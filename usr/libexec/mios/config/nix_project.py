@@ -91,7 +91,6 @@ __DECLARED_DOTFILES__
 }
 """
 
-
 def parse_toml(content: str) -> Dict[str, Any]:
     """Parse TOML string using tomllib, tomli, or basic parser fallback."""
     try:
@@ -155,7 +154,6 @@ def parse_toml(content: str) -> Dict[str, Any]:
             current_section[k] = val
 
     return data
-
 
 class NixProjectManager:
     """Manages declarative Nix flake projection from mios.toml and atomic generations."""
@@ -640,7 +638,6 @@ class NixProjectManager:
             "hash": matched["hash"],
         }
 
-
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="MiOS Declarative Nix Flake Projection Generator & Manager"
@@ -708,7 +705,6 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
 
     return parser.parse_args(argv)
-
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
@@ -796,7 +792,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         log.info("Rendered pure Nix flake to %s (Gen %d, hash: %s)", args.output, summary["generation"], summary["hash"])
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

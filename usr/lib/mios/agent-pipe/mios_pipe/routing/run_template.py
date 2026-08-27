@@ -26,7 +26,6 @@ _db_post = None
 _db_fire = None
 _pg_mirror = None
 
-
 def configure(*, run_template_enable=None, pg_primary=None, db_read=None,
               db_create=None, db_post=None, db_fire=None, pg_mirror=None) -> None:
     """One-way injection from dag_exec's own configure()."""
@@ -47,7 +46,6 @@ def configure(*, run_template_enable=None, pg_primary=None, db_read=None,
     if pg_mirror is not None:
         _pg_mirror = pg_mirror
 
-
 def _run_template_class(dag: dict) -> str:
     """Structural intent-class key for a DAG: sorted tool/agent names + total
     edge count, hashed. Same plan SHAPE -> same class regardless of phrasing."""
@@ -56,7 +54,6 @@ def _run_template_class(dag: dict) -> str:
     edges = sum(len(n.get("deps") or []) for n in nodes)
     raw = "|".join(sig) + f"#e{edges}"
     return hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()[:16]
-
 
 async def load_run_templates(limit: int = 50) -> list:
     """Newest stored templates for the replay matcher. Degrades open."""
@@ -71,7 +68,6 @@ async def load_run_templates(limit: int = 50) -> list:
         if isinstance(st, dict) and isinstance(st.get("result"), list):
             return st["result"][:n]
     return []
-
 
 def _capture_run_template(dag: dict, session_id: Optional[str]) -> None:
     """Fire-and-forget capture of a planned DAG as a replayable template. Never

@@ -20,7 +20,6 @@ from usb_surge import MAX_ISOLATION_LATENCY_MS, USBSurgeProtectionDaemon
 from entropy_seed import HardwareEntropySeeder
 from kpatch_mgr import MAX_PATCH_LATENCY_MS, KernelLivepatchManager
 
-
 class TestEmpiricalStressT673T682(unittest.TestCase):
     # --- 1. MicroVM Sandbox Rapid Lifecycle Stress Tests ---
     def test_microvm_20_rapid_spins(self):
@@ -70,7 +69,6 @@ class TestEmpiricalStressT673T682(unittest.TestCase):
             self.assertTrue(res.is_applied)
             self.assertLess(res.patch_latency_ms, MAX_PATCH_LATENCY_MS)
         self.assertEqual(len(mgr.applied_patches), 10)
-
 
 if __name__ == "__main__":
     unittest.main()

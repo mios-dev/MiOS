@@ -15,20 +15,17 @@ _MODES = (MODE_OFF, MODE_AUDIT, MODE_ENFORCE)
 ACT_PROCEED, ACT_AUDIT, ACT_GATE = "proceed", "audit", "gate"
 _ALL_THREE_ACTION = {MODE_OFF: ACT_PROCEED, MODE_AUDIT: ACT_AUDIT, MODE_ENFORCE: ACT_GATE}
 
-
 def normalize_mode(mode) -> str:
     """Resolve the SSOT mode value to a known enum; an empty/unknown token -> off
     (degrade-open: an unrecognised mode never silently enforces or audits)."""
     m = str(mode or "").strip().lower()
     return m if m in _MODES else MODE_OFF
 
-
 def is_state_change(permission_tier) -> bool:
     try:
         return bool(mios_sandbox.resolve_profile(permission_tier).confined)
     except Exception:  # noqa: BLE001 -- fail-safe: an unclassifiable tier is treated as side-effecting
         return True
-
 
 class RuleOfTwoVerdict:
     """The deterministic verdict for one (session_tainted, verb) evaluation: which of
@@ -48,7 +45,6 @@ class RuleOfTwoVerdict:
     def to_dict(self) -> dict:
         return {"properties": dict(self.properties), "count": self.count,
                 "all_three": self.all_three, "mode": self.mode, "action": self.action}
-
 
 def evaluate(*, session_tainted, permission_tier, sensitive,
              mode: str = MODE_OFF) -> RuleOfTwoVerdict:

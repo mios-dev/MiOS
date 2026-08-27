@@ -30,7 +30,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load mios-ledger-sync module from {_SYNC_PATH}")
 
-
 class TestLedgerSync(unittest.TestCase):
     """Tests block creation, cryptographic linking, tamper detection, and cross-pool sync."""
 
@@ -200,12 +199,10 @@ class TestLedgerSync(unittest.TestCase):
         self.assertIn("mios-ledger-sync", content)
         self.assertIn("Type=oneshot", content)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestLedgerSync)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

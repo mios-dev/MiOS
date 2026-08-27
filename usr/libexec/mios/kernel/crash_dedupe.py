@@ -29,7 +29,6 @@ TIMESTAMP_REGEX = re.compile(r"\[\s*\d+\.\d+\]\s*")
 ADDR_OFFSET_REGEX = re.compile(r"\+0x[0-9a-fA-F]+(?:/0x[0-9a-fA-F]+)?|\+[0-9a-fA-F]+(?:/[0-9a-fA-F]+)?")
 ADDR_HEX_REGEX = re.compile(r"\[<[0-9a-fA-F]+>\]|\b0x[0-9a-fA-F]+\b")
 
-
 @dataclass
 class CrashReport:
     """Structured and deduplicated kernel crash report."""
@@ -46,7 +45,6 @@ class CrashReport:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
-
 
 class CrashTriageEngine:
     """Engine parsing kernel crashes, computing stack hashes, and logging to bug_tracker."""
@@ -259,7 +257,6 @@ class CrashTriageEngine:
         """Lists all tracked bugs in repository."""
         return list(self._mock_db.values())
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MiOS Kernel Fuzz Crash Deduplication & Bug Logger (T-558)")
     parser.add_argument("--log-file", metavar="PATH", help="Path to raw kernel serial / syzkaller log file")
@@ -268,7 +265,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mock", action="store_true", help="Use in-memory database simulation")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
     return parser.parse_args()
-
 
 def main() -> int:
     args = parse_args()
@@ -314,7 +310,6 @@ def main() -> int:
         if args.json:
             print(json.dumps({"status": "error", "error": str(e)}, indent=2))
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 VALID_XML_SAMPLE = """<?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend"
           xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
@@ -85,7 +84,6 @@ VALID_XML_SAMPLE = """<?xml version="1.0" encoding="utf-8"?>
   </settings>
 </unattend>
 """
-
 
 class TestUnattendValidate(unittest.TestCase):
     """Test suite for Windows autounattend XML schema validation."""
@@ -250,12 +248,10 @@ class TestUnattendValidate(unittest.TestCase):
             if os.path.exists(tf_path):
                 os.remove(tf_path)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestUnattendValidate)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

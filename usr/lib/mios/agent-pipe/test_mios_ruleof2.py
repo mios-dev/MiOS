@@ -12,11 +12,9 @@ import mios_dispatch
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_is_state_change() -> None:
     _check("C: read -> not state-change", R.is_state_change("read") is False)
@@ -27,7 +25,6 @@ def t_is_state_change() -> None:
     _check("C: None tier -> state-change (fail-closed)", R.is_state_change(None) is True)
     _check("C: non-string tier -> state-change (degrade-safe)", R.is_state_change({"x": 1}) is True)
 
-
 def t_normalize_mode() -> None:
     _check("mode: off", R.normalize_mode("off") == R.MODE_OFF)
     _check("mode: audit", R.normalize_mode("audit") == R.MODE_AUDIT)
@@ -35,7 +32,6 @@ def t_normalize_mode() -> None:
     _check("mode: case-insensitive", R.normalize_mode("ENFORCE") == R.MODE_ENFORCE)
     _check("mode: unknown -> off (degrade-open)", R.normalize_mode("bogus") == R.MODE_OFF)
     _check("mode: None -> off", R.normalize_mode(None) == R.MODE_OFF)
-
 
 def t_evaluate_counts() -> None:
     v = R.evaluate(session_tainted=True, permission_tier="write", sensitive=True, mode=R.MODE_ENFORCE)
@@ -51,7 +47,6 @@ def t_evaluate_counts() -> None:
     _check("eval: none -> 0",
            R.evaluate(session_tainted=False, permission_tier="read", sensitive=False).count == 0)
 
-
 def t_evaluate_action_matrix() -> None:
     def _act(mode):
         return R.evaluate(session_tainted=True, permission_tier="write",
@@ -64,14 +59,12 @@ def t_evaluate_action_matrix() -> None:
         v = R.evaluate(session_tainted=True, permission_tier="read", sensitive=True, mode=m)
         _check(f"action: 2of3 + {m} -> proceed", v.action == R.ACT_PROCEED, str(v.to_dict()))
 
-
 def t_evaluate_total() -> None:
     try:
         v = R.evaluate(session_tainted=True, permission_tier=12345, sensitive=True, mode="enforce")
         _check("eval: malformed tier -> no raise + state-change", v.all_three is True, str(v.to_dict()))
     except Exception as e:  # noqa: BLE001
         _check("eval: malformed tier -> no raise", False, repr(e))
-
 
 def t_decide_ro2() -> None:
     _check("decide: ro2_block -> BLOCK", mios_hitl.decide(ro2_block=True) == mios_hitl.BLOCK)
@@ -80,7 +73,6 @@ def t_decide_ro2() -> None:
     _check("decide: no ro2_block -> PROCEED (inert default)", mios_hitl.decide() == mios_hitl.PROCEED)
     _check("decide: ro2_block + ai audit -> BLOCK still",
            mios_hitl.decide(ro2_block=True, in_tier_scope=True, ai_mode="audit") == mios_hitl.BLOCK)
-
 
 _CAT = {
     "zq_senwrite": {"permission": "write", "sensitive": True},   # B + C
@@ -93,11 +85,9 @@ _agent = contextvars.ContextVar("agent", default="")
 _evspy = {"n": 0}
 _ORIG_EVALUATE = R.evaluate   # captured BEFORE any spy patch (so the spy can delegate)
 
-
 def _spy_evaluate(*a, **k):
     _evspy["n"] += 1
     return _ORIG_EVALUATE(*a, **k)
-
 
 def _configure(mode, *, tainted):
     """Wire mios_dispatch for the ro2 gate in isolation: synthetic catalog, the chosen
@@ -138,10 +128,8 @@ def _configure(mode, *, tainted):
     R.evaluate = _spy_evaluate
     return _created
 
-
 def _run(tool, args, session_id="s-ro2"):
     return asyncio.run(mios_dispatch._dispatch_mios_verb_inner(tool, args, session_id=session_id))
-
 
 def t_enforce_blocks_all3() -> None:
     _evspy["n"] = 0
@@ -153,7 +141,6 @@ def t_enforce_blocks_all3() -> None:
     _check("enforce: all-3 -> hitl_pending shape", res.get("hitl_pending") is True, str(res))
     _check("enforce: evaluator WAS consulted", _evspy["n"] >= 1)
 
-
 def t_enforce_proceeds_2of3() -> None:
     _configure("enforce", tainted=True)
     res = _run("zq_senread", {"k": "v"})
@@ -163,7 +150,6 @@ def t_enforce_proceeds_2of3() -> None:
     _configure("enforce", tainted=False)
     res3 = _run("zq_senwrite", {"k": "v"})
     _check("enforce: all-3 verb but untainted -> NOT blocked", not res3.get("rule_of_two_blocked"), str(res3))
-
 
 def t_audit_non_blocking() -> None:
     _evspy["n"] = 0
@@ -175,7 +161,6 @@ def t_audit_non_blocking() -> None:
     _check("audit: emitted a rule_of_two_audit event", "rule_of_two_audit" in kinds, str(kinds))
     _check("audit: did NOT emit a block event", "rule_of_two_block" not in kinds, str(kinds))
 
-
 def t_off_byte_identical() -> None:
     _evspy["n"] = 0
     _configure("off", tainted=True)
@@ -183,7 +168,6 @@ def t_off_byte_identical() -> None:
     _check("off: all-3 verb -> NOT blocked (gate inert)", not res.get("rule_of_two_blocked"), str(res))
     _check("off: evaluator NEVER consulted (byte-identical)", _evspy["n"] == 0,
            f"evaluate called {_evspy['n']}x in off mode")
-
 
 def t_enforce_approval_downgrade() -> None:
     _configure("enforce", tainted=True)
@@ -196,7 +180,6 @@ def t_enforce_approval_downgrade() -> None:
     finally:
         _appr.set(None)
 
-
 def t_degrade_open() -> None:
     _configure("enforce", tainted=True)
 
@@ -206,7 +189,6 @@ def t_degrade_open() -> None:
     res = _run("zq_senwrite", {"k": "v"})
     _check("degrade-open: taint error -> NOT rule_of_two_blocked", not res.get("rule_of_two_blocked"), str(res))
     _check("degrade-open: dispatch still returns a dict", isinstance(res, dict))
-
 
 def main() -> int:
     for t in (t_is_state_change, t_normalize_mode, t_evaluate_counts,
@@ -218,7 +200,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

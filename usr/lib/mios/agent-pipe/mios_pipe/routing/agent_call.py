@@ -26,8 +26,6 @@ import mios_tokenize
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 HEALTHGATE_CONNECT_TIMEOUT = 6.0
 HEALTHGATE_READ_TIMEOUT = 120.0
 SECONDARY_TOOL_LOOP = True
@@ -116,7 +114,6 @@ _COST_MODEL = None
 _is_remote_endpoint = None
 
 _otel_tracer = None
-
 
 def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
               secondary_tool_loop=None, kv_fork_enable=None, src_turn_header=None,
@@ -266,7 +263,6 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
     if preempt is not None:
         _PREEMPT = preempt
 
-
 def _trip_breaker(name: str, cfg: dict) -> None:
     try:
         if name and _should_health_probe(cfg):
@@ -274,13 +270,11 @@ def _trip_breaker(name: str, cfg: dict) -> None:
     except Exception:  # noqa: BLE001
         pass
 
-
 def _num_predict_cap_for(ep: str) -> int:
     """Token ceiling for THIS dispatch -- the short slow-lane cap on a CPU/iGPU
     endpoint, the full cap otherwise (runaway fix: a slow lane can't be allowed to
     grind a full-length generation for hundreds of seconds of pegged cores)."""
     return LLM_NUM_PREDICT_CAP_CPU if _is_slow_lane_ep(ep) else LLM_NUM_PREDICT_CAP
-
 
 def _record_cost(cfg: dict, ep: str, t0: float, body: dict, text: str) -> None:
     """WS-RES-GOV observe-only: record one dispatch's energy/$ cost into the
@@ -500,7 +494,6 @@ async def _call_agent_complete(name, cfg, body, headers, client,
     finally:
         _dispatch_depth_var.reset(depth_token)
 
-
 async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
                                headers: dict, client,
                                *, prefer_cpu: bool = True,
@@ -532,7 +525,6 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
             name, cfg, body, headers, client,
             prefer_cpu=prefer_cpu, _failover_depth=_failover_depth
         )
-
 
 async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
                                headers: dict, client,
@@ -627,7 +619,6 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
             return rn, rt
         return name, ""
 
-
 async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
                                    headers: dict, client, q,
                                    *, prefer_cpu: bool = True) -> tuple:
@@ -658,7 +649,6 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
             name, cfg, body, headers, client, q,
             prefer_cpu=prefer_cpu
         )
-
 
 async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
                                    headers: dict, client, q,
@@ -753,11 +743,9 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
         log.info("fanout secondary %s (stream) failed: %s", name, e)
         return name, ""
 
-
 def _kv_base(ep: str) -> str:
     """The llama-server root (strip a trailing /v1) where /slots lives."""
     return ep[:-3].rstrip("/") if (ep or "").endswith("/v1") else (ep or "").rstrip("/")
-
 
 def _kv_filename(conv: str) -> str:
     """A filesystem-safe slot-save filename for one conversation's KV. The file
@@ -766,14 +754,12 @@ def _kv_filename(conv: str) -> str:
     child-filename derivation and this paging filename can never diverge)."""
     return _kvfork_kv_filename(conv)
 
-
 def _kv_lock(key: str) -> "asyncio.Lock":
     lk = _KV_LOCKS.get(key)
     if lk is None:
         lk = asyncio.Lock()
         _KV_LOCKS[key] = lk
     return lk
-
 
 _SAVED_CONVS: set = set()
 _LLM_LIGHT_YAML_CACHE: dict = {}
@@ -886,7 +872,6 @@ async def _kv_slot_action(client, ep: str, action: str, conv: str,
             log.debug("kv %s %s failed: %s", action, url, e)
     return False
 
-
 @contextlib.asynccontextmanager
 async def _kv_paging(client, ep: str, cfg: dict, engine):
     if not (KV_PAGING_ENABLE and ep and _endpoint_is_llamacpp(ep, cfg, engine)):
@@ -924,7 +909,6 @@ async def _kv_paging(client, ep: str, cfg: dict, engine):
             await _kv_slot_action(client, ep, "save", conv, model, slot_id)
             _SAVED_CONVS.add(conv)
 
-
 async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
                   dst_conv: str) -> dict:
     if not (KV_FORK_ENABLE and KV_PAGING_ENABLE and ep
@@ -960,7 +944,6 @@ async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
             _SAVED_CONVS.add(dst_conv)
     return {"forked": forked, "reason": reason}
 
-
 def _rr_eligible(body: dict, ep: str, cfg: dict, engine) -> bool:
     """A fan-out dispatch is RR-preemptible only when preemption can both HELP and
     be done safely: RR is on, the priority gate is active (it is what re-orders
@@ -971,7 +954,6 @@ def _rr_eligible(body: dict, ep: str, cfg: dict, engine) -> bool:
                 and not (body or {}).get("tools")
                 and (body or {}).get("messages")
                 and ep and _endpoint_is_llamacpp(ep, cfg, engine))
-
 
 async def _rr_slice(client, ep: str, model, messages, max_tokens, headers, slot_id: Optional[int] = None):
     """One bounded completion slice on a llama.cpp /v1 lane. cache_prompt + a
@@ -998,7 +980,6 @@ async def _rr_slice(client, ep: str, model, messages, max_tokens, headers, slot_
     text = str((ch.get("message") or {}).get("content") or "")
     finished = (ch.get("finish_reason") or "") not in ("length", "")
     return text, finished
-
 
 async def _rr_run(client, ep: str, model, messages, *, conv: str,
                   priority: float, max_tokens, headers=None) -> str:

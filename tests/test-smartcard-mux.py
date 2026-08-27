@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from smartcard_mux import VirtualCCIDMultiplexer
 
-
 class TestSmartcardMux(unittest.TestCase):
     def setUp(self):
         self.mux = VirtualCCIDMultiplexer(dry_run=True)
@@ -30,7 +29,6 @@ class TestSmartcardMux(unittest.TestCase):
             self.assertTrue(res.is_success)
             signatures.add(res.signature_hex)
         self.assertEqual(len(signatures), 10)
-
 
 if __name__ == "__main__":
     unittest.main()

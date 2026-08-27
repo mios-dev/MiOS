@@ -14,7 +14,6 @@ MAN = "usr/share/man"
 DOT = "."
 TICK = chr(39)
 
-
 def roff(text) -> str:
     """Make arbitrary prose safe inside a roff document."""
     out = []
@@ -26,11 +25,9 @@ def roff(text) -> str:
         out.append(line)
     return chr(10).join(out)
 
-
 def th(name, section, version, title) -> str:
     return '.TH %s %s "" "MiOS %s" "%s"' % (
         roff(name.upper()), section, roff(version), roff(title)) + chr(10)
-
 
 def version_of(root) -> str:
     try:
@@ -38,7 +35,6 @@ def version_of(root) -> str:
         return "".join(raw.split()).lstrip("v") or "0.0.0"
     except OSError:
         return "0.0.0"
-
 
 def prose(path, limit=14):
     try:
@@ -58,7 +54,6 @@ def prose(path, limit=14):
         paras.append(" ".join(buf))
     return paras[:limit]
 DASH = chr(92) + "-"
-
 
 def pages(root, ssot):
     v = version_of(root)
@@ -175,7 +170,6 @@ def pages(root, ssot):
         out[MAN + "/man7/mios-variants.7"] = "".join(vp)
     return out
 
-
 def validate_man_page(full_path: str) -> tuple[bool, str]:
     """Validate that a rendered roff man page is structurally valid and readable by man/groff if available."""
     import shutil, subprocess
@@ -213,7 +207,6 @@ def validate_man_page(full_path: str) -> tuple[bool, str]:
             pass
 
     return True, "OK"
-
 
 def main(argv) -> int:
     root = (os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT")
@@ -276,7 +269,6 @@ def main(argv) -> int:
     print("[render-manpages] %d page(s) %s" %
           (len(rendered), "verified" if check else "rendered"), file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

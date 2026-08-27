@@ -18,13 +18,11 @@ try:  # the judge handles any-language responses; keep stdout able to print them
 except Exception:
     pass
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _load(fname):
     _orig_cdll = ctypes.CDLL
@@ -46,7 +44,6 @@ def _load(fname):
     finally:
         ctypes.CDLL = _orig_cdll
     return mod
-
 
 def main() -> int:
     mod = _load("mios-daemon")
@@ -116,7 +113,6 @@ def main() -> int:
 
     print(f"\n{'ALL PASS' if _fails == 0 else str(_fails) + ' FAIL(S)'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

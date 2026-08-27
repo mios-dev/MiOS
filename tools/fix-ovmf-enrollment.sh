@@ -1,7 +1,6 @@
 #!/bin/bash
 # AI-hint: A root-level utility to ensure Secure Boot compatibility by downloading or generating pre-enrolled OVMF VARS files in /usr/share/edk2/x64/ for use in VM configurations.
 
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_grammar import JsonGrammarCompiler
 
-
 class TestJsonGrammarCompiler(unittest.TestCase):
     """Validates GBNF grammar rule generation for JSON schema types."""
 
@@ -36,12 +35,10 @@ class TestJsonGrammarCompiler(unittest.TestCase):
         self.assertIn('prop-age ::=', gbnf)
         self.assertIn('prop-active ::=', gbnf)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestJsonGrammarCompiler)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

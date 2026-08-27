@@ -58,7 +58,6 @@ LAUNCHER_SOCKET = os.environ.get(
     "MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.sock"
 )
 
-
 def _broker_send(line: str, timeout: float, capture: bool) -> dict:
     """Talk to the operator-side launcher broker. Returns a dict the model
     can reason over deterministically. Never raises. (Mirrors mios_verbs.)"""
@@ -109,7 +108,6 @@ def _broker_send(line: str, timeout: float, capture: bool) -> dict:
     return {"success": False, "exit_code": -1,
             "stdout": "", "stderr": raw or "broker returned no reply"}
 
-
 def _passthru_json(result: dict, **fallback) -> str:
     """A verb whose shim already emits JSON on stdout -> surface verbatim;
     else wrap the broker envelope so the model still gets structured data."""
@@ -122,7 +120,6 @@ def _passthru_json(result: dict, **fallback) -> str:
             "stderr": (result.get("stderr") or "")[:600] or f"non-JSON: {raw[:300]}",
             **fallback,
         })
-
 
 class Tools:
     class Valves(BaseModel):

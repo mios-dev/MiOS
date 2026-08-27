@@ -11,7 +11,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 GATE = os.path.join(HERE, "check-manual-links.py")
 FAILED = 0
 
-
 def build(tmp, toc, chapters, extra=None):
     docs = os.path.join(tmp, "usr/share/doc/mios")
     os.makedirs(os.path.join(docs, "manual"), exist_ok=True)
@@ -27,11 +26,9 @@ def build(tmp, toc, chapters, extra=None):
             fh.write(body)
     return tmp
 
-
 def run(root):
     env = dict(os.environ, MIOS_ROOT=root)
     return subprocess.run([sys.executable, GATE], env=env, capture_output=True, text=True).returncode
-
 
 def case(name, toc, chapters, want_zero, extra=None):
     global FAILED
@@ -41,7 +38,6 @@ def case(name, toc, chapters, want_zero, extra=None):
     print(f"[{'PASS' if ok else 'FAIL'}] {name} (exit {rc})")
     if not ok:
         FAILED += 1
-
 
 CH = '<a name="01_intro"></a>\n# Chapter 01\n'
 

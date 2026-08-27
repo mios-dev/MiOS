@@ -14,9 +14,7 @@ _REAL_LANE_SCHED = M._lane_sched_stats
 _REAL_KERNEL_DETAIL = M._kernel_managers_detail
 _REAL_FAILOVER = M._resolve_failover_chain
 
-
 _fails = 0
-
 
 class _FakeResp:
     """Minimal stand-in for an httpx response (status_code + .json())."""
@@ -28,7 +26,6 @@ class _FakeResp:
     def json(self):
         return self._payload
 
-
 class _FakeClient:
     """Async client whose .get(url) is routed through a handler -- no network."""
 
@@ -38,7 +35,6 @@ class _FakeClient:
     async def get(self, url, **kwargs):
         return self._handler(url, **kwargs)
 
-
 def check(name, ok, detail=""):
     global _fails
     if ok:
@@ -47,22 +43,18 @@ def check(name, ok, detail=""):
         _fails += 1
         print(f"[FAIL] {name} :: {detail}")
 
-
 def _body(resp):
     """Decode a fastapi JSONResponse rendered body into a dict."""
     return json.loads(bytes(resp.body).decode("utf-8"))
-
 
 class _FakeResolver:
     def snapshot(self):
         return {"engine": "heavy", "cooldown": 0}
 
-
 def _install_resolver(current):
     fake = types.ModuleType("mios_lanes_resolver")
     fake._lane_resolver_current = lambda: current
     sys.modules["mios_lanes_resolver"] = fake
-
 
 _REGISTRY = {
     "hermes": {"role": "gateway", "default": True, "enabled": True,
@@ -73,30 +65,24 @@ _REGISTRY = {
                       "endpoint": "http://x:9", "model": "z"},
 }
 
-
 def _resolve_failover_chain(name):
     cfg = _REGISTRY[name]
     return [{"name": name, "endpoint": cfg["endpoint"],
              "model": cfg["model"], "kind": "primary"}]
 
-
 def _probe_results(name):
     return name != "disabled_peer"
-
 
 async def _probe_one_endpoint(client, ep, timeout_s=3.0):
     up = ep not in ("http://x:9",)
     return (up, ["model-a", "model-b"] if up else [], 12 if up else 0)
 
-
 def _agent_lane(cfg):
     return "gpu"
-
 
 class _Gate:
     def stats(self):
         return {"queued": 0, "in_flight": 1, "cap": 3}
-
 
 class _Tracer:
     def stats(self):
@@ -105,16 +91,13 @@ class _Tracer:
     def recent(self, n):
         return []
 
-
 class _Conflict:
     def stats(self):
         return {"serialized": [], "in_flight": 0}
 
-
 class _Preempt:
     def stats(self):
         return {"suspended": 0, "free_slots": 3}
-
 
 class _Ledger:
     def over_budget(self, b):
@@ -123,12 +106,10 @@ class _Ledger:
     def snapshot(self):
         return {"wh": 0.0, "usd": 0.0, "tokens": 0}
 
-
 _KERNEL = types.SimpleNamespace(
     managers=lambda: {"scheduler": True, "memory": True},
     dispatcher=types.SimpleNamespace(modes=lambda: ["dag", "chat", "agent"]),
 )
-
 
 def _configure_common():
     M.configure(
@@ -202,7 +183,6 @@ def _configure_common():
         DB_URL="http://localhost:8000",
     )
 
-
 def t_probe_one_endpoint():
     M.configure(_probe_auth_headers=lambda ep: {"Authorization": "Bearer t"})
     r, lm, ms = asyncio.run(_REAL_PROBE(
@@ -227,7 +207,6 @@ def t_probe_one_endpoint():
     check("probe: no /v1/models surface -> down (no /api/tags fallback)",
           rt is False and lmt == [])
 
-
 def t_lane_sched_stats():
     sems = {"gpu": asyncio.Semaphore(3), "cpu": asyncio.Semaphore(2)}
     M.configure(_LANE_SEMS=sems, AGENT_CONCURRENCY=4)
@@ -239,7 +218,6 @@ def t_lane_sched_stats():
     check("lane: in_flight == cap - available",
           by["gpu"]["in_flight"] == max(0, by["gpu"]["cap"] - 3)
           and isinstance(by["gpu"]["cap"], int))
-
 
 def t_kernel_managers_detail():
     M.configure(
@@ -262,7 +240,6 @@ def t_kernel_managers_detail():
     check("kernel: access pdp + tiers",
           d["access"]["pdp"] is True
           and set(d["access"]["tiers"]) == {"public", "user", "admin"})
-
 
 def t_resolve_failover_chain():
     reg = {
@@ -290,7 +267,6 @@ def t_resolve_failover_chain():
 
     check("failover: unknown agent -> []", _REAL_FAILOVER("nope") == [])
 
-
 def t_cluster_health():
     _install_resolver(_FakeResolver())
     _configure_common()
@@ -314,7 +290,6 @@ def t_cluster_health():
     check("cluster: lane_resolver None when resolver unbuilt",
           b2["lane_resolver"] is None)
 
-
 def t_scheduler_state():
     _install_resolver(_FakeResolver())
     _configure_common()
@@ -335,7 +310,6 @@ def t_scheduler_state():
     check("sched: kernel shadow_route", b["kernel"]["shadow_route"] is False)
     check("sched: slo classes wired", "classes" in b["slo"])
     check("sched: cost posture", b["cost"]["enabled"] is False)
-
 
 def t_health():
     _configure_common()
@@ -359,7 +333,6 @@ def t_health():
     check("health: db_url + port surfaced",
           b["db_url"] == "http://localhost:8000" and "port" in b)
 
-
 def main():
     t_probe_one_endpoint()
     t_lane_sched_stats()
@@ -370,7 +343,6 @@ def main():
     t_health()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

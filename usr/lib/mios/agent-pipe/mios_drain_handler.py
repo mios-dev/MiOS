@@ -11,7 +11,6 @@ import asyncio
 import time
 from typing import Optional
 
-
 class GracefulDrainManager:
     """Coordinates server request draining and safe termination within deadline."""
 

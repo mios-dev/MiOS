@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load mios-node-wire module from {_WIRE_PATH}")
 
-
 class TestNodeWireProtocol(unittest.TestCase):
     """Validates 16-byte binary wire framing, checksum validation, and dispatch."""
 
@@ -131,12 +130,10 @@ class TestNodeWireProtocol(unittest.TestCase):
         self.assertEqual(decoded.header.node_id, 77)
         self.assertEqual(decoded.payload, b"result_data")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeWireProtocol)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

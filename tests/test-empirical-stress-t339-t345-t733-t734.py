@@ -6,7 +6,6 @@ import sys, time
 sys.path.insert(0, "usr/lib/mios/agent-pipe")
 sys.path.insert(0, "usr/libexec/mios")
 
-
 def test_priority_gate_stress_100_requests():
     """PriorityGate sorts 100 mixed-priority requests correctly."""
     from mios_priority_sched import PriorityGate
@@ -18,7 +17,6 @@ def test_priority_gate_stress_100_requests():
     queue = gate.sorted_queue()
     assert queue[0].priority <= queue[-1].priority
     assert len(queue) == 100
-
 
 def test_kvfork_suspend_resume_10_sessions():
     """KVForkManager handles 10 concurrent session checkpoints."""
@@ -35,7 +33,6 @@ def test_kvfork_suspend_resume_10_sessions():
         mgr.resume(f"stress-sess-{i}")
     assert len(mgr.list_suspended()) == 0
 
-
 def test_dci_10_deliberations():
     """DCISession runs 10 independent deliberation sessions without errors."""
     from mios_deliberate import DCISession
@@ -43,7 +40,6 @@ def test_dci_10_deliberations():
         s = DCISession(topic=f"stress topic {i}")
         pkt = s.run()
         assert pkt.round_count >= 1
-
 
 def test_reputation_50_sessions():
     """ReputationEngine evaluates 50 sessions, scores stay in [0,1]."""
@@ -57,7 +53,6 @@ def test_reputation_50_sessions():
         engine.evaluate_session(f"s-{i}", contribs)
     for rec in engine.sorted_peers():
         assert 0.0 <= rec.score <= 1.0, f"Score out of bounds: {rec}"
-
 
 def test_manifest_rag_deep_tree():
     """ManifestRAG handles a 3-level hierarchy without recursion errors."""
@@ -76,7 +71,6 @@ def test_manifest_rag_deep_tree():
         rag.register_node(n)
     results = rag.retrieve("inference")
     assert len(results) > 0
-
 
 if __name__ == "__main__":
     test_priority_gate_stress_100_requests()

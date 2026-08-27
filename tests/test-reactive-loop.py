@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from reactive_loop import MAX_WAKEUP_LATENCY_MS, ReactiveEventDispatcher
 
-
 class TestReactiveLoop(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.dispatcher = ReactiveEventDispatcher(dry_run=True)
@@ -40,7 +39,6 @@ class TestReactiveLoop(unittest.IsolatedAsyncioTestCase):
             ev = await self.dispatcher.wait_for_wakeup(q, timeout=1.0)
             self.assertIsNotNone(ev)
             self.assertEqual(ev.payload["event"], "sync")
-
 
 if __name__ == "__main__":
     unittest.main()

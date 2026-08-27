@@ -13,7 +13,6 @@ _TIER_PROFILE = {
 }
 _STRICT = ("strict", True, True, False)
 
-
 class SandboxProfile:
     """The confinement a dispatch should run under."""
 
@@ -36,7 +35,6 @@ class SandboxProfile:
                 "workspace": self.workspace, "read_only_root": self.read_only_root,
                 "network": self.network, "confined": self.confined}
 
-
 def resolve_profile(permission_tier: str, *, explicit: Optional[str] = None,
                     tiers: Sequence[str] = ("read", "write", "interactive")) -> SandboxProfile:
     if explicit:
@@ -51,14 +49,12 @@ def resolve_profile(permission_tier: str, *, explicit: Optional[str] = None,
         return SandboxProfile(t or "(none)", *_STRICT)
     return SandboxProfile(t, *spec)
 
-
 def workspace_path(verb: str, uniq: str, *, base: str = "/var/lib/mios/ai/dispatch") -> str:
     """Per-dispatch writable workspace path: <base>/<verbhash>-<uniq>/. The verb
     is hashed (not embedded raw) so an odd verb name can't escape the base dir."""
     vh = hashlib.sha256(str(verb or "").encode()).hexdigest()[:12]
     safe_uniq = "".join(c for c in str(uniq or "") if c.isalnum() or c in "-_")[:36] or "0"
     return f"{base.rstrip('/')}/{vh}-{safe_uniq}"
-
 
 def sandbox_exec_prefix(profile: "SandboxProfile", *,
                         workspace: Optional[str] = None,
@@ -73,7 +69,6 @@ def sandbox_exec_prefix(profile: "SandboxProfile", *,
         out += ["--workspace", workspace]
     out.append("--")
     return out
-
 
 def build_bwrap_argv(profile: "SandboxProfile", cmd: Sequence[str], *,
                      workspace: Optional[str] = None,

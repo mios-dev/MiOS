@@ -11,7 +11,6 @@ from mios_pipe.observability.session_events import (
     configure,
 )
 
-
 class TestSessionEvents(unittest.TestCase):
 
     def setUp(self):
@@ -49,7 +48,6 @@ class TestSessionEvents(unittest.TestCase):
         _emit_session_event({"kind": "test_event"}, session_id="s123")
         self.assertEqual(len(created_sqls), 1)
         self.assertIn("session = s123", created_sqls[0])
-
 
 if __name__ == "__main__":
     unittest.main()

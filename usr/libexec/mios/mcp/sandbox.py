@@ -20,7 +20,6 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-
 # Root paths strictly disallowed for writable mounting in sandboxed MCP environments
 DISALLOWED_WRITE_ROOTS: Tuple[str, ...] = (
     "/etc",
@@ -36,7 +35,6 @@ DISALLOWED_WRITE_ROOTS: Tuple[str, ...] = (
     "/proc",
 )
 
-
 def normalize_posix_path(path: str) -> str:
     """Normalize a path to a canonical POSIX path format."""
     p = path.strip().replace("\\", "/")
@@ -47,7 +45,6 @@ def normalize_posix_path(path: str) -> str:
     if not norm.startswith("/"):
         norm = "/" + norm
     return norm
-
 
 class McpSandbox:
     """
@@ -244,14 +241,12 @@ class McpSandbox:
             run_env.update(env)
         return subprocess.run(cmd, env=run_env, **subprocess_kwargs)
 
-
 def parse_bind_arg(arg: str) -> Tuple[str, str]:
     """Parse a bind mount argument in the form 'src' or 'src:dest'."""
     if ":" in arg:
         parts = arg.split(":", 1)
         return parts[0], parts[1]
     return arg, arg
-
 
 def build_arg_parser() -> argparse.ArgumentParser:
     """Create the command line argument parser for the MCP sandbox runner."""
@@ -302,7 +297,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Command and arguments to execute inside the sandbox (e.g. -- python3 server.py)",
     )
     return parser
-
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI entrypoint for MCP sandbox execution."""
@@ -356,7 +350,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

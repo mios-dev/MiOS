@@ -7,7 +7,6 @@ import asyncio
 
 import mios_dag_exec as M
 
-
 def _configure_common():
     """Inject lightweight stubs for the deps both node kinds touch."""
     M.configure(
@@ -25,7 +24,6 @@ def _configure_common():
         dag_node_max_tokens=128,
         dag_node_slow_max_tokens=64,
     )
-
 
 def test_verb_node_dispatches_via_broker():
     _configure_common()
@@ -49,7 +47,6 @@ def test_verb_node_dispatches_via_broker():
     assert "_act" in res, res
     assert seen["calls"] == [("web_search", {"q": "hello"}, "sess-1")], seen
     print("[PASS] verb node dispatches via broker (dispatch_mios_verb)")
-
 
 def test_agent_node_dispatches_via_agent_call():
     _configure_common()
@@ -80,7 +77,6 @@ def test_agent_node_dispatches_via_agent_call():
     assert any(m.get("content") == "investigate X" for m in msgs), msgs
     print("[PASS] agent node dispatches via agent-call (not the broker)")
 
-
 def test_dag_levels_topo_order():
     nodes = [
         {"id": "A"},
@@ -95,7 +91,6 @@ def test_dag_levels_topo_order():
     ids2 = [sorted(str(n["id"]) for n in lvl) for lvl in lv2]
     assert ids2 == [["X", "Y"], ["Z"]], ids2
     print("[PASS] _dag_levels topological layering (dependent after dependency)")
-
 
 def test_execute_dag_runs_in_dep_order():
     _configure_common()
@@ -131,7 +126,6 @@ def test_execute_dag_runs_in_dep_order():
     assert order.index("A") < order.index("B") < order.index("C"), order
     print("[PASS] execute_dag executes nodes in dependency order")
 
-
 def test_smart_extract_resolves_field_ndjson_plain():
     """_smart_extract_from_jsonish (moved home): named-field preference, NDJSON
     first-object, plain-text first-line. Synthetic tokens (no dictionary words);
@@ -141,7 +135,6 @@ def test_smart_extract_resolves_field_ndjson_plain():
     assert M._smart_extract_from_jsonish('{"name": "alfa9"}\n{"name": "bra8"}') == "alfa9"
     assert M._smart_extract_from_jsonish("plain-tok-42\nsecond-tok") == "plain-tok-42"
     print("[PASS] _smart_extract_from_jsonish field/NDJSON/plain resolution")
-
 
 def test_substitute_ek_refs_field_bare_passthrough():
     """_substitute_ek_refs (moved home): #E<id>.<field>, bare #E<id> smart-extract,
@@ -153,7 +146,6 @@ def test_substitute_ek_refs_field_bare_passthrough():
     assert M._substitute_ek_refs({"k": "no-ref-tok"}, results) == {"k": "no-ref-tok"}
     print("[PASS] _substitute_ek_refs field/bare/passthrough resolution")
 
-
 def test_fit_context_degrade_and_slow_pin():
     """_fit_context (moved home): CTX_FIT off -> want_ctx verbatim (degrade-open);
     on + slow lane -> pinned at want_ctx."""
@@ -162,7 +154,6 @@ def test_fit_context_degrade_and_slow_pin():
     M.configure(ctx_fit=True, slow_lanes={"cpu"})
     assert M._fit_context([{"role": "user", "content": "x"}], [], "cpu", 4096) == 4096
     print("[PASS] _fit_context degrade-open + slow-lane pin")
-
 
 def test_node_deepens_fast_lane_only():
     """_node_deepens (moved home): only a fast (DEEPEN_LANES) agent node deepens;
@@ -175,14 +166,12 @@ def test_node_deepens_fast_lane_only():
     assert M._node_deepens({"agent": "a1"}) is False
     print("[PASS] _node_deepens fast-lane-only gate")
 
-
 def test_reap_cpu_lane_disabled_noop():
     """_reap_cpu_lane (moved home): no-op when RUNAWAY_REAP_ENABLE is off (never
     raises, never touches the network)."""
     M.configure(runaway_reap_enable=False)
     asyncio.run(M._reap_cpu_lane("test"))   # must return without error / no I/O
     print("[PASS] _reap_cpu_lane disabled no-op")
-
 
 def test_deepen_early_exit():
     """A8: _deepen_until_barrier early-exits on a SATISFIED node only when the SSOT
@@ -253,7 +242,6 @@ def test_deepen_early_exit():
     assert r.get("deepened") == _BOUND, r
 
     print("[PASS] deepen early-exit: disabled / satisfied / unsatisfied / judge-error")
-
 
 if __name__ == "__main__":
     test_verb_node_dispatches_via_broker()

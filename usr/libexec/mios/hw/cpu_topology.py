@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional, Set
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-cpu-topology")
 
-
 @dataclass
 class CoreSpec:
     core_id: int
@@ -29,14 +28,12 @@ class CoreSpec:
     is_smt_sibling: bool
     max_freq_mhz: float
 
-
 @dataclass
 class TopologyAllocation:
     realtime_cpuset: str  # e.g., "0-3"
     interactive_cpuset: str  # e.g., "4-11"
     background_cpuset: str  # e.g., "12-15"
     total_cores: int = 16
-
 
 class CPUTopologyAllocator:
     """Classifies host CPU cores and computes optimal low-jitter slice affinity partitions."""
@@ -98,12 +95,10 @@ class CPUTopologyAllocator:
             "background.slice.d/10-cpuset.conf": f"[Slice]\nAllowedCPUs={alloc.background_cpuset}\n",
         }
 
-
 def main():
     allocator = CPUTopologyAllocator(dry_run=True)
     alloc = allocator.discover_topology(16, is_hybrid=True)
     print(json.dumps(allocator.generate_systemd_slice_dropins(alloc), indent=2))
-
 
 if __name__ == "__main__":
     main()

@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/libexec/mios/ipc")
 from shm_ring import LockFreeSHMRing
 
-
 def test_shm_ring_sub_microsecond_latency():
     """Verify 99th percentile transfer latency is < 1.0 microsecond across 10,000 frames."""
     ring = LockFreeSHMRing(capacity=1024, frame_size_bytes=33_000_000) # 33MB 4K frame
@@ -20,7 +19,6 @@ def test_shm_ring_sub_microsecond_latency():
     assert p99 < 10.0, f"P99 latency {p99:.2f}us too high"
     assert ring.head == 10_000
     assert ring.tail == 10_000
-
 
 if __name__ == "__main__":
     test_shm_ring_sub_microsecond_latency()

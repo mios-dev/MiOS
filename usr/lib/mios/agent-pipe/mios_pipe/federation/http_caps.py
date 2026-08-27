@@ -23,7 +23,6 @@ from mios_dci import (
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _VERB_CATALOG: dict = {}
 _A2A_PEERS: dict = {}
 _A2A_PEERS_LOCK = None
@@ -55,7 +54,6 @@ _db_read = None
 RUN_TEMPLATE_ENABLE = False
 _MCP_CLIENT_TOOLS = None
 _MCP_CLIENT_LOCK = None
-
 
 def configure(*, verb_catalog=None, a2a_peers=None, a2a_peers_lock=None,
               kernel=None, cost_ledger=None, cost_model=None,
@@ -132,7 +130,6 @@ def configure(*, verb_catalog=None, a2a_peers=None, a2a_peers_lock=None,
     if mcp_client_lock is not None:
         g["_MCP_CLIENT_LOCK"] = mcp_client_lock
 
-
 async def list_verbs_logic(include_rare: bool = True) -> JSONResponse:
     tools = []
     for vname, vcfg in _VERB_CATALOG.items():
@@ -172,7 +169,6 @@ async def list_verbs_logic(include_rare: bool = True) -> JSONResponse:
         })
     return JSONResponse({"tools": tools})
 
-
 async def list_verbs_openai_tools_logic(include_rare: bool = True) -> JSONResponse:
     tools = [
         _verb_to_openai_tool(vname, vcfg)
@@ -189,7 +185,6 @@ async def list_verbs_openai_tools_logic(include_rare: bool = True) -> JSONRespon
         except Exception:  # noqa: BLE001
             pass
     return JSONResponse({"tools": tools, "count": len(tools)})
-
 
 async def list_tools_logic(include_rare: bool = True) -> JSONResponse:
     tools = [
@@ -226,7 +221,6 @@ async def list_tools_logic(include_rare: bool = True) -> JSONResponse:
         },
     })
 
-
 def _skill_to_mcp_resource(srow: dict) -> dict:
     name = str(srow.get("name") or "")
     return {
@@ -236,7 +230,6 @@ def _skill_to_mcp_resource(srow: dict) -> dict:
         "mimeType": "text/markdown",
         "annotations": {"miosKind": "skill", "status": srow.get("status")},
     }
-
 
 def _recipe_to_mcp_resource(rname: str, rcfg: dict) -> dict:
     desc = rcfg.get("description") or rcfg.get("desc") or rcfg.get("summary") or ""
@@ -248,7 +241,6 @@ def _recipe_to_mcp_resource(rname: str, rcfg: dict) -> dict:
         "annotations": {"miosKind": "recipe"},
     }
 
-
 def _verb_to_mcp_resource(vname: str, vcfg: dict) -> dict:
     desc = vcfg.get("description") or vcfg.get("desc") or vcfg.get("summary") or ""
     return {
@@ -258,7 +250,6 @@ def _verb_to_mcp_resource(vname: str, vcfg: dict) -> dict:
         "mimeType": "application/json",
         "annotations": {"miosKind": "verb", "tier": vcfg.get("tier")},
     }
-
 
 async def v1_capabilities_logic(request: Request) -> JSONResponse:
     try:
@@ -278,7 +269,6 @@ async def v1_capabilities_logic(request: Request) -> JSONResponse:
         return JSONResponse({"object": "mios.capability.manifest",
                              "error": str(e), "data": []})
 
-
 async def v1_capabilities_dag_logic() -> JSONResponse:
     try:
         dag = mios_capreg.build_capability_dag(
@@ -293,7 +283,6 @@ async def v1_capabilities_dag_logic() -> JSONResponse:
         return JSONResponse({"object": "mios.capability.dag",
                              "error": str(e), "nodes": [], "edges": []})
 
-
 async def v1_peers_logic() -> JSONResponse:
     try:
         async with _A2A_PEERS_LOCK:
@@ -305,7 +294,6 @@ async def v1_peers_logic() -> JSONResponse:
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"object": "mios.peer.digest", "error": str(e),
                              "peers": []})
-
 
 async def list_resources_logic() -> JSONResponse:
     resources: list = [
@@ -323,7 +311,6 @@ async def list_resources_logic() -> JSONResponse:
     except Exception:  # noqa: BLE001 -- best-effort section; degrade open
         pass
     return JSONResponse({"resources": resources, "count": len(resources)})
-
 
 async def read_resource_logic(uri: str = "") -> JSONResponse:
     uri = (uri or "").strip()
@@ -362,7 +349,6 @@ async def read_resource_logic(uri: str = "") -> JSONResponse:
     return JSONResponse({"contents": [
         {"uri": uri, "mimeType": mime, "text": text}]})
 
-
 async def v1_route_logic(request: Request) -> JSONResponse:
     try:
         body = await request.json()
@@ -372,7 +358,6 @@ async def v1_route_logic(request: Request) -> JSONResponse:
                else body)
     dec = _KERNEL.router.route(refined if isinstance(refined, dict) else {})
     return JSONResponse({"object": "mios.route_decision", **dec.to_dict()})
-
 
 async def cost_ledger_logic() -> JSONResponse:
     return JSONResponse({
@@ -386,7 +371,6 @@ async def cost_ledger_logic() -> JSONResponse:
         **_COST_LEDGER.snapshot(),
     })
 
-
 async def trace_read_logic(trace_id: str) -> JSONResponse:
     spans = _TRACER.get_trace(str(trace_id))
     return JSONResponse({
@@ -397,7 +381,6 @@ async def trace_read_logic(trace_id: str) -> JSONResponse:
         "spans": spans,
     })
 
-
 async def trace_recent_logic() -> JSONResponse:
     return JSONResponse({
         "object": "mios.trace.list",
@@ -405,17 +388,14 @@ async def trace_recent_logic() -> JSONResponse:
         "recent": _TRACER.recent(50),
     })
 
-
 async def offline_status_logic() -> JSONResponse:
     return JSONResponse({"object": "mios.offline_status", **_offline_posture(),
                          "ts": int(time.time())})
-
 
 async def prompt_registry_view_logic() -> JSONResponse:
     snap = _PROMPT_REGISTRY.snapshot()
     return JSONResponse({"object": "mios.prompt_registry",
                          "count": len(snap), "prompts": snap})
-
 
 async def run_templates_list_logic() -> JSONResponse:
     rows: list = []
@@ -435,7 +415,6 @@ async def run_templates_list_logic() -> JSONResponse:
                          "enabled": RUN_TEMPLATE_ENABLE,
                          "count": len(rows), "templates": rows})
 
-
 async def list_models_logic(request: Request) -> JSONResponse:
     created = int(time.time())
     _agent_id = str((_toml_section("ai") or {}).get("agent_model") or "MiOS AI")
@@ -447,7 +426,6 @@ async def list_models_logic(request: Request) -> JSONResponse:
         "max_context_length": _ctx, "context_window": _ctx,
     }]
     return JSONResponse(content={"object": "list", "data": models})
-
 
 async def embeddings_logic(request: Request) -> JSONResponse:
     body = await request.body()
@@ -466,7 +444,6 @@ async def embeddings_logic(request: Request) -> JSONResponse:
             status_code=502,
         )
 
-
 async def kg_lookup_endpoint_logic(phrase: str = "") -> JSONResponse:
     if not phrase:
         return JSONResponse(
@@ -481,7 +458,6 @@ async def kg_lookup_endpoint_logic(phrase: str = "") -> JSONResponse:
         )
     return JSONResponse(content={"match": result, "phrase": phrase})
 
-
 async def skills_list_logic(status: str = "promoted",
                             source: str = "",
                             limit: int = 200) -> JSONResponse:
@@ -491,7 +467,6 @@ async def skills_list_logic(status: str = "promoted",
         limit=max(1, min(int(limit or 200), 1000)),
     )
     return JSONResponse(content={"skills": rows, "count": len(rows)})
-
 
 async def skills_show_logic(name: str = "") -> JSONResponse:
     if not name:
@@ -503,7 +478,6 @@ async def skills_show_logic(name: str = "") -> JSONResponse:
         return JSONResponse(content={"skill": None, "name": name},
                             status_code=404)
     return JSONResponse(content={"skill": row})
-
 
 async def skills_run_logic(request: Request) -> JSONResponse:
     try:
@@ -526,12 +500,10 @@ async def skills_run_logic(request: Request) -> JSONResponse:
     status_code = 200 if result.get("success") else 422
     return JSONResponse(content=result, status_code=status_code)
 
-
 async def skills_openai_tools_logic() -> JSONResponse:
     rows = await _skill_list(status="promoted")
     tools = [_skill_to_openai_tool(r) for r in rows]
     return JSONResponse(content={"tools": tools, "count": len(tools)})
-
 
 async def dci_deliberate_logic(request: Request) -> JSONResponse:
     try:
@@ -565,7 +537,6 @@ async def dci_deliberate_logic(request: Request) -> JSONResponse:
     )
     return JSONResponse(content=result)
 
-
 async def dci_schema_logic() -> JSONResponse:
     return JSONResponse(content={
         "acts": _DCI_ACTS,
@@ -574,9 +545,7 @@ async def dci_schema_logic() -> JSONResponse:
         "enabled": DCI_ENABLED,
     })
 
-
 http_caps_router = APIRouter()
-
 
 @http_caps_router.get("/v1/peers")
 async def v1_peers() -> JSONResponse:
@@ -587,11 +556,9 @@ async def v1_peers() -> JSONResponse:
     v1_peers_logic (same module)."""
     return await v1_peers_logic()
 
-
 @http_caps_router.get("/v1/resources")
 async def list_resources() -> JSONResponse:
     return await list_resources_logic()
-
 
 @http_caps_router.get("/v1/resources/read")
 async def read_resource(uri: str = "") -> JSONResponse:
@@ -600,16 +567,13 @@ async def read_resource(uri: str = "") -> JSONResponse:
     404. Degrade-open on backend error. Calls read_resource_logic (same module)."""
     return await read_resource_logic(uri)
 
-
 @http_caps_router.get("/v1/capabilities")
 async def v1_capabilities(request: Request) -> JSONResponse:
     return await v1_capabilities_logic(request)
 
-
 @http_caps_router.get("/v1/capabilities/dag")
 async def v1_capabilities_dag() -> JSONResponse:
     return await v1_capabilities_dag_logic()
-
 
 @http_caps_router.post("/v1/route")
 async def v1_route(request: Request) -> JSONResponse:
@@ -620,7 +584,6 @@ async def v1_route(request: Request) -> JSONResponse:
     execution swap. Pure + read-only."""
     return await v1_route_logic(request)
 
-
 @http_caps_router.get("/v1/cost")
 async def cost_ledger() -> JSONResponse:
     """WS-RES-GOV cost/energy accounting (CLASSic Cost axis): the running ledger
@@ -630,7 +593,6 @@ async def cost_ledger() -> JSONResponse:
     signal (complements the token-rate budget tripwire)."""
     return await cost_ledger_logic()
 
-
 @http_caps_router.get("/v1/trace/{trace_id}")
 async def trace_read(trace_id: str) -> JSONResponse:
     """WS-A8: return the recorded spans for one trace (zero DB hit -- served
@@ -638,12 +600,10 @@ async def trace_read(trace_id: str) -> JSONResponse:
     already evicted past the buffer cap."""
     return await trace_read_logic(trace_id)
 
-
 @http_caps_router.get("/v1/trace")
 async def trace_recent() -> JSONResponse:
     """WS-A8: list the most-recent traces still in the buffer (newest first)."""
     return await trace_recent_logic()
-
 
 @http_caps_router.get("/v1/offline-status")
 async def offline_status() -> JSONResponse:
@@ -652,7 +612,6 @@ async def offline_status() -> JSONResponse:
     compute path egresses to a cloud host ('maintain offline computation for all
     MiOS systems'). Calls offline_status_logic (same module)."""
     return await offline_status_logic()
-
 
 @http_caps_router.get("/v1/prompts")
 async def prompt_registry_view() -> JSONResponse:
@@ -663,14 +622,12 @@ async def prompt_registry_view() -> JSONResponse:
     prompt_registry_view_logic (same module)."""
     return await prompt_registry_view_logic()
 
-
 @http_caps_router.get("/v1/run-templates")
 async def run_templates_list() -> JSONResponse:
     """WS-6 determinism foundation: recent captured DAG run-templates (the
     replayable plan shapes). Replay-reuse is a follow-up; this is capture +
     observability. Calls run_templates_list_logic (same module)."""
     return await run_templates_list_logic()
-
 
 @http_caps_router.get("/v1/verbs")
 async def list_verbs(include_rare: bool = True) -> JSONResponse:
@@ -680,21 +637,17 @@ async def list_verbs(include_rare: bool = True) -> JSONResponse:
     canonical verb shape."""
     return await list_verbs_logic(include_rare)
 
-
 @http_caps_router.get("/v1/verbs/openai-tools")
 async def list_verbs_openai_tools(include_rare: bool = True) -> JSONResponse:
     return await list_verbs_openai_tools_logic(include_rare)
-
 
 @http_caps_router.get("/v1/tools")
 async def list_tools(include_rare: bool = True) -> JSONResponse:
     return await list_tools_logic(include_rare)
 
-
 @http_caps_router.get("/kg/lookup")
 async def kg_lookup_endpoint(phrase: str = "") -> JSONResponse:
     return await kg_lookup_endpoint_logic(phrase)
-
 
 @http_caps_router.get("/skills/list")
 async def skills_list(status: str = "promoted",
@@ -702,16 +655,13 @@ async def skills_list(status: str = "promoted",
                       limit: int = 200) -> JSONResponse:
     return await skills_list_logic(status, source, limit)
 
-
 @http_caps_router.get("/skills/show")
 async def skills_show(name: str = "") -> JSONResponse:
     return await skills_show_logic(name)
 
-
 @http_caps_router.post("/skills/run")
 async def skills_run(request: Request) -> JSONResponse:
     return await skills_run_logic(request)
-
 
 @http_caps_router.get("/skills/openai-tools")
 async def skills_openai_tools() -> JSONResponse:
@@ -721,21 +671,17 @@ async def skills_openai_tools() -> JSONResponse:
     on every external gateway -- no client-side edits per skill."""
     return await skills_openai_tools_logic()
 
-
 @http_caps_router.post("/dci/deliberate")
 async def dci_deliberate(request: Request) -> JSONResponse:
     return await dci_deliberate_logic(request)
-
 
 @http_caps_router.get("/dci/schema")
 async def dci_schema() -> JSONResponse:
     return await dci_schema_logic()
 
-
 @http_caps_router.get("/v1/models")
 async def list_models(request: Request) -> JSONResponse:
     return await list_models_logic(request)
-
 
 @http_caps_router.post("/v1/embeddings")
 async def embeddings(request: Request) -> JSONResponse:

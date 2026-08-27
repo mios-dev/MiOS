@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 from typing import Dict, Tuple
 
-
 class SamplingScheduler:
     """Classifies task intent and yields optimal decoding hyperparameters."""
 

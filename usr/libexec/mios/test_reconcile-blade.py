@@ -21,14 +21,12 @@ _spec.loader.exec_module(rb)
 FAILED: list[str] = []
 PASSED = 0
 
-
 def check(name, got, want):
     global PASSED
     if got == want:
         PASSED += 1
     else:
         FAILED.append(f"{name}: got {got!r}, want {want!r}")
-
 
 def test_union_by_hash_dedupes():
     left = [{"hash": "a", "v": 1}, {"hash": "b", "v": 2}]
@@ -40,7 +38,6 @@ def test_union_by_hash_dedupes():
     # availability choice affordable for derived data.
     check("union-dedupes", sorted(r["hash"] for r in merged), ["a", "b", "c"])
 
-
 def test_append_ordered_sorts_by_clock_then_origin():
     left = [{"id": "1", "logical_ts": 5, "origin_node": "b"}]
     right = [{"id": "2", "logical_ts": 3, "origin_node": "a"},
@@ -50,7 +47,6 @@ def test_append_ordered_sorts_by_clock_then_origin():
     check("append-order", [r["id"] for r in merged], ["2", "3", "1"])
     check("append-no-conflicts", conflicts, [])
 
-
 def test_config_kv_conflict_is_refused():
     """The rule that must NOT auto-merge."""
     left = [{"key": "policy", "value": "strict"}]
@@ -59,12 +55,10 @@ def test_config_kv_conflict_is_refused():
     check("config-conflict-reported", len(conflicts) > 0, True)
     check("config-conflict-names-key", any("policy" in c for c in conflicts), True)
 
-
 def test_config_kv_agreement_is_not_a_conflict():
     same = [{"key": "policy", "value": "strict"}]
     merged, conflicts = rb.reconcile_rows("config_kv", "conflict-is-error", same, list(same))
     check("config-agreement-clean", conflicts, [])
-
 
 def main() -> int:
     test_union_by_hash_dedupes()
@@ -75,7 +69,6 @@ def main() -> int:
     for f in FAILED:
         print(f"  FAIL {f}")
     return 1 if FAILED else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

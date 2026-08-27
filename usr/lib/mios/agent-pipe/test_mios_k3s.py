@@ -17,17 +17,14 @@ import sys
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _gen_dir() -> str:
     here = os.path.dirname(os.path.abspath(__file__))
     repo = os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
     return os.path.join(repo, "usr", "share", "mios", "k3s", "generated")
-
 
 def main() -> int:
     try:
@@ -63,7 +60,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

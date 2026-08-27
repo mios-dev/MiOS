@@ -22,7 +22,6 @@ GOOD_TOML = ('[security.redact]\nenable = true\nfail_closed = true\n'
              'exempt = ["agent_keypair"]\n')
 GOOD_PG = "def _redact_cfg():\n    return {}\n"
 
-
 def build(tmp, schema=SCHEMA, toml=GOOD_TOML, pg=GOOD_PG):
     os.makedirs(os.path.join(tmp, "usr/share/mios/postgres"), exist_ok=True)
     os.makedirs(os.path.join(tmp, "usr/lib/mios/agent-pipe/mios_pipe/memory"), exist_ok=True)
@@ -30,7 +29,6 @@ def build(tmp, schema=SCHEMA, toml=GOOD_TOML, pg=GOOD_PG):
     open(os.path.join(tmp, "usr/share/mios/mios.toml"), "w").write(toml)
     open(os.path.join(tmp, "usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py"), "w").write(pg)
     return tmp
-
 
 def case(label, want_zero, **kw):
     global FAILED
@@ -42,7 +40,6 @@ def case(label, want_zero, **kw):
     print(f"[{'PASS' if ok else 'FAIL'}] {label} (exit {rc})")
     if not ok:
         FAILED += 1
-
 
 case("fully classified schema passes", True)
 case("unclassified new table fails", False,

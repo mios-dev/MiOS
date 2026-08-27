@@ -15,16 +15,13 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 _MOD_PATH = os.path.join(_HERE, "drift-checks.py")
 
-
 def _load():
     spec = importlib.util.spec_from_file_location("drift_checks", _MOD_PATH)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
-
 
 class TestExtractedChecks(unittest.TestCase):
     def test_the_module_imports(self):
@@ -87,7 +84,6 @@ class TestExtractedChecks(unittest.TestCase):
             self.assertIn("tools/drift-checks.py %s" % name, gate,
                           "check_%s no longer dispatches to the module"
                           % name.replace("-", "_"))
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

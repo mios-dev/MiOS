@@ -14,14 +14,12 @@ from typing import Dict, List
 
 log = logging.getLogger("cilium_bgp")
 
-
 @dataclass
 class BGPPeer:
     peer_ip: str
     peer_asn: int
     session_state: str = "established" # 'idle', 'connect', 'established'
     announced_vips: list[str] = field(default_factory=list)
-
 
 class CiliumBGPManager:
     """

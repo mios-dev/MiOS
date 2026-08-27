@@ -15,7 +15,6 @@ import unittest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "read_ssot_key", os.path.join(_HERE, "read-ssot-key.py"))
@@ -23,9 +22,7 @@ def _load():
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
-
 
 class TestReadSsotKey(unittest.TestCase):
     def setUp(self):
@@ -47,7 +44,6 @@ class TestReadSsotKey(unittest.TestCase):
 
     def test_no_argument_is_a_usage_error(self):
         self.assertEqual(2, MOD.main([]))
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

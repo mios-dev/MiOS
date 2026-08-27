@@ -1,25 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Adversarial stress testing harness for Milestone 1 (T-382 Self-Healing and T-383 Synthetic QA).
 # AI-related: usr/libexec/mios/ai/self_heal.py, usr/libexec/mios/ai/synthetic_qa.py
-"""
-Adversarial Stress Test Suite for Milestone 1:
-1. Self-Healing Circuit Breaker & Safe Remediation Engine (T-382)
-   - Rapid bursts of failures (100 rapid events)
-   - Multi-unit isolation & interleaved failure/recovery sequences
-   - Circuit breaker window expiration & quarantine timing
-   - Invalid / binary / corrupted journal logs
-   - Malformed & traversal /usr immutability attack paths
-   - Corrupted state JSON recovery and schema validation
-   - SafeConfigEditor atomic file operations & error handling
-
-2. Synthetic Training Q&A Data Pipeline (T-383)
-   - Secret redactor: nested keys (JSON/YAML/TOML/Env), multi-line keys (RSA/EC/SSH), tokens, bearer auth
-   - Secret redactor: multi-word passwords inside quotes
-   - Secret redactor: false-positive preservation on standard prose and config keys
-   - Hierarchical markdown parser: 6-level deep headers, header level jumping, headers inside code blocks
-   - Unclosed code fences, malformed tables, empty sections, unicode/emoji handling
-   - Q&A synthesis schema adherence & JSONL single-line validation
-"""
+"""Adversarial Stress Test Suite for Milestone 1: 1. Self-Healing Circuit Breaker & Safe Remediation Engine (T-382)    - Rapid bursts of failures (100 rapid events)    - Multi-unit isolation & interleaved failure/recovery sequences    - Circuit breaker window expiration & quarantine timing    - Invalid / binary / corrupted journal logs    - Malformed & traversal /usr immutability attack paths    - Corrupted state JSON recovery and schema validation    - SafeConfigEditor atomic file operations & error handling  2. Synthetic Training Q&A Data Pipeline (T-383)    - Secret redactor: nested keys (JSON/YAML/TOML/Env), multi-line keys (RSA/EC/SSH), tokens, bearer auth    - Secret redactor: multi-word passwords inside quotes    - Secret redactor: false-positive preservation on standard prose and config keys    - Hierarchical markdown parser: 6-level deep headers, header level jumping, headers inside code blocks    - Unclosed code fences, malformed tables, empty sections, unicode/emoji handling    - Q&A synthesis schema adherence & JSONL single-line validation"""
 
 from __future__ import annotations
 
@@ -54,7 +36,6 @@ if spec_sq and spec_sq.loader:
     spec_sq.loader.exec_module(synthetic_qa)
 else:
     raise ImportError(f"Cannot load synthetic_qa from {_SYNTH_QA_PATH}")
-
 
 class TestSelfHealAdversarial(unittest.TestCase):
     """Adversarial stress testing for T-382 Self-Healing Code Remediation."""
@@ -244,7 +225,6 @@ class TestSelfHealAdversarial(unittest.TestCase):
         bak_files = [f for f in os.listdir(parent_dir) if "service.conf.bak" in f]
         self.assertEqual(len(bak_files), 1)
 
-
 class TestSyntheticQAAdversarial(unittest.TestCase):
     """Adversarial stress testing for T-383 Synthetic Training Q&A Data Pipeline."""
 
@@ -281,18 +261,11 @@ class TestSyntheticQAAdversarial(unittest.TestCase):
 
     def test_secret_redactor_multiline_private_keys(self):
         """Stress: Multi-line RSA, EC, and OPENSSH private keys."""
-        rsa_key = """-----BEGIN RSA PRIVATE KEY-----
-MIIEowIBAAKCAQEA0Z3v9x4p...
-...MULTILINE DATA...
------END RSA PRIVATE KEY-----"""
+        rsa_key = """-----BEGIN RSA PRIVATE KEY----- MIIEowIBAAKCAQEA0Z3v9x4p... ...MULTILINE DATA... -----END RSA PRIVATE KEY-----"""
 
-        ec_key = """-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIIz4...
------END EC PRIVATE KEY-----"""
+        ec_key = """-----BEGIN EC PRIVATE KEY----- MHcCAQEEIIz4... -----END EC PRIVATE KEY-----"""
 
-        ssh_key = """-----BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAA...
------END OPENSSH PRIVATE KEY-----"""
+        ssh_key = """-----BEGIN OPENSSH PRIVATE KEY----- b3BlbnNzaC1rZXktdjEAAAAA... -----END OPENSSH PRIVATE KEY-----"""
 
         for key in [rsa_key, ec_key, ssh_key]:
             wrapped = f"Config header\n{key}\nConfig footer"
@@ -333,26 +306,7 @@ b3BlbnNzaC1rZXktdjEAAAAA...
 
     def test_parser_deeply_nested_headers_and_level_jumping(self):
         """Stress: 6 header levels and abrupt jumps (e.g. # to ####)."""
-        md_text = """# Level 1 Title
-
-This is the top level overview chapter of the system architecture.
-
-## Level 2 Component
-
-Description of the component with enough words to satisfy word count threshold.
-
-### Level 3 Subsystem
-
-Detailed subsystem description containing architecture rules and operational details.
-
-###### Level 6 Deep Leaf
-
-Extremely nested operational parameter specifications with full details.
-
-## Level 2 Sibling
-
-A sibling section at level 2 popping all intermediate headers off stack.
-"""
+        md_text = """# Level 1 Title  This is the top level overview chapter of the system architecture.  ## Level 2 Component  Description of the component with enough words to satisfy word count threshold.  ### Level 3 Subsystem  Detailed subsystem description containing architecture rules and operational details.  ###### Level 6 Deep Leaf  Extremely nested operational parameter specifications with full details.  ## Level 2 Sibling  A sibling section at level 2 popping all intermediate headers off stack."""
         chunks = self.parser.parse_text(md_text, doc_path="doc/deep.md")
         self.assertGreaterEqual(len(chunks), 4)
 
@@ -372,19 +326,7 @@ A sibling section at level 2 popping all intermediate headers off stack.
 
     def test_parser_headers_inside_code_blocks(self):
         """Stress: Markdown headers inside code fences must NOT be parsed as headers."""
-        md_text = """# Outer Header
-
-Here is an example python script containing comments with pound signs:
-
-```python
-# This is a python comment, not a markdown header
-# Another comment
-def hello():
-    return True
-```
-
-This section concludes the explanation with sufficient descriptive words.
-"""
+        md_text = """# Outer Header  Here is an example python script containing comments with pound signs:  ```python # This is a python comment, not a markdown header # Another comment def hello():     return True ```  This section concludes the explanation with sufficient descriptive words."""
         chunks = self.parser.parse_text(md_text, doc_path="doc/code_block.md")
         self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0].section_title, "Outer Header")
@@ -393,33 +335,13 @@ This section concludes the explanation with sufficient descriptive words.
 
     def test_parser_unclosed_code_fence_and_malformed_tables(self):
         """Stress: Unclosed code fences and malformed tables must not crash."""
-        md_text = """# Unclosed Fence Test
-
-Here is text before unclosed fence.
-
-```sh
-echo "unclosed code fence"
-
-| col1 | col2
-| --- | ---
-| val1 | val2 |
-
-More descriptive text to satisfy the minimum word count threshold for this chunk.
-"""
+        md_text = """# Unclosed Fence Test  Here is text before unclosed fence.  ```sh echo "unclosed code fence"  | col1 | col2 | --- | --- | val1 | val2 |  More descriptive text to satisfy the minimum word count threshold for this chunk."""
         chunks = self.parser.parse_text(md_text, doc_path="doc/unclosed.md")
         self.assertEqual(len(chunks), 1)
 
     def test_parser_unicode_and_special_characters(self):
         """Stress: CJK, emojis, mathematical symbols, special markdown characters."""
-        md_text = """# 🚀 MiOS 架构规范 (Architecture)
-
-MiOS 是一个不可变的 bootc/OCI Fedora 工作站与本地 AI 操作系统 🌟。
-
-## 🔐 安全与加密 (Security & Crypto)
-
-采用 Ed25519 签名与 ChaCha20-Poly1305 AEAD 加密算法，保证跨节点通信安全。
-数学公式: $\\mathcal{H}(k, m) = \\text{HMAC-SHA256}(k, m)$。
-"""
+        md_text = """# 🚀 MiOS 架构规范 (Architecture)  MiOS 是一个不可变的 bootc/OCI Fedora 工作站与本地 AI 操作系统 🌟。  ## 🔐 安全与加密 (Security & Crypto)  采用 Ed25519 签名与 ChaCha20-Poly1305 AEAD 加密算法，保证跨节点通信安全。 数学公式: $\\mathcal{H}(k, m) = \\text{HMAC-SHA256}(k, m)$。"""
         chunks = self.parser.parse_text(md_text, doc_path="doc/unicode.md")
         self.assertGreaterEqual(len(chunks), 2)
         sec_chunk = chunks[1]
@@ -470,7 +392,6 @@ MiOS 是一个不可变的 bootc/OCI Fedora 工作站与本地 AI 操作系统 �
             self.assertEqual(sys_msg["role"], "system")
             self.assertIn("MiOS-Opencode", sys_msg["content"])
 
-
 def main() -> int:
     loader = unittest.TestLoader()
     suite = unittest.TestSuite([
@@ -479,7 +400,6 @@ def main() -> int:
     ])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

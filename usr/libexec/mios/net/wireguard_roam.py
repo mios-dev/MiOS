@@ -14,14 +14,12 @@ from typing import Dict
 
 log = logging.getLogger("wireguard_roam")
 
-
 @dataclass
 class WireGuardPeer:
     public_key: str
     endpoint: str
     current_mtu: int = 1420
     last_roam_ms: float = 0.0
-
 
 class WireGuardRoamingDaemon:
     """

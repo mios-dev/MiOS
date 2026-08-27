@@ -16,13 +16,11 @@ _ROUTE_METHODS = (
 
 _DYNAMIC = "<dynamic>"
 
-
 def _const_str(node: ast.AST) -> str:
     """Return a string constant's value, or ``"<dynamic>"`` for a non-literal path."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     return _DYNAMIC
-
 
 def _route_from_decorator(dec: ast.AST) -> tuple[str, str] | None:
     """Map an ``@app.<method>("/path", ...)`` decorator to ``(METHOD, path)``.
@@ -43,7 +41,6 @@ def _route_from_decorator(dec: ast.AST) -> tuple[str, str] | None:
     path = _const_str(dec.args[0]) if dec.args else _DYNAMIC
     return method.upper(), path
 
-
 def _kw_str(call: ast.Call, name: str) -> str | None:
     """Constant-string value of keyword ``name`` on a call.
 
@@ -54,7 +51,6 @@ def _kw_str(call: ast.Call, name: str) -> str | None:
         if kw.arg == name:
             return _const_str(kw.value)
     return None
-
 
 def _router_prefix_assign(node: ast.AST) -> tuple[str, list[str]] | None:
     if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
@@ -74,7 +70,6 @@ def _router_prefix_assign(node: ast.AST) -> tuple[str, list[str]] | None:
     names = [t.id for t in node.targets if isinstance(t, ast.Name)]
     return (prefix, names) if names else None
 
-
 def _include_router_call(node: ast.AST) -> tuple[str, str] | None:
     call = node.value if isinstance(node, (ast.Expr, ast.Assign)) else None
     if not isinstance(call, ast.Call):
@@ -91,7 +86,6 @@ def _include_router_call(node: ast.AST) -> tuple[str, str] | None:
         prefix = ""
     return call.args[0].id, prefix
 
-
 def _router_decorator_candidate(dec: ast.AST) -> tuple[str, str, str] | None:
     if not isinstance(dec, ast.Call):
         return None
@@ -107,12 +101,10 @@ def _router_decorator_candidate(dec: ast.AST) -> tuple[str, str, str] | None:
     path = _const_str(dec.args[0]) if dec.args else _DYNAMIC
     return obj, method.upper(), path
 
-
 def _compose_path(*segments: str) -> str:
     if any(seg == _DYNAMIC for seg in segments):
         return _DYNAMIC
     return "".join(segments)
-
 
 def _imported_names(node: ast.AST) -> list[str]:
     out: list[str] = []
@@ -123,7 +115,6 @@ def _imported_names(node: ast.AST) -> list[str]:
         for alias in node.names:
             out.append(alias.asname or (alias.name if alias.name != "*" else "*"))
     return out
-
 
 def project_surface(path: str) -> dict[str, Any]:
     with open(path, encoding="utf-8") as fh:
@@ -187,10 +178,7 @@ def project_surface(path: str) -> dict[str, Any]:
         "counts": {"routes": len(routes), "provided": len(provided)},
     }
 
-
-
 _MAX_NEST = 1
-
 
 class _Scan(NamedTuple):
     routers: dict[str, str]                                          # router var -> own prefix
@@ -200,14 +188,12 @@ class _Scan(NamedTuple):
     from_imports: dict[str, tuple[str, str]]                        # bound name -> (module dotted, original name)
     plain_imports: dict[str, str]                                   # bound name -> module dotted
 
-
 def _include_ref(arg: ast.AST) -> tuple[str, ...]:
     if isinstance(arg, ast.Name):
         return ("name", arg.id)
     if isinstance(arg, ast.Attribute) and isinstance(arg.value, ast.Name):
         return ("attr", arg.value.id, arg.attr)
     return ("other",)
-
 
 def _any_include_call(node: ast.AST) -> tuple[str, tuple[str, ...], str] | None:
     call = node.value if isinstance(node, (ast.Expr, ast.Assign)) else None
@@ -223,7 +209,6 @@ def _any_include_call(node: ast.AST) -> tuple[str, tuple[str, ...], str] | None:
         prefix = ""
     return func.value.id, _include_ref(call.args[0]), prefix
 
-
 def _import_bindings(node: ast.AST) -> tuple[dict[str, tuple[str, str]], dict[str, str]]:
     fr: dict[str, tuple[str, str]] = {}
     pl: dict[str, str] = {}
@@ -237,7 +222,6 @@ def _import_bindings(node: ast.AST) -> tuple[dict[str, tuple[str, str]], dict[st
         for a in node.names:
             pl[a.asname or a.name.split(".")[0]] = a.name
     return fr, pl
-
 
 def _scan_module(tree: ast.Module) -> _Scan:
     """Collect the per-file structural facts ``project_package`` composes across
@@ -284,7 +268,6 @@ def _scan_module(tree: ast.Module) -> _Scan:
         plain_imports=plain_imports,
     )
 
-
 def _module_file(module: str, search_dir: str) -> str | None:
     if not module:
         return None
@@ -314,7 +297,6 @@ def _module_file(module: str, search_dir: str) -> str | None:
         return cand
     return None
 
-
 def _scan_file(path: str, cache: dict[str, "_Scan | None"]) -> "_Scan | None":
     """Parse + scan a file once, memoised by path. ``None`` when it is unreadable or
     unparsable -- a missing or broken sibling degrades to no routes, never raises."""
@@ -329,7 +311,6 @@ def _scan_file(path: str, cache: dict[str, "_Scan | None"]) -> "_Scan | None":
         scan = None
     cache[path] = scan
     return scan
-
 
 def _resolve_router_ref(ref: tuple[str, ...], scan: _Scan, this_file: str,
                         search_dir: str) -> tuple[str | None, str | None]:
@@ -353,7 +334,6 @@ def _resolve_router_ref(ref: tuple[str, ...], scan: _Scan, this_file: str,
             return f, attr
         return None, None
     return None, None
-
 
 def _collect_router_routes(file: str, var: str, prefix: str, budget: int,
                            visited: frozenset[tuple[str, str]], search_dir: str,
@@ -385,7 +365,6 @@ def _collect_router_routes(file: str, var: str, prefix: str, budget: int,
                                           visited, search_dir, cache))
     return out
 
-
 def project_package(entry_path: str, *, search_dir: str | None = None) -> dict[str, Any]:
     base = project_surface(entry_path)
     routes: set[str] = set(base["routes"])
@@ -411,7 +390,6 @@ def project_package(entry_path: str, *, search_dir: str | None = None) -> dict[s
         "counts": {"routes": len(out_routes), "provided": len(base["provided"])},
     }
 
-
 def diff_surface(generated: dict[str, Any], committed: dict[str, Any]) -> list[str]:
     diffs: list[str] = []
     for key in ("routes", "provided"):
@@ -422,7 +400,6 @@ def diff_surface(generated: dict[str, Any], committed: dict[str, Any]) -> list[s
         for added in sorted(gen - com):
             diffs.append(f"{key}: ADDED {added!r} (in server.py, not in golden -- regenerate golden if intended)")
     return diffs
-
 
 def main(argv: list[str]) -> int:
     target: str | None = None
@@ -459,7 +436,6 @@ def main(argv: list[str]) -> int:
     json.dump(proj, sys.stdout, indent=2, ensure_ascii=False)
     sys.stdout.write("\n")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

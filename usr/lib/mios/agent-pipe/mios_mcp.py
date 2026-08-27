@@ -51,10 +51,8 @@ _MCP_CLIENT_LOCK: asyncio.Lock = asyncio.Lock()
 _mcp_embed_new_tools: Optional[Callable] = None
 _invalidate_worker_cache: Callable = lambda: None
 
-
 def _default_client_factory():
     return httpx.AsyncClient(timeout=30.0)
-
 
 async def _resolve_http_client() -> httpx.AsyncClient:
     global _get_client
@@ -64,7 +62,6 @@ async def _resolve_http_client() -> httpx.AsyncClient:
             return await c
         return c
     return _default_client_factory()
-
 
 def configure(
     *,
@@ -90,7 +87,6 @@ def configure(
     if invalidate_worker_cache is not None:
         _invalidate_worker_cache = invalidate_worker_cache
 
-
 # Registry file paths
 _MCP_REGISTRY_PATHS = [
     "/usr/share/mios/ai/v1/mcp.json",  # vendor (lowest)
@@ -103,7 +99,6 @@ _MCP_STDIO_CLIENTS: dict = {}  # sid -> _McpStdioClient (long-lived subprocess)
 _MCP_HTTP_CLIENTS: dict = {}  # sid -> _McpHttpClient
 _MCP_ENV_RE = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
 
-
 def _mcp_render_headers(h: dict) -> dict:
     """Expand ${ENV_VAR} placeholders (e.g. for Bearer tokens stored in environment)."""
     out: dict = {}
@@ -114,11 +109,9 @@ def _mcp_render_headers(h: dict) -> dict:
         out[k] = s
     return out
 
-
 # ---------------------------------------------------------------------------
 # Declarative Specification & TOML Parsing
 # ---------------------------------------------------------------------------
-
 
 @dataclass
 class McpServerSpec:
@@ -207,7 +200,6 @@ class McpServerSpec:
             note=d.get("note"),
         )
 
-
 def load_servers_from_toml(toml_data: Union[dict, str, bytes]) -> List[McpServerSpec]:
     """Parse [mcp.servers] / [tools.mcp_servers] declarations from mios.toml.
     Accepts parsed dictionary, TOML string, or filesystem path."""
@@ -259,7 +251,6 @@ def load_servers_from_toml(toml_data: Union[dict, str, bytes]) -> List[McpServer
 
     return specs
 
-
 def _mcp_load_registry() -> list:
     """Layered registry read: vendor < /etc < user < mios.toml.
     Later overlays REPLACE earlier entries with the same id so operators
@@ -296,11 +287,9 @@ def _mcp_load_registry() -> list:
 
     return list(by_id.values())
 
-
 # ---------------------------------------------------------------------------
 # Strict OpenAI Function Schema Conversion
 # ---------------------------------------------------------------------------
-
 
 def make_schema_strict(schema: Optional[dict]) -> dict:
     """Convert an arbitrary JSON Schema (such as an MCP tool inputSchema) into
@@ -358,10 +347,8 @@ def make_schema_strict(schema: Optional[dict]) -> dict:
 
     return s
 
-
 # Alias for backward compatibility
 _make_schema_strict = make_schema_strict
-
 
 def convert_mcp_to_openai_schema(mcp_tool: dict, server_id: str = "") -> dict:
     """Convert an MCP tool definition (name, description, inputSchema) into a
@@ -394,18 +381,15 @@ def convert_mcp_to_openai_schema(mcp_tool: dict, server_id: str = "") -> dict:
         schema["x-mios-mcp-server"] = sid
     return schema
 
-
 # Alias for backward compatibility with existing agent-pipe modules
 _mcp_tool_to_openai_tool = lambda key, info: convert_mcp_to_openai_schema(
     {"name": key, "description": info.get("description"), "inputSchema": info.get("inputSchema")},
     server_id=info.get("server_id", ""),
 )
 
-
 # ---------------------------------------------------------------------------
 # HTTP / SSE JSON-RPC 2.0 Client Transport
 # ---------------------------------------------------------------------------
-
 
 async def _mcp_http_rpc(
     url: str,
@@ -461,7 +445,6 @@ async def _mcp_http_rpc(
         return {"error": {"code": -32700, "message": "non-JSON response"}}
     except Exception:
         return {"error": {"code": -32700, "message": "non-JSON response"}}
-
 
 class _McpHttpClient:
     """HTTP/SSE MCP transport client."""
@@ -531,11 +514,9 @@ class _McpHttpClient:
     async def close(self) -> None:
         self._inited = False
 
-
 # ---------------------------------------------------------------------------
 # Stdio JSON-RPC 2.0 Subprocess Client
 # ---------------------------------------------------------------------------
-
 
 class _McpStdioClient:
     """Subprocess stdio JSON-RPC 2.0 MCP client with resilient lifecycle management."""
@@ -731,11 +712,9 @@ class _McpStdioClient:
             self.proc = None
             self._inited = False
 
-
 # ---------------------------------------------------------------------------
 # Server Probing & Tool Registration
 # ---------------------------------------------------------------------------
-
 
 async def _mcp_probe_stdio(cfg: dict, state: dict, sid: str) -> None:
     """Initialize + tools/list an stdio subprocess MCP server; register its tools."""
@@ -810,7 +789,6 @@ async def _mcp_probe_stdio(cfg: dict, state: dict, sid: str) -> None:
         state["tools_count"],
         state["protocolVersion"],
     )
-
 
 async def _mcp_probe_http(cfg: dict, state: dict, sid: str) -> None:
     """Initialize + tools/list an HTTP/SSE MCP server; register its tools."""
@@ -896,7 +874,6 @@ async def _mcp_probe_http(cfg: dict, state: dict, sid: str) -> None:
         state["protocolVersion"],
     )
 
-
 async def _mcp_probe_server(cfg: dict) -> None:
     """Initialize + tools/list ONE MCP server; register its tools in the catalog."""
     sid = str(cfg.get("id") or "").strip()
@@ -929,7 +906,6 @@ async def _mcp_probe_server(cfg: dict) -> None:
         state["error"] = f"unsupported transport {transport!r} (http/sse/stdio only)"
         log.info("mcp client: %s skipped (%s)", sid, state["error"])
 
-
 async def _mcp_client_startup() -> None:
     """Read all declarative registries, probe every enabled server concurrently."""
     if os.environ.get("MIOS_MCP_CLIENT_DISABLED", "").strip().lower() in {"1", "true", "yes"}:
@@ -942,11 +918,9 @@ async def _mcp_client_startup() -> None:
     log.info("mcp client: probing %d external server(s)", len(servers))
     await asyncio.gather(*(_mcp_probe_server(s) for s in servers), return_exceptions=True)
 
-
 # ---------------------------------------------------------------------------
 # Dynamic Tool Call Dispatcher
 # ---------------------------------------------------------------------------
-
 
 async def dispatch_tool_call(server_id: str, tool_name: str, arguments: dict, timeout_s: float = 120.0) -> dict:
     """Dispatch an execution call directly to a target MCP server by ID and tool name."""
@@ -985,7 +959,6 @@ async def dispatch_tool_call(server_id: str, tool_name: str, arguments: dict, ti
         return await _mcp_call_tool(key, arguments)
 
     return {"error": f"unknown MCP server or tool: {sid}.{tn}", "code": -32601, "tool": tn, "server_id": sid}
-
 
 async def _mcp_call_tool(key: str, args: dict) -> dict:
     """Forward a tools/call to the MCP server that owns this namespaced tool."""
@@ -1026,11 +999,9 @@ async def _mcp_call_tool(key: str, args: dict) -> dict:
         return {"error": resp["error"].get("message"), "code": resp["error"].get("code"), "tool": key}
     return resp.get("result") or {}
 
-
 # ---------------------------------------------------------------------------
 # Declarative MCP Gateway Manager Class
 # ---------------------------------------------------------------------------
-
 
 class McpGateway:
     """Encapsulated Declarative MCP Server Lifecycle Manager and Schema Converter."""
@@ -1089,11 +1060,9 @@ class McpGateway:
     async def dispatch(self, server_id: str, tool_name: str, arguments: dict) -> dict:
         return await dispatch_tool_call(server_id, tool_name, arguments)
 
-
 # ---------------------------------------------------------------------------
 # FastAPI Router & Endpoint Logic
 # ---------------------------------------------------------------------------
-
 
 async def mcp_clients_logic() -> JSONResponse:
     """Inspect consumer-side MCP clients: server status, tools_count, protocolVersion."""
@@ -1101,7 +1070,6 @@ async def mcp_clients_logic() -> JSONResponse:
         servers = [dict(v) for v in _MCP_CLIENT_SERVERS.values()]
         total = len(_MCP_CLIENT_TOOLS)
     return JSONResponse({"object": "mios.mcp.clients", "servers": servers, "tools_total": total})
-
 
 async def mcp_tools_list_logic() -> JSONResponse:
     """List discovered external MCP tools namespaced as 'mcp.<server>.<tool>'."""
@@ -1116,7 +1084,6 @@ async def mcp_tools_list_logic() -> JSONResponse:
             for k, v in _MCP_CLIENT_TOOLS.items()
         ]
     return JSONResponse({"object": "mios.mcp.tools", "tools": tools})
-
 
 async def mcp_dispatch_logic(request: Request) -> JSONResponse:
     """Forward tools/call to target MCP server: body {tool: 'mcp.<server>.<tool>', args: {...}}."""
@@ -1133,19 +1100,15 @@ async def mcp_dispatch_logic(request: Request) -> JSONResponse:
     res = await _mcp_call_tool(tool, args)
     return JSONResponse(res)
 
-
 mcp_router = APIRouter()
-
 
 @mcp_router.get("/v1/mcp/clients")
 async def mcp_clients() -> JSONResponse:
     return await mcp_clients_logic()
 
-
 @mcp_router.get("/v1/mcp/tools")
 async def mcp_tools_list() -> JSONResponse:
     return await mcp_tools_list_logic()
-
 
 @mcp_router.post("/v1/mcp/dispatch")
 async def mcp_dispatch(request: Request) -> JSONResponse:

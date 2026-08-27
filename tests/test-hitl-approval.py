@@ -33,7 +33,6 @@ except ImportError:
     approval = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(approval)
 
-
 class TestHitlApproval(unittest.TestCase):
     """Unit test suite for ApprovalEngine and ApprovalRequest lifecycle."""
 
@@ -392,12 +391,10 @@ class TestHitlApproval(unittest.TestCase):
             self.assertEqual(len(list_data), 1)
             self.assertEqual(list_data[0]["request_id"], req_id)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestHitlApproval)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

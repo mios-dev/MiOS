@@ -877,6 +877,16 @@
 | T-963 | P2 | open | Security/IBTTest | Automated IBT/BTI illegal jump trapping (<5ns) and binary landing pad test suite |
 | T-964 | P1 | open | User/UID1000 | Standard Non-System UID 1000 Enforcement & systemd-sysusers Migration Pipeline |
 | T-965 | P2 | open | User/UIDTest | Automated UID/GID Range & Systemd User Session Boundary Verification Test Suite |
+| T-966 | P1 | done | Autonomous self-replication daemon and podman-MiOS-DEV build pipeline trigger |
+| T-967 | P2 | done | Automated self-build trigger, image digest verification, and hot-swap staging test suite |
+| T-968 | P1 | done | Zero-downtime MicroVM state serialization and live migration handover engine in mios-virt |
+| T-969 | P2 | done | Automated MicroVM state handover latency (<50ms) and zero data loss test suite |
+| T-970 | P1 | done | Dual-mode dynamic topology switcher (Seat UI vs Headless Blade) in mios-node |
+| T-971 | P2 | done | Automated Seat-to-Blade profile transition and zero GPU leak verification test suite |
+| T-972 | P1 | done | PSS memory budget regulator and swarm agent OOM circuit breaker in agent-pipe |
+| T-973 | P2 | done | Automated 1,500-task swarm concurrency memory bounding (<16GB) test suite |
+| T-974 | P1 | done | Distributed pipeline tensor dispatcher with dynamic RPC worker layer partitioning |
+| T-975 | P2 | done | Automated distributed 70B layer-split forward pass and network failover test suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -3521,10 +3531,6 @@ Standing: **5 nodes over 4 distinct endpoints, 0 alias pairs, a cpu lane that ex
 * **`chrome_cdp` -- PINNED, SPLIT, and it was a LIVE BUG.** `usr/bin/mios-chrome` reads `MIOS_CHROME_CDP_PORT`, which the resolver emits as an alias of `MIOS_PORT_CHROME_CDP` -- so on any host with the MiOS environment loaded it launched Chrome with `--remote-debugging-port=8570`, while the flatpak flags file, `mios-hermes-browser`, crawl4ai and `[browser].cdp_url` all dialled 9222. The one consumer that HAD adopted the SSOT key was therefore the one consumer talking to nobody: exactly the harm "a port allocated but not bound" predicts, realised. Resolution: CDP is pinned at its real numbers (`chrome_cdp = 9222`, `chrome_cdp_worker = 9223`) rather than derived into the 8xxx band, because it is an external contract like DNS/53 -- DevTools, Playwright and `chrome://inspect` assume 9222 -- and because the primary browser's binder is `usr/share/mios/flatpak-flags/com.google.ChromeDev.flags`, a static flatpak argument file that cannot template a placeholder. `chrome_cdp_worker` is now a real key, closing the half-declared split (`[units]` referenced `MIOS_PORT_CHROME_CDP_WORKER` with a `:-9223` fallback and no `[ports]` entry). Every templatable consumer was repointed: `mios-chrome` onto the canonical name, `mios-hermes-browser` (whose fallback IS the primary binder, since the primary unit sets no `HERMES_BROWSER_CDP_PORT`), `mios-open-url`, `mios-cdp-fetch`, `mios-crawl4ai-service.py`, `[browser].cdp_url` and the crawl4ai Quadlet. No port number moved, so nothing could break.
 
 **Standing:** 40 ports, **39 bound, 1 registered** (`chrome_cdp_worker`, whose only binder is an `Environment=` literal in a shipped `.service` -- systemd does not expand `${}` there, and the `[units]` placeholder that would render it is inert until T-317). `97-ssot-lint` went 16 -> 19 placeholders, 0 orphans; both `userenv.sh` twins stay byte-identical. Found and fixed en route in `mios-open-url`: `--profile` parsed into a variable nothing read, so the flag silently did nothing; it now says so. | **Domain:** Naming/Addressing | **Who:** architect
-
-
-
-
 
 ## T-323 -- MINI-02: A seat could not tell an unreachable blade from a broken model  (WS-BLADE | P1 | S)
 **Goal:** E-09 One value, one name -- and one place to ask the only question a seat has.
@@ -10386,4 +10392,102 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Status:** open | **Domain:** User/UIDTest | **Who:** agent
 **Converted:** AGY-2563 carries this forward with a Verify line that fails when the behaviour is absent.
 
+## T-966 -- Autonomous self-replication daemon and podman-MiOS-DEV build pipeline trigger (WS-HCI | P1 | M)
+**Goal:** Trigger containerized bootc-image-builder compilation in podman-MiOS-DEV, verify image digest, and stage hot-swap OCI artifacts.
+**What+How:** Implement `usr/libexec/mios/deploy/self_replicate.py`. Inspect local git tree changes, trigger isolated containerized build via BIB inside `podman-MiOS-DEV`, verify cryptographic SHA-256 image digest, and stage OCI artifact for atomic `bootc switch` execution.
+**Where:** usr/libexec/mios/deploy/self_replicate.py, usr/share/containers/systemd/podman-MiOS-DEV.container
+**Done When:** Self-replication daemon triggers containerized builds and stages verified OCI image digests atomically.
+**Why:** Self-replication allows the immutable host to rebuild and update its own operating system substrate autonomously.
+**Dep:** AGY-2563
+**Status:** done | **Domain:** HCI/SelfReplicate | **Who:** agent
+**Converted:** AGY-2564 carries this forward with a Verify line that fails when the behaviour is absent.
 
+## T-967 -- Automated self-build trigger, image digest verification, and hot-swap staging test suite (WS-HCI | P2 | S)
+**Goal:** Verify in automated CI that self-replication daemon generates valid SHA-256 image digests and stages updates.
+**What+How:** Add `tests/test-self-replicate-build.py`. Trigger mock self-build; assert git commit SHA is recorded; assert image digest signature is valid; assert artifact is staged for bootc switch. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-self-replicate-build.py, tools/ci-suites.py
+**Done When:** Test suite validates self-build trigger, cryptographic digest verification, and atomic staging.
+**Why:** Continuous testing ensures autonomous OS rebuilding pipelines maintain strict image integrity and signature validation.
+**Dep:** AGY-2564
+**Status:** done | **Domain:** HCI/SelfReplicateTest | **Who:** agent
+**Converted:** AGY-2565 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-968 -- Zero-downtime MicroVM state serialization and live migration handover engine in mios-virt (WS-HCI | P1 | M)
+**Goal:** Serialize microVM CPU registers, dirty memory pages, and virtio-pmem DAX descriptors for <50ms live handover.
+**What+How:** Implement `usr/libexec/mios/virt/microvm_migrate.py`. Serialize in-memory CPU state, dirty memory bitmasks, and virtio-pmem memory file descriptors; transfer snapshot to target sandbox; restore execution in <50ms without dropping active guest socket connections.
+**Where:** usr/libexec/mios/virt/microvm_migrate.py, usr/libexec/mios/virt/mios_microvm.py
+**Done When:** MicroVM live migration engine serializes and transfers execution state with sub-50ms latency.
+**Why:** Live microVM migration enables seamless workload rebalancing and hot-patching across hyper-converged host clusters.
+**Dep:** AGY-2565
+**Status:** done | **Domain:** HCI/MicroVMMigrate | **Who:** agent
+**Converted:** AGY-2566 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-969 -- Automated MicroVM state handover latency (<50ms) and zero data loss test suite (WS-HCI | P2 | S)
+**Goal:** Verify in automated CI that microVM state serialization and restore complete in <50ms with 100% memory integrity.
+**What+How:** Add `tests/test-microvm-live-migration.py`. Capture microVM state snapshot; measure serialization duration; restore snapshot into target sandbox; assert latency < 50ms across all trials; assert VM registers and memory size match original state. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-microvm-live-migration.py, tools/ci-suites.py
+**Done When:** Test suite validates sub-50ms handover latency and zero register divergence across live migrations.
+**Why:** Continuous testing ensures microVM virtualization updates preserve ultra-fast state serialization and zero guest data loss.
+**Dep:** AGY-2566
+**Status:** done | **Domain:** HCI/MicroVMMigrateTest | **Who:** agent
+**Converted:** AGY-2567 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-970 -- Dual-mode dynamic topology switcher (Seat UI vs Headless Blade) in mios-node (WS-NODE | P1 | M)
+**Goal:** Dynamically switch system operational profile between Seat (Wayland/GNOME/ASR) and Blade (k3s/Ceph/RPC) with 0 VRAM leaks.
+**What+How:** Implement `usr/libexec/mios/node/topology_switch.py`. Manage dynamic service transitions between interactive workstation desktop services (gdm, gnome-shell, pipewire, mios-asr) and headless compute blade services (k3s, ceph-mds, llama-rpc-server); release compositor VRAM cleanly when entering blade mode.
+**Where:** usr/libexec/mios/node/topology_switch.py, usr/lib/systemd/system/mios-blade.service
+**Done When:** Topology switcher transitions between seat and blade operational profiles with zero resource leaks.
+**Why:** Dual-topology support allows the same immutable image to serve as a local desktop workstation or a remote compute blade dynamically.
+**Dep:** AGY-2567
+**Status:** done | **Domain:** Node/TopologySwitch | **Who:** agent
+**Converted:** AGY-2568 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-971 -- Automated Seat-to-Blade profile transition and zero GPU leak verification test suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that Seat-to-Blade profile transitions clean up 100% of desktop services and release compositor VRAM.
+**What+How:** Add `tests/test-seat-blade-transition.py`. Initialize Seat mode; execute transition to Blade mode; assert desktop services are deactivated and RPC services are active; assert VRAM allocation drops to 0MB. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-seat-blade-transition.py, tools/ci-suites.py
+**Done When:** Test suite validates complete service switching and zero GPU memory retention after Seat-to-Blade transition.
+**Why:** Continuous testing ensures dynamic host topology transitions maintain clean resource separation and operational agility.
+**Dep:** AGY-2568
+**Status:** done | **Domain:** Node/TopologyTest | **Who:** agent
+**Converted:** AGY-2569 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-972 -- PSS memory budget regulator and swarm agent OOM circuit breaker in agent-pipe (WS-AI | P1 | M)
+**Goal:** Regulate swarm agent allocations against a 16GB host memory budget, enabling >1,500 background workers without OOM thrashing.
+**What+How:** Implement `usr/lib/mios/agent-pipe/pss_regulator.py`. Track Proportional Set Size (PSS) per worker task (9.5MB for jcode workers, 145MB for OpenCode containers); enforce admission control against a 16,000MB hard limit; reject task oversubscription before kernel OOM killer triggers.
+**Where:** usr/lib/mios/agent-pipe/pss_regulator.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** PSS memory regulator admits >1,500 concurrent worker tasks while strictly bounding total allocation below 16GB.
+**Why:** Proportional Set Size regulation guarantees system stability and high-density agent swarm execution on standard workstations.
+**Dep:** AGY-2569
+**Status:** done | **Domain:** AI/PSSRegulator | **Who:** agent
+**Converted:** AGY-2570 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-973 -- Automated 1,500-task swarm concurrency memory bounding (<16GB) test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 1,500 concurrent swarm tasks consume <=16,000MB memory and circuit breaker triggers on overflow.
+**What+How:** Add `tests/test-swarm-pss-memory.py`. Admit 2 OpenCode containers + 1,500 jcode workers into regulator; assert total memory allocation <= 16,000MB; attempt to admit additional over-budget task; assert regulator returns False and logs circuit breaker warning. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-swarm-pss-memory.py, tools/ci-suites.py
+**Done When:** Test suite validates 1,500-task concurrency capacity and proactive OOM circuit breaker triggering.
+**Why:** Continuous testing ensures multi-agent swarm scalability optimizations preserve strict workstation memory limits.
+**Dep:** AGY-2570
+**Status:** done | **Domain:** AI/PSSRegulatorTest | **Who:** agent
+**Converted:** AGY-2571 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-974 -- Distributed pipeline tensor dispatcher with dynamic RPC worker layer partitioning (WS-AI | P1 | M)
+**Goal:** Split 80-layer 70B models across local GPUs and remote RPC workers with calculated activation tensor network handoffs.
+**What+How:** Implement `usr/lib/mios/ai/tensor_pipeline.py`. Calculate network transmission payload ($P = 2 	imes S 	imes d_{	ext{model}} 	imes b$ yielding 32.8KB decode and 64MB prefill); partition 80 transformer layers across cluster nodes based on VRAM capacity; execute sequential forward passes over authenticated TCP RPC.
+**Where:** usr/lib/mios/ai/tensor_pipeline.py, usr/libexec/mios/launch-inference-head.sh
+**Done When:** Tensor pipeline dispatcher calculates network payloads and partitions 80-layer models across distributed RPC workers.
+**Why:** Distributed tensor pipeline parallelism enables high-parameter models (70B+) to execute across commodity networked hardware.
+**Dep:** AGY-2571
+**Status:** done | **Domain:** AI/TensorPipeline | **Who:** agent
+**Converted:** AGY-2572 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-975 -- Automated distributed 70B layer-split forward pass and network failover test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that activation tensor payloads match exact theoretical math (32.8KB decode, 64MB prefill) and forward pass succeeds across 3 nodes.
+**What+How:** Add `tests/test-tensor-pipeline-rpc.py`. Initialize 80-layer pipeline; assert decode payload for 1 token is exactly 32,768 bytes; assert prefill payload for 2048 tokens is exactly 67,108,864 bytes; register 3 nodes (head + 2 workers); execute simulated forward pass; assert all 3 nodes participate successfully. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-tensor-pipeline-rpc.py, tools/ci-suites.py
+**Done When:** Test suite validates exact activation tensor payload sizes and 3-node distributed forward pass execution.
+**Why:** Continuous testing ensures distributed inference network optimizations maintain exact mathematical precision and communication fidelity.
+**Dep:** AGY-2572
+**Status:** done | **Domain:** AI/TensorPipelineTest | **Who:** agent
+**Converted:** AGY-2573 carries this forward with a Verify line that fails when the behaviour is absent.

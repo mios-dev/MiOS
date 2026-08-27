@@ -16,15 +16,12 @@ except ModuleNotFoundError:  # pragma: no cover
 
 SEAT = "endpoint"
 
-
 def _load():
     with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh)
 
-
 def _caps(v):
     return [v] if isinstance(v, str) else list(v or [])
-
 
 def _long_running():
     """Shipped .service units that stay up (a oneshot needs no blade gate)."""
@@ -41,7 +38,6 @@ def _long_running():
             out.add(name[:-len(".service")])
     return out
 
-
 def starts(data, archetype) -> set:
     """Containers a blade of this archetype activates.
 
@@ -52,7 +48,6 @@ def starts(data, archetype) -> set:
     have = set(_caps(blade["archetypes"][archetype]))
     req = {k: set(_caps(v)) for k, v in blade["requires"].items()}
     return {c for c in data["containers"] if req.get(c, set()) <= have}
-
 
 class TestSeatActivatesNothing(unittest.TestCase):
     def setUp(self):
@@ -133,7 +128,6 @@ class TestSeatActivatesNothing(unittest.TestCase):
             self.assertTrue(os.path.isfile(path), path)
             with open(path, encoding="utf-8") as fh:
                 self.assertIn("ConditionPathExists=/etc/mios/blade.d/%s" % cap, fh.read())
-
 
 if __name__ == "__main__":
     unittest.main()

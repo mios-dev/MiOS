@@ -6,7 +6,6 @@ import contextvars
 
 import mios_policy
 
-
 _dispatch_agent_var = contextvars.ContextVar("dispatch_agent", default="")
 _client_env_var = contextvars.ContextVar("client_env", default=None)
 _hitl_approved_var = contextvars.ContextVar("hitl_approved", default=None)
@@ -41,10 +40,8 @@ mios_policy.configure(
     db_create=lambda *a, **k: None,
 )
 
-
 def _tool(name):
     return {"type": "function", "function": {"name": name}}
-
 
 r_read = mios_policy._perm_rank("read")
 r_write = mios_policy._perm_rank("write")
@@ -53,13 +50,11 @@ assert r_read < r_write < r_inter, (r_read, r_write, r_inter)
 assert mios_policy._perm_rank("nonsense-tier") > r_inter
 print("ok  _perm_rank read<write<interactive + unknown fail-closed")
 
-
 assert mios_policy._effective_perm("web_search") == "read"
 assert mios_policy._effective_perm("powershell_run") == "interactive"
 assert mios_policy._effective_perm("os_recipe", {"name": "service_status"}) == "read"
 assert mios_policy._effective_perm("os_recipe", {"name": "no-such"}) == "interactive"
 print("ok  _effective_perm verb + recipe-aware resolution")
-
 
 surface = [_tool("web_search"), _tool("create_file"), _tool("powershell_run")]
 filtered = mios_policy._agent_rbac_filter("researcher", surface)
@@ -72,11 +67,9 @@ assert ronames == {"web_search"}, ronames
 assert len(mios_policy._agent_rbac_filter("ghost", surface)) == len(surface)
 print("ok  _agent_rbac_filter denied/ceiling drop + safe pass-through")
 
-
 def _as_agent(name, fn):
     ctx = contextvars.copy_context()
     return ctx.run(lambda: (_dispatch_agent_var.set(name), fn())[1])
-
 
 blocked = _as_agent("researcher", lambda: mios_policy._dispatch_pdp_reason("powershell_run"))
 assert blocked is not None and "powershell_run" in blocked, blocked
@@ -84,7 +77,6 @@ allowed = _as_agent("researcher", lambda: mios_policy._dispatch_pdp_reason("web_
 assert allowed is None, allowed
 assert mios_policy._dispatch_pdp_reason("powershell_run") is None
 print("ok  _dispatch_pdp_reason blocks denied / allows safe / no-op off-agent")
-
 
 mios_policy._HITL_MODE = "block"
 mios_policy._HITL_THRESHOLD = "interactive"
@@ -96,14 +88,12 @@ finally:
     mios_policy._HITL_MODE = "off"
 print("ok  _hitl_block_reason blocks interactive / passes read in block-mode")
 
-
 # ---------------------------------------------------------------------------
 # T-228: the durable quota ledger. Two principals accrue separately, the window
 # is written through, and a RESTART (a fresh module state seeded from the same
 # rows) leaves both balances -- and the enforcement -- intact.
 # ---------------------------------------------------------------------------
 import asyncio as _asyncio
-
 
 class _FakePg:
     """A quota_ledger in a dict, with the same SELECT/UPSERT shape as psycopg."""
@@ -123,7 +113,6 @@ class _FakePg:
         self.rows[params["p"]] = (params["w"], params["s"])
         return None
 
-
 def _reseat(pg):
     """Simulate a process restart: clear every in-memory quota structure, then
     re-run the startup preload against the same store."""
@@ -133,7 +122,6 @@ def _reseat(pg):
     mios_policy._QUOTA_PERSIST = False
     mios_policy._mios_pg = pg
     return _asyncio.run(mios_policy.quota_preload())
-
 
 async def _spend_async(principal, cost, budget):
     tr = mios_policy._quota_for(principal, {"daily_budget": budget})
@@ -146,12 +134,10 @@ async def _spend_async(principal, cost, budget):
         await _asyncio.sleep(0)
     return v
 
-
 def _spend(principal, cost, budget=10.0):
     """The gate runs inside the event loop, so the write-through does too --
     _quota_save deliberately no-ops when no loop is running."""
     return _asyncio.run(_spend_async(principal, cost, budget))
-
 
 import time as _time
 

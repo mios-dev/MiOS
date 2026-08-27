@@ -170,7 +170,6 @@ layered overlay.
 Detailed installation processes, bootstrap build phases, terminal profile setups, self-development loops, and artifact matrix specifications have been moved to the companion guide:
 - See [bootstrap_install.md](file:///usr/share/doc/mios/guides/bootstrap_install.md) for full setup instructions.
 
-
 ## 9. MiOS-DEV ≡ MiOS
 
 MiOS-DEV is the **source upon which MiOS itself is based** — testbed

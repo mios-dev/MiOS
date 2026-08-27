@@ -22,7 +22,6 @@ from typing import Awaitable, Callable, Optional
 
 from pydantic import BaseModel, Field
 
-
 class Filter:
     class Valves(BaseModel):
         ENABLED: bool = Field(

@@ -31,13 +31,11 @@ try:
 except ImportError:
     mios_toml = None
 
-
 DEFAULT_AGENT_ENDPOINT = "http://localhost:8640/v1"
 DEFAULT_INFERENCE_ENDPOINT = "http://localhost:11450/v1"
 DEFAULT_MODEL = "mios-opencode"
 DEFAULT_EMBED_MODEL = "nomic-embed-text"
 DEFAULT_API_KEY = "mios-local"
-
 
 class EditorConfigGen:
     """Projects local AI endpoint configurations into developer editor environments."""
@@ -268,7 +266,6 @@ class EditorConfigGen:
                 "error": str(e),
             }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS VS Code, Cursor & Continue Editor AI Config Projector (T-460)"
@@ -323,7 +320,6 @@ def main() -> int:
         else:
             print(f"[editor_config_gen] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

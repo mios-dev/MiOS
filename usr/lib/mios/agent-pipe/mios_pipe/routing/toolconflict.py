@@ -7,7 +7,6 @@ import asyncio
 import collections
 from typing import Dict, Optional
 
-
 class ConflictGate:
     """Per-verb conflict-group + parallel-limit serialization gate."""
 
@@ -86,7 +85,6 @@ class ConflictGate:
             },
         }
 
-
 class _Guard:
     """One-shot async context manager bound to a (gate, verb). Acquires the
     group lock then the per-verb permit on entry; releases both (reverse order)
@@ -143,7 +141,6 @@ class _Guard:
             g._group_inflight[self._group] -= 1
             g._group_sem(self._group).release()
             self._have_group = False
-
 
 def _as_int(v) -> int:
     """Lenient int coercion: returns 0 on anything unparseable (degrade-open)."""

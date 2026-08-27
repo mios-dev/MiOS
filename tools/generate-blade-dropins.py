@@ -13,13 +13,11 @@ ROOT = os.environ.get("MIOS_ROOT") or os.path.dirname(os.path.dirname(os.path.ab
 TOML = os.environ.get("MIOS_TOML") or os.path.join(ROOT, "usr/share/mios/mios.toml")
 DROPINS_DIR = os.path.join(ROOT, "usr/share/mios/dropins")
 
-
 def build_dropin_content(capability: str) -> str:
     return f"""# AI-hint: GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via tools/generate-blade-dropins.py.
 [Unit]
 ConditionPathExists=/etc/mios/blade.d/{capability}
 """
-
 
 def build_k3s_selectors(requires: dict) -> str:
     lines = [
@@ -42,7 +40,6 @@ def build_k3s_selectors(requires: dict) -> str:
             lines.append("        effect: \"NoSchedule\"")
     return "\n".join(lines) + "\n"
 
-
 def build_pcs_rules(requires: dict) -> str:
     lines = [
         "# AI-hint: GENERATED Pacemaker location constraint rules from mios.toml [blade.requires] SSOT (AGY-1595). DO NOT EDIT.",
@@ -57,7 +54,6 @@ def build_pcs_rules(requires: dict) -> str:
         rule_conds = " and ".join(f"mios-cap-{c} eq true" for c in cap_list)
         lines.append(f"pcs constraint location {svc} rule score=100 {rule_conds}")
     return "\n".join(lines) + "\n"
-
 
 def main() -> int:
     try:
@@ -98,7 +94,6 @@ def main() -> int:
 
     print(f"[generate-blade-dropins] Wrote dropins, k3s-node-selectors.yaml and pcs-location-rules.pcs to {DROPINS_DIR}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

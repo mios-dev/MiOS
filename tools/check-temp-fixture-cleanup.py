@@ -9,7 +9,6 @@ MARKERS = ("rmtree", "TemporaryDirectory", "addCleanup", "_mkdtemp_cleaned",
            "_cleanup_fixtures")
 MAKER = "mkdtemp"
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
     out = subprocess.run(["git", "-C", root, "ls-files",
@@ -35,7 +34,6 @@ def main() -> int:
     print("[check-temp-fixture-cleanup] every temp-dir fixture is removed",
           file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

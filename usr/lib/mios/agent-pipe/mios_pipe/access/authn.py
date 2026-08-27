@@ -17,7 +17,6 @@ _AGENT_AUTH_BY_HOSTPORT: dict = {}
 
 _CALLER_KEYS_CACHE: dict = {"mtime": -1.0, "keys": {}}
 
-
 def configure(*, backend_key=None, ingress_key=None, api_require_auth=None,
               caller_keys_path=None, auth_hostports=None,
               agent_auth_by_hostport=None) -> None:
@@ -38,7 +37,6 @@ def configure(*, backend_key=None, ingress_key=None, api_require_auth=None,
     if agent_auth_by_hostport is not None:
         _AGENT_AUTH_BY_HOSTPORT = agent_auth_by_hostport
 
-
 def _load_backend_key() -> str:
     """Loaded from MIOS_AGENT_PIPE_BACKEND_KEY env first, then /etc/mios/hermes/api.env."""
     env_key = os.environ.get("MIOS_AGENT_PIPE_BACKEND_KEY", "").strip()
@@ -53,7 +51,6 @@ def _load_backend_key() -> str:
     except (OSError, PermissionError):
         pass
     return ""
-
 
 def _apply_outbound_auth(hdrs: dict, ep: str) -> None:
     """Attach the correct OUTBOUND credential for a dispatch to `ep`."""
@@ -72,7 +69,6 @@ def _apply_outbound_auth(hdrs: dict, ep: str) -> None:
                 hdrs.pop(_k)
             hdrs[_hk] = _hv
 
-
 def _load_caller_keys() -> dict:
     """mtime-cached caller-key store {token: {principal, scope/max_permission,...}}."""
     try:
@@ -90,7 +86,6 @@ def _load_caller_keys() -> dict:
         except Exception:
             pass
     return _CALLER_KEYS_CACHE["keys"]
-
 
 def _check_inbound_principal(token: str) -> Optional[dict]:
     """Resolve a bearer token to a scoped principal, or None if unrecognised."""
@@ -113,7 +108,6 @@ def _check_inbound_principal(token: str) -> Optional[dict]:
         return {"principal": ent.get("principal") or "caller", "via": "caller-key", **ent}
     return {"principal": str(ent), "via": "caller-key"}
 
-
 def _probe_auth_headers(ep: str) -> dict:
     """Bearer header for a liveness / model-list probe IFF the endpoint ENFORCES auth."""
     try:
@@ -128,7 +122,6 @@ def _probe_auth_headers(ep: str) -> dict:
     except Exception:
         pass
     return {}
-
 
 def _bind_host(require_auth: bool, override: str = "") -> str:
     """FED-G9 bind posture: bind to LOOPBACK by default, ALL interfaces when auth is ON."""

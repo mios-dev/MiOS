@@ -393,8 +393,6 @@ EOF
 
     cat >> "$VFIO_CONF" << EOF
 
-
-
 EOF
 
     log_success "Created $VFIO_CONF"

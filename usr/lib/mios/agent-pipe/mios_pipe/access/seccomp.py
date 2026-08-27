@@ -52,10 +52,8 @@ BASELINE_DENY = (
     "open_by_handle_at", "name_to_handle_at",
 )
 
-
 class SeccompUnsupported(Exception):
     """No verified syscall table for this architecture."""
-
 
 def audit_arch(machine: str) -> int:
     arch = AUDIT_ARCH.get(str(machine or ""))
@@ -63,13 +61,11 @@ def audit_arch(machine: str) -> int:
         raise SeccompUnsupported(f"no verified seccomp table for {machine!r}")
     return arch
 
-
 def syscall_numbers(machine: str) -> dict:
     tbl = SYSCALLS.get(str(machine or ""))
     if not tbl:
         raise SeccompUnsupported(f"no verified seccomp table for {machine!r}")
     return dict(tbl)
-
 
 def resolve_denylist(machine: str, extra: Iterable[str] = ()) -> "list[int]":
     """Sorted syscall numbers to deny: the baseline floor plus SSOT extras.
@@ -82,10 +78,8 @@ def resolve_denylist(machine: str, extra: Iterable[str] = ()) -> "list[int]":
         raise SeccompUnsupported("denylist resolved to nothing on this architecture")
     return nrs
 
-
 def _insn(code: int, jt: int, jf: int, k: int) -> bytes:
     return struct.pack("<HBBI", code, jt & 0xFF, jf & 0xFF, k & 0xFFFFFFFF)
-
 
 def build_filter(machine: str, denied: Sequence[int], *, action: str = "errno") -> bytes:
     """The sock_filter program bwrap reads from --seccomp FD.

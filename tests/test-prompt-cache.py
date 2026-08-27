@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from prompt_cache import RadixPromptCacheManager, TTFT_TARGET_MS, MATCH_LATENCY_MAX_MS
 
-
 class TestPromptCache(unittest.TestCase):
     def setUp(self):
         self.cache = RadixPromptCacheManager(max_cache_mb=1024.0, dry_run=True)
@@ -80,7 +79,6 @@ class TestPromptCache(unittest.TestCase):
         self.assertTrue(res2["prefix_cache_hit"])
         self.assertLess(res2["match_latency_ms"], MATCH_LATENCY_MAX_MS)
         self.assertLess(res2["estimated_ttft_ms"], TTFT_TARGET_MS)
-
 
 if __name__ == "__main__":
     unittest.main()

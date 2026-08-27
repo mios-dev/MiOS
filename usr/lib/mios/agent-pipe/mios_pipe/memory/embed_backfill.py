@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import List, Optional, Tuple
 
-
 def needs_reembed(has_emb: bool, row_version: Optional[str],
                   current_version: str) -> bool:
     """True if a row should be re-embedded: it HAS a vector but its emb_version
@@ -16,7 +15,6 @@ def needs_reembed(has_emb: bool, row_version: Optional[str],
     rv = (row_version or "").strip()
     cur = (current_version or "").strip()
     return rv != cur
-
 
 def select_candidates_sql(table: str, current_version: str,
                           limit: int = 500) -> Tuple[str, dict]:
@@ -35,7 +33,6 @@ def select_candidates_sql(table: str, current_version: str,
     )
     return sql, {"ver": str(current_version), "lim": lim}
 
-
 def stamp_version_sql(table: str) -> str:
     """Parameterized UPDATE that writes a freshly-computed vector + the current
     identity onto one row. Caller binds %(emb)s/%(model)s/%(ver)s/%(id)s."""
@@ -45,13 +42,11 @@ def stamp_version_sql(table: str) -> str:
         f"WHERE id = %(id)s"
     )
 
-
 def plan_batches(ids: List, batch_size: int = 50) -> List[list]:
     """Split a candidate id list into bounded batches so the backfill embeds +
     writes in chunks (never one giant transaction, never one-at-a-time)."""
     bs = max(1, int(batch_size))
     return [list(ids[i:i + bs]) for i in range(0, len(ids), bs)]
-
 
 def summarize(candidate_count: int, batch_size: int = 50) -> dict:
     """A cheap plan summary for logging / the /v1/scheduler diagnostics."""
@@ -62,7 +57,6 @@ def summarize(candidate_count: int, batch_size: int = 50) -> dict:
         "batch_size": bs,
         "batches": (n + bs - 1) // bs,
     }
-
 
 import json
 import logging
@@ -103,15 +97,12 @@ _BACKFILL_EXEMPT = [
     "mios_rag"
 ]
 
-
-
 def get_embed_config() -> Tuple[str, str]:
     light_port = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8500"
     light_base = f"http://localhost:{light_port}"
     url = os.environ.get("MIOS_VERB_EMBED_URL") or f"{light_base}/v1/embeddings"
     model = os.environ.get("MIOS_VERB_EMBED_MODEL") or "nomic-embed-text"
     return url, model
-
 
 def get_text_projection(table: str, row: dict) -> Optional[str]:
     if table == "skill":
@@ -180,7 +171,6 @@ def get_text_projection(table: str, row: dict) -> Optional[str]:
         return f"Feature: {name}\nDescription: {desc}".strip() or None
     return None
 
-
 async def embed_text_with_retry(client: httpx.AsyncClient, text: str, url: str, model: str, prefix: str = "search_document: ") -> Optional[list[float]]:
     if prefix and not text.startswith(prefix):
         text = prefix + text
@@ -210,7 +200,6 @@ async def embed_text_with_retry(client: httpx.AsyncClient, text: str, url: str, 
             await asyncio.sleep(backoff)
             backoff *= 2.0
     return None
-
 
 async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
     url, model = get_embed_config()

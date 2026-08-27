@@ -7,7 +7,6 @@ import time
 
 import mios_dispatch
 
-
 _CATALOG = {
     "web_search": {"cmd": "mios-web-search -n {limit=5} {query!}"},
     "open_url": {"cmd": "mios-open-url {url!}"},
@@ -19,7 +18,6 @@ _conv = contextvars.ContextVar("conv", default="conv-1")
 _prop = contextvars.ContextVar("prop", default=None)
 _rec = contextvars.ContextVar("rec", default=None)
 _agent = contextvars.ContextVar("agent", default="")
-
 
 def _base_configure():
     mios_dispatch.configure(
@@ -42,7 +40,6 @@ def _base_configure():
         db_post=lambda *a, **k: None,
         db_create=lambda *a, **k: {},
     )
-
 
 _base_configure()
 cmd = mios_dispatch._build_dispatch_cmd("pc_key", {"key": "Ctrl+S"})
@@ -108,11 +105,9 @@ assert _c4 != "echo hi" and "mios-sandbox-exec" in _c4 and _ws4 is not None, (_c
 
 _broker_called = {"n": 0}
 
-
 async def _explode_bounded(*a, **k):
     _broker_called["n"] += 1
     raise AssertionError("broker/_dispatch_bounded reached on a gated verb!")
-
 
 def test_hitl_gate():
     _base_configure()
@@ -127,7 +122,6 @@ def test_hitl_gate():
     assert res.get("exit_code") == 126, res
     assert res.get("success") is False, res
     assert _broker_called["n"] == 0, "broker must NOT be reached on a HITL-gated verb"
-
 
 test_hitl_gate()
 
@@ -146,13 +140,10 @@ def test_firewall_gate():
     assert res.get("success") is False, res
     assert "firewall_block" in (res.get("stderr") or ""), res
 
-
 test_firewall_gate()
-
 
 async def _aret_none(*a, **k):
     return None
-
 
 def test_hitl_inner_chokepoint_no_bypass():
     _base_configure()
@@ -174,9 +165,7 @@ def test_hitl_inner_chokepoint_no_bypass():
     assert res_on.get("exit_code") == 126 and res_on.get("success") is False, res_on
     print("[PASS] inner chokepoint enforces the [ai] HITL gate (no silent bypass)")
 
-
 test_hitl_inner_chokepoint_no_bypass()
-
 
 def test_dispatch_persists_taint_row():
     _base_configure()
@@ -238,9 +227,7 @@ def test_dispatch_persists_taint_row():
     finally:
         mios_dispatch.dispatch_mios_verb = orig_dispatch
 
-
 test_dispatch_persists_taint_row()
-
 
 def test_sandbox_profile_coverage():
     import os
@@ -282,9 +269,7 @@ def test_sandbox_profile_coverage():
     print(f"[PASS] A6 sandbox_profile coverage: {len(tagged)} verbs opt in, "
           "all resolve confined + non-read")
 
-
 test_sandbox_profile_coverage()
-
 
 def test_agent_access_control():
     _test_catalog = {
@@ -356,9 +341,7 @@ def test_agent_access_control():
 
     print("[PASS] agent access control: routine blocked on destructive, privileged allowed")
 
-
 test_agent_access_control()
-
 
 def test_normalize_container_exec():
     s1 = "docker exec -it my-container bash"
@@ -396,9 +379,7 @@ def test_normalize_container_exec():
 
     print("[PASS] container exec normalization tests")
 
-
 test_normalize_container_exec()
-
 
 # ---------------------------------------------------------------------------
 # Rule-of-Two and CaMeL quarantine: the two SECURITY gates at the dispatch
@@ -413,7 +394,6 @@ _RO2_CATALOG = {
     "peek":   {"cmd": "x", "permission": "read", "sensitive": True},
     "benign": {"cmd": "x", "permission": "read"},
 }
-
 
 def _wire_gates(*, ro2="off", quarantine="off", tainted=True, approved=None):
     """Configure just enough for the two gates, and stub the taint oracle."""
@@ -433,7 +413,6 @@ def _wire_gates(*, ro2="off", quarantine="off", tainted=True, approved=None):
     mios_dispatch._session_is_tainted = _stub_tainted
     mios_dispatch._hitl_record_pending = lambda *a, **k: None
     return hitl_var
-
 
 def test_rule_of_two_gate():
     # off -> never consulted, whatever the posture.
@@ -468,7 +447,6 @@ def test_rule_of_two_gate():
 
     print("[PASS] rule-of-two gate: off/audit/enforce, all-three vs fewer")
 
-
 def test_rule_of_two_same_turn_approval_downgrades():
     """The human who approved THIS exact action may run it -- keyed on the
     action hash, so an approval for a DIFFERENT action must not carry over."""
@@ -485,7 +463,6 @@ def test_rule_of_two_same_turn_approval_downgrades():
         "danger", args, session_id="s1"))
     assert blocked, "an approval for a different action must NOT downgrade"
     print("[PASS] rule-of-two: approval is action-hash keyed")
-
 
 def test_quarantine_gate():
     # off -> never consulted.
@@ -518,7 +495,6 @@ def test_quarantine_gate():
 
     print("[PASS] quarantine gate: bites on the strict superset of rule-of-two")
 
-
 def test_gates_degrade_open():
     """ANY internal error must fall back to the EXISTING gates, never crash and
     never newly block everything -- a gate that fails closed here would take the
@@ -533,7 +509,6 @@ def test_gates_degrade_open():
         assert asyncio.run(gate("danger", {}, session_id="s1")) is None, \
             f"{gate.__name__} must degrade OPEN on an internal error"
     print("[PASS] both gates degrade open on an internal error")
-
 
 test_rule_of_two_gate()
 test_rule_of_two_same_turn_approval_downgrades()

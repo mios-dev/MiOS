@@ -15,8 +15,6 @@ from mios_skills import execute_skill
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 READ_TOOL_ENRICH_CHARS = 1500
 READ_TOOL_ENRICH_TIMEOUT = 12.0
 ACI_MAX_LINES = 160
@@ -47,7 +45,6 @@ _db_fire = None
 _db_post = None
 _db_create = None
 _src_record = None
-
 
 def configure(*, read_tool_enrich_chars=None, read_tool_enrich_timeout=None,
               aci_max_lines=None, aci_head_frac=None, code_mode_enable=None,
@@ -140,7 +137,6 @@ def configure(*, read_tool_enrich_chars=None, read_tool_enrich_timeout=None,
     if src_record is not None:
         _src_record = src_record
 
-
 _RESCUE_XML_RE = re.compile(
     r"<function=([a-zA-Z0-9_.\-]+)\s*>\s*"
     r"((?:<parameter=[a-zA-Z0-9_.\-]+>.*?</parameter>\s*)*)"
@@ -153,7 +149,6 @@ _RESCUE_FENCE_RE = re.compile(
     re.DOTALL | re.IGNORECASE)
 _RESCUE_TOOLCALL_RE = re.compile(
     r"<tool_call>\s*(\{.*?\}|\[.*?\])\s*</tool_call>", re.DOTALL | re.IGNORECASE)
-
 
 def _norm_tool_call(name: str, args, idx: int) -> dict:
     """One OpenAI-spec tool_call dict; `arguments` canonicalised to a JSON
@@ -171,7 +166,6 @@ def _norm_tool_call(name: str, args, idx: int) -> dict:
             "function": {"name": name,
                          "arguments": json.dumps(args, ensure_ascii=False)}}
 
-
 def _allowed_tool_names(tools: "Optional[list]") -> set:
     """Names the model may legitimately call: the OFFERED tools (OpenAI `tools=`
     shape) when present, else the full verb catalog. Gates the rescue parser so
@@ -187,7 +181,6 @@ def _allowed_tool_names(tools: "Optional[list]") -> set:
     import mios_verbcatalog
     model_names = getattr(mios_verbcatalog, "_MODEL_NAME_TO_VERB", {})
     return names | set(_VERB_CATALOG.keys()) | set(model_names.keys())
-
 
 def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
     text = content or ""
@@ -233,7 +226,6 @@ def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
             return out
     return out
 
-
 def _verb_result_cap(verb: str) -> int:
     """Chars to keep from a verb's result before feeding it to the agent. A verb
     may declare a larger `max_result_chars` in mios.toml (inventory/discovery
@@ -242,12 +234,10 @@ def _verb_result_cap(verb: str) -> int:
     cap = int((_VERB_CATALOG.get(verb) or {}).get("max_result_chars") or 0)
     return cap if cap > 0 else READ_TOOL_ENRICH_CHARS
 
-
 def _cap_verb_result(verb: str, out: str) -> str:
     cap = _verb_result_cap(verb)
     return _aci_normalize(out, max_chars=cap, max_lines=ACI_MAX_LINES,
                           head_frac=ACI_HEAD_FRAC, label=verb)
-
 
 def _format_tool_error(res: Any) -> Optional[dict]:
     if isinstance(res, dict):
@@ -274,7 +264,6 @@ def _format_tool_error(res: Any) -> Optional[dict]:
             }
     return None
 
-
 def _tool_span(vname: str, session_id: str):
     import contextlib
     @contextlib.contextmanager
@@ -293,7 +282,6 @@ def _tool_span(vname: str, session_id: str):
         else:
             yield None
     return _ctx()
-
 
 async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     from mios_pipe.routing.chat import _record_active, _replay_active, _replay_tool_queue, _conv_key_var, _in_exec_tool_calls
@@ -630,12 +618,9 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     _in_exec_tool_calls.reset(_iec_token)
     return tool_msgs, ran_read
 
-
-
 _classify_verb_taint = None
 _sanitize_tool_text = None
 _otel_tracer = None
-
 
 def _record_mcp_tool_call(tool: str, args: dict, success: bool, output: str,
                           session_id: "Optional[str]") -> None:

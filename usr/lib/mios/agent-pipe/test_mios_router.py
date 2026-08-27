@@ -9,20 +9,17 @@ import mios_router as r
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def t_chat():
     d = r.route({"intent": "chat"})
     check("chat: mode", d.mode == "chat")
     check("chat: no fanout", d.fanout is False)
     check("chat: no tool", d.tool == "")
-
 
 def t_dispatch():
     d = r.route({"intent": "dispatch", "tool": "open_app", "_deterministic": True})
@@ -32,7 +29,6 @@ def t_dispatch():
     check("dispatch: no fanout", d.fanout is False)
     check("dispatch: verb alias -> tool", r.route({"intent": "dispatch", "verb": "pc_type"}).tool == "pc_type")
 
-
 def t_multitask_dag():
     mt = r.route({"intent": "multi_task"})
     check("multi_task: mode", mt.mode == "multi_task")
@@ -40,7 +36,6 @@ def t_multitask_dag():
     dag = r.route({"intent": "dag"})
     check("dag: mode", dag.mode == "dag")
     check("dag: fans out", dag.fanout is True)
-
 
 def t_agent_deep():
     a = r.route({"intent": "agent"})
@@ -50,7 +45,6 @@ def t_agent_deep():
     check("agent+deep: broad", ad.broad is True)
     check("agent+deep: fans out", ad.fanout is True)
 
-
 def t_default():
     for bad in [{}, {"intent": ""}, {"intent": "weird"}, None, "notadict"]:
         d = r.route(bad)
@@ -58,11 +52,9 @@ def t_default():
     check("default: helper should_fanout False for chat", r.should_fanout({"intent": "chat"}) is False)
     check("default: helper should_fanout True for multi_task", r.should_fanout({"intent": "multi_task"}) is True)
 
-
 def t_shape():
     d = r.route({"intent": "dispatch", "tool": "x"}).to_dict()
     check("shape: keys", set(d) >= {"mode", "intent", "tool", "broad", "deterministic", "fanout", "reason"})
-
 
 def main():
     t_chat()
@@ -73,7 +65,6 @@ def main():
     t_shape()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

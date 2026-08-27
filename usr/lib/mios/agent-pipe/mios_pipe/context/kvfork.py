@@ -11,7 +11,6 @@ _NAME_CAP = 120
 _FILE_PREFIX = "mios-kv-"
 _FILE_SUFFIX = ".bin"
 
-
 def kv_filename(conv: object) -> str:
     """A filesystem-safe slot-save filename for one conversation's KV. Mirrors
     server.py `_kv_filename` exactly: sanitise to [A-Za-z0-9_.-], cap at 120
@@ -20,14 +19,12 @@ def kv_filename(conv: object) -> str:
     safe = _SAFE_RE.sub("_", str(conv if conv is not None else "default"))[:_NAME_CAP]
     return f"{_FILE_PREFIX}{safe or 'default'}{_FILE_SUFFIX}"
 
-
 def conv_token(conv: object) -> str:
     """The sanitised, length-capped conversation token (the variable part of the
     filename). Two conversations collide as a fork source/target iff this token
     matches -- so validate_fork compares on THIS, not on the raw input (e.g.
     'a/b' and 'a_b' both sanitise to 'a_b' and would share one KV file)."""
     return _SAFE_RE.sub("_", str(conv if conv is not None else "default"))[:_NAME_CAP] or "default"
-
 
 def validate_fork(src_conv: object, dst_conv: object) -> Tuple[bool, str]:
     s_raw = "" if src_conv is None else str(src_conv).strip()
@@ -40,9 +37,7 @@ def validate_fork(src_conv: object, dst_conv: object) -> Tuple[bool, str]:
         return False, "source and destination resolve to the same KV file"
     return True, "ok"
 
-
 ForkStep = Tuple[str, str, str]
-
 
 def plan_fork(src_conv: object, dst_conv: object) -> List[ForkStep]:
     s_tok = conv_token(src_conv)
@@ -52,7 +47,6 @@ def plan_fork(src_conv: object, dst_conv: object) -> List[ForkStep]:
         ("save", d_tok, kv_filename(dst_conv)),
     ]
 
-
 def fork_outcome(restore_ok: bool, save_ok: bool) -> Tuple[bool, str]:
     if not save_ok:
         return False, ("fork failed: could not save child KV file"
@@ -60,7 +54,6 @@ def fork_outcome(restore_ok: bool, save_ok: bool) -> Tuple[bool, str]:
     if not restore_ok:
         return True, "forked with WARNING: parent restore failed; child seeded from resident slot"
     return True, "forked: child KV seeded from parent prefix"
-
 
 def parse_bool(val: object, default: bool = False) -> bool:
     """Tolerant truthiness for an SSOT/env flag string (mirrors the agent-pipe's
@@ -75,7 +68,6 @@ def parse_bool(val: object, default: bool = False) -> bool:
     if s in {"false", "0", "no", "off", ""}:
         return False
     return default
-
 
 def clamp_branches(n: object, hard_cap: int, default: int = 1) -> int:
     """Bound the number of fork children a single request may spawn so a runaway

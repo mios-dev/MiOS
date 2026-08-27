@@ -15,7 +15,6 @@ import os
 import sys
 from typing import Dict, Optional, Tuple
 
-
 class BootChainVerifier:
     """Verifies UKI signatures, PCR registers, and fs-verity merkle tree digests."""
 
@@ -47,7 +46,6 @@ class BootChainVerifier:
         if len(pe_header_bytes) < 64:
             return False
         return pe_header_bytes[:2] == b"MZ"
-
 
 def run_verification(mock: bool = False, json_output: bool = False, uki_path: Optional[str] = None) -> int:
     verifier = BootChainVerifier(mock=mock)
@@ -126,7 +124,6 @@ def run_verification(mock: bool = False, json_output: bool = False, uki_path: Op
 
     return 0 if all_passed else 1
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS UKI and fs-verity Cryptographic Boot Chain Verifier.")
     parser.add_argument("--check", action="store_true", help="Execute full boot chain verification.")
@@ -136,7 +133,6 @@ def main() -> int:
     args = parser.parse_args()
 
     return run_verification(mock=args.mock, json_output=args.json, uki_path=args.uki)
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for Declarative MCP Server Lifecycle & Dynamic Tool Schema Converter (T-577 / T-578 / AGY-2175 / AGY-2176).
 # AI-related: usr/lib/mios/agent-pipe/mios_mcp.py, usr/lib/mios/agent-pipe/server.py
-"""Automated unit test suite validating Declarative MCP server discovery from TOML declarations,
-JSON-RPC 2.0 stdio/SSE handshakes, strict OpenAI function schema translation, dynamic tool
-execution dispatching, and error handling."""
+"""Automated unit test suite validating Declarative MCP server discovery from TOML declarations, JSON-RPC 2.0 stdio/SSE handshakes, strict OpenAI function schema translation, dynamic tool execution dispatching, and error handling."""
 
 from __future__ import annotations
 
@@ -24,14 +22,11 @@ if _AGENT_PIPE not in sys.path:
 
 import mios_mcp
 
-
 def _run_async(coro):
     return asyncio.run(coro)
 
-
 class TestMcpGatewayHandshake(unittest.TestCase):
-    """Validates Declarative MCP server discovery, stdio/SSE protocol handshakes,
-    OpenAI function schema conversion, and dynamic tool call dispatch."""
+    """Validates Declarative MCP server discovery, stdio/SSE protocol handshakes,     OpenAI function schema conversion, and dynamic tool call dispatch."""
 
     def setUp(self):
         """Reset internal registries for test isolation."""
@@ -112,23 +107,7 @@ class TestMcpGatewayHandshake(unittest.TestCase):
 
     def test_load_servers_from_toml_string(self):
         """Verify parsing raw TOML string syntax into McpServerSpec instances."""
-        toml_text = """
-[mcp]
-protocol_version = "2025-11-25"
-
-[mcp.servers.duckdb]
-enabled = true
-transport = "stdio"
-command = "uvx"
-args = ["mcp-server-motherduck", "--db-path", ":memory:"]
-tier = "rare"
-namespace = "duckdb_"
-
-[mcp.servers.remote_hub]
-enabled = true
-transport = "http"
-url = "http://localhost:9090/mcp"
-"""
+        toml_text = """[mcp] protocol_version = "2025-11-25"  [mcp.servers.duckdb] enabled = true transport = "stdio" command = "uvx" args = ["mcp-server-motherduck", "--db-path", ":memory:"] tier = "rare" namespace = "duckdb_"  [mcp.servers.remote_hub] enabled = true transport = "http" url = "http://localhost:9090/mcp"""
         specs = mios_mcp.load_servers_from_toml(toml_text)
         self.assertEqual(len(specs), 2)
         spec_map = {s.id: s for s in specs}
@@ -141,13 +120,7 @@ url = "http://localhost:9090/mcp"
     def test_load_servers_from_toml_file(self):
         """Verify loading MCP server definitions from a temporary TOML file on disk."""
         with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False, encoding="utf-8") as f:
-            f.write("""
-[mcp.servers.disk_server]
-enabled = true
-transport = "stdio"
-command = "python"
-args = ["-m", "disk_mcp"]
-""")
+            f.write("""[mcp.servers.disk_server] enabled = true transport = "stdio" command = "python" args = ["-m", "disk_mcp"]""")
             temp_path = f.name
 
         try:
@@ -316,102 +289,10 @@ args = ["-m", "disk_mcp"]
     # -----------------------------------------------------------------------
 
     def test_stdio_handshake_discovery_and_execution(self):
-        """Spawn a genuine Python MCP server subprocess over stdio, verify JSON-RPC 2.0
-        initialize handshake, notifications/initialized, tools/list discovery, and
-        dynamic tool call execution dispatch."""
+        """Spawn a genuine Python MCP server subprocess over stdio, verify JSON-RPC 2.0         initialize handshake, notifications/initialized, tools/list discovery, and         dynamic tool call execution dispatch."""
 
         # Self-contained mock stdio MCP server script
-        mock_server_code = """
-import sys, json
-
-for line in sys.stdin:
-    if not line.strip():
-        continue
-    try:
-        req = json.loads(line)
-    except Exception:
-        continue
-    rid = req.get("id")
-    method = req.get("method")
-    params = req.get("params") or {}
-
-    if method == "initialize":
-        resp = {
-            "jsonrpc": "2.0",
-            "id": rid,
-            "result": {
-                "protocolVersion": "2025-11-25",
-                "capabilities": {"tools": {}},
-                "serverInfo": {"name": "mock-calc-server", "version": "1.0.0"}
-            }
-        }
-        sys.stdout.write(json.dumps(resp) + "\\n")
-        sys.stdout.flush()
-    elif method == "notifications/initialized":
-        pass
-    elif method == "tools/list":
-        resp = {
-            "jsonrpc": "2.0",
-            "id": rid,
-            "result": {
-                "tools": [
-                    {
-                        "name": "add_numbers",
-                        "description": "Add two numbers together",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "a": {"type": "number"},
-                                "b": {"type": "number"}
-                            },
-                            "required": ["a", "b"]
-                        }
-                    },
-                    {
-                        "name": "format_greeting",
-                        "description": "Format greeting string",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string"},
-                                "shout": {"type": "boolean"}
-                            },
-                            "required": ["name"]
-                        }
-                    }
-                ]
-            }
-        }
-        sys.stdout.write(json.dumps(resp) + "\\n")
-        sys.stdout.flush()
-    elif method == "tools/call":
-        tname = params.get("name")
-        args = params.get("arguments") or {}
-        if tname == "add_numbers":
-            a = float(args.get("a", 0))
-            b = float(args.get("b", 0))
-            resp = {
-                "jsonrpc": "2.0",
-                "id": rid,
-                "result": {"content": [{"type": "text", "text": str(a + b)}], "isError": False}
-            }
-        elif tname == "format_greeting":
-            name = str(args.get("name", "world"))
-            msg = f"HELLO {name.upper()}!" if args.get("shout") else f"Hello {name}!"
-            resp = {
-                "jsonrpc": "2.0",
-                "id": rid,
-                "result": {"content": [{"type": "text", "text": msg}], "isError": False}
-            }
-        else:
-            resp = {
-                "jsonrpc": "2.0",
-                "id": rid,
-                "error": {"code": -32601, "message": f"Tool '{tname}' not found"}
-            }
-        sys.stdout.write(json.dumps(resp) + "\\n")
-        sys.stdout.flush()
-"""
+        mock_server_code = """import sys, json  for line in sys.stdin:     if not line.strip():         continue     try:         req = json.loads(line)     except Exception:         continue     rid = req.get("id")     method = req.get("method")     params = req.get("params") or {}      if method == "initialize":         resp = {             "jsonrpc": "2.0",             "id": rid,             "result": {                 "protocolVersion": "2025-11-25",                 "capabilities": {"tools": {}},                 "serverInfo": {"name": "mock-calc-server", "version": "1.0.0"}             }         }         sys.stdout.write(json.dumps(resp) + "\\n")         sys.stdout.flush()     elif method == "notifications/initialized":         pass     elif method == "tools/list":         resp = {             "jsonrpc": "2.0",             "id": rid,             "result": {                 "tools": [                     {                         "name": "add_numbers",                         "description": "Add two numbers together",                         "inputSchema": {                             "type": "object",                             "properties": {                                 "a": {"type": "number"},                                 "b": {"type": "number"}                             },                             "required": ["a", "b"]                         }                     },                     {                         "name": "format_greeting",                         "description": "Format greeting string",                         "inputSchema": {                             "type": "object",                             "properties": {                                 "name": {"type": "string"},                                 "shout": {"type": "boolean"}                             },                             "required": ["name"]                         }                     }                 ]             }         }         sys.stdout.write(json.dumps(resp) + "\\n")         sys.stdout.flush()     elif method == "tools/call":         tname = params.get("name")         args = params.get("arguments") or {}         if tname == "add_numbers":             a = float(args.get("a", 0))             b = float(args.get("b", 0))             resp = {                 "jsonrpc": "2.0",                 "id": rid,                 "result": {"content": [{"type": "text", "text": str(a + b)}], "isError": False}             }         elif tname == "format_greeting":             name = str(args.get("name", "world"))             msg = f"HELLO {name.upper()}!" if args.get("shout") else f"Hello {name}!"             resp = {                 "jsonrpc": "2.0",                 "id": rid,                 "result": {"content": [{"type": "text", "text": msg}], "isError": False}             }         else:             resp = {                 "jsonrpc": "2.0",                 "id": rid,                 "error": {"code": -32601, "message": f"Tool '{tname}' not found"}             }         sys.stdout.write(json.dumps(resp) + "\\n")         sys.stdout.flush()"""
 
         with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as f:
             f.write(mock_server_code)
@@ -614,13 +495,7 @@ for line in sys.stdin:
     def test_mcp_gateway_lifecycle(self):
         """Verify McpGateway management, schema queries, and shutdown lifecycle."""
         gateway = mios_mcp.McpGateway()
-        toml_content = """
-[mcp.servers.local_tool]
-enabled = true
-transport = "stdio"
-command = "echo"
-args = ["test"]
-"""
+        toml_content = """[mcp.servers.local_tool] enabled = true transport = "stdio" command = "echo" args = ["test"]"""
         gateway.load_from_toml(toml_content)
         self.assertIn("local_tool", gateway.specs)
 
@@ -651,22 +526,7 @@ args = ["test"]
 
     def test_stdio_allowed_tools_filtering(self):
         """Verify allowed_tools filters discovered tools correctly."""
-        mock_server_code = """
-import sys, json
-for line in sys.stdin:
-    if not line.strip(): continue
-    req = json.loads(line)
-    rid = req.get("id")
-    method = req.get("method")
-    if method == "initialize":
-        sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":rid,"result":{"protocolVersion":"2025-11-25","serverInfo":{"name":"filter-srv"}}}) + "\\n")
-        sys.stdout.flush()
-    elif method == "notifications/initialized":
-        pass
-    elif method == "tools/list":
-        sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":rid,"result":{"tools":[{"name":"allowed_one"},{"name":"blocked_two"}]}}) + "\\n")
-        sys.stdout.flush()
-"""
+        mock_server_code = """import sys, json for line in sys.stdin:     if not line.strip(): continue     req = json.loads(line)     rid = req.get("id")     method = req.get("method")     if method == "initialize":         sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":rid,"result":{"protocolVersion":"2025-11-25","serverInfo":{"name":"filter-srv"}}}) + "\\n")         sys.stdout.flush()     elif method == "notifications/initialized":         pass     elif method == "tools/list":         sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":rid,"result":{"tools":[{"name":"allowed_one"},{"name":"blocked_two"}]}}) + "\\n")         sys.stdout.flush()"""
         with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as f:
             f.write(mock_server_code)
             mock_path = f.name
@@ -750,7 +610,6 @@ for line in sys.stdin:
             self.assertEqual(bad_resp.status_code, 400)
 
         _run_async(_run_test())
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

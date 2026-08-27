@@ -27,7 +27,6 @@ DEFAULT_SYS_LIVEPATCH_DIR = "/sys/kernel/livepatch"
 DEFAULT_MICROCODE_RELOAD_PATH = "/sys/devices/system/cpu/microcode/reload"
 DEFAULT_STAGING_DIR = "/var/lib/mios/uki-staging"
 
-
 def atomic_write_json(target_path: str, data: Any) -> None:
     """Write JSON data to disk using an atomic replace pattern to prevent corruption."""
     parent = os.path.dirname(os.path.abspath(target_path))
@@ -51,7 +50,6 @@ def atomic_write_json(target_path: str, data: Any) -> None:
                 os.remove(tmp_file)
             except OSError:
                 pass
-
 
 class LivepatchManager:
     """Manager for MOK-signed kpatch livepatches, microcode reloads, and UKI staging."""
@@ -453,7 +451,6 @@ class LivepatchManager:
             "uki_model": "shim -> systemd-boot -> signed UKI",
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Kernel Livepatch & Microcode Management Daemon (T-545)"
@@ -496,7 +493,6 @@ def main() -> int:
         print(json.dumps(result, indent=2))
 
     return 0 if result.get("success", True) else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

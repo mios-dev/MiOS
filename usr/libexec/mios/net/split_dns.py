@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-split-dns")
 
-
 @dataclass
 class DNSResolutionResult:
     query_domain: str
@@ -28,7 +27,6 @@ class DNSResolutionResult:
     protocol: str  # "WireGuard_Local_DNS", "Strict_DoT_TLS853"
     is_internal_leak_prevented: bool
     dnssec_validated: bool
-
 
 class SplitDNSConfigurator:
     """Manages systemd-resolved split routing policies and DoT configuration."""
@@ -64,12 +62,10 @@ class SplitDNSConfigurator:
         logger.info(f"Resolved {domain} via {proto} on {server} (Leak prevented: {leak_prevented}).")
         return res
 
-
 def main():
     dns = SplitDNSConfigurator(dry_run=True)
     res = dns.resolve_domain_query("node-01.blade.mios")
     print(f"Server: {res.resolved_server}, Proto: {res.protocol}")
-
 
 if __name__ == "__main__":
     main()

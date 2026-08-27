@@ -20,7 +20,6 @@ _NODE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _NODE_DIR not in sys.path:
     sys.path.insert(0, _NODE_DIR)
 
-
 class BucketTier(IntEnum):
     SMALL = 256
     MEDIUM = 4096
@@ -47,7 +46,6 @@ class BucketTier(IntEnum):
             return 32
         return 8
 
-
 @dataclass
 class PoolStats:
     allocations: int = 0
@@ -55,7 +53,6 @@ class PoolStats:
     pool_hits: int = 0
     pool_misses: int = 0
     active_leased: int = 0
-
 
 class PooledBuffer:
     """RAII-guarded buffer wrapping a bytearray with zero-copy memoryview support."""
@@ -137,7 +134,6 @@ class PooledBuffer:
 
     def __del__(self) -> None:
         self.release()
-
 
 class BufferPool:
     """Thread-safe bucketed buffer pool with bounded memory retention."""

@@ -16,8 +16,6 @@ STATUS_AS_REASONING = os.environ.get(
 _DEBUG_ENABLE = False
 _SURFACE_DEFAULT = "clean"
 
-
-
 def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
                role: Optional[str] = None,
                finish_reason: Optional[str] = None,
@@ -46,7 +44,6 @@ def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
         chunk["mios_status"] = mios_status
     return ("data: " + json.dumps(chunk) + "\n\n").encode("utf-8")
 
-
 def _sse_reasoning(text: str, *, chat_id: str, model: str,
                    reasoning_ok: Optional[bool] = None) -> bytes:
     if reasoning_ok is True:
@@ -56,7 +53,6 @@ def _sse_reasoning(text: str, *, chat_id: str, model: str,
     if _SURFACE_DEFAULT == "inline":
         return _sse_chunk(text, chat_id=chat_id, model=model)
     return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)
-
 
 def _load_status_labels() -> dict:
     return {
@@ -76,9 +72,7 @@ def _load_status_labels() -> dict:
         "subagent_done":  ("✅", ""),
     }
 
-
 _HUMAN_LABELS = _load_status_labels()
-
 
 def _sse_status_phase(*, chat_id: str, model: str, phase: str,
                       done: bool = False,
@@ -86,7 +80,6 @@ def _sse_status_phase(*, chat_id: str, model: str, phase: str,
     emoji, label = _HUMAN_LABELS.get(phase, ("·", phase))
     return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
                        label=label, done=done, detail=detail)
-
 
 def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
                 done: bool = False, detail: Optional[str] = None) -> bytes:
@@ -112,7 +105,6 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
         mios_status=payload, reasoning=_reason,
     )
 
-
 def _enrich_step_emits(refined: Optional[dict], *, chat_id: str, model: str):
     if not isinstance(refined, dict):
         return
@@ -126,7 +118,6 @@ def _enrich_step_emits(refined: Optional[dict], *, chat_id: str, model: str):
             chat_id=chat_id, model=model,
             emoji=str(s.get("emoji", "·")), label=str(s.get("label", "")),
             detail=(str(s.get("detail", "")) or None))
-
 
 def _node_context(node: dict) -> str:
     if not isinstance(node, dict):
@@ -146,7 +137,6 @@ def _node_context(node: dict) -> str:
                 return str(_v)[:48]
     return ""
 
-
 def _node_status(*, chat_id: str, model: str, name: str, cfg: dict,
                  state: str, context: str = "") -> bytes:
     emoji = {"engage": "🤖", "ok": "✅", "down": "💤"}.get(state, "🤖")
@@ -156,7 +146,6 @@ def _node_status(*, chat_id: str, model: str, name: str, cfg: dict,
     _detail = "" if _label == _ctx else _ctx
     return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
                        label=_label[:80], detail=_detail[:80])
-
 
 async def _stream_answer(text: str, *, chat_id: str, model: str):
     """Yield the final answer in small character-exact chunks so OWUI renders
@@ -174,10 +163,8 @@ async def _stream_answer(text: str, *, chat_id: str, model: str):
         if delay:
             await asyncio.sleep(delay)
 
-
 def _sse_done() -> bytes:
     return b"data: [DONE]\n\n"
-
 
 _TAIL_KIND_EMOJI = {
     "max_retries":    "❌",
@@ -191,7 +178,6 @@ _TAIL_KIND_EMOJI = {
 }
 _HERMES_TAIL_PATH = os.environ.get(
     "MIOS_HERMES_TAIL_PATH", "/var/lib/mios/hermes-tail/latest.json")
-
 
 def _frontier_stream_events(seen_ts: float) -> list:
     path = os.environ.get("MIOS_A2O_STREAM_PATH") or os.path.join(
@@ -213,7 +199,6 @@ def _frontier_stream_events(seen_ts: float) -> list:
         if isinstance(ev, dict) and ev.get("ts", 0) > seen_ts:
             out.append(ev)
     return out
-
 
 def _tail_latest_status(seen_ts: float, *, chat_id: str,
                         model: str) -> tuple[Optional[bytes], float]:
@@ -245,7 +230,6 @@ def _tail_latest_status(seen_ts: float, *, chat_id: str,
     return (_sse_status(chat_id=chat_id, model=model, emoji=emoji,
                         label="", done=False, detail=detail), new_ts)
 
-
 def _iter_answer_chunks(text: str, size: int):
     """Split `text` into ~size-char pieces at WORD boundaries so the final answer
  TYPES OUT smoothly in the front-ends (token-by-token).
@@ -261,7 +245,6 @@ def _iter_answer_chunks(text: str, size: int):
         buf += tok
     if buf:
         yield buf
-
 
 def configure(*, debug_enable: bool = True, surface_default: str = "clean", **kwargs) -> None:
     global _DEBUG_ENABLE, _SURFACE_DEFAULT

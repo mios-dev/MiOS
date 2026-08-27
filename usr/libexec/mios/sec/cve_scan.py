@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-cve-scan")
 
-
 @dataclass
 class Vulnerability:
     cve_id: str
@@ -29,7 +28,6 @@ class Vulnerability:
     cvss_score: float
     fix_version: Optional[str] = None
     description: str = ""
-
 
 class OCIImageVulnerabilityScanner:
     """Scans OCI container image layers and enforces critical vulnerability gates."""
@@ -81,12 +79,10 @@ class OCIImageVulnerabilityScanner:
 
         return report
 
-
 def main():
     scanner = OCIImageVulnerabilityScanner(dry_run=True)
     res = scanner.scan_image()
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

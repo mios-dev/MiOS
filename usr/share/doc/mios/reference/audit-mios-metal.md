@@ -13,5 +13,4 @@
 
 `doc-mios-metal.md` establishes the *architecture and the honest constraints* (GPU fractioning impossible driver-free; "tiny host" ≈ 0.9–1.4 GB floor not literal zero; swtpm vTPM; nft not firewalld; gluster sunset). It stops short of a **concrete, projectable host image**. This audit adds exactly that layer and reconciles it against the current tree, where three things are true today that the Mini design must change:
 
-
 *Audit completed and reconciled against SSOT.*

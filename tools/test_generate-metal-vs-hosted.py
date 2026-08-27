@@ -17,7 +17,6 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
-
 def synthetic(seat_side=("front",), extra_gated=0):
     req = {"a": ["service-plane"], "b": ["gpu-serving", "service-plane"]}
     for i in range(extra_gated):
@@ -32,7 +31,6 @@ def synthetic(seat_side=("front",), extra_gated=0):
                       "probe": {}, "blade_reachability_critical": False},
         "urls": {},
     }
-
 
 class TestDerivation(unittest.TestCase):
     def test_the_seat_starts_no_gated_unit(self):
@@ -57,7 +55,6 @@ class TestDerivation(unittest.TestCase):
         out = dict(mod.gated_off_on_seat(synthetic()))
         self.assertEqual(out["a"], ["service-plane"])
         self.assertEqual(out["b"], ["gpu-serving", "service-plane"])
-
 
 class TestRendering(unittest.TestCase):
     def test_the_document_states_both_modes_are_one_image(self):
@@ -98,7 +95,6 @@ class TestRendering(unittest.TestCase):
     def test_render_is_deterministic(self):
         self.assertEqual(mod.render(synthetic()), mod.render(synthetic()))
 
-
 class TestBakedPayloads(unittest.TestCase):
     """The seat's disk cost is DERIVED from the bake specs, never hand-listed --
     a hand-listed one goes stale the first time a model is swapped."""
@@ -137,7 +133,6 @@ class TestBakedPayloads(unittest.TestCase):
         d["ai"] = {"vllm": {"bake_model": "org/Big-AWQ", "enable": True}}
         self.assertNotIn("T-330", mod.render(d))
 
-
 class TestRealTree(unittest.TestCase):
     def setUp(self):
         self.real = mod.load(_ROOT)
@@ -160,8 +155,6 @@ class TestRealTree(unittest.TestCase):
                      "mios-cpu-node"):
             self.assertIn(lane, off, lane)
 
-
-
 def with_planes(**over):
     """A synthetic SSOT that DOES declare planes, plus the packages that would
     prove them baked."""
@@ -181,7 +174,6 @@ def with_planes(**over):
     d["blade"]["planes"].update(over)
     d["blade"]["optional_planes"] = ["radio"]
     return d
-
 
 class TestPlanes(unittest.TestCase):
     """Part 1's verdicts are derived, so neither column can be faked in the
@@ -275,7 +267,6 @@ class TestPlanes(unittest.TestCase):
                 self.assertTrue(wired, "%s points at a file that is gone: %s"
                                 % (name, wired_by))
 
-
 class TestHardwareFloor(unittest.TestCase):
     """The floor is INTERFACES, not radios: any mix counts as long as two are
     separate and one can be an AP. ADR-0016 D11."""
@@ -364,7 +355,6 @@ class TestHardwareFloor(unittest.TestCase):
         self.assertIn("A Mini runs it", text)
         self.assertIn("optional", text)
 
-
 class TestOpenItemsClaim(unittest.TestCase):
     """The "only a Mini can supply these" sentence is a CLAIM about the open
     set. It must be derived, or moving one owner silently makes it false."""
@@ -387,7 +377,6 @@ class TestOpenItemsClaim(unittest.TestCase):
         open_rows = [r for r in rows if (r[3] and r[4]) or not r[5]]
         self.assertTrue(open_rows, "nothing open -- this test would pass vacuously")
         self.assertEqual(set(r[2] for r in open_rows), {"mini"})
-
 
 class TestPolicyRows(unittest.TestCase):
     """The recurring defect this repo keeps producing is an SSOT key emitted by
@@ -430,7 +419,6 @@ class TestPolicyRows(unittest.TestCase):
         text = open(os.path.join(_ROOT, mod.OUT), encoding="utf-8").read()
         for key, _v, _w in rows:
             self.assertIn("`%s`" % key, text)
-
 
 class TestNativePatterns(unittest.TestCase):
     """ADR-0016 D15: every cross-box mechanism is the upstream project's OWN,

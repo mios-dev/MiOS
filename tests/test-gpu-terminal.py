@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from gpu_terminal import MAX_KEYSTROKE_LATENCY_MS, MIN_GLYPH_THROUGHPUT_CPS, GPUTerminalManager
 
-
 class TestGPUTerminal(unittest.TestCase):
     def setUp(self):
         self.mgr = GPUTerminalManager(renderer="Vulkan", dry_run=True)
@@ -28,7 +27,6 @@ class TestGPUTerminal(unittest.TestCase):
         self.assertGreaterEqual(prof.glyph_throughput_chars_per_sec, MIN_GLYPH_THROUGHPUT_CPS)
         self.assertLess(prof.keystroke_latency_ms, MAX_KEYSTROKE_LATENCY_MS)
         self.assertTrue(prof.vsync_locked)
-
 
 if __name__ == "__main__":
     unittest.main()

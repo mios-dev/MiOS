@@ -24,14 +24,12 @@ logger = logging.getLogger("mios-gpu-terminal")
 MIN_GLYPH_THROUGHPUT_CPS = 1000000
 MAX_KEYSTROKE_LATENCY_MS = 5.0
 
-
 @dataclass
 class TerminalPerformanceProfile:
     renderer: str  # "Vulkan", "OpenGL_DMA_BUF"
     glyph_throughput_chars_per_sec: int
     keystroke_latency_ms: float
     vsync_locked: bool
-
 
 class GPUTerminalManager:
     """Manages GPU shader terminal configurations and DMA-BUF render performance."""
@@ -73,13 +71,11 @@ class GPUTerminalManager:
         )
         return prof
 
-
 def main():
     mgr = GPUTerminalManager(dry_run=True)
     print(mgr.generate_alacritty_config())
     prof = mgr.benchmark_render_performance()
     print(f"Throughput: {prof.glyph_throughput_chars_per_sec:,} chars/s, Latency: {prof.keystroke_latency_ms:.2f} ms")
-
 
 if __name__ == "__main__":
     main()

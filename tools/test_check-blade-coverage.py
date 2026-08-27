@@ -20,7 +20,6 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
-
 def data(conts=(), archetypes=None, req=None, ungated=None, fallbacks=None):
     blade = {"archetypes": dict(archetypes or {"hybrid": ["gpu-serving"]})}
     if req is not None:
@@ -34,7 +33,6 @@ def data(conts=(), archetypes=None, req=None, ungated=None, fallbacks=None):
         blade["cpu_fallbacks"] = dict(fallbacks)
     return {"containers": {c: {} for c in conts}, "blade": blade}
 
-
 class TestReaders(unittest.TestCase):
     def test_a_bare_string_capability_is_read_as_a_list(self):
         d = data(["a"], req={"a": "gpu-serving"})
@@ -43,7 +41,6 @@ class TestReaders(unittest.TestCase):
     def test_archetype_caps_unions_every_archetype(self):
         d = data(archetypes={"hybrid": ["x", "y"], "compute": ["y"], "seat": []})
         self.assertEqual(mod.archetype_caps(d), {"x", "y"})
-
 
 class TestClassify(unittest.TestCase):
     def test_fully_classified_is_clean(self):
@@ -91,7 +88,6 @@ class TestClassify(unittest.TestCase):
 
     def test_empty_container_table_fails_rather_than_passing_vacuously(self):
         self.assertIn("vacuously", mod.classify(data([], req={}, ungated=[]), _NOROOT)[0])
-
 
 class TestShippedTree(unittest.TestCase):
     def setUp(self):
@@ -169,7 +165,6 @@ class TestShippedTree(unittest.TestCase):
                                    ("ungated", reg)) if u in s]
             self.assertEqual(len(hits), 1, "%s -> %s" % (u, hits))
 
-
 class TestSeatDeadWeight(unittest.TestCase):
     """The AI plane couples over ADDRESSES, which the dependency walk cannot see."""
 
@@ -229,7 +224,6 @@ class TestSeatDeadWeight(unittest.TestCase):
         with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
             real = tomllib.load(fh)
         self.assertEqual(mod.seat_dead_weight(real, _ROOT), [])
-
 
 if __name__ == "__main__":
     unittest.main()

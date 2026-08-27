@@ -18,7 +18,6 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-
 PCI_CLASS_MAP = {
     "0x0100": "SCSI storage controller",
     "0x0101": "IDE interface",
@@ -38,7 +37,6 @@ PCI_CLASS_MAP = {
     "0x0c05": "SMBus controller",
 }
 
-
 def decode_pci_class(class_code_raw: str) -> str:
     """Decodes hex PCI class code (e.g. 0x030000 or 030000) to human-readable string."""
     cleaned = class_code_raw.strip().lower()
@@ -48,7 +46,6 @@ def decode_pci_class(class_code_raw: str) -> str:
     cleaned = cleaned.zfill(6)
     base_sub = f"0x{cleaned[:4]}"
     return PCI_CLASS_MAP.get(base_sub, f"PCI device ({base_sub})")
-
 
 @dataclasses.dataclass
 class PCIDevice:
@@ -87,7 +84,6 @@ class PCIDevice:
             "iommu_group": self.iommu_group,
             "boot_vga": self.boot_vga,
         }
-
 
 class IOMMUParser:
     """Parses sysfs IOMMU groups and assesses isolation status for VFIO passthrough."""
@@ -423,7 +419,6 @@ class IOMMUParser:
             },
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS IOMMU Group Parser and PCIe ACS Override Topology Auditor."
@@ -476,7 +471,6 @@ def main() -> int:
 
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

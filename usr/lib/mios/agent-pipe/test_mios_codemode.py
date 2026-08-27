@@ -16,11 +16,9 @@ import mios_codemode as cm
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok, detail))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_normalize_lang() -> None:
     _check("lang: python passthrough", cm.normalize_lang("python") == "python")
@@ -32,7 +30,6 @@ def t_normalize_lang() -> None:
     _check("lang: empty -> default", cm.normalize_lang("") == cm.DEFAULT_LANG)
     _check("lang: None -> default", cm.normalize_lang(None) == cm.DEFAULT_LANG)
 
-
 def t_clamp_timeout() -> None:
     _check("timeout: in-range kept", cm.clamp_timeout(30) == 30)
     _check("timeout: below min clamps", cm.clamp_timeout(0) == cm.MIN_TIMEOUT_S)
@@ -41,7 +38,6 @@ def t_clamp_timeout() -> None:
     _check("timeout: junk -> default", cm.clamp_timeout("abc", default=42) == 42)
     _check("timeout: None -> default", cm.clamp_timeout(None, default=60) == 60)
     _check("timeout: never zero", cm.clamp_timeout(0) >= cm.MIN_TIMEOUT_S)
-
 
 def t_session_id() -> None:
     a = cm.session_id("chat-123")
@@ -58,7 +54,6 @@ def t_session_id() -> None:
     _check("session: empty -> fallback token",
            cm.session_id("") == cm.session_id("", "default"))
 
-
 def t_extract_code() -> None:
     _check("extract: code key", cm.extract_code({"code": "x=1"}) == "x=1")
     _check("extract: source alias", cm.extract_code({"source": "y=2"}) == "y=2")
@@ -68,7 +63,6 @@ def t_extract_code() -> None:
     _check("extract: missing -> empty", cm.extract_code({}) == "")
     _check("extract: non-dict -> empty", cm.extract_code(None) == "")
     _check("extract: empty string -> empty", cm.extract_code({"code": "   "}) == "")
-
 
 def t_validate_request() -> None:
     ok, p = cm.validate_request({"code": "print(1)", "lang": "py", "timeout": 5})
@@ -87,7 +81,6 @@ def t_validate_request() -> None:
     ok4, p4 = cm.validate_request({"code": "ls", "net": "yes"})
     _check("validate: net truthy parsed", ok4 and p4.get("net") is True)
 
-
 def t_gating() -> None:
     _check("enable: missing -> off", cm.is_enabled({}) is False)
     _check("enable: None -> off", cm.is_enabled(None) is False)
@@ -97,7 +90,6 @@ def t_gating() -> None:
     _check("enable: 'true' str -> on", cm.is_enabled({"enable": "true"}) is True)
     _check("enable: 1 -> on", cm.is_enabled({"enable": 1}) is True)
 
-
 def t_net_allowed() -> None:
     _check("net: agent yes + deploy no -> no",
            cm.net_allowed({"allow_net": False}, True) is False)
@@ -106,7 +98,6 @@ def t_net_allowed() -> None:
     _check("net: agent yes + deploy yes -> yes",
            cm.net_allowed({"allow_net": True}, True) is True)
     _check("net: missing cfg -> no", cm.net_allowed({}, True) is False)
-
 
 def t_podman_argv() -> None:
     argv = cm.podman_exec_argv("mios-coderun-sandbox-cm-abc", "python",
@@ -126,7 +117,6 @@ def t_podman_argv() -> None:
     _check("argv: init wraps interp",
            argv_i.index("/usr/local/bin/exec-init") < argv_i.index("python3"),
            str(argv_i))
-
 
 def t_parse_result() -> None:
     r = cm.parse_result("hello\n", "", 0)
@@ -148,7 +138,6 @@ def t_parse_result() -> None:
     r5 = cm.parse_result(big, "", 0, max_chars=100)
     _check("parse: stdout bounded", len(r5["stdout"]) == 100, str(len(r5["stdout"])))
 
-
 def t_build_cli_argv() -> None:
     payload = {"code": "print(1)", "lang": "python", "timeout": 5, "net": True}
     argv = cm.build_cli_argv("/usr/libexec/mios/mios-coderun-codemode",
@@ -164,12 +153,10 @@ def t_build_cli_argv() -> None:
                               cfg={"allow_net": True})
     _check("cli: net included when both on", "--net" in argv2, str(argv2))
 
-
 def t_safe_token() -> None:
     _check("safe: strips slashes", "/" not in cm.safe_session_token("a/b"))
     _check("safe: empty -> default", cm.safe_session_token("") == "default")
     _check("safe: lowers", cm.safe_session_token("ABC") == "abc")
-
 
 def main() -> int:
     for t in (t_normalize_lang, t_clamp_timeout, t_session_id, t_extract_code,
@@ -180,7 +167,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -13,13 +13,11 @@ from typing import Dict, List
 
 log = logging.getLogger("intel_paged_attn")
 
-
 @dataclass
 class IntelKVBlock:
     block_id: int
     num_tokens: int = 16
     allocated: bool = True
-
 
 class IntelLevelZeroPagedAttention:
     """

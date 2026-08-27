@@ -113,7 +113,6 @@ SKIP_PATTERNS = (
     "tools\\ascii-sweep.py",
 )
 
-
 def _shebang_is_text(path: Path) -> bool:
     """Treat extensionless executables as text if they start with a shebang."""
     try:
@@ -127,7 +126,6 @@ def _shebang_is_text(path: Path) -> bool:
         return False
     return True
 
-
 def is_text_file(path: Path) -> bool:
     if path.name in TEXT_BASENAMES:
         return True
@@ -136,7 +134,6 @@ def is_text_file(path: Path) -> bool:
     if path.suffix == "" and _shebang_is_text(path):
         return True
     return False
-
 
 def list_tracked_files() -> list[Path]:
     try:
@@ -165,7 +162,6 @@ def list_tracked_files() -> list[Path]:
             continue
         files.append(p)
     return files
-
 
 def sweep_text(text: str) -> tuple[str, dict[str, int]]:
     counts: dict[str, int] = {}
@@ -206,7 +202,6 @@ def sweep_text(text: str) -> tuple[str, dict[str, int]]:
 
     text = DECORATIVE_RE.sub(repl_decorative, text)
     return text, counts
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -251,7 +246,6 @@ def main() -> int:
         + "\n"
     )
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

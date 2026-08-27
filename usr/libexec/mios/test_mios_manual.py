@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.join(ROOT, "usr", "lib", "mios"))
 import mios_toml
 from mios_comments import Block, Policy, RefIndex, Verdict, classify, lex
 
-
 class TestMiosManualComments(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -145,7 +144,6 @@ class TestMiosManualComments(unittest.TestCase):
             ledger.add(row)
 
         self.assertEqual(len(ledger.values()), 5, "Ledger must preserve all 5 duplicate rows without silent row loss")
-
 
 if __name__ == "__main__":
     unittest.main()

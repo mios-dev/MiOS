@@ -68,7 +68,6 @@ done
 REPO_LABEL="$(mios_ssot_value 'cat.repo_partition' 'label' 'MiOS-Repo')"
 DATA_LABEL="$(mios_ssot_value 'cat.data_partition' 'label' 'MiOS-Data')"
 
-
 render_loopback() {
     local tmpl="$ROOT/field/loopback.cfg"
     if [[ -f "$tmpl" ]]; then

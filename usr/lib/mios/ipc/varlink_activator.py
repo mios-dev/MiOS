@@ -15,13 +15,11 @@ from typing import Any, Callable, Dict
 
 log = logging.getLogger("varlink_activator")
 
-
 @dataclass
 class VarlinkMethod:
     name: str
     required_fields: list[str]
     handler: Callable[[dict[str, Any]], dict[str, Any]]
-
 
 class VarlinkInterface:
     """Represents a typed Varlink interface definition (e.g. org.mios.Model)."""
@@ -47,7 +45,6 @@ class VarlinkInterface:
                 }
 
         return {"parameters": m.handler(params)}
-
 
 class VarlinkServer:
     """Manages Varlink interfaces over point-to-point sockets."""

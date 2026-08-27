@@ -14,12 +14,10 @@ import shutil as _shutil
 
 _mkdtemp_orig = tempfile.mkdtemp
 
-
 def _mkdtemp_cleaned(*a, **kw):
     _d = _mkdtemp_orig(*a, **kw)
     _atexit.register(_shutil.rmtree, _d, True)
     return _d
-
 
 tempfile.mkdtemp = _mkdtemp_cleaned
 
@@ -29,10 +27,8 @@ import mios_a2a_client
 _ORIG_SELF_PEER_URL = mios_a2a_client._a2a_self_peer_url
 _ORIG_FETCH_CARD = mios_a2a_client._a2a_fetch_card
 
-
 def _run(coro):
     return asyncio.new_event_loop().run_until_complete(coro)
-
 
 class _A2AClientBase(unittest.TestCase):
     """Restore the module-level discovery helpers after any test stubs them."""
@@ -41,14 +37,12 @@ class _A2AClientBase(unittest.TestCase):
         mios_a2a_client._a2a_self_peer_url = _ORIG_SELF_PEER_URL
         mios_a2a_client._a2a_fetch_card = _ORIG_FETCH_CARD
 
-
 class _FakeReputation:
     def __init__(self):
         self.calls = []
 
     def record(self, peer_id, ok):
         self.calls.append((peer_id, bool(ok)))
-
 
 class _FakeResp:
     def __init__(self, payload, status_code=200):
@@ -58,7 +52,6 @@ class _FakeResp:
 
     def json(self):
         return self._payload
-
 
 class _FakeClient:
     """Captures the last POST so the test can assert the JSON-RPC body shape."""
@@ -70,7 +63,6 @@ class _FakeClient:
     async def post(self, url, json=None, headers=None, timeout=None):
         self.last = {"url": url, "json": json, "headers": headers}
         return _FakeResp(self._payload)
-
 
 def _base_configure(*, peers, peer_skills, registry, reputation, client,
                     fetch_card=None, paths=None, self_peer_url=None):
@@ -98,7 +90,6 @@ def _base_configure(*, peers, peer_skills, registry, reputation, client,
     if fetch_card is not None:
         mios_a2a_client._a2a_fetch_card = fetch_card
     return cache
-
 
 class TestLoadPeers(_A2AClientBase):
     def test_layered_dedupe_and_self_exclude(self):
@@ -128,7 +119,6 @@ class TestLoadPeers(_A2AClientBase):
         by_id = {p["id"]: p for p in out}
         self.assertEqual(set(by_id), {"p1", "p2"})        # self excluded
         self.assertFalse(by_id["p1"]["enabled"])
-
 
 class TestProbePeer(_A2AClientBase):
     def test_indexes_card_and_registers_agent(self):
@@ -181,7 +171,6 @@ class TestProbePeer(_A2AClientBase):
             {"id": "bad", "url": "http://x:8640"}))
         self.assertEqual(peers["bad"]["status"], "card-fetch-failed")
 
-
 class TestSendMessageToPeer(_A2AClientBase):
     def test_jsonrpc_body_shape_and_reputation(self):
         peers = {"p1": {"id": "p1", "url": "http://a:8640", "status": "ready",
@@ -220,7 +209,6 @@ class TestSendMessageToPeer(_A2AClientBase):
         out = _run(mios_a2a_client._a2a_send_message_to_peer("ghost", "hi"))
         self.assertIn("error", out)
 
-
 class TestExtractText(_A2AClientBase):
     def test_artifacts_then_status_message(self):
         env = {"artifacts": [{"parts": [{"text": "from-artifact"}]}]}
@@ -228,7 +216,6 @@ class TestExtractText(_A2AClientBase):
         env2 = {"status": {"message": {"parts": [{"text": "from-status"}]}}}
         self.assertEqual(mios_a2a_client._a2a_extract_text(env2), "from-status")
         self.assertEqual(mios_a2a_client._a2a_extract_text({"error": "x"}), "")
-
 
 class _FetchClient:
     """Fake async HTTP client for _a2a_fetch_card: returns a programmed
@@ -242,7 +229,6 @@ class _FetchClient:
         self.urls.append(url)
         status, payload = self._responses.pop(0)
         return _FakeResp(payload, status_code=status)
-
 
 class TestDiscoveryHelpers(_A2AClientBase):
     """The self-peer-loop guard / agent-card fetch / tailnet candidate helpers
@@ -314,7 +300,6 @@ class TestDiscoveryHelpers(_A2AClientBase):
         self.assertEqual(out[:2], ["http://x:9000", "http://y:9000"])
         self.assertEqual(len(out), len(set(out)))
 
-
 class TestCardlessJoin(_A2AClientBase):
     def test_cardless_v1_models_probe_success(self):
         peers, peer_skills, registry = {}, {}, {}
@@ -347,7 +332,6 @@ class TestCardlessJoin(_A2AClientBase):
 
         self.assertIn("a2a:cardless-peer", registry)
         self.assertEqual(set(registry["a2a:cardless-peer"]["strengths"]), {"text-generation", "embeddings"})
-
 
 if __name__ == "__main__":
     unittest.main()

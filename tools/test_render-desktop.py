@@ -24,14 +24,12 @@ _spec.loader.exec_module(rd)
 FAILED: list[str] = []
 PASSED = 0
 
-
 def check(name, got, want):
     global PASSED
     if got == want:
         PASSED += 1
     else:
         FAILED.append(f"{name}: got {got!r}, want {want!r}")
-
 
 def test_port_comes_from_ssot():
     """Exec must carry the SSOT port, never a literal."""
@@ -43,19 +41,16 @@ def test_port_comes_from_ssot():
     out2 = rd.render_launcher("x", cfg, {"cockpit": 9999})
     check("exec-follows-ssot", "https://localhost:9999/" in out2, True)
 
-
 def test_port_placeholder_substituted():
     cfg = {"port_key": "searxng", "title": "S", "comment": "at {port}"}
     out = rd.render_launcher("s", cfg, {"searxng": 8800})
     check("comment-placeholder", "at 8800" in out, True)
     check("no-literal-brace", "{port}" in out, False)
 
-
 def test_exec_cmd_wins_over_port():
     cfg = {"port_key": "cockpit", "exec_cmd": "/usr/bin/true", "title": "T"}
     out = rd.render_launcher("x", cfg, {"cockpit": 8110})
     check("explicit-exec-wins", "Exec=/usr/bin/true" in out, True)
-
 
 def test_ssot_loads_real_launchers():
     """The shipped table must be non-empty, or the gate compares nothing."""
@@ -68,7 +63,6 @@ def test_ssot_loads_real_launchers():
         undeclared = sorted(shipped - set(launchers))
         check("every-shipped-launcher-declared", undeclared, [])
 
-
 def main() -> int:
     test_port_comes_from_ssot()
     test_port_placeholder_substituted()
@@ -78,7 +72,6 @@ def main() -> int:
     for f in FAILED:
         print(f"  FAIL {f}")
     return 1 if FAILED else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

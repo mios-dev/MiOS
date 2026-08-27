@@ -14,7 +14,6 @@ import os
 import time
 from typing import Dict, List, Optional, Tuple
 
-
 class VectorClock:
     """Vector clock causality tracker for distributed mesh nodes."""
 
@@ -40,7 +39,6 @@ class VectorClock:
         if not isinstance(other, VectorClock):
             return False
         return self.clocks == other.clocks
-
 
 class StateElement:
     """Individual state register with LWW timestamp, originator, and deletion tombstone."""
@@ -82,7 +80,6 @@ class StateElement:
         if self.timestamp_ns != other.timestamp_ns:
             return self.timestamp_ns > other.timestamp_ns
         return self.originating_node_id > other.originating_node_id
-
 
 class StateStore:
     """LWW-Element-Set CRDT state store with snapshotting and vector clock tracking."""

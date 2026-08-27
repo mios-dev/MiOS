@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load capabilities module from {_CAP_PATH}")
 
-
 class TestNodeCapabilities(unittest.TestCase):
     """Validates hardware capability probing, Opcode 0x02 Announce framing, and candidate registry queries."""
 
@@ -116,12 +115,10 @@ class TestNodeCapabilities(unittest.TestCase):
         self.assertEqual(evicted, 3)
         self.assertEqual(registry.active_node_count(), 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeCapabilities)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

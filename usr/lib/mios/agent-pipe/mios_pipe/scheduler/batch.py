@@ -7,7 +7,6 @@ import asyncio
 import re
 from typing import Any, Callable, Iterable, Optional
 
-
 def batch_key(endpoint: str, model: str) -> str:
     """Coalescing key = (normalized endpoint, model). Strips a trailing /v1 and
     scheme so two spellings of the same lane share a window."""
@@ -16,7 +15,6 @@ def batch_key(endpoint: str, model: str) -> str:
         ep = ep[:-3].rstrip("/")
     return f"{ep}|{str(model or '')}"
 
-
 def is_native_batch(endpoint: str, native_hints: Iterable[str]) -> bool:
     """True when `endpoint` speaks SERVER-SIDE continuous batching (vLLM/SGLang/
     llama.cpp) and must therefore BYPASS client-side coalescing. Matched by the
@@ -24,7 +22,6 @@ def is_native_batch(endpoint: str, native_hints: Iterable[str]) -> bool:
     treated as non-native -> eligible for window coalescing."""
     e = str(endpoint or "")
     return any(h and str(h).strip() in e for h in (native_hints or []))
-
 
 class CoalesceWindow:
     """A pure per-key batch window for a NON-native endpoint: open on the first
@@ -66,7 +63,6 @@ class CoalesceWindow:
         self._start = -1.0
         return n
 
-
 class _Group:
     """One in-flight group: window, member event, release timer."""
 
@@ -79,7 +75,6 @@ class _Group:
         self.sealed = False
         self.size = 0
         self.reason = ""
-
 
 class Coalescer:
     """Async hold-and-flush, one window per batch key.

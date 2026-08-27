@@ -12,7 +12,6 @@ import _agentpipe_path  # noqa: F401
 os.environ.setdefault("MIOS_TOML", "/usr/share/mios/mios.toml")
 import server  # noqa: E402
 
-
 async def main() -> int:
     res = await server.execute_skill(
         "open-url-fallback-chain",
@@ -40,7 +39,6 @@ async def main() -> int:
     print("FAIL: expected 3 steps with the 3 browser names; "
           f"got {len(steps)} steps + bindings={bound}.")
     return 1
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

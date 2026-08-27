@@ -29,7 +29,6 @@ DEFAULT_SPARE_PERCENT_THRESHOLD = 10.0
 DEFAULT_TEMP_THRESHOLD_C = 75.0
 DEFAULT_REALLOCATED_SECTOR_THRESHOLD = 10
 
-
 @dataclass
 class DriveHealth:
     device_path: str
@@ -45,7 +44,6 @@ class DriveHealth:
     risk_level: str = "OK"
     action_taken: str = "none"
     evacuation_status: str = "idle"
-
 
 class SmartHealthMonitor:
     """Monitors drive wear indicators and orchestrates proactive CephFS OSD evacuation."""
@@ -233,7 +231,6 @@ class SmartHealthMonitor:
             "drives": {path: d.__dict__ for path, d in self.drives.items()},
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Predictive S.M.A.R.T. Drive Health & CephFS Evacuator")
     parser.add_argument("--device", type=str, default="/dev/nvme0n1", help="Device to inspect")
@@ -245,7 +242,6 @@ def main():
     mock = {"percentage_used": args.mock_wear} if args.mock_wear is not None else None
     res = monitor.evaluate_drive_health(args.device, mock_data=mock)
     print(json.dumps(res.__dict__, indent=2))
-
 
 if __name__ == "__main__":
     main()

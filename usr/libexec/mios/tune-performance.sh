@@ -353,7 +353,6 @@ preset_host_priority() {
         local total_cores=${CPU_INFO[cores]}
         local threads_per_core=${CPU_INFO[threads_per_core]}
 
-
         HOST_CPUS+=(0 1)
         HOST_CPUS+=(8 9)
 

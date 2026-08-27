@@ -9,5 +9,4 @@ mios_log "Mask xrdp.service, xrdp-sesman.service; GNOME Remote Desktop via 90-mi
 
 systemctl mask xrdp.service xrdp-sesman.service 2>/dev/null || true
 
-
 mios_ok "Xrdp.service, xrdp-sesman.service masked"

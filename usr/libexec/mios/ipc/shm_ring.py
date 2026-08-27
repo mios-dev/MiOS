@@ -14,13 +14,11 @@ from typing import List, Optional
 
 log = logging.getLogger("shm_ring")
 
-
 @dataclass
 class SHMFrame:
     frame_id: int
     data_size: int
     timestamp_ns: int
-
 
 class LockFreeSHMRing:
     """

@@ -28,7 +28,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load tmpfs_spill module from {_SPILL_PATH}")
 
-
 class TestTmpfsSpill(unittest.TestCase):
     """Validates memory pressure detection, security exclusions, symlink migration, LRU quota eviction, and restoration."""
 
@@ -175,12 +174,10 @@ class TestTmpfsSpill(unittest.TestCase):
         self.assertEqual(res["files_spilled"], 1)
         self.assertTrue(os.path.islink(compile_file))
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestTmpfsSpill)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

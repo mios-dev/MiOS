@@ -43,7 +43,6 @@ INTERNAL_PATHS = (
     "install-mios-agents.sh",
 )
 
-
 def emitted_set() -> set[str]:
     """Collect every exported MIOS_* name via Python SSOT resolver + mios.toml section prefixes."""
     emitted = set()
@@ -90,7 +89,6 @@ def emitted_set() -> set[str]:
             pass
 
     return emitted
-
 
 def referenced_set(emitted: set[str] | None = None) -> dict[str, str]:
     """Every MIOS_* token used by a non-emitter file, with a sample location."""
@@ -141,7 +139,6 @@ def referenced_set(emitted: set[str] | None = None) -> dict[str, str]:
 
     return refs
 
-
 def main() -> int:
     E = emitted_set()
     R = referenced_set(E)
@@ -159,7 +156,6 @@ def main() -> int:
 
     print("PASS: all referenced MIOS_* variables are emitted by SSOT.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

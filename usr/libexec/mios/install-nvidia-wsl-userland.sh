@@ -3,7 +3,6 @@
 # AI-related: /usr/libexec/mios/install-nvidia-wsl-userland.sh
 set -euo pipefail
 
-
 if [ "${MIOS_SKIP_NVIDIA_INSTALL:-0}" = "1" ]; then
     echo "  [skip] MIOS_SKIP_NVIDIA_INSTALL=1; not installing NVIDIA userland"
     exit 0

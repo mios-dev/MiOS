@@ -17,7 +17,6 @@ get_latest_tag() {
   gh_api "$1" "releases" | grep -Po '"tag_name": "\K.*?(?=")' | grep -vE 'rc|beta|alpha' | sort -V | tail -n 1 || echo "ERROR"
 }
 
-
 echo "  'MiOS' UPSTREAM MONITOR"
 
 printf '\e[36m[monitor]\e[0m Checking Fedora 44 release state (Bodhi)...\n'

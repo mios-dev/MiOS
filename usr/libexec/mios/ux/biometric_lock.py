@@ -33,10 +33,8 @@ try:
 except ImportError:
     mios_toml = None
 
-
 DEFAULT_PAM_DIR = "/etc/pam.d"
 U2F_AUTH_FILE = "/etc/mios/security/u2f_keys"
-
 
 @dataclass
 class BiometricSensor:
@@ -47,7 +45,6 @@ class BiometricSensor:
     is_enrolled: bool
     status: str
     capabilities: List[str]
-
 
 class BiometricLockManager:
     """Manages biometric PAM stack generation, sensor queries, and screen lock invocation."""
@@ -270,7 +267,6 @@ session     include       system-auth
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Biometric & FIDO2 Screen Lock Manager (T-463)"
@@ -331,7 +327,6 @@ def main() -> int:
         else:
             print(f"[biometric_lock] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -4,7 +4,6 @@ sys.path.insert(0, "usr/libexec/mios/virt")
 
 from mios_microvm import MicroVM, _VMS
 
-
 def test_launch_dry_run_creates_entry():
     """Dry-run launch registers the VM and allocates a stub memfd."""
     _VMS.clear()
@@ -20,7 +19,6 @@ def test_launch_dry_run_creates_entry():
     except OSError:
         pass
 
-
 def test_destroy_releases_entry():
     """destroy() removes the VM from the registry."""
     _VMS.clear()
@@ -31,7 +29,6 @@ def test_destroy_releases_entry():
     # memfd fd should be closed (double-close raises OSError)
     # already closed by destroy(), so just verify no entry remains
     assert len([v for v in _VMS if v.startswith("test-vm-002")]) == 0
-
 
 if __name__ == "__main__":
     test_launch_dry_run_creates_entry()

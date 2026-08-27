@@ -10,14 +10,12 @@ import mios_memory as mem
 
 _fails = 0
 
-
 def check(name: str, cond: bool, detail: str = "") -> None:
     global _fails
     tag = "PASS" if cond else "FAIL"
     if not cond:
         _fails += 1
     print(f"[{tag}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 class FakeBackend:
     """Stands in for mios_pg: records the exact (args, kwargs) of each call."""
@@ -34,7 +32,6 @@ class FakeBackend:
         self.insert_calls.append((table, fields, kw))
         return {"ok": True}
 
-
 def t_factory():
     fb = FakeBackend()
     p = mem.get_memory_provider("pgvector", fb)
@@ -49,7 +46,6 @@ def t_factory():
         raised = True
     check("factory: FAIL-CLOSED on unknown name (ValueError)", raised)
 
-
 def t_retrieve_parity():
     fb = FakeBackend()
     p = mem.get_memory_provider("pgvector", fb)
@@ -62,7 +58,6 @@ def t_retrieve_parity():
     check("retrieve: no-owner call forwards exactly (no injected owner)",
           fb.recall_calls[-1] == ([0.3], {"table": "agent_memory", "k": 5}))
 
-
 def t_add_parity():
     fb = FakeBackend()
     p = mem.get_memory_provider("pgvector", fb)
@@ -70,7 +65,6 @@ def t_add_parity():
     check("add: returns backend result", r == {"ok": True})
     check("add: forwards table+fields verbatim",
           fb.insert_calls == [("knowledge", {"q": "hi", "answer": "yo"}, {})], f"{fb.insert_calls}")
-
 
 def t_register():
     class MockProvider(mem.MemoryProvider):
@@ -82,7 +76,6 @@ def t_register():
     check("register: custom provider resolvable", isinstance(p, MockProvider))
     check("register: custom retrieve used", asyncio.run(p.retrieve([0.0])) == ["mock"])
 
-
 def main() -> int:
     t_factory()
     t_retrieve_parity()
@@ -90,7 +83,6 @@ def main() -> int:
     t_register()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

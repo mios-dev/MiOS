@@ -14,7 +14,6 @@ CRED_KEY = re.compile(r"^Environment=([A-Z0-9_]*(?:PASSWORD|SECRET|API_?KEY|TOKE
 # Counters and feature flags are not credentials.
 NOT_CRED = re.compile(r"(MAX_TOKENS|_TOKENS$|^ENABLE_|_ENABLED$|NUM_|_LIMIT$)")
 
-
 def literal_credentials(root: str) -> list:
     found = []
     for d in UNIT_DIRS:
@@ -45,7 +44,6 @@ def literal_credentials(root: str) -> list:
                     found.append(f"{rel}:{key}")
     return sorted(found)
 
-
 def main() -> int:
     cfg = (tomllib.load(open(SSOT, "rb")).get("security", {}) or {}).get("credential_literals", {}) or {}
     allowed = set(cfg.get("grandfathered", []))
@@ -60,6 +58,5 @@ def main() -> int:
         return 1
     print(f"no new unit credential literals ({len(found)} grandfathered, shrink-only)")
     return 0
-
 
 sys.exit(main())

@@ -21,7 +21,6 @@ from mios_pipe.routing.provider_translate import (
     gemini_resp_to_oai,
 )
 
-
 async def call_remote(
     node_cfg: dict[str, Any],
     oai_request: dict[str, Any],

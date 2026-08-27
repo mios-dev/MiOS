@@ -24,7 +24,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-
 @dataclass
 class IsoStructurePlan:
     """Staging directory structure and xorriso invocation parameters."""
@@ -37,7 +36,6 @@ class IsoStructurePlan:
     has_bios_bootloader: bool
     xorriso_command: List[str] = field(default_factory=list)
     staged_files: List[str] = field(default_factory=list)
-
 
 class IsoGeneratorEngine:
     """Staging and generation engine for bootable hybrid MiOS ISOs."""
@@ -207,7 +205,6 @@ class IsoGeneratorEngine:
         plan = self.plan_iso()
         return self.execute_iso_build(plan)
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Hybrid UEFI/BIOS Bootable Live ISO Generator"
@@ -251,7 +248,6 @@ def main() -> int:
         else:
             print(f"[iso_generate] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

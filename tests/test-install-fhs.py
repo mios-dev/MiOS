@@ -13,7 +13,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _INSTALL_FHS = os.path.join(_ROOT, "automation", "install-fhs.sh")
 
-
 def test_empty_dir_failure():
     with tempfile.TemporaryDirectory(prefix="mios-test-fhs-") as tmpdir:
         # Create empty automation subdir inside tmpdir
@@ -28,13 +27,11 @@ def test_empty_dir_failure():
         proc = subprocess.run(["bash", script_copy], capture_output=True, text=True)
         assert proc.returncode != 0, f"Expected non-zero exit code when run on empty dir/non-root, got 0\n{proc.stdout}"
 
-
 def main() -> int:
     print("[test-install-fhs] Running install-fhs verification...")
     test_empty_dir_failure()
     print("[test-install-fhs] PASS: Verified install-fhs overlay check.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

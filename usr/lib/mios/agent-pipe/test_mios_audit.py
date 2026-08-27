@@ -9,7 +9,6 @@ import unittest
 
 import mios_audit as A
 
-
 def _synthetic_events():
     """Synthetic events with deliberately NON-dictionary payloads (a string, an int, a
     list) plus a nested dict -- the chain must canonicalize any JSON payload shape."""
@@ -21,12 +20,10 @@ def _synthetic_events():
          "summary": "done", "payload": {"nested": {"b": 2, "a": 1}}},
     ]
 
-
 def _fresh_chainer():
     c = A.EventChainer()
     c.seed(0, A.GENESIS)   # fresh table -> genesis, chain active
     return c
-
 
 class TestEventChain(unittest.TestCase):
     def setUp(self):
@@ -158,7 +155,6 @@ class TestEventChain(unittest.TestCase):
         self.assertTrue(res["ok"])
         self.assertEqual(res["checked"], 0)
         self.assertIsNone(res["first_broken_seq"])
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

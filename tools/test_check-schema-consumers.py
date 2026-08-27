@@ -17,7 +17,6 @@ _spec.loader.exec_module(M)
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if cond:
@@ -26,9 +25,7 @@ def check(name, cond, detail=""):
         _fails += 1
         print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
 
-
 _MADE = []
-
 
 def _cleanup_fixtures():
     """Remove the fixture repos this module made.
@@ -49,7 +46,6 @@ def _cleanup_fixtures():
                     pass
         shutil.rmtree(d, ignore_errors=True)
     _MADE.clear()
-
 
 def mkrepo(tables, consumers=None, register=(), doc_mentions=(), toml_mentions=()):
     """tables: names to CREATE. consumers: {table: relpath} code files that
@@ -82,13 +78,11 @@ def mkrepo(tables, consumers=None, register=(), doc_mentions=(), toml_mentions=(
                    capture_output=True)
     return root
 
-
 def run(root):
     env = dict(os.environ, MIOS_DRIFT_ROOT=root)
     r = subprocess.run([sys.executable, os.path.join(_HERE, "check-schema-consumers.py")],
                        capture_output=True, text=True, env=env)
     return r.returncode, r.stdout + r.stderr
-
 
 def t_real_consumer_passes():
     r = mkrepo(["knowledge"], consumers={"knowledge": "usr/lib/mios/reader.py"})
@@ -97,7 +91,6 @@ def t_real_consumer_passes():
         check("a table with a code consumer passes", rc == 0, out)
     finally:
         shutil.rmtree(r, ignore_errors=True)
-
 
 def t_dead_table_fails():
     r = mkrepo(["ghost"])
@@ -108,7 +101,6 @@ def t_dead_table_fails():
     finally:
         shutil.rmtree(r, ignore_errors=True)
 
-
 def t_doc_mention_is_not_a_consumer():
     r = mkrepo(["ghost"], doc_mentions=["ghost"])
     try:
@@ -116,7 +108,6 @@ def t_doc_mention_is_not_a_consumer():
         check("a doc mention does NOT count as a consumer", rc == 1, out)
     finally:
         shutil.rmtree(r, ignore_errors=True)
-
 
 def t_toml_mention_is_not_a_consumer():
     # The register itself names the table; if .toml counted, the register
@@ -127,7 +118,6 @@ def t_toml_mention_is_not_a_consumer():
         check("a .toml mention does NOT count as a consumer", rc == 1, out)
     finally:
         shutil.rmtree(r, ignore_errors=True)
-
 
 def t_generated_projection_is_not_a_consumer():
     """A file generated FROM mios.toml re-emits the register itself, so counting
@@ -148,7 +138,6 @@ def t_generated_projection_is_not_a_consumer():
     finally:
         shutil.rmtree(r, ignore_errors=True)
 
-
 def t_registered_dead_table_passes():
     r = mkrepo(["ghost"], register=[("ghost", "planned")])
     try:
@@ -157,7 +146,6 @@ def t_registered_dead_table_passes():
         check("the count is reported", "registered-unconsumed=1" in out, out)
     finally:
         shutil.rmtree(r, ignore_errors=True)
-
 
 def t_registered_table_that_gained_a_consumer_fails():
     r = mkrepo(["ghost"], consumers={"ghost": "usr/lib/mios/reader.py"},
@@ -169,7 +157,6 @@ def t_registered_table_that_gained_a_consumer_fails():
     finally:
         shutil.rmtree(r, ignore_errors=True)
 
-
 def t_stale_register_entry_fails():
     r = mkrepo(["knowledge"], consumers={"knowledge": "usr/lib/mios/reader.py"},
                register=[("gone", "planned")])
@@ -179,7 +166,6 @@ def t_stale_register_entry_fails():
               rc == 1 and "no longer declares" in out, out)
     finally:
         shutil.rmtree(r, ignore_errors=True)
-
 
 def main():
     t_real_consumer_passes()
@@ -192,7 +178,6 @@ def main():
     t_stale_register_entry_fails()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     try:

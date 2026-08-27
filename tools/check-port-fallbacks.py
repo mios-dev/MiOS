@@ -41,12 +41,10 @@ PATTERNS = (
 
 COMMENT = re.compile(r"^\s*(#|//|--|;)")
 
-
 def ports_map(data: dict) -> dict:
     """{KEY: value} for every numeric [ports] entry."""
     return {str(k).upper(): v for k, v in (data.get("ports") or {}).items()
             if isinstance(v, int)}
-
 
 def scan_paths(root: str):
     """Every file under ROOTS that could bind or dial a port."""
@@ -65,7 +63,6 @@ def scan_paths(root: str):
                 if r.endswith(SKIP_EXT):
                     continue
                 yield p, r
-
 
 def findings(data: dict, root: str) -> dict:
     """{'path:KEY': 'literal N, SSOT M'} for every disagreeing literal."""
@@ -91,12 +88,10 @@ def findings(data: dict, root: str) -> dict:
                         out["%s:%s" % (rel, key)] = "%d, SSOT says %d" % (lit, want)
     return out
 
-
 def register(data: dict) -> list:
     """The shrink-only debt register, in declaration order."""
     reg = (data.get("ports") or {}).get("stale_fallbacks") or []
     return [str(x).strip() for x in reg if str(x).strip()]
-
 
 def classify(data: dict, root: str = ".") -> list:
     found, reg = findings(data, root), register(data)
@@ -112,7 +107,6 @@ def classify(data: dict, root: str = ".") -> list:
         viol.append("[ports].stale_fallbacks still lists '%s', which now agrees with "
                     "the SSOT or no longer exists -- the register only shrinks" % entry)
     return viol
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
@@ -139,7 +133,6 @@ def main() -> int:
           "matches [ports]%s" % (scanned,
           "" if not reg else " or is one of %d registered as shrink-only debt" % len(reg)))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

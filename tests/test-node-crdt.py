@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load crdt module from {_CRDT_PATH}")
 
-
 class TestNodeCRDTSync(unittest.TestCase):
     """Validates vector clocks, LWW-Element-Set conflict resolution, and persistence."""
 
@@ -82,12 +81,10 @@ class TestNodeCRDTSync(unittest.TestCase):
             self.assertEqual(restored.get("worker.load"), b"0.42")
             self.assertEqual(restored.get("worker.healthy"), b"true")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeCRDTSync)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

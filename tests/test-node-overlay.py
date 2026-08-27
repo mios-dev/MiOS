@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load overlay module from {_OVERLAY_PATH}")
 
-
 class TestNodeOverlay(unittest.TestCase):
     """Validates multi-transport routing, 3-strike partition detection, and asymmetric anti-flap dwell."""
 
@@ -117,12 +116,10 @@ class TestNodeOverlay(unittest.TestCase):
         self.assertEqual(router.select_route(node_id=203)[0], overlay.TransportType.LAN_BROADCAST)
         self.assertFalse(router.is_peer_partitioned(node_id=203))
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeOverlay)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

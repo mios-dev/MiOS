@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load opal_luks_partition module from {_MODULE_PATH}")
 
-
 class TestOpalLuksPartition(unittest.TestCase):
     """Unit tests for OPAL 2.0 SED detection, LUKS2 TPM enrollment, and GPT partitioning."""
 
@@ -99,7 +98,6 @@ class TestOpalLuksPartition(unittest.TestCase):
                 parsed = json.loads(output_str)
                 self.assertEqual(parsed["status"], "ok")
                 self.assertIn("drives", parsed)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-usb-surge")
 
 MAX_ISOLATION_LATENCY_MS = 500.0
 
-
 @dataclass
 class USBSurgeEvent:
     port_id: str
@@ -32,7 +31,6 @@ class USBSurgeEvent:
     is_power_suspended: bool
     cool_down_duration_sec: float = 5.0
     recovery_successful: bool = False
-
 
 class USBSurgeProtectionDaemon:
     """Safeguards physical USB ports from hardware faults and over-current damage."""
@@ -66,12 +64,10 @@ class USBSurgeProtectionDaemon:
         )
         return event
 
-
 def main():
     daemon = USBSurgeProtectionDaemon(dry_run=True)
     evt = daemon.handle_overcurrent_event("1-1.2", 1)
     print(f"Isolated: {evt.port_id} in {evt.isolation_latency_ms:.2f} ms")
-
 
 if __name__ == "__main__":
     main()

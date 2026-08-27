@@ -9,7 +9,6 @@ source "$(dirname "$0")/lib/common.sh"
 
 mios_log "Installing firewall init script"
 
-
 cat > /usr/libexec/mios-firewall-init <<EOFW
 set -euo pipefail
 if ! systemctl is-active --quiet firewalld 2>/dev/null; then

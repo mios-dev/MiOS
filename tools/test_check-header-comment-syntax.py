@@ -8,7 +8,6 @@ import unittest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "check_header_comment_syntax",
@@ -17,9 +16,7 @@ def _load():
     spec.loader.exec_module(m)
     return m
 
-
 MOD = _load()
-
 
 class TestHeaderCommentSyntax(unittest.TestCase):
     def test_the_shipped_tree_is_clean(self):
@@ -46,7 +43,6 @@ class TestHeaderCommentSyntax(unittest.TestCase):
         b = open(os.path.join(_ROOT, "etc/wsl.conf"), encoding="utf-8").read()
         self.assertEqual(a, b, "the /usr reference and its /etc twin must match")
         self.assertNotIn("/*", a)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

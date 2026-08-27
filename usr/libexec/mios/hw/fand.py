@@ -30,7 +30,6 @@ DEFAULT_MAX_RPM_RAMP_PER_SEC = 200.0  # Max RPM change per second
 DEFAULT_MAX_PWM_RAMP_PER_SEC = 25.0   # Max PWM (0-255) change per second (~10%/sec)
 CRITICAL_TEMP_DEFAULT = 85.0          # Critical temp triggering 100% PWM
 
-
 @dataclass
 class FanZoneConfig:
     name: str
@@ -45,7 +44,6 @@ class FanZoneConfig:
     sensor_paths: List[str] = field(default_factory=list)
     fan_pwm_paths: List[str] = field(default_factory=list)
 
-
 @dataclass
 class PIDState:
     integral: float = 0.0
@@ -54,7 +52,6 @@ class PIDState:
     last_pwm: float = 50.0
     last_target_pwm: float = 50.0
     last_update_ts: float = 0.0
-
 
 class MultiZonePIDFanController:
     """Multi-zone PID fan controller with hysteresis and acoustic ramp damping."""
@@ -325,7 +322,6 @@ class MultiZonePIDFanController:
         except Exception as e:
             logger.debug(f"Failed to save state file: {e}")
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Multi-zone PID Fan Controller")
     parser.add_argument("--dry-run", action="store_true", help="Execute without modifying sysfs")
@@ -349,7 +345,6 @@ def main() -> int:
     logger.info(f"Discovered {len(hw['sensors'])} sensors and {len(hw['pwms'])} PWM channels.")
     controller.save_state()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

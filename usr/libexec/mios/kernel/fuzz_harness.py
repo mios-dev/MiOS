@@ -34,7 +34,6 @@ KASAN_CRASH_PATTERNS = [
     re.compile(r"refcount_t:\s+underflow;\s+use-after-free"),
 ]
 
-
 @dataclass
 class FuzzConfig:
     """Configuration for headless QEMU Syzkaller fuzz run."""
@@ -50,7 +49,6 @@ class FuzzConfig:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
-
 @dataclass
 class FuzzRunResult:
     """Summary of fuzzing execution and detected anomalies."""
@@ -63,7 +61,6 @@ class FuzzRunResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
-
 
 class KernelFuzzHarness:
     """Manages QEMU microVM lifecycle, Syzkaller configuration, and serial log parsing."""
@@ -222,7 +219,6 @@ class KernelFuzzHarness:
                 raw_log=f"Error executing QEMU: {e}",
             )
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MiOS Headless QEMU Syzkaller / KASAN Fuzz Harness (T-557)")
     parser.add_argument("--kernel", default="/usr/share/mios/kernel/vmlinuz-kasan", help="Path to KASAN instrumented kernel")
@@ -233,7 +229,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mock", action="store_true", help="Execute mock fuzz session")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
     return parser.parse_args()
-
 
 def main() -> int:
     args = parse_args()
@@ -268,7 +263,6 @@ def main() -> int:
         if args.json:
             print(json.dumps({"status": "error", "error": str(e)}, indent=2))
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

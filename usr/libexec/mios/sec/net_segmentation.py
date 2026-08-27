@@ -17,7 +17,6 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-
 class NetSegmentationManager:
     """Manages nftables rule generation, pairing validation, and firewall rule enforcement."""
 
@@ -130,7 +129,6 @@ class NetSegmentationManager:
         proc = subprocess.run([nft_bin, "delete", "table", "inet", "mios_isolation"], capture_output=True, text=True)
         return proc.returncode == 0
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Container Network Segmentation & Firewall Engine")
     parser.add_argument("--generate", action="store_true", help="Generate nftables ruleset")
@@ -202,7 +200,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

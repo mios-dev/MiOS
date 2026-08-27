@@ -42,12 +42,10 @@ MICROSOFT_PUBLIC_KEY_TOKEN = "31bf3856ad364e35"
 PRODUCT_KEY_REGEX = re.compile(r"^[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}$", re.IGNORECASE)
 COMPUTER_NAME_INVALID_CHARS = re.compile(r'[\s/\\:*?"<>|]')
 
-
 class ValidationSeverity(str, enum.Enum):
     ERROR = "error"
     WARNING = "warning"
     INFO = "info"
-
 
 @dataclasses.dataclass
 class ValidationError:
@@ -72,7 +70,6 @@ class ValidationError:
             "line_number": self.line_number,
             "suggestion": self.suggestion,
         }
-
 
 @dataclasses.dataclass
 class ValidationResult:
@@ -103,7 +100,6 @@ class ValidationResult:
             "hardware_bypasses": self.hardware_bypasses,
             "details": self.details,
         }
-
 
 class UnattendValidator:
     """Validates autounattend.xml against Microsoft SIM XML rules and constraints."""
@@ -751,12 +747,10 @@ class UnattendValidator:
                         message=f"PreventDeviceEncryption must be 'true' or 'false', found '{prev_el.text}'",
                     ))
 
-
 def validate_unattend_xml(file_path: str, strict: bool = False) -> ValidationResult:
     """Convenience public API function for validating unattend XML files."""
     validator = UnattendValidator(strict=strict)
     return validator.validate_file(file_path)
-
 
 def run_mock_validation() -> Dict[str, Any]:
     """Runs deterministic mock verification covering valid and invalid XML fixtures."""
@@ -859,7 +853,6 @@ def run_mock_validation() -> Dict[str, Any]:
         "invalid_correctly_rejected": not invalid_res.valid,
     }
 
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="unattend_validate.py",
@@ -873,7 +866,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose diagnostic logs")
     parser.add_argument("--json", action="store_true", help="Output results in structured JSON format")
     return parser
-
 
 def main() -> int:
     parser = build_parser()
@@ -938,7 +930,6 @@ def main() -> int:
                     print(f"    Suggestion: {err.suggestion}")
 
     return 0 if res.valid else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

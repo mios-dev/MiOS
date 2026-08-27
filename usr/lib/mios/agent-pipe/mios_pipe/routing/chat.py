@@ -24,7 +24,6 @@ _replay_llm_queue = contextvars.ContextVar("_replay_llm_queue", default=[])
 _replay_tool_queue = contextvars.ContextVar("_replay_tool_queue", default=[])
 _in_exec_tool_calls = contextvars.ContextVar("_in_exec_tool_calls", default=False)
 
-
 _orig_post = httpx.AsyncClient.post
 
 async def _patched_post(self, url, *args, **kwargs):
@@ -75,7 +74,6 @@ httpx.AsyncClient.post = _patched_post
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-
 import mios_trace
 import mios_pg as _mios_pg   # WS-9 Postgres client (canonical kanban upsert)
 from mios_config import (   # layered mios.toml SSOT reader (aggregate-budget cluster + REFINE/ROUTER lanes)
@@ -104,7 +102,6 @@ from mios_vision import _client_tools_complete, _has_client_tools, _vision_compl
 from mios_web_research import _web_research_enrich
 
 log = logging.getLogger("mios-agent-pipe")
-
 
 ASK_CLARIFY_ENABLE = None
 AUTONOMOUS_PRIORITY = None
@@ -228,7 +225,6 @@ _turn_tenant = None
 SCRATCHPAD_PERSIST = False
 _DEBUG_ENABLE = True
 
-
 _INJECTED = frozenset((
     "LETTA_MEMORY_BACKEND", "_LETTA_CLIENT", "_DEBUG_ENABLE",
     "_db_write", "_embed_one", "_scratchpad_for", "EMB_MODEL", "EMB_VERSION", "_turn_tenant", "SCRATCHPAD_PERSIST",
@@ -266,7 +262,6 @@ _INJECTED = frozenset((
     "_write_skill_md_fire", "classify_intent",
 ))
 
-
 def configure(**deps) -> None:
     g = globals()
     if "_KERNEL" in deps and deps["_KERNEL"] is not None:
@@ -278,7 +273,6 @@ def configure(**deps) -> None:
         if _k in _INJECTED:
             g[_k] = _v
 
-
 def _pretty_name(n: str) -> str:
     """Display name for roster/credit emits -- strips the internal node:/a2a:
  namespacing so emits never show raw registry keys (
@@ -288,7 +282,6 @@ def _pretty_name(n: str) -> str:
         if s.startswith(_pre):
             return s[len(_pre):]
     return s
-
 
 def _drop_stale_tool_results(messages: list, ttl_turns: int) -> list:
     """Drop tool result messages older than ttl_turns turns ago."""
@@ -303,7 +296,6 @@ def _drop_stale_tool_results(messages: list, ttl_turns: int) -> list:
                 continue
         new_msgs.append(msg)
     return list(reversed(new_msgs))
-
 
 def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
     if lane not in SLOW_LANES or SLOW_LANE_BLOCK_CHARS <= 0:
@@ -320,7 +312,6 @@ def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
                  + "\n[...trimmed for the light lane...]")
         trimmed.append({**m, "content": c})
     return trimmed
-
 
 async def _summarize_evicted_messages(evicted_messages: list) -> str:
     """Precise summarization helper using the planner/model endpoint."""
@@ -351,7 +342,6 @@ async def _summarize_evicted_messages(evicted_messages: list) -> str:
     except Exception as e:
         log.warning("Failed to summarize evicted messages: %s", e)
     return "Archive of oldest conversation history turns."
-
 
 async def _quick_chat_reply(user_text: str, history: list = None) -> str:
     if not user_text or not user_text.strip():
@@ -391,7 +381,6 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
            if isinstance(body, dict) else {}) or {}
     return (msg.get("content") or msg.get("reasoning_content") or "").strip()
 
-
 async def _is_memory_question(user_text: str, facts: str) -> bool:
     """FOCUSED yes/no judge (using REFINE_MODEL) to verify if the user's question
     is ACTUALLY asking for the retrieved facts, to prevent false-positive
@@ -416,7 +405,6 @@ async def _is_memory_question(user_text: str, facts: str) -> bool:
     except Exception:  # noqa: BLE001
         pass
     return False
-
 
 async def _ask_for_location(user_text: str) -> str:
     """Brief reply asking the user for their city when the request NEEDS their
@@ -451,7 +439,6 @@ async def _ask_for_location(user_text: str) -> str:
     return ("I can help with that — but I don't have your location this session. "
             "Which city or area should I use?")
 
-
 def _hints_write_action(refined: "Optional[dict]") -> bool:
     """True when refine hinted a state-changing (NON-read permission) verb -- the
     turn INTENDS an action, so the executor should be FORCED to emit the call
@@ -467,7 +454,6 @@ def _hints_write_action(refined: "Optional[dict]") -> bool:
         if perm and perm != "read":
             return True
     return False
-
 
 async def _needs_external_knowledge(user_text: str) -> bool:
     if not (user_text or "").strip():
@@ -508,7 +494,6 @@ async def _needs_external_knowledge(user_text: str) -> bool:
     except Exception as e:  # noqa: BLE001 -- degrade-CLOSED (-> pure-local, unchanged)
         log.debug("knowledge-gap judge failed (-> local-only): %s", e)
         return False
-
 
 def _shadow_queue_tasks(tasks: list[dict],
                         session_id: Optional[str]) -> list[dict]:
@@ -552,14 +537,11 @@ def _shadow_queue_tasks(tasks: list[dict],
     }, now_fields=("ts",))))
     return out
 
-
 _BUDGET_TOML = _toml_section("budget")
-
 
 def _budget_num(env: str, key: str, default, cast=int):
     """env override -> mios.toml [budget].<key> -> literal default (preserves 0)."""
     return _cfg_num(_BUDGET_TOML, env, key, default, cast)
-
 
 BUDGET_CONV_TOKEN_CEIL = _budget_num(
     "MIOS_BUDGET_CONV_TOKEN_CEIL", "conversation_token_ceil", 2_000_000)
@@ -581,7 +563,6 @@ BUDGET_INFLIGHT_TTL_S = _budget_num(
     "MIOS_BUDGET_INFLIGHT_TTL_S", "inflight_ttl_s", 900, float)
 _BUDGET_LOCK = asyncio.Lock()
 
-
 def _budget_bucket(key: str) -> "collections.deque":
     dq = _BUDGET_LEDGER.get(key)
     if dq is None:
@@ -593,7 +574,6 @@ def _budget_bucket(key: str) -> "collections.deque":
         _BUDGET_LEDGER.move_to_end(key)
     return dq
 
-
 def _budget_window_total(key: str, now: float) -> int:
     """Sum tokens debited to `key` within the rolling window; ages out the rest."""
     dq = _BUDGET_LEDGER.get(key)
@@ -603,7 +583,6 @@ def _budget_window_total(key: str, now: float) -> int:
     while dq and dq[0][0] < cutoff:
         dq.popleft()
     return sum(t for _ts, t in dq)
-
 
 def _budget_debit(key: str, tokens: int, now: Optional[float] = None) -> None:
     """Record `tokens` against `key`'s window ledger (best-effort, degrade-open)."""
@@ -615,7 +594,6 @@ def _budget_debit(key: str, tokens: int, now: Optional[float] = None) -> None:
     except Exception:  # noqa: BLE001 -- ledger is a backstop, never crashes a turn
         log.debug("budget debit failed for %s", key, exc_info=True)
 
-
 def _budget_prune_inflight(now: float) -> None:
     """Drop in-flight autonomous tokens older than the TTL (crash/abandon safety;
     caller holds _BUDGET_LOCK)."""
@@ -624,7 +602,6 @@ def _budget_prune_inflight(now: float) -> None:
     cutoff = now - BUDGET_INFLIGHT_TTL_S
     for tok in [t for t, ts in _BUDGET_AUTO_INFLIGHT.items() if ts < cutoff]:
         _BUDGET_AUTO_INFLIGHT.pop(tok, None)
-
 
 async def _budget_admit(conv_key: str, autonomous_source: Optional[str],
                         turn_token: Optional[str] = None) -> tuple:
@@ -662,7 +639,6 @@ async def _budget_admit(conv_key: str, autonomous_source: Optional[str],
         log.warning("budget admit check failed, degrading open", exc_info=True)
         return True, ""
 
-
 async def _budget_release_inflight(turn_token: Optional[str]) -> None:
     if not turn_token:
         return
@@ -671,7 +647,6 @@ async def _budget_release_inflight(turn_token: Optional[str]) -> None:
             _BUDGET_AUTO_INFLIGHT.pop(turn_token, None)
     except Exception:  # noqa: BLE001
         log.debug("budget inflight release failed for %s", turn_token, exc_info=True)
-
 
 async def _get_gateway_session(session_id: str) -> list[dict]:
     try:
@@ -697,7 +672,6 @@ async def _save_gateway_session(session_id: str, messages: list[dict]) -> None:
         await _mios_pg.execute(sql, {"session_id": session_id, "messages": json.dumps(messages)})
     except Exception as e:
         log.warning("Database error saving gateway session %s: %s", session_id, e)
-
 
 async def chat_completions_logic(request: Request) -> Any:
     try:
@@ -1353,7 +1327,6 @@ async def chat_completions_logic(request: Request) -> Any:
             await _budget_release_inflight(_budget_turn_token)
     raise RuntimeError("Kernel not configured")
 
-
 async def responses_api_logic(request: Request) -> Any:
     try:
         body = _loads_lenient(await request.body() or b"{}")
@@ -1401,16 +1374,13 @@ async def responses_api_logic(request: Request) -> Any:
         "usage": _normalize_usage(cc.get("usage") or _usage_estimate("", answer)),
     })
 
-
 chat_router = APIRouter()
-
 
 @chat_router.post("/v1/responses")
 async def responses_api(request: Request) -> Any:
     """OpenAI Responses API (Tier-2, additive) route. Calls responses_api_logic
     (same module)."""
     return await responses_api_logic(request)
-
 
 @chat_router.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> Any:
@@ -1420,7 +1390,6 @@ async def chat_completions(request: Request) -> Any:
     logic function, behaviour-identical.
     """
     return await chat_completions_logic(request)
-
 
 async def _kernel_chat_handler(decision, **ctx):
     import re, time
@@ -1501,9 +1470,7 @@ async def _kernel_chat_handler(decision, **ctx):
     decision.mode = "agent"
     return await _KERNEL.dispatcher.run(decision, **ctx)
 
-
 _ANTIFAB_ENABLE = os.environ.get("MIOS_ANTIFAB_ENABLE", "true").lower() not in {"false", "0", "no", "off"}
-
 
 def _contains_tool_result_block(text) -> bool:
     """True when `text` narrates a tool EXECUTION result (real-emitter sentinel or a
@@ -1518,7 +1485,6 @@ def _contains_tool_result_block(text) -> bool:
     if re.search(r'"tool"\s*:\s*"[^"]+"[^{}]{0,400}?"success"\s*:\s*true', text, re.DOTALL):
         return True
     return False
-
 
 async def _kernel_dispatch_handler(decision, **ctx):
     refined = ctx.get("refined") or {}
@@ -1544,7 +1510,6 @@ async def _kernel_dispatch_handler(decision, **ctx):
     log.info("refine dispatch tool=%r not a fast-path verb -> agent", _os_tool)
     decision.mode = "agent"
     return await _KERNEL.dispatcher.run(decision, **ctx)
-
 
 async def _kernel_multi_task_handler(decision, **ctx):
     refined = ctx.get("refined") or {}
@@ -1635,7 +1600,6 @@ async def _kernel_multi_task_handler(decision, **ctx):
         _dag, refined, request=request, streaming=streaming, chat_id=chat_id, model=model,
         session_id=session_id, original_query=last_user_text,
         persona_system=_persona_system)
-
 
 async def _kernel_agent_handler(decision, **ctx):
     refined = ctx.get("refined") or {}

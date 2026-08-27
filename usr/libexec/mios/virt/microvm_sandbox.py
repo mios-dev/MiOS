@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-microvm-sandbox")
 
 MAX_BOOT_LATENCY_MS = 50.0
 
-
 @dataclass
 class MicroVMRunResult:
     vm_id: str
@@ -31,7 +30,6 @@ class MicroVMRunResult:
     exit_code: int
     output: str
     is_contained: bool
-
 
 class MicroVMSandboxManager:
     """Spins up ephemeral hardware-isolated microVMs with sub-50ms boot times."""
@@ -72,12 +70,10 @@ class MicroVMSandboxManager:
         )
         return res
 
-
 def main():
     mgr = MicroVMSandboxManager(dry_run=True)
     res = mgr.launch_ephemeral_microvm("print('hello world')")
     print(f"Boot latency: {res.boot_latency_ms:.2f} ms")
-
 
 if __name__ == "__main__":
     main()

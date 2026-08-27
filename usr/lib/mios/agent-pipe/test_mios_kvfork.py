@@ -25,18 +25,15 @@ from mios_kvfork import (
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok, detail))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _reference_kv_filename(conv) -> str:
     """The server.py _kv_filename body, copied here so the test PINS the contract
     (a child file must be the file _kv_paging later restores)."""
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(conv or "default"))[:120]
     return f"mios-kv-{safe or 'default'}.bin"
-
 
 def t_filename_matches_server() -> None:
     cases = ["abc", "chat/with slashes", "weird:chars*here", "", None,
@@ -52,7 +49,6 @@ def t_filename_matches_server() -> None:
            kv_filename("a/b c"))
     _check("filename: capped <= 120 token", len(conv_token("z" * 400)) == 120,
            f"len={len(conv_token('z' * 400))}")
-
 
 def t_validate() -> None:
     ok, _ = validate_fork("parent", "child")
@@ -70,7 +66,6 @@ def t_validate() -> None:
     ok, _ = validate_fork("   ", "child")
     _check("validate: whitespace src rejected", not ok)
 
-
 def t_plan() -> None:
     plan = plan_fork("parent", "child")
     _check("plan: two steps", len(plan) == 2, f"len={len(plan)}")
@@ -86,7 +81,6 @@ def t_plan() -> None:
     _check("plan: sanitised tokens",
            p2[0][1] == "a_b" and p2[1][1] == "c_d", str(p2))
 
-
 def t_outcome() -> None:
     forked, reason = fork_outcome(restore_ok=True, save_ok=True)
     _check("outcome: both ok -> forked", forked and "from parent prefix" in reason, reason)
@@ -99,7 +93,6 @@ def t_outcome() -> None:
     _check("outcome: both fail -> not forked + notes restore",
            not forked and "parent restore also failed" in reason, reason)
 
-
 def t_parse_bool() -> None:
     _check("bool: default off", parse_bool(None) is False)
     _check("bool: default honoured", parse_bool(None, default=True) is True)
@@ -108,7 +101,6 @@ def t_parse_bool() -> None:
     falsy = not any(parse_bool(v) for v in ("false", "0", "no", "OFF", "", False))
     _check("bool: falsy set", falsy)
     _check("bool: garbage -> default", parse_bool("maybe", default=False) is False)
-
 
 def t_clamp() -> None:
     _check("clamp: within cap", clamp_branches(3, hard_cap=8) == 3)
@@ -119,7 +111,6 @@ def t_clamp() -> None:
     _check("clamp: default also clamped", clamp_branches("x", hard_cap=3, default=99) == 3)
     _check("clamp: zero cap floors all", clamp_branches(5, hard_cap=0) == 0)
 
-
 def main() -> int:
     for t in (t_filename_matches_server, t_validate, t_plan, t_outcome,
               t_parse_bool, t_clamp):
@@ -128,7 +119,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

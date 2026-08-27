@@ -7,7 +7,6 @@ import sys
 import _agentpipe_path  # noqa: F401
 import server
 
-
 def main() -> int:
     results = {
         "n1": {"output": "Kingdom Come: Deliverance II", "success": True},
@@ -52,7 +51,6 @@ def main() -> int:
     else:
         print("  PASS  output-cap (1024 chars)")
     return 1 if fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

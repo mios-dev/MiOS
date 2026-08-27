@@ -21,7 +21,6 @@ def check(name, cond, detail=""):
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def setup_test_stubs():
     rdv = contextvars.ContextVar("routed_domain", default=None)
     swarm.configure(
@@ -55,7 +54,6 @@ def setup_test_stubs():
         swarm_saturate=False
     )
 
-
 def t_both_intent_deps():
     tasks = [
         {"title": "Research GPU settings", "web": True, "target_agent": "hermes-worker"},
@@ -73,7 +71,6 @@ def t_both_intent_deps():
     t2 = next(n for n in nodes if n["local_state"])
     check("both-intent: t2 is local", t2["local_state"] is True)
     check("both-intent: t2 depends on t1", t2["deps"] == [t1["id"]])
-
 
 def t_parse_research_claims():
     json_out = '[{"claim": "Gemma 2 is released", "source": "Google Blog"}]'
@@ -93,7 +90,6 @@ def t_parse_research_claims():
     check("parse-claims: bracket parsed", len(claims3) == 1, str(claims3))
     check("parse-claims: claim 1 text", claims3[0]["claim"] == "The CPU temperature is 45C  and fan is at 80% .")
     check("parse-claims: claim 1 source", claims3[0]["source"] == "sys_logs, hardware_monitor")
-
 
 def t_execute_dag_node_ledger_writes():
     created_queries = []
@@ -165,7 +161,6 @@ def t_execute_dag_node_ledger_writes():
     check("ledger-writes: facts injected into action prompt",
           "[Grounded Facts from Research]" in act_node["prompt"] and "GPU temperature is 72C" in act_node["prompt"])
 
-
 def t_synthesis_reducer():
     async def mock_db_read(sql, pg_sql=None):
         if "fact_ledger" in sql:
@@ -213,7 +208,6 @@ def t_synthesis_reducer():
           "Claims & Sources" in merged_prompt and "WSL memory is capped" in merged_prompt)
     check("synthesis: action node has verb-output schema",
           "Verb-Output Schema" in merged_prompt and "changes complete" in merged_prompt)
-
 
 def t_replan_stall_trigger():
     created_events = []
@@ -263,7 +257,6 @@ def t_replan_stall_trigger():
     check("replan-stall: execute_dag run twice due to replan", exec_calls == 2, str(exec_calls))
     check("replan-stall: replan event logged to DB",
           any("stall count is 3" in e.get("summary", "") for e in created_events))
-
 
 def main():
     print("=== Running T-030 Dual-Ledger Tests ===")

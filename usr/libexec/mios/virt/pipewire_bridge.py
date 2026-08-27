@@ -29,7 +29,6 @@ SLA_LATENCY_MAX_MS = 5.0
 SUPPORTED_RATES: Tuple[int, ...] = (44100, 48000, 88200, 96000, 176400, 192000)
 SUPPORTED_QUANTUMS: Tuple[int, ...] = (32, 64, 128, 256, 512, 1024)
 
-
 class PipeWireBridgeManager:
     """Manages low-latency inter-VM Scream IVSHMEM to PipeWire JACK audio bridge."""
 
@@ -207,7 +206,6 @@ WantedBy={target}
             "mock": mock or os.name == "nt",
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Inter-VM PipeWire Low-Latency Audio Bridge Utility."
@@ -293,7 +291,6 @@ def main() -> int:
         sys.stdout.write(result_text + ("\n" if not result_text.endswith("\n") else ""))
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

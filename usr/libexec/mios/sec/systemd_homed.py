@@ -14,7 +14,6 @@ from typing import Any, Dict, Optional
 
 log = logging.getLogger("systemd_homed")
 
-
 @dataclass
 class HomeEnclave:
     username: str
@@ -25,7 +24,6 @@ class HomeEnclave:
     state: str = "locked" # 'locked', 'active', 'suspended'
     mount_path: str = "/home/mios"
     unlocked_at: float = 0.0
-
 
 class SystemdHomedManager:
     """

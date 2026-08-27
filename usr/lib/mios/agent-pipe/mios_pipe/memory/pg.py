@@ -16,9 +16,7 @@ log = logging.getLogger("mios-agent-pipe")
 _pg_down_until = 0.0
 _PG_BACKOFF_S = 30.0
 
-
 _REDACT_CFG: dict = {}
-
 
 def _redact_cfg() -> dict:
     """[security.redact] from the mios.toml cascade, read once and cached."""
@@ -35,7 +33,6 @@ def _redact_cfg() -> dict:
                            "tables": ["knowledge", "agent_memory", "event", "tool_call"]}
     return _REDACT_CFG
 
-
 def _redact_targets(sql: str) -> list:
     """Tables named in this statement that [security.redact].tables covers."""
     cfg = _redact_cfg()
@@ -44,19 +41,15 @@ def _redact_targets(sql: str) -> list:
     low = (sql or "").lower()
     return [t for t in cfg.get("tables", []) if t in low]
 
-
 def _redact_fail_closed() -> bool:
     return bool(_redact_cfg().get("fail_closed", True))
-
 
 def _pg_skip() -> bool:
     return time.monotonic() < _pg_down_until
 
-
 def _pg_mark_down() -> None:
     global _pg_down_until
     _pg_down_until = time.monotonic() + _PG_BACKOFF_S
-
 
 def rid_to_pg_id(rid: Any) -> "Optional[int]":
     if rid is None:
@@ -66,7 +59,6 @@ def rid_to_pg_id(rid: Any) -> "Optional[int]":
         return int(tail)
     except (TypeError, ValueError):
         return None
-
 
 def pg_config(env: Optional[dict] = None) -> dict:
     """Resolve connection settings from the environment (already layered from
@@ -80,19 +72,16 @@ def pg_config(env: Optional[dict] = None) -> dict:
         "dbname": e.get("MIOS_PG_DB", "mios"),
     }
 
-
 def dsn(cfg: Optional[dict] = None) -> str:
     """Build a libpq connection URI from a config dict (or the env)."""
     c = cfg or pg_config()
     return (f"postgresql://{c['user']}:{c['password']}"
             f"@{c['host']}:{c['port']}/{c['dbname']}")
 
-
 def vector_literal(vec) -> str:
     """Format a float sequence as a pgvector text literal: '[0.1,0.2,...]'.
     (psycopg binds this to a `vector` column via the `::vector` cast.)"""
     return "[" + ",".join(repr(float(x)) for x in (vec or [])) + "]"
-
 
 def build_insert(table: str, fields: dict) -> "tuple[str, dict]":
     """`INSERT INTO <table> (cols) VALUES (%(col)s, ...)` -- never interpolates
@@ -114,7 +103,6 @@ def build_insert(table: str, fields: dict) -> "tuple[str, dict]":
     sql = (f"INSERT INTO {table} (" + ", ".join(cols) + ") VALUES ("
            + ", ".join(placeholders) + ") RETURNING id;")
     return sql, params
-
 
 def build_recall(table: str = "knowledge", k: int = 3,
                  owner: "Optional[str]" = None,
@@ -140,7 +128,6 @@ def build_recall(table: str = "knowledge", k: int = 3,
         f"ORDER BY emb <=> %(qvec)s::vector LIMIT %(k)s;"
     )
     return sql, params
-
 
 def build_fts_query(table: str = "knowledge", k: int = 3,
                     owner: "Optional[str]" = None,
@@ -172,7 +159,6 @@ def build_fts_query(table: str = "knowledge", k: int = 3,
         f"ORDER BY score DESC LIMIT %(k)s;"
     )
     return sql, params
-
 
 async def rerank_candidates(query: str, candidates: list, table: str) -> list:
     """Query a local cross-encoder model to re-score/re-rank retrieved documents."""
@@ -225,14 +211,11 @@ async def rerank_candidates(query: str, candidates: list, table: str) -> list:
 
     return candidates
 
-
 def recall_tuning(ef_search: int = 100) -> str:
     """Per-query HNSW recall/speed knob; run before the recall SELECT."""
     return f"SET hnsw.ef_search = {int(ef_search)};"
 
-
 _RLS_OWNER_GUC = "mios.owner_user"
-
 
 def rls_enabled(env: "Optional[dict]" = None) -> bool:
     """DB-side Row-Level-Security ENFORCEMENT toggle (SSOT [pgvector].rls_enable ->
@@ -244,7 +227,6 @@ def rls_enabled(env: "Optional[dict]" = None) -> bool:
     return str(e.get("MIOS_DB_RLS_ENABLE", "") or "").strip().lower() in {
         "1", "true", "yes", "on"}
 
-
 def build_set_owner(owner: str) -> "tuple[str, dict]":
     """Parameterized statement that scopes THIS transaction's RLS GUC to ``owner``:
     ``SELECT set_config('mios.owner_user', %(owner)s, true)``. is_local=true gives
@@ -254,7 +236,6 @@ def build_set_owner(owner: str) -> "tuple[str, dict]":
     return ("SELECT set_config(%(guc)s, %(owner)s, true)",
             {"guc": _RLS_OWNER_GUC, "owner": str(owner)})
 
-
 def _principal_enforced() -> bool:
     try:
         from mios_grounding import _principal_bind_mode
@@ -262,9 +243,7 @@ def _principal_enforced() -> bool:
     except Exception:  # noqa: BLE001 -- unresolvable bind mode -> treat as unverified
         return False
 
-
 _RLS_UNVERIFIED_WARNED = False
-
 
 def _warn_rls_unverified_once() -> None:
     global _RLS_UNVERIFIED_WARNED
@@ -276,7 +255,6 @@ def _warn_rls_unverified_once() -> None:
         "the owner principal is unverified/spoofable, so RLS is NOT applied; set "
         "principal_bind_mode=enforce for real per-tenant isolation")
 
-
 def _owner_scope(rls_owner: "Optional[str]",
                  env: "Optional[dict]" = None) -> "Optional[tuple[str, dict]]":
     owner = str(rls_owner).strip() if rls_owner is not None else ""
@@ -286,7 +264,6 @@ def _owner_scope(rls_owner: "Optional[str]",
         _warn_rls_unverified_once()
         return None
     return build_set_owner(owner)
-
 
 def pool_config(env: "Optional[dict]" = None) -> dict:
     """Resolve the opt-in pool settings (SSOT [pgvector].pool_* -> MIOS_PG_POOL_*
@@ -305,7 +282,6 @@ def pool_config(env: "Optional[dict]" = None) -> dict:
         pmax = 8
     return {"enable": enable, "min": min(pmin, pmax), "max": pmax}
 
-
 async def _open_conn(cfg: "Optional[dict]" = None):
     """Open ONE AsyncConnection with the SAME args as the historic per-call path,
     so a pooled connection is indistinguishable from a direct one (only its
@@ -313,7 +289,6 @@ async def _open_conn(cfg: "Optional[dict]" = None):
     import psycopg  # lazy: only at cutover, never for the pure helpers
     return await psycopg.AsyncConnection.connect(
         dsn(cfg), autocommit=True, connect_timeout=5)
-
 
 class AsyncConnPool:
 
@@ -424,9 +399,7 @@ class AsyncConnPool:
         for c in conns:
             await self._close(c)
 
-
 _POOL: "Optional[AsyncConnPool]" = None
-
 
 def _get_pool(env: "Optional[dict]" = None, cfg: "Optional[dict]" = None):
     """The process-wide pool when [pgvector].pool_enable is on, else None (-> the
@@ -441,14 +414,12 @@ def _get_pool(env: "Optional[dict]" = None, cfg: "Optional[dict]" = None):
         _POOL = AsyncConnPool(min_size=pc["min"], max_size=pc["max"], cfg=cfg)
     return _POOL
 
-
 async def _reset_pool() -> None:
     """Close + drop the process pool (graceful teardown / test hook)."""
     global _POOL
     p, _POOL = _POOL, None
     if p is not None:
         await p.closeall()
-
 
 @asynccontextmanager
 async def _conn(cfg: "Optional[dict]" = None):
@@ -478,7 +449,6 @@ async def _conn(cfg: "Optional[dict]" = None):
         raise
     finally:
         await pool.release(conn, pooled, ok)
-
 
 async def execute(sql: str, params: Optional[dict] = None,
                   *, fetch: bool = False, cfg: Optional[dict] = None,
@@ -536,9 +506,7 @@ async def execute(sql: str, params: Optional[dict] = None,
         _pg_mark_down()
         return None
 
-
 _COLS_CACHE: dict = {}
-
 
 async def _table_columns(table: str, *, cfg: Optional[dict] = None) -> set:
     """Cached set of a table's column names (information_schema). Lets insert()
@@ -556,7 +524,6 @@ async def _table_columns(table: str, *, cfg: Optional[dict] = None) -> set:
         _COLS_CACHE[table] = cols
     return cols
 
-
 async def insert(table: str, fields: dict, *, cfg: Optional[dict] = None,
                  rls_owner: "Optional[str]" = None) -> Any:
     cols = await _table_columns(table, cfg=cfg)
@@ -566,7 +533,6 @@ async def insert(table: str, fields: dict, *, cfg: Optional[dict] = None,
         return None
     sql, params = build_insert(table, fields)
     return await execute(sql, params, fetch=False, cfg=cfg, rls_owner=rls_owner)
-
 
 async def recall(qvec, *, table: str = "knowledge", k: int = 3,
                  ef_search: int = 100, owner: "Optional[str]" = None,

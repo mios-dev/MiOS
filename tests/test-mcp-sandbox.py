@@ -29,7 +29,6 @@ except ImportError:
     sandbox = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(sandbox)
 
-
 class TestMcpSandbox(unittest.TestCase):
     """Validates bubblewrap command construction, filesystem isolation, and policy enforcement."""
 
@@ -314,12 +313,10 @@ class TestMcpSandbox(unittest.TestCase):
             self.assertEqual(called_args[0], "bwrap")
             self.assertEqual(called_args[-2:], ["echo", "hello"])
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestMcpSandbox)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

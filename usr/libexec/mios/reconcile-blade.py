@@ -26,7 +26,6 @@ MERGE_RULES = {
     "config_kv": "conflict-is-error",
 }
 
-
 def reconcile_rows(table: str, rule: str, left_rows: list[dict], right_rows: list[dict]) -> tuple[list[dict], list[str]]:
     """Reconcile two lists of dict-like rows according to the specified rule.
 
@@ -85,7 +84,6 @@ def reconcile_rows(table: str, rule: str, left_rows: list[dict], right_rows: lis
     else:
         raise ValueError(f"Unknown merge rule '{rule}' for table '{table}'")
 
-
 def run_selftest() -> int:
     """Run verification test suite for all 4 merge rules."""
     # 1. union-by-hash test
@@ -124,7 +122,6 @@ def run_selftest() -> int:
     print("reconcile-blade selftest: ALL 5 ASSERTIONS PASSED")
     return 0
 
-
 def main() -> int:
     ap = argparse.ArgumentParser(prog="reconcile-blade.py")
     ap.add_argument("--selftest", action="store_true", help="run verification test suite")
@@ -133,7 +130,6 @@ def main() -> int:
         return run_selftest()
     print("reconcile-blade engine ready")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

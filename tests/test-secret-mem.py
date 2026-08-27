@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from secret_mem import SecretBuffer, SecretEnclave
 
-
 class TestSecretMem(unittest.TestCase):
     def test_context_manager_lifecycle(self):
         """Test that SecretBuffer holds secret within context and wipes on exit."""
@@ -75,7 +74,6 @@ class TestSecretMem(unittest.TestCase):
         self.assertTrue(status["enclave_ready"])
         self.assertIn("madv_dontdump_flag", status)
         self.assertIn("madv_wipeonfork_flag", status)
-
 
 if __name__ == "__main__":
     unittest.main()

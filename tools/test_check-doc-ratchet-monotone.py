@@ -20,7 +20,6 @@ TOOL = os.path.join(HERE, "check-doc-ratchet-monotone.py")
 FAILED: list[str] = []
 PASSED = 0
 
-
 def check(name, got, want):
     global PASSED
     if got == want:
@@ -28,19 +27,16 @@ def check(name, got, want):
     else:
         FAILED.append(f"{name}: got {got!r}, want {want!r}")
 
-
 def run(env_extra=None):
     env = dict(os.environ, MIOS_DRIFT_ROOT=ROOT, MIOS_ROOT=ROOT)
     if env_extra:
         env.update(env_extra)
     return subprocess.run([sys.executable, TOOL], capture_output=True, text=True, env=env)
 
-
 def test_runs_on_real_tree():
     p = run()
     check("exits-cleanly-or-reports", p.returncode in (0, 1), True)
     check("produces-output", bool((p.stdout + p.stderr).strip()), True)
-
 
 def test_exit_code_carries_information():
     src = open(TOOL, encoding="utf-8", errors="replace").read()
@@ -55,7 +51,6 @@ def test_exit_code_carries_information():
         # Still assert something real: the tool must name what it checked.
         check("reports-its-subject", len((baseline.stdout + baseline.stderr).strip()) > 10, True)
 
-
 def main() -> int:
     test_runs_on_real_tree()
     test_exit_code_carries_information()
@@ -63,7 +58,6 @@ def main() -> int:
     for f in FAILED:
         print(f"  FAIL {f}")
     return 1 if FAILED else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

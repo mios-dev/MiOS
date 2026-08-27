@@ -23,7 +23,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load buffer_pool module from {_POOL_PATH}")
 
-
 class TestNodeBufferPool(unittest.TestCase):
     """Validates bucketed allocations, RAII recycling, zero-copy views, and bounded capacities."""
 
@@ -121,12 +120,10 @@ class TestNodeBufferPool(unittest.TestCase):
         self.assertEqual(stats.allocations, 400)
         self.assertGreater(stats.pool_hits, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeBufferPool)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

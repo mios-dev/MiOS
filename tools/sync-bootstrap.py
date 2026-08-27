@@ -18,17 +18,14 @@ except ImportError:  # pragma: no cover
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, ".."))
 
-
 def load_manifest(root: str) -> dict:
     with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
         data = tomllib.load(fh)
     return ((data.get("bootstrap") or {}).get("sync") or {}), data
 
-
 def _norm(p: str) -> bytes:
     with open(p, "rb") as fh:
         return fh.read().replace(b"\r\n", b"\n")
-
 
 def mirror_files(root: str, boot: str, files, apply: bool):
     """Returns the list of files that differ (before any copy)."""
@@ -46,7 +43,6 @@ def mirror_files(root: str, boot: str, files, apply: bool):
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 shutil.copyfile(src, dst)
     return drift
-
 
 def mirror_tables(root: str, boot: str, tables, data: dict, apply: bool):
     """Mirror whole [table] blocks into bootstrap's root mios.toml.
@@ -74,7 +70,6 @@ def mirror_tables(root: str, boot: str, tables, data: dict, apply: bool):
         if apply:
             _rewrite_table(bpath, table, want_s)
     return drift
-
 
 def _rewrite_table(path: str, table: str, values: dict):
     """Replace the scalar keys of one [table] in place, preserving its comments."""
@@ -104,7 +99,6 @@ def _rewrite_table(path: str, table: str, values: dict):
     io.open(path, "w", encoding="utf-8", newline="\n").write(
         "".join(lines[:start] + out + lines[end:]))
 
-
 def _toml_val(v):
     if isinstance(v, bool):
         return "true" if v else "false"
@@ -113,7 +107,6 @@ def _toml_val(v):
     if isinstance(v, list):
         return "[" + ", ".join(_toml_val(x) for x in v) + "]"
     return '"' + str(v).replace("\\", "\\\\").replace('"', '\\"') + '"'
-
 
 def unclassified_shared(root, boot, man):
     import subprocess
@@ -128,7 +121,6 @@ def unclassified_shared(root, boot, man):
     return [f"{f}: tracked in both repos but declared in neither "
             f"[bootstrap.sync].mirror_files nor .not_mirrored"
             for f in sorted(shared - declared)]
-
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="sync-bootstrap")
@@ -178,7 +170,6 @@ def main(argv=None) -> int:
     print(f"[sync-bootstrap] {len(man['mirror_files'])} mirrored file(s) and "
           f"{len(man.get('mirror_toml_tables') or [])} table(s) match mios.git")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

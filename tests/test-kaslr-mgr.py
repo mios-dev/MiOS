@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from kaslr_mgr import MIN_KASLR_ENTROPY_BITS, KASLRRandomizerManager
 
-
 class TestKASLRMgr(unittest.TestCase):
     def setUp(self):
         self.mgr = KASLRRandomizerManager(dry_run=True)
@@ -29,7 +28,6 @@ class TestKASLRMgr(unittest.TestCase):
         self.assertEqual(len(set(addresses)), 15)  # 0 duplicates
         entropy = self.mgr.compute_address_variance_entropy(samples)
         self.assertGreaterEqual(entropy, MIN_KASLR_ENTROPY_BITS)
-
 
 if __name__ == "__main__":
     unittest.main()

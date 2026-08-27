@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestLockdownProbe(unittest.TestCase):
     """Test suite for kernel lockdown modes, SecureBoot validation, and compliance evaluation."""
 
@@ -88,12 +87,10 @@ class TestLockdownProbe(unittest.TestCase):
             exit_code = lockdown_probe.main()
             self.assertEqual(exit_code, 1)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestLockdownProbe)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

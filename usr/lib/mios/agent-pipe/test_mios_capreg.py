@@ -9,13 +9,11 @@ import mios_capreg as cr
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 VERBS = {
     "list_windows": {"permission": "read", "tier": "common", "description": "list windows"},
@@ -29,12 +27,10 @@ RECIPES = {
     "run-bash": {"permission": "read", "linux": "bash -lc {cmd}"},
 }
 
-
 def t_tier_rank():
     check("rank: read<write<interactive", cr.tier_rank("read") < cr.tier_rank("write") < cr.tier_rank("interactive"))
     check("rank: unknown beyond highest", cr.tier_rank("superuser") == 3 and cr.tier_rank("") == 3)
     check("rank: case-insensitive", cr.tier_rank("READ") == cr.tier_rank("read"))
-
 
 def t_allowed():
     check("allowed: read under interactive", cr.allowed("read", "interactive"))
@@ -43,12 +39,10 @@ def t_allowed():
     check("allowed: unknown cap excluded even at top", cr.allowed("superuser", "interactive") is False)
     check("allowed: unknown ceiling admits nothing", cr.allowed("read", "bogus") is False)
 
-
 def t_platforms():
     check("platforms: both", cr.recipe_platforms(RECIPES["open-folder"]) == ["linux", "windows"])
     check("platforms: windows-only", cr.recipe_platforms(RECIPES["reboot"]) == ["windows"])
     check("platforms: none", cr.recipe_platforms({"permission": "read"}) == [])
-
 
 def t_build():
     m = cr.build_capability_manifest(VERBS, RECIPES, ceiling="write")
@@ -72,14 +66,12 @@ def t_build():
     check("build: read ceiling -> only read tier", all(c["tier"] == "read" for c in mr))
     check("build: unknown ceiling -> empty", cr.build_capability_manifest(VERBS, RECIPES, ceiling="root") == [])
 
-
 def t_summary():
     m = cr.build_capability_manifest(VERBS, RECIPES, ceiling="interactive")
     s = cr.manifest_summary(m)
     check("summary: total matches", s["total"] == len(m))
     check("summary: by_kind has verb+recipe", "verb" in s["by_kind"] and "recipe" in s["by_kind"])
     check("summary: empty safe", cr.manifest_summary([]) == {"total": 0, "by_kind": {}, "by_tier": {}})
-
 
 def t_load_and_diff():
     import os
@@ -116,7 +108,6 @@ def t_load_and_diff():
                {"kind": "recipe", "name": "r", "tier": "read", "platforms": ["linux"]}]
     check("diff: tier change detected", any("~ verb:a tier" in d for d in cr.diff_capabilities(changed, base)))
 
-
 def t_skills():
     verbs = {
         "focus_window": {"permission": "read"},
@@ -152,7 +143,6 @@ def t_skills():
     check("read ceiling: write-needing skill dropped (reachability fail-closed)",
           sk_r == {"peek"}, f"{sk_r}")
 
-
 def t_dag():
     verbs = {"a": {"permission": "read"}, "b": {"permission": "write"}}
     skills = {
@@ -173,7 +163,6 @@ def t_dag():
                                                     for c in dag["cycles"]), dag["cycles"])
     check("dag dangling list", dag["dangling"] == ["ghost"], dag["dangling"])
 
-
 def main():
     t_tier_rank()
     t_allowed()
@@ -185,7 +174,6 @@ def main():
     t_dag()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

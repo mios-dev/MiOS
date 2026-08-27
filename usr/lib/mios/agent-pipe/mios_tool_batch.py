@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Callable, Coroutine, Dict, List, Tuple
 
-
 class ToolBatcher:
     """Batches read-only tools concurrently and sequences mutating tools."""
 

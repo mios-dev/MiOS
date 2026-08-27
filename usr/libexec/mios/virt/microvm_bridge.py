@@ -27,7 +27,6 @@ import tempfile
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-
 @dataclasses.dataclass
 class MicroVMConfig:
     """Configuration definition for ephemeral Cloud-Hypervisor microVM."""
@@ -47,7 +46,6 @@ class MicroVMConfig:
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
 
-
 @dataclasses.dataclass
 class MicroVMResult:
     """Structured execution output from microVM task execution."""
@@ -62,7 +60,6 @@ class MicroVMResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
-
 
 class VSOCKBridge:
     """Handles host-guest IPC framing over Virtio-VSOCK or simulated socket."""
@@ -150,7 +147,6 @@ class VSOCKBridge:
 
         # If no physical socket available, fallback to mock execution
         return self.send_rpc(cid, port, payload, socket_path=None)
-
 
 class CloudHypervisorOrchestrator:
     """Manages Cloud-Hypervisor microVM lifecycle, boot latency SLAs, and memory reclamation."""
@@ -348,7 +344,6 @@ class CloudHypervisorOrchestrator:
             "status": "PASS" if (avg_boot < 50.0 and simulated_vsock_gbps >= 1.0) else "FAIL",
         }
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="WS-VFIO (T-569): Ephemeral Cloud-Hypervisor MicroVM Orchestrator & Virtio-VSOCK Bridge"
@@ -453,7 +448,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Cloud-Hypervisor MicroVM Bridge: {status_data['status']}")
         print(f"Active Ephemeral MicroVMs: {active_count}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -13,7 +13,6 @@ from typing import Optional
 
 from mios_config import PORT  # SSOT agent-pipe port (no restated :8640 literal)
 
-
 def percentile(values, p):
     """p-th percentile (0-100) of `values`, nearest-rank on a sorted copy."""
     xs = sorted(v for v in values if v is not None)
@@ -25,7 +24,6 @@ def percentile(values, p):
         return xs[-1]
     k = int(round((p / 100.0) * (len(xs) - 1)))
     return xs[max(0, min(len(xs) - 1, k))]
-
 
 def aggregate(results, wall_s):
     """results = [{latency_s, ok(bool), status}] -> a metrics dict."""
@@ -44,14 +42,12 @@ def aggregate(results, wall_s):
         "wall_s": round(wall_s, 2),
     }
 
-
 def should_throttle(load1, ceiling):
     """True when the host 1-min load is over the ceiling -> stop ramping."""
     try:
         return float(ceiling) > 0 and float(load1) > float(ceiling)
     except (TypeError, ValueError):
         return False
-
 
 def ramp_concurrency(current, target, load1, ceiling, step=2):
     """AIMD next concurrency: additive-increase toward `target` while healthy,
@@ -61,7 +57,6 @@ def ramp_concurrency(current, target, load1, ceiling, step=2):
     if should_throttle(load1, ceiling):
         return max(1, current // 2)
     return min(target, current + max(1, int(step)))
-
 
 def build_scenarios(n, mix=None):
     """Deterministic, interleaved scenario list of size `n` from a weighted mix.
@@ -93,7 +88,6 @@ def build_scenarios(n, mix=None):
                     break
     return out
 
-
 def verdict(agg, max_error_rate=0.02, max_p95_s=120.0):
     """Pass/fail from the aggregate vs thresholds -> {pass, reasons}."""
     if agg.get("count", 0) <= 0:
@@ -105,7 +99,6 @@ def verdict(agg, max_error_rate=0.02, max_p95_s=120.0):
         reasons.append(f"p95 {agg['p95_s']}s > {max_p95_s}s")
     return {"pass": not reasons, "reasons": reasons or ["within thresholds"]}
 
-
 def by_kind(results):
     """Per-scenario-kind ok/total tally."""
     kinds: dict = {}
@@ -116,7 +109,6 @@ def by_kind(results):
         d["ok"] += 1 if r.get("ok") else 0
     return kinds
 
-
 async def _poll_load(client, base):
     """Best-effort host 1-min load from /v1/scheduler (-> None on miss)."""
     try:
@@ -125,7 +117,6 @@ async def _poll_load(client, base):
         return float(load[0]) if load else None
     except Exception:  # noqa: BLE001
         return None
-
 
 async def _one(client, base, scen, model, timeout):
     body = {"model": model, "stream": False,
@@ -138,7 +129,6 @@ async def _one(client, base, scen, model, timeout):
     except Exception as e:  # noqa: BLE001
         return {"latency_s": time.monotonic() - t0, "ok": False,
                 "status": str(e)[:80], "kind": scen["kind"]}
-
 
 async def run(cfg):
     """Ramped, load-aware, COMPLETE-every-turn stress run. Returns the report."""
@@ -174,7 +164,6 @@ async def run(cfg):
                                cfg.get("max_p95_s", 120.0)),
             "endpoint": base, "concurrency_target": target, "load_ceiling": ceiling}
 
-
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="MiOS agent-pipe end-to-end direct-chat stress test")
@@ -195,7 +184,6 @@ def main(argv=None):
     out = asyncio.run(run(vars(ns)))
     print(json.dumps(out, indent=2))
     return 0 if out["verdict"]["pass"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

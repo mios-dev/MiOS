@@ -26,7 +26,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, Generator, List, Optional, Set, Tuple
 
-
 @dataclass
 class LayerInfo:
     """Metadata describing a single OCI image layer."""
@@ -37,7 +36,6 @@ class LayerInfo:
     is_compressed: bool
     whiteout_count: int = 0
     files_extracted: int = 0
-
 
 @dataclass
 class ExtractionSummary:
@@ -51,7 +49,6 @@ class ExtractionSummary:
     layers: List[LayerInfo] = field(default_factory=list)
     dry_run: bool = False
     mock: bool = False
-
 
 class WhiteoutHandler:
     """Handles OCI whiteout specifications (.wh.<name> and .wh..wh..opq)."""
@@ -110,7 +107,6 @@ class WhiteoutHandler:
                     pass
             return True
         return False
-
 
 class OciExtractorEngine:
     """Engine for parsing OCI layouts/archives and streaming layer extraction."""
@@ -386,7 +382,6 @@ class OciExtractorEngine:
             mock=False,
         )
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Streaming OCI Layer Extractor & Whiteout Processor"
@@ -426,7 +421,6 @@ def main() -> int:
         else:
             print(f"[oci_extractor] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

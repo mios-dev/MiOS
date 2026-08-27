@@ -14,14 +14,12 @@ from typing import Dict, List, Optional
 
 log = logging.getLogger("ceph_mds")
 
-
 @dataclass
 class MDSRank:
     rank_id: int
     state: str # 'active', 'standby', 'standby-replay', 'down'
     pinned_subtrees: list[str] = field(default_factory=list)
     ops_per_sec: float = 0.0
-
 
 class CephMDSOperator:
     """

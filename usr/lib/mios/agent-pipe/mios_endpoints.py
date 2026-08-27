@@ -8,7 +8,6 @@ from typing import Optional
 
 from mios_config import _DISPATCH_TOML
 
-
 def _binding_api(cfg: dict, engine: Optional[str]) -> str:
     """The feature-family an endpoint declares, from CONFIG: the engine binding's
     `api` field, else the agent's top-level `api`, else '' (auto-detect). Lets ANY
@@ -20,13 +19,11 @@ def _binding_api(cfg: dict, engine: Optional[str]) -> str:
             return str(b["api"]).strip().lower()
     return str(cfg.get("api") or "").strip().lower()
 
-
 _NO_TOOL_CHOICE_API = {"llamacpp", "llama.cpp", "llama-server", "vulkan"}
 _NO_TOOL_CHOICE_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_NO_TOOL_CHOICE_HINTS")
                            or _DISPATCH_TOML.get("no_tool_choice_hints", "8450,8458,11436")).split(",")
     if h.strip())
-
 
 def _endpoint_supports_tool_choice(ep: str, cfg: dict,
                                    engine: Optional[str] = None) -> bool:
@@ -42,12 +39,10 @@ def _endpoint_supports_tool_choice(ep: str, cfg: dict,
         return False
     return not any(h and h in (ep or "") for h in _NO_TOOL_CHOICE_HINTS)
 
-
 _PARALLEL_TOOLS_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_PARALLEL_TOOLS_HINTS")
                            or _DISPATCH_TOML.get("parallel_tools_hints", "8441,8442")).split(",")
     if h.strip())
-
 
 def _endpoint_supports_parallel_tools(ep: str) -> bool:
     """True when the endpoint's model reliably emits well-formed PARALLEL tool calls
@@ -55,13 +50,11 @@ def _endpoint_supports_parallel_tools(ep: str) -> bool:
     (sequential, robust for small local models); opt IN via the SSOT hint list."""
     return any(h and h in (ep or "") for h in _PARALLEL_TOOLS_HINTS)
 
-
 _LLAMACPP_API = {"llamacpp", "llama.cpp", "llama-server", "vulkan"}
 _KV_PAGING_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_KV_PAGING_HINTS")
                            or _DISPATCH_TOML.get("kv_paging_hints", "8450,8458,11436")).split(",")
     if h.strip())
-
 
 def _endpoint_is_llamacpp(ep: str, cfg: dict, engine: Optional[str] = None) -> bool:
     """True when `ep` is a llama.cpp llama-server that can do /slots KV paging.

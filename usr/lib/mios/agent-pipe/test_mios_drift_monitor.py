@@ -8,7 +8,6 @@ from mios_pipe.observability import drift_monitor as M
 
 _fails = 0
 
-
 def check(name, cond):
     global _fails
     if cond:
@@ -16,7 +15,6 @@ def check(name, cond):
     else:
         _fails += 1
         print(f"FAIL - {name}")
-
 
 def t_histogram():
     h = M.histogram(["yes", "yes", "no", "no"])
@@ -26,7 +24,6 @@ def t_histogram():
           M.histogram([]) == {})
     check("histogram: labels are stringified",
           M.histogram([1, 1, 2]) == {"1": 2 / 3, "2": 1 / 3})
-
 
 def t_jsd_bounds():
     p = {"yes": 0.7, "no": 0.3}
@@ -39,13 +36,11 @@ def t_jsd_bounds():
           abs(M.jensen_shannon(p, {"yes": 0.1, "no": 0.9})
               - M.jensen_shannon({"yes": 0.1, "no": 0.9}, p)) < 1e-12)
 
-
 def t_jsd_monotone():
     base = {"yes": 0.5, "no": 0.5}
     near = M.jensen_shannon(base, {"yes": 0.6, "no": 0.4})
     far = M.jensen_shannon(base, {"yes": 0.95, "no": 0.05})
     check("jsd: a bigger shift scores higher", far > near)
-
 
 def t_jsd_degenerate():
     check("jsd: empty baseline -> 0.0 (nothing to compare)",
@@ -58,7 +53,6 @@ def t_jsd_degenerate():
                            {"a": 1.0}) == 0.0)
     check("jsd: unnormalized input is normalized first",
           abs(M.jensen_shannon({"a": 70, "b": 30}, {"a": 0.7, "b": 0.3})) < 1e-12)
-
 
 def t_compare_alerting():
     base = {"verdict": {"satisfied": 0.9, "unsatisfied": 0.1}}
@@ -80,7 +74,6 @@ def t_compare_alerting():
     check("compare: suppressed alarm still reports the divergence",
           r["max_divergence"] > 0.0)
 
-
 def t_compare_incomparable():
     base = {"verdict": {"satisfied": 1.0}, "intent": {"chat": 1.0}}
     live = {"verdict": {"unsatisfied": 1.0}}
@@ -91,7 +84,6 @@ def t_compare_incomparable():
           r["axes"]["intent"]["alerting"] is False)
     check("compare: the present axis still alerts",
           r["axes"]["verdict"]["alerting"] is True)
-
 
 def t_compare_thin_window():
     base = {"verdict": {"satisfied": 1.0}}
@@ -107,11 +99,9 @@ def t_compare_thin_window():
                   live_counts={"verdict": 500})
     check("compare: a full window alerts normally", r["alerting"] is True)
 
-
 def t_is_alerting_tolerates_junk():
     check("is_alerting: empty report -> False", M.is_alerting({}) is False)
     check("is_alerting: malformed report -> False", M.is_alerting(None) is False)
-
 
 def _server_or_skip():
     """Import server.py for the route-level cases, or None on a bare checkout
@@ -136,7 +126,6 @@ def _server_or_skip():
     except Exception:  # noqa: BLE001
         return None
 
-
 def t_route_axis_extractors():
     srv = _server_or_skip()
     if srv is None:
@@ -160,7 +149,6 @@ def t_route_axis_extractors():
     dist, n = srv._drift_live_window(rows, "no_such_axis")
     check("route: an axis with no extractor yields nothing", (dist, n) == ({}, 0))
 
-
 def t_route_payload_normalization():
     srv = _server_or_skip()
     if srv is None:
@@ -173,7 +161,6 @@ def t_route_payload_normalization():
           srv._drift_payload({"payload": "not json"}) == {})
     check("route: missing payload -> {}", srv._drift_payload({}) == {})
 
-
 def t_route_gate_closed():
     srv = _server_or_skip()
     if srv is None:
@@ -185,7 +172,6 @@ def t_route_gate_closed():
     check("route: disabled -> enabled:false, no alert",
           '"enabled":false' in body.replace(" ", "")
           and '"alerting":false' in body.replace(" ", ""))
-
 
 def main():
     t_histogram()
@@ -201,7 +187,6 @@ def main():
     t_route_gate_closed()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

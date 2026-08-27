@@ -3,7 +3,6 @@ import sys, json
 sys.path.insert(0, "usr/lib/mios/ipc")
 from varlink_activator import VarlinkServer, VarlinkInterface
 
-
 def _create_server() -> VarlinkServer:
     server = VarlinkServer()
     model_iface = VarlinkInterface("org.mios.Model")
@@ -14,7 +13,6 @@ def _create_server() -> VarlinkServer:
     )
     server.register(model_iface)
     return server
-
 
 def test_varlink_valid_rpc_sub_1ms():
     """Verify valid Varlink RPC executes with sub-1.0ms latency."""
@@ -30,7 +28,6 @@ def test_varlink_valid_rpc_sub_1ms():
     assert reply["parameters"]["status"] == "swapped"
     assert reply["_latency_ms"] < 1.0, f"RPC latency {reply['_latency_ms']:.3f}ms >= 1.0ms SLA"
 
-
 def test_varlink_missing_param_error():
     """Verify missing required parameter returns org.varlink.service.InvalidParameter."""
     server = _create_server()
@@ -41,7 +38,6 @@ def test_varlink_missing_param_error():
     reply = json.loads(server.handle_rpc(payload))
     assert reply.get("error") == "org.varlink.service.InvalidParameter"
     assert reply["parameters"]["parameter"] == "target_gpu"
-
 
 if __name__ == "__main__":
     test_varlink_valid_rpc_sub_1ms()

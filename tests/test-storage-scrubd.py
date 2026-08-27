@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from scrubd import MAX_PSI_PRESSURE_THRESHOLD, StorageScrubManager
 
-
 class TestStorageScrubd(unittest.TestCase):
     def setUp(self):
         self.mgr = StorageScrubManager(psi_threshold=20.0, dry_run=True)
@@ -22,7 +21,6 @@ class TestStorageScrubd(unittest.TestCase):
         self.assertEqual(rep.bit_rot_blocks_repaired, 1)
         self.assertLess(rep.psi_io_pressure_avg, MAX_PSI_PRESSURE_THRESHOLD)
         self.assertLess(rep.interactive_latency_degradation_pct, 5.0)
-
 
 if __name__ == "__main__":
     unittest.main()

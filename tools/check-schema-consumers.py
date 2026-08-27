@@ -26,7 +26,6 @@ NON_CONSUMER_DIRS = ("/docs/", "usr/share/doc/", "usr/share/mios/reference/")
 # excluded automatically.
 GENERATED_MARKER = "GENERATED IN FULL from usr/share/mios/mios.toml"
 
-
 def declared_tables(root: str) -> list:
     path = os.path.join(root, SCHEMA)
     if not os.path.isfile(path):
@@ -40,7 +39,6 @@ def declared_tables(root: str) -> list:
             seen.add(name)
             out.append(name)
     return out
-
 
 def has_consumer(root: str, table: str) -> bool:
     """True when some non-doc file outside the schema itself names the table."""
@@ -65,7 +63,6 @@ def has_consumer(root: str, table: str) -> bool:
             pass
         return True
     return False
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
@@ -105,7 +102,6 @@ def main() -> int:
     print(f"every schema table has a consumer "
           f"(tables={len(tables)} registered-unconsumed={len(live_registered)})")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

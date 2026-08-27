@@ -22,8 +22,6 @@ import mios_pg as _mios_pg
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 HITL_ENABLE = True
 HITL_MODE = "log"
 HITL_SCOPE: set = set()
@@ -46,7 +44,6 @@ _usage_estimate = None
 _passport_sign = None
 _hitl_approved_var = None
 dispatch_mios_verb = None
-
 
 def configure(*, hitl_enable=None, hitl_mode=None, hitl_scope=None,
               ask_to_run_enable=None, ask_to_run_ttl_s=None,
@@ -108,7 +105,6 @@ def configure(*, hitl_enable=None, hitl_mode=None, hitl_scope=None,
     if dispatch_mios_verb is not None:
         globals()["dispatch_mios_verb"] = dispatch_mios_verb
 
-
 def _action_hash(tool: str, args: dict) -> str:
     """Stable identity of a (verb, resolved-args) dispatch for the
     in-run loop/dedup guard. Structural only -- verb name + sorted
@@ -122,7 +118,6 @@ def _action_hash(tool: str, args: dict) -> str:
         canon = repr(args)
     return f"{tool}\x00{canon}"
 
-
 def _pending_hash(tool: str, args: dict) -> str:
     """NULL-FREE action identity for the ask-to-run pending_action store + approval
     match. _action_hash embeds a \\x00 separator (fine in-memory) which Postgres TEXT
@@ -130,7 +125,6 @@ def _pending_hash(tool: str, args: dict) -> str:
     length, deterministic over the SAME (verb, resolved-args), and leaks no content."""
     return hashlib.sha256(
         _action_hash(tool, args).encode("utf-8", "replace")).hexdigest()
-
 
 async def _hitl_is_approved(session_id: Optional[str], action_hash: str) -> bool:
     """True if this (session, action) was approved out-of-band (gate mode)."""
@@ -154,7 +148,6 @@ async def _hitl_is_approved(session_id: Optional[str], action_hash: str) -> bool
         pass
     return False
 
-
 def _hitl_record_pending(tool: str, args: dict, action_hash: str,
                          session_id: Optional[str]) -> None:
     """Persist a pending_action row (gate mode) so /v1/hitl/approve can find +
@@ -174,7 +167,6 @@ def _hitl_record_pending(tool: str, args: dict, action_hash: str,
             _db_fire(_db_post(sql))
     except Exception:  # noqa: BLE001
         pass
-
 
 async def _hitl_gate(tool: str, args: dict,
                      session_id: Optional[str]) -> "Optional[dict]":
@@ -201,7 +193,6 @@ async def _hitl_gate(tool: str, args: dict,
         return None
     except Exception:  # noqa: BLE001 -- the gate must never break a dispatch
         return None
-
 
 async def _classify_approval_reply(user_text: str, proposal: str) -> str:
     if not (user_text or "").strip():
@@ -242,7 +233,6 @@ async def _classify_approval_reply(user_text: str, proposal: str) -> str:
         log.debug("approval judge failed (-> unrelated): %s", e)
         return "unrelated"
 
-
 async def _read_recent_pending(session_id: "Optional[str]") -> "Optional[dict]":
     """The most-recent un-decided PENDING proposal for this chat within the TTL window,
     or None. Backs the ask-to-run approval round-trip. Degrade-open -> None."""
@@ -267,7 +257,6 @@ async def _read_recent_pending(session_id: "Optional[str]") -> "Optional[dict]":
     except Exception:  # noqa: BLE001
         return None
 
-
 async def _mark_pending_decided(rid, status: str) -> None:
     """Set a pending_action's status (approved/denied) so it isn't re-offered."""
     try:
@@ -279,7 +268,6 @@ async def _mark_pending_decided(rid, status: str) -> None:
             pg_params={"s": status, "id": _pgid})
     except Exception:  # noqa: BLE001
         pass
-
 
 def _ask_to_run_completion(chat_id: str, model: str, content: str,
                            *, streaming: bool = False) -> Any:
@@ -299,7 +287,6 @@ def _ask_to_run_completion(chat_id: str, model: str, content: str,
         "choices": [{"index": 0, "message": {"role": "assistant", "content": content},
                      "finish_reason": "stop"}],
         "usage": _usage_estimate("", content), "mios_mode": "ask-to-run"})
-
 
 async def _maybe_run_pending_approval(user_text: str, session_id: "Optional[str]",
                                       *, chat_id: str, model: str,
@@ -344,7 +331,6 @@ async def _maybe_run_pending_approval(user_text: str, session_id: "Optional[str]
             else f"⚠️ I tried to run `{_tool}` but it did not succeed:\n\n{_out[:1500]}")
     return _ask_to_run_completion(chat_id, model, _ans)
 
-
 async def _recent_reflections(session_id: Optional[str],
                               limit: int = 4) -> list[dict]:
     """Reflexion episodic buffer (ref AIOS B.3 / Shinn et al. 2023): pull
@@ -367,7 +353,6 @@ async def _recent_reflections(session_id: Optional[str],
         return []
     rows = (r[-1] or {}).get("result") or []
     return rows if isinstance(rows, list) else []
-
 
 async def hitl_approve_logic(request: Request) -> JSONResponse:
     """WS-6: approve (or deny) a pending action by record id. The decision is
@@ -404,9 +389,7 @@ async def hitl_approve_logic(request: Request) -> JSONResponse:
         return JSONResponse({"success": False, "error": str(e)})
     return JSONResponse({"success": True, "id": rid, "status": status})
 
-
 hitlflow_router = APIRouter()
-
 
 @hitlflow_router.get("/v1/hitl/pending")
 async def hitl_pending() -> JSONResponse:
@@ -427,7 +410,6 @@ async def hitl_pending() -> JSONResponse:
     return JSONResponse({"object": "mios.hitl.pending", "enabled": HITL_ENABLE,
                          "mode": HITL_MODE, "scope": sorted(HITL_SCOPE),
                          "count": len(rows), "pending": rows})
-
 
 @hitlflow_router.post("/v1/hitl/approve")
 async def hitl_approve(request: Request) -> JSONResponse:

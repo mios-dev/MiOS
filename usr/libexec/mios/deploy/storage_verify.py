@@ -33,7 +33,6 @@ SECTOR_SIZE = 512
 ALIGN_4K_SECTORS = 8       # 4096 / 512
 ALIGN_1MB_SECTORS = 2048   # 1048576 / 512
 
-
 @dataclass
 class PartitionAlignmentInfo:
     """Alignment metadata for an individual partition."""
@@ -47,7 +46,6 @@ class PartitionAlignmentInfo:
     offset_4k_bytes: int
     offset_1mb_bytes: int
 
-
 @dataclass
 class AlignmentReport:
     """Overall device partition alignment report."""
@@ -56,7 +54,6 @@ class AlignmentReport:
     all_4k_aligned: bool
     all_1mb_aligned: bool
     partitions: List[PartitionAlignmentInfo] = field(default_factory=list)
-
 
 @dataclass
 class FakeCapacityReport:
@@ -68,7 +65,6 @@ class FakeCapacityReport:
     tested_offsets_gb: List[float] = field(default_factory=list)
     failed_offsets_gb: List[float] = field(default_factory=list)
     error_message: Optional[str] = None
-
 
 class StorageVerifierEngine:
     """Storage integrity, block alignment, and fake capacity probe engine."""
@@ -316,7 +312,6 @@ class StorageVerifierEngine:
 
         return results
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Storage Target Health, 4K Alignment & Fake Capacity Verifier"
@@ -365,7 +360,6 @@ def main() -> int:
         else:
             print(f"[storage_verify] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

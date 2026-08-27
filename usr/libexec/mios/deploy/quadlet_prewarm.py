@@ -14,14 +14,12 @@ from typing import Dict, List
 
 log = logging.getLogger("quadlet_prewarm")
 
-
 @dataclass
 class BakedImage:
     name: str
     size_mb: int
     unpacked: bool = True
     zstd_chunked: bool = True
-
 
 class QuadletPrewarmer:
     """

@@ -18,7 +18,6 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-
 class PromptPruner:
     """
     Contextual prompt compressor performing selective linguistic token pruning
@@ -359,7 +358,6 @@ class PromptPruner:
 
         return pruned_list, agg_stats
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     """CLI driver for prompt pruning."""
     parser = argparse.ArgumentParser(
@@ -429,7 +427,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         sys.stdout.write(output_str + "\n")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

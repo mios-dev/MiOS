@@ -27,7 +27,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load traversal module from {_TRAVERSAL_PATH}")
 
-
 class TestKnowledgeGraphTraversal(unittest.TestCase):
     """Validates in-memory graph operations, recursive dependency querying, cycle handling, and metadata."""
 
@@ -353,12 +352,10 @@ class TestKnowledgeGraphTraversal(unittest.TestCase):
             if os.path.exists(db_file):
                 os.remove(db_file)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestKnowledgeGraphTraversal)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

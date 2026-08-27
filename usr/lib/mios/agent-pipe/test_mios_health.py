@@ -9,7 +9,6 @@ import unittest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from mios_pipe.health import build_health_response, get_system_version
 
-
 class TestHealth(unittest.TestCase):
     """Test health response builder."""
 
@@ -30,7 +29,6 @@ class TestHealth(unittest.TestCase):
     def test_get_system_version(self):
         v = get_system_version()
         self.assertIsInstance(v, str)
-
 
 if __name__ == "__main__":
     unittest.main()

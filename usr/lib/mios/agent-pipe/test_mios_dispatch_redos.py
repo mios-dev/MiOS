@@ -22,7 +22,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                    "mios_pipe/routing/dispatch_cmd.py")
 
-
 def _shell_strip_pattern():
     """The live pattern, read from the shipped source.
 
@@ -36,7 +35,6 @@ def _shell_strip_pattern():
         raise AssertionError("the podman-exec stripper pattern was not found -- "
                              "renamed or restructured? Update this test.")
     return m.group(1)
-
 
 class TestNoExponentialBacktracking(unittest.TestCase):
     def setUp(self):
@@ -67,7 +65,6 @@ class TestNoExponentialBacktracking(unittest.TestCase):
         self.assertLess(big, max(small * 8, 0.5),
                         "doubling the input multiplied the time by %.1f" %
                         (big / small if small else 0))
-
 
 class TestBehaviourUnchanged(unittest.TestCase):
     def setUp(self):
@@ -100,7 +97,6 @@ class TestBehaviourUnchanged(unittest.TestCase):
         for s in ("echo hello",
                   "podman exec -it mios-z bash -c 'ls'"):
             self.assertEqual(self._strip(s), s, s)
-
 
 if __name__ == "__main__":
     unittest.main()

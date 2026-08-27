@@ -26,7 +26,6 @@ PRIORITY_IDLE        = 10  # sleep-mode housekeeping
 
 _DEFAULT_TIMEOUT_S = 30.0  # max wait in priority queue
 
-
 @dataclass
 class PriorityRequest:
     """Wrapper that attaches a priority level to an inference payload."""
@@ -52,7 +51,6 @@ class PriorityRequest:
             "priority_hint": _priority_name(self.priority),
         }
 
-
 def _priority_name(p: int) -> str:
     names = {
         1: "foreground",
@@ -62,7 +60,6 @@ def _priority_name(p: int) -> str:
         10: "idle",
     }
     return names.get(p, f"level-{p}")
-
 
 class PriorityGate:
     """

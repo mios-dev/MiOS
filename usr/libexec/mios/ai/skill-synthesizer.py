@@ -12,7 +12,6 @@ import os
 import sys
 from typing import Any, Dict, List
 
-
 class SkillSynthesizer:
     """Distills execution traces into documented SKILL.md definitions."""
 

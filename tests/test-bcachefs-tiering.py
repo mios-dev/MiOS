@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "storage"))
 from bcachefs_tier import BcachefsTierManager
 
-
 class TestBcachefsTierManager(unittest.TestCase):
     def test_multi_device_format_command_rendering(self):
         mgr = BcachefsTierManager(
@@ -60,7 +59,6 @@ class TestBcachefsTierManager(unittest.TestCase):
         mgr = BcachefsTierManager(nvme_devices=[], hdd_devices=[], dry_run=True)
         with self.assertRaises(ValueError):
             mgr.render_format_command()
-
 
 if __name__ == "__main__":
     unittest.main()

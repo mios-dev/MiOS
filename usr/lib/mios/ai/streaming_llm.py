@@ -14,7 +14,6 @@ from typing import List, Optional
 
 log = logging.getLogger("streaming_llm")
 
-
 @dataclass
 class StreamingKVCache:
     sink_size: int = 4
@@ -26,7 +25,6 @@ class StreamingKVCache:
     @property
     def current_allocated_tokens(self) -> int:
         return len(self.sink_tokens) + len(self.rolling_tokens)
-
 
 class StreamingLLMManager:
     """

@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from paged_attn import PagedAttentionBlockManager, PhysicalBlock, SessionTable
 
-
 class TestPagedAttention(unittest.TestCase):
     def setUp(self):
         self.mgr = PagedAttentionBlockManager(total_blocks=2048, block_size=32, dry_run=True)
@@ -80,7 +79,6 @@ class TestPagedAttention(unittest.TestCase):
 
         stats = self.mgr.get_stats()
         self.assertEqual(stats["active_sessions"], 2)
-
 
 if __name__ == "__main__":
     unittest.main()

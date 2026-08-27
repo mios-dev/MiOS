@@ -20,7 +20,6 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-
 # Known vector tables in MiOS agent-plane schema
 DEFAULT_VECTOR_TABLES = [
     "knowledge",
@@ -68,7 +67,6 @@ JOIN pg_am am ON c.relam = am.oid
 WHERE am.amname IN ('hnsw', 'ivfflat')
 ORDER BY t.relname, c.relname;
 """
-
 
 class PgVectorOptimizer:
     """Orchestrates VACUUM ANALYZE and CONCURRENT REINDEX operations."""
@@ -330,7 +328,6 @@ class PgVectorOptimizer:
 
         return summary
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS pgvector VACUUM ANALYZE and Concurrent HNSW Reindexing Engine"
@@ -377,7 +374,6 @@ def main() -> int:
     except Exception as e:
         sys.stderr.write(f"[mios-pgvector-optimize] FATAL ERROR: {e}\n")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

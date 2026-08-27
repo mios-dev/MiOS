@@ -19,7 +19,6 @@ from journal_fss import JournalFSSManager
 from cuda_graphs import MIN_CUDA_GRAPH_SPEEDUP, CUDAGraphManager
 from sbom_gen import SBOMGenerator
 
-
 class TestEmpiricalStressT703T712(unittest.TestCase):
     # --- 1. Bit-Perfect Audio Rapid Sample Rate Switching Stress Tests ---
     def test_bitperfect_audio_rapid_rate_switching(self):
@@ -67,7 +66,6 @@ class TestEmpiricalStressT703T712(unittest.TestCase):
         res = gen.generate_image_sbom(pkgs)
         self.assertEqual(res.total_packages_scanned, 500)
         self.assertTrue(res.is_signature_valid)
-
 
 if __name__ == "__main__":
     unittest.main()

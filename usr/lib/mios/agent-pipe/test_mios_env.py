@@ -13,7 +13,6 @@ if BASE_DIR not in sys.path:
 
 from mios_env import strip_empty_mios_env
 
-
 class TestMiosEnvContract(unittest.TestCase):
     def test_strip_empty_mios_env(self):
         test_env = {
@@ -43,7 +42,6 @@ class TestMiosEnvContract(unittest.TestCase):
 
         for k in sample_keys:
             self.assertNotIn(k, os.environ)
-
 
 if __name__ == "__main__":
     unittest.main()

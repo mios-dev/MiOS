@@ -12,13 +12,11 @@ import mios_manifest as mm
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _write_toml(text):
     fd, path = tempfile.mkstemp(suffix=".toml", prefix="mios_manifest_test_")
@@ -26,7 +24,6 @@ def _write_toml(text):
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(text)
     return path
-
 
 SAMPLE_TOML = """\
 [verbs.zeta_verb]
@@ -59,7 +56,6 @@ model_name = "NotAVerb"
 desc = "a UI button with no section -- must be skipped"
 """
 
-
 def t_load_section_gating():
     path = _write_toml(SAMPLE_TOML)
     try:
@@ -74,7 +70,6 @@ def t_load_section_gating():
           "configurator_button" not in verbs)
     check("load: preserves spec fields", verbs.get("serialized_verb", {}).get("parallel_limit") == 3)
 
-
 def t_load_empty_and_no_verbs():
     p1 = _write_toml("[other]\nfoo = 1\n")
     p2 = _write_toml("[verbs.btn1]\nlabel = \"x\"\n\n[verbs.btn2]\nlabel = \"y\"\n")
@@ -84,7 +79,6 @@ def t_load_empty_and_no_verbs():
     finally:
         os.unlink(p1)
         os.unlink(p2)
-
 
 def t_project_shape():
     path = _write_toml(SAMPLE_TOML)
@@ -105,7 +99,6 @@ def t_project_shape():
     man_v2 = mm.project_verb_catalog(verbs, version="v2")
     check("project: version override", man_v2.get("version") == "v2")
 
-
 def t_project_ordering_determinism():
     path = _write_toml(SAMPLE_TOML)
     try:
@@ -123,7 +116,6 @@ def t_project_ordering_determinism():
     rev = {k: verbs[k] for k in reversed(list(verbs))}
     check("project: order-independent of input dict order",
           [e["name"] for e in mm.project_verb_catalog(rev)["data"]] == names)
-
 
 def t_project_field_defaults_and_flags():
     path = _write_toml(SAMPLE_TOML)
@@ -158,7 +150,6 @@ def t_project_field_defaults_and_flags():
     check("project: every entry has fixed field subset",
           all(fixed.issubset(set(e)) for e in man["data"]))
 
-
 def t_project_edge_cases():
     empty = mm.project_verb_catalog({})
     check("project: empty catalog count 0", empty["count"] == 0 and empty["data"] == [])
@@ -182,7 +173,6 @@ def t_project_edge_cases():
     ms = mm.project_verb_catalog({"v": {"section": "Misc", "model_name": "  Padded  "}})
     check("project: model_name stripped", ms["data"][0]["model_name"] == "Padded")
 
-
 def t_diff_identical():
     path = _write_toml(SAMPLE_TOML)
     try:
@@ -193,7 +183,6 @@ def t_diff_identical():
     check("diff: identical -> []", mm.diff_manifest(man, man) == [])
     check("diff: re-projected -> []",
           mm.diff_manifest(mm.project_verb_catalog(verbs), copy.deepcopy(man)) == [])
-
 
 def t_diff_add_remove():
     base = mm.project_verb_catalog({
@@ -213,7 +202,6 @@ def t_diff_add_remove():
     diffs2 = mm.diff_manifest(base, committed_extra)
     check("diff: reports removed verb",
           any("- verb 'gamma'" in d and "in committed manifest but not in SSOT" in d for d in diffs2), diffs2)
-
 
 def t_diff_changed_fields():
     base = mm.project_verb_catalog({"v": {"section": "Misc", "permission": "read"}})
@@ -238,7 +226,6 @@ def t_diff_changed_fields():
     check("diff: newly-added conflict_group detected",
           any("~ verb 'v' changed" in d for d in mm.diff_manifest(none_cg, add_cg)))
 
-
 def t_diff_registry_kind_guard():
     good = mm.project_verb_catalog({"v": {"section": "Misc"}})
 
@@ -259,7 +246,6 @@ def t_diff_registry_kind_guard():
     check("diff: empty committed reports verbs as added",
           any("+ verb 'v'" in d for d in diffs_empty), diffs_empty)
 
-
 def t_diff_ignores_volatile_toplevel():
     a = mm.project_verb_catalog({"v": {"section": "Misc"}})
     b = copy.deepcopy(a)
@@ -268,7 +254,6 @@ def t_diff_ignores_volatile_toplevel():
     b["version"] = "v9"
     check("diff: ignores volatile top-level fields (count/source/version)",
           mm.diff_manifest(a, b) == [], mm.diff_manifest(a, b))
-
 
 def main():
     t_load_section_gating()
@@ -284,7 +269,6 @@ def main():
     t_diff_ignores_volatile_toplevel()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

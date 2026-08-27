@@ -29,7 +29,6 @@ DEFAULT_MIN_GPU_POWER_LIMIT_WATTS = 150.0
 DEFAULT_MAX_GPU_POWER_LIMIT_WATTS = 450.0  # Default 4090 TDP
 DEFAULT_THERMAL_LIMIT_C = 85.0
 
-
 @dataclass
 class PowerMetrics:
     timestamp: float
@@ -43,7 +42,6 @@ class PowerMetrics:
     applied_gpu_cap_watts: Optional[float] = None
     cgroup_cpu_quota_pct: float = 100.0
     throttle_reason: str = "none"
-
 
 class EnergyCapManager:
     """Meters real-time host power and enforces declared chassis power caps and thermal limits."""
@@ -278,7 +276,6 @@ class EnergyCapManager:
             for m in self.history
         ]
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Chassis Energy Capping Daemon")
     parser.add_argument("--cap", type=float, default=DEFAULT_CHASSIS_CAP_WATTS, help="Chassis power cap in Watts")
@@ -300,7 +297,6 @@ def main():
 
     mgr.evaluate_and_enforce_cap()
     print(json.dumps(mgr.get_status(), indent=2))
-
 
 if __name__ == "__main__":
     main()

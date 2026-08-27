@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-app-snapshot")
 
-
 @dataclass
 class AppSnapshot:
     snapshot_id: str
@@ -31,7 +30,6 @@ class AppSnapshot:
     timestamp: float
     state_hash: str
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 class FlatpakSnapshotManager:
     """Manages per-application state snapshots and atomic rollback trees."""
@@ -107,12 +105,10 @@ class FlatpakSnapshotManager:
         logger.info(f"Rolled back app {app_id} to snapshot {target_snap.snapshot_id} cleanly.")
         return True
 
-
 def main():
     mgr = FlatpakSnapshotManager(dry_run=True)
     snap = mgr.create_snapshot("org.mozilla.firefox")
     print(f"Created: {snap.snapshot_id}")
-
 
 if __name__ == "__main__":
     main()

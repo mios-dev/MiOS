@@ -16,13 +16,11 @@ except ModuleNotFoundError:  # pragma: no cover -- py<3.11
 TOML = "usr/share/mios/mios.toml"
 QUADLET_GLOB = "usr/share/containers/systemd/*.container"
 
-
 def expected_name(unit: str) -> str:
     """A template unit has no single container: it names the instantiated form."""
     if unit.endswith("@"):
         return unit[:-1] + "-%i"
     return unit
-
 
 def ssot_containers(root: str) -> tuple:
     """({unit: ContainerName}, {unit: enabled}) from the SSOT. A container gated
@@ -40,7 +38,6 @@ def ssot_containers(root: str) -> tuple:
             out[str(name)] = str(block["Container"].get("ContainerName") or "")
     return out, {k: v is not False for k, v in enabled.items()}
 
-
 def rendered_containers(root: str) -> dict:
     out = {}
     for path in sorted(glob.glob(os.path.join(root, QUADLET_GLOB))):
@@ -49,7 +46,6 @@ def rendered_containers(root: str) -> dict:
         m = re.search(r"^ContainerName=(.*)$", text, re.M)
         out[unit] = (m.group(1).strip() if m else "")
     return out
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -93,7 +89,6 @@ def main() -> int:
     print(f"every Quadlet names its own container "
           f"(ssot={len(ssot)} rendered={len(rendered)} gated-off={off})")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

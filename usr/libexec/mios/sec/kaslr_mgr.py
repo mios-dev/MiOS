@@ -24,14 +24,12 @@ logger = logging.getLogger("mios-kaslr-mgr")
 
 MIN_KASLR_ENTROPY_BITS = 28.0
 
-
 @dataclass
 class KASLRBootSample:
     boot_iteration: int
     text_base_address_hex: str
     offset_bytes: int
     source: str  # "EFI_RNG_PROTOCOL + CPU_RDRAND"
-
 
 class KASLRRandomizerManager:
     """Manages EFI KASLR entropy collection and memory layout variance verification."""
@@ -62,13 +60,11 @@ class KASLRRandomizerManager:
         # High-entropy distribution with 15 unique non-zero samples yields ~28+ bit equivalent variance
         return 29.5 if unique_count == len(samples) else 10.0
 
-
 def main():
     mgr = KASLRRandomizerManager(dry_run=True)
     samples = [mgr.sample_boot_kernel_base(i) for i in range(15)]
     entropy = mgr.compute_address_variance_entropy(samples)
     print(f"KASLR Variance Entropy: {entropy:.1f} bits")
-
 
 if __name__ == "__main__":
     main()

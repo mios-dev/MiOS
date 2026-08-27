@@ -16,7 +16,6 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 _CHECK_SCRIPT = os.path.join(_ROOT, "tools", "check-ratchet-direction.py")
 
-
 def test_ratchet_direction_logic():
     import importlib.util
     spec = importlib.util.spec_from_file_location("check_ratchet_direction", _CHECK_SCRIPT)
@@ -54,7 +53,6 @@ def test_ratchet_direction_logic():
             violations_raised.append((k, head_ceilings[k], w_val))
     assert violations_raised == [("ci.max_exempt_suites", 6, 7)], f"Expected raised violation, got {violations_raised}"
 
-
 def main() -> int:
     print("[test-check-ratchet-direction] Running unit test...")
     test_ratchet_direction_logic()
@@ -66,7 +64,6 @@ def main() -> int:
 
     print("[test-check-ratchet-direction] PASS: Verified ratchet ceiling raise detection and clean baseline.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

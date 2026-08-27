@@ -42,12 +42,10 @@ FIXTURES = {
     "wsl2":          ("wsl2/mios-rootfs.tar.gz", "targz"),
 }
 
-
 def _write(path, blob):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as fh:
         fh.write(blob)
-
 
 def _padded(size, *placed):
     """A buffer of `size` bytes with (offset, bytes) written into it."""
@@ -55,7 +53,6 @@ def _padded(size, *placed):
     for offset, blob in placed:
         buf[offset:offset + len(blob)] = blob
     return bytes(buf)
-
 
 def _build(kind, size):
     if kind == "iso":
@@ -77,13 +74,11 @@ def _build(kind, size):
         return gzip.compress(raw.getvalue(), 1)
     raise AssertionError(kind)
 
-
 def make_tree(outdir, size, skip=()):
     for name, (rel, kind) in sorted(FIXTURES.items()):
         if name in skip:
             continue
         _write(os.path.join(outdir, *rel.split("/")), _build(kind, size))
-
 
 def run_verifier(root, outdir):
     proc = subprocess.run(
@@ -91,7 +86,6 @@ def run_verifier(root, outdir):
          "--root", root, "--output-dir", outdir],
         capture_output=True, text=True)
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
-
 
 def structural(root, ssot, viol):
     jpath = os.path.join(root, "Justfile")
@@ -131,7 +125,6 @@ def structural(root, ssot, viol):
             viol.append("[deploy.formats.%s] declares no artifacts globs, so the"
                         " format the all target builds is one the verifier does"
                         " not require" % name)
-
 
 def behavioural(root, viol):
     floor = 0
@@ -183,7 +176,6 @@ def behavioural(root, viol):
                         " against nothing" % size)
         _write(corrupt, good)
 
-
 def main():
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or os.getcwd()
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
@@ -203,7 +195,6 @@ def main():
     print("[check-verify-images] an empty tree, a missing format and a corrupt"
           " artifact are each rejected by name", file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

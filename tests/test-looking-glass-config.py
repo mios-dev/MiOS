@@ -23,7 +23,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load looking_glass module from {_LG_PATH}")
 
-
 class TestLookingGlassConfig(unittest.TestCase):
     """Validates Looking Glass B6 client configuration, INI synthesis, and keybinding generators."""
 
@@ -129,12 +128,10 @@ class TestLookingGlassConfig(unittest.TestCase):
         self.assertEqual(res["checks"]["shm_device"], "pass")
         self.assertEqual(res["checks"]["ini_generation"], "pass")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestLookingGlassConfig)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

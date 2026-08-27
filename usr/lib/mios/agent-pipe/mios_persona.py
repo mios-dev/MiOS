@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("mios.persona")
 
-
 class DomainCategory(str, Enum):
     KERNEL_SYSTEMS = "kernel_systems"
     DATABASE_STORAGE = "database_storage"
@@ -28,7 +27,6 @@ class DomainCategory(str, Enum):
     AI_INFERENCE = "ai_inference"
     DEVOPS_CI = "devops_ci"
     GENERALIST = "generalist"
-
 
 DOMAIN_TITLES: Dict[DomainCategory, str] = {
     DomainCategory.KERNEL_SYSTEMS: "Linux Kernel & Systems Engineering Specialist",
@@ -135,7 +133,6 @@ DOMAIN_GUIDELINES: Dict[DomainCategory, str] = {
 """.strip(),
 }
 
-
 class PersonaClassifier:
     """Classifies user prompts into one of the 6 technical domain categories."""
 
@@ -176,7 +173,6 @@ class PersonaClassifier:
 
         return best_domain, best_score, scores
 
-
 class PersonaSynthesizer:
     """Synthesizes domain-enriched prompts while preserving base system prompt."""
 
@@ -209,21 +205,17 @@ class PersonaSynthesizer:
         augmented = self.synthesize(base_prompt, domain, confidence=conf)
         return augmented, domain, conf
 
-
 # Convenience module-level instances
 _DEFAULT_CLASSIFIER = PersonaClassifier()
 _DEFAULT_SYNTHESIZER = PersonaSynthesizer(_DEFAULT_CLASSIFIER)
-
 
 def classify_intent(query: str) -> Tuple[DomainCategory, float]:
     domain, conf, _ = _DEFAULT_CLASSIFIER.classify(query)
     return domain, conf
 
-
 def synthesize_persona_prompt(base_prompt: str, user_query: str) -> str:
     augmented, _, _ = _DEFAULT_SYNTHESIZER.process_prompt(base_prompt, user_query)
     return augmented
-
 
 def get_domain_guidelines(domain: DomainCategory) -> str:
     return DOMAIN_GUIDELINES.get(domain, DOMAIN_GUIDELINES[DomainCategory.GENERALIST])

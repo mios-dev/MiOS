@@ -35,7 +35,6 @@ _db_create = None
 _db_post = None
 _db_fire = None
 
-
 def configure(*, verb_catalog=None, routing_domains=None, routing_enable=None,
               db_create=None, db_post=None, db_fire=None) -> None:
     """Inject the server-owned hot globals + event-DB helpers. One-way boundary:
@@ -55,7 +54,6 @@ def configure(*, verb_catalog=None, routing_domains=None, routing_enable=None,
         _db_post = db_post
     if db_fire is not None:
         _db_fire = db_fire
-
 
 async def classify_intent(user_text: str) -> Optional[dict]:
     """Call the micro-LLM router. Returns the parsed verdict dict
@@ -123,7 +121,6 @@ async def classify_intent(user_text: str) -> Optional[dict]:
         "payload": parsed,
     }, now_fields=("ts",))))
     return parsed
-
 
 async def _route_domain(user_text: str) -> Optional[str]:
     if not _ROUTING_ENABLE or not _ROUTING_DOMAINS or not (user_text or "").strip():

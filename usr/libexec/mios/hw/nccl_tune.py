@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-nccl-tune")
 MAX_ALLREDUCE_LATENCY_US = 50.0
 MIN_TP2_SPEEDUP_RATIO = 1.80
 
-
 @dataclass
 class NCCLTopologyConfig:
     gpu_count: int
@@ -33,7 +32,6 @@ class NCCLTopologyConfig:
     nccl_algo: str
     allreduce_latency_us: float
     tp2_throughput_scaling: float
-
 
 class NCCLTopologyTuner:
     """Discovers GPU interconnect fabric and calibrates NCCL collective communication."""
@@ -78,12 +76,10 @@ class NCCLTopologyTuner:
             f"export NCCL_NET_GDR_LEVEL=5\n"
         )
 
-
 def main():
     tuner = NCCLTopologyTuner(dry_run=True)
     cfg = tuner.discover_and_optimize(2, True)
     print(tuner.export_nccl_env(cfg))
-
 
 if __name__ == "__main__":
     main()

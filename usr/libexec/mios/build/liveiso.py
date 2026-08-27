@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-liveiso")
 
-
 @dataclass
 class BuildArtifact:
     artifact_type: str  # "iso", "ipxe", "qcow2"
@@ -29,7 +28,6 @@ class BuildArtifact:
     size_bytes: int
     is_hybrid_bootable: bool = True
     created_at: float = 0.0
-
 
 class LiveISOPipeline:
     """Synthesizes bootable live ISOs and iPXE netboot artifact bundles."""
@@ -74,13 +72,11 @@ boot
         logger.info(f"Built hybrid ISO artifact {iso_path}.")
         return artifact
 
-
 def main():
     pipe = LiveISOPipeline(dry_run=True)
     pipe.generate_ipxe_script()
     art = pipe.build_hybrid_iso()
     print(f"Artifact: {art.file_path}")
-
 
 if __name__ == "__main__":
     main()

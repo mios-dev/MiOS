@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_pipe.context.ctxpack import pack
 
-
 class TestContextTrim(unittest.TestCase):
     """Validates priority packing, needle retention, and token budget bounds."""
 
@@ -33,12 +32,10 @@ class TestContextTrim(unittest.TestCase):
         self.assertIn("memory", kept_types)
         self.assertNotIn("OLD_INTERMEDIATE_TURN", [x["text"] for x in res.kept])
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestContextTrim)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

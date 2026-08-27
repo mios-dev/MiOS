@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "cfg"))
 from drift_reconciler import ConfigDriftReconciler
 
-
 class TestConfigDriftReconciler(unittest.TestCase):
     def setUp(self):
         self.reconciler = ConfigDriftReconciler(dry_run=True)
@@ -23,7 +22,6 @@ class TestConfigDriftReconciler(unittest.TestCase):
         res = self.reconciler.reconcile_state()
         self.assertEqual(res["status"], "reconciled")
         self.assertEqual(res["state"], "consistent")
-
 
 if __name__ == "__main__":
     unittest.main()

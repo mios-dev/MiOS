@@ -27,8 +27,6 @@ from mios_policy import _agent_rbac_filter, _user_rbac_filter
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 DEEPEN_FETCH = False
 DEEPEN_DEADLINE_S = 45.0
 DEEPEN_MAX_ITERS = 12
@@ -82,7 +80,6 @@ _db_post = None
 _db_create = None
 _db_read = None
 _pg_mirror = None
-
 
 def configure(*, deepen_fetch=None, deepen_deadline_s=None, deepen_max_iters=None,
               deepen_web_timeout_s=None, deepen_early_exit=None,
@@ -233,7 +230,6 @@ def configure(*, deepen_fetch=None, deepen_deadline_s=None, deepen_max_iters=Non
         db_read=_db_read, db_create=_db_create, db_post=_db_post,
         db_fire=_db_fire, pg_mirror=_pg_mirror)
 
-
 async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
                                 session_id: Optional[str], client) -> dict:
     aname = str(node.get("agent") or "")
@@ -310,7 +306,6 @@ async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
         res["success"] = bool(out)
         node["_grounding"] = grounding   # ENRICHED grounding -> final synthesis
     return res
-
 
 async def _execute_dag_node(node: dict, results_by_id: dict,
                             seen_actions: dict, dag_summary: str,
@@ -392,7 +387,6 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
 
     return res
 
-
 def parse_research_claims(output_str: str) -> list[dict]:
     output_str = (output_str or "").strip()
     if not output_str:
@@ -447,7 +441,6 @@ def parse_research_claims(output_str: str) -> list[dict]:
                 claims.append({"claim": line, "source": "web_search"})
 
     return [c for c in claims if c.get("claim")]
-
 
 async def _execute_dag_node_core(node: dict, results_by_id: dict,
                                  seen_actions: dict, dag_summary: str,
@@ -748,11 +741,9 @@ RUN_TEMPLATE_ENABLE = str(os.environ.get("MIOS_RUN_TEMPLATE")
                           or _toml_section("run_template").get("enable", "true")
                           ).strip().lower() in {"1", "true", "yes"}
 
-
 from mios_pipe.routing.run_template import (   # T-225: capture+replay source
     _run_template_class, _capture_run_template, load_run_templates,
     configure as _configure_run_template)
-
 
 async def execute_dag(dag: dict, *, session_id: Optional[str],
                       event_q: "Optional[asyncio.Queue]" = None,
@@ -1031,14 +1022,9 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
         if _sup and _CHAT_CANCEL.get(chat_id) is _my_cancel:
             _CHAT_CANCEL.pop(chat_id, None)
 
-
-
-
 _EK_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)")
 
-
 _EK_FIELD_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)")
-
 
 def _smart_extract_from_jsonish(payload: str) -> str:
     s = _sanitize_tool_text((payload or "").strip())
@@ -1077,7 +1063,6 @@ def _smart_extract_from_jsonish(payload: str) -> str:
         except (json.JSONDecodeError, ValueError):
             pass
     return first_line[:1024]
-
 
 def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
     if not args:
@@ -1119,7 +1104,6 @@ def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
             out[k] = v
     return out
 
-
 def _fit_context(messages: list, tools: list, lane: str, want_ctx: int) -> int:
     if not CTX_FIT:
         return want_ctx
@@ -1131,13 +1115,11 @@ def _fit_context(messages: list, tools: list, lane: str, want_ctx: int) -> int:
     except Exception:  # noqa: BLE001
         return want_ctx
 
-
 def _node_deepens(node: dict) -> bool:
     if not node.get("agent"):
         return False
     lane = _agent_lane(_AGENT_REGISTRY.get(str(node.get("agent"))) or {})
     return lane in DEEPEN_LANES
-
 
 async def _reap_cpu_lane(reason: str) -> None:
     if not RUNAWAY_REAP_ENABLE:

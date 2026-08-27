@@ -37,7 +37,6 @@ try:
 except ImportError:
     mios_toml = None
 
-
 @dataclass
 class TelemetrySnapshot:
     """Real-time system compute load metrics modulating shader animation."""
@@ -50,7 +49,6 @@ class TelemetrySnapshot:
     dark_mode: float = 1.0     # 1.0 = dark, 0.0 = light
     timestamp: float = field(default_factory=time.time)
 
-
 def hex_to_rgb_norm(hex_color: str) -> Tuple[float, float, float]:
     """Convert hex color string (#RRGGBB) to normalized float tuple (0.0..1.0)."""
     hex_clean = hex_color.lstrip("#")
@@ -60,7 +58,6 @@ def hex_to_rgb_norm(hex_color: str) -> Tuple[float, float, float]:
         b = int(hex_clean[4:6], 16) / 255.0
         return round(r, 4), round(g, 4), round(b, 4)
     return 0.15, 0.13, 0.38
-
 
 class LivingWallpaperEngine:
     """Procedural living wallpaper renderer modulating GLSL/WGSL shaders via telemetry."""
@@ -453,7 +450,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {{
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Living Wallpaper Telemetry Modulator & Shader Renderer"
@@ -518,7 +514,6 @@ def main() -> int:
         else:
             print(f"[living_wallpaper] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

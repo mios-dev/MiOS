@@ -24,7 +24,6 @@ DEFAULT_DNS_PORT = 53
 DEFAULT_FWMARK = "0x100"
 DEFAULT_VPN_TABLE = "inet mios_vpn_guard"
 
-
 class VPNKillSwitchManager:
     """Manages declarative nftables rulesets for VPN kill-switch and fwmark split-tunneling."""
 
@@ -177,7 +176,6 @@ class VPNKillSwitchManager:
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             return {"status": "error", "action": "flush", "message": str(exc), "flushed": False}
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Declarative VPN Kill-Switch and Split-Tunnel Manager")
     parser.add_argument("--interface", default="wg0", help="Active VPN interface name (default: wg0)")
@@ -211,7 +209,6 @@ def main():
 
     result = mgr.apply_rules(rules)
     print(json.dumps(result, indent=2))
-
 
 if __name__ == "__main__":
     main()

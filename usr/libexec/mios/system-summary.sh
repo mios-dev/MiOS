@@ -2,7 +2,6 @@
 # AI-hint: Standalone diagnostic that prints a colorized terminal report of the build/dev host - distro, kernel, uptime, CPU+virt flags, memory, GPU/NVIDIA,...
 # AI-doc: usr/share/doc/mios/manual/mios.md
 
-
 set -euo pipefail
 
 readonly RED='\033[0;31m'

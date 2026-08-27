@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-
 class Kernel:
     """Composition root: Router + Dispatcher + the five manager seams."""
 

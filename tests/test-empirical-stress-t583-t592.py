@@ -25,7 +25,6 @@ from pathlib import Path
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 
-
 def load_module(name: str, rel_path: str):
     path = os.path.join(_ROOT, rel_path)
     spec = importlib.util.spec_from_file_location(name, path)
@@ -36,13 +35,11 @@ def load_module(name: str, rel_path: str):
     spec.loader.exec_module(mod)
     return mod
 
-
 pre_commit = load_module("pre_commit", "usr/libexec/mios/git/pre_commit.py")
 gpu_slice = load_module("gpu_slice", "usr/libexec/mios/hw/gpu_slice.py")
 mdns_mesh = load_module("mdns_mesh", "usr/libexec/mios/net/mdns_mesh.py")
 container_gc = load_module("container_gc", "usr/libexec/mios/storage/container_gc.py")
 fido2_manager = load_module("fido2_manager", "usr/libexec/mios/sec/fido2_manager.py")
-
 
 class TestEmpiricalStressT583T592(unittest.TestCase):
     """Empirical adversarial and boundary testing suite."""
@@ -145,12 +142,10 @@ class TestEmpiricalStressT583T592(unittest.TestCase):
         self.assertTrue(ok2)
         self.assertTrue(u2f_out.exists())
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestEmpiricalStressT583T592)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

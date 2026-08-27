@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load usb_hotplug module from {_MODULE_PATH}")
 
-
 class TestUSBHotplug(unittest.TestCase):
     """Validates USB topology scanning, device classification, host peripheral exclusion, and XML generation."""
 
@@ -193,12 +192,10 @@ class TestUSBHotplug(unittest.TestCase):
         self.assertEqual(res_detach["status"], "simulated")
         self.assertIn("<vendor id='0x045e'/>", res_detach["xml"])
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestUSBHotplug)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

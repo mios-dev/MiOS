@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load ast_merge module from {_MODULE_PATH}")
 
-
 class TestAstMerge(unittest.TestCase):
     """Validates multi-language semantic 3-way AST merge resolution and conflict detection."""
 
@@ -127,7 +126,6 @@ class TestAstMerge(unittest.TestCase):
                 mock_print.assert_called()
                 parsed = json.loads(mock_print.call_args[0][0])
                 self.assertEqual(parsed["status"], "success")
-
 
 if __name__ == "__main__":
     unittest.main()

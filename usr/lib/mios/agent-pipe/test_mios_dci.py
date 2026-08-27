@@ -10,13 +10,11 @@ import mios_dci as e
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_acts():
     check("acts: 14 epistemic acts", len(e._DCI_ACTS) == 14, str(len(e._DCI_ACTS)))
@@ -29,7 +27,6 @@ def t_acts():
           e._DCI_ACT_NAMES == sorted(e._DCI_ACTS.keys()))
     check("act_names: known anchors present",
           {"frame", "challenge", "recommend"}.issubset(set(e._DCI_ACT_NAMES)))
-
 
 def t_schema():
     s = e._DCI_ACT_SCHEMA
@@ -45,7 +42,6 @@ def t_schema():
     check("schema: required = act/content/confidence",
           s.get("required") == ["act", "content", "confidence"])
 
-
 def t_personas():
     check("personas: 4 (framer/explorer/challenger/integrator)",
           [n for n, _ in e._DCI_PERSONAS] == ["framer", "explorer", "challenger", "integrator"])
@@ -60,7 +56,6 @@ def t_personas():
           all(a in e._DCI_ACTS
               for s in e._PERSONA_ALLOWED_ACTS.values() for a in s))
 
-
 def t_persona_prompt():
     out = e._persona_prompt("Tester", "do the thing", {"ask", "challenge"})
     check("persona_prompt: returns non-empty str", isinstance(out, str) and bool(out.strip()))
@@ -68,7 +63,6 @@ def t_persona_prompt():
     check("persona_prompt: lists each allowed act + its intent",
           "ask" in out and "challenge" in out and e._DCI_ACTS["ask"]["intent"] in out)
     check("persona_prompt: JSON-only contract", "JSON ONLY" in out)
-
 
 def t_configure():
     def fake_create(table, fields, now_fields=None):
@@ -92,7 +86,6 @@ def t_configure():
     check("configure: db_create injected", e._db_create is fake_create)
     check("configure: db_fire injected", e._db_fire is fake_fire)
     check("configure: apply_outbound_auth injected", e._apply_outbound_auth is fake_auth)
-
 
 def t_flow():
     """Drive run_dci_flow with a stubbed persona call (no network) + injected
@@ -127,7 +120,6 @@ def t_flow():
     check("flow: one unresolved high-conf dissent", len(result.get("dissents") or []) == 1)
     check("flow: challenge routed into workspace",
           (result.get("workspace") or {}).get("challenges") == 1)
-
 
 def t_dissent_threshold_ssot():
     """The dissent-extraction cutoff must read from the SSOT knob
@@ -164,7 +156,6 @@ def t_dissent_threshold_ssot():
         e._dci_call_persona = orig_call
         e.DCI_FLOW_TRIGGER_CONF = orig_conf
 
-
 def t_dissent_acts_ssot():
     """T-029 NO-HARDCODE: the dissent/objection act set is DERIVED from the
     persona-allowed SSOT (the Challenger's acts), not a restated ("challenge",
@@ -174,7 +165,6 @@ def t_dissent_acts_ssot():
     check("dissent-acts: every member is a real act",
           all(a in e._DCI_ACTS for a in e._DCI_DISSENT_ACTS))
     check("dissent-acts: non-empty", len(e._DCI_DISSENT_ACTS) >= 1)
-
 
 def t_act_type_emitted():
     """T-028: every DCI act event carries a top-level `act_type` column (not only
@@ -235,7 +225,6 @@ def t_act_type_emitted():
     check("act_type: dissent row carries act_type (first-class dissent)",
           bool(dissents) and all(f.get("act_type") == "challenge" for f in dissents))
 
-
 def t_flow_gate():
     """T-029: the heavy B.2 convergent flow is GATED on DCI_FLOW_ENABLED. With a
     high-confidence Challenger objection from the (stubbed) B.1 critic:
@@ -272,7 +261,6 @@ def t_flow_gate():
         e.DCI_ENABLED = orig_enabled
         e.DCI_FLOW_ENABLED = orig_flow_enabled
 
-
 def main():
     t_acts()
     t_schema()
@@ -286,7 +274,6 @@ def main():
     t_flow_gate()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

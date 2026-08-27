@@ -18,7 +18,6 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-
 class SelinuxPolicyManager:
     """Manages SELinux policy templates, compilation, installation, and AVC denial analysis."""
 
@@ -203,7 +202,6 @@ allow {module_name}_t container_file_t:file {{ read write create open getattr se
             "compliant": is_compliant,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS SELinux Policy Manager & AI Sidecar Confinement")
     parser.add_argument("--generate-te", action="store_true", help="Generate Type Enforcement (.te) policy source")
@@ -264,7 +262,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

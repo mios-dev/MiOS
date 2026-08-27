@@ -2,7 +2,6 @@
 # AI-hint: Interactive Profiler Menu AI-related: mios-build-assessment AI-functions: show_banner, show_menu, show_help, run_quick_summary, run_iommu_analyze...
 # AI-doc: usr/share/doc/mios/manual/mios.md
 
-
 set -euo pipefail
 
 readonly RED='\033[0;31m'

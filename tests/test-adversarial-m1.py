@@ -35,7 +35,6 @@ from watchdog import (
     WatchdogSupervisor,
 )
 
-
 class TestAdversarialHardware(unittest.TestCase):
     """Adversarial testing of Hardware HAL and SandboxedController."""
 
@@ -106,7 +105,6 @@ class TestAdversarialHardware(unittest.TestCase):
         self.assertEqual(code, HardwareErrorCode.SUCCESS)
         self.assertEqual(wrap_read, b"\xaa\xbb\xcc")
 
-
 class TestAdversarialCgroups(unittest.TestCase):
     """Adversarial testing of CPU Core Pinning and Cgroups."""
 
@@ -163,7 +161,6 @@ class TestAdversarialCgroups(unittest.TestCase):
         self.assertEqual(CgroupV2Controller.format_cpu_max(80, 100_000), "80000 100000")
         self.assertEqual(CgroupV2Controller.format_cpu_max(250, 100_000), "250000 100000")
         self.assertEqual(CgroupV2Controller.format_cpu_max(None, 50_000), "max 50000")
-
 
 class TestAdversarialCrdt(unittest.TestCase):
     """Adversarial testing of CRDT LWW-Element-Set and Tombstone Compaction."""
@@ -242,7 +239,6 @@ class TestAdversarialCrdt(unittest.TestCase):
             if os.path.exists(path + ".log"):
                 os.remove(path + ".log")
 
-
 class TestAdversarialWatchdog(unittest.TestCase):
     """Adversarial testing of Watchdog supervisor and device handling."""
 
@@ -286,7 +282,6 @@ class TestAdversarialWatchdog(unittest.TestCase):
 
         # Disarm does not crash
         driver.disarm_and_close()
-
 
 if __name__ == "__main__":
     unittest.main()

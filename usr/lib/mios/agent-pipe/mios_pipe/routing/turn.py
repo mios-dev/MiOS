@@ -11,7 +11,6 @@ import time
 import httpx
 from mios_pipe.kernel.config import PROBE_VERIFY_TLS as _PROBE_VERIFY_TLS
 
-
 _AGENT_REGISTRY = None
 _NODE_LIVE = None
 _should_health_probe = None
@@ -27,20 +26,17 @@ _THINK_CAP_UNCLOSED_RE = re.compile(
 _THINK_ORPHAN_RE = re.compile(
     rf"</?({_THINK_TAGS})\b[^>]*>\s*", re.IGNORECASE)
 
-
 _INJECTED = frozenset((
     "_AGENT_REGISTRY", "_NODE_LIVE", "_should_health_probe", "_probe_auth_headers",
     "NODE_LIVENESS_TTL_S", "NODE_LIVENESS_CONNECT_S", "_THINK_OPENERS", "_THINK_CAP_RE",
     "_THINK_CAP_UNCLOSED_RE", "_THINK_ORPHAN_RE",
 ))
 
-
 def configure(**deps) -> None:
     g = globals()
     for _k, _v in deps.items():
         if _k in _INJECTED:
             g[_k] = _v
-
 
 async def _live_agent_names() -> set:
     live: set = set()
@@ -85,7 +81,6 @@ async def _live_agent_names() -> set:
                 live.add(name)
     return live
 
-
 def _pick_agent(role: str) -> tuple[str, dict]:
     role = (role or "").lower().strip()
     chosen = None
@@ -110,7 +105,6 @@ def _pick_agent(role: str) -> tuple[str, dict]:
             cfg = {**cfg, "endpoint": "", **({"model": _fb_model} if _fb_model else {})}
     return name, cfg
 
-
 def _split_think_tags(text: str) -> tuple[str, str]:
     if not text:
         return "", text
@@ -133,12 +127,10 @@ def _split_think_tags(text: str) -> tuple[str, str]:
     reasoning = "\n\n".join(t for t in thoughts if t).strip()
     return reasoning, answer
 
-
 def _strip_think_tags(text: str) -> str:
     """Back-compat: return only the answer (reasoning discarded). Use
     _split_think_tags when the reasoning should be KEPT for a dropdown."""
     return _split_think_tags(text)[1]
-
 
 def _casual_agent_label(target_name: str) -> str:
     cfg = _AGENT_REGISTRY.get(target_name) or {}
@@ -146,7 +138,6 @@ def _casual_agent_label(target_name: str) -> str:
     if role:
         return f"{role}-agent"
     return "sub-agent"
-
 
 def _extract_last_user_text(messages: list) -> str:
     for i in range(len(messages) - 1, -1, -1):

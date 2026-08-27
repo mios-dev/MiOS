@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from cuda_graphs import MIN_CUDA_GRAPH_SPEEDUP, CUDAGraphManager
 
-
 class TestCUDAGraphs(unittest.TestCase):
     def setUp(self):
         self.mgr = CUDAGraphManager(dry_run=True)
@@ -28,7 +27,6 @@ class TestCUDAGraphs(unittest.TestCase):
             res = self.mgr.replay_graph_decoding(batch_size=b, num_tokens=30)
             self.assertGreaterEqual(res.replay_speedup, MIN_CUDA_GRAPH_SPEEDUP)
             self.assertTrue(res.bit_parity_verified)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,13 +11,11 @@ import unittest
 
 import mios_daemons
 
-
 def _run(coro):
     try:
         return asyncio.new_event_loop().run_until_complete(coro)
     except asyncio.CancelledError:
         return None
-
 
 class _CancelAfter:
     """A fake asyncio.sleep that lets the loop run N iterations then cancels it
@@ -32,14 +30,12 @@ class _CancelAfter:
         if self.calls >= self.fire_after:
             raise asyncio.CancelledError()
 
-
 class _Rep:
     def __init__(self):
         self._scores = {}
 
     def score(self, pid):
         return self._scores.get(pid, 0.5)
-
 
 class GossipLoopTest(unittest.TestCase):
     def test_merges_discovered_peer(self):
@@ -86,7 +82,6 @@ class GossipLoopTest(unittest.TestCase):
         finally:
             mios_daemons._toml_section = orig_toml
 
-
 class SelfImproveLoopTest(unittest.TestCase):
     def test_surfaces_high_finding_once(self):
         seen = set()
@@ -114,13 +109,11 @@ class SelfImproveLoopTest(unittest.TestCase):
 
         self.assertIn(("k", "s"), seen)
 
-
 class _PG:
     """Minimal stand-in for the injected pg module (just an async execute)."""
 
     def __init__(self, fn):
         self.execute = fn
-
 
 class SelfImproveReportTest(unittest.TestCase):
     def test_degrades_open_when_pg_unreachable(self):
@@ -178,7 +171,6 @@ class SelfImproveReportTest(unittest.TestCase):
         self.assertEqual(captured["kw"]["slow_ms"], 9999)
         self.assertEqual(captured["kw"]["reputation"], {"peer": 0.9})
 
-
 class MembershipWatchLoopTest(unittest.TestCase):
     def test_reload_fires_on_mtime_change(self):
         import os as _os
@@ -211,13 +203,11 @@ class MembershipWatchLoopTest(unittest.TestCase):
         self.assertTrue(reloads)
         self.assertTrue(reloads[0].startswith("mtime:"))
 
-
 class ReputationHelpersTest(unittest.TestCase):
     def test_flush_and_restore_noop_when_not_primary(self):
         mios_daemons.configure(_PG_PRIMARY=False)
         _run(mios_daemons._reputation_flush())
         _run(mios_daemons._reputation_restore())
-
 
 class KvGcSweepTest(unittest.TestCase):
     def test_evicts_old_unprotected_matching_only(self):
@@ -246,7 +236,6 @@ class KvGcSweepTest(unittest.TestCase):
             tempfile.gettempdir(), "zqx7-does-not-exist"))
         mios_daemons._kv_gc_sweep_once()  # must not raise
 
-
 class KvGcLoopTest(unittest.TestCase):
     def test_loop_invokes_sweep_then_survives(self):
         calls = {"n": 0}
@@ -266,7 +255,6 @@ class KvGcLoopTest(unittest.TestCase):
             mios_daemons.asyncio.sleep = orig_sleep
             mios_daemons._kv_gc_sweep_once = orig_sweep
         self.assertEqual(calls["n"], 1)
-
 
 class SelfImproveActPassTest(unittest.TestCase):
     """The T-062/T-064 ACT pass: propose -> prove utility -> QUEUE for human approval,
@@ -447,7 +435,6 @@ class SelfImproveActPassTest(unittest.TestCase):
             mios_daemons._selfimprove_act_pass = saved["_selfimprove_act_pass"]
         self.assertEqual(calls["n"], 1)
 
-
 class SelfImproveProposalsReadTest(unittest.TestCase):
     def test_degrades_open_when_pg_unreachable(self):
         async def _boom(*_a, **_k):
@@ -480,7 +467,6 @@ class SelfImproveProposalsReadTest(unittest.TestCase):
         self.assertEqual(out["count"], 1)
         self.assertEqual(captured["kind"], mios_daemons._PROPOSAL_EVENT_KIND)
         self.assertIn("FROM event", captured["sql"])
-
 
 if __name__ == "__main__":
     unittest.main()

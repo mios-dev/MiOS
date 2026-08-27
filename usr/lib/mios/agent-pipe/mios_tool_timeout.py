@@ -11,7 +11,6 @@ import asyncio
 import time
 from typing import Any, Callable, Coroutine, Dict, Optional, Tuple
 
-
 class ToolWatchdog:
     """Enforces execution deadlines on external tool invocations."""
 

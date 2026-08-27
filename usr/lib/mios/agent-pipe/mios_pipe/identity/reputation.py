@@ -6,7 +6,6 @@ from typing import Dict, List
 
 NEUTRAL = 0.5
 
-
 class PeerReputation:
     def __init__(self, recent_penalty: float = 0.15) -> None:
         self._stats: Dict[str, dict] = {}

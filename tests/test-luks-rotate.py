@@ -31,7 +31,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load mios-luks-rotate module from {_LUKS_PATH}")
 
-
 class MockLUKSDevice(luks_rotate.LUKSDevice):
     """Simulated LUKS device state machine for rigorous unit testing without physical disks."""
 
@@ -90,7 +89,6 @@ class MockLUKSDevice(luks_rotate.LUKSDevice):
             data = json.load(f)
             self.slots = {int(k): v for k, v in data["slots"].items()}
         return True
-
 
 class TestLUKSRotate(unittest.TestCase):
     """Tests LUKS2 metadata extraction, atomic zero-downtime key rotation, and safety rollback."""
@@ -218,12 +216,10 @@ class TestLUKSRotate(unittest.TestCase):
             t_content = f.read()
         self.assertIn("OnCalendar=monthly", t_content)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestLUKSRotate)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

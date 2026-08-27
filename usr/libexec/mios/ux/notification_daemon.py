@@ -38,7 +38,6 @@ try:
 except ImportError:
     mios_toml = None
 
-
 @dataclass
 class NotificationMessage:
     """Desktop notification toast payload."""
@@ -50,7 +49,6 @@ class NotificationMessage:
     timeout_ms: int = 5000
     id: int = field(default_factory=lambda: int(time.time() * 1000) % 1000000)
     timestamp: float = field(default_factory=time.time)
-
 
 class NotificationDaemonEngine:
     """Notification dispatcher and HITL approval routing bridge."""
@@ -158,7 +156,6 @@ class NotificationDaemonEngine:
                 results.append(self.send(sample_msg))
         return results
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS System Notification Bridge & HITL Alert Daemon"
@@ -240,7 +237,6 @@ def main() -> int:
         else:
             print(f"[notification_daemon] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

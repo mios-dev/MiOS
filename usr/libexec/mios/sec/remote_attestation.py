@@ -21,7 +21,6 @@ import sys
 import time
 from typing import Any, Dict, List, Optional
 
-
 class RemoteAttestationEngine:
     """Handles TPM2 Attestation Key quoting, measurement collection, and remote verification."""
 
@@ -164,7 +163,6 @@ class RemoteAttestationEngine:
                         return line.split(":")[1].strip().replace("0x", "")
         return hashlib.sha256(f"hardware_pcr_{pcr}".encode()).hexdigest()
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Remote Attestation & TPM2 Hardware Integrity Engine")
     parser.add_argument("--generate-quote", action="store_true", help="Generate TPM2 quote")
@@ -234,7 +232,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

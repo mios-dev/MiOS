@@ -55,7 +55,6 @@ __vte_prompt_command() {
 
 if [[ -n "${BASH_VERSION:-}" ]]; then
 
-
     if [[ "$(declare -p PROMPT_COMMAND 2>&1)" =~ "declare -a" ]]; then
         PROMPT_COMMAND+=(__vte_precmd)
         PROMPT_COMMAND+=(__vte_osc7)
@@ -68,8 +67,6 @@ if [[ -n "${BASH_VERSION:-}" ]]; then
 
         PS1='\[\e]133;D;$?\e\\\e]133;A\e\\\]'"$PS1"'\[\e]133;B\e\\\]'
 
-
-
         PS0='\e]133;C\e\\\r'"${PS0:-}"
     fi
 
@@ -80,8 +77,6 @@ elif [[ -n "${ZSH_VERSION:-}" ]]; then
     if [[ "$PS1" != *\]133\;* ]]; then
 
         PS1=$'%{\e]133;D;%?\e\\\e]133;A\e\\%}'"$PS1"$'%{\e]133;B\e\\%}'
-
-
 
         __vte_preexec() {
             local errsv="$?"

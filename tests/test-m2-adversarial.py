@@ -2,29 +2,7 @@
 # AI-hint: Comprehensive adversarial stress testing harness for Milestone 2 (T-386 Async TCP Framing and T-387 Heartbeat Eviction).
 # AI-related: usr/libexec/mios/node/wire.py, usr/libexec/mios/node/discovery.py
 # AI-doc: usr/share/doc/mios/manual/node.md
-"""
-Adversarial Stress Test Suite for Milestone 2:
-1. Async TCP Framing & Wire Codec (T-386)
-   - Byte-by-byte (1-byte chunk) stream feeding across 50 multi-opcode frames
-   - Irregular/randomized chunk slicing across packet boundaries
-   - High-concurrency async TCP client/server throughput (30 concurrent clients, 300 frames)
-   - Corrupted CRC32 injection across head, middle, and tail of payload
-   - Corrupted magic, version, opcode, and underflow rejection
-   - Oversized payload length header rejection (> 64MB)
-   - Zero-byte payload valid frame roundtrip (CRC32=0)
-   - Stream buffer partial frame drainage and resume
-   - NodeWireDispatcher error response generation for unhandled opcodes
-
-2. Heartbeat Monitor & Dead-Peer Eviction (T-387)
-   - Mathematical boundary precision (0s, 4.999s, 5.0s, 9.999s, 10.0s, 14.999s, 15.0s)
-   - Rapid flapping and state churn across 20 peers for 100 timesteps
-   - Mass simultaneous eviction of 100 peers in a single sweep
-   - Complete listener notification dispatch on mass eviction
-   - Clean re-admission after eviction with strike and state reset
-   - Local node ID self-filtering rejection
-   - Monotonic time jitter / backward timestamp protection
-   - Custom threshold configuration lifecycle
-"""
+"""Adversarial Stress Test Suite for Milestone 2: 1. Async TCP Framing & Wire Codec (T-386)    - Byte-by-byte (1-byte chunk) stream feeding across 50 multi-opcode frames    - Irregular/randomized chunk slicing across packet boundaries    - High-concurrency async TCP client/server throughput (30 concurrent clients, 300 frames)    - Corrupted CRC32 injection across head, middle, and tail of payload    - Corrupted magic, version, opcode, and underflow rejection    - Oversized payload length header rejection (> 64MB)    - Zero-byte payload valid frame roundtrip (CRC32=0)    - Stream buffer partial frame drainage and resume    - NodeWireDispatcher error response generation for unhandled opcodes  2. Heartbeat Monitor & Dead-Peer Eviction (T-387)    - Mathematical boundary precision (0s, 4.999s, 5.0s, 9.999s, 10.0s, 14.999s, 15.0s)    - Rapid flapping and state churn across 20 peers for 100 timesteps    - Mass simultaneous eviction of 100 peers in a single sweep    - Complete listener notification dispatch on mass eviction    - Clean re-admission after eviction with strike and state reset    - Local node ID self-filtering rejection    - Monotonic time jitter / backward timestamp protection    - Custom threshold configuration lifecycle"""
 
 from __future__ import annotations
 
@@ -42,7 +20,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "libexec", "mios", "node"))
 
 import wire
 import discovery
-
 
 class TestAsyncFramingAdversarial(unittest.IsolatedAsyncioTestCase):
     """Adversarial stress testing for T-386 Async Tokio / Asyncio TCP Framing."""
@@ -297,7 +274,6 @@ class TestAsyncFramingAdversarial(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp2.header.opcode, wire.Opcode.ERROR)
         self.assertIn(b"Unhandled opcode", resp2.payload)
 
-
 class TestHeartbeatEvictionAdversarial(unittest.TestCase):
     """Adversarial stress testing for T-387 Heartbeat Monitor & Dead-Peer Eviction."""
 
@@ -479,7 +455,6 @@ class TestHeartbeatEvictionAdversarial(unittest.TestCase):
         self.assertEqual(e[0].node_id, 2)
         self.assertEqual(fast_monitor.peer_count, 0)
 
-
 def main() -> int:
     suite = unittest.TestSuite()
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestAsyncFramingAdversarial))
@@ -487,7 +462,6 @@ def main() -> int:
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

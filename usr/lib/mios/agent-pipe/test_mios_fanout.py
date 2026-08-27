@@ -12,13 +12,11 @@ import mios_fanout as f
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 REG = {
     "primary": {"lane": "gpu", "role": "general", "endpoint": "e0", "skill_tags": ["chat"]},
@@ -27,7 +25,6 @@ REG = {
     "c":       {"lane": "cpu", "role": "telemetry", "endpoint": "e3", "fanout": False, "skill_tags": ["system"]},
     "d":       {"lane": "cpu", "research_only": True, "endpoint": "e4", "skill_tags": ["deep"]},
 }
-
 
 def setup(dispatch_cfg):
     """Inject a synthetic registry + deterministic helper stubs (no server)."""
@@ -41,7 +38,6 @@ def setup(dispatch_cfg):
         agent_skill_tags=lambda cfg: (cfg or {}).get("skill_tags", []),
         max_dispatch_depth=2, council_max_default=4, admit_enable=False)
 
-
 def t_eligible():
     setup({"enable": True, "fanout_max": 3})
     names = lambda lst: sorted(n for n, _ in lst)
@@ -50,14 +46,12 @@ def t_eligible():
     check("eligible: outage prune by live set", names(f._eligible_candidates("primary", {"a"}, False)) == ["a"])
     check("eligible: primary itself excluded", "primary" not in names(f._eligible_candidates("primary", None, True)))
 
-
 def t_council_fallback():
     setup({"enable": True, "fanout_max": 3})
     cands = f._eligible_candidates("primary", None, False)  # a(cpu), b(gpu)
     sel = f._council_fallback("primary", cands, want=2)
     check("council_fallback: lane-diverse first (cpu before gpu vs gpu primary)", [n for n, _ in sel] == ["a", "b"])
     check("council_fallback: cap honored", len(f._council_fallback("primary", cands, want=1)) == 1)
-
 
 def t_force_council():
     setup({"enable": True, "fanout_max": 3})
@@ -66,12 +60,10 @@ def t_force_council():
     sel_r = asyncio.run(f._pick_fanout_agents("primary", {"refined_text": "x"}, force_council=True, include_research=True))
     check("force_council: research turn adds research_only", sorted(n for n, _ in sel_r) == ["a", "b", "d"])
 
-
 def t_council_mode():
     setup({"enable": True, "fanout_max": 3, "mode": "council"})
     sel = asyncio.run(f._pick_fanout_agents("primary", {"refined_text": "x"}))
     check("council mode: equal-weight eligible, capped", sorted(n for n, _ in sel) == ["a", "b"])
-
 
 def t_default_model():
     setup({"enable": True, "fanout_max": 3, "mode": "relevance", "fanout_select_mode": "model"})
@@ -85,7 +77,6 @@ def t_default_model():
     finally:
         f._model_select = orig
 
-
 def t_default_degrade():
     setup({"enable": True, "fanout_max": 3, "mode": "relevance", "fanout_select_mode": "model"})
     orig = f._model_select
@@ -97,7 +88,6 @@ def t_default_degrade():
         check("default degrade-open: council fallback engages secondaries", sorted(n for n, _ in sel) == ["a", "b"])
     finally:
         f._model_select = orig
-
 
 def _fake_httpx(content, status=200):
     """A minimal httpx stand-in: AsyncClient(...).post() -> resp.json() canned."""
@@ -111,7 +101,6 @@ def _fake_httpx(content, status=200):
         async def __aexit__(self, *a): return False
         async def post(self, *a, **k): return _Resp()
     return types.SimpleNamespace(AsyncClient=_Client)
-
 
 def t_model_select():
     setup({"enable": True, "fanout_max": 3, "mode": "relevance", "fanout_select_mode": "model"})
@@ -130,11 +119,9 @@ def t_model_select():
     finally:
         f.httpx = orig
 
-
 _CARD_SKILL = {"id": "cr", "name": "Code Review",
                "description": "reviews source code for correctness and bugs",
                "tags": ["code-review"]}
-
 
 def t_card_skills_corpus():
     setup({"enable": True, "fanout_max": 3})
@@ -151,7 +138,6 @@ def t_card_skills_corpus():
            and "reviews source code" in on), on)
     check("card ON: OFF card is a strict prefix (purely additive)", on.startswith(off), on)
     f.ROUTE_ON_CARD_SKILLS = False
-
 
 def _fake_httpx_cardpick(phrase):
     """A body-inspecting httpx stand-in that simulates a SEMANTIC selector: it reads
@@ -177,7 +163,6 @@ def _fake_httpx_cardpick(phrase):
             return _Resp(picked)
     return types.SimpleNamespace(AsyncClient=_Client)
 
-
 _CS_REG = {
     "primary":    {"lane": "gpu", "role": "general", "endpoint": "e0", "skill_tags": ["chat"]},
     "tokenmatch": {"lane": "gpu", "role": "general", "endpoint": "e1",
@@ -186,7 +171,6 @@ _CS_REG = {
                    "strengths": ["chat"], "skill_tags": ["chat"],
                    "card_skills": [_CARD_SKILL]},
 }
-
 
 def _cs_setup(*, db=None):
     f.configure(
@@ -202,7 +186,6 @@ def _cs_setup(*, db=None):
         max_dispatch_depth=2, council_max_default=4, admit_enable=False,
         route_on_card_skills=True,
         **(db or {}))
-
 
 def t_card_skills_route():
     _cs_setup()
@@ -223,7 +206,6 @@ def t_card_skills_route():
     finally:
         f.httpx = orig
         f.ROUTE_ON_CARD_SKILLS = False
-
 
 def t_route_event():
     captured = []
@@ -250,7 +232,6 @@ def t_route_event():
         f.ROUTE_ON_CARD_SKILLS = False
         f._db_create = f._db_post = f._db_fire = None
 
-
 def main():
     t_eligible()
     t_council_fallback()
@@ -264,7 +245,6 @@ def main():
     t_route_event()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestFido2Enroll(unittest.TestCase):
     """Test suite for FIDO2 token discovery, LUKS2 verification, and keyslot enrollment."""
 
@@ -170,12 +169,10 @@ class TestFido2Enroll(unittest.TestCase):
             exit_code = fido2_enroll.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestFido2Enroll)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

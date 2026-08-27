@@ -28,7 +28,6 @@ DEFAULT_SVID_CACHE_PATH = "/var/lib/mios/sec/spiffe-cache.json"
 DEFAULT_SPIRE_SOCKET = "/run/spire/sockets/agent.sock"
 DEFAULT_VALIDITY_HOURS = 24
 
-
 def atomic_write_json(target_path: str, data: Any) -> None:
     """Write JSON data to disk using an atomic replace pattern to prevent corruption."""
     parent = os.path.dirname(os.path.abspath(target_path))
@@ -53,14 +52,12 @@ def atomic_write_json(target_path: str, data: Any) -> None:
             except OSError:
                 pass
 
-
 def format_spiffe_id(trust_domain: str, node_id: str, workload: str) -> str:
     """Construct canonical SPIFFE ID URI."""
     td = trust_domain.strip("/")
     nid = node_id.strip("/")
     wl = workload.strip("/")
     return f"spiffe://{td}/node/{nid}/workload/{wl}"
-
 
 def parse_spiffe_id(spiffe_id: str) -> Dict[str, str]:
     """Parse and validate components from a SPIFFE ID URI."""
@@ -86,7 +83,6 @@ def parse_spiffe_id(spiffe_id: str) -> Dict[str, str]:
         "workload": parts[4] if len(parts) > 4 else parts[-1],
         "raw_uri": spiffe_id,
     }
-
 
 class SpiffeIdentityAgent:
     """Agent managing SVID certificate issuance, dynamic in-memory rotation, and verification."""
@@ -383,7 +379,6 @@ class SpiffeIdentityAgent:
             "protocol": "SPIFFE X.509 SVID (RFC-Compliant mTLS)",
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS SPIFFE Workload Identity & mTLS Agent (T-567)"
@@ -432,7 +427,6 @@ def main() -> int:
         print(json.dumps(result, indent=2))
 
     return 0 if result.get("success", True) or result.get("valid", True) else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

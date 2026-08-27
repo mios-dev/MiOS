@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from cpu_topology import CPUTopologyAllocator
 
-
 class TestCPUTopology(unittest.TestCase):
     def setUp(self):
         self.allocator = CPUTopologyAllocator(dry_run=True)
@@ -30,7 +29,6 @@ class TestCPUTopology(unittest.TestCase):
         self.assertIn("realtime.slice.d/10-cpuset.conf", dropins)
         self.assertIn("AllowedCPUs=0-1", dropins["realtime.slice.d/10-cpuset.conf"])
         self.assertIn("CPUSchedulingPolicy=rr", dropins["realtime.slice.d/10-cpuset.conf"])
-
 
 if __name__ == "__main__":
     unittest.main()

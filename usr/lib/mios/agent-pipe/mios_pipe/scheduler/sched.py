@@ -11,7 +11,6 @@ from typing import Optional
 
 from mios_config import _DISPATCH_TOML, _toml_section
 
-
 class PriorityGate:
     """Priority-ordered, bounded, cancellation-safe async concurrency gate."""
 
@@ -140,8 +139,6 @@ class PriorityGate:
         self._tenant_dec(tenant)
         self._release()
 
-
-
 _AUTO_PRIO_WORDS = None
 LANE_TOOL_CAP = None
 SLOW_LANES = None
@@ -151,12 +148,10 @@ DISPATCH_OFFLOAD_CPU = None
 _OFFLOAD_ENGINES = None
 _agent_lane = None
 
-
 _INJECTED = frozenset((
     "_AUTO_PRIO_WORDS", "LANE_TOOL_CAP", "SLOW_LANES", "SLOW_LANE_TOOL_CAP",
     "DEFAULT_TOOL_CAP", "DISPATCH_OFFLOAD_CPU", "_OFFLOAD_ENGINES", "_agent_lane",
 ))
-
 
 def configure(**deps) -> None:
     """Inject server-side deps under their EXACT original names (one-way boundary).
@@ -169,7 +164,6 @@ def configure(**deps) -> None:
         if _k in _INJECTED:
             g[_k] = _v
 
-
 def _lane_tool_cap(lane: str) -> int:
     """Tool cap (0 = full). Explicit entry > slow-lane fallback > DEFAULT_TOOL_CAP."""
     _l = str(lane or "").lower().strip()
@@ -179,7 +173,6 @@ def _lane_tool_cap(lane: str) -> int:
         return SLOW_LANE_TOOL_CAP
     return DEFAULT_TOOL_CAP
 
-
 def _resolve_autonomous_priority() -> float:
     raw = os.environ.get("MIOS_AUTONOMOUS_PRIORITY")
     if raw in (None, ""):
@@ -188,7 +181,6 @@ def _resolve_autonomous_priority() -> float:
         return float(raw)
     except (TypeError, ValueError):
         return _AUTO_PRIO_WORDS.get(str(raw).strip().lower(), 1.0)
-
 
 def _agent_offload_engine(cfg: dict) -> Optional[str]:
     """Pick a LIGHT engine the agent can run on for concurrent fan-out, else None
@@ -203,7 +195,6 @@ def _agent_offload_engine(cfg: dict) -> Optional[str]:
         if eng in engines:
             return eng
     return None
-
 
 # MIOS_SCHED_PRIORITY_MODE) selects behaviour; the default reproduces today's numbers:
 _SCHED_FALLBACK = {
@@ -225,7 +216,6 @@ try:
     _SCHED_TOML = _toml_section("sched")
 except Exception:  # noqa: BLE001 -- degrade-open: absent/broken config -> fallbacks
     _SCHED_TOML = {}
-
 
 def _sched_priority_core(refined: Optional[dict], cfg: dict) -> dict:
     """Compute the turn priority from ``refined`` + the resolved [sched] ``cfg`` table.
@@ -291,7 +281,6 @@ def _sched_priority_core(refined: Optional[dict], cfg: dict) -> dict:
     return {"score": score, "complexity": complexity, "urgency": urgency,
             "intent": intent}
 
-
 def _sched_priority(refined: Optional[dict]) -> dict:
     try:
         return _sched_priority_core(
@@ -306,7 +295,6 @@ def _sched_priority(refined: Optional[dict]) -> dict:
                                    _f["score_round_ndigits"]),
                     "complexity": _f["complexity_base"],
                     "urgency": _f["urgency_default"], "intent": "agent"}
-
 
 def _lane_sem_key(cfg: dict) -> str:
     sub = str(cfg.get("sub_lane", "")).lower().strip()

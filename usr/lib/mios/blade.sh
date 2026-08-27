@@ -45,10 +45,8 @@ blade = (mios_toml.load_merged().get("blade") or {})
 arche = blade.get("archetypes") or {}
 alias = blade.get("role_aliases") or {}
 
-
 def flat(value):
     return [value] if isinstance(value, str) else list(value or [])
-
 
 legal = sorted({c for caps in arche.values() for c in flat(caps) if c})
 print("SSOT_TYPE=%s" % shlex.quote(str(blade.get("type") or "")))
@@ -161,19 +159,16 @@ d = mios_toml.load_merged()
 seen = set()
 _VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
-
 def expand(url):
     """Substitute from the environment; leave an unset name visible rather
     than silently emitting a broken URL."""
     return _VAR.sub(lambda m: os.environ.get(m.group(1), m.group(0)), url)
-
 
 def emit(label, url):
     url = expand(str(url or "").strip())
     if url and url not in seen:
         seen.add(url)
         print("%s\t%s" % (label, url))
-
 
 emit("ai", (d.get("ai") or {}).get("endpoint"))
 emit("search", (d.get("search") or {}).get("endpoint"))
@@ -204,10 +199,8 @@ import mios_toml  # noqa: E402
 
 sec = (mios_toml.load_merged().get("security") or {})
 
-
 def flag(value):
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
 
 print("require=%d" % (1 if flag(sec.get("api_require_auth")) else 0))
 print("bind=%s" % (str(sec.get("principal_bind_mode") or "off").strip().lower()))

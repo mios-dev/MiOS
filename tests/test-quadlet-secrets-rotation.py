@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load rotate-quadlet-secrets module from {_ROT_PATH}")
 
-
 class TestQuadletSecretsRotation(unittest.TestCase):
     """Validates 0600 permission hardening on env files and secure token rotation generation."""
 
@@ -79,12 +78,10 @@ class TestQuadletSecretsRotation(unittest.TestCase):
         self.assertIn("rotate-quadlet-secrets.py --init", content)
         self.assertIn("[Install]", content)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestQuadletSecretsRotation)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

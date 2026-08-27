@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 from typing import Any, Dict
 
-
 class JsonGrammarCompiler:
     """Compiles JSON schemas to GBNF (Grammar BNF) syntax strings."""
 

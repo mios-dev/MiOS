@@ -10,13 +10,11 @@ import mios_provider_translate as p
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_scrub():
     schema = {
@@ -39,7 +37,6 @@ def t_scrub():
     check("scrub/gem: forces array items.type", g["properties"]["tags"].get("items", {}).get("type") == "string")
     check("scrub: copy-only (input unmutated)", "$schema" in schema)
 
-
 def t_tools():
     tools = [{"type": "function", "function": {"name": "f", "description": "d",
                                                "parameters": {"type": "object", "properties": {}}}},
@@ -52,13 +49,11 @@ def t_tools():
     check("tools/gem: one decl", len(g[0]["functionDeclarations"]) == 1)
     check("tools/gem: empty -> []", p.oai_tools_to_gemini([]) == [])
 
-
 def t_args_obj():
     check("args: JSON string -> object", p.args_obj('{"a": 1}') == {"a": 1})
     check("args: dict passthrough", p.args_obj({"b": 2}) == {"b": 2})
     check("args: bad JSON -> {}", p.args_obj("not json") == {})
     check("args: non-str/dict -> {}", p.args_obj(5) == {})
-
 
 def t_msgs_anthropic():
     msgs = [{"role": "system", "content": "S"},
@@ -74,7 +69,6 @@ def t_msgs_anthropic():
     check("msgs/anth: tool_use input is OBJECT", asst["content"][-1]["input"] == {"x": 1})
     check("msgs/anth: tool_result linked by id", out[2]["content"][0]["tool_use_id"] == "c1")
 
-
 def t_resp_anthropic():
     resp = {"content": [{"type": "text", "text": "hi"},
                         {"type": "tool_use", "id": "t1", "name": "f", "input": {"y": 2}}]}
@@ -82,7 +76,6 @@ def t_resp_anthropic():
     check("resp/anth: content text", m["content"] == "hi")
     check("resp/anth: tool_calls present", m["tool_calls"][0]["function"]["name"] == "f")
     check("resp/anth: arguments is JSON STRING", json.loads(m["tool_calls"][0]["function"]["arguments"]) == {"y": 2})
-
 
 def t_msgs_gemini():
     msgs = [{"role": "system", "content": "S"},
@@ -94,7 +87,6 @@ def t_msgs_gemini():
     check("msgs/gem: functionCall args OBJECT", contents[0]["parts"][-1]["functionCall"]["args"] == {"x": 1})
     check("msgs/gem: tool -> functionResponse", "functionResponse" in contents[1]["parts"][0])
 
-
 def t_resp_gemini():
     resp = {"candidates": [{"content": {"parts": [
         {"text": "hi"}, {"functionCall": {"name": "f", "args": {"z": 3}}}]}}]}
@@ -102,7 +94,6 @@ def t_resp_gemini():
     check("resp/gem: content text", m["content"] == "hi")
     check("resp/gem: tool_calls name", m["tool_calls"][0]["function"]["name"] == "f")
     check("resp/gem: arguments is JSON STRING", json.loads(m["tool_calls"][0]["function"]["arguments"]) == {"z": 3})
-
 
 def main():
     t_scrub()
@@ -114,7 +105,6 @@ def main():
     t_resp_gemini()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

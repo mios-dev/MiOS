@@ -29,7 +29,6 @@ except Exception:  # noqa: BLE001 -- web stack absent (CLI / unit-test reuse): m
     def JSONResponse(content=None, status_code=200):  # noqa: N802
         return content
 
-
 CHAIN_ENABLE = True
 
 _pg_execute = None
@@ -43,7 +42,6 @@ _VERIFY_COLS = ("chain_seq", "prev_hash", "chain_hash") + CORE_FIELDS
 SESSION_CORE_FIELDS = ("id", "kind", "owui_chat_id", "meta")
 _SESSION_VERIFY_COLS = ("chain_seq", "prev_hash", "chain_hash") + SESSION_CORE_FIELDS
 
-
 def canonical_core(row: dict) -> str:
     core = {k: row[k] for k in CORE_FIELDS
             if isinstance(row, dict) and row.get(k) is not None}
@@ -55,7 +53,6 @@ def canonical_core(row: dict) -> str:
             pass  # genuine free-text (non-JSON) payload -> hash the string as-is
     return json.dumps(core, sort_keys=True, ensure_ascii=False,
                       separators=(",", ":"), default=str)
-
 
 def canonical_core_session(row: dict) -> str:
     core = {k: row[k] for k in SESSION_CORE_FIELDS
@@ -69,11 +66,9 @@ def canonical_core_session(row: dict) -> str:
     return json.dumps(core, sort_keys=True, ensure_ascii=False,
                       separators=(",", ":"), default=str)
 
-
 def link_hash(prev: Optional[str], core_str: str) -> str:
     """A single chain link: ``sha256(prev_hash || canonical_core)`` as hex."""
     return hashlib.sha256(((prev or "") + core_str).encode("utf-8")).hexdigest()
-
 
 class EventChainer:
     """In-memory chain head. Holds the last assigned ``seq`` and the last
@@ -128,14 +123,11 @@ class EventChainer:
                         exc_info=True)
             return fields
 
-
 _CHAINER = EventChainer()
-
 
 def stamp(fields: dict) -> dict:
     """Stamp an event row at the persist chokepoint (server._db_create / _emit_session_event)."""
     return _CHAINER.stamp(fields)
-
 
 def verify_chain(rows: Iterable[dict]) -> dict:
     """Walk events in chain_seq order, recomputing each link from its predecessor."""
@@ -157,7 +149,6 @@ def verify_chain(rows: Iterable[dict]) -> dict:
         prev = stored
         checked += 1
     return {"ok": True, "checked": checked, "first_broken_seq": None}
-
 
 class SessionChainer:
     """In-memory chain head for the session table."""
@@ -201,13 +192,10 @@ class SessionChainer:
             log.warning("session chain stamp failed (degrade-open)", exc_info=True)
             return fields
 
-
 _SESSION_CHAINER = SessionChainer()
-
 
 def stamp_session(fields: dict) -> dict:
     return _SESSION_CHAINER.stamp(fields)
-
 
 def verify_session_chain(rows: Iterable[dict]) -> dict:
     """Walk session rows in chain_seq order, recomputing each link from its predecessor."""
@@ -229,7 +217,6 @@ def verify_session_chain(rows: Iterable[dict]) -> dict:
         prev = stored
         checked += 1
     return {"ok": True, "checked": checked, "first_broken_seq": None}
-
 
 async def seed_from_db(pg_execute=None) -> None:
     if not CHAIN_ENABLE:
@@ -254,7 +241,6 @@ async def seed_from_db(pg_execute=None) -> None:
     else:
         _CHAINER.seed(0, GENESIS)
 
-
 async def seed_session_from_db(pg_execute=None) -> None:
     if not CHAIN_ENABLE:
         return
@@ -278,7 +264,6 @@ async def seed_session_from_db(pg_execute=None) -> None:
     else:
         _SESSION_CHAINER.seed(0, GENESIS)
 
-
 async def _read_chain_rows(pg_execute=None) -> Optional[list]:
     ex = pg_execute or _pg_execute
     if ex is None:
@@ -290,7 +275,6 @@ async def _read_chain_rows(pg_execute=None) -> Optional[list]:
             fetch=True)
     except Exception:  # noqa: BLE001
         return None
-
 
 async def _read_session_chain_rows(pg_execute=None) -> Optional[list]:
     ex = pg_execute or _pg_execute
@@ -304,7 +288,6 @@ async def _read_session_chain_rows(pg_execute=None) -> Optional[list]:
     except Exception:  # noqa: BLE001
         return None
 
-
 async def chain_verify_logic(table: str = "event", pg_execute=None):
     if table == "session":
         rows = await _read_session_chain_rows(pg_execute)
@@ -315,7 +298,6 @@ async def chain_verify_logic(table: str = "event", pg_execute=None):
     return JSONResponse({"object": f"mios.audit.{table}.chain", "enabled": bool(CHAIN_ENABLE),
                          **res})
 
-
 def configure(*, chain_enable=None, pg_execute=None) -> None:
     global CHAIN_ENABLE, _pg_execute
     if chain_enable is not None:
@@ -323,9 +305,7 @@ def configure(*, chain_enable=None, pg_execute=None) -> None:
     if pg_execute is not None:
         _pg_execute = pg_execute
 
-
 audit_router = APIRouter()
-
 
 @audit_router.get("/v1/audit/chain/verify")
 async def chain_verify(table: str = "event"):

@@ -15,7 +15,6 @@ from typing import Dict, List, Optional, Any, Tuple
 DEFAULT_ARCHIVE_DIR = "/var/log/archive"
 DEFAULT_PGVECTOR_URL = "postgresql://mios:mios@127.0.0.1:5432/mios"
 
-
 class LogArchiverManager:
     """Compacts system journal logs into columnar archives and indexes diagnostic vector embeddings."""
 
@@ -128,7 +127,6 @@ class LogArchiverManager:
             "mock": self.dry_run,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Structured Log Archiver & Vector Indexer")
     parser.add_argument("--archive-dir", default=DEFAULT_ARCHIVE_DIR, help="Archive storage directory")
@@ -153,7 +151,6 @@ def main():
         "vector_indexing": index_res,
     }
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

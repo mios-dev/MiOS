@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from gpu_powerd import MAX_D3COLD_WAKE_MS, GPUPowerManager
 
-
 class TestGPUPower(unittest.TestCase):
     def setUp(self):
         self.mgr = GPUPowerManager(dry_run=True)
@@ -29,7 +28,6 @@ class TestGPUPower(unittest.TestCase):
         state = self.mgr.wake_gpu_for_inference()
         self.assertEqual(state.power_state, "D0_Active")
         self.assertLess(state.wake_latency_ms, MAX_D3COLD_WAKE_MS)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -12,12 +12,10 @@ import os
 from enum import Enum
 from typing import Dict, List, Optional, Set
 
-
 class AffinityPolicy(Enum):
     EXCLUSIVE = "exclusive"
     SHARED = "shared"
     LOW_PRIORITY = "low_priority"
-
 
 class NodeResourceLimits:
     """Resource bounds for node worker threads and processes."""
@@ -40,7 +38,6 @@ class NodeResourceLimits:
         self.exclude_core_zero = exclude_core_zero
         self.cgroup_path = cgroup_path
 
-
 def filter_safe_worker_cores(
     total_system_cores: int,
     requested_cores: Optional[List[int]] = None,
@@ -58,7 +55,6 @@ def filter_safe_worker_cores(
         return [c for c in candidate_cores if c < total_system_cores]
 
     return [c for c in candidate_cores if c != 0 and c < total_system_cores]
-
 
 class WorkerAffinityController:
     """Tracks and assigns CPU core affinities to workers according to policy."""
@@ -110,7 +106,6 @@ class WorkerAffinityController:
     def release_cores(self, cores: List[int]) -> None:
         for c in cores:
             self.allocated_exclusive_cores.discard(c)
-
 
 class CgroupV2Controller:
     """Interacts with Linux cgroup v2 hierarchy to apply CPU and memory ceilings."""

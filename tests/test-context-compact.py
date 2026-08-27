@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestContextCompact(unittest.TestCase):
     """Test suite for context compaction thresholds, system prompt immutability, and episodic archives."""
 
@@ -147,7 +146,6 @@ class TestContextCompact(unittest.TestCase):
         with patch.object(sys, "argv", ["mios_kv_compact.py", "--mock", "--compact", "--json"]):
             code = mios_kv_compact.main()
             self.assertEqual(code, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

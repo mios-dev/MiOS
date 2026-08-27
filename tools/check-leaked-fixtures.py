@@ -31,12 +31,10 @@ ALLOWED_PATHS = frozenset({
     "root-manifest.json",
 })
 
-
 def _tracked(root: str) -> list:
     out = subprocess.run(["git", "-C", root, "ls-files"],
                          capture_output=True, text=True, check=False).stdout
     return [p.strip().replace(os.sep, "/") for p in out.splitlines() if p.strip()]
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
@@ -76,7 +74,6 @@ def main() -> int:
     print(f"[check-leaked-fixtures] {len(viol)}/{ceiling} leaked fixture(s) in the"
           f" tracked tree", file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

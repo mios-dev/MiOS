@@ -58,13 +58,11 @@ HIGH_RISK_PATTERNS = [
 KV_SECRET_PATTERN = re.compile(r"(?i)(api[_-]?key|secret|password|token|bearer|passphrase)(\s*[:=]\s*)['\"]?([^\s'\"]+)['\"]?")
 PK_SECRET_PATTERN = re.compile(r"-----BEGIN\s+[A-Z\s]+PRIVATE\s+KEY-----[\s\S]*?-----END\s+[A-Z\s]+PRIVATE\s+KEY-----|-----BEGIN\s+[A-Z\s]+PRIVATE\s+KEY-----")
 
-
 def redact_secrets(content: str) -> str:
     """Sanitize secret values to comply with SECRETS-NEVER-IN-ENV and persistence hygiene."""
     sanitized = KV_SECRET_PATTERN.sub(r"\1\2[REDACTED]", content)
     sanitized = PK_SECRET_PATTERN.sub(r"[REDACTED_PRIVATE_KEY]", sanitized)
     return sanitized
-
 
 def classify_risk(file_path: str) -> str:
     """Classify file mutation into 'safe', 'high-risk', or 'review' tier."""
@@ -83,12 +81,10 @@ def classify_risk(file_path: str) -> str:
         return "high-risk"
     return "review"
 
-
 def classify_path(file_path: str) -> str:
     """Alias for classify_risk for interface compatibility."""
     risk = classify_risk(file_path)
     return risk if risk in ("safe", "high-risk") else "safe"
-
 
 def atomic_write_json(target_path: str, data: Any) -> None:
     """Write JSON data to disk using an atomic replace pattern to prevent corruption."""
@@ -113,7 +109,6 @@ def atomic_write_json(target_path: str, data: Any) -> None:
                 os.remove(tmp_file)
             except OSError:
                 pass
-
 
 def snapshot_diffs(
     root_dir: str,
@@ -180,7 +175,6 @@ def snapshot_diffs(
     atomic_write_json(out_file, snapshot)
     return snapshot
 
-
 def accrue_diffs(
     snapshot_dir: str = DEFAULT_SNAPSHOT_DIR,
     ledger_path: str = DEFAULT_LEDGER_PATH,
@@ -245,7 +239,6 @@ def accrue_diffs(
     atomic_write_json(ledger_path, ledger)
     return ledger
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="MiOS WS-DIFFCYCLE Shutdown Diff & Accrual Engine")
     subparsers = parser.add_subparsers(dest="command")
@@ -282,7 +275,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         parser.print_help()
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

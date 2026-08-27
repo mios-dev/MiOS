@@ -9,7 +9,6 @@ import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
-
 def load_module():
     spec = importlib.util.spec_from_file_location(
         "render_globals", os.path.join(_HERE, "render-globals.py"))
@@ -17,9 +16,7 @@ def load_module():
     spec.loader.exec_module(mod)
     return mod
 
-
 rg = load_module()
-
 
 class TestShAssign(unittest.TestCase):
     def test_simple_value_uses_the_idiomatic_form(self):
@@ -51,7 +48,6 @@ class TestShAssign(unittest.TestCase):
             out = rg._sh_assign("MIOS_X", value)
             self.assertTrue(":=" in out or "+x" in out, out)
 
-
 class TestPsAssign(unittest.TestCase):
     def test_numeric_is_emitted_bare(self):
         # check 28 parses `else { <digits> }`
@@ -79,7 +75,6 @@ class TestPsAssign(unittest.TestCase):
         out = rg._ps_assign("MIOS_PORT_SSH", "8100")
         self.assertIn("if ($env:MIOS_PORT_SSH)", out)
 
-
 class TestSanitize(unittest.TestCase):
     def test_illegal_identifier_characters_are_replaced(self):
         # a container key like mios-llm-worker@ produced MIOS_..._WORKER@_...
@@ -88,7 +83,6 @@ class TestSanitize(unittest.TestCase):
 
     def test_legal_name_is_untouched(self):
         self.assertEqual(rg._sanitize("MIOS_PORT_SSH"), "MIOS_PORT_SSH")
-
 
 class TestOrdering(unittest.TestCase):
     def test_template_is_emitted_after_the_name_it_references(self):
@@ -100,7 +94,6 @@ class TestOrdering(unittest.TestCase):
         self.assertLess(names.index("MIOS_PORT_FORGE_HTTP"),
                         names.index("MIOS_URLS_FORGE"))
 
-
 class TestExpandTemplate(unittest.TestCase):
     def test_shell_keeps_the_brace_form(self):
         self.assertEqual(rg.expand_template("a${MIOS_X}b", "sh"), "a${MIOS_X}b")
@@ -108,7 +101,6 @@ class TestExpandTemplate(unittest.TestCase):
     def test_powershell_uses_script_scope(self):
         self.assertEqual(rg.expand_template("a${MIOS_X}b", "ps"),
                          "a$($script:MIOS_X)b")
-
 
 class TestGeneratedFilesAreParseable(unittest.TestCase):
     def test_generated_sh_has_balanced_quoting(self):
@@ -135,7 +127,6 @@ class TestGeneratedFilesAreParseable(unittest.TestCase):
             self.assertRegex(name, r"^[A-Za-z0-9_]+$",
                              f"illegal PowerShell identifier: {name}")
 
-
 class TestGlobalsParity(unittest.TestCase):
     def test_rendered_globals_have_key_parity(self):
         exports = rg.build_exports()
@@ -156,7 +147,6 @@ class TestGlobalsParity(unittest.TestCase):
         ps_body = '$script:MIOS_TEST_KEY = 1234\n'
         problems = rg.check_globals_parity(sh_body, ps_body)
         self.assertTrue(any("missing in globals.sh" in p for p in problems))
-
 
 if __name__ == "__main__":
     unittest.main()

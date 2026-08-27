@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestBtopTheme(unittest.TestCase):
     """Test suite for btop theme rendering and exact RGB hex palette mapping."""
 
@@ -95,12 +94,10 @@ class TestBtopTheme(unittest.TestCase):
             exit_code = btop_theme.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBtopTheme)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

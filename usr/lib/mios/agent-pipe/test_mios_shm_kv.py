@@ -14,13 +14,11 @@ from mios_shm_kv import ShmKVTransfer
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def main():
     shm = ShmKVTransfer(segment_name="test_shm_kv_segment", size_bytes=65536)
@@ -39,7 +37,6 @@ def main():
 
     if _fails > 0:
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

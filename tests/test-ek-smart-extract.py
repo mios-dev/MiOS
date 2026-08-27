@@ -7,10 +7,8 @@ import sys
 import _agentpipe_path  # noqa: F401
 import server
 
-
 def _make(out: str) -> dict:
     return {"output": out, "success": True}
-
 
 def main() -> int:
     NDJSON = (
@@ -65,7 +63,6 @@ def main() -> int:
             print(f"        got:      {got}")
             fails += 1
     return 1 if fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

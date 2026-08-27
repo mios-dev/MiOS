@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import Iterable, List, Optional
 
-
 class GcPlan:
     """A GC decision: which files to evict, which to keep, and bytes freed."""
 
@@ -24,7 +23,6 @@ class GcPlan:
             "freed_bytes": self.freed_bytes,
             "reasons": dict(self.reasons),
         }
-
 
 def plan_gc(files: Iterable[dict], *, ttl_s: float, max_bytes: int,
             now: float, protect: Optional[Iterable[str]] = None) -> GcPlan:

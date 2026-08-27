@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 
-
 class Dispatcher:
     """Routes RouteDecision.mode -> the injected handler for that mode."""
 
@@ -39,7 +38,6 @@ class Dispatcher:
     def can_handle(self, mode: str) -> bool:
         return str(mode) in self._handlers or self._default in self._handlers
 
-
 class MockResponse:
     def __init__(self, data: dict, status_code: int = 200, text: str = ""):
         self._data = data
@@ -52,7 +50,6 @@ class MockResponse:
     @property
     def text(self) -> str:
         return self._text
-
 
 async def dispatch_via_http(payload: dict, endpoint: str, headers: dict = None) -> MockResponse:
     import httpx
@@ -71,7 +68,6 @@ async def dispatch_via_http(payload: dict, endpoint: str, headers: dict = None) 
             return MockResponse({"error": {"message": f"blade unreachable: {e}", "type": "blade_unreachable_error", "code": "blade_unreachable"}}, status_code=502)
         except Exception as e:
             return MockResponse({"error": {"message": str(e), "type": "backend_error"}}, status_code=502)
-
 
 async def dispatch_via_queue(payload: dict, queue: Any) -> dict:
     if queue is None:

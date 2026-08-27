@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mios_pipe.kernel.config import validate_config
 
-
 VALID = """
 [identity]
 mios_user = "corey"
@@ -23,13 +22,11 @@ agent_pipe = 8640
 hermes = 8642
 """
 
-
 def test_accepts_valid_config():
     ok, errors = validate_config(VALID, live_config={"identity": {"mios_user": "x"},
                                                      "ports": {"agent_pipe": 8640}})
     assert ok is True, errors
     assert errors == []
-
 
 def test_rejects_dropped_identity_section():
     posted = """
@@ -41,7 +38,6 @@ agent_pipe = 8640
     assert ok is False
     assert any("identity" in e for e in errors), errors
 
-
 def test_rejects_dropped_ports_section():
     posted = """
 [identity]
@@ -51,7 +47,6 @@ mios_user = "corey"
     ok, errors = validate_config(posted, live_config=live)
     assert ok is False
     assert any("ports" in e for e in errors), errors
-
 
 def test_rejects_bad_port_out_of_range():
     posted = """
@@ -65,7 +60,6 @@ agent_pipe = 70000
     assert ok is False
     assert any("agent_pipe" in e and "65535" in e for e in errors), errors
 
-
 def test_rejects_non_integer_port():
     posted = """
 [identity]
@@ -77,7 +71,6 @@ agent_pipe = "8640"
     ok, errors = validate_config(posted, live_config={})
     assert ok is False
     assert any("agent_pipe" in e for e in errors), errors
-
 
 def test_rejects_blank_mios_user():
     posted = """
@@ -91,7 +84,6 @@ agent_pipe = 8640
     assert ok is False
     assert any("mios_user" in e for e in errors), errors
 
-
 def test_rejects_oversize_payload():
     big = "# pad\n" + ("x = 1\n" * 400000)
     assert len(big.encode("utf-8")) > 2 * 1024 * 1024
@@ -99,17 +91,14 @@ def test_rejects_oversize_payload():
     assert ok is False
     assert any("too large" in e.lower() for e in errors), errors
 
-
 def test_rejects_unparseable_toml():
     ok, errors = validate_config("this is = = not toml [[[", live_config={})
     assert ok is False
     assert errors
 
-
 def test_drop_check_degrades_open_without_live():
     ok, errors = validate_config("[misc]\nfoo = 1\n", live_config=None)
     assert ok is True, errors
-
 
 def _run_all():
     fns = [v for k, v in sorted(globals().items())
@@ -127,7 +116,6 @@ def _run_all():
             print(f"ERROR {fn.__name__}: {type(e).__name__}: {e}")
     print(f"\n{len(fns) - failed}/{len(fns)} passed")
     return 1 if failed else 0
-
 
 if __name__ == "__main__":
     sys.exit(_run_all())

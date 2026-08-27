@@ -12,7 +12,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 FAILED = 0
 
-
 def load():
     loader = importlib.machinery.SourceFileLoader("mios_daemon_under_test",
                                                   str(HERE / "mios-daemon"))
@@ -22,22 +21,18 @@ def load():
     loader.exec_module(mod)
     return mod
 
-
 def check(label, cond):
     global FAILED
     print(f"[{'PASS' if cond else 'FAIL'}] {label}")
     if not cond:
         FAILED += 1
 
-
 d = load()
-
 
 def reset(cooldown, attempts):
     d.ESCALATION_COOLDOWN_S = cooldown
     d.ESCALATION_MAX_ATTEMPTS = attempts
     d._escalation_seen.clear()
-
 
 # 1. First escalation of a concern always passes.
 reset(1800.0, 3)

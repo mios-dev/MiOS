@@ -11777,7 +11777,6 @@ demonstrate. Nothing new starts until they do.
 **Why:** a layer nobody can test is a layer whose tests nobody notices are failing -- which is what had happened.
 **Dep:** none
 
-
 # Batch: the four open campaigns, measured 2026-08-24
 
 Grounded in measurements taken against this tree rather than restated from
@@ -19330,5 +19329,102 @@ makes that table generated so the two cannot diverge again.
 **Done When:** Test suite validates UID 1000 allocation, subuid mapping, and user session service compatibility.
 **Why:** Automated CI testing ensures future provisioning updates or base image rebuilds never regress the non-system user class invariant.
 **Dep:** AGY-2562
+## AGY-2564 -- Autonomous self-replication daemon and podman-MiOS-DEV build pipeline trigger  (WS-HCI | P1 | M)
+**Goal:** Trigger containerized bootc-image-builder compilation in podman-MiOS-DEV, verify image digest, and stage hot-swap OCI artifacts.
+**What+How:** Implement `usr/libexec/mios/deploy/self_replicate.py`. Inspect local git tree changes, trigger isolated containerized build via BIB inside `podman-MiOS-DEV`, verify cryptographic SHA-256 image digest, and stage OCI artifact for atomic `bootc switch` execution.
+**Where:** usr/libexec/mios/deploy/self_replicate.py, usr/share/containers/systemd/podman-MiOS-DEV.container
+**Verify:** Run `python tests/test-self-replicate-build.py`; verify build trigger, digest validation, and staging pass 100%.
+**Do NOT:** Perform mutable build operations on host root or trigger uncontrolled reboots without staging validation.
+**Done When:** Self-replication daemon triggers containerized builds and stages verified OCI image digests atomically.
+**Why:** Self-replication allows the immutable host to rebuild and update its own operating system substrate autonomously.
+**Dep:** AGY-2563
 
+## AGY-2565 -- Automated self-build trigger, image digest verification, and hot-swap staging test suite  (WS-HCI | P2 | S)
+**Goal:** Verify in automated CI that self-replication daemon generates valid SHA-256 image digests and stages updates.
+**What+How:** Add `tests/test-self-replicate-build.py`. Trigger mock self-build; assert git commit SHA is recorded; assert image digest signature is valid; assert artifact is staged for bootc switch. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-self-replicate-build.py, tools/ci-suites.py
+**Verify:** Run `python tests/test-self-replicate-build.py`; assert all assertions pass with exit code 0.
+**Do NOT:** Skip self-replication digest verification in automated CI test tiers.
+**Done When:** Test suite validates self-build trigger, cryptographic digest verification, and atomic staging.
+**Why:** Continuous testing ensures autonomous OS rebuilding pipelines maintain strict image integrity and signature validation.
+**Dep:** AGY-2564
 
+## AGY-2566 -- Zero-downtime MicroVM state serialization and live migration handover engine in mios-virt  (WS-HCI | P1 | M)
+**Goal:** Serialize microVM CPU registers, dirty memory pages, and virtio-pmem DAX descriptors for <50ms live handover.
+**What+How:** Implement `usr/libexec/mios/virt/microvm_migrate.py`. Serialize in-memory CPU state, dirty memory bitmasks, and virtio-pmem memory file descriptors; transfer snapshot to target sandbox; restore execution in <50ms without dropping active guest socket connections.
+**Where:** usr/libexec/mios/virt/microvm_migrate.py, usr/libexec/mios/virt/mios_microvm.py
+**Verify:** Run `python tests/test-microvm-live-migration.py`; verify snapshot serialization and restore complete in <50ms with zero data loss.
+**Do NOT:** Write uncompressed VM memory to disk during live handover or lose volatile CPU register states.
+**Done When:** MicroVM live migration engine serializes and transfers execution state with sub-50ms latency.
+**Why:** Live microVM migration enables seamless workload rebalancing and hot-patching across hyper-converged host clusters.
+**Dep:** AGY-2565
+
+## AGY-2567 -- Automated MicroVM state handover latency (<50ms) and zero data loss test suite  (WS-HCI | P2 | S)
+**Goal:** Verify in automated CI that microVM state serialization and restore complete in <50ms with 100% memory integrity.
+**What+How:** Add `tests/test-microvm-live-migration.py`. Capture microVM state snapshot; measure serialization duration; restore snapshot into target sandbox; assert latency < 50ms across all trials; assert VM registers and memory size match original state. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-microvm-live-migration.py, tools/ci-suites.py
+**Verify:** Run `python tests/test-microvm-live-migration.py`; assert all assertions pass with exit code 0.
+**Do NOT:** Skip microVM live migration timing assertions in CI test tier 2.
+**Done When:** Test suite validates sub-50ms handover latency and zero register divergence across live migrations.
+**Why:** Continuous testing ensures microVM virtualization updates preserve ultra-fast state serialization and zero guest data loss.
+**Dep:** AGY-2566
+
+## AGY-2568 -- Dual-mode dynamic topology switcher (Seat UI vs Headless Blade) in mios-node  (WS-NODE | P1 | M)
+**Goal:** Dynamically switch system operational profile between Seat (Wayland/GNOME/ASR) and Blade (k3s/Ceph/RPC) with 0 VRAM leaks.
+**What+How:** Implement `usr/libexec/mios/node/topology_switch.py`. Manage dynamic service transitions between interactive workstation desktop services (gdm, gnome-shell, pipewire, mios-asr) and headless compute blade services (k3s, ceph-mds, llama-rpc-server); release compositor VRAM cleanly when entering blade mode.
+**Where:** usr/libexec/mios/node/topology_switch.py, usr/lib/systemd/system/mios-blade.service
+**Verify:** Run `python tests/test-seat-blade-transition.py`; verify mode transitions and resource cleanup pass 100%.
+**Do NOT:** Leave orphaned graphical compositor processes or leaked GPU framebuffer memory after transitioning to headless blade mode.
+**Done When:** Topology switcher transitions between seat and blade operational profiles with zero resource leaks.
+**Why:** Dual-topology support allows the same immutable image to serve as a local desktop workstation or a remote compute blade dynamically.
+**Dep:** AGY-2567
+
+## AGY-2569 -- Automated Seat-to-Blade profile transition and zero GPU leak verification test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that Seat-to-Blade profile transitions clean up 100% of desktop services and release compositor VRAM.
+**What+How:** Add `tests/test-seat-blade-transition.py`. Initialize Seat mode; execute transition to Blade mode; assert desktop services are deactivated and RPC services are active; assert VRAM allocation drops to 0MB. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-seat-blade-transition.py, tools/ci-suites.py
+**Verify:** Run `python tests/test-seat-blade-transition.py`; assert all assertions pass with exit code 0.
+**Do NOT:** Skip topology profile transition assertions in CI test tier 2.
+**Done When:** Test suite validates complete service switching and zero GPU memory retention after Seat-to-Blade transition.
+**Why:** Continuous testing ensures dynamic host topology transitions maintain clean resource separation and operational agility.
+**Dep:** AGY-2568
+
+## AGY-2570 -- PSS memory budget regulator and swarm agent OOM circuit breaker in agent-pipe  (WS-AI | P1 | M)
+**Goal:** Regulate swarm agent allocations against a 16GB host memory budget, enabling >1,500 background workers without OOM thrashing.
+**What+How:** Implement `usr/lib/mios/agent-pipe/pss_regulator.py`. Track Proportional Set Size (PSS) per worker task (9.5MB for jcode workers, 145MB for OpenCode containers); enforce admission control against a 16,000MB hard limit; reject task oversubscription before kernel OOM killer triggers.
+**Where:** usr/lib/mios/agent-pipe/pss_regulator.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Run `python tests/test-swarm-pss-memory.py`; verify admission of 1,500 workers within 16GB memory bounds.
+**Do NOT:** Rely on reactive kernel OOM-killer termination or allow unconstrained agent process spawning.
+**Done When:** PSS memory regulator admits >1,500 concurrent worker tasks while strictly bounding total allocation below 16GB.
+**Why:** Proportional Set Size regulation guarantees system stability and high-density agent swarm execution on standard workstations.
+**Dep:** AGY-2569
+
+## AGY-2571 -- Automated 1,500-task swarm concurrency memory bounding (<16GB) test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 1,500 concurrent swarm tasks consume <=16,000MB memory and circuit breaker triggers on overflow.
+**What+How:** Add `tests/test-swarm-pss-memory.py`. Admit 2 OpenCode containers + 1,500 jcode workers into regulator; assert total memory allocation <= 16,000MB; attempt to admit additional over-budget task; assert regulator returns False and logs circuit breaker warning. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-swarm-pss-memory.py, tools/ci-suites.py
+**Verify:** Run `python tests/test-swarm-pss-memory.py`; assert all assertions pass with exit code 0.
+**Do NOT:** Skip swarm memory bounding assertions in CI test tier 2.
+**Done When:** Test suite validates 1,500-task concurrency capacity and proactive OOM circuit breaker triggering.
+**Why:** Continuous testing ensures multi-agent swarm scalability optimizations preserve strict workstation memory limits.
+**Dep:** AGY-2570
+
+## AGY-2572 -- Distributed pipeline tensor dispatcher with dynamic RPC worker layer partitioning  (WS-AI | P1 | M)
+**Goal:** Split 80-layer 70B models across local GPUs and remote RPC workers with calculated activation tensor network handoffs.
+**What+How:** Implement `usr/lib/mios/ai/tensor_pipeline.py`. Calculate network transmission payload ($P = 2 	imes S 	imes d_{	ext{model}} 	imes b$ yielding 32.8KB decode and 64MB prefill); partition 80 transformer layers across cluster nodes based on VRAM capacity; execute sequential forward passes over authenticated TCP RPC.
+**Where:** usr/lib/mios/ai/tensor_pipeline.py, usr/libexec/mios/launch-inference-head.sh
+**Verify:** Run `python tests/test-tensor-pipeline-rpc.py`; verify tensor payload math and layer partitioning across nodes pass 100%.
+**Do NOT:** Hardcode static layer splits without querying worker VRAM capacity or drop activation tensors during network handoff.
+**Done When:** Tensor pipeline dispatcher calculates network payloads and partitions 80-layer models across distributed RPC workers.
+**Why:** Distributed tensor pipeline parallelism enables high-parameter models (70B+) to execute across commodity networked hardware.
+**Dep:** AGY-2571
+
+## AGY-2573 -- Automated distributed 70B layer-split forward pass and network failover test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that activation tensor payloads match exact theoretical math (32.8KB decode, 64MB prefill) and forward pass succeeds across 3 nodes.
+**What+How:** Add `tests/test-tensor-pipeline-rpc.py`. Initialize 80-layer pipeline; assert decode payload for 1 token is exactly 32,768 bytes; assert prefill payload for 2048 tokens is exactly 67,108,864 bytes; register 3 nodes (head + 2 workers); execute simulated forward pass; assert all 3 nodes participate successfully. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-tensor-pipeline-rpc.py, tools/ci-suites.py
+**Verify:** Run `python tests/test-tensor-pipeline-rpc.py`; assert all assertions pass with exit code 0.
+**Do NOT:** Skip distributed tensor math verification in automated CI test tiers.
+**Done When:** Test suite validates exact activation tensor payload sizes and 3-node distributed forward pass execution.
+**Why:** Continuous testing ensures distributed inference network optimizations maintain exact mathematical precision and communication fidelity.
+**Dep:** AGY-2572

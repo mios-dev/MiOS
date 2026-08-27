@@ -2,7 +2,6 @@
 # AI-hint: A diagnostic script that aggregates hardware, kernel, and peripheral data (PCI, USB, GPU, IOMMU) into text and JSON reports to provide a comprehensive hard...
 # AI-doc: usr/share/doc/mios/manual/tools.md
 
-
 set -euo pipefail
 
 readonly RED='\033[0;31m'
@@ -22,7 +21,6 @@ readonly JSON_FILE="$OUTPUT_DIR/system-profile-${TIMESTAMP}.json"
 mkdir -p "$OUTPUT_DIR"
 
 JSON_DATA="{"
-
 
 print_header()  { echo -e "
 ${BOLD}${CYAN}== $1 ==${NC}
@@ -54,7 +52,6 @@ append_to_output() {
     echo "$1" | tee -a "$OUTPUT_FILE"
 }
 
-
 check_tools() {
     print_header "CHECKING REQUIRED TOOLS"
 
@@ -79,7 +76,6 @@ check_tools() {
         echo "Install with your package manager"
     fi
 }
-
 
 collect_basic_info() {
     print_header "BASIC SYSTEM INFORMATION"
@@ -550,7 +546,6 @@ collect_display_server() {
     echo "DE: ${XDG_CURRENT_DESKTOP:-Not set}" | tee -a "$OUTPUT_FILE"
     echo "Session: ${XDG_SESSION_TYPE:-Not set}" | tee -a "$OUTPUT_FILE"
 }
-
 
 main() {
     clear

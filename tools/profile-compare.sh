@@ -2,7 +2,6 @@
 # AI-hint: A diagnostic script that compares two system profile files to identify hardware discrepancies in CPU, GPU, memory, and kernel configurations for cross-syst...
 # AI-doc: usr/share/doc/mios/manual/tools.md
 
-
 set -euo pipefail
 
 readonly RED='\033[0;31m'

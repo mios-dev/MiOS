@@ -19,16 +19,12 @@ from mios_config import (
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 _get_client = None
 _is_remote_endpoint = None
-
 
 _INJECTED = frozenset((
     "_get_client", "_is_remote_endpoint",
 ))
-
 
 def configure(**deps) -> None:
     """Inject server-side deps under their EXACT original names (one-way boundary).
@@ -41,9 +37,7 @@ def configure(**deps) -> None:
         if _k in _INJECTED:
             g[_k] = _v
 
-
 _heavy_probe = {"ok": False, "ts": -1e9}
-
 
 async def _heavy_lane_up() -> bool:
     """Is the SGLang heavy lane serving right now? Cached for _HEAVY_PROBE_TTL s so we
@@ -63,9 +57,7 @@ async def _heavy_lane_up() -> bool:
     _heavy_probe["ts"] = now
     return ok
 
-
 _LANE_RESOLVER = None
-
 
 def _lane_resolver():
     global _LANE_RESOLVER
@@ -118,7 +110,6 @@ def _lane_resolver():
         pass
     return _LANE_RESOLVER
 
-
 async def _pick_tool_backend() -> tuple:
     """(url, model) for the client-tools loop -- delegated to the WS-1 unified lane
     resolver: the preferred heavy reasoner when reachable, else the other heavy lane,
@@ -135,13 +126,11 @@ async def _pick_tool_backend() -> tuple:
         return _TOOL_BACKEND_HEAVY, _TOOL_BACKEND_HEAVY_MODEL
     return _TOOL_BACKEND, _TOOL_BACKEND_MODEL
 
-
 def _lane_resolver_current():
     """The live ``_LANE_RESOLVER`` singleton (None until first resolved). server.py's
     cluster-health route reads it through this getter because the global is REBOUND at
     runtime by ``_lane_resolver`` and so is unsafe to inject/re-import by value."""
     return _LANE_RESOLVER
-
 
 def evaluate_output_quality(output: str) -> tuple:
     """Evaluate local output quality and determine if escalation is triggered via quality_gate."""

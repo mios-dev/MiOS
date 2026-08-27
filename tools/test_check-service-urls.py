@@ -18,13 +18,11 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
-
 def data(ports=None, urls=None, register=None):
     d = {"ports": dict(ports or {}), "urls": dict(urls or {})}
     if register is not None:
         d["urls"]["non_addressable"] = list(register)
     return d
-
 
 class TestPortKeys(unittest.TestCase):
     def test_stack_id_is_not_a_port(self):
@@ -32,7 +30,6 @@ class TestPortKeys(unittest.TestCase):
 
     def test_non_numeric_is_not_a_port(self):
         self.assertEqual(mod.port_keys(data({"a": 1, "categories": {}})), {"a"})
-
 
 class TestCovered(unittest.TestCase):
     def test_templated_port_is_covered(self):
@@ -51,7 +48,6 @@ class TestCovered(unittest.TestCase):
     def test_register_list_is_not_scanned_as_a_url(self):
         d = data({"a": 1}, {}, ["a"])
         self.assertEqual(mod.covered_ports(d), set())
-
 
 class TestClassify(unittest.TestCase):
     def test_clean_tree_has_no_violations(self):
@@ -82,7 +78,6 @@ class TestClassify(unittest.TestCase):
         d = data({"a": 1, "b": 2}, {"u": "${MIOS_PORT_A}"}, [" b ", "", "  "])
         self.assertEqual(mod.classify(d), [])
 
-
 class TestShippedTree(unittest.TestCase):
     def test_the_real_ssot_classifies_every_port(self):
         with open(os.path.join(_ROOT, mod.TOML), "rb") as fh:
@@ -100,7 +95,6 @@ class TestShippedTree(unittest.TestCase):
         with open(os.path.join(_ROOT, mod.TOML), "rb") as fh:
             real = tomllib.load(fh)
         self.assertGreater(len(mod.register(real)), 0)
-
 
 class TestBrowserOpenable(unittest.TestCase):
     """[urls] is what a person clicks -- one meaning, not two."""
@@ -132,7 +126,6 @@ class TestBrowserOpenable(unittest.TestCase):
         import os
         with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
             self.assertEqual(mod.browser_openable(tomllib.load(fh)), [])
-
 
 class TestBarePortAddresses(unittest.TestCase):
     """An address an /etc/mios overlay cannot move is a service that can never
@@ -176,7 +169,6 @@ class TestBarePortAddresses(unittest.TestCase):
         import os
         with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
             self.assertEqual(mod.bare_port_addresses(tomllib.load(fh)), [])
-
 
 if __name__ == "__main__":
     unittest.main()

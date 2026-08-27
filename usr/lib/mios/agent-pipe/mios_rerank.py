@@ -10,7 +10,6 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Tuple
 
-
 class CrossEncoderReranker:
     """Re-ranks retrieved candidates against a query string."""
 

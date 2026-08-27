@@ -3,7 +3,6 @@ import asyncio, sys
 sys.path.insert(0, "usr/lib/mios/agent-pipe")
 from sse_streamer import SSEStreamer
 
-
 async def _run_concurrent_stream_test():
     streamer = SSEStreamer(max_queue_size=50)
     num_streams = 100
@@ -31,10 +30,8 @@ async def _run_concurrent_stream_test():
     for i in range(num_streams):
         streamer.close_stream(f"stream-{i}")
 
-
 def test_100_concurrent_streams():
     asyncio.run(_run_concurrent_stream_test())
-
 
 if __name__ == "__main__":
     test_100_concurrent_streams()

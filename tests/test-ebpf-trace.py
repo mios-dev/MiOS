@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from ebpf_trace import MAX_CPU_OVERHEAD_PCT, MAX_PROBE_ATTACH_MS, EBPFTracerManager
 
-
 class TestEBPFTrace(unittest.TestCase):
     def setUp(self):
         self.tracer = EBPFTracerManager(dry_run=True)
@@ -22,7 +21,6 @@ class TestEBPFTrace(unittest.TestCase):
         self.assertTrue(res.is_attached)
         self.assertLess(res.attach_latency_ms, MAX_PROBE_ATTACH_MS)
         self.assertLess(res.cpu_overhead_pct, MAX_CPU_OVERHEAD_PCT)
-
 
 if __name__ == "__main__":
     unittest.main()

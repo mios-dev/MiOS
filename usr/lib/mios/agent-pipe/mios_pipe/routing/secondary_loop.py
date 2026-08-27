@@ -13,7 +13,6 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 def _tool_call_sig(tc: dict) -> str:
     """Stable (name + sorted-args) signature of a tool_call, for the loop's
     no-progress / runaway guard: if a round re-emits ONLY calls already made,
@@ -32,7 +31,6 @@ def _tool_call_sig(tc: dict) -> str:
         a = str(args)
     return name + "\0" + a
 
-
 _DISCLAIM_MARKERS = (
     "not available", "no data", "no information", "no specific",
     "provided context", "i cannot", "i can't", "unable to", "i do not have",
@@ -41,11 +39,9 @@ _DISCLAIM_MARKERS = (
     "no news", "try a different", "would you like me to",
 )
 
-
 def _looks_like_disclaimer(text: str) -> bool:
     t = (text or "").strip().lower()
     return bool(t) and any(m in t for m in _DISCLAIM_MARKERS)
-
 
 def _tmsgs_indicate_failure(tmsgs: list) -> bool:
     """True if any tool-result message in this batch reports a genuine FAILURE (broker
@@ -71,8 +67,6 @@ def _tmsgs_indicate_failure(tmsgs: list) -> bool:
             return True
     return False
 
-
-
 SECONDARY_TOOL_MAX_ITERS = 15
 SECONDARY_REPLAN_MAX = 5
 
@@ -86,7 +80,6 @@ _db_read = None
 _db_create = None
 _db_fire = None
 _db_post = None
-
 
 def configure(*, secondary_tool_max_iters=None, secondary_replan_max=None,
               daemon_diagnose_model=None, daemon_diagnose_endpoint=None,
@@ -124,7 +117,6 @@ def configure(*, secondary_tool_max_iters=None, secondary_replan_max=None,
     if db_post is not None:
         _db_post = db_post
 
-
 def _batch_has_write_verb(tcs: list) -> bool:
     """True if any call in the batch targets a state-changing verb, judged by
     the SSOT verb-catalog permission tier (write/interactive) -- NOT a hardcoded
@@ -141,7 +133,6 @@ def _batch_has_write_verb(tcs: list) -> bool:
             return True
     return False
 
-
 _TOOL_NUDGE = (
     "You DID NOT call a tool. You are NOT knowledge-frozen and you DO have live "
     "tools (e.g. web_search) — do not disclaim, do not say 'no data' or 'use my "
@@ -149,13 +140,11 @@ _TOOL_NUDGE = (
     "the real results."
 )
 
-
 _REPLAN_NUDGE = (
     "One of your previous tool results reported a FAILURE or an UNVERIFIED outcome "
     "(the action did not actually take effect). Re-attempt that step now with a tool "
     "call. If it genuinely cannot succeed, say so plainly -- NEVER report success for "
     "an action that did not complete.")
-
 
 async def _daemon_diagnose(client, failed_summary: str, goal: str) -> str:
     """DAEMON-DIAGNOSE ("the daemon monitors the pipeline and reports
@@ -188,7 +177,6 @@ async def _daemon_diagnose(client, failed_summary: str, goal: str) -> str:
                    .get("content") or "").strip()[:500]
     except Exception:  # noqa: BLE001 -- degrade-open, never block the retry
         return ""
-
 
 async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                                   messages: list, tools: list, timeout,

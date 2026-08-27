@@ -9,13 +9,11 @@ import mios_secset as ss
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_high_priv():
     curated = ["powershell_run", "pc_type", "pkg"]
@@ -28,13 +26,11 @@ def t_high_priv():
     check("highpriv: normalizes (strip + drop empty)",
           ss.high_privilege_set(["  a ", "", None], ["b"]) == {"a", "b"})
 
-
 def t_taint():
     builtin = ("web_search", "web_extract")
     s = ss.taint_verb_set(builtin, ["my_scraper", "web_search"])
     check("taint: union builtin+ssot", s == {"web_search", "web_extract", "my_scraper"}, f"{s}")
     check("taint: empty ssot keeps builtin", ss.taint_verb_set(builtin, None) == set(builtin))
-
 
 def t_provenance():
     p = ss.provenance(["a", "b", "c"], ["c", "d"])
@@ -45,14 +41,12 @@ def t_provenance():
     check("prov: curated_only", p["curated_only"] == ["a", "b"])
     check("prov: has source label", "source" in p and "firewall_high_privilege_verbs" in p["source"])
 
-
 def main():
     t_high_priv()
     t_taint()
     t_provenance()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

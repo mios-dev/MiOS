@@ -86,12 +86,10 @@ pick_key() {
     echo ""
 }
 
-
 if (( STATUS_ONLY == 1 )); then
     status_probe
     exit 0
 fi
-
 
 log "=== 'MiOS' MOK Enrollment ==="
 
@@ -146,7 +144,6 @@ case "$CURRENT_STATUS" in
         exit 0
         ;;
 esac
-
 
 log "Queuing $KEY for MOK enrollment"
 log ""

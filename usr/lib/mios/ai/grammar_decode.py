@@ -20,14 +20,12 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-grammar-decode")
 
-
 @dataclass
 class GBNFCompilationResult:
     schema_name: str
     gbnf_rules_count: int
     is_valid_grammar: bool
     sample_valid_json: str
-
 
 class GBNFGrammarCompiler:
     """Compiles JSON schemas into deterministic GBNF grammar constraint state machines."""
@@ -74,7 +72,6 @@ class GBNFGrammarCompiler:
         except Exception:
             return False
 
-
 def main():
     compiler = GBNFGrammarCompiler(dry_run=True)
     schema = {
@@ -84,7 +81,6 @@ def main():
     }
     res = compiler.compile_schema_to_gbnf("test_schema", schema)
     print(f"Valid: {compiler.validate_constrained_json(res.sample_valid_json)}")
-
 
 if __name__ == "__main__":
     main()

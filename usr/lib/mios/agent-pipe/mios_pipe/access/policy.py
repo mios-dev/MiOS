@@ -17,8 +17,6 @@ from mios_config import _toml_section   # layered mios.toml SSOT reader
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 _VERB_CATALOG: dict = {}
 _RECIPE_CATALOG: dict = {}
 _AGENT_REGISTRY: dict = {}
@@ -33,7 +31,6 @@ _get_client = None
 _db_fire = None
 _db_post = None
 _db_create = None
-
 
 def configure(*, verb_catalog=None, recipe_catalog=None, agent_registry=None,
               hitl_approved_var=None, hitl_blocked_var=None, client_env_var=None,
@@ -71,14 +68,12 @@ def configure(*, verb_catalog=None, recipe_catalog=None, agent_registry=None,
     if db_create is not None:
         globals()["_db_create"] = db_create
 
-
 _PERMISSION_TIERS = [
     str(t).strip().lower()
     for t in ((_toml_section("ai") or {}).get("permission_tiers")
               or ["read", "write", "interactive"])
     if str(t).strip()
 ] or ["read", "write", "interactive"]
-
 
 def _perm_rank(perm: str) -> int:
     """Risk rank of a permission tier (lower index = safer). A tier not in the
@@ -90,11 +85,9 @@ def _perm_rank(perm: str) -> int:
     except ValueError:
         return len(_PERMISSION_TIERS)
 
-
 _HITL_MODE = str((_toml_section("ai") or {}).get("hitl_mode") or "off").strip().lower()
 _HITL_THRESHOLD = str((_toml_section("ai") or {}).get("hitl_threshold")
                       or "interactive").strip().lower()
-
 
 def _effective_perm(tool: str, args: "Optional[dict]" = None) -> str:
     vperm = str((_VERB_CATALOG.get(tool) or {}).get("permission", "read")).lower()
@@ -107,7 +100,6 @@ def _effective_perm(tool: str, args: "Optional[dict]" = None) -> str:
     except Exception:  # noqa: BLE001 -- degrade-open
         pass
     return vperm
-
 
 def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[str]":
     if _HITL_MODE not in ("audit", "block"):
@@ -141,11 +133,9 @@ def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[st
     except Exception:  # noqa: BLE001 -- degrade-open: a gate bug never blocks work
         return None
 
-
 _HITL_ARBITER_URL = str((_toml_section("ai") or {}).get("hitl_arbiter_url") or "").strip()
 _HITL_ARBITER_FAIL = str((_toml_section("ai") or {}).get("hitl_arbiter_fail")
                          or "open").strip().lower()
-
 
 async def _hitl_arbiter_verdict(tool: str, args: dict) -> "Optional[str]":
     """Consult the external policy arbiter for a high-risk action; return a refusal
@@ -179,7 +169,6 @@ async def _hitl_arbiter_verdict(tool: str, args: dict) -> "Optional[str]":
             return f"'{tool}' blocked: policy arbiter unreachable (fail-closed)."
         return None
 
-
 def _agent_rbac_filter(aname: str, tools: list) -> list:
     if not aname or not tools:
         return tools
@@ -204,7 +193,6 @@ def _agent_rbac_filter(aname: str, tools: list) -> list:
                  max_perm or "-")
     return out
 
-
 def _match_user_cfg() -> tuple:
     """WS-6/WS-A9: resolve the [users.<name>] policy for the CURRENT request's
     principal (the surface-claimed user_name/user_email in _client_env_var).
@@ -227,7 +215,6 @@ def _match_user_cfg() -> tuple:
         if (kk and kk in (uname, uemail)) or (uemail and _vemail == uemail):
             return (uname or uemail), v
     return "", None
-
 
 def _user_rbac_filter(tools: list) -> list:
     if not tools:
@@ -254,16 +241,13 @@ def _user_rbac_filter(tools: list) -> list:
                  label, len(tools), len(out), len(denied), len(allowed), max_perm or "-")
     return out
 
-
 _PDP_AUDIT_ALLOW = str((_toml_section("ai") or {}).get("pdp_audit_allow")
                        or "").strip().lower() in ("1", "true", "yes", "on")
-
 
 _QUOTA_TRACKERS: dict = {}
 _QUOTA_HYDRATED: set = set()
 _QUOTA_LEDGER: dict = {}   # principal -> {"window_start": float, "spent": float}
 _QUOTA_PERSIST = False     # set by quota_preload() once the store is reachable
-
 
 async def quota_preload() -> int:
     """Startup: read every persisted budget window before the first dispatch.
@@ -288,10 +272,8 @@ async def quota_preload() -> int:
         }
     return len(_QUOTA_LEDGER)
 
-
 def _quota_load(principal: str):
     return _QUOTA_LEDGER.get(str(principal or ""))
-
 
 def _quota_save(principal: str, window_start: float, spent: float) -> None:
     """Write-through: the in-process map first, then a fire-and-forget upsert."""
@@ -310,7 +292,6 @@ def _quota_save(principal: str, window_start: float, spent: float) -> None:
         "spent = EXCLUDED.spent, updated_at = now()",
         {"p": name, "w": float(window_start), "s": float(spent)}))
 
-
 def _quota_hydrate(ulabel: str, tracker, now: float) -> None:
     """Seat a persisted budget window on first use. Degrades open."""
     if ulabel in _QUOTA_HYDRATED:
@@ -324,7 +305,6 @@ def _quota_hydrate(ulabel: str, tracker, now: float) -> None:
     except Exception:  # noqa: BLE001 -- degrade-open
         pass
 
-
 def _quota_persist(ulabel: str, tracker) -> None:
     """Write the principal's budget window back. Degrades open."""
     try:
@@ -332,7 +312,6 @@ def _quota_persist(ulabel: str, tracker) -> None:
         _quota_save(ulabel, snap["window_start"], snap["spent"])
     except Exception:  # noqa: BLE001 -- degrade-open
         pass
-
 
 def _quota_for(ulabel: str, ucfg: dict):
     """Return the QuotaTracker for a user, or None when that user has no limits
@@ -346,7 +325,6 @@ def _quota_for(ulabel: str, ucfg: dict):
         tr = mios_quota.QuotaTracker(rpm_limit=rpm, daily_budget=budget)
         _QUOTA_TRACKERS[ulabel] = tr
     return tr
-
 
 def _dispatch_quota_reason(verb: str) -> "Optional[str]":
     """WS-6 per-user rate/budget gate at the dispatch chokepoint. Counts one
@@ -371,7 +349,6 @@ def _dispatch_quota_reason(verb: str) -> "Optional[str]":
         return None
     except Exception:  # noqa: BLE001 -- degrade-open: a quota bug never blocks work
         return None
-
 
 def _dispatch_pdp_reason(verb: str) -> "Optional[str]":
     try:

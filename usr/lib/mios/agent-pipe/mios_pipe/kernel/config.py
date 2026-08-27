@@ -8,7 +8,6 @@ import os
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 def _toml_section(section: str) -> dict:
     """Layered <section> table from mios.toml (vendor <- /etc <- ~/.config)
     or from PostgreSQL config tables (behind the db_authoritative sentinel)."""
@@ -35,7 +34,6 @@ def _toml_section(section: str) -> dict:
         return v
     return _xpand(out)
 
-
 def _cfg_num(table: dict, env: str, key: str, default, cast=int):
     """Resolve a numeric tunable: env override -> table[key] -> literal default.
     Preserves a legit 0 (unlike a bare `or` chain)."""
@@ -53,7 +51,6 @@ def _cfg_num(table: dict, env: str, key: str, default, cast=int):
             pass
     return default
 
-
 def _dispatch_toml() -> dict:
     """Layered [dispatch] table from mios.toml (vendor <- /etc <- ~/.config)
     or from PostgreSQL config tables (behind the db_authoritative sentinel)."""
@@ -70,9 +67,7 @@ def _dispatch_toml() -> dict:
         log.warning("Failed to load overlay config for dispatch: %s", e)
         return {}
 
-
 _DISPATCH_TOML = _dispatch_toml()
-
 
 def _dispatch_num(env: str, key: str, default, cast=int):
     """Resolve a numeric tunable: env override -> mios.toml [dispatch].<key> ->
@@ -91,7 +86,6 @@ def _dispatch_num(env: str, key: str, default, cast=int):
         except (ValueError, TypeError):
             pass
     return default
-
 
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700"))
 # MIOS_PORTS_MCP to the same value) then the [ports].mcp SSOT table. NO literal
@@ -255,7 +249,6 @@ POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
 
 _COUNCIL_TOML = _toml_section("agent_pipe.council") or _toml_section("council") or {}
 
-
 def _cfg_bool(table: dict, env: str, key: str, default: bool) -> bool:
     """Resolve a boolean tunable: env override -> table[key] -> literal default.
     Truthy set matches the rest of the config layer (1/true/yes/on)."""
@@ -266,7 +259,6 @@ def _cfg_bool(table: dict, env: str, key: str, default: bool) -> bool:
     if v is not None:
         return str(v).strip().lower() in {"1", "true", "yes", "on"}
     return default
-
 
 COUNCIL_DIVERSITY_GATE = _cfg_bool(
     _COUNCIL_TOML, "MIOS_COUNCIL_DIVERSITY_GATE", "diversity_gate", False)
@@ -330,14 +322,12 @@ KV_SLOT_PERSIST = (
     or str(_MEMORY_TOML.get("kv_slot_persist", "true")).strip().lower() in {"1", "true", "yes", "on"}
 )
 
-
 def quote_key(k: str) -> str:
     import re
     if re.match(r"^[A-Za-z0-9_-]+$", k):
         return k
     escaped = k.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
     return f'"{escaped}"'
-
 
 def to_toml(d: dict, prefix: list = None) -> str:
     import datetime
@@ -399,10 +389,8 @@ def to_toml(d: dict, prefix: list = None) -> str:
 
     return "\n".join(lines)
 
-
 _VALIDATE_MAX_BYTES = 2 * 1024 * 1024  # 2 MB payload cap
 _VALIDATE_CRITICAL_SECTIONS = ("identity", "ports")
-
 
 def validate_config(toml_text: str, live_config: dict = None):
     errors: list = []
@@ -455,7 +443,6 @@ def validate_config(toml_text: str, live_config: dict = None):
                     f"[ports].{k} = {v} is out of the valid 1-65535 range.")
 
     return (len(errors) == 0, errors)
-
 
 def write_user_config(cfg: dict, dest_path: str = None) -> None:
     """Atomically write the dictionary to the user-layer config file."""
@@ -512,5 +499,4 @@ def write_user_config(cfg: dict, dest_path: str = None) -> None:
         mios_db_config.clear_cache()
     except Exception:
         pass
-
 

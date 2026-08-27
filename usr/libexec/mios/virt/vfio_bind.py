@@ -19,9 +19,7 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-
 BDF_PATTERN = re.compile(r"^([0-9a-fA-F]{4})[:_]([0-9a-fA-F]{2})[:_]([0-9a-fA-F]{2})\.([0-7])$")
-
 
 def normalize_bdf(bdf_str: str) -> str:
     """Normalizes BDF to canonical domain:bus:slot.func format."""
@@ -34,13 +32,11 @@ def normalize_bdf(bdf_str: str) -> str:
         raise ValueError(f"Invalid PCI BDF identifier format: {bdf_str}")
     return f"{m.group(1).lower()}:{m.group(2).lower()}:{m.group(3).lower()}.{m.group(4)}"
 
-
 def sanitize_bdf_for_fs(bdf_str: str) -> str:
     """Sanitizes BDF string for filesystems (like NTFS) that forbid colons."""
     if os.name == "nt":
         return bdf_str.replace(":", "_")
     return bdf_str
-
 
 @dataclasses.dataclass
 class DeviceState:
@@ -51,7 +47,6 @@ class DeviceState:
     driver_override: Optional[str]
     boot_vga: bool
     slot_address: str
-
 
 class VFIOBinder:
     """Manages runtime sysfs driver binding and unbinding for VFIO passthrough."""
@@ -380,7 +375,6 @@ class VFIOBinder:
             ],
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Dynamic Runtime VFIO Device Unbind and Rebind Utility."
@@ -440,7 +434,6 @@ def main() -> int:
 
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

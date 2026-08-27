@@ -7,11 +7,9 @@ import sys
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok, detail))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _load_fillers() -> list:
     """Load the REAL SSOT list the same way server.py `_load_launch_fillers` does."""
@@ -31,9 +29,7 @@ def _load_fillers() -> list:
         (str(p).lower().strip() for p in (rt.get("launch_filler_phrases") or []) if str(p).strip()),
         key=len, reverse=True)
 
-
 _TRIGGERS = {"open", "launch"}
-
 
 def _extract(user_text: str, fillers: list):
     t = (user_text or "").strip()
@@ -62,7 +58,6 @@ def _extract(user_text: str, fillers: list):
         return None
     return rest
 
-
 def t_ssot() -> None:
     fillers = _load_fillers()
     _check("fillers: SSOT list non-empty", len(fillers) > 0, f"n={len(fillers)}")
@@ -70,7 +65,6 @@ def t_ssot() -> None:
            fillers == sorted(fillers, key=len, reverse=True))
     _check("fillers: 'for me' present (the e2e case)", "for me" in fillers)
     _check("fillers: 'on my desktop' present (the e2e case)", "on my desktop" in fillers)
-
 
 def t_extraction() -> None:
     fillers = _load_fillers()
@@ -90,7 +84,6 @@ def t_extraction() -> None:
         got = _extract(text, fillers)
         _check(f"extract {text!r} -> {expected!r}", got == expected, f"got={got!r}")
 
-
 def main() -> int:
     for t in (t_ssot, t_extraction):
         t()
@@ -98,7 +91,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

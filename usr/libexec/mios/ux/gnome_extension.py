@@ -38,11 +38,9 @@ try:
 except ImportError:
     mios_toml = None
 
-
 DEFAULT_EXTENSION_UUID = "mios-status@mios-dev.org"
 SYSTEM_EXTENSION_DIR = f"/usr/share/gnome-shell/extensions/{DEFAULT_EXTENSION_UUID}"
 SUPPORTED_SHELL_VERSIONS = ["45", "46", "47", "48"]
-
 
 class GnomeExtensionManager:
     """Manages GNOME Shell agent status extension lifecycle, generation, and validation."""
@@ -477,7 +475,6 @@ export default class MiOSStatusExtension extends Extension {{
             "dry_run": self.dry_run,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS GNOME Shell Agent Status Extension Manager (T-459)"
@@ -531,7 +528,6 @@ def main() -> int:
         else:
             print(f"[gnome_extension] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

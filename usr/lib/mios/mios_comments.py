@@ -23,7 +23,6 @@ SCAN_EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
             ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml")
 _SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv", ".rustup", ".cargo", "output"}
 
-
 def _get_tracked_files(root: str) -> list[str]:
     import subprocess
     try:
@@ -43,7 +42,6 @@ def _get_tracked_files(root: str) -> list[str]:
             rels.append(os.path.relpath(os.path.join(dp, fn), root).replace(os.sep, "/"))
     return rels
 
-
 def iter_source_files(root: str):
     rels = _get_tracked_files(root)
     for rel in sorted(rels):
@@ -59,7 +57,6 @@ def iter_source_files(root: str):
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.abspath(os.path.join(_HERE, "..", "..", ".."))
 
-
 # --------------------------------------------------------------------------
 # mios-ai-tag interop -- the single definition of taggability + comment style
 # --------------------------------------------------------------------------
@@ -72,7 +69,6 @@ def load_ai_tag(root: str | None = None):
         return SourceFileLoader("mios_ai_tag", path).load_module()
     except Exception:
         return None
-
 
 # --------------------------------------------------------------------------
 # Data
@@ -93,14 +89,12 @@ class Block:
     anchor_code: str         # first following non-blank non-comment line
     in_header_block: bool
 
-
 @dataclass(frozen=True)
 class Verdict:
     cls: str                 # STAY | MIGRATE | DROP | READONLY | MIGRATE_HEADER
     reason: str              # the one rule that fired
     stale: bool
     as_: str = ""            # "" | note | heading-fact | adr-candidate
-
 
 @dataclass
 class Policy:
@@ -183,7 +177,6 @@ class Policy:
             self._compile()
         rx = self._rx.get(which)
         return bool(rx and rx.search(text))
-
 
 class RefIndex:
 
@@ -407,7 +400,6 @@ class RefIndex:
                 out.append(tok)
         return out
 
-
 # --------------------------------------------------------------------------
 # Lexing
 # --------------------------------------------------------------------------
@@ -415,7 +407,6 @@ class RefIndex:
 # skipped. Not matched when it is itself inside a comment.
 _AI_HINT_LINE = re.compile(r"\s*#?\s*AI-hint:")
 _AI_KEY_LINE = re.compile(r"\s*#?\s*AI-[a-z]+:")
-
 
 def _hint_prose_len(text: str) -> int:
     total = 0
@@ -445,7 +436,6 @@ def _hint_prose_len(text: str) -> int:
                 in_hint = False
     return total
 
-
 _HEREDOC = re.compile(r"(?<!\S)<<-?\s*(?P<tag>'[A-Za-z_][A-Za-z0-9_]*'"
                       r'|"[A-Za-z_][A-Za-z0-9_]*"'
                       r"|[A-Za-z_][A-Za-z0-9_]*)")
@@ -462,7 +452,6 @@ _STYLE_BY_EXT = {
     ".md": "<!--", ".html": "<!--", ".xml": "<!--",
 }
 
-
 def _style_for(path: str, ai_tag=None) -> str:
     if ai_tag is not None:
         for fname in ("comment_style", "style_for", "_comment_style"):
@@ -476,10 +465,8 @@ def _style_for(path: str, ai_tag=None) -> str:
                     pass
     return _STYLE_BY_EXT.get(os.path.splitext(path)[1].lower(), "#")
 
-
 def _strip(line: str) -> str:
     return _END_MARKER.sub("", _MARKER.sub("", line)).rstrip()
-
 
 def _mk(path, start, end, kind, style, body_lines, attach, anchor, in_header) -> Block:
     text = "\n".join(body_lines)
@@ -493,14 +480,12 @@ def _mk(path, start, end, kind, style, body_lines, attach, anchor, in_header) ->
         anchor_code=anchor, in_header_block=in_header,
     )
 
-
 # Files whose Python lex degraded to the regex lexer (or lost docstring blocks)
 # in this process. Whether that happens depends on the INTERPRETER, not the
 # file: PEP 701 sources parse on 3.12+ and not before, so the same tree would
 # otherwise yield a different census per machine. mios-manual's ledger refuses
 # to emit an artifact while this is non-empty.
 DEGRADED: list[str] = []
-
 
 def _lex_python(path: str, src: str) -> list[Block]:
     out: list[Block] = []
@@ -554,7 +539,6 @@ def _lex_python(path: str, src: str) -> list[Block]:
     out.sort(key=lambda b: (b.start_line, b.end_line))
     return out
 
-
 def _finish_run(path, run, start, end, style, lines) -> Block:
     anchor = ""
     for l in lines[end:]:
@@ -565,7 +549,6 @@ def _finish_run(path, run, start, end, style, lines) -> Block:
     in_header = start <= 6 and any("AI-hint" in x or "AI-related" in x or
                                    "AI-functions" in x for x in run)
     return _mk(path, start, end, "line", style, run, attach, anchor, in_header)
-
 
 def _lex_generic(path: str, src: str, style: str) -> list[Block]:
     lines = src.splitlines()
@@ -636,7 +619,6 @@ def _lex_generic(path: str, src: str, style: str) -> list[Block]:
     flush(len(lines))
     return out
 
-
 def _find_native_comment_lex() -> str | None:
     bin_name = "mios-comment-lex.exe" if os.name == "nt" else "mios-comment-lex"
     for candidate in [
@@ -649,7 +631,6 @@ def _find_native_comment_lex() -> str | None:
             return candidate
     import shutil
     return shutil.which(bin_name)
-
 
 def lex(path: str, raw: bytes | None = None, ai_tag=None) -> list[Block]:
     """Comment blocks in one file.
@@ -679,19 +660,16 @@ def lex(path: str, raw: bytes | None = None, ai_tag=None) -> list[Block]:
         return _lex_python(path, src)
     return _lex_generic(path, src, style)
 
-
 # --------------------------------------------------------------------------
 # Classification -- ordered, first match wins, exactly one reason
 # --------------------------------------------------------------------------
 _BANNER_ONLY = re.compile(r"^[\s\-=*_~+.#]*$")
 _SENTENCE_END = re.compile(r"[.!?](?:\s|$)")
 
-
 def _glob_any(path: str, globs: Iterable[str]) -> bool:
     from fnmatch import fnmatch
     p = path.replace(os.sep, "/")
     return any(fnmatch(p, g) or g.strip("*") in p for g in globs if g)
-
 
 def classify(block: Block, policy: Policy, refindex: RefIndex | None = None) -> Verdict:
     """Exactly one verdict, from the first rule that fires (spec section 2.2)."""

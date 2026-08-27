@@ -11,7 +11,6 @@ import math
 import time
 from typing import Any, Dict, List, Optional
 
-
 class TemporalDecayScorer:
     """Applies exponential temporal decay to vector similarity rankings."""
 

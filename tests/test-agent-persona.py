@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load mios_persona module from {_PERSONA_PATH}")
 
-
 class TestAgentPersona(unittest.TestCase):
     """Validates domain classification, persona synthesis, and canonical law preservation."""
 
@@ -107,12 +106,10 @@ class TestAgentPersona(unittest.TestCase):
         guidelines = mios_persona.get_domain_guidelines(mios_persona.DomainCategory.NETWORKING_MESH)
         self.assertIn("16-Byte Binary Framing", guidelines)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestAgentPersona)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

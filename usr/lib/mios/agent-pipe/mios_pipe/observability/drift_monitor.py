@@ -10,7 +10,6 @@ from typing import Iterable, Mapping, Optional
 
 __all__ = ["histogram", "jensen_shannon", "compare", "is_alerting"]
 
-
 def histogram(samples: Iterable) -> dict:
     """Count labels into a normalized distribution summing to 1.0.
     Empty input returns {} -- an absent window is not a uniform one."""
@@ -23,7 +22,6 @@ def histogram(samples: Iterable) -> dict:
     if not total:
         return {}
     return {k: v / total for k, v in counts.items()}
-
 
 def _normalize(dist: Mapping[str, float]) -> dict:
     total = 0.0
@@ -40,7 +38,6 @@ def _normalize(dist: Mapping[str, float]) -> dict:
     if total <= 0.0:
         return {}
     return {k: v / total for k, v in clean.items()}
-
 
 def jensen_shannon(p: Mapping[str, float], q: Mapping[str, float]) -> float:
     """Jensen-Shannon divergence between two label distributions, log base 2,
@@ -64,7 +61,6 @@ def jensen_shannon(p: Mapping[str, float], q: Mapping[str, float]) -> float:
     # Float error can push an identical pair a hair below zero or a disjoint
     # pair a hair above one; the caller compares against a threshold, so clamp.
     return min(1.0, max(0.0, div))
-
 
 def compare(
     baseline: Mapping[str, Mapping[str, float]],
@@ -95,7 +91,6 @@ def compare(
         alerting = alerting or axis_alert
     return {"axes": axes, "max_divergence": worst, "max_axis": worst_axis,
             "alerting": alerting, "threshold": float(threshold)}
-
 
 def is_alerting(report: Mapping) -> bool:
     """True when any compared axis crossed the threshold. Tolerates a partial

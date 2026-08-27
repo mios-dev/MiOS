@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestKernelLivepatch(unittest.TestCase):
     """Test suite for LivepatchManager operations, MOK signature checks, and UKI staging."""
 
@@ -125,7 +124,6 @@ class TestKernelLivepatch(unittest.TestCase):
         with patch.object(sys, "argv", ["livepatch_mgr.py", "--mock", "--reload-microcode", "--json"]):
             code = livepatch_mgr.main()
             self.assertEqual(code, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

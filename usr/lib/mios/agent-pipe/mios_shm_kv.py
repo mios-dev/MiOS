@@ -13,7 +13,6 @@ import mmap
 import struct
 from typing import Optional, Tuple
 
-
 class ShmKVTransfer:
     """Manages shared memory tensor buffers with binary serialization headers."""
 

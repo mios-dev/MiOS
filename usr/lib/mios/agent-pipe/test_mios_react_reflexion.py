@@ -22,7 +22,6 @@ def check(name, cond, detail=""):
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 class _Resp:
     def __init__(self, payload):
         self.status_code = 200
@@ -31,7 +30,6 @@ class _Resp:
 
     def json(self):
         return self._payload
-
 
 class _FakeClient:
     def __init__(self, scripted_messages):
@@ -42,7 +40,6 @@ class _FakeClient:
         self.calls += 1
         msg = self._q.pop(0) if self._q else {"content": "done."}
         return _Resp({"choices": [{"message": msg}]})
-
 
 def t_reflexion_gate():
     class FakeConfig:
@@ -93,7 +90,6 @@ def t_reflexion_gate():
 
     has_reflexion = any("SYSTEM REFLEXION" in str(m.get("content") or "") for m in res_msgs)
     check("reflexion-gate: reflexion disabled in config -> no reflexion prompt", not has_reflexion)
-
 
 def t_tool_failure_reflexion_flow():
     class FakeConfig:
@@ -159,7 +155,6 @@ def t_tool_failure_reflexion_flow():
     has_reflexion = any("SYSTEM REFLEXION" in str(m.get("content") or "") for m in res_msgs)
     check("reflexion-flow: reflexion prompt injected into history", has_reflexion)
 
-
 def t_superstep_checkpoints():
     created_queries = []
     fired_queries = []
@@ -210,7 +205,6 @@ def t_superstep_checkpoints():
     checkpoint_meta = next(row.get("meta") for table, row in created_queries if table == "session" and row.get("kind") == "checkpoint")
     check("superstep-checkpoints: checkpoint carries superstep index", "superstep_idx" in checkpoint_meta)
     check("superstep-checkpoints: checkpoint carries messages history", "messages" in checkpoint_meta)
-
 
 def t_dag_execution_checkpoint_resume():
     created_queries = []
@@ -278,7 +272,6 @@ def t_dag_execution_checkpoint_resume():
 
     checkpoint_2_saved = any(table == "session" and "superstep_2" in row.get("id") for table, row in created_queries)
     check("dag-resume: saved level 2 checkpoint to session table", checkpoint_2_saved)
-
 
 def main():
     print("=== Running T-031 ReAct/Reflexion Durable Loop Tests ===")

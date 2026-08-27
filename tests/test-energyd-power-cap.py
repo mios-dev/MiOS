@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from energyd import EnergyCapManager, PowerMetrics
 
-
 class TestEnergydPowerCap(unittest.TestCase):
     def setUp(self):
         self.mgr = EnergyCapManager(
@@ -96,7 +95,6 @@ class TestEnergydPowerCap(unittest.TestCase):
         m = self.mgr.evaluate_and_enforce_cap(mock_cpu_w=50.0, mock_gpu_w=100.0)
         self.assertLessEqual(m.applied_gpu_cap_watts, 450.0 * 0.8)
         self.assertEqual(m.cgroup_cpu_quota_pct, 80.0)
-
 
 if __name__ == "__main__":
     unittest.main()

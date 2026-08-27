@@ -39,7 +39,6 @@ DEFAULT_ROUTES = [
     },
 ]
 
-
 class ServiceMeshGenerator:
     """Synthesizes dynamic Traefik / Envoy proxy configurations with Unix domain socket routing and W3C tracing."""
 
@@ -129,7 +128,6 @@ class ServiceMeshGenerator:
             "mock": False,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Declarative Service Mesh Proxy Generator")
     parser.add_argument("--output", default="/etc/mios/traefik/dynamic.json", help="Dynamic config destination")
@@ -139,7 +137,6 @@ def main():
     mesh = ServiceMeshGenerator(dry_run=args.dry_run)
     res = mesh.write_config(args.output)
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

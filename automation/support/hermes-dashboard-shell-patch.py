@@ -25,7 +25,6 @@ INJECTION = '''    # MiOS-patch: HERMES_PTY_SHELL override
 
 '''
 
-
 def main(path: str) -> int:
     p = pathlib.Path(path)
     if not p.is_file():
@@ -70,7 +69,6 @@ def main(path: str) -> int:
     p.write_text(new_text, encoding="utf-8")
     print(f"shell-patch: injected HERMES_PTY_SHELL override into {p}")
     return 0
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

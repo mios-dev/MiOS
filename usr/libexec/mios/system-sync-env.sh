@@ -96,7 +96,6 @@ EOF
     [[ -n "${MIOS_ANTIFAB_MIN_ENTITIES:-}" ]] && emit MIOS_ANTIFAB_MIN_ENTITIES "${MIOS_ANTIFAB_MIN_ENTITIES}"
     [[ -n "${MIOS_ANTIFAB_GROUND_MIN:-}" ]] && emit MIOS_ANTIFAB_GROUND_MIN "${MIOS_ANTIFAB_GROUND_MIN}"
 
-
     for _fk in MIOS_A2O_ORCH_ENGINE MIOS_A2O_ORCH_MODEL MIOS_A2O_ORCH_EFFORT \
                MIOS_A2O_LANE_A_ENGINE MIOS_A2O_LANE_A_MODEL MIOS_A2O_LANE_A_EFFORT MIOS_A2O_LANE_A_ROLE \
                MIOS_A2O_LANE_B_ENGINE MIOS_A2O_LANE_B_MODEL MIOS_A2O_LANE_B_EFFORT MIOS_A2O_LANE_B_ROLE \
@@ -106,7 +105,6 @@ EOF
         _fv="${!_fk:-}"
         if [[ -n "$_fv" ]]; then emit ${_fk} "${_fv}"; fi
     done
-
 
     [[ -n "${MIOS_SGLANG_SERVED_NAME:-}" ]] && emit MIOS_SGLANG_SERVED_NAME "${MIOS_SGLANG_SERVED_NAME}"
     [[ -n "${MIOS_VLLM_SERVED_NAME:-}" ]]   && emit MIOS_VLLM_SERVED_NAME "${MIOS_VLLM_SERVED_NAME}"
@@ -123,7 +121,6 @@ EOF
         _tv="${!_tk:-}"
         if [[ -n "$_tv" ]]; then emit ${_tk} "${_tv}"; fi
     done
-
 
     [[ -n "${MIOS_IMAGE_NAME:-}" ]]   && emit MIOS_IMAGE_NAME "${MIOS_IMAGE_NAME}"
     [[ -n "${MIOS_IMAGE_REF:-}" ]]    && emit MIOS_IMAGE_REF "${MIOS_IMAGE_REF}"

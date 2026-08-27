@@ -10,7 +10,6 @@ import tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "telemetry"))
 from log_archiver import LogArchiverManager
 
-
 class TestLogArchiverManager(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-test-log-arch-")
@@ -63,7 +62,6 @@ class TestLogArchiverManager(unittest.TestCase):
         self.assertEqual(res["status"], "success")
         self.assertEqual(res["clusters_indexed"], 1)
         self.assertEqual(res["embedding_model"], "nomic-embed-text")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestRoamingSeatOrchestrator(unittest.TestCase):
     """Test suite for roaming multi-seat orchestration, GPU balancing, and user session assignment."""
 
@@ -175,7 +174,6 @@ class TestRoamingSeatOrchestrator(unittest.TestCase):
             self.assertEqual(ret, 0)
             data = json.loads(stdout_buf.getvalue())
             self.assertTrue(data["success"])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -54,5 +54,4 @@ if command -v nvidia-ctk &>/dev/null; then
     mios_ok "NVIDIA CDI spec generated"
 fi
 
-
 mios_ok "GPU stack: Mesa + AMD ROCm + Intel installed; NVIDIA kmod present=$NVIDIA_PRESENT"

@@ -57,7 +57,6 @@ except ImportError:
 IS_WINDOWS = platform.system() == 'Windows'
 console = Console(safe_box=False)
 
-
 _SYS_INFO_CACHE = None
 _USB_INFO_CACHE = "Scanning USB..."
 _GIT_STATUS_CACHE = "[dim]Git state loading...[/]"
@@ -284,7 +283,6 @@ def create_dash_layout():
 
     footer_text = f"User: login mios/mios   Host: forge mios/\n\nTree\n{get_git_tree_status()}"
     return Panel(Group(Panel(header, box=box.SIMPLE, border_style="cyan"), Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan"), Panel(Align.center(footer_text), box=box.SIMPLE, border_style="cyan")), border_style="blue", padding=1)
-
 
 if TEXTUAL_AVAILABLE:
     def load_ssot_colors():

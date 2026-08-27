@@ -59,11 +59,9 @@ CloseModeLiteral = Literal["graceful", "force"]
 ScreenshotTargetLiteral = Literal["primary", "active-window", "all-monitors"]
 ScreenshotActionLiteral = Literal["save", "clipboard", "open"]
 
-
 LAUNCHER_SOCKET = os.environ.get(
     "MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.sock"
 )
-
 
 def _broker_send(line: str, timeout: float, capture: bool) -> dict:
     """Talk to the operator-side launcher broker. Returns a dict the
@@ -122,7 +120,6 @@ def _broker_send(line: str, timeout: float, capture: bool) -> dict:
                 "stdout": "", "stderr": ""}
     return {"success": False, "exit_code": -1,
             "stdout": "", "stderr": raw or "broker returned no reply"}
-
 
 class Tools:
     class Valves(BaseModel):
@@ -533,7 +530,6 @@ class Tools:
                 "success": False,
                 "stderr": result.get("stderr", "") or f"non-JSON from mios-system-status: {raw[:300]}",
             })
-
 
     async def open_app(
         self,

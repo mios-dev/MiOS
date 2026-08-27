@@ -20,12 +20,10 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-
 class PayloadMode(str, Enum):
     TEXT           = "text"
     SEMANTIC_FRAME = "semantic_frame"
     EMBEDDING_HINTS = "embedding_hints"
-
 
 # Priority order: most compact first
 _MODE_PRIORITY = [
@@ -33,7 +31,6 @@ _MODE_PRIORITY = [
     PayloadMode.SEMANTIC_FRAME,
     PayloadMode.TEXT,
 ]
-
 
 @dataclass
 class AgentCard:
@@ -59,7 +56,6 @@ class AgentCard:
             "capabilities":         self.capabilities,
         }
 
-
 @dataclass
 class DelegationFrame:
     """Negotiated delegation payload between two A2A peers."""
@@ -84,7 +80,6 @@ class DelegationFrame:
             source_agent=d.get("source_agent", ""),
             target_agent=d.get("target_agent", ""),
         )
-
 
 class DelegationRouter:
     """

@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load db_doctor module from {_DOCTOR_PATH}")
 
-
 class TestDbDoctor(unittest.TestCase):
     """Validates SQLite and PostgreSQL integrity checking and non-destructive repair logic."""
 
@@ -125,12 +124,10 @@ class TestDbDoctor(unittest.TestCase):
         self.assertIn("sqlite_databases", report)
         self.assertIn("postgres", report)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestDbDoctor)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

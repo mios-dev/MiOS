@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestFontScaler(unittest.TestCase):
     """Test suite for High-DPI font metric calculation and fontconfig XML generation."""
 
@@ -94,12 +93,10 @@ class TestFontScaler(unittest.TestCase):
             exit_code = font_scaler.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestFontScaler)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

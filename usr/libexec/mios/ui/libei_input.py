@@ -7,7 +7,6 @@ import os
 import sys
 from typing import Dict, List, Optional, Any, Tuple
 
-
 class LibeiInputInjector:
     """Emulates synthetic pointer and keyboard events securely over the Libei EIS / Wayland portal protocols."""
 
@@ -69,7 +68,6 @@ class LibeiInputInjector:
             "text_length": len(text),
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Libei Synthetic Input Injector")
     parser.add_argument("--click", nargs=2, type=float, metavar=("X", "Y"), help="Emit synthetic click at (X, Y)")
@@ -89,7 +87,6 @@ def main():
         return
 
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

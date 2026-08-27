@@ -16,13 +16,11 @@ _REPO_TOML = os.path.normpath(
     os.path.join(_HERE, "..", "..", "share", "mios", "mios.toml"))
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _load(fname):
     _orig_cdll = ctypes.CDLL
@@ -45,13 +43,11 @@ def _load(fname):
         ctypes.CDLL = _orig_cdll
     return mod
 
-
 def _write_toml(text: str) -> str:
     fd, path = tempfile.mkstemp(suffix=".toml")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(text)
     return path
-
 
 def main() -> int:
     mod = _load("mios-daemon")
@@ -126,7 +122,6 @@ def main() -> int:
 
     print(f"\n{'ALL PASS' if _fails == 0 else str(_fails) + ' FAIL(S)'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

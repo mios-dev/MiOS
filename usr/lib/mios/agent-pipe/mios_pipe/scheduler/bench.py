@@ -6,7 +6,6 @@ from __future__ import annotations
 import math
 from typing import List, Optional, Sequence, Tuple
 
-
 def comb_ratio(numer_n: int, numer_k: int, denom_n: int, denom_k: int) -> float:
     """C(numer_n, numer_k) / C(denom_n, denom_k), guarding the empty denominator.
     Returns 0.0 when the denominator combination is 0 (e.g. k > n)."""
@@ -16,7 +15,6 @@ def comb_ratio(numer_n: int, numer_k: int, denom_n: int, denom_k: int) -> float:
     numer = math.comb(numer_n, numer_k) if numer_k <= numer_n else 0
     return numer / denom
 
-
 def pass_at_k(n: int, c: int, k: int) -> float:
     """Unbiased pass@k ("at least one of k succeeds") for n trials, c correct.
     = 1 - C(n-c, k)/C(n, k). pass@1 = c/n; all-correct -> 1; c==0 -> 0; k>n -> 0."""
@@ -25,7 +23,6 @@ def pass_at_k(n: int, c: int, k: int) -> float:
         return 0.0
     c = max(0, min(c, n))
     return 1.0 - comb_ratio(n - c, k, n, k)
-
 
 def pass_hat_k(n: int, c: int, k: int) -> float:
     """Unbiased pass^k ("ALL k succeed", tau-bench reliability) for n trials, c
@@ -37,13 +34,11 @@ def pass_hat_k(n: int, c: int, k: int) -> float:
     c = max(0, min(c, n))
     return comb_ratio(c, k, n, k)
 
-
 def iid_pass_hat_k(p: float, k: int) -> float:
     """The i.i.d. closed form of pass^k: p**k. The intuition pump -- a 93%-reliable
     agent succeeds on all 8 of 8 trials only ~56% of the time."""
     p = max(0.0, min(1.0, float(p)))
     return p ** max(0, int(k))
-
 
 def aggregate_pass_at_k(tasks: "Sequence[Tuple[int, int]]", k: int) -> float:
     """Mean pass@k across tasks. `tasks` = [(n_trials, c_correct), ...]. Tasks
@@ -51,19 +46,16 @@ def aggregate_pass_at_k(tasks: "Sequence[Tuple[int, int]]", k: int) -> float:
     vals = [pass_at_k(n, c, k) for (n, c) in tasks if n >= k and n > 0]
     return sum(vals) / len(vals) if vals else 0.0
 
-
 def aggregate_pass_hat_k(tasks: "Sequence[Tuple[int, int]]", k: int) -> float:
     """Mean pass^k across tasks (the headline tau-bench reliability number).
     Tasks with fewer than k trials are skipped. 0.0 if none qualify."""
     vals = [pass_hat_k(n, c, k) for (n, c) in tasks if n >= k and n > 0]
     return sum(vals) / len(vals) if vals else 0.0
 
-
 def aggregate_pass_and_k_rate(tasks: "Sequence[Tuple[int, int]]", k: int) -> float:
     vals = [1.0 if pass_hat_k(n, c, k) >= 1.0 else 0.0
             for (n, c) in tasks if n >= k and n > 0]
     return sum(vals) / len(vals) if vals else 0.0
-
 
 def percentile(values: "Sequence[float]", q: float) -> float:
     """Linear-interpolation percentile (q in [0,100]) over `values`. [] -> 0.0."""
@@ -80,7 +72,6 @@ def percentile(values: "Sequence[float]", q: float) -> float:
         return xs[lo]
     frac = pos - lo
     return xs[lo] * (1.0 - frac) + xs[hi] * frac
-
 
 def classic_rollup(records: "List[dict]", *, k: int = 1) -> dict:
     recs = [r for r in (records or []) if isinstance(r, dict)]

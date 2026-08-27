@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "mios", "agent-pipe"))
 from mios_worktree import AgentWorktreeManager
 
-
 class TestAgentWorktreeManager(unittest.TestCase):
     def setUp(self):
         self.mgr = AgentWorktreeManager(
@@ -31,7 +30,6 @@ class TestAgentWorktreeManager(unittest.TestCase):
         self.assertEqual(res["action"], "cleanup")
         self.assertTrue(res["merged"])
         self.assertTrue(res["cleaned"])
-
 
 if __name__ == "__main__":
     unittest.main()

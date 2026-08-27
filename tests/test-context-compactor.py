@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from context_compactor import ContextCompactor, ConversationTurn
 
-
 class TestContextCompactor(unittest.TestCase):
     def setUp(self):
         self.compactor = ContextCompactor(max_context_tokens=8192, dry_run=True)
@@ -39,7 +38,6 @@ class TestContextCompactor(unittest.TestCase):
         res = self.compactor.compact_dialog(turns)
         self.assertEqual(len(res.retained_constraint_keys), 3)
         self.assertLess(res.compacted_token_count, res.original_token_count)
-
 
 if __name__ == "__main__":
     unittest.main()

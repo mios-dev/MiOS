@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load inventory_monitor module from {_MODULE_PATH}")
 
-
 class TestInventoryMonitor(unittest.TestCase):
     """Validates sysfs inventory enumeration, netlink packet decoding, and uevent processing."""
 
@@ -83,7 +82,6 @@ class TestInventoryMonitor(unittest.TestCase):
                 parsed = json.loads(mock_print.call_args[0][0])
                 self.assertEqual(parsed["status"], "ok")
                 self.assertIn("inventory", parsed)
-
 
 if __name__ == "__main__":
     unittest.main()

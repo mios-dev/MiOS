@@ -16,7 +16,6 @@ from webrtc_stream import (
     StreamConfig,
 )
 
-
 class TestWebRTCStream(unittest.TestCase):
     def setUp(self):
         self.portal = ScreenCastPortalBridge(dry_run=True)
@@ -91,7 +90,6 @@ class TestWebRTCStream(unittest.TestCase):
         self.assertIn("H264", sdp["sdp"])
         self.assertIn("sendonly", sdp["sdp"])
         self.streamer.stop_stream()
-
 
 if __name__ == "__main__":
     unittest.main()

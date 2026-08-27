@@ -29,7 +29,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load mios-cephfs-quota module from {_QUOTA_PATH}")
 
-
 class TestCephFSQuota(unittest.TestCase):
     """Tests byte size parsing, quota management, subvolume resize command generation, and directory monitoring."""
 
@@ -138,12 +137,10 @@ class TestCephFSQuota(unittest.TestCase):
             t_content = f.read()
         self.assertIn("OnCalendar=", t_content)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestCephFSQuota)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -20,14 +20,12 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-oomd-psi")
 
-
 @dataclass
 class PSIAction:
     cgroup_slice: str
     current_psi_pct: float
     action_taken: str  # "none", "kill", "throttle"
     victim_unit: Optional[str] = None
-
 
 class OOMDPressureManager:
     """Manages declarative systemd-oomd pressure stall policies and protection lists."""
@@ -73,12 +71,10 @@ class OOMDPressureManager:
             )
         return act
 
-
 def main():
     mgr = OOMDPressureManager(dry_run=True)
     res = mgr.evaluate_pressure_stall("background.slice", 65.0, ["stress-ng.service"])
     print(f"Action: {res.action_taken} on {res.victim_unit}")
-
 
 if __name__ == "__main__":
     main()

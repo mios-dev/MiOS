@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from vram_swap import MAX_SWAP_LATENCY_MS, VRAMSwapManager
 
-
 class TestVRAMSwap(unittest.TestCase):
     def setUp(self):
         # 8 GB VRAM test budget with fast PCIe 4.0
@@ -79,7 +78,6 @@ class TestVRAMSwap(unittest.TestCase):
         self.assertEqual(s.location, "vram")
         self.assertEqual(s.token_count, 3500)
         self.assertLess(lat, MAX_SWAP_LATENCY_MS)
-
 
 if __name__ == "__main__":
     unittest.main()

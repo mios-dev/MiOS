@@ -15,7 +15,6 @@ if command -v miosd >/dev/null 2>&1; then
     exit 0
 fi
 
-
 # Derive open ports from SSOT [firewall.open_ports]
 _ssot_ports=()
 if python3 -c 'import tomllib' 2>/dev/null; then

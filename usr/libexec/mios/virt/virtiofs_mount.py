@@ -18,9 +18,7 @@ import re
 import sys
 from typing import Any, Dict, List, Optional
 
-
 TAG_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
-
 
 def validate_tag(tag: str) -> str:
     cleaned = tag.strip()
@@ -28,11 +26,9 @@ def validate_tag(tag: str) -> str:
         raise ValueError(f"Invalid mount tag '{tag}': Must be alphanumeric, dashes, or underscores.")
     return cleaned
 
-
 def to_posix_path(p: str) -> str:
     """Normalizes path with forward slashes for Linux/libvirt XML compatibility."""
     return p.replace("\\", "/")
-
 
 class VirtioFSManager:
     """Manages VirtIO-FS daemon configuration, directory validation, and libvirt XML."""
@@ -190,7 +186,6 @@ class VirtioFSManager:
             "legacy_9p_avoided": True,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS VirtIO-FS Shared Directory Mount Daemon and Libvirt XML Generator."
@@ -256,7 +251,6 @@ def main() -> int:
 
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

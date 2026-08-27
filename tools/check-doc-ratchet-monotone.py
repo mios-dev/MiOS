@@ -13,7 +13,6 @@ except ModuleNotFoundError:
 _HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(_HERE, ".."))
 
-
 def read_floor(path: str) -> dict[str, int]:
     out: dict[str, int] = {}
     if not os.path.isfile(path):
@@ -26,7 +25,6 @@ def read_floor(path: str) -> dict[str, int]:
             if len(parts) == 2 and parts[1].strip().lstrip("-").isdigit():
                 out[parts[0].strip()] = int(parts[1])
     return out
-
 
 def main() -> int:
     ssot_path = os.path.join(ROOT, "usr", "share", "mios", "mios.toml")
@@ -61,7 +59,6 @@ def main() -> int:
 
     print("check_doc_ratchet_monotone OK: all ceilings <= monotone floor baseline")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

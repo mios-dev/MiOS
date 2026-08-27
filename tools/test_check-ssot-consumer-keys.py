@@ -20,7 +20,6 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
-
 def tree(files: dict) -> str:
     """A throwaway root holding usr/<path> = <body> for each entry."""
     root = tempfile.mkdtemp()
@@ -30,7 +29,6 @@ def tree(files: dict) -> str:
         with open(path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(body)
     return root
-
 
 def data(unresolved=(), max_unresolved=None, ssot=None, table=True):
     d = {"security": {"api_require_auth": False}, "offline": {"memory_provider": "x"}}
@@ -43,10 +41,8 @@ def data(unresolved=(), max_unresolved=None, ssot=None, table=True):
         d["ssot_consumers"] = t
     return d
 
-
 def only(viols, needle):
     return [v for v in viols if needle in v]
-
 
 class TestConsumerReads(unittest.TestCase):
     def setUp(self):
@@ -141,7 +137,6 @@ class TestConsumerReads(unittest.TestCase):
         v = mod.violations(data((), 0), root)
         self.assertTrue(only(v, "vacuously"), v)
 
-
 class TestRealTree(unittest.TestCase):
     def setUp(self):
         with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
@@ -171,7 +166,6 @@ class TestRealTree(unittest.TestCase):
         # If it did, the gate would assert nothing.
         self.assertLess(len(mod.register(self.real)),
                         len(mod.consumer_reads(_ROOT)))
-
 
 if __name__ == "__main__":
     unittest.main()

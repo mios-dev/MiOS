@@ -63,7 +63,6 @@ if [[ -f "${CTX}/usr/lib/wsl.conf" ]]; then
     mios_ok "Stage 3a: force-installed /usr/lib/wsl.conf reference"
 fi
 
-
 if [[ -d "${CTX}/home" ]]; then
     mios_log "Stage 5: /ctx/home detected"
     install -d -m 0755 /etc/skel
@@ -140,7 +139,6 @@ else
 fi
 
 mios_step "Pathing compatibility symlinks"
-
 
 if [ ! -L /home ] && [ -d /home ] && [ ! "$(ls -A /home)" ]; then
     rm -rf /home

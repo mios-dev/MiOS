@@ -13,7 +13,6 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-
 class TestMiosdSupervisor(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -115,7 +114,6 @@ class TestMiosdSupervisor(unittest.TestCase):
         )
         self.assertIn("test daemon::state::tests::test_atomic_state_write_and_read ... ok", res.stdout)
         self.assertIn("test daemon::tests::test_supervisor_run_once ... ok", res.stdout)
-
 
 if __name__ == "__main__":
     unittest.main()

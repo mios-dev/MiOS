@@ -156,8 +156,6 @@ cat > "${ARTIFACT_DIR}/README.md" << README
 **Compression:** ${REPO_SIZE_HUMAN} → ${COMPRESSED_HUMAN} (${COMPRESSION_RATIO} reduction)
 **Target:** OpenAI /v1-compatible runtimes -- the MiOS lanes mios-llm-light + mios-llm-heavy (llama.cpp / vLLM / SGLang)
 
-
-
 1. **mios-knowledge-graph.json** (3.3 KB)
    - Structured knowledge graph with core concepts
    - Version history and MiOS-NXT roadmap
@@ -193,7 +191,6 @@ cat > "${ARTIFACT_DIR}/README.md" << README
 8. **mios-docs-TIMESTAMP.tar.gz** (31 KB)
    - Core documentation bundle
 
-
 Located in: \`../wiki/${MIOS_VERSION}/ai-integration/\`
 
 - AI Integration Index
@@ -201,7 +198,6 @@ Located in: \`../wiki/${MIOS_VERSION}/ai-integration/\`
 - Quick Reference
 - Prompts Library
 - Knowledge Graph
-
 
 \`\`\`bash
 tar -xzf mios-context-*.tar.gz -C ~/mios-rag
@@ -212,7 +208,6 @@ export OPENAI_API_KEY="\${MIOS_AI_KEY:-mios-local}"
 pip install langchain langchain-community pgvector psycopg
 
 \`\`\`
-
 
 Load knowledge graph into AI:
 
@@ -226,7 +221,6 @@ curl --retry 5 --retry-delay 3 --connect-timeout 20 "\${OPENAI_BASE_URL:-http://
 }'
 
 \`\`\`
-
 
 These artifacts enable:
 - FOSS AI agent initialization with full 'MiOS' context

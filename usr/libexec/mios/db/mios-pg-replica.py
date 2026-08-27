@@ -25,7 +25,6 @@ DEFAULT_DATA_DIR = "/var/lib/mios/pgvector"
 DEFAULT_FENCE_DIR = "/var/lib/mios/fencing"
 DEFAULT_MAX_LAG_MS = 50.0
 
-
 class PgReplicaManager:
     """Orchestrates PostgreSQL streaming replication, monitoring, fencing, and promotion."""
 
@@ -344,7 +343,6 @@ class PgReplicaManager:
             "details": status,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS PostgreSQL Streaming Replication & Failover Manager"
@@ -415,7 +413,6 @@ def main() -> int:
     except Exception as e:
         sys.stderr.write(f"[mios-pg-replica] ERROR: {e}\n")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

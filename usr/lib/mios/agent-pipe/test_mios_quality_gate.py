@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from mios_pipe.routing.quality_gate import evaluate_quality
 from mios_pipe.routing.smartroute import should_escalate
 
-
 class TestQualityGate(unittest.TestCase):
     """Test deterministic quality evaluation and escalation producer behavior."""
 
@@ -53,7 +52,6 @@ class TestQualityGate(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(reason, "quality_ok")
         self.assertFalse(should_escalate(ok, local_exhausted=False))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -28,7 +28,6 @@ DEFAULT_TASKS_MAX = 256
 DEFAULT_TIMEOUT_SECS = 120
 DEFAULT_SUBAGENT_BASE_DIR = "/var/lib/mios/subagents"
 
-
 def validate_workspace_path(path: str, workspace_root: str) -> Tuple[bool, str]:
     """
     Validate that a given path resides strictly within the designated workspace root.
@@ -53,7 +52,6 @@ def validate_workspace_path(path: str, workspace_root: str) -> Tuple[bool, str]:
             return False, f"Direct write to system path forbidden: '{norm_path}'"
 
     return True, "Path within permitted workspace boundary"
-
 
 class SubagentSandbox:
     """Sandbox orchestrator combining Bubblewrap (bwrap) namespaces and systemd cgroups."""
@@ -257,7 +255,6 @@ class SubagentSandbox:
             except Exception:
                 pass
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Ephemeral Bubblewrap Subagent Sandbox (T-551)"
@@ -299,7 +296,6 @@ def main() -> int:
             sys.stderr.write(f"Error:\n{result['stderr']}\n")
 
     return 0 if result.get("success") else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

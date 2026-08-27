@@ -8,13 +8,11 @@ import mios_cost as cost
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_local_energy():
     m = cost.CostModel(gpu_watts=360.0, usd_per_kwh=0.30)
@@ -27,7 +25,6 @@ def t_local_energy():
     check("local: zero kwh-price -> $0 but energy>0",
           m0.estimate(elapsed_s=10.0)["usd"] == 0.0 and m0.estimate(elapsed_s=10.0)["energy_wh"] > 0)
 
-
 def t_remote_dollar():
     m = cost.CostModel(remote_usd_per_mtok=5.0)
     e = m.estimate(lane="remote-gpt", is_remote=True, prompt_tokens=600_000, completion_tokens=400_000)
@@ -35,7 +32,6 @@ def t_remote_dollar():
     check("remote: zero local energy", e["energy_wh"] == 0.0)
     e2 = m.estimate(is_remote=True, prompt_tokens=1_000_000, usd_per_mtok=2.0)
     check("remote: per-call rate override", abs(e2["usd"] - 2.0) < 1e-9, str(e2["usd"]))
-
 
 def t_ledger():
     m = cost.CostModel(gpu_watts=360.0, usd_per_kwh=1.0)
@@ -53,14 +49,12 @@ def t_ledger():
     check("ledger: over_budget true past ceiling", L.over_budget(0.0001) is True)
     check("ledger: empty estimate ignored", (L.record({}), L.snapshot()["dispatches"])[1] == 3)
 
-
 def main():
     t_local_energy()
     t_remote_dollar()
     t_ledger()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

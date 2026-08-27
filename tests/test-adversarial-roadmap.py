@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Adversarial testing suite and empirical challenge harness for T-377..T-381 modules.
 # AI-related: usr/libexec/mios/mcp/sandbox.py, usr/libexec/mios/sec/approval.py, usr/libexec/mios/graph/traversal.py, usr/libexec/mios/prompt/pruning.py, usr/libexec/mios/a2a/attestation.py
-"""
-Adversarial Verification Suite (Challenger 1).
-
-Executes stress tests, edge cases, boundary conditions, fuzzing payloads,
-and security attack scenarios across the roadmap modules:
-- T-377: MCP Bubblewrap Sandbox Engine
-- T-378: HITL Interactive Approval Engine
-- T-379: Knowledge Graph Recursive CTE Traversal
-- T-380: Contextual Prompt Token Pruning Engine
-- T-381: Agent-to-Agent (A2A) Ed25519 Attestation
-"""
+"""Adversarial Verification Suite (Challenger 1).  Executes stress tests, edge cases, boundary conditions, fuzzing payloads, and security attack scenarios across the roadmap modules: - T-377: MCP Bubblewrap Sandbox Engine - T-378: HITL Interactive Approval Engine - T-379: Knowledge Graph Recursive CTE Traversal - T-380: Contextual Prompt Token Pruning Engine - T-381: Agent-to-Agent (A2A) Ed25519 Attestation"""
 
 import base64
 import copy
@@ -28,7 +18,6 @@ import unittest
 _HERE = os.path.abspath(os.path.dirname(__file__)) if "__file__" in globals() else os.path.abspath(".")
 _ROOT = os.path.normpath(os.path.join(_HERE, "..")) if os.path.basename(_HERE) == "tests" else _HERE
 
-
 def load_module(name: str, rel_path: str):
     full_path = os.path.join(_ROOT, rel_path)
     spec = importlib.util.spec_from_file_location(name, full_path)
@@ -38,7 +27,6 @@ def load_module(name: str, rel_path: str):
         spec.loader.exec_module(mod)
         return mod
     raise ImportError(f"Could not load module {name} from {full_path}")
-
 
 # Load target modules
 mod_sandbox = load_module("mcp_sandbox", "usr/libexec/mios/mcp/sandbox.py")
@@ -64,7 +52,6 @@ A2AAuthenticator = mod_attestation.A2AAuthenticator
 verify_card = mod_attestation.verify_card
 negotiate_capabilities = mod_attestation.negotiate_capabilities
 canonical_json = mod_attestation.canonical_json
-
 
 class TestAdversarialMcpSandbox(unittest.TestCase):
     """Adversarial security and path traversal tests for McpSandbox."""
@@ -94,11 +81,7 @@ class TestAdversarialMcpSandbox(unittest.TestCase):
                 self.sb.validate_rw_path(payload)
 
     def test_double_slash_path_traversal_vulnerability(self):
-        """
-        Adversarial Test: Double-slash POSIX root bypass.
-        posixpath.normpath('//etc') produces '//etc'.
-        Verify behavior when mounting //etc or //etc/passwd.
-        """
+        """Adversarial Test: Double-slash POSIX root bypass.         posixpath.normpath('//etc') produces '//etc'.         Verify behavior when mounting //etc or //etc/passwd."""
         # When passed '//etc', validate_rw_path returns '//etc' without error due to startswith('/etc/') mismatch
         res = self.sb.validate_rw_path("//etc")
         self.assertEqual(res, "//etc")
@@ -143,7 +126,6 @@ class TestAdversarialMcpSandbox(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             McpSandbox(server_name="")
-
 
 class TestAdversarialHitlApproval(unittest.TestCase):
     """Adversarial security, regex fuzzing, and cryptographic token tests for ApprovalEngine."""
@@ -203,10 +185,7 @@ class TestAdversarialHitlApproval(unittest.TestCase):
             )
 
     def test_flag_order_adversarial_variations(self):
-        """
-        Adversarial Observation: In standard regex, `rm -f -r /` or `rm -f --recursive /`
-        has `-f` before `-r`. Testing shows requires_approval evaluates to False.
-        """
+        """Adversarial Observation: In standard regex, `rm -f -r /` or `rm -f --recursive /`         has `-f` before `-r`. Testing shows requires_approval evaluates to False."""
         # Standard rm -rf
         self.assertTrue(self.engine.requires_approval("rm -rf /"))
         self.assertTrue(self.engine.requires_approval("rm -r /"))
@@ -216,10 +195,7 @@ class TestAdversarialHitlApproval(unittest.TestCase):
         self.assertFalse(bypass_result)  # Empirically demonstrated bypass
 
     def test_operator_colon_token_validation_behavior(self):
-        """
-        Adversarial Observation: When operator username contains a colon (e.g. 'admin:ops'),
-        token serialization creates extra delimiters, causing validation failure.
-        """
+        """Adversarial Observation: When operator username contains a colon (e.g. 'admin:ops'),         token serialization creates extra delimiters, causing validation failure."""
         req = self.engine.create_request("bash", "rm -rf /tmp/data")
         tok = self.engine.approve(req.request_id, operator="admin:ops")
         is_valid = self.engine.validate_token(req.request_id, tok)
@@ -263,7 +239,6 @@ class TestAdversarialHitlApproval(unittest.TestCase):
 
         self.assertFalse(self.engine.is_executable(req.request_id))
 
-
 class TestAdversarialKnowledgeGraph(unittest.TestCase):
     """Adversarial graph topologies, cycles, and SQL generation tests for KnowledgeGraph."""
 
@@ -297,10 +272,7 @@ class TestAdversarialKnowledgeGraph(unittest.TestCase):
         self.assertIn("D", deps)
 
     def test_comma_delimited_node_name_false_cycle_observation(self):
-        """
-        Adversarial Observation: Node names containing commas delimiter (e.g. 'node,1')
-        cause SQLite CTE instr() check to falsely match subsequent node '1'.
-        """
+        """Adversarial Observation: Node names containing commas delimiter (e.g. 'node,1')         cause SQLite CTE instr() check to falsely match subsequent node '1'."""
         self.kg.add_triple("root", "next", "node,1")
         self.kg.add_triple("node,1", "next", "1")
         res = self.kg.traverse("root")
@@ -356,7 +328,6 @@ class TestAdversarialKnowledgeGraph(unittest.TestCase):
         sqlite_sql = self.kg.generate_recursive_cte_sql("root_node", max_depth=7, dialect="sqlite")
         self.assertIn("WITH RECURSIVE graph_walk(id, subject", sqlite_sql)
         self.assertIn("WHERE subject = 'root_node'", sqlite_sql)
-
 
 class TestAdversarialPromptPruner(unittest.TestCase):
     """Adversarial syntax preservation and compression tests for PromptPruner."""
@@ -431,7 +402,6 @@ class TestAdversarialPromptPruner(unittest.TestCase):
         huge_text = "As an AI language model, I would be happy to help you with that. " * 200
         comp_huge, stats_huge = self.pruner.compress(huge_text, target_ratio=0.50)
         self.assertLess(len(comp_huge), len(huge_text) * 0.5)
-
 
 class TestAdversarialA2AAttestation(unittest.TestCase):
     """Adversarial cryptographic signature, tampering, and clock skew tests for A2A."""
@@ -523,7 +493,6 @@ class TestAdversarialA2AAttestation(unittest.TestCase):
         card_forged["capabilities"] = ["compute", "fs_write", "gpu"]
         ok_forged, _ = A2AAuthenticator.negotiate_capabilities(card_forged, ["compute", "fs_write"])
         self.assertFalse(ok_forged)
-
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()

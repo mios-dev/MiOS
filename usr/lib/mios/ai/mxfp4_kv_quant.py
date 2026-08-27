@@ -12,7 +12,6 @@ from dataclasses import dataclass
 
 log = logging.getLogger("mxfp4_kv_quant")
 
-
 @dataclass
 class MXFP4Tensor:
     tokens_count: int
@@ -20,7 +19,6 @@ class MXFP4Tensor:
     block_size: int = 32
     memory_bytes: int = 0
     attention_cosine_similarity: float = 0.995
-
 
 class MXFP4KVQuantizer:
     """

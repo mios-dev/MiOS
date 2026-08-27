@@ -14,13 +14,11 @@ from mios_drain_handler import GracefulDrainManager
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def main():
     drain = GracefulDrainManager(drain_timeout_s=1.0)
@@ -34,7 +32,6 @@ def main():
 
     if _fails > 0:
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

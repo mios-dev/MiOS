@@ -28,7 +28,6 @@ logger = logging.getLogger("mios-hw-monitor")
 
 NETLINK_KOBJECT_UEVENT = 15
 
-
 @dataclass
 class HardwareDevice:
     """Represents a discovered physical hardware component in host topology."""
@@ -64,7 +63,6 @@ class HardwareDevice:
         d["degradation_reasons"] = reasons
         return d
 
-
 @dataclass
 class HardwareEvent:
     """Hardware lifecycle event from netlink uevent socket."""
@@ -76,7 +74,6 @@ class HardwareEvent:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
-
 
 class HardwareInventoryMonitor:
     """Monitors hardware topology via netlink socket and sysfs, persisting to PostgreSQL."""
@@ -339,7 +336,6 @@ class HardwareInventoryMonitor:
         finally:
             conn.close()
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MiOS Netlink Hardware Monitor & Inventory (T-563)")
     parser.add_argument("--scan", action="store_true", help="Scan sysfs for physical hardware devices")
@@ -348,7 +344,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mock", action="store_true", help="Run with simulated hardware topology")
     parser.add_argument("--json", action="store_true", help="Output in structured JSON")
     return parser.parse_args()
-
 
 def main() -> int:
     args = parse_args()
@@ -399,7 +394,6 @@ def main() -> int:
         if args.json:
             print(json.dumps({"status": "error", "error": str(e)}, indent=2))
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

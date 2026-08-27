@@ -18,7 +18,6 @@ _VENDOR = _ROOT / "usr" / "share" / "mios" / "mios.toml"
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if cond:
@@ -26,7 +25,6 @@ def check(name, cond, detail=""):
     else:
         _fails += 1
         print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
-
 
 def run_cli(args, user_toml, models_dir=None):
     env = dict(os.environ)
@@ -36,7 +34,6 @@ def run_cli(args, user_toml, models_dir=None):
     r = subprocess.run([sys.executable, str(_CLI)] + args,
                        capture_output=True, text=True, env=env)
     return r.returncode, r.stdout + r.stderr
-
 
 def mk_fetcher(tmp):
     """A copy of the fetcher with its absolute /var paths redirected into tmp,
@@ -58,7 +55,6 @@ def mk_fetcher(tmp):
     fetch.write_text(src, encoding="utf-8")
     return fetch, models, binn
 
-
 def run_fetcher(fetch, binn, toml_path, payload):
     env = dict(os.environ)
     env["PATH"] = f"{binn}{os.pathsep}{env['PATH']}"
@@ -67,7 +63,6 @@ def run_fetcher(fetch, binn, toml_path, payload):
     r = subprocess.run([sys.executable, str(fetch)],
                        capture_output=True, text=True, env=env)
     return r.stdout + r.stderr, r.returncode
-
 
 def t_cli_reads_the_ssot():
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="miosmodels-"))
@@ -114,7 +109,6 @@ def t_cli_reads_the_ssot():
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-
 def t_fetcher_verifies_sha256():
     payload = "the-real-weights"
     digest = hashlib.sha256(payload.encode()).hexdigest()
@@ -157,13 +151,11 @@ def t_fetcher_verifies_sha256():
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-
 def main():
     t_cli_reads_the_ssot()
     t_fetcher_verifies_sha256()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -6,7 +6,6 @@ import json
 
 import mios_vision
 
-
 def test_vision_unavailable_no_fabrication() -> None:
     mios_vision.configure(vision_model="")
     resp = asyncio.run(mios_vision._vision_complete(
@@ -19,7 +18,6 @@ def test_vision_unavailable_no_fabrication() -> None:
     assert body["choices"][0]["finish_reason"] == "stop"
     print("ok: vision unavailable -> honest assistant turn, no fabrication")
 
-
 def test_vision_backend_failed_classifier() -> None:
     assert mios_vision._vision_backend_failed(503, "") is True
     assert mios_vision._vision_backend_failed(
@@ -29,7 +27,6 @@ def test_vision_backend_failed_classifier() -> None:
     assert mios_vision._vision_backend_failed(200, "a cat on a mat") is False
     print("ok: _vision_backend_failed classifies degraded backends")
 
-
 def test_messages_have_image() -> None:
     assert mios_vision._messages_have_image(
         [{"role": "user", "content": [
@@ -37,7 +34,6 @@ def test_messages_have_image() -> None:
     assert mios_vision._messages_have_image(
         [{"role": "user", "content": "plain text"}]) is False
     print("ok: _messages_have_image detects vision content")
-
 
 def test_client_tools_handback_shape() -> None:
     async def _select_child_tools(surface, intent, cap):
@@ -79,7 +75,6 @@ def test_client_tools_handback_shape() -> None:
     assert wrapped["choices"][0]["message"] is msg
     print("ok: client-tools client tool_call handed back, wrap shape correct")
 
-
 def test_client_tools_is_mios_gate() -> None:
     mios_vision.configure(verb_catalog={"open_app": {}},
                           resolve_verb_key=lambda name: name)
@@ -87,7 +82,6 @@ def test_client_tools_is_mios_gate() -> None:
     assert mios_vision._client_tools_is_mios("browser_back", set()) is False
     assert mios_vision._client_tools_is_mios("", set()) is False
     print("ok: _client_tools_is_mios gates server-side vs handback")
-
 
 def test_client_tools_sse_relays_tool_calls() -> None:
     msg = {"role": "assistant", "content": "",
@@ -106,7 +100,6 @@ def test_client_tools_sse_relays_tool_calls() -> None:
     assert "tool_calls" in blob and '"finish_reason": "tool_calls"' in blob, blob
     assert blob.rstrip().endswith("[DONE]"), blob
     print("ok: _client_tools_sse relays tool_calls + [DONE]")
-
 
 if __name__ == "__main__":
     test_vision_unavailable_no_fabrication()

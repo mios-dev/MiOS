@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-gpu-heatd")
 
-
 @dataclass
 class GPUInterconnectMatrix:
     gpu_count: int
@@ -29,7 +28,6 @@ class GPUInterconnectMatrix:
     bandwidth_gbps_matrix: List[List[float]] = field(default_factory=list)
     timestamp: float = 0.0
     bottlenecks_detected: List[str] = field(default_factory=list)
-
 
 class GPUInterconnectProfiler:
     """Profiles multi-GPU P2P throughput and detects PCIe lane bottlenecks."""
@@ -76,12 +74,10 @@ class GPUInterconnectProfiler:
             lines.append(row_str)
         return "\n".join(lines)
 
-
 def main():
     profiler = GPUInterconnectProfiler(dry_run=True)
     mat = profiler.sample_interconnect_matrix(4, 450.0)
     print(profiler.render_ascii_heatmap(mat))
-
 
 if __name__ == "__main__":
     main()

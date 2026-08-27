@@ -6,7 +6,6 @@ import sys
 
 sys.path.insert(0, "/mnt/c/MiOS/usr/libexec/mios")
 
-
 def setUpModule():
     try:
         import psycopg
@@ -19,7 +18,6 @@ def setUpModule():
             pass
     except Exception:
         raise unittest.SkipTest("no live pgvector -- integration test")
-
 
 class TestMiosBuildCatalog(unittest.TestCase):
 

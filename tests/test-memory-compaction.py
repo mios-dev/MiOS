@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load memory-compact module from {_COMPACT_PATH}")
 
-
 class TestMemoryCompaction(unittest.TestCase):
     """Validates conversation fact parsing and semantic tree creation."""
 
@@ -43,12 +42,10 @@ class TestMemoryCompaction(unittest.TestCase):
         self.assertEqual(len(tree["user_preference"]), 1)
         self.assertEqual(len(tree["system_constraint"]), 1)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestMemoryCompaction)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

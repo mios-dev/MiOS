@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load inventory_monitor module from {_MODULE_PATH}")
 
-
 class TestHwDegrade(unittest.TestCase):
     """Validates detection of PCIe link width degradation, bus speed drops, and anomaly alerts."""
 
@@ -119,7 +118,6 @@ class TestHwDegrade(unittest.TestCase):
                     parsed = json.loads(mock_print.call_args[0][0])
                     self.assertEqual(parsed["status"], "degraded")
                     self.assertEqual(len(parsed["degraded_devices"]), 1)
-
 
 if __name__ == "__main__":
     unittest.main()

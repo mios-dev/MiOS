@@ -16,17 +16,14 @@ import mios_reputation as R
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_neutral() -> None:
     r = R.PeerReputation()
     _check("neutral: unknown peer -> 0.5", r.score("nobody") == R.NEUTRAL)
     _check("neutral: empty id ignored", (r.record("", True) or True) and r.score("") == R.NEUTRAL)
-
 
 def t_scoring() -> None:
     r = R.PeerReputation()
@@ -42,7 +39,6 @@ def t_scoring() -> None:
     _check("scoring: mostly-bad scores low", b < 0.2, f"{b:.3f}")
     _check("scoring: good > bad", g > b)
 
-
 def t_recent_penalty() -> None:
     r = R.PeerReputation(recent_penalty=0.15)
     for _ in range(20):
@@ -57,14 +53,12 @@ def t_recent_penalty() -> None:
     _check("recent: a success clears the streak penalty", r.score("p") > after,
            f"{after:.3f} -> {r.score('p'):.3f}")
 
-
 def t_rank_stable() -> None:
     r = R.PeerReputation()
     order = ["a", "b", "c", "d"]
     _check("rank: all-neutral preserves input order", r.rank(order) == order,
            str(r.rank(order)))
     _check("rank: empty list ok", r.rank([]) == [])
-
 
 def t_rank_prefers_reliable() -> None:
     r = R.PeerReputation()
@@ -78,7 +72,6 @@ def t_rank_prefers_reliable() -> None:
     _check("rank: fresh (neutral) in the middle", ranked[1] == "fresh", str(ranked))
     snap = r.snapshot()
     _check("snapshot: carries score", "score" in snap.get("reliable", {}))
-
 
 def t_persistence() -> None:
     r = R.PeerReputation()
@@ -104,7 +97,6 @@ def t_persistence() -> None:
         {"peer_id": "ok", "ok": 2, "bad": 0, "streak_bad": 0}], str(r3.rows()))
     _check("restore: replaces prior state", (r2.restore([]) or True) and r2.rows() == [])
 
-
 def main() -> int:
     for t in (t_neutral, t_scoring, t_recent_penalty, t_rank_stable,
               t_rank_prefers_reliable, t_persistence):
@@ -113,7 +105,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

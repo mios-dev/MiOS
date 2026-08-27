@@ -25,7 +25,6 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Pattern, Union
 
-
 class Status(str, Enum):
     """Lifecycle status for an approval request."""
     PENDING = "PENDING"
@@ -35,7 +34,6 @@ class Status(str, Enum):
 
     def __str__(self) -> str:
         return self.value
-
 
 DEFAULT_HIGH_RISK_PATTERNS = [
     r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive\s+--force|--force\s+--recursive)\b.*",
@@ -61,7 +59,6 @@ DEFAULT_HIGH_RISK_PATTERNS = [
     r"\b(reboot|shutdown|poweroff|halt)\b.*",
     r"\binit\s+[06]\b.*",
 ]
-
 
 @dataclass
 class ApprovalRequest:
@@ -111,7 +108,6 @@ class ApprovalRequest:
         if "status" in req_data:
             req_data["status"] = Status(req_data["status"])
         return cls(**req_data)
-
 
 class ApprovalEngine:
     """
@@ -354,12 +350,10 @@ class ApprovalEngine:
         except Exception as e:
             sys.stderr.write(f"Warning: Failed to load approval state: {e}\n")
 
-
 def requires_approval(command: str, patterns: Optional[List[str]] = None) -> bool:
     """Helper function to quickly check if a command requires approval."""
     engine = ApprovalEngine(patterns=patterns)
     return engine.requires_approval(command)
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS HITL Security Approval & Escalation Engine")
@@ -468,7 +462,6 @@ def main() -> int:
 
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

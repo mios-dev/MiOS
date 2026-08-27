@@ -23,7 +23,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load cgroups module from {_CGROUPS_PATH}")
 
-
 class TestNodeCgroupsPinning(unittest.TestCase):
     """Validates CPU core affinity allocation, Core 0 system reservation, and cgroup v2 formatting."""
 
@@ -78,12 +77,10 @@ class TestNodeCgroupsPinning(unittest.TestCase):
         fmax = cgroups.CgroupV2Controller.format_cpu_max(None, 100_000)
         self.assertEqual(fmax, "max 100000")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeCgroupsPinning)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

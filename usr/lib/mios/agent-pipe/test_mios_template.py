@@ -9,7 +9,6 @@ from unittest import mock
 
 from mios_template import _template_to_cmd
 
-
 class TestMiosTemplate(unittest.TestCase):
 
     def test_basic_substitution(self):
@@ -93,7 +92,6 @@ class TestMiosTemplate(unittest.TestCase):
     def test_env_default_isolation(self):
         res = _template_to_cmd("test_tool", "echo {arg=$PATH:/bin}", {"arg": "$HOME"})
         self.assertEqual(res, "echo '$HOME'")
-
 
 if __name__ == "__main__":
     unittest.main()

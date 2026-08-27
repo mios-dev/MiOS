@@ -8,13 +8,11 @@ import mios_slo as slo
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_classify():
     check("classify: foreground high-prio -> interactive",
@@ -26,7 +24,6 @@ def t_classify():
     check("classify: clamped foreground priority -> best_effort",
           slo.classify(foreground=True, priority=3.0, interactive_priority=7.0) == slo.BEST_EFFORT)
     check("classify: default -> interactive (protect human)", slo.classify() == slo.INTERACTIVE)
-
 
 def t_deadline_edf():
     check("deadline: interactive budget 8s", slo.deadline(slo.INTERACTIVE, 100.0) == 108.0)
@@ -41,7 +38,6 @@ def t_deadline_edf():
     b = slo.edf_key(slo.BEST_EFFORT, 0.0, 0.0, budgets={slo.INTERACTIVE: 5.0, slo.BEST_EFFORT: 5.0})
     check("edf: deadline tie -> interactive first", a < b, f"{a} vs {b}")
 
-
 def t_shed():
     check("shed: interactive never shed (over+unhealthy)",
           slo.should_shed(slo.INTERACTIVE, over_ceiling=True, healthy=False) is False)
@@ -51,7 +47,6 @@ def t_shed():
           slo.should_shed(slo.BEST_EFFORT, over_ceiling=False, healthy=True) is False)
     check("shed: best_effort FAIL-CLOSED on unknown health",
           slo.should_shed(slo.BEST_EFFORT, over_ceiling=False, healthy=False) is True)
-
 
 def t_admit_foreground_protection():
     LIVE_PRIO = 5.0  # a typical live foreground scheduling priority (< floor 7.0)
@@ -70,7 +65,6 @@ def t_admit_foreground_protection():
           slo.should_shed(bg, over_ceiling=True) is True)
     check("A5: background NOT shed with headroom (healthy degrades open)",
           slo.should_shed(bg, over_ceiling=False) is False)
-
 
 def t_ssot_configure():
     check("ssot: default floor 7.0 clamps priority 5.0 -> best_effort",
@@ -101,7 +95,6 @@ def t_ssot_configure():
     check("ssot: defaults restored (floor 7.0 clamps priority 5.0)",
           slo.classify(priority=5.0) == slo.BEST_EFFORT)
 
-
 def main():
     t_classify()
     t_deadline_edf()
@@ -110,7 +103,6 @@ def main():
     t_ssot_configure()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

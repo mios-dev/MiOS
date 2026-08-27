@@ -34,24 +34,20 @@ SKIP_PREFIXES = (
     "ADR.md",
 )
 
-
 def port_keys(data: dict) -> set:
     """Numeric [ports] keys. stack_id is an offset, not a port."""
     ports = data.get("ports") or {}
     return {k for k, v in ports.items() if isinstance(v, int) and k != "stack_id"}
-
 
 def register(data: dict) -> list:
     """The shrink-only unbound register, in declaration order."""
     reg = (data.get("ports") or {}).get("unbound") or []
     return [str(x).strip() for x in reg if str(x).strip()]
 
-
 def _tracked_files(root: str) -> list:
     out = subprocess.run(["git", "-C", root, "ls-files"],
                          capture_output=True, text=True, check=False).stdout
     return [f for f in out.split("\n") if f and not f.startswith(SKIP_PREFIXES)]
-
 
 def referenced_ports(root: str, keys: set) -> set:
     """Port keys whose MIOS_PORT_<KEY> appears in a file that could bind or dial it."""
@@ -70,7 +66,6 @@ def referenced_ports(root: str, keys: set) -> set:
             if key:
                 found.add(key)
     return found
-
 
 def classify(data: dict, referenced: set) -> list:
     """Return the violations; empty means every allocated port is accounted for."""
@@ -101,7 +96,6 @@ def classify(data: dict, referenced: set) -> list:
 
     return viol
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     path = os.path.join(root, TOML)
@@ -124,7 +118,6 @@ def main() -> int:
           "registered unbound" % (len(keys), len(referenced & keys),
                                   len(register(data))))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -14,7 +14,6 @@ OWUI_TEMPLATE_MARKERS = (
     "you are an autocompletion",    # OWUI autocomplete task
 )
 
-
 def strip_owui_scaffold(text: str) -> str:
     if not text:
         return text

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 
-
 def _council_role_lens(name: str, cfg: dict) -> str:
     role = str(cfg.get("role", "")).strip().lower()
     strengths = [str(s).strip() for s in (cfg.get("strengths") or [])
@@ -27,7 +26,6 @@ def _council_role_lens(name: str, cfg: dict) -> str:
         "everything. Be concise, give one decisive angle-specific take, do "
         "not restate the question, do not preface with role labels."
     )
-
 
 def _format_satisfaction_block(rows: list[dict]) -> str:
     if not rows:
@@ -62,7 +60,6 @@ def _format_satisfaction_block(rows: list[dict]) -> str:
                 "it was done; state plainly that it was not performed.")
     return "\n".join(parts)
 
-
 def _format_tool_history(rows: list[dict]) -> str:
     if not rows:
         return ""
@@ -82,7 +79,6 @@ def _format_tool_history(rows: list[dict]) -> str:
         if preview.strip():
             parts.append(f"      result: {preview}")
     return "\n".join(parts)
-
 
 def _build_agent_hint(refined: dict, target_name: str) -> str:
     intent = str(refined.get("intent") or "").strip()
@@ -132,7 +128,6 @@ def _build_agent_hint(refined: dict, target_name: str) -> str:
                 line += f" output_used_by={consumed}"
             lines.append(line)
     return "\n".join(lines)
-
 
 def _multi_task_preamble(queued: list[dict],
                          active_idx: int = 0) -> str:

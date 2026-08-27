@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from native_storage import PodmanStorageConfigurator
 
-
 class TestNativeStorage(unittest.TestCase):
     def setUp(self):
         self.cfg = PodmanStorageConfigurator(dry_run=True)
@@ -28,7 +27,6 @@ class TestNativeStorage(unittest.TestCase):
         res = self.cfg.evaluate_driver_performance()
         self.assertTrue(res.is_native_kernel)
         self.assertGreaterEqual(res.estimated_iops_speedup, 10.0)
-
 
 if __name__ == "__main__":
     unittest.main()

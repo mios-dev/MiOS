@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from thermald import DOWNSTEP_TEMP_THRESHOLD, RECOVERY_TEMP_THRESHOLD, ThermalGovernorManager
 
-
 class TestThermald(unittest.TestCase):
     def setUp(self):
         self.gov = ThermalGovernorManager(dry_run=True)
@@ -28,7 +27,6 @@ class TestThermald(unittest.TestCase):
         st = self.gov.evaluate_thermal_sample(73.0)  # Cooled
         self.assertEqual(st.current_epp, "performance")
         self.assertFalse(st.is_throttling)
-
 
 if __name__ == "__main__":
     unittest.main()

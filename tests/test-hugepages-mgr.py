@@ -28,7 +28,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load hugepages_mgr module from {_TARGET_PATH}")
 
-
 class TestHugepagesManager(unittest.TestCase):
     """Tests hugepages allocation, compaction trigger, teardown, and XML generation."""
 
@@ -132,12 +131,10 @@ class TestHugepagesManager(unittest.TestCase):
         self.assertEqual(st["page_size"], "2M")
         self.assertEqual(st["page_size_kb"], 2048)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestHugepagesManager)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

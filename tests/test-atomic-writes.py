@@ -14,7 +14,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _TOML_PATH = os.path.join(_ROOT, "usr/share/mios/mios.toml")
 
-
 def test_atomic_replace():
     with tempfile.TemporaryDirectory() as tmpdir:
         target = os.path.join(tmpdir, "target.toml")
@@ -67,13 +66,11 @@ def test_atomic_replace():
         for count in seen_counts:
             assert count >= min_expected_lines, f"Observed truncated line count: {count} < {min_expected_lines}"
 
-
 def main() -> int:
     print("[test-atomic-writes] Running atomic write verification...")
     test_atomic_replace()
     print("[test-atomic-writes] PASS: 100 reads observed only complete file versions.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

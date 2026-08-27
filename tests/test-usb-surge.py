@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from usb_surge import MAX_ISOLATION_LATENCY_MS, USBSurgeProtectionDaemon
 
-
 class TestUSBSurge(unittest.TestCase):
     def setUp(self):
         self.daemon = USBSurgeProtectionDaemon(dry_run=True)
@@ -27,7 +26,6 @@ class TestUSBSurge(unittest.TestCase):
         evt = self.daemon.handle_overcurrent_event(port_id="1-2.1", bus_number=1)
         self.assertEqual(evt.cool_down_duration_sec, 5.0)
         self.assertTrue(evt.recovery_successful)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Optional, Set
 DEFAULT_LEDGER_PATH = "/var/run/mios/accrued-diffs.json"
 DEFAULT_STAGED_PATH = "/var/run/mios/staged-bake-diffs.json"
 
-
 def atomic_write_json(target_path: str, data: Any) -> None:
     """Write JSON data to disk using an atomic replace pattern to prevent corruption."""
     parent = os.path.dirname(os.path.abspath(target_path))
@@ -46,7 +45,6 @@ def atomic_write_json(target_path: str, data: Any) -> None:
                 os.remove(tmp_file)
             except OSError:
                 pass
-
 
 class DiffAuditorEngine:
     """Engine managing operator review and staging of accrued filesystem diffs."""
@@ -253,7 +251,6 @@ class DiffAuditorEngine:
 
         return manifest
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="MiOS WS-DIFFCYCLE (T-468) Human-In-The-Loop Interactive Diff Auditor",
@@ -400,7 +397,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             sys.stderr.write(f"[diff-auditor] Error: {exc}\n")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

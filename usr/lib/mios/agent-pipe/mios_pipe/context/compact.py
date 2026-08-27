@@ -7,7 +7,6 @@ from typing import List
 
 import mios_tokenize
 
-
 class CompactionPlan:
     """The compaction decision: which messages to summarize vs keep verbatim."""
 
@@ -27,7 +26,6 @@ class CompactionPlan:
             "to_keep": len(self.to_keep),
             "kept_tokens": self.kept_tokens,
         }
-
 
 def plan_compaction(messages: List[dict], budget: int, *,
                     keep_recent: int = 4, keep_system: bool = True) -> CompactionPlan:

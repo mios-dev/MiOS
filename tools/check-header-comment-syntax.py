@@ -16,7 +16,6 @@ HASH_COMMENT = (".conf", ".service", ".socket", ".timer", ".target", ".mount",
                 ".yaml", ".nft", ".rules")
 BAD = re.compile(r"^/\*\s*AI-(?:doc|hint|related):", re.M)
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
     out = subprocess.run(["git", "-C", root, "ls-files"],
@@ -41,7 +40,6 @@ def main() -> int:
     print("[check-header-comment-syntax] every AI header uses its format's comment"
           " character", file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -9,13 +9,11 @@ import mios_quota as q
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_rpm():
     t = q.QuotaTracker(rpm_limit=3, window_s=60.0)
@@ -26,13 +24,11 @@ def t_rpm():
     check("rpm: 4th denied", v.allowed is False and "rate limit" in v.reason, v.reason)
     check("rpm: re-admit after window slides", t.check("u", base + 61).allowed is True)
 
-
 def t_isolation():
     t = q.QuotaTracker(rpm_limit=1, window_s=60.0)
     check("isolation: user A admit", t.check("a", 0.0).allowed is True)
     check("isolation: user A 2nd denied", t.check("a", 1.0).allowed is False)
     check("isolation: user B unaffected", t.check("b", 1.0).allowed is True)
-
 
 def t_budget():
     t = q.QuotaTracker(daily_budget=1.0, budget_window_s=86400.0)
@@ -43,7 +39,6 @@ def t_budget():
     check("budget: spent tracked", round(t.spent("u", 3.0), 2) == 0.8)
     check("budget: window rollover resets spend", t.spent("u", 90000.0) == 0.0)
 
-
 def t_unlimited():
     t = q.QuotaTracker(rpm_limit=0, daily_budget=0.0)   # both disabled
     for i in range(50):
@@ -53,14 +48,12 @@ def t_unlimited():
     check("unlimited: 50 calls + huge cost all allowed", True)
     check("no-principal: empty user always allowed", t.check("", 0.0).allowed is True)
 
-
 def t_reset():
     t = q.QuotaTracker(rpm_limit=1)
     t.check("u", 0.0)
     check("reset: denied before reset", t.check("u", 0.5).allowed is False)
     t.reset("u")
     check("reset: allowed after reset", t.check("u", 0.6).allowed is True)
-
 
 def t_snapshot_restore():
     """T-228: a principal's budget window survives a restart; a stale one does not."""
@@ -95,7 +88,6 @@ def t_snapshot_restore():
     check("restore: an empty principal is refused",
           stale.restore("", 100.0, 1.0, 101.0) is False)
 
-
 def main():
     t_rpm()
     t_isolation()
@@ -105,7 +97,6 @@ def main():
     t_snapshot_restore()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

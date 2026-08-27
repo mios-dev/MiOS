@@ -28,16 +28,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("mios.self_heal")
 
-
 class PathViolationError(Exception):
     """Raised when remediation attempts to modify an immutable path like /usr."""
     pass
 
-
 class QuarantineError(Exception):
     """Raised when a unit is quarantined due to circuit breaker trip."""
     pass
-
 
 @dataclasses.dataclass
 class FailureEvent:
@@ -61,7 +58,6 @@ class FailureEvent:
             active_state=data.get("active_state", "failed"),
             sub_state=data.get("sub_state", "failed"),
         )
-
 
 class CircuitBreaker:
     """
@@ -186,7 +182,6 @@ class CircuitBreaker:
         except Exception as e:
             logger.warning("Failed to load circuit breaker state: %s", e)
 
-
 class ImmutabilityEnforcer:
     """
     Enforces Architectural Law 1 (USR-OVER-ETC) & bootc immutability.
@@ -254,7 +249,6 @@ class ImmutabilityEnforcer:
                 f"and bootc immutability forbid writes to /usr. Apply overrides to /etc or state to /var."
             )
 
-
 class SafeConfigEditor:
     """
     Safely modifies configuration files with backup creation (.bak.<timestamp>)
@@ -305,7 +299,6 @@ class SafeConfigEditor:
             logger.error("Atomic patch failed for '%s': %s", path, e)
             raise
 
-
 class JournaldHarvester:
     """Captures the last 100 journald error log lines for a failing systemd unit."""
 
@@ -321,7 +314,6 @@ class JournaldHarvester:
         except (subprocess.SubprocessError, FileNotFoundError) as e:
             logger.debug("Journald harvest fallback for %s: %s", unit_name, e)
             return []
-
 
 class SelfHealer:
     """
@@ -591,7 +583,6 @@ class SelfHealer:
                 logger.error("Error during self-heal scan cycle: %s", e)
             time.sleep(interval)
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Autonomous Self-Healing Code Remediation Agent")
     parser.add_argument("--unit", help="Process and remediate specific failed systemd unit")
@@ -641,7 +632,6 @@ def main() -> int:
     else:
         print(f"Scanned failed units. Processed {len(results)} units.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

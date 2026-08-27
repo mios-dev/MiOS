@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import Iterable, Optional
 
-
 class Decision:
     """Result of a PDP evaluation. `allow` is the verdict; `rule` names the
     clause that decided it; `reason` is a human-readable refusal string."""
@@ -20,10 +19,8 @@ class Decision:
     def __repr__(self) -> str:  # pragma: no cover -- debug aid
         return f"Decision(allow={self.allow}, rule={self.rule!r})"
 
-
 def _tiers(tiers: Iterable[str]) -> list:
     return [str(t).strip().lower() for t in (tiers or []) if str(t).strip()]
-
 
 def permission_rank(perm: str, tiers: Iterable[str]) -> int:
     """Risk rank of a permission tier (lower = safer). A tier NOT in the lattice
@@ -36,7 +33,6 @@ def permission_rank(perm: str, tiers: Iterable[str]) -> int:
     except ValueError:
         return len(t)
 
-
 def resolve_ceiling(max_perm: str, tiers: Iterable[str]) -> Optional[int]:
     mp = str(max_perm or "").strip().lower()
     if not mp:
@@ -45,7 +41,6 @@ def resolve_ceiling(max_perm: str, tiers: Iterable[str]) -> Optional[int]:
     if mp in t:
         return t.index(mp)
     return 0  # fail-closed: an unrecognised ceiling restricts to the safest tier
-
 
 def decide(name: str, *, in_catalog: bool, verb_perm: str,
            denied: Iterable[str], allowed: Iterable[str],

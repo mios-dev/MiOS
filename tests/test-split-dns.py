@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from split_dns import SplitDNSConfigurator
 
-
 class TestSplitDNS(unittest.TestCase):
     def setUp(self):
         self.dns = SplitDNSConfigurator(dry_run=True)
@@ -29,7 +28,6 @@ class TestSplitDNS(unittest.TestCase):
         self.assertEqual(res.protocol, "Strict_DoT_TLS853")
         self.assertIn("quad9", res.resolved_server)
         self.assertTrue(res.dnssec_validated)
-
 
 if __name__ == "__main__":
     unittest.main()

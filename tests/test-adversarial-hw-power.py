@@ -17,7 +17,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _HW_DIR = os.path.join(_ROOT, "usr", "libexec", "mios", "hw")
 
-
 def _import_module(name: str, path: str):
     spec = importlib.util.spec_from_file_location(name, path)
     if spec and spec.loader:
@@ -27,12 +26,10 @@ def _import_module(name: str, path: str):
         return mod
     raise ImportError(f"Could not load module {name} from {path}")
 
-
 cpu_gov = _import_module("cpu_governor", os.path.join(_HW_DIR, "cpu_governor.py"))
 bat_pass = _import_module("battery_passthrough", os.path.join(_HW_DIR, "battery_passthrough.py"))
 usb_hot = _import_module("usb_hotplug", os.path.join(_HW_DIR, "usb_hotplug.py"))
 gpu_watch = _import_module("gpu_thermal_watchdog", os.path.join(_HW_DIR, "gpu_thermal_watchdog.py"))
-
 
 class TestAdversarialCPUGovernor(unittest.TestCase):
     """Adversarial stress-testing for T-420 CPU Governor Manager."""
@@ -190,7 +187,6 @@ class TestAdversarialCPUGovernor(unittest.TestCase):
         # Should only restore online CPUs [0, 1, 4, 6]
         self.assertEqual(sorted(res_restore["restored_cpus"]), [0, 1, 4, 6])
 
-
 class TestAdversarialBatteryPassthrough(unittest.TestCase):
     """Adversarial stress-testing for T-421 Battery Passthrough Daemon."""
 
@@ -309,7 +305,6 @@ class TestAdversarialBatteryPassthrough(unittest.TestCase):
         self.assertEqual(qmp_event["telemetry_payload"]["event"], "ACPI_POWER_STATUS_CHANGE")
         self.assertEqual(qmp_event["telemetry_payload"]["data"]["battery_level"], 0.0)
 
-
 class TestAdversarialUSBHotplug(unittest.TestCase):
     """Adversarial stress-testing for T-422 USB Hotplug Manager."""
 
@@ -422,7 +417,6 @@ class TestAdversarialUSBHotplug(unittest.TestCase):
         self.assertIn(expected_snippet_product, xml)
         self.assertIn(expected_snippet_addr, xml)
 
-
 class TestAdversarialGPUThermalWatchdog(unittest.TestCase):
     """Adversarial stress-testing for T-424 GPU Thermal Watchdog."""
 
@@ -520,7 +514,6 @@ class TestAdversarialGPUThermalWatchdog(unittest.TestCase):
         self.assertIn("i915", vendors)
         self.assertNotIn("coretemp", vendors)
 
-
 def main() -> int:
     suite = unittest.TestSuite()
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestAdversarialCPUGovernor))
@@ -529,7 +522,6 @@ def main() -> int:
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestAdversarialGPUThermalWatchdog))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_shm_kv import ShmKVTransfer
 
-
 class TestShmKV(unittest.TestCase):
     """Validates shared memory allocation, tensor payload round-trip, and cleanup."""
 
@@ -35,12 +34,10 @@ class TestShmKV(unittest.TestCase):
         finally:
             shm.cleanup()
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestShmKV)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

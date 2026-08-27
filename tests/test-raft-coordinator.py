@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "cluster"))
 from raft_coordinator import RaftClusterCoordinator
 
-
 class TestRaftClusterCoordinator(unittest.TestCase):
     def setUp(self):
         self.coordinator = RaftClusterCoordinator(node_id="mios-node-01", dry_run=True)
@@ -26,7 +25,6 @@ class TestRaftClusterCoordinator(unittest.TestCase):
         self.assertEqual(res["status"], "success")
         self.assertEqual(res["new_leader"], "mios-node-02")
         self.assertTrue(res["patroni_switchover_executed"])
-
 
 if __name__ == "__main__":
     unittest.main()

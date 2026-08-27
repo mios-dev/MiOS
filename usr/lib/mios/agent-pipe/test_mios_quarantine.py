@@ -14,16 +14,13 @@ import mios_scratchpad
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _bites(t, perm, sens):
     return Q.evaluate(session_tainted=t, permission_tier=perm, sensitive=sens,
                       mode=Q.MODE_ENFORCE).bites
-
 
 def t_normalize_mode() -> None:
     _check("mode: off", Q.normalize_mode("off") == Q.MODE_OFF)
@@ -32,7 +29,6 @@ def t_normalize_mode() -> None:
     _check("mode: case-insensitive", Q.normalize_mode("ENFORCE") == Q.MODE_ENFORCE)
     _check("mode: unknown -> off (degrade-open)", Q.normalize_mode("bogus") == Q.MODE_OFF)
     _check("mode: None -> off", Q.normalize_mode(None) == Q.MODE_OFF)
-
 
 def t_evaluate_bite_matrix() -> None:
     _check("bite: tainted + sensitive-READ -> bites (stricter than ro2)", _bites(True, "read", True) is True)
@@ -44,7 +40,6 @@ def t_evaluate_bite_matrix() -> None:
     _check("bite: UNtainted + sensitive read -> NO bite", _bites(False, "read", True) is False)
     _check("bite: UNtainted + plain write -> NO bite", _bites(False, "write", False) is False)
 
-
 def t_evaluate_privileged() -> None:
     def _priv(perm, sens):
         return Q.evaluate(session_tainted=False, permission_tier=perm, sensitive=sens).privileged
@@ -52,7 +47,6 @@ def t_evaluate_privileged() -> None:
     _check("priv: plain write -> privileged (C)", _priv("write", False) is True)
     _check("priv: sensitive write -> privileged (B and C)", _priv("write", True) is True)
     _check("priv: read-only non-sensitive -> NOT privileged", _priv("read", False) is False)
-
 
 def t_evaluate_action_matrix() -> None:
     def _act(mode, *, t=True, perm="write", sens=True):
@@ -67,14 +61,12 @@ def t_evaluate_action_matrix() -> None:
         _check(f"action: untainted privileged + {m} -> proceed",
                _act(m, t=False) == Q.ACT_PROCEED)
 
-
 def t_evaluate_total() -> None:
     try:
         v = Q.evaluate(session_tainted=True, permission_tier=12345, sensitive=False, mode="enforce")
         _check("eval: malformed tier -> no raise + bites (fail-closed C)", v.bites is True, str(v.to_dict()))
     except Exception as e:  # noqa: BLE001
         _check("eval: malformed tier -> no raise", False, repr(e))
-
 
 def t_to_dict() -> None:
     v = Q.evaluate(session_tainted=True, permission_tier="write", sensitive=True, mode="enforce")
@@ -86,11 +78,9 @@ def t_to_dict() -> None:
            d["privileged"] is True and d["bites"] is True
            and d["mode"] == Q.MODE_ENFORCE and d["action"] == Q.ACT_GATE, str(d))
 
-
 def t_seam_stub() -> None:
     _check("seam: quarantined_extract -> None (stubbed)", Q.quarantined_extract("attacker text") is None)
     _check("seam: quarantined_extract(schema) -> None", Q.quarantined_extract("x", schema={"k": 1}) is None)
-
 
 def t_decide_quarantine() -> None:
     _check("decide: quarantine_block -> BLOCK", mios_hitl.decide(quarantine_block=True) == mios_hitl.BLOCK)
@@ -100,7 +90,6 @@ def t_decide_quarantine() -> None:
     _check("decide: quarantine_block + ai audit -> BLOCK still",
            mios_hitl.decide(quarantine_block=True, in_tier_scope=True, ai_mode="audit") == mios_hitl.BLOCK)
     _check("decide: ro2_block still BLOCK (unchanged)", mios_hitl.decide(ro2_block=True) == mios_hitl.BLOCK)
-
 
 _CAT = {
     "zq_senread":  {"permission": "read",  "sensitive": True},   # B only  -> tainted bites
@@ -115,22 +104,18 @@ _evspy = {"n": 0}
 _ORIG_EVALUATE = Q.evaluate          # captured BEFORE any spy patch (so the spy can delegate)
 _ORIG_BUILD = mios_dispatch._build_dispatch_cmd  # captured to restore after the broker-spy tests
 
-
 def _spy_evaluate(*a, **k):
     _evspy["n"] += 1
     return _ORIG_EVALUATE(*a, **k)
-
 
 @contextlib.asynccontextmanager
 async def _noop_cm(*a, **k):
     yield
 
-
 class _NoConflict:
     """Stub Tool-Manager conflict gate -- guard() yields immediately (no serialization)."""
     def guard(self, *a, **k):
         return _noop_cm()
-
 
 def _configure(mode, *, tainted):
     """Wire mios_dispatch for the quarantine gate in isolation: synthetic catalog, the
@@ -180,14 +165,11 @@ def _configure(mode, *, tainted):
     Q.evaluate = _spy_evaluate
     return _created
 
-
 def _run_inner(tool, args, session_id="s-q"):
     return asyncio.run(mios_dispatch._dispatch_mios_verb_inner(tool, args, session_id=session_id))
 
-
 def _run_public(tool, args, session_id="s-q"):
     return asyncio.run(mios_dispatch.dispatch_mios_verb(tool, args, session_id=session_id))
-
 
 def t_enforce_blocks_tainted_sensitive() -> None:
     _evspy["n"] = 0
@@ -199,14 +181,12 @@ def t_enforce_blocks_tainted_sensitive() -> None:
     _check("enforce: tainted+sensitive-read -> hitl_pending shape", res.get("hitl_pending") is True, str(res))
     _check("enforce: evaluator WAS consulted", _evspy["n"] >= 1)
 
-
 def t_enforce_blocks_tainted_write() -> None:
     _configure("enforce", tainted=True)
     res = _run_inner("zq_plainwr", {"k": "v"})
     _check("enforce: tainted+write -> quarantine_blocked", res.get("quarantine_blocked") is True, str(res))
     res2 = _run_inner("zq_senwrite", {"k": "v"})
     _check("enforce: tainted+sensitive-write -> quarantine_blocked", res2.get("quarantine_blocked") is True, str(res2))
-
 
 def t_enforce_proceeds_non_bite() -> None:
     _configure("enforce", tainted=True)
@@ -219,7 +199,6 @@ def t_enforce_proceeds_non_bite() -> None:
     res3 = _run_inner("zq_senread", {"k": "v"})
     _check("enforce: untainted+sensitive-read -> NOT blocked", not res3.get("quarantine_blocked"), str(res3))
 
-
 def t_audit_non_blocking() -> None:
     _evspy["n"] = 0
     created = _configure("audit", tainted=True)
@@ -230,7 +209,6 @@ def t_audit_non_blocking() -> None:
     _check("audit: emitted a quarantine_audit event", "quarantine_audit" in kinds, str(kinds))
     _check("audit: did NOT emit a block event", "quarantine_block" not in kinds, str(kinds))
 
-
 def t_off_byte_identical() -> None:
     _evspy["n"] = 0
     _configure("off", tainted=True)
@@ -240,7 +218,6 @@ def t_off_byte_identical() -> None:
     _check("off: public -> NOT blocked (gate inert)", not res_p.get("quarantine_blocked"), str(res_p))
     _check("off: evaluator NEVER consulted (byte-identical)", _evspy["n"] == 0,
            f"evaluate called {_evspy['n']}x in off mode")
-
 
 def t_approval_downgrade() -> None:
     _configure("enforce", tainted=True)
@@ -253,7 +230,6 @@ def t_approval_downgrade() -> None:
     finally:
         _appr.set(None)
 
-
 def t_degrade_open() -> None:
     _configure("enforce", tainted=True)
 
@@ -263,7 +239,6 @@ def t_degrade_open() -> None:
     res = _run_inner("zq_senwrite", {"k": "v"})
     _check("degrade-open: taint error -> NOT quarantine_blocked", not res.get("quarantine_blocked"), str(res))
     _check("degrade-open: dispatch still returns a dict", isinstance(res, dict))
-
 
 def t_soundness_no_bypass() -> None:
     _appr.set(None)
@@ -284,7 +259,6 @@ def t_soundness_no_bypass() -> None:
                f"broker reached {_broker['n']}x")
     finally:
         mios_dispatch._build_dispatch_cmd = _ORIG_BUILD
-
 
 def t_semantic_firewall_t33() -> None:
 
@@ -328,7 +302,6 @@ def t_semantic_firewall_t33() -> None:
         mios_scratchpad.SQLITE_VEC_ENABLE = orig_vec_enable
         mios_scratchpad.has_tainted = orig_has_tainted
 
-
 def main() -> int:
     for t in (t_normalize_mode, t_evaluate_bite_matrix, t_evaluate_privileged,
               t_evaluate_action_matrix, t_evaluate_total, t_to_dict, t_seam_stub,
@@ -342,7 +315,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

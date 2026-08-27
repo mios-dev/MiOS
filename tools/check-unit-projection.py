@@ -16,17 +16,14 @@ except ModuleNotFoundError:  # pragma: no cover -- py<3.11
 TOML = "usr/share/mios/mios.toml"
 UNIT_DIR = "usr/lib/systemd/system"
 
-
 def declared_units(data: dict) -> set:
     """Unit filenames [units.*] projects. Table-valued keys only -- the
     string-valued half is name aliases, not units. See TASKS.md T-317."""
     return {k for k, v in (data.get("units") or {}).items() if isinstance(v, dict)}
 
-
 def unit_aliases(data: dict) -> set:
     """The string-valued half of [units]: name -> unit-file aliases."""
     return {k for k, v in (data.get("units") or {}).items() if isinstance(v, str)}
-
 
 def register(data: dict) -> list:
     """[unit_projection].drift, in declaration order."""
@@ -35,12 +32,10 @@ def register(data: dict) -> list:
         return []
     return [str(x).strip() for x in reg if str(x).strip()]
 
-
 def max_drift(data: dict):
     """The ratchet ceiling, or None when the table declares none."""
     val = (data.get("unit_projection") or {}).get("max_drift")
     return val if isinstance(val, int) else None
-
 
 def shipped(root: str) -> set:
     """Unit files actually on disk."""
@@ -53,7 +48,6 @@ def shipped(root: str) -> set:
             rel = os.path.relpath(os.path.join(dp, f), d).replace(os.sep, "/")
             res.add(rel)
     return res
-
 
 def hygiene(data: dict, root: str) -> list:
     """Everything about the register that can be checked without rendering."""
@@ -103,7 +97,6 @@ def hygiene(data: dict, root: str) -> list:
                     "held" % (len(reg), ceiling, len(reg)))
     return viol
 
-
 def _built(root: str):
     rels = ("target/release/mios-unit-gen.exe", "target/debug/mios-unit-gen.exe", "target/release/mios-unit-gen", "target/debug/mios-unit-gen") if sys.platform == "win32" else ("target/release/mios-unit-gen", "target/debug/mios-unit-gen", "target/release/mios-unit-gen.exe", "target/debug/mios-unit-gen.exe")
     for rel in rels:
@@ -113,7 +106,6 @@ def _built(root: str):
                 continue
             return p
     return None
-
 
 def binary_path(root: str, build: bool = True):
     """A built mios-unit-gen, building it once if cargo is available.
@@ -135,7 +127,6 @@ def binary_path(root: str, build: bool = True):
         return None
     return _built(root)
 
-
 def run_binary(path: str, root: str):
     """(ok, output). The binary owns the rendering comparison; we only relay it."""
     env = dict(os.environ, MIOS_ROOT=os.path.abspath(root))
@@ -146,7 +137,6 @@ def run_binary(path: str, root: str):
         return False, "mios-unit-gen --check could not run: %s" % exc
     out = (proc.stdout + proc.stderr).strip()
     return proc.returncode == 0, out
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
@@ -185,7 +175,6 @@ def main() -> int:
           "aliases sharing the table), %d registered as drifted (ceiling %s). %s."
           % (len(units), len(unit_aliases(data)), len(reg), max_drift(data), note))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

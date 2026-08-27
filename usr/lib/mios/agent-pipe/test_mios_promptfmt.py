@@ -12,7 +12,6 @@ from mios_promptfmt import (
     _multi_task_preamble,
 )
 
-
 class TestCouncilRoleLens(unittest.TestCase):
     def test_empty_when_no_role_or_strengths(self):
         self.assertEqual(_council_role_lens("a", {}), "")
@@ -30,7 +29,6 @@ class TestCouncilRoleLens(unittest.TestCase):
         out = _council_role_lens("r", {"role": "reasoning"})
         self.assertIn("the reasoning lens", out)
         self.assertNotIn("strengths:", out)
-
 
 class TestSatisfactionBlock(unittest.TestCase):
     def test_empty(self):
@@ -57,7 +55,6 @@ class TestSatisfactionBlock(unittest.TestCase):
         self.assertIn("NO such action actually ran", out)
         self.assertIn("save_file", out)
 
-
 class TestToolHistory(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(_format_tool_history([]), "")
@@ -73,7 +70,6 @@ class TestToolHistory(unittest.TestCase):
         self.assertIn("-> ok", out)
         self.assertIn("result: data", out)
         self.assertIn("FAILED (exit=2)", out)
-
 
 class TestBuildAgentHint(unittest.TestCase):
     def test_minimal_plan_renders_header_and_global_access(self):
@@ -94,7 +90,6 @@ class TestBuildAgentHint(unittest.TestCase):
         self.assertIn("tool_cards:", out)
         self.assertIn("tool=file_edit", out)
 
-
 class TestMultiTaskPreamble(unittest.TestCase):
     def test_empty_or_single_returns_blank(self):
         self.assertEqual(_multi_task_preamble([]), "")
@@ -106,7 +101,6 @@ class TestMultiTaskPreamble(unittest.TestCase):
         self.assertIn("Starting now: _A_", out)
         self.assertIn("- B", out)
         self.assertIn("- C", out)
-
 
 if __name__ == "__main__":
     unittest.main()

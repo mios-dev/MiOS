@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestUkiEnroll(unittest.TestCase):
     """Test suite for UKI signing key generation, UEFI db enrollment, and TPM2 PCR sealing."""
 
@@ -140,12 +139,10 @@ class TestUkiEnroll(unittest.TestCase):
             exit_code = uki_enroll.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestUkiEnroll)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

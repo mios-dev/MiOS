@@ -14,7 +14,6 @@ PG = os.path.join(ROOT, "usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py")
 # Free-text agent surfaces that must never drop off the redact side.
 MUST_REDACT = {"knowledge", "agent_memory", "event", "tool_call", "scratch"}
 
-
 def main() -> int:
     cfg = (tomllib.load(open(SSOT, "rb")).get("security", {}) or {}).get("redact", {}) or {}
     tables = set(cfg.get("tables", []))
@@ -44,6 +43,5 @@ def main() -> int:
     print(f"persist redaction covers the schema "
           f"({len(tables)} redacted, {len(exempt)} exempt, {len(schema)} tables)")
     return 0
-
 
 sys.exit(main())

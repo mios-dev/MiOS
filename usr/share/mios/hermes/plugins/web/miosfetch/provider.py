@@ -53,7 +53,6 @@ _CRAWL_ENABLE = os.environ.get(
 _CRAWL_MIN_CHARS = int(os.environ.get("MIOS_MIOSFETCH_CRAWL_MIN_CHARS", "500"))
 _CRAWL_TIMEOUT = float(os.environ.get("MIOS_MIOSFETCH_CRAWL_TIMEOUT", "55"))
 
-
 def _fetch_one(url: str, max_chars: int, timeout: float) -> Dict[str, Any]:
     """Tier 1: fetch ONE url via stdlib urllib + readability strip. Mirrors
     mios-web-extract; never fabricates -- on failure returns an error field
@@ -89,7 +88,6 @@ def _fetch_one(url: str, max_chars: int, timeout: float) -> Dict[str, Any]:
             "error": f"miosfetch failed: {e}", "metadata": {"extractor": "miosfetch"},
         }
 
-
 def _crawl_one(url: str, max_chars: int, timeout: float) -> Optional[Dict[str, Any]]:
     """Tier 2: re-read a JS-heavy/dynamic/blocked page via crawl4ai (headless
     Chrome over CDP + Camoufox stealth retry) by shelling to `mios-crawl`, which
@@ -119,7 +117,6 @@ def _crawl_one(url: str, max_chars: int, timeout: float) -> Optional[Dict[str, A
         }
     except Exception:
         return None
-
 
 class MiosFetchProvider(WebSearchProvider):
     """Tiered extract-only provider: urllib (offline) -> crawl4ai (CDP) escalation."""

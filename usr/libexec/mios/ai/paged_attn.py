@@ -24,7 +24,6 @@ logger = logging.getLogger("mios-paged-attn")
 
 DEFAULT_BLOCK_SIZE = 32  # 32 tokens per KV block
 
-
 @dataclass
 class PhysicalBlock:
     block_id: int
@@ -33,7 +32,6 @@ class PhysicalBlock:
     last_accessed: float = 0.0
     token_data: List[int] = field(default_factory=list)
 
-
 @dataclass
 class SessionTable:
     session_id: str
@@ -41,7 +39,6 @@ class SessionTable:
     token_count: int = 0
     last_accessed: float = field(default_factory=time.time)
     is_active: bool = True
-
 
 class PagedAttentionBlockManager:
     """Virtual memory block allocator, CoW page sharer, and defragmenter for KV caches."""
@@ -239,14 +236,12 @@ class PagedAttentionBlockManager:
             "fragmentation_waste_pct": self.compute_fragmentation_waste(),
         }
 
-
 def main():
     mgr = PagedAttentionBlockManager(total_blocks=512)
     mgr.allocate_tokens("sess_1", 75)
     mgr.branch_session("sess_1", "sess_1_branch")
     mgr.append_tokens_cow("sess_1_branch", 20)
     print(json.dumps(mgr.get_stats(), indent=2))
-
 
 if __name__ == "__main__":
     main()

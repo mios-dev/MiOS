@@ -19,7 +19,6 @@ CONTINUE = "continue"   # same task keeps the lane -- run another slice
 PREEMPT = "preempt"     # snapshot this gen's KV + yield the lane to a waiter
 COMPLETE = "complete"   # the slice hit a stop/EOS -> the generation is done
 
-
 def decide(*, finished: bool, quantum_expired: bool,
            higher_priority_waiting: bool, can_suspend: bool) -> str:
     if finished:
@@ -27,7 +26,6 @@ def decide(*, finished: bool, quantum_expired: bool,
     if quantum_expired and higher_priority_waiting and can_suspend:
         return PREEMPT
     return CONTINUE
-
 
 class Quantum:
     """A dispatch's time-slice: started at t0, expires after `limit_s` seconds."""
@@ -46,7 +44,6 @@ class Quantum:
             return float("inf")
         return max(0.0, self.limit_s - (float(now) - self.t0))
 
-
 class Snapshot:
     """The preempted generation's saved state (the restore contract)."""
 
@@ -64,7 +61,6 @@ class Snapshot:
         return {"task_id": self.task_id, "priority": self.priority,
                 "position": self.position, "slot": self.slot,
                 "partial_len": len(str(self.partial or ""))}
-
 
 class PreemptScheduler:
     """Bounded RR preemption bookkeeping: a free-list of `max_suspended` snapshot
@@ -131,7 +127,6 @@ class PreemptScheduler:
             "free_slots": len(self._free),
             "queued_ids": list(self._suspended.keys()),
         }
-
 
 class TokenSliceQueue:
 
@@ -252,7 +247,6 @@ class TokenSliceQueue:
             "head_priority": self.head_priority(),
         }
 
-
 _SCHEDULER_FALLBACK = {
     "preempt_enable": False,   # MASTER FLAG (T-019) -- off => turn_boundary is a pass-through no-op
     "queue_enable": False,     # MASTER FLAG (T-020) -- off => slice_boundary is a pass-through no-op
@@ -264,7 +258,6 @@ _SCHEDULER_FALLBACK = {
     "max_preempt_depth": 1,    # bounded cooperative-yield ticks per boundary (no busy-wait/starvation)
 }
 
-
 def _as_bool(v, default: bool = False) -> bool:
     """Coerce a TOML/env value to bool. A real bool passes through; a string uses
     the same off-token set as the rest of the pipe's flags (a config-literal
@@ -274,7 +267,6 @@ def _as_bool(v, default: bool = False) -> bool:
     if v is None:
         return default
     return str(v).strip().lower() not in {"false", "0", "no", "off", ""}
-
 
 def _scheduler_cfg() -> dict:
     """Resolve the [scheduler] table: layered mios.toml merged over the degrade-open
@@ -318,7 +310,6 @@ def _scheduler_cfg() -> dict:
                                        int(out.get("max_preempt_depth") or 1), int)
     return out
 
-
 _CFG = _scheduler_cfg()
 PREEMPT_ENABLE = _as_bool(_CFG.get("preempt_enable"), False)
 QUEUE_ENABLE = _as_bool(_CFG.get("queue_enable"), False)
@@ -347,14 +338,12 @@ _CFG_ALIAS = {
     "head_priority": "_HEAD_PRIORITY", "clock": "_CLOCK",
 }
 
-
 def configure(**deps) -> None:
     g = globals()
     for k, v in deps.items():
         key = _CFG_ALIAS.get(k, k)
         if key in _INJECTED:
             g[key] = v
-
 
 def _higher_priority_waiting(priority: float,
                              task_id: "Optional[str]" = None) -> bool:
@@ -375,7 +364,6 @@ def _higher_priority_waiting(priority: float,
         except Exception:  # noqa: BLE001 -- a flaky queue read must never preempt
             pass
     return best is not None and best > float(priority)
-
 
 async def turn_boundary(*, task_id: str, priority: float = 5.0,
                         now: "Optional[float]" = None) -> bool:
@@ -414,7 +402,6 @@ async def turn_boundary(*, task_id: str, priority: float = 5.0,
             pass
         return False
 
-
 async def slice_boundary(*, task_id: str, priority: float = 5.0,
                          tokens: int = 0, text: "Optional[str]" = None,
                          now: "Optional[float]" = None) -> bool:
@@ -433,7 +420,6 @@ async def slice_boundary(*, task_id: str, priority: float = 5.0,
         log.debug("slice_boundary consult failed; running turn normally",
                   exc_info=True)
         return False
-
 
 def turn_scheduler_stats() -> dict:
     """Read-only observability snapshot of the turn-boundary scheduler + the token-

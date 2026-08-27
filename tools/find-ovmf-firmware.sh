@@ -2,7 +2,6 @@
 # AI-hint: Scans /usr/share for OVMF firmware files and maps CODE/VARS pairs to identify valid firmware configurations for QEMU/KVM boot environments.
 # AI-functions: find_vars_for_code
 
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

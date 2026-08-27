@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/lib/mios/ai")
 from kquants_slicer import KQuantsSlicer
 
-
 def test_32b_model_fits_under_16gb():
     """Verify 32B mixed-quantized model consumes < 15.8 GB VRAM."""
     slicer = KQuantsSlicer(target_model_size_billions=32)
@@ -15,7 +14,6 @@ def test_32b_model_fits_under_16gb():
     # Simulated perplexity delta
     ppl_delta = 0.021
     assert ppl_delta < 0.030, f"Perplexity delta {ppl_delta} >= 0.030 SLA"
-
 
 if __name__ == "__main__":
     test_32b_model_fits_under_16gb()

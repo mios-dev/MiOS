@@ -122,7 +122,6 @@ def main(argv):
                 idx += 1
                 continue
 
-
         if line.startswith("## WS-"):
             header_text = line[2:].strip()
             parts = re.split(r'\s+[-—–]+\s+', header_text, maxsplit=1)

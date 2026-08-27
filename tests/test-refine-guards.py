@@ -10,14 +10,12 @@ import _agentpipe_path  # noqa: F401
 os.environ.setdefault("MIOS_TOML", "/usr/share/mios/mios.toml")
 import server  # noqa: E402
 
-
 LONG_PROMPT = (
     "find all of my installed games; research all their ratings, "
     "review and launch the highest reviewed game I have installed "
     "for me on my PC"
 )
 SHORT_DISPATCH = "open chrome"
-
 
 async def main() -> int:
     fails = 0
@@ -65,7 +63,6 @@ async def main() -> int:
         print("  FAIL: guard missed multi-word semantic arg")
         fails += 1
     return 1 if fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

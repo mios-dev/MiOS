@@ -17,7 +17,6 @@ mios_log "Localsearch/tracker indexing disabled via static autostart override fi
 
 mios_log "Qt Adwaita theming provided by usr/lib/environment.d/60-mios-qt-adwaita.conf overlay"
 
-
 mios_log "Install Bibata-Modern-Classic cursor"
 
 BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
@@ -81,7 +80,6 @@ if [ "$BIBATA_OK" -eq 0 ] || [ ! -d "$BIBATA_DIR/cursors" ]; then
 fi
 mios_ok "Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
 
-
 if [ -d "$BIBATA_DIR/cursors" ]; then
     update-alternatives --install /usr/share/icons/default/index.theme \
         x-cursor-theme /usr/share/icons/Bibata-Modern-Classic/cursor.theme 100 2>/dev/null || true
@@ -92,7 +90,6 @@ mkdir -p /usr/share/cursors/xorg-x11
 ln -sf /usr/share/icons/Bibata-Modern-Classic /usr/share/cursors/xorg-x11/Bibata-Modern-Classic 2>/dev/null || true
 
 chmod -R a+rX "$BIBATA_DIR" 2>/dev/null || true
-
 
 mios_log "Install Phosh mobile session"
 install_packages_optional "phosh"

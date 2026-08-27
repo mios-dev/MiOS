@@ -21,7 +21,6 @@ except ModuleNotFoundError:  # pragma: no cover
 A = "mios-agent-pipe.service"
 B = "mios-daemon.service"
 
-
 def data(drift, max_drift=None, units=(A, B), aliases=None, table=True):
     u = {name: {"Unit": {"Description": "x"}} for name in units}
     for k, v in (aliases or {}).items():
@@ -34,10 +33,8 @@ def data(drift, max_drift=None, units=(A, B), aliases=None, table=True):
         d["unit_projection"] = proj
     return d
 
-
 def only(viols, needle):
     return [v for v in viols if needle in v]
-
 
 class TestHygiene(unittest.TestCase):
     def test_a_clean_register_is_silent(self):
@@ -92,7 +89,6 @@ class TestHygiene(unittest.TestCase):
                         _ROOT)
         self.assertTrue(only(v, "vacuously"), v)
 
-
 class TestAliasHalf(unittest.TestCase):
     """[units] carries both `[units."x.service".Unit]` projections and bare
     `name = "unit.service"` aliases. Counting the aliases as projected units
@@ -106,7 +102,6 @@ class TestAliasHalf(unittest.TestCase):
     def test_an_alias_cannot_be_registered_as_drift(self):
         v = mod.hygiene(data(["agent_pipe"], 1, aliases={"agent_pipe": A}), _ROOT)
         self.assertTrue(only(v, "which [units.*] does"), v)
-
 
 class TestRealTree(unittest.TestCase):
     def setUp(self):
@@ -129,7 +124,6 @@ class TestRealTree(unittest.TestCase):
         # If every projected unit were registered the gate would assert nothing.
         self.assertLess(len(mod.register(self.real)),
                         len(mod.declared_units(self.real)))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestMicroVMBridge(unittest.TestCase):
     """Test suite for microVM direct-boot configuration, ephemeral lifecycle, VSOCK IPC, and boot latency SLA."""
 
@@ -145,7 +144,6 @@ class TestMicroVMBridge(unittest.TestCase):
             self.assertEqual(ret, 0)
             data = json.loads(stdout_buf.getvalue())
             self.assertTrue(data["success"])
-
 
 if __name__ == "__main__":
     unittest.main()

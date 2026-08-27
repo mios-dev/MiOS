@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestBaremetalInstall(unittest.TestCase):
     """Test suite for NVMe disk ranking, safety assertion, bootc command synthesis, and CLI."""
 
@@ -93,12 +92,10 @@ class TestBaremetalInstall(unittest.TestCase):
             exit_code = baremetal_install.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBaremetalInstall)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

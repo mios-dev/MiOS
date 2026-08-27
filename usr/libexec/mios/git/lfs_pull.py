@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-lfs-pull")
 
-
 @dataclass
 class LFSPullResult:
     blob_id: str
@@ -31,7 +30,6 @@ class LFSPullResult:
     size_bytes: int
     was_cached: bool
     is_hardlinked: bool
-
 
 class LFSSparseCacheManager:
     """Manages sparse LFS fetching, hash verification, and shared blob deduplication."""
@@ -69,13 +67,11 @@ class LFSSparseCacheManager:
         )
         return res
 
-
 def main():
     tmp = tempfile.mkdtemp(prefix="mios-lfs-")
     mgr = LFSSparseCacheManager(cache_root=tmp, dry_run=True)
     res = mgr.fetch_sparse_blob("qwen2.5-7b-q4_k_m.gguf", b"MOCK_MODEL_WEIGHTS_4GB")
     print(f"Blob: {res.blob_id}, Cached: {res.was_cached}")
-
 
 if __name__ == "__main__":
     main()

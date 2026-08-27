@@ -29,7 +29,6 @@ SLOTS_DIR = pathlib.Path(
 
 _CHAT_CANCEL = "<|CANCEL|>"   # sentinel injected to abort in-flight generation
 
-
 @dataclass
 class KVSlot:
     """In-memory representation of a suspended KV-cache slot."""
@@ -42,7 +41,6 @@ class KVSlot:
     def slot_path(self) -> pathlib.Path:
         name = self.filename or f"{self.session_id}.kv"
         return SLOTS_DIR / name
-
 
 class KVForkManager:
     """

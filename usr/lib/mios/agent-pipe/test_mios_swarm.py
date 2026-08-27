@@ -8,12 +8,10 @@ import os
 
 import mios_swarm
 
-
 class _FakeResp:
     """Minimal stand-in for the JSONResponse the native-loop fallback decodes."""
     def __init__(self, payload: dict):
         self.body = json.dumps(payload).encode("utf-8")
-
 
 def _stub_deps(*, polish_holder, dag_result, native_payload=None,
                native_calls=None):
@@ -69,7 +67,6 @@ def _stub_deps(*, polish_holder, dag_result, native_payload=None,
     mios_swarm._execute_dag_bounded = _exec_dag_bounded
     mios_swarm.polish_response = _polish
 
-
 def _call(refined, dag_result, **kw):
     dag = {"summary": "s", "nodes": [
         {"id": "t1", "agent": "a", "prompt": "do it", "title": "facet one"}]}
@@ -79,7 +76,6 @@ def _call(refined, dag_result, **kw):
             session_id=None, last_user_text="what is happening",
             persona_system="", request=None))
     return resp
-
 
 def test_punt_drop():
     """A punting sibling is dropped from synthesis; the grounded node is kept."""
@@ -110,7 +106,6 @@ def test_punt_drop():
     assert PUNT not in synth_in, "punt node was NOT dropped from synthesis"
     print("test_punt_drop: PASS")
 
-
 def test_honest_when_empty():
     """A web turn with EMPTY raw research never fabricates: it routes to the
     native-loop fallback and the polish input carries the honest-empty rule."""
@@ -140,7 +135,6 @@ def test_honest_when_empty():
         "fallback honest answer not adopted"
     print("test_honest_when_empty: PASS")
 
-
 def test_boundary_and_surface():
     assert hasattr(mios_swarm, "_agent_dag_from_tasks")
     assert hasattr(mios_swarm, "_respond_agent_dag")
@@ -152,8 +146,6 @@ def test_boundary_and_surface():
         assert bad not in src, f"boundary violation: {bad!r} in mios_swarm.py"
     print("test_boundary_and_surface: PASS")
 
-
-
 class _FakePlannerResp:
     """Stand-in for the httpx response the planner reads (.status_code/.json())."""
     def __init__(self, status_code, body):
@@ -162,7 +154,6 @@ class _FakePlannerResp:
 
     def json(self):
         return self._body
-
 
 def _fake_httpx(*, status=200, body=None):
     """A fake `httpx` whose AsyncClient.post returns a fixed response -- the
@@ -188,10 +179,8 @@ def _fake_httpx(*, status=200, body=None):
     ns.HTTPError = type("HTTPError", (Exception,), {})
     return ns
 
-
 async def _live_none():
     return set()
-
 
 def _stub_planner(*, depth_exhausted=None):
     """Inject ONLY the deps the decomposer pair reads + monkeypatch the
@@ -211,11 +200,9 @@ def _stub_planner(*, depth_exhausted=None):
     mios_swarm.PLANNER_TIMEOUT_S = 5
     mios_swarm.PLANNER_MAX_TOKENS = 256
 
-
 def _content_body(text):
     """Shape a chat-completion body carrying `text` as message.content."""
     return {"choices": [{"message": {"content": text}}]}
-
 
 def test_plan_swarm_gates():
     """Every early-return gate yields [] -- BEFORE any model call (a fake model
@@ -240,7 +227,6 @@ def test_plan_swarm_gates():
         if _orig_swarm_httpx is not None:
             mios_swarm.httpx = _orig_swarm_httpx
 
-
 def test_plan_swarm_splits():
     """A splittable ask + a stubbed model returns >=2 shaped sub-tasks."""
     try:
@@ -261,7 +247,6 @@ def test_plan_swarm_splits():
         if _orig_swarm_httpx is not None:
             mios_swarm.httpx = _orig_swarm_httpx
 
-
 def test_expand_facets_gate():
     """need <= 0 (target already met) returns [] BEFORE the model call (a fake
     model that WOULD return facets is installed to prove the short-circuit)."""
@@ -274,7 +259,6 @@ def test_expand_facets_gate():
     finally:
         if _orig_swarm_httpx is not None:
             mios_swarm.httpx = _orig_swarm_httpx
-
 
 def test_expand_facets_positive():
     """New, deduped facets are returned: existing ones filtered, capped to need."""
@@ -290,7 +274,6 @@ def test_expand_facets_positive():
     finally:
         if _orig_swarm_httpx is not None:
             mios_swarm.httpx = _orig_swarm_httpx
-
 
 _orig_swarm_httpx = getattr(mios_swarm, "httpx", None)
 

@@ -19,7 +19,6 @@ UNIT_DIR = "usr/lib/systemd/system"
 PRESET = "usr/lib/systemd/system-preset/90-mios.preset"
 TMPFILES_DIR = "usr/lib/tmpfiles.d"
 
-
 def tmpfiles_dirs(root: str) -> set:
     """Every directory path declared by a tmpfiles.d d/D/v/f line."""
     out = set()
@@ -39,11 +38,9 @@ def tmpfiles_dirs(root: str) -> set:
                     out.add(parts[1])
     return out
 
-
 def unit_field(text: str, key: str):
     m = re.search(r"^%s\s*=\s*(.*)$" % re.escape(key), text, re.M)
     return m.group(1).strip() if m else None
-
 
 def check_one(root, unit_name, fetcher_rel, var_dirs, declared):
     bad = []
@@ -92,7 +89,6 @@ def check_one(root, unit_name, fetcher_rel, var_dirs, declared):
                        f"declares (Architectural Law 2: no mkdir in /var)")
     return bad
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     declared = tmpfiles_dirs(root)
@@ -106,7 +102,6 @@ def main() -> int:
     print(f"first-boot provisioner triples are whole "
           f"(checked={len(PROVISIONERS)} fetcher+unit+preset+tmpfiles)")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

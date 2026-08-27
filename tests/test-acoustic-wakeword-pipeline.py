@@ -43,7 +43,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load wakeword module from {_TARGET_PATH}")
 
-
 class TestRNNoiseSuppressor(unittest.TestCase):
     """Unit tests for Stage 1: RNNoise Denoiser."""
 
@@ -85,7 +84,6 @@ class TestRNNoiseSuppressor(unittest.TestCase):
         self.denoiser.reset()
         self.assertEqual(self.denoiser.total_frames_processed, 0)
         self.assertEqual(self.denoiser.total_noise_suppressed_db, 0.0)
-
 
 class TestSileroVAD(unittest.TestCase):
     """Unit tests for Stage 2: Silero VAD Voice Activity Detector."""
@@ -134,7 +132,6 @@ class TestSileroVAD(unittest.TestCase):
         is_active_post, _ = self.vad.is_speech_active(silent_frame)
         self.assertTrue(is_active_post, "Hangover must hold speech state active across brief gap")
 
-
 class TestOpenWakeWordDetector(unittest.TestCase):
     """Unit tests for Stage 3: OpenWakeWord Phrase Detector."""
 
@@ -182,7 +179,6 @@ class TestOpenWakeWordDetector(unittest.TestCase):
                 detected = True
 
         self.assertFalse(detected, "Negative speech must not trigger wake word activation")
-
 
 class TestAcousticWakePipelineBenchmark(unittest.TestCase):
     """Benchmark test suite validating >98% accuracy, <0.5% FPR, and low CPU overhead."""
@@ -303,7 +299,6 @@ class TestAcousticWakePipelineBenchmark(unittest.TestCase):
         self.assertIn("frame_index", first_evt)
         self.assertEqual(pipeline.get_status().state, "triggered")
 
-
 class TestCLIAndServiceIntegration(unittest.TestCase):
     """Tests for CLI arguments, mock mode, file processing, and systemd service unit."""
 
@@ -373,7 +368,6 @@ class TestCLIAndServiceIntegration(unittest.TestCase):
         self.assertIn("WantedBy=", content)
         self.assertIn("PartOf=", content)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestRNNoiseSuppressor)
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestSileroVAD))
@@ -383,7 +377,6 @@ def main() -> int:
 
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

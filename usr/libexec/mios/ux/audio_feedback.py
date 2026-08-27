@@ -39,7 +39,6 @@ try:
 except ImportError:
     mios_toml = None
 
-
 EVENT_CHORD_MAP: Dict[str, Dict[str, Any]] = {
     "completed": {
         "freqs": [523.25, 659.25, 783.99, 1046.50],  # C5 - E5 - G5 - C6 major chord
@@ -67,7 +66,6 @@ EVENT_CHORD_MAP: Dict[str, Dict[str, Any]] = {
         "decay": 6.5,
     },
 }
-
 
 def synthesize_event_pcm(
     event_name: str,
@@ -105,7 +103,6 @@ def synthesize_event_pcm(
         wav_file.writeframes(frames)
 
     return num_samples
-
 
 class AudioFeedbackEngine:
     """Audio cue dispatcher and procedural sound synthesizer."""
@@ -197,7 +194,6 @@ class AudioFeedbackEngine:
             "duration_sec": EVENT_CHORD_MAP[event_name]["duration"],
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Subtle Audio Feedback Daemon & Sound Synthesizer"
@@ -254,7 +250,6 @@ def main() -> int:
         else:
             print(f"[audio_feedback] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

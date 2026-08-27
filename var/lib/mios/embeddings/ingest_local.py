@@ -47,7 +47,6 @@ try:
 except ImportError:
     sys.exit("pip install psycopg")
 
-
 def embed_batch(client: httpx.Client, endpoint: str, key: str, model: str,
                 texts: list[str]) -> list[list[float]]:
     """Call POST {endpoint}/embeddings with a batch and return vectors."""
@@ -62,16 +61,13 @@ def embed_batch(client: httpx.Client, endpoint: str, key: str, model: str,
     r.raise_for_status()
     return [d["embedding"] for d in r.json()["data"]]
 
-
 def stable_id(chunk_id: str) -> int:
     """Deterministic 64-bit id from the chunk's string id."""
     return int(hashlib.sha1(chunk_id.encode(), usedforsecurity=False).hexdigest()[:16], 16)
 
-
 def vector_literal(vec) -> str:
     """Format a float sequence as a pgvector text literal: '[0.1,0.2,...]'."""
     return "[" + ",".join(repr(float(x)) for x in (vec or [])) + "]"
-
 
 def main(chunks_path: str = "chunks.jsonl") -> int:
     endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1").rstrip("/")
@@ -175,7 +171,6 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
                 print(f"  {score:.3f}  {cid}  {snippet}…")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "chunks.jsonl"))

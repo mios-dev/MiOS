@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestAuditdRules(unittest.TestCase):
     """Test suite for Auditd rule rendering, syntax validation, deployment, and event logs."""
 
@@ -114,12 +113,10 @@ class TestAuditdRules(unittest.TestCase):
             exit_code = auditd_rules.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestAuditdRules)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

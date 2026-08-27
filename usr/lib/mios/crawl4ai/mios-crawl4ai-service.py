@@ -69,7 +69,6 @@ _BROWSER_CFG = BrowserConfig(
 _crawler: AsyncWebCrawler | None = None
 _crawler_lock = asyncio.Lock()
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
@@ -80,18 +79,14 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
-
 app = FastAPI(title="mios-crawl4ai", lifespan=lifespan)
-
 
 class CrawlReq(BaseModel):
     url: str
     force_camoufox: bool | None = None
 
-
 def _md_ok(md: str) -> bool:
     return bool(md) and len(md.strip()) >= MIN_CHARS
-
 
 async def _ensure_crawler() -> AsyncWebCrawler:
     global _crawler
@@ -102,7 +97,6 @@ async def _ensure_crawler() -> AsyncWebCrawler:
                 await c.start()
                 _crawler = c
     return _crawler
-
 
 async def _crawl_cdp(url: str) -> dict:
     """PRIMARY: drive the EXISTING Chrome over CDP via Playwright DIRECTLY,
@@ -154,7 +148,6 @@ async def _crawl_cdp(url: str) -> dict:
         "external_links": 0,
     }
 
-
 async def _crawl_camoufox(url: str) -> dict:
     """FAIL-RETRY: stealth Firefox via camoufox -> rendered HTML -> markdown.
     camoufox is imported lazily so the service runs even before
@@ -184,11 +177,9 @@ async def _crawl_camoufox(url: str) -> dict:
         "external_links": 0,
     }
 
-
 @app.get("/healthz")
 async def healthz() -> dict:
     return {"ok": True, "cdp_url": CDP_URL, "camoufox": CAMOUFOX_ON}
-
 
 @app.post("/crawl")
 async def crawl(req: CrawlReq) -> dict:
@@ -230,11 +221,9 @@ async def crawl(req: CrawlReq) -> dict:
             "markdown": "", "links": 0,
             "error": f"both engines failed (cdp: {cdp_err}; camoufox: {cam_err})"}
 
-
 def main() -> None:
     import uvicorn
     uvicorn.run(app, host=BIND, port=PORT, log_level="warning")
-
 
 if __name__ == "__main__":
     main()

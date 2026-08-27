@@ -16,7 +16,6 @@ KNOWN_WATCHDOG_DRIVERS = [
     "softdog",
 ]
 
-
 class HardwareWatchdogManager:
     """Probes hardware watchdog devices, binds kernel drivers, and configures systemd ping timeouts."""
 
@@ -90,7 +89,6 @@ class HardwareWatchdogManager:
             "mock": False,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Hardware Watchdog Manager")
     parser.add_argument("--config", default="/etc/systemd/system.conf.d/10-watchdog.conf", help="Systemd drop-in path")
@@ -100,7 +98,6 @@ def main():
     mgr = HardwareWatchdogManager(config_path=args.config, dry_run=args.dry_run)
     res = mgr.write_config()
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

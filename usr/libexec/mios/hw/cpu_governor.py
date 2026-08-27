@@ -28,7 +28,6 @@ DEFAULT_STATE_FILE = "/run/mios/cpu_governor_state.json"
 DEFAULT_PERFORMANCE_GOVERNOR = "performance"
 DEFAULT_IDLE_GOVERNOR = "powersave"
 
-
 class CPUGovernorManager:
     """Manages CPU governors and EPP settings across online system CPUs."""
 
@@ -320,7 +319,6 @@ class CPUGovernorManager:
                 "message": "No governor action required for this hook phase",
             }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS CPU Governor Manager & Libvirt Hook Handler (T-420)"
@@ -388,7 +386,6 @@ def main() -> int:
             print(f"Action '{args.action}' completed: {res}")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

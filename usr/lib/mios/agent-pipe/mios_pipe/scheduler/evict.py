@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import List, Optional, Tuple
 
-
 def evict_where(*, with_ttl: bool) -> str:
     """The EVICTABLE-rows WHERE fragment (parameterized pg). Matches rows that are
     never hot, never a satisfied outcome, never pinned, and recalled fewer than
@@ -23,7 +22,6 @@ def evict_where(*, with_ttl: bool) -> str:
                  "now() - make_interval(days => %(ttl_days)s)")
     return base
 
-
 def order_by(*, cap: bool) -> str:
     """Eviction order. TTL sweep: oldest-accessed first. Cap-overflow sweep:
     least-recalled then oldest (shed the lowest-value rows first)."""
@@ -31,30 +29,25 @@ def order_by(*, cap: bool) -> str:
         return "COALESCE(access_count, 0) ASC, COALESCE(last_access, ts) ASC"
     return "COALESCE(last_access, ts) ASC"
 
-
 def count_sql(table: str, where: str) -> str:
     """`SELECT count(*) AS c` over the evictable set. `table` is a validated
     identifier (KNOWLEDGE_TABLE), never user input; `where` is parameterized."""
     return f"SELECT count(*) AS c FROM {table} WHERE {where}"
 
-
 def select_ids_sql(table: str, where: str, order: str) -> str:
     """Select up to %(limit)s evictable ids, lowest-value first."""
     return f"SELECT id FROM {table} WHERE {where} ORDER BY {order} LIMIT %(limit)s"
-
 
 def delete_ids_sql(table: str) -> str:
     """Delete a set of bigint ids in one parameterized statement (pg `id` is a
     bigint identity, NOT a 'table:xyz' record id -> = ANY(%(ids)s), not concat)."""
     return f"DELETE FROM {table} WHERE id = ANY(%(ids)s)"
 
-
 def evict_params(min_access: int, ttl_days: int, limit: int = 0) -> dict:
     """The bound params for the builders above (named -> reused across count +
     select; the SQL ignores any it doesn't reference)."""
     return {"min_access": int(min_access), "ttl_days": int(ttl_days),
             "limit": max(0, int(limit))}
-
 
 def parse_count(rows: Optional[list]) -> int:
     """Pull the integer from a `SELECT count(*) AS c` pg result (dict rows).
@@ -66,7 +59,6 @@ def parse_count(rows: Optional[list]) -> int:
             except (TypeError, ValueError):
                 return 0
     return 0
-
 
 def parse_ids(rows: Optional[list]) -> List[int]:
     """Extract bigint ids from a `SELECT id` pg result (dict rows). Skips
@@ -80,7 +72,6 @@ def parse_ids(rows: Optional[list]) -> List[int]:
         except (TypeError, ValueError):
             continue
     return ids
-
 
 def plan_sweep(total: int, ttl_candidates: int, max_rows: int,
                batch: int) -> dict:

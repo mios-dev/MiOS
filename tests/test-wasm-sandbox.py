@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load wasm_sandbox module from {_WASM_PATH}")
 
-
 class TestWasmSandbox(unittest.TestCase):
     """Validates Tier-1 Wasm execution, 64MB memory limits, fuel bounds, and host imports."""
 
@@ -65,12 +64,10 @@ class TestWasmSandbox(unittest.TestCase):
         self.assertEqual(res.exit_code, 137)
         self.assertIn("Memory limit exceeded", res.error_msg or "")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestWasmSandbox)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

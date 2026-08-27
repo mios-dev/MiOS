@@ -8,7 +8,6 @@ import os
 import socket
 import sys
 
-
 def _load_toml(path: str) -> dict:
     try:
         import tomllib
@@ -22,7 +21,6 @@ def _load_toml(path: str) -> dict:
             return tomllib.load(f)
     except OSError:
         return {}
-
 
 def _cfg() -> dict:
     root = os.environ.get("MIOS_ROOT") or os.path.dirname(
@@ -42,13 +40,11 @@ def _cfg() -> dict:
         "days": int(sect.get("validity_days") or 825),
     }
 
-
 def _write(path: str, data: bytes, mode: int) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "wb") as f:
         f.write(data)
     os.chmod(path, mode)
-
 
 def ensure_ca(cfg: dict):
     """Load the CA if present (preserve peer trust across runs), else mint one."""
@@ -83,7 +79,6 @@ def ensure_ca(cfg: dict):
         serialization.NoEncryption()), 0o600)
     return ca_cert, ca_key, True
 
-
 def issue_agent_cert(cfg: dict, ca_cert, ca_key) -> None:
     """Mint an agent leaf cert (clientAuth + serverAuth) signed by the CA."""
     from cryptography import x509
@@ -112,7 +107,6 @@ def issue_agent_cert(cfg: dict, ca_cert, ca_key) -> None:
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption()), 0o600)
 
-
 def main() -> int:
     try:
         import cryptography  # noqa: F401
@@ -128,7 +122,6 @@ def main() -> int:
     print("[mtls] share ca.crt with peers; configure the reverse proxy to require "
           "client certs (see usr/share/mios/security/README.md).")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

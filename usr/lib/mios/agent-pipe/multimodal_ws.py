@@ -23,13 +23,11 @@ logger = logging.getLogger("mios-multimodal-ws")
 
 MAX_VOICE_LATENCY_MS = 100.0
 
-
 @dataclass
 class MediaFrame:
     frame_type: str  # "audio_opus", "video_jpeg", "tts_pcm"
     data_size: int
     timestamp_ms: float
-
 
 @dataclass
 class StreamTurn:
@@ -38,7 +36,6 @@ class StreamTurn:
     video_frames_in: int = 0
     tts_chunks_out: int = 0
     voice_latency_ms: float = 0.0
-
 
 class MultiModalStreamingPipeline:
     """Manages concurrent voice, vision, and tool dispatch over WebSocket streams."""
@@ -84,7 +81,6 @@ class MultiModalStreamingPipeline:
         )
         return turn
 
-
 def main():
     async def _test():
         pipe = MultiModalStreamingPipeline(dry_run=True)
@@ -92,7 +88,6 @@ def main():
         print(f"Latency: {turn.voice_latency_ms:.2f} ms")
 
     asyncio.run(_test())
-
 
 if __name__ == "__main__":
     main()

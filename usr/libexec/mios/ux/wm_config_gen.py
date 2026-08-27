@@ -37,7 +37,6 @@ try:
 except ImportError:
     mios_toml = None
 
-
 class WmConfigGenEngine:
     """Generates Hyprland and Sway compositor configurations with SSOT colors and geometry."""
 
@@ -311,7 +310,6 @@ bindsym $mod+Shift+5 move container to workspace number 5
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Hyprland & Sway Window Manager Configuration Generator"
@@ -361,7 +359,6 @@ def main() -> int:
         else:
             print(f"[wm_config_gen] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

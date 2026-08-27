@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Sequence
 
 _DEFAULT_TIERS = ("read", "write", "interactive")   # ascending privilege
 
-
 def tier_rank(tier: str, tiers: "Sequence[str]" = _DEFAULT_TIERS) -> int:
     """Privilege rank of a tier (lower = safer). An unknown/blank tier ranks
     BEYOND the highest known tier (fail-closed -> never admitted under any
@@ -15,7 +14,6 @@ def tier_rank(tier: str, tiers: "Sequence[str]" = _DEFAULT_TIERS) -> int:
     t = str(tier or "").strip().lower()
     norm = [str(x).strip().lower() for x in tiers]
     return norm.index(t) if t in norm else len(norm)
-
 
 def allowed(cap_tier: str, ceiling: str, tiers: "Sequence[str]" = _DEFAULT_TIERS) -> bool:
     """True iff a capability of `cap_tier` is permitted under `ceiling`. Fail-closed:
@@ -27,11 +25,9 @@ def allowed(cap_tier: str, ceiling: str, tiers: "Sequence[str]" = _DEFAULT_TIERS
         return False
     return tier_rank(cap_tier, tiers) <= cr
 
-
 def recipe_platforms(spec: dict) -> "List[str]":
     """Which platforms a recipe supports (it has a non-empty command template)."""
     return sorted(p for p in ("linux", "windows") if (spec or {}).get(p))
-
 
 def skill_steps(spec: dict) -> "List[str]":
     """The ordered capability names a skill invokes -- the DAG edges out of a
@@ -42,7 +38,6 @@ def skill_steps(spec: dict) -> "List[str]":
         if isinstance(s, dict) and s.get("verb"):
             out.append(str(s["verb"]))
     return out
-
 
 def skill_effective_tier(name: str, skills: "Dict[str, dict]",
                          verbs: "Optional[Dict[str, dict]]",
@@ -70,7 +65,6 @@ def skill_effective_tier(name: str, skills: "Dict[str, dict]",
         if r > best_rank:
             best_rank, best = r, t
     return best
-
 
 def build_capability_manifest(verbs: "Optional[Dict[str, dict]]",
                               recipes: "Optional[Dict[str, dict]]", *,
@@ -114,7 +108,6 @@ def build_capability_manifest(verbs: "Optional[Dict[str, dict]]",
     out.sort(key=lambda c: (c["kind"], c["name"]))
     return out
 
-
 def manifest_summary(manifest: "Sequence[dict]") -> dict:
     """Counts for observability: total + by kind + by tier."""
     by_kind: Dict[str, int] = {}
@@ -123,7 +116,6 @@ def manifest_summary(manifest: "Sequence[dict]") -> dict:
         by_kind[c.get("kind", "?")] = by_kind.get(c.get("kind", "?"), 0) + 1
         by_tier[c.get("tier", "?")] = by_tier.get(c.get("tier", "?"), 0) + 1
     return {"total": len(manifest or []), "by_kind": by_kind, "by_tier": by_tier}
-
 
 def load_recipes_from_toml(path: str) -> "Dict[str, dict]":
     """Read the [recipes.*] table from mios.toml (file I/O, mirrors
@@ -142,7 +134,6 @@ def load_recipes_from_toml(path: str) -> "Dict[str, dict]":
         return {}
     recs = data.get("recipes", {}) or {}
     return {str(k): (v or {}) for k, v in recs.items() if isinstance(v, dict)}
-
 
 def load_skills_from_dir(skills_dir: str) -> "Dict[str, dict]":
     """Read the structured JSON skills (usr/share/mios/skills/*.json) -- each has
@@ -168,7 +159,6 @@ def load_skills_from_dir(skills_dir: str) -> "Dict[str, dict]":
         name = str(d.get("name") or os.path.splitext(os.path.basename(p))[0])
         out[name] = d
     return out
-
 
 def build_capability_dag(verbs: "Optional[Dict[str, dict]]",
                          recipes: "Optional[Dict[str, dict]]",
@@ -214,12 +204,10 @@ def build_capability_dag(verbs: "Optional[Dict[str, dict]]",
     return {"nodes": nodes, "edges": edges,
             "cycles": sorted(set(cycles)), "dangling": sorted(dangling)}
 
-
 def _default_skills_dir(toml_path: str) -> str:
     """skills/ sits beside mios.toml (usr/share/mios/{mios.toml,skills/})."""
     import os
     return os.path.join(os.path.dirname(os.path.abspath(toml_path)), "skills")
-
 
 def project_from_toml(toml_path: str, *, ceiling: str = "interactive",
                       verbs: "Optional[Dict[str, dict]]" = None,
@@ -238,7 +226,6 @@ def project_from_toml(toml_path: str, *, ceiling: str = "interactive",
     skills = load_skills_from_dir(skills_dir or _default_skills_dir(toml_path))
     return build_capability_manifest(verbs, load_recipes_from_toml(toml_path),
                                      ceiling=ceiling, skills=skills)
-
 
 def diff_capabilities(generated: "Sequence[dict]",
                       committed: "Sequence[dict]") -> "List[str]":

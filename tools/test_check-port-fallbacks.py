@@ -21,7 +21,6 @@ except ModuleNotFoundError:  # pragma: no cover
 DATA = {"ports": {"agent_pipe": 8700, "llm_light": 8500, "pgvector": 8600,
                   "arbiter": 8760}}
 
-
 def tree(tmp, files, register=None):
     for rel, body in files.items():
         p = os.path.join(tmp, rel)
@@ -32,7 +31,6 @@ def tree(tmp, files, register=None):
     if register is not None:
         d["ports"]["stale_fallbacks"] = list(register)
     return d
-
 
 class TestIdioms(unittest.TestCase):
     def _one(self, body, rel="usr/libexec/mios/probe"):
@@ -82,7 +80,6 @@ class TestIdioms(unittest.TestCase):
     def test_a_name_with_no_ports_key_is_ignored(self):
         self.assertEqual(self._one('p = os.environ.get("MIOS_PG_PORT", "5432")\n'), {})
 
-
 class TestRegister(unittest.TestCase):
     def test_a_registered_finding_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -110,7 +107,6 @@ class TestRegister(unittest.TestCase):
                      register=["usr/libexec/mios/probe:LLM_LIGHT"] * 2)
             self.assertTrue(any("twice" in v for v in mod.classify(d, tmp)))
 
-
 class TestRealTree(unittest.TestCase):
     def setUp(self):
         with open(os.path.join(_ROOT, mod.TOML), "rb") as fh:
@@ -125,7 +121,6 @@ class TestRealTree(unittest.TestCase):
 
     def test_the_register_is_drained_and_stays_drained(self):
         self.assertEqual(mod.register(self.real), [])
-
 
 if __name__ == "__main__":
     unittest.main()

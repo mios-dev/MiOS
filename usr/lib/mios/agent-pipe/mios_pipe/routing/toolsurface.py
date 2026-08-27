@@ -53,7 +53,6 @@ _cosine = None
 _ensure_verb_embeddings = None
 _embed_one = None
 
-
 def configure(*, worker_tools_scope=None, child_tool_select=None,
               stable_prefix=None, stable_prefix_tail=None,
               child_tool_floor=None, verb_catalog=None, recipe_catalog=None,
@@ -127,7 +126,6 @@ def configure(*, worker_tools_scope=None, child_tool_select=None,
     if code_mode_enable is not None:
         CODE_MODE_ENABLE = code_mode_enable
 
-
 def _worker_tools_surface() -> list:
     """The MiOS verb + RECIPE catalog in OpenAI tools[] shape (SYNC)."""
     global _WORKER_TOOLS_CACHE
@@ -152,7 +150,6 @@ def _worker_tools_surface() -> list:
         except Exception:
             _WORKER_TOOLS_CACHE = []
     return _WORKER_TOOLS_CACHE
-
 
 async def _worker_tools_surface_async(cap: int = 0, intent: str = "") -> list:
     """The COMPLETE worker tool surface -- verbs + recipes + SKILLS (ASYNC)."""
@@ -202,7 +199,6 @@ async def _worker_tools_surface_async(cap: int = 0, intent: str = "") -> list:
     if cap and cap > 0:
         return await _select_child_tools(surface, intent, cap)
     return surface
-
 
 async def _select_child_tools(surface: list, intent_text: str, cap: int) -> list:
     """Per-child intent-relevant tool subset."""
@@ -325,7 +321,6 @@ async def _select_child_tools(surface: list, intent_text: str, cap: int) -> list
         return out[:cap]
     except Exception:
         return surface[:cap]
-
 
 async def _tool_pref_block(intent_text: str, k: int = 6) -> str:
     """The per-turn cosine 'prefer these tools' signal."""

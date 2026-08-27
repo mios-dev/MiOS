@@ -31,7 +31,6 @@ from cgroups import (
 from crdt import StateElement, StateStore, VectorClock
 from watchdog import MockWatchdogDriver, WatchdogConfig, WatchdogSupervisor
 
-
 class TestT389HardwareStress(unittest.TestCase):
     """Stress tests for T-389 Hardware HAL and Allowlist constraints."""
 
@@ -87,7 +86,6 @@ class TestT389HardwareStress(unittest.TestCase):
         code3, res = self.controller.mios_sys_i2c_transfer(1, 0x68, boundary_write, 64)
         self.assertEqual(code3, HardwareErrorCode.SUCCESS)
         self.assertEqual(len(res), 64)
-
 
 class TestT390CgroupsStress(unittest.TestCase):
     """Stress tests for T-390 CPU Pinning and Cgroups limits."""
@@ -149,7 +147,6 @@ class TestT390CgroupsStress(unittest.TestCase):
         self.assertEqual(CgroupV2Controller.format_cpu_max(0, 100_000), "0 100000")
         self.assertEqual(CgroupV2Controller.format_cpu_max(80, 100_000), "80000 100000")
         self.assertEqual(CgroupV2Controller.format_cpu_max(400, 100_000), "400000 100000")
-
 
 class TestT391CrdtCompactionStress(unittest.TestCase):
     """Stress tests for T-391 CRDT Compaction, Tombstone TTL, and Snapshot GC."""
@@ -272,7 +269,6 @@ class TestT391CrdtCompactionStress(unittest.TestCase):
             for i in range(60):
                 self.assertIsNone(reloaded.get(f"k_{i}"))
 
-
 class TestT400WatchdogStress(unittest.TestCase):
     """Stress tests for T-400 Watchdog Supervisor."""
 
@@ -327,7 +323,6 @@ class TestT400WatchdogStress(unittest.TestCase):
         self.assertTrue(sup.is_armed())
         self.assertFalse(sup.driver.disarmed_safely)
         self.assertTrue(sup.ping())
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-ceph-heal")
 
 MAX_CLIENT_LATENCY_DEGRADATION_PCT = 10.0
 
-
 @dataclass
 class CephHealReport:
     failed_osd_id: str
@@ -32,7 +31,6 @@ class CephHealReport:
     recovery_bandwidth_mb_s: float
     client_latency_degradation_pct: float
     recovery_completed: bool
-
 
 class CephSelfHealingOrchestrator:
     """Manages automated OSD failover, backfill rate throttling, and cluster health recovery."""
@@ -60,12 +58,10 @@ class CephSelfHealingOrchestrator:
         )
         return report
 
-
 def main():
     orch = CephSelfHealingOrchestrator(dry_run=True)
     rep = orch.trigger_osd_failover_and_heal("osd.2", 64)
     print(f"Health: {rep.cluster_health_state}, Degraded PGs: {rep.degraded_pgs_backfilled}")
-
 
 if __name__ == "__main__":
     main()

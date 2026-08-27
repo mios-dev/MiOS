@@ -19,7 +19,6 @@ from libei_input import LibeiInputInjector
 from pg_vacuum_tuner import PGVacuumTuner
 from watchdog_manager import HardwareWatchdogManager
 
-
 class TestEmpiricalStressT603T612(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-stress-t603-")
@@ -65,7 +64,6 @@ class TestEmpiricalStressT603T612(unittest.TestCase):
         conf = mgr.render_systemd_conf()
         self.assertIn("RuntimeWatchdogSec=30s", conf)
         self.assertIn("RebootWatchdogSec=60s", conf)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,7 +13,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _TOOLS = os.path.join(_ROOT, "tools")
 
-
 def check_gate_source(filepath: str) -> list[str]:
     violations = []
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
@@ -27,14 +26,12 @@ def check_gate_source(filepath: str) -> list[str]:
                 violations.append(f"{os.path.basename(filepath)}:{i} os.path.relpath without path normalization: {line.strip()}")
     return violations
 
-
 def test_planted_backslash_fails():
     sample_key = "usr\\share\\mios\\mios.toml"
     has_backslash = "\\" in sample_key
     assert has_backslash, "Sample key must contain a backslash for validation"
     normalized = sample_key.replace("\\", "/")
     assert "\\" not in normalized, "Normalized path must contain zero backslashes"
-
 
 def main() -> int:
     print("[test-path-normalization] Checking gate sources for path normalization...")
@@ -53,7 +50,6 @@ def main() -> int:
     test_planted_backslash_fails()
     print(f"[test-path-normalization] PASS: Verified {len(gate_files)} gate scripts; all path comparison keys are forward-slash normalized.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

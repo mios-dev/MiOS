@@ -3,10 +3,8 @@ import sys, asyncio
 sys.path.insert(0, "usr/lib/mios/agent-pipe")
 from mios_pg_events import EventBus, AgentEvent
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 def test_inject_and_dispatch():
     """Injected events are dispatched to subscribers within SLA."""
@@ -23,7 +21,6 @@ def test_inject_and_dispatch():
     assert received[0].payload["table"] == "tasks"
     assert received[0].payload["row_id"] == 42
 
-
 def test_multiple_subscribers():
     """Multiple handlers all receive each event."""
     bus = EventBus(dry_run=True)
@@ -38,13 +35,11 @@ def test_multiple_subscribers():
     run(bus.run_once())
     assert counts == [1, 1], f"Expected [1,1] got {counts}"
 
-
 def test_no_events_returns_empty():
     """run_once() with no injected events returns empty list quickly."""
     bus = EventBus(dry_run=True)
     events = run(bus.run_once(timeout_s=0.05))
     assert events == []
-
 
 if __name__ == "__main__":
     test_inject_and_dispatch()

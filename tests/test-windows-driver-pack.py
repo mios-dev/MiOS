@@ -14,7 +14,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _PRESET_PATH = os.path.join(_ROOT, "src", "autounattend", "ConvertTo-MiOSPreset.ps1")
 
-
 class TestWindowsDriverPack(unittest.TestCase):
     """Validates driver slipstreaming script existence and unattend XML structure."""
 
@@ -37,12 +36,10 @@ class TestWindowsDriverPack(unittest.TestCase):
         root = ET.fromstring(sample_xml)
         self.assertIn("unattend", root.tag)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestWindowsDriverPack)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

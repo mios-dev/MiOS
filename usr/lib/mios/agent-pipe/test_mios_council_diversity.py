@@ -9,7 +9,6 @@ import mios_council_diversity as M
 
 _fails = 0
 
-
 def check(name, cond):
     global _fails
     if cond:
@@ -17,7 +16,6 @@ def check(name, cond):
     else:
         _fails += 1
         print(f"FAIL - {name}")
-
 
 _VEC = {
     "A":  [1.0, 0.0, 0.0],
@@ -27,7 +25,6 @@ _VEC = {
     "Am": [0.8, 0.6, 0.0],
 }
 
-
 def _mk_embed(missing=None):
     async def _embed(text):
         if missing is not None and text == missing:
@@ -35,11 +32,8 @@ def _mk_embed(missing=None):
         return list(_VEC.get(text, [0.0, 0.0, 0.0]))
     return _embed
 
-
 def _nodes(*texts):
     return [{"output": t, "tag": t} for t in texts]
-
-
 
 def t_select_diverse():
     v = lambda k: list(_VEC[k])
@@ -61,7 +55,6 @@ def t_select_diverse():
     check("select_diverse: single -> pass-through", M.select_diverse([v("A")], 0.92) == [0])
     check("select_diverse: empty -> []", M.select_diverse([], 0.92) == [])
 
-
 def t_should_bypass():
     v = lambda k: list(_VEC[k])
     ok, mean = M.should_bypass([v("A"), v("A"), v("A")], 0.95)
@@ -74,14 +67,11 @@ def t_should_bypass():
     ok, mean = M.should_bypass([v("A")], 0.95)
     check("should_bypass: <2 responses -> (False, 0.0)", ok is False and mean == 0.0)
 
-
 def t_medoid():
     v = lambda k: list(_VEC[k])
     mi = M.medoid_index([v("A"), v("A"), v("B")])
     check("medoid_index: {A,A,B} -> an identical A (index 0/1)", mi in (0, 1))
     check("medoid_index: single -> 0", M.medoid_index([v("A")]) == 0)
-
-
 
 def t_gates_off_noop():
     called = {"n": 0}
@@ -97,7 +87,6 @@ def t_gates_off_noop():
     check("gates off: nodes unchanged", sel is nodes and byp is None)
     check("gates off: embedder NOT called (zero model calls)", called["n"] == 0)
 
-
 def t_diversity_gate_prunes():
     nodes = _nodes("A", "A")
     sel, byp = asyncio.get_event_loop().run_until_complete(
@@ -111,7 +100,6 @@ def t_diversity_gate_prunes():
         M.apply_council_gates(nodes, embed_one=_mk_embed(),
                               diversity_gate=True, aggregator_bypass=False))
     check("T-047 diversity: diverse pair kept whole", len(sel) == 2)
-
 
 def t_aggregator_bypass():
     events = []
@@ -151,7 +139,6 @@ def t_aggregator_bypass():
     check("T-048 bypass: divergent council -> no bypass", byp is None)
     check("T-048 bypass: divergent council -> no event", events2 == [])
 
-
 def t_degrade_open_missing_embed():
     nodes = _nodes("A", "A", "MISS")
     sel, byp = asyncio.get_event_loop().run_until_complete(
@@ -165,7 +152,6 @@ def t_degrade_open_missing_embed():
                               diversity_gate=True, aggregator_bypass=True))
     check("degrade-open: <2 nodes -> no-op", sel is nodes and byp is None)
 
-
 def t_stats_counter():
     M.reset_stats()
     check("stats: pct 0.0 when no opportunities", M.bypassed_pct() == 0.0)
@@ -176,7 +162,6 @@ def t_stats_counter():
     check("stats: 2/4 bypassed -> 50.0 pct", M.bypassed_pct() == 50.0)
     M.reset_stats()
     check("stats: reset -> 0.0", M.bypassed_pct() == 0.0)
-
 
 def main():
     asyncio.set_event_loop(asyncio.new_event_loop())
@@ -190,7 +175,6 @@ def main():
     t_stats_counter()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

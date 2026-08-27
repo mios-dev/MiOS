@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from nccl_tune import MAX_ALLREDUCE_LATENCY_US, MIN_TP2_SPEEDUP_RATIO, NCCLTopologyTuner
 
-
 class TestNCCLTune(unittest.TestCase):
     def setUp(self):
         self.tuner = NCCLTopologyTuner(dry_run=True)
@@ -30,7 +29,6 @@ class TestNCCLTune(unittest.TestCase):
         self.assertIn("NCCL_BUFFSIZE=8M", env)
         self.assertIn("NCCL_P2P_LEVEL=NVL", env)
         self.assertIn("NCCL_NET_GDR_LEVEL=5", env)
-
 
 if __name__ == "__main__":
     unittest.main()

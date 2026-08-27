@@ -42,7 +42,6 @@ import subprocess
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-
 HOST = os.environ.get("MIOS_OPENCODE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MIOS_PORT_OPENCODE_GATEWAY", "8780"))
 OPENCODE_BIN = os.environ.get(
@@ -60,7 +59,6 @@ TIMEOUT = int(
     or "90"
 )
 
-
 def _selector(model: str) -> str:
     """Build opencode's `provider/model` selector.
 
@@ -70,7 +68,6 @@ def _selector(model: str) -> str:
     if "/" in model:
         return model
     return f"{OPENCODE_PROVIDER}/{model}"
-
 
 def _flatten_messages(messages):
     """Collapse an OpenAI messages array into a single opencode `run` prompt.
@@ -116,7 +113,6 @@ def _flatten_messages(messages):
     else:
         prompt = transcript
     return system_prompt, prompt
-
 
 def _run_opencode(prompt: str, model: str):
     """Invoke `opencode run` with the unified config + model selector.
@@ -176,7 +172,6 @@ def _run_opencode(prompt: str, model: str):
             f"opencode exited {proc.returncode} with no output"
         )
     return out
-
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
@@ -335,7 +330,6 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
 
-
 def main():
     addr = (HOST, PORT)
     httpd = ThreadingHTTPServer(addr, Handler)
@@ -344,7 +338,6 @@ def main():
         f"(model={OPENCODE_MODEL}, bin={OPENCODE_BIN})\n"
     )
     httpd.serve_forever()
-
 
 if __name__ == "__main__":
     main()

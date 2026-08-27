@@ -27,7 +27,6 @@ NEW_PROMPT = (
     "                        \"file edits) when a skill/memory update needs it.\"\n"
 )
 
-
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: hermes-background-review-tools-patch.py <background_review.py>")
@@ -66,7 +65,6 @@ def main() -> int:
 
     print(f"[bg-review-tools-patch] patched (full global tool surface): {path}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

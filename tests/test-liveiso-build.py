@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from liveiso import LiveISOPipeline
 
-
 class TestLiveISOPipeline(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-iso-test-")
@@ -37,7 +36,6 @@ class TestLiveISOPipeline(unittest.TestCase):
         self.assertEqual(art.artifact_type, "iso")
         self.assertTrue(art.is_hybrid_bootable)
         self.assertTrue(os.path.exists(art.file_path))
-
 
 if __name__ == "__main__":
     unittest.main()

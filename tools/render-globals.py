@@ -25,11 +25,9 @@ _UNSAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_]")
 # Anything that could terminate/alter `"${VAR:=word}"` word-expansion.
 _SH_UNSAFE_RE = re.compile(r"""['"`$\\{}\n\r]""")
 
-
 def _sanitize(name: str) -> str:
     """Force a legal identifier in BOTH sh and PowerShell."""
     return _UNSAFE_NAME_RE.sub("_", name)
-
 
 def build_exports() -> dict:
     """Resolve mios.toml exactly as userenv.sh does: walk + aliases + palette."""
@@ -74,7 +72,6 @@ def build_exports() -> dict:
 
     return {k: (v if isinstance(v, str) else str(v)) for k, v in exports.items()}
 
-
 def ordered_names(exports: dict) -> list:
     """Names topologically sorted so `${...}` templates resolve against earlier lines."""
     deps = {}
@@ -104,13 +101,11 @@ def ordered_names(exports: dict) -> list:
         visit(name)
     return res
 
-
 def expand_template(value: str, lang: str) -> str:
     """Keep `${MIOS_X}` live in the emitted language rather than baking a literal."""
     if lang == "sh":
         return value
     return _TEMPLATE_RE.sub(lambda m: "$($script:%s)" % m.group(1), value)
-
 
 HEADER_SH = '''#!/usr/bin/env bash
 # GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
@@ -202,18 +197,15 @@ PS_HOST_PATHS = '''
 $defaultImageName = 'IMAGE_NAME_LITERAL'
 '''
 
-
 PS_HOST_PATHS_TAIL = '''# ── WINDOWS HOST PATHS (resolved from the live environment) ──────────
 $script:MIOS_WIN_APPDATA_DIR = if ($env:APPDATA)     { $env:APPDATA }     else { "$HOME/AppData/Roaming" }
 $script:MIOS_WIN_DOCS_DIR    = if ($env:USERPROFILE) { "$env:USERPROFILE/Documents" } else { "$HOME/Documents" }
 $script:MIOS_WIN_REPO_DIR    = if ($env:MIOS_WIN_REPO_DIR) { $env:MIOS_WIN_REPO_DIR } else { "$HOME/MiOS" }
 '''
 
-
 def _sh_squote(text: str) -> str:
     """POSIX single-quote: safe for EVERY byte, including } ( ) \\ and $."""
     return "'" + text.replace("'", "'\"'\"'") + "'"
-
 
 def _sh_assign(name: str, value: str) -> str:
     parts = _TEMPLATE_RE.split(value)
@@ -237,7 +229,6 @@ def _sh_assign(name: str, value: str) -> str:
                 chunks.append(_sh_squote(part))
         rendered = "".join(chunks) or "''"
     return '[ -n "${%s+x}" ] || %s=%s' % (name, name, rendered)
-
 
 def _ps_assign(name: str, value: str, exports: dict | None = None) -> str:
     parts = _TEMPLATE_RE.split(value)
@@ -272,7 +263,6 @@ def _ps_assign(name: str, value: str, exports: dict | None = None) -> str:
     return "$script:%s = if ($env:%s) { $env:%s } else { %s }" % (
         name, name, name, rendered)
 
-
 def render_sh(exports: dict, names: list, version_fallback: str) -> str:
     lines = [HEADER_SH.replace("VERSION_FALLBACK", version_fallback)]
     for name in names:
@@ -281,7 +271,6 @@ def render_sh(exports: dict, names: list, version_fallback: str) -> str:
         lines.append(_sh_assign(name, exports[name]))
     lines.append("")
     return "\n".join(lines)
-
 
 def render_ps1(exports: dict, names: list, version_fallback: str) -> str:
     lines = [HEADER_PS.replace("VERSION_FALLBACK", version_fallback)]
@@ -294,7 +283,6 @@ def render_ps1(exports: dict, names: list, version_fallback: str) -> str:
         exports.get("MIOS_IMAGE_NAME", "ghcr.io/mios-dev/mios").replace("'", "''")))
     lines.append(PS_HOST_PATHS_TAIL)
     return "\n".join(lines)
-
 
 def check_globals_parity(sh_body: str, ps_body: str) -> list[str]:
     """Assert key-set parity between globals.sh and globals.ps1."""
@@ -312,7 +300,6 @@ def check_globals_parity(sh_body: str, ps_body: str) -> list[str]:
     if missing_in_sh:
         problems.append(f"keys in globals.ps1 but missing in globals.sh: {', '.join(missing_in_sh)}")
     return problems
-
 
 def main() -> int:
     check = "--check" in sys.argv
@@ -362,7 +349,6 @@ def main() -> int:
     print(f"[render-globals] generated {len(names)} constants into "
           f"globals.sh + globals.ps1 (no hand-written literals remain)")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

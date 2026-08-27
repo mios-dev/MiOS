@@ -9,7 +9,6 @@ import sys
 import tempfile
 import types
 
-
 try:
     import httpx
 except ImportError:
@@ -53,10 +52,8 @@ else:
 
 import mios_mcp as mc  # noqa: E402
 
-
 def _run(coro):
     return asyncio.run(coro)
-
 
 class _Resp:
     def __init__(self, status=200, ct="application/json", payload=None, text=""):
@@ -68,7 +65,6 @@ class _Resp:
     def json(self):
         return self._payload
 
-
 def _client_returning(resp):
     class _Client:
         async def post(self, *_a, **_k):
@@ -79,12 +75,10 @@ def _client_returning(resp):
         return client
     return _get
 
-
 def _embed_calls(box):
     async def _embed():
         box.append(1)
     return _embed
-
 
 def _reset_registry(servers_dict=None, tools_dict=None, embed_box=None,
                     invalidated_box=None):
@@ -98,7 +92,6 @@ def _reset_registry(servers_dict=None, tools_dict=None, embed_box=None,
         invalidate_worker_cache=(lambda: inval.append(1)),
     )
 
-
 def test_render_headers():
     os.environ["MIOS_TEST_MCP_TOKEN"] = "sekret"
     out = mc._mcp_render_headers({"Authorization": "Bearer ${MIOS_TEST_MCP_TOKEN}",
@@ -107,7 +100,6 @@ def test_render_headers():
     assert out["X-Plain"] == "v", out
     out2 = mc._mcp_render_headers({"H": "${MIOS_NO_SUCH_VAR_XYZ}"})
     assert out2["H"] == "", out2
-
 
 def test_load_registry_layered():
     with tempfile.TemporaryDirectory() as d:
@@ -129,7 +121,6 @@ def test_load_registry_layered():
         assert by_id["a"].get("enabled") is False, by_id["a"]
         assert "url" not in by_id["a"], by_id["a"]      # fully replaced, not merged
 
-
 def test_http_rpc_json():
     mc.configure(get_client=_client_returning(
         _Resp(ct="application/json", payload={"jsonrpc": "2.0", "id": 1,
@@ -137,14 +128,12 @@ def test_http_rpc_json():
     out = _run(mc._mcp_http_rpc("http://x", {}, "initialize", params={}))
     assert out["result"]["ok"] is True, out
 
-
 def test_http_rpc_sse():
     sse = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"sse\":1}}\n\n"
     mc.configure(get_client=_client_returning(
         _Resp(ct="text/event-stream", text=sse)))
     out = _run(mc._mcp_http_rpc("http://x", {}, "tools/list"))
     assert out["result"]["sse"] == 1, out
-
 
 def test_probe_server_projection():
     embed_box, inval_box = [], []
@@ -183,7 +172,6 @@ def test_probe_server_projection():
     assert st["protocolVersion"] == "2025-06-18", st
     assert embed_box and inval_box, (embed_box, inval_box)
 
-
 def test_route_logic_shapes():
     tools = {"mcp.s.t": {"server_id": "s", "tool": "t", "description": "d",
                          "inputSchema": {"type": "object"}, "url": "http://s"}}
@@ -219,12 +207,10 @@ def test_route_logic_shapes():
         mc._mcp_call_tool = orig
     assert ok["called"] == "mcp.s.t" and ok["args"] == {"x": 1}, ok
 
-
 def test_call_tool_unknown():
     _reset_registry(tools_dict={})
     out = _run(mc._mcp_call_tool("mcp.nope.x", {}))
     assert "error" in out and "unknown" in out["error"], out
-
 
 def test_stdio_self_heal():
     cli = mc._McpStdioClient("sid", "cmd", [], {}, None)
@@ -262,10 +248,8 @@ def test_stdio_self_heal():
     _run(cli._ensure_session())
     assert cli._inited is False, "errored initialize must not mark inited"
 
-
 def test_declared_protocol_version_is_current():
     assert mc.MCP_PROTOCOL_VERSION == "2025-11-25", mc.MCP_PROTOCOL_VERSION
-
 
 def test_initialize_advertises_current_version():
     _reset_registry(tools_dict={})
@@ -285,7 +269,6 @@ def test_initialize_advertises_current_version():
     finally:
         mc._mcp_http_rpc = orig
     assert sent["version"] == mc.MCP_PROTOCOL_VERSION == "2025-11-25", sent
-
 
 def test_back_compat_negotiation_accepts_older_revision():
     tools = {}
@@ -309,7 +292,6 @@ def test_back_compat_negotiation_accepts_older_revision():
     assert st["status"] == "ready", st
     assert st["protocolVersion"] == "2025-06-18", st   # older revision honored
     assert "mcp.old.t" in tools, tools
-
 
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]

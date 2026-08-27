@@ -23,7 +23,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load watchdog module from {_WATCHDOG_PATH}")
 
-
 class TestNodeWatchdog(unittest.TestCase):
     """Validates watchdog supervisor, keepalive pings, and safe 'V' magic close."""
 
@@ -61,12 +60,10 @@ class TestNodeWatchdog(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             driver.arm()
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeWatchdog)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

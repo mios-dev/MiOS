@@ -7,24 +7,18 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 
 mios_log "Chmod cockpit.socket.d/listen.conf, append hv_sock to modules-load.d/mios.conf, enable mios-hyperv-enhanced.service"
 
-
-
 if [ -f /usr/lib/systemd/system/cockpit.socket.d/listen.conf ]; then
     chmod 644 /usr/lib/systemd/system/cockpit.socket.d/listen.conf
 fi
 
 mios_log "Hyper-V Enhanced Session"
 
-
 if ! grep -q 'hv_sock' /usr/lib/modules-load.d/mios.conf 2>/dev/null; then
     echo "Hv_sock" >> /usr/lib/modules-load.d/mios.conf
 fi
 
-
 systemctl enable mios-hyperv-enhanced.service 2>/dev/null || true
 
 chmod +x /usr/libexec/mios-grd-setup 2>/dev/null || true
-
-
 
 mios_ok "VM gating + Hyper-V Enhanced Session configured"

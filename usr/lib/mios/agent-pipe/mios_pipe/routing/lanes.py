@@ -2,7 +2,6 @@
 # AI-doc: usr/share/doc/mios/manual/routing.md
 import time
 
-
 class Lane:
     """A single inference endpoint. ``url`` is the OpenAI /v1 base (no trailing
     slash); ``model`` is the served-model-name to request on it."""
@@ -19,7 +18,6 @@ class Lane:
 
     def __repr__(self) -> str:  # pragma: no cover -- debug only
         return "Lane(%r, %r, %r)" % (self.id, self.url, self.model)
-
 
 def build_chain(heavy_engine, available) -> list:
     avail_set = set(available)
@@ -40,7 +38,6 @@ def build_chain(heavy_engine, available) -> list:
     if "light" in chain:                       # force the floor lane terminal
         chain = [x for x in chain if x != "light"] + ["light"]
     return chain
-
 
 class LaneResolver:
 

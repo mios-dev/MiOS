@@ -12,13 +12,11 @@ import mios_kernel as mk
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _mk_handlers(log):
     async def make(mode):
@@ -27,7 +25,6 @@ def _mk_handlers(log):
             return {"ran": mode, "tool": getattr(decision, "tool", "")}
         return h
     return make
-
 
 def t_routes():
     log = []
@@ -43,14 +40,12 @@ def t_routes():
     check("routes: dispatch mode -> dispatch handler", res == "dispatch")
     check("routes: forwarded ctx + decision", log[-1][1] == "dispatch" and log[-1][2] == {"chat_id": "c1"})
 
-
 def t_fallback():
     async def agent_h(decision, **ctx):
         return "agent-fallback"
     d = md.Dispatcher({"agent": agent_h})
     res = asyncio.run(d.run(mr.route({"intent": "dag"})))
     check("fallback: unknown mode -> default 'agent'", res == "agent-fallback")
-
 
 def t_no_handler():
     d = md.Dispatcher({"chat": None.__class__ and (lambda *a, **k: None)})  # no 'agent' default
@@ -61,7 +56,6 @@ def t_no_handler():
         raised = True
     check("no-handler: KeyError when no handler + no fallback (fail-loud)", raised)
 
-
 def t_introspect():
     async def f(d, **k): return None
     d = md.Dispatcher({"chat": f, "agent": f})
@@ -69,7 +63,6 @@ def t_introspect():
     check("introspect: can_handle known", d.can_handle("chat") is True)
     check("introspect: can_handle unknown -> via default", d.can_handle("dag") is True)  # 'agent' default exists
     check("introspect: can_handle no-default", md.Dispatcher({"chat": f}, default_mode="x").can_handle("dag") is False)
-
 
 def t_kernel_flow():
     ran = {}
@@ -80,7 +73,6 @@ def t_kernel_flow():
     check("kernel: chat routes+runs", asyncio.run(k.handle({"intent": "chat"})) == "ok-chat")
     check("kernel: unknown intent -> agent runs", asyncio.run(k.handle({"intent": "weird"})) == "ok-agent")
 
-
 def main():
     t_routes()
     t_fallback()
@@ -89,7 +81,6 @@ def main():
     t_kernel_flow()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

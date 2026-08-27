@@ -7,7 +7,6 @@ import unittest
 sys.path.insert(0, os.path.dirname(__file__))
 from mios_kv_compact import KVCompactEngine, estimate_tokens
 
-
 class TestKVCompact(unittest.TestCase):
     def test_estimate_tokens(self):
         self.assertGreater(estimate_tokens("hello world"), 0)
@@ -18,7 +17,6 @@ class TestKVCompact(unittest.TestCase):
         msgs = [{"role": "user", "content": "test " * 50}]
         res = engine.compact_messages(msgs)
         self.assertIn("messages", res)
-
 
 if __name__ == "__main__":
     unittest.main()

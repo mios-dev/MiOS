@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from journal_fss import JournalFSSManager
 
-
 class TestJournalFSS(unittest.TestCase):
     def setUp(self):
         self.mgr = JournalFSSManager(interval_minutes=15, dry_run=True)
@@ -29,7 +28,6 @@ class TestJournalFSS(unittest.TestCase):
         self.assertTrue(self.mgr.verify_journal_integrity(logs))
         # Tamper record 5
         self.assertFalse(self.mgr.verify_journal_integrity(logs, tamper_index=5))
-
 
 if __name__ == "__main__":
     unittest.main()

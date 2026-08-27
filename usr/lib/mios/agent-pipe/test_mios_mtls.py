@@ -18,17 +18,14 @@ import tempfile
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _skip(msg: str) -> None:
     print(f"[SKIP] {msg}")
     print("\nskipped (0 checks)")
     sys.exit(0)
-
 
 try:
     from cryptography import x509
@@ -36,7 +33,6 @@ try:
     from cryptography.x509.oid import ExtendedKeyUsageOID
 except ModuleNotFoundError:
     _skip("cryptography not installed")
-
 
 def _load_tool():
     p = os.environ.get("MIOS_MTLS_TOOL")
@@ -52,7 +48,6 @@ def _load_tool():
     loader.exec_module(m)
     return m
 
-
 def _provision(tool, d):
     os.environ["MIOS_MTLS_DIR"] = d
     os.environ["MIOS_MTLS_CN"] = "test-agent"
@@ -61,7 +56,6 @@ def _provision(tool, d):
     ca_cert, ca_key, minted = tool.ensure_ca(cfg)
     tool.issue_agent_cert(cfg, ca_cert, ca_key)
     return cfg, minted
-
 
 def main() -> int:
     tool = _load_tool()
@@ -107,7 +101,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -24,13 +24,11 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-
 class ExecutionPolicy(str, Enum):
     REMOTE_SIGNED = "RemoteSigned"
     UNRESTRICTED = "Unrestricted"
     RESTRICTED = "Restricted"
     ALL_SIGNED = "AllSigned"
-
 
 @dataclass
 class PolicyConfig:
@@ -41,7 +39,6 @@ class PolicyConfig:
     setup_profile: bool = True
     ai_endpoint: str = "http://127.0.0.1:8640/v1"
     profile_path: Optional[str] = None
-
 
 class PowerShellPolicyEngine:
     """Generates registry configurations and PowerShell setup scripts."""
@@ -219,7 +216,6 @@ class PowerShellPolicyEngine:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Windows PowerShell Execution Policy & Developer Mode Configurator"
@@ -277,7 +273,6 @@ def main() -> int:
         else:
             print(f"[ps_policy_config] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -8,7 +8,6 @@ from mios_pipe.routing import dispatch_cmd as C
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if cond:
@@ -16,7 +15,6 @@ def check(name, cond, detail=""):
     else:
         _fails += 1
         print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
-
 
 _CATALOG = {
     "web_search":  {"cmd": "mios-web-search -n {limit=5} {query!}", "permission": "read"},
@@ -29,11 +27,9 @@ _CATALOG = {
     "unconfined":  {"cmd": "mios-run {x!}", "permission": "write"},
 }
 
-
 def _wire(*, enforce=False):
     C.configure(verb_catalog=_CATALOG, sandbox_enforce=enforce,
                 sandbox_self_confined=("already-confined",))
-
 
 def t_standalone_configuration():
     """The module is driven by configure() alone -- no mios_dispatch, no server."""
@@ -42,7 +38,6 @@ def t_standalone_configuration():
     check("configure: enforce flag is injected", C.SANDBOX_ENFORCE is False)
     _wire(enforce=True)
     check("configure: enforce flag updates", C.SANDBOX_ENFORCE is True)
-
 
 def t_build_dispatch_cmd():
     _wire()
@@ -54,7 +49,6 @@ def t_build_dispatch_cmd():
     check("build: an unknown verb yields None",
           C._build_dispatch_cmd("no_such_verb", {}) is None)
 
-
 def t_sandbox_profile_resolution():
     _wire()
     prof = C._dispatch_sandbox_profile("confined")
@@ -63,7 +57,6 @@ def t_sandbox_profile_resolution():
           C._dispatch_sandbox_profile("web_search") is not None)
     check("profile: an unknown verb still resolves (fail-closed in mios_sandbox)",
           C._dispatch_sandbox_profile("no_such_verb") is not None)
-
 
 def t_sandbox_wrap_is_opt_in():
     """The OPT-IN gate is the safety property: an explicit [verbs.*].sandbox_profile,
@@ -86,7 +79,6 @@ def t_sandbox_wrap_is_opt_in():
     check("wrap: a self-confining cmd is left alone",
           cmd == "already-confined echo hi" and ws is None, f"{cmd!r}")
 
-
 def t_normalize_container_exec():
     check("normalize: docker -> podman",
           C.normalize_container_exec("docker exec -i c bash").startswith("podman"))
@@ -99,7 +91,6 @@ def t_normalize_container_exec():
     check("normalize: a bare interactive shell becomes `true`",
           C.normalize_container_exec("podman exec -i c /bin/bash").endswith("true"))
 
-
 def main():
     t_standalone_configuration()
     t_build_dispatch_cmd()
@@ -108,7 +99,6 @@ def main():
     t_normalize_container_exec()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

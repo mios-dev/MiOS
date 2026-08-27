@@ -25,7 +25,6 @@ logger = logging.getLogger("mios-overlay-workspace")
 
 MAX_PROVISION_LATENCY_MS = 10.0
 
-
 @dataclass
 class WorkspaceMount:
     agent_id: str
@@ -35,7 +34,6 @@ class WorkspaceMount:
     merged_mountpoint: str
     provision_latency_ms: float
     is_active: bool = True
-
 
 class OverlayWorkspaceManager:
     """Provisions subagent copy-on-write OverlayFS workspaces in <10ms."""
@@ -94,7 +92,6 @@ class OverlayWorkspaceManager:
             return True
         return False
 
-
 def main():
     tmp = tempfile.mkdtemp(prefix="mios-ws-")
     mgr = OverlayWorkspaceManager(base_workspace_dir=tmp, dry_run=True)
@@ -102,7 +99,6 @@ def main():
     mgr.apply_file_mutation("agent_001", "test.py", "print(1)")
     mgr.teardown_workspace("agent_001")
     shutil.rmtree(tmp, ignore_errors=True)
-
 
 if __name__ == "__main__":
     main()

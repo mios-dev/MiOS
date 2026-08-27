@@ -11,13 +11,11 @@ import mios_router as mr
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 class FakeDispatcher:
     def __init__(self):
@@ -26,7 +24,6 @@ class FakeDispatcher:
     async def run(self, decision, **ctx):
         self.last = (decision, ctx)
         return {"mode": decision.mode, "tool": decision.tool, "ctx": ctx}
-
 
 def t_handle_flow():
     disp = FakeDispatcher()
@@ -37,12 +34,10 @@ def t_handle_flow():
     check("handle: ctx forwarded to dispatcher", res["ctx"] == {"chat_id": "c1", "refined": {"intent": "dispatch", "tool": "open_app"}})
     check("handle: dispatcher saw the RouteDecision", disp.last[0].mode == "dispatch")
 
-
 def t_handle_chat():
     k = mk.Kernel(router=mr.Router(), dispatcher=FakeDispatcher())
     res = asyncio.run(k.handle({"intent": "chat"}))
     check("handle: chat intent -> chat mode", res["mode"] == "chat")
-
 
 def t_requires():
     raised = 0
@@ -54,14 +49,12 @@ def t_requires():
             raised += 1
     check("requires: both router+dispatcher mandatory", raised == 2)
 
-
 def t_managers():
     k = mk.Kernel(router=mr.Router(), dispatcher=FakeDispatcher(),
                   memory="m", access="a")
     m = k.managers()
     check("managers: wired seams True", m["memory"] is True and m["access"] is True)
     check("managers: unwired seams False", m["scheduler"] is False and m["context"] is False and m["tools"] is False)
-
 
 def main():
     t_handle_flow()
@@ -70,7 +63,6 @@ def main():
     t_managers()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

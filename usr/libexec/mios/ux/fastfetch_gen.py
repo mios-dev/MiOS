@@ -34,7 +34,6 @@ try:
 except ImportError:
     mios_toml = None
 
-
 class FastfetchGenEngine:
     """Generates JSONC fastfetch configuration with system and AI telemetry modules."""
 
@@ -187,7 +186,6 @@ class FastfetchGenEngine:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Fastfetch Configuration Generator"
@@ -227,7 +225,6 @@ def main() -> int:
         else:
             print(f"[fastfetch_gen] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

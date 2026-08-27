@@ -1,21 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Comprehensive empirical adversarial test suite authored by Challenger 2 for T-404..T-412.
 # AI-related: usr/libexec/mios/storage/mios-bench-storage, usr/libexec/mios/sec/mios-luks-rotate, usr/libexec/mios/mem/mios-tmpfs-spill, usr/libexec/mios/log/mios-log-streamer, usr/libexec/mios/storage/mios-backup-remote, usr/libexec/mios/db/mios-db-doctor.py, usr/libexec/mios/db/mios-db-migrate.py, usr/share/containers/systemd/mios-radosgw.container
-"""
-MiOS Empirical Adversarial Test Harness (Challenger 2).
-
-Executes stress-testing, boundary attacks, simulated memory pressure,
-fuzzing payloads, security exclusions, SQL injection defense, and
-zero-downtime safety checks against:
-- T-404: Ceph RADOS Gateway Quadlet S3 Container
-- T-405: LUKS2 Zero-Downtime Key Rotation Engine (mios-luks-rotate)
-- T-407: SQLite / PostgreSQL Database Doctor (mios-db-doctor)
-- T-408: Remote Delta Snapshot Backup Synchronizer (mios-backup-remote)
-- T-409: Storage Performance Benchmark Harness (mios-bench-storage)
-- T-410: Automated tmpfs Spill-to-NVMe Manager (mios-tmpfs-spill)
-- T-411: Unified Journald Log Aggregation & pgvector Streamer (mios-log-streamer)
-- T-412: Zero-Downtime Database Migration Runner (mios-db-migrate)
-"""
+"""MiOS Empirical Adversarial Test Harness (Challenger 2).  Executes stress-testing, boundary attacks, simulated memory pressure, fuzzing payloads, security exclusions, SQL injection defense, and zero-downtime safety checks against: - T-404: Ceph RADOS Gateway Quadlet S3 Container - T-405: LUKS2 Zero-Downtime Key Rotation Engine (mios-luks-rotate) - T-407: SQLite / PostgreSQL Database Doctor (mios-db-doctor) - T-408: Remote Delta Snapshot Backup Synchronizer (mios-backup-remote) - T-409: Storage Performance Benchmark Harness (mios-bench-storage) - T-410: Automated tmpfs Spill-to-NVMe Manager (mios-tmpfs-spill) - T-411: Unified Journald Log Aggregation & pgvector Streamer (mios-log-streamer) - T-412: Zero-Downtime Database Migration Runner (mios-db-migrate)"""
 
 from __future__ import annotations
 
@@ -36,7 +22,6 @@ from typing import Any, Dict, List, Optional
 _HERE = os.path.abspath(os.path.dirname(__file__)) if "__file__" in globals() else os.path.abspath(".")
 _ROOT = os.path.normpath(os.path.join(_HERE, "..")) if os.path.basename(_HERE) == "tests" else _HERE
 
-
 def load_module(name: str, rel_path: str) -> Any:
     from importlib.machinery import SourceFileLoader
     full_path = os.path.join(_ROOT, rel_path)
@@ -49,7 +34,6 @@ def load_module(name: str, rel_path: str) -> Any:
         return mod
     raise ImportError(f"Could not load module {name} from {full_path}")
 
-
 # Load target modules under test
 mod_bench = load_module("bench_storage", "usr/libexec/mios/storage/mios-bench-storage")
 mod_luks = load_module("luks_rotate", "usr/libexec/mios/sec/mios-luks-rotate")
@@ -58,7 +42,6 @@ mod_log = load_module("log_streamer", "usr/libexec/mios/log/mios-log-streamer")
 mod_backup = load_module("backup_remote", "usr/libexec/mios/storage/mios-backup-remote")
 mod_doctor = load_module("db_doctor", "usr/libexec/mios/db/mios-db-doctor.py")
 mod_migrate = load_module("db_migrate", "usr/libexec/mios/db/mios-db-migrate.py")
-
 
 class TestAdversarialBenchStorage(unittest.TestCase):
     """Adversarial testing on mios-bench-storage: percentile math, profile bounds, and cleanup."""
@@ -128,7 +111,6 @@ class TestAdversarialBenchStorage(unittest.TestCase):
         self.assertFalse(res_fail["meets_ai_inference_floors"])
         self.assertFalse(res_fail["evaluations"]["mbps_seq_read_1m"]["passed"])
 
-
 class TestAdversarialLUKSRotate(unittest.TestCase):
     """Adversarial testing on mios-luks-rotate: key validation aborts, slot exhaustion, and log safety."""
 
@@ -187,7 +169,6 @@ class TestAdversarialLUKSRotate(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             engine.rotate_key("/dev/nvme0n1p3", current_passphrase="valid_pass")
         self.assertIn("No available free keyslots", str(ctx.exception))
-
 
 class TestAdversarialTmpfsSpill(unittest.TestCase):
     """Adversarial testing on mios-tmpfs-spill: security exclusions, PSI triggers, and LRU eviction."""
@@ -290,7 +271,6 @@ class TestAdversarialTmpfsSpill(unittest.TestCase):
         with open(fpath, "rb") as f:
             self.assertEqual(f.read(), test_content)
 
-
 class TestAdversarialLogStreamer(unittest.TestCase):
     """Adversarial testing on mios-log-streamer: malformed streams, SQL injection, and vector math."""
 
@@ -363,7 +343,6 @@ class TestAdversarialLogStreamer(unittest.TestCase):
         self.assertAlmostEqual(norm1, 1.0, delta=0.01)
         self.assertAlmostEqual(norm2, 1.0, delta=0.01)
 
-
 class TestAdversarialBackupRemote(unittest.TestCase):
     """Adversarial testing on mios-backup-remote: chunk boundary edge cases and delta deduplication."""
 
@@ -426,7 +405,6 @@ class TestAdversarialBackupRemote(unittest.TestCase):
         self.assertGreater(plan["reused_chunks_count"], 0)
         self.assertGreater(plan["dedup_ratio_pct"], 0.0)
 
-
 class TestAdversarialDbDoctorAndMigrate(unittest.TestCase):
     """Adversarial testing on mios-db-doctor and mios-db-migrate."""
 
@@ -478,7 +456,6 @@ class TestAdversarialDbDoctorAndMigrate(unittest.TestCase):
             migrator.migrate()
         self.assertIn("checksum mismatch", str(ctx.exception).lower())
 
-
 def main() -> int:
     suite = unittest.TestSuite()
     for test_class in [
@@ -493,7 +470,6 @@ def main() -> int:
 
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

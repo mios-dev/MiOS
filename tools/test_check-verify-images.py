@@ -8,7 +8,6 @@ import unittest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "check_verify_images", os.path.join(_HERE, "check-verify-images.py"))
@@ -16,9 +15,7 @@ def _load():
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
-
 
 class TestCheckVerifyImages(unittest.TestCase):
     def setUp(self):
@@ -37,7 +34,6 @@ class TestCheckVerifyImages(unittest.TestCase):
         line = [l for l in just.split(chr(10)) if l.startswith("publish:")]
         self.assertTrue(line, "no publish recipe")
         self.assertIn("verify-images", line[0])
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

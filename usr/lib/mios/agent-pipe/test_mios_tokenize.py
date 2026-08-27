@@ -12,13 +12,11 @@ import mios_tokenize as tok
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_count_parity():
     s = "hello world " * 17
@@ -26,7 +24,6 @@ def t_count_parity():
     check("count_text empty -> 0", tok.count_text("") == 0)
     check("count_text None-safe", tok.count_text(None) == 0)
     check("backend_name is heuristic", tok.backend_name() == "heuristic-chars4")
-
 
 def t_count_messages_parity():
     msgs = [{"role": "user", "content": "a" * 40}, {"role": "assistant", "content": "b" * 12}]
@@ -36,7 +33,6 @@ def t_count_messages_parity():
           tok.count_messages(msgs, tools) == expect, f"{tok.count_messages(msgs, tools)} vs {expect}")
     check("count_messages no tools", tok.count_messages(msgs) == (40 + 12) // 4)
     check("count_messages empty -> 0", tok.count_messages([]) == 0)
-
 
 def t_truncate():
     s = "x" * 1000
@@ -48,7 +44,6 @@ def t_truncate():
     big = "y" * 5000
     check("truncate: slow-lane block round-trips to 1500 chars",
           tok.truncate_to_tokens(big, 1500 // 4) == big[:1500])
-
 
 def t_set_backend():
     class Double:
@@ -65,7 +60,6 @@ def t_set_backend():
     finally:
         tok.set_backend(mios_tokenize_default())
 
-
 def t_usage_estimate():
     u = tok._usage_estimate("", "")
     check("usage: empty floors to 1/1/2",
@@ -74,10 +68,8 @@ def t_usage_estimate():
     check("usage: counts via count_text (40//4, 12//4)",
           u2.get("prompt_tokens") == 10 and u2.get("completion_tokens") == 3 and u2.get("total_tokens") == 13, str(u2))
 
-
 def mios_tokenize_default():
     return tok.HeuristicBackend()
-
 
 class _FakeEnc:
     def encode(self, text, disallowed_special=None):
@@ -86,17 +78,14 @@ class _FakeEnc:
     def decode(self, ids):
         return "".join(chr(i) for i in ids)
 
-
 def _install_fake_tiktoken():
     mod = types.ModuleType("tiktoken")
     mod.get_encoding = lambda name: _FakeEnc()
     sys.modules["tiktoken"] = mod
 
-
 class _FakeHFEncoding:
     def __init__(self, ids):
         self.ids = ids
-
 
 class _FakeTokenizer:
     @classmethod
@@ -111,12 +100,10 @@ class _FakeTokenizer:
     def decode(self, ids):
         return "".join(chr(i) for i in ids)
 
-
 def _install_fake_tokenizers():
     mod = types.ModuleType("tokenizers")
     mod.Tokenizer = _FakeTokenizer
     sys.modules["tokenizers"] = mod
-
 
 def t_make_backend_tiktoken():
     _install_fake_tiktoken()
@@ -127,7 +114,6 @@ def t_make_backend_tiktoken():
     check("tiktoken: truncate is token-EXACT", be.truncate("hello world", 5) == "hello",
           be.truncate("hello world", 5))
     check("tiktoken: truncate no-op under budget", be.truncate("hi", 10) == "hi")
-
 
 def t_tiktoken_cache_dir_env():
     _install_fake_tiktoken()
@@ -143,7 +129,6 @@ def t_tiktoken_cache_dir_env():
         else:
             os.environ["TIKTOKEN_CACHE_DIR"] = prior
 
-
 def t_make_backend_hf():
     _install_fake_tokenizers()
     be = tok.make_backend("hf", path="/m/tokenizer.json")
@@ -151,7 +136,6 @@ def t_make_backend_hf():
     check("hf: name from the tokenizer.json basename", be.name == "hf-tokenizer.json", be.name)
     check("hf: count is exact", be.count("abc") == 3, str(be.count("abc")))
     check("hf: truncate token-exact", be.truncate("abcdef", 3) == "abc", be.truncate("abcdef", 3))
-
 
 def t_make_backend_degrade_open():
     sys.modules.pop("tiktoken", None)
@@ -166,7 +150,6 @@ def t_make_backend_degrade_open():
     _install_fake_tiktoken()
     check("make_backend tiktoken w/o encoding -> None (no hardcoded encoding default)",
           tok.make_backend("tiktoken", encoding="") is None and tok.make_backend("tiktoken") is None)
-
 
 def t_real_backend_measures_via_seam():
     _install_fake_tiktoken()
@@ -186,7 +169,6 @@ def t_real_backend_measures_via_seam():
         check("seam: restored heuristic after the real-backend test",
               tok.backend_name() == "heuristic-chars4")
 
-
 def main():
     t_count_parity()
     t_count_messages_parity()
@@ -200,7 +182,6 @@ def main():
     t_real_backend_measures_via_seam()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

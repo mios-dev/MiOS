@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-native-storage")
 
-
 @dataclass
 class StorageDriverConfig:
     driver: str  # "overlay"
@@ -28,7 +27,6 @@ class StorageDriverConfig:
     mountopt: str  # "nodev,metacopy=on,userxattr"
     is_native_kernel: bool
     estimated_iops_speedup: float
-
 
 class PodmanStorageConfigurator:
     """Generates /etc/containers/storage.conf for native kernel rootless overlay."""
@@ -65,13 +63,11 @@ class PodmanStorageConfigurator:
         )
         return config
 
-
 def main():
     cfg = PodmanStorageConfigurator(dry_run=True)
     print(cfg.generate_storage_conf())
     res = cfg.evaluate_driver_performance()
     print(f"Driver: {res.driver}, Native: {res.is_native_kernel}")
-
 
 if __name__ == "__main__":
     main()

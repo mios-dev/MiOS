@@ -11,13 +11,11 @@ os.environ["MIOS_ANTIFAB_ENABLE"] = "false"
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _install_stubs():
     """Minimal 3rd-party stand-ins so mios_chat (and the sibling graph it imports)
@@ -55,7 +53,6 @@ def _install_stubs():
     sys.modules.setdefault("fastapi", fastapi)
     sys.modules.setdefault("fastapi.responses", responses)
 
-
 _predicate = None
 _skip_reason = None
 try:
@@ -73,31 +70,25 @@ try:
 except Exception as exc:  # pragma: no cover -- offline-env fallback
     _nl_skip = f"{type(exc).__name__}: {exc}"
 
-
 def t_tool_output_sentinel():
     out = _predicate("🤝 open_app output: {\"path\": \"/tmp\"}")
     check("sentinel: '🤝 <verb> output:' -> True", out is True, out)
-
 
 def t_success_json_tool_order():
     out = _predicate('{"success": true, "tool": "launch_app"}')
     check("json(success,tool order): -> True", out is True, out)
 
-
 def t_tool_json_success_order():
     out = _predicate('{"tool": "launch_app", "success": true}')
     check("json(tool,success order): -> True", out is True, out)
-
 
 def t_ordinary_prose():
     out = _predicate("Sure, I can help you open that application.")
     check("ordinary prose -> False", out is False, out)
 
-
 def t_empty_and_none():
     check("empty string -> False", _predicate("") is False)
     check("None -> False", _predicate(None) is False)
-
 
 _FAB01_SYNTH = (
     "Here are the games installed on your system:\n\n"
@@ -109,7 +100,6 @@ _FAB01_SYNTH = (
     '{"name": "example-app-4", "version": "unknown"}]}'
 )
 
-
 def t_fab01_synth_strips_fired_verb_block():
     ans = _NL._guard_fabricated_execution(
         _FAB01_SYNTH, surfaced_raw_evidence=False, m2=[], enable=True)
@@ -117,7 +107,6 @@ def t_fab01_synth_strips_fired_verb_block():
           "does NOT save it)", "🤝" not in ans and "example-app-1" not in ans, ans)
     check("FAB-01: real synthesized prose survives the strip",
           ans.strip().startswith("Here are the games installed"), ans)
-
 
 def t_fab01_raw_evidence_provenance():
     real_blk = '{"success": true, "tool": "open_app", "pid": 4242}'
@@ -132,7 +121,6 @@ def t_fab01_raw_evidence_provenance():
     check("FAB-01 raw path: NON-matching success-JSON stripped",
           "9999" not in drop, drop)
 
-
 def t_fab01_skill_recipe_subsumed():
     ans = ("You can do that with a recipe.\n\n"
            "🤝 skill:foo output: {\"steps\": 3}")
@@ -140,7 +128,6 @@ def t_fab01_skill_recipe_subsumed():
         ans, surfaced_raw_evidence=False, m2=[], enable=True)
     check("FAB-01: skill/recipe sentinel in synthesized prose stripped "
           "(false-positive subsumed)", "🤝" not in out, out)
-
 
 _FAB02_CORPUS = (
     "In 2024, notable releases included Prince of Persia: The Lost Crown, a "
@@ -156,7 +143,6 @@ _FAB02_ANS = (
     "were unveiled, according to IGN, though not captured in the excerpt."
 )
 
-
 def t_fab02_strips_only_ungrounded_section():
     out = _NL._guard_entity_grounding(
         _FAB02_ANS, _FAB02_CORPUS, gate=True, enable=True,
@@ -167,7 +153,6 @@ def t_fab02_strips_only_ungrounded_section():
           "Prince of Persia" in out and "Eiyuden Chronicle" in out, out)
     check("FAB-02: honest note appended", "(unverified omitted)" in out, out)
 
-
 def t_fab02_all_grounded_untouched():
     grounded = ("## Notable 2024 Games\n\nPrince of Persia: The Lost Crown and "
                 "Eiyuden Chronicle: Hundred Heroes released in 2024 per Polygon.")
@@ -175,7 +160,6 @@ def t_fab02_all_grounded_untouched():
         grounded, _FAB02_CORPUS, gate=True, enable=True,
         min_entities=3, ground_min=0.34, note="(unverified omitted)")
     check("FAB-02: fully grounded answer untouched", out == grounded, out)
-
 
 def t_fab02_degrade_open():
     out = _NL._guard_entity_grounding(
@@ -187,7 +171,6 @@ def t_fab02_degrade_open():
         cjk, _FAB02_CORPUS, gate=True, enable=True,
         min_entities=3, ground_min=0.34, note="(unverified omitted)")
     check("FAB-02: caseless/CJK answer degrades-open (byte-identical)", out2 == cjk, out2)
-
 
 def t_flag_off_passthrough():
     check("gate: native-loop _ANTIFAB_ENABLE reflects env=false",
@@ -201,7 +184,6 @@ def t_flag_off_passthrough():
         min_entities=3, ground_min=0.34, note="(unverified omitted)")
     check("gate: FAB-02 guard passthrough when disabled (byte-identical)",
           gr == _FAB02_ANS, gr)
-
 
 def main():
     if _predicate is None:
@@ -224,7 +206,6 @@ def main():
         t_flag_off_passthrough()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

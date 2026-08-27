@@ -23,7 +23,6 @@ from liveiso import LiveISOPipeline
 from tensor_kernels import TensorKernelDispatcher
 from reactive_loop import MAX_WAKEUP_LATENCY_MS, ReactiveEventDispatcher
 
-
 class TestEmpiricalStressT643T652(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-stress-t643-")
@@ -105,7 +104,6 @@ class TestEmpiricalStressT643T652(unittest.TestCase):
                 self.assertLess(ev.latency_ms, MAX_WAKEUP_LATENCY_MS)
 
         asyncio.run(_run())
-
 
 if __name__ == "__main__":
     unittest.main()

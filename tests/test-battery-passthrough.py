@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load battery_passthrough module from {_MODULE_PATH}")
 
-
 class TestBatteryPassthrough(unittest.TestCase):
     """Validates power supply discovery, battery telemetry calculations, rate-limiting, and QMP formatting."""
 
@@ -193,12 +192,10 @@ class TestBatteryPassthrough(unittest.TestCase):
         # Should execute 1 cycle and terminate cleanly
         daemon.run_daemon(max_iterations=1)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBatteryPassthrough)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

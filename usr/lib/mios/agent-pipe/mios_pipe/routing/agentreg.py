@@ -27,7 +27,6 @@ _ROLE_SYSTEM_DIR = None
 EFFORT_DEFAULT = None
 SWARM_MAX_WIDTH = None
 
-
 def configure(*, is_remote_endpoint=None, opt_int_mb=None, logger=None,
               catalog_fail_mode=None, nodes_research_only=None,
               agent_registry=None, agent_binding=None, endpoint_key=None,
@@ -59,7 +58,6 @@ def configure(*, is_remote_endpoint=None, opt_int_mb=None, logger=None,
     if swarm_max_width is not None:
         SWARM_MAX_WIDTH = swarm_max_width
 
-
 def _build_agent_engines(raw_cfg: dict, entry: dict) -> dict:
     engines: dict = {}
     home = (str(entry.get("lane") or "").strip() or "gpu")
@@ -79,7 +77,6 @@ def _build_agent_engines(raw_cfg: dict, entry: dict) -> dict:
                         "model": str(b.get("model") or entry.get("model", "")),
                     }
     return engines
-
 
 def _load_agent_registry() -> dict[str, dict]:
     registry: dict[str, dict] = {}
@@ -145,7 +142,6 @@ def _load_agent_registry() -> dict[str, dict]:
         }
     return registry
 
-
 def _load_node_pool(registry: dict[str, dict]) -> int:
     try:
         nodes = _toml_section("nodes")
@@ -198,9 +194,6 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
                  "(ONE canonical MiOS Modelfile dispatched per node)", n)
     return n
 
-
-
-
 def _agent_lane(cfg: dict) -> str:
     lane = str(cfg.get("lane", "")).lower().strip()
     if lane in ("cpu", "gpu", "igpu", "accelerator", "mobile"):
@@ -215,7 +208,6 @@ def _agent_lane(cfg: dict) -> str:
     if (":" + _daemon_port) in ep or (":" + _cpu_port) in ep or "cpu" in mdl:
         return "cpu"
     return "gpu"
-
 
 def _render_agent_catalog(registry: dict) -> str:
     if not registry:
@@ -235,7 +227,6 @@ def _render_agent_catalog(registry: dict) -> str:
         lines.append(f"  {name}".ljust(24) + f"[{lane} lane] -- {job}")
     return "\n".join(lines)
 
-
 def _role_system(aname: str) -> str:
     if not aname:
         return ""
@@ -245,7 +236,6 @@ def _role_system(aname: str) -> str:
             return _f.read().strip()
     except (OSError, UnicodeDecodeError):
         return ""
-
 
 def _dedup_pool_by_target(pool: list) -> list:
     def _rank(a: str) -> int:

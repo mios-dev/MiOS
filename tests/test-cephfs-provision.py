@@ -28,7 +28,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load mios-cephfs-provision module from {_PROV_PATH}")
 
-
 class TestCephFSProvision(unittest.TestCase):
     """Validates CephFS configuration defaults, user info parsing, and keyring paths."""
 
@@ -64,12 +63,10 @@ class TestCephFSProvision(unittest.TestCase):
         self.assertIn("mios-cephfs-provision", content)
         self.assertIn("validate %u %g", content)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestCephFSProvision)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

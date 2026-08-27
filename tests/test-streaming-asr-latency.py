@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/libexec/mios/ai")
 from mios_asr import StreamingASREngine, SileroVAD
 
-
 def test_silero_vad_detection():
     """Verify VAD distinguishes between silence and voiced PCM chunks."""
     vad = SileroVAD()
@@ -11,7 +10,6 @@ def test_silero_vad_detection():
     speech = bytes([200] * 480)
     assert not vad.is_voiced(silence)
     assert vad.is_voiced(speech)
-
 
 def test_streaming_token_emission_latency():
     """Verify partial tokens emit in <100ms with low WER."""
@@ -30,7 +28,6 @@ def test_streaming_token_emission_latency():
     # Check simulated WER metric
     simulated_wer = 4.5 # 4.5% < 8.0% SLA
     assert simulated_wer < 8.0
-
 
 if __name__ == "__main__":
     test_silero_vad_detection()

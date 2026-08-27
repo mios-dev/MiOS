@@ -19,19 +19,16 @@ from mios_pipe.kernel import httpclient as hc
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _req(url="http://remote:9999/v1/chat/completions", method="POST", model="m"):
     if method == "GET":
         return httpx.Request(method, url)
     return httpx.Request(method, url, json={"model": model})
-
 
 def t_default_off():
     async def run():
@@ -48,7 +45,6 @@ def t_default_off():
     check("default: NO request hook is registered at all", hooks == [], repr(hooks))
     check("default: no coalescer is built", hc.get_coalescer() is None)
     check("default: the hook is a no-op even if called directly", ms < 50, f"{ms:.1f}ms")
-
 
 def t_flag_on():
     async def run():
@@ -85,7 +81,6 @@ def t_flag_on():
     check("flag on: a GET is never held", get_ms < 50, f"{get_ms:.1f}ms")
     check("flag on: no window is left behind", groups == 0, str(groups))
 
-
 def t_degrades_open():
     class _Boom:
         method = "POST"
@@ -111,7 +106,6 @@ def t_degrades_open():
     ms = asyncio.run(run())
     check("degrade-open: an unreadable request is sent unheld", ms < 50, f"{ms:.1f}ms")
 
-
 def t_server_reexport():
     try:
         import server
@@ -131,7 +125,6 @@ def t_server_reexport():
     check("reexport: server._batch_request_hook IS the extracted one",
           server._batch_request_hook is hc._batch_request_hook)
 
-
 def main():
     t_default_off()
     t_flag_on()
@@ -139,7 +132,6 @@ def main():
     t_server_reexport()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

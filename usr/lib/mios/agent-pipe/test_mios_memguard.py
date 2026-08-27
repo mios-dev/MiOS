@@ -9,17 +9,14 @@ import mios_memguard as mg
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 def t_scan_structural():
     check("scan: clean fact -> none",
@@ -38,7 +35,6 @@ def t_scan_structural():
     check("scan: flags list populated", r["has_control_token"] and r["has_url"] and len(r["flags"]) >= 2, str(r["flags"]))
     check("scan: no English keyword-regex gate remains (no _INJECTION/_DANGER_CODE)",
           not hasattr(mg, "_INJECTION") and not hasattr(mg, "_DANGER_CODE"))
-
 
 def t_model_driven():
     orig = mg._judge_severity
@@ -76,7 +72,6 @@ def t_model_driven():
     finally:
         mg._judge_severity = orig
 
-
 def t_degrade_failsafe():
     orig = mg._judge_severity
 
@@ -96,7 +91,6 @@ def t_degrade_failsafe():
     finally:
         mg._judge_severity = orig
 
-
 def t_judge_off():
     orig = mg._judge_severity
 
@@ -110,7 +104,6 @@ def t_judge_off():
         check("judge off: structural control-token still HIGH", r2["ok"] is False, str(r2))
     finally:
         mg._judge_severity = orig
-
 
 def t_modes():
     orig = mg._judge_severity
@@ -148,11 +141,9 @@ def t_modes():
           run(mg.validate_for_store(inj, mode="bogus", judge_mode="model"))["ok"] is True
           and run(mg.validate_for_store(inj, mode="bogus", judge_mode="model"))["flags"] == [])
 
-
 def t_fail_open():
     check("fail-open: None text", run(mg.validate_for_store(None, mode="reject", judge_mode="off"))["ok"] is True)
     check("scan None -> none severity", mg.scan_fact(None)["severity"] == mg.NONE)
-
 
 def main():
     t_scan_structural()
@@ -163,7 +154,6 @@ def main():
     t_fail_open()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

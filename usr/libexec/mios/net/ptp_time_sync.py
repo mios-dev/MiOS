@@ -27,7 +27,6 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-
 @dataclasses.dataclass
 class NetworkInterfacePTP:
     """Hardware timestamping capabilities for a network interface."""
@@ -49,7 +48,6 @@ class NetworkInterfacePTP:
         data["supports_hw_ptp"] = self.supports_hardware_ptp()
         return data
 
-
 @dataclasses.dataclass
 class ClockTelemetry:
     """Status and performance telemetry of PTP and Chrony clock sync."""
@@ -68,7 +66,6 @@ class ClockTelemetry:
 
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
-
 
 class PTPCapabilityProbe:
     """Discovers and parses PTP hardware timestamping capabilities on host NICs."""
@@ -183,7 +180,6 @@ class PTPCapabilityProbe:
             candidates.append(self.probe_interface("eth0"))
         return candidates
 
-
 class PTPConfigGenerator:
     """Generates ptp4l and chrony configuration files with smooth slewing directives."""
 
@@ -272,7 +268,6 @@ rtcsync
 logchange 0.0005
 driftfile /var/lib/chrony/drift
 """
-
 
 class PTPStatusMonitor:
     """Monitors live or simulated clock offset, jitter, drift, and NTS authentication."""
@@ -387,7 +382,6 @@ class PTPStatusMonitor:
         max_jitter = max(deltas) - min(deltas) if deltas else 0.0
         return strictly_monotonic, float(max_jitter), len(samples)
 
-
 class PTPTimeSyncDaemon:
     """Encapsulates PTP and Chrony setup and management."""
 
@@ -406,7 +400,6 @@ class PTPTimeSyncDaemon:
         if interfaces:
             return interfaces[0]
         return None
-
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
@@ -478,7 +471,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"  Clock Offset: {status_data['offset_readable']} (Jitter: {status_data['jitter_ns']:.2f} ns)")
         print(f"  Frequency Error: {status_data['frequency_ppm']:.3f} ppm | NTS Auth: {status_data['nts_authenticated']}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -40,11 +40,9 @@ from typing import Any
 SOCKET_PATH = os.environ.get("MIOS_CODEMODE_SOCKET", "/run/coderun.sock")
 CALL_TIMEOUT_S = float(os.environ.get("MIOS_CODEMODE_CALL_TIMEOUT_S", "60") or 60)
 
-
 class ToolError(RuntimeError):
     """Raised when a tool call cannot be completed (socket down, host refusal,
     verb error). The model's code can try/except this and adapt."""
-
 
 def _rpc(verb: str, args: dict) -> Any:
     """One newline-delimited JSON request -> one JSON response over the mounted
@@ -88,33 +86,27 @@ def _rpc(verb: str, args: dict) -> Any:
         return resp["result"]
     return resp
 
-
 def call(verb: str, **args) -> Any:
     """Generic escape hatch: call ANY MiOS verb by name. The convenience wrappers
     below are thin sugar over this. Example: mios_tools.call('web_search',
     query='...', limit=5)."""
     return _rpc(verb, args)
 
-
 def web_search(query: str, limit: int = 5) -> Any:
     """Live web search via the MiOS web_search verb (SearXNG-backed)."""
     return _rpc("web_search", {"query": query, "limit": limit})
-
 
 def web_scrape(url: str) -> Any:
     """Fetch + extract a URL to text/markdown via web_scrape."""
     return _rpc("web_scrape", {"url": url})
 
-
 def system_status() -> Any:
     """Live system status (read)."""
     return _rpc("system_status", {})
 
-
 def recall(scope: str = "global", limit: int = 30) -> Any:
     """Read durable agent memory (recall verb)."""
     return _rpc("recall", {"scope": scope, "limit": limit})
-
 
 def json(obj: Any) -> str:
     """Serialise the snippet's FINAL filtered result. The Code Mode convention is

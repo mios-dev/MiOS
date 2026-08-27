@@ -9,14 +9,12 @@ import mios_embed_backfill as bf
 
 _fails = 0
 
-
 def check(name: str, cond: bool, detail: str = "") -> None:
     global _fails
     tag = "PASS" if cond else "FAIL"
     if not cond:
         _fails += 1
     print(f"[{tag}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_needs_reembed():
     cur = "nomic-768-v1"
@@ -31,7 +29,6 @@ def t_needs_reembed():
     check("whitespace-insensitive version compare",
           bf.needs_reembed(True, "  nomic-768-v1 ", cur) is False)
 
-
 def t_select_sql():
     sql, params = bf.select_candidates_sql("knowledge", "v2", limit=100)
     check("select: targets the table", "FROM knowledge" in sql)
@@ -43,14 +40,12 @@ def t_select_sql():
     _, p2 = bf.select_candidates_sql("agent_memory", "v2", limit=0)
     check("select: limit floored to >=1", p2["lim"] == 1)
 
-
 def t_stamp_sql():
     sql = bf.stamp_version_sql("knowledge")
     check("stamp: UPDATE the table", sql.startswith("UPDATE knowledge"))
     check("stamp: writes emb+model+version", all(
         s in sql for s in ("emb = %(emb)s", "emb_model = %(model)s", "emb_version = %(ver)s")))
     check("stamp: keyed by id", "WHERE id = %(id)s" in sql)
-
 
 def t_batches():
     check("batch: splits into chunks", bf.plan_batches(list(range(10)), 4) ==
@@ -59,13 +54,11 @@ def t_batches():
     check("batch: size floored to >=1", len(bf.plan_batches([1, 2, 3], 0)) == 3)
     check("batch: single batch when small", bf.plan_batches([1, 2], 50) == [[1, 2]])
 
-
 def t_summary():
     s = bf.summarize(125, 50)
     check("summary: candidate count", s["candidates"] == 125)
     check("summary: batch count (ceil)", s["batches"] == 3, f"{s}")
     check("summary: zero candidates -> 0 batches", bf.summarize(0, 50)["batches"] == 0)
-
 
 def main() -> int:
     t_needs_reembed()
@@ -75,7 +68,6 @@ def main() -> int:
     t_summary()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

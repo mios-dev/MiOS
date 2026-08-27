@@ -15,13 +15,11 @@ import sys
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _load_tester():
     here = os.path.dirname(os.path.abspath(__file__))
@@ -33,7 +31,6 @@ def _load_tester():
     loader.exec_module(mod)
     return mod
 
-
 def test_build_message(T):
     m = T.build_message("hello", "ctx-1", "mid-1")
     check("message has user role", m["role"] == "user")
@@ -43,7 +40,6 @@ def test_build_message(T):
     check("message carries messageId", m.get("messageId") == "mid-1")
     m2 = T.build_message("x", "", "mid-2")
     check("absent contextId omitted (not empty-string)", "contextId" not in m2)
-
 
 def test_extract_artifact_text(T):
     task_art = {"artifacts": [{"parts": [{"kind": "text", "text": "the answer"}]}]}
@@ -55,7 +51,6 @@ def test_extract_artifact_text(T):
     check("falls back to last agent history text",
           T.extract_artifact_text(task_hist) == "fallback reply")
     check("empty task -> empty string", T.extract_artifact_text({}) == "")
-
 
 def test_classify_task(T):
     good = {"id": "t1", "contextId": "c1",
@@ -76,7 +71,6 @@ def test_classify_task(T):
     v3 = T.classify_task(no_art)
     check("completed but artifact-less flagged", v3["has_artifact"] is False)
 
-
 def main():
     T = _load_tester()
     test_build_message(T)
@@ -84,7 +78,6 @@ def main():
     test_classify_task(T)
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

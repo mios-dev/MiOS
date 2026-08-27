@@ -20,12 +20,10 @@ from mios_config import _toml_section
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 MCP_PROTOCOL_VERSION = str(
     os.environ.get("MIOS_MCP_PROTOCOL_VERSION")
     or (_toml_section("mcp") or {}).get("protocol_version")
     or "2025-11-25").strip()
-
 
 _MCP_SANDBOX_CFG = (_toml_section("security") or {}).get("mcp_sandbox") or {}
 if isinstance(_MCP_SANDBOX_CFG, str):
@@ -36,17 +34,14 @@ MCP_SANDBOX_ENABLE = (
     .strip().lower() not in {"false", "0", "no", "off", ""})
 MCP_SANDBOX_GATEKEEPER = "/usr/libexec/mios/mcp-server-runner"
 
-
 _get_client = None
 _MCP_CLIENT_TOOLS: dict = {}      # injected by reference (server-resident)
 _MCP_CLIENT_LOCK = None           # injected (server-resident asyncio.Lock)
 _mcp_embed_new_tools = None       # injected (mios_toolsearch._mcp_embed_new_tools)
 
-
 def _invalidate_worker_cache() -> None:
     """Default no-op until server injects its _WORKER_TOOLS_FULL_CACHE invalidator."""
     return None
-
 
 def configure(*, get_client=None, mcp_client_tools=None, mcp_client_lock=None,
               mcp_embed_new_tools=None, invalidate_worker_cache=None) -> None:
@@ -66,7 +61,6 @@ def configure(*, get_client=None, mcp_client_tools=None, mcp_client_lock=None,
     if invalidate_worker_cache is not None:
         _invalidate_worker_cache = invalidate_worker_cache
 
-
 _MCP_REGISTRY_PATHS = [
     "/usr/share/mios/ai/v1/mcp.json",                               # vendor
     "/etc/mios/ai/v1/mcp.json",                                     # host
@@ -75,7 +69,6 @@ _MCP_REGISTRY_PATHS = [
 _MCP_CLIENT_SERVERS: dict = {}    # sid -> {status, protocolVersion, tools_count, …}
 _MCP_STDIO_CLIENTS: dict = {}     # sid -> _McpStdioClient (long-lived subprocess)
 _MCP_ENV_RE = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
-
 
 def _mcp_load_registry() -> list:
     """Layered registry read: vendor < /etc < user. Later overlays REPLACE
@@ -96,7 +89,6 @@ def _mcp_load_registry() -> list:
                 by_id[sid] = s
     return list(by_id.values())
 
-
 def _mcp_render_headers(h: dict) -> dict:
     """Expand ${ENV_VAR} placeholders (e.g. for Bearer tokens stored in env)."""
     out: dict = {}
@@ -106,7 +98,6 @@ def _mcp_render_headers(h: dict) -> dict:
             s = s.replace("${" + var + "}", os.environ.get(var, ""))
         out[k] = s
     return out
-
 
 async def _mcp_http_rpc(url: str, headers: dict, method: str,
                        params: Optional[dict] = None, rid: int = 1,
@@ -142,7 +133,6 @@ async def _mcp_http_rpc(url: str, headers: dict, method: str,
         return r.json()
     except (json.JSONDecodeError, ValueError):
         return {"error": {"code": -32700, "message": "non-JSON response"}}
-
 
 class _McpStdioClient:
 
@@ -316,7 +306,6 @@ class _McpStdioClient:
         except Exception:
             pass
 
-
 async def _mcp_probe_stdio(cfg: dict, state: dict, sid: str) -> None:
     """initialize + tools/list an stdio (subprocess) MCP server; register its
     tools. Mirrors the http probe; fail-open (errors land in state, never raise)."""
@@ -374,7 +363,6 @@ async def _mcp_probe_stdio(cfg: dict, state: dict, sid: str) -> None:
     await _mcp_embed_new_tools()                 # P4: make this server's tools selectable
     log.info("mcp client(stdio): %s ready (%d tools, protocol %s)",
              sid, state["tools_count"], state["protocolVersion"])
-
 
 async def _mcp_probe_server(cfg: dict) -> None:
     """initialize + tools/list ONE MCP server; register its tools in the
@@ -460,7 +448,6 @@ async def _mcp_probe_server(cfg: dict) -> None:
     log.info("mcp client: %s ready (%d tools, protocol %s)",
              sid, state["tools_count"], state["protocolVersion"])
 
-
 async def _mcp_client_startup() -> None:
     """Read the registry, probe every enabled server concurrently. Errors per
     server are captured in state; total startup never blocks on a slow peer."""
@@ -475,7 +462,6 @@ async def _mcp_client_startup() -> None:
     log.info("mcp client: probing %d external server(s)", len(servers))
     await asyncio.gather(*(_mcp_probe_server(s) for s in servers),
                          return_exceptions=True)
-
 
 async def _mcp_call_tool(key: str, args: dict) -> dict:
     """Forward a tools/call to the MCP server that owns this namespaced tool."""
@@ -506,8 +492,6 @@ async def _mcp_call_tool(key: str, args: dict) -> dict:
                 "tool": key}
     return resp.get("result") or {}
 
-
-
 async def mcp_clients_logic() -> JSONResponse:
     """Inspect the consumer-side MCP client. Every external server's status +
     tools_count + protocolVersion -- the proof the registry was read and
@@ -517,7 +501,6 @@ async def mcp_clients_logic() -> JSONResponse:
         total = len(_MCP_CLIENT_TOOLS)
     return JSONResponse({"object": "mios.mcp.clients",
                          "servers": servers, "tools_total": total})
-
 
 async def mcp_tools_list_logic() -> JSONResponse:
     """List every external MCP tool discovered, namespaced 'mcp.<server>.<tool>'."""
@@ -529,7 +512,6 @@ async def mcp_tools_list_logic() -> JSONResponse:
             for k, v in _MCP_CLIENT_TOOLS.items()
         ]
     return JSONResponse({"object": "mios.mcp.tools", "tools": tools})
-
 
 async def mcp_dispatch_logic(request: "Request") -> JSONResponse:
     """Forward a tools/call to the external MCP server that owns the tool.
@@ -544,9 +526,7 @@ async def mcp_dispatch_logic(request: "Request") -> JSONResponse:
         return JSONResponse({"error": "missing 'tool'"}, status_code=400)
     return JSONResponse(await _mcp_call_tool(tool, args))
 
-
 mcp_router = APIRouter()
-
 
 @mcp_router.get("/v1/mcp/clients")
 async def mcp_clients() -> JSONResponse:
@@ -555,13 +535,11 @@ async def mcp_clients() -> JSONResponse:
     servers were initialized correctly. Calls mcp_clients_logic (same module)."""
     return await mcp_clients_logic()
 
-
 @mcp_router.get("/v1/mcp/tools")
 async def mcp_tools_list() -> JSONResponse:
     """List every external MCP tool discovered, namespaced 'mcp.<server>.<tool>'.
     Calls mcp_tools_list_logic (same module)."""
     return await mcp_tools_list_logic()
-
 
 @mcp_router.post("/v1/mcp/dispatch")
 async def mcp_dispatch(request: Request) -> JSONResponse:

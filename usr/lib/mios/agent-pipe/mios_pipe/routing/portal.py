@@ -26,13 +26,11 @@ from mios_pipe.kernel.config import PROBE_VERIFY_TLS as _PROBE_VERIFY_TLS
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _probe_auth_headers = None
 _agent_lane = None
 _AGENT_REGISTRY = None
 _sanitize_tool_text = None
 websockets = None
-
 
 def configure(*, probe_auth_headers=None, agent_lane=None,
               agent_registry=None, sanitize_tool_text=None,
@@ -49,10 +47,8 @@ def configure(*, probe_auth_headers=None, agent_lane=None,
     if websockets is not None:
         g["websockets"] = websockets
 
-
 PORTAL_PUBLIC_HOST = (os.environ.get("MIOS_PUBLIC_HOST", "").strip()
                       or socket.gethostname() or "localhost")
-
 
 def _portal_toml() -> dict:
     try:
@@ -61,13 +57,10 @@ def _portal_toml() -> dict:
     except Exception:
         return {}
 
-
 _PORTAL_TOML = _portal_toml()
-
 
 def _pcfg(section: str, key: str, default=None):
     return (_PORTAL_TOML.get(section) or {}).get(key, default)
-
 
 PORTAL_PASSWORD = (os.environ.get("MIOS_PORTAL_PASSWORD")
                    or _pcfg("portal", "password")
@@ -90,7 +83,6 @@ _PORTAL_SECRET = (_portal_secret_cfg.encode("utf-8") if _portal_secret_cfg
                   else hashlib.sha256(b"mios-portal-session|"
                                       + PORTAL_PASSWORD.encode("utf-8")).digest())
 
-
 def _portal_make_token(user: str) -> str:
     """Stateless signed session token: b64(user|exp).hmac(secret)."""
     exp = int(time.time()) + PORTAL_SESSION_TTL
@@ -99,7 +91,6 @@ def _portal_make_token(user: str) -> str:
     sig = hmac.new(_PORTAL_SECRET, body.encode("ascii"),
                    hashlib.sha256).hexdigest()[:32]
     return f"{body}.{sig}"
-
 
 def _portal_token_ok(tok: Optional[str]) -> bool:
     if not tok or "." not in tok:
@@ -117,7 +108,6 @@ def _portal_token_ok(tok: Optional[str]) -> bool:
     except Exception:
         return False
 
-
 def _portal_authed(request: Request) -> bool:
     if not PORTAL_REQUIRE_LOGIN:
         return True
@@ -127,7 +117,6 @@ def _portal_authed(request: Request) -> bool:
     if auth.lower().startswith("bearer "):
         return _portal_token_ok(auth[7:].strip())
     return False
-
 
 def _portal_unit_hidden(quadlet_file: str) -> bool:
     base = os.path.basename(quadlet_file)
@@ -145,7 +134,6 @@ def _portal_unit_hidden(quadlet_file: str) -> bool:
         return load == "masked" or cond == "no"
     except Exception:  # noqa: BLE001 -- never hide a service on a query error
         return False
-
 
 def _discover_portal_services() -> list[dict]:
     """Scan the Quadlet *.container files for io.podman_desktop.openInBrowser
@@ -205,9 +193,7 @@ def _discover_portal_services() -> list[dict]:
     svcs.sort(key=lambda s: (s.get("kind") != "terminal", s["name"].lower()))
     return svcs
 
-
 _PORTAL_SERVICES = _discover_portal_services()
-
 
 def _host_stats() -> dict:
     """Cheap host telemetry from /proc (no psutil dependency)."""
@@ -238,10 +224,8 @@ def _host_stats() -> dict:
         pass
     return out
 
-
 _PODMAN_PS_SNAPSHOT = os.environ.get(
     "MIOS_PODMAN_PS_SNAPSHOT", "/var/lib/mios/podman-ps.json")
-
 
 async def _podman_ps() -> dict:
     data = None
@@ -276,9 +260,6 @@ async def _podman_ps() -> dict:
             if hp:
                 by_port[int(hp)] = info
     return {"port": by_port, "name": by_name}
-
-
-
 
 _PORTAL_HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
@@ -854,7 +835,6 @@ if (initPath === "/configure") {
 tick();arm();tickConfig();
 </script></body></html>"""
 
-
 def _portal_theme_css() -> str:
     try:
         import mios_toml
@@ -875,7 +855,6 @@ def _portal_theme_css() -> str:
                     if isinstance(v, str) and v.startswith("#"))
     return f"<style>:root{{{decl}}}</style>" if decl else ""
 
-
 _PORTAL_ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
                 '<rect width="512" height="512" rx="104" fill="#282262"/>'
                 '<path d="M48 372 q68 -86 136 0 t136 0 t144 0" stroke="#F35C15"'
@@ -884,7 +863,6 @@ _PORTAL_ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
                 ' font-size="208" font-weight="700" fill="#E7DFD3"'
                 ' text-anchor="middle">Mi</text></svg>')
 
-
 def _read_portal_asset(name: str) -> bytes:
     """Read a baked portal asset (PNG icons) from /usr/share/mios/portal."""
     try:
@@ -892,7 +870,6 @@ def _read_portal_asset(name: str) -> bytes:
             return f.read()
     except OSError:
         return b""
-
 
 _PORTAL_ICON_192 = _read_portal_asset("icon-192.png")
 _PORTAL_ICON_512 = _read_portal_asset("icon-512.png")
@@ -934,7 +911,6 @@ _PORTAL_SW = (
     "new URL(req.url).origin===location.origin){var cp=r.clone();"
     "caches.open(C).then(function(c){c.put(req,cp);});}return r;})"
     ".catch(function(){return caches.match(req);}));});\n")
-
 
 _PORTAL_LOGIN_HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
@@ -996,7 +972,6 @@ if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js",{upda
 </script>
 </body></html>"""
 
-
 _IOSTEST_HTML = r"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -1052,7 +1027,6 @@ header b{color:#F35C15}
 <div class="gap">&#8595; end &#8595;</div>
 </body></html>"""
 
-
 async def _portal_swarm_probe(name: str, cfg: dict, client) -> dict:
     ep = (cfg.get("endpoint") or "").rstrip("/")
     t0 = time.time()
@@ -1074,7 +1048,6 @@ async def _portal_swarm_probe(name: str, cfg: dict, client) -> dict:
             "fanout": bool(cfg.get("fanout", True)),
             "health_gate": bool(cfg.get("health_gate")),
             "strengths": cfg.get("strengths") or []}
-
 
 async def portal_stats_logic(request: Request) -> JSONResponse:
     """Live server-side health of every discovered MiOS service + host
@@ -1108,7 +1081,6 @@ async def portal_stats_logic(request: Request) -> JSONResponse:
             *[_check(s, client) for s in _PORTAL_SERVICES])
     return JSONResponse({"host": _host_stats(), "services": services,
                          "ts": int(time.time())})
-
 
 async def portal_service_detail_logic(port: int, request: Request) -> JSONResponse:
     """On-demand detail for one service (clicked in the dashboard): live
@@ -1151,7 +1123,6 @@ async def portal_service_detail_logic(port: int, request: Request) -> JSONRespon
         "container": cname, "state": cinfo.get("state", ""),
         "image": cinfo.get("image", ""), "logs": logs})
 
-
 async def portal_swarm_logic(request: Request) -> JSONResponse:
     """Live SWARM roster ('emitters for all nodes/
     endpoints to confirm live the nodes/models/endpoints'): every registered
@@ -1169,7 +1140,6 @@ async def portal_swarm_logic(request: Request) -> JSONResponse:
     up = sum(1 for a in agents if a["reachable"])
     return JSONResponse({"agents": agents, "up": up,
                          "total": len(agents), "ts": int(time.time())})
-
 
 async def portal_term_ws_logic(ws: WebSocket, port: int):
     """Same-origin WebSocket bridge to a loopback ttyd. The operator's device
@@ -1233,7 +1203,6 @@ async def portal_term_ws_logic(ws: WebSocket, port: int):
 
     await asyncio.gather(client_to_ttyd(), ttyd_to_client())
 
-
 async def portal_login_page_logic(request: Request, e: int = 0):
     if _portal_authed(request):
         return RedirectResponse("/", status_code=303)
@@ -1242,7 +1211,6 @@ async def portal_login_page_logic(request: Request, e: int = 0):
     html = _PORTAL_LOGIN_HTML.replace("{ERR}", err)
     return HTMLResponse(html.replace("</head>", _portal_theme_css() + "</head>"),
                         headers={"Cache-Control": "no-store, must-revalidate"})
-
 
 async def portal_login_logic(request: Request):
     from urllib.parse import parse_qs
@@ -1263,7 +1231,6 @@ async def portal_login_logic(request: Request):
                     samesite="lax", path="/")
     return resp
 
-
 async def portal_page_logic(request: Request):
     if not _portal_authed(request):
         return RedirectResponse("/login", status_code=303)
@@ -1280,7 +1247,6 @@ async def portal_page_logic(request: Request):
         .replace("</head>", _portal_theme_css() + "</head>")
         .replace("</head>", _port_inject, 1),
         headers={"Cache-Control": "no-store, must-revalidate"})
-
 
 async def portal_configure_page_logic(request: Request):
     """Serve the MiOS Configurator as a unified portal sub-page (auth-gated).
@@ -1303,9 +1269,7 @@ async def portal_configure_page_logic(request: Request):
     html = html.replace("</head>", _portal_theme_css() + "</head>", 1)
     return HTMLResponse(html, headers={"Cache-Control": "no-store, must-revalidate"})
 
-
 portal_router = APIRouter()
-
 
 @portal_router.get("/portal/stats")
 async def portal_stats(request: Request) -> JSONResponse:
@@ -1314,13 +1278,11 @@ async def portal_stats(request: Request) -> JSONResponse:
     portal_stats_logic (same module)."""
     return await portal_stats_logic(request)
 
-
 @portal_router.get("/portal/service/{port}")
 async def portal_service_detail(port: int, request: Request) -> JSONResponse:
     """On-demand detail for one clicked service (live status + container state/image
     + recent log lines). Calls portal_service_detail_logic (same module)."""
     return await portal_service_detail_logic(port, request)
-
 
 @portal_router.get("/portal/swarm")
 async def portal_swarm(request: Request) -> JSONResponse:
@@ -1328,11 +1290,9 @@ async def portal_swarm(request: Request) -> JSONResponse:
     the model(s) it actually serves. Calls portal_swarm_logic (same module)."""
     return await portal_swarm_logic(request)
 
-
 @portal_router.get("/portal/icon.svg")
 async def portal_icon() -> Response:
     return Response(_PORTAL_ICON, media_type="image/svg+xml")
-
 
 @portal_router.get("/portal/icon-192.png")
 async def portal_icon_192() -> Response:
@@ -1340,35 +1300,29 @@ async def portal_icon_192() -> Response:
         return Response(_PORTAL_ICON, media_type="image/svg+xml")
     return Response(_PORTAL_ICON_192, media_type="image/png")
 
-
 @portal_router.get("/portal/icon-512.png")
 async def portal_icon_512() -> Response:
     if not _PORTAL_ICON_512:
         return Response(_PORTAL_ICON, media_type="image/svg+xml")
     return Response(_PORTAL_ICON_512, media_type="image/png")
 
-
 @portal_router.get("/portal/manifest.webmanifest")
 async def portal_manifest() -> Response:
     return Response(_PORTAL_MANIFEST, media_type="application/manifest+json")
-
 
 @portal_router.get("/portal/xterm.js")
 async def portal_xterm_js() -> Response:
     return Response(_read_portal_asset("xterm.js"),
                     media_type="application/javascript")
 
-
 @portal_router.get("/portal/xterm.css")
 async def portal_xterm_css() -> Response:
     return Response(_read_portal_asset("xterm.css"), media_type="text/css")
-
 
 @portal_router.get("/portal/addon-fit.js")
 async def portal_addon_fit() -> Response:
     return Response(_read_portal_asset("addon-fit.js"),
                     media_type="application/javascript")
-
 
 @portal_router.websocket("/portal/term/{port}")
 async def portal_term_ws(ws: WebSocket, port: int):
@@ -1376,13 +1330,11 @@ async def portal_term_ws(ws: WebSocket, port: int):
     portal_term_ws_logic (same module)."""
     return await portal_term_ws_logic(ws, port)
 
-
 @portal_router.post("/portal/login")
 async def portal_login(request: Request):
     """Portal login POST -- validate the password + set the signed session cookie.
     Calls portal_login_logic (same module)."""
     return await portal_login_logic(request)
-
 
 @portal_router.get("/portal/logout")
 async def portal_logout():
@@ -1390,29 +1342,24 @@ async def portal_logout():
     resp.delete_cookie(PORTAL_COOKIE, path="/")
     return resp
 
-
 @portal_router.get("/sw.js")
 async def portal_sw() -> Response:
     return Response(_PORTAL_SW, media_type="application/javascript")
-
 
 @portal_router.get("/login", response_class=HTMLResponse)
 async def portal_login_page(request: Request, e: int = 0):
     """Portal login page. Calls portal_login_page_logic (same module)."""
     return await portal_login_page_logic(request, e)
 
-
 @portal_router.get("/iostest", response_class=HTMLResponse)
 async def iostest_page():
     return HTMLResponse(_IOSTEST_HTML,
                         headers={"Cache-Control": "no-store, must-revalidate"})
 
-
 @portal_router.get("/portal/configurator", response_class=HTMLResponse)
 async def portal_configurator_iframe(request: Request):
     """Serve the raw mios.html from disk to be loaded inside the portal iframe."""
     return await portal_configure_page_logic(request)
-
 
 def run_db_reseed_bg():
     import tempfile
@@ -1447,7 +1394,6 @@ def run_db_reseed_bg():
             except Exception:
                 pass
 
-
 @portal_router.get("/portal/config")
 async def get_portal_config(request: Request):
     """GET /portal/config -> return the live layered mios.toml as text/plain."""
@@ -1467,7 +1413,6 @@ async def get_portal_config(request: Request):
     except Exception as e:
         log.error("Failed to load/serialize layered config: %s", e)
         return Response(content=f"Error: {e}", status_code=500, media_type="text/plain")
-
 
 @portal_router.post("/portal/config")
 async def post_portal_config(request: Request, background_tasks: BackgroundTasks):
@@ -1518,10 +1463,8 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
         log.error("Failed to save config: %s", e)
         return JSONResponse({"error": str(e)}, status_code=500)
 
-
 _THEME_RENDER_BIN = os.environ.get(
     "MIOS_THEME_RENDER", "/usr/libexec/mios/mios-dotfiles-render")
-
 
 def _portal_user_toml_path() -> str:
     """The user-layer override path, resolved exactly like mios_toml's USER
@@ -1532,7 +1475,6 @@ def _portal_user_toml_path() -> str:
                 os.environ.get("XDG_CONFIG_HOME",
                                os.path.expanduser("~/.config")),
                 "mios", "mios.toml"))
-
 
 def _portal_theme_check() -> dict:
     """Run ``mios-theme-render check`` and report the projection state WITHOUT
@@ -1553,7 +1495,6 @@ def _portal_theme_check() -> dict:
             break
     return {"state": "PASS" if proc.returncode == 0 else "FAIL",
             "exit": proc.returncode, "summary": summary}
-
 
 def _portal_config_status() -> dict:
     merged: dict = {}
@@ -1583,7 +1524,6 @@ def _portal_config_status() -> dict:
             "theme_exit": theme.get("exit"),
             "theme_summary": theme.get("summary", "")}
 
-
 @portal_router.get("/portal/config/status")
 async def get_portal_config_status(request: Request):
     if not _portal_authed(request):
@@ -1595,13 +1535,11 @@ async def get_portal_config_status(request: Request):
         log.warning("portal config status unavailable: %s", e)
         return JSONResponse({"error": "unavailable"})
 
-
 @portal_router.get("/configure", response_class=HTMLResponse)
 async def portal_configure_page(request: Request):
     """MiOS Settings — the configurator as a unified portal sub-page.
     Serves the unified Portal shell HTML so it boots as settings view client-side."""
     return await portal_page_logic(request)
-
 
 @portal_router.get("/", response_class=HTMLResponse)
 async def portal_page(request: Request):

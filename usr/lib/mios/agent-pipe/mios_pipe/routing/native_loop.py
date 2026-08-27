@@ -30,7 +30,6 @@ from mios_pipe.routing import toolexec as _toolexec
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 def _is_punt(_out: str) -> bool:
     t = (_out or "").strip().lower()
     if not t:
@@ -48,11 +47,8 @@ def _is_punt(_out: str) -> bool:
     _facty = bool(re.search(r"\[\d+\]|\b20\d\d\b|\b\d{3,}\b", t)) or len(t) > 600
     return not _facty
 
-
-
 _ANTIFAB_ENABLE = os.environ.get(
     "MIOS_ANTIFAB_ENABLE", "true").strip().lower() not in {"false", "0", "no", "off"}
-
 
 def _antifab_min_entities() -> int:
     """Minimum candidate entities a section must carry before its grounding is
@@ -63,7 +59,6 @@ def _antifab_min_entities() -> int:
     except ValueError:  # malformed override -> fall back to the degrade-open default
         return 3
 
-
 def _antifab_ground_min() -> float:
     """Minimum grounded fraction a judged section must clear to survive; below it
     the section's named entities are mostly absent from every fetched source ->
@@ -73,11 +68,9 @@ def _antifab_ground_min() -> float:
     except ValueError:
         return 0.34
 
-
 _RE_EVIDENCE_SENTINEL = re.compile(r'🤝[^\n]*output.*?(?=\n\n|\Z)', re.DOTALL)
 _RE_SUCCESS_JSON = re.compile(
     r'\{[^{}]*"success"\s*:\s*true[^{}]*"tool"\s*:\s*"[^"]+"[^{}]*\}', re.DOTALL)
-
 
 def _strip_synth_evidence(ans: str) -> str:
     """FAB-01 (synthesized answer): strip EVERY executor-evidence block. Verb
@@ -89,14 +82,12 @@ def _strip_synth_evidence(ans: str) -> str:
     _san = _RE_SUCCESS_JSON.sub("", _san)
     return _san
 
-
 def _real_tool_output(m2) -> dict:
     """verb-name -> REAL captured output, from the secondary loop's role:"tool"
     messages (the in-scope ground truth for what each verb actually returned)."""
     return {str(_mm.get("name")): str(_mm.get("content") or "")
             for _mm in (m2 or [])
             if isinstance(_mm, dict) and _mm.get("role") == "tool"}
-
 
 def _keep_matching_success_json(ans: str, real_out: dict) -> str:
     """FAB-01 (raw-evidence path): the answer IS surfaced executor evidence, so a
@@ -109,7 +100,6 @@ def _keep_matching_success_json(ans: str, real_out: dict) -> str:
         _vn = _mv.group(1) if _mv else ""
         return _blk if (_vn and _blk.strip() in str(real_out.get(_vn) or "")) else ""
     return _RE_SUCCESS_JSON.sub(_keep, ans)
-
 
 def _guard_fabricated_execution(ans, *, surfaced_raw_evidence, m2, enable):
     """FAB-01 guard body (extracted). SYNTHESIZED answer -> strip all evidence
@@ -134,11 +124,9 @@ def _guard_fabricated_execution(ans, *, surfaced_raw_evidence, m2, enable):
     except Exception:  # noqa: BLE001 -- degrade-open
         return ans
 
-
 def _norm(s: str) -> str:
     """Casefold + reduce to word chars for a language-neutral substring test."""
     return re.sub(r"\W+", " ", str(s or ""), flags=re.UNICODE).casefold()
-
 
 def _entity_tokens(text: str) -> set:
     """Structural, UNICODE-aware candidate entities (Law 7: NO English word list).
@@ -157,7 +145,6 @@ def _entity_tokens(text: str) -> set:
         if _w[:1].isupper() or _w.isupper():                         # proper-noun-ish
             ents.add(_w)
     return ents
-
 
 def _ground_sections(ans, corpus, min_entities, ground_min):
     _nc = _norm(corpus)
@@ -185,7 +172,6 @@ def _ground_sections(ans, corpus, min_entities, ground_min):
         return ans, False
     return "\n\n".join(_kept).strip(), True
 
-
 def _guard_entity_grounding(ans, corpus, *, gate, enable, min_entities, ground_min,
                             note):
     """FAB-02 guard body (extracted). Degrade-OPEN: disabled / ungated / empty
@@ -203,8 +189,6 @@ def _guard_entity_grounding(ans, corpus, *, gate, enable, min_entities, ground_m
         return ans
     except Exception:  # noqa: BLE001 -- degrade-open
         return ans
-
-
 
 dispatch_mios_verb = None
 _usage_estimate = None
@@ -269,7 +253,6 @@ NATIVE_LOOP_STREAM_DELAY_MS = 0
 _ROUTING_DOMAINS = {}
 _DEBUG_ENABLE = False
 
-
 _INJECTED = frozenset((
     "_DEBUG_ENABLE",
     "dispatch_mios_verb", "_usage_estimate", "_identity_answer", "_agent_contract",
@@ -294,13 +277,11 @@ _INJECTED = frozenset((
     "_ROUTING_DOMAINS",
 ))
 
-
 def configure(**deps) -> None:
     g = globals()
     for _k, _v in deps.items():
         if _k in _INJECTED:
             g[_k] = _v
-
 
 async def _respond_native_loop_direct(
     refined: Optional[dict], *, streaming: bool, chat_id: str, model: str,
@@ -929,7 +910,6 @@ async def _respond_native_loop_direct(
         "mios_sources": _sources_metadata(_refs) if _refs else [],
     })
 
-
 async def _respond_local_state(
     refined: Optional[dict], *, streaming: bool, chat_id: str, model: str,
     session_id: Optional[str], last_user_text: str, persona_system: str = "",
@@ -1041,7 +1021,6 @@ async def _respond_local_state(
         "usage": _usage_estimate(last_user_text, answer),  # Tier-0 OpenAI conformance
     })
 
-
 async def _formulate_compute_snippet(user_text: str) -> str:
     """Have the micro-LLM EXTRACT the calculation the user is asking for as a short,
     self-contained Python 3 snippet that PRINTS the result (mirrors _formulate_web_query).
@@ -1075,7 +1054,6 @@ async def _formulate_compute_snippet(user_text: str) -> str:
     except Exception as e:  # noqa: BLE001 -- degrade-open (-> no compute prefetch)
         log.debug("compute-snippet formulation failed (-> none): %s", e)
         return ""
-
 
 async def _formulate_web_query(user_text: str, local_grounding: str) -> str:
     """For a HYBRID local+web turn, rewrite a vague SELF-referential question ("the
@@ -1129,7 +1107,6 @@ async def _formulate_web_query(user_text: str, local_grounding: str) -> str:
     except Exception as e:  # noqa: BLE001 -- degrade-open (-> raw query)
         log.debug("web-query formulation failed (-> raw query): %s", e)
         return user_text
-
 
 async def _format_local_state(question: str, grounding: str,
                               persona_system: str = "") -> Optional[str]:

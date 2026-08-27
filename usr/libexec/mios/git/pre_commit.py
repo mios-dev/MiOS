@@ -38,7 +38,6 @@ SECRET_PATTERNS = [
     re.compile(r"-----BEGIN (?:RSA|OPENSSH|EC) PRIVATE KEY-----"),
 ]
 
-
 @dataclass
 class LintFinding:
     file_path: str
@@ -46,7 +45,6 @@ class LintFinding:
     rule: str
     message: str
     severity: str = "error"
-
 
 @dataclass
 class PreCommitResult:
@@ -56,7 +54,6 @@ class PreCommitResult:
     formatted_files: List[str] = field(default_factory=list)
     duration_ms: float = 0.0
     mock: bool = False
-
 
 class PreCommitLinter:
     """Validates staged files and enforces repo architectural constraints."""
@@ -198,7 +195,6 @@ python3 "${ROOT}/usr/libexec/mios/git/pre_commit.py" --check
         except Exception:
             return False
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Git Pre-Commit Linter & Hook Manager")
     parser.add_argument("--check", action="store_true", help="Run pre-commit checks over staged files")
@@ -257,7 +253,6 @@ def main() -> int:
                 print(f"  [{f.severity.upper()}] {f.file_path}:{f.line} ({f.rule}) - {f.message}", file=sys.stderr)
 
     return 0 if res_obj.status == "pass" else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

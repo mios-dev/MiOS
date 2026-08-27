@@ -31,10 +31,8 @@ try:
 except ImportError:
     mios_toml = None
 
-
 DEFAULT_THEME_PATH = "/etc/btop/themes/mios.theme"
 HEX_COLOR_REGEX = re.compile(r"^#([0-9a-fA-F]{6})$")
-
 
 class BtopThemeRenderer:
     """Renders and validates btop monitor themes mapped from SSOT palette colors."""
@@ -260,7 +258,6 @@ class BtopThemeRenderer:
                 "error": str(e),
             }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Btop System Monitor Theme Renderer (T-461)"
@@ -311,7 +308,6 @@ def main() -> int:
         else:
             print(f"[btop_theme] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

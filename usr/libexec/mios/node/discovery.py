@@ -18,12 +18,10 @@ import secrets
 import time
 from typing import Callable, Dict, List, Optional, Tuple
 
-
 class PeerHealthStatus(str, enum.Enum):
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     DEAD = "dead"
-
 
 class EvictionEvent:
     """Represents a peer node eviction event from the cluster routing table."""
@@ -56,7 +54,6 @@ class EvictionEvent:
             f"EvictionEvent(node_id={self.node_id}, reason='{self.reason}', "
             f"strikes={self.missed_strikes}, elapsed={self.elapsed_secs:.1f}s)"
         )
-
 
 class ClusterPeer:
     """Peer entry in the active cluster routing table."""
@@ -103,7 +100,6 @@ class ClusterPeer:
 
     def __repr__(self) -> str:
         return f"ClusterPeer(node_id={self.node_id}, addr='{self.addr}:{self.port}', status={self.status.value}, strikes={self.missed_strikes})"
-
 
 class HeartbeatMonitor:
     """Tracks peer health and executes 3-strike dead peer routing table evictions (T-387 / AGY-1985)."""
@@ -288,7 +284,6 @@ class HeartbeatMonitor:
     def peer_count(self) -> int:
         return len(self.routing_table)
 
-
 # Backward-compatible Zero-Conf Classes
 class NodeAdvertisement:
     """Zero-conf node advertisement packet for mDNS / local broadcast."""
@@ -334,7 +329,6 @@ class NodeAdvertisement:
         adv.announced_at = d.get("announced_at", time.time())
         return adv
 
-
 class NodeHandshake:
     """Cryptographic challenge-response mutual handshake validator."""
 
@@ -350,7 +344,6 @@ class NodeHandshake:
     def verify_response(challenge: bytes, response: bytes, secret_key: bytes) -> bool:
         expected = hmac.new(secret_key, challenge, hashlib.sha256).digest()
         return hmac.compare_digest(expected, response)
-
 
 class MeshDiscoveryRegistry:
     """Discovers, tracks, and manages peer edge nodes on the local mesh network."""

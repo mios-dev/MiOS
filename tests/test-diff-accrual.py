@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load diff-accrual module from {_DIFF_TOOL}")
 
-
 class TestDiffAccrual(unittest.TestCase):
     """Verifies diff snapshotting, risk classification, secret redaction, and accrual ledger output."""
 
@@ -135,12 +134,10 @@ class TestDiffAccrual(unittest.TestCase):
             self.assertIn("var/lib/mios/ai/skills/test-skill.md", safe_paths)
             self.assertIn("etc/pam.d/system-auth", high_risk_paths)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestDiffAccrual)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

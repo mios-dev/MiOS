@@ -17,7 +17,6 @@ from mios_a2a_principal import _passport_sign
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _db_read = None
 _db_post = None
 _db_update = None
@@ -27,7 +26,6 @@ dispatch_mios_verb = None
 SKILLS_ENABLED = True
 _SKILLS_EPISODIC_DIR = None
 _SKILLS_EPISODIC_ENABLED = None
-
 
 def configure(*, db_read=None, db_post=None, db_update=None, db_write=None,
               pg_mirror=None, dispatch_verb=None, skills_enabled=None,
@@ -53,7 +51,6 @@ def configure(*, db_read=None, db_post=None, db_update=None, db_write=None,
         _SKILLS_EPISODIC_DIR = skills_episodic_dir
     if skills_episodic_enabled is not None:
         _SKILLS_EPISODIC_ENABLED = skills_episodic_enabled
-
 
 async def _skill_fetch(name: str) -> Optional[dict]:
     """Read one skill row by name. Returns the row dict (with body
@@ -384,9 +381,7 @@ def _mcp_tool_to_openai_tool(key: str, info: dict) -> dict:
         "x-mios-mcp-server": info.get("server_id"),
     }
 
-
 _PARAM_TOKEN_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
-
 
 def _skill_render_args(args: dict, params: dict) -> dict:
     out: dict = {}
@@ -402,12 +397,9 @@ def _skill_render_args(args: dict, params: dict) -> dict:
             out[k] = v
     return out
 
-
 _SKILL_INV_META: dict = {}
 
-
 _PG_ID_PREFIX = "skill_invocation:pg#"
-
 
 def _pg_row_id(inv_id):
     """The postgres row id behind an invocation handle, or None when the handle
@@ -418,7 +410,6 @@ def _pg_row_id(inv_id):
         return int(inv_id[len(_PG_ID_PREFIX):])
     except ValueError:
         return None
-
 
 async def _pg_invocation_open(skill_id, params, session_id, envelope):
     """INSERT the open-time invocation row and return its handle.
@@ -444,7 +435,6 @@ async def _pg_invocation_open(skill_id, params, session_id, envelope):
     rid = row.get("id")
     return f"{_PG_ID_PREFIX}{int(rid)}" if rid is not None else None
 
-
 async def _pg_invocation_close(row_id: int, success: bool) -> None:
     """Stamp ended_at + success on the open-time row. Best-effort."""
     try:
@@ -454,7 +444,6 @@ async def _pg_invocation_close(row_id: int, success: bool) -> None:
             {"ok": bool(success), "id": int(row_id)}, fetch=False)
     except Exception:  # noqa: BLE001
         log.debug("skills: could not close invocation %s", row_id)
-
 
 async def _pg_attribute_tool_call(row_id: int, tool_call_id, step_index) -> None:
     """Record the skill -> tool_call edge the RELATE used to express.
@@ -469,7 +458,6 @@ async def _pg_attribute_tool_call(row_id: int, tool_call_id, step_index) -> None
              "step": int(step_index)}, fetch=False)
     except Exception:  # noqa: BLE001
         log.debug("skills: could not attribute tool_call %s", tool_call_id)
-
 
 async def _skill_invocation_open(skill_id: str,
                                  params: dict,
@@ -507,7 +495,6 @@ async def _skill_invocation_open(skill_id: str,
     _SKILL_INV_META[inv_id] = {"skill": skill_id, "session": session_id}
     return inv_id
 
-
 async def _skill_invocation_close(inv_id: Optional[str],
                                   success: bool) -> None:
     if not inv_id:
@@ -532,7 +519,6 @@ async def _skill_invocation_close(inv_id: Optional[str],
     )
     await _db_post(sql)
 
-
 async def _skill_attribute_tool_call(inv_id: Optional[str],
                                      tool_call_id: Optional[str],
                                      step_index: int) -> None:
@@ -550,7 +536,6 @@ async def _skill_attribute_tool_call(inv_id: Optional[str],
     )
     await _db_post(sql)
 
-
 def _slug_for_skill(query: str) -> str:
     """Stable, filesystem-safe slug from the user query. Length-capped so a
     long prompt doesn't blow past max-filename on tmpfs."""
@@ -558,7 +543,6 @@ def _slug_for_skill(query: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", s)
     s = s.strip("-")
     return s[:60] or "skill"
-
 
 def _render_skill_md(query: str, answer: str,
                      tool_history: Optional[list],
@@ -609,7 +593,6 @@ def _render_skill_md(query: str, answer: str,
          "Treat as prior work, NOT fresh ground truth."),
     ]
     return "\n".join(front) + "\n".join(body) + "\n"
-
 
 def _write_skill_md_fire(*, query: str, answer: str,
                          tool_history: Optional[list] = None,

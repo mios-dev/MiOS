@@ -39,14 +39,12 @@ BLE_HKDF_INFO = b"wifi-provisioning"
 BLE_AEAD_AAD = b"mios-ble-v1"
 BLE_NONCE = b"mios-ble-n01"
 
-
 class BleBootstrapState(IntEnum):
     UNPROVISIONED = 0
     HANDSHAKING = 1
     PROVISIONING = 2
     PROVISIONED = 3
     FAILED = 4
-
 
 @dataclass
 class ProvisioningPayload:
@@ -71,7 +69,6 @@ class ProvisioningPayload:
             timestamp_utc=d.get("timestamp_utc", int(time.time())),
         )
 
-
 class BleAdapter:
     """Interface for Bluetooth Low Energy GATT operations."""
 
@@ -89,7 +86,6 @@ class BleAdapter:
 
     def get_characteristic_value(self, char_uuid: str) -> bytes:
         raise NotImplementedError
-
 
 class MockBleAdapter(BleAdapter):
     """In-memory mock BLE adapter for deterministic automated testing."""
@@ -120,7 +116,6 @@ class MockBleAdapter(BleAdapter):
             if char_uuid not in self._characteristics:
                 raise KeyError(f"Characteristic {char_uuid} not found")
             return self._characteristics[char_uuid]
-
 
 class BleMeshBootstrap:
     """Manages BLE GATT beaconing, X25519 key exchange, and encrypted provisioning."""
@@ -204,7 +199,6 @@ class BleMeshBootstrap:
     def get_credentials(self) -> Optional[ProvisioningPayload]:
         with self._lock:
             return self._credentials
-
 
 def provision_remote_node(
     adapter: BleAdapter,

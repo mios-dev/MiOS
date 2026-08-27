@@ -14,7 +14,6 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-
 class LookingGlassManager:
     """Manages Looking Glass shared memory framebuffer allocation and XML generation."""
 
@@ -62,7 +61,6 @@ class LookingGlassManager:
             },
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Looking Glass B6 Shared Memory & VFIO Configuration Utility.")
     parser.add_argument("--verify", action="store_true", help="Verify IVSHMEM device node and permissions.")
@@ -97,7 +95,6 @@ def main() -> int:
 
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

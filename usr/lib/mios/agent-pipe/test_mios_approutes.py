@@ -19,7 +19,6 @@ _GOLDEN_WS_TOKEN = "WEBSOCKET"   # how the AST projector spells a websocket rout
 _HEAD_METHOD = "HEAD"
 _ROUTE_SEP = " -> "
 
-
 def _is_repo_module(name: str) -> bool:
     """True when a missing module is one THIS repo ships, so its absence is a
     code defect rather than an uninstalled third-party dependency."""
@@ -30,7 +29,6 @@ def _is_repo_module(name: str) -> bool:
     return (head.startswith("mios")
             and (os.path.isdir(os.path.join(here, head))
                  or os.path.isfile(os.path.join(here, head + ".py"))))
-
 
 def _install_websockets_stub():
     """Insert a no-op stand-in for the ONE heavy dependency this gate does not require
@@ -51,7 +49,6 @@ def _install_websockets_stub():
                 "asyncio", "asyncio.client"):
         sys.modules.setdefault("websockets." + sub, types.ModuleType("websockets." + sub))
 
-
 def _repo_root():
     """Repo root = four levels up from this file (usr/lib/mios/agent-pipe/), the SAME
     anchor test_server_import._resolve_toml uses, so the golden and the vendor toml are
@@ -59,14 +56,12 @@ def _repo_root():
     here = os.path.dirname(os.path.abspath(__file__))
     return os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
 
-
 def _golden_path():
     """Canonical committed surface golden. Referencing the canonical golden path mirrors
     test_mios_surface.py's relative-to-__file__ convention -- the golden's location IS
     its single source of truth, so this resolves rather than restates it."""
     return os.path.join(_repo_root(), "usr", "share", "mios", "ai", "v1",
                         "surface.generated.json")
-
 
 def _resolve_mios_toml():
     """Point MIOS_TOML at the real vendor mios.toml before importing server, reusing
@@ -82,7 +77,6 @@ def _resolve_mios_toml():
             os.environ["MIOS_TOML"] = toml
         return
     _resolve_toml()
-
 
 def _app_route_pairs(app, websocket_route_cls):
     """``(method, path)`` for every route the LIVE app serves, minus the FastAPI
@@ -117,7 +111,6 @@ def _app_route_pairs(app, websocket_route_cls):
     traverse(app.routes)
     return pairs
 
-
 def _golden_route_pairs(golden):
     """``(method, path)`` parsed from each ``"{METHOD} {path} -> {handler}"`` golden
     record, normalising the websocket token to _WS_METHOD so it matches the live app.
@@ -131,7 +124,6 @@ def _golden_route_pairs(golden):
             method = _WS_METHOD
         pairs.add((method, path))
     return pairs
-
 
 class TestAppRouteParity(unittest.TestCase):
     """Runtime route-parity gate: the REAL FastAPI app server.py builds must serve
@@ -205,7 +197,6 @@ class TestAppRouteParity(unittest.TestCase):
         self.assertEqual(len(app_pairs), golden.get("counts", {}).get("routes"))
         print(f"[test_mios_approutes] MiOS route parity OK: app={len(app_pairs)} "
               f"golden={len(golden_pairs)} (method+path, real fastapi.FastAPI app)")
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

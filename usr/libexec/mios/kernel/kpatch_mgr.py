@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-kpatch-mgr")
 
 MAX_PATCH_LATENCY_MS = 100.0
 
-
 @dataclass
 class LivepatchResult:
     cve_id: str
@@ -32,7 +31,6 @@ class LivepatchResult:
     is_applied: bool
     patch_latency_ms: float
     ftrace_redirected: bool
-
 
 class KernelLivepatchManager:
     """Manages zero-downtime kernel livepatch verification and ftrace redirection."""
@@ -79,12 +77,10 @@ class KernelLivepatchManager:
         )
         return res
 
-
 def main():
     mgr = KernelLivepatchManager(dry_run=True)
     res = mgr.apply_signed_livepatch("CVE-2026-1199", "netfilter_hook_ipv4")
     print(f"Applied: {res.is_applied} in {res.patch_latency_ms:.2f} ms")
-
 
 if __name__ == "__main__":
     main()

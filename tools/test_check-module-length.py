@@ -17,7 +17,6 @@ _spec.loader.exec_module(M)
 
 _fails = 0
 
-
 def check(name, cond):
     global _fails
     if cond:
@@ -25,7 +24,6 @@ def check(name, cond):
     else:
         _fails += 1
         print(f"FAIL - {name}")
-
 
 def mkroot(files, oversize=(), max_lines=800):
     """files: {relpath under mios_pipe: line_count}. Returns the root path."""
@@ -43,11 +41,9 @@ def mkroot(files, oversize=(), max_lines=800):
             fh.write("\n".join(str(i) for i in range(n)) + "\n")
     return root
 
-
 def run(root):
     bad, checked = M.scan(root)
     return bad, checked
-
 
 def t_small_file_passes():
     root = mkroot({"mios_pipe/routing/small.py": 100})
@@ -55,7 +51,6 @@ def t_small_file_passes():
     check("small file passes", bad == [])
     check("small file was actually checked", checked == 1)
     shutil.rmtree(root)
-
 
 def t_new_oversize_fails():
     root = mkroot({"mios_pipe/routing/big.py": 801})
@@ -65,7 +60,6 @@ def t_new_oversize_fails():
           bad and "do NOT add it to [refactor].oversize" in bad[0])
     shutil.rmtree(root)
 
-
 def t_nested_is_seen():
     # The bash predecessor used find -maxdepth 1 and could not see this.
     root = mkroot({"mios_pipe/routing/deep/deeper/big.py": 900})
@@ -73,7 +67,6 @@ def t_nested_is_seen():
     check("a file two directories deep is scanned", checked == 1)
     check("a nested file over the limit fails", len(bad) == 1)
     shutil.rmtree(root)
-
 
 def t_init_and_nonpy_skipped():
     root = mkroot({"mios_pipe/__init__.py": 900,
@@ -83,7 +76,6 @@ def t_init_and_nonpy_skipped():
     check("__init__.py and non-.py files are skipped", checked == 0)
     check("skipped files raise nothing", bad == [])
     shutil.rmtree(root)
-
 
 def t_root_level_module_is_seen():
     """mios_dispatch.py and server.py live at the agent-pipe ROOT, outside
@@ -96,7 +88,6 @@ def t_root_level_module_is_seen():
           any("root_big.py" in b for b in bad))
     shutil.rmtree(root)
 
-
 def t_shim_is_skipped():
     """A lazy re-export shim is ~28 lines of boilerplate, not a module."""
     root = mkroot({"shim_mod.py": 5})
@@ -108,14 +99,12 @@ def t_shim_is_skipped():
     check("a re-export shim is excluded from sizing", bad == [])
     shutil.rmtree(root)
 
-
 def t_grandfathered_at_recorded_passes():
     root = mkroot({"mios_pipe/routing/legacy.py": 1200},
                   oversize=[("mios_pipe/routing/legacy.py", 1200)])
     bad, _ = run(root)
     check("grandfathered file at its recorded length passes", bad == [])
     shutil.rmtree(root)
-
 
 def t_grandfathered_growth_fails():
     root = mkroot({"mios_pipe/routing/legacy.py": 1201},
@@ -126,7 +115,6 @@ def t_grandfathered_growth_fails():
           bad and "ratchets DOWN" in bad[0])
     shutil.rmtree(root)
 
-
 def t_grandfathered_shrink_fails():
     root = mkroot({"mios_pipe/routing/legacy.py": 900},
                   oversize=[("mios_pipe/routing/legacy.py", 1200)])
@@ -134,7 +122,6 @@ def t_grandfathered_shrink_fails():
     check("a grandfathered file that SHRANK fails (lock the win in)",
           len(bad) == 1 and "lower its" in bad[0])
     shutil.rmtree(root)
-
 
 def t_stale_register_entry_fails():
     root = mkroot({"mios_pipe/routing/small.py": 10},
@@ -144,7 +131,6 @@ def t_stale_register_entry_fails():
           len(bad) == 1 and "no longer exists" in bad[0])
     shutil.rmtree(root)
 
-
 def t_absent_tree_is_noop():
     root = tempfile.mkdtemp(prefix="modlen-")
     os.makedirs(os.path.join(root, "usr/share/mios"), exist_ok=True)
@@ -153,7 +139,6 @@ def t_absent_tree_is_noop():
     bad, checked = run(root)
     check("absent package tree is a clean no-op", bad == [] and checked == 0)
     shutil.rmtree(root)
-
 
 def main():
     t_small_file_passes()
@@ -169,7 +154,6 @@ def main():
     t_absent_tree_is_noop()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

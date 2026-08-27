@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestFIDO2SecurityManager(unittest.TestCase):
     """Test suite for FIDO2 device discovery, PAM U2F enrollment, and SSH SK key synthesis."""
 
@@ -90,12 +89,10 @@ class TestFIDO2SecurityManager(unittest.TestCase):
             exit_code = fido2_manager.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestFIDO2SecurityManager)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestEditorConfigGen(unittest.TestCase):
     """Test suite for developer editor (VS Code, Cursor, Continue) local AI redirection generation."""
 
@@ -99,12 +98,10 @@ class TestEditorConfigGen(unittest.TestCase):
             exit_code = editor_config_gen.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestEditorConfigGen)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

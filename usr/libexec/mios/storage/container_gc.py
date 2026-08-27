@@ -24,7 +24,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-
 @dataclass
 class ContainerImageMeta:
     image_id: str
@@ -36,7 +35,6 @@ class ContainerImageMeta:
     is_pinned: bool = False
     in_use: bool = False
 
-
 @dataclass
 class PrunePlan:
     total_images: int
@@ -45,7 +43,6 @@ class PrunePlan:
     reclaimable_mb: float
     current_usage_pct: float
     threshold_pct: float
-
 
 class ContainerGCManager:
     """Manages container storage inspection and LRU layer pruning."""
@@ -197,7 +194,6 @@ class ContainerGCManager:
 
         return pruned_count, round(pruned_mb, 2)
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Container Storage LRU Garbage Collector")
     parser.add_argument("--scan", action="store_true", help="List container images and storage usage")
@@ -268,7 +264,6 @@ def main() -> int:
             print(f"  - {img.repository}:{img.tag} ({img.size_mb}MB) [{status}]")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

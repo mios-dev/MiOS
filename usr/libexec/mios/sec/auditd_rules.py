@@ -18,7 +18,6 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-
 class AuditdRulesManager:
     """Generates, validates, deploys, and parses auditd rules for MiOS system integrity."""
 
@@ -170,7 +169,6 @@ class AuditdRulesManager:
 
         return events
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Auditd Rules Manager & Monitor")
     parser.add_argument("--generate", action="store_true", help="Generate audit rule definitions")
@@ -234,7 +232,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

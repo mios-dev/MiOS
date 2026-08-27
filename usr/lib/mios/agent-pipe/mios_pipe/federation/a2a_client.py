@@ -20,7 +20,6 @@ from mios_config import _toml_section
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _A2A_PEERS: dict = {}
 _A2A_PEER_SKILLS: dict = {}
 _A2A_PEERS_LOCK = None
@@ -32,11 +31,9 @@ A2A_SELF_ID = "local-mios"
 ROUTE_ON_CARD_SKILLS = False
 _get_client = None
 
-
 def _invalidate_worker_cache() -> None:
     """Default no-op until server injects its _WORKER_TOOLS_FULL_CACHE invalidator."""
     return None
-
 
 def configure(*, a2a_peers=None, a2a_peer_skills=None, a2a_peers_lock=None,
               a2a_reputation=None, agent_registry=None,
@@ -70,13 +67,11 @@ def configure(*, a2a_peers=None, a2a_peer_skills=None, a2a_peers_lock=None,
     if invalidate_worker_cache is not None:
         g["_invalidate_worker_cache"] = invalidate_worker_cache
 
-
 def _a2a_self_peer_url(url: str) -> bool:
     _self_port = str(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")).strip()
     u = (url or "").lower()
     return (f":{_self_port}" in u) and (
         "127.0.0.1" in u or "localhost" in u or "://[::1]" in u or "0.0.0.0" in u)
-
 
 async def _a2a_fetch_card(url: str, headers: dict,
                           timeout_s: float = 10.0) -> dict:
@@ -111,7 +106,6 @@ async def _a2a_fetch_card(url: str, headers: dict,
             return card
         last_err = f"card not an object at {candidate}"
     return {"error": last_err or "no card endpoint responded"}
-
 
 async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.0) -> dict:
     """Probe /v1/models as a fallback for cardless agents (Claude, Gemini, vLLM).
@@ -188,7 +182,6 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
         return {"error": f"models probe failed: {e}"}
     return {"error": "no models endpoint responded or invalid response"}
 
-
 async def _a2a_tailnet_candidates() -> list:
     try:
         port = int(os.environ.get("MIOS_A2A_DISCOVER_PORT") or (_toml_section("a2a") or {}).get("discover_port") or 8640)
@@ -219,7 +212,6 @@ async def _a2a_tailnet_candidates() -> list:
             seen.add(u); out_urls.append(u)
     return out_urls
 
-
 def _a2a_load_peers() -> list:
     """Layered peer registry read: vendor < /etc < user. Later overlays
     REPLACE earlier entries with the same id (matches MCP client semantics)
@@ -245,7 +237,6 @@ def _a2a_load_peers() -> list:
                 continue
             by_id[pid] = s
     return list(by_id.values())
-
 
 async def _a2a_probe_peer(cfg: dict) -> None:
     """Fetch ONE peer's agent card, index its declared skills. Errors land in
@@ -325,7 +316,6 @@ async def _a2a_probe_peer(cfg: dict) -> None:
     log.info("a2a client: %s ready (%d skills, protocol %s)",
              pid, len(skills), state.get("protocolVersion"))
 
-
 async def _a2a_autodiscover_peers(known_urls: set) -> list:
     if os.environ.get("MIOS_A2A_TAILNET_DISCOVER", "").strip().lower() \
             not in {"1", "true", "yes"}:
@@ -350,7 +340,6 @@ async def _a2a_autodiscover_peers(known_urls: set) -> list:
                                  return_exceptions=True)
     return [c for c in found if isinstance(c, dict)]
 
-
 async def _a2a_client_startup() -> None:
     """Read the peer registry (+ optional tailnet auto-discovery), probe every
     enabled peer concurrently. Errors per peer are captured in state; total
@@ -372,7 +361,6 @@ async def _a2a_client_startup() -> None:
              len(peers), len(peers) - len(_disc), len(_disc))
     await asyncio.gather(*(_a2a_probe_peer(s) for s in peers),
                          return_exceptions=True)
-
 
 async def _a2a_send_message_to_peer(peer_id: str, text: str,
                                     context_id: Optional[str] = None,
@@ -436,7 +424,6 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
     _A2A_REPUTATION.record(
         peer_id, not (isinstance(result, dict) and result.get("error")))
     return result
-
 
 def _a2a_extract_text(env: dict) -> str:
     """Pull the assistant text out of an A2A Task envelope (artifacts[].parts[]

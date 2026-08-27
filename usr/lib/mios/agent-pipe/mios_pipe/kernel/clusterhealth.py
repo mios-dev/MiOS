@@ -33,7 +33,6 @@ from mios_pipe.kernel.config import PROBE_VERIFY_TLS as _PROBE_VERIFY_TLS
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 app = None
 _AGENT_REGISTRY = None
 _GLOBAL_PRIORITY_GATE = None
@@ -176,7 +175,6 @@ _INJECTED = frozenset({
     'DB_URL',
 })
 
-
 def configure(**deps) -> None:
     """Inject server.py's runtime deps under their EXACT original names. Objects
     are passed BY REFERENCE so server-side mutation stays visible; the moved logic
@@ -187,9 +185,6 @@ def configure(**deps) -> None:
     for _k, _v in deps.items():
         if _k in _INJECTED:
             g[_k] = _v
-
-
-
 
 async def _probe_one_endpoint(client, ep: str, timeout_s: float = 3.0) -> tuple:
     """Single (reachable, live_models, latency_ms) tuple for one endpoint.
@@ -212,7 +207,6 @@ async def _probe_one_endpoint(client, ep: str, timeout_s: float = 3.0) -> tuple:
     except Exception:  # noqa: BLE001
         pass
     return (False, [], int((time.time() - t0) * 1000))
-
 
 def _lane_sched_stats() -> list:
     """Per-lane scheduler state from the live semaphores: cap, in-flight,
@@ -238,7 +232,6 @@ def _lane_sched_stats() -> list:
             out.append({"lane": lane, "error": "introspection failed"})
     return out
 
-
 def _kernel_managers_detail() -> dict:
     """Per-seam liveness + a live stat, for /v1/scheduler observability."""
     return {
@@ -250,7 +243,6 @@ def _kernel_managers_detail() -> dict:
         "tools": {"verbs": len(_VERB_CATALOG)},
         "access": {"pdp": True, "tiers": list(_PERMISSION_TIERS)},
     }
-
 
 def _resolve_failover_chain(name: str) -> list:
     out: list = []
@@ -279,7 +271,6 @@ def _resolve_failover_chain(name: str) -> list:
                         "model": cfg.get("cpu_model") or cfg.get("model"),
                         "kind": "cpu-twin"})
     return out
-
 
 async def cluster_health_logic() -> JSONResponse:
     """Per-agent + per-endpoint health snapshot. Probes EVERY agent's primary
@@ -370,7 +361,6 @@ async def cluster_health_logic() -> JSONResponse:
         return JSONResponse({"error": f"{type(e).__name__}: {e}"},
                             status_code=500)
 
-
 async def scheduler_state_logic() -> JSONResponse:
     """AIOS-style scheduler observability: live per-lane concurrency state
     (cap / in-flight / available / queued) across every hardware lane the
@@ -442,7 +432,6 @@ async def scheduler_state_logic() -> JSONResponse:
         },
         "ts": int(time.time()),
     })
-
 
 async def health_logic() -> dict[str, Any]:
     import sys
@@ -538,9 +527,7 @@ async def health_logic() -> dict[str, Any]:
         "port": PORT,
     }
 
-
 clusterhealth_router = APIRouter()
-
 
 @clusterhealth_router.get("/v1/cluster/health")
 async def cluster_health() -> JSONResponse:
@@ -551,7 +538,6 @@ async def cluster_health() -> JSONResponse:
     (same module)."""
     return await cluster_health_logic()
 
-
 @clusterhealth_router.get("/v1/scheduler")
 async def scheduler_state() -> JSONResponse:
     """P4.1 AIOS-style scheduler observability: the live per-lane queue/in-flight
@@ -559,7 +545,6 @@ async def scheduler_state() -> JSONResponse:
     per-lane semaphores already realise). Calls scheduler_state_logic (same
     module)."""
     return await scheduler_state_logic()
-
 
 @clusterhealth_router.get("/health")
 async def health() -> dict[str, Any]:

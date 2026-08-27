@@ -11,13 +11,11 @@ import sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _load(fname):
     loader = importlib.machinery.SourceFileLoader(
@@ -27,10 +25,8 @@ def _load(fname):
     loader.exec_module(mod)
     return mod
 
-
 def _ok_run():
     return {"success": True, "steps": [{"step": 0, "verb": "x", "success": True}]}
-
 
 class _Counter:
     """A stub _post_skill_run: returns a scripted sequence of run envelopes and
@@ -47,7 +43,6 @@ class _Counter:
             raise out
         return out
 
-
 def t_run_ok(m):
     check("run_ok: success + clean steps -> True", m._passk_run_ok(_ok_run()) is True)
     check("run_ok: success false -> False",
@@ -59,7 +54,6 @@ def t_run_ok(m):
     check("run_ok: hitl_blocked step -> False",
           m._passk_run_ok({"success": True,
                            "steps": [{"success": True, "hitl_blocked": True}]}) is False)
-
 
 def t_gate(m):
     passed, n_ok, msg = m._passk_gate(lambda: _ok_run(), 3)
@@ -76,10 +70,8 @@ def t_gate(m):
     passed, n_ok, msg = m._passk_gate(_boom, 3)
     check("gate unreachable -> fail-closed", passed is False and n_ok == 0, msg)
 
-
 def _promote_args(m, *extra):
     return m.build_parser().parse_args(["promote", "myskill", *extra])
-
 
 def t_promote_gate_off(m):
     m.PASS_AND_K_GATE_ENABLED = False
@@ -97,7 +89,6 @@ def t_promote_gate_off(m):
     check("gate off: promotes (status flipped)", rc == 0 and calls["status"] == 1)
     check("gate off: NO replay (byte-identical legacy path)", calls["run"] == 0)
 
-
 def t_promote_gate_on_pass(m):
     m.PASS_AND_K_GATE_ENABLED = True
     m.PASS_AND_K_COUNT = 3
@@ -108,7 +99,6 @@ def t_promote_gate_on_pass(m):
     rc = m.cmd_promote(_promote_args(m))
     check("gate on + 3/3: promoted", rc == 0 and flipped["n"] == 1)
     check("gate on: replayed exactly pass_and_k_count times", seq.calls == 3)
-
 
 def t_promote_gate_on_veto(m):
     m.PASS_AND_K_GATE_ENABLED = True
@@ -121,7 +111,6 @@ def t_promote_gate_on_veto(m):
     check("gate on + 2/3: NOT promoted (nonzero rc)", rc == 1)
     check("gate on + veto: status never flipped", flipped["n"] == 0)
 
-
 def t_promote_dgm_count(m):
     m.PASS_AND_K_GATE_ENABLED = True
     m.PASS_AND_K_COUNT = 3
@@ -133,7 +122,6 @@ def t_promote_dgm_count(m):
     check("gate on + --dgm: uses pass_and_k_dgm_count replays",
           rc == 0 and seq.calls == 5, f"calls={seq.calls}")
 
-
 def main():
     m = _load("mios-skills")
     t_run_ok(m)
@@ -144,7 +132,6 @@ def main():
     t_promote_dgm_count(m)
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

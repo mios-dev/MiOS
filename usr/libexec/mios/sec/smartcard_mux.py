@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-smartcard-mux")
 
-
 @dataclass
 class CCIDSigningResponse:
     tenant_id: str
@@ -29,7 +28,6 @@ class CCIDSigningResponse:
     is_success: bool
     signature_hex: str
     latency_ms: float
-
 
 class VirtualCCIDMultiplexer:
     """Multiplexes hardware smartcard slots across concurrent container tenants."""
@@ -61,12 +59,10 @@ class VirtualCCIDMultiplexer:
         logger.info(f"Tenant {tenant_id} signed payload via virtual CCID ({res.signature_hex}).")
         return res
 
-
 def main():
     mux = VirtualCCIDMultiplexer(dry_run=True)
     res = mux.execute_signing_request("agent_worker_1", "commit_tree_abcdef")
     print(f"Signed: {res.signature_hex} in {res.latency_ms:.2f} ms")
-
 
 if __name__ == "__main__":
     main()

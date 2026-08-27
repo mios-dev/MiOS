@@ -24,7 +24,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-macaroon-auth")
 
-
 @dataclass
 class MintedMacaroon:
     token_id: str
@@ -32,7 +31,6 @@ class MintedMacaroon:
     caveats: Dict[str, str]
     expiration_epoch: float
     signature_hex: str
-
 
 class MacaroonAuthManager:
     """Manages HMAC token minting, caveat checking, and single-use nonce burning."""
@@ -95,14 +93,12 @@ class MacaroonAuthManager:
         logger.info(f"Macaroon {token.token_id} successfully verified and nonce burned.")
         return True
 
-
 def main():
     mgr = MacaroonAuthManager(dry_run=True)
     tok = mgr.mint_macaroon("repo-main", "pull", 60.0)
     ok = mgr.verify_and_burn_macaroon(tok, "repo-main", "pull")
     replay = mgr.verify_and_burn_macaroon(tok, "repo-main", "pull")
     print(f"Verified: {ok}, Replay blocked: {not replay}")
-
 
 if __name__ == "__main__":
     main()

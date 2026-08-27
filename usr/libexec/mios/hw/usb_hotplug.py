@@ -56,7 +56,6 @@ AUDIO_DAC_VENDORS = {
     "1bcf": "USB Audio DAC",
 }
 
-
 class USBDeviceDescriptor:
     """Represents a USB physical or logical device inspected from sysfs."""
 
@@ -100,7 +99,6 @@ class USBDeviceDescriptor:
             "device_protocol": self.device_protocol,
             "interfaces": self.interfaces,
         }
-
 
 class USBHotplugManager:
     """Discovers, filters, and generates hotplug XML for guest VM devices."""
@@ -470,7 +468,6 @@ class USBHotplugManager:
 
         return "\n".join(lines) + "\n"
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS USB Controller & DAC Hotplug Passthrough Manager (T-422)"
@@ -538,7 +535,6 @@ def main() -> int:
             print(f"Action '{args.action}' -> {res['status']}: {res}")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

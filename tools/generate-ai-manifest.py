@@ -28,7 +28,6 @@ def parse_markdown_metadata(content):
 
 _TRACKED_CACHE = None
 
-
 def tracked_files():
     global _TRACKED_CACHE
     if _TRACKED_CACHE is None:
@@ -40,11 +39,9 @@ def tracked_files():
             _TRACKED_CACHE = set()
     return _TRACKED_CACHE or None
 
-
 def _is_tracked(rel_path):
     known = tracked_files()
     return known is None or rel_path in known
-
 
 def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=None):
     if ignore_dirs is None:

@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from mesh_logs import MeshLogForwarder
 
-
 class TestMeshLogs(unittest.TestCase):
     def setUp(self):
         self.fwd = MeshLogForwarder(node_id="test_node_01", dry_run=True)
@@ -33,7 +32,6 @@ class TestMeshLogs(unittest.TestCase):
         self.assertEqual(flushed, 1000)
         self.assertEqual(len(self.fwd.local_buffer), 0)
         self.assertEqual(len(self.fwd.flushed_records), 1000)
-
 
 if __name__ == "__main__":
     unittest.main()

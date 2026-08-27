@@ -31,7 +31,6 @@ BODY_JARGON_RE = re.compile(
     r"operator directive \d{4}-\d{2}-\d{2}|"
     r"operator 2026-\d{2}-\d{2})\b", re.I)
 
-
 def split_frontmatter(text: str) -> tuple[dict, str]:
     if not text.startswith("---\n"):
         return {}, text
@@ -45,7 +44,6 @@ def split_frontmatter(text: str) -> tuple[dict, str]:
             k, v = line.split(":", 1)
             front[k.strip()] = v.strip().strip('"').strip("'")
     return front, body
-
 
 def audit_one(path: str) -> list[str]:
     findings: list[str] = []
@@ -74,7 +72,6 @@ def audit_one(path: str) -> list[str]:
             f"-- consider trimming to keep guidance portable")
     return findings
 
-
 def audit_ai_doc(path: str) -> list[str]:
     findings: list[str] = []
     rel = os.path.basename(path)
@@ -95,7 +92,6 @@ def audit_ai_doc(path: str) -> list[str]:
         findings.append(
             f"[ai/{rel}] temporal/operator framing: {m.group()!r}")
     return findings
-
 
 def main() -> int:
     skill_paths = sorted(
@@ -129,7 +125,6 @@ def main() -> int:
     for f in all_findings:
         print(f"  * {f}")
     return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

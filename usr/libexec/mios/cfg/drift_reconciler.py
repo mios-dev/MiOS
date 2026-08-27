@@ -7,7 +7,6 @@ import os
 import sys
 from typing import Dict, List, Optional, Any
 
-
 class ConfigDriftReconciler:
     """Audits differences across /usr/share/mios (vendor), /etc/mios (host), and live runtime state."""
 
@@ -55,7 +54,6 @@ class ConfigDriftReconciler:
             "mock": self.dry_run,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Configuration Drift Auditor & Reconciler")
     parser.add_argument("--audit", action="store_true", help="Audit configuration layer drift")
@@ -71,7 +69,6 @@ def main():
         res = reconciler.audit_layer_drift()
 
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

@@ -14,7 +14,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _CFG_PATH = os.path.join(_ROOT, "usr", "share", "mios", "llamacpp", "mios-llm-light.yaml")
 
-
 class TestSpeculativeDecodingConfig(unittest.TestCase):
     """Validates llamacpp YAML model mappings and speculative parameters."""
 
@@ -26,12 +25,10 @@ class TestSpeculativeDecodingConfig(unittest.TestCase):
         self.assertIn("granite4.1:8b", data["models"])
         self.assertIn("lfm2:700m", data["models"])
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestSpeculativeDecodingConfig)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

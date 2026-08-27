@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from gpu_heatd import GPUInterconnectProfiler
 
-
 class TestGPUInterconnect(unittest.TestCase):
     def setUp(self):
         self.profiler = GPUInterconnectProfiler(dry_run=True)
@@ -30,7 +29,6 @@ class TestGPUInterconnect(unittest.TestCase):
         self.assertEqual(mat.interconnect_type, "PCIe-Gen5")
         self.assertGreater(len(mat.bottlenecks_detected), 0)
         self.assertIn("Degraded link", mat.bottlenecks_detected[0])
-
 
 if __name__ == "__main__":
     unittest.main()

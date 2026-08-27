@@ -27,7 +27,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-
 class WizardState(str, Enum):
     INIT = "INIT"
     WELCOME = "WELCOME"
@@ -36,7 +35,6 @@ class WizardState(str, Enum):
     AI_BRAIN = "AI_BRAIN"
     FINALIZE = "FINALIZE"
     COMPLETED = "COMPLETED"
-
 
 @dataclass
 class WizardConfig:
@@ -51,7 +49,6 @@ class WizardConfig:
     ai_chat_model: str = "Qwen2.5-Coder-7B-Instruct-GGUF"
     ai_vram_limit_mb: int = 8192
     theme: str = "MiOS Dark"
-
 
 class FirstBootWizardEngine:
     """State machine engine executing interactive or pre-seeded first-boot setup."""
@@ -220,7 +217,6 @@ class FirstBootWizardEngine:
 
         return self.run_preseed(preseed_data)
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS First-Boot Interactive & Headless OOBE Setup Wizard"
@@ -265,7 +261,6 @@ def main() -> int:
         else:
             print(f"[firstboot_wizard] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

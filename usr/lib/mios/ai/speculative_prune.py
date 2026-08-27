@@ -15,7 +15,6 @@ from typing import Any
 
 log = logging.getLogger("speculative_prune")
 
-
 @dataclass
 class SpeculativeTree:
     """Represents a speculative tree of candidate tokens."""
@@ -24,7 +23,6 @@ class SpeculativeTree:
     accepted_path_mask: int = 0b0000000000000001
     kv_blocks_allocated: int = 64
     active_seq_len: int = 128
-
 
 class TreeAttentionPruner:
     """

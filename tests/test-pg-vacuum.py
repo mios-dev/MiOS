@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "db"))
 from pg_vacuum_tuner import PGVacuumTuner
 
-
 class TestPGVacuumTuner(unittest.TestCase):
     def setUp(self):
         self.tuner = PGVacuumTuner(dry_run=True)
@@ -26,7 +25,6 @@ class TestPGVacuumTuner(unittest.TestCase):
         self.assertIn("system_logs_rag", sql)
         self.assertIn("agent_memories", sql)
         self.assertIn("0 3 * * *", sql)
-
 
 if __name__ == "__main__":
     unittest.main()

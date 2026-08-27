@@ -24,7 +24,6 @@ logger = logging.getLogger("mios-bitperfect-audio")
 ALLOWED_SAMPLE_RATES = [44100, 48000, 88200, 96000, 176400, 192000]
 MAX_CLOCK_SWITCH_MS = 50.0
 
-
 @dataclass
 class AudioPlaybackState:
     stream_rate_hz: int
@@ -32,7 +31,6 @@ class AudioPlaybackState:
     switch_latency_ms: float
     is_bit_perfect: bool
     buffer_xruns_detected: int = 0
-
 
 class BitPerfectAudioAdapter:
     """Adapts PipeWire daemon clock rates dynamically for bit-perfect hardware DAC passthrough."""
@@ -70,12 +68,10 @@ class BitPerfectAudioAdapter:
         )
         return state
 
-
 def main():
     adapter = BitPerfectAudioAdapter(dry_run=True)
     state = adapter.adapt_sample_rate(192000)
     print(f"Rate: {state.dac_hardware_rate_hz} Hz, Bit-perfect: {state.is_bit_perfect}")
-
 
 if __name__ == "__main__":
     main()

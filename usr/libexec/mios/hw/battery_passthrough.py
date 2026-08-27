@@ -29,7 +29,6 @@ logger = logging.getLogger("mios-battery-passthrough")
 MINIMUM_POLL_INTERVAL_SECONDS = 5.0
 DEFAULT_POLL_INTERVAL_SECONDS = 5.0
 
-
 class BatteryTelemetryReader:
     """Reads and parses battery and AC adapter telemetry from sysfs."""
 
@@ -239,7 +238,6 @@ class BatteryTelemetryReader:
             "battery_details": bat_info,
         }
 
-
 class BatteryPassthroughDaemon:
     """Manages periodic battery telemetry synchronization and QMP event delivery."""
 
@@ -370,7 +368,6 @@ class BatteryPassthroughDaemon:
         except KeyboardInterrupt:
             logger.info("MiOS battery passthrough daemon stopped by operator.")
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Guest Virtual ACPI Battery Passthrough Daemon (T-421)"
@@ -426,7 +423,6 @@ def main() -> int:
     elif args.action == "daemon":
         daemon.run_daemon()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -18,7 +18,6 @@ GEMINI_DROP_KEYS = ("format", "minLength", "maxLength", "pattern",
                     "minimum", "maximum", "default", "examples",
                     "additionalProperties", "$schema", "$ref")
 
-
 def scrub_schema(node, *, gemini: bool):
     """Return a provider-safe copy of a JSON-Schema node. Some providers reject/ignore
     several keywords (relocated into description) and REQUIRE array items to
@@ -53,7 +52,6 @@ def scrub_schema(node, *, gemini: bool):
                               + " (" + "; ".join(moved) + ")").strip()
     return out
 
-
 def oai_tools_to_anthropic(tools: list) -> list:
     out = []
     for t in (tools or []):
@@ -67,7 +65,6 @@ def oai_tools_to_anthropic(tools: list) -> list:
                         fn.get("parameters") or {"type": "object", "properties": {}},
                         gemini=False)})
     return out
-
 
 def oai_tools_to_gemini(tools: list) -> list:
     decls = []
@@ -83,7 +80,6 @@ def oai_tools_to_gemini(tools: list) -> list:
                           gemini=True)})
     return [{"functionDeclarations": decls}] if decls else []
 
-
 def args_obj(args) -> dict:
     """OpenAI tool-call arguments (a JSON STRING) -> object for Claude/Gemini."""
     if isinstance(args, str):
@@ -92,7 +88,6 @@ def args_obj(args) -> dict:
         except Exception:  # noqa: BLE001
             args = {}
     return args if isinstance(args, dict) else {}
-
 
 def oai_msgs_to_anthropic(msgs: list) -> tuple:
     """OpenAI messages -> (system_str, anthropic_messages). system messages fold
@@ -128,7 +123,6 @@ def oai_msgs_to_anthropic(msgs: list) -> tuple:
                         "content": [{"type": "text", "text": str(m.get("content") or "")}]})
     return "\n\n".join(system_parts), out
 
-
 def anthropic_resp_to_oai(resp: dict) -> dict:
     """Anthropic Messages response -> OpenAI assistant message {content,
     tool_calls}. tool_use blocks -> tool_calls[] with arguments as a JSON STRING."""
@@ -150,7 +144,6 @@ def anthropic_resp_to_oai(resp: dict) -> dict:
     if tool_calls:
         msg["tool_calls"] = tool_calls
     return msg
-
 
 def oai_msgs_to_gemini(msgs: list) -> tuple:
     """OpenAI messages -> (system_instruction|None, gemini contents[]). roles:
@@ -183,7 +176,6 @@ def oai_msgs_to_gemini(msgs: list) -> tuple:
                              "parts": [{"text": str(m.get("content") or "")}]})
     si = {"parts": [{"text": "\n\n".join(system_parts)}]} if system_parts else None
     return si, contents
-
 
 def gemini_resp_to_oai(resp: dict) -> dict:
     """Gemini generateContent response -> OpenAI assistant message."""

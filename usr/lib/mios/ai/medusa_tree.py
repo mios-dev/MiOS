@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-medusa-tree")
 
 MIN_MEDUSA_SPEEDUP = 2.5
 
-
 @dataclass
 class MedusaTreeResult:
     prompt: str
@@ -31,7 +30,6 @@ class MedusaTreeResult:
     heads_used: int
     speedup_ratio: float
     exact_parity_verified: bool
-
 
 class MedusaTreeEngine:
     """Manages Medusa multi-head tree prediction and single-pass tree attention verification."""
@@ -59,12 +57,10 @@ class MedusaTreeEngine:
         )
         return res
 
-
 def main():
     engine = MedusaTreeEngine(num_heads=4, dry_run=True)
     res = engine.generate_with_tree_attention("def fibonacci(n):", 50)
     print(f"Speedup: {res.speedup_ratio}x, Parity: {res.exact_parity_verified}")
-
 
 if __name__ == "__main__":
     main()

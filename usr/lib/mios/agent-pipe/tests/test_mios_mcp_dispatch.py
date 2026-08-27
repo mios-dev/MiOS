@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from mios_pipe.mcp_dispatch import build_mcp_tool_envelope
 
-
 def test_build_mcp_tool_envelope():
     env = build_mcp_tool_envelope("get_weather", {"location": "Tokyo"}, "call_123")
     assert env["type"] == "function"

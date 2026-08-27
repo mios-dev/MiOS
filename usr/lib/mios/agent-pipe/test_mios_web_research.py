@@ -21,13 +21,11 @@ os.environ.setdefault(
 
 import mios_web_research as W
 
-
 _routed = contextvars.ContextVar("routed", default=None)
 _cenv = contextvars.ContextVar("cenv", default={})
 _sources_var = contextvars.ContextVar("sources", default=None)
 _conv_key = contextvars.ContextVar("conv_key", default="")
 _src_turn = contextvars.ContextVar("src_turn", default=None)
-
 
 def _url_has_path(u: str) -> bool:
     try:
@@ -37,7 +35,6 @@ def _url_has_path(u: str) -> bool:
         return any(s for s in path.split("/") if s)
     except Exception:
         return False
-
 
 def _configure(**over):
     kw = dict(
@@ -80,12 +77,10 @@ def _configure(**over):
     kw.update(over)
     W.configure(**kw)
 
-
 class _FakeProc:
     def __init__(self, out): self._out = out
     async def communicate(self): return (self._out, b"")
     def kill(self): pass
-
 
 def _install_exec(router, counter):
     async def _fake_exec(*args, **kw):
@@ -95,12 +90,10 @@ def _install_exec(router, counter):
         return _FakeProc(json.dumps(payload).encode("utf-8"))
     asyncio.create_subprocess_exec = _fake_exec
 
-
 class _FakeResp:
     status_code = 200
     def __init__(self, payload): self._p = payload
     def json(self): return self._p
-
 
 class _FakeClient:
     def __init__(self, *a, **k): pass
@@ -110,10 +103,8 @@ class _FakeClient:
         verdict = _JUDGE_QUEUE.pop(0) if _JUDGE_QUEUE else {"answerable": True}
         return _FakeResp({"choices": [{"message": {"content": json.dumps(verdict)}}]})
 
-
 class _FakeHttpx:
     AsyncClient = _FakeClient
-
 
 _JUDGE_QUEUE: list = []
 _REAL_EXEC = asyncio.create_subprocess_exec
@@ -123,7 +114,6 @@ LONG = ("This is a real fetched article body with plenty of substantive prose "
         "describing the actual developments the user asked about, well over the "
         "minimum character threshold so it counts as real content. " * 3)
 
-
 def _router_simple(tool, args):
     if tool == "mios-web-search":
         return {"results": [{"url": "https://example.com/article-one-2026",
@@ -131,7 +121,6 @@ def _router_simple(tool, args):
     if tool == "mios-web-extract":
         return {"content": LONG}
     return {"success": False}
-
 
 def test_judge_gate_loop_vs_stop():
     global _JUDGE_QUEUE
@@ -158,7 +147,6 @@ def test_judge_gate_loop_vs_stop():
         asyncio.create_subprocess_exec = _REAL_EXEC
         W.httpx = _REAL_HTTPX
     print("test_judge_gate_loop_vs_stop OK")
-
 
 def test_step_recording_shape():
     global _JUDGE_QUEUE
@@ -189,14 +177,12 @@ def test_step_recording_shape():
         W.httpx = _REAL_HTTPX
     print("test_step_recording_shape OK")
 
-
 NAV = ("[Home](https://news.example.com/) [About](https://news.example.com/about) "
        "[Contact](https://news.example.com/contact)")
 PROSE = ("Real prose paragraph reporting the substantive facts the user asked "
          "about, with enough words to be retained as body content not chrome. " * 3)
 INDEX_MD = NAV + "\n\n" + PROSE
 STORY_URL = "https://news.example.com/story-about-the-big-thing-2026-01-02"
-
 
 def _router_drill(tool, args):
     url = args[-1]
@@ -215,7 +201,6 @@ def _router_drill(tool, args):
     if tool == "mios-firecrawl":
         return {"success": False}
     return {"success": False}
-
 
 def test_nav_strip_and_two_hop_drill():
     global _JUDGE_QUEUE
@@ -240,7 +225,6 @@ def test_nav_strip_and_two_hop_drill():
         W._is_port_open = _orig_port
     print("test_nav_strip_and_two_hop_drill OK")
 
-
 def _capturing_router(sink):
     def _router(tool, args):
         if tool == "mios-web-search":
@@ -251,7 +235,6 @@ def _capturing_router(sink):
             return {"content": LONG}
         return {"success": False}
     return _router
-
 
 def test_recency_flag_drives_time_range():
     global _JUDGE_QUEUE
@@ -295,7 +278,6 @@ def test_recency_flag_drives_time_range():
         W.httpx = _REAL_HTTPX
     print("test_recency_flag_drives_time_range OK")
 
-
 def test_source_registry_cluster():
     _configure()   # wires _sources_var/_conv_key/_src_turn/_SOURCES_REGISTRY + caps
 
@@ -333,7 +315,6 @@ def test_source_registry_cluster():
     _cv.copy_context().run(_run)
     print("test_source_registry_cluster OK")
 
-
 def test_src_record_from_text_harvest():
     _configure()
 
@@ -357,7 +338,6 @@ def test_src_record_from_text_harvest():
     import contextvars as _cv
     _cv.copy_context().run(_run)
     print("test_src_record_from_text_harvest OK")
-
 
 def test_web_text_anchor_helpers_native():
 
@@ -390,7 +370,6 @@ def test_web_text_anchor_helpers_native():
     assert W._shares_anchor("aaaa bbbb cccc", anchor) is False
     assert W._shares_anchor("whatever", {"single"}) is True
     print("test_web_text_anchor_helpers_native OK")
-
 
 def test_link_rank_scorer_ssot():
     d = W._LINK_RANK_DEFAULTS
@@ -447,7 +426,6 @@ def test_link_rank_scorer_ssot():
     assert (W._rank_links(cands, src, set(), cfg=over_embed)
             == W._rank_links_by_structure(cands, src, set(), cfg=d)), "embed degrade-open"
     print("test_link_rank_scorer_ssot OK")
-
 
 if __name__ == "__main__":
     test_web_text_anchor_helpers_native()

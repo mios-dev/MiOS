@@ -29,7 +29,6 @@ def _default_vendor(root=""):
     return os.path.normpath(os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "share", "mios", "mios.toml"))
 
-
 _ROOT = os.environ.get("MIOS_TOML_ROOT", "")
 def get_migration(key: str = "", default: bool = True) -> bool | dict:
     """Return whether a migration toggle in [migration] is enabled (AGY-1573)."""
@@ -39,13 +38,11 @@ def get_migration(key: str = "", default: bool = True) -> bool | dict:
         return mig
     return bool(mig.get(key, default))
 
-
 def get_version(key: str, default: str = "") -> str:
     """Return a SSOT component version from [versions] (AGY-1573)."""
     data = load_merged()
     vers = data.get("versions") or {}
     return str(vers.get(key, default))
-
 
 def _frags(dirpath):
     """The *.toml drop-in fragments in dirpath, sorted lexically by BASENAME
@@ -55,7 +52,6 @@ def _frags(dirpath):
         return []
     return sorted(glob.glob(os.path.join(dirpath, "*.toml")),
                   key=os.path.basename)
-
 
 def _tier_dirs():
     """(vendor, vendor_d, host, host_d, user, user_d) resolved from the env at
@@ -72,7 +68,6 @@ def _tier_dirs():
     host_d = os.environ.get("MIOS_HOST_TOML_D") or os.path.join(os.path.dirname(host), "mios.d")
     user_d = os.environ.get("MIOS_USER_TOML_D") or os.path.join(os.path.dirname(user), "mios.d")
     return vendor, vendor_d, host, host_d, user, user_d
-
 
 def layer_paths():
     """The overlay layer paths, lowest precedence first, EXPANDED to include
@@ -92,7 +87,6 @@ def layer_paths():
             + [host] + _frags(host_d)
             + [user] + _frags(user_d))
 
-
 def deep_merge(dst, src):
     """Recursively merge src into dst. Non-empty scalars/lists overwrite; an empty
     string never overrides a non-empty value below it (the mios.toml overlay rule)."""
@@ -105,7 +99,6 @@ def deep_merge(dst, src):
             dst[k] = v
     return dst
 
-
 def _load_one(path):
     if not path or not os.path.isfile(path) or _toml is None:
         return {}
@@ -114,7 +107,6 @@ def _load_one(path):
             return _toml.load(fh)
     except Exception:  # noqa: BLE001 -- a broken overlay layer must not crash a reader
         return {}
-
 
 import json
 import shutil
@@ -139,7 +131,6 @@ _LOAD_MERGED_CACHE = None
 def clear_cache():
     global _LOAD_MERGED_CACHE
     _LOAD_MERGED_CACHE = None
-
 
 def derive_ports(merged):
     """Allocate every [ports] value from the [ports.categories] schema, IN PLACE.
@@ -224,7 +215,6 @@ def load_merged(layers=None):
         _LOAD_MERGED_CACHE = merged
     return merged
 
-
 def load_vendor():
     """Vendor-only view (monolith + /usr/lib/mios/mios.d fragments) -- what the
     offline drift-gates intentionally read. Includes vendor fragments so that a
@@ -238,7 +228,6 @@ def load_vendor():
         deep_merge(merged, _load_one(p))
     return merged
 
-
 def section(data, name):
     """A [table] (or dotted [a.b]) sub-dict, or {} if absent."""
     cur = data
@@ -247,7 +236,6 @@ def section(data, name):
             return {}
         cur = cur.get(part, {})
     return cur if isinstance(cur, dict) else {}
-
 
 def get(sect, key, default=None, data=None):
     """One [sect].key value from the merged overlay (or a supplied `data`)."""
@@ -266,7 +254,6 @@ def get(sect, key, default=None, data=None):
     d = data if data is not None else load_merged()
     return section(d, sect).get(key, default)
 
-
 PALETTE_DEFAULTS = {
     "bg": "#282262", "fg": "#E7DFD3", "accent": "#1A407F", "cursor": "#F35C15",
     "success": "#3E7765", "warning": "#F35C15", "error": "#DC271B", "info": "#1A407F",
@@ -279,7 +266,6 @@ PALETTE_DEFAULTS = {
     "ansi_13_bright_magenta": "#9D7660", "ansi_14_bright_cyan": "#E0E0E0",
     "ansi_15_bright_white": "#FFFFFF",
 }
-
 
 def colors(data=None):
     """Resolved palette: mios.toml [colors] over PALETTE_DEFAULTS (SSOT wins)."""
@@ -297,12 +283,10 @@ def colors(data=None):
     c = section(data if data is not None else load_merged(), "colors")
     return {k: str(c.get(k, v)) for k, v in PALETTE_DEFAULTS.items()}
 
-
 def float_allowlist(data=None):
     """Resolved float allowlist table from mios.toml [build.float]."""
     d = data if data is not None else load_vendor()
     return section(d, "build.float")
-
 
 def get_aliases(dotted_path):
     aliases = []
@@ -686,7 +670,6 @@ def _toml_walk_common(d, prefix=""):
     """Canonical recursive section-walk helper shared across TOML resolvers."""
     return walk(d, prefix)
 
-
 def walk(d, prefix=""):
     results = []
     if not isinstance(d, dict):
@@ -729,7 +712,6 @@ WALK_EMIT_KEEP = {
     "MIOS_SECURITY_PROVENANCE_TAINT",
     "MIOS_HEADLESS", "MIOS_MONITOR_RUNNING", "MIOS_NO_COLOR", "MIOS_NO_MONITOR",
 }
-
 
 def emit_exports() -> dict[str, str]:
     """Emit all derived MIOS_* environment variables from SSOT layers."""
@@ -776,7 +758,6 @@ def emit_exports() -> dict[str, str]:
                 exports[_re_unsafe.sub("_", k)] = str(vp)
 
     return exports
-
 
 if __name__ == "__main__":
     import json

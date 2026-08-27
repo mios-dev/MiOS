@@ -28,7 +28,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load iommu_parser module from {_TARGET_PATH}")
 
-
 class TestIOMMUParser(unittest.TestCase):
     """Tests IOMMU group parsing and isolation auditing using mock and synthetic sysfs trees."""
 
@@ -166,12 +165,10 @@ class TestIOMMUParser(unittest.TestCase):
         self.assertIn(13, groups)
         self.assertEqual(len(groups[13]), 2)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestIOMMUParser)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

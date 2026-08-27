@@ -20,7 +20,6 @@ EXEMPT_LOOPS = {"daemon_agent_server_loop"}
 ELSEWHERE = {"conversation_token_ceil", "autonomous_token_ceil",
              "autonomous_max_inflight", "window_s"}
 
-
 def loops_missing_pressure_gate(src: str) -> list:
     lines = src.split("\n")
     starts = [(i, m.group(1)) for i, l in enumerate(lines)
@@ -33,7 +32,6 @@ def loops_missing_pressure_gate(src: str) -> list:
         if "_pressure_should_skip" not in "\n".join(lines[i:end]):
             missing.append(name)
     return missing
-
 
 def _consumer_sources(root: str) -> list:
     """Code that may consume a knob: no test_* files, no comment lines -- a knob
@@ -56,7 +54,6 @@ def _consumer_sources(root: str) -> list:
                 out.append(code)
     return out
 
-
 def dead_knobs(root: str, keys: list) -> list:
     sources = _consumer_sources(root)
     dead = []
@@ -66,7 +63,6 @@ def dead_knobs(root: str, keys: list) -> list:
         if not any(f'"{key}"' in s or f"'{key}'" in s for s in sources):
             dead.append(key)
     return dead
-
 
 def drifted_fallbacks(ssot: dict) -> list:
     if not os.path.isfile(CHAT):
@@ -78,7 +74,6 @@ def drifted_fallbacks(ssot: dict) -> list:
         if m and int(m.group(1).replace("_", "")) != int(want):
             out.append(f"{key}: fallback {m.group(1)} != SSOT {want}")
     return out
-
 
 def main() -> int:
     src = open(DAEMON, encoding="utf-8").read()
@@ -99,6 +94,5 @@ def main() -> int:
     print(f"daemon governor complete ({total - len(EXEMPT_LOOPS)} autonomous loops gated, "
           f"{len(daemon_keys)} [daemon] + {len(budget_keys)} [budget] knobs consumed)")
     return 0
-
 
 sys.exit(main())

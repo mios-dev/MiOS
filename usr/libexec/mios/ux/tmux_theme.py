@@ -35,7 +35,6 @@ try:
 except ImportError:
     mios_toml = None
 
-
 class TmuxThemeEngine:
     """Generates tmux configuration files projecting SSOT palette and layout styles."""
 
@@ -176,7 +175,6 @@ class TmuxThemeEngine:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Tmux Theme & Status Line Generator"
@@ -220,7 +218,6 @@ def main() -> int:
         else:
             print(f"[tmux_theme] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

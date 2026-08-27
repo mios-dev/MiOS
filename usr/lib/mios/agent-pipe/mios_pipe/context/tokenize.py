@@ -7,7 +7,6 @@ import json
 import os
 from typing import List, Optional
 
-
 class HeuristicBackend:
     """The default ~chars/token estimate -- exactly the pipe's prior `len // 4`."""
 
@@ -19,7 +18,6 @@ class HeuristicBackend:
 
     def count(self, text: str) -> int:
         return len(str(text)) // self.chars_per_token
-
 
 class TiktokenBackend:
 
@@ -43,7 +41,6 @@ class TiktokenBackend:
         ids = self._enc.encode(str(text), disallowed_special=())
         n = max(0, int(max_tokens))
         return self._enc.decode(ids[:n]) if len(ids) > n else str(text)
-
 
 class HFTokenizerBackend:
     """Exact token counts from a model's OWN HuggingFace tokenizer.json via the
@@ -71,9 +68,7 @@ class HFTokenizerBackend:
         n = max(0, int(max_tokens))
         return self._tok.decode(ids[:n]) if len(ids) > n else str(text)
 
-
 _BACKEND = HeuristicBackend()
-
 
 def set_backend(backend) -> None:
     """Install an accurate-count backend (must expose .name + .count(text)->int) --
@@ -84,7 +79,6 @@ def set_backend(backend) -> None:
     global _BACKEND
     if backend is not None and hasattr(backend, "count") and hasattr(backend, "name"):
         _BACKEND = backend
-
 
 def make_backend(kind, *, encoding=None, path=None, cache_dir=None):
     k = str(kind or "").strip().lower()
@@ -99,14 +93,11 @@ def make_backend(kind, *, encoding=None, path=None, cache_dir=None):
         return None
     return None
 
-
 def backend_name() -> str:
     return _BACKEND.name
 
-
 def _cpt() -> int:
     return max(1, int(getattr(_BACKEND, "chars_per_token", 4) or 4))
-
 
 def count_text(text: str) -> int:
     """Estimated token count of one string."""
@@ -114,7 +105,6 @@ def count_text(text: str) -> int:
         return max(0, int(_BACKEND.count(str(text or ""))))
     except Exception:  # noqa: BLE001 -- degrade to the heuristic
         return len(str(text or "")) // 4
-
 
 def count_messages(messages: Optional[List[dict]],
                    tools: Optional[list] = None) -> int:
@@ -126,7 +116,6 @@ def count_messages(messages: Optional[List[dict]],
         except (TypeError, ValueError):
             parts.append(str(tools))
     return count_text("".join(parts))
-
 
 def truncate_to_tokens(text: str, max_tokens: int) -> str:
     """Truncate `text` to at most ~max_tokens (rstripped). Token-budget-aware
@@ -146,7 +135,6 @@ def truncate_to_tokens(text: str, max_tokens: int) -> str:
             pass
     budget = n * _cpt()
     return s[:budget].rstrip()
-
 
 def _normalize_usage(usage: Optional[dict]) -> dict:
     if not usage or not isinstance(usage, dict):
@@ -177,7 +165,6 @@ def _normalize_usage(usage: Optional[dict]) -> dict:
         "prompt_tokens_details": pt_details,
         "completion_tokens_details": ct_details
     }
-
 
 def _usage_estimate(prompt: str, completion: str) -> dict:
     """OpenAI `usage` object (Tier-0 conformance; OWUI + clients read it). MiOS is

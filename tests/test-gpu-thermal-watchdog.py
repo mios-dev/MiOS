@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load gpu_thermal_watchdog module from {_MODULE_PATH}")
 
-
 class TestGPUThermalWatchdog(unittest.TestCase):
     """Validates GPU thermal parsing, dynamic fan curve calculations, and the non-zero fan floor invariant."""
 
@@ -168,12 +167,10 @@ class TestGPUThermalWatchdog(unittest.TestCase):
         # Should run 1 cycle and exit
         wd.run_daemon(poll_interval=0.01, max_cycles=1)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestGPUThermalWatchdog)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

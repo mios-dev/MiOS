@@ -8,11 +8,9 @@ from typing import Dict, List, Tuple
 PKG_SCHEMA = "mios-pkg/v1"
 REGISTRY_SCHEMA = "mios-registry/v1"
 
-
 def registry_path(author: str, name: str, version: str) -> str:
     """Repo-relative path of a package manifest (forward slashes, layout above)."""
     return f"ai/v1/packages/{author}/{name}/{version}/mios-pkg.toml"
-
 
 def build_package(name: str, kind: str, spec: dict, *,
                   author: str, version: str) -> dict:
@@ -35,7 +33,6 @@ def build_package(name: str, kind: str, spec: dict, *,
         "kind": str(kind),
         "manifest": {k: v for k, v in manifest.items() if v != ""},
     }
-
 
 def build_registry(items: List[Tuple[str, str, dict]], *,
                    author: str, version: str) -> Dict:
@@ -64,7 +61,6 @@ def build_registry(items: List[Tuple[str, str, dict]], *,
         ],
     }
     return {"index": index, "packages": packages}
-
 
 def verify_registry(regenerated_index: dict, committed_index: dict) -> List[str]:
     """Diff a freshly-regenerated registry index vs the committed one (empty ==

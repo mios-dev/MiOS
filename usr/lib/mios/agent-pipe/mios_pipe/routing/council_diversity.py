@@ -11,16 +11,13 @@ from mios_toolsearch import _cosine
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _STATS = {"aggregator_total": 0, "aggregator_bypassed": 0}
-
 
 def note_aggregator(bypassed: bool) -> None:
     """Record one aggregation opportunity and whether it was bypassed."""
     _STATS["aggregator_total"] += 1
     if bypassed:
         _STATS["aggregator_bypassed"] += 1
-
 
 def bypassed_pct() -> float:
     """Percentage of aggregation opportunities that skipped the aggregator LLM."""
@@ -29,12 +26,9 @@ def bypassed_pct() -> float:
         return 0.0
     return round(100.0 * _STATS["aggregator_bypassed"] / tot, 2)
 
-
 def reset_stats() -> None:
     _STATS["aggregator_total"] = 0
     _STATS["aggregator_bypassed"] = 0
-
-
 
 def _sim_matrix(vectors: list, cosine: Callable = _cosine) -> list:
     """Full symmetric pairwise cosine matrix (diagonal = 1.0). O(k^2) cosine over
@@ -47,7 +41,6 @@ def _sim_matrix(vectors: list, cosine: Callable = _cosine) -> list:
             m[i][j] = s
             m[j][i] = s
     return m
-
 
 def select_diverse(vectors: list, threshold: float,
                    cosine: Callable = _cosine) -> list:
@@ -67,7 +60,6 @@ def select_diverse(vectors: list, threshold: float,
         selected.append(cand)
         remaining.remove(cand)
     return selected
-
 
 def should_bypass(vectors: list, threshold: float,
                   cosine: Callable = _cosine) -> tuple:
@@ -90,7 +82,6 @@ def should_bypass(vectors: list, threshold: float,
     mean_s = sum(sims) / len(sims) if sims else 0.0
     return (all_exceed, mean_s)
 
-
 def medoid_index(vectors: list, cosine: Callable = _cosine) -> int:
     n = len(vectors)
     if n <= 1:
@@ -98,7 +89,6 @@ def medoid_index(vectors: list, cosine: Callable = _cosine) -> int:
     S = _sim_matrix(vectors, cosine)
     return max(range(n),
                key=lambda i: sum(S[i][j] for j in range(n) if j != i) / (n - 1))
-
 
 async def apply_council_gates(
     nodes: list, *, embed_one: Optional[Callable],

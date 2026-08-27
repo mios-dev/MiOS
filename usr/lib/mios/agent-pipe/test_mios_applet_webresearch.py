@@ -10,13 +10,11 @@ from mios_pipe.routing import applet_webresearch as wr  # noqa: E402
 
 _fails = 0
 
-
 def check(cond, msg):
     global _fails
     print(("[PASS] " if cond else "[FAIL] ") + msg)
     if not cond:
         _fails += 1
-
 
 async def _collect(query, dispatch, **kw):
     frames = []
@@ -24,10 +22,8 @@ async def _collect(query, dispatch, **kw):
         frames.append(f)
     return frames
 
-
 def _events(frames):
     return [f.split("\n", 1)[0].replace("event: ", "") for f in frames]
-
 
 async def main_async():
     async def d_ok(tool, args):
@@ -70,7 +66,6 @@ async def main_async():
     check(len(wr._extract_results({"stdout": json.dumps({"hits": [{"x": 1}]})})) == 1, "extract: json-in-stdout")
     check(wr._extract_results("garbage") == [], "extract: unknown -> []")
 
-
 def main():
     asyncio.run(main_async())
     try:
@@ -82,7 +77,6 @@ def main():
         check(False, f"build_router() failed: {e}")
     print("ALL PASS" if _fails == 0 else f"{_fails} FAILED")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

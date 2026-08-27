@@ -3,7 +3,6 @@
 # AI-related: /usr/share/mios/ai/v1, /usr/share/mios/ai/v1/models.json
 set -e
 
-
 if [ -d "/mios/.git" ]; then
     REPO_ROOT="/mios"
 elif [ -d "/workspaces/MiOS/.git" ]; then

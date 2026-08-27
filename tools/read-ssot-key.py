@@ -9,7 +9,6 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
-
 def main(argv) -> int:
     if not argv:
         print("usage: read-ssot-key.py <dotted.key>", file=sys.stderr)
@@ -28,7 +27,6 @@ def main(argv) -> int:
         return 9
     print(node)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

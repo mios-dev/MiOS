@@ -25,7 +25,6 @@ NOT_A_FORMAT = frozenset({
     "embed-log", "log-bootstrap", "build-and-log", "all-bootstrap",
 })
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or os.getcwd()
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
@@ -113,7 +112,6 @@ def main() -> int:
     print("[check-deploy-formats] %d format(s), %d shipping; every target and"
           " recipe resolves" % (len(formats), shipping), file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

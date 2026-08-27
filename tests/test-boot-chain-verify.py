@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load verify-boot-chain module from {_VERIFY_PATH}")
 
-
 class TestBootChainVerify(unittest.TestCase):
     """Validates UKI header structure, PCR 4/7/11 enforcement, and fs-verity mock digests."""
 
@@ -61,12 +60,10 @@ class TestBootChainVerify(unittest.TestCase):
         rc_json = verify_boot_chain.run_verification(mock=True, json_output=True)
         self.assertEqual(rc_json, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBootChainVerify)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

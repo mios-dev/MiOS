@@ -40,7 +40,6 @@ _ENDPOINT_BLADE: dict = {}
 _LOCAL_BLADE: str = ""
 _LANE_PRIORITY: dict = {"_default": 5.0}
 
-
 def configure(*, vram_checkpoint_enable=None, vram_budget_mb=None,
               vram_turn_headroom_mb=None, refine_endpoint=None,
               refine_model=None, polish_model=None, admit_load_ceil=None,
@@ -90,7 +89,6 @@ def configure(*, vram_checkpoint_enable=None, vram_budget_mb=None,
     if lane_priority is not None:
         _LANE_PRIORITY = lane_priority
 
-
 def _checkpoint_keep_models() -> set:
     """Models that must stay resident across turns."""
     keep = set()
@@ -99,17 +97,14 @@ def _checkpoint_keep_models() -> set:
             keep.add(m)
     return keep
 
-
 async def _engine_resident(endpoint: str) -> list:
     """Resident-model list for an endpoint (degrades open to [] on /v1 plane)."""
     return []
-
 
 def _norm_model_tag(name: str) -> str:
     """Normalise model names so untagged and :latest match."""
     n = str(name or "").strip()
     return n if ":" in n else f"{n}:latest"
-
 
 def _host_stats_cached(ttl: float = 1.0) -> dict:
     """_host_stats() with a short TTL cache."""
@@ -121,7 +116,6 @@ def _host_stats_cached(ttl: float = 1.0) -> dict:
         return _HOST_STATS_CACHE["v"] or {}
     except Exception:
         return {}
-
 
 async def _resident_cached(ep: str, ttl: float = 1.5) -> list:
     """_engine_resident(ep) with a short per-endpoint TTL cache."""
@@ -135,7 +129,6 @@ async def _resident_cached(ep: str, ttl: float = 1.5) -> list:
         return c["v"]
     except Exception:
         return []
-
 
 def _over_global_ceiling(load_ceil: Optional[float] = None) -> bool:
     """True when host load or mem is over the admission ceiling."""
@@ -151,7 +144,6 @@ def _over_global_ceiling(load_ceil: Optional[float] = None) -> bool:
     except Exception:
         return False
 
-
 def _blade_vram_budget(ep: str) -> int:
     """The VRAM budget (MB) to admit a cold model on ep."""
     if not MULTIBLADE_ENABLE:
@@ -162,7 +154,6 @@ def _blade_vram_budget(ep: str) -> int:
         return mios_blades.blade_vram_budget(_BLADE_POOL, blade, VRAM_BUDGET_MB)
     except Exception:
         return VRAM_BUDGET_MB
-
 
 def _over_blade_ceiling(ep: str) -> bool:
     """The host-load ceiling check for ep's blade."""
@@ -178,7 +169,6 @@ def _over_blade_ceiling(ep: str) -> bool:
     except Exception:
         return _over_global_ceiling()
 
-
 async def _is_warm(ep: str, model: str) -> bool:
     """Is model already resident on ep?"""
     try:
@@ -189,11 +179,9 @@ async def _is_warm(ep: str, model: str) -> bool:
     except Exception:
         return True
 
-
 async def _engine_unload(name: str, endpoint: str) -> None:
     """No-op on the /v1 plane."""
     return None
-
 
 async def _vram_checkpoint(keep: Optional[set] = None) -> None:
     """Free VRAM as needed at a turn checkpoint by unloading non-kept models."""
@@ -218,7 +206,6 @@ async def _vram_checkpoint(keep: Optional[set] = None) -> None:
         if free_mb >= VRAM_TURN_HEADROOM_MB:
             break
 
-
 async def _model_active(ep: str, model: str, delta: int, est_mb: int = 0) -> None:
     """Adjust the in-flight refcount for (ep, model)."""
     if not (ep and model):
@@ -234,10 +221,8 @@ async def _model_active(ep: str, model: str, delta: int, est_mb: int = 0) -> Non
             if _ENDPOINT_RESERVED.get(ep, 0) <= 0:
                 _ENDPOINT_RESERVED.pop(ep, None)
 
-
 def _model_is_active(ep: str, model: str) -> bool:
     return _ACTIVE_MODELS.get((ep, _norm_model_tag(model)), 0) > 0
-
 
 def _dispatch_priority(cfg: dict) -> float:
     """Lane-based admission priority for an agent dispatch."""
@@ -249,7 +234,6 @@ def _dispatch_priority(cfg: dict) -> float:
     if cfg.get("research_only"):
         base = max(1.0, base - 2.0)
     return base
-
 
 async def _reclaim_idle_vram(ep: str, want_model: str, need_mb: int) -> bool:
     """Evict IDLE resident models on ep to free need_mb."""

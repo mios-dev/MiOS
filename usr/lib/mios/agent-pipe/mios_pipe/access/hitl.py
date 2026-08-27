@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import hashlib
 
-
 def parse_scope(csv, default_set):
     """Resolve the set of verb names that require approval. A blank csv falls
     back to `default_set` (typically the high-privilege verb set); otherwise the
@@ -15,11 +14,9 @@ def parse_scope(csv, default_set):
         return set(default_set or ())
     return {p.strip() for p in s.split(",") if p.strip()}
 
-
 def requires_approval(tool, enabled, scope):
     """True when the HITL gate applies to this verb dispatch."""
     return bool(enabled) and (tool in (scope or set()))
-
 
 def gate_outcome(mode, approved):
     """'proceed' or 'block'. 'gate' mode blocks unless the action was approved
@@ -28,7 +25,6 @@ def gate_outcome(mode, approved):
     if str(mode).lower() == "gate":
         return "proceed" if approved else "block"
     return "proceed"
-
 
 def block_result(tool, args, action_hash):
     """The structured dispatch-refusal returned when a gated action is not yet
@@ -44,10 +40,8 @@ def block_result(tool, args, action_hash):
         "hitl_pending": True, "action_ref": short,
     }
 
-
 PROCEED, OBSERVE, BLOCK = "proceed", "observe", "block"
 _VERDICT_RANK = {PROCEED: 0, OBSERVE: 1, BLOCK: 2}
-
 
 def tier_gate_posture(ai_mode):
     """Posture contributed by the [ai] risk-tier gate for an in-tier-scope verb:
@@ -60,14 +54,12 @@ def tier_gate_posture(ai_mode):
         return OBSERVE
     return PROCEED
 
-
 def scope_gate_posture(enable, mode):
     """Posture contributed by the [hitl] verb-scope gate for an in-scope verb:
     disabled -> PROCEED, mode 'gate' -> BLOCK, else (log/unknown) -> OBSERVE."""
     if not enable:
         return PROCEED
     return BLOCK if str(mode or "").strip().lower() == "gate" else OBSERVE
-
 
 def decide(*, in_tier_scope=False, ai_mode="off",
            in_name_scope=False, hitl_enable=False, hitl_mode="log",

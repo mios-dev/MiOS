@@ -13,20 +13,17 @@ import mios_sse as e
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _decode(b):
     """`data: {json}\\n\\n` -> the parsed chunk dict."""
     s = b.decode("utf-8")
     assert s.startswith("data: ") and s.endswith("\n\n"), s
     return json.loads(s[len("data: "):].strip())
-
 
 def t_chunk():
     c = _decode(e._sse_chunk("hello", chat_id="cid", model="m", role="assistant"))
@@ -40,10 +37,8 @@ def t_chunk():
     check("chunk: mios_status passthrough",
           _decode(e._sse_chunk("", chat_id="c", model="m", mios_status={"emoji": "x"})).get("mios_status") == {"emoji": "x"})
 
-
 def t_done():
     check("done: [DONE] sentinel", e._sse_done() == b"data: [DONE]\n\n")
-
 
 def t_status():
     b = e._sse_status(chat_id="c", model="m", emoji="🔎", label="search", detail="cats")
@@ -57,13 +52,11 @@ def t_status():
     check("status: bare marker no reasoning", not bare["choices"][0]["delta"].get("reasoning_content"))
     check("status: bare marker still a pill", bare.get("mios_status", {}).get("emoji") == "👂")
 
-
 def t_status_phase():
     c = _decode(e._sse_status_phase(chat_id="c", model="m", phase="tool"))
     check("phase: known phase emoji from _HUMAN_LABELS", c["mios_status"]["emoji"] == e._HUMAN_LABELS["tool"][0])
     c2 = _decode(e._sse_status_phase(chat_id="c", model="m", phase="nope"))
     check("phase: unknown -> fallback glyph", c2["mios_status"]["emoji"] == "·")
-
 
 def t_stream_answer():
     os.environ["MIOS_ANSWER_CHUNK_CHARS"] = "4"
@@ -80,7 +73,6 @@ def t_stream_answer():
             empty.append(b)
     asyncio.run(run2())
     check("stream: empty -> nothing", empty == [])
-
 
 def t_tail():
     fd, path = tempfile.mkstemp(suffix=".json")
@@ -99,7 +91,6 @@ def t_tail():
     finally:
         os.unlink(path)
 
-
 def t_iter_chunks():
     check("iter: size<=0 -> one chunk", list(e._iter_answer_chunks("hello world", 0)) == ["hello world"])
     check("iter: text<=size -> one chunk", list(e._iter_answer_chunks("hi", 8)) == ["hi"])
@@ -111,7 +102,6 @@ def t_iter_chunks():
     check("iter: oversize token emitted whole", big == ["supercalifragilistic"], str(big))
     check("iter: empty text -> ['']", list(e._iter_answer_chunks("", 4)) == [""])
 
-
 def main():
     t_chunk()
     t_done()
@@ -122,7 +112,6 @@ def main():
     t_iter_chunks()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

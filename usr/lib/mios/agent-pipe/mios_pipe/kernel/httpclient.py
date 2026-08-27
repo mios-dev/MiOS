@@ -23,7 +23,6 @@ _BATCH_MAX_SIZE = 8
 _BATCH_NATIVE_HINTS: list = []
 _CONNECT_TIMEOUT_S = 10.0
 
-
 def configure(*, batch_enable=False, batch_interval_s=0.05, batch_max_size=8,
               batch_native_hints=(), connect_timeout_s=10.0) -> None:
     """One-way injection of the [dispatch] batch knobs from server.py."""
@@ -35,11 +34,9 @@ def configure(*, batch_enable=False, batch_interval_s=0.05, batch_max_size=8,
     _BATCH_NATIVE_HINTS = list(batch_native_hints or [])
     _CONNECT_TIMEOUT_S = float(connect_timeout_s)
 
-
 def get_coalescer():
     """The live Coalescer, or None when the feature is off."""
     return _coalescer
-
 
 async def reset() -> None:
     """Drop the memoised client so the next _get_client() rebuilds it."""
@@ -51,7 +48,6 @@ async def reset() -> None:
             pass
     _client = None
     _coalescer = None
-
 
 async def _batch_request_hook(request) -> None:
     """Hold a non-native upstream call in its (endpoint, model) window.
@@ -79,7 +75,6 @@ async def _batch_request_hook(request) -> None:
         raise
     except Exception as e:
         log.debug("batch coalescing skipped: %s", e)
-
 
 async def _get_client() -> httpx.AsyncClient:
     global _client, _coalescer

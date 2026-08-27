@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Comprehensive empirical stress, boundary, and adversarial test harness for batch T-573 to T-582.
-"""
-Empirical Stress & Boundary Testing Suite for MiOS T-573 to T-582:
-- hw/powerd.py (T-573/T-574)
-- ux/wallpaperd.py (T-575/T-576)
-- agent-pipe/mios_mcp.py (T-577/T-578)
-- audio/wakeword.py (T-579/T-580)
-- config/nix_project.py (T-581/T-582)
-"""
+"""Empirical Stress & Boundary Testing Suite for MiOS T-573 to T-582: - hw/powerd.py (T-573/T-574) - ux/wallpaperd.py (T-575/T-576) - agent-pipe/mios_mcp.py (T-577/T-578) - audio/wakeword.py (T-579/T-580) - config/nix_project.py (T-581/T-582)"""
 
 from __future__ import annotations
 
@@ -45,7 +38,6 @@ for p in (_LIB_DIR, _LIB_AGENT_PIPE):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-
 def _load_module(name: str, path: str):
     spec = importlib.util.spec_from_file_location(name, path)
     if spec and spec.loader:
@@ -55,17 +47,11 @@ def _load_module(name: str, path: str):
         return mod
     raise ImportError(f"Could not load {name} from {path}")
 
-
 powerd = _load_module("powerd", _HW_PATH)
 wallpaperd = _load_module("wallpaperd", _UX_PATH)
 mios_mcp = _load_module("mios_mcp", _MCP_PATH)
 wakeword = _load_module("wakeword", _AUDIO_PATH)
 nix_project = _load_module("nix_project", _NIX_PATH)
-
-
-# =============================================================================
-# 1. HARDWARE POWERD STRESS & BOUNDARY TESTS
-# =============================================================================
 
 class TestPowerdStressAndBoundaries(unittest.TestCase):
     """Stress testing rapid AC/DC oscillation, malformed sysfs, desktop/VM fallbacks, concurrency."""
@@ -265,11 +251,6 @@ class TestPowerdStressAndBoundaries(unittest.TestCase):
             self.assertIn(state.power_source, ("AC", "BATTERY"))
             self.assertIsNotNone(state.cpu_epp)
 
-
-# =============================================================================
-# 2. LIVING WALLPAPER OCCLUSION ENGINE STRESS & BOUNDARY TESTS
-# =============================================================================
-
 class TestWallpaperdStressAndBoundaries(unittest.TestCase):
     """Stress testing high-frequency occlusion toggling, socket fuzzing, FPS throttling, IPC concurrency."""
 
@@ -458,11 +439,6 @@ class TestWallpaperdStressAndBoundaries(unittest.TestCase):
         except Exception:
             return None
 
-
-# =============================================================================
-# 3. AGENT-PIPE MCP GATEWAY STRESS & BOUNDARY TESTS
-# =============================================================================
-
 class TestMcpGatewayStressAndBoundaries(unittest.IsolatedAsyncioTestCase):
     """Stress testing deeply nested schemas, failing stdio, timeouts, strict formatting."""
 
@@ -546,17 +522,7 @@ class TestMcpGatewayStressAndBoundaries(unittest.IsolatedAsyncioTestCase):
 
     def test_declarative_toml_parsing_boundaries(self):
         """Boundary: Parsing malformed TOML structures, missing server fields."""
-        malformed_toml = """
-        [mcp.servers.incomplete]
-        transport = "stdio"
-        # missing command
-        enabled = true
-
-        [mcp.servers.http_server]
-        transport = "http"
-        url = "http://127.0.0.1:9999/mcp"
-        allowed_tools = ["tool_a", "tool_b"]
-        """
+        malformed_toml = """[mcp.servers.incomplete]         transport = "stdio"         # missing command         enabled = true          [mcp.servers.http_server]         transport = "http"         url = "http://127.0.0.1:9999/mcp"         allowed_tools = ["tool_a", "tool_b"]"""
         specs = mios_mcp.load_servers_from_toml(malformed_toml)
         self.assertEqual(len(specs), 2)
         srv_map = {s.id: s for s in specs}
@@ -605,11 +571,6 @@ class TestMcpGatewayStressAndBoundaries(unittest.IsolatedAsyncioTestCase):
         large_args = {"data": "x" * 100000, "count": 100}
         res_large = await mios_mcp.dispatch_tool_call("missing_srv", "tool_x", large_args)
         self.assertIn("error", res_large)
-
-
-# =============================================================================
-# 4. ACOUSTIC WAKE-WORD FILTER CHAIN STRESS & BOUNDARY TESTS
-# =============================================================================
 
 class TestWakewordStressAndBoundaries(unittest.TestCase):
     """Stress testing high SNR noise, extreme clipping, stationary audio, benchmark."""
@@ -732,11 +693,6 @@ class TestWakewordStressAndBoundaries(unittest.TestCase):
         self.assertGreater(res["detection_count"], 0)
         self.assertEqual(res["pipeline_status"]["state"], "triggered")
 
-
-# =============================================================================
-# 5. DECLARATIVE NIX PROJECT & GENERATION MANAGER STRESS & BOUNDARY TESTS
-# =============================================================================
-
 class TestNixProjectStressAndBoundaries(unittest.TestCase):
     """Stress testing malformed TOML, package injection sanitization, rollback limits, scale."""
 
@@ -850,7 +806,6 @@ class TestNixProjectStressAndBoundaries(unittest.TestCase):
         summary = manager.save_generation(self.out_flake, rendered, config=large_config)
         self.assertEqual(summary["packages_count"], 100)
         self.assertEqual(summary["aliases_count"], 3)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

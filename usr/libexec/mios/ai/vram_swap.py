@@ -25,7 +25,6 @@ logger = logging.getLogger("mios-vram-swap")
 MAX_SWAP_LATENCY_MS = 500.0  # Max acceptable model swap / KV page-in latency in ms
 DEFAULT_STATE_FILE = "/run/mios/vram_swap_state.json"
 
-
 @dataclass
 class ModelLayerSpec:
     model_name: str
@@ -43,7 +42,6 @@ class ModelLayerSpec:
     def vram_usage_mb(self) -> float:
         return self.vram_layers * self.layer_size_mb
 
-
 @dataclass
 class KVSlot:
     session_id: str
@@ -53,7 +51,6 @@ class KVSlot:
     last_accessed: float
     location: str = "vram"        # 'vram' or 'host_ram'
     is_pinned: bool = False       # True if actively generating tokens
-
 
 class VRAMSwapManager:
     """Manages dynamic VRAM layer distribution and LRU KV-cache paging."""
@@ -262,7 +259,6 @@ class VRAMSwapManager:
         except Exception as e:
             logger.debug(f"Failed to save VRAM swap state: {e}")
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS VRAM Dynamic Layer Swapper and KV Pager")
     parser.add_argument("--status", action="store_true", help="Display memory and paging status")
@@ -289,7 +285,6 @@ def main() -> int:
 
     print("MiOS VRAM Swap Manager initialized.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -12,13 +12,11 @@ import mios_knowledge as k
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_recall_floor():
     k.configure(
@@ -38,7 +36,6 @@ def t_recall_floor():
           str(k._recall_floor("what is my X")))
     k.configure(knowledge_recall_pref_min_score=0.50)
 
-
 def t_recency_mult():
     k.configure(knowledge_rank_age=0.0, knowledge_recall_halflife_days=7.0)
     check("recency_mult inert when rank_age==0",
@@ -57,7 +54,6 @@ def t_recency_mult():
     check("recency_mult bounded below by 1-rank_age", m_old >= (1 - 0.3) - 1e-9, str(m_old))
     check("recency_mult no timestamp -> 1.0", k._recency_mult({}) == 1.0)
     k.configure(knowledge_rank_age=0.0)  # restore inert for the blend test
-
 
 def t_recall_blend():
     """_recall_knowledge_pg blended rerank: at equal cosine, a hot+satisfied+
@@ -120,14 +116,12 @@ def t_recall_blend():
     k.configure(memory=_MemLow())
     check("recall_pg below-floor -> ''", asyncio.run(k._recall_knowledge_pg("q")) == "")
 
-
 class _FakeVar:
     """Minimal contextvar stand-in: .get([default]) -> the stored value."""
     def __init__(self, v):
         self._v = v
     def get(self, default=None):
         return self._v
-
 
 def t_rls_owner():
     """_rls_owner: None unless [pgvector].rls_mode == 'enforce' AND a principal was
@@ -150,7 +144,6 @@ def t_rls_owner():
     finally:
         k._toml_section = _orig_toml
         k._client_env_var = _orig_env
-
 
 def t_recall_agent_memory():
     """_recall_agent_memory: default-off -> ''; enabled -> an injectable block of
@@ -191,7 +184,6 @@ def t_recall_agent_memory():
         k.configure(pg_primary=True)
     finally:
         k._toml_section = _orig_toml
-
 
 def t_recall_agent_memory_recency():
     """A7: agent_memory recall applies the SHARED blended rerank (not flat cosine).
@@ -239,7 +231,6 @@ def t_recall_agent_memory_recency():
         k._toml_section = _orig_toml
         k.configure(knowledge_rank_age=0.0)  # leave inert for any later test
 
-
 def t_kg_lookup():
     """kg_lookup: alias exact-match returns the resolved app_install row; an empty
     phrase short-circuits to None; an all-empty result-set falls through to None."""
@@ -262,7 +253,6 @@ def t_kg_lookup():
     k.configure(db_read=_db_read_miss)
     check("kg_lookup no match -> None",
           asyncio.run(k.kg_lookup("nothere")) is None)
-
 
 def t_hybrid_and_rerank():
     async def _embed_one(_q, *args, **kwargs):
@@ -302,7 +292,6 @@ def t_hybrid_and_rerank():
             knowledge_rag_rerank=False,
         )
 
-
 def main():
     t_recall_floor()
     t_recency_mult()
@@ -316,7 +305,6 @@ def main():
         print(f"\n{_fails} FAILED")
         sys.exit(1)
     print("\nok")
-
 
 if __name__ == "__main__":
     main()

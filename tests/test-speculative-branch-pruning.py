@@ -3,7 +3,6 @@ import sys, time
 sys.path.insert(0, "usr/lib/mios/ai")
 from speculative_prune import TreeAttentionPruner, SpeculativeTree
 
-
 def test_branch_pruning_accuracy():
     """Verify bitmask pruner correctly computes accepted and freed branches."""
     pruner = TreeAttentionPruner(max_branches=16)
@@ -15,7 +14,6 @@ def test_branch_pruning_accuracy():
     assert metrics["rejected_branches"] == 13
     assert metrics["freed_kv_blocks"] == 13 * (64 // 16)
     assert metrics["new_seq_len"] == 103
-
 
 def test_10k_cycles_zero_leak_and_latency():
     """Execute 10,000 speculative generation cycles; verify zero leak and <20us latency."""
@@ -31,7 +29,6 @@ def test_10k_cycles_zero_leak_and_latency():
     avg_us = (total_elapsed / 10_000) * 1_000_000
     assert pruner.total_pruned_cycles == 10_000
     assert avg_us < 20.0, f"Average compaction latency {avg_us:.2f} us exceeds 20us SLA"
-
 
 if __name__ == "__main__":
     test_branch_pruning_accuracy()

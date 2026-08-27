@@ -17,11 +17,9 @@ import sys
 import time
 from typing import List, Tuple
 
-
 def generate_backup_filename(db_name: str = "mios") -> str:
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%SZ")
     return f"{db_name}_backup_{timestamp}.sql.zst"
-
 
 def execute_backup(
     db_name: str = "mios",
@@ -65,7 +63,6 @@ def execute_backup(
 
     return target_path
 
-
 def enforce_retention(
     output_dir: str = "/var/lib/mios/backups/pgvector",
     retention_days: int = 7,
@@ -87,7 +84,6 @@ def enforce_retention(
                     deleted.append(file_path)
 
     return deleted
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS pgvector zstd backup engine")
@@ -118,7 +114,6 @@ def main() -> int:
     except Exception as e:
         sys.stderr.write(f"[mios-backup-pgvector] Error: {e}\n")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -20,7 +20,6 @@ from split_dns import SplitDNSConfigurator
 from fastboot_mgr import MAX_LOADER_TIME_MS, FastbootManager
 from kaslr_mgr import MIN_KASLR_ENTROPY_BITS, KASLRRandomizerManager
 
-
 class TestEmpiricalStressT693T702(unittest.TestCase):
     # --- 1. Accelerator Router Rapid Workload Dispatch Stress Tests ---
     def test_accelerator_router_50_concurrent_tasks(self):
@@ -76,7 +75,6 @@ class TestEmpiricalStressT693T702(unittest.TestCase):
         self.assertEqual(len(set(addrs)), 50)
         entropy = mgr.compute_address_variance_entropy(samples)
         self.assertGreaterEqual(entropy, MIN_KASLR_ENTROPY_BITS)
-
 
 if __name__ == "__main__":
     unittest.main()

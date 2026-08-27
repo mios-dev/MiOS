@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-cuda-graphs")
 
 MIN_CUDA_GRAPH_SPEEDUP = 1.5
 
-
 @dataclass
 class CUDAGraphReplayResult:
     batch_size: int
@@ -31,7 +30,6 @@ class CUDAGraphReplayResult:
     capture_time_ms: float
     replay_speedup: float
     bit_parity_verified: bool
-
 
 class CUDAGraphManager:
     """Manages static CUDA Graph pre-capture and high-throughput GPU replay queues."""
@@ -71,13 +69,11 @@ class CUDAGraphManager:
         )
         return res
 
-
 def main():
     mgr = CUDAGraphManager(dry_run=True)
     mgr.capture_graph_for_batch(1)
     res = mgr.replay_graph_decoding(1, 50)
     print(f"Batch: {res.batch_size}, Speedup: {res.replay_speedup}x")
-
 
 if __name__ == "__main__":
     main()

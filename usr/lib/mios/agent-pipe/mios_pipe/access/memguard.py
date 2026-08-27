@@ -20,18 +20,15 @@ HIGH = "high"
 
 _SEV_RANK = {NONE: 0, LOW: 1, HIGH: 2}
 
-
 def _max_sev(a: str, b: str) -> str:
     """The higher of two severities (so a structural control-token can ESCALATE a
     lenient model verdict, and the structural url/fence LOW lifts a NONE)."""
     return a if _SEV_RANK.get(a, 0) >= _SEV_RANK.get(b, 0) else b
 
-
 _CONTROL_TOKEN = re.compile(r"<\|[^|>\n]{1,60}\|>|\[/?INST\]|</?s>", re.IGNORECASE)
 
 _URL = re.compile(r"\bhttps?://[^\s)>\]\"']+", re.IGNORECASE)
 _CODE_FENCE = re.compile(r"```")
-
 
 def scan_fact(text: str) -> dict:
     s = str(text or "")
@@ -50,7 +47,6 @@ def scan_fact(text: str) -> dict:
             "has_control_token": has_ctrl,
             "has_url": has_url, "has_code_fence": has_fence}
 
-
 def _judge_mode() -> str:
     """SSOT judge-path flag (env MIOS_MEMGUARD_JUDGE_MODE -> [pgvector].memguard_judge_mode
     -> "model"). "model" => the micro-model injection judge drives severity and the
@@ -64,7 +60,6 @@ def _judge_mode() -> str:
         except Exception:  # noqa: BLE001 -- best-effort; fall to the default
             v = "model"
     return str(v or "model").strip().lower()
-
 
 async def _judge_severity(text: str) -> Optional[str]:
     s = str(text or "").strip()
@@ -106,7 +101,6 @@ async def _judge_severity(text: str) -> Optional[str]:
         log.debug("memguard injection judge unavailable -> structural degrade", exc_info=True)
         return None
 
-
 def _neutralize(text: str) -> str:
     """Defang a fact for 'strip' mode: redact URLs + fence the prose so recalled
     content can't act as a live link or code block. Conservative + reversible-ish
@@ -114,7 +108,6 @@ def _neutralize(text: str) -> str:
     out = _URL.sub("[url removed]", str(text or ""))
     out = out.replace("```", "ʼʼʼ")        # neutralize code-fence markers (look-alike)
     return out
-
 
 async def validate_for_store(text: str, *, mode: str = "off",
                              judge_mode: Optional[str] = None) -> dict:

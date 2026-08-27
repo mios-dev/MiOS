@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional, Tuple
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-speculative")
 
-
 @dataclass
 class SpeculativePair:
     target_model: str
@@ -29,7 +28,6 @@ class SpeculativePair:
     initial_draft_length: int = 5
     current_draft_length: int = 5
     acceptance_rate_ema: float = 0.75  # Exponential moving average acceptance rate
-
 
 class SpeculativeDraftManager:
     """Manages speculative model pairings and dynamically adapts draft sequence lengths."""
@@ -88,12 +86,10 @@ class SpeculativeDraftManager:
             "meets_target": speedup >= 2.5,
         }
 
-
 def main():
     mgr = SpeculativeDraftManager(dry_run=True)
     res = mgr.benchmark_speedup("qwen2.5-32b-instruct.Q4_K_M.gguf")
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

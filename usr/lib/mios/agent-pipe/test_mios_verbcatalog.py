@@ -8,7 +8,6 @@ import unittest
 
 import mios_verbcatalog as VC
 
-
 SYNTH_TOML = """
 [verbs.open_app]
 section = "Window / app launch"
@@ -46,7 +45,6 @@ description = "Show a desktop toast"
 args = ["message"]
 permission = "read"
 """
-
 
 class VerbCatalogTest(unittest.TestCase):
     @classmethod
@@ -162,7 +160,6 @@ class VerbCatalogTest(unittest.TestCase):
         ans = VC._identity_answer()
         self.assertTrue(ans)
         self.assertIn("MiOS-Agent", ans)
-
 
 if __name__ == "__main__":
     unittest.main()

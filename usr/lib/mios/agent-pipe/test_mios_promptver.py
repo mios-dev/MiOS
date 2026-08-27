@@ -8,20 +8,17 @@ import mios_promptver as pv
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def t_hash():
     check("hash: stable + 12 hex", pv.content_hash("abc") == pv.content_hash("abc")
           and len(pv.content_hash("abc")) == 12)
     check("hash: differs on change", pv.content_hash("abc") != pv.content_hash("abd"))
     check("hash: None safe", isinstance(pv.content_hash(None), str))
-
 
 def t_register_versions():
     r = pv.PromptRegistry()
@@ -36,7 +33,6 @@ def t_register_versions():
     c = r.register("polish", "p1")
     check("register: per-name version", c["version"] == 1)
 
-
 def t_rollback():
     r = pv.PromptRegistry()
     r.register("synth", "original")
@@ -50,7 +46,6 @@ def t_rollback():
     r.register("solo", "x")
     check("rollback: no history -> None", r.rollback("solo") is None)
 
-
 def t_snapshot():
     r = pv.PromptRegistry()
     r.register("router", "SYSTEM: classify the prompt")
@@ -61,7 +56,6 @@ def t_snapshot():
           and snap["router"]["history"] == 1)
     check("snapshot: NEVER leaks content", all("content" not in v for v in snap.values()))
 
-
 def main():
     t_hash()
     t_register_versions()
@@ -69,7 +63,6 @@ def main():
     t_snapshot()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

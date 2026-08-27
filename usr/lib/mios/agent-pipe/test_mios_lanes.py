@@ -17,11 +17,9 @@ from mios_lanes import Lane, LaneResolver, build_chain
 
 _RESULTS: list = []
 
-
 def _check(name: str, cond: bool, detail: str = "") -> None:
     _RESULTS.append((name, bool(cond), detail))
     print("  [%s] %s%s" % ("OK" if cond else "FAIL", name, (" -- " + detail) if detail and not cond else ""))
-
 
 class _Clock:
     """Mutable monotonic clock."""
@@ -34,14 +32,12 @@ class _Clock:
     def advance(self, dt):
         self.t += dt
 
-
 def _lanes():
     return {
         "light": Lane("light", "http://localhost:8450/v1", "granite4.1:8b"),
         "sglang": Lane("sglang", "http://localhost:8442/v1", "mios-heavy"),
         "vllm": Lane("vllm", "http://localhost:8441/v1", "mios-heavy"),
     }
-
 
 def _resolver(up, clock, **kw):
     """up: dict {lane_url_substring: bool}; probe counts calls in `calls`."""
@@ -61,7 +57,6 @@ def _resolver(up, clock, **kw):
                      clock=clock)
     return r, calls
 
-
 async def t_build_chain():
     ids = ["light", "sglang", "vllm"]
     _check("chain sglang-first", build_chain("sglang", ids) == ["sglang", "vllm", "light"],
@@ -79,13 +74,11 @@ async def t_build_chain():
     _check("chain light always terminal", build_chain("light,sglang", ids) == ["sglang", "light"],
            str(build_chain("light,sglang", ids)))
 
-
 async def t_pick_prefers_heavy():
     clk = _Clock()
     r, _ = _resolver({"8442": True, "8441": True, "8450": True}, clk)
     lane = await r.pick("tool")
     _check("prefers sglang when up", lane.id == "sglang", lane.id)
-
 
 async def t_failover_to_vllm_then_light():
     clk = _Clock()
@@ -95,7 +88,6 @@ async def t_failover_to_vllm_then_light():
     r2, _ = _resolver({"8442": False, "8441": False, "8450": True}, clk)
     _check("both heavy down -> light", (await r2.pick("tool")).id == "light")
 
-
 async def t_cooldown_skips_reprobe():
     clk = _Clock()
     r, calls = _resolver({"8442": False, "8441": True, "8450": True}, clk, cooldown=60.0)
@@ -103,7 +95,6 @@ async def t_cooldown_skips_reprobe():
     n1 = calls["n"]
     await r.pick("tool")               # sglang in cooldown -> skipped; vllm cached(ttl) -> 0 new
     _check("cooldown+ttl avoid reprobe", calls["n"] == n1, "calls went %d->%d" % (n1, calls["n"]))
-
 
 async def t_ttl_caches():
     clk = _Clock()
@@ -117,7 +108,6 @@ async def t_ttl_caches():
     await r.pick("tool")
     _check("reprobe after ttl", calls["n"] > n1)
 
-
 async def t_recovery_after_cooldown():
     clk = _Clock()
     up = {"8442": False, "8441": True, "8450": True}
@@ -127,7 +117,6 @@ async def t_recovery_after_cooldown():
     clk.advance(70)                    # past cooldown -> re-probe sglang
     _check("recovers to sglang after cooldown", (await r.pick("tool")).id == "sglang")
 
-
 async def t_terminal_floor():
     clk = _Clock()
     r, _ = _resolver({"8442": False, "8441": False, "8450": False}, clk)
@@ -135,14 +124,12 @@ async def t_terminal_floor():
     _check("all down -> terminal floor light (not None)", lane is not None and lane.id == "light",
            repr(lane))
 
-
 async def t_mark_down():
     clk = _Clock()
     r, _ = _resolver({"8442": True, "8441": True, "8450": True}, clk)
     _check("up before mark_down", (await r.pick("tool")).id == "sglang")
     r.mark_down("sglang")
     _check("mark_down forces failover", (await r.pick("tool")).id == "vllm")
-
 
 async def main():
     print("test_mios_lanes (WS-1 lane resolver)")
@@ -153,7 +140,6 @@ async def main():
     fails = [n for (n, ok, _d) in _RESULTS if not ok]
     print("\n%d checks, %d passed, %d failed" % (len(_RESULTS), len(_RESULTS) - len(fails), len(fails)))
     return 1 if fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

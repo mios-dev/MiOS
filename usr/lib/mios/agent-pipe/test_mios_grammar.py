@@ -13,13 +13,11 @@ from mios_grammar import JsonGrammarCompiler
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def main():
     compiler = JsonGrammarCompiler()
@@ -37,7 +35,6 @@ def main():
 
     if _fails > 0:
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

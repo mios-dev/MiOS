@@ -27,7 +27,6 @@ DEFAULT_SQLITE_SEARCH_PATHS = [
 ]
 DEFAULT_PG_DATA_DIR = "/var/lib/mios/pgvector"
 
-
 class DbDoctor:
     """Detects and repairs database corruption across SQLite and PostgreSQL stores."""
 
@@ -380,7 +379,6 @@ class DbDoctor:
             "total_elapsed_ms": total_elapsed_ms,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Database Corruption Detector & Automated Repair Engine"
@@ -431,7 +429,6 @@ def main() -> int:
     except Exception as e:
         sys.stderr.write(f"[mios-db-doctor] FATAL ERROR: {e}\n")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

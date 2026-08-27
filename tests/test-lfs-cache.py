@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from lfs_pull import LFSSparseCacheManager
 
-
 class TestLFSCache(unittest.TestCase):
     def setUp(self):
         self.tmp_cache = tempfile.mkdtemp(prefix="mios-lfs-test-")
@@ -34,7 +33,6 @@ class TestLFSCache(unittest.TestCase):
         r2 = self.mgr.fetch_sparse_blob("model-q4.gguf", payload)
         self.assertTrue(r2.was_cached)
         self.assertEqual(r1.sha256_hash, r2.sha256_hash)
-
 
 if __name__ == "__main__":
     unittest.main()

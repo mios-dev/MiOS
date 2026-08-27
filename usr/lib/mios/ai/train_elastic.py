@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-train-elastic")
 
-
 @dataclass
 class TrainingCheckpoint:
     step: int
@@ -29,7 +28,6 @@ class TrainingCheckpoint:
     loss: float
     weights_hash: str
     saved_at: float = 0.0
-
 
 class ElasticTrainingManager:
     """Manages non-blocking async checkpoint saving and elastic preemption recovery."""
@@ -72,14 +70,12 @@ class ElasticTrainingManager:
         logger.info(f"Resumed training state from step {latest.step} (loss={latest.loss:.4f}).")
         return latest
 
-
 def main():
     mgr = ElasticTrainingManager(dry_run=True)
     mgr.save_checkpoint_async(100, 1, 0.42, "weights")
     mgr.handle_preemption_signal(150, 0.38)
     ckpt = mgr.resume_from_latest_checkpoint()
     print(f"Resumed step: {ckpt.step if ckpt else None}")
-
 
 if __name__ == "__main__":
     main()

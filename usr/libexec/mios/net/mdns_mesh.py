@@ -23,7 +23,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-
 @dataclass
 class MeshPeer:
     node_id: str
@@ -34,7 +33,6 @@ class MeshPeer:
     mesh_ip: str
     last_seen: float = field(default_factory=time.time)
     state: str = "active"  # active, stale, unreachable
-
 
 class MDNSMeshManager:
     """Manages mDNS peer discovery, WireGuard peering configuration, and mesh health."""
@@ -154,7 +152,6 @@ class MDNSMeshManager:
         except Exception as exc:
             return False, f"Failed to add peer: {exc}"
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS mDNS Mesh & WireGuard Daemon")
     parser.add_argument("--announce", action="store_true", help="Print local mDNS announcement record")
@@ -211,7 +208,6 @@ def main() -> int:
             print(f"  - {p.node_id} ({p.hostname}) -> {p.ip_address}:{p.port} (Mesh: {p.mesh_ip})")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

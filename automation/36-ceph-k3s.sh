@@ -14,7 +14,6 @@ install_packages "ceph"
 mios_log "K3s prerequisites"
 install_packages "k3s"
 
-
 # MIOS_K3S_VERSION by tools/lib/userenv.sh (sourced via lib/common.sh above). The
 mios_log "Resolve K3s release tag from mios.toml SSOT"
 USE_OFFLINE=false
@@ -95,7 +94,6 @@ if [[ -n "$K3S_TAG" ]]; then
 fi
 
 chmod 755 /usr/libexec/mios/ceph-bootstrap.sh 2>/dev/null || true
-
 
 mios_ok "Ceph client + cephadm installed; K3s binary per tag ${K3S_TAG:-none}"
 mios_log "Ceph Dashboard:  https://<host>:8443"

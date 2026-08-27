@@ -11,7 +11,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _JUSTFILE = os.path.join(_ROOT, "Justfile")
 
-
 def test_iso_credential_guard():
     with open(_JUSTFILE, "r", encoding="utf-8") as f:
         content = f.read()
@@ -24,13 +23,11 @@ def test_iso_credential_guard():
     assert '${MIOS_USER_PASSWORD_HASH:-}|g' not in iso_block, "iso recipe uses empty fallback in sed replacement string"
     assert '[ -z "${MIOS_USER_PASSWORD_HASH:-}" ]' in iso_block, "iso recipe lacks non-empty guard for MIOS_USER_PASSWORD_HASH"
 
-
 def main() -> int:
     print("[test-iso-credential-guard] Running ISO credential guard verification...")
     test_iso_credential_guard()
     print("[test-iso-credential-guard] PASS: Verified ISO credential guard in Justfile.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

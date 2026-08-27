@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from medusa_tree import MIN_MEDUSA_SPEEDUP, MedusaTreeEngine
 
-
 class TestMedusaTree(unittest.TestCase):
     def setUp(self):
         self.engine = MedusaTreeEngine(num_heads=4, dry_run=True)
@@ -27,7 +26,6 @@ class TestMedusaTree(unittest.TestCase):
         res = self.engine.generate_with_tree_attention("import numpy as np", target_tokens=40)
         self.assertTrue(res.exact_parity_verified)
         self.assertEqual(res.tokens_generated, 40)
-
 
 if __name__ == "__main__":
     unittest.main()

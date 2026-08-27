@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from mios_pipe.routing.remote_adapter import call_remote
 
-
 class TestRemoteAdapter(unittest.TestCase):
     def test_openai_passthrough(self):
         async def _run():
@@ -107,7 +106,6 @@ class TestRemoteAdapter(unittest.TestCase):
             self.assertEqual(res["content"], "Gemini response text")
 
         asyncio.run(_run())
-
 
 if __name__ == "__main__":
     unittest.main()

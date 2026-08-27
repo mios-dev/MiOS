@@ -41,7 +41,6 @@ DEFAULT_STATE_FILE = "/run/mios/powerd_state.json"
 DEFAULT_POLL_INTERVAL_SECONDS = 5.0
 DEFAULT_TARGET_CONTAINERS = ["mios-finetune", "mios-embed-backfill"]
 
-
 @dataclass
 class PowerProfileState:
     """Current operational profile and power state."""
@@ -70,7 +69,6 @@ class PowerProfileState:
             "gpu_power_state": self.gpu_power_state,
             "last_transition_ts": self.last_transition_ts,
         }
-
 
 class PowerDaemon:
     """Manages power supply telemetry detection, CPU EPP scaling, and AI inference modulation."""
@@ -465,7 +463,6 @@ class PowerDaemon:
 
         logger.info("mios-powerd daemon stopped cleanly.")
 
-
 def parse_args() -> argparse.Namespace:
     """Parses CLI command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -519,7 +516,6 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
 def main() -> int:
     """Main CLI entry point."""
     args = parse_args()
@@ -570,7 +566,6 @@ def main() -> int:
         if args.json:
             print(json.dumps({"status": "error", "error": str(e)}, indent=2))
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

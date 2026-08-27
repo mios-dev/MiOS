@@ -17,7 +17,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 _MARKER = "neg" + "test"
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "check_leaked_fixtures", os.path.join(_HERE, "check-leaked-fixtures.py"))
@@ -25,12 +24,9 @@ def _load():
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
 
-
 _MADE = []
-
 
 def _repo(files):
     """A throwaway git repo tracking `files` (name -> content), with a ceiling of 0.
@@ -56,7 +52,6 @@ def _repo(files):
                    capture_output=True)
     return d
 
-
 def _run(root):
     old = os.environ.get("MIOS_DRIFT_ROOT")
     os.environ["MIOS_DRIFT_ROOT"] = root
@@ -67,7 +62,6 @@ def _run(root):
             os.environ.pop("MIOS_DRIFT_ROOT", None)
         else:
             os.environ["MIOS_DRIFT_ROOT"] = old
-
 
 class TestLeakedFixtures(unittest.TestCase):
     def test_a_clean_tree_passes(self):
@@ -92,7 +86,6 @@ class TestLeakedFixtures(unittest.TestCase):
     def test_the_shipped_tree_is_clean(self):
         self.assertEqual(0, _run(_ROOT))
 
-
 def tearDownModule():
     """Remove every fixture repo, whatever the outcome of the tests.
 
@@ -114,7 +107,6 @@ def tearDownModule():
                     pass
         shutil.rmtree(d, ignore_errors=True)
     _MADE.clear()
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

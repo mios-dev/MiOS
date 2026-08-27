@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from accelerator_router import HierarchicalAcceleratorRouter
 
-
 class TestAcceleratorRouter(unittest.TestCase):
     def setUp(self):
         self.router_npu = HierarchicalAcceleratorRouter(has_npu=True, dry_run=True)
@@ -37,7 +36,6 @@ class TestAcceleratorRouter(unittest.TestCase):
         self.assertEqual(res.assigned_target, "dGPU_Heavy")
         self.assertEqual(res.dgpu_power_state, "D0_Active")
         self.assertFalse(res.is_power_gated)
-
 
 if __name__ == "__main__":
     unittest.main()

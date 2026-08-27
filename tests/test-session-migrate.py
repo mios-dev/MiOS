@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestSessionMigrate(unittest.TestCase):
     """Test suite for Wayland desktop session checkpointing, checksumming, and migration."""
 
@@ -176,7 +175,6 @@ class TestSessionMigrate(unittest.TestCase):
             self.assertEqual(ret, 0)
             data = json.loads(stdout_buf.getvalue())
             self.assertTrue(data["success"])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOML_PATH = os.path.join(ROOT, "usr/share/mios/mios.toml")
 VERSION_FILE = os.path.join(ROOT, "VERSION")
 
-
 def get_ssot_version() -> str:
     if os.path.isfile(TOML_PATH):
         with open(TOML_PATH, "rb") as f:
@@ -30,7 +29,6 @@ def get_ssot_version() -> str:
         with open(VERSION_FILE, "r", encoding="utf-8") as f:
             return f.read().strip()
     return "0.3.0"
-
 
 def main() -> None:
     version = get_ssot_version()
@@ -63,7 +61,6 @@ edition = "2021"
         f.write(content)
 
     print(f"[generate-cargo-manifests] Projected tools/native/Cargo.toml with version {version} from SSOT")
-
 
 if __name__ == "__main__":
     main()

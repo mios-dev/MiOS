@@ -78,7 +78,6 @@ else
     mios_err "failed to create user ${C_USER}"
 fi
 
-
 chmod 440 /usr/lib/sudoers.d/10-mios-wheel 2>/dev/null || true
 chmod 0644 /etc/sudoers.d/* /etc/fapolicyd/fapolicyd.rules 2>/dev/null || true
 
@@ -92,8 +91,6 @@ if [ -f /usr/share/locale/locale.alias ]; then
     grep -q "C.UTF-8" /usr/share/locale/locale.alias 2>/dev/null || echo "C.UTF-8 C.utf8" >> /usr/share/locale/locale.alias
 fi
 
-
-
 mios_log "Fixing home directory ownership"
 { awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd; echo "Mios"; } | sort -u | while read -r u; do
     if getent passwd "$u" >/dev/null 2>&1; then
@@ -105,6 +102,5 @@ mios_log "Fixing home directory ownership"
         fi
     fi
 done
-
 
 mios_ok "User & authentication configured"

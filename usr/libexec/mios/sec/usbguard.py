@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-usbguard")
 
 DEFAULT_POLICY_PATH = "/etc/usbguard/rules.conf"
 
-
 @dataclass
 class USBDevice:
     device_id: str
@@ -33,7 +32,6 @@ class USBDevice:
     device_class: str  # e.g., "03:01:01" for HID keyboard
     is_authorized: bool = False
     name: str = "Unknown USB Peripheral"
-
 
 class USBGuardPolicyManager:
     """Manages declarative USB device authorization and dynamic rule generation."""
@@ -113,13 +111,11 @@ class USBGuardPolicyManager:
             lines.append(f'allow id {parts[0]}:{parts[1]} serial "{parts[2]}"')
         return "\n".join(lines) + "\n"
 
-
 def main():
     mgr = USBGuardPolicyManager(dry_run=True)
     mgr.enroll_device("046d", "c52b", "1001", "Logitech Unifying Receiver")
     ok = mgr.handle_device_insertion("dev1", "046d", "c52b", "1001", "03:01:01", "Logitech Mouse")
     print(f"Device allowed: {ok}")
-
 
 if __name__ == "__main__":
     main()

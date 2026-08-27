@@ -9,7 +9,6 @@ unchanged -- only their container is.
 """
 import sys
 
-
 def check_doc_refs_resolve() -> int:
     import os, sys, re
     import tomllib
@@ -99,7 +98,6 @@ def check_doc_refs_resolve() -> int:
 
     sys.exit(0)
 
-
 def check_resolver_differential_parity() -> int:
     import os, sys, subprocess
     import tomllib
@@ -162,7 +160,6 @@ def check_resolver_differential_parity() -> int:
 
     print("    mios-resolver --emit=json matches Python SSOT render 100%")
     sys.exit(0)
-
 
 def check_legibility_ratchet() -> int:
     import os, subprocess, sys
@@ -245,7 +242,6 @@ def check_legibility_ratchet() -> int:
     print("\n".join(viol))
     sys.exit(1 if viol else 0)
 
-
 def check_no_inert_ssot_tables() -> int:
     import os, sys, re
     import tomllib
@@ -287,7 +283,6 @@ def check_no_inert_ssot_tables() -> int:
 
     sys.exit(0)
 
-
 def check_no_duplicate_value_key() -> int:
     """One value, one name, ratcheted against the baseline ledger.
 
@@ -326,10 +321,8 @@ def check_no_duplicate_value_key() -> int:
         "# Format: value<TAB>key_count<TAB>comma-separated MIOS_* keys  (value escapes \\\\ \\t \\r)",
     ]
 
-
     def emit(msg):
         sys.stderr.write("    [value-dup-drift] " + msg + "\n")
-
 
     def esc(text):
         out = text.replace("\\", "\\\\").replace("\t", "\\t").replace("\r", "\\r")
@@ -340,7 +333,6 @@ def check_no_duplicate_value_key() -> int:
         if out.startswith("#"):
             out = "\\#" + out[1:]
         return out
-
 
     def unesc(text):
         out = []
@@ -368,7 +360,6 @@ def check_no_duplicate_value_key() -> int:
             out.append(ch)
             i += 1
         return "".join(out)
-
 
     # --- resolve the live environment -------------------------------------------
     # Git Bash cannot resolve an absolute path given as a script argument when
@@ -659,7 +650,6 @@ def check_unwired_modules() -> int:
                          "-- delete it from the allowlist (A1 register self-cleans)\n")
     sys.exit(1 if (new_dead or stale) else 0)
 
-
 def check_header_integrity() -> int:
     """A header tagger must never consume line 1 (AGY-1607)."""
     import os, re, subprocess, sys
@@ -704,7 +694,6 @@ def check_header_integrity() -> int:
                     "and the directive, then re-tag.")
     print("\n".join(viol))
     sys.exit(1 if viol else 0)
-
 
 def check_drift_build_catalog() -> int:
     """Lifted out of a shell heredoc so it can be imported and linted."""
@@ -1787,7 +1776,6 @@ def check_structured() -> int:
         sys.stderr.write(f"    {v}\n")
     sys.exit(1 if viol else 0)
 
-
 def check_negative_test_coverage() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
 
@@ -1885,7 +1873,6 @@ def check_negative_test_coverage() -> int:
 
     sys.exit(0)
 
-
 def check_bake_plan_integrity() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
 
@@ -1965,7 +1952,6 @@ def check_bake_plan_integrity() -> int:
         sys.exit(1)
 
     sys.exit(0)
-
 
 def check_globals_image_parity() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
@@ -2047,7 +2033,6 @@ def check_globals_image_parity() -> int:
     for b in bad:
         sys.stderr.write(f"    {b}\n")
     sys.exit(1 if bad else 0)
-
 
 def check_no_bare_port_literals() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
@@ -2145,7 +2130,6 @@ def check_no_bare_port_literals() -> int:
         sys.exit(1)
     sys.exit(0)
 
-
 def check_verb_stub_backends() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
 
@@ -2225,7 +2209,6 @@ def check_verb_stub_backends() -> int:
 
     sys.exit(0)
 
-
 def check_cephfs_ssot() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
 
@@ -2302,7 +2285,6 @@ def check_cephfs_ssot() -> int:
         sys.stderr.write(f"    {v}\n")
     sys.exit(1 if viol else 0)
 
-
 def check_firstboot_tier() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
 
@@ -2368,7 +2350,6 @@ def check_firstboot_tier() -> int:
             sys.stderr.write(f"    {b}\n")
         sys.exit(1)
     sys.exit(0)
-
 
 def check_gate_registry() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
@@ -2448,7 +2429,6 @@ def check_gate_registry() -> int:
 
     sys.exit(0)
 
-
 def check_names_registry() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
 
@@ -2511,7 +2491,6 @@ def check_names_registry() -> int:
             sys.stderr.write(f"    {v}\n")
         sys.exit(1)
     sys.exit(0)
-
 
 def check_agent_schema() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
@@ -2581,7 +2560,6 @@ def check_agent_schema() -> int:
         sys.stderr.write(b + "\n")
     sys.exit(1 if bad else 0)
 
-
 def check_bootstrap_ports_drift() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
 
@@ -2647,7 +2625,6 @@ def check_bootstrap_ports_drift() -> int:
         sys.exit(1)
     sys.exit(0)
 
-
 def check_rbac_tiers() -> int:
     import os, sys
     import tomllib as _toml
@@ -2671,7 +2648,6 @@ def check_rbac_tiers() -> int:
     for b in bad:
         sys.stderr.write(b + "\n")
     return 1 if bad else 0
-
 
 def check_ai_manifest() -> int:
     import os, sys, json
@@ -2700,7 +2676,6 @@ def check_ai_manifest() -> int:
         sys.stderr.write("    " + d + "\n")
     return 1 if diffs else 0
 
-
 def check_capability_manifest() -> int:
     import os, sys, json
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -2727,7 +2702,6 @@ def check_capability_manifest() -> int:
     for d in diffs[:30]:
         sys.stderr.write("    " + d + "\n")
     return 1 if diffs else 0
-
 
 def check_surface_parity() -> int:
     import os, sys, json
@@ -2760,7 +2734,6 @@ def check_surface_parity() -> int:
     if len(diffs) > 40:
         sys.stderr.write(f"    ... and {len(diffs) - 40} more\n")
     return 1 if diffs else 0
-
 
 def check_container_ports() -> int:
     import os, sys, re
@@ -2806,7 +2779,6 @@ def check_container_ports() -> int:
     for v in viol:
         print(v)
     return 1 if viol else 0
-
 
 def check_agent_pipe_budgets() -> int:
     import os, sys, re
@@ -2863,7 +2835,6 @@ def check_agent_pipe_budgets() -> int:
         return 1
     return 0
 
-
 def check_verb_backends() -> int:
     import os, sys, re
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -2893,7 +2864,6 @@ def check_verb_backends() -> int:
     for t, vs in sorted(missing.items()):
         sys.stderr.write(f"    {t} <- [verbs.*] {sorted(vs)} (backend not on disk)\n")
     return 1 if missing else 0
-
 
 def check_python_untested_ratchet() -> int:
     import sys, os
@@ -2927,7 +2897,6 @@ def check_python_untested_ratchet() -> int:
         return 1
 
     return 0
-
 
 def check_canonical_bools() -> int:
     import sys, os
@@ -2972,7 +2941,6 @@ def check_canonical_bools() -> int:
                         return 1
     return 0
 
-
 def check_dag_integrity() -> int:
     import os, sys, re
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -3014,7 +2982,6 @@ def check_dag_integrity() -> int:
         return 1
     return 0
 
-
 def check_ai_endpoint_local() -> int:
     import os, re, sys
     import tomllib as _t
@@ -3031,7 +2998,6 @@ def check_ai_endpoint_local() -> int:
               "Point it off-box in /etc/mios, never in the shipped SSOT" % ep)
         return 1
     return 0
-
 
 def check_version_literals_ssot() -> int:
     import os, sys, re, subprocess
@@ -3106,7 +3072,6 @@ def check_version_literals_ssot() -> int:
         return 1
     return 0
 
-
 def check_bake_refs_parity() -> int:
     import os, sys, re, subprocess
     import tomllib
@@ -3144,7 +3109,6 @@ def check_bake_refs_parity() -> int:
         return 1
     return 0
 
-
 def check_cli_eval_safety() -> int:
     import os, sys, re
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -3181,7 +3145,6 @@ def check_cli_eval_safety() -> int:
         return 1
     return 0
 
-
 def check_resolver_ssot_refs() -> int:
     import os, sys, re
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -3204,7 +3167,6 @@ def check_resolver_ssot_refs() -> int:
             print(r)
         return 1
     return 0
-
 
 def check_bake_budget() -> int:
     import os, sys, tomllib
@@ -3272,7 +3234,6 @@ def check_bake_budget() -> int:
     print(f"OK: Day-0 size {total_day0:.2f}GB <= budget {budget}GB")
     return 0
 
-
 def check_greenboot() -> int:
     import os, re, sys
     import tomllib as _toml
@@ -3336,7 +3297,6 @@ def check_greenboot() -> int:
         return 1
     return 0
 
-
 def check_router_intent_coverage() -> int:
     import sys, json, re, glob, os
 
@@ -3385,7 +3345,6 @@ def check_router_intent_coverage() -> int:
         return 1
     return 0
 
-
 def check_council_gate_ssot() -> int:
     import os, sys, re
     import tomllib
@@ -3432,7 +3391,6 @@ def check_council_gate_ssot() -> int:
         sys.stderr.write(f"    Missing code consumers or TOML definitions for [agent_pipe.council] keys: {missing}\n")
         return 1
     return 0
-
 
 def check_test_hermeticity() -> int:
     import os, sys, glob, re
@@ -3485,7 +3443,6 @@ def check_test_hermeticity() -> int:
 
     return 0
 
-
 def check_containerfile_pinned_clones() -> int:
     import os, sys
 
@@ -3512,7 +3469,6 @@ def check_containerfile_pinned_clones() -> int:
             sys.stderr.write(f"      {u}\n")
         return 1
     return 0
-
 
 def check_replaceme_mount_substitution() -> int:
     import os, sys, re
@@ -3555,7 +3511,6 @@ def check_replaceme_mount_substitution() -> int:
 
     return 0
 
-
 def check_bib_rootfs_label_policy() -> int:
     import os, sys, re
 
@@ -3597,7 +3552,6 @@ def check_bib_rootfs_label_policy() -> int:
 
     return 0
 
-
 def check_smoke_manifest() -> int:
     import os, sys
     import tomllib
@@ -3627,7 +3581,6 @@ def check_smoke_manifest() -> int:
         return 1
 
     return 0
-
 
 def check_negative_coverage() -> int:
     import os, sys, re
@@ -3664,7 +3617,6 @@ def check_negative_coverage() -> int:
         return 1
 
     return 0
-
 
 def check_law_enforcers() -> int:
     import os, sys, re
@@ -3717,7 +3669,6 @@ def check_law_enforcers() -> int:
 
     return 0
 
-
 def check_usr_over_etc() -> int:
     import os, sys, subprocess
 
@@ -3757,7 +3708,6 @@ def check_usr_over_etc() -> int:
         return 1
     return 0
 
-
 def check_projection_registry() -> int:
     import os, sys, re
     import tomllib
@@ -3792,7 +3742,6 @@ def check_projection_registry() -> int:
         return 1
 
     return 0
-
 
 def check_bib_config_mount() -> int:
     import os, sys, re, glob
@@ -3842,7 +3791,6 @@ def check_bib_config_mount() -> int:
 
     return 0
 
-
 def check_win11_vm_template_xml() -> int:
     import os, sys, xml.etree.ElementTree as ET
     import tomllib
@@ -3887,7 +3835,6 @@ def check_win11_vm_template_xml() -> int:
         return 1
 
     return 0
-
 
 def check_db_seed_coverage() -> int:
     import os, sys, importlib.util
@@ -3942,7 +3889,6 @@ def check_db_seed_coverage() -> int:
 
     return 0
 
-
 def check_account_column_parity() -> int:
     import os, sys, re
 
@@ -3982,7 +3928,6 @@ def check_account_column_parity() -> int:
 
     return 0
 
-
 def check_v2v_import_ssot() -> int:
     import os, sys, re, subprocess
     import tomllib
@@ -4014,7 +3959,6 @@ def check_v2v_import_ssot() -> int:
         return 1
 
     return 0
-
 
 def check_value_aliases() -> int:
     import sys, subprocess, os
@@ -4060,7 +4004,6 @@ def check_value_aliases() -> int:
     for msg in bad:
         sys.stderr.write("    [value-alias-drift] " + msg + "\n")
     return 1 if bad else 0
-
 
 def check_negatives_are_effective() -> int:
     import sys, re, os
@@ -4109,7 +4052,6 @@ def check_negatives_are_effective() -> int:
 
     return 0
 
-
 def check_pipefail_grep_lint() -> int:
     import sys, re, os
 
@@ -4143,7 +4085,6 @@ def check_pipefail_grep_lint() -> int:
         return 1
 
     return 0
-
 
 def check_skip_list_covered() -> int:
     import os, sys
@@ -4179,7 +4120,6 @@ def check_skip_list_covered() -> int:
         return 1
     return 0
 
-
 def check_template_self_conformance() -> int:
     import os, sys, subprocess, tempfile
 
@@ -4210,7 +4150,6 @@ def check_template_self_conformance() -> int:
         return 1
     return 0
 
-
 def check_templates_bootstrap_sync() -> int:
     import os, sys
     import tomllib
@@ -4231,7 +4170,6 @@ def check_templates_bootstrap_sync() -> int:
         print("Violation: [templates] section in main mios.toml and mios-bootstrap mios.toml differ", file=sys.stderr)
         return 1
     return 0
-
 
 def check_secret_handling() -> int:
     import os, sys, re, glob
@@ -4290,7 +4228,6 @@ def check_secret_handling() -> int:
 
     return 0
 
-
 def check_os_update_timer_enabled() -> int:
     import os, sys, tomllib
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -4305,7 +4242,6 @@ def check_os_update_timer_enabled() -> int:
             pkgs.extend(p for p in o if isinstance(p, str))
     walk(ssot.get("packages", {}))
     return 0 if any(p in ("uupd", "bootc") for p in pkgs) else 1
-
 
 def check_adhoc_toml_parsers() -> int:
     import os, re, sys
@@ -4335,7 +4271,6 @@ def check_adhoc_toml_parsers() -> int:
         print("\n".join(viol))
         return 1
     return 0
-
 
 def check_install_uninstall_symmetry() -> int:
     import os, re, sys
@@ -4388,7 +4323,6 @@ def check_install_uninstall_symmetry() -> int:
         return 1
     return 0
 
-
 def check_ps_port_fallback_ssot() -> int:
     import os, re, sys
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -4428,7 +4362,6 @@ def check_ps_port_fallback_ssot() -> int:
         return 1
     return 0
 
-
 def check_ps_encoding_and_bom() -> int:
     import os, sys
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -4457,7 +4390,6 @@ def check_ps_encoding_and_bom() -> int:
         print("\n".join(viol))
         return 1
     return 0
-
 
 def check_unit_security() -> int:
     import os, sys
@@ -4502,7 +4434,6 @@ def check_unit_security() -> int:
     if viol:
         print('\n'.join(viol))
     return 0
-
 
 def check_unit_dependency_closure() -> int:
     import os, sys, glob
@@ -4591,7 +4522,6 @@ def check_unit_dependency_closure() -> int:
         print('\n'.join(viol))
         return 1
     return 0
-
 
 def check_docs_ratchet() -> int:
     import os, sys, glob
@@ -4700,7 +4630,6 @@ def check_docs_ratchet() -> int:
         return 1
     return 0
 
-
 def check_generator_host_parity() -> int:
     import os, sys
 
@@ -4732,7 +4661,6 @@ def check_generator_host_parity() -> int:
 
     print("    generator host parity: all generators produce host-independent byte-identical outputs")
     return 0
-
 
 def check_doc_port_scheme() -> int:
     import os, sys, tomllib
@@ -4777,7 +4705,6 @@ def check_doc_port_scheme() -> int:
         return 1
     return 0
 
-
 def check_blade_reconcile_schema() -> int:
     import os, re, sys
     import tomllib
@@ -4821,7 +4748,6 @@ def check_blade_reconcile_schema() -> int:
         print("\n".join(viol))
         return 1
     return 0
-
 
 SUBCOMMANDS = {
     "bootstrap-ports-drift": check_bootstrap_ports_drift,
@@ -4897,7 +4823,6 @@ SUBCOMMANDS = {
     "doc-port-scheme": check_doc_port_scheme,
     "blade-reconcile-schema": check_blade_reconcile_schema,
 }
-
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in SUBCOMMANDS:

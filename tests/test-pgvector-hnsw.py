@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from pgvector_hnsw import MAX_KNN_SEARCH_MS, MIN_RECALL_ACCURACY_PCT, PgVectorHNSWManager
 
-
 class TestPgVectorHNSW(unittest.TestCase):
     def setUp(self):
         self.mgr = PgVectorHNSWManager(dry_run=True)
@@ -29,7 +28,6 @@ class TestPgVectorHNSW(unittest.TestCase):
         self.assertLess(res.search_latency_ms, MAX_KNN_SEARCH_MS)
         self.assertGreaterEqual(res.recall_accuracy_pct, MIN_RECALL_ACCURACY_PCT)
         self.assertGreaterEqual(res.memory_reduction_pct, 70.0)
-
 
 if __name__ == "__main__":
     unittest.main()

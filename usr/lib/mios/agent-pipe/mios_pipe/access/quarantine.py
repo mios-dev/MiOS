@@ -16,14 +16,12 @@ PROP_STATECHANGE = mios_ruleof2.PROP_STATECHANGE   # C -- mutates state / side e
 ACT_PROCEED, ACT_AUDIT, ACT_GATE = "proceed", "audit", "gate"
 _BITE_ACTION = {MODE_OFF: ACT_PROCEED, MODE_AUDIT: ACT_AUDIT, MODE_ENFORCE: ACT_GATE}
 
-
 def normalize_mode(mode) -> str:
     """Resolve the SSOT ``[security].quarantine_mode`` value to a known enum; an
     empty/unknown token -> off (degrade-open: an unrecognised mode never silently
     enforces or audits). Delegates to the SHARED T-033 normaliser so the two
     architectural-gate modes can never drift in their parsing."""
     return mios_ruleof2.normalize_mode(mode)
-
 
 class QuarantineVerdict:
     """The deterministic verdict for one ``(session_tainted, verb)`` quarantine
@@ -57,7 +55,6 @@ class QuarantineVerdict:
             "action": self.action,
         }
 
-
 def evaluate(*, session_tainted, permission_tier, sensitive,
              mode: str = MODE_OFF) -> QuarantineVerdict:
     return QuarantineVerdict(
@@ -65,7 +62,6 @@ def evaluate(*, session_tainted, permission_tier, sensitive,
         sensitive=sensitive,
         state_change=mios_ruleof2.is_state_change(permission_tier),
         mode=mode)
-
 
 def quarantined_extract(untrusted_content, *, schema=None):
     return None

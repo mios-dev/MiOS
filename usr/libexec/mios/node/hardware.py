@@ -12,7 +12,6 @@ import os
 from enum import IntEnum
 from typing import Dict, List, Optional, Set, Tuple
 
-
 class HardwareErrorCode(IntEnum):
     SUCCESS = 0
     PERMISSION_DENIED = -1
@@ -20,7 +19,6 @@ class HardwareErrorCode(IntEnum):
     INVALID_PARAMETER = -3
     IO_ERROR = -4
     READ_ONLY_PIN = -5
-
 
 class HardwareAllowlist:
     """Configures permitted GPIO pins and I2C buses/addresses."""
@@ -39,7 +37,6 @@ class HardwareAllowlist:
         self.allowed_i2c_addresses = allowed_i2c_addresses or {0x48, 0x68, 0x76, 0x77}
         self.max_i2c_transfer_len = max_i2c_transfer_len
 
-
 class HardwareDriver:
     """Abstract base hardware driver."""
 
@@ -53,7 +50,6 @@ class HardwareDriver:
         self, bus: int, addr: int, write_data: bytes, read_len: int
     ) -> bytes:
         raise NotImplementedError
-
 
 class MockHardwareDriver(HardwareDriver):
     """In-memory Mock Hardware Driver for testing and headless execution."""
@@ -86,7 +82,6 @@ class MockHardwareDriver(HardwareDriver):
 
         return bytes(read_buf)
 
-
 class LinuxSysfsHardwareDriver(HardwareDriver):
     """Linux Sysfs / I2C-dev hardware driver."""
 
@@ -117,7 +112,6 @@ class LinuxSysfsHardwareDriver(HardwareDriver):
         if not os.path.exists(path):
             raise FileNotFoundError(f"I2C bus {bus} not found")
         raise IOError("Direct /dev/i2c ioctl requires Linux root/i2c group")
-
 
 class SandboxedHardwareController:
     """Enforces hardware allowlist constraints before invoking underlying driver."""

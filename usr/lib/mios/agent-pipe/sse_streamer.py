@@ -16,13 +16,11 @@ from typing import AsyncGenerator, Dict, List
 
 log = logging.getLogger("sse_streamer")
 
-
 @dataclass
 class TokenDelta:
     token: str
     finish_reason: str | None = None
     created_at: float = 0.0
-
 
 class SSEStreamer:
     """

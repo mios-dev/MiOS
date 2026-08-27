@@ -19,17 +19,14 @@ except ModuleNotFoundError:  # pragma: no cover
 
 VOCAB = "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"
 
-
 def data(nodes, blades=None, vocab=VOCAB):
     d = {"dispatch": {"lane_priority": vocab}, "nodes": dict(nodes)}
     if blades is not None:
         d["blades"] = dict(blades)
     return d
 
-
 GPU = {"endpoint": "http://localhost:${MIOS_PORT_SGLANG}/v1",
        "model": "mios-heavy", "lane": "gpu"}
-
 
 class TestAliases(unittest.TestCase):
     def test_an_exact_duplicate_fails(self):
@@ -46,7 +43,6 @@ class TestAliases(unittest.TestCase):
         inert = {"endpoint": "", "model": "mios-igpu", "lane": "igpu"}
         self.assertEqual(
             mod.aliases(data({"a": dict(inert), "b": dict(inert)})), [])
-
 
 class TestLanes(unittest.TestCase):
     def test_one_endpoint_declared_as_two_lanes_fails(self):
@@ -68,7 +64,6 @@ class TestLanes(unittest.TestCase):
         self.assertEqual(mod.lane_vocabulary(data({})),
                          {"gpu", "cpu", "accelerator", "igpu", "mobile"})
 
-
 class TestBlades(unittest.TestCase):
     def test_omitting_blade_is_legal(self):
         # No blade == the LOCAL blade, whose name comes from [identity].hostname.
@@ -83,7 +78,6 @@ class TestBlades(unittest.TestCase):
         self.assertEqual(
             mod.orphan_blades(data({"a": n}, blades={"blade-01": {}})), [])
 
-
 class TestOffloadability(unittest.TestCase):
     def test_a_baked_local_port_fails(self):
         n = {"endpoint": "http://localhost:8530/v1", "model": "m", "lane": "gpu"}
@@ -97,7 +91,6 @@ class TestOffloadability(unittest.TestCase):
     def test_a_remote_host_is_clean(self):
         n = {"endpoint": "http://blade-01.mesh:8530/v1", "model": "m", "lane": "gpu"}
         self.assertEqual(mod.unmovable_endpoints(data({"a": n})), [])
-
 
 class TestRealTree(unittest.TestCase):
     def setUp(self):
@@ -120,7 +113,6 @@ class TestRealTree(unittest.TestCase):
         eps = [c["endpoint"] for c in mod.nodes(self.real).values()
                if c.get("endpoint")]
         self.assertEqual(len(eps), len(set(eps)))
-
 
 if __name__ == "__main__":
     unittest.main()

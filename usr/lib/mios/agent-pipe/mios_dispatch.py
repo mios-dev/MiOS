@@ -46,8 +46,6 @@ from mios_hitlflow import (
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 WEB_DISPATCH_JITTER_S = 0.15
 DISPATCH_DEDUP = True
 NATIVE_LOOP_DATE_IN_QUERY = True
@@ -79,7 +77,6 @@ _db_post = None
 _db_create = None
 _letta_dispatch_handler = None
 
-
 def _emit_dispatch_dedup_event(tool: str, args: dict,
                                session_id: "Optional[str]") -> None:
     """Audit the single-flight collapse as the same `action_repeat_dedup`
@@ -95,7 +92,6 @@ def _emit_dispatch_dedup_event(tool: str, args: dict,
         }, now_fields=("ts",))))
     except Exception:
         pass
-
 
 def _record_dispatch_tool_call_row(tool: str, result: dict,
                                    session_id: "Optional[str]") -> None:
@@ -115,7 +111,6 @@ def _record_dispatch_tool_call_row(tool: str, result: dict,
         _db_fire(_db_post(sql))
     except Exception:  # noqa: BLE001 -- degrade-open: verb already ran; audit is best-effort
         pass
-
 
 def configure(*, verb_catalog=None, verb_arg_synonyms=None,
               high_privilege_verbs=None, launch_verbs=None,
@@ -219,7 +214,6 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
                             sandbox_enforce=sandbox_enforce,
                             sandbox_self_confined=sandbox_self_confined)
 
-
 # The command BUILDER moved to mios_pipe/routing/dispatch_cmd.py (T-273); the
 # names are re-imported so this module's surface is byte-identical.
 from mios_pipe.routing import dispatch_cmd as _dispatch_cmd   # noqa: E402
@@ -229,7 +223,6 @@ from mios_pipe.routing.dispatch_cmd import (   # noqa: E402,F401
     normalize_container_exec,
     _build_dispatch_cmd,
 )
-
 
 async def _dispatch_bounded(
     tool: str, args: dict, *,
@@ -244,7 +237,6 @@ async def _dispatch_bounded(
                 return await _dispatch_mios_verb_inner(
                     tool, args, session_id=session_id)
         return await _dispatch_mios_verb_inner(tool, args, session_id=session_id)
-
 
 async def dispatch_mios_verb(
     tool: str, args: dict, *,
@@ -438,7 +430,6 @@ async def _dispatch_mios_verb_live(
     finally:
         _dispatch_inflight.pop(key, None)
 
-
 def _emit_ro2_event(tool: str, args: dict, session_id: "Optional[str]",
                     verdict: "mios_ruleof2.RuleOfTwoVerdict", *, blocked: bool) -> None:
     try:
@@ -456,7 +447,6 @@ def _emit_ro2_event(tool: str, args: dict, session_id: "Optional[str]",
         }, now_fields=("ts",))))
     except Exception:  # noqa: BLE001 -- audit is best-effort; never breaks dispatch
         pass
-
 
 async def _rule_of_two_gate(tool: str, args: dict, *,
                             session_id: "Optional[str]" = None) -> "Optional[dict]":
@@ -499,7 +489,6 @@ async def _rule_of_two_gate(tool: str, args: dict, *,
     except Exception:  # noqa: BLE001 -- degrade-open: any error -> existing gate behaviour
         return None
 
-
 def _emit_quarantine_event(tool: str, args: dict, session_id: "Optional[str]",
                            verdict: "mios_quarantine.QuarantineVerdict", *,
                            blocked: bool) -> None:
@@ -519,7 +508,6 @@ def _emit_quarantine_event(tool: str, args: dict, session_id: "Optional[str]",
         }, now_fields=("ts",))))
     except Exception:  # noqa: BLE001 -- audit is best-effort; never breaks dispatch
         pass
-
 
 async def _quarantine_gate(tool: str, args: dict, *,
                            session_id: "Optional[str]" = None) -> "Optional[dict]":
@@ -572,7 +560,6 @@ async def _quarantine_gate(tool: str, args: dict, *,
     except Exception:  # noqa: BLE001 -- degrade-open: any error -> existing gate behaviour
         return None
 
-
 async def _dispatch_mios_verb_inner(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
@@ -603,7 +590,6 @@ async def _dispatch_mios_verb_inner(
     except Exception:
         pass
     return res
-
 
 async def _dispatch_mios_verb_inner_raw(
     tool: str, args: dict, *,
@@ -796,9 +782,7 @@ async def _dispatch_mios_verb_inner_raw(
             "taint_reason": "",
         }
 
-
 dispatch_router = APIRouter()
-
 
 @dispatch_router.post("/v1/dispatch")
 async def dispatch_verb(body: dict) -> JSONResponse:

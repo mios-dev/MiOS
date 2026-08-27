@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestFirstbootWizard(unittest.TestCase):
     """Test suite for firstboot state machine, credential hashing, profile.toml materialization, and CLI."""
 
@@ -93,12 +92,10 @@ class TestFirstbootWizard(unittest.TestCase):
             exit_code = firstboot_wizard.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestFirstbootWizard)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

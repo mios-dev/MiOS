@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load db_migrate module from {_MIGRATE_PATH}")
 
-
 class TestDbMigrate(unittest.TestCase):
     """Validates migration discovery, SHA-256 hashing, transactional application, and rollback handling."""
 
@@ -146,12 +145,10 @@ class TestDbMigrate(unittest.TestCase):
         self.assertEqual(report["status"], "completed")
         self.assertGreaterEqual(report["total_applied"], 3)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestDbMigrate)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

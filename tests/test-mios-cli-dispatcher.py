@@ -9,7 +9,6 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-
 class TestMiosCliDispatcher(unittest.TestCase):
     def test_cli_help_and_verbs_coverage(self):
         """Verify that CLI prints help and includes all expected verbs."""
@@ -59,7 +58,6 @@ class TestMiosCliDispatcher(unittest.TestCase):
         self.assertIn("test cli::dispatcher::tests::test_known_verbs_table_count ... ok", res.stdout)
         self.assertIn("test cli::completions::tests::test_completion_generation ... ok", res.stdout)
         self.assertIn("test cli::tests::test_dispatch_help ... ok", res.stdout)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -28,7 +28,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load virtiofs_mount module from {_TARGET_PATH}")
 
-
 class TestVirtioFSMount(unittest.TestCase):
     """Tests VirtIO-FS mount configuration, daemon commands, and libvirt XML."""
 
@@ -116,12 +115,10 @@ class TestVirtioFSMount(unittest.TestCase):
         self.assertEqual(st["protocol"], "virtiofs")
         self.assertTrue(st["legacy_9p_avoided"])
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestVirtioFSMount)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

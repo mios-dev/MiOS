@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load pgvector_optimize module from {_OPTIMIZE_PATH}")
 
-
 class TestPgVectorOptimize(unittest.TestCase):
     """Validates dead tuple statistics retrieval, concurrent index reindexing, and full optimization cycle."""
 
@@ -109,12 +108,10 @@ class TestPgVectorOptimize(unittest.TestCase):
         for r in report["reindex_details"]:
             self.assertEqual(r["status"], "dry_run")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestPgVectorOptimize)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

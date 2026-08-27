@@ -10,13 +10,11 @@ from unittest import mock
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _resolve_toml():
     """Point MIOS_TOML at the repo's vendor mios.toml if present (repo root = 4
@@ -27,7 +25,6 @@ def _resolve_toml():
     toml = os.path.join(repo, "usr", "share", "mios", "mios.toml")
     if "MIOS_TOML" not in os.environ and os.path.isfile(toml):
         os.environ["MIOS_TOML"] = toml
-
 
 def _install_stubs():
     for name in ("websockets", "uvicorn"):
@@ -63,7 +60,6 @@ def _install_stubs():
     fastapi.responses = responses
     sys.modules.setdefault("fastapi", fastapi)
     sys.modules.setdefault("fastapi.responses", responses)
-
 
 _EXTRACTED = {
     "mios_pipe.kernel.config": ["_toml_section", "_cfg_num", "PORT", "_STACK_MODEL"],
@@ -190,7 +186,6 @@ _EXTRACTED = {
                      "_judge_answer_satisfied"],
 }
 
-
 def main():
     _resolve_toml()
     _install_stubs()
@@ -221,7 +216,6 @@ def main():
 
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

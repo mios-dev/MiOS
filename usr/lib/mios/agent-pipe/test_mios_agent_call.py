@@ -10,7 +10,6 @@ import json
 
 import mios_agent_call as T
 
-
 class _ACM:
     async def __aenter__(self):
         return self
@@ -18,14 +17,11 @@ class _ACM:
     async def __aexit__(self, *a):
         return False
 
-
 def _acm(*_a, **_k):
     return _ACM()
 
-
 async def _anoop(*_a, **_k):
     return None
-
 
 class _Resp:
     def __init__(self, status, payload):
@@ -35,7 +31,6 @@ class _Resp:
 
     def json(self):
         return self._payload
-
 
 class _FakeClient:
     """Records the last POST + replays a scripted response."""
@@ -49,7 +44,6 @@ class _FakeClient:
         body = json.loads(content.decode("utf-8")) if content else {}
         self.calls.append({"url": url, "body": body, "headers": headers})
         return _Resp(self.status, self.payload)
-
 
 class _StreamResp:
     """Async-CM SSE response: replays scripted `data:` lines via aiter_lines()."""
@@ -68,7 +62,6 @@ class _StreamResp:
         for ln in self._lines:
             yield ln
 
-
 class _FakeStreamClient:
     """Records the last client.stream() + replays a scripted SSE line list."""
 
@@ -83,11 +76,9 @@ class _FakeStreamClient:
                            "headers": headers})
         return _StreamResp(self.status, self.lines)
 
-
 _conv = contextvars.ContextVar("conv", default="")
 _dispatch = contextvars.ContextVar("dispatch", default="")
 _kvparent = contextvars.ContextVar("kvparent", default="")
-
 
 def _configure(client_unused=None):
     T.configure(
@@ -126,18 +117,15 @@ def _configure(client_unused=None):
         v1_secondary_tool_loop=_anoop,
     )
 
-
 _configure()
 
 PASS = 0
-
 
 def ok(cond, label):
     global PASS
     assert cond, "FAIL: " + label
     PASS += 1
     print("  ok:", label)
-
 
 CFG = {"endpoint": "http://gw:8642/v1", "model": "mios-secondary"}
 BODY = {
@@ -146,9 +134,7 @@ BODY = {
     "tool_choice": "auto",
 }
 
-
 print("[request-body assembly + normalisation]")
-
 
 async def _happy():
     client = _FakeClient(200, {"choices": [{"message": {
@@ -174,12 +160,9 @@ async def _happy():
     ok(text == "the real answer",
        "response normalised: agent-chrome + think tags stripped")
 
-
 asyncio.run(_happy())
 
-
 print("[error path]")
-
 
 async def _err():
     client = _FakeClient(500, {"error": "boom"})
@@ -188,12 +171,9 @@ async def _err():
     ok(name == "secondary" and text == "",
        "non-200 with no failover_agents -> ('', dropped from the merge)")
 
-
 asyncio.run(_err())
 
-
 print("[no-endpoint guard]")
-
 
 async def _noep():
     client = _FakeClient(200, {"choices": []})
@@ -202,12 +182,9 @@ async def _noep():
     ok(text == "", "absent endpoint with no failover -> '' (skipped)")
     ok(len(client.calls) == 0, "no POST issued when the endpoint is empty")
 
-
 asyncio.run(_noep())
 
-
 print("[streaming: live fragment broadcast + merge text]")
-
 
 async def _stream_happy():
     lines = [
@@ -247,12 +224,9 @@ async def _stream_happy():
        "merge text = answer content only (reasoning excluded, <think> stripped, "
        "stops at [DONE])")
 
-
 asyncio.run(_stream_happy())
 
-
 print("[streaming error path]")
-
 
 async def _stream_err():
     client = _FakeStreamClient(500, ['data: {"choices":[{"delta":{"content":"x"}}]}'])
@@ -263,12 +237,9 @@ async def _stream_err():
        "non-200 stream -> ('', dropped from the merge)")
     ok(q.empty(), "no fragments broadcast on a non-200 stream")
 
-
 asyncio.run(_stream_err())
 
-
 print("[streaming no-endpoint guard]")
-
 
 async def _stream_noep():
     client = _FakeStreamClient(200, [])
@@ -278,9 +249,7 @@ async def _stream_noep():
     ok(text == "", "absent endpoint -> '' (skipped, streaming)")
     ok(len(client.calls) == 0, "no stream issued when the endpoint is empty")
 
-
 asyncio.run(_stream_noep())
-
 
 print("[moved cluster: pure + inert paths]")
 
@@ -298,28 +267,22 @@ ok(T._rr_eligible({"messages": [{"role": "user", "content": "hi"}]},
                   "http://h/v1", {}, None) is False,
    "_rr_eligible False while RR_ENABLE is off")
 
-
 async def _kv_paging_inert():
     client = _FakeClient(200, {})
     async with T._kv_paging(client, "http://h/v1", {"model": "m"}, None):
         pass
     ok(len(client.calls) == 0, "_kv_paging is a no-op yield when disabled")
 
-
 asyncio.run(_kv_paging_inert())
-
 
 async def _kv_fork_disabled():
     res = await T._kv_fork(_FakeClient(200, {}), "http://h/v1", {}, None,
                            "parent", "child")
     ok(res.get("forked") is False, "_kv_fork inert (disabled) -> forked False")
 
-
 asyncio.run(_kv_fork_disabled())
 
-
 print("[moved cluster: active KV-paging + RR decode]")
-
 
 class _SlotResp:
     def __init__(self, status, payload):
@@ -332,7 +295,6 @@ class _SlotResp:
 
     def json(self):
         return self._payload
-
 
 class _SlotClient:
     """Fake llama.cpp client for /slots + /chat/completions (records calls)."""
@@ -350,7 +312,6 @@ class _SlotClient:
             "message": {"content": "sliced answer"},
             "finish_reason": "stop"}]})
 
-
 class _FakeGate:
     def __init__(self):
         self.acquired = 0
@@ -364,7 +325,6 @@ class _FakeGate:
 
     def head_priority(self):
         return None
-
 
 _gate = _FakeGate()
 T.configure(kv_paging_enable=True, kv_paging_slot=0, kv_paging_timeout=12.0,
@@ -381,7 +341,6 @@ ok(T._rr_eligible({"messages": [{"role": "user", "content": "hi"}],
                   "http://h/v1", {}, None) is False,
    "_rr_eligible False when the dispatch carries tools[]")
 
-
 async def _slot_action_status():
     ok(await T._kv_slot_action(_SlotClient(200), "http://h/v1", "save",
                                "conv1", "m") is True,
@@ -390,9 +349,7 @@ async def _slot_action_status():
                                "conv1", "m") is False,
        "_kv_slot_action False when every slot URL 404s")
 
-
 asyncio.run(_slot_action_status())
-
 
 async def _kv_paging_active():
     T._KV_RESIDENT.clear()
@@ -408,9 +365,7 @@ async def _kv_paging_active():
     ok(T._KV_RESIDENT.get(key) == "convA",
        "_kv_paging records the resident conversation for the slot")
 
-
 asyncio.run(_kv_paging_active())
-
 
 async def _rr_run_single_slice():
     client = _SlotClient(200)
@@ -421,9 +376,7 @@ async def _rr_run_single_slice():
     ok(_gate.acquired >= 1 and _gate.released == _gate.acquired,
        "_rr_run balances the priority gate (acquire == release)")
 
-
 asyncio.run(_rr_run_single_slice())
-
 
 print("[_record_cost cost accounting]")
 import time as _time
@@ -456,7 +409,6 @@ T._record_cost({"endpoint": "ep"}, "http://ep/v1", _time.time(), _cbody, _ctext)
 ok(_ledger.snapshot()["dispatches"] == 1,
    "_record_cost is a no-op when cost_accounting_enable is off")
 
-
 print("[T-021: KV Slot-Save/Restore + --swa-full Guard]")
 ok(T._stable_hash("conv1") == T._stable_hash("conv1"), "_stable_hash is deterministic")
 ok(T._stable_hash("conv1") != T._stable_hash("conv2"), "_stable_hash produces different values for different strings")
@@ -484,6 +436,5 @@ async def test_swa_slot_action():
     ok(client_swa.calls[1]["content"].get("swa_full") is True, "SWA model restore has swa_full body param")
 
 asyncio.run(test_swa_slot_action())
-
 
 print("\nALL %d ASSERTIONS PASSED" % PASS)

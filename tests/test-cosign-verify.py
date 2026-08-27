@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestCosignVerify(unittest.TestCase):
     """Test suite for Cosign OCI container image signatures, Rekor proofs, and policy.json rules."""
 
@@ -131,12 +130,10 @@ class TestCosignVerify(unittest.TestCase):
             exit_code = cosign_verify.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestCosignVerify)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

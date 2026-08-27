@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "git"))
 from merge_fuzzer import MergeFuzzHarness
 
-
 class TestMergeFuzzHarness(unittest.TestCase):
     def setUp(self):
         self.harness = MergeFuzzHarness(seed=1337, dry_run=True)
@@ -28,7 +27,6 @@ class TestMergeFuzzHarness(unittest.TestCase):
         res = self.harness.simulate_3way_ast_merge(base, branch_a, branch_b)
         self.assertEqual(res["status"], "success")
         self.assertTrue(res["syntax_valid"])
-
 
 if __name__ == "__main__":
     unittest.main()

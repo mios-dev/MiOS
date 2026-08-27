@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from crash_triage import KernelCrashTriageEngine, CrashReport
 
-
 class TestKernelCrashTriage(unittest.TestCase):
     def setUp(self):
         self.engine = KernelCrashTriageEngine(dry_run=True)
@@ -81,7 +80,6 @@ CR2: 0000000000000000
         self.assertEqual(ticket["status"], "OPEN")
         parsed_stack = json.loads(ticket["callstack_json"])
         self.assertIsInstance(parsed_stack, list)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,7 +7,6 @@ import os
 import sys
 from typing import Dict, List, Optional, Any
 
-
 class PGVacuumTuner:
     """Configures non-blocking PostgreSQL autovacuum parameters, pg_cron maintenance jobs, and WAL archiving."""
 
@@ -80,7 +79,6 @@ $$);
             "mock": False,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS PostgreSQL Autovacuum Tuner & HNSW Reindexer")
     parser.add_argument("--config", default="/etc/postgresql/postgresql.conf.d/10-maintenance.conf", help="Config output path")
@@ -90,7 +88,6 @@ def main():
     tuner = PGVacuumTuner(config_path=args.config, dry_run=args.dry_run)
     res = tuner.write_configuration()
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

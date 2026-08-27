@@ -9,13 +9,11 @@ import mios_smartroute as sr
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def lanes():
     return [
@@ -25,13 +23,11 @@ def lanes():
         sr.Lane("remote-strong", "remote", 5.0, 9),
     ]
 
-
 def t_order():
     o = [x.id for x in sr.order_lanes(lanes())]
     check("order: all local before any remote", o.index("local-heavy") < o.index("remote-cheap"), o)
     check("order: remotes by ascending cost", o.index("remote-cheap") < o.index("remote-strong"), o)
     check("order: equal-cost local -> stronger first", o[0] == "local-heavy", o)
-
 
 def t_local_first():
     nxt = sr.choose_next(lanes(), attempted=[], escalate=False)
@@ -41,13 +37,11 @@ def t_local_first():
     none = sr.choose_next(lanes(), attempted=["local-heavy", "local-light"], escalate=False)
     check("local-first: no escalation -> no paid lane", none is None)
 
-
 def t_escalation():
     nxt = sr.choose_next(lanes(), attempted=["local-heavy", "local-light"], escalate=True)
     check("escalate: -> cheapest remote", nxt.id == "remote-cheap", nxt.id if nxt else None)
     nxt2 = sr.choose_next(lanes(), attempted=["local-heavy", "local-light", "remote-cheap"], escalate=True)
     check("escalate: next -> stronger remote", nxt2.id == "remote-strong")
-
 
 def t_budget_gate():
     led = sr.CostLedger(budget=1.0, spent=0.0)
@@ -59,12 +53,10 @@ def t_budget_gate():
     check("ledger: remaining", round(led.remaining(), 2) == 0.1)
     check("ledger: unlimited (budget 0) affords anything", sr.CostLedger(0.0).can_afford(1e9) is True)
 
-
 def t_should_escalate():
     check("escalate: quality fail -> True", sr.should_escalate(False, False) is True)
     check("escalate: local exhausted -> True", sr.should_escalate(True, True) is True)
     check("escalate: quality ok + locals left -> False", sr.should_escalate(True, False) is False)
-
 
 def main():
     t_order()
@@ -74,7 +66,6 @@ def main():
     t_should_escalate()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -22,17 +22,14 @@ log = logging.getLogger("mios-agent-pipe")
 
 _TEMPLATE_PH_RE = re.compile(r"\{([a-zA-Z_]\w*)(?:(=|\?|!|\*)([^}]*))?\}")
 
-
 class _TemplateAbort(Exception):
     """Intentional render abort: a REQUIRED {arg!} placeholder was empty."""
     pass
-
 
 class _Placeholder(NamedTuple):
     name: str
     op: Optional[str]
     rest: Optional[str]
-
 
 class CompiledTemplate:
     """A pre-parsed command template with placeholder-name reflection and fast rendering."""
@@ -85,13 +82,11 @@ class CompiledTemplate:
             log.warning("verb template render failed for %s: %s", tool, e)
             return None
 
-
 def _quote_val(val):
     """Quote a scalar or list/tuple value for shell use."""
     if isinstance(val, (list, tuple)):
         return " ".join(shlex.quote(str(el)) for el in val)
     return shlex.quote("" if val is None else str(val))
-
 
 def _is_empty(val):
     """Check if a value is absent/empty (scalar or list)."""
@@ -100,7 +95,6 @@ def _is_empty(val):
     if isinstance(val, (list, tuple)):
         return len(val) == 0
     return not str(val).strip()
-
 
 @functools.lru_cache(maxsize=256)
 def compile_template(template: str) -> CompiledTemplate:
@@ -123,7 +117,6 @@ def compile_template(template: str) -> CompiledTemplate:
         segments.append(template[last_idx:])
 
     return CompiledTemplate(template, segments, placeholder_names)
-
 
 def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
     """Render an SSOT verb command template into the bash line."""

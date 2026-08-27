@@ -24,14 +24,12 @@ MAX_STABILIZED_TEMP_C = 90.0
 DOWNSTEP_TEMP_THRESHOLD = 85.0
 RECOVERY_TEMP_THRESHOLD = 75.0
 
-
 @dataclass
 class ThermalGovernorState:
     current_temperature_c: float
     current_epp: str  # "performance", "balance_performance", "balance_power"
     is_throttling: bool
     governor_action: str
-
 
 class ThermalGovernorManager:
     """Manages dynamic EPP scaling and hysteresis-based thermal recovery."""
@@ -65,13 +63,11 @@ class ThermalGovernorManager:
         )
         return state
 
-
 def main():
     gov = ThermalGovernorManager(dry_run=True)
     st1 = gov.evaluate_thermal_sample(88.0)
     st2 = gov.evaluate_thermal_sample(72.0)
     print(f"Action 1: {st1.governor_action}, Action 2: {st2.governor_action}")
-
 
 if __name__ == "__main__":
     main()

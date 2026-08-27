@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from ceph_heal import MAX_CLIENT_LATENCY_DEGRADATION_PCT, CephSelfHealingOrchestrator
 
-
 class TestCephHeal(unittest.TestCase):
     def setUp(self):
         self.orch = CephSelfHealingOrchestrator(max_backfills=1, dry_run=True)
@@ -22,7 +21,6 @@ class TestCephHeal(unittest.TestCase):
         self.assertEqual(rep.cluster_health_state, "HEALTH_OK")
         self.assertTrue(rep.recovery_completed)
         self.assertLess(rep.client_latency_degradation_pct, MAX_CLIENT_LATENCY_DEGRADATION_PCT)
-
 
 if __name__ == "__main__":
     unittest.main()

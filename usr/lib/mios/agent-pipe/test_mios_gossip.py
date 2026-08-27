@@ -9,16 +9,13 @@ import mios_gossip as g
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 IDS = list("abcdefgh")
-
 
 def t_select():
     s1 = g.select_gossip_peers(IDS, 3, seed=1)
@@ -31,7 +28,6 @@ def t_select():
     sels = {tuple(g.select_gossip_peers(IDS, 3, seed=s)) for s in range(8)}
     check("select: rotates coverage across seeds", len(sels) > 1)
 
-
 def t_merge():
     local: dict = {}
     ok = g.merge_peer(local, g.Peer("p1", "u1", heartbeat=1, trust=1.0), now=100.0, min_trust=0.5)
@@ -42,7 +38,6 @@ def t_merge():
     up = g.merge_peer(local, g.Peer("p1", heartbeat=2), now=300.0, min_trust=0.5)
     check("merge: higher incarnation wins", up and local["p1"].heartbeat == 2 and local["p1"].last_seen == 300.0)
     check("merge: endpoint preserved when rumor omits it", local["p1"].endpoint == "u1")
-
 
 def t_trust_gate():
     local: dict = {}
@@ -56,7 +51,6 @@ def t_trust_gate():
           g.merge_peer(local, g.Peer("p3", heartbeat=1, trust=0.0), now=1.0, min_trust=0.5,
                        trust_of=lambda _id: 0.9) is True and "p3" in local)
 
-
 def t_merge_set_and_digest():
     local: dict = {}
     n = g.merge_peer_set(local, [g.Peer("a", heartbeat=1, trust=1.0),
@@ -66,7 +60,6 @@ def t_merge_set_and_digest():
     check("merge_set: accepts only trusted", n == 2 and set(local) == {"a", "c"})
     d = g.digest(local)
     check("digest: id->heartbeat map", d == {"a": 1, "c": 1})
-
 
 def t_prune():
     local = {
@@ -78,7 +71,6 @@ def t_prune():
     check("prune: drops only the stale unheard peer", dropped == ["stale"])
     check("prune: keeps fresh + kept seed", set(local) == {"fresh", "seed"})
 
-
 def main():
     t_select()
     t_merge()
@@ -87,7 +79,6 @@ def main():
     t_prune()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

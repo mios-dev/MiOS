@@ -17,12 +17,10 @@ from mios_config import _STACK_MODEL, _LIGHT_BASE, _toml_section
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _db_post = None
 _db_create = None
 _db_fire = None
 _apply_outbound_auth = None
-
 
 def configure(*, db_post=None, db_create=None, db_fire=None,
               apply_outbound_auth=None) -> None:
@@ -36,8 +34,6 @@ def configure(*, db_post=None, db_create=None, db_fire=None,
         _db_fire = db_fire
     if apply_outbound_auth is not None:
         _apply_outbound_auth = apply_outbound_auth
-
-
 
 DCI_ENABLED = os.environ.get("MIOS_AGENT_PIPE_DCI_ENABLED",
                               "true").lower() not in {"false", "0", "no"}
@@ -82,7 +78,6 @@ _DCI_ACT_SCHEMA: dict = {
     "required": ["act", "content", "confidence"],
 }
 
-
 _DCI_CRITIC_SYSTEM = (
     "You are a DCI Challenger agent (Deliberative Collective\n"
     "Intelligence, arxiv 2603.11781). Examine the operator's prompt\n"
@@ -114,8 +109,6 @@ _DCI_CRITIC_SYSTEM = (
     "no markdown."
 )
 
-
-
 DCI_FLOW_ENABLED = str(
     os.environ.get("MIOS_AGENT_PIPE_DCI_FLOW_ENABLED")
     or _toml_section("dci").get("flow_enabled", "false")
@@ -133,7 +126,6 @@ _PERSONA_ALLOWED_ACTS: dict[str, set] = {
 }
 
 _DCI_DISSENT_ACTS = frozenset(_PERSONA_ALLOWED_ACTS["challenger"])
-
 
 def _persona_prompt(role: str, role_desc: str, allowed_acts: set) -> str:
     """Build a hard-constraint persona prompt: MUST emit one of the
@@ -158,7 +150,6 @@ def _persona_prompt(role: str, role_desc: str, allowed_acts: set) -> str:
         '"confidence":<0-1>,"targets":[]}\n'
         "No preamble, no markdown, no commentary."
     )
-
 
 _DCI_FRAMER_SYSTEM = _persona_prompt(
     "Framer",
@@ -199,7 +190,6 @@ _DCI_PERSONAS = [
     ("challenger", _DCI_CHALLENGER_SYSTEM),
     ("integrator", _DCI_INTEGRATOR_SYSTEM),
 ]
-
 
 async def _dci_call_persona(
     persona_name: str,
@@ -271,7 +261,6 @@ async def _dci_call_persona(
     parsed["persona"] = persona_name
     parsed["family"] = _DCI_ACTS[act]["family"]
     return parsed
-
 
 async def run_dci_flow(
     user_text: str,
@@ -386,10 +375,8 @@ async def run_dci_flow(
         },
     }
 
-
 DCI_FLOW_TRIGGER_CONF = float(os.environ.get(
     "MIOS_AGENT_PIPE_DCI_FLOW_TRIGGER_CONF", "0.7"))
-
 
 async def critic_then_maybe_flow(
     user_text: str,
@@ -433,8 +420,6 @@ async def critic_then_maybe_flow(
                 _db_create("tool_call", taint_row, now_fields=("ts",)).rstrip(";")
                 + f", session = {session_id};"
             )
-
-
 
 async def dci_critic_pass(
     user_text: str,

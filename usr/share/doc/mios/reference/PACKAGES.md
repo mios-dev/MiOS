@@ -963,7 +963,6 @@ avahi-tools
 nss-mdns
 ```
 
-
 ### Phosh (Mobile Session)
 ```packages-phosh
 phosh

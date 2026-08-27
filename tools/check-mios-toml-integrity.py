@@ -77,6 +77,5 @@ def main() -> int:
     print(f"mios.toml integrity check passed (lines={line_count})")
     return 0
 
-
 if __name__ == "__main__":
     sys.exit(main())

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import List
 
-
 def depth_exhausted(depth: int, max_depth: int) -> bool:
     """True when a further fan-out hop would exceed the bound -> the caller must
     degrade CLOSED to single-agent. max_depth<=0 disables the bound."""
@@ -13,7 +12,6 @@ def depth_exhausted(depth: int, max_depth: int) -> bool:
         return int(max_depth) > 0 and int(depth) >= int(max_depth)
     except (TypeError, ValueError):
         return False
-
 
 def append_via(via_chain: str, self_id: str) -> str:
     """Append self_id to the comma-separated Via chain (skips empties)."""
@@ -23,7 +21,6 @@ def append_via(via_chain: str, self_id: str) -> str:
         return v
     return (v + "," + sid) if v else sid
 
-
 def is_loop(via_chain: str, self_id: str) -> bool:
     """True when self_id already appears in the Via chain (case-insensitive) ->
     a re-entrant loop; the caller degrades closed instead of recursing."""
@@ -32,7 +29,6 @@ def is_loop(via_chain: str, self_id: str) -> bool:
         return False
     chain: List[str] = [x.strip().lower() for x in str(via_chain or "").split(",") if x.strip()]
     return sid in chain
-
 
 def seed_depth(hop_hdr, default: int = 0) -> int:
     """Parse an inbound X-MiOS-Hop header into a depth (>=0); `default` on miss
@@ -44,7 +40,6 @@ def seed_depth(hop_hdr, default: int = 0) -> int:
             return max(0, int(default))
         except (TypeError, ValueError):
             return 0
-
 
 def effort_width(effort, *, base: int = 2, cap: int = 6) -> int:
     """Map an 'effort' level to an orchestration fan-out width in [1, cap].

@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from usbguard import USBGuardPolicyManager
 
-
 class TestUSBGuardPolicy(unittest.TestCase):
     def setUp(self):
         self.mgr = USBGuardPolicyManager(dry_run=True)
@@ -42,7 +41,6 @@ class TestUSBGuardPolicy(unittest.TestCase):
         rules = self.mgr.generate_rules_conf()
         self.assertIn("04b4:f138", rules)
         self.assertIn("SN_NEW_02", rules)
-
 
 if __name__ == "__main__":
     unittest.main()

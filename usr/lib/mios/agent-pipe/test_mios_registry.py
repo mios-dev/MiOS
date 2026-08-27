@@ -10,20 +10,17 @@ import mios_registry as reg
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 ITEMS = [
     ("open_app", "verb", {"desc": "launch", "section": "Win", "permission": "write", "tier": "core"}),
     ("hermes", "agent", {"description": "gateway agent"}),
     ("disk_usage", "recipe", {"description": "df", "permission": "read"}),
 ]
-
 
 def t_package():
     p = reg.build_package("open_app", "verb", ITEMS[0][2], author="mios", version="1.2.0")
@@ -33,7 +30,6 @@ def t_package():
     check("package: self-describing manifest", p["manifest"]["description"] == "launch" and p["manifest"]["permission"] == "write")
     pr = reg.build_package("disk_usage", "recipe", ITEMS[2][2], author="mios", version="1.0.0")
     check("package: recipe description captured", pr["manifest"]["description"] == "df")
-
 
 def t_registry():
     r = reg.build_registry(ITEMS, author="mios", version="2.0.0")
@@ -45,12 +41,10 @@ def t_registry():
     oa = next(e for e in idx["packages"] if e["name"] == "open_app")
     check("registry: path layout", oa["path"] == "ai/v1/packages/mios/open_app/2.0.0/mios-pkg.toml", oa["path"])
 
-
 def t_deterministic():
     a = json.dumps(reg.build_registry(ITEMS, author="m", version="1")["index"], sort_keys=True)
     b = json.dumps(reg.build_registry(list(reversed(ITEMS)), author="m", version="1")["index"], sort_keys=True)
     check("registry: order-independent (deterministic)", a == b)
-
 
 def t_verify():
     base = reg.build_registry(ITEMS, author="mios", version="1")["index"]
@@ -62,7 +56,6 @@ def t_verify():
     check("verify: flags wrong schema", any("schema" in x for x in reg.verify_registry(base, bad)))
     check("verify: missing committed -> flagged", reg.verify_registry(base, None) != [])
 
-
 def main():
     t_package()
     t_registry()
@@ -70,7 +63,6 @@ def main():
     t_verify()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

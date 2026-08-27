@@ -28,7 +28,6 @@ if _HERE not in sys.path:
 
 import wire
 
-
 class NodeIdentity:
     """Ed25519 signing identity keypair for edge node authentication."""
 
@@ -75,7 +74,6 @@ class NodeIdentity:
         except (InvalidSignature, Exception):
             return False
 
-
 class HandshakeInitPacket:
     """Initiator mutual handshake message carrying Ed25519 identity pubkey and signed X25519 ephemeral pubkey."""
 
@@ -108,7 +106,6 @@ class HandshakeInitPacket:
             signature=bytes.fromhex(d["signature"]),
         )
 
-
 class HandshakeRespPacket:
     """Responder mutual handshake message carrying Ed25519 identity pubkey and signed X25519 ephemeral pubkey."""
 
@@ -140,7 +137,6 @@ class HandshakeRespPacket:
             ephemeral_pubkey=bytes.fromhex(d["ephemeral_pubkey"]),
             signature=bytes.fromhex(d["signature"]),
         )
-
 
 class NodeCryptoSession:
     """Authenticated symmetric encryption session for bidirectional frame transmission."""
@@ -195,7 +191,6 @@ class NodeCryptoSession:
             node_id=encrypted_frame.header.node_id,
             payload=decrypted_payload,
         )
-
 
 class CryptoHandshake:
     """Orchestrates mutual cryptographic handshakes between edge nodes."""
@@ -317,11 +312,9 @@ class CryptoHandshake:
             rx_key=k2,
         )
 
-
 def main() -> int:
     print("[crypto.py] MiOS Node Cryptographic Handshake & Wire AEAD Ready.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

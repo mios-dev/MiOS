@@ -8,7 +8,6 @@ from typing import Optional
 _INTENTS = {"chat", "dispatch", "multi_task", "agent", "dag"}
 _FANOUT_MODES = {"multi_task", "dag"}
 
-
 class RouteDecision:
     """The typed routing decision -- what the Dispatcher will run."""
 
@@ -34,7 +33,6 @@ class RouteDecision:
         return {"mode": self.mode, "intent": self.intent, "tool": self.tool,
                 "broad": self.broad, "deterministic": self.deterministic,
                 "fanout": self.fanout, "reason": self.reason}
-
 
 class Router:
     """Pure router: refined plan -> RouteDecision. No I/O, no globals."""
@@ -64,15 +62,12 @@ class Router:
         return RouteDecision("agent", intent=intent or "(none)", broad=deep,
                              reason="default: unclassified -> full agent pipeline")
 
-
 def route(refined: Optional[dict]) -> RouteDecision:
     """Module-level convenience: route via a shared stateless Router."""
     return _ROUTER.route(refined)
 
-
 def should_fanout(refined: Optional[dict]) -> bool:
     """True when the refined plan routes to a parallel fan-out."""
     return route(refined).fanout
-
 
 _ROUTER = Router()

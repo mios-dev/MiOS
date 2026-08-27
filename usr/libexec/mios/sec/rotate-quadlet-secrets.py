@@ -16,7 +16,6 @@ import stat
 import sys
 from typing import Dict, List, Optional, Tuple
 
-
 class QuadletSecretsHardener:
     """Audits and rotates container environment secret files."""
 
@@ -99,12 +98,10 @@ class QuadletSecretsHardener:
 
         return existing_secrets
 
-
 def init_secrets_env(secrets_file: str = "/etc/mios/secrets.env") -> Dict[str, str]:
     """Module-level helper for non-destructive secrets initialization."""
     hardener = QuadletSecretsHardener()
     return hardener.init_secrets_env(secrets_file=secrets_file)
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Quadlet Secrets Permission Hardening and Rotation Engine.")
@@ -144,7 +141,6 @@ def main() -> int:
 
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -16,7 +16,6 @@ _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _VIRT_DIR = os.path.join(_ROOT, "usr", "libexec", "mios", "virt")
 _DISP_DIR = os.path.join(_ROOT, "usr", "libexec", "mios", "display")
 
-
 def _import_module(name: str, path: str):
     spec = importlib.util.spec_from_file_location(name, path)
     if spec and spec.loader:
@@ -26,7 +25,6 @@ def _import_module(name: str, path: str):
         return mod
     raise ImportError(f"Could not load module {name} from {path}")
 
-
 iommu_parser_mod = _import_module("iommu_parser", os.path.join(_VIRT_DIR, "iommu_parser.py"))
 vfio_bind_mod = _import_module("vfio_bind", os.path.join(_VIRT_DIR, "vfio_bind.py"))
 looking_glass_mod = _import_module("looking_glass", os.path.join(_DISP_DIR, "looking_glass.py"))
@@ -35,7 +33,6 @@ vtpm_provision_mod = _import_module("vtpm_provision", os.path.join(_VIRT_DIR, "v
 hugepages_mgr_mod = _import_module("hugepages_mgr", os.path.join(_VIRT_DIR, "hugepages_mgr.py"))
 virtiofs_mount_mod = _import_module("virtiofs_mount", os.path.join(_VIRT_DIR, "virtiofs_mount.py"))
 multimonitor_sync_mod = _import_module("multimonitor_sync", os.path.join(_DISP_DIR, "multimonitor_sync.py"))
-
 
 class TestAdversarialIOMMUParser(unittest.TestCase):
     """Adversarial stress-testing for T-413 IOMMU Group Parser & ACS Override Topology Auditor."""
@@ -186,7 +183,6 @@ class TestAdversarialIOMMUParser(unittest.TestCase):
         self.assertEqual(res["status"], "not_found")
         self.assertFalse(res["isolated"])
 
-
 class TestAdversarialVFIOBinder(unittest.TestCase):
     """Adversarial stress-testing for T-414 Dynamic Runtime VFIO Device Unbind and Rebind Utility."""
 
@@ -295,7 +291,6 @@ class TestAdversarialVFIOBinder(unittest.TestCase):
         self.assertIsNone(state0_after.driver_override)
         self.assertIsNone(state1_after.driver_override)
 
-
 class TestAdversarialLookingGlass(unittest.TestCase):
     """Adversarial stress-testing for T-415 Looking Glass B6 Direct SPICE Host Input Manager."""
 
@@ -356,7 +351,6 @@ class TestAdversarialLookingGlass(unittest.TestCase):
         self.assertIn("win:fullScreen=true", args)
         self.assertIn("app:allowDMA=true", args)
         self.assertIn("--extra-flag", args)
-
 
 class TestAdversarialPipeWireBridge(unittest.TestCase):
     """Adversarial stress-testing for T-416 PipeWire Low-Latency Audio Bridge."""
@@ -441,7 +435,6 @@ class TestAdversarialPipeWireBridge(unittest.TestCase):
         self.assertIn("LimitRTPRIO=95", service)
         self.assertIn("LimitMEMLOCK=infinity", service)
 
-
 class TestAdversarialVTPMProvision(unittest.TestCase):
     """Adversarial stress-testing for T-417 Virtual TPM2 Provisioning."""
 
@@ -511,7 +504,6 @@ class TestAdversarialVTPMProvision(unittest.TestCase):
         self.assertIn('<backend type="emulator" version="2.0">', xml)
         self.assertIn('<source type="unix" path="', xml)
         self.assertIn('win11-swtpm.sock"/>', xml)
-
 
 class TestAdversarialHugepagesManager(unittest.TestCase):
     """Adversarial stress-testing for T-418 Hugepages Automatic Allocation & Compaction Manager."""
@@ -615,7 +607,6 @@ class TestAdversarialHugepagesManager(unittest.TestCase):
         rel_res2 = mgr.release(8192, page_size="2M")
         self.assertEqual(rel_res2["remaining_pages"], 0)
 
-
 class TestAdversarialVirtIOFS(unittest.TestCase):
     """Adversarial stress-testing for T-419 VirtIO-FS Shared Directory Mount Daemon."""
 
@@ -687,7 +678,6 @@ class TestAdversarialVirtIOFS(unittest.TestCase):
         self.assertIn('<dax unit="KiB">2097152</dax>', xml_dax)
         self.assertIn('<source type="memfd"/>', xml_dax)
         self.assertIn('<access mode="shared"/>', xml_dax)
-
 
 class TestAdversarialMultiMonitorSync(unittest.TestCase):
     """Adversarial stress-testing for T-423 Multi-Monitor Looking Glass Display Geometry & Synchronizer."""
@@ -770,7 +760,6 @@ class TestAdversarialMultiMonitorSync(unittest.TestCase):
         self.assertEqual(w_left["target_head"], 0)
         self.assertEqual(w_left["target_coords"], [1870.0, 500.0])
 
-
 def main() -> int:
     suite = unittest.TestSuite()
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestAdversarialIOMMUParser))
@@ -783,7 +772,6 @@ def main() -> int:
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestAdversarialMultiMonitorSync))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

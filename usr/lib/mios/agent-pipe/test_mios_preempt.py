@@ -10,13 +10,11 @@ import mios_preempt as pre
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_quantum():
     q = pre.Quantum(t0=100.0, limit_s=5.0)
@@ -29,7 +27,6 @@ def t_quantum():
     check("quantum: limit<=0 never expires", qinf.expired(1e9) is False)
     check("quantum: limit<=0 remaining inf", qinf.remaining(1e9) == float("inf"))
 
-
 def t_slots():
     s = pre.PreemptScheduler(max_suspended=2)
     check("slots: can_admit initially", s.can_admit() is True)
@@ -41,7 +38,6 @@ def t_slots():
     check("slots: release frees a slot", s.can_admit() is True)
     s.release_slot(a)  # idempotent
     check("slots: double-release idempotent", s.acquire_slot() == a and s.acquire_slot() is None)
-
 
 def t_suspend_resume():
     s = pre.PreemptScheduler(max_suspended=3)
@@ -60,13 +56,11 @@ def t_suspend_resume():
     check("resume: empty -> None", s.resume() is None)
     check("resume: slots all freed", s.can_admit() is True and s.stats()["free_slots"] == 3)
 
-
 def t_fifo_tiebreak():
     s = pre.PreemptScheduler(max_suspended=3)
     for tid in ["a", "b", "c"]:
         s.suspend(pre.Snapshot(tid, 5.0, 0, "x", s.acquire_slot()))  # equal priority
     check("tiebreak: equal priority resumes FIFO (a first)", s.resume().task_id == "a")
-
 
 def t_stats():
     s = pre.PreemptScheduler(max_suspended=4)
@@ -74,7 +68,6 @@ def t_stats():
     st = s.stats()
     check("stats: shape", st["max_suspended"] == 4 and st["suspended"] == 1
           and st["free_slots"] == 3 and st["queued_ids"] == ["t1"], f"{st}")
-
 
 def t_discharge():
     """discharge() frees a SPECIFIC task's slot (self-resume) without disturbing
@@ -90,7 +83,6 @@ def t_discharge():
     check("discharge: b untouched", s.is_suspended("b") is True)
     check("discharge: a's slot freed, b's held", s.stats()["free_slots"] == 2)
     check("discharge: unknown task -> None", s.discharge("zzz") is None)
-
 
 def t_decide():
     d = pre.decide
@@ -112,7 +104,6 @@ def t_decide():
     check("decide: no free slot -> CONTINUE (bounded suspension)",
           d(finished=False, quantum_expired=True, higher_priority_waiting=True,
             can_suspend=False) == pre.CONTINUE)
-
 
 def t_rr_simulation():
     """End-to-end RR preemption over the pure primitives: a long LOW-priority
@@ -172,7 +163,6 @@ def t_rr_simulation():
           resumed.startswith(snap.partial) and set(resumed) == {"L"})
     check("rr: slot freed after resume", sched.stats()["free_slots"] == 2)
 
-
 def t_bounded_no_preempt():
     """No free snapshot slot -> decide() refuses to preempt, so the running gen
     finishes rather than being dropped (the bounded-suspension safety rule)."""
@@ -183,20 +173,16 @@ def t_bounded_no_preempt():
     check("bounded: full slots -> CONTINUE (don't drop the gen)",
           action == pre.CONTINUE)
 
-
 _PREEMPT_STATE_KEYS = ("PREEMPT_ENABLE", "QUEUE_ENABLE", "TURN_QUANTUM_S",
                        "SLICE_TOKENS", "PRIORITY_LEVELS", "MAX_PREEMPT_DEPTH",
                        "_TURN_SCHEDULER", "_TURN_QUEUE", "_HEAD_PRIORITY", "_CLOCK")
 
-
 def _snapshot_state():
     return {k: getattr(pre, k) for k in _PREEMPT_STATE_KEYS}
-
 
 def _restore_state(snap):
     for k, v in snap.items():
         setattr(pre, k, v)
-
 
 class _SpySched:
     """Records every PreemptScheduler method the hook calls (consult evidence)."""
@@ -227,7 +213,6 @@ class _SpySched:
     def stats(self):
         return {}
 
-
 class _SpyQueue:
     """Records every TokenSliceQueue method slice_boundary calls (consult evidence)."""
 
@@ -248,7 +233,6 @@ class _SpyQueue:
     def stats(self):
         return {}
 
-
 def t_as_bool():
     check("as_bool: real bools pass through",
           pre._as_bool(True) is True and pre._as_bool(False) is False)
@@ -259,7 +243,6 @@ def t_as_bool():
     check("as_bool: None -> default",
           pre._as_bool(None) is False and pre._as_bool(None, True) is True)
 
-
 def t_scheduler_cfg_defaults():
     cfg = pre._scheduler_cfg()
     check("scheduler_cfg: keys == fallback keys", set(cfg) == set(pre._SCHEDULER_FALLBACK),
@@ -268,7 +251,6 @@ def t_scheduler_cfg_defaults():
     check("scheduler_cfg: quantum/max_suspended/depth defaults",
           cfg["max_suspended"] == 4 and cfg["quantum_s"] == 8.0
           and cfg["max_preempt_depth"] == 1 and cfg["priority_levels"] == 0, f"{cfg}")
-
 
 def t_turn_boundary_disabled():
     """DEFAULT-OFF: the hook is a no-op -- returns False and NEVER consults the
@@ -283,7 +265,6 @@ def t_turn_boundary_disabled():
               f"{spy.calls}")
     finally:
         _restore_state(snap)
-
 
 def t_turn_boundary_enabled_roundtrip():
     """ENABLED + a higher-priority waiter: the scheduler IS consulted and the
@@ -304,7 +285,6 @@ def t_turn_boundary_enabled_roundtrip():
               after["free_slots"] == before["free_slots"] == 2, f"{before}/{after}")
     finally:
         _restore_state(snap)
-
 
 def t_turn_boundary_consulted_spy():
     """ENABLED: the exact consult sequence (can_admit -> acquire_slot -> suspend ->
@@ -332,7 +312,6 @@ def t_turn_boundary_consulted_spy():
     finally:
         _restore_state(snap)
 
-
 def t_turn_boundary_no_higher_waiter():
     """ENABLED but no higher-priority waiter -> decide() returns CONTINUE -> no
     preemption, nothing suspended."""
@@ -347,7 +326,6 @@ def t_turn_boundary_no_higher_waiter():
     finally:
         _restore_state(snap)
 
-
 def t_turn_boundary_unwired_probe():
     """ENABLED but the head-priority probe is unwired (None) -> no signal -> never
     preempts (degrade-open on a missing dependency)."""
@@ -359,7 +337,6 @@ def t_turn_boundary_unwired_probe():
         check("turn_boundary unwired: not preempted (no probe signal)", preempted is False)
     finally:
         _restore_state(snap)
-
 
 def t_turn_boundary_degrade_open():
     """DEGRADE-OPEN: a scheduler that raises mid-consult must NOT propagate -- the
@@ -395,7 +372,6 @@ def t_turn_boundary_degrade_open():
     finally:
         _restore_state(snap)
 
-
 def t_turn_boundary_quantum_backstop():
     """A persistently-waiting higher-priority turn + a huge depth must STILL
     terminate when the quantum elapses (the time backstop), via an injected clock."""
@@ -415,7 +391,6 @@ def t_turn_boundary_quantum_backstop():
         check("turn_boundary quantum-backstop: slot freed", real.stats()["suspended"] == 0)
     finally:
         _restore_state(snap)
-
 
 def t_configure_aliases_and_stats():
     snap = _snapshot_state()
@@ -438,15 +413,11 @@ def t_configure_aliases_and_stats():
     finally:
         _restore_state(snap)
 
-
-
-
 def t_queue_cfg_defaults():
     cfg = pre._scheduler_cfg()
     check("queue_cfg: queue_enable DEFAULT-OFF", cfg["queue_enable"] is False, f"{cfg}")
     check("queue_cfg: slice_tokens / queue_max_turns defaults",
           cfg["slice_tokens"] == 256 and cfg["queue_max_turns"] == 64, f"{cfg}")
-
 
 def t_token_slice_queue_structure():
     """Pure ordering: dispatch() yields the highest-priority READY turn first (FIFO
@@ -467,13 +438,11 @@ def t_token_slice_queue_structure():
     check("queue: requeue -> ready again, re-dispatched by priority", q.dispatch() == "b")
     check("queue: remove drops the turn", q.remove("a") is not None and q.is_tracked("a") is False)
 
-
 def t_token_slice_queue_fifo_tiebreak():
     q = pre.TokenSliceQueue()
     for tid in ("x", "y", "z"):
         q.enqueue(tid, 5.0)  # equal priority -> FIFO by enqueue order
     check("queue tiebreak: equal priority dispatches FIFO (x first)", q.dispatch() == "x")
-
 
 def t_token_slice_account():
     """account() trips a boundary only when the slice budget is crossed, carrying the
@@ -490,7 +459,6 @@ def t_token_slice_account():
     check("account: unknown task -> False (degrade-open)", q.account("nope", 99) is False)
     check("account: non-numeric tokens -> False (degrade-open)", q.account("t", "oops") is False)
 
-
 def t_token_slice_head_priority():
     """head_priority is the highest-priority READY (not-running) waiter, excluding the
     asker -- the 'is a higher-priority turn waiting?' signal slice_boundary feeds."""
@@ -502,7 +470,6 @@ def t_token_slice_head_priority():
     check("head: ready waiter seen", q.head_priority() == 9.0)
     check("head: exclude=running-self still sees the waiter", q.head_priority(exclude="low") == 9.0)
     check("head: exclude the waiter -> None", q.head_priority(exclude="high") is None)
-
 
 def t_token_slice_queue_bounded():
     """Bounded advisory capacity: a new turn over the cap evicts the OLDEST READY row;
@@ -523,7 +490,6 @@ def t_token_slice_queue_bounded():
     check("bounded: oldest ready evicted not the running one",
           q2.is_tracked("s") is False and q2.is_tracked("t") is True)
 
-
 def t_slice_boundary_disabled():
     """DEFAULT-OFF ([scheduler].queue_enable=false): slice_boundary is a no-op --
     returns False and NEVER consults the queue (proving no interposition / byte-
@@ -539,7 +505,6 @@ def t_slice_boundary_disabled():
               spyq.calls == [], f"{spyq.calls}")
     finally:
         _restore_state(snap)
-
 
 def t_slice_boundary_triggers_reeval():
     """ENABLED: slice_boundary accounts tokens; only when the slice budget is CROSSED
@@ -566,7 +531,6 @@ def t_slice_boundary_triggers_reeval():
     finally:
         _restore_state(snap)
 
-
 def t_slice_boundary_no_higher_waiter():
     """ENABLED but no higher-priority queue waiter -> a crossed boundary re-evaluates
     yet does not preempt (the running turn keeps the lane)."""
@@ -583,7 +547,6 @@ def t_slice_boundary_no_higher_waiter():
               preempted is False)
     finally:
         _restore_state(snap)
-
 
 def t_slice_boundary_text_counts_via_tokenize():
     """The token-time accounting routes `text` through the mios_tokenize seam (NOT a
@@ -613,7 +576,6 @@ def t_slice_boundary_text_counts_via_tokenize():
     finally:
         _restore_state(snap)
 
-
 def t_slice_boundary_degrade_open():
     """DEGRADE-OPEN: a queue that raises mid-consult must NOT propagate -- slice_boundary
     returns False and the SYNTHETIC turn still runs to completion."""
@@ -642,7 +604,6 @@ def t_slice_boundary_degrade_open():
     finally:
         _restore_state(snap)
 
-
 def t_turn_boundary_default_off_ignores_queue():
     """Regression guard: with queue_enable OFF, _higher_priority_waiting is byte-
     identical to the T-019 probe-only path even if the queue holds a higher-priority
@@ -658,7 +619,6 @@ def t_turn_boundary_default_off_ignores_queue():
               preempted is False)
     finally:
         _restore_state(snap)
-
 
 def main():
     t_quantum()
@@ -694,7 +654,6 @@ def main():
     t_turn_boundary_default_off_ignores_queue()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

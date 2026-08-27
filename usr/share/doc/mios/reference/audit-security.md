@@ -13,5 +13,4 @@
 
 The MiOS supply chain has the *right primitives in tree* (keyless cosign signing in CI, an nft egress generator wired to SSOT, a Syft SBOM step, an fs-verity/fapolicyd deny-by-default, a well-hardened coderun sandbox) but **the enforcement half is disabled or absent at almost every layer**. The image is signed but never verified; the SBOM's only committed artifact carries placeholder digests; the egress firewall defaults to a no-op; and the AI front door binds `0.0.0.0` with wildcard CORS behind `Network=host` pods, several running as `root`/`--privileged`.
 
-
 *Audit completed and reconciled against SSOT.*

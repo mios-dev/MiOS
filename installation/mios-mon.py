@@ -56,7 +56,6 @@ except ImportError:
 IS_WINDOWS = platform.system() == 'Windows'
 console = Console(safe_box=False)
 
-
 def check_port(host, port):
     if not port or port <= 0:
         return True
@@ -211,7 +210,6 @@ def run_fastfetch():
     except Exception:
         return Text("[dim]fastfetch unavailable[/]")
 
-
 def create_metal_layout():
     sys_info = get_sys_info()
     services = get_services()
@@ -256,7 +254,6 @@ def create_dash_layout():
 
     footer_text = f"User: login mios/mios   Host: forge mios/\n\nTree\n{get_git_tree_status()}"
     return Panel(Group(Panel(header, box=box.SIMPLE, border_style="cyan"), Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan"), Panel(Align.center(footer_text), box=box.SIMPLE, border_style="cyan")), border_style="blue", padding=1)
-
 
 if TEXTUAL_AVAILABLE:
     from textual.theme import Theme

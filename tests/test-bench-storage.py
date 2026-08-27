@@ -27,7 +27,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load bench_storage module from {_BENCH_PATH}")
 
-
 class TestBenchStorage(unittest.TestCase):
     """Validates IOPS, sequential throughput, fsync latency benchmarks, floor evaluations, and scratch safety."""
 
@@ -133,12 +132,10 @@ class TestBenchStorage(unittest.TestCase):
         scratch_files = [f for f in os.listdir(self.test_dir) if "mios_bench_scratch_" in f]
         self.assertEqual(len(scratch_files), 0, "Scratch files were not cleaned up")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBenchStorage)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

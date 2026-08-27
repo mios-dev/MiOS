@@ -25,7 +25,6 @@ def worker_loop():
 '''
 CHAT_OK = '_budget_num("MIOS_BUDGET_AUTO_MAX_INFLIGHT", "autonomous_max_inflight", 1)\n'
 
-
 def build(tmp, daemon=GOOD_DAEMON, ssot=SSOT, chat=CHAT_OK, extra=None):
     os.makedirs(os.path.join(tmp, "usr/libexec/mios"), exist_ok=True)
     os.makedirs(os.path.join(tmp, "usr/share/mios"), exist_ok=True)
@@ -37,7 +36,6 @@ def build(tmp, daemon=GOOD_DAEMON, ssot=SSOT, chat=CHAT_OK, extra=None):
         open(os.path.join(tmp, "usr/libexec/mios", name), "w").write(body)
     return tmp
 
-
 def case(label, want_zero, **kw):
     global FAILED
     with tempfile.TemporaryDirectory() as tmp:
@@ -48,7 +46,6 @@ def case(label, want_zero, **kw):
     print(f"[{'PASS' if ok else 'FAIL'}] {label} (exit {rc})")
     if not ok:
         FAILED += 1
-
 
 case("complete governor passes", True)
 case("ungated autonomous loop fails", False,

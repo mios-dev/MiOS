@@ -11,7 +11,6 @@ import copy
 import threading
 from typing import Any, Dict, Optional
 
-
 class RouteTableManager:
     """Thread-safe hot-reloading model routing table manager."""
 

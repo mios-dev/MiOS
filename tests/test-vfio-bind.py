@@ -28,7 +28,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load vfio_bind module from {_TARGET_PATH}")
 
-
 class TestVFIOBind(unittest.TestCase):
     """Tests VFIO dynamic binding, primary display protection, and sysfs state transitions."""
 
@@ -150,12 +149,10 @@ class TestVFIOBind(unittest.TestCase):
         self.assertIn("slot_devices", st)
         self.assertIsInstance(st["slot_devices"], list)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestVFIOBind)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

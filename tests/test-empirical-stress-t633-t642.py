@@ -21,7 +21,6 @@ from paged_attn import PagedAttentionBlockManager
 from disk_health import SmartHealthMonitor
 from crash_triage import KernelCrashTriageEngine
 
-
 class TestEmpiricalStressT633T642(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-stress-t633-")
@@ -161,7 +160,6 @@ class TestEmpiricalStressT633T642(unittest.TestCase):
         self.assertGreaterEqual(len(rep.callstack), 50)
         ticket = engine.generate_postgres_ticket(rep)
         self.assertEqual(ticket["status"], "OPEN")
-
 
 if __name__ == "__main__":
     unittest.main()

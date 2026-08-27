@@ -20,7 +20,6 @@ from iommu_validator import IOMMUValidator
 from drift_reconciler import ConfigDriftReconciler
 from raft_coordinator import RaftClusterCoordinator
 
-
 class TestEmpiricalStressT613T622(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-stress-t613-")
@@ -70,7 +69,6 @@ class TestEmpiricalStressT613T622(unittest.TestCase):
         )
         status = coord.check_quorum_status()
         self.assertEqual(status["quorum_needed"], 3)
-
 
 if __name__ == "__main__":
     unittest.main()

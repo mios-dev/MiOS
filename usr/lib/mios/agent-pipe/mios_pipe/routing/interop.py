@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import List
 
-
 def _tags(kind: str, spec: dict) -> List[str]:
     tags = [str(kind)]
     sect = str((spec or {}).get("section") or "").strip()
@@ -24,7 +23,6 @@ def _tags(kind: str, spec: dict) -> List[str]:
             out.append(t)
     return out
 
-
 def to_a2a_skill(name: str, spec: dict, kind: str = "verb") -> dict:
     """Project one capability into an A2A AgentCard skill entry. `kind` is
     verb|recipe|skill; the id namespaces non-verbs (mios_recipe__/mios_skill__)
@@ -40,7 +38,6 @@ def to_a2a_skill(name: str, spec: dict, kind: str = "verb") -> dict:
         "description": desc[:500],
         "tags": _tags(kind, s),
     }
-
 
 def project_all(name: str, spec: dict, kind: str = "verb") -> dict:
     """The key fields of all THREE projections for parity-checking: the bare

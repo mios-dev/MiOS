@@ -13,13 +13,11 @@ from unittest import mock
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _resolve_toml():
     """Point MIOS_TOML at the repo's vendor mios.toml if present so the sibling
@@ -30,7 +28,6 @@ def _resolve_toml():
     if "MIOS_TOML" not in os.environ and os.path.isfile(toml):
         os.environ["MIOS_TOML"] = toml
 
-
 class _Resp:
     """Recording stand-in for a fastapi response: captures content/status so the
     test can assert on the Tier-0 400 + the trivial-chat reply body."""
@@ -39,12 +36,10 @@ class _Resp:
         self.status_code = k.get("status_code", 200)
         self.media_type = k.get("media_type")
 
-
 class _Stream(_Resp):
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
         self.body_iterator = a[0] if a else k.get("content")
-
 
 class _Headers:
     """Case-insensitive .get returning None for any missing header."""
@@ -54,7 +49,6 @@ class _Headers:
     def get(self, key, default=None):
         return self._d.get(str(key).lower(), default)
 
-
 class FakeRequest:
     def __init__(self, body_obj, headers=None):
         self._body = json.dumps(body_obj).encode("utf-8")
@@ -62,7 +56,6 @@ class FakeRequest:
 
     async def body(self):
         return self._body
-
 
 def _install_stubs():
     """Minimal 3rd-party stand-ins so mios_chat (and the sibling graph it imports)
@@ -92,7 +85,6 @@ def _install_stubs():
     sys.modules.setdefault("fastapi", fastapi)
     sys.modules.setdefault("fastapi.responses", responses)
 
-
 _resolve_toml()
 _install_stubs()
 import mios_chat  # noqa: E402 -- after stubs so the import succeeds on a bare checkout
@@ -102,7 +94,6 @@ _REAL_BUDGET_RELEASE = mios_chat._budget_release_inflight
 
 CALLS: list = []
 
-
 def _ahandler(tag, ret):
     """An async dispatched-responder stub that records it fired + returns a sentinel."""
     async def _h(*a, **k):
@@ -110,10 +101,8 @@ def _ahandler(tag, ret):
         return ret
     return _h
 
-
 async def _anoop(*a, **k):
     return None
-
 
 def _apply(**deps):
     """Route each dep to the right seam: configure() for injected names, setattr for
@@ -123,7 +112,6 @@ def _apply(**deps):
     for k, v in deps.items():
         if k not in mios_chat._INJECTED:
             setattr(mios_chat, k, v)
-
 
 class FakeKernel:
     def __init__(self):
@@ -139,9 +127,7 @@ class FakeKernel:
     def managers(self):
         return {"scheduler": True, "memory": True}
 
-
 S_VISION, S_CLIENT, S_OS, S_NATIVE, S_LOCAL, S_DAG = (object() for _ in range(6))
-
 
 def _wire_common(**over):
     """Fresh ContextVars + safe stubs for every dep the precedence paths touch.
@@ -198,11 +184,9 @@ def _wire_common(**over):
     base.update(over)
     _apply(**base)
 
-
 def _run(body, headers=None):
     CALLS.clear()
     return asyncio.run(mios_chat.chat_completions_logic(FakeRequest(body, headers)))
-
 
 def main():
     _wire_common()
@@ -254,7 +238,6 @@ def main():
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
-
 class _RespHttpxResp:
     """A stand-in chat/completions response for the responses_api self-proxy POST."""
     def __init__(self, payload):
@@ -262,7 +245,6 @@ class _RespHttpxResp:
 
     def json(self):
         return self._payload
-
 
 class _RespHttpxClient:
     """Async-context-manager httpx.AsyncClient stand-in returning a canned answer."""
@@ -281,10 +263,8 @@ class _RespHttpxClient:
     async def post(self, *a, **k):
         return _RespHttpxResp(_RespHttpxClient._payload)
 
-
 class _RespHttpx:
     AsyncClient = _RespHttpxClient
-
 
 def _test_responses_api():
     mios_chat.configure(BACKEND_MODEL="m", _loads_lenient=json.loads)
@@ -311,7 +291,6 @@ def _test_responses_api():
               f"status={getattr(r2,'status_code',None)} err={err}")
     finally:
         mios_chat.httpx = orig_httpx
-
 
 def _test_budget():
     """The aggregate-budget admission cluster, now owned by mios_chat. Drives the
@@ -361,7 +340,6 @@ def _test_budget():
         mc._BUDGET_LEDGER.clear()
         mc._BUDGET_AUTO_INFLIGHT.clear()
 
-
 class _BoomHttpxClient:
     """httpx.AsyncClient stand-in whose POST always raises -- exercises the
     degrade-open except path of the micro-LLM early-reply helpers (no network)."""
@@ -377,10 +355,8 @@ class _BoomHttpxClient:
     async def post(self, *a, **k):
         raise RuntimeError("no network in unit test")
 
-
 class _BoomHttpx:
     AsyncClient = _BoomHttpxClient
-
 
 def _test_microreply():
     """The micro-LLM early-reply helpers (intent=chat reply, memory-hit judge,
@@ -411,7 +387,6 @@ def _test_microreply():
               f"loc={loc!r}")
     finally:
         mc.httpx, mc._env_grounding = orig_httpx, orig_env
-
 
 def _test_refine_orchestration():
     """The refine-driven orchestration helpers, now owned by mios_chat (the
@@ -452,7 +427,6 @@ def _test_refine_orchestration():
     finally:
         mc.httpx = orig_httpx
 
-
 def _test_developer_role():
     from mios_pipe.routing.provider_translate import oai_msgs_to_gemini, oai_msgs_to_anthropic
     msgs = [
@@ -466,7 +440,6 @@ def _test_developer_role():
     system_parts, gemini_contents = oai_msgs_to_gemini(msgs)
     check("developer role -> gemini system parts match", system_parts == {"parts": [{"text": "You are a helpful assistant."}]}, f"sys_parts={system_parts}")
     check("developer role -> gemini contents ignore developer role", len(gemini_contents) == 1, f"gemini={gemini_contents}")
-
 
 if __name__ == "__main__":
     sys.exit(main())

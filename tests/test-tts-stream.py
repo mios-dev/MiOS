@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from tts_stream import MAX_FIRST_PACKET_LATENCY_MS, StreamingTTSPipeline
 
-
 class TestTTSStream(unittest.TestCase):
     def setUp(self):
         self.pipe = StreamingTTSPipeline(dry_run=True)
@@ -29,7 +28,6 @@ class TestTTSStream(unittest.TestCase):
             res = self.pipe.stream_speech_synthesis(f"Sentence number {i} with audio chunks streaming.")
             self.assertEqual(res.buffer_underruns_detected, 0)
             self.assertLess(res.first_packet_latency_ms, MAX_FIRST_PACKET_LATENCY_MS)
-
 
 if __name__ == "__main__":
     unittest.main()

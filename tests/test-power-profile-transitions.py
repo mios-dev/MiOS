@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load powerd module from {_MODULE_PATH}")
 
-
 class TestPowerProfileTransitions(unittest.TestCase):
     """Validates AC/DC power supply telemetry, CPU EPP scaling, model switching, and CLI contracts."""
 
@@ -332,7 +331,6 @@ class TestPowerProfileTransitions(unittest.TestCase):
         self.assertEqual(data_ac["cpu_epp"], "balance_performance")
         self.assertEqual(data_ac["active_model_tier"], "heavy")
         self.assertEqual(data_ac["paused_containers"], [])
-
 
 if __name__ == "__main__":
     unittest.main()

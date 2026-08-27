@@ -19,7 +19,6 @@ _span_id_var = None
 _passport_sign = None
 _db_post = None
 
-
 def configure(*, pg_enabled=None, pg_primary=None, current_trace_id=None,
               span_id_var=None, passport_sign=None, db_post=None) -> None:
     """Inject configuration and callbacks."""
@@ -39,7 +38,6 @@ def configure(*, pg_enabled=None, pg_primary=None, current_trace_id=None,
     if db_post is not None:
         _db_post = db_post
 
-
 def _db_fire(coro) -> None:
     """Schedule a DB coroutine fire-and-forget."""
     try:
@@ -48,7 +46,6 @@ def _db_fire(coro) -> None:
     except RuntimeError:
         if asyncio.iscoroutine(coro):
             coro.close()
-
 
 def _pg_mirror(table: str, fields: dict, *, rls_owner: Optional[str] = None) -> None:
     """Fire-and-forget mirror of an agent-plane write to Postgres+pgvector (WS-9c dual-write)."""
@@ -60,7 +57,6 @@ def _pg_mirror(table: str, fields: dict, *, rls_owner: Optional[str] = None) -> 
             _db_fire(mios_pg.insert(table, row, rls_owner=rls_owner))
     except Exception:
         pass
-
 
 def _db_create(table: str, fields: dict, *,
                now_fields: tuple = (),
@@ -101,7 +97,6 @@ def _db_create(table: str, fields: dict, *,
     if _mirror:
         _pg_mirror(table, fields)
     return sql + ";"
-
 
 def _db_write(table: str, fields: dict, *, now_fields: tuple = (),
               extra: str = "", passport_sign: bool = True) -> None:

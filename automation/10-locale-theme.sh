@@ -30,7 +30,6 @@ flatpak override --system --nofilesystem=/usr/share/themes 2>/dev/null || true
 flatpak override --system --nofilesystem=/usr/share/icons 2>/dev/null || true
 flatpak override --system --nofilesystem=/usr/share/fonts 2>/dev/null || true
 
-
 if [ -f /usr/share/glib-2.0/schemas/90-mios.gschema.override ]; then
     mios_log "GSchema overrides compile"
     glib-compile-schemas /usr/share/glib-2.0/schemas/ || true

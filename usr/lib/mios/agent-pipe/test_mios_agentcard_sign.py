@@ -16,7 +16,6 @@ from mios_pipe.federation.agentcard_sign import (
     _verify_agent_card_signature,
 )
 
-
 class TestAgentCardSign(unittest.TestCase):
     """Test JCS canonicalization and JWS agentcard signature generation/verification."""
 
@@ -74,7 +73,6 @@ class TestAgentCardSign(unittest.TestCase):
         verdict, reason = _verify_agent_card_signature(card)
         self.assertIsNone(verdict)
         self.assertEqual(reason, "unsigned")
-
 
 if __name__ == "__main__":
     unittest.main()

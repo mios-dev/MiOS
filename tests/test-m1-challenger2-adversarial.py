@@ -1,26 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Adversarial stress test harness for Milestone 1 (T-384 Persona Synthesis & T-385 Bounded Reflection).
 # AI-related: usr/lib/mios/agent-pipe/mios_persona.py, usr/lib/mios/agent-pipe/mios_deliberate.py
-"""
-Adversarial Stress Test Suite for Milestone 1 (Challenger 2):
-1. Dynamic Persona Synthesis (T-384 / AGY-1982)
-   - Conflicting multi-domain queries & score balancing across 6 specialized domains
-   - Zero-keyword, whitespace, punctuation, and emoji-only inputs
-   - Multilingual queries (Chinese, Japanese, French, German, Russian, Arabic)
-   - Adversarial prompt injections & canonical law override resistance
-   - Boundary confidence thresholds & synthesis idempotency
-   - Long-text stress (50,000+ words) & zero degradation
-
-2. Bounded Reflection Loop Convergence (T-385 / AGY-1983)
-   - Identical successive texts (0.0 delta) -> instant diminishing returns exit
-   - Sub-5% micro-edits in realistic paragraph -> diminishing returns exit
-   - Oscillating / adversarial critiques -> strict max_iteration ceiling enforcement
-   - Semantic delta mathematical properties (identity, range [0, 1], high disjoint delta)
-   - Configurable max_iterations and min_iterations enforcement
-   - Extreme corpus size (10,000+ words) delta calculation performance
-   - Critique approval pattern matching & false-positive negation analysis
-   - Deliberation state tracking & dictionary serialization integrity
-"""
+"""Adversarial Stress Test Suite for Milestone 1 (Challenger 2): 1. Dynamic Persona Synthesis (T-384 / AGY-1982)    - Conflicting multi-domain queries & score balancing across 6 specialized domains    - Zero-keyword, whitespace, punctuation, and emoji-only inputs    - Multilingual queries (Chinese, Japanese, French, German, Russian, Arabic)    - Adversarial prompt injections & canonical law override resistance    - Boundary confidence thresholds & synthesis idempotency    - Long-text stress (50,000+ words) & zero degradation  2. Bounded Reflection Loop Convergence (T-385 / AGY-1983)    - Identical successive texts (0.0 delta) -> instant diminishing returns exit    - Sub-5% micro-edits in realistic paragraph -> diminishing returns exit    - Oscillating / adversarial critiques -> strict max_iteration ceiling enforcement    - Semantic delta mathematical properties (identity, range [0, 1], high disjoint delta)    - Configurable max_iterations and min_iterations enforcement    - Extreme corpus size (10,000+ words) delta calculation performance    - Critique approval pattern matching & false-positive negation analysis    - Deliberation state tracking & dictionary serialization integrity"""
 
 from __future__ import annotations
 
@@ -56,7 +37,6 @@ if spec_d and spec_d.loader:
     spec_d.loader.exec_module(mios_deliberate)
 else:
     raise ImportError(f"Cannot load mios_deliberate from {_DELIB_PATH}")
-
 
 class TestPersonaAdversarial(unittest.TestCase):
     """Adversarial challenge & edge-case suite for T-384 Dynamic Persona Synthesis."""
@@ -213,7 +193,6 @@ class TestPersonaAdversarial(unittest.TestCase):
             title = mios_persona.DOMAIN_TITLES.get(domain)
             self.assertIsNotNone(title)
             self.assertGreater(len(title), 5)
-
 
 class TestBoundedReflectionAdversarial(unittest.TestCase):
     """Adversarial challenge & edge-case suite for T-385 Bounded Reflection Convergence."""
@@ -417,14 +396,12 @@ class TestBoundedReflectionAdversarial(unittest.TestCase):
         self.assertEqual(len(state_dict["turns"]), 1)
         self.assertEqual(state_dict["turns"][0]["tokens_used"], 120)
 
-
 def main() -> int:
     suite = unittest.TestSuite()
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestPersonaAdversarial))
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestBoundedReflectionAdversarial))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

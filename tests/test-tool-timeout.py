@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_tool_timeout import ToolWatchdog
 
-
 class TestToolTimeout(unittest.TestCase):
     """Validates watchdog deadline enforcement and latency metrics."""
 
@@ -40,12 +39,10 @@ class TestToolTimeout(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn("timed out", res)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestToolTimeout)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-fastboot-mgr")
 
 MAX_LOADER_TIME_MS = 300.0
 
-
 @dataclass
 class BootConfiguration:
     timeout_sec: int
@@ -31,7 +30,6 @@ class BootConfiguration:
     is_uki_signed: bool
     baked_kargs: List[str]
     emergency_override_key: str  # "Space" or "Esc"
-
 
 class FastbootManager:
     """Manages systemd-boot loader configuration and UKI direct boot verification."""
@@ -73,13 +71,11 @@ class FastbootManager:
         logger.info(f"Boot cycle: {action} in {loader_time_ms:.2f} ms (Target <300ms: {res['is_sub_300ms']}).")
         return res
 
-
 def main():
     mgr = FastbootManager(dry_run=True)
     print(mgr.generate_loader_conf())
     res = mgr.simulate_boot_cycle(False)
     print(f"Handoff: {res['loader_time_ms']:.2f} ms")
-
 
 if __name__ == "__main__":
     main()

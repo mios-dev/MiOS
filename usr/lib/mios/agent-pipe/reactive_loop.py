@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-reactive-loop")
 
 MAX_WAKEUP_LATENCY_MS = 5.0
 
-
 @dataclass
 class WakeEvent:
     channel: str
@@ -31,7 +30,6 @@ class WakeEvent:
     emitted_at: float
     delivered_at: float = 0.0
     latency_ms: float = 0.0
-
 
 class ReactiveEventDispatcher:
     """Async event dispatcher delivering sub-5ms notifications to sleeping subagents."""
@@ -76,7 +74,6 @@ class ReactiveEventDispatcher:
         except asyncio.TimeoutError:
             return None
 
-
 def main():
     async def _test():
         dispatcher = ReactiveEventDispatcher(dry_run=True)
@@ -86,7 +83,6 @@ def main():
         print(f"Wake latency: {ev.latency_ms:.3f} ms" if ev else "Timed out")
 
     asyncio.run(_test())
-
 
 if __name__ == "__main__":
     main()

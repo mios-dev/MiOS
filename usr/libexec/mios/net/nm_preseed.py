@@ -27,17 +27,14 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-
 class SecurityType(str, Enum):
     WPA_PSK = "wpa-psk"
     SAE = "sae"
     OPEN = "open"
 
-
 class ConnectionType(str, Enum):
     WIFI = "wifi"
     ETHERNET = "ethernet"
-
 
 @dataclass
 class ConnectionProfile:
@@ -51,7 +48,6 @@ class ConnectionProfile:
     autoconnect: bool = True
     ipv4_method: str = "auto"
     ipv6_method: str = "auto"
-
 
 class NetworkManagerPreseedEngine:
     """Constructs, validates, and writes NetworkManager keyfiles."""
@@ -205,7 +201,6 @@ class NetworkManagerPreseedEngine:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS NetworkManager Offline Connection Keyfile Pre-Seeder"
@@ -255,7 +250,6 @@ def main() -> int:
         else:
             print(f"[nm_preseed] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

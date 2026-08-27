@@ -13,13 +13,11 @@ from typing import Dict
 
 log = logging.getLogger("kquants_slicer")
 
-
 @dataclass
 class SlicedLayerConfig:
     tensor_name: str
     precision: str # 'Q4_K_M', 'Q5_K_M', 'Q6_K'
     vram_mb: float
-
 
 class KQuantsSlicer:
     """

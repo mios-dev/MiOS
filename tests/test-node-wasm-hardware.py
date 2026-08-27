@@ -34,7 +34,6 @@ if spec_wasm and spec_wasm.loader:
 else:
     raise ImportError(f"Could not load wasm_sandbox module from {_WASM_PATH}")
 
-
 class TestNodeWasmHardware(unittest.TestCase):
     """Validates Wasm Host Imports for hardware access with strict allowlist enforcement."""
 
@@ -116,12 +115,10 @@ class TestNodeWasmHardware(unittest.TestCase):
         self.assertFalse(res_d.success)
         self.assertEqual(res_d.exit_code, hardware.HardwareErrorCode.PERMISSION_DENIED)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeWasmHardware)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

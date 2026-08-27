@@ -20,14 +20,12 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-systemd-harden")
 
-
 @dataclass
 class UnitSecurityAudit:
     unit_name: str
     exposure_score: float  # 0.0 (safest) to 10.0 (exposed)
     is_safe: bool
     applied_directives: List[str] = field(default_factory=list)
-
 
 class SystemdHardeningManager:
     """Generates sandboxing drop-ins and audits unit exposure scores."""
@@ -77,13 +75,11 @@ class SystemdHardeningManager:
             logger.error(f"Unit {unit_name} FAILED security audit (exposure={score:.1f} >= 3.0)!")
         return audit
 
-
 def main():
     mgr = SystemdHardeningManager(dry_run=True)
     print(mgr.generate_dropin_content("mios-hermes.service"))
     res = mgr.audit_unit_exposure("mios-hermes.service", True)
     print(f"Audit score: {res.exposure_score}")
-
 
 if __name__ == "__main__":
     main()

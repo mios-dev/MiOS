@@ -15,7 +15,6 @@ LINK_RE = re.compile(r"\[([^\]]*)\]\((manual/ch[^)]+)\)")
 REL_RE = re.compile(r"\[[^\]]*\]\((\.{1,2}/[^)#\s]+)(?:#[^)\s]*)?\)")
 ANCHOR_RE = re.compile(r'<a\s+name="([^"]+)"', re.I)
 
-
 def relative_link_violations() -> list:
     """Every ./x or ../x link under the docs tree must resolve."""
     viol = []
@@ -37,7 +36,6 @@ def relative_link_violations() -> list:
                                 % (os.path.relpath(src, ROOT).replace(os.sep, "/"),
                                    target))
     return viol
-
 
 def main() -> int:
     if not os.path.isfile(MANUAL):
@@ -71,6 +69,5 @@ def main() -> int:
     print(f"manual links resolve ({len(links)} ToC links, {len(chapters)} chapters); "
           f"every explicitly-relative doc link resolves")
     return 0
-
 
 sys.exit(main())

@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load cat/launcher module from {_CAT_PATH}")
 
-
 class TestCatLauncher(unittest.TestCase):
     """Validates dev/staging/prod launcher mode isolation and read-only repo bind mounts."""
 
@@ -49,12 +48,10 @@ class TestCatLauncher(unittest.TestCase):
         self.assertEqual(paths["repo_dir"], "/opt/mios")
         self.assertEqual(paths["data_dir"], os.path.join("/var/data", "prod"))
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestCatLauncher)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

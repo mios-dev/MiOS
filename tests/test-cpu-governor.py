@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load cpu_governor module from {_MODULE_PATH}")
 
-
 class TestCPUGovernor(unittest.TestCase):
     """Validates CPU governor discovery, switching, state persistence, and hook dispatch."""
 
@@ -174,12 +173,10 @@ class TestCPUGovernor(unittest.TestCase):
         state = mgr.load_persisted_state()
         self.assertEqual(state, {"active_domains": {}, "saved_states": {}})
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestCPUGovernor)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

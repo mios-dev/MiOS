@@ -17,7 +17,6 @@ from fastapi.responses import JSONResponse
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _get_client = None
 _VERB_CATALOG: dict = {}
 _MCP_CLIENT_TOOLS: dict = {}
@@ -25,23 +24,19 @@ _MCP_CLIENT_LOCK = None
 _loads_lenient = None
 _embed_one = None
 
-
 _EMBED_COOLDOWN_SECS = float(
     os.environ.get("MIOS_EMBED_COOLDOWN_SECS", "60") or 60)
 _embed_cooldown_until = 0.0
 
-
 def _embed_in_cooldown() -> bool:
     """True while we are backing off after an embed-backend connection failure."""
     return time.time() < _embed_cooldown_until
-
 
 def _embed_note_failure() -> None:
     """Arm the cooldown window after an embed call came back empty (backend likely
     down). Subsequent loop iterations short-circuit until the window lapses."""
     global _embed_cooldown_until
     _embed_cooldown_until = time.time() + _EMBED_COOLDOWN_SECS
-
 
 def configure(*, get_client=None, verb_catalog=None, mcp_client_tools=None,
               mcp_client_lock=None, loads_lenient=None, embed_one=None) -> None:
@@ -65,7 +60,6 @@ def configure(*, get_client=None, verb_catalog=None, mcp_client_tools=None,
     if embed_one is not None:
         _embed_one = embed_one
 
-
 def _cosine(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
@@ -81,7 +75,6 @@ def _cosine(a: list[float], b: list[float]) -> float:
     import math
     return dot / (math.sqrt(na) * math.sqrt(nb))
 
-
 def _verb_embed_text(vname: str, vcfg: dict) -> str:
     """P1 TDWA: the text embedded for verb retrieval -- the MODEL-FACING name (the P1
     model_name alias if any, else the key) + the description + the synthetic example
@@ -93,7 +86,6 @@ def _verb_embed_text(vname: str, vcfg: dict) -> str:
     if ex:
         base += "\nExample requests: " + " | ".join(ex)
     return base
-
 
 def _verb_embed_fingerprint() -> str:
     """Hash over every embeddable verb's (key, embed-text). Any rename / desc edit /
@@ -109,18 +101,15 @@ def _verb_embed_fingerprint() -> str:
         h.update(_verb_embed_text(vname, vcfg).encode("utf-8")); h.update(b"\x00")
     return h.hexdigest()
 
-
 _VERB_EMBEDDINGS: dict[str, list[float]] = {}
 _VERB_EMBEDDINGS_LOCK = asyncio.Lock()
 _MCP_EMBEDDINGS: dict[str, list[float]] = {}
-
 
 def _tool_embedding(name: str):
     """Retrieval vector for a tool name: a native verb (by resolved key) OR an external MCP
     tool (by its mcp.<id>.<tool> name). None if neither is embedded (-> priority fallback)."""
     v = _VERB_EMBEDDINGS.get(name)
     return v if v is not None else _MCP_EMBEDDINGS.get(name)
-
 
 async def _mcp_embed_new_tools() -> None:
     """Embed every registered MCP tool not yet in _MCP_EMBEDDINGS (best-effort, off the
@@ -143,7 +132,6 @@ async def _mcp_embed_new_tools() -> None:
                 _MCP_EMBEDDINGS[k] = vec
     except Exception:  # noqa: BLE001
         pass
-
 
 async def _ensure_verb_embeddings() -> None:
     """Compute embeddings for tier=core+common verbs. Persisted to
@@ -234,7 +222,6 @@ async def _ensure_verb_embeddings() -> None:
             log.info("verb JSON embeddings ready: %d entries (rebuilt=%s)",
                      len(_VERB_EMBEDDINGS), rebuilt)
 
-
 _APP_EMBEDDINGS: dict[str, dict] = {}   # key -> {vec, record}
 _APP_INV_MTIME: float = 0.0
 _APP_INV_LOCK = asyncio.Lock()
@@ -251,14 +238,12 @@ _VERB_EMBED_PERSIST = os.environ.get(
     "/var/lib/mios/agent-env/verb-embeddings.json",
 )
 
-
 def _load_persisted_embeddings(path: str) -> dict:
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except (OSError, json.JSONDecodeError):
         return {}
-
 
 def _save_persisted_embeddings(path: str, data: dict) -> None:
     try:
@@ -268,7 +253,6 @@ def _save_persisted_embeddings(path: str, data: dict) -> None:
         os.replace(tmp, path)
     except OSError as e:
         log.warning("embedding persist failed: %s -> %s", path, e)
-
 
 async def _refresh_app_inventory(force: bool = False) -> None:
     """Re-run `mios-apps --json` if the cache is stale (>5min) or
@@ -348,7 +332,6 @@ async def _refresh_app_inventory(force: bool = False) -> None:
             _APP_INV_MTIME = os.stat(_APP_INV_CACHE_FILE).st_mtime
         except OSError:
             pass
-
 
 async def tool_search_logic(query: str = "", limit: int = 5, namespace: str = "",
                             tier: str = "", detail_level: str = "full") -> JSONResponse:
@@ -437,7 +420,6 @@ async def tool_search_logic(query: str = "", limit: int = 5, namespace: str = ""
     return JSONResponse({"hits": hits, "query": query, "embedded": bool(qvec),
                          "namespace": ns_f, "tier": tier_f, "detail_level": dl})
 
-
 async def app_search_logic(query: str = "", limit: int = 5) -> JSONResponse:
     """Logic for GET /v1/app-search (server.py keeps the thin @app route)."""
     if not query.strip():
@@ -468,9 +450,7 @@ async def app_search_logic(query: str = "", limit: int = 5) -> JSONResponse:
         "inventory_size": len(_APP_EMBEDDINGS),
     })
 
-
 toolsearch_router = APIRouter()
-
 
 @toolsearch_router.get("/v1/tool-search")
 async def tool_search(query: str = "", limit: int = 5, namespace: str = "",
@@ -478,7 +458,6 @@ async def tool_search(query: str = "", limit: int = 5, namespace: str = "",
     return await tool_search_logic(
         query=query, limit=limit, namespace=namespace, tier=tier,
         detail_level=detail_level)
-
 
 @toolsearch_router.get("/v1/app-search")
 async def app_search(query: str = "", limit: int = 5) -> JSONResponse:

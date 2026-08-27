@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "hw"))
 from watchdog_manager import HardwareWatchdogManager
 
-
 class TestHardwareWatchdogManager(unittest.TestCase):
     def setUp(self):
         self.mgr = HardwareWatchdogManager(dry_run=True)
@@ -23,7 +22,6 @@ class TestHardwareWatchdogManager(unittest.TestCase):
         self.assertIn("RuntimeWatchdogSec=30s", conf)
         self.assertIn("RebootWatchdogSec=60s", conf)
         self.assertIn("WatchdogDevice=/dev/watchdog0", conf)
-
 
 if __name__ == "__main__":
     unittest.main()

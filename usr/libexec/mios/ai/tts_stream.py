@@ -23,7 +23,6 @@ logger = logging.getLogger("mios-tts-stream")
 
 MAX_FIRST_PACKET_LATENCY_MS = 50.0
 
-
 @dataclass
 class AudioStreamResult:
     text: str
@@ -31,7 +30,6 @@ class AudioStreamResult:
     first_packet_latency_ms: float
     total_audio_duration_sec: float
     buffer_underruns_detected: int = 0
-
 
 class StreamingTTSPipeline:
     """Streams quantized ONNX speech synthesis into PipeWire playback buffers."""
@@ -65,12 +63,10 @@ class StreamingTTSPipeline:
         )
         return res
 
-
 def main():
     pipe = StreamingTTSPipeline(dry_run=True)
     res = pipe.stream_speech_synthesis("MiOS speech synthesis pipeline active.")
     print(f"First packet: {res.first_packet_latency_ms:.2f} ms, Chunks: {res.chunks_generated}")
-
 
 if __name__ == "__main__":
     main()

@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "net"))
 from service_mesh import ServiceMeshGenerator
 
-
 class TestServiceMeshGenerator(unittest.TestCase):
     def setUp(self):
         self.routes = [
@@ -38,7 +37,6 @@ class TestServiceMeshGenerator(unittest.TestCase):
         self.assertEqual(res["status"], "dry_run")
         self.assertEqual(res["routes_count"], 2)
         self.assertTrue(res["mock"])
-
 
 if __name__ == "__main__":
     unittest.main()

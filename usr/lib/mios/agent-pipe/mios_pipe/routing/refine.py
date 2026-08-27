@@ -17,7 +17,6 @@ from mios_grounding import _env_grounding, _env_grounding_static, _env_grounding
 from mios_routing import _deterministic_action_route
 from mios_dci import dci_critic_pass, DCI_ENABLED, DCI_FLOW_TRIGGER_CONF
 
-
 log = None
 _AGENT_REGISTRY: dict = {}
 _VERB_CATALOG: dict = {}
@@ -51,7 +50,6 @@ _emit_session_event = None
 CRITIC_REFINE_ENABLED = True
 CRITIC_REFINE_MAX = 1
 CRITIC_REFINE_MIN_CHARS = 500
-
 
 def configure(*, logger=None, agent_registry=None, verb_catalog=None,
               routed_domain_var=None, over_global_ceiling=None,
@@ -152,7 +150,6 @@ def configure(*, logger=None, agent_registry=None, verb_catalog=None,
         REFINE_DISPATCH_ARG_MAX_WORDS = int(dispatch_arg_max_words)
     if _cuts_changed:
         _REFINE_SYSTEM = _build_refine_system()
-
 
 def _build_refine_system() -> str:
     return (
@@ -349,9 +346,7 @@ def _build_refine_system() -> str:
     "so that downstream search/resolver tools can check the actual installed system inventory.\n"
     )
 
-
 _REFINE_SYSTEM = _build_refine_system()
-
 
 _REFINE_SYSTEM_LITE = (
     "You are MiOS-Agent's refine pass. Read the user's message + recent\n"
@@ -544,7 +539,6 @@ _REFINE_SYSTEM_LITE = (
     "not use. JSON keys + verb/tool names stay as-is (identifiers).\n"
 )
 
-
 def _salvage_refine_dispatch(content: str) -> dict | None:
     if not content:
         return None
@@ -579,7 +573,6 @@ def _salvage_refine_dispatch(content: str) -> dict | None:
     if not args:
         return None
     return {"intent": "dispatch", "tool": tool, "args": args, "_salvaged": True}
-
 
 async def refine_intent(user_text: str,
                         history: list = None,
@@ -636,7 +629,6 @@ async def refine_intent(user_text: str,
         "MIOS_REFINE_STREAM_STRUCTURED", "true").strip().lower() not in {"0", "false", "no", "off"}
     if on_token and not _refine_stream_structured:
         _refine_structured = False
-
 
     _u_content = user_text[-1500:]
     if not _refine_structured and not on_token:
@@ -992,7 +984,6 @@ async def refine_intent(user_text: str,
         "payload": parsed,
     }, now_fields=("ts",))))
     return parsed
-
 
 async def _critic_refine_agent(
     raw: str,

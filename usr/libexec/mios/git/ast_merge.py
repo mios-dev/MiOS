@@ -26,7 +26,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-ast-merge")
 
-
 @dataclass
 class AstNodeInfo:
     """Metadata representing a parsed top-level syntactic unit."""
@@ -44,7 +43,6 @@ class AstNodeInfo:
             "content_hash": self.content_hash,
         }
 
-
 @dataclass
 class MergeResult:
     """Result of an AST-based 3-way semantic merge."""
@@ -55,7 +53,6 @@ class MergeResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
-
 
 class AstMergeResolver:
     """Semantic 3-way merge resolver utilizing language AST structures."""
@@ -451,7 +448,6 @@ class AstMergeResolver:
             conflict_nodes=["Generic line collision in unparsed text"],
         )
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MiOS Tree-Sitter / AST Semantic Merge Resolver (T-555)")
     parser.add_argument("--base", metavar="PATH", help="Path to base common ancestor file")
@@ -462,7 +458,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mock", action="store_true", help="Run mock 3-way test merge")
     parser.add_argument("--json", action="store_true", help="Output results in JSON")
     return parser.parse_args()
-
 
 def main() -> int:
     args = parse_args()
@@ -521,7 +516,6 @@ def main() -> int:
         if args.json:
             print(json.dumps({"status": "error", "error": str(e)}, indent=2))
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

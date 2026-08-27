@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from fastboot_mgr import MAX_LOADER_TIME_MS, FastbootManager
 
-
 class TestFastbootMgr(unittest.TestCase):
     def setUp(self):
         self.mgr = FastbootManager(dry_run=True)
@@ -33,7 +32,6 @@ class TestFastbootMgr(unittest.TestCase):
         """Test holding Space/Esc keys triggers emergency rollback menu."""
         res = self.mgr.simulate_boot_cycle(is_emergency_key_pressed=True)
         self.assertEqual(res["action"], "display_emergency_recovery_menu")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,13 +20,11 @@ _NODE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _NODE_DIR not in sys.path:
     sys.path.insert(0, _NODE_DIR)
 
-
 class TaskPriority(IntEnum):
     CRITICAL = 0
     HIGH = 1
     NORMAL = 2
     LOW = 3
-
 
 @dataclass
 class TaskItem:
@@ -52,19 +50,16 @@ class TaskItem:
                 return False
         return True
 
-
 class ScheduledTargetType(IntEnum):
     LOCAL = 0
     OFFLOAD = 1
     REJECTED = 2
-
 
 @dataclass
 class ScheduledDecision:
     target_type: ScheduledTargetType
     node_id: Optional[int] = None
     reason: Optional[str] = None
-
 
 class WorkerQueue:
     """Prioritized task deques for a single local worker thread."""
@@ -104,7 +99,6 @@ class WorkerQueue:
         with self._lock:
             return sum(len(q) for q in self._queues.values())
 
-
 class GlobalInjector:
     """Global prioritized injector queue for external task submission."""
 
@@ -142,7 +136,6 @@ class GlobalInjector:
         with self._lock:
             return sum(len(q) for q in self._queues.values())
 
-
 @dataclass
 class SchedulerStats:
     tasks_ingested: int = 0
@@ -151,7 +144,6 @@ class SchedulerStats:
     tasks_stolen_remote: int = 0
     tasks_offloaded: int = 0
     tasks_rejected: int = 0
-
 
 class WorkStealingScheduler:
     """Multi-worker prioritized scheduler with work-stealing and hardware pin invariants."""

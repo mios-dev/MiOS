@@ -19,7 +19,6 @@ import sys
 import time
 from typing import Any, Dict, List, Optional
 
-
 class PanicRollbackHandler:
     """Handles pstore panic detection, failure tracking, and bootc deployment rollback."""
 
@@ -200,7 +199,6 @@ class PanicRollbackHandler:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Panic Monitor & Emergency bootc Rollback Engine")
     parser.add_argument("--check-panic", action="store_true", help="Scan pstore for kernel crash logs")
@@ -256,7 +254,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

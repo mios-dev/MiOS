@@ -13,12 +13,10 @@ import mios_native_loop as M
 
 FINAL_ANSWER = "The verified answer is 42."
 
-
 def _async_const(value):
     async def _f(*a, **k):
         return value
     return _f
-
 
 class _FakeResp:
     def __init__(self, content):
@@ -26,7 +24,6 @@ class _FakeResp:
 
     def json(self):
         return {"choices": [{"message": {"content": self._c}}]}
-
 
 class _FakeClient:
     """Stands in for httpx.AsyncClient: only `.post` (final completion) is used
@@ -47,12 +44,10 @@ class _FakeClient:
     def stream(self, *a, **k):  # pragma: no cover - guard
         raise AssertionError("stream() should not run on the emit=None path")
 
-
 _FAKE_HTTPX = types.SimpleNamespace(
     AsyncClient=_FakeClient,
     Timeout=lambda *a, **k: None,
 )
-
 
 def _base_configure(verb_catalog, dispatch_calls, loop_calls):
     async def _dispatch(verb, args, *, session_id=None):
@@ -117,10 +112,8 @@ def _base_configure(verb_catalog, dispatch_calls, loop_calls):
     M.polish_response = _async_const("")
     M._v1_secondary_tool_loop = _secondary_loop
 
-
 def _body_text(resp):
     return json.loads(bytes(resp.body).decode("utf-8"))["choices"][0]["message"]["content"]
-
 
 def _run():
     dcalls, lcalls = [], []
@@ -152,7 +145,6 @@ def _run():
 
     print("ALL OK")
 
-
 class _FakeResp2:
     """status_code + .json() in the OpenAI (`choices`) shape -- MiOS is /v1-only --
     for the moved formulator/local-state tests. (`native` kept for signature
@@ -167,7 +159,6 @@ class _FakeResp2:
         if self._native:
             return {"message": {"content": self._c}}
         return {"choices": [{"message": {"content": self._c}}]}
-
 
 def _fake_httpx_returning(content, **kw):
     class _C:
@@ -184,7 +175,6 @@ def _fake_httpx_returning(content, **kw):
             return _FakeResp2(content, **kw)
 
     return types.SimpleNamespace(AsyncClient=_C, Timeout=lambda *a, **k: None)
-
 
 def _run_moved():
     """Cover the three functions extracted into mios_native_loop: the micro-LLM
@@ -215,7 +205,6 @@ def _run_moved():
     assert asyncio.run(M._format_local_state("zzqx plff", "live: QRZL=1")) is None
     print("moved _format_local_state polish + native-shape extract: OK ->", repr(out))
     print("MOVED OK")
-
 
 if __name__ == "__main__":
     _run()

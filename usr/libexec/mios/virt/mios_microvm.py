@@ -38,7 +38,6 @@ F_SEAL_GROW        = 4
 F_SEAL_SHRINK      = 2
 F_SEAL_WRITE       = 8
 
-
 def _memfd_create(name: str, size_bytes: int) -> int:
     """Allocate an anonymous memfd and set its size."""
     libc = ctypes.CDLL("libc.so.6", use_errno=True)
@@ -48,10 +47,8 @@ def _memfd_create(name: str, size_bytes: int) -> int:
     os.ftruncate(fd, size_bytes)
     return fd
 
-
 # ── VM state registry (in-process; production uses pgvector table) ─────────────
 _VMS: dict[str, dict] = {}
-
 
 class MicroVM:
     """Represents one ephemeral microVM with virtio-pmem DAX storage."""
@@ -143,7 +140,6 @@ class MicroVM:
         self._proc = subprocess.Popen(
             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-
 # ── CLI ─────────────────────────────────────────────────────────────────────────
 def cmd_launch(args) -> None:
     vm_id = str(uuid.uuid4())[:8]
@@ -152,10 +148,8 @@ def cmd_launch(args) -> None:
     info  = vm.launch(dry_run=args.dry_run)
     print(json.dumps(info, indent=2))
 
-
 def cmd_status(args) -> None:
     print(json.dumps(list(_VMS.values()), indent=2))
-
 
 def cmd_destroy(args) -> None:
     info = _VMS.get(args.vm_id)
@@ -164,7 +158,6 @@ def cmd_destroy(args) -> None:
         sys.exit(1)
     MicroVM(info["vm_id"], info["rootfs"]).destroy()
     print(f"VM {args.vm_id} destroyed")
-
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO,
@@ -188,7 +181,6 @@ def main() -> None:
 
     a = ap.parse_args()
     a.func(a)
-
 
 if __name__ == "__main__":
     main()

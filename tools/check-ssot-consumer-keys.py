@@ -21,7 +21,6 @@ _READ = re.compile(
     r"""\s*\.get\(\s*["']([a-z0-9_]+)["']"""
 )
 
-
 def consumer_reads(root: str) -> dict:
     """{(table, key): [file:line, ...]} over shipped Python.
 
@@ -50,7 +49,6 @@ def consumer_reads(root: str) -> dict:
                     hits.setdefault((m.group(1), m.group(2)), []).append(site)
     return {k: sorted(set(v)) for k, v in hits.items()}
 
-
 def resolve(data: dict, dotted: str):
     """The table at a dotted path, or None."""
     cur = data
@@ -59,7 +57,6 @@ def resolve(data: dict, dotted: str):
             return None
         cur = cur[part]
     return cur
-
 
 def declared_elsewhere(data: dict, key: str) -> list:
     """Every dotted path in the SSOT that declares this key name."""
@@ -75,7 +72,6 @@ def declared_elsewhere(data: dict, key: str) -> list:
     walk(data, [])
     return sorted(out)
 
-
 def register(data: dict) -> list:
     """[ssot_consumers].unresolved, in declaration order."""
     reg = (data.get("ssot_consumers") or {}).get("unresolved")
@@ -83,11 +79,9 @@ def register(data: dict) -> list:
         return []
     return [str(x).strip() for x in reg if str(x).strip()]
 
-
 def max_unresolved(data: dict):
     val = (data.get("ssot_consumers") or {}).get("max_unresolved")
     return val if isinstance(val, int) else None
-
 
 def unresolved(data: dict, root: str) -> dict:
     """{'table.key': (sites, elsewhere)} for every read that resolves to nothing."""
@@ -98,7 +92,6 @@ def unresolved(data: dict, root: str) -> dict:
             continue
         out["%s.%s" % (table, key)] = (sites, declared_elsewhere(data, key))
     return out
-
 
 def violations(data: dict, root: str) -> list:
     viol = []
@@ -156,7 +149,6 @@ def violations(data: dict, root: str) -> list:
                     % (len(reg), ceiling, len(reg)))
     return viol
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     path = os.path.join(root, TOML)
@@ -181,7 +173,6 @@ def main() -> int:
           % (sum(len(v) for v in reads.values()), len(reads), len(reg),
              max_unresolved(data)))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

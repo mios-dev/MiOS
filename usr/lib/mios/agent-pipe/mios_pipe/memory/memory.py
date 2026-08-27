@@ -6,7 +6,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-
 class MemoryProvider(ABC):
     """The long-term memory backend contract: semantic retrieve + add."""
 
@@ -20,7 +19,6 @@ class MemoryProvider(ABC):
     async def add(self, table: str, fields: dict, **kw) -> Any:
         """Persist one memory row to `table`."""
         raise NotImplementedError
-
 
 class PgVectorMemoryProvider(MemoryProvider):
     """The default provider: a verbatim pass-through to the injected mios_pg-like
@@ -38,14 +36,11 @@ class PgVectorMemoryProvider(MemoryProvider):
     async def add(self, table: str, fields: dict, **kw) -> Any:
         return await self._pg.insert(table, fields, **kw)
 
-
 _PROVIDERS = {"pgvector": PgVectorMemoryProvider}
-
 
 def register_provider(name: str, factory) -> None:
     """Register an additional provider factory under `name` (lowercased)."""
     _PROVIDERS[str(name).strip().lower()] = factory
-
 
 def get_memory_provider(name: str, backend) -> MemoryProvider:
     """Resolve a MemoryProvider by name, constructing it over `backend`.

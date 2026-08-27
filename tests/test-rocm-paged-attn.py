@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from rocm_paged_attn import MIN_VRAM_UTILIZATION_PCT, ROCmPagedAttentionManager
 
-
 class TestROCMPagedAttn(unittest.TestCase):
     def setUp(self):
         self.mgr = ROCmPagedAttentionManager(block_size=16, dry_run=True)
@@ -23,7 +22,6 @@ class TestROCMPagedAttn(unittest.TestCase):
         self.assertEqual(res.oom_errors_count, 0)
         self.assertGreaterEqual(res.vram_utilization_pct, MIN_VRAM_UTILIZATION_PCT)
         self.assertTrue(res.output_parity_verified)
-
 
 if __name__ == "__main__":
     unittest.main()

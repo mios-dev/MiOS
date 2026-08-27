@@ -19,7 +19,6 @@ _fails = 0
 SENTINEL = "/var/lib/mios/.demo-done"
 VARDIR = "/var/lib/mios/demo"
 
-
 def check(name, cond, detail=""):
     global _fails
     if cond:
@@ -27,7 +26,6 @@ def check(name, cond, detail=""):
     else:
         _fails += 1
         print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
-
 
 def mkroot(*, fetcher=True, sentinel_in_fetcher=True, execstart=None,
            condition=True, condition_path=None, preset=True, tmpfiles=True):
@@ -58,12 +56,10 @@ def mkroot(*, fetcher=True, sentinel_in_fetcher=True, execstart=None,
         f"d {VARDIR} 0750 827 827 -\n" if tmpfiles else "# nothing declared\n")
     return root
 
-
 def run(root):
     declared = M.tmpfiles_dirs(root)
     return M.check_one(root, "demo-firstboot.service",
                        "usr/libexec/mios/demo-firstboot", (VARDIR,), declared)
-
 
 def t_whole_triple_passes():
     r = mkroot()
@@ -72,7 +68,6 @@ def t_whole_triple_passes():
     finally:
         shutil.rmtree(r, ignore_errors=True)
 
-
 def t_missing_fetcher():
     r = mkroot(fetcher=False)
     try:
@@ -80,7 +75,6 @@ def t_missing_fetcher():
         check("a missing fetcher fails", len(bad) == 1 and "does not exist" in bad[0], str(bad))
     finally:
         shutil.rmtree(r, ignore_errors=True)
-
 
 def t_wrong_execstart():
     r = mkroot(execstart="/usr/bin/true")
@@ -91,7 +85,6 @@ def t_wrong_execstart():
     finally:
         shutil.rmtree(r, ignore_errors=True)
 
-
 def t_no_condition_gate():
     r = mkroot(condition=False)
     try:
@@ -100,7 +93,6 @@ def t_no_condition_gate():
               any("no ConditionPathExists" in b for b in bad), str(bad))
     finally:
         shutil.rmtree(r, ignore_errors=True)
-
 
 def t_sentinel_never_written():
     r = mkroot(sentinel_in_fetcher=False)
@@ -111,7 +103,6 @@ def t_sentinel_never_written():
     finally:
         shutil.rmtree(r, ignore_errors=True)
 
-
 def t_gate_on_a_different_path():
     r = mkroot(condition_path="/var/lib/mios/.some-other-sentinel")
     try:
@@ -120,7 +111,6 @@ def t_gate_on_a_different_path():
               any("never names that path" in b for b in bad), str(bad))
     finally:
         shutil.rmtree(r, ignore_errors=True)
-
 
 def t_not_in_preset():
     r = mkroot(preset=False)
@@ -131,7 +121,6 @@ def t_not_in_preset():
     finally:
         shutil.rmtree(r, ignore_errors=True)
 
-
 def t_undeclared_var_dir():
     r = mkroot(tmpfiles=False)
     try:
@@ -140,7 +129,6 @@ def t_undeclared_var_dir():
               any("Architectural Law 2" in b for b in bad), str(bad))
     finally:
         shutil.rmtree(r, ignore_errors=True)
-
 
 def main():
     t_whole_triple_passes()
@@ -153,7 +141,6 @@ def main():
     t_undeclared_var_dir()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-
 def build_mcp_tool_envelope(
     tool_name: str,
     arguments: Dict[str, Any],

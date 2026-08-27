@@ -12,7 +12,6 @@ import os
 import sys
 from typing import Dict, List, Optional
 
-
 class CatLauncher:
     """Manages tri-launcher execution profiles (dev, staging, prod) and filesystem staging."""
 

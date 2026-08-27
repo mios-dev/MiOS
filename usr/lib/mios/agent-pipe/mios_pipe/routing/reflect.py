@@ -16,7 +16,6 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient
 from mios_pipe.routing import consensus as _consensus
 from mios_hitlflow import _recent_reflections
 
-
 log = logging.getLogger("mios-agent-pipe")
 
 _db_read = None
@@ -36,7 +35,6 @@ CONSENSUS_MIN_LANES = 2
 CONSENSUS_TIMEOUT_S = 20.0
 CONSENSUS_WEIGHT_FLOOR = 0.1
 _consensus_reliability = None
-
 
 def configure(*, db_read=None, db_write=None, emit_session_event=None,
               verb_catalog=None, refine_enabled=None, refine_model=None,
@@ -89,7 +87,6 @@ def configure(*, db_read=None, db_write=None, emit_session_event=None,
         CONSENSUS_WEIGHT_FLOOR = consensus_weight_floor
     if consensus_reliability is not None:
         _consensus_reliability = consensus_reliability
-
 
 async def _inline_satisfaction_check(
     session_id: Optional[str], refined: Optional[dict],
@@ -198,7 +195,6 @@ async def _inline_satisfaction_check(
     except Exception:
         pass
     return {"kind": kind, "payload": body}
-
 
 async def reflect_on_step_failure(
     failed_node: dict,
@@ -317,7 +313,6 @@ async def reflect_on_step_failure(
     }, session_id)
     return parsed
 
-
 async def _recent_satisfaction_verdicts(limit: int = 3) -> list[dict]:
     sql = (
         "SELECT ts, kind, summary, payload FROM event "
@@ -333,7 +328,6 @@ async def _recent_satisfaction_verdicts(limit: int = 3) -> list[dict]:
         return []
     rows = (r[-1] or {}).get("result") or []
     return rows if isinstance(rows, list) else []
-
 
 async def _recent_tool_history(session_id: Optional[str],
                                limit: int = 6) -> list[dict]:
@@ -356,7 +350,6 @@ async def _recent_tool_history(session_id: Optional[str],
         return []
     rows = (r[-1] or {}).get("result") or []
     return list(reversed(rows))
-
 
 async def _judge_lane_vote(query: str, answer: str, *, endpoint: str = "",
                            model: str = "", timeout_s: float = 0.0):
@@ -388,7 +381,6 @@ async def _judge_lane_vote(query: str, answer: str, *, endpoint: str = "",
             return not c.startswith("n")
     except Exception:  # noqa: BLE001
         return None
-
 
 async def _judge_panel_verdict(query: str, answer: str):
     """CONS-01 panel: poll every lane concurrently, fold by weight. None when
@@ -443,7 +435,6 @@ async def _judge_panel_verdict(query: str, answer: str):
     log.debug("consensus: decision=%s score=%.3f agreement=%.3f over %d lanes",
               fold["decision"], fold["score"], fold["agreement"], fold["live"])
     return bool(fold["decision"])
-
 
 async def _judge_answer_satisfied(query: str, answer: str) -> bool:
     """Micro-LLM Definition-of-Done: does `answer` substantively satisfy

@@ -24,7 +24,6 @@ COMPOSEFS_MAGIC_LE = 0x636D7066
 COMPOSEFS_MAGIC_BYTES = b"cfs\x00"
 COMPOSEFS_ALT_MAGIC_BYTES = b"cmpf"
 
-
 class ComposefsVerifier:
     """Verifies Composefs image descriptors, fs-verity Merkle trees, and rootfs mount configuration."""
 
@@ -204,7 +203,6 @@ class ComposefsVerifier:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Composefs & fs-verity Filesystem Integrity Verifier")
     parser.add_argument("--image", default="/ostree/deploy/mios/deploy/composefs.img", help="Path to composefs image")
@@ -265,7 +263,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -20,7 +20,6 @@ RATCHET_SECTIONS = {
     "gates", "sandbox"
 }
 
-
 def is_ceiling_key(key_name: str, section_name: str) -> bool:
     if not isinstance(key_name, str):
         return False
@@ -29,7 +28,6 @@ def is_ceiling_key(key_name: str, section_name: str) -> bool:
     if section_name in RATCHET_SECTIONS and ("max_" in key_name or "stay_max_" in key_name or "ceiling" in key_name):
         return True
     return False
-
 
 def extract_ratchet_ceilings(data: dict, prefix: str = "") -> dict[str, int | float]:
     ceilings = {}
@@ -42,7 +40,6 @@ def extract_ratchet_ceilings(data: dict, prefix: str = "") -> dict[str, int | fl
             elif isinstance(v, dict):
                 ceilings.update(extract_ratchet_ceilings(v, full_key))
     return ceilings
-
 
 def main() -> int:
     toml_path = os.path.join(_ROOT, _TOML_REL)
@@ -84,7 +81,6 @@ def main() -> int:
 
     print(f"[check-ratchet-direction] OK: All {len(work_ceilings)} shrink-only ratchet ceilings are <= HEAD.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

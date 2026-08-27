@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestContainerGCManager(unittest.TestCase):
     """Test suite for container image inspection, LRU sorting, and threshold pruning."""
 
@@ -93,12 +92,10 @@ class TestContainerGCManager(unittest.TestCase):
             exit_code = container_gc.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestContainerGCManager)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

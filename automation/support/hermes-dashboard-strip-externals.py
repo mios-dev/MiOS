@@ -9,7 +9,6 @@ import pathlib
 PATTERN = re.compile(rb"https://fonts\.googleapis\.com/css2\?[^\"']+")
 INERT = b"data:text/css,"
 
-
 def main(dist_dir: str) -> int:
     dist = pathlib.Path(dist_dir)
     if not dist.is_dir():
@@ -40,7 +39,6 @@ def main(dist_dir: str) -> int:
 
     print(f"strip-externals: {replaced} URL(s) replaced; {remaining} remaining")
     return 0 if remaining == 0 else 1
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

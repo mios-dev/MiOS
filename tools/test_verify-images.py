@@ -18,7 +18,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 _MADE = []
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "verify_images", os.path.join(_HERE, "verify-images.py"))
@@ -26,9 +25,7 @@ def _load():
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
-
 
 def tearDownModule():
     for d in _MADE:
@@ -40,7 +37,6 @@ def tearDownModule():
                     pass
         shutil.rmtree(d, ignore_errors=True)
     _MADE.clear()
-
 
 class TestVerifyImages(unittest.TestCase):
     def _tree(self):
@@ -81,7 +77,6 @@ class TestVerifyImages(unittest.TestCase):
             v = (tomllib.load(fh)["deploy"].get("verify") or {})
         self.assertGreater(int(v.get("min_bytes", 0)), 0,
                            "without a floor an empty file counts as an artifact")
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

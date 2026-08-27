@@ -10,17 +10,14 @@ _RESULTS: list = []
 _IMPR = ["zq_alpha", "zq_beta"]          # improvable surface (a proposal MAY target)
 _PROT = ["zp_guard", "zp_eval"]          # protected surface (the evaluator/eval/lane)
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _prop(kind: str, tid: str = "ztarget1") -> dict:
     """A well-formed proposal envelope with synthetic change/rationale prose."""
     return {"target_kind": kind, "target_id": tid,
             "change": "qqx adjust zz token", "rationale": "qqx because zz"}
-
 
 def t_isolation() -> None:
     a = A.proposal_target_allowed
@@ -34,7 +31,6 @@ def t_isolation() -> None:
     _check("isolation: empty improvable -> degrade-closed",
            not a("zq_alpha", improvable=[], protected=_PROT))
     _check("isolation: blank kind denied", not a("", improvable=_IMPR, protected=_PROT))
-
 
 def t_validate() -> None:
     v = A.validate_proposal
@@ -50,7 +46,6 @@ def t_validate() -> None:
     _check("validate: protected target rejected",
            (not ok) and why == "target_protected_or_unimprovable", why)
 
-
 def t_gap() -> None:
     _check("gap: strong-weak", abs(A.solver_gap(0.3, 0.7) - 0.4) < 1e-9)
     _check("gap: discriminative at/above min", A.is_discriminative(0.3, 0.7, gap_min=0.2))
@@ -58,7 +53,6 @@ def t_gap() -> None:
            not A.is_discriminative(0.95, 0.97, gap_min=0.2))
     _check("gap: impossible (both fail) not discriminative",
            not A.is_discriminative(0.0, 0.05, gap_min=0.2))
-
 
 def t_curate() -> None:
     cands = [
@@ -70,13 +64,11 @@ def t_curate() -> None:
     kept_tasks = [c["task"] for c in kept]
     _check("curate: keeps only the discriminative task", kept_tasks == ["zt_a"], str(kept_tasks))
 
-
 def t_passhatk() -> None:
     _check("pass^k: all-correct -> 1.0",
            abs(A.pass_hat_k_score([(3, 3), (3, 3)], k=2) - 1.0) < 1e-9)
     s = A.pass_hat_k_score([(3, 3), (3, 1)], k=2)
     _check("pass^k: an inconsistent task lowers reliability", s < 1.0, str(s))
-
 
 def t_proof() -> None:
     p = A.proof_of_utility
@@ -92,7 +84,6 @@ def t_proof() -> None:
     _check("proof: require-improvement rejects a no-op", not acc)
     acc, _ = p(0.5, 0.6, margin=0.0, require_improvement=True)
     _check("proof: require-improvement accepts a real gain", acc)
-
 
 def t_decide() -> None:
     d = A.decide_proposal
@@ -110,7 +101,6 @@ def t_decide() -> None:
     _check("decide: improvable + regressing rejected (delta logged)",
            (not v["accept"]) and v["reason"] == "regression" and v["delta"] < 0, str(v))
 
-
 def main() -> int:
     for t in (t_isolation, t_validate, t_gap, t_curate, t_passhatk, t_proof, t_decide):
         t()
@@ -118,7 +108,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "audio"))
 from wireplumber_manager import WirePlumberManager
 
-
 class TestWirePlumberManager(unittest.TestCase):
     def setUp(self):
         self.mgr = WirePlumberManager(dry_run=True)
@@ -23,7 +22,6 @@ class TestWirePlumberManager(unittest.TestCase):
         self.assertIn("Virtual-Agent-Mic", conf)
         self.assertIn("Virtual-Agent-Speaker", conf)
         self.assertIn("audio.rate = 48000", conf)
-
 
 if __name__ == "__main__":
     unittest.main()

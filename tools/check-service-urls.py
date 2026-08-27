@@ -15,12 +15,10 @@ except ModuleNotFoundError:  # pragma: no cover -- py<3.11
 TOML = "usr/share/mios/mios.toml"
 _PORT_VAR = re.compile(r"\$\{MIOS_PORT_([A-Z0-9_]+)\}")
 
-
 def port_keys(data: dict) -> set:
     """Numeric [ports] keys. stack_id is an offset, not a port."""
     ports = (data.get("ports") or {})
     return {k for k, v in ports.items() if isinstance(v, int) and k != "stack_id"}
-
 
 def covered_ports(data: dict) -> set:
     """Port keys templated by at least one [urls] string."""
@@ -32,12 +30,10 @@ def covered_ports(data: dict) -> set:
             out.add(m.group(1).lower())
     return out
 
-
 def register(data: dict) -> list:
     """The shrink-only non-addressable register, in declaration order."""
     reg = (data.get("urls") or {}).get("non_addressable") or []
     return [str(x).strip() for x in reg if str(x).strip()]
-
 
 def classify(data: dict) -> list:
     """Return the violations; empty means every port has exactly one answer."""
@@ -69,7 +65,6 @@ def classify(data: dict) -> list:
 
     return viol
 
-
 def browser_openable(data: dict) -> list:
     """[urls] is what a person clicks, so every value must use a scheme a
     browser opens. A postgresql:// DSN there made the table mean two things."""
@@ -85,7 +80,6 @@ def browser_openable(data: dict) -> list:
                         "belongs on the key its consumers already resolve"
                         % (key, value.split("://", 1)[0]))
     return viol
-
 
 def bare_port_addresses(data: dict) -> list:
     """A localhost URL with a BARE port cannot be offloaded: there is no key for
@@ -120,7 +114,6 @@ def bare_port_addresses(data: dict) -> list:
     walk(data, [])
     return viol
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     path = os.path.join(root, TOML)
@@ -141,7 +134,6 @@ def main() -> int:
     print("[check-service-urls] %d port(s): %d addressed by [urls], %d registered "
           "non-addressable" % (len(keys), len(covered & keys), len(reg)))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

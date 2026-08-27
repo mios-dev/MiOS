@@ -17,7 +17,6 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Union
 
-
 class GrypeScanner:
     """Scans targets for CVE vulnerabilities, evaluates build gating policies, and emits SARIF."""
 
@@ -214,7 +213,6 @@ class GrypeScanner:
             ],
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Grype Vulnerability Scanner and Policy Gate")
     parser.add_argument("--target", default="/", help="Filesystem directory, container image, or SBOM to scan")
@@ -263,7 +261,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

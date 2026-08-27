@@ -10,7 +10,6 @@ from mios_pipe.scheduler.admission import (
     configure,
 )
 
-
 class TestAdmission(unittest.TestCase):
 
     def setUp(self):
@@ -31,7 +30,6 @@ class TestAdmission(unittest.TestCase):
     def test_endpoint_key_parsing(self):
         self.assertEqual(_endpoint_key("http://localhost:11434/v1"), "localhost:11434")
         self.assertEqual(_endpoint_key("https://127.0.0.1:8000/api/chat"), "127.0.0.1:8000")
-
 
 if __name__ == "__main__":
     unittest.main()

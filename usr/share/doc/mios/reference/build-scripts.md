@@ -126,7 +126,6 @@ its `NON_FATAL_SCRIPTS` list.
 
 ---
 
-
 **Bundle stats:** point-in-time snapshot of the build-script source set. Treat
 the repo (`automation/*.sh`, `tools/`, `Containerfile`, `Justfile`) as the
 current source of truth; regenerate this bundle to refresh it.

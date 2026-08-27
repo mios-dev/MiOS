@@ -9,13 +9,11 @@ import mios_crl as crl
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_empty_default():
     c = crl.CRL()
@@ -24,7 +22,6 @@ def t_empty_default():
     check("empty: unknown id not revoked", c.is_revoked("tok-xyz") is False)
     check("empty: None not revoked", c.is_revoked(None) is False)
     check("empty: blank not revoked", c.is_revoked("") is False)
-
 
 def t_revoke_is_revoked():
     c = crl.CRL()
@@ -36,7 +33,6 @@ def t_revoke_is_revoked():
     check("revoke: unrelated id still unrevoked", c.is_revoked("t2") is False)
     c.revoke("t1")
     check("revoke: idempotent (no dup)", len(c) == 1)
-
 
 def t_restore():
     c = crl.CRL(["a", "b", "c"])
@@ -51,7 +47,6 @@ def t_restore():
     c.revoke("a")
     check("restore: re-revoke works", c.is_revoked("a") is True)
 
-
 def t_ids_sorted_and_current():
     c = crl.CRL()
     c.revoke("zeta")
@@ -65,7 +60,6 @@ def t_ids_sorted_and_current():
     check("ids: returned list is a copy (no leak back)",
           c.is_revoked("INJECTED") is False and c.ids() == ["alpha", "zeta"])
 
-
 def t_init_normalization():
     c = crl.CRL(["  pad  ", "dup", "dup", "", "   ", "x"])
     check("init: strips whitespace", c.is_revoked("pad") is True)
@@ -77,7 +71,6 @@ def t_init_normalization():
     c2 = crl.CRL([123, 456])
     check("init: int coerced to str", c2.is_revoked("123") is True and c2.is_revoked(123) is True)
     check("init: None source -> empty", len(crl.CRL(None)) == 0)
-
 
 def t_revoke_normalization():
     c = crl.CRL()
@@ -91,7 +84,6 @@ def t_revoke_normalization():
     c.revoke(999)
     check("revoke: int coerced", c.is_revoked("999") is True)
 
-
 def t_load_list():
     c = crl.CRL.load(["t1", "t2"])
     check("load list: type CRL", isinstance(c, crl.CRL))
@@ -99,7 +91,6 @@ def t_load_list():
     check("load list: revoked", c.is_revoked("t1") and c.is_revoked("t2"))
     check("load tuple: works", crl.CRL.load(("a", "b")).ids() == ["a", "b"])
     check("load set: works", crl.CRL.load({"a", "b"}).ids() == ["a", "b"])
-
 
 def t_load_dict():
     src = {"revoked": ["compromised-1", "retired-peer"], "issued": ["live-1"]}
@@ -112,7 +103,6 @@ def t_load_dict():
     check("load dict: revoked=None -> empty", len(crl.CRL.load({"revoked": None})) == 0)
     check("load dict: revoked=[] -> empty", len(crl.CRL.load({"revoked": []})) == 0)
 
-
 def t_load_malformed_degrades_open():
     for bad in (None, "a-bare-string", 42, 3.14, object()):
         c = crl.CRL.load(bad)
@@ -120,7 +110,6 @@ def t_load_malformed_degrades_open():
               isinstance(c, crl.CRL) and len(c) == 0)
     c = crl.CRL.load("abc")
     check("load malformed: bare string NOT char-exploded", len(c) == 0 and c.is_revoked("a") is False)
-
 
 def t_merge_unions():
     c = crl.CRL(["a", "b"])
@@ -136,14 +125,12 @@ def t_merge_unions():
     c.merge([])
     check("merge: None/empty no-op", c.ids() == before)
 
-
 def t_merge_two_crls():
     a = crl.CRL(["x", "y"])
     b = crl.CRL(["y", "z"])
     a.merge(b.ids())
     check("merge two CRLs: union of both", a.ids() == ["x", "y", "z"])
     check("merge two CRLs: source CRL unchanged", b.ids() == ["y", "z"])
-
 
 def t_no_shared_state_between_instances():
     a = crl.CRL(["shared"])
@@ -152,7 +139,6 @@ def t_no_shared_state_between_instances():
     check("isolation: b has no a-only", b.is_revoked("a-only") is False)
     b.restore("shared")
     check("isolation: a still has shared after b restores it", a.is_revoked("shared") is True)
-
 
 def main():
     t_empty_default()
@@ -169,7 +155,6 @@ def main():
     t_no_shared_state_between_instances()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

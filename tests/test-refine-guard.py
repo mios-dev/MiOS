@@ -10,13 +10,11 @@ import _agentpipe_path  # noqa: F401
 os.environ.setdefault("MIOS_TOML", "/usr/share/mios/mios.toml")
 import server  # noqa: E402
 
-
 CASES = [
     "mios-open-url https://www.wikipedia.org",
     "https://example.com",
     "git status",
 ]
-
 
 async def main() -> int:
     fails = 0
@@ -32,7 +30,6 @@ async def main() -> int:
             print("    FAIL: still classified as chat")
             fails += 1
     return 1 if fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

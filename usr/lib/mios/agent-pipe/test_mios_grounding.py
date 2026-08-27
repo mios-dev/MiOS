@@ -11,13 +11,11 @@ import mios_grounding as g
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 class FakeVar:
     """Minimal ContextVar stand-in (only .get() is used by the cluster)."""
@@ -27,7 +25,6 @@ class FakeVar:
 
     def get(self):
         return self._v
-
 
 def t_capability():
     cat = {
@@ -44,13 +41,11 @@ def t_capability():
     check("capability: omits rare-tier verb", "rare_one" not in out)
     check("capability: empty catalog -> ''", g._capability_grounding({}) == "")
 
-
 def t_host_os():
     tz = g._host_timezone()
     check("host_timezone: returns str", isinstance(tz, str))
     osi = g._get_os_info()
     check("get_os_info: non-empty str", isinstance(osi, str) and len(osi) > 0, repr(osi))
-
 
 def t_client_env():
     body = {
@@ -84,7 +79,6 @@ def t_client_env():
     out_with_coords = g._client_env(body_with_coords)
     check("client_env: coordinates stripped", out_with_coords.get("location") == "New York, USA")
 
-
 def t_env_block():
     g.configure(
         client_env_var=FakeVar({
@@ -106,7 +100,6 @@ def t_env_block():
     blk2 = g._env_block()
     check("env_block: unknown location is explicit", "location: UNKNOWN" in blk2, blk2)
 
-
 def t_env_grounding():
     g.configure(
         client_env_var=FakeVar({"surface": "owui", "location": "Testville"}),
@@ -120,7 +113,6 @@ def t_env_grounding():
     check("env_grounding: temporal grounding", "Temporal grounding" in out)
     check("env_grounding: anti-stale warning", "stale" in out.lower())
 
-
 def main():
     t_capability()
     t_host_os()
@@ -129,7 +121,6 @@ def main():
     t_env_grounding()
     print(f"\n{'ALL PASS' if _fails == 0 else str(_fails) + ' FAIL(S)'}")
     sys.exit(1 if _fails else 0)
-
 
 if __name__ == "__main__":
     main()

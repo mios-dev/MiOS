@@ -12,7 +12,6 @@ _DEFAULT_BUDGET_S = {INTERACTIVE: 8.0, BEST_EFFORT: 120.0}
 _DEFAULT_PRIORITY = 7.0
 _INTERACTIVE_PRIORITY = 7.0
 
-
 def configure(*, budgets: "Optional[dict]" = None,
               default_priority: "Optional[float]" = None,
               interactive_priority: "Optional[float]" = None) -> None:
@@ -28,7 +27,6 @@ def configure(*, budgets: "Optional[dict]" = None,
     if interactive_priority is not None:
         _INTERACTIVE_PRIORITY = float(interactive_priority)
 
-
 def classify(*, foreground: bool = True, autonomous: bool = False,
              priority: "Optional[float]" = None,
              interactive_priority: "Optional[float]" = None) -> str:
@@ -38,7 +36,6 @@ def classify(*, foreground: bool = True, autonomous: bool = False,
         return BEST_EFFORT
     return INTERACTIVE if p >= ip else BEST_EFFORT
 
-
 def deadline(slo_class: str, now: float, budgets: "Optional[dict]" = None) -> float:
     """Absolute deadline = now + the class's budget. Unknown class -> the
     best_effort budget (fail-safe: an unclassified turn is treated as low-urgency,
@@ -46,7 +43,6 @@ def deadline(slo_class: str, now: float, budgets: "Optional[dict]" = None) -> fl
     b = budgets or _DEFAULT_BUDGET_S
     return float(now) + float(
         b.get(slo_class, b.get(BEST_EFFORT, _DEFAULT_BUDGET_S[BEST_EFFORT])))
-
 
 def edf_key(slo_class: str, enqueue_t: float, now: float,
             budgets: "Optional[dict]" = None) -> tuple:
@@ -56,7 +52,6 @@ def edf_key(slo_class: str, enqueue_t: float, now: float,
     Lower tuple = served sooner."""
     d = deadline(slo_class, enqueue_t, budgets)
     return (d, -_CLASS_RANK.get(slo_class, 0))
-
 
 def should_shed(slo_class: str, *, over_ceiling: bool, healthy: bool = True) -> bool:
     if slo_class == INTERACTIVE:

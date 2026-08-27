@@ -8,7 +8,6 @@ from mios_pipe.routing import consensus as M
 
 _fails = 0
 
-
 def check(name, cond):
     global _fails
     if cond:
@@ -16,7 +15,6 @@ def check(name, cond):
     else:
         _fails += 1
         print(f"FAIL - {name}")
-
 
 def t_resolve_weights():
     w = M.resolve_weights(["a", "b", "c"])
@@ -32,7 +30,6 @@ def t_resolve_weights():
     w = M.resolve_weights(["a", "b"], {"a": "junk", "b": float("nan")})
     check("weights: non-numeric score -> default", w["a"] == 1.0)
     check("weights: NaN score -> default", w["b"] == 1.0)
-
 
 def t_weighted_vote_basic():
     r = M.weighted_vote({"a": True, "b": True})
@@ -50,7 +47,6 @@ def t_weighted_vote_basic():
     r = M.weighted_vote({"a": True, "b": False}, threshold=0.51)
     check("vote: even split under a raised threshold -> False", r["decision"] is False)
 
-
 def t_weighted_vote_resolves_conflict_by_weight():
     # Done-When: conflicting judges are resolved by WEIGHT, not by head-count.
     verdicts = {"trusted": True, "flaky_a": False, "flaky_b": False}
@@ -67,7 +63,6 @@ def t_weighted_vote_resolves_conflict_by_weight():
     check("vote: a zero-weight lane is excluded from the fold",
           abs(r["score"] - (3.0 / 3.5)) < 1e-9)
 
-
 def t_abstain_is_not_a_no():
     r = M.weighted_vote({"a": True, "b": None, "c": True})
     check("abstain: dropped from the denominator", r["score"] == 1.0)
@@ -78,7 +73,6 @@ def t_abstain_is_not_a_no():
     r = M.weighted_vote({"a": None, "b": None})
     check("abstain: all lanes out -> no decision", r["decision"] is None)
     check("abstain: all lanes out -> no quorum", r["quorum"] is False)
-
 
 def t_quorum_gate():
     check("quorum: two live votes reach the default min",
@@ -96,7 +90,6 @@ def t_quorum_gate():
     r = M.weighted_vote({"a": True, "b": True}, min_lanes=3)
     check("quorum: min_lanes above the panel size withholds a decision",
           r["decision"] is None)
-
 
 def t_rrf():
     # 'y' is 2nd for one lane and 1st for the other; 'x' is the mirror image --
@@ -129,13 +122,11 @@ def t_rrf():
     check("rrf: larger k compresses the rank-1/rank-2 gap",
           (tight[0][1] - tight[1][1]) < (loose[0][1] - loose[1][1]))
 
-
 def t_determinism():
     a = M.reciprocal_rank_fusion({"a": ["x", "y"], "b": ["y", "x"]})
     b = M.reciprocal_rank_fusion({"a": ["x", "y"], "b": ["y", "x"]})
     check("rrf: tied candidates keep first-appearance order", a == b)
     check("rrf: tie broken toward first appearance", a[0][0] == "x")
-
 
 def main():
     t_resolve_weights()
@@ -147,7 +138,6 @@ def main():
     t_determinism()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

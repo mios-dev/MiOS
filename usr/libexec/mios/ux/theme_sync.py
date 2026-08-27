@@ -36,7 +36,6 @@ try:
 except ImportError:
     mios_toml = None
 
-
 def hex_to_dword_bgr(hex_color: str) -> int:
     """Convert hex #RRGGBB to Windows Console DWORD format (0x00BBGGRR)."""
     hex_clean = hex_color.lstrip("#")
@@ -47,7 +46,6 @@ def hex_to_dword_bgr(hex_color: str) -> int:
         return (b << 16) | (g << 8) | r
     return 0
 
-
 def hex_to_dword_abgr(hex_color: str, alpha: int = 0xFF) -> int:
     """Convert hex #RRGGBB to Windows DWM AccentColor format (0xAABBGGRR)."""
     hex_clean = hex_color.lstrip("#")
@@ -57,7 +55,6 @@ def hex_to_dword_abgr(hex_color: str, alpha: int = 0xFF) -> int:
         b = int(hex_clean[4:6], 16)
         return (alpha << 24) | (b << 16) | (g << 8) | r
     return 0xFF000000
-
 
 class ThemeSyncEngine:
     """Synchronizes SSOT palette to Windows Registry, GTK3, and GTK4 surfaces."""
@@ -290,7 +287,6 @@ class ThemeSyncEngine:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Cross-Platform Theme & Palette Synchronizer"
@@ -341,7 +337,6 @@ def main() -> int:
         else:
             print(f"[theme_sync] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

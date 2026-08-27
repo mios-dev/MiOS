@@ -2589,7 +2589,6 @@ function Invoke-MiosQuadletOverlay {
 
     Set-Step "Overlaying MiOS Quadlets + systemd units onto $DevDistro..."
 
-
     # Per the directive "M:\ IS git", mios.git is overlaid AT
     # $MiosRepoDir root, not at $MiosRepoDir\mios subdir.
     $miosRoot = $MiosRepoDir
@@ -2662,8 +2661,6 @@ if [[ -f "$SENTINEL" && "$SENTINEL" -nt "$SRC/Containerfile" ]]; then
 fi
 
 echo "[quadlet-overlay] making / a git working tree of mios.git ($SRC) ..."
-
-
 
 ORIGIN_URL="${MIOS_GIT_ORIGIN:-https://github.com/mios-dev/MiOS.git}"
 ORIGIN_BRANCH="${MIOS_GIT_BRANCH:-main}"
@@ -4802,7 +4799,6 @@ return
     Set-Content -Path $dashPath -Value $dashScript -Encoding UTF8
     Log-Ok "Windows mios-dash staged at $dashPath (delegates to profile Show-MiosDashboard for unified compact rendering)"
 
-
     $devResolveBlock = @"
 `$Global:MiosDevCandidates = @('$DevDistro', 'podman-$DevDistro', '$LegacyDevName', 'podman-$LegacyDevName')
 function Resolve-MiosDevDistro {
@@ -5633,7 +5629,6 @@ $endMark
         Log-Warn "pwsh.exe / powershell.exe not found -- launcher shortcuts skipped"
         return
     }
-
 
     # Try programmatic Pin to Start. Works on Windows 10; no-op on
     # Windows 11 (Microsoft removed the "Pin to Start" verb in 21H2+).
@@ -6646,7 +6641,6 @@ $miosRepo = $MiosRepoDir
         } catch {}
         New-BuilderDistro -HW $HW
     }
-
 
     Invoke-MiosQuadletOverlay
 

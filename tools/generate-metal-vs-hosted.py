@@ -15,11 +15,9 @@ TOML = "usr/share/mios/mios.toml"
 OUT = "usr/share/doc/mios/reference/metal-vs-hosted.md"
 SEAT = "endpoint"
 
-
 def load(root: str) -> dict:
     with open(os.path.join(root, TOML), "rb") as fh:
         return tomllib.load(fh)
-
 
 def all_packages(data: dict) -> set:
     """Every package name [packages] installs, at any nesting depth. A marker is
@@ -44,12 +42,9 @@ def all_packages(data: dict) -> set:
     walk(data.get("packages") or {})
     return out
 
-
 _TRACKED = None
 
-
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 
 def _tracked_set(root: str) -> set:
     """Repo-relative paths git tracks, case-exact.
@@ -72,7 +67,6 @@ def _tracked_set(root: str) -> set:
     # fall back rather than rendering a document full of false negatives.
     return None
 
-
 def plane_rows(root: str, data: dict) -> list:
     """(plane, role, owner, markers, missing, wired_by, wired, required).
     `required` = a `mini` plane not in [blade].optional_planes. ADR-0016 D14."""
@@ -94,7 +88,6 @@ def plane_rows(root: str, data: dict) -> list:
                      markers, missing, wired_by, wired,
                      spec.get("owner") == "mini" and name not in optional))
     return rows
-
 
 def policy_rows(data: dict) -> list:
     """(key, value, what it settles) for the axes ADR-0016 D11/D12 fixed. An
@@ -122,7 +115,6 @@ def policy_rows(data: dict) -> list:
             out.append(("[%s].%s" % (table, key), node[key], what))
     return out
 
-
 def shed_split(rows: list) -> tuple:
     """(planes that can move, planes that cannot). This IS the definition of
     offload -- ADR-0016 D10."""
@@ -130,15 +122,12 @@ def shed_split(rows: list) -> tuple:
     fixed = [r[0] for r in rows if r[2] != "either"]
     return sorted(movable), sorted(fixed)
 
-
 def _caps(v):
     return [v] if isinstance(v, str) else list(v or [])
-
 
 def _requires(data: dict) -> dict:
     return {k: _caps(v) for k, v in
             ((data.get("blade") or {}).get("requires") or {}).items()}
-
 
 def archetype_rows(data: dict) -> list:
     """(archetype, capabilities, gated units started, total units)."""
@@ -153,10 +142,8 @@ def archetype_rows(data: dict) -> list:
         rows.append((name, sorted(have), started, started + seat_n))
     return rows
 
-
 def seat_units(data: dict) -> list:
     return sorted((data.get("blade") or {}).get("seat_side") or [])
-
 
 def gated_off_on_seat(data: dict) -> list:
     """Every unit a seat does NOT start, with the capability that withholds it."""
@@ -167,7 +154,6 @@ def gated_off_on_seat(data: dict) -> list:
         if missing:
             out.append((unit, missing))
     return out
-
 
 def greenboot_rows(data: dict) -> list:
     """(service, unit it probes, whether a seat probes it)."""
@@ -186,7 +172,6 @@ def greenboot_rows(data: dict) -> list:
         rows.append((str(svc), unit, bool(probed), sorted(caps)))
     return rows
 
-
 def overlay_keys(data: dict) -> list:
     """The canonical keys a seat's /etc/mios overlay repoints -- the key each
     service's consumers already resolve, never a second name for it."""
@@ -197,7 +182,6 @@ def overlay_keys(data: dict) -> list:
         ("[blades.<name>]", "-", "a remote machine's capacity envelope"),
         ("[urls].<tile>", "MIOS_URLS_<TILE>", "a browser-openable tile only"),
     ]
-
 
 def baked_payloads(data: dict) -> list:
     """[(name, source)] for every model weight the image bakes. Derived, never
@@ -215,7 +199,6 @@ def baked_payloads(data: dict) -> list:
     if model:
         out.append(("vLLM snapshot", model))
     return out
-
 
 def render(data: dict, root: str = "") -> str:
     # Defaulting to "." made the rendered document depend on the directory the
@@ -481,7 +464,6 @@ def render(data: dict, root: str = "") -> str:
     a("")
     return "\n".join(L) + "\n"
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     check = "--check" in sys.argv
@@ -512,7 +494,6 @@ def main() -> int:
         fh.write(want)
     print("[generate-metal-vs-hosted] wrote %s" % OUT)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

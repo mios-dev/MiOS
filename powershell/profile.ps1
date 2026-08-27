@@ -461,7 +461,6 @@ if ($true) {
         } catch {}
     }
 
-
     if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
         # Shell-aware: oh-my-posh init pwsh emits PS 7+ syntax that
         # FAILS silently in Windows PowerShell 5.1, leaving the
@@ -480,7 +479,6 @@ if ($true) {
         }
     }
 }
-
 
 $Script:MiosBootstrapRaw = 'https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main'
 

@@ -11,13 +11,11 @@ import mios_worker_tools as w
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _cos(a, b):
     """Real cosine over two equal-length vectors (injected as the server seam)."""
@@ -29,7 +27,6 @@ def _cos(a, b):
     if na == 0 or nb == 0:
         return 0.0
     return dot / (na * nb)
-
 
 _CATALOG = {
     "web_search": {"tier": "core", "permission": "read"},
@@ -46,7 +43,6 @@ _TEXT = {
     "old_thing": "legacy deprecated unused obsolete",
 }
 
-
 def _configure():
     w.configure(
         verb_catalog=_CATALOG,
@@ -62,17 +58,14 @@ def _configure():
         rerank_skip_margin=0.08,
     )
 
-
 def _tool(name):
     return {"type": "function", "function": {"name": name}}
-
 
 def t_tok():
     check("tok splits snake_case + prose",
           w._tok("web_search the Internet!") == ["web", "search", "the", "internet"],
           str(w._tok("web_search the Internet!")))
     check("tok empty -> []", w._tok("") == [])
-
 
 def t_bm25_lexicon():
     _configure()
@@ -87,13 +80,11 @@ def t_bm25_lexicon():
     check("bm25 matching > non-matching", s_web > s_del, f"web={s_web} del={s_del}")
     check("bm25 unindexed/rare verb -> 0.0", w._bm25(q, "old_thing") == 0.0)
 
-
 def t_rank_positions():
     ts = [_tool("a"), _tool("b"), _tool("c")]
     rk = w._rank_positions([0.1, 0.9, 0.1], ts)
     check("rank_positions: top score rank 1", rk[1] == 1, str(rk))
     check("rank_positions: stable-name tie-break", rk[0] == 2 and rk[2] == 3, str(rk))
-
 
 def t_fuse_degrade():
     _configure()
@@ -111,7 +102,6 @@ def t_fuse_degrade():
           w._fuse_then_diversify(conf, w._tok("search"), 2, keyfn) == [A, B])
     check("fuse n<=0 -> []", w._fuse_then_diversify(scored, [], 0, keyfn) == [])
 
-
 def t_fuse_mmr():
     _configure()
     hi1 = _tool("hi1")
@@ -127,7 +117,6 @@ def t_fuse_mmr():
           div in out and hi2 not in out,
           str([o["function"]["name"] for o in out]))
     check("mmr returns exactly n", len(out) == 2, str(len(out)))
-
 
 def t_priority():
     _configure()
@@ -150,7 +139,6 @@ def t_priority():
     check("is_core_tool core verb -> True", w._is_core_tool(_tool("web_search")) is True)
     check("is_core_tool common verb -> False", w._is_core_tool(_tool("open_app")) is False)
     check("is_core_tool recipe -> False", w._is_core_tool(_tool("mios_recipe__reboot")) is False)
-
 
 def t_priority_ssot():
     """The BM25 k1/b + the priority->score map are SSOT-injected, not baked-in."""
@@ -176,7 +164,6 @@ def t_priority_ssot():
     check("bm25 still positive under injected knobs", s_nob > 0.0, str(s_nob))
     w.configure(bm25_b=0.75)               # restore
 
-
 def main():
     t_tok()
     t_bm25_lexicon()
@@ -187,7 +174,6 @@ def main():
     t_priority_ssot()
     print("\n" + ("ok" if _fails == 0 else f"{_fails} FAIL"))
     sys.exit(1 if _fails else 0)
-
 
 if __name__ == "__main__":
     main()

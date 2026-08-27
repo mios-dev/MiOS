@@ -52,7 +52,6 @@ DEFAULT_MIOS_COLOR_SCHEME = {
     "brightWhite": "#ECEFF4",
 }
 
-
 @dataclass
 class TerminalProfile:
     """Windows Terminal profile entry definition."""
@@ -63,7 +62,6 @@ class TerminalProfile:
     startingDirectory: Optional[str] = None
     icon: Optional[str] = None
     hidden: bool = False
-
 
 class WindowsTerminalProfileInjector:
     """Non-destructive modifier for Windows Terminal settings.json."""
@@ -292,7 +290,6 @@ class WindowsTerminalProfileInjector:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Windows Terminal Profile & Color Scheme Injector"
@@ -335,7 +332,6 @@ def main() -> int:
         else:
             print(f"[wt_profile_inject] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

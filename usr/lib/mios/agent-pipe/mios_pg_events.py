@@ -26,14 +26,12 @@ log = logging.getLogger(__name__)
 CHANNEL = "mios_agent_events"
 _LATENCY_SLA_MS = 50.0
 
-
 @dataclass
 class AgentEvent:
     """Parsed agent event from a NOTIFY payload."""
     channel:   str
     payload:   dict[str, Any]
     received_at: float = field(default_factory=time.monotonic)
-
 
 class EventBus:
     """

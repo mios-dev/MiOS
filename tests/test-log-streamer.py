@@ -28,13 +28,11 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load log_streamer module from {_STREAMER_PATH}")
 
-
 def cosine_similarity(v1: list[float], v2: list[float]) -> float:
     dot = sum(a * b for a, b in zip(v1, v2))
     n1 = math.sqrt(sum(a * a for a in v1))
     n2 = math.sqrt(sum(b * b for b in v2))
     return dot / (n1 * n2) if (n1 > 0 and n2 > 0) else 0.0
-
 
 class TestLogStreamer(unittest.TestCase):
     """Validates journal record parsing, priority filtering, 768-dim embeddings, SQL batch formatting, and cursor persistence."""
@@ -178,12 +176,10 @@ class TestLogStreamer(unittest.TestCase):
         saved_cursor = log_streamer.load_cursor(cursor_file)
         self.assertEqual(saved_cursor, "cursor_marker_999")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestLogStreamer)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

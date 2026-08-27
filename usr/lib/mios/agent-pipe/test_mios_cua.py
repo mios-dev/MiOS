@@ -10,13 +10,11 @@ import mios_cua as cua
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_resolve_verb():
     check("resolve: click on windows", cua.resolve_verb("click", "windows") == "windows_desktop_click")
@@ -36,14 +34,12 @@ def t_resolve_verb():
         check(f"resolve: {a} defined for both platforms",
               cua.resolve_verb(a, "windows") and cua.resolve_verb(a, "linux"))
 
-
 def t_observation():
     check("obs: same text -> no change", cua.observation_changed("screen A", "screen A") is False)
     check("obs: different text -> change", cua.observation_changed("screen A", "screen B") is True)
     check("obs: bytes digest stable",
           cua.observation_digest(b"abc") == cua.observation_digest(b"abc"))
     check("obs: None -> empty digest", cua.observation_digest(None) == "")
-
 
 def t_verify_verdict():
     check("verify: json done=true", cua.parse_verify_verdict('{"done": true, "reason": "ok"}')["done"] is True)
@@ -57,7 +53,6 @@ def t_verify_verdict():
     check("verify: NOT_DONE wins over stray 'done'",
           cua.parse_verify_verdict("the task is NOT_DONE yet, done soon")["done"] is False)
 
-
 def t_loop_status():
     check("status: goal reached wins",
           cua.loop_status(step=9, max_steps=10, goal_done=True, stall_count=5) == cua.GOAL_REACHED)
@@ -69,7 +64,6 @@ def t_loop_status():
           cua.loop_status(step=2, max_steps=10, goal_done=False, stall_count=1) == cua.RUNNING)
     check("status: goal beats budget AND stall",
           cua.loop_status(step=10, max_steps=10, goal_done=True, stall_count=9) == cua.GOAL_REACHED)
-
 
 def t_trace():
     tr = cua.CuaTrace("linux", "open settings and toggle wifi")
@@ -84,7 +78,6 @@ def t_trace():
     tr2 = cua.CuaTrace("windows", "x").finish(cua.MAX_STEPS)
     check("trace: budget exhaust -> not reached", tr2.to_dict()["reached"] is False)
 
-
 class _FakeReq:
     """Request stand-in: async json() returns the payload (or raises to test the
     bad-body degrade path)."""
@@ -97,21 +90,17 @@ class _FakeReq:
             raise ValueError("bad json")
         return self._obj
 
-
 def _cbody(resp):
     """Decode a (real fastapi) JSONResponse rendered body into a dict."""
     return json.loads(bytes(resp.body).decode("utf-8"))
-
 
 async def _fake_loop_ok(goal, platform="windows", max_steps=None, session_id=None):
     """Stand-in _cua_loop: a reached trace (the shape CuaTrace.to_dict() yields)."""
     return {"platform": platform, "goal": goal, "status": cua.GOAL_REACHED,
             "n_steps": 1, "steps": [], "reached": True}
 
-
 async def _fake_loop_boom(*a, **k):
     raise RuntimeError("boom")
-
 
 def t_computer_use():
     cua.configure(cua_enable=False)
@@ -142,7 +131,6 @@ def t_computer_use():
     check("cua route: loop error -> 200 honest error (no 500)",
           getattr(r, "status_code", None) == 200 and "boom" in (b.get("error") or ""))
 
-
 def t_extract_png():
     check("extract_png: linux path",
           cua._cua_extract_png({"output": "saved to /tmp/shot.png ok"}) == "/tmp/shot.png")
@@ -152,11 +140,9 @@ def t_extract_png():
     check("extract_png: empty+None -> None",
           cua._cua_extract_png({}) is None and cua._cua_extract_png(None) is None)
 
-
 async def _fake_dispatch_nopng(verb, args, session_id=None):
     """Injected verb-dispatch stand-in: a screenshot that wrote no path."""
     return {"output": "screenshot taken but no path here", "success": True}
-
 
 def t_screenshot_uri_injected():
     cua.configure(dispatch_mios_verb_inner=_fake_dispatch_nopng)
@@ -165,7 +151,6 @@ def t_screenshot_uri_injected():
           uri is None and "no path here" in obs)
     uri2, obs2 = asyncio.run(cua._cua_screenshot_uri("macos", None))
     check("screenshot_uri: unknown platform -> (None, '')", uri2 is None and obs2 == "")
-
 
 def main():
     t_resolve_verb()
@@ -178,7 +163,6 @@ def main():
     t_screenshot_uri_injected()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

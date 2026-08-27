@@ -7,7 +7,6 @@ import re
 
 __all__ = ["loads_lenient"]
 
-
 def loads_lenient(content: str) -> "dict | None":
     if not content:
         return None

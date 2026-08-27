@@ -37,7 +37,6 @@ MAGIC = {
     ".raw":    ((512, b"EFI PART"), (510, b"\x55\xaa")),
 }
 
-
 def _read_at(path, offset, length):
     with open(path, "rb") as fh:
         if offset < 0:
@@ -46,13 +45,11 @@ def _read_at(path, offset, length):
             fh.seek(offset)
         return fh.read(length)
 
-
 def _suffix(path):
     base = os.path.basename(path)
     if base.endswith(".tar.gz"):
         return ".gz"
     return os.path.splitext(base)[1].lower()
-
 
 def _magic_ok(path):
     """(passed, description). An unknown suffix is not a pass."""
@@ -69,11 +66,9 @@ def _magic_ok(path):
             return True, "%s at %d" % (expected.hex(), offset)
     return False, "none of the %s signatures are present" % suf
 
-
 def load_ssot(root):
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh)
-
 
 def required_formats(ssot):
     """{format name: [globs]} for every format that writes a file."""
@@ -86,7 +81,6 @@ def required_formats(ssot):
         if globs:
             out[name] = list(globs)
     return out
-
 
 def verify(root, outdir):
     ssot = load_ssot(root)
@@ -140,7 +134,6 @@ def verify(root, outdir):
     print("[verify] PASS: every declared format produced a real artifact")
     return 0
 
-
 def main(argv):
     # The checkout this script belongs to, not MIOS_ROOT: on an installed
     # system that points at the running image, whose build tree is not the one
@@ -164,7 +157,6 @@ def main(argv):
         sub = ((ssot.get("build") or {}).get("artifacts") or {}).get("output_dir", "build")
         outdir = os.path.join(root, sub)
     return verify(root, outdir)
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

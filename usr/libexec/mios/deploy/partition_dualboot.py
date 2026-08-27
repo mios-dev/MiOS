@@ -28,7 +28,6 @@ MS_BASIC_DATA_GUID = "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7"
 MS_RESERVED_GUID = "e3c9e310-0b5c-4b08-8e79-95197f16aa02"
 MS_RECOVERY_GUID = "de94bba4-06d1-4d40-a16a-bfd50179d6ac"
 
-
 @dataclass
 class NtfsHealth:
     """NTFS volume health and dirty bit assessment."""
@@ -40,7 +39,6 @@ class NtfsHealth:
     free_gb: float
     min_safe_size_gb: float
     status_message: str
-
 
 @dataclass
 class DualBootPartitionPlan:
@@ -58,7 +56,6 @@ class DualBootPartitionPlan:
     new_partitions: List[Dict[str, Any]] = field(default_factory=list)
     systemd_boot_entries: Dict[str, str] = field(default_factory=dict)
     commands_planned: List[str] = field(default_factory=list)
-
 
 class DualBootPartitionEngine:
     """Engine for non-destructive NTFS shrink and dual-boot layout generation."""
@@ -237,7 +234,6 @@ class DualBootPartitionEngine:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Non-Destructive Dual-Boot Partition & Shrink Planner"
@@ -284,7 +280,6 @@ def main() -> int:
         else:
             print(f"[partition_dualboot] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

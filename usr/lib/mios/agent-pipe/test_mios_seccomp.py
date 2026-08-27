@@ -13,17 +13,14 @@ from mios_pipe.access import seccomp as S
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _insns(blob):
     return [struct.unpack("<HBBI", blob[i:i + 8]) for i in range(0, len(blob), 8)]
-
 
 def t_table_matches_kernel_abi():
     """A wrong number denies the wrong syscall, so the table is checked against
@@ -44,7 +41,6 @@ def t_table_matches_kernel_abi():
     check("ABI: no committed name is unknown to the kernel header",
           not missing, str(missing))
 
-
 def t_denylist():
     base = S.resolve_denylist("x86_64")
     check("deny: the baseline floor resolves", len(base) >= 15, str(len(base)))
@@ -58,7 +54,6 @@ def t_denylist():
     tbl = S.syscall_numbers("x86_64")
     check("deny: ptrace is on the floor", tbl["ptrace"] in base)
     check("deny: mount is on the floor", tbl["mount"] in base)
-
 
 def t_program_shape():
     nrs = S.resolve_denylist("x86_64")
@@ -88,7 +83,6 @@ def t_program_shape():
     check("prog: an unknown action falls back to errno, never to allow",
           _insns(S.build_filter("x86_64", nrs, action="bogus"))[-1][3] != S.RET_ALLOW)
 
-
 def t_refusals():
     for name, fn in (
         ("an unsupported architecture", lambda: S.build_filter("riscv64", [1])),
@@ -104,7 +98,6 @@ def t_refusals():
         except S.SeccompUnsupported:
             check(f"refuse: {name}", True)
 
-
 def main():
     t_table_matches_kernel_abi()
     t_denylist()
@@ -112,7 +105,6 @@ def main():
     t_refusals()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

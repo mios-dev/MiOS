@@ -14,18 +14,15 @@ log = logging.getLogger("mios-agent-pipe")
 _JWS_ALG_EDDSA = "EdDSA"
 _A2A_CARD_SIG_FIELD = "signatures"
 
-
 def _b64u(b: bytes) -> str:
     """RFC-7515 §2 BASE64URL: URL-safe base64, padding stripped."""
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
-
 
 def _b64u_decode(s: str) -> bytes:
     """Inverse of :func:`_b64u`: restore the stripped RFC-7515 BASE64URL padding
     before decoding back to bytes."""
     raw = str(s or "")
     return base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
-
 
 def _jcs_canonicalize(obj: Any) -> bytes:
     """RFC-8785 (JSON Canonicalization Scheme) bytes for ``obj``: object members
@@ -34,13 +31,11 @@ def _jcs_canonicalize(obj: Any) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"),
                       ensure_ascii=False).encode("utf-8")
 
-
 def _agent_card_signing_input(protected_b64: str, card: dict) -> bytes:
     """RFC-7515 §5.1 JWS Signing Input for a DETACHED AgentCard signature:
     ``ASCII(BASE64URL(protected) || '.' || BASE64URL(JCS(card minus signatures)))``."""
     payload = {k: v for k, v in (card or {}).items() if k != _A2A_CARD_SIG_FIELD}
     return (protected_b64 + "." + _b64u(_jcs_canonicalize(payload))).encode("ascii")
-
 
 def _agent_card_signature(card: dict, *, load_priv_fn=None, kid_fn=None) -> Optional[dict]:
     """FED-G4 / U3: an A2A v1.0 AgentCard JWS signature (RFC-7515 over RFC-8785 JCS).
@@ -61,7 +56,6 @@ def _agent_card_signature(card: dict, *, load_priv_fn=None, kid_fn=None) -> Opti
     except Exception as e:  # noqa: BLE001 -- degrade-open
         log.debug("agent-card JWS signature skipped: %s", e)
         return None
-
 
 def _verify_agent_card_signature(card: dict, *, public_key=None, load_pub_fn=None, passport_agent_name="MiOS Operator") -> Tuple[Optional[bool], str]:
     """Receive-side of :func:`_agent_card_signature`: verify an A2A v1.0 AgentCard

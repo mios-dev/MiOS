@@ -23,7 +23,6 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-
 @dataclasses.dataclass
 class Fido2Token:
     """Represents a discovered FIDO2/CTAP2 hardware token."""
@@ -38,7 +37,6 @@ class Fido2Token:
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
 
-
 @dataclasses.dataclass
 class LuksKeyslot:
     """Represents a LUKS2 keyslot."""
@@ -50,7 +48,6 @@ class LuksKeyslot:
 
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
-
 
 @dataclasses.dataclass
 class EnrollmentResult:
@@ -66,7 +63,6 @@ class EnrollmentResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
-
 
 @dataclasses.dataclass
 class StatusResult:
@@ -95,7 +91,6 @@ class StatusResult:
             "recovery_enrolled": self.recovery_enrolled,
             "details": self.details,
         }
-
 
 class Fido2EnrollEngine:
     """Orchestrates FIDO2 discovery, LUKS2 verification, and keyslot enrollment."""
@@ -620,7 +615,6 @@ class Fido2EnrollEngine:
         except Exception as e:
             return {"status": "error", "unlocked": False, "message": str(e)}
 
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fido2_enroll.py",
@@ -641,7 +635,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose diagnostic logs")
     parser.add_argument("--json", action="store_true", help="Output results in structured JSON format")
     return parser
-
 
 def main() -> int:
     parser = build_parser()
@@ -736,7 +729,6 @@ def main() -> int:
     # If no arguments provided, print help
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

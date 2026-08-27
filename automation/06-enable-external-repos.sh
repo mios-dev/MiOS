@@ -45,7 +45,6 @@ enable_copr() {
 REPO_DIR=/etc/yum.repos.d
 _fver="${FEDORA_VERSION:-44}"
 
-
 try_fetch() {
     local url="$1" out="$2" label="$3"
     if scurl -fsSL --connect-timeout 20 --max-time 60 "$url" -o "$out" 2>/dev/null; then

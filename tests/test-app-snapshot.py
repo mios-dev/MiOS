@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from snapshot import FlatpakSnapshotManager
 
-
 class TestAppSnapshot(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-snap-test-")
@@ -54,7 +53,6 @@ class TestAppSnapshot(unittest.TestCase):
         with open(good_file, "r") as f:
             content = f.read()
         self.assertIn('"theme": "dark"', content)
-
 
 if __name__ == "__main__":
     unittest.main()

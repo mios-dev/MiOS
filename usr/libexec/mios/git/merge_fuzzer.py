@@ -9,7 +9,6 @@ import random
 import sys
 from typing import Dict, List, Optional, Any, Tuple
 
-
 class MergeFuzzHarness:
     """Fuzzes git 3-way merges by applying structural AST mutations and verifying compiler validity."""
 
@@ -64,7 +63,6 @@ class MergeFuzzHarness:
             "mock": self.dry_run,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Differential AST Git Merge Fuzzer")
     parser.add_argument("--test", action="store_true", help="Run self-test fuzzing loop")
@@ -75,7 +73,6 @@ def main():
     mutated, logs = harness.mutate_python_source(sample)
     res = harness.simulate_3way_ast_merge(sample, sample, mutated)
     print(json.dumps({"mutations": logs, "merge": res}, indent=2))
-
 
 if __name__ == "__main__":
     main()

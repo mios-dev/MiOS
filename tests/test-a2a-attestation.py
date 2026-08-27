@@ -29,7 +29,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load attestation module from {_ATTESTATION_PATH}")
 
-
 class TestA2AAttestation(unittest.TestCase):
     """Validates Ed25519 key management, AgentCard signing, tampering rejection, clock skew, and negotiation."""
 
@@ -383,12 +382,10 @@ class TestA2AAttestation(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertIn('"authenticated": false', stdout.getvalue())
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestA2AAttestation)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

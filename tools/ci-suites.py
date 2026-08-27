@@ -15,15 +15,12 @@ except ModuleNotFoundError:  # pragma: no cover
 TRACKED = ("tests/test-*.sh", "tests/test-*.py", "tests/*.sh", "tests/**/*.sh",
            "automation/lint-*.sh")
 
-
 def _root() -> str:
     return os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or os.getcwd()
-
 
 def _load(root: str) -> dict:
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh).get("ci") or {}
-
 
 def _tracked(root: str) -> list:
     """git-tracked, not os.walk: a runner executes what the repository ships."""
@@ -34,7 +31,6 @@ def _tracked(root: str) -> list:
     # registry resolve differently than it does on the runner.
     return sorted({p.strip().replace(os.sep, "/") for p in out.splitlines() if p.strip()})
 
-
 def _glob_members(root: str, spec: dict) -> list:
     d = spec.get("dir", "")
     pat = spec.get("glob", "*")
@@ -44,7 +40,6 @@ def _glob_members(root: str, spec: dict) -> list:
         return []
     return [f"{d}/{fn}" for fn in sorted(os.listdir(full))
             if fnmatch.fnmatchcase(fn, pat) and fn not in skip]
-
 
 def _registered(root: str, ci: dict) -> dict:
     """path -> tier, for every listed suite and every glob member."""
@@ -57,7 +52,6 @@ def _registered(root: str, ci: dict) -> dict:
             reg[p] = spec.get("tier", "unit")
     return reg
 
-
 def cmd_list(root: str, ci: dict, tier: str) -> int:
     reg = _registered(root, ci)
     if tier not in (ci.get("tiers") or {}) and tier not in {
@@ -68,7 +62,6 @@ def cmd_list(root: str, ci: dict, tier: str) -> int:
         runner = "python3" if path.endswith(".py") else "bash"
         print(f"{runner}\t{path}")
     return 0
-
 
 def cmd_check(root: str, ci: dict) -> int:
     viol = []
@@ -123,7 +116,6 @@ def cmd_check(root: str, ci: dict) -> int:
               file=sys.stderr)
     return 1 if viol else 0
 
-
 def main(argv: list) -> int:
     root = _root()
     try:
@@ -153,7 +145,6 @@ def main(argv: list) -> int:
     print("usage: ci-suites.py --tier <name> | --check | --python-packages",
           file=sys.stderr)
     return 2
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

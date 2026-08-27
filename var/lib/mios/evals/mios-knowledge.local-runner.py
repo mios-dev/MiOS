@@ -42,7 +42,6 @@ try:
 except ImportError:
     sys.exit("pip install httpx")
 
-
 def chat(endpoint: str, key: str, model: str, messages: list[dict],
          response_format: dict | None = None) -> str:
     """Single non-streaming call. Returns assistant text."""
@@ -57,11 +56,9 @@ def chat(endpoint: str, key: str, model: str, messages: list[dict],
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"]
 
-
 def grade_string_check(output_text: str, must_mention: str) -> bool:
     """ilike — case-insensitive substring."""
     return must_mention.lower() in (output_text or "").lower()
-
 
 def grade_score_model(grader_endpoint: str, grader_key: str, grader_model: str,
                       item: dict, output_text: str) -> tuple[float, str]:
@@ -89,7 +86,6 @@ def grade_score_model(grader_endpoint: str, grader_key: str, grader_model: str,
         return float(obj.get("score", 0.0)), str(obj.get("reason", ""))
     except Exception as e:
         return 0.0, f"grader-error: {e}"
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -179,7 +175,6 @@ def main():
         print(f"Report written: {args.report}")
 
     sys.exit(0 if n_pass == n else 1)
-
 
 if __name__ == "__main__":
     main()

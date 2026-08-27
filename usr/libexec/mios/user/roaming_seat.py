@@ -28,7 +28,6 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-
 @dataclasses.dataclass
 class GPUDevice:
     """Represents a physical or virtual graphics processing device."""
@@ -46,7 +45,6 @@ class GPUDevice:
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
 
-
 @dataclasses.dataclass
 class InputDevice:
     """Represents an input peripheral (keyboard, pointer, tablet)."""
@@ -57,7 +55,6 @@ class InputDevice:
 
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
-
 
 @dataclasses.dataclass
 class SeatAssignment:
@@ -77,7 +74,6 @@ class SeatAssignment:
 
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
-
 
 class UserRegistry:
     """Authenticates and retrieves user profiles from DB or local credential store."""
@@ -147,7 +143,6 @@ class UserRegistry:
     def _query_pg_user(self, username: str, pass_hash: Optional[str]) -> Optional[Dict[str, Any]]:
         # Placeholder for PostgreSQL psycopg connection when in production
         return None
-
 
 class GPUManager:
     """Discovers and dynamically balances GPU render devices across seats."""
@@ -272,7 +267,6 @@ class GPUManager:
                 gpu.assigned_seat = None
                 gpu.load_score = max(0.0, gpu.load_score - 1.0)
 
-
 class LogindSeatManager:
     """Manages systemd-logind seat creation, device attachment, and status."""
 
@@ -340,7 +334,6 @@ class LogindSeatManager:
             pass
         return ["seat0"]
 
-
 class CephFSMountManager:
     """Mounts and prepares encrypted user CephFS home volumes."""
 
@@ -371,7 +364,6 @@ class CephFSMountManager:
         if username in self._active_mounts:
             del self._active_mounts[username]
         return True
-
 
 class RoamingSeatOrchestrator:
     """Top-level orchestrator for roaming seats, GPU bindings, and session lifecycle."""
@@ -492,7 +484,6 @@ class RoamingSeatOrchestrator:
             "active_sessions": len([s for s in self.seats.values() if s.status == "active"]),
         }
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="WS-USER (T-559): Roaming Multi-Seat Session Orchestrator and GPU Assignment Manager"
@@ -595,7 +586,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         for s in status_data["seats"]:
             print(f"  - {s['seat_id']}: user={s['assigned_user']} gpu={s['gpu_id']} status={s['status']}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

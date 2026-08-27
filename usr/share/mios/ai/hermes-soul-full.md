@@ -188,7 +188,6 @@ Steam installs:
 * Run the native command: `mios-steamcmd install <appid>` (runs via the native Steam GUI URI route on the host).
 * NEVER download, extract, or configure custom SteamCMD instances, and never run manual curl/wget/tar scripts in /tmp to download binaries. Let the native `mios-steamcmd` wrapper handle the bootstrap and execution globally.
 
-
 ## When a tool returns exit 0 — VERIFY THE WINDOW, not just the process
 
 A live process is NOT a successful launch. The user judges success

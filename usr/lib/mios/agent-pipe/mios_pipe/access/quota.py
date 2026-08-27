@@ -6,7 +6,6 @@ from __future__ import annotations
 import collections
 from typing import Deque, Dict, Tuple
 
-
 class QuotaVerdict:
     __slots__ = ("allowed", "reason", "rpm_used", "spent")
 
@@ -20,7 +19,6 @@ class QuotaVerdict:
     def to_dict(self) -> dict:
         return {"allowed": self.allowed, "reason": self.reason,
                 "rpm_used": self.rpm_used, "spent": round(self.spent, 4)}
-
 
 class QuotaTracker:
     """Per-user sliding-window RPM + per-window cost budget.

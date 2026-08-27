@@ -20,7 +20,6 @@ from secret_mem import SecretBuffer, SecretEnclave
 from vram_swap import MAX_SWAP_LATENCY_MS, VRAMSwapManager
 from gpu_sched import HIGH_PRIO_LATENCY_TARGET_MS, GPUComputeStreamScheduler, StreamPriority
 
-
 class TestEmpiricalStressT623T632(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-stress-t623-")
@@ -143,7 +142,6 @@ class TestEmpiricalStressT623T632(unittest.TestCase):
         status = sched.get_status()
         self.assertEqual(status["preemption_event_count"], 10)
         self.assertTrue(status["sub_50ms_target_met"])
-
 
 if __name__ == "__main__":
     unittest.main()

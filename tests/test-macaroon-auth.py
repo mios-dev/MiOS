@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from macaroon_auth import MacaroonAuthManager
 
-
 class TestMacaroonAuth(unittest.TestCase):
     def setUp(self):
         self.mgr = MacaroonAuthManager(dry_run=True)
@@ -32,7 +31,6 @@ class TestMacaroonAuth(unittest.TestCase):
         """Test requesting un-permitted operation or repo is rejected."""
         tok = self.mgr.mint_macaroon("repo_gamma", "pull", 60.0)
         self.assertFalse(self.mgr.verify_and_burn_macaroon(tok, "repo_gamma", "push"))
-
 
 if __name__ == "__main__":
     unittest.main()

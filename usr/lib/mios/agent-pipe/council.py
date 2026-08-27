@@ -21,7 +21,6 @@ from typing import Any, Dict, List, Optional, Tuple
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-council")
 
-
 @dataclass
 class CouncilVote:
     agent_id: str
@@ -29,7 +28,6 @@ class CouncilVote:
     vote: bool  # True = approve, False = reject
     confidence: float  # 0.0 to 1.0
     rationale: str
-
 
 @dataclass
 class CouncilDeliberation:
@@ -40,7 +38,6 @@ class CouncilDeliberation:
     consensus_reached: bool = False
     consensus_score: float = 0.0
     dissent_reasons: List[str] = field(default_factory=list)
-
 
 class AgentCouncilEngine:
     """Orchestrates 3-peer council voting and enforces 2/3 weighted consensus."""
@@ -98,7 +95,6 @@ class AgentCouncilEngine:
 
         return delib
 
-
 def main():
     async def _test():
         council = AgentCouncilEngine(dry_run=True)
@@ -106,7 +102,6 @@ def main():
         print(f"Consensus: {res.consensus_reached} ({res.consensus_score:.2f})")
 
     asyncio.run(_test())
-
 
 if __name__ == "__main__":
     main()

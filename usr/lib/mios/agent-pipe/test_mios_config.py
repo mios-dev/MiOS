@@ -10,25 +10,21 @@ import mios_config as c
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def t_import():
     check("import: module loaded", c is not None)
     check("import: log name", c.log.name == "mios-agent-pipe")
-
 
 def t_toml_section():
     d = c._toml_section("ai")
     check("toml_section: returns dict", isinstance(d, dict), type(d).__name__)
     miss = c._toml_section("definitely_not_a_real_section_xyz")
     check("toml_section: missing -> {}", miss == {})
-
 
 def t_cfg_num():
     env = "MIOS_TEST_CFG_NUM_XYZ"
@@ -45,7 +41,6 @@ def t_cfg_num():
     check("cfg_num: bad env -> table", c._cfg_num({"k": 9}, env, "k", 1) == 9)
     os.environ.pop(env, None)
 
-
 def t_dispatch_num():
     env = "MIOS_TEST_DISPATCH_NUM_XYZ"
     os.environ.pop(env, None)
@@ -58,7 +53,6 @@ def t_dispatch_num():
     check("dispatch_num: preserves default 0",
           c._dispatch_num(env, "no_such_dispatch_key_xyz", 0) == 0)
     check("dispatch_num: _DISPATCH_TOML is dict", isinstance(c._DISPATCH_TOML, dict))
-
 
 def t_constants():
     check("const: PORT int", isinstance(c.PORT, int))
@@ -87,7 +81,6 @@ def t_constants():
     check("const: _MICRO_BASE no trailing /v1",
           isinstance(c._MICRO_BASE, str) and not c._MICRO_BASE.endswith("/v1"))
 
-
 def main():
     t_import()
     t_toml_section()
@@ -96,7 +89,6 @@ def main():
     t_constants()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

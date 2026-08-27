@@ -33,7 +33,6 @@ from pydantic import BaseModel, Field
 import re
 from typing import Optional
 
-
 NARRATION_LEADERS = [
     r"^let me\b",
     r"^let.s\b",
@@ -58,7 +57,6 @@ NARRATION_LEADERS = [
 ]
 NARRATION_RES = [re.compile(p, re.IGNORECASE) for p in NARRATION_LEADERS]
 
-
 def _is_narration_line(line: str) -> bool:
     s = line.strip()
     if not s:
@@ -67,7 +65,6 @@ def _is_narration_line(line: str) -> bool:
         if pat.search(s):
             return True
     return False
-
 
 class Filter:
     class Valves(BaseModel):

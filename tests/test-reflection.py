@@ -10,7 +10,6 @@ import _agentpipe_path  # noqa: F401
 os.environ.setdefault("MIOS_TOML", "/usr/share/mios/mios.toml")
 import server  # noqa: E402
 
-
 async def main() -> int:
     failed_node = {
         "id": "n1",
@@ -38,7 +37,6 @@ async def main() -> int:
     print(f"  PASS: corrected tool={tool!r} "
           f"rationale={rationale[:80]!r}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

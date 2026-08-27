@@ -15,7 +15,6 @@ _spec = importlib.util.spec_from_file_location("mios_window_region", _MOD_PATH)
 mwr = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mwr)
 
-
 class RegionRectTests(unittest.TestCase):
     def test_maximize_fills_work_area(self):
         self.assertEqual(mwr.region_rect(1920, 1080, "maximize"), (0, 0, 1920, 1080))
@@ -84,7 +83,6 @@ class RegionRectTests(unittest.TestCase):
         big = mwr.region_rect(1600, 1200, "right-half")
         self.assertEqual(tuple(v * 2 for v in small), big)
 
-
 class RectFromLayoutTests(unittest.TestCase):
     def _layout(self, x, y, w, h, extra=None):
         screens = [{"work": {"x": x, "y": y, "width": w, "height": h}}]
@@ -117,7 +115,6 @@ class RectFromLayoutTests(unittest.TestCase):
         layout = self._layout(0, 0, 1920, 1080)
         self.assertIsNone(mwr.rect_from_layout(layout, "nope"))
 
-
 class CliTests(unittest.TestCase):
     def _run(self, args, stdin_text):
         old_in, old_out = sys.stdin, sys.stdout
@@ -144,7 +141,6 @@ class CliTests(unittest.TestCase):
     def test_cli_bad_json_exit_3(self):
         code, _ = self._run(["left-half"], "not json")
         self.assertEqual(code, 3)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

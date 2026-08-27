@@ -26,7 +26,6 @@ BLADE_CODE = ("usr/lib/mios/blade.sh",
               "usr/libexec/mios/role-apply",
               "usr/libexec/mios/mios-blade")
 
-
 def archetypes(data: dict) -> dict:
     """{name: [capability, ...]} from [blade.archetypes]."""
     out = {}
@@ -36,17 +35,14 @@ def archetypes(data: dict) -> dict:
         out[str(name)] = [str(c).strip() for c in (caps or []) if str(c).strip()]
     return out
 
-
 def aliases(data: dict) -> dict:
     """{legacy-spelling: archetype} from [blade.role_aliases]."""
     return {str(k): str(v)
             for k, v in ((data.get("blade") or {}).get("role_aliases") or {}).items()}
 
-
 def role_targets(data: dict) -> list:
     """The unit each archetype's name derives, in [blade.archetypes] order."""
     return ["mios-%s.target" % name for name in sorted(archetypes(data))]
-
 
 def unit_body(root: str, name: str) -> str:
     try:
@@ -55,7 +51,6 @@ def unit_body(root: str, name: str) -> str:
             return fh.read()
     except OSError:
         return ""
-
 
 def check_type(data: dict) -> list:
     arche = archetypes(data)
@@ -69,7 +64,6 @@ def check_type(data: dict) -> list:
                 % (btype, ", ".join(sorted(arche)))]
     return []
 
-
 def check_targets(data: dict, root: str) -> list:
     viol = []
     for name in sorted(archetypes(data)):
@@ -82,7 +76,6 @@ def check_targets(data: dict, root: str) -> list:
                         "role-apply would set-default a target that does not exist"
                         % (name, unit))
     return viol
-
 
 def check_capabilities_consumed(data: dict) -> list:
     """Every capability an archetype grants must be required by some unit --
@@ -103,7 +96,6 @@ def check_capabilities_consumed(data: dict) -> list:
                     "of one that grants nothing" % cap)
     return viol
 
-
 def check_aliases(data: dict) -> list:
     viol, arche = [], archetypes(data)
     for legacy, target in sorted(aliases(data).items()):
@@ -114,7 +106,6 @@ def check_aliases(data: dict) -> list:
             viol.append("[blade.role_aliases].%s shadows an archetype of the same "
                         "name -- one spelling, one meaning (Law 9)" % legacy)
     return viol
-
 
 def check_conflicts(data: dict, root: str) -> list:
     """Role targets must conflict pairwise: they are reached by `systemctl
@@ -138,7 +129,6 @@ def check_conflicts(data: dict, root: str) -> list:
             viol.append("%s conflicts with %s, which is not a role target"
                         % (unit, ", ".join(stray)))
     return viol
-
 
 def check_aliases_in_units(root: str) -> list:
     """An Alias= must carry the same suffix as the unit itself; systemd cannot
@@ -164,7 +154,6 @@ def check_aliases_in_units(root: str) -> list:
                                 "same suffix (%s) as its unit, so systemd cannot "
                                 "install it" % (name, alias, suffix))
     return viol
-
 
 def check_profile_retired(data: dict, root: str) -> list:
     """[profile].role was a second spelling of the archetype, read by nothing.
@@ -195,7 +184,6 @@ def check_profile_retired(data: dict, root: str) -> list:
                 viol.append("%s still references %s -- the retired [profile] keys "
                             "must not be resurrected by a keep-list" % (rel, name))
     return viol
-
 
 def check_no_hardcoded_roles(data: dict, root: str) -> list:
     """The blade code must not restate [blade.archetypes]. No literal is
@@ -236,7 +224,6 @@ def check_no_hardcoded_roles(data: dict, root: str) -> list:
                                 "code (Law 7)" % (rel, num, name))
     return viol
 
-
 def collect(data: dict, root: str) -> list:
     return (check_type(data)
             + check_targets(data, root)
@@ -246,7 +233,6 @@ def collect(data: dict, root: str) -> list:
             + check_aliases_in_units(root)
             + check_profile_retired(data, root)
             + check_no_hardcoded_roles(data, root))
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
@@ -271,7 +257,6 @@ def main() -> int:
           % (len(arche), len(aliases(data)), ", ".join(seats) or "none",
              (data.get("blade") or {}).get("type")))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -27,7 +27,6 @@ ESP_GUID = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
 ROOT_X86_64_GUID = "4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
 MIN_CAPACITY_BYTES = 32 * 1024 * 1024 * 1024  # 32 GB minimum
 
-
 @dataclass
 class DiskCandidate:
     """Discovered block storage device candidate for baremetal installation."""
@@ -44,7 +43,6 @@ class DiskCandidate:
     score: int
     status: str = "eligible"
 
-
 @dataclass
 class InstallPlan:
     """Baremetal installation execution plan and command synthesis."""
@@ -56,7 +54,6 @@ class InstallPlan:
     bootc_command: List[str]
     pre_commands: List[str] = field(default_factory=list)
     post_commands: List[str] = field(default_factory=list)
-
 
 class HardwareDiscoveryEngine:
     """Discovers, filters, and ranks candidate installation disks."""
@@ -215,7 +212,6 @@ class HardwareDiscoveryEngine:
         candidates.sort(key=lambda x: x.score, reverse=True)
         return candidates
 
-
 class BareMetalInstaller:
     """Orchestrates bare-metal OS installation to chosen target disk."""
 
@@ -365,7 +361,6 @@ class BareMetalInstaller:
         plan = self.plan_install()
         return self.execute_install(plan)
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Bare-Metal Direct Installer & NVMe Discovery Engine"
@@ -409,7 +404,6 @@ def main() -> int:
         else:
             print(f"[baremetal_install] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

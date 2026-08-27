@@ -20,14 +20,12 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-context-compactor")
 
-
 @dataclass
 class ConversationTurn:
     role: str  # "system", "user", "assistant"
     content: str
     tokens: int
     is_pinned: bool = False
-
 
 @dataclass
 class CompactionResult:
@@ -36,7 +34,6 @@ class CompactionResult:
     pinned_invariants_count: int
     recap_summary: str
     retained_constraint_keys: List[str] = field(default_factory=list)
-
 
 class ContextCompactor:
     """Compacts long-horizon agent dialogs while pinning core invariants and constraints."""
@@ -83,7 +80,6 @@ class ContextCompactor:
         )
         return res
 
-
 def main():
     compactor = ContextCompactor(max_context_tokens=8192, dry_run=True)
     turns = [
@@ -93,7 +89,6 @@ def main():
     ]
     res = compactor.compact_dialog(turns)
     print(res.recap_summary)
-
 
 if __name__ == "__main__":
     main()

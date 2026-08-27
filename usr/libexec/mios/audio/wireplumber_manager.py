@@ -7,7 +7,6 @@ import os
 import sys
 from typing import Dict, List, Optional, Any
 
-
 class WirePlumberManager:
     """Configures high-bitrate Bluetooth audio codecs (LDAC, AptX-HD) and persistent virtual loopbacks."""
 
@@ -121,7 +120,6 @@ context.modules = [
             "mock": False,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS WirePlumber Bluetooth HD & Loopback Configurator")
     parser.add_argument("--dry-run", action="store_true", help="Simulate configuration generation")
@@ -130,7 +128,6 @@ def main():
     mgr = WirePlumberManager(dry_run=args.dry_run)
     res = mgr.write_configurations()
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

@@ -26,7 +26,6 @@ log = logging.getLogger(__name__)
 # Callable type: (query, candidates: list[dict]) -> list[dict] (pruned & ranked)
 NodePruner = Callable[[str, list[dict[str, Any]]], list[dict[str, Any]]]
 
-
 @dataclass
 class ManifestNode:
     path:     str
@@ -42,7 +41,6 @@ class ManifestNode:
             children=d.get("children", []),
             leaf_docs=d.get("leaf_docs", []),
         )
-
 
 class ManifestRAG:
     """
@@ -100,7 +98,6 @@ class ManifestRAG:
             ranked_leaves = self.pruner(query, node.leaf_docs)
             results.extend(ranked_leaves)
 
-
 def _keyword_pruner(query: str,
                     candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
@@ -117,7 +114,6 @@ def _keyword_pruner(query: str,
     scored.sort(key=lambda x: -x[0])
     relevant = [c for sc, c in scored if sc > 0]
     return relevant or candidates
-
 
 def load_manifest_tree(root_path: str | Path) -> ManifestRAG:
     """

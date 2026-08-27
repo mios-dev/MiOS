@@ -15,14 +15,12 @@ from typing import Dict, List, Set
 
 log = logging.getLogger("netavark_isolate")
 
-
 @dataclass
 class NetworkBridge:
     name: str
     subnet: str
     isolated: bool = True
     allowed_peers: Set[str] = field(default_factory=set)
-
 
 class NetavarkIsolationManager:
     """

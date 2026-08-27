@@ -8,7 +8,6 @@ import collections
 import dataclasses
 from typing import Any, Dict, List, Set, Union
 
-
 @dataclasses.dataclass
 class DAGValidationVerdict:
     """Typed result of DAG pre-execution validation."""
@@ -30,7 +29,6 @@ class DAGValidationVerdict:
             "topological_order": self.topological_order,
             "remediation_order_len": len(self.remediation_order),
         }
-
 
 def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> DAGValidationVerdict:
     if isinstance(dag_or_nodes, dict):
@@ -163,7 +161,6 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
         topological_order=topo_order,
         remediation_order=remed_order,
     )
-
 
 def _build_linear_remediation(nodes: List[Dict[str, Any]], clean_deps: Dict[str, Set[str]]) -> List[Dict[str, Any]]:
     """Build a deterministic single-agent / linearized order for remediation.

@@ -29,7 +29,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load nix_project module from {_MODULE_PATH}")
 
-
 class TestNixProjectSubsystem(unittest.TestCase):
     """Validates multi-user Nix subsystem integration, tmpfiles specifications, and flake projection."""
 
@@ -264,7 +263,6 @@ linux = "~/.config/fastfetch/config.jsonc"
         self.assertIn("nix-daemon", content)
         # Verify NO-MKDIR-IN-VAR invariant: should not create /var/nix directories during build script
         self.assertNotIn("mkdir -p /var/nix", content)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -25,8 +25,6 @@ from mios_kvfork import (kv_filename as _kv_filename,
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 _get_client = None
 _A2A_PEERS = None
 _A2A_PEERS_LOCK = None
@@ -47,7 +45,6 @@ KV_GC_MAX_BYTES = 0
 KV_GC_INTERVAL_S = 0
 _KV_RESIDENT: dict = {}
 
-
 _INJECTED = frozenset((
     "_get_client", "_A2A_PEERS", "_A2A_PEERS_LOCK", "_A2A_REPUTATION",
     "_reload_membership", "_SELFIMPROVE_SEEN",
@@ -57,13 +54,11 @@ _INJECTED = frozenset((
     "MEMORY_CONSOLIDATE_INTERVAL_S", "MEMORY_CONSOLIDATE_MAX_GROUPS",
 ))
 
-
 def configure(**deps) -> None:
     g = globals()
     for _k, _v in deps.items():
         if _k in _INJECTED:
             g[_k] = _v
-
 
 async def _membership_watch_loop() -> None:
     """Poll the mtime of the peer registry + layered mios.toml; on any change, hot-
@@ -94,7 +89,6 @@ async def _membership_watch_loop() -> None:
             raise
         except Exception as e:  # noqa: BLE001 -- never let a watch tick kill the loop
             log.debug("membership watch tick error: %s", e)
-
 
 async def _gossip_loop() -> None:
     try:
@@ -153,7 +147,6 @@ async def _gossip_loop() -> None:
             log.debug("gossip loop: %s", e)
             await asyncio.sleep(5)
 
-
 async def _reputation_restore() -> None:
     """Load persisted per-peer counters from pg into _A2A_REPUTATION (the inverse
     of the flush) so reliability survives a restart. Degrade-open -> start cold."""
@@ -168,7 +161,6 @@ async def _reputation_restore() -> None:
             log.info("peer reputation restored from pg: %d peer(s)", len(rows))
     except Exception:  # noqa: BLE001 -- degrade-open: start with no history
         pass
-
 
 async def _reputation_flush() -> None:
     """Upsert the in-process reputation counters into peer_reputation so they
@@ -185,7 +177,6 @@ async def _reputation_flush() -> None:
                 r, fetch=False)
         except Exception:  # noqa: BLE001 -- best-effort; a bad row never aborts the rest
             pass
-
 
 async def _selfimprove_report() -> dict:
     """Improvement findings from recent tool_call outcomes + peer reputation.
@@ -206,18 +197,14 @@ async def _selfimprove_report() -> dict:
         return {"findings": [], "tools_analyzed": 0, "samples": 0,
                 "error": "unavailable"}
 
-
 _PROPOSAL_EVENT_KIND = "self_improve_proposal"
 _PROPOSALS_LIST_LIMIT = 100
-
 
 async def _act_draft_proposal(finding: dict) -> Optional[dict]:
     return None
 
-
 async def _act_evaluate_proposal(proposal: dict) -> Optional[tuple]:
     return None
-
 
 async def _act_queue_proposal(proposal: dict, verdict: dict) -> bool:
     try:
@@ -237,7 +224,6 @@ async def _act_queue_proposal(proposal: dict, verdict: dict) -> bool:
     except Exception as e:  # noqa: BLE001 -- queue is best-effort; never break the loop
         log.warning("self-improve: proposal queue write skipped: %s", e)
         return False
-
 
 async def _selfimprove_act_pass() -> dict:
     sect = _toml_section("selfimprove")
@@ -291,7 +277,6 @@ async def _selfimprove_act_pass() -> dict:
     return {"acted": True, "findings": len(findings), "drafted": drafted,
             "queued": queued, "rejected": rejected}
 
-
 async def _selfimprove_proposals(limit: int = _PROPOSALS_LIST_LIMIT) -> dict:
     try:
         rows = await _mios_pg.execute(
@@ -302,7 +287,6 @@ async def _selfimprove_proposals(limit: int = _PROPOSALS_LIST_LIMIT) -> dict:
     except Exception as e:  # noqa: BLE001 -- degrade-open
         log.warning("self-improve proposals unavailable: %s", e)
         return {"proposals": [], "count": 0, "error": "unavailable"}
-
 
 async def _selfimprove_loop() -> None:
     try:
@@ -336,7 +320,6 @@ async def _selfimprove_loop() -> None:
         except Exception as e:  # noqa: BLE001 -- degrade-open; never crash the loop
             log.debug("self-improve loop: %s", e)
 
-
 def _kv_gc_sweep_once() -> None:
     d = KV_SLOTS_DIR
     if not (d and os.path.isdir(d)):
@@ -368,7 +351,6 @@ def _kv_gc_sweep_once() -> None:
     except Exception:  # noqa: BLE001 -- GC is best-effort
         pass
 
-
 async def _kv_gc_loop() -> None:
     """Periodic KV slot-file GC. Sleeps first (no boot sweep), then every
     KV_GC_INTERVAL_S. Survives errors (matches _knowledge_evict_loop)."""
@@ -380,7 +362,6 @@ async def _kv_gc_loop() -> None:
             raise
         except Exception:  # noqa: BLE001
             await asyncio.sleep(60)
-
 
 async def _consolidate_memory_sweep_once() -> dict:
     """One consolidation pass over `knowledge`: collapse same-question rows into
@@ -419,7 +400,6 @@ async def _consolidate_memory_sweep_once() -> dict:
                  stats["merged"], stats["groups"])
     return stats
 
-
 async def _consolidate_group(nq: str) -> int:
     """Merge one normalized-question group into its newest row. Returns the
     number of rows removed (0 when the group turned out to be unmergeable)."""
@@ -457,7 +437,6 @@ async def _consolidate_group(nq: str) -> int:
         {"ids": losers}, fetch=False)
     return len(losers)
 
-
 async def _consolidate_memory_loop() -> None:
     """Periodic knowledge-memory consolidation. Sleeps first (no boot sweep),
     then every MEMORY_CONSOLIDATE_INTERVAL_S. Survives errors."""
@@ -472,9 +451,7 @@ async def _consolidate_memory_loop() -> None:
         except Exception:  # noqa: BLE001
             await asyncio.sleep(60)
 
-
 daemons_router = APIRouter()
-
 
 @daemons_router.get("/v1/self-improve/report")
 async def selfimprove_report_ep() -> JSONResponse:
@@ -483,7 +460,6 @@ async def selfimprove_report_ep() -> JSONResponse:
     the loop) is a separate, gated step."""
     return JSONResponse({"object": "mios.self_improve.report",
                          **(await _selfimprove_report())})
-
 
 @daemons_router.get("/v1/self-improve/proposals")
 async def selfimprove_proposals_ep() -> JSONResponse:

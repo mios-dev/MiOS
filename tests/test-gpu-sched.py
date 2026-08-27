@@ -15,7 +15,6 @@ from gpu_sched import (
     StreamPriority,
 )
 
-
 class TestGPUSched(unittest.TestCase):
     def setUp(self):
         self.sched = GPUComputeStreamScheduler(gpu_id=0, dry_run=True)
@@ -78,7 +77,6 @@ class TestGPUSched(unittest.TestCase):
         self.assertEqual(status["gpu_id"], 0)
         self.assertEqual(status["preemption_event_count"], 1)
         self.assertTrue(status["sub_50ms_target_met"])
-
 
 if __name__ == "__main__":
     unittest.main()

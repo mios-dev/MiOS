@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_tension import TensionLedger
 
-
 class TestTensionLedger(unittest.TestCase):
     """Validates objection recording, resolution, and closing checks."""
 
@@ -38,12 +37,10 @@ class TestTensionLedger(unittest.TestCase):
         self.assertTrue(can_close)
         self.assertEqual(len(unresolved), 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestTensionLedger)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -7,7 +7,6 @@ import unittest
 
 import mios_classify as M
 
-
 class _FakeResp:
     def __init__(self, status, payload):
         self.status_code = status
@@ -15,7 +14,6 @@ class _FakeResp:
 
     def json(self):
         return self._p
-
 
 class _FakeClient:
     """Async-context fake replacing httpx.AsyncClient; returns a canned response."""
@@ -33,7 +31,6 @@ class _FakeClient:
     async def post(self, url, **k):
         return _FakeResp(*self._resp)
 
-
 def _configure(domains=None, enable=True):
     fired = []
     M.configure(
@@ -46,7 +43,6 @@ def _configure(domains=None, enable=True):
         db_fire=lambda row: fired.append(row),
     )
     return fired
-
 
 class TestClassifyIntent(unittest.TestCase):
     def setUp(self):
@@ -75,7 +71,6 @@ class TestClassifyIntent(unittest.TestCase):
         M.httpx.AsyncClient = _FakeClient
         self.assertIsNone(asyncio.run(M.classify_intent("hello there")))
 
-
 class TestRouteDomain(unittest.TestCase):
     def setUp(self):
         self._real = M.httpx.AsyncClient
@@ -100,7 +95,6 @@ class TestRouteDomain(unittest.TestCase):
             {"message": {"content": '{"domain":"bogus"}'}}]})
         M.httpx.AsyncClient = _FakeClient
         self.assertIsNone(asyncio.run(M._route_domain("research X on the web")))
-
 
 if __name__ == "__main__":
     unittest.main()

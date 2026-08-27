@@ -2,7 +2,6 @@
 # AI-hint: Apply Xbox VM Config + Manual Secure Boot Key Enrollment
 set -euo pipefail
 
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -10,7 +9,6 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
-
 
 echo -e "${BOLD}${GREEN}══════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}${GREEN}    Xbox VM: Final Configuration + Secure Boot Fix${NC}"

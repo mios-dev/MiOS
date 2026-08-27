@@ -22,14 +22,12 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-journal-fss")
 
-
 @dataclass
 class FSSKeySealingResult:
     fss_key_id: str
     interval_minutes: int
     is_sealed_to_tpm: bool
     verification_hash: str
-
 
 class JournalFSSManager:
     """Manages Forward-Secure Sealing setup, TPM 2.0 key binding, and cryptographic verification."""
@@ -70,13 +68,11 @@ class JournalFSSManager:
         logger.info(f"Verified {len(records)} FSS sealed log entries. 100% integrity valid.")
         return True
 
-
 def main():
     mgr = JournalFSSManager(dry_run=True)
     res = mgr.setup_fss_keys()
     valid = mgr.verify_journal_integrity(["boot systemd", "mount overlay", "start hermes"])
     print(f"FSS Key: {res.fss_key_id}, Valid: {valid}")
-
 
 if __name__ == "__main__":
     main()

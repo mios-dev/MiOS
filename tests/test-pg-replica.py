@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load pg_replica module from {_REPLICA_PATH}")
 
-
 class TestPgReplica(unittest.TestCase):
     """Validates replication provisioning, WAL lag calculation, fencing enforcement, and promotion."""
 
@@ -108,12 +107,10 @@ class TestPgReplica(unittest.TestCase):
         res = self.manager.promote_replica(force_unfenced=True)
         self.assertEqual(res["status"], "promoted")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestPgReplica)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

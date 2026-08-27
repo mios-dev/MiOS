@@ -14,7 +14,6 @@ from typing import Any, Dict, List
 
 log = logging.getLogger("coredump_sanitizer")
 
-
 @dataclass
 class CrashMinidump:
     process_name: str
@@ -23,7 +22,6 @@ class CrashMinidump:
     stack_trace: list[str]
     size_kb: int
     sanitized: bool = True
-
 
 class CoredumpSanitizer:
     """

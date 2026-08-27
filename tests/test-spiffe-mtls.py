@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestSpiffeIdentityMtls(unittest.TestCase):
     """Test suite for SPIFFE ID parsing, SVID issuance, trust domain validation, and rotation."""
 
@@ -141,7 +140,6 @@ class TestSpiffeIdentityMtls(unittest.TestCase):
         with patch.object(sys, "argv", ["spiffe_identity.py", "--mock", "--status", "--json"]):
             code = spiffe_identity.main()
             self.assertEqual(code, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

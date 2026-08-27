@@ -7,7 +7,6 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 
 source "$(dirname "$0")/lib/common.sh"
 
-
 mios_log "Pin host admin sshd to MIOS_PORT_SSH=${MIOS_PORT_SSH} via drop-in"
 
 install -d -m 0755 /etc/ssh/sshd_config.d

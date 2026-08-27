@@ -2,30 +2,7 @@
 # AI-hint: Comprehensive adversarial stress test suite for T-388 Ed25519 Mutual Handshake & ChaCha20-Poly1305 Wire AEAD.
 # AI-related: usr/libexec/mios/node/crypto.py, usr/libexec/mios/node/wire.py, src/mios-rs/mios-node/src/crypto.rs
 # AI-doc: usr/share/doc/mios/manual/node.md
-"""
-Adversarial Stress Test Suite for Milestone 2 / T-388 (Challenger 2):
-1. Cryptographic Handshake Adversarial Tests:
-   - Exhaustive single-bit and multi-byte signature tampering across Init and Resp packets (all 64 bytes fuzzed).
-   - Signature truncation (< 64 bytes) and extension (> 64 bytes) rejection.
-   - Forged identity pubkeys and ephemeral pubkeys injection / MITM rejection.
-   - Imposter node identity spoofing and unauthorized packet creation.
-   - Replay attack resilience and ephemeral key freshness (no key reuse).
-   - Key derivation symmetry, directional TX/RX key separation, and anti-reflection guarantee.
-
-2. Wire AEAD Encryption Adversarial Tests:
-   - Exhaustive bit-flip fuzzing across all payload ciphertext bytes.
-   - Exhaustive bit-flip fuzzing across all 16 bytes of the Poly1305 MAC tag.
-   - Ciphertext truncation (< 16 bytes) and partial MAC tag drop handling.
-   - AAD / Node ID spoofing and cross-node ciphertext injection rejection.
-   - Strict nonce sequence progression, out-of-order packet drop, and wire replay attack prevention.
-   - High-volume multi-frame stream stress (1,000 frames) with boundary payload sizes (0B, 1B, 15B, 16B, 17B, 64B, 65B, 64KB).
-   - Layered defense validation: Wire CRC32 transport integrity vs Poly1305 cryptographic authenticity.
-
-3. Concurrency & RFC Standards Compliance:
-   - Concurrent multi-session thread isolation across 20 distinct mesh nodes.
-   - Session renegotiation & zero cross-session decryption leakage.
-   - RFC 8439 / RFC 7748 / RFC 5869 cryptographic correctness verification.
-"""
+"""Adversarial Stress Test Suite for Milestone 2 / T-388 (Challenger 2): 1. Cryptographic Handshake Adversarial Tests:    - Exhaustive single-bit and multi-byte signature tampering across Init and Resp packets (all 64 bytes fuzzed).    - Signature truncation (< 64 bytes) and extension (> 64 bytes) rejection.    - Forged identity pubkeys and ephemeral pubkeys injection / MITM rejection.    - Imposter node identity spoofing and unauthorized packet creation.    - Replay attack resilience and ephemeral key freshness (no key reuse).    - Key derivation symmetry, directional TX/RX key separation, and anti-reflection guarantee.  2. Wire AEAD Encryption Adversarial Tests:    - Exhaustive bit-flip fuzzing across all payload ciphertext bytes.    - Exhaustive bit-flip fuzzing across all 16 bytes of the Poly1305 MAC tag.    - Ciphertext truncation (< 16 bytes) and partial MAC tag drop handling.    - AAD / Node ID spoofing and cross-node ciphertext injection rejection.    - Strict nonce sequence progression, out-of-order packet drop, and wire replay attack prevention.    - High-volume multi-frame stream stress (1,000 frames) with boundary payload sizes (0B, 1B, 15B, 16B, 17B, 64B, 65B, 64KB).    - Layered defense validation: Wire CRC32 transport integrity vs Poly1305 cryptographic authenticity.  3. Concurrency & RFC Standards Compliance:    - Concurrent multi-session thread isolation across 20 distinct mesh nodes.    - Session renegotiation & zero cross-session decryption leakage.    - RFC 8439 / RFC 7748 / RFC 5869 cryptographic correctness verification."""
 
 from __future__ import annotations
 
@@ -42,7 +19,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "libexec", "mios", "node"))
 
 import crypto
 import wire
-
 
 class TestCryptoHandshakeAdversarial(unittest.TestCase):
     """Adversarial stress testing for Ed25519 mutual authentication & X25519 handshake."""
@@ -196,7 +172,6 @@ class TestCryptoHandshakeAdversarial(unittest.TestCase):
         # Anti-reflection: local TX key MUST NOT equal local RX key
         self.assertNotEqual(session_a.tx_key, session_a.rx_key)
         self.assertNotEqual(session_b.tx_key, session_b.rx_key)
-
 
 class TestWireAeadAdversarial(unittest.TestCase):
     """Adversarial stress testing for ChaCha20-Poly1305 AEAD wire encryption."""
@@ -410,7 +385,6 @@ class TestWireAeadAdversarial(unittest.TestCase):
             self.session_b.decrypt_frame(bypassed_frame)
         self.assertIn("MAC verification failed", str(ctx.exception))
 
-
 class TestMultiSessionConcurrency(unittest.TestCase):
     """Stress tests concurrent sessions across multiple simulated edge nodes."""
 
@@ -449,7 +423,6 @@ class TestMultiSessionConcurrency(unittest.TestCase):
 
         self.assertEqual(len(results), 10)
         self.assertTrue(all(results))
-
 
 class TestRfcStandardsCompliance(unittest.TestCase):
     """Verifies low-level cryptographic primitive compliance against standard RFC test vectors."""
@@ -526,7 +499,6 @@ class TestRfcStandardsCompliance(unittest.TestCase):
         okm = hkdf.derive(ikm)
         self.assertEqual(okm.hex(), expected_okm.hex())
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestCryptoHandshakeAdversarial)
     suite.addTests(unittest.TestLoader().loadTestsFromTestCase(TestWireAeadAdversarial))
@@ -535,7 +507,6 @@ def main() -> int:
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

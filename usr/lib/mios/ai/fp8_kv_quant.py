@@ -13,14 +13,12 @@ from typing import List
 
 log = logging.getLogger("fp8_kv_quant")
 
-
 @dataclass
 class QuantizedKVTensor:
     tokens_count: int
     dtype: str # 'fp8_e4m3' vs 'fp16'
     memory_bytes: int
     per_head_scales: list[float]
-
 
 class FP8KVQuantizer:
     """

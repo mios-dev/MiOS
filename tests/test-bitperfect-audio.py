@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from bitperfect_mgr import ALLOWED_SAMPLE_RATES, MAX_CLOCK_SWITCH_MS, BitPerfectAudioAdapter
 
-
 class TestBitPerfectAudio(unittest.TestCase):
     def setUp(self):
         self.adapter = BitPerfectAudioAdapter(dry_run=True)
@@ -30,7 +29,6 @@ class TestBitPerfectAudio(unittest.TestCase):
             state = self.adapter.adapt_sample_rate(rate)
             self.assertEqual(state.dac_hardware_rate_hz, rate)
             self.assertTrue(state.is_bit_perfect)
-
 
 if __name__ == "__main__":
     unittest.main()

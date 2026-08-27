@@ -17,7 +17,6 @@ MAX_CODE_CHARS = 64_000
 MIN_TIMEOUT_S = 1
 MAX_TIMEOUT_S = 600
 
-
 def normalize_lang(lang: Optional[str]) -> str:
     """Fold a requested language to a supported one; unknown -> DEFAULT_LANG.
     `sh` is kept distinct from `bash` (some sandboxes only ship one)."""
@@ -29,7 +28,6 @@ def normalize_lang(lang: Optional[str]) -> str:
     if l in ("shell", "/bin/bash"):
         return "bash"
     return DEFAULT_LANG
-
 
 def clamp_timeout(value, default: int = 60) -> int:
     """Coerce + clamp a timeout into [MIN_TIMEOUT_S, MAX_TIMEOUT_S]. Preserves a
@@ -44,7 +42,6 @@ def clamp_timeout(value, default: int = 60) -> int:
         return MAX_TIMEOUT_S
     return t
 
-
 def session_id(conversation_id: Optional[str], fallback: str = "default") -> str:
     """Derive a STABLE, filesystem + Quadlet-instance-safe sandbox id from the
     conversation id, so every Code Mode call in one chat reuses ONE warm sandbox
@@ -52,7 +49,6 @@ def session_id(conversation_id: Optional[str], fallback: str = "default") -> str
     token). Empty -> `fallback`. Deterministic: same conversation -> same id."""
     raw = (conversation_id or "").strip() or fallback
     return "cm-" + hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()[:16]
-
 
 def extract_code(args: dict) -> str:
     """Pull the snippet from an agent tool-call's args, tolerating the synonym
@@ -65,7 +61,6 @@ def extract_code(args: dict) -> str:
         if isinstance(v, str) and v.strip():
             return v.strip()
     return ""
-
 
 def validate_request(args: dict) -> tuple:
     code = extract_code(args)
@@ -81,7 +76,6 @@ def validate_request(args: dict) -> tuple:
         "net": _truthy(a.get("net") if a.get("net") is not None else a.get("network")),
     }
 
-
 def _truthy(v) -> bool:
     if isinstance(v, bool):
         return v
@@ -89,12 +83,10 @@ def _truthy(v) -> bool:
         return v != 0
     return str(v).strip().lower() in ("true", "1", "yes", "on")
 
-
 def is_enabled(cfg: dict) -> bool:
     if not isinstance(cfg, dict):
         return False
     return _truthy(cfg.get("enable", False))
-
 
 def net_allowed(cfg: dict, requested: bool) -> bool:
     """The effective network decision: the agent may REQUEST net, but the deploy
@@ -103,14 +95,12 @@ def net_allowed(cfg: dict, requested: bool) -> bool:
     deploy_ok = _truthy((cfg or {}).get("allow_net", False))
     return bool(requested) and deploy_ok
 
-
 def podman_exec_argv(container: str, lang: str, src_path: str,
                      podman: str = "podman", init: str = "") -> list:
     interp = "python3" if normalize_lang(lang) == "python" else (
         "bash" if normalize_lang(lang) == "bash" else "sh")
     inner = ([init] if init else []) + [interp, src_path]
     return [podman, "exec", "-i", container, *inner]
-
 
 def parse_result(stdout: str, stderr: str, returncode: int,
                  max_chars: int = 8000) -> dict:
@@ -133,7 +123,6 @@ def parse_result(stdout: str, stderr: str, returncode: int,
         env["result"] = parsed
     return env
 
-
 def _try_json_tail(text: str):
     """Best-effort: if the LAST non-empty stdout line is a JSON object/array,
     return it (the model's code is asked to print its result as a final JSON
@@ -149,12 +138,10 @@ def _try_json_tail(text: str):
         break  # only consider the final non-empty line
     return None
 
-
 def safe_session_token(s: str) -> str:
     """Quadlet %i / dir-name safety net: keep only [a-z0-9-]. Used as a final
     guard if a caller hands a non-session_id() string straight through."""
     return re.sub(r"[^a-z0-9-]", "", (s or "").lower()) or "default"
-
 
 def build_cli_argv(cli: str, payload: dict, conversation_id: Optional[str],
                    cfg: Optional[dict] = None) -> list:
@@ -169,7 +156,6 @@ def build_cli_argv(cli: str, payload: dict, conversation_id: Optional[str],
     if net_allowed(cfg, payload.get("net", False)):
         argv.append("--net")
     return argv
-
 
 def quote_inline_code(code: str) -> str:
     """Shell-safe single-arg quoting of a snippet, for the rare path that passes

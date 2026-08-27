@@ -21,7 +21,6 @@ from cpu_topology import CPUTopologyAllocator
 from mesh_logs import MeshLogForwarder
 from cve_scan import OCIImageVulnerabilityScanner, Vulnerability
 
-
 class TestEmpiricalStressT653T662(unittest.TestCase):
     # --- 1. Council Consensus Stress Tests ---
     def test_council_adversarial_prompt_injection_storm(self):
@@ -88,7 +87,6 @@ class TestEmpiricalStressT653T662(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertEqual(report["summary"]["total"], 4)
         self.assertEqual(report["summary"]["critical"], 1)
-
 
 if __name__ == "__main__":
     unittest.main()

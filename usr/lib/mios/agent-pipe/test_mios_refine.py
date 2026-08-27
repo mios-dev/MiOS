@@ -11,13 +11,11 @@ import mios_refine as mr
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 class _Log:
     def info(self, *a, **k):
@@ -28,7 +26,6 @@ class _Log:
 
     warn = warning
 
-
 class _FakeResp:
     def __init__(self, body):
         self.status_code = 200
@@ -37,7 +34,6 @@ class _FakeResp:
 
     def json(self):
         return self._body
-
 
 class _FakeClient:
     def __init__(self, body):
@@ -52,7 +48,6 @@ class _FakeClient:
     async def post(self, url, json=None, headers=None):
         return _FakeResp(self._body)
 
-
 class _FakeHTTPX:
     HTTPError = Exception
 
@@ -62,12 +57,10 @@ class _FakeHTTPX:
     def AsyncClient(self, timeout=None):
         return _FakeClient(self.body)
 
-
 _FAKE = _FakeHTTPX()
 
 _FASTPATH = frozenset(
     {"open_url", "launch_app", "launch_verified", "focus_window", "pc_type"})
-
 
 class _CritResp:
     def __init__(self, body, status=200):
@@ -76,7 +69,6 @@ class _CritResp:
 
     def json(self):
         return self._body
-
 
 class _CritClient:
     def __init__(self, body, status=200):
@@ -87,7 +79,6 @@ class _CritClient:
     async def post(self, url, content=None, headers=None):
         self.calls += 1
         return _CritResp(self._body, self._status)
-
 
 def _configure():
     """Inject stub deps so import-clean module globals become exercise-ready."""
@@ -126,7 +117,6 @@ def _configure():
         routing_domains={},
     )
 
-
 def t_salvage_corpus():
     d = mr._salvage_refine_dispatch(
         'Sure, here is the plan: '
@@ -161,11 +151,9 @@ def t_salvage_corpus():
 
     check("salvage.empty_none", mr._salvage_refine_dispatch("") is None)
 
-
 def _run(user_text, body):
     _FAKE.body = {"choices": [{"message": {"content": body}}]}
     return asyncio.run(mr.refine_intent(user_text, None))
-
 
 def t_refine_envelope():
     p = _run("hey there", json.dumps(
@@ -215,7 +203,6 @@ def t_refine_envelope():
     p = _run("hello", "")
     check("refine.empty_content_none", p is None, repr(p))
 
-
 def t_cutoffs_ssot():
     mr.configure(promote_chars=5, chat_chars=7, dispatch_chars=11)
     check("cutoffs.char_globals",
@@ -244,7 +231,6 @@ def t_cutoffs_ssot():
           mr.REFINE_PROMOTE_CHARS == 100 and mr.REFINE_DISPATCH_ARG_MAX_WORDS == 3
           and "<40 chars" in mr._REFINE_SYSTEM and ">100 chars" in mr._REFINE_SYSTEM,
           "default cues not restored")
-
 
 def t_critic_refine():
     base_body = {"messages": [{"role": "user", "content": "hi"}]}
@@ -289,7 +275,6 @@ def t_critic_refine():
           _call(long_raw, {"act": "ask", "confidence": 0.95, "content": "  "})
           == long_raw)
 
-
 def main():
     _configure()
     t_salvage_corpus()
@@ -298,7 +283,6 @@ def main():
     t_critic_refine()
     print(f"\n{'ALL PASS' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

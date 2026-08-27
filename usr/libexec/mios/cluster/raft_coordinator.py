@@ -8,7 +8,6 @@ import sys
 import time
 from typing import Dict, List, Optional, Any
 
-
 class RaftClusterCoordinator:
     """Coordinates leader election, heartbeat quorums, and Patroni PostgreSQL failovers across MiOS nodes."""
 
@@ -68,7 +67,6 @@ class RaftClusterCoordinator:
             "mock": self.dry_run,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Embedded Raft Cluster Coordinator")
     parser.add_argument("--node-id", default="mios-node-01", help="Current node ID")
@@ -85,7 +83,6 @@ def main():
         res = coordinator.check_quorum_status()
 
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

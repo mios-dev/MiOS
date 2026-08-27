@@ -15,7 +15,6 @@ try:
 except ModuleNotFoundError:  # pragma: no cover -- py<3.11
     import tomli as tomllib  # type: ignore
 
-
 def _load_pipe():
     """Import the pipe fresh so Valves() re-reads the current environment."""
     spec = importlib.util.spec_from_file_location("owui_pipe_under_test", _PIPE)
@@ -23,11 +22,9 @@ def _load_pipe():
     spec.loader.exec_module(mod)
     return mod
 
-
 def _ssot():
     with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh)
-
 
 class TestOwuiPipeEndpoints(unittest.TestCase):
 
@@ -100,10 +97,8 @@ class TestOwuiPipeEndpoints(unittest.TestCase):
         self.assertEqual(mod._DB_URL, "http://example.invalid:8000",
                          "setting MIOS_DB_URL must still re-enable them")
 
-
 def main():
     return 0 if unittest.main(exit=False, verbosity=2).result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

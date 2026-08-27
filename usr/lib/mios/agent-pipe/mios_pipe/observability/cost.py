@@ -6,7 +6,6 @@ from typing import Dict, Optional
 
 _WH_PER_J = 1.0 / 3600.0   # 1 Wh = 3600 J; here energy_wh = watts * seconds / 3600
 
-
 class CostModel:
     """Turns a dispatch into an energy + dollar estimate. Rates are SSOT-supplied
     (mios.toml [cost]); conservative defaults. `usd_per_kwh = 0` => energy is
@@ -42,7 +41,6 @@ class CostModel:
         return {"lane": str(lane), "energy_wh": round(energy_wh, 4),
                 "usd": round(usd, 6), "tokens": toks,
                 "elapsed_s": round(el, 3), "remote": False}
-
 
 class CostLedger:
     """Rolling accumulation of dispatch cost: totals + per-lane breakdown. Single

@@ -23,7 +23,6 @@ from tts_stream import MAX_FIRST_PACKET_LATENCY_MS, StreamingTTSPipeline
 from smartcard_mux import VirtualCCIDMultiplexer
 from overlay_workspace import MAX_PROVISION_LATENCY_MS, OverlayWorkspaceManager
 
-
 class TestEmpiricalStressT683T692(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-stress-t683-")
@@ -91,7 +90,6 @@ class TestEmpiricalStressT683T692(unittest.TestCase):
         for i in range(50):
             self.assertTrue(mgr.teardown_workspace(f"agent_{i}"))
         self.assertEqual(len(mgr.active_mounts), 0)
-
 
 if __name__ == "__main__":
     unittest.main()

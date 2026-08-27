@@ -10,7 +10,6 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-
 class TestMiosCheckSSOT(unittest.TestCase):
     def test_real_ssot_toml_validity(self):
         """Verify that live SSOT usr/share/mios/mios.toml passes validation cleanly."""
@@ -93,7 +92,6 @@ shell = "/bin/bash"
             self.assertIn("Law 7 Violation", res.stdout + res.stderr)
         finally:
             pathlib.Path(temp_path).unlink(missing_ok=True)
-
 
 if __name__ == "__main__":
     unittest.main()

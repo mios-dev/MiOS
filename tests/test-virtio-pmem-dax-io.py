@@ -29,7 +29,6 @@ THROUGHPUT_SLA_GBS  = 15.0       # T-734 requirement (simulated via mmap)
 BENCH_SIZE_MB       = 128        # size of in-memory read in simulation
 N_VMS               = 10
 
-
 def _simulate_memfd_throughput_gbs(size_mb: int) -> float:
     """
     Simulate virtio-pmem DAX read throughput by mmap-ing an anonymous tmpfile
@@ -51,7 +50,6 @@ def _simulate_memfd_throughput_gbs(size_mb: int) -> float:
         m.close()
     throughput_gbs = (size_bytes / max(elapsed, 1e-9)) / (1024 ** 3)
     return throughput_gbs
-
 
 def test_memfd_init_latency_under_25ms():
     """
@@ -77,7 +75,6 @@ def test_memfd_init_latency_under_25ms():
         assert lat < BOOT_LATENCY_SLA_MS, (
             f"VM {idx} boot latency {lat:.2f} ms exceeds {BOOT_LATENCY_SLA_MS} ms SLA")
 
-
 def test_dax_io_throughput_exceeds_15gbs():
     """
     Simulated DAX I/O throughput must exceed 15 GB/s via mmap.
@@ -86,7 +83,6 @@ def test_dax_io_throughput_exceeds_15gbs():
     throughput = _simulate_memfd_throughput_gbs(BENCH_SIZE_MB)
     assert throughput > THROUGHPUT_SLA_GBS, (
         f"Simulated DAX throughput {throughput:.2f} GB/s < {THROUGHPUT_SLA_GBS} GB/s SLA")
-
 
 def test_destroy_releases_memfd_no_nvme_writes():
     """
@@ -124,7 +120,6 @@ def test_destroy_releases_memfd_no_nvme_writes():
     delta_sectors = after - before
     assert delta_sectors < 2048, (
         f"Unexpected NVMe writes: {delta_sectors} sectors during memfd-only test")
-
 
 if __name__ == "__main__":
     test_memfd_init_latency_under_25ms()

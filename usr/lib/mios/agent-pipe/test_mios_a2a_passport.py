@@ -17,15 +17,12 @@ import mios_a2a_principal as P
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _fake_sign(table, claims):
     return {"t": table, "h": P.text_digest(repr(sorted(claims.items()))), "sig": "FAKE"}
-
 
 def _fake_verify(envelope, payload):
     table, claims = payload
@@ -34,10 +31,8 @@ def _fake_verify(envelope, payload):
         return True, "ok"
     return False, "invalid_signature"
 
-
 def _nokey_sign(table, claims):
     return None   # no key provisioned
-
 
 def t_claims() -> None:
     c = P.build_claims("agent-pipe", "alice", "peerX", "ctx1", "open notepad")
@@ -50,10 +45,8 @@ def t_claims() -> None:
     _check("claims: empty principal -> '' (autonomous)",
            P.build_claims("a", "", "p", "", "x")["principal"] == "")
 
-
 def _msg(meta):
     return {P.METADATA_KEY: meta}
-
 
 def t_roundtrip() -> None:
     md = P.build_metadata("agent-pipe", "alice", "peerX", "ctx1", "open notepad", _fake_sign)
@@ -61,7 +54,6 @@ def t_roundtrip() -> None:
     v, reason, claims = P.verify(_msg(md), "open notepad", _fake_verify)
     _check("roundtrip: verdict True", v is True, reason)
     _check("roundtrip: claims carried", claims.get("principal") == "alice")
-
 
 def t_tamper() -> None:
     md = P.build_metadata("agent-pipe", "alice", "peerX", "ctx1", "open notepad", _fake_sign)
@@ -72,7 +64,6 @@ def t_tamper() -> None:
     v2, r2, _ = P.verify(_msg(md), "open notepad", _fake_verify)
     _check("tamper: bad signature rejected", v2 is False, r2)
 
-
 def t_unsigned() -> None:
     md = P.build_metadata("agent-pipe", "alice", "peerX", "ctx1", "hi", _nokey_sign)
     _check("unsigned: passport None when no key", md.get("passport") is None)
@@ -80,7 +71,6 @@ def t_unsigned() -> None:
     _check("unsigned: verdict False", v is False)
     _check("unsigned: reason 'unsigned'", reason == "unsigned", reason)
     _check("unsigned: claims still readable", claims.get("agent") == "agent-pipe")
-
 
 def t_absent() -> None:
     v, reason, claims = P.verify({}, "hi", _fake_verify)
@@ -90,7 +80,6 @@ def t_absent() -> None:
     v2, r2, _ = P.verify(None, "hi", _fake_verify)
     _check("absent: None metadata tolerated", v2 is None and r2 == "absent")
 
-
 def main() -> int:
     for t in (t_claims, t_roundtrip, t_tamper, t_unsigned, t_absent):
         t()
@@ -98,7 +87,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

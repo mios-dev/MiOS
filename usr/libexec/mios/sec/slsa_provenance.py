@@ -19,7 +19,6 @@ import sys
 import time
 from typing import Any, Dict, List, Optional
 
-
 class SlsaProvenanceEngine:
     """Generates, signs, and verifies SLSA v1 in-toto provenance statements and DSSE envelopes."""
 
@@ -213,7 +212,6 @@ class SlsaProvenanceEngine:
         except Exception:
             return False
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS SLSA Level 3 Provenance Generator & Verifier")
     parser.add_argument("--generate", action="store_true", help="Generate SLSA v1 statement")
@@ -291,7 +289,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -8,9 +8,7 @@ import sys
 
 import mios_http_caps as M
 
-
 _fails = 0
-
 
 def check(name, ok, detail=""):
     global _fails
@@ -20,11 +18,9 @@ def check(name, ok, detail=""):
         _fails += 1
         print(f"[FAIL] {name} :: {detail}")
 
-
 def _body(resp):
     """Decode a fastapi JSONResponse rendered body into a dict."""
     return json.loads(bytes(resp.body).decode("utf-8"))
-
 
 class _FakeResp:
     def __init__(self, payload, status=200):
@@ -34,7 +30,6 @@ class _FakeResp:
     def json(self):
         return self._p
 
-
 class _FakeClient:
     def __init__(self, payload):
         self._p = payload
@@ -43,7 +38,6 @@ class _FakeClient:
     async def post(self, url, content=None, headers=None):
         self.posted = {"url": url, "content": content, "headers": headers}
         return _FakeResp(self._p, status=201)
-
 
 class _FakeReq:
     def __init__(self, body=b"", jsonobj=None, headers=None):
@@ -59,12 +53,10 @@ class _FakeReq:
             raise ValueError("no json")
         return self._json
 
-
 def _fake_verb_to_openai_tool(vname, vcfg):
     return {"type": "function",
             "function": {"name": vname, "description": vcfg.get("desc", "")},
             "x-mios-verb": vname}
-
 
 def _configure_stubs(client_payload=None):
     catalog = {
@@ -123,32 +115,25 @@ def _configure_stubs(client_payload=None):
         offline_posture=lambda: {"offline": True, "external_endpoints": [],
                                  "checks": [], "enforced": True})
 
-
 async def _fake_skill_list(status="all", source=None, limit=200):
     return [{"name": "deploy", "description": "d", "status": "promoted"}]
-
 
 async def _fake_skill_fetch(name):
     return {"name": name, "body": "x"}
 
-
 async def _fake_kg_lookup(phrase):
     return {"app": "firefox"} if phrase == "browser" else None
-
 
 async def _fake_execute_skill(name, params, session_id=None):
     return {"success": True, "name": name}
 
-
 async def _fake_run_dci_flow(user_text, envelope, session_id=None, r_max=None):
     return {"verdict": "ok", "user_text": user_text}
-
 
 def _make_get_client(payload):
     async def _get():
         return _FakeClient(payload)
     return _get
-
 
 def main():
     _configure_stubs()
@@ -253,7 +238,6 @@ def main():
 
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

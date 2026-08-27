@@ -21,7 +21,6 @@ _HEADER = """\
 
 """
 
-
 def render(data: dict) -> str:
     """The full file body for the SSOT's declared blade type."""
     blade = data.get("blade") or {}
@@ -34,7 +33,6 @@ def render(data: dict) -> str:
         raise SystemExit("generate-blade-karg: [blade].type = %r names no archetype "
                          "in [blade.archetypes] -- the karg would select nothing" % btype)
     return _HEADER + 'kargs = [\n    "mios.blade=%s"\n]\n' % btype
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
@@ -64,7 +62,6 @@ def main() -> int:
         fh.write(body)
     print("[generate-blade-karg] wrote %s" % TARGET)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_pipe.scheduler.preempt import PreemptScheduler, Snapshot, Quantum
 
-
 class TestAgentPipePreempt(unittest.TestCase):
     """Validates preemption slots, quantum expiration, and priority ordering."""
 
@@ -49,12 +48,10 @@ class TestAgentPipePreempt(unittest.TestCase):
         self.assertFalse(q.expired(now=104.0))
         self.assertTrue(q.expired(now=106.0))
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestAgentPipePreempt)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

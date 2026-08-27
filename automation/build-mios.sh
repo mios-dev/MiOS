@@ -263,7 +263,6 @@ merge_mios_structure() {
 
     cd "$MIOS_TMP_DIR/mios"
 
-
     log_info "Merging /usr..."
     rsync -av --ignore-existing usr/ /usr/ \
         || log_warn "Some files in /usr were skipped (already exist)"

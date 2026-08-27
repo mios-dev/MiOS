@@ -6,7 +6,6 @@ from mios_priority_sched import (
     PRIORITY_FOREGROUND, PRIORITY_BACKGROUND, PRIORITY_INTERACTIVE,
 )
 
-
 def test_foreground_preempts_background():
     """Foreground user requests sort ahead of background batches."""
     gate = PriorityGate()
@@ -19,7 +18,6 @@ def test_foreground_preempts_background():
     assert queue[1].priority == PRIORITY_BACKGROUND, (
         "Background (priority=5) must sort second")
 
-
 def test_headers_injected():
     """x-priority header is set to the request priority level."""
     gate = PriorityGate()
@@ -28,14 +26,12 @@ def test_headers_injected():
     assert hdrs["x-priority"] == "1"
     assert hdrs["x-mios-priority-hint"] == "foreground"
 
-
 def test_classify_user_turn_foreground():
     """User streaming turn is classified as foreground priority."""
     gate = PriorityGate()
     msgs = [{"role": "user", "content": "hello"}]
     p = gate.classify_turn(msgs, is_streaming=True)
     assert p == PRIORITY_FOREGROUND, f"Expected {PRIORITY_FOREGROUND}, got {p}"
-
 
 def test_drain_order():
     """drain() returns highest-priority items first."""
@@ -47,7 +43,6 @@ def test_drain_order():
     assert drained[0].priority == 1
     assert drained[1].priority == 5
     assert len(gate._submitted) == 1
-
 
 if __name__ == "__main__":
     test_foreground_preempts_background()

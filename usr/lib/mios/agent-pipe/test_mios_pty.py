@@ -8,7 +8,6 @@ from mios_pipe.routing import pty as P
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if cond:
@@ -16,7 +15,6 @@ def check(name, cond, detail=""):
     else:
         _fails += 1
         print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_session_key_cannot_escape():
     k = P.session_key("../../etc/passwd")
@@ -33,7 +31,6 @@ def t_session_key_cannot_escape():
     check("key: is stable for the same id",
           P.session_key("chat-9") == P.session_key("chat-9"))
 
-
 def t_long_ids_do_not_collide():
     """Truncating alone would map two long ids to one shell -- and one chat
     reading another's cwd/env is the whole risk this substrate introduces."""
@@ -43,12 +40,10 @@ def t_long_ids_do_not_collide():
     check("key: long ids are capped", len(ka) <= 48 + len(P.SESSION_PREFIX), ka)
     check("key: two long ids do NOT collide", ka != kb, f"{ka} vs {kb}")
 
-
 def t_session_path_is_contained():
     p = P.session_path("../../../root", "/var/lib/mios/shell-sessions")
     check("path: cannot walk out of the root",
           p.startswith("/var/lib/mios/shell-sessions/") and ".." not in p, p)
-
 
 def t_tmux_argv():
     check("argv: new", P.tmux_argv("new", "c1")[:4] == ["tmux", "-L", "mios", "new-session"])
@@ -58,7 +53,6 @@ def t_tmux_argv():
           P.session_key("c1") in P.tmux_argv("kill", "c1"))
     check("argv: an unknown action yields [] rather than a guess",
           P.tmux_argv("frobnicate", "c1") == [])
-
 
 def t_wrap_requires_a_real_nonce():
     n = P.new_nonce()
@@ -80,7 +74,6 @@ def t_wrap_requires_a_real_nonce():
         except ValueError:
             check(f"wrap: rejects a bad nonce {bad!r}", True)
 
-
 def t_parse_happy_path():
     n = P.new_nonce()
     cap = (f"prompt$ stuff\n{P.MARKER_PREFIX}{n}-BEGIN\n"
@@ -98,13 +91,11 @@ def t_parse_happy_path():
     r = P.parse_result(cap, n)
     check("parse: a non-zero exit is carried", r and r["exit_code"] == 127, str(r))
 
-
 def t_unfinished_is_not_success():
     n = P.new_nonce()
     check("parse: no marker yet -> None, NOT exit 0",
           P.parse_result("still running...\n", n) is None)
     check("parse: empty capture -> None", P.parse_result("", n) is None)
-
 
 def t_output_cannot_forge_completion():
     """The security property: a command that PRINTS a marker-shaped line must
@@ -133,14 +124,12 @@ def t_output_cannot_forge_completion():
     check("spoof: earlier output is retained",
           r and "more real output" in r["output"], str(r))
 
-
 def t_idle_reaper_is_conservative():
     check("idle: past the window -> reap", P.is_idle(1000.0, now=5000.0, idle_s=100) is True)
     check("idle: inside the window -> keep", P.is_idle(4950.0, now=5000.0, idle_s=100) is False)
     for bad in (None, "", "not-a-number", 0, -1):
         check(f"idle: bad bookkeeping {bad!r} -> never reap",
               P.is_idle(bad, now=5000.0, idle_s=100) is False)
-
 
 def main():
     t_session_key_cannot_escape()
@@ -154,7 +143,6 @@ def main():
     t_idle_reaper_is_conservative()
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

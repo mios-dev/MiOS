@@ -14,7 +14,6 @@ import unittest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "ci_suites", os.path.join(_HERE, "ci-suites.py"))
@@ -22,9 +21,7 @@ def _load():
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
-
 
 class TestRegistryReader(unittest.TestCase):
     def _ci(self, **over):
@@ -81,7 +78,6 @@ class TestRegistryReader(unittest.TestCase):
         for path, tier in MOD._registered(_ROOT, ci).items():
             self.assertTrue(os.path.isfile(os.path.join(_ROOT, path)),
                             "%s (tier %s)" % (path, tier))
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

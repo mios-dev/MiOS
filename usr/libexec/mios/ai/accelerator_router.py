@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-accelerator-router")
 
-
 @dataclass
 class AcceleratorRoutingDecision:
     task_type: str  # "embedding", "wake_word", "code_generation_7b", "reasoning_32b"
@@ -28,7 +27,6 @@ class AcceleratorRoutingDecision:
     dgpu_power_state: str  # "D3cold_Sleep", "D0_Active"
     estimated_wattage: float
     is_power_gated: bool
-
 
 class HierarchicalAcceleratorRouter:
     """Routes AI inference workloads to most power-efficient compute hardware."""
@@ -66,12 +64,10 @@ class HierarchicalAcceleratorRouter:
         )
         return res
 
-
 def main():
     router = HierarchicalAcceleratorRouter(has_npu=True, dry_run=True)
     res = router.route_inference_task("embedding")
     print(f"Target: {res.assigned_target}, dGPU: {res.dgpu_power_state}")
-
 
 if __name__ == "__main__":
     main()

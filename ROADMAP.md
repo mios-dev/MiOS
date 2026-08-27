@@ -43,7 +43,7 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 3,243 | The reading surface. |
+| Tracked files | 3,257 | The reading surface. |
 | Tracked size | 202 MB | Two vendored assets are most of it. |
 | Shell / Python / PowerShell / Rust | 41k / 200k / 25k / 20k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 1.2x. |
 | Drift checks | 207 | Falsifiability audited per check, not assumed. |
@@ -66,14 +66,13 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
    or explicitly declared authored. Anything else is a surface the thesis does
    not cover.
 
-
 > The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` + `concepts/*` planning docs. Workstreams map to `T-*` in TASKS.md.
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
 - **Done**: 25
 - **Active**: 8
-- **Proposed**: 2
+- **Proposed**: 3
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
 
@@ -132,6 +131,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 - `WS-DEDUP-CROSSSURFACE` — SSOT projection across docs, HTML, graph, and build manifests ✅
 - `WS-DEDUP-GUP56` — Always-latest float, SBOM pinning, and minimal key library ✅
 - `WS-DEDUP-SIGNOFF` — Permanent enforcement, negative coverage, ADR, and campaign signoff ✅
+- `WS-HCI · Sovereign Hyper-Converged Infrastructure & Self-Replication Fabric` — WS-HCI · Sovereign Hyper-Converged Infrastructure & Self-Replication Fabric (proposed)
 <!-- ROADMAP_INDEX_END -->
 
 <!-- ROADMAP_TOC_START -->
@@ -198,7 +198,6 @@ acceptance: |
 - **Accept:** `just drift-gate` regenerates `plan.d/*.list` and diffs clean; the check FAILS if a whale falls out of `core`, if a core member is not fully-qualified (no `localhost/`, no short-name), or if `referenced ⊄ emitted`; the Containerfile carries no inline Quadlet `sed`-scraping; a build with all whales in `core` and empty `bake_model` bakes engines-only.
 - **Deps:** Phase 0 (done). Interlocks with WS-MIOSSYS (the bake groups collapse toward `sys`/`cuda` built images) and WS-SBOM (digest-free SSOT).
 
-
 ## WS-BLADE — Universal-core + blade-type ACTIVATION gate (one image, role by flag)
 <!--
 id: WS-BLADE
@@ -222,7 +221,6 @@ acceptance: |
 - **Deps:** none hard; complements WS-BAKEGATE (activation vs bake orthogonality) and WS-MIOSSYS (activation `Condition*` unchanged by consolidation).
 - **Closed (T-315).** All three named deliverables landed. The karg producer (`tools/generate-blade-karg.py` -> `usr/lib/bootc/kargs.d/05-mios-blade.toml`, gate `check_blade_karg`) exists; `[profile]` is retired outright rather than aliased, because measurement showed it was dead on both ends -- no reader, and its only writer emitted `Role` with a capital R; and `role-apply` is demoted to a resolver whose one remaining imperative act is conditional on the role having CHANGED. Two corrections to the plan are recorded in ADR-0016 Decision 4 and T-315: the `systemctl` calls could not simply be deleted (the image bakes `multi-user.target`, so on the first boot after install nothing else reaches the role target, and the default archetype's target requires `graphical.target`), and shipping the karg producer had silently disabled `/etc/mios/role.conf`, its `FEATURES=`, and the hardware fallbacks -- `mios blade set` did nothing and `mios blade add-capability` was erased on the next boot. Resolution is now a five-tier ladder, gated by `check_role_ssot`, with 14 fixture-driven assertions in `tests/test-role-apply-precedence.sh`. Two archetypes (`k3s-master`, `ha-node`) were added because `role-apply` already selected their targets while granting them zero capabilities, and the role targets now form a complete `Conflicts=` graph so day-2 switching actually stops the previous role. See ADR-0016.
 
-
 ## WS-MIOSSYS — MiOS-Sys shared-base consolidation of the sidecar fleet
 <!--
 id: WS-MIOSSYS
@@ -244,7 +242,6 @@ acceptance: |
 - **Files:** `usr/share/mios/mios.toml` (`[image.sys]`/`[image.cuda]`/`[image.sidecars]` sys+cuda refs; `[build].bake_groups`→`sys`/`cuda`/`extra`), `automation/57-mios-sys-build.sh` (new), `usr/share/mios/sys/Containerfile` + `usr/share/mios/cuda/Containerfile` (generated), `automation/34-render-quadlets.sh` (both allowlists), `automation/97-ssot-lint.sh`, `automation/14-generate-quadlets.sh`, `usr/libexec/mios/mios-bake-group` (retire the now-superseded `use_hard_links` path), `Containerfile` L181-190, the ~18 `usr/share/containers/systemd/*.container` members.
 - **Accept:** the bound-image store drops to ~25 GB (conservative ~27-30) with the largest single commit capped at the ~12 GB CUDA/torch group; `just drift-gate` (`generate-pod-quadlets.py --check`) validates the regenerated `Image=`/`Exec=`; every `User=`/`Group=`/root-exception is byte-identical (Law 6 untouched); a WSL blade still won't start pxe-hub even though its binary is now baked (activation orthogonality holds).
 - **Deps:** Locked operator decisions — newest-packages-globally tagged-at-build; ALL core components consolidate; k3s binary consolidated (clustering/HA-compatible, privileged activation unchanged) and Pacemaker/corosync HA is CORE; on-CVE/on-release rebuild cadence (Renovate bumps `MIOS_<X>_VERSION` keys under checksum/GPG verify); Ceph = **KEEP-SEPARATE** (cephadm container-only); `mios-cuda` bake-scope (every blade vs GPU-blade-gated) deferred to Wave 3. Complements WS-BAKEGATE Phase 0 (sharding kept as the free 2× safety margin).
-
 
 ## WS-SBOM — SBOM-not-hardcode: digests/hashes are build-time provenance, never SSOT literals
 <!--
@@ -269,7 +266,6 @@ acceptance: |
 - **Files:** `automation/38-llamacpp-prep.sh`, `automation/90-generate-sbom.sh`, the WS-MIOSSYS `automation/NN-*.sh` app fetchers, `usr/share/mios/mios.toml` (version-intent keys only).
 - **Accept:** no hand-maintained `@sha256`/checksum literal remains in `mios.toml` or scripts for a runtime-pinned artifact; each resolved hash appears in the SBOM; the digest/checksum drift-checks validate build-resolved values.
 - **Deps:** images DONE; interlocks with WS-MIOSSYS (digest-lock the floating `:latest` sources as part of Wave 0) and WS-RELTOP (newest-packages, tagged at build).
-
 
 ## WS-DOCS — Planning-docs refactor: ADR system + lean thematic roadmap + generated index
 <!--
@@ -316,7 +312,6 @@ acceptance: |
 - **Accept:** each doc sits in exactly one Diátaxis quadrant; `llms.txt` resolves an agent to the current-state entry points in ≤3 hops.
 - **Deps:** DOCS-03.
 
-
 ## WS-LANG — Language-per-domain unification (Rust for native tooling; bash demoted to thin glue)
 <!--
 id: WS-LANG
@@ -350,7 +345,6 @@ acceptance: |
 - **Accept:** `miosd` bakes in a cached stage and is invoked by unchanged thin RUNs; the first ported tool runs byte-identical to the bash it replaces, then the bash is deleted; the resolver twin is one crate with pyo3 + `--shell` faces and `check_userenv_parity` is retired.
 - **Deps:** WS-DEBT Phase −1 (shellcheck gate + one version token + one TOML reader unblock the port). ADR-0011. **OPEN QUESTIONS:** native-workspace location; Go escape-hatch; pyo3-vs-subprocess for the AI-plane resolver binding.
 
-
 ## WS-TEMPLATE — Compiled file-pattern system (one template per file type + conformance check + Law-14)
 <!--
 id: WS-TEMPLATE
@@ -376,7 +370,6 @@ acceptance: |
 - **Files:** `usr/share/mios/templates/*.tmpl` (new, ~15), `usr/share/mios/mios.toml` (`[templates]` schema; candidate `[laws]` id-14 row — operator-gated), `usr/libexec/mios/mios-new` (new; folds into `miosd scaffold`), `usr/libexec/mios/mios-ai-tag` (header machinery, reused), `tools/compile-templates.py` (new), `automation/98-drift-checks.sh` (`check_template_conformance`), `usr/bin/mios`/`Justfile` (`mios new`/`just new`).
 - **Accept:** `mios new <type> <name>` produces a conformant file that passes `check_template_conformance` + the golden compiler; a template that can't produce a conformant file fails the build; the header check becomes the header-subset of conformance; Law-14 is proposed with its enforcement wired but the `[laws]` row awaits operator sign-off.
 - **Deps:** none hard (Python-first, offline-deterministic); folds into WS-LANG's `miosd` once the Rust workspace exists. ADR-0011. **OPEN QUESTION:** Law-14 confirmation + the next free drift-check number.
-
 
 ## WS-DEBT — Technical-debt register (TD-1..TD-8)
 <!--
@@ -426,7 +419,6 @@ acceptance: |
 - **Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_dispatch.py`, `usr/lib/mios/agent-pipe/mios_pipe/**`, `automation/98-drift-checks.sh` (>800-line gate).
 - **Accept:** `mios_dispatch.py` is extracted and live (`check_unwired_modules` confirms); `server.py` shrinks toward a <800-line composition root; no bare `except:`; the line-length gate is green.
 - **Deps:** independent track (Python, pure refactor). ADR-0011.
-
 
 ---
 
@@ -491,7 +483,6 @@ acceptance: |
 - **Accept:** Greenboot validates newly baked image health and guarantees safe automated fallback on regressions.
 - **Deps:** `DIFFCYCLE-04`.
 
-
 # AI-Plane & Orchestration
 
 ## WS-DEPRED — AI-plane dependency reduction (Hermes→agent-pipe collapse + sidecar consolidations)
@@ -515,7 +506,6 @@ acceptance: |
 - **Files:** `automation/lib/globals.sh`, `usr/share/mios/mios.toml` (`[ai]`/`[hermes]`/`[security.nohc_allowlist]`), `mios-delegation-prefilter.service`, `usr/lib/mios/gateway-agent/session.py` + agent-pipe `server.py`, `usr/lib/mios/mcp` (browser_* verbs), `mios-hermes-browser.service`, `mios-gateway-agent.service`, `mios-guacamole-postgres.container` + `mios-guacamole.container`, `mios-crowdsec-dashboard.container`, `mios-cockpit-link` unit, a new Quickshell `/v1` panel.
 - **Accept:** every front-end resolves `MIOS_AI_ENDPOINT` to `:8640`; `:8641`/`:8642` are retired or thin-aliased; Guacamole runs against a pgvector DB/role; `mios-crowdsec-dashboard` + `mios-guacamole-postgres` are gone; a native SSE client streams `/v1/chat/completions` with model picker + session id + RAG upload.
 - **Deps:** Open browser/CDP + `hermes` CLI/Discord decisions per the study's OPEN QUESTIONS; OWUI removal release TBD. Pairs with WS-BLADE (OWUI gated to `edge-endpoint`) and WS-MIOSSYS (fewer images to consolidate).
-
 
 ## WS-SCHED — Engine-level Priority Scheduling and Preemptive Context Switching
 <!--
@@ -545,7 +535,6 @@ acceptance: |
 - **Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_kvfork.py`, `usr/lib/mios/agent-pipe/mios_sched.py`.
 - **Accept:** Background tasks suspend upon high-priority arrival and resume from their saved KV slot without losing prior conversation state.
 - **Deps:** `SCHED-04`.
-
 
 ## WS-ORCH — Structured Deliberation (DCI), Event-Bus Coordination, and LOO Scoring
 <!--
@@ -597,7 +586,6 @@ acceptance: |
 - **Accept:** A2A negotiation selects semantic-frame format between capable peers and falls back gracefully to standard text on legacy endpoints.
 - **Deps:** none.
 
-
 # Deployment & Sovereignty
 
 ## WS-MDRIVE — Sovereign "run off M:" deployment (Hyper-V Gen 2 `.vhdx` + Ceph OSD on M:)
@@ -621,7 +609,6 @@ acceptance: |
 - **Files:** `Justfile` (new `vhdx-m` recipe, ~L217), `config/artifacts/vhdx.toml` (unchanged; optionally bump root 150→200 GiB), `usr/lib/systemd/system/ceph-bootstrap.service` + `mios-ceph-bootstrap.service` (`ConditionVirtualization=no` → config gate), `usr/libexec/mios/ceph-bootstrap.sh` (add OSD-on-`/dev/sdb` + fs creation), `usr/share/mios/mios.toml [storage.cephfs].enable`, `usr/lib/systemd/system-preset/95-mios-wsl.preset` (WSL fast-shim, optional), `C:\mios-bootstrap\deploy-mios-hyperv-m.ps1` (new).
 - **Accept:** a MiOS Gen 2 VM boots off `M:\MiOS-images\mios-0.3.0.vhdx` with a populated `/var/home`, `bootc status` healthy, and `curl http://localhost:8640/v1/models` answering from Windows via portproxy; with the OSD vhdx attached + `[storage.cephfs].enable=true`, `findmnt /var/home` reports `type ceph` and survives a root-vhdx rebuild; `nvidia-smi` + a heavy-lane inference call succeed in-guest; `bootc upgrade`/`rollback` work.
 - **Deps:** re-establish a Linux podman once (BIB/`bootc install` need it); operator decisions on GPU policy (DDA vs GPU-P), Ceph-now-vs-later, OSD sizing, and the `ConditionVirtualization` scope (prefer the flag-file gate over a blanket removal so transient CI VMs don't auto-enable Ceph). VM/operator-gated.
-
 
 ## WS-CAT — MiOS-Cat unified entry point (one tri-launcher, six verbs, all-platform)
 <!--
@@ -647,7 +634,6 @@ acceptance: |
 - **Files:** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh,bat}` + `cat\lib\`, `C:\mios-bootstrap\{Get-MiOS,bootstrap,install}.ps1` + `bootstrap.sh`, `C:\MiOS\src\autounattend\medicat_installer\**` (delete), `usr/share/mios/mios.toml` (`[cat]`), `automation/98-drift-checks.sh` (new `[cat]`/`[colors]`-resolve check).
 - **Accept:** one MiOS-Cat home; `C:\MiOS` free of the installer (`diff` finds no cross-repo dup); `cat install` is headless-identical across `.ps1`/`.sh`/`.bat`; `irm …/cat | iex` and `curl …/cat.sh | sh` reach the same verb set; no MiOS-Cat value is hardcoded that has an SSOT home.
 - **Deps:** `WS-MDRIVE` supplies the deployment mechanism (`cat install --target hyperv|wsl` delegates to `just vhdx-m` / `deploy-mios-hyperv-m.ps1` / `just wsl2` verbatim — MiOS-Cat only fronts it). ADR-0008.
-
 
 ## WS-CATREPO — Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding
 <!--
@@ -692,7 +678,6 @@ acceptance: |
 - **Accept:** on 512 GB+, offline `podman load` + `bootc switch` from USB works; a deployed host's heavy lane comes up with zero network (the `config.json` weight gate present); an offline build/first-boot resolves all packages from USB.
 - **Deps:** `WS-CAT`; `WS-BAKEGATE` (the bake-plan that defines what artifacts exist). Model-redistribution licensing is an OPEN QUESTION (ADR-0008 Consequences) — if disallowed, MiOS-Data stores a fetch manifest + checksums instead of weights. ADR-0008.
 
-
 ## WS-CATFLAT — MiOS-Cat tree flatten, de-dup, leave-nothing-behind
 <!--
 id: WS-CATFLAT
@@ -715,7 +700,6 @@ acceptance: |
 - **Files:** `C:\mios-bootstrap\cat\**` (cruft purge, i18n), `C:\MiOS\ADR.md` (generated), `cat\ADR-0008.md` (generated), `llms.txt`, `AGENTS.md`, `C:\MiOS\mios.toml` + `C:\mios-bootstrap\mios.toml` (seed provenance), the ADR breadcrumb generator (`roadmap-index.py`-class, Law 8).
 - **Accept:** `cat/` tracks source only (~6 MB+ cruft gone); an agent reaches the ADR index from repo root in ≤2 hops; one documented SSOT + generated seeds; drift-gate green.
 - **Deps:** `WS-CAT` (single-owner flatten must land first). ADR-0008.
-
 
 ## WS-CONFIG — Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/
 <!--
@@ -740,7 +724,6 @@ acceptance: |
 - **Files:** `usr/lib/mios/agent-pipe/mios_portal.py` (configurator view + `mios.toml` read/write), `usr/lib/mios/agent-pipe/server.py` (`GET /` + `/v1/*` one door), `usr/share/mios/portal/` (absorb the configurator UI), `usr/share/mios/configurator/mios.html` (folded in / retired standalone), `usr/share/mios/mios.toml [portal]` (L220), `tools/mios-portal-app/` (Android client → same `:8640/`).
 - **Accept:** the configurator is a view within the Portal at `:8640/`; `GET /` (Portal) and `/v1/*` (OpenAI API) share the one door; every deployment type's config reads/writes `mios.toml` through the surface; the shareable link + the USB are the same surface online and offline.
 - **Deps:** none hard (the Portal + `:8640` `/v1` already exist). Converges with `WS-DEPRED` (the single `:8640` front-door collapse) and is governed by ADR-0007. ADR-0009.
-
 
 # Storage & Data
 
@@ -779,7 +762,6 @@ acceptance: |
 - **Files:** `usr/libexec/mios/mios-cephfs-provision`, `usr/lib/pam.d/mios-cephfs-auth`, `usr/share/mios/mios.toml`.
 - **Accept:** User logins automatically provision and mount secure CephFS home volumes with dedicated cryptographic keys.
 - **Deps:** none.
-
 
 # Security & Identity
 
@@ -845,7 +827,6 @@ acceptance: |
 - **Accept:** one port scheme (the SSOT's) across every doc, guarded by a projection drift-check.
 - **Deps:** none.
 
-
 ## WS-VFIO — Whole-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer
 <!--
 id: WS-VFIO
@@ -882,7 +863,6 @@ acceptance: |
 - **Accept:** All credentials are dynamically generated, stored in `0600` files, and `check_credential_literals` reports 0 grandfathered violations.
 - **Deps:** none.
 
-
 # Desktop & UX
 
 ## WS-DOTFILES — SSOT-as-system-dotfiles (projection registry + engine + both-sides gate)
@@ -912,7 +892,6 @@ acceptance: |
 - **Accept:** the color+btop surfaces are registry-driven with check 25 green; a `[theme].opacity` edit projects to Linux CSS + the WT `json-merge` block + the WSL bridge with foreign keys intact and both gates pass; `mios dotfiles apply` writes live HOME; no `Install-MiOS*` value is hand-typed that has an SSOT home.
 - **Deps:** none hard; interlocks with WS-CONFIG (the Portal edits the `[dotfiles.registry.*]` map) and ADR-0005/0008 (the overlay carries across deployments). Secrets (`secret_ref`) and a deployment-type enum for `condition` are OPEN QUESTIONS (ADR-0010).
 
-
 # Fleet & Federation
 
 ## WS-RELTOP — Release topology: GitHub ≡ Forgejo equal publishers; `PUBLISH` capacity gate
@@ -936,7 +915,6 @@ acceptance: |
 - **What:** Implement the registry-selection logic that both workflows currently hardcode as `ghcr`: default to GitHub/GHCR push+pull when credentials are present, else the local/Forgejo registry. Locate it in the build driver / `install.env` credential detection so both CI environments and the local build resolve the registry the same way.
 - **Why:** The topology directive says registry preference is credential-driven, but `mios-ci.yml`/`build-mios.yml` currently hardcode GHCR; the selection belongs in one shared place, not duplicated per workflow.
 - **Files:** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, the build driver (`automation/build.sh` / `install.env` credential detection).
-
 
 ## WS-NODE — Edge Micro-Mesh mios-node 16-Byte Wire Protocol & Dual-Tier Sandboxing
 <!--
@@ -980,7 +958,6 @@ acceptance: |
 - **Files:** `src/mios-rs/crates/mios-node/src/discovery.rs`, `usr/share/mios/mios.toml`, `usr/lib/systemd/system/mios-node.service`.
 - **Accept:** Newly booted edge nodes discover the host cluster via mDNS and appear in `/v1/cluster/nodes` automatically.
 - **Deps:** `NODE-01`.
-
 
 ## WS-DOCGEN — Generative documentation: one pipeline from AI-hints and comments to every doc surface
 <!--
@@ -1075,7 +1052,6 @@ acceptance: |
 - **Accept:** `just drift-gate` is green, negative tests run in CI, and `lint-shell.sh` covers all shell scripts.
 - **Deps:** none.
 
-
 # Deployment & Sovereignty
 
 ## WS-DEPLOY — Deployment surface consolidation and bare-metal bootc install
@@ -1099,7 +1075,6 @@ acceptance: |
 - **Files:** `installation/mios-install.sh`, `installation/mios-install.ps1`, `usr/share/doc/mios/adr/0013-deploy-surface-consolidation.md`, `usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md`.
 - **Accept:** `mios-install` resolves targets with `--dry-run`, ADR-0013 and ADR-0014 accepted/proposed.
 - **Deps:** none.
-
 
 # Global Unification & De-duplication
 
@@ -1125,7 +1100,6 @@ acceptance: |
 - **Accept:** `mios-dup-report` emits TSV report, scanner flags literals, drift-gate check green.
 - **Deps:** none.
 
-
 ## WS-DEDUP-COLOR — Color and theme alias collapse to single SSOT representation
 <!--
 id: WS-DEDUP-COLOR
@@ -1147,7 +1121,6 @@ acceptance: |
 - **Files:** `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`, `usr/libexec/mios/mios-theme-render`.
 - **Accept:** Theme projection gate green, zero visual change, single canonical color keys.
 - **Deps:** `WS-DEDUP-DISCOVER`.
-
 
 ## WS-DEDUP-AIPLANE — AI model, embed, endpoint, and engine key consolidation
 <!--
@@ -1171,7 +1144,6 @@ acceptance: |
 - **Accept:** AI plane consumers function unchanged, env diff lossless, twin equivalence green.
 - **Deps:** `WS-DEDUP-DISCOVER`.
 
-
 ## WS-DEDUP-NETPATH — Bind address, browser flags, sub-dirs, and port offset derivation
 <!--
 id: WS-DEDUP-NETPATH
@@ -1193,7 +1165,6 @@ acceptance: |
 - **Files:** `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`.
 - **Accept:** Zero literal duplication in network/path families, lossless snapshot diff.
 - **Deps:** `WS-DEDUP-DISCOVER`.
-
 
 ## WS-DEDUP-STRUCTURAL — Resolver double-emission removal and centralized alias table
 <!--
@@ -1217,7 +1188,6 @@ acceptance: |
 - **Accept:** Both twins generate identical minimal aliases, deprecation report functional.
 - **Deps:** `WS-DEDUP-DISCOVER`.
 
-
 ## WS-DEDUP-CROSSSURFACE — SSOT projection across docs, HTML, graph, and build manifests
 <!--
 id: WS-DEDUP-CROSSSURFACE
@@ -1239,7 +1209,6 @@ acceptance: |
 - **Files:** `usr/libexec/mios/mios-ssot-regen`, `automation/98-drift-checks.sh`.
 - **Accept:** Single value update automatically regenerates all surfaces; `check_no_hardcoded_ssot_literal` green.
 - **Deps:** `WS-DEDUP-STRUCTURAL`.
-
 
 ## WS-DEDUP-GUP56 — Always-latest float, SBOM pinning, and minimal key library
 <!--
@@ -1263,7 +1232,6 @@ acceptance: |
 - **Accept:** Zero hardcoded image tag pins in SSOT, minimal key registry green, SBOM complete.
 - **Deps:** `WS-DEDUP-CROSSSURFACE`.
 
-
 ## WS-DEDUP-SIGNOFF — Permanent enforcement, negative coverage, ADR, and campaign signoff
 <!--
 id: WS-DEDUP-SIGNOFF
@@ -1286,10 +1254,6 @@ acceptance: |
 - **Accept:** Full drift-gate suite 100% green, negative coverage ratcheted, ADR merged.
 - **Deps:** `WS-DEDUP-GUP56`.
 
-
-
-
-
 ## Campaign: Scripts -> Hardened Compiled Code + Global Unification (2026-08-01)
 
 600 researched tasks (AGY-961..AGY-1560) executing the operator directive to minimize MiOS to
@@ -1311,3 +1275,39 @@ deny/cosign/SLSA supply-chain, policy-as-code governance. Full task text in `AGY
 ### WS-ZEROHC -- Complete ZERO-HARDCODES: float remaining literals + fix the unanchored lint + new [network] keys  **[P1/P2]**  (-> AGY-1441..AGY-1476, 36 tasks)
 ### WS-SBOM -- Supply-chain + boot hardening as compiled/gated policy (SLSA/cosign/signed-UKI/SBOM/cargo-deny)  **[P1/P2]**  (-> AGY-1477..AGY-1515, 39 tasks)
 ### WS-TESTGOV -- Testing + CI governance (clippy/deny/proptest/golden/mypy) + a per-domain language-enforcement Law  **[P1/P2]**  (-> AGY-1516..AGY-1560, 45 tasks)
+
+## WS-HCI · Sovereign Hyper-Converged Infrastructure & Self-Replication Fabric
+<!-- AI-hint: Sovereign Hyper-Converged Infrastructure (HCI) and autonomous self-replication fabric. -->
+<!-- AI-related: usr/libexec/mios/deploy/self_replicate.py, usr/libexec/mios/virt/microvm_migrate.py, usr/lib/mios/ai/tensor_pipeline.py -->
+
+Converges compute, storage, networking, and virtualization into an immutable, self-building, and self-replicating Fedora bootc AI operating system.
+
+### HCI-01 · Autonomous Self-Introspection & Local podman-MiOS-DEV Rebuild Trigger Pipeline **[P1]**
+- **Goal:** Autonomous system self-introspection, containerized BIB image compilation in `podman-MiOS-DEV`, and atomic `bootc switch` staging.
+- **Tasks:** `T-966`, `T-967`.
+- **Files:** `usr/libexec/mios/deploy/self_replicate.py`, `tests/test-self-replicate-build.py`.
+- **Status:** done.
+
+### HCI-02 · Zero-Downtime MicroVM State Serialization & Live Migration Handover **[P1]**
+- **Goal:** Sub-50ms microVM CPU register and virtio-pmem DAX state serialization across sandbox execution nodes with zero guest data loss.
+- **Tasks:** `T-968`, `T-969`.
+- **Files:** `usr/libexec/mios/virt/microvm_migrate.py`, `tests/test-microvm-live-migration.py`.
+- **Status:** done.
+
+### HCI-03 · Dual-Mode Dynamic Topology Switcher (Seat UI vs Headless Blade) **[P1]**
+- **Goal:** Clean zero-leak runtime transitions between interactive workstation Seat mode and headless compute Blade mode.
+- **Tasks:** `T-970`, `T-971`.
+- **Files:** `usr/libexec/mios/node/topology_switch.py`, `tests/test-seat-blade-transition.py`.
+- **Status:** done.
+
+### HCI-04 · PSS-Governed Workstation Swarm Resource Limiter & OOM-Shield **[P1]**
+- **Goal:** High-density multi-agent swarm execution supporting >1,500 concurrent workers strictly bounded below 16GB host RAM.
+- **Tasks:** `T-972`, `T-973`.
+- **Files:** `usr/lib/mios/agent-pipe/pss_regulator.py`, `tests/test-swarm-pss-memory.py`.
+- **Status:** done.
+
+### HCI-05 · Distributed Layer-Split Tensor Engine over Authenticated Local RPC Mesh **[P1]**
+- **Goal:** Distributed pipeline parallelism splitting 80-layer 70B models across local GPUs and remote RPC worker blades with exact payload math.
+- **Tasks:** `T-974`, `T-975`.
+- **Files:** `usr/lib/mios/ai/tensor_pipeline.py`, `tests/test-tensor-pipeline-rpc.py`.
+- **Status:** done.

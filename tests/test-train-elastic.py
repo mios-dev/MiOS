@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from train_elastic import ElasticTrainingManager
 
-
 class TestTrainElastic(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-train-test-")
@@ -41,7 +40,6 @@ class TestTrainElastic(unittest.TestCase):
         self.assertIsNotNone(resumed)
         self.assertEqual(resumed.step, 450)
         self.assertAlmostEqual(resumed.loss, 0.195)
-
 
 if __name__ == "__main__":
     unittest.main()

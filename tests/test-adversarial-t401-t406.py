@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Comprehensive empirical adversarial test suite for T-401..T-406 (Database, Storage, Encryption, and Replication).
 # AI-related: usr/libexec/mios/db/mios-pgvector-optimize.py, usr/libexec/mios/storage/mios-ledger-sync, usr/libexec/mios/storage/mios-cephfs-quota, usr/libexec/mios/db/mios-pg-replica.py, usr/libexec/mios/db/mios-db-doctor.py, usr/libexec/mios/db/mios-db-migrate.py, usr/libexec/mios/sec/mios-luks-rotate
-"""
-MiOS Empirical Adversarial Test Harness (Challenger 1).
-
-Adversarially tests and stress-tests:
-- pgvector Automated VACUUM & Concurrent HNSW Reindexing (T-401)
-- CephFS Transactional Ledger Replication & Integrity Hashing (T-402)
-- CephFS Dynamic Quota Enforcement & Subvolume Sizing (T-403)
-- Ceph RADOS Gateway Quadlet Isolation (T-404)
-- LUKS2 / dm-crypt Automated Key Rotation & Safety Rollback (T-405)
-- PostgreSQL Hot-Standby Streaming Replication & Fencing Coordinator (T-406)
-- Database Corruption Detector & Non-Destructive Repair Engine (T-407)
-- Database Schema Migration Runner & Rollback Safety (T-412)
-"""
+"""MiOS Empirical Adversarial Test Harness (Challenger 1).  Adversarially tests and stress-tests: - pgvector Automated VACUUM & Concurrent HNSW Reindexing (T-401) - CephFS Transactional Ledger Replication & Integrity Hashing (T-402) - CephFS Dynamic Quota Enforcement & Subvolume Sizing (T-403) - Ceph RADOS Gateway Quadlet Isolation (T-404) - LUKS2 / dm-crypt Automated Key Rotation & Safety Rollback (T-405) - PostgreSQL Hot-Standby Streaming Replication & Fencing Coordinator (T-406) - Database Corruption Detector & Non-Destructive Repair Engine (T-407) - Database Schema Migration Runner & Rollback Safety (T-412)"""
 
 from __future__ import annotations
 
@@ -38,7 +26,6 @@ from typing import Any, Dict, List, Optional
 _HERE = os.path.abspath(os.path.dirname(__file__)) if "__file__" in globals() else os.path.abspath(".")
 _ROOT = os.path.normpath(os.path.join(_HERE, "..")) if os.path.basename(_HERE) == "tests" else _HERE
 
-
 def load_module(name: str, rel_path: str) -> Any:
     full_path = os.path.join(_ROOT, rel_path)
     spec = importlib.util.spec_from_file_location(name, full_path)
@@ -54,7 +41,6 @@ def load_module(name: str, rel_path: str) -> Any:
     spec.loader.exec_module(mod)
     return mod
 
-
 sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios"))
 sys.path.insert(0, os.path.join(_ROOT, "lib", "mios"))
 
@@ -65,7 +51,6 @@ replica_mod = load_module("pg_replica", "usr/libexec/mios/db/mios-pg-replica.py"
 doctor_mod = load_module("db_doctor", "usr/libexec/mios/db/mios-db-doctor.py")
 migrate_mod = load_module("db_migrate", "usr/libexec/mios/db/mios-db-migrate.py")
 luks_mod = load_module("luks_rotate", "usr/libexec/mios/sec/mios-luks-rotate")
-
 
 class TestAdversarialPgVectorOptimize(unittest.TestCase):
     """Stress tests on pgvector optimizer concurrency invariants, table scoping, and error handling."""
@@ -114,7 +99,6 @@ class TestAdversarialPgVectorOptimize(unittest.TestCase):
         data = json.loads(proc.stdout)
         self.assertEqual(data["status"], "completed")
         self.assertEqual(data["parallel_workers"], 2)
-
 
 class TestAdversarialLedgerSync(unittest.TestCase):
     """Adversarial testing on CephFS Transactional Ledger Replication & Integrity Verification."""
@@ -232,7 +216,6 @@ class TestAdversarialLedgerSync(unittest.TestCase):
         self.assertFalse(v_bad)
         self.assertTrue(any("signature" in e for e in errs_bad))
 
-
 class TestAdversarialCephFSQuota(unittest.TestCase):
     """Stress tests on CephFS dynamic quota units, threshold status, and subvolume resizing."""
 
@@ -335,7 +318,6 @@ class TestAdversarialCephFSQuota(unittest.TestCase):
         self.assertEqual(info110["status"], "EXCEEDED")
         self.assertEqual(info110["bytes_percent"], 110.0)
 
-
 class TestAdversarialPgReplica(unittest.TestCase):
     """Stress tests on PostgreSQL replication management, split-brain fencing invariants, and promotion."""
 
@@ -394,7 +376,6 @@ class TestAdversarialPgReplica(unittest.TestCase):
         self.assertFalse(health_fail["healthy"])
         self.assertIn("exceeds threshold", health_fail["reason"])
 
-
 class TestAdversarialDbDoctor(unittest.TestCase):
     """Stress tests on Database Corruption Detector and Non-Destructive Repair Engine."""
 
@@ -452,7 +433,6 @@ class TestAdversarialDbDoctor(unittest.TestCase):
         self.assertIn(os.path.abspath(db1), found)
         self.assertIn(os.path.abspath(db2), found)
         self.assertNotIn(os.path.abspath(fake_db), found)
-
 
 class TestAdversarialDbMigrate(unittest.TestCase):
     """Stress tests on Database Schema Migrations, Checksum Integrity, and Transaction Rollback."""
@@ -525,7 +505,6 @@ class TestAdversarialDbMigrate(unittest.TestCase):
         applied = self.migrator.get_applied_migrations()
         self.assertIn(1, applied)
         self.assertNotIn(2, applied)
-
 
 class TestAdversarialLUKSRotate(unittest.TestCase):
     """Stress tests on LUKS2 key rotation, full keyslot rejection, and safety rollback."""
@@ -608,7 +587,6 @@ class TestAdversarialLUKSRotate(unittest.TestCase):
         # Old keyslot 0 MUST be preserved intact!
         self.assertIn(0, mock_dev.slots)
         self.assertEqual(mock_dev.slots[0], "current-valid-passphrase")
-
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()

@@ -23,7 +23,6 @@ from oomd_psi import OOMDPressureManager
 from train_elastic import ElasticTrainingManager
 from multimodal_ws import MAX_VOICE_LATENCY_MS, MultiModalStreamingPipeline
 
-
 class TestEmpiricalStressT663T672(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-stress-t663-")
@@ -84,7 +83,6 @@ class TestEmpiricalStressT663T672(unittest.TestCase):
                 self.assertLess(t.voice_latency_ms, MAX_VOICE_LATENCY_MS)
 
         asyncio.run(_run())
-
 
 if __name__ == "__main__":
     unittest.main()

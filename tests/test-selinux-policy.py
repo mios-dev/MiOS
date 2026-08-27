@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestSelinuxPolicy(unittest.TestCase):
     """Test suite for SELinux Type Enforcement (.te) generation, mock compilation, and AVC denial parsing."""
 
@@ -114,12 +113,10 @@ class TestSelinuxPolicy(unittest.TestCase):
             exit_code = selinux_policy.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestSelinuxPolicy)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

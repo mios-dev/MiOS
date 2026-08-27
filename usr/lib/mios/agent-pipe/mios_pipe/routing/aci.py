@@ -3,14 +3,12 @@
 
 from __future__ import annotations
 
-
 def _omit_marker(kind: str, n: int, label: str) -> str:
     lbl = f"{label}: " if label else ""
     return (f"\n…⟪{lbl}{n} {kind} OMITTED from the middle — NOT shown. Report "
             f"ONLY the content shown above and below and say it continues. Do "
             f"NOT infer, complete, or invent the omitted {kind}, items, PIDs, "
             f"names, counts, or values.⟫\n")
-
 
 def normalize_output(text, *, max_chars: int, max_lines: int = 0,
                      head_frac: float = 0.6, label: str = "") -> str:

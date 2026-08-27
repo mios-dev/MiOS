@@ -35,14 +35,12 @@ try:
 except ImportError:
     mios_toml = None
 
-
 @dataclass
 class RedactionRule:
     """Regex pattern rule for intercepting and redacting sensitive credentials."""
     category: str
     pattern: re.Pattern
     replacement_template: str
-
 
 @dataclass
 class RedactionResult:
@@ -52,7 +50,6 @@ class RedactionResult:
     redactions_count: int
     detected_categories: List[str]
     redacted_text: str
-
 
 # Canonical sensitive credential regex suite
 REDACTION_RULES: List[RedactionRule] = [
@@ -99,7 +96,6 @@ REDACTION_RULES: List[RedactionRule] = [
         replacement_template=r"\g<1>[REDACTED_SECRET:PARAM]",
     ),
 ]
-
 
 class ClipboardSyncEngine:
     """Handles host clipboard monitoring, secret token redaction, and VM forwarding."""
@@ -207,7 +203,6 @@ class ClipboardSyncEngine:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Secret-Redacting Cross-Platform Clipboard Synchronizer (T-465)"
@@ -270,7 +265,6 @@ def main() -> int:
         else:
             print(f"[clipboard_sync] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

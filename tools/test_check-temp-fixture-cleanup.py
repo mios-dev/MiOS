@@ -8,7 +8,6 @@ import unittest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "check_temp_fixture_cleanup",
@@ -17,9 +16,7 @@ def _load():
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
-
 
 class TestCleanupGate(unittest.TestCase):
     def test_the_markers_cover_the_common_idioms(self):
@@ -45,7 +42,6 @@ class TestCleanupGate(unittest.TestCase):
                 continue
             if MOD.MAKER in s and not rel.endswith("check-temp-fixture-cleanup.py"):
                 self.assertTrue(any(m in s for m in MOD.MARKERS), rel)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

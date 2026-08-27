@@ -17,7 +17,6 @@ _spec.loader.exec_module(M)
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if cond:
@@ -25,7 +24,6 @@ def check(name, cond, detail=""):
     else:
         _fails += 1
         print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
-
 
 def mkrepo(rows, sections):
     """rows: [(tid, pri, status)] summary table. sections: [(tid, sep, status)]."""
@@ -43,13 +41,11 @@ def mkrepo(rows, sections):
     open(os.path.join(root, M.TASKS), "w", encoding="utf-8").write("\n".join(body) + "\n")
     return root
 
-
 def run(root):
     p = subprocess.run([sys.executable, os.path.join(_HERE, "check-tasks-status-parity.py")],
                        env={**os.environ, "MIOS_DRIFT_ROOT": root},
                        capture_output=True, text=True)
     return p.returncode, p.stdout + p.stderr
-
 
 def main():
     roots = []
@@ -121,7 +117,6 @@ def main():
         shutil.rmtree(r, ignore_errors=True)
     print(f"\n{'FAIL' if _fails else 'PASS'}: {_fails} failure(s)")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

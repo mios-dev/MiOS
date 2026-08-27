@@ -22,14 +22,12 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-entropy-seed")
 
-
 @dataclass
 class EntropySeedResult:
     sources_harvested: List[str]  # ["rdseed", "tpm2_trng", "jitter_entropy"]
     bits_injected: int
     shannon_entropy: float  # bits per byte (max 8.0)
     is_nist_compliant: bool
-
 
 class HardwareEntropySeeder:
     """Harvests, whitens, and injects high-density cryptographic entropy."""
@@ -73,12 +71,10 @@ class HardwareEntropySeeder:
         )
         return res
 
-
 def main():
     seeder = HardwareEntropySeeder(dry_run=True)
     res = seeder.harvest_and_seed_entropy(1024)
     print(f"Injected: {res.bits_injected} bits (Entropy: {res.shannon_entropy:.4f})")
-
 
 if __name__ == "__main__":
     main()

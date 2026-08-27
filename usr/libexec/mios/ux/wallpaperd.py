@@ -53,7 +53,6 @@ except ImportError:
 
 HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
 
-
 def get_default_socket_path() -> str:
     """Resolve default Unix domain socket path for mios-wallpaper daemon."""
     uid = getattr(os, "getuid", lambda: 1000)()
@@ -63,7 +62,6 @@ def get_default_socket_path() -> str:
     temp_dir = tempfile.gettempdir()
     return os.path.join(temp_dir, f"mios-wallpaper-{uid}.sock")
 
-
 @dataclass
 class OcclusionState:
     """Desktop window occlusion metrics and visibility state."""
@@ -72,7 +70,6 @@ class OcclusionState:
     active_windows: int = 0
     fullscreen_app: Optional[str] = None
     last_change: float = field(default_factory=time.time)
-
 
 class OcclusionDetector:
     """Monitors Wayland layer-shell and compositor window visibility."""
@@ -116,7 +113,6 @@ class OcclusionDetector:
 
         self.state.last_change = time.time()
         return self.state.is_occluded
-
 
 class VulkanComputeQueue:
     """Vulkan compute priority queue dispatcher and frame pacing modulator."""
@@ -174,7 +170,6 @@ class VulkanComputeQueue:
             "queue_priority": self.priority,
         }
 
-
 @dataclass
 class TelemetryUniforms:
     """System compute telemetry uniforms passed to living wallpaper shader."""
@@ -186,7 +181,6 @@ class TelemetryUniforms:
     speed_factor: float = 1.0
     dark_mode: float = 1.0
     timestamp: float = field(default_factory=time.time)
-
 
 class TelemetrySocketServer:
     """Unix domain socket IPC server handling telemetry uniform updates and control."""
@@ -374,7 +368,6 @@ class TelemetrySocketServer:
         else:
             return {"status": "error", "error": f"Unknown command '{cmd}'"}
 
-
 def send_socket_command(
     socket_path: str,
     cmd: Dict[str, Any],
@@ -424,7 +417,6 @@ def send_socket_command(
                 sock.close()
             except Exception:
                 pass
-
 
 class WallpaperDaemonEngine:
     """Living wallpaper occlusion engine coordinating rendering, frame pacing, and IPC."""
@@ -517,7 +509,6 @@ class WallpaperDaemonEngine:
         finally:
             self._running = False
             self.stop_socket_server()
-
 
 def main() -> int:
     """CLI entrypoint for mios-wallpaperd."""
@@ -666,7 +657,6 @@ def main() -> int:
 
     engine.run_daemon(max_iterations=args.iterations)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

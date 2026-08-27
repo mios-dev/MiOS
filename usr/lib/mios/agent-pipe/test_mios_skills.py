@@ -10,13 +10,11 @@ import mios_skills as s
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_make_schema_strict():
     strict = s._make_schema_strict({
@@ -39,7 +37,6 @@ def t_make_schema_strict():
     check("strict non-dict degrade",
           deg == {"type": "object", "properties": {},
                   "required": [], "additionalProperties": False})
-
 
 def t_skill_to_openai_tool():
     tool = s._skill_to_openai_tool({
@@ -87,7 +84,6 @@ def t_skill_to_openai_tool():
     check("rich: disposition type", props_rich.get("disposition", {}).get("type") == "string")
     check("rich: disposition enum", props_rich.get("disposition", {}).get("enum") == ["tab", "window"])
 
-
 def t_execute_skill():
     ROW = {"id": "skill:abc123", "name": "demo", "status": "promoted",
            "body": {"steps": [{"verb": "noop", "args": {}}]}}
@@ -129,7 +125,6 @@ def t_execute_skill():
     check("execute_skill one step recorded",
           len(out.get("steps") or []) == 1, str(out.get("steps")))
 
-
 def t_skill_render_args():
     out = s._skill_render_args(
         {"url": "$site/page", "n": 5, "who": "$user"},
@@ -139,7 +134,6 @@ def t_skill_render_args():
     check("render second token", out["who"] == "alice", str(out))
     miss = s._skill_render_args({"a": "$gone"}, {})
     check("render missing param literal", miss["a"] == "$gone", str(miss))
-
 
 def t_skill_invocation_lifecycle():
     posts = []
@@ -170,7 +164,6 @@ def t_skill_invocation_lifecycle():
     check("close issued an UPDATE",
           any(p.startswith(f"UPDATE {inv}") for p in posts), str(posts))
 
-
 class _PGStub:
     """Records every (sql, params, fetch) the module sends to postgres and
     replays a canned RETURNING row for the invocation INSERT."""
@@ -185,13 +178,11 @@ class _PGStub:
             return [{"id": self.insert_id}] if self.insert_id is not None else []
         return None
 
-
 def _with_pg(stub):
     """Swap the module's mios_pg seam for the stub; returns the original."""
     prev = s._mios_pg
     s._mios_pg = stub
     return prev
-
 
 def t_pg_invocation_lifecycle():
     # Under pg-primary the legacy CREATE returns nothing, so open must fall
@@ -231,7 +222,6 @@ def t_pg_invocation_lifecycle():
     finally:
         _with_pg(prev)
 
-
 def t_pg_absent_falls_back():
     async def dead_post(sql, *a, **k):
         return None
@@ -254,14 +244,12 @@ def t_pg_absent_falls_back():
     finally:
         _with_pg(prev)
 
-
 def t_pg_row_id_parsing():
     check("row id: legacy handle -> None", s._pg_row_id("skill_invocation:abc") is None)
     check("row id: synthetic handle -> None", s._pg_row_id("skill_invocation:pg-deadbeef") is None)
     check("row id: pg handle -> int", s._pg_row_id("skill_invocation:pg#42") == 42)
     check("row id: non-string -> None", s._pg_row_id(None) is None)
     check("row id: unparseable suffix -> None", s._pg_row_id("skill_invocation:pg#x") is None)
-
 
 def t_skill_attribute_tool_call():
     posts = []
@@ -279,7 +267,6 @@ def t_skill_attribute_tool_call():
           any("RELATE inv:1->emitted->tc:1" in p and "step_index = 3" in p
               for p in posts), str(posts))
 
-
 def t_slug_for_skill():
     check("slug lowercases + hyphenates",
           s._slug_for_skill("  Zxq!! Vwk__Mtp  ") == "zxq-vwk-mtp",
@@ -288,7 +275,6 @@ def t_slug_for_skill():
     check("slug length-capped to 60", len(s._slug_for_skill(long)) == 60)
     check("slug empty -> fallback", s._slug_for_skill("") == "skill")
     check("slug all-symbols -> fallback", s._slug_for_skill("@#$%") == "skill")
-
 
 def t_render_skill_md():
     md = s._render_skill_md(
@@ -302,7 +288,6 @@ def t_render_skill_md():
     md2 = s._render_skill_md("qwzx", "ans", None, None)
     check("render no-tools note",
           "answer produced without explicit tool calls" in md2)
-
 
 def t_write_skill_md_fire(tmp_subdir):
     import os
@@ -325,7 +310,6 @@ def t_write_skill_md_fire(tmp_subdir):
     check("written md carries goal + verb",
           "qwzx vptm" in body and "verb_zz" in body)
 
-
 def main():
     import tempfile
     t_make_schema_strict()
@@ -343,7 +327,6 @@ def main():
         t_write_skill_md_fire(td)
     print(f"\n{'OK' if _fails == 0 else 'FAIL'}: {_fails} failure(s)")
     sys.exit(1 if _fails else 0)
-
 
 if __name__ == "__main__":
     main()

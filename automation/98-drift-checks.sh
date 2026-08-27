@@ -63,7 +63,6 @@ _violations_from() {
     return 1
 }
 
-
 _emit_projection_evidence() {
     local pfx='[98-drift-checks][diff]'
     local gen_rel="$1"; shift
@@ -229,7 +228,6 @@ check_hint_coverage() {
         _violation "AI-hint coverage regressed: a new taggable file lacks an AI-hint header (run mios-ai-tag, or raise [ai_tag].max_untagged only for prompt/data files)"
     fi
 }
-
 
 check_module_boundary() {
     local dir="$ROOT/usr/lib/mios/agent-pipe"
@@ -525,7 +523,6 @@ check_blade_dropins() {
         _violation "blade drop-in generation failed during drift check"
     fi
 }
-
 
 check_no_hardcode() {
     _need_python || return 0
@@ -888,7 +885,6 @@ check_drift_build_catalog() {
         _violation "DB->/ctx materialize round-trip drift detected (check 32) -- verify seed-db-config.py and materialize-build-ctx.py mappings"
     fi
 }
-
 
 check_no_mkdir_in_var() {
     local pat='mkdir[^;&|#]*['\''"[:space:]]/var/'
@@ -1447,7 +1443,6 @@ check_deploy_plane() {
     fi
 }
 
-
 check_version_ssot() {
     local toml="$ROOT/usr/share/mios/mios.toml"
     local ssot vfile bad=""
@@ -1674,7 +1669,6 @@ check_bake_ref_defaults() {
     fi
 }
 
-
 check_roadmap_index() {
     _need_python || return 0
     if [[ ! -f "$ROOT/ROADMAP.md" ]]; then
@@ -1775,8 +1769,6 @@ check_hyprland_conf_heredoc() {
         _violation "usr/share/mios/hyprland/hyprland.conf has drifted from the inline heredoc in automation/65-bake-hyprland.sh -- sync them (B4)"
     fi
 }
-
-
 
 check_curl_retry() {
     local bad=()
@@ -2717,7 +2709,6 @@ check_v2v_import_ssot() {
     fi
 }
 
-
 # --- shell and script module line counts remain within maintainability limits ---
 check_module_length() {
     echo "[98-drift-checks] shell and script module line counts remain within maintainability limits"
@@ -3160,7 +3151,6 @@ main() {
     check_daemon_governor
     check_manual_links
     check_doc_port_scheme
-
 
     check_chrony_ptp_dropin
     check_renderer_gate_coverage
@@ -3876,9 +3866,6 @@ check_doc_port_scheme() {
     _run_py_check check_doc_port_scheme "tools/drift-checks.py doc-port-scheme"
 }
 
-
-
-
 # ADR-0017 D5 prerequisite: divergence needs per-row provenance to be mergeable.
 # --- blade reconciliation schema conforms to hardware capability specs ---
 check_blade_reconcile_schema() {
@@ -3887,7 +3874,6 @@ check_blade_reconcile_schema() {
         _violations_from "check_blade_reconcile_schema: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
-
 
 # Law 15 mirror: mios.toml [bootstrap.sync]. Authority is mios.git.
 # --- bootstrap repository sync: shared files in MiOS-bootstrap match main repository SSOT ---
@@ -3899,7 +3885,6 @@ check_bootstrap_sync() {
     echo "[98-drift-checks]   $out"
 }
 
-
 # The repo is the deliverable; these floors only come down. ROADMAP.md explains why.
 # --- code legibility and complexity metrics remain within ratchet thresholds ---
 check_legibility_ratchet() {
@@ -3909,7 +3894,6 @@ check_legibility_ratchet() {
         _violations_from "check_legibility_ratchet: " "$out"; return; }
     echo "[98-drift-checks]   legibility floors holding"
 }
-
 
 # Header integrity: a tagger must never absorb line 1. See AGY-1607.
 # --- source file AI-hint and license header blocks match template schema ---

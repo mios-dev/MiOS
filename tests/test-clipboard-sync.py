@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestClipboardSync(unittest.TestCase):
     """Test suite for sensitive token redaction and host-to-guest clipboard synchronization."""
 
@@ -105,12 +104,10 @@ class TestClipboardSync(unittest.TestCase):
             exit_code = clipboard_sync.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestClipboardSync)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -19,7 +19,6 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Union
 
-
 class UkiEnrollEngine:
     """Automates UKI Secure Boot signing keys, UEFI enrollment, and TPM2 PCR policy sealing."""
 
@@ -192,11 +191,9 @@ class UkiEnrollEngine:
             "mock": self.mock,
         }
 
-
 def shutil_which(cmd: str) -> Optional[str]:
     import shutil
     return shutil.which(cmd)
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS UKI Enrollment & TPM2 Policy Sealing Engine")
@@ -260,7 +257,6 @@ def main() -> int:
         else:
             print(f"[-] Error: {exc}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

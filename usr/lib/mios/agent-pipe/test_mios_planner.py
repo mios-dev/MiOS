@@ -10,10 +10,8 @@ import httpx
 
 import mios_planner
 
-
 def _ids(nodes):
     return [n.get("id") for n in nodes]
-
 
 chain = [
     {"id": "n3", "tool": "c", "deps": ["n2"]},
@@ -45,7 +43,6 @@ assert set(co) == {"n1", "n2"}, co
 dangling = [{"id": "n1", "deps": ["ghost"]}]
 assert _ids(mios_planner._topological_order(dangling)) == ["n1"]
 
-
 lv = mios_planner._dag_levels(diamond)
 assert _ids(lv[0]) == ["n1"], lv
 assert {n["id"] for n in lv[1]} == {"n2", "n3"}, lv   # concurrent middle level
@@ -64,7 +61,6 @@ cflat = sorted(n["id"] for level in clv for n in level)
 assert cflat == ["n1", "n2"], cflat
 assert all(len(level) == 1 for level in clv), clv   # forced single-node rounds
 
-
 VERB = "<<VERB_CATALOG_SENTINEL>>"
 RECIPE = "<<RECIPE_CATALOG_SENTINEL>>"
 AGENT = "<<AGENT_CATALOG_SENTINEL>>"
@@ -72,14 +68,11 @@ AGENT = "<<AGENT_CATALOG_SENTINEL>>"
 _registry = {"hermes": {"lane": "x"}, "opencode": {"lane": "y"}}
 _routed = contextvars.ContextVar("routed_domain", default=None)  # no domain routed
 
-
 def _is_action_domain_stub(domain):
     return False
 
-
 def _build_dispatch_cmd_stub(tool, args):
     return None if tool == "bogus_verb" else ["mios-launch", tool]
-
 
 mios_planner.configure(
     verb_catalog_rendered=VERB,
@@ -99,7 +92,6 @@ assert "REASON -> PLAN -> DELEGATE meta-rule:" in ps
 assert '{"action":"decompose",' in ps
 assert "Cap your DAG at 8 nodes." in ps, "node cap not rendered"
 
-
 class _FakeResp:
     def __init__(self, payload):
         self.status_code = 200
@@ -107,7 +99,6 @@ class _FakeResp:
 
     def json(self):
         return self._payload
-
 
 class _FakeClient:
     _next_content = None  # set per-test
@@ -124,7 +115,6 @@ class _FakeClient:
     async def post(self, url, json=None, headers=None):
         body = {"choices": [{"message": {"content": _FakeClient._next_content}}]}
         return _FakeResp(body)
-
 
 _orig_httpx_async_client = getattr(httpx, "AsyncClient", None)
 mios_planner.httpx.AsyncClient = _FakeClient  # monkeypatch the model call
@@ -147,11 +137,9 @@ GOOD = (
 LONG_TEXT = ("please find my report file and then open it in the editor "
              "after locating the most recent revision on disk")
 
-
 async def _run(text, content):
     _FakeClient._next_content = content
     return await mios_planner.decompose_intent(text)
-
 
 parsed = asyncio.run(_run(LONG_TEXT, GOOD))
 assert parsed is not None, "good DAG was rejected"
@@ -189,7 +177,6 @@ assert len(capped["nodes"]) == mios_planner.PLANNER_MAX_NODES, len(capped["nodes
 
 assert asyncio.run(_run("open steam", GOOD)) is None, "short prompt not skipped"
 
-
 assert mios_planner.PLANNER_SHORT_PROMPT_CHARS == 60, mios_planner.PLANNER_SHORT_PROMPT_CHARS
 assert mios_planner.PLANNER_SHORT_PROMPT_WORDS == 10, mios_planner.PLANNER_SHORT_PROMPT_WORDS
 
@@ -203,7 +190,6 @@ assert asyncio.run(_run("open steam", GOOD)) is not None, "word cutoff not read 
 mios_planner.configure(short_prompt_words=10)
 assert asyncio.run(_run("open steam", GOOD)) is None, "short prompt not skipped after restore"
 
-
 SYN_CATALOG = {
     "qq_write_a": {"permission": "write"},
     "qq_probe_a": {"permission": "read"},
@@ -214,11 +200,9 @@ SYN_DOMAINS = {
     "domb": {"verbs": ["zz_read_b"]},                  # research: no write verb
 }
 
-
 def _is_action_domain_real(domain):
     verbs = (SYN_DOMAINS.get(domain) or {}).get("verbs") or []
     return any((SYN_CATALOG.get(v) or {}).get("permission") == "write" for v in verbs)
-
 
 mios_planner.configure(
     verb_catalog=SYN_CATALOG,

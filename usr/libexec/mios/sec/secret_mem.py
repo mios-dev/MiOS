@@ -26,7 +26,6 @@ logger = logging.getLogger("mios-secret-mem")
 MADV_DONTDUMP = 16    # 0x10: Exclude from core dumps
 MADV_WIPEONFORK = 18  # 0x12: Zero-fill memory on fork()
 
-
 class CTypesMemoryProtection:
     """Helper interfacing with libc / OS kernel memory protection primitives."""
 
@@ -119,9 +118,7 @@ class CTypesMemoryProtection:
         for i in range(size):
             raw[i] = 0
 
-
 _MEM_OPS = CTypesMemoryProtection()
-
 
 class SecretBuffer:
     """A memory-locked, non-dumpable buffer that zeroes itself upon context exit or garbage collection."""
@@ -187,7 +184,6 @@ class SecretBuffer:
             _MEM_OPS.unlock_memory(self._ptr, self.size)
             self.is_wiped = True
 
-
 class SecretEnclave:
     """Enclave facade providing secure token isolation and core dump leak verification."""
 
@@ -214,7 +210,6 @@ class SecretEnclave:
             "madv_wipeonfork_flag": MADV_WIPEONFORK,
             "enclave_ready": True,
         }
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS Secure In-Memory Secret Enclave")
@@ -245,7 +240,6 @@ def main() -> int:
 
     print("MiOS Secret Memory Enclave initialized.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

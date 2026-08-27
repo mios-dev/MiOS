@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestNetSegmentation(unittest.TestCase):
     """Test suite for nftables isolation ruleset generation, pairing matrix validation, and apply/flush."""
 
@@ -96,12 +95,10 @@ class TestNetSegmentation(unittest.TestCase):
             exit_code = net_segmentation.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNetSegmentation)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

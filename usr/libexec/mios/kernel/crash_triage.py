@@ -26,7 +26,6 @@ logger = logging.getLogger("mios-crash-triage")
 
 DEFAULT_CRASH_LOG_DIR = "/var/log/mios/crash"
 
-
 @dataclass
 class CrashReport:
     ticket_id: str
@@ -39,7 +38,6 @@ class CrashReport:
     created_at: float = field(default_factory=time.time)
     isolation_category: str = "core_kernel"
     markdown_path: Optional[str] = None
-
 
 class KernelCrashTriageEngine:
     """Headless kernel crash dump, oops, and vmcore symbol demangling engine."""
@@ -209,7 +207,6 @@ class KernelCrashTriageEngine:
                 pass
         return f"{self.log_dir}/crash-report-{report.ticket_id}.md"
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Headless Kernel Crash Dump Triage Engine")
     parser.add_argument("--vmcore", type=str, default="/var/crash/vmcore.zst", help="Path to vmcore crash dump")
@@ -220,7 +217,6 @@ def main():
     rep = engine.triage_vmcore(args.vmcore)
     print(engine.format_markdown_report(rep))
     print(json.dumps(engine.generate_postgres_ticket(rep), indent=2))
-
 
 if __name__ == "__main__":
     main()

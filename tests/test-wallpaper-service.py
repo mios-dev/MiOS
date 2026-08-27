@@ -13,7 +13,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _WALL_RS = os.path.join(_ROOT, "src", "mios-rs", "crates", "mios-wallpaperd", "src", "main.rs")
 
-
 class TestWallpaperService(unittest.TestCase):
     """Validates mios-wallpaperd Rust crate structure and source code."""
 
@@ -24,12 +23,10 @@ class TestWallpaperService(unittest.TestCase):
         self.assertIn("WallpaperConfig", content)
         self.assertIn("living-wallpaper.html", content)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestWallpaperService)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

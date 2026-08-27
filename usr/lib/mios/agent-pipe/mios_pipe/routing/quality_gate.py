@@ -36,7 +36,6 @@ _DEFAULT_CHECK_EMPTY = True
 _DEFAULT_CHECK_PUNT = True
 _DEFAULT_CHECK_JSON = True
 
-
 def _load_quality_config() -> Dict[str, Any]:
     """Load [agent_pipe.quality] settings from mios_db_config resolver if available."""
     try:
@@ -50,7 +49,6 @@ def _load_quality_config() -> Dict[str, Any]:
     except Exception:
         pass
     return {}
-
 
 def evaluate_quality(output: str, config: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
     try:

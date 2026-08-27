@@ -18,19 +18,16 @@ _loader.exec_module(pg)   # runs defs/imports only; main() is __main__-guarded
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _declared_len_ok(msg: bytes) -> bool:
     """The Int32 after the type byte must equal len(msg) - 1 (length includes
     itself + body, excludes the 1 type byte)."""
     return len(msg) >= 5 and struct.unpack("!I", msg[1:5])[0] == len(msg) - 1
-
 
 def t_sync_execute():
     check("sync: exact bytes", pg.build_sync() == b"S\x00\x00\x00\x04",
@@ -40,7 +37,6 @@ def t_sync_execute():
           repr(ex))
     check("execute: declared length", _declared_len_ok(ex))
 
-
 def t_parse():
     m = pg.build_parse("SELECT 1")
     check("parse: type byte P", m[:1] == b"P")
@@ -48,7 +44,6 @@ def t_parse():
     check("parse: query NUL-terminated present", b"SELECT 1\x00" in m)
     check("parse: 0 param-type OIDs (trailing 00 00)", m.endswith(b"\x00\x00"))
     check("parse: total size", len(m) == 17, str(len(m)))
-
 
 def t_bind():
     m = pg.build_bind(["ab", None])
@@ -63,7 +58,6 @@ def t_bind():
     e = pg.build_bind([])
     check("bind: empty params declared length", _declared_len_ok(e))
 
-
 def t_encode_param():
     check("encode: None -> None", pg.encode_param(None) is None)
     check("encode: True -> 'true'", pg.encode_param(True) == "true")
@@ -73,7 +67,6 @@ def t_encode_param():
     check("encode: str passthrough", pg.encode_param("x'; DROP") == "x'; DROP")
     check("encode: list -> json", pg.encode_param([1, 2]) == "[1, 2]")
     check("encode: dict -> json", pg.encode_param({"a": 1}) == '{"a": 1}')
-
 
 def t_parse_envelope():
     stmts, txn = pg.parse_envelope('{"sql": "SELECT $1", "params": ["x", null, 3]}')
@@ -93,7 +86,6 @@ def t_parse_envelope():
         except (ValueError, Exception):
             check(f"envelope: rejects {bad!r}", True)
 
-
 def t_no_interpolation_property():
     """The whole point: a malicious param value never changes the SQL bytes."""
     evil = "x'); DROP TABLE agent_memory; --"
@@ -104,7 +96,6 @@ def t_no_interpolation_property():
           evil.encode() in m)
     check("safety: Bind has no SQL keywords of its own", b"DELETE" not in m)
 
-
 def main():
     t_sync_execute()
     t_parse()
@@ -114,7 +105,6 @@ def main():
     t_no_interpolation_property()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

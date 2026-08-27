@@ -19,7 +19,6 @@ from mios_config import (  # SSOT mios.toml reader + model-call scalars (sibling
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 REFINE_TIMEOUT_S = int(os.environ.get("MIOS_REFINE_TIMEOUT_S", "30"))
 REFINE_ENDPOINT = ""
 REFINE_MODEL = ""
@@ -37,7 +36,6 @@ ASK_CLARIFY_JUDGE_ENABLE = False
 _ABBR_DEFAULT = ("approx.", "Approx.", "e.g.", "i.e.", "vs.", "etc.", "U.S.",
                  "U.K.", "a.m.", "p.m.", "No.", "Inc.", "Co.", "Ltd.", "St.", "Mt.")
 
-
 def _ssot_abbreviations() -> tuple:
     """Sentence-split abbreviation exceptions from mios.toml [verity], or the
     Latin default when the key/file is absent. Script-neutral splitter + this
@@ -50,7 +48,6 @@ def _ssot_abbreviations() -> tuple:
         pass
     return _ABBR_DEFAULT
 
-
 _ABBR = _ssot_abbreviations()
 
 _polish_post = None
@@ -61,7 +58,6 @@ _format_satisfaction_block = None
 _store_knowledge = None
 _write_skill_md_fire = None
 _proposal_var = None
-
 
 def configure(*, refine_timeout_s=None, refine_endpoint=None, refine_model=None,
               web_enrich_verbs=None, web_research_search_timeout=None,
@@ -127,7 +123,6 @@ def configure(*, refine_timeout_s=None, refine_endpoint=None, refine_model=None,
     if abbreviations is not None:
         _ABBR = tuple(str(x) for x in abbreviations if str(x).strip())
 
-
 async def _clarify_question(user_text: str, answer: str) -> str:
     if not (answer or "").strip():
         return ""
@@ -165,11 +160,9 @@ async def _clarify_question(user_text: str, answer: str) -> str:
         log.debug("clarify judge failed (-> none): %s", e)
         return ""
 
-
 VERITY_FACTCHECK = os.environ.get(
     "MIOS_VERITY_FACTCHECK", "true").lower() not in {"false", "0", "no"}
 VERITY_FACTCHECK_MAX_Q = int(os.environ.get("MIOS_VERITY_FACTCHECK_MAX_Q", "2"))
-
 
 async def _verity_factcheck(draft: str, user_q: str,
                             refined: Optional[dict]) -> str:
@@ -243,7 +236,6 @@ async def _verity_factcheck(draft: str, user_q: str,
             "specifics; CONFIRM claims these results support, DROP or soften "
             "claims they contradict or don't mention):\n\n" + "\n\n".join(blocks))
 
-
 def _strip_ungrounded_figures(answer: str, haystack: str) -> str:
     if not answer or not answer.strip():
         return answer
@@ -296,7 +288,6 @@ def _strip_ungrounded_figures(answer: str, haystack: str) -> str:
                      "\n".join(l for l in out_lines if l is not None)).strip()
     log.info("figure-guard: dropped %d ungrounded $/%% sentence(s)", dropped)
     return rebuilt if rebuilt and rebuilt.strip() else answer
-
 
 async def polish_response(raw_text: str,
                           refined: Optional[dict],

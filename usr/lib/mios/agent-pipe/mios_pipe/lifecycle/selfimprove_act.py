@@ -7,7 +7,6 @@ from typing import Iterable, Optional, Sequence, Tuple
 
 import mios_bench
 
-
 def proposal_target_allowed(target_kind: str, *, improvable, protected) -> bool:
     kind = str(target_kind or "").strip()
     if not kind:
@@ -17,7 +16,6 @@ def proposal_target_allowed(target_kind: str, *, improvable, protected) -> bool:
     if kind in prot:
         return False
     return kind in impr
-
 
 def validate_proposal(proposal: dict, *, improvable, protected) -> "Tuple[bool, str]":
     if not isinstance(proposal, dict):
@@ -32,7 +30,6 @@ def validate_proposal(proposal: dict, *, improvable, protected) -> "Tuple[bool, 
         return False, "target_protected_or_unimprovable"
     return True, "ok"
 
-
 def solver_gap(weak_score: float, strong_score: float) -> float:
     """The discriminative signal: ``strong - weak``. A purely numeric verifier
     output (good per NO-HARDCODE -- not an English/keyword gate). Both args are
@@ -40,13 +37,11 @@ def solver_gap(weak_score: float, strong_score: float) -> float:
     the strong one, which carries no curation signal)."""
     return float(strong_score) - float(weak_score)
 
-
 def is_discriminative(weak_score: float, strong_score: float, *, gap_min: float) -> bool:
     """True iff a task SEPARATES a weak from a strong solver by at least ``gap_min``
     (Autodata's sweet spot). Tasks both lanes pass (trivial) or both fail
     (impossible) have a gap below the threshold and carry no eval/training signal."""
     return solver_gap(weak_score, strong_score) >= float(gap_min)
-
 
 def curate_eval(candidates: "Iterable[dict]", *, gap_min: float) -> "list[dict]":
     kept: list[dict] = []
@@ -60,10 +55,8 @@ def curate_eval(candidates: "Iterable[dict]", *, gap_min: float) -> "list[dict]"
             kept.append(c)
     return kept
 
-
 def pass_hat_k_score(tasks: "Sequence[Tuple[int, int]]", *, k: int) -> float:
     return mios_bench.aggregate_pass_hat_k(tasks, int(k))
-
 
 def proof_of_utility(baseline_score: float, proposed_score: float, *,
                      margin: float = 0.0,
@@ -73,7 +66,6 @@ def proof_of_utility(baseline_score: float, proposed_score: float, *,
     if require_improvement:
         accept = accept and (delta > 0.0)
     return accept, delta
-
 
 def decide_proposal(proposal: dict, *, baseline_score: float, proposed_score: float,
                     improvable, protected, margin: float = 0.0,

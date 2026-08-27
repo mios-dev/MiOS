@@ -23,7 +23,6 @@ _SANDBOX_SELF_CONFINED: tuple = ()
 
 _INJECTED = frozenset(("_VERB_CATALOG", "SANDBOX_ENFORCE", "_SANDBOX_SELF_CONFINED"))
 
-
 def configure(*, verb_catalog=None, sandbox_enforce=None,
               sandbox_self_confined=None) -> None:
     """Inject the three server-owned values the builder reads, under their exact
@@ -37,7 +36,6 @@ def configure(*, verb_catalog=None, sandbox_enforce=None,
     if sandbox_self_confined is not None:
         g["_SANDBOX_SELF_CONFINED"] = sandbox_self_confined
 
-
 def _dispatch_sandbox_profile(tool: str) -> "mios_sandbox.SandboxProfile":
     """Resolve the WS-A13 confinement profile for `tool`: its [verbs.*].permission
     tier, with an optional [verbs.*].sandbox_profile explicit override. Fail-closed
@@ -46,7 +44,6 @@ def _dispatch_sandbox_profile(tool: str) -> "mios_sandbox.SandboxProfile":
     return mios_sandbox.resolve_profile(
         str(vcfg.get("permission", "read")).lower(),
         explicit=vcfg.get("sandbox_profile"))
-
 
 def _sandbox_wrap_cmd(tool: str, cmd: str,
                       profile: "mios_sandbox.SandboxProfile",
@@ -79,10 +76,6 @@ def _sandbox_wrap_cmd(tool: str, cmd: str,
         return cmd, None
     return " ".join(shlex.quote(p) for p in prefix) + " " + cmd, ws
 
-
-
-
-
 def normalize_container_exec(script: str) -> str:
     script = re.sub(r'\bdocker(\.exe)?\b', 'podman', script, flags=re.IGNORECASE)
 
@@ -111,7 +104,6 @@ def normalize_container_exec(script: str) -> str:
         flags=re.IGNORECASE | re.MULTILINE
     )
     return script
-
 
 def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     """Map verb name + args -> the bash command line the launcher

@@ -2,8 +2,6 @@
 # AI-hint: Xbox VM Secure Boot Fix Script
 set -euo pipefail
 
-
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

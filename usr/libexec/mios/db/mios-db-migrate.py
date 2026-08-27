@@ -35,7 +35,6 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 """
 
-
 class MigrationFile:
     """Represents an on-disk SQL migration script."""
 
@@ -62,7 +61,6 @@ class MigrationFile:
     @staticmethod
     def _calculate_sha256(content: str) -> str:
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
-
 
 class DbMigrator:
     """Orchestrates schema version tracking, integrity checking, and atomic transaction execution."""
@@ -328,7 +326,6 @@ COMMIT;
             "status": "completed",
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Zero-Downtime Transactional Schema Migration Runner"
@@ -382,7 +379,6 @@ def main() -> int:
     except Exception as e:
         sys.stderr.write(f"[mios-db-migrate] ERROR: {e}\n")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

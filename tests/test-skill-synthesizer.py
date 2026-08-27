@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load skill-synthesizer module from {_SYNTH_PATH}")
 
-
 class TestSkillSynthesizer(unittest.TestCase):
     """Validates SKILL.md template generation and step formatting."""
 
@@ -39,12 +38,10 @@ class TestSkillSynthesizer(unittest.TestCase):
         self.assertIn("Step 2: Use `replace_file_content`", doc)
         self.assertIn("Step 3: Use `run_command`", doc)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestSkillSynthesizer)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

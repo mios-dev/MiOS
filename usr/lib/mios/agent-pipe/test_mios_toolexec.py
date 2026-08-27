@@ -10,7 +10,6 @@ import json
 
 import mios_toolexec as T
 
-
 _VERB_CATALOG = {
     "web_search": {"permission": "read"},
     "web_extract": {"permission": "read", "max_result_chars": 4000},
@@ -19,12 +18,10 @@ _VERB_CATALOG = {
 }
 _DISPATCHED = []
 
-
 async def _fake_dispatch(verb, args):
     _DISPATCHED.append((verb, args))
     return {"ok": True, "output": json.dumps({"results": [
         {"title": "T", "url": "http://x"}]})}
-
 
 _octx = contextvars.ContextVar("orch", default={})
 
@@ -61,13 +58,11 @@ T.configure(
 
 PASS = 0
 
-
 def ok(cond, label):
     global PASS
     assert cond, "FAIL: " + label
     PASS += 1
     print("  ok:", label)
-
 
 print("[_norm_tool_call]")
 n = T._norm_tool_call("web_search", {"query": "hi"}, 0)
@@ -82,11 +77,9 @@ n3 = T._norm_tool_call("web_search", "not json at all", 2)
 ok(json.loads(n3["function"]["arguments"]) == {},
    "norm degrades malformed args to {}")
 
-
 print("[_rescue_tool_calls]")
 TOOLS = [{"type": "function", "function": {"name": "web_search"}},
          {"type": "function", "function": {"name": "web_extract"}}]
-
 
 def _one(rescued):
     assert len(rescued) == 1, "expected exactly one rescued call, got %r" % rescued
@@ -129,7 +122,6 @@ ok(T._rescue_tool_calls(guard, TOOLS) == [],
 ok(T._rescue_tool_calls("just a normal answer, nothing to call here.", TOOLS) == [],
    "plain prose yields no rescued calls")
 
-
 print("[_cap_verb_result]")
 ok(T._verb_result_cap("web_search") == 1500,
    "verb_result_cap falls back to READ_TOOL_ENRICH_CHARS")
@@ -143,7 +135,6 @@ capped = T._cap_verb_result("web_search", big)
 ok(isinstance(capped, str) and len(capped) < len(big),
    "cap_verb_result truncates an over-budget string")
 
-
 print("[_format_tool_error]")
 ok(T._format_tool_error({"results": []}) is None,
    "no error on a normal result dict")
@@ -156,14 +147,11 @@ ok(e2 and e2["error"]["message"] == "bad",
 ok(T._format_tool_error("not a dict") is None,
    "non-dict result is not an error")
 
-
 print("[_exec_tool_calls]")
 _pushed = []
 
-
 def _push(s):
     _pushed.append(s)
-
 
 async def _run():
     _DISPATCHED.clear()

@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestDriverSlipstream(unittest.TestCase):
     """Test suite for driver .inf parsing, vendor mapping, DISM command planning, and CLI."""
 
@@ -104,12 +103,10 @@ class TestDriverSlipstream(unittest.TestCase):
             exit_code = driver_slipstream.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestDriverSlipstream)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

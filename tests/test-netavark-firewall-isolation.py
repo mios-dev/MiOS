@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/libexec/mios/net")
 from netavark_isolate import NetavarkIsolationManager
 
-
 def test_lateral_traversal_blocked():
     """Verify inter-bridge packet traversal is 100% blocked between isolated networks."""
     mgr = NetavarkIsolationManager()
@@ -17,7 +16,6 @@ def test_lateral_traversal_blocked():
     # Same-bridge packet allowed
     assert mgr.evaluate_packet("net-agent", "net-agent")
 
-
 def test_zero_ports_leak_to_all_interfaces():
     """Verify 0.0.0.0 port bindings are rejected and only 127.0.0.1 / mesh IPs allowed."""
     mgr = NetavarkIsolationManager()
@@ -27,7 +25,6 @@ def test_zero_ports_leak_to_all_interfaces():
 
     for svc, binding in mgr.port_bindings.items():
         assert not binding.startswith("0.0.0.0"), f"Leaked 0.0.0.0 binding in {svc}"
-
 
 if __name__ == "__main__":
     test_lateral_traversal_blocked()

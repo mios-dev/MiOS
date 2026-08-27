@@ -15,7 +15,6 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _AGENT_REGISTRY: dict = {}
 _DISPATCH_CFG: dict = {}
 _depth_exhausted = None
@@ -32,7 +31,6 @@ ROUTE_ON_CARD_SKILLS = False
 _db_create = None
 _db_post = None
 _db_fire = None
-
 
 def configure(*, agent_registry=None, dispatch_cfg=None, depth_exhausted=None,
               dispatch_depth=None, lane_sem_key=None, dedup_pool_by_target=None,
@@ -78,13 +76,11 @@ def configure(*, agent_registry=None, dispatch_cfg=None, depth_exhausted=None,
     if db_fire is not None:
         _db_fire = db_fire
 
-
 def _opted_out(c: dict) -> bool:
     """Explicit fan-out opt-out. The telemetry daemon-agent sets this: it ignores
     the prompt and always returns a system digest, so it would flood synthesis."""
     return c.get("fanout") is False or \
         str(c.get("fanout", "")).lower() in {"false", "no", "0"}
-
 
 def _eligible_candidates(primary_name: str, live_agents: Optional[set],
                          include_research: bool) -> list:
@@ -99,7 +95,6 @@ def _eligible_candidates(primary_name: str, live_agents: Optional[set],
         out.append((name, cfg))
     return out
 
-
 def _council_fallback(primary_name: str, candidates: list, want: int) -> list:
     primary_lane = _lane_sem_key(_AGENT_REGISTRY.get(primary_name) or {})
     pool = sorted(candidates, key=lambda nc: (
@@ -107,7 +102,6 @@ def _council_fallback(primary_name: str, candidates: list, want: int) -> list:
     keep = set(_dedup_pool_by_target([n for n, _c in pool]))
     pool = [(n, c) for (n, c) in pool if n in keep]
     return pool if want <= 0 else pool[:want]
-
 
 def _published_skill_lines(cfg: dict) -> list:
     out: list = []
@@ -133,7 +127,6 @@ def _published_skill_lines(cfg: dict) -> list:
             out.append(": ".join(bits))
     return out
 
-
 def _agent_card(name: str, cfg: dict) -> str:
     role = str(cfg.get("role") or cfg.get("job") or "").strip()
     strengths = cfg.get("strengths")
@@ -148,7 +141,6 @@ def _agent_card(name: str, cfg: dict) -> str:
     if ROUTE_ON_CARD_SKILLS:
         parts.extend(_published_skill_lines(cfg))
     return f"{name} -- {' | '.join(parts)}" if parts else name
-
 
 def _emit_route_event(primary_name: str, secondaries: list) -> None:
     """Best-effort: record the fan-out routing DECISION in the event table when
@@ -170,7 +162,6 @@ def _emit_route_event(primary_name: str, secondaries: list) -> None:
         }, now_fields=("ts",))))
     except Exception as e:  # noqa: BLE001 -- telemetry is best-effort; never block routing
         log.debug("fanout route-event emit failed: %s", e)
-
 
 async def _model_select(corpus: str, candidates: list, want: int) -> Optional[list]:
     mode = str(_DISPATCH_CFG.get("fanout_select_mode", "model")).strip().lower()
@@ -227,7 +218,6 @@ async def _model_select(corpus: str, candidates: list, want: int) -> Optional[li
     except Exception as e:  # noqa: BLE001 -- relevance is best-effort; degrade open
         log.debug("fanout model-select failed (-> council fallback): %s", e)
         return None
-
 
 async def _pick_fanout_agents(primary_name: str,
                               refined: Optional[dict],

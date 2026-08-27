@@ -9,13 +9,11 @@ import mios_sandbox as sb
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_tiers():
     r = sb.resolve_profile("read")
@@ -28,12 +26,10 @@ def t_tiers():
     check("interactive: strict", i.mechanism == "strict")
     check("interactive: NO network", i.network is False)
 
-
 def t_fail_closed():
     for bad in ["", None, "supervisor", "weird", "READ-ish"]:
         p = sb.resolve_profile(bad)
         check(f"fail-closed: {bad!r} -> strict (never none)", p.mechanism == "strict" and p.confined is True, p.to_dict())
-
 
 def t_explicit():
     check("explicit: 'none' override", sb.resolve_profile("interactive", explicit="none").mechanism == "none")
@@ -41,7 +37,6 @@ def t_explicit():
     check("explicit: tier-name override", sb.resolve_profile("read", explicit="write").mechanism == "workspace")
     check("explicit: unknown override -> strict (fail-closed)",
           sb.resolve_profile("read", explicit="yolo").mechanism == "strict")
-
 
 def t_workspace():
     p = sb.workspace_path("powershell_run", "abc123")
@@ -51,11 +46,9 @@ def t_workspace():
     check("workspace: distinct verbs differ", sb.workspace_path("a", "u") != sb.workspace_path("b", "u"))
     check("workspace: sanitizes uniq (no traversal)", "/" not in sb.workspace_path("v", "../../etc").rsplit("/", 1)[1])
 
-
 def t_shape():
     d = sb.resolve_profile("write").to_dict()
     check("shape: keys", set(d) == {"tier", "mechanism", "workspace", "read_only_root", "network", "confined"})
-
 
 def t_bwrap():
     cmd = ["powershell_run", "--", "echo hi"]
@@ -76,7 +69,6 @@ def t_bwrap():
     uk = sb.build_bwrap_argv(sb.resolve_profile("bogus"), cmd, workspace="/ws")
     check("bwrap: unknown tier fail-closed (confined, no net)", uk[0] == "bwrap" and "--share-net" not in uk)
 
-
 def t_sandbox_exec_prefix():
     check("prefix: none tier -> [] (no wrap)",
           sb.sandbox_exec_prefix(sb.resolve_profile("read")) == [])
@@ -91,7 +83,6 @@ def t_sandbox_exec_prefix():
     check("prefix: unknown tier fail-closed (confined, no net)",
           uk and uk[0] == "mios-sandbox-exec" and "--net" not in uk)
 
-
 def main():
     t_tiers()
     t_fail_closed()
@@ -102,7 +93,6 @@ def main():
     t_sandbox_exec_prefix()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

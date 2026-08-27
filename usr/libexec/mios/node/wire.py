@@ -29,7 +29,6 @@ HEADER_SIZE = 16
 MAX_PAYLOAD_LEN = 64 * 1024 * 1024  # 64 MB ceiling
 HEADER_STRUCT = struct.Struct(">HBBIII")  # Big-Endian: u16, u8, u8, u32, u32, u32
 
-
 class Opcode(enum.IntEnum):
     HEARTBEAT = 0x01
     NODE_ANNOUNCE = 0x02
@@ -39,10 +38,8 @@ class Opcode(enum.IntEnum):
     STATE_ACK = 0x06
     ERROR = 0x07
 
-
 # Alias for Rust MessageType parity
 MessageType = Opcode
-
 
 class Header:
     __slots__ = ("magic", "version", "opcode", "node_id", "payload_len", "checksum")
@@ -119,9 +116,7 @@ class Header:
             checksum=checksum,
         )
 
-
 WireHeader = Header
-
 
 class Frame:
     __slots__ = ("header", "payload")
@@ -172,12 +167,10 @@ class Frame:
             raise ValueError(f"CRC32 mismatch: expected 0x{header.checksum:08X}, calculated 0x{actual_crc:08X}")
         return cls(header=header, payload=payload)
 
-
 class WireFrame(Frame):
     def __init__(self, opcode: Union[Opcode, int], node_id: int, payload: bytes):
         fr = Frame.create(opcode, node_id, payload)
         super().__init__(header=fr.header, payload=fr.payload)
-
 
 class AsyncFrameBuffer:
     """Stream buffer for non-blocking TCP streams; extracts complete frames as byte chunks arrive."""
@@ -229,7 +222,6 @@ class AsyncFrameBuffer:
     def clear(self) -> None:
         self._buf.clear()
 
-
 class AsyncFrameCodec:
     """Async TCP stream reader and writer using asyncio StreamReader / StreamWriter."""
 
@@ -250,7 +242,6 @@ class AsyncFrameCodec:
         data = frame.encode()
         writer.write(data)
         await writer.drain()
-
 
 class NodeWireDispatcher:
     """Dispatches received frames to registered opcode handlers."""
@@ -279,9 +270,7 @@ class NodeWireDispatcher:
             return resp_frame.encode()
         return None
 
-
 OpcodeDispatcher = NodeWireDispatcher
-
 
 class AsyncTcpFrameServer:
     """Async TCP server listening for framed connections and routing frames to a handler callback."""
@@ -343,7 +332,6 @@ class AsyncTcpFrameServer:
             self.server.close()
             await self.server.wait_closed()
 
-
 class AsyncTcpFrameClient:
     """Async TCP client for sending and receiving binary frames over a TCP connection."""
 
@@ -374,11 +362,9 @@ class AsyncTcpFrameClient:
             except Exception:
                 pass
 
-
 def main() -> int:
     print("[wire.py] MiOS Async TCP Frame Engine Ready.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

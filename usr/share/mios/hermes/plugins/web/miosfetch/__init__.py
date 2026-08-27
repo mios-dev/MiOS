@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from plugins.web.miosfetch.provider import MiosFetchProvider
 
-
 def register(ctx) -> None:
     """Register the MiOS direct-fetch extract provider with the plugin context."""
     ctx.register_web_search_provider(MiosFetchProvider())

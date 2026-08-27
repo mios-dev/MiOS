@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "usr", "lib", "mios"))
 
 import mios_comments
 
-
 def main():
     root = os.environ.get("MIOS_DRIFT_ROOT", _REPO_ROOT)
     native_bin = mios_comments._find_native_comment_lex()
@@ -59,7 +58,6 @@ def main():
 
     print("[check-comment-lex] SUCCESS: Python and native lexers are equivalent!")
     sys.exit(0)
-
 
 if __name__ == "__main__":
     main()

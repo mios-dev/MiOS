@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import Iterable, Optional, Sequence
 
-
 class Verdict:
     __slots__ = ("allow", "reason", "rule")
 
@@ -17,7 +16,6 @@ class Verdict:
     def to_dict(self) -> dict:
         return {"allow": self.allow, "reason": self.reason, "rule": self.rule}
 
-
 def _rank(tier: str, tiers: Sequence[str]) -> int:
     t = [str(x).strip().lower() for x in tiers]
     p = str(tier or "").strip().lower()
@@ -25,7 +23,6 @@ def _rank(tier: str, tiers: Sequence[str]) -> int:
         return t.index(p)
     except ValueError:
         return len(t)   # unknown tier -> most restrictive (fail-closed)
-
 
 def decide(verb: str, tier: str, *,
            deny: Iterable[str] = (), allow: Optional[Iterable[str]] = None,

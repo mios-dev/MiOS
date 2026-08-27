@@ -15,7 +15,6 @@ from typing import Dict, Optional
 
 log = logging.getLogger("dkms_engine")
 
-
 @dataclass
 class CompiledModule:
     module_name: str
@@ -23,7 +22,6 @@ class CompiledModule:
     build_hash: str
     signed: bool = True
     cached_path: str = ""
-
 
 class DKMSSandboxEngine:
     """

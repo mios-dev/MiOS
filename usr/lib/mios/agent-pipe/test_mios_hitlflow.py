@@ -7,7 +7,6 @@ import json
 import mios_secset
 import mios_hitlflow as M
 
-
 def test_action_hash():
     h1 = M._action_hash("web_search", {"q": "x", "n": 3})
     h2 = M._action_hash("web_search", {"n": 3, "q": "x"})   # key order swapped
@@ -17,7 +16,6 @@ def test_action_hash():
     assert M._action_hash("other_verb", {"q": "x", "n": 3}) != h1, "different verb -> different hash"
     assert "\x00" in h1, "action_hash uses the in-memory \\x00 separator"
     print("ok: _action_hash determinism + structural identity")
-
 
 def test_pending_hash():
     p1 = M._pending_hash("powershell_run", {"cmd": "ls", "n": 1})
@@ -31,7 +29,6 @@ def test_pending_hash():
     assert M._pending_hash("winget_install", {"cmd": "ls", "n": 1}) != p1, \
         "different verb must not share a bypass key"
     print("ok: _pending_hash null-free + per-action bypass-key isolation")
-
 
 def test_hitl_gate_namekeyed():
     scope = mios_secset.high_privilege_set(
@@ -64,7 +61,6 @@ def test_hitl_gate_namekeyed():
     assert events, "the gate must always emit an observability event"
     print("ok: _hitl_gate NAME-KEYED block/proceed (real mios_secset + mios_hitl)")
 
-
 class _FakeResp:
     def __init__(self, decision):
         self.status_code = 200
@@ -72,7 +68,6 @@ class _FakeResp:
 
     def json(self):
         return {"choices": [{"message": {"content": '{"decision": "%s"}' % self._decision}}]}
-
 
 class _FakeClient:
     """Async-context-manager httpx.AsyncClient stand-in."""
@@ -93,10 +88,8 @@ class _FakeClient:
             raise RuntimeError("planner down")
         return _FakeResp(_FakeClient._decision)
 
-
 class _FakeHttpx:
     AsyncClient = _FakeClient
-
 
 def test_classify_approval_reply():
     orig_httpx = M.httpx
@@ -115,13 +108,11 @@ def test_classify_approval_reply():
         M.httpx = orig_httpx
     print("ok: _classify_approval_reply approve/reject/degrade (stubbed model)")
 
-
 def _aret(value):
     """Build an async function that ignores its args and returns `value`."""
     async def _f(*a, **k):
         return value
     return _f
-
 
 class _FakeReq:
     """Minimal request stand-in: async body() returns the JSON payload as the str
@@ -133,11 +124,9 @@ class _FakeReq:
     async def body(self):
         return self._b
 
-
 def _json_body(resp):
     """Decode a (real fastapi) JSONResponse rendered body into a dict."""
     return json.loads(bytes(resp.body).decode("utf-8"))
-
 
 def test_hitl_approve_logic():
     updates = []
@@ -176,7 +165,6 @@ def test_hitl_approve_logic():
     body = _json_body(r)
     assert body.get("success") is False and "pg down" in body.get("error", ""), body
     print("ok: hitl_approve_logic approve/deny/invalid-id/db-error")
-
 
 if __name__ == "__main__":
     test_action_hash()

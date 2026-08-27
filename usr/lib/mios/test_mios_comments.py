@@ -23,14 +23,12 @@ import mios_comments as mc  # noqa: E402
 FAILED: list[str] = []
 PASSED = 0
 
-
 def check(name, got, want):
     global PASSED
     if got == want:
         PASSED += 1
     else:
         FAILED.append(f"{name}: got {got!r}, want {want!r}")
-
 
 def policy() -> mc.Policy:
     """Policy from the real SSOT -- the test must exercise shipped values."""
@@ -39,12 +37,10 @@ def policy() -> mc.Policy:
     with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
         return mc.Policy.from_toml(tomllib.load(fh))
 
-
 def blk(text, *, kind="line", path="automation/x.sh", in_header=False):
     lines = text.splitlines()
     return mc._mk(path, 1, len(lines), kind, "#", lines,
                   "pre-code", "echo hi", in_header)
-
 
 def test_classifier(p):
     # R0 generated artifact -- never a migration source
@@ -112,7 +108,6 @@ def test_classifier(p):
     check("R6", mc.classify(blk("guard against zero", kind="inline"), p).reason,
           "inline-scoped")
 
-
 def test_hint_prose_len():
     """The hint cap must measure prose, and must not be dodged by wrapping."""
     nl = chr(10)
@@ -123,7 +118,6 @@ def test_hint_prose_len():
     meta = "# AI-hint: short" + nl + "# AI-related: a, b, c, d, e, f, g, h" + nl
     check("hint-meta-excluded", mc._hint_prose_len(meta) < 30, True)
 
-
 def test_stale(p):
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     idx = mc.RefIndex.build(root)
@@ -131,7 +125,6 @@ def test_stale(p):
     check("stale-known", mc.classify(fresh, p, idx).stale, False)
     gone = blk("see automation/00-this-script-does-not-exist.sh for the gate")
     check("stale-dangling", mc.classify(gone, p, idx).stale, True)
-
 
 def test_lexer():
     src = (
@@ -161,7 +154,6 @@ def test_lexer():
     b = blk("same text here")
     check("hash-normalised", a.sha12, b.sha12)
 
-
 def test_landing_ratio(p: mc.Policy) -> None:
     """Guards mios-manual landed(), which raised AttributeError without it."""
     check("landing-ratio-present", hasattr(p, "landing_min_word_ratio"), True)
@@ -169,7 +161,6 @@ def test_landing_ratio(p: mc.Policy) -> None:
     check("landing-ratio-is-float", isinstance(p.landing_min_word_ratio, float), True)
     # A default-constructed Policy must carry the contract shape too.
     check("landing-ratio-default", mc.Policy().landing_min_word_ratio, 0.90)
-
 
 def main() -> int:
     p = policy()
@@ -182,7 +173,6 @@ def main() -> int:
     for f in FAILED:
         print(f"  FAIL {f}")
     return 1 if FAILED else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

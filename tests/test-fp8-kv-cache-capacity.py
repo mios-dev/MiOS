@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/lib/mios/ai")
 from fp8_kv_quant import FP8KVQuantizer
 
-
 def test_fp8_50_percent_vram_reduction():
     """Verify 128k context FP8 KV cache footprint is <= 52% of FP16."""
     quantizer = FP8KVQuantizer(num_heads=32, head_dim=128)
@@ -18,7 +17,6 @@ def test_fp8_50_percent_vram_reduction():
     # Simulated needle retrieval accuracy
     needle_accuracy = 1.0 # 100%
     assert needle_accuracy == 1.0
-
 
 if __name__ == "__main__":
     test_fp8_50_percent_vram_reduction()

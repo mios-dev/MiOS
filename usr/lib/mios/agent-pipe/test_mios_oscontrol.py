@@ -8,13 +8,11 @@ import types
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _install_stubs():
     """Minimal stand-ins for every module mios_oscontrol imports at top level so
@@ -56,7 +54,6 @@ def _install_stubs():
     know = types.ModuleType("mios_knowledge")
     know._store_knowledge = lambda *a, **k: None
     sys.modules["mios_knowledge"] = know
-
 
 def main():
     _install_stubs()
@@ -144,7 +141,6 @@ def main():
 
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

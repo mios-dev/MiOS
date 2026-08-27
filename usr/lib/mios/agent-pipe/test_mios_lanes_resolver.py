@@ -17,11 +17,9 @@ from mios_config import (
     _TOOL_BACKEND_HEAVY, _TOOL_BACKEND_HEAVY_MODEL,
 )
 
-
 class _Resp:
     def __init__(self, status):
         self.status_code = status
-
 
 class _FakeClient:
     """Fake httpx client: get(url) -> 200 iff url starts with one of `up_urls`."""
@@ -35,7 +33,6 @@ class _FakeClient:
         ok = any(url.startswith(u) for u in self._up)
         return _Resp(200 if ok else 503)
 
-
 def _wire(up_urls, *, boom=False):
     """Reset the resolver singleton + inject deterministic deps (no real config)."""
     M._LANE_RESOLVER = None
@@ -48,7 +45,6 @@ def _wire(up_urls, *, boom=False):
 
     M.configure(_get_client=_get_client, _is_remote_endpoint=lambda ep: False)
     M._toml_section = lambda section: {}
-
 
 class LaneResolverTests(unittest.TestCase):
     def test_prefers_heavy_when_up(self):
@@ -93,7 +89,6 @@ class LaneResolverTests(unittest.TestCase):
         snap = res.snapshot()
         self.assertIn("lanes", snap)
         self.assertIn("light", snap["lanes"])
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

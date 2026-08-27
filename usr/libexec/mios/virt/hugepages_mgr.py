@@ -16,14 +16,12 @@ import os
 import sys
 from typing import Any, Dict, Optional, Tuple
 
-
 PAGE_SIZES_KB = {
     "2M": 2048,
     "2MB": 2048,
     "1G": 1048576,
     "1GB": 1048576,
 }
-
 
 def normalize_page_size(page_size_str: str) -> str:
     cleaned = page_size_str.strip().upper()
@@ -32,7 +30,6 @@ def normalize_page_size(page_size_str: str) -> str:
     if cleaned in ("1G", "1GB", "1048576", "1024M", "1024MB"):
         return "1G"
     raise ValueError(f"Unsupported hugepage size '{page_size_str}'. Supported sizes: 2M, 1G.")
-
 
 class HugepagesManager:
     """Manages hugepages allocation, compaction, release, and libvirt XML generation."""
@@ -254,7 +251,6 @@ class HugepagesManager:
   </hugepages>
 {locked_tag}</memoryBacking>"""
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Hugepages Automatic Allocation, Memory Compaction, and Teardown Manager."
@@ -330,7 +326,6 @@ def main() -> int:
 
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

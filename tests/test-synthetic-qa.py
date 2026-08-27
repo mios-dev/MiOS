@@ -28,7 +28,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load synthetic_qa module from {_SYNTH_QA_PATH}")
 
-
 class TestSyntheticQAPipeline(unittest.TestCase):
     """Validates markdown parsing, secret redaction, Q&A synthesis, and JSONL export."""
 
@@ -157,12 +156,10 @@ data_dir = "/var/lib/mios/pgvector"
             self.assertIn("messages", parsed)
             self.assertGreaterEqual(len(parsed["messages"]), 3)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestSyntheticQAPipeline)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

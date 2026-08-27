@@ -18,7 +18,6 @@ OUT = os.environ.get("MIOS_EGRESS_OUT") or os.path.join(
     ROOT, "usr/share/mios/security/egress.nft")
 SERVICE = os.path.join(ROOT, "usr/lib/systemd/system/mios-agent-pipe.service")
 
-
 def agent_user() -> str:
     """The agent-pipe service user (SSOT = its unit's User=); env override; default."""
     u = os.environ.get("MIOS_AGENT_USER")
@@ -31,7 +30,6 @@ def agent_user() -> str:
     except OSError:
         pass
     return "mios-ai"
-
 
 def build_ruleset(mode: str, allow: "list[str]", user: str) -> str:
     if mode == "enforce":
@@ -68,7 +66,6 @@ table inet mios_egress {{
 }}
 """
 
-
 def main() -> int:
     with open(TOML, "rb") as f:
         d = tomllib.load(f)
@@ -81,7 +78,6 @@ def main() -> int:
         f.write(build_ruleset(mode, allow, user))
     print(f"[egress-fw] wrote {OUT} (mode={mode}, user={user}, allow={len(allow)})")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

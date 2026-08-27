@@ -20,7 +20,6 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
-
 def data(btype="hybrid", archetypes=None, alias=None, fallback="headless"):
     if archetypes is None:
         archetypes = {"hybrid": ["x"], "endpoint": []}
@@ -31,7 +30,6 @@ def data(btype="hybrid", archetypes=None, alias=None, fallback="headless"):
         blade["role_aliases"] = dict(alias)
     return {"blade": blade}
 
-
 def tree(tmp, units):
     """A fake root: {unit-filename: body}."""
     d = os.path.join(tmp, mod.UNIT_DIR)
@@ -41,12 +39,10 @@ def tree(tmp, units):
             fh.write(body)
     return tmp
 
-
 def target(name, conflicts=()):
     return ("[Unit]\nDescription=x\nRequires=multi-user.target\n"
             "Conflicts=%s\nAllowIsolate=yes\n\n[Install]\n"
             "WantedBy=multi-user.target\n" % " ".join(conflicts))
-
 
 class TestType(unittest.TestCase):
     def test_a_legal_type_is_clean(self):
@@ -64,7 +60,6 @@ class TestType(unittest.TestCase):
     def test_an_empty_archetype_table_fails_rather_than_passing_vacuously(self):
         self.assertTrue(mod.check_type(data(archetypes={})))
 
-
 class TestTargets(unittest.TestCase):
     def test_a_missing_target_fails(self):
         import tempfile
@@ -76,7 +71,6 @@ class TestTargets(unittest.TestCase):
     def test_an_archetype_name_that_is_not_a_unit_stem_fails(self):
         out = mod.check_targets(data(archetypes={"Not Legal": []}), _NOROOT)
         self.assertTrue(any("legal unit-name stem" in v for v in out))
-
 
 class TestCapabilitiesConsumed(unittest.TestCase):
     def test_a_capability_nothing_requires_fails(self):
@@ -95,7 +89,6 @@ class TestCapabilitiesConsumed(unittest.TestCase):
         d["blade"]["requires"] = {}
         self.assertEqual(mod.check_capabilities_consumed(d), [])
 
-
 class TestAliases(unittest.TestCase):
     def test_an_alias_onto_an_archetype_is_clean(self):
         self.assertEqual(mod.check_aliases(data(alias={"k3s": "hybrid"})), [])
@@ -105,7 +98,6 @@ class TestAliases(unittest.TestCase):
 
     def test_an_alias_shadowing_an_archetype_fails(self):
         self.assertTrue(mod.check_aliases(data(alias={"hybrid": "endpoint"})))
-
 
 class TestConflicts(unittest.TestCase):
     def test_a_complete_graph_is_clean(self):
@@ -140,7 +132,6 @@ class TestConflicts(unittest.TestCase):
             out = mod.check_conflicts(data(), tmp)
             self.assertTrue(any("not a role target" in v for v in out))
 
-
 class TestUnitAliases(unittest.TestCase):
     def test_a_suffix_matching_alias_is_clean(self):
         import tempfile
@@ -157,7 +148,6 @@ class TestUnitAliases(unittest.TestCase):
             out = mod.check_aliases_in_units(tmp)
             self.assertTrue(out)
             self.assertIn("same suffix", out[0])
-
 
 class TestProfileRetired(unittest.TestCase):
     def test_no_profile_section_is_clean(self):
@@ -193,7 +183,6 @@ class TestProfileRetired(unittest.TestCase):
                 fh.write('WALK_EMIT_KEEP = {"MIOS_PROFILE_ROLE"}\n')
             out = mod.check_profile_retired(data(), tmp)
             self.assertTrue(any("MIOS_PROFILE_ROLE" in v for v in out))
-
 
 class TestNoHardcodedRoles(unittest.TestCase):
     def test_a_literal_archetype_in_blade_code_fails(self):
@@ -242,7 +231,6 @@ class TestNoHardcodedRoles(unittest.TestCase):
                 fh.write("# an endpoint blade is a seat\ntrue\n")
             self.assertEqual(mod.check_no_hardcoded_roles(data(), tmp), [])
 
-
 class TestRealTree(unittest.TestCase):
     def setUp(self):
         with open(os.path.join(_ROOT, mod.TOML), "rb") as fh:
@@ -271,7 +259,6 @@ class TestRealTree(unittest.TestCase):
                     have |= set(line.split("=", 1)[1].split())
             self.assertEqual(have, set(targets) - {unit}, unit)
 
-
 class TestKeyAccessIsNotAnArchetype(unittest.TestCase):
     """`endpoint` is both an archetype and an ordinary TOML key. A token after
     `.` is a key access; a bare one, or one after `-`, is a hardcoded role."""
@@ -295,7 +282,6 @@ class TestKeyAccessIsNotAnArchetype(unittest.TestCase):
     def test_a_hyphenated_unit_literal_is_still_flagged(self):
         # `-` is NOT excluded: mios-endpoint.target restates the archetype.
         self.assertTrue(self._scan('systemctl start mios-endpoint.target\n'))
-
 
 if __name__ == "__main__":
     unittest.main()

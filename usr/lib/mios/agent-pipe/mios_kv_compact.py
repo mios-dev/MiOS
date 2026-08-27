@@ -27,7 +27,6 @@ DEFAULT_COMPACT_THRESHOLD = 0.75
 DEFAULT_TARGET_RATIO = 0.40
 DEFAULT_EPISODE_DIR = "/var/lib/mios/ai/memory/episodes"
 
-
 def estimate_tokens(text_or_messages: str | List[Dict[str, Any]] | Dict[str, Any]) -> int:
     """
     Fast, deterministic token estimation for OpenAI-compatible message payloads.
@@ -55,7 +54,6 @@ def estimate_tokens(text_or_messages: str | List[Dict[str, Any]] | Dict[str, Any
 
     return 0
 
-
 def extract_factual_anchors(text: str) -> List[str]:
     """Extract key file paths, function names, task IDs, and technical terms to retain in summary."""
     anchors = set()
@@ -69,7 +67,6 @@ def extract_factual_anchors(text: str) -> List[str]:
     for match in re.finditer(r'\b(?:def|class|function)\s+([a-zA-Z0-9_]+)', text):
         anchors.add(match.group(1))
     return sorted(list(anchors))[:15]
-
 
 class KVCompactEngine:
     """Context compaction engine for agent-pipe conversation pipelines."""
@@ -272,7 +269,6 @@ class KVCompactEngine:
             "messages": new_messages,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS KV-Cache Context Compaction Engine (T-547)"
@@ -334,7 +330,6 @@ def main() -> int:
         print(f"Tokens: {result.get('initial_tokens')} -> {result.get('final_tokens')} (ratio: {result.get('reduction_ratio')})")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

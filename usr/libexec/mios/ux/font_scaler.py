@@ -34,7 +34,6 @@ try:
 except ImportError:
     mios_toml = None
 
-
 DEFAULT_BASE_DPI = 96.0
 DEFAULT_BASE_TERMINAL_FONT_PT = 11.0
 DEFAULT_BASE_DESKTOP_FONT_PT = 10.0
@@ -42,7 +41,6 @@ DEFAULT_BASE_CODE_FONT_PT = 12.0
 DEFAULT_BASE_CURSOR_SIZE = 24
 DEFAULT_FONT_FAMILY = "JetBrains Mono"
 DEFAULT_FONTCONFIG_PATH = "/usr/share/mios/themes/fonts.conf"
-
 
 @dataclass
 class DisplayMetrics:
@@ -52,7 +50,6 @@ class DisplayMetrics:
     dpi: float = 96.0
     scale_factor: float = 1.0
     detected_compositor: str = "wayland-generic"
-
 
 @dataclass
 class ScaledFontConfig:
@@ -65,7 +62,6 @@ class ScaledFontConfig:
     cursor_size_px: int
     font_family: str
     text_scaling_factor: float
-
 
 class FontScalerEngine:
     """Calculates display DPI metrics and generates fontconfig XML & desktop settings."""
@@ -258,7 +254,6 @@ class FontScalerEngine:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS High-DPI Dynamic Font Size Scaler (T-462)"
@@ -308,7 +303,6 @@ def main() -> int:
         else:
             print(f"[font_scaler] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

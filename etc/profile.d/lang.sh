@@ -37,7 +37,6 @@ fi
 
 unset LANG_backup config
 
-
 if [ -n "${LC_ALL}" ]; then
     if [ "${LC_ALL}" != "${LANG}" -a -n "${LANG}" ]; then
         export LC_ALL

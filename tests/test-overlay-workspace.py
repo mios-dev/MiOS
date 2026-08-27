@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from overlay_workspace import MAX_PROVISION_LATENCY_MS, OverlayWorkspaceManager
 
-
 class TestOverlayWorkspace(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-ws-test-")
@@ -42,7 +41,6 @@ class TestOverlayWorkspace(unittest.TestCase):
         for i in range(20):
             self.assertTrue(self.mgr.teardown_workspace(f"worker_{i}"))
         self.assertEqual(len(self.mgr.active_mounts), 0)
-
 
 if __name__ == "__main__":
     unittest.main()

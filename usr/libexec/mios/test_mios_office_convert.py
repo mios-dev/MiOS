@@ -36,11 +36,9 @@ _spec.loader.exec_module(mdg)  # type: ignore[union-attr]
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok, detail))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _capture(fn, *a, **k) -> tuple[int, dict]:
     buf = io.StringIO()
@@ -51,7 +49,6 @@ def _capture(fn, *a, **k) -> tuple[int, dict]:
         return rc, json.loads(line)
     except json.JSONDecodeError:
         return rc, {}
-
 
 def t_fmt_of() -> None:
     cases = {
@@ -64,7 +61,6 @@ def t_fmt_of() -> None:
     _check("fmt_of: extension -> format map", all_ok,
            detail="" if all_ok else str({p: mdg._fmt_of(p) for p in cases}))
 
-
 def t_bool_int_coerce() -> None:
     _check("as_bool: truthy strings", all(mdg._as_bool(v) for v in
            ("1", "true", "TRUE", "yes", "on", True)))
@@ -73,7 +69,6 @@ def t_bool_int_coerce() -> None:
     _check("as_int: parse + fallback",
            mdg._as_int("42", 0) == 42 and mdg._as_int("nope", 7) == 7
            and mdg._as_int(None, 9) == 9)
-
 
 def t_gate_disabled() -> None:
     """With the master gate off, convert/build degrade-open: ok=false, exit 0."""
@@ -85,7 +80,6 @@ def t_gate_disabled() -> None:
     _check("gate off: build degrades", rc == 0 and obj.get("ok") is False)
     _check("gate off: _enabled() False", mdg._enabled() is False)
 
-
 def t_gate_enabled_reads_env() -> None:
     os.environ["MIOS_DOCGEN_ENABLE"] = "1"
     _check("gate on: _enabled() True", mdg._enabled() is True)
@@ -94,14 +88,12 @@ def t_gate_enabled_reads_env() -> None:
            and "not found" in obj.get("error", ""))
     os.environ["MIOS_DOCGEN_ENABLE"] = "0"
 
-
 def t_build_needs_source() -> None:
     os.environ["MIOS_DOCGEN_ENABLE"] = "1"
     rc, obj = _capture(mdg.cmd_build, "/tmp/o.docx", "markdown", "", False)
     _check("build: no content -> error", obj.get("ok") is False
            and "content-file" in obj.get("error", ""))
     os.environ["MIOS_DOCGEN_ENABLE"] = "0"
-
 
 def t_target_tables_sane() -> None:
     _check("targets: pptx/docx/pdf in pandoc set",
@@ -112,13 +104,11 @@ def t_target_tables_sane() -> None:
            all(t in mdg._SOFFICE_FILTER or t == "pdf" for t in
                ("xlsx", "docx", "pptx", "ods", "csv", "html")))
 
-
 def t_formats_probe() -> None:
     rc, obj = _capture(mdg.cmd_formats)
     _check("formats: emits backend availability booleans",
            rc == 0 and "pandoc" in obj and "soffice" in obj
            and isinstance(obj.get("pandoc_targets"), list))
-
 
 def t_emit_helpers() -> None:
     rc, obj = _capture(mdg._ok, output="/tmp/x.docx", target="docx")
@@ -127,7 +117,6 @@ def t_emit_helpers() -> None:
     rc, obj = _capture(mdg._err, "boom", 0, target="pdf")
     _check("_err: ok=false envelope + fields", rc == 0 and obj.get("ok") is False
            and obj.get("error") == "boom" and obj.get("target") == "pdf")
-
 
 def main() -> int:
     for t in (t_fmt_of, t_bool_int_coerce, t_gate_disabled, t_gate_enabled_reads_env,
@@ -140,7 +129,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks pass")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

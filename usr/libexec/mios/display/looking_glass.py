@@ -26,7 +26,6 @@ DEFAULT_SPICE_SOCKET_DIR = "/var/run/libvirt/qemu"
 DEFAULT_ESCAPE_KEY = "KEY_SCROLLLOCK"
 DEFAULT_VM_NAME = "win11"
 
-
 class LookingGlassConfigManager:
     """Manages Looking Glass B6 client.ini configurations, direct SPICE sockets, and keybindings."""
 
@@ -301,7 +300,6 @@ gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{kb
             "mock": mock or os.name == "nt",
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Looking Glass B6 Direct SPICE Host Input & Config Utility."
@@ -386,7 +384,6 @@ def main() -> int:
         sys.stdout.write(result_text + ("\n" if not result_text.endswith("\n") else ""))
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

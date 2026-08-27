@@ -30,7 +30,6 @@ except ImportError:
     except ImportError:
         from node.wire import Frame, Header, MessageType  # type: ignore
 
-
 @dataclass
 class HardwareSpecs:
     cpu_arch: str = platform.machine()
@@ -39,7 +38,6 @@ class HardwareSpecs:
     ram_total_kb: int = 8 * 1024 * 1024
     ram_available_kb: int = 4 * 1024 * 1024
 
-
 @dataclass
 class VramTelemetry:
     gpu_vendor: str = "None"  # "NVIDIA", "AMD", "Intel", "Apple", "None"
@@ -47,7 +45,6 @@ class VramTelemetry:
     vram_total_mb: int = 0
     vram_available_mb: int = 0
     has_npu: bool = False
-
 
 @dataclass
 class EngineTiers:
@@ -58,7 +55,6 @@ class EngineTiers:
         default_factory=lambda: ["wasm", "native_elf", "crdt_sync"]
     )
 
-
 @dataclass
 class ActiveTransports:
     lan_broadcast: bool = True
@@ -68,7 +64,6 @@ class ActiveTransports:
     ble_mesh: bool = False
     endpoints: List[str] = field(default_factory=lambda: ["127.0.0.1:8650"])
 
-
 @dataclass
 class NodeCapabilities:
     hardware: HardwareSpecs = field(default_factory=HardwareSpecs)
@@ -77,7 +72,6 @@ class NodeCapabilities:
     transports: ActiveTransports = field(default_factory=ActiveTransports)
     has_gpio: bool = False
     has_i2c: bool = False
-
 
 @dataclass
 class NodeAnnouncePayload:
@@ -126,7 +120,6 @@ class NodeAnnouncePayload:
         data = json.loads(frame.payload.decode("utf-8"))
         return cls.from_dict(data)
 
-
 def probe_node_capabilities() -> NodeCapabilities:
     """Probes system hardware, sysfs interfaces, memory, and devices."""
     caps = NodeCapabilities()
@@ -162,7 +155,6 @@ def probe_node_capabilities() -> NodeCapabilities:
         caps.vram.gpu_vendor = "Generic DRM"
 
     return caps
-
 
 class CapabilityRegistry:
     """In-memory peer capability registry with query filters and stale eviction."""

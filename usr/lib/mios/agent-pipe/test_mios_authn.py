@@ -14,7 +14,6 @@ from mios_pipe.access.authn import (
     configure,
 )
 
-
 class TestAuthn(unittest.TestCase):
 
     def setUp(self):
@@ -61,7 +60,6 @@ class TestAuthn(unittest.TestCase):
         self.assertEqual(_bind_host(require_auth=False), "127.0.0.1")
         self.assertEqual(_bind_host(require_auth=True), "0.0.0.0")
         self.assertEqual(_bind_host(require_auth=False, override="10.0.0.5"), "10.0.0.5")
-
 
 if __name__ == "__main__":
     unittest.main()

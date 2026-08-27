@@ -468,7 +468,6 @@ OpenAI surfaces change frequently. Recommended re-validation cadence:
   technique, or eval grader type -- extend the relevant section here and in
   the KB chunks.
 
-
 ---
 
 <!-- v2-repo-grounded-addendum -->

@@ -19,7 +19,6 @@ TARGETS = [
 
 COMMENT_RE = re.compile(r"MIOS_UNITS_[A-Z0-9_]*_COMMENT=")
 
-
 def main() -> int:
     violations = []
     for path in TARGETS:
@@ -40,7 +39,6 @@ def main() -> int:
 
     print("check_no_generated_prose_in_resolvers OK: zero AI-hint prose or unit comment values in resolvers")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

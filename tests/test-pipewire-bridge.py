@@ -23,7 +23,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load pipewire_bridge module from {_PB_PATH}")
 
-
 class TestPipeWireBridge(unittest.TestCase):
     """Validates low-latency buffer math, SLA thresholds, IVSHMEM XML, and systemd units."""
 
@@ -121,12 +120,10 @@ class TestPipeWireBridge(unittest.TestCase):
         self.assertEqual(res["checks"]["env_generation"], "pass")
         self.assertEqual(res["checks"]["service_generation"], "pass")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestPipeWireBridge)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 from typing import Callable, Dict, List, Optional, Sequence
 
-
 class Peer:
     """A discovered peer. `heartbeat` is the SWIM incarnation (monotonic per
     peer); `last_seen` is local wall-clock of the last accepted rumor; `trust` is
@@ -27,12 +26,10 @@ class Peer:
                 "heartbeat": self.heartbeat, "last_seen": round(self.last_seen, 3),
                 "trust": round(self.trust, 4)}
 
-
 def _rank(seed: object, peer_id: str) -> str:
     """Stable per-(round, peer) rank key -> deterministic shuffle without a global
     RNG (so a gossip round is reproducible + testable)."""
     return hashlib.sha256(f"{seed}:{peer_id}".encode()).hexdigest()
-
 
 def select_gossip_peers(peer_ids: Sequence[str], fanout: int, *, seed: object,
                         exclude: "Optional[Sequence[str]]" = None) -> List[str]:
@@ -43,7 +40,6 @@ def select_gossip_peers(peer_ids: Sequence[str], fanout: int, *, seed: object,
     cands = sorted({str(p) for p in peer_ids if str(p) not in ex},
                    key=lambda p: _rank(seed, p))
     return cands[:max(0, int(fanout))]
-
 
 def merge_peer(local: "Dict[str, Peer]", incoming: Peer, *, now: float,
                min_trust: float = 0.0,
@@ -66,14 +62,12 @@ def merge_peer(local: "Dict[str, Peer]", incoming: Peer, *, now: float,
                       int(incoming.heartbeat), float(now), float(trust))
     return True
 
-
 def merge_peer_set(local: "Dict[str, Peer]", incoming: "Sequence[Peer]", *,
                    now: float, min_trust: float = 0.0,
                    trust_of: "Optional[Callable[[str], float]]" = None) -> int:
     """Anti-entropy merge of a batch of rumors. Returns how many were accepted."""
     return sum(1 for p in (incoming or [])
                if merge_peer(local, p, now=now, min_trust=min_trust, trust_of=trust_of))
-
 
 def prune_dead(local: "Dict[str, Peer]", *, now: float, ttl: float,
                keep: "Optional[Sequence[str]]" = None) -> List[str]:
@@ -85,7 +79,6 @@ def prune_dead(local: "Dict[str, Peer]", *, now: float, ttl: float,
     for pid in dead:
         local.pop(pid, None)
     return dead
-
 
 def digest(local: "Dict[str, Peer]") -> "Dict[str, int]":
     """The rumor digest to push/pull for anti-entropy: id -> heartbeat. The peer

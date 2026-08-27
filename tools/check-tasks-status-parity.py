@@ -20,12 +20,10 @@ _SECTION_RE = re.compile(r"^## (T-\d+)\s*(?:--|:)\s*(.*?)(?=^## |\Z)", re.M | re
 _STATUS_RE = re.compile(r"^\*\*Status:\*\*\s*(.+?)\s*(?:\||$)", re.M)
 _ROW_RE = re.compile(r"^\|\s*(T-\d+)\s*\|\s*P\d\s*\|\s*([^|]+?)\s*\|")
 
-
 def head_token(status: str) -> str:
     """The comparable head of a free-prose status: everything before the first
     ` -- ` continuation or ` (` qualifier."""
     return re.split(r"\s+--\s+|\s*\(", status, maxsplit=1)[0].strip().rstrip(".,;:").lower()
-
 
 def detail_statuses(text: str) -> dict:
     out = {}
@@ -35,7 +33,6 @@ def detail_statuses(text: str) -> dict:
             out[m.group(1)] = sm.group(1).strip()
     return out
 
-
 def table_rows(text: str) -> dict:
     out = {}
     for line in text.splitlines():
@@ -43,7 +40,6 @@ def table_rows(text: str) -> dict:
         if m:
             out[m.group(1)] = m.group(2).strip()
     return out
-
 
 def collect_agy_task_ids(root: str) -> set[int]:
     path = os.path.join(root, AGY_TASKS)
@@ -64,7 +60,6 @@ def collect_agy_task_ids(root: str) -> set[int]:
             else:
                 task_ids.add(int(start_str))
     return task_ids
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", os.environ.get("MIOS_TOML_ROOT", "."))
@@ -121,7 +116,6 @@ def main() -> int:
     print(f"TASKS.md summary table matches every task section and AGY-TASKS.md references resolve "
           f"(tasks={len(rows)} sections={len(detail)} open={open_n} agy_validations={len(agy_ids)})")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

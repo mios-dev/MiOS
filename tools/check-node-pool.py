@@ -14,12 +14,10 @@ except ModuleNotFoundError:  # pragma: no cover -- py<3.11
 
 TOML = "usr/share/mios/mios.toml"
 
-
 def nodes(data: dict) -> dict:
     """{name: cfg} for every declared compute node."""
     return {str(k): v for k, v in (data.get("nodes") or {}).items()
             if isinstance(v, dict)}
-
 
 def lane_vocabulary(data: dict) -> set:
     """Legal lane names, read from [dispatch].lane_priority -- the one place the
@@ -32,14 +30,11 @@ def lane_vocabulary(data: dict) -> set:
             out.add(name)
     return out
 
-
 def blades(data: dict) -> set:
     return {str(k) for k in (data.get("blades") or {})}
 
-
 def _ep(cfg: dict) -> str:
     return str(cfg.get("endpoint") or "").rstrip("/")
-
 
 def aliases(data: dict) -> list:
     """Two nodes with the same (endpoint, model, lane) are one backend twice."""
@@ -57,7 +52,6 @@ def aliases(data: dict) -> list:
             seen[key] = name
     return viol
 
-
 def lane_conflicts(data: dict) -> list:
     """One endpoint cannot be two lanes: the semaphore bucket would be split."""
     by_ep, viol = {}, []
@@ -73,7 +67,6 @@ def lane_conflicts(data: dict) -> list:
                                       ", ".join(n for n, _ in entries)))
     return viol
 
-
 def illegal_lanes(data: dict) -> list:
     vocab, viol = lane_vocabulary(data), []
     if not vocab:
@@ -87,7 +80,6 @@ def illegal_lanes(data: dict) -> list:
                         % (name, lane, ", ".join(sorted(vocab))))
     return viol
 
-
 def orphan_blades(data: dict) -> list:
     """A node MAY omit `blade` -- it then belongs to the local blade, whose name
     comes from [identity].hostname. Naming one that does not exist is the error."""
@@ -99,9 +91,7 @@ def orphan_blades(data: dict) -> list:
                         "declare" % (name, blade))
     return viol
 
-
 _LOCAL = re.compile(r"://(?:localhost|127\.0\.0\.1):(\d+)")
-
 
 def unmovable_endpoints(data: dict) -> list:
     """A local endpoint with a baked port cannot be repointed at a blade."""
@@ -114,14 +104,12 @@ def unmovable_endpoints(data: dict) -> list:
                         "be offloaded" % (name, m.group(1)))
     return viol
 
-
 def classify(data: dict) -> list:
     if not nodes(data):
         return ["[nodes] declares no compute node -- the gate would pass "
                 "vacuously over an empty pool"]
     return (aliases(data) + lane_conflicts(data) + illegal_lanes(data)
             + orphan_blades(data) + unmovable_endpoints(data))
-
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
@@ -146,7 +134,6 @@ def main() -> int:
                                  "/".join(sorted(lane_vocabulary(data))),
                                  sum(1 for c in n.values() if not _ep(c))))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

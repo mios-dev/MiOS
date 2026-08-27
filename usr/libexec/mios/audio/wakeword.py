@@ -40,7 +40,6 @@ import wave
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-
 SAMPLE_RATE = 16000  # 16 kHz standard
 FRAME_MS = 30        # 30 ms frames
 FRAME_SIZE = int(SAMPLE_RATE * (FRAME_MS / 1000.0))  # 480 samples per frame
@@ -50,7 +49,6 @@ DEFAULT_WAKEWORD_THRESHOLD = 0.60
 DEFAULT_VAD_THRESHOLD = 0.50
 TARGET_WAKE_PHRASE = "Hey MiOS"
 
-
 # -----------------------------------------------------------------------------
 # Fast Mathematical & DSP Utilities (FFT, Mel Filterbank, Hann Window)
 # -----------------------------------------------------------------------------
@@ -59,10 +57,8 @@ def _build_twiddles(n: int) -> List[complex]:
     """Precompute FFT twiddle factors."""
     return [complex(math.cos(-2.0 * math.pi * k / n), math.sin(-2.0 * math.pi * k / n)) for k in range(n // 2)]
 
-
 _TWIDDLES_256 = _build_twiddles(FFT_SIZE)
 _HANN_256 = [0.5 * (1.0 - math.cos(2.0 * math.pi * i / (FFT_SIZE - 1))) for i in range(FFT_SIZE)]
-
 
 def radix2_fft(x: List[complex]) -> List[complex]:
     """Divide-and-conquer Radix-2 FFT."""
@@ -75,16 +71,13 @@ def radix2_fft(x: List[complex]) -> List[complex]:
     t = [_TWIDDLES_256[k * step] * odd[k] for k in range(n // 2)]
     return [even[k] + t[k] for k in range(n // 2)] + [even[k] - t[k] for k in range(n // 2)]
 
-
 def hz_to_mel(hz: float) -> float:
     """Convert frequency in Hz to Mel scale."""
     return 2595.0 * math.log10(1.0 + hz / 700.0)
 
-
 def mel_to_hz(mel: float) -> float:
     """Convert Mel scale value back to Hz."""
     return 700.0 * (10.0 ** (mel / 2595.0) - 1.0)
-
 
 def compute_mel_filterbank(num_bins: int = NUM_MEL_BINS, n_fft: int = FFT_SIZE, sample_rate: int = SAMPLE_RATE,
                            low_freq: float = 80.0, high_freq: float = 7600.0) -> List[List[float]]:
@@ -112,9 +105,7 @@ def compute_mel_filterbank(num_bins: int = NUM_MEL_BINS, n_fft: int = FFT_SIZE, 
         filterbank.append(filters)
     return filterbank
 
-
 _MEL_FILTERBANK = compute_mel_filterbank()
-
 
 def compute_magnitude_spectrum(samples: List[float]) -> List[float]:
     """Compute 256-point FFT magnitude spectrum with Hann window."""
@@ -132,7 +123,6 @@ def compute_magnitude_spectrum(samples: List[float]) -> List[float]:
         magnitudes[k] = math.sqrt(c.real * c.real + c.imag * c.imag)
     return magnitudes
 
-
 def extract_log_mel_energies(samples: List[float], filterbank: List[List[float]] = _MEL_FILTERBANK) -> List[float]:
     """Extract Log-Mel filterbank energies for an audio frame."""
     mags = compute_magnitude_spectrum(samples)
@@ -142,7 +132,6 @@ def extract_log_mel_energies(samples: List[float], filterbank: List[List[float]]
         log_e = math.log(max(1e-6, energy * 50.0) + 1.0)
         mel_energies.append(log_e)
     return mel_energies
-
 
 # -----------------------------------------------------------------------------
 # Stage 1: RNNoise Suppressor (Acoustic Noise Reduction)
@@ -232,7 +221,6 @@ class RNNoiseSuppressor:
         self.smooth_gains = [1.0] * self.num_bands
         self.total_frames_processed = 0
         self.total_noise_suppressed_db = 0.0
-
 
 # -----------------------------------------------------------------------------
 # Stage 2: Silero VAD (Voice Activity Detector)
@@ -336,7 +324,6 @@ class SileroVAD:
         self.active_counter = 0
         self.last_probability = 0.0
 
-
 # -----------------------------------------------------------------------------
 # Stage 3: OpenWakeWord Detector (Phrase Recognition)
 # -----------------------------------------------------------------------------
@@ -438,7 +425,6 @@ class OpenWakeWordDetector:
         self.last_score = 0.0
         self.activation_count = 0
 
-
 # -----------------------------------------------------------------------------
 # Composite Three-Stage Acoustic Pipeline
 # -----------------------------------------------------------------------------
@@ -470,7 +456,6 @@ class PipelineStatus:
             "model": self.model,
             "mock": self.mock,
         }
-
 
 class AcousticWakePipeline:
     """
@@ -591,7 +576,6 @@ class AcousticWakePipeline:
         self.total_wall_time_sec = 0.0
         self.last_status = PipelineStatus(model=self.model_name, mock=self.mock)
 
-
 # -----------------------------------------------------------------------------
 # Audio File Processing & Synthesis Helpers
 # -----------------------------------------------------------------------------
@@ -629,7 +613,6 @@ def read_audio_file(file_path: str) -> List[float]:
     fmt = f"<{num_samples}h"
     int_samples = struct.unpack(fmt, raw_bytes[:num_samples * 2])
     return [s / 32768.0 for s in int_samples]
-
 
 def synthesize_test_audio(
     audio_type: str,
@@ -727,7 +710,6 @@ def synthesize_test_audio(
 
     return samples
 
-
 def process_pcm_file(
     file_path: str,
     threshold: float = DEFAULT_WAKEWORD_THRESHOLD,
@@ -764,7 +746,6 @@ def process_pcm_file(
         "pipeline_status": final_status.to_dict(),
     }
     return res
-
 
 # -----------------------------------------------------------------------------
 # CLI Entry Point
@@ -847,7 +828,6 @@ def main() -> int:
 
     parser.print_help()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

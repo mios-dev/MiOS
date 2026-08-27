@@ -9,7 +9,6 @@ import subprocess
 import sys
 from typing import Dict, List, Optional, Any
 
-
 class AgentWorktreeManager:
     """Manages ephemeral git worktree environments and scratch spaces for concurrent subagents."""
 
@@ -113,7 +112,6 @@ class AgentWorktreeManager:
             "branch_deleted": True,
         }
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Subagent Worktree Lifecycle Manager")
     parser.add_argument("--create", help="Subagent ID to create worktree for")
@@ -133,7 +131,6 @@ def main():
         return
 
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

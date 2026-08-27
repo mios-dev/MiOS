@@ -4,7 +4,6 @@
 # AI-functions: _resolve_npm_globals
 set -euo pipefail
 
-
 if [ "${MIOS_SKIP_AI_CLIS:-0}" = "1" ]; then
     echo "  [skip] MIOS_SKIP_AI_CLIS=1; not installing AI CLIs"
     exit 0

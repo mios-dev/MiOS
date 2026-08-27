@@ -11,7 +11,6 @@ import tempfile
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if cond:
@@ -19,7 +18,6 @@ def check(name, cond, detail=""):
     else:
         _fails += 1
         print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
-
 
 def run_tool(root):
     p = subprocess.run(
@@ -29,7 +27,6 @@ def run_tool(root):
         text=True,
     )
     return p.returncode, p.stdout + p.stderr
-
 
 def main():
     root = tempfile.mkdtemp(prefix="mios-toml-test-")
@@ -57,7 +54,6 @@ def main():
 
     if _fails > 0:
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

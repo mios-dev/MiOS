@@ -11,9 +11,7 @@ from urllib.parse import urlencode
 
 import mios_portal
 
-
 _fails = 0
-
 
 def check(name, cond, detail=""):
     global _fails
@@ -21,11 +19,9 @@ def check(name, cond, detail=""):
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _body(resp):
     """Decode a fastapi JSONResponse rendered body into a dict."""
     return json.loads(bytes(resp.body).decode("utf-8"))
-
 
 class _FakeResp:
     def __init__(self, status_code=200, payload=None):
@@ -35,7 +31,6 @@ class _FakeResp:
     def json(self):
         return self._payload
 
-
 class _FakeClient:
     """Minimal stand-in for an httpx.AsyncClient: returns a canned /models list
     on the first GET (MiOS is /v1-only; there is no legacy fallback path)."""
@@ -44,7 +39,6 @@ class _FakeClient:
 
     async def get(self, url, headers=None):
         return _FakeResp(200, self._payload)
-
 
 class _FakeAsyncClient:
     """httpx.AsyncClient stand-in usable as ``async with AsyncClient(...) as c``
@@ -63,7 +57,6 @@ class _FakeAsyncClient:
     async def get(self, url, headers=None):
         return _FakeResp(self._status, self._payload)
 
-
 class _FakeWS:
     """Minimal Starlette WebSocket stand-in: records the close code + whether the
     socket was ever accepted, so the term-bridge auth/port gates are observable
@@ -80,7 +73,6 @@ class _FakeWS:
     async def accept(self, subprotocol=None):
         self.accepted = subprotocol
 
-
 class _ReqBody:
     """Request stand-in exposing an async .body() (login POST) + cookies."""
     def __init__(self, body=b"", cookie=None, headers=None):
@@ -91,7 +83,6 @@ class _ReqBody:
     async def body(self):
         return self._body
 
-
 def test_token_roundtrip():
     tok = mios_portal._portal_make_token("alice")
     check("token round-trips (valid)", mios_portal._portal_token_ok(tok) is True)
@@ -101,12 +92,10 @@ def test_token_roundtrip():
           mios_portal._portal_token_ok("not-a-token") is False)
     check("empty token rejected", mios_portal._portal_token_ok("") is False)
 
-
 class _Req:
     def __init__(self, cookie=None, headers=None):
         self.cookies = {} if cookie is None else {mios_portal.PORTAL_COOKIE: cookie}
         self.headers = {} if headers is None else headers
-
 
 def test_authed_flag():
     saved = mios_portal.PORTAL_REQUIRE_LOGIN
@@ -123,7 +112,6 @@ def test_authed_flag():
     finally:
         mios_portal.PORTAL_REQUIRE_LOGIN = saved
 
-
 def test_manifest_shape():
     m = json.loads(mios_portal._PORTAL_MANIFEST)
     check("manifest has name/start_url/display",
@@ -136,17 +124,14 @@ def test_manifest_shape():
     check("svg icon string present",
           isinstance(mios_portal._PORTAL_ICON, str) and mios_portal._PORTAL_ICON.startswith("<svg"))
 
-
 def test_read_asset_missing():
     check("missing asset degrades to b''",
           mios_portal._read_portal_asset("does-not-exist-xyz.bin") == b"")
-
 
 def test_host_stats_shape():
     s = mios_portal._host_stats()
     check("host stats is a dict with cpu key",
           isinstance(s, dict) and "cpu" in s)
-
 
 def test_swarm_probe():
     mios_portal.configure(
@@ -162,7 +147,6 @@ def test_swarm_probe():
           out.get("name") == "node1" and out.get("lane") == "light")
     check("probe surfaces role/model/default",
           out.get("role") == "council" and out.get("model") == "m" and out.get("default") is True)
-
 
 def test_portal_stats_logic():
     saved = (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._PORTAL_SERVICES,
@@ -197,7 +181,6 @@ def test_portal_stats_logic():
         (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._PORTAL_SERVICES,
          mios_portal._podman_ps, mios_portal.httpx) = saved
 
-
 def test_portal_service_detail_logic():
     saved = (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._PORTAL_SERVICES,
              mios_portal._podman_ps, mios_portal.httpx,
@@ -227,7 +210,6 @@ def test_portal_service_detail_logic():
          mios_portal._podman_ps, mios_portal.httpx,
          mios_portal._sanitize_tool_text) = saved
 
-
 def test_portal_swarm_logic():
     saved = (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._AGENT_REGISTRY,
              mios_portal.httpx)
@@ -249,7 +231,6 @@ def test_portal_swarm_logic():
         (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._AGENT_REGISTRY,
          mios_portal.httpx) = saved
 
-
 def test_portal_term_ws_logic():
     saved = (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._PORTAL_SERVICES)
     try:
@@ -267,7 +248,6 @@ def test_portal_term_ws_logic():
               ws2.closed == 1008 and ws2.accepted == "UNSET")
     finally:
         (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._PORTAL_SERVICES) = saved
-
 
 def test_portal_login_logic():
     saved = mios_portal.PORTAL_REQUIRE_LOGIN
@@ -287,7 +267,6 @@ def test_portal_login_logic():
     finally:
         mios_portal.PORTAL_REQUIRE_LOGIN = saved
 
-
 def test_portal_login_page_logic():
     saved = mios_portal.PORTAL_REQUIRE_LOGIN
     try:
@@ -303,7 +282,6 @@ def test_portal_login_page_logic():
               and red.headers.get("location") == "/")
     finally:
         mios_portal.PORTAL_REQUIRE_LOGIN = saved
-
 
 def test_portal_page_logic():
     saved = mios_portal.PORTAL_REQUIRE_LOGIN
@@ -322,7 +300,6 @@ def test_portal_page_logic():
     finally:
         mios_portal.PORTAL_REQUIRE_LOGIN = saved
 
-
 def main():
     test_token_roundtrip()
     test_authed_flag()
@@ -339,7 +316,6 @@ def main():
     test_portal_page_logic()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

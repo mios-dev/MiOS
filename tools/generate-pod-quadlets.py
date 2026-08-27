@@ -88,7 +88,6 @@ OUT_DIR = os.environ.get("MIOS_POD_OUT") or os.path.join(
 # Resolve it here (TOML is known) rather than leaving the renderer hardcoded.
 _PLACEHOLDER_VARS = load_placeholders(TOML)
 
-
 def _wrap_doc(doc: str, width: int = 76) -> "list[str]":
     """Wrap the SSOT `doc` prose into `# `-prefixed comment lines (deterministic,
     greedy word wrap) so the rationale rides in the generated Quadlet."""
@@ -108,7 +107,6 @@ def _wrap_doc(doc: str, width: int = 76) -> "list[str]":
         out.append(line)
     return out
 
-
 def _resolve_port(port_str: str, ports: dict) -> str:
     parts = port_str.split(":")
     resolved_parts = []
@@ -123,7 +121,6 @@ def _resolve_port(port_str: str, ports: dict) -> str:
         else:
             resolved_parts.append(p)
     return ":".join(resolved_parts)
-
 
 def render_pod_quadlet(name: str, spec: dict, ports: dict | None = None) -> str:
     """Render the .pod Quadlet text for one [pods.<name>] spec. Deterministic:
@@ -175,54 +172,45 @@ def render_pod_quadlet(name: str, spec: dict, ports: dict | None = None) -> str:
     lines.append("WantedBy=" + " ".join(wanted_by))
     return "\n".join(lines) + "\n"
 
-
 def load_pods(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
     return d.get("pods") or {}
-
 
 def load_ports(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
     return d.get("ports") or {}
 
-
 def load_sidecars(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
     return (d.get("image") or {}).get("sidecars") or {}
-
 
 def load_containers(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
     return d.get("containers") or {}
 
-
 def load_networks(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
     return d.get("networks") or d.get("network") or {}
-
 
 def load_volumes(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
     return d.get("volumes") or d.get("volume") or {}
 
-
 def load_images(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
     return d.get("images") or d.get("image") or {}
 
-
 def load_enabled_quadlets(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
     return d.get("quadlets", {}).get("enable", {})
-
 
 def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
     lines: list[str] = []
@@ -270,9 +258,7 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
                     continue
                 lines.append(f"{k}={resolved_val}")
 
-
     return "\n".join(lines).strip() + "\n"
-
 
 def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
@@ -413,7 +399,6 @@ def main(argv: "list[str]") -> int:
     print(f"[pod-gen] wrote {wrote} Quadlet unit(s) to {OUT_DIR}")
     return 0
 
-
 def _selftest() -> int:
     fails = 0
 
@@ -493,8 +478,6 @@ def _selftest() -> int:
 
     print(f"\n{'ok' if fails == 0 else str(fails) + ' FAILED'}")
     return 1 if fails else 0
-
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

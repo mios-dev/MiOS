@@ -20,7 +20,6 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _NODE_DIR = os.path.join(_ROOT, "usr", "libexec", "mios", "node")
 
-
 def _import_module(name: str, filename: str):
     path = os.path.join(_NODE_DIR, filename)
     spec = importlib.util.spec_from_file_location(name, path)
@@ -31,13 +30,11 @@ def _import_module(name: str, filename: str):
         return mod
     raise ImportError(f"Could not import {name} from {path}")
 
-
 scheduler_mod = _import_module("scheduler", "scheduler.py")
 buffer_pool_mod = _import_module("buffer_pool", "buffer_pool.py")
 capabilities_mod = _import_module("capabilities", "capabilities.py")
 ble_mod = _import_module("ble", "ble.py")
 overlay_mod = _import_module("overlay", "overlay.py")
-
 
 class TestM2DeepAdversarial(unittest.TestCase):
     """Deep adversarial challenges and edge case fuzzers for Milestone 2."""
@@ -296,12 +293,10 @@ class TestM2DeepAdversarial(unittest.TestCase):
         self.assertEqual(router.select_route(888)[0], overlay_mod.TransportType.LAN_BROADCAST)
         self.assertFalse(router.is_peer_partitioned(888))
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestM2DeepAdversarial)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

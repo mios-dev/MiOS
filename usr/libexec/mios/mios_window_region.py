@@ -24,12 +24,10 @@ _ALIASES = {
     "fullscreen": "maximize",
 }
 
-
 def normalize_region(region: str) -> str:
     """Canonicalize a region name: lowercase, trim, underscores->hyphens, alias."""
     key = (region or "").strip().lower().replace("_", "-")
     return _ALIASES.get(key, key)
-
 
 def region_rect(width: int, height: int, region: str):
     """Return (x, y, w, h) for ``region`` within a work area ``width`` x ``height``.
@@ -58,7 +56,6 @@ def region_rect(width: int, height: int, region: str):
     }
     return table.get(region)
 
-
 def rect_from_layout(layout: dict, region: str, monitor: int = 0):
     """Compute the ABSOLUTE (x, y, w, h) for ``region`` from a screen-layout dict.
 
@@ -80,7 +77,6 @@ def rect_from_layout(layout: dict, region: str, monitor: int = 0):
     x, y, w, h = rel
     return (wx + x, wy + y, w, h)
 
-
 def main(argv=None) -> int:
     """CLI: ``mios_window_region.py <region> [monitor]`` reads a screen-layout
     JSON on stdin and prints ``x y w h`` (absolute). Exit 2 = unknown region /
@@ -100,7 +96,6 @@ def main(argv=None) -> int:
         return 2
     sys.stdout.write("{} {} {} {}\n".format(*rect))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

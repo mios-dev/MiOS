@@ -14,7 +14,6 @@ __all__ = [
     "quorum_reached",
 ]
 
-
 def resolve_weights(
     lanes: Sequence[str],
     reliability: Optional[Mapping[str, float]] = None,
@@ -37,12 +36,10 @@ def resolve_weights(
         weights[lane] = max(float(floor), w)
     return weights
 
-
 def quorum_reached(verdicts: Mapping[str, Optional[bool]], min_lanes: int = 2) -> bool:
     """True when at least ``min_lanes`` lanes returned a real (non-abstain) vote."""
     live = sum(1 for v in verdicts.values() if v is not None)
     return live >= max(1, int(min_lanes))
-
 
 def weighted_vote(
     verdicts: Mapping[str, Optional[bool]],
@@ -79,7 +76,6 @@ def weighted_vote(
         "agreement": agreement,
         "weights": w,
     }
-
 
 def reciprocal_rank_fusion(
     rankings: Mapping[str, Sequence],

@@ -17,7 +17,6 @@ _db_create = None
 _db_fire = None
 _db_post = None
 
-
 def configure(*, pg_mirror=None, db_create=None, db_fire=None, db_post=None) -> None:
     """Inject database helper functions."""
     global _pg_mirror, _db_create, _db_fire, _db_post
@@ -29,7 +28,6 @@ def configure(*, pg_mirror=None, db_create=None, db_fire=None, db_post=None) -> 
         _db_fire = db_fire
     if db_post is not None:
         _db_post = db_post
-
 
 def _emit_session_event(fields: dict, session_id: Optional[str]) -> None:
     """Write an `event` row, linked to the session when known so the
@@ -43,7 +41,6 @@ def _emit_session_event(fields: dict, session_id: Optional[str]) -> None:
         if session_id:
             sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
         _db_fire(_db_post(sql))
-
 
 def _sanitize_tool_text(s: str) -> str:
     """Strip terminal-control + bidi-override + C0 control chars from

@@ -13,5 +13,4 @@ recorded below with an ordered plan.
 
 ## Identity: none of the report's subjects is this repository
 
-
 *Audit completed and reconciled against SSOT.*

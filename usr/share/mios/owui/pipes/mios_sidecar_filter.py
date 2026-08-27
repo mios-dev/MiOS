@@ -43,7 +43,6 @@ from typing import Awaitable, Callable, Optional
 
 from pydantic import BaseModel, Field
 
-
 SIBLING_AGENTS = [
     ("hermes-tail",     "/var/lib/mios/hermes-tail/latest.json",         "_format_hermes_tail"),
     ("sys-agent",       "/var/lib/mios/delegation-prefilter/latest.json","_format_sys_agent"),
@@ -56,7 +55,6 @@ SIBLING_AGENTS = [
 ]
 
 CACHE_DIR = Path("/var/lib/mios/owui-sidecar")
-
 
 class Filter:
     class Valves(BaseModel):
@@ -148,7 +146,6 @@ class Filter:
             rule = last.get("rule") or last.get("name") or "rule"
             return f"⏱️ mios-cron-director: fired '{rule}'"
         return None
-
 
     def _format_daemon_classify(self, payload: dict) -> Optional[str]:
         c = payload.get("classify") or {}

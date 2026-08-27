@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load reconcile_dag module from {_MODULE_PATH}")
 
-
 class TestGitReconcile(unittest.TestCase):
     """Validates LCA computation, divergent branch reconciliation, and consensus signing."""
 
@@ -96,7 +95,6 @@ class TestGitReconcile(unittest.TestCase):
                 mock_print.assert_called()
                 parsed = json.loads(mock_print.call_args[0][0])
                 self.assertEqual(parsed["status"], "success")
-
 
 if __name__ == "__main__":
     unittest.main()

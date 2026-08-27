@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from oomd_psi import OOMDPressureManager
 
-
 class TestOOMDPSI(unittest.TestCase):
     def setUp(self):
         self.mgr = OOMDPressureManager(psi_kill_threshold_pct=50.0, dry_run=True)
@@ -35,7 +34,6 @@ class TestOOMDPSI(unittest.TestCase):
         )
         self.assertEqual(act.action_taken, "kill")
         self.assertEqual(act.victim_unit, "worker-build.service")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -27,9 +27,7 @@ else
     echo "[20-services] WARN: generate-cockpit-conf.py or python3 unavailable"
 fi
 
-
 echo "[20-services] WSL2/OCI service-skip drop-ins delivered via system_files overlay"
-
 
 tuned-adm profile throughput-performance 2>/dev/null || true
 

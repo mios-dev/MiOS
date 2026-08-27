@@ -10,14 +10,12 @@ import mios_pdp as pdp
 TIERS = ["read", "write", "interactive"]
 _fails = 0
 
-
 def check(name: str, cond: bool, detail: str = "") -> None:
     global _fails
     tag = "PASS" if cond else "FAIL"
     if not cond:
         _fails += 1
     print(f"[{tag}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def t_rank():
     check("rank: read=0", pdp.permission_rank("read", TIERS) == 0)
@@ -27,7 +25,6 @@ def t_rank():
           pdp.permission_rank("nuke", TIERS) == 3)
     check("rank: case/space-insensitive", pdp.permission_rank("  WRITE ", TIERS) == 1)
 
-
 def t_ceiling():
     check("ceiling: empty -> None (no ceiling)", pdp.resolve_ceiling("", TIERS) is None)
     check("ceiling: absent -> None", pdp.resolve_ceiling(None, TIERS) is None)
@@ -36,12 +33,10 @@ def t_ceiling():
           pdp.resolve_ceiling("supervisor", TIERS) == 0)
     check("ceiling: typo'd tier -> 0 (fail closed)", pdp.resolve_ceiling("writ", TIERS) == 0)
 
-
 def _d(name, *, in_catalog=True, verb_perm="read", denied=(), allowed=(), ceiling=None):
     return pdp.decide(name, in_catalog=in_catalog, verb_perm=verb_perm,
                       denied=denied, allowed=allowed,
                       ceiling_rank=ceiling, tiers=TIERS)
-
 
 def t_decide():
     check("decide: empty policy allows", _d("open_app").allow)
@@ -64,7 +59,6 @@ def t_decide():
     check("decide: fail-closed ceiling keeps read verb",
           _d("list_windows", verb_perm="read", ceiling=bad_ceil).allow)
 
-
 def t_non_verb():
     check("non-verb: passes allowed-list (not a verb)",
           _d("some_mcp_tool", in_catalog=False, allowed=["web_search"]).allow)
@@ -76,7 +70,6 @@ def t_non_verb():
     check("non-verb: rule = non_verb when allowed",
           _d("t", in_catalog=False).rule == "non_verb")
 
-
 def main() -> int:
     t_rank()
     t_ceiling()
@@ -84,7 +77,6 @@ def main() -> int:
     t_non_verb()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

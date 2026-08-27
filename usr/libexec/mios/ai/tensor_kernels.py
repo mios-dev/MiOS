@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional, Tuple
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-tensor-kernels")
 
-
 @dataclass
 class GPUArchitecture:
     name: str
@@ -28,7 +27,6 @@ class GPUArchitecture:
     flash_attn_supported: bool
     cutlass_arch: str
     theoretical_peak_tflops: float
-
 
 class TensorKernelDispatcher:
     """Detects accelerator capabilities and binds architecture-tuned Tensor Core kernels."""
@@ -78,12 +76,10 @@ class TensorKernelDispatcher:
             "meets_target": True,
         }
 
-
 def main():
     dispatcher = TensorKernelDispatcher(dry_run=True)
     arch = dispatcher.probe_gpu_capability()
     print(json.dumps(dispatcher.get_env_bindings(), indent=2))
-
 
 if __name__ == "__main__":
     main()

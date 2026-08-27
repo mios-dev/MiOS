@@ -52,7 +52,6 @@ from overlay import (
 )
 from wire import Frame, MessageType
 
-
 class TestM2AdversarialChallenger(unittest.TestCase):
     """Exhaustive empirical stress tests and edge case verification for Milestone 2."""
 
@@ -335,7 +334,6 @@ class TestM2AdversarialChallenger(unittest.TestCase):
         router.record_heartbeat(303, TransportType.LAN_BROADCAST, latency_ms=1, now_ms=23_000)
         self.assertEqual(router.select_route(303)[0], TransportType.LAN_BROADCAST)
         self.assertFalse(router.is_peer_partitioned(303))
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

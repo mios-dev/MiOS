@@ -2,7 +2,6 @@
 # AI-doc: usr/share/doc/mios/manual/routing.md
 """Web-research verb cluster streamed as HTML-over-SSE into the portal (app-ification mechanism #3)."""
 
-
 import html
 import json
 from typing import Any, Awaitable, Callable, Optional
@@ -13,7 +12,6 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 _dispatch: Optional[Callable[..., Awaitable[dict]]] = None
 _authed: Optional[Callable[[Any], bool]] = None
 
-
 def configure(*, dispatch: Optional[Callable[..., Awaitable[dict]]] = None,
               authed: Optional[Callable[[Any], bool]] = None) -> None:
     global _dispatch, _authed
@@ -22,13 +20,11 @@ def configure(*, dispatch: Optional[Callable[..., Awaitable[dict]]] = None,
     if authed is not None:
         _authed = authed
 
-
 def _sse(event: str, data: str) -> str:
     """One SSE frame: a named event + one `data:` line per line of the HTML
     fragment (multi-line data is legal only as repeated data: lines)."""
     body = "\n".join("data: " + ln for ln in data.split("\n"))
     return f"event: {event}\n{body}\n\n"
-
 
 def _li(title: str, url: str, snippet: str = "") -> str:
     """Render one result as an escaped <li> (XSS-safe -- AI/scraped content is
@@ -43,7 +39,6 @@ def _li(title: str, url: str, snippet: str = "") -> str:
     return (f'<li class="mios-wr-item"><a href="{u}" target="_blank" '
             f'rel="noopener noreferrer">{t}</a>'
             f'{snip}</li>')
-
 
 def _extract_results(res: Any) -> list:
     """Normalize a web_search dispatch result into a list of {title,url,snippet}
@@ -76,7 +71,6 @@ def _extract_results(res: Any) -> list:
         return [x for x in res if isinstance(x, dict)]
     return []
 
-
 async def stream_webresearch(query: str, dispatch: Callable[..., Awaitable[dict]],
                              *, limit: int = 5):
     """Async generator of SSE HTML frames for one web-research query. Pure of
@@ -106,7 +100,6 @@ async def stream_webresearch(query: str, dispatch: Callable[..., Awaitable[dict]
     yield _sse("status", f'<p class="mios-wr-status">done &mdash; {n} result(s).</p>')
     yield _sse("done", "")
 
-
 _APPLET_HTML = """<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/portal/theme.css">
 <link rel="stylesheet" href="/branding/mios-app-shell.css">
@@ -120,16 +113,13 @@ _APPLET_HTML = """<!doctype html><html><head><meta charset="utf-8">
 <ul id="mios-wr-out" class="mios-panel mios-wr-list"></ul>
 </body></html>"""
 
-
 router = APIRouter()
-
 
 @router.get("/portal/app/webresearch")
 async def _page(request: Request):
     if _authed is not None and not _authed(request):
         return HTMLResponse("unauthorized", status_code=401)
     return HTMLResponse(_APPLET_HTML)
-
 
 @router.get("/portal/app/webresearch/render")
 async def _render(request: Request, q: str = ""):
@@ -140,7 +130,6 @@ async def _render(request: Request, q: str = ""):
             f'sse-swap="result" hx-swap="beforeend"><li class="mios-wr-status" '
             f'sse-swap="status" hx-swap="innerHTML"></li></div>')
     return HTMLResponse(frag)
-
 
 @router.get("/portal/app/webresearch/stream")
 async def _stream(request: Request, q: str = ""):
@@ -157,7 +146,6 @@ async def _stream(request: Request, q: str = ""):
             yield frame
 
     return StreamingResponse(_gen(), media_type="text/event-stream")
-
 
 def build_router():
     """Back-compat: the router is module-level; return it for app.include_router."""

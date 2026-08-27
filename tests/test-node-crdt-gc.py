@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load crdt module from {_CRDT_PATH}")
 
-
 class TestNodeCRDTCompaction(unittest.TestCase):
     """Validates tombstone pruning, disconnection horizon TTL retention, and disk log compaction."""
 
@@ -81,12 +80,10 @@ class TestNodeCRDTCompaction(unittest.TestCase):
             self.assertEqual(reloaded.get("k1"), b"v1")
             self.assertEqual(reloaded.total_elements_count(), 1)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeCRDTCompaction)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -37,7 +37,6 @@ ROCM_PARTITIONS_AMD = {
     "compute_qpx": {"mode": "QPX", "description": "Quad Partition (25% CU Split)"},
 }
 
-
 @dataclass
 class PhysicalGPU:
     gpu_id: int
@@ -49,12 +48,10 @@ class PhysicalGPU:
     mig_enabled: bool = False
     current_slices: List[str] = field(default_factory=list)
 
-
 @dataclass
 class CDIDevice:
     name: str
     container_edits: Dict[str, Any]
-
 
 class GPUSliceManager:
     """Manages physical GPU enumeration, MIG/partition slicing, and CDI spec generation."""
@@ -209,7 +206,6 @@ class GPUSliceManager:
         except Exception as exc:
             return False, f"Failed to configure MIG: {exc}"
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS GPU Slice & CDI Spec Manager")
     parser.add_argument("--scan", action="store_true", help="Scan and list GPUs and partition status")
@@ -265,7 +261,6 @@ def main() -> int:
         return 0
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

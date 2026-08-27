@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from microvm_sandbox import MAX_BOOT_LATENCY_MS, MicroVMSandboxManager
 
-
 class TestMicroVMSandbox(unittest.TestCase):
     def setUp(self):
         self.mgr = MicroVMSandboxManager(dry_run=True)
@@ -28,7 +27,6 @@ class TestMicroVMSandbox(unittest.TestCase):
         res = self.mgr.launch_ephemeral_microvm("cat ../../../etc/shadow # dirty_cow")
         self.assertTrue(res.is_contained)
         self.assertEqual(res.exit_code, 1)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,13 +15,11 @@ _fails = 0
 EVIL = "x'); drop table alias; --"          # already lowercase (tools .lower())
 EVIL2 = "global'; delete from person; --"
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _load(fname):
     loader = importlib.machinery.SourceFileLoader(
@@ -30,7 +28,6 @@ def _load(fname):
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
     return mod
-
 
 def _all_sql(envelopes):
     out = []
@@ -41,7 +38,6 @@ def _all_sql(envelopes):
             out.append(e["sql"])
     return out
 
-
 def _all_params(envelopes):
     out = []
     for e in envelopes:
@@ -51,7 +47,6 @@ def _all_params(envelopes):
         else:
             out += (e.get("params") or [])
     return out
-
 
 def t_kg():
     kg = _load("mios-kg")
@@ -70,7 +65,6 @@ def t_kg():
           any("$1" in s for s in sqls))
     check("kg: no leftover single-quote literal of the value",
           all("'" + EVIL not in s for s in sqls))
-
 
 def t_remember():
     rem = _load("mios-remember")
@@ -94,7 +88,6 @@ def t_remember():
     check("remember: INSERT/DELETE use $-placeholders",
           any("$1" in s for s in sqls))
 
-
 def t_skills():
     sk = _load("mios-skills")
     cap = []
@@ -111,14 +104,12 @@ def t_skills():
     check("skills: status payload bound as a param", EVIL2 in params)
     check("skills: statements use $-placeholders", any("$1" in s for s in sqls))
 
-
 def main():
     t_kg()
     t_remember()
     t_skills()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

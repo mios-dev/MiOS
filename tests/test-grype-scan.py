@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestGrypeScan(unittest.TestCase):
     """Test suite for Grype vulnerability report parsing, policy evaluation, exemptions, and SARIF export."""
 
@@ -136,12 +135,10 @@ class TestGrypeScan(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertTrue(os.path.exists(sarif_file))
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestGrypeScan)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

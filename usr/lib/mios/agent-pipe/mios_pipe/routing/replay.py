@@ -20,12 +20,10 @@ should may might must i me my we our you your it its this that these those
 please just now also there here what which who whom how why when where
 """.split())
 
-
 def normalize_tokens(text: str) -> tuple:
     """Sorted unique significant tokens; order-insensitive by construction."""
     words = _WORD_RE.findall(str(text or "").lower())
     return tuple(sorted({w for w in words if w and w not in _STOPWORDS}))
-
 
 def intent_key(text: str) -> str:
     """Stable short hash of a turn's normalized tokens. Empty for an empty or
@@ -34,7 +32,6 @@ def intent_key(text: str) -> str:
     if not toks:
         return ""
     return hashlib.sha256(" ".join(toks).encode("utf-8", "replace")).hexdigest()[:16]
-
 
 def similarity(a: Iterable[str], b: Iterable[str]) -> float:
     """Jaccard overlap of two token sets, 0.0..1.0. Two empty sets score 0.0,
@@ -46,7 +43,6 @@ def similarity(a: Iterable[str], b: Iterable[str]) -> float:
     if not inter:
         return 0.0
     return inter / float(len(sa | sb))
-
 
 def match_template(text: str, templates: Sequence[dict], threshold: float = 0.8,
                    ) -> Tuple[Optional[dict], float, str]:

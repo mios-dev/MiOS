@@ -13,14 +13,12 @@ from typing import Dict, Optional
 
 log = logging.getLogger("quant_dispatch")
 
-
 @dataclass
 class DispatchDecision:
     format_name: str
     target_engine: str
     speedup_multiplier: float
     perplexity_delta: float
-
 
 class QuantizationDispatcher:
     """

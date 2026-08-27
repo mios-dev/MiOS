@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestThemeSync(unittest.TestCase):
     """Test suite for Windows Registry, GTK3, and GTK4 theme generation and synchronization."""
 
@@ -102,12 +101,10 @@ class TestThemeSync(unittest.TestCase):
             exit_code = theme_sync.main()
             self.assertEqual(exit_code, 0)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestThemeSync)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

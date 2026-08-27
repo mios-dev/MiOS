@@ -23,7 +23,6 @@ def extract_dep_ids(dep_str: str) -> list[int]:
         ids.append(int(m.group(1)))
     return ids
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", os.environ.get("MIOS_TOML_ROOT", "."))
     path = os.path.join(root, AGY_TASKS_FILE)
@@ -89,7 +88,6 @@ def main() -> int:
         f"AGY task ID parity check passed (tasks={len(task_ids)}, standalone_ids={len(task_occurrences)})"
     )
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

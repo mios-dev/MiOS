@@ -8,8 +8,6 @@ from typing import Optional
 
 log = logging.getLogger("mios-agent-pipe")
 
-
-
 _TAINT_VERBS: set = set()
 PROVENANCE_TAINT_ENABLE = False
 _ALLOWLIST_HOSTS: set = set()
@@ -21,7 +19,6 @@ _TEXT_VIEW_TAINT_PREFIXES: tuple = (
     "/mnt/c/Program Files (x86)/",
 )
 _INTERNAL_TLD_SUFFIXES: tuple = (".local", ".lan", ".internal")
-
 
 def configure(*, taint_verbs=None, provenance_taint_enable=None,
               allowlist_hosts=None, mcp_client_tools=None, db_read=None,
@@ -38,7 +35,6 @@ def configure(*, taint_verbs=None, provenance_taint_enable=None,
         _TEXT_VIEW_TAINT_PREFIXES = tuple(text_view_taint_prefixes)
     if internal_tld_suffixes is not None:
         _INTERNAL_TLD_SUFFIXES = tuple(internal_tld_suffixes)
-
 
 def _is_external_url(url: str) -> bool:
     if not url or not isinstance(url, str):
@@ -57,7 +53,6 @@ def _is_external_url(url: str) -> bool:
         return True
     except Exception:
         return True  # fail-safe: ambiguous = treat as external
-
 
 def _classify_verb_taint(tool: str, args: dict) -> tuple[bool, str]:
     """Decide whether a verb's OWN execution introduces taint.
@@ -80,7 +75,6 @@ def _classify_verb_taint(tool: str, args: dict) -> tuple[bool, str]:
         if _mt:
             return True, f"mcp_{_mt}:{tool}"
     return False, ""
-
 
 async def _session_is_tainted(session_id: Optional[str]) -> tuple[bool, str]:
     """Look up whether the session has ANY prior tainted tool_call.

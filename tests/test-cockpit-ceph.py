@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load cockpit_ceph module from {_MODULE_PATH}")
 
-
 class TestCockpitCeph(unittest.TestCase):
     """Validates CephFS pool metrics, drive encryption telemetry, and Cockpit manifest generation."""
 
@@ -98,7 +97,6 @@ class TestCockpitCeph(unittest.TestCase):
                 parsed = json.loads(mock_print.call_args[0][0])
                 self.assertEqual(parsed["status"], "ok")
                 self.assertIn("drives", parsed)
-
 
 if __name__ == "__main__":
     unittest.main()

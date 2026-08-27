@@ -23,7 +23,6 @@ except ImportError:
     except ImportError:
         sys.exit(1)
 
-
 def load_ssot(root: str) -> tuple[dict, dict]:
     p = os.path.join(root, "usr/share/mios/mios.toml")
     with open(p, "rb") as fh:
@@ -31,7 +30,6 @@ def load_ssot(root: str) -> tuple[dict, dict]:
     ports = dict(data.get("ports") or {})
     desktop = dict((data.get("desktop") or {}).get("launchers") or {})
     return ports, desktop
-
 
 def render_launcher(name: str, cfg: dict, ports: dict) -> str:
     port_key = cfg.get("port_key", "")
@@ -94,7 +92,6 @@ def render_launcher(name: str, cfg: dict, ports: dict) -> str:
 
     return "\n".join(lines) + "\n"
 
-
 def main() -> int:
     ap = argparse.ArgumentParser(prog="render-desktop")
     ap.add_argument("--check", action="store_true", help="Exit 1 if any .desktop file has drifted")
@@ -145,7 +142,6 @@ def main() -> int:
         print("[render-desktop] All .desktop launchers match SSOT", file=sys.stderr)
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

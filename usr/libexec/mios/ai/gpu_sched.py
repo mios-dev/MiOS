@@ -27,12 +27,10 @@ logger = logging.getLogger("mios-gpu-sched")
 HIGH_PRIO_LATENCY_TARGET_MS = 50.0  # Max acceptable time-to-first-token in ms
 DEFAULT_STATE_FILE = "/run/mios/gpu_sched_state.json"
 
-
 class StreamPriority(IntEnum):
     HIGH = -1    # Interactive Voice / STT / TTS / Fast Chat
     NORMAL = 0   # Standard LLM inference / tool calls
     LOW = 1      # Background QLoRA fine-tuning / batch embeddings
-
 
 @dataclass
 class ComputeJob:
@@ -46,7 +44,6 @@ class ComputeJob:
     created_at: float = field(default_factory=time.time)
     last_exec_ts: float = 0.0
     ttft_ms: float = 0.0
-
 
 class GPUComputeStreamScheduler:
     """Schedules GPU compute streams and coordinates low-priority preemption."""
@@ -173,7 +170,6 @@ class GPUComputeStreamScheduler:
         except Exception as e:
             logger.debug(f"Failed to save scheduler state: {e}")
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS GPU Stream Priority Scheduler")
     parser.add_argument("--status", action="store_true", help="Display scheduler telemetry")
@@ -201,7 +197,6 @@ def main() -> int:
 
     print("MiOS GPU Stream Scheduler initialized.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

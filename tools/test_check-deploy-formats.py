@@ -9,7 +9,6 @@ import unittest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "check_deploy_formats", os.path.join(_HERE, "check-deploy-formats.py"))
@@ -17,15 +16,12 @@ def _load():
     spec.loader.exec_module(m)
     return m
 
-
 MOD = _load()
-
 
 def _ssot():
     import tomllib
     with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh)
-
 
 class TestDeployFormats(unittest.TestCase):
     def setUp(self):
@@ -64,7 +60,6 @@ class TestDeployFormats(unittest.TestCase):
         media = " ".join(s["medium"] for s in self.formats.values()).lower()
         for expected in ("disk", "virtual machine", "usb", "wsl"):
             self.assertIn(expected, media)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

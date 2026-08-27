@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
 
 from mios_route_reload import RouteTableManager
 
-
 class TestRouteReload(unittest.TestCase):
     """Validates atomic route replacement, model lookup, and version bumps."""
 
@@ -30,12 +29,10 @@ class TestRouteReload(unittest.TestCase):
         self.assertIn("lfm2", manager.list_models())
         self.assertEqual(manager.get_route("lfm2")["port"], 11451)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestRouteReload)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -14,13 +14,11 @@ except (ImportError, Exception) as e:
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 async def t_queue_basic():
     q = mq.GatewayQueue(maxsize=10)
@@ -37,7 +35,6 @@ async def t_queue_basic():
 
     q.task_done()
 
-
 async def t_future_resolution():
     loop = asyncio.get_running_loop()
     fut = loop.create_future()
@@ -48,7 +45,6 @@ async def t_future_resolution():
     check("future: becomes done", fut.done())
     res = await fut
     check("future: result content matches", res["choices"][0]["message"]["content"] == "ok")
-
 
 async def t_worker_run_and_cancellation():
     with patch("mios_gateway_queue.ToolCallingAgent") as MockAgent, \
@@ -81,7 +77,6 @@ async def t_worker_run_and_cancellation():
 
         check("worker: task cancelled cleanly", task.done())
 
-
 async def t_worker_exception_handling():
     with patch("mios_gateway_queue.ToolCallingAgent") as MockAgent, \
          patch("mios_gateway_queue.LiteLLMModel") as MockModel:
@@ -113,7 +108,6 @@ async def t_worker_exception_handling():
         except asyncio.CancelledError:
             pass
 
-
 def t_parse_sig():
     res1 = mq.parse_sig("limit?, force?")
     check("parse_sig fallback limit: type", res1["limit"]["type"] == "integer")
@@ -136,7 +130,6 @@ def t_parse_sig():
     check("parse_sig catalog my_flag: desc", res2["my_flag"]["description"] == "A custom flag")
     check("parse_sig catalog my_flag: nullable", res2["my_flag"]["nullable"] is True)
 
-
 def main():
     t_parse_sig()
     loop = asyncio.new_event_loop()
@@ -151,7 +144,6 @@ def main():
 
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

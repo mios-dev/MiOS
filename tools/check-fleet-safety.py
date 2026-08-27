@@ -14,12 +14,10 @@ except ModuleNotFoundError:  # pragma: no cover -- py<3.11
 
 TOML = "usr/share/mios/mios.toml"
 
-
 def fleet_shape(data: dict) -> dict:
     """[blades] min/typical/max node counts."""
     b = data.get("blades") or {}
     return {k: b.get(k) for k in ("min_nodes", "typical_nodes", "max_nodes")}
-
 
 def archetypes_granting(data: dict, needed) -> list:
     """Archetypes granting EVERY capability in `needed`."""
@@ -32,7 +30,6 @@ def archetypes_granting(data: dict, needed) -> list:
         if set(needed) <= have:
             out.append(name)
     return sorted(out)
-
 
 def k3s_multi_server(data: dict, root: str):
     """More than one archetype can stand up a k3s control plane, and the unit
@@ -60,9 +57,7 @@ def k3s_multi_server(data: dict, root: str):
             "`k3s server` with no K3S_URL -- each would stand up its OWN control "
             "plane" % (len(grantors), ", ".join(grantors)))
 
-
 _UNFENCED = re.compile(r"stonith-enabled\s*=\s*false")
-
 
 def pacemaker_unfenced(data: dict, root: str):
     """Pacemaker configured with fencing off. Detail string, or None."""
@@ -90,12 +85,10 @@ def pacemaker_unfenced(data: dict, root: str):
     return ("fencing is disabled (%s) -- safe on one node, and how split-brain "
             "corrupts data on more" % ", ".join(hits))
 
-
 DETECTORS = (
     ("k3s-multi-server", k3s_multi_server),
     ("pacemaker-unfenced", pacemaker_unfenced),
 )
-
 
 def detect(data: dict, root: str) -> dict:
     """{hazard-id: detail} for every hazard that currently reproduces."""
@@ -106,18 +99,15 @@ def detect(data: dict, root: str) -> dict:
             out[key] = detail
     return out
 
-
 def register(data: dict) -> list:
     reg = ((data.get("blades") or {}).get("hazards") or {}).get("accepted")
     if reg is None:
         return []
     return [str(x).strip() for x in reg if str(x).strip()]
 
-
 def max_accepted(data: dict):
     val = ((data.get("blades") or {}).get("hazards") or {}).get("max_accepted")
     return val if isinstance(val, int) else None
-
 
 def violations(data: dict, root: str) -> list:
     viol = []
@@ -177,7 +167,6 @@ def violations(data: dict, root: str) -> list:
                     % (len(reg), ceiling, len(reg)))
     return viol
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     path = os.path.join(root, TOML)
@@ -200,7 +189,6 @@ def main() -> int:
           % (shape.get("min_nodes"), shape.get("max_nodes"),
              shape.get("typical_nodes"), len(register(data)), max_accepted(data)))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

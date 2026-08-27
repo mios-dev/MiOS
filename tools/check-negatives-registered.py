@@ -7,7 +7,6 @@ import sys
 
 HARNESS = "tests/drift-gate-negatives.sh"
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
     try:
@@ -29,7 +28,6 @@ def main() -> int:
     print("[check-negatives-registered] %d negative test(s), all invoked"
           % len(defined), file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

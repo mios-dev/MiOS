@@ -13,13 +13,11 @@ import mios_routing as r
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 _TOML = """
 [routing]
@@ -33,14 +31,12 @@ desc = "web research"
 verbs = ["web_search", "web_scrape", "crawl", "web_extract"]
 """
 
-
 def _write_toml():
     fd, path = tempfile.mkstemp(suffix=".toml")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(_TOML)
     os.environ["MIOS_TOML"] = path
     return path
-
 
 def t_load_phrases():
     fillers = r._load_routing_phrases("launch_filler_phrases")
@@ -53,7 +49,6 @@ def t_load_phrases():
     check("missing key -> []", r._load_routing_phrases("does_not_exist") == [])
     check("launch_fillers loader", r._load_launch_fillers() == fillers)
 
-
 def t_load_domains():
     domains, enable = r._load_routing_domains()
     check("router_enable parsed", enable is True)
@@ -62,7 +57,6 @@ def t_load_domains():
     check("domain verbs parsed",
           domains.get("web", {}).get("verbs") == ["web_search", "web_scrape", "crawl", "web_extract"],
           str(domains))
-
 
 def t_deterministic_route():
     r.configure(
@@ -90,7 +84,6 @@ def t_deterministic_route():
     check("compound -> None",
           r._deterministic_action_route("open notepad and type hello") is None)
 
-
 def main():
     _write_toml()
     t_load_phrases()
@@ -98,7 +91,6 @@ def main():
     t_deterministic_route()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     import sys

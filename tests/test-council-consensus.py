@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from council import AgentCouncilEngine, CouncilVote
 
-
 class TestCouncilConsensus(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.council = AgentCouncilEngine(dry_run=True)
@@ -48,7 +47,6 @@ class TestCouncilConsensus(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(res.consensus_reached)
         self.assertAlmostEqual(res.consensus_score, 2.0 / 3.0, places=2)
         self.assertEqual(len(res.dissent_reasons), 1)
-
 
 if __name__ == "__main__":
     unittest.main()

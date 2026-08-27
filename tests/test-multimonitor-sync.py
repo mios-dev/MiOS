@@ -23,7 +23,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load multimonitor_sync module from {_MMS_PATH}")
 
-
 class TestMultiMonitorSync(unittest.TestCase):
     """Validates multi-head IVSHMEM buffer sizing, monitor parsing, cursor warp math, and launchers."""
 
@@ -162,12 +161,10 @@ class TestMultiMonitorSync(unittest.TestCase):
         self.assertEqual(res["checks"]["hyprland_rules"], "pass")
         self.assertEqual(res["checks"]["launch_script"], "pass")
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestMultiMonitorSync)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from tensor_kernels import TensorKernelDispatcher
 
-
 class TestTensorKernels(unittest.TestCase):
     def setUp(self):
         self.dispatcher = TensorKernelDispatcher(dry_run=True)
@@ -32,7 +31,6 @@ class TestTensorKernels(unittest.TestCase):
         res = self.dispatcher.benchmark_throughput(batch_size=16)
         self.assertTrue(res["meets_target"])
         self.assertGreaterEqual(res["efficiency_pct"], 90.0)
-
 
 if __name__ == "__main__":
     unittest.main()

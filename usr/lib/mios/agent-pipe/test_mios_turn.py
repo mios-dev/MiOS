@@ -10,7 +10,6 @@ import unittest
 
 import mios_turn
 
-
 _THINK_TAGS = r"think|thinking|thought|reasoning|reflection|scratchpad"
 _THINK_OPENERS = ("<think", "<thought", "<reason", "<reflect", "<scratch")
 _THINK_CAP_RE = re.compile(
@@ -19,7 +18,6 @@ _THINK_CAP_UNCLOSED_RE = re.compile(
     rf"<({_THINK_TAGS})\b[^>]*>(.*)$", re.DOTALL | re.IGNORECASE)
 _THINK_ORPHAN_RE = re.compile(
     rf"</?({_THINK_TAGS})\b[^>]*>\s*", re.IGNORECASE)
-
 
 def _configure(registry, node_live=None):
     """Inject a stub registry + (non-probing) health helpers + think regexes."""
@@ -35,7 +33,6 @@ def _configure(registry, node_live=None):
         _THINK_CAP_UNCLOSED_RE=_THINK_CAP_UNCLOSED_RE,
         _THINK_ORPHAN_RE=_THINK_ORPHAN_RE,
     )
-
 
 class TestExtractLastUserText(unittest.TestCase):
     def test_plain_string(self):
@@ -53,7 +50,6 @@ class TestExtractLastUserText(unittest.TestCase):
     def test_no_user(self):
         msgs = [{"role": "assistant", "content": "hi"}, "not-a-dict"]
         self.assertEqual(mios_turn._extract_last_user_text(msgs), "")
-
 
 class TestPickAgent(unittest.TestCase):
     def setUp(self):
@@ -95,7 +91,6 @@ class TestPickAgent(unittest.TestCase):
         _name, cfg = mios_turn._pick_agent("heavy")
         self.assertEqual(cfg["endpoint"], "http://w")  # confirmed live -> untouched
 
-
 class TestCasualAgentLabel(unittest.TestCase):
     def test_role_label(self):
         _configure({"alpha": {"role": "Coder"}})
@@ -105,7 +100,6 @@ class TestCasualAgentLabel(unittest.TestCase):
         _configure({"alpha": {}})
         self.assertEqual(mios_turn._casual_agent_label("alpha"), "sub-agent")
         self.assertEqual(mios_turn._casual_agent_label("missing"), "sub-agent")
-
 
 class TestThinkTags(unittest.TestCase):
     def test_split_captures_and_strips(self):
@@ -123,7 +117,6 @@ class TestThinkTags(unittest.TestCase):
     def test_no_tags_passthrough(self):
         _configure({"a": {}})
         self.assertEqual(mios_turn._strip_think_tags("plain text"), "plain text")
-
 
 class TestLiveAgentNames(unittest.TestCase):
     def test_non_probed_lanes_all_live(self):
@@ -148,7 +141,6 @@ class TestLiveAgentNames(unittest.TestCase):
         _configure(reg, node_live={"gated": (time.time(), False)})
         live = asyncio.run(mios_turn._live_agent_names())
         self.assertEqual(live, {"local"})
-
 
 class TestProbeVerifyTLS(unittest.TestCase):
     """T-310: probes verify TLS unless the SSOT opts out. See ADR-0016."""
@@ -187,7 +179,6 @@ class TestProbeVerifyTLS(unittest.TestCase):
     def test_module_constant_matches_env(self):
         self.assertIs(mios_turn._PROBE_VERIFY_TLS,
                       self._resolve(os.environ.get("MIOS_SECURITY_PROBE_VERIFY_TLS")))
-
 
 if __name__ == "__main__":
     unittest.main()

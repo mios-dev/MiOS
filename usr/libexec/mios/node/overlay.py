@@ -21,13 +21,11 @@ _NODE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _NODE_DIR not in sys.path:
     sys.path.insert(0, _NODE_DIR)
 
-
 class TransportType(IntEnum):
     LAN_BROADCAST = 1
     WIREGUARD = 2
     TAILSCALE = 3
     DIRECT_TCP = 4
-
 
 @dataclass
 class TransportHealth:
@@ -37,7 +35,6 @@ class TransportHealth:
     last_miss_ms: int = 0
     latency_ms: int = 0
     is_healthy: bool = True
-
 
 @dataclass
 class PeerRoute:
@@ -71,13 +68,11 @@ class PeerRoute:
             last_lan_recovery_start_ms=None,
         )
 
-
 @dataclass
 class HysteresisConfig:
     fail_strikes_threshold: int = 3  # Failover on 3 consecutive missed probes
     recovery_dwell_ms: int = 120_000  # 120s dwell time before recovering LAN
     recovery_strikes_threshold: int = 3  # 3 consecutive successful probes during dwell
-
 
 @dataclass
 class RouteSummary:
@@ -86,7 +81,6 @@ class RouteSummary:
     active_endpoint: str
     is_lan_partitioned: bool
     latency_ms: int
-
 
 class MultiTransportRouter:
     """Multi-transport routing controller with automated WAN overlay failover and anti-flap hysteresis."""

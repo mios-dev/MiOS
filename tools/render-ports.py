@@ -16,10 +16,8 @@ ROOT = os.environ.get("MIOS_ROOT") or os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 TOML = os.environ.get("MIOS_TOML") or os.path.join(ROOT, "usr/share/mios/mios.toml")
 
-
 def _categories(data: dict) -> dict:
     return (data.get("ports") or {}).get("categories") or {}
-
 
 def derive_ports(data: dict) -> dict:
     out: dict[str, int] = {}
@@ -38,7 +36,6 @@ def derive_ports(data: dict) -> dict:
             out[name] = int(value)
     return out
 
-
 def category_band(cfg: dict) -> tuple[int, int]:
     """Inclusive [lo, hi] the category's DERIVED members occupy."""
     base = int(cfg.get("base", 0))
@@ -47,7 +44,6 @@ def category_band(cfg: dict) -> tuple[int, int]:
     if n == 0:
         return (base, base)
     return (base, base + (n - 1) * stride)
-
 
 def find_violations(data: dict) -> list[str]:
     """Schema integrity: single membership, no collisions, no band overlap,
@@ -112,9 +108,7 @@ def find_violations(data: dict) -> list[str]:
 
     return problems
 
-
 _PORT_LINE = re.compile(r"^(\s*)([a-z0-9_]+)(\s*)=(\s*)(\d+)(\s*)(#.*)?$")
-
 
 def render_table(text: str, derived: dict) -> str:
     """Rewrite the scalar values inside the flat [ports] table, preserving
@@ -149,7 +143,6 @@ def render_table(text: str, derived: dict) -> str:
         lines[i] = rebuilt + ("\r" if lines[i].endswith("\r") else "")
     return "\n".join(lines)
 
-
 _FALLBACK_RE = re.compile(r"\$\{MIOS_PORT_([A-Z0-9_]+):-(\d+)\}")
 
 # Consumers use the canonical alias remap for guacamole.
@@ -162,7 +155,6 @@ _SWEEP_SKIP = ("manifest.json", ".tsv", "/reference/", "/knowledge/",
                "/target/", "/.git/", "node_modules",
                "/tools/test_", "/tests/")
 
-
 def _sweep_files(root: str):
     for top in _SWEEP_PATHS:
         for dirpath, dirnames, filenames in os.walk(os.path.join(root, top)):
@@ -174,7 +166,6 @@ def _sweep_files(root: str):
                 if any(s in rel for s in _SWEEP_SKIP):
                     continue
                 yield path
-
 
 def sync_fallbacks(root: str, derived: dict, apply: bool) -> list:
     """`${MIOS_PORT_X:-1234}` literals are degrade-open defaults, but a
@@ -211,7 +202,6 @@ def sync_fallbacks(root: str, derived: dict, apply: bool) -> list:
                 with open(path, "w", encoding="utf-8", newline="") as fh:
                     fh.write(new_text)
     return problems
-
 
 def main() -> int:
     check = "--check" in sys.argv
@@ -260,7 +250,6 @@ def main() -> int:
         fh.write(render_table(text, derived))
     print(f"[render-ports] rendered {len(derived)} ports into the flat [ports] table")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

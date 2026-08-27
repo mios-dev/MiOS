@@ -26,7 +26,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
-
 class TestMDNSMeshManager(unittest.TestCase):
     """Test suite for mDNS discovery, announcement records, and WireGuard configuration generation."""
 
@@ -90,12 +89,10 @@ class TestMDNSMeshManager(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertTrue(os.path.exists(out_path))
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestMDNSMeshManager)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

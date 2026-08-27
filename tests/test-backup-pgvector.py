@@ -24,7 +24,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load backup_pgvector module from {_BACKUP_PATH}")
 
-
 class TestBackupPgVector(unittest.TestCase):
     """Validates backup filename format, mock snapshot generation, and 7-day retention rotation."""
 
@@ -64,12 +63,10 @@ class TestBackupPgVector(unittest.TestCase):
             self.assertFalse(os.path.exists(old_file))
             self.assertTrue(os.path.exists(recent_file))
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBackupPgVector)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

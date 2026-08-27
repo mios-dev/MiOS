@@ -29,12 +29,10 @@ UNATTEND_NS = "urn:schemas-microsoft-com:unattend"
 WCM_NS = "http://schemas.microsoft.com/WMIConfig/2002/State"
 XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
 
-
 class Preset(str, Enum):
     DEVELOPER = "developer"
     MINIMAL = "minimal"
     GAMING = "gaming"
-
 
 @dataclass
 class UnattendConfig:
@@ -55,7 +53,6 @@ class UnattendConfig:
     enable_wsl2: bool = True
     resolution_x: int = 1920
     resolution_y: int = 1080
-
 
 class UnattendGenerator:
     """Generates schema-compliant autounattend.xml document."""
@@ -276,7 +273,6 @@ class UnattendGenerator:
             "mock": self.mock,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Windows 11 autounattend.xml Generator"
@@ -329,7 +325,6 @@ def main() -> int:
         else:
             print(f"[unattend_gen] ERROR: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

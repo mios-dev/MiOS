@@ -12,7 +12,6 @@ import os
 import time
 from typing import Optional
 
-
 class WatchdogConfig:
     """Watchdog timer settings and keepalive interval."""
 
@@ -29,7 +28,6 @@ class WatchdogConfig:
         self.timeout_secs = timeout_secs
         self.ping_interval_secs = ping_interval_secs
         self.use_systemd_notify = use_systemd_notify
-
 
 class WatchdogDriver:
     """Abstract base watchdog driver."""
@@ -54,7 +52,6 @@ class WatchdogDriver:
 
     def is_armed(self) -> bool:
         raise NotImplementedError
-
 
 class LinuxHardwareWatchdog(WatchdogDriver):
     """Linux `/dev/watchdog` driver with 'V' safe close."""
@@ -102,7 +99,6 @@ class LinuxHardwareWatchdog(WatchdogDriver):
     def is_armed(self) -> bool:
         return self.file_fd is not None
 
-
 class MockWatchdogDriver(WatchdogDriver):
     """In-memory mock watchdog driver for headless test environments."""
 
@@ -146,7 +142,6 @@ class MockWatchdogDriver(WatchdogDriver):
 
     def is_armed(self) -> bool:
         return self.armed
-
 
 class WatchdogSupervisor:
     """Supervises watchdog arming, keepalive loop, and graceful termination."""

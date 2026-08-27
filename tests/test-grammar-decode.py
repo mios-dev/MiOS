@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "
 
 from grammar_decode import GBNFGrammarCompiler
 
-
 class TestGrammarDecode(unittest.TestCase):
     def setUp(self):
         self.compiler = GBNFGrammarCompiler(dry_run=True)
@@ -45,7 +44,6 @@ class TestGrammarDecode(unittest.TestCase):
             }
             res = self.compiler.compile_schema_to_gbnf(f"schema_{i}", schema)
             self.assertTrue(self.compiler.validate_constrained_json(res.sample_valid_json))
-
 
 if __name__ == "__main__":
     unittest.main()

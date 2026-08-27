@@ -12,7 +12,6 @@ import mios_kvfork
 importlib.reload(mios_kvfork)
 from mios_kvfork import KVForkManager
 
-
 def test_suspend_creates_slot_file():
     """suspend() writes a KV slot file to disk in dry_run mode."""
     mgr = KVForkManager(dry_run=True)
@@ -21,7 +20,6 @@ def test_suspend_creates_slot_file():
     import json
     data = json.loads(slot.slot_path().read_text())
     assert data["session_id"] == "sess-001"
-
 
 def test_resume_removes_from_active():
     """resume() restores the slot and removes it from the active map."""
@@ -32,7 +30,6 @@ def test_resume_removes_from_active():
     assert slot.session_id == "sess-002"
     assert "sess-002" not in mgr.list_suspended()
 
-
 def test_erase_cleans_up_file():
     """erase() deletes the checkpoint file in dry_run mode."""
     mgr = KVForkManager(dry_run=True)
@@ -41,7 +38,6 @@ def test_erase_cleans_up_file():
     assert path.exists()
     mgr.erase("sess-003")
     assert not path.exists()
-
 
 if __name__ == "__main__":
     test_suspend_creates_slot_file()

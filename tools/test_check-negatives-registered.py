@@ -9,7 +9,6 @@ import unittest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 
-
 def _load():
     spec = importlib.util.spec_from_file_location(
         "check_negatives_registered",
@@ -18,9 +17,7 @@ def _load():
     spec.loader.exec_module(mod)
     return mod
 
-
 MOD = _load()
-
 
 class TestNegativesRegistered(unittest.TestCase):
     def test_the_shipped_harness_invokes_everything_it_defines(self):
@@ -38,7 +35,6 @@ class TestNegativesRegistered(unittest.TestCase):
         defined = set(re.findall(r"^(test_[a-z0-9_]+)\(\)", s, re.M))
         invoked = set(re.findall(r"^\s*_run_test\s+(test_[a-z0-9_]+)\s*$", s, re.M))
         self.assertEqual({"test_beta"}, defined - invoked)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

@@ -10,13 +10,11 @@ from mios_pipe.routing import router as r
 
 _fails = 0
 
-
 def check(name: str, cond: bool, detail: str = "") -> None:
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def cascade_mode(refined: dict) -> str:
     """Inline intent cascade mirror from server.py / chat_completions."""
@@ -26,7 +24,6 @@ def cascade_mode(refined: dict) -> str:
     if intent in ("chat", "dispatch", "multi_task", "dag", "agent"):
         return intent
     return "agent"
-
 
 def main() -> int:
     global _fails
@@ -57,7 +54,6 @@ def main() -> int:
 
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

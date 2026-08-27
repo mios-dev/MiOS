@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/libexec/mios/kernel")
 from dkms_engine import DKMSSandboxEngine
 
-
 def test_dkms_build_and_sign_sub_15s():
     """Verify DKMS builds test module in <15s with valid MOK signature."""
     engine = DKMSSandboxEngine()
@@ -15,7 +14,6 @@ def test_dkms_build_and_sign_sub_15s():
     assert res["module"].signed
     assert res["module"].cached_path.endswith(".ko")
 
-
 def test_dkms_binary_caching():
     """Verify second build hits binary cache instantly without re-compilation."""
     engine = DKMSSandboxEngine()
@@ -24,7 +22,6 @@ def test_dkms_binary_caching():
     res2 = engine.build_module("cached_driver", src)
     assert res2["status"] == "cached"
     assert res2["latency_s"] < 0.1, "Cache hit must return instantly"
-
 
 if __name__ == "__main__":
     test_dkms_build_and_sign_sub_15s()

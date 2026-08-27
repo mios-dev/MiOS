@@ -25,7 +25,6 @@ from mios_evict import (evict_where as _evict_where,
 
 log = logging.getLogger("mios-agent-pipe")
 
-
 _db_fire = None
 _db_post = None
 _db_create = None
@@ -75,7 +74,6 @@ KNOWLEDGE_EVICT_BATCH = 500
 KNOWLEDGE_EVICT_INTERVAL_S = 3600
 KNOWLEDGE_RAG_HYBRID = False
 KNOWLEDGE_RAG_RERANK = False
-
 
 def configure(*, db_fire=None, db_post=None, db_create=None, db_update=None,
               db_read=None, pg_mirror=None, recent_satisfaction_verdicts=None,
@@ -169,7 +167,6 @@ def configure(*, db_fire=None, db_post=None, db_create=None, db_update=None,
     if knowledge_rag_hybrid is not None: KNOWLEDGE_RAG_HYBRID = knowledge_rag_hybrid
     if knowledge_rag_rerank is not None: KNOWLEDGE_RAG_RERANK = knowledge_rag_rerank
 
-
 def _recall_floor(query: str) -> float:
     try:
         if query and _RECALL_POSSESSIVE_RE.search(query):
@@ -210,7 +207,6 @@ def _row_age_seconds(ts_val) -> "Optional[float]":
     except Exception:  # noqa: BLE001 -- degrade-open: no recency penalty
         return None
 
-
 def _humanize_age(seconds: "Optional[float]") -> str:
     """A compact 'as of ...' label for a recalled row's age (so a time-bound recall
     is explicitly stamped and never asserted as current). None -> 'time unknown'."""
@@ -224,7 +220,6 @@ def _humanize_age(seconds: "Optional[float]") -> str:
     if s < 129600:
         return f"{int(s / 3600)}h ago"
     return f"{int(s / 86400)}d ago"
-
 
 def _recency_mult(row: dict) -> float:
     """Bounded multiplicative recency factor in [1 - rank_age, 1.0] for a recalled
@@ -241,7 +236,6 @@ def _recency_mult(row: dict) -> float:
     except Exception:  # noqa: BLE001
         return 1.0
 
-
 def _blend_rank(row: dict) -> float:
     try:
         s = float(row.get("score") or 0.0)
@@ -256,7 +250,6 @@ def _blend_rank(row: dict) -> float:
         return base * _recency_mult(row)
     except Exception:  # noqa: BLE001 -- degrade to pure cosine
         return float(row.get("score") or 0.0)
-
 
 def _knowledge_sources(tool_history: Optional[list]) -> list:
     """Compact, auditable source list for a stored answer: the verbs the
@@ -302,7 +295,6 @@ def _store_knowledge(*, query: str, answer: str,
     _db_fire(_store_knowledge_task(
         q[:2000], a[:KNOWLEDGE_ANSWER_MAX],
         session_id, _knowledge_sources(tool_history), satisfied))
-
 
 async def _store_knowledge_task(q: str, a: str,
                                 session_id: Optional[str],
@@ -428,7 +420,6 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
     except Exception:  # noqa: BLE001
         return None
 
-
 async def _recall_knowledge(query: str) -> str:
     if not (KNOWLEDGE_RECALL_ENABLED and query and query.strip()):
         return ""
@@ -540,7 +531,6 @@ async def _db_count(*, with_ttl: bool = False) -> int:
     except Exception:  # noqa: BLE001 -- count is best-effort
         return 0
 
-
 async def _evict_select_ids(*, with_ttl: bool, limit: int, cap: bool = False) -> list:
     """WS-A3: select up to `limit` evictable bigint ids, lowest-value first
     (parameterized pg). cap=True orders by least-recalled for the cap-overflow
@@ -553,7 +543,6 @@ async def _evict_select_ids(*, with_ttl: bool, limit: int, cap: bool = False) ->
         _evict_params(KNOWLEDGE_EVICT_MIN_ACCESS, KNOWLEDGE_EVICT_TTL_DAYS, limit),
         fetch=True)
     return _evict_parse_ids(rows)
-
 
 async def _evict_delete_ids(ids: list) -> int:
     """WS-A3: delete the given bigint ids in one PARAMETERIZED statement
@@ -569,7 +558,6 @@ async def _evict_delete_ids(ids: list) -> int:
     await _mios_pg.execute(_evict_delete_ids_sql(KNOWLEDGE_TABLE),
                            {"ids": clean}, fetch=False)
     return len(clean)
-
 
 async def _evict_knowledge() -> dict:
     """One K-LRU + TTL eviction sweep. DRY-RUN (evict_enable off) only COUNTS +
@@ -638,7 +626,6 @@ async def _evict_knowledge() -> dict:
         log.debug("knowledge-evict skipped: %s", e)
     return report
 
-
 async def _cold_retention_sweep(cold_storage_dir: str, retention_days: int) -> None:
     """Scan cold_storage_dir recursively for .jsonl.zst files older than retention_days, delete them."""
     import os
@@ -685,7 +672,6 @@ async def _cold_retention_sweep(cold_storage_dir: str, retention_days: int) -> N
         except Exception as ex:
             log.warning("Failed to log cold_retention_sweep event: %s", ex)
 
-
 async def _knowledge_evict_loop() -> None:
     """Periodic background sweep. Sleeps first (so a restart doesn't sweep at
     boot), then runs every KNOWLEDGE_EVICT_INTERVAL_S. Survives errors."""
@@ -705,7 +691,6 @@ async def _knowledge_evict_loop() -> None:
         except Exception:  # noqa: BLE001
             await asyncio.sleep(60)
 
-
 def _rls_owner() -> "Optional[str]":
     try:
         if str(_toml_section("pgvector").get("rls_mode", "off")).strip().lower() != "enforce":
@@ -717,7 +702,6 @@ def _rls_owner() -> "Optional[str]":
     except Exception:  # noqa: BLE001 -- degrade-open: never break recall
         return None
 
-
 def _request_principal() -> "Optional[str]":
     try:
         env = _client_env_var.get()
@@ -726,7 +710,6 @@ def _request_principal() -> "Optional[str]":
         return owner or None
     except Exception:  # noqa: BLE001 -- degrade-open: never break recall/store
         return None
-
 
 async def _recall_agent_memory(query: str) -> str:
     """Semantic recall of the agent's SELF-EDITED durable facts (agent_memory:
@@ -773,7 +756,6 @@ async def _recall_agent_memory(query: str) -> str:
                 + "\n".join(lines))
     except Exception:  # noqa: BLE001 -- degrade-open
         return ""
-
 
 async def kg_lookup(phrase: str) -> Optional[dict]:
     """Look up a phrase in the operator's PKG. Returns the first

@@ -26,16 +26,13 @@ KNOWN_ARCHS: frozenset[str] = frozenset({
 
 SECTION_HEADER_RE = re.compile(r"^\s*\[")
 
-
 def _github_error(path: Path, line: int | None, msg: str) -> None:
     loc = f"file={path}" + (f",line={line}" if line is not None else "")
     print(f"::error {loc}::{msg}")
 
-
 def _github_warning(path: Path, line: int | None, msg: str) -> None:
     loc = f"file={path}" + (f",line={line}" if line is not None else "")
     print(f"::warning {loc}::{msg}")
-
 
 def validate_file(path: Path, *, github: bool = False, results: list[dict]) -> bool:
     ok = True
@@ -123,7 +120,6 @@ def validate_file(path: Path, *, github: bool = False, results: list[dict]) -> b
     results.append({"path": str(path), "ok": ok, "issues": issues})
     return ok
 
-
 def _emit(path: Path, issues: list[dict], *, github: bool) -> None:
     for issue in issues:
         level = issue["level"]
@@ -139,14 +135,12 @@ def _emit(path: Path, issues: list[dict], *, github: bool) -> None:
             prefix = "ERROR" if level == "error" else "WARN "
             print(f"  {prefix}  {path}{loc}: {msg}")
 
-
 def collect_files(dirs: list[Path]) -> list[Path]:
     files: list[Path] = []
     for d in dirs:
         if d.is_dir():
             files.extend(sorted(d.glob("*.toml")))
     return files
-
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate 'MiOS' kargs.d TOML files.")
@@ -193,7 +187,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{passed_n}/{len(results)} files passed" + (f", {failed_n} failed" if failed_n else "."))
 
     return 0 if all_ok else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -22,7 +22,6 @@ logger = logging.getLogger("mios-rocm-paged-attn")
 
 MIN_VRAM_UTILIZATION_PCT = 92.0
 
-
 @dataclass
 class ROCmPagedAttentionCapacity:
     concurrent_streams: int
@@ -30,7 +29,6 @@ class ROCmPagedAttentionCapacity:
     vram_utilization_pct: float
     oom_errors_count: int
     output_parity_verified: bool
-
 
 class ROCmPagedAttentionManager:
     """Manages virtual block tables and async HIP stream compaction on AMD GPUs."""
@@ -54,12 +52,10 @@ class ROCmPagedAttentionManager:
         )
         return res
 
-
 def main():
     mgr = ROCmPagedAttentionManager(block_size=16, dry_run=True)
     res = mgr.allocate_and_benchmark_streams(50)
     print(f"Streams: {res.concurrent_streams}, VRAM: {res.vram_utilization_pct:.1f}%")
-
 
 if __name__ == "__main__":
     main()

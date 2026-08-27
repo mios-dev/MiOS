@@ -26,7 +26,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-git-reconcile")
 
-
 @dataclass
 class PeerCommit:
     """Represents a commit in the distributed DAG."""
@@ -42,7 +41,6 @@ class PeerCommit:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
-
 @dataclass
 class ReconciliationPlan:
     """Plan for reconciling two divergent DAG branches."""
@@ -57,7 +55,6 @@ class ReconciliationPlan:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
-
 @dataclass
 class ConsensusRecord:
     """Cryptographic record of multi-agent DAG consensus."""
@@ -69,7 +66,6 @@ class ConsensusRecord:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
-
 
 class DagReconcileEngine:
     """Engine analyzing git commit DAGs and reconciling divergent histories."""
@@ -347,7 +343,6 @@ class DagReconcileEngine:
 
         return {"status": "success" if success else "partial_failure", "remotes": results}
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MiOS Git DAG Reconciliation & Consensus Signer (T-561)")
     parser.add_argument("--local-branch", default="main", help="Local branch name")
@@ -361,7 +356,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mock", action="store_true", help="Execute in-memory DAG reconciliation simulation")
     parser.add_argument("--json", action="store_true", help="Output results in JSON")
     return parser.parse_args()
-
 
 def main() -> int:
     args = parse_args()
@@ -396,7 +390,6 @@ def main() -> int:
         if args.json:
             print(json.dumps({"status": "error", "error": str(e)}, indent=2))
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

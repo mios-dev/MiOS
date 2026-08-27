@@ -7,7 +7,6 @@ sys.path.insert(0, "usr/libexec/mios/ai")
 sys.path.insert(0, "usr/libexec/mios/net")
 sys.path.insert(0, "usr/libexec/mios/storage")
 
-
 def test_stress_streaming_llm():
     from streaming_llm import StreamingLLMManager
     mgr = StreamingLLMManager(sink_size=4, window_size=512)
@@ -15,13 +14,11 @@ def test_stress_streaming_llm():
         mgr.append_token(i)
     assert mgr.cache.current_allocated_tokens == 512
 
-
 def test_stress_quant_dispatch():
     from quant_dispatch import QuantizationDispatcher
     qd = QuantizationDispatcher()
     for _ in range(1000):
         assert qd.dispatch("marlin").speedup_multiplier > 3.0
-
 
 def test_stress_cilium_bgp():
     from cilium_bgp import CiliumBGPManager
@@ -31,7 +28,6 @@ def test_stress_cilium_bgp():
         bgp.announce_vip(f"192.168.1.{i}")
     assert len(bgp.peers["10.0.0.1"].announced_vips) == 100
 
-
 def test_stress_bcachefs_writes():
     from bcachefs_tier import BcachefsTierManager
     bt = BcachefsTierManager()
@@ -39,14 +35,12 @@ def test_stress_bcachefs_writes():
         bt.burst_write(f"b-{i}", b"data" * 50)
     assert bt.rebalance_to_background() == 100
 
-
 def test_stress_fp8_kv():
     from fp8_kv_quant import FP8KVQuantizer
     q = FP8KVQuantizer()
     for l in [1000, 10000, 128000]:
         t = q.quantize_kv(l)
         assert t.memory_bytes < q.compute_fp16_bytes(l)
-
 
 if __name__ == "__main__":
     test_stress_streaming_llm()

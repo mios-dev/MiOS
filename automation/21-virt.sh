@@ -9,7 +9,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 source "${SCRIPT_DIR}/lib/common.sh"
 
-
 mios_log "Install KVM/QEMU/Libvirt"
 install_packages "virt"
 
@@ -73,7 +72,6 @@ mkdir -p ${MIOS_SHARE_DIR}/virtio
 scurl -sL "$VIRTIO_URL" -o ${MIOS_SHARE_DIR}/virtio/virtio-win.iso 2>/dev/null || {
     mios_warn "VirtIO-Win ISO download failed"
 }
-
 
 mios_ok "Virtualization stack ready"
 

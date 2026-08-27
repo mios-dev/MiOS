@@ -24,7 +24,6 @@ logger = logging.getLogger("mios-pgvector-hnsw")
 MAX_KNN_SEARCH_MS = 5.0
 MIN_RECALL_ACCURACY_PCT = 98.0
 
-
 @dataclass
 class VectorQueryResult:
     query_id: str
@@ -32,7 +31,6 @@ class VectorQueryResult:
     search_latency_ms: float
     recall_accuracy_pct: float
     memory_reduction_pct: float
-
 
 class PgVectorHNSWManager:
     """Manages quantized halfvec HNSW vector index operations and partition queries."""
@@ -78,13 +76,11 @@ class PgVectorHNSWManager:
         )
         return res
 
-
 def main():
     mgr = PgVectorHNSWManager(dry_run=True)
     print(mgr.generate_partition_schema_sql())
     res = mgr.execute_knn_query("query_vec_01", 10)
     print(f"Latency: {res.search_latency_ms:.2f} ms, Recall: {res.recall_accuracy_pct:.1f}%")
-
 
 if __name__ == "__main__":
     main()

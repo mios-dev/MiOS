@@ -5,12 +5,10 @@ from __future__ import annotations
 import hashlib
 from typing import Dict, List, Optional
 
-
 def content_hash(text: object) -> str:
     """Stable short content fingerprint (sha256, first 12 hex). Deterministic."""
     return hashlib.sha256(str(text if text is not None else "").encode(
         "utf-8", "replace")).hexdigest()[:12]
-
 
 class PromptRegistry:
     """Versioned, rollback-capable registry of named prompts. Single event loop;

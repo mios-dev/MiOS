@@ -8,7 +8,6 @@ import collections
 import re
 from typing import Optional
 
-
 _VERB_CATALOG = None
 _resolve_verb_key = None
 _cosine = None
@@ -25,7 +24,6 @@ BM25_K1 = 1.2
 BM25_B = 0.75
 PRIORITY_FALLBACK_SCORES = [0.55, 0.45, 0.30, 0.25, 0.15]
 TOOL_PRIORITY_CORE_FIRST = True
-
 
 def configure(*, verb_catalog=None, resolve_verb_key=None, cosine=None,
               verb_embed_fingerprint=None, verb_embed_text=None,
@@ -70,10 +68,8 @@ def configure(*, verb_catalog=None, resolve_verb_key=None, cosine=None,
     if tool_priority_core_first is not None:
         TOOL_PRIORITY_CORE_FIRST = tool_priority_core_first
 
-
 _VERB_LEXICON: "Optional[dict]" = None
 _VERB_LEXICON_LOCK = asyncio.Lock()
-
 
 def _tool_priority(t: dict) -> int:
     fn = (t.get("function") or {})

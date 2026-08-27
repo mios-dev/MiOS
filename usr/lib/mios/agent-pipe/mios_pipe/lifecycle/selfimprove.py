@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-
 def aggregate(tool_calls: list) -> "Dict[str, dict]":
     """Per-tool rollup from tool_call records. Each record may carry
     success(bool|None), exit_code(int|None), latency_ms(num|None), tainted."""
@@ -27,7 +26,6 @@ def aggregate(tool_calls: list) -> "Dict[str, dict]":
         if tc.get("tainted"):
             s["taint"] += 1
     return stats
-
 
 def analyze(tool_calls: list, *, reputation: "Optional[dict]" = None,
             min_samples: int = 5, fail_threshold: float = 0.3,

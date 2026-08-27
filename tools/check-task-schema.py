@@ -30,7 +30,6 @@ DONE_MARKER = "[DONE]"
 REQUIRED = ("Goal", "What+How", "Where", "Verify", "Do NOT", "Done When", "Why", "Dep")
 HEAD_RE = re.compile(r"^#{2,3} AGY-(\d+)(?:\.\.(\d+))? ", re.M)
 
-
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
     path = os.path.join(root, "AGY-TASKS.md")
@@ -104,7 +103,6 @@ def main() -> int:
         print(f"[check-task-schema] {n} task(s) carry the full schema; "
               f"{len(dupes)}/{ceil} duplicate ids", file=sys.stderr)
     return 1 if viol else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

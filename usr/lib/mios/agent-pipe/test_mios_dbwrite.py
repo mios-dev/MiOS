@@ -11,7 +11,6 @@ from mios_pipe.dbwrite import (
     configure,
 )
 
-
 class TestDbWrite(unittest.TestCase):
 
     def setUp(self):
@@ -36,7 +35,6 @@ class TestDbWrite(unittest.TestCase):
 
     def test_pg_mirror_degrade_open(self):
         _pg_mirror("event", {"action": "logout"})
-
 
 if __name__ == "__main__":
     unittest.main()

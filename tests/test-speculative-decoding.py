@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from speculative import SpeculativeDraftManager
 
-
 class TestSpeculativeDecoding(unittest.TestCase):
     def setUp(self):
         self.mgr = SpeculativeDraftManager(dry_run=True)
@@ -34,7 +33,6 @@ class TestSpeculativeDecoding(unittest.TestCase):
         res = self.mgr.benchmark_speedup("qwen2.5-32b-instruct.Q4_K_M.gguf")
         self.assertGreaterEqual(res["speedup_ratio"], 2.5)
         self.assertTrue(res["meets_target"])
-
 
 if __name__ == "__main__":
     unittest.main()

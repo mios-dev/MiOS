@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from disk_health import SmartHealthMonitor, DriveHealth
 
-
 class TestSmartCephfsEvacuation(unittest.TestCase):
     def setUp(self):
         self.monitor = SmartHealthMonitor(dry_run=True)
@@ -93,7 +92,6 @@ class TestSmartCephfsEvacuation(unittest.TestCase):
         self.assertEqual(h.temperature_c, 40.0)
         self.assertEqual(h.reallocated_sectors, 0)
         self.assertEqual(h.critical_warning, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

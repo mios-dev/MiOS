@@ -13,7 +13,6 @@ import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-
 class VisualRAGIndexer:
     """Manages screenshot metadata extraction and visual memory record creation."""
 

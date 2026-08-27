@@ -15,7 +15,6 @@ except ImportError:
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 
-
 def test_update_verb_ssot():
     toml_path = os.path.join(_ROOT, "usr/share/mios/mios.toml")
     with open(toml_path, "rb") as f:
@@ -23,7 +22,6 @@ def test_update_verb_ssot():
     update_cfg = (cfg.get("verbs") or {}).get("update")
     assert update_cfg is not None, "[verbs.update] missing in mios.toml"
     assert update_cfg.get("cmd") == "/usr/bin/mios-update", f"Unexpected cmd for [verbs.update]: {update_cfg.get('cmd')}"
-
 
 def test_known_verbs_update():
     mios_bin = os.path.join(_ROOT, "usr/bin/mios")
@@ -33,13 +31,11 @@ def test_known_verbs_update():
         "update missing from KNOWN_VERBS in usr/bin/mios"
     )
 
-
 def test_profile_verbs_update():
     profile_script = os.path.join(_ROOT, "etc/profile.d/mios-verbs.sh")
     with open(profile_script, "r", encoding="utf-8") as f:
         content = f.read()
     assert "mios-update" in content, "mios-update missing in etc/profile.d/mios-verbs.sh"
-
 
 def main() -> int:
     print("[test-mios-update-verb] Running mios update verb verification...")
@@ -48,7 +44,6 @@ def main() -> int:
     test_profile_verbs_update()
     print("[test-mios-update-verb] PASS: Verified mios update verb routing.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

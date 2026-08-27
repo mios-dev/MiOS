@@ -11,7 +11,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 GATE = os.path.join(HERE, "check-credential-literals.py")
 FAILED = 0
 
-
 def build(tmp, unit_body, grandfathered):
     os.makedirs(os.path.join(tmp, "usr/share/containers/systemd"), exist_ok=True)
     os.makedirs(os.path.join(tmp, "usr/lib/systemd/system"), exist_ok=True)
@@ -21,7 +20,6 @@ def build(tmp, unit_body, grandfathered):
     open(os.path.join(tmp, "usr/share/mios/mios.toml"), "w").write(
         f"[security.credential_literals]\ngrandfathered = [\n{entries}]\n")
     return tmp
-
 
 def case(label, unit_body, grandfathered, want_zero):
     global FAILED
@@ -33,7 +31,6 @@ def case(label, unit_body, grandfathered, want_zero):
     print(f"[{'PASS' if ok else 'FAIL'}] {label} (exit {rc})")
     if not ok:
         FAILED += 1
-
 
 KNOWN = "usr/share/containers/systemd/x.container:DB_PASSWORD"
 

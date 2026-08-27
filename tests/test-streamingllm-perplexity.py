@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "usr/lib/mios/ai")
 from streaming_llm import StreamingLLMManager
 
-
 def test_streamingllm_memory_bounds_100k():
     """Verify 100,000 tokens generation keeps memory strictly bounded within window."""
     # Test with 1024 window capacity for rapid CI verification
@@ -18,7 +17,6 @@ def test_streamingllm_memory_bounds_100k():
     # Simulated perplexity metric
     simulated_ppl = 12.4
     assert simulated_ppl < 15.0, "Perplexity must remain stable (<15.0)"
-
 
 if __name__ == "__main__":
     test_streamingllm_memory_bounds_100k()

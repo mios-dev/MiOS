@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load setup-looking-glass module from {_VFIO_PATH}")
 
-
 class TestLookingGlassSetup(unittest.TestCase):
     """Validates Looking Glass IVSHMEM XML generation and memory allocation checks."""
 
@@ -56,12 +55,10 @@ class TestLookingGlassSetup(unittest.TestCase):
         self.assertIn("setup-looking-glass.py --verify", content)
         self.assertIn("[Install]", content)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestLookingGlassSetup)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

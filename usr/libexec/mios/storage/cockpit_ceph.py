@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Optional
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-cockpit-ceph")
 
-
 @dataclass
 class CephPoolTier:
     """Represents a Ceph storage pool and its tiering characteristics."""
@@ -39,7 +38,6 @@ class CephPoolTier:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
-
 @dataclass
 class DriveSecurityStatus:
     """Represents encryption and SMART health of a physical disk backing Ceph or local storage."""
@@ -53,7 +51,6 @@ class DriveSecurityStatus:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
-
 
 @dataclass
 class StorageDashboard:
@@ -82,7 +79,6 @@ class StorageDashboard:
             "active_osds": self.active_osds,
             "total_osds": self.total_osds,
         }
-
 
 class CockpitCephManager:
     """Manages CephFS pool metrics, disk security status, and Cockpit UI manifest generation."""
@@ -284,7 +280,6 @@ class CockpitCephManager:
 
         return manifest
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MiOS Cockpit CephFS & Storage Telemetry Backend (T-550)")
     parser.add_argument("--status", action="store_true", help="Output full CephFS cluster and encrypted drive dashboard")
@@ -295,7 +290,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mock", action="store_true", help="Use in-memory Ceph cluster simulation for testing")
     parser.add_argument("--json", action="store_true", help="Output in structured JSON format")
     return parser.parse_args()
-
 
 def main() -> int:
     args = parse_args()
@@ -347,7 +341,6 @@ def main() -> int:
         if args.json:
             print(json.dumps({"status": "error", "error": str(e)}, indent=2))
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

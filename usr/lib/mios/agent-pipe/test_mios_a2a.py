@@ -16,12 +16,10 @@ import shutil as _shutil
 
 _mkdtemp_orig = tempfile.mkdtemp
 
-
 def _mkdtemp_cleaned(*a, **kw):
     _d = _mkdtemp_orig(*a, **kw)
     _atexit.register(_shutil.rmtree, _d, True)
     return _d
-
 
 tempfile.mkdtemp = _mkdtemp_cleaned
 
@@ -33,11 +31,9 @@ class _FakeApp:
     description = "MiOS test agent"
     version = "9.9.9"
 
-
 class _FakePriv:
     def sign(self, b: bytes) -> bytes:
         return b"\x01\x02\x03signature"
-
 
 class _FakeResp:
     status_code = 200
@@ -45,18 +41,14 @@ class _FakeResp:
     def json(self):
         return {"choices": [{"message": {"content": "stub answer"}}]}
 
-
 class _FakeClient:
     async def post(self, url, json=None, headers=None, timeout=None):
         return _FakeResp()
 
-
 async def _fake_get_client():
     return _FakeClient()
 
-
 _ENV_VAR = contextvars.ContextVar("client_env", default={})
-
 
 def _configure():
     mios_a2a.configure(
@@ -84,7 +76,6 @@ def _configure():
         passport_enable=True,
         passport_agent_name="agent-pipe",
     )
-
 
 class TestAgentCard(unittest.TestCase):
     def setUp(self):
@@ -158,7 +149,6 @@ class TestAgentCard(unittest.TestCase):
         self.assertEqual(proto_names, {"A2A", "MCP", "OpenAI"})
         self.assertEqual(len(man["features"]), 1)   # one agent skill -> one feature
         self.assertTrue(man["capabilities"]["tool_use"])
-
 
 class TestAgentCardJWS(unittest.TestCase):
     """U3: the AgentCard `signatures[]` is a real A2A v1.0 JWS (RFC-7515 over RFC-8785
@@ -244,7 +234,6 @@ class TestAgentCardJWS(unittest.TestCase):
         without = mios_a2a._agent_card_signing_input(prot, bare)
         self.assertEqual(with_sigs, without)
 
-
 class TestSkillDirectory(unittest.TestCase):
     def setUp(self):
         _configure()
@@ -255,7 +244,6 @@ class TestSkillDirectory(unittest.TestCase):
         self.assertEqual(body["object"], "mios.a2a.skill_directory")
         self.assertEqual(body["ceiling"], "interactive")
         self.assertIsInstance(body["skills"], list)
-
 
 class TestJsonRpc(unittest.TestCase):
     def setUp(self):
@@ -326,7 +314,6 @@ class TestJsonRpc(unittest.TestCase):
                        {"kind": "data", "data": {"x": 1}}]})
         self.assertEqual(txt, "a\nb\nc")
 
-
 class TestPrincipal(unittest.TestCase):
     def setUp(self):
         _configure()
@@ -343,9 +330,6 @@ class TestPrincipal(unittest.TestCase):
         md = mios_a2a._a2a_principal_metadata("text", "peer-1", "ctx-1")
         self.assertIsInstance(md, dict)
 
-
-
-
 class _FakeReq:
     """Minimal stand-in for a Starlette Request: only .json() is exercised."""
     def __init__(self, payload=None, exc=None):
@@ -357,17 +341,14 @@ class _FakeReq:
             raise self._exc
         return self._payload
 
-
 class _FakeRep:
     """Reputation double: rank() is the stable identity sort the logic relies on."""
     def rank(self, ids):
         return list(ids)
 
-
 async def _fake_send_to_peer(peer_id, text, context_id=None):
     return {"kind": "task", "id": "t-1", "peer_id": peer_id,
             "contextId": context_id, "echo": text}
-
 
 def _configure_peer_routes():
     """Inject the consumer-side A2A deps the /v1/a2a/* route logic reads."""
@@ -379,7 +360,6 @@ def _configure_peer_routes():
         a2a_reputation=_FakeRep(),
         a2a_send_message_to_peer=_fake_send_to_peer,
     )
-
 
 class TestJsonRpcRouteLogic(unittest.TestCase):
     def setUp(self):
@@ -412,7 +392,6 @@ class TestJsonRpcRouteLogic(unittest.TestCase):
         self.assertEqual(res.status_code, 400)
         self.assertEqual(json.loads(res.body)["error"]["code"], -32700)
 
-
 class TestPeerRouteLogic(unittest.TestCase):
     def setUp(self):
         _configure()
@@ -442,7 +421,6 @@ class TestPeerRouteLogic(unittest.TestCase):
         res = asyncio.run(mios_a2a.a2a_dispatch_logic(
             _FakeReq({"skill": "nope", "text": "hi"})))
         self.assertEqual(res.status_code, 404)
-
 
 class TestPassportRouteLogic(unittest.TestCase):
     def setUp(self):
@@ -476,9 +454,6 @@ class TestPassportRouteLogic(unittest.TestCase):
         self.assertEqual(res.status_code, 404)
         self.assertIn("no public key", json.loads(res.body)["error"])
 
-
-
-
 class _FakeAuthReq:
     """Request stand-in carrying both .headers (for the admin gate) and .json()."""
     def __init__(self, payload=None, auth="", exc=None):
@@ -490,7 +465,6 @@ class _FakeAuthReq:
         if self._exc is not None:
             raise self._exc
         return self._payload
-
 
 class TestPrincipalModeVerify(unittest.TestCase):
     """T-014 FED-G6: the 'verify' tier runs the SAME check enforce does but, on a
@@ -567,9 +541,6 @@ class TestPrincipalModeVerify(unittest.TestCase):
                          "TASK_STATE_COMPLETED")                           # ALLOWED
         self.assertFalse(any("a2a-principal-audit" in m for m in records))  # no audit
 
-
-
-
 class TestCallerKeyRevoke(unittest.TestCase):
     """T-052 FED-G8: POST /v1/admin/keys/revoke appends a caller key to the CRL and
     HOT-RELOADS it so the credential is refused on the very next check, no restart."""
@@ -642,7 +613,6 @@ class TestCallerKeyRevoke(unittest.TestCase):
         res = asyncio.run(mios_a2a.caller_key_revoke_logic(
             _FakeAuthReq({}, auth="Bearer admin-secret")))
         self.assertEqual(res.status_code, 400)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

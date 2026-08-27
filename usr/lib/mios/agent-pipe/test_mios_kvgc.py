@@ -10,17 +10,14 @@ import mios_kvgc as gc
 _fails = 0
 NOW = 1_000_000.0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def f(path, age_s, size):
     return {"path": path, "mtime": NOW - age_s, "size": size}
-
 
 def t_ttl():
     files = [f("a.bin", 10, 100), f("b.bin", 5000, 100), f("c.bin", 9999, 100)]
@@ -30,7 +27,6 @@ def t_ttl():
     check("ttl: reason tagged", plan.reasons["b.bin"] == "ttl")
     check("ttl: freed bytes accounted", plan.freed_bytes == 200, f"{plan.freed_bytes}")
 
-
 def t_size_cap():
     files = [f(f"f{i}.bin", age_s=i * 10, size=100) for i in range(5)]
     plan = gc.plan_gc(files, ttl_s=0, max_bytes=250, now=NOW)
@@ -38,7 +34,6 @@ def t_size_cap():
     check("size: evicted the OLDEST", set(plan.evict) == {"f4.bin", "f3.bin", "f2.bin"}, f"{plan.evict}")
     check("size: survivors under cap", sum(100 for _ in plan.kept) <= 250)
     check("size: reason tagged size_cap", all(plan.reasons[p] == "size_cap" for p in plan.evict))
-
 
 def t_protect():
     files = [f("active.bin", 9999, 1000), f("old.bin", 8888, 1000)]
@@ -50,7 +45,6 @@ def t_protect():
     check("protect: active counts vs cap but is never evicted", "active.bin" not in plan2.evict, f"{plan2.to_dict()}")
     check("protect: evicts evictable to fit", len(plan2.evict) >= 1)
 
-
 def t_noop():
     plan = gc.plan_gc([], ttl_s=3600, max_bytes=100, now=NOW)
     check("noop: empty -> nothing", plan.evict == [] and plan.kept == [] and plan.freed_bytes == 0)
@@ -60,7 +54,6 @@ def t_noop():
     plan3 = gc.plan_gc(files, ttl_s=3600, max_bytes=1000, now=NOW)
     check("noop: under both thresholds -> keep all", plan3.evict == [])
 
-
 def main():
     t_ttl()
     t_size_cap()
@@ -68,7 +61,6 @@ def main():
     t_noop()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

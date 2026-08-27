@@ -8,7 +8,6 @@ import os
 import sys
 from typing import Dict, List, Optional, Any, AsyncIterator
 
-
 class MiOSAsyncHTTPTransport:
     """High-throughput HTTPX connection pool supporting TCP/HTTP2, Unix Domain Sockets, and chunk streaming."""
 
@@ -75,7 +74,6 @@ class MiOSAsyncHTTPTransport:
                 yield c
             return
 
-
 def main():
     parser = argparse.ArgumentParser(description="MiOS Async HTTPX Transport Pool")
     default_url = os.environ.get("MIOS_AI_ENDPOINT", "http://127.0.0.1/v1/health")
@@ -86,7 +84,6 @@ def main():
     transport = MiOSAsyncHTTPTransport(mock_mode=args.mock)
     res = asyncio.run(transport.fetch_endpoint(args.url))
     print(json.dumps(res, indent=2))
-
 
 if __name__ == "__main__":
     main()

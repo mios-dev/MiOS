@@ -83,4 +83,3 @@ else:
     def has_tainted(session_id: str, scratchpad_dir: str) -> bool:
         return False
 
-

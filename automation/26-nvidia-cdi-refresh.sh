@@ -12,7 +12,6 @@ if [[ -f "$OCI_HOOK" ]]; then
     rm -f "$OCI_HOOK"
 fi
 
-
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
@@ -29,6 +28,5 @@ do
         mios_warn "${unit} not found, skipping enablement"
     fi
 done
-
 
 mios_ok "CDI refresh pipeline configured"

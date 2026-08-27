@@ -11,16 +11,11 @@ import sys
 import mios_toolexec
 import mios_secondary_loop as M
 
-
-
-
 def _apply_outbound_auth(hdrs, ep):
     return None
 
-
 def _endpoint_supports_parallel_tools(ep):
     return False
-
 
 class _Resp:
     def __init__(self, payload):
@@ -30,7 +25,6 @@ class _Resp:
 
     def json(self):
         return self._payload
-
 
 class _FakeClient:
     """Returns one scripted assistant message per POST, in order."""
@@ -43,13 +37,11 @@ class _FakeClient:
         msg = self._q.pop(0) if self._q else {"content": "done."}
         return _Resp({"choices": [{"message": msg}]})
 
-
 def _msg(content="", tool_calls=None):
     m = {"content": content}
     if tool_calls is not None:
         m["tool_calls"] = tool_calls
     return m
-
 
 _orig_toolexec_exec = getattr(mios_toolexec, "_exec_tool_calls", None)
 _orig_m_exec = getattr(M, "_exec_tool_calls", None)
@@ -84,7 +76,6 @@ def _wire(*, exec_result):
         endpoint_supports_parallel_tools=_endpoint_supports_parallel_tools,
     )
 
-
 def _run(scripted, exec_result=([], False)):
     _wire(exec_result=exec_result)
     nudges = []
@@ -95,7 +86,6 @@ def _run(scripted, exec_result=([], False)):
         client, "http://ep/v1", "m", {}, msgs, tools, None,
         nudges.append))
     return out, nudges, client
-
 
 out, nudges, client = _run([
     _msg(content="I cannot do that, use my tools."),   # disclaim -> nudge

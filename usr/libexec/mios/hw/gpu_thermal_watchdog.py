@@ -30,7 +30,6 @@ DEFAULT_TARGET_JUNCTION_TEMP_C = 80.0
 DEFAULT_MIN_FAN_FLOOR_PERCENT = 25.0
 DEFAULT_POLL_INTERVAL_SECONDS = 5.0
 
-
 class GPUTelemetry:
     """Holds structured telemetry readings from a single GPU device."""
 
@@ -80,7 +79,6 @@ class GPUTelemetry:
             "clock_mhz": self.clock_mhz,
             "pwm_path": self.pwm_path,
         }
-
 
 class GPUThermalWatchdog:
     """Monitors GPU thermals and manages dynamic fan curves with strict floor enforcement."""
@@ -387,7 +385,6 @@ class GPUThermalWatchdog:
         except KeyboardInterrupt:
             logger.info("MiOS GPU thermal watchdog stopped by operator.")
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS GPU Thermal, Junction Temperature & Fan Watchdog (T-424)"
@@ -459,7 +456,6 @@ def main() -> int:
         watchdog.run_daemon(poll_interval=args.poll_interval)
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

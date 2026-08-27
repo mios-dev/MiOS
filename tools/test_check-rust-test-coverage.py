@@ -10,12 +10,10 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 mod = SourceFileLoader(
     "check_rust_test_coverage", os.path.join(_HERE, "check-rust-test-coverage.py")).load_module()
 
-
 class TestCheckRustTestCoverage(unittest.TestCase):
     def test_import_and_main_callable(self):
         self.assertTrue(hasattr(mod, "main"))
         self.assertTrue(callable(mod.main))
-
 
 if __name__ == "__main__":
     unittest.main()

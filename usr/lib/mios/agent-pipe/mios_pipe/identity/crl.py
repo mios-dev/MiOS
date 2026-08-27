@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import Iterable, Set
 
-
 class CRL:
     """An in-memory revocation set keyed by token-id / principal-id."""
 

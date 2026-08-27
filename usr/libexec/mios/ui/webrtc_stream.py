@@ -26,7 +26,6 @@ logger = logging.getLogger("mios-webrtc-stream")
 LATENCY_TARGET_MS = 15.0  # Max acceptable end-to-end frame latency in ms
 DEFAULT_STATE_FILE = "/run/mios/webrtc_stream_state.json"
 
-
 @dataclass
 class StreamConfig:
     resolution: str = "3840x2160"  # 4K
@@ -37,7 +36,6 @@ class StreamConfig:
     zero_copy_dmabuf: bool = True
     portal_auth_required: bool = True
 
-
 @dataclass
 class FrameMetrics:
     frame_id: int
@@ -46,7 +44,6 @@ class FrameMetrics:
     transmit_time_ms: float
     total_latency_ms: float
     zero_copy: bool
-
 
 class ScreenCastPortalBridge:
     """Manages org.freedesktop.portal.ScreenCast session authorization."""
@@ -90,7 +87,6 @@ class ScreenCastPortalBridge:
 
     def is_session_valid(self, session_handle: str) -> bool:
         return self.authorized_sessions.get(session_handle, {}).get("active", False)
-
 
 class PipeWireDMABUFStreamer:
     """Handles DMA-BUF zero-copy surface ingestion and WebRTC streaming."""
@@ -230,7 +226,6 @@ class PipeWireDMABUFStreamer:
             "target_met": self.get_average_latency_ms() < LATENCY_TARGET_MS if self.latency_history else True,
         }
 
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="MiOS PipeWire DMA-BUF WebRTC Streamer")
     parser.add_argument("--dry-run", action="store_true", help="Run without binding display server")
@@ -260,7 +255,6 @@ def main() -> int:
 
     print("MiOS WebRTC Streamer initialized.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import Iterable, List, Optional
 
-
 class Lane:
     """A routable lane with cost + quality metadata. kind: 'local' | 'remote'.
     cost_in = approx cost per 1k input tokens (0.0 for a local lane).
@@ -24,7 +23,6 @@ class Lane:
     def is_local(self) -> bool:
         return self.kind == "local"
 
-
 def order_lanes(lanes: Iterable[Lane]) -> List[Lane]:
     """The cascade order: ALL local lanes first (cheapest cost, then strongest),
     then remote lanes by ascending cost (then descending quality). Local-first
@@ -35,7 +33,6 @@ def order_lanes(lanes: Iterable[Lane]) -> List[Lane]:
     remotes = sorted((x for x in ls if not x.is_local),
                      key=lambda x: (x.cost_in, -x.quality_tier))
     return locals_ + remotes
-
 
 class CostLedger:
     """Per-window spend tracker. Escalation to a paid lane is refused once the
@@ -58,12 +55,10 @@ class CostLedger:
     def remaining(self) -> float:
         return float("inf") if self.budget <= 0 else max(0.0, self.budget - self.spent)
 
-
 def should_escalate(quality_ok: bool, local_exhausted: bool) -> bool:
     """Escalate to the next (stronger/remote) lane when the local output failed
     its quality gate, OR the local group is exhausted (nothing local left)."""
     return (not quality_ok) or local_exhausted
-
 
 def choose_next(lanes: Iterable[Lane], attempted: Iterable[str], *,
                 ledger: Optional[CostLedger] = None,

@@ -11,7 +11,6 @@ from mios_pipe.scheduler.vram import (
     configure,
 )
 
-
 class TestVram(unittest.TestCase):
 
     def setUp(self):
@@ -36,7 +35,6 @@ class TestVram(unittest.TestCase):
 
         asyncio.run(_model_active(ep, model, -1))
         self.assertFalse(_model_is_active(ep, model))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
-
 def get_system_version() -> str:
     if "MIOS_VERSION" in os.environ:
         return os.environ["MIOS_VERSION"]
@@ -18,7 +17,6 @@ def get_system_version() -> str:
             except OSError:
                 pass
     return "0.0.0"
-
 
 def build_health_response(
     status: str = "ok",

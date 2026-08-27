@@ -22,7 +22,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load discovery module from {_DISC_PATH}")
 
-
 class TestNodeDiscovery(unittest.TestCase):
     """Validates mDNS advertisement parsing, challenge-response authentication, and active registry."""
 
@@ -86,12 +85,10 @@ class TestNodeDiscovery(unittest.TestCase):
         self.assertEqual(active[0]["node_id"], 205)
         self.assertTrue(active[0]["authenticated"])
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestNodeDiscovery)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

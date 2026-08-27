@@ -17,11 +17,9 @@ import sys
 
 _RESULTS: list = []
 
-
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
-
 
 def _load_tool():
     p = os.environ.get("MIOS_EGRESS_TOOL")
@@ -39,9 +37,7 @@ def _load_tool():
     loader.exec_module(m)
     return m
 
-
 M = _load_tool()
-
 
 def t_always() -> None:
     rs = M.build_ruleset("off", [], "mios-ai")
@@ -53,7 +49,6 @@ def t_always() -> None:
     _check("always: tailnet", "ip daddr 100.64.0.0/10 accept" in rs)
     _check("always: WSL gateway", "ip daddr 172.16.0.0/12 accept" in rs)
     _check("always: AI-hint header", rs.splitlines()[0].startswith("# AI-hint:"))
-
 
 def t_modes() -> None:
     off = M.build_ruleset("off", [], "mios-ai")
@@ -68,14 +63,12 @@ def t_modes() -> None:
     weird = M.build_ruleset("banana", [], "mios-ai")
     _check("unknown mode -> off no-op", "no-op" in weird and "drop" not in weird)
 
-
 def t_allow() -> None:
     rs = M.build_ruleset("enforce", ["203.0.113.0/24", "198.51.100.7", "2001:db8::/32"], "mios-ai")
     _check("allow: v4 set rule", "ip daddr {" in rs and "203.0.113.0/24" in rs)
     _check("allow: v6 set rule", "ip6 daddr {" in rs and "2001:db8::/32" in rs)
     _check("allow: empty -> no allow rule",
            "ip daddr {" not in M.build_ruleset("enforce", [], "mios-ai"))
-
 
 def t_scope() -> None:
     rs = M.build_ruleset("enforce", [], "mios-agent")
@@ -84,7 +77,6 @@ def t_scope() -> None:
     _check("scope: other users pass untouched (rule precedes drop)",
            rs.index("skuid") < rs.index("drop"))
 
-
 def main() -> int:
     for t in (t_always, t_modes, t_allow, t_scope):
         t()
@@ -92,7 +84,6 @@ def main() -> int:
     total = len(_RESULTS)
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

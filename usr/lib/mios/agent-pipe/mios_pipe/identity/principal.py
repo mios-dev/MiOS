@@ -15,12 +15,10 @@ log = logging.getLogger("mios-agent-pipe")
 TABLE = "a2a_delegation"
 METADATA_KEY = "mios_principal"
 
-
 def text_digest(text) -> str:
     """SHA-256 hex of the delegated instruction text -- binds the signature to the
     exact instruction so a man-in-the-middle cannot swap the task."""
     return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
-
 
 def build_claims(agent, principal, peer_id, context_id, text) -> dict:
     """The signed-over claim set: who is acting (agent), on whose behalf
@@ -34,14 +32,12 @@ def build_claims(agent, principal, peer_id, context_id, text) -> dict:
         "text_sha256": text_digest(text),
     }
 
-
 def build_metadata(agent, principal, peer_id, context_id, text,
                    sign_fn: Callable[[str, dict], Optional[dict]]) -> dict:
     """{'claims':…, 'passport':envelope|None}. The passport is None when no key is
     provisioned -- intentional (unsigned but still attributable)."""
     claims = build_claims(agent, principal, peer_id, context_id, text)
     return {"claims": claims, "passport": sign_fn(TABLE, claims)}
-
 
 def verify(metadata: Optional[dict], delivered_text,
            verify_fn: Callable[[dict, Tuple[str, dict]], Tuple[bool, str]]
@@ -58,7 +54,6 @@ def verify(metadata: Optional[dict], delivered_text,
     ok, reason = verify_fn(passport, (TABLE, claims))
     return ok, reason, claims
 
-
 PASSPORT_ENABLE = None
 PASSPORT_ALGO = None
 PASSPORT_KEY_DIR = None
@@ -67,7 +62,6 @@ PASSPORT_AGENT_NAME = None
 _passport_priv = None  # cached private key object
 _passport_pub_cache: dict[str, Any] = {}
 _passport_load_attempted = False
-
 
 def configure(*, passport_enable=None, passport_algo=None, passport_key_dir=None,
               passport_agent_name=None) -> None:
@@ -85,14 +79,12 @@ def configure(*, passport_enable=None, passport_algo=None, passport_key_dir=None
     if passport_agent_name is not None:
         PASSPORT_AGENT_NAME = passport_agent_name
 
-
 def _passport_canonical_json(obj) -> str:
     """Deterministic JSON encoding -- matches the mios-passport CLI
     exactly so a signature emitted by one path is verifiable by
     the other."""
     return json.dumps(obj, sort_keys=True, separators=(",", ":"),
                       default=str)
-
 
 def _passport_op_hash(table: str, fields: dict) -> str:
     """SHA-256 of `table:canonical-json(fields-minus-passport)`.
@@ -103,7 +95,6 @@ def _passport_op_hash(table: str, fields: dict) -> str:
     payload.pop("passport", None)
     canon = f"{table}:{_passport_canonical_json(payload)}"
     return "sha256:" + hashlib.sha256(canon.encode("utf-8")).hexdigest()
-
 
 def _passport_load_priv():
     """Best-effort load of this service's Ed25519 private key.
@@ -142,7 +133,6 @@ def _passport_load_priv():
         _passport_priv = False
         return None
 
-
 def _passport_kid() -> str:
     """Read this service's current kid. Defaults to <agent>-v1."""
     path = os.path.join(PASSPORT_KEY_DIR, PASSPORT_AGENT_NAME, "kid")
@@ -152,7 +142,6 @@ def _passport_kid() -> str:
         return kid or f"{PASSPORT_AGENT_NAME}-v1"
     except Exception:
         return f"{PASSPORT_AGENT_NAME}-v1"
-
 
 def _passport_load_public(agent: str):
     """Resolve an agent's public key. Filesystem first; the
@@ -172,7 +161,6 @@ def _passport_load_public(agent: str):
     except Exception as e:
         log.warning("passport: pub key load failed for %s: %s", agent, e)
     return None
-
 
 def _passport_sign(table: str, fields: dict) -> Optional[dict]:
     """Return a passport envelope for a (table, fields) write, or
@@ -203,7 +191,6 @@ def _passport_sign(table: str, fields: dict) -> Optional[dict]:
     except Exception as e:
         log.warning("passport: sign failed for %s: %s", table, e)
         return None
-
 
 def _passport_verify(envelope: dict,
                      payload_for_hash: Optional[tuple] = None

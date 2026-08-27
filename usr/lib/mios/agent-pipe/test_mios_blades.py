@@ -10,19 +10,16 @@ import mios_blades as B
 
 _fails = 0
 
-
 def check(name, cond, detail=""):
     global _fails
     if not cond:
         _fails += 1
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
-
 def _endpoint_key(ep):
     """host:port of an endpoint URL -- the same identity server._endpoint_key uses."""
     s = str(ep or "").split("://", 1)[-1]
     return s.split("/", 1)[0] or s
-
 
 def t_local_blade_name():
     _saved_env = os.environ.get("MIOS_HOSTNAME")
@@ -43,7 +40,6 @@ def t_local_blade_name():
         else:
             os.environ["MIOS_HOSTNAME"] = _saved_env
 
-
 def t_load_blade_pool_default():
     _saved = B._toml_section
     B._toml_section = lambda s: {}
@@ -54,7 +50,6 @@ def t_load_blade_pool_default():
     check("pool: default has only the local blade", list(pool.keys()) == ["ws"], str(pool))
     check("pool: local vram defaults to the local scalar", pool["ws"]["vram_budget_mb"] == 23000)
     check("pool: local load_ceil carried", pool["ws"]["load_ceil"] == 16.0)
-
 
 def t_load_blade_pool_overrides():
     _saved = B._toml_section
@@ -78,7 +73,6 @@ def t_load_blade_pool_overrides():
           pool["vague"]["vram_budget_mb"] == 23000, str(pool.get("vague")))
     check("pool: non-dict blade entry ignored", "bad" not in pool)
 
-
 def t_endpoint_blade_map():
     registry = {
         "node:a":   {"endpoint": "http://10.0.0.9:11434/v1", "blade": "potato"},
@@ -94,14 +88,12 @@ def t_endpoint_blade_map():
     check("ep_map: endpoint-less node skipped", all("inert" not in k for k in m))
     check("ep_map: non-dict cfg skipped", len(m) == 3, str(m))
 
-
 def t_blade_for_endpoint():
     m = {"10.0.0.9:11434": "potato"}
     check("blade_for_ep: known endpoint -> its blade",
           B.blade_for_endpoint(m, _endpoint_key, "http://10.0.0.9:11434/v1", "ws") == "potato")
     check("blade_for_ep: unknown endpoint -> local (degrade-open)",
           B.blade_for_endpoint(m, _endpoint_key, "http://1.2.3.4:9/v1", "ws") == "ws")
-
 
 def t_blade_vram_budget_degrade_open():
     pool = {"ws": {"vram_budget_mb": 23000}, "potato": {"vram_budget_mb": 8000},
@@ -112,7 +104,6 @@ def t_blade_vram_budget_degrade_open():
           B.blade_vram_budget(pool, "ghost", 23000) == 23000)
     check("budget: zero/missing budget -> local scalar (degrade-open)",
           B.blade_vram_budget(pool, "zero", 23000) == 23000)
-
 
 def t_admission_decision():
     """The V5 headline: the SAME co-load (used+est+reserve) is DENIED against a small
@@ -143,7 +134,6 @@ def t_admission_decision():
     check("admit(degrade-open): unknown blade -> local scalar -> ADMIT",
           admits(unk_budget) is True and unk_budget == LOCAL_SCALAR)
 
-
 def main():
     t_local_blade_name()
     t_load_blade_pool_default()
@@ -154,7 +144,6 @@ def main():
     t_admission_decision()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

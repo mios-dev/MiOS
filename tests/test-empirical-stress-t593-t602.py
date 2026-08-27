@@ -18,7 +18,6 @@ from bcachefs_tier import BcachefsTierManager
 from log_archiver import LogArchiverManager
 from service_mesh import ServiceMeshGenerator
 
-
 class TestEmpiricalStressT593T602(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="mios-stress-t593-")
@@ -128,7 +127,6 @@ class TestEmpiricalStressT593T602(unittest.TestCase):
             config["http"]["services"]["custom-service"]["loadBalancer"]["servers"][0]["url"],
             "http://unix:/var/run/custom.sock"
         )
-
 
 if __name__ == "__main__":
     unittest.main()

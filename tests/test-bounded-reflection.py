@@ -25,7 +25,6 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load mios_deliberate module from {_DELIB_PATH}")
 
-
 class TestBoundedReflection(unittest.TestCase):
     """Validates semantic delta scoring, diminishing returns exit, and iteration limits."""
 
@@ -137,12 +136,10 @@ class TestBoundedReflection(unittest.TestCase):
         self.assertIn(result.exit_reason, ("converged_critique_passed", "converged_diminishing_returns"))
         self.assertIn("port 5432", result.final_output)
 
-
 def main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(TestBoundedReflection)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

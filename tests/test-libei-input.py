@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec", "mios", "ui"))
 from libei_input import LibeiInputInjector
 
-
 class TestLibeiInputInjector(unittest.TestCase):
     def setUp(self):
         self.injector = LibeiInputInjector(display_width=1920, display_height=1080, dry_run=True)
@@ -40,7 +39,6 @@ class TestLibeiInputInjector(unittest.TestCase):
         res = self.injector.emit_type("git status")
         self.assertEqual(res["status"], "dry_run")
         self.assertEqual(res["text_length"], 10)
-
 
 if __name__ == "__main__":
     unittest.main()

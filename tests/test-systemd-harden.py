@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "libexec
 
 from systemd_harden import SystemdHardeningManager
 
-
 class TestSystemdHardening(unittest.TestCase):
     def setUp(self):
         self.mgr = SystemdHardeningManager(dry_run=True)
@@ -34,7 +33,6 @@ class TestSystemdHardening(unittest.TestCase):
         audit = self.mgr.audit_unit_exposure("raw-daemon.service", has_hardening_dropin=False)
         self.assertFalse(audit.is_safe)
         self.assertGreater(audit.exposure_score, 3.0)
-
 
 if __name__ == "__main__":
     unittest.main()
