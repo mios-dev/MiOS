@@ -574,16 +574,16 @@
 | T-660 | P2 | done | Telemetry/LogMeshTest | Automated multi-node log streaming, partition buffering, and central query test suite |
 | T-661 | P1 | done | Security/CVEScan | Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator |
 | T-662 | P2 | done | Security/CVETest | Automated Critical CVE rejection and supply-chain vulnerability gate test suite |
-| T-663 | P1 | open | Hardware/GPUHeat | Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon |
-| T-664 | P2 | open | Hardware/GPUHeatTest | Automated inter-GPU P2P bandwidth telemetry and tensor bottleneck detection test suite |
-| T-665 | P1 | open | Security/SystemdAudit | Declarative systemd unit hardening generator and security audit gate |
-| T-666 | P2 | open | Security/SystemdTest | Automated systemd unit security exposure score (<3.0) and seccomp filter verification test suite |
-| T-667 | P1 | open | Memory/OOMD | Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies |
-| T-668 | P2 | open | Memory/OOMDTest | Automated memory pressure stall injection and protected service survival test suite |
-| T-669 | P1 | open | AI/TrainElastic | Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager |
-| T-670 | P2 | open | AI/TrainElasticTest | Automated training preemption, async checkpoint verification, and zero-loss step resumption test suite |
-| T-671 | P1 | open | AI/MultiModalWS | Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe |
-| T-672 | P2 | open | AI/MultiModalTest | Automated concurrent multi-modal streaming latency (<100ms) and temporal alignment test suite |
+| T-663 | P1 | done | Hardware/GPUHeat | Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon |
+| T-664 | P2 | done | Hardware/GPUHeatTest | Automated inter-GPU P2P bandwidth telemetry and tensor bottleneck detection test suite |
+| T-665 | P1 | done | Security/SystemdAudit | Declarative systemd unit hardening generator and security audit gate |
+| T-666 | P2 | done | Security/SystemdTest | Automated systemd unit security exposure score (<3.0) and seccomp filter verification test suite |
+| T-667 | P1 | done | Memory/OOMD | Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies |
+| T-668 | P2 | done | Memory/OOMDTest | Automated memory pressure stall injection and protected service survival test suite |
+| T-669 | P1 | done | AI/TrainElastic | Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager |
+| T-670 | P2 | done | AI/TrainElasticTest | Automated training preemption, async checkpoint verification, and zero-loss step resumption test suite |
+| T-671 | P1 | done | AI/MultiModalWS | Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe |
+| T-672 | P2 | done | AI/MultiModalTest | Automated concurrent multi-modal streaming latency (<100ms) and temporal alignment test suite |
 | T-673 | P1 | open | Virtualization/MicroVM | Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge |
 | T-674 | P2 | open | Virtualization/MicroVMTest | Automated sub-50ms microVM boot time, vsock throughput, and breakout containment test suite |
 | T-675 | P1 | open | AI/ContextCompactor | Hierarchical semantic context compactor and invariant pinning manager in agent-pipe |
@@ -7243,7 +7243,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Systemd-oomd mitigates memory thrashing by killing low-priority cgroups and protecting core services.
 **Why:** Declarative PSI-based OOM mitigation prevents kernel swap thrashing and desktop lockups under extreme RAM pressure.
 **Dep:** AGY-2264
-**Status:** open | **Domain:** Memory/OOMD | **Who:** agent
+**Status:** done | **Domain:** Memory/OOMD | **Who:** agent
 **Converted:** AGY-2265 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-668 -- Automated memory pressure stall injection and protected service survival test suite (WS-BOOT | P2 | S)
@@ -7253,7 +7253,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that systemd-oomd reliably kills thrashing slices and preserves critical services.
 **Why:** Continuous testing ensures memory management updates maintain system responsiveness under severe memory pressure.
 **Dep:** AGY-2265
-**Status:** open | **Domain:** Memory/OOMDTest | **Who:** agent
+**Status:** done | **Domain:** Memory/OOMDTest | **Who:** agent
 **Converted:** AGY-2266 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-651 -- Asyncio/epoll reactive event loop and PostgreSQL LISTEN/NOTIFY dispatcher in agent-pipe (WS-ORCH | P1 | M)
@@ -7383,7 +7383,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** GPU heatmap daemon samples interconnect throughput and renders live matrix telemetry.
 **Why:** Real-time P2P bandwidth visualization identifies PCIe lane degradation and tensor bottlenecks instantly.
 **Dep:** AGY-2260
-**Status:** open | **Domain:** Hardware/GPUHeat | **Who:** agent
+**Status:** done | **Domain:** Hardware/GPUHeat | **Who:** agent
 **Converted:** AGY-2261 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-664 -- Automated inter-GPU P2P bandwidth telemetry and tensor bottleneck detection test suite (WS-VFIO | P2 | S)
@@ -7393,7 +7393,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates P2P bandwidth telemetry precision and low-overhead matrix sampling.
 **Why:** Continuous testing ensures GPU monitoring daemons do not degrade active inference performance.
 **Dep:** AGY-2261
-**Status:** open | **Domain:** Hardware/GPUHeatTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/GPUHeatTest | **Who:** agent
 **Converted:** AGY-2262 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-665 -- Declarative systemd unit hardening generator and security audit gate (WS-SEC | P1 | M)
@@ -7403,7 +7403,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Systemd hardening script injects least-privilege sandboxing drop-ins and passes security audits.
 **Why:** Declarative systemd sandboxing protects the host by containing compromised daemons inside restricted namespaces.
 **Dep:** AGY-2262
-**Status:** open | **Domain:** Security/SystemdAudit | **Who:** agent
+**Status:** done | **Domain:** Security/SystemdAudit | **Who:** agent
 **Converted:** AGY-2263 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-666 -- Automated systemd unit security exposure score (<3.0) and seccomp filter verification test suite (WS-SEC | P2 | S)
@@ -7413,7 +7413,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates least-privilege systemd sandboxing and seccomp filter enforcement.
 **Why:** Continuous testing ensures systemd unit additions maintain strict sandboxing and containment guarantees.
 **Dep:** AGY-2263
-**Status:** open | **Domain:** Security/SystemdTest | **Who:** agent
+**Status:** done | **Domain:** Security/SystemdTest | **Who:** agent
 **Converted:** AGY-2264 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-669 -- Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager (WS-AI | P1 | M)
@@ -7423,7 +7423,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Elastic training engine streams async checkpoints and resumes training automatically after preemption.
 **Why:** Asynchronous checkpointing and elastic resumption protect long model fine-tuning runs from unexpected system restarts.
 **Dep:** AGY-2266
-**Status:** open | **Domain:** AI/TrainElastic | **Who:** agent
+**Status:** done | **Domain:** AI/TrainElastic | **Who:** agent
 **Converted:** AGY-2267 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-670 -- Automated training preemption, async checkpoint verification, and zero-loss step resumption test suite (WS-AI | P2 | S)
@@ -7433,7 +7433,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates async checkpoint timing, zero-loss step recovery, and final model parity.
 **Why:** Continuous testing ensures training infrastructure withstands power cuts, thermal capping, and node failovers.
 **Dep:** AGY-2267
-**Status:** open | **Domain:** AI/TrainElasticTest | **Who:** agent
+**Status:** done | **Domain:** AI/TrainElasticTest | **Who:** agent
 **Converted:** AGY-2268 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-671 -- Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe (WS-ORCH | P1 | M)
@@ -7443,7 +7443,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Multi-modal WebSocket pipeline streams concurrent audio, vision, and tool results fluidly.
 **Why:** Duplex multi-modal streaming delivers natural real-time conversational agent experiences while understanding desktop context.
 **Dep:** AGY-2268
-**Status:** open | **Domain:** AI/MultiModalWS | **Who:** agent
+**Status:** done | **Domain:** AI/MultiModalWS | **Who:** agent
 **Converted:** AGY-2269 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-672 -- Automated concurrent multi-modal streaming latency (<100ms) and temporal alignment test suite (WS-ORCH | P2 | S)
@@ -7453,7 +7453,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-100ms conversational latency and seamless multi-modal temporal synchronization.
 **Why:** Continuous testing ensures agent orchestrator optimizations preserve fluid real-time multi-modal interaction.
 **Dep:** AGY-2269
-**Status:** open | **Domain:** AI/MultiModalTest | **Who:** agent
+**Status:** done | **Domain:** AI/MultiModalTest | **Who:** agent
 **Converted:** AGY-2270 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-673 -- Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge (WS-VFIO | P1 | M)
