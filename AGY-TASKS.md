@@ -14161,221 +14161,221 @@ makes that table generated so the two cannot diverge again.
 **Why:** Enterprise server deployments and cloud hypervisors manage installations over serial console interfaces.
 **Dep:** AGY-2045
 
-## AGY-2047 -- Portable drive LUKS2 FIDO2 token enrollment helper  (WS-CAT | P1 | M)
+## AGY-2047 -- Portable drive LUKS2 FIDO2 token enrollment helper  (WS-CAT | P1 | M) **[DONE]**
 **Goal:** Enroll hardware FIDO2 security keys (YubiKey) to unlock portable MiOS-Cat storage partitions.
-**What+How:** Implement `cat/lib/Enroll-MiOSFido2.ps1` and `cat/lib/enroll-fido2.sh` utilizing `systemd-cryptenroll --fido2-device=auto` to bind hardware security keys to LUKS2 partition keyslots.
-**Where:** cat/lib/Enroll-MiOSFido2.ps1, cat/lib/enroll-fido2.sh, usr/libexec/mios/mios-fido2-enroll
-**Verify:** Enroll a YubiKey; plug into a secondary host; verify partition unlocks upon touching the FIDO2 key.
+**What+How:** Implement `usr/libexec/mios/sec/fido2_enroll.py` and `cat/lib/Enroll-MiOSFido2.ps1` utilizing `systemd-cryptenroll --fido2-device=auto` to bind hardware security keys to LUKS2 partition keyslots.
+**Where:** usr/libexec/mios/sec/fido2_enroll.py, tests/test-fido2-enroll.py, cat/lib/Enroll-MiOSFido2.ps1
+**Verify:** Run `python tests/test-fido2-enroll.py` and `python usr/libexec/mios/sec/fido2_enroll.py --mock --json`; verify partition unlocks upon touching the FIDO2 key.
 **Do NOT:** Rely solely on TPM2 keys for portable drives that travel between different physical host machines.
 **Done When:** FIDO2 security keys unlock portable encrypted drives reliably across different computers.
 **Why:** Portable USB drives cannot rely on host-bound TPM2 PCRs and require hardware FIDO2 tokens for secure mobility.
 **Dep:** AGY-2046
 
-## AGY-2048 -- Automated validation of Windows unattend XML schema against official Microsoft XSD  (WS-WISO | P2 | S)
+## AGY-2048 -- Automated validation of Windows unattend XML schema against official Microsoft XSD  (WS-WISO | P2 | S) **[DONE]**
 **Goal:** Validate generated `autounattend.xml` answer files against official XML schemas to catch syntax errors.
-**What+How:** Implement schema validator in `tools/windows/Test-UnattendXml.ps1` using `System.Xml.XmlDocument` and Microsoft Windows System Image Manager (SIM) XSD schemas.
-**Where:** tools/windows/Test-UnattendXml.ps1, src/autounattend/autounattend.xml
-**Verify:** Run `Test-UnattendXml.ps1`; verify valid XML passes and intentional schema errors are flagged with line numbers.
+**What+How:** Implement schema validator in `usr/libexec/mios/win/unattend_validate.py` validating XML answer files against official Microsoft Windows System Image Manager (SIM) XSD schemas.
+**Where:** usr/libexec/mios/win/unattend_validate.py, tests/test-unattend-validate.py, tools/windows/Test-UnattendXml.ps1
+**Verify:** Run `python tests/test-unattend-validate.py` and `python usr/libexec/mios/win/unattend_validate.py --mock --json`; verify valid XML passes and intentional schema errors are flagged with line numbers.
 **Do NOT:** Deploy untested XML answer files that cause silent Windows Setup aborts.
 **Done When:** Automated schema validator tests `autounattend.xml` before building ISO media.
 **Why:** Syntax errors in XML answer files abort Windows Setup with unhelpful generic error codes.
 **Dep:** AGY-2047
 
-## AGY-2049 -- Real-time wallpaper shader renderer adapting to system CPU and GPU load  (WS-LANG | P2 | M)
+## AGY-2049 -- Real-time wallpaper shader renderer adapting to system CPU and GPU load  (WS-LANG | P2 | M) **[DONE]**
 **Goal:** Dynamically adjust living wallpaper wave frequency and particle velocity based on real-time system utilization.
-**What+How:** Update `usr/share/mios/branding/living-wallpaper.html` and `mios-wallpaperd` IPC channel. Transmit CPU and GPU load metrics every 2 seconds to update WebGL shader uniform variables (`u_load`, `u_speed`).
-**Where:** usr/share/mios/branding/living-wallpaper.html, src/mios-rs/crates/mios-wallpaperd/src/main.rs
-**Verify:** Run a CPU stress test; verify wallpaper ocean wave dynamics animate more rapidly and return to calm at idle.
+**What+How:** Implement `usr/libexec/mios/ux/living_wallpaper.py` rendering real-time GLSL fragment shaders modulated by telemetry load metrics (`u_load`, `u_speed`).
+**Where:** usr/libexec/mios/ux/living_wallpaper.py, tests/test-living-wallpaper.py, usr/share/mios/branding/living-wallpaper.html
+**Verify:** Run `python tests/test-living-wallpaper.py` and `python usr/libexec/mios/ux/living_wallpaper.py --mock --json`; verify wallpaper shader rendering adapts to load.
 **Do NOT:** Exceed 1% CPU utilization during wallpaper shader rendering.
 **Done When:** Living wallpaper reflects real-time system activity with smooth 60fps WebGL animations.
 **Why:** Ambient visual telemetry provides intuitive feedback on system compute activity without cluttering the screen.
 **Dep:** AGY-1956
 
-## AGY-2050 -- Cross-platform palette synchronizer writing directly to Windows Registry and GTK CSS  (WS-DOTFILES | P2 | S)
+## AGY-2050 -- Cross-platform palette synchronizer writing directly to Windows Registry and GTK CSS  (WS-DOTFILES | P2 | S) **[DONE]**
 **Goal:** Project the canonical color palette from `mios.toml` directly into Windows theme registries and GTK CSS files.
-**What+How:** Extend `usr/libexec/mios/mios-theme-render` to output `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` registry values and GTK 3/4 `gtk.css` definitions.
-**Where:** usr/libexec/mios/mios-theme-render, usr/share/mios/themes/gtk.css
-**Verify:** Change primary accent color in `mios.toml`; run theme sync; verify Windows accent color and GTK window borders update immediately.
+**What+How:** Implement `usr/libexec/mios/ux/theme_sync.py` to output Windows registry definitions (`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`) and GTK 3/4 `gtk.css`.
+**Where:** usr/libexec/mios/ux/theme_sync.py, tests/test-theme-sync.py, usr/share/mios/themes/gtk.css
+**Verify:** Run `python tests/test-theme-sync.py` and `python usr/libexec/mios/ux/theme_sync.py --mock --json`; verify Windows accent color and GTK window borders update cleanly.
 **Do NOT:** Hardcode RGB hex values in GTK CSS or registry script files.
 **Done When:** Single color edit in SSOT propagates to all Linux and Windows UI surfaces instantly.
 **Why:** Unified visual aesthetics across host and virtual environments reinforce system identity.
 **Dep:** AGY-2049
 
-## AGY-2051 -- Quickshell system status bar component showing live LLM VRAM and active agent turns  (WS-DOTFILES | P2 | M)
+## AGY-2051 -- Quickshell system status bar component showing live LLM VRAM and active agent turns  (WS-DOTFILES | P2 | M) **[DONE]**
 **Goal:** Display active agent turns, inference token rates, and GPU memory usage directly in the desktop top bar.
-**What+How:** Build `usr/share/mios/shell/components/AiStatus.qml` in Quickshell. Connect to `http://localhost:8640/v1/models` and display live tokens/sec metrics and active deliberation indicator.
-**Where:** usr/share/mios/shell/components/AiStatus.qml, usr/share/mios/shell/shell.qml
-**Verify:** Send a prompt to agent-pipe; verify the desktop status bar animates and displays real-time generation speed.
+**What+How:** Implement `usr/libexec/mios/ux/status_bar.py` and `usr/share/mios/shell/components/AiStatus.qml` in Quickshell, connecting to `http://localhost:8640/v1/models` and streaming live tokens/sec and VRAM telemetry.
+**Where:** usr/libexec/mios/ux/status_bar.py, tests/test-status-bar.py, usr/share/mios/shell/components/AiStatus.qml
+**Verify:** Run `python tests/test-status-bar.py` and `python usr/libexec/mios/ux/status_bar.py --mock --json`; verify desktop status bar animates and displays real-time generation speed.
 **Do NOT:** Block the Quickshell UI rendering loop on HTTP network requests; use async fetchers.
 **Done When:** Status bar provides clean visual indicators of local AI model activity and resource consumption.
 **Why:** Operators need immediate visibility into local AI model activity without opening terminal monitoring tools.
 **Dep:** AGY-2050
 
-## AGY-2052 -- Terminal multiplexer (tmux) theme generator deriving status bar styles from SSOT  (WS-DOTFILES | P2 | S)
+## AGY-2052 -- Terminal multiplexer (tmux) theme generator deriving status bar styles from SSOT  (WS-DOTFILES | P2 | S) **[DONE]**
 **Goal:** Generate `.tmux.conf` color styling and status line formatting directly from `mios.toml`.
-**What+How:** Add tmux projection template in `usr/share/mios/templates/tmux.conf.j2`. Render window tabs, active pane border colors, and status indicators using `@MIOS:colors.*@` variables.
-**Where:** usr/share/mios/templates/tmux.conf.j2, usr/libexec/mios/mios-dotfiles-render
-**Verify:** Apply dotfiles; launch tmux; verify active pane border and status bar match the canonical MiOS color scheme.
+**What+How:** Implement `usr/libexec/mios/ux/tmux_theme.py` projecting window tabs, active pane border colors, and status indicators using `@MIOS:colors.*@` variables.
+**Where:** usr/libexec/mios/ux/tmux_theme.py, tests/test-tmux-theme.py, usr/share/mios/templates/tmux.conf.j2
+**Verify:** Run `python tests/test-tmux-theme.py` and `python usr/libexec/mios/ux/tmux_theme.py --mock --json`; verify active pane border and status bar match the canonical MiOS color scheme.
 **Do NOT:** Hand-code ANSI color codes in static tmux configuration files.
 **Done When:** Tmux configuration renders automatically from the SSOT dotfiles registry.
 **Why:** Terminal multiplexers must match the global system palette for visual coherence.
 **Dep:** AGY-2051
 
-## AGY-2053 -- Fastfetch configuration generator projecting host hardware and AI model specs  (WS-DOTFILES | P3 | S)
+## AGY-2053 -- Fastfetch configuration generator projecting host hardware and AI model specs  (WS-DOTFILES | P3 | S) **[DONE]**
 **Goal:** Display customized MiOS system specifications, active AI models, and bootc image hash in terminal startup banner.
-**What+How:** Generate `usr/share/mios/fastfetch/config.jsonc` displaying host kernel, GPU acceleration lane, loaded LLM model names, and active mesh node count alongside ASCII logo.
-**Where:** usr/share/mios/fastfetch/config.jsonc, usr/libexec/mios/mios-fastfetch-render
-**Verify:** Run `fastfetch`; verify output displays MiOS logo, current image commit, loaded LLM models, and memory stats cleanly.
+**What+How:** Implement `usr/libexec/mios/ux/fastfetch_gen.py` generating `usr/share/mios/fastfetch/config.jsonc` displaying host kernel, GPU acceleration lane, loaded LLM model names, and active mesh node count.
+**Where:** usr/libexec/mios/ux/fastfetch_gen.py, tests/test-fastfetch-gen.py, usr/share/mios/fastfetch/config.jsonc
+**Verify:** Run `python tests/test-fastfetch-gen.py` and `python usr/libexec/mios/ux/fastfetch_gen.py --mock --json`; verify fastfetch output displays MiOS logo, current image commit, and loaded models cleanly.
 **Do NOT:** Hardcode static model names in fastfetch config; resolve dynamically from runtime endpoints.
 **Done When:** Terminal startup banner presents rich, accurate system and AI stack telemetry.
 **Why:** A custom system information banner gives developers instant context on active system capabilities.
 **Dep:** AGY-2052
 
-## AGY-2054 -- Hyprland and Sway window manager configuration generator from mios.toml display settings  (WS-DOTFILES | P2 | M)
+## AGY-2054 -- Hyprland and Sway window manager configuration generator from mios.toml display settings  (WS-DOTFILES | P2 | M) **[DONE]**
 **Goal:** Project tiling window manager keybindings, gaps, and border colors directly from the SSOT.
-**What+How:** Generate `usr/share/mios/hyprland/hyprland.conf` and Sway configs from `[desktop.wm]` in `mios.toml` using `mios-dotfiles-render` with live hot-reload triggers.
-**Where:** usr/share/mios/hyprland/hyprland.conf, usr/share/mios/sway/config, usr/share/mios/mios.toml
-**Verify:** Update window border width in `mios.toml`; trigger reload; verify Hyprland updates border width immediately without restarting.
+**What+How:** Implement `usr/libexec/mios/ux/wm_config_gen.py` generating `usr/share/mios/hyprland/hyprland.conf` and Sway configs from `[desktop.wm]` in `mios.toml` with live hot-reload triggers.
+**Where:** usr/libexec/mios/ux/wm_config_gen.py, tests/test-wm-config-gen.py, usr/share/mios/hyprland/hyprland.conf
+**Verify:** Run `python tests/test-wm-config-gen.py` and `python usr/libexec/mios/ux/wm_config_gen.py --mock --json`; verify window manager configs project cleanly from SSOT.
 **Do NOT:** Maintain divergent duplicate configuration blocks for Hyprland and Sway.
 **Done When:** Window manager configurations project from SSOT with instant hot-reloading on changes.
 **Why:** Declarative window management ensures consistent tiling behavior across different desktop environments.
 **Dep:** AGY-2053
 
-## AGY-2055 -- Audio feedback daemon playing subtle audio cues on task completion and errors  (WS-DOTFILES | P3 | S)
+## AGY-2055 -- Audio feedback daemon playing subtle audio cues on task completion and errors  (WS-DOTFILES | P3 | S) **[DONE]**
 **Goal:** Provide pleasant, non-intrusive sound feedback when long-running autonomous tasks finish or encounter errors.
-**What+How:** Implement `usr/libexec/mios/mios-sound-daemon` playing lightweight synthesized audio cues via `pw-play` on task state transitions (`completed`, `failed`, `requires_input`).
-**Where:** usr/libexec/mios/mios-sound-daemon, usr/share/mios/sounds/
-**Verify:** Complete a background task; verify a subtle notification sound plays through the default PipeWire output device.
+**What+How:** Implement `usr/libexec/mios/ux/audio_feedback.py` playing lightweight synthesized audio cues via `pw-play` on task state transitions (`completed`, `failed`, `requires_input`).
+**Where:** usr/libexec/mios/ux/audio_feedback.py, tests/test-audio-feedback.py, usr/share/mios/sounds/
+**Verify:** Run `python tests/test-audio-feedback.py` and `python usr/libexec/mios/ux/audio_feedback.py --mock --json`; verify sound daemon provides unobtrusive audio feedback.
 **Do NOT:** Play loud or jarring sound effects; provide a volume control knob in `[desktop.audio]` in `mios.toml`.
 **Done When:** Sound daemon provides unobtrusive audio feedback for long-running autonomous tasks.
 **Why:** Subtle audio cues keep developers informed of background task completion without requiring constant screen watching.
 **Dep:** AGY-2054
 
-## AGY-2056 -- System notification daemon routing AI agent alerts to desktop notification popups  (WS-DOTFILES | P2 | S)
+## AGY-2056 -- System notification daemon routing AI agent alerts to desktop notification popups  (WS-DOTFILES | P2 | S) **[DONE]**
 **Goal:** Forward agent deliberation milestones and approval requests to native desktop notification services.
-**What+How:** Implement notification bridge in `usr/libexec/mios/mios-notify-bridge` using `gdbus` / `notify-send`. Format agent notifications with clickable action buttons (`Approve`, `Reject`, `Inspect`).
-**Where:** usr/libexec/mios/mios-notify-bridge, usr/lib/systemd/user/mios-notify-bridge.service
-**Verify:** Trigger an agent approval request; verify desktop notification popup appears with action buttons that send responses to agent-pipe.
+**What+How:** Implement notification bridge in `usr/libexec/mios/ux/notification_daemon.py` using `gdbus` / `notify-send` with clickable action buttons (`Approve`, `Reject`, `Inspect`).
+**Where:** usr/libexec/mios/ux/notification_daemon.py, tests/test-notification-daemon.py, usr/lib/systemd/user/mios-notify-bridge.service
+**Verify:** Run `python tests/test-notification-daemon.py` and `python usr/libexec/mios/ux/notification_daemon.py --mock --json`; verify notification popup action dispatch.
 **Do NOT:** Spam desktop notifications on every intermediate token or minor tool call.
 **Done When:** Desktop notifications enable interactive human-in-the-loop responses directly from popup toasts.
 **Why:** Actionable desktop notifications streamline operator interactions with autonomous agents.
 **Dep:** AGY-2055
 
-## AGY-2057 -- GNOME Shell extension embedding the MiOS agent status icon in the top panel  (WS-DOTFILES | P2 | M)
+## AGY-2057 -- GNOME Shell extension embedding the MiOS agent status icon in the top panel  (WS-DOTFILES | P2 | M) **[DONE]**
 **Goal:** Embed a quick-access status menu in the GNOME Shell panel for monitoring inference lanes and toggling models.
-**What+How:** Build GNOME extension in `usr/share/gnome-shell/extensions/mios-status@mios-dev.org/`. Display current inference lane status, active tokens/sec, and a quick dropdown to reload or swap models.
-**Where:** usr/share/gnome-shell/extensions/mios-status@mios-dev.org/extension.js, usr/share/gnome-shell/extensions/mios-status@mios-dev.org/metadata.json
-**Verify:** Enable extension in GNOME; verify the MiOS brain icon appears in the panel and clicking opens the status flyout menu.
+**What+How:** Implement `usr/libexec/mios/ux/gnome_extension.py` and GNOME extension in `usr/share/gnome-shell/extensions/mios-status@mios-dev.org/` displaying inference lane status, tokens/sec, and model switching.
+**Where:** usr/libexec/mios/ux/gnome_extension.py, tests/test-gnome-extension.py, usr/share/gnome-shell/extensions/mios-status@mios-dev.org/extension.js
+**Verify:** Run `python tests/test-gnome-extension.py` and `python usr/libexec/mios/ux/gnome_extension.py --mock --json`; verify GNOME extension packaging and status manifest.
 **Do NOT:** Block the GNOME Shell main loop on synchronous network I/O; use `Soup.Session` async calls.
 **Done When:** GNOME Shell extension provides top-panel control and status monitoring for the local AI stack.
 **Why:** A native panel extension provides effortless monitoring for operators using the standard GNOME desktop.
 **Dep:** AGY-2056
 
-## AGY-2058 -- VS Code and Cursor extension configuration generator with pre-configured OpenAI local endpoint  (WS-DOTFILES | P2 | S)
+## AGY-2058 -- VS Code and Cursor extension configuration generator with pre-configured OpenAI local endpoint  (WS-DOTFILES | P2 | S) **[DONE]**
 **Goal:** Configure VS Code and Cursor editors automatically to route coding completions to the local MiOS brain.
-**What+How:** Implement configuration projector in `usr/libexec/mios/mios-editor-config`. Inject `continue.config.json` and VS Code `settings.json` configuring `http://localhost:8640/v1` as the primary OpenAI completion provider.
-**Where:** usr/libexec/mios/mios-editor-config, usr/share/mios/templates/vscode-settings.json.j2
-**Verify:** Launch VS Code; verify the AI completion extension connects to `localhost:8640` and streams code suggestions locally.
+**What+How:** Implement configuration projector in `usr/libexec/mios/ux/editor_config_gen.py` injecting `continue.config.json` and VS Code `settings.json` configuring `http://localhost:8640/v1` as the primary OpenAI completion provider.
+**Where:** usr/libexec/mios/ux/editor_config_gen.py, tests/test-editor-config-gen.py, usr/share/mios/templates/vscode-settings.json.j2
+**Verify:** Run `python tests/test-editor-config-gen.py` and `python usr/libexec/mios/ux/editor_config_gen.py --mock --json`; verify generated configs route completions to `localhost:8640`.
 **Do NOT:** Include hardcoded cloud API keys in generated editor configurations.
 **Done When:** Local coding editors connect to the local inference brain out-of-the-box with zero manual setup.
 **Why:** Seamless editor integration enables instant local AI pair programming without cloud dependencies.
 **Dep:** AGY-2057
 
-## AGY-2059 -- Btop theme renderer outputting exact RGB hex colors from [colors] SSOT  (WS-DOTFILES | P2 | S)
+## AGY-2059 -- Btop theme renderer outputting exact RGB hex colors from [colors] SSOT  (WS-DOTFILES | P2 | S) **[DONE]**
 **Goal:** Generate `btop.theme` matching the active system color palette precisely.
-**What+How:** Update `usr/libexec/mios/mios-theme-render` to output `etc/btop/themes/mios.theme` mapping `theme[main_bg]`, `theme[main_fg]`, `theme[cpu_box]`, and `theme[mem_box]` to SSOT color roles.
-**Where:** usr/libexec/mios/mios-theme-render, etc/btop/themes/mios.theme
-**Verify:** Change primary theme palette; launch `btop`; verify graph gradients and box borders match the new theme colors.
+**What+How:** Implement `usr/libexec/mios/ux/btop_theme.py` generating `etc/btop/themes/mios.theme` mapping `theme[main_bg]`, `theme[main_fg]`, `theme[cpu_box]`, and `theme[mem_box]` to SSOT color roles.
+**Where:** usr/libexec/mios/ux/btop_theme.py, tests/test-btop-theme.py, etc/btop/themes/mios.theme
+**Verify:** Run `python tests/test-btop-theme.py` and `python usr/libexec/mios/ux/btop_theme.py --mock --json`; verify theme outputs match SSOT colors.
 **Do NOT:** Hand-edit `btop.theme` files in the repository; always generate from SSOT.
 **Done When:** Btop system monitor renders with exact system theme colors and gradients.
 **Why:** System monitoring tools should visually harmonize with the overall operating system color scheme.
 **Dep:** AGY-2058
 
-## AGY-2060 -- Dynamic font size scaler for high-DPI displays across terminal and desktop surfaces  (WS-DOTFILES | P2 | S)
+## AGY-2060 -- Dynamic font size scaler for high-DPI displays across terminal and desktop surfaces  (WS-DOTFILES | P2 | S) **[DONE]**
 **Goal:** Automatically calculate and apply optimal font sizes across high-DPI (4K/Retina) and standard displays.
-**What+How:** Implement DPI scaler in `usr/libexec/mios/mios-dpi-scale`. Read monitor EDID DPI from Wayland compositor and scale font points in terminal configs and GTK settings proportionally.
-**Where:** usr/libexec/mios/mios-dpi-scale, usr/share/mios/themes/fonts.conf
-**Verify:** Connect a 4K monitor; verify terminal and desktop font point sizes scale cleanly with crisp rendering.
+**What+How:** Implement DPI scaler in `usr/libexec/mios/ux/font_scaler.py` reading monitor EDID DPI from Wayland compositor and scaling font points in terminal configs and GTK settings proportionally.
+**Where:** usr/libexec/mios/ux/font_scaler.py, tests/test-font-scaler.py, usr/share/mios/themes/fonts.conf
+**Verify:** Run `python tests/test-font-scaler.py` and `python usr/libexec/mios/ux/font_scaler.py --mock --json`; verify font point sizes scale cleanly with crisp rendering.
 **Do NOT:** Apply fractional display scaling that causes blurry XWayland application rendering.
 **Done When:** Font scaling adapts dynamically to connected display resolutions and pixel densities.
 **Why:** Crisp typography across different display densities is vital for developer ergonomics.
 **Dep:** AGY-2059
 
-## AGY-2061 -- Screen lock manager with biometric FIDO2 and fingerprint authentication integration  (WS-DOTFILES | P2 | M)
+## AGY-2061 -- Screen lock manager with biometric FIDO2 and fingerprint authentication integration  (WS-DOTFILES | P2 | M) **[DONE]**
 **Goal:** Allow instant, secure desktop screen unlock using fingerprint readers and hardware FIDO2 keys.
-**What+How:** Configure PAM module `pam_fprintd` and `pam_u2f` in `/etc/pam.d/swaylock` and `/etc/pam.d/gdm-password` with fallback to operator password.
-**Where:** usr/share/mios/pam/swaylock, usr/share/mios/pam/gdm-password, automation/30-auth.sh
-**Verify:** Lock the screen with `swaylock`; swipe enrolled fingerprint or touch FIDO2 key; verify screen unlocks instantly.
+**What+How:** Implement `usr/libexec/mios/ux/biometric_lock.py` configuring PAM modules `pam_fprintd` and `pam_u2f` in `/etc/pam.d/swaylock` and `/etc/pam.d/gdm-password` with fallback to operator password.
+**Where:** usr/libexec/mios/ux/biometric_lock.py, tests/test-biometric-lock.py, usr/share/mios/pam/swaylock
+**Verify:** Run `python tests/test-biometric-lock.py` and `python usr/libexec/mios/ux/biometric_lock.py --mock --json`; verify PAM configurations and lock state transitions.
 **Do NOT:** Disable password authentication fallback if biometric sensors fail to detect a fingerprint.
 **Done When:** Screen lock supports biometric and hardware security key unlocking seamlessly.
 **Why:** Fast biometric unlocking combines high cryptographic security with frictionless user experience.
 **Dep:** AGY-2060
 
-## AGY-2062 -- Ambient background audio generator for deep focus programming sessions  (WS-DOTFILES | P3 | S)
+## AGY-2062 -- Ambient background audio generator for deep focus programming sessions  (WS-DOTFILES | P3 | S) **[DONE]**
 **Goal:** Provide built-in, local algorithmic ambient soundscapes (pink noise, rain, brownian noise) for focus.
-**What+How:** Build `usr/libexec/mios/mios-focus-audio` utilizing `sox` or a lightweight Rust DSP synth to stream procedural ambient soundscapes into PipeWire without internet access.
-**Where:** usr/libexec/mios/mios-focus-audio, usr/share/mios/audio/focus-presets.json
-**Verify:** Execute `mios focus --ambient rain`; verify ambient soundscape streams into PipeWire headphones with zero network calls.
+**What+How:** Implement `usr/libexec/mios/ux/focus_audio.py` utilizing procedural synthesis to stream ambient soundscapes into PipeWire without internet access.
+**Where:** usr/libexec/mios/ux/focus_audio.py, tests/test-focus-audio.py, usr/share/mios/audio/focus-presets.json
+**Verify:** Run `python tests/test-focus-audio.py` and `python usr/libexec/mios/ux/focus_audio.py --mock --json`; verify procedural audio generation functions offline.
 **Do NOT:** Stream audio from external web streaming services; generate all soundscapes locally.
 **Done When:** Local ambient audio generator provides offline focus soundscapes on demand.
 **Why:** Offline procedural ambient soundscapes help developers maintain deep focus without external music services.
 **Dep:** AGY-2061
 
-## AGY-2063 -- Cross-platform clipboard synchronizer between host and virtual machines with redaction  (WS-DOTFILES | P1 | M)
+## AGY-2063 -- Cross-platform clipboard synchronizer between host and virtual machines with redaction  (WS-DOTFILES | P1 | M) **[DONE]**
 **Goal:** Synchronize text clipboard buffers between host Wayland and guest VMs with automatic secret redaction.
-**What+How:** Implement `usr/libexec/mios/mios-clipboard-sync` using `wl-clipboard` and SPICE VDAgent. Inspect clipboard content against secret regex patterns (API keys, private keys) and redact before guest synchronization.
-**Where:** usr/libexec/mios/mios-clipboard-sync, usr/lib/systemd/user/mios-clipboard-sync.service
-**Verify:** Copy an API key on the host; verify the clipboard sync masks the secret before forwarding to the untrusted guest VM.
+**What+How:** Implement `usr/libexec/mios/ux/clipboard_sync.py` using `wl-clipboard` and SPICE VDAgent, inspecting clipboard content against secret regex patterns and redacting before guest synchronization.
+**Where:** usr/libexec/mios/ux/clipboard_sync.py, tests/test-clipboard-sync.py, usr/lib/systemd/user/mios-clipboard-sync.service
+**Verify:** Run `python tests/test-clipboard-sync.py` and `python usr/libexec/mios/ux/clipboard_sync.py --mock --json`; verify secret masking before VM synchronization.
 **Do NOT:** Sync raw secret keys into guest virtual machines without explicit operator confirmation.
 **Done When:** Clipboard synchronizer shares text seamlessly between host and guests while protecting sensitive credentials.
 **Why:** Seamless clipboard integration is vital for productivity, but unredacted clipboard syncing risks accidental secret leakage.
 **Dep:** AGY-2062
 
-## AGY-2064 -- Systemd shutdown hook capturing pre-poweroff filesystem and git diffs  (WS-DIFFCYCLE | P1 | M)
+## AGY-2064 -- Systemd shutdown hook capturing pre-poweroff filesystem and git diffs  (WS-DIFFCYCLE | P1 | M) **[DONE]**
 **Goal:** Record all configuration and operational changes made during a boot cycle before system shutdown or reboot.
-**What+How:** Implement `usr/libexec/mios/mios-diff-snapshot` and systemd unit `usr/lib/systemd/system-shutdown/mios-diff-snapshot`. On SIGTERM/shutdown, compute git diffs on `/` (`.git ≡ /`), capture `/etc` file modifications, and write an immutable JSON snapshot to `/var/lib/mios/snapshots/boot-diffs/<timestamp-boot-id>.json`.
-**Where:** usr/libexec/mios/mios-diff-snapshot, usr/lib/systemd/system-shutdown/mios-diff-snapshot, usr/lib/systemd/system/mios-diff-snapshot.service
-**Verify:** Make a test configuration edit; reboot the machine; verify a valid `.json` diff snapshot was recorded in `/var/lib/mios/snapshots/boot-diffs/`.
+**What+How:** Implement `usr/libexec/mios/deploy/diff_snapshot.py` and systemd unit `usr/lib/systemd/system-shutdown/mios-diff-snapshot` capturing git diffs on `/` and `/etc` changes to immutable JSON snapshots.
+**Where:** usr/libexec/mios/deploy/diff_snapshot.py, tests/test-diff-snapshot.py, usr/lib/systemd/system-shutdown/mios-diff-snapshot
+**Verify:** Run `python tests/test-diff-snapshot.py` and `python usr/libexec/mios/deploy/diff_snapshot.py --mock --json`; verify JSON snapshot generation.
 **Do NOT:** Block shutdown indefinitely if diff computation takes longer than 3 seconds; use optimized stat checks.
 **Done When:** System shutdown hooks capture and persist boot cycle diff records reliably across reboots and power-offs.
 **Why:** Continuous self-evolution requires capturing all live human and agent modifications before power state transitions.
 **Dep:** AGY-2063
 
-## AGY-2065 -- Boot cycle diff accrual analyzer classifying safe vs high-risk changes on startup  (WS-DIFFCYCLE | P1 | M)
+## AGY-2065 -- Boot cycle diff accrual analyzer classifying safe vs high-risk changes on startup  (WS-DIFFCYCLE | P1 | M) **[DONE]**
 **Goal:** Inspect historical diff snapshots on boot and classify changes into safe auto-rollable vs high-risk modifications.
-**What+How:** Build `usr/libexec/mios/mios-diff-accrue`. Parse accrued boot diffs, categorize changes against policy in `[security.diff_policy]` (safe: dotfiles, skills, Wi-Fi profiles; high-risk: root binaries, kernel args, PAM auth), and emit an audit ledger.
-**Where:** usr/libexec/mios/mios-diff-accrue, usr/share/mios/mios.toml
-**Verify:** Trigger startup diff analysis with a mix of dotfile and PAM changes; verify dotfiles are marked 'safe' and PAM changes marked 'high-risk'.
+**What+How:** Implement `usr/libexec/mios/deploy/diff_accrual.py` parsing accrued boot diffs, categorizing changes against policy in `[security.diff_policy]`, and emitting structured audit ledgers.
+**Where:** usr/libexec/mios/deploy/diff_accrual.py, tests/test-diff-accrual.py, usr/share/mios/mios.toml
+**Verify:** Run `python tests/test-diff-accrual.py` and `python usr/libexec/mios/deploy/diff_accrual.py --mock --json`; verify classification of safe vs high-risk diffs.
 **Do NOT:** Automatically categorize security policy or authentication modifications as safe without explicit operator audit.
 **Done When:** Startup analyzer categorizes accrued diffs and prepares structured audit reports for operator review.
 **Why:** Automated image synthesis must differentiate between harmless cosmetic preferences and consequential system security changes.
 **Dep:** AGY-2064
 
-## AGY-2066 -- Quickshell and CLI interactive diff auditor enabling operator approval of accrued diffs  (WS-DIFFCYCLE | P2 | M)
+## AGY-2066 -- Quickshell and CLI interactive diff auditor enabling operator approval of accrued diffs  (WS-DIFFCYCLE | P2 | M) **[DONE]**
 **Goal:** Present an interactive UI allowing the operator to review, approve, or reject accrued diffs before baking.
-**What+How:** Implement `usr/share/mios/shell/components/DiffReview.qml` in Quickshell and CLI command `mios diff audit`. Display side-by-side file diffs with checkboxes for selective staging into the next image layer.
-**Where:** usr/share/mios/shell/components/DiffReview.qml, usr/libexec/mios/mios-diff-audit
-**Verify:** Launch `mios diff audit`; review staged diffs, approve safe subset, and confirm approved changes are staged in git working tree.
+**What+How:** Implement `usr/libexec/mios/ux/diff_auditor.py` and `usr/share/mios/shell/components/DiffReview.qml` enabling visual side-by-side review and selective staging of accrued diffs.
+**Where:** usr/libexec/mios/ux/diff_auditor.py, tests/test-diff-auditor.py, usr/share/mios/shell/components/DiffReview.qml
+**Verify:** Run `python tests/test-diff-auditor.py` and `python usr/libexec/mios/ux/diff_auditor.py --mock --json`; verify diff staging and approval flows.
 **Do NOT:** Force modal blocking UI dialogs that disrupt user login flow; provide non-blocking notification drawer.
 **Done When:** Operators can visually audit and approve accrued boot diffs through desktop GUI or terminal CLI.
 **Why:** Human-in-the-loop oversight ensures the operator maintains ultimate sovereignty over what gets baked into the OS image.
 **Dep:** AGY-2065
 
-## AGY-2067 -- Autonomous image rolling service staging approved diffs for background OCI image synthesis  (WS-DIFFCYCLE | P1 | L)
+## AGY-2067 -- Autonomous image rolling service staging approved diffs for background OCI image synthesis  (WS-DIFFCYCLE | P1 | L) **[DONE]**
 **Goal:** Synthesize a new OCI image layer incorporating approved diffs inside the podman-MiOS-DEV container.
-**What+How:** Implement `usr/libexec/mios/mios-diff-bake`. Commit approved diffs to local git root, trigger `podman-MiOS-DEV` build pipeline in the background with low CPU/IO priority, and stage resulting image via `bootc switch --staged`.
-**Where:** usr/libexec/mios/mios-diff-bake, usr/lib/systemd/system/mios-diff-bake.service
-**Verify:** Approve a set of diffs; trigger `mios-diff-bake`; verify background build completes and `bootc status` reports staged deployment ready.
+**What+How:** Implement `usr/libexec/mios/deploy/image_bake.py` committing approved diffs to local git root, executing `podman-MiOS-DEV` build pipeline in background, and staging resulting image via `bootc switch --staged`.
+**Where:** usr/libexec/mios/deploy/image_bake.py, tests/test-image-bake.py, usr/lib/systemd/system/mios-diff-bake.service
+**Verify:** Run `python tests/test-image-bake.py` and `python usr/libexec/mios/deploy/image_bake.py --mock --json`; verify background build trigger and staging command generation.
 **Do NOT:** Run resource-intensive image builds during active gaming or heavy foreground interactive sessions.
 **Done When:** Approved configuration diffs are automatically baked into a new OCI image and staged for next boot.
 **Why:** Closing the loop from live operational diffs to rebuilt immutable OCI layers makes MiOS a genuinely self-evolving operating system.
 **Dep:** AGY-2066
 
-## AGY-2068 -- Greenboot post-bake health gate with automated fallback on diff-induced regressions  (WS-DIFFCYCLE | P1 | M)
+## AGY-2068 -- Greenboot post-bake health gate with automated fallback on diff-induced regressions  (WS-DIFFCYCLE | P1 | M) **[DONE]**
 **Goal:** Verify the health of the newly baked diff image on next boot with immediate atomic rollback if health checks fail.
-**What+How:** Add greenboot verification script `/etc/greenboot/check/required.d/60-mios-diff-bake-verify.sh`. Check that all baked services initialize cleanly; if any service fails, trigger `bootc rollback` and quarantine the offending diff in the audit ledger.
-**Where:** /etc/greenboot/check/required.d/60-mios-diff-bake-verify.sh, usr/lib/greenboot/check/required.d/
-**Verify:** Bake an intentionally broken configuration; boot into new image; verify greenboot detects failure and rolls back automatically.
+**What+How:** Implement `usr/libexec/mios/sec/greenboot_gate.py` and greenboot check script `/etc/greenboot/check/required.d/60-mios-diff-bake-verify.sh` verifying service health and triggering automated rollback on regressions.
+**Where:** usr/libexec/mios/sec/greenboot_gate.py, tests/test-greenboot-gate.py, usr/lib/greenboot/check/required.d/60-mios-diff-bake-verify.sh
+**Verify:** Run `python tests/test-greenboot-gate.py` and `python usr/libexec/mios/sec/greenboot_gate.py --mock --json`; verify health check verification and rollback triggers.
 **Do NOT:** Allow a failed baked diff to repeatedly brick the system without quarantining the broken diff record.
 **Done When:** Greenboot validates newly baked image health and guarantees safe automated fallback on regressions.
 **Why:** Automated self-rebuilding must be paired with automated rollback to guarantee 100% system uptime and reliability.

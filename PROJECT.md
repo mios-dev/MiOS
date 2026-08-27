@@ -1,70 +1,100 @@
-# Project: MiOS Roadmap Workstreams Implementation (T-401 through T-412)
+# Project: MiOS Roadmap Workstreams T-449 to T-470
 
 ## Architecture
-MiOS ("My OS") is an immutable bootc/OCI Fedora container workstation and local self-replicating agentic AI edge OS. The system combines:
-1. Unified Agent Datastore and Database Reliability: Automated index maintenance, hot-standby clustering, SQLite/Postgres corruption recovery, and zero-downtime transactional schema migration under `usr/libexec/mios/db/`.
-2. High-Assurance CephFS & Storage Infrastructure: Transactional SHA-256 block ledger synchronization, dynamic subvolume quota management, RADOS S3 object storage sidecar gateway, and LUKS2 zero-downtime key rotation under `usr/libexec/mios/storage/` and `usr/libexec/mios/sec/`.
-3. Edge Node Resilience & Telemetry Pipeline: Fast zstd delta snapshot transfers for remote backups, `mios-bench-storage` IOPS/latency benchmark harness, automated PSI-driven tmpfs spill-to-NVMe manager, and journald-to-pgvector structured log aggregator.
-4. Strict SSOT configuration model driven by `usr/share/mios/mios.toml`, 8-field schema task registries (`TASKS.md` / `AGY-TASKS.md`), automated test suites registered under `[ci.tiers] unit`, and 7 CI validation checks.
+MiOS is an immutable, bootc/OCI-shaped Fedora workstation that is also a local, self-replicating agentic AI OS.
+The roadmap workstreams T-449 through T-470 encompass:
+1. **Security & Schema Validation**: FIDO2/CTAP2 token LUKS2 enrollment (`usr/libexec/mios/sec/`) and automated Windows unattend XML schema validation (`usr/libexec/mios/win/`).
+2. **System UX, Theming & Multi-Desktop Integration**: Living wallpaper shaders, cross-platform palette synchronization, Quickshell status bar, tmux theme generation, fastfetch generation, Hyprland/Sway configs, audio feedback, notification daemon, GNOME Shell extension, editor configs, btop themes, font scaling, biometric lock, focus audio, and clipboard sync (`usr/libexec/mios/ux/`).
+3. **Autonomous Diff Snapshot & Image Bake Lifecycle**: Pre-shutdown diff capture, boot diff accrual risk classification, operator diff auditing, background OCI image synthesis inside podman-MiOS-DEV, and Greenboot post-bake health gating (`usr/libexec/mios/deploy/`, `usr/libexec/mios/sec/`, `usr/libexec/mios/ux/`).
+4. **Architectural Invariants**:
+   - `max_libexec_verbs = 285/285` strictly preserved by placing all 22 modules in depth-4 subdirectories (`sec/`, `win/`, `ux/`, `deploy/`).
+   - `ps_lines = 22618/22618` preserved (all implementations in Python 3 standard library with deterministic mock harnesses).
+   - 8-field task schema adherence in `TASKS.md` and `AGY-TASKS.md`.
+   - Dedicated unit test suites in `tests/test-*.py` registered in `[ci.tiers] unit` in `usr/share/mios/mios.toml`.
+   - Complete 7-gate repository CI verification and clean git status.
 
 ## Feature Inventory
-| # | Feature | Description | Milestone | Source |
-|---|---------|-------------|-----------|--------|
-| 1 | T-401 | Automated VACUUM ANALYZE and HNSW vector index rebuilding timer in pgvector | M1 | survey |
-| 2 | T-406 | Hot-standby PostgreSQL replica provisioning over local cluster nodes | M1 | survey |
-| 3 | T-407 | Database corruption detector and automated repair script for SQLite and PostgreSQL stores | M1 | survey |
-| 4 | T-412 | Zero-downtime database schema migration runner with rollback safety checks | M1 | survey |
-| 5 | T-402 | Transactional ledger replication across CephFS pools with integrity hashing | M2 | survey |
-| 6 | T-403 | CephFS dynamic quota enforcement per tenant subvolume | M2 | survey |
-| 7 | T-404 | S3-compatible object storage gateway / radosgw sidecar for bulk model distribution | M2 | survey |
-| 8 | T-405 | Encrypted volume key rotation service for LUKS2 and dm-crypt Ceph OSD drives | M2 | survey |
-| 9 | T-408 | Fast delta snapshot transfer for remote off-site backup synchronization | M3 | survey |
-| 10 | T-409 | Storage performance benchmark tool `mios-bench-storage` testing IOPS and latency | M3 | survey |
-| 11 | T-410 | Automated tmpfs spill-to-NVMe manager under memory pressure conditions | M3 | survey |
-| 12 | T-411 | Unified log aggregation pipeline streaming journald events to pgvector | M3 | survey |
-| 13 | Test Suites | Authored dedicated unit tests in `tests/test-*.py`, registered under `[ci.tiers] unit` in `usr/share/mios/mios.toml` | M4 | survey |
-| 14 | Registries Parity | Full 8-field schema adherence across `TASKS.md` & `AGY-TASKS.md`, metrics rollup via `tools/roadmap-index.py` | M4 | survey |
-| 15 | SSOT Sync & CI | 7 SSOT machine projections sync (`tools/sync-generated.sh`), 7 CI checks pass (exit code 0), clean git commit/push | M4 | survey |
+| # | Task | Feature | Description | Target Path | Milestone | Source |
+|---|------|---------|-------------|-------------|-----------|--------|
+| 1 | T-449 | LUKS2 FIDO2 Token Enrollment | Portable drive LUKS2 FIDO2 / CTAP2 token enrollment helper | usr/libexec/mios/sec/fido2_enroll.py | M1 | ORIGINAL_REQUEST §R1 |
+| 2 | T-450 | Windows Unattend XML Validation | Automated validation of Windows unattend XML schema against XSD rules | usr/libexec/mios/win/unattend_validate.py | M1 | ORIGINAL_REQUEST §R1 |
+| 3 | T-451 | Living Wallpaper Shader Renderer | Real-time living wallpaper GLSL fragment shader renderer with telemetry | usr/libexec/mios/ux/living_wallpaper.py | M2 | ORIGINAL_REQUEST §R1 |
+| 4 | T-452 | Cross-Platform Theme Sync | Palette synchronizer writing directly to Windows Registry and GTK3/4 CSS | usr/libexec/mios/ux/theme_sync.py | M2 | ORIGINAL_REQUEST §R1 |
+| 5 | T-453 | Quickshell Status Bar Telemetry | Status bar component streaming live LLM VRAM and agent turns | usr/libexec/mios/ux/status_bar.py | M2 | ORIGINAL_REQUEST §R1 |
+| 6 | T-454 | Tmux Theme Generator | Terminal multiplexer tmux theme generator deriving active pane styles | usr/libexec/mios/ux/tmux_theme.py | M2 | ORIGINAL_REQUEST §R1 |
+| 7 | T-455 | Fastfetch Config Generator | Fastfetch configuration generator projecting host hardware and AI specs | usr/libexec/mios/ux/fastfetch_gen.py | M2 | ORIGINAL_REQUEST §R1 |
+| 8 | T-456 | Window Manager Config Generator | Hyprland and Sway tiling WM configuration generator from SSOT | usr/libexec/mios/ux/wm_config_gen.py | M2 | ORIGINAL_REQUEST §R1 |
+| 9 | T-457 | Audio Feedback Daemon | Audio feedback daemon playing subtle non-intrusive sound cues | usr/libexec/mios/ux/audio_feedback.py | M2 | ORIGINAL_REQUEST §R1 |
+| 10 | T-458 | System Notification Daemon | Notification daemon routing agent-pipe / Hermes alerts to desktop | usr/libexec/mios/ux/notification_daemon.py | M2 | ORIGINAL_REQUEST §R1 |
+| 11 | T-459 | GNOME Shell Top Panel Extension | GNOME Shell indicator showing active agent status and quick links | usr/libexec/mios/ux/gnome_extension.py | M3 | ORIGINAL_REQUEST §R1 |
+| 12 | T-460 | VS Code & Cursor Config Generator | Editor configuration generator with pre-configured OpenAI local endpoint | usr/libexec/mios/ux/editor_config_gen.py | M3 | ORIGINAL_REQUEST §R1 |
+| 13 | T-461 | Btop Theme Renderer | Btop theme renderer outputting exact RGB hex colors from [colors] SSOT | usr/libexec/mios/ux/btop_theme.py | M3 | ORIGINAL_REQUEST §R1 |
+| 14 | T-462 | Dynamic Font Scaler | Dynamic font size scaler for High-DPI displays across terminal & desktop | usr/libexec/mios/ux/font_scaler.py | M3 | ORIGINAL_REQUEST §R1 |
+| 15 | T-463 | Biometric Screen Lock Manager | Screen lock manager with biometric FIDO2 and fingerprint authentication | usr/libexec/mios/ux/biometric_lock.py | M3 | ORIGINAL_REQUEST §R1 |
+| 16 | T-464 | Focus Ambient Audio Generator | Ambient background audio generator for deep focus programming | usr/libexec/mios/ux/focus_audio.py | M3 | ORIGINAL_REQUEST §R1 |
+| 17 | T-465 | Cross-Platform Clipboard Sync | Clipboard synchronizer between host and VMs with token redaction | usr/libexec/mios/ux/clipboard_sync.py | M3 | ORIGINAL_REQUEST §R1 |
+| 18 | T-466 | Shutdown Diff Snapshot Hook | Systemd pre-poweroff diff snapshot hook capturing git & /etc diffs | usr/libexec/mios/deploy/diff_snapshot.py | M4 | ORIGINAL_REQUEST §R1 |
+| 19 | T-467 | Diff Accrual Risk Classifier | Startup diff accrual analyzer classifying safe vs high-risk modifications | usr/libexec/mios/deploy/diff_accrual.py | M4 | ORIGINAL_REQUEST §R1 |
+| 20 | T-468 | Interactive Diff Auditor | Quickshell and CLI interactive diff auditor enabling operator approval | usr/libexec/mios/ux/diff_auditor.py | M4 | ORIGINAL_REQUEST §R1 |
+| 21 | T-469 | Autonomous Image Bake Service | Background OCI image synthesis service rolling diffs into bootc images | usr/libexec/mios/deploy/image_bake.py | M4 | ORIGINAL_REQUEST §R1 |
+| 22 | T-470 | Greenboot Post-Bake Health Gate | Greenboot health gate with automated fallback on diff regressions | usr/libexec/mios/sec/greenboot_gate.py | M4 | ORIGINAL_REQUEST §R1 |
+| 23 | Tests | Dedicated Unit Test Suites | 22 test suites in tests/test-*.py registered in mios.toml | tests/test-*.py | M5 | ORIGINAL_REQUEST §R2 |
+| 24 | CI | Registry Parity & CI Gates | Parity update in TASKS.md / AGY-TASKS.md, projections sync, 7 CI gates | TASKS.md, tools/ | M6 | ORIGINAL_REQUEST §R3, §R4 |
+| 25 | Final | Full Verification & Commit | Reviewer, Challenger, Forensic Auditor review and clean git push | origin/main | M7 | Acceptance Criteria |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | M1: Database & Memory Operations | T-401 (pgvector optimize), T-406 (pg replica), T-407 (db doctor), T-412 (db migrate) | none | DONE |
-| 2 | M2: CephFS & Storage Infrastructure | T-402 (ledger sync), T-403 (cephfs quota), T-404 (radosgw sidecar), T-405 (LUKS2 key rotation) | none | DONE |
-| 3 | M3: Node Resilience & Telemetry Pipeline | T-408 (delta backup), T-409 (bench-storage), T-410 (tmpfs spillover), T-411 (log streamer) | none | DONE |
-| 4 | M4: Test Suites, Registries & CI Verification | Authored unit tests, mios.toml registration, TASKS.md / AGY-TASKS.md 8-field parity, sync-generated, 7 CI gates, git commit & push | M1, M2, M3 | DONE |
+| M1 | Security & Schema Validation | T-449 (fido2_enroll.py), T-450 (unattend_validate.py) | none | PLANNED |
+| M2 | System UX & Theming Part 1 | T-451 through T-458 (ux/*.py) | none | PLANNED |
+| M3 | System UX & Theming Part 2 | T-459 through T-465 (ux/*.py) | none | PLANNED |
+| M4 | Diff Snapshot & Image Bake Lifecycle | T-466, T-467, T-469 (deploy/), T-468 (ux/), T-470 (sec/) | none | PLANNED |
+| M5 | Test Suite Authoring & CI Registration | 22 unit test suites in tests/test-*.py registered in mios.toml | M1, M2, M3, M4 | PLANNED |
+| M6 | Task Registries Parity, Projections & CI Gates | TASKS.md, AGY-TASKS.md, sync-generated.sh, 7 CI gates | M5 | PLANNED |
+| M7 | Gate Review, Forensic Audit & Git Delivery | Independent Reviewers, Challenger, Forensic Auditor, Git Commit | M6 | PLANNED |
 
 ## Interface Contracts
+### General Module Standards
+- Every engine is a Python 3 script with `#!/usr/bin/env python3` shebang, executable permissions, and strict standard library usage.
+- Supports standard CLI arguments: `--json`, `--mock`, `--dry-run`, `--verbose`, `--help`.
+- Exit codes: `0` for success, non-zero for failure.
+- Returns structured JSON to stdout when `--json` is specified.
+- Mock mode (`--mock`) executes full logic paths deterministically without accessing real hardware devices, network endpoints, or external daemons.
 
-### Database & Vector Maintenance Interface (T-401, T-406, T-407, T-412)
-- Maintenance script: `usr/libexec/mios/db/mios-pgvector-optimize.py` running `VACUUM (ANALYZE, PARALLEL 4)` and `REINDEX INDEX CONCURRENTLY` for vector indices.
-- Service & Timer: `usr/lib/systemd/system/mios-pgvector-optimize.service`, `usr/lib/systemd/system/mios-pgvector-optimize.timer` (Weekly, Sunday 03:00).
-- Replication script: `usr/libexec/mios/db/mios-pg-replica.py` orchestrating `pg_basebackup -R`, streaming replication lag monitoring, and promotion via `pg_ctl promote`.
-- Doctor script: `usr/libexec/mios/db/mios-db-doctor.py` checking SQLite (`PRAGMA integrity_check`) and PostgreSQL (`pg_checksums`/`amcheck`), plus greenboot hook `usr/lib/greenboot/check/required.d/55-mios-db-check.sh`.
-- Migration runner: `usr/libexec/mios/db/mios-db-migrate.py` applying transactional SQL migrations from `usr/share/mios/postgres/migrations/` inside `BEGIN ... COMMIT` with `schema_version` SHA-256 ledger and rollback.
+### M1: Security & Schema Validation
+- `fido2_enroll.py`: `--device <path>`, `--pin`, `--touch`, `--recovery-key`, `--status`, `--json`, `--mock`.
+- `unattend_validate.py`: `--input <path>`, `--schema <path>`, `--strict`, `--json`, `--mock`.
 
-### CephFS & Storage Infrastructure Interface (T-402, T-403, T-404, T-405)
-- Ledger Sync: `usr/libexec/mios/storage/mios-ledger-sync` replicating transactions across CephFS pools with SHA-256 block hashing and sequence verification.
-- Quota Manager: `usr/libexec/mios/storage/mios-cephfs-quota` enforcing soft/hard quotas via `setfattr -n ceph.quota.max_bytes` and subvolume resizing.
-- RADOSGW Sidecar: `usr/share/containers/systemd/mios-radosgw.container` listening on port 8470 (`[ports.categories.cluster] radosgw = 8470`), providing local S3 endpoint for model distribution.
-- LUKS2 Key Rotation: `usr/libexec/mios/sec/mios-luks-rotate` executing atomic key rotation via keyslot addition, passphrase validation, and old keyslot destruction without unmounting.
+### M2 & M3: System UX & Theming
+- Integrates with `usr/lib/mios/mios_toml.py` to retrieve `colors()`, `get("theme.*")`, `get("identity.*")`.
+- `living_wallpaper.py`: `--mode <mode>`, `--shader <path>`, `--fps <num>`, `--json`, `--mock`.
+- `theme_sync.py`: `--target <gtk|windows|all>`, `--out <path>`, `--apply`, `--json`, `--mock`.
+- `status_bar.py`: `--stream`, `--interval <sec>`, `--json`, `--mock`.
+- `tmux_theme.py`: `--out <path>`, `--json`, `--mock`.
+- `fastfetch_gen.py`: `--out <path>`, `--json`, `--mock`.
+- `wm_config_gen.py`: `--target <hyprland|sway|all>`, `--out <dir>`, `--json`, `--mock`.
+- `audio_feedback.py`: `--event <event_name>`, `--volume <num>`, `--json`, `--mock`.
+- `notification_daemon.py`: `--listen`, `--post <msg>`, `--level <info|warn|error>`, `--json`, `--mock`.
+- `gnome_extension.py`: `--install`, `--status`, `--json`, `--mock`.
+- `editor_config_gen.py`: `--target <vscode|cursor|all>`, `--out <dir>`, `--endpoint <url>`, `--json`, `--mock`.
+- `btop_theme.py`: `--out <path>`, `--json`, `--mock`.
+- `font_scaler.py`: `--dpi <num>`, `--scale <factor>`, `--apply`, `--json`, `--mock`.
+- `biometric_lock.py`: `--lock`, `--unlock`, `--fido2`, `--fingerprint`, `--json`, `--mock`.
+- `focus_audio.py`: `--mode <noise|binaural|drone>`, `--duration <sec>`, `--json`, `--mock`.
+- `clipboard_sync.py`: `--sync`, `--redact`, `--direction <host-to-vm|vm-to-host>`, `--json`, `--mock`.
 
-### Node Resilience & Telemetry Interface (T-408, T-409, T-410, T-411)
-- Delta Backup: `usr/libexec/mios/storage/mios-backup-remote` calculating block/file deltas, compressing via `zstd`, and syncing to remote targets.
-- Benchmark: `usr/libexec/mios/storage/mios-bench-storage` testing 4K random IOPS, 1M throughput, fsync latency with `--json` output.
-- Memory Spill: `usr/libexec/mios/mem/mios-tmpfs-spill` monitoring `/proc/pressure/memory` (>60% PSI threshold) and moving older cache files from `/tmp` to `/var/tmp/spill`.
-- Log Streamer: `usr/libexec/mios/log/mios-log-streamer` streaming filtered JSON logs from `journalctl` to pgvector `system_logs` table.
+### M4: Diff Snapshot & Image Bake Lifecycle
+- `diff_snapshot.py`: `--reason <shutdown|manual>`, `--out-dir <path>`, `--json`, `--mock`. Output: `/var/lib/mios/snapshots/boot-diffs/<timestamp-boot-id>.json`.
+- `diff_accrual.py`: `--snapshot-dir <path>`, `--out <path>`, `--classify`, `--json`, `--mock`. Output: `/var/run/mios/accrued-diffs.json`.
+- `diff_auditor.py`: `--input <path>`, `--approve <ids>`, `--reject <ids>`, `--stage`, `--json`, `--mock`. Output: `/var/run/mios/staged-bake-diffs.json`.
+- `image_bake.py`: `--staged-diffs <path>`, `--tag <name>`, `--switch`, `--json`, `--mock`.
+- `greenboot_gate.py`: `--check`, `--rollback-on-failure`, `--quarantine-dir <path>`, `--json`, `--mock`.
 
 ## Code Layout
-- Database utilities: `usr/libexec/mios/db/`
-- Storage & backup utilities: `usr/libexec/mios/storage/`
-- Security & key rotation: `usr/libexec/mios/sec/`
-- Memory management: `usr/libexec/mios/mem/`
-- Logging & telemetry: `usr/libexec/mios/log/`
-- Systemd units & timers: `usr/lib/systemd/system/`
-- Quadlet container units: `usr/share/containers/systemd/`
-- SQL schemas & migrations: `usr/share/mios/postgres/`
-- Python unit test suites: `tests/test-*.py`
-- Configuration & SSOT: `usr/share/mios/mios.toml`
-- Task registries: `TASKS.md`, `AGY-TASKS.md`, `ROADMAP.md`
-- Validation tools: `tools/sync-generated.sh`, `tools/drift-checks.py`, `tools/roadmap-index.py`, `tools/ci-suites.py`, `tools/check-*.py`
+- `usr/libexec/mios/sec/`: Security engines (`fido2_enroll.py`, `greenboot_gate.py`)
+- `usr/libexec/mios/win/`: Windows tooling engines (`unattend_validate.py`)
+- `usr/libexec/mios/ux/`: System UX, theming, window management, audio, editors, and diff auditor
+- `usr/libexec/mios/deploy/`: Image deployment, snapshot, accrual, and image bake lifecycle engines
+- `tests/test-*.py`: Dedicated unit test suites for each engine
+- `usr/share/mios/mios.toml`: SSOT containing `[ci.tiers] unit` suite list, `[colors]`, `[theme]`
+- `TASKS.md` & `AGY-TASKS.md`: Task tracking registries
