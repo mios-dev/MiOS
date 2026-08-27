@@ -37,7 +37,6 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/GLOBAL-UNIFICATION-PLAN.md` | The staged, lossless-diff-gated plan to collapse the duplicated/proliferated MIOS_* SSOT keys (measured 2523 keys, 79 version/image pairs, dead+alias dupes, one value copy-pasted across ~35 places)... |
 | `usr/share/doc/mios/reference/PACKAGES.md` | Human-readable reference documentation for the MiOS RPM package ecosystem -- the irreducible host substrate beneath the bootc/OCI image. Agents should use mios.toml as the source of truth for package... |
 | `usr/share/doc/mios/reference/api.md` | Defines the OpenAI-compatible API surface that the unified MiOS AI endpoint (MIOS_AI_ENDPOINT, Architectural Law 5) targets, and maps it onto the MiOS inference lanes (mios-llm-light llama.cpp... |
-| `usr/share/doc/mios/reference/audit-INDEX.md` | Cross-cutting synthesis + index for the 8-area MiOS roadmap-advance audit sweep (deploy plane, runtime-wire, security, tech-debt, liquid-glass shell, MiOS-Metal, SSOT value-dup, publish/bake... |
 | `usr/share/doc/mios/reference/audit-deploy-plane.md` | Audit of the MiOS DEPLOY plane (the least-done area, ~15-25%): traces the OFFLINE immutable-bootc install chain (Justfile oci-archive/BIB -> mios-stage-oci-archive -> tools/install.sh ->... |
 | `usr/share/doc/mios/reference/audit-liquid-glass-shell.md` | Design for the MiOS liquid-glass desktop shell (Apple liquid-glass north star) projected FROM SSOT: adds a flat mios.toml [effects] section (blur/rounding/opacity/shadow/animation-curves) and... |
 | `usr/share/doc/mios/reference/audit-mios-metal.md` | Concrete host definition for the MiOS-Metal split-plane: bootc hypervisor-router image contents, SSOT-driven vfio-pci bind, hand-authored `table inet mios-router` nft ruleset, headscale mesh join,... |
@@ -46,7 +45,6 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/audit-runtime-wire.md` | Per-feature audit of MiOS's shipped-but-inert runtime features (greenboot, clevis/LUKS, chrony, ROCm/venus, ceph, mdevctl, freeipa/lldap, nut, guacamole/guacd, virt-v2v) classifying each as... |
 | `usr/share/doc/mios/reference/audit-security.md` | Prioritized MiOS security-audit remediation plan (P0..P2) with file:line evidence and drop-in artifacts: PAT rotation + secret-store, cosign sign->VERIFY gate (CI + runtime policy.json from SSOT),... |
 | `usr/share/doc/mios/reference/audit-tech-debt.md` | Measured refresh of the MiOS tech-debt map (ADR-0011 territory) -- server.py split-seam manifest, kill-eval status, shellcheck warning-ratchet upgrade, compiled-template + Law-14 language-policy... |
-| `usr/share/doc/mios/reference/audit-value-dup-report.md` | Measured MIOS_* value-duplication audit feeding the AGY de-dup campaign (AGY-856..930); groups the 2416 resolver-emitted env vars by VALUE, classifies every >=2-key group {true-alias |... |
 | `usr/share/doc/mios/reference/build-network-policy.md` | Technical reference on MiOS build-time network fetch policy, retry requirements, and degrade-open classification rules. |
 | `usr/share/doc/mios/reference/build-pipeline.md` | The numbered build pipeline and the Law-6 root Quadlet exceptions, both derived from mios.toml so they cannot go stale. |
 | `usr/share/doc/mios/reference/build-scripts.md` | Reference snapshot bundling the source and execution order of the scripts that build the MiOS OCI image, so an agent can locate and read specific build logic without crawling the repo. Curated... |
@@ -82,7 +80,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/upstream-gaps-2026-08.md` | Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md. Every claim below was checked against a primary source (NVD,... |
 | `usr/share/doc/mios/reference/upstream-registry.md` | Comprehensive Upstream Project & Technology Registry for MiOS. |
 
-<!-- derived from the AI-hint headers of 47 file(s) matching usr/share/doc/mios/reference/*.md -->
+<!-- derived from the AI-hint headers of 45 file(s) matching usr/share/doc/mios/reference/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/reference/*.md -->
 
 ## concepts

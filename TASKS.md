@@ -614,16 +614,16 @@
 | T-700 | P2 | done | Boot/FastBootTest | Automated sub-1s UEFI boot time, baked UKI signature, and emergency key override test suite |
 | T-701 | P1 | done | Security/KASLR | Early EFI_RNG_PROTOCOL KASLR entropy collector and kernel memory randomizer |
 | T-702 | P2 | done | Security/KASLRTest | Automated KASLR physical address space variance and entropy validation test suite |
-| T-703 | P1 | open | Audio/BitPerfect | Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager |
-| T-704 | P2 | open | Audio/BitPerfectTest | Automated 192kHz/24-bit bit-perfect audio stream verification and concurrent mixing test suite |
-| T-705 | P1 | open | Containers/StorageDriver | Native in-kernel ID-mapped OverlayFS storage configurator for rootless Podman |
-| T-706 | P2 | open | Containers/StorageTest | Automated rootless container I/O throughput (10x speedup) and UID mapping test suite |
-| T-707 | P1 | open | Security/JournalFSS | Forward-Secure Sealed (FSS) journald logger and TPM key enrollment manager |
-| T-708 | P2 | open | Security/FSSTest | Automated journal tampering detection and journalctl --verify integrity test suite |
-| T-709 | P1 | open | AI/CUDAGraphs | Static CUDA Graph capture manager and multi-batch hardware replay buffer |
-| T-710 | P2 | open | AI/CUDAGraphTest | Automated CUDA Graph capture latency (<1ms) and token decoding speedup benchmark suite |
-| T-711 | P1 | open | Security/SBOM | Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher |
-| T-712 | P2 | open | Security/SBOMTest | Automated in-image SBOM completeness, package inventory hash parity, and signature test suite |
+| T-703 | P1 | done | Audio/BitPerfect | Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager |
+| T-704 | P2 | done | Audio/BitPerfectTest | Automated 192kHz/24-bit bit-perfect audio stream verification and concurrent mixing test suite |
+| T-705 | P1 | done | Containers/StorageDriver | Native in-kernel ID-mapped OverlayFS storage configurator for rootless Podman |
+| T-706 | P2 | done | Containers/StorageTest | Automated rootless container I/O throughput (10x speedup) and UID mapping test suite |
+| T-707 | P1 | done | Security/JournalFSS | Forward-Secure Sealed (FSS) journald logger and TPM key enrollment manager |
+| T-708 | P2 | done | Security/FSSTest | Automated journal tampering detection and journalctl --verify integrity test suite |
+| T-709 | P1 | done | AI/CUDAGraphs | Static CUDA Graph capture manager and multi-batch hardware replay buffer |
+| T-710 | P2 | done | AI/CUDAGraphTest | Automated CUDA Graph capture latency (<1ms) and token decoding speedup benchmark suite |
+| T-711 | P1 | done | Security/SBOM | Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher |
+| T-712 | P2 | done | Security/SBOMTest | Automated in-image SBOM completeness, package inventory hash parity, and signature test suite |
 | T-713 | P1 | open | Hardware/NCCLTune | Automated NCCL topology discovery and NVLink/PCIe parameter optimizer in mios-nccl-tune |
 | T-714 | P2 | open | Hardware/NCCLTest | Automated multi-GPU Tensor Parallelism (TP=2/4) throughput and AllReduce latency test suite |
 | T-715 | P1 | open | Git/LFSCache | Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager |
@@ -7763,7 +7763,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** PipeWire adapts sample rates dynamically to deliver bit-perfect audio to capable DACs.
 **Why:** Dynamic sample rate switching provides bit-perfect audiophile fidelity while preserving system-wide audio multiplexing.
 **Dep:** AGY-2300
-**Status:** open | **Domain:** Audio/BitPerfect | **Who:** agent
+**Status:** done | **Domain:** Audio/BitPerfect | **Who:** agent
 **Converted:** AGY-2301 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-704 -- Automated 192kHz/24-bit bit-perfect audio stream verification and concurrent mixing test suite (WS-NODE | P2 | S)
@@ -7773,7 +7773,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates dynamic clock rate switching and glitch-free concurrent audio mixing.
 **Why:** Continuous testing ensures audio subsystem updates preserve bit-perfect fidelity and mixer stability.
 **Dep:** AGY-2301
-**Status:** open | **Domain:** Audio/BitPerfectTest | **Who:** agent
+**Status:** done | **Domain:** Audio/BitPerfectTest | **Who:** agent
 **Converted:** AGY-2302 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-705 -- Native in-kernel ID-mapped OverlayFS storage configurator for rootless Podman (WS-APP | P1 | M)
@@ -7783,7 +7783,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Podman storage configuration activates native kernel overlayfs with ID-mapped mounts for rootless containers.
 **Why:** Native kernel overlayfs eliminates context-switch overhead and provides 10x faster container build I/O.
 **Dep:** AGY-2302
-**Status:** open | **Domain:** Containers/StorageDriver | **Who:** agent
+**Status:** done | **Domain:** Containers/StorageDriver | **Who:** agent
 **Converted:** AGY-2303 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-706 -- Automated rootless container I/O throughput (10x speedup) and UID mapping test suite (WS-APP | P2 | S)
@@ -7793,7 +7793,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-performance native kernel overlay I/O and POSIX UID permissions.
 **Why:** Continuous testing ensures container storage updates maintain high-speed native filesystem operations.
 **Dep:** AGY-2303
-**Status:** open | **Domain:** Containers/StorageTest | **Who:** agent
+**Status:** done | **Domain:** Containers/StorageTest | **Who:** agent
 **Converted:** AGY-2304 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-707 -- Forward-Secure Sealed (FSS) journald logger and TPM key enrollment manager (WS-SEC | P1 | M)
@@ -7803,7 +7803,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Journald seals logs cryptographically with FSS and TPM key protection.
 **Why:** Forward-Secure Sealing prevents attackers from altering past logs even if root privileges are subsequently compromised.
 **Dep:** AGY-2304
-**Status:** open | **Domain:** Security/JournalFSS | **Who:** agent
+**Status:** done | **Domain:** Security/JournalFSS | **Who:** agent
 **Converted:** AGY-2305 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-708 -- Automated journal tampering detection and journalctl --verify integrity test suite (WS-SEC | P2 | S)
@@ -7813,7 +7813,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates cryptographic tampering detection and FSS key verification.
 **Why:** Continuous testing ensures log sealing mechanics reliably detect any forensic tampering attempts.
 **Dep:** AGY-2305
-**Status:** open | **Domain:** Security/FSSTest | **Who:** agent
+**Status:** done | **Domain:** Security/FSSTest | **Who:** agent
 **Converted:** AGY-2306 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-709 -- Static CUDA Graph capture manager and multi-batch hardware replay buffer (WS-AI | P1 | M)
@@ -7823,7 +7823,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inference engine captures and executes CUDA Graphs for fixed decoding batches with zero CPU launch stalls.
 **Why:** CUDA Graphs eliminate CPU-to-GPU launch roundtrips and double single-batch token generation speeds.
 **Dep:** AGY-2306
-**Status:** open | **Domain:** AI/CUDAGraphs | **Who:** agent
+**Status:** done | **Domain:** AI/CUDAGraphs | **Who:** agent
 **Converted:** AGY-2307 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-710 -- Automated CUDA Graph capture latency (<1ms) and token decoding speedup benchmark suite (WS-AI | P2 | S)
@@ -7833,7 +7833,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates CUDA Graph acceleration and exact mathematical output parity.
 **Why:** Continuous testing ensures GPU driver and inference updates maintain CUDA Graph replay optimizations.
 **Dep:** AGY-2307
-**Status:** open | **Domain:** AI/CUDAGraphTest | **Who:** agent
+**Status:** done | **Domain:** AI/CUDAGraphTest | **Who:** agent
 **Converted:** AGY-2308 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-711 -- Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher (WS-BUILD | P1 | M)
@@ -7843,7 +7843,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** SBOM generator outputs validated CycloneDX/SPDX manifests and Cosign signs the image attestations.
 **Why:** Standardized, signed SBOMs provide complete supply-chain transparency and enable precise vulnerability matching.
 **Dep:** AGY-2308
-**Status:** open | **Domain:** Security/SBOM | **Who:** agent
+**Status:** done | **Domain:** Security/SBOM | **Who:** agent
 **Converted:** AGY-2309 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-712 -- Automated in-image SBOM completeness, package inventory hash parity, and signature test suite (WS-BUILD | P2 | S)
@@ -7853,7 +7853,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates complete package inventory coverage and cryptographically valid Cosign attestations.
 **Why:** Continuous testing ensures SBOM pipelines never omit newly added dependencies or fail signature validation.
 **Dep:** AGY-2309
-**Status:** open | **Domain:** Security/SBOMTest | **Who:** agent
+**Status:** done | **Domain:** Security/SBOMTest | **Who:** agent
 **Converted:** AGY-2310 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-713 -- Automated NCCL topology discovery and NVLink/PCIe parameter optimizer in mios-nccl-tune (WS-VFIO | P1 | M)

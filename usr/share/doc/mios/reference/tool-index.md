@@ -632,6 +632,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_worker_tools.py` | Re-export shim for mios_pipe.memory.worker_tools |
 | `usr/lib/mios/agent-pipe/mios_worktree.py` | Ephemeral subagent git worktree lifecycle manager and branch pruner for MiOS agent-pipe. |
 | `usr/lib/mios/agent-pipe/multimodal_ws.py` | Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe (T-671, T-672). |
+| `usr/lib/mios/agent-pipe/overlay_workspace.py` | Ephemeral OverlayFS workspace provisioner and bubblewrap sandbox in agent-pipe (T-691, T-692). |
 | `usr/lib/mios/agent-pipe/reactive_loop.py` | Asyncio/epoll reactive event loop and PostgreSQL LISTEN/NOTIFY dispatcher in agent-pipe (T-651, T-652). |
 | `usr/lib/mios/agent-pipe/server.py` | FastAPI gateway service on the `agent_pipe` port that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to th... |
 | `usr/lib/mios/agent-pipe/test_lora_endpoints.py` | Standalone assert-script unit test for LoRA list/load endpoints (CONV-06). |
@@ -814,6 +815,9 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/tests/test_mios_health.py` | Unit test for mios_pipe.health module. |
 | `usr/lib/mios/agent-pipe/tests/test_mios_mcp_dispatch.py` | Unit test for mios_pipe.mcp_dispatch module. |
 | `usr/lib/mios/agents/opencode-gateway/server.py` | Provides an OpenAI-compatible HTTP shim for the opencode CLI, exposing /v1/models and /v1/chat/completions endpoints to in... |
+| `usr/lib/mios/ai/cuda_graphs.py` | Static CUDA Graph capture manager and multi-batch hardware replay buffer (T-709, T-710). |
+| `usr/lib/mios/ai/grammar_decode.py` | Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap (T-685, T-686). |
+| `usr/lib/mios/ai/medusa_tree.py` | Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels (T-695, T-696). |
 | `usr/lib/mios/ai/train_elastic.py` | Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager (T-669, T-670). |
 | `usr/lib/mios/crawl4ai/mios-crawl4ai-service.py` | FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w... |
 | `usr/lib/mios/mios_comments.py` | The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST... |
@@ -822,7 +826,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 437 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 441 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

@@ -114,6 +114,7 @@ join it by editing a doc.
 | Quadlet | Runs as root because |
 |---|---|
 | `mios-ceph.container` | see `[security.privileged_quadlets]` |
+| `mios-radosgw.container` | see `[security.privileged_quadlets]` |
 | `mios-k3s.container` | see `[security.privileged_quadlets]` |
 | `mios-forge.container` | see `[security.privileged_quadlets]` |
 | `mios-forgejo-runner.container` | see `[security.privileged_quadlets]` |
