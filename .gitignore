@@ -499,6 +499,7 @@ usr/lib/sysusers.d/*
 !/usr/lib/tmpfiles.d/
 usr/lib/tmpfiles.d/*
 !/usr/lib/tmpfiles.d/*mios*
+!/usr/lib/tmpfiles.d/50-nix.conf
 
 !/usr/lib/udev/
 usr/lib/udev/*

@@ -127,6 +127,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-podman-ps.service` | `usr/lib/systemd/system` | MiOS' rootful podman snapshot for the agent-pipe portal/dashboard |
 | `mios-podman-ps.timer` | `usr/lib/systemd/system` | MiOS' refresh the podman container snapshot for the dashboard |
 | `mios-policy-arbiter.service` | `usr/lib/systemd/system` | MiOS' out-of-process HITL policy arbiter (WS-9) |
+| `mios-powerd.service` | `usr/lib/systemd/system` | MiOS' Hardware Power Supply Monitor and Battery-Aware AI Downscaler Daemon |
 | `mios-pxe-hub.container` | `usr/share/containers/systemd` | MiOS' PXE Boot Hub |
 | `mios-radosgw.container` | `usr/share/containers/systemd` | MiOS' Ceph RADOS Gateway (S3 Object Storage) |
 | `mios-role.service` | `usr/lib/systemd/system` | MiOS' System Init & Role Engine |
@@ -154,6 +155,8 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-verify-root.service` | `usr/lib/systemd/system` | MiOS' Root Filesystem Verification |
 | `mios-verify.service` | `usr/lib/systemd/system` | MiOS' Cryptographic Integrity Audit (fs-verity) |
 | `mios-vfio-setup.service` | `usr/lib/systemd/system` | MiOS VFIO & Looking Glass B6 IVSHMEM Setup |
+| `mios-wakeword.service` | `usr/lib/systemd/user` | MiOS Three-Stage Acoustic Wake-Word Daemon |
+| `mios-wallpaper.service` | `usr/lib/systemd/user` | MiOS' Living Wallpaper Occlusion Engine Daemon |
 | `mios-waydroid-init.service` | `usr/lib/systemd/system` | MiOS' Waydroid Android Initialization |
 | `mios-webtools-crawl4ai.container` | `usr/share/containers/systemd` | MiOS' web-tools crawl4ai slim engine (Chrome-CDP primary + camoufox fallback) |
 | `mios-webtools-firecrawl-api.container` | `usr/share/containers/systemd` | MiOS' web-tools firecrawl API (v1.0.0, self-host no-auth) |
@@ -181,5 +184,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (173 unit(s)) -->
+<!-- derived from tracked unit files (176 unit(s)) -->
 <!-- /MIOS-GEN:units -->

@@ -1,100 +1,102 @@
-# Project: MiOS Roadmap Workstreams T-449 to T-470
+# Project: MiOS Roadmap Workstream Batch (T-573 to T-582)
 
 ## Architecture
-MiOS is an immutable, bootc/OCI-shaped Fedora workstation that is also a local, self-replicating agentic AI OS.
-The roadmap workstreams T-449 through T-470 encompass:
-1. **Security & Schema Validation**: FIDO2/CTAP2 token LUKS2 enrollment (`usr/libexec/mios/sec/`) and automated Windows unattend XML schema validation (`usr/libexec/mios/win/`).
-2. **System UX, Theming & Multi-Desktop Integration**: Living wallpaper shaders, cross-platform palette synchronization, Quickshell status bar, tmux theme generation, fastfetch generation, Hyprland/Sway configs, audio feedback, notification daemon, GNOME Shell extension, editor configs, btop themes, font scaling, biometric lock, focus audio, and clipboard sync (`usr/libexec/mios/ux/`).
-3. **Autonomous Diff Snapshot & Image Bake Lifecycle**: Pre-shutdown diff capture, boot diff accrual risk classification, operator diff auditing, background OCI image synthesis inside podman-MiOS-DEV, and Greenboot post-bake health gating (`usr/libexec/mios/deploy/`, `usr/libexec/mios/sec/`, `usr/libexec/mios/ux/`).
-4. **Architectural Invariants**:
-   - `max_libexec_verbs = 285/285` strictly preserved by placing all 22 modules in depth-4 subdirectories (`sec/`, `win/`, `ux/`, `deploy/`).
-   - `ps_lines = 22618/22618` preserved (all implementations in Python 3 standard library with deterministic mock harnesses).
-   - 8-field task schema adherence in `TASKS.md` and `AGY-TASKS.md`.
-   - Dedicated unit test suites in `tests/test-*.py` registered in `[ci.tiers] unit` in `usr/share/mios/mios.toml`.
-   - Complete 7-gate repository CI verification and clean git status.
+MiOS is an immutable, bootc/OCI-shaped Fedora workstation and a local, self-replicating agentic AI OS.
+This project batch implements 10 sequential roadmap tasks (T-573 through T-582) spanning hardware power management, living wallpaper occlusion throttling, declarative MCP gateway orchestration, acoustic wake-word filtering, and declarative Nix subsystem integration.
+
+### Core Architectural Invariants:
+1. **USR-OVER-ETC**: Default templates and schemas in `/usr/share/mios/` and `/usr/lib/`; `/etc/mios/` and `~/.config/mios/` for runtime overrides.
+2. **NO-MKDIR-IN-VAR**: All `/var` persistent paths (e.g. `/var/nix`) declared declaratively via systemd tmpfiles (`usr/lib/tmpfiles.d/50-nix.conf`), never created via runtime build `mkdir`.
+3. **BOUND-IMAGES**: All container and runtime tool dependencies strictly version-bound in `mios.toml`.
+4. **BOOTC-CONTAINER-LINT**: Read-only `/usr` FHS layout compliant with bootc/ostree constraints.
+5. **UNIFIED-AI-REDIRECTS**: All AI tool calls, agent invocations, and MCP schemas conform strictly to OpenAI-API-compatible surface contracts (`/v1/chat/completions`, JSON schema function definitions).
+6. **UNPRIVILEGED-QUADLETS**: User-facing daemons run in unprivileged user sessions (`usr/lib/systemd/user/`).
+7. **Legibility Ratchet Discipline**: Python modules modularized in domain subdirectories (`usr/libexec/mios/hw/`, `usr/libexec/mios/ux/`, `usr/libexec/mios/audio/`, `usr/libexec/mios/config/`) to preserve the `max_libexec_verbs = 285` ceiling.
+
+---
 
 ## Feature Inventory
-| # | Task | Feature | Description | Target Path | Milestone | Source |
-|---|------|---------|-------------|-------------|-----------|--------|
-| 1 | T-449 | LUKS2 FIDO2 Token Enrollment | Portable drive LUKS2 FIDO2 / CTAP2 token enrollment helper | usr/libexec/mios/sec/fido2_enroll.py | M1 | ORIGINAL_REQUEST §R1 |
-| 2 | T-450 | Windows Unattend XML Validation | Automated validation of Windows unattend XML schema against XSD rules | usr/libexec/mios/win/unattend_validate.py | M1 | ORIGINAL_REQUEST §R1 |
-| 3 | T-451 | Living Wallpaper Shader Renderer | Real-time living wallpaper GLSL fragment shader renderer with telemetry | usr/libexec/mios/ux/living_wallpaper.py | M2 | ORIGINAL_REQUEST §R1 |
-| 4 | T-452 | Cross-Platform Theme Sync | Palette synchronizer writing directly to Windows Registry and GTK3/4 CSS | usr/libexec/mios/ux/theme_sync.py | M2 | ORIGINAL_REQUEST §R1 |
-| 5 | T-453 | Quickshell Status Bar Telemetry | Status bar component streaming live LLM VRAM and agent turns | usr/libexec/mios/ux/status_bar.py | M2 | ORIGINAL_REQUEST §R1 |
-| 6 | T-454 | Tmux Theme Generator | Terminal multiplexer tmux theme generator deriving active pane styles | usr/libexec/mios/ux/tmux_theme.py | M2 | ORIGINAL_REQUEST §R1 |
-| 7 | T-455 | Fastfetch Config Generator | Fastfetch configuration generator projecting host hardware and AI specs | usr/libexec/mios/ux/fastfetch_gen.py | M2 | ORIGINAL_REQUEST §R1 |
-| 8 | T-456 | Window Manager Config Generator | Hyprland and Sway tiling WM configuration generator from SSOT | usr/libexec/mios/ux/wm_config_gen.py | M2 | ORIGINAL_REQUEST §R1 |
-| 9 | T-457 | Audio Feedback Daemon | Audio feedback daemon playing subtle non-intrusive sound cues | usr/libexec/mios/ux/audio_feedback.py | M2 | ORIGINAL_REQUEST §R1 |
-| 10 | T-458 | System Notification Daemon | Notification daemon routing agent-pipe / Hermes alerts to desktop | usr/libexec/mios/ux/notification_daemon.py | M2 | ORIGINAL_REQUEST §R1 |
-| 11 | T-459 | GNOME Shell Top Panel Extension | GNOME Shell indicator showing active agent status and quick links | usr/libexec/mios/ux/gnome_extension.py | M3 | ORIGINAL_REQUEST §R1 |
-| 12 | T-460 | VS Code & Cursor Config Generator | Editor configuration generator with pre-configured OpenAI local endpoint | usr/libexec/mios/ux/editor_config_gen.py | M3 | ORIGINAL_REQUEST §R1 |
-| 13 | T-461 | Btop Theme Renderer | Btop theme renderer outputting exact RGB hex colors from [colors] SSOT | usr/libexec/mios/ux/btop_theme.py | M3 | ORIGINAL_REQUEST §R1 |
-| 14 | T-462 | Dynamic Font Scaler | Dynamic font size scaler for High-DPI displays across terminal & desktop | usr/libexec/mios/ux/font_scaler.py | M3 | ORIGINAL_REQUEST §R1 |
-| 15 | T-463 | Biometric Screen Lock Manager | Screen lock manager with biometric FIDO2 and fingerprint authentication | usr/libexec/mios/ux/biometric_lock.py | M3 | ORIGINAL_REQUEST §R1 |
-| 16 | T-464 | Focus Ambient Audio Generator | Ambient background audio generator for deep focus programming | usr/libexec/mios/ux/focus_audio.py | M3 | ORIGINAL_REQUEST §R1 |
-| 17 | T-465 | Cross-Platform Clipboard Sync | Clipboard synchronizer between host and VMs with token redaction | usr/libexec/mios/ux/clipboard_sync.py | M3 | ORIGINAL_REQUEST §R1 |
-| 18 | T-466 | Shutdown Diff Snapshot Hook | Systemd pre-poweroff diff snapshot hook capturing git & /etc diffs | usr/libexec/mios/deploy/diff_snapshot.py | M4 | ORIGINAL_REQUEST §R1 |
-| 19 | T-467 | Diff Accrual Risk Classifier | Startup diff accrual analyzer classifying safe vs high-risk modifications | usr/libexec/mios/deploy/diff_accrual.py | M4 | ORIGINAL_REQUEST §R1 |
-| 20 | T-468 | Interactive Diff Auditor | Quickshell and CLI interactive diff auditor enabling operator approval | usr/libexec/mios/ux/diff_auditor.py | M4 | ORIGINAL_REQUEST §R1 |
-| 21 | T-469 | Autonomous Image Bake Service | Background OCI image synthesis service rolling diffs into bootc images | usr/libexec/mios/deploy/image_bake.py | M4 | ORIGINAL_REQUEST §R1 |
-| 22 | T-470 | Greenboot Post-Bake Health Gate | Greenboot health gate with automated fallback on diff regressions | usr/libexec/mios/sec/greenboot_gate.py | M4 | ORIGINAL_REQUEST §R1 |
-| 23 | Tests | Dedicated Unit Test Suites | 22 test suites in tests/test-*.py registered in mios.toml | tests/test-*.py | M5 | ORIGINAL_REQUEST §R2 |
-| 24 | CI | Registry Parity & CI Gates | Parity update in TASKS.md / AGY-TASKS.md, projections sync, 7 CI gates | TASKS.md, tools/ | M6 | ORIGINAL_REQUEST §R3, §R4 |
-| 25 | Final | Full Verification & Commit | Reviewer, Challenger, Forensic Auditor review and clean git push | origin/main | M7 | Acceptance Criteria |
+| # | Task | AGY ID | Feature | Description | Milestone | Source |
+|---|------|--------|---------|-------------|-----------|--------|
+| 1 | T-573 | AGY-2171 | Power Supply Detector & Inference Downscaler | `usr/libexec/mios/hw/powerd.py` & service | M1 | Survey |
+| 2 | T-574 | AGY-2172 | Power Profile Benchmark Suite | `tests/test-power-profile-transitions.py` | M1 | Survey |
+| 3 | T-575 | AGY-2173 | Living Wallpaper Occlusion Engine | `usr/libexec/mios/ux/wallpaperd.py` & service | M2 | Survey |
+| 4 | T-576 | AGY-2174 | Wallpaper Frame Pacing Benchmark Suite | `tests/test-wallpaper-occlusion-throttle.py` | M2 | Survey |
+| 5 | T-577 | AGY-2175 | Declarative MCP Server Lifecycle & Schema Converter | `usr/lib/mios/agent-pipe/mios_mcp.py` | M3 | Survey |
+| 6 | T-578 | AGY-2176 | MCP Tool Discovery & Execution Test Suite | `tests/test-mcp-gateway-handshake.py` | M3 | Survey |
+| 7 | T-579 | AGY-2177 | Three-Stage Acoustic Wake-Word Filter Chain | `usr/libexec/mios/audio/wakeword.py` & service | M4 | Survey |
+| 8 | T-580 | AGY-2178 | Acoustic Wake-Word Benchmark Suite | `tests/test-acoustic-wakeword-pipeline.py` | M4 | Survey |
+| 9 | T-581 | AGY-2179 | Multi-User Nix Subsystem & Tmpfiles Store | `automation/59-tools.sh` & tmpfiles | M5 | Survey |
+| 10 | T-582 | AGY-2180 | Declarative Nix Flake Projection Generator | `usr/libexec/mios/config/nix_project.py` & template | M5 | Survey |
+| 11 | — | — | SSOT Synchronization & Task Registry Parity | `sync-generated.sh`, `mios-sync-toml`, 7 CI Gates | M6 | Survey |
+| 12 | — | — | Git Delivery & Remote CI Validation | Commit & push to `c:\MiOS` & `c:\mios-bootstrap` | M7 | Survey |
+
+---
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Security & Schema Validation | T-449 (fido2_enroll.py), T-450 (unattend_validate.py) | none | PLANNED |
-| M2 | System UX & Theming Part 1 | T-451 through T-458 (ux/*.py) | none | PLANNED |
-| M3 | System UX & Theming Part 2 | T-459 through T-465 (ux/*.py) | none | PLANNED |
-| M4 | Diff Snapshot & Image Bake Lifecycle | T-466, T-467, T-469 (deploy/), T-468 (ux/), T-470 (sec/) | none | PLANNED |
-| M5 | Test Suite Authoring & CI Registration | 22 unit test suites in tests/test-*.py registered in mios.toml | M1, M2, M3, M4 | PLANNED |
-| M6 | Task Registries Parity, Projections & CI Gates | TASKS.md, AGY-TASKS.md, sync-generated.sh, 7 CI gates | M5 | PLANNED |
-| M7 | Gate Review, Forensic Audit & Git Delivery | Independent Reviewers, Challenger, Forensic Auditor, Git Commit | M6 | PLANNED |
+| M1 | Hardware Powerd & Downscaler | T-573 (`powerd.py`, unit test `test-power-profile-transitions.py`, service) | None (T-572 done) | PLANNED |
+| M2 | Living Wallpaper Occlusion | T-575 (`wallpaperd.py`, unit test `test-wallpaper-occlusion-throttle.py`, service) | M1 | PLANNED |
+| M3 | Declarative MCP Gateway | T-577 (`mios_mcp.py`, `server.py`, unit test `test-mcp-gateway-handshake.py`) | M2 | PLANNED |
+| M4 | Three-Stage Acoustic Wake-Word | T-579 (`wakeword.py`, unit test `test-acoustic-wakeword-pipeline.py`, service) | M3 | PLANNED |
+| M5 | Declarative Nix Subsystem | T-581/T-582 (`59-tools.sh`, `50-nix.conf`, `nix_project.py`, flake template) | M4 | PLANNED |
+| M6 | SSOT Sync & 7 CI Gates Verification | CI registration in `mios.toml`, `TASKS.md`/`AGY-TASKS.md` parity, 7 CI gates pass | M1..M5 | PLANNED |
+| M7 | Gate Review, Audit & Git Delivery | Reviewers, Challengers, Forensic Auditor (HARD VETO), Git push across both repos | M6 | PLANNED |
+
+---
 
 ## Interface Contracts
-### General Module Standards
-- Every engine is a Python 3 script with `#!/usr/bin/env python3` shebang, executable permissions, and strict standard library usage.
-- Supports standard CLI arguments: `--json`, `--mock`, `--dry-run`, `--verbose`, `--help`.
-- Exit codes: `0` for success, non-zero for failure.
-- Returns structured JSON to stdout when `--json` is specified.
-- Mock mode (`--mock`) executes full logic paths deterministically without accessing real hardware devices, network endpoints, or external daemons.
 
-### M1: Security & Schema Validation
-- `fido2_enroll.py`: `--device <path>`, `--pin`, `--touch`, `--recovery-key`, `--status`, `--json`, `--mock`.
-- `unattend_validate.py`: `--input <path>`, `--schema <path>`, `--strict`, `--json`, `--mock`.
+### 1. Power Daemon Contract (`usr/libexec/mios/hw/powerd.py`)
+- CLI:
+  - `--status --json`: Returns `{"power_source": "AC"|"BATTERY", "cpu_epp": "balance_performance"|"power", "active_model_tier": "heavy"|"light_3b", "paused_containers": [...]}`
+  - `--set-state [ac|dc]`: Triggers deterministic profile transition
+  - `--mock`: Headless mock mode
+  - `--daemon`: Starts daemon event loop
+- Service: `usr/lib/systemd/system/mios-powerd.service`
 
-### M2 & M3: System UX & Theming
-- Integrates with `usr/lib/mios/mios_toml.py` to retrieve `colors()`, `get("theme.*")`, `get("identity.*")`.
-- `living_wallpaper.py`: `--mode <mode>`, `--shader <path>`, `--fps <num>`, `--json`, `--mock`.
-- `theme_sync.py`: `--target <gtk|windows|all>`, `--out <path>`, `--apply`, `--json`, `--mock`.
-- `status_bar.py`: `--stream`, `--interval <sec>`, `--json`, `--mock`.
-- `tmux_theme.py`: `--out <path>`, `--json`, `--mock`.
-- `fastfetch_gen.py`: `--out <path>`, `--json`, `--mock`.
-- `wm_config_gen.py`: `--target <hyprland|sway|all>`, `--out <dir>`, `--json`, `--mock`.
-- `audio_feedback.py`: `--event <event_name>`, `--volume <num>`, `--json`, `--mock`.
-- `notification_daemon.py`: `--listen`, `--post <msg>`, `--level <info|warn|error>`, `--json`, `--mock`.
-- `gnome_extension.py`: `--install`, `--status`, `--json`, `--mock`.
-- `editor_config_gen.py`: `--target <vscode|cursor|all>`, `--out <dir>`, `--endpoint <url>`, `--json`, `--mock`.
-- `btop_theme.py`: `--out <path>`, `--json`, `--mock`.
-- `font_scaler.py`: `--dpi <num>`, `--scale <factor>`, `--apply`, `--json`, `--mock`.
-- `biometric_lock.py`: `--lock`, `--unlock`, `--fido2`, `--fingerprint`, `--json`, `--mock`.
-- `focus_audio.py`: `--mode <noise|binaural|drone>`, `--duration <sec>`, `--json`, `--mock`.
-- `clipboard_sync.py`: `--sync`, `--redact`, `--direction <host-to-vm|vm-to-host>`, `--json`, `--mock`.
+### 2. Wallpaper Occlusion Contract (`usr/libexec/mios/ux/wallpaperd.py`)
+- CLI:
+  - `--status --json`: Returns `{"rendering": true|false, "fps": 0|60, "gpu_load_pct": 0.0|1.8, "occluded": true|false}`
+  - `--socket <path>`: Listens on `/run/user/$UID/mios-wallpaper.sock` for telemetry JSON updates
+  - `--set-occluded [true|false]`: Sets occlusion state
+  - `--mock`: Headless mock mode
+- Service: `usr/lib/systemd/user/mios-wallpaper.service`
 
-### M4: Diff Snapshot & Image Bake Lifecycle
-- `diff_snapshot.py`: `--reason <shutdown|manual>`, `--out-dir <path>`, `--json`, `--mock`. Output: `/var/lib/mios/snapshots/boot-diffs/<timestamp-boot-id>.json`.
-- `diff_accrual.py`: `--snapshot-dir <path>`, `--out <path>`, `--classify`, `--json`, `--mock`. Output: `/var/run/mios/accrued-diffs.json`.
-- `diff_auditor.py`: `--input <path>`, `--approve <ids>`, `--reject <ids>`, `--stage`, `--json`, `--mock`. Output: `/var/run/mios/staged-bake-diffs.json`.
-- `image_bake.py`: `--staged-diffs <path>`, `--tag <name>`, `--switch`, `--json`, `--mock`.
-- `greenboot_gate.py`: `--check`, `--rollback-on-failure`, `--quarantine-dir <path>`, `--json`, `--mock`.
+### 3. MCP Manager Contract (`usr/lib/mios/agent-pipe/mios_mcp.py`)
+- Configuration: `[mcp.servers.<name>]` in `mios.toml`
+- Core API:
+  - `load_servers_from_toml(toml_data: dict) -> List[McpServerSpec]`
+  - `convert_mcp_to_openai_schema(mcp_tool: dict, server_id: str) -> dict` -> strict OpenAI `{"type": "function", "function": {"name": ..., "description": ..., "parameters": ...}}`
+  - `async dispatch_tool_call(server_id: str, tool_name: str, arguments: dict) -> dict`
+
+### 4. Acoustic Wake-Word Contract (`usr/libexec/mios/audio/wakeword.py`)
+- CLI:
+  - `--status --json`: Returns `{"state": "listening"|"triggered"|"idle", "vad_active": bool, "wakeword_detected": bool, "cpu_usage_pct": float}`
+  - `--process-pcm <path>`: Processes raw PCM audio file through 3 stages (RNNoise -> Silero VAD -> OpenWakeWord)
+  - `--threshold <float>`: Float detection threshold (default 0.6)
+  - `--mock`: Deterministic mock mode
+- Service: `usr/lib/systemd/user/mios-wakeword.service`
+
+### 5. Nix Integration Contract (`usr/libexec/mios/config/nix_project.py`)
+- Tmpfiles: `usr/lib/tmpfiles.d/50-nix.conf` (`L+ /nix - - - - /var/nix`)
+- Configuration: `usr/share/mios/nix/nix.conf`
+- Template: `usr/share/mios/nix/flake-template.nix`
+- CLI:
+  - `--render-flake [--output <path>]`: Reads `mios.toml` (`[dotfiles]`, `[packages]`, `[shell]`), outputs flake
+  - `--validate-flake <path>`: Checks Nix flake syntax
+  - `--mock`: Headless mock mode
+
+---
 
 ## Code Layout
-- `usr/libexec/mios/sec/`: Security engines (`fido2_enroll.py`, `greenboot_gate.py`)
-- `usr/libexec/mios/win/`: Windows tooling engines (`unattend_validate.py`)
-- `usr/libexec/mios/ux/`: System UX, theming, window management, audio, editors, and diff auditor
-- `usr/libexec/mios/deploy/`: Image deployment, snapshot, accrual, and image bake lifecycle engines
-- `tests/test-*.py`: Dedicated unit test suites for each engine
-- `usr/share/mios/mios.toml`: SSOT containing `[ci.tiers] unit` suite list, `[colors]`, `[theme]`
-- `TASKS.md` & `AGY-TASKS.md`: Task tracking registries
+- `usr/libexec/mios/hw/`: Hardware monitoring and power management modules
+- `usr/libexec/mios/ux/`: Desktop environment, living wallpaper, and UX modules
+- `usr/lib/mios/agent-pipe/`: Agent-pipe router, federation, and MCP gateway integration
+- `usr/libexec/mios/audio/`: Voice front-end, acoustic filter chain, and wake-word detection
+- `usr/libexec/mios/config/`: Declarative projection generators (Nix flakes, dotfiles)
+- `usr/share/mios/nix/`: Vendor templates and configuration files for Nix subsystem
+- `usr/lib/tmpfiles.d/`: Declarative `/var` filesystem storage specifications
+- `usr/lib/systemd/system/` & `usr/lib/systemd/user/`: Systemd service units
+- `tests/`: Automated unit test suites (`test-power-profile-transitions.py`, `test-wallpaper-occlusion-throttle.py`, `test-mcp-gateway-handshake.py`, `test-acoustic-wakeword-pipeline.py`, `test-nix-project.py`)

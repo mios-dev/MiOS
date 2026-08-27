@@ -11250,6 +11250,12 @@ unit = [
     "tests/test-ptp-time.py",
     "tests/test-microvm-bridge.py",
     "tests/test-uid-enforcement.py",
+    "tests/test-power-profile-transitions.py",
+    "tests/test-wallpaper-occlusion-throttle.py",
+    "tests/test-mcp-gateway-handshake.py",
+    "tests/test-acoustic-wakeword-pipeline.py",
+    "tests/test-nix-project.py",
+    "tests/test-empirical-stress-t573-t582.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

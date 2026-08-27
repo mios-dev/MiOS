@@ -15401,7 +15401,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Automated curation keeps MiOS equipped with the latest modern AI advancements without manual operator intervention.
 **Dep:** AGY-2169
 
-## AGY-2171 -- Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler  (WS-NODE | P1 | M)
+## AGY-2171 -- Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler  (WS-NODE | P1 | M) **[DONE]**
 **Goal:** Detect AC/DC power supply state transitions and adapt active inference models and CPU governors.
 **What+How:** Implement `usr/libexec/mios/mios-powerd`. Listen to udev `power_supply` subsystem; on DC battery transition, switch `llama-swap` default model to lightweight 3B/8B GGUF, pause background fine-tuning containers, and write `power` to `/sys/devices/system/cpu/cpu*/power/energy_performance_preference`.
 **Where:** usr/libexec/mios/mios-powerd, usr/lib/systemd/system/mios-powerd.service
@@ -15411,7 +15411,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Battery-aware power modulation extends mobile laptop runtime while preserving local AI assistance.
 **Dep:** AGY-2170
 
-## AGY-2172 -- Automated AC/DC power profile transition and battery runtime benchmark suite  (WS-NODE | P2 | S)
+## AGY-2172 -- Automated AC/DC power profile transition and battery runtime benchmark suite  (WS-NODE | P2 | S) **[DONE]**
 **Goal:** Verify in automated benchmarks that DC power transitions reduce host power draw by >50%.
 **What+How:** Add `tests/test-power-profile-transitions.sh`. Simulate AC to DC switch; assert active GPU power cap drops, CPU frequencies scale down, and background container slices enter suspended cgroup states.
 **Where:** tests/test-power-profile-transitions.sh, tools/ci-suites.py
@@ -15421,7 +15421,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous power testing guarantees energy-efficient performance on portable laptops and edge devices.
 **Dep:** AGY-2171
 
-## AGY-2173 -- Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue  (WS-LANG | P1 | M)
+## AGY-2173 -- Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue  (WS-LANG | P1 | M) **[DONE]**
 **Goal:** Render procedural living wallpaper shaders that throttle to 0 FPS when desktop is occluded by open windows.
 **What+How:** Implement `usr/libexec/mios/mios-wallpaperd`. Listen on Wayland layer-shell protocol; monitor desktop window occlusion; suspend rendering to 0 FPS when occluded; render at 30/60 FPS via low-priority Vulkan compute queue; and accept system telemetry uniforms over `/run/user/$UID/mios-wallpaper.sock`.
 **Where:** usr/libexec/mios/mios-wallpaperd, usr/lib/systemd/user/mios-wallpaper.service
@@ -15431,7 +15431,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Occlusion-aware frame pacing delivers fluid desktop aesthetics while preserving 98%+ GPU capacity for AI inference.
 **Dep:** AGY-2172
 
-## AGY-2174 -- Real-time wallpaper occlusion frame pacing and GPU load benchmark suite  (WS-LANG | P2 | S)
+## AGY-2174 -- Real-time wallpaper occlusion frame pacing and GPU load benchmark suite  (WS-LANG | P2 | S) **[DONE]**
 **Goal:** Verify in automated CI that wallpaper rendering drops to 0 FPS on window occlusion and GPU load stays < 2%.
 **What+How:** Add `tests/test-wallpaper-occlusion-throttle.sh`. Simulate window focus and fullscreen events; measure GPU compute duty cycle; assert GPU load < 2% during visible rendering and 0% during occlusion.
 **Where:** tests/test-wallpaper-occlusion-throttle.sh, tools/ci-suites.py
@@ -15441,7 +15441,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures wallpaper shaders never cause GPU frame drops or interfere with AI inference.
 **Dep:** AGY-2173
 
-## AGY-2175 -- Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe  (WS-ORCH | P1 | M)
+## AGY-2175 -- Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe  (WS-ORCH | P1 | M) **[DONE]**
 **Goal:** Discover and convert MCP tools to OpenAI function schemas dynamically based on mios.toml declarations.
 **What+How:** Implement `usr/lib/mios/agent-pipe/mios_mcp.py`. Parse `[mcp.servers]` in `mios.toml`; spawn configured stdio subprocesses or connect to authenticated SSE endpoints; query `tools/list` via JSON-RPC; convert input schemas into OpenAI `tools` definitions; and route tool calls to target MCP server.
 **Where:** usr/lib/mios/agent-pipe/mios_mcp.py, usr/lib/mios/agent-pipe/server.py
@@ -15451,7 +15451,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Declarative MCP support enables seamless integration of arbitrary tools without modifying core orchestration code.
 **Dep:** AGY-2174
 
-## AGY-2176 -- Automated MCP tool discovery, execution handshake, and schema validation test suite  (WS-ORCH | P2 | S)
+## AGY-2176 -- Automated MCP tool discovery, execution handshake, and schema validation test suite  (WS-ORCH | P2 | S) **[DONE]**
 **Goal:** Verify in automated CI that MCP tool discovery, schema translation, and execution handshakes pass 100%.
 **What+How:** Add `tests/test-mcp-gateway-handshake.sh`. Spawn mock MCP server over stdio; assert `agent-pipe` parses tool schemas; trigger test function call; assert mock server returns result and agent incorporates output into response.
 **Where:** tests/test-mcp-gateway-handshake.sh, tools/ci-suites.py
@@ -15461,7 +15461,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures MCP protocol updates remain wire-compatible with standard agent interfaces.
 **Dep:** AGY-2175
 
-## AGY-2177 -- Three-stage acoustic filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free activation  (WS-AI | P1 | M)
+## AGY-2177 -- Three-stage acoustic filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free activation  (WS-AI | P1 | M) **[DONE]**
 **Goal:** Filter microphone noise, detect speech with Silero VAD, and trigger wake-word activation with <0.1% CPU overhead.
 **What+How:** Implement `usr/libexec/mios/mios-wakeword`. Configure PipeWire filter-chain with RNNoise suppressor; stream audio to Silero VAD; on voice activity, pass audio chunks to OpenWakeWord model; on wake phrase detection, trigger streaming Whisper STT session.
 **Where:** usr/libexec/mios/mios-wakeword, usr/lib/systemd/user/mios-wakeword.service
@@ -15471,7 +15471,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** Staged acoustic filtering provides always-on hands-free activation without battery drain or GPU contention.
 **Dep:** AGY-2176
 
-## AGY-2178 -- Automated acoustic noise rejection, VAD accuracy, and wake-word trigger benchmark suite  (WS-AI | P2 | S)
+## AGY-2178 -- Automated acoustic noise rejection, VAD accuracy, and wake-word trigger benchmark suite  (WS-AI | P2 | S) **[DONE]**
 **Goal:** Verify in automated CI that RNNoise and OpenWakeWord achieve >98% accuracy and <0.5% false positive rate.
 **What+How:** Add `tests/test-acoustic-wakeword-pipeline.sh`. Feed noisy audio clips containing positive wake phrases and negative speech; assert true positive rate > 98%, false positive rate < 0.5%, and CPU utilization < 0.2% on single core.
 **Where:** tests/test-acoustic-wakeword-pipeline.sh, tools/ci-suites.py
@@ -15481,17 +15481,17 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures acoustic updates do not degrade wake sensitivity or increase false activations.
 **Dep:** AGY-2177
 
-## AGY-2179 -- Multi-user Nix subsystem and /nix persistent store integration in bootc OCI image  (WS-BUILD | P1 | M)
+## AGY-2179 -- Multi-user Nix subsystem and /nix persistent store integration in bootc OCI image  (WS-BUILD | P1 | M) **[DONE]**
 **Goal:** Integrate multi-user Nix subsystem into immutable Fedora bootc image with /nix bound to persistent /var/nix.
-**What+How:** Implement `automation/34-nix-core.sh`. Create `/nix` mountpoint in base image, configure systemd-tmpfiles link `L+ /nix - - - - /var/nix`, enable `nix-daemon.service`, and configure multi-user sandbox build flags in `/etc/nix/nix.conf`.
-**Where:** automation/34-nix.sh, usr/lib/tmpfiles.d/50-nix.conf
+**What+How:** Implement Nix subsystem provisioning in `automation/59-tools.sh`. Create `/nix` mountpoint in base image, configure systemd-tmpfiles link `L+ /nix - - - - /var/nix`, enable `nix-daemon.service`, and configure multi-user sandbox build flags in `/etc/nix/nix.conf`.
+**Where:** automation/59-tools.sh, usr/lib/tmpfiles.d/50-nix.conf
 **Verify:** Boot deployed image; run `nix-env --version` as unprivileged user; verify `nix-daemon` communicates over socket and installs packages to `/nix/store`.
 **Do NOT:** Mount `/nix` as a volatile tmpfs; persist `/nix/store` on `/var/nix`.
 **Done When:** Nix subsystem provisions multi-user package store on immutable bootc host seamlessly.
 **Why:** Nix integration enables bit-for-bit reproducible user packages and hermetic compiler toolchains on an immutable OS.
 **Dep:** AGY-2178
 
-## AGY-2180 -- Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project  (WS-DOTFILES | P1 | M)
+## AGY-2180 -- Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project  (WS-DOTFILES | P1 | M) **[DONE]**
 **Goal:** Generate declarative Nix flakes from mios.toml to manage user dotfiles and package generations atomically.
 **What+How:** Implement `usr/libexec/mios/mios-nix-project`. Parse `[dotfiles]`, `[packages]`, and `[shell]` in `mios.toml`, render pure `/etc/mios/flake.nix`, and activate user environment via `nix profile` with atomic rollback generations.
 **Where:** usr/libexec/mios/mios-nix-project, usr/share/mios/nix/flake-template.nix

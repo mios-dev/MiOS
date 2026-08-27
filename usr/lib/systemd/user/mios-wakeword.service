@@ -1,0 +1,38 @@
+# AI-hint: Systemd user service running the Three-Stage Acoustic Wake-Word filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free system activation.
+# AI-doc: usr/share/doc/mios/manual/audio.md
+[Unit]
+# /usr/lib/systemd/user/mios-wakeword.service
+#
+# MiOS Three-Stage Acoustic Wake-Word service -- manages continuous low-overhead
+# hands-free voice trigger detection on the user's audio input device.
+#
+# ARCHITECTURE:
+# Audio frames pass through RNNoise (denoiser) -> Silero VAD (speech detection) ->
+# OpenWakeWord (phrase matcher). When the user speaks the wake phrase ("Hey MiOS"),
+# it activates the downstream streaming STT session without high idle CPU or GPU load.
+#
+# RUNTIME:
+# Runs as an unprivileged user service within user@$UID.service with access to
+# PipeWire / PulseAudio session endpoints.
+Description=MiOS Three-Stage Acoustic Wake-Word Daemon
+Documentation=file:///usr/libexec/mios/audio/wakeword.py
+After=pipewire.service sound.target graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -u /usr/libexec/mios/audio/wakeword.py --daemon
+Restart=on-failure
+RestartSec=3s
+Environment=PYTHONUNBUFFERED=1
+# Optional user tunables:
+#   Environment=MIOS_WAKEWORD_THRESHOLD=0.60
+#   Environment=MIOS_VAD_THRESHOLD=0.50
+#   Environment=MIOS_WAKEWORD_MODEL="Hey MiOS"
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%t %h/.config/mios
+
+[Install]
+WantedBy=graphical-session.target default.target

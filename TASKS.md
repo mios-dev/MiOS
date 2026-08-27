@@ -484,16 +484,16 @@
 | T-570 | P2 | done | Virt/MicroVMTest | MicroVM sub-50ms boot latency and VSOCK IPC throughput benchmark suite |
 | T-571 | P1 | done | AI/HardwareTiers | Hardware-tiered modern model matrix allocator for Consumer, Prosumer, and Poweruser nodes |
 | T-572 | P1 | done | AI/ModelCurator | Automated modern open-weight model curator and local benchmark profiler |
-| T-573 | P1 | open | Hardware/Powerd | Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler |
-| T-574 | P2 | open | Hardware/PowerTest | Automated AC/DC power profile transition and battery runtime benchmark suite |
-| T-575 | P1 | open | UI/Wallpaper | Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue |
-| T-576 | P2 | open | UI/WallpaperTest | Real-time wallpaper occlusion frame pacing and GPU load benchmark suite |
-| T-577 | P1 | open | AI/MCPGateway | Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe |
-| T-578 | P2 | open | AI/MCPTest | Automated MCP tool discovery, execution handshake, and schema validation test suite |
-| T-579 | P1 | open | Audio/AcousticFront | Three-stage acoustic filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free activation |
-| T-580 | P2 | open | Audio/AcousticTest | Automated acoustic noise rejection, VAD accuracy, and wake-word trigger benchmark suite |
-| T-581 | P1 | open | Build/NixCore | Multi-user Nix subsystem and /nix persistent store integration in bootc OCI image |
-| T-582 | P1 | open | Config/NixProject | Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project |
+| T-573 | P1 | done | Hardware/Powerd | Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler |
+| T-574 | P2 | done | Hardware/PowerTest | Automated AC/DC power profile transition and battery runtime benchmark suite |
+| T-575 | P1 | done | UI/Wallpaper | Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue |
+| T-576 | P2 | done | UI/WallpaperTest | Real-time wallpaper occlusion frame pacing and GPU load benchmark suite |
+| T-577 | P1 | done | AI/MCPGateway | Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe |
+| T-578 | P2 | done | AI/MCPTest | Automated MCP tool discovery, execution handshake, and schema validation test suite |
+| T-579 | P1 | done | Audio/AcousticFront | Three-stage acoustic filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free activation |
+| T-580 | P2 | done | Audio/AcousticTest | Automated acoustic noise rejection, VAD accuracy, and wake-word trigger benchmark suite |
+| T-581 | P1 | done | Build/NixCore | Multi-user Nix subsystem and /nix persistent store integration in bootc OCI image |
+| T-582 | P1 | done | Config/NixProject | Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project |
 | T-583 | P1 | open | Git/PreCommit | Hermetic multi-language pre-commit linter and auto-formatter hook in mios-git-pre-commit |
 | T-584 | P2 | open | Git/LintTest | Automated pre-commit linter violation rejection and auto-format test suite |
 | T-585 | P1 | open | Hardware/MIG | Declarative NVIDIA MIG / AMD ROCm hardware slice configurator and dynamic CDI generator |
@@ -6463,7 +6463,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Power daemon modulates inference lane allocations and CPU power profiles based on power supply state.
 **Why:** Battery-aware power modulation extends mobile laptop runtime while preserving local AI assistance.
 **Dep:** AGY-2170
-**Status:** open | **Domain:** Hardware/Powerd | **Who:** agent
+**Status:** done | **Domain:** Hardware/Powerd | **Who:** agent
 **Converted:** AGY-2171 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-574 -- Automated AC/DC power profile transition and battery runtime benchmark suite (WS-NODE | P2 | S)
@@ -6473,7 +6473,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates automated power profile downscaling under simulated DC operation.
 **Why:** Continuous power testing guarantees energy-efficient performance on portable laptops and edge devices.
 **Dep:** AGY-2171
-**Status:** open | **Domain:** Hardware/PowerTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/PowerTest | **Who:** agent
 **Converted:** AGY-2172 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-575 -- Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue (WS-LANG | P1 | M)
@@ -6483,7 +6483,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Living wallpaper engine renders reactive procedural shaders and throttles on window occlusion.
 **Why:** Occlusion-aware frame pacing delivers fluid desktop aesthetics while preserving 98%+ GPU capacity for AI inference.
 **Dep:** AGY-2172
-**Status:** open | **Domain:** UI/Wallpaper | **Who:** agent
+**Status:** done | **Domain:** UI/Wallpaper | **Who:** agent
 **Converted:** AGY-2173 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-576 -- Real-time wallpaper occlusion frame pacing and GPU load benchmark suite (WS-LANG | P2 | S)
@@ -6493,7 +6493,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that wallpaper rendering throttles to 0 FPS on window occlusion.
 **Why:** Continuous testing ensures wallpaper shaders never cause GPU frame drops or interfere with AI inference.
 **Dep:** AGY-2173
-**Status:** open | **Domain:** UI/WallpaperTest | **Who:** agent
+**Status:** done | **Domain:** UI/WallpaperTest | **Who:** agent
 **Converted:** AGY-2174 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-577 -- Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe (WS-ORCH | P1 | M)
@@ -6503,7 +6503,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** MCP manager discovers tools and routes executions across stdio and SSE transport protocols dynamically.
 **Why:** Declarative MCP support enables seamless integration of arbitrary tools without modifying core orchestration code.
 **Dep:** AGY-2174
-**Status:** open | **Domain:** AI/MCPGateway | **Who:** agent
+**Status:** done | **Domain:** AI/MCPGateway | **Who:** agent
 **Converted:** AGY-2175 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-578 -- Automated MCP tool discovery, execution handshake, and schema validation test suite (WS-ORCH | P2 | S)
@@ -6513,7 +6513,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates MCP dynamic schema conversion and tool execution pipelines.
 **Why:** Continuous testing ensures MCP protocol updates remain wire-compatible with standard agent interfaces.
 **Dep:** AGY-2175
-**Status:** open | **Domain:** AI/MCPTest | **Who:** agent
+**Status:** done | **Domain:** AI/MCPTest | **Who:** agent
 **Converted:** AGY-2176 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-579 -- Three-stage acoustic filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free activation (WS-AI | P1 | M)
@@ -6523,7 +6523,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Three-stage acoustic filter detects wake-words accurately with minimal idle CPU utilization.
 **Why:** Staged acoustic filtering provides always-on hands-free activation without battery drain or GPU contention.
 **Dep:** AGY-2176
-**Status:** open | **Domain:** Audio/AcousticFront | **Who:** agent
+**Status:** done | **Domain:** Audio/AcousticFront | **Who:** agent
 **Converted:** AGY-2177 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-580 -- Automated acoustic noise rejection, VAD accuracy, and wake-word trigger benchmark suite (WS-AI | P2 | S)
@@ -6533,17 +6533,17 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates wake-word precision, noise rejection, and low CPU overhead.
 **Why:** Continuous testing ensures acoustic updates do not degrade wake sensitivity or increase false activations.
 **Dep:** AGY-2177
-**Status:** open | **Domain:** Audio/AcousticTest | **Who:** agent
+**Status:** done | **Domain:** Audio/AcousticTest | **Who:** agent
 **Converted:** AGY-2178 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-581 -- Multi-user Nix subsystem and /nix persistent store integration in bootc OCI image (WS-BUILD | P1 | M)
 **Goal:** Integrate multi-user Nix subsystem into immutable Fedora bootc image with /nix bound to persistent /var/nix.
-**What+How:** Implement `automation/34-nix-core.sh`. Create `/nix` mountpoint in base image, configure systemd-tmpfiles link `L+ /nix - - - - /var/nix`, enable `nix-daemon.service`, and configure multi-user sandbox build flags in `/etc/nix/nix.conf`.
-**Where:** automation/34-nix.sh, usr/lib/tmpfiles.d/50-nix.conf
+**What+How:** Implement Nix subsystem provisioning in `automation/59-tools.sh`. Create `/nix` mountpoint in base image, configure systemd-tmpfiles link `L+ /nix - - - - /var/nix`, enable `nix-daemon.service`, and configure multi-user sandbox build flags in `/etc/nix/nix.conf`.
+**Where:** automation/59-tools.sh, usr/lib/tmpfiles.d/50-nix.conf
 **Done When:** Nix subsystem provisions multi-user package store on immutable bootc host seamlessly.
 **Why:** Nix integration enables bit-for-bit reproducible user packages and hermetic compiler toolchains on an immutable OS.
 **Dep:** AGY-2178
-**Status:** open | **Domain:** Build/NixCore | **Who:** agent
+**Status:** done | **Domain:** Build/NixCore | **Who:** agent
 **Converted:** AGY-2179 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-582 -- Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project (WS-DOTFILES | P1 | M)
@@ -6553,7 +6553,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Nix projection generator translates SSOT declarations to atomic user package generations.
 **Why:** Declarative Nix projections provide atomic user package rollbacks that mirror system-level bootc rollbacks.
 **Dep:** AGY-2179
-**Status:** open | **Domain:** Config/NixProject | **Who:** agent
+**Status:** done | **Domain:** Config/NixProject | **Who:** agent
 **Converted:** AGY-2180 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-583 -- Hermetic multi-language pre-commit linter and auto-formatter hook in mios-git-pre-commit (WS-GIT | P1 | M)

@@ -439,7 +439,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_lanes.py` | Re-export shim for mios_pipe.routing.lanes |
 | `usr/lib/mios/agent-pipe/mios_lanes_resolver.py` | Re-export shim for mios_pipe.routing.lanes_resolver |
 | `usr/lib/mios/agent-pipe/mios_manifest.py` | Re-export shim for mios_pipe.lifecycle.manifest |
-| `usr/lib/mios/agent-pipe/mios_mcp.py` | Re-export shim for mios_pipe.federation.mcp |
+| `usr/lib/mios/agent-pipe/mios_mcp.py` | Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe. |
 | `usr/lib/mios/agent-pipe/mios_memguard.py` | Re-export shim for mios_pipe.access.memguard |
 | `usr/lib/mios/agent-pipe/mios_memory.py` | Re-export shim for mios_pipe.memory.memory |
 | `usr/lib/mios/agent-pipe/mios_native_loop.py` | Re-export shim for mios_pipe.routing.native_loop |

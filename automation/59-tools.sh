@@ -3,6 +3,7 @@
 # AI-hint: Sets executable permissions for the core mios- suite of CLI tools in /usr/bin/ and installs auxiliary scripts like mios-toggle-headless.
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
+# shellcheck disable=SC1090  # log.sh resolves at runtime: build ctx or installed
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -49,4 +50,35 @@ else
     mios_warn "Tools/lib/userenv.sh not found in build context; mios-env will fall back to legacy env-style files only"
 fi
 
-mios_ok "CLI tools configured; run 'mios"
+# --- Multi-user Nix Subsystem Setup ---
+mios_log "Configure multi-user Nix subsystem"
+mkdir -p /etc/nix
+if [[ -f /usr/share/mios/nix/nix.conf && ! -f /etc/nix/nix.conf ]]; then
+    cp /usr/share/mios/nix/nix.conf /etc/nix/nix.conf
+    chmod 0644 /etc/nix/nix.conf
+    mios_ok "Deployed default /etc/nix/nix.conf from /usr/share/mios/nix/nix.conf"
+fi
+
+mkdir -p /etc/profile.d
+cat > /etc/profile.d/nix.sh << 'EOF'
+# Nix multi-user environment setup for MiOS
+if [ -n "${BASH_VERSION:-}" ] || [ -n "${ZSH_VERSION:-}" ]; then
+    export NIX_PROFILES="/nix/var/nix/profiles/default ${HOME}/.nix-profile"
+    export PATH="${HOME}/.nix-profile/bin:/nix/var/nix/profiles/default/bin:${PATH}"
+    if [ -e /etc/pki/tls/certs/ca-bundle.crt ]; then
+        export NIX_SSL_CERT_FILE="/etc/pki/tls/certs/ca-bundle.crt"
+    elif [ -e /etc/ssl/certs/ca-certificates.crt ]; then
+        export NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt"
+    fi
+fi
+EOF
+chmod 0644 /etc/profile.d/nix.sh
+
+for unit in nix-daemon.socket nix-daemon.service; do
+    if systemctl list-unit-files "${unit}" &>/dev/null; then
+        systemctl enable "${unit}" 2>/dev/null || true
+        mios_ok "Enabled systemd unit: ${unit}"
+    fi
+done
+
+mios_ok "CLI tools and Nix subsystem configured; run 'mios'"
