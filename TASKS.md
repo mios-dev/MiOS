@@ -524,16 +524,16 @@
 | T-610 | P2 | done | Database/MaintTest | Automated PostgreSQL dead tuple vacuuming and concurrent HNSW index reindexing test suite |
 | T-611 | P1 | done | Hardware/Watchdog | Tiered hardware watchdog driver configurator and systemd watchdog integration |
 | T-612 | P2 | done | Hardware/WDTTest | Automated systemd daemon freeze watchdog timeout and recovery test suite |
-| T-613 | P1 | open | Audio/BluetoothHD | WirePlumber high-fidelity Bluetooth policy manager and virtual loopback provisioner |
-| T-614 | P2 | open | Audio/LoopbackTest | Automated PipeWire Bluetooth codec negotiation and virtual loopback isolation test suite |
-| T-615 | P1 | open | Git/MergeFuzz | Continuous differential AST git merge fuzzing harness and mutation generator |
-| T-616 | P2 | open | Git/MergeStressTest | Automated AST merge conflict stress test and compiler syntax verification suite |
-| T-617 | P1 | open | Hardware/IOMMU | Strict IOMMU DMA remapper and PCIe ACS group validator in automation |
-| T-618 | P2 | open | Hardware/IOMMUTest | Automated IOMMU group isolation and peer-to-peer DMA containment test suite |
-| T-619 | P1 | open | Config/DriftAudit | Declarative configuration drift auditor and 3-way OCI overlay reconciler |
-| T-620 | P2 | open | Config/DriftTest | Automated configuration drift detection and state reconciliation test suite |
-| T-621 | P1 | open | Cluster/RaftLeader | Embedded Raft consensus coordinator and Patroni HA database failover engine |
-| T-622 | P2 | open | Cluster/RaftTest | Automated Raft leader election, split-brain partition prevention, and failover test suite |
+| T-613 | P1 | done | Audio/BluetoothHD | WirePlumber high-fidelity Bluetooth policy manager and virtual loopback provisioner |
+| T-614 | P2 | done | Audio/LoopbackTest | Automated PipeWire Bluetooth codec negotiation and virtual loopback isolation test suite |
+| T-615 | P1 | done | Git/MergeFuzz | Continuous differential AST git merge fuzzing harness and mutation generator |
+| T-616 | P2 | done | Git/MergeStressTest | Automated AST merge conflict stress test and compiler syntax verification suite |
+| T-617 | P1 | done | Hardware/IOMMU | Strict IOMMU DMA remapper and PCIe ACS group validator in automation |
+| T-618 | P2 | done | Hardware/IOMMUTest | Automated IOMMU group isolation and peer-to-peer DMA containment test suite |
+| T-619 | P1 | done | Config/DriftAudit | Declarative configuration drift auditor and 3-way OCI overlay reconciler |
+| T-620 | P2 | done | Config/DriftTest | Automated configuration drift detection and state reconciliation test suite |
+| T-621 | P1 | done | Cluster/RaftLeader | Embedded Raft consensus coordinator and Patroni HA database failover engine |
+| T-622 | P2 | done | Cluster/RaftTest | Automated Raft leader election, split-brain partition prevention, and failover test suite |
 | T-623 | P1 | open | Hardware/FanControl | Multi-zone hysteresis PID fan curve controller and hwmon sensor mapper in mios-fand |
 | T-624 | P2 | open | Hardware/FanTest | Automated thermal load ramp, fan curve hysteresis, and acoustic stabilization benchmark suite |
 | T-625 | P1 | open | UI/WebRTCStream | PipeWire DMA-BUF WebRTC remote desktop streamer and portal authorization bridge |
@@ -6863,7 +6863,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** WirePlumber negotiates high-bitrate Bluetooth codecs and creates isolated virtual audio loopback channels.
 **Why:** High-fidelity Bluetooth codecs and virtual loopbacks deliver audiophile-grade playback and echo-free agent voice isolation.
 **Dep:** AGY-2210
-**Status:** open | **Domain:** Audio/BluetoothHD | **Who:** agent
+**Status:** done | **Domain:** Audio/BluetoothHD | **Who:** agent
 **Converted:** AGY-2211 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-614 -- Automated PipeWire Bluetooth codec negotiation and virtual loopback isolation test suite (WS-APP | P2 | S)
@@ -6873,7 +6873,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates audio isolation and zero-crackling performance across virtual audio sinks.
 **Why:** Continuous testing ensures audio server upgrades maintain acoustic isolation between voice synthesis and microphone input.
 **Dep:** AGY-2211
-**Status:** open | **Domain:** Audio/LoopbackTest | **Who:** agent
+**Status:** done | **Domain:** Audio/LoopbackTest | **Who:** agent
 **Converted:** AGY-2212 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-615 -- Continuous differential AST git merge fuzzing harness and mutation generator (WS-GIT | P1 | M)
@@ -6883,7 +6883,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Differential merge fuzzer stress-tests AST merge algorithms and logs reproducible reproducers.
 **Why:** Continuous merge fuzzing guarantees that automated agent code merges never introduce silent syntax corruptions.
 **Dep:** AGY-2212
-**Status:** open | **Domain:** Git/MergeFuzz | **Who:** agent
+**Status:** done | **Domain:** Git/MergeFuzz | **Who:** agent
 **Converted:** AGY-2213 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-616 -- Automated AST merge conflict stress test and compiler syntax verification suite (WS-GIT | P2 | S)
@@ -6893,7 +6893,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-concurrency AST merge stability and compiler correctness.
 **Why:** Continuous testing ensures that multi-agent development swarms can collaborate without merge collisions.
 **Dep:** AGY-2213
-**Status:** open | **Domain:** Git/MergeStressTest | **Who:** agent
+**Status:** done | **Domain:** Git/MergeStressTest | **Who:** agent
 **Converted:** AGY-2214 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-617 -- Strict IOMMU DMA remapper and PCIe ACS group validator in automation (WS-VFIO | P1 | M)
@@ -6903,7 +6903,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** IOMMU guard validates hardware isolation and blocks unsafe DMA device passthrough.
 **Why:** Strict IOMMU DMA remapping prevents virtual machines and peripheral firmware from tampering with host RAM.
 **Dep:** AGY-2214
-**Status:** open | **Domain:** Hardware/IOMMU | **Who:** agent
+**Status:** done | **Domain:** Hardware/IOMMU | **Who:** agent
 **Converted:** AGY-2215 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-618 -- Automated IOMMU group isolation and peer-to-peer DMA containment test suite (WS-VFIO | P2 | S)
@@ -6913,7 +6913,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates hardware IOMMU DMA containment and fault logging.
 **Why:** Continuous testing ensures kernel updates maintain strict IOMMU memory protection boundaries.
 **Dep:** AGY-2215
-**Status:** open | **Domain:** Hardware/IOMMUTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/IOMMUTest | **Who:** agent
 **Converted:** AGY-2216 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-619 -- Declarative configuration drift auditor and 3-way OCI overlay reconciler (WS-CONFIG | P1 | M)
@@ -6923,7 +6923,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Drift auditor detects un-tracked /etc modifications and reconciles state with SSOT cleanly.
 **Why:** Continuous drift auditing preserves immutable reproducibility without sacrificing operator customization.
 **Dep:** AGY-2216
-**Status:** open | **Domain:** Config/DriftAudit | **Who:** agent
+**Status:** done | **Domain:** Config/DriftAudit | **Who:** agent
 **Converted:** AGY-2217 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-620 -- Automated configuration drift detection and state reconciliation test suite (WS-CONFIG | P2 | S)
@@ -6933,7 +6933,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates configuration drift auditing and atomic state reconciliation.
 **Why:** Continuous testing ensures system configuration integrity remains deterministic across self-rebuilding cycles.
 **Dep:** AGY-2217
-**Status:** open | **Domain:** Config/DriftTest | **Who:** agent
+**Status:** done | **Domain:** Config/DriftTest | **Who:** agent
 **Converted:** AGY-2218 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-621 -- Embedded Raft consensus coordinator and Patroni HA database failover engine (WS-NODE | P1 | M)
@@ -6943,7 +6943,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Raft coordinator elects cluster leaders and executes sub-3s database failover cleanly.
 **Why:** Embedded Raft consensus eliminates single points of failure across multi-blade local clusters.
 **Dep:** AGY-2218
-**Status:** open | **Domain:** Cluster/RaftLeader | **Who:** agent
+**Status:** done | **Domain:** Cluster/RaftLeader | **Who:** agent
 **Converted:** AGY-2219 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-622 -- Automated Raft leader election, split-brain partition prevention, and failover test suite (WS-NODE | P2 | S)
@@ -6953,7 +6953,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates Raft quorum preservation and split-brain write rejection.
 **Why:** Continuous testing guarantees cluster state machine correctness under real-world network partition failures.
 **Dep:** AGY-2219
-**Status:** open | **Domain:** Cluster/RaftTest | **Who:** agent
+**Status:** done | **Domain:** Cluster/RaftTest | **Who:** agent
 **Converted:** AGY-2220 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-623 -- Multi-zone hysteresis PID fan curve controller and hwmon sensor mapper in mios-fand (WS-NODE | P1 | M)
