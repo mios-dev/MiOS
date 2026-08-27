@@ -6,7 +6,7 @@
 
 #### Overview
 
-Local AI operating systems must balance concurrent demands: real-time user-interactive chat, high-throughput IDE code completions, continuous background log analysis, and deep multi-agent deliberation. 
+Local AI operating systems must balance concurrent demands: real-time user-interactive chat, high-throughput IDE code completions, continuous background log analysis, and deep multi-agent deliberation.
 
 Governed by ADR-0019, `WS-SCHED`, and `WS-ORCH`, MiOS implements **Engine-Level Priority Scheduling**, **Token-Boundary Preemption**, and **Consequentiality-Gated Deliberation**.
 

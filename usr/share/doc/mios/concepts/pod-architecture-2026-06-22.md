@@ -32,7 +32,7 @@ For example, internal components like `mios-webtools-redis` or the firecrawl API
 
 ## Host Services Stay Host
 
-A core constraint of the architecture is that **host-services stay on the host**. 
+A core constraint of the architecture is that **host-services stay on the host**.
 Services like `hermes-agent`, `agent-pipe`, and MCP servers run natively on the host system (often as systemd services). These host services can reach the containerized pod applications via `host.containers.internal` (or simply `localhost` where `Network=host` is used by the pod).
 
 ## The SSOT Pod-Gen Lifecycle

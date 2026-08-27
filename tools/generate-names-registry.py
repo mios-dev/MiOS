@@ -14,8 +14,8 @@ except ImportError:
         sys.exit(1)
 
 TARGET_SECTIONS = [
-    "ports", "ai", "identity", "locale", "auth", "network", "desktop", 
-    "branding", "image", "bootstrap", "profile", "colors", "observability", 
+    "ports", "ai", "identity", "locale", "auth", "network", "desktop",
+    "branding", "image", "bootstrap", "profile", "colors", "observability",
     "sandbox", "security", "code_mode", "hermes", "routing", "agents", "a2a",
     "power", "metal"
 ]
@@ -43,13 +43,13 @@ def walk(d, prefix=""):
     results = []
     if not isinstance(d, dict):
         return results
-    
+
     for k, v in d.items():
         path = f"{prefix}.{k}" if prefix else k
-        
+
         if path == "routing.domains":
             continue
-            
+
         if isinstance(v, dict):
             results.extend(walk(v, path))
         else:
@@ -76,7 +76,7 @@ def generate_referenced_vars(root):
     consumer_globs = ("*.container", "*.service", "*.timer", "*.py", "*.sh", "*.toml",
                       "*.ps1", "*.psm1", "*.yaml", "*.yml", "Justfile", ".env.mios", "*.tmpl",
                       "Containerfile", "Containerfile.*", "*.nft", "*.sql")
-    
+
     refs = set()
     import subprocess
     tracked_files = []
@@ -92,7 +92,7 @@ def generate_referenced_vars(root):
                 continue
             for f in files:
                 tracked_files.append(os.path.join(r, f))
-        
+
     if tracked_files:
         for path in tracked_files:
             rel = os.path.relpath(path, root).replace("\\", "/")
@@ -136,7 +136,7 @@ def generate_referenced_vars(root):
                                 refs.add(v)
                 except (OSError, UnicodeError):
                     continue
-    
+
     ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
     static_names = set()
     if os.path.isfile(ref_file):
@@ -165,15 +165,15 @@ def main():
         else:
             print(f"Error: mios.toml not found at {toml_path}", file=sys.stderr)
             return 1
-        
+
     with open(toml_path, "rb") as fh:
         data = tomllib.load(fh)
-        
+
     all_pairs = []
     for sec in TARGET_SECTIONS:
         if sec in data:
             all_pairs.extend(walk(data[sec], sec))
-            
+
     names_file = os.path.join(root, "usr/share/mios/names.generated.txt")
     os.makedirs(os.path.dirname(names_file), exist_ok=True)
     tmp_names = names_file + ".tmp"
@@ -182,7 +182,7 @@ def main():
             f.write(f"{path_str}  {env_name}\n")
             print(f"{path_str}  {env_name}")
     os.replace(tmp_names, names_file)
-        
+
     generate_referenced_vars(root)
     return 0
 

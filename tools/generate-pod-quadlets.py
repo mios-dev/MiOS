@@ -39,7 +39,7 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
         return {k: resolve_env_vars(v) for k, v in val.items()}
     if not isinstance(val, str):
         return val
-    
+
     def _env(var_name: str):
         v = os.environ.get(var_name)
         return v if v else None
@@ -70,7 +70,7 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
             return pinned
         return m.group(0)
     val = re.sub(r'\$\{([A-Za-z0-9_]+)\}', repl_var, val)
-    
+
     return val
 
 try:
@@ -235,9 +235,9 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
     lines.append(f"# /usr/share/containers/systemd/{name}.{unit_type}")
     if name == "mios-llm-heavy-alt" and unit_type == "container":
         lines.append("# DEPRECATED (Part 10): retire by setting [converge.inference].retire_heavy_alt = true and running the migration guide at usr/share/doc/mios/guides/inference-consolidation.md.")
-    
+
     main_section = unit_type.capitalize()
-    
+
     def section_key(sec_name: str):
         if sec_name.lower() == "unit":
             return (0, sec_name)
@@ -247,7 +247,7 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
             return (2, sec_name)
         else:
             return (3, sec_name)
-            
+
     for sec in sorted(spec.keys(), key=section_key):
         sec_data = spec[sec]
         if not isinstance(sec_data, dict):
@@ -270,7 +270,7 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
                     continue
                 lines.append(f"{k}={resolved_val}")
 
-                
+
     return "\n".join(lines).strip() + "\n"
 
 

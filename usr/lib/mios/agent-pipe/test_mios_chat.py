@@ -462,7 +462,7 @@ def _test_developer_role():
     system_str, anthropic_messages = oai_msgs_to_anthropic(msgs)
     check("developer role -> anthropic system text matches", system_str == "You are a helpful assistant.", f"sys={system_str}")
     check("developer role -> anthropic content ignores developer role", len(anthropic_messages) == 1 and anthropic_messages[0]["role"] == "user", f"msgs={anthropic_messages}")
-    
+
     system_parts, gemini_contents = oai_msgs_to_gemini(msgs)
     check("developer role -> gemini system parts match", system_parts == {"parts": [{"text": "You are a helpful assistant."}]}, f"sys_parts={system_parts}")
     check("developer role -> gemini contents ignore developer role", len(gemini_contents) == 1, f"gemini={gemini_contents}")

@@ -127,7 +127,7 @@ def main():
         full_path = os.path.join(templates_dir, fn)
         if os.path.isdir(full_path) or fn.startswith(".") or fn == "conformance-grandfathered.list":
             continue
-        
+
         if templates_cfg and fn not in templates_cfg:
             failures[fn] = "Not registered in mios.toml [templates.*]"
             continue

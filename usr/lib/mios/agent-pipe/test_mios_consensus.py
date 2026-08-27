@@ -81,7 +81,7 @@ def t_abstain_is_not_a_no():
 
 
 def t_quorum_gate():
-    check("quorum: two live votes reach the default min", 
+    check("quorum: two live votes reach the default min",
           M.quorum_reached({"a": True, "b": False}) is True)
     check("quorum: one live vote does not",
           M.quorum_reached({"a": True, "b": None}) is False)

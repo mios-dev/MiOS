@@ -69,7 +69,7 @@ def load_db_config() -> dict:
 
     cfg = get_pg_config()
     conn_str = f"postgresql://{cfg['user']}:{cfg['password']}@{cfg['host']}:{cfg['port']}/{cfg['dbname']}"
-    
+
     data = {}
     try:
         with psycopg.connect(conn_str, connect_timeout=2) as conn:
@@ -84,7 +84,7 @@ def load_db_config() -> dict:
                 for scope, key, value, layer in rows:
                     if scope not in data:
                         data[scope] = {}
-                    
+
                     if isinstance(value, dict) and isinstance(data[scope].get(key), dict):
                         mios_toml.deep_merge(data[scope][key], value)
                     elif isinstance(value, str) and value == "" and data[scope].get(key) not in (None, ""):
@@ -106,7 +106,7 @@ def load_db_config() -> dict:
                         data["routing"] = {}
                     if "domains" not in data["routing"]:
                         data["routing"]["domains"] = {}
-                    
+
                     for domain, desc, verbs_list in domain_rows:
                         data["routing"]["domains"][domain] = {
                             "desc": desc or "",
@@ -146,7 +146,7 @@ def load_db_config() -> dict:
                     for (vname, sig, desc, tier, perm, cmd, params,
                          section, examples, model_name, hidden, aliases,
                          conflict_group, parallel_limit, max_result_chars) in verb_rows:
-                        
+
                         vcfg = defaults.copy()
                         vcfg["sig"] = sig or ""
                         vcfg["desc"] = desc or ""
@@ -169,7 +169,7 @@ def load_db_config() -> dict:
                         vcfg["max_result_chars"] = max_result_chars
                         if params:
                             vcfg["params"] = params
-                        
+
                         data["verbs"][vname] = vcfg
     except Exception as e:
         log.debug("Failed to load configuration from database: %s", e)

@@ -415,7 +415,7 @@ check_raw_toml_readers() {
         [[ -f "$f" ]] || continue
         base="$(basename "$f")"
         case "$base" in test_*) continue ;; esac
-        
+
         if grep -q -E "os\.environ(\.get)?\([\"']MIOS_TOML[\"']\)" "$f"; then
             violations+="    $base (reads MIOS_TOML env var directly)"$'\n'
         fi
@@ -499,7 +499,7 @@ check_blade_dropins() {
         local committed_dir="$ROOT/usr/share/mios/dropins"
         local generated_dir="$tmp_root/usr/share/mios/dropins"
         local ok=1
-        
+
         local f gen_file com_file
         for f in "$generated_dir"/*; do
             [[ -e "$f" ]] || continue
@@ -513,7 +513,7 @@ check_blade_dropins() {
                 echo "      Divergence in drop-in: $gen_file has drifted" >&2
             fi
         done
-        
+
         rm -rf "$tmp_root"
         if [[ $ok -eq 1 ]]; then
             echo "[98-drift-checks]   blade capability drop-ins in sync with mios.toml [blade.requires]"
@@ -1124,20 +1124,20 @@ check_template_conformance() {
 
 check_kargs_projection() {
     _need_python || return 0
-    
+
     local tmp_dir="$(mktemp -d)"
-    
+
     mkdir -p "$tmp_dir"
     cp -r "$ROOT/usr/lib/bootc/kargs.d/"* "$tmp_dir/"
-    
+
     MIOS_TOML="$ROOT/usr/share/mios/mios.toml" KARGS_DIR="$tmp_dir" bash "$ROOT/automation/75-kargs-render.sh" >/dev/null 2>&1
-    
+
     if ! python3 "$ROOT/automation/validate-kargs.py" "$tmp_dir" >/dev/null 2>&1; then
         rm -rf "$tmp_dir"
         _violation "rendered kargs.d files failed validate-kargs.py schema validation"
         return
     fi
-    
+
     local diffs=""
     local f base
     for f in "$tmp_dir"/*.toml; do
@@ -1149,7 +1149,7 @@ check_kargs_projection() {
             diffs+="    Content drift in $base (run automation/75-kargs-render.sh to update or align config)"$'\n'
         fi
     done
-    
+
     for f in "$ROOT/usr/lib/bootc/kargs.d"/*.toml; do
         [[ -f "$f" ]] || continue
         base="$(basename "$f")"
@@ -1157,9 +1157,9 @@ check_kargs_projection() {
             diffs+="    Missing rendered file: $base"$'\n'
         fi
     done
-    
+
     rm -rf "$tmp_dir"
-    
+
     if [[ -n "$diffs" ]]; then
         printf '%s' "$diffs" >&2
         _violation "kargs.d projection check failed. Rendered files do not match committed usr/lib/bootc/kargs.d files."
@@ -1173,7 +1173,7 @@ check_greenboot_enablement() {
        ! grep -q "greenboot-set-rollback-trigger.service" "$ROOT/automation/78-greenboot.sh"; then
         _violation "greenboot services enablement commands are missing in automation/78-greenboot.sh"
     fi
-    
+
     local non_execs=""
     local f
     if [[ -d "$ROOT/etc/greenboot" ]]; then
@@ -1189,7 +1189,7 @@ check_greenboot_enablement() {
             fi
         done < <(find "$ROOT/etc/greenboot" -name "*.sh")
     fi
-    
+
     if [[ -n "$non_execs" ]]; then
         printf '%s' "$non_execs" >&2
         _violation "greenboot check scripts must be executable (mode 100755)"
@@ -1200,15 +1200,15 @@ check_greenboot_enablement() {
 
 check_chrony_projection() {
     local tmp_file="$(mktemp)"
-    
+
     MIOS_TOML="$ROOT/usr/share/mios/mios.toml" CHRONY_CONF="$tmp_file" bash "$ROOT/automation/42-chrony-render.sh" >/dev/null 2>&1
-    
+
     if [[ ! -f "$ROOT/etc/chrony.conf" ]]; then
         rm -f "$tmp_file"
         _violation "committed etc/chrony.conf is missing"
         return
     fi
-    
+
     if ! diff -u "$ROOT/etc/chrony.conf" "$tmp_file" >/dev/null 2>&1; then
         diff -u "$ROOT/etc/chrony.conf" "$tmp_file" >&2
         rm -f "$tmp_file"
@@ -1221,9 +1221,9 @@ check_chrony_projection() {
 
 check_nut_projection() {
     local tmp_dir="$(mktemp -d)"
-    
+
     MIOS_TOML="$ROOT/usr/share/mios/mios.toml" UPS_CONF_DIR="$tmp_dir" bash "$ROOT/automation/43-nut-render.sh" >/dev/null 2>&1
-    
+
     local diffs=""
     local f base
     for f in "$tmp_dir"/*.conf; do
@@ -1235,7 +1235,7 @@ check_nut_projection() {
             diffs+="    Content drift in etc/ups/$base"$'\n'
         fi
     done
-    
+
     for f in "$ROOT/etc/ups"/*.conf; do
         [[ -f "$f" ]] || continue
         base="$(basename "$f")"
@@ -1243,7 +1243,7 @@ check_nut_projection() {
             diffs+="    Missing rendered NUT config: $base"$'\n'
         fi
     done
-    
+
     rm -rf "$tmp_dir"
 
     local preset="$ROOT/usr/lib/systemd/system-preset/90-mios.preset"
@@ -1252,7 +1252,7 @@ check_nut_projection() {
             diffs+="    90-mios.preset missing enable line for nut-server.service or nut-monitor.service"$'\n'
         fi
     fi
-    
+
     if [[ -n "$diffs" ]]; then
         printf '%s' "$diffs" >&2
         _violation "etc/ups/ configuration check failed. Rendered NUT configs do not match committed etc/ups/ files."
@@ -1264,19 +1264,19 @@ check_nut_projection() {
 check_fluff_tokens() {
     local bad=""
     local f
-    
+
     while read -r f; do
         [[ -f "$f" ]] || continue
         local bname="$(basename "$f")"
         if [[ "$bname" == "98-drift-checks.sh" || "$bname" == "build-mios.sh" || "$bname" == "99-postcheck.sh" || "$f" =~ /firstboot/ ]]; then
             continue
         fi
-        
+
         local line_num=0
         while read -r line || [[ -n "$line" ]]; do
             line_num=$((line_num + 1))
             [[ "$line" =~ ^[[:space:]]*# ]] && continue
-            
+
             if [[ "$line" =~ (echo|log|warn|die)[[:space:]] ]]; then
                 if [[ "$line" =~ successfully ]]; then
                     bad+="    $f:$line_num: contains 'successfully'"$'\n'
@@ -1293,7 +1293,7 @@ check_fluff_tokens() {
             fi
         done < "$f"
     done < <(find "$ROOT/automation" -name "*.sh")
-    
+
     if [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
         _violation "fluff tokens detected in pipeline logs (E5)"
@@ -1307,7 +1307,7 @@ check_coordination_hygiene() {
     local f
     for f in "$ROOT/AGY-TASKS.md" "$ROOT/TASKS.md"; do
         [[ -f "$f" ]] || continue
-        
+
         local line_num=0
         while read -r line || [[ -n "$line" ]]; do
             line_num=$((line_num + 1))
@@ -1316,7 +1316,7 @@ check_coordination_hygiene() {
             fi
         done < "$f"
     done
-    
+
     if [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
         _violation "coordination-hygiene lint failed (E6)"
@@ -1334,7 +1334,7 @@ check_templates_compilation() {
     else
         python_exe=python
     fi
-    
+
     if ! "$python_exe" "$ROOT/tools/compile-templates.py" >/dev/null; then
         "$python_exe" "$ROOT/tools/compile-templates.py" >&2
         _violation "compile-templates validation failed. One or more templates in usr/share/mios/templates are syntactically invalid."
@@ -1345,28 +1345,28 @@ check_templates_compilation() {
 
 check_impossible_eol_regressions() {
     local bad=""
-    
+
     local toml="$ROOT/usr/share/mios/mios.toml"
     if grep -E '"glusterfs"' "$toml" &>/dev/null || grep -E '"glusterfs-fuse"' "$toml" &>/dev/null || grep -E '"glusterfs-server"' "$toml" &>/dev/null; then
         bad+="    Found glusterfs packages in mios.toml"$'\n'
     fi
-    
+
     local f
     while read -r f; do
         [[ -f "$f" ]] || continue
         [[ "$(basename "$f")" == "mios-metal-architecture.md" ]] && continue
-        
+
         if grep -F "mdevctl vGPU" "$f" &>/dev/null; then
             if ! grep -E "mdevctl vGPU.*(impossible|unsupported|out of scope|reject)" "$f" &>/dev/null; then
                 bad+="    $f: contains 'mdevctl vGPU' claim without rejecting it"$'\n'
             fi
         fi
     done < <(find "$ROOT/usr/share/doc/mios/concepts" -name "*.md")
-    
+
     if grep -E '"tang"' "$toml" &>/dev/null; then
         bad+="    Found tang package in mios.toml (on-host Tang is prohibited)"$'\n'
     fi
-    
+
     if [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
         _violation "impossible/EOL regression check failed (F11)"
@@ -2240,7 +2240,7 @@ check_bib_rootfs_label_policy() {
 check_offline_install_invariant() {
     local install_script="$ROOT/tools/install.sh"
     local oci_ks="$ROOT/usr/share/mios/ventoy/mios-oci-install.ks"
-    
+
     if [[ ! -f "$install_script" ]]; then
         _violation "tools/install.sh is absent -- offline-install invariant cannot be verified"
         return 0
@@ -2870,7 +2870,7 @@ check_no_hardcoded_ssot_literal() {
     # baked fedora-NN would land (they carry ${FEDORA_VERSION} placeholders,
     # which the fedora-\$ filter below exempts).
     hardcodes=$(grep -rE "(fedora-[0-9]{2}|stable:/v[0-9]+\.[0-9]+)" "$ROOT/automation" "$ROOT/usr/share/mios" "$ROOT/usr/share/containers" 2>/dev/null | grep -v "98-drift-checks.sh" | grep -v "\.repo" | grep -v "version-literals-audit.tsv" | grep -v "/reference/" | grep -v "/artifacts/" | grep -v "/configurator/" | grep -v "/\.claude/" || true)
-    
+
     if [[ -n "$hardcodes" ]]; then
         local violations=$(echo "$hardcodes" | grep -vE "(fedora-\\\$|fedora-%|\\\$MIOS_|\\\$FEDORA_|mios\.toml)")
         if [[ -n "$violations" ]]; then
@@ -2971,7 +2971,7 @@ _render_env() {
 check_ports_category_schema() {
     echo "[98-drift-checks]   checking port category schema (allocation + collisions)"
     local out
-    
+
     # shellcheck disable=SC2046
     if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-ports.py --check 2>&1); then
         printf '%s\n' "$out" | head -n 20 >&2
@@ -2982,7 +2982,7 @@ check_ports_category_schema() {
 check_globals_generated() {
     echo "[98-drift-checks]   checking generated globals resolvers match SSOT"
     local out
-    
+
     # shellcheck disable=SC2046
     if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-globals.py --check 2>&1); then
         printf '%s\n' "$out" | head -n 10 >&2

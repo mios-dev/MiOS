@@ -14,7 +14,7 @@ def main():
     root = os.environ.get("MIOS_DRIFT_ROOT")
     if not root:
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    
+
     os.environ["MIOS_VENDOR_TOML"] = os.path.join(root, "usr/share/mios/mios.toml").replace('\\', '/')
     os.environ["MIOS_HOST_TOML"] = os.path.join(root, "etc/mios/mios.toml").replace('\\', '/')
     os.environ["MIOS_USER_TOML"] = os.path.join(root, "nonexistent.toml").replace('\\', '/')
@@ -145,7 +145,7 @@ def main():
         for m in mismatches:
             print(f"  [resolver-twin] {m}", file=sys.stderr)
         sys.exit(1)
-    
+
     print("SUCCESS: resolvers are equivalent!")
     sys.exit(0)
 

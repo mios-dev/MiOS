@@ -41,7 +41,7 @@ class TestInventoryMonitor(unittest.TestCase):
         """Asserts discovery of mock GPU and NVMe hardware devices."""
         devices = self.monitor.scan_sysfs_inventory()
         self.assertEqual(len(devices), 2)
-        
+
         gpu = next(d for d in devices if d.vendor_id == "10de")
         self.assertEqual(gpu.device_id, "2684")
         self.assertEqual(gpu.current_link_width, 16)

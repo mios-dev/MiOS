@@ -64,19 +64,19 @@ for service, caps in requires.items():
         continue
     if isinstance(caps, str):
         caps = [caps]
-    
+
     svc_name = service if service.endswith((".service", ".socket", ".timer", ".path", ".target")) else f"{service}.service"
-    
+
     for cap in caps:
         cap = str(cap).strip()
         if not cap:
             continue
-            
+
         src = os.path.join(dropins_dir, f"blade-{cap}.conf")
         if not os.path.isfile(src):
             print(f"ERROR: capability drop-in not found at {src} for service {svc_name}")
             sys.exit(1)
-            
+
         dst_dir = os.path.join(systemd_dir, f"{svc_name}.d")
         os.makedirs(dst_dir, exist_ok=True)
         dst = os.path.join(dst_dir, f"50-blade-{cap}.conf")

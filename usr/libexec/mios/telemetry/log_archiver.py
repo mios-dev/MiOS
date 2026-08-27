@@ -143,7 +143,7 @@ def main():
     ]
     lines = [json.dumps(r) for r in sample_records]
     records, clusters = archiver.parse_journal_records(lines)
-    
+
     out_file = os.path.join(args.archive_dir, f"journal-{int(time.time())}.parquet")
     write_res = archiver.write_columnar_parquet(records, out_file)
     index_res = archiver.index_error_clusters(clusters)

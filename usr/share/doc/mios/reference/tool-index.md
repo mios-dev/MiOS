@@ -415,7 +415,6 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_daemons.py` | Re-export shim for mios_pipe.kernel.daemons |
 | `usr/lib/mios/agent-pipe/mios_dag_exec.py` | Re-export shim for mios_pipe.routing.dag_exec |
 | `usr/lib/mios/agent-pipe/mios_dci.py` | Re-export shim for mios_pipe.routing.dci |
-| `usr/lib/mios/agent-pipe/mios_deliberate.py` | Bounded reflection loops with convergence criteria to prevent circular reasoning. |
 | `usr/lib/mios/agent-pipe/mios_dispatch.py` | Verb->bash DISPATCH chokepoint extracted VERBATIM from server.py (refactor R7 wave). |
 | `usr/lib/mios/agent-pipe/mios_dispatcher.py` | Re-export shim for mios_pipe.routing.dispatcher |
 | `usr/lib/mios/agent-pipe/mios_drain_handler.py` | Graceful worker shutdown and SIGTERM drain handler in server.py. |
@@ -438,7 +437,6 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_kernel.py` | Re-export shim for mios_pipe.kernel.kernel |
 | `usr/lib/mios/agent-pipe/mios_knowledge.py` | Re-export shim for mios_pipe.memory.knowledge |
 | `usr/lib/mios/agent-pipe/mios_kv_compact.py` | Semantic KV-cache context compaction engine and episodic summary generator for agent-pipe. |
-| `usr/lib/mios/agent-pipe/mios_kvfork.py` | Re-export shim for mios_pipe.context.kvfork |
 | `usr/lib/mios/agent-pipe/mios_kvgc.py` | Re-export shim for mios_pipe.context.kvgc |
 | `usr/lib/mios/agent-pipe/mios_lanes.py` | Re-export shim for mios_pipe.routing.lanes |
 | `usr/lib/mios/agent-pipe/mios_lanes_resolver.py` | Re-export shim for mios_pipe.routing.lanes_resolver |
@@ -592,7 +590,6 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_refine.py` | Re-export shim for mios_pipe.routing.refine |
 | `usr/lib/mios/agent-pipe/mios_reflect.py` | Re-export shim for mios_pipe.routing.reflect |
 | `usr/lib/mios/agent-pipe/mios_registry.py` | WS-A17 versioned agent/tool package format + local registry projection. |
-| `usr/lib/mios/agent-pipe/mios_reputation.py` | Re-export shim for mios_pipe.identity.reputation |
 | `usr/lib/mios/agent-pipe/mios_rerank.py` | Vector similarity re-ranking using local cross-encoder model in RAG pipeline. |
 | `usr/lib/mios/agent-pipe/mios_route_reload.py` | Hot-reload of model routing tables without dropping active streams. |
 | `usr/lib/mios/agent-pipe/mios_router.py` | Re-export shim for mios_pipe.routing.router |
@@ -829,7 +826,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 444 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 441 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

@@ -69,15 +69,15 @@ read -p "Enter choice (1-4): " choice
 case $choice in
     1)
         echo -e "\n${BLUE}[4/5] Downloading pre-enrolled OVMF files...${NC}\n"
-        
+
         WORK_DIR="/tmp/ovmf-download-$$"
         mkdir -p "$WORK_DIR"
         cd "$WORK_DIR"
-        
+
         echo -e "${CYAN}Downloading from Gerd Hoffmann's Jenkins...${NC}"
-        
+
         LATEST_URL="https://www.kraxel.org/repos/jenkins/edk2/edk2.git-ovmf-x64-0-20231115.1699.gc4e558ebf9.EOL.noarch.rpm"
-        
+
         echo -e "  Downloading OVMF package..."
         if command -v wget &>/dev/null; then
             wget -q --show-progress "$LATEST_URL" -O ovmf.rpm || {
@@ -93,7 +93,7 @@ case $choice in
             echo -e "${RED}[x] Neither wget nor curl available${NC}"
             exit 1
         fi
-        
+
         echo -e "\n  Extracting files..."
         if command -v rpm2cpio &>/dev/null; then
             rpm2cpio ovmf.rpm | cpio -idmv 2>&1 | grep -i "OVMF.*fd$" || true
@@ -104,55 +104,55 @@ case $choice in
             echo -e "${YELLOW}Install rpmextract: sudo pacman -S rpmextract${NC}"
             exit 1
         fi
-        
+
         EXTRACTED_CODE=$(find . -name "OVMF_CODE.secboot.fd" -o -name "OVMF_CODE.secboot.4m.fd" | head -1)
         EXTRACTED_VARS=$(find . -name "OVMF_VARS.secboot.fd" -o -name "OVMF_VARS.fd" | grep secboot | head -1)
-        
+
         if [ -z "$EXTRACTED_CODE" ] || [ -z "$EXTRACTED_VARS" ]; then
             echo -e "${RED}[x] Could not find OVMF files in package${NC}"
             ls -R
             exit 1
         fi
-        
+
         echo -e "\n${BLUE}[5/5] Installing files...${NC}\n"
-        
+
         if [[ "$EXTRACTED_VARS" =~ "4m" ]]; then
             DEST_VARS="$OVMF_DIR/OVMF_VARS.secboot.4m.fd"
         else
             DEST_VARS="$OVMF_DIR/OVMF_VARS.secboot.fd"
         fi
-        
+
         cp "$EXTRACTED_VARS" "$DEST_VARS"
         chmod 644 "$DEST_VARS"
-        
+
         echo -e "${GREEN}[ok] Installed: $DEST_VARS${NC}"
         echo -e "  Size: $(stat -c%s "$DEST_VARS" | numfmt --to=iec-i --suffix=B)"
-        
+
         cd /
         rm -rf "$WORK_DIR"
-        
+
         echo -e "\n${GREEN}[ok] Installation complete!${NC}"
         echo -e "\n${YELLOW}Use this file in your VM XML:${NC}"
         echo -e "  ${CYAN}<nvram template=\"$DEST_VARS\">...${NC}"
         ;;
-        
+
     2)
         echo -e "\n${BLUE}[4/5] Creating enrolled VARS from template...${NC}\n"
-        
+
         TEMPLATE_VARS="$OVMF_DIR/OVMF_VARS.4m.fd"
-        
+
         if [ ! -f "$TEMPLATE_VARS" ]; then
             echo -e "${RED}[x] Template VARS file not found: $TEMPLATE_VARS${NC}"
             exit 1
         fi
-        
+
         cp "$TEMPLATE_VARS" "$TARGET_VARS"
         echo -e "${GREEN}[ok] Created: $TARGET_VARS${NC}"
-        
+
         echo -e "\n${YELLOW}Note: Keys will be enrolled on first VM boot${NC}"
         echo -e "  Use firmware autoselection with enrolled-keys=yes"
         ;;
-        
+
     3)
         echo -e "\n${YELLOW}Using firmware autoselection...${NC}\n"
         echo -e "This approach uses libvirt's firmware autoselection."
@@ -172,7 +172,7 @@ XMLEOF
         echo
         echo -e "${YELLOW}With: enrolled-keys=yes, libvirt will enroll keys automatically${NC}"
         ;;
-        
+
     4)
         echo -e "\n${YELLOW}Manual installation options:${NC}"
         echo -e "  * Search AUR: ${CYAN}yay -Ss ovmf secureboot${NC}"
@@ -180,7 +180,7 @@ XMLEOF
         echo -e "  * Or install from: ${CYAN}https://www.kraxel.org/repos/${NC}"
         exit 0
         ;;
-        
+
     *)
         echo -e "${RED}Invalid choice${NC}"
         exit 1

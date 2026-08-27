@@ -84,15 +84,15 @@ async def test_mcp_pool_lifecycle():
 
     with mock.patch.object(mcp.StdioClient, "connect", mock_connect), \
          mock.patch.object(mcp.StdioClient, "close", mock_close):
-        
+
         await pool.startup()
-        
+
         tools = pool.get_tools()
         check("pool: fetched tool successfully", len(tools) == 1)
         check("pool: namespaced tool name", tools[0]["name"] == "mcp.playwright.navigate")
         check("pool: tool description matches", tools[0]["description"] == "Navigate to URL")
         check("pool: inputSchema is preserved", "properties" in tools[0]["inputSchema"])
-        
+
         await pool.shutdown()
         check("pool: shutdown clears clients dict", len(pool.clients) == 0)
         check("pool: shutdown clears tools cache", len(pool.get_tools()) == 0)

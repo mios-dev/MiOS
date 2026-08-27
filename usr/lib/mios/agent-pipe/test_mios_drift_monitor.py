@@ -183,7 +183,7 @@ def t_route_gate_closed():
     import asyncio as _a
     body = _a.run(srv.v1_drift()).body.decode()
     check("route: disabled -> enabled:false, no alert",
-          '"enabled":false' in body.replace(" ", "") 
+          '"enabled":false' in body.replace(" ", "")
           and '"alerting":false' in body.replace(" ", ""))
 
 

@@ -37,11 +37,11 @@ class TestMiosDbConfig(unittest.TestCase):
         os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
         mios_db_config.clear_cache()
         self.assertTrue(mios_db_config.is_db_authoritative())
-        
+
         os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
         mios_db_config.clear_cache()
         self.assertFalse(mios_db_config.is_db_authoritative())
-        
+
         del os.environ["MIOS_DB_AUTHORITATIVE"]
         mios_db_config.clear_cache()
 
@@ -74,21 +74,21 @@ class TestMiosDbConfig(unittest.TestCase):
                     """
                 )
             conn.commit()
-            
+
         try:
             os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
             mios_db_config.reset_divergences()
-            
+
             val = mios_db_config.get("mcp", "port")
-            
+
             self.assertNotEqual(val, 11111)
-            
+
             self.assertTrue(mios_db_config.get_divergences() > 0)
-            
+
             os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
             val_db = mios_db_config.get("mcp", "port")
             self.assertEqual(val_db, 11111)
-            
+
         finally:
             with psycopg.connect(self.conn_str) as conn:
                 with conn.cursor() as cur:
@@ -100,9 +100,9 @@ class TestMiosDbConfig(unittest.TestCase):
     def test_health_logic_divergences(self):
         class MockApp:
             version = "test-version"
-        
+
         import mios_pipe.kernel.clusterhealth as ch
-        
+
         ch.configure(
             app=MockApp(),
             BACKEND="http://localhost:8000",
@@ -154,9 +154,9 @@ class TestMiosDbConfig(unittest.TestCase):
             DB_URL="postgresql://test",
             PORT=8640,
         )
-        
+
         mios_db_config.reset_divergences()
-        
+
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -174,14 +174,14 @@ class TestMiosDbConfig(unittest.TestCase):
                     """
                 )
             conn.commit()
-            
+
         try:
             os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
             _ = mios_db_config.get("mcp", "port")
-            
+
             import asyncio
             res = asyncio.run(ch.health_logic())
-            
+
             self.assertIn("config_divergences", res)
             self.assertEqual(res["config_divergences"], mios_db_config.get_divergences())
             self.assertTrue(res["config_divergences"] > 0)
@@ -195,7 +195,7 @@ class TestMiosDbConfig(unittest.TestCase):
 
     def test_verb_catalog_sentinel_and_shadow(self):
         import mios_pipe.routing.verbcatalog as vc
-        
+
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -206,11 +206,11 @@ class TestMiosDbConfig(unittest.TestCase):
                     """
                 )
             conn.commit()
-            
+
         try:
             os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
             mios_db_config.reset_divergences()
-            
+
             cat = vc._load_verb_catalog()
             self.assertNotEqual(cat["list_windows"]["parallel_limit"], 99)
             import time
@@ -219,11 +219,11 @@ class TestMiosDbConfig(unittest.TestCase):
                     break
                 time.sleep(0.05)
             self.assertTrue(mios_db_config.get_divergences() > 0)
-            
+
             os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
             cat_db = vc._load_verb_catalog()
             self.assertEqual(cat_db["list_windows"]["parallel_limit"], 99)
-            
+
         finally:
             with psycopg.connect(self.conn_str) as conn:
                 with conn.cursor() as cur:
@@ -243,31 +243,31 @@ class TestMiosDbConfig(unittest.TestCase):
     def test_zero_divergence_on_seeded_tree(self, mock_db_config, mock_load):
         import mios_toml
         import mios_pipe.routing.verbcatalog as vc
-        
+
         vendor_data = mios_toml.load_vendor()
         mock_load.return_value = vendor_data
         mock_db_config.return_value = vendor_data
-        
+
         mios_db_config.reset_divergences()
-        
+
         merged = mios_db_config.load_merged()
         self.assertIsNotNone(merged)
-        
+
         for sec in ["ai", "mcp", "routing", "recipes", "security"]:
             sec_val = mios_db_config.section(None, sec)
             self.assertIsNotNone(sec_val)
-            
+
         self.assertEqual(
             mios_db_config.get("ai", "kernel_dispatch"),
             vendor_data.get("ai", {}).get("kernel_dispatch")
         )
-        
+
         self.assertIsNotNone(mios_db_config.colors())
-        
+
         toml_cat = vc._load_verb_catalog()
         db_cat = vc._load_verb_catalog_from_db()
         self.assertEqual(vc._compare_catalogs(toml_cat, db_cat), set())
-        
+
         self.assertEqual(mios_db_config.get_divergences(), 0)
 
     def test_record_divergence_deduplication(self):

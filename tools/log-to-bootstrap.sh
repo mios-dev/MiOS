@@ -36,9 +36,9 @@ if [[ -d "${REPO_ROOT}/artifacts/ai-rag" ]]; then
         "${REPO_ROOT}/artifacts/ai-rag/" \
         "${ARTIFACT_DIR}/" \
         --exclude="*.tar.gz" 2>/dev/null || true
-    
+
     cp -v "${REPO_ROOT}"/artifacts/ai-rag/*.tar.gz "${ARTIFACT_DIR}/" 2>/dev/null || true
-    
+
     echo "[ok] AI RAG artifacts copied"
 else
     echo "WARN: No AI RAG artifacts found at artifacts/ai-rag/"
@@ -236,8 +236,8 @@ These artifacts enable:
 
 ---
 
-**Repository:** https://github.com/MiOS-DEV/mios  
-**Bootstrap:** https://github.com/MiOS-DEV/MiOS-bootstrap  
+**Repository:** https://github.com/MiOS-DEV/mios
+**Bootstrap:** https://github.com/MiOS-DEV/MiOS-bootstrap
 **License:** Personal Property - 'MiOS' Project
 README
 

@@ -63,10 +63,10 @@ class TestFanControl(unittest.TestCase):
         """Test that large step temperature jumps result in rate-limited PWM ramp transitions."""
         # Initial step at target temp 65C -> initial base PWM
         res1 = self.controller.compute_pid_pwm("cpu", current_temp=65.0, dt=1.0)
-        
+
         # Step temperature to 80C (> target 65C)
         res2 = self.controller.compute_pid_pwm("cpu", current_temp=80.0, dt=1.0)
-        
+
         # Ramp should increase, but step delta must be bounded by max_pwm_ramp_per_sec (25.0)
         pwm_delta = res2 - res1
         self.assertGreater(pwm_delta, 0)

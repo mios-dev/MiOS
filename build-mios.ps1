@@ -1327,7 +1327,7 @@ function Resolve-MiosTomlAiDefaults([string]$RepoDir) {
         try {
             $text = Get-Content -Raw -Path $card -ErrorAction Stop
         } catch { continue }
-        
+
         # 1. Parse [ai] section
         $m = [regex]::Match($text, '(?ms)^\[ai\]\s*$(.*?)(?=^\[|\z)')
         if ($m.Success) {
@@ -1342,7 +1342,7 @@ function Resolve-MiosTomlAiDefaults([string]$RepoDir) {
                 if ($hit.Success) { $defaults[$kv.Slot] = $hit.Groups[1].Value }
             }
         }
-        
+
         # 2. Parse [llamacpp] section
         $m = [regex]::Match($text, '(?ms)^\[llamacpp\]\s*$(.*?)(?=^\[|\z)')
         if ($m.Success) {
@@ -1351,7 +1351,7 @@ function Resolve-MiosTomlAiDefaults([string]$RepoDir) {
             $hit = $rx.Match($body)
             if ($hit.Success) { $defaults['LlamacppBakeModels'] = $hit.Groups[1].Value }
         }
-        
+
         # 3. Parse [ai.vllm] section
         $m = [regex]::Match($text, '(?ms)^\[ai\.vllm\]\s*$(.*?)(?=^\[|\z)')
         if ($m.Success) {
@@ -5698,7 +5698,7 @@ $endMark
             if (Test-Path $builtExe) {
                 Copy-Item -Path $builtExe -Destination $wallpaperd_exe -Force
                 Log-Ok "mios-wallpaperd compiled and staged: $wallpaperd_exe"
-                
+
                 # Register as a Windows Service
                 $svcName = 'MiOS-Wallpaper-Service'
                 if (-not (Get-Service -Name $svcName -ErrorAction SilentlyContinue)) {
@@ -6409,7 +6409,7 @@ function Invoke-GitFetchWithRetry {
             # Fallback to full fetch if depth=1 fails (e.g. on commit SHAs or tags)
             $exitCode = Invoke-NativeQuiet { git fetch origin $Ref }
             if ($exitCode -eq 0) { return 0 }
-            
+
             if ($retry -lt 3) {
                 Log-Warn "git fetch failed for ref $Ref (exit $exitCode). Retrying in 5 seconds ($retry/3)..."
                 Start-Sleep -Seconds 5
@@ -6462,7 +6462,7 @@ $miosRepo = $MiosRepoDir
             $null = Invoke-NativeQuiet { git init -q }
             $null = Invoke-NativeQuiet { git config --unset core.worktree }
             $null = Invoke-NativeQuiet { git remote add origin $MiosRepoUrl }
-            
+
             $fetchExit = Invoke-GitFetchWithRetry -RepoPath $MiosRepoDir -Ref $MiosRef
             if ($fetchExit -ne 0) {
                 throw "mios.git: git fetch from $MiosRepoUrl failed (exit $fetchExit) at $MiosRepoDir"

@@ -360,9 +360,9 @@ async def _call_agent_complete(name, cfg, body, headers, client,
     if depth >= max_depth:
         log.warning("Max dispatch depth exceeded (%d >= %d) for agent %s", depth, max_depth, name)
         raise RecursionError(f"Max dispatch depth exceeded ({depth}/{max_depth})")
-        
+
     depth_token = _dispatch_depth_var.set(depth + 1)
-    
+
     try:
         session_id = (_conv_key_var.get() if _conv_key_var else "") or ""
         conv_ceil = _get_budget_ceil("conversation_token_ceil", 2000000)
@@ -377,7 +377,7 @@ async def _call_agent_complete(name, cfg, body, headers, client,
                     system_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") in ("system", "developer")]
                     recent_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") not in ("system", "developer")][-4:]
                     body["messages"] = system_msgs + recent_msgs
-                
+
         if _autonomous_var.get():
             auto_ceil = _get_budget_ceil("autonomous_token_ceil", 400000)
             src = _autonomous_source_var.get() or "autonomous"
@@ -394,7 +394,7 @@ async def _call_agent_complete(name, cfg, body, headers, client,
 
         _engine = _agent_offload_engine(cfg) if prefer_cpu else None
         _ep, _adm_model = _agent_binding(cfg, _engine)
-        
+
         big_model = _host_threshold_val("big_ram_model", "mistral-magistral-small-2509")
         is_heavy = (_adm_model == big_model or (_engine in ("vllm", "sglang") or (isinstance(_ep, str) and "8640" in _ep)))
         if is_heavy:
@@ -416,7 +416,7 @@ async def _call_agent_complete(name, cfg, body, headers, client,
             _prio = -100.0
 
         req_hash = _hash_request(_ep or "", body)
-        
+
         is_first = False
         fut = None
         async with _IN_FLIGHT_LOCK:
@@ -469,17 +469,17 @@ async def _call_agent_complete(name, cfg, body, headers, client,
 
         try:
             res = await _execute_query()
-            
+
             _n, _t = res
             _msgs = (body or {}).get("messages") or []
             _ptok = mios_tokenize.count_messages(_msgs)
             _ctok = mios_tokenize.count_text(_t)
             tokens_used = _ptok + _ctok
-            
+
             if session_id:
                 async with _BUDGET_LOCK:
                     _add_to_window(_SESSION_TOKENS, session_id, tokens_used, time.monotonic())
-            
+
             if _autonomous_var.get():
                 src = _autonomous_source_var.get() or "autonomous"
                 async with _BUDGET_LOCK:
@@ -496,7 +496,7 @@ async def _call_agent_complete(name, cfg, body, headers, client,
                 if not fut.done():
                     fut.set_exception(e)
             raise e
-            
+
     finally:
         _dispatch_depth_var.reset(depth_token)
 
@@ -858,19 +858,19 @@ async def _kv_slot_action(client, ep: str, action: str, conv: str,
     if model:
         urls.append(f"{base}/upstream/{model}/slots/{sid}")
     urls.append(f"{base}/slots/{sid}")
-    
+
     is_swa = (action == "restore" and _is_gemma_or_qwen(model))
-    
+
     params = {"action": action}
     if is_swa:
         params["swa_full"] = "true"
         params["--swa-full"] = "true"
-        
+
     body = {"filename": _kv_filename(conv)}
     if is_swa:
         body["swa_full"] = True
         body["--swa-full"] = True
-        
+
     for url in urls:
         try:
             r = await client.post(
@@ -897,11 +897,11 @@ async def _kv_paging(client, ep: str, cfg: dict, engine):
         yield
         return
     model = (cfg or {}).get("model")
-    
+
     n_slots = await _get_slot_count(client, ep, model)
     slot_id = _stable_hash(conv) % n_slots
     key = f"{_kv_base(ep)}#{slot_id}"
-    
+
     async with _kv_lock(key):
         resident = _KV_RESIDENT.get(key)
         if resident != conv:
@@ -909,12 +909,12 @@ async def _kv_paging(client, ep: str, cfg: dict, engine):
                 await _kv_slot_action(client, ep, "save", resident, model, slot_id)
                 _SAVED_CONVS.add(resident)
                 _KV_RESIDENT[key] = None
-            
+
             has_snapshot = (conv in _SAVED_CONVS)
             if not has_snapshot and KV_SLOTS_DIR:
                 import os
                 has_snapshot = os.path.exists(os.path.join(KV_SLOTS_DIR, _kv_filename(conv)))
-                
+
             if has_snapshot:
                 await _kv_slot_action(client, ep, "restore", conv, model, slot_id)  # page IN
             _KV_RESIDENT[key] = conv
@@ -933,19 +933,19 @@ async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
     ok, reason = _kvfork_validate(src_conv, dst_conv)
     if not ok:
         return {"forked": False, "reason": reason}
-    
+
     model = (cfg or {}).get("model")
     n_slots = await _get_slot_count(client, ep, model)
     slot_id = _stable_hash(dst_conv) % n_slots
     key = f"{_kv_base(ep)}#{slot_id}"
-    
+
     async with _kv_lock(key):
         resident = _KV_RESIDENT.get(key)
         if resident is not None and resident != dst_conv:
             await _kv_slot_action(client, ep, "save", resident, model, slot_id)
             _SAVED_CONVS.add(resident)
             _KV_RESIDENT[key] = None
-            
+
         restore_ok = False
         save_ok = False
         for action, conv, _fname in _kvfork_plan(src_conv, dst_conv):

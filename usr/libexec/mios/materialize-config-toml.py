@@ -48,11 +48,11 @@ def main():
     except ImportError:
         log.error("psycopg not installed.")
         return 1
-        
+
     cfg = get_pg_config()
     conn_str = (f"postgresql://{cfg['user']}:{cfg['password']}"
                 f"@{cfg['host']}:{cfg['port']}/{cfg['dbname']}")
-                
+
     try:
         with psycopg.connect(conn_str, connect_timeout=5) as conn:
             with conn.cursor() as cur:
@@ -64,7 +64,7 @@ def main():
                     """
                 )
                 rows = cur.fetchall()
-                
+
                 config_by_scope = {}
                 for scope, key, value_json in rows:
                     if scope == 'verbs':
@@ -88,7 +88,7 @@ def main():
                 first_printed = False
                 for scope in all_scopes:
                     keys = sorted(config_by_scope[scope].keys())
-                    
+
                     printed_section_header = False
                     for k in keys:
                         v = config_by_scope[scope][k]
@@ -101,7 +101,7 @@ def main():
                             printed_section_header = True
                             first_printed = True
                         print(f"{escape_toml_key(k)} = {format_toml_value(v)}")
-                    
+
                     for k in keys:
                         v = config_by_scope[scope][k]
                         if isinstance(v, dict):
@@ -162,7 +162,7 @@ def main():
                 for (vname, sig, desc, tier, perm, cmd, params,
                      section, examples, model_name, hidden, aliases,
                      conflict_group, parallel_limit, max_result_chars) in verb_rows:
-                    
+
                     if first_printed:
                         print("")
                     print(f"[verbs.{escape_toml_key(vname)}]")
@@ -171,12 +171,12 @@ def main():
                         print(f"sig = {format_toml_value(sig)}")
                     if desc:
                         print(f"desc = {format_toml_value(desc)}")
-                    
+
                     if section:
                         print(f"section = {format_toml_value(section)}")
                     if examples:
                         print(f"examples = {format_toml_value(examples)}")
-                    
+
                     if tier != defaults.get("tier", "common"):
                         print(f"tier = {format_toml_value(tier)}")
                     if perm != defaults.get("permission", "read"):
@@ -195,7 +195,7 @@ def main():
                         print(f"parallel_limit = {format_toml_value(parallel_limit)}")
                     if max_result_chars != defaults.get("max_result_chars", 0):
                         print(f"max_result_chars = {format_toml_value(max_result_chars)}")
-                        
+
                     if params:
                         for param_k in sorted(params.keys()):
                             param_v = params[param_k]
@@ -206,7 +206,7 @@ def main():
     except Exception as e:
         log.error("Materialization failed: %s", e)
         return 1
-        
+
     return 0
 
 if __name__ == "__main__":

@@ -123,10 +123,10 @@ def _load_verb_catalog() -> dict:
             cfg = pg_config()
             conn_str = (f"postgresql://{cfg['user']}:{cfg['password']}"
                         f"@{cfg['host']}:{cfg['port']}/{cfg['dbname']}")
-            
+
             locale = os.environ.get("MIOS_LOCALE") or os.environ.get("LANG", "en")
             lang = locale.split("_")[0].split(".")[0].lower()
-            
+
             with psycopg.connect(conn_str, connect_timeout=2) as conn:
                 with conn.cursor(row_factory=dict_row) as cur:
                     cur.execute("SELECT * FROM verb;")
@@ -136,14 +136,14 @@ def _load_verb_catalog() -> dict:
                         if not r["is_active"]:
                             cat.pop(vname, None)
                             continue
-                        
+
                         sig = r["sig"]
                         desc = r["desc_default"]
                         tier = r["tier"]
                         permission = r["permission"]
                         cmd = r["cmd"] or ""
                         params = r["params"] or {}
-                        
+
                         i18n = r["i18n"] or {}
                         if lang in i18n:
                             lang_data = i18n[lang]
@@ -154,7 +154,7 @@ def _load_verb_catalog() -> dict:
                                 for arg, arg_cfg in params.items():
                                     if isinstance(arg_cfg, dict) and arg in lang_params:
                                         arg_cfg["desc"] = lang_params[arg]
-                                        
+
                         if vname in cat:
                             cat[vname].update({
                                 "sig": sig,
@@ -228,10 +228,10 @@ def _load_verb_catalog_from_db() -> dict:
         cfg = pg_config()
         conn_str = (f"postgresql://{cfg['user']}:{cfg['password']}"
                     f"@{cfg['host']}:{cfg['port']}/{cfg['dbname']}")
-        
+
         locale = os.environ.get("MIOS_LOCALE") or os.environ.get("LANG", "en")
         lang = locale.split("_")[0].split(".")[0].lower()
-        
+
         defaults = {}
         with psycopg.connect(conn_str, connect_timeout=2) as conn:
             with conn.cursor() as cur:
@@ -259,7 +259,7 @@ def _load_verb_catalog_from_db() -> dict:
                         continue
                     if not r.get("section"):
                         continue
-                    
+
                     vcfg = defaults.copy()
                     sig = r.get("sig")
                     desc = r.get("desc_default")
@@ -275,7 +275,7 @@ def _load_verb_catalog_from_db() -> dict:
                     conflict_group = r.get("conflict_group")
                     parallel_limit = r.get("parallel_limit")
                     max_result_chars = r.get("max_result_chars")
-                    
+
                     i18n = r.get("i18n") or {}
                     if lang in i18n:
                         lang_data = i18n[lang]

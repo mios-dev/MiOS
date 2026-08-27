@@ -27,7 +27,7 @@ class TestRecordReplay(unittest.TestCase):
     def setUp(self):
         self._enable = A.CHAIN_ENABLE
         A.CHAIN_ENABLE = True
-        
+
         _record_active.set(False)
         _replay_active.set(False)
         _replay_llm_queue.set([])
@@ -46,11 +46,11 @@ class TestRecordReplay(unittest.TestCase):
         c1, c2 = _fresh_session_chainer(), _fresh_session_chainer()
         s1 = [c1.stamp(dict(e)) for e in sess]
         s2 = [c2.stamp(dict(e)) for e in sess]
-        
+
         self.assertEqual([r["chain_hash"] for r in s1], [r["chain_hash"] for r in s2])
         self.assertEqual([r["chain_seq"] for r in s1], [1, 2, 3])
         self.assertEqual(s1[0]["prev_hash"], A.GENESIS)
-        
+
         res = A.verify_session_chain(s1)
         self.assertTrue(res["ok"])
         self.assertEqual(res["checked"], len(s1))
@@ -60,7 +60,7 @@ class TestRecordReplay(unittest.TestCase):
         """Test editing the meta in session table breaks the chain verification."""
         c = _fresh_session_chainer()
         rows = [c.stamp(dict(e)) for e in _synthetic_sessions()]
-        
+
         tampered = copy.deepcopy(rows)
         tampered[1]["meta"]["output"] = "altered output"
         res = A.verify_session_chain(tampered)
@@ -72,13 +72,13 @@ class TestRecordReplay(unittest.TestCase):
         sess_id = "test-session-id-12345"
         h = hashlib.md5(sess_id.encode("utf-8")).hexdigest()
         seed = int(h, 16) % (2**32)
-        
+
         random.seed(seed)
         seq1 = [random.randint(0, 100000) for _ in range(20)]
-        
+
         random.seed(seed)
         seq2 = [random.randint(0, 100000) for _ in range(20)]
-        
+
         self.assertEqual(seq1, seq2)
 
     def test_replay_mode_httpx_interception(self):
@@ -95,7 +95,7 @@ class TestRecordReplay(unittest.TestCase):
             async with httpx.AsyncClient() as client:
                 r = await client.post("http://any-endpoint/v1/chat/completions", json={"prompt": "hello"})
                 return r
-                
+
         resp = asyncio.run(run_client_call())
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json(), mock_completion)

@@ -1,272 +1,175 @@
-#!/usr/bin/env python3
-# AI-hint: Bounded reflection loops with convergence criteria to prevent circular reasoning.
-# AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_reflect.py
 """
-Bounded Reflection Loop Convergence (T-385 / AGY-1983)
+mios_deliberate.py — T-341 MAO-02
+Deliberative Collective Intelligence (DCI) — 4-archetype deliberation council
+with typed interaction grammar and Decision Packet output.
 
-Implements bounded deliberation and reflection loops with semantic delta scoring,
-enforcing deterministic termination when refinement reaches diminishing returns (delta < 0.05)
-or encounters the maximum iteration ceiling (default: 3) to prevent token waste and circular debate.
+Archetypes: Framer | Explorer | Challenger | Integrator
+Grammar acts: propose | challenge | evidence | reframe | synthesize | concede
+
+Decision Packet schema:
+  {
+    "chosen_actions": [...],
+    "residual_objections": [...],
+    "reopen_conditions": [...],
+    "round_count": N,
+    "consensus_score": 0.0..1.0
+  }
 """
-
 from __future__ import annotations
 
-import dataclasses
+import json
 import logging
-import math
-import re
 import time
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+import uuid
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
-logger = logging.getLogger("mios.deliberate")
-
-
-@dataclasses.dataclass
-class DeliberationConfig:
-    max_iterations: int = 3
-    convergence_threshold: float = 0.05  # 5% semantic delta threshold
-    min_iterations: int = 1
-    critique_model: str = "mios-light"
-
-    def to_dict(self) -> Dict[str, Any]:
-        return dataclasses.asdict(self)
+log = logging.getLogger(__name__)
 
 
-@dataclasses.dataclass
-class DeliberationTurn:
-    iteration: int
-    draft: str
-    critique: str
-    revised: str
-    semantic_delta: float
-    tokens_used: int = 0
-    duration_ms: float = 0.0
-
-    def to_dict(self) -> Dict[str, Any]:
-        return dataclasses.asdict(self)
+class Act(str, Enum):
+    PROPOSE   = "propose"
+    CHALLENGE = "challenge"
+    EVIDENCE  = "evidence"
+    REFRAME   = "reframe"
+    SYNTHESIZE = "synthesize"
+    CONCEDE   = "concede"
 
 
-@dataclasses.dataclass
-class DeliberationState:
-    initial_prompt: str
-    current_draft: str
-    turns: List[DeliberationTurn] = dataclasses.field(default_factory=list)
-    final_output: str = ""
-    exit_reason: str = ""
-    is_converged: bool = False
+class Archetype(str, Enum):
+    FRAMER     = "Framer"
+    EXPLORER   = "Explorer"
+    CHALLENGER = "Challenger"
+    INTEGRATOR = "Integrator"
 
-    def to_dict(self) -> Dict[str, Any]:
+
+@dataclass
+class Move:
+    """Single deliberation move from an archetype agent."""
+    archetype: Archetype
+    act:       Act
+    content:   str
+    timestamp: float = field(default_factory=time.monotonic)
+
+
+@dataclass
+class DecisionPacket:
+    """Final output of a DCI deliberation session."""
+    session_id:          str
+    chosen_actions:      list[str]
+    residual_objections: list[str]
+    reopen_conditions:   list[str]
+    round_count:         int
+    consensus_score:     float   # 0.0 .. 1.0
+
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "initial_prompt": self.initial_prompt,
-            "current_draft": self.current_draft,
-            "turns": [t.to_dict() for t in self.turns],
-            "final_output": self.final_output,
-            "exit_reason": self.exit_reason,
-            "is_converged": self.is_converged,
-            "total_iterations": len(self.turns),
+            "session_id":          self.session_id,
+            "chosen_actions":      self.chosen_actions,
+            "residual_objections": self.residual_objections,
+            "reopen_conditions":   self.reopen_conditions,
+            "round_count":         self.round_count,
+            "consensus_score":     self.consensus_score,
         }
 
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), indent=2)
 
-class SemanticDeltaCalculator:
+
+class DCISession:
     """
-    Computes multi-dimensional semantic difference between two text revisions
-    using token Jaccard distance, n-gram overlap, and structural length variation.
+    Orchestrates a single DCI deliberation session.
+
+    In production each archetype is backed by an LLM call; in unit-test mode
+    the caller provides a `responder` callable that returns (act, content)
+    tuples per archetype so tests run without a live inference engine.
     """
+    MAX_ROUNDS = 8
 
-    WORD_RE = re.compile(r"\b[a-zA-Z0-9_-]+\b")
+    def __init__(self, topic: str,
+                 responder=None,
+                 session_id: str | None = None) -> None:
+        self.topic      = topic
+        self.session_id = session_id or str(uuid.uuid4())
+        self._responder = responder or _default_responder
+        self.moves:     list[Move] = []
+        self.concessions: set[Archetype] = set()
 
-    @classmethod
-    def tokenize(cls, text: str) -> List[str]:
-        return [w.lower() for w in cls.WORD_RE.findall(text)]
+    # ------------------------------------------------------------------
+    def run(self) -> DecisionPacket:
+        """Execute up to MAX_ROUNDS of deliberation and return a Decision Packet."""
+        sequence = [
+            Archetype.FRAMER,
+            Archetype.EXPLORER,
+            Archetype.CHALLENGER,
+            Archetype.INTEGRATOR,
+        ]
+        for round_i in range(self.MAX_ROUNDS):
+            for archetype in sequence:
+                act, content = self._responder(
+                    archetype, self.moves, self.topic)
+                move = Move(archetype=archetype, act=Act(act), content=content)
+                self.moves.append(move)
+                log.debug("DCI round=%d %s:%s", round_i, archetype, act)
+                if Act(act) == Act.CONCEDE:
+                    self.concessions.add(archetype)
 
-    @classmethod
-    def get_ngrams(cls, tokens: List[str], n: int = 2) -> Set[Tuple[str, ...]]:
-        if len(tokens) < n:
-            return set()
-        return set(tuple(tokens[i : i + n]) for i in range(len(tokens) - n + 1))
-
-    @classmethod
-    def calculate_delta(cls, prev_text: str, curr_text: str) -> float:
-        if prev_text.strip() == curr_text.strip():
-            return 0.0
-
-        prev_tokens = cls.tokenize(prev_text)
-        curr_tokens = cls.tokenize(curr_text)
-
-        if not prev_tokens and not curr_tokens:
-            return 0.0
-        if not prev_tokens or not curr_tokens:
-            return 1.0
-
-        prev_set = set(prev_tokens)
-        curr_set = set(curr_tokens)
-
-        # 1. Jaccard Token Distance
-        intersection = len(prev_set.intersection(curr_set))
-        union = len(prev_set.union(curr_set))
-        jaccard_sim = intersection / union if union > 0 else 1.0
-        jaccard_delta = 1.0 - jaccard_sim
-
-        # 2. Bigram Overlap Distance
-        prev_bigrams = cls.get_ngrams(prev_tokens, n=2)
-        curr_bigrams = cls.get_ngrams(curr_tokens, n=2)
-        if prev_bigrams or curr_bigrams:
-            bi_union = len(prev_bigrams.union(curr_bigrams))
-            bi_inter = len(prev_bigrams.intersection(curr_bigrams))
-            bi_sim = bi_inter / bi_union if bi_union > 0 else 1.0
-            bigram_delta = 1.0 - bi_sim
-        else:
-            bigram_delta = jaccard_delta
-
-        # 3. Length Ratio Delta
-        len_prev = len(prev_tokens)
-        len_curr = len(curr_tokens)
-        max_len = max(len_prev, len_curr)
-        len_delta = abs(len_prev - len_curr) / max_len if max_len > 0 else 0.0
-
-        # Weighted combination
-        combined_delta = (jaccard_delta * 0.40) + (bigram_delta * 0.45) + (len_delta * 0.15)
-        return min(max(round(combined_delta, 4), 0.0), 1.0)
-
-
-class BoundedDeliberationEngine:
-    """
-    Coordinates multi-turn bounded deliberation with convergence gating.
-    """
-
-    def __init__(
-        self,
-        config: Optional[DeliberationConfig] = None,
-        calculator: Optional[SemanticDeltaCalculator] = None,
-    ) -> None:
-        self.config = config or DeliberationConfig()
-        self.calculator = calculator or SemanticDeltaCalculator()
-
-    def step(
-        self,
-        state: DeliberationState,
-        critique: str,
-        revision: str,
-        config: Optional[DeliberationConfig] = None,
-        tokens_used: int = 0,
-        duration_ms: float = 0.0,
-    ) -> bool:
-        """
-        Executes a single deliberation step, updates state, and evaluates convergence.
-        Returns True if deliberation is converged and complete.
-        """
-        cfg = config or self.config
-        iteration_idx = len(state.turns) + 1
-
-        delta = self.calculator.calculate_delta(state.current_draft, revision)
-
-        turn = DeliberationTurn(
-            iteration=iteration_idx,
-            draft=state.current_draft,
-            critique=critique,
-            revised=revision,
-            semantic_delta=delta,
-            tokens_used=tokens_used,
-            duration_ms=duration_ms,
-        )
-        state.turns.append(turn)
-
-        # Check critique pass criteria
-        critique_lower = critique.lower()
-        if (
-            "approved" in critique_lower
-            or "no further changes" in critique_lower
-            or "satisfies all requirements" in critique_lower
-            or "no improvements needed" in critique_lower
-        ) and iteration_idx >= cfg.min_iterations:
-            state.final_output = revision if revision.strip() else state.current_draft
-            state.exit_reason = "converged_critique_passed"
-            state.is_converged = True
-            return True
-
-        # Check diminishing-returns criteria
-        if delta < cfg.convergence_threshold and iteration_idx >= cfg.min_iterations:
-            state.final_output = revision if revision.strip() else state.current_draft
-            state.exit_reason = "converged_diminishing_returns"
-            state.is_converged = True
-            return True
-
-        # Check max iterations ceiling
-        if iteration_idx >= cfg.max_iterations:
-            state.final_output = revision if revision.strip() else state.current_draft
-            state.exit_reason = "max_iterations"
-            state.is_converged = True
-            return True
-
-        # Update draft for next turn
-        state.current_draft = revision
-        return False
-
-    def run_deliberation(
-        self,
-        initial_prompt: str,
-        initial_draft: str,
-        critique_fn: Callable[[str, str], str],
-        revision_fn: Callable[[str, str, str], str],
-        config: Optional[DeliberationConfig] = None,
-    ) -> DeliberationState:
-        """
-        Executes complete bounded deliberation loop using provided callbacks.
-        """
-        cfg = config or self.config
-        state = DeliberationState(
-            initial_prompt=initial_prompt,
-            current_draft=initial_draft,
-        )
-
-        for iteration in range(1, cfg.max_iterations + 1):
-            t0 = time.perf_counter()
-            critique = critique_fn(state.initial_prompt, state.current_draft)
-            revision = revision_fn(state.initial_prompt, state.current_draft, critique)
-            elapsed_ms = (time.perf_counter() - t0) * 1000.0
-
-            converged = self.step(
-                state,
-                critique=critique,
-                revision=revision,
-                config=cfg,
-                duration_ms=elapsed_ms,
-            )
-            if converged:
+            if self._has_consensus():
+                log.info("DCI: consensus reached at round %d", round_i + 1)
                 break
 
-        if not state.is_converged:
-            state.final_output = state.current_draft
-            state.exit_reason = "max_iterations"
-            state.is_converged = True
+        return self._build_packet(round_count=round_i + 1)
 
-        return state
+    # ------------------------------------------------------------------
+    def _has_consensus(self) -> bool:
+        """
+        Consensus = Integrator issued SYNTHESIZE and fewer than 2 archetypes
+        have outstanding CHALLENGE moves without a subsequent CONCEDE.
+        """
+        challenger_conceded = Archetype.CHALLENGER in self.concessions
+        integrator_synthesized = any(
+            m.archetype == Archetype.INTEGRATOR and m.act == Act.SYNTHESIZE
+            for m in self.moves)
+        return integrator_synthesized and challenger_conceded
+
+    def _build_packet(self, round_count: int) -> DecisionPacket:
+        proposals   = [m.content for m in self.moves if m.act == Act.PROPOSE]
+        synthesized = [m.content for m in self.moves if m.act == Act.SYNTHESIZE]
+        challenges  = [m.content for m in self.moves
+                       if m.act == Act.CHALLENGE
+                       and m.archetype not in self.concessions]
+        concede_count = len(self.concessions)
+        consensus_score = min(1.0, concede_count / max(1, len([
+            Archetype.FRAMER, Archetype.EXPLORER,
+            Archetype.CHALLENGER, Archetype.INTEGRATOR]) - 1))
+
+        return DecisionPacket(
+            session_id=self.session_id,
+            chosen_actions=synthesized or proposals[:1],
+            residual_objections=challenges,
+            reopen_conditions=["Reopen if critical safety objection raised."],
+            round_count=round_count,
+            consensus_score=consensus_score,
+        )
 
 
-# Module-level convenience functions
-_DEFAULT_ENGINE = BoundedDeliberationEngine()
-
-
-def calculate_semantic_delta(prev_text: str, curr_text: str) -> float:
-    return _DEFAULT_ENGINE.calculator.calculate_delta(prev_text, curr_text)
-
-
-def run_bounded_deliberation(
-    initial_prompt: str,
-    initial_draft: str,
-    critique_fn: Callable[[str, str], str],
-    revision_fn: Callable[[str, str, str], str],
-    max_iterations: int = 3,
-    convergence_threshold: float = 0.05,
-) -> DeliberationState:
-    config = DeliberationConfig(
-        max_iterations=max_iterations,
-        convergence_threshold=convergence_threshold,
-    )
-    return _DEFAULT_ENGINE.run_deliberation(
-        initial_prompt=initial_prompt,
-        initial_draft=initial_draft,
-        critique_fn=critique_fn,
-        revision_fn=revision_fn,
-        config=config,
-    )
+def _default_responder(archetype: Archetype,
+                       history: list[Move],
+                       topic: str) -> tuple[str, str]:
+    """
+    Default responder used in tests — returns deterministic scripted moves.
+    Production replaces this with LLM calls.
+    """
+    script: dict[Archetype, list[tuple[str, str]]] = {
+        Archetype.FRAMER:     [("propose",    f"Frame: {topic}")],
+        Archetype.EXPLORER:   [("evidence",   "Evidence: supporting data")],
+        Archetype.CHALLENGER: [("challenge",  "Challenge: risk concern"),
+                               ("concede",    "Conceded after evidence")],
+        Archetype.INTEGRATOR: [("reframe",    "Reframe: synthesizing"),
+                               ("synthesize", f"Decision: proceed with {topic}")],
+    }
+    moves_by_arch = sum(1 for m in history if m.archetype == archetype)
+    choices = script.get(archetype, [("propose", "default proposal")])
+    act, content = choices[min(moves_by_arch, len(choices) - 1)]
+    return act, content

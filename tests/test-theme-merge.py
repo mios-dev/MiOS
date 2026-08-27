@@ -15,7 +15,7 @@ class TestThemeMerge(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.root = self.temp_dir.name
-        
+
         self.dirs = [
             "usr/share/mios",
             "usr/share/mios/theme/templates",

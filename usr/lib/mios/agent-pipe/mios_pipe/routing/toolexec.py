@@ -183,7 +183,7 @@ def _allowed_tool_names(tools: "Optional[list]") -> set:
             n = str((fn or {}).get("name") or "").strip()
             if n:
                 names.add(n)
-    
+
     import mios_verbcatalog
     model_names = getattr(mios_verbcatalog, "_MODEL_NAME_TO_VERB", {})
     return names | set(_VERB_CATALOG.keys()) | set(model_names.keys())
@@ -297,7 +297,7 @@ def _tool_span(vname: str, session_id: str):
 
 async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     from mios_pipe.routing.chat import _record_active, _replay_active, _replay_tool_queue, _conv_key_var, _in_exec_tool_calls
-    
+
     _sess = (_orch_ctx_var.get() or {}).get("session_id")
     if not _sess and _conv_key_var is not None:
         try:
@@ -316,7 +316,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 tmsg["tool_call_id"] = tc["id"]
             if vname:
                 tmsg["name"] = vname
-            
+
             if q:
                 row = q.pop(0)
                 meta = row.get("meta") or {}
@@ -607,7 +607,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                         args = {}
                 out_content = tool_msgs[i].get("content") or ""
                 success = not out_content.startswith("(skipped") and not out_content.startswith("(firewall_block")
-                
+
                 row = {
                     "id": f"session:tool:{uuid.uuid4().hex[:24]}",
                     "kind": "tool_io",

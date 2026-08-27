@@ -371,7 +371,7 @@ fi
             Warn "Unknown model tag '$model', no HF mapping in registry. Skipping."
         }
     }
-    
+
     # Write sentinel file
     Invoke-Machine "touch /var/lib/mios/llamacpp/models/.ready"
     Ok "Sentinels updated."
@@ -407,7 +407,7 @@ if ($isAdmin) {
         Remove-NetFirewallRule -DisplayName "MiOS AI Node - mios-ollama ($port/tcp)" -ErrorAction SilentlyContinue | Out-Null
         Remove-NetFirewallRule -DisplayName "MiOS AI Node - mios-ollama-cpu ($port/tcp)" -ErrorAction SilentlyContinue | Out-Null
     }
-    
+
     # Create or update port 11450 firewall rule
     $entry = [pscustomobject]@{ Port = 11450; Name = 'MiOS AI Node - mios-llm-light (11450/tcp)' }
     $existing = Get-NetFirewallRule -DisplayName $entry.Name -ErrorAction SilentlyContinue
@@ -427,12 +427,12 @@ if ($isAdmin) {
     if ($svc -and $svc.Status -ne 'Running') {
         Set-Service iphlpsvc -StartupType Automatic; Start-Service iphlpsvc
     }
-    
+
     # Delete old proxies
     foreach ($port in @(11434, 11435)) {
         netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=$port 2>$null | Out-Null
     }
-    
+
     # Configure 11450 proxy
     $port = 11450
     netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=$port 2>$null | Out-Null

@@ -14,25 +14,25 @@ class MiOSMCPClient:
         self.cached_tools = []
         self._refresh_task = None
         self._lock = asyncio.Lock()
-        
+
     async def connect(self) -> None:
         async with self._lock:
             if self.session is not None:
                 return
-            
+
             from mcp import StdioServerParameters, ClientSession
             from mcp.client.stdio import stdio_client
-            
+
             command = "/usr/libexec/mios/mios-mcp-server"
             env = dict(os.environ)
             env["MIOS_AGENT_PIPE_URL"] = os.environ.get("MIOS_AGENT_PIPE_URL", "http://localhost:8640")
-            
+
             server_params = StdioServerParameters(
                 command=command,
                 args=[],
                 env=env
             )
-            
+
             log.info("Starting stdio MCP client connection to: %s", command)
             try:
                 self._ctx = stdio_client(server_params)
@@ -40,15 +40,15 @@ class MiOSMCPClient:
                 self.session = ClientSession(read, write)
                 await self.session.__aenter__()
                 await self.session.initialize()
-                
+
                 await self._fetch_tools()
-                
+
                 self._refresh_task = asyncio.create_task(self._refresh_loop())
                 log.info("MCP client connected successfully and loaded %d tools", len(self.cached_tools))
             except Exception as e:
                 log.error("Failed to connect stdio MCP client: %s", e)
                 await self._cleanup()
-                
+
     async def _fetch_tools(self) -> None:
         if not self.session:
             return
@@ -57,7 +57,7 @@ class MiOSMCPClient:
             self.cached_tools = getattr(res, "tools", []) or []
         except Exception as e:
             log.warning("Failed to fetch tools from MCP server: %s", e)
-            
+
     async def _refresh_loop(self) -> None:
         while True:
             try:

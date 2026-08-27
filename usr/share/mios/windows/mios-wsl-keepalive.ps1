@@ -20,10 +20,10 @@ if ($Uninstall) {
         Stop-Service -Name $TaskName -Force -ErrorAction SilentlyContinue
         sc.exe delete $TaskName | Out-Null
     }
-    
+
     # Delete old scheduled task
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
-    
+
     # Clean up wrapper files
     $targetExe = Join-Path $PSScriptRoot "$TaskName.exe"
     $targetCfg = Join-Path $PSScriptRoot "$TaskName.cfg"
@@ -48,7 +48,7 @@ if ($Install) {
         Stop-Service -Name $TaskName -Force -ErrorAction SilentlyContinue
         sc.exe delete $TaskName | Out-Null
     }
-    
+
     # Clean up wrapper files
     $targetExe = Join-Path $PSScriptRoot "$TaskName.exe"
     $targetCfg = Join-Path $PSScriptRoot "$TaskName.cfg"
@@ -72,7 +72,7 @@ if ($Install) {
     $settings  = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries `
                     -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) `
                     -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-    
+
     $principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Administrators" -RunLevel Highest
     $desc = "Holds a persistent sleep-infinity session inside the MiOS WSL distro so WSL never tears the VM/services down on last-session-detach. Runs hidden in Session 1."
 

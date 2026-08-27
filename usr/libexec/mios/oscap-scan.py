@@ -90,10 +90,10 @@ def main():
         tailoring_file = "/tmp/tailoring.xml"
         profile_to_run = "xccdf_compliance_profile_custom"
         log(f"Generating tailoring file {tailoring_file} to skip {len(skip_rules)} rule(s)")
-        
+
         selects = "\n".join(f'        <xccdf:select idref="{rule}" selected="false"/>' for rule in skip_rules)
         time_str = datetime.now().isoformat()
-        
+
         tailoring_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <xccdf:Tailoring xmlns:xccdf="http://checklists.nist.gov/xccdf/1.2" id="xccdf_compliance_tailoring_default">
     <xccdf:benchmark href="{ds_path}"/>

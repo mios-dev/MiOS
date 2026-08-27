@@ -65,7 +65,7 @@ class SkillCatalogLoader:
         name = func.get("name", "")
         description = func.get("description", "")
         parameters = func.get("parameters", {}) or {}
-        
+
         properties = parameters.get("properties", {}) or {}
         required = parameters.get("required", []) or []
         original_skill_name = skill_def.get("x-mios-skill", name)
@@ -93,7 +93,7 @@ class SkillCatalogLoader:
                 ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1")
                 orchestrator_root = ai_endpoint.replace("/v1", "").rstrip("/")
                 url = f"{orchestrator_root}/skills/run"
-                
+
                 payload = {
                     "name": self.original_skill_name,
                     "params": kwargs
@@ -104,7 +104,7 @@ class SkillCatalogLoader:
                         resp = client.post(url, json=payload)
                         if resp.status_code != 200:
                             return f"Error executing skill {self.name}: HTTP {resp.status_code} - {resp.text[:200]}"
-                        
+
                         body = resp.json()
                         if body.get("success"):
                             steps = body.get("steps") or []

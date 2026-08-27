@@ -907,18 +907,18 @@ async def lifespan(app):
     if conv_gw_mode == "queue":
         q_maxsize = int(os.environ.get("MIOS_CONV_GATEWAY_QUEUE_MAXSIZE", "64"))
         w_concurrency = int(os.environ.get("MIOS_CONV_GATEWAY_WORKER_CONCURRENCY", "4"))
-        
+
         mios_gateway_queue.configure(
             verb_catalog=_VERB_CATALOG,
             recipes=_toml_section("recipes") or {},
             skills=_cap_skills(),
             trace_span=_trace_span
         )
-        
+
         ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1")
         ai_model = os.environ.get("MIOS_AI_MODEL", "granite4.1:8b")
         tools = mios_gateway_queue.get_tools(ceiling="interactive")
-        
+
         _GATEWAY_QUEUE = mios_gateway_queue.GatewayQueue(maxsize=q_maxsize)
         sys.modules["mios_chat"].GATEWAY_QUEUE = _GATEWAY_QUEUE
         _GATEWAY_WORKER = mios_gateway_queue.GatewayWorker(tools=tools, endpoint=ai_endpoint, model_name=ai_model, mcp_pool=_MCP_POOL)
@@ -962,10 +962,10 @@ def _check_user_cephfs(uid_str: str, tenant_id: str, fs_name: str, keyring_dir: 
     import json
     keyring_path = f"{keyring_dir}/client.{uid_str}"
     keyring_present = os.path.exists(keyring_path)
-    
+
     subvolume_exists = False
     subvolume_path = ""
-    
+
     try:
         cmd = ["ceph", "fs", "subvolume", "info", fs_name, f"{uid_str}-home", "--group_name", f"{tenant_id}-users", "--format", "json"]
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
@@ -975,7 +975,7 @@ def _check_user_cephfs(uid_str: str, tenant_id: str, fs_name: str, keyring_dir: 
             subvolume_path = info.get("path", "")
     except Exception:
         pass
-        
+
     return {
         "uid": int(uid_str),
         "keyring_present": keyring_present,
@@ -990,11 +990,11 @@ async def cephfs_users():
     cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
     if not cephfs_enable:
         return {"enabled": False}
-        
+
     tenant_id = os.environ.get("MIOS_CEPHFS_TENANT_ID", "mios")
     fs_name = os.environ.get("MIOS_CEPHFS_FS_NAME", "cephfs")
     keyring_dir = os.environ.get("MIOS_CEPHFS_KEYRING_DIR", "/etc/ceph/keyring.d")
-    
+
     users = []
     if os.path.exists(keyring_dir):
         try:
@@ -1017,24 +1017,24 @@ async def cephfs_health():
     cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
     if not cephfs_enable:
         return {"enabled": False}
-        
+
     health_data = {"status": "UNKNOWN"}
     df_data = {}
-    
+
     try:
         proc_h = subprocess.run(["ceph", "health", "--format", "json"], capture_output=True, text=True, timeout=5)
         if proc_h.returncode == 0:
             health_data = json.loads(proc_h.stdout)
     except Exception as e:
         health_data = {"status": "UNAVAILABLE", "error": str(e)}
-        
+
     try:
         proc_d = subprocess.run(["ceph", "df", "--format", "json"], capture_output=True, text=True, timeout=5)
         if proc_d.returncode == 0:
             df_data = json.loads(proc_d.stdout)
     except Exception:
         pass
-        
+
     return {
         "health": health_data,
         "df": df_data
@@ -1053,12 +1053,12 @@ async def lora_load(request: Request):
         body = await request.json()
     except Exception:
         return JSONResponse(status_code=400, content={"error": "invalid JSON body"})
-    
+
     lora_name = body.get("lora_name")
     lora_path = body.get("lora_path")
     if not lora_name or not lora_path:
         return JSONResponse(status_code=400, content={"error": "lora_name and lora_path are required"})
-        
+
     url = f"{_TOOL_BACKEND_HEAVY}/load_lora_adapter"
     client = await _get_client()
     try:
@@ -1074,14 +1074,14 @@ async def lora_list():
     heavy_mode = os.environ.get("MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE", "dual")
     if heavy_mode != "single":
         return {"adapters": [], "enabled": False}
-        
+
     url = f"{_TOOL_BACKEND_HEAVY}/models"
     client = await _get_client()
     try:
         r = await client.get(url, timeout=5.0)
         if r.status_code != 200:
             return {"adapters": [], "enabled": True}
-        
+
         models_data = r.json()
         adapters = []
         for item in models_data.get("data") or []:
@@ -3261,7 +3261,7 @@ async def v1_agents_directory(request: Request) -> JSONResponse:
         cfg = cfg if isinstance(cfg, dict) else {}
         ep = str(cfg.get("endpoint", "")).rstrip("/")
         is_remote = str(cfg.get("kind", "")).lower() in _remote_kinds and bool(ep)
-        
+
         peer_id = cfg.get("a2a_peer_id")
         cardless = False
         if peer_id:
@@ -3273,14 +3273,14 @@ async def v1_agents_directory(request: Request) -> JSONResponse:
                     cardless = True
             except Exception:
                 pass
-                
+
         card_url = node_card
         if is_remote:
             if cardless:
                 card_url = f"{ep}/v1/models"
             else:
                 card_url = f"{ep}/.well-known/agent-card.json"
-                
+
         caps = cfg.get("strengths") or []
         if not isinstance(caps, list):
             caps = [caps] if caps else []
@@ -3342,7 +3342,7 @@ async def _kernel_dag_handler(decision, *, refined=None, session_id=None, **ctx)
     from mios_pipe.kernel.config import _toml_section
     _orch = _toml_section("orchestration")
     conductor_enable = str(_orch.get("conductor_enable", "false")).lower() in {"true", "1", "yes", "on"}
-    
+
     if conductor_enable and refined and "workflow" in refined:
         return await mios_conductor.execute_conductor_workflow(
             refined["workflow"],

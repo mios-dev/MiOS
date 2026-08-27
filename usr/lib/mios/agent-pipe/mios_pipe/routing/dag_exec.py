@@ -348,7 +348,7 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
                     source = row.get("source") or "unknown"
                     fact_lines.append(f"- Claim: {claim} (Source: {source})")
                 fact_context = "\n[Grounded Facts from Research]:\n" + "\n".join(fact_lines) + "\n"
-                
+
                 if node.get("prompt"):
                     node["prompt"] = str(node.get("prompt")) + "\n" + fact_context
                 if node.get("args"):
@@ -397,7 +397,7 @@ def parse_research_claims(output_str: str) -> list[dict]:
     output_str = (output_str or "").strip()
     if not output_str:
         return []
-    
+
     import json
     try:
         start_idx = min(output_str.find('['), output_str.find('{'))
@@ -421,7 +421,7 @@ def parse_research_claims(output_str: str) -> list[dict]:
                 return [c for c in claims if c.get("claim")]
     except Exception:
         pass
-    
+
     claims = []
     lines = output_str.split("\n")
     for line in lines:
@@ -440,12 +440,12 @@ def parse_research_claims(output_str: str) -> list[dict]:
             if cites:
                 clean_claim = re.sub(r"\[[^\]]+\]", "", line).strip()
                 claims.append({"claim": clean_claim, "source": ", ".join(cites)})
-    
+
     if not claims:
         for line in lines[:5]:
             if len(line) > 20 and re.search(r"\b\d{3,}\b|http", line):
                 claims.append({"claim": line, "source": "web_search"})
-                
+
     return [c for c in claims if c.get("claim")]
 
 

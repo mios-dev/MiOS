@@ -98,16 +98,16 @@ def parse_sig(sig: str, vcfg: dict = None) -> dict:
         if part.endswith("?"):
             part = part[:-1].strip()
             optional = True
-        
+
         if "=" in part:
             name_part, val_part = part.split("=", 1)
             name = name_part.strip()
             optional = True
         else:
             name = part
-            
+
         name = name.strip('"').strip("'")
-        
+
         pcfg = params_cfg.get(name)
         if pcfg and isinstance(pcfg, dict) and pcfg.get("type"):
             param_type = pcfg.get("type")
@@ -129,7 +129,7 @@ def parse_sig(sig: str, vcfg: dict = None) -> dict:
                 param_type = "integer"
             elif any(x in lower_name for x in _bool_kw):
                 param_type = "boolean"
-            
+
         inputs[name] = {
             "type": param_type,
             "description": pcfg.get("desc", f"Parameter {name}") if pcfg and isinstance(pcfg, dict) else f"Parameter {name}",
@@ -142,18 +142,18 @@ def get_tools(ceiling: str = "interactive") -> list:
     manifest = build_capability_manifest(
         _VERB_CATALOG, _recipes, ceiling=ceiling, skills=_skills
     )
-    
+
     tools = []
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = asyncio.get_event_loop()
-        
+
     for cap in manifest:
         name = cap["name"]
         kind = cap["kind"]
         description = cap.get("description", "")
-        
+
         sig = ""
         vcfg = {}
         if kind == "verb":
@@ -169,7 +169,7 @@ def get_tools(ceiling: str = "interactive") -> list:
             sig = scfg.get("sig", "")
             vcfg = scfg
             name = f"mios_skill__{name}"
-            
+
         inputs = parse_sig(sig, vcfg)
         tools.append(DispatchTool(
             name=name,
@@ -244,7 +244,7 @@ class GatewayWorker:
                         res = await asyncio.to_thread(self._run_agent, req.payload, conn, session_id, loop)
                 finally:
                     await asyncio.to_thread(mios_scratchpad.destroy_scratchpad, conn, path)
-                
+
                 if not req.fut.done():
                     req.fut.set_result(res)
             except Exception as e:
@@ -257,15 +257,15 @@ class GatewayWorker:
     def _run_agent(self, payload: dict, conn=None, session_id: str = None, main_loop: asyncio.AbstractEventLoop = None) -> dict:
         system_prompt = extract_system_prompt_from_payload(payload)
         prompt = extract_prompt_from_payload(payload)
-        
+
         os.environ["LITELLM_TELEMETRY"] = "False"
-        
+
         model = LiteLLMModel(
             model_id="openai/" + self.model_name,
             api_base=self.endpoint,
             api_key="none"
         )
-        
+
         agent_tools = list(self.tools)
         if self.mcp_pool is not None:
             try:
@@ -288,10 +288,10 @@ class GatewayWorker:
             model=model,
             system_prompt=system_prompt
         )
-        
+
         if conn is not None:
             original_execute = agent.execute_tool_call
-            
+
             def hooked_execute_tool_call(tool_name: str, arguments) -> Any:
                 res = original_execute(tool_name, arguments)
                 try:
@@ -304,27 +304,27 @@ class GatewayWorker:
                     r = httpx.post(url, json={"input": output_str, "model": "google/embedding-gemma-300m"}, timeout=10.0)
                     if r.status_code == 200:
                         emb = r.json()["data"][0]["embedding"]
-                        
+
                         from mios_firewall import _classify_verb_taint, _session_is_tainted
                         args_dict = arguments if isinstance(arguments, dict) else {}
                         t_tainted, _ = _classify_verb_taint(tool_name, args_dict)
-                        
+
                         if not t_tainted and session_id and main_loop:
                             try:
                                 coro = _session_is_tainted(session_id)
                                 t_tainted, _ = asyncio.run_coroutine_threadsafe(coro, main_loop).result()
                             except Exception as e:
                                 log.warning(f"Failed to check session taint state: {e}")
-                        
+
                         mios_scratchpad.vec_insert(conn, output_str, emb, tainted=t_tainted)
                 except Exception as e:
                     log.warning(f"Failed to record scratchpad embedding for tool {tool_name}: {e}")
                 return res
-                
+
             agent.execute_tool_call = hooked_execute_tool_call
-            
+
         result = agent.run(prompt)
-        
+
         return {
             "id": "chatcmpl-" + uuid.uuid4().hex[:12],
             "object": "chat.completion",
@@ -349,7 +349,7 @@ class MCPDispatchTool(Tool):
         self.name = name
         self.raw_name = name.split(".")[-1]
         self.description = description
-        
+
         properties = inputs.get("properties") or {}
         required = inputs.get("required") or []
         self.inputs = {}

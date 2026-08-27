@@ -205,7 +205,7 @@ async def embed_text_with_retry(client: httpx.AsyncClient, text: str, url: str, 
             log.warning("Embedding attempt %d failed with status %d", attempt + 1, r.status_code)
         except Exception as e:
             log.warning("Embedding attempt %d raised exception: %s", attempt + 1, e)
-        
+
         if attempt < 2:
             await asyncio.sleep(backoff)
             backoff *= 2.0
@@ -215,7 +215,7 @@ async def embed_text_with_retry(client: httpx.AsyncClient, text: str, url: str, 
 async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
     url, model = get_embed_config()
     results = {}
-    
+
     for table, pk in PK_MAP.items():
         cols_map = {
             "skill": "id, name, description",
@@ -229,9 +229,9 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
             "feature_set": "id, name, description"
         }
         cols = cols_map[table]
-        
+
         order_col = pk if isinstance(pk, str) else ", ".join(pk)
-        
+
         table_ver = current_version
         if table == "verb":
             try:
@@ -243,7 +243,7 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
                 table_ver = _verb_embed_fingerprint()
             except Exception as e_fp:
                 log.debug("Failed to get verb catalog fingerprint: %s", e_fp)
-                
+
         select_query = (
             f"SELECT {cols} FROM {table} "
             f"WHERE emb IS NULL OR (emb_version IS DISTINCT FROM %(ver)s) "
@@ -254,11 +254,11 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
         except Exception as e:
             log.warning("Failed to fetch backfill candidates for table %s: %s", table, e)
             continue
-            
+
         if not rows:
             results[table] = 0
             continue
-            
+
         embedded_count = 0
         async with httpx.AsyncClient() as client:
             for row in rows:
@@ -266,19 +266,19 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
                 txt = get_text_projection(table, row)
                 if not txt:
                     continue
-                    
+
                 vec = await embed_text_with_retry(client, txt, url, model)
                 if vec is None:
                     log.warning("Failed to embed text for %s row %s", table, pk_val)
                     continue
-                    
+
                 where_clause = f"WHERE {pk} = %(id)s" if isinstance(pk, str) else f"WHERE " + " AND ".join(f"{k} = %({k})s" for k in pk)
                 update_query = (
                     f"UPDATE {table} "
                     f"SET emb = %(emb)s::vector, emb_model = %(model)s, emb_version = %(ver)s "
                     f"{where_clause}"
                 )
-                
+
                 params = {
                     "emb": vec,
                     "model": model,
@@ -296,10 +296,10 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
                         embedded_count += 1
                 except Exception as e:
                     log.warning("Failed to write embedding for %s row %s: %s", table, pk_val, e)
-                    
+
         results[table] = embedded_count
         log.info("Completed embedding backfill for table %s: %d rows updated", table, embedded_count)
-        
+
     return results
 
 async def main():

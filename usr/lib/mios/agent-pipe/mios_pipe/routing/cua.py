@@ -226,10 +226,10 @@ async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tu
         import struct
         with open(path, "rb") as fh:
             raw = fh.read()
-            
+
         global _LAST_SCREENSHOT_PATH, _W_TENSOR, _H_TENSOR, _W_ORIG, _H_ORIG
         _LAST_SCREENSHOT_PATH = path
-        
+
         try:
             p = subprocess.Popen(
                 ["/usr/libexec/mios/mios-smart-resize"],
@@ -249,7 +249,7 @@ async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tu
                     _W_ORIG, _H_ORIG = struct.unpack(">II", raw[16:24])
             except Exception:
                 pass
-                
+
         return "data:image/png;base64," + base64.b64encode(raw).decode(), \
             mios_cua.observation_digest(raw)
     except Exception:  # noqa: BLE001 -- degrade-open: no image -> VLM stop
@@ -325,22 +325,22 @@ async def wait_for_stable_element(platform: str, session_id: Optional[str] = Non
 async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session_id: Optional[str] = None) -> dict:
     x_raw = float(args.get("x", 0))
     y_raw = float(args.get("y", 0))
-    
+
     scale_factor = _HIDPI_SCALE_FACTOR or 1.0
     model_name = (VISION_MODEL or "").lower()
     is_qwen3 = "qwen3" in model_name or "qwen-3" in model_name
-    
+
     if is_qwen3:
         x_scaled = round((x_raw / 1000.0) * _W_ORIG * scale_factor)
         y_scaled = round((y_raw / 1000.0) * _H_ORIG * scale_factor)
     else:
         x_scaled = round((x_raw / _W_TENSOR) * _W_ORIG * scale_factor)
         y_scaled = round((y_raw / _H_TENSOR) * _H_ORIG * scale_factor)
-        
+
     args_scaled = dict(args)
     args_scaled["x"] = x_scaled
     args_scaled["y"] = y_scaled
-    
+
     list_verb = mios_cua.resolve_verb("list_windows", platform)
     if list_verb:
         res_list = await _dispatch_mios_verb_inner(list_verb, {}, session_id=session_id)
@@ -353,14 +353,14 @@ async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session
                 elements = data
         except Exception:
             pass
-            
+
         matching_elements = []
         for el in elements:
             if isinstance(el, dict):
                 bounds = el.get("bounds")
                 if bounds_contain(bounds, x_scaled, y_scaled):
                     matching_elements.append(el)
-                    
+
         if matching_elements:
             target_el = matching_elements[-1]
             el_name = target_el.get("name") or target_el.get("automation_id")
@@ -371,7 +371,7 @@ async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session
                         click_el_verb, {"name": el_name}, session_id=session_id)
                     if res_click.get("success"):
                         return res_click
-                        
+
     return await _dispatch_mios_verb_inner(verb, args_scaled, session_id=session_id)
 
 
@@ -420,28 +420,28 @@ async def _cua_loop(goal: str, platform: str = "windows",
             obs2 = obs
             uri2 = uri
             changed = False
-            
+
             while retries < 3:
                 res = await _execute_click_hierarchy(verb, dict(plan.get("args") or {}), platform, session_id)
-                
+
                 await wait_for_stable_element(platform, session_id)
-                
+
                 uri2, obs2 = await _cua_screenshot_uri(platform, session_id)
                 changed = mios_cua.observation_changed(obs, obs2)
-                
+
                 if res.get("success") and changed:
                     click_success = True
                     break
-                    
+
                 retries += 1
                 if retries < 3:
                     plan = await _cua_vlm_json(plan_sys, f"GOAL: {goal}", uri2 or uri)
                     if plan.get("done") or str(plan.get("action") or "").strip().lower() != "click":
                         break
-                        
+
             if not click_success and retries >= 3:
                 raise RuntimeError("HITL escalation: 3 click retries exhausted without state change")
-                
+
             stall = 0 if changed else stall + 1
             trace.record(action, verb, bool((res or {}).get("success")), changed)
             v = mios_cua.parse_verify_verdict(json.dumps(

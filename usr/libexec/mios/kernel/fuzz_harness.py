@@ -125,7 +125,7 @@ class KernelFuzzHarness:
                     start_idx = max(0, idx - 2)
                     end_idx = min(len(lines), idx + 20)
                     context_lines = lines[start_idx:end_idx]
-                    
+
                     fault_desc = m.group(1) if m.groups() else "general-fault"
                     crashes.append({
                         "line_number": idx + 1,

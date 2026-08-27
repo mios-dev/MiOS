@@ -29,7 +29,7 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
         target_module._opt_int_mb = lambda x: int(x or 0)
         target_module._lane_sem_key = lambda cfg: "test-lane"
         target_module._strip_agent_chrome = lambda text: text
-        
+
         class MockSloShed(Exception):
             pass
         target_module._SloShed = MockSloShed
@@ -42,9 +42,9 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
             "conversation_token_ceil": 2000000,
             "max_dispatch_depth": 5
         }.get(key, default)
-        
+
         target_module._SESSION_TOKENS["session-1"] = 2500000
-        
+
         cfg = {"vram_mb": 0}
         body = {
             "messages": [
@@ -58,16 +58,16 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
                 {"role": "user", "content": "usr6"},
             ]
         }
-        
+
         class PassedCheck(Exception):
             pass
         target_module._agent_offload_engine = MagicMock(side_effect=PassedCheck)
-        
+
         with self.assertRaises(PassedCheck):
             await target_module._call_agent_complete(
                 "test-agent", cfg, body, {}, MagicMock(), priority=1.0
             )
-        
+
         expected = [
             {"role": "system", "content": "sys1"},
             {"role": "system", "content": "sys2"},
@@ -88,9 +88,9 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
             "autonomous_token_ceil": 400000,
             "max_dispatch_depth": 5
         }.get(key, default)
-        
+
         target_module._AUTONOMOUS_SOURCE_TOKENS["source-1"] = 450000
-        
+
         cfg = {"vram_mb": 0}
         body = {
             "messages": [
@@ -104,16 +104,16 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
                 {"role": "user", "content": "usr6"},
             ]
         }
-        
+
         class PassedCheck(Exception):
             pass
         target_module._agent_offload_engine = MagicMock(side_effect=PassedCheck)
-        
+
         with self.assertRaises(PassedCheck):
             await target_module._call_agent_complete(
                 "test-agent", cfg, body, {}, MagicMock(), priority=1.0
             )
-        
+
         expected = [
             {"role": "system", "content": "sys1"},
             {"role": "system", "content": "sys2"},
@@ -129,12 +129,12 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
         mock_budget.side_effect = lambda key, default: {
             "max_dispatch_depth": 5
         }.get(key, default)
-        
+
         target_module._dispatch_depth_var.set(5)
-        
+
         cfg = {"vram_mb": 0}
         body = {"messages": [{"role": "user", "content": "hello"}]}
-        
+
         with self.assertRaises(RecursionError) as ctx:
             await target_module._call_agent_complete(
                 "test-agent", cfg, body, {}, MagicMock(), priority=1.0

@@ -24,7 +24,7 @@ def _toml_section(section: str) -> dict:
     except Exception as e:
         log.warning("Failed to load overlay config section %s: %s", section, e)
         out = {}
-        
+
     def _xpand(v):
         if isinstance(v, str):
             return os.path.expandvars(v) if "$" in v else v
@@ -343,15 +343,15 @@ def to_toml(d: dict, prefix: list = None) -> str:
     import datetime
     if prefix is None:
         prefix = []
-        
+
     lines = []
-    
+
     for k, v in sorted(d.items()):
         if isinstance(v, dict):
             continue
         if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
             continue
-            
+
         k_str = quote_key(k)
         if isinstance(v, bool):
             lines.append(f"{k_str} = {str(v).lower()}")
@@ -381,14 +381,14 @@ def to_toml(d: dict, prefix: list = None) -> str:
             continue
         else:
             raise TypeError(f"Unsupported TOML type: {type(v)}")
-            
+
     for k, v in sorted(d.items()):
         if isinstance(v, dict):
             new_prefix = prefix + [k]
             sect_name = ".".join(quote_key(p) for p in new_prefix)
             lines.append(f"\n[{sect_name}]")
             lines.append(to_toml(v, new_prefix))
-            
+
     for k, v in sorted(d.items()):
         if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
             new_prefix = prefix + [k]
@@ -396,7 +396,7 @@ def to_toml(d: dict, prefix: list = None) -> str:
             for item in v:
                 lines.append(f"\n[[{sect_name}]]")
                 lines.append(to_toml(item, new_prefix))
-                
+
     return "\n".join(lines)
 
 
@@ -494,7 +494,7 @@ def write_user_config(cfg: dict, dest_path: str = None) -> None:
             dest_path = mios_toml.USER
         except Exception:
             dest_path = os.path.expanduser("~/.config/mios/mios.toml")
-            
+
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     temp_path = dest_path + ".tmp"
     toml_str = to_toml(delta_cfg)

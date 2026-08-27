@@ -36,7 +36,7 @@ def load_ssot(root: str) -> tuple[dict, dict]:
 def render_launcher(name: str, cfg: dict, ports: dict) -> str:
     port_key = cfg.get("port_key", "")
     port = ports.get(port_key) if port_key else None
-    
+
     if "exec_cmd" in cfg:
         exec_cmd = cfg["exec_cmd"]
     elif port is not None:
@@ -49,11 +49,11 @@ def render_launcher(name: str, cfg: dict, ports: dict) -> str:
     comment = cfg.get("comment", "")
     if port is not None:
         comment = comment.replace("{port}", str(port))
-        
+
     ai_hint = cfg.get("ai_hint", "")
     if port is not None:
         ai_hint = ai_hint.replace("{port}", str(port))
-        
+
     ai_related = cfg.get("ai_related", "")
     if not ai_related and port is not None:
         ai_related = f"localhost:{port}"
@@ -63,7 +63,7 @@ def render_launcher(name: str, cfg: dict, ports: dict) -> str:
         lines.append(f"# AI-hint: {ai_hint}")
     if ai_related:
         lines.append(f"# AI-related: {ai_related}")
-    
+
     lines.append("[Desktop Entry]")
     lines.append("Type=Application")
     lines.append("Version=1.0")
@@ -80,15 +80,15 @@ def render_launcher(name: str, cfg: dict, ports: dict) -> str:
         lines.append(f"Categories={cfg['categories']}")
     if "keywords" in cfg:
         lines.append(f"Keywords={cfg['keywords']}")
-    
+
     lines.append(f"Terminal={'true' if cfg.get('terminal', False) else 'false'}")
     lines.append(f"StartupNotify={'true' if cfg.get('startup_notify', True) else 'false'}")
-    
+
     if "startup_wm_class" in cfg:
         lines.append(f"StartupWMClass={cfg['startup_wm_class']}")
     if "no_display" in cfg:
         lines.append(f"NoDisplay={'true' if cfg['no_display'] else 'false'}")
-        
+
     if "trailing_comments" in cfg:
         lines.extend(cfg["trailing_comments"])
 
@@ -124,7 +124,7 @@ def main() -> int:
     for name, cfg in sorted(launchers.items()):
         rendered = render_launcher(name, cfg, ports)
         target_path = os.path.join(apps_dir, f"{name}.desktop")
-        
+
         if args.check:
             if not os.path.isfile(target_path):
                 drifted.append(f"{name}.desktop missing")

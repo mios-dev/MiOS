@@ -20,12 +20,12 @@ except ModuleNotFoundError:  # py<3.11
 def main(argv):
     toml_path = os.environ.get("MIOS_TOML") or os.path.join(ROOT, "usr/share/mios/mios.toml")
     out_dir = os.environ.get("MIOS_PLAN_OUT") or os.path.join(ROOT, "usr/lib/mios/bake/plan.d")
-    
+
     check = "--check" in argv
-    
+
     with open(toml_path, "rb") as fh:
         config = tomllib.load(fh)
-        
+
     build_bake = config.get("build", {}).get("bake", {})
     core = set(build_bake.get("core", []))
     groups = build_bake.get("groups", ["vllm", "sglang", "ai", "infra", "extra"])
@@ -35,18 +35,18 @@ def main(argv):
         return any(tok and tok in img for tok in firstboot_tokens)
 
     enabled_map = config.get("quadlets", {}).get("enable", {})
-    
+
     quadlet_dir = os.path.join(ROOT, "usr/share/containers/systemd")
-    
+
     def classify(img):
         for g in groups:
             for tok in group_members.get(g, []):
                 if tok and tok in img:
                     return g
         return groups[-1] # extra is catch-all
-        
+
     var_re = re.compile(r"\$\{([A-Za-z0-9_]+):-([^}]*)\}")
-    
+
     sidecars = (config.get("image") or {}).get("sidecars") or {}
 
     # Quadlets float their image tags from the SSOT (`ceph:${MIOS_VERSION_CEPH}`)
@@ -60,7 +60,7 @@ def main(argv):
             ssot_vars = mios_toml.emit_exports()
         except Exception:
             ssot_vars = {}
-    
+
     def _env(var_name):
         v = os.environ.get(var_name)
         return v if v else None
@@ -104,12 +104,12 @@ def main(argv):
 
     images_to_bake = []
     unresolved = []
-    
+
     for q in sorted(glob.glob(os.path.join(quadlet_dir, "*.container")) +
                     glob.glob(os.path.join(quadlet_dir, "*.image"))):
         base_name = os.path.splitext(os.path.basename(q))[0]
         ext = os.path.splitext(q)[1]
-            
+
         img = None
         try:
             with open(q, "r", encoding="utf-8", errors="replace") as fh:
@@ -120,10 +120,10 @@ def main(argv):
                         break
         except OSError:
             continue
-            
+
         if not img:
             continue
-            
+
         resolved_img = resolve_image_val(img)
         if not resolved_img:
             continue
@@ -133,15 +133,15 @@ def main(argv):
             # actual cause. Name the variable that did not resolve instead.
             unresolved.append((os.path.basename(q), img))
             continue
-            
+
         first = resolved_img.split("/", 1)[0]
         if first == "localhost":
             continue
-            
+
         is_core = (resolved_img in core)
         if is_core or enabled_map.get(base_name) is not False:
             images_to_bake.append((resolved_img, base_name))
-            
+
     for core_img in sorted(core):
         if core_img.startswith("localhost/"):
             if not any(img == core_img for img, _ in images_to_bake):
@@ -157,7 +157,7 @@ def main(argv):
         g = classify(img)
         if img not in group_lists[g]:
             group_lists[g].append(img)
-            
+
     errors = []
     for quadlet_name, raw in sorted(unresolved):
         errors.append(
@@ -187,7 +187,7 @@ def main(argv):
         first = parts[0]
         if not ("." in first or ":" in first or first == "localhost"):
             errors.append(f"Core image '{img}' is not fully-qualified (missing registry prefix)")
-            
+
     for img, base_name in images_to_bake:
         parts = img.split("/", 1)
         first = parts[0]
@@ -200,7 +200,7 @@ def main(argv):
         for err in errors:
             print(f"[bake-plan-gen] VALIDATION ERROR: {err}", file=sys.stderr)
         return 2
-            
+
     if not check:
         os.makedirs(out_dir, exist_ok=True)
         for f in glob.glob(os.path.join(out_dir, "*.list")):
@@ -244,14 +244,14 @@ def main(argv):
                     seen_images.add(img)
 
         print(f"[bake-plan-gen] wrote {sbom_file}")
-            
+
     drift_detected = False
-    
+
     for idx, g in enumerate(groups):
         prefix = f"{idx+1:02d}"
         plan_file = os.path.join(out_dir, f"{prefix}-{g}.list")
         content = "".join(f"{img}\n" for img in group_lists[g])
-        
+
         if check:
             cur = ""
             if os.path.exists(plan_file):
@@ -264,7 +264,7 @@ def main(argv):
             with open(plan_file, "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(content)
             print(f"[bake-plan-gen] wrote {plan_file}")
-            
+
     fb_file = os.path.join(out_dir, "firstboot.list")
     fb_content = "".join(f"{img}\n" for img in firstboot_images)
     if check:

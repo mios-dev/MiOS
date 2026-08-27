@@ -485,7 +485,7 @@ async def execute(sql: str, params: Optional[dict] = None,
                   rls_owner: "Optional[str]" = None) -> Any:
     if _pg_skip():
         return None
-        
+
     if params and _redact_targets(sql):
         try:
             from mios_pipe.redact import redact

@@ -295,7 +295,7 @@ def test_agent_access_control():
         "routine_agent": {"privilege_group": "routine"},
         "privileged_agent": {"privilege_group": "privileged"},
     }
-    
+
     orig_hitl_block_reason = mios_dispatch._hitl_block_reason
     orig_pdp = mios_dispatch._dispatch_pdp_reason
     orig_quota = mios_dispatch._dispatch_quota_reason
@@ -322,27 +322,27 @@ def test_agent_access_control():
         db_post=lambda *a, **k: None,
         db_create=lambda *a, **k: {},
     )
-    
+
     try:
         ctx1 = contextvars.copy_context()
         def _run_routine():
             _agent.set("routine_agent")
             res = asyncio.run(mios_dispatch.dispatch_mios_verb("container_restart", {}))
             assert res.get("hitl_blocked") is True, f"routine_agent calling destructive verb should be HITL blocked: {res}"
-            
+
             res2 = asyncio.run(mios_dispatch.dispatch_mios_verb("safe_verb", {}))
             assert res2.get("hitl_blocked") is not True, f"routine_agent calling safe verb should NOT be blocked: {res2}"
             assert res2.get("output") == "ok-safe_verb", res2
-            
+
         ctx1.run(_run_routine)
-        
+
         ctx2 = contextvars.copy_context()
         def _run_privileged():
             _agent.set("privileged_agent")
             res = asyncio.run(mios_dispatch.dispatch_mios_verb("container_restart", {}))
             assert res.get("hitl_blocked") is not True, f"privileged_agent calling destructive verb should not be HITL blocked: {res}"
             assert res.get("output") == "ok-container_restart", res
-            
+
         ctx2.run(_run_privileged)
     finally:
         mios_dispatch._hitl_block_reason = orig_hitl_block_reason
@@ -353,7 +353,7 @@ def test_agent_access_control():
         mios_dispatch._HITL_ARBITER_URL = orig_arbiter
         mios_dispatch._dispatch_bounded = orig_bounded
         _base_configure()
-        
+
     print("[PASS] agent access control: routine blocked on destructive, privileged allowed")
 
 

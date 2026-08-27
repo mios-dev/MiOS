@@ -81,11 +81,11 @@ read -p "Apply this configuration to Xbox VM? [y/N]: " confirm
 
 if [[ "$confirm" =~ ^[Yy]$ ]]; then
     echo "Applying configuration"
-    
+
     sudo virsh undefine Xbox --nvram
-    
+
     sudo virsh define /tmp/xbox-edit.xml
-    
+
     echo ""
     echo "[OK] Configuration Applied"
     echo ""

@@ -60,7 +60,7 @@ for attempt in 1 2 3; do
         sleep $((attempt * 8))
         continue
     fi
-    
+
     mios_log "Configure client build"
     mkdir -p "$BUILD_DIR/client/build"
     cd "$BUILD_DIR/client/build"
@@ -77,17 +77,17 @@ for attempt in 1 2 3; do
         sleep $((attempt * 8))
         continue
     fi
-    
+
     mios_log "Build looking-glass-client)"
     if ! make -j"$(nproc)"; then
         mios_warn "Make failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
-    
+
     mios_log "Install binary to /usr/bin/looking-glass-client"
     install -Dm0755 looking-glass-client /usr/bin/looking-glass-client
-    
+
     if [[ -x /usr/bin/looking-glass-client ]]; then
         LG_OK=1
         break

@@ -306,7 +306,7 @@ def float_allowlist(data=None):
 
 def get_aliases(dotted_path):
     aliases = []
-    
+
     if dotted_path.startswith("ai.vllm."):
         suffix = dotted_path[len("ai.vllm."):].upper().replace(".", "_").replace("-", "_")
         if suffix == "V1_ENGINE":
@@ -399,9 +399,9 @@ def get_aliases(dotted_path):
             aliases.append(f"MIOS_{suffix}")
         elif suffix in {"ENDPOINT", "MODEL"}:
             aliases.extend([f"MIOS_AI_{suffix}", f"MIOS_{suffix}"])
-        elif suffix in {"SYSTEM_PROMPT_FILE", "TOKENIZER_BACKEND", 
-                        "TOKENIZER_ENCODING", "TOKENIZER_CACHE_DIR", "TOKENIZER_PATH", 
-                        "HERMES_AGENT_REPO", "HERMES_AGENT_REF", "HERMES_BACKEND_URL", 
+        elif suffix in {"SYSTEM_PROMPT_FILE", "TOKENIZER_BACKEND",
+                        "TOKENIZER_ENCODING", "TOKENIZER_CACHE_DIR", "TOKENIZER_PATH",
+                        "HERMES_AGENT_REPO", "HERMES_AGENT_REF", "HERMES_BACKEND_URL",
                         "MCP_REGISTRY"}:
             aliases.append(f"MIOS_{suffix}")
 
@@ -652,7 +652,7 @@ def get_aliases(dotted_path):
     elif dotted_path.startswith("reliability."):
         key = dotted_path[len("reliability."):].upper().replace(".", "_").replace("-", "_")
         aliases.append(f"MIOS_RELIABILITY_{key}")
-        
+
     elif dotted_path.startswith("routing."):
         key = dotted_path[len("routing."):].upper().replace(".", "_").replace("-", "_")
         aliases.append(f"MIOS_ROUTING_{key}")

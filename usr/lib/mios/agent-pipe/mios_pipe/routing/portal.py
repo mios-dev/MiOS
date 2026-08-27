@@ -1418,25 +1418,25 @@ def run_db_reseed_bg():
     import tempfile
     import subprocess
     import sys
-    
+
     if "/usr/lib/mios" not in sys.path:
         sys.path.insert(0, "/usr/lib/mios")
     import mios_toml
     from mios_pipe.kernel.config import to_toml
-    
+
     tmp_path = None
     try:
         merged = mios_toml.load_merged()
         with tempfile.NamedTemporaryFile(suffix=".toml", delete=False, mode="w", encoding="utf-8") as tmp:
             tmp.write(to_toml(merged))
             tmp_path = tmp.name
-            
+
         env = os.environ.copy()
         env["MIOS_TOML"] = tmp_path
         env["MIOS_VENDOR_TOML"] = tmp_path
-        
+
         seeder_path = os.environ.get("MIOS_SEED_DB_CONFIG", "/usr/libexec/mios/seed-db-config.py")
-        
+
         subprocess.run([sys.executable, seeder_path], env=env, check=True)
     except Exception as e:
         log.error("Failed to run background db-config re-seed: %s", e)
@@ -1453,13 +1453,13 @@ async def get_portal_config(request: Request):
     """GET /portal/config -> return the live layered mios.toml as text/plain."""
     if not _portal_authed(request):
         return JSONResponse({"error": "auth required"}, status_code=401)
-    
+
     import sys
     if "/usr/lib/mios" not in sys.path:
         sys.path.insert(0, "/usr/lib/mios")
     import mios_toml
     from mios_pipe.kernel.config import to_toml
-    
+
     try:
         merged_config = mios_toml.load_merged()
         toml_text = to_toml(merged_config)
@@ -1475,15 +1475,15 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
     and trigger db-config re-seeding in background."""
     if not _portal_authed(request):
         return JSONResponse({"error": "auth required"}, status_code=401)
-    
+
     body_bytes = await request.body()
     toml_text = body_bytes.decode("utf-8")
-    
+
     try:
         import tomllib as _toml
     except ImportError:
         import tomli as _toml  # type: ignore
-    
+
     try:
         parsed_config = _toml.loads(toml_text)
     except Exception as e:
@@ -1510,9 +1510,9 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
 
     try:
         write_user_config(parsed_config)
-        
+
         background_tasks.add_task(run_db_reseed_bg)
-        
+
         return JSONResponse({"status": "ok"})
     except Exception as e:
         log.error("Failed to save config: %s", e)

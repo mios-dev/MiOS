@@ -27,13 +27,13 @@ class TestMiosVectorDb(unittest.TestCase):
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM verb WHERE name LIKE 'test_verb_%%'")
-                
+
                 vec_a = [0.0] * 768
                 vec_a[0] = 1.0
-                
+
                 vec_b = [0.0] * 768
                 vec_b[1] = 1.0
-                
+
                 cur.execute(
                     "INSERT INTO verb (name, sig, desc_default, tier, permission, emb, emb_model, emb_version) "
                     "VALUES ('test_verb_a', 'test_sig', 'test search query', 'common', 'read', %s::vector, 'test-model', 'v1')",
@@ -58,7 +58,7 @@ class TestMiosVectorDb(unittest.TestCase):
                 target_vec = [0.0] * 768
                 target_vec[0] = 0.9
                 target_vec[1] = 0.1
-                
+
                 cur.execute(
                     "SELECT name, emb <=> %s::vector as distance "
                     "FROM verb WHERE name LIKE 'test_verb_%%' "
@@ -68,9 +68,9 @@ class TestMiosVectorDb(unittest.TestCase):
                 row = cur.fetchone()
                 self.assertIsNotNone(row)
                 self.assertEqual(row[0], "test_verb_a")
-                
+
                 dist_a = row[1]
-                
+
                 cur.execute(
                     "SELECT name, emb <=> %s::vector as distance "
                     "FROM verb WHERE name = 'test_verb_b'",
@@ -79,7 +79,7 @@ class TestMiosVectorDb(unittest.TestCase):
                 row_b = cur.fetchone()
                 self.assertIsNotNone(row_b)
                 dist_b = row_b[1]
-                
+
                 self.assertTrue(dist_a < dist_b, f"dist_a={dist_a} should be less than dist_b={dist_b}")
 
 if __name__ == "__main__":

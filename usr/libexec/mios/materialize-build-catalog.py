@@ -12,7 +12,7 @@ CTX_DIR = os.environ.get("MIOS_CTX_DIR", "/ctx")
 def materialize_catalog():
     """Materializes build catalog tables to /ctx files for hermetic clean-container builds."""
     os.makedirs(CTX_DIR, exist_ok=True)
-    
+
     packages_file = os.path.join(CTX_DIR, "packages.json")
     default_packages = {
         "core": ["systemd", "podman", "bash", "python3", "curl"],
@@ -20,7 +20,7 @@ def materialize_catalog():
     }
     with open(packages_file, "w") as f:
         json.dump(default_packages, f, indent=2)
-        
+
     print(f"[WS-VECTOR] Materialized build catalog to {CTX_DIR}")
 
 if __name__ == "__main__":

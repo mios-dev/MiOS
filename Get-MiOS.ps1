@@ -183,11 +183,11 @@ if ($Action -ne 'Default') {
         $stageDir = if ($v) { Join-Path "$($v.DriveLetter):\" "MiOS\medicat_stage" } else { Join-Path $env:TEMP "medicat_stage" }
         $targetDir = Join-Path $stageDir "cat"
         Write-Host "    Staging directory: $targetDir" -ForegroundColor Cyan
-        
+
         # 3. Copy source files to staging directory
         New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
         Copy-Item -Path "$srcDir\*" -Destination $targetDir -Recurse -Force
-        
+
         $catScript = Join-Path $targetDir "MiOS-Cat.bat"
         Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList "/c start `"MiOS-Cat`" cmd.exe /k `"$catScript`""
         Write-Host "[+] Interactive MiOS-Cat launcher spawned from staged directory." -ForegroundColor Green
@@ -3747,7 +3747,7 @@ function Ensure-Git {
         Write-Good "Git already installed ($((git --version) 2>&1))"
         return
     }
-    
+
     $_gitPkg = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'git_pkg' -Default 'Git.Git')
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Info "Installing Git via winget ($_gitPkg) ..."
@@ -3761,7 +3761,7 @@ function Ensure-Git {
                 ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
         }
     }
-    
+
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Info "winget install failed or unavailable. Attempting PortableGit direct download..."
         $_gitUrl = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'git_url' -Default 'https://api.github.com/repos/git-for-windows/git/releases/latest')
@@ -3775,16 +3775,16 @@ function Ensure-Git {
             Write-Info "Downloading PortableGit from $($asset.browser_download_url) ..."
             $webClient = New-Object System.Net.WebClient
             $webClient.DownloadFile($asset.browser_download_url, $sfx)
-            
+
             $_root = Join-Path $env:LOCALAPPDATA 'MiOS'
             $gitDir = Join-Path $_root 'PortableGit'
             if (Test-Path $gitDir) { Remove-Item $gitDir -Recurse -Force -ErrorAction SilentlyContinue }
             New-Item -ItemType Directory -Path $gitDir -Force | Out-Null
-            
+
             Write-Info "Extracting PortableGit to $gitDir ..."
             & $sfx "-o$gitDir" -y | Out-Null
             Remove-Item $sfx -Force -ErrorAction SilentlyContinue
-            
+
             $gitCmd = Join-Path $gitDir 'cmd'
             if (Test-Path (Join-Path $gitCmd 'git.exe')) {
                 $_u = [Environment]::GetEnvironmentVariable('Path','User')

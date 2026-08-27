@@ -52,7 +52,7 @@ if [[ -d "home" ]]; then
     log "Overlaying /home templates to /var/home"
     mkdir -p /var/home
     tar -C "home" -cf - . | tar -C /var/home --no-overwrite-dir -xf -
-    
+
     if [[ ! -L /home ]]; then
         warn "/home is not a symlink; expected /var/home for bootc parity"
     fi

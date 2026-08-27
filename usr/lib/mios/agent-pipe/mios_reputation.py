@@ -1,28 +1,133 @@
-# AI-hint: Re-export shim for mios_pipe.identity.reputation
-import sys
-import types
-import importlib
+"""
+mios_reputation.py — T-344 MAO-07
+IntrospecLOO (Introspective Leave-One-Out) marginal contribution evaluation
+for swarm/council agent sessions.
 
-class _ShimModule(types.ModuleType):
-    def __init__(self, name, target_name):
-        super().__init__(name)
-        self.__dict__["_target_name"] = target_name
-        self.__dict__["_target_module"] = None
+After a multi-agent council completes, each peer's marginal utility is
+computed by evaluating the decision quality with and without that agent's
+contributions.  The delta updates the `peer_reputation` PostgreSQL table.
 
-    def _get_target(self):
-        m = self.__dict__["_target_module"]
-        if m is None:
-            m = importlib.import_module(self.__dict__["_target_name"])
-            self.__dict__["_target_module"] = m
-        return m
+Dry-run mode (no DB): reputation updates are accumulated in-memory.
+"""
+from __future__ import annotations
 
-    def __getattr__(self, name):
-        return getattr(self._get_target(), name)
+import logging
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable
 
-    def __setattr__(self, name, value):
-        setattr(self._get_target(), name, value)
+log = logging.getLogger(__name__)
 
-    def __dir__(self):
-        return dir(self._get_target())
 
-sys.modules[__name__] = _ShimModule(__name__, "mios_pipe.identity.reputation")
+@dataclass
+class PeerContribution:
+    """One peer's moves in a council session."""
+    peer_id:  str
+    moves:    list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class ReputationRecord:
+    peer_id:     str
+    score:       float = 0.5       # 0.0 (useless) .. 1.0 (invaluable)
+    delta:       float = 0.0       # last LOO delta
+    eval_count:  int   = 0
+    updated_at:  float = field(default_factory=time.monotonic)
+
+
+# Callable: (session result without peer) -> float quality score
+QualityFn = Callable[[list[PeerContribution], str | None], float]
+
+
+def _default_quality(contributions: list[PeerContribution],
+                     exclude_peer: str | None) -> float:
+    """
+    Placeholder quality function for unit tests.
+    Returns the count of non-excluded contributions / total as quality proxy.
+    """
+    included = [c for c in contributions
+                if exclude_peer is None or c.peer_id != exclude_peer]
+    total_moves = sum(len(c.moves) for c in contributions)
+    if total_moves == 0:
+        return 0.0
+    included_moves = sum(len(c.moves) for c in included)
+    return included_moves / total_moves
+
+
+class ReputationEngine:
+    """
+    Compute IntrospecLOO marginal contribution scores and update peer reputation.
+    """
+
+    def __init__(self, quality_fn: QualityFn | None = None,
+                 db_dsn: str = "",
+                 dry_run: bool = True) -> None:
+        self.quality_fn = quality_fn or _default_quality
+        self.db_dsn     = db_dsn
+        self.dry_run    = dry_run
+        self._store:  dict[str, ReputationRecord] = {}
+
+    # ------------------------------------------------------------------
+    def evaluate_session(self,
+                         session_id: str,
+                         contributions: list[PeerContribution]) -> list[ReputationRecord]:
+        """
+        Run IntrospecLOO: for each peer compute quality_with_all minus
+        quality_without_peer.  Update reputation store.
+        """
+        q_all = self.quality_fn(contributions, None)
+        records: list[ReputationRecord] = []
+
+        for peer in contributions:
+            q_without = self.quality_fn(contributions, peer.peer_id)
+            delta      = q_all - q_without        # positive = peer added value
+            rec        = self._store.setdefault(
+                peer.peer_id,
+                ReputationRecord(peer_id=peer.peer_id))
+
+            # Exponential moving average
+            alpha    = 0.3
+            rec.score = alpha * max(0.0, min(1.0, 0.5 + delta)) + (1 - alpha) * rec.score
+            rec.delta = delta
+            rec.eval_count += 1
+            rec.updated_at = time.monotonic()
+            records.append(rec)
+            log.info("LOO: peer=%s delta=%.4f new_score=%.4f",
+                     peer.peer_id, delta, rec.score)
+
+        if not self.dry_run:
+            self._persist(session_id, records)
+
+        return records
+
+    # ------------------------------------------------------------------
+    def get_reputation(self, peer_id: str) -> ReputationRecord | None:
+        return self._store.get(peer_id)
+
+    def sorted_peers(self) -> list[ReputationRecord]:
+        return sorted(self._store.values(), key=lambda r: -r.score)
+
+    # ------------------------------------------------------------------
+    def _persist(self, session_id: str,
+                 records: list[ReputationRecord]) -> None:
+        """Write reputation deltas to peer_reputation table."""
+        try:
+            import psycopg
+            with psycopg.connect(self.db_dsn) as conn:
+                for rec in records:
+                    conn.execute(
+                        """INSERT INTO peer_reputation
+                           (peer_id, session_id, delta, score, eval_count)
+                           VALUES (%s, %s, %s, %s, %s)
+                           ON CONFLICT (peer_id) DO UPDATE
+                           SET delta=EXCLUDED.delta,
+                               score=EXCLUDED.score,
+                               eval_count=peer_reputation.eval_count+1,
+                               updated_at=now()""",
+                        (rec.peer_id, session_id,
+                         rec.delta, rec.score, rec.eval_count))
+                conn.commit()
+        except ImportError:
+            log.debug("ReputationEngine: psycopg not installed, skip persist")
+        except Exception as exc:
+            log.warning("ReputationEngine: persist failed: %s", exc)

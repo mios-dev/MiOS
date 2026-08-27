@@ -11,11 +11,11 @@ echo "[test_masking] Starting masking and scurl unit tests"
 test_binary_stream() {
     local tmp_src; tmp_src="$(mktemp)"
     local tmp_dst; tmp_dst="$(mktemp)"
-    
+
     head -c 1048576 /dev/urandom > "$tmp_src"
-    
+
     cat "$tmp_src" | mask_filter > "$tmp_dst"
-    
+
     if ! cmp -s "$tmp_src" "$tmp_dst"; then
         echo "[FAIL] Binary stream was corrupted by mask_filter" >&2
         rm -f "$tmp_src" "$tmp_dst"
@@ -28,7 +28,7 @@ test_binary_stream() {
 test_secret_masking() {
     local secret="super-secret-token-12345"
     add_mask "$secret"
-    
+
     local out; out="$(echo "Log output with ${secret} included" | mask_filter)"
     if [[ "$out" != *"Log output with [MASKED] included"* ]]; then
         echo "[FAIL] Secret was not masked in text output: '$out'" >&2
@@ -41,7 +41,7 @@ test_scurl_parser() {
     curl() {
         echo "CURL_ARGS: $*"
     }
-    
+
     local res; res="$(scurl -sSL --output=/tmp/test.tar.gz https://github.com/test)"
     if [[ "$res" != *"https://github.com/test"* ]]; then
         echo "[FAIL] scurl failed to parse URL with" >&2

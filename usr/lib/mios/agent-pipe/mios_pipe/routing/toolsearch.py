@@ -154,7 +154,7 @@ async def _ensure_verb_embeddings() -> None:
         if _VERB_EMBEDDINGS:
             return
         fp = _verb_embed_fingerprint()
-        
+
         pg_success = False
         try:
             from mios_pg import execute as pg_execute
@@ -171,13 +171,13 @@ async def _ensure_verb_embeddings() -> None:
                     ver = r.get("emb_version")
                     if name and isinstance(emb, list) and emb and ver == fp:
                         db_embs[name] = [float(x) for x in emb]
-                            
+
                 for vname, vcfg in _VERB_CATALOG.items():
                     if vcfg.get("tier") == "rare":
                         continue
                     if vname in db_embs:
                         _VERB_EMBEDDINGS[vname] = db_embs[vname]
-                
+
                 rebuilt = False
                 for vname, vcfg in _VERB_CATALOG.items():
                     if vcfg.get("tier") == "rare":
@@ -386,7 +386,7 @@ async def tool_search_logic(query: str = "", limit: int = 5, namespace: str = ""
     qvec = await _embed_one(query, prefix="search_query: ")
     hits: list[dict] = []
     cap = max(1, min(20, int(limit or 5)))
-    
+
     pg_success = False
     scored = []
     if qvec:

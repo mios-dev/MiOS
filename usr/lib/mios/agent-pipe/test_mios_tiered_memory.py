@@ -26,7 +26,7 @@ class MockRequest:
     def __init__(self, body_dict, headers=None):
         self.body_dict = body_dict
         self.headers = headers or {}
-        
+
     async def body(self):
         return json.dumps(self.body_dict).encode("utf-8")
 
@@ -79,38 +79,38 @@ async def test_warning_and_eviction():
     chat._src_turn_var = contextvars.ContextVar("src_turn", default="")
     chat._sources_var = contextvars.ContextVar("sources", default=[])
     chat._routed_domain_var = contextvars.ContextVar("routed_domain", default=None)
-    
+
     import json
     chat._loads_lenient = lambda text: json.loads(text) if text else {}
     chat._extract_last_user_text = lambda msgs: next((m["content"] for m in reversed(msgs) if isinstance(m, dict) and m.get("role") == "user"), "")
     chat._strip_owui_scaffold = lambda x: x
     chat._scratchpad_key = lambda b, f: "test-session"
     chat._src_turn_key = lambda: "test-turn-key"
-    
+
     chat._toml_section = lambda sect: {"n_ctx": 100, "compaction_threshold_pct": 100} if sect == "memory" else {}
-    
+
     chat._conv_key_var.set("test-session")
-    
+
     async def _async_noop(*a, **k): return None
     chat._scratchpad_rehydrate = _async_noop
     chat._maybe_run_pending_approval = _async_noop
     chat._route_domain = _async_noop
-    
+
     async def _async_admit(*a, **k): return (True, "")
     chat._budget_admit = _async_admit
-    
+
     chat._seed_hop_from_headers = lambda *a, **k: None
     chat._src_turn_init = lambda *a, **k: None
     chat._client_env = lambda *a, **k: None
-    
+
     async def _async_void(*a, **k): pass
     chat._vram_checkpoint = _async_void
-    
+
     msgs = [
         m("system", "You are an assistant."),
         m("user", "Hello " * 50) # ~75 tokens
     ]
-    
+
     class MockKernel:
         def __init__(self):
             self.router = self
@@ -122,22 +122,22 @@ async def test_warning_and_eviction():
             check("warning: event emitted", len(events_written) > 0)
             if events_written:
                 check("warning: kind is context_warning", events_written[-1].get("kind") == "context_warning")
-            
+
             last_msg = ctx.get("messages")[-1]
             check("warning: warning message appended", "WARNING" in last_msg.get("content"))
             raise RuntimeError("success_warning_test")
-            
+
     chat._KERNEL = MockKernel()
-    
+
     req = MockRequest({"model": "test", "messages": msgs})
     try:
         await chat.chat_completions_logic(req)
     except RuntimeError as e:
         if str(e) != "success_warning_test":
             raise
-            
+
     chat._toml_section = lambda sect: {"n_ctx": 40, "compaction_threshold_pct": 100} if sect == "memory" else {}
-    
+
     msgs_over = [
         m("system", "You are an assistant."),
         m("user", "Hello " * 10),  # ~15 tokens
@@ -148,7 +148,7 @@ async def test_warning_and_eviction():
         m("assistant", "Hi " * 10),
         m("user", "Hello " * 10),
     ]
-    
+
     class MockKernelEvict:
         def __init__(self):
             self.router = self
@@ -162,25 +162,25 @@ async def test_warning_and_eviction():
             if scratch:
                 check("evict: system-summary is agent", scratch[0].get("agent") == "system-summary")
                 check("evict: summary text in note", "Evicted turns summary" in scratch[0].get("note"))
-                
+
             check("evict: scratch persistent write", len(scratch_written) > 0)
             check("evict: pgvector memory archival write", len(memories_written) > 0)
             if memories_written:
                 check("evict: memory fact is summary", "Evicted turns summary" in memories_written[-1].get("fact"))
                 check("evict: memory embedding added", memories_written[-1].get("emb") == [0.1] * 768)
-                
+
             final_msgs = ctx.get("messages")
             check("evict: messages list rebuilt", len(final_msgs) > 0)
             check("evict: messages has summary system prompt", any("recursive summary" in str(m.get("content")).lower() for m in final_msgs))
-            
+
             raise RuntimeError("success_evict_test")
-            
+
     chat._KERNEL = MockKernelEvict()
     events_written.clear()
     memories_written.clear()
     scratch_written.clear()
     scratchpads.clear()
-    
+
     req_evict = MockRequest({"model": "test", "messages": msgs_over})
     try:
         await chat.chat_completions_logic(req_evict)

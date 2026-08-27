@@ -4,7 +4,7 @@
 
 ## 1. Executive Summary
 
-This document synthesizes the complete architectural consensus, technical specifications, and system invariants established during the comprehensive MiOS system design and roadmap expansion sessions. 
+This document synthesizes the complete architectural consensus, technical specifications, and system invariants established during the comprehensive MiOS system design and roadmap expansion sessions.
 
 MiOS ("My OS" / "MyOS") is built on a singular premise: an **immutable, bootc/OCI-shaped Fedora workstation** that is simultaneously a **local, self-replicating, agentic AI operating system** where `.git ≡ /`.
 

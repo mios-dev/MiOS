@@ -10,12 +10,12 @@ def parse_markdown_metadata(content):
     """Simple parser to extract title and metadata from Markdown."""
     title_match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
     title = title_match.group(1).strip() if title_match else "Untitled"
-    
+
     metadata = {}
     meta_matches = re.findall(r'^>\s+\*\*(.+?):\*\*\s+(.+)$', content, re.MULTILINE)
     for key, value in meta_matches:
         metadata[key.strip().lower().replace(" ", "_")] = value.strip()
-    
+
     knowledge_block = {}
     kb_match = re.search(r'```json:knowledge\s*\n(.*?)\n```', content, re.DOTALL)
     if kb_match:
@@ -49,25 +49,25 @@ def _is_tracked(rel_path):
 def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=None):
     if ignore_dirs is None:
         ignore_dirs = {".git", ".venv", "output", "__pycache__", "agents/research", "node_modules", "target", "dist", "build", ".system_generated", "scratch", "logs"}
-    
+
     manifest = {
         "source_directory": target_dir,
         "entries": []
     }
-    
+
     if not os.path.exists(target_dir):
         return
 
     for root, dirs, files in os.walk(target_dir):
         if not recursive and root != target_dir:
             continue
-            
+
         dirs[:] = sorted(d for d in dirs if d not in ignore_dirs)
 
         for file in sorted(files):
             if file.startswith(os.path.basename(output_file).replace(".tmp", "")) or file.endswith(".tmp"):
                 continue
-                
+
             file_path = os.path.join(root, file)
             rel_path = os.path.relpath(file_path, start=os.getcwd()).replace('\\', '/')
             if not _is_tracked(rel_path):
@@ -120,7 +120,7 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
                             continue
             except (FileNotFoundError, PermissionError, OSError):
                 continue
-    
+
     with open(output_file, 'w', encoding='utf-8', newline='\n') as f:
         json.dump(manifest, f, separators=(',', ':'))
     print(f"Generated {output_file}")
@@ -128,25 +128,25 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
 def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_dirs=None):
     if ignore_dirs is None:
         ignore_dirs = {".git", ".venv", "output", "__pycache__", "agents/research", "node_modules", "target", "dist", "build", ".system_generated", "scratch", "logs"}
-    
+
     manifest = {
         "source_directory": target_dir,
         "entries": []
     }
-    
+
     if not os.path.exists(target_dir):
         return
 
     for root, dirs, files in os.walk(target_dir):
         if not recursive and root != target_dir:
             continue
-            
+
         dirs[:] = sorted(d for d in dirs if d not in ignore_dirs)
 
         for file in sorted(files):
             if file.startswith(os.path.basename(output_file).replace(".tmp", "")) or file.endswith(".tmp"):
                 continue
-                
+
             file_path = os.path.join(root, file)
             rel_path = os.path.relpath(file_path, start=os.getcwd()).replace('\\', '/')
             if not _is_tracked(rel_path):
@@ -189,7 +189,7 @@ def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_di
                             continue
             except (FileNotFoundError, PermissionError, OSError, UnicodeDecodeError):
                 continue
-    
+
     with gzip.open(output_file, 'wt', encoding='utf-8', newline='\n') as f:
         json.dump(manifest, f, indent=2)
     print(f"Generated {output_file}")

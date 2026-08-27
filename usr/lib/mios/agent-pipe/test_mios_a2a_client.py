@@ -329,22 +329,22 @@ class TestCardlessJoin(_A2AClientBase):
                         ]
                     })
                 return _FakeResp({"error": "not found"}, status_code=404)
-                
+
         _base_configure(peers=peers, peer_skills=peer_skills,
                         registry=registry, reputation=_FakeReputation(),
                         client=_CardlessClient())
-                        
+
         _run(mios_a2a_client._a2a_probe_peer(
             {"id": "cardless-peer", "url": "http://cardless:8640"}))
-            
+
         self.assertEqual(peers["cardless-peer"]["status"], "ready")
         self.assertEqual(peers["cardless-peer"]["agent_name"], "cardless")
         self.assertTrue(peers["cardless-peer"]["card"]["_cardless"])
-        
+
         skills = peers["cardless-peer"]["skills"]
         skill_ids = {s["id"] for s in skills}
         self.assertEqual(skill_ids, {"text-generation", "embeddings"})
-        
+
         self.assertIn("a2a:cardless-peer", registry)
         self.assertEqual(set(registry["a2a:cardless-peer"]["strengths"]), {"text-generation", "embeddings"})
 

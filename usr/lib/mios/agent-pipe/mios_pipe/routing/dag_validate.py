@@ -53,7 +53,7 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
     seen_ids: Set[str] = set()
     dup_ids: Set[str] = set()
     unique_nodes: List[Dict[str, Any]] = []
-    
+
     for n in nodes:
         nid = str(n["id"])
         if nid in seen_ids:

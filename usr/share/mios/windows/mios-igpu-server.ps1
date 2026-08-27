@@ -120,7 +120,7 @@ function Warn($m){ Write-Host "  [!] $m" -ForegroundColor Yellow }
 if ($Uninstall) {
     # Delete old scheduled task if it exists
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
-    
+
     # Stop and remove Windows Service
     if (Get-Service -Name $taskName -ErrorAction SilentlyContinue) {
         Stop-Service -Name $taskName -Force -ErrorAction SilentlyContinue
@@ -143,7 +143,7 @@ if ($Install) {
             '-Port',$Port,'-ContextSize',$ContextSize,'-GpuLayers',$GpuLayers)
         return
     }
-    
+
     # Delete old scheduled task
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
 
@@ -174,10 +174,10 @@ if ($Install) {
         sc.exe delete $taskName | Out-Null
         Start-Sleep -Seconds 1
     }
-    
+
     # Register as native Windows Service
     New-Service -Name $taskName -BinaryPathName "`"$targetExe`"" -DisplayName "MiOS iGPU Server" -StartupType Automatic | Out-Null
-    
+
     Ok "registered Windows Service '$taskName' (port $Port)"
     Info "starting it now..."
     Start-Service -Name $taskName

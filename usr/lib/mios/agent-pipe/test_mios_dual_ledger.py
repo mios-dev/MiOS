@@ -63,13 +63,13 @@ def t_both_intent_deps():
     ]
     res = swarm._agent_dag_from_tasks(tasks, live_agents={"hermes-worker", "gpu-node"})
     nodes = res["nodes"]
-    
+
     check("both-intent: two nodes built", len(nodes) == 2, str(len(nodes)))
-    
+
     t1 = next(n for n in nodes if n["web"])
     check("both-intent: t1 is web", t1["web"] is True)
     check("both-intent: t1 deps empty", t1["deps"] == [])
-    
+
     t2 = next(n for n in nodes if n["local_state"])
     check("both-intent: t2 is local", t2["local_state"] is True)
     check("both-intent: t2 depends on t1", t2["deps"] == [t1["id"]])
@@ -181,7 +181,7 @@ def t_synthesis_reducer():
             {"id": "t2", "agent": "gpu-node", "local_state": True}
         ]
     }
-    
+
     async def mock_exec_bounded(dag_dict, *, session_id=None, request=None, **kwargs):
         return {
             "success": True,
@@ -207,7 +207,7 @@ def t_synthesis_reducer():
         return captured_merged
 
     merged_prompt = asyncio.run(run_synth())
-    
+
     check("synthesis: merged prompt non-empty", bool(merged_prompt))
     check("synthesis: research node has claims formatted",
           "Claims & Sources" in merged_prompt and "WSL memory is capped" in merged_prompt)
@@ -217,7 +217,7 @@ def t_synthesis_reducer():
 
 def t_replan_stall_trigger():
     created_events = []
-    
+
     def mock_db_create(table, row, now_fields=None):
         if table == "event":
             created_events.append(row)

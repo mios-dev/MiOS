@@ -73,7 +73,7 @@ def t_client_env():
     check("client_env: date", out.get("date") == "2026-06-25")
     check("client_env: sentinel dropped, user fallback", out.get("user_name") == "fallback-name")
     check("client_env: non-dict body -> {}", g._client_env(None) == {})
-    
+
     body_with_coords = {
         "metadata": {
             "variables": {

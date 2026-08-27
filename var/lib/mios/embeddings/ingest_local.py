@@ -77,13 +77,13 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
     endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1").rstrip("/")
     key      = os.environ.get("MIOS_AI_KEY", "")
     model    = os.environ.get("MIOS_AI_EMBED_MODEL", "nomic-embed-text")
-    
+
     pg_host = os.environ.get("MIOS_PG_HOST", "localhost")
     pg_port = int(os.environ.get("MIOS_PORT_PGVECTOR", "5432") or 5432)
     pg_user = os.environ.get("MIOS_PG_USER", "mios")
     pg_pass = os.environ.get("MIOS_PG_PASS", "mios")
     pg_db   = os.environ.get("MIOS_PG_DB", "mios")
-    
+
     collection = os.environ.get("MIOS_KB_COLLECTION", "mios-kb")
     table_name = collection.replace("-", "_")
 
@@ -114,11 +114,11 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
 
     dsn = f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
     print(f"Connecting to pgvector at {pg_host}:{pg_port} (db={pg_db}, table={table_name})...")
-    
+
     with psycopg.connect(dsn, autocommit=True) as conn:
         with conn.cursor() as cur:
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            
+
             cur.execute(f"""
                 CREATE TABLE IF NOT EXISTS {table_name} (
                     id bigint PRIMARY KEY,
@@ -128,44 +128,44 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
                     emb vector({dim})
                 );
             """)
-            
+
             try:
                 cur.execute(f"""
-                    CREATE INDEX IF NOT EXISTS {table_name}_emb_hnsw 
+                    CREATE INDEX IF NOT EXISTS {table_name}_emb_hnsw
                     ON {table_name} USING hnsw (emb vector_cosine_ops);
                 """)
             except Exception:
                 pass  # Optional index
-                
+
             print(f"Table {table_name} created/verified.")
-            
+
             cur.execute(f"TRUNCATE TABLE {table_name};")
-            
+
             print("Upserting vectors...")
             for c, v in zip(chunks, all_vectors):
                 cid = c["id"]
                 content = c["text"]
                 metadata = c.get("metadata", {})
                 vec_str = vector_literal(v)
-                
+
                 cur.execute(f"""
                     INSERT INTO {table_name} (id, chunk_id, content, metadata, emb)
                     VALUES (%s, %s, %s, %s, %s::vector);
                 """, (stable_id(cid), cid, content, json.dumps(metadata), vec_str))
-                
+
             print(f"Upserted {len(chunks)} points into pgvector table {table_name}")
 
             sample_query = "What is the kargs.d format in MiOS?"
             qv = embed_batch(httpx.Client(), endpoint, key, model, [sample_query])[0]
             qv_str = vector_literal(qv)
-            
+
             cur.execute(f"""
                 SELECT chunk_id, content, 1 - (emb <=> %s::vector) AS score
                 FROM {table_name}
                 ORDER BY emb <=> %s::vector
                 LIMIT 3;
             """, (qv_str, qv_str))
-            
+
             hits = cur.fetchall()
             print(f"\nSanity probe — top 3 hits for '{sample_query}':")
             for h in hits:
@@ -173,7 +173,7 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
                 snippet = h[1][:120].replace("\n", " ")
                 score = float(h[2])
                 print(f"  {score:.3f}  {cid}  {snippet}…")
-                
+
     return 0
 
 

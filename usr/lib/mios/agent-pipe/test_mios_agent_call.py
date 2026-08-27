@@ -478,7 +478,7 @@ client_swa = _SwaClient()
 async def test_swa_slot_action():
     await T._kv_slot_action(client_swa, "http://h/v1", "restore", "convA", "granite4.1:8b")
     await T._kv_slot_action(client_swa, "http://h/v1", "restore", "convB", "gemma:2b")
-    
+
     ok("swa_full" not in (client_swa.calls[0]["params"] or {}), "non-SWA model restore has no swa_full query param")
     ok(client_swa.calls[1]["params"].get("swa_full") == "true", "SWA model restore has swa_full query param")
     ok(client_swa.calls[1]["content"].get("swa_full") is True, "SWA model restore has swa_full body param")

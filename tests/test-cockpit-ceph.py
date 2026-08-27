@@ -55,7 +55,7 @@ class TestCockpitCeph(unittest.TestCase):
         """Asserts SMART metrics and encryption status for physical drives."""
         drives = self.mgr.get_smart_metrics()
         self.assertEqual(len(drives), 2)
-        
+
         nvme = next(d for d in drives if d.device == "/dev/nvme0n1")
         self.assertEqual(nvme.type, "opal2")
         self.assertTrue(nvme.locked)

@@ -6,7 +6,7 @@
 
 #### Overview
 
-MiOS enforces an immutable operating system model where `.git ≡ /`. On a running workstation, human operators and autonomous agents continuously tune configurations, synthesize skills in `/var/lib/mios/ai/skills/`, and modify tool scripts. 
+MiOS enforces an immutable operating system model where `.git ≡ /`. On a running workstation, human operators and autonomous agents continuously tune configurations, synthesize skills in `/var/lib/mios/ai/skills/`, and modify tool scripts.
 
 To bridge live mutable modifications back into immutable OCI image layers across system power cycles, MiOS implements the **Diff Snapshotting, Boot-Cycle Accrual & HITL Image Roll-in Pipeline** (governed by ADR-0018 and `WS-DIFFCYCLE`).
 

@@ -54,7 +54,7 @@ class TestMiosAccountSync(unittest.TestCase):
         mock_pwd.users.clear()
         mock_grp.groups_by_id.clear()
         mock_grp.groups_by_name.clear()
-        
+
         mock_grp.groups_by_id[1000] = struct_group("mios", "x", 1000, [])
         mock_grp.groups_by_name["mios"] = mock_grp.groups_by_id[1000]
 
@@ -73,19 +73,19 @@ class TestMiosAccountSync(unittest.TestCase):
             "is_admin": True,
             "enabled": True
         }]
-        
+
         mock_isfile.return_value = False  # no state file
         mock_run.return_value = MagicMock(returncode=0, stdout="")
-        
+
         with patch.object(sync_mod, "query_db_accounts", return_value=db_accounts):
             with patch.object(sync_mod, "get_local_shadow_hashes", return_value={}):
                 with patch("builtins.open", mock_open()) as mock_file:
                     sync_mod.sync_accounts()
-        
+
         calls = [c[0][0] for c in mock_run.call_args_list]
         useradd_called = any("useradd" in cmd for cmd in calls)
         self.assertTrue(useradd_called, "Should call useradd for new user")
-        
+
         useradd_cmd = next(cmd for cmd in calls if "useradd" in cmd)
         self.assertIn("-u", useradd_cmd)
         self.assertIn("1005", useradd_cmd)
@@ -99,7 +99,7 @@ class TestMiosAccountSync(unittest.TestCase):
         mock_pwd.users["testuser"] = struct_passwd(
             "testuser", "x", 1005, 1000, "Old Name", "/var/home/testuser", "/bin/sh"
         )
-        
+
         db_accounts = [{
             "name": "testuser",
             "password_hash": "hash123",
@@ -112,19 +112,19 @@ class TestMiosAccountSync(unittest.TestCase):
             "is_admin": False,
             "enabled": True
         }]
-        
+
         mock_isfile.return_value = False
         mock_run.return_value = MagicMock(returncode=0)
-        
+
         with patch.object(sync_mod, "query_db_accounts", return_value=db_accounts):
             with patch.object(sync_mod, "get_local_shadow_hashes", return_value={"testuser": "hash123"}):
                 with patch("builtins.open", mock_open()):
                     sync_mod.sync_accounts()
-                    
+
         calls = [c[0][0] for c in mock_run.call_args_list]
         usermod_called = any("usermod" in cmd for cmd in calls)
         self.assertTrue(usermod_called, "Should update existing user parameters via usermod")
-        
+
         usermod_cmd = next(cmd for cmd in calls if "usermod" in cmd)
         self.assertIn("-c", usermod_cmd)
         self.assertIn("New Name", usermod_cmd)
@@ -137,7 +137,7 @@ class TestMiosAccountSync(unittest.TestCase):
         mock_pwd.users["testuser"] = struct_passwd(
             "testuser", "x", 1005, 1000, "Test User", "/var/home/testuser", "/bin/bash"
         )
-        
+
         db_accounts = [{
             "name": "testuser",
             "password_hash": "old_hash",
@@ -150,18 +150,18 @@ class TestMiosAccountSync(unittest.TestCase):
             "is_admin": False,
             "enabled": True
         }]
-        
+
         mock_isfile.return_value = True
         mock_run.return_value = MagicMock(returncode=0)
-        
+
         state_data = '{"testuser": "old_hash"}'
         shadow_data = {"testuser": "new_local_hash"}
-        
+
         with patch.object(sync_mod, "query_db_accounts", return_value=db_accounts):
             with patch.object(sync_mod, "get_local_shadow_hashes", return_value=shadow_data):
                 with patch("builtins.open", mock_open(read_data=state_data)) as mock_file:
                     sync_mod.sync_accounts()
-                    
+
         calls = [c[0][0] for c in mock_run.call_args_list]
         db_writeback_called = any(any("mios-pg-query" in arg for arg in cmd) for cmd in calls)
         self.assertTrue(db_writeback_called, "Should trigger a writeback command to the database")
@@ -172,7 +172,7 @@ class TestMiosAccountSync(unittest.TestCase):
         mock_pwd.users["testuser"] = struct_passwd(
             "testuser", "x", 1005, 1000, "Test User", "/var/home/testuser", "/bin/bash"
         )
-        
+
         db_accounts = [{
             "name": "otheruser",
             "password_hash": "hash321",
@@ -185,17 +185,17 @@ class TestMiosAccountSync(unittest.TestCase):
             "is_admin": False,
             "enabled": True
         }]
-        
+
         mock_isfile.return_value = False
         mock_run.return_value = MagicMock(returncode=0)
-        
+
         shadow_data = {"testuser": "$6$somehash"}
-        
+
         with patch.object(sync_mod, "query_db_accounts", return_value=db_accounts):
             with patch.object(sync_mod, "get_local_shadow_hashes", return_value=shadow_data):
                 with patch("builtins.open", mock_open()):
                     sync_mod.sync_accounts()
-                    
+
         calls = [c[0][0] for c in mock_run.call_args_list]
         lock_called = any(cmd == ["usermod", "-L", "testuser"] for cmd in calls)
         self.assertTrue(lock_called, "Should lock local user missing from DB using usermod -L")

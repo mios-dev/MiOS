@@ -50,7 +50,7 @@ def main():
     toml_path = os.environ.get("MIOS_TOML", "/etc/mios/mios.toml")
     if not os.path.isfile(toml_path):
         toml_path = "/usr/share/mios/mios.toml"
-        
+
     db_render_prefs = False
     if os.path.isfile(toml_path):
         try:

@@ -20,14 +20,14 @@ class TestMiosUserConfig(unittest.TestCase):
         [ai]
         db_authoritative = true
         models = ["granite", "gpt-oss"] # inline comment
-        
+
         [mcp.servers.github]
         enabled = true
         args = { token = "xyz", repo = "mios" } # inline table
         """
         with open(temp_toml, "w") as f:
             f.write(content)
-            
+
         try:
             parsed = muc.parse_simple_toml(temp_toml)
             self.assertEqual(parsed["ai"]["db_authoritative"], True)
@@ -40,7 +40,7 @@ class TestMiosUserConfig(unittest.TestCase):
 
     def test_path_escape_guard(self):
         home_dir = "/home/bob"
-        
+
         rel_path_ok = ".config/mios/mios.toml"
         target_ok = os.path.abspath(os.path.join(home_dir, rel_path_ok))
         home_abs = os.path.abspath(home_dir)

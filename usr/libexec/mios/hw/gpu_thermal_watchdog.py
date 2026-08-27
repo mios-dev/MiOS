@@ -279,7 +279,7 @@ class GPUThermalWatchdog:
 
     def calculate_fan_curve_duty_cycle(self, temp_c: float) -> float:
         """Calculate target fan duty cycle percentage based on temperature.
-        
+
         Enforces:
         - Fan floor invariant: duty cycle >= self.min_fan_floor_percent (NEVER 0%).
         - Target ceiling: 100% when temp >= target junction temp (80.0°C).

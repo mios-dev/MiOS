@@ -50,22 +50,22 @@ class WebSearchTool(Tool):
                 tools.append(tool_inst)
             except Exception as e:
                 log.warning("Failed to map MCP tool %s to smolagents.Tool: %s", getattr(mcp_tool, "name", "unknown"), e)
-        
+
         from server import _toml_section
         gateway_cfg = _toml_section("gateway")
         searxng_url = gateway_cfg.get("searxng_url", "http://mios-searxng:8080")
         tools.append(WebSearchTool(searxng_url))
-        
+
         return tools
 
     def _create_tool_instance(self, mcp_tool) -> Tool:
         name = getattr(mcp_tool, "name", "")
         description = getattr(mcp_tool, "description", "")
-        
+
         input_schema = getattr(mcp_tool, "inputSchema", {}) or {}
         properties = input_schema.get("properties", {}) or {}
         required = input_schema.get("required", []) or []
-        
+
         inputs = {}
         for param_name, param_schema in properties.items():
             inputs[param_name] = {

@@ -289,7 +289,7 @@ class DagReconcileEngine:
     ) -> Dict[str, Any]:
         """Executes full DAG reconciliation workflow."""
         plan = self.calculate_reconciliation_plan(local_branch, peer_branch, local_head, peer_head)
-        
+
         if plan.strategy == "fast_forward":
             return {
                 "status": "success",

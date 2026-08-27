@@ -2253,9 +2253,9 @@ def check_cephfs_ssot() -> int:
 
             cache_override = cephfs.get("xdg_cache_home_override", "")
             hostnames = [m.split(":")[0] for m in monitors]
-            if ("ceph" in cache_override.lower() or 
-                    "/tenants/" in cache_override or 
-                    cache_override.startswith("/home/") or 
+            if ("ceph" in cache_override.lower() or
+                    "/tenants/" in cache_override or
+                    cache_override.startswith("/home/") or
                     any(h in cache_override for h in hostnames if h)):
                 viol.append("[storage.cephfs].xdg_cache_home_override must be local tmpfs, NEVER CephFS (MDS storm hazard)")
 
@@ -2993,7 +2993,7 @@ def check_dag_integrity() -> int:
             try:
                 with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
                     content = fh.read()
-                
+
                 after_requires_targets = []
                 for line in content.splitlines():
                     m = re.match(r"^[ \t]*(After|Requires)[ \t]*=[ \t]*(.*)$", line, re.IGNORECASE)
@@ -3086,7 +3086,7 @@ def check_version_literals_ssot() -> int:
                 lines = fh.readlines()
         except OSError:
             continue
-            
+
         for idx, line in enumerate(lines):
             for m in pattern.finditer(line):
                 ver = m.group(0)
@@ -3165,12 +3165,12 @@ def check_cli_eval_safety() -> int:
                     lines = fh.readlines()
             except OSError:
                 continue
-            
+
             for idx, line in enumerate(lines):
                 stripped = line.strip()
                 if stripped.startswith("#"):
                     continue
-                
+
                 code_part = line.split("#")[0].strip()
                 if re.search(r'\beval\b', code_part):
                     viol.append(f"{fn}:{idx+1} has eval: {line.strip()}")
@@ -3464,13 +3464,13 @@ def check_test_hermeticity() -> int:
                 try:
                     with open(path, "r", encoding="utf-8", errors="ignore") as fh:
                         content = fh.read()
-                    
+
                     has_live_call = False
                     for p in patterns:
                         if p.search(content):
                             has_live_call = True
                             break
-                    
+
                     if has_live_call:
                         if not guard_re.search(content):
                             rel = os.path.relpath(path, root).replace("\\", "/")
@@ -4087,18 +4087,18 @@ def check_negatives_are_effective() -> int:
         main_match = re.search(r'^\s*main\(\)\s*\{', content[start_idx:end_idx], re.MULTILINE)
         if main_match:
             end_idx = start_idx + main_match.start()
-        
+
         body = content[start_idx:end_idx]
-        
+
         body_no_comments = re.sub(r'#.*$', '', body, flags=re.MULTILINE)
         body_no_logs = re.sub(r'\b(log|echo)\s+("[^"]*"|\'[^\']*\')', '', body_no_comments)
-        
+
         has_die = bool(re.search(r'\b(die|exit\s+[1-9]|return\s+[1-9]|FAIL)\b', body_no_comments))
         has_gate_invoc = bool(re.search(
             r'(98-drift-checks\.sh|97-ssot-lint\.sh|tools/|automation/|usr/libexec/|usr/lib/mios/|check_[a-zA-Z0-9_]+|\b_[a-zA-Z0-9_]+_run\b|\b_[a-zA-Z0-9_]+_cmd\b|\b_[a-zA-Z0-9_]+_fail\b|\b_neg_gate\b)',
             body_no_logs
         ))
-        
+
         if not (has_die and has_gate_invoc):
             ineffective.append(fn_name)
 

@@ -23,27 +23,27 @@ for attempt in 1 2 3; do
     mios_log "Compilation attempt $attempt/3"
     cd /tmp
     rm -rf "$BUILD_DIR"
-    
+
     if ! git clone "${MIOS_URL_QUICKSHELL:-https://github.com/quickshell-mirror/quickshell.git}" "$BUILD_DIR"; then
         mios_warn "Git clone failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
-    
+
     cd "$BUILD_DIR"
     if ! git checkout "$PIN_REF"; then
         mios_warn "Git checkout to $PIN_REF failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
-    
+
     git submodule sync --recursive || true
     if ! git submodule update --init --recursive --force; then
         mios_warn "Git submodule update failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
-    
+
     rm -rf build && mkdir -p build && cd build
     if cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release .. && \
        (ninja 2>/dev/null || cmake --build . --parallel $(nproc) 2>/dev/null || make -j1) && \
@@ -53,7 +53,7 @@ for attempt in 1 2 3; do
             break
         fi
     fi
-    
+
     mios_warn "Build failed on attempt $attempt"
     sleep $((attempt * 8))
 done

@@ -31,7 +31,7 @@ def render_for_type(type_name):
     tmpl_path = os.path.join(ROOT, "usr/share/mios/templates", type_name)
     with open(tmpl_path, "r", encoding="utf-8") as f:
         content = f.read()
-    
+
     name = "0012-sample-test" if type_name == "adr" else "sample-test"
     rendered = mios_new.render_template(content, name, type_name)
     rendered = re.sub(r"\d{4}-\d{2}-\d{2}", "2026-07-17", rendered)

@@ -580,7 +580,7 @@ async def _evict_knowledge() -> dict:
     try:
         import json
         import mios_cold_evict
-        
+
         cold_evict_enable = os.environ.get("MIOS_CONV_MEMORY_COLD_EVICT_ENABLE", "false").lower() in ("true", "1", "yes", "on")
         cold_storage_dir = os.environ.get("MIOS_CONV_MEMORY_COLD_STORAGE_DIR", "/var/lib/mios/history/")
         cold_zstd_level = int(os.environ.get("MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL", "3"))
@@ -597,7 +597,7 @@ async def _evict_knowledge() -> dict:
                          "cap-overflow of %d rows (set [knowledge].evict_enable "
                          "to act)", plan["ttl_delete"], plan["cap_delete"], total)
             return report
-            
+
         if cold_evict_enable:
             sweep_report = await mios_cold_evict.cold_sweep(
                 _mios_pg, plan, KNOWLEDGE_TABLE, cold_storage_dir, cold_zstd_level
@@ -645,13 +645,13 @@ async def _cold_retention_sweep(cold_storage_dir: str, retention_days: int) -> N
     import time
     import json
     from pathlib import Path
-    
+
     if not cold_storage_dir or not os.path.exists(cold_storage_dir):
         return
-        
+
     cutoff_s = time.time() - (retention_days * 86400)
     deleted_count = 0
-    
+
     def sync_sweep():
         nonlocal deleted_count
         for root, dirs, files in os.walk(cold_storage_dir):
@@ -665,7 +665,7 @@ async def _cold_retention_sweep(cold_storage_dir: str, retention_days: int) -> N
                             deleted_count += 1
                     except Exception:
                         pass
-                        
+
     await asyncio.to_thread(sync_sweep)
     if deleted_count > 0:
         log.info("cold-retention-sweep: deleted %d files older than %d days", deleted_count, retention_days)
@@ -693,13 +693,13 @@ async def _knowledge_evict_loop() -> None:
         try:
             await asyncio.sleep(max(60, KNOWLEDGE_EVICT_INTERVAL_S))
             await _evict_knowledge()
-            
+
             cold_evict_enable = os.environ.get("MIOS_CONV_MEMORY_COLD_EVICT_ENABLE", "false").lower() in ("true", "1", "yes", "on")
             if cold_evict_enable:
                 cold_storage_dir = os.environ.get("MIOS_CONV_MEMORY_COLD_STORAGE_DIR", "/var/lib/mios/history/")
                 cold_retention_days = int(os.environ.get("MIOS_CONV_MEMORY_COLD_RETENTION_DAYS", "30"))
                 await _cold_retention_sweep(cold_storage_dir, cold_retention_days)
-                
+
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001
@@ -787,7 +787,7 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
     if not p:
         return None
     stripped_p = pr[3:] if pr.startswith("my ") else pr
-    
+
     from mios_pipe.context.grounding import _get_client_env
     env = _get_client_env()
     username = (env.get("user_name") or "").strip()

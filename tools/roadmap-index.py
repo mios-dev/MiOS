@@ -39,7 +39,7 @@ def parse_simple_yaml(text):
     in_multiline = None
     multiline_key = None
     multiline_val = []
-    
+
     for line in lines:
         line = line.strip()
         if not line:
@@ -57,7 +57,7 @@ def parse_simple_yaml(text):
             multiline_key = k
             multiline_val = []
             continue
-        
+
         if v.startswith("[") and v.endswith("]"):
             items = [x.strip().strip('"').strip("'") for x in v[1:-1].split(",") if x.strip()]
             coerced = []
@@ -68,7 +68,7 @@ def parse_simple_yaml(text):
                     coerced.append(x)
             v = coerced
         metadata[k] = v
-        
+
     if in_multiline and multiline_key:
         metadata[multiline_key] = "\n".join(multiline_val)
     return metadata
@@ -76,7 +76,7 @@ def parse_simple_yaml(text):
 def main(argv):
     check = "--check" in argv
     roadmap_path = os.path.join(ROOT, "ROADMAP.md")
-    
+
     if not os.path.exists(roadmap_path):
         print(f"ERROR: ROADMAP.md not found at {roadmap_path}", file=sys.stderr)
         return 1
@@ -88,7 +88,7 @@ def main(argv):
             userenv_content = f.read()
         for m in re.finditer(r'\("([a-zA-Z0-9_.-]+)"\s*,\s*"[A-Z0-9_]+"\)', userenv_content):
             valid_ssot_keys.add(m.group(1))
-            
+
     toml_path = os.path.join(ROOT, "usr/share/mios/mios.toml")
     if os.path.exists(toml_path):
         with open(toml_path, "rb") as f:
@@ -108,7 +108,7 @@ def main(argv):
     workstreams = []
     parts_order = []
     part_workstreams = {}
-    
+
     idx = 0
     while idx < len(lines):
         line = lines[idx]
@@ -122,18 +122,18 @@ def main(argv):
                 idx += 1
                 continue
 
-            
+
         if line.startswith("## WS-"):
             header_text = line[2:].strip()
             parts = re.split(r'\s+[-—–]+\s+', header_text, maxsplit=1)
             ws_id = parts[0].strip()
             ws_title = parts[1].strip() if len(parts) > 1 else header_text
-            
+
             frontmatter_text = ""
             fm_idx = idx + 1
             while fm_idx < len(lines) and not lines[fm_idx].strip():
                 fm_idx += 1
-                
+
             if fm_idx < len(lines) and lines[fm_idx].strip().startswith("<!--"):
                 block_lines = []
                 first_line = lines[fm_idx].strip()
@@ -155,14 +155,14 @@ def main(argv):
                 block_text = "\n".join(block_lines)
                 if "id:" in block_text or "status:" in block_text:
                     frontmatter_text = block_text
-                    
+
             meta = {}
             if frontmatter_text:
                 meta = parse_simple_yaml(frontmatter_text)
-                
+
             meta["id"] = meta.get("id") or ws_id
             meta["title"] = meta.get("title") or ws_title
-            
+
             if "status" not in meta:
                 rest_of_text = ""
                 for j in range(idx, min(idx + 15, len(lines))):
@@ -173,7 +173,7 @@ def main(argv):
                     meta["status"] = "active"
                 else:
                     meta["status"] = "proposed"
-                    
+
             meta["priority"] = meta.get("priority") or "P2"
             meta["laws"] = meta.get("laws") or []
             meta["ssot_keys"] = meta.get("ssot_keys") or []
@@ -182,11 +182,11 @@ def main(argv):
             meta["acceptance"] = meta.get("acceptance") or ""
             meta["theme"] = meta.get("theme") or "General"
             meta["part"] = current_part
-            
+
             workstreams.append(meta)
             if current_part:
                 part_workstreams[current_part].append(meta)
-                
+
         idx += 1
 
     # The law set is the SSOT's, not a literal: this was pinned at 13 and went
@@ -205,11 +205,11 @@ def main(argv):
         for law in ws["laws"]:
             if not isinstance(law, int) or (valid_law_ids and law not in valid_law_ids):
                 validation_errors.append(f"Workstream {ws['id']} cites invalid Law: {law}")
-                
+
         for adr in ws["adr"]:
             if not isinstance(adr, int) or not check_adr_exists(adr):
                 validation_errors.append(f"Workstream {ws['id']} cites non-existent ADR: {adr}")
-                
+
         for key in ws["ssot_keys"]:
             if key not in valid_ssot_keys:
                 validation_errors.append(f"Workstream {ws['id']} cites non-existent SSOT key: {key}")
@@ -233,7 +233,7 @@ def main(argv):
             rollup_counts[status] += 1
         else:
             rollup_counts["proposed"] += 1
-            
+
     rollup_lines = [
         "### Workstream Status Rollup",
         f"- **Done**: {rollup_counts['done']}",

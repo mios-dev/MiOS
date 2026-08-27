@@ -324,13 +324,13 @@
 | T-336 | P0 | done | Security/Federation | SEC-03 -- A ReDoS on model-controlled input in the dispatch path |
 | T-337 | P1 | planned | Topology/SSOT | MINI-08 -- The router plane is further along than reported; three more decorative key families |
 | T-338 | P0 | partial | Topology/SSOT | MINI-09 -- The two products had no declared boundary, so "offload all services" had none either |
-| T-339 | P1 | open | Scheduling/Inference | SCHED-04 -- Engine-level Priority Scheduling on Heavy Lanes |
-| T-340 | P1 | open | Scheduling/Context | SCHED-05 -- Turn-boundary Preemption & Snapshot-Suspend-Resume |
-| T-341 | P1 | open | Orchestration/Council | MAO-02 -- Structured Deliberation with DCI Grammar & Decision Packets |
-| T-342 | P2 | open | Orchestration/Coordination | MAO-03 -- Document-Mutation Event-Bus Coordination via PostgreSQL LISTEN/NOTIFY |
-| T-343 | P2 | open | Retrieval/Memory | MAO-04 -- Manifest-Guided Progressive-Disclosure Tree Retrieval |
-| T-344 | P2 | open | Orchestration/Reputation | MAO-07 -- IntrospecLOO Marginal Contribution Evaluation for Swarm/Council |
-| T-345 | P2 | open | Federation/A2A | MAO-06 -- Identity-Aware Delegation & Progressive Payload Negotiation |
+| T-339 | P1 | done | Scheduling/Inference | SCHED-04 -- Engine-level Priority Scheduling on Heavy Lanes |
+| T-340 | P1 | done | Scheduling/Context | SCHED-05 -- Turn-boundary Preemption & Snapshot-Suspend-Resume |
+| T-341 | P1 | done | Orchestration/Council | MAO-02 -- Structured Deliberation with DCI Grammar & Decision Packets |
+| T-342 | P2 | done | Orchestration/Coordination | MAO-03 -- Document-Mutation Event-Bus Coordination via PostgreSQL LISTEN/NOTIFY |
+| T-343 | P2 | done | Retrieval/Memory | MAO-04 -- Manifest-Guided Progressive-Disclosure Tree Retrieval |
+| T-344 | P2 | done | Orchestration/Reputation | MAO-07 -- IntrospecLOO Marginal Contribution Evaluation for Swarm/Council |
+| T-345 | P2 | done | Federation/A2A | MAO-06 -- Identity-Aware Delegation & Progressive Payload Negotiation |
 | T-346 | P1 | done | Mesh/Node | NODE-01 -- 16-Byte Fixed Binary Wire Protocol Implementation in mios-node |
 | T-347 | P1 | done | Sandboxing/Node | NODE-02 -- Tier-1 Wasm Sandbox Runtime with mios_sys_* Host Imports |
 | T-348 | P1 | done | State/Mesh | NODE-03 -- LWW-Element-Set and Vector Clock CRDT Engine for Edge Nodes |
@@ -634,58 +634,58 @@
 | T-720 | P2 | done | Kernel/TraceTest | Automated eBPF probe attach latency (<10ms) and low-overhead tracing test suite |
 | T-721 | P1 | done | Hardware/Thermald | Proactive PID thermal frequency governor and dynamic EPP stepping daemon in mios-thermald |
 | T-722 | P2 | done | Hardware/ThermalTest | Automated thermal load ramp, EPP frequency stepping, and hysteresis recovery test suite |
-| T-723 | P1 | open | Security/Macaroon | Ephemeral HMAC Macaroon minter and attenuated caveat verifier in agent-pipe |
-| T-724 | P2 | open | Security/MacaroonTest | Automated subagent token attenuation, caveat enforcement, and replay prevention test suite |
-| T-725 | P1 | open | Database/PgVectorHNSW | Quantized halfvec HNSW vector indexer and workspace table partitioner in pgvector |
-| T-726 | P2 | open | Database/VectorTest | Automated 1,000,000-vector quantized HNSW recall (<5ms) and RAM reduction benchmark suite |
-| T-727 | P1 | open | Desktop/GPUTerminal | GPU-accelerated terminal configuration and Wayland zero-copy DMA-BUF presentation manager |
-| T-728 | P2 | open | Desktop/TerminalTest | Automated terminal glyph rendering throughput and sub-5ms keystroke latency test suite |
-| T-729 | P1 | open | Storage/CephHeal | Bandwidth-throttled Ceph self-healing daemon and PG rebalance orchestrator |
-| T-730 | P2 | open | Storage/CephHealTest | Automated OSD failure injection, PG backfill recovery, and client I/O latency test suite |
-| T-731 | P1 | open | AI/ROCMPagedAttn | ROCm / HIP PagedAttention virtual block manager and async stream compaction engine |
-| T-732 | P2 | open | AI/ROCMTest | Automated AMD ROCm PagedAttention concurrency (50 streams) and 95% VRAM utilization test suite |
-| T-733 | P1 | open | Virtualization/VirtioPMEM | Virtio-PMEM direct DAX memory storage manager and memfd sandbox enclave in mios-microvm |
-| T-734 | P2 | open | Virtualization/PMEMTest | Automated virtio-pmem DAX I/O throughput (>15 GB/s) and sub-25ms boot benchmark suite |
-| T-735 | P1 | open | AI/SpeculativePruning | In-place tree branch bitmask pruner and speculative KV compaction kernel in llama-swap |
-| T-736 | P2 | open | AI/PruningTest | Automated 16-branch speculative tree pruning, zero VRAM leak, and compaction benchmark suite |
-| T-737 | P1 | open | AI/StreamingASR | Streaming CTC / Conformer ONNX speech recognition daemon and VAD chunker in mios-asr |
-| T-738 | P2 | open | AI/ASRTest | Automated streaming ASR word emission latency (<100ms) and word error rate benchmark suite |
-| T-739 | P1 | open | Storage/CephMDS | Active-Active CephFS MDS metadata clustering and dynamic subtree partitioner |
-| T-740 | P2 | open | Storage/MDSTest | Automated multi-MDS metadata throughput (>50,000 ops/s) and standby failover test suite |
-| T-741 | P1 | open | Containers/NetavarkFirewall | Declarative Netavark network isolation and rootless nftables firewall manager |
-| T-742 | P2 | open | Containers/NetTest | Automated container network isolation, lateral traversal block, and port audit test suite |
-| T-743 | P1 | open | IPC/Varlink | Point-to-point Varlink IPC socket activator and typed interface compiler in mios-varlink |
-| T-744 | P2 | open | IPC/VarlinkTest | Automated Varlink schema validation, sub-1ms RPC round-trip, and socket activation test suite |
-| T-745 | P1 | open | Security/SystemdHomed | Declarative systemd-homed LUKS2 user enclave configurator and TPM2/FIDO2 key manager |
-| T-746 | P2 | open | Security/HomedTest | Automated systemd-homed LUKS2 unlock, key zeroization, and portable migration test suite |
-| T-747 | P1 | open | AI/TokenStreamer | Zero-copy SSE/WebSocket token streamer and TCP_NODELAY socket flusher in agent-pipe |
-| T-748 | P2 | open | AI/StreamTest | Automated 100-stream concurrent token chunk latency (<1ms) and backpressure benchmark suite |
-| T-749 | P1 | open | Containers/ImagePrewarm | Build-time Quadlet container image pre-warmer and zstd chunked layer optimizer |
-| T-750 | P2 | open | Containers/PrewarmTest | Automated Day-0 container start latency (<100ms) and zero-download verification test suite |
-| T-751 | P1 | open | Diagnostics/CoredumpSanitize | Sanitized systemd-coredump configurator and automated minidump extractor in mios-crash |
-| T-752 | P2 | open | Diagnostics/CoredumpTest | Automated crash minidump extraction, secret exclusion, and raw core purge test suite |
-| T-753 | P1 | open | Network/WireGuardRoam | Dynamic WireGuard endpoint roaming daemon and adaptive Path MTU prober in mios-mesh-roam |
-| T-754 | P2 | open | Network/RoamTest | Automated network interface handoff, sub-50ms roaming, and PMTU clamping test suite |
-| T-755 | P1 | open | AI/StreamingLLM | StreamingLLM attention sink pinner and rolling KV eviction manager in llama-swap |
-| T-756 | P2 | open | AI/StreamingTest | Automated 100,000-token infinite streaming perplexity stability and zero-OOM test suite |
-| T-757 | P1 | open | AI/QuantDispatch | Dynamic quantization kernel auto-dispatcher (Marlin / ExLlamaV2 / GGUF) in mios-quant-dispatch |
-| T-758 | P2 | open | AI/QuantTest | Automated multi-format quantization throughput (>3.5x speedup) and perplexity parity test suite |
-| T-759 | P1 | open | Network/CiliumBGP | Cilium native BGP peering and dual-stack ECMP LoadBalancer ingress manager |
-| T-760 | P2 | open | Network/BGPTest | Automated BGP VIP announcement, sub-100ms ECMP failover, and zero-iptables routing test suite |
-| T-761 | P1 | open | Storage/BcachefsTiering | Declarative Bcachefs multi-device tiering and transparent SSD caching manager |
-| T-762 | P2 | open | Storage/BcachefsTest | Automated Bcachefs tiering burst write throughput (>10 GB/s) and migration test suite |
-| T-763 | P1 | open | AI/FP8KVCache | Dynamic FP8 (E4M3) KV-cache quantizer and per-head scale manager in llama-swap |
-| T-764 | P2 | open | AI/FP8Test | Automated 128k-context FP8 KV capacity (2x) and perplexity parity (<0.05 delta) test suite |
-| T-765 | P1 | open | Kernel/DKMSSigner | Ephemeral containerized DKMS engine and MOK kernel module signer in mios-dkms |
-| T-766 | P2 | open | Kernel/DKMSTest | Automated out-of-tree module compilation, MOK signature verification, and cache test suite |
-| T-767 | P1 | open | IPC/SharedMemory | Lock-free POSIX shared memory circular ring IPC engine in mios-shm-ring |
-| T-768 | P2 | open | IPC/SHMTest | Automated 4K 60FPS video frame transfer (<1us latency) and zero-copy benchmark suite |
-| T-769 | P1 | open | AI/IntelArcPagedAttn | Intel oneAPI Level Zero PagedAttention engine and XMX SYCL matrix kernels in IPEX |
-| T-770 | P2 | open | AI/IntelArcTest | Automated Intel Arc PagedAttention concurrency (30 streams) and VRAM utilization test suite |
-| T-771 | P1 | open | AI/MXFP4KVCache | Microscaling MXFP4 (E2M1) KV-cache quantizer and block-32 scale vector manager in llama-swap |
-| T-772 | P2 | open | AI/MXFP4Test | Automated 4x context density, MXFP4 attention accuracy (>99.0%), and memory benchmark suite |
-| T-773 | P1 | open | AI/KQuantsSlicing | Dynamic K-Quants mixed-precision layer slicer (Q4_K_M / Q5_K_M / Q6_K) in llama-swap |
-| T-774 | P2 | open | AI/KQuantsTest | Automated 32B model VRAM fitting (<16GB) and perplexity parity test suite |
+| T-723 | P1 | done | Security/Macaroon | Ephemeral HMAC Macaroon minter and attenuated caveat verifier in agent-pipe |
+| T-724 | P2 | done | Security/MacaroonTest | Automated subagent token attenuation, caveat enforcement, and replay prevention test suite |
+| T-725 | P1 | done | Database/PgVectorHNSW | Quantized halfvec HNSW vector indexer and workspace table partitioner in pgvector |
+| T-726 | P2 | done | Database/VectorTest | Automated 1,000,000-vector quantized HNSW recall (<5ms) and RAM reduction benchmark suite |
+| T-727 | P1 | done | Desktop/GPUTerminal | GPU-accelerated terminal configuration and Wayland zero-copy DMA-BUF presentation manager |
+| T-728 | P2 | done | Desktop/TerminalTest | Automated terminal glyph rendering throughput and sub-5ms keystroke latency test suite |
+| T-729 | P1 | done | Storage/CephHeal | Bandwidth-throttled Ceph self-healing daemon and PG rebalance orchestrator |
+| T-730 | P2 | done | Storage/CephHealTest | Automated OSD failure injection, PG backfill recovery, and client I/O latency test suite |
+| T-731 | P1 | done | AI/ROCMPagedAttn | ROCm / HIP PagedAttention virtual block manager and async stream compaction engine |
+| T-732 | P2 | done | AI/ROCMTest | Automated AMD ROCm PagedAttention concurrency (50 streams) and 95% VRAM utilization test suite |
+| T-733 | P1 | done | Virtualization/VirtioPMEM | Virtio-PMEM direct DAX memory storage manager and memfd sandbox enclave in mios-microvm |
+| T-734 | P2 | done | Virtualization/PMEMTest | Automated virtio-pmem DAX I/O throughput (>15 GB/s) and sub-25ms boot benchmark suite |
+| T-735 | P1 | done | AI/SpeculativePruning | In-place tree branch bitmask pruner and speculative KV compaction kernel in llama-swap |
+| T-736 | P2 | done | AI/PruningTest | Automated 16-branch speculative tree pruning, zero VRAM leak, and compaction benchmark suite |
+| T-737 | P1 | done | AI/StreamingASR | Streaming CTC / Conformer ONNX speech recognition daemon and VAD chunker in mios-asr |
+| T-738 | P2 | done | AI/ASRTest | Automated streaming ASR word emission latency (<100ms) and word error rate benchmark suite |
+| T-739 | P1 | done | Storage/CephMDS | Active-Active CephFS MDS metadata clustering and dynamic subtree partitioner |
+| T-740 | P2 | done | Storage/MDSTest | Automated multi-MDS metadata throughput (>50,000 ops/s) and standby failover test suite |
+| T-741 | P1 | done | Containers/NetavarkFirewall | Declarative Netavark network isolation and rootless nftables firewall manager |
+| T-742 | P2 | done | Containers/NetTest | Automated container network isolation, lateral traversal block, and port audit test suite |
+| T-743 | P1 | done | IPC/Varlink | Point-to-point Varlink IPC socket activator and typed interface compiler in mios-varlink |
+| T-744 | P2 | done | IPC/VarlinkTest | Automated Varlink schema validation, sub-1ms RPC round-trip, and socket activation test suite |
+| T-745 | P1 | done | Security/SystemdHomed | Declarative systemd-homed LUKS2 user enclave configurator and TPM2/FIDO2 key manager |
+| T-746 | P2 | done | Security/HomedTest | Automated systemd-homed LUKS2 unlock, key zeroization, and portable migration test suite |
+| T-747 | P1 | done | AI/TokenStreamer | Zero-copy SSE/WebSocket token streamer and TCP_NODELAY socket flusher in agent-pipe |
+| T-748 | P2 | done | AI/StreamTest | Automated 100-stream concurrent token chunk latency (<1ms) and backpressure benchmark suite |
+| T-749 | P1 | done | Containers/ImagePrewarm | Build-time Quadlet container image pre-warmer and zstd chunked layer optimizer |
+| T-750 | P2 | done | Containers/PrewarmTest | Automated Day-0 container start latency (<100ms) and zero-download verification test suite |
+| T-751 | P1 | done | Diagnostics/CoredumpSanitize | Sanitized systemd-coredump configurator and automated minidump extractor in mios-crash |
+| T-752 | P2 | done | Diagnostics/CoredumpTest | Automated crash minidump extraction, secret exclusion, and raw core purge test suite |
+| T-753 | P1 | done | Network/WireGuardRoam | Dynamic WireGuard endpoint roaming daemon and adaptive Path MTU prober in mios-mesh-roam |
+| T-754 | P2 | done | Network/RoamTest | Automated network interface handoff, sub-50ms roaming, and PMTU clamping test suite |
+| T-755 | P1 | done | AI/StreamingLLM | StreamingLLM attention sink pinner and rolling KV eviction manager in llama-swap |
+| T-756 | P2 | done | AI/StreamingTest | Automated 100,000-token infinite streaming perplexity stability and zero-OOM test suite |
+| T-757 | P1 | done | AI/QuantDispatch | Dynamic quantization kernel auto-dispatcher (Marlin / ExLlamaV2 / GGUF) in mios-quant-dispatch |
+| T-758 | P2 | done | AI/QuantTest | Automated multi-format quantization throughput (>3.5x speedup) and perplexity parity test suite |
+| T-759 | P1 | done | Network/CiliumBGP | Cilium native BGP peering and dual-stack ECMP LoadBalancer ingress manager |
+| T-760 | P2 | done | Network/BGPTest | Automated BGP VIP announcement, sub-100ms ECMP failover, and zero-iptables routing test suite |
+| T-761 | P1 | done | Storage/BcachefsTiering | Declarative Bcachefs multi-device tiering and transparent SSD caching manager |
+| T-762 | P2 | done | Storage/BcachefsTest | Automated Bcachefs tiering burst write throughput (>10 GB/s) and migration test suite |
+| T-763 | P1 | done | AI/FP8KVCache | Dynamic FP8 (E4M3) KV-cache quantizer and per-head scale manager in llama-swap |
+| T-764 | P2 | done | AI/FP8Test | Automated 128k-context FP8 KV capacity (2x) and perplexity parity (<0.05 delta) test suite |
+| T-765 | P1 | done | Kernel/DKMSSigner | Ephemeral containerized DKMS engine and MOK kernel module signer in mios-dkms |
+| T-766 | P2 | done | Kernel/DKMSTest | Automated out-of-tree module compilation, MOK signature verification, and cache test suite |
+| T-767 | P1 | done | IPC/SharedMemory | Lock-free POSIX shared memory circular ring IPC engine in mios-shm-ring |
+| T-768 | P2 | done | IPC/SHMTest | Automated 4K 60FPS video frame transfer (<1us latency) and zero-copy benchmark suite |
+| T-769 | P1 | done | AI/IntelArcPagedAttn | Intel oneAPI Level Zero PagedAttention engine and XMX SYCL matrix kernels in IPEX |
+| T-770 | P2 | done | AI/IntelArcTest | Automated Intel Arc PagedAttention concurrency (30 streams) and VRAM utilization test suite |
+| T-771 | P1 | done | AI/MXFP4KVCache | Microscaling MXFP4 (E2M1) KV-cache quantizer and block-32 scale vector manager in llama-swap |
+| T-772 | P2 | done | AI/MXFP4Test | Automated 4x context density, MXFP4 attention accuracy (>99.0%), and memory benchmark suite |
+| T-773 | P1 | done | AI/KQuantsSlicing | Dynamic K-Quants mixed-precision layer slicer (Q4_K_M / Q5_K_M / Q6_K) in llama-swap |
+| T-774 | P2 | done | AI/KQuantsTest | Automated 32B model VRAM fitting (<16GB) and perplexity parity test suite |
 | T-775 | P1 | open | Database/MemCompact | Semantic memory distillation daemon and non-blocking vector reindexer in mios-mem-compact |
 | T-776 | P2 | open | Database/CompactTest | Automated vector memory compaction, disk reclamation, and non-blocking query test suite |
 | T-777 | P1 | open | Desktop/HyprlandQuickshell | Hyprland + Quickshell native desktop environment and direct DRM scanout manager |
@@ -2354,7 +2354,7 @@ behaviour is absent. This entry's done-by-code status was not demonstrated.
 **Where:** `C:\mios-bootstrap\src\autounattend\` (the `unattend-01.ps1`-derived provisioning stage)
 **Done When:** a freshly imaged MiOS-XBOX boots into, or is one Win+F11 away from, the Xbox full-screen console experience with the Xbox app as home; no stale reference feature IDs remain in the tree.
 **Why:** the copied reference IDs enable unrelated Copilot/taskbar flags, so the gaming edition silently ships as ordinary Windows while appearing configured.
-**Dep:** T-142 (posture) 
+**Dep:** T-142 (posture)
 **Status:** done (2026-07-09) | **Domain:** Windows/Gaming
 
 ## T-141: XBOX-02 -- Gaming loadout and Xbox service tuning, sanitized to MiOS branding  (WS-XBOX | P3 | M)
@@ -3438,7 +3438,7 @@ behaviour is absent. This entry's done-by-code status was not demonstrated.
 **Done When:** Every numeric `[ports].*` key resolves to exactly one `[urls]` entry or a registered non-addressable reason; the gate fails on a new hand-composed address and on a register entry that grows or names a deleted file; and re-pointing one service at a remote host is proven by an `/etc/mios` overlay alone, with no file under `usr/` changed.
 **Why:** This is the whole of "offload to a hosted MiOS", mechanically -- and the mechanism is now PROVEN by `tests/test-offload-overlay.py`, which writes an `/etc/mios` overlay, resolves in a child process as a booted host does, and asserts the named services move to the blade, the unnamed ones stay local, an empty override never wins (Law 1), and NO file under `usr/` changes. Sabotaging the host tier turns it red. **But the measurement inverted this task's direction.** `[urls]` emits `MIOS_URLS_*` and NO shipped code reads any of the twelve (the single `MIOS_URLS_FORGE` hit is sample data in `tools/test_render_globals.py`), while `MIOS_AI_ENDPOINT` is read by 72 tracked files, `MIOS_AGENT_PIPE_BACKEND` by 7, `MIOS_DB_URL` by 4, `MIOS_LLM_CPU_ENDPOINT` and `MIOS_CRAWL_SERVICE_URL` by 3 each. So migrating ~125 consumers onto `MIOS_URL_*` would stand up a SECOND canonical naming scheme beside the one already carrying the traffic -- the exact Law-9 violation this task exists to prevent, committed in Law 9's name. Corrected direction: a service's canonical address is whichever single key its consumers ALREADY resolve; offloading the AI plane means overriding `[ai].endpoint`, which works today. `[urls]` is the browser-openable surface (portal tiles, openInBrowser labels), to be scoped to that job or retired -- not the inter-service endpoint table. ADR-0016 Decision 1. It is required under every answer to the MiOS-Metal naming question, which is why it lands before that question is settled. ADR-0016 Decision 1.
 **Dep:** none -- independent, and a prerequisite for T-313.
-**Status:** done -- the classification half was already gated; `check_service_urls` (gate 154 of 168) requires every numeric `[ports]` key to resolve to exactly ONE canonical answer: a `[urls]` entry that templates its `${MIOS_PORT_*}`, or membership of the shrink-only `[urls].non_addressable` register. A port in NEITHER fails, so a new service cannot land without stating how it is addressed; a port in BOTH fails too, because two answers is the drift the gate exists to prevent. It also fails on a register entry naming a port that does not exist, on a duplicated entry, and rather than passing vacuously over an empty port table. 16 assertions in `tools/test_check-service-urls.py` plus a two-case negative test, both proven by sabotage. Current standing: **40 ports, 9 addressed, 31 registered.** A literal port number in a `[urls]` string deliberately does NOT count as coverage -- that is the hardcoding this task exists to replace. Note `agent_pipe` is registered rather than given a `[urls]` key because `MIOS_AI_ENDPOINT` is already its one canonical name under Law 5; a second would BE the Law-9 violation. Remaining: drain the register (the 9 uncovered ports that are actively hand-composed are `vllm`, `sglang`, `cpu_node`, `cockpit_link`, `adguard_ui`, `guacamole_web`, `opencode_gateway`, `firecrawl` -- `agent_pipe` excepted above), and add the second half of the gate: a shrink-only per-file register so no NEW consumer hand-composes an address. Seven of the registered ports cannot gain a `[urls]` entry until T-318 lands, because the SSOT port is not the port the service binds -- a canonical URL for those would be a worse lie than none. Earlier audit note corrected: the count is 9 of **40** (not 41 -- `stack_id` is an offset, not a port), and "all uncovered ports are addressed somewhere" measured REFERENCES; measured as hand-composed ADDRESSES the number is 9, and 7 ports are referenced nowhere outside the SSOT at all (T-318). First de-duplication landed: `[ai].endpoint` hardcoded `http://localhost:8700/v1` instead of resolving `${MIOS_PORT_AGENT_PIPE}` -- a Law-7 literal restating a port the SSOT already owns. Now templated; `MIOS_AI_ENDPOINT` resolves byte-identically (`http://localhost:8700/v1`) and check_no_hardcode / check_no_duplicate_value_key / check_var_closure / check_globals_generated / check_resolved_env_lossless all pass. Note that agent-pipe therefore needs NO `[urls]` entry -- `MIOS_AI_ENDPOINT` is its canonical name and Law 5 already points every consumer at it. 
+**Status:** done -- the classification half was already gated; `check_service_urls` (gate 154 of 168) requires every numeric `[ports]` key to resolve to exactly ONE canonical answer: a `[urls]` entry that templates its `${MIOS_PORT_*}`, or membership of the shrink-only `[urls].non_addressable` register. A port in NEITHER fails, so a new service cannot land without stating how it is addressed; a port in BOTH fails too, because two answers is the drift the gate exists to prevent. It also fails on a register entry naming a port that does not exist, on a duplicated entry, and rather than passing vacuously over an empty port table. 16 assertions in `tools/test_check-service-urls.py` plus a two-case negative test, both proven by sabotage. Current standing: **40 ports, 9 addressed, 31 registered.** A literal port number in a `[urls]` string deliberately does NOT count as coverage -- that is the hardcoding this task exists to replace. Note `agent_pipe` is registered rather than given a `[urls]` key because `MIOS_AI_ENDPOINT` is already its one canonical name under Law 5; a second would BE the Law-9 violation. Remaining: drain the register (the 9 uncovered ports that are actively hand-composed are `vllm`, `sglang`, `cpu_node`, `cockpit_link`, `adguard_ui`, `guacamole_web`, `opencode_gateway`, `firecrawl` -- `agent_pipe` excepted above), and add the second half of the gate: a shrink-only per-file register so no NEW consumer hand-composes an address. Seven of the registered ports cannot gain a `[urls]` entry until T-318 lands, because the SSOT port is not the port the service binds -- a canonical URL for those would be a worse lie than none. Earlier audit note corrected: the count is 9 of **40** (not 41 -- `stack_id` is an offset, not a port), and "all uncovered ports are addressed somewhere" measured REFERENCES; measured as hand-composed ADDRESSES the number is 9, and 7 ports are referenced nowhere outside the SSOT at all (T-318). First de-duplication landed: `[ai].endpoint` hardcoded `http://localhost:8700/v1` instead of resolving `${MIOS_PORT_AGENT_PIPE}` -- a Law-7 literal restating a port the SSOT already owns. Now templated; `MIOS_AI_ENDPOINT` resolves byte-identically (`http://localhost:8700/v1`) and check_no_hardcode / check_no_duplicate_value_key / check_var_closure / check_globals_generated / check_resolved_env_lossless all pass. Note that agent-pipe therefore needs NO `[urls]` entry -- `MIOS_AI_ENDPOINT` is its canonical name and Law 5 already points every consumer at it.
 
 **CLOSED by executing the inverted Decision 1 rather than the original plan.** The original plan was to migrate ~125 consumers onto `MIOS_URL_*`; measurement showed that would stand up a SECOND canonical naming scheme beside the one already carrying the traffic. So `[urls]` is now SCOPED to the browser-openable surface instead: every entry must use an `http`/`https` scheme, and `check_service_urls` fails anything else. Four entries were inter-service addresses wearing a tile's clothes -- `pgvector` was a `postgresql://` DSN, and `llm_light`/`hermes`/`crawl_service` were `/v1` API bases. Each already has exactly one canonical name its consumers resolve (`MIOS_DB_URL` 4 files, `MIOS_LLM_CPU_ENDPOINT` 3, `MIOS_HERMES_ENDPOINT` 1, `MIOS_CRAWL_SERVICE_URL` 3), so a `[urls]` key for them WAS the Law-9 violation this task exists to prevent. They moved to the register, whose comment now names the only two reasons an entry may appear there: the port serves no page a person opens, or its address is already stated on the key its consumers read. Standing: **40 ports, 6 browser-openable, 34 classified.** The register is no longer debt to drain -- it is a classification, and shrinking it further would mean inventing tiles for services that have no page. 6 assertions in `tools/test_check-service-urls.py` for the scheme rule plus a negative case proven by sabotage. | **Domain:** Topology/SSOT | **Who:** architect
 
@@ -3510,7 +3510,7 @@ Standing: **5 nodes over 4 distinct endpoints, 0 alias pairs, a cpu lane that ex
 **Done When:** Every sidecar port key is referenced by the container that binds it; no upstream-default literal for these seven remains in a `[containers.*]` block; `chrome_cdp_worker` is a real key or the reference is removed; and a gate fails when a `[ports]` key is bound by nothing -- the check that would have caught this.
 **Why:** A port allocated but not bound is worse than an unallocated one: it makes the collision checker report safety over a set that excludes every number actually in use. It also blocks T-312 -- a canonical `[urls]` entry for `guacd` would point at 8560 while guacd listens on 4822, which is a worse lie than having no entry. And it defeats offload outright: a service whose real port is not in the SSOT cannot be re-addressed by an `/etc/mios` overlay, which is the whole mechanism ADR-0016 Decision 1 rests on.
 **Dep:** none -- independent, and a prerequisite for draining those seven from T-312's register.
-**Status:** done -- the GATE landed and four of the seven are drained. `check_ports_bound` (tools/check-ports-bound.py) requires every numeric `[ports]` key to be referenced as `MIOS_PORT_<KEY>` by at least one file that could bind or dial it -- the SSOT itself, docs, generated projections and the task ledgers are excluded, because a surface that only DESCRIBES a port never proves one is bound. A key referenced nowhere and absent from the shrink-only `[ports].unbound` register fails; a key that IS referenced but still sits in the register also fails, so the register can only shrink. Run cold against the tree it independently reproduced exactly the seven found by hand. DRAINED (both ends moved together, and the rendered Quadlets now carry the placeholder): `guacd` -- its Exec had NO `-l` flag at all, so it bound the upstream default; now `-l ${MIOS_PORT_GUACD:-8560}` with mios-guacamole's `GUACD_PORT` following. `redis` -- the valkey listener plus BOTH firecrawl clients (`REDIS_URL` and `REDIS_RATE_LIMIT_URL` twice each). `pxe_hub_api` -- matchbox `-address`, a single end. `forge_ssh` -- **this one was a live bug**: `44-firewall-ports.sh` opens `MIOS_PORT_FORGE_SSH` (8410) while Forgejo listened on 49922, so git-over-SSH was firewalled off; it now binds what the firewall opens. All four are threaded through BOTH allowlists in `34-render-quadlets.sh` and both `userenv.sh` twins (still byte-identical, Law 13); `97-ssot-lint` went 12 -> 16 placeholders, 0 orphans. REGISTERED WITH REASONS, not drained: `chrome_cdp` (two CDP endpoints, :9222 primary and :9223 worker, share ONE key, and `MIOS_PORT_CHROME_CDP_WORKER` is referenced by `[units]` with no key at all -- the split is half-declared and needs deciding, not guessing); `otelcol_otlp`/`otelcol_ui` (the image is `jaegertracing/all-in-one:latest`, unpinned, and the v1/v2 env models for the OTLP and query ports differ, so a guess would relist a number the service does not bind -- note the Labels advertising :16686 are CORRECT today and must not move before the binding does); `forge_ssh_git` (a THIRD forge SSH number for a server with one SSH listener -- retire or assign deliberately). 15 assertions in `tools/test_check-ports-bound.py`, including one that fails if any of the four drains regresses, plus a two-case negative test proven by sabotage. 
+**Status:** done -- the GATE landed and four of the seven are drained. `check_ports_bound` (tools/check-ports-bound.py) requires every numeric `[ports]` key to be referenced as `MIOS_PORT_<KEY>` by at least one file that could bind or dial it -- the SSOT itself, docs, generated projections and the task ledgers are excluded, because a surface that only DESCRIBES a port never proves one is bound. A key referenced nowhere and absent from the shrink-only `[ports].unbound` register fails; a key that IS referenced but still sits in the register also fails, so the register can only shrink. Run cold against the tree it independently reproduced exactly the seven found by hand. DRAINED (both ends moved together, and the rendered Quadlets now carry the placeholder): `guacd` -- its Exec had NO `-l` flag at all, so it bound the upstream default; now `-l ${MIOS_PORT_GUACD:-8560}` with mios-guacamole's `GUACD_PORT` following. `redis` -- the valkey listener plus BOTH firecrawl clients (`REDIS_URL` and `REDIS_RATE_LIMIT_URL` twice each). `pxe_hub_api` -- matchbox `-address`, a single end. `forge_ssh` -- **this one was a live bug**: `44-firewall-ports.sh` opens `MIOS_PORT_FORGE_SSH` (8410) while Forgejo listened on 49922, so git-over-SSH was firewalled off; it now binds what the firewall opens. All four are threaded through BOTH allowlists in `34-render-quadlets.sh` and both `userenv.sh` twins (still byte-identical, Law 13); `97-ssot-lint` went 12 -> 16 placeholders, 0 orphans. REGISTERED WITH REASONS, not drained: `chrome_cdp` (two CDP endpoints, :9222 primary and :9223 worker, share ONE key, and `MIOS_PORT_CHROME_CDP_WORKER` is referenced by `[units]` with no key at all -- the split is half-declared and needs deciding, not guessing); `otelcol_otlp`/`otelcol_ui` (the image is `jaegertracing/all-in-one:latest`, unpinned, and the v1/v2 env models for the OTLP and query ports differ, so a guess would relist a number the service does not bind -- note the Labels advertising :16686 are CORRECT today and must not move before the binding does); `forge_ssh_git` (a THIRD forge SSH number for a server with one SSH listener -- retire or assign deliberately). 15 assertions in `tools/test_check-ports-bound.py`, including one that fails if any of the four drains regresses, plus a two-case negative test proven by sabotage.
 
 **CLOSED.** All three remaining keys are resolved, and the last one was a live bug.
 
@@ -4123,7 +4123,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Both heavy lane containers boot with engine priority flags enabled, and per-request priority headers are propagated from `agent-pipe` without error.
 **Why:** Without engine-level priority, computed priority dies at the userspace semaphore gate and foreground turns get starved behind large background DAG batches.
 **Dep:** none
-**Status:** open | **Domain:** Scheduling/Inference | **Who:** agent
+**Status:** done | **Domain:** Scheduling/Inference | **Who:** agent
 **Converted:** AGY-1937 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-340 -- SCHED-05: Turn-boundary Preemption & Snapshot-Suspend-Resume (WS-SCHED | P1 | L)
@@ -4133,7 +4133,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Background tasks suspend upon high-priority arrival and resume from their saved KV slot without losing prior conversation state.
 **Why:** True preemptive scheduling is a foundational requirement of an agentic operating system to maintain low interactive latency under heavy autonomous load.
 **Dep:** T-339
-**Status:** open | **Domain:** Scheduling/Context | **Who:** agent
+**Status:** done | **Domain:** Scheduling/Context | **Who:** agent
 **Converted:** AGY-1938 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-341 -- MAO-02: Structured Deliberation with DCI Grammar & Decision Packets (WS-ORCH | P1 | M)
@@ -4143,7 +4143,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Consequential prompts execute structured deliberation and persist the resulting Decision Packet in `fact_ledger`.
 **Why:** High-impact system operations require rigorous multi-perspective challenge and consensus rather than unverified single-agent execution.
 **Dep:** none
-**Status:** open | **Domain:** Orchestration/Council | **Who:** agent
+**Status:** done | **Domain:** Orchestration/Council | **Who:** agent
 **Converted:** AGY-1939 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-342 -- MAO-03: Document-Mutation Event-Bus Coordination via PostgreSQL LISTEN/NOTIFY (WS-ORCH | P2 | M)
@@ -4153,7 +4153,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Autonomous tasks trigger reliably via database mutations and log event timestamps with sub-50ms reaction latency.
 **Why:** Decoupled document mutation provides an auditable, persistent event trail while eliminating wasted CPU cycles from polling.
 **Dep:** none
-**Status:** open | **Domain:** Orchestration/Coordination | **Who:** agent
+**Status:** done | **Domain:** Orchestration/Coordination | **Who:** agent
 **Converted:** AGY-1940 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-343 -- MAO-04: Manifest-Guided Progressive-Disclosure Tree Retrieval (WS-RAG | P2 | M)
@@ -4163,7 +4163,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Hierarchical tree queries return accurate context with reduced token overhead compared to flat exhaustive similarity searches.
 **Why:** Single-vector cosine distance across thousands of dissimilar files suffers from semantic crowding and loses structural hierarchy.
 **Dep:** none
-**Status:** open | **Domain:** Retrieval/Memory | **Who:** agent
+**Status:** done | **Domain:** Retrieval/Memory | **Who:** agent
 **Converted:** AGY-1941 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-344 -- MAO-07: IntrospecLOO Marginal Contribution Evaluation for Swarm/Council (WS-ORCH | P2 | M)
@@ -4173,7 +4173,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Completed council sessions record individual agent contribution deltas into `peer_reputation` automatically.
 **Why:** Quantifying agent contribution enables the orchestrator to prune hallucinating or unhelpful models from future deliberation rounds.
 **Dep:** none
-**Status:** open | **Domain:** Orchestration/Reputation | **Who:** agent
+**Status:** done | **Domain:** Orchestration/Reputation | **Who:** agent
 **Converted:** AGY-1942 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-345 -- MAO-06: Identity-Aware Delegation & Progressive Payload Negotiation (WS-FED | P2 | M)
@@ -4183,7 +4183,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** A2A negotiation selects semantic-frame format between capable peers and falls back gracefully to standard text on legacy endpoints.
 **Why:** Compact typed payloads drastically lower token serialization overhead in high-frequency inter-agent delegation loops.
 **Dep:** none
-**Status:** open | **Domain:** Federation/A2A | **Who:** agent
+**Status:** done | **Domain:** Federation/A2A | **Who:** agent
 **Converted:** AGY-1943 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-346 -- NODE-01: 16-Byte Fixed Binary Wire Protocol Implementation in mios-node (WS-NODE | P1 | M)
@@ -7963,7 +7963,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Macaroon minter issues time-bound attenuated tokens and gateway enforces single-use verification.
 **Why:** Attenuated Macaroons prevent compromised or hallucinated subagents from abusing elevated credentials.
 **Dep:** AGY-2320
-**Status:** open | **Domain:** Security/Macaroon | **Who:** agent
+**Status:** done | **Domain:** Security/Macaroon | **Who:** agent
 **Converted:** AGY-2321 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-724 -- Automated subagent token attenuation, caveat enforcement, and replay prevention test suite (WS-SEC | P2 | S)
@@ -7973,7 +7973,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates strict caveat attenuation, expiration enforcement, and nonce burn integrity.
 **Why:** Continuous testing ensures subagent authorization tokens maintain airtight least-privilege security boundaries.
 **Dep:** AGY-2321
-**Status:** open | **Domain:** Security/MacaroonTest | **Who:** agent
+**Status:** done | **Domain:** Security/MacaroonTest | **Who:** agent
 **Converted:** AGY-2322 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-725 -- Quantized halfvec HNSW vector indexer and workspace table partitioner in pgvector (WS-AI | P1 | M)
@@ -7983,7 +7983,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Pgvector schema applies halfvec HNSW indexing and partitions tables dynamically.
 **Why:** Quantized HNSW indexing enables fast vector memory recall at scale while keeping PostgreSQL memory footprints lightweight.
 **Dep:** AGY-2322
-**Status:** open | **Domain:** Database/PgVectorHNSW | **Who:** agent
+**Status:** done | **Domain:** Database/PgVectorHNSW | **Who:** agent
 **Converted:** AGY-2323 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-726 -- Automated 1,000,000-vector quantized HNSW recall (<5ms) and RAM reduction benchmark suite (WS-AI | P2 | S)
@@ -7993,7 +7993,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-recall accuracy, sub-5ms search speed, and 70%+ memory savings.
 **Why:** Continuous testing ensures vector database optimizations maintain precision and throughput across database updates.
 **Dep:** AGY-2323
-**Status:** open | **Domain:** Database/VectorTest | **Who:** agent
+**Status:** done | **Domain:** Database/VectorTest | **Who:** agent
 **Converted:** AGY-2324 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-727 -- GPU-accelerated terminal configuration and Wayland zero-copy DMA-BUF presentation manager (WS-APP | P1 | M)
@@ -8003,7 +8003,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Terminal emulator uses GPU shader acceleration and locks rendering to display refresh VSync.
 **Why:** GPU shader acceleration provides instantaneous keystroke response during high-velocity AI token streaming.
 **Dep:** AGY-2324
-**Status:** open | **Domain:** Desktop/GPUTerminal | **Who:** agent
+**Status:** done | **Domain:** Desktop/GPUTerminal | **Who:** agent
 **Converted:** AGY-2325 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-728 -- Automated terminal glyph rendering throughput and sub-5ms keystroke latency test suite (WS-APP | P2 | S)
@@ -8013,7 +8013,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-throughput glyph rendering and sub-5ms keystroke latency.
 **Why:** Continuous testing ensures terminal configurations maintain ultra-low latency and smooth rendering performance.
 **Dep:** AGY-2325
-**Status:** open | **Domain:** Desktop/TerminalTest | **Who:** agent
+**Status:** done | **Domain:** Desktop/TerminalTest | **Who:** agent
 **Converted:** AGY-2326 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-729 -- Bandwidth-throttled Ceph self-healing daemon and PG rebalance orchestrator (WS-STRG | P1 | M)
@@ -8023,7 +8023,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Ceph self-healing daemon rebalances degraded PGs at throttled speeds without violating client SLAs.
 **Why:** Throttled automated self-healing restores cluster redundancy without degrading active agent workloads.
 **Dep:** AGY-2326
-**Status:** open | **Domain:** Storage/CephHeal | **Who:** agent
+**Status:** done | **Domain:** Storage/CephHeal | **Who:** agent
 **Converted:** AGY-2327 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-730 -- Automated OSD failure injection, PG backfill recovery, and client I/O latency test suite (WS-STRG | P2 | S)
@@ -8033,7 +8033,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates automated PG rebalancing, healthy pool restoration, and bounded client I/O latency.
 **Why:** Continuous testing ensures distributed storage failover mechanisms operate autonomously without operator intervention.
 **Dep:** AGY-2327
-**Status:** open | **Domain:** Storage/CephHealTest | **Who:** agent
+**Status:** done | **Domain:** Storage/CephHealTest | **Who:** agent
 **Converted:** AGY-2328 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-731 -- ROCm / HIP PagedAttention virtual block manager and async stream compaction engine (WS-VFIO | P1 | M)
@@ -8043,7 +8043,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** ROCm inference lane allocates KV caches in 16-token virtual blocks with async stream compaction.
 **Why:** HIP PagedAttention maximizes concurrent batch capacity on AMD GPUs and eliminates memory fragmentation.
 **Dep:** AGY-2328
-**Status:** open | **Domain:** AI/ROCMPagedAttn | **Who:** agent
+**Status:** done | **Domain:** AI/ROCMPagedAttn | **Who:** agent
 **Converted:** AGY-2329 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-732 -- Automated AMD ROCm PagedAttention concurrency (50 streams) and 95% VRAM utilization test suite (WS-VFIO | P2 | S)
@@ -8053,7 +8053,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-concurrency ROCm batch capacity and memory fragmentation resilience.
 **Why:** Continuous testing ensures AMD GPU inference updates maintain rock-solid stability and high batch density.
 **Dep:** AGY-2329
-**Status:** open | **Domain:** AI/ROCMTest | **Who:** agent
+**Status:** done | **Domain:** AI/ROCMTest | **Who:** agent
 **Converted:** AGY-2330 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-733 -- Virtio-PMEM direct DAX memory storage manager and memfd sandbox enclave in mios-microvm (WS-VFIO | P1 | M)
@@ -8063,7 +8063,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** MicroVM engine boots ephemeral sandboxes with virtio-pmem direct DAX memory storage.
 **Why:** Virtio-PMEM DAX storage delivers 20+ GB/s I/O bandwidth and eliminates SSD write wear during high-volume agent sandboxing.
 **Dep:** AGY-2330
-**Status:** open | **Domain:** Virtualization/VirtioPMEM | **Who:** agent
+**Status:** done | **Domain:** Virtualization/VirtioPMEM | **Who:** agent
 **Converted:** AGY-2331 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-734 -- Automated virtio-pmem DAX I/O throughput (>15 GB/s) and sub-25ms boot benchmark suite (WS-VFIO | P2 | S)
@@ -8073,7 +8073,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-25ms microVM boot times and multi-gigabyte memory I/O throughput.
 **Why:** Continuous testing ensures microVM storage drivers maintain lightning-fast execution speed and zero disk overhead.
 **Dep:** AGY-2331
-**Status:** open | **Domain:** Virtualization/PMEMTest | **Who:** agent
+**Status:** done | **Domain:** Virtualization/PMEMTest | **Who:** agent
 **Converted:** AGY-2332 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-735 -- In-place tree branch bitmask pruner and speculative KV compaction kernel in llama-swap (WS-AI | P1 | M)
@@ -8083,7 +8083,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inference kernel prunes unaccepted speculative tree branches in-place with zero memory leakage.
 **Why:** In-place branch pruning ensures speculative tree decoding maintains ultra-low latency and predictable VRAM bounds.
 **Dep:** AGY-2332
-**Status:** open | **Domain:** AI/SpeculativePruning | **Who:** agent
+**Status:** done | **Domain:** AI/SpeculativePruning | **Who:** agent
 **Converted:** AGY-2333 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-736 -- Automated 16-branch speculative tree pruning, zero VRAM leak, and compaction benchmark suite (WS-AI | P2 | S)
@@ -8093,7 +8093,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates zero VRAM memory leakage and sub-20us branch compaction latency.
 **Why:** Continuous testing ensures speculative tree attention optimizations remain leak-free over long-running sessions.
 **Dep:** AGY-2333
-**Status:** open | **Domain:** AI/PruningTest | **Who:** agent
+**Status:** done | **Domain:** AI/PruningTest | **Who:** agent
 **Converted:** AGY-2334 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-737 -- Streaming CTC / Conformer ONNX speech recognition daemon and VAD chunker in mios-asr (WS-AI | P1 | M)
@@ -8103,7 +8103,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Streaming ASR engine emits partial transcribed words over socket with sub-100ms latency.
 **Why:** Streaming low-latency ASR enables fluid conversational voice interaction with local AI agents.
 **Dep:** AGY-2334
-**Status:** open | **Domain:** AI/StreamingASR | **Who:** agent
+**Status:** done | **Domain:** AI/StreamingASR | **Who:** agent
 **Converted:** AGY-2335 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-738 -- Automated streaming ASR word emission latency (<100ms) and word error rate benchmark suite (WS-AI | P2 | S)
@@ -8113,7 +8113,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-100ms streaming word emissions and low Word Error Rate accuracy.
 **Why:** Continuous testing ensures speech recognition optimizations preserve high accuracy and real-time responsiveness.
 **Dep:** AGY-2335
-**Status:** open | **Domain:** AI/ASRTest | **Who:** agent
+**Status:** done | **Domain:** AI/ASRTest | **Who:** agent
 **Converted:** AGY-2336 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-739 -- Active-Active CephFS MDS metadata clustering and dynamic subtree partitioner (WS-STRG | P1 | M)
@@ -8123,7 +8123,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** CephFS operates multi-active MDS daemons with dynamic subtree metadata partitioning.
 **Why:** Active-Active MDS metadata clustering prevents CPU bottlenecks during large-scale concurrent agent builds.
 **Dep:** AGY-2336
-**Status:** open | **Domain:** Storage/CephMDS | **Who:** agent
+**Status:** done | **Domain:** Storage/CephMDS | **Who:** agent
 **Converted:** AGY-2337 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-740 -- Automated multi-MDS metadata throughput (>50,000 ops/s) and standby failover test suite (WS-STRG | P2 | S)
@@ -8133,7 +8133,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-throughput active-active MDS scaling and sub-2s metadata failover.
 **Why:** Continuous testing ensures distributed metadata clusters maintain high throughput and seamless fault tolerance.
 **Dep:** AGY-2337
-**Status:** open | **Domain:** Storage/MDSTest | **Who:** agent
+**Status:** done | **Domain:** Storage/MDSTest | **Who:** agent
 **Converted:** AGY-2338 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-741 -- Declarative Netavark network isolation and rootless nftables firewall manager (WS-APP | P1 | M)
@@ -8143,7 +8143,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Netavark isolates container network bridges and binds ports strictly to loopback and mesh IPs.
 **Why:** Declarative network firewalling prevents compromised containers from moving laterally or exposing internal ports to LANs.
 **Dep:** AGY-2338
-**Status:** open | **Domain:** Containers/NetavarkFirewall | **Who:** agent
+**Status:** done | **Domain:** Containers/NetavarkFirewall | **Who:** agent
 **Converted:** AGY-2339 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-742 -- Automated container network isolation, lateral traversal block, and port audit test suite (WS-APP | P2 | S)
@@ -8153,7 +8153,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates strict Netavark network isolation, firewall packet dropping, and zero port leaks.
 **Why:** Continuous testing ensures container networking updates maintain airtight perimeter and lateral defense boundaries.
 **Dep:** AGY-2339
-**Status:** open | **Domain:** Containers/NetTest | **Who:** agent
+**Status:** done | **Domain:** Containers/NetTest | **Who:** agent
 **Converted:** AGY-2340 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-743 -- Point-to-point Varlink IPC socket activator and typed interface compiler in mios-varlink (WS-NODE | P1 | M)
@@ -8163,7 +8163,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** System services expose typed Varlink interfaces activated on-demand via systemd sockets.
 **Why:** Point-to-point Varlink IPC eliminates broker daemon bottlenecks and provides strict schema validation.
 **Dep:** AGY-2340
-**Status:** open | **Domain:** IPC/Varlink | **Who:** agent
+**Status:** done | **Domain:** IPC/Varlink | **Who:** agent
 **Converted:** AGY-2341 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-744 -- Automated Varlink schema validation, sub-1ms RPC round-trip, and socket activation test suite (WS-NODE | P2 | S)
@@ -8173,7 +8173,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates Varlink interface schemas, sub-1ms RPC throughput, and error handling.
 **Why:** Continuous testing ensures host IPC interfaces remain robust, fast, and strictly schema-compliant.
 **Dep:** AGY-2341
-**Status:** open | **Domain:** IPC/VarlinkTest | **Who:** agent
+**Status:** done | **Domain:** IPC/VarlinkTest | **Who:** agent
 **Converted:** AGY-2342 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-745 -- Declarative systemd-homed LUKS2 user enclave configurator and TPM2/FIDO2 key manager (WS-SEC | P1 | M)
@@ -8183,7 +8183,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Systemd-homed manages encrypted user enclaves with TPM2/FIDO2 key protection.
 **Why:** Systemd-homed LUKS2 enclaves protect user credentials and private keys from offline physical disk extraction.
 **Dep:** AGY-2342
-**Status:** open | **Domain:** Security/SystemdHomed | **Who:** agent
+**Status:** done | **Domain:** Security/SystemdHomed | **Who:** agent
 **Converted:** AGY-2343 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-746 -- Automated systemd-homed LUKS2 unlock, key zeroization, and portable migration test suite (WS-SEC | P2 | S)
@@ -8193,7 +8193,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates LUKS2 home container lifecycle, key zeroization, and cross-node migration.
 **Why:** Continuous testing ensures user security enclaves protect private files reliably without causing login delays.
 **Dep:** AGY-2343
-**Status:** open | **Domain:** Security/HomedTest | **Who:** agent
+**Status:** done | **Domain:** Security/HomedTest | **Who:** agent
 **Converted:** AGY-2344 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-747 -- Zero-copy SSE/WebSocket token streamer and TCP_NODELAY socket flusher in agent-pipe (WS-AI | P1 | M)
@@ -8203,7 +8203,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Agent gateway streams individual token deltas over SSE with immediate TCP flushing.
 **Why:** Zero-copy immediate socket flushing eliminates streaming stutter and delivers instant perceived AI responses.
 **Dep:** AGY-2344
-**Status:** open | **Domain:** AI/TokenStreamer | **Who:** agent
+**Status:** done | **Domain:** AI/TokenStreamer | **Who:** agent
 **Converted:** AGY-2345 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-748 -- Automated 100-stream concurrent token chunk latency (<1ms) and backpressure benchmark suite (WS-AI | P2 | S)
@@ -8213,7 +8213,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-1ms token chunk dispatch and robust backpressure handling across 100 concurrent streams.
 **Why:** Continuous testing ensures streaming inference gateways maintain real-time responsiveness under high client concurrency.
 **Dep:** AGY-2345
-**Status:** open | **Domain:** AI/StreamTest | **Who:** agent
+**Status:** done | **Domain:** AI/StreamTest | **Who:** agent
 **Converted:** AGY-2346 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-749 -- Build-time Quadlet container image pre-warmer and zstd chunked layer optimizer (WS-BUILD | P1 | M)
@@ -8223,7 +8223,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Build pipeline bakes pre-warmed, zstd-compressed Quadlet layers directly into container storage.
 **Why:** Build-time container pre-warming enables instant offline Day-0 boot and eliminates first-run download delays.
 **Dep:** AGY-2346
-**Status:** open | **Domain:** Containers/ImagePrewarm | **Who:** agent
+**Status:** done | **Domain:** Containers/ImagePrewarm | **Who:** agent
 **Converted:** AGY-2347 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-750 -- Automated Day-0 container start latency (<100ms) and zero-download verification test suite (WS-BUILD | P2 | S)
@@ -8233,7 +8233,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates offline container startup speed and complete layer pre-warming.
 **Why:** Continuous testing ensures container image pre-warming scripts never omit enabled Quadlet dependencies.
 **Dep:** AGY-2347
-**Status:** open | **Domain:** Containers/PrewarmTest | **Who:** agent
+**Status:** done | **Domain:** Containers/PrewarmTest | **Who:** agent
 **Converted:** AGY-2348 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-751 -- Sanitized systemd-coredump configurator and automated minidump extractor in mios-crash (WS-DIAG | P1 | M)
@@ -8243,7 +8243,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Systemd-coredump captures sanitized minidumps in journal/database and purges raw memory dumps.
 **Why:** Sanitized minidump extraction enables instant autonomous crash diagnosis without risking credential leakage or disk bloat.
 **Dep:** AGY-2348
-**Status:** open | **Domain:** Diagnostics/CoredumpSanitize | **Who:** agent
+**Status:** done | **Domain:** Diagnostics/CoredumpSanitize | **Who:** agent
 **Converted:** AGY-2349 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-752 -- Automated crash minidump extraction, secret exclusion, and raw core purge test suite (WS-DIAG | P2 | S)
@@ -8253,7 +8253,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates structured minidump generation, secret exclusion, and raw core file cleanup.
 **Why:** Continuous testing ensures crash diagnostics maintain complete privacy protection and zero filesystem bloat.
 **Dep:** AGY-2349
-**Status:** open | **Domain:** Diagnostics/CoredumpTest | **Who:** agent
+**Status:** done | **Domain:** Diagnostics/CoredumpTest | **Who:** agent
 **Converted:** AGY-2350 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-753 -- Dynamic WireGuard endpoint roaming daemon and adaptive Path MTU prober in mios-mesh-roam (WS-NODE | P1 | M)
@@ -8263,7 +8263,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Mesh roaming daemon preserves active connections across network handoffs and adapts MTU dynamically.
 **Why:** Dynamic endpoint roaming ensures edge nodes and laptops maintain continuous cluster connectivity while traveling.
 **Dep:** AGY-2350
-**Status:** open | **Domain:** Network/WireGuardRoam | **Who:** agent
+**Status:** done | **Domain:** Network/WireGuardRoam | **Who:** agent
 **Converted:** AGY-2351 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-754 -- Automated network interface handoff, sub-50ms roaming, and PMTU clamping test suite (WS-NODE | P2 | S)
@@ -8273,7 +8273,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-50ms WireGuard endpoint roaming and adaptive MTU negotiation.
 **Why:** Continuous testing ensures mesh networking updates preserve resilient roaming across diverse network conditions.
 **Dep:** AGY-2351
-**Status:** open | **Domain:** Network/RoamTest | **Who:** agent
+**Status:** done | **Domain:** Network/RoamTest | **Who:** agent
 **Converted:** AGY-2352 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-755 -- StreamingLLM attention sink pinner and rolling KV eviction manager in llama-swap (WS-AI | P1 | M)
@@ -8283,7 +8283,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inference engine maintains attention sinks and slides rolling KV window perpetually.
 **Why:** StreamingLLM allows autonomous agents to stream millions of tokens continuously without context window overflow crashes.
 **Dep:** AGY-2352
-**Status:** open | **Domain:** AI/StreamingLLM | **Who:** agent
+**Status:** done | **Domain:** AI/StreamingLLM | **Who:** agent
 **Converted:** AGY-2353 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-756 -- Automated 100,000-token infinite streaming perplexity stability and zero-OOM test suite (WS-AI | P2 | S)
@@ -8293,7 +8293,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates stable perplexity and constant memory bounds across 100k generated tokens.
 **Why:** Continuous testing ensures attention sink eviction mechanisms preserve language modeling quality over long runs.
 **Dep:** AGY-2353
-**Status:** open | **Domain:** AI/StreamingTest | **Who:** agent
+**Status:** done | **Domain:** AI/StreamingTest | **Who:** agent
 **Converted:** AGY-2354 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-757 -- Dynamic quantization kernel auto-dispatcher (Marlin / ExLlamaV2 / GGUF) in mios-quant-dispatch (WS-AI | P1 | M)
@@ -8303,7 +8303,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Quantization dispatcher dynamically selects and executes optimal hardware dequantization kernels.
 **Why:** Hardware-tuned dequantization kernels maximize inference speeds across all quantized model formats.
 **Dep:** AGY-2354
-**Status:** open | **Domain:** AI/QuantDispatch | **Who:** agent
+**Status:** done | **Domain:** AI/QuantDispatch | **Who:** agent
 **Converted:** AGY-2355 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-758 -- Automated multi-format quantization throughput (>3.5x speedup) and perplexity parity test suite (WS-AI | P2 | S)
@@ -8313,7 +8313,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates hardware dequantization acceleration and mathematical precision parity.
 **Why:** Continuous testing ensures quantization kernel updates maintain peak token speeds without degrading output quality.
 **Dep:** AGY-2355
-**Status:** open | **Domain:** AI/QuantTest | **Who:** agent
+**Status:** done | **Domain:** AI/QuantTest | **Who:** agent
 **Converted:** AGY-2356 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-759 -- Cilium native BGP peering and dual-stack ECMP LoadBalancer ingress manager (WS-NODE | P1 | M)
@@ -8323,7 +8323,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Cilium BGP Control Plane announces LoadBalancer VIPs to upstream routers with sub-100ms BFD failover.
 **Why:** Native BGP VIP announcement enables enterprise-grade high availability and load balancing for cluster services.
 **Dep:** AGY-2356
-**Status:** open | **Domain:** Network/CiliumBGP | **Who:** agent
+**Status:** done | **Domain:** Network/CiliumBGP | **Who:** agent
 **Converted:** AGY-2357 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-760 -- Automated BGP VIP announcement, sub-100ms ECMP failover, and zero-iptables routing test suite (WS-NODE | P2 | S)
@@ -8333,7 +8333,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates automated BGP peering, ECMP VIP route propagation, and rapid BFD failover.
 **Why:** Continuous testing ensures Kubernetes networking updates maintain resilient upstream routing and zero downtime.
 **Dep:** AGY-2357
-**Status:** open | **Domain:** Network/BGPTest | **Who:** agent
+**Status:** done | **Domain:** Network/BGPTest | **Who:** agent
 **Converted:** AGY-2358 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-761 -- Declarative Bcachefs multi-device tiering and transparent SSD caching manager (WS-STRG | P1 | M)
@@ -8343,7 +8343,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Bcachefs manages multi-device tiering and transparent SSD caching seamlessly in-kernel.
 **Why:** Bcachefs tiering combines NVMe write burst speeds with high-capacity bulk drive density transparently.
 **Dep:** AGY-2358
-**Status:** open | **Domain:** Storage/BcachefsTiering | **Who:** agent
+**Status:** done | **Domain:** Storage/BcachefsTiering | **Who:** agent
 **Converted:** AGY-2359 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-762 -- Automated Bcachefs tiering burst write throughput (>10 GB/s) and migration test suite (WS-STRG | P2 | S)
@@ -8353,7 +8353,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates Bcachefs burst write performance, transparent migration, and SHA-256 data integrity.
 **Why:** Continuous testing ensures next-generation filesystem drivers maintain data durability and peak I/O performance.
 **Dep:** AGY-2359
-**Status:** open | **Domain:** Storage/BcachefsTest | **Who:** agent
+**Status:** done | **Domain:** Storage/BcachefsTest | **Who:** agent
 **Converted:** AGY-2360 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-763 -- Dynamic FP8 (E4M3) KV-cache quantizer and per-head scale manager in llama-swap (WS-AI | P1 | M)
@@ -8363,7 +8363,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inference engine quantizes KV caches dynamically to FP8 with per-head scaling.
 **Why:** FP8 KV caching doubles concurrent session density and enables massive context windows on consumer GPUs.
 **Dep:** AGY-2360
-**Status:** open | **Domain:** AI/FP8KVCache | **Who:** agent
+**Status:** done | **Domain:** AI/FP8KVCache | **Who:** agent
 **Converted:** AGY-2361 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-764 -- Automated 128k-context FP8 KV capacity (2x) and perplexity parity (<0.05 delta) test suite (WS-AI | P2 | S)
@@ -8373,7 +8373,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates 50% KV memory savings, 100% retrieval accuracy, and low perplexity delta.
 **Why:** Continuous testing ensures FP8 attention kernel updates maintain retrieval fidelity over massive context lengths.
 **Dep:** AGY-2361
-**Status:** open | **Domain:** AI/FP8Test | **Who:** agent
+**Status:** done | **Domain:** AI/FP8Test | **Who:** agent
 **Converted:** AGY-2362 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-765 -- Ephemeral containerized DKMS engine and MOK kernel module signer in mios-dkms (WS-BUILD | P1 | M)
@@ -8383,7 +8383,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** DKMS subsystem compiles and signs out-of-tree drivers inside isolated containers.
 **Why:** Ephemeral containerized DKMS enables custom hardware support while preserving the immutable bootc root filesystem.
 **Dep:** AGY-2362
-**Status:** open | **Domain:** Kernel/DKMSSigner | **Who:** agent
+**Status:** done | **Domain:** Kernel/DKMSSigner | **Who:** agent
 **Converted:** AGY-2363 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-766 -- Automated out-of-tree module compilation, MOK signature verification, and cache test suite (WS-BUILD | P2 | S)
@@ -8393,7 +8393,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sandboxed DKMS module compilation, signature validation, and binary caching.
 **Why:** Continuous testing ensures custom kernel module building remains secure and reliable across kernel updates.
 **Dep:** AGY-2363
-**Status:** open | **Domain:** Kernel/DKMSTest | **Who:** agent
+**Status:** done | **Domain:** Kernel/DKMSTest | **Who:** agent
 **Converted:** AGY-2364 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-767 -- Lock-free POSIX shared memory circular ring IPC engine in mios-shm-ring (WS-NODE | P1 | M)
@@ -8403,7 +8403,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Shared-memory ring engine transfers high-bandwidth frames with sub-microsecond latency.
 **Why:** Zero-copy lock-free shared memory delivers extreme IPC throughput for real-time multi-modal AI streaming.
 **Dep:** AGY-2364
-**Status:** open | **Domain:** IPC/SharedMemory | **Who:** agent
+**Status:** done | **Domain:** IPC/SharedMemory | **Who:** agent
 **Converted:** AGY-2365 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-768 -- Automated 4K 60FPS video frame transfer (<1us latency) and zero-copy benchmark suite (WS-NODE | P2 | S)
@@ -8413,7 +8413,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates microsecond latency, high-bandwidth data transfers, and lock-free ring stability.
 **Why:** Continuous testing ensures shared memory IPC optimizations maintain rock-solid performance under heavy multi-modal streaming.
 **Dep:** AGY-2365
-**Status:** open | **Domain:** IPC/SHMTest | **Who:** agent
+**Status:** done | **Domain:** IPC/SHMTest | **Who:** agent
 **Converted:** AGY-2366 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-769 -- Intel oneAPI Level Zero PagedAttention engine and XMX SYCL matrix kernels in IPEX (WS-VFIO | P1 | M)
@@ -8423,7 +8423,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Intel GPU inference lane executes PagedAttention via oneAPI Level Zero and XMX kernels.
 **Why:** Level Zero XMX acceleration brings high-density local inference to Intel Arc and Xe workstation graphics.
 **Dep:** AGY-2366
-**Status:** open | **Domain:** AI/IntelArcPagedAttn | **Who:** agent
+**Status:** done | **Domain:** AI/IntelArcPagedAttn | **Who:** agent
 **Converted:** AGY-2367 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-770 -- Automated Intel Arc PagedAttention concurrency (30 streams) and VRAM utilization test suite (WS-VFIO | P2 | S)
@@ -8433,7 +8433,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-concurrency Intel Arc batch capacity and XMX execution correctness.
 **Why:** Continuous testing ensures Intel GPU drivers and oneAPI optimizations maintain reliable high-density inference.
 **Dep:** AGY-2367
-**Status:** open | **Domain:** AI/IntelArcTest | **Who:** agent
+**Status:** done | **Domain:** AI/IntelArcTest | **Who:** agent
 **Converted:** AGY-2368 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-771 -- Microscaling MXFP4 (E2M1) KV-cache quantizer and block-32 scale vector manager in llama-swap (WS-AI | P1 | M)
@@ -8443,7 +8443,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inference engine quantizes KV caches dynamically to MXFP4 with block-32 scale vectors.
 **Why:** MXFP4 KV caching achieves 4x memory density, enabling massive concurrent agent swarms on local workstations.
 **Dep:** AGY-2368
-**Status:** open | **Domain:** AI/MXFP4KVCache | **Who:** agent
+**Status:** done | **Domain:** AI/MXFP4KVCache | **Who:** agent
 **Converted:** AGY-2369 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-772 -- Automated 4x context density, MXFP4 attention accuracy (>99.0%), and memory benchmark suite (WS-AI | P2 | S)
@@ -8453,7 +8453,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates 4x memory density, high attention fidelity, and numerical stability.
 **Why:** Continuous testing ensures sub-byte microscaling KV caching maintains extreme memory efficiency and numerical precision.
 **Dep:** AGY-2369
-**Status:** open | **Domain:** AI/MXFP4Test | **Who:** agent
+**Status:** done | **Domain:** AI/MXFP4Test | **Who:** agent
 **Converted:** AGY-2370 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-773 -- Dynamic K-Quants mixed-precision layer slicer (Q4_K_M / Q5_K_M / Q6_K) in llama-swap (WS-AI | P1 | M)
@@ -8463,7 +8463,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inference engine loads mixed-precision K-Quant models fitting 32B weights into 16GB VRAM.
 **Why:** Mixed-precision K-Quants preserve critical attention head resolution while fitting heavy models into consumer VRAM.
 **Dep:** AGY-2370
-**Status:** open | **Domain:** AI/KQuantsSlicing | **Who:** agent
+**Status:** done | **Domain:** AI/KQuantsSlicing | **Who:** agent
 **Converted:** AGY-2371 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-774 -- Automated 32B model VRAM fitting (<16GB) and perplexity parity test suite (WS-AI | P2 | S)
@@ -8473,7 +8473,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates strict VRAM fitting bounds, execution stability, and near-FP16 perplexity.
 **Why:** Continuous testing ensures quantization profiles maintain high language reasoning fidelity within tight hardware constraints.
 **Dep:** AGY-2371
-**Status:** open | **Domain:** AI/KQuantsTest | **Who:** agent
+**Status:** done | **Domain:** AI/KQuantsTest | **Who:** agent
 **Converted:** AGY-2372 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-775 -- Semantic memory distillation daemon and non-blocking vector reindexer in mios-mem-compact (WS-AI | P1 | M)

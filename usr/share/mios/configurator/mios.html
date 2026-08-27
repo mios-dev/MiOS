@@ -1182,46 +1182,46 @@
             <legend>[storage.cephfs] — global knobs</legend>
             <label for="f-cephfs-enable">enable (operator enables after Ceph cluster is active)</label>
             <input type="text" id="f-cephfs-enable" data-key="storage.cephfs.enable" data-type="bool" placeholder="false">
-            
+
             <label for="f-cephfs-cluster-name">cluster_name</label>
             <input type="text" id="f-cephfs-cluster-name" data-key="storage.cephfs.cluster_name" placeholder="ceph">
-            
+
             <label for="f-cephfs-monitors">monitors (MON IP addresses)</label>
             <input type="text" id="f-cephfs-monitors" data-key="storage.cephfs.monitors" placeholder="127.0.0.1:6789">
-            
+
             <label for="f-cephfs-fs-name">fs_name</label>
             <input type="text" id="f-cephfs-fs-name" data-key="storage.cephfs.fs_name" placeholder="cephfs">
-            
+
             <label for="f-cephfs-tenant-id">tenant_id</label>
             <input type="text" id="f-cephfs-tenant-id" data-key="storage.cephfs.tenant_id" placeholder="mios">
           </fieldset>
-          
+
           <fieldset>
             <legend>Pools &amp; Cache tuning</legend>
             <label for="f-cephfs-pool-hot">data_pool_hot (SSD-backed hot data)</label>
             <input type="text" id="f-cephfs-pool-hot" data-key="storage.cephfs.data_pool_hot" placeholder="cephfs_data_hot">
-            
+
             <label for="f-cephfs-pool-bulk">data_pool_bulk (HDD-backed bulk data)</label>
             <input type="text" id="f-cephfs-pool-bulk" data-key="storage.cephfs.data_pool_bulk" placeholder="cephfs_data_bulk">
-            
+
             <label for="f-cephfs-cache-override">xdg_cache_home_override (MUST be local, NEVER CephFS)</label>
             <input type="text" id="f-cephfs-cache-override" data-key="storage.cephfs.xdg_cache_home_override" placeholder="/run/user/{uid}/.cache">
-            
+
             <label for="f-cephfs-subvol-mode">subvolume_mode</label>
             <input type="text" id="f-cephfs-subvol-mode" data-key="storage.cephfs.subvolume_mode" placeholder="0700">
           </fieldset>
-          
+
           <fieldset>
             <legend>Provisioning &amp; Mounts</legend>
             <label for="f-cephfs-keyring-dir">keyring_dir</label>
             <input type="text" id="f-cephfs-keyring-dir" data-key="storage.cephfs.keyring_dir" placeholder="/etc/ceph/keyring.d">
-            
+
             <label for="f-cephfs-provision-script">provision_script</label>
             <input type="text" id="f-cephfs-provision-script" data-key="storage.cephfs.provision_script" placeholder="/usr/libexec/mios/mios-cephfs-provision">
-            
+
             <label for="f-cephfs-automount-enable">automount_enable</label>
             <input type="text" id="f-cephfs-automount-enable" data-key="storage.cephfs.automount_enable" data-type="bool" placeholder="true">
-            
+
             <label for="f-cephfs-automount-timeout">automount_idle_timeout_s (seconds before unmount)</label>
             <input type="text" id="f-cephfs-automount-timeout" data-key="storage.cephfs.automount_idle_timeout_s" data-type="int" placeholder="600">
           </fieldset>
@@ -1235,19 +1235,19 @@
         <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
           Configure the converged-resource settings to optimize gateway queues, engine multiplexing (vLLM multi-LoRA), memory tiering, and distroless builds.
         </p>
-        
+
         <div class="form-grid">
           <fieldset>
             <legend>[converge.gateway] — Phase 1</legend>
             <label for="f-conv-gateway-mode">mode ("http" or "queue")</label>
             <input type="text" id="f-conv-gateway-mode" data-key="converge.gateway.mode" placeholder="http">
-            
+
             <label for="f-conv-gateway-queue-maxsize">queue_maxsize</label>
             <input type="text" id="f-conv-gateway-queue-maxsize" data-key="converge.gateway.queue_maxsize" data-type="int" placeholder="64">
-            
+
             <label for="f-conv-gateway-worker-concurrency">worker_concurrency</label>
             <input type="text" id="f-conv-gateway-worker-concurrency" data-key="converge.gateway.worker_concurrency" data-type="int" placeholder="4">
-            
+
             <label for="f-conv-gateway-fallback-http">fallback_http</label>
             <input type="text" id="f-conv-gateway-fallback-http" data-key="converge.gateway.fallback_http" placeholder="http://localhost:8642/v1">
           </fieldset>
@@ -1256,19 +1256,19 @@
             <legend>[converge.inference] — Phase 2</legend>
             <label for="f-conv-inference-heavy-engine-mode">heavy_engine_mode ("dual" or "single")</label>
             <input type="text" id="f-conv-inference-heavy-engine-mode" data-key="converge.inference.heavy_engine_mode" placeholder="dual">
-            
+
             <label for="f-conv-inference-vllm-lora-adapters-dir">vllm_lora_adapters_dir</label>
             <input type="text" id="f-conv-inference-vllm-lora-adapters-dir" data-key="converge.inference.vllm_lora_adapters_dir" placeholder="/var/lib/mios/lora-adapters/">
-            
+
             <label for="f-conv-inference-vllm-allow-runtime-lora">vllm_allow_runtime_lora</label>
             <input type="text" id="f-conv-inference-vllm-allow-runtime-lora" data-key="converge.inference.vllm_allow_runtime_lora" data-type="bool" placeholder="false">
-            
+
             <label for="f-conv-inference-llama-cache-reuse-tokens">llama_cache_reuse_tokens</label>
             <input type="text" id="f-conv-inference-llama-cache-reuse-tokens" data-key="converge.inference.llama_cache_reuse_tokens" data-type="int" placeholder="0">
-            
+
             <label for="f-conv-inference-llama-parallel-slots">llama_parallel_slots</label>
             <input type="text" id="f-conv-inference-llama-parallel-slots" data-key="converge.inference.llama_parallel_slots" data-type="int" placeholder="1">
-            
+
             <label for="f-conv-inference-retire-heavy-alt">retire_heavy_alt</label>
             <input type="text" id="f-conv-inference-retire-heavy-alt" data-key="converge.inference.retire_heavy_alt" data-type="bool" placeholder="false">
           </fieldset>
@@ -1277,19 +1277,19 @@
             <legend>[converge.memory] — Phase 3</legend>
             <label for="f-conv-memory-sqlite-vec-enable">sqlite_vec_enable</label>
             <input type="text" id="f-conv-memory-sqlite-vec-enable" data-key="converge.memory.sqlite_vec_enable" data-type="bool" placeholder="false">
-            
+
             <label for="f-conv-memory-scratchpad-dir">scratchpad_dir</label>
             <input type="text" id="f-conv-memory-scratchpad-dir" data-key="converge.memory.scratchpad_dir" placeholder="/run/user/{uid}">
-            
+
             <label for="f-conv-memory-cold-evict-enable">cold_evict_enable</label>
             <input type="text" id="f-conv-memory-cold-evict-enable" data-key="converge.memory.cold_evict_enable" data-type="bool" placeholder="false">
-            
+
             <label for="f-conv-memory-cold-storage-dir">cold_storage_dir</label>
             <input type="text" id="f-conv-memory-cold-storage-dir" data-key="converge.memory.cold_storage_dir" placeholder="/var/lib/mios/history/">
-            
+
             <label for="f-conv-memory-cold-retention-days">cold_retention_days</label>
             <input type="text" id="f-conv-memory-cold-retention-days" data-key="converge.memory.cold_retention_days" data-type="int" placeholder="90">
-            
+
             <label for="f-conv-memory-cold-zstd-level">cold_zstd_level (1-19)</label>
             <input type="text" id="f-conv-memory-cold-zstd-level" data-key="converge.memory.cold_zstd_level" data-type="int" placeholder="10">
           </fieldset>
@@ -1298,16 +1298,16 @@
             <legend>[converge.image] — Phase 4</legend>
             <label for="f-conv-image-distroless-enable">distroless_enable</label>
             <input type="text" id="f-conv-image-distroless-enable" data-key="converge.image.distroless_enable" data-type="bool" placeholder="false">
-            
+
             <label for="f-conv-image-distroless-base">distroless_base</label>
             <input type="text" id="f-conv-image-distroless-base" data-key="converge.image.distroless_base" placeholder="gcr.io/distroless/python3-debian13">
-            
+
             <label for="f-conv-image-rechunk-enable">rechunk_enable</label>
             <input type="text" id="f-conv-image-rechunk-enable" data-key="converge.image.rechunk_enable" data-type="bool" placeholder="false">
-            
+
             <label for="f-conv-image-rechunk-format-version">rechunk_format_version</label>
             <input type="text" id="f-conv-image-rechunk-format-version" data-key="converge.image.rechunk_format_version" data-type="int" placeholder="1">
-            
+
             <label for="f-conv-image-mcp-pool-enable">mcp_pool_enable</label>
             <input type="text" id="f-conv-image-mcp-pool-enable" data-key="converge.image.mcp_pool_enable" data-type="bool" placeholder="false">
           </fieldset>
@@ -2066,11 +2066,11 @@
             <input type="text" id="f-auto-isoout" data-key="autounattend.iso_out" placeholder="M:\iso\MiOS-Xbox.iso">
             <label for="f-auto-isolabel">iso_label (volume label of custom ISO)</label>
             <input type="text" id="f-auto-isolabel" data-key="autounattend.iso_label" placeholder="MiOS-Xbox">
-            
+
             <label for="f-auto-accounts">Offline Accounts (one account per line: username,password,display_name,group)</label>
             <textarea id="f-auto-accounts" data-key="autounattend.accounts" placeholder="mios,mios,MiOS User,Administrators" style="min-height: 100px;"></textarea>
           </fieldset>
-          
+
           <fieldset>
             <legend>[autounattend.layout] — NTFS directory layout</legend>
             <div class="checkbox-row">
@@ -2079,15 +2079,15 @@
             </div>
             <label for="f-layout-stripfolders">strip_folders (semicolon-separated folders to purge from Default profile)</label>
             <input type="text" id="f-layout-stripfolders" data-key="autounattend.layout.strip_folders" placeholder="3D Objects;Contacts;Favorites;Links;Saved Games;Searches;OneDrive">
-            
+
             <label for="f-layout-tree">linux_tree (space-separated folders created at C:\ to mimic WSL layout)</label>
             <input type="text" id="f-layout-tree" data-key="autounattend.layout.linux_tree" placeholder="etc usr var home opt srv tmp bin lib root">
-            
+
             <div class="checkbox-row">
               <input type="checkbox" id="f-layout-lower" data-key="autounattend.layout.lowercase_userfolders">
               <label for="f-layout-lower">lowercase_userfolders (force lowercase downloads, documents, desktop, etc.)</label>
             </div>
-            
+
             <label for="f-layout-thispc">strip_thispc (space-separated GUID namespaces to remove from 'This PC')</label>
             <input type="text" id="f-layout-thispc" data-key="autounattend.layout.strip_thispc" placeholder="{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}">
           </fieldset>
@@ -2160,14 +2160,14 @@
             <input type="text" id="f-brand-oem-hours" data-key="branding.oem_support_hours" placeholder="Always on">
             <label for="f-brand-oem-logo">oem_logo (Windows OEM logo bitmap path)</label>
             <input type="text" id="f-brand-oem-logo" data-key="branding.oem_logo" placeholder="C:\Windows\Web\MiOS\mios-logo.bmp">
-            
+
             <label for="f-brand-wallpaper">wallpaper (desktop background image path)</label>
             <input type="text" id="f-brand-wallpaper" data-key="branding.wallpaper" placeholder="C:\Windows\Web\MiOS\mios-wallpaper.jpg">
             <label for="f-brand-lockscreen">lockscreen (lock screen background path)</label>
             <input type="text" id="f-brand-lockscreen" data-key="branding.lockscreen" placeholder="C:\Windows\Web\MiOS\mios-wallpaper.jpg">
             <label for="f-brand-wallstyle">wallpaper_style (10 = Fill, 6 = Fit, 2 = Stretch)</label>
             <input type="text" id="f-brand-wallstyle" data-key="branding.wallpaper_style" placeholder="10">
-            
+
             <div class="checkbox-row">
               <input type="checkbox" id="f-brand-living-wallpaper" data-key="branding.living_wallpaper">
               <label for="f-brand-living-wallpaper">living_wallpaper (enable GPU animated wallpaper)</label>
@@ -2178,14 +2178,14 @@
               <option value="shader">shader (GPU animated)</option>
               <option value="video">video (rendered loop)</option>
             </select>
-            
+
             <label for="f-brand-uifont">ui_font (system font replacement face)</label>
             <input type="text" id="f-brand-uifont" data-key="branding.ui_font" placeholder="Geist">
             <div class="checkbox-row">
               <input type="checkbox" id="f-brand-font-sub" data-key="branding.font_substitute">
               <label for="f-brand-font-sub">font_substitute (enable substitute Segoe UI -> ui_font)</label>
             </div>
-            
+
             <div class="checkbox-row">
               <input type="checkbox" id="f-brand-cursor-en" data-key="branding.cursor">
               <label for="f-brand-cursor-en">cursor (enable custom mouse cursor scheme)</label>
@@ -4084,7 +4084,7 @@ function parseToml(text) {
   while (i < rows.length) {
     const line = rows[i].trim();
     if (!line || line.startsWith("#")) { i++; continue; }
-    
+
     // Array-of-tables header match: [[section.key]]
     const arrSec = line.match(/^\[\[([^\]]+)\]\]\s*$/);
     if (arrSec) {

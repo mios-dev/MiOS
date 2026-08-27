@@ -22,21 +22,21 @@ class TestMiosListDir(unittest.TestCase):
             file1 = os.path.join(tmpdir, "file1.txt")
             with open(file1, "w") as f:
                 f.write("hello")
-            
+
             subdir = os.path.join(tmpdir, "subdir")
             os.makedirs(subdir)
-            
+
             file2 = os.path.join(subdir, "file2.txt")
             with open(file2, "w") as f:
                 f.write("world")
 
             cmd = [sys.executable, self.script_path, "view", tmpdir, "--depth", "1"]
             res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            
+
             data = json.loads(res.stdout.strip())
             self.assertTrue(data.get("ok"))
             self.assertEqual(data.get("kind"), "dir")
-            
+
             entries = data.get("entries", [])
             self.assertIn("file1.txt", entries)
             self.assertIn("subdir/", entries)

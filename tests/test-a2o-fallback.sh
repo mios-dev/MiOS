@@ -30,7 +30,7 @@ echo "Dummy prompt" > "$PROMPTS/$name.txt"
 run_test_fallback_enabled() {
   log "Testing fallback enabled"
   echo "RESOURCE_EXHAUSTED: quota limit reached" > "$AGY_DEBUG_LOG"
-  
+
   LANE_B_FALLBACK_ENGINE="claude"
   EXEC_FALLBACK="echo 'injected-claude-fallback-execution'"
 
@@ -38,7 +38,7 @@ run_test_fallback_enabled() {
   _a2o_fail=0
   [ -s "$LOGS/$name.log" ] || _a2o_fail=1
   if [ -f "$AGY_DEBUG_LOG" ] && grep -qE 'RESOURCE_EXHAUSTED|INVALID_ARGUMENT|Failed to resolve model flag|agent executor error|model unreachable' "$AGY_DEBUG_LOG"; then _a2o_fail=1; fi
-  
+
   if [ "$_a2o_fail" = 1 ]; then
     rc=1
     _a2o_reason=""
@@ -66,7 +66,7 @@ run_test_fallback_disabled() {
   log "Testing fallback disabled"
   echo "RESOURCE_EXHAUSTED: quota limit reached" > "$AGY_DEBUG_LOG"
   : > "$LOGS/$name.log"
-  
+
   LANE_B_FALLBACK_ENGINE=""
   EXEC_FALLBACK=""
 
@@ -74,7 +74,7 @@ run_test_fallback_disabled() {
   _a2o_fail=0
   [ -s "$LOGS/$name.log" ] || _a2o_fail=1
   if [ -f "$AGY_DEBUG_LOG" ] && grep -qE 'RESOURCE_EXHAUSTED|INVALID_ARGUMENT|Failed to resolve model flag|agent executor error|model unreachable' "$AGY_DEBUG_LOG"; then _a2o_fail=1; fi
-  
+
   if [ "$_a2o_fail" = 1 ]; then
     rc=1
     _a2o_reason=""

@@ -85,9 +85,9 @@ def _sandbox_wrap_cmd(tool: str, cmd: str,
 
 def normalize_container_exec(script: str) -> str:
     script = re.sub(r'\bdocker(\.exe)?\b', 'podman', script, flags=re.IGNORECASE)
-    
+
     script = re.sub(r'\b(mios-)?code-server\b', 'mios-agents', script, flags=re.IGNORECASE)
-    
+
     def clean_flags(match):
         flag_str = match.group(2)
         if flag_str.startswith('--'):
@@ -100,7 +100,7 @@ def normalize_container_exec(script: str) -> str:
         return match.group(1) + ' exec ' + cleaned
 
     script = re.sub(r'\b(podman)\s+exec\s+(\-[a-zA-Z]+|\-\-tty\b)', clean_flags, script, flags=re.IGNORECASE)
-    
+
     script = re.sub(
         # A flag's ARGUMENT may not start with '-'; that would be the next flag.
         # With [^\s]+ both parses were legal and the group backtracked

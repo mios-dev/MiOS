@@ -75,7 +75,7 @@ graph TD
 
 ### Windows & Xbox Mode (Universal MiOS-Cat Launcher)
 - **WSL2 tar**: Packaged as a WSL2 distribution root fs. Sourcing `userenv.sh` inside Windows/WSL environments handles hardware forwarding.
-- **Xbox DevMode**: MiOS can be launched on Xbox console hardware in Developer Mode. 
+- **Xbox DevMode**: MiOS can be launched on Xbox console hardware in Developer Mode.
 - **MiOS-Cat**: The universal launcher agent (`mios-cat`) abstracts target virtualization layers, translating agent commands and service hooks across the Windows/Xbox host boundary seamlessly.
 
 ---

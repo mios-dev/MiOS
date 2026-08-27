@@ -13,11 +13,11 @@ if SQLITE_VEC_ENABLE:
         db_dir = Path(scratchpad_dir or "/tmp")
         db_dir.mkdir(parents=True, exist_ok=True)
         path = db_dir / f"mios-session-{session_id}.sqlite"
-        
+
         conn = sqlite3.connect(str(path), check_same_thread=False)
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
-        
+
         conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS vec_scratch USING vec0(content TEXT, tainted INTEGER, embedding float[768])")
         conn.commit()
         return conn, path

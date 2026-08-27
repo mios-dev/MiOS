@@ -53,9 +53,9 @@ vfio_toml_path = os.path.join(kargs_dir, "01-mios-vfio.toml")
 if os.path.exists(vfio_toml_path):
     with open(vfio_toml_path, "rb") as f:
         vfio_data = tomllib.load(f)
-    
+
     kargs_list = vfio_data.get("kargs", [])
-    
+
     iommu = kargs_conf.get("iommu", "on")
     kargs_list = [k for k in kargs_list if k not in ("intel_iommu=on", "amd_iommu=on", "iommu=pt")]
     if iommu == "intel":
@@ -64,12 +64,12 @@ if os.path.exists(vfio_toml_path):
         kargs_list.extend(["amd_iommu=on", "iommu=pt"])
     elif iommu == "on":
         kargs_list.extend(["intel_iommu=on", "amd_iommu=on", "iommu=pt"])
-        
+
     vfio_ids = kargs_conf.get("vfio_ids", "").strip()
     kargs_list = [k for k in kargs_list if not k.startswith("vfio-pci.ids")]
     if vfio_ids:
         kargs_list.append(f"vfio-pci.ids={vfio_ids}")
-        
+
     lines = [
         "# AI-hint: Configures kernel arguments for IOMMU, VFIO-PCI, and nested virtualization to enable hardware passthrough and virtualization features in the MiOS boot process.",
         "# Generated from mios.toml [kargs] SSOT",
@@ -80,7 +80,7 @@ if os.path.exists(vfio_toml_path):
     if lines[-1].endswith(","):
         lines[-1] = lines[-1][:-1]
     lines.append("]")
-    
+
     with open(vfio_toml_path, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
     print(f"Updated {vfio_toml_path}")
@@ -89,19 +89,19 @@ custom_kargs = []
 hugepages = str(kargs_conf.get("hugepages", "")).strip()
 if hugepages:
     custom_kargs.append(f"hugepages={hugepages}")
-    
+
 isolcpus = kargs_conf.get("isolcpus", "").strip()
 if isolcpus:
     custom_kargs.append(f"isolcpus={isolcpus}")
-    
+
 nohz_full = kargs_conf.get("nohz_full", "").strip()
 if nohz_full:
     custom_kargs.append(f"nohz_full={nohz_full}")
-    
+
 rcu_nocbs = kargs_conf.get("rcu_nocbs", "").strip()
 if rcu_nocbs:
     custom_kargs.append(f"rcu_nocbs={rcu_nocbs}")
-    
+
 thp = kargs_conf.get("THP", "").strip()
 if thp:
     custom_kargs.append(f"transparent_hugepage={thp}")
@@ -118,7 +118,7 @@ if custom_kargs:
     if lines[-1].endswith(","):
         lines[-1] = lines[-1][:-1]
     lines.append("]")
-    
+
     with open(custom_toml_path, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
     print(f"Generated {custom_toml_path}")

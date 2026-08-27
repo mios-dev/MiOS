@@ -16,20 +16,20 @@ async def export_to_cold(pg, row_ids: list[int], table: str, dest_dir: str, zstd
     now = datetime.datetime.now(datetime.timezone.utc)
     yyyy = now.strftime("%Y")
     mm_dd = now.strftime("%m-%d")
-    
+
     target_dir = Path(dest_dir) / yyyy / mm_dd
     target_dir.mkdir(parents=True, exist_ok=True)
-    
+
     file_id = uuid.uuid4().hex
     tmp_path = target_dir / f"{file_id}.jsonl.tmp"
     zst_path = target_dir / f"{file_id}.jsonl.zst"
-    
+
     sql = f"SELECT row_to_json(t) FROM {table} t WHERE id = ANY(%(ids)s)"
     rows = await pg.execute(sql, {"ids": row_ids}, fetch=True)
-    
+
     if not rows:
         return None
-        
+
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
             for r in rows:
@@ -39,7 +39,7 @@ async def export_to_cold(pg, row_ids: list[int], table: str, dest_dir: str, zstd
                     f.write(json.dumps(r) + "\n")
                 else:
                     f.write(str(r) + "\n")
-                    
+
         subprocess.run(
             ["zstd", f"--level={zstd_level}", "-o", str(zst_path), str(tmp_path)],
             check=True,
@@ -51,7 +51,7 @@ async def export_to_cold(pg, row_ids: list[int], table: str, dest_dir: str, zstd
                 tmp_path.unlink()
             except Exception:
                 pass
-                
+
     return zst_path
 
 async def cold_sweep(pg, plan: dict, table: str, dest_dir: str, zstd_level: int) -> dict:

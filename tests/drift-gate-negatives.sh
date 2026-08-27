@@ -145,7 +145,7 @@ EOF
 
 test_shellcheck_failure() {
     log "Testing check_shellcheck"
-    
+
     local tmp_bin_dir
     tmp_bin_dir="$(mktemp -d)"
     cat << 'EOF' > "${tmp_bin_dir}/shellcheck"
@@ -2544,7 +2544,7 @@ test_module_length() {
     rm -f "$dummy_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_length >/dev/null 2>&1 \
         || die "Check_module_length failed after restoration"
-    
+
     log "Test_module_length negative test passed"
 }
 

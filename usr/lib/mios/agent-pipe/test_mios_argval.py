@@ -33,7 +33,7 @@ class TestMiosArgVal(unittest.TestCase):
     def test_arg_with_synonyms_alias(self):
         args = {"m": "bar"}
         self.assertEqual(mios_argval._arg_with_synonyms("test_verb", "mode", args), "bar")
-        
+
         args_other = {"type": "foo"}
         self.assertEqual(mios_argval._arg_with_synonyms("test_verb", "mode", args_other), "foo")
 

@@ -35,7 +35,7 @@ class TestOpalLuksPartition(unittest.TestCase):
         """Asserts discovery of mock NVMe (OPAL 2.0 SED) and SATA (Standard LUKS2) drives."""
         drives = self.engine.scan_drives()
         self.assertEqual(len(drives), 2)
-        
+
         nvme = next(d for d in drives if d.path == "/dev/nvme0n1")
         self.assertTrue(nvme.is_opal2)
         self.assertTrue(nvme.is_sed)

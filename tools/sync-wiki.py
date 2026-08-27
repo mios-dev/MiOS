@@ -27,7 +27,7 @@ def sync_json_embeds(file_path):
 
     version = get_version()
     rag_sync = get_last_rag_sync()
-    
+
     def update_knowledge(match):
         try:
             data = json.loads(match.group(1))
@@ -50,7 +50,7 @@ def sync_json_embeds(file_path):
         except:
             return match.group(0)
 
-    content = re.sub(r"#  'MiOS': Immutable Cloud-Native Workstation\n\n```json\n(.*?)\n```", 
+    content = re.sub(r"#  'MiOS': Immutable Cloud-Native Workstation\n\n```json\n(.*?)\n```",
                      r"#  'MiOS': Immutable Cloud-Native Workstation\n\n```json\n\1\n```", content, flags=re.DOTALL)
     content = re.sub(r"```json\n(\{.*?\})\n```", update_status, content, flags=re.DOTALL)
 
@@ -60,10 +60,10 @@ def sync_json_embeds(file_path):
 
 def sync_wiki():
     print(" Syncing Wiki Documentation...")
-    
+
     automation_dir = "automation"
     automation_doc = "specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md"
-    
+
     knowledge_meta = {
         "summary": "Automated index of all 'MiOS' automation automation.",
         "logic_type": "automation",
@@ -101,7 +101,7 @@ This file provides a machine-readable and human-readable index of all automation
             content += f"## `{script}`\n- **Path:** `{path}`\n- **Description:** {description}\n\n"
 
     content += "<!--  'MiOS' Proprietary Artifact | Copyright (c) 2026 'MiOS' Project -->"
-    
+
     os.makedirs(os.path.dirname(automation_doc), exist_ok=True)
     with open(automation_doc, 'w') as f:
         f.write(content)

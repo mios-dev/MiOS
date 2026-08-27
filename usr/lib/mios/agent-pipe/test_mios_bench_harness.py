@@ -29,21 +29,21 @@ def test_offline_score_table():
     tmp_path = "/tmp/test_bench_results.json"
     with open(tmp_path, "w") as fh:
         json.dump({"results": results}, fh)
-        
+
     try:
         p = subprocess.Popen(
             [sys.executable, MIOS_BENCH, "score", tmp_path, "--k", "2"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         out, err = p.communicate()
-        
+
         if p.returncode != 0:
             print(f"DEBUG score exit code: {p.returncode}")
             print(f"DEBUG score stdout: {out.decode('utf-8')}")
             print(f"DEBUG score stderr: {err.decode('utf-8')}")
         check("score command exit code is 0", p.returncode == 0)
         output_str = out.decode("utf-8")
-        
+
         check("table has pass@1", "pass@1:" in output_str)
         check("table has pass@k", "pass@k:" in output_str)
         check("table has pass^k", "pass^k:" in output_str)
@@ -60,7 +60,7 @@ def test_run_command_suite_routing():
     tmp_suite = "/tmp/test_bench_suite.json"
     with open(tmp_suite, "w") as fh:
         json.dump(suite, fh)
-        
+
     import http.server
     import threading
     class MockHandler(http.server.BaseHTTPRequestHandler):
@@ -71,15 +71,15 @@ def test_run_command_suite_routing():
             self.wfile.write(json.dumps({
                 "choices": [{"message": {"content": "The result of 40+2 is 42."}}]
             }).encode())
-            
+
         def log_message(self, format, *args):
             pass  # Suppress logging noise
-            
+
     server = http.server.HTTPServer(("127.0.0.1", 8699), MockHandler)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     time.sleep(0.1)
-    
+
     try:
         p = subprocess.Popen(
             [sys.executable, MIOS_BENCH, "run", tmp_suite, "--endpoint", "http://127.0.0.1:8699/v1", "--k", "1"],

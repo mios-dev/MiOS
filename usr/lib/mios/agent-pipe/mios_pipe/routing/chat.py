@@ -30,7 +30,7 @@ _orig_post = httpx.AsyncClient.post
 async def _patched_post(self, url, *args, **kwargs):
     url_str = str(url)
     is_llm = "/chat/completions" in url_str
-    
+
     if is_llm and _replay_active.get():
         q = _replay_llm_queue.get()
         if q:
@@ -42,15 +42,15 @@ async def _patched_post(self, url, *args, **kwargs):
         else:
             log.warning("No recorded LLM response in queue for: %s", url_str)
             return httpx.Response(status_code=200, json={"choices": [{"message": {"role": "assistant", "content": "(error: no recorded LLM response found)"}}]})
-            
+
     resp = await _orig_post(self, url, *args, **kwargs)
-    
+
     if is_llm and _record_active.get():
         try:
             session_id = _conv_key_var.get() if (_conv_key_var is not None and hasattr(_conv_key_var, "get")) else "default"
             json_body = kwargs.get("json") or {}
             resp_body = resp.json()
-            
+
             db_w = globals().get("_db_write")
             if db_w is not None:
                 import uuid
@@ -67,7 +67,7 @@ async def _patched_post(self, url, *args, **kwargs):
                 log.info("Recorded LLM call in session: %s", session_id)
         except Exception as e:
             log.warning("Failed to record LLM call in session: %s", e)
-            
+
     return resp
 
 httpx.AsyncClient.post = _patched_post
@@ -329,7 +329,7 @@ async def _summarize_evicted_messages(evicted_messages: list) -> str:
         role = str(m.get("role") or "").upper()
         content = str(m.get("content") or "").strip()
         history_str += f"{role}: {content}\n"
-        
+
     payload = {
         "model": ROUTER_MODEL,
         "messages": [
@@ -770,12 +770,12 @@ async def chat_completions_logic(request: Request) -> Any:
     _replay_active.set(False)
     _replay_llm_queue.set([])
     _replay_tool_queue.set([])
-    
+
     obs_cfg = _toml_section("observability") or {}
     record_mode = bool(obs_cfg.get("record_mode", False))
     replay_mode = bool(obs_cfg.get("replay_mode", False)) or bool(request.headers.get("x-mios-replay"))
     replay_sess_id = request.headers.get("x-mios-replay-session") or _conv_key_var.get()
-    
+
     if replay_mode:
         try:
             from mios_pg import execute as pg_execute
@@ -793,7 +793,7 @@ async def chat_completions_logic(request: Request) -> Any:
             _replay_active.set(True)
             log.info("Replay mode active: loaded %d LLM responses, %d tool responses for session %s",
                      len(llm_q), len(tool_q), replay_sess_id)
-            
+
             h = hashlib.md5(replay_sess_id.encode("utf-8"), usedforsecurity=False).hexdigest()
             seed = int(h, 16) % (2**32)
             random.seed(seed)
@@ -834,7 +834,7 @@ async def chat_completions_logic(request: Request) -> Any:
             compaction_interval = int(os.environ.get("MIOS_MEMORY_COMPACTION_INTERVAL") or memory_cfg.get("compaction_interval", 20))
             tool_result_ttl_turns = int(os.environ.get("MIOS_MEMORY_TOOL_RESULT_TTL_TURNS") or memory_cfg.get("tool_result_ttl_turns", 5))
             compaction_threshold_pct = float(os.environ.get("MIOS_MEMORY_COMPACTION_THRESHOLD_PCT") or memory_cfg.get("compaction_threshold_pct", 80)) / 100.0
-            
+
             session_id = _conv_key_var.get() or "default"
             total_turns = sum(1 for m in messages if m.get("role") == "assistant")
             if total_turns >= compaction_interval:
@@ -843,17 +843,17 @@ async def chat_completions_logic(request: Request) -> Any:
 
             tok_count = mios_tokenize.count_messages(messages)
             fill = tok_count / n_ctx
-            
+
             if fill >= compaction_threshold_pct:
                 log.info("Native context fill >= %d%% (%d/%d tokens). Evicting oldest turns and summarizing.", int(compaction_threshold_pct * 100), tok_count, n_ctx)
-                
+
                 import mios_compact
                 budget = int(n_ctx * 0.5)
                 plan = mios_compact.plan_compaction(messages, budget=budget, keep_recent=4, keep_system=True)
-                
+
                 if plan.needed and plan.to_summarize:
                     summary = await _summarize_evicted_messages(plan.to_summarize)
-                    
+
                     if _scratchpad_for is not None:
                         _scratchpad_for(session_id).appendleft({
                             "ts": time.time(),
@@ -862,7 +862,7 @@ async def chat_completions_logic(request: Request) -> Any:
                             "phase": "",
                             "note": f"Recursive summary of evicted conversation history: {summary}",
                         })
-                    
+
                     if SCRATCHPAD_PERSIST and _db_write is not None:
                         try:
                             _db_write("scratch", {
@@ -874,14 +874,14 @@ async def chat_completions_logic(request: Request) -> Any:
                             }, now_fields=("ts",))
                         except Exception:
                             pass
-                    
+
                     emb_val = None
                     try:
                         if _embed_one is not None:
                             emb_val = await _embed_one(f"Summary of evicted conversation history: {summary}")
                     except Exception:
                         pass
-                    
+
                     fields = {
                         "fact": f"Summary of evicted conversation history: {summary}",
                         "scope": f"conversation:{session_id}",
@@ -893,24 +893,24 @@ async def chat_completions_logic(request: Request) -> Any:
                         fields["emb"] = emb_val
                         fields["emb_model"] = EMB_MODEL
                         fields["emb_version"] = EMB_VERSION
-                    
+
                     if _db_write is not None:
                         try:
                             _db_write("agent_memory", fields)
                         except Exception:
                             pass
-                    
+
                     new_messages = []
                     system_msgs = [m for m in plan.to_keep if m.get("role") in ("system", "developer")]
                     other_msgs = [m for m in plan.to_keep if m.get("role") not in ("system", "developer")]
-                    
+
                     new_messages.extend(system_msgs)
                     new_messages.append({
                         "role": "system",
                         "content": f"System checkpoint -- recursive summary of evicted conversation history:\n{summary}"
                     })
                     new_messages.extend(other_msgs)
-                    
+
                     tokens_before = tok_count
                     messages = new_messages
                     body["messages"] = messages
@@ -931,7 +931,7 @@ async def chat_completions_logic(request: Request) -> Any:
                             }, now_fields=("ts",))
                         except Exception:
                             pass
-                    
+
             elif fill >= 0.7:
                 log.info("Native context fill >= 70%% (%d/%d tokens). Warning agent.", tok_count, n_ctx)
                 if _db_write is not None:
@@ -949,7 +949,7 @@ async def chat_completions_logic(request: Request) -> Any:
                         }, now_fields=("ts",))
                     except Exception:
                         pass
-                
+
                 messages.append({
                     "role": "system",
                     "content": f"WARNING: Conversation context is at {int(fill*100)}% capacity ({tok_count}/{n_ctx} tokens). Please use memory_append or memory_replace to save important information before it is evicted."
@@ -1113,17 +1113,17 @@ async def chat_completions_logic(request: Request) -> Any:
             if not _incoming_turn:
                 yield _sse_status_phase(chat_id=chat_id, model=model, phase="refine")
                 yield _sse_status(chat_id=chat_id, model=model, emoji="🧠", label="Refining intent & decomposing plan...")
-                
+
                 await _vram_checkpoint()
-                
+
                 queue = asyncio.Queue()
                 async def _on_refine_token(token_val: str, is_re: bool):
                     await queue.put((token_val, is_re))
-                
+
                 refine_task = asyncio.create_task(
                     refine_intent(last_user_text, messages, on_token=_on_refine_token)
                 )
-                
+
                 while not refine_task.done() or not queue.empty():
                     try:
                         token_val, is_re = await asyncio.wait_for(queue.get(), timeout=0.05)
@@ -1133,7 +1133,7 @@ async def chat_completions_logic(request: Request) -> Any:
                         queue.task_done()
                     except asyncio.TimeoutError:
                         continue
-                
+
                 refined = await refine_task
                 if refined and refined.get("refined_text"):
                     _refined_q = str(refined["refined_text"]).strip()
@@ -1145,34 +1145,34 @@ async def chat_completions_logic(request: Request) -> Any:
                                     and isinstance(_m.get("content"), str):
                                 messages[_i] = {**_m, "content": _refined_q}
                                 break
-            
+
             try:
                 _turn_volatile_var.set(bool(refined and (
                     refined.get("local_state") or refined.get("news")
                     or refined.get("needs_location"))))
             except Exception:
                 pass
-            
+
             try:
                 _turn_priority = float(_sched_priority(refined).get("score", 5.0))
             except Exception:
                 _turn_priority = 5.0
-            
+
             if _autonomous:
                 _turn_priority = min(_turn_priority, AUTONOMOUS_PRIORITY)
-                
+
             try:
                 await mios_preempt.turn_boundary(task_id=str(chat_id), priority=_turn_priority)
             except Exception:
                 pass
-                
+
             if mios_preempt.QUEUE_ENABLE:
                 try:
                     mios_preempt._TURN_QUEUE.enqueue(str(chat_id), _turn_priority)
                     mios_preempt._TURN_QUEUE.dispatch()
                 except Exception:
                     pass
-            
+
             if refined:
                 _intent = refined.get("intent")
                 _text = refined.get("refined_text")
@@ -1183,7 +1183,7 @@ async def chat_completions_logic(request: Request) -> Any:
                 if _tasks:
                     _label += f" ({len(_tasks)} tasks planned)"
                 yield _sse_status(chat_id=chat_id, model=model, emoji="📋", label=_label)
-                
+
                 _refine_reasoning = f"💭 [refine] classified intent as '{_intent}'\n"
                 if _text:
                     _refine_reasoning += f"🎯 refined query: '{_text}'\n"
@@ -1193,10 +1193,10 @@ async def chat_completions_logic(request: Request) -> Any:
                     _refine_reasoning += "📋 planned tasks:\n"
                     for _t in _tasks:
                         _refine_reasoning += f"  - {_t.get('title')}: {_t.get('refined_text')} (web={_t.get('web')}, local={_t.get('local_state')})\n"
-                
+
                 yield _sse_reasoning(_refine_reasoning, chat_id=chat_id, model=model,
                                      reasoning_ok=_reasoning_ok)
-            
+
             _budget_turn_token = (chat_id if (_autonomous and _autonomous_source) else None)
             _budget_ok, _budget_reason = await _budget_admit(
                 _scratchpad_key(body, chat_id), _autonomous_source, _budget_turn_token)
@@ -1211,11 +1211,11 @@ async def chat_completions_logic(request: Request) -> Any:
                 yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
                 yield _sse_done()
                 return
-            
+
             if _KERNEL:
                 _kdec = _KERNEL.router.route(refined)
                 log.info("kernel dispatch (stream): routing mode=%s", _kdec.mode)
-                
+
                 ctx_copy = outer_ctx.copy()
                 ctx_copy.update({
                     "refined": refined,
@@ -1240,7 +1240,7 @@ async def chat_completions_logic(request: Request) -> Any:
             else:
                 yield _sse_chunk("Error: Kernel not configured", chat_id=chat_id, model=model)
                 yield _sse_done()
-                
+
         _res_stream = StreamingResponse(_stream_refine_and_dispatch(), media_type="text/event-stream")
         if session_replay_opt_in and session_id:
             original_iterator = _res_stream.body_iterator
@@ -1435,7 +1435,7 @@ async def _kernel_chat_handler(decision, **ctx):
     model = ctx.get("model")
     session_id = ctx.get("session_id")
     _routed_domain_var = ctx.get("_routed_domain_var") or globals().get("_routed_domain_var")
-    
+
     _chat_reply = ""
     if not _force_council and not _force_delegate:
         _mem_block = await _recall_agent_memory(last_user_text)
@@ -1540,7 +1540,7 @@ async def _kernel_dispatch_handler(decision, **ctx):
             streaming=streaming, chat_id=chat_id, model=model,
             session_id=session_id, last_user_text=last_user_text,
             persona_system=_persona_system)
-    
+
     log.info("refine dispatch tool=%r not a fast-path verb -> agent", _os_tool)
     decision.mode = "agent"
     return await _KERNEL.dispatcher.run(decision, **ctx)

@@ -51,7 +51,7 @@ def t_reflexion_gate():
             if section in ("agent", "agents", "agent_pipe"):
                 return {"reflexion_enable": "false"}
             return {}
-            
+
     sys.modules["mios_config"] = FakeConfig
 
     import mios_reflect
@@ -60,7 +60,7 @@ def t_reflexion_gate():
         return {"tool": "read_file", "args": {}, "rationale": "retry logic"}
     mpr.reflect_on_step_failure = mock_reflect
     sys.modules["mios_reflect"].__dict__["reflect_on_step_failure"] = mock_reflect
-    
+
     db_reads = []
     async def mock_db_read(sql, pg_sql=None):
         db_reads.append(sql)
@@ -73,24 +73,24 @@ def t_reflexion_gate():
         endpoint_supports_parallel_tools=lambda *a: False,
         db_read=mock_db_read
     )
-    
+
     scripted = [
         {"tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}]},
         {"content": "I am done."}
     ]
     client = _FakeClient(scripted)
-    
+
     async def mock_exec_failed(tcs, push, allow_write=False):
         return [{"role": "tool", "content": '{"success": false, "error": "file not found"}', "tool_call_id": "call_1"}], True
-        
+
     sl._exec_tool_calls = mock_exec_failed
     sl._rescue_tool_calls = lambda *a: []
-    
+
     res_msgs = asyncio.run(sl._v1_secondary_tool_loop(
         client, "http://endpoint", "model-1", {}, [], [{"name": "read_file"}], 10, lambda *a: None,
         session_id="session-1"
     ))
-    
+
     has_reflexion = any("SYSTEM REFLEXION" in str(m.get("content") or "") for m in res_msgs)
     check("reflexion-gate: reflexion disabled in config -> no reflexion prompt", not has_reflexion)
 
@@ -110,23 +110,23 @@ def t_tool_failure_reflexion_flow():
         return {"tool": "read_file", "args": {}, "rationale": "retry logic"}
     mpr.reflect_on_step_failure = mock_reflect
     sys.modules["mios_reflect"].__dict__["reflect_on_step_failure"] = mock_reflect
-    
+
     created_queries = []
     fired_queries = []
-    
+
     def mock_db_create(table, row, now_fields=None):
         created_queries.append((table, row))
         return f"INSERT INTO {table} VALUES (...)"
-        
+
     def mock_db_fire(sql):
         fired_queries.append(sql)
-        
+
     def mock_db_post(sql):
         return sql
-        
+
     async def mock_db_read(sql, pg_sql=None):
         return []
-        
+
     sl.configure(
         secondary_tool_max_iters=3,
         secondary_replan_max=1,
@@ -137,25 +137,25 @@ def t_tool_failure_reflexion_flow():
         db_fire=mock_db_fire,
         db_post=mock_db_post
     )
-    
+
     scripted = [
         {"tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}]},
         {"content": "Let me try another way."}
     ]
     client = _FakeClient(scripted)
-    
+
     async def mock_exec_failed(tcs, push, allow_write=False):
         return [{"role": "tool", "content": '{"success": false, "error": "permission denied"}', "tool_call_id": "call_1"}], True
     sl._exec_tool_calls = mock_exec_failed
-    
+
     res_msgs = asyncio.run(sl._v1_secondary_tool_loop(
         client, "http://endpoint", "model-1", {}, [], [{"name": "read_file"}], 10, lambda *a: None,
         session_id="session-100"
     ))
-    
+
     event_logged = any(table == "event" and row.get("kind") == "reflexion_retry" for table, row in created_queries)
     check("reflexion-flow: logged reflexion_retry event", event_logged)
-    
+
     has_reflexion = any("SYSTEM REFLEXION" in str(m.get("content") or "") for m in res_msgs)
     check("reflexion-flow: reflexion prompt injected into history", has_reflexion)
 
@@ -163,20 +163,20 @@ def t_tool_failure_reflexion_flow():
 def t_superstep_checkpoints():
     created_queries = []
     fired_queries = []
-    
+
     def mock_db_create(table, row, now_fields=None):
         created_queries.append((table, row))
         return f"INSERT INTO {table} VALUES (...)"
-        
+
     def mock_db_fire(sql):
         fired_queries.append(sql)
-        
+
     def mock_db_post(sql):
         return sql
-        
+
     async def mock_db_read(sql, pg_sql=None):
         return []
-        
+
     sl.configure(
         secondary_tool_max_iters=2,
         secondary_replan_max=1,
@@ -187,26 +187,26 @@ def t_superstep_checkpoints():
         db_fire=mock_db_fire,
         db_post=mock_db_post
     )
-    
+
     scripted = [
         {"tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}]},
         {"content": "Finished."}
     ]
     client = _FakeClient(scripted)
-    
+
     async def mock_exec_ok(tcs, push, allow_write=False):
         return [{"role": "tool", "content": '{"success": true}', "tool_call_id": "call_1"}], True
     sl._exec_tool_calls = mock_exec_ok
-    
+
     asyncio.run(sl._v1_secondary_tool_loop(
         client, "http://endpoint", "model-1", {}, [], [{"name": "read_file"}], 10, lambda *a: None,
         session_id="session-react-1"
     ))
-    
+
     ckpt_written = any(table == "session" and row.get("kind") == "checkpoint"
                        and "session-react-1" in row.get("id") for table, row in created_queries)
     check("superstep-checkpoints: saved superstep checkpoint to session table", ckpt_written)
-    
+
     checkpoint_meta = next(row.get("meta") for table, row in created_queries if table == "session" and row.get("kind") == "checkpoint")
     check("superstep-checkpoints: checkpoint carries superstep index", "superstep_idx" in checkpoint_meta)
     check("superstep-checkpoints: checkpoint carries messages history", "messages" in checkpoint_meta)
@@ -216,17 +216,17 @@ def t_dag_execution_checkpoint_resume():
     created_queries = []
     fired_queries = []
     read_queries = []
-    
+
     def mock_db_create(table, row, now_fields=None):
         created_queries.append((table, row))
         return f"INSERT INTO {table} VALUES (...)"
-        
+
     def mock_db_fire(sql):
         fired_queries.append(sql)
-        
+
     def mock_db_post(sql):
         return sql
-        
+
     async def mock_db_read(sql, pg_sql=None):
         read_queries.append(sql)
         if "superstep_1" in sql:
@@ -236,7 +236,7 @@ def t_dag_execution_checkpoint_resume():
                 }
             }]
         return []
-        
+
     async def mock_get_client():
         return object()
 
@@ -256,13 +256,13 @@ def t_dag_execution_checkpoint_resume():
         sanitize_tool_text=lambda s: s
     )
     de._record_dag_node_row = lambda res, sid: None
-    
+
     exec_nodes = []
     async def mock_exec_core(node, results_by_id, seen_actions, dag_summary, session_id, client, frag_q):
         exec_nodes.append(node["id"])
         return {"success": True, "output": "executed live", "tool": "agent:gpu-node", "node_id": node["id"]}
     de._execute_dag_node_core = mock_exec_core
-    
+
     dag = {
         "summary": "resume-test",
         "nodes": [
@@ -270,12 +270,12 @@ def t_dag_execution_checkpoint_resume():
             {"id": "t2", "agent": "gpu-node", "deps": ["t1"]}
         ]
     }
-    
+
     res = asyncio.run(de.execute_dag(dag, session_id="session-dag-200"))
-    
+
     check("dag-resume: did not execute t1 (read from checkpoint)", "t1" not in exec_nodes)
     check("dag-resume: executed t2 live", "t2" in exec_nodes)
-    
+
     checkpoint_2_saved = any(table == "session" and "superstep_2" in row.get("id") for table, row in created_queries)
     check("dag-resume: saved level 2 checkpoint to session table", checkpoint_2_saved)
 

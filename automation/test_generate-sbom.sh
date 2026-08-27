@@ -17,7 +17,7 @@ echo "[PASS] Syft installer curl carries"
 test_syft_absent() {
     local tmp_bin; tmp_bin="$(mktemp -d)"
     local PATH_NO_SYFT; PATH_NO_SYFT="$(echo "$PATH" | tr ':' '\n' | grep -v 'syft' | tr '\n' ':')"
-    
+
     local out
     out="$(PATH="$PATH_NO_SYFT" bash "$SBOM_SCRIPT" 2>&1 || true)"
     if [[ "$out" != *"WARN"* && "$out" != *"unavailable"* && "$out" != *"skipping SBOM"* ]]; then
@@ -38,7 +38,7 @@ test_unset_usr_dir() {
 test_unwritable_dir() {
     local tmp_dir; tmp_dir="$(mktemp -d)"
     chmod 000 "$tmp_dir"
-    
+
     local out
     out="$(MIOS_USR_DIR="$tmp_dir" bash "$SBOM_SCRIPT" 2>&1 || true)"
     chmod 755 "$tmp_dir"
@@ -57,7 +57,7 @@ echo "Simulated syft failure" >&2
 exit 1
 EOF
     chmod +x "${tmp_bin}/syft"
-    
+
     local out
     out="$(PATH="${tmp_bin}:$PATH" bash "$SBOM_SCRIPT" 2>&1 || true)"
     rm -rf "$tmp_bin"

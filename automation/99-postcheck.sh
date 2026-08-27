@@ -498,14 +498,14 @@ server.serve_forever()
 ' &
     MOCK_PID=$!
     sleep 0.5
-    
+
     BENCH_BIN="/usr/libexec/mios/mios-bench"
     if [[ ! -x "$BENCH_BIN" ]]; then
         BENCH_BIN="$(dirname "${BASH_SOURCE[0]}")/../usr/libexec/mios/mios-bench"
     fi
-    
+
     python3 "$BENCH_BIN" run --suite gaia-lite --endpoint http://127.0.0.1:8649/v1 --k 1
-    
+
     kill "$MOCK_PID" || true
     mios_ok "Benchmark harness executed"
 else

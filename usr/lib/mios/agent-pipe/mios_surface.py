@@ -288,13 +288,13 @@ def _scan_module(tree: ast.Module) -> _Scan:
 def _module_file(module: str, search_dir: str) -> str | None:
     if not module:
         return None
-    
+
     if module.startswith("mios_pipe."):
         rel = module.replace(".", os.sep) + ".py"
         cand = os.path.join(search_dir, rel)
         if os.path.isfile(cand):
             return cand
-            
+
     flat_name = module.split(".")[-1] + ".py"
     cand = os.path.join(search_dir, flat_name)
     if os.path.isfile(cand):

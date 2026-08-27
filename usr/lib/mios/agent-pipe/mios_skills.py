@@ -279,7 +279,7 @@ def _skill_to_openai_tool(row: dict) -> dict:
     description = row.get("description") or f"MiOS skill {name}"
     body = row.get("body") or {}
     params_raw = body.get("params") or []
-    
+
     if isinstance(params_raw, dict):
         properties = {}
         required = []
@@ -332,11 +332,11 @@ def _make_schema_strict(schema: dict) -> dict:
         if not isinstance(properties, dict):
             properties = {}
         s["properties"] = dict(properties)
-        
+
         required = s.get("required") or []
         if not isinstance(required, list):
             required = []
-            
+
         new_required = list(required)
         for prop_name, prop_val in s["properties"].items():
             if isinstance(prop_val, dict):

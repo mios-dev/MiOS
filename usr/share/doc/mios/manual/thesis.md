@@ -1,12 +1,12 @@
 # AI-hint: Core thesis, nature, designed vs. observed scope, and architectural pillars for MiOS.
 # MiOS Core Thesis & Nature
 
-> **Status:** Core Architectural Definition & Scope Statement  
+> **Status:** Core Architectural Definition & Scope Statement
 > **Classification:** Research Vehicle / Proof of Concept
 
 ## 1. What MiOS Is (and Is Not)
 
-**MiOS is a research vehicle and a proof of an idea, not a commercial product.** 
+**MiOS is a research vehicle and a proof of an idea, not a commercial product.**
 
 Its sole deliverable is **this repository itself**—a self-contained, rebuildable blueprint for an immutable container-workstation and agentic OS runtime. It is designed to demonstrate that an operating system can be synthesized from declarative SSOT configurations, drive its own inference/tooling pipelines, and maintain self-replication discipline across diverse execution targets.
 

@@ -32,18 +32,18 @@ async def lifespan(app: FastAPI):
     mcp_refresh = int(gateway_cfg.get("mcp_refresh_seconds") or 300)
     skill_refresh = int(gateway_cfg.get("skill_refresh_seconds") or 300)
     catalog_path = gateway_cfg.get("skill_catalog_static_path") or "/var/lib/mios/skills/catalog.json"
-    
+
     mcp_client = MiOSMCPClient(mcp_refresh_seconds=mcp_refresh)
     await mcp_client.connect()
-    
+
     main_loop = asyncio.get_running_loop()
     tool_registry = MiOSToolRegistry(mcp_client, main_loop)
-    
+
     skill_catalog_loader = SkillCatalogLoader(catalog_path=catalog_path, skill_refresh_seconds=skill_refresh)
     skill_catalog_loader.start()
-    
+
     yield
-    
+
     if skill_catalog_loader:
         skill_catalog_loader.stop()
     if mcp_client:
@@ -93,7 +93,7 @@ async def health():
 async def models():
     ai_cfg = _toml_section("ai")
     available_models = ai_cfg.get("available_models") or ["granite4.1:3b", "granite4.1:30b", "gpt-oss:20b", "nomic-embed-text"]
-    
+
     data = []
     for model_id in available_models:
         data.append({
@@ -117,9 +117,9 @@ class ChatCompletionRequest(BaseModel):
 async def chat_completions(req: ChatCompletionRequest):
     meta = req.metadata or {}
     session_id = str(meta.get("chat_id") or meta.get("session_id") or "default")
-    
+
     history = await session_db.get_session(session_id)
-    
+
     new_incoming = req.messages
     if len(history) < len(new_incoming):
         history = history + new_incoming[len(history):]
@@ -135,9 +135,9 @@ async def chat_completions(req: ChatCompletionRequest):
     max_steps = gateway_cfg.get("max_steps", 30)
 
     ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1")
-    
+
     from smolagents import OpenAIServerModel, ToolCallingAgent
-    
+
     try:
         model = OpenAIServerModel(
             model_id=model_id,
@@ -153,7 +153,7 @@ async def chat_completions(req: ChatCompletionRequest):
         tools.extend(tool_registry.get_tools())
     if skill_catalog_loader:
         tools.extend(skill_catalog_loader.get_tools())
-    
+
     engine = gateway_cfg.get("tool_loop_engine", "smolagents")
     if engine == "native":
         import httpx
@@ -196,7 +196,7 @@ async def chat_completions(req: ChatCompletionRequest):
         role = msg.get("role", "")
         content = msg.get("content", "")
         context += f"{role.upper()}: {content}\n"
-    
+
     last_user_text = history[-1].get("content", "")
     task = (
         f"Conversation History:\n{context}\n\n"
@@ -226,10 +226,10 @@ async def chat_completions(req: ChatCompletionRequest):
             try:
                 loop = asyncio.get_running_loop()
                 steps = await loop.run_in_executor(None, lambda: list(agent.run(task, stream=True)))
-                
+
                 from smolagents.memory import ActionStep
                 from smolagents.agents import FinalAnswerStep
-                
+
                 final_answer = ""
                 for step in steps:
                     if isinstance(step, ActionStep):
@@ -258,7 +258,7 @@ async def chat_completions(req: ChatCompletionRequest):
                     elif isinstance(step, FinalAnswerStep):
                         final_answer = step.output
                         yield openai_chunk(f"\nFinal Answer: {step.output}\n", finish_reason="stop")
-                
+
                 if final_answer:
                     history.append({"role": "assistant", "content": str(final_answer)})
                     await session_db.save_session(session_id, history)
@@ -275,7 +275,7 @@ async def chat_completions(req: ChatCompletionRequest):
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, lambda: agent.run(task, stream=False))
-            
+
             response = {
                 "id": f"chatcmpl-{uuid.uuid4().hex[:24]}",
                 "object": "chat.completion",
@@ -295,7 +295,7 @@ async def chat_completions(req: ChatCompletionRequest):
                     "total_tokens": 0
                 }
             }
-            
+
             history.append({"role": "assistant", "content": str(result)})
             await session_db.save_session(session_id, history)
             return response

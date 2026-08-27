@@ -39,11 +39,11 @@ async def test_export_to_cold_success():
         res_path = await mios_cold_evict.export_to_cold(
             pg, row_ids=[123], table="knowledge", dest_dir=TEST_DIR, zstd_level=3
         )
-        
+
         check("export: returns zst file path", res_path is not None)
         check("export: path suffix is .zst", str(res_path).endswith(".zst"))
         check("export: subprocess.run called once", mock_run.call_count == 1)
-        
+
         args = mock_run.call_args[0][0]
         check("export: level flag correct", "--level=3" in args)
         check("export: zstd command matches", args[0] == "zstd")
@@ -65,7 +65,7 @@ async def test_export_to_cold_error_cleanup():
 async def test_cold_sweep():
     pg = mock.Mock()
     select_results = [{"id": 1}, {"id": 2}]
-    
+
     execute_calls = []
     async def mock_execute(sql, params=None, fetch=False):
         execute_calls.append((sql, params))
@@ -82,10 +82,10 @@ async def test_cold_sweep():
         report = await mios_cold_evict.cold_sweep(
             pg, plan, table="knowledge", dest_dir=TEST_DIR, zstd_level=3
         )
-        
+
         check("sweep: correct number exported", report["exported"] == 2)
         check("sweep: returns non-empty dest path", report["dest"] != "")
-        
+
         check("sweep: select was run", any("SELECT id" in call[0] for call in execute_calls))
         check("sweep: delete was run", any("DELETE FROM" in call[0] for call in execute_calls))
 

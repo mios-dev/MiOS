@@ -282,7 +282,7 @@ async def dispatch_mios_verb(
             import uuid
             out_content = res.get("output") or res.get("result") or ""
             success = bool(res.get("success", True))
-            
+
             row = {
                 "id": f"session:tool:{uuid.uuid4().hex[:24]}",
                 "kind": "tool_io",
@@ -316,14 +316,14 @@ async def _dispatch_mios_verb_live(
     if aname:
         acfg = _AGENT_REGISTRY.get(aname) or {} if _AGENT_REGISTRY else {}
         privilege_group = acfg.get("privilege_group") or "routine"
-        
+
         vcfg = _VERB_CATALOG.get(tool) or {} if _VERB_CATALOG else {}
         verb_tier = vcfg.get("tier") or "routine"
-        
+
         if verb_tier == "destructive" and privilege_group == "routine":
             verdict = "hitl"
             _acl_hitl_reason = f"ACL block: agent '{aname}' lacks privilege to run destructive verb '{tool}' without HITL approval."
-            
+
             if _db_fire is not None and _db_post is not None and _db_create is not None:
                 try:
                     _db_fire(_db_post(_db_create("event", {
@@ -349,7 +349,7 @@ async def _dispatch_mios_verb_live(
                                        "action_hash": _ah, "reason": _acl_hitl_reason})
             except Exception:
                 pass
-                
+
             return {"success": False, "output": "", "stderr": _acl_hitl_reason,
                     "exit_code": 126, "hitl_blocked": True}
         else:
@@ -535,12 +535,12 @@ async def _quarantine_gate(tool: str, args: dict, *,
                 scratchpad_dir = os.environ.get("MIOS_CONV_MEMORY_SCRATCHPAD_DIR", "/tmp")
                 if mios_scratchpad.has_tainted(session_id, scratchpad_dir):
                     a_tainted = True
-        
+
         sensitive = bool(vmeta.get("sensitive"))
         is_side_effecting = mios_ruleof2.is_state_change(vmeta.get("permission"))
         if tool == "open_url" and _is_external_url(str((args or {}).get("url", ""))):
             is_side_effecting = True
-            
+
         verdict = mios_quarantine.evaluate(
             session_tainted=a_tainted,
             permission_tier="write" if is_side_effecting else vmeta.get("permission"),
@@ -586,7 +586,7 @@ async def _dispatch_mios_verb_inner(
             verdict = "hitl"
         elif "quota_block" in str(res.get("stderr") or "") or "pdp_block" in str(res.get("stderr") or ""):
             verdict = "block"
-            
+
         if _db_fire is not None and _db_post is not None and _db_create is not None:
             _db_fire(_db_post(_db_create("event", {
                 "source": "agent-pipe",

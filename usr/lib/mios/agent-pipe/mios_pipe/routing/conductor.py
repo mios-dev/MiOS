@@ -53,7 +53,7 @@ async def execute_conductor_workflow(workflow_name: str, params: Dict[str, Any],
                 parallel_steps = step.get("steps", [])
                 tasks = [run_step(ps) for ps in parallel_steps]
                 step_results = await asyncio.gather(*tasks, return_exceptions=True)
-                
+
                 group_ok = True
                 for i, r in enumerate(step_results):
                     if isinstance(r, Exception) or not r.get("success"):

@@ -131,7 +131,7 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
                     for m in data:
                         if isinstance(m, dict) and m.get("id"):
                             model_ids.append(str(m["id"]))
-                
+
                 skills = []
                 has_text = False
                 has_embed = False
@@ -155,7 +155,7 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
                         has_image = True
                     else:
                         has_text = True
-                        
+
                 if has_text or not model_ids:
                     skills.append({
                         "id": "text-generation",
@@ -174,7 +174,7 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
                         "name": "Image Generation",
                         "description": "Image generation and styling capabilities",
                     })
-                
+
                 return {
                     "name": url.split("//", 1)[-1].split(":", 1)[0],
                     "provider": {"organization": "Cardless"},

@@ -197,7 +197,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     import sys
     import time
     msgs = list(messages)
-    
+
     agent_cfg = {}
     if "mios_config" in sys.modules:
         try:
@@ -332,7 +332,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 log.warning("tool-loop runaway detected: same tool signatures called consecutively %d times", no_progress_window)
                 msgs.append({"role": "user", "content": "SYSTEM ALERT: Runaway loop detected (repeated identical tool calls). Terminating loop."})
                 break
-            
+
             last_n_names = tool_name_history[-no_progress_window:]
             if len(set(last_n_names)) == 1:
                 log.warning("tool-loop runaway detected: same tool names called consecutively %d times", no_progress_window)
@@ -386,7 +386,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 log.warning("tool-loop hit max_consecutive_failures=%d -> terminating", max_consecutive_failures)
                 msgs.append({"role": "user", "content": "SYSTEM ALERT: Maximum consecutive tool failures reached. Terminating loop."})
                 break
-            
+
             failed_tc = None
             failed_tm = None
             for tc in active_tcs:
@@ -396,7 +396,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                     failed_tc = tc
                     failed_tm = tm
                     break
-            
+
             if failed_tc and failed_tm:
                 try:
                     from mios_reflect import reflect_on_step_failure
@@ -415,23 +415,23 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                         "output": failed_tm.get("content") or ""
                     }
                     plan_context = {"summary": "Sub-agent tool execution"}
-                    
+
                     push(" 🧠[Reflecting]")
                     correction = await reflect_on_step_failure(
                         failed_node, failed_result, plan_context, session_id
                     )
-                    
+
                     if correction and isinstance(correction, dict) and correction.get("tool"):
                         rationale = correction.get("rationale") or "Correcting failed step"
                         push(f"\n\n🤖 Reflexion correction: {rationale}\n")
-                        
+
                         reflection_prompt = (
                             f"SYSTEM REFLEXION: A tool call failed. Corrective action suggested: "
                             f"tool={correction['tool']}, args={json.dumps(correction['args'])}. "
                             f"Analyze and proceed with this revised approach."
                         )
                         msgs.append({"role": "user", "content": reflection_prompt})
-                        
+
                         if _db_create and _db_fire and _db_post:
                             try:
                                 sql = _db_create("event", {

@@ -136,7 +136,7 @@ class HardwareInventoryMonitor:
                 bus_id = os.path.basename(pci_path)
                 vendor = self._read_sysfs_file(os.path.join(pci_path, "vendor")).replace("0x", "").lower().zfill(4)
                 device = self._read_sysfs_file(os.path.join(pci_path, "device")).replace("0x", "").lower().zfill(4)
-                
+
                 # Driver
                 driver_path = os.path.join(pci_path, "driver")
                 driver = os.path.basename(os.readlink(driver_path)) if os.path.islink(driver_path) else None

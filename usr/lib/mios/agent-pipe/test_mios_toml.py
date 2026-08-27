@@ -67,7 +67,7 @@ class TestMiosToml(unittest.TestCase):
                 "key4": "db_val4"
             }
         }
-        
+
         with open(self.user_file, "w", encoding="utf-8") as f:
             f.write("[section]\nkey3 = 'user_val3'\n")
 
@@ -79,13 +79,13 @@ class TestMiosToml(unittest.TestCase):
 
     def test_cache_memoization_and_invalidation(self):
         res1 = mios_toml.load_merged()
-        
+
         with open(self.user_file, "w", encoding="utf-8") as f:
             f.write("[section]\nkey3 = 'sneaky_change'\n")
-            
+
         res2 = mios_toml.load_merged()
         self.assertEqual(res1["section"].get("key3"), res2["section"].get("key3"))
-        
+
         mios_toml.clear_cache()
         res3 = mios_toml.load_merged()
         self.assertEqual(res3["section"].get("key3"), "sneaky_change")

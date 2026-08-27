@@ -25,7 +25,7 @@ _get_pkgs_from_single_toml() {
     local category="$1"
     local file="$2"
     [[ -f "$file" ]] || return 1
-    
+
     local auth
     auth=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
         if ($0 ~ /=[[:space:]]*true/) print "true"
@@ -75,12 +75,12 @@ _get_pkgs_from_single_toml() {
 get_packages_from_toml() {
     local category="$1"
     local file="${2:-}"
-    
+
     if [[ -n "$file" ]]; then
         _get_pkgs_from_single_toml "$category" "$file"
         return $?
     fi
-    
+
     local cand
     for cand in \
         "${MIOS_TOML:-}" \

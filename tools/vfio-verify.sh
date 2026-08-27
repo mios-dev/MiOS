@@ -80,7 +80,7 @@ fi
 if [[ -n "$TARGET_GPU_PCI" ]]; then
     GPU_NAME=$(lspci -s "$TARGET_GPU_PCI" | cut -d: -f3-)
     check_pass "Target GPU found: $GPU_NAME at $TARGET_GPU_PCI"
-    
+
     TARGET_GPU_INFO=$(lspci -nn -s "$TARGET_GPU_PCI")
     GPU_ID=$(echo "$TARGET_GPU_INFO" | grep -oP '\[\K[0-9a-f]{4}:[0-9a-f]{4}(?=\])')
     echo "  Device ID: $GPU_ID"
@@ -117,7 +117,7 @@ if [[ -n "$COMPANIONS" ]]; then
         COMP_PCI=$(echo "$line" | awk '{print $1}')
         COMP_ID=$(echo "$line" | grep -oP '\[\K[0-9a-f]{4}:[0-9a-f]{4}(?=\])')
         COMP_DRIVER=$(lspci -nnk -s "$COMP_PCI" | grep "Kernel driver in use:" | awk '{print $5}')
-        
+
         if [[ "$COMP_DRIVER" == "vfio-pci" ]]; then
             check_pass "Companion $COMP_PCI ($COMP_ID) bound to vfio-pci"
         else
@@ -146,17 +146,17 @@ echo -e "${BLUE}[8/10]${NC} Checking IOMMU group isolation..."
 if [[ -L "/sys/bus/pci/devices/0000:$TARGET_GPU_PCI/iommu_group" ]]; then
     IOMMU_GROUP=$(basename $(readlink "/sys/bus/pci/devices/0000:$TARGET_GPU_PCI/iommu_group"))
     GROUP_DEVICES=$(ls -1 "/sys/kernel/iommu_groups/$IOMMU_GROUP/devices/" | wc -l)
-    
+
     echo "  IOMMU Group: $IOMMU_GROUP"
     echo "  Devices in group: $GROUP_DEVICES"
-    
+
     if [[ $GROUP_DEVICES -le 3 ]]; then
         check_pass "Good IOMMU isolation (≤3 devices in group)"
     else
         check_warn "Multiple devices in IOMMU group ($GROUP_DEVICES)"
         echo "  Consider ACS override patch if this causes issues"
     fi
-    
+
     echo ""
     echo "  Group members:"
     for dev in /sys/kernel/iommu_groups/$IOMMU_GROUP/devices/*; do

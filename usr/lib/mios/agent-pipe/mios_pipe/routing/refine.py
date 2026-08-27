@@ -637,12 +637,12 @@ async def refine_intent(user_text: str,
     if on_token and not _refine_stream_structured:
         _refine_structured = False
 
-    
+
     _u_content = user_text[-1500:]
     if not _refine_structured and not on_token:
         _u_content += " /no_think"
     msgs.append({"role": "user", "content": _u_content})
-    
+
     payload = {
         "model": REFINE_MODEL,
         "messages": msgs,
@@ -730,12 +730,12 @@ async def refine_intent(user_text: str,
                                         if not choices:
                                             continue
                                         delta = choices[0].get("delta") or {}
-                                        
+
                                         r_val = delta.get("reasoning_content") or delta.get("reasoning")
                                         if r_val:
                                             await _call_on_token(r_val, True)
                                             continue
-                                            
+
                                         c_val = delta.get("content") or ""
                                         if c_val:
                                             temp = c_val
@@ -756,7 +756,7 @@ async def refine_intent(user_text: str,
                                                     content_chunks.append(parts[1])
                                                     await _call_on_token(parts[1], False)
                                                 continue
-                                                
+
                                             if in_think:
                                                 await _call_on_token(c_val, True)
                                             else:

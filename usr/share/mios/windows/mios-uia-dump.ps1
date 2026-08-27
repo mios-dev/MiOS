@@ -51,8 +51,8 @@ function Get-UIATree {
     try { $node.AutomationId = [string]$Element.Current.AutomationId } catch {}
     $isOffscreen = $false
     try { $isOffscreen = [bool]$Element.Current.IsOffscreen } catch {}
-    
-    try { 
+
+    try {
         $rect = $Element.Current.BoundingRectangle
         if (-not $rect.IsEmpty) {
             $node.Rect = @{ X = [int]$rect.X; Y = [int]$rect.Y; W = [int]$rect.Width; H = [int]$rect.Height }

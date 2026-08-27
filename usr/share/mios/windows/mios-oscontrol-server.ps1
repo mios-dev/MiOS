@@ -339,7 +339,7 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state, $monitor = 
                     $oldTimeout = [System.Runtime.InteropServices.Marshal]::ReadInt32($ptr)
                 }
                 [System.Runtime.InteropServices.Marshal]::FreeHGlobal($ptr)
-                
+
                 [void][OSCW32]::SystemParametersInfo(0x2001, 0, [IntPtr]::Zero, 0)  # SPI_SETFOREGROUNDLOCKTIMEOUT = 0, no persist
                 [void][OSCW32]::AllowSetForegroundWindow(-1)                        # ASFW_ANY
                 $fg = [OSCW32]::GetForegroundWindow()
@@ -353,7 +353,7 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state, $monitor = 
                 [void][OSCW32]::SetWindowPos($p, [IntPtr](-1), 0, 0, 0, 0, 0x0003)  # HWND_TOPMOST, NOMOVE|NOSIZE
                 [void][OSCW32]::SetWindowPos($p, [IntPtr](-2), 0, 0, 0, 0, 0x0003)  # HWND_NOTOPMOST
                 if ($att) { [void][OSCW32]::AttachThreadInput($myT, $fgT, $false) }
-                
+
                 [void][OSCW32]::SystemParametersInfo(0x2001, 0, [IntPtr]$oldTimeout, 0) # Restore
             }
             # move/resize/center use SetWindowPos with SWP_ASYNCWINDOWPOS instead
@@ -595,8 +595,8 @@ function Get-UIATree {
     try { $node.AutomationId = [string]$Element.Current.AutomationId } catch {}
     $isOffscreen = $false
     try { $isOffscreen = [bool]$Element.Current.IsOffscreen } catch {}
-    
-    try { 
+
+    try {
         $rect = $Element.Current.BoundingRectangle
         if (-not $rect.IsEmpty) {
             $node.Rect = @{ X = [int]$rect.X; Y = [int]$rect.Y; W = [int]$rect.Width; H = [int]$rect.Height }

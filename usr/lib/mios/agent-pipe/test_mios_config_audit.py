@@ -142,14 +142,14 @@ class TestMiosConfigAudit(unittest.TestCase):
                 new_val = r_container["new_value"]
                 if isinstance(new_val, str):
                     new_val = json.loads(new_val)
-                
+
                 env = new_val["Container"]["Environment"]
                 self.assertIn("PORT=8080", env)
                 self.assertIn("K3S_TOKEN=[REDACTED_SECRET]", env)
                 self.assertIn("DATABASE_PASSWORD=[REDACTED_SECRET]", env)
-                
+
                 self.assertEqual(new_val["Container"]["SecretConfig"], "[REDACTED_SECRET]")
-                
+
                 self.assertEqual(new_val["Container"]["OtherConfig"]["api_key"], "[REDACTED_SECRET]")
 
     def test_verb_cmd_redaction(self):

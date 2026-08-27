@@ -59,7 +59,7 @@ if [ -z "$OVMF_CODE" ]; then
     echo -e "${RED}[x] No OVMF firmware found!${NC}"
     echo -e "${YELLOW}Installing edk2-ovmf package...${NC}"
     $SUDO pacman -S --noconfirm edk2-ovmf
-    
+
     for location in "${OVMF_LOCATIONS[@]}"; do
         if [ -f "$location/OVMF_CODE.secboot.fd" ]; then
             OVMF_CODE="$location/OVMF_CODE.secboot.fd"
@@ -67,7 +67,7 @@ if [ -z "$OVMF_CODE" ]; then
             break
         fi
     done
-    
+
     if [ -z "$OVMF_CODE" ]; then
         echo -e "${RED}[x] Still can't find OVMF files after installation!${NC}"
         echo "Please check package installation manually"
@@ -90,7 +90,7 @@ if virsh dominfo Xbox &>/dev/null; then
     echo -e "${GREEN}[ok] VM 'Xbox' found${NC}"
     VM_STATE=$(virsh domstate Xbox 2>/dev/null)
     echo "  Current state: $VM_STATE"
-    
+
     if [ "$VM_STATE" == "running" ]; then
         echo -e "${YELLOW}  Shutting down VM...${NC}"
         virsh shutdown Xbox
@@ -106,7 +106,7 @@ if [ -f "$NVRAM_PATH" ]; then
     BACKUP_PATH="${NVRAM_PATH}.backup-$(date +%Y%m%d-%H%M%S)"
     $SUDO cp "$NVRAM_PATH" "$BACKUP_PATH"
     echo -e "${GREEN}[ok] Backed up to: $BACKUP_PATH${NC}"
-    
+
     echo -e "${YELLOW}  Removing old NVRAM to get fresh Secure Boot keys...${NC}"
     $SUDO rm "$NVRAM_PATH"
 else

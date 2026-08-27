@@ -69,7 +69,7 @@ def t_drop_stale_tool_results():
     ]
     res = _drop_stale_tool_results(msgs, ttl_turns=1)
     check("drop_tool: drops old tool message", not any(x.get("role") == "tool" for x in res))
-    
+
     res2 = _drop_stale_tool_results(msgs, ttl_turns=2)
     check("drop_tool: keeps recent tool message", any(x.get("role") == "tool" for x in res2))
 

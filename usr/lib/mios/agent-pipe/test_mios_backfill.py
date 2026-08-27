@@ -7,7 +7,7 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
     def test_text_projections(self):
         s_row = {"name": "TestSkill", "description": "Doing cool things"}
         self.assertEqual(eb.get_text_projection("skill", s_row), "Skill: TestSkill\nDescription: Doing cool things")
-        
+
         v_row = {
             "name": "test_verb",
             "desc_default": "A description of a verb",
@@ -18,7 +18,7 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
             eb.get_text_projection("verb", v_row),
             "TestVerb: A description of a verb\nExample requests: test standard usage | another test"
         )
-        
+
         tc_row = {
             "tool": "web_search",
             "args": {"query": "hello"},
@@ -28,7 +28,7 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
             eb.get_text_projection("tool_call", tc_row),
             'Tool Call: web_search\nArguments: {"query": "hello"}\nResult: some search results'
         )
-        
+
         de_row = {
             "path": "/etc/hosts",
             "kind": "file",
@@ -63,12 +63,12 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
     async def test_run_backfill_success(self, mock_client_cls, mock_execute):
         mock_client = AsyncMock()
         mock_client_cls.return_value.__aenter__.return_value = mock_client
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"embedding": [0.1] * 768}
         mock_client.post.return_value = mock_response
-        
+
         select_results = {
             "skill": [{"id": 1, "name": "skill_1", "description": "desc_1"}],
             "verb": [{"name": "verb_1", "desc_default": "desc_1", "examples": None, "model_name": None}],
@@ -77,7 +77,7 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
             "event": [{"id": 500, "act_type": "critic", "summary": "Critic check"}],
             "session": [{"id": "sess_1", "meta": {"title": "Sess", "first_prompt": "Hello"}}]
         }
-        
+
         def execute_side_effect(sql, params=None, fetch=False, **kwargs):
             if "SELECT" in sql:
                 for k in select_results:
@@ -85,11 +85,11 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
                         return select_results[k]
                 return []
             return True
-            
+
         mock_execute.side_effect = execute_side_effect
-        
+
         res = await eb.run_backfill("nomic-768-v1")
-        
+
         self.assertEqual(res["skill"], 1)
         self.assertEqual(res["verb"], 1)
         self.assertEqual(res["tool_call"], 1)
@@ -102,22 +102,22 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
     async def test_run_backfill_fail_open(self, mock_client_cls, mock_execute):
         mock_client = AsyncMock()
         mock_client_cls.return_value.__aenter__.return_value = mock_client
-        
+
         mock_client.post.side_effect = Exception("Connection refused")
-        
+
         select_results = {
             "skill": [{"id": 1, "name": "skill_1", "description": "desc_1"}]
         }
-        
+
         def execute_side_effect(sql, params=None, fetch=False, **kwargs):
             if "SELECT" in sql:
                 if "FROM skill" in sql:
                     return select_results["skill"]
                 return []
             return None
-            
+
         mock_execute.side_effect = execute_side_effect
-        
+
         res = await eb.run_backfill("nomic-768-v1")
         self.assertEqual(res.get("skill"), 0)
 

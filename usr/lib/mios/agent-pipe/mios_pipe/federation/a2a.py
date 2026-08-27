@@ -850,9 +850,9 @@ async def _a2a_fire_push_notifications(task: dict) -> None:
         cfgs = list((_A2A_PUSH_CONFIGS.get(tid) or {}).values())
     if not cfgs:
         return
-    
+
     task_redacted = _redact_payload(task)
-    
+
     client = await _get_client()
     for cfg in cfgs:
         url = str(cfg.get("url") or "").strip()

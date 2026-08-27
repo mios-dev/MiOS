@@ -442,7 +442,7 @@ class TestAdversarialDbDoctor(unittest.TestCase):
     def test_find_sqlite_databases_filtering(self):
         db1 = self._create_sqlite_db("app.sqlite")
         db2 = self._create_sqlite_db("cache.db")
-        
+
         # Create non-sqlite files with .db or .sqlite extension
         fake_db = os.path.join(self.test_dir, "fake.db")
         with open(fake_db, "w", encoding="utf-8") as f:

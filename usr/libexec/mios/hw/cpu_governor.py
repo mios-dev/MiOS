@@ -138,7 +138,7 @@ class CPUGovernorManager:
         for cid in target_cpus:
             cpufreq_dir = os.path.join(self.cpu_base_dir, f"cpu{cid}", "cpufreq")
             gov_file = os.path.join(cpufreq_dir, "scaling_governor")
-            
+
             # Check availability if available_governors file exists
             avail_govs_raw = self._read_file_safe(os.path.join(cpufreq_dir, "scaling_available_governors"))
             if avail_govs_raw:

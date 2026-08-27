@@ -10,12 +10,12 @@ chmod +x /usr/libexec/mios/mios-hermes-firstboot
 cp /mnt/c/MiOS/usr/lib/systemd/system/mios-gateway-agent.service.d/20-mios-paths-env.conf \
    /usr/lib/systemd/system/mios-gateway-agent.service.d/20-mios-paths-env.conf
 systemctl daemon-reload
- 
+
 echo
 echo "── restart mios-gateway-agent to pick up env fix ──"
 systemctl restart mios-gateway-agent.service 2>&1 &
 RESTART_PID=$!
- 
+
 echo
 echo "── re-run firstboot ──"
 systemctl reset-failed mios-hermes-firstboot.service 2>&1 || true
@@ -23,7 +23,7 @@ systemctl start --no-block mios-hermes-firstboot.service
 sleep 6
 journalctl -u mios-hermes-firstboot.service --since '30 sec ago' --no-pager \
     | grep -E 'enabled\+started|WARN' | tail -10
- 
+
 echo
 echo "── opt-in service states after firstboot ──"
 for u in mios-ttyd-bash mios-ttyd-powershell mios-skills-miner mios-embed-backfill; do
@@ -36,7 +36,7 @@ for t in mios-skills-miner.timer mios-embed-backfill.timer; do
     enabled=$(systemctl is-enabled "$t" 2>&1)
     printf '  %-30s active=%-10s enabled=%s\n' "$t" "$state" "$enabled"
 done
- 
+
 echo
 echo "── env drop-in parse re-check ──"
 wait $RESTART_PID 2>/dev/null || true

@@ -164,11 +164,11 @@ can_skip_download_binary() {
     fi
 }
 
-can_skip_download_selinux() {                                                        
-    if [ "${INSTALL_K3S_SKIP_DOWNLOAD}" != true ] && [ "${INSTALL_K3S_SKIP_DOWNLOAD}" != selinux ]; then 
-        return 1                                                                     
-    fi                                                                               
-}  
+can_skip_download_selinux() {
+    if [ "${INSTALL_K3S_SKIP_DOWNLOAD}" != true ] && [ "${INSTALL_K3S_SKIP_DOWNLOAD}" != selinux ]; then
+        return 1
+    fi
+}
 
 verify_k3s_is_executable() {
     if [ ! -x ${BIN_DIR}/k3s ]; then
@@ -261,7 +261,7 @@ get_release_version() {
 get_k3s_selinux_version() {
     available_version="k3s-selinux-1.2-2.${rpm_target}.noarch.rpm"
     info "Finding available k3s-selinux versions"
-    
+
     verify_downloader curl || verify_downloader wget || fatal 'Can not find curl or wget for downloading files'
 
     case $DOWNLOADER in
@@ -355,10 +355,10 @@ get_pr_artifact_url() {
     fi
 
     commit_id=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "$github_api_url/pulls/$INSTALL_K3S_PR" | jq -r '.head.sha')
-    
+
     wf_raw=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "$github_api_url/commits/$commit_id/check-runs")
     build_workflow=$(printf "%s" "$wf_raw" | jq -r '.check_runs[] |  select(.name == "build / Build")')
-    
+
     run_id=$(echo "$build_workflow" | jq -r ' .details_url' | awk -F'/' '{print $(NF-2)}' | sort -rn | head -1)
 
     artifacts=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "$github_api_url/actions/runs/$run_id/artifacts")
@@ -400,7 +400,7 @@ setup_binary() {
 }
 
 setup_selinux() {
-    case ${INSTALL_K3S_CHANNEL} in 
+    case ${INSTALL_K3S_CHANNEL} in
         *testing)
             rpm_channel=testing
             ;;
@@ -462,7 +462,7 @@ setup_selinux() {
         info "Skipping installation of SELinux RPM"
         return
     fi
-    
+
     get_k3s_selinux_version
     install_selinux_rpm ${rpm_site} ${rpm_channel} ${rpm_target} ${rpm_site_infix}
 
@@ -527,7 +527,7 @@ EOF
         if [ "${rpm_installer}" = "yum" ] && [ -x /usr/bin/dnf ]; then
             rpm_installer=dnf
         fi
-	    if rpm -q --quiet k3s-selinux; then 
+	    if rpm -q --quiet k3s-selinux; then
             if check_available_upgrades container-selinux ${3} && check_available_upgrades k3s-selinux ${3}; then
                 MODULE_PRIORITY=$($SUDO semodule --list=full | grep k3s | cut -f1 -d" ")
                 if [ -n "${MODULE_PRIORITY}" ]; then

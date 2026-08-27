@@ -36,27 +36,27 @@ main() {
 ╚══════════════════════════════════════════════════════════╝
 EOF
     echo -e "${NC}\n"
-    
+
     print_header "SYSTEM"
     echo -e "${BOLD}Host:${NC}     $(hostname)"
     echo -e "${BOLD}Distro:${NC}   $(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
     echo -e "${BOLD}Kernel:${NC}   $(uname -r)"
     echo -e "${BOLD}Uptime:${NC}   $(uptime -p)"
-    
+
     print_header "CPU"
     local cpu_model=$(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | xargs)
     local cpu_cores=$(nproc)
     local cpu_threads=$(grep -c processor /proc/cpuinfo)
     echo -e "${BOLD}Model:${NC}    $cpu_model"
     echo -e "${BOLD}Cores:${NC}    $cpu_cores physical, $cpu_threads threads"
-    
+
     if grep -q -E '(vmx|svm)' /proc/cpuinfo; then
         local virt_type=$(grep -o -E '(vmx|svm)' /proc/cpuinfo | head -1)
         echo -e "${BOLD}Virt:${NC}     ${GREEN}[ok]${NC} Enabled ($virt_type)"
     else
         echo -e "${BOLD}Virt:${NC}     ${RED}[x]${NC} Not detected"
     fi
-    
+
     print_header "MEMORY"
     local mem_total=$(free -h | awk '/^Mem:/ {print $2}')
     local mem_used=$(free -h | awk '/^Mem:/ {print $3}')
@@ -64,32 +64,32 @@ EOF
     echo -e "${BOLD}Total:${NC}    $mem_total"
     echo -e "${BOLD}Used:${NC}     $mem_used"
     echo -e "${BOLD}Avail:${NC}    $mem_avail"
-    
+
     print_header "GRAPHICS"
     local gpu_count=$(lspci | grep -c -E "VGA|3D" || echo "0")
     if [ "$gpu_count" -gt 0 ]; then
         lspci | grep -E "VGA|3D" | while read -r line; do
             echo -e "${BOLD}GPU:${NC}      ${line#*: }"
         done
-        
+
         if command -v nvidia-smi >/dev/null 2>&1; then
             echo -e "${BOLD}NVIDIA:${NC}   ${GREEN}[ok]${NC} Driver loaded"
         fi
     else
         echo -e "${BOLD}GPU:${NC}      No discrete GPU detected"
     fi
-    
+
     print_header "STORAGE"
     df -h / | tail -1 | awk '{printf "'"${BOLD}"'Root:'"${NC}"'     %s total, %s used, %s free (%s)\n", $2, $3, $4, $5}'
-    
+
     local disk_count=$(lsblk -d -o TYPE | grep -c disk || echo "0")
     echo -e "${BOLD}Disks:${NC}    $disk_count detected"
-    
+
     print_header "VIRTUALIZATION"
     if [ -d /sys/kernel/iommu_groups ]; then
         local iommu_groups=$(ls -1 /sys/kernel/iommu_groups/ | wc -l)
         echo -e "${BOLD}IOMMU:${NC}    ${GREEN}[ok]${NC} Enabled ($iommu_groups groups)"
-        
+
         if [ "$gpu_count" -gt 0 ]; then
             echo -e "${BOLD}GPU Grp:${NC}  Checking isolation..."
             local isolated=0
@@ -106,7 +106,7 @@ EOF
                     fi
                 done
             done
-            
+
             if [ "$isolated" -gt 0 ]; then
                 echo -e "          ${GREEN}[ok]${NC} $isolated GPU(s) in isolated group(s)"
             else
@@ -116,27 +116,27 @@ EOF
     else
         echo -e "${BOLD}IOMMU:${NC}    ${RED}[x]${NC} Not available"
     fi
-    
+
     if [ -e /dev/kvm ]; then
         echo -e "${BOLD}KVM:${NC}      ${GREEN}[ok]${NC} Available"
     else
         echo -e "${BOLD}KVM:${NC}      ${RED}[x]${NC} Not available"
     fi
-    
+
     print_header "SECURITY"
-    
+
     if [ -d /sys/firmware/efi ]; then
         echo -e "${BOLD}Boot:${NC}     ${GREEN}[ok]${NC} UEFI"
     else
         echo -e "${BOLD}Boot:${NC}     ${YELLOW}[!]${NC} Legacy BIOS"
     fi
-    
+
     if [ -e /dev/tpm0 ]; then
         echo -e "${BOLD}TPM:${NC}      ${GREEN}[ok]${NC} Present (/dev/tpm0)"
     else
         echo -e "${BOLD}TPM:${NC}      ${RED}[x]${NC} Not detected"
     fi
-    
+
     if command -v mokutil >/dev/null 2>&1; then
         if mokutil --sb-state 2>/dev/null | grep -q "SecureBoot enabled"; then
             echo -e "${BOLD}SecBoot:${NC}  ${GREEN}[ok]${NC} Enabled"
@@ -144,7 +144,7 @@ EOF
             echo -e "${BOLD}SecBoot:${NC}  ${YELLOW}[!]${NC} Disabled"
         fi
     fi
-    
+
     print_header "NETWORK"
     local iface_count=$(ls /sys/class/net/ | grep -v lo | wc -l)
     echo -e "${BOLD}Ifaces:${NC}   $iface_count detected"
@@ -158,58 +158,58 @@ EOF
             echo -e "          ${YELLOW}○${NC} $iface: $state"
         fi
     done
-    
+
     print_header "MiOS-Build READINESS"
-    
+
     local ready=true
     local warnings=0
-    
+
     echo -e "\n${BOLD}Critical Components:${NC}"
-    
+
     if grep -q -E '(vmx|svm)' /proc/cpuinfo; then
         echo -e "  ${GREEN}[ok]${NC} CPU Virtualization"
     else
         echo -e "  ${RED}[x]${NC} CPU Virtualization"
         ready=false
     fi
-    
+
     if [ -d /sys/kernel/iommu_groups ]; then
         echo -e "  ${GREEN}[ok]${NC} IOMMU Support"
     else
         echo -e "  ${RED}[x]${NC} IOMMU Support"
         ready=false
     fi
-    
+
     if [ -e /dev/kvm ]; then
         echo -e "  ${GREEN}[ok]${NC} KVM Available"
     else
         echo -e "  ${RED}[x]${NC} KVM Available"
         ready=false
     fi
-    
+
     if [ "$gpu_count" -gt 0 ]; then
         echo -e "  ${GREEN}[ok]${NC} GPU Detected"
     else
         echo -e "  ${YELLOW}[!]${NC} No discrete GPU"
         warnings=$((warnings + 1))
     fi
-    
+
     echo -e "\n${BOLD}Recommended Components:${NC}"
-    
+
     if [ -d /sys/firmware/efi ]; then
         echo -e "  ${GREEN}[ok]${NC} UEFI Boot"
     else
         echo -e "  ${YELLOW}[!]${NC} Legacy BIOS (UEFI recommended)"
         warnings=$((warnings + 1))
     fi
-    
+
     if [ -e /dev/tpm0 ]; then
         echo -e "  ${GREEN}[ok]${NC} TPM 2.0"
     else
         echo -e "  ${YELLOW}[!]${NC} No TPM (needed for Win11)"
         warnings=$((warnings + 1))
     fi
-    
+
     echo ""
     if [ "$ready" = true ]; then
         echo -e "${GREEN}${BOLD}[ok] System ready for MiOS-Build setup!${NC}"
@@ -219,7 +219,7 @@ EOF
     else
         echo -e "${RED}${BOLD}[x] System not ready - check failed components${NC}"
     fi
-    
+
     echo ""
     echo -e "${CYAN}Run './system-profiler.sh' for detailed analysis${NC}"
     echo -e "${CYAN}Run './iommu-visualizer.sh' for IOMMU group details${NC}"

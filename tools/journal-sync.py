@@ -16,15 +16,15 @@ def parse_markdown_journal(file_path):
         content = f.read()
 
     regex = r'(?:###?\s+)?\[(\d{4}-\d{2}-\d{2}.*?)\] \[(AI:.*?)\]'
-    
+
     parts = re.split(regex, content)
-    
+
     parsed = []
     for i in range(1, len(parts), 3):
         timestamp = parts[i].strip()
         agent = parts[i+1].strip()
         body = parts[i+2].strip()
-        
+
         entry = {
             "version": "1.0",
             "timestamp": timestamp,
@@ -42,7 +42,7 @@ def parse_markdown_journal(file_path):
                 "raw_body": body
             }
         }
-        
+
         def extract(pattern):
             m = re.search(pattern, body, re.DOTALL | re.IGNORECASE)
             return m.group(1).strip() if m else ""
@@ -50,7 +50,7 @@ def parse_markdown_journal(file_path):
         entry["data"]["thought"] = extract(r'\*? \*\*THOUGHT:\*\* (.*?)(?:\n\* |$)')
         entry["data"]["discovery"] = extract(r'\*? \*\*DISCOVERY:\*\* (.*?)(?:\n\* |$)')
         entry["data"]["result"] = extract(r'\*? \*\*RESULT:\*\* (.*?)(?:\n\* |$)')
-        
+
         action_str = extract(r'\*? \*\*ACTION:\*\* (.*?)(?:\n\* |$)')
         if action_str:
             actions = re.split(r'\d+\. |\* ', action_str)
@@ -61,17 +61,17 @@ def parse_markdown_journal(file_path):
             entry["data"]["learnings"] = [learning_str]
 
         parsed.append(entry)
-    
+
     return parsed
 
 def sync_journal():
     print(f" Syncing Legacy Journal to API-Native JSONL (Deep Scan)...")
     entries = parse_markdown_journal(MD_JOURNAL)
-    
+
     with open(JSONL_JOURNAL, 'w', encoding='utf-8') as f:
         for entry in entries:
             f.write(json.dumps(entry) + '\n')
-            
+
     print(f"[ok] Exported {len(entries)} entries to {JSONL_JOURNAL}")
 
 if __name__ == "__main__":

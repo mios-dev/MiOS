@@ -31,12 +31,12 @@ def main():
     except ImportError:
         log.error("psycopg not installed. Skipping database seeding.")
         return 0
-        
+
     toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
         log.error("mios.toml not found at %s", toml_path)
         return 1
-        
+
     try:
         try:
             import tomllib
@@ -47,16 +47,16 @@ def main():
     except Exception as e:
         log.error("Failed to parse mios.toml: %s", e)
         return 1
-        
+
     cfg = get_pg_config()
     conn_str = (f"postgresql://{cfg['user']}:{cfg['password']}"
                 f"@{cfg['host']}:{cfg['port']}/{cfg['dbname']}")
-                
+
     try:
         with psycopg.connect(conn_str, connect_timeout=5) as conn:
             with conn.cursor() as cur:
                 log.info("Connected to database. Starting seeding...")
-                
+
                 sys_sections = ["ports", "ai", "routing", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
                 for sec in sys_sections:
                     sec_data = data.get(sec) or {}
@@ -104,7 +104,7 @@ def main():
                             (sec, k, json.dumps(val), f"Vendor default for {sec}.{k}")
                         )
                 log.info("config_kv seeded.")
-                
+
                 verbs = data.get("verbs") or {}
                 defaults = verbs.get("_defaults") or {}
                 if isinstance(verbs, dict):
@@ -113,7 +113,7 @@ def main():
                             continue
                         merged = defaults.copy()
                         merged.update(vcfg)
-                        
+
                         sig = str(merged.get("sig", ""))
                         desc = str(merged.get("desc", ""))
                         tier = str(merged.get("tier", "common"))
@@ -122,7 +122,7 @@ def main():
                         if cmd is not None:
                             cmd = str(cmd)
                         params = merged.get("params") or {}
-                        
+
                         section = merged.get("section")
                         examples = merged.get("examples")
                         model_name = merged.get("model_name")
@@ -131,10 +131,10 @@ def main():
                         conflict_group = merged.get("conflict_group")
                         parallel_limit = int(merged.get("parallel_limit", 0))
                         max_result_chars = int(merged.get("max_result_chars", 0))
-                        
+
                         examples_json = json.dumps(examples) if examples is not None else None
                         aliases_json = json.dumps(aliases) if aliases is not None else None
-                        
+
                         cur.execute(
                             """
                             INSERT INTO verb (name, sig, desc_default, tier, permission, cmd, params,
@@ -164,7 +164,7 @@ def main():
                             )
                         )
                 log.info("Verbs seeded.")
-                
+
                 routing = data.get("routing") or {}
                 domains = routing.get("domains") or {}
                 if isinstance(domains, dict):
@@ -197,7 +197,7 @@ def main():
                         layer = int(sec_cfg.get("layer", 0))
                         base_image_ref = sec_cfg.get("base_image_ref", "")
                         section = sec_cfg.get("section", "Misc")
-                        
+
                         cur.execute(
                             """
                             INSERT INTO package_set (name, section, pkgs, enable, layer, base_image_ref)
@@ -220,7 +220,7 @@ def main():
                     automation_dir = "/ctx/automation"
                 if not os.path.isdir(automation_dir):
                     automation_dir = "/usr/share/mios/automation"
-                
+
                 log.info("Scanning automation directory: %s", automation_dir)
                 if os.path.isdir(automation_dir):
                     scripts = []
@@ -228,12 +228,12 @@ def main():
                         if re.match(r"^\d{2}-.*\.sh$", f):
                             scripts.append(f)
                     scripts.sort()
-                    
+
                     prev_script = None
                     for idx, s in enumerate(scripts):
                         ordinal = int(s.split("-", 1)[0])
                         deps = [prev_script] if prev_script else []
-                        
+
                         cur.execute(
                             """
                             INSERT INTO build_phase (ordinal, script, stage, deps)
@@ -246,7 +246,7 @@ def main():
                             (ordinal, s, json.dumps(deps))
                         )
                         prev_script = s
-                        
+
                     fb_dir = os.path.join(automation_dir, "firstboot")
                     if os.path.isdir(fb_dir):
                         for f in os.listdir(fb_dir):
@@ -268,24 +268,24 @@ def main():
                 bootstrap_dir = os.path.abspath(os.path.join(repo_root, "..", "mios-bootstrap", "src", "autounattend"))
                 debloat_json_path = os.path.join(bootstrap_dir, "mios-debloat.json")
                 features_txt_path = os.path.join(bootstrap_dir, "mios-xbox-features.txt")
-                
+
                 policies_to_seed = {}
                 features_to_seed = []
-                
+
                 if os.path.isfile(debloat_json_path):
                     try:
                         with open(debloat_json_path, "r", encoding="utf-8") as f:
                             policies_to_seed = json.load(f)
                     except Exception as e:
                         log.warning("Failed to parse mios-debloat.json: %s", e)
-                
+
                 if os.path.isfile(features_txt_path):
                     try:
                         with open(features_txt_path, "r", encoding="utf-8") as f:
                             features_to_seed = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
                     except Exception as e:
                         log.warning("Failed to parse mios-xbox-features.txt: %s", e)
-                
+
                 for pol_name, pol_rules in policies_to_seed.items():
                     if pol_name == "_comment" or not isinstance(pol_rules, list):
                         continue
@@ -298,7 +298,7 @@ def main():
                         """,
                         (pol_name, pol_type, json.dumps(pol_rules))
                     )
-                
+
                 cur.execute(
                     """
                     INSERT INTO debloat_profile (name, description)
@@ -306,7 +306,7 @@ def main():
                     ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description;
                     """
                 )
-                
+
                 cur.execute(
                     """
                     INSERT INTO preset (name, description, features, debloat_profile_name)
@@ -332,7 +332,7 @@ def main():
     except Exception as e:
         log.error("Database seeding failed: %s", e)
         return 1
-        
+
     return 0
 
 if __name__ == "__main__":

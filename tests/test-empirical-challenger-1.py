@@ -219,7 +219,7 @@ class TestAdversarialCephFSProvisioner(unittest.TestCase):
         self.assertEqual(cephfs.resolve_uid_number("1000"), 1000)
         self.assertEqual(cephfs.resolve_uid_number("0"), 0)
         self.assertEqual(cephfs.resolve_uid_number("  65534  "), 65534)
-        
+
         # Non-existent user fallback
         self.assertEqual(cephfs.resolve_uid_number("nonexistent_user_xyz_9999"), 1000)
         self.assertEqual(cephfs.resolve_uid_number(""), 1000)
@@ -254,7 +254,7 @@ class TestAdversarialCephFSProvisioner(unittest.TestCase):
     def test_cli_argument_handling(self):
         # Test subcommands with missing arguments via subprocess
         script_path = os.path.join(_ROOT, "usr", "libexec", "mios", "mios-cephfs-provision")
-        
+
         # When CephFS is disabled, main() exits 0 as no-op early
         p = subprocess.run([sys.executable, script_path], capture_output=True, text=True)
         self.assertEqual(p.returncode, 0)

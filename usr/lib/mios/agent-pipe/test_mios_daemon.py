@@ -30,10 +30,10 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
         target_module._opt_int_mb = lambda x: int(x or 0)
         target_module._lane_sem_key = lambda cfg: "test-lane"
         target_module._strip_agent_chrome = lambda text: text
-        
+
         self.old_rr_enable = target_module.RR_ENABLE
         target_module.RR_ENABLE = False
-        
+
         class MockSloShed(Exception):
             pass
         target_module._SloShed = MockSloShed
@@ -50,22 +50,22 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
         mock_cpu.return_value = 10.0
         mock_vram.return_value = 95.0 # above 90% threshold
         mock_offload.return_value = None
-        
+
         mock_threshold.side_effect = lambda key, default: {
             "big_ram_model": "mistral-magistral-small-2509",
             "max_cpu_percent": 85.0,
             "max_vram_percent": 90.0,
             "small_ram_model": "granite4.1:8b"
         }.get(key, default)
-        
+
         mock_binding.side_effect = [
             ("http://localhost:8640/v1", "mistral-magistral-small-2509"), # heavy
             ("http://localhost:8450/v1", "granite4.1:8b"), # degraded cpu
         ]
-        
+
         cfg = {"vram_mb": 4096}
         body = {"messages": [{"role": "user", "content": "hello"}]}
-        
+
         called_with_cpu = False
         async def mock_inner(name, cfg, body, headers, client, prefer_cpu=True):
             nonlocal called_with_cpu
@@ -79,11 +79,11 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
              patch("mios_pipe.routing.agent_call._lane_sem", AsyncContextMock), \
              patch("mios_pipe.routing.agent_call._model_active", dummy_async), \
              patch("mios_pipe.routing.agent_call._record_cost", MagicMock()):
-             
+
             name, text = await target_module._call_agent_complete(
                 "test-agent", cfg, body, {}, MagicMock(), prefer_cpu=False, priority=1.0
             )
-            
+
         self.assertTrue(called_with_cpu)
         self.assertEqual(text, "degraded response")
 
@@ -92,7 +92,7 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
         cfg = {"vram_mb": 0}
         body = {"messages": [{"role": "user", "content": "hello"}]}
         mock_offload.return_value = None
-        
+
         inner_calls = 0
         async def mock_inner(name, cfg, body, headers, client, prefer_cpu=True):
             nonlocal inner_calls
@@ -108,17 +108,17 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
              patch("mios_pipe.routing.agent_call._model_active", dummy_async), \
              patch("mios_pipe.routing.agent_call._record_cost", MagicMock()), \
              patch("mios_pipe.routing.agent_call._agent_binding", lambda c, e: ("http://localhost:8450/v1", "granite4.1:8b")):
-             
+
             t1 = asyncio.create_task(
                 target_module._call_agent_complete("agent1", cfg, body, {}, MagicMock(), priority=1.0)
             )
             t2 = asyncio.create_task(
                 target_module._call_agent_complete("agent1", cfg, body, {}, MagicMock(), priority=1.0)
             )
-            
+
             res1 = await t1
             res2 = await t2
-            
+
         self.assertEqual(inner_calls, 1)
         self.assertEqual(res1, res2)
         self.assertEqual(res1[1], "response 1")

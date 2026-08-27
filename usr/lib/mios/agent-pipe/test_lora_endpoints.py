@@ -108,7 +108,7 @@ async def test_lora_list_dual_mode():
 
 async def test_lora_list_single_mode():
     os.environ["MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE"] = "single"
-    
+
     mock_models = {
         "data": [
             {"id": "base-model", "object": "model"},
@@ -116,10 +116,10 @@ async def test_lora_list_single_mode():
             {"id": "adapter-reasoning", "object": "model", "root": "base-model"}
         ]
     }
-    
+
     mock_client = mock.AsyncMock()
     mock_client.get.return_value = MockHttpxResponse(mock_models)
-    
+
     with mock.patch("server._get_client", mock.AsyncMock(return_value=mock_client)):
         res = await server.lora_list()
         check("lora_list (single): enabled is True", res.get("enabled") is True)
@@ -137,10 +137,10 @@ async def test_lora_load_dual_mode():
 async def test_lora_load_single_mode():
     os.environ["MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE"] = "single"
     req = MockRequest({"lora_name": "coding", "lora_path": "/path"})
-    
+
     mock_client = mock.AsyncMock()
     mock_client.post.return_value = MockHttpxResponse({"status": "loaded"})
-    
+
     with mock.patch("server._get_client", mock.AsyncMock(return_value=mock_client)):
         res = await server.lora_load(req)
         check("lora_load (single): status code is 200", res.status_code == 200)
@@ -150,7 +150,7 @@ async def main():
     await test_lora_list_single_mode()
     await test_lora_load_dual_mode()
     await test_lora_load_single_mode()
-    
+
     if _fails > 0:
         sys.exit(1)
     else:

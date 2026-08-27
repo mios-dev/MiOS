@@ -48,7 +48,7 @@ fi
 if command -v systemctl >/dev/null 2>&1; then
     echo "[cephfs-mount-setup] Reloading systemd daemon"
     systemctl daemon-reload || true
-    
+
     echo "[cephfs-mount-setup] Enabling cachefilesd service"
     systemctl enable --now cachefilesd || true
 

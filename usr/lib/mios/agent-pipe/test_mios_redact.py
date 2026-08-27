@@ -77,7 +77,7 @@ class TestMiosRedactDatabase(unittest.TestCase):
             "INSERT INTO knowledge (q, answer) VALUES (%(q)s, %(answer)s)",
             {"q": "test_redact_q", "answer": "contact sk-12345678901234567890123456789012"}
         )
-        
+
         rows = await pg_execute(
             "SELECT answer FROM knowledge WHERE q = %(q)s",
             {"q": "test_redact_q"},
@@ -91,7 +91,7 @@ class TestMiosRedactDatabase(unittest.TestCase):
             "INSERT INTO agent_memory (fact, mem_key) VALUES (%(fact)s, %(key)s)",
             {"fact": "email is user@example.com", "key": "test_redact_key"}
         )
-        
+
         rows = await pg_execute(
             "SELECT fact FROM agent_memory WHERE mem_key = %(key)s",
             {"key": "test_redact_key"},

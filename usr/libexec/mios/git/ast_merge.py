@@ -181,7 +181,7 @@ class AstMergeResolver:
             return MergeResult(status="success", merged_content="")
 
         all_keys = list(dict.fromkeys(list(base_nodes.keys()) + list(ours_nodes.keys()) + list(theirs_nodes.keys())))
-        
+
         merged_body: List[ast.AST] = []
         conflicts: List[str] = []
         stats = {"added": 0, "modified": 0, "retained": 0}

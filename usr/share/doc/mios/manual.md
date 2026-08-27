@@ -1,7 +1,7 @@
 <!-- AI-hint: Entry point of the MiOS All-in-One manual: intro, full table of contents and the generated chapter index; every chapter is an authored file under manual/. -->
 # MiOS All-in-One User Manual & System Documentation
 
-Welcome to the comprehensive, All-in-One User Manual and System Documentation for **MiOS** (pronounced *"MyOS"*). 
+Welcome to the comprehensive, All-in-One User Manual and System Documentation for **MiOS** (pronounced *"MyOS"*).
 
 This manual assembles the 51-chapter documentation suite. Each chapter is an authored file under [`manual/`](manual/); this page carries the table of contents and the machine-checked chapter index.
 

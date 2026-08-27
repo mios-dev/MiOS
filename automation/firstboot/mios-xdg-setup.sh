@@ -25,13 +25,13 @@ if ! getent passwd "$_op_user" >/dev/null; then
 else
     _op_home=$(getent passwd "$_op_user" | cut -d: -f6)
     _user_systemd_dir="$_op_home/.config/systemd/user"
-    
+
     mkdir -p "$_user_systemd_dir/default.target.wants"
-    
+
     cp /usr/share/mios/systemd/mios-xdg-userdir-init.service "$_user_systemd_dir/mios-xdg-userdir-init.service"
-    
+
     ln -sf "../mios-xdg-userdir-init.service" "$_user_systemd_dir/default.target.wants/mios-xdg-userdir-init.service"
-    
+
     chown -R "$_op_user:" "$_op_home/.config"
     echo "[xdg-setup] Installed and enabled mios-xdg-userdir-init.service for $_op_user"
 fi

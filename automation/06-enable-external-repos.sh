@@ -11,12 +11,12 @@ source "$(dirname "$0")/lib/common.sh"
 enable_copr() {
     local repo="$1"
     local fallback_chroot="${2:-}"
-    
+
     mios_log "COPR enable: $repo"
     if $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y "$repo" 2>/dev/null; then
         return 0
     fi
-    
+
     local fedora_ver=""
     if [ -f /etc/os-release ]; then
         fedora_ver=$(grep -oP 'platform:f\K[0-9]+' /etc/os-release || true)
@@ -24,21 +24,21 @@ enable_copr() {
     if [ -z "$fedora_ver" ] && command -v rpm &>/dev/null; then
         fedora_ver=$(rpm -q --qf '%{VERSION}' fedora-release 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
     fi
-    
+
     if [ -n "$fedora_ver" ]; then
         mios_log "Detected Fedora $fedora_ver, retrying COPR with explicit chroot"
         if $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y "$repo" "fedora-${fedora_ver}-x86_64" 2>/dev/null; then
             return 0
         fi
     fi
-    
+
     if [ -n "$fallback_chroot" ]; then
         mios_log "Retrying COPR with fallback chroot: $fallback_chroot"
         if $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y "$repo" "$fallback_chroot" 2>/dev/null; then
             return 0
         fi
     fi
-    
+
     return 1
 }
 

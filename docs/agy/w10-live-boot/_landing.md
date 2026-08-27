@@ -97,7 +97,7 @@ Current live-tree state checked tonight: `C:\MiOS` has an unrelated uncommitted 
 5. tty1's `getty@tty1` override skips login entirely and execs `mios-live-chat` directly — the screen shows the MiOS banner (SSOT `[colors]` palette), then `Waiting for the local model server...` with dots until `/health` on `127.0.0.1:8642` responds.
 6. Prompt lands on:
    ```
-   User@mios> 
+   User@mios>
    ```
 7. Type a normal message (no `@` prefix) → Enter → response streams token-by-token under `mios>`.
 8. Try `@help` → lists the whitelisted verb set (`@help`, `@model`, `@endpoint`, `@theme`, `@reboot`, `@poweroff`) — confirms no shell is reachable.

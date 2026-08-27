@@ -381,7 +381,7 @@ class OpalLuksPartitionEngine:
         # 1. Execute parted / sgdisk
         # Destroy old table and create GPT
         subprocess.run(["sgdisk", "--zap-all", disk_path], check=True, capture_output=True)
-        
+
         current_start_mib = 1
         for spec in layout:
             part_num = spec.part_num

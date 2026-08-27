@@ -23,22 +23,22 @@ compare_sections() {
     local file1="$1"
     local file2="$2"
     local section="$3"
-    
+
     echo -e "${YELLOW}Comparing: $section${NC}"
-    
+
     local tmp1=$(mktemp)
     local tmp2=$(mktemp)
-    
+
     sed -n "/^╔.*$section/,/^╔/p" "$file1" | head -n -1 > "$tmp1"
     sed -n "/^╔.*$section/,/^╔/p" "$file2" | head -n -1 > "$tmp2"
-    
+
     if ! diff -u "$tmp1" "$tmp2" > /dev/null 2>&1; then
         echo -e "${RED}[x] Differences found${NC}"
         diff -u "$tmp1" "$tmp2" | head -50
     else
         echo -e "${GREEN}[ok] Identical${NC}"
     fi
-    
+
     rm -f "$tmp1" "$tmp2"
     echo ""
 }
@@ -46,28 +46,28 @@ compare_sections() {
 quick_compare() {
     local file1="$1"
     local file2="$2"
-    
+
     print_header "QUICK COMPARISON"
-    
+
     echo -e "${BOLD}File 1:${NC} $(basename $file1)"
     echo -e "${BOLD}File 2:${NC} $(basename $file2)"
     echo ""
-    
+
     echo -e "${CYAN}CPU:${NC}"
     grep "Model name:" "$file1" 2>/dev/null || echo "N/A"
     grep "Model name:" "$file2" 2>/dev/null || echo "N/A"
     echo ""
-    
+
     echo -e "${CYAN}GPU:${NC}"
     grep -A5 "GRAPHICS INFORMATION" "$file1" | grep -E "(VGA|3D)" | head -3
     grep -A5 "GRAPHICS INFORMATION" "$file2" | grep -E "(VGA|3D)" | head -3
     echo ""
-    
+
     echo -e "${CYAN}Memory:${NC}"
     grep "Mem:" "$file1" | head -1
     grep "Mem:" "$file2" | head -1
     echo ""
-    
+
     echo -e "${CYAN}Kernel:${NC}"
     grep "Kernel:" "$file1"
     grep "Kernel:" "$file2"
@@ -80,21 +80,21 @@ main() {
         echo "Example: $0 system-profile-20240101.txt system-profile-20240102.txt"
         exit 1
     fi
-    
+
     local file1="$1"
     local file2="$2"
-    
+
     if [ ! -f "$file1" ] || [ ! -f "$file2" ]; then
         echo "Error: One or both files not found"
         exit 1
     fi
-    
+
     print_header "SYSTEM PROFILE COMPARISON"
-    
+
     quick_compare "$file1" "$file2"
-    
+
     print_header "DETAILED SECTION COMPARISON"
-    
+
     sections=(
         "CPU INFORMATION"
         "MEMORY INFORMATION"
@@ -102,7 +102,7 @@ main() {
         "IOMMU GROUPS"
         "LOADED KERNEL MODULES"
     )
-    
+
     for section in "${sections[@]}"; do
         compare_sections "$file1" "$file2" "$section"
     done

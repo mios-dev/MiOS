@@ -199,7 +199,7 @@ async def letta_dispatch_handler(tool: str, args: dict, session_id: Optional[str
         return None
 
     sid = session_id or (_conv_key_var.get() if _conv_key_var else None) or "default"
-    
+
     if tool in ("remember", "memory_append"):
         fact = args.get("fact") or args.get("text") or args.get("memory") or args.get("content") or ""
         scope = args.get("scope") or "global"

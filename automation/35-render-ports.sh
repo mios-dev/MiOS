@@ -63,24 +63,24 @@ flag && /=/ {
     split($0, arr, "=")
     key = arr[1]
     val = arr[2]
-    
+
     sub(/^[ \t]+/, "", key)
     sub(/[ \t]+$/, "", key)
     sub(/^[ \t]+/, "", val)
     sub(/[ \t]+#.*$/, "", val)
     sub(/[ \t]+$/, "", val)
-    
+
     if (key == "stack_id") {
         stack_id = val + 0
         next
     }
-    
+
     if (val ~ /^[0-9]+$/ && val != "53") {
         val = val + (stack_id * 10000)
     }
-    
+
     key = toupper(key)
-    
+
     print "MIOS_PORT_" key "=" val
 }' "$TOML_FILE" >> "$ENV_FILE"
 

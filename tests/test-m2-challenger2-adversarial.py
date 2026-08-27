@@ -63,7 +63,7 @@ class TestCryptoHandshakeAdversarial(unittest.TestCase):
             for mask in (0x01, 0x80, 0xFF):
                 corrupted_sig = bytearray(original_sig)
                 corrupted_sig[byte_idx] ^= mask
-                
+
                 bad_init = crypto.HandshakeInitPacket(
                     sender_node_id=init_pkt.sender_node_id,
                     id_pubkey=init_pkt.id_pubkey,
@@ -99,7 +99,7 @@ class TestCryptoHandshakeAdversarial(unittest.TestCase):
     def test_signature_boundary_lengths(self):
         """Verify that signatures with invalid lengths are strictly rejected."""
         init_pkt, eph_priv_a = crypto.CryptoHandshake.create_init(self.node_a)
-        
+
         # Test truncated and oversized signatures
         for invalid_len in (0, 1, 16, 32, 63, 65, 100, 128):
             bad_sig = b"\x00" * invalid_len
@@ -211,7 +211,7 @@ class TestWireAeadAdversarial(unittest.TestCase):
     def test_exhaustive_ciphertext_bit_flips(self):
         """Flip every single bit in a 32-byte payload ciphertext; all 256 bit flips must fail MAC check."""
         plaintext = b"0123456789abcdef0123456789abcdef"
-        
+
         # Test 10 distinct encrypted blocks
         for block_idx in range(5):
             ciphertext = bytearray(self.session_a.encrypt_payload(plaintext))
@@ -223,7 +223,7 @@ class TestWireAeadAdversarial(unittest.TestCase):
                 for bit in range(8):
                     corrupted = bytearray(ciphertext)
                     corrupted[byte_pos] ^= (1 << bit)
-                    
+
                     # Create a dummy receiver with matching rx_nonce for test isolation
                     isolated_session = crypto.NodeCryptoSession(
                         local_node_id=self.session_b.local_node_id,

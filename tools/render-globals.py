@@ -80,7 +80,7 @@ def ordered_names(exports: dict) -> list:
     deps = {}
     for k, v in exports.items():
         deps[k] = set(_TEMPLATE_RE.findall(v)) & set(exports.keys())
-    
+
     res = []
     visited = set()
     visiting = set()

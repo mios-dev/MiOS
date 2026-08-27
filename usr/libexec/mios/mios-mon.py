@@ -92,7 +92,7 @@ def get_services():
                         if "ports" in data:
                             ports.update(data["ports"])
                 except Exception: pass
-    
+
     wsl_online = IS_WINDOWS or "WSL" in platform.release()
     for svc_name, port in ports.items():
         if isinstance(port, int) and svc_name != "stack_id":
@@ -100,7 +100,7 @@ def get_services():
             actual_port = port + offset
             is_up = check_port("127.0.0.1", actual_port)
             svcs.append((svc_name, actual_port, is_up))
-    
+
     svcs.append(("wsl-engine", 0, wsl_online))
     svcs.append(("podman-machine", 0, True))
     return svcs
@@ -130,7 +130,7 @@ def get_sys_info():
     user = os.environ.get("USERNAME", os.environ.get("USER", "mios"))
     uptime_str = "0h 0m"
     cpu_model = "Unknown CPU"
-    
+
     if not IS_WINDOWS:
         try:
             with open("/etc/os-release") as f:
@@ -271,7 +271,7 @@ def create_dash_layout():
         svcs.add_column("Service", style="cyan")
         svcs.add_column("Port", style="dim")
         svcs.add_column("Status")
-    
+
     for i in range(0, len(services), 2):
         s1 = services[i]
         st1 = "[green bold]*[/]" if s1[2] else "[red bold]x[/]"
@@ -281,7 +281,7 @@ def create_dash_layout():
             st2 = "[green bold]*[/]" if s2[2] else "[red bold]x[/]"
             s2_row = [s2[0], str(s2[1]) if s2[1] else "-", st2]
         svcs.add_row(s1[0], str(s1[1]) if s1[1] else "-", st1, *s2_row)
-    
+
     footer_text = f"User: login mios/mios   Host: forge mios/\n\nTree\n{get_git_tree_status()}"
     return Panel(Group(Panel(header, box=box.SIMPLE, border_style="cyan"), Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan"), Panel(Align.center(footer_text), box=box.SIMPLE, border_style="cyan")), border_style="blue", padding=1)
 
@@ -462,21 +462,21 @@ if TEXTUAL_AVAILABLE:
             )
             self.register_theme(custom_theme)
             self.theme = "mios-ssot"
-            
+
             self.refresh_interval = 1.0  # Smooth 1s refresh interval
             self.update_titles()
-            
+
             svc_table = self.query_one("#svc-table", DataTable)
             svc_table.add_columns("Service Name", "Port", "Status")
-            
+
             self.cpu_history = [0.0] * 60
             self.telemetry_timer = self.set_interval(self.refresh_interval, self.update_telemetry)
             self.set_interval(3.0, self.async_update_services)
-            
+
             self.tailing = True
             self.log_thread = threading.Thread(target=self.tail_all_logs, daemon=True)
             self.log_thread.start()
-            
+
             threading.Thread(target=self.update_services, daemon=True).start()
 
         def update_titles(self):
@@ -543,13 +543,13 @@ if TEXTUAL_AVAILABLE:
                 if not flash_log_box: return
                 current_log = None
                 file_obj = None
-                
+
                 while self.tailing:
                     logs = _find_flash_logs()
                     if not logs:
                         time.sleep(1)
                         continue
-                    
+
                     newest_log = logs[0]
                     if newest_log != current_log:
                         current_log = newest_log
@@ -630,13 +630,13 @@ if TEXTUAL_AVAILABLE:
                 if not build_log_box: return
                 current_log = None
                 file_obj = None
-                
+
                 while self.tailing:
                     logs = _find_build_logs()
                     if not logs:
                         time.sleep(1)
                         continue
-                    
+
                     newest_log = logs[0]
                     if newest_log != current_log:
                         current_log = newest_log
@@ -692,13 +692,13 @@ if TEXTUAL_AVAILABLE:
         def update_telemetry(self):
             cpu, ram, root, m_disk, load = get_telemetry()
             sys_info = get_sys_info()
-            
+
             self.cpu_history.append(float(cpu))
             if len(self.cpu_history) > 60: self.cpu_history.pop(0)
             try:
                 self.query_one("#spark-widget", Sparkline).data = list(self.cpu_history)
             except Exception: pass
-            
+
             hw_lines = [
                 f"[{SSOT['subtle']} bold]CPU Model:[/] {sys_info['cpu_model'][:36]}",
                 f"[{SSOT['subtle']} bold]Load:[/] {load} | [{SSOT['subtle']} bold]Usage:[/] {make_bar(cpu, 18)} [{SSOT['subtle']} bold]{cpu:.1f}%[/]",
@@ -711,7 +711,7 @@ if TEXTUAL_AVAILABLE:
                     c1_num = i
                     c1_val = cpu_percs[c1_num]
                     c1_str = f"C{c1_num:02d} {make_bar(c1_val, 8)} [dim]{c1_val:4.1f}%[/]"
-                    
+
                     c2_num = i + half
                     if c2_num < len(cpu_percs):
                         c2_val = cpu_percs[c2_num]
@@ -719,7 +719,7 @@ if TEXTUAL_AVAILABLE:
                     else:
                         c2_str = ""
                     hw_lines.append(f"  {c1_str:<32}  {c2_str}")
-                
+
                 hw_lines.append("")
                 mem = psutil.virtual_memory()
                 swap = psutil.swap_memory()
@@ -727,19 +727,19 @@ if TEXTUAL_AVAILABLE:
                 hw_lines.append(f"[{SSOT['warning']} bold]Swap:[/] {make_bar(swap.percent, 16)} {swap.used/(1024**3):.1f}/{swap.total/(1024**3):.1f} GB ({swap.percent}%)")
                 hw_lines.append("")
                 hw_lines.append(f"[{SSOT['subtle']} bold]Disk C:[/] {make_bar(root, 12)} {root}%   |   [{SSOT['subtle']} bold]Disk M:[/] {make_bar(m_disk, 12)} {m_disk}%")
-                
+
                 net = psutil.net_io_counters()
                 hw_lines.append(f"[{SSOT['success']} bold]Net Sent:[/] {net.bytes_sent/(1024**2):.1f} MB   |   [{SSOT['success']} bold]Net Recv:[/] {net.bytes_recv/(1024**2):.1f} MB")
-            
+
             self.query_one("#hw-box", Static).update("\n".join(hw_lines))
-            
+
             t_lines = [
                 f"[black on {SSOT['subtle']}]  USER [/] {sys_info['user']}@{sys_info['host']}",
                 f"[black on {SSOT['success']}]  KERNEL [/] {sys_info['kernel']}",
                 f"[black on {SSOT['warning']}] ⏱ UPTIME [/] {sys_info['uptime']}"
             ]
             self.query_one("#sys-identity", Static).update("\n".join(t_lines))
-            
+
             u_lines = [
                 f"[{SSOT['warning']} bold]USB:[/] {get_usb_drive_info()}",
                 f"[{SSOT['success']} bold]GIT:[/] {get_git_tree_status()}"
@@ -756,7 +756,7 @@ if TEXTUAL_AVAILABLE:
                     f"[{SSOT['warning']}]System CPU:[/] {make_bar(float(cpu), 18)}"
                 ]
                 self.query_one("#ai-stats", Static).update("\n".join(ai_lines))
-                
+
                 last_log_t = getattr(self, 'last_flash_log_time', None)
                 if last_log_t:
                     elapsed = int(time.time() - last_log_t)
@@ -869,7 +869,7 @@ def main():
     mode = "monitor"
     if args.mini or "-mini" in [a.lower() for a in unknown]: mode = "mini"
     elif args.dash or "-dash" in [a.lower() for a in unknown]: mode = "dash"
-    
+
     if mode == "mini":
         console.print(create_metal_layout())
         sys.exit(0)

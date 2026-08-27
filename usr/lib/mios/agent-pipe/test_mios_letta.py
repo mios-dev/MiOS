@@ -107,7 +107,7 @@ async def test_dispatch_handler_remember():
 def main():
     asyncio.run(test_letta_client_flow())
     asyncio.run(test_dispatch_handler_remember())
-    
+
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     sys.exit(1 if _fails else 0)
 

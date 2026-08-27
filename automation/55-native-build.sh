@@ -16,12 +16,12 @@ mkdir -p "${DEST_DIR}"
 if command -v cargo >/dev/null 2>&1; then
     echo "[55-native-build] Compiling tools/native workspace crates..."
     (cd "${ROOT_DIR}/tools/native" && cargo build --release)
-    
+
     if [[ -d "${ROOT_DIR}/src/mios-rs" ]]; then
         echo "[55-native-build] Compiling src/mios-rs workspace crates (mios-node, miosd, mios-build, mios-config)..."
         (cd "${ROOT_DIR}/src/mios-rs" && cargo build --release)
     fi
-    
+
     for bin in mios-resolver mios-drift-runner mios-ssot-lint mios-version-check mios-node miosd; do
         SRC_BIN=""
         if [[ -f "${ROOT_DIR}/tools/native/target/release/${bin}" ]]; then
