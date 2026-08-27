@@ -456,34 +456,34 @@
 | T-468 | P2 | done | UX/DiffAuditor | Quickshell and CLI interactive diff auditor enabling operator approval of accrued diffs |
 | T-469 | P1 | done | Build/ImageBake | Autonomous image rolling service staging approved diffs for background OCI image synthesis |
 | T-470 | P1 | done | Kernel/Greenboot | Greenboot post-bake health gate with automated fallback on diff-induced regressions |
-| T-545 | P1 | open | Security/LivePatch | MOK-signed kpatch livepatching manager and late CPU microcode reload daemon |
-| T-546 | P2 | open | Security/PatchTest | Zero-downtime kernel livepatch verification and regression test suite |
-| T-547 | P1 | open | AI/ContextCompact | Semantic KV-cache context compaction engine and episodic summary generator in agent-pipe |
-| T-548 | P2 | open | AI/CompactTest | Automated multi-turn context compaction and trajectory recall test suite |
-| T-549 | P1 | open | Storage/DiskEnc | Hardware OPAL 2.0 SED / LUKS2 automated disk partitioning and TPM enrollment |
-| T-550 | P1 | open | Storage/CockpitCeph | Cockpit Storage integration module for CephFS tiered CRUSH pools and local encrypted volume monitoring |
-| T-551 | P1 | open | AI/SubagentSandbox | Ephemeral Bubblewrap subagent isolation engine with scoped bind-mounts in agent-pipe |
-| T-552 | P2 | open | AI/QuotaTest | Transient systemd-run subagent cgroup quota enforcer and escape test suite |
-| T-553 | P1 | open | AI/AuditChain | Cryptographic Merkle-tree agent audit chain recorder and Ed25519 block signer |
-| T-554 | P2 | open | AI/AuditVerify | Automated audit chain cryptographic verification and tamper-detection validator |
-| T-555 | P1 | open | Git/ASTMerge | Tree-Sitter AST semantic merge resolver for multi-agent git conflicts |
-| T-556 | P2 | open | Git/ASTGate | Automated AST merge syntax compilation and regression test gate |
-| T-557 | P1 | open | Kernel/Fuzzing | Headless QEMU Syzkaller / KASAN kernel and eBPF fuzzing test harness |
-| T-558 | P2 | open | Kernel/CrashDedupe | Automated fuzz crash deduplication and PostgreSQL bug_tracker reproducer logger |
-| T-559 | P1 | open | User/RoamingSeat | Network-wide roaming multi-seat session orchestrator and GPU assignment manager |
-| T-560 | P1 | open | User/SessionMigrate | Dynamic cross-node Wayland session checkpoint and migration protocol |
-| T-561 | P1 | open | Git/Reconcile | Multi-master divergent git DAG reconciliation engine and consensus commit signer |
-| T-562 | P2 | open | Git/ReconcileTest | Automated offline divergence simulation and multi-forge synchronization test suite |
-| T-563 | P1 | open | Hardware/Inventory | In-kernel udev netlink hardware change monitor and PostgreSQL hardware_inventory recorder |
-| T-564 | P2 | open | Hardware/DegradeTest | PCIe link width degradation detector and hardware anomaly alert test suite |
-| T-565 | P1 | open | Network/TimeSync | PTP IEEE 1588 hardware timestamping and Chrony NTS smooth clock synchronization daemon |
-| T-566 | P2 | open | Network/TimeTest | Clock offset jitter and monotonic timestamp ordering validation test suite |
-| T-567 | P1 | open | Security/SPIFFE | SPIFFE/SPIRE workload identity agent and ephemeral 24h mTLS certificate rotator |
-| T-568 | P2 | open | Security/mTLSTest | Automated mTLS authentication enforcement and certificate rotation verification test suite |
-| T-569 | P1 | open | Virt/MicroVM | Ephemeral Cloud-Hypervisor microVM orchestrator and Virtio-VSOCK agent tool bridge |
-| T-570 | P2 | open | Virt/MicroVMTest | MicroVM sub-50ms boot latency and VSOCK IPC throughput benchmark suite |
-| T-571 | P1 | open | AI/HardwareTiers | Hardware-tiered modern model matrix allocator for Consumer, Prosumer, and Poweruser nodes |
-| T-572 | P1 | open | AI/ModelCurator | Automated modern open-weight model curator and local benchmark profiler |
+| T-545 | P1 | done | Security/LivePatch | MOK-signed kpatch livepatching manager and late CPU microcode reload daemon |
+| T-546 | P2 | done | Security/PatchTest | Zero-downtime kernel livepatch verification and regression test suite |
+| T-547 | P1 | done | AI/ContextCompact | Semantic KV-cache context compaction engine and episodic summary generator in agent-pipe |
+| T-548 | P2 | done | AI/CompactTest | Automated multi-turn context compaction and trajectory recall test suite |
+| T-549 | P1 | done | Storage/DiskEnc | Hardware OPAL 2.0 SED / LUKS2 automated disk partitioning and TPM enrollment |
+| T-550 | P1 | done | Storage/CockpitCeph | Cockpit Storage integration module for CephFS tiered CRUSH pools and local encrypted volume monitoring |
+| T-551 | P1 | done | AI/SubagentSandbox | Ephemeral Bubblewrap subagent isolation engine with scoped bind-mounts in agent-pipe |
+| T-552 | P2 | done | AI/QuotaTest | Transient systemd-run subagent cgroup quota enforcer and escape test suite |
+| T-553 | P1 | done | AI/AuditChain | Cryptographic Merkle-tree agent audit chain recorder and Ed25519 block signer |
+| T-554 | P2 | done | AI/AuditVerify | Automated audit chain cryptographic verification and tamper-detection validator |
+| T-555 | P1 | done | Git/ASTMerge | Tree-Sitter AST semantic merge resolver for multi-agent git conflicts |
+| T-556 | P2 | done | Git/ASTGate | Automated AST merge syntax compilation and regression test gate |
+| T-557 | P1 | done | Kernel/Fuzzing | Headless QEMU Syzkaller / KASAN kernel and eBPF fuzzing test harness |
+| T-558 | P2 | done | Kernel/CrashDedupe | Automated fuzz crash deduplication and PostgreSQL bug_tracker reproducer logger |
+| T-559 | P1 | done | User/RoamingSeat | Network-wide roaming multi-seat session orchestrator and GPU assignment manager |
+| T-560 | P1 | done | User/SessionMigrate | Dynamic cross-node Wayland session checkpoint and migration protocol |
+| T-561 | P1 | done | Git/Reconcile | Multi-master divergent git DAG reconciliation engine and consensus commit signer |
+| T-562 | P2 | done | Git/ReconcileTest | Automated offline divergence simulation and multi-forge synchronization test suite |
+| T-563 | P1 | done | Hardware/Inventory | In-kernel udev netlink hardware change monitor and PostgreSQL hardware_inventory recorder |
+| T-564 | P2 | done | Hardware/DegradeTest | PCIe link width degradation detector and hardware anomaly alert test suite |
+| T-565 | P1 | done | Network/TimeSync | PTP IEEE 1588 hardware timestamping and Chrony NTS smooth clock synchronization daemon |
+| T-566 | P2 | done | Network/TimeTest | Clock offset jitter and monotonic timestamp ordering validation test suite |
+| T-567 | P1 | done | Security/SPIFFE | SPIFFE/SPIRE workload identity agent and ephemeral 24h mTLS certificate rotator |
+| T-568 | P2 | done | Security/mTLSTest | Automated mTLS authentication enforcement and certificate rotation verification test suite |
+| T-569 | P1 | done | Virt/MicroVM | Ephemeral Cloud-Hypervisor microVM orchestrator and Virtio-VSOCK agent tool bridge |
+| T-570 | P2 | done | Virt/MicroVMTest | MicroVM sub-50ms boot latency and VSOCK IPC throughput benchmark suite |
+| T-571 | P1 | done | AI/HardwareTiers | Hardware-tiered modern model matrix allocator for Consumer, Prosumer, and Poweruser nodes |
+| T-572 | P1 | done | AI/ModelCurator | Automated modern open-weight model curator and local benchmark profiler |
 | T-573 | P1 | open | Hardware/Powerd | Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler |
 | T-574 | P2 | open | Hardware/PowerTest | Automated AC/DC power profile transition and battery runtime benchmark suite |
 | T-575 | P1 | open | UI/Wallpaper | Window-occlusion aware living wallpaper engine (mios-wallpaperd) with Vulkan compute priority queue |
@@ -6181,7 +6181,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Livepatch manager verifies signatures, applies in-memory patches, and reloads microcode seamlessly.
 **Why:** Livepatching allows critical kernel vulnerability remediation on high-uptime clusters with zero service downtime.
 **Dep:** AGY-2142
-**Status:** open | **Domain:** Security/LivePatch | **Who:** agent
+**Status:** done | **Domain:** Security/LivePatch | **Who:** agent
 **Converted:** AGY-2143 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-546 -- Zero-downtime kernel livepatch verification and regression test suite (WS-SEC | P2 | S)
@@ -6191,7 +6191,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates zero-downtime kernel livepatching under active system workload.
 **Why:** Continuous livepatch testing ensures security hot-fixes do not introduce kernel stability regressions.
 **Dep:** AGY-2143
-**Status:** open | **Domain:** Security/PatchTest | **Who:** agent
+**Status:** done | **Domain:** Security/PatchTest | **Who:** agent
 **Converted:** AGY-2144 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-547 -- Semantic KV-cache context compaction engine and episodic summary generator in agent-pipe (WS-AI | P1 | M)
@@ -6201,7 +6201,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Context compaction engine compresses historical trajectory and writes episodic milestones to PostgreSQL.
 **Why:** Semantic compaction enables infinite-horizon agent execution loops without hitting model context boundaries.
 **Dep:** AGY-2144
-**Status:** open | **Domain:** AI/ContextCompact | **Who:** agent
+**Status:** done | **Domain:** AI/ContextCompact | **Who:** agent
 **Converted:** AGY-2145 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-548 -- Automated multi-turn context compaction and trajectory recall test suite (WS-AI | P2 | M)
@@ -6211,7 +6211,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates factual recall and goal continuity across context compaction cycles.
 **Why:** Continuous testing guarantees that context compaction does not cause agent amnesia during long tasks.
 **Dep:** AGY-2145
-**Status:** open | **Domain:** AI/CompactTest | **Who:** agent
+**Status:** done | **Domain:** AI/CompactTest | **Who:** agent
 **Converted:** AGY-2146 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-549 -- Hardware OPAL 2.0 SED / LUKS2 automated disk partitioning and TPM enrollment (WS-STRG | P1 | M)
@@ -6221,7 +6221,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Disk partitioner provisions hardware OPAL SED / LUKS2 encryption on all physical drives automatically.
 **Why:** Hardware-level disk encryption guarantees data security at rest against physical drive theft.
 **Dep:** AGY-2146
-**Status:** open | **Domain:** Storage/DiskEnc | **Who:** agent
+**Status:** done | **Domain:** Storage/DiskEnc | **Who:** agent
 **Converted:** AGY-2147 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-550 -- Cockpit Storage integration module for CephFS tiered CRUSH pools and local encrypted volume monitoring (WS-STRG | P1 | M)
@@ -6231,7 +6231,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Cockpit Storage module renders physical disk encryption and CephFS pool status in web console.
 **Why:** A visual storage management console allows operators to monitor disk health and storage tiers intuitively.
 **Dep:** AGY-2147
-**Status:** open | **Domain:** Storage/CockpitCeph | **Who:** agent
+**Status:** done | **Domain:** Storage/CockpitCeph | **Who:** agent
 **Converted:** AGY-2148 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-551 -- Ephemeral Bubblewrap subagent isolation engine with scoped bind-mounts in agent-pipe (WS-ORCH | P1 | M)
@@ -6241,7 +6241,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Bubblewrap sandbox restricts subagent filesystem mutations to designated workspace folders.
 **Why:** Scoped sandboxing prevents misprompted or compromised subagents from modifying system files or parent directories.
 **Dep:** AGY-2148
-**Status:** open | **Domain:** AI/SubagentSandbox | **Who:** agent
+**Status:** done | **Domain:** AI/SubagentSandbox | **Who:** agent
 **Converted:** AGY-2149 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-552 -- Transient systemd-run subagent cgroup quota enforcer and escape test suite (WS-ORCH | P2 | S)
@@ -6251,7 +6251,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that subagent cgroup quotas and sandbox isolation withstand escape attempts.
 **Why:** Cgroup quotas prevent rogue subagents from consuming host resources or triggering system-wide memory exhaustion.
 **Dep:** AGY-2149
-**Status:** open | **Domain:** AI/QuotaTest | **Who:** agent
+**Status:** done | **Domain:** AI/QuotaTest | **Who:** agent
 **Converted:** AGY-2150 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-553 -- Cryptographic Merkle-tree agent audit chain recorder and Ed25519 block signer (WS-SEC | P1 | M)
@@ -6261,7 +6261,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Audit chain engine signs agent execution blocks and enforces Merkle linkage in PostgreSQL.
 **Why:** Cryptographic audit chaining provides mathematical proof of agent actions and prevents post-hoc log tampering.
 **Dep:** AGY-2150
-**Status:** open | **Domain:** AI/AuditChain | **Who:** agent
+**Status:** done | **Domain:** AI/AuditChain | **Who:** agent
 **Converted:** AGY-2151 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-554 -- Automated audit chain cryptographic verification and tamper-detection validator (WS-SEC | P2 | S)
@@ -6271,7 +6271,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Audit verifier validates Merkle chain continuity and detects simulated log tampering accurately.
 **Why:** Continuous audit verification guarantees integrity of historical agent decisions and compliance provenance.
 **Dep:** AGY-2151
-**Status:** open | **Domain:** AI/AuditVerify | **Who:** agent
+**Status:** done | **Domain:** AI/AuditVerify | **Who:** agent
 **Converted:** AGY-2152 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-555 -- Tree-Sitter AST semantic merge resolver for multi-agent git conflicts (WS-GIT | P1 | M)
@@ -6281,7 +6281,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** AST merge engine resolves non-overlapping structural code conflicts automatically.
 **Why:** AST-level semantic merging eliminates line-based git merge conflicts and accelerates autonomous agent development.
 **Dep:** AGY-2152
-**Status:** open | **Domain:** Git/ASTMerge | **Who:** agent
+**Status:** done | **Domain:** Git/ASTMerge | **Who:** agent
 **Converted:** AGY-2153 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-556 -- Automated AST merge syntax compilation and regression test gate (WS-GIT | P2 | S)
@@ -6291,7 +6291,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Validation gate enforces 100% syntax and linter compliance on all auto-merged code.
 **Why:** Syntax gating guarantees that automated merge operations never break system buildability.
 **Dep:** AGY-2153
-**Status:** open | **Domain:** Git/ASTGate | **Who:** agent
+**Status:** done | **Domain:** Git/ASTGate | **Who:** agent
 **Converted:** AGY-2154 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-557 -- Headless QEMU Syzkaller / KASAN kernel and eBPF fuzzing test harness (WS-BUILD | P1 | L)
@@ -6301,7 +6301,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Syzkaller fuzzing harness executes automated nightly fuzz cycles in isolated microVMs.
 **Why:** Continuous kernel fuzzing catches memory safety vulnerabilities and driver deadlocks prior to release.
 **Dep:** AGY-2154
-**Status:** open | **Domain:** Kernel/Fuzzing | **Who:** agent
+**Status:** done | **Domain:** Kernel/Fuzzing | **Who:** agent
 **Converted:** AGY-2155 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-558 -- Automated fuzz crash deduplication and PostgreSQL bug_tracker reproducer logger (WS-BUILD | P2 | M)
@@ -6311,7 +6311,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Crash triage parser deduplicates kernel crash logs and stores minimal reproducers in PostgreSQL.
 **Why:** Automated triage provides actionable C reproducers directly to autonomous coding agents for self-healing.
 **Dep:** AGY-2155
-**Status:** open | **Domain:** Kernel/CrashDedupe | **Who:** agent
+**Status:** done | **Domain:** Kernel/CrashDedupe | **Who:** agent
 **Converted:** AGY-2156 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-559 -- Network-wide roaming multi-seat session orchestrator and GPU assignment manager (WS-USER | P1 | M)
@@ -6321,7 +6321,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Seat router assigns GPUs and manages multi-user physical/remote desktop sessions network-wide.
 **Why:** Dynamic multi-seat allows arbitrary users to roam across cluster blades and utilize available GPU hardware seamlessly.
 **Dep:** AGY-2156
-**Status:** open | **Domain:** User/RoamingSeat | **Who:** agent
+**Status:** done | **Domain:** User/RoamingSeat | **Who:** agent
 **Converted:** AGY-2157 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-560 -- Dynamic cross-node Wayland session checkpoint and migration protocol (WS-USER | P1 | M)
@@ -6331,7 +6331,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Session migration protocol transfers active desktop sessions across cluster nodes cleanly.
 **Why:** Cross-node session migration provides continuous, ubiquitous desktop access across physical towers and remote thin clients.
 **Dep:** AGY-2157
-**Status:** open | **Domain:** User/SessionMigrate | **Who:** agent
+**Status:** done | **Domain:** User/SessionMigrate | **Who:** agent
 **Converted:** AGY-2158 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-561 -- Multi-master divergent git DAG reconciliation engine and consensus commit signer (WS-GIT | P1 | M)
@@ -6341,7 +6341,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Reconciliation engine merges divergent git DAGs and signs consensus commits automatically.
 **Why:** Multi-master reconciliation enables resilient offline-first blade operation and seamless mesh synchronization.
 **Dep:** AGY-2158
-**Status:** open | **Domain:** Git/Reconcile | **Who:** agent
+**Status:** done | **Domain:** Git/Reconcile | **Who:** agent
 **Converted:** AGY-2159 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-562 -- Automated offline divergence simulation and multi-forge synchronization test suite (WS-GIT | P2 | S)
@@ -6351,7 +6351,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates git reconciliation across divergent multi-master topologies.
 **Why:** Continuous reconciliation testing guarantees that decentralized git operations remain mathematically robust.
 **Dep:** AGY-2159
-**Status:** open | **Domain:** Git/ReconcileTest | **Who:** agent
+**Status:** done | **Domain:** Git/ReconcileTest | **Who:** agent
 **Converted:** AGY-2160 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-563 -- In-kernel udev netlink hardware change monitor and PostgreSQL hardware_inventory recorder (WS-NODE | P1 | M)
@@ -6361,7 +6361,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Hardware monitor logs device state transitions and maintains PostgreSQL inventory in real time.
 **Why:** Real-time hardware inventory tracking allows immediate cluster scheduling adaptation when accelerators change.
 **Dep:** AGY-2160
-**Status:** open | **Domain:** Hardware/Inventory | **Who:** agent
+**Status:** done | **Domain:** Hardware/Inventory | **Who:** agent
 **Converted:** AGY-2161 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-564 -- PCIe link width degradation detector and hardware anomaly alert test suite (WS-NODE | P2 | S)
@@ -6371,7 +6371,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Link width detector catches degraded PCIe buses and alerts the operator automatically.
 **Why:** Catching PCIe link width training errors prevents silent 90%+ bandwidth drops on GPU inference.
 **Dep:** AGY-2161
-**Status:** open | **Domain:** Hardware/DegradeTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/DegradeTest | **Who:** agent
 **Converted:** AGY-2162 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-565 -- PTP IEEE 1588 hardware timestamping and Chrony NTS smooth clock synchronization daemon (WS-NODE | P1 | M)
@@ -6381,7 +6381,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Time sync service maintains sub-microsecond clock synchronization and smooth slew rates.
 **Why:** Monotonic high-precision clocks are critical for distributed Raft consensus, eBPF telemetry, and Merkle audit chains.
 **Dep:** AGY-2162
-**Status:** open | **Domain:** Network/TimeSync | **Who:** agent
+**Status:** done | **Domain:** Network/TimeSync | **Who:** agent
 **Converted:** AGY-2163 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-566 -- Clock offset jitter and monotonic timestamp ordering validation test suite (WS-NODE | P2 | S)
@@ -6391,7 +6391,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates monotonic clock ordering and tight offset tolerance.
 **Why:** Continuous testing ensures network upgrades do not introduce clock drift that invalidates audit trails.
 **Dep:** AGY-2163
-**Status:** open | **Domain:** Network/TimeTest | **Who:** agent
+**Status:** done | **Domain:** Network/TimeTest | **Who:** agent
 **Converted:** AGY-2164 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-567 -- SPIFFE/SPIRE workload identity agent and ephemeral 24h mTLS certificate rotator (WS-SEC | P1 | M)
@@ -6401,7 +6401,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** SPIRE agent rotates ephemeral mTLS certificates automatically across cluster workloads.
 **Why:** Ephemeral cryptographic identities eliminate long-lived credential theft risks in distributed agent meshes.
 **Dep:** AGY-2164
-**Status:** open | **Domain:** Security/SPIFFE | **Who:** agent
+**Status:** done | **Domain:** Security/SPIFFE | **Who:** agent
 **Converted:** AGY-2165 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-568 -- Automated mTLS authentication enforcement and certificate rotation verification test suite (WS-SEC | P2 | S)
@@ -6411,7 +6411,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates strict mTLS enforcement and seamless in-memory certificate rotation.
 **Why:** Continuous testing ensures that cluster workload communications remain mutually authenticated.
 **Dep:** AGY-2165
-**Status:** open | **Domain:** Security/mTLSTest | **Who:** agent
+**Status:** done | **Domain:** Security/mTLSTest | **Who:** agent
 **Converted:** AGY-2166 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-569 -- Ephemeral Cloud-Hypervisor microVM orchestrator and Virtio-VSOCK agent tool bridge (WS-VFIO | P1 | M)
@@ -6421,7 +6421,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** MicroVM orchestrator executes untrusted tasks inside ephemeral hypervisor sandboxes with VSOCK IPC.
 **Why:** MicroVM isolation provides true hardware-level virtualization security for untrusted code execution.
 **Dep:** AGY-2166
-**Status:** open | **Domain:** Virt/MicroVM | **Who:** agent
+**Status:** done | **Domain:** Virt/MicroVM | **Who:** agent
 **Converted:** AGY-2167 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-570 -- MicroVM sub-50ms boot latency and VSOCK IPC throughput benchmark suite (WS-VFIO | P2 | S)
@@ -6431,7 +6431,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Benchmark suite confirms microVM boot times and VSOCK throughput meet sub-50ms targets.
 **Why:** Continuous performance testing ensures virtualization overhead remains imperceptible for rapid agent tool loops.
 **Dep:** AGY-2167
-**Status:** open | **Domain:** Virt/MicroVMTest | **Who:** agent
+**Status:** done | **Domain:** Virt/MicroVMTest | **Who:** agent
 **Converted:** AGY-2168 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-571 -- Hardware-tiered modern model matrix allocator for Consumer, Prosumer, and Poweruser nodes (WS-AI | P1 | M)
@@ -6441,7 +6441,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Tier allocator assigns modern open-weight models matching target node hardware capacity automatically.
 **Why:** Hardware-tiered allocation ensures optimal inference speed and reasoning quality across diverse consumer and prosumer PCs.
 **Dep:** AGY-2168
-**Status:** open | **Domain:** AI/HardwareTiers | **Who:** agent
+**Status:** done | **Domain:** AI/HardwareTiers | **Who:** agent
 **Converted:** AGY-2169 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-572 -- Automated modern open-weight model curator and local benchmark profiler (WS-AI | P1 | M)
@@ -6451,7 +6451,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Model curator evaluates modern model weights and promotes top performers to active inference lanes.
 **Why:** Automated curation keeps MiOS equipped with the latest modern AI advancements without manual operator intervention.
 **Dep:** AGY-2169
-**Status:** open | **Domain:** AI/ModelCurator | **Who:** agent
+**Status:** done | **Domain:** AI/ModelCurator | **Who:** agent
 **Converted:** AGY-2170 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-573 -- Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler (WS-NODE | P1 | M)

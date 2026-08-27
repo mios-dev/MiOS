@@ -303,7 +303,6 @@ is generated, its generator is here.
 | `tools/generate-cosign-policy.py` | Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT |
 | `tools/generate-egress-firewall.py` | Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation). |
 | `tools/generate-ipa-enroll-env.py` | Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT |
-| `tools/generate-manual.py` | A generation tool to compile and structure the complete 50-chapter MiOS User Manual into a single All-in-One file, cleaning up modular directories. |
 | `tools/generate-metal-vs-hosted.py` | GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml. |
 | `tools/generate-pipeline-index.py` | ) or line_str.startswith("# AI-related:"): continue if line_str.startswith("#") and not line_str.startswith("#!"): |
 | `tools/generate-pod-quadlets.py` | Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT). |
@@ -377,7 +376,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 125 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 124 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
@@ -434,6 +433,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_jsonsalvage.py` | Re-export shim for mios_pipe.routing.jsonsalvage |
 | `usr/lib/mios/agent-pipe/mios_kernel.py` | Re-export shim for mios_pipe.kernel.kernel |
 | `usr/lib/mios/agent-pipe/mios_knowledge.py` | Re-export shim for mios_pipe.memory.knowledge |
+| `usr/lib/mios/agent-pipe/mios_kv_compact.py` | Semantic KV-cache context compaction engine and episodic summary generator for agent-pipe. |
 | `usr/lib/mios/agent-pipe/mios_kvfork.py` | Re-export shim for mios_pipe.context.kvfork |
 | `usr/lib/mios/agent-pipe/mios_kvgc.py` | Re-export shim for mios_pipe.context.kvgc |
 | `usr/lib/mios/agent-pipe/mios_lanes.py` | Re-export shim for mios_pipe.routing.lanes |
@@ -608,6 +608,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_smartroute.py` | Re-export shim for mios_pipe.routing.smartroute |
 | `usr/lib/mios/agent-pipe/mios_sse.py` | Re-export shim for mios_pipe.routing.sse |
 | `usr/lib/mios/agent-pipe/mios_stress.py` | Re-export shim for mios_pipe.scheduler.stress |
+| `usr/lib/mios/agent-pipe/mios_subagent_sandbox.py` | Ephemeral Bubblewrap subagent isolation engine with scoped bind-mounts and systemd cgroups. |
 | `usr/lib/mios/agent-pipe/mios_surface.py` | Pure stdlib (ast) extractor of the server.py PUBLIC SURFACE for the refactor parity gate (refactor WS R0). |
 | `usr/lib/mios/agent-pipe/mios_swarm.py` | Re-export shim for mios_pipe.routing.swarm |
 | `usr/lib/mios/agent-pipe/mios_template.py` | Renders an SSOT verb command template into the broker bash line. |
@@ -810,7 +811,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 424 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 426 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs
