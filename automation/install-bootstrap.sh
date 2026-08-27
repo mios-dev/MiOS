@@ -136,7 +136,7 @@ main() {
         usermod -c "$USER_FULLNAME" "$LINUX_USER"
     else
         log_info "Creating '$LINUX_USER' (groups: $existing_groups)"
-        useradd -m -G "$existing_groups" -s "$DEFAULT_USER_SHELL" -c "$USER_FULLNAME" "$LINUX_USER"
+        useradd -u 1000 -m -G "$existing_groups" -s "$DEFAULT_USER_SHELL" -c "$USER_FULLNAME" "$LINUX_USER" 2>/dev/null || useradd -m -G "$existing_groups" -s "$DEFAULT_USER_SHELL" -c "$USER_FULLNAME" "$LINUX_USER"
     fi
     echo "$LINUX_USER:$USER_PASSWORD" | chpasswd
     log_ok "User profile applied."

@@ -5247,6 +5247,9 @@ tests/test-tool-batch.py	21	21	1	8	93181224c479	STAY	local-scoped		0				0
 tests/test-tool-timeout.py	1	3	3	18	e3d42f912c23	STAY	ai-header		0				0
 tests/test-tool-timeout.py	4	4	1	11	a1d170c5ccbb	STAY	local-scoped		0				0
 tests/test-tool-timeout.py	21	21	1	7	d57fe9dd60f6	STAY	local-scoped		0				0
+tests/test-uid-enforcement.py	1	1	1	2	c8a5e92d1c7b	STAY	local-scoped		0				0
+tests/test-uid-enforcement.py	2	5	3	15	c8017625fc8f	MIGRATE	midsize-narrative		0				0
+tests/test-uid-enforcement.py	16	16	1	3	ca77ff62722c	STAY	local-scoped		0				0
 tests/test-uki-enroll.py	1	3	3	19	8959dbcee77b	STAY	ai-header		0				0
 tests/test-uki-enroll.py	4	4	1	9	544725094f28	STAY	local-scoped		0				0
 tests/test-uki-enroll.py	30	30	1	14	3fc8ed2858e8	STAY	local-scoped		0				0
@@ -10489,7 +10492,7 @@ usr/lib/systemd/system/ublue-nvctk-cdi.service.d/10-mios.conf	1	1	1	31	88bc31b44
 usr/lib/systemd/system/upower.service.d/10-mios-wsl2.conf	1	1	1	23	cfdacc65c271	STAY	ai-header		0				0
 usr/lib/systemd/system/upower.service.d/10-mios-wsl2.conf	3	4	2	20	4083ac15f74b	STAY	local-scoped		0				0
 usr/lib/systemd/system/user@.service.d/10-mios-wsl-runtime.conf	1	1	1	26	ebda0c5320bf	STAY	ai-header		0				0
-usr/lib/systemd/user/localsearch-3.service.d/10-mios-allow-system-uid.conf	1	14	14	114	066b6296aad2	STAY	ai-header		0				0
+usr/lib/systemd/user/localsearch-3.service.d/10-mios-allow-system-uid.conf	1	14	14	117	36073fb519d2	STAY	ai-header		0				0
 usr/lib/systemd/user/localsearch-control-3.service.d/10-mios-allow-system-uid.conf	1	14	14	112	e2002ab74635	STAY	ai-header		0				0
 usr/lib/systemd/user/localsearch-writeback-3.service.d/10-mios-allow-system-uid.conf	1	14	14	112	e2002ab74635	STAY	ai-header		0				0
 usr/lib/systemd/user/mios-computer-use-server.service	1	2	2	31	38a819dab796	STAY	ai-header		0				0
@@ -12305,6 +12308,12 @@ usr/libexec/mios/user/session_migrate.py	317	317	1	10	3c3c2541f7e4	STAY	local-sc
 usr/libexec/mios/user/session_migrate.py	318	318	1	3	d94a1feec661	STAY	local-scoped		0				0
 usr/libexec/mios/user/session_migrate.py	323	324	2	19	b2b5e798becd	STAY	local-scoped		0				0
 usr/libexec/mios/user/session_migrate.py	426	426	1	3	74125031f1aa	STAY	local-scoped		0				0
+usr/libexec/mios/user/uid_enforce.py	1	1	1	2	c8a5e92d1c7b	STAY	local-scoped		0				0
+usr/libexec/mios/user/uid_enforce.py	2	6	4	30	4b712c70a198	MIGRATE	midsize-narrative		0				0
+usr/libexec/mios/user/uid_enforce.py	13	15	3	11	16f73103ee65	STAY	midsize-why		0				0
+usr/libexec/mios/user/uid_enforce.py	44	46	3	9	d3a87ef93b22	STAY	midsize-why		0				0
+usr/libexec/mios/user/uid_enforce.py	92	94	3	11	df75949006e7	STAY	midsize-why		0				0
+usr/libexec/mios/user/uid_enforce.py	114	116	3	9	e24b17631014	STAY	midsize-why		0				0
 usr/libexec/mios/ux/audio_feedback.py	1	4	4	25	902e6eb84f30	STAY	ai-header		0				0
 usr/libexec/mios/ux/audio_feedback.py	5	13	8	52	59a4da56335b	MIGRATE	narrative-rationale		0				0
 usr/libexec/mios/ux/audio_feedback.py	30	30	1	5	fc1ba0818452	STAY	local-scoped		0				0
@@ -14265,20 +14274,20 @@ usr/share/mios/mios.toml	11035	11041	7	64	351d4a832370	MIGRATE	narrative-rationa
 usr/share/mios/mios.toml	11043	11044	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11048	11048	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11057	11057	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11253	11253	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11259	11260	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11287	11288	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11297	11300	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	11302	11303	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11307	11309	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11315	11315	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11317	11319	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11385	11388	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11390	11390	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11469	11470	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11475	11479	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	11481	11484	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11487	11492	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	11254	11254	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11260	11261	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11288	11289	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11298	11301	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	11303	11304	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11308	11310	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11316	11316	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11318	11320	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11386	11389	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11391	11391	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11470	11471	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11476	11480	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	11482	11485	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11488	11493	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/openwebui/tools/mios_computer_use.py	1	2	2	22	8c252dd7a941	STAY	ai-header		0				0
 usr/share/mios/openwebui/tools/mios_computer_use.py	3	42	39	219	9cde6af7c1f5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tools.md	mios-src:9cde6af7c1f5	219	0
 usr/share/mios/openwebui/tools/mios_computer_use.py	63	64	2	19	4ba014eb5e64	STAY	local-scoped		0				0

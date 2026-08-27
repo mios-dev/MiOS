@@ -875,6 +875,8 @@
 | T-961 | P2 | open | AI/DBQTest | Automated 350 tok/s CPU throughput, dual-binary POPCOUNT, and RAM fitting test suite |
 | T-962 | P1 | open | Security/IBTGuard | Automated IBT/BTI landing pad enforcer and control-flow compiler in mios-ibt-guard |
 | T-963 | P2 | open | Security/IBTTest | Automated IBT/BTI illegal jump trapping (<5ns) and binary landing pad test suite |
+| T-964 | P1 | open | User/UID1000 | Standard Non-System UID 1000 Enforcement & systemd-sysusers Migration Pipeline |
+| T-965 | P2 | open | User/UIDTest | Automated UID/GID Range & Systemd User Session Boundary Verification Test Suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -10363,4 +10365,25 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2560
 **Status:** open | **Domain:** Security/IBTTest | **Who:** agent
 **Converted:** AGY-2561 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-964 -- Standard Non-System UID 1000 Enforcement & systemd-sysusers Migration Pipeline (WS-USER | P1 | M)
+**Goal:** Guarantee standard non-system UID 1000 assignment for primary user mios across installation, bootstrap, dev-VM provisioning, and container builds, eliminating ConditionUser=!@system overrides.
+**What+How:** Implement `usr/libexec/mios/user/uid_enforce.py` and update `automation/build-mios.sh`, `automation/install-bootstrap.sh`, and `automation/11-user.sh`. Enforce `useradd -u 1000 -g mios -m -d /var/home/mios -s /bin/bash mios`; validate `/etc/passwd` during firstboot to verify mios UID == 1000; dynamically migrate legacy UIDs < 1000 with atomic `usermod -u 1000` and `chown -R 1000:1000` over `/var/home/mios`; eliminate reliance on workaround drop-ins like `usr/lib/systemd/user/localsearch-3.service.d/10-mios-allow-system-uid.conf`.
+**Where:** usr/libexec/mios/user/uid_enforce.py, usr/lib/sysusers.d/10-mios.conf, automation/11-user.sh, automation/install-bootstrap.sh, automation/build-mios.sh
+**Done When:** All user provisioning pathways deterministically assign UID 1000 to mios and systemd user session services start without @system override drop-ins.
+**Why:** Systemd user session managers and desktop indexing services enforce ConditionUser=!@system; having UID >= 1000 is required by standard Linux FHS and freedesktop specifications.
+**Dep:** AGY-2561
+**Status:** open | **Domain:** User/UID1000 | **Who:** agent
+**Converted:** AGY-2562 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-965 -- Automated UID/GID Range & Systemd User Session Boundary Verification Test Suite (WS-USER | P2 | S)
+**Goal:** Verify in automated CI that mios user has UID 1000, GID 1000, valid /etc/subuid allocations, and that systemd user services run cleanly without system UID bypasses.
+**What+How:** Add `tests/test-uid-enforcement.py`. Test: 1) `uid_enforce.py` audit and remediation on mock `/etc/passwd`; 2) subuid/subgid range validation (65536 contiguous IDs); 3) systemd user unit ConditionUser=!@system compatibility assertion; 4) file ownership preservation across `/var/home/mios`. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-uid-enforcement.py, tools/ci-suites.py
+**Done When:** Test suite validates UID 1000 allocation, subuid mapping, and user session service compatibility.
+**Why:** Automated CI testing ensures future provisioning updates or base image rebuilds never regress the non-system user class invariant.
+**Dep:** AGY-2562
+**Status:** open | **Domain:** User/UIDTest | **Who:** agent
+**Converted:** AGY-2563 carries this forward with a Verify line that fails when the behaviour is absent.
+
 

@@ -19311,3 +19311,24 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures hardware-enforced control-flow integrity instructions are uniformly emitted across all binaries.
 **Dep:** AGY-2560
 
+## AGY-2562 -- Standard Non-System UID 1000 Enforcement & systemd-sysusers Migration Pipeline  (WS-USER | P1 | M)
+**Goal:** Guarantee standard non-system UID 1000 assignment for primary user mios across installation, bootstrap, dev-VM provisioning, and container builds, eliminating ConditionUser=!@system overrides.
+**What+How:** Implement `usr/libexec/mios/user/uid_enforce.py` and update `automation/build-mios.sh`, `automation/install-bootstrap.sh`, and `automation/11-user.sh`. Enforce `useradd -u 1000 -g mios -m -d /var/home/mios -s /bin/bash mios`; validate `/etc/passwd` during firstboot to verify mios UID == 1000; dynamically migrate legacy UIDs < 1000 with atomic `usermod -u 1000` and `chown -R 1000:1000` over `/var/home/mios`; eliminate reliance on workaround drop-ins like `usr/lib/systemd/user/localsearch-3.service.d/10-mios-allow-system-uid.conf`.
+**Where:** usr/libexec/mios/user/uid_enforce.py, usr/lib/sysusers.d/10-mios.conf, automation/11-user.sh, automation/install-bootstrap.sh, automation/build-mios.sh
+**Verify:** Run `python -m unittest tests/test-uid-enforcement.py`; verify UID 1000 allocation, migration idempotency, and subuid mapping validations pass 100%.
+**Do NOT:** Leave the primary interactive user with a system UID in range 0-999 or deploy mutable workaround drop-ins without fixing the root UID allocator.
+**Done When:** All user provisioning pathways deterministically assign UID 1000 to mios and systemd user session services start without @system override drop-ins.
+**Why:** Systemd user session managers and desktop indexing services enforce ConditionUser=!@system; having UID >= 1000 is required by standard Linux FHS and freedesktop specifications.
+**Dep:** AGY-2561
+
+## AGY-2563 -- Automated UID/GID Range & Systemd User Session Boundary Verification Test Suite  (WS-USER | P2 | S)
+**Goal:** Verify in automated CI that mios user has UID 1000, GID 1000, valid /etc/subuid allocations, and that systemd user services run cleanly without system UID bypasses.
+**What+How:** Add `tests/test-uid-enforcement.py`. Test: 1) `uid_enforce.py` audit and remediation on mock `/etc/passwd`; 2) subuid/subgid range validation (65536 contiguous IDs); 3) systemd user unit ConditionUser=!@system compatibility assertion; 4) file ownership preservation across `/var/home/mios`. Register in `usr/share/mios/mios.toml` under `[ci.tiers] unit`.
+**Where:** tests/test-uid-enforcement.py, tools/ci-suites.py
+**Verify:** Run `python -m unittest tests/test-uid-enforcement.py`; assert all assertions pass with exit code 0.
+**Do NOT:** Skip UID/GID boundary verification in automated CI test tiers.
+**Done When:** Test suite validates UID 1000 allocation, subuid mapping, and user session service compatibility.
+**Why:** Automated CI testing ensures future provisioning updates or base image rebuilds never regress the non-system user class invariant.
+**Dep:** AGY-2562
+
+

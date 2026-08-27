@@ -315,7 +315,7 @@ create_user_account() {
     else
         EXTRA_GROUPS="wheel,libvirt,kvm,video,render,input,dialout"
         if getent group docker >/dev/null 2>&1; then EXTRA_GROUPS="$EXTRA_GROUPS,docker"; fi
-        useradd -m -G "$EXTRA_GROUPS" -s /bin/bash "$MIOS_USERNAME"
+        useradd -u 1000 -m -G "$EXTRA_GROUPS" -s /bin/bash "$MIOS_USERNAME" 2>/dev/null || useradd -m -G "$EXTRA_GROUPS" -s /bin/bash "$MIOS_USERNAME"
         echo "${MIOS_USERNAME}:${MIOS_PASSWORD}" | chpasswd
 
         install -d -m 0750 /etc/sudoers.d
