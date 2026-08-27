@@ -107,7 +107,7 @@ class CosignVerifier:
         policy_path: str = "/etc/containers/policy.json",
     ) -> Dict[str, Any]:
         """Audits container policy.json to detect insecureAcceptAnything and verify strict signature rules."""
-        if self.mock and not os.path.exists(policy_path):
+        if self.mock and (policy_path == "/etc/containers/policy.json" or not os.path.exists(policy_path)):
             return {
                 "policy_file": policy_path,
                 "policy_strict": True,
