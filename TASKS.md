@@ -494,16 +494,16 @@
 | T-580 | P2 | done | Audio/AcousticTest | Automated acoustic noise rejection, VAD accuracy, and wake-word trigger benchmark suite |
 | T-581 | P1 | done | Build/NixCore | Multi-user Nix subsystem and /nix persistent store integration in bootc OCI image |
 | T-582 | P1 | done | Config/NixProject | Declarative mios.toml to Nix flake/home-manager projection generator in mios-nix-project |
-| T-583 | P1 | open | Git/PreCommit | Hermetic multi-language pre-commit linter and auto-formatter hook in mios-git-pre-commit |
-| T-584 | P2 | open | Git/LintTest | Automated pre-commit linter violation rejection and auto-format test suite |
-| T-585 | P1 | open | Hardware/MIG | Declarative NVIDIA MIG / AMD ROCm hardware slice configurator and dynamic CDI generator |
-| T-586 | P2 | open | Hardware/MIGTest | Multi-instance GPU compute isolation and fault boundary verification test suite |
-| T-587 | P1 | open | Network/mDNS | Zero-configuration mDNS/DNS-SD peer discovery and automated WireGuard peering daemon |
-| T-588 | P2 | open | Network/mDNSTest | Automated LAN peer discovery, cryptographic handshake, and mesh join test suite |
-| T-589 | P1 | open | Storage/ContainerGC | LRU container image garbage collector and block deduplicator daemon in mios-container-gc |
-| T-590 | P2 | open | Storage/GCTest | Automated container layer pruning threshold and deduplication verification test suite |
-| T-591 | P1 | open | Security/FIDO2 | Declarative FIDO2 pam_u2f and ssh-ed25519-sk hardware key enrollment tool in mios-fido2-enroll |
-| T-592 | P2 | open | Security/FIDO2Test | Automated FIDO2 user presence challenge and authentication test suite in virtual USB sandbox |
+| T-583 | P1 | done | Git/PreCommit | Hermetic multi-language pre-commit linter and auto-formatter hook in mios-git-pre-commit |
+| T-584 | P2 | done | Git/LintTest | Automated pre-commit linter violation rejection and auto-format test suite |
+| T-585 | P1 | done | Hardware/MIG | Declarative NVIDIA MIG / AMD ROCm hardware slice configurator and dynamic CDI generator |
+| T-586 | P2 | done | Hardware/MIGTest | Multi-instance GPU compute isolation and fault boundary verification test suite |
+| T-587 | P1 | done | Network/mDNS | Zero-configuration mDNS/DNS-SD peer discovery and automated WireGuard peering daemon |
+| T-588 | P2 | done | Network/mDNSTest | Automated LAN peer discovery, cryptographic handshake, and mesh join test suite |
+| T-589 | P1 | done | Storage/ContainerGC | LRU container image garbage collector and block deduplicator daemon in mios-container-gc |
+| T-590 | P2 | done | Storage/GCTest | Automated container layer pruning threshold and deduplication verification test suite |
+| T-591 | P1 | done | Security/FIDO2 | Declarative FIDO2 pam_u2f and ssh-ed25519-sk hardware key enrollment tool in mios-fido2-enroll |
+| T-592 | P2 | done | Security/FIDO2Test | Automated FIDO2 user presence challenge and authentication test suite in virtual USB sandbox |
 | T-593 | P1 | open | Network/VPNKillSwitch | Declarative nftables VPN kill-switch and fwmark split-tunnel manager |
 | T-594 | P2 | open | Network/KillSwitchTest | Automated VPN disconnect IP leak prevention and local mesh routing verification test suite |
 | T-595 | P1 | open | Network/NATTraversal | Tiered NAT traversal engine (UPnP, NAT-PMP, STUN hole punching, DERP relay) in mios-nat-traversal |
@@ -6563,7 +6563,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Pre-commit hook validates syntax and auto-formats multi-language source files on commit.
 **Why:** Hermetic pre-commit linting guarantees that code entering the git history is clean, formatted, and error-free.
 **Dep:** AGY-2180
-**Status:** open | **Domain:** Git/PreCommit | **Who:** agent
+**Status:** done | **Domain:** Git/PreCommit | **Who:** agent
 **Converted:** AGY-2181 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-584 -- Automated pre-commit linter violation rejection and auto-format test suite (WS-GIT | P2 | S)
@@ -6573,7 +6573,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that pre-commit hooks reject malformed syntax and format valid code.
 **Why:** Continuous hook testing ensures developer and agent workstations enforce uniform code quality gates.
 **Dep:** AGY-2181
-**Status:** open | **Domain:** Git/LintTest | **Who:** agent
+**Status:** done | **Domain:** Git/LintTest | **Who:** agent
 **Converted:** AGY-2182 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-585 -- Declarative NVIDIA MIG / AMD ROCm hardware slice configurator and dynamic CDI generator (WS-VFIO | P1 | M)
@@ -6583,7 +6583,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** MIG configurator partitions hardware GPU instances and binds CDI profiles automatically.
 **Why:** Hardware GPU slicing guarantees dedicated compute and memory bandwidth for latency-sensitive voice and agent workloads.
 **Dep:** AGY-2182
-**Status:** open | **Domain:** Hardware/MIG | **Who:** agent
+**Status:** done | **Domain:** Hardware/MIG | **Who:** agent
 **Converted:** AGY-2183 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-586 -- Multi-instance GPU compute isolation and fault boundary verification test suite (WS-VFIO | P2 | S)
@@ -6593,7 +6593,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that GPU hardware slices provide complete fault and memory isolation.
 **Why:** Hardware fault isolation ensures that a crash in background model fine-tuning never takes down interactive OS voice assistance.
 **Dep:** AGY-2183
-**Status:** open | **Domain:** Hardware/MIGTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/MIGTest | **Who:** agent
 **Converted:** AGY-2184 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-587 -- Zero-configuration mDNS/DNS-SD peer discovery and automated WireGuard peering daemon (WS-NET | P1 | M)
@@ -6603,7 +6603,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Peer discovery daemon locates local nodes and establishes encrypted mesh tunnels automatically.
 **Why:** Zero-configuration discovery enables seamless plug-and-play bare-metal cluster expansion.
 **Dep:** AGY-2184
-**Status:** open | **Domain:** Network/mDNS | **Who:** agent
+**Status:** done | **Domain:** Network/mDNS | **Who:** agent
 **Converted:** AGY-2185 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-588 -- Automated LAN peer discovery, cryptographic handshake, and mesh join test suite (WS-NET | P2 | S)
@@ -6613,7 +6613,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates zero-conf mDNS discovery and authenticated WireGuard tunnel setup.
 **Why:** Continuous networking tests ensure discovery protocols remain functional across firewall and router topologies.
 **Dep:** AGY-2185
-**Status:** open | **Domain:** Network/mDNSTest | **Who:** agent
+**Status:** done | **Domain:** Network/mDNSTest | **Who:** agent
 **Converted:** AGY-2186 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-589 -- LRU container image garbage collector and block deduplicator daemon in mios-container-gc (WS-STRG | P1 | M)
@@ -6623,7 +6623,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Container GC daemon reclaims storage space and deduplicates OCI layer blocks automatically.
 **Why:** Automated layer pruning prevents disk exhaustion on continuous self-developing AI workstations.
 **Dep:** AGY-2186
-**Status:** open | **Domain:** Storage/ContainerGC | **Who:** agent
+**Status:** done | **Domain:** Storage/ContainerGC | **Who:** agent
 **Converted:** AGY-2187 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-590 -- Automated container layer pruning threshold and deduplication verification test suite (WS-STRG | P2 | S)
@@ -6633,7 +6633,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates storage reclamation and layer integrity across container prune cycles.
 **Why:** Continuous testing ensures storage garbage collection never removes active or pinned container images.
 **Dep:** AGY-2187
-**Status:** open | **Domain:** Storage/GCTest | **Who:** agent
+**Status:** done | **Domain:** Storage/GCTest | **Who:** agent
 **Converted:** AGY-2188 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-591 -- Declarative FIDO2 pam_u2f and ssh-ed25519-sk hardware key enrollment tool in mios-fido2-enroll (WS-SEC | P1 | M)
@@ -6643,7 +6643,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** FIDO2 enrollment tool configures pam_u2f, SSH-SK keys, and WebAuthn credentials seamlessly.
 **Why:** Hardware-backed FIDO2 authentication provides phishing-proof security for administrative privileges and code signing.
 **Dep:** AGY-2188
-**Status:** open | **Domain:** Security/FIDO2 | **Who:** agent
+**Status:** done | **Domain:** Security/FIDO2 | **Who:** agent
 **Converted:** AGY-2189 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-592 -- Automated FIDO2 user presence challenge and authentication test suite in virtual USB sandbox (WS-SEC | P2 | S)
@@ -6653,7 +6653,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that FIDO2 authentication strictly enforces physical presence challenges.
 **Why:** Continuous testing ensures PAM security policies cannot be bypassed by automated background attacks.
 **Dep:** AGY-2189
-**Status:** open | **Domain:** Security/FIDO2Test | **Who:** agent
+**Status:** done | **Domain:** Security/FIDO2Test | **Who:** agent
 **Converted:** AGY-2190 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-593 -- Declarative nftables VPN kill-switch and fwmark split-tunnel manager (WS-NET | P1 | M)

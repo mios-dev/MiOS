@@ -1,0 +1,16 @@
+[Unit]
+Description=MiOS Zero-Configuration mDNS Peer Discovery & WireGuard Peering Daemon
+After=network-online.target wireguard.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/libexec/mios/net/mdns_mesh.py --discover --render-config --output /etc/wireguard/wg0.conf
+Restart=on-failure
+RestartSec=5s
+ProtectSystem=strict
+ReadWritePaths=/etc/wireguard
+CapabilityBoundingSet=CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=MiOS OCI Container Image Storage LRU Garbage Collection
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/libexec/mios/storage/container_gc.py --prune --threshold 85.0
+ProtectSystem=strict
+ReadWritePaths=/var/lib/containers/storage

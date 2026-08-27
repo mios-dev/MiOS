@@ -43,6 +43,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-cockpit-link.socket` | `usr/lib/systemd/system` | MiOS' Cockpit Link Proxy Socket |
 | `mios-compute.target` | `usr/lib/systemd/system` | MiOS' Compute Role |
 | `mios-computer-use-server.service` | `usr/lib/systemd/user` | MiOS' computer-use server (dual MCP + A2A + executor for this desktop) |
+| `mios-container-gc.service` | `usr/lib/systemd/system` | MiOS OCI Container Image Storage LRU Garbage Collection |
 | `mios-controller.target` | `usr/lib/systemd/system` | MiOS' Controller Role |
 | `mios-copy-build-log.service` | `usr/lib/systemd/system` | MiOS' Build Log Copy Service |
 | `mios-cpu-isolate.service` | `usr/lib/systemd/system` | MiOS' CPU Core Isolation Engine |
@@ -106,6 +107,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-luks-rotate.service` | `usr/lib/systemd/system` | MiOS LUKS2 Drive Encryption Key Rotation Service |
 | `mios-luks-rotate.timer` | `usr/lib/systemd/system` | Monthly Automated LUKS2 Disk Encryption Key Rotation Timer |
 | `mios-mcp.service` | `usr/lib/systemd/system` | MiOS' Agent Context Service (MCP) |
+| `mios-mdns-mesh.service` | `usr/lib/systemd/system` | MiOS Zero-Configuration mDNS Peer Discovery & WireGuard Peering Daemon |
 | `mios-models-firstboot.service` | `usr/lib/systemd/system` | First-boot Large-model Provisioner |
 | `mios-mok-enroll.service` | `usr/lib/systemd/system` | MiOS' first-boot MOK enrollment for Secure Boot UKI trust |
 | `mios-node.container` | `usr/share/containers/systemd` | MiOS' Distributed Edge Micro-Node Quadlet Service |
@@ -184,5 +186,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (176 unit(s)) -->
+<!-- derived from tracked unit files (178 unit(s)) -->
 <!-- /MIOS-GEN:units -->
