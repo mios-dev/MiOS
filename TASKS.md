@@ -594,16 +594,16 @@
 | T-680 | P2 | done | Security/EntropyTest | Automated hardware entropy harvesting, statistical randomness (NIST SP 800-22), and seeding test suite |
 | T-681 | P1 | done | Kernel/LivePatch | Declarative kernel kpatch/livepatch manager and MOK signature validator in mios-kpatch |
 | T-682 | P2 | done | Kernel/LivePatchTest | Automated kernel livepatch injection, zero-downtime CVE neutralization, and ftrace redirection test suite |
-| T-683 | P1 | open | Hardware/GPUPower | PCIe ASPM L1.2 and runtime D3cold GPU power manager in mios-gpu-powerd |
-| T-684 | P2 | open | Hardware/GPUPowerTest | Automated idle GPU power measurement (<3W) and sub-150ms D3cold wakeup benchmark suite |
-| T-685 | P1 | open | AI/GrammarDecode | Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap |
-| T-686 | P2 | open | AI/GrammarTest | Automated 1,000-schema structured output generation and zero-syntax-error benchmark suite |
-| T-687 | P1 | open | AI/TTSStreaming | Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire ring buffer feeder |
-| T-688 | P2 | open | AI/TTSTest | Automated speech synthesis first-packet latency (<50ms) and buffer underrun benchmark suite |
-| T-689 | P1 | open | Security/MiOSUSB | Global MiOS-USB graduated hardware key runtime and virtual CCID PC/SC multiplexer |
-| T-690 | P2 | open | Security/MiOSUSBTest | Automated virtual CCID multi-tenant multiplexing and MiOS-USB global authentication test suite |
-| T-691 | P1 | open | AI/OverlayWorkspace | Ephemeral OverlayFS workspace provisioner and bubblewrap sandbox in agent-pipe |
-| T-692 | P2 | open | AI/WorkspaceTest | Automated 20-subagent concurrent file mutation and atomic git diff promotion test suite |
+| T-683 | P1 | done | Hardware/GPUPower | PCIe ASPM L1.2 and runtime D3cold GPU power manager in mios-gpu-powerd |
+| T-684 | P2 | done | Hardware/GPUPowerTest | Automated idle GPU power measurement (<3W) and sub-150ms D3cold wakeup benchmark suite |
+| T-685 | P1 | done | AI/GrammarDecode | Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap |
+| T-686 | P2 | done | AI/GrammarTest | Automated 1,000-schema structured output generation and zero-syntax-error benchmark suite |
+| T-687 | P1 | done | AI/TTSStreaming | Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire ring buffer feeder |
+| T-688 | P2 | done | AI/TTSTest | Automated speech synthesis first-packet latency (<50ms) and buffer underrun benchmark suite |
+| T-689 | P1 | done | Security/MiOSUSB | Global MiOS-USB graduated hardware key runtime and virtual CCID PC/SC multiplexer |
+| T-690 | P2 | done | Security/MiOSUSBTest | Automated virtual CCID multi-tenant multiplexing and MiOS-USB global authentication test suite |
+| T-691 | P1 | done | AI/OverlayWorkspace | Ephemeral OverlayFS workspace provisioner and bubblewrap sandbox in agent-pipe |
+| T-692 | P2 | done | AI/WorkspaceTest | Automated 20-subagent concurrent file mutation and atomic git diff promotion test suite |
 | T-693 | P1 | open | Hardware/AcceleratorRouter | Hierarchical accelerator router with NPU priority and CPU vector fallback |
 | T-694 | P2 | open | Hardware/AccelTest | Automated NPU offload, CPU vector fallback, and discrete GPU sleep power benchmark suite |
 | T-695 | P1 | open | AI/MedusaTree | Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels |
@@ -7563,7 +7563,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** GPU power manager enables ASPM L1.2 sub-states and transitions idle GPUs into sub-3W D3cold sleep.
 **Why:** PCIe ASPM and D3cold power transitions maximize laptop battery endurance and reduce thermal noise at idle.
 **Dep:** AGY-2280
-**Status:** open | **Domain:** Hardware/GPUPower | **Who:** agent
+**Status:** done | **Domain:** Hardware/GPUPower | **Who:** agent
 **Converted:** AGY-2281 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-684 -- Automated idle GPU power measurement (<3W) and sub-150ms D3cold wakeup benchmark suite (WS-NODE | P2 | S)
@@ -7573,7 +7573,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-3W idle power consumption and sub-150ms D3cold wakeup transitions.
 **Why:** Continuous testing ensures power management optimizations remain functional across kernel and driver updates.
 **Dep:** AGY-2281
-**Status:** open | **Domain:** Hardware/GPUPowerTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/GPUPowerTest | **Who:** agent
 **Converted:** AGY-2282 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-685 -- Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap (WS-AI | P1 | M)
@@ -7583,7 +7583,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Inference engine enforces GBNF logit masking and outputs guaranteed valid JSON schemas.
 **Why:** Logit-level grammar masking eliminates JSON syntax errors and reduces agent tool-loop latency by eliminating retries.
 **Dep:** AGY-2282
-**Status:** open | **Domain:** AI/GrammarDecode | **Who:** agent
+**Status:** done | **Domain:** AI/GrammarDecode | **Who:** agent
 **Converted:** AGY-2283 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-686 -- Automated 1,000-schema structured output generation and zero-syntax-error benchmark suite (WS-AI | P2 | S)
@@ -7593,7 +7593,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates zero syntax errors and deterministic grammar token masking.
 **Why:** Continuous testing ensures inference sampler updates maintain reliable structured output generation.
 **Dep:** AGY-2283
-**Status:** open | **Domain:** AI/GrammarTest | **Who:** agent
+**Status:** done | **Domain:** AI/GrammarTest | **Who:** agent
 **Converted:** AGY-2284 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-687 -- Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire ring buffer feeder (WS-AI | P1 | M)
@@ -7603,7 +7603,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** TTS engine streams audio chunks into PipeWire with sub-50ms latency on local hardware.
 **Why:** Zero-latency streaming TTS makes voice conversations with the agent feel instantaneous and natural.
 **Dep:** AGY-2284
-**Status:** open | **Domain:** AI/TTSStreaming | **Who:** agent
+**Status:** done | **Domain:** AI/TTSStreaming | **Who:** agent
 **Converted:** AGY-2285 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-688 -- Automated speech synthesis first-packet latency (<50ms) and buffer underrun benchmark suite (WS-AI | P2 | S)
@@ -7613,7 +7613,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-50ms first-packet audio streaming and glitch-free PipeWire buffer feeding.
 **Why:** Continuous testing ensures audio synthesis optimizations preserve fluid real-time voice performance.
 **Dep:** AGY-2285
-**Status:** open | **Domain:** AI/TTSTest | **Who:** agent
+**Status:** done | **Domain:** AI/TTSTest | **Who:** agent
 **Converted:** AGY-2286 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-689 -- Global MiOS-USB graduated hardware key runtime and virtual CCID PC/SC multiplexer (WS-SEC | P1 | M)
@@ -7623,7 +7623,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Smartcard multiplexer shares MiOS-USB hardware key capabilities across containers and mesh nodes.
 **Why:** Graduated MiOS-USB hardware keys provide unified cryptographic identity, secure commit signing, and node attestation.
 **Dep:** AGY-2286
-**Status:** open | **Domain:** Security/MiOSUSB | **Who:** agent
+**Status:** done | **Domain:** Security/MiOSUSB | **Who:** agent
 **Converted:** AGY-2287 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-690 -- Automated virtual CCID multi-tenant multiplexing and MiOS-USB global authentication test suite (WS-SEC | P2 | S)
@@ -7633,7 +7633,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates concurrent virtual CCID forwarding, socket multiplexing, and cryptographic verification.
 **Why:** Continuous testing ensures virtual smartcard bridges maintain secure multi-tenant cryptographic isolation.
 **Dep:** AGY-2287
-**Status:** open | **Domain:** Security/MiOSUSBTest | **Who:** agent
+**Status:** done | **Domain:** Security/MiOSUSBTest | **Who:** agent
 **Converted:** AGY-2288 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-691 -- Ephemeral OverlayFS workspace provisioner and bubblewrap sandbox in agent-pipe (WS-BUILD | P1 | M)
@@ -7643,7 +7643,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Workspace manager provisions isolated OverlayFS environments in <10ms and merges diffs atomically.
 **Why:** OverlayFS copy-on-write sandboxes allow hundreds of agents to edit code concurrently with zero disk duplication.
 **Dep:** AGY-2288
-**Status:** open | **Domain:** AI/OverlayWorkspace | **Who:** agent
+**Status:** done | **Domain:** AI/OverlayWorkspace | **Who:** agent
 **Converted:** AGY-2289 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-692 -- Automated 20-subagent concurrent file mutation and atomic git diff promotion test suite (WS-BUILD | P2 | S)
@@ -7653,7 +7653,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-concurrency subagent isolation and conflict-free patch promotion.
 **Why:** Continuous testing ensures agent workspace scaling maintains reliable concurrent software development.
 **Dep:** AGY-2289
-**Status:** open | **Domain:** AI/WorkspaceTest | **Who:** agent
+**Status:** done | **Domain:** AI/WorkspaceTest | **Who:** agent
 **Converted:** AGY-2290 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-693 -- Hierarchical accelerator router with NPU priority and CPU vector fallback (WS-AI | P1 | M)

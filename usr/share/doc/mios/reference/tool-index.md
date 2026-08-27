@@ -384,6 +384,7 @@ is generated, its generator is here.
 <!-- MIOS-GEN:index:usr/lib/mios/*.py -->
 | File | What it is |
 |---|---|
+| `usr/lib/mios/agent-pipe/context_compactor.py` | Hierarchical semantic context compactor and invariant pinning manager in agent-pipe (T-675, T-676). |
 | `usr/lib/mios/agent-pipe/council.py` | Multi-agent 3-peer council swarm and weighted Byzantine consensus engine in agent-pipe (T-653, T-654). |
 | `usr/lib/mios/agent-pipe/mios_a2a.py` | Re-export shim for mios_pipe.federation.a2a |
 | `usr/lib/mios/agent-pipe/mios_a2a_client.py` | Re-export shim for mios_pipe.federation.a2a_client |
@@ -821,7 +822,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 436 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 437 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

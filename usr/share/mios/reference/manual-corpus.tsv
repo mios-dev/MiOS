@@ -3862,6 +3862,10 @@ tests/test-context-compact.py	4	4	1	11	c8e5192de6ef	STAY	local-scoped		0				0
 tests/test-context-compact.py	30	30	1	12	bb97fd261cf3	STAY	local-scoped		0				0
 tests/test-context-compact.py	64	64	1	7	9c8049d16c92	STAY	local-scoped		0				0
 tests/test-context-compact.py	141	141	1	8	a7cbb3aece2f	STAY	local-scoped		0				0
+tests/test-context-compactor.py	1	3	3	18	c9c381a12207	STAY	ai-header		0				0
+tests/test-context-compactor.py	4	4	1	8	449e4ae09bca	STAY	local-scoped		0				0
+tests/test-context-compactor.py	20	20	1	10	575efd841d80	STAY	local-scoped		0				0
+tests/test-context-compactor.py	31	31	1	9	8f8892336aee	STAY	local-scoped		0				0
 tests/test-context-trim.py	1	3	3	19	38eebfb1487c	STAY	ai-header		0				0
 tests/test-context-trim.py	4	4	1	11	307e95e1cf90	STAY	local-scoped		0				0
 tests/test-context-trim.py	20	20	1	9	2731ad79ad8a	STAY	local-scoped		0				0
@@ -4283,6 +4287,18 @@ tests/test-empirical-stress-t663-t672.py	63	63	1	7	a00981b95f8a	STAY	local-scope
 tests/test-empirical-stress-t663-t672.py	65	65	1	11	b10b4af2f744	STAY	local-scoped		0				0
 tests/test-empirical-stress-t663-t672.py	73	73	1	6	92b9ef35b97f	STAY	local-scoped		0				0
 tests/test-empirical-stress-t663-t672.py	75	75	1	11	d6dc93749f4d	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	1	4	4	30	ffebaf31179b	STAY	ai-header		0				0
+tests/test-empirical-stress-t673-t682.py	5	5	1	10	29cd1a4c4ebe	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	25	25	1	7	b6df77c199d0	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	27	27	1	13	9060f995850b	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	35	35	1	6	afdca7842345	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	37	37	1	11	e0ce96347d4f	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	46	46	1	8	0e03a43efeea	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	48	48	1	12	6ea84241ae7c	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	56	56	1	7	9b65c367f0e3	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	58	58	1	10	7b29fb9311d4	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	64	64	1	7	70f14a09ef4b	STAY	local-scoped		0				0
+tests/test-empirical-stress-t673-t682.py	66	66	1	11	4fe2fd3bff67	STAY	local-scoped		0				0
 tests/test-energyd-power-cap.py	1	3	3	19	566dab0ad53f	STAY	ai-header		0				0
 tests/test-energyd-power-cap.py	4	4	1	12	30706a5fdf33	STAY	local-scoped		0				0
 tests/test-energyd-power-cap.py	26	26	1	10	f56b25a1d56c	STAY	local-scoped		0				0
@@ -4292,6 +4308,10 @@ tests/test-energyd-power-cap.py	56	56	1	9	81d15f9886a7	STAY	local-scoped		0				0
 tests/test-energyd-power-cap.py	65	65	1	11	762bf4c48f0d	STAY	local-scoped		0				0
 tests/test-energyd-power-cap.py	76	76	1	10	8b23e49050fd	STAY	local-scoped		0				0
 tests/test-energyd-power-cap.py	94	94	1	8	f53f3462b89d	STAY	local-scoped		0				0
+tests/test-entropy-seed.py	1	3	3	18	15b84a996f75	STAY	ai-header		0				0
+tests/test-entropy-seed.py	4	4	1	9	a8b919f683c7	STAY	local-scoped		0				0
+tests/test-entropy-seed.py	20	20	1	10	2642336ef1a7	STAY	local-scoped		0				0
+tests/test-entropy-seed.py	26	26	1	10	b9bb3b832c8a	STAY	local-scoped		0				0
 tests/test-expand-from.py	1	3	3	27	b87902fbdd68	STAY	ai-header		0				0
 tests/test-expand-from.py	11	11	1	2	458f7e85be09	STAY	inline-scoped		0				0
 tests/test-expand-from.py	13	13	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
@@ -4592,6 +4612,10 @@ tests/test-knowledge-graph.py	319	319	1	4	d53b5bf3920f	STAY	local-scoped		0				0
 tests/test-knowledge-graph.py	327	327	1	5	43c98b2db3d3	STAY	local-scoped		0				0
 tests/test-knowledge-graph.py	335	335	1	3	a2a64ef42378	STAY	local-scoped		0				0
 tests/test-knowledge-graph.py	343	343	1	3	2d773c673948	STAY	local-scoped		0				0
+tests/test-kpatch-mgr.py	1	3	3	18	5cf009486021	STAY	ai-header		0				0
+tests/test-kpatch-mgr.py	4	4	1	9	01a4b1122d99	STAY	local-scoped		0				0
+tests/test-kpatch-mgr.py	20	20	1	10	0d5f32b946d1	STAY	local-scoped		0				0
+tests/test-kpatch-mgr.py	27	27	1	6	b3c1baad035b	STAY	local-scoped		0				0
 tests/test-launch-args.py	1	2	2	30	1bedc1bd110b	STAY	ai-header		0				0
 tests/test-launch-args.py	4	4	1	2	458f7e85be09	STAY	inline-scoped		0				0
 tests/test-launch-args.py	12	12	1	2	74a64c79f57a	STAY	inline-scoped		0				0
@@ -5019,6 +5043,10 @@ tests/test-microvm-bridge.py	93	93	1	6	5d6218bcf326	STAY	local-scoped		0				0
 tests/test-microvm-bridge.py	116	116	1	3	2e7371ec74c7	DROP	banner		0				0
 tests/test-microvm-bridge.py	125	125	1	6	30dd3b58fe0b	STAY	local-scoped		0				0
 tests/test-microvm-bridge.py	134	134	1	4	e46e8133dcde	STAY	local-scoped		0				0
+tests/test-microvm-sandbox.py	1	3	3	19	25e509e93f24	STAY	ai-header		0				0
+tests/test-microvm-sandbox.py	4	4	1	9	927d5ef2c8dc	STAY	local-scoped		0				0
+tests/test-microvm-sandbox.py	20	20	1	8	59fc013ce509	STAY	local-scoped		0				0
+tests/test-microvm-sandbox.py	27	27	1	11	bd9f1dfd2ff1	STAY	local-scoped		0				0
 tests/test-mios-check-ssot.py	1	3	3	18	d55950b33229	STAY	ai-header		0				0
 tests/test-mios-check-ssot.py	16	16	1	8	39d5dab82913	STAY	local-scoped		0				0
 tests/test-mios-check-ssot.py	35	35	1	11	2aa1c062d69d	STAY	local-scoped		0				0
@@ -5789,6 +5817,10 @@ tests/test-usb-hotplug.py	130	130	1	9	04450a7a33b5	STAY	local-scoped		0				0
 tests/test-usb-hotplug.py	150	150	1	3	6b9cf930da30	STAY	local-scoped		0				0
 tests/test-usb-hotplug.py	171	171	1	4	5b6fb729445e	DROP	banner		0				0
 tests/test-usb-hotplug.py	173	173	1	4	a1162d64ae4e	DROP	banner		0				0
+tests/test-usb-surge.py	1	3	3	17	e24f3e4bcb24	STAY	ai-header		0				0
+tests/test-usb-surge.py	4	4	1	10	5eb946bedb27	STAY	local-scoped		0				0
+tests/test-usb-surge.py	20	20	1	8	6996368ac034	STAY	local-scoped		0				0
+tests/test-usb-surge.py	26	26	1	8	45b70cd8f2ef	STAY	local-scoped		0				0
 tests/test-usbguard-policy.py	1	3	3	19	54c387b91194	STAY	ai-header		0				0
 tests/test-usbguard-policy.py	4	4	1	9	abb9275f3989	STAY	local-scoped		0				0
 tests/test-usbguard-policy.py	21	21	1	5	117346901efd	STAY	local-scoped		0				0
@@ -7056,6 +7088,13 @@ usr/lib/greenboot/greenboot.conf	5	5	1	8	de4e11d6c177	STAY	local-scoped		0				0
 usr/lib/greenboot/greenboot.conf	8	9	2	22	121981ccf608	STAY	local-scoped		0				0
 usr/lib/libvirt/qemu.conf.d/10-mios.conf	1	1	1	19	f1582be73a95	STAY	ai-header		0				0
 usr/lib/locale.conf	1	1	1	24	44cb93f4741b	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/context_compactor.py	1	3	3	19	44dfffde467d	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/context_compactor.py	4	8	4	38	974df998df9b	MIGRATE	midsize-narrative		0				0
+usr/lib/mios/agent-pipe/context_compactor.py	26	26	1	3	763e76642140	DROP	banner		0				0
+usr/lib/mios/agent-pipe/context_compactor.py	42	42	1	10	6dec7395c9fa	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/context_compactor.py	51	51	1	9	26c5f8b00ccd	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/context_compactor.py	58	58	1	6	7eb7f789998c	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/context_compactor.py	71	71	1	5	6a68aecea754	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/council.py	1	3	3	20	f1596152d075	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/council.py	4	8	4	38	5a395d860778	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/council.py	28	28	1	3	558aa85ff6e1	DROP	banner		0				0
@@ -12482,6 +12521,12 @@ usr/libexec/mios/hw/usb_hotplug.py	320	320	1	11	28fde669ceaa	STAY	local-scoped		
 usr/libexec/mios/hw/usb_hotplug.py	359	359	1	7	c8d32ede7d1a	STAY	local-scoped		0				0
 usr/libexec/mios/hw/usb_hotplug.py	398	398	1	7	926659c237f1	STAY	local-scoped		0				0
 usr/libexec/mios/hw/usb_hotplug.py	442	442	1	8	29c8a58b3f0e	STAY	local-scoped		0				0
+usr/libexec/mios/hw/usb_surge.py	1	3	3	19	6ac950f3dcf5	STAY	ai-header		0				0
+usr/libexec/mios/hw/usb_surge.py	4	8	4	34	79f67c05177b	STAY	midsize-why		0				0
+usr/libexec/mios/hw/usb_surge.py	38	38	1	10	4263d5504f10	STAY	local-scoped		0				0
+usr/libexec/mios/hw/usb_surge.py	45	45	1	10	56be115ba5ee	STAY	local-scoped		0				0
+usr/libexec/mios/hw/usb_surge.py	48	48	1	6	c1885fc2f97b	STAY	local-scoped		0				0
+usr/libexec/mios/hw/usb_surge.py	49	49	1	3	f7356360af54	STAY	inline-scoped		0				0
 usr/libexec/mios/hw/watchdog_manager.py	1	3	3	16	2c0dea352399	STAY	ai-header		0				0
 usr/libexec/mios/hw/watchdog_manager.py	21	21	1	12	8e97c0ccae0c	STAY	local-scoped		0				0
 usr/libexec/mios/hw/watchdog_manager.py	38	38	1	9	8513d58b8a23	STAY	local-scoped		0				0
@@ -12539,6 +12584,11 @@ usr/libexec/mios/kernel/fuzz_harness.py	124	124	1	4	60511f5043bd	STAY	local-scop
 usr/libexec/mios/kernel/fuzz_harness.py	141	141	1	9	37941bce246f	STAY	local-scoped		0				0
 usr/libexec/mios/kernel/fuzz_harness.py	148	148	1	9	de56cc0da82f	STAY	local-scoped		0				0
 usr/libexec/mios/kernel/fuzz_harness.py	181	181	1	4	cba368cddbb4	STAY	local-scoped		0				0
+usr/libexec/mios/kernel/kpatch_mgr.py	1	3	3	19	f1454b40ecdd	STAY	ai-header		0				0
+usr/libexec/mios/kernel/kpatch_mgr.py	4	8	4	32	b95ed1c7ae8a	STAY	midsize-why		0				0
+usr/libexec/mios/kernel/kpatch_mgr.py	38	38	1	8	b78e1b58a2f2	STAY	local-scoped		0				0
+usr/libexec/mios/kernel/kpatch_mgr.py	47	47	1	12	631660fd095b	STAY	local-scoped		0				0
+usr/libexec/mios/kernel/kpatch_mgr.py	61	61	1	5	f9387a3cb2f7	STAY	local-scoped		0				0
 usr/libexec/mios/kernel/oomd_psi.py	1	3	3	18	d54be45ddf69	STAY	ai-header		0				0
 usr/libexec/mios/kernel/oomd_psi.py	4	8	4	33	ddc7d1c24efe	STAY	midsize-why		0				0
 usr/libexec/mios/kernel/oomd_psi.py	28	28	1	3	3ced8c9784d9	DROP	banner		0				0
@@ -12949,6 +12999,15 @@ usr/libexec/mios/sec/cve_scan.py	4	8	4	38	c3612f56f866	STAY	midsize-why		0				0
 usr/libexec/mios/sec/cve_scan.py	28	28	1	4	85e2d779252e	DROP	banner		0				0
 usr/libexec/mios/sec/cve_scan.py	35	35	1	10	ffbe359754b2	STAY	local-scoped		0				0
 usr/libexec/mios/sec/cve_scan.py	46	46	1	6	c77fb0b3f9da	STAY	local-scoped		0				0
+usr/libexec/mios/sec/entropy_seed.py	1	3	3	20	465db917efd7	STAY	ai-header		0				0
+usr/libexec/mios/sec/entropy_seed.py	4	8	4	37	c76020c10c34	STAY	midsize-why		0				0
+usr/libexec/mios/sec/entropy_seed.py	28	28	1	3	51a1f51041ef	DROP	banner		0				0
+usr/libexec/mios/sec/entropy_seed.py	30	30	1	5	b5a8b114e80b	STAY	inline-scoped		0				0
+usr/libexec/mios/sec/entropy_seed.py	35	35	1	7	db150fa15fee	STAY	local-scoped		0				0
+usr/libexec/mios/sec/entropy_seed.py	41	41	1	10	c0d3c3558ea6	STAY	local-scoped		0				0
+usr/libexec/mios/sec/entropy_seed.py	56	56	1	7	721f18e7e8ae	STAY	local-scoped		0				0
+usr/libexec/mios/sec/entropy_seed.py	57	57	1	7	2337c40759ee	STAY	local-scoped		0				0
+usr/libexec/mios/sec/entropy_seed.py	61	61	1	10	b39ab934e775	STAY	local-scoped		0				0
 usr/libexec/mios/sec/fido2_enroll.py	1	4	4	24	872d44eb1c52	STAY	ai-header		0				0
 usr/libexec/mios/sec/fido2_enroll.py	5	11	6	43	43e53dee5dc0	MIGRATE	narrative-history		0				0
 usr/libexec/mios/sec/fido2_enroll.py	29	29	1	6	fe2c2ac1bdda	STAY	local-scoped		0				0
@@ -13871,6 +13930,14 @@ usr/libexec/mios/virt/microvm_bridge.py	313	313	1	5	c5c258c709cf	STAY	local-scop
 usr/libexec/mios/virt/microvm_bridge.py	324	324	1	7	ac391ca9da97	STAY	local-scoped		0				0
 usr/libexec/mios/virt/microvm_bridge.py	337	337	1	10	96c53a6d9d3e	STAY	local-scoped		0				0
 usr/libexec/mios/virt/microvm_bridge.py	443	443	1	4	78064a3b6e3d	STAY	local-scoped		0				0
+usr/libexec/mios/virt/microvm_sandbox.py	1	3	3	19	5dc0c7e9c6c3	STAY	ai-header		0				0
+usr/libexec/mios/virt/microvm_sandbox.py	4	8	4	33	d83d324e68b9	STAY	midsize-why		0				0
+usr/libexec/mios/virt/microvm_sandbox.py	37	37	1	9	8b1fb160c76a	STAY	local-scoped		0				0
+usr/libexec/mios/virt/microvm_sandbox.py	46	46	1	13	4d264e2a89c3	STAY	local-scoped		0				0
+usr/libexec/mios/virt/microvm_sandbox.py	51	51	1	8	ce9648b8dd23	STAY	local-scoped		0				0
+usr/libexec/mios/virt/microvm_sandbox.py	52	52	1	5	9c2b71f9faad	STAY	inline-scoped		0				0
+usr/libexec/mios/virt/microvm_sandbox.py	54	54	1	5	f088d915edb9	STAY	local-scoped		0				0
+usr/libexec/mios/virt/microvm_sandbox.py	56	56	1	6	583666a697f1	STAY	inline-scoped		0				0
 usr/libexec/mios/virt/pipewire_bridge.py	1	3	3	17	096d04bda011	STAY	ai-header		0				0
 usr/libexec/mios/virt/pipewire_bridge.py	4	10	6	37	704997c3cf9b	MIGRATE	narrative-rationale		0				0
 usr/libexec/mios/virt/pipewire_bridge.py	34	34	1	10	5958dea25d19	STAY	local-scoped		0				0
@@ -15520,20 +15587,20 @@ usr/share/mios/mios.toml	11035	11041	7	64	351d4a832370	MIGRATE	narrative-rationa
 usr/share/mios/mios.toml	11043	11044	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11048	11048	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11057	11057	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11314	11314	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11320	11321	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11348	11349	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11358	11361	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	11363	11364	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11368	11370	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11376	11376	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11378	11380	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11446	11449	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11451	11451	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11530	11531	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11536	11540	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	11542	11545	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11548	11553	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	11326	11326	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11332	11333	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11360	11361	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11370	11373	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/ssot.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	11375	11376	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11380	11382	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11388	11388	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11390	11392	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11458	11461	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11463	11463	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11542	11543	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11548	11552	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	11554	11557	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11560	11565	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/ssot.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/nix/nix.conf	1	2	2	11	60d3157edcf0	STAY	ai-header		0				0
 usr/share/mios/nix/nix.conf	4	4	1	7	49f68b33b675	STAY	local-scoped		0				0
 usr/share/mios/nix/nix.conf	7	7	1	5	95ad535dfeaf	STAY	local-scoped		0				0
