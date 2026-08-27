@@ -2164,9 +2164,10 @@ policy_mode = "insecureAcceptEverything"
 allowed_identities = []
 
 [security.privileged_quadlets]
-max_privileged_root = 12
+max_privileged_root = 13
 root = [
   "mios-ceph.container",                    # Ceph OSD/MON -- uid 0 for block devices
+  "mios-radosgw.container",                 # Ceph RADOS Gateway -- uid 0 for ceph admin/storage access
   "mios-k3s.container",                     # k3s server -- uid 0 (CNI, kubelet mounts)
   "mios-forge.container",                   # Forgejo data bootstrap as 0
   "mios-forgejo-runner.container",          # CI runner (DinD / --privileged)
@@ -11322,6 +11323,12 @@ unit = [
     "tests/test-smartcard-mux.py",
     "tests/test-overlay-workspace.py",
     "tests/test-empirical-stress-t683-t692.py",
+    "tests/test-accelerator-router.py",
+    "tests/test-medusa-tree.py",
+    "tests/test-split-dns.py",
+    "tests/test-fastboot-mgr.py",
+    "tests/test-kaslr-mgr.py",
+    "tests/test-empirical-stress-t693-t702.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

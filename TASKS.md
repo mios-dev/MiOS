@@ -604,16 +604,16 @@
 | T-690 | P2 | done | Security/MiOSUSBTest | Automated virtual CCID multi-tenant multiplexing and MiOS-USB global authentication test suite |
 | T-691 | P1 | done | AI/OverlayWorkspace | Ephemeral OverlayFS workspace provisioner and bubblewrap sandbox in agent-pipe |
 | T-692 | P2 | done | AI/WorkspaceTest | Automated 20-subagent concurrent file mutation and atomic git diff promotion test suite |
-| T-693 | P1 | open | Hardware/AcceleratorRouter | Hierarchical accelerator router with NPU priority and CPU vector fallback |
-| T-694 | P2 | open | Hardware/AccelTest | Automated NPU offload, CPU vector fallback, and discrete GPU sleep power benchmark suite |
-| T-695 | P1 | open | AI/MedusaTree | Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels |
-| T-696 | P2 | open | AI/MedusaTest | Automated Medusa Tree-Attention throughput (3x) and mathematical token parity benchmark suite |
-| T-697 | P1 | open | Network/SplitDNS | Split-DNS systemd-resolved configurator for .mios mesh domains and strict DoT |
-| T-698 | P2 | open | Network/SplitDNSTest | Automated split-DNS query routing, .mios local resolution, and DoT leak prevention test suite |
-| T-699 | P1 | open | Boot/FastBoot | Zero-timeout systemd-boot silent fastboot configurator and baked UKI kargs manager |
-| T-700 | P2 | open | Boot/FastBootTest | Automated sub-1s UEFI boot time, baked UKI signature, and emergency key override test suite |
-| T-701 | P1 | open | Security/KASLR | Early EFI_RNG_PROTOCOL KASLR entropy collector and kernel memory randomizer |
-| T-702 | P2 | open | Security/KASLRTest | Automated KASLR physical address space variance and entropy validation test suite |
+| T-693 | P1 | done | Hardware/AcceleratorRouter | Hierarchical accelerator router with NPU priority and CPU vector fallback |
+| T-694 | P2 | done | Hardware/AccelTest | Automated NPU offload, CPU vector fallback, and discrete GPU sleep power benchmark suite |
+| T-695 | P1 | done | AI/MedusaTree | Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels |
+| T-696 | P2 | done | AI/MedusaTest | Automated Medusa Tree-Attention throughput (3x) and mathematical token parity benchmark suite |
+| T-697 | P1 | done | Network/SplitDNS | Split-DNS systemd-resolved configurator for .mios mesh domains and strict DoT |
+| T-698 | P2 | done | Network/SplitDNSTest | Automated split-DNS query routing, .mios local resolution, and DoT leak prevention test suite |
+| T-699 | P1 | done | Boot/FastBoot | Zero-timeout systemd-boot silent fastboot configurator and baked UKI kargs manager |
+| T-700 | P2 | done | Boot/FastBootTest | Automated sub-1s UEFI boot time, baked UKI signature, and emergency key override test suite |
+| T-701 | P1 | done | Security/KASLR | Early EFI_RNG_PROTOCOL KASLR entropy collector and kernel memory randomizer |
+| T-702 | P2 | done | Security/KASLRTest | Automated KASLR physical address space variance and entropy validation test suite |
 | T-703 | P1 | open | Audio/BitPerfect | Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager |
 | T-704 | P2 | open | Audio/BitPerfectTest | Automated 192kHz/24-bit bit-perfect audio stream verification and concurrent mixing test suite |
 | T-705 | P1 | open | Containers/StorageDriver | Native in-kernel ID-mapped OverlayFS storage configurator for rootless Podman |
@@ -7663,7 +7663,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Accelerator router dispatches lightweight AI tasks to NPU/CPU and keeps discrete GPUs asleep.
 **Why:** Heterogeneous accelerator routing with CPU fallback maximizes battery endurance and eliminates unnecessary fan noise.
 **Dep:** AGY-2290
-**Status:** open | **Domain:** Hardware/AcceleratorRouter | **Who:** agent
+**Status:** done | **Domain:** Hardware/AcceleratorRouter | **Who:** agent
 **Converted:** AGY-2291 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-694 -- Automated NPU offload, CPU vector fallback, and discrete GPU sleep power benchmark suite (WS-AI | P2 | S)
@@ -7673,7 +7673,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates NPU/CPU embedding throughput and persistent discrete GPU sleep states.
 **Why:** Continuous testing ensures AI routing updates preserve power efficiency across diverse hardware architectures.
 **Dep:** AGY-2291
-**Status:** open | **Domain:** Hardware/AccelTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/AccelTest | **Who:** agent
 **Converted:** AGY-2292 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-695 -- Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels (WS-AI | P1 | M)
@@ -7683,7 +7683,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Medusa engine verifies token trees in single forward passes and achieves >2.5x generation speedup.
 **Why:** Medusa Tree-Attention provides speculative decoding speedups without requiring extra VRAM for a draft model.
 **Dep:** AGY-2292
-**Status:** open | **Domain:** AI/MedusaTree | **Who:** agent
+**Status:** done | **Domain:** AI/MedusaTree | **Who:** agent
 **Converted:** AGY-2293 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-696 -- Automated Medusa Tree-Attention throughput (3x) and mathematical token parity benchmark suite (WS-AI | P2 | S)
@@ -7693,7 +7693,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates Medusa Tree-Attention acceleration and exact output token parity.
 **Why:** Continuous testing ensures tree attention kernel updates maintain deterministic, high-throughput token generation.
 **Dep:** AGY-2293
-**Status:** open | **Domain:** AI/MedusaTest | **Who:** agent
+**Status:** done | **Domain:** AI/MedusaTest | **Who:** agent
 **Converted:** AGY-2294 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-697 -- Split-DNS systemd-resolved configurator for .mios mesh domains and strict DoT (WS-NODE | P1 | M)
@@ -7703,7 +7703,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Systemd-resolved resolves `.mios` mesh queries locally and encrypts public traffic over DoT.
 **Why:** Split-DNS prevents internal hostname leakage and protects public DNS traffic from eavesdropping.
 **Dep:** AGY-2294
-**Status:** open | **Domain:** Network/SplitDNS | **Who:** agent
+**Status:** done | **Domain:** Network/SplitDNS | **Who:** agent
 **Converted:** AGY-2295 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-698 -- Automated split-DNS query routing, .mios local resolution, and DoT leak prevention test suite (WS-NODE | P2 | S)
@@ -7713,7 +7713,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates split-DNS domain isolation, zero hostname leakage, and strict DoT encryption.
 **Why:** Continuous testing ensures network resolver configurations prevent DNS leakage across cluster blades.
 **Dep:** AGY-2295
-**Status:** open | **Domain:** Network/SplitDNSTest | **Who:** agent
+**Status:** done | **Domain:** Network/SplitDNSTest | **Who:** agent
 **Converted:** AGY-2296 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-699 -- Zero-timeout systemd-boot silent fastboot configurator and baked UKI kargs manager (WS-BOOT | P1 | M)
@@ -7723,7 +7723,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Systemd-boot executes zero-timeout silent fastboot to signed UKI with emergency key fallback.
 **Why:** Zero-timeout direct UKI fastboot maximizes boot speed while guaranteeing immutable kernel argument security.
 **Dep:** AGY-2296
-**Status:** open | **Domain:** Boot/FastBoot | **Who:** agent
+**Status:** done | **Domain:** Boot/FastBoot | **Who:** agent
 **Converted:** AGY-2297 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-700 -- Automated sub-1s UEFI boot time, baked UKI signature, and emergency key override test suite (WS-BOOT | P2 | S)
@@ -7733,7 +7733,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-300ms bootloader handoff and reliable emergency menu triggering.
 **Why:** Continuous testing ensures bootloader configuration maintains instant boot speed and reliable rescue paths.
 **Dep:** AGY-2297
-**Status:** open | **Domain:** Boot/FastBootTest | **Who:** agent
+**Status:** done | **Domain:** Boot/FastBootTest | **Who:** agent
 **Converted:** AGY-2298 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-701 -- Early EFI_RNG_PROTOCOL KASLR entropy collector and kernel memory randomizer (WS-BOOT | P1 | M)
@@ -7743,7 +7743,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Kernel boot stub collects EFI_RNG_PROTOCOL entropy and randomizes memory base offsets.
 **Why:** High-entropy KASLR prevents kernel memory layout prediction and neutralizes return-oriented programming exploits.
 **Dep:** AGY-2298
-**Status:** open | **Domain:** Security/KASLR | **Who:** agent
+**Status:** done | **Domain:** Security/KASLR | **Who:** agent
 **Converted:** AGY-2299 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-702 -- Automated KASLR physical address space variance and entropy validation test suite (WS-BOOT | P2 | S)
@@ -7753,7 +7753,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-entropy kernel memory address randomization across boot cycles.
 **Why:** Continuous testing ensures kernel builds maintain robust anti-exploit address space layout randomization.
 **Dep:** AGY-2299
-**Status:** open | **Domain:** Security/KASLRTest | **Who:** agent
+**Status:** done | **Domain:** Security/KASLRTest | **Who:** agent
 **Converted:** AGY-2300 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-703 -- Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager (WS-NODE | P1 | M)
