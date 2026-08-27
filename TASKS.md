@@ -534,16 +534,16 @@
 | T-620 | P2 | done | Config/DriftTest | Automated configuration drift detection and state reconciliation test suite |
 | T-621 | P1 | done | Cluster/RaftLeader | Embedded Raft consensus coordinator and Patroni HA database failover engine |
 | T-622 | P2 | done | Cluster/RaftTest | Automated Raft leader election, split-brain partition prevention, and failover test suite |
-| T-623 | P1 | open | Hardware/FanControl | Multi-zone hysteresis PID fan curve controller and hwmon sensor mapper in mios-fand |
-| T-624 | P2 | open | Hardware/FanTest | Automated thermal load ramp, fan curve hysteresis, and acoustic stabilization benchmark suite |
-| T-625 | P1 | open | UI/WebRTCStream | PipeWire DMA-BUF WebRTC remote desktop streamer and portal authorization bridge |
-| T-626 | P2 | open | UI/WebRTCTest | Automated WebRTC zero-copy video encode latency and session authorization test suite |
-| T-627 | P1 | open | Security/SecretMem | Secure in-memory secret enclave runtime (mlock, MADV_DONTDUMP, explicit_bzero) |
-| T-628 | P2 | open | Security/MemDumpTest | Automated memory dump secret leakage and zeroization verification test suite |
-| T-629 | P1 | open | AI/VRAMSwap | Dynamic host RAM layer swapping and LRU KV-cache paging manager in llama-swap |
-| T-630 | P2 | open | AI/VRAMTest | Automated multi-model VRAM swapping, KV-cache paging latency, and session preservation test suite |
-| T-631 | P1 | open | AI/GPUSched | CUDA/ROCm compute stream priority scheduler and background preemption manager |
-| T-632 | P2 | open | AI/GPUSchedTest | Automated GPU compute preemption latency and training resumption verification test suite |
+| T-623 | P1 | done | Hardware/FanControl | Multi-zone hysteresis PID fan curve controller and hwmon sensor mapper in mios-fand |
+| T-624 | P2 | done | Hardware/FanTest | Automated thermal load ramp, fan curve hysteresis, and acoustic stabilization benchmark suite |
+| T-625 | P1 | done | UI/WebRTCStream | PipeWire DMA-BUF WebRTC remote desktop streamer and portal authorization bridge |
+| T-626 | P2 | done | UI/WebRTCTest | Automated WebRTC zero-copy video encode latency and session authorization test suite |
+| T-627 | P1 | done | Security/SecretMem | Secure in-memory secret enclave runtime (mlock, MADV_DONTDUMP, explicit_bzero) |
+| T-628 | P2 | done | Security/MemDumpTest | Automated memory dump secret leakage and zeroization verification test suite |
+| T-629 | P1 | done | AI/VRAMSwap | Dynamic host RAM layer swapping and LRU KV-cache paging manager in llama-swap |
+| T-630 | P2 | done | AI/VRAMTest | Automated multi-model VRAM swapping, KV-cache paging latency, and session preservation test suite |
+| T-631 | P1 | done | AI/GPUSched | CUDA/ROCm compute stream priority scheduler and background preemption manager |
+| T-632 | P2 | done | AI/GPUSchedTest | Automated GPU compute preemption latency and training resumption verification test suite |
 | T-633 | P1 | open | Hardware/Energyd | Declarative RAPL / NVML hardware energy metering and chassis power cap manager |
 | T-634 | P2 | open | Hardware/EnergyTest | Automated power cap enforcement and carbon-aware batch scheduling benchmark suite |
 | T-635 | P1 | open | AI/PromptCache | Radix tree prefix hash cache manager and prompt KV warm-starter in llama-swap |
@@ -6963,7 +6963,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Fan daemon regulates multi-zone fan RPMs smoothly with hysteresis and acoustic damping.
 **Why:** Smooth multi-zone fan control ensures silent idle operation and effective cooling during sustained AI training.
 **Dep:** AGY-2220
-**Status:** open | **Domain:** Hardware/FanControl | **Who:** agent
+**Status:** done | **Domain:** Hardware/FanControl | **Who:** agent
 **Converted:** AGY-2221 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-624 -- Automated thermal load ramp, fan curve hysteresis, and acoustic stabilization benchmark suite (WS-NODE | P2 | S)
@@ -6973,7 +6973,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates PID fan curve smoothness, monotonic ramp rates, and hysteresis damping.
 **Why:** Continuous testing ensures fan controller updates do not cause acoustic whining or thermal runaways.
 **Dep:** AGY-2221
-**Status:** open | **Domain:** Hardware/FanTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/FanTest | **Who:** agent
 **Converted:** AGY-2222 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-625 -- PipeWire DMA-BUF WebRTC remote desktop streamer and portal authorization bridge (WS-APP | P1 | M)
@@ -6983,7 +6983,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** WebRTC streamer transmits hardware-accelerated desktop video with portal authorization.
 **Why:** Zero-copy DMA-BUF WebRTC streaming provides fluid remote assistance without taxing CPU cores.
 **Dep:** AGY-2222
-**Status:** open | **Domain:** UI/WebRTCStream | **Who:** agent
+**Status:** done | **Domain:** UI/WebRTCStream | **Who:** agent
 **Converted:** AGY-2223 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-626 -- Automated WebRTC zero-copy video encode latency and session authorization test suite (WS-APP | P2 | S)
@@ -6993,7 +6993,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates WebRTC encode performance, zero-copy throughput, and portal security gating.
 **Why:** Continuous testing ensures display server updates do not introduce video lag or bypass screen-sharing permissions.
 **Dep:** AGY-2223
-**Status:** open | **Domain:** UI/WebRTCTest | **Who:** agent
+**Status:** done | **Domain:** UI/WebRTCTest | **Who:** agent
 **Converted:** AGY-2224 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-627 -- Secure in-memory secret enclave runtime (mlock, MADV_DONTDUMP, explicit_bzero) (WS-SEC | P1 | M)
@@ -7003,7 +7003,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Secret memory allocator pins memory, blocks core dump inclusion, and zeroes memory deterministically.
 **Why:** Memory pinning and zeroization prevent credential harvesting from swap files and post-crash memory forensics.
 **Dep:** AGY-2224
-**Status:** open | **Domain:** Security/SecretMem | **Who:** agent
+**Status:** done | **Domain:** Security/SecretMem | **Who:** agent
 **Converted:** AGY-2225 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-628 -- Automated memory dump secret leakage and zeroization verification test suite (WS-SEC | P2 | S)
@@ -7013,7 +7013,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that protected secret memory never leaks into process core dumps.
 **Why:** Continuous testing ensures memory security flags remain effective across C-runtime and compiler upgrades.
 **Dep:** AGY-2225
-**Status:** open | **Domain:** Security/MemDumpTest | **Who:** agent
+**Status:** done | **Domain:** Security/MemDumpTest | **Who:** agent
 **Converted:** AGY-2226 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-629 -- Dynamic host RAM layer swapping and LRU KV-cache paging manager in llama-swap (WS-AI | P1 | M)
@@ -7023,7 +7023,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Llama-swap streams model weights and pages conversational KV-caches dynamically without OOM.
 **Why:** Dynamic VRAM offloading and KV-cache paging allow consumer GPUs to host multiple large models concurrently.
 **Dep:** AGY-2226
-**Status:** open | **Domain:** AI/VRAMSwap | **Who:** agent
+**Status:** done | **Domain:** AI/VRAMSwap | **Who:** agent
 **Converted:** AGY-2227 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-630 -- Automated multi-model VRAM swapping, KV-cache paging latency, and session preservation test suite (WS-AI | P2 | S)
@@ -7033,7 +7033,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-500ms model swapping and zero-loss KV-cache paging under heavy memory pressure.
 **Why:** Continuous testing ensures memory management algorithms maintain fast inference switching on consumer hardware.
 **Dep:** AGY-2227
-**Status:** open | **Domain:** AI/VRAMTest | **Who:** agent
+**Status:** done | **Domain:** AI/VRAMTest | **Who:** agent
 **Converted:** AGY-2228 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-631 -- CUDA/ROCm compute stream priority scheduler and background preemption manager (WS-AI | P1 | M)
@@ -7043,7 +7043,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** GPU scheduler preempts low-priority kernels and executes interactive voice turns in <50ms.
 **Why:** Compute stream preemption guarantees crisp conversational voice response times without stopping background AI training.
 **Dep:** AGY-2228
-**Status:** open | **Domain:** AI/GPUSched | **Who:** agent
+**Status:** done | **Domain:** AI/GPUSched | **Who:** agent
 **Converted:** AGY-2229 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-632 -- Automated GPU compute preemption latency and training resumption verification test suite (WS-AI | P2 | S)
@@ -7053,7 +7053,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-50ms high-priority inference execution under heavy compute load.
 **Why:** Continuous testing ensures kernel driver updates maintain GPU compute preemption guarantees.
 **Dep:** AGY-2229
-**Status:** open | **Domain:** AI/GPUSchedTest | **Who:** agent
+**Status:** done | **Domain:** AI/GPUSchedTest | **Who:** agent
 **Converted:** AGY-2230 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-633 -- Declarative RAPL / NVML hardware energy metering and chassis power cap manager (WS-NODE | P1 | M)
