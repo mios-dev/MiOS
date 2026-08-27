@@ -624,16 +624,16 @@
 | T-710 | P2 | done | AI/CUDAGraphTest | Automated CUDA Graph capture latency (<1ms) and token decoding speedup benchmark suite |
 | T-711 | P1 | done | Security/SBOM | Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher |
 | T-712 | P2 | done | Security/SBOMTest | Automated in-image SBOM completeness, package inventory hash parity, and signature test suite |
-| T-713 | P1 | open | Hardware/NCCLTune | Automated NCCL topology discovery and NVLink/PCIe parameter optimizer in mios-nccl-tune |
-| T-714 | P2 | open | Hardware/NCCLTest | Automated multi-GPU Tensor Parallelism (TP=2/4) throughput and AllReduce latency test suite |
-| T-715 | P1 | open | Git/LFSCache | Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager |
-| T-716 | P2 | open | Git/LFSTest | Automated targeted Git LFS partial pull, SHA-256 integrity, and deduplicated caching test suite |
-| T-717 | P1 | open | Storage/Scrubd | Storage integrity scrubber daemon with idle I/O priority and PSI pressure throttling |
-| T-718 | P2 | open | Storage/ScrubTest | Automated filesystem bit rot repair, I/O latency throttle, and scrub reporting test suite |
-| T-719 | P1 | open | Kernel/EBPFTrace | Declarative eBPF kernel tracing suite and bpftrace histogram recorder in mios-trace |
-| T-720 | P2 | open | Kernel/TraceTest | Automated eBPF probe attach latency (<10ms) and low-overhead tracing test suite |
-| T-721 | P1 | open | Hardware/Thermald | Proactive PID thermal frequency governor and dynamic EPP stepping daemon in mios-thermald |
-| T-722 | P2 | open | Hardware/ThermalTest | Automated thermal load ramp, EPP frequency stepping, and hysteresis recovery test suite |
+| T-713 | P1 | done | Hardware/NCCLTune | Automated NCCL topology discovery and NVLink/PCIe parameter optimizer in mios-nccl-tune |
+| T-714 | P2 | done | Hardware/NCCLTest | Automated multi-GPU Tensor Parallelism (TP=2/4) throughput and AllReduce latency test suite |
+| T-715 | P1 | done | Git/LFSCache | Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager |
+| T-716 | P2 | done | Git/LFSTest | Automated targeted Git LFS partial pull, SHA-256 integrity, and deduplicated caching test suite |
+| T-717 | P1 | done | Storage/Scrubd | Storage integrity scrubber daemon with idle I/O priority and PSI pressure throttling |
+| T-718 | P2 | done | Storage/ScrubTest | Automated filesystem bit rot repair, I/O latency throttle, and scrub reporting test suite |
+| T-719 | P1 | done | Kernel/EBPFTrace | Declarative eBPF kernel tracing suite and bpftrace histogram recorder in mios-trace |
+| T-720 | P2 | done | Kernel/TraceTest | Automated eBPF probe attach latency (<10ms) and low-overhead tracing test suite |
+| T-721 | P1 | done | Hardware/Thermald | Proactive PID thermal frequency governor and dynamic EPP stepping daemon in mios-thermald |
+| T-722 | P2 | done | Hardware/ThermalTest | Automated thermal load ramp, EPP frequency stepping, and hysteresis recovery test suite |
 | T-723 | P1 | open | Security/Macaroon | Ephemeral HMAC Macaroon minter and attenuated caveat verifier in agent-pipe |
 | T-724 | P2 | open | Security/MacaroonTest | Automated subagent token attenuation, caveat enforcement, and replay prevention test suite |
 | T-725 | P1 | open | Database/PgVectorHNSW | Quantized halfvec HNSW vector indexer and workspace table partitioner in pgvector |
@@ -7863,7 +7863,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** NCCL tuning engine discovers hardware topologies and optimizes collective communication parameters on boot.
 **Why:** Optimal NCCL tuning unlocks near-linear multi-GPU Tensor Parallelism scaling for 70B+ model inference.
 **Dep:** AGY-2310
-**Status:** open | **Domain:** Hardware/NCCLTune | **Who:** agent
+**Status:** done | **Domain:** Hardware/NCCLTune | **Who:** agent
 **Converted:** AGY-2311 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-714 -- Automated multi-GPU Tensor Parallelism (TP=2/4) throughput and AllReduce latency test suite (WS-VFIO | P2 | S)
@@ -7873,7 +7873,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates low AllReduce latency and high multi-GPU Tensor Parallelism scaling efficiency.
 **Why:** Continuous testing ensures distributed GPU communication parameters remain tuned across library updates.
 **Dep:** AGY-2311
-**Status:** open | **Domain:** Hardware/NCCLTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/NCCLTest | **Who:** agent
 **Converted:** AGY-2312 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-715 -- Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager (WS-BUILD | P1 | M)
@@ -7883,7 +7883,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Git LFS sparse fetcher downloads only targeted model files and caches blobs efficiently.
 **Why:** Sparse LFS fetching saves hundreds of gigabytes of disk and network bandwidth when managing large AI models.
 **Dep:** AGY-2312
-**Status:** open | **Domain:** Git/LFSCache | **Who:** agent
+**Status:** done | **Domain:** Git/LFSCache | **Who:** agent
 **Converted:** AGY-2313 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-716 -- Automated targeted Git LFS partial pull, SHA-256 integrity, and deduplicated caching test suite (WS-BUILD | P2 | S)
@@ -7893,7 +7893,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates targeted LFS fetching, hash verification, and shared blob deduplication.
 **Why:** Continuous testing ensures Git repository and model caching mechanics operate reliably across model upgrades.
 **Dep:** AGY-2313
-**Status:** open | **Domain:** Git/LFSTest | **Who:** agent
+**Status:** done | **Domain:** Git/LFSTest | **Who:** agent
 **Converted:** AGY-2314 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-717 -- Storage integrity scrubber daemon with idle I/O priority and PSI pressure throttling (WS-STRG | P1 | M)
@@ -7903,7 +7903,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Storage scrubber repairs bit rot in background with zero noticeable desktop latency degradation.
 **Why:** Idle-class background scrubbing eliminates silent bit rot while preserving fluid interactive desktop I/O.
 **Dep:** AGY-2314
-**Status:** open | **Domain:** Storage/Scrubd | **Who:** agent
+**Status:** done | **Domain:** Storage/Scrubd | **Who:** agent
 **Converted:** AGY-2315 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-718 -- Automated filesystem bit rot repair, I/O latency throttle, and scrub reporting test suite (WS-STRG | P2 | S)
@@ -7913,7 +7913,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates bit rot error correction and pressure-adaptive background throttling.
 **Why:** Continuous testing ensures storage scrubbing daemons protect data integrity without causing I/O stutter.
 **Dep:** AGY-2315
-**Status:** open | **Domain:** Storage/ScrubTest | **Who:** agent
+**Status:** done | **Domain:** Storage/ScrubTest | **Who:** agent
 **Converted:** AGY-2316 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-719 -- Declarative eBPF kernel tracing suite and bpftrace histogram recorder in mios-trace (WS-DIAG | P1 | M)
@@ -7923,7 +7923,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Tracing tool attaches eBPF kprobes dynamically and records structured latency histograms.
 **Why:** Non-invasive eBPF tracing enables autonomous agents to pinpoint kernel and hardware bottlenecks in real time.
 **Dep:** AGY-2316
-**Status:** open | **Domain:** Kernel/EBPFTrace | **Who:** agent
+**Status:** done | **Domain:** Kernel/EBPFTrace | **Who:** agent
 **Converted:** AGY-2317 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-720 -- Automated eBPF probe attach latency (<10ms) and low-overhead tracing test suite (WS-DIAG | P2 | S)
@@ -7933,7 +7933,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates instant eBPF probe compilation, low tracing overhead, and database insertion.
 **Why:** Continuous testing ensures kernel tracing tools remain safe and lightweight for live production diagnostics.
 **Dep:** AGY-2317
-**Status:** open | **Domain:** Kernel/TraceTest | **Who:** agent
+**Status:** done | **Domain:** Kernel/TraceTest | **Who:** agent
 **Converted:** AGY-2318 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-721 -- Proactive PID thermal frequency governor and dynamic EPP stepping daemon in mios-thermald (WS-NODE | P1 | M)
@@ -7943,7 +7943,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Thermal governor modulates EPP dynamically with 10°C hysteresis to prevent thermal cliff drops.
 **Why:** Proactive frequency stepping prevents thermal throttling cliffs and emergency motherboard power cuts.
 **Dep:** AGY-2318
-**Status:** open | **Domain:** Hardware/Thermald | **Who:** agent
+**Status:** done | **Domain:** Hardware/Thermald | **Who:** agent
 **Converted:** AGY-2319 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-722 -- Automated thermal load ramp, EPP frequency stepping, and hysteresis recovery test suite (WS-NODE | P2 | S)
@@ -7953,7 +7953,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates proactive EPP modulation, thermal stabilization, and hysteresis recovery.
 **Why:** Continuous testing ensures thermal management daemons protect hardware without causing abrupt performance degradation.
 **Dep:** AGY-2319
-**Status:** open | **Domain:** Hardware/ThermalTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/ThermalTest | **Who:** agent
 **Converted:** AGY-2320 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-723 -- Ephemeral HMAC Macaroon minter and attenuated caveat verifier in agent-pipe (WS-SEC | P1 | M)

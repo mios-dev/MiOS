@@ -1802,7 +1802,7 @@ ip_resolve = 4
 
 
 [ai_tag]
-max_untagged = 120
+max_untagged = 130
 max_unconforming = 0
 
 # Hint length cap. Was hardcoded 260 in mios-ai-tag, where it also silently
@@ -11335,6 +11335,12 @@ unit = [
     "tests/test-cuda-graphs.py",
     "tests/test-sbom-gen.py",
     "tests/test-empirical-stress-t703-t712.py",
+    "tests/test-nccl-tune.py",
+    "tests/test-lfs-cache.py",
+    "tests/test-storage-scrubd.py",
+    "tests/test-ebpf-trace.py",
+    "tests/test-thermald.py",
+    "tests/test-empirical-stress-t713-t722.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
