@@ -2059,7 +2059,7 @@
             <label for="f-auto-compname">computer_name (NetBIOS hostname for Windows)</label>
             <input type="text" id="f-auto-compname" data-key="autounattend.computer_name" placeholder="MIOS">
             <label for="f-auto-partgb">c_partition_gb (Windows C: partition size in GB)</label>
-            <input type="text" id="f-auto-partgb" data-key="autounattend.c_partition_gb" data-type="int" placeholder="96">
+            <input type="text" id="f-auto-partgb" data-key="autounattend.c_partition_gb" data-type="int" placeholder="128">
             <label for="f-auto-booturl">bootstrap_url (nested Get-MiOS.ps1 installer url)</label>
             <input type="text" id="f-auto-booturl" data-key="autounattend.bootstrap_url" placeholder="https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1">
             <label for="f-auto-isoout">iso_out (output path for compiled custom ISO)</label>
@@ -4873,7 +4873,7 @@ flatpaks      = [
 
 [autounattend]
 computer_name = "MIOS"
-c_partition_gb = 96
+c_partition_gb = 128
 bootstrap_url = "https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1"
 iso_out = ""
 iso_label = "MiOS-Xbox"

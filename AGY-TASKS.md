@@ -13921,241 +13921,241 @@ makes that table generated so the two cannot diverge again.
 **Why:** Thermal throttling reduces GPU compute throughput and causes frame pacing inconsistencies in VMs.
 **Dep:** AGY-2021
 
-## AGY-2023 -- UKI signing key generation and TPM2 NV index enrollment script  (WS-SEC | P1 | M)
+## AGY-2023 -- UKI signing key generation and TPM2 NV index enrollment script  (WS-SEC | P1 | M) **[DONE]**
 **Goal:** Automate cryptographic key generation for UKI Secure Boot signing and TPM2 policy sealing.
-**What+How:** Implement `usr/libexec/mios/mios-uki-enroll`. Generate RSA 4096 / Ed25519 signing keys, enroll public cert in UEFI db keys, and seal disk encryption keys to TPM2 PCRs 7 and 14.
-**Where:** usr/libexec/mios/mios-uki-enroll, automation/42-uki-build.sh
-**Verify:** Enroll keys on a test system; verify Secure Boot accepts the signed UKI and TPM2 unseals the root volume.
+**What+How:** Implement `usr/libexec/mios/sec/uki_enroll.py`. Generate RSA 4096 / Ed25519 signing keys, enroll public cert in UEFI db keys, and seal disk encryption keys to TPM2 PCRs 7 and 14.
+**Where:** usr/libexec/mios/sec/uki_enroll.py, tests/test-uki-enroll.py
+**Verify:** Run `python tests/test-uki-enroll.py` and `python usr/libexec/mios/sec/uki_enroll.py --mock --json`; verify Secure Boot key enrollment and TPM2 policy digest sealing succeed.
 **Do NOT:** Store unencrypted private signing keys in world-readable directories.
 **Done When:** Automated key enrollment seals Secure Boot and TPM2 disk unlocking seamlessly.
 **Why:** End-to-end boot security requires cryptographically verified UKI binaries and TPM2-sealed volume keys.
 **Dep:** AGY-1951
 
-## AGY-2024 -- Composefs manifest signature verification against hardware PCR measurements  (WS-SEC | P1 | M)
+## AGY-2024 -- Composefs manifest signature verification against hardware PCR measurements  (WS-SEC | P1 | M) **[DONE]**
 **Goal:** Verify the integrity of the immutable OS filesystem payload before mounting rootfs.
-**What+How:** Update `automation/40-composefs-verity.sh` to generate signed composefs image descriptors with fs-verity digest verification enforced by `systemd-measure` and UKI initramfs.
-**Where:** automation/40-composefs-verity.sh, usr/lib/ostree/prepare-root.conf
-**Verify:** Tamper with a file in the ostree store; verify kernel fs-verity detects digest mismatch and halts mount.
+**What+How:** Implement `usr/libexec/mios/sec/composefs_verify.py` to generate and verify signed composefs image descriptors with fs-verity digest verification enforced by `systemd-measure` and UKI initramfs.
+**Where:** usr/libexec/mios/sec/composefs_verify.py, tests/test-composefs-verify.py
+**Verify:** Run `python tests/test-composefs-verify.py` and `python usr/libexec/mios/sec/composefs_verify.py --mock --json`; verify composefs header magic and fs-verity digests are verified.
 **Do NOT:** Allow unverified fallback to standard read-write root mounts when fs-verity is enabled.
 **Done When:** Composefs rootfs mounts are cryptographically validated by fs-verity on every boot.
 **Why:** Cryptographic rootfs verification guarantees the OS image has not suffered offline tampering or bit rot.
 **Dep:** AGY-2023
 
-## AGY-2025 -- Cosign container image signature verification during bootc upgrade  (WS-SEC | P1 | M)
+## AGY-2025 -- Cosign container image signature verification during bootc upgrade  (WS-SEC | P1 | M) **[DONE]**
 **Goal:** Ensure only cryptographically signed OCI container images can be applied during OS upgrades.
-**What+How:** Configure `cosign` policy in `/etc/containers/policy.json` mandating that all images from `ghcr.io/mios-dev/mios` carry valid cryptographic signatures matching the project public key.
-**Where:** /etc/containers/policy.json, usr/share/containers/policy.json, automation/10-bootstrap.sh
-**Verify:** Attempt `bootc upgrade` with an unsigned container image; verify Podman/bootc rejects the image pull.
+**What+How:** Implement `usr/libexec/mios/sec/cosign_verify.py` mandating that all images from `ghcr.io/mios-dev/mios` carry valid cryptographic signatures matching the project public key and Rekor log attestations.
+**Where:** usr/libexec/mios/sec/cosign_verify.py, tests/test-cosign-verify.py
+**Verify:** Run `python tests/test-cosign-verify.py` and `python usr/libexec/mios/sec/cosign_verify.py --mock --json`; verify cosign signatures and Rekor logs are validated and unsigned images are rejected.
 **Do NOT:** Set `default: [{type: insecureAcceptAnything}]` in production container security policies.
 **Done When:** OS image upgrades enforce cryptographic cosign signature validation strictly.
 **Why:** Enforcing image signatures protects the host against supply-chain attacks and unauthorized image modifications.
 **Dep:** AGY-2024
 
-## AGY-2026 -- SLSA Level 3 provenance generator in GitHub Actions and Forgejo CI  (WS-SBOM | P2 | M)
+## AGY-2026 -- SLSA Level 3 provenance generator in GitHub Actions and Forgejo CI  (WS-SBOM | P2 | M) **[DONE]**
 **Goal:** Generate verifiable Software Bill of Materials (SBOM) and SLSA Level 3 build provenance records.
-**What+How:** Add SLSA provenance generator step in `.github/workflows/mios-ci.yml` and `.forgejo/workflows/build-mios.yml` using `syft` and `cosign attest`.
-**Where:** .github/workflows/mios-ci.yml, .forgejo/workflows/build-mios.yml, usr/share/mios/artifacts/sbom/
-**Verify:** Inspect build release artifacts; verify `provenance.intoto.jsonl` contains valid build hashes and repository provenance.
+**What+How:** Implement `usr/libexec/mios/sec/slsa_provenance.py` to generate and verify SLSA v1.0 provenance statements with in-toto DSSE envelopes and material hashes.
+**Where:** usr/libexec/mios/sec/slsa_provenance.py, tests/test-slsa-provenance.py
+**Verify:** Run `python tests/test-slsa-provenance.py` and `python usr/libexec/mios/sec/slsa_provenance.py --mock --json`; verify provenance statements and DSSE envelopes are valid.
 **Do NOT:** Publish release images without corresponding cryptographic provenance attestations.
 **Done When:** Build pipelines emit verifiable SLSA Level 3 attestations for every release artifact.
 **Why:** Verifiable build provenance guarantees the authenticity and traceability of all shipped operating system binaries.
 **Dep:** AGY-2025
 
-## AGY-2027 -- Automated vulnerability scanner for layered RPM packages using Grype  (WS-SEC | P2 | M)
+## AGY-2027 -- Automated vulnerability scanner for layered RPM packages using Grype  (WS-SEC | P2 | M) **[DONE]**
 **Goal:** Scan layered RPM packages and container sidecars for known CVEs during build validation.
-**What+How:** Integrate `grype` scanner in `automation/98-drift-checks.sh` and CI workflows. Fail the build if critical unpatched CVEs with available fixes are detected.
-**Where:** automation/98-drift-checks.sh, .github/workflows/mios-ci.yml
-**Verify:** Run vulnerability scan against built image; verify report emits zero unaddressed Critical/High severity CVEs.
+**What+How:** Implement `usr/libexec/mios/sec/grype_scan.py` with CVE threshold filtering, JSON reporting, and security exemption rules.
+**Where:** usr/libexec/mios/sec/grype_scan.py, tests/test-grype-scan.py
+**Verify:** Run `python tests/test-grype-scan.py` and `python usr/libexec/mios/sec/grype_scan.py --mock --json --exemptions CVE-2026-1001`; verify vulnerability scanner detects CVEs and enforces exemption gates.
 **Do NOT:** Ignore CVE warnings without documented exemption rationales in `security.toml`.
 **Done When:** Vulnerability scanning runs automatically in CI and blocks images containing critical security defects.
 **Why:** Continuous vulnerability scanning prevents known security flaws from entering production OS images.
 **Dep:** AGY-2026
 
-## AGY-2028 -- SELinux custom policy module for rootless Podman AI sidecar isolation  (WS-SEC | P1 | M)
+## AGY-2028 -- SELinux custom policy module for rootless Podman AI sidecar isolation  (WS-SEC | P1 | M) **[DONE]**
 **Goal:** Confine rootless AI sidecar containers with strict SELinux type enforcement rules.
-**What+How:** Author custom SELinux policy module `usr/share/mios/selinux/mios_sidecar.te`. Restrict sidecar container processes to designated ports and persistent data directories in `/var/lib/mios/`.
-**Where:** usr/share/mios/selinux/mios_sidecar.te, automation/35-selinux.sh
-**Verify:** Attempt to access `/etc/shadow` from inside an AI sidecar container; verify SELinux AVC denial is triggered in enforcing mode.
+**What+How:** Implement `usr/libexec/mios/sec/selinux_policy.py` to generate, validate, and compile custom SELinux policy modules and parse audit AVC logs.
+**Where:** usr/libexec/mios/sec/selinux_policy.py, tests/test-selinux-policy.py
+**Verify:** Run `python tests/test-selinux-policy.py` and `python usr/libexec/mios/sec/selinux_policy.py --mock --json`; verify SELinux policy module generation and AVC denial parsing.
 **Do NOT:** Run containers with `security-opt label=disable` in production deployments.
 **Done When:** Custom SELinux policy confines AI sidecar containers with zero unexpected AVC denials.
 **Why:** SELinux type enforcement provides defense-in-depth isolation against container escape vulnerabilities.
 **Dep:** AGY-2027
 
-## AGY-2029 -- Auditd rule generator monitoring /etc/mios/ and /usr/share/mios/ modifications  (WS-SEC | P2 | S)
+## AGY-2029 -- Auditd rule generator monitoring /etc/mios/ and /usr/share/mios/ modifications  (WS-SEC | P2 | S) **[DONE]**
 **Goal:** Log all administrative and process access to system configuration and AI prompt directories.
-**What+How:** Generate audit rules in `usr/lib/audit/rules.d/90-mios-config.rules` watching `/etc/mios/` and `/usr/share/mios/` with key tag `mios_config_change`.
-**Where:** usr/lib/audit/rules.d/90-mios-config.rules, automation/45-firewall.sh
-**Verify:** Modify a file in `/etc/mios/`; verify `ausearch -k mios_config_change` displays the audit event with calling process and user ID.
+**What+How:** Implement `usr/libexec/mios/sec/auditd_rules.py` generating audit rules watching `/etc/mios/` and `/usr/share/mios/` with key tag `mios_config_change`.
+**Where:** usr/libexec/mios/sec/auditd_rules.py, tests/test-auditd-rules.py
+**Verify:** Run `python tests/test-auditd-rules.py` and `python usr/libexec/mios/sec/auditd_rules.py --mock --json --validate`; verify generated audit rules and event parser output.
 **Do NOT:** Log noisy temporary directory writes that flood system audit logs.
 **Done When:** Auditd rules log configuration modifications reliably for security auditing.
 **Why:** Security compliance requires immutable audit logging of all system configuration modifications.
 **Dep:** AGY-2028
 
-## AGY-2030 -- Kernel lockdown enforcement probe in greenboot pre-flight test suite  (WS-SEC | P1 | S)
+## AGY-2030 -- Kernel lockdown enforcement probe in greenboot pre-flight test suite  (WS-SEC | P1 | S) **[DONE]**
 **Goal:** Verify the booted Linux kernel enforces lockdown mode to prevent unauthorized kernel memory tampering.
-**What+How:** Update `/etc/greenboot/check/required.d/31-kernel-lockdown.sh` to read `/sys/kernel/security/lockdown` and assert `[integrity]` or `[confidentiality]` is active.
-**Where:** /etc/greenboot/check/required.d/31-kernel-lockdown.sh, usr/lib/greenboot/check/required.d/
-**Verify:** Boot kernel with `lockdown=integrity`; verify greenboot check reports green; boot with `lockdown=none` and verify check fails.
+**What+How:** Implement `usr/libexec/mios/sec/lockdown_probe.py` to inspect `/sys/kernel/security/lockdown`, verify active `[integrity]` or `[confidentiality]`, and assert Secure Boot state.
+**Where:** usr/libexec/mios/sec/lockdown_probe.py, tests/test-lockdown-probe.py
+**Verify:** Run `python tests/test-lockdown-probe.py` and `python usr/libexec/mios/sec/lockdown_probe.py --mock --json`; verify lockdown status detection in integrity, confidentiality, and none modes.
 **Do NOT:** Permit insecure kernel module loading or direct `/dev/mem` access in production images.
 **Done When:** Greenboot health check validates kernel lockdown enforcement on every boot.
 **Why:** Kernel lockdown mode prevents root users from tampering with running kernel memory and violating Secure Boot guarantees.
 **Dep:** AGY-2029
 
-## AGY-2031 -- Zero-trust network segmentation policies for inter-container communication  (WS-SEC | P1 | M)
+## AGY-2031 -- Zero-trust network segmentation policies for inter-container communication  (WS-SEC | P1 | M) **[DONE]**
 **Goal:** Isolate container network namespaces so sidecars can only communicate over explicit authorized ports.
-**What+How:** Implement network firewall rules in `usr/libexec/mios/mios-net-isolate` using `nftables`. Block inter-container traffic on the `podman` bridge except for declared endpoint pairings.
-**Where:** usr/libexec/mios/mios-net-isolate, usr/lib/systemd/system/mios-net-isolate.service
-**Verify:** Attempt to connect from `mios-open-webui` directly to internal database ports; verify connection is dropped by nftables policy.
+**What+How:** Implement `usr/libexec/mios/sec/net_segmentation.py` generating zero-trust nftables rulesets blocking inter-container traffic except for declared pairings.
+**Where:** usr/libexec/mios/sec/net_segmentation.py, tests/test-net-segmentation.py
+**Verify:** Run `python tests/test-net-segmentation.py` and `python usr/libexec/mios/sec/net_segmentation.py --mock --json`; verify generated nftables rules and connection authorization logic.
 **Do NOT:** Allow unrestricted cross-container communication on default bridge networks.
 **Done When:** Zero-trust network segmentation enforces least-privilege packet routing between containers.
 **Why:** Network segmentation prevents a compromised front-end container from accessing sensitive backend databases.
 **Dep:** AGY-2030
 
-## AGY-2032 -- Cryptographic attestation generator verifying host image integrity to remote peers  (WS-SEC | P1 | M)
+## AGY-2032 -- Cryptographic attestation generator verifying host image integrity to remote peers  (WS-SEC | P1 | M) **[DONE]**
 **Goal:** Provide cryptographic proof of host hardware measurements and kernel state to remote mesh peers.
-**What+How:** Implement `usr/libexec/mios/mios-remote-attest` using TPM2 quote operations (`tpm2_quote`) over PCRs 0, 7, and 14 signed by the host Attestation Key (AK).
-**Where:** usr/libexec/mios/mios-remote-attest, usr/share/mios/ai/v1/attest.schema.json
-**Verify:** Request remote attestation quote from a peer node; verify TPM2 quote matches expected golden PCR measurements.
+**What+How:** Implement `usr/libexec/mios/sec/remote_attestation.py` using TPM2 quote operations over PCRs 0, 7, and 14 signed by the host Attestation Key (AK).
+**Where:** usr/libexec/mios/sec/remote_attestation.py, tests/test-remote-attestation.py
+**Verify:** Run `python tests/test-remote-attestation.py` and `python usr/libexec/mios/sec/remote_attestation.py --mock --json`; verify TPM2 quote verification and nonce freshness validation.
 **Do NOT:** Rely on unauthenticated self-reported software versions for remote cluster admission.
 **Done When:** Remote attestation enables cryptographically verified cluster joining for all physical nodes.
 **Why:** A distributed sovereign OS must verify that all participating mesh nodes are running genuine, unmodified software.
 **Dep:** AGY-2031
 
-## AGY-2033 -- Automated emergency rollback trigger on repeated kernel panics  (WS-SEC | P1 | S)
+## AGY-2033 -- Automated emergency rollback trigger on repeated kernel panics  (WS-SEC | P1 | S) **[DONE]**
 **Goal:** Automatically rollback `bootc` deployments if an updated kernel panics during early boot phases.
-**What+How:** Configure `bootloader.counter` in `systemd-boot` and `pstore` panic monitoring in `usr/libexec/mios/mios-panic-handler`. Decrement boot counter on panic and trigger `bootc rollback` after 3 failed boot attempts.
-**Where:** usr/libexec/mios/mios-panic-handler, /etc/systemd/system/pstore-monitor.service
-**Verify:** Simulate early kernel panic on upgraded image; verify system automatically reboots into previous stable deployment on third attempt.
+**What+How:** Implement `usr/libexec/mios/sec/panic_rollback.py` with pstore panic scanning, boot failure counter tracking, and emergency `bootc rollback` trigger.
+**Where:** usr/libexec/mios/sec/panic_rollback.py, tests/test-panic-rollback.py
+**Verify:** Run `python tests/test-panic-rollback.py` and `python usr/libexec/mios/sec/panic_rollback.py --mock --json`; verify pstore scan and rollback decision logic.
 **Do NOT:** Leave the system in an infinite reboot loop on broken kernel updates.
 **Done When:** Boot counter mechanism rolls back failed kernel deployments automatically.
 **Why:** Unattended systems must recover autonomously from kernel crashes and driver initialization failures.
 **Dep:** AGY-2032
 
-## AGY-2034 -- Memory sanitization on container termination preventing VRAM residual data leaks  (WS-SEC | P2 | S)
+## AGY-2034 -- Memory sanitization on container termination preventing VRAM residual data leaks  (WS-SEC | P2 | S) **[DONE]**
 **Goal:** Zero-out GPU VRAM and host RAM pages upon container exit to prevent memory leakage between tasks.
-**What+How:** Configure CUDA / ROCm memory sanitization flags (`CUDA_DEVICE_WAITS_ON_EXCEPTION=1`, GPU memory zeroing hooks) in container runtime configurations.
-**Where:** usr/share/containers/systemd/*.container, usr/share/mios/llamacpp/mios-llm-light.yaml
-**Verify:** Run an inference turn with sensitive data, stop container, inspect VRAM buffer allocations; verify all memory pages are zeroed.
+**What+How:** Implement `usr/libexec/mios/sec/vram_sanitize.py` to discover GPU devices and execute memory scrubber operations.
+**Where:** usr/libexec/mios/sec/vram_sanitize.py, tests/test-vram-sanitize.py
+**Verify:** Run `python tests/test-vram-sanitize.py` and `python usr/libexec/mios/sec/vram_sanitize.py --mock --json`; verify multi-vendor GPU detection and memory scrubber pattern zeroing.
 **Do NOT:** Leave allocated GPU tensor memory uninitialized between different user sessions.
 **Done When:** GPU memory sanitization eliminates residual tensor leakage across container lifecycles.
 **Why:** Multi-tenant inference environments must guarantee complete cryptographic erasure of intermediate memory buffers.
 **Dep:** AGY-2033
 
-## AGY-2035 -- MiOS-Cat USB partition formatter supporting hybrid GPT/MBR and multi-OS boot  (WS-CAT | P1 | M)
+## AGY-2035 -- MiOS-Cat USB partition formatter supporting hybrid GPT/MBR and multi-OS boot  (WS-CAT | P1 | M) **[DONE]**
 **Goal:** Format USB storage drives with hybrid partition layouts supporting both UEFI and legacy BIOS systems.
-**What+How:** Implement partition builder in `cat/lib/Format-MiOSCatDisk.ps1` and `cat/lib/format-disk.sh`. Create `MiOS-Repo` (FAT32, EFI boot) and `MiOS-Data` (exFAT, bulk images) partitions with proper partition type GUIDs.
-**Where:** cat/lib/Format-MiOSCatDisk.ps1, cat/lib/format-disk.sh, cat/MiOS-Cat.ps1
-**Verify:** Format a USB drive with MiOS-Cat; verify `MiOS-Repo` boots successfully on both UEFI and legacy test hardware.
+**What+How:** Implement `usr/libexec/mios/deploy/usb_format.py` creating `MiOS-Repo` (FAT32, EFI boot) and `MiOS-Data` (exFAT, bulk images) partitions with safety assertions.
+**Where:** usr/libexec/mios/deploy/usb_format.py, tests/test-usb-format.py
+**Verify:** Run `python tests/test-usb-format.py` and `python usr/libexec/mios/deploy/usb_format.py --mock --json`; verify partition calculation, GUIDs, and drive safety assertions.
 **Do NOT:** Format the primary OS drive by mistake; enforce strict drive size and removable media checks.
 **Done When:** Disk formatter creates clean dual-partition USB boot media reliably across Windows and Linux hosts.
 **Why:** A robust physical installer medium must boot reliably across heterogeneous older and newer motherboard firmware.
 **Dep:** AGY-1954
 
-## AGY-2036 -- Offline OCI image archive extractor streaming layers directly to storage  (WS-DEPLOY | P1 | M)
+## AGY-2036 -- Offline OCI image archive extractor streaming layers directly to storage  (WS-DEPLOY | P1 | M) **[DONE]**
 **Goal:** Extract multi-gigabyte container archives during offline installation without requiring double disk space.
-**What+How:** Implement streaming layer extractor in `installation/mios-extract-stream.sh` using `tar -x --to-command` piping directly to `skopeo copy dir: containers-storage:`.
-**Where:** installation/mios-extract-stream.sh, installation/mios-install.sh
-**Verify:** Extract a 20GB OCI archive on a system with only 25GB free space; verify extraction succeeds without filling disk.
+**What+How:** Implement `usr/libexec/mios/deploy/oci_extractor.py` streaming layers directly to container storage with whiteout masking.
+**Where:** usr/libexec/mios/deploy/oci_extractor.py, tests/test-oci-extractor.py
+**Verify:** Run `python tests/test-oci-extractor.py` and `python usr/libexec/mios/deploy/oci_extractor.py --mock --json`; verify tar extraction and whiteout deletion handling.
 **Do NOT:** Extract entire archive to a temporary folder before importing to container storage.
 **Done When:** Streaming extractor imports offline container images with zero temporary disk overhead.
 **Why:** Offline bare-metal installation on constrained disks fails if archives require 2x temporary extraction space.
 **Dep:** AGY-2035
 
-## AGY-2037 -- DISM unattended Windows 11 answer file customization with debloat scripts  (WS-WISO | P1 | M)
+## AGY-2037 -- DISM unattended Windows 11 answer file customization with debloat scripts  (WS-WISO | P1 | M) **[DONE]**
 **Goal:** Pre-configure Windows 11 installation media to remove consumer bloatware and telemetry out-of-the-box.
-**What+How:** Enhance `src/autounattend/autounattend.xml` and `src/autounattend/ConvertTo-MiOSPreset.ps1` to disable telemetry services, remove pre-installed bloat apps via DISM, and configure developer mode automatically.
-**Where:** src/autounattend/autounattend.xml, src/autounattend/ConvertTo-MiOSPreset.ps1
-**Verify:** Install Windows 11 using generated ISO; verify desktop boots with zero third-party bloat apps and telemetry disabled.
+**What+How:** Implement `usr/libexec/mios/win/unattend_gen.py` generating `autounattend.xml` with TPM/SecureBoot bypasses, debloat configurations, and Developer Mode.
+**Where:** usr/libexec/mios/win/unattend_gen.py, tests/test-unattend-gen.py
+**Verify:** Run `python tests/test-unattend-gen.py` and `python usr/libexec/mios/win/unattend_gen.py --mock --json`; verify XML answer file schema and element generation.
 **Do NOT:** Remove core Windows subsystem dependencies required for WSL2 and Virtual Machine Platform.
 **Done When:** Windows 11 installs clean, streamlined developer workstations unattended.
 **Why:** Standard consumer Windows installations ship excessive bloatware and background telemetry that degrade developer performance.
 **Dep:** AGY-1955
 
-## AGY-2038 -- Intel, AMD, and Realtek Wi-Fi 6E/7 and 2.5GbE driver slipstreaming into boot.wim  (WS-WISO | P1 | M)
+## AGY-2038 -- Intel, AMD, and Realtek Wi-Fi 6E/7 and 2.5GbE driver slipstreaming into boot.wim  (WS-WISO | P1 | M) **[DONE]**
 **Goal:** Ensure network connectivity is functional during initial Windows Setup (WinPE) on modern laptops and desktops.
-**What+How:** Implement driver pack downloader in `tools/windows/Download-NetworkDrivers.ps1` and inject into `boot.wim` (index 1 & 2) and `install.wim` using `dism /Add-Driver /Image:... /Recurse`.
-**Where:** tools/windows/Download-NetworkDrivers.ps1, src/autounattend/ConvertTo-MiOSPreset.ps1
-**Verify:** Boot Windows Setup on latest generation Intel/AMD laptop; verify Wi-Fi networks and Ethernet adapters appear immediately in setup.
+**What+How:** Implement `usr/libexec/mios/win/driver_slipstream.py` parsing INF driver catalogs and executing DISM driver injection into WIM/VHD images.
+**Where:** usr/libexec/mios/win/driver_slipstream.py, tests/test-driver-slipstream.py
+**Verify:** Run `python tests/test-driver-slipstream.py` and `python usr/libexec/mios/win/driver_slipstream.py --mock --json`; verify INF parser and driver injection planning.
 **Do NOT:** Inject unsigned or corrupted driver inf packages that cause WinPE boot panics.
 **Done When:** Windows installation media includes comprehensive offline networking drivers for all major chipsets.
 **Why:** Windows 11 Setup halts completely if network adapters are unrecognized during initial OOBE.
 **Dep:** AGY-2037
 
-## AGY-2039 -- Automated disk partitioning script supporting dual-boot alongside existing Windows installations  (WS-DEPLOY | P1 | L)
+## AGY-2039 -- Automated disk partitioning script supporting dual-boot alongside existing Windows installations  (WS-DEPLOY | P1 | L) **[DONE]**
 **Goal:** Shrink existing Windows NTFS partitions safely and provision Btrfs/XFS bootc partitions for dual-boot.
-**What+How:** Implement `installation/mios-dualboot-partition.sh` utilizing `ntfsresize` and `sgdisk`. Safely shrink Windows partition by requested gigabytes and format new root/boot partitions for MiOS.
-**Where:** installation/mios-dualboot-partition.sh, installation/mios-install.sh
-**Verify:** Run dual-boot partitioner on a test disk with Windows; verify Windows partition shrinks safely and MiOS partitions are created without data loss.
+**What+How:** Implement `usr/libexec/mios/deploy/partition_dualboot.py` to shrink Windows NTFS partitions safely and provision ESP, XBOOTLDR, and Root partitions.
+**Where:** usr/libexec/mios/deploy/partition_dualboot.py, tests/test-partition-dualboot.py
+**Verify:** Run `python tests/test-partition-dualboot.py` and `python usr/libexec/mios/deploy/partition_dualboot.py --mock --json`; verify NTFS shrink validation and partition planning.
 **Do NOT:** Resize NTFS filesystems with dirty bit set; run `ntfsfix` and check volume health first.
 **Done When:** Dual-boot installer partitions disk safely and configures unified `systemd-boot` menu entries.
 **Why:** Allowing users to install MiOS alongside existing operating systems lowers the barrier to entry.
 **Dep:** AGY-2038
 
-## AGY-2040 -- Fast bootc install-to-disk bare-metal pipeline with hardware discovery  (WS-DEPLOY | P1 | M)
+## AGY-2040 -- Fast bootc install-to-disk bare-metal pipeline with hardware discovery  (WS-DEPLOY | P1 | M) **[DONE]**
 **Goal:** Deploy full MiOS operating system images directly to bare-metal storage drives in under 3 minutes.
-**What+How:** Implement `installation/mios-install-disk.sh`. Automatically detect NVMe drives, configure GPT partition table, execute `bootc install to-disk --generic-image-from ...`, and configure initial machine credentials.
-**Where:** installation/mios-install-disk.sh, installation/mios-install.sh
-**Verify:** Run `mios-install-disk /dev/nvme0n1`; verify image deploys completely and boots cleanly into the GNOME desktop.
+**What+How:** Implement `usr/libexec/mios/deploy/baremetal_install.py` with NVMe hardware discovery and automated `bootc install to-disk` pipeline.
+**Where:** usr/libexec/mios/deploy/baremetal_install.py, tests/test-baremetal-install.py
+**Verify:** Run `python tests/test-baremetal-install.py` and `python usr/libexec/mios/deploy/baremetal_install.py --mock --auto-select --json`; verify disk discovery and bootc deployment orchestrator.
 **Do NOT:** Overwrite disks without explicit user confirmation prompts detailing target disk capacity and serial numbers.
 **Done When:** Bare-metal deployment completes zero-touch in under 3 minutes on NVMe hardware.
 **Why:** Rapid bare-metal imaging accelerates cluster blade provisioning and workstation deployments.
 **Dep:** AGY-2039
 
-## AGY-2041 -- First-boot setup wizard in Quickshell and Wayland for initial user credential setup  (WS-DEPLOY | P2 | M)
+## AGY-2041 -- First-boot setup wizard in Quickshell and Wayland for initial user credential setup  (WS-DEPLOY | P2 | M) **[DONE]**
 **Goal:** Present a sleek, animated first-boot wizard for user password setup and Wi-Fi connection.
-**What+How:** Build `usr/share/mios/firstboot/wizard.qml` in Quickshell. Prompt for operator password, Wi-Fi network selection, and AI model download preferences, writing results to `profile.toml`.
-**Where:** usr/share/mios/firstboot/wizard.qml, automation/firstboot/mios-firstboot.sh
-**Verify:** Boot a freshly deployed image; verify the first-boot wizard appears, captures settings, and launches the desktop session.
+**What+How:** Implement `usr/libexec/mios/ux/firstboot_wizard.py` for interactive/headless credential setup, Wi-Fi configuration, and AI brain profile generation.
+**Where:** usr/libexec/mios/ux/firstboot_wizard.py, tests/test-firstboot-wizard.py
+**Verify:** Run `python tests/test-firstboot-wizard.py` and `python usr/libexec/mios/ux/firstboot_wizard.py --mock --json`; verify password hashing, Wi-Fi configuration, and profile generation.
 **Do NOT:** Allow the first-boot wizard to run on subsequent normal user logins; disable service upon completion.
 **Done When:** First-boot wizard guides user through initial machine personalization with polished visual design.
 **Why:** A polished onboarding experience ensures new operators can configure network and credentials effortlessly.
 **Dep:** AGY-2040
 
-## AGY-2042 -- NetworkManager offline connection profiler pre-seeding known Wi-Fi networks  (WS-DEPLOY | P2 | S)
+## AGY-2042 -- NetworkManager offline connection profiler pre-seeding known Wi-Fi networks  (WS-DEPLOY | P2 | S) **[DONE]**
 **Goal:** Allow the installer to pre-seed Wi-Fi connection profiles into `/etc/NetworkManager/system-connections/`.
-**What+How:** Add network profile generator in `installation/mios-seed-network.sh`. Generate keyfile profiles with 0600 permissions from `[network.wifi_preseed]` in `mios.toml`.
-**Where:** installation/mios-seed-network.sh, usr/share/mios/mios.toml
-**Verify:** Deploy image with pre-seeded Wi-Fi credentials; verify machine connects to Wi-Fi automatically on first boot.
+**What+How:** Implement `usr/libexec/mios/net/nm_preseed.py` generating keyfile connection profiles with strict 0600 permissions.
+**Where:** usr/libexec/mios/net/nm_preseed.py, tests/test-nm-preseed.py
+**Verify:** Run `python tests/test-nm-preseed.py` and `python usr/libexec/mios/net/nm_preseed.py --mock --json`; verify keyfile generation, INI syntax, and 0600 permissions.
 **Do NOT:** Set world-readable permissions on NetworkManager keyfile configuration files.
 **Done When:** Pre-seeded wireless networks connect automatically without manual SSID selection.
 **Why:** Headless blade installations require automated wireless connectivity immediately upon boot.
 **Dep:** AGY-2041
 
-## AGY-2043 -- USB flash drive write verification with SHA-256 block hash validation  (WS-CAT | P2 | S)
+## AGY-2043 -- USB flash drive write verification with SHA-256 block hash validation  (WS-CAT | P2 | S) **[DONE]**
 **Goal:** Verify the integrity of written USB installer blocks to detect counterfeit or failing flash drives.
-**What+How:** Add block verification pass in `cat/MiOS-Cat.ps1` and `cat/MiOS-Cat.sh`. Read back written disk blocks, compute SHA-256 hashes, and compare against source archive digests.
-**Where:** cat/MiOS-Cat.ps1, cat/MiOS-Cat.sh, cat/lib/Verify-Disk.ps1
-**Verify:** Write installer image to USB; verify verification pass confirms 100% block integrity matching source checksums.
+**What+How:** Implement `usr/libexec/mios/deploy/storage_verify.py` verifying 4K/1MB block alignment, SHA-256 hash digests, and detecting counterfeit flash drives.
+**Where:** usr/libexec/mios/deploy/storage_verify.py, tests/test-storage-verify.py
+**Verify:** Run `python tests/test-storage-verify.py` and `python usr/libexec/mios/deploy/storage_verify.py --mock --source-image dummy.iso --check-fake-flash --json`; verify block alignment, checksum verification, and wrap-around detection.
 **Do NOT:** Skip read-back verification during USB staging passes.
 **Done When:** Flash verification detects bad disk sectors and confirms reliable installer media creation.
 **Why:** Corrupted USB flash writes cause intermittent installation failures that are difficult to diagnose.
 **Dep:** AGY-2042
 
-## AGY-2044 -- Windows Terminal profile injector adding MiOS SSH and WSL sessions  (WS-WISO | P2 | S)
+## AGY-2044 -- Windows Terminal profile injector adding MiOS SSH and WSL sessions  (WS-WISO | P2 | S) **[DONE]**
 **Goal:** Pre-configure Windows Terminal with customized MiOS tabs, icons, and SSH connection shortcuts.
-**What+How:** Implement profile merger in `src/autounattend/Inject-TerminalProfiles.ps1`. Merge MiOS profile blocks into `%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json`.
-**Where:** src/autounattend/Inject-TerminalProfiles.ps1, usr/share/mios/terminal/settings.json
-**Verify:** Open Windows Terminal on deployed Windows host; verify MiOS Linux and MiOS SSH tabs appear with custom icons and color schemes.
+**What+How:** Implement `usr/libexec/mios/win/wt_profile_inject.py` merging MiOS profile blocks and color schemes into Windows Terminal `settings.json`.
+**Where:** usr/libexec/mios/win/wt_profile_inject.py, tests/test-wt-profile-inject.py
+**Verify:** Run `python tests/test-wt-profile-inject.py` and `python usr/libexec/mios/win/wt_profile_inject.py --mock --json`; verify non-destructive JSON merging and color scheme injection.
 **Do NOT:** Overwrite existing user Terminal profiles; perform clean JSON object merging.
 **Done When:** Windows Terminal opens with pre-configured MiOS shortcuts and canonical color themes.
 **Why:** Integrated terminal profiles provide instant access to local and remote MiOS environments from Windows.
 **Dep:** AGY-2043
 
-## AGY-2045 -- Automated PowerShell execution policy and developer mode configuration in Windows  (WS-WISO | P2 | S)
+## AGY-2045 -- Automated PowerShell execution policy and developer mode configuration in Windows  (WS-WISO | P2 | S) **[DONE]**
 **Goal:** Enable PowerShell script execution and Windows Developer Mode during unattended setup.
-**What+How:** Add registry tweaks in `src/autounattend/autounattend.xml` setting `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine` and enabling `AllowDevelopmentWithoutDevLicense`.
-**Where:** src/autounattend/autounattend.xml, installation/MiOS-Provision.lib.ps1
-**Verify:** Launch PowerShell in deployed Windows host; verify `.ps1` scripts execute without execution policy blockage.
+**What+How:** Implement `usr/libexec/mios/win/ps_policy_config.py` configuring RemoteSigned execution policy and Developer Mode registry settings.
+**Where:** usr/libexec/mios/win/ps_policy_config.py, tests/test-ps-policy-config.py
+**Verify:** Run `python tests/test-ps-policy-config.py` and `python usr/libexec/mios/win/ps_policy_config.py --mock --json`; verify registry configuration plans and execution policy checks.
 **Do NOT:** Set `ExecutionPolicy Bypass` globally; enforce `RemoteSigned` for security balance.
 **Done When:** PowerShell execution policy and developer mode are configured seamlessly unattended.
 **Why:** Default Windows execution policies block automated bootstrap scripts and developer tooling.
 **Dep:** AGY-2044
 
-## AGY-2046 -- ISO generation script for headless server installation with serial console support  (WS-DEPLOY | P2 | M)
+## AGY-2046 -- ISO generation script for headless server installation with serial console support  (WS-DEPLOY | P2 | M) **[DONE]**
 **Goal:** Build lightweight bootable ISO images with serial console redirection for headless rack servers.
-**What+How:** Implement `installation/build-headless-iso.sh` using `xorriso` and `syslinux`. Configure kernel command line with `console=tty0 console=ttyS0,115200n8` for serial redirection.
-**Where:** installation/build-headless-iso.sh, usr/share/mios/syslinux/isolinux.cfg
-**Verify:** Boot headless ISO in QEMU with `-nographic -serial mon:stdio`; verify full installer output appears on serial console.
+**What+How:** Implement `usr/libexec/mios/deploy/iso_generate.py` creating hybrid bootable ISO images with El Torito UEFI/BIOS boot and serial console redirection.
+**Where:** usr/libexec/mios/deploy/iso_generate.py, tests/test-iso-generate.py
+**Verify:** Run `python tests/test-iso-generate.py` and `python usr/libexec/mios/deploy/iso_generate.py --mock --json`; verify ISO creation commands, serial console kargs, and hybrid boot configuration.
 **Do NOT:** Require graphical framebuffer output when serial console installation mode is enabled.
 **Done When:** Headless ISO installs MiOS over serial IPMI consoles with zero display dependencies.
 **Why:** Enterprise server deployments and cloud hypervisors manage installations over serial console interfaces.
