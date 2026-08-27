@@ -584,16 +584,16 @@
 | T-670 | P2 | done | AI/TrainElasticTest | Automated training preemption, async checkpoint verification, and zero-loss step resumption test suite |
 | T-671 | P1 | done | AI/MultiModalWS | Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe |
 | T-672 | P2 | done | AI/MultiModalTest | Automated concurrent multi-modal streaming latency (<100ms) and temporal alignment test suite |
-| T-673 | P1 | open | Virtualization/MicroVM | Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge |
-| T-674 | P2 | open | Virtualization/MicroVMTest | Automated sub-50ms microVM boot time, vsock throughput, and breakout containment test suite |
-| T-675 | P1 | open | AI/ContextCompactor | Hierarchical semantic context compactor and invariant pinning manager in agent-pipe |
-| T-676 | P2 | open | AI/CompactorTest | Automated long-horizon (100k+ token) conversation compaction and intent retention test suite |
-| T-677 | P1 | open | Hardware/USBSurge | Udev USB over-current event handler and port power cycling daemon |
-| T-678 | P2 | open | Hardware/SurgeTest | Automated USB over-current fault simulation, port isolation, and power recovery test suite |
-| T-679 | P1 | open | Security/Entropy | Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder in automation |
-| T-680 | P2 | open | Security/EntropyTest | Automated hardware entropy harvesting, statistical randomness (NIST SP 800-22), and seeding test suite |
-| T-681 | P1 | open | Kernel/LivePatch | Declarative kernel kpatch/livepatch manager and MOK signature validator in mios-kpatch |
-| T-682 | P2 | open | Kernel/LivePatchTest | Automated kernel livepatch injection, zero-downtime CVE neutralization, and ftrace redirection test suite |
+| T-673 | P1 | done | Virtualization/MicroVM | Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge |
+| T-674 | P2 | done | Virtualization/MicroVMTest | Automated sub-50ms microVM boot time, vsock throughput, and breakout containment test suite |
+| T-675 | P1 | done | AI/ContextCompactor | Hierarchical semantic context compactor and invariant pinning manager in agent-pipe |
+| T-676 | P2 | done | AI/CompactorTest | Automated long-horizon (100k+ token) conversation compaction and intent retention test suite |
+| T-677 | P1 | done | Hardware/USBSurge | Udev USB over-current event handler and port power cycling daemon |
+| T-678 | P2 | done | Hardware/SurgeTest | Automated USB over-current fault simulation, port isolation, and power recovery test suite |
+| T-679 | P1 | done | Security/Entropy | Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder in automation |
+| T-680 | P2 | done | Security/EntropyTest | Automated hardware entropy harvesting, statistical randomness (NIST SP 800-22), and seeding test suite |
+| T-681 | P1 | done | Kernel/LivePatch | Declarative kernel kpatch/livepatch manager and MOK signature validator in mios-kpatch |
+| T-682 | P2 | done | Kernel/LivePatchTest | Automated kernel livepatch injection, zero-downtime CVE neutralization, and ftrace redirection test suite |
 | T-683 | P1 | open | Hardware/GPUPower | PCIe ASPM L1.2 and runtime D3cold GPU power manager in mios-gpu-powerd |
 | T-684 | P2 | open | Hardware/GPUPowerTest | Automated idle GPU power measurement (<3W) and sub-150ms D3cold wakeup benchmark suite |
 | T-685 | P1 | open | AI/GrammarDecode | Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap |
@@ -7463,7 +7463,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** MicroVM manager spins up ephemeral hardware-isolated environments in <50ms over vsock.
 **Why:** MicroVM sandboxing isolates untrusted subagent code execution behind real hardware virtualization boundaries.
 **Dep:** AGY-2270
-**Status:** open | **Domain:** Virtualization/MicroVM | **Who:** agent
+**Status:** done | **Domain:** Virtualization/MicroVM | **Who:** agent
 **Converted:** AGY-2271 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-674 -- Automated sub-50ms microVM boot time, vsock throughput, and breakout containment test suite (WS-VFIO | P2 | S)
@@ -7473,7 +7473,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates microVM boot speed, vsock bandwidth, and strict virtualization containment.
 **Why:** Continuous testing ensures virtualization hypervisors maintain impenetrable isolation for autonomous code execution.
 **Dep:** AGY-2271
-**Status:** open | **Domain:** Virtualization/MicroVMTest | **Who:** agent
+**Status:** done | **Domain:** Virtualization/MicroVMTest | **Who:** agent
 **Converted:** AGY-2272 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-675 -- Hierarchical semantic context compactor and invariant pinning manager in agent-pipe (WS-ORCH | P1 | M)
@@ -7483,7 +7483,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Context compactor compresses long-horizon conversation histories while preserving system invariants.
 **Why:** Semantic compaction enables multi-day agent coding sessions to proceed indefinitely without hitting hard context limits.
 **Dep:** AGY-2272
-**Status:** open | **Domain:** AI/ContextCompactor | **Who:** agent
+**Status:** done | **Domain:** AI/ContextCompactor | **Who:** agent
 **Converted:** AGY-2273 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-676 -- Automated long-horizon (100k+ token) conversation compaction and intent retention test suite (WS-ORCH | P2 | S)
@@ -7493,7 +7493,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that compacted context retains critical instructions and constraint facts.
 **Why:** Continuous testing ensures context management algorithms preserve essential reasoning data across long agent runs.
 **Dep:** AGY-2273
-**Status:** open | **Domain:** AI/CompactorTest | **Who:** agent
+**Status:** done | **Domain:** AI/CompactorTest | **Who:** agent
 **Converted:** AGY-2274 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-677 -- Udev USB over-current event handler and port power cycling daemon (WS-NODE | P1 | M)
@@ -7503,7 +7503,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** USB surge daemon catches over-current faults, suspends port power, and recovers port after cool-down.
 **Why:** Automated USB over-current isolation prevents permanent motherboard hardware damage from faulty peripherals.
 **Dep:** AGY-2274
-**Status:** open | **Domain:** Hardware/USBSurge | **Who:** agent
+**Status:** done | **Domain:** Hardware/USBSurge | **Who:** agent
 **Converted:** AGY-2275 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-678 -- Automated USB over-current fault simulation, port isolation, and power recovery test suite (WS-NODE | P2 | S)
@@ -7513,7 +7513,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-500ms USB power cutoff and structured fault database logging.
 **Why:** Continuous testing ensures hardware protection daemons reliably safeguard physical ports.
 **Dep:** AGY-2275
-**Status:** open | **Domain:** Hardware/SurgeTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/SurgeTest | **Who:** agent
 **Converted:** AGY-2276 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-679 -- Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder in automation (WS-BOOT | P1 | M)
@@ -7523,7 +7523,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Entropy daemon harvests multiple hardware TRNG sources and seeds kernel entropy pools in early boot.
 **Why:** Multi-source entropy conditioning prevents cryptographic key duplication and backdoor vulnerability in hardware RNGs.
 **Dep:** AGY-2276
-**Status:** open | **Domain:** Security/Entropy | **Who:** agent
+**Status:** done | **Domain:** Security/Entropy | **Who:** agent
 **Converted:** AGY-2277 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-680 -- Automated hardware entropy harvesting, statistical randomness (NIST SP 800-22), and seeding test suite (WS-BOOT | P2 | S)
@@ -7533,7 +7533,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates cryptographic entropy density and statistical whitening quality.
 **Why:** Continuous testing ensures kernel entropy seeding maintains unimpeachable cryptographic randomness.
 **Dep:** AGY-2277
-**Status:** open | **Domain:** Security/EntropyTest | **Who:** agent
+**Status:** done | **Domain:** Security/EntropyTest | **Who:** agent
 **Converted:** AGY-2278 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-681 -- Declarative kernel kpatch/livepatch manager and MOK signature validator in mios-kpatch (WS-BOOT | P1 | M)
@@ -7543,7 +7543,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Livepatch manager verifies and loads kernel security hotfixes dynamically with zero reboot downtime.
 **Why:** Kernel live patching allows 24/7 AI and database servers to neutralize remote kernel exploits instantly.
 **Dep:** AGY-2278
-**Status:** open | **Domain:** Kernel/LivePatch | **Who:** agent
+**Status:** done | **Domain:** Kernel/LivePatch | **Who:** agent
 **Converted:** AGY-2279 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-682 -- Automated kernel livepatch injection, zero-downtime CVE neutralization, and ftrace redirection test suite (WS-BOOT | P2 | S)
@@ -7553,7 +7553,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that kernel livepatching safely redirects functions under heavy I/O load.
 **Why:** Continuous testing ensures kernel livepatching infrastructure remains reliable across kernel minor updates.
 **Dep:** AGY-2279
-**Status:** open | **Domain:** Kernel/LivePatchTest | **Who:** agent
+**Status:** done | **Domain:** Kernel/LivePatchTest | **Who:** agent
 **Converted:** AGY-2280 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-683 -- PCIe ASPM L1.2 and runtime D3cold GPU power manager in mios-gpu-powerd (WS-NODE | P1 | M)

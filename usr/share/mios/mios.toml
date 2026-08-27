@@ -11310,6 +11310,12 @@ unit = [
     "tests/test-train-elastic.py",
     "tests/test-multimodal-ws.py",
     "tests/test-empirical-stress-t663-t672.py",
+    "tests/test-microvm-sandbox.py",
+    "tests/test-context-compactor.py",
+    "tests/test-usb-surge.py",
+    "tests/test-entropy-seed.py",
+    "tests/test-kpatch-mgr.py",
+    "tests/test-empirical-stress-t673-t682.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
