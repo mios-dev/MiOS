@@ -461,6 +461,8 @@ usr/lib/systemd/user/*
 !/usr/lib/systemd/user/mios-*.target
 !/usr/lib/systemd/user/mios-*.path
 !/usr/lib/systemd/user/mios-*.socket
+!/usr/lib/systemd/user/*.service.d/
+!/usr/lib/systemd/user/*.service.d/**
 
 usr/lib/systemd/user-preset/*
 !/usr/lib/systemd/user-preset/*mios*
@@ -471,6 +473,7 @@ usr/lib/systemd/system/*
 !/usr/lib/systemd/system/mios-*.target
 !/usr/lib/systemd/system/mios-*.path
 !/usr/lib/systemd/system/mios-*.socket
+!/usr/lib/systemd/system/miosd.service
 !/usr/lib/systemd/system/var-*.mount
 !/usr/lib/systemd/system/hermes-agent.service
 !/usr/lib/systemd/system/*.service.d/
@@ -502,7 +505,7 @@ usr/lib/udev/*
 !/usr/lib/udev/rules.d/
 usr/lib/udev/rules.d/*
 !/usr/lib/udev/rules.d/99-kvmfr.rules
-!/usr/lib/udev/rules.d/99-mios-gpu.rules
+!/usr/lib/udev/rules.d/99-mios-*.rules
 
 !/var/
 var/*

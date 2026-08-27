@@ -1,0 +1,32 @@
+# AI-hint: Systemd service unit for the native Rust miosd supervisor daemon.
+# AI-doc: usr/share/doc/mios/manual/system.md
+[Unit]
+Description=MiOS Native System Daemon & Supervisor (Rust miosd)
+Documentation=file:///usr/libexec/mios/miosd
+After=network.target mios-llm-light.service
+Wants=mios-llm-light.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/miosd daemon --state-dir=/var/lib/mios/daemon
+Restart=always
+RestartSec=3s
+User=mios-ai
+Group=mios-ai
+MemoryMax=15M
+MemoryHigh=12M
+
+# Security Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/mios/daemon /var/lib/mios/scratch
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+RestrictRealtime=true
+
+[Install]
+WantedBy=multi-user.target

@@ -10267,6 +10267,8 @@ usr/lib/systemd/system/mios-wslg-permissions-fix.service	8	26	19	155	2f640cad5b8
 usr/lib/systemd/system/mios-wslg-permissions-fix.service	38	47	10	83	cdfae792d28a	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/system.md	mios-src:cdfae792d28a	83	0
 usr/lib/systemd/system/mios-wslg-permissions-fix.service	54	59	6	59	8577afbd08c5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/system.md	mios-src:8577afbd08c5	59	0
 usr/lib/systemd/system/mios-xdg-userdir-init.service	1	2	2	19	49d8d92ff83d	STAY	ai-header		0				0
+usr/lib/systemd/system/miosd.service	1	2	2	13	f3689632a053	STAY	ai-header		0				0
+usr/lib/systemd/system/miosd.service	19	19	1	2	51eaa9bdab58	DROP	banner		0				0
 usr/lib/systemd/system/nut-monitor.service.d/10-mios-condition.conf	1	1	1	10	5107ef74e6da	STAY	ai-header		0				0
 usr/lib/systemd/system/nut-server.service.d/10-mios-condition.conf	1	1	1	10	8e3058ba9b72	STAY	ai-header		0				0
 usr/lib/systemd/system/nvidia-cdi-refresh.service.d/10-mios-ordering.conf	1	1	1	27	b0e8b7a71528	STAY	ai-header		0				0
@@ -10295,6 +10297,9 @@ usr/lib/systemd/system/ublue-nvctk-cdi.service.d/10-mios.conf	1	1	1	31	88bc31b44
 usr/lib/systemd/system/upower.service.d/10-mios-wsl2.conf	1	1	1	23	cfdacc65c271	STAY	ai-header		0				0
 usr/lib/systemd/system/upower.service.d/10-mios-wsl2.conf	3	4	2	20	4083ac15f74b	STAY	local-scoped		0				0
 usr/lib/systemd/system/user@.service.d/10-mios-wsl-runtime.conf	1	1	1	26	ebda0c5320bf	STAY	ai-header		0				0
+usr/lib/systemd/user/localsearch-3.service.d/10-mios-allow-system-uid.conf	1	14	14	114	066b6296aad2	STAY	ai-header		0				0
+usr/lib/systemd/user/localsearch-control-3.service.d/10-mios-allow-system-uid.conf	1	14	14	112	e2002ab74635	STAY	ai-header		0				0
+usr/lib/systemd/user/localsearch-writeback-3.service.d/10-mios-allow-system-uid.conf	1	14	14	112	e2002ab74635	STAY	ai-header		0				0
 usr/lib/systemd/user/mios-computer-use-server.service	1	2	2	31	38a819dab796	STAY	ai-header		0				0
 usr/lib/systemd/user/mios-computer-use-server.service	4	30	27	217	adb750389465	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/user.md	mios-src:adb750389465	217	0
 usr/lib/systemd/user/mios-computer-use-server.service	38	43	6	52	37f3f3d02cf6	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/user.md	mios-src:37f3f3d02cf6	52	0

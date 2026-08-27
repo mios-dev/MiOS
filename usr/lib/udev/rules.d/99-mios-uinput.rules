@@ -1,0 +1,10 @@
+# AI-hint: Configures udev rules to grant the `input` group read/write access to `/dev/uinput` (mode 0660), enabling the non-root MiOS broker to inject Wayland input events for computer use tools.
+# AI-related: mios-uinput, mios-computer-use
+# /usr/lib/udev/rules.d/99-mios-uinput.rules
+# Grant the `input` group read/write on /dev/uinput so the NON-root MiOS broker
+# (mios-computer-use cu_type/cu_key/cu_key_combo) can inject Wayland input events.
+# Kernel default is root-only (crw-------), which made the cu_* input tools fail
+# with "uinput unavailable" while the portal backend was also unavailable.
+# 0660 + group (NOT world-writable 0666 -- input injection is a security-sensitive
+# capability). The broker user must be a member of `input`. operator 2026-06-10.
+KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
