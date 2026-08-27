@@ -386,6 +386,7 @@ is generated, its generator is here.
 |---|---|
 | `usr/lib/mios/agent-pipe/context_compactor.py` | Hierarchical semantic context compactor and invariant pinning manager in agent-pipe (T-675, T-676). |
 | `usr/lib/mios/agent-pipe/council.py` | Multi-agent 3-peer council swarm and weighted Byzantine consensus engine in agent-pipe (T-653, T-654). |
+| `usr/lib/mios/agent-pipe/macaroon_auth.py` | Ephemeral HMAC Macaroon minter and attenuated caveat verifier in agent-pipe (T-723, T-724). |
 | `usr/lib/mios/agent-pipe/mios_a2a.py` | Re-export shim for mios_pipe.federation.a2a |
 | `usr/lib/mios/agent-pipe/mios_a2a_client.py` | Re-export shim for mios_pipe.federation.a2a_client |
 | `usr/lib/mios/agent-pipe/mios_a2a_principal.py` | Re-export shim for mios_pipe.identity.principal |
@@ -818,6 +819,8 @@ is generated, its generator is here.
 | `usr/lib/mios/ai/cuda_graphs.py` | Static CUDA Graph capture manager and multi-batch hardware replay buffer (T-709, T-710). |
 | `usr/lib/mios/ai/grammar_decode.py` | Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap (T-685, T-686). |
 | `usr/lib/mios/ai/medusa_tree.py` | Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels (T-695, T-696). |
+| `usr/lib/mios/ai/pgvector_hnsw.py` | Quantized halfvec HNSW vector indexer and workspace table partitioner in pgvector (T-725, T-726). |
+| `usr/lib/mios/ai/rocm_paged_attn.py` | ROCm / HIP PagedAttention virtual block manager and async stream compaction engine (T-731, T-732). |
 | `usr/lib/mios/ai/train_elastic.py` | Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager (T-669, T-670). |
 | `usr/lib/mios/crawl4ai/mios-crawl4ai-service.py` | FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w... |
 | `usr/lib/mios/mios_comments.py` | The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST... |
@@ -826,7 +829,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 441 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 444 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs
