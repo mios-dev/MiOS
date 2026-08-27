@@ -33,14 +33,13 @@ class TestEmpiricalStressT633T642(unittest.TestCase):
     # --- 1. Energy Capping Stress Tests ---
     def test_energy_rapid_power_spike_modulation(self):
         """Stress: Sustained power spikes must continuously damp GPU wattage without crashing."""
-        mgr = EnergyCapManager(chassis_cap_watts=500.0, dry_run=True)
+        mgr = EnergyCapManager(chassis_cap_watts=450.0, dry_run=True)
         for i in range(25):
-            # Alternate high load and extreme spikes
-            spike_cpu = 150.0 + (i % 5) * 50.0
-            spike_gpu = 350.0 + (i % 4) * 40.0
+            spike_cpu = 180.0 + (i % 5) * 40.0
+            spike_gpu = 350.0 + (i % 4) * 30.0
             m = mgr.evaluate_and_enforce_cap(mock_cpu_w=spike_cpu, mock_gpu_w=spike_gpu)
             self.assertTrue(m.is_throttled)
-            self.assertLessEqual(m.applied_gpu_cap_watts, 500.0)
+            self.assertLessEqual(m.applied_gpu_cap_watts, 450.0)
             self.assertGreaterEqual(m.applied_gpu_cap_watts, 150.0)
 
     def test_energy_thermal_power_compound_stress(self):
@@ -92,13 +91,13 @@ class TestEmpiricalStressT633T642(unittest.TestCase):
 
     # --- 3. PagedAttention Stress Tests ---
     def test_paged_attention_vram_saturation_recovery(self):
-        """Stress: Allocating beyond capacity must return False gracefully and recover on free."""
+        """Stress: Allocating beyond capacity without eviction must return False gracefully and recover on free."""
         mgr = PagedAttentionBlockManager(total_blocks=10, block_size=32, dry_run=True)
         ok1 = mgr.allocate_tokens("sess_large", 320)  # Consumes all 10 blocks
         self.assertTrue(ok1)
 
-        ok2 = mgr.allocate_tokens("sess_overflow", 32)
-        # Saturated
+        ok2 = mgr.allocate_tokens("sess_overflow", 32, allow_eviction=False)
+        self.assertFalse(ok2)
         self.assertIn("sess_large", mgr.sessions)
 
         mgr.free_session("sess_large")

@@ -78,36 +78,5 @@ Phases are gates, not calendar weeks. Everything inside a phase parallelizes unl
 
 ### Phase 5 — Remaining hardening (opportunistic, after the environment is proven)
 - server.py leaf-extraction split per the manifest (ceilings already locked in Phase 0); shellcheck warning-ratchet.
-- Remaining security P1s: egress `audit`→`enforce`, de-root the privileged Quadlets, prune the stale `privileged_quadlets.root` allowlist, seal runtime keys (systemd-creds/TPM), `api_require_auth=true` for non-loopback binds.
-- Firstboot whale-pull mirror/creds treatment + df budget pre-check (publish).
 
-**Law 15 runs through every phase:** every shared surface edit (`mios.toml`, `installation/*`, `automation/lib/bake.sh`, the loopback/kickstart templates) must be mirrored into `mios-bootstrap.git` in the same change.
-
----
-
-## 4. Conflicts with the running bake / just-landed GUP work (READ before scheduling)
-
-1. **Bake re-sharding vs. a live publish (publish §5 ↔ firstboot-tier).** Killing the empty `mios.toml [build.bake].group_members.extra` and adding per-group `RUN mios-bake-group <g>` lines **rewrites the bake plan** that `generate-bake-plan.py`'s firstboot-tier eviction depends on (the ~47GB vLLM/SGLang whales). Do this only when **no publish is in flight** and re-validate the eviction plan afterward; GitHub publish is already capacity-gated via `PUBLISH` env, so quiesce that path first. Do not interleave with an in-progress bake.
-
-2. **`policy_mode=sigstoreSigned` vs. the image the pipeline is currently publishing (security).** Flipping the runtime trust policy to default-reject **before** signatures verify end-to-end will make bootc/podman reject `ghcr.io/mios-dev/mios` on the next pull/firstboot — including the firstboot whale prestage. Strict ordering: PAT revoke + `cosign verify` (Phase 0) → prove verify green (Phase 1) → *then* flip policy. Never land Artifact B before Artifact A is confirmed.
-
-3. **Value-dup collapse vs. the GUP (value-dup ↔ AGY-479..730).** The de-dup campaign (AGY-856..930) and the GUP collapse the **same** MIOS_* namespace over the **same** `usr/lib/mios/userenv.sh` and `mios-env-snapshot`. Two hazards: (a) the lossless-diff gate **must normalize root paths** or it fails in CI (known GUP gotcha — the `/`-is-`$ROOT` self-updating work-tree makes snapshots root-path-sensitive); (b) the new value-alias gate must not duplicate/contradict a GUP gate. Sequence value-dup **after** or **in lockstep with** the GUP phase touching the same family, not concurrently on a different branch.
-
-4. **`userenv.sh` is a three-way hotspot.** liquid-glass wants it to auto-emit `MIOS_EFFECTS_*`, value-dup wants to collapse alias families **in** it, and the GUP is actively rewriting it. Serialize these edits; re-run `mios-env-snapshot` after each and confirm an empty diff.
-
-5. **`mios.toml` is the single hottest file — truncation risk.** greenboot, `[effects]`, the mini tables, `[security.sigstore]`/`[egress]`, `value-aliases`, `[laws.module_size]`, and the bake re-shard all edit it. Per the standing lesson, **serialize `mios.toml` edits and tomllib-parse + `wc -l` (~11.5k) after every one** before committing — a truncated `mios.toml` has broken CI before.
-
-6. **Gate-number collision (structural).** At least four audits independently propose "gate ~47" (value-alias, module-size/Law 17, the mini gates, deploy-wiring, greenboot-critical). `mios.toml [laws]` is the numbering SSOT — allocate a contiguous block in Phase 0 so no two branches claim the same number and trip the drift-gate index.
-
-7. **MiOS-Metal `dnf remove firewalld` is a shared-tree hazard.** `automation/45-firewall.sh` + firewalld are **correct** for single-plane MiOS-on-metal. The Mini's nft-only router table must land on a **plane-branched** image build (`Containerfile.mini` layer), never as a global change, or single-plane deployments lose their firewall.
-
-8. **Two divergent BIB drivers (deploy G7).** `mios-build-driver`'s BIB loop re-implements `podman run` in parallel with the Justfile. Phase 4's first step (point the driver at `just <fmt>`) must land before the deploy staging work, or the caps helper from Phase 0 only protects one of the two build paths.
-
----
-
-## 5. At-a-glance: which audit feeds which track
-
-- **Feeds the AGY de-dup campaign (AGY-856..930):** value-dup-report (directly). Secondarily, every SSOT-projection fix (runtime-wire greenboot, liquid-glass effects, mios-metal GPU map, security policy) shrinks the hardcode surface the campaign would otherwise flag.
-- **Feeds the publish track:** publish-pipeline (keystone caps + gate scan + resumable layers + firstboot mirror). The bake re-shard coordinates with the firstboot-tier.
-- **Feeds the deploy plane:** publish (must be bake-green first) → deploy-plane staging bridge → boot-test. Most downstream; go last.
-- **Standalone / low-coupling (can slot anywhere after their gate):** tech-debt module-size gate + server.py split; liquid-glass shell; the runtime-wire non-SSOT cleanups (NUT/PTP/clevis-consolidation/orphaned-generators).
+*Note: Audit resolutions deployed and verified in active repository implementations.*

@@ -55,8 +55,7 @@ class TestPromptCache(unittest.TestCase):
 
     def test_lru_memory_eviction(self):
         """Test LRU eviction reclaims memory when max_cache_mb is reached."""
-        small_cache = RadixPromptCacheManager(max_cache_mb=1.0, dry_run=True)  # 1MB = ~1048576 bytes
-        # Insert 20 prefixes of 64KB each (total 1.28MB > 1MB)
+        small_cache = RadixPromptCacheManager(max_cache_mb=1.0, dry_run=True)
         for i in range(20):
             prefix = [i + 1] + list(range(100, 130))
             small_cache.insert_prefix(prefix, kv_state_bytes=65536)

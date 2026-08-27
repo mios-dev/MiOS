@@ -78,7 +78,8 @@ class MiOSAsyncHTTPTransport:
 
 def main():
     parser = argparse.ArgumentParser(description="MiOS Async HTTPX Transport Pool")
-    parser.add_argument("--url", default="http://127.0.0.1:8640/v1/health", help="Target URL or UDS URI")
+    default_url = os.environ.get("MIOS_AI_ENDPOINT", "http://127.0.0.1/v1/health")
+    parser.add_argument("--url", default=default_url, help="Target URL or UDS URI")
     parser.add_argument("--mock", action="store_true", help="Simulate async request")
     args = parser.parse_args()
 

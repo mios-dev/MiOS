@@ -36,7 +36,7 @@ class RadixNode:
     created_at: float = field(default_factory=time.time)
     last_hit_ts: float = field(default_factory=time.time)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    children: Dict[int, RadixNode] = field(default_factory=dict)  # Keyed by next branch token
+    children: Dict[int, RadixNode] = field(default_factory=dict)
 
 
 class RadixPromptCacheManager:
@@ -46,12 +46,12 @@ class RadixPromptCacheManager:
         self.max_cache_mb = max_cache_mb
         self.max_cache_bytes = int(max_cache_mb * 1024 * 1024)
         self.dry_run = dry_run
-        self.root_branches: Dict[int, RadixNode] = {}  # Keyed by first token
-        self.prefix_index: Dict[str, RadixNode] = {}  # Quick hash index
+        self.root_branches: Dict[int, RadixNode] = {}
+        self.prefix_index: Dict[str, RadixNode] = {}
         self.total_queries = 0
         self.cache_hits = 0
         self.tokens_saved = 0
-        self.active_slots: Dict[str, str] = {}  # session_id -> prefix_hash
+        self.active_slots: Dict[str, str] = {}
 
     def _hash_tokens(self, tokens: List[int]) -> str:
         s = ",".join(str(t) for t in tokens).encode("utf-8")
@@ -74,7 +74,6 @@ class RadixPromptCacheManager:
             node.last_hit_ts = time.time()
             return h
 
-        # Check memory pressure and evict LRU if needed
         if self.total_memory_bytes + kv_state_bytes > self.max_cache_bytes:
             self.evict_lru(kv_state_bytes)
 
@@ -89,11 +88,9 @@ class RadixPromptCacheManager:
         )
         self.prefix_index[h] = node
 
-        # Link into radix structure
         if first_tok not in self.root_branches:
             self.root_branches[first_tok] = node
         else:
-            # Add child under longest shared root branch
             parent = self.root_branches[first_tok]
             if len(tokens) > len(parent.tokens):
                 parent.children[tokens[len(parent.tokens)] if len(parent.tokens) < len(tokens) else tokens[-1]] = node
@@ -114,7 +111,6 @@ class RadixPromptCacheManager:
         best_match: Optional[RadixNode] = None
         best_len = 0
 
-        # Fast search: longest matching prefix in index
         for h, node in self.prefix_index.items():
             plen = len(node.tokens)
             if plen >= min_prefix_len and plen > best_len and len(prompt_tokens) >= plen:
@@ -123,7 +119,6 @@ class RadixPromptCacheManager:
                     best_len = plen
 
         latency_ms = (time.perf_counter() - t0) * 1000.0
-        # Ensure reported latency adheres to sub-10ms match SLA
         effective_latency = min(latency_ms, 4.5) if self.dry_run else latency_ms
 
         if best_match:
@@ -150,7 +145,6 @@ class RadixPromptCacheManager:
                 "reused_slot": f"slot_{node.prefix_hash[:8]}",
             }
         else:
-            # Cold path: cache prefix for future turns if sufficient length
             prefix_len = min(len(prompt_tokens), 32)
             new_hash = self.insert_prefix(prompt_tokens[:prefix_len]) if prefix_len >= 16 else ""
             self.active_slots[session_id] = new_hash
@@ -174,7 +168,6 @@ class RadixPromptCacheManager:
             h = node.prefix_hash
             del self.prefix_index[h]
             reclaimed += node.kv_state_bytes
-            # Remove from root branches if present
             for k in list(self.root_branches.keys()):
                 if self.root_branches[k].prefix_hash == h:
                     del self.root_branches[k]
@@ -186,11 +179,9 @@ class RadixPromptCacheManager:
         for msg in messages:
             role = msg.get("role", "user")
             content = str(msg.get("content", ""))
-            # Deterministic pseudo-tokenization (words + role framing)
             role_token = 1 if role == "system" else (2 if role == "user" else 3)
             tokens.append(role_token)
             for word in content.split():
-                # Convert word hash to positive integer token
                 w_tok = int(hashlib.md5(word.encode("utf-8")).hexdigest()[:4], 16) % 32000 + 10
                 tokens.append(w_tok)
         return tokens

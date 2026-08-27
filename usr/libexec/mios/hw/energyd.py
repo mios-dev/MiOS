@@ -78,7 +78,6 @@ class EnergyCapManager:
             return max(0.0, float(cpu_w)), max(0.0, float(gpu_w))
 
         cpu_w = 120.0
-        # Check Intel/AMD RAPL sysfs
         rapl_path = "/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj"
         if os.path.exists(rapl_path):
             try:
@@ -87,7 +86,6 @@ class EnergyCapManager:
                 time.sleep(0.05)
                 with open(rapl_path, "r", encoding="utf-8") as f:
                     e2 = int(f.read().strip())
-                # Microjoules / 50ms = Watts
                 diff = e2 - e1
                 if diff > 0:
                     cpu_w = diff / 50000.0
@@ -95,7 +93,6 @@ class EnergyCapManager:
                 logger.debug(f"RAPL read error: {ex}")
 
         gpu_w = 250.0
-        # Check nvidia-smi power
         try:
             res = subprocess.run(
                 ["nvidia-smi", "--query-gpu=power.draw", "--format=csv,noheader,nounits"],
@@ -175,9 +172,7 @@ class EnergyCapManager:
         # Check 1: Chassis Power Cap
         if total_w > self.chassis_cap_watts:
             excess_w = total_w - self.chassis_cap_watts
-            # Calculate target reduced GPU power limit
             target_gpu_limit = max(self.min_gpu_power_limit, self.current_gpu_limit - excess_w)
-            # Throttle background cgroup CPU quota proportionally
             cgroup_quota = max(25.0, 100.0 - (excess_w / max(1.0, self.chassis_cap_watts) * 150.0))
             is_throttled = True
             reasons.append("power_cap_exceeded")

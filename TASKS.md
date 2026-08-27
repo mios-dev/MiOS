@@ -554,16 +554,16 @@
 | T-640 | P2 | done | Storage/EvacTest | Automated S.M.A.R.T. predictive failure simulation and proactive data evacuation test suite |
 | T-641 | P1 | done | Kernel/CrashTriage | Headless kernel crash dump triage engine (drgn / crash) and symbol resolver |
 | T-642 | P2 | done | Kernel/TriageTest | Automated kernel vmcore analysis and PostgreSQL bug ticket creation test suite |
-| T-643 | P1 | open | Security/USBGuard | Declarative USBGuard policy generator and desktop authorization notifier in automation |
-| T-644 | P2 | open | Security/BadUSBTest | Automated BadUSB keystroke injection block and USB authorization test suite in virtual USB sandbox |
-| T-645 | P1 | open | App/StateSnapshot | Per-app Flatpak state subvolume snapshotter and rollback manager in mios-app-snapshot |
-| T-646 | P2 | open | App/RollbackTest | Automated Flatpak application state corruption and instant rollback test suite |
-| T-647 | P1 | open | Build/LiveISO | Hybrid live ISO and iPXE netboot artifact synthesis pipeline using BIB |
-| T-648 | P2 | open | Build/NetbootTest | Automated headless QEMU iPXE netboot and live ISO installation test suite |
-| T-649 | P1 | open | AI/TensorKernels | GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher |
-| T-650 | P2 | open | AI/KernelTest | Automated GPU Tensor Core throughput and GEMM dispatch latency benchmark suite |
-| T-651 | P1 | open | AI/ReactiveLoop | Asyncio/epoll reactive event loop and PostgreSQL LISTEN/NOTIFY dispatcher in agent-pipe |
-| T-652 | P2 | open | AI/ReactiveTest | Automated reactive agent wakeup latency (<5ms) and zero idle CPU benchmark suite |
+| T-643 | P1 | done | Security/USBGuard | Declarative USBGuard policy generator and desktop authorization notifier in automation |
+| T-644 | P2 | done | Security/BadUSBTest | Automated BadUSB keystroke injection block and USB authorization test suite in virtual USB sandbox |
+| T-645 | P1 | done | App/StateSnapshot | Per-app Flatpak state subvolume snapshotter and rollback manager in mios-app-snapshot |
+| T-646 | P2 | done | App/RollbackTest | Automated Flatpak application state corruption and instant rollback test suite |
+| T-647 | P1 | done | Build/LiveISO | Hybrid live ISO and iPXE netboot artifact synthesis pipeline using BIB |
+| T-648 | P2 | done | Build/NetbootTest | Automated headless QEMU iPXE netboot and live ISO installation test suite |
+| T-649 | P1 | done | AI/TensorKernels | GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher |
+| T-650 | P2 | done | AI/KernelTest | Automated GPU Tensor Core throughput and GEMM dispatch latency benchmark suite |
+| T-651 | P1 | done | AI/ReactiveLoop | Asyncio/epoll reactive event loop and PostgreSQL LISTEN/NOTIFY dispatcher in agent-pipe |
+| T-652 | P2 | done | AI/ReactiveTest | Automated reactive agent wakeup latency (<5ms) and zero idle CPU benchmark suite |
 | T-653 | P1 | open | AI/CouncilSwarm | Multi-agent 3-peer council swarm and weighted Byzantine consensus engine in agent-pipe |
 | T-654 | P2 | open | AI/CouncilTest | Automated multi-agent council voting, hallucination rejection, and shadow sandbox test suite |
 | T-655 | P1 | open | AI/SpeculativeDecode | Dynamic speculative decoding draft pairing and adaptive draft-length manager in llama-swap |
@@ -7163,7 +7163,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** USBGuard blocks rogue USB devices and grants access upon operator authorization.
 **Why:** Declarative USB authorization neutralizes BadUSB hardware attacks and rogue peripheral tampering.
 **Dep:** AGY-2240
-**Status:** open | **Domain:** Security/USBGuard | **Who:** agent
+**Status:** done | **Domain:** Security/USBGuard | **Who:** agent
 **Converted:** AGY-2241 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-644 -- Automated BadUSB keystroke injection block and USB authorization test suite in virtual USB sandbox (WS-SEC | P2 | S)
@@ -7173,7 +7173,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates that unauthorized USB devices cannot communicate with the kernel.
 **Why:** Continuous testing ensures kernel USB subsystem updates maintain peripheral authorization security.
 **Dep:** AGY-2241
-**Status:** open | **Domain:** Security/BadUSBTest | **Who:** agent
+**Status:** done | **Domain:** Security/BadUSBTest | **Who:** agent
 **Converted:** AGY-2242 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-645 -- Per-app Flatpak state subvolume snapshotter and rollback manager in mios-app-snapshot (WS-APP | P1 | M)
@@ -7183,7 +7183,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Application snapshotter captures per-app state deltas and executes instant rollbacks.
 **Why:** Per-app state rollbacks allow instant recovery from corrupted browser profiles or IDE plugins with zero blast radius.
 **Dep:** AGY-2242
-**Status:** open | **Domain:** App/StateSnapshot | **Who:** agent
+**Status:** done | **Domain:** App/StateSnapshot | **Who:** agent
 **Converted:** AGY-2243 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-646 -- Automated Flatpak application state corruption and instant rollback test suite (WS-APP | P2 | S)
@@ -7193,7 +7193,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates per-app state snapshots, corruption isolation, and instant rollback integrity.
 **Why:** Continuous testing ensures filesystem snapshot mechanics preserve reliable per-application rollback capabilities.
 **Dep:** AGY-2243
-**Status:** open | **Domain:** App/RollbackTest | **Who:** agent
+**Status:** done | **Domain:** App/RollbackTest | **Who:** agent
 **Converted:** AGY-2244 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-647 -- Hybrid live ISO and iPXE netboot artifact synthesis pipeline using BIB (WS-BOOT | P1 | M)
@@ -7203,7 +7203,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** BIB pipeline exports bootable hybrid ISOs and iPXE netboot bundles automatically.
 **Why:** Automated recovery media synthesis guarantees rapid disaster recovery and zero-touch bare-metal cluster expansion.
 **Dep:** AGY-2244
-**Status:** open | **Domain:** Build/LiveISO | **Who:** agent
+**Status:** done | **Domain:** Build/LiveISO | **Who:** agent
 **Converted:** AGY-2245 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-648 -- Automated headless QEMU iPXE netboot and live ISO installation test suite (WS-BOOT | P2 | S)
@@ -7213,7 +7213,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates unattended iPXE netboot and disk deployment in virtualized microVMs.
 **Why:** Continuous testing ensures that OS image upgrades never produce unbootable ISO or network rescue media.
 **Dep:** AGY-2245
-**Status:** open | **Domain:** Build/NetbootTest | **Who:** agent
+**Status:** done | **Domain:** Build/NetbootTest | **Who:** agent
 **Converted:** AGY-2246 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-649 -- GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher (WS-AI | P1 | M)
@@ -7223,7 +7223,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Kernel dispatcher detects GPU architecture and loads optimal Tensor Core GEMM kernels dynamically.
 **Why:** Architecture-specific Tensor Core kernels maximize token generation throughput and minimize inference energy consumption.
 **Dep:** AGY-2246
-**Status:** open | **Domain:** AI/TensorKernels | **Who:** agent
+**Status:** done | **Domain:** AI/TensorKernels | **Who:** agent
 **Converted:** AGY-2247 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-650 -- Automated GPU Tensor Core throughput and GEMM dispatch latency benchmark suite (WS-AI | P2 | S)
@@ -7233,7 +7233,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates Tensor Core FLOPS utilization and low kernel launch latency.
 **Why:** Continuous testing ensures inference kernel upgrades do not introduce performance regressions.
 **Dep:** AGY-2247
-**Status:** open | **Domain:** AI/KernelTest | **Who:** agent
+**Status:** done | **Domain:** AI/KernelTest | **Who:** agent
 **Converted:** AGY-2248 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-667 -- Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies (WS-BOOT | P1 | M)
@@ -7263,7 +7263,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Reactive loop wakes subagents in <5ms on database and filesystem events with zero idle CPU overhead.
 **Why:** Reactive event loops enable hundreds of concurrent agents to sleep efficiently without draining battery or CPU.
 **Dep:** AGY-2248
-**Status:** open | **Domain:** AI/ReactiveLoop | **Who:** agent
+**Status:** done | **Domain:** AI/ReactiveLoop | **Who:** agent
 **Converted:** AGY-2249 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-652 -- Automated reactive agent wakeup latency (<5ms) and zero idle CPU benchmark suite (WS-ORCH | P2 | S)
@@ -7273,7 +7273,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates sub-50ms reactive wakeups and zero-polling CPU efficiency.
 **Why:** Continuous testing ensures event dispatcher optimizations maintain low latency and high concurrency.
 **Dep:** AGY-2249
-**Status:** open | **Domain:** AI/ReactiveTest | **Who:** agent
+**Status:** done | **Domain:** AI/ReactiveTest | **Who:** agent
 **Converted:** AGY-2250 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-653 -- Multi-agent 3-peer council swarm and weighted Byzantine consensus engine in agent-pipe (WS-ORCH | P1 | M)

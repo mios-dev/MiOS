@@ -5,9 +5,6 @@
 
 from __future__ import annotations
 
-import sys
-import os
-
 from disk_health import (
     DEFAULT_WEAR_PERCENT_THRESHOLD,
     DEFAULT_SPARE_PERCENT_THRESHOLD,

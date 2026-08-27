@@ -52,13 +52,10 @@ class KernelCrashTriageEngine:
     def demangle_symbol(self, sym: str) -> str:
         """Demangles Rust and C symbol names into human-readable representations."""
         clean = sym.strip()
-        # Rust v0 mangling: _RNv...
         if clean.startswith("_RNv"):
-            # Simple heuristic demangler for Rust symbol segments
             parts = [p for p in re.split(r"[0-9]+", clean[4:]) if p]
             if parts:
                 return "::".join(parts)
-        # C++ / Rust legacy: _ZN...
         if clean.startswith("_ZN"):
             parts = [p for p in re.split(r"[0-9]+", clean[3:]) if p and p != "E"]
             if parts:
@@ -110,7 +107,6 @@ class KernelCrashTriageEngine:
             elif line_s.startswith("CR2:"):
                 registers["CR2"] = line_s.split("CR2:")[1].strip()
             elif "?" in line_s or "+0x" in line_s:
-                # Frame line
                 frame = line_s.replace("?", "").strip()
                 if frame:
                     callstack.append(self.demangle_symbol(frame))

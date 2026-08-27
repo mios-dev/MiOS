@@ -32,17 +32,14 @@ class TestPagedAttention(unittest.TestCase):
         self.assertTrue(ok1)
         parent_pids = list(self.mgr.sessions["sess_parent"].logical_to_physical)
 
-        # Branch child session
         ok_b = self.mgr.branch_session("sess_parent", "sess_child")
         self.assertTrue(ok_b)
         child_pids = self.mgr.sessions["sess_child"].logical_to_physical
         self.assertEqual(parent_pids, child_pids)
 
-        # Check ref count is 2 on shared blocks
         for pid in parent_pids:
             self.assertEqual(self.mgr.physical_blocks[pid].ref_count, 2)
 
-        # Append to child - should trigger CoW split on the last block
         ok_cow = self.mgr.append_tokens_cow("sess_child", 10)
         self.assertTrue(ok_cow)
         new_child_pids = self.mgr.sessions["sess_child"].logical_to_physical
@@ -52,7 +49,7 @@ class TestPagedAttention(unittest.TestCase):
     def test_100_session_concurrency_and_low_fragmentation(self):
         """Test 100 concurrent dynamic sessions maintain <4% average waste."""
         for i in range(100):
-            tokens = 32 * (i % 5 + 1)  # Exact block multiples
+            tokens = 32 * (i % 5 + 1)
             ok = self.mgr.allocate_tokens(f"sess_{i}", tokens)
             self.assertTrue(ok)
 
@@ -62,11 +59,9 @@ class TestPagedAttention(unittest.TestCase):
     def test_lru_page_eviction_under_vram_pressure(self):
         """Test that reaching capacity triggers LRU eviction of old sessions."""
         small_mgr = PagedAttentionBlockManager(total_blocks=5, block_size=16, dry_run=True)
-        # Allocate 5 blocks for sess_old
         small_mgr.allocate_tokens("sess_old", 80)
         self.assertEqual(small_mgr.free_blocks_count, 0)
 
-        # Now allocate for sess_new - should evict sess_old
         ok = small_mgr.allocate_tokens("sess_new", 32)
         self.assertTrue(ok)
         self.assertIn("sess_new", small_mgr.sessions)
@@ -79,12 +74,10 @@ class TestPagedAttention(unittest.TestCase):
         self.mgr.allocate_tokens("s2", 32)
         self.mgr.allocate_tokens("s3", 32)
 
-        # Free middle session to create hole
         self.mgr.free_session("s2")
         moved = self.mgr.defragment_memory()
         self.assertGreaterEqual(moved, 0)
 
-        # Check stats
         stats = self.mgr.get_stats()
         self.assertEqual(stats["active_sessions"], 2)
 

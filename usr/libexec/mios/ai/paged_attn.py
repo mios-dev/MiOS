@@ -83,7 +83,6 @@ class PagedAttentionBlockManager:
         while current_blocks < needed_blocks:
             free_block = self._get_free_block()
             if not free_block and allow_eviction:
-                # Attempt LRU eviction on inactive sessions
                 self.evict_lru_under_pressure(1)
                 free_block = self._get_free_block()
 
@@ -115,7 +114,6 @@ class PagedAttentionBlockManager:
             last_accessed=time.time(),
         )
 
-        # Increment reference count on all shared physical blocks
         for p_id in child.logical_to_physical:
             block = self.physical_blocks[p_id]
             block.ref_count += 1
@@ -133,7 +131,6 @@ class PagedAttentionBlockManager:
         session.last_accessed = time.time()
         token_count = new_tokens if isinstance(new_tokens, int) else len(new_tokens)
 
-        # If the last physical block is shared (ref_count > 1), split it via CoW
         if session.logical_to_physical:
             last_pid = session.logical_to_physical[-1]
             last_block = self.physical_blocks[last_pid]
@@ -144,7 +141,6 @@ class PagedAttentionBlockManager:
                     free_block = self._get_free_block()
                     if not free_block:
                         return False
-                # CoW clone
                 free_block.is_free = False
                 free_block.ref_count = 1
                 free_block.last_accessed = time.time()
@@ -154,7 +150,6 @@ class PagedAttentionBlockManager:
                 session.logical_to_physical[-1] = free_block.block_id
                 self.cow_splits += 1
 
-        # Now allocate any additional capacity required
         needed_blocks = (session.token_count + token_count + self.block_size - 1) // self.block_size
         current_blocks = len(session.logical_to_physical)
 
@@ -187,7 +182,6 @@ class PagedAttentionBlockManager:
 
     def evict_lru_under_pressure(self, needed_blocks: int) -> int:
         """Evicts least-recently-accessed sessions to free physical blocks."""
-        # Prefer inactive sessions first, then oldest active sessions
         candidates = sorted(self.sessions.values(), key=lambda s: (s.is_active, s.last_accessed))
         for session in candidates:
             if self.free_blocks_count >= needed_blocks:
@@ -207,13 +201,11 @@ class PagedAttentionBlockManager:
                 target_id = i
                 old_id = block.block_id
 
-                # Update all sessions referencing old_id
                 for session in self.sessions.values():
                     for idx, p_id in enumerate(session.logical_to_physical):
                         if p_id == old_id:
                             session.logical_to_physical[idx] = target_id
 
-                # Swap block states
                 target_block = self.physical_blocks[target_id]
                 target_block.is_free = False
                 target_block.ref_count = block.ref_count
