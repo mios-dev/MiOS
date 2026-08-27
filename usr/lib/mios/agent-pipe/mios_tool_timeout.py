@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, Callable, Coroutine, Dict, Tuple
+from typing import Any, Callable, Coroutine, Dict, Optional, Tuple
 
 
 class ToolWatchdog:

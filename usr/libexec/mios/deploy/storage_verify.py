@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import json
 import os
+import secrets
 import shutil
 import struct
 import subprocess

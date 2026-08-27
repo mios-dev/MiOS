@@ -7,7 +7,7 @@ Tracks structured objections and guarantees all high-severity tensions are resol
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class TensionLedger:

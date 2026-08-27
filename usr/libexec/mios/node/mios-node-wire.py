@@ -21,9 +21,9 @@ import sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 
-from wire import *
-from wire import __doc__
+import wire
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(wire.main())
+
 
