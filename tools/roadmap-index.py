@@ -264,40 +264,56 @@ def main(argv):
         tracked = [f for f in out if f.strip()]
         file_count = len(tracked)
 
-        # Census the size from the INDEX blobs, not the checkout. On-disk bytes
-        # are not a function of the commit: .gitattributes checks *.ps1 out as
-        # CRLF on every platform, so the working tree runs ~24 KiB heavier than
-        # the blobs -- and with the total sitting 12 KiB past the 201.5 MiB
-        # rounding boundary, the committed value and the CI-rendered value
-        # landed on opposite sides. Blob sizes are identical in every clean
-        # checkout of the same commit, so the gate can converge.
-        total_bytes = 0
+        # Census size AND line counts from the INDEX blobs, never the checkout.
+        # On-disk bytes are not a function of the commit: .gitattributes checks
+        # *.ps1 out as CRLF on every platform, so the tree runs ~24 KiB heavier
+        # than the blobs, and the total sits ~13 KiB from the 201.5 MiB rounding
+        # boundary -- committed and CI-rendered values landed on opposite sides.
+        # Reading the checkout also counts a co-worker's UNCOMMITTED edits into
+        # a committed table. Blobs are identical in every clean checkout of the
+        # same commit, so the gate converges.
         ls_s = subprocess.run(["git", "-C", root, "ls-files", "-s", "-z"],
                               capture_output=True, text=True, check=False).stdout
-        oids = [ent.split()[1] for ent in ls_s.split("\0") if ent.strip()]
-        if oids:
+        oid_of = {}
+        for ent in ls_s.split("\0"):
+            if not ent.strip():
+                continue
+            meta, _, path = ent.partition("\t")
+            parts = meta.split()
+            if len(parts) >= 2 and path:
+                oid_of[path] = parts[1]
+
+        total_bytes = 0
+        if oid_of:
             sizes = subprocess.run(
                 ["git", "-C", root, "cat-file", "--batch-check=%(objectsize)"],
-                input="\n".join(oids), capture_output=True, text=True, check=False,
+                input="\n".join(oid_of.values()), capture_output=True, text=True, check=False,
             ).stdout.splitlines()
             total_bytes = sum(int(s) for s in sizes if s.strip().isdigit())
 
         sh_l = py_l = ps_l = rs_l = 0
-        for f in tracked:
-            p = os.path.join(root, f)
-            if not os.path.isfile(p):
-                continue
-            ext = os.path.splitext(f)[1].lower()
-            if ext in ('.sh', '.py', '.ps1', '.rs'):
-                try:
-                    with open(p, 'r', encoding='utf-8', errors='replace') as fh:
-                        lc = sum(1 for _ in fh)
-                        if ext == '.sh': sh_l += lc
-                        elif ext == '.py': py_l += lc
-                        elif ext == '.ps1': ps_l += lc
-                        elif ext == '.rs': rs_l += lc
-                except OSError:
-                    pass
+        counted = {'.sh': 0, '.py': 0, '.ps1': 0, '.rs': 0}
+        code = [(os.path.splitext(f)[1].lower(), oid_of[f]) for f in tracked
+                if os.path.splitext(f)[1].lower() in counted and f in oid_of]
+        if code:
+            blob = subprocess.run(
+                ["git", "-C", root, "cat-file", "--batch"],
+                input="\n".join(o for _, o in code).encode(),
+                capture_output=True, check=False,
+            ).stdout
+            pos = 0
+            for ext, _oid in code:
+                nl = blob.find(b"\n", pos)
+                if nl == -1:
+                    break
+                header = blob[pos:nl].split()
+                if len(header) < 3 or not header[2].isdigit():
+                    break
+                size = int(header[2])
+                body = blob[nl + 1:nl + 1 + size]
+                counted[ext] += body.count(b"\n") + (1 if body and not body.endswith(b"\n") else 0)
+                pos = nl + 1 + size + 1
+        sh_l, py_l, ps_l, rs_l = counted['.sh'], counted['.py'], counted['.ps1'], counted['.rs']
 
         size_mb = int(round(total_bytes / (1024 * 1024)))
         sh_k = round(sh_l / 1000)
