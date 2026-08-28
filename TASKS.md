@@ -973,10 +973,14 @@
 | T-985 | P1 | planned | Topology/Radio | MINI-05a -- Every Blade is an AP in one mesh Wi-Fi, and no hosted image ever is |
 | T-986 | P1 | planned | Topology/Mesh | MINI-05b -- The HCI mesh VPN: every Blade a member, no guest a peer |
 | T-987 | P1 | planned | Topology/Router | MINI-05c -- Router core: one Blade holds the uplink, all Blades serve |
-| T-988 | P1 | planned | Topology/Hypervisor | MINI-05d -- The hypervisor plane IS the Blade: declare the boundary and the three role shapes |
+| T-988 | P1 | planned | Topology/Hypervisor | MINI-05d -- The hypervisor plane IS the Blade: declare the boundary and the FOUR role shapes |
 | T-989 | P1 | planned | Topology/Storage | MINI-05e -- Ceph beyond one MON: an odd monitor count, and an OSD that actually exists |
 | T-990 | P0 | planned | Topology/Orchestration | MINI-05f -- k3s server/agent election: one cluster, not N control planes sharing a token |
 | T-991 | P0 | planned | Topology/HA | MINI-05g -- Pacemaker quorum and fencing: unfenced is a one-node-only privilege |
+| T-992 | P2 | planned | Edge/Android | NODEDROID-07 -- Wireless join over the Blade mesh AP; the cable becomes the enrolment channel |
+| T-993 | P1 | planned | Edge/Android | NODEDROID-08 -- Survive Android process lifecycle (phantom process killer) or admit the node is unreliable |
+| T-994 | P2 | planned | Edge/AI-lanes | NODEDROID-09 -- On-device inference that does not mortgage Law 5 (NNAPI is deprecated; AICore is vendor-coupled) |
+| T-995 | P1 | planned | Edge/Security | NODEDROID-10 -- A device identity the handshake actually implements |
 
 ---
 
@@ -10650,17 +10654,28 @@ nftables `inet` with a flowtable for offload, and no firewalld anywhere. The rul
 **Dep:** T-333, T-985, T-988
 **Status:** planned | **Domain:** Topology/Router | **Who:** architect
 
-## T-988 -- MINI-05d: the hypervisor plane IS the Blade  (WS-MINI | P1 | M)
-**Goal:** E-07 State the split-plane boundary once, in the SSOT, so the other six lanes stop having to restate it.
+## T-988 -- MINI-05d: the hypervisor plane IS the Blade, and quorum is not Blade-bound  (WS-MINI | P1 | M)
+**Goal:** E-07 State the split-plane boundary and the role shapes once, in the SSOT, so the other six lanes stop having to restate them.
 **What+How:** `[metal].enabled = false` and `[metal.gpu]` declares VFIO assignments and arbitration.
 
 **Target shape at 2-6 nodes: per-Blade, and the boundary is the point.** The Blade is bare metal: it binds its own dGPUs to `vfio-pci`, owns the NICs, radios, TPM and boot, and hosts the MiOS OCI image as a guest obfuscated from all of it. There is no cross-Blade GPU arbitration to design, because a GPU cannot be shared across a machine boundary and cannot be fractioned without vendor drivers -- whole-GPU-to-one-guest is the only shape available.
 
-This lane is a task not because the shape is wrong but because the *boundary is nowhere declared*. Every other lane needs it: T-985 and T-987 need "hardware-facing roles live on the Blade, never on the hosted image"; T-989 needs "the OSD's disk is presented by the Blade"; T-991 needs "a fence agent acts through the Blade". Today each would re-argue it, and one of them would get it wrong.
+This lane is a task because the *boundary is nowhere declared*, and every other lane needs it. The SSOT must express **four role shapes**, and currently expresses none:
 
-The SSOT therefore needs to express three role shapes, not one: **universal-per-Blade** (radio, mesh membership), **singleton-across-Blades** (WAN gateway, mesh coordinator), and **guest-plane** (k3s, Pacemaker). The open question alongside it is `[metal.gpu]`'s arbitration keys -- they either govern a real binder or they are decorative, and T-333's central finding was that the tree is full of the second kind.
-**Where:** `usr/share/mios/mios.toml` (`[metal]`, `[metal.gpu]`, `[blade.archetypes]`), `usr/libexec/mios/virt/`
-**Done When:** the Blade-vs-hosted-image boundary and the three role shapes are declared in SSOT and enforced by one gate the other lanes consume; `[metal].enabled` can be set on one Blade without implying anything about peers; and every key in `[metal.gpu]` either drives a real binder or is removed with the removal recorded.
+| Shape | Members | Examples |
+|---|---|---|
+| **universal-per-Blade** | every Blade | radio (T-985), mesh membership (T-986) |
+| **singleton-across-Blades** | exactly one Blade | WAN gateway (T-987), mesh coordinator |
+| **Blade-or-Edge-only** | Blades and Edge nodes, never a plain hosted Node | **CORE services**: storage, personal files, settings and configuration |
+| **any-node** | any hosted MiOS guest | general services, and **spawned quorum members** |
+
+The fourth and third shapes are the operator's placement rule and they are not the same axis as the first two. Hardware-facing roles are Blade-only because a guest has no NIC. **CORE/stateful services are Blade-or-Edge-only** because they own the data that must outlive any one guest -- a hosted Node may run a service, but it may not be where the storage, the personal files or the configuration live.
+
+**And quorum membership is `any-node`.** A cluster vote does not need hardware, so a Blade can **spawn a hosted MiOS container image as an additional voting member** to complete an odd quorum until a real Blade joins the mesh. That is what makes a 2-Blade fleet a supported HA shape rather than a degenerate one, and it is why T-989/T-990/T-991 need no qdevice, no qnetd and no external arbiter -- the arbiter is the OS itself, which the fleet already knows how to run.
+
+The open question alongside all this is `[metal.gpu]`'s arbitration keys: they either govern a real binder or they are decorative, and T-333's central finding was that the tree is full of the second kind.
+**Where:** `usr/share/mios/mios.toml` (`[metal]`, `[metal.gpu]`, `[blade.archetypes]`, `[blades]`), `usr/libexec/mios/virt/`
+**Done When:** the Blade-vs-Edge-vs-Node boundary and all four role shapes are declared in SSOT and enforced by one gate the other lanes consume; a gate fails when a CORE service is placed on a plain hosted Node; `[metal].enabled` can be set on one Blade without implying anything about peers; and every key in `[metal.gpu]` either drives a real binder or is removed with the removal recorded.
 **Why:** A decorative arbitration key is worse than none: it reads as a solved problem. An undeclared plane boundary is worse still -- every lane re-derives it and one of them will get it wrong.
 **Dep:** T-333
 **Status:** planned | **Domain:** Topology/Hypervisor | **Who:** architect
@@ -10669,13 +10684,15 @@ The SSOT therefore needs to express three role shapes, not one: **universal-per-
 **Goal:** E-07 The only distributed stack in the tree is real code that has never stored a byte.
 **What+How:** Ceph is genuinely implemented -- bootstrap unit, `ceph-bootstrap.sh`, a MON-only Quadlet, a 252-line CephFS provisioner, a config renderer. It is also single-node, MON-only and opt-in: the bootstrap unit is never enabled, it refuses to run under virtualisation, and **`ceph-bootstrap.sh` never touches a block device, so no OSD is ever created.** Nothing in the tree adds a second MON or joins a peer.
 
-**Target shape at 2-6 nodes: ODD monitor count -- 1 standalone, 3 at three or more.** The case that must be stated plainly is **two**: two MONs have a *worse* failure profile than one, because quorum is 2 and either loss is fatal. At `max_nodes = 2` Ceph therefore stays standalone or disabled -- there is no two-node HA Ceph, and pretending otherwise is the trap. At 3-6: three MONs, `size = 3`, `min_size = 2`, surviving one loss. This is the storage half of the HCI cluster, so it rides the mesh VPN (T-986) that every Blade belongs to.
+**Target shape at 2-6 nodes: an ODD monitor count, always -- reached by spawning a member when the Blade count is even.** Two MONs are never run: their quorum is 2, so either loss is fatal, which is strictly worse than one. Under T-988 that is not a reason to disable Ceph at two Blades -- it is a reason to make the third MON a **spawned hosted MiOS guest**, because a monitor is a vote and a vote is `any-node`. So: 1 Blade standalone, 2 Blades + 1 spawned = 3, 3 Blades = 3, and the spawned member retires when a third Blade joins the mesh. `size = 3` / `min_size = 2` from three MONs up, surviving one loss.
 
-Two constraints follow from the split plane (T-988). The OSD's block device is **presented by the Blade**, because the hosted image is obfuscated from physical hardware -- so "create an OSD" means "consume the device the Blade passed through", not "enumerate disks". And the bootstrap unit's `ConditionVirtualization=no` is precisely wrong under this architecture: the MiOS image is *always* virtualised on a Blade, so that condition guarantees Ceph never bootstraps on the one topology it is meant for.
+**The placement of a spawned member is the real decision, and it must not be silently asymmetric.** A filler spawned *on* one of the two Blades means losing that Blade costs two votes at once: the fleet survives losing the other Blade and does not survive losing its host. That is still better than two MONs, but it is not symmetric HA, and a design that does not say so will be read as if it were. Either place the filler on an Edge node (genuine third-site separation, per the Blade-or-Edge rule) or state the asymmetry and which Blade is the weaker one.
+
+Two further constraints follow from the split plane. The OSD's block device is **presented by the Blade**, because the hosted image is obfuscated from physical hardware -- so "create an OSD" means "consume the device the Blade passed through", not "enumerate disks". And storage is a **CORE service**, so OSDs live only on Blades and Edge nodes; a spawned quorum member is a MON, never an OSD. The bootstrap unit's `ConditionVirtualization=no` is precisely wrong under this architecture: the MiOS image is *always* virtualised on a Blade, so that condition guarantees Ceph never bootstraps on the one topology it is meant for.
 
 `check_cephfs_ssot` already refuses a loopback monitor address once `enable = true`, so the gate is ahead of the implementation -- the gap is the OSD and the monitor count, not the checking.
-**Where:** `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/containers/systemd/` (MON Quadlet), `usr/share/mios/mios.toml` (`[storage.ceph]`), `tools/` (cephfs SSOT gate)
-**Done When:** `ceph-bootstrap.sh` creates at least one OSD on the block device its Blade presents, the `ConditionVirtualization=no` contradiction is resolved, the MON count derives from the declared node count and is always odd, and a gate fails when `max_nodes == 2` while Ceph is enabled.
+**Where:** `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/containers/systemd/` (MON Quadlet), `usr/share/mios/mios.toml` (`[storage.ceph]`, `[blades]`), `tools/` (cephfs SSOT gate)
+**Done When:** `ceph-bootstrap.sh` creates at least one OSD on the block device its Blade presents; the `ConditionVirtualization=no` contradiction is resolved; the MON count is always odd, reached by spawning when the Blade count is even, and the spawned member retires when a Blade joins; a gate fails when an OSD is placed on a plain hosted Node; and the filler's placement is explicit rather than assumed symmetric.
 **Why:** A storage stack that never creates an OSD is a scaffold the roadmap has been counting as a capability -- and one gated off on exactly the topology it targets.
 **Dep:** T-333, T-986, T-988
 **Status:** planned | **Domain:** Topology/Storage | **Who:** architect
@@ -10684,32 +10701,90 @@ Two constraints follow from the split plane (T-988). The OSD's block device is *
 **Goal:** E-07 Three default Minis must form one cluster, and today they form three.
 **What+How:** `mios-k3s.container` runs `Exec=k3s server --disable=traefik ...` with **no `K3S_URL`**, and `[blade.archetypes]` grants what `mios-k3s` requires to four archetypes (`hybrid`, `controller`, `k3s-master`, `ha-node`). Three default `hybrid` Minis are therefore three independent control planes sharing one token -- not a cluster. This is one of the two hazards `[blades.hazards].accepted` carries deliberately (T-334).
 
-**Target shape at 2-6 nodes.** Exactly one node runs `--cluster-init`; every other node joins with `K3S_URL` plus the token. Embedded etcd holds quorum at `(n/2)+1` and therefore requires an **odd** server count, which forces the split by fleet size:
-* **2 nodes:** one server + one agent. Two etcd members cannot hold quorum, so a second server is strictly worse than an agent.
-* **3-6 nodes:** three servers (odd, survives one loss) and the remainder agents.
+**Target shape at 2-6 nodes.** Exactly one node runs `--cluster-init`; every other node joins with `K3S_URL` plus the token. Embedded etcd holds quorum at `(n/2)+1` and therefore requires an **odd** server count, which under T-988 is reached by spawning rather than by demotion:
+* **2 Blades:** two servers plus **one spawned hosted MiOS guest as a third server** -- an etcd member is a vote, and a vote is `any-node`. The spawned member retires when a third Blade joins the mesh.
+* **3-6 Blades:** three servers (odd, survives one loss) and the remainder agents.
 
-Unlike the radio and router lanes, this one genuinely belongs to the **hosted-image plane**: k3s clusters the MiOS guests, so its members are nodes, not Blades, and it reaches its peers over the mesh VPN (T-986) rather than over hardware. Role -- `init-server` | `join-server` | `agent` -- derives from SSOT and is emitted into the generated Quadlet; it is never a hand-edit, because the Quadlet is a Law 8 projection.
+This is why the fleet needs no external arbiter: the thing that completes the quorum is the same OCI image every node already runs.
+
+k3s clusters the MiOS guests, so its members are nodes rather than Blades, and it reaches its peers over the mesh VPN (T-986) rather than over hardware. Role -- `init-server` | `join-server` | `agent` | `spawned-quorum` -- derives from SSOT and is emitted into the generated Quadlet; it is never a hand-edit, because the Quadlet is a Law 8 projection. Workloads that are **CORE services** carry a placement constraint onto Blades and Edge nodes (T-988), which is exactly what `[blade.requires]`'s generated `nodeSelector`s were built to express and what nothing currently consumes.
 
 Two further defects surface in the same unit and belong here: `Environment=K3S_TOKEN=mios-cluster-secret` puts a **cluster join secret as a literal in a world-readable generated Quadlet**, which is Law 11, and it is the same token every deployment ships.
 **Where:** `usr/share/mios/mios.toml` (`[containers.mios-k3s]`, `[blade.archetypes]`, `[blades]`), `usr/share/containers/systemd/mios-k3s.container` (generated), `tools/generate-pod-quadlets.py`, `tools/generate-blade-dropins.py`, `/etc/mios/secrets.env`
-**Done When:** the role derives from SSOT and the generated Quadlet emits `K3S_URL` for joiners; the token moves out of the Quadlet into `secrets.env`; the runtime refuses to start a join-less server when the declared fleet is larger than one; and `k3s-multi-server` retires itself from `[blades.hazards].accepted` because the detector stops reproducing it.
+**Done When:** the role derives from SSOT and the generated Quadlet emits `K3S_URL` for joiners; an even Blade count spawns a third server and retires it when a Blade joins; the generated `nodeSelector`s are actually consumed so CORE workloads land only on Blades and Edge nodes; the token moves out of the Quadlet into `secrets.env`; and `k3s-multi-server` retires itself from `[blades.hazards].accepted` because the detector stops reproducing it.
 **Why:** This is half of T-333's Done-When: the hazard that must not be reachable by adding a second machine.
-**Dep:** T-333, T-334, T-986
+**Dep:** T-333, T-334, T-986, T-988
 **Status:** planned | **Domain:** Topology/Orchestration | **Who:** architect
 
 ## T-991 -- MINI-05g: Pacemaker quorum and fencing -- unfenced is a one-node-only privilege  (WS-MINI | P0 | L)
 **Goal:** E-07 `stonith-enabled=false` is correct on one node and corrupts data on two.
 **What+How:** `mios-ha-bootstrap.service:21` runs `pcs cluster setup --name mios-ha $(hostname -s) --force` and then `pcs property set stonith-enabled=false`. For the one-node cluster that unit creates, that is right. Once a peer exists it is how split-brain corrupts shared storage. This is the second hazard in `[blades.hazards].accepted` (T-334).
 
-**Target shape at 2-6 nodes: fencing is mandatory above one node.** Corosync's own two-node handling is the shape to adopt, not to reinvent:
-* **2 nodes:** `two_node: 1`, which makes Corosync enable `wait_for_all` -- both nodes must be up before the cluster is quorate, and the last survivor keeps quorum. That is only safe with a **real STONITH device**, because the surviving node must be able to prove the other is dead. The alternative is a `corosync-qnetd`/qdevice arbiter supplying a third vote from outside the pair.
-* **3-6 nodes:** ordinary quorum, odd counts preferred; STONITH stays mandatory.
+**Target shape at 2-6 nodes: an odd member count reached by spawning, and fencing mandatory above one node.** The operator's answer replaces the textbook two-node special case: rather than `two_node: 1` + `wait_for_all` + a `corosync-qnetd` arbiter, a 2-Blade fleet **spawns a hosted MiOS container image as a third voting member**, so Corosync sees an ordinary odd cluster and needs no two-node mode at all. The spawned member retires when a third Blade joins the mesh, and services fail over to the surviving clustered Blades.
 
-The split plane (T-988) decides what a fencing device can even be: the hosted image cannot power-cycle anything, so the fence agent has to act **through the Blade**, which makes "fence the guest" a Blade-plane operation and rules out the BMC-style agents that assume bare metal. That choice belongs in this task and is why it is not merely a config flip.
+That removes a whole component from the design -- no qdevice, no qnetd, no external witness -- but it does **not** remove fencing. Fencing is mandatory the moment a second member exists, and the split plane (T-988) decides what a fence agent can even be: a hosted guest cannot power-cycle anything, so the agent has to act **through the Blade**, which makes "fence a member" a Blade-plane operation and rules out the BMC-style agents that assume bare metal. Fencing a *spawned* member is the easy case -- it is a container the Blade can stop. Fencing a Blade is the hard one and is the real content of this task.
+
+**The asymmetry must be stated, not assumed away** (same caveat as T-989): a member spawned on one of two Blades means losing that Blade costs two votes at once, so the fleet survives losing one Blade and not the other. Either place the filler on an Edge node or record which Blade is the weaker one.
 
 The guard must read the **live corosync nodelist**, never a comment or a config intent, so it stays true when an operator adds a node by hand.
 **Where:** `usr/lib/systemd/system/mios-ha-bootstrap.service`, `usr/share/mios/mios.toml` (`[ha]`, `[blades]`), `usr/libexec/mios/`, `tools/native/`
-**Done When:** `stonith-enabled=false` is reachable only while the cluster has exactly one node; adding a second node without either a fencing device or a qdevice fails closed with a message naming which; the fence agent acts through the Blade; the guard reads the running nodelist; and `pacemaker-unfenced` retires itself from `[blades.hazards].accepted`.
+**Done When:** `stonith-enabled=false` is reachable only while the cluster has exactly one member; an even Blade count spawns a third member and retires it when a Blade joins; adding a second member without a fencing device fails closed with a message naming what is missing; the fence agent acts through the Blade; the filler's placement is explicit; the guard reads the running nodelist; and `pacemaker-unfenced` retires itself from `[blades.hazards].accepted`.
 **Why:** This is the other half of T-333's Done-When, and the one where the failure mode is silent data corruption rather than a service that does not start.
 **Dep:** T-333, T-334, T-988
 **Status:** planned | **Domain:** Topology/HA | **Who:** architect
+
+## T-992 -- NODEDROID-07: wireless join over the Blade mesh AP; the cable becomes the enrolment channel  (WS-NODE-ANDROID | P2 | L)
+**Goal:** E-07 A phone that must stay plugged into a rack-mounted box is a USB accelerator, not an edge node.
+**What+How:** NODEDROID-01..06 are entirely cable-bound. WS-MINI establishes that **every MiOS-Metal Blade is its own AP forming one mesh Wi-Fi**, so the handset already has a network to join -- the workstream simply predates that being true.
+
+Split the two links by what each is actually good at. **USB is the out-of-band enrolment channel**: it is authenticated by the physical act of plugging in, and it is the only channel that exists before the device holds any credential. **Wi-Fi over the Blade mesh is the operational path**, so the node keeps working in a pocket. `[edge.android_tether]` gains a peer `[edge.android_wifi]`, and link state becomes something the node reports rather than an assumption baked into the transport.
+
+This also removes the design's most awkward property: that the handset must stay attached to a machine which is itself supposed to be a headless box in a rack.
+**Where:** `usr/libexec/mios/mios-tether-android`, `usr/libexec/mios/node/discovery.py`, `src/mios-rs/mios-node/src/net.rs`, `usr/share/mios/mios.toml` (`[edge.android_wifi]`)
+**Done When:** a handset enrolled over USB rejoins over Wi-Fi after unplug with no re-enrolment; the mDNS responder answers on the tether or the mesh link and on no other interface; and a node never enrolled over the cable cannot join over Wi-Fi at all.
+**Why:** The Blades are already APs. Not using that makes the edge node strictly less capable than the fleet it joins.
+**Dep:** T-978, T-985, T-995
+**Status:** planned | **Domain:** Edge/Android | **Who:** architect
+
+## T-993 -- NODEDROID-08: survive Android's process lifecycle, or admit the node is unreliable  (WS-NODE-ANDROID | P1 | M)
+**Goal:** E-07 A node that can be SIGKILLed at any moment without the fleet noticing strands whatever depended on it.
+**What+How:** Android 12+ runs a **phantom process killer**: forked child processes count against a limit defaulting to **32 across the whole system** -- not per app -- and the excess is SIGKILLed. This is why Termux-hosted workloads die with `[Process completed (signal 9)]` at seemingly random intervals, and a foreground service does not prevent it. The documented escape is `device_config put activity_manager max_phantom_processes <large>` together with `settings put global settings_enable_monitor_phantom_procs false`, and it requires **adb or root** -- a one-time provisioning step the node cannot perform for itself.
+
+Three consequences, all of which belong in the tree rather than in a wiki:
+* Perform that provisioning **while the cable is attached** -- T-992's enrolment moment is exactly when adb is available, which is a genuine reason to keep a USB step rather than a legacy of one.
+* **Keep the node's own child-process count near one.** Every process it forks is drawn from a budget shared with every other app on the phone, so a design that shells out per task is one that dies under someone else's load.
+* **Detect that it was killed** and re-establish, rather than silently vanishing from the fleet.
+
+The correction naming the phantom killer is already recorded at the top of this workstream, but no item owned it, so the design still assumes a process that stays alive.
+**Where:** `usr/libexec/mios/mios-tether-android`, `usr/libexec/mios/mios-android-health`, `src/mios-rs/mios-node/src/main.rs`, `usr/share/mios/mios.toml` (`[edge.android_tether]`)
+**Done When:** enrolment reports whether the escape was applied and the node advertises itself **degraded** when it was not, rather than presenting healthy and dying later; steady-state child-process count is asserted by a test; and a SIGKILLed node is observed missing by the fleet within a bounded interval.
+**Why:** This is the difference between an edge node and an edge node that works, and it is not fixable after the fact by a supervisor the same killer can reap.
+**Dep:** T-977
+**Status:** planned | **Domain:** Edge/Android | **Who:** architect
+
+## T-994 -- NODEDROID-09: on-device inference that does not mortgage Law 5  (WS-NODE-ANDROID | P2 | M)
+**Goal:** E-07 The handset's accelerator is the reason to put a node on it, and the cheapest way to lose the sovereignty thesis is to reach that accelerator through a hosted vendor runtime.
+**What+How:** Decide the Android inference path deliberately, because the obvious one is a trap.
+
+**NNAPI was deprecated in Android 15**, so it is not a foundation to build on. The vendor-blessed successors split, and only one of the branches is compatible with this OS:
+* **LiteRT** (shipped in Play Services) and **AICore / Gemini Nano** are the Google path. AICore in particular is a **vendor-coupled hosted-model dependency**, which Law 5 (UNIFIED-AI-REDIRECTS) does not permit -- every agent and tool targets `MIOS_AI_ENDPOINT`, and no vendor-specific model product belongs in the tree.
+* **`llama.cpp` with the same GGUF and the same OpenAI `/v1` surface as `mios-llm-light`** costs MiOS nothing architecturally, because it is what the primary lane already is. An Android edge node then becomes a *lane* like any other and the router learns no new protocol to reach it.
+* **ExecuTorch** (QNN / MediaTek backends, XNNPACK CPU fallback) is the considered alternative *only* where a specific NPU is worth the coupling -- recorded as a trade, not assumed.
+**Where:** `src/mios-rs/mios-node/Cargo.toml`, `usr/share/mios/mios.toml` (`[nodes.*]`, `[edge.android_tether]`), `usr/share/doc/mios/adr/`
+**Done When:** the handset answers `/v1/models` and serves a chat completion from a GGUF the fleet already bakes; NNAPI appears nowhere; and an ADR records why AICore/Gemini Nano was rejected on Law 5 grounds and under what conditions ExecuTorch would be adopted instead.
+**Why:** Building on NNAPI would be building on something already deprecated; building on AICore would put a cloud-adjacent vendor model inside an OS whose whole premise is that it has none.
+**Dep:** T-977, T-979
+**Status:** planned | **Domain:** Edge/AI-lanes | **Who:** architect
+
+## T-995 -- NODEDROID-10: a device identity the handshake actually implements  (WS-NODE-ANDROID | P1 | M)
+**Goal:** E-07 A shared symmetric secret is not an identity: every node that can verify a peer can also impersonate one.
+**What+How:** `usr/libexec/mios/node/discovery.py` advertises "Avahi/mDNS zero-conf with an **Ed25519 handshake**" while opening no socket and using a **symmetric HMAC**. T-978 replaces the socket half; this task owns the identity half.
+
+Give each edge node a real asymmetric device identity, enrolled over the USB cable -- the one channel authenticated by physical possession -- and bind it to the existing agent-passport / A2A identity surface rather than inventing a second trust root.
+
+The handset is the least physically-controlled member of the fleet: it leaves the building, it gets lost, it runs other people's apps. It is the member whose credential most needs to be revocable and least deserves to be the same secret everyone else holds.
+**Where:** `usr/libexec/mios/node/discovery.py`, `src/mios-rs/mios-node/src/net.rs`, `usr/share/mios/mios.toml`, `/etc/mios/secrets.env`
+**Done When:** enrolment provisions a per-device keypair whose private half never leaves the handset; a peer holding only public material can verify but not impersonate; revoking one device does not require re-keying the fleet; and the docstring matches the implementation, in whichever direction is made true.
+**Why:** The docstring is a claim the code does not support -- the same defect class as the decorative keys T-333 found, and here it is load-bearing for who is allowed into the fleet.
+**Dep:** T-978
+**Status:** planned | **Domain:** Edge/Security | **Who:** architect

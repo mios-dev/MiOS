@@ -19518,3 +19518,43 @@ makes that table generated so the two cannot diverge again.
 **Done When:** A dispatch test proves the grammar reaches the lane request, or the module is gone and the decision is recorded.
 **Why:** Unused compilers rot into false capability claims, and this one is already cited as shipped.
 **Dep:** none
+
+## AGY-2583 -- Declare the Blade/guest plane boundary and the three role shapes in SSOT  (WS-MINI | P1 | M)
+**Goal:** Every fleet lane needs "hardware-facing roles live on the Blade, never on the hosted image" to be a fact the SSOT states, rather than a convention each task re-argues and one of them gets wrong.
+**What+How:** A MiOS-Metal Blade is bare metal and owns the NICs, radios, TPM, boot chain and dGPUs; the MiOS OCI image runs as a NIC-less guest obfuscated from all of it. Nothing in `mios.toml` says so, so nothing can check it. Add the boundary plus the three role shapes the fleet actually has -- `universal-per-Blade` (radio, mesh membership), `singleton-across-Blades` (WAN gateway, mesh coordinator), `guest-plane` (k3s, Pacemaker) -- as a declared property of each capability in `[blade.archetypes]`, and a gate that reads it. This is the code-only half of T-988; no VM is involved.
+**Where:** usr/share/mios/mios.toml (`[metal]`, `[blade.archetypes]`), tools/ (new gate + sibling test), automation/98-drift-checks.sh, tests/drift-gate-negatives.sh
+**Verify:** `python3 tools/check-plane-boundary.py` exits 0 on the tree; then a negative run with a capability whose shape is `universal-per-Blade` granted to a guest-plane archetype exits non-zero and names that capability and archetype in the message. Both directions are required.
+**Do NOT:** Hand-list which capabilities are hardware-facing. Derive the shape from the declared property so an entry retires itself when its cause goes, the way `check_fleet_safety` derives its hazards from the tree.
+**Done When:** Each capability in `[blade.archetypes]` carries a role shape, the gate enforces that a guest-plane archetype cannot claim a Blade-plane capability, and the negative test fails for the right reason.
+**Why:** T-333 found the placement machinery for a fleet is projected, gated and inert. An undeclared plane boundary is the same defect one level up: every lane re-derives it.
+**Dep:** none
+
+## AGY-2584 -- Make hardware-facing capabilities unclaimable by a hosted image  (WS-MINI | P1 | M)
+**Goal:** A capability the guest plane can express but can never serve reads as available and fails at the hardware boundary.
+**What+How:** `hostapd` appears in three documents and no unit, Quadlet, SSOT key or capability; `nftables` and `dnsmasq` are design prose only. Before either ships, the prohibition has to exist, or the first thing that ships them will also make them grantable to a guest. Consume AGY-2583's declared shapes to refuse `radio` and `router` to any archetype describing a hosted MiOS image, and additionally enforce that `radio` is `universal-per-Blade` (every Blade is an AP in one mesh Wi-Fi) while `router` is `singleton-across-Blades` (one WAN uplink; a second `dnsmasq` on one L2 is a DHCP race). Code-only half of T-985 and T-987.
+**Where:** usr/share/mios/mios.toml (`[metal.radio]`, `[metal.router]`, `[blade.archetypes]`), tools/ (extend the AGY-2583 gate + tests), tests/drift-gate-negatives.sh
+**Verify:** Three negative runs, each exiting non-zero for its own stated reason: a guest archetype granted `radio`; two archetypes granted the singleton `router`; a Blade archetype that does not grant the universal `radio`. Then the positive run on the tree exits 0.
+**Do NOT:** Express the constraint as "exactly one node holds the radio". That is the singleton framing the operator corrected -- every Blade is an AP; the constraint is that no *guest* is.
+**Done When:** `radio` and `router` are Blade-plane capabilities with their shapes enforced, and all three negatives fail for the right reason.
+**Why:** The prohibition is cheaper to add before the units exist than to retrofit after an archetype has already been granted something it cannot serve.
+**Dep:** AGY-2583
+
+## AGY-2585 -- Derive the k3s role from SSOT and stop shipping a join-less server  (WS-MINI | P0 | L)
+**Goal:** Three default Minis must form one cluster, and today they form three.
+**What+How:** `usr/share/containers/systemd/mios-k3s.container` runs `Exec=k3s server --disable=traefik ...` with no `K3S_URL`, and four archetypes (`hybrid`, `controller`, `k3s-master`, `ha-node`) grant what it requires -- so three default `hybrid` Minis are three independent control planes sharing one token. Embedded etcd needs an odd server count for quorum at `(n/2)+1`, which fixes the shape: at 2 nodes one server plus one agent (two etcd members cannot hold quorum), at 3-6 three servers and the rest agents. Add a role -- `init-server` | `join-server` | `agent` -- to `[containers.mios-k3s]`, emit `K3S_URL` for joiners from the generator, and move `K3S_TOKEN=mios-cluster-secret` out of the world-readable generated Quadlet into `/etc/mios/secrets.env` (Law 11). The Quadlet is a Law 8 projection: regenerate it, never hand-edit it.
+**Where:** usr/share/mios/mios.toml (`[containers.mios-k3s]`, `[blade.archetypes]`, `[blades]`), tools/generate-pod-quadlets.py, usr/share/containers/systemd/mios-k3s.container (generated), tools/check-fleet-safety.py
+**Verify:** `bash tools/sync-generated.sh && git diff --exit-code usr/share/containers/systemd/mios-k3s.container` after setting the role to `join-server` shows a `K3S_URL` line; `grep -c K3S_TOKEN usr/share/containers/systemd/mios-k3s.container` returns 0; and `python3 tools/check-fleet-safety.py` no longer reproduces `k3s-multi-server`, so the entry can leave `[blades.hazards].accepted` and `max_accepted` ratchets down to 1.
+**Do NOT:** Retire `k3s-multi-server` by editing the accepted list. The entry must stop being reproduced by the detector; deleting it while the join-less server still ships is the dodge this gate exists to catch.
+**Done When:** The role derives from SSOT, joiners carry `K3S_URL`, the token is out of the Quadlet, and the hazard retires itself because its cause is gone.
+**Why:** This is half of T-333's Done-When -- a hazard that must not be reachable by adding a second machine.
+**Dep:** AGY-2583
+
+## AGY-2586 -- Fail closed on unfenced multi-node Pacemaker, reading the live nodelist  (WS-MINI | P0 | L)
+**Goal:** `stonith-enabled=false` is correct on the one-node cluster the unit creates and is how split-brain corrupts data once a peer exists.
+**What+How:** `usr/lib/systemd/system/mios-ha-bootstrap.service:21` runs `pcs cluster setup --name mios-ha $(hostname -s) --force` then `pcs property set stonith-enabled=false`. Add a guard that refuses to leave fencing disabled whenever the cluster has more than one node. Corosync's own two-node handling is the shape to adopt rather than reinvent: at 2 nodes `two_node: 1` makes Corosync enable `wait_for_all`, and that is only safe with a real STONITH device or a `corosync-qnetd` qdevice supplying a third vote from outside the pair; at 3-6, ordinary quorum with STONITH still mandatory. The guard must parse the **live corosync nodelist**, never a comment or a config intent, so it stays true when an operator adds a node by hand. Per Law 14 and the operator's Rust directive this is a Rust static binary in `tools/native/`, not another script. Parsing and decision are unit-testable against fixture `corosync.conf` files, so no cluster is required.
+**Where:** usr/lib/systemd/system/mios-ha-bootstrap.service, tools/native/ (the guard + its tests), usr/share/mios/mios.toml (`[ha]`, `[blades]`), tools/check-fleet-safety.py
+**Verify:** Unit tests over fixture nodelists: one node plus `stonith-enabled=false` exits 0; two nodes plus `stonith-enabled=false` with neither a fencing device nor a qdevice exits non-zero and the message names which of the two is missing; two nodes with a qdevice exits 0. Then `python3 tools/check-fleet-safety.py` stops reproducing `pacemaker-unfenced`.
+**Do NOT:** Detect fencing from a comment, a unit-file string match, or an intent key. Read the running configuration -- a guard that a hand-added node can walk past is the "gate that cannot fail" class this repo already has too many of.
+**Done When:** Unfenced is reachable only at exactly one node, the guard reads the live nodelist, and `pacemaker-unfenced` retires itself from `[blades.hazards].accepted`.
+**Why:** This is the other half of T-333's Done-When, and the one whose failure mode is silent data corruption rather than a service that does not start.
+**Dep:** AGY-2583

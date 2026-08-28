@@ -72,7 +72,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 ### Workstream Status Rollup
 - **Done**: 25
 - **Active**: 8
-- **Proposed**: 4
+- **Proposed**: 5
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
 
@@ -118,6 +118,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 - `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate ✅
 - `WS-NODE` — Edge Micro-Mesh mios-node 16-Byte Wire Protocol & Dual-Tier Sandboxing (active)
 - `WS-DOCGEN` — Generative documentation — AI-hints and comments harvested into the manual, wiki and machine-facing surfaces (active)
+- `WS-MINI` — "MiOS-Metal Blades: the bare-metal plane, and a fleet of 2-6 that actually clusters" (planned)
 - `WS-NODE-ANDROID` — Android edge micro-node over CDC-NCM USB tethering (proposed)
 
 **Testing & Conformance**
@@ -1029,6 +1030,104 @@ acceptance: |
 - **Accept:** one command documents either repo; no tool is duplicated into the sibling.
 - **Deps:** `DOCGEN-05`.
 
+## WS-MINI — MiOS-Metal Blades: the bare-metal plane, and a fleet of 2-6 that actually clusters
+<!--
+id: WS-MINI
+title: "MiOS-Metal Blades: the bare-metal plane, and a fleet of 2-6 that actually clusters"
+theme: Fleet & Federation
+status: planned
+priority: P0
+laws: [1, 6, 7, 8, 11, 12, 14, 16]
+ssot_keys: ["blades", "blades.hazards", "metal", "metal.gpu", "metal.mesh", "blade.archetypes", "containers.mios-k3s", "storage.cephfs", "services.ceph", "packages.ha"]
+adr: [16]
+deps: [WS-BLADE, WS-NODE]
+acceptance: |
+  A 2-6 Blade fleet forms one k3s cluster rather than N control planes, cannot reach unfenced multi-node Pacemaker, and expresses hardware-facing roles only on the Blade plane.
+-->
+
+A **MiOS-Metal Blade** (formerly Mini) is *bare metal*. It owns the NICs, radios, TPM, boot
+chain and dGPUs, and hosts the MiOS OCI image as a **NIC-less guest obfuscated from all of
+it**. A fleet is **2-6 Blades**, and **every Blade is its own AP forming one mesh Wi-Fi**, as
+well as a member of the **HCI mesh VPN cluster** that the hyper-converged lanes actually run
+over. **No hosted node is ever an access point.**
+
+T-331 established that MiOS-Metal is the box and that most of what it is defined by is a
+target. T-333 measured how far: a six-lane audit against "if someone booted this image on a
+mini-PC today, would it work?" answered *no* for every lane, and the reasons differ — Wi-Fi AP
+and mesh transport and router core are **absent** (`hostapd` appears in three documents and no
+unit; `wireguard`/`netbird`/`nebula`/`zerotier`/`VXLAN` are zero hits repo-wide), the
+hypervisor is **gated off**, Ceph is a **single-node MON-only scaffold whose bootstrap never
+touches a block device**, and HA is a **one-node unfenced Pacemaker cluster**.
+
+The finding that matters most is not any single lane. `[blade.requires]` already generates k3s
+`nodeSelector`s and Pacemaker location rules, and **nothing consumes them at runtime** — the
+placement machinery for a fleet is projected, gated and inert. That is the same decorative-key
+failure as `[greenboot].blade_reachability_critical` and `[security].api_require_auth`, except
+it is the whole scheduler axis rather than one flag.
+
+**Quorum is not Blade-bound, which is what makes a two-Blade fleet a supported HA shape.** A
+cluster vote needs no hardware, so a Blade **spawns a hosted MiOS container image as an
+additional voting member** to complete an odd count until a real Blade joins the mesh, and
+services fail over to the surviving clustered Blades. That removes the qdevice, the qnetd
+arbiter and the two-node special case from the design entirely — the arbiter is the OS
+itself. The caveat that must be stated rather than assumed: a filler spawned *on* one of two
+Blades costs two votes when that Blade dies, so its placement (an Edge node, or a named weaker
+Blade) is a decision, not a detail.
+
+Placement has a second axis the SSOT also cannot express. **CORE services — storage, personal
+files, settings and configuration — may be hosted only by Blades and Edge nodes**, never by a
+plain hosted Node, because they own the data that must outlive any one guest. With the two
+hardware-facing shapes that gives four role shapes in total, which is why T-988 stops being a
+formality about VFIO and becomes the task that declares the boundary the other six consume.
+
+T-334 declared the fleet size (`[blades]` `min_nodes`/`typical_nodes`/`max_nodes`) so a gate
+could finally distinguish "correct for one node" from "broken above one", and registered the
+two hazards that are *dangerous rather than merely missing* in the shrink-only
+`[blades.hazards].accepted`: `k3s-multi-server` (four archetypes grant what `mios-k3s`
+requires, and it runs `k3s server` with no `K3S_URL`, so three default Minis are three
+independent control planes sharing one token) and `pacemaker-unfenced`
+(`stonith-enabled=false`, correct on the one node it creates, and how split-brain corrupts
+data once a peer exists). Both are accepted, not fixed. This workstream fixes them.
+
+### MINI-05 — Seven lanes, each with a stated target shape at 2-6 nodes  **[P0]**  (→ T-333, split into T-985..T-991)
+- **What:** Give every audited lane its own task and its own target shape, and gate the two
+  dangerous ones so neither is reachable by adding a second machine. **T-985** an AP on every
+  Blade with one SSID, non-overlapping generated channels, 802.11r/k/v roaming and a declared
+  backhaul — and `radio` unclaimable by any hosted-image archetype. **T-986** universal mesh
+  membership per Blade under a singleton `headscale` coordinator that degrades open (Law 12),
+  keeping the Wi-Fi mesh and the VPN mesh distinct in SSOT. **T-987** serving everywhere, WAN
+  uplink in exactly one place, `nftables` inet + flowtable and `dnsmasq` generated from SSOT,
+  no firewalld. **T-988** the plane boundary itself: declare it once, plus the four role
+  shapes the SSOT cannot currently express — *universal-per-Blade*, *singleton-across-Blades*,
+  *Blade-or-Edge-only* (CORE services) and *guest-plane* — so the other six lanes consume it
+  rather than re-deriving it. **T-989** an odd MON count, never two, reached by spawning a
+  member when the Blade count is even; an OSD on the block device the Blade presents; and the
+  `ConditionVirtualization=no` that guarantees Ceph never bootstraps on the one topology it
+  targets. **T-990** one `--cluster-init` server with the rest joining, and a spawned third
+  server at two Blades since two etcd members cannot hold quorum at `(n/2)+1`, plus the join
+  token out of a world-readable generated Quadlet. **T-991** an odd member count reached the
+  same way — no qdevice, no two-node mode — with fencing still mandatory above one member
+  and a fence agent that acts through the Blade, because a guest cannot power-cycle
+  anything.
+- **Why:** A configuration that only works standalone is a defect waiting for the operator to
+  add a peer, and it is invisible until the SSOT says how many peers there are. Two of these
+  are worse than invisible: they fail silently into data corruption or into N clusters that
+  each believe they are the cluster.
+- **Files:** `usr/share/mios/mios.toml` (`[blades]`, `[metal.*]`, `[blade.archetypes]`,
+  `[containers.mios-k3s]`, `[storage.ceph]`, `[ha]`), `usr/lib/systemd/system/mios-ha-bootstrap.service`,
+  `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/containers/systemd/mios-k3s.container` (generated),
+  `tools/generate-blade-dropins.py`, `tools/generate-pod-quadlets.py`, `tools/check-fleet-safety.py`,
+  `tools/native/`.
+- **Accept:** each lane states its target shape for 2-6 nodes; `k3s-multi-server` and
+  `pacemaker-unfenced` retire themselves from `[blades.hazards].accepted` because the detector
+  stops reproducing them, never by editing the list; and the guards read live state — the
+  running corosync nodelist, the generated Quadlet — rather than a comment or an intent key.
+- **Deps:** `WS-BLADE` (the capability/archetype machinery this makes consume its own output).
+- **Agent lanes:** the code-only half is `AGY-2583` (declare the boundary + three role shapes),
+  `AGY-2584` (make hardware-facing capabilities unclaimable by a guest), `AGY-2585` (k3s role
+  from SSOT, `K3S_URL` for joiners, token to `secrets.env`), `AGY-2586` (fail closed on
+  unfenced multi-node Pacemaker, reading the live nodelist, as a Rust static binary).
+
 ## WS-NODE-ANDROID — Android edge micro-node over CDC-NCM USB tethering
 <!--
 id: WS-NODE-ANDROID
@@ -1039,7 +1138,7 @@ priority: P2
 laws: [1, 7, 8, 9, 14]
 ssot_keys: ["containers.mios-node", "blade.discovery"]
 adr: [16, 20]
-deps: [WS-NODE, WS-BLADE]
+deps: [WS-NODE, WS-BLADE, WS-MINI]
 acceptance: |
   An Android handset attached over USB enumerates as a CDC-NCM interface, runs an AArch64 mios-node built by CI, answers mDNS on the tethered link only, executes Wasm tasks on-device, reconciles its task ledger across unplug/replug, and drains its work when the handset gets hot or low on charge.
 -->
@@ -1113,6 +1212,34 @@ transport, the target triple, and the honesty repairs, not a new mesh.
 - **Files:** `usr/libexec/mios/mios-android-health`, `usr/lib/greenboot/check/wanted.d/70-mios-android-edge.sh`.
 - **Accept:** Crossing either threshold drains and refuses new work; the check is `wanted.d`, so a degraded handset never blocks host boot (Law 12).
 - **Deps:** `NODEDROID-01`, `NODEDROID-03`.
+
+### NODEDROID-07 — Wireless join over the Blade mesh AP; the cable becomes the enrolment channel  **[P2]**  (→ T-992)
+- **What:** NODEDROID-01..06 are entirely cable-bound, which makes the edge node a peripheral rather than a node. WS-MINI establishes that **every MiOS-Metal Blade is its own AP forming one mesh Wi-Fi**, so the handset already has a network to join. Split the two paths by what each is actually good at: **USB is the out-of-band enrolment channel** — physically authenticated by the act of plugging in, and the only channel that exists before the device has credentials — and **Wi-Fi over the Blade mesh is the operational path**, so the node keeps working in a pocket. `[edge.android_tether]` gains a peer `[edge.android_wifi]`, and the node's link state becomes a first-class thing it reports rather than an assumption baked into the transport.
+- **Why:** A phone tethered to a Blade by a cable is a slower USB accelerator. A phone that enrols over the cable once and then works over the mesh is an edge node, which is the thing the workstream is named for. It also removes the single most awkward property of the current design: that the handset must stay physically attached to a machine that is itself supposed to be a headless box in a rack.
+- **Files:** `usr/libexec/mios/mios-tether-android`, `usr/libexec/mios/node/discovery.py`, `src/mios-rs/mios-node/src/net.rs`, `usr/share/mios/mios.toml` (`[edge.android_wifi]`).
+- **Accept:** A handset enrolled over USB rejoins over Wi-Fi after unplug with no re-enrolment; the mDNS responder from NODEDROID-03 answers on the tether **or** the mesh link and on no other interface; and a node that has never been enrolled over the cable cannot join over Wi-Fi at all.
+- **Deps:** `NODEDROID-03`, `NODEDROID-10`, WS-MINI T-985.
+
+### NODEDROID-08 — Survive Android's process lifecycle, or admit the node is unreliable  **[P1]**  (→ T-993)
+- **What:** Android 12+ runs a **phantom process killer**: forked child processes are counted against a limit that defaults to **32 across the whole system** — not per app — and the excess is SIGKILLed. This is why Termux-hosted workloads die with `[Process completed (signal 9)]` at seemingly random intervals, and a foreground service does not prevent it. The documented escape is `device_config put activity_manager max_phantom_processes <large>` plus `settings put global settings_enable_monitor_phantom_procs false`, which requires **adb or root** — a one-time provisioning step, not something the node can do for itself. Three things follow and all three belong in the tree rather than in a wiki: perform that provisioning **while the cable is attached** (NODEDROID-07's enrolment moment is exactly when adb is available); **keep the node's own process count near one**, because every child it forks is drawn from a budget shared with every other app on the phone; and **detect that it was killed** and re-establish rather than silently vanishing from the fleet.
+- **Why:** This is the difference between an edge node and an edge node that works. The correction is already recorded at the top of this workstream — the phantom killer, not a foreground-service limitation — but no item owned it, so the design still assumes a process that stays alive. A node that can be SIGKILLed at any moment without the fleet noticing strands whatever DAG depended on it.
+- **Files:** `usr/libexec/mios/mios-tether-android`, `usr/libexec/mios/mios-android-health`, `src/mios-rs/mios-node/src/main.rs`, `usr/share/mios/mios.toml` (`[edge.android_tether]`).
+- **Accept:** Enrolment reports whether the phantom-process escape was applied and the node advertises itself as **degraded** when it was not, rather than presenting as healthy and dying later; the node's steady-state child-process count is asserted by a test; and a SIGKILLed node is observed missing by the fleet within a bounded interval.
+- **Deps:** `NODEDROID-02`.
+
+### NODEDROID-09 — On-device inference that does not mortgage Law 5  **[P2]**  (→ T-994)
+- **What:** Decide the Android inference path deliberately, because the obvious one is a trap. **NNAPI was deprecated in Android 15**, so it is not a foundation to build on. The vendor-blessed successors split: **LiteRT** (shipped in Play Services) and **AICore/Gemini Nano** are the Google path, and AICore in particular is a **vendor-coupled hosted-model dependency** that Law 5 (UNIFIED-AI-REDIRECTS) does not permit — every agent and tool targets `MIOS_AI_ENDPOINT`, and no vendor-specific model product belongs in the tree. The path that costs MiOS nothing architecturally is the one it already ships: **`llama.cpp` with the same GGUF and the same OpenAI `/v1` surface as `mios-llm-light`**, so an Android edge node is a *lane* like any other and the router does not learn a new protocol to reach it. **ExecuTorch** (QNN / MediaTek backends, XNNPACK CPU fallback) is the considered alternative *only* where a specific NPU is worth the coupling, and that trade is recorded rather than assumed.
+- **Why:** The handset's accelerator is the reason to put a node on it at all, and the cheapest way to lose the whole sovereignty thesis is to reach it through a hosted vendor runtime. Choosing llama.cpp keeps the edge node inside the existing endpoint contract; choosing AICore would put a cloud-adjacent vendor model inside an OS whose premise is that it has none.
+- **Files:** `src/mios-rs/mios-node/Cargo.toml`, `usr/share/mios/mios.toml` (`[nodes.*]`, `[edge.android_tether]`), `usr/share/doc/mios/adr/`.
+- **Accept:** The handset answers `/v1/models` and serves a chat completion from a GGUF the fleet already bakes; NNAPI appears nowhere; an ADR records why AICore/Gemini Nano was rejected on Law 5 grounds and under what conditions ExecuTorch would be adopted instead.
+- **Deps:** `NODEDROID-02`, `NODEDROID-04`.
+
+### NODEDROID-10 — A device identity the handshake actually implements  **[P1]**  (→ T-995)
+- **What:** `usr/libexec/mios/node/discovery.py` advertises "Avahi/mDNS zero-conf with an **Ed25519 handshake**" while opening no socket and using a **symmetric HMAC**. NODEDROID-03 replaces the socket half; this item owns the identity half, because a shared symmetric secret is not an identity — every node that can verify a peer can also impersonate one, which is precisely the property a fleet admitting pocket-sized hardware cannot afford. Give each edge node a real asymmetric device identity, enrolled over the USB cable (the one channel authenticated by physical possession), and bind it to the existing agent-passport / A2A identity surface rather than inventing a second trust root.
+- **Why:** An Android handset is the least physically-controlled member of the fleet — it leaves the building, it gets lost, it runs other people's apps. It is the member whose credential most needs to be revocable and least deserves to be the same secret everyone else holds. And the current module's docstring is a claim its code does not support, which is the same defect class as the decorative keys T-333 found: it reads as solved.
+- **Files:** `usr/libexec/mios/node/discovery.py`, `src/mios-rs/mios-node/src/net.rs`, `usr/share/mios/mios.toml`, `/etc/mios/secrets.env`.
+- **Accept:** Enrolment provisions a per-device keypair whose private half never leaves the handset; a peer holding only public material can verify but not impersonate; revoking one device does not require re-keying the fleet; and the docstring matches the implementation, in whichever direction is made true.
+- **Deps:** `NODEDROID-03`.
 
 # Testing & Conformance
 

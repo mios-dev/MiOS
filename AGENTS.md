@@ -42,12 +42,13 @@ back to the operator. Everything below describes *this repo's* slice of that
 whole: how a paste on Windows or a `curl | bash` on Linux becomes a booted,
 agentic MiOS host that can then rebuild itself.
 
-### Four Load-Bearing Architectural Invariants (Corrections)
-To ensure agents reason correctly about the system substrate, the following four corrections to standard draft assumptions must be strictly adhered to:
+### Five Load-Bearing Architectural Invariants (Corrections)
+To ensure agents reason correctly about the system substrate, the following five corrections to standard draft assumptions must be strictly adhered to:
 1. **`/var` Persists by Default**: On bootc/ostree systems, `/var` is a persistent location rather than a volatile tmpfs. This guarantees continuity for large models, database state, and virtual machine disks.
 2. **Unified Kernel Image (UKI) vs MOK Conflation**: The bootloader and kernel signing chain is a Unified Kernel Image (`shim -> systemd-boot -> signed UKI`) where kernel command line parameters (kargs) are baked and signed into the UKI itself. This is distinct from Machine Owner Key (MOK) module signing, which only governs out-of-tree runtime driver signature checks.
 3. **Graphics Virtualization (venus vs CUDA)**: The `venus` VirtIO GPU protocol is strictly a graphics/Vulkan transport. It does not support CUDA execution inside a microVM; running CUDA workloads inside a virtualized guest requires whole-device VFIO hardware passthrough.
 4. **GPU Fractioning / mediated vGPU Limit**: GPU fractioning (using `mdevctl` or SR-IOV) is technically impossible without loading a physical host-side PF driver. Therefore, on a driver-free host, the only supported option is whole-device passthrough via `vfio-pci`; vGPU fractioning requires an explicit, invariant-breaking opt-in.
+5. **The Blade owns the hardware; the MiOS image is a guest obfuscated from it.** A MiOS-Metal (formerly Mini) Blade is *bare metal*: it owns the NICs, radios, TPM, boot chain and dGPUs, and hosts the MiOS OCI image as a **NIC-less guest** that is obfuscated from all of it. A fleet is 2-6 Blades, and **every Blade is its own AP forming one mesh Wi-Fi**, as well as a member of the **HCI mesh VPN cluster** that the hyper-converged lanes (Ceph, k3s, Pacemaker) actually run over. **No hosted node is ever an access point** -- hardware-facing roles live on the Blade and must be *unclaimable* by a guest archetype, because a capability the guest plane can express but can never serve reads as available and fails at the hardware boundary. This yields three role shapes the SSOT must distinguish: **universal-per-Blade** (radio, mesh membership), **singleton-across-Blades** (WAN gateway, mesh coordinator), and **guest-plane** (k3s, Pacemaker). See `TASKS.md` T-985..T-991.
 
 ## 1. Repo identity
 
@@ -297,6 +298,23 @@ See [bootstrap_install.md](file:///usr/share/doc/mios/guides/bootstrap_install.m
 * **No double-tracking.** `mios.git` owns the system FHS overlay;
   `mios-bootstrap.git` owns the user-facing installer. Never
   cross-track paths.
+* **Rust static binaries, globally.** MiOS runs from a refined, canned,
+  minified code base compiled to **Rust static binaries**. Law 14
+  (TARGET-LANGUAGES) is the floor -- it grandfathers what already exists --
+  and this is the destination: *all* of it converts. When adding or porting a
+  generator, gate, verb backend or service, reach for a Rust static binary in
+  `tools/native/` rather than another Python or bash script.
+* **"Canned" means hardened templates.** Code and scripts are kept as
+  **hardened templates an AI generates the next tool FROM**. That is Law 16
+  (ONE-TEMPLATE-PER-TYPE) read as a *generative* system rather than only a
+  conformance gate: one canonical template per file type under
+  `usr/share/mios/templates/`, declared in `[templates.<type>]`, scaffolded
+  strictly via `mios new <type>` / `miosd scaffold`. Do not hand-roll a new
+  file of a type that already has a template.
+* **OpenAI-format schemas, globally.** Every schema is an OpenAI format --
+  not only the `/v1` wire surface but schemas everywhere. The strict-schema
+  converter already in the tree (deeply-nested JSON Schema to strict OpenAI
+  schema) is the shape to standardise on.
 
 ## 14. Persistence sanitization
 
