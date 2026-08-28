@@ -452,6 +452,8 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_manifest.py` | Re-export shim for mios_pipe.lifecycle.manifest |
 | `usr/lib/mios/agent-pipe/mios_manifest_rag.py` | MiOS system and orchestration module providing mios manifest rag capabilities. |
 | `usr/lib/mios/agent-pipe/mios_mcp.py` | Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe. |
+| `usr/lib/mios/agent-pipe/mios_mcp_schema.py` | Strict OpenAI function-schema conversion for MCP tool definitions. |
+| `usr/lib/mios/agent-pipe/mios_mcp_transport.py` | JSON-RPC 2.0 client transports for MCP servers -- HTTP/SSE and long-lived stdio subprocesses. |
 | `usr/lib/mios/agent-pipe/mios_memguard.py` | Re-export shim for mios_pipe.access.memguard |
 | `usr/lib/mios/agent-pipe/mios_memory.py` | Re-export shim for mios_pipe.memory.memory |
 | `usr/lib/mios/agent-pipe/mios_native_loop.py` | Re-export shim for mios_pipe.routing.native_loop |
@@ -866,7 +868,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 475 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 477 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

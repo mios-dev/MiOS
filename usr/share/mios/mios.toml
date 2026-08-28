@@ -2692,22 +2692,22 @@ unconsumed = [
 [refactor]
 max_lines = 800
 oversize = [
-    { path = "mios_pipe/federation/a2a.py",        lines = 1457 },
-    { path = "mios_pipe/federation/http_caps.py",  lines =  742 },
-    { path = "mios_pipe/memory/knowledge.py",      lines =  889 },
-    { path = "mios_pipe/routing/agent_call.py",    lines = 1080 },
-    { path = "mios_pipe/routing/chat.py",          lines = 1704 },
-    { path = "mios_pipe/routing/dag_exec.py",      lines = 1145 },
-    { path = "mios_pipe/routing/native_loop.py",   lines = 1166 },
-    { path = "mios_pipe/routing/portal.py",        lines = 1609 },
-    { path = "mios_pipe/routing/refine.py",        lines = 1066 },
-    { path = "mios_pipe/routing/swarm.py",         lines =  993 },
-    { path = "mios_pipe/routing/web_research.py",  lines =  936 },
+    { path = "mios_pipe/federation/a2a.py",        lines = 1379 },
+    { path = "mios_pipe/federation/http_caps.py",  lines =  688 },
+    { path = "mios_pipe/memory/knowledge.py",      lines =  871 },
+    { path = "mios_pipe/routing/agent_call.py",    lines = 1061 },
+    { path = "mios_pipe/routing/chat.py",          lines = 1668 },
+    { path = "mios_pipe/routing/dag_exec.py",      lines = 1127 },
+    { path = "mios_pipe/routing/native_loop.py",   lines = 1143 },
+    { path = "mios_pipe/routing/portal.py",        lines = 1562 },
+    { path = "mios_pipe/routing/refine.py",        lines = 1057 },
+    { path = "mios_pipe/routing/swarm.py",         lines =  992 },
+    { path = "mios_pipe/routing/web_research.py",  lines =  909 },
     # Agent-pipe ROOT modules. These sat outside every earlier version of this
     # gate (maxdepth 1, then mios_pipe/ only) -- server.py is the extraction's
     # own remainder and mios_dispatch.py is T-273's named target.
-    { path = "mios_dispatch.py",                   lines =  816 },
-    { path = "server.py",                          lines = 4866 },
+    { path = "mios_dispatch.py",                   lines =  800 },
+    { path = "server.py",                          lines = 4470 },
 ]
 
 # ----------------------------------------------------------------------------
@@ -11003,8 +11003,8 @@ not_mirrored = [
 # [legibility] -- the repo IS the deliverable. Floors fall only. See ROADMAP.md.
 [legibility]
 max_tracked_files = 3344
-max_tracked_mb    = 202  # +1: 66 MB of vendored wheels landed 2026-08-20..27 under Law 12
-                         # (BAKE-NOT-FETCH), and the roadmap additions tipped the rounding.
+max_tracked_mb    = 202  # +1: tens of MB of vendored wheels arrived under Law 12
+                         # (BAKE-NOT-FETCH), and roadmap prose tipped the rounding.
                          # This ceiling is dominated by bake payloads rather than by anything
                          # legibility governs -- exclude usr/share/mios/vendored/ and re-baseline
                          # it down, the way generated globals are already excluded from the

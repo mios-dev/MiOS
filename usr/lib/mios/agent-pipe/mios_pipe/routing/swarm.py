@@ -735,15 +735,11 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             _gq: asyncio.Queue = asyncio.Queue()
 
             async def _run_ground() -> None:
-                # FINALLY, not a trailing statement: a BaseException the two
-                # best-effort helpers do not swallow (CancelledError above all)
-                # used to skip the sentinel entirely, and the reader below then
-                # emitted keepalives FOREVER -- a wedged turn, never a failed one.
+                # finally, not a trailing statement: a BaseException the helpers do
+                # not swallow would skip the sentinel and wedge the reader below.
                 try:
-                    if _dag_deep or _dag_has_local:
-                        await _ground_facets(emit=_gq.put_nowait)
-                    else:
-                        await _ground_shared(emit=_gq.put_nowait)
+                    _g = _ground_facets if (_dag_deep or _dag_has_local) else _ground_shared
+                    await _g(emit=_gq.put_nowait)
                 finally:
                     _gq.put_nowait(None)    # sentinel: grounding done
 
@@ -752,25 +748,19 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 try:
                     _s = await asyncio.wait_for(_gq.get(), timeout=5.0)
                 except asyncio.TimeoutError:
-                    # Second escape, independent of the sentinel: if the task has
-                    # already finished and left nothing buffered behind it, no
-                    # further status is coming. Belt and braces -- the finally
-                    # above cannot fire if the task dies without ever running it.
+                    # second escape: task finished with nothing buffered means no
+                    # further status is coming, even if the finally never ran.
                     if _gtask.done() and _gq.empty():
                         break
                     yield b": keepalive\n\n"
                     continue
                 if _s is None:
                     break
-                yield _sse_status(chat_id=chat_id, model=model,
-                                  emoji=str(_s.get("emoji", "·")),
-                                  label=str(_s.get("label", "")),
-                                  detail=_s.get("detail"))
-            try:
+                yield _sse_status(chat_id=chat_id, model=model, emoji=str(_s.get("emoji", "·")),
+                                  label=str(_s.get("label", "")), detail=_s.get("detail"))
+            try:                            # CancelledError is a BaseException: it propagates
                 await _gtask
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:  # noqa: BLE001 -- grounding is best-effort
+            except Exception as e:          # noqa: BLE001 -- grounding is best-effort
                 log.debug("dag grounding task failed: %s", e)
             dag_result: dict = {}
             async for _k, _p in _execute_dag_emitting(
