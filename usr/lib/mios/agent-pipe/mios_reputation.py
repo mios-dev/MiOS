@@ -132,5 +132,12 @@ class ReputationEngine:
                         session_id, len(records), exc)
 
 
-# Backwards compatibility alias
-PeerReputation = ReputationEngine
+# PeerReputation is a DIFFERENT contract from ReputationEngine, not an alias for
+# it: the A2A daemons call .score()/.restore()/.rows() on the object bound here,
+# and ReputationEngine (session evaluation, T-344) has none of those. Aliasing the
+# two silently removed that API from the federation path. Re-export the real
+# implementation, which is what this module forwarded to before.
+from mios_pipe.identity.reputation import (  # noqa: E402,F401 -- re-export
+    NEUTRAL,
+    PeerReputation,
+)

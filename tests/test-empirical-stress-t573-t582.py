@@ -525,7 +525,17 @@ class TestMcpGatewayStressAndBoundaries(unittest.IsolatedAsyncioTestCase):
 
     def test_declarative_toml_parsing_boundaries(self):
         """Boundary: Parsing malformed TOML structures, missing server fields."""
-        malformed_toml = """[mcp.servers.incomplete]         transport = "stdio"         # missing command         enabled = true          [mcp.servers.http_server]         transport = "http"         url = "http://127.0.0.1:9999/mcp"         allowed_tools = ["tool_a", "tool_b"]"""
+        malformed_toml = """
+[mcp.servers.incomplete]
+transport = "stdio"
+# missing command
+enabled = true
+
+[mcp.servers.http_server]
+transport = "http"
+url = "http://127.0.0.1:9999/mcp"
+allowed_tools = ["tool_a", "tool_b"]
+"""
         specs = mios_mcp.load_servers_from_toml(malformed_toml)
         self.assertEqual(len(specs), 2)
         srv_map = {s.id: s for s in specs}

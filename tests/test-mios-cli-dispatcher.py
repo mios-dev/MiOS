@@ -8,15 +8,25 @@ import time
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+WORKSPACE = ROOT / "src" / "mios-rs"
+
+def _cargo(*args):
+    """Run a cargo command in the workspace, on whatever platform we are on.
+
+    This suite used to shell into a WSL distro by name ("podman-MiOS-DEV") and
+    cd to /mnt/c/MiOS, so it could only pass on one developer's Windows box and
+    failed outright on any CI runner. Skip -- loudly -- when there is no
+    toolchain, so a missing cargo can never read as a passing dispatcher test.
+    """
+    import shutil
+    if shutil.which("cargo") is None:
+        raise unittest.SkipTest("cargo is not on PATH; cannot exercise the miosd CLI")
+    return subprocess.run(list(args), cwd=str(WORKSPACE), capture_output=True, text=True)
 
 class TestMiosCliDispatcher(unittest.TestCase):
     def test_cli_help_and_verbs_coverage(self):
         """Verify that CLI prints help and includes all expected verbs."""
-        cmd = [
-            "wsl", "-u", "root", "-d", "podman-MiOS-DEV", "--",
-            "bash", "-c", "cd /mnt/c/MiOS/src/mios-rs && cargo run -p miosd -- cli --help"
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = _cargo("cargo", "run", "-q", "-p", "miosd", "--", "cli", "--help")
         self.assertEqual(res.returncode, 0, f"Help failed: {res.stdout}\n{res.stderr}")
 
         output = res.stdout + res.stderr
@@ -33,11 +43,8 @@ class TestMiosCliDispatcher(unittest.TestCase):
     def test_completion_generation(self):
         """Verify that shell completions are correctly generated for bash, zsh, fish, pwsh."""
         for shell in ["bash", "zsh", "fish", "pwsh"]:
-            cmd = [
-                "wsl", "-u", "root", "-d", "podman-MiOS-DEV", "--",
-                "bash", "-c", f"cd /mnt/c/MiOS/src/mios-rs && cargo run -p miosd -- cli --generate-completion {shell}"
-            ]
-            res = subprocess.run(cmd, capture_output=True, text=True)
+            res = _cargo("cargo", "run", "-q", "-p", "miosd", "--",
+                         "cli", "--generate-completion", shell)
             self.assertEqual(res.returncode, 0, f"Completion generation failed for {shell}")
             out = res.stdout
             self.assertTrue(len(out) > 50, f"Completion output too short for {shell}")
@@ -45,12 +52,8 @@ class TestMiosCliDispatcher(unittest.TestCase):
             self.assertIn("dash", out)
 
     def test_rust_unit_tests_pass(self):
-        """Execute Rust unit tests for CLI dispatcher module via cargo test in WSL."""
-        cmd = [
-            "wsl", "-u", "root", "-d", "podman-MiOS-DEV", "--",
-            "bash", "-c", "cd /mnt/c/MiOS/src/mios-rs && cargo test -p miosd --lib -- cli"
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        """Execute the Rust unit tests for the CLI dispatcher module."""
+        res = _cargo("cargo", "test", "-p", "miosd", "--lib", "--", "cli")
         self.assertEqual(
             res.returncode, 0,
             f"Cargo test for miosd cli failed:\nstdout: {res.stdout}\nstderr: {res.stderr}"

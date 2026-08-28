@@ -13,7 +13,7 @@ class TestKVCompact(unittest.TestCase):
         self.assertGreater(estimate_tokens([{"role": "user", "content": "hi"}]), 0)
 
     def test_compact_engine(self):
-        engine = KVCompactEngine(max_context_tokens=100)
+        engine = KVCompactEngine(max_tokens=100)
         msgs = [{"role": "user", "content": "test " * 50}]
         res = engine.compact_messages(msgs)
         self.assertIn("messages", res)

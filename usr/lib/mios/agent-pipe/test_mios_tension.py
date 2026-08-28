@@ -23,10 +23,10 @@ def main():
     ledger = TensionLedger()
     tid = ledger.record_objection("challenger_1", "claim_10", "high", "Memory boundary violation")
     check("tension recorded", tid == 0)
-    check("has unresolvable tensions", not ledger.is_consensus_ready())
+    check("has unresolvable tensions", not ledger.can_close_deliberation()[0])
 
-    ledger.resolve_tension(tid, resolution="Fixed buffer allocation")
-    check("consensus ready after resolution", ledger.is_consensus_ready())
+    ledger.resolve_objection(tid, resolution_notes="Fixed buffer allocation")
+    check("consensus ready after resolution", ledger.can_close_deliberation()[0])
 
     if _fails > 0:
         sys.exit(1)

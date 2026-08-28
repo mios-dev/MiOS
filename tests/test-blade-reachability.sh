@@ -11,7 +11,10 @@ die() { printf '[blade-reachability] ERROR: %s\n' "$*" >&2; exit 1; }
 ok()  { PASS=$((PASS + 1)); log "ok: $*"; }
 
 command -v curl >/dev/null 2>&1 || { log "SKIP: curl absent"; exit 0; }
-HOST="$(hostname)"
+# `hostname` is not installed everywhere (minimal container images ship without
+# it), and an absent binary made this suite die at exit 127 before testing
+# anything. uname -n is in coreutils and answers the same question.
+HOST="$(hostname 2>/dev/null || uname -n)"
 getent hosts "$HOST" >/dev/null 2>&1 || HOST="127.0.0.1"
 
 FIXTURE="$(mktemp -d)"

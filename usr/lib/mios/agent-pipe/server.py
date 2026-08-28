@@ -119,7 +119,7 @@ _GATEWAY_TASK = None
 _MCP_POOL = None
 import mios_crl   # noqa: E402  -- WS-A10 principal/cert revocation list (inert until a CRL file exists)
 import mios_gossip   # noqa: E402  -- WS-A18 epidemic peer discovery (inert until [gossip].interval_min>0)
-_A2A_REPUTATION = mios_reputation.ReputationEngine()   # outbound-peer reliability
+_A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
 import mios_selfimprove   # noqa: E402,F401  -- #64 analyzer; now consumed via mios_daemons (_selfimprove_report moved there), retained for import-surface parity
 import mios_toolconflict   # noqa: E402  -- WS-A7 per-verb dispatch conflict/parallel-limit gate
 import mios_trace   # noqa: E402  -- WS-A8 per-request trace/span observability

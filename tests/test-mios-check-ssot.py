@@ -9,18 +9,33 @@ import time
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+WORKSPACE = ROOT / "src" / "mios-rs"
+
+def _cargo(*args):
+    """Run cargo in the workspace on any platform.
+
+    These tests used to shell into a WSL distro by name and cd to /mnt/c/MiOS,
+    so they only ever ran on one machine. Skip when there is no toolchain
+    rather than letting its absence look like a pass.
+    """
+    import shutil
+    if shutil.which("cargo") is None:
+        raise unittest.SkipTest("cargo is not on PATH; cannot exercise the validator")
+    return subprocess.run(list(args), cwd=str(WORKSPACE), capture_output=True, text=True)
 
 class TestMiosCheckSSOT(unittest.TestCase):
-    def test_real_ssot_toml_validity(self):
-        """Verify that live SSOT usr/share/mios/mios.toml passes validation cleanly."""
+    def test_validator_unit_tests_pass(self):
+        """Run the validator's own unit tests over its synthetic fixtures.
+
+        Named for what it does: these are the crate's fixtures, NOT the live
+        mios.toml. The old name claimed the shipped SSOT was being validated
+        while asserting only on cargo output, which is the kind of gap this
+        repo's gates exist to catch.
+        """
         ssot_file = ROOT / "usr/share/mios/mios.toml"
         self.assertTrue(ssot_file.is_file(), f"SSOT file missing at {ssot_file}")
 
-        cmd = [
-            "wsl", "-u", "root", "-d", "podman-MiOS-DEV", "--",
-            "bash", "-c", "cd /mnt/c/MiOS/src/mios-rs && cargo test -p mios-config --lib -- validator"
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = _cargo("cargo", "test", "-p", "mios-config", "--lib", "--", "validator")
         self.assertEqual(
             res.returncode, 0,
             f"Cargo test for mios-config validator failed:\nstdout: {res.stdout}\nstderr: {res.stderr}"
@@ -53,12 +68,7 @@ service_beta = 9090
 
         try:
             # Run miosd check on the invalid temp file
-            wsl_path = f"/mnt/c/{temp_path.replace('C:\\', '').replace('\\', '/')}"
-            cmd = [
-                "wsl", "-u", "root", "-d", "podman-MiOS-DEV", "--",
-                "bash", "-c", f"cd /mnt/c/MiOS/src/mios-rs && cargo run -p miosd -- check {wsl_path}"
-            ]
-            res = subprocess.run(cmd, capture_output=True, text=True)
+            res = _cargo("cargo", "run", "-q", "-p", "miosd", "--", "check", temp_path)
             self.assertNotEqual(res.returncode, 0, "Validator should fail on port collision")
             self.assertIn("Port Collision", res.stdout + res.stderr)
         finally:
@@ -82,12 +92,7 @@ shell = "/bin/bash"
             temp_path = f.name
 
         try:
-            wsl_path = f"/mnt/c/{temp_path.replace('C:\\', '').replace('\\', '/')}"
-            cmd = [
-                "wsl", "-u", "root", "-d", "podman-MiOS-DEV", "--",
-                "bash", "-c", f"cd /mnt/c/MiOS/src/mios-rs && cargo run -p miosd -- check {wsl_path}"
-            ]
-            res = subprocess.run(cmd, capture_output=True, text=True)
+            res = _cargo("cargo", "run", "-q", "-p", "miosd", "--", "check", temp_path)
             self.assertNotEqual(res.returncode, 0, "Validator should fail on empty string literal")
             self.assertIn("Law 7 Violation", res.stdout + res.stderr)
         finally:

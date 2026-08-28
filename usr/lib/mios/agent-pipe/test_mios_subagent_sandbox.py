@@ -16,7 +16,7 @@ class TestSubagentSandbox(unittest.TestCase):
         self.assertFalse(invalid)
 
     def test_sandbox_cmd_generation(self):
-        sandbox = SubagentSandbox(workspace_path="/tmp/ws")
+        sandbox = SubagentSandbox(workspace_dir="/tmp/ws")
         cmd = sandbox.build_bwrap_args(["ls", "-la"])
         self.assertIn("bwrap", cmd[0])
 

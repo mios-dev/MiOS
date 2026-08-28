@@ -23,6 +23,27 @@ sys.path.insert(0, _HERE)
 
 import wire
 
+# Re-export the protocol surface. This file is the FHS-named entry point and its
+# docstring above advertises the encoder/decoder, but importing it only bound the
+# name `wire`, so every attribute the header describes -- Frame included -- was
+# missing from the module callers actually load.
+from wire import (  # noqa: E402,F401 -- re-export
+    HEADER_SIZE,
+    HEADER_STRUCT,
+    MAX_PAYLOAD_LEN,
+    MIOS_MAGIC,
+    MIOS_VERSION,
+    AsyncFrameBuffer,
+    AsyncFrameCodec,
+    AsyncTcpFrameClient,
+    AsyncTcpFrameServer,
+    Frame,
+    Header,
+    NodeWireDispatcher,
+    Opcode,
+    WireFrame,
+)
+
 if __name__ == "__main__":
     sys.exit(wire.main())
 

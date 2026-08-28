@@ -376,10 +376,9 @@ class TestBoundedReflectionAdversarial(unittest.TestCase):
             current_draft="Draft 1",
         )
         turn = mios_deliberate.DeliberationTurn(
-            iteration=1,
-            draft="Draft 1",
+            turn_index=1,
+            draft="Draft 2",
             critique="Critique 1",
-            revised="Draft 2",
             semantic_delta=0.45,
             tokens_used=120,
             duration_ms=15.5,

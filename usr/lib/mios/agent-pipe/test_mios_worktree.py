@@ -14,9 +14,9 @@ class TestAgentWorktree(unittest.TestCase):
         self.assertEqual(res["status"], "dry_run")
         self.assertEqual(res["subagent_id"], "sub_123")
 
-    def test_prune_worktree_dry_run(self):
+    def test_cleanup_worktree_dry_run(self):
         mgr = AgentWorktreeManager(dry_run=True)
-        res = mgr.prune_worktree("sub_123")
+        res = mgr.cleanup_worktree("sub_123")
         self.assertEqual(res["status"], "dry_run")
 
 if __name__ == "__main__":

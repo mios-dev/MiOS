@@ -306,7 +306,25 @@ class TestSyntheticQAAdversarial(unittest.TestCase):
 
     def test_parser_deeply_nested_headers_and_level_jumping(self):
         """Stress: 6 header levels and abrupt jumps (e.g. # to ####)."""
-        md_text = """# Level 1 Title  This is the top level overview chapter of the system architecture.  ## Level 2 Component  Description of the component with enough words to satisfy word count threshold.  ### Level 3 Subsystem  Detailed subsystem description containing architecture rules and operational details.  ###### Level 6 Deep Leaf  Extremely nested operational parameter specifications with full details.  ## Level 2 Sibling  A sibling section at level 2 popping all intermediate headers off stack."""
+        md_text = """# Level 1 Title
+
+This is the top level overview chapter of the system architecture.
+
+## Level 2 Component
+
+Description of the component with enough words to satisfy word count threshold.
+
+### Level 3 Subsystem
+
+Detailed subsystem description containing architecture rules and operational details.
+
+###### Level 6 Deep Leaf
+
+Extremely nested operational parameter specifications with full details.
+
+## Level 2 Sibling
+
+A sibling section at level 2 popping all intermediate headers off stack."""
         chunks = self.parser.parse_text(md_text, doc_path="doc/deep.md")
         self.assertGreaterEqual(len(chunks), 4)
 
@@ -326,7 +344,18 @@ class TestSyntheticQAAdversarial(unittest.TestCase):
 
     def test_parser_headers_inside_code_blocks(self):
         """Stress: Markdown headers inside code fences must NOT be parsed as headers."""
-        md_text = """# Outer Header  Here is an example python script containing comments with pound signs:  ```python # This is a python comment, not a markdown header # Another comment def hello():     return True ```  This section concludes the explanation with sufficient descriptive words."""
+        md_text = """# Outer Header
+
+Here is an example python script containing comments with pound signs:
+
+```python
+# This is a python comment, not a markdown header
+# Another comment
+def hello():
+    return True
+```
+
+This section concludes the explanation with sufficient descriptive words."""
         chunks = self.parser.parse_text(md_text, doc_path="doc/code_block.md")
         self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0].section_title, "Outer Header")
@@ -335,13 +364,31 @@ class TestSyntheticQAAdversarial(unittest.TestCase):
 
     def test_parser_unclosed_code_fence_and_malformed_tables(self):
         """Stress: Unclosed code fences and malformed tables must not crash."""
-        md_text = """# Unclosed Fence Test  Here is text before unclosed fence.  ```sh echo "unclosed code fence"  | col1 | col2 | --- | --- | val1 | val2 |  More descriptive text to satisfy the minimum word count threshold for this chunk."""
+        md_text = """# Unclosed Fence Test
+
+Here is text before unclosed fence.
+
+```sh
+echo "unclosed code fence"
+
+| col1 | col2 |
+| --- | --- |
+| val1 | val2 |
+
+More descriptive text to satisfy the minimum word count threshold for this chunk."""
         chunks = self.parser.parse_text(md_text, doc_path="doc/unclosed.md")
         self.assertEqual(len(chunks), 1)
 
     def test_parser_unicode_and_special_characters(self):
         """Stress: CJK, emojis, mathematical symbols, special markdown characters."""
-        md_text = """# 🚀 MiOS 架构规范 (Architecture)  MiOS 是一个不可变的 bootc/OCI Fedora 工作站与本地 AI 操作系统 🌟。  ## 🔐 安全与加密 (Security & Crypto)  采用 Ed25519 签名与 ChaCha20-Poly1305 AEAD 加密算法，保证跨节点通信安全。 数学公式: $\\mathcal{H}(k, m) = \\text{HMAC-SHA256}(k, m)$。"""
+        md_text = """# 🚀 MiOS 架构规范 (Architecture)
+
+MiOS 是一个不可变的 bootc/OCI Fedora 工作站与本地 AI 操作系统 🌟。
+
+## 🔐 安全与加密 (Security & Crypto)
+
+采用 Ed25519 签名与 ChaCha20-Poly1305 AEAD 加密算法，保证跨节点通信安全。
+数学公式: $\\mathcal{H}(k, m) = \\text{HMAC-SHA256}(k, m)$。"""
         chunks = self.parser.parse_text(md_text, doc_path="doc/unicode.md")
         self.assertGreaterEqual(len(chunks), 2)
         sec_chunk = chunks[1]

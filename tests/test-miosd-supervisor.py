@@ -102,12 +102,15 @@ class TestMiosdSupervisor(unittest.TestCase):
         self.assertTrue(loaded["hardware"]["watchdog_active"])
 
     def test_rust_unit_tests_pass(self):
-        """Execute Rust unit tests for daemon modules via cargo test in WSL."""
-        cmd = [
-            "wsl", "-u", "root", "-d", "podman-MiOS-DEV", "--",
-            "bash", "-c", "cd /mnt/c/MiOS/src/mios-rs && cargo test -p miosd --lib -- daemon"
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        """Execute the Rust unit tests for the daemon modules."""
+        import shutil
+        if shutil.which("cargo") is None:
+            raise unittest.SkipTest("cargo is not on PATH; cannot exercise the miosd daemon")
+        # Was pinned to a named WSL distro and /mnt/c paths, so it could only run
+        # on one Windows box and failed on every CI runner.
+        res = subprocess.run(
+            ["cargo", "test", "-p", "miosd", "--lib", "--", "daemon"],
+            cwd=str(ROOT / "src" / "mios-rs"), capture_output=True, text=True)
         self.assertEqual(
             res.returncode, 0,
             f"Cargo test for miosd daemon failed:\nstdout: {res.stdout}\nstderr: {res.stderr}"

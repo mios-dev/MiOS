@@ -176,13 +176,23 @@ def _default_responder(archetype: Archetype,
 # T-385: Bounded Reflection Loop Convergence
 # ---------------------------------------------------------------------------
 import difflib
+import re
 
 @dataclass
 class DeliberationConfig:
     """Configuration for bounded deliberation/reflection convergence."""
     max_iterations: int = 3
+    min_iterations: int = 1
     convergence_threshold: float = 0.05
     timeout_seconds: float = 30.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "max_iterations":        self.max_iterations,
+            "min_iterations":        self.min_iterations,
+            "convergence_threshold": self.convergence_threshold,
+            "timeout_seconds":       self.timeout_seconds,
+        }
 
 @dataclass
 class DeliberationTurn:
@@ -192,6 +202,18 @@ class DeliberationTurn:
     draft: str
     semantic_delta: float
     timestamp: float = field(default_factory=time.monotonic)
+    tokens_used: int = 0        # what the critique-revision round cost, when the caller knows
+    duration_ms: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "turn_index":     self.turn_index,
+            "critique":       self.critique,
+            "draft":          self.draft,
+            "semantic_delta": self.semantic_delta,
+            "tokens_used":    self.tokens_used,
+            "duration_ms":    self.duration_ms,
+        }
 
 @dataclass
 class DeliberationState:
@@ -203,14 +225,41 @@ class DeliberationState:
     exit_reason: str = ""
     final_output: str = ""
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "initial_prompt":   self.initial_prompt,
+            "current_draft":    self.current_draft,
+            "total_iterations": len(self.turns),
+            "is_converged":     self.is_converged,
+            "exit_reason":      self.exit_reason,
+            "final_output":     self.final_output,
+            "turns":            [t.to_dict() for t in self.turns],
+        }
+
 class SemanticDeltaCalculator:
     """Calculates semantic distance between successive drafts (0.0=identical, 1.0=disjoint)."""
 
+    _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
+
     def calculate_delta(self, text_a: str, text_b: str) -> float:
+        """Distance over WORDS, not characters.
+
+        A character diff is not a semantic measure: two drafts sharing no word
+        at all still score ~0.77 similar on letter overlap alone, which both
+        understates real rewrites and makes the convergence threshold mean
+        different things at different draft lengths. Comparing token sequences
+        keeps ordering sensitivity (still difflib) while giving disjoint drafts
+        the 1.0 they deserve -- and it is cheaper on long drafts, because the
+        sequences are words rather than characters.
+        """
         if text_a == text_b:
             return 0.0
-        matcher = difflib.SequenceMatcher(None, text_a.strip(), text_b.strip())
-        similarity = matcher.ratio()
+        tokens_a = self._TOKEN_RE.findall(text_a.lower())
+        tokens_b = self._TOKEN_RE.findall(text_b.lower())
+        if not tokens_a and not tokens_b:
+            # Whitespace/punctuation-only drafts that differ only in layout.
+            return 0.0 if text_a.strip() == text_b.strip() else 1.0
+        similarity = difflib.SequenceMatcher(None, tokens_a, tokens_b).ratio()
         return max(0.0, min(1.0, 1.0 - similarity))
 
 def calculate_semantic_delta(text_a: str, text_b: str) -> float:
@@ -227,12 +276,8 @@ class BoundedDeliberationEngine:
 
     def step(self, state: DeliberationState, critique: str, revision: str) -> bool:
         critique_upper = critique.upper()
-        if "APPROVED" in critique_upper or "NO FURTHER CHANGES" in critique_upper:
-            state.is_converged = True
-            state.exit_reason = "converged_critique_passed"
-            state.current_draft = revision
-            state.final_output = revision
-            return True
+        approved = ("APPROVED" in critique_upper
+                    or "NO FURTHER CHANGES" in critique_upper)
 
         delta = self.calculator.calculate_delta(state.current_draft, revision)
         turn = DeliberationTurn(
@@ -246,7 +291,19 @@ class BoundedDeliberationEngine:
         state.current_draft = revision
         state.final_output = revision
 
-        if delta < self.config.convergence_threshold:
+        # Both voluntary exits are floored by min_iterations: neither an
+        # approving critique nor a near-identical first revision is evidence
+        # that the loop has converged, so a caller can demand a second opinion
+        # before the engine may stop. The max_iterations ceiling below is
+        # deliberately not floored -- the ceiling always wins.
+        floor_met = len(state.turns) >= self.config.min_iterations
+
+        if approved and floor_met:
+            state.is_converged = True
+            state.exit_reason = "converged_critique_passed"
+            return True
+
+        if delta < self.config.convergence_threshold and floor_met:
             state.is_converged = True
             state.exit_reason = "converged_diminishing_returns"
             return True

@@ -21,10 +21,11 @@ def check(name, cond, detail=""):
 
 def main():
     synth = PersonaSynthesizer()
-    cat = synth.classify_domain("How do I configure eBPF cgroups and memory limits in linux?")
+    cat, conf, _scores = synth.classifier.classify(
+        "How do I configure eBPF cgroups and memory limits in linux?")
     check("kernel domain detected", cat == DomainCategory.KERNEL_SYSTEMS)
 
-    prompt = synth.synthesize_system_prompt("Base prompt", cat)
+    prompt = synth.synthesize("Base prompt", cat, confidence=conf)
     check("system prompt enriched", "Base prompt" in prompt and "Linux Kernel" in prompt)
 
     if _fails > 0:
