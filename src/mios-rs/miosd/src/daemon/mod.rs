@@ -80,7 +80,8 @@ impl Supervisor {
         let hw_state = self.hardware.ping_and_sample(now_ts);
 
         let classify = Some(ClassifySummary {
-            summary: "All system services operating nominal; no elevated error rates detected.".to_string(),
+            summary: "All system services operating nominal; no elevated error rates detected."
+                .to_string(),
             tags: vec!["system".to_string(), "nominal".to_string()],
             severity: "info".to_string(),
             event_count: 0,
@@ -93,14 +94,12 @@ impl Supervisor {
                 ts: now_ts,
                 reason: "periodic supervisor cycle".to_string(),
             }),
-            decisions: vec![
-                CronDecision {
-                    rule: "theme_sync".to_string(),
-                    fired: theme_state.in_sync,
-                    ts: now_ts,
-                    reason: "theme check evaluated".to_string(),
-                }
-            ],
+            decisions: vec![CronDecision {
+                rule: "theme_sync".to_string(),
+                fired: theme_state.in_sync,
+                ts: now_ts,
+                reason: "theme check evaluated".to_string(),
+            }],
         };
 
         let state = DaemonState {
@@ -153,7 +152,9 @@ impl Supervisor {
             }
         }
 
-        println!("[miosd] Supervisor received shutdown signal. Flushing state and exiting cleanly.");
+        println!(
+            "[miosd] Supervisor received shutdown signal. Flushing state and exiting cleanly."
+        );
         let _ = self.tick();
         Ok(())
     }

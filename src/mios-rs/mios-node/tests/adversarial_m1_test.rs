@@ -8,9 +8,7 @@ use mios_node::cgroups::{
 use mios_node::crypto::{
     chacha20_poly1305_decrypt, chacha20_poly1305_encrypt, CryptoHandshake, NodeIdentity,
 };
-use mios_node::hardware::{
-    HardwareAllowlist, HardwareErrorCode, SandboxedHardwareController,
-};
+use mios_node::hardware::{HardwareAllowlist, HardwareErrorCode, SandboxedHardwareController};
 use mios_node::state_sync::{StateElement, StateStore};
 use mios_node::watchdog::{
     LinuxHardwareWatchdog, WatchdogConfig, WatchdogDriver, WatchdogSupervisor,
@@ -25,14 +23,12 @@ use tempfile::NamedTempFile;
 fn test_adversarial_crypto_rfc7539_test_vectors() {
     // Official RFC 7539 Section 2.8.2 Test Vector for ChaCha20-Poly1305 AEAD
     let key: [u8; 32] = [
-        0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
-        0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f,
-        0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97,
-        0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f,
+        0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e,
+        0x8f, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d,
+        0x9e, 0x9f,
     ];
     let nonce: [u8; 12] = [
-        0x07, 0x00, 0x00, 0x00,
-        0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
+        0x07, 0x00, 0x00, 0x00, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
     ];
     let aad: [u8; 12] = [
         0x50, 0x51, 0x52, 0x53, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7,
@@ -40,15 +36,18 @@ fn test_adversarial_crypto_rfc7539_test_vectors() {
     let plaintext = b"Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.";
 
     let expected_tag: [u8; 16] = [
-        0x1a, 0xe1, 0x0b, 0x59, 0x4f, 0x09, 0xe2, 0x6a,
-        0x7e, 0x90, 0x2e, 0xcb, 0xd0, 0x60, 0x06, 0x91,
+        0x1a, 0xe1, 0x0b, 0x59, 0x4f, 0x09, 0xe2, 0x6a, 0x7e, 0x90, 0x2e, 0xcb, 0xd0, 0x60, 0x06,
+        0x91,
     ];
 
     let ciphertext_with_tag = chacha20_poly1305_encrypt(&key, &nonce, &aad, plaintext);
     assert_eq!(ciphertext_with_tag.len(), plaintext.len() + 16);
 
     let actual_tag = &ciphertext_with_tag[plaintext.len()..];
-    assert_eq!(actual_tag, &expected_tag, "Poly1305 MAC tag must match RFC 7539 vector");
+    assert_eq!(
+        actual_tag, &expected_tag,
+        "Poly1305 MAC tag must match RFC 7539 vector"
+    );
 
     // Decrypt and verify exact plaintext
     let decrypted = chacha20_poly1305_decrypt(&key, &nonce, &aad, &ciphertext_with_tag)
@@ -70,7 +69,11 @@ fn test_adversarial_crypto_bit_flip_tamper_fuzzing() {
         let mut tampered = ciphertext_with_tag.clone();
         tampered[byte_idx] ^= 0x01; // flip 1 bit
         let res = chacha20_poly1305_decrypt(&key, &nonce, aad, &tampered);
-        assert!(res.is_err(), "Bit-flip at ciphertext offset {} must fail decryption", byte_idx);
+        assert!(
+            res.is_err(),
+            "Bit-flip at ciphertext offset {} must fail decryption",
+            byte_idx
+        );
     }
 
     // 2. Bit-flip every single byte in the 16-byte Poly1305 MAC tag
@@ -79,7 +82,11 @@ fn test_adversarial_crypto_bit_flip_tamper_fuzzing() {
         let idx = ciphertext_with_tag.len() - 16 + tag_offset;
         tampered[idx] ^= 0x80;
         let res = chacha20_poly1305_decrypt(&key, &nonce, aad, &tampered);
-        assert!(res.is_err(), "Bit-flip at MAC tag offset {} must fail decryption", tag_offset);
+        assert!(
+            res.is_err(),
+            "Bit-flip at MAC tag offset {} must fail decryption",
+            tag_offset
+        );
     }
 
     // 3. Bit-flip in AAD
@@ -87,14 +94,22 @@ fn test_adversarial_crypto_bit_flip_tamper_fuzzing() {
         let mut tampered_aad = aad.to_vec();
         tampered_aad[aad_idx] ^= 0x02;
         let res = chacha20_poly1305_decrypt(&key, &nonce, &tampered_aad, &ciphertext_with_tag);
-        assert!(res.is_err(), "Bit-flip at AAD offset {} must fail decryption", aad_idx);
+        assert!(
+            res.is_err(),
+            "Bit-flip at AAD offset {} must fail decryption",
+            aad_idx
+        );
     }
 
     // 4. Truncated payloads (shorter than tag size 16)
     for len in 0..16 {
         let truncated = &ciphertext_with_tag[..len];
         let res = chacha20_poly1305_decrypt(&key, &nonce, aad, truncated);
-        assert!(res.is_err(), "Payload of length {} must be rejected (< 16)", len);
+        assert!(
+            res.is_err(),
+            "Payload of length {} must be rejected (< 16)",
+            len
+        );
     }
 }
 
@@ -112,17 +127,24 @@ fn test_adversarial_crypto_x25519_and_session_handshake() {
     let mut tampered_init = init.clone();
     tampered_init.ephemeral_pubkey[0] ^= 0xFF;
     let tamper_res = CryptoHandshake::process_init_and_respond(&id_bob, &eph_bob, &tampered_init);
-    assert!(tamper_res.is_err(), "Tampered ephemeral pubkey must fail signature check");
+    assert!(
+        tamper_res.is_err(),
+        "Tampered ephemeral pubkey must fail signature check"
+    );
 
     // Legitimate handshake
-    let (resp, mut session_bob) = CryptoHandshake::process_init_and_respond(&id_bob, &eph_bob, &init)
-        .expect("Bob should process init");
+    let (resp, mut session_bob) =
+        CryptoHandshake::process_init_and_respond(&id_bob, &eph_bob, &init)
+            .expect("Bob should process init");
 
     // Malicious tampering with response signature
     let mut tampered_resp = resp.clone();
     tampered_resp.signature[0] ^= 0x01;
     let finalize_tamper_res = CryptoHandshake::finalize_init(&id_alice, &eph_alice, &tampered_resp);
-    assert!(finalize_tamper_res.is_err(), "Tampered responder signature must fail");
+    assert!(
+        finalize_tamper_res.is_err(),
+        "Tampered responder signature must fail"
+    );
 
     // Legitimate finalization
     let mut session_alice = CryptoHandshake::finalize_init(&id_alice, &eph_alice, &resp)
@@ -132,7 +154,9 @@ fn test_adversarial_crypto_x25519_and_session_handshake() {
     for msg_idx in 0..50 {
         let msg = format!("Message seq #{}", msg_idx).into_bytes();
         let enc = session_alice.encrypt_payload(&msg);
-        let dec = session_bob.decrypt_payload(&enc).expect("Bob should decrypt sequential msg");
+        let dec = session_bob
+            .decrypt_payload(&enc)
+            .expect("Bob should decrypt sequential msg");
         assert_eq!(dec, msg);
     }
 }
@@ -143,12 +167,13 @@ fn test_adversarial_crypto_x25519_and_session_handshake() {
 
 #[test]
 fn test_adversarial_hardware_allowlist_boundaries() {
-    let mut allowlist = HardwareAllowlist::default();
-    allowlist.allowed_gpio_pins = [17, 27].into_iter().collect();
-    allowlist.read_only_gpio_pins = [27].into_iter().collect();
-    allowlist.allowed_i2c_buses = [1].into_iter().collect();
-    allowlist.allowed_i2c_addresses = [0x68].into_iter().collect();
-    allowlist.max_i2c_transfer_len = 8; // Small 8-byte transfer limit
+    let allowlist = HardwareAllowlist {
+        allowed_gpio_pins: [17, 27].into_iter().collect(),
+        read_only_gpio_pins: [27].into_iter().collect(),
+        allowed_i2c_buses: [1].into_iter().collect(),
+        allowed_i2c_addresses: [0x68].into_iter().collect(),
+        max_i2c_transfer_len: 8, // Small 8-byte transfer limit
+    };
 
     let (controller, mock) = SandboxedHardwareController::new_mock(allowlist);
 
@@ -209,7 +234,11 @@ fn test_adversarial_hardware_allowlist_boundaries() {
         controller.mios_sys_i2c_transfer(1, 0x68, &start_at_255, &mut wrap_read),
         Ok(3)
     );
-    assert_eq!(wrap_read, [0xAA, 0xBB, 0xCC], "Wrapping from 255 to 0, 1 must be handled cleanly");
+    assert_eq!(
+        wrap_read,
+        [0xAA, 0xBB, 0xCC],
+        "Wrapping from 255 to 0, 1 must be handled cleanly"
+    );
 }
 
 // ============================================================================
@@ -248,10 +277,14 @@ fn test_adversarial_worker_affinity_allocation_exhaustion() {
     let mut controller = WorkerAffinityController::new(4, limits); // safe: [1, 2, 3]
 
     // Allocate 3 exclusive cores
-    let c1 = controller.allocate_cores_for_policy(AffinityPolicy::Exclusive, 2).unwrap();
+    let c1 = controller
+        .allocate_cores_for_policy(AffinityPolicy::Exclusive, 2)
+        .unwrap();
     assert_eq!(c1, vec![1, 2]);
 
-    let c2 = controller.allocate_cores_for_policy(AffinityPolicy::Exclusive, 1).unwrap();
+    let c2 = controller
+        .allocate_cores_for_policy(AffinityPolicy::Exclusive, 1)
+        .unwrap();
     assert_eq!(c2, vec![3]);
 
     // Pool is completely exhausted
@@ -260,34 +293,55 @@ fn test_adversarial_worker_affinity_allocation_exhaustion() {
 
     // Release unallocated / irrelevant core 99 (no-op)
     controller.release_cores(&[99]);
-    assert!(controller.allocate_cores_for_policy(AffinityPolicy::Exclusive, 1).is_err());
+    assert!(controller
+        .allocate_cores_for_policy(AffinityPolicy::Exclusive, 1)
+        .is_err());
 
     // Release core 2
     controller.release_cores(&[2]);
-    let c_re = controller.allocate_cores_for_policy(AffinityPolicy::Exclusive, 1).unwrap();
+    let c_re = controller
+        .allocate_cores_for_policy(AffinityPolicy::Exclusive, 1)
+        .unwrap();
     assert_eq!(c_re, vec![2]);
 
     // LowPriority always assigns the last safe core
-    let low = controller.allocate_cores_for_policy(AffinityPolicy::LowPriority, 0).unwrap();
+    let low = controller
+        .allocate_cores_for_policy(AffinityPolicy::LowPriority, 0)
+        .unwrap();
     assert_eq!(low, vec![3]);
 }
 
 #[test]
 fn test_adversarial_cgroup_format_cpu_max_arithmetic() {
     // 0% quota
-    assert_eq!(CgroupV2Controller::format_cpu_max(Some(0), 100_000), "0 100000");
+    assert_eq!(
+        CgroupV2Controller::format_cpu_max(Some(0), 100_000),
+        "0 100000"
+    );
 
     // 50% quota
-    assert_eq!(CgroupV2Controller::format_cpu_max(Some(50), 100_000), "50000 100000");
+    assert_eq!(
+        CgroupV2Controller::format_cpu_max(Some(50), 100_000),
+        "50000 100000"
+    );
 
     // 100% quota
-    assert_eq!(CgroupV2Controller::format_cpu_max(Some(100), 100_000), "100000 100000");
+    assert_eq!(
+        CgroupV2Controller::format_cpu_max(Some(100), 100_000),
+        "100000 100000"
+    );
 
     // 400% quota (4 full cores)
-    assert_eq!(CgroupV2Controller::format_cpu_max(Some(400), 100_000), "400000 100000");
+    assert_eq!(
+        CgroupV2Controller::format_cpu_max(Some(400), 100_000),
+        "400000 100000"
+    );
 
     // Max unlimited
-    assert_eq!(CgroupV2Controller::format_cpu_max(None, 50_000), "max 50000");
+    assert_eq!(
+        CgroupV2Controller::format_cpu_max(None, 50_000),
+        "max 50000"
+    );
 }
 
 // ============================================================================
@@ -427,7 +481,10 @@ fn test_adversarial_watchdog_supervisor_and_mock_driver() {
     // 1. Initial State
     assert!(supervisor.is_present());
     assert!(!supervisor.is_armed());
-    assert!(supervisor.ping().is_err(), "Ping on un-armed supervisor must return Err");
+    assert!(
+        supervisor.ping().is_err(),
+        "Ping on un-armed supervisor must return Err"
+    );
 
     // 2. Arm and Ping Loop
     assert!(supervisor.arm().is_ok());

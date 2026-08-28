@@ -25,7 +25,10 @@ impl HardwareMonitor {
         let mut watchdog_active = self.active;
         if self.watchdog_dev.exists() {
             // Attempt to write heartbeat byte to /dev/watchdog
-            if let Ok(mut f) = std::fs::OpenOptions::new().write(true).open(&self.watchdog_dev) {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .write(true)
+                .open(&self.watchdog_dev)
+            {
                 use std::io::Write;
                 let _ = f.write_all(b"\0");
                 let _ = f.flush();

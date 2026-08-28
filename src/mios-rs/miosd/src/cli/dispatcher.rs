@@ -9,7 +9,10 @@ pub static KNOWN_VERBS: &[(&str, &[&str])] = &[
     ("dash", &["/usr/libexec/mios/mios-dashboard.sh", "--dash"]),
     ("mini", &["/usr/libexec/mios/mios-dashboard.sh", "--mini"]),
     ("mon", &["/usr/libexec/mios/mios-dashboard.sh", "--monitor"]),
-    ("monitor", &["/usr/libexec/mios/mios-dashboard.sh", "--monitor"]),
+    (
+        "monitor",
+        &["/usr/libexec/mios/mios-dashboard.sh", "--monitor"],
+    ),
     ("config", &["/usr/libexec/mios/mios-configurator-launch"]),
     ("code", &["xdg-open", "http://localhost:8080/"]),
     ("ai", &["xdg-open", "http://localhost:3030/"]),
@@ -26,7 +29,10 @@ pub static KNOWN_VERBS: &[(&str, &[&str])] = &[
     ("dotfiles", &["/usr/libexec/mios/mios-dotfiles"]),
     ("new", &["/usr/libexec/mios/mios-new"]),
     ("iommu", &["/usr/libexec/mios/hardware-iommu.sh"]),
-    ("iommu-groups", &["/usr/libexec/mios/hardware-iommu-groups.sh"]),
+    (
+        "iommu-groups",
+        &["/usr/libexec/mios/hardware-iommu-groups.sh"],
+    ),
     ("env", &["/usr/libexec/mios/system-env.sh"]),
     ("sync-env", &["/usr/libexec/mios/system-sync-env.sh"]),
     ("blade", &["/usr/libexec/mios/mios-blade"]),

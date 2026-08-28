@@ -124,19 +124,16 @@ impl HeartbeatMonitor {
             return;
         }
 
-        let entry = self
-            .routing_table
-            .entry(node_id)
-            .or_insert_with(|| {
-                PeerRoutingEntry::new(
-                    node_id,
-                    addr,
-                    current_time_secs,
-                    uptime_secs,
-                    cpu_load_pct,
-                    mem_available_kb,
-                )
-            });
+        let entry = self.routing_table.entry(node_id).or_insert_with(|| {
+            PeerRoutingEntry::new(
+                node_id,
+                addr,
+                current_time_secs,
+                uptime_secs,
+                cpu_load_pct,
+                mem_available_kb,
+            )
+        });
 
         entry.addr = addr;
         entry.last_seen_secs = current_time_secs;
@@ -148,12 +145,7 @@ impl HeartbeatMonitor {
     }
 
     /// Records a peer upon receiving an Announce frame (Opcode 0x02).
-    pub fn record_announce(
-        &mut self,
-        node_id: u32,
-        addr: SocketAddr,
-        current_time_secs: u64,
-    ) {
+    pub fn record_announce(&mut self, node_id: u32, addr: SocketAddr, current_time_secs: u64) {
         if node_id == self.local_node_id {
             return;
         }
@@ -161,9 +153,7 @@ impl HeartbeatMonitor {
         let entry = self
             .routing_table
             .entry(node_id)
-            .or_insert_with(|| {
-                PeerRoutingEntry::new(node_id, addr, current_time_secs, 0, 0, 0)
-            });
+            .or_insert_with(|| PeerRoutingEntry::new(node_id, addr, current_time_secs, 0, 0, 0));
 
         entry.addr = addr;
         entry.last_seen_secs = current_time_secs;
@@ -187,11 +177,7 @@ impl HeartbeatMonitor {
         degraded_threshold_secs: u64,
         eviction_threshold_secs: u64,
     ) -> (PeerHealth, u32) {
-        let strikes = if interval_secs > 0 {
-            (elapsed_secs / interval_secs) as u32
-        } else {
-            0
-        };
+        let strikes = elapsed_secs.checked_div(interval_secs).unwrap_or(0) as u32;
 
         if elapsed_secs >= eviction_threshold_secs {
             (PeerHealth::Dead, strikes.max(3))
@@ -215,7 +201,8 @@ impl HeartbeatMonitor {
 
         for (node_id, peer) in self.routing_table.iter_mut() {
             let elapsed = current_time_secs.saturating_sub(peer.last_seen_secs);
-            let (health, strikes) = Self::calculate_peer_health(elapsed, interval, deg_thresh, evict_thresh);
+            let (health, strikes) =
+                Self::calculate_peer_health(elapsed, interval, deg_thresh, evict_thresh);
 
             peer.missed_strikes = strikes;
             peer.status = health;
@@ -251,7 +238,12 @@ impl HeartbeatMonitor {
     }
 
     /// Manually evicts a peer from the routing table.
-    pub fn evict_peer(&mut self, node_id: u32, reason: &str, current_time_secs: u64) -> Option<EvictionNotice> {
+    pub fn evict_peer(
+        &mut self,
+        node_id: u32,
+        reason: &str,
+        current_time_secs: u64,
+    ) -> Option<EvictionNotice> {
         if let Some(peer) = self.routing_table.remove(&node_id) {
             let elapsed = current_time_secs.saturating_sub(peer.last_seen_secs);
             Some(EvictionNotice {
@@ -271,7 +263,10 @@ impl HeartbeatMonitor {
     }
 
     pub fn active_peers(&self) -> Vec<&PeerRoutingEntry> {
-        self.routing_table.values().filter(|p| p.is_active()).collect()
+        self.routing_table
+            .values()
+            .filter(|p| p.is_active())
+            .collect()
     }
 
     pub fn peer_count(&self) -> usize {

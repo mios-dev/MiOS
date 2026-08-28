@@ -37,7 +37,8 @@ pub struct AiFallback;
 
 impl AiFallback {
     pub fn resolve_endpoint() -> (String, String) {
-        let ep = std::env::var("MIOS_AI_ENDPOINT").unwrap_or_else(|_| "http://localhost:8640/v1".to_string());
+        let ep = std::env::var("MIOS_AI_ENDPOINT")
+            .unwrap_or_else(|_| "http://localhost:8640/v1".to_string());
         let model = std::env::var("MIOS_AI_MODEL")
             .or_else(|_| std::env::var("MIOS_AI_GATEWAY_MODEL"))
             .unwrap_or_else(|_| "MiOS AI".to_string());
@@ -46,7 +47,10 @@ impl AiFallback {
 
     pub fn execute_prompt(prompt: &str) -> i32 {
         let (endpoint, model) = Self::resolve_endpoint();
-        println!("[mios] Connecting to AI endpoint: {} (model: {})", endpoint, model);
+        println!(
+            "[mios] Connecting to AI endpoint: {} (model: {})",
+            endpoint, model
+        );
 
         let req = ChatCompletionRequest {
             model: model.clone(),
@@ -66,7 +70,9 @@ impl AiFallback {
         };
 
         // Parse host and port from endpoint URL
-        let url_no_proto = endpoint.trim_start_matches("http://").trim_start_matches("https://");
+        let url_no_proto = endpoint
+            .trim_start_matches("http://")
+            .trim_start_matches("https://");
         let parts: Vec<&str> = url_no_proto.split('/').collect();
         let host_port = parts[0];
         let path_prefix = if parts.len() > 1 {

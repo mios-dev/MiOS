@@ -6,9 +6,7 @@ use mios_node::cgroups::{
     filter_safe_worker_cores, AffinityPolicy, CgroupV2Controller, NodeResourceLimits,
     WorkerAffinityController,
 };
-use mios_node::hardware::{
-    HardwareAllowlist, HardwareErrorCode, SandboxedHardwareController,
-};
+use mios_node::hardware::{HardwareAllowlist, HardwareErrorCode, SandboxedHardwareController};
 use mios_node::state_sync::{StateElement, StateStore};
 use mios_node::watchdog::{MockWatchdogDriver, WatchdogConfig, WatchdogSupervisor};
 use std::sync::{Arc, Mutex};
@@ -21,9 +19,11 @@ use tempfile::NamedTempFile;
 
 #[test]
 fn test_stress_gpio_unauthorized_pins_and_boundaries() {
-    let mut allowlist = HardwareAllowlist::default();
-    allowlist.allowed_gpio_pins = [4, 17, 27, 22].into_iter().collect();
-    allowlist.read_only_gpio_pins = [4].into_iter().collect();
+    let allowlist = HardwareAllowlist {
+        allowed_gpio_pins: [4, 17, 27, 22].into_iter().collect(),
+        read_only_gpio_pins: [4].into_iter().collect(),
+        ..Default::default()
+    };
 
     let (controller, mock) = SandboxedHardwareController::new_mock(allowlist);
 
@@ -57,9 +57,11 @@ fn test_stress_gpio_unauthorized_pins_and_boundaries() {
 
 #[test]
 fn test_stress_gpio_read_only_violation() {
-    let mut allowlist = HardwareAllowlist::default();
-    allowlist.allowed_gpio_pins = [4, 17].into_iter().collect();
-    allowlist.read_only_gpio_pins = [4].into_iter().collect();
+    let allowlist = HardwareAllowlist {
+        allowed_gpio_pins: [4, 17].into_iter().collect(),
+        read_only_gpio_pins: [4].into_iter().collect(),
+        ..Default::default()
+    };
 
     let (controller, mock) = SandboxedHardwareController::new_mock(allowlist);
 
@@ -81,10 +83,12 @@ fn test_stress_gpio_read_only_violation() {
 
 #[test]
 fn test_stress_i2c_bus_and_address_boundary_violations() {
-    let mut allowlist = HardwareAllowlist::default();
-    allowlist.allowed_i2c_buses = [1].into_iter().collect();
-    allowlist.allowed_i2c_addresses = [0x48, 0x68].into_iter().collect();
-    allowlist.max_i2c_transfer_len = 128;
+    let allowlist = HardwareAllowlist {
+        allowed_i2c_buses: [1].into_iter().collect(),
+        allowed_i2c_addresses: [0x48, 0x68].into_iter().collect(),
+        max_i2c_transfer_len: 128,
+        ..Default::default()
+    };
 
     let (controller, mock) = SandboxedHardwareController::new_mock(allowlist);
     mock.set_mock_i2c_register(1, 0x68, 0x00, 0x42);
@@ -107,10 +111,12 @@ fn test_stress_i2c_bus_and_address_boundary_violations() {
 
 #[test]
 fn test_stress_i2c_buffer_overflow_attempts() {
-    let mut allowlist = HardwareAllowlist::default();
-    allowlist.allowed_i2c_buses = [1].into_iter().collect();
-    allowlist.allowed_i2c_addresses = [0x68].into_iter().collect();
-    allowlist.max_i2c_transfer_len = 64; // Max 64 bytes
+    let allowlist = HardwareAllowlist {
+        allowed_i2c_buses: [1].into_iter().collect(),
+        allowed_i2c_addresses: [0x68].into_iter().collect(),
+        max_i2c_transfer_len: 64, // Max 64 bytes
+        ..Default::default()
+    };
 
     let (controller, _mock) = SandboxedHardwareController::new_mock(allowlist);
 

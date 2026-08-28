@@ -102,7 +102,11 @@ mod tests {
 
     #[test]
     fn test_dispatch_completions() {
-        let rc = dispatch(vec!["mios".into(), "--generate-completion".into(), "bash".into()]);
+        let rc = dispatch(vec![
+            "mios".into(),
+            "--generate-completion".into(),
+            "bash".into(),
+        ]);
         assert_eq!(rc, 0);
     }
 }

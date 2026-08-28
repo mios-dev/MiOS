@@ -168,9 +168,11 @@ mod tests {
         let temp_dir = tempfile::tempdir().expect("tempdir");
         let manager = StateManager::new(temp_dir.path());
 
-        let mut state = DaemonState::default();
-        state.ts = 1724688000;
-        state.uptime_s = 3600;
+        let mut state = DaemonState {
+            ts: 1724688000,
+            uptime_s: 3600,
+            ..Default::default()
+        };
         state.metrics.cpu_percent = 12.5;
         state.metrics.memory_used_mb = 4096;
         state.metrics.memory_total_mb = 16384;

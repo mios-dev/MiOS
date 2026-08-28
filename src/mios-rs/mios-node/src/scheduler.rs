@@ -41,10 +41,10 @@ impl TaskPriority {
 pub struct TaskItem {
     pub task_id: u64,
     pub priority: TaskPriority,
-    pub tier: u8,                   // 1 = Wasm, 2 = Native
-    pub target_arch: u16,           // 0 = Agnostic, 1 = x86_64, 2 = aarch64, 3 = riscv64
-    pub pinned_hardware: bool,      // Invariant: If true, prohibited from being stolen away
-    pub pinned_node_id: Option<u32>,// Specific node requirement if pinned
+    pub tier: u8,                    // 1 = Wasm, 2 = Native
+    pub target_arch: u16,            // 0 = Agnostic, 1 = x86_64, 2 = aarch64, 3 = riscv64
+    pub pinned_hardware: bool,       // Invariant: If true, prohibited from being stolen away
+    pub pinned_node_id: Option<u32>, // Specific node requirement if pinned
     pub memory_limit_bytes: u32,
     pub execution_timeout_ms: u32,
     pub code_bytes: Vec<u8>,
@@ -369,11 +369,7 @@ impl WorkStealingScheduler {
     }
 
     /// Evaluates whether a task should execute locally or be offloaded to a peer.
-    pub fn route_task(
-        &self,
-        task: &TaskItem,
-        peer_loads: &[(u32, usize)],
-    ) -> ScheduledTarget {
+    pub fn route_task(&self, task: &TaskItem, peer_loads: &[(u32, usize)]) -> ScheduledTarget {
         // Invariant: Hardware pinned tasks MUST stay local
         if task.pinned_hardware {
             return ScheduledTarget::Local;

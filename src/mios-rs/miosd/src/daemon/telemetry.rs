@@ -10,6 +10,12 @@ pub struct TelemetryCollector {
     prev_total: u64,
 }
 
+impl Default for TelemetryCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TelemetryCollector {
     pub fn new() -> Self {
         Self {
@@ -43,34 +49,32 @@ impl TelemetryCollector {
     fn sample_cpu(prev_idle: u64, prev_total: u64) -> (f32, u64, u64) {
         if let Ok(file) = File::open("/proc/stat") {
             let reader = BufReader::new(file);
-            for line_res in reader.lines() {
-                if let Ok(line) = line_res {
-                    if line.starts_with("cpu ") {
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-                        if parts.len() >= 5 {
-                            let user: u64 = parts[1].parse().unwrap_or(0);
-                            let nice: u64 = parts[2].parse().unwrap_or(0);
-                            let system: u64 = parts[3].parse().unwrap_or(0);
-                            let idle: u64 = parts[4].parse().unwrap_or(0);
-                            let iowait: u64 = parts.get(5).and_then(|s| s.parse().ok()).unwrap_or(0);
-                            let irq: u64 = parts.get(6).and_then(|s| s.parse().ok()).unwrap_or(0);
-                            let softirq: u64 = parts.get(7).and_then(|s| s.parse().ok()).unwrap_or(0);
-                            let steal: u64 = parts.get(8).and_then(|s| s.parse().ok()).unwrap_or(0);
+            for line in reader.lines().map_while(Result::ok) {
+                if line.starts_with("cpu ") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 5 {
+                        let user: u64 = parts[1].parse().unwrap_or(0);
+                        let nice: u64 = parts[2].parse().unwrap_or(0);
+                        let system: u64 = parts[3].parse().unwrap_or(0);
+                        let idle: u64 = parts[4].parse().unwrap_or(0);
+                        let iowait: u64 = parts.get(5).and_then(|s| s.parse().ok()).unwrap_or(0);
+                        let irq: u64 = parts.get(6).and_then(|s| s.parse().ok()).unwrap_or(0);
+                        let softirq: u64 = parts.get(7).and_then(|s| s.parse().ok()).unwrap_or(0);
+                        let steal: u64 = parts.get(8).and_then(|s| s.parse().ok()).unwrap_or(0);
 
-                            let idle_all = idle + iowait;
-                            let non_idle = user + nice + system + irq + softirq + steal;
-                            let total = idle_all + non_idle;
+                        let idle_all = idle + iowait;
+                        let non_idle = user + nice + system + irq + softirq + steal;
+                        let total = idle_all + non_idle;
 
-                            let totald = total.saturating_sub(prev_total);
-                            let idled = idle_all.saturating_sub(prev_idle);
+                        let totald = total.saturating_sub(prev_total);
+                        let idled = idle_all.saturating_sub(prev_idle);
 
-                            let cpu_pct = if totald > 0 {
-                                ((totald - idled) as f32 / totald as f32) * 100.0
-                            } else {
-                                0.0
-                            };
-                            return (cpu_pct.clamp(0.0, 100.0), idle_all, total);
-                        }
+                        let cpu_pct = if totald > 0 {
+                            ((totald - idled) as f32 / totald as f32) * 100.0
+                        } else {
+                            0.0
+                        };
+                        return (cpu_pct.clamp(0.0, 100.0), idle_all, total);
                     }
                 }
             }
@@ -84,18 +88,16 @@ impl TelemetryCollector {
 
         if let Ok(file) = File::open("/proc/meminfo") {
             let reader = BufReader::new(file);
-            for line_res in reader.lines() {
-                if let Ok(line) = line_res {
-                    if line.starts_with("MemTotal:") {
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-                        if parts.len() >= 2 {
-                            total_kb = parts[1].parse().unwrap_or(total_kb);
-                        }
-                    } else if line.starts_with("MemAvailable:") {
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-                        if parts.len() >= 2 {
-                            avail_kb = parts[1].parse().unwrap_or(avail_kb);
-                        }
+            for line in reader.lines().map_while(Result::ok) {
+                if line.starts_with("MemTotal:") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        total_kb = parts[1].parse().unwrap_or(total_kb);
+                    }
+                } else if line.starts_with("MemAvailable:") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        avail_kb = parts[1].parse().unwrap_or(avail_kb);
                     }
                 }
             }

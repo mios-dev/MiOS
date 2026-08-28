@@ -83,7 +83,8 @@ impl WatchdogDriver for LinuxHardwareWatchdog {
         if let Some(ref mut f) = self.file_handle {
             f.write_all(b"\0")
                 .map_err(|e| format!("Watchdog ping write failed: {}", e))?;
-            f.flush().map_err(|e| format!("Watchdog flush failed: {}", e))?;
+            f.flush()
+                .map_err(|e| format!("Watchdog flush failed: {}", e))?;
             Ok(())
         } else {
             Err("Watchdog is not armed / device not open".to_string())
@@ -205,7 +206,10 @@ impl WatchdogSupervisor {
     }
 
     pub fn new_mock(config: WatchdogConfig) -> (Self, Arc<Mutex<MockWatchdogDriver>>) {
-        let mock = Arc::new(Mutex::new(MockWatchdogDriver::new(true, config.timeout_secs)));
+        let mock = Arc::new(Mutex::new(MockWatchdogDriver::new(
+            true,
+            config.timeout_secs,
+        )));
         let supervisor = Self {
             config,
             driver: mock.clone(),

@@ -63,7 +63,7 @@ pub struct StateStore {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CompactionConfig {
-    pub tombstone_ttl_ns: u64,           // default: 24 * 3600 * 1_000_000_000 (24h)
+    pub tombstone_ttl_ns: u64, // default: 24 * 3600 * 1_000_000_000 (24h)
     pub min_compaction_interval_ns: u64, // default: 3600 * 1_000_000_000 (1h)
     pub max_tombstones_threshold: usize, // e.g. 1000 tombstones triggers compaction
 }
@@ -157,7 +157,11 @@ impl StateStore {
     }
 
     /// Compacts in-memory tombstones and flushes clean snapshot to disk while truncating append WAL log.
-    pub fn compact_disk_storage(&mut self, current_time_ns: u64, ttl_ns: u64) -> Result<CompactionStats> {
+    pub fn compact_disk_storage(
+        &mut self,
+        current_time_ns: u64,
+        ttl_ns: u64,
+    ) -> Result<CompactionStats> {
         let mut stats = self.compact_tombstones(current_time_ns, ttl_ns);
 
         if let Some(ref path_str) = self.persistence_path {

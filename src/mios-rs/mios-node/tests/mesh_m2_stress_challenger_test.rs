@@ -6,14 +6,10 @@ use mios_node::ble::{
     ProvisioningPayload, BLE_CHAR_ECDH_UUID, BLE_CHAR_PROVISION_UUID,
 };
 use mios_node::buffer_pool::BufferPool;
-use mios_node::capabilities::{
-    CapabilityRegistry, NodeAnnouncePayload, NodeCapabilities,
-};
+use mios_node::capabilities::{CapabilityRegistry, NodeAnnouncePayload, NodeCapabilities};
 use mios_node::overlay::{HysteresisConfig, MultiTransportRouter, TransportType};
 use mios_node::protocol::{Frame, MessageType};
-use mios_node::scheduler::{
-    ScheduledTarget, TaskItem, TaskPriority, WorkStealingScheduler,
-};
+use mios_node::scheduler::{ScheduledTarget, TaskItem, TaskPriority, WorkStealingScheduler};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -127,7 +123,9 @@ fn test_stress_concurrent_work_stealing_with_pinned_invariants() {
 
     // Wait until all tasks are consumed or timeout
     let start = std::time::Instant::now();
-    while completed_tasks.load(Ordering::SeqCst) < NUM_TASKS && start.elapsed() < Duration::from_secs(5) {
+    while completed_tasks.load(Ordering::SeqCst) < NUM_TASKS
+        && start.elapsed() < Duration::from_secs(5)
+    {
         thread::sleep(Duration::from_millis(10));
     }
 
@@ -185,10 +183,10 @@ fn test_stress_buffer_pool_concurrency_and_into_vec_accounting() {
             thread::spawn(move || {
                 for i in 0..OPS_PER_THREAD {
                     let size = match (tid + i) % 4 {
-                        0 => 128,      // Small
-                        1 => 2048,     // Medium
-                        2 => 32768,    // Large
-                        _ => 200_000,  // Huge
+                        0 => 128,     // Small
+                        1 => 2048,    // Medium
+                        2 => 32768,   // Large
+                        _ => 200_000, // Huge
                     };
 
                     let mut buf = p.acquire(size);
@@ -312,7 +310,11 @@ fn test_adversarial_node_announce_corrupt_frame_decoding() {
     assert!(err.is_err());
 
     // 2. Corrupted JSON payload
-    let corrupt_json_frame = Frame::new(MessageType::NodeAnnounce, 42, b"{\"node_id\": 42, BAD_JSON".to_vec());
+    let corrupt_json_frame = Frame::new(
+        MessageType::NodeAnnounce,
+        42,
+        b"{\"node_id\": 42, BAD_JSON".to_vec(),
+    );
     assert!(NodeAnnouncePayload::from_frame(&corrupt_json_frame).is_err());
 
     // 3. Empty payload
@@ -349,10 +351,14 @@ fn test_adversarial_ble_bit_flip_fuzzing_and_key_validation() {
     );
     provision_remote_node(adapter.as_ref(), &creds).unwrap();
 
-    let peer_pub = adapter.get_characteristic_value(BLE_CHAR_ECDH_UUID).unwrap();
+    let peer_pub = adapter
+        .get_characteristic_value(BLE_CHAR_ECDH_UUID)
+        .unwrap();
     bootstrap.handle_ecdh_exchange(&peer_pub).unwrap();
 
-    let valid_ciphertext = adapter.get_characteristic_value(BLE_CHAR_PROVISION_UUID).unwrap();
+    let valid_ciphertext = adapter
+        .get_characteristic_value(BLE_CHAR_PROVISION_UUID)
+        .unwrap();
     assert!(!valid_ciphertext.is_empty());
 
     // 4. Exhaustive single-byte bit flip fuzzing across all ciphertext bytes
@@ -375,7 +381,9 @@ fn test_adversarial_ble_bit_flip_fuzzing_and_key_validation() {
     }
 
     // 6. Valid ciphertext succeeds
-    let prov = bootstrap.handle_provisioning_write(&valid_ciphertext).unwrap();
+    let prov = bootstrap
+        .handle_provisioning_write(&valid_ciphertext)
+        .unwrap();
     assert_eq!(prov.ssid, "FuzzSSID");
     assert_eq!(bootstrap.state(), BleBootstrapState::Provisioned);
 }
@@ -425,28 +433,43 @@ fn test_stress_overlay_flapping_and_hysteresis_boundaries() {
 
     router.record_missed_heartbeat(501, TransportType::LanBroadcast, 12_000);
     assert!(router.is_peer_partitioned(501)); // 3 misses -> WireGuard
-    assert_eq!(router.select_route(501).unwrap().0, TransportType::WireGuard);
+    assert_eq!(
+        router.select_route(501).unwrap().0,
+        TransportType::WireGuard
+    );
 
     // 3. Recovery: 3 hits at t=13_000, 14_000, 15_000 (dwell is only 2000ms < 10000ms) -> Still WireGuard
     router.record_heartbeat(501, TransportType::LanBroadcast, 1, 13_000);
     router.record_heartbeat(501, TransportType::LanBroadcast, 1, 14_000);
     router.record_heartbeat(501, TransportType::LanBroadcast, 1, 15_000);
-    assert_eq!(router.select_route(501).unwrap().0, TransportType::WireGuard);
+    assert_eq!(
+        router.select_route(501).unwrap().0,
+        TransportType::WireGuard
+    );
 
     // 4. At t=22_999 (dwell = 9999ms < 10000ms) -> Still WireGuard
     router.record_heartbeat(501, TransportType::LanBroadcast, 1, 22_999);
-    assert_eq!(router.select_route(501).unwrap().0, TransportType::WireGuard);
+    assert_eq!(
+        router.select_route(501).unwrap().0,
+        TransportType::WireGuard
+    );
 
     // 5. At t=23_000 (dwell = 10000ms >= 10000ms) -> Restores LAN
     router.record_heartbeat(501, TransportType::LanBroadcast, 1, 23_000);
-    assert_eq!(router.select_route(501).unwrap().0, TransportType::LanBroadcast);
+    assert_eq!(
+        router.select_route(501).unwrap().0,
+        TransportType::LanBroadcast
+    );
     assert!(!router.is_peer_partitioned(501));
 
     // 6. Failover hierarchy test: If LAN fails and WireGuard fails -> Tailscale
     router.record_missed_heartbeat(501, TransportType::LanBroadcast, 25_000);
     router.record_missed_heartbeat(501, TransportType::LanBroadcast, 26_000);
     router.record_missed_heartbeat(501, TransportType::LanBroadcast, 27_000);
-    assert_eq!(router.select_route(501).unwrap().0, TransportType::WireGuard);
+    assert_eq!(
+        router.select_route(501).unwrap().0,
+        TransportType::WireGuard
+    );
 
     // WireGuard misses 3 strikes
     router.record_missed_heartbeat(501, TransportType::WireGuard, 28_000);

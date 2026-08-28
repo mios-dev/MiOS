@@ -34,8 +34,8 @@ impl Default for NodeResourceLimits {
         Self {
             worker_cores: Vec::new(),
             cpu_quota_pct: Some(80),
-            cpu_period_us: 100_000, // 100ms default period
-            memory_max_bytes: Some(512 * 1024 * 1024), // 512MB
+            cpu_period_us: 100_000,                     // 100ms default period
+            memory_max_bytes: Some(512 * 1024 * 1024),  // 512MB
             memory_high_bytes: Some(400 * 1024 * 1024), // 400MB throttle mark
             exclude_core_zero: true,
             cgroup_path: "/sys/fs/cgroup/mios.slice/worker".to_string(),
@@ -85,11 +85,8 @@ impl WorkerAffinityController {
             Some(limits.worker_cores.as_slice())
         };
 
-        let safe_cores = filter_safe_worker_cores(
-            total_system_cores,
-            requested,
-            limits.exclude_core_zero,
-        );
+        let safe_cores =
+            filter_safe_worker_cores(total_system_cores, requested, limits.exclude_core_zero);
 
         Self {
             total_system_cores,
@@ -187,7 +184,10 @@ impl CgroupV2Controller {
         if !path.exists() {
             if let Err(e) = fs::create_dir_all(path) {
                 // In unprivileged containers or non-cgroup environments, fail gracefully
-                return Err(format!("Cannot initialize cgroup dir {}: {}", self.cgroup_root, e));
+                return Err(format!(
+                    "Cannot initialize cgroup dir {}: {}",
+                    self.cgroup_root, e
+                ));
             }
         }
 

@@ -12,33 +12,82 @@ pub enum ValidationError {
     Syntax(String),
     MissingSection(String),
     MissingField(String),
-    InvalidType { field: String, expected: String, got: String },
-    PortOutOfRange { key: String, port: i64 },
-    PortCollision { key1: String, key2: String, port: u16 },
-    Law7EmptyString { field: String },
-    RatchetViolation { name: String, current: usize, bound: usize, message: String },
+    InvalidType {
+        field: String,
+        expected: String,
+        got: String,
+    },
+    PortOutOfRange {
+        key: String,
+        port: i64,
+    },
+    PortCollision {
+        key1: String,
+        key2: String,
+        port: u16,
+    },
+    Law7EmptyString {
+        field: String,
+    },
+    RatchetViolation {
+        name: String,
+        current: usize,
+        bound: usize,
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ValidationError::Syntax(msg) => write!(f, "Syntax Error: {}", msg),
-            ValidationError::MissingSection(sec) => write!(f, "Missing required section: [{}]", sec),
+            ValidationError::MissingSection(sec) => {
+                write!(f, "Missing required section: [{}]", sec)
+            }
             ValidationError::MissingField(field) => write!(f, "Missing required field: {}", field),
-            ValidationError::InvalidType { field, expected, got } => {
-                write!(f, "Type Mismatch on '{}': expected {}, got {}", field, expected, got)
+            ValidationError::InvalidType {
+                field,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "Type Mismatch on '{}': expected {}, got {}",
+                    field, expected, got
+                )
             }
             ValidationError::PortOutOfRange { key, port } => {
-                write!(f, "Port Out of Range on '{}': {} (must be 1..65535)", key, port)
+                write!(
+                    f,
+                    "Port Out of Range on '{}': {} (must be 1..65535)",
+                    key, port
+                )
             }
             ValidationError::PortCollision { key1, key2, port } => {
-                write!(f, "Port Collision: port {} is assigned to both '{}' and '{}'", port, key1, key2)
+                write!(
+                    f,
+                    "Port Collision: port {} is assigned to both '{}' and '{}'",
+                    port, key1, key2
+                )
             }
             ValidationError::Law7EmptyString { field } => {
-                write!(f, "Law 7 Violation (Empty String Literal): '{}' must not be empty or whitespace", field)
+                write!(
+                    f,
+                    "Law 7 Violation (Empty String Literal): '{}' must not be empty or whitespace",
+                    field
+                )
             }
-            ValidationError::RatchetViolation { name, current, bound, message } => {
-                write!(f, "Ratchet Violation on '{}': current={} bound={} ({})", name, current, bound, message)
+            ValidationError::RatchetViolation {
+                name,
+                current,
+                bound,
+                message,
+            } => {
+                write!(
+                    f,
+                    "Ratchet Violation on '{}': current={} bound={} ({})",
+                    name, current, bound, message
+                )
             }
         }
     }
@@ -70,7 +119,12 @@ impl ValidationReport {
         }
     }
 
-    pub fn failure(errors: Vec<ValidationError>, warnings: Vec<ValidationWarning>, checked_sections: Vec<String>, duration_ms: f64) -> Self {
+    pub fn failure(
+        errors: Vec<ValidationError>,
+        warnings: Vec<ValidationWarning>,
+        checked_sections: Vec<String>,
+        duration_ms: f64,
+    ) -> Self {
         Self {
             is_valid: errors.is_empty(),
             errors,
@@ -104,7 +158,12 @@ impl ValidationReport {
             }
         }
         for (idx, warn) in self.warnings.iter().enumerate() {
-            out.push_str(&format!("  [WARN {}] {}: {}\n", idx + 1, warn.code, warn.message));
+            out.push_str(&format!(
+                "  [WARN {}] {}: {}\n",
+                idx + 1,
+                warn.code,
+                warn.message
+            ));
         }
         out
     }
@@ -120,7 +179,11 @@ impl MiosValidator {
             Err(e) => {
                 let dur = start.elapsed().as_secs_f64() * 1000.0;
                 return ValidationReport::failure(
-                    vec![ValidationError::Syntax(format!("Could not read file {}: {}", path.as_ref().display(), e))],
+                    vec![ValidationError::Syntax(format!(
+                        "Could not read file {}: {}",
+                        path.as_ref().display(),
+                        e
+                    ))],
                     Vec::new(),
                     Vec::new(),
                     dur,
@@ -154,7 +217,9 @@ impl MiosValidator {
             None => {
                 let dur = start.elapsed().as_secs_f64() * 1000.0;
                 return ValidationReport::failure(
-                    vec![ValidationError::Syntax("Root of TOML document must be a table".into())],
+                    vec![ValidationError::Syntax(
+                        "Root of TOML document must be a table".into(),
+                    )],
                     Vec::new(),
                     Vec::new(),
                     dur,
@@ -279,7 +344,9 @@ impl MiosValidator {
             if let Some(node_table) = node.as_table() {
                 if let Some(nid) = node_table.get("node_id") {
                     if nid.as_integer().map(|i| i <= 0).unwrap_or(true) {
-                        errors.push(ValidationError::MissingField("node.node_id must be a positive integer".to_string()));
+                        errors.push(ValidationError::MissingField(
+                            "node.node_id must be a positive integer".to_string(),
+                        ));
                     }
                 }
                 if let Some(p) = node_table.get("port") {
@@ -306,7 +373,8 @@ impl MiosValidator {
                                 name: "ci.max_exempt_suites".to_string(),
                                 current: ex_val as usize,
                                 bound: 6,
-                                message: "exemption limit cannot exceed ratchet ceiling 6".to_string(),
+                                message: "exemption limit cannot exceed ratchet ceiling 6"
+                                    .to_string(),
                             });
                         }
                     }
@@ -321,8 +389,12 @@ impl MiosValidator {
         ValidationReport::failure(errors, warnings, checked_sections, dur)
     }
 
-    fn check_non_empty_str(table: &toml::map::Map<String, toml::Value>, field_path: &str, errors: &mut Vec<ValidationError>) {
-        let field_name = field_path.split('.').last().unwrap_or(field_path);
+    fn check_non_empty_str(
+        table: &toml::map::Map<String, toml::Value>,
+        field_path: &str,
+        errors: &mut Vec<ValidationError>,
+    ) {
+        let field_name = field_path.split('.').next_back().unwrap_or(field_path);
         match table.get(field_name) {
             Some(val) => match val.as_str() {
                 Some(s) if s.trim().is_empty() => {
@@ -345,16 +417,27 @@ impl MiosValidator {
         }
     }
 
-    fn scan_law7_empty_strings(table: &toml::map::Map<String, toml::Value>, prefix: &str, errors: &mut Vec<ValidationError>) {
+    fn scan_law7_empty_strings(
+        table: &toml::map::Map<String, toml::Value>,
+        prefix: &str,
+        errors: &mut Vec<ValidationError>,
+    ) {
         for (key, val) in table {
-            let full_path = if prefix.is_empty() { key.clone() } else { format!("{}.{}", prefix, key) };
+            let full_path = if prefix.is_empty() {
+                key.clone()
+            } else {
+                format!("{}.{}", prefix, key)
+            };
             match val {
                 toml::Value::String(s) => {
                     // Check if critical configuration key is empty string
-                    if s.trim().is_empty() && (full_path.starts_with("identity.") || full_path.starts_with("meta.") || full_path.starts_with("security.") || full_path.starts_with("network.")) {
-                        errors.push(ValidationError::Law7EmptyString {
-                            field: full_path,
-                        });
+                    if s.trim().is_empty()
+                        && (full_path.starts_with("identity.")
+                            || full_path.starts_with("meta.")
+                            || full_path.starts_with("security.")
+                            || full_path.starts_with("network."))
+                    {
+                        errors.push(ValidationError::Law7EmptyString { field: full_path });
                     }
                 }
                 toml::Value::Table(sub) => {
@@ -397,7 +480,11 @@ port = 8650
 db_path = "/var/lib/mios/state.json"
 "#;
         let report = MiosValidator::validate_str(sample);
-        assert!(report.is_valid, "Report should be valid: {:?}", report.errors);
+        assert!(
+            report.is_valid,
+            "Report should be valid: {:?}",
+            report.errors
+        );
         assert!(report.duration_ms < 100.0, "Validation should be fast");
     }
 
@@ -420,7 +507,10 @@ service_b = 8080
 "#;
         let report = MiosValidator::validate_str(sample);
         assert!(!report.is_valid);
-        assert!(report.errors.iter().any(|e| matches!(e, ValidationError::PortCollision { .. })));
+        assert!(report
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::PortCollision { .. })));
     }
 
     #[test]
@@ -438,7 +528,10 @@ shell = "/bin/bash"
 "#;
         let report = MiosValidator::validate_str(sample);
         assert!(!report.is_valid);
-        assert!(report.errors.iter().any(|e| matches!(e, ValidationError::Law7EmptyString { .. })));
+        assert!(report
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::Law7EmptyString { .. })));
     }
 
     #[test]
@@ -459,6 +552,9 @@ max_phase_scripts = 50
 "#;
         let report = MiosValidator::validate_str(sample);
         assert!(!report.is_valid);
-        assert!(report.errors.iter().any(|e| matches!(e, ValidationError::RatchetViolation { .. })));
+        assert!(report
+            .errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::RatchetViolation { .. })));
     }
 }

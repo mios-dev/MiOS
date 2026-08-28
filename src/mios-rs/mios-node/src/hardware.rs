@@ -129,7 +129,11 @@ impl HardwareDriver for MockHardwareDriver {
 
         // If reading: if write_buf has 1 byte (register pointer), read starting at that register
         if !read_buf.is_empty() {
-            let start_reg = if !write_buf.is_empty() { write_buf[0] } else { 0 };
+            let start_reg = if !write_buf.is_empty() {
+                write_buf[0]
+            } else {
+                0
+            };
             for (idx, slot) in read_buf.iter_mut().enumerate() {
                 let current_reg = start_reg.wrapping_add(idx as u8);
                 *slot = *regs.get(&(bus, addr, current_reg)).unwrap_or(&0);
@@ -340,7 +344,10 @@ mod tests {
         // Disallowed address 0x55
         let res_disallowed_addr =
             controller.mios_sys_i2c_transfer(1, 0x55, &write_data, &mut read_data);
-        assert_eq!(res_disallowed_addr, Err(HardwareErrorCode::PermissionDenied));
+        assert_eq!(
+            res_disallowed_addr,
+            Err(HardwareErrorCode::PermissionDenied)
+        );
 
         // Disallowed bus 2
         let res_disallowed_bus =

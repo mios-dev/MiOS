@@ -100,8 +100,8 @@ impl PeerRoute {
 /// Anti-flap hysteresis configuration parameters (aligning with `[blade.collapse]`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HysteresisConfig {
-    pub fail_strikes_threshold: u32,    // Failover after N consecutive missed heartbeats (e.g. 3)
-    pub recovery_dwell_ms: u64,          // Revert dwell time in ms (e.g. 120_000 ms = 120s)
+    pub fail_strikes_threshold: u32, // Failover after N consecutive missed heartbeats (e.g. 3)
+    pub recovery_dwell_ms: u64,      // Revert dwell time in ms (e.g. 120_000 ms = 120s)
     pub recovery_strikes_threshold: u32, // Consecutive healthy probes required during recovery (e.g. 3)
 }
 
@@ -238,7 +238,7 @@ impl MultiTransportRouter {
 
     pub fn is_peer_partitioned(&self, node_id: u32) -> bool {
         let map = self.peers.lock().unwrap();
-        map.get(&node_id).map_or(false, |p| p.is_lan_partitioned)
+        map.get(&node_id).is_some_and(|p| p.is_lan_partitioned)
     }
 
     pub fn get_route_summary(&self, node_id: u32) -> Option<RouteSummary> {
@@ -289,7 +289,10 @@ mod tests {
         router.record_missed_heartbeat(201, TransportType::LanBroadcast, 1000);
         router.record_missed_heartbeat(201, TransportType::LanBroadcast, 2000);
         assert!(!router.is_peer_partitioned(201));
-        assert_eq!(router.select_route(201).unwrap().0, TransportType::LanBroadcast);
+        assert_eq!(
+            router.select_route(201).unwrap().0,
+            TransportType::LanBroadcast
+        );
 
         // 3rd miss on LAN: triggers partition and switches to WireGuard
         router.record_missed_heartbeat(201, TransportType::LanBroadcast, 3000);
@@ -318,7 +321,10 @@ mod tests {
         router.record_missed_heartbeat(202, TransportType::LanBroadcast, 1000);
         router.record_missed_heartbeat(202, TransportType::LanBroadcast, 2000);
         router.record_missed_heartbeat(202, TransportType::LanBroadcast, 3000);
-        assert_eq!(router.select_route(202).unwrap().0, TransportType::Tailscale);
+        assert_eq!(
+            router.select_route(202).unwrap().0,
+            TransportType::Tailscale
+        );
 
         // LAN probes resume at t=4000
         router.record_heartbeat(202, TransportType::LanBroadcast, 2, 4000);
@@ -326,11 +332,17 @@ mod tests {
         router.record_heartbeat(202, TransportType::LanBroadcast, 2, 6000);
 
         // 3 strikes achieved, but dwell elapsed is only 2000ms (< 5000ms) -> Still Tailscale!
-        assert_eq!(router.select_route(202).unwrap().0, TransportType::Tailscale);
+        assert_eq!(
+            router.select_route(202).unwrap().0,
+            TransportType::Tailscale
+        );
 
         // Probe at t=9500 (dwell elapsed = 5500ms >= 5000ms) -> Restores LAN!
         router.record_heartbeat(202, TransportType::LanBroadcast, 2, 9500);
-        assert_eq!(router.select_route(202).unwrap().0, TransportType::LanBroadcast);
+        assert_eq!(
+            router.select_route(202).unwrap().0,
+            TransportType::LanBroadcast
+        );
         assert!(!router.is_peer_partitioned(202));
     }
 }

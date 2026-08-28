@@ -5,14 +5,10 @@ use mios_node::ble::{
     BleAdapter, BleBootstrapState, BleMeshBootstrap, MockBleAdapter, ProvisioningPayload,
 };
 use mios_node::buffer_pool::{BucketTier, BufferPool, PooledBuffer};
-use mios_node::capabilities::{
-    CapabilityRegistry, NodeAnnouncePayload, NodeCapabilities,
-};
+use mios_node::capabilities::{CapabilityRegistry, NodeAnnouncePayload, NodeCapabilities};
 use mios_node::overlay::{HysteresisConfig, MultiTransportRouter, TransportType};
 use mios_node::protocol::{Frame, MessageType};
-use mios_node::scheduler::{
-    ScheduledTarget, TaskItem, TaskPriority, WorkStealingScheduler,
-};
+use mios_node::scheduler::{ScheduledTarget, TaskItem, TaskPriority, WorkStealingScheduler};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -96,10 +92,10 @@ fn test_scheduler_multithreaded_high_throughput_race_stress() {
                         _ => TaskPriority::Low,
                     };
                     let mut task = TaskItem::new(task_id, prio, 1, vec![1, 2], vec![]);
-                    if task_id % 7 == 0 {
+                    if task_id.is_multiple_of(7) {
                         task.pinned_hardware = true;
                     }
-                    if task_id % 5 == 0 && !task.pinned_hardware {
+                    if task_id.is_multiple_of(5) && !task.pinned_hardware {
                         task.pinned_node_id = Some(100);
                     }
 
@@ -186,10 +182,7 @@ fn test_scheduler_router_adversarial_matrix() {
 
     // 4. Unpinned task with empty peer list -> Local
     let unpinned = TaskItem::new(4, TaskPriority::Normal, 1, vec![], vec![]);
-    assert_eq!(
-        scheduler.route_task(&unpinned, &[]),
-        ScheduledTarget::Local
-    );
+    assert_eq!(scheduler.route_task(&unpinned, &[]), ScheduledTarget::Local);
 
     // 5. Unpinned task with local load < 2 -> Local
     assert_eq!(
@@ -312,10 +305,10 @@ fn test_buffer_pool_multithreaded_churn_and_saturation() {
             thread::spawn(move || {
                 for i in 0..iterations_per_thread {
                     let size = match (t_idx + i) % 4 {
-                        0 => 64,       // Small
-                        1 => 2048,     // Medium
-                        2 => 32768,    // Large
-                        _ => 128000,   // Huge
+                        0 => 64,     // Small
+                        1 => 2048,   // Medium
+                        2 => 32768,  // Large
+                        _ => 128000, // Huge
                     };
 
                     let mut buf = p.acquire(size);
@@ -372,19 +365,11 @@ fn test_capabilities_frame_validation_and_malformed_wire_rejection() {
     assert!(decoded.capabilities.has_i2c);
 
     // 2. Reject wrong message type (Heartbeat instead of NodeAnnounce)
-    let wrong_type_frame = Frame::new(
-        MessageType::Heartbeat,
-        99,
-        valid_frame.payload.clone(),
-    );
+    let wrong_type_frame = Frame::new(MessageType::Heartbeat, 99, valid_frame.payload.clone());
     assert!(NodeAnnouncePayload::from_frame(&wrong_type_frame).is_err());
 
     // 3. Reject corrupted JSON payload
-    let corrupted_frame = Frame::new(
-        MessageType::NodeAnnounce,
-        99,
-        vec![0xFF, 0xFE, 0xFD],
-    );
+    let corrupted_frame = Frame::new(MessageType::NodeAnnounce, 99, vec![0xFF, 0xFE, 0xFD]);
     assert!(NodeAnnouncePayload::from_frame(&corrupted_frame).is_err());
 
     // 4. Reject empty payload
@@ -400,17 +385,13 @@ fn test_capabilities_registry_fuzzing_and_multithreaded_access() {
     for i in 1..=30 {
         let mut caps = NodeCapabilities::default();
         caps.hardware.ram_available_kb = (i as u64) * 1024 * 1024; // 1MB to 30MB
-        caps.vram.vram_available_mb = if i % 2 == 0 { (i as u32) * 256 } else { 0 };
+        caps.vram.vram_available_mb = if i % 2 == 0 { i * 256 } else { 0 };
         caps.has_gpio = i % 3 == 0;
         caps.has_i2c = i % 5 == 0;
         caps.engines.wasm_tier = true;
         caps.engines.native_tier = i % 4 != 0;
 
-        let payload = NodeAnnouncePayload::new(
-            i,
-            format!("node-{:03}", i),
-            caps,
-        );
+        let payload = NodeAnnouncePayload::new(i, format!("node-{:03}", i), caps);
         registry.register_announce(payload, 1000 + (i as u64) * 10);
     }
 
@@ -418,14 +399,7 @@ fn test_capabilities_registry_fuzzing_and_multithreaded_access() {
 
     // Test queries:
     // A. RAM >= 10MB, VRAM >= 1024MB, Native required, GPIO required
-    let matches = registry.find_eligible_nodes(
-        10 * 1024 * 1024,
-        1024,
-        true,
-        true,
-        true,
-        false,
-    );
+    let matches = registry.find_eligible_nodes(10 * 1024 * 1024, 1024, true, true, true, false);
 
     for node_id in &matches {
         let caps = registry.get_capabilities(*node_id).unwrap();
@@ -469,7 +443,10 @@ fn test_ble_bootstrap_handshake_violation_and_tamper_fuzzing() {
     // 1. Invariant: Writing provisioning credentials BEFORE ECDH handshake must fail
     let premature_write = vec![0x11; 64];
     let res = bootstrap.handle_provisioning_write(&premature_write);
-    assert!(res.is_err(), "Premature provisioning write must be rejected");
+    assert!(
+        res.is_err(),
+        "Premature provisioning write must be rejected"
+    );
 
     // 2. Reject invalid ECDH public key lengths
     assert!(bootstrap.handle_ecdh_exchange(&[]).is_err());
@@ -593,7 +570,10 @@ fn test_overlay_router_adversarial_flap_and_intermittent_lan_recovery() {
     router.record_missed_heartbeat(700, TransportType::LanBroadcast, 2000);
     router.record_missed_heartbeat(700, TransportType::LanBroadcast, 3000);
     assert!(router.is_peer_partitioned(700));
-    assert_eq!(router.select_route(700).unwrap().0, TransportType::WireGuard);
+    assert_eq!(
+        router.select_route(700).unwrap().0,
+        TransportType::WireGuard
+    );
 
     // 2. Flapping: 2 successful LAN probes, then 1 miss
     router.record_heartbeat(700, TransportType::LanBroadcast, 1, 4000);
@@ -606,16 +586,25 @@ fn test_overlay_router_adversarial_flap_and_intermittent_lan_recovery() {
     router.record_heartbeat(700, TransportType::LanBroadcast, 1, 9000);
 
     // Invariant: 3 strikes achieved, but dwell elapsed is only 5000ms (< 120000ms) -> MUST stay WireGuard!
-    assert_eq!(router.select_route(700).unwrap().0, TransportType::WireGuard);
+    assert_eq!(
+        router.select_route(700).unwrap().0,
+        TransportType::WireGuard
+    );
 
     // 4. Probes during dwell: t=50000, 100000 -> still WireGuard
     router.record_heartbeat(700, TransportType::LanBroadcast, 1, 50000);
     router.record_heartbeat(700, TransportType::LanBroadcast, 1, 100000);
-    assert_eq!(router.select_route(700).unwrap().0, TransportType::WireGuard);
+    assert_eq!(
+        router.select_route(700).unwrap().0,
+        TransportType::WireGuard
+    );
 
     // 5. Successful probe at t=130000 (dwell elapsed = 126000ms >= 120000ms) -> Restores LAN!
     router.record_heartbeat(700, TransportType::LanBroadcast, 1, 130000);
-    assert_eq!(router.select_route(700).unwrap().0, TransportType::LanBroadcast);
+    assert_eq!(
+        router.select_route(700).unwrap().0,
+        TransportType::LanBroadcast
+    );
     assert!(!router.is_peer_partitioned(700));
 
     let summary = router.get_route_summary(700).unwrap();

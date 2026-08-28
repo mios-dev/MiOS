@@ -63,7 +63,10 @@ _mios "$@"
     fn generate_fish() -> String {
         let mut out = String::from("# fish completion for mios\n");
         for (v, _) in KNOWN_VERBS {
-            out.push_str(&format!("complete -c mios -n '__fish_use_subcommand' -a '{}' -d 'MiOS verb {}'\n", v, v));
+            out.push_str(&format!(
+                "complete -c mios -n '__fish_use_subcommand' -a '{}' -d 'MiOS verb {}'\n",
+                v, v
+            ));
         }
         out.push_str("complete -c mios -l generate-completion -d 'Generate shell completions'\n");
         out.push_str("complete -c mios -l help -s h -d 'Show help'\n");

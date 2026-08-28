@@ -93,7 +93,10 @@ impl ExecutionEngine {
                                     success: false,
                                     exit_code: err as i32,
                                     output_data: Vec::new(),
-                                    error_msg: Some(format!("Hardware permission error: {:?}", err)),
+                                    error_msg: Some(format!(
+                                        "Hardware permission error: {:?}",
+                                        err
+                                    )),
                                 };
                             }
                         }
@@ -111,7 +114,10 @@ impl ExecutionEngine {
                                     success: false,
                                     exit_code: err as i32,
                                     output_data: Vec::new(),
-                                    error_msg: Some(format!("Hardware permission error: {:?}", err)),
+                                    error_msg: Some(format!(
+                                        "Hardware permission error: {:?}",
+                                        err
+                                    )),
                                 };
                             }
                         }
@@ -122,15 +128,26 @@ impl ExecutionEngine {
                         let wdata: Vec<u8> = val
                             .get("write")
                             .and_then(|w| w.as_array())
-                            .map(|arr| arr.iter().filter_map(|x| x.as_u64().map(|v| v as u8)).collect())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|x| x.as_u64().map(|v| v as u8))
+                                    .collect()
+                            })
                             .unwrap_or_default();
-                        let rlen = val.get("read_len").and_then(|r| r.as_u64()).unwrap_or(0) as usize;
+                        let rlen =
+                            val.get("read_len").and_then(|r| r.as_u64()).unwrap_or(0) as usize;
                         let mut rdata = vec![0u8; rlen];
-                        match self.hardware.mios_sys_i2c_transfer(bus, addr, &wdata, &mut rdata) {
+                        match self
+                            .hardware
+                            .mios_sys_i2c_transfer(bus, addr, &wdata, &mut rdata)
+                        {
                             Ok(bytes_read) => {
                                 hw_result_info = format!(
                                     "; I2C bus {} addr 0x{:02X} read {} bytes: {:?}",
-                                    bus, addr, bytes_read, &rdata[..bytes_read]
+                                    bus,
+                                    addr,
+                                    bytes_read,
+                                    &rdata[..bytes_read]
                                 );
                             }
                             Err(err) => {
@@ -139,7 +156,10 @@ impl ExecutionEngine {
                                     success: false,
                                     exit_code: err as i32,
                                     output_data: Vec::new(),
-                                    error_msg: Some(format!("Hardware permission error: {:?}", err)),
+                                    error_msg: Some(format!(
+                                        "Hardware permission error: {:?}",
+                                        err
+                                    )),
                                 };
                             }
                         }

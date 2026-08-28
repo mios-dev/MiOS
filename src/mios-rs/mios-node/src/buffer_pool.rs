@@ -14,10 +14,10 @@ use std::sync::{Arc, Mutex};
 /// Buffer size tiers for bucketed memory allocation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum BucketTier {
-    Small = 256,         // 256 B: 16B header, heartbeats, node announce, acks
-    Medium = 4096,       // 4 KB: standard payloads, telemetry
-    Large = 65536,       // 64 KB: CRDT state sync batches, medium chunks
-    Huge = 1048576,      // 1 MB: Wasm modules, native code payloads
+    Small = 256,    // 256 B: 16B header, heartbeats, node announce, acks
+    Medium = 4096,  // 4 KB: standard payloads, telemetry
+    Large = 65536,  // 64 KB: CRDT state sync batches, medium chunks
+    Huge = 1048576, // 1 MB: Wasm modules, native code payloads
 }
 
 impl BucketTier {
@@ -231,18 +231,33 @@ impl PooledBuffer {
 
     /// Zero-copy subslice inspection.
     pub fn slice(&self, start: usize, end: usize) -> Result<&[u8]> {
-        let b = self.buffer.as_ref().ok_or_else(|| anyhow!("Buffer already released"))?;
+        let b = self
+            .buffer
+            .as_ref()
+            .ok_or_else(|| anyhow!("Buffer already released"))?;
         if start > end || end > b.len() {
-            return Err(anyhow!("Slice range {}..{} out of bounds (len: {})", start, end, b.len()));
+            return Err(anyhow!(
+                "Slice range {}..{} out of bounds (len: {})",
+                start,
+                end,
+                b.len()
+            ));
         }
         Ok(&b[start..end])
     }
 
     /// Splits off the first `at` bytes, copying only what is necessary and keeping the rest.
     pub fn split_prefix(&mut self, at: usize) -> Result<Vec<u8>> {
-        let b = self.buffer.as_mut().ok_or_else(|| anyhow!("Buffer already released"))?;
+        let b = self
+            .buffer
+            .as_mut()
+            .ok_or_else(|| anyhow!("Buffer already released"))?;
         if at > b.len() {
-            return Err(anyhow!("Split prefix index {} exceeds buffer length {}", at, b.len()));
+            return Err(anyhow!(
+                "Split prefix index {} exceeds buffer length {}",
+                at,
+                b.len()
+            ));
         }
         let prefix = b[..at].to_vec();
         b.drain(..at);

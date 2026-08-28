@@ -27,7 +27,11 @@ impl AsyncFrameCodec {
     pub async fn read_frame<R: AsyncReadExt + Unpin>(reader: &mut R) -> Result<Frame> {
         let mut header_buf = [0u8; HEADER_SIZE];
         reader.read_exact(&mut header_buf).await.map_err(|e| {
-            anyhow!("Failed to read frame header ({} bytes expected): {}", HEADER_SIZE, e)
+            anyhow!(
+                "Failed to read frame header ({} bytes expected): {}",
+                HEADER_SIZE,
+                e
+            )
         })?;
 
         let header = Header::decode(&header_buf)?;
@@ -67,14 +71,19 @@ impl AsyncFrameCodec {
     }
 
     /// Serializes and writes a complete frame asynchronously to a writer, then flushes.
-    pub async fn write_frame<W: AsyncWriteExt + Unpin>(writer: &mut W, frame: &Frame) -> Result<()> {
+    pub async fn write_frame<W: AsyncWriteExt + Unpin>(
+        writer: &mut W,
+        frame: &Frame,
+    ) -> Result<()> {
         let encoded = frame.encode()?;
-        writer.write_all(&encoded).await.map_err(|e| {
-            anyhow!("Failed to write frame ({} bytes): {}", encoded.len(), e)
-        })?;
-        writer.flush().await.map_err(|e| {
-            anyhow!("Failed to flush writer after frame output: {}", e)
-        })?;
+        writer
+            .write_all(&encoded)
+            .await
+            .map_err(|e| anyhow!("Failed to write frame ({} bytes): {}", encoded.len(), e))?;
+        writer
+            .flush()
+            .await
+            .map_err(|e| anyhow!("Failed to flush writer after frame output: {}", e))?;
         Ok(())
     }
 }
@@ -171,11 +180,7 @@ pub struct NetActor {
 }
 
 impl NetActor {
-    pub fn new(
-        node_id: u32,
-        bind_addr: SocketAddr,
-        tx_incoming: mpsc::Sender<NetMessage>,
-    ) -> Self {
+    pub fn new(node_id: u32, bind_addr: SocketAddr, tx_incoming: mpsc::Sender<NetMessage>) -> Self {
         Self {
             node_id,
             bind_addr,
@@ -185,13 +190,10 @@ impl NetActor {
     }
 
     /// Starts the TCP listener and accepts incoming connections until cancelled.
-    pub async fn run(
-        &self,
-        rx_outbound: Option<mpsc::Receiver<NetMessage>>,
-    ) -> Result<()> {
-        let listener = TcpListener::bind(self.bind_addr).await.map_err(|e| {
-            anyhow!("Failed to bind TCP listener on {}: {}", self.bind_addr, e)
-        })?;
+    pub async fn run(&self, rx_outbound: Option<mpsc::Receiver<NetMessage>>) -> Result<()> {
+        let listener = TcpListener::bind(self.bind_addr)
+            .await
+            .map_err(|e| anyhow!("Failed to bind TCP listener on {}: {}", self.bind_addr, e))?;
 
         let peer_writers = self.peer_writers.clone();
 
@@ -239,17 +241,10 @@ impl NetActor {
         // Read loop task
         let tx_in_clone = tx_incoming.clone();
         let read_task = tokio::spawn(async move {
-            loop {
-                match AsyncFrameCodec::read_frame(&mut reader).await {
-                    Ok(frame) => {
-                        let msg = NetMessage { frame, peer_addr };
-                        if tx_in_clone.send(msg).await.is_err() {
-                            break;
-                        }
-                    }
-                    Err(_) => {
-                        break;
-                    }
+            while let Ok(frame) = AsyncFrameCodec::read_frame(&mut reader).await {
+                let msg = NetMessage { frame, peer_addr };
+                if tx_in_clone.send(msg).await.is_err() {
+                    break;
                 }
             }
         });
@@ -257,7 +252,10 @@ impl NetActor {
         // Write loop task
         let write_task = tokio::spawn(async move {
             while let Some(frame) = rx_outbound.recv().await {
-                if AsyncFrameCodec::write_frame(&mut writer, &frame).await.is_err() {
+                if AsyncFrameCodec::write_frame(&mut writer, &frame)
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -289,12 +287,13 @@ mod tests {
         );
 
         let send_handle = tokio::spawn(async move {
-            AsyncFrameCodec::write_frame(&mut client, &frame).await.unwrap();
+            AsyncFrameCodec::write_frame(&mut client, &frame)
+                .await
+                .unwrap();
         });
 
-        let recv_handle = tokio::spawn(async move {
-            AsyncFrameCodec::read_frame(&mut server).await.unwrap()
-        });
+        let recv_handle =
+            tokio::spawn(async move { AsyncFrameCodec::read_frame(&mut server).await.unwrap() });
 
         send_handle.await.unwrap();
         let received = recv_handle.await.unwrap();
@@ -340,6 +339,9 @@ mod tests {
 
         let result = buf.try_pop_frame();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid MiOS magic"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid MiOS magic"));
     }
 }

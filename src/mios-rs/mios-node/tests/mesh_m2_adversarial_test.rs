@@ -6,13 +6,9 @@ use mios_node::ble::{
     ProvisioningPayload, BLE_CHAR_ECDH_UUID, BLE_CHAR_PROVISION_UUID,
 };
 use mios_node::buffer_pool::{BucketTier, BufferPool};
-use mios_node::capabilities::{
-    CapabilityRegistry, NodeAnnouncePayload, NodeCapabilities,
-};
+use mios_node::capabilities::{CapabilityRegistry, NodeAnnouncePayload, NodeCapabilities};
 use mios_node::overlay::{HysteresisConfig, MultiTransportRouter, TransportType};
-use mios_node::scheduler::{
-    TaskItem, TaskPriority, WorkStealingScheduler,
-};
+use mios_node::scheduler::{TaskItem, TaskPriority, WorkStealingScheduler};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
@@ -23,25 +19,13 @@ fn test_adversarial_work_stealing_pinned_invariants() {
 
     // Enqueue 10 pinned tasks and 10 unpinned tasks
     for i in 0..10 {
-        let mut pinned = TaskItem::new(
-            i,
-            TaskPriority::Critical,
-            1,
-            vec![1, 2, 3],
-            vec![4, 5],
-        );
+        let mut pinned = TaskItem::new(i, TaskPriority::Critical, 1, vec![1, 2, 3], vec![4, 5]);
         pinned.pinned_hardware = true;
         scheduler.submit_task(pinned, Some(0)); // assign to worker 0
     }
 
     for i in 10..20 {
-        let unpinned = TaskItem::new(
-            i,
-            TaskPriority::Normal,
-            1,
-            vec![7, 8],
-            vec![9],
-        );
+        let unpinned = TaskItem::new(i, TaskPriority::Normal, 1, vec![7, 8], vec![9]);
         scheduler.submit_task(unpinned, Some(0)); // assign to worker 0
     }
 
@@ -123,15 +107,11 @@ fn test_adversarial_capabilities_probing_and_filtering() {
     for i in 1..=50 {
         let mut caps = NodeCapabilities::default();
         caps.hardware.ram_available_kb = (i as u64) * 512 * 1024;
-        caps.vram.vram_available_mb = if i % 5 == 0 { (i as u32) * 512 } else { 0 };
+        caps.vram.vram_available_mb = if i % 5 == 0 { i * 512 } else { 0 };
         caps.has_gpio = i % 2 == 0;
         caps.has_i2c = i % 3 == 0;
 
-        let payload = NodeAnnouncePayload::new(
-            i,
-            format!("edge-node-{:02}", i),
-            caps,
-        );
+        let payload = NodeAnnouncePayload::new(i, format!("edge-node-{:02}", i), caps);
         registry.register_announce(payload, 1000);
     }
 
@@ -162,11 +142,15 @@ fn test_adversarial_ble_mesh_bootstrap_handshake_tamper() {
     provision_remote_node(adapter.as_ref(), &creds).unwrap();
 
     // Node accepts ECDH key
-    let peer_pub = adapter.get_characteristic_value(BLE_CHAR_ECDH_UUID).unwrap();
+    let peer_pub = adapter
+        .get_characteristic_value(BLE_CHAR_ECDH_UUID)
+        .unwrap();
     bootstrap.handle_ecdh_exchange(&peer_pub).unwrap();
 
     // Tamper with ciphertext in Char 3
-    let mut tampered = adapter.get_characteristic_value(BLE_CHAR_PROVISION_UUID).unwrap();
+    let mut tampered = adapter
+        .get_characteristic_value(BLE_CHAR_PROVISION_UUID)
+        .unwrap();
     let mid = tampered.len() / 2;
     tampered[mid] ^= 0xAA;
 
@@ -197,18 +181,27 @@ fn test_adversarial_overlay_multi_transport_flapping_stress() {
         router.record_missed_heartbeat(301, TransportType::LanBroadcast, i * 1000);
     }
     assert!(router.is_peer_partitioned(301));
-    assert_eq!(router.select_route(301).unwrap().0, TransportType::WireGuard);
+    assert_eq!(
+        router.select_route(301).unwrap().0,
+        TransportType::WireGuard
+    );
 
     // 2. Intermittent LAN probes during dwell time (at t=4000, 5000, 6000)
     for t in [4000, 5000, 6000] {
         router.record_heartbeat(301, TransportType::LanBroadcast, 1, t);
         // Must stay WireGuard because dwell time (10s) hasn't elapsed!
-        assert_eq!(router.select_route(301).unwrap().0, TransportType::WireGuard);
+        assert_eq!(
+            router.select_route(301).unwrap().0,
+            TransportType::WireGuard
+        );
     }
 
     // 3. Drop LAN again at t=7000 (resets recovery timer)
     router.record_missed_heartbeat(301, TransportType::LanBroadcast, 7000);
-    assert_eq!(router.select_route(301).unwrap().0, TransportType::WireGuard);
+    assert_eq!(
+        router.select_route(301).unwrap().0,
+        TransportType::WireGuard
+    );
 
     // 4. Clean recovery at t=8000, 9000, 19000 (dwell elapsed = 11000ms >= 10000ms)
     router.record_heartbeat(301, TransportType::LanBroadcast, 1, 8000);
@@ -216,6 +209,9 @@ fn test_adversarial_overlay_multi_transport_flapping_stress() {
     router.record_heartbeat(301, TransportType::LanBroadcast, 1, 19000);
 
     // Restores LAN
-    assert_eq!(router.select_route(301).unwrap().0, TransportType::LanBroadcast);
+    assert_eq!(
+        router.select_route(301).unwrap().0,
+        TransportType::LanBroadcast
+    );
     assert!(!router.is_peer_partitioned(301));
 }

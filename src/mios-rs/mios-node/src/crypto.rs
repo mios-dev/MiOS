@@ -37,13 +37,13 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
     }
 
     let mut inner_hasher = Sha256::new();
-    inner_hasher.update(&ipad);
+    inner_hasher.update(ipad);
     inner_hasher.update(data);
     let inner_hash = inner_hasher.finalize();
 
     let mut outer_hasher = Sha256::new();
-    outer_hasher.update(&opad);
-    outer_hasher.update(&inner_hash);
+    outer_hasher.update(opad);
+    outer_hasher.update(inner_hash);
     let outer_hash = outer_hasher.finalize();
 
     let mut out = [0u8; 32];
@@ -75,7 +75,11 @@ pub fn hkdf_sha256_expand(prk: &[u8; 32], info: &[u8], okm_len: usize) -> Vec<u8
 
 pub fn hkdf_sha256(salt: &[u8], ikm: &[u8], info: &[u8], len: usize) -> Vec<u8> {
     let default_salt = [0u8; 32];
-    let s = if salt.is_empty() { &default_salt[..] } else { salt };
+    let s = if salt.is_empty() {
+        &default_salt[..]
+    } else {
+        salt
+    };
     let prk = hmac_sha256(s, ikm);
     hkdf_sha256_expand(&prk, info, len)
 }
@@ -103,10 +107,18 @@ pub fn x25519_public_key(priv_key: &[u8; 32]) -> [u8; 32] {
 // ============================================================================
 
 fn chacha20_quarter_round(st: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
-    st[a] = st[a].wrapping_add(st[b]); st[d] ^= st[a]; st[d] = st[d].rotate_left(16);
-    st[c] = st[c].wrapping_add(st[d]); st[b] ^= st[c]; st[b] = st[b].rotate_left(12);
-    st[a] = st[a].wrapping_add(st[b]); st[d] ^= st[a]; st[d] = st[d].rotate_left(8);
-    st[c] = st[c].wrapping_add(st[d]); st[b] ^= st[c]; st[b] = st[b].rotate_left(7);
+    st[a] = st[a].wrapping_add(st[b]);
+    st[d] ^= st[a];
+    st[d] = st[d].rotate_left(16);
+    st[c] = st[c].wrapping_add(st[d]);
+    st[b] ^= st[c];
+    st[b] = st[b].rotate_left(12);
+    st[a] = st[a].wrapping_add(st[b]);
+    st[d] ^= st[a];
+    st[d] = st[d].rotate_left(8);
+    st[c] = st[c].wrapping_add(st[d]);
+    st[b] ^= st[c];
+    st[b] = st[b].rotate_left(7);
 }
 
 fn chacha20_block(key: &[u8; 32], counter: u32, nonce: &[u8; 12]) -> [u8; 64] {
@@ -168,8 +180,13 @@ pub fn poly1305_mac(key: &[u8; 32], msg: &[u8]) -> [u8; 16] {
     let mut r = [0u8; 16];
     r.copy_from_slice(&key[0..16]);
     // Clamp r per RFC 7539
-    r[3] &= 15; r[7] &= 15; r[11] &= 15; r[15] &= 15;
-    r[4] &= 252; r[8] &= 252; r[12] &= 252;
+    r[3] &= 15;
+    r[7] &= 15;
+    r[11] &= 15;
+    r[15] &= 15;
+    r[4] &= 252;
+    r[8] &= 252;
+    r[12] &= 252;
 
     let r0 = (LittleEndian::read_u32(&r[0..4]) as u64) & 0x3ffffff;
     let r1 = ((LittleEndian::read_u32(&r[3..7]) >> 2) as u64) & 0x3ffff03;
@@ -199,7 +216,8 @@ pub fn poly1305_mac(key: &[u8; 32], msg: &[u8]) -> [u8; 16] {
         let w1 = ((LittleEndian::read_u32(&block[3..7]) >> 2) as u64) & 0x3ffffff;
         let w2 = ((LittleEndian::read_u32(&block[6..10]) >> 4) as u64) & 0x3ffffff;
         let w3 = ((LittleEndian::read_u32(&block[9..13]) >> 6) as u64) & 0x3ffffff;
-        let w4 = ((LittleEndian::read_u32(&block[12..16]) >> 8) as u64) | ((block[16] as u64) << 24);
+        let w4 =
+            ((LittleEndian::read_u32(&block[12..16]) >> 8) as u64) | ((block[16] as u64) << 24);
 
         h0 += w0;
         h1 += w1;
@@ -207,39 +225,88 @@ pub fn poly1305_mac(key: &[u8; 32], msg: &[u8]) -> [u8; 16] {
         h3 += w3;
         h4 += w4;
 
-        let d0 = (h0 as u128) * (r0 as u128) + (h1 as u128) * (s4 as u128) + (h2 as u128) * (s3 as u128) + (h3 as u128) * (s2 as u128) + (h4 as u128) * (s1 as u128);
-        let d1 = (h0 as u128) * (r1 as u128) + (h1 as u128) * (r0 as u128) + (h2 as u128) * (s4 as u128) + (h3 as u128) * (s3 as u128) + (h4 as u128) * (s2 as u128);
-        let d2 = (h0 as u128) * (r2 as u128) + (h1 as u128) * (r1 as u128) + (h2 as u128) * (r0 as u128) + (h3 as u128) * (s4 as u128) + (h4 as u128) * (s3 as u128);
-        let d3 = (h0 as u128) * (r3 as u128) + (h1 as u128) * (r2 as u128) + (h2 as u128) * (r1 as u128) + (h3 as u128) * (r0 as u128) + (h4 as u128) * (s4 as u128);
-        let d4 = (h0 as u128) * (r4 as u128) + (h1 as u128) * (r3 as u128) + (h2 as u128) * (r2 as u128) + (h3 as u128) * (r1 as u128) + (h4 as u128) * (r0 as u128);
+        let d0 = (h0 as u128) * (r0 as u128)
+            + (h1 as u128) * (s4 as u128)
+            + (h2 as u128) * (s3 as u128)
+            + (h3 as u128) * (s2 as u128)
+            + (h4 as u128) * (s1 as u128);
+        let d1 = (h0 as u128) * (r1 as u128)
+            + (h1 as u128) * (r0 as u128)
+            + (h2 as u128) * (s4 as u128)
+            + (h3 as u128) * (s3 as u128)
+            + (h4 as u128) * (s2 as u128);
+        let d2 = (h0 as u128) * (r2 as u128)
+            + (h1 as u128) * (r1 as u128)
+            + (h2 as u128) * (r0 as u128)
+            + (h3 as u128) * (s4 as u128)
+            + (h4 as u128) * (s3 as u128);
+        let d3 = (h0 as u128) * (r3 as u128)
+            + (h1 as u128) * (r2 as u128)
+            + (h2 as u128) * (r1 as u128)
+            + (h3 as u128) * (r0 as u128)
+            + (h4 as u128) * (s4 as u128);
+        let d4 = (h0 as u128) * (r4 as u128)
+            + (h1 as u128) * (r3 as u128)
+            + (h2 as u128) * (r2 as u128)
+            + (h3 as u128) * (r1 as u128)
+            + (h4 as u128) * (r0 as u128);
 
         let mut c: u128;
-        c = d0 >> 26; h0 = (d0 & 0x3ffffff) as u64;
-        let td1 = d1 + c; c = td1 >> 26; h1 = (td1 & 0x3ffffff) as u64;
-        let td2 = d2 + c; c = td2 >> 26; h2 = (td2 & 0x3ffffff) as u64;
-        let td3 = d3 + c; c = td3 >> 26; h3 = (td3 & 0x3ffffff) as u64;
-        let td4 = d4 + c; c = td4 >> 26; h4 = (td4 & 0x3ffffff) as u64;
+        c = d0 >> 26;
+        h0 = (d0 & 0x3ffffff) as u64;
+        let td1 = d1 + c;
+        c = td1 >> 26;
+        h1 = (td1 & 0x3ffffff) as u64;
+        let td2 = d2 + c;
+        c = td2 >> 26;
+        h2 = (td2 & 0x3ffffff) as u64;
+        let td3 = d3 + c;
+        c = td3 >> 26;
+        h3 = (td3 & 0x3ffffff) as u64;
+        let td4 = d4 + c;
+        c = td4 >> 26;
+        h4 = (td4 & 0x3ffffff) as u64;
         h0 += (c * 5) as u64;
-        c = (h0 >> 26) as u128; h0 &= 0x3ffffff;
+        c = (h0 >> 26) as u128;
+        h0 &= 0x3ffffff;
         h1 += c as u64;
 
         offset += chunk_len;
     }
 
     // Fully reduce
-    let mut c = h0 >> 26; h0 &= 0x3ffffff;
-    h1 += c; c = h1 >> 26; h1 &= 0x3ffffff;
-    h2 += c; c = h2 >> 26; h2 &= 0x3ffffff;
-    h3 += c; c = h3 >> 26; h3 &= 0x3ffffff;
-    h4 += c; c = h4 >> 26; h4 &= 0x3ffffff;
-    h0 += c * 5; c = h0 >> 26; h0 &= 0x3ffffff;
+    let mut c = h0 >> 26;
+    h0 &= 0x3ffffff;
+    h1 += c;
+    c = h1 >> 26;
+    h1 &= 0x3ffffff;
+    h2 += c;
+    c = h2 >> 26;
+    h2 &= 0x3ffffff;
+    h3 += c;
+    c = h3 >> 26;
+    h3 &= 0x3ffffff;
+    h4 += c;
+    c = h4 >> 26;
+    h4 &= 0x3ffffff;
+    h0 += c * 5;
+    c = h0 >> 26;
+    h0 &= 0x3ffffff;
     h1 += c;
 
     // Compute h + 5
-    let mut g0 = h0 + 5; c = g0 >> 26; g0 &= 0x3ffffff;
-    let mut g1 = h1 + c; c = g1 >> 26; g1 &= 0x3ffffff;
-    let mut g2 = h2 + c; c = g2 >> 26; g2 &= 0x3ffffff;
-    let mut g3 = h3 + c; c = g3 >> 26; g3 &= 0x3ffffff;
+    let mut g0 = h0 + 5;
+    c = g0 >> 26;
+    g0 &= 0x3ffffff;
+    let mut g1 = h1 + c;
+    c = g1 >> 26;
+    g1 &= 0x3ffffff;
+    let mut g2 = h2 + c;
+    c = g2 >> 26;
+    g2 &= 0x3ffffff;
+    let mut g3 = h3 + c;
+    c = g3 >> 26;
+    g3 &= 0x3ffffff;
     let g4 = (h4 + c).wrapping_sub(1 << 26);
 
     let mask = (g4 >> 63).wrapping_sub(1);
@@ -281,11 +348,11 @@ pub fn chacha20_poly1305_encrypt(
     // 3. Construct MAC data: AAD || pad || Ciphertext || pad || len(AAD) || len(Ciphertext)
     let mut mac_data = Vec::new();
     mac_data.extend_from_slice(aad);
-    if aad.len() % 16 != 0 {
+    if !aad.len().is_multiple_of(16) {
         mac_data.resize(mac_data.len() + (16 - (aad.len() % 16)), 0);
     }
     mac_data.extend_from_slice(&ciphertext);
-    if ciphertext.len() % 16 != 0 {
+    if !ciphertext.len().is_multiple_of(16) {
         mac_data.resize(mac_data.len() + (16 - (ciphertext.len() % 16)), 0);
     }
     let mut len_buf = [0u8; 16];
@@ -323,11 +390,11 @@ pub fn chacha20_poly1305_decrypt(
     // 2. Recompute MAC data
     let mut mac_data = Vec::new();
     mac_data.extend_from_slice(aad);
-    if aad.len() % 16 != 0 {
+    if !aad.len().is_multiple_of(16) {
         mac_data.resize(mac_data.len() + (16 - (aad.len() % 16)), 0);
     }
     mac_data.extend_from_slice(ciphertext);
-    if ciphertext.len() % 16 != 0 {
+    if !ciphertext.len().is_multiple_of(16) {
         mac_data.resize(mac_data.len() + (16 - (ciphertext.len() % 16)), 0);
     }
     let mut len_buf = [0u8; 16];
@@ -344,7 +411,9 @@ pub fn chacha20_poly1305_decrypt(
     }
 
     if diff != 0 {
-        return Err(anyhow!("Poly1305 authentication MAC mismatch - ciphertext tampered"));
+        return Err(anyhow!(
+            "Poly1305 authentication MAC mismatch - ciphertext tampered"
+        ));
     }
 
     // 3. Decrypt ciphertext
@@ -365,7 +434,10 @@ pub struct NodeIdentity {
 impl NodeIdentity {
     pub fn from_bytes(node_id: u32, secret_key_bytes: &[u8; 32]) -> Self {
         let signing_key = SigningKey::from_bytes(secret_key_bytes);
-        Self { node_id, signing_key }
+        Self {
+            node_id,
+            signing_key,
+        }
     }
 
     pub fn verifying_key(&self) -> VerifyingKey {
@@ -476,10 +548,7 @@ impl NodeCryptoSession {
 pub struct CryptoHandshake;
 
 impl CryptoHandshake {
-    pub fn create_init(
-        identity: &NodeIdentity,
-        ephemeral_priv: &[u8; 32],
-    ) -> HandshakeInitPacket {
+    pub fn create_init(identity: &NodeIdentity, ephemeral_priv: &[u8; 32]) -> HandshakeInitPacket {
         let eph_pub = x25519_public_key(ephemeral_priv);
         let sig = identity.sign(&eph_pub);
 
@@ -560,7 +629,12 @@ impl CryptoHandshake {
         k2.copy_from_slice(&derived_keys[32..64]);
 
         // Initiator transmits with k1, receives with k2
-        Ok(NodeCryptoSession::new(identity.node_id, resp.sender_node_id, k1, k2))
+        Ok(NodeCryptoSession::new(
+            identity.node_id,
+            resp.sender_node_id,
+            k1,
+            k2,
+        ))
     }
 }
 
@@ -624,7 +698,8 @@ mod tests {
         let init = CryptoHandshake::create_init(&id_a, &eph_a);
 
         // 2. Node B processes init and creates resp + session B
-        let (resp, mut session_b) = CryptoHandshake::process_init_and_respond(&id_b, &eph_b, &init).unwrap();
+        let (resp, mut session_b) =
+            CryptoHandshake::process_init_and_respond(&id_b, &eph_b, &init).unwrap();
 
         // 3. Node A finalizes init and creates session A
         let mut session_a = CryptoHandshake::finalize_init(&id_a, &eph_a, &resp).unwrap();

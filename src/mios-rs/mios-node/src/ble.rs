@@ -179,14 +179,16 @@ impl BleMeshBootstrap {
         let mut id_buf = vec![0u8; 5];
         BigEndian::write_u32(&mut id_buf[0..4], self.node_id);
         id_buf[4] = BleBootstrapState::Unprovisioned as u8;
-        self.adapter.set_characteristic_value(BLE_CHAR_IDENTITY_UUID, id_buf)?;
+        self.adapter
+            .set_characteristic_value(BLE_CHAR_IDENTITY_UUID, id_buf)?;
 
         // 2. Initialize Char 2: Local X25519 Public Key (32B)
         self.adapter
             .set_characteristic_value(BLE_CHAR_ECDH_UUID, self.local_pub_key.to_vec())?;
 
         // 3. Start advertising
-        self.adapter.start_advertising(BLE_SERVICE_UUID, self.node_id)?;
+        self.adapter
+            .start_advertising(BLE_SERVICE_UUID, self.node_id)?;
         *self.state.lock().unwrap() = BleBootstrapState::Unprovisioned;
 
         Ok(())
@@ -195,7 +197,10 @@ impl BleMeshBootstrap {
     /// Handles peer ECDH key exchange write to Characteristic 2.
     pub fn handle_ecdh_exchange(&self, peer_pub_key_bytes: &[u8]) -> Result<()> {
         if peer_pub_key_bytes.len() != 32 {
-            return Err(anyhow!("Invalid X25519 public key length: {}", peer_pub_key_bytes.len()));
+            return Err(anyhow!(
+                "Invalid X25519 public key length: {}",
+                peer_pub_key_bytes.len()
+            ));
         }
 
         let mut peer_pub = [0u8; 32];
@@ -216,21 +221,25 @@ impl BleMeshBootstrap {
         let mut id_buf = vec![0u8; 5];
         BigEndian::write_u32(&mut id_buf[0..4], self.node_id);
         id_buf[4] = BleBootstrapState::Handshaking as u8;
-        self.adapter.set_characteristic_value(BLE_CHAR_IDENTITY_UUID, id_buf)?;
+        self.adapter
+            .set_characteristic_value(BLE_CHAR_IDENTITY_UUID, id_buf)?;
 
         Ok(())
     }
 
     /// Handles encrypted credential write to Characteristic 3 and completes provisioning.
-    pub fn handle_provisioning_write(&self, encrypted_payload: &[u8]) -> Result<ProvisioningPayload> {
-        let key = self
-            .shared_key
-            .lock()
-            .unwrap()
-            .ok_or_else(|| anyhow!("ECDH handshake not completed prior to provisioning write"))?;
+    pub fn handle_provisioning_write(
+        &self,
+        encrypted_payload: &[u8],
+    ) -> Result<ProvisioningPayload> {
+        let key =
+            self.shared_key.lock().unwrap().ok_or_else(|| {
+                anyhow!("ECDH handshake not completed prior to provisioning write")
+            })?;
 
         // Decrypt payload using ChaCha20-Poly1305
-        let decrypted_bytes = chacha20_poly1305_decrypt(&key, BLE_NONCE, BLE_AEAD_AAD, encrypted_payload)?;
+        let decrypted_bytes =
+            chacha20_poly1305_decrypt(&key, BLE_NONCE, BLE_AEAD_AAD, encrypted_payload)?;
         let creds: ProvisioningPayload = serde_json::from_slice(&decrypted_bytes)?;
 
         *self.provisioned_credentials.lock().unwrap() = Some(creds.clone());
@@ -240,7 +249,8 @@ impl BleMeshBootstrap {
         let mut id_buf = vec![0u8; 5];
         BigEndian::write_u32(&mut id_buf[0..4], self.node_id);
         id_buf[4] = BleBootstrapState::Provisioned as u8;
-        self.adapter.set_characteristic_value(BLE_CHAR_IDENTITY_UUID, id_buf)?;
+        self.adapter
+            .set_characteristic_value(BLE_CHAR_IDENTITY_UUID, id_buf)?;
         self.adapter.stop_advertising()?;
 
         Ok(creds)

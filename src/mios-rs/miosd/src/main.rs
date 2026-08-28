@@ -616,13 +616,20 @@ fn run_render_ports(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let prog_name = args.first().and_then(|a| std::path::Path::new(a).file_name()).and_then(|f| f.to_str()).unwrap_or("");
+    let prog_name = args
+        .first()
+        .and_then(|a| std::path::Path::new(a).file_name())
+        .and_then(|f| f.to_str())
+        .unwrap_or("");
     if prog_name == "mios" || prog_name.starts_with("mios-cli") {
         let rc = miosd::cli::dispatch(args);
         std::process::exit(rc);
     }
     if prog_name == "mios-check" {
-        let path = args.get(1).map(|s| s.as_str()).unwrap_or("/usr/share/mios/mios.toml");
+        let path = args
+            .get(1)
+            .map(|s| s.as_str())
+            .unwrap_or("/usr/share/mios/mios.toml");
         let report = mios_config::MiosValidator::validate_file(path);
         println!("{}", report.format_human());
         std::process::exit(if report.is_valid { 0 } else { 1 });
@@ -811,7 +818,11 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Check { path, json, check: _ } => {
+        Commands::Check {
+            path,
+            json,
+            check: _,
+        } => {
             let report = mios_config::MiosValidator::validate_file(path);
             if *json {
                 println!("{}", report.to_json());

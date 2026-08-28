@@ -9,6 +9,12 @@ pub struct ThemeWatcher {
     last_mod_time: u64,
 }
 
+impl Default for ThemeWatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ThemeWatcher {
     pub fn new() -> Self {
         let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());

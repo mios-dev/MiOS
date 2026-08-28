@@ -39,7 +39,7 @@ impl Default for HardwareSpecs {
 /// GPU, VRAM, and NPU accelerator telemetry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VramTelemetry {
-    pub gpu_vendor: String,        // "NVIDIA", "AMD", "Intel", "Apple", "None"
+    pub gpu_vendor: String, // "NVIDIA", "AMD", "Intel", "Apple", "None"
     pub gpu_model: Option<String>,
     pub vram_total_mb: u32,
     pub vram_available_mb: u32,
@@ -145,7 +145,11 @@ impl NodeAnnouncePayload {
 
     pub fn to_frame(&self) -> Result<Frame> {
         let json_bytes = serde_json::to_vec(self)?;
-        Ok(Frame::new(MessageType::NodeAnnounce, self.node_id, json_bytes))
+        Ok(Frame::new(
+            MessageType::NodeAnnounce,
+            self.node_id,
+            json_bytes,
+        ))
     }
 
     pub fn from_frame(frame: &Frame) -> Result<Self> {
