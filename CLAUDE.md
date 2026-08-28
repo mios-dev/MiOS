@@ -107,6 +107,14 @@ Throughline: **inference lanes → agent-pipe/Hermes orchestration → pgvector 
 
 ## Claude Code deltas
 
+> **Start here: invoke the `mios-loop` skill** (`.claude/skills/mios-loop/SKILL.md`). It carries
+> the working method — the verification discipline, the false-positive catalogue that
+> distinguishes a real gate failure from local environment pollution, the house schemas for
+> `TASKS.md`/`AGY-TASKS.md`/`ROADMAP.md`, the Windows+WSL traps, and the standing operator
+> directives. Reading it first is the difference between fixing a real defect and chasing a
+> stale temp file.
+
+
 - **cwd:** on a deployed host `/` IS both the repo root and the system root. Bootstrap/dev files map directly to FHS destinations. Don't treat `/` as inherently dangerous.
 - **Confirm before:** `git push`, `bootc switch`, `bootc upgrade`, `dnf install`, `systemctl`, `rm -rf`, `git reset --hard`, `git clean -fd`, `wsl --unregister`, `podman machine rm`, `Remove-Partition`.
 - **Deliverables:** complete replacement files only — no diffs, no `# ... rest unchanged ...` placeholders.

@@ -112,6 +112,10 @@ LINE NUMBER**, across `.py`, `.rs`, `.toml` and more — but **not** `.md`. Refo
 source file invalidates it. This has broken CI twice. Never run `cargo fmt` or a bulk edit
 while the corpus census is running.
 
+It is **not** vestigial: `check_docs_ratchet` consumes its narrative verdicts and enforces a
+ceiling (`[docs].max_unmigrated_narrative`), so the corpus is the input to a live gate, not a
+ledger kept fresh for its own sake.
+
 ## Commit and push
 
 - **Stage explicit paths. Never `git add -A`** — the tree is shared with the AGY agent.
@@ -133,8 +137,10 @@ gh run list --workflow=mios-ci.yml --branch main --limit 6 --json databaseId,sta
 ```
 Seed the snapshot first, then emit only *new* completions.
 
-`mios-ci` runs tiers in order and **the Rust step runs under `bash -e`** — the first failing
-command hides everything behind it. Expect to fix one tier and immediately discover the next
+`mios-ci` tiers run in this order, and each one hides everything behind it:
+`Generated artifacts match the SSOT` → `Static analysis` → `Behavioural suite` →
+`Rust format, lint and tests` → `Drift-gate tier` → then `build` and `smoke-test`.
+**The Rust step runs under `bash -e`**, so its first failing command hides the rest. Expect to fix one tier and immediately discover the next
 had never run. Both Rust workspaces are checked: `src/mios-rs` **and** `tools/native`.
 
 ## Standing operator directives
