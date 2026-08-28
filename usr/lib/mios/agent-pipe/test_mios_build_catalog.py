@@ -1,3 +1,6 @@
+# AI-hint: Unit and regression test suite for mios_build_catalog functionality.
+# AI-functions: setUpModule, test_seeding_and_materializing, test_materialization, mock_open_impl, write_impl, TestMiosBuildCatalog
+
 import unittest
 from unittest.mock import patch, AsyncMock, MagicMock, mock_open
 import os

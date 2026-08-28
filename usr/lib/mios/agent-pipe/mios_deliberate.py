@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing mios deliberate capabilities.
+# AI-functions: to_dict, to_json, __init__, run, _has_consensus, _build_packet, _default_responder, Act, Archetype, Move, DecisionPacket, DCISession
+
 """
 mios_deliberate.py — T-341 MAO-02
 Deliberative Collective Intelligence (DCI) — 4-archetype deliberation council
@@ -167,3 +170,114 @@ def _default_responder(archetype: Archetype,
     choices = script.get(archetype, [("propose", "default proposal")])
     act, content = choices[min(moves_by_arch, len(choices) - 1)]
     return act, content
+
+
+# ---------------------------------------------------------------------------
+# T-385: Bounded Reflection Loop Convergence
+# ---------------------------------------------------------------------------
+import difflib
+
+@dataclass
+class DeliberationConfig:
+    """Configuration for bounded deliberation/reflection convergence."""
+    max_iterations: int = 3
+    convergence_threshold: float = 0.05
+    timeout_seconds: float = 30.0
+
+@dataclass
+class DeliberationTurn:
+    """One critique-revision cycle."""
+    turn_index: int
+    critique: str
+    draft: str
+    semantic_delta: float
+    timestamp: float = field(default_factory=time.monotonic)
+
+@dataclass
+class DeliberationState:
+    """Accumulated state across bounded deliberation iterations."""
+    initial_prompt: str
+    current_draft: str
+    turns: list[DeliberationTurn] = field(default_factory=list)
+    is_converged: bool = False
+    exit_reason: str = ""
+    final_output: str = ""
+
+class SemanticDeltaCalculator:
+    """Calculates semantic distance between successive drafts (0.0=identical, 1.0=disjoint)."""
+
+    def calculate_delta(self, text_a: str, text_b: str) -> float:
+        if text_a == text_b:
+            return 0.0
+        matcher = difflib.SequenceMatcher(None, text_a.strip(), text_b.strip())
+        similarity = matcher.ratio()
+        return max(0.0, min(1.0, 1.0 - similarity))
+
+def calculate_semantic_delta(text_a: str, text_b: str) -> float:
+    return SemanticDeltaCalculator().calculate_delta(text_a, text_b)
+
+class BoundedDeliberationEngine:
+    """Manages reflection loop convergence based on diminishing returns and max iteration limits."""
+
+    def __init__(self,
+                 config: DeliberationConfig | None = None,
+                 calculator: SemanticDeltaCalculator | None = None) -> None:
+        self.config = config or DeliberationConfig()
+        self.calculator = calculator or SemanticDeltaCalculator()
+
+    def step(self, state: DeliberationState, critique: str, revision: str) -> bool:
+        critique_upper = critique.upper()
+        if "APPROVED" in critique_upper or "NO FURTHER CHANGES" in critique_upper:
+            state.is_converged = True
+            state.exit_reason = "converged_critique_passed"
+            state.current_draft = revision
+            state.final_output = revision
+            return True
+
+        delta = self.calculator.calculate_delta(state.current_draft, revision)
+        turn = DeliberationTurn(
+            turn_index=len(state.turns) + 1,
+            critique=critique,
+            draft=revision,
+            semantic_delta=delta,
+            timestamp=time.monotonic()
+        )
+        state.turns.append(turn)
+        state.current_draft = revision
+        state.final_output = revision
+
+        if delta < self.config.convergence_threshold:
+            state.is_converged = True
+            state.exit_reason = "converged_diminishing_returns"
+            return True
+
+        if len(state.turns) >= self.config.max_iterations:
+            state.is_converged = True
+            state.exit_reason = "max_iterations"
+            return True
+
+        return False
+
+# Backwards compatibility / alias
+DeliberationEngine = BoundedDeliberationEngine
+
+def run_bounded_deliberation(
+    initial_prompt: str,
+    initial_draft: str,
+    critique_fn: Any,
+    revision_fn: Any,
+    max_iterations: int = 3,
+    convergence_threshold: float = 0.05
+) -> DeliberationState:
+    config = DeliberationConfig(max_iterations=max_iterations, convergence_threshold=convergence_threshold)
+    engine = BoundedDeliberationEngine(config=config)
+    state = DeliberationState(initial_prompt=initial_prompt, current_draft=initial_draft, final_output=initial_draft)
+
+    for i in range(max_iterations):
+        critique = critique_fn(initial_prompt, state.current_draft)
+        revision = revision_fn(initial_prompt, state.current_draft, critique)
+        if engine.step(state, critique, revision):
+            break
+
+    return state
+

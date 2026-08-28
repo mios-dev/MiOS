@@ -1,3 +1,6 @@
+# AI-hint: Unit and regression test suite for test-empirical-stress-t765-t774 functionality.
+# AI-functions: test_stress_dkms_builds, test_stress_shm_ring, test_stress_intel_paged_attn, test_stress_mxfp4, test_stress_kquants
+
 """
 Empirical stress tests for batch T-765 through T-774.
 """

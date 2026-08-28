@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing dkms engine capabilities.
+# AI-related: mios-dkms
+# AI-functions: __init__, build_module, CompiledModule, DKMSSandboxEngine
+
 """
 dkms_engine.py — T-765 WS-BUILD
 Ephemeral containerized DKMS engine and MOK kernel module signer in mios-dkms.

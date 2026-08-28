@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing quadlet prewarm capabilities.
+# AI-functions: __init__, prewarm_quadlets, simulate_day0_offline_start, BakedImage, QuadletPrewarmer
+
 """
 quadlet_prewarm.py — T-749 WS-BUILD
 Build-time Quadlet container image pre-warmer and zstd chunked layer optimizer.

@@ -49,6 +49,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-apps` | Provides a unified inventory of all launchable entities (Flatpaks, RPMs, Windows apps, shims, and service URLs) across all environments, used by agents to discover and target specific applications... |
 | `usr/libexec/mios/mios-as-operator` | Executes commands in a fresh WSL login session as the operator user to bootstrap the full WSLg environment (Wayland, user-bus, and interop) required for GUI applications and Flatpaks to function... |
 | `usr/libexec/mios/mios-autocenter` | Executes a polling loop to identify and center newly mapped windows (WSLg/Flatpak) by comparing current HWNDs against a pre-launch snapshot via the os_control executor to ensure correct placement of... |
+| `usr/libexec/mios/mios-bake-group` | MiOS configuration and runtime asset for mios-bake-group. |
 | `usr/libexec/mios/mios-bench` | MiOS agentic-capability benchmark harness CLI. `score` (OFFLINE, pure): reads a trial-results JSON, prints the CLASSic rollup + pass@k / pass^k (tau-bench) via the tested mios_bench core. `run`... |
 | `usr/libexec/mios/mios-blade` | The `mios blade` verb -- the day-2 face of the blade archetype (WS-BLADE). Writes the HOST tier (/etc/mios/role.conf) and re-runs role-apply, which detects the change and activates the new role... |
 | `usr/libexec/mios/mios-bound-images-firstboot` | FBM first-boot bound-image provisioner. Reads [ai].firstboot_bound_images from mios.toml |
@@ -240,7 +241,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 
-<!-- derived from the AI-hint headers of 210 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 211 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)
@@ -296,14 +297,18 @@ is generated, its generator is here.
 | `tools/gen-pipe-boundary-manifest.py` | Generates a machine-readable module-boundary manifest for the agent-pipe DI contract. |
 | `tools/generate-adr-index.py` | Generates the repo-root ADR.md breadcrumb from the front-matter of usr/share/doc/mios/adr/NNNN-*.md (T-265). |
 | `tools/generate-ai-manifest.py` | Parses Markdown files and metadata blocks to generate a JSON manifest of the project structure, providing agents with a searchable index of documentation, knowle... |
+| `tools/generate-bake-plan.py` | MiOS system and orchestration module providing generate-bake-plan capabilities. |
+| `tools/generate-bib-configs.py` | MiOS system and orchestration module providing generate-bib-configs capabilities. |
 | `tools/generate-blade-dropins.py` | Generate systemd capability drop-in files, k3s nodeSelectors, and Pacemaker location rules from the mios.toml [blade.requires] SSOT (AGY-1595). |
 | `tools/generate-blade-karg.py` | Generate usr/lib/bootc/kargs.d/05-mios-blade.toml from the mios.toml [blade].type SSOT, so the karg role-apply already parses has a Law-8 pr... |
 | `tools/generate-cargo-manifests.py` | Generator that projects tools/native/Cargo.toml from mios.toml [meta].mios_version SSOT. |
 | `tools/generate-cockpit-conf.py` | Renders etc/cockpit/cockpit.conf from usr/share/mios/mios.toml SSOT |
 | `tools/generate-cosign-policy.py` | Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT |
 | `tools/generate-egress-firewall.py` | Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation). |
+| `tools/generate-gate-index.py` | MiOS system and orchestration module providing generate-gate-index capabilities. |
 | `tools/generate-ipa-enroll-env.py` | Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT |
 | `tools/generate-metal-vs-hosted.py` | GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml. |
+| `tools/generate-names-registry.py` | MiOS system and orchestration module providing generate-names-registry capabilities. |
 | `tools/generate-pipeline-index.py` | ) or line_str.startswith("# AI-related:"): continue if line_str.startswith("#") and not line_str.startswith("#!"): |
 | `tools/generate-pod-quadlets.py` | Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT). |
 | `tools/generate-uki-cmdline.py` | Flattens usr/lib/bootc/kargs.d/*.toml drop-ins into usr/lib/kernel/cmdline SSOT |
@@ -377,7 +382,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 125 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 129 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
@@ -390,6 +395,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/macaroon_auth.py` | Ephemeral HMAC Macaroon minter and attenuated caveat verifier in agent-pipe (T-723, T-724). |
 | `usr/lib/mios/agent-pipe/mios_a2a.py` | Re-export shim for mios_pipe.federation.a2a |
 | `usr/lib/mios/agent-pipe/mios_a2a_client.py` | Re-export shim for mios_pipe.federation.a2a_client |
+| `usr/lib/mios/agent-pipe/mios_a2a_delegation.py` | MiOS system and orchestration module providing mios a2a delegation capabilities. |
 | `usr/lib/mios/agent-pipe/mios_a2a_principal.py` | Re-export shim for mios_pipe.identity.principal |
 | `usr/lib/mios/agent-pipe/mios_aci.py` | Re-export shim for mios_pipe.routing.aci |
 | `usr/lib/mios/agent-pipe/mios_agent_call.py` | Re-export shim for mios_pipe.routing.agent_call |
@@ -416,6 +422,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_daemons.py` | Re-export shim for mios_pipe.kernel.daemons |
 | `usr/lib/mios/agent-pipe/mios_dag_exec.py` | Re-export shim for mios_pipe.routing.dag_exec |
 | `usr/lib/mios/agent-pipe/mios_dci.py` | Re-export shim for mios_pipe.routing.dci |
+| `usr/lib/mios/agent-pipe/mios_deliberate.py` | MiOS system and orchestration module providing mios deliberate capabilities. |
 | `usr/lib/mios/agent-pipe/mios_dispatch.py` | Verb->bash DISPATCH chokepoint extracted VERBATIM from server.py (refactor R7 wave). |
 | `usr/lib/mios/agent-pipe/mios_dispatcher.py` | Re-export shim for mios_pipe.routing.dispatcher |
 | `usr/lib/mios/agent-pipe/mios_drain_handler.py` | Graceful worker shutdown and SIGTERM drain handler in server.py. |
@@ -438,10 +445,12 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_kernel.py` | Re-export shim for mios_pipe.kernel.kernel |
 | `usr/lib/mios/agent-pipe/mios_knowledge.py` | Re-export shim for mios_pipe.memory.knowledge |
 | `usr/lib/mios/agent-pipe/mios_kv_compact.py` | Semantic KV-cache context compaction engine and episodic summary generator for agent-pipe. |
+| `usr/lib/mios/agent-pipe/mios_kvfork.py` | mios_kvfork.py — T-340 SCHED-05 Turn-boundary preemption & snapshot-suspend-resume via llama.cpp KV-cache slot save/restore API (/slots endpoint). Suspended conversations are checkpointed to... |
 | `usr/lib/mios/agent-pipe/mios_kvgc.py` | Re-export shim for mios_pipe.context.kvgc |
 | `usr/lib/mios/agent-pipe/mios_lanes.py` | Re-export shim for mios_pipe.routing.lanes |
 | `usr/lib/mios/agent-pipe/mios_lanes_resolver.py` | Re-export shim for mios_pipe.routing.lanes_resolver |
 | `usr/lib/mios/agent-pipe/mios_manifest.py` | Re-export shim for mios_pipe.lifecycle.manifest |
+| `usr/lib/mios/agent-pipe/mios_manifest_rag.py` | MiOS system and orchestration module providing mios manifest rag capabilities. |
 | `usr/lib/mios/agent-pipe/mios_mcp.py` | Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe. |
 | `usr/lib/mios/agent-pipe/mios_memguard.py` | Re-export shim for mios_pipe.access.memguard |
 | `usr/lib/mios/agent-pipe/mios_memory.py` | Re-export shim for mios_pipe.memory.memory |
@@ -451,6 +460,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pdp.py` | Re-export shim for mios_pipe.access.pdp |
 | `usr/lib/mios/agent-pipe/mios_persona.py` | Dynamic agent persona synthesis based on task domain classification. |
 | `usr/lib/mios/agent-pipe/mios_pg.py` | Re-export shim for mios_pipe.memory.pg |
+| `usr/lib/mios/agent-pipe/mios_pg_events.py` | MiOS system and orchestration module providing mios pg events capabilities. |
 | `usr/lib/mios/agent-pipe/mios_pipe/__init__.py` | root of mios_pipe package. Sanitizes empty MIOS_* env vars on import so |
 | `usr/lib/mios/agent-pipe/mios_pipe/access/__init__.py` | access manager package |
 | `usr/lib/mios/agent-pipe/mios_pipe/access/arbiter.py` | WS-9 out-of-process policy-arbiter DECISION core. Pure-stdlib verdict logic the mios-policy-arbiter service uses to answer the agent-pipe's... |
@@ -524,6 +534,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/applet_webresearch.py` | Web-research SSE applet -- app-ifies the "Discovery / resolution" verb cluster (web_search/web_extract/crawl) as an HTML-over-S... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/chat.py` | The agent-pipe CHAT-COMPLETIONS router-brain, extracted VERBATIM from AI-related: ./server.py, ./mios_vision.py, ./mios_oscontrol.py, ./mios_... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/classify.py` | Layer-1 micro-LLM CLASSIFIER cluster, extracted verbatim from server.py |
+| `usr/lib/mios/agent-pipe/mios_pipe/routing/conductor.py` | MiOS system and orchestration module providing conductor capabilities. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/consensus.py` | Pure consensus math for multi-judge Definition-of-Done verdicts. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/council_diversity.py` | Council input-diversity gate + confidence-aware aggregation bypass (T-047 RouteMoA GAP-1 / T-048 MOSAIC GAP-2). |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/cua.py` | WS-8 computer-use perceive->act->verify loop core (the PURE half). |
@@ -583,6 +594,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_policy.py` | Re-export shim for mios_pipe.access.policy |
 | `usr/lib/mios/agent-pipe/mios_portal.py` | Re-export shim for mios_pipe.routing.portal |
 | `usr/lib/mios/agent-pipe/mios_preempt.py` | Re-export shim for mios_pipe.scheduler.preempt |
+| `usr/lib/mios/agent-pipe/mios_priority_sched.py` | MiOS system and orchestration module providing mios priority sched capabilities. |
 | `usr/lib/mios/agent-pipe/mios_promptfmt.py` | Re-export shim for mios_pipe.context.promptfmt |
 | `usr/lib/mios/agent-pipe/mios_promptver.py` | Re-export shim for mios_pipe.context.promptver |
 | `usr/lib/mios/agent-pipe/mios_provider_translate.py` | Re-export shim for mios_pipe.routing.provider_translate |
@@ -591,6 +603,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_refine.py` | Re-export shim for mios_pipe.routing.refine |
 | `usr/lib/mios/agent-pipe/mios_reflect.py` | Re-export shim for mios_pipe.routing.reflect |
 | `usr/lib/mios/agent-pipe/mios_registry.py` | WS-A17 versioned agent/tool package format + local registry projection. |
+| `usr/lib/mios/agent-pipe/mios_reputation.py` | MiOS system and orchestration module providing mios reputation capabilities. |
 | `usr/lib/mios/agent-pipe/mios_rerank.py` | Vector similarity re-ranking using local cross-encoder model in RAG pipeline. |
 | `usr/lib/mios/agent-pipe/mios_route_reload.py` | Hot-reload of model routing tables without dropping active streams. |
 | `usr/lib/mios/agent-pipe/mios_router.py` | Re-export shim for mios_pipe.routing.router |
@@ -632,11 +645,15 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_worktree.py` | Ephemeral subagent git worktree lifecycle manager and branch pruner for MiOS agent-pipe. |
 | `usr/lib/mios/agent-pipe/multimodal_ws.py` | Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe (T-671, T-672). |
 | `usr/lib/mios/agent-pipe/overlay_workspace.py` | Ephemeral OverlayFS workspace provisioner and bubblewrap sandbox in agent-pipe (T-691, T-692). |
+| `usr/lib/mios/agent-pipe/pss_regulator.py` | MiOS system and orchestration module providing pss regulator capabilities. |
 | `usr/lib/mios/agent-pipe/reactive_loop.py` | Asyncio/epoll reactive event loop and PostgreSQL LISTEN/NOTIFY dispatcher in agent-pipe (T-651, T-652). |
+| `usr/lib/mios/agent-pipe/run_tests.py` | Unit and regression test suite for run_tests functionality. |
 | `usr/lib/mios/agent-pipe/server.py` | FastAPI gateway service on the `agent_pipe` port that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to th... |
+| `usr/lib/mios/agent-pipe/sse_streamer.py` | MiOS system and orchestration module providing sse streamer capabilities. |
 | `usr/lib/mios/agent-pipe/test_lora_endpoints.py` | Standalone assert-script unit test for LoRA list/load endpoints (CONV-06). |
 | `usr/lib/mios/agent-pipe/test_mios_a2a.py` | Stdlib unit test for the extracted A2A federation publish surface (mios_a2a). |
 | `usr/lib/mios/agent-pipe/test_mios_a2a_client.py` | Stdlib unit test for the extracted A2A peer-client consumer half (mios_a2a_client). |
+| `usr/lib/mios/agent-pipe/test_mios_a2a_delegation.py` | Unit test for mios_a2a_delegation.py |
 | `usr/lib/mios/agent-pipe/test_mios_a2a_loopback.py` | Offline unit test for the mios-a2a-test loopback smoke-test helper -- exercises the pure message-builder, artifact extr... |
 | `usr/lib/mios/agent-pipe/test_mios_a2a_passport.py` | Standalone unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal): claim shape, text-binding digest, and the send->verif... |
 | `usr/lib/mios/agent-pipe/test_mios_a2a_principal.py` | Standalone assert-script unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal). Pure stdlib, no ... |
@@ -648,17 +665,20 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_agentreg.py` | Standalone assert-script unit test for mios_agentreg (R3 agent/node registry builders). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_ai_manifest.py` | Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog manifest projection). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_antifab.py` | Standalone assert-script unit test for the anti-fabrication guard AI-related: ./mios_pipe/routing/chat.py, ./mios_chat.py, ./test_mios_chat.py AI-... |
+| `usr/lib/mios/agent-pipe/test_mios_applet_webresearch.py` | Isolation tests for the web-research SSE applet (mios_pipe.routing.applet_webresearch). |
 | `usr/lib/mios/agent-pipe/test_mios_approutes.py` | Runtime route-parity gate for the agent-pipe strangler-fig refactor (WS R13 Step 2b) -- the LIVE-FastAPI complement to the... |
 | `usr/lib/mios/agent-pipe/test_mios_arbiter.py` | Standalone assert-script unit test for mios_arbiter (WS-9 out-of-process policy-arbiter decision core). Pure stdlib, no serv... |
 | `usr/lib/mios/agent-pipe/test_mios_argval.py` | Sibling unit test for the mios_argval python module, ensuring compliance with drift-check 11. |
 | `usr/lib/mios/agent-pipe/test_mios_audit.py` | Unit tests for mios_audit, the SEC-03 SHA-256 tamper-evident event-bus hash chain. |
 | `usr/lib/mios/agent-pipe/test_mios_auth.py` | Placeholder test for mios_auth.py. |
 | `usr/lib/mios/agent-pipe/test_mios_authn.py` | Unit tests for mios_pipe.access.authn. |
+| `usr/lib/mios/agent-pipe/test_mios_backfill.py` | Unit and regression test suite for mios_backfill functionality. |
 | `usr/lib/mios/agent-pipe/test_mios_batch.py` | Standalone assert-script unit test for mios_batch (WS-A6 batch coalescing). Stdlib + asyncio, no DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_bench.py` | Standalone assert-script unit test for mios_bench (agentic-capability benchmark scoring core). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_bench_harness.py` | Verification test suite for mios-bench harness CLI option parsing, metrics reporting, a... |
 | `usr/lib/mios/agent-pipe/test_mios_blades.py` | Standalone assert-script unit test for mios_blades (V4/V5 blade topology + AI-related: ./mios_blades.py, ./mios_config.py, ./... |
 | `usr/lib/mios/agent-pipe/test_mios_budget.py` | stdlib unit test for mios_agent_call budget and depth limits. |
+| `usr/lib/mios/agent-pipe/test_mios_build_catalog.py` | Unit and regression test suite for mios_build_catalog functionality. |
 | `usr/lib/mios/agent-pipe/test_mios_capreg.py` | Standalone assert-script unit test for mios_capreg (WS-2 unified RBAC-filtered capability manifest). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_chat.py` | Routing-PRECEDENCE gate for the extracted chat-completions router-brain |
 | `usr/lib/mios/agent-pipe/test_mios_classify.py` | Stdlib unit tests for mios_classify (layer-1 micro-LLM classifiers). |
@@ -669,6 +689,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_compound.py` | Standalone unit test for the #49 read-tool-enrich domain-filter fix: a compound that spans domains must keep verbs refine EXPLICITLY hinted (and,... |
 | `usr/lib/mios/agent-pipe/test_mios_conductor.py` | stub |
 | `usr/lib/mios/agent-pipe/test_mios_config.py` | Standalone assert-script unit test for mios_config (refactor WS R1 config-constants extraction). Pure stdlib, no server.py/DB... |
+| `usr/lib/mios/agent-pipe/test_mios_config_audit.py` | Unit and regression test suite for mios_config_audit functionality. |
 | `usr/lib/mios/agent-pipe/test_mios_config_validate.py` | Hermetic unit tests for the WS-CONFIG server-side SAFETY validator |
 | `usr/lib/mios/agent-pipe/test_mios_config_write.py` | Standalone unit test for the /portal/config read/write routes to ensure correct auth, TOML parsing, and background DB re-seeding. |
 | `usr/lib/mios/agent-pipe/test_mios_consensus.py` | Stdlib offline unit tests for mios_pipe.routing.consensus -- the weighted multi-judge Definition-of-Done fold (CONS-01). No network / no DB / no... |
@@ -726,6 +747,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_letta.py` | Standalone unit test suite for LettaMemoryClient and letta_dispatch_handler (T-077). |
 | `usr/lib/mios/agent-pipe/test_mios_list_dir.py` | Sibling unit test for mios-text-edit view directory depth logic (T-112). |
 | `usr/lib/mios/agent-pipe/test_mios_manifest.py` | Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog -> ai/v1 manifest projection; drift-check 8 depend... |
+| `usr/lib/mios/agent-pipe/test_mios_manifest_rag.py` | Unit test for mios_manifest_rag.py |
 | `usr/lib/mios/agent-pipe/test_mios_mcp.py` | Stdlib unit test for mios_mcp -- the external-MCP CONSUME client extracted from server.py (refactor R-MCP). |
 | `usr/lib/mios/agent-pipe/test_mios_mcp_dispatch.py` | Unit test suite for mios_pipe.mcp_dispatch module. |
 | `usr/lib/mios/agent-pipe/test_mios_mcp_pool.py` | Standalone assert-script unit test for MCPClientPool (CONV-13). |
@@ -739,11 +761,13 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_pdp.py` | Standalone assert-script unit test for mios_pdp (WS-A9 PDP capability gate). |
 | `usr/lib/mios/agent-pipe/test_mios_persona.py` | Standalone unit test for mios_persona sibling module. |
 | `usr/lib/mios/agent-pipe/test_mios_pg.py` | Standalone unit test for mios_pg to verify pure-python PostgreSQL helper logic, including DSN construction, vector literal formatting, and SQL insert g... |
+| `usr/lib/mios/agent-pipe/test_mios_pg_events.py` | Unit test for mios_pg_events.py |
 | `usr/lib/mios/agent-pipe/test_mios_planner.py` | Stdlib assert-script for mios_planner. No network: the planner LLM call in decompose_intent is exercised only on the early short-prompt-skip / dis... |
 | `usr/lib/mios/agent-pipe/test_mios_policy.py` | Stdlib assert-script for mios_policy (R7 security wave). Proves the |
 | `usr/lib/mios/agent-pipe/test_mios_portal.py` | Standalone unit test for mios_portal (refactor R10) -- proves the moved portal logic works with stubs and no network/DB. |
 | `usr/lib/mios/agent-pipe/test_mios_preempt.py` | Standalone assert-script unit test for mios_preempt (WS-A12 RR-preemption state machine + snapshot contract, PLUS the T-019/... |
 | `usr/lib/mios/agent-pipe/test_mios_principal.py` | Unit test suite for mios_pipe.identity.principal module (signed A2A delegation principal). |
+| `usr/lib/mios/agent-pipe/test_mios_priority_sched.py` | Unit test for mios_priority_sched.py |
 | `usr/lib/mios/agent-pipe/test_mios_promptfmt.py` | Stdlib unit tests for mios_promptfmt (pure prompt text-block |
 | `usr/lib/mios/agent-pipe/test_mios_promptver.py` | Standalone assert-script unit test for mios_promptver (WS-LIFECYCLE-VER prompt-version registry). Pure stdlib, no server.py/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_provider_translate.py` | Standalone assert-script unit test for mios_provider_translate (refactor WS R2 leaf extraction). Pure stdlib, no ... |
@@ -801,6 +825,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_toolsurface.py` | Unit tests for mios_pipe.routing.toolsurface. |
 | `usr/lib/mios/agent-pipe/test_mios_trace.py` | Standalone assert-script unit test for mios_trace (WS-A8 trace/span observability). |
 | `usr/lib/mios/agent-pipe/test_mios_turn.py` | Stdlib unit tests for mios_turn (per-turn message-prep + agent-selection |
+| `usr/lib/mios/agent-pipe/test_mios_user_config.py` | Unit and regression test suite for mios_user_config functionality. |
 | `usr/lib/mios/agent-pipe/test_mios_vector.py` | stdlib unit test for pgvector schema and cosine similarity matching. |
 | `usr/lib/mios/agent-pipe/test_mios_verbcatalog.py` | Stdlib unit test for mios_verbcatalog -- the verb/recipe catalog loader + 3-projection SSOT source. |
 | `usr/lib/mios/agent-pipe/test_mios_verity.py` | Standalone assert-script unit test for mios_verity (refactor R6 extraction). Pure stdlib, no server.py/DB/network/pytest. |
@@ -815,19 +840,33 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/tests/test_mios_mcp_dispatch.py` | Unit test for mios_pipe.mcp_dispatch module. |
 | `usr/lib/mios/agents/opencode-gateway/server.py` | Provides an OpenAI-compatible HTTP shim for the opencode CLI, exposing /v1/models and /v1/chat/completions endpoints to in... |
 | `usr/lib/mios/ai/cuda_graphs.py` | Static CUDA Graph capture manager and multi-batch hardware replay buffer (T-709, T-710). |
+| `usr/lib/mios/ai/fp8_kv_quant.py` | MiOS system and orchestration module providing fp8 kv quant capabilities. |
 | `usr/lib/mios/ai/grammar_decode.py` | Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap (T-685, T-686). |
+| `usr/lib/mios/ai/intel_paged_attn.py` | MiOS system and orchestration module providing intel paged attn capabilities. |
+| `usr/lib/mios/ai/kquants_slicer.py` | MiOS system and orchestration module providing kquants slicer capabilities. |
 | `usr/lib/mios/ai/medusa_tree.py` | Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels (T-695, T-696). |
+| `usr/lib/mios/ai/mxfp4_kv_quant.py` | MiOS system and orchestration module providing mxfp4 kv quant capabilities. |
 | `usr/lib/mios/ai/pgvector_hnsw.py` | Quantized halfvec HNSW vector indexer and workspace table partitioner in pgvector (T-725, T-726). |
 | `usr/lib/mios/ai/rocm_paged_attn.py` | ROCm / HIP PagedAttention virtual block manager and async stream compaction engine (T-731, T-732). |
+| `usr/lib/mios/ai/speculative_prune.py` | MiOS system and orchestration module providing speculative prune capabilities. |
+| `usr/lib/mios/ai/streaming_llm.py` | MiOS system and orchestration module providing streaming llm capabilities. |
+| `usr/lib/mios/ai/tensor_pipeline.py` | MiOS system and orchestration module providing tensor pipeline capabilities. |
 | `usr/lib/mios/ai/train_elastic.py` | Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager (T-669, T-670). |
 | `usr/lib/mios/crawl4ai/mios-crawl4ai-service.py` | FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w... |
+| `usr/lib/mios/gateway-agent/__init__.py` | MiOS system and orchestration module providing init capabilities. |
+| `usr/lib/mios/gateway-agent/mcp_client.py` | MiOS system and orchestration module providing mcp client capabilities. |
+| `usr/lib/mios/gateway-agent/server.py` | MiOS system and orchestration module providing server capabilities. |
+| `usr/lib/mios/gateway-agent/session.py` | MiOS system and orchestration module providing session capabilities. |
+| `usr/lib/mios/gateway-agent/skill_catalog.py` | MiOS system and orchestration module providing skill catalog capabilities. |
+| `usr/lib/mios/gateway-agent/tool_registry.py` | MiOS system and orchestration module providing tool registry capabilities. |
+| `usr/lib/mios/ipc/varlink_activator.py` | MiOS system and orchestration module providing varlink activator capabilities. |
 | `usr/lib/mios/mios_comments.py` | The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST... |
 | `usr/lib/mios/mios_db_config.py` | Peer of mios_toml.py resolving configuration settings from PostgreSQL config tables (WS-VECTOR V1 / T-243). |
 | `usr/lib/mios/mios_env.py` | Shared environment helper for stripping empty MIOS_* environment variables. |
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 441 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 475 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

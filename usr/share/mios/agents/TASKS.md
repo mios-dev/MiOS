@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: MiOS Frontier — Task List (A2O War-Room).
+     AI-related: /etc/mios/install.env, /usr/share/mios/agents, mios-frontier, mios-a2o, mios-agents, mios-sync-env, mios-code-server, mios-agents-firstboot, mios-agents-path, mios-root -->
+
 # MiOS Frontier — Task List (A2O War-Room)
 
 <!-- Scope: the mios-frontier / mios-a2o war-room inside the mios-agents code-server container. -->

@@ -14,6 +14,10 @@ ExecStart=/usr/libexec/mios/mios-cron-director
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=15s
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+ProtectHome=true
 # Read-only journal/log access is inherited from mios-ai's groups; the daemon
 # only needs to read the rules file + write its state dir.
 

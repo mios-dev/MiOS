@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing systemd homed capabilities.
+# AI-functions: __init__, create_user_enclave, unlock_enclave, lock_and_zeroize, HomeEnclave, SystemdHomedManager
+
 """
 systemd_homed.py — T-745 WS-SEC
 Declarative systemd-homed LUKS2 user enclave configurator and TPM2/FIDO2 key manager.

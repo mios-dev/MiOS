@@ -1,3 +1,7 @@
+# AI-hint: Tests for T-344: mios_reputation — IntrospecLOO marginal contribution.
+# AI-related: mios_reputation
+# AI-functions: _make_contributions, test_records_returned_for_all_peers, test_low_contributor_gets_low_delta, test_eval_count_increments, test_sorted_peers_descending
+
 """Tests for T-344: mios_reputation — IntrospecLOO marginal contribution."""
 import sys
 sys.path.insert(0, "usr/lib/mios/agent-pipe")

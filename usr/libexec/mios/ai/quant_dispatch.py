@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing quant dispatch capabilities.
+# AI-functions: __init__, dispatch, DispatchDecision, QuantizationDispatcher
+
 """
 quant_dispatch.py — T-757 WS-AI
 Dynamic quantization kernel auto-dispatcher (Marlin / ExLlamaV2 / GGUF).

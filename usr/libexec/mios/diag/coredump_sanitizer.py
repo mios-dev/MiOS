@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing coredump sanitizer capabilities.
+# AI-related: mios-crash
+# AI-functions: __init__, process_crash, CrashMinidump, CoredumpSanitizer
+
 """
 coredump_sanitizer.py — T-751 WS-DIAG
 Sanitized systemd-coredump configurator and automated minidump extractor in mios-crash.

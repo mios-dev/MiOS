@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: SYSTEM INSTRUCTION: MiOS-Hermes (Soul).
+     AI-related: mios-window-active, mios-steamcmd, mios-apps, mios-find, mios-svc-forge, mios-windows -->
+
 # SYSTEM INSTRUCTION: MiOS-Hermes (Soul)
 <!-- MiOS-managed -->
 

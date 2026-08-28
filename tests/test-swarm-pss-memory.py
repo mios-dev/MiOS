@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-972 & T-973: Swarm PSS memory bounding (>1,500 tasks in <16GB).
+# AI-functions: test_1500_tasks_within_16gb_budget
+
 """Tests for T-972 & T-973: Swarm PSS memory bounding (>1,500 tasks in <16GB)."""
 import sys
 sys.path.insert(0, "usr/lib/mios/agent-pipe")

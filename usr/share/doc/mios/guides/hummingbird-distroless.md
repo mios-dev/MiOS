@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: Hummingbird: Distroless Agent-Pipe Service.
+     AI-related: mios-agent-pipe, mios-agent-pipe.container -->
+
 # Hummingbird: Distroless Agent-Pipe Service
 
 This guide explains the architecture, deployment, and security details of the Hummingbird distroless agent-pipe container deployment pattern.

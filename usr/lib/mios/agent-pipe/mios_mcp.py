@@ -271,9 +271,9 @@ def _mcp_load_registry() -> list:
             if sid:
                 by_id[sid] = s
 
-    # 2. Read mios.toml [mcp.servers] / [tools.mcp_servers]
+    # 2. Read mios.toml [mcp.servers]
     toml_mcp = _toml_section("mcp") or {}
-    toml_servers = toml_mcp.get("servers") or (_toml_section("tools") or {}).get("mcp_servers") or {}
+    toml_servers = toml_mcp.get("servers") or {}
     if isinstance(toml_servers, dict):
         for sid, cfg in toml_servers.items():
             if isinstance(cfg, dict):

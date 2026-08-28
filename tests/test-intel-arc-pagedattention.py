@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-769 & T-770: Intel Arc PagedAttention 30 streams & >90% VRAM efficiency.
+# AI-functions: test_intel_arc_30_streams_concurrency
+
 """Tests for T-769 & T-770: Intel Arc PagedAttention 30 streams & >90% VRAM efficiency."""
 import sys
 sys.path.insert(0, "usr/lib/mios/ai")

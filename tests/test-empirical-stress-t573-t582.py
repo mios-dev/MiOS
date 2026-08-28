@@ -21,6 +21,9 @@ import time
 import unittest
 from typing import Any, Dict, List, Optional
 
+def setUpModule():
+    pass
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 

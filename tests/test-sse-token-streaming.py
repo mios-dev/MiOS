@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-747 & T-748: 100-stream concurrent token streaming & backpressure.
+# AI-functions: test_100_concurrent_streams
+
 """Tests for T-747 & T-748: 100-stream concurrent token streaming & backpressure."""
 import asyncio, sys
 sys.path.insert(0, "usr/lib/mios/agent-pipe")

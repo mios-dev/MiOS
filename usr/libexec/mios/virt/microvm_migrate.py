@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing microvm migrate capabilities.
+# AI-functions: __init__, serialize_vm_state, restore_vm_state, MicroVMStateSnapshot, MicroVMLiveMigrator
+
 """
 microvm_migrate.py — T-968 WS-HCI
 Zero-downtime MicroVM state serialization and live migration handover engine.

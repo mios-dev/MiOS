@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing mcp client capabilities.
+# AI-related: /usr/libexec/mios/mios-mcp-server, mios-mcp-server, [ports].agent_pipe
+# AI-functions: __init__, MiOSMCPClient
+
 import asyncio
 import logging
 import os
@@ -25,7 +29,10 @@ class MiOSMCPClient:
 
             command = "/usr/libexec/mios/mios-mcp-server"
             env = dict(os.environ)
-            env["MIOS_AGENT_PIPE_URL"] = os.environ.get("MIOS_AGENT_PIPE_URL", "http://localhost:8640")
+            # Law 5: :8640 is a RETIRED port -- the pipe answers on [ports].agent_pipe.
+            _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+            env["MIOS_AGENT_PIPE_URL"] = os.environ.get(
+                "MIOS_AGENT_PIPE_URL", "http://localhost:%s" % _pipe_port)
 
             server_params = StdioServerParameters(
                 command=command,

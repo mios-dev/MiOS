@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing self replicate capabilities.
+# AI-related: mios-build
+# AI-functions: __init__, trigger_self_build, verify_image_signature, ReplicationBuildResult, SelfReplicationDaemon
+
 """
 self_replicate.py — T-966 WS-HCI
 Autonomous self-replication daemon and podman-MiOS-DEV build pipeline trigger.

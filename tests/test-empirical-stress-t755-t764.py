@@ -1,3 +1,6 @@
+# AI-hint: Unit and regression test suite for test-empirical-stress-t755-t764 functionality.
+# AI-functions: test_stress_streaming_llm, test_stress_quant_dispatch, test_stress_cilium_bgp, test_stress_bcachefs_writes, test_stress_fp8_kv
+
 """
 Empirical stress tests for batch T-755 through T-764.
 """

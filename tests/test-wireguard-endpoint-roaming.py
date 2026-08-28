@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-753 & T-754: WireGuard endpoint roaming (<50ms) and PMTU clamping.
+# AI-functions: test_endpoint_roaming_sub_50ms, test_pmtu_clamping
+
 """Tests for T-753 & T-754: WireGuard endpoint roaming (<50ms) and PMTU clamping."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/net")

@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-739 & T-740: active-active CephFS MDS throughput and failover.
+# AI-functions: test_active_active_mds_throughput, test_standby_failover_latency
+
 """Tests for T-739 & T-740: active-active CephFS MDS throughput and failover."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/storage")

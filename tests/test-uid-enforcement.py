@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Unit and regression test suite for test-uid-enforcement functionality.
+# AI-functions: test_generate_sysusers_remediation, test_audit_user_environment_mock_valid, test_audit_user_environment_mock_system_uid, test_subuid_subgid_parsing, TestUidEnforcement
+
 """
 Unit Test Suite for MiOS UID 1000 Enforcement & Systemd User Session Boundary.
 Implements T-965 / AGY-2563.

@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing tool registry capabilities.
+# AI-related: mios-searxng
+# AI-functions: __init__, forward, get_tools, _create_tool_instance, MiOSToolRegistry, WebSearchTool, DynamicTool
+
 import asyncio
 import logging
 from typing import List, Callable, Any

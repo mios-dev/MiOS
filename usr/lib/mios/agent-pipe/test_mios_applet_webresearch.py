@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# AI-hint: Isolation tests for the web-research SSE applet (mios_pipe.routing.applet_webresearch).
+# AI-related: mios_pipe.routing
+# AI-functions: check, _events, main
+
 """Isolation tests for the web-research SSE applet (mios_pipe.routing.applet_webresearch)."""
 import asyncio
 import json

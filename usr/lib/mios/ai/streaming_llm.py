@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing streaming llm capabilities.
+# AI-functions: current_allocated_tokens, rolling_capacity, __post_init__, __init__, append_token, StreamingKVCache, StreamingLLMManager
+
 """
 streaming_llm.py — T-755 WS-AI
 StreamingLLM attention sink pinner and rolling KV eviction manager in llama-swap.
@@ -9,8 +12,9 @@ and enabling perpetual infinite generation with zero OOM crashes.
 from __future__ import annotations
 
 import logging
+from collections import deque
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Deque
 
 log = logging.getLogger("streaming_llm")
 
@@ -19,8 +23,21 @@ class StreamingKVCache:
     sink_size: int = 4
     window_size: int = 32768
     sink_tokens: list[int] = field(default_factory=list)
-    rolling_tokens: list[int] = field(default_factory=list)
+    rolling_tokens: Deque[int] = field(default_factory=deque)
     total_tokens_seen: int = 0
+
+    @property
+    def rolling_capacity(self) -> int:
+        """Rolling slots remaining once the pinned sinks have taken their share."""
+        return max(0, self.window_size - self.sink_size)
+
+    def __post_init__(self) -> None:
+        # Eviction is per-token on an infinite generation, so it has to be O(1).
+        # A list evicts the head in O(n) -- at a 32k window that is a 32k-element
+        # memmove for every single token. A bounded deque pops the head in O(1),
+        # and its maxlen makes the window a property of the structure rather than
+        # of the one call site that remembers to trim.
+        self.rolling_tokens = deque(self.rolling_tokens, maxlen=self.rolling_capacity)
 
     @property
     def current_allocated_tokens(self) -> int:
@@ -44,12 +61,10 @@ class StreamingLLMManager:
             c.sink_tokens.append(token_id)
             evicted = False
         else:
-            if len(c.rolling_tokens) >= (c.window_size - c.sink_size):
+            evicted = len(c.rolling_tokens) >= c.rolling_capacity
+            if evicted and c.rolling_tokens:
                 # Evict oldest token from rolling window (FIFO)
-                c.rolling_tokens.pop(0)
-                evicted = True
-            else:
-                evicted = False
+                c.rolling_tokens.popleft()
             c.rolling_tokens.append(token_id)
 
         return {

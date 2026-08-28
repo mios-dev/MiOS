@@ -1,3 +1,7 @@
+# AI-hint: Unit and regression test suite for test-virtio-pmem-dax-io functionality.
+# AI-related: mios_microvm
+# AI-functions: _simulate_memfd_throughput_gbs, test_memfd_init_latency_under_25ms, test_dax_io_throughput_exceeds_15gbs, test_destroy_releases_memfd_no_nvme_writes, _nvme_write_sectors
+
 """
 test-virtio-pmem-dax-io.py — T-734 WS-VFIO
 Automated benchmark suite for virtio-pmem DAX microVM I/O.

@@ -119,7 +119,7 @@ _GATEWAY_TASK = None
 _MCP_POOL = None
 import mios_crl   # noqa: E402  -- WS-A10 principal/cert revocation list (inert until a CRL file exists)
 import mios_gossip   # noqa: E402  -- WS-A18 epidemic peer discovery (inert until [gossip].interval_min>0)
-_A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
+_A2A_REPUTATION = mios_reputation.ReputationEngine()   # outbound-peer reliability
 import mios_selfimprove   # noqa: E402,F401  -- #64 analyzer; now consumed via mios_daemons (_selfimprove_report moved there), retained for import-surface parity
 import mios_toolconflict   # noqa: E402  -- WS-A7 per-verb dispatch conflict/parallel-limit gate
 import mios_trace   # noqa: E402  -- WS-A8 per-request trace/span observability
@@ -267,8 +267,17 @@ _OTEL_ENABLE = (
     str(os.environ.get("MIOS_OTEL_ENABLE") or _otel_toml.get("otel_enable", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""}
 )
+# Law 5/7: the collector's port resolves from the SSOT name, never a bare literal.
+# [observability].otel_endpoint ships a ${MIOS_PORT_OTELCOL_OTLP} placeholder and
+# os.path.expandvars leaves it VERBATIM when the var is unset, so an unexpanded
+# value is not an endpoint -- drop it and rebuild from the resolved port.
+_OTEL_PORT = os.environ.get("MIOS_PORT_OTELCOL_OTLP", "8575")
+_otel_cfg_endpoint = str(_otel_toml.get("otel_endpoint") or "").strip()
+if "${" in _otel_cfg_endpoint:
+    _otel_cfg_endpoint = ""
 _OTEL_ENDPOINT = (
-    str(os.environ.get("MIOS_OTEL_ENDPOINT") or _otel_toml.get("otel_endpoint", "http://localhost:8575"))
+    str(os.environ.get("MIOS_OTEL_ENDPOINT") or _otel_cfg_endpoint
+        or "http://localhost:%s" % _OTEL_PORT)
     .strip()
 )
 
@@ -704,7 +713,11 @@ _configure_authn(
     agent_auth_by_hostport=_AGENT_AUTH_BY_HOSTPORT,
 )
 
-DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
+# Law 5/7: :8000 was the RETIRED SurrealDB lane, and this value is pushed into
+# mios_pipe/db.py via _configure_db(db_url=...) -- so the stale literal here
+# OVERRODE db.py's already-correct SSOT resolution. Resolve the same way it does.
+_DB_PORT = os.environ.get("MIOS_PORT_PGVECTOR", "8600")
+DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:%s" % _DB_PORT)
 DB_USER = os.environ.get("MIOS_DB_USER", "root")
 DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
 DB_NS = os.environ.get("MIOS_DB_NS", "mios")
@@ -875,7 +888,11 @@ async def lifespan(app):
             trace_span=_trace_span
         )
 
-        ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1")
+        # Law 5: :8642 is a RETIRED port. [ai].endpoint is
+        # "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1" -- mirror that resolution.
+        _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+        ai_endpoint = os.environ.get(
+            "MIOS_AI_ENDPOINT", "http://localhost:%s/v1" % _pipe_port)
         ai_model = os.environ.get("MIOS_AI_MODEL", "granite4.1:8b")
         tools = mios_gateway_queue.get_tools(ceiling="interactive")
 

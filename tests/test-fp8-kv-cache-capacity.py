@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-763 & T-764: FP8 KV-cache 50% memory savings & needle accuracy.
+# AI-functions: test_fp8_50_percent_vram_reduction
+
 """Tests for T-763 & T-764: FP8 KV-cache 50% memory savings & needle accuracy."""
 import sys
 sys.path.insert(0, "usr/lib/mios/ai")

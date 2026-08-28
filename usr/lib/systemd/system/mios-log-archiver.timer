@@ -1,3 +1,6 @@
+# AI-hint: Systemd timer for scheduling periodic hourly compaction and archival of system logs.
+# AI-related: mios-log-archiver.service, timers.target
+
 [Unit]
 Description=Hourly MiOS Journal Log Parquet Compaction Timer
 Documentation=https://github.com/mios-dev/mios

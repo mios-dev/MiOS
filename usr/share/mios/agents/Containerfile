@@ -1,3 +1,6 @@
+# AI-hint: MiOS configuration and runtime asset for Containerfile.
+# AI-related: /usr/share/mios/agents, mios-a2o, mios-frontier, mios-frontier-sync, mios-agents, mios-root, mios-agents-path
+
 FROM ghcr.io/coder/code-server:latest
 
 USER root

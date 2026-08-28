@@ -1,4 +1,7 @@
-﻿<#
+﻿# AI-hint: MiOS configuration and runtime asset for Uninstall-MiOS.ps1.
+# AI-related: mios-bootstrap, mios-agents, mios-dev
+
+<#
 .SYNOPSIS
   Hardened, idempotent COMPLETE uninstaller for MiOS on a Windows host.
 

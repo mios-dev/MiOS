@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-767 & T-768: lock-free SHM ring 4K 60FPS (<1us latency) transfer.
+# AI-functions: test_shm_ring_sub_microsecond_latency
+
 """Tests for T-767 & T-768: lock-free SHM ring 4K 60FPS (<1us latency) transfer."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/ipc")

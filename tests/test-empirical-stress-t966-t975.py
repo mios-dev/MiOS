@@ -1,3 +1,6 @@
+# AI-hint: Unit and regression test suite for test-empirical-stress-t966-t975 functionality.
+# AI-functions: test_stress_self_replicate, test_stress_microvm_migrations, test_stress_topology_switching, test_stress_pss_regulator, test_stress_tensor_pipeline
+
 """
 Empirical stress tests for batch T-966 through T-975 (Sovereign HCI & AIOS).
 """

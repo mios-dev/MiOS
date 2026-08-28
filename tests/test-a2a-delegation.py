@@ -1,3 +1,7 @@
+# AI-hint: Tests for T-345: mios_a2a_delegation — identity-aware A2A delegation.
+# AI-related: mios_a2a_delegation, localhost:8640, localhost:8641
+# AI-functions: _make_router, test_negotiate_semantic_frame_when_both_support, test_negotiate_fallback_to_text, test_build_frame_uses_negotiated_mode, test_best_peer_by_capability, test_wire_roundtrip
+
 """Tests for T-345: mios_a2a_delegation — identity-aware A2A delegation."""
 import sys
 sys.path.insert(0, "usr/lib/mios/agent-pipe")

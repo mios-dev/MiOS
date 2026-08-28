@@ -1,3 +1,6 @@
+# AI-hint: Unit and regression test suite for test-empirical-stress-t745-t754 functionality.
+# AI-functions: test_stress_homed_100_cycles, test_stress_sse_streamer, test_stress_prewarm_50, test_stress_coredumps_100, test_stress_wg_roaming_500
+
 """
 Empirical stress tests for batch T-745 through T-754.
 """

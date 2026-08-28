@@ -1,3 +1,6 @@
+# AI-hint: mios_kvfork.py — T-340 SCHED-05 Turn-boundary preemption & snapshot-suspend-resume via llama.cpp KV-cache slot save/restore API (/slots endpoint). Suspended conversations are checkpointed to /var/lib/mios/llamacpp/slots/ and their task row updated to suspended
+# AI-related: mios-llm-light, mios_kv_compact, test_mios_kvfork
+# AI-functions: slot_path, __init__, suspend, resume, erase, _llama_slot_action, list_suspended, class KVSlot, class KVForkManager
 """
 mios_kvfork.py — T-340 SCHED-05
 Turn-boundary preemption & snapshot-suspend-resume via llama.cpp KV-cache slot
@@ -18,11 +21,71 @@ import json
 import logging
 import os
 import pathlib
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
 log = logging.getLogger(__name__)
+
+_FILE_PREFIX = "mios-kv-"
+_FILE_SUFFIX = ".bin"
+
+def conv_token(conv: Any) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(conv or "default"))[:120]
+    return safe or "default"
+
+def kv_filename(conv: Any) -> str:
+    return f"mios-kv-{conv_token(conv)}.bin"
+
+def validate_fork(src: Any, dst: Any) -> tuple[bool, str]:
+    if src is None or not str(src).strip():
+        return False, "source conversation identifier cannot be empty"
+    if dst is None or not str(dst).strip():
+        return False, "destination conversation identifier cannot be empty"
+    s_tok = conv_token(src)
+    d_tok = conv_token(dst)
+    if src == dst or s_tok == d_tok:
+        return False, "source and destination resolve to the same KV file"
+    return True, ""
+
+def plan_fork(src: Any, dst: Any) -> list[tuple[str, str, str]]:
+    s_tok = conv_token(src)
+    d_tok = conv_token(dst)
+    return [
+        ("restore", s_tok, kv_filename(src)),
+        ("save", d_tok, kv_filename(dst)),
+    ]
+
+def fork_outcome(restore_ok: bool, save_ok: bool) -> tuple[bool, str]:
+    if restore_ok and save_ok:
+        return True, "forked from parent prefix successfully"
+    if not restore_ok and save_ok:
+        return True, "WARNING: parent restore failed but child slot saved"
+    if restore_ok and not save_ok:
+        return False, "could not save child slot"
+    return False, "could not save child slot; parent restore also failed"
+
+def parse_bool(val: Any, default: bool = False) -> bool:
+    if val is None:
+        return default
+    if isinstance(val, bool):
+        return val
+    s = str(val).strip().lower()
+    if s in ("true", "1", "yes", "on"):
+        return True
+    if s in ("false", "0", "no", "off", ""):
+        return False
+    return default
+
+def clamp_branches(val: Any, hard_cap: int = 8, default: int = 2) -> int:
+    if hard_cap <= 0:
+        return 0
+    try:
+        v = int(val) if val is not None else default
+    except (ValueError, TypeError):
+        v = default
+    return max(0, min(v, hard_cap))
 
 SLOTS_DIR = pathlib.Path(
     os.environ.get("MIOS_LLAMACPP_SLOTS_DIR", "/var/lib/mios/llamacpp/slots"))
@@ -51,8 +114,11 @@ class KVForkManager:
     local filesystem so CI does not require a live inference engine.
     """
 
-    def __init__(self, llama_base_url: str = "http://localhost:11450",
+    def __init__(self, llama_base_url: str | None = None,
                  dry_run: bool = False) -> None:
+        if llama_base_url is None:
+            _port = os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")
+            llama_base_url = os.environ.get("MIOS_LLM_LIGHT_ENDPOINT") or f"http://localhost:{_port}"
         self.llama_base_url = llama_base_url.rstrip("/")
         self.dry_run = dry_run
         self._active: dict[str, KVSlot] = {}

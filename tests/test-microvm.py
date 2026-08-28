@@ -1,3 +1,7 @@
+# AI-hint: Tests for T-733: mios-microvm — virtio-pmem DAX memory storage manager.
+# AI-related: mios_microvm, mios-microvm
+# AI-functions: test_launch_dry_run_creates_entry, test_destroy_releases_entry
+
 """Tests for T-733: mios-microvm — virtio-pmem DAX memory storage manager."""
 import sys, os, json, types, pathlib
 sys.path.insert(0, "usr/libexec/mios/virt")

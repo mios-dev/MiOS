@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: Inference consolidation (WS-CONV-07).
+     AI-related: mios-llm-heavy, mios-llm-heavy-alt, mios-llm-light, mios-sync-env, mios-llm-heavy.service, mios-llm-heavy-alt.service -->
+
 # Inference consolidation (WS-CONV-07)
 
 This guide documents the consolidation of heavy inference engines under the converged-resource architecture.

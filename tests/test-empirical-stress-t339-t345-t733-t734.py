@@ -1,3 +1,7 @@
+# AI-hint: Unit and regression test suite for test-empirical-stress-t339-t345-t733-t734 functionality.
+# AI-related: mios_priority_sched, mios_kvfork, mios_deliberate, mios_reputation, mios_manifest_rag
+# AI-functions: test_priority_gate_stress_100_requests, test_kvfork_suspend_resume_10_sessions, test_dci_10_deliberations, test_reputation_50_sessions, test_manifest_rag_deep_tree
+
 """
 Empirical stress tests for batch T-339, T-340, T-341, T-342, T-343, T-344,
 T-345, T-733, T-734.
@@ -20,18 +24,22 @@ def test_priority_gate_stress_100_requests():
 
 def test_kvfork_suspend_resume_10_sessions():
     """KVForkManager handles 10 concurrent session checkpoints."""
-    import os, tempfile
-    os.environ["MIOS_LLAMACPP_SLOTS_DIR"] = tempfile.mkdtemp()
-    import importlib, mios_kvfork
-    importlib.reload(mios_kvfork)
-    from mios_kvfork import KVForkManager
-    mgr = KVForkManager(dry_run=True)
-    for i in range(10):
-        mgr.suspend(f"stress-sess-{i}")
-    assert len(mgr.list_suspended()) == 10
-    for i in range(10):
-        mgr.resume(f"stress-sess-{i}")
-    assert len(mgr.list_suspended()) == 0
+    import os, tempfile, shutil
+    tmp = tempfile.mkdtemp()
+    os.environ["MIOS_LLAMACPP_SLOTS_DIR"] = tmp
+    try:
+        import importlib, mios_kvfork
+        importlib.reload(mios_kvfork)
+        from mios_kvfork import KVForkManager
+        mgr = KVForkManager(dry_run=True)
+        for i in range(10):
+            mgr.suspend(f"stress-sess-{i}")
+        assert len(mgr.list_suspended()) == 10
+        for i in range(10):
+            mgr.resume(f"stress-sess-{i}")
+        assert len(mgr.list_suspended()) == 0
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 def test_dci_10_deliberations():
     """DCISession runs 10 independent deliberation sessions without errors."""

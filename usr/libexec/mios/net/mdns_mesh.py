@@ -124,7 +124,14 @@ class MDNSMeshManager:
         if output_path:
             p = Path(output_path)
             p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(conf_str, encoding="utf-8")
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+            fd = os.open(str(p), flags, 0o600)
+            with open(fd, "w", encoding="utf-8") as f:
+                f.write(conf_str)
+            try:
+                os.chmod(str(p), 0o600)
+            except OSError:
+                pass
 
         return conf_str
 

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing mios microvm capabilities.
+# AI-related: /usr/share/mios/microvm/vmlinux, mios-microvm, mios-vm
+# AI-functions: _memfd_create, __init__, launch, destroy, _rootfs_size_bytes, _populate_memfd, _start_hypervisor, cmd_launch, cmd_status, cmd_destroy, main, MicroVM
+
 """
 mios-microvm — T-733 WS-VFIO
 Virtio-PMEM direct DAX memory storage manager for mios-microvm ephemeral

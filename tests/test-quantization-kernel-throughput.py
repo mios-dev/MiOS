@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-757 & T-758: quantization kernel auto-dispatch & Marlin >3.5x throughput.
+# AI-functions: test_marlin_dispatch_speedup_and_perplexity, test_fallback_formats
+
 """Tests for T-757 & T-758: quantization kernel auto-dispatch & Marlin >3.5x throughput."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/ai")

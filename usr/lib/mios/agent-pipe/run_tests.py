@@ -1,3 +1,5 @@
+# AI-hint: Unit and regression test suite for run_tests functionality.
+
 import glob, subprocess, os, sys
 os.environ.pop('MIOS_THEME_ROOT', None)
 for k in list(os.environ.keys()):

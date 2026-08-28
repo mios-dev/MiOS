@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing pss regulator capabilities.
+# AI-functions: __init__, current_allocated_mb, admit_task, release_task, SwarmAgentTask, PSSMemoryRegulator
+
 """
 pss_regulator.py — T-972 WS-AI
 PSS memory budget regulator and swarm agent OOM circuit breaker in agent-pipe.

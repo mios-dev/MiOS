@@ -1,3 +1,5 @@
+# AI-hint: MiOS configuration and runtime asset for Containerfile.
+
 FROM docker.io/library/alpine:3.20 AS build
 
 RUN apk add --no-cache build-base linux-headers

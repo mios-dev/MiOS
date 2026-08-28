@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: Memory Tiering Guide (WS-CONV-11).
+     AI-related:  -->
+
 # Memory Tiering Guide (WS-CONV-11)
 
 This guide documents the three-tier converged memory architecture deployed to optimize WAL write amplification, database size, and edge I/O footprint.

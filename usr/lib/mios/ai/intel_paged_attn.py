@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing intel paged attn capabilities.
+# AI-functions: __init__, allocate_stream_blocks, calculate_vram_efficiency, IntelKVBlock, IntelLevelZeroPagedAttention
+
 """
 intel_paged_attn.py — T-769 WS-VFIO
 Intel oneAPI Level Zero PagedAttention engine and XMX SYCL matrix kernels in IPEX.

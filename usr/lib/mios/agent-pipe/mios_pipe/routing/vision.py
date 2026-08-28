@@ -121,8 +121,14 @@ def _vision_msg_response(msg: str, streaming: bool, chat_id: str, model: str) ->
             yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
             yield _sse_done()
         return StreamingResponse(_g(), media_type="text/event-stream")
+    # chat_id ALREADY carries the "chatcmpl-" prefix (routing/chat.py mints it as
+    # f"chatcmpl-{uuid4}"), so re-prefixing emitted "chatcmpl-chatcmpl-..." -- and a
+    # different id from the SSE branch two lines up, which passes chat_id through
+    # bare. `created` is required on an OpenAI chat.completion; _client_tools_wrap
+    # below is the correct shape to match.
     return JSONResponse(content={
-        "id": f"chatcmpl-{chat_id}", "object": "chat.completion", "model": model,
+        "id": chat_id, "object": "chat.completion",
+        "created": int(time.time()), "model": model,
         "choices": [{"index": 0,
                      "message": {"role": "assistant", "content": msg},
                      "finish_reason": "stop"}]}, status_code=200)

@@ -40,13 +40,15 @@ ExecStart=/usr/sbin/podman run --replace --name mios-agents \
   --env MIOS_A2O_CLAUDE_EFFORT_FLAG=${MIOS_A2O_CLAUDE_EFFORT_FLAG} \
   --env MIOS_A2O_AGY_EFFORT_FLAG=${MIOS_A2O_AGY_EFFORT_FLAG} \
   --env MIOS_A2O_GEMINI_EFFORT_FLAG=${MIOS_A2O_GEMINI_EFFORT_FLAG} \
-  --volume /:/mnt/mios-root:rw,rslave \
   --volume /var/lib/mios/agents:/home/coder:rw \
   localhost/mios-agents:latest \
-  --bind-addr 0.0.0.0:8800 /mnt/mios-root
+  --bind-addr 127.0.0.1:${MIOS_PORT_CODE_SERVER:-8900} /home/coder
 ExecStop=/usr/sbin/podman stop -t 10 mios-agents
 Restart=on-failure
 RestartSec=10s
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target default.target

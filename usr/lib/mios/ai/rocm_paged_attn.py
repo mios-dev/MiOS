@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: ROCm / HIP PagedAttention virtual block manager and async stream compaction engine (T-731, T-732).
-# AI-related: usr/lib/mios/ai/rocm_paged_attn.py, tests/test-rocm-paged-attn.py, usr/share/mios/llamacpp/llama-swap.yaml
+# AI-related: usr/lib/mios/ai/rocm_paged_attn.py, tests/test-rocm-paged-attn.py, usr/share/mios/llamacpp/mios-llm-light.yaml
 """ROCm / HIP PagedAttention virtual block manager and async stream compaction engine for MiOS.
 
 Manages KV caches in 16-token virtual blocks for AMD ROCm/HIP devices, compacts memory asynchronously

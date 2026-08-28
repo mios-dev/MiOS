@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing varlink activator capabilities.
+# AI-related: varlink.service
+# AI-functions: __init__, define_method, dispatch, register, handle_rpc, VarlinkMethod, VarlinkInterface, VarlinkServer
+
 """
 varlink_activator.py — T-743 WS-NODE
 Point-to-point Varlink IPC socket activator and typed interface compiler.

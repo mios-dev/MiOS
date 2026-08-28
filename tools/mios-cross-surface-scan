@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS configuration and runtime asset for mios-cross-surface-scan.
+# AI-related: mios-knowledge-graph
+
 
 import os
 import sys

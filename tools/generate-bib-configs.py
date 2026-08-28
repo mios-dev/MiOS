@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing generate-bib-configs capabilities.
+# AI-functions: main, _rendered
+
 """
 tools/generate-bib-configs.py
 Projects [deploy.artifacts] filesystem sizing from mios.toml SSOT into config/artifacts/*.toml.

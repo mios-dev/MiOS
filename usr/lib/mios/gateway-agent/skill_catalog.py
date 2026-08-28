@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing skill catalog capabilities.
+# AI-related: mios-skill, [ports].agent_pipe
+# AI-functions: __init__, start, stop, reload_catalog, get_tools, _create_tool_instance, forward, SkillCatalogLoader, DynamicSkillTool
+
 import asyncio
 import json
 import logging
@@ -90,7 +94,11 @@ class SkillCatalogLoader:
                 super().__init__()
 
             def forward(self, **kwargs) -> str:
-                ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1")
+                # Law 5: :8640 is a RETIRED port -- resolve the front door the way
+                # [ai].endpoint spells it, "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1".
+                _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+                ai_endpoint = os.environ.get(
+                    "MIOS_AI_ENDPOINT", "http://localhost:%s/v1" % _pipe_port)
                 orchestrator_root = ai_endpoint.replace("/v1", "").rstrip("/")
                 url = f"{orchestrator_root}/skills/run"
 

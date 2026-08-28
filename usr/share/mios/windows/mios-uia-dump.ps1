@@ -1,3 +1,6 @@
+# AI-hint: MiOS configuration and runtime asset for mios-uia-dump.ps1.
+# AI-related: mios-launch
+
 [CmdletBinding()]
 param(
     [switch]$ForegroundWindow = $true,

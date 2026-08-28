@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-771 & T-772: MXFP4 KV-cache 4x density (<=27% of FP16) and >99.0% accuracy.
+# AI-functions: test_mxfp4_4x_density
+
 """Tests for T-771 & T-772: MXFP4 KV-cache 4x density (<=27% of FP16) and >99.0% accuracy."""
 import sys
 sys.path.insert(0, "usr/lib/mios/ai")

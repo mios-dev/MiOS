@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing mios priority sched capabilities.
+# AI-related: mios-priority-hint
+# AI-functions: age_s, inject_headers, to_request_body_extra, _priority_name, __init__, wrap, augment_headers, sorted_queue, drain, classify_turn, PriorityRequest, PriorityGate
+
 """
 mios_priority_sched.py — T-339 SCHED-04
 Engine-level priority scheduling: forward x-priority header to heavy inference

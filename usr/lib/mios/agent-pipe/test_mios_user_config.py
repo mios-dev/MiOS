@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Unit and regression test suite for mios_user_config functionality.
+# AI-functions: test_parse_simple_toml_tomllib, test_path_escape_guard, TestMiosUserConfig
+
 import sys
 import os
 import unittest

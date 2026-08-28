@@ -14,6 +14,9 @@ Environment=MIOS_FINETUNE_SERVE_PORT=11438
 ExecStart=/var/lib/mios/finetune/venv/bin/python /usr/libexec/mios/mios-finetune-serve
 Restart=on-failure
 RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
 # model load + first request can take ~40s on a cold GPU
 TimeoutStartSec=180
 

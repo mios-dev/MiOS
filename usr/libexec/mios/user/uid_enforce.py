@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing uid enforce capabilities.
+# AI-functions: check_user_uid, check_subuid_subgid, audit_user_environment, generate_sysusers_remediation, main
+
 """
 MiOS Standard Non-System UID 1000 Enforcement & Migration Engine.
 Implements T-964 / AGY-2562: Validates and enforces that primary user 'mios'

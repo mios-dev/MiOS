@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-749 & T-750: Quadlet pre-warm and Day-0 offline start.
+# AI-functions: test_offline_container_startup_speed
+
 """Tests for T-749 & T-750: Quadlet pre-warm and Day-0 offline start."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/deploy")

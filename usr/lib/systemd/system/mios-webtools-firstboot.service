@@ -1,3 +1,6 @@
+# AI-hint: Systemd service definition for mios-webtools-firstboot.service.
+# AI-related: /usr/libexec/mios/mios-webtools-firstboot.sh, mios-webtools-pod, mios-webtools-firstboot, network-online.target, mios-webtools-pod.service, multi-user.target
+
 [Unit]
 Description='MiOS' web-tools images build-on-demand firstboot service
 After=network-online.target

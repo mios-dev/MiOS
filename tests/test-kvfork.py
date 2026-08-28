@@ -1,3 +1,7 @@
+# AI-hint: Tests for T-340: mios_kvfork — KV snapshot-suspend-resume.
+# AI-related: mios_kvfork
+# AI-functions: test_suspend_creates_slot_file, test_resume_removes_from_active, test_erase_cleans_up_file
+
 """Tests for T-340: mios_kvfork — KV snapshot-suspend-resume."""
 import sys, pathlib, tempfile, os
 sys.path.insert(0, "usr/lib/mios/agent-pipe")
@@ -40,7 +44,11 @@ def test_erase_cleans_up_file():
     assert not path.exists()
 
 if __name__ == "__main__":
-    test_suspend_creates_slot_file()
-    test_resume_removes_from_active()
-    test_erase_cleans_up_file()
-    print("All T-340 tests passed.")
+    try:
+        test_suspend_creates_slot_file()
+        test_resume_removes_from_active()
+        test_erase_cleans_up_file()
+        print("All T-340 tests passed.")
+    finally:
+        import shutil
+        shutil.rmtree(_TMP_SLOTS, ignore_errors=True)

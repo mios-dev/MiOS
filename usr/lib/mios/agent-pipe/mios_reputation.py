@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing mios reputation capabilities.
+# AI-functions: _default_quality, __init__, evaluate_session, get_reputation, sorted_peers, _persist, PeerContribution, ReputationRecord, ReputationEngine
+
 """
 mios_reputation.py — T-344 MAO-07
 IntrospecLOO (Introspective Leave-One-Out) marginal contribution evaluation
@@ -125,4 +128,8 @@ class ReputationEngine:
         except ImportError:
             log.debug("ReputationEngine: psycopg not installed, skip persist")
         except Exception as exc:
-            log.warning("ReputationEngine: persist failed: %s", exc)
+            log.warning("failed to persist reputation for %s: %s", peer_id, exc)
+
+
+# Backwards compatibility alias
+PeerReputation = ReputationEngine

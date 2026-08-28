@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing bcachefs tier capabilities.
+# AI-functions: __init__, burst_write, rebalance_to_background, StorageBlock, BcachefsTierManager
+
 """
 bcachefs_tier.py — T-761 WS-STRG
 Declarative Bcachefs multi-device tiering and transparent SSD caching manager.

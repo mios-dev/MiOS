@@ -1,3 +1,7 @@
+# AI-hint: Tests for T-339: mios_priority_sched — engine-level priority scheduling.
+# AI-related: mios_priority_sched, mios-priority-hint
+# AI-functions: test_foreground_preempts_background, test_headers_injected, test_classify_user_turn_foreground, test_drain_order
+
 """Tests for T-339: mios_priority_sched — engine-level priority scheduling."""
 import sys, time
 sys.path.insert(0, "usr/lib/mios/agent-pipe")

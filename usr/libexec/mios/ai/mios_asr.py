@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing mios asr capabilities.
+# AI-related: /usr/share/mios/ai/conformer.onnx
+# AI-functions: __init__, is_voiced, process_stream, AudioChunk, SileroVAD, StreamingASREngine
+
 """
 mios_asr.py — T-737 WS-AI
 Streaming CTC / Conformer ONNX speech recognition daemon and VAD chunker.

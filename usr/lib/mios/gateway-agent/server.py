@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing server capabilities.
+# AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-gateway-agent, [ports].agent_pipe
+# AI-functions: _toml_section, _xpand, openai_chunk, ChatCompletionRequest
+
 import asyncio
 import json
 import logging
@@ -104,6 +108,18 @@ async def models():
         })
     return {"object": "list", "data": data}
 
+def openai_error(message: str, *, status: int, err_type: str,
+                 code: Optional[str] = None,
+                 param: Optional[str] = None) -> JSONResponse:
+    """The OpenAI error envelope: `error` is an OBJECT, never a bare string.
+
+    Every client on this endpoint (openai-python, OWUI, the Hermes gateway)
+    reads body["error"]["message"], so a `{"error": "..."}` string raised a
+    TypeError in the caller instead of surfacing the failure."""
+    return JSONResponse(status_code=status, content={"error": {
+        "message": message, "type": err_type,
+        "param": param, "code": code or err_type}})
+
 class ChatCompletionRequest(BaseModel):
     model: Optional[str] = None
     messages: list[dict]
@@ -115,6 +131,14 @@ class ChatCompletionRequest(BaseModel):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
+    # `messages: list[dict]` admits []. That reaches history[-1] below (history is
+    # REPLACED by new_incoming on the else branch, so a populated session does not
+    # save it) and raises IndexError -> an opaque 500 on a plainly invalid request.
+    if not req.messages:
+        return openai_error("'messages' must contain at least one message.",
+                            status=400, err_type="invalid_request_error",
+                            param="messages", code="empty_messages")
+
     meta = req.metadata or {}
     session_id = str(meta.get("chat_id") or meta.get("session_id") or "default")
 
@@ -134,7 +158,11 @@ async def chat_completions(req: ChatCompletionRequest):
     model_id = req.model or gateway_cfg.get("model") or ai_cfg.get("agent_model") or "granite4.1:3b"
     max_steps = gateway_cfg.get("max_steps", 30)
 
-    ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1")
+    # Law 5: :8640 is a RETIRED port. [ai].endpoint is
+    # "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1" -- resolve it the same way.
+    _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+    ai_endpoint = os.environ.get(
+        "MIOS_AI_ENDPOINT", "http://localhost:%s/v1" % _pipe_port)
 
     from smolagents import OpenAIServerModel, ToolCallingAgent
 
@@ -146,7 +174,8 @@ async def chat_completions(req: ChatCompletionRequest):
         )
     except Exception as e:
         log.error("Failed to initialize OpenAIServerModel: %s", e)
-        return JSONResponse(status_code=500, content={"error": f"Model init failed: {e}"})
+        return openai_error(f"Model init failed: {e}", status=500,
+                            err_type="api_error", code="model_init_failed")
 
     tools = []
     if tool_registry:
@@ -179,7 +208,9 @@ async def chat_completions(req: ChatCompletionRequest):
                     return JSONResponse(status_code=resp.status_code, content=data)
             except Exception as e:
                 log.error("Native pass-through error: %s", e)
-                return JSONResponse(status_code=500, content={"error": f"Pass-through failed: {e}"})
+                return openai_error(f"Pass-through failed: {e}", status=502,
+                                    err_type="api_error",
+                                    code="upstream_unavailable")
 
     try:
         agent = ToolCallingAgent(
@@ -189,7 +220,8 @@ async def chat_completions(req: ChatCompletionRequest):
         )
     except Exception as e:
         log.error("Failed to initialize ToolCallingAgent: %s", e)
-        return JSONResponse(status_code=500, content={"error": f"Agent init failed: {e}"})
+        return openai_error(f"Agent init failed: {e}", status=500,
+                            err_type="api_error", code="agent_init_failed")
 
     context = ""
     for msg in history[:-1]:
@@ -231,6 +263,11 @@ async def chat_completions(req: ChatCompletionRequest):
                 from smolagents.agents import FinalAnswerStep
 
                 final_answer = ""
+                # A stream MUST close with a chunk carrying a finish_reason. Every
+                # path below that emits one flips this; the guard before [DONE]
+                # covers the run that produced only ActionSteps and no
+                # FinalAnswerStep, which used to end on nothing but null.
+                _closed = False
                 for step in steps:
                     if isinstance(step, ActionStep):
                         if step.model_output:
@@ -258,16 +295,24 @@ async def chat_completions(req: ChatCompletionRequest):
                     elif isinstance(step, FinalAnswerStep):
                         final_answer = step.output
                         yield openai_chunk(f"\nFinal Answer: {step.output}\n", finish_reason="stop")
+                        _closed = True
 
                 if final_answer:
                     history.append({"role": "assistant", "content": str(final_answer)})
                     await session_db.save_session(session_id, history)
             except Exception as stream_err:
+                _closed = True
                 if type(stream_err).__name__ == "AgentMaxStepsError":
                     yield openai_chunk(f"\n[Agent Max Steps Reached]\n", finish_reason="length")
                 else:
                     log.error("Stream generation error: %s", stream_err)
-                    yield openai_chunk(f"\n[Agent Error: {stream_err}]\n", finish_reason="error")
+                    # "error" is not an OpenAI finish_reason. The enum is closed --
+                    # stop / length / tool_calls / content_filter / function_call --
+                    # and a client switching on it drops the turn on anything else.
+                    # The failure is already carried in the delta text.
+                    yield openai_chunk(f"\n[Agent Error: {stream_err}]\n", finish_reason="stop")
+            if not _closed:
+                yield openai_chunk("", finish_reason="stop")
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(stream_generator(), media_type="text/event-stream")
@@ -313,7 +358,8 @@ async def chat_completions(req: ChatCompletionRequest):
                     }]
                 }
             log.error("Agent execution error: %s", run_err)
-            return JSONResponse(status_code=500, content={"error": f"Agent loop failed: {run_err}"})
+            return openai_error(f"Agent loop failed: {run_err}", status=500,
+                                err_type="api_error", code="agent_loop_failed")
 
 if __name__ == "__main__":
     import uvicorn

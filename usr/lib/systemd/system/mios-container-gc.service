@@ -1,3 +1,6 @@
+# AI-hint: Systemd service for automatic OCI container storage LRU garbage collection and pruning.
+# AI-related: /usr/libexec/mios/storage/container_gc.py, mios-container-gc, local-fs.target
+
 [Unit]
 Description=MiOS OCI Container Image Storage LRU Garbage Collection
 After=local-fs.target
@@ -7,3 +10,6 @@ Type=oneshot
 ExecStart=/usr/bin/python3 /usr/libexec/mios/storage/container_gc.py --prune --threshold 85.0
 ProtectSystem=strict
 ReadWritePaths=/var/lib/containers/storage
+
+[Install]
+WantedBy=multi-user.target

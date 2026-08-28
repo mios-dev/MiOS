@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing tensor pipeline capabilities.
+# AI-functions: __init__, compute_payload_bytes, register_split, simulate_forward_pass, PipelineNode, DistributedTensorPipeline
+
 """
 tensor_pipeline.py — T-974 WS-AI
 Distributed pipeline tensor dispatcher with dynamic RPC worker layer partitioning.

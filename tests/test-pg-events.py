@@ -1,3 +1,7 @@
+# AI-hint: Tests for T-342: mios_pg_events — PostgreSQL LISTEN/NOTIFY event bus.
+# AI-related: mios_pg_events
+# AI-functions: run, test_inject_and_dispatch, test_multiple_subscribers, test_no_events_returns_empty
+
 """Tests for T-342: mios_pg_events — PostgreSQL LISTEN/NOTIFY event bus."""
 import sys, asyncio
 sys.path.insert(0, "usr/lib/mios/agent-pipe")

@@ -1,2 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: MiOS configuration and runtime asset for mios-frontier.
+# AI-related: mios-a2o
+
 exec mios-a2o frontier "$@"

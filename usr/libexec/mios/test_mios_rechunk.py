@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# AI-hint: Unit and regression test suite for mios_rechunk functionality.
+# AI-related: mios-rechunk, mios-oci-delta-apply
+# AI-functions: setUp, tearDown, test_rechunk_roundtrip, test_signed_rechunk, TestRechunkDelta
+
 import os
 import sys
 import unittest

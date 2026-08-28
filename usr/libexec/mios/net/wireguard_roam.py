@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing wireguard roam capabilities.
+# AI-functions: __init__, register_peer, handle_ip_change, clamp_pmtu, WireGuardPeer, WireGuardRoamingDaemon
+
 """
 wireguard_roam.py — T-753 WS-NODE
 Dynamic WireGuard endpoint roaming daemon and adaptive Path MTU prober.

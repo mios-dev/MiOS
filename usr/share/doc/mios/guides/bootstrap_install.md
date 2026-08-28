@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: MiOS Bootstrap & Installation Guide.
+     AI-related: /usr/share/mios/ai/, /etc/mios/install.env, /etc/mios/profile.toml, /etc/mios/ai/system-prompt.md, mios-bootstrap, mios-dev, mios-build-driver, mios-llm-light, mios-pipeline, localhost:3000 -->
+
 # MiOS Bootstrap & Installation Guide
 
 This guide contains the detailed bootstrap steps, self-development workflows, build phases, setup commands, and file layouts for the `mios-bootstrap` installation layer.

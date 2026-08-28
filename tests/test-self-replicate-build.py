@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-966 & T-967: autonomous self-replication build trigger and digest verification.
+# AI-functions: test_self_replication_build_and_digest
+
 """Tests for T-966 & T-967: autonomous self-replication build trigger and digest verification."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/deploy")

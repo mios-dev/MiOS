@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing materialize-user-config capabilities.
+# AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml
+# AI-functions: get_pg_config, dict_to_toml, parse_simple_toml, main
+
 import os
 import sys
 import json

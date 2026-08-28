@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing generate-gate-index capabilities.
+# AI-functions: main
+
 """
 tools/generate-gate-index.py
 Generates usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh.

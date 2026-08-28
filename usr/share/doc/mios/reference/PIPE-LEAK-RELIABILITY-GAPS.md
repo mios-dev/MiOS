@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: Pipe Leak & Reliability Gaps — root-cause + fix design.
+     AI-related: mios-llm-light, mios-reasoning-ok, mios-web-search, mios-apps, mios-win-scan, localhost:8450 -->
+
 # Pipe Leak & Reliability Gaps — root-cause + fix design
 
 > Research/design doc only — no code changed. Companion to

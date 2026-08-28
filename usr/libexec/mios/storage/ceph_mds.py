@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing ceph mds capabilities.
+# AI-functions: __init__, pin_subtree, simulate_mdtest_ops, trigger_failover, MDSRank, CephMDSOperator
+
 """
 ceph_mds.py — T-739 WS-STRG
 Active-Active CephFS MDS metadata clustering and dynamic subtree partitioner.

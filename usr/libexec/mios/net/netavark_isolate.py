@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing netavark isolate capabilities.
+# AI-functions: __init__, add_bridge, bind_port, evaluate_packet, NetworkBridge, NetavarkIsolationManager
+
 """
 netavark_isolate.py — T-741 WS-APP
 Declarative Netavark network isolation and rootless nftables firewall manager.

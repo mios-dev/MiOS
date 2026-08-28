@@ -1,3 +1,7 @@
+# AI-hint: Tests for T-970 & T-971: Seat-to-Blade profile transition and zero resource leaks.
+# AI-related: llama-rpc-server.service
+# AI-functions: test_seat_to_blade_transition
+
 """Tests for T-970 & T-971: Seat-to-Blade profile transition and zero resource leaks."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/node")

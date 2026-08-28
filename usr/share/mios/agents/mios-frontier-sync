@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: MiOS configuration and runtime asset for mios-frontier-sync.
+# AI-related: mios-root, mios-frontier
+
 set -euo pipefail
 WORK="${MIOS_FRONTIER_WORKSPACE:-/mnt/mios-root}"
 [ -d "$WORK/.git" ] || WORK="${MIOS_FRONTIER_WORKSPACE:-$HOME/MiOS}"

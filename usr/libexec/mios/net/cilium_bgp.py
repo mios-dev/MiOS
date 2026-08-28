@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing cilium bgp capabilities.
+# AI-functions: __init__, peer_router, announce_vip, trigger_bfd_failover, BGPPeer, CiliumBGPManager
+
 """
 cilium_bgp.py — T-759 WS-NODE
 Cilium native BGP peering and dual-stack ECMP LoadBalancer ingress manager.

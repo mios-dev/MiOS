@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# AI-hint: Unit and regression test suite for mios_config_audit functionality.
+# AI-related: localhost:8432
+# AI-functions: setUpModule, setUp, tearDown, _cleanup, test_config_kv_redaction, test_container_env_redaction, test_verb_cmd_redaction, TestMiosConfigAudit
+
 import sys
 import os
 import unittest

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing generate-names-registry capabilities.
+# AI-functions: _alias_for, walk, generate_referenced_vars, main
+
 import os
 import sys
 import re

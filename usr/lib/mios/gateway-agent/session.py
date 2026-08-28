@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing session capabilities.
+# AI-functions: _get_psycopg, get_dsn
+
 import json
 import os
 import logging

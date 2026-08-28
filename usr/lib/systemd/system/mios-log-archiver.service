@@ -1,3 +1,6 @@
+# AI-hint: Systemd service for structured parquet log archival and vector indexing from systemd journald.
+# AI-related: /usr/libexec/mios/telemetry/log_archiver.py, mios-log-archiver.timer, mios-pgvector.service, multi-user.target
+
 [Unit]
 Description=MiOS Structured Parquet Log Archiver and Vector Indexer
 Documentation=man:journald.conf(5) https://github.com/mios-dev/mios

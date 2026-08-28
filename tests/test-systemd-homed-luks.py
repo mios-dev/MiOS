@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-745 & T-746: systemd-homed LUKS2 unlock, key zeroization & migration.
+# AI-functions: test_homed_unlock_sub_200ms, test_homed_lock_and_key_zeroization
+
 """Tests for T-745 & T-746: systemd-homed LUKS2 unlock, key zeroization & migration."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/sec")

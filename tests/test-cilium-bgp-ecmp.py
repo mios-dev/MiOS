@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-759 & T-760: Cilium BGP VIP announcement & sub-100ms BFD failover.
+# AI-functions: test_bgp_vip_announcement, test_bfd_sub_100ms_failover
+
 """Tests for T-759 & T-760: Cilium BGP VIP announcement & sub-100ms BFD failover."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/net")

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing materialize-config-toml capabilities.
+# AI-functions: get_pg_config, escape_toml_key, format_toml_value, main, scope_key
+
 import os
 import json
 import logging

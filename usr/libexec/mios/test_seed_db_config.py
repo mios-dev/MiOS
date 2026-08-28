@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Unit and regression test suite for seed_db_config functionality.
+# AI-functions: test_get_pg_config_defaults, TestSeedDbConfig
+
 import os
 import sys
 import unittest

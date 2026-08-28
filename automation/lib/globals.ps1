@@ -115,7 +115,6 @@ $script:MIOS_AGENTS_HERMES_FANOUT = if ($env:MIOS_AGENTS_HERMES_FANOUT) { $env:M
 $script:MIOS_AGENTS_HERMES_HEALTH_GATE = if ($env:MIOS_AGENTS_HERMES_HEALTH_GATE) { $env:MIOS_AGENTS_HERMES_HEALTH_GATE } else { 'true' }
 $script:MIOS_AGENTS_HERMES_JOB = if ($env:MIOS_AGENTS_HERMES_JOB) { $env:MIOS_AGENTS_HERMES_JOB } else { 'General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise.' }
 $script:MIOS_AGENTS_HERMES_LANE = if ($env:MIOS_AGENTS_HERMES_LANE) { $env:MIOS_AGENTS_HERMES_LANE } else { 'gpu' }
-$script:MIOS_AGENTS_HERMES_MODEL = if ($env:MIOS_AGENTS_HERMES_MODEL) { $env:MIOS_AGENTS_HERMES_MODEL } else { 'mios-heavy' }
 $script:MIOS_AGENTS_HERMES_PRIVILEGE_GROUP = if ($env:MIOS_AGENTS_HERMES_PRIVILEGE_GROUP) { $env:MIOS_AGENTS_HERMES_PRIVILEGE_GROUP } else { 'privileged' }
 $script:MIOS_AGENTS_HERMES_ROLE = if ($env:MIOS_AGENTS_HERMES_ROLE) { $env:MIOS_AGENTS_HERMES_ROLE } else { 'general' }
 $script:MIOS_AGENTS_HERMES_STRENGTHS = if ($env:MIOS_AGENTS_HERMES_STRENGTHS) { $env:MIOS_AGENTS_HERMES_STRENGTHS } else { 'kanban,web_search,skill_invocation,multi_step_reasoning,tool_use' }
@@ -1403,7 +1402,7 @@ $script:MIOS_LEGIBILITY_MAX_LIBEXEC_VERBS = if ($env:MIOS_LEGIBILITY_MAX_LIBEXEC
 $script:MIOS_LEGIBILITY_MAX_PS_LINES = if ($env:MIOS_LEGIBILITY_MAX_PS_LINES) { $env:MIOS_LEGIBILITY_MAX_PS_LINES } else { 22618 }
 $script:MIOS_LEGIBILITY_MAX_SHELL_LINES = if ($env:MIOS_LEGIBILITY_MAX_SHELL_LINES) { $env:MIOS_LEGIBILITY_MAX_SHELL_LINES } else { 39903 }
 $script:MIOS_LEGIBILITY_MAX_TRACKED_FILES = if ($env:MIOS_LEGIBILITY_MAX_TRACKED_FILES) { $env:MIOS_LEGIBILITY_MAX_TRACKED_FILES } else { 3344 }
-$script:MIOS_LEGIBILITY_MAX_TRACKED_MB = if ($env:MIOS_LEGIBILITY_MAX_TRACKED_MB) { $env:MIOS_LEGIBILITY_MAX_TRACKED_MB } else { 201 }
+$script:MIOS_LEGIBILITY_MAX_TRACKED_MB = if ($env:MIOS_LEGIBILITY_MAX_TRACKED_MB) { $env:MIOS_LEGIBILITY_MAX_TRACKED_MB } else { 202 }
 $script:MIOS_LIBEXEC_DIR = if ($env:MIOS_LIBEXEC_DIR) { $env:MIOS_LIBEXEC_DIR } else { '/usr/libexec/mios' }
 $script:MIOS_LLAMACPP_BAKE_MODELS = if ($env:MIOS_LLAMACPP_BAKE_MODELS) { $env:MIOS_LLAMACPP_BAKE_MODELS } else { 'granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf' }
 $script:MIOS_LLAMACPP_CONFIG = if ($env:MIOS_LLAMACPP_CONFIG) { $env:MIOS_LLAMACPP_CONFIG } else { '/usr/share/mios/llamacpp/mios-llm-light.yaml' }

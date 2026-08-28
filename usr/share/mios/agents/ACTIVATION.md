@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: mios-agents — Architect→Operator (A2O) super-container.
+     AI-related: /etc/mios/install.env, /usr/libexec/mios/mios-agents-firstboot.sh, mios-agents, mios-a2o, mios-agents-dev, mios-forge-mirror, mios-code-server, mios-agents-firstboot, mios-root, mios-sync-env -->
+
 # mios-agents — Architect→Operator (A2O) super-container
 
 One image = **code-server** (browser IDE / glass wall) + **tmux** war room +

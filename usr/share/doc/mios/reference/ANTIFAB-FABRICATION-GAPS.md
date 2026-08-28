@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: Anti-Fabrication Gaps — Root-Cause + Fix-Design (LANE A).
+     AI-related:  -->
+
 # Anti-Fabrication Gaps — Root-Cause + Fix-Design (LANE A)
 
 > Research/design deliverable. **No `.py` changed** — this doc specifies the

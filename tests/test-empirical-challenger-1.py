@@ -1,3 +1,7 @@
+# AI-hint: Unit and regression test suite for test-empirical-challenger-1 functionality.
+# AI-related: mios-cephfs-provision, mios-sec-idemp, mios-perm-scan
+# AI-functions: load_module, test_fuel_exhaustion_boundaries, test_memory_ceiling_boundaries, test_host_imports_stress_and_edge_cases, test_escape_toml_key_special_characters, test_format_toml_value_escaped_strings_and_types, test_format_toml_value_nested_tables_and_lists, test_format_toml_value_null_observation, test_resolve_uid_numeric_and_edge_cases, test_get_user_info_numeric_and_edge_cases, test_load_cephfs_config_schema, test_cli_argument_handling
+
 import os
 import sys
 import unittest

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing generate-bake-plan capabilities.
+# AI-related: mios_toml, mios-sys, mios-cuda
+# AI-functions: main, is_firstboot, classify, _env, resolve_image_val, repl_fallback, repl_var
+
 import os
 import sys
 import re

@@ -1,3 +1,7 @@
+# AI-hint: Unit and regression test suite for mios_backfill functionality.
+# AI-related: mios_pipe.memory.embed_backfill
+# AI-functions: test_text_projections, execute_side_effect, TestMiosEmbedBackfill
+
 import unittest
 from unittest.mock import patch, AsyncMock, MagicMock
 import mios_pipe.memory.embed_backfill as eb

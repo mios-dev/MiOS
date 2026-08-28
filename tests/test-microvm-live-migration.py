@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-968 & T-969: MicroVM live state migration (<50ms handover).
+# AI-functions: test_microvm_live_handover_sub_50ms
+
 """Tests for T-968 & T-969: MicroVM live state migration (<50ms handover)."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/virt")

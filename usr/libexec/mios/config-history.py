@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing config-history capabilities.
+# AI-functions: get_pg_config, main
+
 import os
 import sys
 import argparse

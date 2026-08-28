@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: MiOS configuration and runtime asset for mios-bake-group.
+# AI-related: /usr/share/mios/mios.toml, /usr/share/mios/artifacts/sbom, /usr/lib/mios/bake/plan.d, mios-bakescratch, mios-sys-build, mios-webtools-firstboot, mios-webtools-firstboot.service
+
 set -euo pipefail
 
 GROUP="${1:?usage: mios-bake-group <group-name>}"

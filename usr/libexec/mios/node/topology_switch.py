@@ -1,3 +1,7 @@
+# AI-hint: MiOS system and orchestration module providing topology switch capabilities.
+# AI-related: mios-node, mios-asr, gdm.service, pipewire.service, mios-asr.service, guacamole.service, k3s.service, ceph-mds.service, llama-rpc-server.service, cilium-bgp.service
+# AI-functions: __init__, transition_to, NodeProfile, DynamicTopologySwitcher
+
 """
 topology_switch.py — T-970 WS-NODE
 Dual-mode dynamic topology switcher (Seat UI vs Headless Blade) in mios-node.

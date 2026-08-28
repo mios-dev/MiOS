@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing mios pg events capabilities.
+# AI-functions: __init__, subscribe, inject, stop, AgentEvent, EventBus
+
 """
 mios_pg_events.py — T-342 MAO-03
 PostgreSQL LISTEN/NOTIFY event-bus coordination.

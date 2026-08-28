@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-773 & T-774: 32B model VRAM fitting (<16GB) and perplexity parity.
+# AI-functions: test_32b_model_fits_under_16gb
+
 """Tests for T-773 & T-774: 32B model VRAM fitting (<16GB) and perplexity parity."""
 import sys
 sys.path.insert(0, "usr/lib/mios/ai")

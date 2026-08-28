@@ -1,4 +1,6 @@
 #!/usr/bin/sh
+# AI-hint: MiOS configuration and runtime asset for 20-chrony-onoffline.
+
 
 export LC_ALL=C
 

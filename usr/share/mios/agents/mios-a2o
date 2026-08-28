@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: MiOS configuration and runtime asset for mios-a2o.
+# AI-related: /usr/share/mios/agents, mios-root, mios-agents, mios-frontier
+
 set -uo pipefail
 export PATH="${HOME:-/var/home/mios}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
@@ -105,6 +108,9 @@ cmd_dispatch(){
   ensure_server; mkdir -p "$work"
   cat > "$PROMPTS/$name.txt"                          # prompt from stdin
   [ -s "$PROMPTS/$name.txt" ] || die "Empty prompt on stdin"
+  # F-014: Checkpoint marker for automatic container restart recovery
+  printf 'NAME=%s\nENGINE=%s\nWORK=%s\nMODEL=%s\nEFFORT=%s\nPROMPT_FILE=%s\nDISPATCH_TS=%s\n' \
+    "$name" "$eng" "$work" "$model" "$effort" "$PROMPTS/$name.txt" "$(date +%s)" > "$STATUS/$name.resume"
   local AGY_DEBUG_LOG="$RUND/$name.agy-debug.log"
   : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running" "$AGY_DEBUG_LOG"; echo "$eng" > "$STATUS/$name.engine"
   local EXEC; EXEC="$(exec_line "$eng" "$work" "$model" "$effort" "$AGY_DEBUG_LOG")"
@@ -189,7 +195,7 @@ PROMPT="\$(cat "$PROMPTS/$name.txt")"
 set -o pipefail
 $EXEC 2>&1 | tee -a "$LOGS/$name.log"
 rc=\${PIPESTATUS[0]}
-${_agy_post}rm -f "$STATUS/$name.running"
+${_agy_post}rm -f "$STATUS/$name.running" "$STATUS/$name.resume"
 echo "\$rc" > "$STATUS/$name.status"
 st=done; [ "\$rc" = 0 ] || st=failed
 _a2o_stream "\$st rc=\$rc"
@@ -203,21 +209,82 @@ RUNNER
   echo "Monitor: mios-a2o tail $name | window: $SESSION:$name | attach: tmux attach -t $SESSION"
 }
 
+cmd_a2a_dispatch(){
+  local name="${1:-}" eng="${2:-$ENGINE_DEFAULT}" work="${3:-$WORK_DEFAULT}" model="${4:-}" effort="${5:-}"
+  [ -n "$name" ] || die "Usage: dispatch --a2a <name> [engine] [workdir] [model] [effort]"
+  case "$name" in *[!A-Za-z0-9._-]*) die "Task name must be slug [A-Za-z0-9._-]";; esac
+  mkdir -p "$PROMPTS" "$STATUS" "$LOGS" "$RUND"
+  cat > "$PROMPTS/$name.txt"
+  [ -s "$PROMPTS/$name.txt" ] || die "Empty prompt on stdin"
+  printf 'NAME=%s\nENGINE=%s\nWORK=%s\nMODEL=%s\nEFFORT=%s\nPROMPT_FILE=%s\nDISPATCH_TS=%s\n' \
+    "$name" "$eng" "$work" "$model" "$effort" "$PROMPTS/$name.txt" "$(date +%s)" > "$STATUS/$name.resume"
+  echo "$eng" > "$STATUS/$name.engine"
+  : > "$LOGS/$name.log"
+  echo "$ start [$eng:a2a]" > "$STATUS/$name.running"
+
+  local a2a_url="${MIOS_A2O_A2A_URL:-http://127.0.0.1:${MIOS_PORT_A2O_A2A:-8643}/a2a}"
+  local p_content; p_content="$(cat "$PROMPTS/$name.txt")"
+  local dispatched=0
+  if have curl; then
+    local payload
+    payload="$(python3 -c "import json, sys; print(json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'tasks/send', 'params': {'task_id': sys.argv[1], 'engine': sys.argv[2], 'work': sys.argv[3], 'model': sys.argv[4], 'effort': sys.argv[5], 'prompt': sys.argv[6]}}))" "$name" "$eng" "$work" "$model" "$effort" "$p_content" 2>/dev/null || true)"
+    if [ -n "$payload" ]; then
+      local resp
+      resp="$(curl -s -m 5 -X POST -H "Content-Type: application/json" -d "$payload" "$a2a_url" 2>/dev/null || true)"
+      if [ -n "$resp" ] && [[ "$resp" == *"result"* ]]; then
+        echo "Dispatched over A2A JSON-RPC 2.0 to $a2a_url: task='$name' engine='$eng'"
+        echo "$resp" >> "$LOGS/$name.log"
+        dispatched=1
+      fi
+    fi
+  fi
+  if [ "$dispatched" = 0 ]; then
+    echo "A2A endpoint unavailable ($a2a_url); degrading to local tmux dispatch"
+    cmd_dispatch "$name" "$eng" "$work" "$model" "$effort" < "$PROMPTS/$name.txt"
+  fi
+}
+
 cmd_lane(){
+  local a2a_mode=0
+  if [ "${1:-}" = "--a2a" ]; then
+    a2a_mode=1; shift
+  fi
   local lane="${1:-}" name="${2:-}"
-  [ -n "$lane" ] && [ -n "$name" ] || die "Usage: lane <a|b> <name>"
-  local eng mdl eff
+  [ -n "$lane" ] && [ -n "$name" ] || die "Usage: lane [--a2a] <lane_id> <name>"
+  local eng="" mdl="" eff="" role=""
+  local lane_up="${lane^^}"
   case "$lane" in
-    a|A) eng="$LANE_A_ENGINE"; mdl="$LANE_A_MODEL"; eff="$LANE_A_EFFORT";;
-    b|B)
-      eng="$LANE_B_ENGINE"; mdl="$LANE_B_MODEL"; eff="$LANE_B_EFFORT"
+    a|A|lane_a|LANE_A)
+      eng="${MIOS_A2O_LANE_A_ENGINE:-$LANE_A_ENGINE}"
+      mdl="${MIOS_A2O_LANE_A_MODEL:-$LANE_A_MODEL}"
+      eff="${MIOS_A2O_LANE_A_EFFORT:-$LANE_A_EFFORT}"
+      role="${MIOS_A2O_LANE_A_ROLE:-$LANE_A_ROLE}"
+      ;;
+    b|B|lane_b|LANE_B)
+      eng="${MIOS_A2O_LANE_B_ENGINE:-$LANE_B_ENGINE}"
+      mdl="${MIOS_A2O_LANE_B_MODEL:-$LANE_B_MODEL}"
+      eff="${MIOS_A2O_LANE_B_EFFORT:-$LANE_B_EFFORT}"
+      role="${MIOS_A2O_LANE_B_ROLE:-$LANE_B_ROLE}"
       if lane_b_fallback_on && [ -n "$LANE_B_FALLBACK_ENGINE" ]; then
         eng="$LANE_B_FALLBACK_ENGINE"; mdl="$LANE_B_FALLBACK_MODEL"; eff="$LANE_B_FALLBACK_EFFORT"
       fi
       ;;
-    *) die "Lane must be a|b";;
+    *)
+      local v_eng="MIOS_A2O_LANE_${lane_up}_ENGINE"
+      local v_mdl="MIOS_A2O_LANE_${lane_up}_MODEL"
+      local v_eff="MIOS_A2O_LANE_${lane_up}_EFFORT"
+      local v_role="MIOS_A2O_LANE_${lane_up}_ROLE"
+      eng="${!v_eng:-$ENGINE_DEFAULT}"
+      mdl="${!v_mdl:-}"
+      eff="${!v_eff:-}"
+      role="${!v_role:-dynamic lane $lane}"
+      ;;
   esac
-  cmd_dispatch "$name" "$eng" "$WORK_DEFAULT" "$mdl" "$eff"
+  if [ "$a2a_mode" = 1 ]; then
+    cmd_a2a_dispatch "$name" "$eng" "$WORK_DEFAULT" "$mdl" "$eff"
+  else
+    cmd_dispatch "$name" "$eng" "$WORK_DEFAULT" "$mdl" "$eff"
+  fi
 }
 
 cmd_status(){
@@ -395,9 +462,25 @@ ORUN
   else echo "Frontier '$S' ready"; tmux list-panes -t "$S:frontier" -F '  pane #{pane_index}: #{pane_title}'; fi
 }
 
+cmd_resume(){
+  local count=0
+  for f in "$STATUS"/*.resume; do
+    [ -f "$f" ] || continue
+    local NAME="" ENGINE="" WORK="" MODEL="" EFFORT="" PROMPT_FILE="" DISPATCH_TS=""
+    # shellcheck disable=SC1090
+    . "$f"
+    if [ -n "$NAME" ] && [ -f "$PROMPT_FILE" ] && [ ! -f "$STATUS/$NAME.status" ]; then
+      echo "=== [mios-a2o] resuming checkpointed task '$NAME' ($ENGINE) ==="
+      cmd_dispatch "$NAME" "$ENGINE" "$WORK" "$MODEL" "$EFFORT" < "$PROMPT_FILE"
+      count=$((count + 1))
+    fi
+  done
+  echo "Resumed $count orphaned task(s)."
+}
+
 sub="${1:-help}"; shift 2>/dev/null || true
 case "$sub" in
-  dispatch) cmd_dispatch "$@";; lane) cmd_lane "$@";; status) cmd_status "$@";; tail) cmd_tail "$@";;
+  dispatch) cmd_dispatch "$@";; lane) cmd_lane "$@";; resume) cmd_resume "$@";; status) cmd_status "$@";; tail) cmd_tail "$@";;
   capture) cmd_capture "$@";; send) cmd_send "$@";; repl) cmd_repl "$@";;
   attach) cmd_attach "$@";; list) cmd_list "$@";; kill) cmd_kill "$@";; doctor) cmd_doctor "$@";; selftest) cmd_selftest "$@";;
   follow) cmd_follow "$@";; frontier) cmd_frontier "$@";; frontier-help) cmd_frontier_help "$@";; warroom) cmd_frontier "$@";;
@@ -406,6 +489,7 @@ case "$sub" in
     echo "  frontier                             launch the war-room"
     echo "  lane <a|b> <name>                    dispatch to a sub-agent role; prompt on stdin"
     echo "  dispatch <name> [engine] [workdir] [model] [effort]   run a task in its own window"
+    echo "  resume                               resume in-flight checkpointed tasks across restart"
     echo "  follow [name] ["
     echo "  status [name] | tail <name> [n] | capture <name> [n] | send <name> <keys...>"
     echo "  repl [engine] [name] [workdir] | attach | list | kill <name>|"

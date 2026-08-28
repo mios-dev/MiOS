@@ -1,3 +1,7 @@
+# AI-hint: Unit and regression test suite for test-empirical-stress-t735-t744 functionality.
+# AI-related: mios_asr
+# AI-functions: test_stress_speculative_prune_5k, test_stress_asr_stream_50_chunks, test_stress_mds_operations, test_stress_netavark_filtering, test_stress_varlink_1000_rpcs
+
 """
 Empirical stress tests for batch T-735 through T-744.
 """

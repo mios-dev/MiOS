@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: MiOS Frontier — Roadmap (A2O War-Room).
+     AI-related: /etc/mios/install.env, mios-frontier, mios-agents, mios-a2o, mios-code-server, mios-sync-env, mios-root, mios-agents.service -->
+
 # MiOS Frontier — Roadmap (A2O War-Room)
 
 > Scoped roadmap for the **mios-frontier** workflow: the Architect→Operator (A2O)

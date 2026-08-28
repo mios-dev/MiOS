@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-761 & T-762: Bcachefs tiering burst write (>10 GB/s) and migration.
+# AI-functions: test_bcachefs_burst_write_throughput, test_bcachefs_migration_integrity
+
 """Tests for T-761 & T-762: Bcachefs tiering burst write (>10 GB/s) and migration."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/storage")

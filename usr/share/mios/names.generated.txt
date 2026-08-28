@@ -601,7 +601,6 @@ agents._defaults.trust.require_signed_principal  MIOS_AGENTS__DEFAULTS_TRUST_REQ
 agents._defaults.trust.mtls  MIOS_AGENTS__DEFAULTS_TRUST_MTLS
 agents.hermes.privilege_group  MIOS_AGENTS_HERMES_PRIVILEGE_GROUP
 agents.hermes.endpoint  MIOS_AGENTS_HERMES_ENDPOINT
-agents.hermes.model  MIOS_AGENTS_HERMES_MODEL
 agents.hermes.role  MIOS_AGENTS_HERMES_ROLE
 agents.hermes.health_gate  MIOS_AGENTS_HERMES_HEALTH_GATE
 agents.hermes.job  MIOS_AGENTS_HERMES_JOB

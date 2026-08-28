@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing mios a2a delegation capabilities.
+# AI-functions: supports, to_dict, to_wire, from_wire, __init__, register, unregister, get_card, negotiate_mode, build_frame, best_peer, PayloadMode
+
 """
 mios_a2a_delegation.py — T-345 MAO-06
 Identity-Aware Delegation & Progressive Payload Negotiation for A2A federation.

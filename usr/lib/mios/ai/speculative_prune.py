@@ -1,3 +1,6 @@
+# AI-hint: MiOS system and orchestration module providing speculative prune capabilities.
+# AI-functions: __init__, prune_branches, SpeculativeTree, TreeAttentionPruner
+
 """
 speculative_prune.py — T-735 WS-AI
 In-place tree branch bitmask pruner and speculative KV compaction kernel.

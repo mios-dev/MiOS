@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-755 & T-756: StreamingLLM 100,000-token infinite generation & zero OOM.
+# AI-functions: test_streamingllm_memory_bounds_100k
+
 """Tests for T-755 & T-756: StreamingLLM 100,000-token infinite generation & zero OOM."""
 import sys
 sys.path.insert(0, "usr/lib/mios/ai")

@@ -1,5 +1,4 @@
-<!-- AI-hint: Summary record of the MiOS Automation Log-Message Verbosity Audit.
-     AI-related: automation/, usr/share/mios/mios.toml, AGY-TASKS.md -->
+<!-- AI-hint: Summary record of the MiOS Automation Log-Message Verbosity Audit. -->
 # MiOS Automation — Log-Message Verbosity Audit (Summary Record)
 
 > Status: Applied & verified across all pipeline automation scripts under `automation/`.

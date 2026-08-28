@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-974 & T-975: distributed 70B layer splitting and tensor payload math.
+# AI-functions: test_tensor_payload_calculations, test_distributed_layer_splitting
+
 """Tests for T-974 & T-975: distributed 70B layer splitting and tensor payload math."""
 import sys
 sys.path.insert(0, "usr/lib/mios/ai")

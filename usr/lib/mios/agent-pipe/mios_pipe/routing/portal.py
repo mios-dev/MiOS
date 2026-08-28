@@ -62,6 +62,23 @@ _PORTAL_TOML = _portal_toml()
 def _pcfg(section: str, key: str, default=None):
     return (_PORTAL_TOML.get(section) or {}).get(key, default)
 
+def _portal_port(env: str, key: str, default: int) -> int:
+    """One [ports] value: MIOS_PORT_* -> [ports].<key> -> the SSOT literal.
+
+    Law 5/7: the literal is the SSOT's own number (check_port_fallbacks holds the
+    two in agreement), not a stale one -- the previous defaults named 8033 and the
+    RETIRED 8899. A set-but-EMPTY env var (bare `KEY=` in install.env, which
+    Law 10 permits) must not win over the config tier, and a non-numeric value
+    must not 500 the portal page, so each candidate is tried in turn."""
+    for cand in (os.environ.get(env), _pcfg("ports", key, None), default):
+        if cand is None or not str(cand).strip():
+            continue
+        try:
+            return int(str(cand).strip())
+        except (TypeError, ValueError):
+            continue
+    return default
+
 PORTAL_PASSWORD = (os.environ.get("MIOS_PORTAL_PASSWORD")
                    or _pcfg("portal", "password")
                    or os.environ.get("MIOS_DEFAULT_PASSWORD")
@@ -1234,10 +1251,8 @@ async def portal_login_logic(request: Request):
 async def portal_page_logic(request: Request):
     if not _portal_authed(request):
         return RedirectResponse("/login", status_code=303)
-    _port_owui = int(os.environ.get("MIOS_PORT_OPEN_WEBUI",
-                                    _pcfg("ports", "open_webui", 8033)))
-    _port_searxng = int(os.environ.get("MIOS_PORT_SEARXNG",
-                                       _pcfg("ports", "searxng", 8899)))
+    _port_owui = _portal_port("MIOS_PORT_OPEN_WEBUI", "open_webui", 8200)
+    _port_searxng = _portal_port("MIOS_PORT_SEARXNG", "searxng", 8800)
     _port_inject = (
         f"<script>var _MIOS_PORT_OWUI={_port_owui};"
         f"var _MIOS_PORT_SEARXNG={_port_searxng};</script></head>"

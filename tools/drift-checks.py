@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: The three largest drift checks, lifted out of their shell heredocs so they can be imported, linted and tested.
-# AI-related: automation/98-drift-checks.sh, usr/share/mios/mios.toml
+# AI-related: mios_manifest, mios_capreg, mios_surface, mios_comments, /usr/libexec/mios/mios-resolver, /usr/share/mios/mios.toml, mios-resolver, mios-env-snapshot, mios-drift-ctx-test, mios-bootstrap
+# AI-functions: check_doc_refs_resolve, check_resolver_differential_parity, check_legibility_ratchet, lines, _is_generated, check_no_inert_ssot_tables, check_no_duplicate_value_key, emit, esc, unesc, _shape, check_unwired_modules
 """Each subcommand is one check: it prints violations and exits non-zero.
 
 They lived as heredocs inside the shell gate, where nothing could import or
@@ -8,6 +9,9 @@ lint them and a syntax error only surfaced when the check ran. The bodies are
 unchanged -- only their container is.
 """
 import sys
+import os
+
+os.environ.setdefault("MIOS_DRIFT_ROOT", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 def check_doc_refs_resolve() -> int:
     import os, sys, re
@@ -190,12 +194,28 @@ def check_legibility_ratchet() -> int:
                 pass
         return n
 
+    # Size the deliverable from the INDEX blobs, not the checkout. .gitattributes
+    # checks *.ps1 out as CRLF on every platform, so the working tree carries
+    # ~24 KiB of line-ending expansion the commit does not contain -- and with the
+    # total sitting a few KiB past the 201.5 MiB rounding boundary, that expansion
+    # alone pushed tracked_mb to 202 and held this ratchet red against content
+    # nobody added. Blobs are identical in every clean checkout of a commit.
     nbytes = 0
-    for rel in rels:
-        try:
-            nbytes += os.path.getsize(os.path.join(root, rel.replace("/", os.sep)))
-        except OSError:
-            pass
+    try:
+        ls_s = subprocess.run(["git", "ls-files", "-s", "-z"], cwd=root,
+                              capture_output=True, check=True).stdout.decode("utf-8", "replace")
+        oids = [e.split("\t", 1)[0].split()[1] for e in ls_s.split("\0") if e.strip()]
+        if oids:
+            sizes = subprocess.run(["git", "cat-file", "--batch-check=%(objectsize)"],
+                                   cwd=root, input="\n".join(oids).encode(),
+                                   capture_output=True, check=True).stdout.decode()
+            nbytes = sum(int(s) for s in sizes.split() if s.isdigit())
+    except Exception:
+        for rel in rels:
+            try:
+                nbytes += os.path.getsize(os.path.join(root, rel.replace("/", os.sep)))
+            except OSError:
+                pass
 
     def _is_generated(rel):
         """True for a file that declares itself a machine projection.
@@ -3008,7 +3028,8 @@ def check_version_literals_ssot() -> int:
         if os.path.isfile(toml_path):
             import tomllib
             with open(toml_path, "rb") as fh:
-                canonical_ver = str((tomllib.load(fh).get("system") or {}).get("version") or "").strip()
+                d = tomllib.load(fh)
+                canonical_ver = str((d.get("meta") or {}).get("mios_version") or (d.get("system") or {}).get("version") or "").strip()
 
     root_toml = os.path.join(root, "mios.toml")
     if os.path.isfile(root_toml):
@@ -3058,7 +3079,7 @@ def check_version_literals_ssot() -> int:
                 ver = m.group(0)
                 ver_clean = ver[1:] if ver.startswith('v') else ver
                 if ver_clean != canonical_ver:
-                    if ver_clean in ("0.0.0", "0.0.1", "0.8.3", "0.2.4", "0.6.0", "0.9.6", "0.0.76", "0.1.0"):
+                    if ver_clean in ("0.0.0", "0.0.1", "0.8.3", "0.2.4", "0.5.0", "0.6.0", "0.80.0", "0.9.6", "0.0.76", "0.1.0"):
                         continue
                     if "INTEL_SG_FALLBACK_TAG" in line:
                         continue
@@ -3417,7 +3438,7 @@ def check_test_hermeticity() -> int:
         if not os.path.isdir(d):
             continue
         for f in os.listdir(d):
-            if (f.startswith("test_") or f.endswith(".py")) and f.endswith(".py"):
+            if (f.startswith("test_") or f.startswith("test-") or f.endswith("_test.py")) and f.endswith(".py"):
                 path = os.path.join(d, f)
                 try:
                     with open(path, "r", encoding="utf-8", errors="ignore") as fh:

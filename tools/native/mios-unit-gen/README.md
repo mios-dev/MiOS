@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: mios-unit-gen.
+     AI-related: mios-unit-gen -->
+
 # mios-unit-gen
 
 MiOS Systemd Unit Generator & Golden Master Deviance Oracle.

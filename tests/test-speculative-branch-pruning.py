@@ -1,3 +1,6 @@
+# AI-hint: Tests for T-735 & T-736: speculative branch pruning and zero VRAM leak.
+# AI-functions: test_branch_pruning_accuracy, test_10k_cycles_zero_leak_and_latency
+
 """Tests for T-735 & T-736: speculative branch pruning and zero VRAM leak."""
 import sys, time
 sys.path.insert(0, "usr/lib/mios/ai")

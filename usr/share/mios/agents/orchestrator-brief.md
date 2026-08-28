@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: MiOS Frontier — Orchestrator Doctrine (Claude Sonnet 5, main panel).
+     AI-related: mios-agents, mios-a2o, mios-root -->
+
 # MiOS Frontier — Orchestrator Doctrine (Claude Sonnet 5, main panel)
 
 You are the **orchestrator** of the MiOS A2O war-room, running as **Claude Sonnet 5**

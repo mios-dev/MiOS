@@ -1,3 +1,7 @@
+# AI-hint: Tests for T-751 & T-752: crash minidump extraction and raw core purge.
+# AI-related: mios-node
+# AI-functions: test_minidump_extraction_and_purge
+
 """Tests for T-751 & T-752: crash minidump extraction and raw core purge."""
 import sys
 sys.path.insert(0, "usr/libexec/mios/diag")

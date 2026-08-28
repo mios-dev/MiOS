@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing materialize-build-ctx capabilities.
+# AI-functions: get_pg_config, main
+
 import os
 import json
 import logging

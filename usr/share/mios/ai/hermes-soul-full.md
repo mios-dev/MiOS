@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS architectural documentation: MiOS-Hermes — SOUL (full, on-demand).
+     AI-related: /usr/share/mios/ai/hermes-soul.md, /usr/share/mios/ai/hermes-soul-full.md, /usr/share/mios/hermes/skills/, /usr/share/mios/mios.toml, /usr/share/mios/ai/refusal-patterns.txt, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-window-active, mios-find, mios-windows, mios-gui -->
+
 # MiOS-Hermes — SOUL (full, on-demand)
 
 > _MiOS-managed: long-form companion to the slim

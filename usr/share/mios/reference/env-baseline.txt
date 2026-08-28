@@ -61,7 +61,6 @@ MIOS_AGENTS_HERMES_FANOUT=false
 MIOS_AGENTS_HERMES_HEALTH_GATE=true
 MIOS_AGENTS_HERMES_JOB=General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise.
 MIOS_AGENTS_HERMES_LANE=gpu
-MIOS_AGENTS_HERMES_MODEL=mios-heavy
 MIOS_AGENTS_HERMES_PRIVILEGE_GROUP=privileged
 MIOS_AGENTS_HERMES_ROLE=general
 MIOS_AGENTS_HERMES_STRENGTHS=kanban,web_search,skill_invocation,multi_step_reasoning,tool_use
@@ -1340,7 +1339,7 @@ MIOS_LEGIBILITY_MAX_LIBEXEC_VERBS=285
 MIOS_LEGIBILITY_MAX_PS_LINES=22618
 MIOS_LEGIBILITY_MAX_SHELL_LINES=39903
 MIOS_LEGIBILITY_MAX_TRACKED_FILES=3344
-MIOS_LEGIBILITY_MAX_TRACKED_MB=201
+MIOS_LEGIBILITY_MAX_TRACKED_MB=202
 MIOS_LIBEXEC_DIR=/usr/libexec/mios
 MIOS_LLAMACPP_BAKE_MODELS=granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf
 MIOS_LLAMACPP_CONFIG=/usr/share/mios/llamacpp/mios-llm-light.yaml

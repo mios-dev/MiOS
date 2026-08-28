@@ -1,3 +1,6 @@
+﻿# AI-hint: MiOS configuration and runtime asset for profile.ps1.
+# AI-related: /usr/libexec/mios/mios-dashboard.sh, /usr/libexec/mios/mios-ssh-dev-cmd, mios-dashboard, mios-ssh-dev-cmd, mios-dev, mios-bootstrap, mios-build, mios-pull, mios-update, mios-config
+
 ﻿
 if ($Global:MiosProfileLoaded) { return }
 $Global:MiosProfileLoaded = $true

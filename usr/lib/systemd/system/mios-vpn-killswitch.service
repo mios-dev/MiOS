@@ -1,3 +1,6 @@
+# AI-hint: Systemd service for enforcing declarative nftables VPN killswitch and split-tunnel boundaries.
+# AI-related: /usr/libexec/mios/net/vpn_killswitch.py, network-pre.target, network.target, multi-user.target
+
 [Unit]
 Description=MiOS Declarative nftables VPN Kill-Switch and Split-Tunnel Guard
 Documentation=man:nft(8) https://github.com/mios-dev/mios
