@@ -970,6 +970,13 @@
 | T-982 | P1 | open | Security/Policy | Consult the policy arbiter by default instead of shipping it unreachable |
 | T-983 | P2 | open | Evaluation/CI | Ship real evaluation suites and gate on their scores in CI |
 | T-984 | P2 | open | AI/Grammar | Put the GBNF compiler on the dispatch hot path or retire it |
+| T-985 | P1 | planned | Topology/Radio | MINI-05a -- Every Blade is an AP in one mesh Wi-Fi, and no hosted image ever is |
+| T-986 | P1 | planned | Topology/Mesh | MINI-05b -- The HCI mesh VPN: every Blade a member, no guest a peer |
+| T-987 | P1 | planned | Topology/Router | MINI-05c -- Router core: one Blade holds the uplink, all Blades serve |
+| T-988 | P1 | planned | Topology/Hypervisor | MINI-05d -- The hypervisor plane IS the Blade: declare the boundary and the three role shapes |
+| T-989 | P1 | planned | Topology/Storage | MINI-05e -- Ceph beyond one MON: an odd monitor count, and an OSD that actually exists |
+| T-990 | P0 | planned | Topology/Orchestration | MINI-05f -- k3s server/agent election: one cluster, not N control planes sharing a token |
+| T-991 | P0 | planned | Topology/HA | MINI-05g -- Pacemaker quorum and fencing: unfenced is a one-node-only privilege |
 
 ---
 
@@ -3855,7 +3862,7 @@ They are one document with a find-and-replace applied. One says *"**MiOS-Metal**
 **Done When:** each lane has its own task with a stated target shape for 2-6 nodes, and the two that are dangerous rather than merely missing -- unfenced multi-node Pacemaker, and k3s-server-on-every-controller -- are gated so they cannot be reached accidentally by adding a second machine.
 **Status:** planned
 
-Children to split: MINI-05a AP/radio plane · 05b mesh control plane · 05c router core · 05d hypervisor plane · 05e Ceph beyond one MON · 05f k3s server/agent election · 05g Pacemaker quorum + fencing for 2-6.
+Children split: T-985 MINI-05a AP/radio plane · T-986 05b mesh control plane · T-987 05c router core · T-988 05d hypervisor plane · T-989 05e Ceph beyond one MON · T-990 05f k3s server/agent election · T-991 05g Pacemaker quorum + fencing for 2-6. Each states its target shape at 2-6 nodes; the two dangerous lanes (T-990, T-991) carry the runtime guard that Done-When requires.
 **Why:** T-331 established that MiOS-Metal is the box and that most of what it is defined by is a target. This is the measurement of exactly how far the target is, so the roadmap stops describing a machine the image cannot be. | **Domain:** Topology/SSOT | **Who:** architect
 
 ## T-334 -- MINI-06: the fleet had no declared size, so nothing could see a one-node-only config  (WS-MINI | P1 | M)
@@ -10590,3 +10597,119 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** none
 **Status:** open | **Domain:** AI/Grammar | **Who:** agent
 **Converted:** AGY-2582 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-985 -- MINI-05a: every Blade is an AP, and no hosted image ever is  (WS-MINI | P1 | L)
+**Goal:** E-07 The fleet's Wi-Fi is a mesh of Blades, so the radio is a per-Blade capability that has to be present everywhere and reachable nowhere else.
+**What+How:** `hostapd` appears in three DOCUMENTS and no unit, Quadlet, SSOT key or capability; `wpa_supplicant`/`nl80211` appear on one line each, in duplicate doc tables. Nothing is installed and nothing is served.
+
+**Target shape at 2-6 nodes: an AP on EVERY Blade, forming one mesh Wi-Fi.** MiOS-Mini is bare metal and the MiOS images it hosts are *obfuscated from the physical hardware* -- the Blade owns the NICs and radios, the hosted image is NIC-less. **Every single Blade machine is its own AP and a member of the mesh**; no node acts as an access point, ever. Only Blades are APs.
+
+That makes radio the opposite of a singleton, and the design work is the coordination a mesh needs rather than an election:
+* one SSID and PSK across all Blades, from SSOT, so the fleet presents as one network;
+* **non-overlapping channel assignment** derived per Blade rather than copied -- N Blades on one channel is co-channel interference, which is the actual failure this lane has to prevent;
+* roaming so a client moves between Blades without re-associating (802.11r fast transition, with 802.11k/v for steering);
+* a declared backhaul -- 802.11s mesh where there is no wire, wired where there is -- because AP-per-Blade without a stated backhaul is N isolated networks sharing a name;
+* `country_code` and regulatory domain from SSOT, since channel and power legality are not per-machine opinions.
+
+The hosted-image plane gains a *prohibition*: `radio` must not be grantable by any `[blade.archetypes]` entry describing a hosted MiOS image. An AP on a guest with no NIC is a capability that cannot work, and letting the SSOT express it is exactly how it gets assigned to something that cannot serve it.
+
+Per Law 14 and the operator's Rust directive, the renderer, the channel planner and the prohibition check are Rust static binaries, not another script.
+**Where:** `usr/share/mios/mios.toml` (`[metal.radio]`, `[metal.radio.mesh]`, `[packages.*]`, `[blade.archetypes]`), the Blade host unit set, `tools/generate-blade-dropins.py`, `tools/native/`
+**Done When:** `hostapd` ships as a real gated unit on every Blade rendered from SSOT, channels are assigned non-overlapping across the fleet by a generator rather than by hand, `radio` is unclaimable by any hosted-image archetype, and negative tests prove the gate fails both when a node archetype claims `radio` and when two Blades are handed the same channel.
+**Why:** A capability the guest plane can express but can never serve is worse than a missing one -- it reads as available and fails at the hardware boundary. And an AP-per-Blade fleet with no channel plan degrades as it grows, which is the failure that looks like "Wi-Fi is slow" rather than an error.
+**Dep:** T-333, T-988
+**Status:** planned | **Domain:** Topology/Radio | **Who:** architect
+
+## T-986 -- MINI-05b: the HCI mesh VPN -- every Blade a member, no guest a peer  (WS-MINI | P1 | M)
+**Goal:** E-07 A 2-6 box fleet needs a transport between the boxes before any other lane can be a fleet lane.
+**What+How:** There is no transport. Tailscale is an *external* dependency -- a repo file dropped at build, package never installed. `headscale` is a name in `[metal.mesh]` with zero implementation. `wireguard`/`wg-quick`/`netbird`/`nebula`/`zerotier`/`tinc`/`VXLAN` are **zero hits repo-wide**. Every other lane in T-333 assumes nodes can reach each other; none of them can.
+
+**Target shape at 2-6 nodes: every Blade is a member of the HCI mesh VPN cluster; the coordinator is a singleton.** Each Blade runs the client and holds its own tunnel -- this is the cluster fabric that the hyper-converged lanes (Ceph in T-989, k3s in T-990, Pacemaker in T-991) actually run over, so membership is universal, not elected. What *is* singleton is the `headscale` control plane, and only because it is not on the data path: Law 12 therefore applies directly -- losing the coordinator must leave established tunnels up and block only *new* enrolments.
+
+Because the hosted MiOS image is NIC-less (T-985), the guest is not a peer on this mesh; it is routed over its Blade's membership. The mesh has two distinct planes to keep separate in SSOT: the **Wi-Fi mesh** between Blades (T-985) and the **VPN mesh** that carries cluster traffic, which may ride the Wi-Fi backhaul, a wire, or both.
+**Where:** `usr/share/mios/mios.toml` (`[metal.mesh]`, `[packages.*]`), `usr/share/containers/systemd/`, the Blade host unit set
+**Done When:** `headscale` ships as a real gated unit with its SSOT keys wired on both ends, the client is installed from a package rather than a bare repo drop and is present on every Blade, a gate fails when `[metal.mesh]` names a coordinator no unit implements, and a test proves an established tunnel survives the coordinator being stopped.
+**Why:** T-333 found every fleet lane blocked on a transport that does not exist; this is that transport, and it is the fabric the HCI cluster is built on rather than an optional extra.
+**Dep:** T-333, T-988
+**Status:** planned | **Domain:** Topology/Mesh | **Who:** architect
+
+## T-987 -- MINI-05c: router core -- one Blade holds the uplink, all Blades serve  (WS-MINI | P1 | M)
+**Goal:** E-07 Separate the role every Blade performs from the one exactly one Blade can hold.
+**What+How:** `nftables` inet + flowtable and `dnsmasq` are design prose only -- no ruleset, no unit, no generated config.
+
+**Target shape at 2-6 nodes: serving is universal, the WAN uplink is singleton.** Every Blade is an AP (T-985) and therefore every Blade carries client traffic. What cannot be duplicated is the gateway: one WAN uplink, one DHCP authority, one DNS authority for the fleet. A second `dnsmasq` handing out leases on the same L2 is a race with conflicting results -- immediate and fleet-wide. So `router` is a Blade-plane capability that is *singleton across Blades*, while `radio` is a Blade-plane capability that is *universal across Blades*; the SSOT has to express both shapes, and today it expresses neither.
+
+Guests hold no routing role at all, for the same reason they hold no radio: they are obfuscated from the physical hardware and reach the network through their Blade.
+
+Unlike the mesh coordinator, the gateway genuinely *is* a single point of failure. The honest position is to say so and let the operator decide -- and to note that this is the natural place a future VRRP/failover task attaches, not to pretend a second router is redundancy today.
+
+nftables `inet` with a flowtable for offload, and no firewalld anywhere. The ruleset is generated from SSOT, not hand-maintained, and the generator is a Rust static binary per Law 14.
+**Where:** `usr/share/mios/mios.toml` (`[metal.router]`, `[blade.archetypes]`), the Blade host unit set, `usr/lib/mios/nftables/`, `tools/native/`
+**Done When:** `router` is a Blade-plane capability, singleton across Blades and unclaimable by any hosted-image archetype; nftables and dnsmasq ship as real gated units generated from SSOT; and negative tests prove the gate fails when a guest claims `router` and when two Blades do.
+**Why:** Two gateways on one segment is the fastest way to take a fleet down, and nothing in the tree currently prevents that or a guest claiming a role it has no hardware for.
+**Dep:** T-333, T-985, T-988
+**Status:** planned | **Domain:** Topology/Router | **Who:** architect
+
+## T-988 -- MINI-05d: the hypervisor plane IS the Blade  (WS-MINI | P1 | M)
+**Goal:** E-07 State the split-plane boundary once, in the SSOT, so the other six lanes stop having to restate it.
+**What+How:** `[metal].enabled = false` and `[metal.gpu]` declares VFIO assignments and arbitration.
+
+**Target shape at 2-6 nodes: per-Blade, and the boundary is the point.** The Blade is bare metal: it binds its own dGPUs to `vfio-pci`, owns the NICs, radios, TPM and boot, and hosts the MiOS OCI image as a guest obfuscated from all of it. There is no cross-Blade GPU arbitration to design, because a GPU cannot be shared across a machine boundary and cannot be fractioned without vendor drivers -- whole-GPU-to-one-guest is the only shape available.
+
+This lane is a task not because the shape is wrong but because the *boundary is nowhere declared*. Every other lane needs it: T-985 and T-987 need "hardware-facing roles live on the Blade, never on the hosted image"; T-989 needs "the OSD's disk is presented by the Blade"; T-991 needs "a fence agent acts through the Blade". Today each would re-argue it, and one of them would get it wrong.
+
+The SSOT therefore needs to express three role shapes, not one: **universal-per-Blade** (radio, mesh membership), **singleton-across-Blades** (WAN gateway, mesh coordinator), and **guest-plane** (k3s, Pacemaker). The open question alongside it is `[metal.gpu]`'s arbitration keys -- they either govern a real binder or they are decorative, and T-333's central finding was that the tree is full of the second kind.
+**Where:** `usr/share/mios/mios.toml` (`[metal]`, `[metal.gpu]`, `[blade.archetypes]`), `usr/libexec/mios/virt/`
+**Done When:** the Blade-vs-hosted-image boundary and the three role shapes are declared in SSOT and enforced by one gate the other lanes consume; `[metal].enabled` can be set on one Blade without implying anything about peers; and every key in `[metal.gpu]` either drives a real binder or is removed with the removal recorded.
+**Why:** A decorative arbitration key is worse than none: it reads as a solved problem. An undeclared plane boundary is worse still -- every lane re-derives it and one of them will get it wrong.
+**Dep:** T-333
+**Status:** planned | **Domain:** Topology/Hypervisor | **Who:** architect
+
+## T-989 -- MINI-05e: Ceph beyond one MON -- an odd monitor count, and an OSD that actually exists  (WS-MINI | P1 | L)
+**Goal:** E-07 The only distributed stack in the tree is real code that has never stored a byte.
+**What+How:** Ceph is genuinely implemented -- bootstrap unit, `ceph-bootstrap.sh`, a MON-only Quadlet, a 252-line CephFS provisioner, a config renderer. It is also single-node, MON-only and opt-in: the bootstrap unit is never enabled, it refuses to run under virtualisation, and **`ceph-bootstrap.sh` never touches a block device, so no OSD is ever created.** Nothing in the tree adds a second MON or joins a peer.
+
+**Target shape at 2-6 nodes: ODD monitor count -- 1 standalone, 3 at three or more.** The case that must be stated plainly is **two**: two MONs have a *worse* failure profile than one, because quorum is 2 and either loss is fatal. At `max_nodes = 2` Ceph therefore stays standalone or disabled -- there is no two-node HA Ceph, and pretending otherwise is the trap. At 3-6: three MONs, `size = 3`, `min_size = 2`, surviving one loss. This is the storage half of the HCI cluster, so it rides the mesh VPN (T-986) that every Blade belongs to.
+
+Two constraints follow from the split plane (T-988). The OSD's block device is **presented by the Blade**, because the hosted image is obfuscated from physical hardware -- so "create an OSD" means "consume the device the Blade passed through", not "enumerate disks". And the bootstrap unit's `ConditionVirtualization=no` is precisely wrong under this architecture: the MiOS image is *always* virtualised on a Blade, so that condition guarantees Ceph never bootstraps on the one topology it is meant for.
+
+`check_cephfs_ssot` already refuses a loopback monitor address once `enable = true`, so the gate is ahead of the implementation -- the gap is the OSD and the monitor count, not the checking.
+**Where:** `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/containers/systemd/` (MON Quadlet), `usr/share/mios/mios.toml` (`[storage.ceph]`), `tools/` (cephfs SSOT gate)
+**Done When:** `ceph-bootstrap.sh` creates at least one OSD on the block device its Blade presents, the `ConditionVirtualization=no` contradiction is resolved, the MON count derives from the declared node count and is always odd, and a gate fails when `max_nodes == 2` while Ceph is enabled.
+**Why:** A storage stack that never creates an OSD is a scaffold the roadmap has been counting as a capability -- and one gated off on exactly the topology it targets.
+**Dep:** T-333, T-986, T-988
+**Status:** planned | **Domain:** Topology/Storage | **Who:** architect
+
+## T-990 -- MINI-05f: k3s server/agent election -- one cluster, not N control planes sharing a token  (WS-MINI | P0 | L)
+**Goal:** E-07 Three default Minis must form one cluster, and today they form three.
+**What+How:** `mios-k3s.container` runs `Exec=k3s server --disable=traefik ...` with **no `K3S_URL`**, and `[blade.archetypes]` grants what `mios-k3s` requires to four archetypes (`hybrid`, `controller`, `k3s-master`, `ha-node`). Three default `hybrid` Minis are therefore three independent control planes sharing one token -- not a cluster. This is one of the two hazards `[blades.hazards].accepted` carries deliberately (T-334).
+
+**Target shape at 2-6 nodes.** Exactly one node runs `--cluster-init`; every other node joins with `K3S_URL` plus the token. Embedded etcd holds quorum at `(n/2)+1` and therefore requires an **odd** server count, which forces the split by fleet size:
+* **2 nodes:** one server + one agent. Two etcd members cannot hold quorum, so a second server is strictly worse than an agent.
+* **3-6 nodes:** three servers (odd, survives one loss) and the remainder agents.
+
+Unlike the radio and router lanes, this one genuinely belongs to the **hosted-image plane**: k3s clusters the MiOS guests, so its members are nodes, not Blades, and it reaches its peers over the mesh VPN (T-986) rather than over hardware. Role -- `init-server` | `join-server` | `agent` -- derives from SSOT and is emitted into the generated Quadlet; it is never a hand-edit, because the Quadlet is a Law 8 projection.
+
+Two further defects surface in the same unit and belong here: `Environment=K3S_TOKEN=mios-cluster-secret` puts a **cluster join secret as a literal in a world-readable generated Quadlet**, which is Law 11, and it is the same token every deployment ships.
+**Where:** `usr/share/mios/mios.toml` (`[containers.mios-k3s]`, `[blade.archetypes]`, `[blades]`), `usr/share/containers/systemd/mios-k3s.container` (generated), `tools/generate-pod-quadlets.py`, `tools/generate-blade-dropins.py`, `/etc/mios/secrets.env`
+**Done When:** the role derives from SSOT and the generated Quadlet emits `K3S_URL` for joiners; the token moves out of the Quadlet into `secrets.env`; the runtime refuses to start a join-less server when the declared fleet is larger than one; and `k3s-multi-server` retires itself from `[blades.hazards].accepted` because the detector stops reproducing it.
+**Why:** This is half of T-333's Done-When: the hazard that must not be reachable by adding a second machine.
+**Dep:** T-333, T-334, T-986
+**Status:** planned | **Domain:** Topology/Orchestration | **Who:** architect
+
+## T-991 -- MINI-05g: Pacemaker quorum and fencing -- unfenced is a one-node-only privilege  (WS-MINI | P0 | L)
+**Goal:** E-07 `stonith-enabled=false` is correct on one node and corrupts data on two.
+**What+How:** `mios-ha-bootstrap.service:21` runs `pcs cluster setup --name mios-ha $(hostname -s) --force` and then `pcs property set stonith-enabled=false`. For the one-node cluster that unit creates, that is right. Once a peer exists it is how split-brain corrupts shared storage. This is the second hazard in `[blades.hazards].accepted` (T-334).
+
+**Target shape at 2-6 nodes: fencing is mandatory above one node.** Corosync's own two-node handling is the shape to adopt, not to reinvent:
+* **2 nodes:** `two_node: 1`, which makes Corosync enable `wait_for_all` -- both nodes must be up before the cluster is quorate, and the last survivor keeps quorum. That is only safe with a **real STONITH device**, because the surviving node must be able to prove the other is dead. The alternative is a `corosync-qnetd`/qdevice arbiter supplying a third vote from outside the pair.
+* **3-6 nodes:** ordinary quorum, odd counts preferred; STONITH stays mandatory.
+
+The split plane (T-988) decides what a fencing device can even be: the hosted image cannot power-cycle anything, so the fence agent has to act **through the Blade**, which makes "fence the guest" a Blade-plane operation and rules out the BMC-style agents that assume bare metal. That choice belongs in this task and is why it is not merely a config flip.
+
+The guard must read the **live corosync nodelist**, never a comment or a config intent, so it stays true when an operator adds a node by hand.
+**Where:** `usr/lib/systemd/system/mios-ha-bootstrap.service`, `usr/share/mios/mios.toml` (`[ha]`, `[blades]`), `usr/libexec/mios/`, `tools/native/`
+**Done When:** `stonith-enabled=false` is reachable only while the cluster has exactly one node; adding a second node without either a fencing device or a qdevice fails closed with a message naming which; the fence agent acts through the Blade; the guard reads the running nodelist; and `pacemaker-unfenced` retires itself from `[blades.hazards].accepted`.
+**Why:** This is the other half of T-333's Done-When, and the one where the failure mode is silent data corruption rather than a service that does not start.
+**Dep:** T-333, T-334, T-988
+**Status:** planned | **Domain:** Topology/HA | **Who:** architect
