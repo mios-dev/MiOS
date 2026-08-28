@@ -19428,3 +19428,93 @@ makes that table generated so the two cannot diverge again.
 **Done When:** Test suite validates exact activation tensor payload sizes and 3-node distributed forward pass execution.
 **Why:** Continuous testing ensures distributed inference network optimizations maintain exact mathematical precision and communication fidelity.
 **Dep:** AGY-2572
+
+## AGY-2574 -- USB CDC-NCM gadget orchestration, host link bring-up, and the edge.android_tether SSOT table  (WS-NODE-ANDROID | P2 | M)
+**Goal:** An attached Android handset comes up as a CDC-NCM interface addressed from the SSOT, and an RNDIS handset is reported as degraded rather than silently accepted.
+**What+How:** Add `usr/libexec/mios/mios-tether-android` with `status` and `setup_host` verbs reading `[edge.android_tether]` (interface name, protocol preference, host and node addresses) for every value. Add `usr/lib/udev/rules.d/99-mios-ncm.rules` matching `18d1:4eeb` (NCM) and `18d1:4eec` (NCM+ADB). Add `[edge.android_tether]` to `usr/share/mios/mios.toml` together with its consumer in the same commit, so no unconsumed SSOT key ships. Document, but do not assume, gadget-side switching: the stock AOSP instance is `rndis.gs4` and Android init unbinds by writing `none` to `UDC`.
+**Where:** usr/libexec/mios/mios-tether-android, usr/lib/udev/rules.d/99-mios-ncm.rules, usr/share/mios/mios.toml
+**Verify:** Run `bash usr/libexec/mios/mios-tether-android status --dry-run` and assert exit 0 with the SSOT-declared interface and address echoed back; then `grep -nE "192\.168\.|usb0|4ee[0-9a-f]" usr/libexec/mios/mios-tether-android` and assert no match (every such value must resolve from the SSOT); then assert `99-mios-ncm.rules` contains `4eeb` and `4eec` and does NOT contain `4ee3`.
+**Do NOT:** Match USB product ID `0x4EE3` (that is RNDIS-only, not NCM+ADB), write the udev rule under `etc/udev/` (Law 1 puts vendor rules in `usr/lib/udev/rules.d/`), or hardcode addresses in the script.
+**Done When:** Attach yields the SSOT-declared address on the tether interface; an RNDIS-only handset produces a degraded report; no IP, interface name or product ID is a literal in the script.
+**Why:** The link is the precondition for every other Android task, and a wrong product ID silently produces an RNDIS link that no macOS host can drive.
+**Dep:** none
+
+## AGY-2575 -- AArch64 target triple, explicit linkage decision, and on-device packaging for mios-node  (WS-NODE-ANDROID | P2 | M)
+**Goal:** CI produces an AArch64 mios-node binary that runs on the handset.
+**What+How:** Add the Android/AArch64 build path to `src/mios-rs/mios-node/Cargo.toml` and `src/mios-rs/.cargo/config.toml`, wire it into `automation/55-native-build.sh`, and add `tools/package-android-node.sh`. Record the linkage decision in the commit and in the script header: `aarch64-unknown-linux-musl` for a genuinely static Termux binary, or `aarch64-linux-android` accepting bionic dynamic linking. Repair the `Files:` citations in the WS-NODE section of ROADMAP.md, which name `src/mios-rs/crates/mios-node/`.
+**Where:** src/mios-rs/mios-node/Cargo.toml, src/mios-rs/.cargo/config.toml, automation/55-native-build.sh, tools/package-android-node.sh, ROADMAP.md
+**Verify:** Run `cargo build --manifest-path src/mios-rs/mios-node/Cargo.toml --target aarch64-unknown-linux-musl --release` and assert exit 0 and that `file` reports an ARM aarch64 executable; then run `python3 - <<< "import re,pathlib;t=pathlib.Path('ROADMAP.md').read_text();assert 'src/mios-rs/crates/mios-node' not in t"` and assert exit 0.
+**Do NOT:** Claim `-C target-feature=+crt-static` produces a static binary on the `*-linux-android` targets without proving it with `file`/`ldd`; that flag is unreliable there.
+**Done When:** CI emits an AArch64 artifact and `mios-node --version` runs on-device; the crate path cited in ROADMAP.md resolves.
+**Why:** mios-node is x86_64-only today, so the edge node is a document rather than a deployment.
+**Dep:** AGY-2574
+
+## AGY-2576 -- Real mDNS responder bound to the tethered interface, replacing the placeholder discovery module  (WS-NODE-ANDROID | P2 | M)
+**Goal:** A tethered node is discoverable over the cable and over nothing else.
+**What+How:** Replace `usr/libexec/mios/node/discovery.py`, which advertises Avahi/mDNS zero-conf with an Ed25519 handshake while opening no socket and using a symmetric HMAC, with a responder that answers `_mios-node._tcp.local` on the tether interface only. Either implement the asymmetric handshake or rename the symbol to the symmetric scheme it actually uses. Add `tether` to `[blade.discovery].order` in `usr/share/mios/mios.toml`. Add a negative test that fails if the responder answers on any non-tether interface.
+**Where:** usr/libexec/mios/node/discovery.py, src/mios-rs/mios-node/src/net.rs, usr/share/mios/mios.toml, tests/test-node-tether-discovery.py
+**Verify:** Run `python3 tests/test-node-tether-discovery.py` and assert exit 0; the suite must bind the responder to a dummy interface, assert a query on that interface is answered, and assert a query on a second interface times out. Then `grep -n "socket\|multicast" usr/libexec/mios/node/discovery.py` must match (the module must actually open a socket), and `grep -in "ed25519" usr/libexec/mios/node/discovery.py` must not match unless an asymmetric signature is genuinely implemented.
+**Do NOT:** Leave a docstring claiming mDNS or Ed25519 that the code does not implement, and do not announce on public interfaces.
+**Done When:** The node resolves over the tether within seconds of attach, and the negative test fails if the responder ever answers elsewhere.
+**Why:** Discovery is what turns a cable into a cluster, and the module currently claims capabilities its code does not have.
+**Dep:** AGY-2575
+
+## AGY-2577 -- Fuel-metered Wasm engine in the native mios-node crate with interpreter fallback  (WS-NODE-ANDROID | P2 | M)
+**Goal:** The native node executes Wasm micro-tasks on-device under a fuel budget.
+**What+How:** Add a Wasm engine dependency to `src/mios-rs/mios-node/Cargo.toml` and drive it from `src/mios-rs/mios-node/src/executor.rs` with fuel metering. Provide the Pulley interpreter fallback for hosts that refuse a JIT mapping, and exercise that path in a test rather than assuming it.
+**Where:** src/mios-rs/mios-node/Cargo.toml, src/mios-rs/mios-node/src/executor.rs, src/mios-rs/mios-node/tests/
+**Verify:** Run `cargo test --manifest-path src/mios-rs/mios-node/Cargo.toml` and assert exit 0 with a test that (a) runs a module to completion under a fuel budget, (b) asserts a fuel-exhausted module is terminated with an error rather than a partial result, and (c) runs the same module through the interpreter backend. `grep -c wasm src/mios-rs/mios-node/Cargo.toml` must be greater than 0.
+**Do NOT:** Mark this done while the only Wasm sandbox in the tree is the Python `usr/libexec/mios/node/wasm_sandbox.py`, and do not report a fuel limit that no execution path enforces.
+**Done When:** A fuel-metered module runs on-device, exhausting fuel terminates it, and the interpreter path is covered by a test.
+**Why:** The WS-NODE NODE-02 entry already claims Wasmtime integration that the crate does not contain.
+**Dep:** AGY-2575
+
+## AGY-2578 -- Transient-link ledger reconciliation and CRDT type-name correction  (WS-NODE-ANDROID | P2 | M)
+**Goal:** Unplugging mid-task loses no write and blocks no merge.
+**What+How:** Persist local mutations while detached and reconcile them on reattach. Correct two naming defects found in the same modules: `usr/libexec/mios/node/crdt.py` is a last-write-wins register map with tombstones rather than the LWW-Element-Set it is labelled, and `src/mios-rs/mios-node/src/state_sync.rs` merges a vector clock that no decision reads -- either consult it in the merge or remove it.
+**Where:** usr/libexec/mios/node/crdt.py, src/mios-rs/mios-node/src/state_sync.rs, tests/test-node-transient-link.py
+**Verify:** Run `python3 tests/test-node-transient-link.py` and assert exit 0; the suite must simulate detach, mutate the ledger on both sides, reattach, and assert both mutations survive with a deterministic winner for the conflicting key. Then assert the docstring/type name in `crdt.py` names the structure the code implements (a test asserting the string, or the implementation changed to match).
+**Do NOT:** Introduce a centralized blocking lock in the sync path, and do not leave a vector clock that is merged but never consulted.
+**Done When:** Detach, mutate on both sides, reattach: no write lost, no merge blocked; and the type name matches its implementation.
+**Why:** A USB cable is a transient link by nature, and a CRDT named after an algorithm it does not implement misleads every later reader.
+**Dep:** AGY-2576
+
+## AGY-2579 -- Android battery and thermal watchdog with greenboot wanted.d work drain  (WS-NODE-ANDROID | P2 | S)
+**Goal:** A hot or nearly-flat handset drains its work instead of dying mid-task.
+**What+How:** Add `usr/libexec/mios/mios-android-health` reading its thresholds from `[edge.android_tether]`, and a greenboot check at `usr/lib/greenboot/check/wanted.d/70-mios-android-edge.sh`. Record in the script header that the real background-kill risk on Android 12+ is the phantom process killer, which a foreground service does not prevent, not merely the low-memory killer or Doze.
+**Where:** usr/libexec/mios/mios-android-health, usr/lib/greenboot/check/wanted.d/70-mios-android-edge.sh, usr/share/mios/mios.toml
+**Verify:** Run `bash usr/libexec/mios/mios-android-health --self-test` with injected battery and temperature values and assert: below-threshold input exits 0 with a drain instruction, healthy input exits 0 without one, and `grep -nE "\b(15|45)\b" usr/libexec/mios/mios-android-health` finds no bare threshold literal. Assert the greenboot check exists under `usr/lib/greenboot/check/wanted.d/` and not under `required.d/` or `etc/`.
+**Do NOT:** Put the check in `required.d` or under `etc/greenboot/` -- a degraded handset must never block host boot (Law 12), and vendor checks live under `/usr` (Law 1).
+**Done When:** Crossing either threshold drains work and refuses new tasks; the check never blocks boot; thresholds resolve from the SSOT.
+**Why:** The edge node runs on a battery inside a phone, where sustained inference is a thermal event and an unannounced death strands the execution DAG.
+**Dep:** AGY-2574
+
+## AGY-2580 -- Consult the policy arbiter by default instead of shipping it unreachable  (WS-SEC | P1 | S)
+**Goal:** The out-of-process policy arbiter that already ships is actually on the decision path.
+**What+How:** `mios-policy-arbiter.service` runs and `mios_pipe/access/policy.py` resolves tiers from `[ai].permission_tiers`, but `[ai].hitl_arbiter_url` defaults to an empty string so agent-pipe never asks it. Point the default at the local arbiter, treat an unreachable arbiter as a refusal rather than a permit, and replace the hardcoded default host allowlist in `server.py` with an SSOT-resolved list.
+**Where:** usr/share/mios/mios.toml, usr/lib/mios/agent-pipe/mios_pipe/access/policy.py, usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/test_mios_policy.py
+**Verify:** Run `python3 usr/lib/mios/agent-pipe/test_mios_policy.py` and assert exit 0 with two new cases: a dangerous verb routed through a stub arbiter that denies is refused, and the same verb with the arbiter unreachable is ALSO refused (fail closed). Assert `python3 -c "import tomllib;d=tomllib.load(open('usr/share/mios/mios.toml','rb'));assert d['ai']['hitl_arbiter_url']"` exits 0.
+**Do NOT:** Let an unreachable arbiter fall through to permit, and do not leave the host allowlist as a literal in server.py.
+**Done When:** With the arbiter up a dangerous verb is gated by it; with it down the verb is refused; no host allowlist literal remains in server.py.
+**Why:** An enforcement component nothing consults is indistinguishable from one never written, and the shipped default makes the gate a no-op.
+**Dep:** none
+
+## AGY-2581 -- Ship real evaluation suites and gate on their scores in CI  (WS-SCHED | P2 | M)
+**Goal:** The reliability numbers the self-improvement loop trusts are measured by CI rather than asserted.
+**What+How:** Add a small frozen task suite under `usr/share/mios/eval/`, have `mios-bench score` run it, record a baseline, and gate a CI tier on regression against that baseline. Register the suite in `[ci]` only after the files exist. Audit the estimators in `mios_pipe/scheduler/bench.py` while here.
+**Where:** usr/share/mios/eval/, usr/libexec/mios/mios-bench, usr/lib/mios/agent-pipe/mios_pipe/scheduler/bench.py, usr/share/mios/mios.toml
+**Verify:** Run the bench unit test and assert pass@k equals `1 - C(n-c,k)/C(n,k)` for a hand-computed case, and that pass^k equals the per-task mean of `C(c,k)/C(n,k)` for a two-task fixture whose success rates differ -- a `(pass@1)^k` implementation must fail this case. Then run the new CI tier against the frozen suite and assert a seeded regression fails it.
+**Do NOT:** Implement pass^k as `(pass@1)^k`; that underestimates whenever per-task success rates are heterogeneous. Do not register a CI suite before its files exist.
+**Done When:** A scored run executes in CI against a frozen suite with a recorded baseline, and a regression below baseline fails the tier.
+**Why:** The self-rewrite gate is only as trustworthy as the measurement behind it, and that measurement never runs unattended today.
+**Dep:** none
+
+## AGY-2582 -- Put the GBNF compiler on the dispatch hot path or retire it  (WS-ORCH | P2 | S)
+**Goal:** Grammar-constrained tool calling is either used or removed, not maintained unused.
+**What+How:** `mios_grammar.py` compiles JSON Schema to GBNF and is CI-tested, but nothing in the dispatch path calls it. Either invoke it where `tool_choice="required"` is honoured -- respecting `[ai].lane_tool_cap`, which exists because weak lanes time out constraining every verb at once -- or delete the module with its test and record the decision.
+**Where:** usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_grammar.py, usr/share/mios/mios.toml
+**Verify:** Either run a dispatch test asserting a compiled grammar string reaches the outbound lane request for a `tool_choice="required"` call and exit 0, or assert `test ! -f usr/lib/mios/agent-pipe/mios_grammar.py` together with a removal note in the workstream. One of the two must hold.
+**Do NOT:** Leave the module in place uncalled while documentation cites grammar enforcement as a shipped capability.
+**Done When:** A dispatch test proves the grammar reaches the lane request, or the module is gone and the decision is recorded.
+**Why:** Unused compilers rot into false capability claims, and this one is already cited as shipped.
+**Dep:** none

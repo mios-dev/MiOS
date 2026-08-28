@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing roadmap-index capabilities.
+# AI-functions: flatten_keys, make_anchor, parse_simple_yaml, main, check_adr_exists, generate_metrics_table, replace_section
+
 import os
 import sys
 import re
@@ -261,18 +264,29 @@ def main(argv):
         tracked = [f for f in out if f.strip()]
         file_count = len(tracked)
 
+        # Census the size from the INDEX blobs, not the checkout. On-disk bytes
+        # are not a function of the commit: .gitattributes checks *.ps1 out as
+        # CRLF on every platform, so the working tree runs ~24 KiB heavier than
+        # the blobs -- and with the total sitting 12 KiB past the 201.5 MiB
+        # rounding boundary, the committed value and the CI-rendered value
+        # landed on opposite sides. Blob sizes are identical in every clean
+        # checkout of the same commit, so the gate can converge.
         total_bytes = 0
+        ls_s = subprocess.run(["git", "-C", root, "ls-files", "-s", "-z"],
+                              capture_output=True, text=True, check=False).stdout
+        oids = [ent.split()[1] for ent in ls_s.split("\0") if ent.strip()]
+        if oids:
+            sizes = subprocess.run(
+                ["git", "-C", root, "cat-file", "--batch-check=%(objectsize)"],
+                input="\n".join(oids), capture_output=True, text=True, check=False,
+            ).stdout.splitlines()
+            total_bytes = sum(int(s) for s in sizes if s.strip().isdigit())
+
         sh_l = py_l = ps_l = rs_l = 0
         for f in tracked:
             p = os.path.join(root, f)
             if not os.path.isfile(p):
                 continue
-            try:
-                sz = os.path.getsize(p)
-                total_bytes += sz
-            except OSError:
-                pass
-
             ext = os.path.splitext(f)[1].lower()
             if ext in ('.sh', '.py', '.ps1', '.rs'):
                 try:

@@ -1,5 +1,5 @@
 <!-- AI-hint: MiOS -- Master Roadmap (SINGULAR monolith)
-     AI-related: /usr/lib/mios/bake/plan.d/NN-, /etc/mios/blade.d/, /usr/share/mios/artifacts/sbom/bound-images.tsv, /usr/libexec/mios/miosd, /usr/share/mios/vllm/model, mios-bake-group, mios-bakescratch, mios-llm-heavy, mios-llm-heavy-alt, mios-dropin-fanout -->
+     AI-related: /usr/lib/mios/bake/plan.d/NN-, /etc/mios/blade.d/, /usr/share/mios/artifacts/sbom/bound-images.tsv, /usr/libexec/mios/miosd, /usr/share/mios/vllm/model, /etc/mios/role.conf, /etc/mios/secrets.env, mios-bake-group, mios-bakescratch, mios-llm-heavy -->
 # MiOS -- Master Roadmap (SINGULAR monolith)
 
 ## What this roadmap is evidence for
@@ -44,8 +44,8 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
 | Tracked files | 3,257 | The reading surface. |
-| Tracked size | 201 MB | Two vendored assets are most of it. |
-| Shell / Python / PowerShell / Rust | 41k / 194k / 25k / 20k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 1.2x. |
+| Tracked size | 202 MB | Two vendored assets are most of it. |
+| Shell / Python / PowerShell / Rust | 41k / 195k / 25k / 20k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 1.2x. |
 | Drift checks | 207 | Falsifiability audited per check, not assumed. |
 | Units reproducing from SSOT | 15 faithful of 199 | 55 registered as drifting: the largest hole in part 1 of the thesis. |
 <!-- ROADMAP_METRICS_END -->
@@ -72,7 +72,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 ### Workstream Status Rollup
 - **Done**: 25
 - **Active**: 8
-- **Proposed**: 3
+- **Proposed**: 4
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
 
@@ -118,6 +118,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 - `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate ✅
 - `WS-NODE` — Edge Micro-Mesh mios-node 16-Byte Wire Protocol & Dual-Tier Sandboxing (active)
 - `WS-DOCGEN` — Generative documentation — AI-hints and comments harvested into the manual, wiki and machine-facing surfaces (active)
+- `WS-NODE-ANDROID` — Android edge micro-node over CDC-NCM USB tethering (proposed)
 
 **Testing & Conformance**
 - `WS-TESTDOC` — Testing, drift-gate negative coverage, and documentation integrity ✅
@@ -1027,6 +1028,91 @@ acceptance: |
 - **Files:** `usr/libexec/mios/mios-manual`, `usr/libexec/mios/mios-ai-tag`, `tools/log-to-bootstrap.sh`.
 - **Accept:** one command documents either repo; no tool is duplicated into the sibling.
 - **Deps:** `DOCGEN-05`.
+
+## WS-NODE-ANDROID — Android edge micro-node over CDC-NCM USB tethering
+<!--
+id: WS-NODE-ANDROID
+title: Android edge micro-node over CDC-NCM USB tethering
+theme: Fleet & Federation
+status: proposed
+priority: P2
+laws: [1, 7, 8, 9, 14]
+ssot_keys: ["containers.mios-node", "blade.discovery"]
+adr: [16, 20]
+deps: [WS-NODE, WS-BLADE]
+acceptance: |
+  An Android handset attached over USB enumerates as a CDC-NCM interface, runs an AArch64 mios-node built by CI, answers mDNS on the tethered link only, executes Wasm tasks on-device, reconciles its task ledger across unplug/replug, and drains its work when the handset gets hot or low on charge.
+-->
+
+Nothing Android-facing exists in the tree today: no tether tooling, no AArch64 target, no
+`[edge.*]` SSOT table, and no task or workstream had claimed the ground before this one. The
+substrate this builds on is real — `src/mios-rs/mios-node/src/protocol.rs` implements the
+16-byte header and `MIOS_PORT_NODE` is already allocated at 8650 — so this workstream is the
+transport, the target triple, and the honesty repairs, not a new mesh.
+
+**Corrections carried in from the source research (do not re-import the originals):**
+- USB product ID `0x4EE3` is **RNDIS**, not "NCM + ADB". Google's NCM IDs are `18d1:4eeb`
+  (NCM) and `18d1:4eec` (NCM + ADB), which is what a udev rule must match.
+- Mainline has **not** removed or blacklisted `rndis_host`. Removal has been proposed
+  repeatedly since 2022 and never merged; `CONFIG_USB_NET_RNDIS_HOST` is still a plain
+  tristate. Prefer NCM on its merits (aggregation, macOS/Windows class drivers), not on a
+  deprecation that has not happened.
+- The stock AOSP RNDIS instance is `rndis.gs4`, not `rndis.gs7`, and Android's own init
+  unbinds by writing `none` to `UDC` rather than an empty string.
+- In-box auto-binding for `UsbNcm.sys` is a **Windows 11** property; Windows 10 shipped the
+  binary but did not bind it to NCM devices without a manual INF.
+- NCM-by-default is a **Tensor Pixel (Pixel 6+, Android 12 Gadget HAL v1.2)** property, not
+  an AOSP-wide default; the tether function stays a per-vendor choice.
+- PRoot's cost is not a flat "20-40%": it is `ptrace` on every syscall, which is tens of
+  percent on compute and several-fold on syscall-dense I/O.
+- The process assassin on Android 12+ is the **phantom process killer**, which a foreground
+  service does not stop; it needs the `max_phantom_processes` device-config escape.
+- MiOS ports are allocated, not chosen: the source cited `:11450`/`:11441`/`:8080` and
+  Postgres `:5432`. The real values are `llm_light` 8500, `vllm` 8520, `sglang` 8530,
+  `pgvector` 8600, `agent_pipe` 8700 (which is `MIOS_AI_ENDPOINT`), `node` 8650. Three of the
+  cited ports are in `[docs].retired_ports`.
+
+### NODEDROID-01 — CDC-NCM gadget orchestration and host link bring-up  **[P2]**  (→ T-976)
+- **What:** Add `mios-tether-android` to negotiate the USB function (report, and optionally switch, `rndis.gs4` → an NCM instance) and a udev rule that brings the host side up when `18d1:4eeb`/`18d1:4eec` appears. Introduce `[edge.android_tether]` in the SSOT **with its consumer in the same change** — addresses, interface name and protocol preference are read from it, never written as literals.
+- **Why:** The link is the precondition for every other item, and it is the one place where a wrong constant (the `0x4EE3` in the source document) silently produces an RNDIS link that no macOS host can use.
+- **Files:** `usr/libexec/mios/mios-tether-android`, `usr/lib/udev/rules.d/99-mios-ncm.rules`, `usr/share/mios/mios.toml`.
+- **Accept:** Attaching a Pixel-class handset yields an `usb0` carrying the SSOT-declared address; a handset that enumerates as RNDIS is **reported as degraded**, not silently accepted; no IP, interface name or product ID appears as a literal in the script.
+- **Deps:** none.
+
+### NODEDROID-02 — AArch64 target for mios-node  **[P2]**  (→ T-977)
+- **What:** Give the existing crate an Android/AArch64 build path and a packaging script. Decide the linkage explicitly: `aarch64-unknown-linux-musl` for a genuinely static Termux binary, or `aarch64-linux-android` accepting bionic dynamic linking — `-C target-feature=+crt-static` is not dependable on the Android targets.
+- **Why:** `mios-node` is x86_64-only today; without a target triple the edge node is a document, not a deployment.
+- **Files:** `src/mios-rs/mios-node/Cargo.toml`, `src/mios-rs/.cargo/config.toml`, `automation/55-native-build.sh`, `tools/package-android-node.sh`.
+- **Accept:** CI emits an AArch64 artifact and `mios-node --version` runs on-device under Termux. Also repairs WS-NODE's `Files:` citations, which point at `src/mios-rs/crates/mios-node/` — a path that does not exist.
+- **Deps:** `NODEDROID-01`.
+
+### NODEDROID-03 — Real mDNS on the tethered link  **[P2]**  (→ T-978)
+- **What:** Replace the placeholder in `usr/libexec/mios/node/discovery.py`, which advertises "Avahi/mDNS zero-conf with an Ed25519 handshake" while opening no socket and using a symmetric HMAC, with a responder that actually answers `_mios-node._tcp.local`, bound to the tether interface. Add `tether` to `[blade.discovery].order`.
+- **Why:** Discovery is the difference between a cable and a cluster, and the current module's docstring is a claim its code does not support.
+- **Files:** `usr/libexec/mios/node/discovery.py`, `src/mios-rs/mios-node/src/net.rs`, `usr/share/mios/mios.toml`.
+- **Accept:** A node is resolvable over the tether within seconds of attach, and a negative test proves the responder answers on **no** other interface.
+- **Deps:** `NODEDROID-01`, `NODEDROID-02`.
+
+### NODEDROID-04 — Wasm execution in the native node  **[P2]**  (→ T-979)
+- **What:** Put a Wasm engine in the Rust crate (which has none — the sandbox exists only as `usr/libexec/mios/node/wasm_sandbox.py`) with fuel metering, and fall back to the Pulley interpreter where a JIT mapping is refused.
+- **Why:** WS-NODE's NODE-02 already claims Wasmtime integration; this closes the gap between that claim and `Cargo.toml`.
+- **Files:** `src/mios-rs/mios-node/Cargo.toml`, `src/mios-rs/mios-node/src/executor.rs`.
+- **Accept:** A fuel-metered module runs on-device; exhausting fuel terminates it; the interpreter path is exercised by a test, not assumed.
+- **Deps:** `NODEDROID-02`.
+
+### NODEDROID-05 — Ledger reconciliation across a cable that moves  **[P2]**  (→ T-980)
+- **What:** Make task-ledger sync survive unplug/replug: persist local mutations while detached and reconcile on reattach. Correct the naming while here — `usr/libexec/mios/node/crdt.py` is a last-write-wins register map with tombstones, not the LWW-**Element-Set** it is labelled, and `state_sync.rs` merges a vector clock it never reads.
+- **Why:** A USB cable is a transient link by nature; and a CRDT named after an algorithm it does not implement misleads every later reader.
+- **Files:** `usr/libexec/mios/node/crdt.py`, `src/mios-rs/mios-node/src/state_sync.rs`.
+- **Accept:** Detach mid-task, mutate on both sides, reattach: no write is lost and no merge blocks. The type's name matches its implementation, or the implementation matches its name.
+- **Deps:** `NODEDROID-03`.
+
+### NODEDROID-06 — Battery and thermal watchdog  **[P2]**  (→ T-981)
+- **What:** Add `mios-android-health` plus a greenboot **wanted.d** check that drains work from a handset that is too hot or too low on charge. Thresholds come from `[edge.android_tether]`.
+- **Why:** The edge node runs on a battery inside a phone; sustained inference is a thermal event, and a node that dies mid-task without draining strands the DAG.
+- **Files:** `usr/libexec/mios/mios-android-health`, `usr/lib/greenboot/check/wanted.d/70-mios-android-edge.sh`.
+- **Accept:** Crossing either threshold drains and refuses new work; the check is `wanted.d`, so a degraded handset never blocks host boot (Law 12).
+- **Deps:** `NODEDROID-01`, `NODEDROID-03`.
 
 # Testing & Conformance
 
