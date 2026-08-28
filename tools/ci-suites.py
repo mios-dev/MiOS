@@ -3,6 +3,7 @@
 # AI-related: usr/share/mios/mios.toml, tests/run-suites.sh, automation/98-drift-checks.sh
 import fnmatch
 import os
+import re
 import sys
 
 try:
@@ -12,8 +13,19 @@ except ModuleNotFoundError:  # pragma: no cover
 
 # Scanned for coverage. Anything a runner could reasonably be expected to
 # execute, so a dead suite has to be declared dead rather than merely ignored.
+#
+# The two fitness-function stages are named because leaving them out was not a
+# gap, it was a hole: deleting "automation/98-drift-checks.sh" from
+# [ci.tiers].gate raised no violation here, the gate tier stayed non-empty so
+# run-suites.sh's zero-suite guard never fired either, and the entire drift gate
+# stopped running while both reported green.
 TRACKED = ("tests/test-*.sh", "tests/test-*.py", "tests/*.sh", "tests/**/*.sh",
-           "automation/lint-*.sh")
+           "automation/lint-*.sh", "automation/97-*.sh", "automation/98-*.sh")
+# Known still outside TRACKED, so still able to fall out of CI unnoticed:
+# automation/test_*.sh, automation/tests/*.sh, automation/lib/test_*.sh,
+# usr/lib/mios/**, usr/libexec/mios/test_*.py and usr/share/mios/tests/*.sh --
+# 19 tracked suites at last count. Widening to them is a registry change, not a
+# reader change: each has to land in a tier or in [ci.exempt] first.
 
 def _root() -> str:
     return os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or os.getcwd()
@@ -52,6 +64,63 @@ def _registered(root: str, ci: dict) -> dict:
             reg[p] = spec.get("tier", "unit")
     return reg
 
+# `if:` values that switch a step off outright. An arbitrary expression is left
+# alone -- guessing at one would be a worse lie than reading none.
+_DISABLED = {"false", "'false'", '"false"', "${{ false }}", "${{false}}"}
+_INVOKE = re.compile(r"run-suites\.sh\s+(\S+)")
+
+def _live_run_commands(body: str) -> list:
+    """The shell commands a workflow actually executes.
+
+    Parity used to be `f"run-suites.sh {tier}" in body`: a raw substring over the
+    whole file, comments and disabled steps included. A step commented out, or
+    guarded `if: false`, kept satisfying the one check whose entire job is to
+    notice that a publisher has quietly stopped running a tier. Only the value of
+    a live `run:` key counts now.
+    """
+    steps, cur = [], None
+    for raw in body.splitlines():
+        if not raw.strip():
+            continue
+        ind = len(raw) - len(raw.lstrip())
+        if raw.lstrip().startswith("-"):
+            if cur:
+                steps.append(cur)
+            cur = [ind, [raw]]
+        elif cur and ind > cur[0]:
+            cur[1].append(raw)
+        elif cur:
+            steps.append(cur)
+            cur = None
+    if cur:
+        steps.append(cur)
+
+    cmds = []
+    for _, chunk in steps:
+        keys = [ln.strip()[2:].lstrip() if ln.strip().startswith("- ")
+                else ln.strip() for ln in chunk]
+        if any(k.startswith("if:") and k[3:].strip() in _DISABLED for k in keys):
+            continue
+        block = 0
+        for raw, key in zip(chunk, keys):
+            ind = len(raw) - len(raw.lstrip())
+            if block:
+                if ind >= block:
+                    line = raw.strip()
+                    if not line.startswith("#"):
+                        cmds.append(line.split(" #", 1)[0].strip())
+                    continue
+                block = 0
+            if key.startswith("#"):
+                continue
+            if key.startswith("run:"):
+                val = key[4:].strip()
+                if val.startswith(("|", ">")):
+                    block = ind + 1
+                else:
+                    cmds.append(val.split(" #", 1)[0].strip())
+    return cmds
+
 def cmd_list(root: str, ci: dict, tier: str) -> int:
     reg = _registered(root, ci)
     if tier not in (ci.get("tiers") or {}) and tier not in {
@@ -79,7 +148,33 @@ def cmd_check(root: str, ci: dict) -> int:
                 viol.append(f"{p} is registered in both {listed[p]} and {tier}")
             listed[p] = tier
 
+    for name, spec in sorted((ci.get("globs") or {}).items()):
+        d, pat = spec.get("dir", ""), spec.get("glob", "*")
+        if not os.path.isdir(os.path.join(root, d)):
+            viol.append(f"[ci.globs.{name}] dir '{d}' is not a directory -- a"
+                        " renamed dir registers zero suites and says nothing")
+        elif not _glob_members(root, spec):
+            viol.append(f"[ci.globs.{name}] '{d}/{pat}' matches no file -- an"
+                        " empty glob removes every suite it used to supply"
+                        " without moving a count anything watches")
+        if spec.get("skip") and not str(spec.get("skip_reason") or "").strip():
+            viol.append(f"[ci.globs.{name}] skips {len(spec['skip'])} suite(s)"
+                        " with no skip_reason -- a skip is an exemption")
+
+    # A runner is exempt from the tiers because it EXECUTES them. One that never
+    # reads the registry is not a harness, it is a suite parked out of reach of
+    # both the tiers and the exemption ratchet.
     runners = set(ci.get("runners") or ())
+    for path in sorted(runners):
+        full = os.path.join(root, path)
+        if not os.path.isfile(full):
+            viol.append(f"[ci].runners lists {path}, which does not exist")
+        elif "ci-suites.py" not in open(
+                full, encoding="utf-8", errors="replace").read():
+            viol.append(f"[ci].runners {path} never reads the suite registry, so"
+                        " it is not a harness -- a suite listed here runs nowhere"
+                        " and never touches [ci].max_exempt_suites")
+
     for path in _tracked(root):
         if path in reg or path in exempt or path in runners:
             continue
@@ -98,8 +193,13 @@ def cmd_check(root: str, ci: dict) -> int:
             viol.append(f"{wf} is missing -- both publishers must run the tiers")
             continue
         body = open(full, encoding="utf-8", errors="replace").read()
+        cmds = _live_run_commands(body)
+        if not cmds:
+            viol.append(f"{wf} has no live 'run:' step at all -- parity is read"
+                        " off executed commands, not off the file's text")
+        ran = {m.group(1).strip("'\"") for c in cmds for m in _INVOKE.finditer(c)}
         for tier in tiers:
-            if f"run-suites.sh {tier}" not in body:
+            if tier not in ran:
                 viol.append(f"{wf} never runs the '{tier}' tier")
 
     ceiling = ci.get("max_exempt_suites")

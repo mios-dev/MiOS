@@ -144,8 +144,18 @@ def main() -> int:
     check = "--check" in sys.argv
     rows = collect(root)
     if not rows:
-        print(f"no ADRs found under {ADR_DIR}/", file=sys.stderr)
-        return 0 if check else 1
+        # NOT a skip: the baked ADRs are a committed, always-present surface, so
+        # an empty collection means the directory was moved/renamed/emptied or
+        # the `adr:` front-matter key stopped parsing. Passing here would also
+        # silently disarm the ADR-0003/0009/0010 SSOT assertions below, which are
+        # only reached once rows exist. Fail loudly in BOTH modes.
+        print(
+            f"VIOLATION: no ADR front-matter collected under {ADR_DIR}/ -- the "
+            f"{OUT} index and the ADR-0003/0009/0010 SSOT consistency assertions "
+            "cannot be verified (directory missing/renamed/empty, or the `adr:` "
+            "front-matter key no longer parses)",
+            file=sys.stderr)
+        return 1
     body = render(rows)
     path = os.path.join(root, OUT)
     if check:

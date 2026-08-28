@@ -4057,10 +4057,17 @@ def check_negatives_are_effective() -> int:
         body_no_comments = re.sub(r'#.*$', '', body, flags=re.MULTILINE)
         body_no_logs = re.sub(r'\b(log|echo)\s+("[^"]*"|\'[^\']*\')', '', body_no_comments)
 
+        # A test's OWN name is not evidence that it invokes anything: `test_check_foo`
+        # used to satisfy the gate-invocation search purely because `check_foo` appears
+        # in its definition line, certifying a body that asserts nothing. Search only
+        # what follows the signature.
+        _sig_end = body_no_logs.find('{')
+        body_no_logs_body = body_no_logs[_sig_end + 1:] if _sig_end != -1 else body_no_logs
+
         has_die = bool(re.search(r'\b(die|exit\s+[1-9]|return\s+[1-9]|FAIL)\b', body_no_comments))
         has_gate_invoc = bool(re.search(
             r'(98-drift-checks\.sh|97-ssot-lint\.sh|tools/|automation/|usr/libexec/|usr/lib/mios/|check_[a-zA-Z0-9_]+|\b_[a-zA-Z0-9_]+_run\b|\b_[a-zA-Z0-9_]+_cmd\b|\b_[a-zA-Z0-9_]+_fail\b|\b_neg_gate\b)',
-            body_no_logs
+            body_no_logs_body
         ))
 
         if not (has_die and has_gate_invoc):
