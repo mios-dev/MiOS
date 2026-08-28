@@ -3857,7 +3857,7 @@ model_name = "list_directory"
 examples   = ["what's here", "what's in this folder", "list the current directory", "list the files in /etc"]
 tier       = "core"
 max_result_chars = 6000
-cmd        = "mios-text-edit view '{path=.}' --depth {depth=1}"
+cmd        = "mios-text-edit view {path=.} --depth {depth=1}"
   [verbs.list_dir.params.path]
   type    = "string"
   default = "."
@@ -7971,7 +7971,7 @@ sig = "query, scope"
 desc = "Search for files on disk. scope='fast' (cached DB, sub-100ms, use FIRST), 'windows' (NTFS exhaustive search), or 'linux' (exhaustive Linux search). Use 'fast' unless a recent file is missing."
 model_name = "find_local_file"
 tier = "core"
-cmd = "if [ '{scope}' = 'fast' ]; then mios-directory-lookup --json --limit 20 {query}; elif [ '{scope}' = 'windows' ]; then mios-everything --json -n 10 {query}; else mios-locate --json -n 20 {query}; fi"
+cmd = "if [ {scope} = 'fast' ]; then mios-directory-lookup --json --limit 20 {query}; elif [ {scope} = 'windows' ]; then mios-everything --json -n 10 {query}; else mios-locate --json -n 20 {query}; fi"
   [verbs.find_file.params.query]
   type = "string"
   aliases = ["name", "filename", "term"]
@@ -7999,7 +7999,7 @@ section = "Discovery / resolution"
 sig = "url, format"
 desc = "Fetch ONE web page content. format='text' (lightweight ~4000 char plain text), 'article-md' (clean markdown of a long article via crawl4ai), or 'index-md' (markdown of a news/listing/index page via firecrawl)."
 tier = "core"
-cmd = "if [ '{format}' = 'text' ]; then mios-web-extract -n 4000 {url}; elif [ '{format}' = 'article-md' ]; then mios-crawl --json --max-chars 20000 {url}; else mios-firecrawl --max-chars 20000 {url}; fi"
+cmd = "if [ {format} = 'text' ]; then mios-web-extract -n 4000 {url}; elif [ {format} = 'article-md' ]; then mios-crawl --json --max-chars 20000 {url}; else mios-firecrawl --max-chars 20000 {url}; fi"
   [verbs.fetch_page.params.url]
   type = "string"
   [verbs.fetch_page.params.format]
@@ -8011,7 +8011,7 @@ section = "Discovery / resolution"
 sig = "query, store"
 desc = "Search stored information. store='knowledge' (curated OWUI RAG document collections) or 'vault' (the local notes/skills vault)."
 sensitive = true   # Rule-of-Two property B: reads private knowledge collections / notes vault
-cmd = "if [ '{store}' = 'knowledge' ]; then mios-knowledge-search --json --top-k 5 {query}; else mios-viking find {query}; fi"
+cmd = "if [ {store} = 'knowledge' ]; then mios-knowledge-search --json --top-k 5 {query}; else mios-viking find {query}; fi"
   [verbs.search_store.params.query]
   type = "string"
   [verbs.search_store.params.store]
@@ -8023,7 +8023,7 @@ section = "Discovery / resolution"
 sig = "op, target?, content?"
 desc = "Manage the local second-brain vault. op='list' (ls), 'read' (cat), 'search' (find), or 'ingest' (add local file to vault)."
 sensitive = true   # Rule-of-Two property B: reads the private second-brain vault
-cmd = "if [ '{op}' = 'list' ]; then mios-viking ls {target=knowledge}; elif [ '{op}' = 'read' ]; then mios-viking cat {target}; elif [ '{op}' = 'search' ]; then mios-viking find {target}; else mios-ingest --file {target}; fi"
+cmd = "if [ {op} = 'list' ]; then mios-viking ls {target=knowledge}; elif [ {op} = 'read' ]; then mios-viking cat {target}; elif [ {op} = 'search' ]; then mios-viking find {target}; else mios-ingest --file {target}; fi"
   [verbs.vault.params.op]
   type = "string"
   enum = ["list", "read", "search", "ingest"]
@@ -8039,7 +8039,7 @@ desc = "Manage agent's self-directed memories/facts. op='add' (remember a new fa
 tier = "core"
 permission = "write"
 sensitive = true   # Rule-of-Two property B: op=list reads private agent memory (write-tier -> also property C)
-cmd = "if [ '{op}' = 'add' ]; then mios-remember add '{fact}'; elif [ '{op}' = 'list' ]; then mios-remember list; elif [ '{op}' = 'update' ]; then mios-remember update --key {id} '{fact}'; else mios-remember forget --key {id}; fi"
+cmd = "if [ {op} = 'add' ]; then mios-remember add {fact}; elif [ {op} = 'list' ]; then mios-remember list; elif [ {op} = 'update' ]; then mios-remember update --key {id} {fact}; else mios-remember forget --key {id}; fi"
   [verbs.memory.params.op]
   type = "string"
   enum = ["add", "list", "update", "forget"]
@@ -8055,7 +8055,7 @@ section = "Messaging"
 sig = "op, input, output?"
 desc = "Generate or convert documents. op='build' (compile markdown to pdf/docx/etc.) or 'convert' (convert office docs/csv to markdown)."
 permission = "write"
-cmd = "if [ '{op}' = 'build' ]; then mios-docgen build {input} {output}; else mios-docgen convert {input} {output}; fi"
+cmd = "if [ {op} = 'build' ]; then mios-docgen build {input} {output}; else mios-docgen convert {input} {output}; fi"
   [verbs.document.params.op]
   type = "string"
   enum = ["build", "convert"]
@@ -8069,7 +8069,7 @@ section = "Messaging"
 sig = "mode, agent, task"
 desc = "Cross-agent routing. mode='handoff' (transfer control entirely, ending your turn) or 'delegate' (sub-task an agent and get the result back)."
 permission = "write"
-cmd = "if [ '{mode}' = 'handoff' ]; then mios-handoff --to {agent} --goal '{task}'; else mios-a2a-delegate --peer {agent} --text '{task}'; fi"
+cmd = "if [ {mode} = 'handoff' ]; then mios-handoff --to {agent} --goal {task}; else mios-a2a-delegate --peer {agent} --text {task}; fi"
   [verbs.agent_route.params.mode]
   type = "string"
   enum = ["handoff", "delegate"]
@@ -8105,7 +8105,7 @@ sig = "op, title, width?, height?, x?, y?, position?"
 desc = "Perform window operations: op='focus' (bring to front), 'move-region' (snap to left/right/etc via position), 'move-pixel' (set x/y), 'resize' (set width/height), 'min', 'max', 'restore', 'close'."
 tier = "core"
 permission = "write"
-cmd = "mios-window {op} '{title}'"
+cmd = "mios-window {op} {title}"
 cmd_positioned = "mios-window {op} '{title}' {position}"
 cmd_pixel = "mios-window {op} '{title}' {x} {y}"
 cmd_resize = "mios-window {op} '{title}' {width} {height}"
@@ -8142,7 +8142,7 @@ section = "PC input"
 sig = "action, text?, key?, name?, x?, y?"
 desc = "Inject input into the HOST WINDOWS desktop. action='type', 'key' (press a key/combo), 'click' (pixel click), 'find' (find UI element), 'click-element' (click named UI element), 'list-element' (list all UI elements)."
 permission = "write"
-cmd = "if [ '{action}' = 'type' ]; then mios-pc-control type '{text}'; elif [ '{action}' = 'key' ]; then mios-pc-control key '{key}'; elif [ '{action}' = 'click' ]; then mios-pc-control click {x} {y}; elif [ '{action}' = 'find' ]; then mios-pc-control ui-find '{name}'; elif [ '{action}' = 'click-element' ]; then mios-pc-control ui-click '{name}'; else mios-pc-control ui-list; fi"
+cmd = "if [ {action} = 'type' ]; then mios-pc-control type {text}; elif [ {action} = 'key' ]; then mios-pc-control key {key}; elif [ {action} = 'click' ]; then mios-pc-control click {x} {y}; elif [ {action} = 'find' ]; then mios-pc-control ui-find {name}; elif [ {action} = 'click-element' ]; then mios-pc-control ui-click {name}; else mios-pc-control ui-list; fi"
   [verbs.windows_input.params.action]
   type = "string"
   enum = ["type", "key", "click", "find", "click-element", "list-element"]
@@ -8162,7 +8162,7 @@ section = "Computer-use"
 sig = "action, text?, key?, x?, y?"
 desc = "Inject input into the LINUX in-VM desktop. action='screenshot', 'ground', 'atspi', 'window-list', 'click', 'type', 'key'."
 permission = "write"
-cmd = "if [ '{action}' = 'screenshot' ]; then mios-computer-use screenshot /tmp/linux.png; elif [ '{action}' = 'type' ]; then mios-computer-use type '{text}'; elif [ '{action}' = 'key' ]; then mios-computer-use key '{key}'; elif [ '{action}' = 'click' ]; then mios-computer-use click {x} {y}; else mios-computer-use {action} '{text}'; fi"
+cmd = "if [ {action} = 'screenshot' ]; then mios-computer-use screenshot /tmp/linux.png; elif [ {action} = 'type' ]; then mios-computer-use type {text}; elif [ {action} = 'key' ]; then mios-computer-use key {key}; elif [ {action} = 'click' ]; then mios-computer-use click {x} {y}; else mios-computer-use {action} {text}; fi"
   [verbs.linux_input.params.action]
   type = "string"
   enum = ["screenshot", "ground", "atspi", "window-list", "click", "type", "key"]
