@@ -10,3 +10,27 @@
 *.yaml text eol=lf
 *.yml text eol=lf
 *.json text eol=lf
+
+# Binaries: never eligible for text normalization. `* text=auto` leaves this to
+# content detection, which a tree-wide rewrite can defeat -- eight binaries
+# (7z.dll/exe, MiosServiceTool.exe, the branding and portal icons) were once
+# committed with their CR bytes stripped, destroying every PE and PNG header.
+*.dll binary
+*.exe binary
+*.so binary
+*.bin binary
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.gz binary
+*.zip binary
+*.xz binary
+*.zst binary
+*.gguf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.pdf binary
