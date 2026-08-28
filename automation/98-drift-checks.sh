@@ -1936,20 +1936,68 @@ check_clevis_luks() {
 
 check_metal_vfio() {
     echo "[98-drift-checks]   MiOS-Metal vfio-pci SSOT projection check"
+    _need_python || return 0
     local gen="$ROOT/usr/libexec/mios/mios-metal-vfio-gen"
+    local toml="${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml"
     if [[ ! -x "$gen" && -f "$gen" ]]; then
         chmod +x "$gen" 2>/dev/null || true
     fi
-    if [[ -f "$gen" ]]; then
-        local out; out="$("$gen" "${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml" 2>&1 || true)"
-        if [[ "$out" == *"MIOS_METAL_ENABLED="* ]]; then
-            return 0
-        else
-            _violation "(68) MiOS-Metal vfio generator failed to project SSOT configuration"
-        fi
-    else
+    if [[ ! -f "$gen" ]]; then
         _violation "(68) MiOS-Metal vfio generator script missing"
+        return
     fi
+
+    # This check used to assert only that the substring MIOS_METAL_ENABLED=
+    # appeared in the generator's output -- a literal its heredoc emits
+    # UNCONDITIONALLY -- while `|| true` discarded the exit status. Every
+    # projected value could be wrong, or the generator could fail outright, and
+    # it still returned 0. Compare each emitted value against the SSOT instead,
+    # and let a non-zero generator exit be a violation.
+    local out rc=0
+    out="$("$gen" "$toml" 2>&1)" || rc=$?
+    if (( rc != 0 )); then
+        _violation "(68) MiOS-Metal vfio generator exited ${rc}: ${out}"
+        return
+    fi
+
+    local mismatches
+    mismatches="$(printf '%s
+' "$out" | python3 -c '
+import sys, tomllib
+
+emitted = {}
+for line in sys.stdin.read().splitlines():
+    if "=" not in line:
+        continue
+    k, _, v = line.partition("=")
+    emitted[k.strip()] = v.strip().strip(chr(34))
+
+with open(sys.argv[1], "rb") as fh:
+    metal = tomllib.load(fh).get("metal", {})
+
+# Each projected key, and the SSOT value it must equal. The generator falls back
+# to a hardcoded literal when the key is missing or tomllib fails -- notably
+# "Vfio-pci" with a capital V, which no SSOT value would ever produce -- so
+# comparing against the SSOT is what makes those fallbacks visible.
+expected = {
+    "MIOS_METAL_ENABLED": str(metal.get("enabled", False)).lower(),
+    "MIOS_METAL_GUEST_CPU_PERCENT": str(metal.get("guest_cpu_percent", 80)),
+    "MIOS_METAL_GUEST_RAM_PERCENT": str(metal.get("guest_ram_percent", 80)),
+    "MIOS_METAL_DGPU_MODE": str(metal.get("dgpumode", "vfio-pci")),
+}
+
+for key, want in expected.items():
+    if key not in emitted:
+        print("%s: not emitted at all (expected %r)" % (key, want))
+    elif emitted[key] != want:
+        print("%s: projected %r but [metal] says %r" % (key, emitted[key], want))
+' "$toml" 2>&1)"
+
+    if [[ -n "$mismatches" ]]; then
+        _violations_from "(68) MiOS-Metal vfio projection disagrees with [metal] SSOT: " "$mismatches"
+        return
+    fi
+    echo "[98-drift-checks]   mios-metal-vfio-gen projects [metal] SSOT faithfully"
 }
 
 check_router_parity() {
