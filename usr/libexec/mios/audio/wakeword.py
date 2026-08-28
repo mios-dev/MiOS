@@ -38,6 +38,7 @@ import sys
 import time
 import wave
 from dataclasses import asdict, dataclass, field
+from operator import mul
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 SAMPLE_RATE = 16000  # 16 kHz standard
@@ -107,6 +108,21 @@ def compute_mel_filterbank(num_bins: int = NUM_MEL_BINS, n_fft: int = FFT_SIZE, 
 
 _MEL_FILTERBANK = compute_mel_filterbank()
 
+def compress_filterbank(filterbank: List[List[float]]) -> List[Tuple[int, List[float]]]:
+    """Trim each Mel filter to its passband so the dot product skips its zero weights."""
+    compressed = []
+    for filters in filterbank:
+        start = 0
+        end = len(filters)
+        while start < end and filters[start] == 0.0:
+            start += 1
+        while end > start and filters[end - 1] == 0.0:
+            end -= 1
+        compressed.append((start, filters[start:end]))
+    return compressed
+
+_MEL_FILTERBANK_SPARSE = compress_filterbank(_MEL_FILTERBANK)
+
 def compute_magnitude_spectrum(samples: List[float]) -> List[float]:
     """Compute 256-point FFT magnitude spectrum with Hann window."""
     n = len(samples)
@@ -123,12 +139,17 @@ def compute_magnitude_spectrum(samples: List[float]) -> List[float]:
         magnitudes[k] = math.sqrt(c.real * c.real + c.imag * c.imag)
     return magnitudes
 
-def extract_log_mel_energies(samples: List[float], filterbank: List[List[float]] = _MEL_FILTERBANK) -> List[float]:
-    """Extract Log-Mel filterbank energies for an audio frame."""
-    mags = compute_magnitude_spectrum(samples)
+def extract_log_mel_energies(samples: List[float], filterbank: List[List[float]] = _MEL_FILTERBANK,
+                             spectrum: Optional[List[float]] = None) -> List[float]:
+    """Extract Log-Mel filterbank energies for an audio frame.
+
+    Pass 'spectrum' to reuse a magnitude spectrum already computed for these samples.
+    """
+    mags = compute_magnitude_spectrum(samples) if spectrum is None else spectrum
+    sparse = _MEL_FILTERBANK_SPARSE if filterbank is _MEL_FILTERBANK else compress_filterbank(filterbank)
     mel_energies = []
-    for f in filterbank:
-        energy = sum(m * w for m, w in zip(mags, f))
+    for start, weights in sparse:
+        energy = sum(map(mul, mags[start:start + len(weights)], weights))
         log_e = math.log(max(1e-6, energy * 50.0) + 1.0)
         mel_energies.append(log_e)
     return mel_energies
@@ -242,14 +263,16 @@ class SileroVAD:
         self.active_counter = 0
         self.last_probability = 0.0
 
-    def compute_speech_probability(self, frame_samples: List[float]) -> float:
+    def compute_speech_probability(self, frame_samples: List[float],
+                                   spectrum: Optional[List[float]] = None) -> float:
         """Calculate calibrated speech presence probability P(speech) in [0.0, 1.0]."""
         n = len(frame_samples)
         if n < 32:
             return 0.0
 
-        # 1. Total RMS Energy
-        total_energy = math.sqrt(sum(x * x for x in frame_samples) / float(n))
+        # 1. Total RMS Energy (sum of squares is reused by the pitch autocorrelation below)
+        sum_squares = sum(map(mul, frame_samples, frame_samples))
+        total_energy = math.sqrt(sum_squares / float(n))
         if total_energy < 0.003:
             return 0.01
 
@@ -261,7 +284,7 @@ class SileroVAD:
         zcr_rate = zcr / float(n)
 
         # 3. Spectral Magnitudes & Formant Energy Ratio
-        mags = compute_magnitude_spectrum(frame_samples)
+        mags = compute_magnitude_spectrum(frame_samples) if spectrum is None else spectrum
         num_bins = len(mags)
         speech_low_bin = int(300.0 / (SAMPLE_RATE / float(FFT_SIZE)))
         speech_high_bin = int(3400.0 / (SAMPLE_RATE / float(FFT_SIZE)))
@@ -282,9 +305,10 @@ class SileroVAD:
 
         # 5. Pitch Autocorrelation (harmonicity in 80Hz - 400Hz)
         max_autocorr = 0.0
-        denom = sum(x * x for x in frame_samples) + 1e-6
+        denom = sum_squares + 1e-6
         for lag in range(40, min(160, n // 2), 2):
-            ac = sum(frame_samples[i] * frame_samples[i - lag] for i in range(lag, min(n, lag + 200)))
+            end = min(n, lag + 200)
+            ac = sum(map(mul, frame_samples[lag:end], frame_samples[:end - lag]))
             norm_ac = ac / denom
             if norm_ac > max_autocorr:
                 max_autocorr = norm_ac
@@ -302,12 +326,13 @@ class SileroVAD:
         prob = 1.0 / (1.0 + math.exp(-max(-10.0, min(10.0, score))))
         return max(0.0, min(1.0, prob))
 
-    def is_speech_active(self, frame_samples: List[float]) -> Tuple[bool, float]:
+    def is_speech_active(self, frame_samples: List[float],
+                         spectrum: Optional[List[float]] = None) -> Tuple[bool, float]:
         """
         Evaluate frame with temporal hangover smoothing.
         Returns (is_active, speech_probability).
         """
-        prob = self.compute_speech_probability(frame_samples)
+        prob = self.compute_speech_probability(frame_samples, spectrum=spectrum)
         self.last_probability = prob
 
         if prob >= self.threshold:
@@ -344,7 +369,8 @@ class OpenWakeWordDetector:
         self.last_score = 0.0
         self.activation_count = 0
 
-    def process_frame(self, frame_samples: List[float]) -> Tuple[bool, float]:
+    def process_frame(self, frame_samples: List[float],
+                      spectrum: Optional[List[float]] = None) -> Tuple[bool, float]:
         """
         Process single audio frame through wake-word acoustic classifier.
         Evaluates 4 sequential phonetic acoustic stages with phonemic signature verification:
@@ -353,7 +379,7 @@ class OpenWakeWordDetector:
         3. /aɪ/ ("y"): Vowel transition (Mel bins 6..20).
         4. /ɒs/ ("OS"): High sibilance 5000-7000Hz (Mel bins 22..31).
         """
-        mel = extract_log_mel_energies(frame_samples)
+        mel = extract_log_mel_energies(frame_samples, spectrum=spectrum)
         self.mel_buffer.append(mel)
         if len(self.mel_buffer) > self.window_frames:
             self.mel_buffer.pop(0)
@@ -504,15 +530,18 @@ class AcousticWakePipeline:
         # Stage 1: RNNoise Denoiser
         denoised_samples, denoise_db = self.denoiser.process_frame(raw_samples)
 
+        # Stages 2 and 3 both score the denoised frame, so transform it once and share it.
+        spectrum = compute_magnitude_spectrum(denoised_samples)
+
         # Stage 2: Silero VAD
-        is_speech, vad_prob = self.vad.is_speech_active(denoised_samples)
+        is_speech, vad_prob = self.vad.is_speech_active(denoised_samples, spectrum=spectrum)
 
         wake_detected = False
         wake_conf = 0.0
 
         if is_speech:
             # Stage 3: OpenWakeWord Detector (Only executed when speech active)
-            wake_detected, wake_conf = self.wakeword.process_frame(denoised_samples)
+            wake_detected, wake_conf = self.wakeword.process_frame(denoised_samples, spectrum=spectrum)
             if wake_detected:
                 self.state = "triggered"
                 if self.on_wake_callback:

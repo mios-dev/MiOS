@@ -148,12 +148,24 @@ class VSOCKBridge:
         # If no physical socket available, fallback to mock execution
         return self.send_rpc(cid, port, payload, socket_path=None)
 
+def get_default_runtime_dir() -> str:
+    """Resolve the microVM runtime directory, degrading to the user runtime dir when /run is not writable."""
+    system_dir = "/run/mios/microvms"
+    for candidate in (system_dir, os.path.dirname(system_dir)):
+        if os.path.isdir(candidate) and os.access(candidate, os.W_OK):
+            return system_dir
+    uid = getattr(os, "getuid", lambda: 1000)()
+    xdg_runtime = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{uid}")
+    if os.path.isdir(xdg_runtime) and os.access(xdg_runtime, os.W_OK):
+        return os.path.join(xdg_runtime, "mios", "microvms")
+    return os.path.join(tempfile.gettempdir(), f"mios-microvms-{uid}")
+
 class CloudHypervisorOrchestrator:
     """Manages Cloud-Hypervisor microVM lifecycle, boot latency SLAs, and memory reclamation."""
 
     def __init__(self, mock: bool = False, runtime_dir: Optional[str] = None) -> None:
         self.mock = mock
-        self.runtime_dir = runtime_dir or "/run/mios/microvms"
+        self.runtime_dir = runtime_dir or get_default_runtime_dir()
         self.vsock_bridge = VSOCKBridge(mock=mock)
         self.active_vms: Dict[str, Dict[str, Any]] = {}
 
