@@ -128,7 +128,8 @@ class ReputationEngine:
         except ImportError:
             log.debug("ReputationEngine: psycopg not installed, skip persist")
         except Exception as exc:
-            log.warning("failed to persist reputation for %s: %s", peer_id, exc)
+            log.warning("failed to persist reputation for session %s (%d record(s)): %s",
+                        session_id, len(records), exc)
 
 
 # Backwards compatibility alias
