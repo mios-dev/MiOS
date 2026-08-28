@@ -226,7 +226,11 @@ class TelemetrySocketServer:
                         f.write(f"PORT:{port}")
                     self._port_file = self.socket_path
 
-                self._server_socket.listen(5)
+                # A backlog of 5 silently dropped connections as soon as more
+                # than a handful of clients arrived together -- each dropped
+                # peer sees an empty response, not an error, so the daemon
+                # looked healthy while losing IPC.
+                self._server_socket.listen(socket.SOMAXCONN)
                 self._server_socket.settimeout(0.5)
                 self._running = True
 
