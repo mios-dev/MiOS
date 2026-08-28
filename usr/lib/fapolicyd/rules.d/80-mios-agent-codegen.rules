@@ -1,0 +1,65 @@
+# AI-hint: Defines fapolicyd execution whitelist carve-outs for the MiOS agent's coderun sandbox, permitting execution of model-generated scripts within the isolated /var/home/mios/coderuns and .coderun-snapshots paths.
+# AI-related: mios-agent-codegen, mios-deny
+# /usr/lib/fapolicyd/rules.d/80-mios-agent-codegen.rules
+# ----------------------------------------------------------------------------
+# WS-7 -- fapolicyd execution-whitelist CARVE-OUT for the MiOS agent's
+# legitimate sandboxed code generation / dry-run path.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# fapolicyd in enforce mode denies execution of any binary/script whose path
+# is not trusted (RPM-db-backed or fs-verity-trusted). The MiOS agent stack
+# deliberately writes + runs model-generated code in the coderun sandbox (see
+# usr/share/doc/mios/concepts/coderun-sandbox.md): a rootless-podman,
+# Network=none, DropCapability=ALL, seccomp-confined container whose /work +
+# /tmp are the ONLY writable surfaces. Without an explicit allow, enforce-mode
+# fapolicyd would deny the sandbox's interpreter from running the generated
+# script -- breaking the one place the agent is *supposed* to execute untrusted
+# code. This carve-out re-permits exec INSIDE that already-isolated boundary
+# without re-opening the whole host.
+#
+# ORDERING: numbered 80- so it is evaluated BEFORE the 90-mios-deny.rules
+# deny-by-default block (fapolicyd rules.d are read lexicographically; first
+# match wins). It is INTENTIONALLY scoped to the sandbox roots only, so it
+# never broadens execution on the operator's real home or system paths.
+#
+# SAFETY: these allows are INERT while fapolicyd is permissive (the WS-7
+# default). They only take effect after the operator completes the documented
+# permissive->enforce promotion. Keeping them in tree now means the carve-out
+# is already present + reviewed before enforce is ever considered -- you do NOT
+# want to discover a missing codegen allow by bricking a boot.
+#
+# PATHS: the sandbox workspace + snapshot roots resolve from mios.toml
+# [paths].coderun_workspace_root / .coderun_snapshots_root (default
+# /var/home/mios/coderuns and /var/home/mios/.coderun-snapshots). fapolicyd
+# rules do not interpolate mios.toml, so these dir= globs are rendered by the
+# WS-7 build step (automation/lib/ws7-uki-fapolicyd-build.sh) from the SSOT.
+# The values below are the documented DEFAULTS; the build step rewrites them
+# in place if the operator overrides the paths. The container runtime root
+# (/var/lib/containers/) is already allowed by 70-bootc-ostree.rules; this file
+# adds only the writable workspace surfaces the sandbox actually exec()s from.
+#
+# GRAMMAR (corrected 2026-06-04): fapolicyd puts SUBJECT attrs (uid/gid/trust/
+# exe) LEFT of the colon and OBJECT attrs (dir/path/ftype) RIGHT -- so the form
+# is `allow perm=execute all : dir=<path>` (cf. 70-bootc-ostree.rules
+# `allow perm=any all : dir=/sysroot/...`). The earlier `dir=... : all` form was
+# INVERTED -> fagenrules would reject it or it would never match -> codegen
+# DENIED at enforce (the exact brick this carve-out exists to prevent).
+#
+# VALIDATE BEFORE ENFORCE (design review): model code runs INSIDE the rootless-
+# podman coderun container; its interpreter lives in container storage under
+# /var/lib/containers/ (already allowed by 70-bootc-ostree.rules), NOT at
+# /var/home/. The HOST fapolicyd may not intercept in-container exec at all -- in
+# which case these host /var/home allows are UNNECESSARY and re-open an exec
+# surface 90-mios-deny deliberately closes (deny all trust=0 under /var/home).
+# Confirm where exec actually originates; prefer to REMOVE these allows if the
+# sandbox interpreter is container-trusted. INERT until enforce regardless.
+
+# --- Sandboxed agent codegen: writable workspace + snapshots (carve-out) ---
+allow perm=execute all : dir=/var/home/mios/coderuns/
+allow perm=execute all : dir=/var/home/mios/.coderun-snapshots/
+
+# --- Sandbox scratch (model dry-runs land scripts under the AI scratch dir) ---
+# Resolves from mios.toml [paths].ai_scratch_dir (default below). Scoped to the
+# scratch root only -- not /var/lib/mios at large.
+allow perm=execute all : dir=/var/lib/mios/ai/scratch/
