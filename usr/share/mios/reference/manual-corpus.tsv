@@ -6980,10 +6980,11 @@ tools/render-ports.py	152	153	2	26	3b978d537a18	STAY	midsize-why		0				0
 tools/render-ports.py	171	173	3	29	8d84ef72541b	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/tools.md	mios-src:8d84ef72541b	29	0
 tools/render-ports.py	220	221	2	21	bfbff0bacab0	STAY	local-scoped		0				0
 tools/render-ports.py	239	239	1	7	ce4297b47888	STAY	local-scoped		0				0
-tools/roadmap-index.py	1	1	1	2	c8a5e92d1c7b	STAY	local-scoped		0				0
-tools/roadmap-index.py	12	12	1	2	23c73b0535ee	STAY	inline-scoped		0				0
-tools/roadmap-index.py	13	13	1	2	652a73c43ff5	STAY	inline-scoped		0				0
-tools/roadmap-index.py	191	192	2	29	496bea7f53df	STAY	midsize-why		0				0
+tools/roadmap-index.py	1	3	3	19	5f245aec9c58	STAY	ai-header		0				0
+tools/roadmap-index.py	15	15	1	2	23c73b0535ee	STAY	inline-scoped		0				0
+tools/roadmap-index.py	16	16	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+tools/roadmap-index.py	194	195	2	29	496bea7f53df	STAY	midsize-why		0				0
+tools/roadmap-index.py	267	274	8	89	ce4d50bb40a1	MIGRATE	narrative-rationale		0				0
 tools/rtx4090-vfio-configurator.sh	1	3	3	23	358de1637a3d	STAY	ai-header		0				0
 tools/rtx4090-vfio-configurator.sh	11	11	1	2	bd1275524ecf	DROP	banner		0				0
 tools/run-agent-pipe-tests.sh	1	2	2	12	d0354fb4fa91	STAY	ai-header		0				0
