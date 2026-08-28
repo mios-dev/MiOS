@@ -17,6 +17,11 @@
 
 !/.gitignore
 !/.gitattributes
+!/.claude/
+!/.claude/skills/**
+# local, machine-specific and possibly permission-bearing -- never tracked
+/.claude/settings.local.json
+/.claude/worktrees/
 !/.clinerules
 !/.cursorrules
 !/.editorconfig
