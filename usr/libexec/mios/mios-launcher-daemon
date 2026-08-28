@@ -31,17 +31,32 @@ command via subprocess.Popen with start_new_session=True so it
 detaches from the broker -- broker can serve other requests
 immediately, dispatched command runs forever (or until it exits).
 
-NO authentication beyond filesystem perms on the socket. The socket
-mode 0666 is deliberate: any local user (including mios-hermes) can
-launch ARBITRARY commands as the operator. This is INTENTIONAL --
-the operator's whole agent stack runs with NOPASSWD: ALL sudo
-already; the broker just gives the agent a more reliable path.
+Authentication is filesystem permissions on the socket: mode 0660,
+group mios-ai. That is exactly the two parties involved -- this broker
+runs as the operator, the agent plane runs as User=mios-ai, and `mios`
+is a member of the mios-ai group (sysusers.d/10-mios.conf).
 
-For richer auth (e.g. multi-tenant hosts), add a token file under
-/etc/mios/launcher-token + check on connect.
+The socket was previously 0666, justified on the grounds that the agent
+stack already holds NOPASSWD: ALL sudo so the broker granted nothing
+new. That reasoning does not hold for the party it actually exposed.
+0666 admitted EVERY local uid, not just the agent stack -- and the agent
+executes model-generated code in a sandbox, so a world-writable broker
+socket was an unauthenticated path out of that sandbox to arbitrary
+execution as the operator. Confinement that a socket bypasses is not
+confinement.
+
+If the group cannot be applied the broker refuses to listen rather than
+falling back to a wider mode; a broker that does not start is safer than
+one every local user can reach.
+
+Still open, deliberately not done here: /run/mios-launcher is 1777
+(tmpfiles.d/mios-launcher.conf), and per-caller token auth under
+/etc/mios/launcher-token would authenticate the CALLER rather than its
+group. Both are follow-ups, not substitutes for narrowing the mode.
 """
 from __future__ import annotations
 
+import grp
 import logging
 import os
 import socket
@@ -54,6 +69,9 @@ log = logging.getLogger("mios-launcher")
 
 UID = os.getuid()
 SOCK_PATH = os.environ.get("MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.sock")
+# Group permitted to dispatch through the broker. The agent plane runs as
+# User=mios-ai; `mios` is a member of that group, so 0660 covers both.
+SOCK_GROUP = os.environ.get("MIOS_LAUNCHER_GROUP", "mios-ai")
 
 CAPTURE_TIMEOUT_S = int(os.environ.get("MIOS_LAUNCHER_CAPTURE_TIMEOUT_S", "120") or 120)
 
@@ -171,9 +189,36 @@ def main() -> int:
 
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(SOCK_PATH)
-    os.chmod(SOCK_PATH, 0o666)
+
+    # The socket was 0666: ANY local user could dispatch arbitrary commands as the
+    # operator. The only legitimate caller is the agent plane, which runs as
+    # User=mios-ai, while this broker runs as the operator -- so the access this
+    # needs is exactly "these two", not "everyone". `mios` is a member of the
+    # mios-ai group (sysusers.d/10-mios.conf: `m mios mios-ai`), so group
+    # ownership plus 0660 grants both and no one else.
+    #
+    # This matters beyond tidiness: the agent executes model-generated code in a
+    # sandbox, and a world-writable broker socket is an unauthenticated path out
+    # of that sandbox to arbitrary execution as the operator.
+    try:
+        os.chown(SOCK_PATH, -1, grp.getgrnam(SOCK_GROUP).gr_gid)
+        os.chmod(SOCK_PATH, 0o660)
+    except (KeyError, PermissionError, OSError) as e:
+        # Fail CLOSED. A broker reachable by every local user is worse than one
+        # that does not start, and a silent fallback to 0666 would reintroduce
+        # exactly the hole this closes.
+        log.error(
+            "refusing to listen: cannot restrict %s to group %s (%s). "
+            "Create the group or run the broker as a member of it.",
+            SOCK_PATH, SOCK_GROUP, e)
+        try:
+            os.unlink(SOCK_PATH)
+        except OSError:
+            pass
+        return 1
+
     srv.listen(8)
-    log.info("listening on %s (uid=%d)", SOCK_PATH, UID)
+    log.info("listening on %s (uid=%d, group=%s, mode=0660)", SOCK_PATH, UID, SOCK_GROUP)
 
     try:
         while True:
