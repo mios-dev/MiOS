@@ -107,6 +107,11 @@ Verify: `python3 tools/check-task-schema.py` and `tools/check-agy-tasks.py`
 Anything derived from the SSOT is drift-gated (Law 8). After changing source, run
 `bash ./tools/sync-generated.sh` (~5 min) and commit what it regenerates.
 
+**Adding or deleting a tracked file is itself a change to a generated artefact.** `ROADMAP.md`
+carries a generated "Tracked files" count, so committing one new file without re-rendering
+fails CI at the very first step. `python3 tools/roadmap-index.py` is the fast path when that
+is all you changed.
+
 **The manual corpus (`usr/share/mios/reference/manual-corpus.tsv`) indexes comment blocks by
 LINE NUMBER**, across `.py`, `.rs`, `.toml` and more — but **not** `.md`. Reformatting *any*
 source file invalidates it. This has broken CI twice. Never run `cargo fmt` or a bulk edit
