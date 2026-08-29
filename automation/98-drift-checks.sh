@@ -4045,9 +4045,9 @@ check_temp_fixture_cleanup() {
     echo "[98-drift-checks]   every temp-dir fixture is removed by the test that made it"
 }
 
-# --- image variant registry declarations match build matrix targets ---
+# --- every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist ---
 check_variant_registry() {
-    echo "[98-drift-checks] image variant registry declarations match build matrix targets"
+    echo "[98-drift-checks] every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-variant-registry.py 2>&1)" || { _violations_from "check_variant_registry: " "$out"; return; }
     echo "[98-drift-checks]   every variant names a real table, edition, archetype, artifact and doc"

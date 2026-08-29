@@ -200,7 +200,7 @@
 199	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
 200	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
 201	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
-202	check_variant_registry	image variant registry declarations match build matrix targets
+202	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
 203	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
 204	check_verify_images	container image verification signatures and digests are valid
 205	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
