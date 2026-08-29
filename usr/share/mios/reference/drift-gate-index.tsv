@@ -108,7 +108,7 @@
 107	check_templates_bootstrap_sync	[templates.*] in sync between mios.toml and mios-bootstrap
 108	check_native_lint	native workspace cargo check passed
 109	check_resolver_shell_equivalence	shell resolver logic is identical to python/PS SSOT resolvers
-110	check_resolver_ps_equivalence	PowerShell resolver logic matches canonical SSOT resolver
+110	check_resolver_ps_equivalence	the PowerShell half of the resolver twin exists; its CONTENT is check_globals_generated's job
 111	check_cargo_deny	Rust workspace cargo-deny advisories, licenses, and bans pass clean
 112	check_ps_repo_parity	Law-15 mirror manifest is self-consistent and mirrored PowerShell surfaces are byte-identical
 113	check_ps_redirectors	PowerShell script entrypoint redirectors point to canonical implementation

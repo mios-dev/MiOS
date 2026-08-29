@@ -3488,11 +3488,15 @@ check_comment_lex_equivalence() {
     fi
 }
 
-# --- PowerShell resolver logic matches canonical SSOT resolver ---
+# --- the PowerShell half of the resolver twin exists; its CONTENT is check_globals_generated's job ---
 check_resolver_ps_equivalence() {
-    echo "[98-drift-checks] PowerShell resolver logic matches canonical SSOT resolver"
+    echo "[98-drift-checks] the PowerShell half of the resolver twin exists; its content is check_globals_generated's job"
+    # This tests EXISTENCE and nothing else. It used to say "present and
+    # verified" while claiming to compare resolver logic: a globals.ps1 with a
+    # port changed to 9999 passed it rc=0, and check_globals_generated caught
+    # that same plant rc=1.
     if [[ -f "$ROOT/automation/lib/globals.ps1" ]]; then
-        echo "[98-drift-checks]   globals.ps1 present and verified"
+        echo "[98-drift-checks]   globals.ps1 present (content equivalence is check_globals_generated)"
     else
         _violation "automation/lib/globals.ps1 is missing"
     fi
