@@ -260,8 +260,13 @@ def main(argv):
 
     def generate_metrics_table(root: str) -> str:
         import subprocess
-        out = subprocess.run(["git", "-C", root, "ls-files"], capture_output=True, text=True, check=False).stdout.splitlines()
-        tracked = [f for f in out if f.strip()]
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from mios_tracked import tracked as _tracked_files
+        # A git that refused used to yield file_count=0 and a metrics table of
+        # zeros. --check then reported "ROADMAP.md index is stale", which reads
+        # as an ordinary staleness and invites --apply -- and --apply would
+        # WRITE the zeros into a tracked artifact and commit them. Refuse.
+        tracked = _tracked_files(root)
         file_count = len(tracked)
 
         # Census size AND line counts from the INDEX blobs, never the checkout.
@@ -272,8 +277,14 @@ def main(argv):
         # Reading the checkout also counts a co-worker's UNCOMMITTED edits into
         # a committed table. Blobs are identical in every clean checkout of the
         # same commit, so the gate converges.
-        ls_s = subprocess.run(["git", "-C", root, "ls-files", "-s", "-z"],
-                              capture_output=True, text=True, check=False).stdout
+        _p = subprocess.run(["git", "-C", root, "ls-files", "-s", "-z"],
+                            capture_output=True, text=True, check=False)
+        if _p.returncode != 0 or not _p.stdout.strip():
+            raise RuntimeError(
+                "git ls-files -s failed in %s (exit %d): %s -- refusing to "
+                "render a metrics table from an empty census"
+                % (root, _p.returncode, (_p.stderr or "").strip() or "no output"))
+        ls_s = _p.stdout
         oid_of = {}
         for ent in ls_s.split("\0"):
             if not ent.strip():

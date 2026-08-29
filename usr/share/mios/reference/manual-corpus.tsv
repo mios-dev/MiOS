@@ -7101,7 +7101,8 @@ tools/roadmap-index.py	1	3	3	19	5f245aec9c58	STAY	ai-header		0				0
 tools/roadmap-index.py	15	15	1	2	23c73b0535ee	STAY	inline-scoped		0				0
 tools/roadmap-index.py	16	16	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 tools/roadmap-index.py	194	195	2	29	496bea7f53df	STAY	midsize-why		0				0
-tools/roadmap-index.py	267	274	8	89	ce4d50bb40a1	MIGRATE	narrative-rationale		0				0
+tools/roadmap-index.py	265	268	4	45	4cb109ff0e7b	MIGRATE	midsize-narrative		0				0
+tools/roadmap-index.py	272	279	8	89	ce4d50bb40a1	MIGRATE	narrative-rationale		0				0
 tools/rtx4090-vfio-configurator.sh	1	3	3	23	358de1637a3d	STAY	ai-header		0				0
 tools/rtx4090-vfio-configurator.sh	11	11	1	2	bd1275524ecf	DROP	banner		0				0
 tools/run-agent-pipe-tests.sh	1	2	2	12	d0354fb4fa91	STAY	ai-header		0				0
