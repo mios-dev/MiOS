@@ -4346,6 +4346,53 @@ def check_install_uninstall_symmetry() -> int:
             for name in names:
                 if not covered(name):
                     viol.append("Uninstall-MiOS.ps1 never removes %s %r (declared in mios.toml [windows.owned_artifacts].%s)" % (field[:-1].replace("_", " "), name, field))
+        # The other direction: an artifact the INSTALLER creates but nobody
+        # declared has no SSOT entry, so the uninstaller cannot be checked
+        # against it and this gate would never notice it exists.
+        import subprocess
+        CREATORS = {
+            "task_names": r"Register-ScheduledTask\b[^\n]*?-TaskName\s+[\"']([^\"']+)[\"']",
+            "service_names": r"(?:New-Service\b[^\n]*?-Name|sc\.exe\s+create)\s+[\"']?([A-Za-z0-9_.-]+)",
+            "firewall_rules": r"New-NetFirewallRule\b[^\n]*?-DisplayName\s+[\"']([^\"']+)[\"']",
+        }
+        try:
+            listed = subprocess.run(["git", "-C", root, "ls-files"],
+                                    capture_output=True, text=True, check=False).stdout
+        except OSError:
+            listed = ""
+        installers = []
+        for rel in [x.strip() for x in listed.split("\n") if x.strip()]:
+            base = os.path.basename(rel).lower()
+            if not rel.lower().endswith((".ps1", ".psm1")):
+                continue
+            if ("install" in base or base.startswith("get-mios")
+                    or "provision" in base or "bootstrap" in base):
+                installers.append(rel)
+
+        if len(installers) < 3:
+            viol.append("only %d installer-shaped script(s) found; the subject list is "
+                        "wrong, so an empty result is not a pass" % len(installers))
+        else:
+            for field, pat in CREATORS.items():
+                rx = re.compile(pat, re.I)
+                declared = {str(x).lower() for x in (owned.get(field) or [])}
+                for rel in installers:
+                    try:
+                        with open(os.path.join(root, rel), encoding="utf-8",
+                                  errors="ignore") as fh:
+                            text = fh.read()
+                    except OSError:
+                        continue
+                    for m in rx.finditer(text):
+                        name = m.group(1)
+                        if name.startswith("$"):
+                            continue          # built from a variable; undetectable
+                        if name.lower() not in declared:
+                            viol.append("%s creates %s %r which mios.toml "
+                                        "[windows.owned_artifacts].%s does not declare, so "
+                                        "the uninstaller is never checked against it"
+                                        % (rel, field[:-1].replace("_", " "), name, field))
+
     if viol:
         print("\n".join(viol))
         return 1

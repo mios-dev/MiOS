@@ -3778,10 +3778,13 @@ check_adhoc_toml_parsers() {
 # Uninstall-MiOS.ps1 learns to clean it up.
 # --- installer script side effects have exact symmetric uninstall counterparts ---
 check_install_uninstall_symmetry() {
-    echo "[98-drift-checks] installer script side effects have exact symmetric uninstall counterparts"
+    # Said "installer script side effects" while reading only the uninstaller
+    # and the SSOT list. It now also reads the installers, so both directions
+    # are real -- but only LITERAL artifact names are detectable.
+    echo "[98-drift-checks] every [windows.owned_artifacts] entry has an uninstall step, and installers create no artifact the SSOT omits"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py install-uninstall-symmetry)" || {
         _violations_from "" "$out"; return; }
-    echo "[98-drift-checks]   Uninstall-MiOS.ps1 removes every artifact in [windows.owned_artifacts]"
+    echo "[98-drift-checks]   Uninstall-MiOS.ps1 removes every declared artifact, and no installer creates an undeclared one"
 }
 
 # The Windows scripts carry last-resort port literals for the case where
