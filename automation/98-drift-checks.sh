@@ -1074,10 +1074,18 @@ check_resolver_twin_parity() {
     _need_python || return 0
     local ue="$ROOT/usr/lib/mios/userenv.sh" mt="$ROOT/usr/lib/mios/mios_toml.py"
     if [[ ! -f "$ue" || ! -f "$mt" ]]; then
-        echo "[98-drift-checks]   SOFT: a resolver is absent" >&2
-        return 0
+        _violation "a resolver is absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
-    local fix="$(mktemp -d 2>/dev/null)" || { echo "[98-drift-checks]   SOFT: mktemp failed" >&2; return 0; }
+    # `local fix="$(...)"` returns the status of `local`, not of mktemp, so this
+    # guard never fired: a failed mktemp left $fix EMPTY and the mkdir below
+    # then targeted /vendor.d at the filesystem root. Declare, then assign.
+    local fix
+    fix="$(mktemp -d 2>/dev/null)" || fix=""
+    if [[ -z "$fix" || ! -d "$fix" ]]; then
+        _violation "check_resolver_twin_parity could not create a temp fixture, so twin parity is unverified"
+        return
+    fi
     mkdir -p "$fix/vendor.d" "$fix/.config/mios"
     printf '[ai]\nendpoint = "http://vendor:1000"\nmodel = "vendor-model"\nembed_model = "vendor-embed"\n' > "$fix/vendor.toml"
     printf '[ai]\nendpoint = "http://vendor-frag:1050"\n'                                                 > "$fix/vendor.d/50-frag.toml"
@@ -1101,16 +1109,22 @@ for k in sorted(ai):
     print("MIOS_AI_" + k.upper().replace("-", "_") + "=" + str(ai[k]))
 ' 2>/dev/null | grep -E "$sel" | sort)"
     rm -rf "$fix" 2>/dev/null || true
+    # Two empty sets compare equal, and the fixture above sets endpoint,
+    # model and embed_model, so emitting nothing means BOTH resolvers are
+    # broken -- previously reported as a pass.
     if [[ -z "$bash_out" && -z "$py_out" ]]; then
-        echo "[98-drift-checks]   SOFT: resolvers produced no MIOS_AI_*" >&2
-        return 0
+        _violation "neither resolver emitted MIOS_AI_* for the layered fixture, so twin parity is unverified"
+        return
     fi
     if [[ "$bash_out" == "$py_out" ]]; then
         echo "[98-drift-checks]   resolver twin parity: userenv.sh and mios_toml.py agree on the layered MIOS_AI_* set"
     else
-        echo "[98-drift-checks]   SOFT WARNING: resolver twin-parity mismatch" >&2
+        # Was a SOFT WARNING with no _violation, so a real disagreement
+        # between the twins reported success. Law 13 requires agreement.
         echo "        userenv.sh -> $(printf '%s' "$bash_out" | tr '\n' ' ')" >&2
         echo "        mios_toml  -> $(printf '%s' "$py_out"   | tr '\n' ' ')" >&2
+        _violation "resolver twin-parity mismatch: userenv.sh and mios_toml.py disagree on the layered MIOS_AI_* set"
+        return
     fi
 }
 
@@ -1130,8 +1144,8 @@ check_template_conformance() {
     _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/check-template-conformance"
     if [[ ! -f "$tool" ]]; then
-        echo "[98-drift-checks]   SOFT: check-template-conformance not found" >&2
-        return 0
+        _violation "check-template-conformance not found -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     local errors
     if ! errors=$(MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" python3 "$tool" --root "$ROOT" 2>&1); then
@@ -2258,8 +2272,8 @@ check_oci_archive_path() {
     local producer="$ROOT/usr/libexec/mios/mios-stage-oci-archive"
 
     if [[ ! -f "$consumer" || ! -f "$producer" ]]; then
-        echo "[98-drift-checks]   oci-archive producer/consumer absent"
-        return 0
+        _violation "oci-archive producer/consumer absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
 
     local c_path p_path
@@ -2276,8 +2290,8 @@ check_oci_archive_path() {
 check_replaceme_mount_substitution() {
     local justfile="$ROOT/Justfile"
     if [[ ! -f "$justfile" ]]; then
-        echo "[98-drift-checks]   Justfile absent"
-        return 0
+        _violation "Justfile absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
 
     _need_python || return 0
@@ -2317,8 +2331,8 @@ check_kickstart_shell_syntax() {
 check_bib_rootfs_label_policy() {
     local justfile="$ROOT/Justfile"
     if [[ ! -f "$justfile" ]]; then
-        echo "[98-drift-checks]   Justfile absent"
-        return 0
+        _violation "Justfile absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
 
     _need_python || return 0
@@ -2454,8 +2468,8 @@ check_repo_partition_label_ssot() {
 check_bib_single_config_invariant() {
     local justfile="$ROOT/Justfile"
     if [[ ! -f "$justfile" ]]; then
-        echo "[98-drift-checks]   Justfile absent"
-        return 0
+        _violation "Justfile absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
 
     _need_python || return 0
@@ -2473,8 +2487,8 @@ check_build_artifacts_output_dir() {
     local justfile="$ROOT/Justfile"
 
     if [[ ! -f "$ssot" || ! -f "$justfile" ]]; then
-        echo "[98-drift-checks]   build output dir consumers absent"
-        return 0
+        _violation "build output dir consumers absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
 
     local output_dir="$(grep -A 3 '\[build\.artifacts\]' "$ssot" | grep 'output_dir' | head -1 | cut -d'"' -f2 || echo "Build")"
@@ -2497,8 +2511,8 @@ check_win11_vm_template_xml() {
     local ssot="$ROOT/usr/share/mios/mios.toml"
 
     if [[ ! -f "$xml_file" || ! -f "$ssot" ]]; then
-        echo "[98-drift-checks]   win11 VM template or SSOT absent"
-        return 0
+        _violation "win11 VM template or SSOT absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
 
     _need_python || return 0
@@ -2540,8 +2554,8 @@ check_composefs_projection() {
     local script="$ROOT/automation/77-composefs-verity.sh"
 
     if [[ ! -f "$conf" || ! -f "$script" ]]; then
-        echo "[98-drift-checks]   composefs prepare-root.conf absent"
-        return 0
+        _violation "composefs prepare-root.conf absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
 
     local tmp_dir tmp_conf

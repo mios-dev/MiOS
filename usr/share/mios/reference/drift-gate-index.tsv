@@ -46,9 +46,9 @@
 45	check_lint_is_final	all $n root Containerfile(s) end with 'RUN bootc container lint'
 46	check_firstboot_degrade_open	firstboot scripts degrade open on egress failure (Law 12)
 47	check_vendor_urls	no vendor cloud URL in active config
-48	check_resolver_twin_parity	SOFT: a resolver is absent
+48	check_resolver_twin_parity	resolver twin parity: userenv.sh and mios_toml.py agree on the layered MIOS_AI_* set
 49	check_resolver_twin_equivalence	resolver twin equivalence: userenv.sh and mios_toml.py are equivalent
-50	check_template_conformance	SOFT: check-template-conformance not found
+50	check_template_conformance	template conformance: all new files conform to templates
 51	check_kargs_projection	kargs.d managed files match the mios.toml [kargs] projection
 52	check_greenboot_enablement	greenboot services and scripts are correctly configured
 53	check_greenboot	greenboot health-coverage check
@@ -89,20 +89,20 @@
 88	check_soft_mode_not_committed	no soft-mode override committed in CI/build pipeline
 89	check_ssot_lint_equivalence	mios-ssot-lint binary absent
 90	check_gate_index	gate index in sync with main registration
-91	check_oci_archive_path	oci-archive producer/consumer absent
-92	check_replaceme_mount_substitution	Justfile absent
+91	check_oci_archive_path	oci-archive producer and consumer paths match
+92	check_replaceme_mount_substitution	BIB recipes perform credential substitution on mounted config templates
 93	check_kickstart_shell_syntax	embedded kickstart %post shell syntax verified clean with bash -n
-94	check_bib_rootfs_label_policy	Justfile absent
+94	check_bib_rootfs_label_policy	BIB recipes enforce valid
 95	check_offline_install_invariant	tools/install.sh zero-network offline-install invariant verified clean against executable code
 96	check_installer_family_roles	installer family role markers verified unique across all installers
 97	check_bib_configs_projection	BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT
 98	check_repo_partition_label_ssot	repo partition label consumers match [field.repo_partition].label SSOT
-99	check_bib_single_config_invariant	Justfile absent
-100	check_build_artifacts_output_dir	build output dir consumers absent
-101	check_win11_vm_template_xml	win11 VM template or SSOT absent
+99	check_bib_single_config_invariant	BIB recipes enforce single /config.toml mount and valid TOML syntax
+100	check_build_artifacts_output_dir	Justfile artifact recipes enforce SSOT output directory
+101	check_win11_vm_template_xml	Win11 VM template is well-formed XML and projects SSOT [vm.win11]
 102	check_ipa_enroll_projection	etc/mios/ipa-enroll.env matches [identity.ipa] SSOT
 103	check_uki_cmdline_projection	usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins
-104	check_composefs_projection	composefs prepare-root.conf absent
+104	check_composefs_projection	usr/lib/ostree/prepare-root.conf matches [security].composefs_mode SSOT
 105	check_cockpit_projection	etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT
 106	check_template_self_conformance	every template scaffolds to a self-conforming output
 107	check_templates_bootstrap_sync	[templates.*] in sync between mios.toml and mios-bootstrap
