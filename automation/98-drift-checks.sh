@@ -1523,10 +1523,10 @@ check_version_ssot() {
     done
 
     local literal_bad="" exit_code=0
-    set +e
-    literal_bad="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_CANONICAL_VER="$ssot" python3 tools/drift-checks.py version-literals-ssot 2>&1)"
-    exit_code=$?
-    set -e
+    # Was set +e / set -e around this call. The restore is unconditional, so it
+    # switched errexit back ON for every check main() dispatched afterwards,
+    # undoing main()'s accumulate mode. Capture the status directly instead.
+    literal_bad="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_CANONICAL_VER="$ssot" python3 tools/drift-checks.py version-literals-ssot 2>&1)" || exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
         bad+="$literal_bad"$'\n'
     else
@@ -3106,6 +3106,14 @@ main() {
         fi
     fi
 
+    # main() dispatches each check as a bare statement under the file's
+    # `set -euo pipefail`, and 189 checks END with _violation, which returns 1.
+    # So the first failing check aborted the whole run: of 207 dispatched
+    # checks only the first 12 ever executed, and the aggregate summary below
+    # was unreachable whenever it had anything to report. Accumulate instead;
+    # VIOLATIONS is the signal, not the exit status of the last check.
+    set +e
+
     check_gate_registry
     check_dead_lane
     check_retired_models
@@ -3316,6 +3324,8 @@ main() {
     check_temp_fixture_cleanup
     check_negatives_registered
     check_leaked_fixtures
+
+    set -e
 
     echo "[98-drift-checks]"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
