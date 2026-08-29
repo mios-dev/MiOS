@@ -16,12 +16,18 @@ HASH_COMMENT = (".conf", ".service", ".socket", ".timer", ".target", ".mount",
                 ".yaml", ".nft", ".rules")
 BAD = re.compile(r"^/\*\s*AI-(?:doc|hint|related):", re.M)
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mios_tracked import tracked, GitUnavailable  # noqa: E402
+
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
-    out = subprocess.run(["git", "-C", root, "ls-files"],
-                         capture_output=True, text=True, check=False).stdout
+    try:
+        paths = tracked(root)
+    except GitUnavailable as exc:
+        print("check-header-comment-syntax: %s" % exc, file=sys.stderr)
+        return 1
     viol = []
-    for rel in sorted(p.strip().replace(os.sep, "/") for p in out.splitlines() if p.strip()):
+    for rel in sorted(paths):
         if os.path.splitext(rel)[1] not in HASH_COMMENT:
             continue
         full = os.path.join(root, rel)

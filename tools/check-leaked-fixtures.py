@@ -31,16 +31,21 @@ ALLOWED_PATHS = frozenset({
     "root-manifest.json",
 })
 
-def _tracked(root: str) -> list:
-    out = subprocess.run(["git", "-C", root, "ls-files"],
-                         capture_output=True, text=True, check=False).stdout
-    return [p.strip().replace(os.sep, "/") for p in out.splitlines() if p.strip()]
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mios_tracked import tracked, GitUnavailable  # noqa: E402
 
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
     viol = []
 
-    for path in _tracked(root):
+    try:
+        paths = tracked(root)
+    except GitUnavailable as exc:
+        print("check-leaked-fixtures: %s" % exc, file=sys.stderr)
+        return 1
+
+    for path in paths:
         if path.endswith(BACKUP_SUFFIXES):
             viol.append(f"{path}: a backup file is tracked; a negative test left it behind")
         if path in ALLOWED_PATHS:

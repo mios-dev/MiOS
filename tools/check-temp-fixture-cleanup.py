@@ -9,15 +9,20 @@ MARKERS = ("rmtree", "TemporaryDirectory", "addCleanup", "_mkdtemp_cleaned",
            "_cleanup_fixtures")
 MAKER = "mkdtemp"
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mios_tracked import tracked, GitUnavailable  # noqa: E402
+
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
-    out = subprocess.run(["git", "-C", root, "ls-files",
-                          "tools/test_*.py", "tests/*.py",
-                          "usr/lib/mios/agent-pipe/test_*.py",
-                          "usr/libexec/mios/test_*.py"],
-                         capture_output=True, text=True, check=False).stdout
+    try:
+        paths = tracked(root, "tools/test_*.py", "tests/*.py",
+                        "usr/lib/mios/agent-pipe/test_*.py",
+                        "usr/libexec/mios/test_*.py")
+    except GitUnavailable as exc:
+        print("check-temp-fixture-cleanup: %s" % exc, file=sys.stderr)
+        return 1
     viol = []
-    for rel in sorted(p.strip().replace(os.sep, "/") for p in out.splitlines() if p.strip()):
+    for rel in sorted(paths):
         full = os.path.join(root, rel)
         try:
             s = open(full, encoding="utf-8", errors="ignore").read()
