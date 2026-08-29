@@ -77,10 +77,28 @@ def test_table_rewrite_does_not_duplicate():
         except ImportError:
             pass
 
+def test_unlistable_repo_is_not_silent_agreement():
+    """A git that cannot list files must not read as "nothing undeclared".
+
+    tracked() ran git with check=False and used only .stdout, so a refusal --
+    dubious ownership on a cross-mounted repo is the everyday one -- produced an
+    empty set, emptied the intersection, and retired the undeclared-file
+    direction while the success line stayed byte-identical.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        # not a git repository, so `git -C tmp ls-files` exits 128
+        man = {"mirror_files": ["a"], "not_mirrored": []}
+        drift = sb.unclassified_shared(tmp, tmp, man)
+        check("unlistable-repo-reports-drift", bool(drift), True)
+        joined = " ".join(drift)
+        check("names-the-cause", "did not run" in joined, True)
+
+
 def main() -> int:
     test_manifest_is_declared_in_ssot()
     test_dry_run_does_not_write()
     test_table_rewrite_does_not_duplicate()
+    test_unlistable_repo_is_not_silent_agreement()
     print(f"[test_sync-bootstrap] {PASSED} passed, {len(FAILED)} failed")
     for f in FAILED:
         print(f"  FAIL {f}")

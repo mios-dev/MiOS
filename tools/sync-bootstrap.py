@@ -112,12 +112,27 @@ def unclassified_shared(root, boot, man):
     import subprocess
 
     def tracked(r):
-        out = subprocess.run(["git", "-C", r, "ls-files"],
-                             capture_output=True, text=True, check=False).stdout
-        return {l.strip().replace(os.sep, "/") for l in out.splitlines() if l.strip()}
+        # check=False let a git that REFUSED to run -- dubious ownership on a
+        # cross-mounted repo is the everyday one -- return an empty set. That
+        # emptied `shared`, silently retiring the undeclared-file direction
+        # while the success line stayed byte-identical.
+        p = subprocess.run(["git", "-C", r, "ls-files"],
+                           capture_output=True, text=True, check=False)
+        if p.returncode != 0:
+            raise RuntimeError("git ls-files failed in %s (exit %d): %s"
+                               % (r, p.returncode, (p.stderr or "").strip()))
+        names = {l.strip().replace(os.sep, "/")
+                 for l in p.stdout.splitlines() if l.strip()}
+        if not names:
+            raise RuntimeError("git ls-files listed no tracked file in %s, so no "
+                               "undeclared shared file could be found" % r)
+        return names
 
     declared = set(man.get("mirror_files") or ()) | set(man.get("not_mirrored") or ())
-    shared = tracked(root) & tracked(boot)
+    try:
+        shared = tracked(root) & tracked(boot)
+    except RuntimeError as exc:
+        return ["the undeclared-shared-file scan did not run: %s" % exc]
     return [f"{f}: tracked in both repos but declared in neither "
             f"[bootstrap.sync].mirror_files nor .not_mirrored"
             for f in sorted(shared - declared)]
