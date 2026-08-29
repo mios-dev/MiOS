@@ -126,7 +126,7 @@
 125	check_ps_encoding_and_bom	PowerShell script files use UTF-8 encoding without byte-order marks
 126	check_unit_dependency_closure	systemd units form complete dependency closure without missing targets
 127	check_docs_ratchet	documentation coverage count meets or exceeds established ratchet floor
-128	check_header_integrity	source file AI-hint and license header blocks match template schema
+128	check_header_integrity	no AI-hint tagger has absorbed a shebang or a MIOS_* build directive from line 1
 129	check_legibility_ratchet	code legibility and complexity metrics remain within ratchet thresholds
 130	check_docs_ratchet_monotone	documentation ratchet ceilings never exceed their recorded floor (shrink-only)
 131	check_comment_lex_equivalence	comment lexing preserves semantic intent across documentation generators

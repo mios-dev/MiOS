@@ -675,11 +675,20 @@ def check_header_integrity() -> int:
     import os, re, subprocess, sys
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    # `except Exception: sys.exit(0)` reported SUCCESS when git could not
+    # answer, so the gate claimed no absorbed shebang in files it never opened.
     try:
-        rels = [p for p in subprocess.run(["git", "ls-files", "-z"], cwd=root,
-                capture_output=True, check=True).stdout.decode("utf-8", "replace").split("\0") if p]
-    except Exception:
-        sys.exit(0)
+        proc = subprocess.run(["git", "ls-files", "-z"], cwd=root,
+                              capture_output=True, check=True)
+    except Exception as exc:
+        print("header-integrity: cannot enumerate the tree (%s), so no file "
+              "header was inspected" % exc, file=sys.stderr)
+        sys.exit(1)
+    rels = [p for p in proc.stdout.decode("utf-8", "replace").split(chr(0)) if p]
+    if not rels:
+        print("header-integrity: git listed no tracked file, so no file "
+              "header was inspected", file=sys.stderr)
+        sys.exit(1)
 
     ABSORBED_SHEBANG = re.compile(r"AI-hint:\s*!")
     ABSORBED_DIRECTIVE = re.compile(r"AI-hint:\s*(?:bash|sh|python3?|pwsh|zsh)?\s*MIOS_[A-Z_]+=")

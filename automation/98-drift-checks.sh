@@ -4219,11 +4219,11 @@ check_legibility_ratchet() {
 }
 
 # Header integrity: a tagger must never absorb line 1. See AGY-1607.
-# --- source file AI-hint and license header blocks match template schema ---
+# --- no AI-hint tagger has absorbed a shebang or a MIOS_* build directive from line 1 ---
 check_header_integrity() {
-    echo "[98-drift-checks] source file AI-hint and license header blocks match template schema"
+    echo "[98-drift-checks] no AI-hint tagger has absorbed a shebang or a MIOS_* build directive from line 1"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py header-integrity)" || {
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py header-integrity 2>&1)" || {
         _violations_from "check_header_integrity: " "$out"; return; }
     echo "[98-drift-checks]   no absorbed shebangs or build directives in file headers"
 }
