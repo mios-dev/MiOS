@@ -277,6 +277,7 @@ def _load_allowlist(roots):
 
 def scan(roots):
     violations = []
+    scanned = 0
     exempt_files, exempt_patterns = _load_allowlist(roots)
     exempt_files_rx = [re.compile(pat) for pat in exempt_files]
     for root in roots:
@@ -293,6 +294,7 @@ def scan(roots):
                     continue
                 if not raw:
                     continue
+                scanned += 1
                 hr = _header_risk(raw, fn)
                 if hr:
                     violations.append((p, 0, f"HEADER: {hr}"))
@@ -338,15 +340,27 @@ def scan(roots):
                     else:
                         for ln, snip in _date_in_comment_generic(text):
                             violations.append((p, ln, f"DATE-IN-COMMENT: {snip}"))
-    return violations
+    return violations, scanned
 
 
 def main(argv):
     roots = [a for a in argv[1:] if not a.startswith('--')] or ['.']
     soft = os.environ.get('MIOS_HARDCODE_LINT_SOFT', '0') == '1'
-    v = scan(roots)
+    missing = [r for r in roots if not os.path.exists(r)]
+    if missing:
+        sys.stderr.write('[mios-hardcode-lint] FAIL: root(s) do not exist: %s\n'
+                         % ', '.join(missing))
+        return 1
+    v, scanned = scan(roots)
+    # An empty scan used to print PASS. The gate passes $ROOT in, so a wrong
+    # or empty root linted nothing and still reported clean.
+    if scanned == 0:
+        sys.stderr.write('[mios-hardcode-lint] FAIL: scanned 0 files under %s -- '
+                         'nothing was linted, so this is not a pass\n' % ', '.join(roots))
+        return 1
     if not v:
-        print('[mios-hardcode-lint] PASS: no date-in-comment/string / header crash-risk / port-IP hardcode.')
+        print('[mios-hardcode-lint] PASS: %d file(s) scanned; no date-in-comment/string '
+              '/ header crash-risk / port-IP hardcode.' % scanned)
         return 0
     for p, ln, msg in v[:60]:
         sys.stderr.write(f"    {p}:{ln}: {msg}\n")
