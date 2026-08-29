@@ -44,7 +44,7 @@
 43	check_unit_security	systemd unit security hardening options meet baseline policy
 44	check_var_closure	SOFT: mios_var_closure.py absent
 45	check_lint_is_final	all $n root Containerfile(s) end with 'RUN bootc container lint'
-46	check_firstboot_degrade_open	every *firstboot* script degrades open
+46	check_firstboot_degrade_open	firstboot scripts degrade open on egress failure (Law 12)
 47	check_vendor_urls	no vendor cloud URL in active config
 48	check_resolver_twin_parity	SOFT: a resolver is absent
 49	check_resolver_twin_equivalence	resolver twin equivalence: userenv.sh and mios_toml.py are equivalent

@@ -263,6 +263,7 @@ is generated, its generator is here.
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
 | `tools/check-deploy-formats.py` | Fails when a declared deployment format has no build target, when a build target is undeclared, or when a variant ships a format the matrix does not define. |
 | `tools/check-doc-ratchet-monotone.py` | Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values. |
+| `tools/check-firstboot-degrade-open.py` | Drift gate for Law 12 BAKE-NOT-FETCH -- firstboot scripts must degrade open on egress failure. |
 | `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
 | `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. Detected from the tree, and every one must sit in the shrink-only [blades.hazards].accepted register under a ratchet. |
 | `tools/check-header-comment-syntax.py` | Fails when an AI header uses a comment syntax the file's own format does not understand. |
@@ -338,6 +339,7 @@ is generated, its generator is here.
 | `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
 | `tools/test_check-deploy-formats.py` | Sibling test for tools/check-deploy-formats.py; proves the format matrix covers every build target and every recipe. |
 | `tools/test_check-doc-ratchet-monotone.py` | Fixtures for check-doc-ratchet-monotone.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
+| `tools/test_check-firstboot-degrade-open.py` | Sibling unit test for tools/check-firstboot-degrade-open.py. |
 | `tools/test_check-firstboot-provisioners.py` | Sibling unit test for tools/check-firstboot-provisioners.py. |
 | `tools/test_check-fleet-safety.py` | Unit tests for tools/check-fleet-safety.py -- both detectors independently, plus every way the accepted register can stop measuring. |
 | `tools/test_check-header-comment-syntax.py` | Sibling test for tools/check-header-comment-syntax.py; proves it catches a C-style header in a hash-comment format. |
@@ -382,7 +384,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 129 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 131 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

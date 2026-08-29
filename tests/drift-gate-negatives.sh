@@ -732,16 +732,35 @@ test_lint_is_final() {
 test_firstboot_degrade_open() {
     log "Testing check_firstboot_degrade_open"
     local temp_fb="${ROOT}/usr/libexec/mios/mios-fake-firstboot.sh"
-    cat << 'EOF' > "$temp_fb"
-set -e
-echo "No degrade open escape here"
-EOF
 
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_degrade_open >/dev/null 2>&1 && die "Check_firstboot_degrade_open passed despite set -e without degrade escape"
+    # The old fixture was "set -e" plus an echo and no escape token. That is
+    # not a Law 12 violation -- there is no egress to fail -- and the gate it
+    # certified only ever tested for the substring. This fixture is the real
+    # thing: an unguarded fetch reached with errexit active.
+    cat << 'EOF' > "$temp_fb"
+set -euo pipefail
+curl -sfL https://example.invalid/payload.tar -o /tmp/payload.tar
+EOF
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_degrade_open >/dev/null 2>&1         && die "check_firstboot_degrade_open passed despite an unguarded egress call under set -e"
+
+    # Regression guard for the defect itself: an unrelated "|| true" elsewhere
+    # in the file used to certify the whole script. It must not any more.
+    cat << 'EOF' > "$temp_fb"
+set -euo pipefail
+rm -f /tmp/mios-fake-stale || true
+curl -sfL https://example.invalid/payload.tar -o /tmp/payload.tar
+EOF
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_degrade_open >/dev/null 2>&1         && die "check_firstboot_degrade_open was satisfied by an unrelated '|| true' elsewhere in the file"
+
+    # Positive control: the same fetch, guarded, must pass.
+    cat << 'EOF' > "$temp_fb"
+set -euo pipefail
+curl -sfL https://example.invalid/payload.tar -o /tmp/payload.tar || true
+EOF
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_degrade_open >/dev/null 2>&1         || die "check_firstboot_degrade_open rejected a guarded egress call"
 
     rm -f "$temp_fb"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_degrade_open >/dev/null 2>&1 \
-        || die "Check_firstboot_degrade_open failed after restoration"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_degrade_open >/dev/null 2>&1         || die "check_firstboot_degrade_open failed after restoration"
     log "Test_firstboot_degrade_open negative test passed"
 }
 

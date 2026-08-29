@@ -144,10 +144,15 @@ if runner_token=$(podman exec -e HOME=/data/gitea mios-forge \
 fi
 
 if [[ -z "$runner_token" ]]; then
+    # Law 12: degrade open. set -euo pipefail is active, so without the guard
+    # a Forgejo admin API that is not up yet fails the pipeline, fails the
+    # assignment, and aborts firstboot on an egress failure. The empty-token
+    # path below already handles it, and the repo-create call above uses the
+    # same idiom (|| echo "000").
     runner_token=$(curl -sS -u "${admin_user}:${admin_password}" \
         "http://localhost:${http_port}/api/v1/admin/runners/registration-token" 2>/dev/null \
         | sed -nE 's/.*"token"\s*:\s*"([^"]+)".*/\1/p' \
-        | tr -d '[:space:]')
+        | tr -d '[:space:]') || true
     [[ -n "$runner_token" ]] && _log "minted runner token via admin API"
 fi
 

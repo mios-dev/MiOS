@@ -1022,26 +1022,14 @@ check_lint_is_final() {
     fi
 }
 
+# --- firstboot scripts degrade open on egress failure (Law 12) ---
 check_firstboot_degrade_open() {
-    local bad="" f base
-    for f in "$ROOT"/usr/libexec/mios/*firstboot*; do
-        [[ -f "$f" ]] || continue
-        case "$f" in *.pyc) continue ;; esac
-        base="$(basename "$f")"
-        if grep -qE '^[[:space:]]*set[[:space:]]+-[a-zA-Z]*e|^[[:space:]]*set[[:space:]]+-o[[:space:]]+errexit' "$f"; then
-            if grep -qE '\|\|[[:space:]]*(true|:|exit[[:space:]]+0)|set[[:space:]]+\+e|trap[[:space:]].*(EXIT|ERR)|^[[:space:]]*exit[[:space:]]+0' "$f"; then
-                : # degrade-open escape present -> ok
-            else
-                bad+="    $base: 'set -e' active with NO degrade-open escape (|| true / set +e / trap EXIT / exit 0) -- can brick boot on an egress/provision failure"$'\n'
-            fi
-        fi
-    done
-    if [[ -n "$bad" ]]; then
-        printf '%s' "$bad" >&2
-        _violation "a *firstboot* script does not degrade open (Law 12 BAKE-NOT-FETCH): 'set -e' is active with no recovery path -- guard the provision/egress steps (|| exit 0 / degrade) so a fetch failure never blocks boot"
-    else
-        echo "[98-drift-checks]   every *firstboot* script degrades open"
-    fi
+    # Was: grep the whole FILE for "|| true" (or set +e / trap / exit 0) and
+    # call that degrade-open. File-global, so one unrelated cleanup guard
+    # certified the script; all thirteen passed and the gate could not fail,
+    # while forge-firstboot.sh really did abort firstboot on an unreachable
+    # Forgejo API. The tool scopes the question to the egress calls themselves.
+    _run_py_check check_firstboot_degrade_open tools/check-firstboot-degrade-open.py
 }
 
 check_vendor_urls() {
