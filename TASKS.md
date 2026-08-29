@@ -982,6 +982,7 @@
 | T-994 | P2 | planned | Edge/AI-lanes | NODEDROID-09 -- On-device inference that does not mortgage Law 5 (NNAPI is deprecated; AICore is vendor-coupled) |
 | T-995 | P1 | planned | Edge/Security | NODEDROID-10 -- A device identity the handshake actually implements |
 | T-996 | P2 | planned | CI/Enforcement | GATE-01 -- check_no_inert_ssot_tables measures name-appearance, not consumption |
+| T-997 | P2 | planned | CI/Enforcement | GATE-02 -- check_schema_consumers shares the name-collision blind spot; a SQL-context predicate closes it |
 
 ---
 
@@ -10803,4 +10804,19 @@ The mechanism has to change. Options, in ascending cost: have the resolver recor
 **Done When:** an inert table is reported inert regardless of whether its name collides with existing text -- proved by planting two identical unused tables, one common-word and one nonsense, and observing both flagged; the clean tree still passes; and a documentation-only mention no longer counts as a consumer.
 **Why:** MiOS ships subsystems that are declared in SSOT and not wired -- the recorded doc-vs-SSOT gap. This is the gate that is supposed to catch exactly that, and it currently cannot distinguish an unwired table from a wired one whenever the name is a normal word.
 **Dep:** --
+**Status:** planned | **Domain:** CI/Enforcement | **Who:** architect
+
+## T-997 -- GATE-02: check_schema_consumers shares the name-collision blind spot  (WS-DRIFT | P2 | S)
+**Goal:** E-07 The same root cause as T-996 in a second gate: consumer detection by name search cannot distinguish a table that is used from a table whose name happens to be a common word.
+**What+How:** `tools/check-schema-consumers.py` decides liveness with `git grep -l -- <short_name>`. Its surrounding design is good and should be kept: it excludes docs, generated projections (by the renderer's marker, verified present in both globals files), and config, on the stated grounds that a register naming a table is not consuming it -- and it provides a sanctioned escape in `[schema].unconsumed`, currently holding nine entries each with a reason.
+
+The bare-name search is the weak link. Demonstrated: a dead table declared with a common-word name passed the gate, while a structurally identical dead table with a nonsense name was correctly reported as having no reader and no writer. Only the name differs.
+
+Tables are addressed in SQL position, which is far more specific than a word: `FROM x`, `INTO x`, `UPDATE x`, `JOIN x`, `DELETE FROM x`, or as a quoted string in a query builder. The predicate must allow an optional schema qualifier -- the live consumer of one table is `JOIN mios_identity.canonical_users c ON ...`, which a pattern anchored on the bare short name immediately after the keyword does not match.
+
+Do NOT land this without measuring it first. The equivalent tightening for T-996 was implemented and reverted because it changed no verdict; the same discipline applies here. The measurement is: under the candidate predicate, every declared table is either matched or already listed in `[schema].unconsumed`, and the clean tree still passes.
+**Where:** `tools/check-schema-consumers.py`, `usr/share/mios/mios.toml` (`[schema].unconsumed`), `usr/share/mios/postgres/schema-init.sql`
+**Done When:** a dead table is reported dead whether or not its name collides with existing text -- proved by planting two identical unused tables, one common-word and one nonsense, and observing both flagged; every currently declared table is matched or registered, so the clean tree still passes; and a table consumed only through a schema-qualified reference is still recognised as live.
+**Why:** New tables are exactly when this gate matters, and a new table is exactly when a name collision is most likely, because short readable names are what people choose.
+**Dep:** T-996
 **Status:** planned | **Domain:** CI/Enforcement | **Who:** architect
