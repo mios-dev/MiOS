@@ -191,18 +191,30 @@ def check_no_hardcoded_roles(data: dict, root: str) -> list:
     [blade].fallback."""
     viol = []
     names = sorted(archetypes(data))
+    # A BLADE_CODE file that is absent yet TRACKED is a deleted deliverable and
+    # must not shrink the subject list in silence. Absent and untracked is a
+    # fixture root, where skipping is correct -- so the predicate is
+    # "tracked here", not "absent".
+    import subprocess
+    tracked_here = set()
+    try:
+        _p = subprocess.run(["git", "-C", root, "ls-files", *BLADE_CODE],
+                            capture_output=True, text=True, check=False)
+        if _p.returncode == 0:
+            tracked_here = {l.strip().replace(os.sep, "/")
+                            for l in _p.stdout.splitlines() if l.strip()}
+    except OSError:
+        pass
     for rel in BLADE_CODE:
         path = os.path.join(root, rel)
         try:
             with open(path, encoding="utf-8", errors="replace") as fh:
                 lines = fh.readlines()
         except OSError as exc:
-            # All three are tracked deliverables. Skipping one silently shrinks
-            # the subject list, and skipping all three passes having read
-            # nothing.
-            viol.append("%s: blade code listed in BLADE_CODE could not be read "
-                        "(%s), so it was never checked for a restated archetype"
-                        % (rel, exc))
+            if rel in tracked_here:
+                viol.append("%s: blade code listed in BLADE_CODE is TRACKED but "
+                            "could not be read (%s), so it was never checked "
+                            "for a restated archetype" % (rel, exc))
             continue
         in_heredoc = None
         for num, line in enumerate(lines, 1):
