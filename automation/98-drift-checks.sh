@@ -579,52 +579,81 @@ check_cephfs_ssot() {
 }
 
 check_converge_ssot() {
-    local retire_alt="${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT:-false}"
+    _need_python || return 0
+
+    # Every value here used to come from ${MIOS_CONV_*:-literal}. Nothing exports
+    # MIOS_CONV_* -- not globals.sh, not run-suites.sh, not this script -- so the
+    # check validated its own hardcoded defaults on every run and never opened
+    # mios.toml at all. The defaults had already drifted from the SSOT:
+    # retire_heavy_alt is true in [converge.inference] but defaulted to false
+    # here, which permanently skipped the one assertion that inspects a real
+    # systemd unit; cold_retention_days is 90 against an asserted 30; and
+    # cold_zstd_level is 10 against an asserted 3.
+    #
+    # Read the SSOT. An env var may still override for testing, but the FALLBACK
+    # is now the SSOT value rather than a literal, so the check cannot silently
+    # grade a file it never read.
+    local toml="${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml"
+    local ssot
+    ssot="$(python3 -c '
+import sys, tomllib
+with open(sys.argv[1], "rb") as fh:
+    c = tomllib.load(fh).get("converge", {})
+inf, mem = c.get("inference", {}), c.get("memory", {})
+def emit(name, value):
+    print("%s=%s" % (name, value))
+emit("SSOT_RETIRE_ALT", str(inf.get("retire_heavy_alt", False)).lower())
+emit("SSOT_COLD_DIR", mem.get("cold_storage_dir", "/var/lib/mios/history/"))
+emit("SSOT_COLD_DAYS", mem.get("cold_retention_days", 30))
+emit("SSOT_COLD_ZSTD", mem.get("cold_zstd_level", 3))
+emit("SSOT_SQLITE_VEC", str(mem.get("sqlite_vec_enable", False)).lower())
+' "$toml" 2>&1)" || {
+        _violation "check_converge_ssot: cannot read [converge] from ${toml}: ${ssot}"
+        return
+    }
+
+    local SSOT_RETIRE_ALT SSOT_COLD_DIR SSOT_COLD_DAYS SSOT_COLD_ZSTD SSOT_SQLITE_VEC
+    eval "$ssot"
+
+    local retire_alt="${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT:-$SSOT_RETIRE_ALT}"
     if [[ "$retire_alt" == "true" ]]; then
         if command -v systemctl >/dev/null 2>&1; then
             if systemctl is-enabled mios-llm-heavy-alt.service >/dev/null 2>&1; then
-                echo "[98-drift-checks] VIOLATION: retire_heavy_alt=true but systemd unit mios-llm-heavy-alt.service is still enabled" >&2
-                VIOLATIONS=$((VIOLATIONS + 1))
-                return 1
+                _violation "[converge].retire_heavy_alt=true but mios-llm-heavy-alt.service is still enabled"
+                return
             fi
         fi
     fi
 
-    local cold_storage_dir="${MIOS_CONV_MEMORY_COLD_STORAGE_DIR:-/var/lib/mios/history/}"
+    local cold_storage_dir="${MIOS_CONV_MEMORY_COLD_STORAGE_DIR:-$SSOT_COLD_DIR}"
     if [[ "$cold_storage_dir" == *"/tenants/"* ]]; then
-        echo "[98-drift-checks] VIOLATION: cold_storage_dir cannot be inside a CephFS tenants mount path" >&2
-        VIOLATIONS=$((VIOLATIONS + 1))
-        return 1
+        _violation "[converge.memory].cold_storage_dir cannot sit inside a CephFS tenants mount: ${cold_storage_dir}"
+        return
     fi
 
-    local cold_retention_days="${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS:-30}"
-    if [[ "$cold_retention_days" -lt 1 ]]; then
-        echo "[98-drift-checks] VIOLATION: cold_retention_days must be >= 1" >&2
-        VIOLATIONS=$((VIOLATIONS + 1))
-        return 1
+    local cold_retention_days="${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS:-$SSOT_COLD_DAYS}"
+    if ! [[ "$cold_retention_days" =~ ^[0-9]+$ ]] || (( cold_retention_days < 1 )); then
+        _violation "[converge.memory].cold_retention_days must be an integer >= 1, got: ${cold_retention_days}"
+        return
     fi
 
-    local cold_zstd_level="${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL:-3}"
-    if [[ "$cold_zstd_level" -lt 1 || "$cold_zstd_level" -gt 19 ]]; then
-        echo "[98-drift-checks] VIOLATION: cold_zstd_level must be between 1 and 19" >&2
-        VIOLATIONS=$((VIOLATIONS + 1))
-        return 1
+    local cold_zstd_level="${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL:-$SSOT_COLD_ZSTD}"
+    if ! [[ "$cold_zstd_level" =~ ^[0-9]+$ ]] || (( cold_zstd_level < 1 || cold_zstd_level > 19 )); then
+        _violation "[converge.memory].cold_zstd_level must be an integer 1..19, got: ${cold_zstd_level}"
+        return
     fi
 
-    local sqlite_vec_enable="${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE:-false}"
+    local sqlite_vec_enable="${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE:-$SSOT_SQLITE_VEC}"
     if [[ "$sqlite_vec_enable" == "true" ]]; then
         local py_bin="/usr/lib/mios/agents/.venv/bin/python3"
-        if [[ ! -x "$py_bin" ]]; then
-            py_bin="python3"
-        fi
+        [[ -x "$py_bin" ]] || py_bin="python3"
         if ! "$py_bin" -c "import sqlite_vec" >/dev/null 2>&1; then
-            echo "[98-drift-checks] VIOLATION: sqlite_vec_enable=true but sqlite_vec python package is not importable" >&2
-            VIOLATIONS=$((VIOLATIONS + 1))
-            return 1
+            _violation "[converge.memory].sqlite_vec_enable=true but sqlite_vec is not importable"
+            return
         fi
     fi
 
-    echo "[98-drift-checks]   [converge] SSOT configuration is valid"
+    echo "[98-drift-checks]   [converge] SSOT values validated (retention=${cold_retention_days}d zstd=${cold_zstd_level} retire_alt=${retire_alt})"
 }
 
 check_hummingbird() {
