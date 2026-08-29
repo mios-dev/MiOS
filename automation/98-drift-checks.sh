@@ -866,12 +866,26 @@ check_dag_integrity() {
 # --- generated names registry matches source topology ---
 check_names_registry() {
     _need_python || return 0
+    # Both guards printed a bare "names registry" and returned 0, which reads
+    # exactly like a match. A single pending deletion therefore disabled the
+    # check: planted registry drift fails, and the same drift plus one deleted
+    # tracked file passes.
     if ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        echo "[98-drift-checks]   names registry"
+        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+            _violation "names registry unverifiable: $ROOT is not a git work tree"
+            return
+        fi
+        echo "[98-drift-checks]   WARNING: not a git work tree, names registry NOT verified" >&2
         return 0
     fi
-    if git -C "$ROOT" ls-files --deleted 2>/dev/null | grep -q .; then
-        echo "[98-drift-checks]   names registry"
+    local _deleted
+    _deleted="$(git -C "$ROOT" ls-files --deleted 2>/dev/null | head -3 | tr '\n' ' ')"
+    if [[ -n "$_deleted" ]]; then
+        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+            _violation "names registry unverifiable: tracked file(s) deleted from the work tree (${_deleted})"
+            return
+        fi
+        echo "[98-drift-checks]   WARNING: deleted tracked file(s) (${_deleted}) -- names registry NOT verified" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py names-registry
