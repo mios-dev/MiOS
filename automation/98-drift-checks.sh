@@ -1121,12 +1121,38 @@ check_template_conformance() {
 check_kargs_projection() {
     _need_python || return 0
 
-    local tmp_dir="$(mktemp -d)"
+    # This check used to `cp -r` the committed kargs.d into the "expected"
+    # directory and then render into that same copy, so 15 of the 17 files were
+    # diffed against copies of themselves and could only ever match. Its
+    # Extra/Missing branches were unreachable for the same reason, and the
+    # renderer's exit status was discarded, so a completely broken renderer
+    # still printed the PASS line.
+    #
+    # 75-kargs-render.sh is an in-place mutator, not a whole-directory
+    # generator: it manages exactly two files -- it rewrites 01-mios-vfio.toml
+    # when present, and writes or REMOVES 99-mios-kargs.toml depending on
+    # whether [kargs] declares custom arguments. The other 15 files are
+    # hand-maintained and are not projections of anything, so this check does
+    # not claim to verify them.
+    local managed=("01-mios-vfio.toml" "99-mios-kargs.toml")
 
-    mkdir -p "$tmp_dir"
-    cp -r "$ROOT/usr/lib/bootc/kargs.d/"* "$tmp_dir/"
+    local src="$ROOT/usr/lib/bootc/kargs.d"
+    local tmp_dir; tmp_dir="$(mktemp -d)"
+    local f base
 
-    MIOS_TOML="$ROOT/usr/share/mios/mios.toml" KARGS_DIR="$tmp_dir" bash "$ROOT/automation/75-kargs-render.sh" >/dev/null 2>&1
+    # Seed ONLY the managed files, so the renderer sees the in-place inputs it
+    # expects while every unmanaged file is absent from the comparison.
+    for base in "${managed[@]}"; do
+        [[ -f "$src/$base" ]] && cp "$src/$base" "$tmp_dir/$base"
+    done
+
+    local rc=0 out
+    out="$(MIOS_TOML="$ROOT/usr/share/mios/mios.toml" KARGS_DIR="$tmp_dir"            bash "$ROOT/automation/75-kargs-render.sh" 2>&1)" || rc=$?
+    if (( rc != 0 )); then
+        rm -rf "$tmp_dir"
+        _violation "kargs renderer automation/75-kargs-render.sh exited ${rc}: ${out}"
+        return
+    fi
 
     if ! python3 "$ROOT/automation/validate-kargs.py" "$tmp_dir" >/dev/null 2>&1; then
         rm -rf "$tmp_dir"
@@ -1135,22 +1161,19 @@ check_kargs_projection() {
     fi
 
     local diffs=""
-    local f base
-    for f in "$tmp_dir"/*.toml; do
-        [[ -f "$f" ]] || continue
-        base="$(basename "$f")"
-        if [[ ! -f "$ROOT/usr/lib/bootc/kargs.d/$base" ]]; then
-            diffs+="    Extra rendered file: $base"$'\n'
-        elif ! diff -u "$ROOT/usr/lib/bootc/kargs.d/$base" "$f" >/dev/null 2>&1; then
-            diffs+="    Content drift in $base (run automation/75-kargs-render.sh to update or align config)"$'\n'
-        fi
-    done
-
-    for f in "$ROOT/usr/lib/bootc/kargs.d"/*.toml; do
-        [[ -f "$f" ]] || continue
-        base="$(basename "$f")"
-        if [[ ! -f "$tmp_dir/$base" ]]; then
-            diffs+="    Missing rendered file: $base"$'\n'
+    for base in "${managed[@]}"; do
+        local rendered="$tmp_dir/$base" committed="$src/$base"
+        if [[ -f "$rendered" && ! -f "$committed" ]]; then
+            diffs+="    $base: the renderer produces it, but it is not committed"$'
+'
+        elif [[ ! -f "$rendered" && -f "$committed" ]]; then
+            diffs+="    $base: committed, but the renderer removes it (is [kargs] empty?)"$'
+'
+        elif [[ -f "$rendered" && -f "$committed" ]]; then
+            if ! diff -u --label "a/$base (committed)" --label "b/$base (rendered)"                     "$committed" "$rendered" >&2; then
+                diffs+="    $base: content drift -- run automation/75-kargs-render.sh"$'
+'
+            fi
         fi
     done
 
@@ -1158,9 +1181,9 @@ check_kargs_projection() {
 
     if [[ -n "$diffs" ]]; then
         printf '%s' "$diffs" >&2
-        _violation "kargs.d projection check failed. Rendered files do not match committed usr/lib/bootc/kargs.d files."
+        _violation "kargs.d projection drifted from mios.toml [kargs]"
     else
-        echo "[98-drift-checks]   kargs.d matches mios.toml [kargs] projection"
+        echo "[98-drift-checks]   kargs.d projected files (${managed[*]}) match [kargs] SSOT"
     fi
 }
 
