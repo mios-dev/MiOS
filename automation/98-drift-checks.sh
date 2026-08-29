@@ -38,7 +38,16 @@ SCAN_DIRS=(
 
 VIOLATIONS=0
 _violation() {
-    echo "[98-drift-checks] VIOLATION: $*" >&2
+    # 61 checks can reach a _violation BEFORE their header echo, and in
+    # single-check mode errexit then aborts main() -- rc=1 and total silence.
+    # Name the check here rather than editing 61 call sites.
+    local __who="" __frame
+    for __frame in "${FUNCNAME[@]}"; do
+        case "$__frame" in check_*) __who="$__frame"; break ;; esac
+    done
+    local __msg="$*"
+    [[ -n "$__who" && "$__msg" != *"$__who"* ]] && __msg="$__who: $__msg"
+    echo "[98-drift-checks] VIOLATION: $__msg" >&2
     VIOLATIONS=$((VIOLATIONS + 1))
     return 1
 }
