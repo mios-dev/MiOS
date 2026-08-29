@@ -6580,8 +6580,9 @@ tools/check-role-ssot.py	119	119	1	6	0549f83551f3	STAY	inline-scoped		0				0
 tools/check-role-ssot.py	134	135	2	26	f26a752fd3b3	STAY	midsize-why		0				0
 tools/check-role-ssot.py	159	160	2	24	7c5991ba05bd	STAY	local-scoped		0				0
 tools/check-role-ssot.py	189	191	3	23	759f2c1b72f7	STAY	midsize-why		0				0
-tools/check-role-ssot.py	203	206	4	42	e080ce806843	STAY	midsize-why		0				0
-tools/check-role-ssot.py	217	220	4	34	767ed858af45	STAY	midsize-why		0				0
+tools/check-role-ssot.py	200	202	3	20	0742283374df	STAY	midsize-why		0				0
+tools/check-role-ssot.py	209	212	4	42	e080ce806843	STAY	midsize-why		0				0
+tools/check-role-ssot.py	223	226	4	34	767ed858af45	STAY	midsize-why		0				0
 tools/check-rust-test-coverage.py	1	3	3	29	5f3832317161	STAY	ai-header		0				0
 tools/check-rust-test-coverage.py	4	13	9	83	ed048d889332	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:ed048d889332	83	0
 tools/check-rust-test-coverage.py	20	20	1	3	c4eab4cecb60	STAY	inline-scoped		0				0

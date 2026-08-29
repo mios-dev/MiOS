@@ -196,7 +196,13 @@ def check_no_hardcoded_roles(data: dict, root: str) -> list:
         try:
             with open(path, encoding="utf-8", errors="replace") as fh:
                 lines = fh.readlines()
-        except OSError:
+        except OSError as exc:
+            # All three are tracked deliverables. Skipping one silently shrinks
+            # the subject list, and skipping all three passes having read
+            # nothing.
+            viol.append("%s: blade code listed in BLADE_CODE could not be read "
+                        "(%s), so it was never checked for a restated archetype"
+                        % (rel, exc))
             continue
         in_heredoc = None
         for num, line in enumerate(lines, 1):
