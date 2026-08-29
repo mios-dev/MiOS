@@ -65,7 +65,7 @@
 64	check_ratchet_direction	shrink-only ratchet ceilings in mios.toml do not exceed HEAD
 65	check_bake_plan	bake-plan lists in sync with mios.toml [build.bake] SSOT
 66	check_bake_plan_integrity	bake-plan integrity gate verified clean
-67	check_bake_ref_defaults	all baker scripts have non-empty defaults for their bake-refs
+67	check_bake_ref_defaults	all baker scripts have non-empty defaults matching SSOT bake_refs
 68	check_roadmap_index	roadmap index in sync with frontmatter metadata
 69	check_cli_eval_safety	CLI verbs in usr/libexec/mios/ are eval-safe
 70	check_sbom_metadata	SBOM metadata manifests are structurally valid

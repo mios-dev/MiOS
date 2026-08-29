@@ -1684,8 +1684,15 @@ check_ratchet_direction() {
 }
 
 check_target_languages() {
-    if [[ ! -d "$ROOT/.git" ]] || ! command -v git >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: git missing or not a git repo" >&2
+    # `-d "$ROOT/.git"` is FALSE inside a git worktree, where .git is a FILE,
+    # so this skipped wherever gates run from a worktree. rev-parse is true for
+    # a work tree, a worktree and a bare repo, and false when git is absent.
+    if ! git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+            _violation "check_target_languages cannot run: not a git repository, or git is absent"
+            return
+        fi
+        echo "[98-drift-checks]   WARNING: not a git repo or git absent -- check_target_languages NOT verified" >&2
         return 0
     fi
     local toml="$ROOT/usr/share/mios/mios.toml"
@@ -1732,8 +1739,15 @@ check_bake_plan_integrity() {
 }
 
 check_bake_ref_defaults() {
-    if [[ ! -d "$ROOT/.git" ]] || ! command -v git >/dev/null 2>&1; then
-        echo "[98-drift-checks]   all baker scripts have non-empty defaults for their bake-refs"
+    # `-d "$ROOT/.git"` is FALSE inside a git worktree, where .git is a FILE,
+    # so this skipped wherever gates run from a worktree. rev-parse is true for
+    # a work tree, a worktree and a bare repo, and false when git is absent.
+    if ! git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+            _violation "check_bake_ref_defaults cannot run: not a git repository, or git is absent"
+            return
+        fi
+        echo "[98-drift-checks]   WARNING: not a git repo or git absent -- check_bake_ref_defaults NOT verified" >&2
         return 0
     fi
     local empty_refs="$(git grep -E 'MIOS_BUILD_BAKE_REFS_[A-Z0-9_]+:-\}' automation/ 2>/dev/null || true)"
