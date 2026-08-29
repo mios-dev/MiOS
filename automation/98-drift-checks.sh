@@ -1897,7 +1897,15 @@ for path in files:
 for u in unretried:
     print(u)
 "
-    local res="$(python3 -c "$py_script" 2>/dev/null || true)"
+    # `2>/dev/null || true` made an empty $res mean EITHER no findings OR the
+    # scanner died, and the no-findings branch is the one that ran.
+    local res rc=0
+    res="$(python3 -c "$py_script" 2>&1)" || rc=$?
+    if (( rc != 0 )); then
+        printf '%s\n' "$res" >&2
+        _violation "the curl/wget retry scanner failed to run (exit $rc), so no build script was inspected"
+        return
+    fi
     if [[ -z "$res" ]]; then
         echo "[98-drift-checks]   curl/wget build network fetches carry"
     else
