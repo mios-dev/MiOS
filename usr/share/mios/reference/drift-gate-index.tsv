@@ -149,7 +149,7 @@
 148	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
 149	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
 150	check_desktop_launchers	all mios.toml SSOT tables have active code or generator consumers
-151	check_guacamole_consistency	Guacamole remote access desktop unit definitions match SSOT services
+151	check_guacamole_consistency	every .desktop launcher matches what render-desktop.py projects from SSOT
 152	check_no_inert_ssot_tables	all mios.toml SSOT tables have active code or generator consumers
 153	check_doc_refs_resolve	file paths referenced in documentation exist in the repository
 154	check_resolver_differential_parity	differential output between resolvers across platforms is zero

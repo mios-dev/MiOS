@@ -2803,9 +2803,12 @@ check_pipe_extraction_parity() {
     fi
 }
 
-# --- Guacamole remote access desktop unit definitions match SSOT services ---
+# --- every .desktop launcher matches what render-desktop.py projects from SSOT ---
 check_guacamole_consistency() {
-    echo "[98-drift-checks] Guacamole remote access desktop unit definitions match SSOT services"
+    # Named for Guacamole and for "unit definitions"; render-desktop.py has no
+    # Guacamole-specific logic and checks all .desktop launchers, of which
+    # mios-svc-guacamole.desktop is one.
+    echo "[98-drift-checks] every .desktop launcher matches what render-desktop.py projects from SSOT"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)" || { _violations_from "check_guacamole_consistency: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
