@@ -1919,11 +1919,19 @@ for u in unretried:
 check_resolver_ssot_refs() {
     local rel="usr/libexec/mios/mios-resolve-latest"
     if [[ ! -f "$ROOT/$rel" ]]; then
-        echo "[98-drift-checks]   resolver ref derivation: $rel absent"
-        return 0
+        _violation "$rel is missing -- a tracked deliverable, so this check cannot run"
+        return
     fi
     _require_python3 || return 0
-    local res="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_REL="$rel" python3 tools/drift-checks.py resolver-ssot-refs 2>/dev/null || true)"
+    # `2>/dev/null || true` made an empty $res mean EITHER clean OR crashed, and
+    # the clean branch was the one that ran. Keep the status and the stderr.
+    local res rc=0
+    res="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_REL="$rel" python3 tools/drift-checks.py resolver-ssot-refs 2>&1)" || rc=$?
+    if (( rc != 0 )); then
+        printf '%s\n' "$res" >&2
+        _violation "resolver-ssot-refs failed to run (exit $rc), so $rel was never inspected"
+        return
+    fi
     if [[ -z "$res" ]]; then
         echo "[98-drift-checks]   mios-resolve-latest derives its refs from the SSOT"
     else
