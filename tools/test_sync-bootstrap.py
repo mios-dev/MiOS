@@ -78,13 +78,7 @@ def test_table_rewrite_does_not_duplicate():
             pass
 
 def test_unlistable_repo_is_not_silent_agreement():
-    """A git that cannot list files must not read as "nothing undeclared".
-
-    tracked() ran git with check=False and used only .stdout, so a refusal --
-    dubious ownership on a cross-mounted repo is the everyday one -- produced an
-    empty set, emptied the intersection, and retired the undeclared-file
-    direction while the success line stayed byte-identical.
-    """
+    """A git that cannot list files must not read as "nothing undeclared"."""
     with tempfile.TemporaryDirectory() as tmp:
         # not a git repository, so `git -C tmp ls-files` exits 128
         man = {"mirror_files": ["a"], "not_mirrored": []}

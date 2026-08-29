@@ -112,10 +112,8 @@ def unclassified_shared(root, boot, man):
     import subprocess
 
     def tracked(r):
-        # check=False let a git that REFUSED to run -- dubious ownership on a
-        # cross-mounted repo is the everyday one -- return an empty set. That
-        # emptied `shared`, silently retiring the undeclared-file direction
-        # while the success line stayed byte-identical.
+        # check=False let a refused git empty `shared`, retiring this
+        # direction silently. See ec94d4f3.
         p = subprocess.run(["git", "-C", r, "ls-files"],
                            capture_output=True, text=True, check=False)
         if p.returncode != 0:

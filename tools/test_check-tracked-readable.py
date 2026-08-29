@@ -2,12 +2,8 @@
 # AI-hint: Fixtures for check-tracked-readable.py -- proves it reports a tracked file removed from the worktree, and that a clean tree passes.
 # AI-related: tools/check-tracked-readable.py, tools/mios_tracked.py
 # AI-functions: main
-"""What this check must not get wrong.
-
-It exists because forty-nine gate handlers drop an unreadable file silently.
-A version of it that could not FAIL would restore exactly the blindness it was
-written to remove, so the fixture removes a tracked file and requires it to be
-named.
+"""A version of this check that could not FAIL would restore the blindness
+it was written to remove, so the fixture removes a tracked file.
 """
 from __future__ import annotations
 

@@ -262,10 +262,7 @@ def main(argv):
         import subprocess
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from mios_tracked import tracked as _tracked_files
-        # A git that refused used to yield file_count=0 and a metrics table of
-        # zeros. --check then reported "ROADMAP.md index is stale", which reads
-        # as an ordinary staleness and invites --apply -- and --apply would
-        # WRITE the zeros into a tracked artifact and commit them. Refuse.
+        # A refused git used to render zeros and invite --apply. See e32a7707.
         tracked = _tracked_files(root)
         file_count = len(tracked)
 

@@ -2,25 +2,10 @@
 # AI-hint: Fails when a tracked file cannot be read, because every corpus-scanning gate silently drops such a file and still reports clean.
 # AI-related: tools/mios_tracked.py, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh
 # AI-functions: main
-"""The one check that makes 49 silent per-file drops observable.
+"""Makes 49 silent per-file drops observable from one place.
 
-Forty-nine sites across the gate tools have the shape
-
-    try:
-        s = open(full, encoding="utf-8", errors="ignore").read()
-    except OSError:
-        continue
-
-which is correct locally -- a gate should not crash on one bad file -- but
-means an unreadable file leaves the corpus WITHOUT being examined and without
-anyone being told. Measured: deleting a tracked file from the worktree left
-check-header-comment-syntax and check-credential-literals reporting output
-byte-identical to a clean run.
-
-Patching forty-nine call sites would be forty-nine chances to get it wrong.
-They all draw their corpus from the same index, so one check over that index
-makes every one of those drops visible instead. If this passes, those handlers
-are unreachable; if it fails, it names the files they would have skipped.
+Those gates share this corpus, so a pass means their `except OSError:
+continue` handlers are unreachable. See 20cd4fdf.
 """
 from __future__ import annotations
 

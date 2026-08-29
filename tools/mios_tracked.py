@@ -4,19 +4,7 @@
 # AI-functions: tracked
 """One way to ask git what is tracked, so a refusal cannot read as "nothing".
 
-Several checks built their corpus with
-
-    subprocess.run(["git", "-C", root, "ls-files"],
-                   capture_output=True, text=True, check=False).stdout
-
-and then iterated it. `check=False` with only `.stdout` consumed means a git
-that REFUSED -- "fatal: detected dubious ownership in repository", exit 128,
-message on stderr, stdout empty -- yields an empty list. The loop body never
-runs, no violation is appended, and the check prints its success line having
-examined nothing. That is indistinguishable from a clean tree.
-
-`tracked()` raises instead, on a non-zero exit AND on an empty listing, which
-no real MiOS checkout produces.
+Raises on a non-zero exit AND on an empty listing. See f66e6efc.
 """
 from __future__ import annotations
 
