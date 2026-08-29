@@ -92,7 +92,8 @@ def structural(root, ssot, viol):
     if not os.path.isfile(jpath):
         viol.append("Justfile is missing, so nothing verifies anything")
         return
-    just = open(jpath, encoding="utf-8", errors="replace").read()
+    with open(jpath, encoding="utf-8", errors="replace") as fh:
+        just = fh.read()
 
     recipe = re.search(r"^verify-images:\n((?:[ \t]+[^\n]*\n|\n)*)", just, re.M)
     if not recipe:
@@ -155,7 +156,8 @@ def behavioural(root, viol):
         for name in sorted(FIXTURES):
             rel = FIXTURES[name][0]
             path = os.path.join(full, *rel.split("/"))
-            blob = open(path, "rb").read()
+            with open(path, "rb") as fh:
+                blob = fh.read()
             os.remove(path)
             rc, out = run_verifier(root, full)
             if rc == 0:
@@ -167,7 +169,8 @@ def behavioural(root, viol):
             _write(path, blob)
 
         corrupt = os.path.join(full, *FIXTURES["qcow2"][0].split("/"))
-        good = open(corrupt, "rb").read()
+        with open(corrupt, "rb") as fh:
+            good = fh.read()
         _write(corrupt, b"\x00" * size)
         rc, _ = run_verifier(root, full)
         if rc == 0:

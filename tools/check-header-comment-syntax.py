@@ -32,7 +32,8 @@ def main() -> int:
             continue
         full = os.path.join(root, rel)
         try:
-            s = open(full, encoding="utf-8", errors="ignore").read()
+            with open(full, encoding="utf-8", errors="ignore") as fh:
+                s = fh.read()
         except OSError:
             continue
         if BAD.search(s):

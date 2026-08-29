@@ -37,7 +37,8 @@ class TestCleanupGate(unittest.TestCase):
         for rel in (p.strip() for p in out.splitlines() if p.strip()):
             full = os.path.join(_ROOT, rel)
             try:
-                s = open(full, encoding="utf-8", errors="ignore").read()
+                with open(full, encoding="utf-8", errors="ignore") as fh:
+                    s = fh.read()
             except OSError:
                 continue
             if MOD.MAKER in s and not rel.endswith("check-temp-fixture-cleanup.py"):
