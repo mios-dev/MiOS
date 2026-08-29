@@ -3823,7 +3823,7 @@ check_adhoc_toml_parsers() {
 # [windows.owned_artifacts]; the uninstaller must remove each one. Driving the
 # check off the SSOT means adding an artifact there fails the gate until
 # Uninstall-MiOS.ps1 learns to clean it up.
-# --- installer script side effects have exact symmetric uninstall counterparts ---
+# --- every [windows.owned_artifacts] entry has an uninstall step, and installers create no artifact the SSOT omits ---
 check_install_uninstall_symmetry() {
     # Said "installer script side effects" while reading only the uninstaller
     # and the SSOT list. It now also reads the installers, so both directions
@@ -3846,7 +3846,7 @@ check_ps_port_fallback_ssot() {
     echo "[98-drift-checks]   PowerShell port fallbacks all match mios.toml [ports]"
 }
 
-# --- GitHub repository and container image slugs use canonical lowercase casing ---
+# --- the MiOS org slug is lowercase in every ghcr.io / github.com / raw-content reference ---
 check_github_slug_casing() {
     echo "[98-drift-checks] the MiOS org slug is lowercase in every pull/push reference"
     _need_python || return 0

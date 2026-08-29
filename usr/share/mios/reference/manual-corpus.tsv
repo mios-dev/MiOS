@@ -896,10 +896,10 @@ automation/98-drift-checks.sh	3776	3776	1	10	57aeb51fc6bb	STAY	inline-scoped		0	
 automation/98-drift-checks.sh	3791	3791	1	9	511886b57728	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	3799	3802	4	36	a427d2f30874	STAY	midsize-why		0				0
 automation/98-drift-checks.sh	3814	3814	1	10	a3ed28f83482	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	3822	3826	5	46	1225eea0c5d0	STAY	midsize-why		0				0
+automation/98-drift-checks.sh	3822	3826	5	52	c1b6fe9f24fc	STAY	midsize-why		0				0
 automation/98-drift-checks.sh	3828	3830	3	32	a32eb9ecbe97	STAY	midsize-why		0				0
 automation/98-drift-checks.sh	3837	3841	5	57	377bfc980f6a	STAY	midsize-why		0				0
-automation/98-drift-checks.sh	3849	3849	1	10	9a2155bc704c	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	3849	3849	1	12	77785e84fef3	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	3853	3855	3	34	7f95a8e8671b	STAY	midsize-why		0				0
 automation/98-drift-checks.sh	3869	3869	1	3	9f6c80d4d79e	STAY	inline-scoped		0				0
 automation/98-drift-checks.sh	3901	3901	1	8	8b5559104b2e	STAY	local-scoped		0				0

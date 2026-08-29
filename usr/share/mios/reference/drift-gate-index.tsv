@@ -120,9 +120,9 @@
 119	check_os_update_timer_enabled	OS update timer systemd units are enabled and properly configured
 120	check_wsl_distro_resolution	WSL distro launcher resolves target distribution without fallback ambiguity
 121	check_adhoc_toml_parsers	no ad-hoc regex/string TOML parsing used where canonical resolver exists
-122	check_install_uninstall_symmetry	installer script side effects have exact symmetric uninstall counterparts
+122	check_install_uninstall_symmetry	every [windows.owned_artifacts] entry has an uninstall step, and installers create no artifact the SSOT omits
 123	check_ps_port_fallback_ssot	PowerShell port fallback defaults equal mios.toml [ports] SSOT
-124	check_github_slug_casing	GitHub repository and container image slugs use canonical lowercase casing
+124	check_github_slug_casing	the MiOS org slug is lowercase in every ghcr.io / github.com / raw-content reference
 125	check_ps_encoding_and_bom	PowerShell script files use UTF-8 encoding without byte-order marks
 126	check_unit_dependency_closure	systemd units form complete dependency closure without missing targets
 127	check_docs_ratchet	documentation coverage count meets or exceeds established ratchet floor
