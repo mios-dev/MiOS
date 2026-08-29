@@ -3968,14 +3968,14 @@ check_manual_generated() {
 
 # --- every pruned comment still lands in a doc ---
 check_comment_landing() {
-    echo "[98-drift-checks]   check_comment_landing"
+    echo "[98-drift-checks] every pruned comment still lands in a doc"
     local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" landing --check 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 # --- the corpus ledger regenerates verbatim from the tracked tree ---
 check_manual_ledger() {
-    echo "[98-drift-checks]   check_manual_ledger"
+    echo "[98-drift-checks] the corpus ledger regenerates verbatim from the tracked tree"
     local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" ledger --check 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
@@ -3995,7 +3995,7 @@ check_credential_literals() {
 check_task_schema() {
     echo "[98-drift-checks] AGY-TASKS task descriptions conform strictly to task schema contract"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-task-schema.py 2>/dev/null)" || { _violations_from "check_task_schema: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-task-schema.py 2>&1)" || { _violations_from "check_task_schema: " "$out"; return; }
     echo "[98-drift-checks]   every AGY task carries Verify/Do-NOT and resolvable deps"
 }
 
@@ -4003,7 +4003,7 @@ check_task_schema() {
 check_negatives_registered() {
     echo "[98-drift-checks] every drift check has a corresponding negative test registered"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-negatives-registered.py 2>/dev/null)" || { _violations_from "check_negatives_registered: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-negatives-registered.py 2>&1)" || { _violations_from "check_negatives_registered: " "$out"; return; }
     echo "[98-drift-checks]   no orphaned negative tests, and the untested-check count is within its ratchet"
 }
 
@@ -4011,7 +4011,7 @@ check_negatives_registered() {
 check_temp_fixture_cleanup() {
     echo "[98-drift-checks] test suite cleans up all temporary fixtures and directories"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-temp-fixture-cleanup.py 2>/dev/null)" || { _violations_from "check_temp_fixture_cleanup: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-temp-fixture-cleanup.py 2>&1)" || { _violations_from "check_temp_fixture_cleanup: " "$out"; return; }
     echo "[98-drift-checks]   every temp-dir fixture is removed by the test that made it"
 }
 
@@ -4019,7 +4019,7 @@ check_temp_fixture_cleanup() {
 check_variant_registry() {
     echo "[98-drift-checks] image variant registry declarations match build matrix targets"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-variant-registry.py 2>/dev/null)" || { _violations_from "check_variant_registry: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-variant-registry.py 2>&1)" || { _violations_from "check_variant_registry: " "$out"; return; }
     echo "[98-drift-checks]   every variant names a real table, edition, archetype, artifact and doc"
 }
 
@@ -4043,7 +4043,7 @@ check_verify_images() {
 check_header_comment_syntax() {
     echo "[98-drift-checks] file header comments strictly conform to comment parser syntax"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-header-comment-syntax.py 2>/dev/null)" || { _violations_from "check_header_comment_syntax: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-header-comment-syntax.py 2>&1)" || { _violations_from "check_header_comment_syntax: " "$out"; return; }
     echo "[98-drift-checks]   every AI header uses the comment character its format understands"
 }
 
@@ -4051,7 +4051,7 @@ check_header_comment_syntax() {
 check_rust_test_coverage() {
     echo "[98-drift-checks] Rust crate test coverage meets or exceeds minimum threshold"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-rust-test-coverage.py 2>/dev/null)" || { _violations_from "check_rust_test_coverage: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-rust-test-coverage.py 2>&1)" || { _violations_from "check_rust_test_coverage: " "$out"; return; }
     echo "[98-drift-checks]   every Rust crate has a test or is a registered exception"
 }
 
