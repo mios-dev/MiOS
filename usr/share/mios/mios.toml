@@ -1805,7 +1805,10 @@ ip_resolve = 4
 
 
 [ai_tag]
-max_untagged = 130
+# Shrink-only, and set to the measured count so the next untagged file
+# fails the gate. At 130 against an actual 42 it had 88 files of slack
+# and could not catch a regression until 88 files had degraded.
+max_untagged = 42
 max_unconforming = 0
 
 # Hint length cap. Was hardcoded 260 in mios-ai-tag, where it also silently
