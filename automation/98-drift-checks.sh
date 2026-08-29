@@ -2193,7 +2193,13 @@ check_ssot_lint_equivalence() {
         fi
     fi
     if [[ ! -x "$bin" ]]; then
-        echo "[98-drift-checks]   mios-ssot-lint binary absent"
+        # Skipping is a pass only where tools may be missing. CI sets the
+        # no-skip switch, and there the Rust twin going unbuilt must be loud.
+        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+            _violation "mios-ssot-lint could not be built, so its equivalence to 97-ssot-lint.sh is unverified"
+            return
+        fi
+        echo "[98-drift-checks]   mios-ssot-lint binary absent" >&2
         return 0
     fi
 
@@ -2214,12 +2220,15 @@ check_ssot_lint_equivalence() {
     bash_norm="$(echo "$bash_out" | sed -E 's|/mnt/c/MiOS|/ROOT|g; s|C:\\MiOS|/ROOT|g; s|c:\\MiOS|/ROOT|g; s|\\|/|g')"
     rust_norm="$(echo "$rust_out" | sed -E 's|/mnt/c/MiOS|/ROOT|g; s|C:\\MiOS|/ROOT|g; s|c:\\MiOS|/ROOT|g; s|\\|/|g')"
 
-    if [[ "$bash_code" -ne "$rust_code" || "$bash_norm" != "$rust_norm" ]]; then
+    # The two conditions were ORed into the exit-code branch, which then
+    # returned. So the output-differs message was unreachable, and an output
+    # mismatch with matching codes reported "exit code (0) differs from ... (0)".
+    if [[ "$bash_code" -ne "$rust_code" ]]; then
         _violation "mios-ssot-lint exit code ($rust_code) differs from bash 97-ssot-lint.sh ($bash_code)"
         return
     fi
     if [[ "$bash_norm" != "$rust_norm" ]]; then
-        _violation "mios-ssot-lint output differs from bash 97-ssot-lint.sh"
+        _violation "mios-ssot-lint output differs from bash 97-ssot-lint.sh (exit codes both $bash_code)"
         return
     fi
 
