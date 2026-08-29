@@ -1,35 +1,10 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for Law 12 BAKE-NOT-FETCH -- firstboot scripts must degrade open on egress failure.
 # AI-doc: usr/share/doc/mios/manual/tools.md
-"""Gate: no firstboot script aborts on an egress failure.
+"""Gate: no firstboot script aborts on an egress failure (Law 12).
 
-The predicate this replaces asked whether the FILE contained "|| true" (or
-set +e / trap / exit 0) anywhere. That is file-global: one unrelated cleanup
-guard certified the whole script, so every one of the thirteen scripts under
-usr/libexec/mios passed and the gate could not fail. It also missed a real
-violation -- forge-firstboot.sh fetched a Forgejo runner token into an
-assignment under `set -euo pipefail` with no guard, so an admin API that was
-not up yet aborted firstboot.
-
-What is checked instead: each EGRESS call reached while errexit is active must
-have a fallback. Approximations, stated rather than hidden:
-
-  * Only a column-0 `set +e` changes the file-level errexit state. An indented
-    one is inside a function or subshell and does not exempt later top-level
-    lines (mios-hermes-firstboot has exactly that).
-  * `trap ... EXIT` is not an escape. It runs a handler on exit; it does not
-    stop errexit aborting an unguarded fetch.
-  * Physical lines are joined into logical ones, because the guard usually
-    lands after a backslash continuation or a closing paren. Paren depth is
-    clamped at zero so `case` patterns, which carry an unmatched ")", cannot
-    desynchronise the join.
-  * A fetch named inside a log/echo/printf string is documentation, not a call.
-  * `&& return` / `|| exit` count as guards: the author expressed the control
-    flow, and errexit does not fire on the left operand of a && list.
-
-Interprocedural analysis is out of scope: a helper whose body ends in
-`return 1` and that is only ever called from an `if` is safe, and is credited
-here only because its egress lines carry explicit control flow.
+Each egress call reached with errexit active must carry a fallback.
+The scoping rules are stated inline beside the patterns below.
 """
 
 import glob
@@ -41,10 +16,16 @@ EGRESS = re.compile(
     r"\b(curl|wget|podman\s+pull|skopeo\s+copy|dnf\s+(install|upgrade)|"
     r"git\s+clone|bootc\s+(switch|upgrade)|pip\s+install|hf\s+download|"
     r"huggingface-cli\s+download|rpm-ostree|flatpak\s+install)\b")
+# errexit does not fire on a condition or on the left of a && list.
 GUARD = re.compile(
     r"\|\||^\s*(if|while|until|elif)\s|&&\s*(true|:|return|exit)|\|\|\s*(return|exit)")
+# Column-0 only: an indented 'set +e' is inside a function or subshell
+# and must not exempt later top-level lines.
 SETE = re.compile(r"^set\s+-[a-zA-Z]*e|^set\s+-o\s+errexit")
+# 'trap ... EXIT' is deliberately NOT an escape: it runs a handler, it does
+# not stop errexit aborting an unguarded fetch.
 SETPE = re.compile(r"^set\s+\+[a-zA-Z]*e|^set\s+\+o\s+errexit")
+# A fetch named inside a log/echo string is documentation, not a call.
 NARRATION = re.compile(r"^\s*(_?log\w*|echo|printf|cat|#)\b")
 
 SCAN_GLOBS = ("usr/libexec/mios/*firstboot*", "automation/firstboot/*.sh")
@@ -52,7 +33,11 @@ SKIP_SUFFIXES = (".pyc", ".bak", ".keep", ".orig", ".rej")
 
 
 def logical_lines(lines):
-    """Join continuations and parenthesised runs into one logical line each."""
+    """Join continuations and parenthesised runs into one logical line each.
+
+    The guard usually lands after a continuation or a closing paren, so a
+    physical scan reports guarded calls as unguarded.
+    """
     out, buf, start, depth = [], "", None, 0
     for num, line in enumerate(lines, 1):
         if start is None:

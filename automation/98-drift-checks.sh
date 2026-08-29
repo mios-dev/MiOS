@@ -1989,12 +1989,9 @@ check_metal_vfio() {
         return
     fi
 
-    # This check used to assert only that the substring MIOS_METAL_ENABLED=
-    # appeared in the generator's output -- a literal its heredoc emits
-    # UNCONDITIONALLY -- while `|| true` discarded the exit status. Every
-    # projected value could be wrong, or the generator could fail outright, and
-    # it still returned 0. Compare each emitted value against the SSOT instead,
-    # and let a non-zero generator exit be a violation.
+    # Asserted only that MIOS_METAL_ENABLED= appeared in the output -- a
+    # literal the heredoc emits unconditionally -- with `|| true` discarding
+    # the status. Compare each emitted value against the SSOT instead.
     local out rc=0
     out="$("$gen" "$toml" 2>&1)" || rc=$?
     if (( rc != 0 )); then
@@ -3432,12 +3429,9 @@ check_ps_repo_parity() {
     _need_python || return 0
     local before=$VIOLATIONS
 
-    # This gate resolved the sibling from MIOS_BOOTSTRAP_DIR. Nothing sets that
-    # name: both CI workflows export MIOS_BOOTSTRAP_ROOT and clone into
-    # RUNNER_TEMP, and tools/{drift-checks,sync-bootstrap}.py plus
-    # tests/drift-gate-negatives.sh all read MIOS_BOOTSTRAP_ROOT. So the
-    # fallback ../mios-bootstrap was used on every CI run, never existed on a
-    # runner, and the check took its "skipping" branch and returned 0 -- always.
+    # Resolved the sibling from MIOS_BOOTSTRAP_DIR, which nothing sets: CI
+    # exports MIOS_BOOTSTRAP_ROOT and clones into RUNNER_TEMP, so the
+    # ../mios-bootstrap fallback never existed there and this skipped.
     local sibling_dir="" cand
     for cand in "${MIOS_BOOTSTRAP_ROOT:-}" "${MIOS_BOOTSTRAP_DIR:-}"; do
         if [[ -n "$cand" && -d "$cand" ]]; then sibling_dir="$cand"; break; fi
@@ -3469,14 +3463,9 @@ print(p)
         return
     fi
 
-    # The file list was a hardcoded four-entry array duplicating -- and drifted
-    # from -- mios.toml [bootstrap.sync]. Three entries were already covered by
-    # check_bootstrap_sync; the fourth is absent from the sibling and was
-    # silently skipped by the "-f both" guard, so this gate had no coverage of
-    # its own. Drive it from the SSOT, and add the one manifest property
-    # sync-bootstrap.py structurally cannot see: it unions mirror_files with
-    # not_mirrored before auditing, so a file declared in BOTH lists -- a
-    # contradiction about whether it may diverge -- is invisible to it.
+    # Driven from [bootstrap.sync]; the old hardcoded list had drifted from it.
+    # Asserts what sync-bootstrap.py cannot: it unions mirror_files with
+    # not_mirrored, so a file declared in BOTH is invisible to it.
     local report rc=0
     report="$(cd "$ROOT" && python3 - "$ROOT" "$sibling_dir" <<'PY'
 import hashlib, os, sys, tomllib
