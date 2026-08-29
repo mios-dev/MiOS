@@ -981,6 +981,7 @@
 | T-993 | P1 | planned | Edge/Android | NODEDROID-08 -- Survive Android process lifecycle (phantom process killer) or admit the node is unreliable |
 | T-994 | P2 | planned | Edge/AI-lanes | NODEDROID-09 -- On-device inference that does not mortgage Law 5 (NNAPI is deprecated; AICore is vendor-coupled) |
 | T-995 | P1 | planned | Edge/Security | NODEDROID-10 -- A device identity the handshake actually implements |
+| T-996 | P2 | planned | CI/Enforcement | GATE-01 -- check_no_inert_ssot_tables measures name-appearance, not consumption |
 
 ---
 
@@ -10788,3 +10789,18 @@ The handset is the least physically-controlled member of the fleet: it leaves th
 **Why:** The docstring is a claim the code does not support -- the same defect class as the decorative keys T-333 found, and here it is load-bearing for who is allowed into the fleet.
 **Dep:** T-978
 **Status:** planned | **Domain:** Edge/Security | **Who:** architect
+
+## T-996 -- GATE-01: check_no_inert_ssot_tables measures name-appearance, not consumption  (WS-DRIFT | P2 | M)
+**Goal:** E-07 A gate that certifies every SSOT table has a consumer, while actually testing whether the table's name appears as a word somewhere, cannot detect the thing it exists for: config declared and never wired.
+**What+How:** `check_no_inert_ssot_tables` is described as "all mios.toml SSOT tables have active code or generator consumers". `tools/drift-checks.py check_no_inert_ssot_tables` compiles, per top-level table, a pattern of the bare table name, the name in square brackets, or an `MIOS_<NAME>` prefix, and searches every tracked `.py`, `.sh`, `.ps1` and `.md` file. Two consequences follow. A table whose name is an ordinary English word is satisfied by any prose or identifier that happens to contain it. And a mention in documentation counts as a "code or generator consumer", which is what the check is named for.
+
+Demonstrated: two structurally identical inert tables were appended to `mios.toml`, each with one unused key and no consumer anywhere. The one named after a common word passed; the one with a nonsense name was reported inert. The predicate is name-appearance, and the tables differ only in whether their name collides with existing text.
+
+Tightening the text predicate does NOT fix this and was tried and reverted: restricting the search to code files and requiring the name to appear quoted, bracketed, or as an `MIOS_<NAME>` env prefix changes no verdict on the current tree -- all 158 tables satisfy the strict form, zero are documentation-only, and the common-word plant still passes because the word occurs as a quoted string elsewhere. A text search over sources cannot express "is read at runtime".
+
+The mechanism has to change. Options, in ascending cost: have the resolver record which tables it reads (`usr/lib/mios/mios_toml.py` already centralises access, so instrumenting `section()` yields the true consumed set); or require each top-level table to be named by a generator or consumer manifest, which makes the relationship declared rather than inferred. Either produces a set that can be compared against `mios.toml`'s tables without guessing from text.
+**Where:** `tools/drift-checks.py` (`check_no_inert_ssot_tables`), `automation/98-drift-checks.sh`, `usr/lib/mios/mios_toml.py`, `usr/share/mios/mios.toml`
+**Done When:** an inert table is reported inert regardless of whether its name collides with existing text -- proved by planting two identical unused tables, one common-word and one nonsense, and observing both flagged; the clean tree still passes; and a documentation-only mention no longer counts as a consumer.
+**Why:** MiOS ships subsystems that are declared in SSOT and not wired -- the recorded doc-vs-SSOT gap. This is the gate that is supposed to catch exactly that, and it currently cannot distinguish an unwired table from a wired one whenever the name is a normal word.
+**Dep:** --
+**Status:** planned | **Domain:** CI/Enforcement | **Who:** architect
