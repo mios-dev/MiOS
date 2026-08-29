@@ -2816,7 +2816,11 @@ def check_agent_pipe_budgets() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_agent_pipe_budgets: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(toml_path, "rb") as f:
         data = tomllib.load(f)
@@ -2933,7 +2937,11 @@ def check_canonical_bools() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.environ.get("MIOS_TOML", os.path.join(root, "usr/share/mios/mios.toml"))
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_canonical_bools: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
     with open(toml_path, "rb") as f:
         data = tomllib.load(f)
 
@@ -3109,7 +3117,11 @@ def check_bake_refs_parity() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_bake_refs_parity: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(toml_path, "rb") as f:
         data = tomllib.load(f)
@@ -3272,7 +3284,11 @@ def check_greenboot() -> int:
     gb_dir = os.environ.get("MIOS_DRIFT_GB_DIR", os.path.join(root, "usr/lib/greenboot/check/required.d"))
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_greenboot: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
     with open(toml_path, "rb") as fh:
         data = _toml.load(fh)
     gb = data.get("greenboot") or {}
@@ -3382,7 +3398,11 @@ def check_council_gate_ssot() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_council_gate_ssot: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(toml_path, "rb") as f:
         data = tomllib.load(f)
@@ -3589,7 +3609,11 @@ def check_smoke_manifest() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_smoke_manifest: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(toml_path, "rb") as f:
         data = tomllib.load(f)
@@ -3622,7 +3646,11 @@ def check_negative_coverage() -> int:
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 
     if not (os.path.isfile(checks_sh) and os.path.isfile(negatives_sh) and os.path.isfile(toml_path)):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_negative_coverage: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(toml_path, "rb") as f:
         data = tomllib.load(f)
@@ -3655,7 +3683,11 @@ def check_law_enforcers() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_law_enforcers: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(toml_path, "rb") as f:
         data = tomllib.load(f)
@@ -3747,7 +3779,11 @@ def check_projection_registry() -> int:
     drift_script = os.path.join(root, "automation/98-drift-checks.sh")
 
     if not (os.path.isfile(toml_path) and os.path.isfile(drift_script)):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_projection_registry: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(drift_script, "r", encoding="utf-8") as f:
         drift_code = f.read()
@@ -3967,7 +4003,11 @@ def check_v2v_import_ssot() -> int:
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 
     if not (os.path.isfile(wrapper) and os.path.isfile(toml_path)):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_v2v_import_ssot: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(wrapper, "r", encoding="utf-8") as f:
         wcode = f.read()
@@ -4130,7 +4170,11 @@ def check_skip_list_covered() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_skip_list_covered: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     viol = []
     with open(toml_path, "rb") as fh:
@@ -4413,7 +4457,11 @@ def check_ps_port_fallback_ssot() -> int:
     import tomllib as _toml
 
     if not os.path.isfile(os.path.join(root, "usr/share/mios/mios.toml")):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_ps_port_fallback_ssot: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
         ports = _toml.load(fh).get("ports", {}) or {}
@@ -4770,7 +4818,11 @@ def check_doc_port_scheme() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_doc_port_scheme: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
 
     with open(toml_path, "rb") as fh:
         docs = tomllib.load(fh).get("docs", {}) or {}
@@ -4815,7 +4867,11 @@ def check_blade_reconcile_schema() -> int:
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     sql_path = os.path.join(root, "usr/share/mios/postgres/schema-init.sql")
     if not os.path.isfile(toml_path):
-        return 0
+        # A tracked deliverable. Its absence is the anomaly, not a
+        # reason to report success.
+        print('check_blade_reconcile_schema: a required SSOT file is missing, so nothing was'
+              ' compared', file=sys.stderr)
+        return 1
     with open(toml_path, "rb") as fh:
         data = tomllib.load(fh)
 
