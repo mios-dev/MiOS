@@ -30,7 +30,7 @@
 29	check_no_bare_port_literals	no bare port literals remain in execution paths
 30	check_dotfiles_projection	every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT
 31	check_verb_backends	every [verbs.*].cmd mios-* backend resolves on disk
-32	check_userenv_parity	userenv.sh parity
+32	check_userenv_parity	usr/lib/mios/userenv.sh matches authoritative tools/lib/userenv.sh
 33	check_globals_ports	globals port declarations match mios.toml [ports] SSOT
 34	check_globals_image_parity	default image references in globals.{sh,ps1} equal mios.toml [image] SSOT
 35	check_dag_integrity	DAG-integrity: consumers start after their producers' readiness artifacts exist

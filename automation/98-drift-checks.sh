@@ -802,9 +802,15 @@ check_dotfiles_projection() {
 
 check_userenv_parity() {
     local src="$ROOT/tools/lib/userenv.sh" dst="$ROOT/usr/lib/mios/userenv.sh"
-    if [[ ! -f "$src" || ! -f "$dst" ]]; then
-        echo "[98-drift-checks]   userenv.sh parity"
-        return 0
+    # Both twins are tracked repo files, so absence is a defect, never a skip.
+    # This printed a pass-shaped line and returned 0, so deleting the shipped
+    # copy read exactly like parity.
+    local missing=""
+    [[ -f "$src" ]] || missing+=" tools/lib/userenv.sh"
+    [[ -f "$dst" ]] || missing+=" usr/lib/mios/userenv.sh"
+    if [[ -n "$missing" ]]; then
+        _violation "userenv.sh twin missing, so parity is unverifiable:${missing}"
+        return
     fi
     if diff -q "$src" "$dst" >/dev/null 2>&1; then
         echo "[98-drift-checks]   usr/lib/mios/userenv.sh matches authoritative tools/lib/userenv.sh"
