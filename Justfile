@@ -15,7 +15,7 @@ __EOF__
 esac
 true'`
 
-MIOS_REGISTRY_DEFAULT := "ghcr.io/MiOS-DEV/mios" # @verb:GET_REGISTRY
+MIOS_REGISTRY_DEFAULT := "ghcr.io/mios-dev/mios" # @verb:GET_REGISTRY
 IMAGE_NAME := env_var_or_default("MIOS_IMAGE_NAME", MIOS_REGISTRY_DEFAULT) # @verb:GET_IMAGE
 MIOS_VAR_VERSION := "v0.3.0" # @verb:GET_VERSION
 VERSION := `cat VERSION 2>/dev/null || echo {{MIOS_VAR_VERSION}}`
