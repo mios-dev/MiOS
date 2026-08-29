@@ -42,11 +42,16 @@ def collect(root: str) -> list:
     if not os.path.isdir(d):
         return []
     rows = []
+    malformed = []
     for fn in sorted(os.listdir(d)):
         if not (fn.endswith(".md") and fn[:1].isdigit()):
             continue
         fm = parse_front_matter(os.path.join(d, fn))
         if not fm.get("adr"):
+            # Recorded, not swallowed: a digit-prefixed ADR without `adr:`
+            # front-matter can never reach the index, so the index would still
+            # "match" while a committed ADR sits unlisted.
+            malformed.append(fn)
             continue
         rows.append({
             "file": fn,
@@ -57,6 +62,7 @@ def collect(root: str) -> list:
             "laws": fm.get("laws") or [],
             "ssot": fm.get("ssot_keys") or [],
         })
+    collect.malformed = malformed
     return rows
 
 def render(rows: list) -> str:
@@ -155,6 +161,13 @@ def main() -> int:
             "cannot be verified (directory missing/renamed/empty, or the `adr:` "
             "front-matter key no longer parses)",
             file=sys.stderr)
+        return 1
+    malformed = getattr(collect, "malformed", [])
+    if malformed:
+        for fn in malformed:
+            print("VIOLATION: %s/%s has no `adr:` front-matter, so it can never "
+                  "appear in %s -- add the front-matter or rename the file"
+                  % (ADR_DIR, fn, OUT), file=sys.stderr)
         return 1
     body = render(rows)
     path = os.path.join(root, OUT)
