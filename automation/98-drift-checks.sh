@@ -232,8 +232,8 @@ check_hint_coverage() {
 check_module_boundary() {
     local dir="$ROOT/usr/lib/mios/agent-pipe"
     if [[ ! -d "$dir" ]]; then
-        echo "[98-drift-checks]   agent-pipe dir absent"
-        return 0
+        _violation "agent-pipe dir absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     local hits="" f active
     while IFS= read -r f; do
@@ -332,8 +332,8 @@ else:
 check_cli_sql_safety() {
     local dir="$ROOT/usr/libexec/mios"
     if [[ ! -d "$dir" ]]; then
-        echo "[98-drift-checks]   libexec dir absent"
-        return 0
+        _violation "libexec dir absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     local allow=" "   # empty: all libexec tools cut over to parameterized pg
     local pattern='(_pgesc\(|_pgq\(|post_sql\(|def _sql\(|/sql"|surreal-ns)'
@@ -359,8 +359,8 @@ check_cli_sql_safety() {
 check_module_test_coverage() {
     local dir="$ROOT/usr/lib/mios/agent-pipe"
     if [[ ! -d "$dir" ]]; then
-        echo "[98-drift-checks]   agent-pipe dir absent"
-        return 0
+        _violation "agent-pipe dir absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     local missing="" f base mod_name
     while IFS= read -r f; do
@@ -405,8 +405,8 @@ check_module_test_coverage() {
 check_raw_toml_readers() {
     local dir="$ROOT/usr/lib/mios/agent-pipe"
     if [[ ! -d "$dir" ]]; then
-        echo "[98-drift-checks]   raw TOML readers"
-        return 0
+        _violation "raw TOML readers -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     local violations="" f base
     while IFS= read -r f; do
@@ -948,8 +948,8 @@ _privileged_quadlet_array() {
 check_quadlet_privilege() {
     local toml="$ROOT/usr/share/mios/mios.toml"
     if [[ ! -f "$toml" ]]; then
-        echo "[98-drift-checks]   mios.toml absent"
-        return 0
+        _violation "mios.toml absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     local root_allow ngd_allow
     root_allow="$(_privileged_quadlet_array "$toml" root)"
@@ -993,8 +993,8 @@ check_var_closure() {
     local tool="$ROOT/automation/lib/mios_var_closure.py"
     _need_python || return 0
     if [[ ! -f "$tool" ]]; then
-        echo "[98-drift-checks]   SOFT: mios_var_closure.py absent" >&2
-        return 0
+        _violation "mios_var_closure.py absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     if MIOS_ROOT="$ROOT" python3 "$tool" >/dev/null 2>"$ROOT/.varclosure.err"; then
         rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
@@ -1734,8 +1734,8 @@ check_bake_ref_defaults() {
 check_roadmap_index() {
     _need_python || return 0
     if [[ ! -f "$ROOT/ROADMAP.md" ]]; then
-        echo "[98-drift-checks]   ROADMAP.md not found"
-        return 0
+        _violation "ROADMAP.md not found -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     if python3 "$ROOT/tools/roadmap-index.py" --check; then
         echo "[98-drift-checks]   roadmap index in sync with frontmatter metadata"
@@ -2847,8 +2847,8 @@ check_module_length() {
 check_vendored_assets_non_stub() {
     local vdir="$ROOT/usr/share/mios/vendored"
     if [[ ! -d "$vdir" ]]; then
-        echo "[98-drift-checks]   vendored assets dir absent"
-        return 0
+        _violation "vendored assets dir absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     local stubs="" f sz
     while IFS= read -r f; do

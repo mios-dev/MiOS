@@ -4,14 +4,14 @@
 3	check_retired_models	no retired model-id in consumer config
 4	check_structured	every [nodes.local-*] localhost lane is served; ai/v1 manifests parse + refs resolve
 5	check_hint_coverage	AI-hint coverage within ratchet ceiling
-6	check_module_boundary	agent-pipe dir absent
+6	check_module_boundary	agent-pipe sibling modules are server.py-free
 7	check_rbac_tiers	RBAC max_permission tiers all valid
 8	check_agent_schema	agent-schema contract satisfied
 9	check_ai_manifest	ai/v1 verb-catalog manifest in sync with mios.toml SSOT
 10	check_package_registry	package registry dormant
-11	check_cli_sql_safety	libexec dir absent
-12	check_module_test_coverage	agent-pipe dir absent
-13	check_raw_toml_readers	raw TOML readers
+11	check_cli_sql_safety	libexec CLIs SQL-safe
+12	check_module_test_coverage	every agent-pipe mios_*.py and mios_pipe submodule has a sibling unit test
+13	check_raw_toml_readers	no raw MIOS_TOML readers in agent-pipe
 14	check_capability_manifest	ai/v1 capability manifest in sync with mios.toml SSOT
 15	check_surface_parity	server.py public surface matches the committed golden
 16	check_no_hardcode	no date-in-comment / header crash-risk
@@ -40,9 +40,9 @@
 39	check_canonical_bools	no non-canonical bool literals in [verbs.*]
 40	check_etc_duplicates	no etc/ full-unit duplicate shadows generated usr/share/ containers
 41	check_no_mkdir_in_var	no imperative /var mkdir in numbered automation/Containerfiles
-42	check_quadlet_privilege	mios.toml absent
+42	check_quadlet_privilege	every Quadlet declares User=; root only where allowlisted; Group=/Delegate=yes present
 43	check_unit_security	systemd unit security hardening options meet baseline policy
-44	check_var_closure	SOFT: mios_var_closure.py absent
+44	check_var_closure	MIOS_* referenced-set is a subset of emitted-set
 45	check_lint_is_final	all $n root Containerfile(s) end with 'RUN bootc container lint'
 46	check_firstboot_degrade_open	firstboot scripts degrade open on egress failure (Law 12)
 47	check_vendor_urls	no vendor cloud URL in active config
@@ -66,7 +66,7 @@
 65	check_bake_plan	bake-plan lists in sync with mios.toml [build.bake] SSOT
 66	check_bake_plan_integrity	bake-plan integrity gate verified clean
 67	check_bake_ref_defaults	all baker scripts have non-empty defaults for their bake-refs
-68	check_roadmap_index	ROADMAP.md not found
+68	check_roadmap_index	roadmap index in sync with frontmatter metadata
 69	check_cli_eval_safety	CLI verbs in usr/libexec/mios/ are eval-safe
 70	check_sbom_metadata	SBOM metadata manifests are structurally valid
 71	check_hyprland_conf_heredoc	Hyprland configuration template is in sync with baker script heredoc
@@ -182,7 +182,7 @@
 181	check_ssot_consumer_keys	all mios.toml SSOT tables have active code or generator consumers
 182	check_fleet_safety	all mios.toml SSOT tables have active code or generator consumers
 183	check_adr_index	ADR architecture decision record index matches committed ADR files
-184	check_vendored_assets_non_stub	vendored assets dir absent
+184	check_vendored_assets_non_stub	vendored assets are non-stub
 185	check_resolved_env_lossless	resolved environment is lossless
 186	check_no_duplicate_value_key	value-duplication within the recorded ratchet ceiling
 187	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
