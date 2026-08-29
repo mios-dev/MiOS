@@ -271,7 +271,7 @@ is generated, its generator is here.
 | `tools/check-manual-links.py` | Link-integrity gate for the shipped docs. |
 | `tools/check-mios-toml-integrity.py` | Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682). |
 | `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). |
-| `tools/check-negatives-registered.py` | Fails when a negative test is defined in the harness but never invoked by it. |
+| `tools/check-negatives-registered.py` | Fails on an orphaned negative test, and ratchets the drift checks that have no negative test at all. |
 | `tools/check-no-generated-prose-in-resolvers.py` | Drift check 157 check_no_generated_prose_in_resolvers -- asserts zero AI-hint: and zero MIOS_UNITS_*_COMMENT= in globals.sh/ps1. |
 | `tools/check-node-pool.py` | Drift gate for the fan-out pool. [nodes.*] is dispatched by capacity behind per-lane and per-endpoint semaphores, so a node that repeats another... |
 | `tools/check-port-fallbacks.py` | Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. |

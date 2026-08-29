@@ -11047,6 +11047,10 @@ runners = ["tests/run-suites.sh"]
 # Shrink-only. A negative test that leaves its injected fixture behind ships the
 # mutation; three reached this file in one session and turned five suites red.
 max_leaked_fixtures = 0
+# Shrink-only. check_negatives_registered has always CLAIMED that every
+# drift check has a negative test; it only detected orphans. This is the
+# measured gap it never enforced: write a test, lower the number.
+max_checks_without_negative = 48
 
 [ci.python]
 # Installed on a runner before the unit tier.

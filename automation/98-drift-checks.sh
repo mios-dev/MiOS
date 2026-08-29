@@ -3949,7 +3949,7 @@ check_negatives_registered() {
     echo "[98-drift-checks] every drift check has a corresponding negative test registered"
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-negatives-registered.py 2>/dev/null)" || { _violations_from "check_negatives_registered: " "$out"; return; }
-    echo "[98-drift-checks]   every negative test the harness defines is invoked by it"
+    echo "[98-drift-checks]   no orphaned negative tests, and the untested-check count is within its ratchet"
 }
 
 # --- test suite cleans up all temporary fixtures and directories ---
