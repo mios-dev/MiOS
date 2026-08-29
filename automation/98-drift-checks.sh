@@ -963,9 +963,23 @@ check_no_mkdir_in_var() {
 }
 
 _privileged_quadlet_array() {
-    sed -n '/^\[security\.privileged_quadlets\]/,/^\[/p' "$1" 2>/dev/null \
-        | sed -n "/^$2[[:space:]]*=[[:space:]]*\[/,/^]/p" \
-        | grep -oE '"[^"]+\.container"' | tr -d '"'
+    # The sed form treated `key = []` as an array OPENING, found no line
+    # starting with `]` to close the range, and ran to EOF.
+    awk -v key="$2" '
+        /^\[/ { insec = ($0 ~ /^\[security\.privileged_quadlets\]/); next }
+        !insec { next }
+        !inarr {
+            if ($0 ~ "^" key "[[:space:]]*=[[:space:]]*[[]") {
+                line = $0
+                sub("^" key "[[:space:]]*=[[:space:]]*[[]", "", line)
+                if (line ~ /\]/) { sub(/\].*$/, "", line); print line; next }
+                inarr = 1; print line
+            }
+            next
+        }
+        /^[[:space:]]*\]/ { inarr = 0; next }
+        { print }
+    ' "$1" 2>/dev/null | grep -oE '"[^"]+\.container"' | tr -d '"'
 }
 
 check_quadlet_privilege() {
@@ -977,9 +991,12 @@ check_quadlet_privilege() {
     local root_allow ngd_allow
     root_allow="$(_privileged_quadlet_array "$toml" root)"
     ngd_allow="$(_privileged_quadlet_array "$toml" no_group_delegate)"
-    if [[ -z "$root_allow" ]]; then
-        echo "[98-drift-checks]   WARNING: [security.privileged_quadlets].root empty/unreadable" >&2
-        return 0
+    # An empty allowlist is a LEGAL policy (no Quadlet may run as root) and the
+    # check must then flag every root Quadlet rather than stand down. A missing
+    # SECTION is SSOT damage in a tracked deliverable, which is not a skip.
+    if ! grep -q '^\[security\.privileged_quadlets\]' "$toml"; then
+        _violation "[security.privileged_quadlets] is absent from mios.toml, so Law 6 could not be evaluated against any allowlist"
+        return
     fi
     local bad="" f base user
     for d in "$ROOT/usr/share/containers/systemd" "$ROOT/etc/containers/systemd"; do
