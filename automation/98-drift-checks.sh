@@ -2702,7 +2702,16 @@ check_pipe_boundaries() {
         _violation "pipe-boundaries.manifest.json is missing"
         return 0
     fi
-    echo "[98-drift-checks]   pipe-boundaries.manifest.json is up-to-date"
+    # Existence is not freshness. Regenerate and diff via the generator's own
+    # --check, which is what "up-to-date" was asserting without ever testing.
+    local out rc=0
+    out="$(cd "$ROOT" && python3 tools/gen-pipe-boundary-manifest.py --check 2>&1)" || rc=$?
+    if (( rc != 0 )); then
+        printf '%s\n' "$out" >&2
+        _violation "pipe-boundaries.manifest.json is stale -- run tools/gen-pipe-boundary-manifest.py"
+        return
+    fi
+    echo "[98-drift-checks]   pipe-boundaries.manifest.json matches the agent-pipe tree"
 }
 
 check_vllm_name_canonical() {

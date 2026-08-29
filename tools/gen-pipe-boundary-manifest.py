@@ -43,12 +43,37 @@ def main():
                     except Exception as e:
                         print(f"WARN: Failed to parse {rel_path}: {e}", file=sys.stderr)
 
+    rendered = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+
+    # --check regenerates and DIFFS rather than writing. Without it the gate had
+    # nothing to compare against: check_pipe_boundaries only tested that the file
+    # EXISTED and then printed "is up-to-date" regardless of whether it still
+    # described the tree.
+    if "--check" in sys.argv:
+        if not os.path.exists(out_json):
+            print("MISSING %s" % out_json, file=sys.stderr)
+            return 1
+        with open(out_json, "r", encoding="utf-8") as fh:
+            committed = fh.read()
+        if committed != rendered:
+            import difflib
+            sys.stderr.write(
+                "[gen-pipe-boundary-manifest] STALE: %s does not match the tree\n" % out_json)
+            sys.stderr.writelines(list(difflib.unified_diff(
+                committed.splitlines(keepends=True),
+                rendered.splitlines(keepends=True),
+                fromfile="a/committed", tofile="b/regenerated"))[:40])
+            return 1
+        print("[gen-pipe-boundary-manifest] %s matches the tree (%d modules)."
+              % (out_json, len(manifest["modules"])))
+        return 0
+
     os.makedirs(os.path.dirname(out_json), exist_ok=True)
     with open(out_json, "w", encoding="utf-8") as fh:
-        json.dump(manifest, fh, indent=2, sort_keys=True)
-        fh.write("\n")
+        fh.write(rendered)
 
     print(f"[gen-pipe-boundary-manifest] Emitted {out_json} with {len(manifest['modules'])} modules.")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

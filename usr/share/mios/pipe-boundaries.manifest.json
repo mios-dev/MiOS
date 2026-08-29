@@ -1,1 +1,1654 @@
-{"modules":{"usr/lib/mios/agent-pipe/mios_pipe/access/arbiter.py":{"configure_kwargs":[],"public_symbols":["Verdict","decide","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/access/authn.py":{"configure_kwargs":["agent_auth_by_hostport","api_require_auth","auth_hostports","backend_key","caller_keys_path","ingress_key"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/access/firewall.py":{"configure_kwargs":["allowlist_hosts","db_read","internal_tld_suffixes","mcp_client_tools","provenance_taint_enable","taint_verbs","text_view_taint_prefixes"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/access/hitl.py":{"configure_kwargs":[],"public_symbols":["block_result","decide","gate_outcome","parse_scope","requires_approval","scope_gate_posture","tier_gate_posture"]},"usr/lib/mios/agent-pipe/mios_pipe/access/hitlflow.py":{"configure_kwargs":["ask_to_run_enable","ask_to_run_ttl_s","db_create","db_fire","db_post","db_read","db_update","dispatch_mios_verb","emit_session_event","hitl_approved_var","hitl_enable","hitl_mode","hitl_scope","passport_sign","pg_mirror","pg_primary","planner_endpoint","planner_timeout_s","router_model","row_age_seconds","usage_estimate"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/access/memguard.py":{"configure_kwargs":[],"public_symbols":["scan_fact"]},"usr/lib/mios/agent-pipe/mios_pipe/access/pdp.py":{"configure_kwargs":[],"public_symbols":["Decision","decide","permission_rank","resolve_ceiling"]},"usr/lib/mios/agent-pipe/mios_pipe/access/policy.py":{"configure_kwargs":["agent_registry","client_env_var","db_create","db_fire","db_post","dispatch_agent_var","get_client","hitl_approved_var","hitl_blocked_var","pending_hash","recipe_catalog","verb_catalog"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/access/quarantine.py":{"configure_kwargs":[],"public_symbols":["QuarantineVerdict","evaluate","normalize_mode","quarantined_extract","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/access/quota.py":{"configure_kwargs":[],"public_symbols":["QuotaTracker","QuotaVerdict","check","reset","spent","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/access/sandbox.py":{"configure_kwargs":[],"public_symbols":["SandboxProfile","build_bwrap_argv","confined","resolve_profile","sandbox_exec_prefix","to_dict","workspace_path"]},"usr/lib/mios/agent-pipe/mios_pipe/access/secset.py":{"configure_kwargs":[],"public_symbols":["high_privilege_set","provenance","taint_verb_set"]},"usr/lib/mios/agent-pipe/mios_pipe/context/compact.py":{"configure_kwargs":[],"public_symbols":["CompactionPlan","plan_compaction","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/context/ctxpack.py":{"configure_kwargs":[],"public_symbols":["PackResult","pack","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/context/grounding.py":{"configure_kwargs":["check_inbound_principal","client_env_var","current_date_str"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/context/kvfork.py":{"configure_kwargs":[],"public_symbols":["clamp_branches","conv_token","fork_outcome","kv_filename","parse_bool","plan_fork","validate_fork"]},"usr/lib/mios/agent-pipe/mios_pipe/context/kvgc.py":{"configure_kwargs":[],"public_symbols":["GcPlan","plan_gc","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/context/promptver.py":{"configure_kwargs":[],"public_symbols":["PromptRegistry","content_hash","current","history","register","rollback","snapshot"]},"usr/lib/mios/agent-pipe/mios_pipe/context/scratchpad.py":{"configure_kwargs":["conv_key_var","db_write","mios_pg","scratchpad_enable","scratchpad_inject","scratchpad_max","scratchpad_max_chats","scratchpad_persist","scratchpad_summary_chars","scratchpad_ttl_s"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/context/tokenize.py":{"configure_kwargs":[],"public_symbols":["HFTokenizerBackend","HeuristicBackend","TiktokenBackend","backend_name","count","count","count","count_messages","count_text","make_backend","name","name","name","set_backend","truncate","truncate","truncate_to_tokens"]},"usr/lib/mios/agent-pipe/mios_pipe/dbwrite.py":{"configure_kwargs":["current_trace_id","db_post","passport_sign","pg_enabled","pg_primary","span_id_var"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py":{"configure_kwargs":["a2a_peer_skills","a2a_peers","a2a_peers_lock","a2a_reputation","a2a_send_message_to_peer","agent_lane","agent_registry","agent_skill_tags","api_require_auth","app","cap_skills","check_inbound_principal","client_env_var","get_client","match_user_cfg","mcp_pool","passport_agent_name","passport_algo","passport_canonical_json","passport_enable","passport_kid","passport_load_priv","passport_load_public","passport_sign","passport_verify","reload_membership","scratchpads","verb_catalog"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/federation/a2a_client.py":{"configure_kwargs":["a2a_council","a2a_peer_registry_paths","a2a_peer_skills","a2a_peers","a2a_peers_lock","a2a_reputation","a2a_self_id","agent_registry","get_client","invalidate_worker_cache","route_on_card_skills"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/federation/http_caps.py":{"configure_kwargs":["a2a_peers","a2a_peers_lock","backend","cap_skills","cost_accounting_enable","cost_budget_usd","cost_ledger","cost_model","db_read","execute_skill","get_client","kernel","kg_lookup","load_recipe_catalog","match_user_cfg","mcp_client_lock","mcp_client_tools","offline_posture","prompt_registry","recipe_to_openai_tool","run_dci_flow","run_template_enable","skill_fetch","skill_list","skill_to_openai_tool","toml_section","tracer","user_rbac_filter","verb_catalog","verb_to_openai_tool"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/federation/mcp.py":{"configure_kwargs":["get_client","invalidate_worker_cache","mcp_client_lock","mcp_client_tools","mcp_embed_new_tools"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/health.py":{"configure_kwargs":[],"public_symbols":["build_health_response","get_system_version"]},"usr/lib/mios/agent-pipe/mios_pipe/identity/crl.py":{"configure_kwargs":[],"public_symbols":["CRL","ids","is_revoked","load","merge","restore","revoke"]},"usr/lib/mios/agent-pipe/mios_pipe/identity/principal.py":{"configure_kwargs":["passport_agent_name","passport_algo","passport_enable","passport_key_dir"],"public_symbols":["build_claims","build_metadata","text_digest","verify"]},"usr/lib/mios/agent-pipe/mios_pipe/identity/reputation.py":{"configure_kwargs":[],"public_symbols":["PeerReputation","rank","record","restore","rows","score","snapshot"]},"usr/lib/mios/agent-pipe/mios_pipe/kernel/config.py":{"configure_kwargs":[],"public_symbols":["quote_key","to_toml","validate_config","write_user_config"]},"usr/lib/mios/agent-pipe/mios_pipe/kernel/gossip.py":{"configure_kwargs":[],"public_symbols":["Peer","digest","merge_peer","merge_peer_set","prune_dead","select_gossip_peers","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/kernel/kernel.py":{"configure_kwargs":[],"public_symbols":["Kernel","managers"]},"usr/lib/mios/agent-pipe/mios_pipe/lifecycle/capreg.py":{"configure_kwargs":[],"public_symbols":["allowed","build_capability_dag","build_capability_manifest","diff_capabilities","load_recipes_from_toml","load_skills_from_dir","manifest_summary","project_from_toml","recipe_platforms","skill_effective_tier","skill_steps","tier_rank"]},"usr/lib/mios/agent-pipe/mios_pipe/lifecycle/manifest.py":{"configure_kwargs":[],"public_symbols":["diff_manifest","load_verbs_from_toml","project_verb_catalog"]},"usr/lib/mios/agent-pipe/mios_pipe/lifecycle/selfimprove.py":{"configure_kwargs":[],"public_symbols":["aggregate","analyze"]},"usr/lib/mios/agent-pipe/mios_pipe/lifecycle/selfimprove_act.py":{"configure_kwargs":[],"public_symbols":["curate_eval","decide_proposal","is_discriminative","pass_hat_k_score","proof_of_utility","proposal_target_allowed","solver_gap","validate_proposal"]},"usr/lib/mios/agent-pipe/mios_pipe/lifecycle/verity.py":{"configure_kwargs":["abbreviations","ask_clarify_judge_enable","format_satisfaction_block","format_tool_history","polish_enabled","polish_endpoint","polish_max_tokens","polish_model","polish_post","polish_system","polish_timeout_s","proposal_var","recent_satisfaction_verdicts","recent_tool_history","refine_endpoint","refine_model","refine_timeout_s","store_knowledge","web_enrich_verbs","web_research_search_timeout","write_skill_md_fire"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/mcp_dispatch.py":{"configure_kwargs":[],"public_symbols":["build_mcp_tool_envelope"]},"usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py":{"configure_kwargs":[],"public_symbols":["get_embed_config","get_text_projection","needs_reembed","plan_batches","select_candidates_sql","stamp_version_sql","summarize"]},"usr/lib/mios/agent-pipe/mios_pipe/memory/knowledge.py":{"configure_kwargs":["agent_memory_recall_enabled","agent_memory_recall_k","agent_memory_recall_min_score","agent_memory_table","anchor_tokens","client_env_var","cosine","db_create","db_fire","db_post","db_read","db_update","emb_model","emb_version","embed_one","knowledge_answer_max","knowledge_evict_batch","knowledge_evict_enable","knowledge_evict_interval_s","knowledge_evict_max_rows","knowledge_evict_min_access","knowledge_evict_ttl_days","knowledge_hot_threshold","knowledge_rag_hybrid","knowledge_rag_rerank","knowledge_rank_access","knowledge_rank_age","knowledge_rank_hot","knowledge_rank_outcome","knowledge_recall_candidates","knowledge_recall_enabled","knowledge_recall_halflife_days","knowledge_recall_k","knowledge_recall_min_score","knowledge_recall_pref_min_score","knowledge_recall_strict_score","knowledge_store_enabled","knowledge_store_gate_unsatisfied","knowledge_store_skip_volatile","knowledge_table","knowledge_url_re","memory","memory_guard_mode","pg_mirror","pg_primary","recall_possessive_re","recent_satisfaction_verdicts","shares_anchor","turn_volatile_var"],"public_symbols":["sync_sweep"]},"usr/lib/mios/agent-pipe/mios_pipe/memory/memory.py":{"configure_kwargs":[],"public_symbols":["LettaMemoryClient","MemoryProvider","PgVectorMemoryProvider","configure_letta","get_memory_provider","register_provider"]},"usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py":{"configure_kwargs":[],"public_symbols":["AsyncConnPool","build_fts_query","build_insert","build_recall","build_set_owner","dsn","get_candidate_text","pg_config","pool_config","recall_tuning","rid_to_pg_id","rls_enabled","vector_literal"]},"usr/lib/mios/agent-pipe/mios_pipe/memory/worker_tools.py":{"configure_kwargs":["bm25_b","bm25_k1","cosine","priority_fallback_scores","rerank_fanout","rerank_min_k","rerank_mmr_lambda","rerank_rrf_k","rerank_skip_margin","resolve_verb_key","tool_priority_core_first","tool_rerank","verb_catalog","verb_embed_fingerprint","verb_embed_text"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/observability/audit.py":{"configure_kwargs":["chain_enable","pg_execute"],"public_symbols":["APIRouter","EventChainer","JSONResponse","SessionChainer","canonical_core","canonical_core_session","get","link_hash","seed","seed","seeded","seeded","stamp","stamp","stamp","stamp_session","verify_chain","verify_session_chain"]},"usr/lib/mios/agent-pipe/mios_pipe/observability/cost.py":{"configure_kwargs":[],"public_symbols":["CostLedger","CostModel","estimate","over_budget","record","remaining","snapshot"]},"usr/lib/mios/agent-pipe/mios_pipe/observability/session_events.py":{"configure_kwargs":["db_create","db_fire","db_post","pg_mirror"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/observability/trace.py":{"configure_kwargs":[],"public_symbols":["Span","Tracer","duration_ms","finish","get_trace","new_span_id","new_trace_id","recent","record","start_span","stats","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/redact.py":{"configure_kwargs":[],"public_symbols":["redact"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/aci.py":{"configure_kwargs":[],"public_symbols":["normalize_output"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/agent_call.py":{"configure_kwargs":["admit","agent_binding","agent_offload_engine","agent_registry","apply_outbound_auth","backend_key","conv_key_var","cost_accounting_enable","cost_ledger","cost_model","current_trace_id","dispatch_agent_var","dispatch_priority","endpoint_sem","global_priority_gate","harvest_sub_sources","healthgate_connect_timeout","healthgate_read_timeout","hop_via_headers","is_remote_endpoint","is_slow_lane_ep","kv_fork_enable","kv_fork_parent_var","kv_locks","kv_paging_enable","kv_paging_slot","kv_paging_timeout","kv_resident","kv_slot_persist","lane_sem","lane_sem_key","llm_num_predict_cap","llm_num_predict_cap_cpu","model_active","node_live","opt_int_mb","otel_tracer","preempt","priority_gate","priority_queue_enable","rr_enable","rr_quantum_s","rr_slice_timeout","rr_slice_tokens","secondary_tool_loop","should_health_probe","sloshed","src_turn_header","src_turn_key","strip_agent_chrome","strip_think_tags","v1_secondary_tool_loop"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py":{"configure_kwargs":["agent_binding","agent_registry","catalog_fail_mode","effort_default","endpoint_key","is_remote_endpoint","logger","nodes_research_only","opt_int_mb","role_system_dir","swarm_max_width"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/applet_webresearch.py":{"configure_kwargs":["authed","dispatch"],"public_symbols":["build_router"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/classify.py":{"configure_kwargs":["db_create","db_fire","db_post","routing_domains","routing_enable","verb_catalog"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/council_diversity.py":{"configure_kwargs":[],"public_symbols":["bypassed_pct","medoid_index","note_aggregator","reset_stats","select_diverse","should_bypass"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/cua.py":{"configure_kwargs":["backend_key","cua_enable","cua_max_steps","dispatch_mios_verb_inner","get_client","hidpi_scale_factor","vision_backend_failed","vision_endpoint","vision_model"],"public_symbols":["CuaTrace","bounds_contain","finish","loop_status","observation_changed","observation_digest","parse_verify_verdict","record","resolve_verb","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/dag_exec.py":{"configure_kwargs":["a2a_extract_text","a2a_send_message_to_peer","agent_contract","agent_lane","agent_registry","call_agent_stream","chat_cancel","conv_key_var","ctx_fit","dag_node_deadline_s","dag_node_deadline_slow_s","dag_node_max_tokens","dag_node_retry","dag_node_slow_max_tokens","db_create","db_fire","db_post","db_read","deepen_deadline_s","deepen_early_exit","deepen_fetch","deepen_judge_timeout_s","deepen_lanes","deepen_max_iters","deepen_web_timeout_s","dispatch_mios_verb","get_client","judge_answer_satisfied","kv_fork_enable","kv_fork_parent_var","lane_tool_cap","light_lane","pg_mirror","pg_primary","planner_reflexion_cap","reflect_on_step_failure","request_cancel_enable","request_cancel_poll_s","role_system","runaway_reap_enable","sanitize_tool_text","scratchpad_note","scratchpad_render","slow_lanes","swarm_saturate","turn_deadline_s","worker_tool_ctx","worker_tool_ctx_max","worker_tool_ctx_slow","worker_tools_enable","worker_tools_surface_async"],"public_symbols":["parse_research_claims"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/dag_validate.py":{"configure_kwargs":[],"public_symbols":["DAGValidationVerdict","to_dict","validate_dag"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/dci.py":{"configure_kwargs":["apply_outbound_auth","db_create","db_fire","db_post"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/dispatcher.py":{"configure_kwargs":[],"public_symbols":["Dispatcher","MockResponse","can_handle","json","modes","text"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/fanout.py":{"configure_kwargs":["admit_enable","agent_lane","agent_registry","agent_skill_tags","council_max_default","db_create","db_fire","db_post","dedup_pool_by_target","depth_exhausted","dispatch_cfg","dispatch_depth","lane_sem_key","max_dispatch_depth","over_global_ceiling","route_on_card_skills"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/hopbudget.py":{"configure_kwargs":[],"public_symbols":["append_via","depth_exhausted","effort_width","is_loop","seed_depth"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/interop.py":{"configure_kwargs":[],"public_symbols":["project_all","to_a2a_skill"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/jsonsalvage.py":{"configure_kwargs":[],"public_symbols":["loads_lenient"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/lanes.py":{"configure_kwargs":[],"public_symbols":["Lane","LaneResolver","as_tuple","build_chain","mark_down","snapshot"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/lanes_resolver.py":{"configure_kwargs":[],"public_symbols":["evaluate_output_quality"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/oscontrol.py":{"configure_kwargs":["conv_key_var","db_create","db_fire","db_post","fastpath_verbs","get_client","inline_satisfaction_check","launch_verbs","os_control_action_verbs","os_control_enum_retry","os_control_enum_retry_settle_s","os_control_enum_timeout_s","os_control_launch_poll_s","os_control_launch_verify_s","os_control_reply_max_tokens","os_control_retry_attempts","os_control_retry_settle_s","scratchpad_note","strip_think_tags","verb_catalog"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/owui.py":{"configure_kwargs":[],"public_symbols":["strip_owui_scaffold"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/planner.py":{"configure_kwargs":["agent_catalog_rendered","agent_registry","build_dispatch_cmd","is_action_domain","recipe_catalog_rendered","routed_domain_var","routing_domains","short_prompt_chars","short_prompt_words","verb_catalog","verb_catalog_rendered"],"public_symbols":["visit"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py":{"configure_kwargs":["agent_lane","agent_registry","probe_auth_headers","sanitize_tool_text","websockets"],"public_symbols":["run_db_reseed_bg"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/provider_translate.py":{"configure_kwargs":[],"public_symbols":["anthropic_resp_to_oai","args_obj","gemini_resp_to_oai","oai_msgs_to_anthropic","oai_msgs_to_gemini","oai_tools_to_anthropic","oai_tools_to_gemini","scrub_schema"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/quality_gate.py":{"configure_kwargs":[],"public_symbols":["evaluate_quality"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/refine.py":{"configure_kwargs":["agent_registry","browser_action_alt","chat_chars","critic_refine_enabled","critic_refine_max","critic_refine_min_chars","db_create","db_fire","db_post","dispatch_arg_max_words","dispatch_chars","emit_session_event","fastpath_verbs","logger","os_control_verbs_rendered","over_global_ceiling","promote_chars","refine_attempts","refine_enabled","refine_endpoint","refine_max_tokens","refine_model","refine_timeout_s","remember_triggers","resolve_verb_key","route_domain","routed_domain_var","routing_domains","routing_enable","verb_catalog","web_search_contexts","web_search_triggers"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/reflect.py":{"configure_kwargs":["db_read","db_write","emit_session_event","judge_examples","refine_enabled","refine_endpoint","refine_model","refine_timeout_s","reflect_system","verb_catalog"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/router.py":{"configure_kwargs":[],"public_symbols":["RouteDecision","Router","fanout","route","route","should_fanout","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/routing.py":{"configure_kwargs":["compound_action_alt","compound_connective_alt","fastpath_verbs","launch_fillers","launch_lead_words","launch_trail_words","launch_triggers","logger"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/ruleof2.py":{"configure_kwargs":[],"public_symbols":["RuleOfTwoVerdict","evaluate","is_state_change","normalize_mode","to_dict"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/secondary_loop.py":{"configure_kwargs":["apply_outbound_auth","daemon_diagnose_enable","daemon_diagnose_endpoint","daemon_diagnose_model","db_create","db_fire","db_post","db_read","endpoint_supports_parallel_tools","secondary_replan_max","secondary_tool_max_iters"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/smartroute.py":{"configure_kwargs":[],"public_symbols":["CostLedger","Lane","can_afford","charge","choose_next","is_local","order_lanes","remaining","should_escalate"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/sse.py":{"configure_kwargs":["debug_enable","surface_default"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/swarm.py":{"configure_kwargs":["agent_catalog_rendered","agent_lane","agent_registry","dag_empty_native_fallback","dag_replan_max","db_create","db_fire","db_post","db_read","dedup_pool_by_target","depth_exhausted","dispatch_depth","embed_one","filter_relevant_sources","is_slow_lane_ep","live_agent_names","max_dispatch_depth","pick_agent","read_tool_enrich","render_agent_catalog","respond_native_loop_direct","routed_domain_var","slow_lane_block_chars","slow_lanes","sources_annotations","sources_markdown","sources_metadata","src_collected","src_record_from_text","strip_think_tags","swarm_deepen_enabled","swarm_max_cpu_nodes","swarm_max_width","swarm_model","swarm_system_head","usage_estimate","verb_catalog"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/toolconflict.py":{"configure_kwargs":[],"public_symbols":["ConflictGate","constrains","from_catalog","guard","stats"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/toolexec.py":{"configure_kwargs":["aci_head_frac","aci_max_lines","agent_dag_from_tasks","classify_verb_taint","code_mode_enable","code_mode_heavy_only","db_create","db_fire","db_post","depth_exhausted","dispatch_depth","dispatch_mios_verb","enter_dispatch_hop","high_privilege_verbs","live_agent_names","max_dispatch_depth","mcp_call_tool","orch_ctx_var","otel_tracer","plan_swarm","read_tool_enrich_chars","read_tool_enrich_timeout","recipe_catalog","record_mcp_tool_call","resolve_verb_key","respond_agent_dag","sanitize_tool_text","session_is_tainted","src_record","verb_catalog","web_enrich_verbs"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/toolsearch.py":{"configure_kwargs":["embed_one","get_client","loads_lenient","mcp_client_lock","mcp_client_tools","verb_catalog"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/toolsurface.py":{"configure_kwargs":["child_tool_floor","child_tool_select","cosine","dispatch_toml","embed_one","ensure_verb_embeddings","mcp_client_lock","mcp_client_tools","mcp_tool_to_openai_tool","recipe_catalog","recipe_to_openai_tool","resolve_verb_key","routed_domain_var","routing_domains","skill_list","skill_to_openai_tool","stable_prefix","stable_prefix_tail","tool_embedding","verb_catalog","verb_embeddings","verb_to_openai_tool","worker_tools_scope"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py":{"configure_kwargs":[],"public_symbols":["to_bool"]},"usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py":{"configure_kwargs":["agent_contract","backend_key","default_tool_cap","get_client","pick_tool_backend","resolve_verb_key","select_child_tools","tool_call_sig","verb_catalog","verb_to_openai_tool","vision_endpoint","vision_model"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/routing/web_research.py":{"configure_kwargs":["anchor_tokens","clean_web_text","client_env_var","conv_key_var","current_date_str","current_year","is_action_domain","judge_endpoint","judge_model","location_sensitive_phrases","max_sources","routed_domain_var","shares_anchor","sources_registry","sources_registry_cap","sources_var","src_turn_var","url_has_path","web_enrich_verbs","web_research_block_chars","web_research_crawl_fallback","web_research_crawl_max","web_research_crawl_timeout","web_research_enabled","web_research_fanout","web_research_fetch_chars","web_research_fetch_n","web_research_fetch_timeout","web_research_max_attempts","web_research_min_chars","web_research_passes","web_research_recency_range","web_research_results","web_research_search_timeout","web_research_time_range","web_research_use_news_category"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/admission.py":{"configure_kwargs":["admit_enable","admit_max_wait","agent_concurrency","blade_vram_budget","dispatch_num","endpoint_concurrency","endpoint_reserved","global_priority_gate","is_warm","multiblade_enable","norm_model_tag","over_blade_ceiling","over_global_ceiling","priority_queue_enable","reclaim_idle_vram","resident_cached","slo_shed_enable","tenant_quota_enable","turn_tenant","vram_budget_mb","vram_coload_enable","vram_coload_est_mb","vram_coload_reserve_mb","vram_reclaim_idle"],"public_symbols":[]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/batch.py":{"configure_kwargs":[],"public_symbols":["CoalesceWindow","add","batch_key","flush","is_native_batch","pending","should_flush"]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/bench.py":{"configure_kwargs":[],"public_symbols":["aggregate_pass_and_k_rate","aggregate_pass_at_k","aggregate_pass_hat_k","classic_rollup","comb_ratio","iid_pass_hat_k","pass_at_k","pass_hat_k","percentile"]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/blades.py":{"configure_kwargs":[],"public_symbols":["blade_for_endpoint","blade_vram_budget","endpoint_blade_map","load_blade_pool","local_blade_name"]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/evict.py":{"configure_kwargs":[],"public_symbols":["count_sql","delete_ids_sql","evict_params","evict_where","order_by","parse_count","parse_ids","plan_sweep","select_ids_sql"]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/preempt.py":{"configure_kwargs":[],"public_symbols":["PreemptScheduler","Quantum","Snapshot","TokenSliceQueue","account","acquire_slot","can_admit","decide","discharge","dispatch","enqueue","expired","head_priority","is_suspended","is_tracked","release_slot","remaining","remove","requeue","resume","stats","stats","suspend","to_dict","turn_scheduler_stats"]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/sched.py":{"configure_kwargs":[],"public_symbols":["PriorityGate","available","cap","head_priority","in_flight","queued","release","stats","tenant_inflight"]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/slo.py":{"configure_kwargs":["budgets","default_priority","interactive_priority"],"public_symbols":["classify","deadline","edf_key","should_shed"]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/stress.py":{"configure_kwargs":[],"public_symbols":["aggregate","build_scenarios","by_kind","main","percentile","ramp_concurrency","should_throttle","verdict"]},"usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py":{"configure_kwargs":["admit_load_ceil","admit_mem_pct","agent_lane","blade_pool","endpoint_blade","endpoint_key","host_stats","lane_priority","local_blade","multiblade_enable","polish_model","refine_endpoint","refine_model","vram_budget_mb","vram_checkpoint_enable","vram_reclaim_idle","vram_turn_headroom_mb"],"public_symbols":[]}}}
+{
+  "modules": {
+    "usr/lib/mios/agent-pipe/mios_pipe/access/arbiter.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "Verdict",
+        "decide",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/authn.py": {
+      "configure_kwargs": [
+        "agent_auth_by_hostport",
+        "api_require_auth",
+        "auth_hostports",
+        "backend_key",
+        "caller_keys_path",
+        "ingress_key"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/firewall.py": {
+      "configure_kwargs": [
+        "allowlist_hosts",
+        "db_read",
+        "internal_tld_suffixes",
+        "mcp_client_tools",
+        "provenance_taint_enable",
+        "taint_verbs",
+        "text_view_taint_prefixes"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/hitl.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "block_result",
+        "decide",
+        "gate_outcome",
+        "parse_scope",
+        "requires_approval",
+        "scope_gate_posture",
+        "tier_gate_posture"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/hitlflow.py": {
+      "configure_kwargs": [
+        "ask_to_run_enable",
+        "ask_to_run_ttl_s",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "db_read",
+        "db_update",
+        "dispatch_mios_verb",
+        "emit_session_event",
+        "hitl_approved_var",
+        "hitl_enable",
+        "hitl_mode",
+        "hitl_scope",
+        "passport_sign",
+        "pg_mirror",
+        "pg_primary",
+        "planner_endpoint",
+        "planner_timeout_s",
+        "router_model",
+        "row_age_seconds",
+        "usage_estimate"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/memguard.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "scan_fact"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/pdp.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "Decision",
+        "decide",
+        "permission_rank",
+        "resolve_ceiling"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/policy.py": {
+      "configure_kwargs": [
+        "agent_registry",
+        "client_env_var",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "dispatch_agent_var",
+        "get_client",
+        "hitl_approved_var",
+        "hitl_blocked_var",
+        "pending_hash",
+        "recipe_catalog",
+        "verb_catalog"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/quarantine.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "QuarantineVerdict",
+        "evaluate",
+        "normalize_mode",
+        "quarantined_extract",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/quota.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "QuotaTracker",
+        "QuotaVerdict",
+        "check",
+        "reset",
+        "restore",
+        "snapshot",
+        "spent",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/sandbox.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "SandboxProfile",
+        "build_bwrap_argv",
+        "confined",
+        "resolve_profile",
+        "sandbox_exec_prefix",
+        "to_dict",
+        "workspace_path"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/seccomp.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "SeccompUnsupported",
+        "audit_arch",
+        "build_filter",
+        "resolve_denylist",
+        "syscall_numbers"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/secset.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "high_privilege_set",
+        "provenance",
+        "taint_verb_set"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/auth.py": {
+      "configure_kwargs": [
+        "api_require_auth",
+        "auth_gated_prefixes",
+        "auth_open_paths",
+        "check_inbound_principal",
+        "council_mode_var",
+        "loads_lenient",
+        "usage_estimate"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/context/compact.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "CompactionPlan",
+        "plan_compaction",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/context/ctxpack.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "PackResult",
+        "pack",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/context/grounding.py": {
+      "configure_kwargs": [
+        "check_inbound_principal",
+        "client_env_var",
+        "current_date_str"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/context/kvfork.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "clamp_branches",
+        "conv_token",
+        "fork_outcome",
+        "kv_filename",
+        "parse_bool",
+        "plan_fork",
+        "validate_fork"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/context/kvgc.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "GcPlan",
+        "plan_gc",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/context/promptver.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "PromptRegistry",
+        "content_hash",
+        "current",
+        "history",
+        "register",
+        "rollback",
+        "snapshot"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/context/scratchpad.py": {
+      "configure_kwargs": [
+        "conv_key_var",
+        "db_write",
+        "mios_pg",
+        "scratchpad_enable",
+        "scratchpad_inject",
+        "scratchpad_max",
+        "scratchpad_max_chats",
+        "scratchpad_persist",
+        "scratchpad_summary_chars",
+        "scratchpad_ttl_s"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/context/tokenize.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "HFTokenizerBackend",
+        "HeuristicBackend",
+        "TiktokenBackend",
+        "backend_name",
+        "count",
+        "count",
+        "count",
+        "count_messages",
+        "count_text",
+        "make_backend",
+        "name",
+        "name",
+        "name",
+        "set_backend",
+        "truncate",
+        "truncate",
+        "truncate_to_tokens"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/db.py": {
+      "configure_kwargs": [
+        "db_auth",
+        "db_db",
+        "db_ns",
+        "db_url",
+        "mios_pg",
+        "pg_primary"
+      ],
+      "public_symbols": [
+        "client"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/dbwrite.py": {
+      "configure_kwargs": [
+        "current_trace_id",
+        "db_post",
+        "passport_sign",
+        "pg_enabled",
+        "pg_primary",
+        "span_id_var"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py": {
+      "configure_kwargs": [
+        "a2a_peer_skills",
+        "a2a_peers",
+        "a2a_peers_lock",
+        "a2a_reputation",
+        "a2a_send_message_to_peer",
+        "agent_lane",
+        "agent_registry",
+        "agent_skill_tags",
+        "api_require_auth",
+        "app",
+        "cap_skills",
+        "check_inbound_principal",
+        "client_env_var",
+        "get_client",
+        "match_user_cfg",
+        "mcp_pool",
+        "passport_agent_name",
+        "passport_algo",
+        "passport_canonical_json",
+        "passport_enable",
+        "passport_kid",
+        "passport_load_priv",
+        "passport_load_public",
+        "passport_sign",
+        "passport_verify",
+        "reload_membership",
+        "scratchpads",
+        "verb_catalog"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/federation/a2a_client.py": {
+      "configure_kwargs": [
+        "a2a_council",
+        "a2a_peer_registry_paths",
+        "a2a_peer_skills",
+        "a2a_peers",
+        "a2a_peers_lock",
+        "a2a_reputation",
+        "a2a_self_id",
+        "agent_registry",
+        "get_client",
+        "invalidate_worker_cache",
+        "route_on_card_skills"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/federation/http_caps.py": {
+      "configure_kwargs": [
+        "a2a_peers",
+        "a2a_peers_lock",
+        "backend",
+        "cap_skills",
+        "cost_accounting_enable",
+        "cost_budget_usd",
+        "cost_ledger",
+        "cost_model",
+        "db_read",
+        "execute_skill",
+        "get_client",
+        "kernel",
+        "kg_lookup",
+        "load_recipe_catalog",
+        "match_user_cfg",
+        "mcp_client_lock",
+        "mcp_client_tools",
+        "offline_posture",
+        "prompt_registry",
+        "recipe_to_openai_tool",
+        "run_dci_flow",
+        "run_template_enable",
+        "skill_fetch",
+        "skill_list",
+        "skill_to_openai_tool",
+        "toml_section",
+        "tracer",
+        "user_rbac_filter",
+        "verb_catalog",
+        "verb_to_openai_tool"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/federation/mcp.py": {
+      "configure_kwargs": [
+        "get_client",
+        "invalidate_worker_cache",
+        "mcp_client_lock",
+        "mcp_client_tools",
+        "mcp_embed_new_tools"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/health.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "build_health_response",
+        "get_system_version"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/identity/crl.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "CRL",
+        "ids",
+        "is_revoked",
+        "load",
+        "merge",
+        "restore",
+        "revoke"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/identity/principal.py": {
+      "configure_kwargs": [
+        "passport_agent_name",
+        "passport_algo",
+        "passport_enable",
+        "passport_key_dir"
+      ],
+      "public_symbols": [
+        "build_claims",
+        "build_metadata",
+        "text_digest",
+        "verify"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/identity/reputation.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "PeerReputation",
+        "rank",
+        "record",
+        "restore",
+        "rows",
+        "score",
+        "snapshot"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/kernel/config.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "quote_key",
+        "to_toml",
+        "validate_config",
+        "write_user_config"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/kernel/gossip.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "Peer",
+        "digest",
+        "merge_peer",
+        "merge_peer_set",
+        "prune_dead",
+        "select_gossip_peers",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/kernel/httpclient.py": {
+      "configure_kwargs": [
+        "batch_enable",
+        "batch_interval_s",
+        "batch_max_size",
+        "batch_native_hints",
+        "connect_timeout_s"
+      ],
+      "public_symbols": [
+        "get_coalescer"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/kernel/kernel.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "Kernel",
+        "managers"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/lifecycle/capreg.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "allowed",
+        "build_capability_dag",
+        "build_capability_manifest",
+        "diff_capabilities",
+        "load_recipes_from_toml",
+        "load_skills_from_dir",
+        "manifest_summary",
+        "project_from_toml",
+        "recipe_platforms",
+        "skill_effective_tier",
+        "skill_steps",
+        "tier_rank"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/lifecycle/manifest.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "diff_manifest",
+        "load_verbs_from_toml",
+        "project_verb_catalog"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/lifecycle/selfimprove.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "aggregate",
+        "analyze"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/lifecycle/selfimprove_act.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "curate_eval",
+        "decide_proposal",
+        "is_discriminative",
+        "pass_hat_k_score",
+        "proof_of_utility",
+        "proposal_target_allowed",
+        "solver_gap",
+        "validate_proposal"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/lifecycle/verity.py": {
+      "configure_kwargs": [
+        "abbreviations",
+        "ask_clarify_judge_enable",
+        "format_satisfaction_block",
+        "format_tool_history",
+        "polish_enabled",
+        "polish_endpoint",
+        "polish_max_tokens",
+        "polish_model",
+        "polish_post",
+        "polish_system",
+        "polish_timeout_s",
+        "proposal_var",
+        "recent_satisfaction_verdicts",
+        "recent_tool_history",
+        "refine_endpoint",
+        "refine_model",
+        "refine_timeout_s",
+        "store_knowledge",
+        "web_enrich_verbs",
+        "web_research_search_timeout",
+        "write_skill_md_fire"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/mcp_dispatch.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "build_mcp_tool_envelope"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "get_embed_config",
+        "get_text_projection",
+        "needs_reembed",
+        "plan_batches",
+        "select_candidates_sql",
+        "stamp_version_sql",
+        "summarize"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/memory/knowledge.py": {
+      "configure_kwargs": [
+        "agent_memory_recall_enabled",
+        "agent_memory_recall_k",
+        "agent_memory_recall_min_score",
+        "agent_memory_table",
+        "anchor_tokens",
+        "client_env_var",
+        "cosine",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "db_read",
+        "db_update",
+        "emb_model",
+        "emb_version",
+        "embed_one",
+        "knowledge_answer_max",
+        "knowledge_evict_batch",
+        "knowledge_evict_enable",
+        "knowledge_evict_interval_s",
+        "knowledge_evict_max_rows",
+        "knowledge_evict_min_access",
+        "knowledge_evict_ttl_days",
+        "knowledge_hot_threshold",
+        "knowledge_rag_hybrid",
+        "knowledge_rag_rerank",
+        "knowledge_rank_access",
+        "knowledge_rank_age",
+        "knowledge_rank_hot",
+        "knowledge_rank_outcome",
+        "knowledge_recall_candidates",
+        "knowledge_recall_enabled",
+        "knowledge_recall_halflife_days",
+        "knowledge_recall_k",
+        "knowledge_recall_min_score",
+        "knowledge_recall_pref_min_score",
+        "knowledge_recall_strict_score",
+        "knowledge_store_enabled",
+        "knowledge_store_gate_unsatisfied",
+        "knowledge_store_skip_volatile",
+        "knowledge_table",
+        "knowledge_url_re",
+        "memory",
+        "memory_guard_mode",
+        "pg_mirror",
+        "pg_primary",
+        "recall_possessive_re",
+        "recent_satisfaction_verdicts",
+        "shares_anchor",
+        "turn_volatile_var"
+      ],
+      "public_symbols": [
+        "sync_sweep"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/memory/memory.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "LettaMemoryClient",
+        "MemoryProvider",
+        "PgVectorMemoryProvider",
+        "configure_letta",
+        "get_memory_provider",
+        "register_provider"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "AsyncConnPool",
+        "build_fts_query",
+        "build_insert",
+        "build_recall",
+        "build_set_owner",
+        "dsn",
+        "get_candidate_text",
+        "pg_config",
+        "pool_config",
+        "recall_tuning",
+        "rid_to_pg_id",
+        "rls_enabled",
+        "vector_literal"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/memory/worker_tools.py": {
+      "configure_kwargs": [
+        "bm25_b",
+        "bm25_k1",
+        "cosine",
+        "priority_fallback_scores",
+        "rerank_fanout",
+        "rerank_min_k",
+        "rerank_mmr_lambda",
+        "rerank_rrf_k",
+        "rerank_skip_margin",
+        "resolve_verb_key",
+        "tool_priority_core_first",
+        "tool_rerank",
+        "verb_catalog",
+        "verb_embed_fingerprint",
+        "verb_embed_text"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/observability/audit.py": {
+      "configure_kwargs": [
+        "chain_enable",
+        "pg_execute"
+      ],
+      "public_symbols": [
+        "APIRouter",
+        "EventChainer",
+        "JSONResponse",
+        "SessionChainer",
+        "canonical_core",
+        "canonical_core_session",
+        "get",
+        "link_hash",
+        "seed",
+        "seed",
+        "seeded",
+        "seeded",
+        "stamp",
+        "stamp",
+        "stamp",
+        "stamp_session",
+        "verify_chain",
+        "verify_session_chain"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/observability/cost.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "CostLedger",
+        "CostModel",
+        "estimate",
+        "over_budget",
+        "record",
+        "remaining",
+        "snapshot"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/observability/drift_monitor.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "compare",
+        "histogram",
+        "is_alerting",
+        "jensen_shannon"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/observability/session_events.py": {
+      "configure_kwargs": [
+        "db_create",
+        "db_fire",
+        "db_post",
+        "pg_mirror"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/observability/trace.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "Span",
+        "Tracer",
+        "duration_ms",
+        "finish",
+        "get_trace",
+        "new_span_id",
+        "new_trace_id",
+        "recent",
+        "record",
+        "start_span",
+        "stats",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/redact.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "redact"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/aci.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "normalize_output"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/agent_call.py": {
+      "configure_kwargs": [
+        "admit",
+        "agent_binding",
+        "agent_offload_engine",
+        "agent_registry",
+        "apply_outbound_auth",
+        "backend_key",
+        "conv_key_var",
+        "cost_accounting_enable",
+        "cost_ledger",
+        "cost_model",
+        "current_trace_id",
+        "dispatch_agent_var",
+        "dispatch_priority",
+        "endpoint_sem",
+        "global_priority_gate",
+        "harvest_sub_sources",
+        "healthgate_connect_timeout",
+        "healthgate_read_timeout",
+        "hop_via_headers",
+        "is_remote_endpoint",
+        "is_slow_lane_ep",
+        "kv_fork_enable",
+        "kv_fork_parent_var",
+        "kv_locks",
+        "kv_paging_enable",
+        "kv_paging_slot",
+        "kv_paging_timeout",
+        "kv_resident",
+        "kv_slot_persist",
+        "lane_sem",
+        "lane_sem_key",
+        "llm_num_predict_cap",
+        "llm_num_predict_cap_cpu",
+        "model_active",
+        "node_live",
+        "opt_int_mb",
+        "otel_tracer",
+        "preempt",
+        "priority_gate",
+        "priority_queue_enable",
+        "rr_enable",
+        "rr_quantum_s",
+        "rr_slice_timeout",
+        "rr_slice_tokens",
+        "secondary_tool_loop",
+        "should_health_probe",
+        "sloshed",
+        "src_turn_header",
+        "src_turn_key",
+        "strip_agent_chrome",
+        "strip_think_tags",
+        "v1_secondary_tool_loop"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py": {
+      "configure_kwargs": [
+        "agent_binding",
+        "agent_registry",
+        "catalog_fail_mode",
+        "effort_default",
+        "endpoint_key",
+        "is_remote_endpoint",
+        "logger",
+        "nodes_research_only",
+        "opt_int_mb",
+        "role_system_dir",
+        "swarm_max_width"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/applet_webresearch.py": {
+      "configure_kwargs": [
+        "authed",
+        "dispatch"
+      ],
+      "public_symbols": [
+        "build_router"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/classify.py": {
+      "configure_kwargs": [
+        "db_create",
+        "db_fire",
+        "db_post",
+        "routing_domains",
+        "routing_enable",
+        "verb_catalog"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/consensus.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "quorum_reached",
+        "reciprocal_rank_fusion",
+        "resolve_weights",
+        "weighted_vote"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/council_diversity.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "bypassed_pct",
+        "medoid_index",
+        "note_aggregator",
+        "reset_stats",
+        "select_diverse",
+        "should_bypass"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/cua.py": {
+      "configure_kwargs": [
+        "backend_key",
+        "cua_enable",
+        "cua_max_steps",
+        "dispatch_mios_verb_inner",
+        "get_client",
+        "hidpi_scale_factor",
+        "vision_backend_failed",
+        "vision_endpoint",
+        "vision_model"
+      ],
+      "public_symbols": [
+        "CuaTrace",
+        "bounds_contain",
+        "finish",
+        "loop_status",
+        "observation_changed",
+        "observation_digest",
+        "parse_verify_verdict",
+        "record",
+        "resolve_verb",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/dag_exec.py": {
+      "configure_kwargs": [
+        "a2a_extract_text",
+        "a2a_send_message_to_peer",
+        "agent_contract",
+        "agent_lane",
+        "agent_registry",
+        "call_agent_stream",
+        "chat_cancel",
+        "conv_key_var",
+        "ctx_fit",
+        "dag_node_deadline_s",
+        "dag_node_deadline_slow_s",
+        "dag_node_max_tokens",
+        "dag_node_retry",
+        "dag_node_slow_max_tokens",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "db_read",
+        "deepen_deadline_s",
+        "deepen_early_exit",
+        "deepen_fetch",
+        "deepen_judge_timeout_s",
+        "deepen_lanes",
+        "deepen_max_iters",
+        "deepen_web_timeout_s",
+        "dispatch_mios_verb",
+        "get_client",
+        "judge_answer_satisfied",
+        "kv_fork_enable",
+        "kv_fork_parent_var",
+        "lane_tool_cap",
+        "light_lane",
+        "pg_mirror",
+        "pg_primary",
+        "planner_reflexion_cap",
+        "reflect_on_step_failure",
+        "request_cancel_enable",
+        "request_cancel_poll_s",
+        "role_system",
+        "runaway_reap_enable",
+        "sanitize_tool_text",
+        "scratchpad_note",
+        "scratchpad_render",
+        "slow_lanes",
+        "swarm_saturate",
+        "turn_deadline_s",
+        "worker_tool_ctx",
+        "worker_tool_ctx_max",
+        "worker_tool_ctx_slow",
+        "worker_tools_enable",
+        "worker_tools_surface_async"
+      ],
+      "public_symbols": [
+        "parse_research_claims"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/dag_validate.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "DAGValidationVerdict",
+        "to_dict",
+        "validate_dag"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/dci.py": {
+      "configure_kwargs": [
+        "apply_outbound_auth",
+        "db_create",
+        "db_fire",
+        "db_post"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/dispatch_cmd.py": {
+      "configure_kwargs": [
+        "sandbox_enforce",
+        "sandbox_self_confined",
+        "verb_catalog"
+      ],
+      "public_symbols": [
+        "clean_flags",
+        "normalize_container_exec"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/dispatcher.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "Dispatcher",
+        "MockResponse",
+        "can_handle",
+        "json",
+        "modes",
+        "text"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/fanout.py": {
+      "configure_kwargs": [
+        "admit_enable",
+        "agent_lane",
+        "agent_registry",
+        "agent_skill_tags",
+        "council_max_default",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "dedup_pool_by_target",
+        "depth_exhausted",
+        "dispatch_cfg",
+        "dispatch_depth",
+        "lane_sem_key",
+        "max_dispatch_depth",
+        "over_global_ceiling",
+        "route_on_card_skills"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/hopbudget.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "append_via",
+        "depth_exhausted",
+        "effort_width",
+        "is_loop",
+        "seed_depth"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/interop.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "project_all",
+        "to_a2a_skill"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/jsonsalvage.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "loads_lenient"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/lanes.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "Lane",
+        "LaneResolver",
+        "as_tuple",
+        "build_chain",
+        "mark_down",
+        "snapshot"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/lanes_resolver.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "evaluate_output_quality"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/oscontrol.py": {
+      "configure_kwargs": [
+        "conv_key_var",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "fastpath_verbs",
+        "get_client",
+        "inline_satisfaction_check",
+        "launch_verbs",
+        "os_control_action_verbs",
+        "os_control_enum_retry",
+        "os_control_enum_retry_settle_s",
+        "os_control_enum_timeout_s",
+        "os_control_launch_poll_s",
+        "os_control_launch_verify_s",
+        "os_control_reply_max_tokens",
+        "os_control_retry_attempts",
+        "os_control_retry_settle_s",
+        "scratchpad_note",
+        "strip_think_tags",
+        "verb_catalog"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/owui.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "strip_owui_scaffold"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/planner.py": {
+      "configure_kwargs": [
+        "agent_catalog_rendered",
+        "agent_registry",
+        "build_dispatch_cmd",
+        "is_action_domain",
+        "recipe_catalog_rendered",
+        "replay_templates",
+        "routed_domain_var",
+        "routing_domains",
+        "short_prompt_chars",
+        "short_prompt_words",
+        "verb_catalog",
+        "verb_catalog_rendered"
+      ],
+      "public_symbols": [
+        "visit"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py": {
+      "configure_kwargs": [
+        "agent_lane",
+        "agent_registry",
+        "probe_auth_headers",
+        "sanitize_tool_text",
+        "websockets"
+      ],
+      "public_symbols": [
+        "run_db_reseed_bg"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/provider_translate.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "anthropic_resp_to_oai",
+        "args_obj",
+        "gemini_resp_to_oai",
+        "oai_msgs_to_anthropic",
+        "oai_msgs_to_gemini",
+        "oai_tools_to_anthropic",
+        "oai_tools_to_gemini",
+        "scrub_schema"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/pty.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "is_idle",
+        "new_nonce",
+        "parse_result",
+        "session_init_cmd",
+        "session_key",
+        "session_path",
+        "tmux_argv",
+        "tmux_conf",
+        "wrap_command"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/quality_gate.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "evaluate_quality"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/refine.py": {
+      "configure_kwargs": [
+        "agent_registry",
+        "browser_action_alt",
+        "chat_chars",
+        "critic_refine_enabled",
+        "critic_refine_max",
+        "critic_refine_min_chars",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "dispatch_arg_max_words",
+        "dispatch_chars",
+        "emit_session_event",
+        "fastpath_verbs",
+        "logger",
+        "os_control_verbs_rendered",
+        "over_global_ceiling",
+        "promote_chars",
+        "refine_attempts",
+        "refine_enabled",
+        "refine_endpoint",
+        "refine_max_tokens",
+        "refine_model",
+        "refine_timeout_s",
+        "remember_triggers",
+        "resolve_preferences_inject",
+        "resolve_verb_key",
+        "route_domain",
+        "routed_domain_var",
+        "routing_domains",
+        "routing_enable",
+        "verb_catalog",
+        "web_search_contexts",
+        "web_search_triggers"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/reflect.py": {
+      "configure_kwargs": [
+        "consensus_enabled",
+        "consensus_lanes",
+        "consensus_min_lanes",
+        "consensus_reliability",
+        "consensus_threshold",
+        "consensus_timeout_s",
+        "consensus_weight_floor",
+        "db_read",
+        "db_write",
+        "emit_session_event",
+        "judge_examples",
+        "refine_enabled",
+        "refine_endpoint",
+        "refine_model",
+        "refine_timeout_s",
+        "reflect_system",
+        "verb_catalog"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/replay.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "intent_key",
+        "match_template",
+        "normalize_tokens",
+        "similarity"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/router.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "RouteDecision",
+        "Router",
+        "fanout",
+        "route",
+        "route",
+        "should_fanout",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/routing.py": {
+      "configure_kwargs": [
+        "compound_action_alt",
+        "compound_connective_alt",
+        "fastpath_verbs",
+        "launch_fillers",
+        "launch_lead_words",
+        "launch_trail_words",
+        "launch_triggers",
+        "logger"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/ruleof2.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "RuleOfTwoVerdict",
+        "evaluate",
+        "is_state_change",
+        "normalize_mode",
+        "to_dict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py": {
+      "configure_kwargs": [
+        "db_create",
+        "db_fire",
+        "db_post",
+        "db_read",
+        "pg_mirror",
+        "pg_primary",
+        "run_template_enable"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/secondary_loop.py": {
+      "configure_kwargs": [
+        "apply_outbound_auth",
+        "daemon_diagnose_enable",
+        "daemon_diagnose_endpoint",
+        "daemon_diagnose_model",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "db_read",
+        "endpoint_supports_parallel_tools",
+        "secondary_replan_max",
+        "secondary_tool_max_iters"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/smartroute.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "CostLedger",
+        "Lane",
+        "can_afford",
+        "charge",
+        "choose_next",
+        "is_local",
+        "order_lanes",
+        "remaining",
+        "should_escalate"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/sse.py": {
+      "configure_kwargs": [
+        "debug_enable",
+        "surface_default"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/swarm.py": {
+      "configure_kwargs": [
+        "agent_catalog_rendered",
+        "agent_lane",
+        "agent_registry",
+        "dag_empty_native_fallback",
+        "dag_replan_max",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "db_read",
+        "dedup_pool_by_target",
+        "depth_exhausted",
+        "dispatch_depth",
+        "embed_one",
+        "filter_relevant_sources",
+        "is_slow_lane_ep",
+        "live_agent_names",
+        "max_dispatch_depth",
+        "pick_agent",
+        "read_tool_enrich",
+        "render_agent_catalog",
+        "respond_native_loop_direct",
+        "routed_domain_var",
+        "slow_lane_block_chars",
+        "slow_lanes",
+        "sources_annotations",
+        "sources_markdown",
+        "sources_metadata",
+        "src_collected",
+        "src_record_from_text",
+        "strip_think_tags",
+        "swarm_deepen_enabled",
+        "swarm_max_cpu_nodes",
+        "swarm_max_width",
+        "swarm_model",
+        "swarm_system_head",
+        "usage_estimate",
+        "verb_catalog"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/toolconflict.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "ConflictGate",
+        "constrains",
+        "from_catalog",
+        "guard",
+        "stats"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/toolexec.py": {
+      "configure_kwargs": [
+        "aci_head_frac",
+        "aci_max_lines",
+        "agent_dag_from_tasks",
+        "classify_verb_taint",
+        "code_mode_enable",
+        "code_mode_heavy_only",
+        "db_create",
+        "db_fire",
+        "db_post",
+        "depth_exhausted",
+        "dispatch_depth",
+        "dispatch_mios_verb",
+        "enter_dispatch_hop",
+        "high_privilege_verbs",
+        "live_agent_names",
+        "max_dispatch_depth",
+        "mcp_call_tool",
+        "orch_ctx_var",
+        "otel_tracer",
+        "plan_swarm",
+        "read_tool_enrich_chars",
+        "read_tool_enrich_timeout",
+        "recipe_catalog",
+        "record_mcp_tool_call",
+        "resolve_verb_key",
+        "respond_agent_dag",
+        "sanitize_tool_text",
+        "session_is_tainted",
+        "src_record",
+        "verb_catalog",
+        "web_enrich_verbs"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/toolsearch.py": {
+      "configure_kwargs": [
+        "embed_one",
+        "get_client",
+        "loads_lenient",
+        "mcp_client_lock",
+        "mcp_client_tools",
+        "verb_catalog"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/toolsurface.py": {
+      "configure_kwargs": [
+        "child_tool_floor",
+        "child_tool_select",
+        "code_mode_enable",
+        "cosine",
+        "dispatch_toml",
+        "embed_one",
+        "ensure_verb_embeddings",
+        "mcp_client_lock",
+        "mcp_client_tools",
+        "mcp_tool_to_openai_tool",
+        "recipe_catalog",
+        "recipe_to_openai_tool",
+        "resolve_verb_key",
+        "routed_domain_var",
+        "routing_domains",
+        "skill_list",
+        "skill_to_openai_tool",
+        "stable_prefix",
+        "stable_prefix_tail",
+        "tool_embedding",
+        "verb_catalog",
+        "verb_embeddings",
+        "verb_to_openai_tool",
+        "worker_tools_scope"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "to_bool"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py": {
+      "configure_kwargs": [
+        "agent_contract",
+        "backend_key",
+        "default_tool_cap",
+        "get_client",
+        "pick_tool_backend",
+        "resolve_verb_key",
+        "select_child_tools",
+        "tool_call_sig",
+        "verb_catalog",
+        "verb_to_openai_tool",
+        "vision_endpoint",
+        "vision_model"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/web_research.py": {
+      "configure_kwargs": [
+        "anchor_tokens",
+        "clean_web_text",
+        "client_env_var",
+        "conv_key_var",
+        "current_date_str",
+        "current_year",
+        "is_action_domain",
+        "judge_endpoint",
+        "judge_model",
+        "location_sensitive_phrases",
+        "max_sources",
+        "routed_domain_var",
+        "shares_anchor",
+        "sources_registry",
+        "sources_registry_cap",
+        "sources_var",
+        "src_turn_var",
+        "url_has_path",
+        "web_enrich_verbs",
+        "web_research_block_chars",
+        "web_research_crawl_fallback",
+        "web_research_crawl_max",
+        "web_research_crawl_timeout",
+        "web_research_enabled",
+        "web_research_fanout",
+        "web_research_fetch_chars",
+        "web_research_fetch_n",
+        "web_research_fetch_timeout",
+        "web_research_max_attempts",
+        "web_research_min_chars",
+        "web_research_passes",
+        "web_research_recency_range",
+        "web_research_results",
+        "web_research_search_timeout",
+        "web_research_time_range",
+        "web_research_use_news_category"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/admission.py": {
+      "configure_kwargs": [
+        "admit_enable",
+        "admit_max_wait",
+        "agent_concurrency",
+        "blade_vram_budget",
+        "dispatch_num",
+        "endpoint_concurrency",
+        "endpoint_reserved",
+        "global_priority_gate",
+        "is_warm",
+        "multiblade_enable",
+        "norm_model_tag",
+        "over_blade_ceiling",
+        "over_global_ceiling",
+        "priority_queue_enable",
+        "reclaim_idle_vram",
+        "resident_cached",
+        "slo_shed_enable",
+        "tenant_quota_enable",
+        "turn_tenant",
+        "vram_budget_mb",
+        "vram_coload_enable",
+        "vram_coload_est_mb",
+        "vram_coload_reserve_mb",
+        "vram_reclaim_idle"
+      ],
+      "public_symbols": []
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/batch.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "CoalesceWindow",
+        "Coalescer",
+        "add",
+        "batch_key",
+        "flush",
+        "is_native_batch",
+        "open_groups",
+        "pending",
+        "should_flush"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/bench.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "aggregate_pass_and_k_rate",
+        "aggregate_pass_at_k",
+        "aggregate_pass_hat_k",
+        "classic_rollup",
+        "comb_ratio",
+        "iid_pass_hat_k",
+        "pass_at_k",
+        "pass_hat_k",
+        "percentile"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/blades.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "blade_for_endpoint",
+        "blade_vram_budget",
+        "endpoint_blade_map",
+        "load_blade_pool",
+        "local_blade_name"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/evict.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "count_sql",
+        "delete_ids_sql",
+        "evict_params",
+        "evict_where",
+        "order_by",
+        "parse_count",
+        "parse_ids",
+        "plan_sweep",
+        "select_ids_sql"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/preempt.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "PreemptScheduler",
+        "Quantum",
+        "Snapshot",
+        "TokenSliceQueue",
+        "account",
+        "acquire_slot",
+        "can_admit",
+        "decide",
+        "discharge",
+        "dispatch",
+        "enqueue",
+        "expired",
+        "head_priority",
+        "is_suspended",
+        "is_tracked",
+        "release_slot",
+        "remaining",
+        "remove",
+        "requeue",
+        "resume",
+        "stats",
+        "stats",
+        "suspend",
+        "to_dict",
+        "turn_scheduler_stats"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/sched.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "PriorityGate",
+        "available",
+        "cap",
+        "head_priority",
+        "in_flight",
+        "queued",
+        "release",
+        "stats",
+        "tenant_inflight"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/slo.py": {
+      "configure_kwargs": [
+        "budgets",
+        "default_priority",
+        "interactive_priority"
+      ],
+      "public_symbols": [
+        "classify",
+        "deadline",
+        "edf_key",
+        "should_shed"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/stress.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "aggregate",
+        "build_scenarios",
+        "by_kind",
+        "main",
+        "percentile",
+        "ramp_concurrency",
+        "should_throttle",
+        "verdict"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py": {
+      "configure_kwargs": [
+        "admit_load_ceil",
+        "admit_mem_pct",
+        "agent_lane",
+        "blade_pool",
+        "endpoint_blade",
+        "endpoint_key",
+        "host_stats",
+        "lane_priority",
+        "local_blade",
+        "multiblade_enable",
+        "polish_model",
+        "refine_endpoint",
+        "refine_model",
+        "vram_budget_mb",
+        "vram_checkpoint_enable",
+        "vram_reclaim_idle",
+        "vram_turn_headroom_mb"
+      ],
+      "public_symbols": []
+    }
+  }
+}
