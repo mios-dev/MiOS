@@ -2199,6 +2199,7 @@ check_soft_mode_not_committed() {
     fi
 }
 
+# --- mios-ssot-lint Rust twin matches bash 97-ssot-lint.sh in exit code and output ---
 check_ssot_lint_equivalence() {
     local bin="$ROOT/tools/native/target/release/mios-ssot-lint"
     if [[ ! -x "$bin" ]]; then
