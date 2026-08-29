@@ -56,10 +56,19 @@ _need_python() {
 
 _violations_from() {
     # Folded from 42 copies of this loop.
-    local __prefix="$1" __blob="$2" line
+    local __prefix="$1" __blob="$2" line __n=0
     while IFS= read -r line; do
-        [[ -n "$line" ]] && _violation "${__prefix}${line}"
+        if [[ -n "$line" ]]; then
+            _violation "${__prefix}${line}"
+            __n=$(( __n + 1 ))
+        fi
     done <<<"$__blob"
+    # Six callers capture stdout with 2>/dev/null, so a tool that dies with a
+    # traceback on stderr hands us an EMPTY blob. Recording nothing there left
+    # VIOLATIONS at 0 and main()'s summary called the run clean.
+    if (( __n == 0 )); then
+        _violation "${__prefix}the backing tool failed and produced no parsable output on stdout (stderr may be discarded by the caller)"
+    fi
     return 1
 }
 
