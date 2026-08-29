@@ -128,7 +128,7 @@
 127	check_docs_ratchet	documentation coverage count meets or exceeds established ratchet floor
 128	check_header_integrity	source file AI-hint and license header blocks match template schema
 129	check_legibility_ratchet	code legibility and complexity metrics remain within ratchet thresholds
-130	check_docs_ratchet_monotone	documentation coverage ratchet strictly increases monotonically
+130	check_docs_ratchet_monotone	documentation ratchet ceilings never exceed their recorded floor (shrink-only)
 131	check_comment_lex_equivalence	comment lexing preserves semantic intent across documentation generators
 132	check_no_generated_prose_in_resolvers	resolver output contains pure configuration without raw generated prose
 133	check_manual_generated	generated manual chapters in docs match SSOT output verbatim
@@ -153,7 +153,7 @@
 152	check_no_inert_ssot_tables	all mios.toml SSOT tables have active code or generator consumers
 153	check_doc_refs_resolve	file paths referenced in documentation exist in the repository
 154	check_resolver_differential_parity	differential output between resolvers across platforms is zero
-155	check_generator_host_parity	code generators produce identical output regardless of host OS
+155	check_generator_host_parity	generators avoid the non-portable fnmatch.fnmatch idiom (source check, nothing is rendered)
 156	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
 157	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
 158	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean

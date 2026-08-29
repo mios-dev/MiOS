@@ -4659,20 +4659,33 @@ def check_docs_ratchet() -> int:
     return 0
 
 def check_generator_host_parity() -> int:
-    import os, sys
+    import os, subprocess, sys
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     viol = []
 
-    scanned_scripts = [
-        "tools/generate-names-registry.py",
-        "automation/lib/mios_var_closure.py",
-        "tools/generate-ai-manifest.py",
-        "tools/generate-pod-quadlets.py",
-        "tools/generate-bake-plan.py",
-        "usr/libexec/mios/mios-manual",
-        "usr/libexec/mios/mios-version-lint",
-    ]
+    # Was a hardcoded list of seven scripts, so the same non-portable idiom in
+    # any other generator went unseen -- proved by planting it in
+    # render-globals.py and watching this pass. Discover the set instead.
+    try:
+        listed = subprocess.run(["git", "-C", root, "ls-files",
+                                 "tools", "automation", "usr/libexec"],
+                                capture_output=True, text=True, check=False).stdout
+    except OSError as exc:
+        print("cannot enumerate generators: %s" % exc, file=sys.stderr)
+        return 1
+
+    scanned_scripts = []
+    for rel in [x.strip() for x in listed.split("\n") if x.strip()]:
+        base = os.path.basename(rel)
+        if (base.startswith(("generate-", "render-"))
+                or base in ("mios-manual", "mios-version-lint", "mios_var_closure.py")):
+            scanned_scripts.append(rel)
+
+    if len(scanned_scripts) < 20:
+        print("only %d generator(s) discovered -- the subject list is wrong, so an "
+              "empty result is not a pass" % len(scanned_scripts), file=sys.stderr)
+        return 1
 
     for script in scanned_scripts:
         fpath = os.path.join(root, script)
@@ -4687,8 +4700,13 @@ def check_generator_host_parity() -> int:
         print("\n".join(viol), file=sys.stderr)
         return 1
 
-    print("    generator host parity: all generators produce host-independent byte-identical outputs")
+    # Narrowed from "all generators produce host-independent byte-identical
+    # outputs". Nothing is rendered or compared here: this is one portability
+    # idiom, checked by reading source.
+    print("    %d generator(s) free of the non-portable fnmatch.fnmatch idiom"
+          % len(scanned_scripts))
     return 0
+
 
 def check_doc_port_scheme() -> int:
     import os, sys, tomllib

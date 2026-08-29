@@ -898,7 +898,7 @@ automation/98-drift-checks.sh	3819	3819	1	3	9f6c80d4d79e	STAY	inline-scoped		0		
 automation/98-drift-checks.sh	3851	3851	1	8	8b5559104b2e	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	3872	3872	1	9	5b68afcd7fe0	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	3886	3887	2	13	a6955006cc1c	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	3895	3896	2	14	0f68701a7607	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	3895	3896	2	17	80579c72a8ec	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	3903	3903	1	9	b422a59060e9	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	3910	3911	2	17	9e11cfdb9e4f	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	3918	3918	1	8	accc477b4682	STAY	local-scoped		0				0
@@ -924,11 +924,12 @@ automation/98-drift-checks.sh	4059	4059	1	8	1e7505c281f6	STAY	local-scoped		0			
 automation/98-drift-checks.sh	4092	4092	1	10	89420340dec0	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	4101	4101	1	9	bd6b2ef19eb9	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	4110	4110	1	8	2affd9f4897d	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	4119	4119	1	9	b9612441ec35	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	4131	4132	2	18	26157cf5076c	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	4140	4141	2	19	9c7e864d5ebe	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	4150	4151	2	22	75234c5efd79	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	4160	4161	2	21	40ef68642663	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	4119	4119	1	11	c1fe573d7b02	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	4121	4122	2	20	3ab73bd0a7ab	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	4133	4134	2	18	26157cf5076c	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	4142	4143	2	19	9c7e864d5ebe	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	4152	4153	2	22	75234c5efd79	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	4162	4163	2	21	40ef68642663	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	6777	6782	6	70	62f7b82da080	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/automation.md	mios-src:62f7b82da080	70	1
 automation/99-postcheck.sh	1	4	4	23	8d9c9bd58dd3	STAY	ai-header		0				0
 automation/99-postcheck.sh	1	5	5	43	845010814b0e	STAY	ai-header		0	usr/share/doc/mios/manual/automation.md	mios-src:845010814b0e	43	1
@@ -6705,6 +6706,8 @@ tools/drift-checks.py	2604	2606	3	34	2b47ab5489d1	STAY	midsize-why		0				0
 tools/drift-checks.py	4001	4001	1	5	054350b7b88c	STAY	inline-scoped		0				0
 tools/drift-checks.py	4017	4017	1	9	899b785cd6ec	STAY	inline-scoped		0				0
 tools/drift-checks.py	4060	4063	4	39	a3b125a34468	MIGRATE	midsize-narrative		0				0
+tools/drift-checks.py	4667	4669	3	32	41bb016ef06d	STAY	midsize-why		0				0
+tools/drift-checks.py	4703	4705	3	23	22497b71fd82	STAY	midsize-why		0				0
 tools/find-ovmf-firmware.sh	1	3	3	23	b3615f6321df	STAY	ai-header		0				0
 tools/find-ovmf-firmware.sh	105	105	1	5	409ac928739c	DROP	banner		0				0
 tools/fix-ovmf-enrollment.sh	1	2	2	25	a8693a7bf2b3	STAY	ai-header		0				0

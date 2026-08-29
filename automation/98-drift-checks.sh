@@ -3893,7 +3893,7 @@ check_docs_ratchet() {
 }
 
 # Ceilings must fall, never rise. Compared against HEAD.
-# --- documentation coverage ratchet strictly increases monotonically ---
+# --- documentation ratchet ceilings never exceed their recorded floor (shrink-only) ---
 check_docs_ratchet_monotone() {
     echo "[98-drift-checks] documentation coverage ratchet strictly increases monotonically"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-doc-ratchet-monotone.py" 2>&1)" || { _violations_from "" "$out"; return; }
@@ -4116,9 +4116,11 @@ check_resolver_differential_parity() {
     echo "[98-drift-checks]   $out"
 }
 
-# --- code generators produce identical output regardless of host OS ---
+# --- generators avoid the non-portable fnmatch.fnmatch idiom (source check, nothing is rendered) ---
 check_generator_host_parity() {
-    echo "[98-drift-checks] code generators produce identical output regardless of host OS"
+    # Nothing is rendered or compared here: it reads generator sources for one
+    # portability idiom. The old wording promised byte-identical output.
+    echo "[98-drift-checks] generators avoid the non-portable fnmatch.fnmatch idiom"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py generator-host-parity)" || {
         _violations_from "check_generator_host_parity: " "$out"; return; }
     echo "[98-drift-checks]   $out"
