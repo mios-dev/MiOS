@@ -3930,8 +3930,12 @@ check_manual_ledger() {
 }
 
 # --- no plain-text credential literals exist in tracked source tree ---
+# --- no credential literal is baked into a systemd unit or Quadlet Environment= line (Law 11) ---
 check_credential_literals() {
-    echo "[98-drift-checks] no plain-text credential literals exist in tracked source tree"
+    # The tool scans Environment= lines under usr/lib/systemd/system and
+    # usr/share/containers/systemd. It said "tracked source tree", which is
+    # check_secret_handling's job, not this one.
+    echo "[98-drift-checks] no credential literal is baked into a systemd unit or Quadlet Environment= line"
     local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-credential-literals.py 2>&1)" || { _violations_from "check_credential_literals: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }

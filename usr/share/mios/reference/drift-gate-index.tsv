@@ -134,7 +134,7 @@
 133	check_manual_generated	generated manual chapters in docs match SSOT output verbatim
 134	check_manual_ledger	the corpus ledger regenerates verbatim from the tracked tree
 135	check_comment_landing	every pruned comment still lands in a doc
-136	check_credential_literals	no plain-text credential literals exist in tracked source tree
+136	check_credential_literals	no credential literal is baked into a systemd unit or Quadlet Environment= line (Law 11)
 137	check_redact_coverage	log sanitizer redacts all sensitive fields listed in security schema
 138	check_task_schema	AGY-TASKS task descriptions conform strictly to task schema contract
 139	check_daemon_governor	daemon governor runtime limits and cgroup constraints are valid
