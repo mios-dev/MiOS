@@ -11001,8 +11001,6 @@ not_mirrored = [
   "etc/skel/.config/mios/profile.toml",
   "image-versions.yml",
   "installation/README.md",
-  "installation/mios-install.ps1",
-  "installation/mios-install.sh",
   "llms.txt",
   "system-prompt.md",
   "usr/share/mios/names.generated.txt",

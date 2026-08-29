@@ -21,7 +21,7 @@
 20	check_blade_dropins	blade capability drop-ins in sync with mios.toml [blade.requires]
 21	check_unwired_modules	no imported-but-dead agent-pipe module
 22	check_cephfs_ssot	CephFS SSOT configuration is valid
-23	check_converge_ssot	[converge] SSOT configuration is valid
+23	check_converge_ssot	[converge] values are read from mios.toml and within legal bounds
 24	check_hummingbird	Hummingbird distroless and Quadlet configuration is valid
 25	check_container_ports	no manual port literals in container definitions
 26	check_bootstrap_ports_drift	bootstrap mios.toml shared surfaces match main repository
@@ -49,7 +49,7 @@
 48	check_resolver_twin_parity	SOFT: a resolver is absent
 49	check_resolver_twin_equivalence	resolver twin equivalence: userenv.sh and mios_toml.py are equivalent
 50	check_template_conformance	SOFT: check-template-conformance not found
-51	check_kargs_projection	kargs.d matches mios.toml [kargs] projection
+51	check_kargs_projection	kargs.d managed files match the mios.toml [kargs] projection
 52	check_greenboot_enablement	greenboot services and scripts are correctly configured
 53	check_greenboot	greenboot health-coverage check
 54	check_chrony_projection	chrony.conf matches mios.toml [network.ntp] projection
@@ -110,7 +110,7 @@
 109	check_resolver_shell_equivalence	shell resolver logic is identical to python/PS SSOT resolvers
 110	check_resolver_ps_equivalence	PowerShell resolver logic matches canonical SSOT resolver
 111	check_cargo_deny	Rust workspace cargo-deny advisories, licenses, and bans pass clean
-112	check_ps_repo_parity	PowerShell repository scripts maintain parity with bash tool equivalents
+112	check_ps_repo_parity	Law-15 mirror manifest is self-consistent and mirrored PowerShell surfaces are byte-identical
 113	check_ps_redirectors	PowerShell script entrypoint redirectors point to canonical implementation
 114	check_powershell_parse	all PowerShell scripts (.ps1, .psm1) parse without syntax errors
 115	check_ps_signatures	PowerShell script signature headers and execution policies are clean
@@ -145,7 +145,7 @@
 144	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree
 145	check_negative_coverage	negative test coverage gate: all dispatched checks are covered or exempt
 146	check_verb_templates	verb templates compile and validate against SSOT args
-147	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
+147	check_pipe_boundaries	pipe-boundaries.manifest.json matches the agent-pipe tree
 148	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
 149	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
 150	check_desktop_launchers	all mios.toml SSOT tables have active code or generator consumers

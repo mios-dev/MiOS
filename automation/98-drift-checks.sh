@@ -578,6 +578,7 @@ check_cephfs_ssot() {
     fi
 }
 
+# --- [converge] values are read from mios.toml and within legal bounds ---
 check_converge_ssot() {
     _need_python || return 0
 
@@ -1147,6 +1148,7 @@ check_template_conformance() {
     fi
 }
 
+# --- kargs.d managed files match the mios.toml [kargs] projection ---
 check_kargs_projection() {
     _need_python || return 0
 
@@ -2695,6 +2697,7 @@ check_verb_templates() {
     fi
 }
 
+# --- pipe-boundaries.manifest.json matches the agent-pipe tree ---
 check_pipe_boundaries() {
     _need_python || return 0
     local manifest="${ROOT}/usr/share/mios/pipe-boundaries.manifest.json"
@@ -3435,31 +3438,120 @@ check_powershell_parse() {
     fi
 }
 
-# --- PowerShell repository scripts maintain parity with bash tool equivalents ---
+# --- Law-15 mirror manifest is self-consistent and mirrored PowerShell surfaces are byte-identical ---
 check_ps_repo_parity() {
-    echo "[98-drift-checks] PowerShell repository scripts maintain parity with bash tool equivalents"
-    local sibling_dir="${MIOS_BOOTSTRAP_DIR:-../mios-bootstrap}"
-    if [[ ! -d "$sibling_dir" ]]; then
-        echo "[98-drift-checks]   WARNING: mios-bootstrap repo absent ($sibling_dir), skipping Law-15 parity check" >&2
-        return 0
-    fi
-    local shared_files=("build-mios.ps1" "Get-MiOS.ps1" "automation/lib/globals.ps1" "installation/mios-common.ps1")
-    local f f1 f2 sum1 sum2
-    for f in "${shared_files[@]}"; do
-        f1="$ROOT/$f"
-        f2="$sibling_dir/$f"
-        if [[ -f "$f1" && -f "$f2" ]]; then
-            sum1=$(sha256sum "$f1" | awk '{print $1}')
-            sum2=$(sha256sum "$f2" | awk '{print $1}')
-            if [[ "$sum1" != "$sum2" ]]; then
-                _violation "Law-15 drift: $f diverges between mios and mios-bootstrap ($sum1 vs $sum2)"
-            fi
-        fi
+    echo "[98-drift-checks] Law-15 mirror manifest is self-consistent and mirrored PowerShell surfaces are byte-identical"
+    _need_python || return 0
+    local before=$VIOLATIONS
+
+    # This gate resolved the sibling from MIOS_BOOTSTRAP_DIR. Nothing sets that
+    # name: both CI workflows export MIOS_BOOTSTRAP_ROOT and clone into
+    # RUNNER_TEMP, and tools/{drift-checks,sync-bootstrap}.py plus
+    # tests/drift-gate-negatives.sh all read MIOS_BOOTSTRAP_ROOT. So the
+    # fallback ../mios-bootstrap was used on every CI run, never existed on a
+    # runner, and the check took its "skipping" branch and returned 0 -- always.
+    local sibling_dir="" cand
+    for cand in "${MIOS_BOOTSTRAP_ROOT:-}" "${MIOS_BOOTSTRAP_DIR:-}"; do
+        if [[ -n "$cand" && -d "$cand" ]]; then sibling_dir="$cand"; break; fi
     done
-    echo "[98-drift-checks]   Law-15 shared PS surfaces byte-identical across repos"
+    if [[ -z "$sibling_dir" ]]; then
+        # Same order tools/drift-checks.py uses: SSOT path, then sibling.
+        local ssot_bs
+        ssot_bs="$(cd "$ROOT" && python3 -c '
+import sys, tomllib
+with open(sys.argv[1], "rb") as fh:
+    p = tomllib.load(fh).get("bootstrap", {}).get("bootstrap_repo", "")
+if p and sys.platform != "win32" and p.startswith("C:/"):
+    p = "/mnt/c/" + p[3:]
+print(p)
+' "$ROOT/usr/share/mios/mios.toml" 2>/dev/null || true)"
+        for cand in "$ssot_bs" "$(dirname "$ROOT")/mios-bootstrap"; do
+            if [[ -n "$cand" && -d "$cand" ]]; then sibling_dir="$cand"; break; fi
+        done
+    fi
+
+    if [[ -z "$sibling_dir" ]]; then
+        # Absence used to return 0. Under the CI strictness switch it is a
+        # violation: a gate that cannot see its subject has not passed it.
+        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+            _violation "Law-15: mios-bootstrap is unreachable, so PowerShell parity cannot be verified (set MIOS_BOOTSTRAP_ROOT)" || true
+        else
+            echo "[98-drift-checks]   WARNING: mios-bootstrap absent, Law-15 PS parity NOT verified" >&2
+        fi
+        return
+    fi
+
+    # The file list was a hardcoded four-entry array duplicating -- and drifted
+    # from -- mios.toml [bootstrap.sync]. Three entries were already covered by
+    # check_bootstrap_sync; the fourth is absent from the sibling and was
+    # silently skipped by the "-f both" guard, so this gate had no coverage of
+    # its own. Drive it from the SSOT, and add the one manifest property
+    # sync-bootstrap.py structurally cannot see: it unions mirror_files with
+    # not_mirrored before auditing, so a file declared in BOTH lists -- a
+    # contradiction about whether it may diverge -- is invisible to it.
+    local report rc=0
+    report="$(cd "$ROOT" && python3 - "$ROOT" "$sibling_dir" <<'PY'
+import hashlib, os, sys, tomllib
+
+root, boot = sys.argv[1], sys.argv[2]
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    sync = tomllib.load(fh).get("bootstrap", {}).get("sync", {})
+mirror = list(sync.get("mirror_files") or ())
+notmir = list(sync.get("not_mirrored") or ())
+
+def sha(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as fh:
+        for blk in iter(lambda: fh.read(1 << 16), b""):
+            h.update(blk)
+    return h.hexdigest()
+
+viol = []
+
+for f in sorted(set(mirror) & set(notmir)):
+    viol.append("Law-15 manifest contradiction: %s is declared in both "
+                "[bootstrap.sync].mirror_files and .not_mirrored" % f)
+
+for f in sorted(mirror):
+    if len(f) != len(f.strip()) or not f:
+        viol.append("Law-15 manifest: mirror_files entry %r is malformed" % f)
+
+ps_mirrored = [f for f in sorted(mirror)
+               if f.lower().endswith((".ps1", ".psm1", ".psd1"))]
+for f in ps_mirrored:
+    a, b = os.path.join(root, f), os.path.join(boot, f)
+    # A missing file used to satisfy the "-f both" guard, so deleting a
+    # mirrored surface from either repo read as parity.
+    if not os.path.isfile(a):
+        viol.append("Law-15: %s is declared mirrored but missing from mios.git" % f)
+    elif not os.path.isfile(b):
+        viol.append("Law-15: %s is declared mirrored but missing from mios-bootstrap" % f)
+    else:
+        sa, sb = sha(a), sha(b)
+        if sa != sb:
+            viol.append("Law-15 drift: %s diverges between mios and mios-bootstrap "
+                        "(%s vs %s)" % (f, sa[:16], sb[:16]))
+
+for v in viol:
+    print(v)
+if viol:
+    sys.exit(1)
+print("OK manifest self-consistent; %d mirrored PowerShell surface(s) byte-identical"
+      % len(ps_mirrored))
+PY
+)" || rc=$?
+
+    if (( rc != 0 )); then
+        local line
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && { _violation "$line" || true; }
+        done <<< "$report"
+        return
+    fi
+    echo "[98-drift-checks]   ${report#OK }"
+    (( VIOLATIONS == before ))
 }
 
-# --- PowerShell script entrypoint redirectors point to canonical implementation ---
 check_ps_redirectors() {
     echo "[98-drift-checks] PowerShell script entrypoint redirectors point to canonical implementation"
     # Only files the repo actually SHIPS. run-pipeline.ps1 was listed here but
