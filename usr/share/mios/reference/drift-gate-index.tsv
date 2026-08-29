@@ -205,4 +205,5 @@
 204	check_verify_images	container image verification signatures and digests are valid
 205	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
 206	check_negatives_registered	every drift check has a corresponding negative test registered
-207	check_leaked_fixtures	no transient test fixtures or dump files are committed in git
+207	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
+208	check_leaked_fixtures	no transient test fixtures or dump files are committed in git

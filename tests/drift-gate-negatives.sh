@@ -2990,6 +2990,22 @@ PYEOF
     log "check_fleet_safety negative test passed"
 }
 
+test_tracked_readable() {
+    log "Testing check_tracked_readable"
+    # The defect: a file in the index but gone from the worktree leaves every
+    # corpus-scanning gate reporting output byte-identical to a clean run,
+    # because each one drops it with `except OSError: continue`.
+    local vf="${ROOT}/tools/ascii-sweep.py"
+    local bak; bak="$(mktemp)"; cp "$vf" "$bak"
+
+    rm -f "$vf"
+    _neg_gate check_tracked_readable && die "check_tracked_readable passed with a tracked file removed from the worktree"
+
+    cp "$bak" "$vf"; rm -f "$bak"
+    _neg_gate check_tracked_readable         || die "check_tracked_readable failed after restoration"
+    log "check_tracked_readable negative test passed"
+}
+
 test_leaked_fixtures() {
     log "Testing check_leaked_fixtures"
     local vf="${ROOT}/VERSION"
@@ -3813,6 +3829,7 @@ main() {
     _run_test test_neg_gate_harness
     _run_test test_task_schema
 _run_test test_ci_suite_coverage
+_run_test test_tracked_readable
 _run_test test_leaked_fixtures
     _run_test test_fleet_safety
     _run_test test_ai_manifests_fresh

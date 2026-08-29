@@ -288,6 +288,7 @@ is generated, its generator is here.
 | `tools/check-task-schema.py` | Fails when an AGY task omits a required field, names a dependency that does not exist, or reuses an id beyond the shrink-only ceiling. |
 | `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice, and references AGY-TASKS.md (AGY-1647). |
 | `tools/check-temp-fixture-cleanup.py` | Fails when a test creates a temporary directory without arranging to remove it. |
+| `tools/check-tracked-readable.py` | Fails when a tracked file cannot be read, because every corpus-scanning gate silently drops such a file and still reports clean. |
 | `tools/check-unit-projection.py` | Drift gate for the [units] projection debt register. |
 | `tools/check-variant-registry.py` | Fails when a MiOS variant names a config table, edition, archetype, artifact or document that does not exist, or breaks the naming convention. |
 | `tools/check-verify-images.py` | Drives tools/verify-images.py against fixture build trees and fails unless an empty tree, a partial tree and a corrupt artifact are each rejected by name. |
@@ -364,6 +365,7 @@ is generated, its generator is here.
 | `tools/test_check-task-schema.py` | Sibling unit test for tools/check-task-schema.py (AGY-1646). |
 | `tools/test_check-tasks-status-parity.py` | Sibling unit test for tools/check-tasks-status-parity.py. |
 | `tools/test_check-temp-fixture-cleanup.py` | Sibling test for tools/check-temp-fixture-cleanup.py; proves it names a test that makes a temp directory and never removes it. |
+| `tools/test_check-tracked-readable.py` | Fixtures for check-tracked-readable.py -- proves it reports a tracked file removed from the worktree, and that a clean tree passes. |
 | `tools/test_check-unit-projection.py` | Unit tests for tools/check-unit-projection.py. |
 | `tools/test_check-variant-registry.py` | Sibling test for tools/check-variant-registry.py; proves it rejects a dangling edition, archetype, artifact, doc and a name off convention. |
 | `tools/test_check-verify-images.py` | Sibling test for tools/check-verify-images.py; asserts the gate drives the real verifier rather than restating its result. |
@@ -385,7 +387,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 132 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 134 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

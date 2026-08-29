@@ -3409,6 +3409,7 @@ main() {
     check_verify_images
     check_temp_fixture_cleanup
     check_negatives_registered
+    check_tracked_readable
     check_leaked_fixtures
 
     set -e
@@ -4068,6 +4069,14 @@ check_ci_suite_coverage() {
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/ci-suites.py --check 2>&1)" || { _violations_from "check_ci_suite_coverage: " "$out"; return; }
     echo "[98-drift-checks]   every tracked CI suite is registered or exempt"
+}
+
+# --- every tracked file is present and readable, so no corpus-scanning gate drops one in silence ---
+check_tracked_readable() {
+    echo "[98-drift-checks] every tracked file is present and readable, so no corpus-scanning gate drops one in silence"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tracked-readable.py 2>&1)" || { _violations_from "check_tracked_readable: " "$out"; return; }
+    echo "[98-drift-checks]   $out"
 }
 
 # --- no transient test fixtures or dump files are committed in git ---
