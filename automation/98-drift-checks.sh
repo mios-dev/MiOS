@@ -3768,18 +3768,49 @@ check_ps_port_fallback_ssot() {
 
 # --- GitHub repository and container image slugs use canonical lowercase casing ---
 check_github_slug_casing() {
-    echo "[98-drift-checks] GitHub repository and container image slugs use canonical lowercase casing"
-    local bad_files="$(cd "$ROOT" && git ls-files -z -c -o --exclude-standard | xargs -0 grep -HnI "raw.githubusercontent.com/MiOS-DEV" 2>/dev/null | grep -v "usr/share/doc/mios/knowledge" || true)"
-    if [[ -n "$bad_files" ]]; then
-        while IFS= read -r line; do
-            _violation "Non-canonical GitHub raw URL slug casing found: $line"
-        done <<<"$bad_files"
+    echo "[98-drift-checks] the MiOS org slug is lowercase in every pull/push reference"
+    _need_python || return 0
+    # Only the MiOS org is subject to this rule. Upstream orgs are legitimately
+    # mixed-case (StevenBlack, NousResearch, NVIDIA), so "any uppercase org" is
+    # the wrong predicate. The org is read from SSOT, never spelled here.
+    local org scanned bad
+    org="$(cd "$ROOT" && python3 -c '
+import sys, tomllib
+with open(sys.argv[1], "rb") as fh:
+    name = tomllib.load(fh).get("image", {}).get("name", "")
+print(name.split("/")[1] if name.count("/") >= 1 else "")
+' "$ROOT/usr/share/mios/mios.toml" 2>/dev/null)"
+    if [[ -z "$org" ]]; then
+        _violation "check_github_slug_casing: cannot read the org from [image].name"
         return
     fi
-    echo "[98-drift-checks]   All raw.githubusercontent.com URLs use canonical lowercase org/repo"
+    local ci_pat=""
+    local i ch
+    for (( i=0; i<${#org}; i++ )); do
+        ch="${org:i:1}"
+        if [[ "$ch" == [a-z] ]]; then
+            ci_pat+="[${ch}$(echo "$ch" | tr 'a-z' 'A-Z')]"
+        else
+            ci_pat+="$ch"
+        fi
+    done
+
+    scanned="$(cd "$ROOT" && git ls-files -c -o --exclude-standard | grep -cvE '\.md$')"
+    if [[ -z "$scanned" || "$scanned" -lt 100 ]]; then
+        _violation "check_github_slug_casing scanned only ${scanned:-0} files -- the subject list is wrong"
+        return
+    fi
+    bad="$(cd "$ROOT" && git ls-files -z -c -o --exclude-standard         | xargs -0 grep -HnIE "(ghcr[.]io|raw[.]githubusercontent[.]com|github[.]com)/${ci_pat}" 2>/dev/null         | grep -v "/${org}"         | grep -vE '\.md:'         | grep -v 'usr/share/doc/mios/knowledge'         | grep -v '^automation/manifest[.]json:' || true)"
+    if [[ -n "$bad" ]]; then
+        local line
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && { _violation "MiOS org slug is not the canonical '${org}': $line" || true; }
+        done <<<"$bad"
+        return
+    fi
+    echo "[98-drift-checks]   ${scanned} file(s) scanned; the ${org} org slug is canonical everywhere"
 }
 
-# --- PowerShell script files use UTF-8 encoding without byte-order marks ---
 check_ps_encoding_and_bom() {
     echo "[98-drift-checks] PowerShell script files use UTF-8 encoding without byte-order marks"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py ps-encoding-and-bom)" || {

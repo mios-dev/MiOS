@@ -11,7 +11,7 @@ def get_version():
         return "0.3.0"
 
 VERSION = get_version()
-HEADER = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
+HEADER = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/mios-dev/mios -->
 > **Proprietor:** 'MiOS' Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
 > **License:** Licensed as personal property to 'MiOS' Project
@@ -21,9 +21,9 @@ HEADER = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github
 FOOTER = """---
 - **Copyright:** (c) 2026 'MiOS' Project
 - **Status:** Personal Property / Private Infrastructure
-- **Project Repository:** [MiOS-DEV/mios](https://github.com/MiOS-DEV/mios)
-- **Documentation:** ['MiOS' Navigation Hub](https://github.com/MiOS-DEV/mios/blob/main/specs/Home.md)
-- **Artifact Hub:** [ai-context.json](https://github.com/MiOS-DEV/mios/blob/main/ai-context.json)
+- **Project Repository:** [MiOS-DEV/mios](https://github.com/mios-dev/mios)
+- **Documentation:** ['MiOS' Navigation Hub](https://github.com/mios-dev/mios/blob/main/specs/Home.md)
+- **Artifact Hub:** [ai-context.json](https://github.com/mios-dev/mios/blob/main/ai-context.json)
 ---"""
 
 def standardize_file(file_path):

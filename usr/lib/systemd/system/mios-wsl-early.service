@@ -2,7 +2,7 @@
 # AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' WSL2 pre-sysinit fixups (rshared root + /dev/{net/tun,fuse})
-Documentation=https://github.com/MiOS-DEV/MiOS
+Documentation=https://github.com/mios-dev/MiOS
 ConditionVirtualization=wsl
 DefaultDependencies=no
 After=systemd-tmpfiles-setup-dev.service systemd-remount-fs.service

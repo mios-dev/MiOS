@@ -16,7 +16,7 @@ if [[ ! -d "${BOOTSTRAP_REPO}/.git" ]]; then
     echo "ERROR: mios-bootstrap repository not found at: ${BOOTSTRAP_REPO}"
     echo ""
     echo "Clone it first:"
-    echo "  git clone https://github.com/MiOS-DEV/MiOS-bootstrap ${BOOTSTRAP_REPO}"
+    echo "  git clone https://github.com/mios-dev/MiOS-bootstrap ${BOOTSTRAP_REPO}"
     echo ""
     echo "Or set BOOTSTRAP_REPO environment variable:"
     echo "  export BOOTSTRAP_REPO=/path/to/MiOS-bootstrap"
@@ -144,7 +144,7 @@ cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
     "vLLM / SGLang (mios-llm-heavy)"
   ],
   "license": "Personal Property - 'MiOS' Project",
-  "repository": "https://github.com/MiOS-DEV/mios"
+  "repository": "https://github.com/mios-dev/mios"
 }
 MANIFEST
 
@@ -230,8 +230,8 @@ These artifacts enable:
 
 ---
 
-**Repository:** https://github.com/MiOS-DEV/mios
-**Bootstrap:** https://github.com/MiOS-DEV/MiOS-bootstrap
+**Repository:** https://github.com/mios-dev/mios
+**Bootstrap:** https://github.com/mios-dev/MiOS-bootstrap
 **License:** Personal Property - 'MiOS' Project
 README
 

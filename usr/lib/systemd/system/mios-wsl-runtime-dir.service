@@ -12,7 +12,7 @@
 # user on WSL2 boots so the cascade can't happen. On a real logind session
 # the directory already exists -- install -d is idempotent and a no-op.
 Description='MiOS' WSL2 user-runtime-dir fallback
-Documentation=https://github.com/MiOS-DEV/MiOS
+Documentation=https://github.com/mios-dev/MiOS
 ConditionVirtualization=wsl
 After=local-fs.target systemd-sysusers.service
 Before=multi-user.target

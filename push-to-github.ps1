@@ -6,7 +6,7 @@ param(
     [string]$Version,
     [string]$Message = 'release sync',
     [string]$StagedDir,
-    [string]$Repo = 'github.com/MiOS-DEV/MiOS-bootstrap',
+    [string]$Repo = 'github.com/mios-dev/MiOS-bootstrap',
     [string]$Branch = 'main',
     [switch]$DryRun
 )
@@ -135,7 +135,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "git push failed (exit $LASTEXITCODE)." }
 
         Write-Ok "Commit: $sha"
-        Write-Ok "GHCR tag (built by CI): ghcr.io/MiOS-DEV/mios:$Version"
+        Write-Ok "GHCR tag (built by CI): ghcr.io/mios-dev/mios:$Version"
     }
     finally {
         Pop-Location

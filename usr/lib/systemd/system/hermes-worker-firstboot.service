@@ -2,7 +2,7 @@
 # AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' Hermes-Worker first-boot config seed (:8643 non-thin worker)
-Documentation=https://github.com/MiOS-DEV/MiOS
+Documentation=https://github.com/mios-dev/MiOS
 After=local-fs.target systemd-tmpfiles-setup.service
 Before=hermes-worker.service multi-user.target
 ConditionPathExists=/usr/libexec/mios/hermes-worker-firstboot

@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/MiOS-DEV/MiOS-bootstrap.git}"
+MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/mios-dev/MiOS-bootstrap.git}"
 MIOS_REPO_BRANCH="${MIOS_REPO_BRANCH:-main}"
 MIOS_TMP_DIR="/tmp/mios-ignition-$$"
 MIOS_INSTALL_LOG="/var/log/mios-ignition.log"
@@ -485,7 +485,7 @@ Documentation:
   - System config: ${MIOS_CONFIG_DIR}
 
 For more information:
-  https://github.com/MiOS-DEV/MiOS-bootstrap
+  https://github.com/mios-dev/MiOS-bootstrap
 
 EOF
 }

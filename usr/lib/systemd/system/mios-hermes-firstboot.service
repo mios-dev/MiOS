@@ -2,7 +2,7 @@
 # AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' Hermes-Agent first-boot config + key generation
-Documentation=https://github.com/MiOS-DEV/MiOS
+Documentation=https://github.com/mios-dev/MiOS
 # Runs before the DIRECT-install hermes-agent.service so the gateway
 # starts with a valid $HERMES_HOME/config.yaml + api.env already on
 # disk. The pre-2026-05-14 ordering targeted mios-hermes.service /

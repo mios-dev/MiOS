@@ -72,7 +72,7 @@ def sync_wiki():
         "last_rag_sync": get_last_rag_sync()
     }
 
-    content = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
+    content = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/mios-dev/mios -->
 > **Generated:** {datetime.now().isoformat()}
 > **Status:** Automated Sync
 

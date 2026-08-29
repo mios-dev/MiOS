@@ -2,7 +2,7 @@
 # AI-related: /usr/libexec/mios/wsl-theme-bridge.sh, default.target
 [Unit]
 Description='MiOS' WSL theme bridge (Windows light/dark -> GNOME color-scheme)
-Documentation=https://github.com/MiOS-DEV/MiOS
+Documentation=https://github.com/mios-dev/MiOS
 # WSL-only. On bare metal / Hyper-V / QEMU MiOS hosts the Windows
 # registry isn't reachable and the Wayland compositor is GNOME's own,
 # so theme propagation happens through the regular xdg-desktop-portal

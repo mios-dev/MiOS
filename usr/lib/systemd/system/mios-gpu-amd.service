@@ -3,7 +3,7 @@
 [Unit]
 Description='MiOS' AMD GPU container plumbing (ROCm/KFD + DRI)
 ConditionVirtualization=!container
-Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
+Documentation=https://github.com/mios-dev/MiOS/blob/main/docs/gpu-passthrough.md
 ConditionPathExists=/dev/kfd
 After=systemd-modules-load.service systemd-udev-trigger.service
 # systemd-udev-settle is deprecated upstream (warns at boot). udev-trigger

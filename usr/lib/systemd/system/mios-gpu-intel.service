@@ -3,7 +3,7 @@
 [Unit]
 Description='MiOS' Intel/AMD iGPU Container Plumbing (i915/xe/amdgpu)
 ConditionVirtualization=!container
-Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
+Documentation=https://github.com/mios-dev/MiOS/blob/main/docs/gpu-passthrough.md
 ConditionPathExists=/dev/dri/renderD128
 After=systemd-modules-load.service systemd-udev-trigger.service
 # systemd-udev-settle is deprecated; using udev-trigger instead.

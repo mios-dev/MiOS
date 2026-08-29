@@ -2,7 +2,7 @@
 # AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' WSL2 First Boot Initialization
-Documentation=https://github.com/MiOS-DEV/MiOS
+Documentation=https://github.com/mios-dev/MiOS
 ConditionVirtualization=wsl
 ConditionPathExists=!/var/lib/mios/.wsl-firstboot-done
 After=local-fs.target

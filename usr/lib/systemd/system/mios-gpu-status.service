@@ -3,7 +3,7 @@
 [Unit]
 ConditionVirtualization=!container
 Description='MiOS' GPU passthrough detection and status
-Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
+Documentation=https://github.com/mios-dev/MiOS/blob/main/docs/gpu-passthrough.md
 DefaultDependencies=yes
 After=systemd-udev-trigger.service systemd-modules-load.service local-fs.target
 # systemd-udev-settle is deprecated; using udev-trigger instead.
