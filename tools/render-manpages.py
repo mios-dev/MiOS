@@ -251,20 +251,32 @@ def main(argv) -> int:
         os.remove(os.path.join(root, o))
 
     if validate:
-        sample_pages = [os.path.join(root, MAN, "man1", "mios.1"),
-                        os.path.join(root, MAN, "man7", "mios-variants.7"),
-                        os.path.join(root, MAN, "man5", "mios.toml.5")]
+        # Was a hardcoded sample of three, each skipped `if os.path.exists`.
+        # 136 pages ship, so 133 were never validated, and --check cannot cover
+        # them: it diffs generated against on-disk, so a generator emitting bad
+        # roff matches itself. Validate every page this run renders.
         valid_errors = []
-        for sp in sample_pages:
-            if os.path.exists(sp):
-                ok, msg = validate_man_page(sp)
-                if not ok:
-                    valid_errors.append(msg)
+        validated = 0
+        for rel in sorted(rendered):
+            sp = os.path.join(root, rel)
+            if not os.path.exists(sp):
+                valid_errors.append("%s: rendered but absent from the tree" % rel)
+                continue
+            validated += 1
+            ok, msg = validate_man_page(sp)
+            if not ok:
+                valid_errors.append(msg)
+        if not validated:
+            valid_errors.append(
+                "no man page was validated, so a clean result here means nothing")
         if valid_errors:
             print("man page validation failed:")
-            for ve in valid_errors:
+            for ve in valid_errors[:10]:
                 print("  " + ve)
+            if len(valid_errors) > 10:
+                print("  ... and %d more" % (len(valid_errors) - 10))
             return 1
+        print("[render-manpages] %d page(s) validated" % validated, file=sys.stderr)
 
     print("[render-manpages] %d page(s) %s" %
           (len(rendered), "verified" if check else "rendered"), file=sys.stderr)
