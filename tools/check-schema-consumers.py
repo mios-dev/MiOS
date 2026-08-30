@@ -8,6 +8,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mios_tracked import GitUnavailable  # noqa: E402
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover -- py<3.11
@@ -26,6 +29,20 @@ NON_CONSUMER_DIRS = ("/docs/", "usr/share/doc/", "usr/share/mios/reference/")
 # excluded automatically.
 GENERATED_MARKER = "GENERATED IN FULL from usr/share/mios/mios.toml"
 
+def is_tracked(root: str, rel: str) -> bool:
+    """Whether git's INDEX carries rel, which survives the worktree copy going
+    away. Raises GitUnavailable when git cannot answer at all."""
+    try:
+        r = subprocess.run(["git", "-C", root, "ls-files", "--", rel],
+                           capture_output=True, text=True)
+    except OSError as exc:
+        raise GitUnavailable("git could not be run in %s: %s" % (root, exc))
+    if r.returncode != 0:
+        raise GitUnavailable(
+            "git ls-files failed in %s (exit %d): %s"
+            % (root, r.returncode, (r.stderr or "").strip() or "no message"))
+    return bool(r.stdout.strip())
+
 def declared_tables(root: str) -> list:
     path = os.path.join(root, SCHEMA)
     if not os.path.isfile(path):
@@ -41,13 +58,21 @@ def declared_tables(root: str) -> list:
     return out
 
 def has_consumer(root: str, table: str) -> bool:
-    """True when some non-doc file outside the schema itself names the table."""
+    """True when some non-doc file outside the schema itself names the table.
+
+    git grep exits 1 for "no match" and >1 for "could not search"; only the
+    first is a verdict.
+    """
     short = table.split(".")[-1]
     try:
         r = subprocess.run(["git", "-C", root, "grep", "-l", "--", short],
                            capture_output=True, text=True)
-    except OSError:
-        return True          # no git: cannot judge, so do not accuse
+    except OSError as exc:
+        raise GitUnavailable("git could not be run in %s: %s" % (root, exc))
+    if r.returncode > 1:
+        raise GitUnavailable(
+            "git grep failed in %s (exit %d): %s"
+            % (root, r.returncode, (r.stderr or "").strip() or "no message"))
     for f in r.stdout.split():
         if f == SCHEMA:
             continue
@@ -76,12 +101,26 @@ def main() -> int:
 
     tables = declared_tables(root)
     if not tables:
+        # Absent-though-TRACKED is a dropped deliverable, not a partial checkout.
+        try:
+            dropped = is_tracked(root, SCHEMA)
+        except GitUnavailable as exc:
+            print("cannot tell whether %s is tracked: %s" % (SCHEMA, exc))
+            return 1
+        if dropped:
+            print("%s is tracked but declares no CREATE TABLE -- the gate's whole "
+                  "subject is missing, which is not a pass" % SCHEMA)
+            return 1
         print("schema-init.sql declares no tables (partial checkout)")
         return 0
 
     bad, live_registered = [], set()
     for t in tables:
-        consumed = has_consumer(root, t)
+        try:
+            consumed = has_consumer(root, t)
+        except GitUnavailable as exc:
+            print("cannot search the tree for table consumers: %s" % exc)
+            return 1
         if t in registered:
             if consumed:
                 bad.append(f"{t} is in [schema].unconsumed but now HAS a consumer "

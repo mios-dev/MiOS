@@ -6,6 +6,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mios_tracked import tracked, GitUnavailable  # noqa: E402
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
@@ -35,13 +38,11 @@ def _load(root: str) -> dict:
         return tomllib.load(fh).get("ci") or {}
 
 def _tracked(root: str) -> list:
-    """git-tracked, not os.walk: a runner executes what the repository ships."""
-    import subprocess
-    out = subprocess.run(["git", "-C", root, "ls-files"] + list(TRACKED),
-                         capture_output=True, text=True, check=False).stdout
-    # fnmatchcase, never fnmatch: on Windows the case-insensitive form makes the
-    # registry resolve differently than it does on the runner.
-    return sorted({p.strip().replace(os.sep, "/") for p in out.splitlines() if p.strip()})
+    """git-tracked, not os.walk: a runner executes what the repository ships.
+
+    Raises GitUnavailable rather than returning an empty corpus.
+    """
+    return sorted(set(tracked(root, *TRACKED)))
 
 def _glob_members(root: str, spec: dict) -> list:
     d = spec.get("dir", "")
@@ -50,6 +51,8 @@ def _glob_members(root: str, spec: dict) -> list:
     full = os.path.join(root, d)
     if not os.path.isdir(full):
         return []
+    # fnmatchcase, never fnmatch: the case-insensitive form resolves the
+    # registry differently on Windows than it does on the runner.
     return [f"{d}/{fn}" for fn in sorted(os.listdir(full))
             if fnmatch.fnmatchcase(fn, pat) and fn not in skip]
 
@@ -175,7 +178,12 @@ def cmd_check(root: str, ci: dict) -> int:
                         " it is not a harness -- a suite listed here runs nowhere"
                         " and never touches [ci].max_exempt_suites")
 
-    for path in _tracked(root):
+    try:
+        suites = _tracked(root)
+    except GitUnavailable as exc:
+        suites = []
+        viol.append(f"cannot enumerate tracked suites: {exc}")
+    for path in suites:
         if path in reg or path in exempt or path in runners:
             continue
         viol.append(f"{path} is tracked but runs in no tier and is not exempt")

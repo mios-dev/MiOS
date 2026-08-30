@@ -78,11 +78,26 @@ def mkrepo(tables, consumers=None, register=(), doc_mentions=(), toml_mentions=(
                    capture_output=True)
     return root
 
-def run(root):
+def run(root, git=None):
+    """git: a directory to prepend to PATH, used to stand a refusing git in
+    front of the real one."""
     env = dict(os.environ, MIOS_DRIFT_ROOT=root)
+    if git:
+        env["PATH"] = git + os.pathsep + env.get("PATH", "")
     r = subprocess.run([sys.executable, os.path.join(_HERE, "check-schema-consumers.py")],
                        capture_output=True, text=True, env=env)
     return r.returncode, r.stdout + r.stderr
+
+def mkshim():
+    """A git that refuses, the way one does over a foreign-owned checkout."""
+    d = tempfile.mkdtemp(prefix="gitshim-")
+    _MADE.append(d)
+    p = os.path.join(d, "git")
+    open(p, "w").write('#!/bin/sh\n'
+                       'echo "fatal: detected dubious ownership in repository" >&2\n'
+                       'exit 128\n')
+    os.chmod(p, 0o755)
+    return d
 
 def t_real_consumer_passes():
     r = mkrepo(["knowledge"], consumers={"knowledge": "usr/lib/mios/reader.py"})
@@ -167,8 +182,51 @@ def t_stale_register_entry_fails():
     finally:
         shutil.rmtree(r, ignore_errors=True)
 
+def t_deleted_tracked_schema_fails():
+    """The subject of the gate, deleted. It stays in the index, so this is a
+    dropped deliverable and not the partial checkout the skip was written for."""
+    r = mkrepo(["knowledge"], consumers={"knowledge": "usr/lib/mios/reader.py"})
+    try:
+        os.remove(os.path.join(r, M.SCHEMA))
+        rc, out = run(r)
+        check("deleting the TRACKED schema fails rather than passing",
+              rc == 1, out)
+        check("the message names the missing subject",
+              "declares no CREATE TABLE" in out, out)
+    finally:
+        shutil.rmtree(r, ignore_errors=True)
+
+def t_untracked_missing_schema_still_skips():
+    """A checkout that never had the file is the state the skip exists for."""
+    r = mkrepo(["knowledge"], consumers={"knowledge": "usr/lib/mios/reader.py"})
+    try:
+        os.remove(os.path.join(r, M.SCHEMA))
+        subprocess.run(["git", "-C", r, "rm", "-q", "--cached", M.SCHEMA],
+                       check=True, capture_output=True)
+        rc, out = run(r)
+        check("an UNtracked missing schema still skips", rc == 0, out)
+        check("the skip says why", "partial checkout" in out, out)
+    finally:
+        shutil.rmtree(r, ignore_errors=True)
+
+def t_refusing_git_is_not_a_verdict_on_the_tables():
+    """git grep exits >1 when it cannot search. Reading that as "no match" made
+    every live table look dead, and the remedy the message named would have
+    registered the whole schema as unconsumed."""
+    r = mkrepo(["knowledge"], consumers={"knowledge": "usr/lib/mios/reader.py"})
+    try:
+        rc, out = run(r, git=mkshim())
+        check("a refusing git fails the gate", rc == 1, out)
+        check("it blames git, not the tables",
+              "cannot" in out and "no reader and no writer" not in out, out)
+    finally:
+        shutil.rmtree(r, ignore_errors=True)
+
 def main():
     t_real_consumer_passes()
+    t_deleted_tracked_schema_fails()
+    t_untracked_missing_schema_still_skips()
+    t_refusing_git_is_not_a_verdict_on_the_tables()
     t_dead_table_fails()
     t_doc_mention_is_not_a_consumer()
     t_toml_mention_is_not_a_consumer()

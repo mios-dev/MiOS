@@ -6,8 +6,11 @@
 A checker that passes on a deliberately broken registry is the defect this
 whole registry exists to prevent, so every assertion here is a red, not a green.
 """
+import contextlib
 import importlib.util
+import io
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -72,6 +75,28 @@ class TestRegistryReader(unittest.TestCase):
                               "hand-written package list drifting from the code")
         for r in reqs:
             self.assertTrue(os.path.isfile(os.path.join(_ROOT, r)), r)
+
+    @unittest.skipIf(os.name == "nt", "the shim is a POSIX shell script")
+    def test_a_refusing_git_is_not_a_fully_registered_tree(self):
+        """The corpus used to come back empty and the unregistered-suite
+        direction retired itself, reporting the same success as a clean run."""
+        shim = tempfile.mkdtemp(prefix="gitshim-")
+        self.addCleanup(shutil.rmtree, shim, True)
+        exe = os.path.join(shim, "git")
+        with open(exe, "w") as fh:
+            fh.write('#!/bin/sh\necho "fatal: detected dubious ownership" >&2\n'
+                     'exit 128\n')
+        os.chmod(exe, 0o755)
+        old = os.environ["PATH"]
+        os.environ["PATH"] = shim + os.pathsep + old
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = MOD.cmd_check(_ROOT, MOD._load(_ROOT))
+        finally:
+            os.environ["PATH"] = old
+        self.assertNotEqual(0, rc)
+        self.assertIn("cannot enumerate tracked suites", buf.getvalue())
 
     def test_every_registered_path_exists(self):
         ci = MOD._load(_ROOT)

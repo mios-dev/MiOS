@@ -163,7 +163,7 @@
 162	check_account_column_parity	account column parity gate verified clean
 163	check_module_length	shell and script module line counts remain within maintainability limits
 164	check_firstboot_provisioners	all mios.toml SSOT tables have active code or generator consumers
-165	check_schema_consumers	all declared JSON/TOML schemas have active validation consumers
+165	check_schema_consumers	every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason
 166	check_tasks_status_parity	all mios.toml SSOT tables have active code or generator consumers
 167	check_agy_tasks	all mios.toml SSOT tables have active code or generator consumers
 168	check_mios_toml_integrity	all mios.toml SSOT tables have active code or generator consumers

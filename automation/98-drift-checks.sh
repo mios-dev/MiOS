@@ -4145,9 +4145,9 @@ check_adr_index() {
     echo "[98-drift-checks]   $out"
 }
 
-# --- all declared JSON/TOML schemas have active validation consumers ---
+# --- every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason ---
 check_schema_consumers() {
-    echo "[98-drift-checks] all declared JSON/TOML schemas have active validation consumers"
+    echo "[98-drift-checks] every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason"
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-schema-consumers.py 2>&1)" || { _violations_from "check_schema_consumers: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
