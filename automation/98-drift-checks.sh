@@ -2038,13 +2038,14 @@ check_greenboot() {
     fi
     # The critical set is READ FROM THE SSOT, never restated here: a hardcoded copy
     # agrees with the scripts it checks while both drift away from mios.toml.
-    local gb_out line
-    gb_out="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_GB_DIR="$gb_dir" python3 tools/drift-checks.py greenboot)"
-    while IFS= read -r line; do
-        if [[ -n "$line" ]]; then
-            _violation "$line"
-        fi
-    done <<< "$gb_out"
+    # Captured stdout only and branched on the text, not the status: a failure
+    # on stderr left an empty blob and no violation recorded at all.
+    local gb_out gb_rc=0
+    gb_out="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_GB_DIR="$gb_dir" python3 tools/drift-checks.py greenboot 2>&1)" || gb_rc=$?
+    if [[ -n "$gb_out" || $gb_rc -ne 0 ]]; then
+        _violations_from "" "$gb_out"
+        return
+    fi
 }
 
 # Regenerate-and-diff against the committed projection, the shape
@@ -3146,7 +3147,7 @@ check_skip_list_covered() {
     # Declared separately: `local out=$(cmd)` returns the status of `local`, not of
     # cmd, which would make this check unable to fail.
     local out
-    out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py skip-list-covered)" \
+    out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py skip-list-covered 2>&1)" \
         || { _violations_from "check_skip_list_covered: " "$out"; return; }
     echo "[98-drift-checks]   the skip list is SSOT-owned and no workflow shadows it"
 }
@@ -3872,7 +3873,7 @@ check_install_uninstall_symmetry() {
 # --- PowerShell port fallback defaults equal mios.toml [ports] SSOT ---
 check_ps_port_fallback_ssot() {
     echo "[98-drift-checks] PowerShell port fallback defaults equal mios.toml [ports] SSOT"
-    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py ps-port-fallback-ssot)" || {
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py ps-port-fallback-ssot 2>&1)" || {
         _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   PowerShell port fallbacks all match mios.toml [ports]"
 }
@@ -4210,7 +4211,7 @@ check_generator_host_parity() {
     # Nothing is rendered or compared here: it reads generator sources for one
     # portability idiom. The old wording promised byte-identical output.
     echo "[98-drift-checks] generators avoid the non-portable fnmatch.fnmatch idiom"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py generator-host-parity)" || {
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py generator-host-parity 2>&1)" || {
         _violations_from "check_generator_host_parity: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
@@ -4223,7 +4224,7 @@ check_doc_port_scheme() {
 # --- blade reconciliation schema conforms to hardware capability specs ---
 check_blade_reconcile_schema() {
     echo "[98-drift-checks] blade reconciliation schema conforms to hardware capability specs"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py blade-reconcile-schema)" || {
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py blade-reconcile-schema 2>&1)" || {
         _violations_from "check_blade_reconcile_schema: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
@@ -4242,9 +4243,14 @@ check_bootstrap_sync() {
 # --- code legibility and complexity metrics remain within ratchet thresholds ---
 check_legibility_ratchet() {
     echo "[98-drift-checks] code legibility and complexity metrics remain within ratchet thresholds"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py legibility-ratchet
+    # Every line this tool prints goes to stderr, so a breach reached
+    # _violations_from empty. Capturing it means re-emitting the table.
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py legibility-ratchet 2>&1
     )" || {
         _violations_from "check_legibility_ratchet: " "$out"; return; }
+    if [[ -n "$out" ]]; then
+        echo "$out" >&2
+    fi
     echo "[98-drift-checks]   legibility floors holding"
 }
 
