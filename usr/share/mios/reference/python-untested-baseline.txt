@@ -14,7 +14,6 @@ tools/generate-cargo-manifests.py
 tools/generate-cockpit-conf.py
 tools/generate-cosign-policy.py
 tools/generate-egress-firewall.py
-tools/generate-gate-index.py
 tools/generate-ipa-enroll-env.py
 tools/generate-manual.py
 tools/generate-names-registry.py

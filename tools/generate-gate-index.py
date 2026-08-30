@@ -12,6 +12,70 @@ import os
 import sys
 import re
 
+_ECHO = re.compile(r'echo\s+"\[98-drift-checks\]\s+(?:\(\d+\)\s+)?([^"]+)"')
+_RUN_PY = re.compile(r'_run_py_check\s+\S+\s+(?:"([^"]+)"|(\S+))')
+_HINT = re.compile(r"#\s*AI-hint:\s*(.+)")
+
+def _body(lines, name):
+    """The function's OWN lines; a one-liner's brace never starts a line."""
+    opener = re.compile(r"^\s*" + re.escape(name) + r"\(\)\s*\{")
+    for i, ln in enumerate(lines):
+        if not opener.match(ln):
+            continue
+        if ln.rstrip().endswith("}"):
+            return [ln[ln.index("{") + 1:ln.rstrip().rindex("}")]]
+        out = []
+        for nxt in lines[i + 1:]:
+            if nxt.startswith("}"):
+                return out
+            out.append(nxt)
+        return out
+    return []
+
+def _hint_of(root, command):
+    """First sentence of the delegated tool's AI-hint header.
+
+    A command carrying a bare sub-command word runs one check out of a
+    multi-check module, so the module's hint describes the module, not this row.
+    """
+    parts = command.strip().rstrip(";").strip().split()
+    if not parts:
+        return ""
+    if any(not p.startswith("-") for p in parts[1:]):
+        return ""
+    path = os.path.join(root, parts[0])
+    if not os.path.isfile(path):
+        return ""
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for i, ln in enumerate(fh):
+            if i > 8:
+                break
+            m = _HINT.match(ln.strip())
+            if m:
+                text = m.group(1).strip()
+                first = re.split(r"(?<=[a-z0-9)])\.\s+", text, maxsplit=1)[0]
+                if first.endswith("..."):
+                    return ""       # elided at source; do not re-publish a stub
+                return first.rstrip(".").replace("\t", " ").strip()
+    return ""
+
+def _describe(root, lines, content, name):
+    m = re.search(r"#\s*---\s*(?:\(\d+,\s*)?([^\n#]+?)\s*---\s*\n\s*"
+                  + re.escape(name) + r"\(\)\s*\{", content)
+    if m:
+        return m.group(1).strip()
+    body = _body(lines, name)
+    for em in _ECHO.findall("\n".join(body)):
+        if not em.startswith(("WARNING", "VIOLATION", "---")):
+            return em.strip()
+    for line in body:
+        d = _RUN_PY.search(line)
+        if d:
+            hint = _hint_of(root, d.group(1) or d.group(2))
+            if hint:
+                return hint
+    return name.replace("check_", "").replace("_", " ")
+
 def main():
     root = os.environ.get("MIOS_DRIFT_ROOT", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     script_path = os.path.join(root, "automation/98-drift-checks.sh")
@@ -41,26 +105,10 @@ def main():
         sys.stderr.write(f"ERROR: Duplicate check_* functions found in main(): {set(dups)}\n")
         sys.exit(1)
 
+    lines = content.splitlines()
     rows = []
     for idx, name in enumerate(check_names, 1):
-        pattern = r"(?:#\s*---\s*(?:\(\d+,\s*)?([^\n#]+?)\s*---\s*\n)?\s*" + re.escape(name) + r"\(\)\s*\{"
-        comment_match = re.search(pattern, content)
-        desc = ""
-        if comment_match and comment_match.group(1):
-            desc = comment_match.group(1).strip()
-        else:
-            fn_match = re.search(r"^\s*" + re.escape(name) + r"\(\)\s*\{(.*?)\n\}", content, re.MULTILINE | re.DOTALL)
-            if fn_match:
-                fn_body = fn_match.group(1)
-                echo_matches = re.findall(r'echo\s+"\[98-drift-checks\]\s+(?:\(\d+\)\s+)?([^"]+)"', fn_body)
-                for em in echo_matches:
-                    if not em.startswith("WARNING") and not em.startswith("VIOLATION") and not em.startswith("---"):
-                        desc = em.strip()
-                        break
-                if not desc:
-                    desc = name.replace("check_", "").replace("_", " ")
-
-        rows.append(f"{idx}\t{name}\t{desc}")
+        rows.append(f"{idx}\t{name}\t{_describe(root, lines, content, name)}")
 
     tsv_content = "# Ordinal\tCheck Function\tDescription\n" + "\n".join(rows) + "\n"
 

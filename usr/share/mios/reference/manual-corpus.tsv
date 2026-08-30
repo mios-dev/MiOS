@@ -6807,7 +6807,10 @@ tools/generate-egress-firewall.py	12	12	1	2	652a73c43ff5	STAY	inline-scoped		0		
 tools/generate-egress-firewall.py	22	22	1	12	7395214bdf84	STAY	local-scoped		0				0
 tools/generate-gate-index.py	1	3	3	13	d50b5b272e46	STAY	ai-header		0				0
 tools/generate-gate-index.py	5	9	4	16	df309fff5f2b	STAY	midsize-why		0				0
-tools/generate-gate-index.py	81	84	4	45	ba432820ce22	STAY	midsize-why		0				0
+tools/generate-gate-index.py	20	20	1	13	f2ace72c4b9f	STAY	local-scoped		0				0
+tools/generate-gate-index.py	36	40	5	35	1141c84d8a72	STAY	midsize-why		0				0
+tools/generate-gate-index.py	58	58	1	8	c43c3598cbb9	STAY	inline-scoped		0				0
+tools/generate-gate-index.py	129	132	4	45	ba432820ce22	STAY	midsize-why		0				0
 tools/generate-ipa-enroll-env.py	1	2	2	9	825f691a777a	STAY	ai-header		0				0
 tools/generate-k3s-manifests.ps1	1	2	2	15	2d4540258129	STAY	ai-header		0				0
 tools/generate-k3s-manifests.ps1	26	26	1	19	59a57e92ca38	STAY	local-scoped		0				0
@@ -7375,6 +7378,9 @@ tools/test_generate-blade-karg.py	17	17	1	3	c4eab4cecb60	DROP	generated-artifact
 tools/test_generate-blade-karg.py	18	18	1	2	652a73c43ff5	DROP	generated-artifact		0				0
 tools/test_generate-blade-karg.py	28	30	3	35	b774b5c2dca2	DROP	generated-artifact		0				0
 tools/test_generate-blade-karg.py	66	68	3	32	89ed59383826	DROP	generated-artifact		0				0
+tools/test_generate-gate-index.py	1	3	3	21	a6287f2c8f1f	DROP	generated-artifact		0				0
+tools/test_generate-gate-index.py	4	8	4	42	f5774b9fc1f0	DROP	generated-artifact		0				0
+tools/test_generate-gate-index.py	71	71	1	9	23090f621682	DROP	generated-artifact		0				0
 tools/test_generate-metal-vs-hosted.py	1	3	3	10	8081a2c6539d	DROP	generated-artifact		0				0
 tools/test_generate-metal-vs-hosted.py	4	4	1	6	bcb8c671878c	DROP	generated-artifact		0				0
 tools/test_generate-metal-vs-hosted.py	17	17	1	3	c4eab4cecb60	DROP	generated-artifact		0				0

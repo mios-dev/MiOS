@@ -374,6 +374,7 @@ is generated, its generator is here.
 | `tools/test_drift-checks.py` | Sibling test for tools/drift-checks.py; asserts each extracted check is importable, dispatchable and agrees with the shell gate. |
 | `tools/test_generate-adr-index.py` | Sibling unit test for tools/generate-adr-index.py (T-265). |
 | `tools/test_generate-blade-karg.py` | Unit tests for tools/generate-blade-karg.py. |
+| `tools/test_generate-gate-index.py` | Sibling test for tools/generate-gate-index.py; proves a row never carries a description belonging to another check. |
 | `tools/test_generate-metal-vs-hosted.py` | Sibling unit test for tools/generate-metal-vs-hosted.py. |
 | `tools/test_generator_check_agrees_with_write.py` | Asserts a generator's --check mode compares what its write mode produces; the pairs are read from the gate's own projection-evidence emitter, not listed here. |
 | `tools/test_mios_tracked.py` | Fixtures for mios_tracked.py -- proves a dead git and an empty listing both raise instead of reading as a clean, empty tree. |
@@ -388,7 +389,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 135 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 136 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

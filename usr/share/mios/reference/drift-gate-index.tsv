@@ -148,7 +148,7 @@
 147	check_pipe_boundaries	pipe-boundaries.manifest.json matches the agent-pipe tree
 148	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
 149	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
-150	check_desktop_launchers	all mios.toml SSOT tables have active code or generator consumers
+150	check_desktop_launchers	Generates usr/share/applications/*.desktop files from SSOT ports and [desktop.launchers] table
 151	check_guacamole_consistency	every .desktop launcher matches what render-desktop.py projects from SSOT
 152	check_no_inert_ssot_tables	all mios.toml SSOT tables have active code or generator consumers
 153	check_doc_refs_resolve	file paths referenced in documentation exist in the repository
@@ -162,25 +162,25 @@
 161	check_verb_stub_backends	verb stub backends gate verified clean
 162	check_account_column_parity	account column parity gate verified clean
 163	check_module_length	shell and script module line counts remain within maintainability limits
-164	check_firstboot_provisioners	all mios.toml SSOT tables have active code or generator consumers
+164	check_firstboot_provisioners	Drift gate for the first-boot provisioner triples (FBM T-200/T-202)
 165	check_schema_consumers	every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason
-166	check_tasks_status_parity	all mios.toml SSOT tables have active code or generator consumers
-167	check_agy_tasks	all mios.toml SSOT tables have active code or generator consumers
-168	check_mios_toml_integrity	all mios.toml SSOT tables have active code or generator consumers
-169	check_privileged_quadlets_minimal	all mios.toml SSOT tables have active code or generator consumers
-170	check_container_names	all mios.toml SSOT tables have active code or generator consumers
-171	check_service_urls	all mios.toml SSOT tables have active code or generator consumers
-172	check_ports_bound	all mios.toml SSOT tables have active code or generator consumers
-173	check_blade_coverage	all mios.toml SSOT tables have active code or generator consumers
-174	check_blade_karg	all mios.toml SSOT tables have active code or generator consumers
+166	check_tasks_status_parity	Drift gate for a lying roadmap
+167	check_agy_tasks	Drift gate for AGY task unique IDs and dependency resolution (AGY-1687)
+168	check_mios_toml_integrity	Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682)
+169	check_privileged_quadlets_minimal	Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651)
+170	check_container_names	Drift gate for unmappable container names
+171	check_service_urls	Drift gate for service addressing
+172	check_ports_bound	Drift gate for allocated-but-unbound ports
+173	check_blade_coverage	Drift gate for the blade ACTIVATION axis
+174	check_blade_karg	blade karg
 175	check_blade_reconcile_schema	blade reconciliation schema conforms to hardware capability specs
-176	check_role_ssot	all mios.toml SSOT tables have active code or generator consumers
-177	check_port_fallbacks	all mios.toml SSOT tables have active code or generator consumers
-178	check_node_pool	all mios.toml SSOT tables have active code or generator consumers
-179	check_metal_vs_hosted	all mios.toml SSOT tables have active code or generator consumers
-180	check_unit_projection	all mios.toml SSOT tables have active code or generator consumers
-181	check_ssot_consumer_keys	all mios.toml SSOT tables have active code or generator consumers
-182	check_fleet_safety	all mios.toml SSOT tables have active code or generator consumers
+176	check_role_ssot	Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is
+177	check_port_fallbacks	Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>
+178	check_node_pool	Drift gate for the fan-out pool
+179	check_metal_vs_hosted	GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml
+180	check_unit_projection	Drift gate for the [units] projection debt register
+181	check_ssot_consumer_keys	Drift gate for the SSOT<->consumer contract
+182	check_fleet_safety	Drift gate for hazards that are SAFE on one node and dangerous above it
 183	check_adr_index	ADR architecture decision record index matches committed ADR files
 184	check_vendored_assets_non_stub	vendored assets are non-stub
 185	check_resolved_env_lossless	resolved environment is lossless
