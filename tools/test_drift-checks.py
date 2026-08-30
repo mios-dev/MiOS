@@ -100,7 +100,8 @@ class TestMissingDeliverable(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d, True)
         full = os.path.join(d, rel)
         os.makedirs(os.path.dirname(full), exist_ok=True)
-        open(full, "w").write("x\n")
+        with open(full, "w") as fh:
+            fh.write("x\n")
         subprocess.run(["git", "-C", d, "init", "-q"], check=True)
         if track:
             subprocess.run(["git", "-C", d, "add", "-A"], check=True,
@@ -163,6 +164,68 @@ class TestMissingDeliverable(unittest.TestCase):
         self.assertGreater(seen, 50, "the module did not parse into checks")
         self.assertEqual([], offenders,
                          "route these through _absent(root, path)")
+
+
+# A check whose corpus is `git ls-files` answers a refusing git with an empty
+# list, and every scan of an empty list is clean. _absent covers one named
+# file; _tracked covers the listing the walk is built from.
+_CORPUS_CHECKS = ("usr-over-etc", "legibility-ratchet", "bake-refs-parity")
+
+@unittest.skipUnless(os.name == "posix", "the refusing-git shim is a shell script")
+class TestUnlistableCorpus(unittest.TestCase):
+    def _refusing_git(self):
+        d = tempfile.mkdtemp(prefix="nogit-")
+        self.addCleanup(shutil.rmtree, d, True)
+        shim = os.path.join(d, "git")
+        with open(shim, "w") as fh:
+            fh.write('#!/bin/sh\necho "fatal: dubious ownership" >&2\nexit 128\n')
+        os.chmod(shim, 0o755)
+        return d
+
+    def _repo(self, empty=False):
+        d = tempfile.mkdtemp(prefix="corpus-")
+        self.addCleanup(shutil.rmtree, d, True)
+        subprocess.run(["git", "-C", d, "init", "-q"], check=True)
+        if not empty:
+            with open(os.path.join(d, "kept.txt"), "w") as fh:
+                fh.write("x\n")
+            subprocess.run(["git", "-C", d, "add", "-A"], check=True,
+                           capture_output=True)
+        return d
+
+    def test_a_listed_corpus_is_not_a_verdict(self):
+        paths, rc = MOD._tracked(self._repo())
+        self.assertIsNone(rc)
+        self.assertIn("kept.txt", paths)
+
+    def test_a_root_that_is_not_a_checkout_still_skips(self):
+        d = tempfile.mkdtemp(prefix="corpus-plain-")
+        self.addCleanup(shutil.rmtree, d, True)
+        self.assertEqual((None, 0), MOD._tracked(d))
+
+    def test_a_checkout_git_refuses_to_list_fails(self):
+        d = self._repo()
+        old = os.environ["PATH"]
+        os.environ["PATH"] = self._refusing_git() + os.pathsep + old
+        self.addCleanup(os.environ.__setitem__, "PATH", old)
+        self.assertEqual((None, 1), MOD._tracked(d))
+
+    def test_a_checkout_with_nothing_tracked_fails(self):
+        """An empty index is not "no violations" -- nothing was read."""
+        self.assertEqual((None, 1), MOD._tracked(self._repo(empty=True)))
+
+    def test_no_corpus_check_reports_success_without_a_corpus(self):
+        """The before/after control: all three exited 0 here pre-repair."""
+        env = dict(os.environ, MIOS_DRIFT_ROOT=_ROOT, MIOS_ROOT=_ROOT)
+        env["PATH"] = self._refusing_git() + os.pathsep + env["PATH"]
+        for name in _CORPUS_CHECKS:
+            r = subprocess.run([sys.executable, _MOD_PATH, name],
+                               capture_output=True, text=True, cwd=_ROOT, env=env)
+            out = (r.stdout or "") + (r.stderr or "")
+            self.assertNotEqual(
+                0, r.returncode,
+                "%s reported success on a corpus git never gave it" % name)
+            self.assertTrue(out.strip(), "%s failed silently" % name)
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

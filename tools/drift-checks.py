@@ -43,6 +43,21 @@ def _absent(root: str, path: str):
                      "subject of this check is gone, which is not a pass\n" % rel)
     return 1
 
+def _tracked(root: str, *pathspec: str):
+    """(paths, None) when git listed a corpus; (None, status) when it did not.
+
+    mios_tracked.tracked() plus _absent's not-a-checkout skip. See f66e6efc.
+    """
+    if not os.path.exists(os.path.join(root, ".git")):
+        return None, 0                # not a checkout of this repo at all
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from mios_tracked import GitUnavailable, tracked
+    try:
+        return tracked(root, *pathspec), None
+    except (GitUnavailable, OSError) as exc:
+        sys.stderr.write("    %s\n" % exc)
+        return None, 1
+
 def check_doc_refs_resolve() -> int:
     import os, sys, re
     import tomllib
@@ -208,12 +223,13 @@ def check_legibility_ratchet() -> int:
               "then bounded by nothing")
         sys.exit(1)
 
-    try:
-        rels = [r for r in subprocess.run(["git", "ls-files", "-z"], cwd=root,
-                capture_output=True, check=True).stdout.decode("utf-8", "replace").split("\0") if r]
-    except Exception as exc:
-        sys.stderr.write("[legibility] not a work tree (%s); skipping\n" % exc)
-        sys.exit(0)
+    # "not a work tree; skipping" also answered a git that REFUSED, and every
+    # ratchet below is computed from this listing.
+    rels, _rc = _tracked(root)
+    if rels is None:
+        sys.stderr.write("[legibility] no tracked file was listed, so no "
+                         "ratchet was measured\n")
+        sys.exit(_rc)
 
     def lines(paths):
         n = 0
@@ -3169,10 +3185,23 @@ def check_bake_refs_parity() -> int:
 
     bake_refs = data.get("build", {}).get("bake_refs", {})
 
+    # git grep exits 1 for "no match", legitimate here (3 of 6 bake_refs carry a
+    # shell default); `except Exception` also swallowed 128, which is not.
     try:
-        matches = subprocess.check_output(["git", "grep", "-E", r"MIOS_BUILD_BAKE_REFS_[A-Z0-9_]+:-", "automation/"], cwd=root, text=True).splitlines()
-    except Exception:
-        matches = []
+        p = subprocess.run(["git", "-C", root, "grep", "-E",
+                            r"MIOS_BUILD_BAKE_REFS_[A-Z0-9_]+:-", "--", "automation/"],
+                           capture_output=True, text=True)
+    except OSError as exc:
+        print("check_bake_refs_parity: git could not be run in %s (%s), so no "
+              "baker default was compared" % (root, exc), file=sys.stderr)
+        return 1
+    if p.returncode > 1:
+        print("check_bake_refs_parity: git grep exit %d (%s), so no baker "
+              "default was compared"
+              % (p.returncode, (p.stderr or "").strip() or "no message"),
+              file=sys.stderr)
+        return 1
+    matches = p.stdout.splitlines()
 
     viol = []
     pattern = re.compile(r"MIOS_BUILD_BAKE_REFS_([A-Z0-9_]+):-([^}\"\']+)")
@@ -3780,10 +3809,12 @@ def check_usr_over_etc() -> int:
     import os, sys, subprocess
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    try:
-        tracked = subprocess.check_output(["git", "ls-files", "etc/"], cwd=root, text=True).splitlines()
-    except Exception:
-        tracked = []
+    # `except Exception: tracked = []` made a refusing git read as an empty
+    # /etc. Filtered from the whole listing, so no tracked etc/ is still a pass.
+    listed, _rc = _tracked(root)
+    if listed is None:
+        return _rc
+    tracked = [f for f in listed if f.startswith("etc/")]
 
     usr_share = os.path.join(root, "usr/share")
     usr_lib = os.path.join(root, "usr/lib")
