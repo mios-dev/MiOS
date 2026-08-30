@@ -13,14 +13,45 @@ import os
 
 os.environ.setdefault("MIOS_DRIFT_ROOT", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+def _absent(root: str, path: str):
+    """None when path is there; otherwise the status the caller must return.
+
+    Absent though TRACKED is a dropped deliverable and fails; a checkout that
+    never had it still skips, which is the state the guard was written for.
+    """
+    if os.path.isfile(path):
+        return None
+    import subprocess
+    rel = os.path.relpath(path, root).replace(os.sep, "/")
+    if not os.path.exists(os.path.join(root, ".git")):
+        return 0                      # not a checkout of this repo at all
+    try:
+        p = subprocess.run(["git", "-C", root, "ls-files", "--", rel],
+                           capture_output=True, text=True)
+    except OSError as exc:
+        sys.stderr.write("    cannot tell whether %s is tracked: git could not "
+                         "be run in %s: %s\n" % (rel, root, exc))
+        return 1
+    if p.returncode != 0:
+        sys.stderr.write("    cannot tell whether %s is tracked: git ls-files "
+                         "exit %d: %s\n" % (rel, p.returncode,
+                                            (p.stderr or "").strip() or "no message"))
+        return 1
+    if not p.stdout.strip():
+        return 0
+    sys.stderr.write("    %s is tracked but missing from the worktree -- the "
+                     "subject of this check is gone, which is not a pass\n" % rel)
+    return 1
+
 def check_doc_refs_resolve() -> int:
     import os, sys, re
     import tomllib
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(toml_path):
-        sys.exit(0)
+    _rc = _absent(root, toml_path)
+    if _rc is not None:
+        sys.exit(_rc)
 
     with open(toml_path, "rb") as fh:
         data = tomllib.load(fh)
@@ -268,8 +299,9 @@ def check_no_inert_ssot_tables() -> int:
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(toml_path):
-        sys.exit(0)
+    _rc = _absent(root, toml_path)
+    if _rc is not None:
+        sys.exit(_rc)
 
     with open(toml_path, "rb") as fh:
         data = tomllib.load(fh)
@@ -1815,8 +1847,9 @@ def check_negative_test_coverage() -> int:
     root = os.environ["MIOS_DRIFT_ROOT"]
     harness_path = os.path.join(root, "tests/drift-gate-negatives.sh")
 
-    if not os.path.isfile(harness_path):
-        sys.exit(0)
+    _rc = _absent(root, harness_path)
+    if _rc is not None:
+        sys.exit(_rc)
 
     with open(harness_path, "r", encoding="utf-8", errors="ignore") as f:
         harness_content = f.read()
@@ -1991,8 +2024,9 @@ def check_globals_image_parity() -> int:
     root = os.environ["MIOS_DRIFT_ROOT"]
     import tomllib as _toml
     toml = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(toml):
-        sys.exit(0)
+    _rc = _absent(root, toml)
+    if _rc is not None:
+        sys.exit(_rc)
     with open(toml, "rb") as fh:
         img = (_toml.load(fh).get("image", {}) or {})
 
@@ -2390,8 +2424,9 @@ def check_gate_registry() -> int:
     root = os.environ["MIOS_DRIFT_ROOT"]
     script_path = os.path.join(root, "automation/98-drift-checks.sh")
 
-    if not os.path.isfile(script_path):
-        sys.exit(0)
+    _rc = _absent(root, script_path)
+    if _rc is not None:
+        sys.exit(_rc)
 
     with open(script_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
@@ -2530,8 +2565,9 @@ def check_agent_schema() -> int:
     root = os.environ["MIOS_DRIFT_ROOT"]
     import tomllib as _toml
     p = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(p):
-        sys.exit(0)
+    _rc = _absent(root, p)
+    if _rc is not None:
+        sys.exit(_rc)
     with open(p, "rb") as fh:
         d = _toml.load(fh)
     ag = dict(d.get("agents") or {})
@@ -2599,8 +2635,9 @@ def check_bootstrap_ports_drift() -> int:
     import tomllib as _toml
 
     main_toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(main_toml_path):
-        sys.exit(0)
+    _rc = _absent(root, main_toml_path)
+    if _rc is not None:
+        sys.exit(_rc)
 
     with open(main_toml_path, "rb") as fh:
         main_data = _toml.load(fh)
@@ -2659,8 +2696,9 @@ def check_rbac_tiers() -> int:
     import tomllib as _toml
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     p = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(p):
-        return 0
+    _rc = _absent(root, p)
+    if _rc is not None:
+        return _rc
     with open(p, "rb") as fh:
         d = _toml.load(fh)
     tiers = [str(x).strip().lower()
@@ -2770,8 +2808,9 @@ def check_container_ports() -> int:
     import tomllib as _toml
 
     p = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(p):
-        return 0
+    _rc = _absent(root, p)
+    if _rc is not None:
+        return _rc
 
     with open(p, "rb") as fh:
         d = _toml.load(fh)
@@ -2873,8 +2912,9 @@ def check_verb_backends() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     import tomllib as _toml
     p = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(p):
-        return 0
+    _rc = _absent(root, p)
+    if _rc is not None:
+        return _rc
     with open(p, "rb") as fh:
         d = _toml.load(fh)
     libexec = os.path.join(root, "usr/libexec/mios")
@@ -2902,8 +2942,9 @@ def check_python_untested_ratchet() -> int:
     import sys, os
     root_dir = os.environ.get("MIOS_DRIFT_ROOT", ".")
     base_file = os.path.join(root_dir, "usr/share/mios/reference/python-untested-baseline.txt")
-    if not os.path.isfile(base_file):
-        return 0
+    _rc = _absent(root_dir, base_file)
+    if _rc is not None:
+        return _rc
     with open(base_file, encoding="utf-8") as f:
         allowed = set(line.strip() for line in f if line.strip() and not line.startswith("#"))
 
@@ -3192,8 +3233,9 @@ def check_resolver_ssot_refs() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     rel = os.environ.get("MIOS_DRIFT_REL", "usr/libexec/mios/mios-resolve-latest")
     path = os.path.join(root, rel)
-    if not os.path.isfile(path):
-        return 0
+    _rc = _absent(root, path)
+    if _rc is not None:
+        return _rc
     ref = re.compile(r"""['"][a-z0-9][a-z0-9.\-]*\.[a-z]{2,}/[^\s'"]+:[^\s'"]+['"]""")
     res = []
     with open(path, encoding="utf-8", errors="ignore") as fh:
@@ -3354,8 +3396,9 @@ def check_router_intent_coverage() -> int:
         root_dir = os.environ.get("MIOS_DRIFT_ROOT", ".")
         corpus_file = os.path.join(root_dir, "usr/lib/mios/agent-pipe/tests/router_corpus.json")
 
-    if not os.path.isfile(corpus_file):
-        return 0
+    _rc = _absent(root_dir, corpus_file)
+    if _rc is not None:
+        return _rc
 
     with open(corpus_file, "r", encoding="utf-8") as f:
         corpus = json.load(f)
@@ -3525,8 +3568,9 @@ def check_replaceme_mount_substitution() -> int:
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     justfile = os.path.join(root, "Justfile")
-    if not os.path.isfile(justfile):
-        return 0
+    _rc = _absent(root, justfile)
+    if _rc is not None:
+        return _rc
 
     with open(justfile, "r", encoding="utf-8") as f:
         content = f.read()
@@ -3566,8 +3610,9 @@ def check_bib_rootfs_label_policy() -> int:
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     justfile = os.path.join(root, "Justfile")
-    if not os.path.isfile(justfile):
-        return 0
+    _rc = _absent(root, justfile)
+    if _rc is not None:
+        return _rc
 
     with open(justfile, "r", encoding="utf-8") as f:
         content = f.read()
@@ -3815,8 +3860,9 @@ def check_bib_config_mount() -> int:
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     justfile = os.path.join(root, "Justfile")
-    if not os.path.isfile(justfile):
-        return 0
+    _rc = _absent(root, justfile)
+    if _rc is not None:
+        return _rc
 
     toml_files = glob.glob(os.path.join(root, "config/artifacts/*.toml"))
     bad = []
@@ -3960,8 +4006,9 @@ def check_account_column_parity() -> int:
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     schema_path = os.path.join(root, "usr/share/mios/postgres/schema-init.sql")
-    if not os.path.isfile(schema_path):
-        return 0
+    _rc = _absent(root, schema_path)
+    if _rc is not None:
+        return _rc
 
     with open(schema_path, "r", encoding="utf-8") as f:
         schema_code = f.read()
@@ -4084,8 +4131,9 @@ def check_negatives_are_effective() -> int:
         root = os.environ.get("MIOS_DRIFT_ROOT", ".")
         neg_path = os.path.join(root, "tests/drift-gate-negatives.sh")
 
-    if not os.path.isfile(neg_path):
-        return 0
+    _rc = _absent(root, neg_path)
+    if _rc is not None:
+        return _rc
 
     with open(neg_path, encoding="utf-8", errors="ignore") as fh:
         content = fh.read()
@@ -4138,8 +4186,9 @@ def check_pipefail_grep_lint() -> int:
         root = os.environ.get("MIOS_DRIFT_ROOT", ".")
         neg_path = os.path.join(root, "tests/drift-gate-negatives.sh")
 
-    if not os.path.isfile(neg_path):
-        return 0
+    _rc = _absent(root, neg_path)
+    if _rc is not None:
+        return _rc
 
     with open(neg_path, encoding="utf-8", errors="ignore") as fh:
         lines = fh.readlines()
