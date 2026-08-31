@@ -939,6 +939,23 @@ test_installer_family_roles() {
     echo "$orig_val" > "$s_script"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_installer_family_roles >/dev/null 2>&1 \
         || die "Check_installer_family_roles failed after restoration"
+
+    # A tracked installer absent from the worktree is a deleted deliverable, not
+    # a smaller subject list. Deleting one used to shrink the corpus in silence.
+    local f_script="${ROOT}/automation/install-fhs.sh"
+    local f_stash
+    f_stash="$(mktemp)"
+    cp -p "$f_script" "$f_stash"
+    rm -f "$f_script"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_installer_family_roles >/dev/null 2>&1; then
+        cp -p "$f_stash" "$f_script"
+        rm -f "$f_stash"
+        die "Check_installer_family_roles passed with a tracked installer deleted"
+    fi
+    cp -p "$f_stash" "$f_script"
+    rm -f "$f_stash"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_installer_family_roles >/dev/null 2>&1 \
+        || die "Check_installer_family_roles failed after restoring the deleted installer"
     log "Test_installer_family_roles negative test passed"
 }
 

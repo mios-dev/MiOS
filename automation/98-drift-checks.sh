@@ -2472,22 +2472,49 @@ check_offline_install_invariant() {
     echo "[98-drift-checks]   tools/install.sh zero-network offline-install invariant verified clean against executable code"
 }
 
+# --- installer role markers are unique across every script that declares one ---
 check_installer_family_roles() {
-    local scripts=("$ROOT/install.sh" "$ROOT/tools/install.sh" "$ROOT/automation/install.sh" "$ROOT/automation/install-fhs.sh")
+    echo "[98-drift-checks] installer role markers are unique across every script that declares one"
+    # Subjects are the declared family UNION every tracked file already carrying
+    # the marker, so a newly added installer is covered the day it lands.
+    local family=("install.sh" "tools/install.sh" "automation/install.sh" "automation/install-fhs.sh")
     local bad_installers=""
     local roles=()
+    local subjects=()
 
-    local s
-    for s in "${scripts[@]}"; do
-        if [[ ! -f "$s" ]]; then
+    local rel
+    for rel in "${family[@]}"; do
+        if [[ ! -f "$ROOT/$rel" ]]; then
+            # Absent though TRACKED is a deleted deliverable, not a fixture root.
+            if git -C "$ROOT" ls-files --error-unmatch "$rel" >/dev/null 2>&1; then
+                bad_installers+="    ${rel}: tracked installer is absent from the worktree"$'\n'
+            fi
             continue
         fi
-        local role="$(grep -oE '^# MIOS_INSTALLER_ROLE=[a-zA-Z0-9_-]+' "$s" | cut -d= -f2 || true)"
+        subjects+=("$rel")
+    done
+
+    local discovered
+    discovered="$(git -C "$ROOT" grep -lE '^# MIOS_INSTALLER_ROLE=' -- '*.sh' 2>/dev/null || true)"
+    while IFS= read -r rel; do
+        [[ -n "$rel" ]] || continue
+        [[ -f "$ROOT/$rel" ]] || continue
+        [[ " ${subjects[*]:-} " == *" ${rel} "* ]] && continue
+        subjects+=("$rel")
+    done <<<"$discovered"
+
+    if (( ${#subjects[@]} == 0 )); then
+        _violation "no installer script was readable, so an empty result is not a pass"
+        return 1
+    fi
+
+    for rel in "${subjects[@]}"; do
+        local role="$(grep -oE '^# MIOS_INSTALLER_ROLE=[a-zA-Z0-9_-]+' "$ROOT/$rel" | cut -d= -f2 || true)"
         if [[ -z "$role" ]]; then
-            bad_installers+="    ${s#"$ROOT"/}: missing # MIOS_INSTALLER_ROLE header marker"$'\n'
+            bad_installers+="    ${rel}: missing # MIOS_INSTALLER_ROLE header marker"$'\n'
         else
             if [[ " ${roles[*]:-} " == *" ${role} "* ]]; then
-                bad_installers+="    ${s#"$ROOT"/}: duplicate # MIOS_INSTALLER_ROLE='$role'"$'\n'
+                bad_installers+="    ${rel}: duplicate # MIOS_INSTALLER_ROLE='$role'"$'\n'
             else
                 roles+=("$role")
             fi
@@ -2498,7 +2525,7 @@ check_installer_family_roles() {
         printf '%s' "$bad_installers" >&2
         _violation "installer script role marker violation or collision"
     else
-        echo "[98-drift-checks]   installer family role markers verified unique across all installers"
+        echo "[98-drift-checks]   ${#subjects[@]} installer role marker(s) unique across the declared family and every tracked file carrying one"
     fi
 }
 
