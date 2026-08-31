@@ -742,9 +742,12 @@ def check_header_integrity() -> int:
     ABSORBED_DIRECTIVE = re.compile(r"AI-hint:\s*(?:bash|sh|python3?|pwsh|zsh)?\s*MIOS_[A-Z_]+=")
     NUL = b"\x00"
     viol = []
+    inspected = 0
+    absent = 0
     for rel in rels:
         p = os.path.join(root, rel.replace("/", os.sep))
         if not os.path.isfile(p):
+            absent += 1
             continue
         try:
             with open(p, "rb") as fh:
@@ -757,6 +760,7 @@ def check_header_integrity() -> int:
             head = raw.decode("utf-8").splitlines()[:5]
         except UnicodeDecodeError:
             continue
+        inspected += 1
         for ln in head:
             if ABSORBED_SHEBANG.search(ln):
                 viol.append("%s: the shebang was absorbed into the AI-hint -- the file "
@@ -769,8 +773,18 @@ def check_header_integrity() -> int:
     if viol:
         viol.append("A header tagger must never consume line 1. Restore the shebang "
                     "and the directive, then re-tag.")
-    print("\n".join(viol))
-    sys.exit(1 if viol else 0)
+        print("\n".join(viol))
+        sys.exit(1)
+    # The `not rels` guard counts what git LISTED; each listed file that was not
+    # on disk was then skipped in silence, so an empty worktree read nothing.
+    if not inspected:
+        print("header-integrity: git listed %d tracked file(s) but not one could be "
+              "read (%d missing from the worktree), so no file header was inspected"
+              % (len(rels), absent), file=sys.stderr)
+        sys.exit(1)
+    print("    %d file header(s) inspected for an absorbed shebang or directive"
+          % inspected)
+    sys.exit(0)
 
 def check_drift_build_catalog() -> int:
     """Lifted out of a shell heredoc so it can be imported and linted."""
@@ -4871,12 +4885,14 @@ def check_generator_host_parity() -> int:
               "empty result is not a pass" % len(scanned_scripts), file=sys.stderr)
         return 1
 
+    read = 0
     for script in scanned_scripts:
         fpath = os.path.join(root, script)
         if not os.path.isfile(fpath):
             continue
         with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
             content = fh.read()
+        read += 1
         if "fnmatch.fnmatch(" in content:
             viol.append(f"{script} uses non-portable fnmatch.fnmatch instead of fnmatchcase")
 
@@ -4884,11 +4900,18 @@ def check_generator_host_parity() -> int:
         print("\n".join(viol), file=sys.stderr)
         return 1
 
+    # The guard above counted the git LISTING, and the loop then skipped every
+    # listed file that was not on disk, so an empty worktree read nothing.
+    if read < 20:
+        print("only %d of %d listed generator(s) could be read -- an empty scan is "
+              "not a pass" % (read, len(scanned_scripts)), file=sys.stderr)
+        return 1
+
     # Narrowed from "all generators produce host-independent byte-identical
     # outputs". Nothing is rendered or compared here: this is one portability
     # idiom, checked by reading source.
     print("    %d generator(s) free of the non-portable fnmatch.fnmatch idiom"
-          % len(scanned_scripts))
+          % read)
     return 0
 
 

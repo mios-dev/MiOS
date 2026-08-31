@@ -3481,6 +3481,29 @@ test_generator_host_parity() {
     log "check_generator_host_parity negative test passed"
 }
 
+# The >=20 guard counts what git LISTED, not what was read, so a corpus that is
+# listed but absent scanned nothing and printed the success line anyway.
+test_generator_host_parity_unreadable_corpus() {
+    log "Testing check_generator_host_parity against a listed-but-absent corpus"
+    local tmp_dir i
+    tmp_dir="$(mktemp -d)"
+    mkdir -p "${tmp_dir}/tools"
+    git -C "$tmp_dir" init -q
+    for ((i = 1; i <= 25; i++)); do
+        : > "${tmp_dir}/tools/generate-probe-${i}.py"
+        git -C "$tmp_dir" add -- "tools/generate-probe-${i}.py"
+    done
+    rm -f "${tmp_dir}"/tools/generate-probe-*.py
+    if MIOS_DRIFT_ROOT="$tmp_dir" python3 "${ROOT}/tools/drift-checks.py" \
+        generator-host-parity >/dev/null 2>&1; then
+        rm -rf "$tmp_dir"
+        die "check_generator_host_parity passed with 25 generators listed and none readable"
+    fi
+    rm -rf "$tmp_dir"
+    _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after cleanup"
+    log "check_generator_host_parity unreadable-corpus negative test passed"
+}
+
 test_manual_generated() {
     log "Testing check_manual_generated"
     local doc="${ROOT}/usr/share/doc/mios/reference/ports-and-laws.md"
@@ -3782,6 +3805,26 @@ test_header_integrity() {
     log "check_header_integrity negative test passed"
 }
 
+# The empty-listing guard counts what git LISTED; every listed file that was not
+# on disk was then skipped in silence, so nothing was inspected and it passed.
+test_header_integrity_unreadable_corpus() {
+    log "Testing check_header_integrity against a listed-but-absent corpus"
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    git -C "$tmp_dir" init -q
+    printf 'true\n' > "${tmp_dir}/probe.sh"
+    git -C "$tmp_dir" add -- probe.sh
+    rm -f "${tmp_dir}/probe.sh"
+    if MIOS_DRIFT_ROOT="$tmp_dir" python3 "${ROOT}/tools/drift-checks.py" \
+        header-integrity >/dev/null 2>&1; then
+        rm -rf "$tmp_dir"
+        die "check_header_integrity passed with a tracked file listed and none readable"
+    fi
+    rm -rf "$tmp_dir"
+    _neg_gate check_header_integrity || die "check_header_integrity failed after cleanup"
+    log "check_header_integrity unreadable-corpus negative test passed"
+}
+
 test_os_update_timer_enabled() {
     log "Testing check_os_update_timer_enabled"
     # The old probe moved bootc-fetch-apply-updates.timer aside, but that file
@@ -3888,8 +3931,10 @@ _run_test test_leaked_fixtures
     _run_test test_wsl_distro_resolution
     _run_test test_docs_ratchet
     _run_test test_header_integrity
+    _run_test test_header_integrity_unreadable_corpus
     _run_test test_resolver_differential_parity
     _run_test test_generator_host_parity
+    _run_test test_generator_host_parity_unreadable_corpus
     _run_test test_legibility_ratchet
     _run_test test_bootstrap_sync
     _run_test test_no_inert_ssot_tables
