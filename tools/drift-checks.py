@@ -2750,11 +2750,17 @@ def check_ai_manifest() -> int:
     import os, sys, json
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
+    # The module is a tracked deliverable, so "cannot import" was a dropped
+    # subject reported as a pass. It imports stdlib only -- no dep can be absent.
+    _rc = _absent(root, os.path.join(root, "usr/lib/mios/agent-pipe/mios_manifest.py"))
+    if _rc is not None:
+        return _rc
     try:
         import mios_manifest as man
     except Exception as e:
-        sys.stderr.write(f"    cannot import mios_manifest ({e}) -- skipping\n")
-        return 0
+        sys.stderr.write("    mios_manifest is present but did not import (%s), so "
+                         "the verb catalogue was never projected\n" % e)
+        return 1
     toml = os.path.join(root, "usr/share/mios/mios.toml")
     out = os.path.join(root, "usr/share/mios/ai/v1/tools.generated.json")
     try:
@@ -2777,11 +2783,15 @@ def check_capability_manifest() -> int:
     import os, sys, json
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
+    _rc = _absent(root, os.path.join(root, "usr/lib/mios/agent-pipe/mios_capreg.py"))
+    if _rc is not None:
+        return _rc
     try:
         import mios_capreg as cap
     except Exception as e:
-        sys.stderr.write(f"    cannot import mios_capreg ({e}) -- skipping\n")
-        return 0
+        sys.stderr.write("    mios_capreg is present but did not import (%s), so the "
+                         "capability registry was never projected\n" % e)
+        return 1
     toml = os.path.join(root, "usr/share/mios/mios.toml")
     out = os.path.join(root, "usr/share/mios/ai/v1/capabilities.generated.json")
     try:
@@ -2804,16 +2814,21 @@ def check_surface_parity() -> int:
     import os, sys, json
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
+    _rc = _absent(root, os.path.join(root, "usr/lib/mios/agent-pipe/mios_surface.py"))
+    if _rc is not None:
+        return _rc
     try:
         import mios_surface as surf
     except Exception as e:
-        sys.stderr.write(f"    cannot import mios_surface ({e}) -- skipping\n")
-        return 0
+        sys.stderr.write("    mios_surface is present but did not import (%s), so the "
+                         "served surface was never projected\n" % e)
+        return 1
     server = os.path.join(root, "usr/lib/mios/agent-pipe/server.py")
     out = os.path.join(root, "usr/share/mios/ai/v1/surface.generated.json")
-    if not os.path.isfile(server):
-        sys.stderr.write("    server.py absent -- skipping\n")
-        return 0
+    # server.py is tracked too: absent, it is the subject going missing.
+    _rc = _absent(root, server)
+    if _rc is not None:
+        return _rc
     try:
         gen = surf.project_package(server)
     except Exception as e:
