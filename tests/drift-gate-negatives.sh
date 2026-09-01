@@ -253,11 +253,13 @@ EOF
     log "Check_toml_projection negative test passed"
 }
 
+# The `; printf X` / `${var%X}` pairs below keep a snapshot byte-exact:
+# $(cat) strips EVERY trailing newline and echo puts back exactly one.
 test_ratchet_direction() {
     log "Testing check_ratchet_direction"
     local main_toml="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
-    orig_val="$(cat "$main_toml")"
+    orig_val="$(cat "$main_toml"; printf X)"
 
     MIOS_TOML_PATH="$main_toml" python3 - <<'EOF'
 import os
@@ -268,11 +270,11 @@ open(p, "w", encoding="utf-8").write(new_text)
 EOF
 
     if MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ratchet_direction >/dev/null 2>&1; then
-        echo "$orig_val" > "$main_toml"
+        printf '%s' "${orig_val%X}" > "$main_toml"
         die "check_ratchet_direction passed despite raised ratchet ceiling"
     fi
 
-    echo "$orig_val" > "$main_toml"
+    printf '%s' "${orig_val%X}" > "$main_toml"
     MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ratchet_direction >/dev/null 2>&1 \
         || die "check_ratchet_direction failed after restoration"
     log "check_ratchet_direction negative test passed"
@@ -421,8 +423,8 @@ test_agent_pipe_budgets() {
     log "Testing check_agent_pipe_budgets"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
-    orig_val="$(cat "$toml_file")"
-    echo "$orig_val" > "$toml_file"
+    orig_val="$(cat "$toml_file"; printf X)"
+    printf '%s' "${orig_val%X}" > "$toml_file"
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -434,12 +436,12 @@ EOF
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agent_pipe_budgets >/dev/null 2>&1; then
         rm -f "$toml_file"
-        echo "$orig_val" > "$toml_file"
+        printf '%s' "${orig_val%X}" > "$toml_file"
         die "Check_agent_pipe_budgets passed despite missing swarm_max_width key"
     fi
 
     rm -f "$toml_file"
-    echo "$orig_val" > "$toml_file"
+    printf '%s' "${orig_val%X}" > "$toml_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agent_pipe_budgets >/dev/null 2>&1 \
         || die "Check_agent_pipe_budgets failed after restoration"
     log "Check_agent_pipe_budgets negative test passed"
@@ -449,7 +451,7 @@ test_agent_schema() {
     log "Testing check_agent_schema"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
-    orig_val="$(cat "$toml_file")"
+    orig_val="$(cat "$toml_file"; printf X)"
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -460,11 +462,11 @@ open(p, "w", encoding="utf-8").write(new)
 EOF
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agent_schema >/dev/null 2>&1; then
-        echo "$orig_val" > "$toml_file"
+        printf '%s' "${orig_val%X}" > "$toml_file"
         die "check_agent_schema passed despite missing health_gate in [agents.hermes]"
     fi
 
-    echo "$orig_val" > "$toml_file"
+    printf '%s' "${orig_val%X}" > "$toml_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agent_schema >/dev/null 2>&1 \
         || die "check_agent_schema failed after restoration"
     log "check_agent_schema negative test passed"
@@ -1460,16 +1462,16 @@ test_verb_templates() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     if [ -f "$toml_file" ]; then
         local orig_val
-        orig_val="$(cat "$toml_file")"
-        echo "$orig_val" > "$toml_file"
+        orig_val="$(cat "$toml_file"; printf X)"
+        printf '%s' "${orig_val%X}" > "$toml_file"
         printf '\n[verbs.bogus_broken]\ncmd = "echo {invalid_placeholder"\n' >> "$toml_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_verb_templates >/dev/null 2>&1; then
-            echo "$orig_val" > "$toml_file"
+            printf '%s' "${orig_val%X}" > "$toml_file"
             die "Check_verb_templates passed despite invalid verb template"
         fi
 
-        echo "$orig_val" > "$toml_file"
+        printf '%s' "${orig_val%X}" > "$toml_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_verb_templates >/dev/null 2>&1 \
             || die "Check_verb_templates failed after restoration"
     fi
@@ -1659,16 +1661,16 @@ test_cephfs_ssot() {
     log "Testing check_cephfs_ssot"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
-    orig_val="$(cat "$toml_file")"
+    orig_val="$(cat "$toml_file"; printf X)"
 
     sed -i 's/mount_options                   = "noatime,fsc,_netdev"/# mount_options removed/' "$toml_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cephfs_ssot >/dev/null 2>&1; then
-        echo "$orig_val" > "$toml_file"
+        printf '%s' "${orig_val%X}" > "$toml_file"
         die "Check_cephfs_ssot passed despite missing mount_options key"
     fi
 
-    echo "$orig_val" > "$toml_file"
+    printf '%s' "${orig_val%X}" > "$toml_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cephfs_ssot >/dev/null 2>&1 \
         || die "Check_cephfs_ssot failed after restoration"
     log "Test_cephfs_ssot negative test passed"
@@ -1751,16 +1753,16 @@ test_projection_registry() {
     log "Testing check_projection_registry"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
-    orig_val="$(cat "$toml_file")"
+    orig_val="$(cat "$toml_file"; printf X)"
 
     sed -i 's/check = "check_dotfiles_projection"/check = "check_nonexistent_proj_check"/' "$toml_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry >/dev/null 2>&1; then
-        echo "$orig_val" > "$toml_file"
+        printf '%s' "${orig_val%X}" > "$toml_file"
         die "Check_projection_registry passed despite missing projection check"
     fi
 
-    echo "$orig_val" > "$toml_file"
+    printf '%s' "${orig_val%X}" > "$toml_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry >/dev/null 2>&1 \
         || die "Check_projection_registry failed after restoration"
     log "Test_projection_registry negative test passed"
@@ -1821,21 +1823,21 @@ test_db_seed_coverage() {
     local seed_script="${ROOT}/usr/libexec/mios/seed-db-config.py"
     local orig_val
     local orig_seed
-    orig_val="$(cat "$toml_file")"
-    orig_seed="$(cat "$seed_script")"
+    orig_val="$(cat "$toml_file"; printf X)"
+    orig_seed="$(cat "$seed_script"; printf X)"
 
     echo "" >> "$toml_file"
     echo "[unseeded_bogus_test_section]" >> "$toml_file"
     echo "Key = \"value\"" >> "$toml_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_db_seed_coverage >/dev/null 2>&1; then
-        echo "$orig_val" > "$toml_file"
-        echo "$orig_seed" > "$seed_script"
+        printf '%s' "${orig_val%X}" > "$toml_file"
+        printf '%s' "${orig_seed%X}" > "$seed_script"
         die "Check_db_seed_coverage passed despite unseeded section in mios.toml"
     fi
 
-    echo "$orig_val" > "$toml_file"
-    echo "$orig_seed" > "$seed_script"
+    printf '%s' "${orig_val%X}" > "$toml_file"
+    printf '%s' "${orig_seed%X}" > "$seed_script"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_db_seed_coverage >/dev/null 2>&1 \
         || die "Check_db_seed_coverage failed after restoration"
     log "Test_db_seed_coverage negative test passed"
@@ -1845,16 +1847,16 @@ test_account_column_parity() {
     log "Testing check_account_column_parity"
     local schema_file="${ROOT}/usr/share/mios/postgres/schema-init.sql"
     local orig_val
-    orig_val="$(cat "$schema_file")"
+    orig_val="$(cat "$schema_file"; printf X)"
 
     sed -i 's/name        text UNIQUE NOT NULL/-- name        text UNIQUE NOT NULL/' "$schema_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_account_column_parity >/dev/null 2>&1; then
-        echo "$orig_val" > "$schema_file"
+        printf '%s' "${orig_val%X}" > "$schema_file"
         die "Check_account_column_parity passed despite missing column in schema"
     fi
 
-    echo "$orig_val" > "$schema_file"
+    printf '%s' "${orig_val%X}" > "$schema_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_account_column_parity >/dev/null 2>&1 \
         || die "Check_account_column_parity failed after restoration"
     log "Test_account_column_parity negative test passed"
