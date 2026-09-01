@@ -1612,6 +1612,28 @@ check_version_ssot() {
     fi
 }
 
+# --- tools/native/Cargo.toml equals its generator projection ---
+check_cargo_manifest_generated() {
+    # The generator carried its member list as a literal and had fallen two
+    # crates behind the tree, so regenerating dropped them out of the
+    # workspace: on disk, never compiled, never tested, never shipped.
+    _need_python || return 0
+    local gen="$ROOT/tools/generate-cargo-manifests.py"
+    local manifest="$ROOT/tools/native/Cargo.toml"
+    if [[ ! -f "$gen" || ! -f "$manifest" ]]; then
+        _violation "check_cargo_manifest_generated: tools/generate-cargo-manifests.py or tools/native/Cargo.toml is absent -- a tracked deliverable is gone, so the workspace projection cannot be compared"
+        return
+    fi
+    local out
+    if out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$gen" --check 2>&1)"; then
+        echo "[98-drift-checks]   tools/native/Cargo.toml matches its generator projection"
+    else
+        echo "$out" >&2
+        _emit_projection_evidence "tools/generate-cargo-manifests.py" "tools/native/Cargo.toml"
+        _violation "check_cargo_manifest_generated: tools/native/Cargo.toml drifted from tools/generate-cargo-manifests.py -- re-run the generator (Law 8 SSOT-PROJECTION)"
+    fi
+}
+
 check_root_toml_subset() {
     _need_python || return 0
     local rc=0
@@ -3329,6 +3351,7 @@ main() {
     check_impossible_eol_regressions
     check_deploy_plane
     check_version_ssot
+    check_cargo_manifest_generated
     check_root_toml_subset
     check_toml_projection
     check_ratchet_direction

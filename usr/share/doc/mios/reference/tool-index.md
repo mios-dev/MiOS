@@ -303,7 +303,7 @@ is generated, its generator is here.
 | `tools/generate-bib-configs.py` | MiOS system and orchestration module providing generate-bib-configs capabilities. |
 | `tools/generate-blade-dropins.py` | Generate systemd capability drop-in files, k3s nodeSelectors, and Pacemaker location rules from the mios.toml [blade.requires] SSOT (AGY-1595). |
 | `tools/generate-blade-karg.py` | Generate usr/lib/bootc/kargs.d/05-mios-blade.toml from the mios.toml [blade].type SSOT, so the karg role-apply already parses has a Law-8 pr... |
-| `tools/generate-cargo-manifests.py` | Generator that projects tools/native/Cargo.toml from mios.toml [meta].mios_version SSOT. |
+| `tools/generate-cargo-manifests.py` | Generator that projects tools/native/Cargo.toml -- members enumerated from the crate directories, version from mios.toml [meta].mios_version SSOT. |
 | `tools/generate-cockpit-conf.py` | Renders etc/cockpit/cockpit.conf from usr/share/mios/mios.toml SSOT |
 | `tools/generate-cosign-policy.py` | Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT |
 | `tools/generate-egress-firewall.py` | Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation). |
@@ -374,6 +374,7 @@ is generated, its generator is here.
 | `tools/test_drift-checks.py` | Sibling test for tools/drift-checks.py; asserts each extracted check is importable, dispatchable and agrees with the shell gate. |
 | `tools/test_generate-adr-index.py` | Sibling unit test for tools/generate-adr-index.py (T-265). |
 | `tools/test_generate-blade-karg.py` | Unit tests for tools/generate-blade-karg.py. |
+| `tools/test_generate-cargo-manifests.py` | Sibling unit test for tools/generate-cargo-manifests.py -- members come from the crate dirs, --check diffs without writing. |
 | `tools/test_generate-gate-index.py` | Sibling test for tools/generate-gate-index.py; proves a row never carries a description belonging to another check. |
 | `tools/test_generate-metal-vs-hosted.py` | Sibling unit test for tools/generate-metal-vs-hosted.py. |
 | `tools/test_generator_check_agrees_with_write.py` | Asserts a generator's --check mode compares what its write mode produces; the pairs are read from the gate's own projection-evidence emitter, not listed here. |
@@ -389,7 +390,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 136 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 137 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

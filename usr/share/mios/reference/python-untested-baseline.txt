@@ -10,7 +10,6 @@ tools/generate-ai-manifest.py
 tools/generate-bake-plan.py
 tools/generate-bib-configs.py
 tools/generate-blade-dropins.py
-tools/generate-cargo-manifests.py
 tools/generate-cockpit-conf.py
 tools/generate-cosign-policy.py
 tools/generate-egress-firewall.py

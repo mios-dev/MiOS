@@ -91,6 +91,11 @@ main() {
     "$PY" tools/generate-adr-index.py >/dev/null
     "$PY" tools/roadmap-index.py >/dev/null
 
+    # Declares itself generated but was invoked nowhere, so its member list
+    # drifted two crates behind the tree with no gate to say so.
+    step "4b2/6 native workspace manifest (members = the crate dirs on disk)"
+    "$PY" tools/generate-cargo-manifests.py >/dev/null
+
     step "4c/6 blade projections (drop-ins + the deploy-time karg)"
     "$PY" tools/generate-blade-dropins.py >/dev/null
     "$PY" tools/generate-blade-karg.py >/dev/null

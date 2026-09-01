@@ -3007,6 +3007,32 @@ PYEOF
     log "check_fleet_safety negative test passed"
 }
 
+test_cargo_manifest_generated() {
+    log "Testing check_cargo_manifest_generated"
+    # The defect: the generator's member list was a literal two crates behind
+    # the tree, so a crate on disk could sit outside the workspace unreported.
+    local manifest="${ROOT}/tools/native/Cargo.toml"
+    local bak; bak="$(mktemp)"; cp "$manifest" "$bak"
+
+    python3 - "$manifest" <<'PYEOF'
+import sys
+p = sys.argv[1]
+with open(p, "r", encoding="utf-8", newline="") as fh:
+    t = fh.read()
+out = t.replace('    "xtask",\n', "", 1)
+assert out != t, "the plant did not land -- the members list has no xtask entry"
+with open(p, "w", encoding="utf-8", newline="") as fh:
+    fh.write(out)
+PYEOF
+
+    _neg_gate check_cargo_manifest_generated && { cp "$bak" "$manifest"; rm -f "$bak"; \
+        die "check_cargo_manifest_generated passed with a crate dropped from the workspace members"; }
+
+    cp "$bak" "$manifest"; rm -f "$bak"
+    _neg_gate check_cargo_manifest_generated || die "check_cargo_manifest_generated failed after restoration"
+    log "check_cargo_manifest_generated negative test passed"
+}
+
 test_tracked_readable() {
     log "Testing check_tracked_readable"
     # The defect: a file in the index but gone from the worktree leaves every
@@ -3889,6 +3915,7 @@ main() {
     _run_test test_neg_gate_harness
     _run_test test_task_schema
 _run_test test_ci_suite_coverage
+_run_test test_cargo_manifest_generated
 _run_test test_tracked_readable
 _run_test test_leaked_fixtures
     _run_test test_fleet_safety
