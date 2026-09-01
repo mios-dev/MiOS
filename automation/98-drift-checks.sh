@@ -472,8 +472,8 @@ check_pod_quadlets() {
     _need_python || return 0
     local gen="$ROOT/tools/generate-pod-quadlets.py"
     if [[ ! -f "$gen" ]]; then
-        echo "[98-drift-checks]   WARNING: generate-pod-quadlets.py absent" >&2
-        return 0
+        _violation "tools/generate-pod-quadlets.py absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     # MIOS_CRAWL_CAMOUFOX=True, ...). generate-pod-quadlets.py resolves
     if env -i PATH="$PATH" HOME="${HOME:-/root}" LANG="${LANG:-C.UTF-8}" \
@@ -489,8 +489,8 @@ check_egress_firewall() {
     local gen="$ROOT/tools/generate-egress-firewall.py"
     local committed="$ROOT/usr/share/mios/security/egress.nft"
     if [[ ! -f "$gen" || ! -f "$committed" ]]; then
-        echo "[98-drift-checks]   WARNING: egress generator/artifact absent" >&2
-        return 0
+        _violation "egress generator or usr/share/mios/security/egress.nft absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     local tmp; tmp="$(mktemp)"
     if MIOS_ROOT="$ROOT" MIOS_EGRESS_OUT="$tmp" python3 "$gen" >/dev/null 2>&1 \
@@ -507,8 +507,8 @@ check_blade_dropins() {
     _need_python || return 0
     local gen="$ROOT/tools/generate-blade-dropins.py"
     if [[ ! -f "$gen" ]]; then
-        echo "[98-drift-checks]   WARNING: blade dropins generator absent" >&2
-        return 0
+        _violation "tools/generate-blade-dropins.py absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     local tmp_root; tmp_root="$(mktemp -d)"
     if MIOS_ROOT="$tmp_root" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$gen" >/dev/null 2>&1; then
@@ -805,8 +805,8 @@ check_dotfiles_projection() {
     _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/mios-dotfiles-render"
     if [[ ! -f "$tool" ]]; then
-        echo "[98-drift-checks]   WARNING: mios-dotfiles-render not found" >&2
-        return 0
+        _violation "usr/libexec/mios/mios-dotfiles-render absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_HOST_TOML=/nonexistent.toml MIOS_USER_TOML=/nonexistent.toml python3 "$tool" check >/dev/null 2>"$ROOT/.dotfiles.err"; then
         rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
