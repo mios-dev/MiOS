@@ -355,7 +355,7 @@ is generated, its generator is here.
 | `tools/test_check-port-fallbacks.py` | Unit tests for tools/check-port-fallbacks.py. |
 | `tools/test_check-ports-bound.py` | Unit tests for tools/check-ports-bound.py. |
 | `tools/test_check-privileged-quadlets.py` | Sibling unit test for tools/check-privileged-quadlets.py (AGY-1646 / AGY-1651). |
-| `tools/test_check-ratchet-direction.py` | Unit test verifying that check-ratchet-direction detects raised ratchet ceilings and passes when lower/equal. |
+| `tools/test_check-ratchet-direction.py` | Unit test verifying that check-ratchet-direction detects raised ratchet ceilings and refuses to pass when it read no ceiling. |
 | `tools/test_check-redact-coverage.py` | Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl... |
 | `tools/test_check-role-ssot.py` | Unit tests for tools/check-role-ssot.py. |
 | `tools/test_check-rust-test-coverage.py` | Unit tests for tools/check-rust-test-coverage.py. |
