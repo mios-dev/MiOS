@@ -58,6 +58,11 @@ def _tracked(root: str, *pathspec: str):
         sys.stderr.write("    %s\n" % exc)
         return None, 1
 
+def _under(path: str, root: str) -> str:
+    """Repo-relative when the path is inside root, else the path as given."""
+    rel = os.path.relpath(path, root)
+    return path if rel.startswith("..") else rel.replace(os.sep, "/")
+
 def check_doc_refs_resolve() -> int:
     import os, sys, re
     import tomllib
@@ -4147,14 +4152,26 @@ def check_value_aliases() -> int:
         snap = os.path.join(root, "usr/libexec/mios/mios-env-snapshot")
         tsv = os.path.join(root, "usr/share/mios/reference/value-aliases.tsv")
 
-    if not (os.path.isfile(snap) and os.path.isfile(tsv)):
-        return 0
+    # Both are tracked deliverables; absence is a missing subject, not a pass.
+    missing = [p for p in (snap, tsv) if not os.path.isfile(p)]
+    if missing:
+        print("value-alias subject missing: %s" % ", ".join(
+            _under(p, root) for p in missing))
+        return 1
 
     env = {}
     sub_env = dict(os.environ, MIOS_ROOT=root, MIOS_DRIFT_ROOT=root, MIOS_VENDOR_TOML=os.path.join(root, "usr/share/mios/mios.toml"), MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL="false")
-    proc = subprocess.run(["bash", snap], capture_output=True, text=True, env=sub_env)
+    try:
+        proc = subprocess.run(["bash", snap], capture_output=True, text=True, env=sub_env)
+    except OSError as exc:
+        print("mios-env-snapshot could not be run: %s" % exc)
+        return 1
+    # Returned 0 here, so a resolver that crashed read as "consistency verified".
     if proc.returncode != 0:
-        return 0  # snapshot unavailable -> do not false-fail
+        detail = (proc.stderr or "").strip().splitlines()
+        print("mios-env-snapshot exited %d -- no alias corpus was produced: %s"
+              % (proc.returncode, detail[-1] if detail else "no message"))
+        return 1
     for line in proc.stdout.splitlines():
         if "=" in line:
             k, v = line.split("=", 1)
@@ -4317,10 +4334,20 @@ def check_template_self_conformance() -> int:
     tmpl_dir = os.path.join(root, "usr/share/mios/templates")
     scaffold_script = os.path.join(root, "usr/libexec/mios/mios-new")
 
-    if not os.path.isdir(tmpl_dir) or not os.path.isfile(scaffold_script):
-        return 0
+    # Both are tracked deliverables (Law 16); returning 0 here asserted that
+    # "every template scaffolds" while scaffolding none of them.
+    missing = [p for p, ok in ((tmpl_dir, os.path.isdir(tmpl_dir)), (scaffold_script, os.path.isfile(scaffold_script))) if not ok]
+    if missing:
+        print("template self-conformance subject missing: %s" % ", ".join(
+            _under(p, root) for p in missing))
+        return 1
 
     templates = [f for f in os.listdir(tmpl_dir) if not f.startswith(".") and os.path.isfile(os.path.join(tmpl_dir, f))]
+    # A size guard covers every cause of an emptied corpus, not just deletion.
+    if len(templates) < 20:
+        print("template corpus is %d file(s); the canonical set is far larger, "
+              "so this run examined an incomplete corpus" % len(templates))
+        return 1
     failures = []
 
     for t in sorted(templates):

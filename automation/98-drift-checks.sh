@@ -3082,7 +3082,11 @@ check_value_aliases() {
     fi
     local tsv="${ROOT}/usr/share/mios/reference/value-aliases.tsv"
     local snap="${ROOT}/usr/libexec/mios/mios-env-snapshot"
-    [[ -f "$tsv" && -f "$snap" ]] || return 0
+    # A bare `|| return 0` dropped the check from the run with no message at all.
+    if [[ ! -f "$tsv" || ! -f "$snap" ]]; then
+        _violation "value-alias snapshot or reference TSV absent -- a tracked deliverable is missing, so this check cannot run"
+        return
+    fi
     if MIOS_VENDOR_TOML="${ROOT}/usr/share/mios/mios.toml" MIOS_TOML_ROOT="${ROOT}" python3 tools/drift-checks.py value-aliases "$snap" "$tsv"
     then
         echo "[98-drift-checks]   value-alias consistency verified"
