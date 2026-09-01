@@ -3149,7 +3149,12 @@ check_no_silent_tool_skips() {
 check_negatives_are_effective() {
     echo "[98-drift-checks]   negative-test effectiveness check"
     local neg_file="${ROOT}/tests/drift-gate-negatives.sh"
-    [[ -f "$neg_file" ]] || return 0
+    # The header above already printed, so a bare `return 0` here read as a
+    # check that ran and found nothing.
+    if [[ ! -f "$neg_file" ]]; then
+        _violation "tests/drift-gate-negatives.sh absent -- a tracked deliverable is missing, so this check cannot run"
+        return
+    fi
 
     if python3 tools/drift-checks.py negatives-are-effective "$neg_file"
     then
@@ -3162,7 +3167,11 @@ check_negatives_are_effective() {
 check_pipefail_grep_lint() {
     echo "[98-drift-checks]   pipefail grep lint check"
     local neg_file="${ROOT}/tests/drift-gate-negatives.sh"
-    [[ -f "$neg_file" ]] || return 0
+    # Same silent-skip shape as check_negatives_are_effective above.
+    if [[ ! -f "$neg_file" ]]; then
+        _violation "tests/drift-gate-negatives.sh absent -- a tracked deliverable is missing, so this check cannot run"
+        return
+    fi
 
     if python3 tools/drift-checks.py pipefail-grep-lint "$neg_file"
     then
