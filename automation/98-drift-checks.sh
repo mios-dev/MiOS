@@ -2774,15 +2774,20 @@ check_renderer_gate_coverage() {
     local auto_dir="$ROOT/automation"
     local drift_file="$ROOT/automation/98-drift-checks.sh"
 
+    # Both are tracked deliverables: their absence is the worst state to be in,
+    # not a reason to report every renderer mapped.
     if [[ ! -d "$auto_dir" || ! -f "$drift_file" ]]; then
-        return 0
+        _violation "check_renderer_gate_coverage: automation/ or automation/98-drift-checks.sh is absent -- no renderer could be mapped to a projection check"
+        return
     fi
 
     local allowlist=("34-render-quadlets.sh" "35-render-ports.sh")
 
+    local found_total=0
     local render_scripts=()
     while IFS= read -r f; do
         [[ -f "$f" ]] || continue
+        found_total=$((found_total + 1))
         local base="$(basename "$f")"
         local allowed=0
         for item in "${allowlist[@]}"; do
@@ -2795,6 +2800,13 @@ check_renderer_gate_coverage() {
             render_scripts+=("$base")
         fi
     done < <(find "$auto_dir" -maxdepth 1 -name "*-render*.sh" -o -name "*render*.sh" 2>/dev/null)
+
+    # Zero renderers means the find matched nothing, and an empty loop below
+    # would print the PASS line having examined no script at all.
+    if [[ "$found_total" -eq 0 ]]; then
+        _violation "check_renderer_gate_coverage: no renderer script found under automation/ -- the corpus is empty, so 'clean' would mean nothing was examined"
+        return
+    fi
 
     local unmapped=()
     local script
