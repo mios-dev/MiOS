@@ -3955,7 +3955,7 @@ check_ps_port_fallback_ssot() {
 
 # --- the MiOS org slug is lowercase in every ghcr.io / github.com / raw-content reference ---
 check_github_slug_casing() {
-    echo "[98-drift-checks] the MiOS org slug is lowercase in every pull/push reference"
+    echo "[98-drift-checks] the MiOS org slug is lowercase in every ghcr.io / github.com / raw-content reference"
     _need_python || return 0
     # Only the MiOS org is subject to this rule. Upstream orgs are legitimately
     # mixed-case (StevenBlack, NousResearch, NVIDIA), so "any uppercase org" is
@@ -4052,7 +4052,7 @@ check_docs_ratchet() {
 # Ceilings must fall, never rise. Compared against HEAD.
 # --- documentation ratchet ceilings never exceed their recorded floor (shrink-only) ---
 check_docs_ratchet_monotone() {
-    echo "[98-drift-checks] documentation coverage ratchet strictly increases monotonically"
+    echo "[98-drift-checks] documentation ratchet ceilings never exceed their recorded floor (shrink-only)"
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-doc-ratchet-monotone.py" 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   documentation ratchet ceilings did not rise"
 }
