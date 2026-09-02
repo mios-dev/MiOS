@@ -191,6 +191,41 @@ test_names_registry() {
     log "Check_names_registry negative test passed"
 }
 
+# Both readers answered a refusing git with a filesystem walk that skips every
+# directory named build/, so two tracked files left the corpus in silence.
+test_dead_git_corpus() {
+    log "Testing the names generator and the version-literal scan against a refusing git"
+    local shim reg before after
+    shim="$(mktemp -d)"
+    printf '#!/bin/sh\necho "fatal: refusing to list" >&2\nexit 128\n' > "${shim}/git"
+    chmod +x "${shim}/git"
+    reg="${ROOT}/usr/share/mios/referenced_names.txt"
+    before="$(md5sum "$reg" | cut -d' ' -f1)"
+
+    if PATH="${shim}:$PATH" python3 "${ROOT}/tools/generate-names-registry.py" >/dev/null 2>&1; then
+        rm -rf "$shim"
+        die "generate-names-registry.py rewrote the registry on a corpus git never gave it"
+    fi
+    after="$(md5sum "$reg" | cut -d' ' -f1)"
+    if [[ "$before" != "$after" ]]; then
+        rm -rf "$shim"
+        die "generate-names-registry.py altered referenced_names.txt while refusing to run"
+    fi
+
+    if PATH="${shim}:$PATH" MIOS_DRIFT_ROOT="$ROOT" \
+        python3 "${ROOT}/tools/drift-checks.py" version-literals-ssot >/dev/null 2>&1; then
+        rm -rf "$shim"
+        die "version-literals-ssot reported clean on a corpus git never gave it"
+    fi
+    rm -rf "$shim"
+
+    python3 "${ROOT}/tools/generate-names-registry.py" >/dev/null 2>&1 \
+        || die "generate-names-registry.py failed with a working git"
+    MIOS_DRIFT_ROOT="$ROOT" python3 "${ROOT}/tools/drift-checks.py" version-literals-ssot >/dev/null 2>&1 \
+        || die "version-literals-ssot failed with a working git"
+    log "dead-git corpus negative test passed"
+}
+
 test_root_toml_subset() {
     log "Testing check_root_toml_subset"
     local root_toml="${ROOT}/mios.toml"
@@ -3931,6 +3966,7 @@ _run_test test_leaked_fixtures
     _run_test test_eval_safety
     _run_test test_shellcheck_failure
     _run_test test_names_registry
+    _run_test test_dead_git_corpus
     _run_test test_root_toml_subset
     _run_test test_toml_projection
     _run_test test_ratchet_direction

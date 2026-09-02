@@ -3152,18 +3152,12 @@ def check_version_literals_ssot() -> int:
     pattern = re.compile(r'\bv?0\.[0-9]+\.[0-9]+\b')
     viol = []
 
-    try:
-        out = subprocess.check_output(["git", "ls-files"], cwd=root, stderr=subprocess.DEVNULL).decode("utf-8")
-        tracked = [os.path.normpath(os.path.join(root, f)) for f in out.splitlines()]
-    except Exception:
-        tracked = []
-        for r, _d, files in os.walk(root):
-            rel_r = os.path.relpath(r, root).replace("\\", "/")
-            parts = rel_r.split('/')
-            if any(p in parts for p in ('tmp', '.git', '.venv', '__pycache__', 'node_modules', 'dist', 'build', 'target', '.system_generated', 'scratch', 'logs', 'bib-configs', 'medicat_stage', 'isobuild', 'isobuild_live', 'isobuild2')):
-                continue
-            for f in files:
-                tracked.append(os.path.normpath(os.path.join(r, f)))
+    # The walk this replaced skipped every directory named build/, so a literal
+    # in automation/build/ or usr/libexec/mios/build/ was missed, and silently.
+    paths, status = _tracked(root)
+    if paths is None:
+        return status
+    tracked = [os.path.normpath(os.path.join(root, f)) for f in paths]
 
     for path in tracked:
         rel = os.path.relpath(path, root).replace("\\", "/")

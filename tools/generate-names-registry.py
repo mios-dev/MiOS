@@ -7,6 +7,9 @@ import sys
 import re
 import glob
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mios_tracked import tracked, GitUnavailable
+
 try:
     import tomllib
 except ImportError:
@@ -81,64 +84,30 @@ def generate_referenced_vars(root):
                       "Containerfile", "Containerfile.*", "*.nft", "*.sql")
 
     refs = set()
-    import subprocess
-    tracked_files = []
-    try:
-        res = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=True, cwd=root)
-        tracked_files = [os.path.join(root, f) for f in res.stdout.splitlines() if os.path.isfile(os.path.join(root, f))]
-    except Exception:
-        tracked_files = []
-        for r, _d, files in os.walk(root):
-            rel_r = os.path.relpath(r, root).replace("\\", "/")
-            parts = rel_r.split('/')
-            if any(p in parts for p in ('tmp', '.git', '.venv', '__pycache__', 'node_modules', 'dist', 'build', '.system_generated', 'scratch', 'logs', 'bib-configs', 'medicat_stage', 'isobuild', 'isobuild_live', 'isobuild2')):
-                continue
-            for f in files:
-                tracked_files.append(os.path.join(r, f))
+    # git must answer: the walk this replaced skipped every directory named
+    # build/, rewriting the registry two tracked names short and exiting 0.
+    tracked_files = [os.path.join(root, f) for f in tracked(root)
+                     if os.path.isfile(os.path.join(root, f))]
 
-    if tracked_files:
-        for path in tracked_files:
-            rel = os.path.relpath(path, root).replace("\\", "/")
-            fn = os.path.basename(path)
-            if any(rel.endswith(s) for s in emitter_suffixes):
-                continue
-            if not any(glob.fnmatch.fnmatchcase(fn, g) for g in consumer_globs):
-                continue
-            try:
-                with open(path, encoding="utf-8", errors="ignore") as fh:
-                    for line in fh:
-                        for m in var_re.finditer(line):
-                            v = m.group(0).rstrip("_")
-                            if not v or v == "MIOS":
-                                continue
-                            if re.match(rf"\s*(export\s+)?{v}=", line):
-                                continue
-                            refs.add(v)
-            except (OSError, UnicodeError):
-                continue
-    else:
-        for dirpath, _dirs, files in os.walk(root):
-            if "/.git" in dirpath.replace("\\", "/"):
-                continue
-            for fn in files:
-                path = os.path.join(dirpath, fn)
-                rel = os.path.relpath(path, root).replace("\\", "/")
-                if any(rel.endswith(s) for s in emitter_suffixes):
-                    continue
-                if not any(glob.fnmatch.fnmatchcase(fn, g) for g in consumer_globs):
-                    continue
-                try:
-                    with open(path, encoding="utf-8", errors="ignore") as fh:
-                        for line in fh:
-                            for m in var_re.finditer(line):
-                                v = m.group(0).rstrip("_")
-                                if not v or v == "MIOS":
-                                    continue
-                                if re.match(rf"\s*(export\s+)?{v}=", line):
-                                    continue
-                                refs.add(v)
-                except (OSError, UnicodeError):
-                    continue
+    for path in tracked_files:
+        rel = os.path.relpath(path, root).replace("\\", "/")
+        fn = os.path.basename(path)
+        if any(rel.endswith(s) for s in emitter_suffixes):
+            continue
+        if not any(glob.fnmatch.fnmatchcase(fn, g) for g in consumer_globs):
+            continue
+        try:
+            with open(path, encoding="utf-8", errors="ignore") as fh:
+                for line in fh:
+                    for m in var_re.finditer(line):
+                        v = m.group(0).rstrip("_")
+                        if not v or v == "MIOS":
+                            continue
+                        if re.match(rf"\s*(export\s+)?{v}=", line):
+                            continue
+                        refs.add(v)
+        except (OSError, UnicodeError):
+            continue
 
     ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
     static_names = set()
@@ -186,7 +155,11 @@ def main():
             print(f"{path_str}  {env_name}")
     os.replace(tmp_names, names_file)
 
-    generate_referenced_vars(root)
+    try:
+        generate_referenced_vars(root)
+    except GitUnavailable as e:
+        print("Error: refusing to rewrite referenced_names.txt -- %s" % e, file=sys.stderr)
+        return 1
     return 0
 
 if __name__ == "__main__":
