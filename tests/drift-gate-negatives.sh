@@ -125,7 +125,9 @@ test_resolver_equivalence() {
 
 test_eval_safety() {
     log "Testing check_cli_eval_safety"
-    local temp_verb="${ROOT}/usr/libexec/mios/mios-test-temp-eval"
+    # In a subdirectory on purpose: a top-level plant passed just as well when
+    # the check only listed the top level.
+    local temp_verb="${ROOT}/usr/libexec/mios/automation/mios-test-temp-eval"
 
     rm -f "$temp_verb"
 
@@ -703,7 +705,9 @@ test_gate_registry() {
 
 test_test_hermeticity() {
     log "Testing check_test_hermeticity"
-    local temp_test="${ROOT}/tests/test_fake_live_resource.py"
+    # In a subdirectory on purpose: a top-level plant passed just as well when
+    # the check only listed the top level.
+    local temp_test="${ROOT}/usr/lib/mios/agent-pipe/tests/test_fake_live_resource.py"
 
     cat << 'EOF' > "$temp_test"
 import psycopg

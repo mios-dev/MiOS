@@ -3255,29 +3255,35 @@ def check_cli_eval_safety() -> int:
     dir_to_scan = os.path.join(root, "usr/libexec/mios")
     viol = []
 
+    # os.listdir reached only the top level, so a verb backend one directory
+    # down was never read for eval at all.
     if os.path.isdir(dir_to_scan):
-        for fn in os.listdir(dir_to_scan):
-            path = os.path.join(dir_to_scan, fn)
-            if not os.path.isfile(path) or fn.endswith((".py", ".pyc", ".json", ".generated")):
-                continue
-            try:
-                with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                    first_line = fh.readline()
-                    if not ("bash" in first_line or "sh" in first_line):
-                        continue
-                    fh.seek(0)
-                    lines = fh.readlines()
-            except OSError:
-                continue
-
-            for idx, line in enumerate(lines):
-                stripped = line.strip()
-                if stripped.startswith("#"):
+        for dirpath, dirnames, filenames in os.walk(dir_to_scan):
+            dirnames[:] = [d for d in dirnames
+                           if not d.startswith(".") and d not in ("__pycache__", "node_modules")]
+            for fn in filenames:
+                path = os.path.join(dirpath, fn)
+                if not os.path.isfile(path) or fn.endswith((".py", ".pyc", ".json", ".generated")):
+                    continue
+                try:
+                    with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                        first_line = fh.readline()
+                        if not ("bash" in first_line or "sh" in first_line):
+                            continue
+                        fh.seek(0)
+                        lines = fh.readlines()
+                except OSError:
                     continue
 
-                code_part = line.split("#")[0].strip()
-                if re.search(r'\beval\b', code_part):
-                    viol.append(f"{fn}:{idx+1} has eval: {line.strip()}")
+                rel = os.path.relpath(path, dir_to_scan).replace(os.sep, "/")
+                for idx, line in enumerate(lines):
+                    stripped = line.strip()
+                    if stripped.startswith("#"):
+                        continue
+
+                    code_part = line.split("#")[0].strip()
+                    if re.search(r'\beval\b', code_part):
+                        viol.append(f"{rel}:{idx+1} has eval: {line.strip()}")
 
     if viol:
         for v in viol:
@@ -3563,28 +3569,33 @@ def check_test_hermeticity() -> int:
 
     bad = []
 
+    # os.listdir reached only the top level, so a suite in a tests/ subdirectory
+    # was never read -- agent-pipe keeps two of its own down there.
     for d in search_dirs:
         if not os.path.isdir(d):
             continue
-        for f in os.listdir(d):
-            if (f.startswith("test_") or f.startswith("test-") or f.endswith("_test.py")) and f.endswith(".py"):
-                path = os.path.join(d, f)
-                try:
-                    with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                        content = fh.read()
+        for dirpath, dirnames, filenames in os.walk(d):
+            dirnames[:] = [x for x in dirnames
+                           if not x.startswith(".") and x not in ("__pycache__", "node_modules")]
+            for f in filenames:
+                if (f.startswith("test_") or f.startswith("test-") or f.endswith("_test.py")) and f.endswith(".py"):
+                    path = os.path.join(dirpath, f)
+                    try:
+                        with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                            content = fh.read()
 
-                    has_live_call = False
-                    for p in patterns:
-                        if p.search(content):
-                            has_live_call = True
-                            break
+                        has_live_call = False
+                        for p in patterns:
+                            if p.search(content):
+                                has_live_call = True
+                                break
 
-                    if has_live_call:
-                        if not guard_re.search(content):
-                            rel = os.path.relpath(path, root).replace("\\", "/")
-                            bad.append(f"{rel} calls live network/DB resource without a SkipTest/guard sentinel")
-                except OSError:
-                    pass
+                        if has_live_call:
+                            if not guard_re.search(content):
+                                rel = os.path.relpath(path, root).replace("\\", "/")
+                                bad.append(f"{rel} calls live network/DB resource without a SkipTest/guard sentinel")
+                    except OSError:
+                        pass
 
     if bad:
         for b in bad:
