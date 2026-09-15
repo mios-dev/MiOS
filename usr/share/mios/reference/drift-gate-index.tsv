@@ -151,7 +151,7 @@
 150	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
 151	check_desktop_launchers	Generates usr/share/applications/*.desktop files from SSOT ports and [desktop.launchers] table
 152	check_guacamole_consistency	every .desktop launcher matches what render-desktop.py projects from SSOT
-153	check_no_inert_ssot_tables	all mios.toml SSOT tables have active code or generator consumers
+153	check_no_inert_ssot_tables	every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register
 154	check_doc_refs_resolve	file paths referenced in documentation exist in the repository
 155	check_resolver_differential_parity	differential output between resolvers across platforms is zero
 156	check_generator_host_parity	generators avoid the non-portable fnmatch.fnmatch idiom (source check, nothing is rendered)

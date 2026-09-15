@@ -3762,16 +3762,62 @@ test_no_inert_ssot_tables() {
     log "Testing check_no_inert_ssot_tables"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    _nist_fail() {
+        cp "$bak" "$toml"; rm -f "$bak"
+        unset -f _nist_fail
+        die "$1"
+    }
     # A table nothing reads is dead SSOT: it looks configurable and is not.
     # Assembled at runtime: spelling the table name literally in this .sh file
-    # would make THIS file a consumer of it, and the check would rightly pass.
+    # would satisfy the OLD name-appearance gate; the access-shaped gate must
+    # fail it either way, but the assembly keeps the plant honest against both.
     local tbl="mios_negtest"; tbl="${tbl}_inert_tbl"
     printf '
 [%s]
 unused_key = "nothing reads this"
 ' "$tbl" >> "$toml"
-    _neg_gate check_no_inert_ssot_tables && die "check_no_inert_ssot_tables passed despite an SSOT table with no consumer"
+    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed despite an SSOT table with no consumer"
+    # Raising the ceiling must not absorb the plant: the ceiling has to EQUAL
+    # the register, so a raised ceiling is itself a violation.
+    sed -i 's/^max_unconsumed = [0-9]*$/max_unconsumed = 999/' "$toml"
+    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed with a planted table hidden under a raised ceiling"
+    cp "$bak" "$toml"
+    # Padding: registering a table that HAS a consumer must fail -- the
+    # register only shrinks, and an entry that no longer reproduces is debt
+    # already paid. `blades` is read by its own fleet-safety gate.
+    python3 - "$toml" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+s2, n = re.subn(r'\n  "browser",[^\n]*', '\n  "blades",', s, count=1)
+assert n == 1, "no register entry was swapped -- the mutation would prove nothing"
+open(p, "w").write(s2)
+PYEOF
+    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed with a consumed table padding the register"
+    cp "$bak" "$toml"
+    # Removing a register entry leaves its table unconsumed and unregistered.
+    python3 - "$toml" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+s2, n = re.subn(r'\n  "browser",[^\n]*', '', s, count=1)
+assert n == 1, "no register entry was removed -- the mutation would prove nothing"
+open(p, "w").write(s2)
+PYEOF
+    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed with a register entry dropped but its table still unconsumed"
+    cp "$bak" "$toml"
+    # Deleting the whole register must read as unbounded debt, not as no debt.
+    python3 - "$toml" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+s2, n = re.subn(r'# -+\n# \[ssot_tables\].*?\n\]\n', '', s, count=1, flags=re.S)
+assert n == 1, "the [ssot_tables] register was not removed -- the mutation would prove nothing"
+open(p, "w").write(s2)
+PYEOF
+    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed with [ssot_tables] absent"
     cp "$bak" "$toml"; rm -f "$bak"
+    unset -f _nist_fail
     _neg_gate check_no_inert_ssot_tables || die "check_no_inert_ssot_tables failed after restoration"
     log "check_no_inert_ssot_tables negative test passed"
 }

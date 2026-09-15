@@ -315,6 +315,16 @@ def check_legibility_ratchet() -> int:
     sys.exit(1 if viol else 0)
 
 def check_no_inert_ssot_tables() -> int:
+    """Consumption is access-shaped evidence, never name-appearance (T-996).
+
+    A table counts as consumed only when code READS it: a direct index of the
+    parsed SSOT, a toml-get lookup, or a resolver-projected MIOS_<TABLE>_* var
+    whose name derives from one of the table's own keys and appears in a
+    hand-written consumer. A doc sentence, a comment, or a word collision no
+    longer keeps a dead table alive. Tables with no consumer sit in the
+    shrink-only [ssot_tables].unconsumed register under a max_unconsumed
+    ceiling that must equal the register's size.
+    """
     import os, sys, re
     import tomllib
 
@@ -327,33 +337,175 @@ def check_no_inert_ssot_tables() -> int:
     with open(toml_path, "rb") as fh:
         data = tomllib.load(fh)
 
-    inert = []
-    for section in data.keys():
-        pattern = re.compile(r'(\b' + re.escape(section) + r'\b|\[' + re.escape(section) + r'\]|MIOS_' + re.escape(section.upper()) + r')')
-        found = False
-        for rpath, _, files in os.walk(root):
-            if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored']):
-                continue
-            for fn in files:
-                if fn == 'mios.toml' or not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
-                    continue
-                fpath = os.path.join(rpath, fn)
-                try:
-                    with open(fpath, 'r', encoding='utf-8', errors='ignore') as sfh:
-                        if pattern.search(sfh.read()):
-                            found = True
-                            break
-                except Exception:
-                    pass
-            if found:
-                break
-        if not found:
-            inert.append(section)
+    paths, _rc = _tracked(root)
+    if _rc is not None:
+        sys.exit(_rc)
 
-    if inert:
-        sys.stdout.write(f"Inert SSOT top-level table(s) found with zero consumers: {', '.join(inert)}\n")
+    CODE_EXT = (".py", ".sh", ".ps1", ".rs", ".js", ".ts", ".mjs")
+    NON_CONSUMER_DIRS = ("docs/", "usr/share/doc/", "usr/share/mios/reference/")
+    # Comment-form only: gates that EMBED this marker as a string constant
+    # (to implement this very exclusion) must not read as generated projections.
+    GENERATED = b"# GENERATED IN FULL from usr/share/mios/mios.toml"
+    # A test stubs config; it does not consume it ([ssot_consumers] doc).
+    _TEST_RE = re.compile(r"(^|/)tests?/|(^|/)test[-_]")
+    # Generic subscript/get evidence only counts where the file loads the
+    # SSOT, otherwise any report-dict subscript or one-word list literal that
+    # collides with a table name reads as a consumer.
+    _SSOT_CONTEXT = re.compile(r"mios\.toml|mios_toml|_toml_section|load_merged"
+                               r"|MIOS_TOML")
+
+    def _corpus():
+        for rel in paths:
+            if rel == "usr/share/mios/mios.toml" or _TEST_RE.search(rel):
+                continue
+            if rel.startswith(NON_CONSUMER_DIRS) or "/docs/" in rel:
+                continue
+            fpath = os.path.join(root, rel)
+            try:
+                with open(fpath, "rb") as fh:
+                    head = fh.read(4096)
+                    if not (rel.endswith(CODE_EXT) or head[:2] == b"#!"):
+                        continue
+                    if GENERATED in head:
+                        continue
+                    blob = head + fh.read()
+            except OSError:
+                continue
+            yield rel, blob.decode("utf-8", "ignore")
+
+    def _key_tokens(value, out):
+        if isinstance(value, dict):
+            for k, v in value.items():
+                for tok in str(k).upper().replace("-", "_").split("_"):
+                    if tok:
+                        out.add(tok)
+                _key_tokens(v, out)
+
+    def _predicates(table):
+        t = re.escape(table)
+        anywhere = [
+            # a quoted dotted path is evidence only when it names a real key
+            # of the table, so 'git.exe' can never stand in for [git]
+        ]
+        keys = [re.escape(str(k)) for k in data[table].keys()]
+        if keys:
+            anywhere.append(re.compile(
+                r'["\']' + t + r'\.(' + "|".join(keys) + r')\b'))
+        anywhere += [
+            # the SSOT-specific accessors: section reads and dotted lookups
+            re.compile(r'_toml_section\(\s*["\']' + t + r'["\']'),
+            re.compile(r'toml[-_]get\s+["\']?' + t + r'[.\s"\']'),
+            re.compile(r'toml[-_]value\S*\s+["\']?' + t + r'["\'.\s]'),
+            re.compile(r'-Section\s+["\']' + t + r'(\.[a-z0-9_]+)?["\']'),
+            re.compile(r'startswith\(\s*["\']' + t + r'\.'),
+            # an awk/regex program parsing the section header out of the file
+            re.compile(r'\\\[' + t + r'\\\]'),
+        ]
+        in_ssot_context = [
+            re.compile(r'\[["\']' + t + r'["\']\]'),
+            re.compile(r'\.get\(\s*["\']' + t + r'["\']'),
+        ]
+        return anywhere, in_ssot_context
+
+    tables = {name for name, val in data.items() if isinstance(val, dict)}
+    pending = {}
+    var_pats = {}
+    for name in tables:
+        pending[name] = _predicates(name)
+        tokens = set()
+        _key_tokens(data[name], tokens)
+        if tokens:
+            up = name.upper().replace("-", "_")
+            var_pats[name] = (re.compile(r"MIOS_" + up + r"_([A-Z0-9_]+)"), tokens)
+
+    consumed = set()
+    # [dotfiles.registry.*].section is the SSOT's own consumer manifest: the
+    # dotfiles renderer resolves each registered template from that table.
+    for entry in ((data.get("dotfiles") or {}).get("registry") or {}).values():
+        if isinstance(entry, dict) and entry.get("section") in tables:
+            consumed.add(entry["section"])
+            pending.pop(entry["section"], None)
+
+    for _rel, text in _corpus():
+        ssot_file = bool(_SSOT_CONTEXT.search(text))
+        for name in list(pending):
+            anywhere, ctx = pending[name]
+            hit = any(p.search(text) for p in anywhere)
+            if not hit and ssot_file:
+                hit = any(p.search(text) for p in ctx)
+            if not hit and name in var_pats:
+                var_re, tokens = var_pats[name]
+                for m in var_re.finditer(text):
+                    if tokens & set(m.group(1).split("_")):
+                        hit = True
+                        break
+            if hit:
+                consumed.add(name)
+                del pending[name]
+        if not pending:
+            break
+
+    viol = []
+    reg_tbl = data.get("ssot_tables")
+    if not isinstance(reg_tbl, dict):
+        viol.append("[ssot_tables] is absent -- nothing bounds how many SSOT "
+                    "tables may sit dead with no consumer")
+        reg, ceiling = [], None
+    else:
+        reg = reg_tbl.get("unconsumed")
+        ceiling = reg_tbl.get("max_unconsumed")
+        if reg is None:
+            viol.append("[ssot_tables] declares no `unconsumed` key -- an "
+                        "implied empty register is indistinguishable from a "
+                        "forgotten one")
+            reg = []
+        if ceiling is None:
+            viol.append("[ssot_tables].max_unconsumed is unset -- without a "
+                        "ceiling the register absorbs new breakage as fast as "
+                        "it appears")
+
+    if len(reg) != len(set(reg)):
+        dupes = sorted({r for r in reg if reg.count(r) > 1})
+        viol.append("[ssot_tables].unconsumed lists a table twice: %s"
+                    % ", ".join(dupes))
+    if reg != sorted(reg):
+        viol.append("[ssot_tables].unconsumed is not sorted -- an unsorted "
+                    "register hides an addition inside a reordering")
+    for name in reg:
+        if name not in tables:
+            viol.append("[ssot_tables].unconsumed entry `%s` names a table "
+                        "the SSOT no longer declares -- drop the entry" % name)
+        elif name in consumed:
+            viol.append("[ssot_tables].unconsumed entry `%s` has a consumer "
+                        "now -- drop it from the register; the register only "
+                        "shrinks" % name)
+    if ceiling is not None:
+        if len(reg) > ceiling:
+            viol.append("[ssot_tables].unconsumed holds %d entries, over the "
+                        "ratchet ceiling max_unconsumed = %d. The ceiling "
+                        "only comes DOWN" % (len(reg), ceiling))
+        elif len(reg) < ceiling:
+            viol.append("[ssot_tables].max_unconsumed = %d exceeds the %d "
+                        "registered entries -- lower it to %d so the ground "
+                        "gained is held" % (ceiling, len(reg), len(reg)))
+
+    registered = set(reg)
+    for name in sorted(tables - consumed - registered):
+        viol.append("SSOT table [%s] has no access-shaped consumer -- wire "
+                    "it, drop it, or record it in [ssot_tables].unconsumed "
+                    "with a reason" % name)
+    if not consumed:
+        viol.append("no consumption evidence found for ANY table -- the gate "
+                    "would pass vacuously over an empty set")
+
+    if viol:
+        for v in viol:
+            sys.stdout.write(v + "\n")
         sys.exit(1)
 
+    sys.stdout.write("tables=%d consumed=%d registered-unconsumed=%d "
+                     "(ceiling %s)\n" % (len(tables), len(consumed), len(reg),
+                                         ceiling))
     sys.exit(0)
 
 def check_no_duplicate_value_key() -> int:

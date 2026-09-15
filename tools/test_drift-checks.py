@@ -169,7 +169,8 @@ class TestMissingDeliverable(unittest.TestCase):
 # A check whose corpus is `git ls-files` answers a refusing git with an empty
 # list, and every scan of an empty list is clean. _absent covers one named
 # file; _tracked covers the listing the walk is built from.
-_CORPUS_CHECKS = ("usr-over-etc", "legibility-ratchet", "bake-refs-parity")
+_CORPUS_CHECKS = ("usr-over-etc", "legibility-ratchet", "bake-refs-parity",
+                  "no-inert-ssot-tables")
 
 @unittest.skipUnless(os.name == "posix", "the refusing-git shim is a shell script")
 class TestUnlistableCorpus(unittest.TestCase):

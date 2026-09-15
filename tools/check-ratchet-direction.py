@@ -15,7 +15,7 @@ _TOML_REL = "usr/share/mios/mios.toml"
 
 RATCHET_SECTIONS = {
     "docs", "legibility", "resolver", "tasks", "ci", "tests",
-    "ssot_consumers", "unit_projection", "ai_tag", "rust",
+    "ssot_consumers", "ssot_tables", "unit_projection", "ai_tag", "rust",
     "build.ratchet", "security.privileged_quadlets", "drift",
     "gates", "sandbox"
 }

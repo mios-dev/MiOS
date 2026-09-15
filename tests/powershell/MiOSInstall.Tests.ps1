@@ -34,13 +34,13 @@ Describe "MiOS.Install Sub-modules" {
 
     It "Should return existing target dir when sentinel exists" {
         # $scriptDir is discovery-phase and null here; $env:TEMP does not exist
-        # on Linux, where CI runs pwsh; and 'cat\autounattend' is not a path
+        # on Linux, where CI runs pwsh; and 'field\autounattend' is not a path
         # there either.
         $common = Join-Path $PSScriptRoot '../../installation/mios-common.ps1'
         . $common
         $tempRoot = [System.IO.Path]::GetTempPath()
         $tempDir = Join-Path $tempRoot ('mios-test-sentinel-' + [Guid]::NewGuid().ToString('N'))
-        $sentinelDir = Join-Path $tempDir 'cat/autounattend'
+        $sentinelDir = Join-Path $tempDir 'field/autounattend'
         New-Item -ItemType Directory -Force -Path $sentinelDir | Out-Null
         Set-Content -Path (Join-Path $sentinelDir 'Build-MiOSXboxISO.ps1') -Value '# test sentinel'
         try {
