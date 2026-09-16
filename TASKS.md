@@ -1018,6 +1018,7 @@
 | T-1028 | P2 | planned | Build/CI | BAKECI-01 -- no CI job bakes the image, so no build-path change has ever been verified by the pipeline |
 | T-1031 | P1 | done | Tooling/Portability | PYSYNTAX-01 -- tools/render-globals.py does not PARSE below py3.12, so the SSOT-globals gate cannot run locally |
 | T-1032 | P0 | done | Gates/Honesty | PYSHIM-01 -- the drift gate runs all 209 checks on a cached copy of a different Python than the rest of the build |
+| T-1033 | P1 | done | Gates/Law15 | BSPATH-01 -- the Law 15 cross-repo gate looks for mios-bootstrap at a hardcoded Windows path, so it is CI-only |
 
 ---
 
@@ -11147,3 +11148,15 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Note:** Blast radius measured before arming: the full gate reports the same **19 violations across six checks** under both interpreters, so nothing on the current tree changes. That is luck, not design. The durable fix is T-1030's: a check must never be able to report success without proving what it ran on. Log the resolved interpreter and its version in the gate header, and pin a floor version in SSOT so `ast.parse` conformance (T-1031's follow-up) has something to measure against.
 **Dep:** --
 **Status:** done | **Domain:** Gates/Honesty | **Who:** architect
+
+## T-1033 -- BSPATH-01: the Law 15 gate could only run in CI  (WS-DRIFT | P1 | S)
+**Goal:** `check_bootstrap_sync` is the gate for Law 15 DOUBLE-REPO-TRIPLE-CHECK -- it compares the 11 files and 1 SSOT table that `mios.toml [bootstrap.sync]` declares mirrored into `mios-bootstrap.git`. Its resolver defaulted to `r"C:\mios-bootstrap"`, a hardcoded Windows literal, with no fallback. On Linux it found nothing.
+**What+How:** Under `MIOS_DRIFT_REQUIRE_TOOLS=1` (what CI sets) the absence is a violation, and its message reads *"clone mios-bootstrap beside this checkout, or set MIOS_BOOTSTRAP_ROOT"* -- but the code implemented only the second half. A sibling clone at `../mios-bootstrap`, which is the layout the message asks for and the layout this container already has, was never looked at. FIXED: env var, then sibling, then the Windows literal. Net-zero on tooling Python lines (two lines replace two), because `[legibility].max_tooling_python_lines` sits at exactly 121376/121376.
+  CI was never affected -- `.github/workflows/mios-ci.yml` clones mios-bootstrap into `RUNNER_TEMP` and exports `MIOS_BOOTSTRAP_ROOT` before the gate. That is precisely the problem: **Law 15's enforcement existed only where nobody could see it.** An agent or contributor running the gate locally got a skip (or, with REQUIRE_TOOLS, an error about a Windows path) and had no way to check the law before pushing. Third instance today of the same local/CI divergence class, after T-1020's advisory skip and T-1032's interpreter shim.
+  **The repos are in sync.** With the fallback in place the gate reports `11 mirrored file(s) and 1 table(s) match mios.git`. That is the first time Law 15 has been verified rather than assumed outside CI.
+**Where:** `tools/sync-bootstrap.py` `main()`, `automation/98-drift-checks.sh` `check_bootstrap_sync`, `usr/share/mios/mios.toml` `[bootstrap].bootstrap_repo` + `[bootstrap.sync]`
+**Done When:** the gate resolves a sibling clone with no environment variable set AND reports planted drift in a mirrored file AND still fails loudly when no clone can be found anywhere. All four controls pass, including that an explicit `MIOS_BOOTSTRAP_ROOT` still wins over the sibling.
+**Why:** Law 15 is the one the operator restates most often -- mios-bootstrap is an equal partner, and a surface mirrored across both repos must be updated in both. A law whose gate cannot run where the work happens is advisory, not enforced.
+**Note:** Law 7 residue left deliberately, because closing it is not net-zero. `[bootstrap].bootstrap_repo = "C:/mios-bootstrap"` already exists in SSOT and **two** consumers ignore it: `tools/sync-bootstrap.py` hardcodes `C:\mios-bootstrap` (backslashes, so it is not even the same string) and `tools/drift-checks.py:2849` repeats the literal as its own default. Lift both to the SSOT key when the tooling-Python ratchet has room -- or when this tool converts to Rust under ADR-0021, whichever comes first.
+**Dep:** --
+**Status:** done | **Domain:** Gates/Law15 | **Who:** architect
