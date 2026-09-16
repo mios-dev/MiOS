@@ -47,8 +47,12 @@ _register_new_files() {
     command -v git >/dev/null 2>&1 || return 0
     git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || return 0
     local new f
-    new="$(git -C "$ROOT" ls-files --others --exclude-standard \
-        -- automation tools usr etc srv tests 2>/dev/null || true)"
+    # No path filter. The old list -- automation tools usr etc srv tests --
+    # omitted src/, so a new crate under src/mios-rs was invisible to the
+    # census: the tree looked synced locally and CI failed on a stale
+    # manual-corpus.tsv. --exclude-standard already honours .gitignore, which
+    # is what keeps target/ and friends out, so the list only added a trap.
+    new="$(git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true)"
     [[ -n "$new" ]] || return 0
     while IFS= read -r f; do
         [[ -n "$f" ]] || continue
