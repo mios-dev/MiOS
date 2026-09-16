@@ -1468,7 +1468,6 @@ MIOS_NODES_LOCAL_VLLM_HEALTH_GATE=true
 MIOS_NODES_LOCAL_VLLM_LANE=gpu
 MIOS_NODES_LOCAL_VLLM_MODEL=mios-heavy
 MIOS_NODE_PORT=8650
-MIOS_NON_ADDRESSABLE_URL=adguard_dns,adguard_ui,agent_pipe,ai_legacy,arbiter,ceph_dashboard,crawl4ai,field_live_chat,hermes,llm_light,node,pgvector,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,radosgw,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm
 MIOS_OBSERVABILITY_CHANNELS_CONTENT=content
 MIOS_OBSERVABILITY_CHANNELS_PLAN=reasoning
 MIOS_OBSERVABILITY_CHANNELS_SOURCE=source

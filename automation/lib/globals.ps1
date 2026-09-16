@@ -1611,7 +1611,6 @@ $script:MIOS_NODES_LOCAL_VLLM_HEALTH_GATE = if ($env:MIOS_NODES_LOCAL_VLLM_HEALT
 $script:MIOS_NODES_LOCAL_VLLM_LANE = if ($env:MIOS_NODES_LOCAL_VLLM_LANE) { $env:MIOS_NODES_LOCAL_VLLM_LANE } else { 'gpu' }
 $script:MIOS_NODES_LOCAL_VLLM_MODEL = if ($env:MIOS_NODES_LOCAL_VLLM_MODEL) { $env:MIOS_NODES_LOCAL_VLLM_MODEL } else { 'mios-heavy' }
 $script:MIOS_NODE_PORT = if ($env:MIOS_NODE_PORT) { $env:MIOS_NODE_PORT } else { 8650 }
-$script:MIOS_NON_ADDRESSABLE_URL = if ($env:MIOS_NON_ADDRESSABLE_URL) { $env:MIOS_NON_ADDRESSABLE_URL } else { 'adguard_dns,adguard_ui,agent_pipe,ai_legacy,arbiter,ceph_dashboard,crawl4ai,field_live_chat,hermes,llm_light,node,pgvector,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,radosgw,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm' }
 $script:MIOS_OBSERVABILITY_CHANNELS_CONTENT = if ($env:MIOS_OBSERVABILITY_CHANNELS_CONTENT) { $env:MIOS_OBSERVABILITY_CHANNELS_CONTENT } else { 'content' }
 $script:MIOS_OBSERVABILITY_CHANNELS_PLAN = if ($env:MIOS_OBSERVABILITY_CHANNELS_PLAN) { $env:MIOS_OBSERVABILITY_CHANNELS_PLAN } else { 'reasoning' }
 $script:MIOS_OBSERVABILITY_CHANNELS_SOURCE = if ($env:MIOS_OBSERVABILITY_CHANNELS_SOURCE) { $env:MIOS_OBSERVABILITY_CHANNELS_SOURCE } else { 'source' }

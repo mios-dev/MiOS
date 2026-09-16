@@ -436,11 +436,11 @@ def get_aliases(dotted_path):
     elif dotted_path.startswith("urls."):
         # [urls].forge -> MIOS_FORGE_URL; the two repo URLs keep their own shape.
         name = dotted_path[len("urls."):].upper()
-        if name in ("REPO", "BOOTSTRAP_REPO"):
-            aliases.append(f"MIOS_{name}_URL")
-        elif name == "LOCAL_FORGE_REPO":
+        # T-1013: non_addressable is a list of port KEYS, not a URL, and no
+        # consumer reads either spelling. REPO/BOOTSTRAP_REPO matched the default.
+        if name == "LOCAL_FORGE_REPO":
             aliases.append("MIOS_LOCAL_FORGE_REPO")
-        else:
+        elif name != "NON_ADDRESSABLE":
             aliases.append(f"MIOS_{name}_URL")
 
     elif dotted_path.startswith("pgvector.") or dotted_path.startswith("pg."):
