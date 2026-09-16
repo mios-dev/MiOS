@@ -2,7 +2,7 @@
      AI-related: /etc/profile.d/mios-xdg-cephfs.sh, /etc/mios/ai/v1/caller-keys.json, /etc/mios/ai/v1/a2a-peers.json, /usr/share/mios/ai/v1/mcp.json, /etc/mios/ai/v1/mcp.json, /usr/libexec/mios/mios-mcp-server, /etc/mios/hermes/config.local.yaml, /etc/mios/gateway/, /usr/libexec/mios/mios-cephfs-provision, /etc/mios/llamacpp/mios-llm-light.yaml -->
 # MiOS -- Master Tasks (SINGULAR monolith)
 
-> The one canonical task list. **255 tasks** (189 closed, 66 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
+> The one canonical task list. **256 tasks** (190 closed, 66 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
 
 | ID | Pri | Status | Domain | Title |
 |---|---|---|---|---|
@@ -981,8 +981,9 @@
 | T-993 | P1 | planned | Edge/Android | NODEDROID-08 -- Survive Android process lifecycle (phantom process killer) or admit the node is unreliable |
 | T-994 | P2 | planned | Edge/AI-lanes | NODEDROID-09 -- On-device inference that does not mortgage Law 5 (NNAPI is deprecated; AICore is vendor-coupled) |
 | T-995 | P1 | planned | Edge/Security | NODEDROID-10 -- A device identity the handshake actually implements |
-| T-996 | P2 | planned | CI/Enforcement | GATE-01 -- check_no_inert_ssot_tables measures name-appearance, not consumption |
+| T-996 | P2 | done | CI/Enforcement | GATE-01 -- check_no_inert_ssot_tables measures name-appearance, not consumption. LANDED: the gate now demands access-shaped evidence per table (SSOT-specific accessors, quoted dotted paths naming a real key, the [dotfiles.registry] manifest, or a resolver-projected MIOS_<TABLE>_* var derived from the table's own keys reaching a hand-written consumer), takes its corpus from git via _tracked, excludes tests, docs and generated projections, and holds the residue in the shrink-only [ssot_tables].unconsumed register (9 entries, ceiling-equals-size). Done-When met: a common-word plant and a nonsense plant are flagged identically, a documentation-only mention no longer counts, and the clean tree passes. |
 | T-997 | P2 | planned | CI/Enforcement | GATE-02 -- check_schema_consumers shares the name-collision blind spot; a SQL-context predicate closes it |
+| T-998 | P3 | planned | CI/Enforcement | GATE-03 -- the value-dup ledger's sanctioned remedy for coincidental duplicates is rejected by check_value_aliases |
 
 ---
 
@@ -10802,9 +10803,10 @@ Tightening the text predicate does NOT fix this and was tried and reverted: rest
 The mechanism has to change. Options, in ascending cost: have the resolver record which tables it reads (`usr/lib/mios/mios_toml.py` already centralises access, so instrumenting `section()` yields the true consumed set); or require each top-level table to be named by a generator or consumer manifest, which makes the relationship declared rather than inferred. Either produces a set that can be compared against `mios.toml`'s tables without guessing from text.
 **Where:** `tools/drift-checks.py` (`check_no_inert_ssot_tables`), `automation/98-drift-checks.sh`, `usr/lib/mios/mios_toml.py`, `usr/share/mios/mios.toml`
 **Done When:** an inert table is reported inert regardless of whether its name collides with existing text -- proved by planting two identical unused tables, one common-word and one nonsense, and observing both flagged; the clean tree still passes; and a documentation-only mention no longer counts as a consumer.
+**Landed:** The consumer-manifest direction, empirically tuned against a 158-table census with adversarial verification of every zero-consumer verdict. Consumption now means one of: an SSOT-specific accessor (`_toml_section("t")`, `toml-get t.key`, `toml_value 't'`, `-Section 't'`, `startswith("t.")`, an awk/regex section-header parse), a quoted dotted path whose key segment is a real key of the table, the SSOT's own `[dotfiles.registry.*].section` manifest, a context-gated subscript/`.get` in a file that loads the SSOT, or a resolver-projected `MIOS_<TABLE>_*` variable derived from the table's own keys appearing in a hand-written consumer. Projection surfaces are explicitly NOT consumption: the generated globals twins and seed-db-config's wholesale `config_kv` mirror would each credit every table and make the gate vacuous again. Corpus comes from `_tracked` (a refusing git fails, never shrinks the scan), tests are excluded as stubs, and the generated-projection marker matches comment-form only so gates that embed the marker string are not excluded as generated. Nine genuinely dead tables sit in `[ssot_tables].unconsumed` under a `max_unconsumed` ceiling that must EQUAL the register (both directions violate), auto-covered by check-ratchet-direction. The census also surfaced and fixed a stale `-Section 'cat'` read in installation/mios-install.ps1 (the cat->field rename left the installer reading a section that no longer exists). Negative test grown to five directions: plant, plant-under-raised-ceiling, padded register, dropped entry, deleted register.
 **Why:** MiOS ships subsystems that are declared in SSOT and not wired -- the recorded doc-vs-SSOT gap. This is the gate that is supposed to catch exactly that, and it currently cannot distinguish an unwired table from a wired one whenever the name is a normal word.
 **Dep:** --
-**Status:** planned | **Domain:** CI/Enforcement | **Who:** architect
+**Status:** done | **Domain:** CI/Enforcement | **Who:** architect
 
 ## T-997 -- GATE-02: check_schema_consumers shares the name-collision blind spot  (WS-DRIFT | P2 | S)
 **Goal:** E-07 The same root cause as T-996 in a second gate: consumer detection by name search cannot distinguish a table that is used from a table whose name happens to be a common word.
@@ -10823,5 +10825,14 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Where:** `tools/check-schema-consumers.py`, `usr/share/mios/mios.toml` (`[schema].unconsumed`), `usr/share/mios/postgres/schema-init.sql`
 **Done When:** a dead table is reported dead whether or not its name collides with existing text -- proved by planting two identical unused tables, one common-word and one nonsense, and observing both flagged; every currently declared table is matched or registered, so the clean tree still passes; and a table consumed only through a schema-qualified reference is still recognised as live.
 **Why:** New tables are exactly when this gate matters, and a new table is exactly when a name collision is most likely, because short readable names are what people choose.
+**Dep:** T-996
+**Status:** planned | **Domain:** CI/Enforcement | **Who:** architect
+
+## T-998 -- GATE-03: the value-dup ledger's sanctioned remedy for coincidental duplicates is rejected by check_value_aliases  (WS-DRIFT | P3 | S)
+**Goal:** E-07 The check_no_duplicate_value_key ledger header instructs: two keys that are distinct facts sharing a value by coincidence go into value-aliases.tsv with disposition keep-distinct. check_value_aliases enforces the OPPOSITE: a keep-distinct pair whose values are currently EQUAL is a violation ("a naive collapse would corrupt this false-friend"). The two gates cannot both be satisfied for the case the header describes, so a genuinely coincidental duplicate has NO sanctioned exit: not a ledger row (forbidden as silencing), not an alias row (rejected as equal-valued), not a value change when the value is semantically pinned (a ratchet ceiling that must equal its register size, a priority scale).
+**What+How:** Surfaced by T-996: [ssot_tables].max_unconsumed must EQUAL the unconsumed register size (both directions violate), and that size is 9, which coincidentally equals MIOS_SCHED_URGENCY_HIGH -- forming a new duplicate-value group the standing-red ratchet counts and no mechanism can bless. Decide the semantics once: either keep-distinct means "same value today is legitimate, never collapse" (then check_no_duplicate_value_key must consult value-aliases.tsv and skip groups fully explained by keep-distinct pairs, and check_value_aliases must stop failing equal-valued keep-distinct rows), or the ledger header's advice is wrong and must state the real remedy.
+**Where:** `tools/drift-checks.py` (check_no_duplicate_value_key, check_value_aliases), `usr/share/mios/reference/value-dup-baseline.tsv` (header), `usr/share/mios/reference/value-aliases.tsv`
+**Done When:** a coincidental equal-value pair has exactly one documented, gate-accepted representation; the T-996 pair (MIOS_SCHED_URGENCY_HIGH / MIOS_SSOT_TABLES_MAX_UNCONSUMED) passes through it; and both gates agree on what keep-distinct means.
+**Why:** A ratchet whose documented escape hatch is rejected by a sibling gate teaches operators to silence violations in whichever gate is not looking.
 **Dep:** T-996
 **Status:** planned | **Domain:** CI/Enforcement | **Who:** architect
