@@ -15,7 +15,7 @@ if "MIOS_TOML" not in os.environ and os.path.isfile(_toml):
     os.environ["MIOS_TOML"] = _toml
 
 os.environ.setdefault(
-    "MIOS_WEB_ANCHOR_STOPWORDS",
+    "MIOS_SEARCH_ANCHOR_STOPWORDS",
     "the,and,for,with,from,that,this,are,was,were,has,have,you,your,our",
 )
 
