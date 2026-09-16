@@ -1001,6 +1001,8 @@
 | T-1013 | P1 | planned | SSOT/Law9 | DUPVAL-01 -- the value-duplication ratchet has been over its ceiling on main for some time; 412 groups vs 407 |
 | T-1014 | P1 | planned | Docs/Governance | ADRNS-01 -- docs/adr/ is a second ADR namespace with colliding numbers, outside the index and the template |
 | T-1015 | P1 | planned | Build/Rust | MIGRATE-01 -- all four [migration].use_rust_resolver_* toggles say true and nothing reads them |
+| T-1016 | P1 | planned | Arch/DeadCode | UNWIRED-01 -- 112 of 176 usr/libexec/mios/<domain>/*.py modules have no caller; the gate that checks this looks elsewhere |
+| T-1017 | P2 | planned | Docs/Refs | GHOSTSTAGE-01 -- 24 modules cite 22 automation stages that do not exist, at numbers other stages now occupy |
 
 ---
 
@@ -11015,3 +11017,23 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Note:** The same gap means other registered-as-consumed tables may carry dead keys. A key-level pass over the tables T-996 cleared is a follow-up.
 **Dep:** --
 **Status:** planned | **Domain:** Build/Rust | **Who:** architect
+
+## T-1016 -- UNWIRED-01: 112 of 176 modules under usr/libexec/mios/<domain>/ have no caller  (WS-DEBT | P1 | XL)
+**Goal:** Measured across the tracked tree: 176 modules match `usr/libexec/mios/<domain>/<name>.py`. **112 of them have no inbound reference outside their own test, the task backlog, and generated manifests** -- no systemd unit, no Quadlet, no automation stage, no verb, no importer. They are written, tested, and unreachable.
+**What+How:** The measurement has a control, so it is not a grep artifact. Modules that ARE wired were correctly excluded: `audio/wakeword.py`, `ux/wallpaperd.py`, `hw/powerd.py` and `net/mdns_mesh.py` each have a systemd unit with an ExecStart naming them, and none appears in the 112. The unwired ones (`hw/fand.py`, `deploy/self_replicate.py`, `ai/vram_swap.py`, ...) reference only `tests/test-*.py` and `usr/share/mios/reference/manual-corpus.tsv`, which is a generated census, not a caller. No SSOT registry names them either: `usr/share/mios/mios.toml` contains ZERO `libexec/mios/<domain>/<name>.py` paths.
+  The gate has a check for exactly this failure and it does not reach them. `check_unwired_modules` walks `usr/lib/mios/agent-pipe` only -- "an agent-pipe module imported but never called by a non-test caller" -- so the AI plane is policed and the largest subtree of executables in the image is not. First step is therefore the gate, not the modules: extend `check_unwired_modules` to `usr/libexec/mios/<domain>/` with a shrink-only register for what is already there, so the number can only fall. Then triage the 112 per module: wire it (unit, stage, verb, or importer), or delete it with its test. A test passing against an unreachable module certifies nothing about the running system.
+**Where:** `automation/98-drift-checks.sh` (`check_unwired_modules`), `tools/drift-checks.py`, `usr/share/mios/mios.toml` (new shrink-only register), `usr/libexec/mios/*/`, `tests/test-*.py`, `usr/lib/systemd/`
+**Done When:** the extended check reports every unwired module by name; the register holds the measured 112 as a ceiling that only falls; a planted new unwired module under `usr/libexec/mios/<domain>/` fails the check, and a planted WIRED one does not.
+**Why:** This is the dead-SSOT defect on the code side and an order of magnitude larger: a capability the system appears to have, that nothing can reach. It is also why the tests are misleading -- 112 green test files assert the behaviour of code no boot path executes.
+**Note:** Overlaps T-1017: 24 of these modules explain their absence, citing an `automation/NN-*.sh` stage that was never written.
+**Dep:** --
+**Status:** planned | **Domain:** Arch/DeadCode | **Who:** architect
+
+## T-1017 -- GHOSTSTAGE-01: 24 modules cite 22 automation stages that do not exist  (WS-DOCGEN | P2 | M)
+**Goal:** 24 modules under `usr/libexec/mios/<domain>/` carry an `AI-related:` header naming an `automation/NN-*.sh` build stage that is not in the tree, and the numbers cited are now occupied by different stages. `sec/kaslr_mgr.py` cites `automation/10-systemd-boot.sh` (10 is `10-locale-theme.sh`); `net/split_dns.py` cites `43-dns-split.sh` (43 is `43-nut-render.sh`); `ai/tensor_kernels.py` cites `20-drivers.sh` (20 is `20-hardware.sh`); `node/mesh_logs.py` cites `49-fluentbit-logs.sh` (49 is `49-cosign-policy.sh`). Twenty-two ghost stages in all.
+**What+How:** These are a large share of `check_doc_refs_resolve`'s 124 stale references, which is one of the seven standing-red checks. Two sub-populations wanting different fixes: a header that is NEARLY right because the stage was renamed (`20-drivers.sh` -> `20-hardware.sh`) is a reference to correct; a header naming a stage that was never written is a module documenting an intended pipeline position it never got, and belongs to T-1016's triage -- correcting such a header to point at nothing real would just relocate the lie. Settle T-1016's per-module verdict first for those, then fix the references. Same shape as T-1005, where `[hwcaps]` names `automation/45-hwcaps-rebuild.sh` and the tree does not contain it.
+**Where:** `usr/libexec/mios/*/*.py` (headers), `automation/`, `tools/drift-checks.py` (`check_doc_refs_resolve`)
+**Done When:** every `automation/NN-*.sh` cited by a module header either exists or has been removed from the header because the module's fate is settled; `check_doc_refs_resolve`'s count falls by the corresponding amount.
+**Why:** A header that cites a build stage which does not exist reads, to an agent and to a person, as "this module is installed by that stage". It is the most load-bearing sentence in the file and it is false.
+**Dep:** T-1016
+**Status:** planned | **Domain:** Docs/Refs | **Who:** architect
