@@ -1006,6 +1006,8 @@
 | T-1018 | P0 | planned | Build/Dispatch | DISPATCH-01 -- 18 bake-time gates prefer the Rust path via a PATH lookup that cannot resolve; the Rust tier never runs |
 | T-1019 | P3 | planned | Provisioning/Preflight | PFDISK-01 -- the disk floor is measured with `df -BG`, which rounds UP, so the check is optimistic |
 | T-1020 | P1 | planned | SSOT/Law9 | ALIAS-01 -- MIOS_AI_RAM_FLOOR_GB had two sources and table order picked the winner; the gate that catches it skips locally |
+| T-1029 | P1 | planned | Backlog | QUEUE-02 -- one file per task under usr/share/mios/tasks/, typed frontmatter, acceptance criteria JOINED to drift-check ids |
+| T-1030 | P1 | planned | Gates/Honesty | HONEST-01 -- a skip, an empty match and a missing tool must all be RED; audit all 209 checks for the three vacuous shapes |
 | T-1021 | P1 | planned | Gates/Consolidation | GATECAT-01 -- collapse 209 drift checks and 337 test files into categorised binaries, auditable by hand |
 | T-1022 | P1 | planned | Security/Audit | SECRED-01 -- check_secret_handling is red and nobody knows what it flags; the repo is public |
 | T-1023 | P1 | planned | Backlog | QUEUE-01 -- two backlogs, ~40k lines, no machine-selectable next task; one queue + a DONE archive |
@@ -11085,3 +11087,24 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Note:** The gate that caught it is invisible locally. `check_resolver_differential_parity` prints "mios-resolver binary not built locally -- advisory skip" and exits 0 when the binary is absent, so a full local gate run reports 20 violations while never comparing the resolvers at all. The failure only appeared in CI, which builds the binary. Build it (`cd tools/native && cargo build -p mios-resolver`) before trusting a local gate run, and see T-1008: a skip on a TRACKED subject reads as a pass.
 **Dep:** --
 **Status:** planned | **Domain:** SSOT/Law9 | **Who:** architect
+
+## T-1029 -- QUEUE-02: one machine-selectable task record, joined to the checks that prove it  (WS-DEBT | P1 | L)
+**Goal:** Research finding (docs/design/agentic-dev-scaffolding.md, Gap 1). MiOS is missing a QUEUE, not a process. Everything upstream of "what do I do next" is mature -- 16 gated Laws, 209 fitness functions with paired negative tests, an SSOT, a template-per-type scaffolder -- and everything downstream is prose no machine reads. There is no per-task record an agent can SELECT from without loading the whole backlog, and no binding between a task's acceptance criteria and the drift-check ids that would prove them.
+**What+How:** Every named pain point is a symptom of that one gap. Two backlogs exist because nothing is authoritative. "Surveyed" is indistinguishable from "done" because done-ness is a word in a table cell rather than a receipt naming the check that passed. Findings pile up because a finding has nowhere to go except the queue. Long bodies are re-read in full because the selector and the worker read the same file.
+  Proposed: one file per task at `usr/share/mios/tasks/T-NNNN.md` -- under /usr because Law 1 puts vendor/static config there and because it bakes the queue into the image, so a deployed host's own agents can read it. Filename is the ID ONLY, never the title, so a retitle cannot break path references. Typed YAML frontmatter carries status/priority/laws/ssot_keys/adr/deps/scope, and each acceptance criterion carries `checks: [check_name]` -- MADR's Confirmation section made machine-readable against the 209-entry check registry MiOS already has. The body sits behind section markers and is read only by the agent that has CLAIMED the task.
+  Two hard rules: the file is never hand-edited (writes go through a `mios task` Rust binary per the standing directive), and the SELECTOR reads frontmatter only. Migration from TASKS.md and AGY-TASKS.md is lossless per the operator's rule -- IDs preserved, never reminted.
+**Where:** `usr/share/mios/tasks/` (new), `tools/native/mios-task/` (new), `TASKS.md` (rendered view), `AGY-TASKS.md`, `automation/98-drift-checks.sh`
+**Done When:** `mios task ready --json` returns a selectable set from frontmatter alone with no document read; a task cannot reach `done` without a receipt naming a check that passed; both existing backlogs are migrated with every ID preserved; a hand-edited task file fails a gate.
+**Why:** It is the root of T-1023 and of the survey-versus-fix problem this session kept hitting.
+**Dep:** T-1023
+**Status:** planned | **Domain:** Backlog | **Who:** architect
+
+## T-1030 -- HONEST-01: a skip, an empty match and a missing tool must all be RED  (WS-DEBT | P1 | L)
+**Goal:** Research finding (Gap 2). An advisory skip and an empty-set match are both indistinguishable from a pass, and at 209 checks MiOS is MORE exposed to this than a small repo, not less. Two instances are already proven in-tree: `check_resolver_differential_parity` exits 0 when its binary is absent -- which hid a real failure for an entire session until CI caught it -- and `check_template_self_conformance` asserted only that the scaffolder exited zero, which let the ADR template ship for twenty decisions without the five headings its own config demands.
+**What+How:** Audit all 209 checks for the vacuous shapes the dev-loop skill enumerates: Skip-as-Pass, Check-Without-Diff, Self-Comparison, Empty-Set Pass, Swallowed Failure, Unanchored Allowlist, Count-Only Ratchet, Measuring the Wrong Property, Self-Certifying Predicate, Timeout-as-Pass. A missing OPTIONAL dev tool may warn; a missing TRACKED deliverable, SSOT file or fixture must fail. Never print PASS on a skip path.
+  Estimate blast radius BEFORE arming each repaired gate -- it has been silently passing real violations, so repairing it makes CI redder. That is the point, and the operator has already accepted red until the work is done. Fold this into T-1021's consolidation: a check being ported to a category binary is the moment to make it honest.
+**Where:** `automation/98-drift-checks.sh`, `tools/drift-checks.py`, `tools/check-*.py`, `tests/drift-gate-negatives.sh`, `src/mios-rs/mios-gate/`
+**Done When:** no check can report success without proving it ran; each repaired gate's new findings are reported as blast radius before it is armed; a planted missing-tool condition fails every check that depends on that tool.
+**Why:** Vindicated by the terraform-docs field failure the research surfaced -- CI jobs that passed for MONTHS because the build rejected `--check` and errored before comparing anything. MiOS's paired negative tests are the defence against exactly this, and they only work if the check itself cannot no-op.
+**Dep:** T-1021
+**Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
