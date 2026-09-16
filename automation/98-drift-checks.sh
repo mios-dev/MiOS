@@ -3217,6 +3217,24 @@ check_build_tool_dispatch() {
     fi
 }
 
+# --- every automation/NN-*.sh on disk is a phase build.sh actually runs ---
+check_phase_registry() {
+    echo "[98-drift-checks]   every automation/NN-*.sh is registered as a build phase"
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_phase_registry could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    "$bin" phase-registry --root "$ROOT" || \
+        _violation "a phase script on disk is not in [build.phases].list, or the register describes it wrongly, so build.sh silently runs a pipeline short of a stage (T-1038)"
+}
+
 check_no_silent_tool_skips() {
     local require_tools="${MIOS_DRIFT_REQUIRE_TOOLS:-0}"
     local bad_skips=()
@@ -3560,6 +3578,7 @@ main() {
     check_bash_phase_ratchet
     check_no_silent_tool_skips
     check_build_tool_dispatch
+    check_phase_registry
     check_negatives_are_effective
     check_pipefail_grep_lint
     check_skip_list_covered

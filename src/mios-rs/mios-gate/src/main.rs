@@ -5,6 +5,7 @@
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod dispatch;
+mod phases;
 
 use std::process::ExitCode;
 
@@ -71,7 +72,7 @@ impl Report {
 }
 
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
-                     checks: build-tool-dispatch\n";
+                     checks: build-tool-dispatch, phase-registry\n";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -126,6 +127,7 @@ fn main() -> ExitCode {
 
     let report = match name.as_str() {
         "build-tool-dispatch" => dispatch::check(&root),
+        "phase-registry" => phases::check(&root),
         _ => {
             eprint!("mios-gate: no such check {name:?}\n{USAGE}");
             return ExitCode::from(EXIT_CANNOT_RUN);

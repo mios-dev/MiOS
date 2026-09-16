@@ -10522,6 +10522,23 @@ counters = [
 suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never parse or fold into the MiOS scheme."
 
 [build.phases]
+# T-1038. Phase scripts present in automation/ that build.sh does NOT run.
+# Shrink-only, and the ceiling may never sit above the measurement.
+#
+# 55-native-build.sh is the single entry and it is deliberate, not an oversight.
+# It ends with `ln -sf "${DEST_DIR}/${bin}" "/usr/bin/${bin}"`, the only such
+# line in the tree, which would put miosd on PATH -- and that is exactly what
+# the 14 remaining `command -v miosd` gates are waiting for (T-1018). Register
+# it and every stage numbered ABOVE 55 flips to a Rust renderer that has never
+# run in a bake, in the same bake, while stages below 55 keep taking bash: a
+# split brain inside one build. The audit measured what that would arm; see
+# docs/design/miosd-renderer-parity-audit.md. Register this phase once 76, 85
+# and 88 are converted, or once the /usr/bin symlink is dropped in favour of
+# per-stage absolute-path dispatch.
+unregistered = [
+  "55-native-build.sh",
+]
+max_unregistered = 1
 list = [
   { ordinal = "01", name = "system-files-overlay", script = "01-system-files-overlay.sh", fatal = true, apply_class = "containerfile" },
   { ordinal = "02", name = "materialize-build-ctx", script = "02-materialize-build-ctx.sh", fatal = true, apply_class = "universal" },

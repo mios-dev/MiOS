@@ -3758,6 +3758,46 @@ test_doc_refs_resolve() {
     log "check_doc_refs_resolve negative test passed"
 }
 
+test_phase_registry() {
+    log "Testing check_phase_registry"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    local planted="${ROOT}/automation/89-negtest-phase.sh"
+    _pr_fail() {
+        cp "$bak" "$toml"; rm -f "$bak" "$planted"
+        unset -f _pr_fail
+        die "$1"
+    }
+    # A phase script on disk that build.sh would never run.
+    printf '#!/usr/bin/env bash\ntrue\n' > "$planted"
+    _neg_gate check_phase_registry && _pr_fail "check_phase_registry passed with an unregistered phase script on disk"
+    # Raising the ceiling must not absorb it: the file is still absent from the
+    # register, which is a finding on its own.
+    sed -i 's/^max_unregistered = [0-9]*$/max_unregistered = 999/' "$toml"
+    _neg_gate check_phase_registry && _pr_fail "check_phase_registry passed with a plant hidden under a raised ceiling"
+    cp "$bak" "$toml"; rm -f "$planted"
+    # A registered script that does not exist: build.sh drops it with no else
+    # branch, so the pipeline runs one stage short and exits 0.
+    sed -i 's/script = "56-fonts.sh"/script = "56-fontsx.sh"/' "$toml"
+    _neg_gate check_phase_registry && _pr_fail "check_phase_registry passed while the list named a script that does not exist"
+    cp "$bak" "$toml"
+    # Emptying the list must read as unbounded debt, not as no debt --
+    # build.sh falls back to a hardcoded 6-phase registry when it cannot load.
+    python3 - "$toml" <<'PYEOF2'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+s2, n = re.subn(r'^list = \[.*?^\]\n', 'list = []\n', s, count=1, flags=re.S | re.M)
+assert n == 1, "[build.phases].list was not emptied -- the mutation would prove nothing"
+open(p, "w").write(s2)
+PYEOF2
+    _neg_gate check_phase_registry && _pr_fail "check_phase_registry passed with [build.phases].list empty"
+    cp "$bak" "$toml"; rm -f "$bak"
+    unset -f _pr_fail
+    _neg_gate check_phase_registry || die "check_phase_registry failed after restoration"
+    log "check_phase_registry negative test passed"
+}
+
 test_build_tool_dispatch() {
     log "Testing check_build_tool_dispatch"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -4094,6 +4134,7 @@ _run_test test_leaked_fixtures
     _run_test test_bootstrap_sync
     _run_test test_no_inert_ssot_tables
     _run_test test_build_tool_dispatch
+    _run_test test_phase_registry
     _run_test test_doc_refs_resolve
     _run_test test_desktop_launchers
     _run_test test_blade_reconcile_schema
