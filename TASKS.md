@@ -998,6 +998,7 @@
 | T-1010 | P2 | planned | Build/Rust | LANG-06 -- mios-gen: port the generate-*/render-* SSOT projectors |
 | T-1011 | P2 | planned | Build/Rust | LANG-07 -- mios-serve: the daemon tier |
 | T-1012 | P2 | planned | Build/Rust | LANG-07 -- cross-compile the PowerShell host surface, keeping only the paste-able entry point |
+| T-1013 | P1 | planned | SSOT/Law9 | DUPVAL-01 -- the value-duplication ratchet has been over its ceiling on main for some time; 412 groups vs 407 |
 
 ---
 
@@ -10975,3 +10976,17 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Done When:** `Get-MiOS.ps1` still runs from one paste with no follow-up step; the verb dispatcher's backends are binaries; `[legibility].max_ps_lines` falls and stays fallen.
 **Dep:** T-1007
 **Status:** planned | **Domain:** Build/Rust | **Who:** architect
+
+## T-1013 -- DUPVAL-01: the value-duplication ratchet is over its ceiling on main  (WS-GUP | P1 | M)
+**Goal:** `check_no_duplicate_value_key` is one of the seven standing-red checks, and it is red on `origin/main`, not on any one branch: 412 non-exempt duplicate-value groups against a ledger ceiling of 407 (`usr/share/mios/reference/value-dup-baseline.tsv`). It fails the drift-gate CI job through `tests/drift-gate-negatives.sh`, whose first step is asserting the check passes on an unmutated tree -- so a check that is already red makes its own negative test unrunnable, and the failure reads as a broken test rather than as standing debt.
+**What+How:** Measured on origin/main, five groups are NEW (absent from the ledger) and they are not one kind of problem:
+  * `'8470'` shared by MIOS_PORTS_RADOSGW, MIOS_PORT_RADOSGW, MIOS_RADOSGW_PORT -- a real Law 9 ONE-CANONICAL-NAME breach. Three names, one port; only MIOS_PORT_RADOSGW has consumers (34-render-quadlets.sh, the [units] Quadlet bodies, the userenv twins).
+  * the non-addressable service list shared by MIOS_NON_ADDRESSABLE_URL and MIOS_URLS_NON_ADDRESSABLE -- the same, two names for one declaration.
+  * `'0.1'`, `'4096'`, `'4194304'` -- NOT aliases. Semantically unrelated keys that happen to share a number (a weight floor and a dead-tuple ratio; a token cap and a block size; a minimum artifact size and a backup chunk size, both 4 MiB).
+The two shapes want opposite treatment and the mechanism currently has only one lever. A real alias must COLLAPSE, which lowers the count. A coincidence can only be recorded on the ledger, which raises the ceiling -- and the check's own message says "collapse the new duplicate instead of raising the ceiling", so there is no sanctioned path for the coincidence case at all. Decide that first: either `_shape()` grows a notion of "same declaration under two names" so aliases never count, leaving the ledger purely for coincidences; or coincidences get an explicit exemption class distinct from the ceiling. Then collapse the two real aliases, tighten the ledger's stale rows (the log already names them: a vanished group, and '120'/'mios-heavy' that SHRANK), and re-measure.
+**Where:** `usr/share/mios/reference/value-dup-baseline.tsv`, `tools/drift-checks.py` (`check_no_duplicate_value_key`, `_shape`), `usr/share/mios/mios.toml` `[ports]`, `usr/lib/mios/userenv.sh` + `tools/lib/userenv.sh`, `tests/drift-gate-negatives.sh`
+**Done When:** the live group count is at or under the ceiling WITHOUT the ceiling moving up; `MIOS_PORTS_RADOSGW`/`MIOS_RADOSGW_PORT` and `MIOS_URLS_NON_ADDRESSABLE` are gone or provably one declaration; the ledger has no SHRANK or vanished rows; `test_no_duplicate_value_key` passes, dropping the CI negative-test failures from 8 to 7.
+**Why:** A ratchet sitting over its own ceiling enforces nothing -- every later change inherits a red check and cannot tell its own drift from the standing debt. It also takes its negative test down with it, so the falsifiability evidence for this check is unavailable exactly while the check is broken.
+**Note:** Not introduced by PR #16. Measured both ways: origin/main is 412 groups, PR #16 is 411 -- the branch removes one group (MIOS_SSOT_TABLES_MAX_UNCONSUMED moved 9 -> 4 as the dead-SSOT register drained, joining an existing group instead of forming a new one) and adds none.
+**Dep:** --
+**Status:** planned | **Domain:** SSOT/Law9 | **Who:** architect
