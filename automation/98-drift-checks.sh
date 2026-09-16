@@ -2695,11 +2695,21 @@ check_uki_cmdline_projection() {
     if ! _require_python3; then
         return 0
     fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" --check >/dev/null 2>&1; then
+    local _uki_out
+    if _uki_out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" --check 2>&1)"; then
         echo "[98-drift-checks]   usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins"
     else
+        # T-1034: a drop-in that will not parse and a cmdline that is merely
+        # stale exit the same way. Discarding the generator's own words turned
+        # "I could not read 01-mios-hardening.toml" into "your file is out of
+        # sync -- re-run the generator", which is advice that cannot work.
+        printf '%s\n' "$_uki_out" | head -n 10 >&2
         _emit_projection_evidence "tools/generate-uki-cmdline.py" "usr/lib/kernel/cmdline"
-        _violation "usr/lib/kernel/cmdline is out of sync with usr/lib/bootc/kargs.d/*.toml -- run python3 tools/generate-uki-cmdline.py"
+        if printf '%s' "$_uki_out" | grep -q '^Error parsing '; then
+            _violation "a usr/lib/bootc/kargs.d/*.toml drop-in does not parse, so its kernel arguments would be dropped from usr/lib/kernel/cmdline -- fix the drop-in named above"
+        else
+            _violation "usr/lib/kernel/cmdline is out of sync with usr/lib/bootc/kargs.d/*.toml -- run python3 tools/generate-uki-cmdline.py"
+        fi
     fi
 }
 
