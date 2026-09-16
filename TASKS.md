@@ -993,7 +993,7 @@
 | T-1005 | P3 | planned | Build/HWCaps | HWCAPS-01 -- build the glibc-hwcaps rebuild stage [hwcaps] specifies |
 | T-1006 | P2 | planned | Provisioning/Repos | REPOS-01 -- offline-first repo rendering restates [repos] in three places instead of reading it |
 | T-1007 | P1 | planned | Build/Rust | LANG-02 -- one src/mios-rs workspace: absorb tools/native, vendor deps, builder stage, cross-compiled targets |
-| T-1008 | P1 | planned | Build/Rust | LANG-03 -- mios-ssot resolver crate, the third Law-13 twin |
+| T-1008 | P1 | planned | Build/Rust | LANG-03 -- make mios-resolver the ONE Rust reader; 11 files parse mios.toml around it |
 | T-1009 | P1 | planned | Build/Rust | LANG-05 -- mios-gate: port the drift checks strangler-style, byte-identical plus surviving negative controls |
 | T-1010 | P2 | planned | Build/Rust | LANG-06 -- mios-gen: port the generate-*/render-* SSOT projectors |
 | T-1011 | P2 | planned | Build/Rust | LANG-07 -- mios-serve: the daemon tier |
@@ -10937,12 +10937,16 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Dep:** --
 **Status:** planned | **Domain:** Build/Rust | **Who:** architect
 
-## T-1008 -- LANG-03: mios-ssot, the resolver crate and third Law-13 twin  (WS-LANG | P1 | M)
-**Goal:** Every category binary must read `mios.toml` through the same three-layer cascade the Python (`mios_toml.py`) and bash (`userenv.sh`) twins implement. Law 13 exists because two implementations already drifted; six to eight more would drift further.
-**What+How:** ADR-0021. One library crate, `mios-ssot`, implementing vendor(`/usr`) < host(`/etc`) < user(`~/.config`) with tier-major drop-in precedence and the empty-string-does-not-override rule, depended on by every binary in the workspace. It JOINS the twin contract rather than replacing it: making the Python and bash readers shell out to a binary would put a binary dependency in the bash bootstrap path before that binary is guaranteed to exist, trading a parity risk for a boot risk. Extend `tools/check-resolver-twin.py` to grade three implementations.
-**Where:** `src/mios-rs/mios-ssot/` (new), `tools/check-resolver-twin.py`, `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`
-**Done When:** on a planted three-layer fixture all three twins agree byte-for-byte on every emitted key; perturbing ANY ONE of the three fails the twin check and names which one.
-**Dep:** T-1007
+## T-1008 -- LANG-03: make mios-resolver the ONE Rust reader of mios.toml  (WS-LANG | P1 | M)
+**Goal:** REWRITTEN after measuring, before writing any code (Law 15). This was filed as "create a new mios-ssot crate that becomes the third Law-13 twin". That crate already exists under another name, and filing it again would have produced a fourth reader while fixing nothing.
+**What+How:** `tools/native/mios-resolver` is 1,841 lines and is already the third twin: `layers.rs` builds the tier-major stack (vendor < vendor.d < host < host.d < user < user.d), `merge.rs` the overlay, `ports.rs` the `[ports.categories]` derivation, `aliases.rs` the canonical-name map, plus four emitters (shell, PowerShell, JSON, install.env). `check_resolver_differential_parity` and `tools/check-resolver-twin.py` already grade it against the Python twin.
+  The defect is that NOTHING ELSE USES IT. Measured: 11 Rust files parse `mios.toml` without the resolver crate. The worst is `src/mios-rs/mios-config` (819 lines, depended on only by miosd): its `load_default()` reads `usr/share/mios/mios.toml` and merges `Env::prefixed("MIOS_")` -- ONE layer. No `/etc`, no `~/.config`, no `mios.d` fragments, and no port derivation, so a consumer reading `[ports]` through it gets the flat projection rather than what `[ports.categories]` derives. A Rust consumer going through mios-config silently disagrees with both other twins, and nothing grades that.
+  So: promote `mios-resolver` to the library the workspace depends on; retire mios-config's loader and route miosd through the resolver; keep mios-config's `validator.rs` (560 lines) which is a different job. Then ratchet the remainder with a shrink-only register of files still parsing directly, so a new ad-hoc reader fails the gate rather than joining the pile.
+**Where:** `tools/native/mios-resolver/src/lib.rs`, `src/mios-rs/mios-config/src/lib.rs` (loader retired), `src/mios-rs/miosd/`, `tools/check-resolver-twin.py`, `usr/share/mios/mios.toml` (new register), `automation/98-drift-checks.sh`
+**Done When:** miosd resolves through mios-resolver and matches the Python twin byte-for-byte on a planted three-layer fixture, including the empty-string-does-not-override rule and the derived-port case; mios-config carries no loader of its own; the count of Rust files parsing mios.toml directly only falls; perturbing ANY ONE of the three twins fails the twin check and names which one.
+**Why:** Law 13 exists because two implementations of one cascade drifted. There are four here -- the Python twin, the bash twin, the graded Rust resolver, and mios-config's one-layer loader -- and only three of them are graded.
+**Note:** `check_resolver_differential_parity` prints "mios-resolver binary not built locally -- advisory skip" and returns clean when the binary is absent. A skip reads as a pass in a log; decide whether a gate whose subject is a TRACKED crate should skip at all, or fail asking for `cargo build -p mios-resolver`.
+**Dep:** -- (the crate exists today; this does not wait on T-1007)
 **Status:** planned | **Domain:** Build/Rust | **Who:** architect
 
 ## T-1009 -- LANG-05: mios-gate -- port the drift checks strangler-style  (WS-LANG | P1 | XL)

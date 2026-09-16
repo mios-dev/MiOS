@@ -358,12 +358,12 @@ acceptance: |
 - **Accept:** one `cargo build --workspace` from `src/mios-rs/` produces every binary for every declared target with the network off; `tools/native/` holds no crate of its own; every legacy binary name still resolves through a shim; the image contains no cargo/rustc.
 - **Deps:** ADR-0021.
 
-### LANG-03 — `mios-ssot`: the resolver crate, third twin under Law 13  **[P1]**  (→ T-1008)
-- **What:** One library crate implementing the three-layer cascade (vendor `/usr` < host `/etc` < user `~/.config`) with tier-major drop-in precedence, that every category binary depends on. Extend the existing twin-agreement test so it grades three implementations, not two.
-- **Why:** Eight binaries each parsing `mios.toml` would drift eight ways; Law 13 exists because two already did.
-- **Files:** `src/mios-rs/mios-ssot/` (new), `tools/check-resolver-twin.py`, `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`
-- **Accept:** for every key the resolver emits, all three twins agree byte-for-byte on a planted three-layer fixture, including the empty-string-does-not-override rule; the twin check fails when any one of the three is perturbed.
-- **Deps:** LANG-02.
+### LANG-03 — Make `mios-resolver` the ONE Rust reader of `mios.toml`  **[P1]**  (→ T-1008)
+- **What:** *(Rewritten after measuring — see ADR-0021 §Decision 5.)* The resolver crate ADR-0021 called for already exists: `tools/native/mios-resolver`, 1,841 lines, with `layers.rs` (tier-major vendor < vendor.d < host < host.d < user < user.d), `merge.rs`, `ports.rs` (the `[ports.categories]` derivation), `aliases.rs` and four emitters — already graded as the third Law-13 twin by `check_resolver_differential_parity`. The work is that **nothing else uses it**. Promote it to the library every crate depends on; retire `src/mios-rs/mios-config`'s parallel loader, whose `load_default()` reads only the vendor file plus `MIOS_*` env — one layer, no `/etc`, no `~/.config`, no `mios.d`, no port derivation — and route `miosd` through the resolver instead. Then ratchet: a shrink-only register of the Rust files still parsing `mios.toml` directly, so a new one fails the gate.
+- **Why:** Measured: **11 Rust files parse `mios.toml` without the resolver crate**, and one of them, `mios-config`, is a whole second cascade that silently disagrees with both other twins. Law 13 exists because two implementations drifted; this is a third and a fourth nobody is grading.
+- **Files:** `tools/native/mios-resolver/src/lib.rs`, `src/mios-rs/mios-config/` (loader retired), `src/mios-rs/miosd/`, `tools/check-resolver-twin.py`, `usr/share/mios/mios.toml` (the new register), `automation/98-drift-checks.sh`
+- **Accept:** `miosd` resolves through `mios-resolver` and its results match the Python twin byte-for-byte on a planted three-layer fixture including the empty-string-does-not-override rule; `mios-config` no longer carries a loader of its own; the ad-hoc-reader count only falls; the twin check fails when any one of the three twins is perturbed.
+- **Deps:** none hard — the crate exists today, so this does not wait on LANG-02.
 
 ### LANG-04 — `mios-probe`: the first port, and the pattern every later one copies  **[P1]**  (→ T-1003)
 - **What:** The `[preflight]` host probe. Greenfield, so no parity risk while the shared crate, the cross-compile, the builder stage and `--format json` are all being invented at once. Establishes the output contract: human text by default with today's exit codes (0 clean / 1 violations / 2 could-not-run), `--format json` emitting an OpenAI-format structured-output schema.

@@ -86,11 +86,29 @@ Windows targets for the host-side surface PowerShell holds today. No binary may
 depend on the host's glibc or NSS — so no `getpwnam` in a ported tool; user and
 group facts come from SSOT or from reading `/etc/passwd` directly.
 
-**5 — SSOT.** One `mios-ssot` library crate implements the three-layer cascade
-and every binary depends on it. It becomes a **third twin** under Law 13,
-covered by the existing twin-agreement test. It does not replace the Python and
-bash readers: putting a binary dependency into the bash bootstrap path, before
-the binary is guaranteed to exist, would trade a parity risk for a boot risk.
+**5 — SSOT.** One library crate implements the three-layer cascade and every
+binary depends on it. It does not replace the Python and bash readers: putting a
+binary dependency into the bash bootstrap path, before the binary is guaranteed
+to exist, would trade a parity risk for a boot risk.
+
+> **Corrected after measuring (Law 15).** This decision was written as "create a
+> new `mios-ssot` crate, which becomes a third twin". That crate already exists
+> under another name. `tools/native/mios-resolver` is 1,841 lines implementing
+> exactly this: `layers.rs` builds the tier-major stack (vendor < vendor.d <
+> host < host.d < user < user.d), `merge.rs` the overlay, `ports.rs` the
+> `[ports.categories]` derivation, `aliases.rs` the canonical-name map, and four
+> emitters (shell, PowerShell, JSON, `install.env`). It is *already* graded as
+> the third twin by `check_resolver_differential_parity` and
+> `tools/check-resolver-twin.py`.
+>
+> So the work is not to write a resolver; it is that **nothing else uses the one
+> we have**. `src/mios-rs/mios-config` (819 lines, depended on only by `miosd`)
+> is a *second* Rust reader whose `load_default()` reads the vendor
+> `usr/share/mios/mios.toml` and merges `Env::prefixed("MIOS_")` — one layer, no
+> `/etc`, no `~/.config`, no `mios.d` fragments, no port derivation. A Rust
+> consumer going through it silently disagrees with both other twins. Measured:
+> **11 Rust files parse `mios.toml` without the resolver crate.** The decision
+> stands; its subject is renamed and its scope is consolidation, not creation.
 
 **6 — Output contract.** Human text on stdout by default, with today's exit
 codes preserved exactly — `0` clean, `1` violations, `2` could-not-run — so the
@@ -191,9 +209,12 @@ shrink-only register also makes a deliberate exception visible instead of silent
 - **Reversed:** ADR-0011 §2 / WS-LANG LANG-01's single-`miosd`-multicall shape.
   `miosd` remains as a daemon and keeps the subcommands it already serves; it
   does not become the container for the whole native tier.
-- **Open:** whether `mios-ssot` eventually *replaces* the Python and bash twins
-  rather than joining them (deferred — it needs the binary to be guaranteed
-  present before bash needs it); whether the `[templates.quadlet]` umbrella and
+- **Open:** whether the resolver crate eventually *replaces* the Python and bash
+  twins rather than joining them (deferred — it needs the binary to be
+  guaranteed present before bash needs it); whether
+  `check_resolver_differential_parity`'s "advisory skip" when the binary is not
+  built should stay a skip, since a skip reads as a pass; whether the
+  `[templates.quadlet]` umbrella and
   `[templates.quadlet-container]` specific type should both be scaffoldable to
   the same destination.
 - **Done when:** the `[legibility]` script ceilings have fallen to the point where
