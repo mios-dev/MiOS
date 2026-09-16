@@ -2,7 +2,7 @@
      AI-related: /etc/profile.d/mios-xdg-cephfs.sh, /etc/mios/ai/v1/caller-keys.json, /etc/mios/ai/v1/a2a-peers.json, /usr/share/mios/ai/v1/mcp.json, /etc/mios/ai/v1/mcp.json, /usr/libexec/mios/mios-mcp-server, /etc/mios/hermes/config.local.yaml, /etc/mios/gateway/, /usr/libexec/mios/mios-cephfs-provision, /etc/mios/llamacpp/mios-llm-light.yaml -->
 # MiOS -- Master Tasks (SINGULAR monolith)
 
-> The one canonical task list. **258 tasks** (190 closed, 68 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
+> The one canonical task list. **261 tasks** (190 closed, 71 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
 
 | ID | Pri | Status | Domain | Title |
 |---|---|---|---|---|
@@ -986,6 +986,9 @@
 | T-998 | P3 | planned | CI/Enforcement | GATE-03 -- the value-dup ledger's sanctioned remedy for coincidental duplicates is rejected by check_value_aliases |
 | T-999 | P2 | planned | AI/SearchLocale | SEARCH-01 -- the anchor stopword screen is English-only while the tokenizer it screens is deliberately multilingual |
 | T-1000 | P1 | planned | CI/Enforcement | GATE-04 -- the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot |
+| T-1001 | P1 | planned | CI/Enforcement | GATE-05 -- check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one |
+| T-1002 | P1 | planned | Security/Law5 | LAW5-01 -- retired lane ports are hardcoded across the code surface and no gate covers code |
+| T-1003 | P2 | planned | Provisioning/Preflight | PREFLIGHT-01 -- three of [preflight]'s five thresholds are a spec for checks that were never written |
 
 ---
 
@@ -10856,4 +10859,32 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Why:** Law 9 is the invariant that keeps a knob operator-tunable rather than decorative. An enforcer that structurally cannot fire means every one of those 376 reads is a config key the operator can set and the code will never see -- which is precisely the defect T-996 fixed for whole tables and T-997 measured for schema names. BLAST RADIUS: arming this makes the pipeline redder by up to 376 findings; the operator chooses the timing.
 **Dep:** T-996
 **Status:** planned | **Domain:** CI/Enforcement | **Who:** architect
+
+
+## T-1001 -- GATE-05: check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one  (WS-DRIFT | P1 | S)
+**Goal:** E-07 The T-996 gate decides consumption by matching access shapes over raw file text. Two consequences, both observed in one commit while wiring [logging]: a COMMENT naming an access shape credits the table it names, and an access to a sub-table is indistinguishable from an access to a same-named top-level table.
+**What+How:** The corpus loop reads whole file bodies; unlike mios_var_closure.referenced_set it never strips `#`/`//` comments or docstrings. So a comment written to WARN about a hazard creates it -- observed exactly: a comment containing a literal get on the sub-table key credited [pipeline] a consumer it does not have, and the gate then demanded the entry be dropped from the shrink-only register, which would have been a false retirement. Second occurrence of the same class this campaign: T-996's own follow-up had a docstring naming a retired MIOS_* name re-create the Law 9 breach it documented. Separately, the context-gated `.get("t")` / `["t"]` predicates cannot see their receiver, so reading [logging].pipeline matches the predicate for top-level [pipeline]. Fixes, in ascending cost: strip comments and docstrings from the corpus before matching (cheap, closes the prose hole, mirrors what the sibling closure checker already does); and require the receiver of a generic subscript/get to be a root-ish binding (the merged-SSOT return, `data`, `cfg`) rather than any expression, so a sub-table read stops matching -- measure the verdict delta before adopting, since a tighter receiver rule may drop real consumers.
+**Where:** `tools/drift-checks.py` (`check_no_inert_ssot_tables`: `_corpus`, `_predicates`), `tests/drift-gate-negatives.sh` (`test_no_inert_ssot_tables`), `usr/share/mios/mios.toml` `[ssot_tables]`
+**Done When:** a comment or docstring naming an access shape does NOT credit the table -- proved by planting such a comment for a registered table and observing the register entry survive; a read of `[x].y` does not credit top-level `[y]` -- proved the same way; and the clean tree's consumed count is re-measured and the register reconciled to whatever the tightened predicate actually finds.
+**Why:** This gate is what retires entries from a shrink-only register. A false credit does not merely mis-report -- it instructs the operator to drop a live debt entry, which is how a ratchet silently loosens.
+**Dep:** T-996
+**Status:** planned | **Domain:** CI/Enforcement | **Who:** architect
+
+## T-1002 -- LAW5-01: retired lane ports are hardcoded across the code surface and no gate covers code  (WS-SEC | P1 | M)
+**Goal:** E-07 Law 5 forbids "retired local-lane ports in code, docs, or commits" with `[docs].retired_ports` as the registry. The enforcement is `check_doc_port_scheme`, which covers docs and active config. Code is not covered, and code is where the breaches are.
+**What+How:** Measured under `usr/libexec` + `usr/lib/mios` against the registry [11434, 11450, 11441, 3030, 8432, 8441, 8442, 8633, 8640, 8641, 8642, 8888, 8899]: 11450 in 11 files, 8640 in 32, 11434 in 6, 11441 in 3. Found by wiring [logging]: mios-log-streamer carried `DEFAULT_AI_ENDPOINT = "http://127.0.0.1:11450/v1"` while the live front door is ports.agent_pipe, so every embedding call the log pipeline made went to a port nothing listens on -- a law breach that was also a silent runtime failure. That one is fixed; the rest are not. Not every hit is live: some sit in historical comments or fixtures, and a count is not a verdict, so the first task is to classify hits into live-consumer reads, inert prose, and test fixtures before deciding what the gate should assert. Then extend the enforcement to the code corpus with an itemised shrink-only register for whatever is deliberately retained, never a bare count.
+**Where:** `tools/drift-checks.py` (`check_doc_port_scheme` or a sibling), `usr/share/mios/mios.toml` `[docs].retired_ports`, `usr/libexec/mios/**`, `usr/lib/mios/**`, `tests/drift-gate-negatives.sh`
+**Done When:** a planted retired port in a live code path FAILS the gate and the message names the file and the port; the classification of today's ~52 hits is recorded; and the retained residue is an itemised register under a ceiling that only falls.
+**Why:** A hardcoded retired port does not error at build time and does not error at start -- it fails at the first request, to a port nothing serves, and looks like an unrelated timeout. Law 5 exists to make the endpoint one name; an unenforced half of the law is how eleven files drifted onto a dead lane.
+**Dep:** --
+**Status:** planned | **Domain:** Security/Law5 | **Who:** architect
+
+## T-1003 -- PREFLIGHT-01: three of [preflight]'s five thresholds are a spec for checks that were never written  (WS-BUILD | P2 | M)
+**Goal:** E-07 `[preflight]` declares min_windows_build, min_disk_free_gb, min_ram_gb, require_virt and require_admin. Three of the five are enforced nowhere in the tree, and the two that are enforced are hardcoded unconditionally rather than gated by their flags.
+**What+How:** Measured: `min_windows_build`, `min_ram_gb`, `min_disk_free_gb` and the literal 22000 appear in no consumer -- only in the generated globals twins, which are projection, not consumption; the Windows build registry key is never read at all. `preflight.ps1` does check Administrator and Virtual Machine Platform, but unconditionally, so setting require_admin = false changes nothing. `tools/preflight.sh` is a different concern (build-host podman/git/just readiness), not these host thresholds. So this is wire-or-build, not wiring: implementing the three missing checks is NEW host-probing logic, and Law 14 forbids new PowerShell-as-program while the standing directive prefers a Rust static binary in tools/native/. The fork is therefore: implement in Rust and have the installer call it; or shrink [preflight] to the two thresholds that have an enforcer and gate those on their flags; or keep the keys and register the gap. Deliberately NOT decided unilaterally -- the choice sets precedent for where host-probing logic lives.
+**Where:** `usr/share/mios/mios.toml` `[preflight]`, `preflight.ps1`, `tools/native/`, `usr/share/mios/mios.toml` `[ssot_tables]`
+**Done When:** every key in [preflight] either has an enforcer that observably changes behaviour when the key changes, or no longer exists; require_admin = false and require_virt = false demonstrably relax their checks; and [preflight] leaves the unconsumed register honestly rather than by a predicate change.
+**Why:** A declared threshold with no enforcer is worse than no threshold: it reads as a guarantee the installer does not provide, and an operator raising min_ram_gb gets no protection at all.
+**Dep:** --
+**Status:** planned | **Domain:** Provisioning/Preflight | **Who:** architect
 
