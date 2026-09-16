@@ -160,10 +160,10 @@ def _clean_web_text(s: str) -> str:
         return s
 
 def _load_anchor_stopwords() -> frozenset:
-    """Resolve the anchor stopword screen from SSOT: a CSV env override (rendered from
-    mios.toml by the userenv slot map) -> the layered mios.toml [search].anchor_stopwords
-    -> empty (degrade-open: no baked list in code, never over-filter). Lowercased."""
-    _csv = os.environ.get("MIOS_WEB_ANCHOR_STOPWORDS")
+    """Resolve the anchor stopword screen from SSOT: MIOS_SEARCH_ANCHOR_STOPWORDS, the
+    CSV the resolver emits for [search].anchor_stopwords (Law 9: one canonical name, so
+    the override is reachable) -> that table -> empty (degrade-open). Lowercased."""
+    _csv = os.environ.get("MIOS_SEARCH_ANCHOR_STOPWORDS")
     if _csv not in (None, ""):
         return frozenset(t.strip().lower() for t in _csv.split(",") if t.strip())
     _v = _toml_section("search").get("anchor_stopwords")
