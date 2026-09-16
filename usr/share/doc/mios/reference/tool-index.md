@@ -259,7 +259,6 @@ is generated, its generator is here.
 | `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. |
 | `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
 | `tools/check-container-names.py` | Drift gate for unmappable container names. |
-| `tools/check-credential-literals.py` | Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S... |
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
 | `tools/check-deploy-formats.py` | Fails when a declared deployment format has no build target, when a build target is undeclared, or when a variant ships a format the matrix does not define. |
 | `tools/check-doc-ratchet-monotone.py` | Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values. |
@@ -337,7 +336,6 @@ is generated, its generator is here.
 | `tools/test_check-blade-coverage.py` | Unit tests for tools/check-blade-coverage.py. |
 | `tools/test_check-comment-lex-equivalence.py` | Fixtures for check-comment-lex-equivalence.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
 | `tools/test_check-container-names.py` | Sibling unit test for tools/check-container-names.py. |
-| `tools/test_check-credential-literals.py` | Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered... |
 | `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
 | `tools/test_check-deploy-formats.py` | Sibling test for tools/check-deploy-formats.py; proves the format matrix covers every build target and every recipe. |
 | `tools/test_check-doc-ratchet-monotone.py` | Fixtures for check-doc-ratchet-monotone.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
@@ -390,7 +388,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 137 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 135 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

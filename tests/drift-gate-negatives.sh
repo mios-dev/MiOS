@@ -3628,6 +3628,15 @@ test_credential_literals() {
     printf 'Environment=NEGATIVE_TEST_SECRET_KEY=hunter2\n' >> "$unit"
     _neg_gate check_credential_literals && die "check_credential_literals passed despite a new baked-in credential"
     cp "$backup" "$unit"
+    # T-1035: the half a key-only register could not see. POSTGRES_PASSWORD is
+    # GRANDFATHERED, so changing its value used to read as the same entry and
+    # the gate stayed green while an operator's real password sat in a 0644
+    # file under /usr.
+    local pg="${ROOT}/usr/share/containers/systemd/mios-pgvector.container"
+    local pgbak; pgbak="$(mktemp)"; cp "$pg" "$pgbak"
+    sed -i 's/^Environment=POSTGRES_PASSWORD=mios$/Environment=POSTGRES_PASSWORD=NOT-A-REAL-PASSWORD-negative-test/' "$pg"
+    _neg_gate check_credential_literals && { cp "$pgbak" "$pg"; rm -f "$backup" "$pgbak"; die "check_credential_literals passed with a real password on a grandfathered key"; }
+    cp "$pgbak" "$pg"; rm -f "$pgbak"
     _neg_gate check_credential_literals || { rm -f "$backup"; die "check_credential_literals failed after restoration"; }
     rm -f "$backup"
     log "check_credential_literals negative test passed"

@@ -4190,8 +4190,22 @@ check_credential_literals() {
     # usr/share/containers/systemd. It said "tracked source tree", which is
     # check_secret_handling's job, not this one.
     echo "[98-drift-checks] no credential literal is baked into a systemd unit or Quadlet Environment= line"
-    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-credential-literals.py 2>&1)" || { _violations_from "check_credential_literals: " "$out"; return; }
-    echo "[98-drift-checks]   $out"
+    # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
+    # commit. The register now pins path:KEY=VALUE, so a grandfathered KEY whose
+    # VALUE becomes an operator's real password is a NEW finding (T-1035).
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_credential_literals could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    "$bin" credential-literals --root "$ROOT" || \
+        _violation "a credential literal is baked into a world-readable systemd unit or Quadlet whose exact path:KEY=VALUE is not on the shrink-only register (Law 11)"
 }
 
 # --- AGY-TASKS task descriptions conform strictly to task schema contract ---

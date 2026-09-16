@@ -1698,14 +1698,19 @@ provenance_taint = false
 # baked into world-readable units. SHRINK-ONLY; T-175 rotates them to
 # /etc/mios/secrets.env (gate: check_credential_literals).
 [security.credential_literals]
+# T-1035. Each entry pins path:KEY=VALUE, not just path:KEY. A key-only register
+# cannot tell the shipped placeholder from an operator's real password: setting
+# MIOS_PG_PASS in the build environment bakes that value into a 0644 file under
+# /usr and the key-only gate stayed green. Every value below is a placeholder
+# and none is a secret; changing any of them is a NEW finding by design.
 grandfathered = [
-  "usr/lib/systemd/system/mios-agents.service:MIOS_DEFAULT_PASSWORD",
-  "usr/lib/systemd/system/mios-ha-bootstrap.service:HA_PASSWORD",
-  "usr/share/containers/systemd/mios-guacamole.container:POSTGRESQL_PASSWORD",
-  "usr/share/containers/systemd/mios-k3s.container:K3S_TOKEN",
-  "usr/share/containers/systemd/mios-open-webui.container:RAG_OPENAI_API_KEY",
-  "usr/share/containers/systemd/mios-open-webui.container:WEBUI_SECRET_KEY",
-  "usr/share/containers/systemd/mios-pgvector.container:POSTGRES_PASSWORD",
+  "usr/lib/systemd/system/mios-agents.service:MIOS_DEFAULT_PASSWORD=mios",
+  "usr/lib/systemd/system/mios-ha-bootstrap.service:HA_PASSWORD=mios",
+  "usr/share/containers/systemd/mios-guacamole.container:POSTGRESQL_PASSWORD=mios",
+  "usr/share/containers/systemd/mios-k3s.container:K3S_TOKEN=mios-cluster-secret",
+  "usr/share/containers/systemd/mios-open-webui.container:RAG_OPENAI_API_KEY=sk-noop",
+  "usr/share/containers/systemd/mios-open-webui.container:WEBUI_SECRET_KEY=mios-stable-secret-change-me",
+  "usr/share/containers/systemd/mios-pgvector.container:POSTGRES_PASSWORD=mios",
 ]
 
 # [security.redact] -- DURA-02 redaction on PERSIST; every schema table sits in
@@ -11086,7 +11091,7 @@ max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are no
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 121376
+max_tooling_python_lines = 121259  # -117: check-credential-literals.py + its sibling test, ported to mios-gate (T-1035)
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]
