@@ -249,6 +249,21 @@ fn main() {
         }
     }
 
+    // T-1039. The Quadlet scan above skips every `localhost/*` image, because a
+    // locally built image is not discovered from a Quadlet's Image= line. The
+    // python generator then RE-ADDS every localhost image declared in `core`;
+    // this port never did, so `localhost/mios-sys`, `localhost/mios-cuda`,
+    // `localhost/mios-crawl4ai-slim:latest` and `localhost/mios-firecrawl:v1.0.0`
+    // were dropped from the plan lists. Law 12: an image missing from the plan
+    // is an image the bake does not carry.
+    for core_img in &core {
+        if core_img.starts_with("localhost/")
+            && !images_to_bake.iter().any(|(img, _)| img == core_img)
+        {
+            images_to_bake.push((core_img.clone(), "core-localhost".to_string()));
+        }
+    }
+
     let mut group_lists: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for g in &groups {
         group_lists.insert(g.clone(), Vec::new());
@@ -359,19 +374,26 @@ fn main() {
         let sbom_file = sbom_dir.join("bound-images.tsv");
 
         let mut existing_digests: BTreeMap<String, String> = BTreeMap::new();
+        let mut existing_sizes: BTreeMap<String, String> = BTreeMap::new();
         if sbom_file.is_file() {
             if let Ok(c) = fs::read_to_string(&sbom_file) {
                 for line in c.lines() {
                     let parts: Vec<&str> = line.trim().split('\t').collect();
                     if parts.len() >= 3 && parts[0] != "image" {
                         existing_digests.insert(parts[0].to_string(), parts[1].to_string());
+                        if parts.len() >= 4 {
+                            existing_sizes.insert(parts[0].to_string(), parts[3].to_string());
+                        }
                     }
                 }
             }
         }
 
         let mut seen_images: BTreeSet<String> = BTreeSet::new();
-        let mut sbom_content = String::from("image\tdigest\tgroup\n");
+        // T-1039: the size_gb column. Omitting it made `drift-checks.py
+        // bake-budget` print "bound-images.tsv missing size_gb column" -- and
+        // exit 0, so the day-0 size budget was never actually computed.
+        let mut sbom_content = String::from("image\tdigest\tgroup\tsize_gb\n");
         for (base_img, grp) in [
             ("localhost/mios-sys:latest", "sys"),
             ("localhost/mios-cuda:latest", "cuda"),
@@ -380,7 +402,14 @@ fn main() {
                 .get(base_img)
                 .cloned()
                 .unwrap_or_else(|| "local".to_string());
-            sbom_content.push_str(&format!("{}\t{}\t{}\n", base_img, digest, grp));
+            let size = existing_sizes.get(base_img).cloned().unwrap_or_else(|| {
+                if grp == "sys" {
+                    "2.5".to_string()
+                } else {
+                    "4.0".to_string()
+                }
+            });
+            sbom_content.push_str(&format!("{}\t{}\t{}\t{}\n", base_img, digest, grp, size));
             seen_images.insert(base_img.to_string());
         }
 
@@ -391,12 +420,25 @@ fn main() {
                     .get(img)
                     .cloned()
                     .unwrap_or_else(|| "local".to_string());
-                sbom_content.push_str(&format!("{}\t{}\t{}\n", img, digest, g));
+                let size = existing_sizes
+                    .get(img)
+                    .cloned()
+                    .unwrap_or_else(|| "1.0".to_string());
+                sbom_content.push_str(&format!("{}\t{}\t{}\t{}\n", img, digest, g, size));
                 seen_images.insert(img.clone());
             }
         }
 
-        let _ = fs::write(&sbom_file, sbom_content);
+        // A discarded write result under an unconditional "wrote" line is the
+        // Swallowed Failure shape this audit found in five other stages.
+        if let Err(e) = fs::write(&sbom_file, sbom_content) {
+            eprintln!(
+                "[bake-plan-gen] ERROR: cannot write {}: {}",
+                sbom_file.display(),
+                e
+            );
+            std::process::exit(1);
+        }
         println!("[bake-plan-gen] wrote {}", sbom_file.display());
     }
 
