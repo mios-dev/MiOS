@@ -1028,7 +1028,7 @@
 | T-1040 | P0 | planned | Build/Quadlets | ENVSUB-01 -- envsubst eats systemd's $$ runtime refs, the nested-default regex corrupts base_url, and *.socket is outside the find filter |
 | T-1041 | P1 | planned | Build/Firewall | FIREWALL-01 -- a malformed or absent [firewall] table silently opens a hardcoded wrong port set, and an unbound var aborts the tier mid-sequence |
 | T-1042 | P1 | planned | AI-Plane/DB | BACKFILL-01 -- check_backfill_coverage fails at every bake and was invisible under 55 checks that could not fail |
-| T-1043 | P2 | planned | Gates/Honesty | PIPENUM-01 -- check_pipeline_numbering reports PASS against a root that does not exist |
+| T-1043 | P2 | partial | Gates/Honesty | PIPENUM-01 -- check_pipeline_numbering reports PASS against a root that does not exist |
 
 ---
 
@@ -11313,6 +11313,13 @@ The two shapes want opposite treatment and the mechanism currently has only one 
   Worth doing as the template for the other twenty implemented checks, which have not been audited for the same shape.
 **Where:** `src/mios-rs/miosd/src/drift/numbering.rs`, `src/mios-rs/miosd/src/drift/mod.rs`
 **Done When:** `miosd drift-check --root <nonexistent>` reports zero checks as PASS, and the remaining 20 ctx-reading checks are each audited for an empty-set path.
-**Why:** T-1030's thesis, in the one place left where it is still demonstrably true.
+**Progress -- the first half is DONE and the audit is done too.** `miosd drift-check --root <a directory that does not exist>` now reports **0 passed, 12 failed, 62 skipped**. Not one check claims a verdict about a tree that is not there.
+  **Two measurement bugs of my own, both found by checking the checker.** First, `check_pipeline_numbering` was not a "ctx-reading check with an empty-set path" as filed -- it was a STUB, and `mios-gate drift-stubs` classified it as implemented because the predicate tested the PARAMETER NAME. It read `ctx.in_image` for an early skip and then returned a constant `Pass`. The gate now classifies by whether the body consults `ctx.root`, which is the property. Second, my own audit script reported a false positive for `check_names_registry` because rustfmt splits `ctx\n    .root` and the scan matched the literal `ctx.root`. Both are pinned by regression tests: `a_blind_check_named_ctx_is_still_blind` and `a_reader_whose_ctx_root_is_line_split_is_not_a_stub`.
+  **Implemented rather than registered.** Adding it to `[drift.unimplemented]` meant raising `max_unimplemented` 54 -> 55, which `check_ratchet_direction` correctly rejected -- a shrink-only ceiling may not be raised, and the repo said so before I could rationalise it. So the check was ported from its bash twin's three assertions: no hand-written `[98-drift-checks] (N)` labels, `build.sh` not re-counting the chain via `ls|wc -l`, and `drift-gate-index.tsv` ordinals dense 1..N. Stub count stays 54, ceiling stays 54.
+  One deliberate divergence from the twin: bash SKIPS when `drift-gate-index.tsv` is absent, which is an Empty-Set Pass. The Rust version FAILS -- a missing SSOT projection is exactly what this suite exists to catch.
+  Verified: the real tree PASSES having read three files; a planted hand-written label, a planted ordinal gap, an emptied index, and a nonexistent root each FAIL with the specific reason. Fixtures restored.
+  **Corrected count for the remaining audit: 17 ctx-reading checks read `ctx.root`, not 20.**
+**Remaining:** those 17 have not been audited for empty-set paths of their own. The `--root <nonexistent>` probe no longer finds them because they now fail there for want of files; the audit needs planted-but-empty fixtures, not a missing tree.
+**Why:** T-1030's thesis, in the one place left where it was still demonstrably true.
 **Dep:** T-1037
-**Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
+**Status:** partial | **Domain:** Gates/Honesty | **Who:** architect

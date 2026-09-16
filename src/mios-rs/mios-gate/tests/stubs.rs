@@ -70,6 +70,35 @@ fn a_check_that_cannot_look_must_not_claim() {
     assert!(out.contains("must not claim"), "{out}");
 }
 
+/// T-1043, and a bug in this gate's first predicate: naming the parameter `ctx`
+/// instead of `_ctx` proves nothing. check_pipeline_numbering read ctx.in_image
+/// for an early skip and then returned a constant Pass, so a parameter-name test
+/// classified it as implemented and it kept claiming a verdict.
+#[test]
+fn a_blind_check_named_ctx_is_still_blind() {
+    const SNEAKY: &str = "fn run(&self, ctx: &DriftCtx) -> Verdict {\n        if ctx.in_image {\n            return Verdict::Skip(\"in image\".to_string());\n        }\n        Verdict::Pass(\"probe verified\".to_string())\n    }";
+    let d = tempfile::tempdir().unwrap();
+    tree(d.path(), &[("A", "check_a", SNEAKY)], &[], 0);
+    let (code, out) = run(d.path());
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("never consults ctx.root"), "{out}");
+}
+
+/// rustfmt splits `ctx\n    .root`, so a literal "ctx.root" test misses a real
+/// reader. My first audit of this suite reported a false positive for exactly
+/// that reason.
+#[test]
+fn a_reader_whose_ctx_root_is_line_split_is_not_a_stub() {
+    const SPLIT: &str = "fn run(&self, ctx: &DriftCtx) -> Verdict {\n        let p = ctx\n            .root\n            .join(\"x\");\n        let _ = p.exists();\n        Verdict::Pass(\"probe verified\".to_string())\n    }";
+    let d = tempfile::tempdir().unwrap();
+    tree(d.path(), &[("A", "check_a", SPLIT)], &[], 0);
+    let (code, out) = run(d.path());
+    assert_eq!(
+        code, 0,
+        "a line-split ctx.root must read as implemented: {out}"
+    );
+}
+
 #[test]
 fn an_unregistered_stub_fails() {
     let d = tempfile::tempdir().unwrap();

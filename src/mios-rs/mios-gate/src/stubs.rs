@@ -11,6 +11,29 @@ const CHECK: &str = "drift-stubs";
 /// is a stub pretending to have run.
 const MARKER: &str = "NOT IMPLEMENTED:";
 
+/// Whether a `run` body actually consults the tree. Naming the parameter `ctx`
+/// instead of `_ctx` proves nothing: check_pipeline_numbering read `ctx.in_image`
+/// for an early skip and then returned a constant Pass, so a parameter-name test
+/// classified it as implemented. rustfmt also splits `ctx\n    .root`, so the
+/// comparison is made on a whitespace-stripped copy or it misses real readers.
+fn reads_the_tree(run_body: &str) -> bool {
+    let squashed: String = run_body.chars().filter(|c| !c.is_whitespace()).collect();
+    squashed.contains("ctx.root")
+        || squashed.contains("(ctx,")
+        || squashed.contains("(&ctx")
+        || squashed.contains("(ctx)")
+        || squashed.contains("(&ctx)")
+}
+
+/// Extracts the body of `fn run(...)` from an impl block, or None if absent.
+fn run_body(block: &str) -> Option<&str> {
+    let i = block.find("fn run(&self,")?;
+    let rest = &block[i..];
+    let open = rest.find('{')?;
+    let end = rest[open..].find("\n    }")? + open;
+    Some(&rest[open + 1..end])
+}
+
 fn cannot_run(why: impl Into<String>) -> Report {
     Report {
         check: CHECK.to_string(),
@@ -113,8 +136,10 @@ pub fn check(root: &Path) -> Report {
         };
         for (struct_name, block) in impl_blocks(&src) {
             impls += 1;
-            let ignores_ctx = block.contains("fn run(&self, _ctx:");
-            if !ignores_ctx {
+            let Some(body) = run_body(&block) else {
+                continue;
+            };
+            if reads_the_tree(body) {
                 continue;
             }
             let Some(id) = check_id(&block) else {
@@ -123,13 +148,13 @@ pub fn check(root: &Path) -> Report {
             };
             // A run that never reads the tree cannot report Pass. That is the
             // whole defect: 54 of these claimed verification at every bake.
-            if block.contains("Verdict::Pass(") {
+            if body.contains("Verdict::Pass(") {
                 findings.push(format!(
-                    "{id}: run() takes _ctx and never reads the tree, yet returns Verdict::Pass -- \
+                    "{id}: run() never consults ctx.root, yet returns Verdict::Pass -- \
                      a check that cannot look must not claim"
                 ));
             }
-            if block.contains(MARKER) {
+            if body.contains(MARKER) {
                 stubs.insert(id);
             }
         }
