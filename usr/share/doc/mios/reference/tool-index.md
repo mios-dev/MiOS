@@ -311,7 +311,7 @@ is generated, its generator is here.
 | `tools/generate-ipa-enroll-env.py` | Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT |
 | `tools/generate-metal-vs-hosted.py` | GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml. |
 | `tools/generate-names-registry.py` | MiOS system and orchestration module providing generate-names-registry capabilities. |
-| `tools/generate-pipeline-index.py` | ) or line_str.startswith("# AI-related:"): continue if line_str.startswith("#") and not line_str.startswith("#!"): |
+| `tools/generate-pipeline-index.py` | MiOS system and orchestration module providing generate-pipeline-index capabilities. |
 | `tools/generate-pod-quadlets.py` | Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT). |
 | `tools/generate-uki-cmdline.py` | Flattens usr/lib/bootc/kargs.d/*.toml drop-ins into usr/lib/kernel/cmdline SSOT |
 | `tools/journal-sync.py` | Parses legacy Markdown-based memory logs and synchronizes them into structured JSONL format for the MiOS memory system, extracting timestamps, agent IDs, thoughts, and actions. |
