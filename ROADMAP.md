@@ -43,9 +43,9 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 3,280 | The reading surface. |
+| Tracked files | 3,284 | The reading surface. |
 | Tracked size | 202 MB | Two vendored assets are most of it. |
-| Shell / Python / PowerShell / Rust | 41k / 198k / 25k / 21k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 1.2x. |
+| Shell / Python / PowerShell / Rust | 41k / 198k / 25k / 22k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 1.1x. |
 | Drift checks | 210 | Falsifiability audited per check, not assumed. |
 | Units reproducing from SSOT | 15 faithful of 199 | 55 registered as drifting: the largest hole in part 1 of the thesis. |
 <!-- ROADMAP_METRICS_END -->
@@ -367,8 +367,8 @@ acceptance: |
 
 ### LANG-04 — `mios-probe`: the first port, and the pattern every later one copies  **[P1]**  (→ T-1003)
 - **What:** The `[preflight]` host probe. Greenfield, so no parity risk while the shared crate, the cross-compile, the builder stage and `--format json` are all being invented at once. Establishes the output contract: human text by default with today's exit codes (0 clean / 1 violations / 2 could-not-run), `--format json` emitting an OpenAI-format structured-output schema.
-- **Why:** `[preflight]` declares five thresholds that no code reads, while `tools/preflight.sh` hardcodes a disk floor of its own (Law 7). The table and the check disagree and neither knows it.
-- **Files:** `src/mios-rs/mios-probe/` (new), `tools/preflight.sh` (deleted on parity), `usr/share/mios/mios.toml` `[preflight]`, `Justfile`
+- **Why:** `[preflight]` declared five thresholds that no code read, while the shell probe hardcoded a disk floor of its own (Law 7). The table and the check disagreed and neither knew it. **Done** — see T-1003.
+- **Files:** `src/mios-rs/mios-probe/` (new), the shell probe (deleted on parity), `usr/share/mios/mios.toml` `[preflight]`, `Justfile`
 - **Accept:** every `[preflight]` threshold changes the verdict when changed in a COPY of the SSOT; `--format json` validates against the declared schema; exit 2 (never 0) on an unreadable input.
 - **Deps:** LANG-02, LANG-03.
 

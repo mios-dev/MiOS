@@ -821,6 +821,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-probe"
+version = "0.3.0"
+dependencies = [
+ "serde_json",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "miosd"
 version = "0.3.0"
 dependencies = [

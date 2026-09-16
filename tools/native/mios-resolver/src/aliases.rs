@@ -118,10 +118,9 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
         }
     } else if let Some(rest) = dotted_path.strip_prefix("build.") {
         let name = rest.to_uppercase().replace(['.', '-', '/'], "_");
-        if matches!(
-            name.as_str(),
-            "LOCAL_TAG" | "AI_RAM_FLOOR_GB" | "RECHUNK_MAX_LAYERS"
-        ) {
+        // AI_RAM_FLOOR_GB is deliberately absent: [ai].ram_floor_gb owns that
+        // name already, with a different value (T-1020).
+        if matches!(name.as_str(), "LOCAL_TAG" | "RECHUNK_MAX_LAYERS") {
             aliases.push(format!("MIOS_{}", name));
         } else {
             aliases.push(format!("MIOS_BUILD_{}", name));

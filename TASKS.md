@@ -988,7 +988,7 @@
 | T-1000 | P1 | planned | CI/Enforcement | GATE-04 -- the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot |
 | T-1001 | P1 | planned | CI/Enforcement | GATE-05 -- check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one |
 | T-1002 | P1 | planned | Security/Law5 | LAW5-01 -- retired lane ports are hardcoded across the code surface and no gate covers code |
-| T-1003 | P2 | planned | Provisioning/Preflight | PREFLIGHT-01 -- three of [preflight]'s five thresholds are a spec for checks that were never written. DECIDED: build a Rust host-probe in tools/native/ (operator, this session) |
+| T-1003 | P2 | done    | Provisioning/Preflight | PREFLIGHT-01 -- built as src/mios-rs/mios-probe; thresholds now resolve from SSOT and the shell probe is retired |
 | T-1004 | P2 | planned | Desktop/BrowserLaunch | BROWSER-01 -- build the launcher [browser] specifies, as a Rust static binary |
 | T-1005 | P3 | planned | Build/HWCaps | HWCAPS-01 -- build the glibc-hwcaps rebuild stage [hwcaps] specifies |
 | T-1006 | P2 | planned | Provisioning/Repos | REPOS-01 -- offline-first repo rendering restates [repos] in three places instead of reading it |
@@ -1004,6 +1004,8 @@
 | T-1016 | P1 | planned | Arch/DeadCode | UNWIRED-01 -- 112 of 176 usr/libexec/mios/<domain>/*.py modules have no caller; the gate that checks this looks elsewhere |
 | T-1017 | P2 | planned | Docs/Refs | GHOSTSTAGE-01 -- 24 modules cite 22 automation stages that do not exist, at numbers other stages now occupy |
 | T-1018 | P0 | planned | Build/Dispatch | DISPATCH-01 -- 18 bake-time gates prefer the Rust path via a PATH lookup that cannot resolve; the Rust tier never runs |
+| T-1019 | P3 | planned | Provisioning/Preflight | PFDISK-01 -- the disk floor is measured with `df -BG`, which rounds UP, so the check is optimistic |
+| T-1020 | P1 | planned | SSOT/Law9 | ALIAS-01 -- MIOS_AI_RAM_FLOOR_GB had two sources and table order picked the winner; the gate that catches it skips locally |
 
 ---
 
@@ -10901,8 +10903,9 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Where:** `src/mios-rs/mios-probe/` (new), `usr/share/mios/mios.toml` `[preflight]`, `preflight.ps1`, `tools/preflight.sh` (deleted on parity), `Justfile`, `usr/share/mios/mios.toml` `[ssot_tables]`
 **Done When:** every key in [preflight] either has an enforcer that observably changes behaviour when the key changes, or no longer exists; require_admin = false and require_virt = false demonstrably relax their checks; `--format json` validates against the declared schema; an unreadable input exits 2; and [preflight] leaves the unconsumed register honestly rather than by a predicate change.
 **Why:** A declared threshold with no enforcer is worse than no threshold: it reads as a guarantee the installer does not provide, and an operator raising min_ram_gb gets no protection at all.
-**Dep:** T-1008
-**Status:** planned | **Domain:** Provisioning/Preflight | **Who:** architect
+**Done (this branch):** `src/mios-rs/mios-probe` -- the ADR-0021 probe category. `[preflight.build]` now declares the tool list, the required files and the build-disk floor that the shell probe held as literals; `[preflight]`'s five host thresholds are read and each reports NOT APPLICABLE by name on a platform where it cannot be evaluated, rather than passing silently. Parity proved four ways against the script it replaces -- happy path, every required tool absent, one absent, and the required file absent -- all BYTE-IDENTICAL including ANSI colour and exit code. The fifth control is the fix itself: raising `[preflight.build].min_disk_free_gb` in a COPY of the SSOT flips the binary to [WARN] while the script stays [OK], because 20 was baked into it. The script is deleted in the same commit, per ADR-0021. `[preflight]` leaves the unconsumed register (4 -> 3).
+**Dep:** -- (mios-probe is invoked at build-host time by `just preflight`, not through the dead bake-time dispatch, so this did NOT wait on T-1018)
+**Status:** done | **Domain:** Provisioning/Preflight | **Who:** architect
 
 
 ## T-1004 -- BROWSER-01: build the launcher [browser] specifies, as a Rust static binary  (WS-APP | P2 | M)
@@ -11054,3 +11057,23 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Note:** Detected by the new `check_build_tool_dispatch`, registered shrink-only at the measured 18 so the count can only fall and a nineteenth fails immediately. `check_no_silent_tool_skips` does not cover this -- it looks for `command -v ... || return 0`, and only inside `98-drift-checks.sh` and `lint-*.sh`.
 **Dep:** --
 **Status:** planned | **Domain:** Build/Dispatch | **Who:** architect
+
+## T-1019 -- PFDISK-01: the build-disk floor is measured with a rounding-up tool  (WS-BUILD | P3 | S)
+**Goal:** `mios-probe build` reports free space from `df -BG`, which scales to whole gigabyte blocks and rounds UP. A filesystem with 26.2 GiB free reports 27G, so a floor of 27 passes on 26.2. The optimism is bounded at one gibibyte and it is in the wrong direction for a *minimum*.
+**What+How:** Inherited deliberately, not introduced: `df -BG` is the exact field the retired shell probe read, and ADR-0021's parity bar is byte-identical output, so the port kept it rather than smuggling a behaviour change into a migration commit. Correcting it is therefore its own decision: read `df -Pk` and truncate, which is conservative and exact, at the cost of every reported number dropping by up to 1 and the printed line no longer matching what operators have seen for the life of the script. Decide whether the displayed figure and the compared figure should even be the same number -- showing the rounded-up human figure while comparing the truncated one is also defensible, and is arguably what a reader expects.
+**Where:** `src/mios-rs/mios-probe/src/probes.rs` (`free_gib`), `usr/share/mios/mios.toml` `[preflight.build].min_disk_free_gb`, `[preflight].min_disk_free_gb`
+**Done When:** a filesystem with less than the floor free never reports [OK], proved with a fixture whose free space is just under a whole-gigabyte boundary.
+**Why:** Small, but it is a threshold check that can pass below its threshold, and the whole point of T-1003 was that the threshold and the check had stopped agreeing.
+**Dep:** --
+**Status:** planned | **Domain:** Provisioning/Preflight | **Who:** architect
+
+## T-1020 -- ALIAS-01: one emitted name, two sources, and table order decided which won  (WS-GUP | P1 | M)
+**Goal:** `MIOS_AI_RAM_FLOOR_GB` was emitted from TWO SSOT declarations with DIFFERENT values, and which one survived depended on the order tables happened to be walked. `[ai].ram_floor_gb = 8`, and `tools/native/mios-resolver/src/aliases.rs` also mapped `[build].ai_ram_floor_gb = 12` onto the same unprefixed name via an explicit allowlist (`"LOCAL_TAG" | "AI_RAM_FLOOR_GB" | "RECHUNK_MAX_LAYERS"`). That is Law 9 ONE-CANONICAL-NAME: one name, one value.
+**What+How:** Found because adding an unrelated `[build.tool_dispatch]` table flipped the winner. The Rust resolver started emitting 12 where it had emitted 8, and `check_resolver_differential_parity` went from 12 divergences to 13, one over its ceiling. Nothing about the new table touched RAM; it changed the walk order, and the value followed. FIXED here by dropping `AI_RAM_FLOOR_GB` from that allowlist so `[build].ai_ram_floor_gb` emits only `MIOS_BUILD_AI_RAM_FLOOR_GB`, which is what the Python twin always did. Verified: divergences 13 -> 12, and the set is now identical to the set before the new table existed; restoring the allowlist entry puts it straight back to 13.
+  What remains is the class, not this instance. `get_aliases` has a dozen prefix rules with hand-maintained exception lists like this one; any of them can claim a name another table already owns, and nothing checks for it. Add a gate: every emitted `MIOS_*` name must have exactly ONE producing dotted path, measured across both twins. `LOCAL_TAG` and `RECHUNK_MAX_LAYERS` are still on that allowlist and want the same audit.
+**Where:** `tools/native/mios-resolver/src/aliases.rs`, `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`, `automation/98-drift-checks.sh`, `usr/share/mios/mios.toml` `[ai].ram_floor_gb` + `[build].ai_ram_floor_gb`
+**Done When:** a gate reports any `MIOS_*` name produced by more than one dotted path and fails; planting a second producer for an existing name fails it; the remaining allowlist entries are each shown to have a single producer.
+**Why:** A name whose value depends on iteration order is not a configuration key, it is a race. Neither name has a consumer today, which is the only reason this was harmless -- the next key to collide may not be so lucky.
+**Note:** The gate that caught it is invisible locally. `check_resolver_differential_parity` prints "mios-resolver binary not built locally -- advisory skip" and exits 0 when the binary is absent, so a full local gate run reports 20 violations while never comparing the resolvers at all. The failure only appeared in CI, which builds the binary. Build it (`cd tools/native && cargo build -p mios-resolver`) before trusting a local gate run, and see T-1008: a skip on a TRACKED subject reads as a pass.
+**Dep:** --
+**Status:** planned | **Domain:** SSOT/Law9 | **Who:** architect
