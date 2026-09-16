@@ -48,8 +48,8 @@
 # ...except the w10-live-boot staging dump: path-mangled edit-target artifacts
 # from an unlanded design session ("EDIT TARGET: C:\MiOS\Justfile ..."), not
 # documentation. Its two real design notes are .md and stay tracked.
-docs/agy/w10-live-boot/*
-!docs/agy/w10-live-boot/*.md
+docs/design/w10-live-boot/*
+!docs/design/w10-live-boot/*.md
 # Same trap as tests/: the block-all `/*` rule never un-ignored installation/,
 # so installation/mios-common.ps1 -- which Get-MiOS.ps1, mios-install.ps1 and
 # the Pester suite all dot-source -- was absent from every clean checkout.

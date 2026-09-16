@@ -999,6 +999,8 @@
 | T-1011 | P2 | planned | Build/Rust | LANG-07 -- mios-serve: the daemon tier |
 | T-1012 | P2 | planned | Build/Rust | LANG-07 -- cross-compile the PowerShell host surface, keeping only the paste-able entry point |
 | T-1013 | P1 | planned | SSOT/Law9 | DUPVAL-01 -- the value-duplication ratchet has been over its ceiling on main for some time; 412 groups vs 407 |
+| T-1014 | P1 | planned | Docs/Governance | ADRNS-01 -- docs/adr/ is a second ADR namespace with colliding numbers, outside the index and the template |
+| T-1015 | P1 | planned | Build/Rust | MIGRATE-01 -- all four [migration].use_rust_resolver_* toggles say true and nothing reads them |
 
 ---
 
@@ -3840,7 +3842,7 @@ Sub-tasks to split out as each is scoped: AP/radio plane Â· mesh control plane Â
 **Goal:** E-08 One canonical document per subject. Two copies of an architecture under two names is a naming contradiction that regenerates itself every time either is edited.
 **What+How:** MEASURED, exactly:
 
-| | `docs/agy/doc-mios-metal.md` | `usr/share/doc/mios/concepts/mios-metal-architecture.md` |
+| | `docs/design/doc-mios-metal.md` | `usr/share/doc/mios/concepts/mios-metal-architecture.md` |
 |---|---|---|
 | lines | 224 | 224 |
 | lines identical to the other | **207** | **207** |
@@ -3850,12 +3852,12 @@ They are one document with a find-and-replace applied. One says *"**MiOS-Metal**
 
 **The names need not conflict, and the resolution should keep both.** Per T-331 the operator's definition makes **MiOS-Metal the BOX** -- the hardware appliance. "MiOS-Metal" is a good name for the *metal-owning host plane image* that runs on that box and boots the MiOS guest. Box and plane are different levels, and a document about the plane may legitimately be called Metal. What is not legitimate is two full copies where editing one silently diverges from the other.
 
-**Constraint on the fix:** `docs/agy/` is NOT under `usr/`, so it is repo-only and never deployed; `usr/share/doc/mios/concepts/` ships to the booted host. The canonical text must therefore live in the shipped path, and the `docs/agy/` copy become a pointer -- not the other way round.
+**Constraint on the fix:** `docs/design/` is NOT under `usr/`, so it is repo-only and never deployed; `usr/share/doc/mios/concepts/` ships to the booted host. The canonical text must therefore live in the shipped path, and the `docs/design/` copy become a pointer -- not the other way round.
 
 **One detail to settle, not to guess:** the shipped Metal doc's ASCII diagram at line 33 still labels the box `MiOS-MINI` (the find-and-replace missed it). Under T-331 that label is arguably CORRECT -- the box IS a MiOS-Metal, and the host plane inside it is Metal. Decide deliberately whether the diagram names the box or the plane, and make the label match; do not "fix" it reflexively to Metal.
-**Where:** `docs/agy/doc-mios-metal.md`, `usr/share/doc/mios/concepts/mios-metal-architecture.md`, `usr/share/doc/mios/reference/audit-mios-metal.md`, `usr/share/doc/mios/README.md`, `automation/98-drift-checks.sh` (`check_metal_vfio`).
-**Done When:** one canonical copy; the other is a pointer; the diagram label is a decision rather than a leftover; and a gate catches the next near-duplicate pair -- `docs/agy/dedup-campaign.md` already exists, so this belongs to that campaign rather than to a one-off deletion here.
-**Note:** deliberately NOT fixed in this change. `docs/agy/` is another agent's working tree and it has an in-flight dedup campaign; deleting or rewriting its file mid-flight would collide. This entry hands over the measurement.
+**Where:** `docs/design/doc-mios-metal.md`, `usr/share/doc/mios/concepts/mios-metal-architecture.md`, `usr/share/doc/mios/reference/audit-mios-metal.md`, `usr/share/doc/mios/README.md`, `automation/98-drift-checks.sh` (`check_metal_vfio`).
+**Done When:** one canonical copy; the other is a pointer; the diagram label is a decision rather than a leftover; and a gate catches the next near-duplicate pair -- `docs/design/dedup-campaign.md` already exists, so this belongs to that campaign rather than to a one-off deletion here.
+**Note:** deliberately NOT fixed in this change. `docs/design/` is another agent's working tree and it has an in-flight dedup campaign; deleting or rewriting its file mid-flight would collide. This entry hands over the measurement.
 **Why:** the duplication is what let ADR-0016 D3 assert a wrong name for a whole session without anything contradicting it -- the doc that disagreed was a copy nobody diffed. | **Domain:** Docs/SSOT | **Who:** architect
 
 ## T-333 -- MINI-05: every capability a MiOS-Metal is defined by is single-node or absent  (WS-MINI | P0 | XL)
@@ -10994,3 +10996,22 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Note:** Not introduced by PR #16. Measured both ways: origin/main is 412 groups, PR #16 is 411 -- the branch removes one group (MIOS_SSOT_TABLES_MAX_UNCONSUMED moved 9 -> 4 as the dead-SSOT register drained, joining an existing group instead of forming a new one) and adds none.
 **Dep:** --
 **Status:** planned | **Domain:** SSOT/Law9 | **Who:** architect
+
+## T-1014 -- ADRNS-01: docs/adr/ is a second ADR namespace, outside the index and the template  (WS-GOV | P1 | M)
+**Goal:** `docs/adr/` holds two decision records, `0004-version-floating-and-sidecars.md` and `0005-unified-native-resolver.md`. Both numbers are already taken in the canonical namespace by different decisions -- `usr/share/doc/mios/adr/0004-github-forgejo-equal-publisher.md` and `0005-sovereign-run-off-m-drive.md`. `[templates.adr].match` is `^usr/share/doc/mios/adr/\d{4}-.*\.md$`, so nothing in `docs/adr/` is reached by the ADR template, the ADR index (`ADR.md`), `check_template_conformance` or `check_adr_index`. Two accepted decisions sit outside every governance surface that exists to find them.
+**What+How:** This is not cosmetic. ADR-0005 decides "Collapse all SSOT resolver surfaces into a single compiled Rust crate: tools/native/mios-resolver", with a strangler cutover sequence and `[migration]` rollback toggles -- a decision ADR-0021 partly contradicted while writing decision 5, precisely because the shadow namespace made it invisible. Promote both into `usr/share/doc/mios/adr/` with fresh ordinals (the scaffolder now allocates the next free one), preserving content verbatim and adding a provenance line naming the original path and number. No inbound reference cites either file by number -- measured, every reference is to the directory -- so renumbering breaks nothing. Then reconcile ADR-0021 decision 5 against ADR-0005's replacement decision and mark whichever is superseded. Consider a check that a `\d{4}-.*\.md` ADR-shaped file outside the canonical directory is itself a violation, so a third namespace cannot appear.
+**Where:** `docs/adr/` (emptied), `usr/share/doc/mios/adr/`, `ADR.md`, `usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md`, `usr/share/mios/mios.toml` `[templates.adr]`, `automation/98-drift-checks.sh`
+**Done When:** every ADR in the tree is under the canonical directory, carries a unique ordinal, passes `check_template_conformance`, and appears in the regenerated `ADR.md`; a planted ADR-shaped file outside the canonical directory fails a check.
+**Why:** The governance model (ADR-0007) is "an ADR plus a `[laws]` row plus a drift-check". An ADR the drift-checks cannot see is a decision the governance model does not govern -- and this one had already caused a live contradiction before anyone noticed it existed.
+**Dep:** --
+**Status:** planned | **Domain:** Docs/Governance | **Who:** architect
+
+## T-1015 -- MIGRATE-01: the Rust-resolver cutover toggles all say true and nothing reads them  (WS-LANG | P1 | M)
+**Goal:** `[migration]` declares `use_rust_resolver_shell = true`, `use_rust_resolver_powershell = true`, `use_rust_resolver_python = true`, `use_rust_resolver_install_env = true`. Measured across `*.py`, `*.sh`, `*.ps1` and `*.rs`, excluding the generated globals twins: **zero consumers**. All four read as "the Rust resolver is live on this surface"; none of them does anything.
+**What+How:** ADR-0005 accepted a strangler cutover -- shell, then PowerShell, then Python, then install.env, then the names registry -- with these toggles as the **rollback safety mechanism**: flip one to false and fall back to the legacy shim "without build reverts". Neither half exists. The cutover did not happen (the Python and bash twins are still the live readers), and the rollback lever is a comment. Either wire them -- each surface checks its toggle and dispatches to `mios-resolver` or the legacy path, which makes the cutover incremental and reversible exactly as designed -- or delete them and say plainly in ADR-0005's successor that the cutover is unstarted. Wiring is the better answer and it is the same work as T-1008; a toggle nobody reads set to `true` is worse than an absent one because it reads as a completed migration.
+**Where:** `usr/share/mios/mios.toml` `[migration]`, `tools/lib/userenv.sh` + `usr/lib/mios/userenv.sh`, `usr/lib/mios/mios_toml.py`, `automation/lib/globals.ps1` (generated -- its generator), `tools/native/mios-resolver`, `usr/share/doc/mios/adr/` (ADR-0005's successor)
+**Done When:** flipping any `use_rust_resolver_*` to false in a COPY of the SSOT observably changes which implementation resolves that surface, proved per surface; or the keys are gone and the ADR says the cutover is unstarted.
+**Why:** `[migration]` as a whole passes `check_no_inert_ssot_tables` because its `[migration]` database keys ARE consumed -- so a table-level consumption test cannot see that half its keys are dead. That is a measured gap in T-996's predicate worth recording on its own: table-level access is not key-level access.
+**Note:** The same gap means other registered-as-consumed tables may carry dead keys. A key-level pass over the tables T-996 cleared is a follow-up.
+**Dep:** --
+**Status:** planned | **Domain:** Build/Rust | **Who:** architect

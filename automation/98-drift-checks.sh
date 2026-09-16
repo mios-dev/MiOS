@@ -4077,7 +4077,7 @@ check_unit_dependency_closure() {
     echo "[98-drift-checks]   All systemd unit and Quadlet dependency references resolved cleanly"
 }
 
-# Documentation ratchet: see docs/agy/doc-generative-documentation.md
+# Documentation ratchet: see docs/design/doc-generative-documentation.md
 # --- documentation coverage count meets or exceeds established ratchet floor ---
 check_docs_ratchet() {
     echo "[98-drift-checks] documentation coverage count meets or exceeds established ratchet floor"
@@ -4101,7 +4101,7 @@ check_no_generated_prose_in_resolvers() {
     echo "[98-drift-checks]   $out"
 }
 
-# Derived doc sections must match SSOT: see docs/agy/doc-generative-documentation.md
+# Derived doc sections must match SSOT: see docs/design/doc-generative-documentation.md
 # --- generated manual chapters in docs match SSOT output verbatim ---
 check_manual_generated() {
     echo "[98-drift-checks] generated manual chapters in docs match SSOT output verbatim"

@@ -1025,7 +1025,7 @@ acceptance: |
   path exists to move prose out of source and into the manual.
 -->
 
-*The header engine, lexer/classifier, marker splicer and ratchet already exist and work — the programme is not a rewrite. Mapped end to end in a 2026-08 cross-repo research pass over `mios.git` and `mios-bootstrap.git`; the two missing links are `harvest` (nothing can move a comment into a doc) and the derived surfaces the derivers were specified for. Programme document: `docs/agy/doc-generative-documentation.md`; tasks AGY-1580..1594 in `AGY-TASKS.md`.*
+*The header engine, lexer/classifier, marker splicer and ratchet already exist and work — the programme is not a rewrite. Mapped end to end in a 2026-08 cross-repo research pass over `mios.git` and `mios-bootstrap.git`; the two missing links are `harvest` (nothing can move a comment into a doc) and the derived surfaces the derivers were specified for. Programme document: `docs/design/doc-generative-documentation.md`; tasks AGY-1580..1594 in `AGY-TASKS.md`.*
 
 ### DOCGEN-01 — Gate the corpus ledger and repair the landing predicate  **[P1] ✅ DONE**  (→ T-294)
 - **What:** `Policy.landing_min_word_ratio` wired from `[docs]` so `mios-manual landed()` stops raising; `check_manual_ledger` + negative test; ledger regenerated and made the last step of `tools/sync-generated.sh`; both manual surfaces registered in the Law-8 projection registry; `test_mios_comments.py` wired into the gate.

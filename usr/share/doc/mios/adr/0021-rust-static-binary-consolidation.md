@@ -7,7 +7,7 @@ status: accepted
 date: 2026-09-16
 deciders: [operator, ai-pair]
 tags: [rust, languages, consolidation, static-binaries, tooling, gates, tech-debt]
-laws: [7, 8, 9, 12, 13, 14, 16]
+laws: [5, 7, 8, 9, 12, 13, 14, 16]
 ssot_keys: ["legibility.max_tooling_python_lines", "legibility.python_ai_plane_prefixes"]
 related_ws: [WS-LANG, WS-DEBT, WS-TEMPLATE]
 supersedes: []
@@ -109,6 +109,22 @@ to exist, would trade a parity risk for a boot risk.
 > consumer going through it silently disagrees with both other twins. Measured:
 > **11 Rust files parse `mios.toml` without the resolver crate.** The decision
 > stands; its subject is renamed and its scope is consolidation, not creation.
+>
+> **And it partly contradicts an accepted decision.** `docs/adr/0005-unified-native-resolver.md`
+> — invisible from here because `docs/adr/` is a *second* ADR namespace with its
+> own 0004/0005 colliding with the canonical ones, outside the ADR template, the
+> ADR index and `check_template_conformance` — already decided: "Collapse all
+> SSOT resolver surfaces into a single compiled Rust crate:
+> `tools/native/mios-resolver`", with a strangler cutover sequence (shell →
+> PowerShell → Python → install.env → names registry) and `[migration]` rollback
+> toggles. That is *replacement*, which this ADR filed under "Open". The
+> reconciliation is T-1014.
+>
+> Measured, and this is the part that matters: `[migration]` declares
+> `use_rust_resolver_shell`, `_powershell`, `_python` and `_install_env` all
+> **`true`**, and **nothing reads any of them**. The cutover ADR-0005 accepted
+> was never wired; the toggles that claim it is live are inert, and so is the
+> rollback safety they were the mechanism for. T-1015.
 
 **6 — Output contract.** Human text on stdout by default, with today's exit
 codes preserved exactly — `0` clean, `1` violations, `2` could-not-run — so the

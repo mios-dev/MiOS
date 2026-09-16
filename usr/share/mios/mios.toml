@@ -10736,7 +10736,7 @@ port_clean = [
 ]
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.
-# Method + full census: docs/agy/doc-generative-documentation.md
+# Method + full census: docs/design/doc-generative-documentation.md
 max_unmigrated_narrative = 0   # MIGRATE blocks still in source
 max_overlong_hints       = 0    # AI-hint headers over [ai_tag].hint_max_chars
 
@@ -10808,7 +10808,7 @@ ref_allowlist = [
   "{bib",
   "wsl2}.toml",
   "automation/lib/bake.sh",
-  "docs/agy/doc-mios-metal.md",
+  "docs/design/doc-mios-metal.md",
   "usr/share/mios/mini/headscale-policy.hujson",
   "usr/lib/greenboot/check/required.d/41-mios-critical-services.sh",
   "usr/libexec/mios/mios-greenboot-critical-gen",
@@ -11527,7 +11527,7 @@ target    = "bare metal, headless"
 config    = ["metal"]
 archetype = "headless"
 artifacts = ["iso", "raw"]
-doc       = "docs/agy/doc-mios-metal.md"
+doc       = "docs/design/doc-mios-metal.md"
 status    = "design"
 
 [variants.entries.mios-xbox]
