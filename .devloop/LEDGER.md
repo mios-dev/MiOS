@@ -155,3 +155,42 @@ invisible for as long as the dispatch has been dead:
 
 **Unverified, still:** no bake has been run, by anyone, at any point. Every conversion is proved by
 offline output diffing and negative controls only.
+
+---
+
+## 2026-09-16 (late) · the bake's own gate was reporting 55 passes it never computed · status: partial
+
+**Read this before trusting any `miosd drift-check` output from before `5d66f508`.** 54 of 77
+`Check::run` impls took `_ctx`, never read the tree, and returned a constant `Verdict::Pass` with
+a message claiming verification. Pointed at a directory that does not exist the suite reported
+**"55 passed"**. `Containerfile:103` runs it at every bake. They now say
+`Verdict::Skip("NOT IMPLEMENTED: ...")` and are registered shrink-only at `[drift.unimplemented]`,
+gated by `mios-gate drift-stubs`.
+
+**What the native suite actually verifies: 18 things, not 73.** Real tree now reads
+`18 passed, 1 failed, 55 skipped`.
+
+**That one failure is real and was invisible** — `check_backfill_coverage: Table 'system_logs' has
+'emb vector' but is not in PK_MAP or _BACKFILL_EXEMPT`, failing at every bake under fifty-five
+claims that could not fail. Filed T-1042. And exactly one check still passes against a
+nonexistent root (`check_pipeline_numbering` calls an empty set dense) — filed T-1043 as the
+template for auditing the other 20 ctx-reading checks.
+
+**CI gave its first clean verdict of the session** on `f4424e50`: 9 of 10 steps green, only the
+drift-gate tier failing, with **7 negative-test failures, down from the baseline 8**. Every one is
+`check_X failed on the unmutated tree` for the six standing-red checks. Nothing new is ours.
+
+**Gate baseline: still 19 violations from six checks**, count-for-count, across all 14 commits.
+
+**Three shrink-only registers now exist and all three treat a ceiling above its measurement as a
+violation:** `[build.tool_dispatch]` (14), `[build.phases].unregistered` (1),
+`[drift.unimplemented]` (54), plus `[security.credential_literals]` which now pins VALUES not keys.
+
+**Four decisions are with the operator** and are blocking, not optional: registering
+`55-native-build.sh` (or dropping its `/usr/bin` symlink); stage 34's acceptance test inverting
+because the Rust path is the correct one; the 44-port three-spelling collapse that
+`naming-unification.md` already decided and nobody executed; and which of the two shipping
+bake-plan implementations owns stage 85.
+
+**Trap added:** `$?` after a pipe reports the pipe's status — walked into for the THIRD time today,
+on `mios-gate` output. It is in this ledger twice now. Capture the status without a pipe.
