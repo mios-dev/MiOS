@@ -875,7 +875,7 @@ theme: Desktop & UX
 status: done
 priority: P1
 laws: [1, 7, 8, 9, 13]
-ssot_keys: ["dotfiles.registry", "colors", "theme", "appearance", "terminal", "identity", "btop", "shell", "editor", "git", "ssh"]
+ssot_keys: ["dotfiles.registry", "colors", "theme", "appearance", "terminal", "identity", "btop", "shell", "ssh"]
 adr: [10]
 deps: []
 acceptance: |
