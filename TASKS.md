@@ -992,6 +992,12 @@
 | T-1004 | P2 | planned | Desktop/BrowserLaunch | BROWSER-01 -- build the launcher [browser] specifies, as a Rust static binary |
 | T-1005 | P3 | planned | Build/HWCaps | HWCAPS-01 -- build the glibc-hwcaps rebuild stage [hwcaps] specifies |
 | T-1006 | P2 | planned | Provisioning/Repos | REPOS-01 -- offline-first repo rendering restates [repos] in three places instead of reading it |
+| T-1007 | P1 | planned | Build/Rust | LANG-02 -- one src/mios-rs workspace: absorb tools/native, vendor deps, builder stage, cross-compiled targets |
+| T-1008 | P1 | planned | Build/Rust | LANG-03 -- mios-ssot resolver crate, the third Law-13 twin |
+| T-1009 | P1 | planned | Build/Rust | LANG-05 -- mios-gate: port the drift checks strangler-style, byte-identical plus surviving negative controls |
+| T-1010 | P2 | planned | Build/Rust | LANG-06 -- mios-gen: port the generate-*/render-* SSOT projectors |
+| T-1011 | P2 | planned | Build/Rust | LANG-07 -- mios-serve: the daemon tier |
+| T-1012 | P2 | planned | Build/Rust | LANG-07 -- cross-compile the PowerShell host surface, keeping only the paste-able entry point |
 
 ---
 
@@ -10885,10 +10891,11 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 ## T-1003 -- PREFLIGHT-01: three of [preflight]'s five thresholds are a spec for checks that were never written  (WS-BUILD | P2 | M)
 **Goal:** E-07 `[preflight]` declares min_windows_build, min_disk_free_gb, min_ram_gb, require_virt and require_admin. Three of the five are enforced nowhere in the tree, and the two that are enforced are hardcoded unconditionally rather than gated by their flags.
 **What+How:** Measured: `min_windows_build`, `min_ram_gb`, `min_disk_free_gb` and the literal 22000 appear in no consumer -- only in the generated globals twins, which are projection, not consumption; the Windows build registry key is never read at all. `preflight.ps1` does check Administrator and Virtual Machine Platform, but unconditionally, so setting require_admin = false changes nothing. `tools/preflight.sh` is a different concern (build-host podman/git/just readiness), not these host thresholds. So this is wire-or-build, not wiring: implementing the three missing checks is NEW host-probing logic, and Law 14 forbids new PowerShell-as-program while the standing directive prefers a Rust static binary in tools/native/. The fork is therefore: implement in Rust and have the installer call it; or shrink [preflight] to the two thresholds that have an enforcer and gate those on their flags; or keep the keys and register the gap. Deliberately NOT decided unilaterally -- the choice sets precedent for where host-probing logic lives.
-**Where:** `usr/share/mios/mios.toml` `[preflight]`, `preflight.ps1`, `tools/native/`, `usr/share/mios/mios.toml` `[ssot_tables]`
-**Done When:** every key in [preflight] either has an enforcer that observably changes behaviour when the key changes, or no longer exists; require_admin = false and require_virt = false demonstrably relax their checks; and [preflight] leaves the unconsumed register honestly rather than by a predicate change.
+**Decided (ADR-0021, LANG-04):** Rust, and FIRST -- this is `mios-probe`, the port that sets the pattern every later one copies. Greenfield, so the first attempt carries no parity risk while the shared `mios-ssot` crate, the cross-compile, the builder stage and the `--format json` contract are all being invented at once. Output contract: human text by default with exit 0 clean / 1 violations / 2 could-not-run, `--format json` emitting an OpenAI-format structured-output schema. No panics; an unreadable input exits 2, never 0. Also folds in `tools/preflight.sh`, which hardcodes a 20 GB disk floor and a fixed tool list of its own (Law 7) while `[preflight].min_disk_free_gb` says 280 and nothing reads it -- the table and the check disagree today and neither knows it.
+**Where:** `src/mios-rs/mios-probe/` (new), `usr/share/mios/mios.toml` `[preflight]`, `preflight.ps1`, `tools/preflight.sh` (deleted on parity), `Justfile`, `usr/share/mios/mios.toml` `[ssot_tables]`
+**Done When:** every key in [preflight] either has an enforcer that observably changes behaviour when the key changes, or no longer exists; require_admin = false and require_virt = false demonstrably relax their checks; `--format json` validates against the declared schema; an unreadable input exits 2; and [preflight] leaves the unconsumed register honestly rather than by a predicate change.
 **Why:** A declared threshold with no enforcer is worse than no threshold: it reads as a guarantee the installer does not provide, and an operator raising min_ram_gb gets no protection at all.
-**Dep:** --
+**Dep:** T-1008
 **Status:** planned | **Domain:** Provisioning/Preflight | **Who:** architect
 
 
@@ -10919,3 +10926,52 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Note:** `MIOS_ONLINE_BUILD` is referenced by 05-repos.sh, 06-enable-external-repos.sh and 57-gnome.sh but is emitted by no resolver (absent from env-baseline.txt) -- a Law 9 referenced-not-emitted breach, invisible because `automation/` sits inside the closure gate's exemption (T-1000). Decide whether the build-mode toggle is SSOT-derived or a deliberate build-time-only env, and record it either way.
 **Dep:** --
 **Status:** planned | **Domain:** Provisioning/Repos | **Who:** architect
+
+## T-1007 -- LANG-02: one src/mios-rs workspace -- absorb tools/native, vendor deps, builder stage, cross-compiled targets  (WS-LANG | P1 | L)
+**Goal:** The native tier grew in two directions at once. `tools/native/` holds 14 crates (57-1,841 lines each, plus xtask); `src/mios-rs/` holds miosd (5,260), mios-node (5,838), mios-config (819) and mios-build. `mios-wallpaperd` exists in BOTH, as two different implementations -- `tools/native/mios-wallpaperd` has guiwatch.rs/host.rs/workerw.rs, `src/mios-rs/crates/mios-wallpaperd` is a bare main.rs that is not even a workspace member, so nothing has ever compiled it.
+**What+How:** ADR-0021. Collapse into `src/mios-rs/`, absorbing the tools/native crates as modules of the category crates (`mios-gate`, `mios-gen`, `mios-resolve`, `mios-serve`, `mios-probe`) and keeping every legacy binary name as a `tmpfiles.d` `L+` shim, the mechanism already used for `/usr/local/bin/mios-sys-env`. Delete the orphaned `src/mios-rs/crates/mios-wallpaperd`; `tools/native/mios-wallpaperd` is canonical. `cargo vendor` the dependency tree and commit it with Cargo.lock, so the bake reaches no network (Law 12). Compile in a Containerfile BUILDER stage and COPY the binaries into the final stage, so no Rust toolchain ships in the image. "Static" here means portable across operating systems, not merely self-contained on Fedora: `x86_64-unknown-linux-musl` fully static for the image and the initramfs, plus the Windows targets the host-side surface needs -- which rules out NSS, so no ported tool may call getpwnam.
+**Where:** `src/mios-rs/Cargo.toml`, `tools/native/*`, `src/mios-rs/crates/mios-wallpaperd` (deleted), `src/mios-rs/vendor/`, `Containerfile`, `usr/lib/tmpfiles.d/`, `.gitignore`
+**Done When:** one `cargo build --workspace` from src/mios-rs emits every binary for every declared target with the network off; `tools/native/` holds no crate of its own; every legacy binary name still resolves; `podman history` shows no cargo/rustc layer in the final image.
+**Why:** 20 crates across two roots, one duplicated, and until this session only ONE root was compiled by the gate at all -- check_native_lint ran `cargo check` on tools/native and never touched the 12k lines in src/mios-rs. That hole is closed; the fragmentation it hid is this task.
+**Dep:** --
+**Status:** planned | **Domain:** Build/Rust | **Who:** architect
+
+## T-1008 -- LANG-03: mios-ssot, the resolver crate and third Law-13 twin  (WS-LANG | P1 | M)
+**Goal:** Every category binary must read `mios.toml` through the same three-layer cascade the Python (`mios_toml.py`) and bash (`userenv.sh`) twins implement. Law 13 exists because two implementations already drifted; six to eight more would drift further.
+**What+How:** ADR-0021. One library crate, `mios-ssot`, implementing vendor(`/usr`) < host(`/etc`) < user(`~/.config`) with tier-major drop-in precedence and the empty-string-does-not-override rule, depended on by every binary in the workspace. It JOINS the twin contract rather than replacing it: making the Python and bash readers shell out to a binary would put a binary dependency in the bash bootstrap path before that binary is guaranteed to exist, trading a parity risk for a boot risk. Extend `tools/check-resolver-twin.py` to grade three implementations.
+**Where:** `src/mios-rs/mios-ssot/` (new), `tools/check-resolver-twin.py`, `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`
+**Done When:** on a planted three-layer fixture all three twins agree byte-for-byte on every emitted key; perturbing ANY ONE of the three fails the twin check and names which one.
+**Dep:** T-1007
+**Status:** planned | **Domain:** Build/Rust | **Who:** architect
+
+## T-1009 -- LANG-05: mios-gate -- port the drift checks strangler-style  (WS-LANG | P1 | XL)
+**Goal:** The 209-check gate is the repo's correctness backbone and it is bash plus Python-in-bash, where a syntax error surfaces only when the check runs. `tools/` holds 39 `check-*` and 36 `test_check-*` scripts.
+**What+How:** ADR-0021, gate by gate. `automation/98-drift-checks.sh` keeps dispatching; one check at a time it dispatches to the binary instead. The parity bar is BOTH halves: byte-identical output on the real tree -- same violations, same order, same exit code -- AND every planted negative control for that check must still fail FOR THE PLANTED REASON. Matching violation counts is not parity; that is a Count-Only Ratchet and it cannot fail. The script is deleted in the SAME commit that proves parity, so there is no dual-maintenance window and no ambiguity about which implementation is authoritative; `git revert` is the rollback. Output contract: human text by default with today's exit codes (0/1/2) so the bash gate and its logs are unchanged, `--format json` opt-in emitting an OpenAI-format structured-output schema. No panics: `clippy::unwrap_used` and `clippy::panic` denied; an unreadable input exits 2, never 0. The negative controls join `just drift-gate`.
+**Where:** `src/mios-rs/mios-gate/`, `automation/98-drift-checks.sh`, `tools/drift-checks.py`, `tools/check-*.py`, `tools/test_check-*.py`, `Justfile`
+**Done When:** for each ported check, old and new emit identical bytes on the current tree; the negative control still fails and names the planted cause; the script is gone; `[legibility].max_tooling_python_lines` and `max_shell_lines` both fall.
+**Dep:** T-1008
+**Status:** planned | **Domain:** Build/Rust | **Who:** architect
+
+## T-1010 -- LANG-06: mios-gen -- port the generate-*/render-* SSOT projectors  (WS-LANG | P2 | L)
+**Goal:** 18 `generate-*` and 4 `render-*` scripts project derived files from `mios.toml`. They are the Law-8 surface: every derived file in the tree is exactly as trustworthy as the projector that writes it.
+**What+How:** ADR-0021. Port each projector into `mios-gen`. Parity here is cheap to prove because Law 8 already guards every projection with a regenerate-and-diff drift-check -- the committed output IS the golden file. Same output contract and failure policy as mios-gate.
+**Where:** `src/mios-rs/mios-gen/`, `tools/generate-*.py`, `tools/render-*.py`, `tools/sync-generated.sh`
+**Done When:** each ported generator reproduces its committed output byte-for-byte; its drift-check still fails on a hand-edited derived file; the script is gone.
+**Dep:** T-1008
+**Status:** planned | **Domain:** Build/Rust | **Who:** architect
+
+## T-1011 -- LANG-07: mios-serve -- the daemon tier  (WS-LANG | P2 | L)
+**Goal:** The long-running native services are scattered across crates and scripts with no shared contract for config reload, logging or shutdown.
+**What+How:** ADR-0021. Consolidate the daemon tier into `mios-serve`, over `mios-ssot`. Keep `miosd` as the daemon it already is -- ADR-0021 reverses the multicall SHAPE, not miosd's existence -- and fold the smaller service crates in. Each unit keeps its own binary so Law 6's per-unit User=/Group=/Delegate= and its SELinux label stay per-capability.
+**Where:** `src/mios-rs/mios-serve/`, `usr/share/containers/systemd/`, `usr/lib/systemd/system/`
+**Done When:** every daemon in the image is a binary from this workspace; each has its own SBOM row and bound-image entry; no unit gains privilege it did not have.
+**Dep:** T-1007
+**Status:** planned | **Domain:** Build/Rust | **Who:** architect
+
+## T-1012 -- LANG-07: cross-compile the PowerShell host surface  (WS-LANG | P2 | L)
+**Goal:** 50 PowerShell files, 24,776 lines -- PowerShell outweighs Rust 1.2x in a repo whose native tier is meant to be Rust. Law 14 grandfathers it FOR PORT, not as a licence for more.
+**What+How:** ADR-0021. Cross-compile the host-side surface to the Windows targets and keep ONLY the paste-able entry point as PowerShell: `Get-MiOS.ps1`'s contract is one paste, one shot, no follow-up step, and that requires an interpreter already on the box. Everything downstream of that first paste -- the `mios` verb dispatcher backends, the provisioning steps, the build handoff -- becomes binaries invoked by a thin script.
+**Where:** `src/mios-rs/`, `*.ps1`, `Get-MiOS.ps1` (kept), `usr/share/mios/mios.toml` `[legibility]`
+**Done When:** `Get-MiOS.ps1` still runs from one paste with no follow-up step; the verb dispatcher's backends are binaries; `[legibility].max_ps_lines` falls and stays fallen.
+**Dep:** T-1007
+**Status:** planned | **Domain:** Build/Rust | **Who:** architect

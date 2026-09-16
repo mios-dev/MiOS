@@ -3580,13 +3580,27 @@ check_native_lint() {
     # which is why mios-ci.yml excludes it from both fmt and clippy. Without the
     # same exclusion this check failed on every Linux runner -- and swallowed
     # the compiler output, so it just said "cargo check failed".
-    local out
-    if out=$(cd "$ROOT/tools/native" && cargo check --workspace --exclude mios-wallpaperd 2>&1); then
-        echo "[98-drift-checks]   native workspace cargo check passed"
-    else
-        printf '%s\n' "$out" | grep -E '^(error|warning)' | head -n 10 >&2
-        _violation "tools/native cargo check failed"
-    fi
+
+    # Both roots: src/mios-rs is 12k lines the gate never compiled.
+    local ws out excl
+    for ws in tools/native src/mios-rs; do
+        if [[ ! -f "$ROOT/$ws/Cargo.toml" ]]; then
+            _violation "$ws/Cargo.toml is missing -- a tracked workspace root is gone, so this check cannot run"
+            continue
+        fi
+        excl=()
+        # Only this workspace declares the Windows-only crate; passing --exclude
+        # for a non-member is an error, so the flag follows the manifest.
+        if grep -q 'mios-wallpaperd' "$ROOT/$ws/Cargo.toml"; then
+            excl=(--exclude mios-wallpaperd)
+        fi
+        if out=$(cd "$ROOT/$ws" && cargo check --workspace "${excl[@]}" 2>&1); then
+            echo "[98-drift-checks]   $ws workspace cargo check passed"
+        else
+            printf '%s\n' "$out" | grep -E '^(error|warning)' | head -n 10 >&2
+            _violation "$ws cargo check failed"
+        fi
+    done
 }
 
 # --- shell resolver logic is identical to python/PS SSOT resolvers ---

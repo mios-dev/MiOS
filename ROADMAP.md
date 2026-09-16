@@ -43,9 +43,9 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 3,275 | The reading surface. |
+| Tracked files | 3,276 | The reading surface. |
 | Tracked size | 202 MB | Two vendored assets are most of it. |
-| Shell / Python / PowerShell / Rust | 41k / 197k / 25k / 20k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 1.2x. |
+| Shell / Python / PowerShell / Rust | 41k / 198k / 25k / 20k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 1.2x. |
 | Drift checks | 209 | Falsifiability audited per check, not assumed. |
 | Units reproducing from SSOT | 15 faithful of 199 | 55 registered as drifting: the largest hole in part 1 of the thesis. |
 <!-- ROADMAP_METRICS_END -->
@@ -324,6 +324,8 @@ status: done
 > **Implementation Note (AGY-51):** The native Rust workspace has been scaffolded at `tools/native/` (containing the `mios-version-check` crate). Since no Rust toolchain is present in the host environment, the binary compilation is deferred via `TODO(agy): cargo build`.
 >
 > **Update (Law 14 landed):** `[laws]` Law 14 **TARGET-LANGUAGES** now MANDATES the language-per-domain contract globally (all platforms), enforced by drift-gate 63 (`check_target_languages`) — no new C#/Batch/Go; existing C# grandfathered in `[laws.target_languages]`. Rust is now **provided as a dependency**, installed during staging via the shared installer contract (`Install-MiosRust` on Windows — winget/rustup-GNU, no MSVC; `mios_ensure_rust` on Fedora — dnf/rustup), so every native component builds on any Windows or Fedora machine. **Next (T-275):** port the first user-facing native component — consolidate the WebView2 wallpaper host + WSLg gui-watch into ONE silent Rust daemon (`wry` WorkerW host + `windows-service`), dropping the Run keys + the terminal/window flash.
+>
+> **Update (ADR-0021 — consolidation shape decided):** LANG-01's single-`miosd`-multicall design is **reversed**. The native tier is **6–8 separate binaries named by function** — `mios-gate`, `mios-gen`, `mios-resolve`, `mios-serve`, `mios-probe` — over one shared `mios-ssot` crate, with legacy names surviving as `tmpfiles.d` `L+` symlink shims. Separate binaries win on per-binary SELinux labels/capabilities, per-binary SBOM rows and signatures; multicall wins only on image size. Workspace is `src/mios-rs/`; the 14 crates in `tools/native/` are absorbed as modules. Migration is strangler, gate by gate, with byte-identical parity **plus** surviving negative controls, and the script deleted in the same commit that proves parity. Script mass is ratcheted shrink-only via `[legibility]`. See LANG-02..LANG-07 below (→ T-1003, T-1007..T-1012).
 -->
 theme: OS-Image & Build
 status: proposed
@@ -346,6 +348,50 @@ acceptance: |
 - **Files:** the new cargo workspace (location OPEN — `C:\MiOS\src\` is occupied by `mios-launch.cs`+`autounattend/`; candidate `C:\MiOS\tools\native\` or `src\mios-rs\`), `Containerfile` (early Rust stage + `COPY`), `automation/build.sh` (→ thin shim), `automation/98-drift-checks.sh` (checks ported one at a time), `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` (collapse to the crate), the ~150 verb backends.
 - **Accept:** `miosd` bakes in a cached stage and is invoked by unchanged thin RUNs; the first ported tool runs byte-identical to the bash it replaces, then the bash is deleted; the resolver twin is one crate with pyo3 + `--shell` faces and `check_userenv_parity` is retired.
 - **Deps:** WS-DEBT Phase −1 (shellcheck gate + one version token + one TOML reader unblock the port). ADR-0011. **OPEN QUESTIONS:** native-workspace location; Go escape-hatch; pyo3-vs-subprocess for the AI-plane resolver binding.
+
+*The open questions above are now closed by ADR-0021: the workspace is `src/mios-rs/`; Go stays rejected; the resolver binding is a shared `mios-ssot` crate that JOINS the Law-13 twins rather than replacing them, so bash never depends on a binary it might not have yet.*
+
+### LANG-02 — Workspace foundation: one `src/mios-rs/`, vendored deps, a builder stage, cross-compiled targets  **[P1]**  (→ T-1007)
+- **What:** Collapse the two workspaces into `src/mios-rs/`. Absorb the 14 crates under `tools/native/` as modules of the category crates; keep their binary names as `tmpfiles.d` `L+` shims. Delete the orphaned `src/mios-rs/crates/mios-wallpaperd` (a bare `main.rs`, not even a workspace member) in favour of `tools/native/mios-wallpaperd`, which is the real one. `cargo vendor` the dependency tree and commit it with `Cargo.lock` so the bake reaches no network (Law 12). Build in a Containerfile **builder stage** and `COPY` the binaries into the final stage, so no Rust toolchain ships in the image. Targets: `x86_64-unknown-linux-musl` fully static, plus the Windows targets the host-side surface needs.
+- **Why:** 20 crates across two roots, one of them duplicated with two different implementations, and only one root was even compiled by the gate. "Static" here means portable across operating systems, not merely self-contained on Fedora — so no binary may depend on the host's glibc or NSS.
+- **Files:** `src/mios-rs/Cargo.toml`, `tools/native/*` (absorbed), `src/mios-rs/crates/mios-wallpaperd` (deleted), `src/mios-rs/vendor/`, `Containerfile`, `usr/lib/tmpfiles.d/`, `.gitignore`
+- **Accept:** one `cargo build --workspace` from `src/mios-rs/` produces every binary for every declared target with the network off; `tools/native/` holds no crate of its own; every legacy binary name still resolves through a shim; the image contains no cargo/rustc.
+- **Deps:** ADR-0021.
+
+### LANG-03 — `mios-ssot`: the resolver crate, third twin under Law 13  **[P1]**  (→ T-1008)
+- **What:** One library crate implementing the three-layer cascade (vendor `/usr` < host `/etc` < user `~/.config`) with tier-major drop-in precedence, that every category binary depends on. Extend the existing twin-agreement test so it grades three implementations, not two.
+- **Why:** Eight binaries each parsing `mios.toml` would drift eight ways; Law 13 exists because two already did.
+- **Files:** `src/mios-rs/mios-ssot/` (new), `tools/check-resolver-twin.py`, `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`
+- **Accept:** for every key the resolver emits, all three twins agree byte-for-byte on a planted three-layer fixture, including the empty-string-does-not-override rule; the twin check fails when any one of the three is perturbed.
+- **Deps:** LANG-02.
+
+### LANG-04 — `mios-probe`: the first port, and the pattern every later one copies  **[P1]**  (→ T-1003)
+- **What:** The `[preflight]` host probe. Greenfield, so no parity risk while the shared crate, the cross-compile, the builder stage and `--format json` are all being invented at once. Establishes the output contract: human text by default with today's exit codes (0 clean / 1 violations / 2 could-not-run), `--format json` emitting an OpenAI-format structured-output schema.
+- **Why:** `[preflight]` declares five thresholds that no code reads, while `tools/preflight.sh` hardcodes a disk floor of its own (Law 7). The table and the check disagree and neither knows it.
+- **Files:** `src/mios-rs/mios-probe/` (new), `tools/preflight.sh` (deleted on parity), `usr/share/mios/mios.toml` `[preflight]`, `Justfile`
+- **Accept:** every `[preflight]` threshold changes the verdict when changed in a COPY of the SSOT; `--format json` validates against the declared schema; exit 2 (never 0) on an unreadable input.
+- **Deps:** LANG-02, LANG-03.
+
+### LANG-05 — `mios-gate`: the 39 `check-*` scripts and the drift-check body  **[P1]**  (→ T-1009)
+- **What:** Port the drift checks one at a time, strangler-style: `automation/98-drift-checks.sh` keeps dispatching, but to the binary. Each port proves **byte-identical output on the real tree** — same violations, same order, same exit code — **and** that every planted negative control still fails *for the planted reason*; the script is deleted in the same commit. The negative controls join `just drift-gate` so the falsifiability half stays continuous.
+- **Why:** The 209-check gate is the repo's correctness backbone and it is bash + Python-in-bash, where a syntax error surfaces only when the check runs.
+- **Files:** `src/mios-rs/mios-gate/`, `automation/98-drift-checks.sh`, `tools/drift-checks.py`, `tools/check-*.py`, `tools/test_check-*.py`
+- **Accept:** for each ported check, old and new emit identical bytes on the current tree; the negative control for that check still fails and names the planted cause; the script is gone from the tree.
+- **Deps:** LANG-03.
+
+### LANG-06 — `mios-gen`: the 18 `generate-*` and 4 `render-*` projectors  **[P2]**  (→ T-1010)
+- **What:** Port the SSOT projectors. Law 8 already guards each with a regenerate-and-diff check, so parity is verified by machinery that exists.
+- **Why:** Generators are the Law-8 surface: every derived file in the tree is only as trustworthy as the projector that writes it.
+- **Files:** `src/mios-rs/mios-gen/`, `tools/generate-*.py`, `tools/render-*.py`, `tools/sync-generated.sh`
+- **Accept:** each ported generator reproduces its committed output byte-for-byte, and its drift-check still fails on a hand-edited derived file.
+- **Deps:** LANG-03.
+
+### LANG-07 — `mios-serve` + the host-side PowerShell surface  **[P2]**  (→ T-1011, T-1012)
+- **What:** Daemons into `mios-serve`; the PowerShell host surface cross-compiled, keeping only the paste-able `irm | iex` entry point as PowerShell. 50 files / 24,776 lines, grandfathered by Law 14 for port, not as a licence for more.
+- **Why:** PowerShell currently outweighs Rust 1.2x in a repo whose native tier is meant to be Rust.
+- **Files:** `src/mios-rs/mios-serve/`, `*.ps1`, `Get-MiOS.ps1` (kept)
+- **Accept:** the `mios` verb dispatcher's backends are binaries; `Get-MiOS.ps1` still runs from one paste with no follow-up step; `[legibility].max_ps_lines` falls.
+- **Deps:** LANG-02.
 
 ## WS-TEMPLATE — Compiled file-pattern system (one template per file type + conformance check + Law-14)
 <!--

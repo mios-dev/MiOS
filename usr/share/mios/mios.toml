@@ -11043,6 +11043,10 @@ max_ps_lines      = 22618  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are not verbs
 
+# Script mass that converts to Rust binaries; the AI plane is exempt.
+python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
+max_tooling_python_lines = 121376
+
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]
 name   = "lfm2-700m.gguf"

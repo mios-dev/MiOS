@@ -220,9 +220,10 @@ decision is always a new record, never a rewrite of the old one.
 | `usr/share/doc/mios/adr/0018-shutdown-diff-snapshotting-and-boot-cycle-accrual.md` | Captures pre-poweroff diffs, accrues them across boot cycles, provides interactive HITL review, and rolls approved diffs into new immutable OCI layers. |
 | `usr/share/doc/mios/adr/0019-preemptive-scheduling-and-priority-gated-deliberation.md` | Defines engine-level priority preemption and consequentiality-gated Deliberative Collective Intelligence (DCI). |
 | `usr/share/doc/mios/adr/0020-edge-mesh-binary-wire-protocol-and-dual-tier-sandboxing.md` | Specifies the 16-byte binary wire protocol, dual-tier Wasm/container sandboxing, and hierarchical work-stealing for mios-node. |
+| `usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md` | Consolidate the ~1,500-file script estate into a handful of function-named Rust static binaries (gate/gen/resolve/serve/probe) over a shared mios-ssot crate, ported strangler-style one gate at a time... |
 | `usr/share/doc/mios/adr/README.md` | Index + process spec for MiOS Architecture Decision Records; read this first to learn the ADR format, status lifecycle, and which ADR governs the workstream you are implementing. |
 
-<!-- derived from the AI-hint headers of 21 file(s) matching usr/share/doc/mios/adr/*.md -->
+<!-- derived from the AI-hint headers of 22 file(s) matching usr/share/doc/mios/adr/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/adr/*.md -->
 
 ## manual

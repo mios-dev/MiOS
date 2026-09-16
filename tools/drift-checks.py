@@ -293,6 +293,8 @@ def check_legibility_ratchet() -> int:
             return False
         return "GENERATED" in head and "DO NOT EDIT" in head
 
+    _ai_plane = tuple(lim.get("python_ai_plane_prefixes") or ())
+
     measured = {
         "max_tracked_files": len(rels),
         "max_tracked_mb": round(nbytes / 1048576),
@@ -300,6 +302,12 @@ def check_legibility_ratchet() -> int:
                                   if r.endswith((".sh", ".bash")) and not _is_generated(r)]),
         "max_ps_lines": lines([r for r in rels
                                if r.endswith((".ps1", ".psm1")) and not _is_generated(r)]),
+        # ADR-0021. Law 14 keeps the AI plane in Python, so it is exempt by
+        # prefix from SSOT rather than by a list baked in here.
+        "max_tooling_python_lines": lines([
+            r for r in rels
+            if r.endswith(".py") and not _is_generated(r)
+            and not any(r.startswith(pfx) for pfx in _ai_plane)]),
         "max_automation_phases": len([r for r in rels if r.startswith("automation/")
                                       and r.endswith(".sh") and r[11:13].isdigit()]),
         # Sibling unit tests are not verbs. Counting them made this ratchet pull
