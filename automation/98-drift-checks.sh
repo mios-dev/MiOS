@@ -5,16 +5,24 @@
 set -euo pipefail
 
 PYTHON="python3"
+# T-1032. Windows-only shim: where a host ships `python` but no `python3`,
+# materialise one under that name so the checks below can call it. Two rules
+# make it safe, and BOTH were missing:
+#   1. Never when a real python3 already resolves. On Linux it always does, so
+#      this whole block must no-op there.
+#   2. Never reuse a cached copy. The copy lives in TEMP and outlives
+#      interpreter upgrades; a stale one puts every check on a DIFFERENT
+#      interpreter than sync-generated.sh, just, CI and the operator's own
+#      `python3 tools/...`, and silently absorbs version-dependent failures.
 _real_py="$(command -v python 2>/dev/null || true)"
-if [[ -n "$_real_py" ]]; then
+if ! command -v python3 >/dev/null 2>&1 && [[ -f "${_real_py:-/nonexistent}" ]]; then
     _shim_dir="${TEMP:-${TMP:-/tmp}}/mios-py-bin"
     mkdir -p "$_shim_dir" 2>/dev/null || true
-    if [[ ! -f "$_shim_dir/python3.exe" && -f "$_real_py" ]]; then
-        cp "$_real_py" "$_shim_dir/python3.exe" 2>/dev/null || true
-    fi
-    if [[ ! -f "$_shim_dir/python3" && -f "$_real_py" ]]; then
-        cp "$_real_py" "$_shim_dir/python3" 2>/dev/null || true
-    fi
+    # Copied unconditionally: the cache is what went stale, so there is no
+    # cache. An mtime or size test only narrows the window; this closes it.
+    for _shim in python3 python3.exe; do
+        cp -f "$_real_py" "$_shim_dir/$_shim" 2>/dev/null || true
+    done
     export PATH="$_shim_dir:$PATH"
 fi
 

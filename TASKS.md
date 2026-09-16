@@ -1016,6 +1016,8 @@
 | T-1026 | P2 | planned | AI-Plane | SERVERPY-01 -- decompose the 8,961-line server.py while nothing uses the plane |
 | T-1027 | P1 | planned | Docs/Pipeline | DOCGEN-02 -- docs/design outside the generative pipeline, thin man coverage, ungated mirror |
 | T-1028 | P2 | planned | Build/CI | BAKECI-01 -- no CI job bakes the image, so no build-path change has ever been verified by the pipeline |
+| T-1031 | P1 | done | Tooling/Portability | PYSYNTAX-01 -- tools/render-globals.py does not PARSE below py3.12, so the SSOT-globals gate cannot run locally |
+| T-1032 | P0 | done | Gates/Honesty | PYSHIM-01 -- the drift gate runs all 209 checks on a cached copy of a different Python than the rest of the build |
 
 ---
 
@@ -11108,3 +11110,28 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Why:** Vindicated by the terraform-docs field failure the research surfaced -- CI jobs that passed for MONTHS because the build rejected `--check` and errored before comparing anything. MiOS's paired negative tests are the defence against exactly this, and they only work if the check itself cannot no-op.
 **Dep:** T-1021
 **Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
+
+## T-1031 -- PYSYNTAX-01: the globals renderer did not parse, and the gate blamed the output  (WS-BUILD | P1 | S)
+**Goal:** `tools/render-globals.py` raised `SyntaxError: f-string expression part cannot include a backslash` at import time on any Python below 3.12. Not a runtime branch -- a PARSE failure, so the whole module was unusable regardless of arguments.
+**What+How:** Found while running `tools/sync-generated.sh` after an unrelated edit: step 2/6 aborted and took the remaining four steps with it. One offending line (343), and a tree-wide `ast.parse` sweep of every tracked `.py` confirms it is the ONLY one -- an instance, not a class. Fixed by dropping the f-string for concatenation; the `\\` -> `/` replacement is preserved byte-for-byte rather than "corrected", because a parseability fix must not smuggle in a behaviour change.
+  What it would have done to the gate is worth stating, because the first reading was wrong and checking it produced T-1032. `check_globals_generated` runs `python3 tools/render-globals.py --check` and, on any non-zero exit, emits `automation/lib/globals.{sh,ps1} are stale -- run tools/render-globals.py`. A SyntaxError is a non-zero exit, so that message would have fired while the resolvers were never compared at all -- Measuring the Wrong Property in its most expensive form, a gate converting "my tool is broken" into "your data is stale", with remedial advice (re-run the renderer) that hits the same error.
+  It did not fire, and the reason is a second defect: the gate runs its Python from a CACHED COPY of a different interpreter (T-1032). Reproducing the check's command in a normal shell gave the violation; running it through the gate gave silence. Same command, two interpreters. That is the trap this session has hit repeatedly, committed again: the reproduction was run outside the environment that actually executes it, so it measured the wrong subject. With the interpreter corrected, the broken file DOES produce the false "stale" violation, and the fixed file reports agreement on **2641 constants**.
+  CI never saw the parse error either, for a third and unrelated reason: Fedora ships py3.12+, where PEP 701 made the construct legal.
+**Where:** `tools/render-globals.py:343`, `automation/98-drift-checks.sh` `check_globals_generated`, `tools/sync-generated.sh`, `tools/drift-checks.py:184`
+**Done When:** every tracked `.py` parses under the oldest Python the project claims to support AND `--check` reports agreement on a clean tree AND planted drift in `globals.sh` still fails it. All three hold; the negative control exercises the repaired line itself.
+**Why:** `sync-generated.sh` is the regenerate-and-diff spine of Law 8 SSOT-PROJECTION. A renderer that cannot parse silently removes four downstream projections from every local run.
+**Note:** Add a gate: `ast.parse` every tracked `.py` against a declared floor version from SSOT, so an interpreter-version-dependent parse failure fails loudly instead of masquerading as a data problem. Belongs with T-1030's honest-gates audit -- "the tool could not run" and "the output is wrong" must never share an exit path.
+**Dep:** --
+**Status:** done | **Domain:** Tooling/Portability | **Who:** architect
+
+## T-1032 -- PYSHIM-01: the gate ran every check on a cached copy of a different interpreter  (WS-DRIFT | P0 | S)
+**Goal:** `automation/98-drift-checks.sh` opened by copying whatever `command -v python` resolved to into `${TEMP:-/tmp}/mios-py-bin/python3` and putting that directory FIRST on `PATH`. Every one of the 209 checks then ran under that copy. The copy was made once and **never invalidated** -- `if [[ ! -f "$_shim_dir/python3" ]]` -- so it outlived interpreter changes indefinitely.
+**What+How:** Measured, not inferred. The shim on this host was a 6507184-byte copy dated 2026-09-15 20:56 reporting **Python 3.13.12**, while `/usr/local/bin/python` had since been repointed at `/usr/bin/python3.11` (6639992 bytes, **3.11.15**). So the drift gate ran on 3.13 and `tools/sync-generated.sh`, `just`, and any hand-run `python3 tools/...` ran on 3.11 -- silently, with nothing anywhere saying the two disagreed.
+  Found by contradiction while landing T-1031. A file that provably exits 1 under `python3` produced rc=0 through the gate, twice, in both single-check and full-run mode. The gap between "I reproduced the command" and "I reproduced the command in the environment that runs it" is the whole defect.
+  The shim exists for Windows, where a host may ship `python` and no `python3`. Two rules make that safe and both were missing: never shim when a real `python3` already resolves (on Linux it always does, so the block must no-op entirely), and never reuse a cached copy. FIXED with both -- and the cache is removed rather than invalidated, because an mtime or size test only narrows the window. On a host with no `python3` the copy is now made unconditionally, once per gate run, which is the only place it is needed.
+**Where:** `automation/98-drift-checks.sh` lines 7-19 (preamble, before every check)
+**Done When:** on a host that has `python3`, no shim directory is consulted or created and a planted interpreter-dependent failure is REPORTED; on a host without `python3`, the shim is created cold and a stale backdated one is replaced. All four controls pass.
+**Why:** P0 because it is upstream of every other gate result. A check's verdict is only as trustworthy as the interpreter it ran on, and for an unknown number of sessions that interpreter was neither the system's nor CI's. Any check whose outcome depends on Python version -- syntax, stdlib behaviour, dict ordering, `tomllib`, deprecation removals -- could have been silently passing or silently failing.
+**Note:** Blast radius measured before arming: the full gate reports the same **19 violations across six checks** under both interpreters, so nothing on the current tree changes. That is luck, not design. The durable fix is T-1030's: a check must never be able to report success without proving what it ran on. Log the resolved interpreter and its version in the gate header, and pin a floor version in SSOT so `ast.parse` conformance (T-1031's follow-up) has something to measure against.
+**Dep:** --
+**Status:** done | **Domain:** Gates/Honesty | **Who:** architect
