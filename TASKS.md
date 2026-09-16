@@ -1019,6 +1019,14 @@
 | T-1031 | P1 | done | Tooling/Portability | PYSYNTAX-01 -- tools/render-globals.py does not PARSE below py3.12, so the SSOT-globals gate cannot run locally |
 | T-1032 | P0 | done | Gates/Honesty | PYSHIM-01 -- the drift gate runs all 209 checks on a cached copy of a different Python than the rest of the build |
 | T-1033 | P1 | done | Gates/Law15 | BSPATH-01 -- the Law 15 cross-repo gate looks for mios-bootstrap at a hardcoded Windows path, so it is CI-only |
+| T-1034 | P0 | planned | Boot/Kargs | UKICMD-01 -- a parse error in any kargs.d drop-in silently deletes that file's kernel args, and --check then certifies the result |
+| T-1035 | P0 | planned | Security/Quadlets | QUADSEC-01 -- DB passwords render as literals into 0644 Quadlets under /usr, and a build-env var can write User=0 off the privileged roster |
+| T-1036 | P1 | planned | Security/Supply | COSIGN-01 -- signature verification ships off (insecureAcceptEverything), cannot be turned on, and the stage is non-fatal |
+| T-1037 | P0 | planned | Gates/Honesty | HOLLOW-01 -- 55 of 76 miosd Check impls are a constant Verdict::Pass with an empty body, and they run at every bake |
+| T-1038 | P0 | planned | Build/Phases | PHASELIST-01 -- [build.phases].list omits 55-native-build.sh and load_from_toml fails open to a 6-phase hardcoded registry |
+| T-1039 | P1 | planned | Build/BakePlan | BAKEPLAN-01 -- globals.sh sets but never exports MIOS_VERSION_*, so stage 85's already-live native tier aborts naming the wrong cause |
+| T-1040 | P0 | planned | Build/Quadlets | ENVSUB-01 -- envsubst eats systemd's $$ runtime refs, the nested-default regex corrupts base_url, and *.socket is outside the find filter |
+| T-1041 | P1 | planned | Build/Firewall | FIREWALL-01 -- a malformed or absent [firewall] table silently opens a hardcoded wrong port set, and an unbound var aborts the tier mid-sequence |
 
 ---
 
@@ -11167,3 +11175,86 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Note:** Law 7 residue left deliberately, because closing it is not net-zero. `[bootstrap].bootstrap_repo = "C:/mios-bootstrap"` already exists in SSOT and **two** consumers ignore it: `tools/sync-bootstrap.py` hardcodes `C:\mios-bootstrap` (backslashes, so it is not even the same string) and `tools/drift-checks.py:2849` repeats the literal as its own default. Lift both to the SSOT key when the tooling-Python ratchet has room -- or when this tool converts to Rust under ADR-0021, whichever comes first.
 **Dep:** --
 **Status:** done | **Domain:** Gates/Law15 | **Who:** architect
+
+## T-1034 -- UKICMD-01: a swallowed parse error deletes kernel arguments, and --check certifies the result  (WS-BUILD | P0 | M)
+**Goal:** `tools/generate-uki-cmdline.py` wraps each `tomllib.load` of a `kargs.d` drop-in in `except Exception: print(...)` and then **continues**. A one-character syntax error in any drop-in silently drops that file's entire karg set from `/usr/lib/kernel/cmdline`, exit 0.
+**What+How:** Reproduced by the audit: corrupting `01-mios-hardening.toml` produced a cmdline missing `spectre_v2`, `spectre_bhi`, `spec_store_bypass_disable`, `l1tf`, `gather_data_sampling`, `tsx`, `pti`, `vsyscall`, `randomize_kstack_offset` and `kvm.nx_huge_pages` -- 1408 -> 1214 bytes -- printing `Generated ...` and `EXIT=0`. Every CPU mitigation the hardening drop-in exists to set, gone, on a stage marked `fatal`.
+  The gate then certifies it. `build.sh:392` reprojects `usr/lib/kernel/cmdline` and `98-drift-checks.sh:2690` re-runs the SAME generator with both streams to `/dev/null` and compares the result to what was just written -- generator against generator. It prints `[OK] usr/lib/kernel/cmdline is in sync with kargs.d/*.toml`. Self-Certifying Predicate on top of a Swallowed Failure, which is why this has never been seen.
+  This is the **live Python path**, not a latent Rust one. Fix the swallow first, as a standalone commit ahead of any conversion -- the audit's explicit recommendation.
+**Where:** `tools/generate-uki-cmdline.py`, `automation/76-uki-render.sh`, `automation/build.sh:392`, `automation/98-drift-checks.sh:2690`
+**Done When:** a corrupt drop-in makes BOTH the generator and `--check` exit non-zero and write nothing; the check compares against a source of truth other than a second run of the same generator; a fixture proves the ten mitigation args survive a clean render.
+**Why:** Highest-severity live finding in the audit. The kernel command line is the one artifact where a silent omission is both invisible and a security regression.
+**Note:** Related, same pair of renderers: `match-architectures` is dropped by **both** 75 and 76 and then ignored by `validate-kargs.py`, which passes the stripped file. 15 of 17 drop-ins carry the key. Detail in `docs/design/miosd-renderer-parity-audit.md`.
+**Dep:** --
+**Status:** planned | **Domain:** Boot/Kargs | **Who:** architect
+
+## T-1035 -- QUADSEC-01: secrets at 0644 and a build-env var that writes User=0  (WS-SEC | P0 | M)
+**Goal:** Two live defects in `tools/generate-pod-quadlets.py`, both under a header certifying the output as SSOT-derived. (1) `MIOS_PG_PASS='S3cr3t-Real-Prod-Pw'` renders `Environment=POSTGRES_PASSWORD=S3cr3t-Real-Prod-Pw` into `mios-pgvector.container` at mode `-rw-r--r--` under `/usr` -- Law 11, which puts secrets only in `/etc/mios/secrets.env` at 0600. The committed tree already ships `=mios` at 0644. (2) `MIOS_ADGUARD_UID=0` in the build environment overrides the SSOT and writes `User=0` / `Group=0` into a unit that is **not** in `[security.privileged_quadlets].root` -- Law 6.
+**What+How:** Both reproduced by the audit at exit 0 with no diagnostic. The pattern is build-environment variables outranking the SSOT they claim to project, which is Law 7 as well as 6 and 11. The fix is not a filter: the renderer must refuse an environment override of `User`/`Group` for a unit off the roster, and must emit a secret reference rather than a literal.
+**Where:** `tools/generate-pod-quadlets.py`, `usr/share/containers/systemd/`, `usr/share/mios/mios.toml` `[containers.*]` + `[security.privileged_quadlets]`, `automation/33-generate-quadlets.sh`
+**Done When:** a planted `MIOS_PG_PASS` never appears as a literal in any rendered unit; a planted `MIOS_<name>_UID=0` for a unit off the roster FAILS the stage; a gate asserts no rendered unit under `/usr` carries a password-shaped `Environment=` value.
+**Why:** The repo is public and these files ship in the image. Law 11 exists for exactly this.
+**Note:** Same stage, same audit: an empty or renamed SSOT table short-circuits the orphan scan (`return 0` before the check-mode scan, 30 populated units declared fine), and `d.get("networks") or d.get("network")` emitted six bogus units in a verified run. Detail in `docs/design/miosd-renderer-parity-audit.md`.
+**Dep:** --
+**Status:** planned | **Domain:** Security/Quadlets | **Who:** architect
+
+## T-1036 -- COSIGN-01: signature verification is off and cannot be turned on  (WS-SEC | P1 | M)
+**Goal:** The shipped `policy.json` is `{"default":[{"type":"insecureAcceptEverything"}]}`. `usr/share/pki/` does not exist, so the five declared trust roots install zero files and `/usr/share/pki/containers` ships empty. `policy_mode` appears in no configurator HTML or JS, and `allowed_identities` has zero consumers. There is no operator-reachable way to turn verification on.
+**What+How:** Compounded by the stage failing open at three levels: `SYSFILES=/ctx/system_files` never exists so a missing policy is a `[WARN]` followed by `[OK] Validation complete`, the `jq` validation gate is guarded out, and `build.sh:199` plus `mios.toml:10563 fatal = false` mean even a cosign SHA256 mismatch only warns. The audit notes this is not a port but a build: the one non-permissive value the renderer can express produces a spec-invalid policy.
+**Where:** `automation/49-cosign-policy.sh`, `tools/generate-cosign-policy.py`, `usr/share/mios/mios.toml` `[security.sigstore]`, `usr/share/pki/containers`
+**Done When:** `policy_mode` is operator-settable and reaches the rendered policy; a non-permissive policy validates under a real parser (`skopeo standalone-verify` / `podman --signature-policy`, not `jq -e .`); at least one trust root ships; a missing or malformed policy fails the stage.
+**Why:** Law 12 bakes the payloads; Law 5 puts everything behind one endpoint. Neither means much if the image accepts any signature.
+**Dep:** --
+**Status:** planned | **Domain:** Security/Supply | **Who:** architect
+
+## T-1037 -- HOLLOW-01: 55 of 76 drift checks in miosd are a constant Pass  (WS-DRIFT | P0 | L)
+**Goal:** `miosd drift-check --root <a directory that does not exist>` reports `Summary: 55 passed, 11 failed, 8 skipped`. Fifty-five of the seventy-six `Check` implementations ignore their `_ctx` and return `Verdict::Pass(...)` from an empty body. `check_agent_pipe_budgets` is the named instance; `BakePlanCheck` and `BakeBudgetCheck` are two more. The Containerfile invokes this at line 103, by absolute path, so it runs at **every bake**.
+**What+How:** This is the single largest instance of T-1030's thesis in the tree and it is live, not latent -- the one Rust dispatch that is NOT behind the dead `command -v` gate. A check that cannot fail is worse than a missing check: it occupies the name, reports green, and nobody looks.
+  The audit's recommendation is to treat `check_agent_pipe_budgets` as the template, convert it last among the renderer stages but not skip it, and prove the change with an exit-code matrix rather than an output diff: six fixtures where the current pair agrees on a CORRECT answer must stay green, four where it agrees on a WRONG answer must invert to non-zero.
+**Where:** `src/mios-rs/miosd/src/drift/`, `Containerfile:103`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`
+**Done When:** `miosd drift-check --root <nonexistent>` reports no check as PASS; every remaining stub is either implemented or removed from the registry rather than left reporting green; each implemented check has a paired negative fixture.
+**Why:** The bake's own gate currently certifies a tree it never read.
+**Dep:** T-1030
+**Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
+
+## T-1038 -- PHASELIST-01: the phase list omits the stage that builds the Rust tier  (WS-BUILD | P0 | M)
+**Goal:** `[build.phases].list` registers 71 phases; 72 exist on disk. The missing one is `automation/55-native-build.sh`, which is the ONLY `ln -sf ... /usr/bin/${bin}` in the tree -- the stage that compiles and installs the Rust binaries. `max_phase_scripts = 72  # +1: 55-native-build.sh` was bumped for the very script that was never registered.
+**What+How:** Compounded by `load_from_toml` failing OPEN to a 6-phase hardcoded registry. The audit reproduced `exit=0` with `TOTAL_SCRIPTS=3` on a nonexistent root, on malformed TOML, on a missing `[build]` and on `list = []`; a stub miosd exiting 1 gave `TOTAL_SCRIPTS=2` with the harness still exiting 0; and a `38-selinuxx` typo gave `TOTAL_SCRIPTS=66`, exit 0, SELinux stage silently gone. A missing script is dropped with no `else`.
+  The audit makes this **conversion stage 1**, ahead of every renderer: while the driver can silently drop a stage, no other stage's parity claim is trustworthy. Its proof is a byte-diff of the ordered `ALL_SCRIPTS` list with miosd absent vs present -- not a count, because a count ratchet already exists and is blind to 71-vs-72.
+**Where:** `automation/build.sh:185-248`, `usr/share/mios/mios.toml` `[build.phases]`, `src/mios-rs/mios-build/`, `automation/55-native-build.sh`
+**Done When:** `[build.phases].list` matches the scripts on disk under a regenerate-and-diff guard; a nonexistent root, malformed TOML, an empty list, a miosd non-zero exit and a mistyped script name each exit non-zero; the ordered ALL_SCRIPTS list is byte-identical with miosd absent and present.
+**Why:** Split-brain hazard the audit flagged but could not test: stages numbered above 55 may behave differently once 55 has symlinked miosd into `/usr/bin` mid-run.
+**Dep:** --
+**Status:** planned | **Domain:** Build/Phases | **Who:** architect
+
+## T-1039 -- BAKEPLAN-01: an unexported version variable aborts a live stage under the wrong cause  (WS-BUILD | P1 | S)
+**Goal:** `automation/lib/globals.sh:469` is `: "${MIOS_VERSION_CEPH:=v19}"` -- set, not exported (only line 26 exports anything). Stage 85's tier-2 binary `/usr/libexec/mios/mios-bake-plan` is reachable by ABSOLUTE path, so unlike the other stages it is live today. It drops the four floated-tag Quadlets at `if resolved.contains('$') { continue }` and exits 2 with three `VALIDATION ERROR: Core image 'quay.io/ceph/ceph:v19' is not referenced by any Quadlet` -- naming the wrong cause entirely.
+**What+How:** The audit lists this as one of two standalone bugfixes to land BEFORE any conversion, because it unbreaks a live stage today. Either export the three `MIOS_VERSION_*` names from `globals.sh` or resolve them from SSOT inside `bake_plan.rs`; the second is the Law 7 answer.
+  Decide in the same work whether `tools/native/mios-bake-plan` or `miosd::bake_plan` owns the stage. Shipping both is Law 15 double-tracking, and the audit found the two sources differ only in `unwrap`/`expect` text, `fn main` vs `pub fn run`, and `process::exit` vs `Err`.
+**Where:** `automation/lib/globals.sh:469`, `tools/render-globals.py`, `tools/native/mios-bake-plan/`, `src/mios-rs/miosd/src/bake_plan.rs`, `automation/85-bake-plan.sh`
+**Done When:** stage 85 completes with the four floated-tag Quadlets resolved; a deliberately unset `MIOS_VERSION_*` produces an error naming the variable, not the image; exactly one implementation owns the stage.
+**Why:** A live stage failing under a misleading error is how a real bake gets abandoned for the wrong reason.
+**Dep:** --
+**Status:** planned | **Domain:** Build/BakePlan | **Who:** architect
+
+## T-1040 -- ENVSUB-01: envsubst eats systemd's escaped runtime references  (WS-BUILD | P0 | M)
+**Goal:** `automation/34-render-quadlets.sh` substitutes with GNU `envsubst`, which does not understand systemd's `$$` escaping. Verified on `mios-pgvector-backup.service` with real envsubst 0.21: `DIR="$/var/lib/mios/backups"`, `PORT="$8600"` -- positional `$8` plus the literal `600`, i.e. **port 600** -- `KEEP="$7"`, `case "$true" in`. The `[ -z "$DIR" ]` guard never fires because the value is non-empty, just wrong.
+**What+How:** Two more in the same stage. A single-pass nested-default regex renders `etc/mios/kb.conf.toml` as `base_url = "http://localhost:8700/v1/v1}"` -- Law 5, the one endpoint contract. And the bash `find` filter omits `*.socket`, so `usr/lib/systemd/system/mios-cockpit-link.socket:8` ships `ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}` **today**, which systemd cannot parse.
+  **Here the Rust path is the correct one**, which inverts this stage's acceptance test: byte-parity with the shipping renderer would ship a broken image. The audit is explicit that correctness, not parity, is the gate -- a post-stage `grep -rn '\${MIOS_' <scan dirs>` returning zero and failing the stage, a documented no-substitute list for systemd runtime refs, and a real recursive expander asserting `base_url = "http://localhost:8700/v1"`.
+**Where:** `automation/34-render-quadlets.sh`, `src/mios-rs/miosd/src/main.rs` `run_render_quadlets`, `usr/lib/systemd/system/mios-cockpit-link.socket`, `etc/mios/kb.conf.toml`
+**Done When:** no rendered unit under the scan dirs contains a residual `${MIOS_`; the socket unit renders its port; `base_url` renders exactly once; a fixture pins the systemd `$$` no-substitute list.
+**Why:** A shipped socket unit that systemd cannot parse is a boot-time failure, and it is in the tree right now.
+**Note:** The audit REFUTED its own largest claim here -- "2641 of 2655 `MIOS_*` are never exported" was a harness artifact of sourcing `common.sh` by a relative path. Invoked as `build.sh` actually does it, 2607 `export MIOS_*=` lines eval fine. The refutation cuts AGAINST the stage: it moves the substitution findings from latent to live.
+**Dep:** --
+**Status:** planned | **Domain:** Build/Quadlets | **Who:** architect
+
+## T-1041 -- FIREWALL-01: a malformed SSOT silently opens the wrong ports  (WS-BUILD | P1 | M)
+**Goal:** `automation/44-firewall-ports.sh` guards its SSOT tier with `${#_ssot_ports[@]} -gt 0`, which cannot distinguish "the operator opened nothing" from "the parse failed". On a malformed or `[firewall]`-less SSOT it exits 0 having opened RDP `8300`, the k3s API `8450` and the Ceph dashboard `8460` on the **public** zone -- none of them in `[firewall].open_ports` -- while omitting seven ports that are.
+**What+How:** Two more in the same stage. `MIOS_GUACAMOLE_PORT` is unbound because `tools/render-globals.py:70` deletes that name as dead, so the else-tier issues three `--add-port` calls and then dies with `line 46: MIOS_GUACAMOLE_PORT: unbound variable`, `EXIT=1` -- a half-applied firewall with no rollback. And the Python tier's `__file__` fallback is dead code: `NameError: name '__file__' is not defined` under `python3 -c`, discarded by `2>/dev/null` plus `|| true` plus an empty `mapfile`, falling silently through to the hardcoded list.
+  **Output diff is impossible** -- the stage mutates firewalld zone state and renders no file. The audit's alternative proof is an argv-sequence diff through a tracing `firewall-offline-cmd` shim installed BOTH on PATH (for bash) and at the absolute `/usr/bin/firewall-offline-cmd` (the Rust path ignores PATH), run through the identical stage entry point.
+**Where:** `automation/44-firewall-ports.sh`, `src/mios-rs/miosd/src/main.rs`, `usr/share/mios/mios.toml` `[firewall].open_ports` + `[ports]`, `tools/render-globals.py:70`
+**Done When:** a malformed or absent `[firewall]` table FAILS the stage rather than falling back; the argv sequence is identical between tiers on the real SSOT and on a planted one; no unbound variable can abort the tier mid-sequence.
+**Why:** An image that ships the wrong public-zone ports is a security posture set by a parse error.
+**Note:** Coverage gap the audit flagged: firewalld is not installed anywhere it could test, so the interaction between this stage, `45-firewall.sh` and the boot-time `mios-firewall-ports.service` is unobserved. The runtime unit may paper over a zero-port result on a live host while the baked image still ships an empty public zone.
+**Dep:** --
+**Status:** planned | **Domain:** Build/Firewall | **Who:** architect
