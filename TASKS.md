@@ -1003,6 +1003,7 @@
 | T-1015 | P1 | planned | Build/Rust | MIGRATE-01 -- all four [migration].use_rust_resolver_* toggles say true and nothing reads them |
 | T-1016 | P1 | planned | Arch/DeadCode | UNWIRED-01 -- 112 of 176 usr/libexec/mios/<domain>/*.py modules have no caller; the gate that checks this looks elsewhere |
 | T-1017 | P2 | planned | Docs/Refs | GHOSTSTAGE-01 -- 24 modules cite 22 automation stages that do not exist, at numbers other stages now occupy |
+| T-1018 | P0 | planned | Build/Dispatch | DISPATCH-01 -- 18 bake-time gates prefer the Rust path via a PATH lookup that cannot resolve; the Rust tier never runs |
 
 ---
 
@@ -10928,8 +10929,9 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Where:** `src/mios-rs/miosd/src/main.rs` (`run_render_repos`), `automation/05-repos.sh`, `usr/share/mios/mios.toml` `[repos]`, `usr/share/mios/mios.toml` `[ssot_tables]`
 **Done When:** changing a metalink or enabling/disabling a repo in a COPY of the SSOT changes the rendered .repo file in BOTH modes -- proved by planting and rendering offline and `--online`; the offline path still emits `file:///` vendored baseurls and reaches no network, proved by asserting no metalink appears in the offline render; and `[repos]` leaves the unconsumed register because it is read.
 **Why:** The dual-mode design is the valuable part and it is invisible from the SSOT: an operator reading `[repos]` cannot tell that offline is the default, and editing the table to pin a mirror silently does nothing in all three paths.
+**Blocked by T-1018:** `05-repos.sh` reaches `run_render_repos` only through `command -v miosd`, a PATH lookup that cannot resolve at bake time -- so the Rust path here is dead, and teaching it to read `[repos]` would change nothing observable. Fix the dispatch first; then this done-when is provable.
 **Note:** `MIOS_ONLINE_BUILD` is referenced by 05-repos.sh, 06-enable-external-repos.sh and 57-gnome.sh but is emitted by no resolver (absent from env-baseline.txt) -- a Law 9 referenced-not-emitted breach, invisible because `automation/` sits inside the closure gate's exemption (T-1000). Decide whether the build-mode toggle is SSOT-derived or a deliberate build-time-only env, and record it either way.
-**Dep:** --
+**Dep:** T-1018
 **Status:** planned | **Domain:** Provisioning/Repos | **Who:** architect
 
 ## T-1007 -- LANG-02: one src/mios-rs workspace -- absorb tools/native, vendor deps, builder stage, cross-compiled targets  (WS-LANG | P1 | L)
@@ -11037,3 +11039,18 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Why:** A header that cites a build stage which does not exist reads, to an agent and to a person, as "this module is installed by that stage". It is the most load-bearing sentence in the file and it is false.
 **Dep:** T-1016
 **Status:** planned | **Domain:** Docs/Refs | **Who:** architect
+
+## T-1018 -- DISPATCH-01: the Rust build tier is compiled into the image and never invoked  (WS-LANG | P0 | M)
+**Goal:** Sixteen numbered automation stages plus `automation/build.sh` and the drift gate dispatch to a compiled MiOS binary with `if command -v miosd >/dev/null 2>&1; then <rust>; else <bash heredoc>; fi`. `command -v` is a PATH lookup. The Containerfile's rust-builder stage installs those binaries with `COPY --from=rust-builder /out/* /usr/libexec/mios/`, and **nothing puts `/usr/libexec/mios` on PATH**: no `ENV PATH` in the Containerfile, no `export PATH` in `automation/build.sh` or `automation/lib/*.sh` that adds it, no `usr/bin/miosd`, no `usr/local/bin` shim. Eighteen gates, every one falling through to bash on every bake.
+**What+How:** So the whole Rust tier -- what ADR-0021 is about, what `docs/adr/0005-unified-native-resolver.md` decided, what `[migration].use_rust_resolver_* = true` claims is already live -- is compiled, copied into the image, and then not called by the pipeline written to prefer it. Every bake renders its Quadlets, ports, kargs, UKI, firewall, chrony, NUT, cosign policy, fapolicyd trust, hardening, bake plan and repos from the BASH fallbacks. The Containerfile does invoke `/usr/libexec/mios/miosd drift-check` by ABSOLUTE path, which is why the binary's presence was never in doubt; only the dispatch is broken.
+  Three fixes, and the choice is the operator's because the blast radius differs by an order of magnitude:
+   1. One `ENV PATH=/usr/libexec/mios:$PATH` in the Containerfile. One line -- and all 18 gates switch in the same bake, eighteen renderers changing behaviour at once, none of which has ever run in a bake.
+   2. Per-stage absolute-path dispatch, one stage per commit, each proving its rendered output byte-identical to the bash fallback it replaces. Strangler, matching ADR-0021's migration decision. 18 commits.
+   3. A `mios_bin <name>` helper in `automation/lib/common.sh` resolving PATH then the install dir, adopted one stage at a time. Same increments as (2), one place to be correct.
+  (2) or (3). Do NOT take (1) blind: these renderers write the Quadlets, the kernel command line and the UKI.
+**Where:** `automation/0[15]-*.sh`, `automation/3[345]-*.sh`, `automation/4[0234]-*.sh`, `automation/49-cosign-policy.sh`, `automation/51-hardening.sh`, `automation/7[56]-*.sh`, `automation/85-bake-plan.sh`, `automation/88-finalize.sh`, `automation/build.sh`, `automation/98-drift-checks.sh`, `automation/lib/common.sh`, `Containerfile`, `usr/share/mios/mios.toml` `[build.tool_dispatch]`
+**Done When:** for each converted stage the Rust path is observably the one that runs during a bake AND its output is byte-identical to the bash fallback it replaces; `[build.tool_dispatch].max_unreachable` falls to 0; each bash fallback is deleted in the commit that proves its replacement, per ADR-0021.
+**Why:** This is why every Rust-path finding in this session looked theoretical. T-1006 would have taught `run_render_repos` to read `[repos]` inside a function the bake never calls. `[migration].use_rust_resolver_*` reads `true` for a cutover whose dispatch cannot fire. A binary that ships in the image and is never invoked is the most expensive dead code there is: it passes every compile gate and changes nothing.
+**Note:** Detected by the new `check_build_tool_dispatch`, registered shrink-only at the measured 18 so the count can only fall and a nineteenth fails immediately. `check_no_silent_tool_skips` does not cover this -- it looks for `command -v ... || return 0`, and only inside `98-drift-checks.sh` and `lint-*.sh`.
+**Dep:** --
+**Status:** planned | **Domain:** Build/Dispatch | **Who:** architect

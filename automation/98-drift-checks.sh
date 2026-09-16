@@ -3177,6 +3177,28 @@ check_bash_phase_ratchet() {
     fi
 }
 
+check_build_tool_dispatch() {
+    # Dispatched by ABSOLUTE path, never `command -v`: this check exists
+    # because that lookup cannot resolve at bake time (T-1018), so using it
+    # here would make the check the first thing it detects.
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_build_tool_dispatch could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    if "$bin" build-tool-dispatch --root "$ROOT"; then
+        echo "[98-drift-checks]   every bake-time tool-dispatch gate is on the shrink-only register"
+    else
+        _violation "an automation stage gates its Rust path on \`command -v <binary>\` that cannot resolve at bake time, so the branch is dead -- give the binary a PATH location or dispatch by absolute path (T-1018)"
+    fi
+}
+
 check_no_silent_tool_skips() {
     local require_tools="${MIOS_DRIFT_REQUIRE_TOOLS:-0}"
     local bad_skips=()
@@ -3519,6 +3541,7 @@ main() {
     check_no_hardcoded_ssot_literal
     check_bash_phase_ratchet
     check_no_silent_tool_skips
+    check_build_tool_dispatch
     check_negatives_are_effective
     check_pipefail_grep_lint
     check_skip_list_covered

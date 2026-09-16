@@ -1817,6 +1817,29 @@ max_parallel_downloads = 10
 ip_resolve = 4
 
 
+[build.tool_dispatch]
+# Bake-time tool-dispatch gates whose lookup cannot resolve. Shrink-only: T-1018.
+max_unreachable = 18
+unreachable = [
+  "automation/01-system-files-overlay.sh",
+  "automation/05-repos.sh",
+  "automation/33-generate-quadlets.sh",
+  "automation/34-render-quadlets.sh",
+  "automation/35-render-ports.sh",
+  "automation/40-fapolicyd-trust.sh",
+  "automation/42-chrony-render.sh",
+  "automation/43-nut-render.sh",
+  "automation/44-firewall-ports.sh",
+  "automation/49-cosign-policy.sh",
+  "automation/51-hardening.sh",
+  "automation/75-kargs-render.sh",
+  "automation/76-uki-render.sh",
+  "automation/85-bake-plan.sh",
+  "automation/88-finalize.sh",
+  "automation/98-drift-checks.sh",
+  "automation/build.sh",
+]
+
 [ai_tag]
 # Shrink-only, and set to the measured count so the next untagged file
 # fails the gate. At 130 against an actual 42 it had 88 files of slack

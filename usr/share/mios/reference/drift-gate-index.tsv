@@ -191,20 +191,21 @@
 190	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
 191	check_bash_phase_ratchet	bash phase script count ratchet check
 192	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
-193	check_negatives_are_effective	negative-test effectiveness check
-194	check_pipefail_grep_lint	pipefail grep lint check
-195	check_skip_list_covered	checking the agent-pipe skip list lives in the SSOT
-196	check_ai_manifests_fresh	checking AI manifest freshness
-197	check_ports_category_schema	checking port category schema (allocation + collisions)
-198	check_globals_generated	checking generated globals resolvers match SSOT
-199	check_ci_suite_coverage	all workflow CI jobs cover the required test matrix without gaps
-200	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
-201	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
-202	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
-203	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
-204	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
-205	check_verify_images	container image verification signatures and digests are valid
-206	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
-207	check_negatives_registered	every drift check has a corresponding negative test registered
-208	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
-209	check_leaked_fixtures	no transient test fixtures or dump files are committed in git
+193	check_build_tool_dispatch	every bake-time tool-dispatch gate is on the shrink-only register
+194	check_negatives_are_effective	negative-test effectiveness check
+195	check_pipefail_grep_lint	pipefail grep lint check
+196	check_skip_list_covered	checking the agent-pipe skip list lives in the SSOT
+197	check_ai_manifests_fresh	checking AI manifest freshness
+198	check_ports_category_schema	checking port category schema (allocation + collisions)
+199	check_globals_generated	checking generated globals resolvers match SSOT
+200	check_ci_suite_coverage	all workflow CI jobs cover the required test matrix without gaps
+201	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
+202	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
+203	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
+204	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
+205	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
+206	check_verify_images	container image verification signatures and digests are valid
+207	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
+208	check_negatives_registered	every drift check has a corresponding negative test registered
+209	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
+210	check_leaked_fixtures	no transient test fixtures or dump files are committed in git

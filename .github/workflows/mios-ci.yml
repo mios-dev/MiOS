@@ -76,7 +76,10 @@ jobs:
       - name: Build the native gate binaries
         # mios-unit-gen is check_unit_projection's rendering half, so it must
         # exist before the gate tier runs. Rationale: commit 8abb1e0f.
-        run: cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver
+        run: |
+          cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver
+          # The native gate binary backs a check that fails when it is absent.
+          cd ../../src/mios-rs && cargo build -p mios-gate
 
       - name: Static analysis tier
         run: bash ./tests/run-suites.sh lint

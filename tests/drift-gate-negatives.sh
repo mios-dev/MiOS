@@ -3758,6 +3758,46 @@ test_doc_refs_resolve() {
     log "check_doc_refs_resolve negative test passed"
 }
 
+test_build_tool_dispatch() {
+    log "Testing check_build_tool_dispatch"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    local planted="${ROOT}/automation/89-negtest-dispatch.sh"
+    _btd_fail() {
+        cp "$bak" "$toml"; rm -f "$bak" "$planted" "${ROOT}/usr/bin/miosd"
+        unset -f _btd_fail
+        die "$1"
+    }
+    # A NEW stage gating its Rust path on a PATH lookup that cannot resolve.
+    printf '#!/usr/bin/env bash\nif command -v miosd >/dev/null 2>&1; then :; fi\n' > "$planted"
+    _neg_gate check_build_tool_dispatch && _btd_fail "check_build_tool_dispatch passed with a new unreachable dispatch gate"
+    # Raising the ceiling must not absorb the plant: the file is still absent
+    # from the register, which is a violation on its own.
+    sed -i 's/^max_unreachable = [0-9]*$/max_unreachable = 999/' "$toml"
+    _neg_gate check_build_tool_dispatch && _btd_fail "check_build_tool_dispatch passed with a plant hidden under a raised ceiling"
+    cp "$bak" "$toml"; rm -f "$planted"
+    # The half that proves the check RESOLVES rather than counting strings:
+    # giving the binary a PATH location makes every miosd gate reachable, so
+    # the register must read as stale rather than silently staying green.
+    mkdir -p "${ROOT}/usr/bin"; : > "${ROOT}/usr/bin/miosd"
+    _neg_gate check_build_tool_dispatch && _btd_fail "check_build_tool_dispatch passed while its register described gates that had become reachable"
+    rm -f "${ROOT}/usr/bin/miosd"
+    # Deleting the register must read as unbounded debt, not as no debt.
+    python3 - "$toml" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+s2, n = re.subn(r'\[build\.tool_dispatch\].*?\n\]\n', '', s, count=1, flags=re.S)
+assert n == 1, "the [build.tool_dispatch] register was not removed -- the mutation would prove nothing"
+open(p, "w").write(s2)
+PYEOF
+    _neg_gate check_build_tool_dispatch && _btd_fail "check_build_tool_dispatch passed with [build.tool_dispatch] absent"
+    cp "$bak" "$toml"; rm -f "$bak"
+    unset -f _btd_fail
+    _neg_gate check_build_tool_dispatch || die "check_build_tool_dispatch failed after restoration"
+    log "check_build_tool_dispatch negative test passed"
+}
+
 test_no_inert_ssot_tables() {
     log "Testing check_no_inert_ssot_tables"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -4053,6 +4093,7 @@ _run_test test_leaked_fixtures
     _run_test test_legibility_ratchet
     _run_test test_bootstrap_sync
     _run_test test_no_inert_ssot_tables
+    _run_test test_build_tool_dispatch
     _run_test test_doc_refs_resolve
     _run_test test_desktop_launchers
     _run_test test_blade_reconcile_schema
