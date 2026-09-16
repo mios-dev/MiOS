@@ -1006,6 +1006,14 @@
 | T-1018 | P0 | planned | Build/Dispatch | DISPATCH-01 -- 18 bake-time gates prefer the Rust path via a PATH lookup that cannot resolve; the Rust tier never runs |
 | T-1019 | P3 | planned | Provisioning/Preflight | PFDISK-01 -- the disk floor is measured with `df -BG`, which rounds UP, so the check is optimistic |
 | T-1020 | P1 | planned | SSOT/Law9 | ALIAS-01 -- MIOS_AI_RAM_FLOOR_GB had two sources and table order picked the winner; the gate that catches it skips locally |
+| T-1021 | P1 | planned | Gates/Consolidation | GATECAT-01 -- collapse 209 drift checks and 337 test files into categorised binaries, auditable by hand |
+| T-1022 | P1 | planned | Security/Audit | SECRED-01 -- check_secret_handling is red and nobody knows what it flags; the repo is public |
+| T-1023 | P1 | planned | Backlog | QUEUE-01 -- two backlogs, ~40k lines, no machine-selectable next task; one queue + a DONE archive |
+| T-1024 | P2 | planned | Repo/Layout | LAYOUT-01 -- survey field/ config/ images/ installation/ specs/ and collapse them where they belong |
+| T-1025 | P1 | planned | Boot/Recovery | ROLLBACK-01 -- bootc rollback has never been exercised; the recovery story is unproven |
+| T-1026 | P2 | planned | AI-Plane | SERVERPY-01 -- decompose the 8,961-line server.py while nothing uses the plane |
+| T-1027 | P1 | planned | Docs/Pipeline | DOCGEN-02 -- docs/design outside the generative pipeline, thin man coverage, ungated mirror |
+| T-1028 | P2 | planned | Build/CI | BAKECI-01 -- no CI job bakes the image, so no build-path change has ever been verified by the pipeline |
 
 ---
 
