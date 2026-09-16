@@ -2,7 +2,7 @@
      AI-related: /etc/profile.d/mios-xdg-cephfs.sh, /etc/mios/ai/v1/caller-keys.json, /etc/mios/ai/v1/a2a-peers.json, /usr/share/mios/ai/v1/mcp.json, /etc/mios/ai/v1/mcp.json, /usr/libexec/mios/mios-mcp-server, /etc/mios/hermes/config.local.yaml, /etc/mios/gateway/, /usr/libexec/mios/mios-cephfs-provision, /etc/mios/llamacpp/mios-llm-light.yaml -->
 # MiOS -- Master Tasks (SINGULAR monolith)
 
-> The one canonical task list. **261 tasks** (190 closed, 71 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
+> The one canonical task list. **264 tasks** (190 closed, 74 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
 
 | ID | Pri | Status | Domain | Title |
 |---|---|---|---|---|
@@ -988,7 +988,10 @@
 | T-1000 | P1 | planned | CI/Enforcement | GATE-04 -- the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot |
 | T-1001 | P1 | planned | CI/Enforcement | GATE-05 -- check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one |
 | T-1002 | P1 | planned | Security/Law5 | LAW5-01 -- retired lane ports are hardcoded across the code surface and no gate covers code |
-| T-1003 | P2 | planned | Provisioning/Preflight | PREFLIGHT-01 -- three of [preflight]'s five thresholds are a spec for checks that were never written |
+| T-1003 | P2 | planned | Provisioning/Preflight | PREFLIGHT-01 -- three of [preflight]'s five thresholds are a spec for checks that were never written. DECIDED: build a Rust host-probe in tools/native/ (operator, this session) |
+| T-1004 | P2 | planned | Desktop/BrowserLaunch | BROWSER-01 -- build the launcher [browser] specifies, as a Rust static binary |
+| T-1005 | P3 | planned | Build/HWCaps | HWCAPS-01 -- build the glibc-hwcaps rebuild stage [hwcaps] specifies |
+| T-1006 | P2 | planned | Provisioning/Repos | REPOS-01 -- offline-first repo rendering restates [repos] in three places instead of reading it |
 
 ---
 
@@ -10888,3 +10891,31 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Dep:** --
 **Status:** planned | **Domain:** Provisioning/Preflight | **Who:** architect
 
+
+## T-1004 -- BROWSER-01: build the launcher [browser] specifies, as a Rust static binary  (WS-APP | P2 | M)
+**Goal:** E-07 `[browser]` declares three browser families as binary-name lists (firefox/chromium/epiphany) and per-family CLI flags for tab and window opening. Nothing reads any of it -- there is no launcher -- so the table is a design document that reads as live config.
+**What+How:** Measured: zero consumers for MIOS_BROWSER_FAMILY_* / MIOS_BROWSER_FLAGS_* outside the generated globals twins, which are projection rather than consumption. Operator decided BUILD rather than delete (this session). Shape: resolve the installed browser by matching its binary name against `[browser].family`, look up the matching `[browser].flags.<family>.<mode>` for tab vs window, and exec. Law 14 and the standing Rust directive put this in `tools/native/` as a static binary rather than another shell script; the portal/verb surface calls it instead of spawning a browser directly. Keep the family match data-driven -- the point of the table is that adding a browser is an SSOT edit, not a code edit.
+**Where:** `tools/native/` (new crate), `usr/share/mios/mios.toml` `[browser]`, `usr/share/mios/mios.toml` `[ssot_tables]`, the verb/portal call site that opens URLs
+**Done When:** opening a URL routes through the binary; adding a browser binary name to `[browser].family.<f>` makes the launcher recognise it with no code change -- proved by planting a name in a COPY of the SSOT and observing the resolution change; `[browser]` leaves the unconsumed register because it is read, not because a predicate moved.
+**Why:** Three families and their flags are exactly the kind of per-host variation the SSOT exists to absorb. Left unconsumed, an operator adding their browser edits config that nothing reads and gets no launcher.
+**Dep:** --
+**Status:** planned | **Domain:** Desktop/BrowserLaunch | **Who:** architect
+
+## T-1005 -- HWCAPS-01: build the glibc-hwcaps rebuild stage [hwcaps] specifies  (WS-BUILD | P3 | M)
+**Goal:** E-07 `[hwcaps]` declares level, ld_so_hwcaps_autoselect and native_rebuild. The numbered stage it describes, `automation/45-hwcaps-rebuild.sh`, does not exist; nothing consumes any key; `glibc-hwcaps` appears only in docs and the SSOT itself.
+**What+How:** Operator decided BUILD rather than delete (this session). The stage emits micro-architecture variants of hot libraries into `glibc-hwcaps/x86-64-v3` (and v4 where `level` says so) so ld.so auto-selects them at load time when `ld_so_hwcaps_autoselect` is on, with `native_rebuild` gating whether anything is recompiled at all. Two things to settle before writing it: WHICH libraries qualify (an unbounded rebuild is a large build-time cost, so the set wants declaring in SSOT rather than inferring), and whether the variants ship in the image or are built at firstboot -- Law 12 says bake, not fetch, which argues for image-time. Numbered automation stages are the sanctioned place for bash glue, so this one does not need to be Rust.
+**Where:** `automation/45-hwcaps-rebuild.sh` (new), `usr/share/mios/mios.toml` `[hwcaps]`, `usr/share/mios/reference/pipeline-index.tsv` (regenerated), `usr/share/mios/mios.toml` `[ssot_tables]`
+**Done When:** the stage runs in the pipeline and its output is observable (variant directories exist and ld.so selects them); toggling `native_rebuild` in a COPY of the SSOT changes whether the stage does work; `level` selects the variant set; and the pipeline index regenerates to include the new stage with no hand edit.
+**Why:** A declared performance feature that was never built is worse than an absent one: the knob reads as available and the operator gets nothing.
+**Dep:** T-996
+**Status:** planned | **Domain:** Build/HWCaps | **Who:** architect
+
+## T-1006 -- REPOS-01: offline-first repo rendering restates [repos] in three places instead of reading it  (WS-BUILD | P2 | M)
+**Goal:** E-07 `[repos]` declares fedora and fedora-updates (name, metalink, enabled, gpgcheck). Nothing reads it. Three separate render paths restate the same definitions as literals, so the table documents a contract it does not control.
+**What+How:** The ARCHITECTURE is already correct and is not the defect. `automation/05-repos.sh` dispatches three ways: `miosd render-repos [--online]` when miosd exists; else the vendored `baseurl=file:///usr/share/mios/vendored/rpms/...` definitions when `/usr/share/mios/vendored/rpms` is present and `MIOS_ONLINE_BUILD != 1`; else online metalink. That is baked-offline-first with online build supported, which is what Law 12 asks for -- bake by default, do not block on egress -- and the operator confirmed it as the intent. The defect is that each path spells the repo definitions out: `miosd`'s `run_render_repos` hardcodes the metalink URLs in Rust (src/mios-rs/miosd/src/main.rs), and 05-repos.sh hardcodes both the vendored and the online heredocs. Editing `[repos]` changes none of them. Fix: `run_render_repos` takes name/metalink/gpgcheck/enabled from the SSOT `[repos]` table and keeps `--online` as the mode selector, with the vendored baseurl form derived for the offline mode; 05-repos.sh's fallback heredocs either delegate to miosd or read the same table, so one edit moves every path. This is also the Rust-static-binary direction: the preferred path is already Rust, so the SSOT read belongs there.
+**Where:** `src/mios-rs/miosd/src/main.rs` (`run_render_repos`), `automation/05-repos.sh`, `usr/share/mios/mios.toml` `[repos]`, `usr/share/mios/mios.toml` `[ssot_tables]`
+**Done When:** changing a metalink or enabling/disabling a repo in a COPY of the SSOT changes the rendered .repo file in BOTH modes -- proved by planting and rendering offline and `--online`; the offline path still emits `file:///` vendored baseurls and reaches no network, proved by asserting no metalink appears in the offline render; and `[repos]` leaves the unconsumed register because it is read.
+**Why:** The dual-mode design is the valuable part and it is invisible from the SSOT: an operator reading `[repos]` cannot tell that offline is the default, and editing the table to pin a mirror silently does nothing in all three paths.
+**Note:** `MIOS_ONLINE_BUILD` is referenced by 05-repos.sh, 06-enable-external-repos.sh and 57-gnome.sh but is emitted by no resolver (absent from env-baseline.txt) -- a Law 9 referenced-not-emitted breach, invisible because `automation/` sits inside the closure gate's exemption (T-1000). Decide whether the build-mode toggle is SSOT-derived or a deliberate build-time-only env, and record it either way.
+**Dep:** --
+**Status:** planned | **Domain:** Provisioning/Repos | **Who:** architect
