@@ -110,7 +110,7 @@
 109	check_native_lint	native workspace cargo check passed
 110	check_resolver_shell_equivalence	shell resolver logic is identical to python/PS SSOT resolvers
 111	check_resolver_ps_equivalence	the PowerShell half of the resolver twin exists; its CONTENT is check_globals_generated's job
-112	check_cargo_deny	Rust workspace cargo-deny advisories, licenses, and bans pass clean
+112	check_cargo_deny	tools/native/deny.toml supply-chain policy is present
 113	check_ps_repo_parity	Law-15 mirror manifest is self-consistent and mirrored PowerShell surfaces are byte-identical
 114	check_ps_redirectors	PowerShell script entrypoint redirectors point to canonical implementation
 115	check_powershell_parse	all PowerShell scripts (.ps1, .psm1) parse without syntax errors

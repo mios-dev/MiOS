@@ -3627,11 +3627,13 @@ check_resolver_ps_equivalence() {
     fi
 }
 
-# --- Rust workspace cargo-deny advisories, licenses, and bans pass clean ---
+# --- tools/native/deny.toml supply-chain policy is present ---
 check_cargo_deny() {
-    echo "[98-drift-checks] Rust workspace cargo-deny advisories, licenses, and bans pass clean"
+    # Presence of the policy file is the whole assertion: no step in this
+    # repo runs it, so advisories, licenses and bans stay unenforced.
+    echo "[98-drift-checks] tools/native/deny.toml supply-chain policy is present"
     if [[ -f "$ROOT/tools/native/deny.toml" ]]; then
-        echo "[98-drift-checks]   tools/native/deny.toml supply-chain policy present"
+        echo "[98-drift-checks]   tools/native/deny.toml present -- the policy is NOT executed, so advisories/licenses/bans stay unenforced"
     else
         _violation "tools/native/deny.toml missing"
     fi
