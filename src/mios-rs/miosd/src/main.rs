@@ -612,33 +612,46 @@ fn run_render_quadlets(dirs: &[String]) -> Result<(), Box<dyn std::error::Error>
 }
 
 fn run_render_ports(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
-    let mut in_ports = false;
-    let mut stack_id: u32 = 0;
-    let mut entries: Vec<(String, String)> = Vec::new();
+    // Parse the TOML; do NOT scan lines. The line scan this replaced treated any
+    // line containing '=' inside [ports] as a key/value pair, so a COMMENT
+    // became an environment variable name -- including one carrying a backtick
+    // pair, which `bash source` reads as command substitution. install.env is
+    // the file Law 10 (BARE-SAFE-ENV) governs. T-1018.
+    let content = std::fs::read_to_string(toml_path)
+        .map_err(|e| format!("render-ports: {toml_path} could not be read: {e}"))?;
+    let parsed: toml::Value = content
+        .parse()
+        .map_err(|e| format!("render-ports: {toml_path} did not parse: {e}"))?;
+    let ports = parsed
+        .get("ports")
+        .and_then(|p| p.as_table())
+        .ok_or_else(|| format!("render-ports: {toml_path} declares no [ports] table"))?;
 
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_ports = trimmed == "[ports]";
+    let stack_id = ports
+        .get("stack_id")
+        .and_then(|v| v.as_integer())
+        .unwrap_or(0);
+    let offset = stack_id * 10000;
+
+    // Sorted by the SSOT key, matching the Python renderer this must stay
+    // byte-identical to; only integers are ports, so an array or a string in
+    // this table is skipped rather than emitted as a value.
+    let mut names: Vec<&String> = ports.keys().collect();
+    names.sort();
+
+    let mut entries: Vec<String> = Vec::new();
+    for name in names {
+        if name == "stack_id" || name == "categories" {
             continue;
         }
-        if in_ports && trimmed.contains('=') {
-            let parts: Vec<&str> = trimmed.splitn(2, '=').collect();
-            let key = parts[0].trim();
-            let val = parts[1]
-                .split('#')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .trim_matches('"');
-
-            if key == "stack_id" {
-                stack_id = val.parse().unwrap_or(0);
-            } else {
-                entries.push((key.to_uppercase(), val.to_string()));
-            }
-        }
+        let Some(value) = ports.get(name).and_then(|v| v.as_integer()) else {
+            continue;
+        };
+        let rendered = if value == 53 { value } else { value + offset };
+        entries.push(format!("MIOS_PORT_{}={}", name.to_uppercase(), rendered));
+    }
+    if entries.is_empty() {
+        return Err("render-ports: [ports] yielded no integer port, so nothing was written".into());
     }
 
     let mut out_lines = Vec::new();
@@ -649,19 +662,7 @@ fn run_render_ports(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::
             }
         }
     }
-
-    for (key, val) in entries {
-        let final_val = if let Ok(num) = val.parse::<u32>() {
-            if num == 53 {
-                "53".to_string()
-            } else {
-                (num + (stack_id * 10000)).to_string()
-            }
-        } else {
-            val
-        };
-        out_lines.push(format!("MIOS_PORT_{}={}", key, final_val));
-    }
+    out_lines.extend(entries);
 
     if let Some(parent) = std::path::Path::new(out_path).parent() {
         let _ = std::fs::create_dir_all(parent);

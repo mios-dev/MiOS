@@ -181,6 +181,15 @@ pub fn check(root: &Path) -> Report {
              binary a PATH location or dispatch by absolute path, do NOT raise the ceiling"
         ));
     }
+    // A ceiling above the measurement is slack a later regression can hide in.
+    // The ratchet only bites if the ceiling EQUALS what is actually there, so a
+    // ceiling left high after a conversion is itself the violation.
+    if total < ceiling {
+        findings.push(format!(
+            "the ceiling is {ceiling} but only {total} gate(s) are unreachable -- lower \
+             max_unreachable to {total}; a ceiling above the measurement is slack"
+        ));
+    }
     let present: BTreeSet<String> = found.keys().cloned().collect();
     for rel in present.difference(&listed) {
         findings.push(format!(

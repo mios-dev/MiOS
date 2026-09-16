@@ -57,6 +57,18 @@ fn a_registered_gate_at_the_ceiling_is_clean() {
 }
 
 #[test]
+fn a_ceiling_above_the_measurement_is_slack_and_fails() {
+    // A ceiling left high after a conversion lets a later regression back in
+    // silently. The ratchet only bites when the ceiling equals what is there.
+    let d = tempfile::tempdir().unwrap();
+    tree(d.path(), 5, &["automation/10-a.sh"], &[("10-a.sh", DEAD)]);
+    let (code, out) = run(d.path(), false);
+    assert_eq!(1, code, "{out}");
+    assert!(out.contains("slack"), "{out}");
+    assert!(out.contains("lower max_unreachable to 1"), "{out}");
+}
+
+#[test]
 fn an_unregistered_gate_fails_and_names_the_file() {
     let d = tempfile::tempdir().unwrap();
     tree(d.path(), 1, &[], &[("10-a.sh", DEAD)]);
