@@ -1403,32 +1403,31 @@ fn run_firewall_ports() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_render_nut(toml_path: &str, conf_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
-    let mut name = String::new();
-    let mut driver = "usbhid-ups".to_string();
-    let mut port = "auto".to_string();
-    let mut desc = "MiOS Uninterruptible Power Supply".to_string();
-    let mut in_ups = false;
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_ups = trimmed == "[power.ups]" || trimmed == "[ups]";
-            continue;
-        }
-        if in_ups && trimmed.contains('=') {
-            let parts: Vec<&str> = trimmed.splitn(2, '=').collect();
-            let key = parts[0].trim();
-            let val = parts[1].trim().trim_matches('"').trim_matches('\'');
-            match key {
-                "name" => name = val.to_string(),
-                "driver" => driver = val.to_string(),
-                "port" => port = val.to_string(),
-                "desc" => desc = val.to_string(),
-                _ => {}
-            }
-        }
-    }
+    // Parse the TOML; do NOT scan lines. This table happens to be all
+    // single-line scalars today, so the scan produced the right answer -- but a
+    // comment containing '=' or a multi-line value would break it exactly as it
+    // broke [ports] and [network.ntp]. And unwrap_or_default() meant a
+    // NONEXISTENT manifest rendered four default config files and exited 0.
+    // T-1018.
+    let content = std::fs::read_to_string(toml_path)
+        .map_err(|e| format!("render-nut: {toml_path} could not be read: {e}"))?;
+    let parsed: toml::Value = content
+        .parse()
+        .map_err(|e| format!("render-nut: {toml_path} did not parse: {e}"))?;
+    let ups = parsed
+        .get("power")
+        .and_then(|p| p.get("ups"))
+        .or_else(|| parsed.get("ups"));
+    let field = |k: &str, dflt: &str| -> String {
+        ups.and_then(|u| u.get(k))
+            .and_then(|v| v.as_str())
+            .unwrap_or(dflt)
+            .to_string()
+    };
+    let name = field("name", "");
+    let driver = field("driver", "usbhid-ups");
+    let port = field("port", "auto");
+    let desc = field("desc", "MiOS Uninterruptible Power Supply");
 
     let dir = std::path::Path::new(conf_dir);
     std::fs::create_dir_all(dir)?;
