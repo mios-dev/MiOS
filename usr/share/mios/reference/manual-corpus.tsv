@@ -795,6 +795,8 @@ automation/98-drift-checks.sh	388	388	1	8	28bc07bafe6d	STAY	inline-scoped		0				
 automation/98-drift-checks.sh	479	479	1	4	155da918ebe9	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	600	600	1	10	458ec4be0fd9	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	604	615	12	115	03520b292756	MIGRATE	narrative-history		0				0
+automation/98-drift-checks.sh	679	679	1	11	ce42e87c2437	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	686	687	2	22	c0d58a76887c	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	827	829	3	31	90b32028877c	STAY	midsize-why		0				0
 automation/98-drift-checks.sh	854	854	1	7	cd4fb1e58bfa	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	879	879	1	6	240c7696fca8	STAY	local-scoped		0				0

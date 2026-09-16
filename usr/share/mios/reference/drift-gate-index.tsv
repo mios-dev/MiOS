@@ -22,7 +22,7 @@
 21	check_unwired_modules	no imported-but-dead agent-pipe module
 22	check_cephfs_ssot	CephFS SSOT configuration is valid
 23	check_converge_ssot	[converge] values are read from mios.toml and within legal bounds
-24	check_hummingbird	Hummingbird distroless and Quadlet configuration is valid
+24	check_hummingbird	Hummingbird distroless Containerfile and Quadlet conform when the feature is enabled
 25	check_container_ports	no manual port literals in container definitions
 26	check_bootstrap_ports_drift	bootstrap mios.toml shared surfaces match main repository
 27	check_bootstrap_sync	bootstrap repository sync: shared files in MiOS-bootstrap match main repository SSOT
