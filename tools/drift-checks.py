@@ -10,6 +10,7 @@ unchanged -- only their container is.
 """
 import sys
 import os
+import re
 
 os.environ.setdefault("MIOS_DRIFT_ROOT", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -216,6 +217,9 @@ def check_resolver_differential_parity() -> int:
     print("    mios-resolver --emit=json matches Python SSOT render 100%")
     sys.exit(0)
 
+# A sibling unit test, by either naming convention in the tree.
+_TEST_BASENAME = re.compile(r"^test[-_]")
+
 def check_legibility_ratchet() -> int:
     import os, subprocess, sys
     import tomllib
@@ -298,8 +302,13 @@ def check_legibility_ratchet() -> int:
                                if r.endswith((".ps1", ".psm1")) and not _is_generated(r)]),
         "max_automation_phases": len([r for r in rels if r.startswith("automation/")
                                       and r.endswith(".sh") and r[11:13].isdigit()]),
+        # Sibling unit tests are not verbs. Counting them made this ratchet pull
+        # against check_module_test_coverage: adding the test that gate demands
+        # tripped this one, so the cheapest way to stay green was to not write
+        # the test. Floor re-baselined down by the 16 already present.
         "max_libexec_verbs": len([r for r in rels if r.startswith("usr/libexec/mios/")
-                                  and r.count("/") == 3]),
+                                  and r.count("/") == 3
+                                  and not _TEST_BASENAME.match(r.rsplit("/", 1)[-1])]),
     }
     viol = []
     for k, got in sorted(measured.items()):
@@ -4490,10 +4499,14 @@ def check_template_self_conformance() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     tmpl_dir = os.path.join(root, "usr/share/mios/templates")
     scaffold_script = os.path.join(root, "usr/libexec/mios/mios-new")
+    conform_tool = os.path.join(root, "usr/libexec/mios/check-template-conformance")
 
-    # Both are tracked deliverables (Law 16); returning 0 here asserted that
+    # All three are tracked deliverables (Law 16); returning 0 here asserted that
     # "every template scaffolds" while scaffolding none of them.
-    missing = [p for p, ok in ((tmpl_dir, os.path.isdir(tmpl_dir)), (scaffold_script, os.path.isfile(scaffold_script))) if not ok]
+    subjects = ((tmpl_dir, os.path.isdir(tmpl_dir)),
+                (scaffold_script, os.path.isfile(scaffold_script)),
+                (conform_tool, os.path.isfile(conform_tool)))
+    missing = [p for p, ok in subjects if not ok]
     if missing:
         print("template self-conformance subject missing: %s" % ", ".join(
             _under(p, root) for p in missing))
@@ -4507,16 +4520,48 @@ def check_template_self_conformance() -> int:
         return 1
     failures = []
 
+    # A conforming file is the deliverable; a zero exit is not. Same predicate
+    # as check_template_conformance: MIOS_THEME_ROOT keeps SSOT and the
+    # grandfather list on the real tree, --root walks only what was scaffolded.
+    # One root per template -- match regexes anchor at the root, and the
+    # `quadlet` umbrella and `quadlet-container` claim the same destination.
+    scaffolded = 0
+    walk_env = dict(os.environ, MIOS_THEME_ROOT=os.path.abspath(root),
+                    MIOS_TOML_ROOT=os.path.abspath(root))
     for t in sorted(templates):
         if t in ("conformance-grandfathered.list", "PLACEHOLDERS.md"):
             continue
-        with tempfile.TemporaryDirectory() as tmpdir:
-            env = dict(os.environ, MIOS_DRIFT_CHECK_ROOT=tmpdir, MIOS_THEME_ROOT=tmpdir)
-            cmd = [sys.executable, scaffold_script, t, "testmock"]
-            res = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        with tempfile.TemporaryDirectory() as scaffold_root:
+            env = dict(os.environ, MIOS_DRIFT_CHECK_ROOT=scaffold_root,
+                       MIOS_THEME_ROOT=scaffold_root)
+            res = subprocess.run(
+                [sys.executable, scaffold_script, t, "testmock"],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if res.returncode != 0:
-                failures.append(f"Template '{t}' failed to scaffold: {res.stderr.strip()}")
+                failures.append("Template %r failed to scaffold: %s"
+                                % (t, (res.stderr or res.stdout or "").strip()
+                                   or "exit %d, no diagnostic" % res.returncode))
                 continue
+            scaffolded += 1
+
+            res = subprocess.run(
+                [sys.executable, conform_tool, "--root", scaffold_root],
+                env=walk_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True)
+            if res.returncode == 0:
+                continue
+            out = ((res.stdout or "") + (res.stderr or "")).strip()
+            detail = [ln.strip() for ln in out.splitlines()
+                      if ln.strip() and ": Missing" in ln or "Out-of-order" in ln]
+            if not detail:
+                detail = [out or "exit %d, no diagnostic" % res.returncode]
+            for ln in detail:
+                failures.append("template %r scaffolds a non-conforming file: %s"
+                                % (t, ln))
+
+    if not scaffolded:
+        print("no template scaffolded, so nothing was examined")
+        return 1
 
     if failures:
         for f in failures:

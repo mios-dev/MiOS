@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Command-line utility to scaffold new MiOS files from canonical templates, interpolating names, dates, and settings.
 # AI-related: /usr/share/mios/templates/, /usr/share/mios/mios.toml
-# AI-functions: main, render_template, get_dest_path
+# AI-functions: main, render_template, get_dest_path, next_ordinal
 
 import sys
 import os
@@ -22,7 +22,7 @@ def to_pascal_case(s):
 
 import argparse
 
-def render_template(content, name, type_name, description=None):
+def render_template(content, name, type_name, description=None, ordinal=None):
     date_str = datetime.now().strftime("%Y-%m-%d")
     pascal_name = to_pascal_case(name)
     
@@ -31,9 +31,16 @@ def render_template(content, name, type_name, description=None):
     content = content.replace("{{date}}", date_str)
     
     if type_name == "adr":
+        # The ordinal comes from whoever knows it: the caller if they numbered
+        # the name, otherwise the allocator that chose the destination. Slicing
+        # the title by a PLACEHOLDER id (the old "0000") ate the first four
+        # characters of every unnumbered slug.
         match = re.match(r"^(\d+)", name)
-        adr_id = match.group(1) if match else "0000"
-        title = name[len(adr_id):].strip("-_ ").replace("-", " ").replace("_", " ").capitalize()
+        if match:
+            adr_id, slug = match.group(1), name[len(match.group(1)):]
+        else:
+            adr_id, slug = (ordinal or "0000"), name
+        title = slug.strip("-_ ").replace("-", " ").replace("_", " ").capitalize()
         content = content.replace("{{id}}", adr_id)
         content = content.replace("{{title}}", title)
         content = content.replace("{{status}}", "accepted")
@@ -61,6 +68,29 @@ def render_template(content, name, type_name, description=None):
 
     return content
 
+def next_ordinal(dest_dir, width):
+    """The lowest unused ordinal in dest_dir, for a type numbered sequentially.
+
+    Scanning beats a stored counter: the directory listing IS the allocation
+    record, so it cannot drift out of step with the files the way a hand-bumped
+    name_prefix in SSOT did. An unreadable or empty directory yields the first
+    ordinal rather than raising -- scaffolding into a fresh tree is legitimate.
+    """
+    pat = re.compile(r"^(\d{%d})-" % width)
+    used = set()
+    try:
+        entries = os.listdir(dest_dir)
+    except OSError:
+        entries = []
+    for entry in entries:
+        m = pat.match(entry)
+        if m:
+            used.add(int(m.group(1)))
+    n = 1
+    while n in used:
+        n += 1
+    return n
+
 def get_dest_path(name, type_name, repo_root):
     cfg = mios_toml.load_merged()
     tmpl_cfg = cfg.get("templates", {}).get(type_name, {})
@@ -73,12 +103,23 @@ def get_dest_path(name, type_name, repo_root):
     if "fixed_name" in tmpl_cfg:
         return os.path.join(repo_root, tmpl_cfg["fixed_name"])
 
+    dest_dir = tmpl_cfg.get("dest_dir", ".")
     prefix = tmpl_cfg.get("name_prefix", "")
     if prefix:
-        if prefix == "0012-" and not re.match(r"^\d{4}-", name):
-            name = prefix + name
-        elif prefix == "99-" and not re.match(r"^\d{2}-", name):
-            name = prefix + name
+        seed = re.match(r"^(\d+)-$", prefix)
+        if seed:
+            # An ordinal prefix is a seed, not a literal. A name the caller
+            # already numbered is left alone; otherwise the number comes from
+            # SSOT: the next free one for a sequential type (ADRs), or the seed
+            # itself for a type whose ordinal means something else (the
+            # automation NN- steps encode execution order, not sequence).
+            width = len(seed.group(1))
+            if not re.match(r"^\d+-", name):
+                if tmpl_cfg.get("name_ordinal_next"):
+                    nxt = next_ordinal(os.path.join(repo_root, dest_dir), width)
+                else:
+                    nxt = int(seed.group(1))
+                name = "%0*d-%s" % (width, nxt, name)
         elif not name.startswith(prefix):
             name = prefix + name
 
@@ -86,7 +127,6 @@ def get_dest_path(name, type_name, repo_root):
     if suffix and not name.endswith(suffix):
         name += suffix
 
-    dest_dir = tmpl_cfg.get("dest_dir", ".")
     return os.path.join(repo_root, dest_dir, name)
 
 def get_registered_types():
@@ -146,13 +186,22 @@ def main():
     with open(template_path, "r", encoding="utf-8") as f:
         template_content = f.read()
 
-    rendered = render_template(template_content, name, type_name, description=args.description)
-
     repo_root = os.environ.get("MIOS_DRIFT_CHECK_ROOT")
     if not repo_root:
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
     dest_path = args.out_path if args.out_path else get_dest_path(name, type_name, repo_root)
+
+    # Render AFTER the destination is known: a sequential type's ordinal only
+    # exists once the allocator has picked one, and a file whose {{id}} says
+    # something other than its own filename is a hand-fix waiting to happen.
+    ordinal = None
+    if dest_path:
+        m = re.match(r"^(\d+)-", os.path.basename(dest_path))
+        if m:
+            ordinal = m.group(1)
+    rendered = render_template(template_content, name, type_name,
+                               description=args.description, ordinal=ordinal)
 
     if dest_path:
         dest_path = os.path.abspath(dest_path)

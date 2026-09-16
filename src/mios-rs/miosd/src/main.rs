@@ -208,6 +208,76 @@ enum Commands {
     },
 }
 
+/// Prefix + name + suffix. An ordinal prefix is a seed, not a literal.
+/// Twin of `get_dest_path` in usr/libexec/mios/mios-new.
+fn resolve_name(
+    name: &str,
+    cfg: &toml::Value,
+    repo_root: &std::path::Path,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut final_name = name.to_string();
+    let dest_dir = cfg.get("dest_dir").and_then(|d| d.as_str()).unwrap_or(".");
+
+    if let Some(prefix) = cfg.get("name_prefix").and_then(|p| p.as_str()) {
+        match regex::Regex::new(r"^(\d+)-$")?.captures(prefix) {
+            Some(caps) => {
+                let width = caps[1].len();
+                if !regex::Regex::new(r"^\d+-")?.is_match(&final_name) {
+                    let n = if cfg
+                        .get("name_ordinal_next")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
+                        next_ordinal(&repo_root.join(dest_dir), width)
+                    } else {
+                        caps[1].parse::<u32>().unwrap_or(1)
+                    };
+                    final_name = format!("{:0width$}-{}", n, final_name, width = width);
+                }
+            }
+            None => {
+                if !final_name.starts_with(prefix) {
+                    final_name = format!("{}{}", prefix, final_name);
+                }
+            }
+        }
+    }
+
+    if let Some(suffix) = cfg.get("name_suffix").and_then(|s| s.as_str()) {
+        if !final_name.ends_with(suffix) {
+            final_name = format!("{}{}", final_name, suffix);
+        }
+    }
+
+    Ok(final_name)
+}
+
+/// Lowest unused ordinal in `dest_dir`. The listing IS the allocation record,
+/// so it cannot drift the way a hand-bumped `name_prefix` did. Missing or empty
+/// yields 1. Twin of `next_ordinal` in usr/libexec/mios/mios-new.
+fn next_ordinal(dest_dir: &std::path::Path, width: usize) -> u32 {
+    let mut used = std::collections::HashSet::new();
+    if let Ok(entries) = std::fs::read_dir(dest_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let digits: String = name.chars().take(width).collect();
+            if digits.len() == width
+                && digits.chars().all(|c| c.is_ascii_digit())
+                && name.chars().nth(width) == Some('-')
+            {
+                if let Ok(n) = digits.parse::<u32>() {
+                    used.insert(n);
+                }
+            }
+        }
+    }
+    let mut n = 1;
+    while used.contains(&n) {
+        n += 1;
+    }
+    n
+}
+
 fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::Error>> {
     let repo_root = match std::env::var("MIOS_DRIFT_CHECK_ROOT")
         .or_else(|_| std::env::var("MIOS_THEME_ROOT"))
@@ -250,13 +320,27 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
         }
     }
 
+    // Name BEFORE render: {{id}} must agree with the filename the allocator chose.
+    let final_name = match tmpl_cfg.as_ref() {
+        Some(cfg) => resolve_name(name, cfg, &repo_root)?,
+        None => name.to_string(),
+    };
+    let ordinal = regex::Regex::new(r"^(\d+)-")?
+        .captures(&final_name)
+        .map(|c| c[1].to_string());
+
     let mut rendered = content;
     if type_name == "adr" {
+        // The ordinal comes from whoever knows it: the caller if they numbered
+        // the name, otherwise the allocator that chose the destination.
         let (adr_id, clean_name) =
             if let Some(m) = regex::Regex::new(r"^(\d{4})[-_]?(.*)$")?.captures(name) {
                 (m[1].to_string(), m[2].to_string())
             } else {
-                ("0012".to_string(), name.to_string())
+                (
+                    ordinal.clone().unwrap_or_else(|| "0000".to_string()),
+                    name.to_string(),
+                )
             };
         let raw_title = clean_name.replace(['-', '_'], " ");
         let title = if raw_title.is_empty() {
@@ -323,40 +407,13 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
             return Ok(());
         }
 
-        let mut final_name = name.to_string();
-        if let Some(fixed) = cfg.get("fixed_name").and_then(|f| f.as_str()) {
-            let dest_path = repo_root.join(fixed);
-            if dest_path.exists() {
-                eprintln!("Error: Target file already exists at {:?}", dest_path);
-                std::process::exit(1);
+        let dest_path = match cfg.get("fixed_name").and_then(|f| f.as_str()) {
+            Some(fixed) => repo_root.join(fixed),
+            None => {
+                let dest_dir = cfg.get("dest_dir").and_then(|d| d.as_str()).unwrap_or(".");
+                repo_root.join(dest_dir).join(&final_name)
             }
-            std::fs::write(&dest_path, rendered)?;
-            println!(
-                "Scaffolded new {} at: {}",
-                type_name,
-                dest_path.display().to_string().replace('\\', "/")
-            );
-            return Ok(());
-        }
-
-        if let Some(prefix) = cfg.get("name_prefix").and_then(|p| p.as_str()) {
-            if prefix == "0012-" && !regex::Regex::new(r"^\d{4}-")?.is_match(&final_name) {
-                final_name = format!("0012-{}", final_name);
-            } else if prefix == "99-" && !regex::Regex::new(r"^\d{2}-")?.is_match(&final_name) {
-                final_name = format!("99-{}", final_name);
-            } else if !final_name.starts_with(prefix) {
-                final_name = format!("{}{}", prefix, final_name);
-            }
-        }
-
-        if let Some(suffix) = cfg.get("name_suffix").and_then(|s| s.as_str()) {
-            if !final_name.ends_with(suffix) {
-                final_name = format!("{}{}", final_name, suffix);
-            }
-        }
-
-        let dest_dir = cfg.get("dest_dir").and_then(|d| d.as_str()).unwrap_or(".");
-        let dest_path = repo_root.join(dest_dir).join(final_name);
+        };
 
         if let Some(parent) = dest_path.parent() {
             std::fs::create_dir_all(parent)?;

@@ -9982,7 +9982,12 @@ required_markers = ["## Status", "## Context", "## Decision", "## Rationale", "#
 generated = false
 scaffold = true
 dest_dir = "usr/share/doc/mios/adr"
-name_prefix = "0012-"
+# name_prefix on a SEQUENTIAL type is an ordinal seed, not a literal: it supplies
+# the zero-pad width and the first number ever allocated. name_ordinal_next tells
+# the scaffolder to allocate the next FREE ordinal by scanning dest_dir, so two
+# ADRs scaffolded in a row cannot collide on the same number.
+name_prefix = "0001-"
+name_ordinal_next = true
 name_suffix = ".md"
 emit = "file"
 
@@ -10003,6 +10008,9 @@ required_markers = []
 generated = false
 scaffold = true
 dest_dir = "automation"
+# Deliberately NOT name_ordinal_next: the NN- ordinal encodes EXECUTION ORDER,
+# so the author places a new step next to its peers (`mios new automation-step
+# 45-myfeature`). The prefix is only the fallback for an unnumbered name.
 name_prefix = "99-"
 name_suffix = ".sh"
 emit = "file"
@@ -11033,7 +11041,7 @@ max_tracked_mb    = 202  # +1: tens of MB of vendored wheels arrived under Law 1
 max_shell_lines   = 39903  # bash is glue only (Law 14)
 max_ps_lines      = 22618  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
-max_libexec_verbs     = 285
+max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are not verbs
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]
