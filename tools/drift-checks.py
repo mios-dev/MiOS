@@ -4602,7 +4602,7 @@ def check_secret_handling() -> int:
     import os, sys, re, glob
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    key_regex = re.compile(r'-----BEGIN (?:RSA|OPENSSH|EC|PGP|PRIVATE) KEY-----')
+    key_regex = re.compile(r'-----BEGIN (?:RSA|OPENSSH|EC|PGP|PRIVATE)[A-Z ]*KEY[A-Z ]*-----\r?\n(?:[^\n]*\r?\n){0,6}?[A-Za-z0-9+/=]{40,}')  # T-1022: a PEM header is not a key
     conn_regex = re.compile(r'(?:postgres|mysql|mongodb|redis)://[a-zA-Z0-9_-]+:[^@\s\"\'`]{4,}@')
     token_regex = re.compile(r'\b(?:AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]{20})\b')
 

@@ -39,3 +39,71 @@ a real build. The operator will run bakes and a CI bake job is planned (T-1028).
 **Watch out for:** the `mios-resolver` binary must be built before a local gate run means anything
 — `check_resolver_differential_parity` exits 0 when it is absent. That skip hid a real failure
 this session until CI caught it.
+
+---
+
+## 2026-09-16 (later) · dev-loop v5 adopted; T-1022 closed · status: partial
+
+**Baseline moved.** The drift gate is now **19 violations from SIX checks**, not 20 from seven.
+`check_secret_handling` is green. Any future session comparing against "20 from seven" is using a
+stale number.
+
+**Done:** dev-loop v5.0.0 adopted (docs/DOD.md, this ledger, explicit-path staging, pre-commit
+secrets scan). T-1022 closed as a false positive -- the two flagged files hold PEM *templates*,
+not keys, and the check was matching a keyword rather than the property. Research report filed at
+`docs/design/agentic-dev-scaffolding.md`; T-1029 and T-1030 filed from it.
+
+**Next:** T-1018 stages 4..18. A background workflow is auditing all fourteen remaining stages'
+Rust renderers in parallel; its map supersedes the provisional group order in the T-1018 body.
+
+**Unverified:** still no bake. Every T-1018 conversion is proved by offline output diffing only.
+
+**Traps this session walked into, so the next one does not:**
+- `exit=$?` after a PIPE reports the pipe's status, not the command's. A negative control reported
+  "exit=0" that way looks like a pass. Capture the exit inside a function.
+- A heredoc that builds a regex with backslashes doubles them. Write the literal with `chr(92)` or
+  a real file write, then GREP THE RESULT before trusting it.
+- The tooling-Python ratchet has zero slack by design: adding any Python line requires removing
+  one. Put rationale in the commit message, not in an eleven-line comment.
+
+
+---
+
+## 2026-09-16 (later still) · T-1031 + T-1032 — the gate was not running the build's Python · status: partial
+
+**The single most important line in this ledger.** Until commit `0b803b65`, `automation/98-drift-checks.sh`
+ran every one of the 209 checks on a **cached copy of a different Python interpreter** than
+`sync-generated.sh`, `just`, CI and anything you type by hand. The copy lived at
+`${TEMP:-/tmp}/mios-py-bin/python3`, was created once and never invalidated. On this host it was
+Python **3.13.12**, dated the previous day; the system interpreter was **3.11.15**. Fixed: the shim
+is Windows-only now (it no-ops wherever a real `python3` resolves) and is never cached.
+
+**Consequence for anyone reading older sessions:** a gate result recorded before `0b803b65` was
+produced by an interpreter nobody chose and nothing logged. It agrees with the corrected one on
+today's tree — 19 violations, six checks, measured both ways — but that is luck.
+
+**Baseline unchanged:** **19 violations from six checks**. `check_doc_refs_resolve` 11,
+`check_docs_ratchet` 3, `check_unit_dependency_closure` 2, `check_db_seed_coverage` 1,
+`check_module_test_coverage` 1, `check_no_duplicate_value_key` 1.
+
+**Done:** T-1022 (secret-handling false positive, predicate narrowed to header+body), T-1031
+(`tools/render-globals.py` did not parse below py3.12, which broke `sync-generated.sh` at step 2/6
+and took the four downstream projections with it), T-1032 (the interpreter shim).
+
+**Next:** T-1018 stages 4..18, pending the renderer-audit workflow's map.
+
+**Traps this session walked into, so the next one does not:**
+- **Reproducing a check's command in your shell is not reproducing the check.** A file that exits 1
+  under `python3` gave rc=0 through the gate, and a commit message went out asserting the opposite
+  before that was caught. Run it *through the harness*, or you are measuring a different subject.
+- A pre-commit secrets scan that matches a bare `-----BEGIN ... KEY-----` flags **the source line of
+  the regex that looks for keys**. Require the base64 body. The scanner used here lives in the
+  session scratchpad and is validated against six controls; the durable version is
+  `drift-checks.py secret-handling`, which now has the same predicate.
+- `git add` of a derived file before `sync-generated.sh` completes stages a half-regenerated tree.
+  Run the spine to exit 0 first, then stage explicit paths.
+- Shrink-only ratchets with slack are not neutral: `shell_lines=38431/39903`, `ps_lines=22607/22618`,
+  `tracked_files=3288/3344` all sit BELOW their ceilings. A ceiling above its measurement is
+  accepted debt nobody is paying down — fold into T-1013/T-1021.
+
+**Unverified:** still no bake. Every T-1018 conversion is proved by offline output diffing only.

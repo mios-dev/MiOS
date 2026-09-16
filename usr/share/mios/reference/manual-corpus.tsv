@@ -6845,6 +6845,7 @@ tools/drift-checks.py	4473	4474	2	14	7ff6d1c86fdd	STAY	local-scoped		0				0
 tools/drift-checks.py	4512	4513	2	20	2752ad2d7fe6	STAY	local-scoped		0				0
 tools/drift-checks.py	4524	4524	1	13	c2d1f88773e0	STAY	local-scoped		0				0
 tools/drift-checks.py	4531	4535	5	52	904812ee5484	STAY	midsize-why		0				0
+tools/drift-checks.py	4605	4605	1	8	95a4c621cc78	STAY	inline-scoped		0				0
 tools/drift-checks.py	4748	4750	3	31	e2ca9fea1770	STAY	midsize-why		0				0
 tools/drift-checks.py	4788	4788	1	5	05fb95f6bd15	STAY	inline-scoped		0				0
 tools/drift-checks.py	4806	4807	2	14	7ff6d1c86fdd	STAY	local-scoped		0				0

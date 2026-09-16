@@ -1009,7 +1009,7 @@
 | T-1029 | P1 | planned | Backlog | QUEUE-02 -- one file per task under usr/share/mios/tasks/, typed frontmatter, acceptance criteria JOINED to drift-check ids |
 | T-1030 | P1 | planned | Gates/Honesty | HONEST-01 -- a skip, an empty match and a missing tool must all be RED; audit all 209 checks for the three vacuous shapes |
 | T-1021 | P1 | planned | Gates/Consolidation | GATECAT-01 -- collapse 209 drift checks and 337 test files into categorised binaries, auditable by hand |
-| T-1022 | P1 | planned | Security/Audit | SECRED-01 -- check_secret_handling is red and nobody knows what it flags; the repo is public |
+| T-1022 | P1 | done | Security/Audit | SECRED-01 -- check_secret_handling is red and nobody knows what it flags; the repo is public |
 | T-1023 | P1 | planned | Backlog | QUEUE-01 -- two backlogs, ~40k lines, no machine-selectable next task; one queue + a DONE archive |
 | T-1024 | P2 | planned | Repo/Layout | LAYOUT-01 -- survey field/ config/ images/ installation/ specs/ and collapse them where they belong |
 | T-1025 | P1 | planned | Boot/Recovery | ROLLBACK-01 -- bootc rollback has never been exercised; the recovery story is unproven |
@@ -11089,6 +11089,18 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Note:** The gate that caught it is invisible locally. `check_resolver_differential_parity` prints "mios-resolver binary not built locally -- advisory skip" and exits 0 when the binary is absent, so a full local gate run reports 20 violations while never comparing the resolvers at all. The failure only appeared in CI, which builds the binary. Build it (`cd tools/native && cargo build -p mios-resolver`) before trusting a local gate run, and see T-1008: a skip on a TRACKED subject reads as a pass.
 **Dep:** --
 **Status:** planned | **Domain:** SSOT/Law9 | **Who:** architect
+
+## T-1022 -- SECRED-01: check_secret_handling measured the wrong property  (WS-SEC | P1 | S)
+**Goal:** `check_secret_handling` was one of the standing-red checks and nobody had established what it flagged. The repo is public, so an unexplained secrets finding is either a real leak that has already shipped or a gate crying wolf; both are urgent and they need opposite responses.
+**What+How:** It flagged exactly two files: `usr/libexec/mios/sec/spiffe_identity.py` and `usr/libexec/mios/sec/uki_enroll.py`. **Neither contains a key.** Both hold f-string PEM *templates* whose body is filled at runtime from `secrets.token_bytes(32)` / `secrets.token_hex(64)`, and in both the mock path is correctly gated behind `self.mock or self.dry_run`. Both modules are also currently unwired (see T-1016). No leak, and none in the git history for those paths.
+  The defect was in the predicate: `key_regex` matched a bare `-----BEGIN ... KEY-----` header with nothing after it, so any file that merely *names* the PEM format read as a leak. That is the Measuring-the-Wrong-Property shape -- a private key is a header **followed by its base64 body**, and the check tested only the header. FIXED by requiring the header to be followed, within six lines, by at least 40 base64 characters: `-----BEGIN (?:RSA|OPENSSH|EC|PGP|PRIVATE)[A-Z ]*KEY[A-Z ]*-----\r?\n(?:[^\n]*\r?\n){0,6}?[A-Za-z0-9+/=]{40,}`. The character classes also widened the header itself, so `BEGIN ENCRYPTED PRIVATE KEY` and `BEGIN RSA PRIVATE KEY` are now both matched where the old alternation missed the first.
+  Verified two-sided on five controls: a clean tree passes; a real `.pem`, an OPENSSH `.pem`, and a key pasted into `.py` source each fail; a header-only template passes. Swept the whole tree to confirm those two files are the ONLY ones whose verdict changes and that nothing becomes newly flagged.
+**Where:** `tools/drift-checks.py` `check_secret_handling`, `usr/libexec/mios/sec/spiffe_identity.py`, `usr/libexec/mios/sec/uki_enroll.py`
+**Done When:** the check is green on a clean tree AND fails on a planted key in each of the three shapes above. Both halves hold.
+**Why:** First of the standing-red checks driven to zero -- the gate baseline moves from 20 violations across seven checks to 19 across six. A red check nobody can explain trains everyone to ignore red.
+**Note:** The same defect class bit the ad-hoc pre-commit secrets scan used while landing this: it matched the *source line of the new regex* and reported BLOCKED. A scanner that flags a regex about PEM headers has the bug it was written to catch. Fold into T-1030's honest-gates audit -- the repaired `check_secret_handling` predicate is now the project-native scan, so the pre-commit step should call it rather than duplicate it.
+**Dep:** --
+**Status:** done | **Domain:** Security/Audit | **Who:** architect
 
 ## T-1029 -- QUEUE-02: one machine-selectable task record, joined to the checks that prove it  (WS-DEBT | P1 | L)
 **Goal:** Research finding (docs/design/agentic-dev-scaffolding.md, Gap 1). MiOS is missing a QUEUE, not a process. Everything upstream of "what do I do next" is mature -- 16 gated Laws, 209 fitness functions with paired negative tests, an SSOT, a template-per-type scaffolder -- and everything downstream is prose no machine reads. There is no per-task record an agent can SELECT from without loading the whole backlog, and no binding between a task's acceptance criteria and the drift-check ids that would prove them.
