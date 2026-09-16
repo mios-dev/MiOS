@@ -43,6 +43,11 @@
 # doc-*.md north stars. They existed only on a contributor's disk.
 !/docs/
 !/docs/**
+# The dev-loop handoff ledger. The block-all `.*` rule above hides every
+# dotted directory, and a handoff note only works if the next session can read
+# it from a clean clone.
+!/.devloop/
+!/.devloop/**
 !/specs/
 !/specs/**
 # ...except the w10-live-boot staging dump: path-mangled edit-target artifacts
