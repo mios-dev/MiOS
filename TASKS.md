@@ -1003,7 +1003,7 @@
 | T-1015 | P1 | planned | Build/Rust | MIGRATE-01 -- all four [migration].use_rust_resolver_* toggles say true and nothing reads them |
 | T-1016 | P1 | planned | Arch/DeadCode | UNWIRED-01 -- 112 of 176 usr/libexec/mios/<domain>/*.py modules have no caller; the gate that checks this looks elsewhere |
 | T-1017 | P2 | planned | Docs/Refs | GHOSTSTAGE-01 -- 24 modules cite 22 automation stages that do not exist, at numbers other stages now occupy |
-| T-1018 | P0 | planned | Build/Dispatch | DISPATCH-01 -- 18 bake-time gates prefer the Rust path via a PATH lookup that cannot resolve; the Rust tier never runs |
+| T-1018 | P0 | in-progress | Build/Dispatch | DISPATCH-01 -- 18 bake-time gates prefer the Rust path via a PATH lookup that cannot resolve; the Rust tier never runs |
 | T-1019 | P3 | planned | Provisioning/Preflight | PFDISK-01 -- the disk floor is measured with `df -BG`, which rounds UP, so the check is optimistic |
 | T-1020 | P1 | planned | SSOT/Law9 | ALIAS-01 -- MIOS_AI_RAM_FLOOR_GB had two sources and table order picked the winner; the gate that catches it skips locally |
 | T-1029 | P1 | planned | Backlog | QUEUE-02 -- one file per task under usr/share/mios/tasks/, typed frontmatter, acceptance criteria JOINED to drift-check ids |
@@ -11068,8 +11068,15 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Done When:** for each converted stage the Rust path is observably the one that runs during a bake AND its output is byte-identical to the bash fallback it replaces; `[build.tool_dispatch].max_unreachable` falls to 0; each bash fallback is deleted in the commit that proves its replacement, per ADR-0021.
 **Why:** This is why every Rust-path finding in this session looked theoretical. T-1006 would have taught `run_render_repos` to read `[repos]` inside a function the bake never calls. `[migration].use_rust_resolver_*` reads `true` for a cutover whose dispatch cannot fire. A binary that ships in the image and is never invoked is the most expensive dead code there is: it passes every compile gate and changes nothing.
 **Note:** Detected by the new `check_build_tool_dispatch`, registered shrink-only at the measured 18 so the count can only fall and a nineteenth fails immediately. `check_no_silent_tool_skips` does not cover this -- it looks for `command -v ... || return 0`, and only inside `98-drift-checks.sh` and `lint-*.sh`.
+**Progress:** option (2), per-stage absolute-path dispatch, one stage per commit. Register `max_unreachable` 18 -> 14.
+  1. `35-render-ports` -- DEFECT: TOML comments became env var names in `install.env`, one carrying a backtick pair, i.e. command substitution under `bash source` (Law 10). The dead dispatch was protecting the build.
+  2. `42-chrony-render` -- DEFECT: a multi-line `servers` array was unreadable by line scan, so it silently substituted hardcoded `time.cloudflare.com` / `time.google.com` (Law 7) under a header claiming SSOT provenance.
+  3. `43-nut-render` -- byte-identical on both paths, but `unwrap_or_default()` rendered four default config files from a nonexistent manifest.
+  4. `75-kargs-render` -- DEFECT, the worst so far: the Rust renderer rebuilt `01-mios-vfio.toml` from an empty list, deleting `rd.driver.pre=vfio-pci` and `kvm-intel.nested=1` from the kernel command line. Neither comes from any `[kargs]` key; the Python renderer preserves them by design. Six integration tests added, four of which fail against the pre-fix renderer.
+  Four converted, four defects. Every one was invisible for as long as the dispatch has been dead.
+**Note (audit):** A 29-agent background audit of the fourteen remaining stages, with adversarial verification, returned its map (see the run journal referenced in `.devloop/LEDGER.md`). Two things change the plan. First, it confirms independently on eight stages that the `command -v miosd` dispatch is dead at bake, so **repairing the dispatch globally before repairing the renderers would arm nine stages' worth of silent failures in a single bake** -- option (1) is now ruled out on evidence, not caution. Second, and unplanned: several of the worst defects it found are in the **bash/Python paths that execute today**, not in the latent Rust ones. Those are not T-1018's to fix and want their own tasks.
 **Dep:** --
-**Status:** planned | **Domain:** Build/Dispatch | **Who:** architect
+**Status:** in-progress | **Domain:** Build/Dispatch | **Who:** architect
 
 ## T-1019 -- PFDISK-01: the build-disk floor is measured with a rounding-up tool  (WS-BUILD | P3 | S)
 **Goal:** `mios-probe build` reports free space from `df -BG`, which scales to whole gigabyte blocks and rounds UP. A filesystem with 26.2 GiB free reports 27G, so a floor of 27 passes on 26.2. The optimism is bounded at one gibibyte and it is in the wrong direction for a *minimum*.

@@ -1818,7 +1818,7 @@ ip_resolve = 4
 
 [build.tool_dispatch]
 # Bake-time tool-dispatch gates whose lookup cannot resolve. Shrink-only: T-1018.
-max_unreachable = 15
+max_unreachable = 14
 unreachable = [
   "automation/01-system-files-overlay.sh",
   "automation/05-repos.sh",
@@ -1828,7 +1828,6 @@ unreachable = [
   "automation/44-firewall-ports.sh",
   "automation/49-cosign-policy.sh",
   "automation/51-hardening.sh",
-  "automation/75-kargs-render.sh",
   "automation/76-uki-render.sh",
   "automation/85-bake-plan.sh",
   "automation/88-finalize.sh",

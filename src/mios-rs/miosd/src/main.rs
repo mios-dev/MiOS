@@ -434,59 +434,68 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
-    let mut iommu = "on".to_string();
-    let mut vfio_ids = String::new();
-    let mut hugepages = String::new();
-    let mut isolcpus = String::new();
-    let mut nohz_full = String::new();
-    let mut rcu_nocbs = String::new();
-    let mut thp = String::new();
-
-    let mut in_kargs = false;
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_kargs = trimmed == "[kargs]";
-            continue;
+    // A line scan cannot tell a [kargs] key from a comment or a continuation,
+    // and unwrap_or_default() turned an unreadable SSOT into "render the
+    // defaults anyway". Parse, or fail.
+    let content = std::fs::read_to_string(toml_path)
+        .map_err(|e| format!("cannot read {}: {}", toml_path, e))?;
+    let parsed: toml::Value = content.parse()?;
+    let conf = parsed.get("kargs");
+    // Python casts hugepages with str() before strip(); an integer in SSOT is
+    // legal TOML and must render as its digits, not as a quoted debug form.
+    let field = |k: &str, dflt: &str| -> String {
+        match conf.and_then(|c| c.get(k)) {
+            Some(toml::Value::String(v)) => v.trim().to_string(),
+            Some(toml::Value::Integer(v)) => v.to_string(),
+            Some(v) => v.to_string().trim().trim_matches('"').to_string(),
+            None => dflt.to_string(),
         }
-        if in_kargs && trimmed.contains('=') {
-            let parts: Vec<&str> = trimmed.splitn(2, '=').collect();
-            let key = parts[0].trim();
-            let val = parts[1]
-                .split('#')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .trim_matches('"');
-            match key {
-                "iommu" => iommu = val.to_string(),
-                "vfio_ids" => vfio_ids = val.to_string(),
-                "hugepages" => hugepages = val.to_string(),
-                "isolcpus" => isolcpus = val.to_string(),
-                "nohz_full" => nohz_full = val.to_string(),
-                "rcu_nocbs" => rcu_nocbs = val.to_string(),
-                "THP" => thp = val.to_string(),
-                _ => {}
-            }
-        }
-    }
+    };
+    let iommu = field("iommu", "on");
+    let vfio_ids = field("vfio_ids", "");
+    let hugepages = field("hugepages", "");
+    let isolcpus = field("isolcpus", "");
+    let nohz_full = field("nohz_full", "");
+    let rcu_nocbs = field("rcu_nocbs", "");
+    let thp = field("THP", "");
 
     let vfio_path = std::path::Path::new(kargs_dir).join("01-mios-vfio.toml");
     if vfio_path.exists() {
-        let mut kargs_list: Vec<String> = vec![];
-        if iommu == "intel" {
-            kargs_list.extend(["intel_iommu=on", "iommu=pt"].iter().map(|s| s.to_string()));
-        } else if iommu == "amd" {
-            kargs_list.extend(["amd_iommu=on", "iommu=pt"].iter().map(|s| s.to_string()));
-        } else if iommu == "on" {
-            kargs_list.extend(
+        // 01-mios-vfio.toml is NOT wholly generated. It carries hand-declared
+        // kargs that no SSOT key produces -- rd.driver.pre=vfio-pci, which
+        // binds vfio-pci in the initramfs before a GPU driver can claim the
+        // card, and kvm-intel.nested=1. The Python renderer this must match
+        // reads the file and strips ONLY the entries it manages. Starting from
+        // an empty list deletes the rest from the kernel command line while
+        // the header still claims the file came from [kargs].
+        let existing: toml::Value = std::fs::read_to_string(&vfio_path)?.parse()?;
+        let mut kargs_list: Vec<String> = existing
+            .get("kargs")
+            .and_then(|v| v.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        kargs_list
+            .retain(|k| !matches!(k.as_str(), "intel_iommu=on" | "amd_iommu=on" | "iommu=pt"));
+        match iommu.as_str() {
+            "intel" => {
+                kargs_list.extend(["intel_iommu=on", "iommu=pt"].iter().map(|s| s.to_string()))
+            }
+            "amd" => kargs_list.extend(["amd_iommu=on", "iommu=pt"].iter().map(|s| s.to_string())),
+            "on" => kargs_list.extend(
                 ["intel_iommu=on", "amd_iommu=on", "iommu=pt"]
                     .iter()
                     .map(|s| s.to_string()),
-            );
+            ),
+            _ => {}
         }
 
+        kargs_list.retain(|k| !k.starts_with("vfio-pci.ids"));
         if !vfio_ids.is_empty() {
             kargs_list.push(format!("vfio-pci.ids={}", vfio_ids));
         }
@@ -506,6 +515,7 @@ fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std:
         }
         lines.push("]".to_string());
         std::fs::write(&vfio_path, lines.join("\n") + "\n")?;
+        println!("Updated {}", vfio_path.display());
     }
 
     let mut custom_kargs = vec![];
@@ -543,8 +553,10 @@ fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std:
         }
         lines.push("]".to_string());
         std::fs::write(&custom_path, lines.join("\n") + "\n")?;
+        println!("Generated {}", custom_path.display());
     } else if custom_path.exists() {
-        let _ = std::fs::remove_file(&custom_path);
+        std::fs::remove_file(&custom_path)?;
+        println!("Removed stale {}", custom_path.display());
     }
 
     Ok(())
