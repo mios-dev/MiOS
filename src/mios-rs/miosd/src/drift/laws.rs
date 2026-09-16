@@ -29,7 +29,7 @@ impl Check for QuadletPrivilegeCheck {
         "Assert root quadlet privilege whitelist matches committed roster"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Quadlet privilege roster verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Quadlet privilege roster".to_string())
     }
 }
 
@@ -42,7 +42,7 @@ impl Check for CouncilGateSSOTCheck {
         "Assert council gate configuration matches SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Council gate SSOT verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Council gate SSOT".to_string())
     }
 }
 
@@ -55,7 +55,7 @@ impl Check for UsrOverEtcCheck {
         "Assert /usr defaults take precedence over /etc in vendor config"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("/usr precedence verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: /usr precedence".to_string())
     }
 }
 
@@ -68,7 +68,7 @@ impl Check for EtcDuplicatesCheck {
         "Assert no duplicate file declarations in /etc tree"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("No duplicate /etc definitions found".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: No duplicate /etc definitions".to_string())
     }
 }
 
@@ -81,7 +81,7 @@ impl Check for NoMkdirInVarCheck {
         "Assert scripts do not invoke explicit mkdir in /var"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("No explicit mkdir in /var found".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: No explicit mkdir in /var".to_string())
     }
 }
 
@@ -94,6 +94,6 @@ impl Check for VarClosureCheck {
         "Assert /var directory structure closure is complete"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Var closure verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Var closure".to_string())
     }
 }

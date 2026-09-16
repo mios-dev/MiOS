@@ -12,7 +12,7 @@ impl Check for ContainerPortsCheck {
         "Assert container port mappings match SSOT [ports] definitions"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Container ports match SSOT definitions".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Container ports match SSOT definitions".to_string())
     }
 }
 
@@ -25,7 +25,7 @@ impl Check for BootstrapPortsCheck {
         "Assert bootstrap script port references match SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Bootstrap ports drift verified clean".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Bootstrap ports drift verified clean".to_string())
     }
 }
 
@@ -38,6 +38,6 @@ impl Check for BarePortLiteralsCheck {
         "Assert no bare port number literals exist outside SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("No bare port literals found".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: No bare port literals".to_string())
     }
 }

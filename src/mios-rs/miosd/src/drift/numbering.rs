@@ -30,7 +30,7 @@ impl Check for DAGIntegrityCheck {
         "Assert task dependency DAG contains no cycles or dangling dependencies"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("DAG integrity verified acyclic".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: DAG integrity verified acyclic".to_string())
     }
 }
 
@@ -43,6 +43,6 @@ impl Check for RoadmapIndexCheck {
         "Assert ROADMAP.md task index matches AGY-TASKS.md SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Roadmap index verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Roadmap index".to_string())
     }
 }

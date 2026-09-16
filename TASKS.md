@@ -1022,11 +1022,13 @@
 | T-1034 | P0 | partial | Boot/Kargs | UKICMD-01 -- a parse error in any kargs.d drop-in silently deletes that file's kernel args, and --check then certifies the result |
 | T-1035 | P0 | partial | Security/Quadlets | QUADSEC-01 -- DB passwords render as literals into 0644 Quadlets under /usr, and a build-env var can write User=0 off the privileged roster |
 | T-1036 | P1 | planned | Security/Supply | COSIGN-01 -- signature verification ships off (insecureAcceptEverything), cannot be turned on, and the stage is non-fatal |
-| T-1037 | P0 | planned | Gates/Honesty | HOLLOW-01 -- 55 of 76 miosd Check impls are a constant Verdict::Pass with an empty body, and they run at every bake |
+| T-1037 | P0 | partial | Gates/Honesty | HOLLOW-01 -- 55 of 76 miosd Check impls are a constant Verdict::Pass with an empty body, and they run at every bake |
 | T-1038 | P0 | partial | Build/Phases | PHASELIST-01 -- [build.phases].list omits 55-native-build.sh and load_from_toml fails open to a 6-phase hardcoded registry |
 | T-1039 | P0 | done | Build/BakePlan | BAKEPLAN-01 -- stage 85's already-live Rust tier drops every locally-built image from the bake plan and omits the size_gb column |
 | T-1040 | P0 | planned | Build/Quadlets | ENVSUB-01 -- envsubst eats systemd's $$ runtime refs, the nested-default regex corrupts base_url, and *.socket is outside the find filter |
 | T-1041 | P1 | planned | Build/Firewall | FIREWALL-01 -- a malformed or absent [firewall] table silently opens a hardcoded wrong port set, and an unbound var aborts the tier mid-sequence |
+| T-1042 | P1 | planned | AI-Plane/DB | BACKFILL-01 -- check_backfill_coverage fails at every bake and was invisible under 55 checks that could not fail |
+| T-1043 | P2 | planned | Gates/Honesty | PIPENUM-01 -- check_pipeline_numbering reports PASS against a root that does not exist |
 
 ---
 
@@ -11230,8 +11232,20 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Where:** `src/mios-rs/miosd/src/drift/`, `Containerfile:103`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`
 **Done When:** `miosd drift-check --root <nonexistent>` reports no check as PASS; every remaining stub is either implemented or removed from the registry rather than left reporting green; each implemented check has a paired negative fixture.
 **Why:** The bake's own gate currently certifies a tree it never read.
+**Progress -- the lying is over; the implementing has not started.** Verified first-hand: **56 of 77** `Check::run` implementations take `_ctx` and never touch the tree, and **54** of those had a body that was exactly `Verdict::Pass("<something> verified".to_string())`. The other two `_ctx` bodies are unit-test doubles in `mod.rs` and were left alone.
+  All 54 now return `Verdict::Skip("NOT IMPLEMENTED: <subject>")`. The subject text is carried over from the old message with the claim stripped, so intent survives and the assertion does not. `Verdict::Skip` does not fail a run, so this changes what the bake SAYS, not whether it passes -- which is the point.
+
+| `miosd drift-check --root` | before | after |
+|---|---|---|
+| a directory that does not exist | **55 passed**, 11 failed, 8 skipped | 1 passed, 11 failed, 62 skipped |
+| the real tree | (55 of these were noise) | **18 passed**, 1 failed, 55 skipped |
+
+  So the bake's native gate actually verifies **eighteen** things, not seventy-three.
+  Registered shrink-only at `[drift.unimplemented]` (54 ids, `max_unimplemented = 54`) and gated by `mios-gate drift-stubs`, which fails on: a `_ctx` run that returns `Verdict::Pass` at all (the defect itself), a stub missing from the register, a stale register entry, a ceiling above the measurement, and -- as could-not-run rather than clean -- an absent register or an empty scan. 8 integration tests, 5 live negative controls, a paired negative test in the harness.
+**Remaining:** 54 checks to implement or retire. Each one implemented takes an entry off the register and the ceiling down with it. That is the drain, and it is now the only direction the number can move.
+**Note:** turning the noise off surfaced two findings, filed as T-1042 and T-1043.
 **Dep:** T-1030
-**Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
+**Status:** partial | **Domain:** Gates/Honesty | **Who:** architect
 
 ## T-1038 -- PHASELIST-01: the phase list omits the stage that builds the Rust tier  (WS-BUILD | P0 | M)
 **Goal:** `[build.phases].list` registers 71 phases; 72 exist on disk. The missing one is `automation/55-native-build.sh`, which is the ONLY `ln -sf ... /usr/bin/${bin}` in the tree -- the stage that compiles and installs the Rust binaries. `max_phase_scripts = 72  # +1: 55-native-build.sh` was bumped for the very script that was never registered.
@@ -11282,3 +11296,23 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Note:** Coverage gap the audit flagged: firewalld is not installed anywhere it could test, so the interaction between this stage, `45-firewall.sh` and the boot-time `mios-firewall-ports.service` is unobserved. The runtime unit may paper over a zero-port result on a live host while the baked image still ships an empty public zone.
 **Dep:** --
 **Status:** planned | **Domain:** Build/Firewall | **Who:** architect
+
+## T-1042 -- BACKFILL-01: a real failure was hiding behind fifty-four that could not fail  (WS-DEBT | P1 | S)
+**Goal:** `miosd drift-check --root .` reports exactly one failure on the real tree: `check_backfill_coverage: Table 'system_logs' has 'emb vector' but is not in PK_MAP or _BACKFILL_EXEMPT`. The Containerfile invokes this suite at line 103 by absolute path, so it has been failing at **every bake**.
+**What+How:** Found by silencing the noise, not by looking for it. Before T-1037 the same run printed "55 passed, 11 failed, 8 skipped" and this was one line among eleven, under fifty-five claims of verification that were never computed. After, the real-tree summary is "18 passed, 1 failed, 55 skipped" and there is exactly one thing to fix.
+  The finding itself is concrete: `system_logs` declares an `emb vector` column, so it is embeddable, but it appears in neither the primary-key map the backfiller needs nor the exemption list. Either it gets a PK mapping so embeddings can be backfilled, or it is exempt and says so.
+**Where:** `src/mios-rs/miosd/src/drift/db.rs`, the `PK_MAP` / `_BACKFILL_EXEMPT` registries, `usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py`, the `system_logs` schema
+**Done When:** `miosd drift-check --root .` reports zero failures on a clean tree, and planting a new embeddable table without a PK mapping still fails it.
+**Why:** It is the only real failure the native suite has ever been able to report, and nobody could see it.
+**Dep:** T-1037
+**Status:** planned | **Domain:** AI-Plane/DB | **Who:** architect
+
+## T-1043 -- PIPENUM-01: a check that passes against a tree that is not there  (WS-DRIFT | P2 | S)
+**Goal:** After T-1037, exactly one check still reports PASS against a root that does not exist: `check_pipeline_numbering: Pipeline numbering and ordinals verified dense`. Unlike the 54 stubs it DOES take `ctx` -- so it reads the tree, finds nothing, and calls an empty set dense.
+**What+How:** Textbook Empty-Set Pass, and the last one visible in the native suite now that the constant-Pass stubs are silent. A check whose subject is absent must say so. The fix is the same shape as the two registers landed this session: if the scan finds zero phase scripts, that is could-not-run, never clean.
+  Worth doing as the template for the other twenty implemented checks, which have not been audited for the same shape.
+**Where:** `src/mios-rs/miosd/src/drift/numbering.rs`, `src/mios-rs/miosd/src/drift/mod.rs`
+**Done When:** `miosd drift-check --root <nonexistent>` reports zero checks as PASS, and the remaining 20 ctx-reading checks are each audited for an empty-set path.
+**Why:** T-1030's thesis, in the one place left where it is still demonstrably true.
+**Dep:** T-1037
+**Status:** planned | **Domain:** Gates/Honesty | **Who:** architect

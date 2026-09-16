@@ -3767,6 +3767,37 @@ test_doc_refs_resolve() {
     log "check_doc_refs_resolve negative test passed"
 }
 
+test_drift_stubs() {
+    log "Testing check_drift_stubs"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local src="${ROOT}/src/mios-rs/miosd/src/drift/bake.rs"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    local sbak; sbak="$(mktemp)"; cp "$src" "$sbak"
+    _ds_fail() {
+        cp "$bak" "$toml"; cp "$sbak" "$src"; rm -f "$bak" "$sbak"
+        unset -f _ds_fail
+        die "$1"
+    }
+    # The defect itself: a run() that takes _ctx and still claims a Pass.
+    sed -i 's/Verdict::Skip("NOT IMPLEMENTED: Bake plan"/Verdict::Pass("Bake plan check passed"/' "$src"
+    _neg_gate check_drift_stubs && _ds_fail "check_drift_stubs passed with a stub claiming Verdict::Pass"
+    cp "$sbak" "$src"
+    # A stub that is not on the register.
+    sed -i '/^  "check_bake_plan",$/d' "$toml"
+    _neg_gate check_drift_stubs && _ds_fail "check_drift_stubs passed with an unregistered stub"
+    # Raising the ceiling must not absorb it.
+    sed -i 's/^max_unimplemented = [0-9]*$/max_unimplemented = 999/' "$toml"
+    _neg_gate check_drift_stubs && _ds_fail "check_drift_stubs passed with a stub hidden under a raised ceiling"
+    cp "$bak" "$toml"
+    # Deleting the ceiling must read as unbounded debt, not as no debt.
+    sed -i '/^max_unimplemented = [0-9]*$/d' "$toml"
+    _neg_gate check_drift_stubs && _ds_fail "check_drift_stubs passed with [drift.unimplemented].max_unimplemented absent"
+    cp "$bak" "$toml"; rm -f "$bak" "$sbak"
+    unset -f _ds_fail
+    _neg_gate check_drift_stubs || die "check_drift_stubs failed after restoration"
+    log "check_drift_stubs negative test passed"
+}
+
 test_phase_registry() {
     log "Testing check_phase_registry"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -4144,6 +4175,7 @@ _run_test test_leaked_fixtures
     _run_test test_no_inert_ssot_tables
     _run_test test_build_tool_dispatch
     _run_test test_phase_registry
+    _run_test test_drift_stubs
     _run_test test_doc_refs_resolve
     _run_test test_desktop_launchers
     _run_test test_blade_reconcile_schema

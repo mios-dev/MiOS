@@ -3235,6 +3235,24 @@ check_phase_registry() {
         _violation "a phase script on disk is not in [build.phases].list, or the register describes it wrongly, so build.sh silently runs a pipeline short of a stage (T-1038)"
 }
 
+# --- no miosd drift Check claims a verdict about a tree it never reads ---
+check_drift_stubs() {
+    echo "[98-drift-checks]   no miosd drift Check claims a verdict it did not compute"
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_drift_stubs could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    "$bin" drift-stubs --root "$ROOT" || \
+        _violation "a miosd drift Check returns Verdict::Pass without reading the tree, or the unimplemented register is stale -- the bake runs this suite at Containerfile:103 (T-1037)"
+}
+
 check_no_silent_tool_skips() {
     local require_tools="${MIOS_DRIFT_REQUIRE_TOOLS:-0}"
     local bad_skips=()
@@ -3579,6 +3597,7 @@ main() {
     check_no_silent_tool_skips
     check_build_tool_dispatch
     check_phase_registry
+    check_drift_stubs
     check_negatives_are_effective
     check_pipefail_grep_lint
     check_skip_list_covered

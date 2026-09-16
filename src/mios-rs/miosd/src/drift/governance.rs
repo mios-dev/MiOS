@@ -12,7 +12,9 @@ impl Check for TargetLanguagesCheck {
         "Assert codebase strictly adheres to Law 14 target language domain mapping"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Target languages policy per Law 14 verified clean".to_string())
+        Verdict::Skip(
+            "NOT IMPLEMENTED: Target languages policy per Law 14 verified clean".to_string(),
+        )
     }
 }
 
@@ -25,6 +27,6 @@ impl Check for LintIsFinalCheck {
         "Assert lint enforcement is non-bypassable"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Lint is final verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Lint is final".to_string())
     }
 }

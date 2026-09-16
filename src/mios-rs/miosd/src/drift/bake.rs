@@ -12,7 +12,7 @@ impl Check for BakePlanCheck {
         "Assert OCI bake plan layers and budgets conform to SSOT limits"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Bake plan check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Bake plan".to_string())
     }
 }
 
@@ -25,6 +25,6 @@ impl Check for BakeBudgetCheck {
         "Assert OCI bake layer size budgets stay within runner constraints"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Bake budget check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Bake budget".to_string())
     }
 }
