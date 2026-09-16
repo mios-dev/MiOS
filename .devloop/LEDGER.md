@@ -107,3 +107,51 @@ and took the four downstream projections with it), T-1032 (the interpreter shim)
   accepted debt nobody is paying down — fold into T-1013/T-1021.
 
 **Unverified:** still no bake. Every T-1018 conversion is proved by offline output diffing only.
+
+---
+
+## 2026-09-16 (evening) · the renderer audit landed; five live defects fixed · status: partial
+
+**Baseline unchanged all session: 19 violations from six checks.** `check_doc_refs_resolve` 11,
+`check_docs_ratchet` 3, `check_unit_dependency_closure` 2, `check_db_seed_coverage` 1,
+`check_module_test_coverage` 1, `check_no_duplicate_value_key` 1. Every commit below held it
+count-for-count.
+
+**The 29-agent renderer audit returned** and is committed at
+`docs/design/miosd-renderer-parity-audit.md`. Read its **coverage gaps** before building any
+conversion gate from it: no auditor ran a real `podman build`, no SELinux-enforcing host existed,
+and several stages were replayed through harnesses. Its **refuted claims** section is the most
+useful part — every refutation was a harness artifact, never a fabricated observation.
+
+**The sequencing rule is now evidence-backed.** `ENV PATH=/usr/libexec/mios:$PATH` would arm the
+latent Rust defects in stages 75, 33, 34, 40, 51, 49, 88, 01 and 05 **in one bake**. Do not do it.
+Convert per stage. Revised order: `build.sh` driver → 75 (done) → 76 → 33 → 34 → 01 → 85 → 49 →
+88 → 44 → 40+51 as one commit → 05 → the hollow-check gate.
+
+**Done since the last entry:** T-1022, T-1031, T-1032, T-1033, T-1018 stage 4 (75-kargs),
+the audit filing (T-1034..T-1041), T-1034 (partial), T-1039, T-1038 (partial).
+
+**What the conversions keep finding.** Four stages converted, four real defects, every one
+invisible for as long as the dispatch has been dead:
+- `35-render-ports` — TOML comments became env var names, one carrying a backtick pair (Law 10).
+- `42-chrony-render` — a multi-line array unreadable by line scan, silently substituting
+  hardcoded `time.cloudflare.com` / `time.google.com` (Law 7).
+- `43-nut-render` — byte-identical, but rendered four default files from a nonexistent manifest.
+- `75-kargs-render` — **deleted `rd.driver.pre=vfio-pci` and `kvm-intel.nested=1` from the kernel
+  command line**, exit 0, under a header claiming SSOT provenance.
+
+**Traps this session walked into, so the next one does not:**
+- **`$?` after a pipe reports the pipe's status.** Written down in this ledger this morning, walked
+  into again this evening (I read `bake-budget` as exit 0 when it correctly returns 1). Capture the
+  status in a variable on the same line, or inside a function.
+- **Sourcing a shell library inside a pipeline puts it in a SUBSHELL** and every variable it sets is
+  lost. This is how "2641 of 2655 `MIOS_*` are never exported" became a finding in the audit, and
+  how I reproduced it a second time. `source X | head` measures nothing.
+- **Reproducing a check's command in your shell is not reproducing the check.** The drift gate runs
+  its own interpreter and its own environment; run it through the harness.
+- **Touching `automation/build.sh` promotes it to lint-shell's warning tier**, which surfaces nine
+  pre-existing shellcheck findings. Budget for them or do not touch the file.
+- **Ceilings above their measurement are findings.** Both new gates treat slack as a violation.
+
+**Unverified, still:** no bake has been run, by anyone, at any point. Every conversion is proved by
+offline output diffing and negative controls only.
