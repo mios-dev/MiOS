@@ -1469,31 +1469,29 @@ fn run_render_nut(toml_path: &str, conf_dir: &str) -> Result<(), Box<dyn std::er
 }
 
 fn run_render_chrony(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
-    let mut servers: Vec<String> = Vec::new();
-    let mut in_ntp = false;
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_ntp = trimmed == "[network.ntp]" || trimmed == "[ntp]";
-            continue;
-        }
-        if in_ntp && trimmed.starts_with("servers") && trimmed.contains('=') {
-            let val_part = trimmed.split('=').nth(1).unwrap_or("").trim();
-            let raw = val_part.trim_matches(|c| c == '[' || c == ']' || c == ' ');
-            for item in raw.split(',') {
-                let clean = item.trim().trim_matches('"').trim_matches('\'');
-                if !clean.is_empty() {
-                    servers.push(clean.to_string());
-                }
-            }
-        }
-    }
-
-    if servers.is_empty() {
-        servers.push("time.cloudflare.com".to_string());
-        servers.push("time.google.com".to_string());
-    }
+    // Parse the TOML; do NOT scan lines. [network.ntp].servers is a MULTI-LINE
+    // array, so the line scan this replaced read only `servers = [`, stripped it
+    // to nothing, and silently substituted two hardcoded public NTP hosts --
+    // Law 7, and a sovereignty question on a machine whose SSOT named a pool.
+    // There is no hardcoded fallback now: an absent table yields no servers,
+    // which is what the Python renderer this must match byte-for-byte does.
+    // T-1018.
+    let content = std::fs::read_to_string(toml_path)
+        .map_err(|e| format!("render-chrony: {toml_path} could not be read: {e}"))?;
+    let parsed: toml::Value = content
+        .parse()
+        .map_err(|e| format!("render-chrony: {toml_path} did not parse: {e}"))?;
+    let servers: Vec<String> = parsed
+        .get("network")
+        .and_then(|n| n.get("ntp"))
+        .and_then(|n| n.get("servers"))
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
 
     let mut body = String::new();
     body.push_str(

@@ -1,91 +1,37 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
-# AI-hint: Projects NTP servers from mios.toml [network.ntp] SSOT to /etc/chrony.conf configuration file.
+# AI-hint: Projects NTP servers from mios.toml [network.ntp] SSOT to the chrony config via miosd, resolved by absolute path.
+# AI-related: usr/share/mios/mios.toml, src/mios-rs/miosd/src/main.rs, usr/lib/mios/log.sh
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 mios_log "Chrony NTP config"
 
 TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
 CHRONY_CONF="${CHRONY_CONF:-/etc/chrony.conf}"
+_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ ! -f "$TOML_FILE" ]]; then
     mios_err "manifest $TOML_FILE not found"
     exit 1
 fi
 
-if command -v miosd >/dev/null 2>&1; then
-    miosd render-chrony --toml "$TOML_FILE" --out "$CHRONY_CONF"
-    mios_ok "Chrony NTP config rendered via miosd"
-    exit 0
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# is not on PATH at bake time, so the lookup this replaced could never succeed
+# and the branch below it was dead on every build (T-1018).
+_miosd=""
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "$_here/../src/mios-rs/target/release/miosd" \
+          "$_here/../src/mios-rs/target/debug/miosd"; do
+    if [ -n "$_c" ] && [ -x "$_c" ]; then _miosd="$_c"; break; fi
+done
+
+if [ -z "$_miosd" ]; then
+    mios_err "miosd not found -- cannot render chrony config. Build it: cd src/mios-rs && cargo build --release -p miosd"
+    exit 2
 fi
 
-PYTHON_EXE=""
-if command -v py &>/dev/null; then
-    PYTHON_EXE=py
-elif command -v python3 &>/dev/null && python3 --version &>/dev/null; then
-    PYTHON_EXE=python3
-elif command -v python &>/dev/null && python --version &>/dev/null; then
-    PYTHON_EXE=python
-else
-    PYTHON_EXE=python3
-fi
-
-"$PYTHON_EXE" -c '
-import os
-import sys
-import tomllib
-
-toml_path = sys.argv[1]
-conf_path = sys.argv[2]
-
-with open(toml_path, "rb") as f:
-    config = tomllib.load(f)
-
-net_conf = config.get("network", {})
-ntp_conf = net_conf.get("ntp", {})
-servers = ntp_conf.get("servers", [])
-
-if not isinstance(servers, list):
-    servers = []
-
-lines = [
-    "# AI-hint: NTP configuration for Chrony. Generated from mios.toml [network.ntp] SSOT.",
-    "# DO NOT EDIT -- edit mios.toml [network.ntp] and run automation/42-chrony-render.sh",
-    ""
-]
-
-has_ptp = False
-for s in servers:
-    opt = " iburst noselect" if has_ptp else " iburst"
-    lines.append(f"server {s}{opt}")
-
-rtc_line = "# rtcsync (disabled under Hyper-V PTP time sync)" if has_ptp else "rtcsync"
-lines.extend([
-    "",
-    "# Record the rate at which the system clock gains/losses time.",
-    "driftfile /var/lib/chrony/drift",
-    "",
-    "# Allow the system clock to be stepped in the first three updates",
-    "# if its offset is larger than 1 second. (Disabled in WSL2 where Hyper-V handles coarse sync)",
-    "makestep 0 0",
-    "maxslewrate 500",
-    "",
-    "# Hyper-V PTP clock reference when available (WSL2 / VM container host)",
-    "refclock PHC /dev/ptp0 poll 3 dpoll -2 offset 0 minsamples 4 prefer trust",
-    "",
-    "# Enable kernel synchronization of the real-time clock (RTC).",
-    rtc_line,
-    "",
-    "# Specify directory for log files.",
-    "logdir /var/log/chrony"
-])
-
-os.makedirs(os.path.dirname(conf_path), exist_ok=True)
-with open(conf_path, "w", encoding="utf-8") as fh:
-    fh.write("\n".join(lines) + "\n")
-
-print(f"Generated {conf_path} with {len(servers)} NTP servers")
-' "$TOML_FILE" "$CHRONY_CONF"
-
-mios_ok "Chrony NTP config rendered"
+"$_miosd" render-chrony --toml "$TOML_FILE" --out "$CHRONY_CONF"
+mios_ok "Chrony NTP config rendered via miosd"
