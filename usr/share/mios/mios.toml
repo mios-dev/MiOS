@@ -1821,6 +1821,16 @@ max_parallel_downloads = 10
 ip_resolve = 4
 
 
+[build.quadlet_render]
+# File extensions automation/34-render-quadlets.sh substitutes ${MIOS_*} in.
+# SSOT because the renderer and check_render_extension_coverage must agree:
+# `.socket` was absent, so usr/lib/systemd/system/mios-cockpit-link.socket
+# shipped `ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}` (T-1040).
+extensions = [
+  "container", "network", "volume", "pod", "image", "build",
+  "toml", "json", "conf", "service", "socket",
+]
+
 [build.tool_dispatch]
 # Bake-time tool-dispatch gates whose lookup cannot resolve. Shrink-only: T-1018.
 max_unreachable = 2

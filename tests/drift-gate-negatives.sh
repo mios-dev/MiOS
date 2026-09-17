@@ -364,6 +364,50 @@ EOF
     log "check_ratchet_direction negative test passed"
 }
 
+test_render_extension_coverage() {
+    log "Testing check_render_extension_coverage"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    _rec_fail() { cp "$bak" "$toml"; rm -f "$bak"; unset -f _rec_fail; die "$1"; }
+
+    # Reproduce T-1040 exactly: drop `socket` and the shipped
+    # mios-cockpit-link.socket must be named.
+    python3 - "$toml" <<'EOF'
+import sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+old = '  "toml", "json", "conf", "service", "socket",\n'
+assert t.count(old) == 1, "extension list shape changed; fixture is stale"
+open(p, "w", encoding="utf-8").write(t.replace(old, '  "toml", "json", "conf", "service",\n'))
+EOF
+    _neg_gate check_render_extension_coverage && _rec_fail "check_render_extension_coverage passed with .socket removed from the renderer's scope"
+    case "${_NEG_GATE_OUT}" in
+        *mios-cockpit-link.socket*) : ;;
+        *) _rec_fail "check_render_extension_coverage failed for the wrong reason: ${_NEG_GATE_OUT}" ;;
+    esac
+    cp "$bak" "$toml"
+
+    # An empty scope is cannot-run, not a flood of findings.
+    python3 - "$toml" <<'EOF'
+import re, sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+t2 = re.sub(r"extensions = \[\n(?:.*\n)*?\]\n", "extensions = []\n", t, count=1)
+assert t2 != t, "extension list not found; fixture is stale"
+open(p, "w", encoding="utf-8").write(t2)
+EOF
+    _neg_gate check_render_extension_coverage && _rec_fail "check_render_extension_coverage passed with an empty extension list"
+    case "${_NEG_GATE_OUT}" in
+        *"absent or empty"*) : ;;
+        *) _rec_fail "empty list did not read as cannot-run: ${_NEG_GATE_OUT}" ;;
+    esac
+    cp "$bak" "$toml"
+
+    rm -f "$bak"; unset -f _rec_fail
+    _neg_gate check_render_extension_coverage || die "check_render_extension_coverage failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_render_extension_coverage negative test passed"
+}
+
 test_size_ceiling() {
     log "Testing check_size_ceiling"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -4453,6 +4497,7 @@ _run_test test_leaked_fixtures
     _run_test test_toml_projection
     _run_test test_ratchet_direction
     _run_test test_size_ceiling
+    _run_test test_render_extension_coverage
     _run_test test_curl_retry
     _run_test test_resolver_ssot_refs
     _run_test test_nested_podman_caps

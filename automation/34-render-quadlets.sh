@@ -118,6 +118,28 @@ fi
 
 rendered_count=0
 skipped_count=0
+# Extensions come from [build.quadlet_render].extensions so the renderer and
+# check_render_extension_coverage read one list (T-1040).
+_render_exts=()
+mapfile -t _render_exts < <(python3 -c '
+import os, sys, tomllib
+p = sys.argv[1]
+if not os.path.exists(p):
+    p = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0] or ".")), "../usr/share/mios/mios.toml")
+with open(p, "rb") as fh:
+    for e in tomllib.load(fh).get("build", {}).get("quadlet_render", {}).get("extensions", []):
+        print(e)
+' "${MIOS_TOML:-/usr/share/mios/mios.toml}" 2>/dev/null || true)
+if [[ "${#_render_exts[@]}" -eq 0 ]]; then
+    mios_err "[build.quadlet_render].extensions is empty or unreadable -- refusing to render nothing"
+    exit 1
+fi
+_render_find_args=()
+for _ext in "${_render_exts[@]}"; do
+    [[ -n "${_render_find_args[*]:-}" ]] && _render_find_args+=(-o)
+    _render_find_args+=(-name "*.${_ext}")
+done
+
 for dir in "${QUADLET_DIRS[@]}"; do
     [[ -d "$dir" ]] || continue
     while IFS= read -r -d '' f; do
@@ -143,7 +165,7 @@ for dir in "${QUADLET_DIRS[@]}"; do
         else
             rm -f "$local_tmp"
         fi
-    done < <(find "$dir" -maxdepth 2 -type f \( -name '*.container' -o -name '*.network' -o -name '*.volume' -o -name '*.pod' -o -name '*.image' -o -name '*.build' -o -name '*.toml' -o -name '*.json' -o -name '*.conf' -o -name '*.service' \) -print0 2>/dev/null)
+    done < <(find "$dir" -maxdepth 2 -type f \( "${_render_find_args[@]}" \) -print0 2>/dev/null)
 done
 
 mios_ok "Rendered $rendered_count, skipped $skipped_count"

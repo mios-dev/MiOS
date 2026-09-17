@@ -1043,6 +1043,7 @@
 | T-1055 | P2 | planned | Gates/Ratchets | RATCHETSEC-01 -- two RATCHET_SECTIONS entries are dotted paths the first-component comparison can never match, so they have always been inert |
 | T-1056 | P2 | planned | Build/Generators | NAMESGEN-01 -- tools/native/generate-names-registry is built and never called; sync-generated still runs the Python twin |
 | T-1057 | P1 | planned | Build/BakePlan | BAKEPARITY-01 -- the bake stage prefers a generator two fixes behind the one check_bake_plan validates; bare, it renders nothing and blames the SSOT |
+| T-1058 | P0 | done | Build/Quadlets | SOCKETREND-01 -- mios-cockpit-link.socket shipped ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}; the renderer's find filter had no *.socket |
 
 ---
 
@@ -11596,3 +11597,13 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Done When:** one generator produces the plan and the same one is what `check_bake_plan` validates; the Rust resolves floated tags from SSOT rather than only from `env`, proved by a bare run (no exported `MIOS_VERSION_*`) rendering all 6 artifacts byte-identically to the Python's; an unresolvable placeholder names the VARIABLE, not the core image -- proved by planting one; the miosd module and `tools/native` copy do not drift again (one of them is deleted, or a gate diffs them); and `85-bake-plan.sh` dispatches by absolute path so the branch taken is not a function of PATH.
 **Dep:** T-1018
 **Status:** planned | **Domain:** Build/BakePlan | **Who:** architect
+
+## T-1058 -- SOCKETREND-01: a shipped socket unit carried an unsubstituted placeholder  (WS-BUILD | P0 | S)
+**Goal:** `usr/lib/systemd/system/mios-cockpit-link.socket:8` shipped `ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}` verbatim. systemd does not expand `${VAR}` in `ListenStream=`, so the unit fails to parse and the socket does not listen. This was live in the tree, not latent.
+**What+How:** `automation/34-render-quadlets.sh` walks `QUADLET_DIRS` -- which includes `/usr/lib/systemd/system` -- but filtered with `find ... \( -name '*.container' -o ... -o -name '*.service' \)`, ten extensions with **no `*.socket`**. The directory was in scope; the file type was not. One tracked socket unit exists and it is the one that carries a placeholder, so the omission had exactly one victim and no margin.
+  **Fixed at the class, not the instance.** The extension list is lifted into `[build.quadlet_render].extensions` (11 entries, `socket` added) and the renderer builds its `-name` predicate from it, refusing to run on an empty list rather than rendering nothing. `mios-gate render-coverage`, wired as `check_render_extension_coverage`, then asserts that every tracked file under the repo-relative scan trees carrying `${MIOS_*}` has an extension on that list: 34 such files across 245 scanned today, all covered.
+  **The negative control reproduces the original defect exactly:** remove `socket` from SSOT and the gate names `usr/lib/systemd/system/mios-cockpit-link.socket`. An empty list is cannot-run rather than a flood of findings, so a configuration error cannot masquerade as 34 violations.
+  **Not fixed here:** T-1040's other two findings in the same stage -- `envsubst` mangling systemd's `$$` escaping, and the single-pass nested-default regex rendering `base_url = ".../v1/v1}"`. Both remain, and both are why that task stays open. This closes only the file-type hole, which was the one shipping a broken unit.
+**Done When:** no tracked file under the render scan trees carries a placeholder the renderer will not substitute -- gated, with the socket case as the negative control; and the renderer and its gate read one SSOT list so neither can drift from the other.
+**Dep:** --
+**Status:** done | **Domain:** Build/Quadlets | **Who:** architect

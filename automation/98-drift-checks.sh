@@ -1797,6 +1797,28 @@ check_toml_projection() {
     fi
 }
 
+check_render_extension_coverage() {
+    # A placeholder in a file type 34-render-quadlets.sh does not substitute
+    # ships verbatim. mios-cockpit-link.socket carried
+    # ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK} because `.socket` was
+    # missing from the renderer's find filter (T-1040).
+    local bin="" c
+    for c in "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_render_extension_coverage could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    if "$bin" render-coverage --root "$ROOT"; then
+        return 0
+    else
+        _violation "a tracked file carries a \${MIOS_*} placeholder the Quadlet renderer never substitutes -- add its extension to [build.quadlet_render].extensions"
+    fi
+}
+
 check_size_ceiling() {
     # [legibility].max_tracked_mb is generated, so the gate that matters is not
     # "is it big enough" -- check_legibility_ratchet asks that -- but "is the
@@ -3628,6 +3650,7 @@ main() {
     check_toml_projection
     check_ratchet_direction
     check_size_ceiling
+    check_render_extension_coverage
     check_bake_plan
     check_bake_plan_integrity
     check_bake_ref_defaults
