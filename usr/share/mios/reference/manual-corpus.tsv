@@ -7535,8 +7535,8 @@ tools/sync-generated.sh	98	99	2	23	86415a7c4010	STAY	local-scoped		0				0
 tools/sync-generated.sh	107	108	2	22	7865acffeeb4	STAY	local-scoped		0				0
 tools/sync-generated.sh	112	115	4	39	cfa3aad009f9	STAY	midsize-why		0				0
 tools/sync-generated.sh	120	122	3	31	c4656c44457c	STAY	midsize-why		0				0
-tools/sync-generated.sh	147	149	3	31	15461f205c8d	STAY	midsize-why		0				0
-tools/sync-generated.sh	152	154	3	35	b211e9d47c7a	STAY	midsize-why		0				0
+tools/sync-generated.sh	148	150	3	31	15461f205c8d	STAY	midsize-why		0				0
+tools/sync-generated.sh	153	155	3	35	b211e9d47c7a	STAY	midsize-why		0				0
 tools/sync-wiki.py	1	2	2	30	dc1f5721702a	STAY	ai-header		0				0
 tools/sync-wiki.py	47	47	1	7	afb8bea10331	STAY	inline-scoped		0				0
 tools/system-profiler.sh	1	3	3	28	e0b8517d67e8	STAY	ai-header		0				0

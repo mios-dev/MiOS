@@ -550,3 +550,40 @@ shed bytes. Standing-down comment on #16: issuecomment-5716926437.
 **Baselines:** drift gate **21 violations from seven checks** (the standing 19 from six, plus 2 from
 `check_legibility_ratchet`, both `tracked_mb`); negative suite **157 passed, 8 failed** (standing 7 +
 `test_legibility_ratchet`); mios-gate **seven** checks; `max_tooling_python_lines` 121210, at measurement.
+
+---
+
+## Handoff — the generated size ceiling, and two traps in the generator pipeline
+
+**T-1051 — done.** `max_tracked_mb` is emitted by `tools/native/mios-size-ceiling` as
+`round(tracked MiB) + [legibility].tracked_mb_headroom`; `check_size_ceiling` fails outside that band.
+It is no longer shrink-only, so `[drift.generated_ceilings]` itemises it with a reason and
+`mios-gate ratchet-direction` (ported from Python, twin deleted, parity proved on BOTH paths) lets
+exactly those keys rise while reporting how many did.
+
+**T-1057 — filed, not done.** The bake stage prefers a generator two fixes behind the one
+`check_bake_plan` validates. Proving parity before deleting is what caught it.
+
+**Traps added:**
+- **`sync-generated.sh`'s own `git add -N` makes new files count as ZERO in every index-reading
+  generator** (`roadmap-index`'s line counts, `mios-size-ceiling`'s byte total). Sync before the
+  content is staged and the numbers come out short by exactly the new files; the next sync silently
+  corrects them, so the stale value ships in one commit and vanishes. That is precisely how
+  `f4683d55` shipped `25k` Rust lines when the true count was 25,817. **Stage content, then sync.**
+- **Editing a comment un-lands it.** `check_docs_ratchet` exempts blocks whose `sha12` is recorded
+  as landed in the manual corpus. Changing the text of a harvested comment changes the sha, so a
+  pre-existing exempt block becomes a fresh MIGRATE — two of them, from edits that added no new
+  prose. Put the lesson in THIS file, not in a comment beside the code.
+- **My own Rust doc comments took the narrative ratchet 228 -> 240** in the T-1051 commit and I did
+  not notice until the next edit. Check `check_docs_ratchet`'s count before committing new `.rs`,
+  not after.
+- **A new `tools/native` crate must be added to the CI build line** or its gate reports "not built"
+  rather than a measurement. `mios-size-ceiling` now sits beside `mios-aiplane-lint` there.
+- **Render both implementations into EMPTY directories to compare them.** Bare, the Rust bake-plan
+  wrote nothing and blamed the SSOT; with `MIOS_VERSION_*` exported it wrote 6 byte-identical files.
+  Neither fact is visible from reading the code.
+
+**Baselines:** drift gate **19 violations from the standing six**; negative suite **159 passed, 7
+failed**; narrative blocks **240** (was 228 before this batch -- mine); `max_tracked_mb` 204 with
+the tree at 203; `max_tooling_python_lines` 121078 against a ceiling of 121210 after the
+ratchet-direction port freed 132 lines.

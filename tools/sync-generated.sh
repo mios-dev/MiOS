@@ -127,7 +127,8 @@ main() {
     if [ -n "$_sc" ]; then
         "$_sc" >/dev/null
     else
-        echo "[sync-generated]      mios-size-ceiling not built; the ceiling was NOT regenerated" >&2
+        echo "[sync-generated]      mios-size-ceiling not built; max_tracked_mb NOT regenerated." >&2
+        echo "[sync-generated]      check_size_ceiling still validates it, so this fails there, not here." >&2
     fi
 
     step "5/6 env-baseline (clean env)"

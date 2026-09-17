@@ -82,7 +82,7 @@ jobs:
           # narrow hardcoded key list -- so the enumerating version (T-1047)
           # would never run in CI, and the register it enforces would go
           # unchecked on every PR.
-          cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver -p mios-aiplane-lint
+          cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver -p mios-aiplane-lint -p mios-size-ceiling
           # The native gate binary backs a check that fails when it is absent.
           cd ../../src/mios-rs && cargo build -p mios-gate
 
