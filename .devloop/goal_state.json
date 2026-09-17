@@ -11,15 +11,15 @@
       "criterion_type": "test",
       "command": "pytest",
       "passed": false,
-      "details": null
+      "details": "Exit code 3"
     },
     {
       "id": "C-02",
       "description": "Working tree clean of uncommitted residue",
       "criterion_type": "git_clean",
       "command": null,
-      "passed": false,
-      "details": null
+      "passed": true,
+      "details": "Working tree clean"
     },
     {
       "id": "C-03",
@@ -27,7 +27,7 @@
       "criterion_type": "artifact",
       "command": null,
       "passed": false,
-      "details": null
+      "details": "Manifest verify failed"
     }
   ],
   "non_goals": []

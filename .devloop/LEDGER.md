@@ -587,3 +587,52 @@ exactly those keys rise while reporting how many did.
 failed**; narrative blocks **240** (was 228 before this batch -- mine); `max_tracked_mb` 204 with
 the tree at 203; `max_tooling_python_lines` 121078 against a ceiling of 121210 after the
 ratchet-direction port freed 132 lines.
+
+## Stage 34 converted to Rust — T-1040 closed, T-1061 opened
+
+**Delivered.** `tools/native/mios-render-quadlets` replaces stage 34's envsubst +
+bash-regex pair. 171 lines of bash to 48 (dispatch only). `[build.quadlet_render]`
+now owns `dirs`, `max_depth`, `runtime_ref_directives` alongside `extensions`;
+the directory list had been hardcoded twice and the variable allowlist twice more,
+with the two copies already fourteen names apart. `[build.tool_dispatch]` 2 -> 1.
+
+**Why conversion rather than a patch, settled from upstream source.** envsubst has
+no escape mechanism in any version — it emits one `$` and re-reads the second as a
+fresh reference — so escape and substitution are mutually exclusive per name.
+And `[^}]*` cannot nest, which is a property of regular languages. Neither is
+configurable away.
+
+**Four defects closed:** `$$` mangling (`PORT="$8432"` evaluates to 432 under
+/bin/sh, so the pgvector backup used the wrong port and the `[ -z ]` guard could
+not fire); nested-default corruption (four different renders of one line
+depending only on the environment, one of them accidentally correct); the
+allowlist leaving `${MIOS_VERSION_*}` literal in four shipped `Image=` lines; and
+two renderers substituting different variable sets.
+
+**Verification.** 23 crate tests, each mutation-tested — removing the `$$` branch,
+re-introducing the first-brace match, dropping continuation tracking, un-skipping
+comments and restoring blanket protection each killed exactly the test naming it.
+The nested-default test pins all four environment permutations. Against the real
+units: `base_url` keeps `/v1`, every `$$` byte-identical, socket port substituted,
+`mios-agents.service` byte-identical.
+
+**Three things I got wrong and fixed before landing.** A `--check` that demanded
+the tracked tree be already rendered (it is templates; the gated property is that
+placeholders RESOLVE). Blanket protection of Exec lines, when systemd cannot
+expand `${VAR:-default}` anywhere and that form must always bake — the regression
+the unit's own header documents. And expanding any `${...}` when the contract is
+`${MIOS_*}`, which would have baked `${WORKER_MODEL}` into a template unit.
+
+**Gates repointed, not weakened.** `97-ssot-lint` and its Rust twin asserted
+membership in the deleted allowlist; both now assert the resolver emits the name,
+with an anchored `^NAME=` match and byte-identical output. `check_var_closure`
+shrank 425 -> 418: seven ledger rows whose only reference was that allowlist line.
+
+**Left honestly red:** `check_no_inert_ssot_tables` on `[gpu]`. Its only
+code-shaped consumer was the deleted allowlist — accidental life support. Filed
+as T-1061 rather than added to the shrink-only register, which would re-hide it.
+
+**Next:** T-1060 (install.env drops `MIOS_AI_ENDPOINT`) shares this root cause —
+one recursive expander serves both. The renderer's `declares_unit_environment`
+should also require `[Service]` scope, and protection should be SSOT-registered
+rather than inferred.
