@@ -165,12 +165,19 @@ enum Commands {
         /// Force online metalink mode (defaults to local vendored mirror if present)
         #[arg(long)]
         online: bool,
-        /// Fedora release version (defaults to 44)
-        #[arg(long, default_value = "44")]
+        /// Fedora release version. No default: the version belongs to
+        /// mios.toml [versions].fedora and the caller passes it, rather than a
+        /// literal here going stale beside it (Law 7).
+        #[arg(long)]
         fedora_version: String,
         /// Target repo file path (defaults to /etc/yum.repos.d/fedora-{version}.repo)
         #[arg(long)]
         output: Option<String>,
+        /// Vendored RPM mirror to probe for. Defaults to the system path;
+        /// overridable so the offline branch can be exercised against a
+        /// fixture instead of only on a host that happens to have the mirror.
+        #[arg(long, default_value = "/usr/share/mios/vendored/rpms")]
+        vendored_dir: String,
     },
     /// Bind Quadlet images into /usr/lib/bootc/bound-images.d excluding firstboot tokens
     OverlayBindImages {
@@ -852,8 +859,11 @@ async fn main() {
             online,
             fedora_version,
             output,
+            vendored_dir,
         } => {
-            if let Err(e) = run_render_repos(*online, fedora_version, output.as_deref()) {
+            if let Err(e) =
+                run_render_repos(*online, fedora_version, output.as_deref(), vendored_dir)
+            {
                 eprintln!("[miosd] Render repos error: {}", e);
                 std::process::exit(1);
             }
@@ -1083,13 +1093,19 @@ fn run_render_repos(
     online: bool,
     fedora_version: &str,
     output_path: Option<&str>,
+    vendored_dir: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let ver = if fedora_version.is_empty() {
-        "44"
-    } else {
-        fedora_version
-    };
-    let vendored = std::path::Path::new("/usr/share/mios/vendored/rpms").exists() && !online;
+    // An empty version used to fall back to the literal "44", which would have
+    // written /etc/yum.repos.d/fedora-44.repo on a tree whose SSOT had moved on
+    // -- every package for the whole build coming from the wrong release, under
+    // a filename that looks deliberate. The caller owns the version.
+    if fedora_version.trim().is_empty() {
+        return Err(
+            "render-repos: --fedora-version is empty; pass mios.toml [versions].fedora".into(),
+        );
+    }
+    let ver = fedora_version;
+    let vendored = std::path::Path::new(vendored_dir).exists() && !online;
 
     let content = if vendored {
         format!(
