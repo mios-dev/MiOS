@@ -27,6 +27,11 @@ EMITTER_SUFFIXES = (
     "tools/render-globals.py", "tools/render-ports.py",
     "usr/share/mios/mios.toml", "Justfile",
 )
+# A resolver that exists but cannot be imported yields a SHORTER emitted set, and
+# every downstream verdict is computed against it. Record it; main() refuses to
+# report on an emitted set it knows is partial.
+EMIT_ERRORS: list[str] = []
+
 VAR_RE = re.compile(r"MIOS_[A-Z0-9_]+")
 DIRECTIVE_VARS = frozenset({
     "MIOS_APPLY_CLASS", "MIOS_SUBSTRATE", "MIOS_ROOT", "MIOS_VENDOR_TOML",
@@ -46,6 +51,7 @@ INTERNAL_PATHS = (
 def emitted_set() -> set[str]:
     """Collect every exported MIOS_* name via Python SSOT resolver + mios.toml section prefixes."""
     emitted = set()
+    EMIT_ERRORS.clear()          # idempotent across repeated calls in one process
 
     render_script = os.path.join(ROOT, "tools", "render-globals.py")
     if os.path.isfile(render_script):
@@ -54,8 +60,9 @@ def emitted_set() -> set[str]:
             rg = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(rg)
             emitted.update(rg.build_exports().keys())
-        except Exception:
-            pass
+        except Exception as exc:
+            EMIT_ERRORS.append("tools/render-globals.py is present but unusable "
+                               "(%s: %s)" % (type(exc).__name__, exc))
 
     toml_path = os.path.join(ROOT, "usr/share/mios/mios.toml")
     if os.path.isfile(toml_path):
@@ -144,6 +151,12 @@ def main() -> int:
     R = referenced_set(E)
     if not E:
         print("mios-var-closure: FAIL -- emitter produced 0 vars (resolver broken?)", file=sys.stderr)
+        return 2
+    if EMIT_ERRORS:
+        print("mios-var-closure: FAIL -- the emitted set is PARTIAL, so referenced-subset-of-emitted "
+              "cannot be decided:", file=sys.stderr)
+        for e in EMIT_ERRORS:
+            print("  %s" % e, file=sys.stderr)
         return 2
 
     missing = {v: loc for v, loc in R.items() if v not in E}

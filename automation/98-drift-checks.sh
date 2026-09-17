@@ -1050,13 +1050,21 @@ check_var_closure() {
         _violation "mios_var_closure.py absent -- a tracked deliverable is missing, so this check cannot run"
         return
     fi
-    if MIOS_ROOT="$ROOT" python3 "$tool" >/dev/null 2>"$ROOT/.varclosure.err"; then
+    local _vc_rc=0
+    MIOS_ROOT="$ROOT" python3 "$tool" >/dev/null 2>"$ROOT/.varclosure.err" || _vc_rc=$?
+    if (( _vc_rc == 0 )); then
         rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
         echo "[98-drift-checks]   MIOS_* referenced-set is a subset of emitted-set"
     else
         sed 's/^/    /' "$ROOT/.varclosure.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
-        _violation "var-closure reported referenced but NOT emitted variables -- run python automation/lib/mios_var_closure.py"
+        # rc=2 is the emitter refusing to answer; rc=1 is a real closure breach.
+        # Reporting the former as the latter sends the reader to the wrong file.
+        if (( _vc_rc == 2 )); then
+            _violation "var-closure could not build a complete emitted set (the SSOT resolver is broken or partial) -- run python automation/lib/mios_var_closure.py"
+        else
+            _violation "var-closure reported referenced but NOT emitted variables -- run python automation/lib/mios_var_closure.py"
+        fi
     fi
 }
 
