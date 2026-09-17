@@ -7,6 +7,7 @@
 mod credentials;
 mod dispatch;
 mod phases;
+mod projreg;
 mod sigpolicy;
 mod stubs;
 
@@ -75,7 +76,8 @@ impl Report {
 }
 
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
-                     checks: build-tool-dispatch, credential-literals, drift-stubs, phase-registry, signature-policy\n";
+                     checks: build-tool-dispatch, credential-literals, drift-stubs,\n\
+                             phase-registry, projection-coverage, signature-policy\n";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -133,6 +135,7 @@ fn main() -> ExitCode {
         "credential-literals" => credentials::check(&root),
         "drift-stubs" => stubs::check(&root),
         "phase-registry" => phases::check(&root),
+        "projection-coverage" => projreg::check(&root),
         "signature-policy" => sigpolicy::check(&root),
         _ => {
             eprint!("mios-gate: no such check {name:?}\n{USAGE}");

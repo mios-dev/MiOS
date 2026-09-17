@@ -159,56 +159,57 @@
 158	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
 159	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
 160	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
-161	check_db_seed_coverage	DB seed coverage gate verified clean
-162	check_verb_stub_backends	verb stub backends gate verified clean
-163	check_account_column_parity	account column parity gate verified clean
-164	check_module_length	shell and script module line counts remain within maintainability limits
-165	check_firstboot_provisioners	Drift gate for the first-boot provisioner triples (FBM T-200/T-202)
-166	check_schema_consumers	every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason
-167	check_tasks_status_parity	Drift gate for a lying roadmap
-168	check_agy_tasks	Drift gate for AGY task unique IDs and dependency resolution (AGY-1687)
-169	check_mios_toml_integrity	Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682)
-170	check_privileged_quadlets_minimal	Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651)
-171	check_container_names	Drift gate for unmappable container names
-172	check_service_urls	Drift gate for service addressing
-173	check_ports_bound	Drift gate for allocated-but-unbound ports
-174	check_blade_coverage	Drift gate for the blade ACTIVATION axis
-175	check_blade_karg	blade karg
-176	check_blade_reconcile_schema	blade reconciliation schema conforms to hardware capability specs
-177	check_role_ssot	Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is
-178	check_port_fallbacks	Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>
-179	check_node_pool	Drift gate for the fan-out pool
-180	check_metal_vs_hosted	GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml
-181	check_unit_projection	Drift gate for the [units] projection debt register
-182	check_ssot_consumer_keys	Drift gate for the SSOT<->consumer contract
-183	check_fleet_safety	Drift gate for hazards that are SAFE on one node and dangerous above it
-184	check_adr_index	ADR architecture decision record index matches committed ADR files
-185	check_vendored_assets_non_stub	vendored assets are non-stub
-186	check_resolved_env_lossless	resolved environment is lossless
-187	check_no_duplicate_value_key	value-duplication within the recorded ratchet ceiling
-188	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
-189	check_value_aliases	value-alias consistency verified
-190	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
-191	check_bash_phase_ratchet	bash phase script count ratchet check
-192	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
-193	check_build_tool_dispatch	every bake-time tool-dispatch gate is on the shrink-only register
-194	check_signature_policy	usr/lib/containers/policy.json regenerates byte-identically from [security.sigstore]
-195	check_phase_registry	every automation/NN-*.sh on disk is a phase build.sh actually runs
-196	check_drift_stubs	no miosd drift Check claims a verdict about a tree it never reads
-197	check_negatives_are_effective	negative-test effectiveness check
-198	check_pipefail_grep_lint	pipefail grep lint check
-199	check_skip_list_covered	checking the agent-pipe skip list lives in the SSOT
-200	check_ai_manifests_fresh	checking AI manifest freshness
-201	check_ports_category_schema	checking port category schema (allocation + collisions)
-202	check_globals_generated	checking generated globals resolvers match SSOT
-203	check_ci_suite_coverage	all workflow CI jobs cover the required test matrix without gaps
-204	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
-205	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
-206	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
-207	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
-208	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
-209	check_verify_images	container image verification signatures and digests are valid
-210	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
-211	check_negatives_registered	every drift check has a corresponding negative test registered
-212	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
-213	check_leaked_fixtures	no transient test fixtures or dump files are committed in git
+161	check_projection_coverage	every SSOT projector in scope is on the Law 8 registry
+162	check_db_seed_coverage	DB seed coverage gate verified clean
+163	check_verb_stub_backends	verb stub backends gate verified clean
+164	check_account_column_parity	account column parity gate verified clean
+165	check_module_length	shell and script module line counts remain within maintainability limits
+166	check_firstboot_provisioners	Drift gate for the first-boot provisioner triples (FBM T-200/T-202)
+167	check_schema_consumers	every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason
+168	check_tasks_status_parity	Drift gate for a lying roadmap
+169	check_agy_tasks	Drift gate for AGY task unique IDs and dependency resolution (AGY-1687)
+170	check_mios_toml_integrity	Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682)
+171	check_privileged_quadlets_minimal	Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651)
+172	check_container_names	Drift gate for unmappable container names
+173	check_service_urls	Drift gate for service addressing
+174	check_ports_bound	Drift gate for allocated-but-unbound ports
+175	check_blade_coverage	Drift gate for the blade ACTIVATION axis
+176	check_blade_karg	blade karg
+177	check_blade_reconcile_schema	blade reconciliation schema conforms to hardware capability specs
+178	check_role_ssot	Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is
+179	check_port_fallbacks	Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>
+180	check_node_pool	Drift gate for the fan-out pool
+181	check_metal_vs_hosted	GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml
+182	check_unit_projection	Drift gate for the [units] projection debt register
+183	check_ssot_consumer_keys	Drift gate for the SSOT<->consumer contract
+184	check_fleet_safety	Drift gate for hazards that are SAFE on one node and dangerous above it
+185	check_adr_index	ADR architecture decision record index matches committed ADR files
+186	check_vendored_assets_non_stub	vendored assets are non-stub
+187	check_resolved_env_lossless	resolved environment is lossless
+188	check_no_duplicate_value_key	value-duplication within the recorded ratchet ceiling
+189	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+190	check_value_aliases	value-alias consistency verified
+191	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
+192	check_bash_phase_ratchet	bash phase script count ratchet check
+193	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
+194	check_build_tool_dispatch	every bake-time tool-dispatch gate is on the shrink-only register
+195	check_signature_policy	usr/lib/containers/policy.json regenerates byte-identically from [security.sigstore]
+196	check_phase_registry	every automation/NN-*.sh on disk is a phase build.sh actually runs
+197	check_drift_stubs	no miosd drift Check claims a verdict about a tree it never reads
+198	check_negatives_are_effective	negative-test effectiveness check
+199	check_pipefail_grep_lint	pipefail grep lint check
+200	check_skip_list_covered	checking the agent-pipe skip list lives in the SSOT
+201	check_ai_manifests_fresh	checking AI manifest freshness
+202	check_ports_category_schema	checking port category schema (allocation + collisions)
+203	check_globals_generated	checking generated globals resolvers match SSOT
+204	check_ci_suite_coverage	all workflow CI jobs cover the required test matrix without gaps
+205	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
+206	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
+207	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
+208	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
+209	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
+210	check_verify_images	container image verification signatures and digests are valid
+211	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
+212	check_negatives_registered	every drift check has a corresponding negative test registered
+213	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
+214	check_leaked_fixtures	no transient test fixtures or dump files are committed in git

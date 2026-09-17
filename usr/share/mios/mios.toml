@@ -2188,7 +2188,35 @@ surfaces = [
   { generator = "tools/generate-pod-quadlets.py", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
   { generator = "tools/render-globals.py", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
   { generator = "tools/generate-cosign-policy.py", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
+  { generator = "tools/generate-adr-index.py", check = "check_adr_index", output = "ADR.md" },
+  { generator = "tools/generate-bake-plan.py", check = "check_bake_plan", output = "usr/lib/mios/bake/plan.d/NN-<group>.list, usr/lib/mios/bake/plan.d/firstboot.list, usr/share/mios/artifacts/sbom/bound-images.tsv" },
+  { generator = "tools/generate-bib-configs.py", check = "check_bib_configs_projection", output = "config/artifacts/bib.toml, config/artifacts/iso.toml" },
+  { generator = "tools/generate-blade-karg.py", check = "check_blade_karg", output = "usr/lib/bootc/kargs.d/05-mios-blade.toml" },
+  { generator = "tools/generate-cargo-manifests.py", check = "check_cargo_manifest_generated", output = "tools/native/Cargo.toml" },
+  { generator = "tools/generate-cockpit-conf.py", check = "check_cockpit_projection", output = "etc/cockpit/cockpit.conf" },
+  { generator = "tools/generate-egress-firewall.py", check = "check_egress_firewall", output = "usr/share/mios/security/egress.nft" },
+  { generator = "tools/generate-gate-index.py", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
+  { generator = "tools/generate-ipa-enroll-env.py", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
+  { generator = "tools/generate-metal-vs-hosted.py", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
+  { generator = "tools/generate-names-registry.py", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
+  { generator = "tools/generate-pipeline-index.py", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
+  { generator = "tools/generate-uki-cmdline.py", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
+  { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
+  { generator = "tools/render-ports.py", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
 ]
+
+# The scope this registry is measured against. `mios-gate projection-coverage`
+# reads these globs, enumerates what they match, and asserts every hit is on
+# `surfaces` above or itemised on `exempt` below -- the reverse direction that
+# `check_projection_registry` (forward only) never asked. Single `*`, final
+# path segment only; a pattern the matcher cannot express is a hard error, not
+# a silent widening.
+generator_globs = ["tools/generate-*.py", "tools/render-*.py"]
+
+# Shrink-only. A generator belongs here ONLY if it projects nothing tracked, and
+# then with the reason spelled out -- a bare name would make this a count.
+exempt = []
+max_exempt = 0
 
 
 [security.sigstore]

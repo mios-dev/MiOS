@@ -3881,6 +3881,73 @@ test_signature_policy() {
     log "check_signature_policy negative test passed"
 }
 
+test_projection_coverage() {
+    log "Testing check_projection_coverage"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    local planted="${ROOT}/tools/generate-negtest-surface.py"
+    _pc_fail() {
+        cp "$bak" "$toml"; rm -f "$bak" "$planted"
+        unset -f _pc_fail
+        die "$1"
+    }
+
+    # The defect this check exists for: a NEW generator that projects a tracked
+    # file, with no drift check and no registry row. check_projection_registry
+    # walks the register forward and is silent on a generator that is on no row,
+    # so before this check the plant below passed the whole gate.
+    printf '#!/usr/bin/env python3\nopen("usr/share/mios/negtest.txt", "w").write("x")\n' > "$planted"
+    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with an unregistered generator on disk"
+
+    # Raising the exemption ceiling must not absorb the plant: the generator is
+    # still on neither list, so the ceiling buys nothing.
+    sed -i 's/^max_exempt = [0-9]*$/max_exempt = 999/' "$toml"
+    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with a plant hidden under a raised exemption ceiling"
+    cp "$bak" "$toml"
+
+    # An exemption with no reason is a count, not an itemised register. Asserted
+    # on the MESSAGE, not the exit code: the plant is still on disk here, so a
+    # sed that silently missed would fail the check for the earlier reason and
+    # the assertion would pass without having tested anything.
+    sed -i "s|^exempt = \\[\\]$|exempt = [\\n  { generator = \"tools/generate-negtest-surface.py\", reason = \"\" },\\n]|" "$toml"
+    sed -i 's/^max_exempt = [0-9]*$/max_exempt = 1/' "$toml"
+    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with a bare exemption carrying no reason"
+    case "${_NEG_GATE_OUT}" in
+        *"carries no \`reason\`"*) : ;;
+        *) _pc_fail "check_projection_coverage failed for the wrong reason on a bare exemption: ${_NEG_GATE_OUT}" ;;
+    esac
+    cp "$bak" "$toml"
+
+    # The positive half of the same branch: the SAME plant, exempted WITH a
+    # reason under a ceiling that admits it, must pass. Without this the
+    # exemption path could be dead code that never grants anything.
+    sed -i "s|^exempt = \\[\\]$|exempt = [\\n  { generator = \"tools/generate-negtest-surface.py\", reason = \"negative-test plant\" },\\n]|" "$toml"
+    sed -i 's/^max_exempt = [0-9]*$/max_exempt = 1/' "$toml"
+    _neg_gate check_projection_coverage || _pc_fail "check_projection_coverage rejected an itemised exemption within its ceiling: ${_NEG_GATE_OUT}"
+    cp "$bak" "$toml"; rm -f "$planted"
+
+    # The scope is this check's own allowlist, so narrowing it must not buy a
+    # pass -- the register anchors the globs from outside.
+    sed -i 's|^generator_globs = .*$|generator_globs = ["tools/generate-*.py"]|' "$toml"
+    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed after a discovery glob was deleted"
+    cp "$bak" "$toml"
+
+    # A registry row naming a check function that does not exist.
+    sed -i 's|check = "check_manpages"|check = "check_manpages_negtest"|' "$toml"
+    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with a row naming a check that is not defined"
+    cp "$bak" "$toml"
+
+    # A row that does not say what it projects cannot be regenerate-and-diffed.
+    sed -i 's|check = "check_blade_karg", output = "[^"]*"|check = "check_blade_karg", output = ""|' "$toml"
+    _neg_gate check_projection_coverage && _pc_fail "check_projection_coverage passed with a registry row declaring no output"
+    cp "$bak" "$toml"
+
+    rm -f "$bak" "$planted"
+    unset -f _pc_fail
+    _neg_gate check_projection_coverage || die "check_projection_coverage failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_projection_coverage negative test passed"
+}
+
 test_build_tool_dispatch() {
     log "Testing check_build_tool_dispatch"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -4237,6 +4304,7 @@ _run_test test_leaked_fixtures
     _run_test test_build_tool_dispatch
     _run_test test_phase_registry
     _run_test test_signature_policy
+    _run_test test_projection_coverage
     _run_test test_drift_stubs
     _run_test test_doc_refs_resolve
     _run_test test_desktop_launchers

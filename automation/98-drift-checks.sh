@@ -3243,6 +3243,30 @@ check_signature_policy() {
     fi
 }
 
+check_projection_coverage() {
+    # The reverse of check_projection_registry. That one walks the register and
+    # asks whether each row's generator and check exist -- the forward direction
+    # only, which is silent on a generator that is on NO row. This one
+    # enumerates the generators from the SSOT globs and asks whether each is on
+    # the register, so an unregistered projector cannot ship unnoticed.
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_projection_coverage could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    if "$bin" projection-coverage --root "$ROOT"; then
+        echo "[98-drift-checks]   every SSOT projector in scope is on the Law 8 registry"
+    else
+        _violation "Law 8 projection registry is incomplete -- register the generator in [laws.projection_registry].surfaces, or itemise it under .exempt with a reason"
+    fi
+}
+
 check_build_tool_dispatch() {
     # Dispatched by ABSOLUTE path, never `command -v`: this check exists
     # because that lookup cannot resolve at bake time (T-1018), so using it
@@ -3610,6 +3634,7 @@ main() {
     check_law_enforcers
     check_usr_over_etc
     check_projection_registry
+    check_projection_coverage
     check_db_seed_coverage
     check_verb_stub_backends
     check_account_column_parity

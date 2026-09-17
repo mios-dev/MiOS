@@ -1033,7 +1033,7 @@
 | T-1045 | P2 | done | Gates/Honesty | STUBPRED-01 -- two checks still claim a verdict after only calling .exists(), and the stub detector counts a path join as reading |
 | T-1046 | P2 | planned | Gates/Ratchets | MERGERATCHET-01 -- a shrink-only ratchet cannot tell "this branch grew" from "the base branch grew and we merged it", so merging main forces a raise it forbids |
 | T-1047 | P2 | done | Gates/Honesty | BUDGETKEYS-01 -- check_agent_pipe_budgets walked a hardcoded 9 of 128 keys and announced it had checked all of them |
-| T-1048 | P2 | planned | Gates/Honesty | PROJREG-01 -- check_projection_registry validates the entries it has and never asks whether the registry is complete; 16 of 21 generators are absent |
+| T-1048 | P2 | done | Gates/Honesty | PROJREG-01 -- check_projection_registry validates the entries it has and never asks whether the registry is complete; 16 of 21 generators are absent |
 
 ---
 
@@ -11437,5 +11437,9 @@ The two shapes want opposite treatment and the mechanism currently has only one 
   What remains: each entry also needs its `output` field, and that must be read from the generator rather than inferred -- several take `usr/share/mios/mios.toml` as INPUT, so a naive path scan attributes the SSOT to them as output. Add the reverse assertion first: every generator that writes into the tracked tree appears in `[laws.projection_registry].surfaces` with a check that exists. Anything genuinely exempt (writes only to `/etc` at runtime, or emits nothing tracked) goes on an itemised shrink-only register with its reason, not a bare count.
   Belongs in `mios-gate` (Rust): the standing directive, and `[legibility].max_tooling_python_lines` has no headroom for a new Python check.
 **Done When:** a generator added to `tools/` that writes a tracked file and is not registered FAILS the gate -- proved by planting one; every one of the 15 is either registered with a check that exists or itemised as exempt with a reason; and the negative test fails against the pre-repair check so it is not vacuous.
+**Delivered:** `mios-gate projection-coverage` (`src/mios-rs/mios-gate/src/projreg.rs`), wired as `check_projection_coverage`. It reads `[laws.projection_registry].generator_globs` from SSOT, enumerates what they match (21 generators), and asserts each is on `.surfaces` or itemised on `.exempt` with a reason. All 15 rows added with their `output` read from each generator's writer, not inferred -- `render-ports.py` is the case that proves the difference: `usr/share/mios/mios.toml` is BOTH its input and, for the flat `[ports]` table, its output. `exempt = []`, `max_exempt = 0`, so a new generator cannot ship unregistered.
+  **Non-redundancy is measured, not argued.** With an unregistered generator planted under `tools/`, the pre-repair `check_projection_registry` exits 0 and reports "registry verified clean"; `check_projection_coverage` exits 1 and names the file. Same tree, same plant, opposite verdicts.
+  **The first draft reproduced the defect it was written to catch.** Its scope came from the SSOT globs, which made those globs its own allowlist: deleting `"tools/render-*.py"` took the scope from 21 generators to 17 and still exited 0. The register now anchors the globs from outside -- any directory a glob names is in scope, so a registry row living there that no glob matches is a finding. Caught by running a negative control that was not on the plan, not by review.
+  **Not done here, deliberately:** `check_projection_registry` (bash+Python, forward direction) is left in place rather than folded in. It is one of `[laws]` id 8's two named enforcers and has its own negative test; consolidating it is an ADR-0021 strangler step, not a side effect of this one.
 **Dep:** T-1047
-**Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
+**Status:** done | **Domain:** Gates/Honesty | **Who:** architect
