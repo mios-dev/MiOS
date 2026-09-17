@@ -448,3 +448,61 @@ the merge. `tests/run-suites.sh unit` 574/0. mios-gate now **five** checks, test
   in `tools/drift-checks.py` only as names it asserts are present; both are genuinely dead.
 - Adding a drift check obliges a negative test in the same commit — the gate counts checks without
   one and will refuse the ceiling.
+
+---
+
+## Handoff — the Law 8 registry's reverse direction, and what reading the enforcement side turned up
+
+**T-1048 — done.** `check_projection_registry` validated the rows it had and never asked what was
+missing. `mios-gate projection-coverage` (`src/mios-rs/mios-gate/src/projreg.rs`) is the reverse:
+it reads `[laws.projection_registry].generator_globs` from SSOT, enumerates the 21 generators the
+globs match, and asserts each is on `.surfaces` or itemised on `.exempt` with a reason.
+`exempt = []`, `max_exempt = 0`. All 15 previously-unregistered rows added with `output` read from
+each generator's writer.
+
+**Non-redundancy was measured, not argued.** Same tree, one planted unregistered generator:
+`check_projection_registry` → exit 0 "registry verified clean"; `check_projection_coverage` →
+exit 1 naming the file. Do that before adding any check that sits next to an existing one.
+
+**Traps added:**
+- **A check whose SCOPE comes from a register makes that register its own allowlist.** The first
+  draft passed with `"tools/render-*.py"` deleted from `generator_globs`: scope 21 → 17, exit 0.
+  Anchor the scope from OUTSIDE — any directory a glob names is in scope, so a registry row living
+  there that no glob matches is a finding. Found by a negative control that was not on the plan.
+- **Assert on the MESSAGE, not the exit code, when an earlier plant is still in place.** The
+  bare-exemption case runs with the unregistered plant present, so a `sed` that silently missed
+  would have failed the check for the earlier reason and the assertion would have passed having
+  tested nothing.
+- **An exemption path needs its POSITIVE half too** — the same plant, exempted with a reason under
+  a ceiling that admits it, must PASS. Otherwise the granting branch may be dead code.
+- **Never run `tools/sync-generated.sh` or edit the tree while the negative suite is running.**
+  Doing both produced a spurious 8th failure (`check_secret_handling`), a stale manual ledger, and
+  a "RESTORED a mutation left behind: TASKS.md" that could have reverted real work. The clean
+  re-run reproduced the standing 7 exactly.
+- **Prose in `mios.toml` is scanned, not just read.** Writing `MIOS_PORT_*` in a registry `output`
+  field put a `$`-bearing value into `env-baseline.txt`; rewording it to `MIOS_PORT_NAME` then made
+  `generate-names-registry.py` harvest a variable that does not exist. Keep `MIOS_`-shaped tokens
+  and shell metacharacters out of SSOT descriptions.
+- **The narrative-comment ratchet counts YOUR comment.** A four-line explanation took it 228 → 229.
+  Two lines fit.
+
+**Filed, not fixed — both found by reading the enforcement side, not by a gate:**
+- **T-1049 LAWPTR-01.** Laws 3/5/10/11 point at `99-postcheck.sh:item12/14/16/17`. None exists; all
+  four occur once, in a comment on the last line, after `exit 0`. `check_law_enforcers` requires a
+  function DEFINITION for `98-drift-checks.sh` targets but a bare SUBSTRING for `99-postcheck.sh`
+  ones — the weak predicate on exactly the file carrying the comment. The laws themselves ARE
+  enforced inline with slug-prefixed `die`s; this is a pointer defect. My first reading said
+  "four laws unenforced" and measurement refuted it.
+- **T-1050 LAW11KEYS-01.** Law 11's secret-bearing test is one hardcoded three-name regex.
+  `MIOS_IPA_OTP` — projected by `generate-ipa-enroll-env.py` into the tracked, 0644
+  `etc/mios/ipa-enroll.env` — is not on it, and `check_secret_handling` matches shapes, which an OTP
+  has none of. Needs a `[security.secret_keys]` SSOT registry, not a fourth literal.
+
+**Closed a Skip-as-Pass:** `test_bootstrap_sync` defaulted to `/c/mios-bootstrap`, so the Law 15
+parity negative test skipped on every local run (CI exports `MIOS_BOOTSTRAP_ROOT`, so it was never
+vacuous there — checked before claiming it). It now resolves the sibling as
+`tools/sync-bootstrap.py` does.
+
+**Baselines:** drift gate **19 violations from the same six**; negative suite **156 passed, the
+standing 7 failed**; value-duplication ratchet **411**, unmoved by the two new `MIOS_*` keys;
+mios-gate **six** checks, tests 11 → 22.
