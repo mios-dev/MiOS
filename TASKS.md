@@ -11410,7 +11410,31 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **What+How:** Measured, not sampled. 21 generators on disk (`tools/generate-*.py` + `tools/render-*.py`); the registry names **5** of them. Splitting the other 16 by whether `98-drift-checks.sh` or `tools/drift-checks.py` mentions the generator at all:
   - **15 are a bookkeeping gap** -- unregistered, but the gate does exercise them under some other name (`generate-adr-index`, `generate-bake-plan`, `generate-bib-configs`, `generate-blade-karg`, `generate-cargo-manifests`, `generate-cockpit-conf`, `generate-egress-firewall`, `generate-gate-index`, `generate-ipa-enroll-env`, `generate-metal-vs-hosted`, `generate-names-registry`, `generate-pipeline-index`, `generate-uki-cmdline`, `render-manpages`, `render-ports`). The register is incomplete as a register; those surfaces are not unguarded.
   - **1 was a real hole** -- `tools/generate-cosign-policy.py`, unregistered AND unmentioned: a security artifact projected from SSOT with neither half of Law 8. Closed in T-1047's follow-up by `mios-gate signature-policy` + the registry entry. It is named here because *how it stayed invisible* is this task, not that one.
-  Add the reverse assertion: every generator that writes into the tracked tree appears in `[laws.projection_registry].surfaces` with a check that exists. Then add the 15 missing entries -- each needs its real check name looked up, which is the work. Anything genuinely exempt (writes only to `/etc` at runtime, or emits nothing tracked) goes on an itemised shrink-only register with its reason, not a bare count.
+  **The generator -> check mapping is now established and verified**, so the next pass does not repeat it. Every one of the 15 has a `check_*` function that exists in `98-drift-checks.sh` (confirmed by regex against the file, not assumed):
+
+  | generator | check |
+  |---|---|
+  | `generate-adr-index.py` | `check_adr_index` |
+  | `generate-bake-plan.py` | `check_bake_plan` |
+  | `generate-bib-configs.py` | `check_bib_configs_projection` |
+  | `generate-blade-karg.py` | `check_blade_karg` |
+  | `generate-cargo-manifests.py` | `check_cargo_manifest_generated` |
+  | `generate-cockpit-conf.py` | `check_cockpit_projection` |
+  | `generate-egress-firewall.py` | `check_egress_firewall` |
+  | `generate-gate-index.py` | `check_gate_index` |
+  | `generate-ipa-enroll-env.py` | `check_ipa_enroll_projection` |
+  | `generate-metal-vs-hosted.py` | `check_metal_vs_hosted` |
+  | `generate-names-registry.py` | `check_names_registry` |
+  | `generate-pipeline-index.py` | `check_pipeline_numbering` |
+  | `generate-uki-cmdline.py` | `check_uki_cmdline_projection` |
+  | `render-manpages.py` | `check_manpages` |
+  | `render-ports.py` | `check_ports_category_schema` |
+
+  **Two ways the mapping can be got wrong, both hit while deriving it:**
+  - Matching the *enclosing* function of any mention attributes `render-ports.py` to `check_renderer_gate_coverage`, which is a META-check that merely lists `35-render-ports.sh` in an allowlist. Its real check is `check_ports_category_schema`. Mention is not subject.
+  - Filtering invocations on a literal `python3` misses `check_pipeline_numbering`, which invokes its generator via `"$PYTHON"`. That produced a false "NOT INVOKED -- possible hole" for `generate-pipeline-index.py` until it was checked by hand. It IS guarded.
+
+  What remains: each entry also needs its `output` field, and that must be read from the generator rather than inferred -- several take `usr/share/mios/mios.toml` as INPUT, so a naive path scan attributes the SSOT to them as output. Add the reverse assertion first: every generator that writes into the tracked tree appears in `[laws.projection_registry].surfaces` with a check that exists. Anything genuinely exempt (writes only to `/etc` at runtime, or emits nothing tracked) goes on an itemised shrink-only register with its reason, not a bare count.
   Belongs in `mios-gate` (Rust): the standing directive, and `[legibility].max_tooling_python_lines` has no headroom for a new Python check.
 **Done When:** a generator added to `tools/` that writes a tracked file and is not registered FAILS the gate -- proved by planting one; every one of the 15 is either registered with a check that exists or itemised as exempt with a reason; and the negative test fails against the pre-repair check so it is not vacuous.
 **Dep:** T-1047

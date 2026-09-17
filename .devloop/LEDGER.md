@@ -397,3 +397,54 @@ controls.
   full file contents. Diff `--stat` only.
 - A generator's writer and its `--check` can disagree. Compare bytes, or the check is blind to
   exactly the drift it is there to find.
+
+---
+
+## T-1047, the signature-policy gate, T-1046/T-1048 filed · status: partial
+
+**Done since the last entry.** Two gates that did not check what they announced, plus the merge of
+`origin/main` that moved under the branch mid-session.
+
+- **T-1047 — the budget gate checked 9 of 128 keys and said "all".** `BUDGET_KEYS` in
+  `tools/native/mios-aiplane-lint` was a hardcoded nine names; `[agent_pipe]` + `[dispatch]` hold
+  **128** scalar leaves. Now enumerated from SSOT. Residue measured, not assumed: **119 of 128
+  consumed, 9 dead**, itemised in `[drift.budget_keys].unconsumed` (shrink-only, ceiling 9).
+  The search surface was also too narrow — it read `usr/lib/mios/agent-pipe` alone, and
+  `[dispatch].gpu_profile` is read by `usr/libexec/mios/mios-swarm-pack-firstboot`. Widening the
+  keys WITHOUT widening the search would have reported a load-bearing key dead. That correction is
+  exactly what takes the residue from 10 to 9.
+- **The container signature policy got the Law 8 half it never had.** `mios-gate signature-policy`
+  (fifth check) regenerates `usr/lib/containers/policy.json` from `[security.sigstore]` and
+  byte-diffs it. Wiring it in tripped `check_negatives_registered` (48 → 49 over ceiling), whose
+  message says *write one, then lower the ceiling* — so `test_signature_policy` was written rather
+  than any ceiling raised. The test is itself two-sided: `if false` in the comparison makes it die.
+
+**The Law 8 registry's blind spot (T-1048), measured.** `check_projection_registry` validates the
+entries it HAS (generator on disk, check function exists) and never asks whether the registry is
+complete. 21 generators on disk, **5** registered. Of the other 16: **15 are a bookkeeping gap**
+(guarded under another name) and **1 was a real hole** — `generate-cosign-policy.py`, unregistered
+AND unmentioned. That one is now closed. The full verified generator→check mapping for the 15 is in
+T-1048's body so the next pass does not re-derive it.
+
+**T-1046 — the ratchet cannot see a base-branch merge.** Merging `origin/main` @`04fd07a4` raised
+`max_tooling_python_lines` by 15, of which **14 are main's own `a328b2fd`** and not this branch's to
+fold or delete. No legitimate move makes both `check_legibility_ratchet` and
+`check_ratchet_direction` green. Second defect on the same check, proved not predicted:
+`check_ratchet_direction` compares the worktree against `HEAD`, so a raise goes **green the moment
+it is committed** — it guards the edit, not the branch.
+
+**Baselines:** drift gate **19 violations from the same six**, held across every commit including
+the merge. `tests/run-suites.sh unit` 574/0. mios-gate now **five** checks, tests 9 → 11.
+
+**Traps added:**
+- **Mention is not subject.** Attributing a generator to the enclosing function of any mention put
+  `render-ports.py` under `check_renderer_gate_coverage`, a meta-check that merely lists it in an
+  allowlist.
+- **A grep filter is a predicate, and mine was too narrow.** Filtering gate invocations on a literal
+  `python3` missed `check_pipeline_numbering`, which uses `"$PYTHON"` — producing a false "no
+  check exists" for a generator that is in fact guarded. Caught by hand before it was filed as a
+  hole.
+- A key named by a *checker* is not a key consumed. `reflexion_limit` and `tool_loop_limit` appear
+  in `tools/drift-checks.py` only as names it asserts are present; both are genuinely dead.
+- Adding a drift check obliges a negative test in the same commit — the gate counts checks without
+  one and will refuse the ceiling.
