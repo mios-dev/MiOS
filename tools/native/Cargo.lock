@@ -1518,6 +1518,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-size-ceiling"
+version = "0.3.0"
+dependencies = [
+ "toml",
+]
+
+[[package]]
 name = "mios-ssot-lint"
 version = "0.3.0"
 

@@ -1797,19 +1797,54 @@ check_toml_projection() {
     fi
 }
 
-check_ratchet_direction() {
-    _need_python || return 0
-    local script="$ROOT/tools/check-ratchet-direction.py"
-    if [[ ! -f "$script" ]]; then
-        _violation "tools/check-ratchet-direction.py missing"
-        return 0
+check_size_ceiling() {
+    # [legibility].max_tracked_mb is generated, so the gate that matters is not
+    # "is it big enough" -- check_legibility_ratchet asks that -- but "is the
+    # committed number still what the tree implies". Outside the band, the value
+    # is either already breached or carrying slack nobody declared.
+    # No env override here on purpose. MIOS_GATE_BIN exists and is grandfathered
+    # on the var-closure ledger; adding a second name nothing emits is exactly
+    # what that ledger's header forbids, and check_var_closure caught this one
+    # the moment it was written.
+    local bin="" c
+    for c in "$ROOT/tools/native/target/release/mios-size-ceiling" \
+             "$ROOT/tools/native/target/debug/mios-size-ceiling" \
+             /usr/libexec/mios/mios-size-ceiling; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-size-ceiling is not built, so check_size_ceiling could not run -- build it: cd tools/native && cargo build -p mios-size-ceiling"
+        return
     fi
-    local out
-    if out="$(python3 "$script" 2>&1)"; then
+    if "$bin" --root "$ROOT" --check; then
+        return 0
+    else
+        _violation "[legibility].max_tracked_mb is outside the band its measurement implies -- regenerate it: tools/native/target/release/mios-size-ceiling"
+    fi
+}
+
+check_ratchet_direction() {
+    # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
+    # commit, with both paths proved equal first: 78 ceilings on each side, and
+    # the same key named with the same exit code on a planted raise. The port
+    # also carries the [drift.generated_ceilings] exemption, which a ceiling
+    # that is GENERATED rather than hand-maintained needs -- and which must be
+    # itemised with a reason, never a bare name.
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_ratchet_direction could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    if "$bin" ratchet-direction --root "$ROOT"; then
         echo "[98-drift-checks]   shrink-only ratchet ceilings in mios.toml do not exceed HEAD"
     else
-        echo "$out" >&2
-        _violation "shrink-only ratchet ceiling increased in mios.toml"
+        _violation "a shrink-only ratchet ceiling increased in mios.toml, or a generated-budget exemption is not itemised"
     fi
 }
 
@@ -3592,6 +3627,7 @@ main() {
     check_root_toml_subset
     check_toml_projection
     check_ratchet_direction
+    check_size_ceiling
     check_bake_plan
     check_bake_plan_integrity
     check_bake_ref_defaults

@@ -9,6 +9,7 @@ mod dispatch;
 mod laws;
 mod phases;
 mod projreg;
+mod ratchet;
 mod sigpolicy;
 mod stubs;
 
@@ -79,7 +80,7 @@ impl Report {
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
                      checks: build-tool-dispatch, credential-literals, drift-stubs,\n\
                              law-enforcers, phase-registry, projection-coverage,\n\
-                             signature-policy\n";
+                             ratchet-direction, signature-policy\n";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -139,6 +140,7 @@ fn main() -> ExitCode {
         "law-enforcers" => laws::check(&root),
         "phase-registry" => phases::check(&root),
         "projection-coverage" => projreg::check(&root),
+        "ratchet-direction" => ratchet::check(&root),
         "signature-policy" => sigpolicy::check(&root),
         _ => {
             eprint!("mios-gate: no such check {name:?}\n{USAGE}");

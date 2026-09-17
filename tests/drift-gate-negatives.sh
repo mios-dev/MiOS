@@ -312,9 +312,84 @@ EOF
     fi
 
     printf '%s' "${orig_val%X}" > "$main_toml"
+
+    # T-1051: a ceiling may be declared a GENERATED budget and allowed to rise,
+    # but only itemised with a reason -- a bare key is a silent skip wearing a
+    # register's clothing.
+    _rd_restore() { printf '%s' "${orig_val%X}" > "$main_toml"; }
+
+    python3 - "$main_toml" <<'EOF'
+import sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+t = t.replace('[drift.generated_ceilings]\n', '[drift.generated_ceilings]\n"ci.max_exempt_suites" = ""\n', 1)
+t = t.replace("max_exempt_suites = 6", "max_exempt_suites = 99", 1)
+open(p, "w", encoding="utf-8").write(t)
+EOF
+    _neg_gate check_ratchet_direction && { _rd_restore; die "check_ratchet_direction passed with an exemption carrying no reason"; }
+    case "${_NEG_GATE_OUT}" in
+        *"carries no \`reason\`"*) : ;;
+        *) _rd_restore; die "check_ratchet_direction failed for the wrong reason on a bare exemption: ${_NEG_GATE_OUT}" ;;
+    esac
+    _rd_restore
+
+    # The positive half of the same branch: WITH a reason, the same raise is
+    # allowed -- otherwise the exemption path is dead code that grants nothing.
+    python3 - "$main_toml" <<'EOF'
+import sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+t = t.replace('[drift.generated_ceilings]\n', '[drift.generated_ceilings]\n"ci.max_exempt_suites" = "negative-test fixture"\n', 1)
+t = t.replace("max_exempt_suites = 6", "max_exempt_suites = 99", 1)
+open(p, "w", encoding="utf-8").write(t)
+EOF
+    _neg_gate check_ratchet_direction || { _rd_restore; die "check_ratchet_direction rejected an itemised generated-budget raise: ${_NEG_GATE_OUT}"; }
+    _rd_restore
+
+    # An exemption naming something that is not a ceiling is stale bookkeeping
+    # that would quietly start covering a future key of that name.
+    python3 - "$main_toml" <<'EOF'
+import sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+t = t.replace('[drift.generated_ceilings]\n', '[drift.generated_ceilings]\n"no.such.ceiling" = "stale"\n', 1)
+open(p, "w", encoding="utf-8").write(t)
+EOF
+    _neg_gate check_ratchet_direction && { _rd_restore; die "check_ratchet_direction passed with an exemption for a key that is not a ceiling"; }
+    _rd_restore
+    unset -f _rd_restore
+
     MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ratchet_direction >/dev/null 2>&1 \
         || die "check_ratchet_direction failed after restoration"
     log "check_ratchet_direction negative test passed"
+}
+
+test_size_ceiling() {
+    log "Testing check_size_ceiling"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    _sz_fail() { cp "$bak" "$toml"; rm -f "$bak"; unset -f _sz_fail; die "$1"; }
+
+    # Below the measured floor: the tree already exceeds its own budget, which
+    # is the state T-1051 was filed about and must not read as clean.
+    sed -i 's/^max_tracked_mb\( *\)= [0-9]*/max_tracked_mb\1= 1/' "$toml"
+    _neg_gate check_size_ceiling && _sz_fail "check_size_ceiling passed with a ceiling below the measured floor"
+    cp "$bak" "$toml"
+
+    # Above floor+headroom: slack nobody declared. A generated budget that can
+    # drift upward without bound is not a budget.
+    sed -i 's/^max_tracked_mb\( *\)= [0-9]*/max_tracked_mb\1= 99999/' "$toml"
+    _neg_gate check_size_ceiling && _sz_fail "check_size_ceiling passed with a ceiling far above the declared headroom"
+    cp "$bak" "$toml"
+
+    # The allowance is operator-tunable and the tool must not invent one.
+    sed -i '/^tracked_mb_headroom = /d' "$toml"
+    _neg_gate check_size_ceiling && _sz_fail "check_size_ceiling passed with no tracked_mb_headroom declared"
+    cp "$bak" "$toml"
+
+    rm -f "$bak"; unset -f _sz_fail
+    _neg_gate check_size_ceiling || die "check_size_ceiling failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_size_ceiling negative test passed"
 }
 
 test_curl_retry() {
@@ -4377,6 +4452,7 @@ _run_test test_leaked_fixtures
     _run_test test_root_toml_subset
     _run_test test_toml_projection
     _run_test test_ratchet_direction
+    _run_test test_size_ceiling
     _run_test test_curl_retry
     _run_test test_resolver_ssot_refs
     _run_test test_nested_podman_caps

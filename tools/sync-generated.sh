@@ -116,6 +116,20 @@ main() {
     step "4e/6 container signature policy (derived from [security.sigstore])"
     "$PY" tools/generate-cosign-policy.py >/dev/null
 
+    step "4f/6 tracked-size ceiling (measurement + [legibility].tracked_mb_headroom)"
+    # Last of the generators on purpose: it measures the git INDEX, so it must
+    # run after everything else has been staged, and its own one-line edit
+    # cannot move a MiB boundary.
+    _sc=""
+    for _c in tools/native/target/release/mios-size-ceiling tools/native/target/debug/mios-size-ceiling; do
+        [ -x "$_c" ] && { _sc="$_c"; break; }
+    done
+    if [ -n "$_sc" ]; then
+        "$_sc" >/dev/null
+    else
+        echo "[sync-generated]      mios-size-ceiling not built; the ceiling was NOT regenerated" >&2
+    fi
+
     step "5/6 env-baseline (clean env)"
     if [ -x usr/libexec/mios/mios-env-snapshot ] || [ -r usr/libexec/mios/mios-env-snapshot ]; then
         env -i PATH="$PATH" HOME="${HOME:-/root}" \
