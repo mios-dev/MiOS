@@ -76,7 +76,11 @@ PK_MAP = {
     "session": "id",
     "config_kv": "id",
     "account_preference": ("account_id", "layer", "key"),
-    "feature_set": "id"
+    "feature_set": "id",
+    # T-1042. system_logs is embeddable (emb vector(768) + an HNSW index) and has
+    # `id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY`. It was in neither list,
+    # which check_backfill_coverage has been failing on at every bake.
+    "system_logs": "id"
 }
 
 _BACKFILL_EXEMPT = [

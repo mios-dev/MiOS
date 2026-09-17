@@ -1027,8 +1027,9 @@
 | T-1039 | P0 | done | Build/BakePlan | BAKEPLAN-01 -- stage 85's already-live Rust tier drops every locally-built image from the bake plan and omits the size_gb column |
 | T-1040 | P0 | planned | Build/Quadlets | ENVSUB-01 -- envsubst eats systemd's $$ runtime refs, the nested-default regex corrupts base_url, and *.socket is outside the find filter |
 | T-1041 | P1 | planned | Build/Firewall | FIREWALL-01 -- a malformed or absent [firewall] table silently opens a hardcoded wrong port set, and an unbound var aborts the tier mid-sequence |
-| T-1042 | P1 | planned | AI-Plane/DB | BACKFILL-01 -- check_backfill_coverage fails at every bake and was invisible under 55 checks that could not fail |
+| T-1042 | P1 | done | AI-Plane/DB | BACKFILL-01 -- check_backfill_coverage fails at every bake and was invisible under 55 checks that could not fail |
 | T-1043 | P2 | partial | Gates/Honesty | PIPENUM-01 -- check_pipeline_numbering reports PASS against a root that does not exist |
+| T-1044 | P2 | planned | Gates/Ratchets | PYTEST-01 -- the tooling-Python ratchet sits at its measurement, so a new Python TEST cannot be added at all |
 
 ---
 
@@ -11302,10 +11303,16 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **What+How:** Found by silencing the noise, not by looking for it. Before T-1037 the same run printed "55 passed, 11 failed, 8 skipped" and this was one line among eleven, under fifty-five claims of verification that were never computed. After, the real-tree summary is "18 passed, 1 failed, 55 skipped" and there is exactly one thing to fix.
   The finding itself is concrete: `system_logs` declares an `emb vector` column, so it is embeddable, but it appears in neither the primary-key map the backfiller needs nor the exemption list. Either it gets a PK mapping so embeddings can be backfilled, or it is exempt and says so.
 **Where:** `src/mios-rs/miosd/src/drift/db.rs`, the `PK_MAP` / `_BACKFILL_EXEMPT` registries, `usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py`, the `system_logs` schema
-**Done When:** `miosd drift-check --root .` reports zero failures on a clean tree, and planting a new embeddable table without a PK mapping still fails it.
-**Why:** It is the only real failure the native suite has ever been able to report, and nobody could see it.
+**Done When:** `miosd drift-check --root .` reports zero failures on a clean tree, and planting a new embeddable table without a PK mapping still fails it. **First half done: `Summary: 19 passed, 0 failed, 55 skipped`** -- the native suite is clean on the real tree for the first time.
+**What+How -- and why it could not simply be added to PK_MAP.** `system_logs` is plainly embeddable: `emb vector(768)` plus `system_logs_emb_hnsw` for cosine search, fed by `usr/libexec/mios/log/mios-log-streamer`. Its primary key is `id bigint GENERATED ALWAYS AS IDENTITY`, exactly the single-column shape `PK_MAP` wants. So why was it in neither list? Because the backfiller selects rows with `WHERE emb IS NULL OR (emb_version IS DISTINCT FROM %(ver)s)`, **and `system_logs` had no `emb_version` column.** Every one of the eight tables already in `PK_MAP` has one added by an `ALTER TABLE`; this one did not. Adding it to the map without the column would have made the backfiller error at runtime instead of at the gate.
+  Fixed symmetrically with its peers: `ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS emb_version varchar(64);`, then `"system_logs": "id"` in `PK_MAP`.
+**And the column turned out to matter for a second reason.** The streamer never writes a NULL `emb`. When the embedding endpoint is unreachable it falls back to `generate_deterministic_embedding` -- a hash-derived unit vector that satisfies the column and the HNSW index and **retrieves nonsense**. Since `emb` is never NULL, a backfiller keyed on `emb IS NULL` could never have repaired those rows; they would sit in the semantic index looking like embeddings forever.
+  So the streamer now stamps `emb_version` with the model id **only when the remote call succeeded**, and leaves it NULL on the deterministic path. The backfiller's `emb_version IS DISTINCT FROM <ver>` then selects exactly the placeholder rows and re-embeds them when the endpoint returns. Law 12's degrade-open is preserved -- logging never blocks on egress -- and the degradation is now recorded rather than disguised.
+**Verified** (the sibling suite has no room to grow, see T-1044, so this was exercised directly): a remote result stamps `emb_version`; a fallback leaves `NULL`; a quote in the version is escaped rather than injected; and `process_log_batch` against an unreachable endpoint returns a 768-dim vector with `emb_version = None`. `tests/test-log-streamer.py` passes unchanged, 6/6. `check_backfill_coverage` goes FAIL -> PASS.
+**Remaining:** the second Done-When clause -- planting a new embeddable table without a PK mapping must still fail the check -- is untested here for the same T-1044 reason.
+**Note:** `system_logs_rag` is referenced by `usr/libexec/mios/telemetry/log_archiver.py` and `usr/libexec/mios/db/pg_vacuum_tuner.py` (which `REINDEX TABLE CONCURRENTLY system_logs_rag`) and is **defined nowhere in `schema-init.sql`**. Dangling table reference; not touched here.
 **Dep:** T-1037
-**Status:** planned | **Domain:** AI-Plane/DB | **Who:** architect
+**Status:** done | **Domain:** AI-Plane/DB | **Who:** architect
 
 ## T-1043 -- PIPENUM-01: a check that passes against a tree that is not there  (WS-DRIFT | P2 | S)
 **Goal:** After T-1037, exactly one check still reports PASS against a root that does not exist: `check_pipeline_numbering: Pipeline numbering and ordinals verified dense`. Unlike the 54 stubs it DOES take `ctx` -- so it reads the tree, finds nothing, and calls an empty set dense.
@@ -11323,3 +11330,14 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Why:** T-1030's thesis, in the one place left where it was still demonstrably true.
 **Dep:** T-1037
 **Status:** partial | **Domain:** Gates/Honesty | **Who:** architect
+
+## T-1044 -- PYTEST-01: the tooling ratchet forbids adding a Python test  (WS-DRIFT | P2 | S)
+**Goal:** `[legibility].max_tooling_python_lines` is at **121259/121259** -- deliberately, because the rule this session has applied everywhere is that a ceiling above its measurement is slack. The measurement counts every tracked `.py` that is not generated and not under `python_ai_plane_prefixes`. **`tests/` is counted.** So while the ceiling equals the measurement, a new Python test cannot be added at all: appending three comment lines to `tests/test-log-streamer.py` moves it to 121263/121259 and fails the gate.
+**What+How:** Measured, not argued: the probe above was run and reverted. This bit immediately -- T-1042 changed `usr/libexec/mios/log/mios-log-streamer` (no `.py` extension, so uncounted) and `embed_backfill.py` (AI-plane, exempt), and neither moved the number, but the test that would guard the change could not be written. The behaviour was verified by direct execution instead, which is weaker: it proves the code works today and guards nothing tomorrow.
+  The ratchet is not wrong. ADR-0021 wants Python mass to fall, and a Python test for Python code does convert away when that code converts, so counting it is defensible. What is wrong is the ORDER: the gate makes the cheapest way to stay green "do not write the test", which is the same incentive shape as `max_libexec_verbs` pulling against `check_module_test_coverage` -- already documented in `tools/drift-checks.py`, where sibling tests were excluded from the verb count for exactly this reason: *"adding the test that gate demands tripped this one, so the cheapest way to stay green was to not write the test."*
+  The precedent therefore already exists in this file and points one way. Three options, and the choice is the operator's because it loosens a gate: exclude `tests/` by prefix the way `_TEST_BASENAME` is already excluded from `max_libexec_verbs`; or carry a separate `max_tooling_python_test_lines` so test mass is tracked but not traded against tooling mass; or leave it and accept that new Python tests arrive only alongside a conversion that frees the lines.
+**Where:** `tools/drift-checks.py` `max_tooling_python_lines` measurement, `usr/share/mios/mios.toml [legibility]`, `tests/`
+**Done When:** a new Python test can be added without a compensating deletion, OR the decision to forbid that is recorded in SSOT with its reason so nobody rediscovers it.
+**Why:** A gate whose cheapest satisfying move is "write no test" will eventually be satisfied that way.
+**Dep:** --
+**Status:** planned | **Domain:** Gates/Ratchets | **Who:** architect

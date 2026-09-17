@@ -135,7 +135,11 @@ def generate_embeddings_batch(
         if remote_res and len(remote_res) == len(texts):
             return remote_res
 
-    # Deterministic fallback
+    # Deterministic fallback. These vectors are hash-derived, not semantic: they
+    # satisfy the column and the HNSW index but retrieve nonsense. The caller
+    # stamps emb_version only for REMOTE results, so the backfiller's
+    # `emb_version IS DISTINCT FROM <ver>` finds exactly these rows and repairs
+    # them once the endpoint is back (T-1042).
     return [generate_deterministic_embedding(t) for t in texts]
 
 
@@ -231,12 +235,15 @@ def format_sql_insert(records: List[Dict[str, Any]]) -> str:
         emb_list = r.get("emb", [])
         emb_str = "'" + "[" + ",".join(str(x) for x in emb_list) + "]'::vector"
 
-        clause = f"({unit_escaped}, {r['priority']}, {msg_escaped}, {meta_json}, {emb_str}, {ts_escaped}, {origin_escaped})"
+        ver = r.get("emb_version")
+        ver_escaped = "NULL" if not ver else "'" + str(ver).replace("'", "''") + "'"
+
+        clause = f"({unit_escaped}, {r['priority']}, {msg_escaped}, {meta_json}, {emb_str}, {ts_escaped}, {origin_escaped}, {ver_escaped})"
         values_clauses.append(clause)
 
     sql = (
         "INSERT INTO " + DEFAULT_TARGET_TABLE
-        + " (unit, priority, message, metadata, emb, ts, origin_node)\n"
+        + " (unit, priority, message, metadata, emb, ts, origin_node, emb_version)\n"
         + "VALUES\n  " + ",\n  ".join(values_clauses) + ";\n"
     )
     return sql
@@ -398,15 +405,23 @@ def process_log_batch(
     texts_to_embed = [f"[{r['unit']}] {r['message']}" for r in batch]
 
     # 2. Generate embeddings
-    embeddings = generate_embeddings_batch(
-        texts=texts_to_embed,
-        endpoint=endpoint,
-        model=model,
-        mock_embeddings=mock_embeddings,
-    )
+    remote = None
+    if not mock_embeddings:
+        remote = fetch_remote_embeddings(texts_to_embed, endpoint=endpoint, model=model)
+        if remote is not None and len(remote) != len(texts_to_embed):
+            remote = None
+    if remote is not None:
+        embeddings, emb_version = remote, model
+    else:
+        # A hash-derived placeholder is not an embedding. Leaving emb_version
+        # NULL is what marks the row for repair rather than silently shipping a
+        # vector that looks real to every consumer of the HNSW index.
+        embeddings = [generate_deterministic_embedding(t) for t in texts_to_embed]
+        emb_version = None
 
     for i, emb in enumerate(embeddings):
         batch[i]["emb"] = emb
+        batch[i]["emb_version"] = emb_version
 
     # 3. Insert into database
     success = insert_batch_to_postgres(

@@ -8747,6 +8747,7 @@ usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	21	25	5	47	ee0ce8e937
 usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	37	38	2	23	644c7998a19e	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	46	47	2	21	190a0d4d504c	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	52	52	1	9	a2575a2fed97	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py	80	82	3	34	ef8a94c31126	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/mios_pipe/memory/knowledge.py	1	2	2	15	9afb5302331d	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_pipe/memory/knowledge.py	3	13	10	78	b382d8f44c00	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/memory.md	mios-src:b382d8f44c00	78	1
 usr/lib/mios/agent-pipe/mios_pipe/memory/knowledge.py	99	103	5	36	2e91b4a8f034	STAY	midsize-why		0				0
