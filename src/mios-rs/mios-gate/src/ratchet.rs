@@ -221,7 +221,7 @@ pub fn check(root: &Path) -> Report {
     let (exempted, mut findings) = exempt(&work_val);
     // An exemption for a key that is not a ceiling is stale bookkeeping that
     // would quietly start covering a future key of that name.
-    for (k, _) in exempted.iter() {
+    for k in exempted.keys() {
         if !work.contains_key(k) {
             findings.push(format!(
                 "[drift.generated_ceilings] '{k}' is not a ceiling in {rel} -- drop the \
