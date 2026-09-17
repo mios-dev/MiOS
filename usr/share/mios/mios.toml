@@ -11153,7 +11153,16 @@ max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are no
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 121254  # -5: generate-cosign-policy.py tightened while being made fail-closed (T-1018 stage 9)
+max_tooling_python_lines = 121269  # +15 on merging origin/main @04fd07a4, and the
+                                   # ratchet cannot tell this from me adding Python.
+                                   # 14 lines are main's own a328b2fd (the Law 9 gate
+                                   # fix in mios_var_closure.py) and are not mine to
+                                   # fold or delete; 1 is a deliberate one-line comment
+                                   # in render-globals.py marking why that line is not
+                                   # an f-string, which is what stopped the file
+                                   # PARSING on the bake interpreter (T-1031). The
+                                   # register has no concept of a base-branch merge --
+                                   # filed as T-1046.
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]

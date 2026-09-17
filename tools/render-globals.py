@@ -340,7 +340,9 @@ def main() -> int:
         if drifted:
             sys.stderr.write("[render-globals] resolvers are stale vs SSOT:\n")
             for p in drifted:
-                sys.stderr.write("    " + os.path.relpath(p, ROOT).replace(os.sep, "/").replace("\\\\", "/") + "\n")  # not an f-string: a backslash in an expression part is a SyntaxError before py3.12
+                # Not an f-string: a backslash in an expression part is a SyntaxError before py3.12 (T-1031)
+                _rel = os.path.relpath(p, ROOT).replace(os.sep, "/").replace("\\\\", "/")
+                sys.stderr.write("    %s\n" % _rel)
             sys.stderr.write("    run: python3 tools/render-globals.py\n")
             return 1
         print(f"[render-globals] both resolvers match SSOT ({len(names)} constants)")
