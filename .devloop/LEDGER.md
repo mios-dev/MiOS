@@ -506,3 +506,47 @@ vacuous there — checked before claiming it). It now resolves the sibling as
 **Baselines:** drift gate **19 violations from the same six**; negative suite **156 passed, the
 standing 7 failed**; value-duplication ratchet **411**, unmoved by the two new `MIOS_*` keys;
 mios-gate **six** checks, tests 11 → 22.
+
+---
+
+## Handoff — the law enforcers, and a gate with no reachable failing input
+
+**T-1049 — done.** Laws 3/5/10/11 pointed at `99-postcheck.sh:item12/14/16/17`. None existed; all four
+occurred once, in a comment on the file's last line, after `exit 0`. `check_law_enforcers` required a
+function DEFINITION for drift-script targets but a bare SUBSTRING for postcheck ones — the weak
+predicate on exactly the file carrying that comment. Ported to `mios-gate law-enforcers`, Python twin
+deleted (which is what paid for it: the Python ceiling had zero headroom). Two silent drops found
+while porting, neither predicted: a comma list's second enforcer was dropped, and any unrecognised
+enforcer kind fell through to silence. The check examined 12 of 18 targets and reported all 18 clean.
+
+**T-1052 — done.** `check_var_closure` reported `emitted=2879 referenced=0 missing=0 PASS` on every
+run. 425 names now registered in `usr/share/mios/reference/var-closure-baseline.tsv`, ceiling EXACT
+both ways.
+
+**Traps added:**
+- **Attribute a vacuous check's cause by disabling one filter at a time.** Here: `INTERNAL_PATHS`
+  alone hid 376, the line filter alone 25, both together 461. Guessing would have blamed the wrong one
+  — I did, in the first commit message, and had to correct it in the task body.
+- **A probe that cannot fail is the same defect as a gate that cannot fail.** My first probe's string
+  replace silently matched nothing (indentation), reported "still 0", and nearly refuted a correct
+  hypothesis. Assert on the substitution count.
+- **`"tests/" in reldir` is false for a file directly in `tests/`.** Compare path components. This let
+  the test corpus into a consumer scan and made a negative test's own fixture a finding.
+- **Spell fixture names in two pieces** (`"MIOS""_NEVER_..."`). `generate-names-registry.py` harvests
+  tracked sources, so a fixture written out in full lands in `referenced_names.txt` as a real
+  reference. Same class as putting `${MIOS_PORT_*}` in an SSOT description.
+- **A check that truncates its own evidence cannot be ratcheted.** `main()` printed the first 20
+  findings; a ledger cannot be compared against a sample.
+- **A repair that needs more Python lines than the ceiling allows is a design signal, not a licence
+  to compress comments.** Split the work: land the part that fits, file the part that does not as a
+  task whose completion makes the ledger SHRINK.
+
+**Fork still open — T-1051.** `tracked_mb=203/202`. The branch had 15 KiB of slack while the gate
+printed `202/202`; `vendored/` is 168.24 of 202.54 MiB and Law 12 forbids shedding it. Recommendation
+is to exclude `vendored/` by SSOT prefix (precedent: `_is_generated` in the same function), which
+LOWERS the ceiling to ~34. Not done unilaterally — the competing reading is that the branch should
+shed bytes. Standing-down comment on #16: issuecomment-5716926437.
+
+**Baselines:** drift gate **21 violations from seven checks** (the standing 19 from six, plus 2 from
+`check_legibility_ratchet`, both `tracked_mb`); negative suite **157 passed, 8 failed** (standing 7 +
+`test_legibility_ratchet`); mios-gate **seven** checks; `max_tooling_python_lines` 121210, at measurement.
