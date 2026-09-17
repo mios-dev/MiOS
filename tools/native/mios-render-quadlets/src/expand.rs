@@ -77,10 +77,12 @@ fn split_default(inner: &str) -> (&str, Option<&str>) {
     (inner, None)
 }
 
+/// Only `MIOS_*` is ours. `${WORKER_MODEL}` in mios-llm-worker@.container comes
+/// from `EnvironmentFile=-/run/mios/swarm/%i.env` at runtime; expanding it would
+/// bake a per-instance value into a template. The bash renderer never touched a
+/// non-MIOS name either, because every entry on its allowlist was MIOS_*.
 fn is_name(s: &str) -> bool {
-    !s.is_empty()
-        && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
-        && !s.as_bytes()[0].is_ascii_digit()
+    s.starts_with("MIOS_") && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
 }
 
 /// What a pass is allowed to touch.
@@ -318,6 +320,27 @@ mod tests {
     fn non_ascii_content_survives_byte_for_byte() {
         let s = ssot(&[("MIOS_X", "1")]);
         assert_eq!("héllo ✓ 1", expand("héllo ✓ ${MIOS_X}", &s).text);
+    }
+
+    /// mios-llm-worker@.container floats ${WORKER_MODEL} and ${WORKER_PORT},
+    /// supplied at runtime by EnvironmentFile=-/run/mios/swarm/%i.env. Baking
+    /// them would freeze a per-instance value into a template unit.
+    #[test]
+    fn a_non_mios_name_is_never_ours_to_expand() {
+        let s = ssot(&[("WORKER_MODEL", "x.gguf"), ("WORKER_PORT", "9001")]);
+        let e = expand(
+            "Exec=--model /models/${WORKER_MODEL} --port ${WORKER_PORT}",
+            &s,
+        );
+        assert_eq!(
+            "Exec=--model /models/${WORKER_MODEL} --port ${WORKER_PORT}",
+            e.text
+        );
+        assert!(
+            e.unresolved.is_empty(),
+            "and not reported either: {:?}",
+            e.unresolved
+        );
     }
 
     #[test]

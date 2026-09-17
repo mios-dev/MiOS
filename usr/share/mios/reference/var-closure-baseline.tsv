@@ -33,7 +33,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 425
+#!ceiling 418
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:607
@@ -98,7 +98,6 @@ MIOS_CONDUCTOR_STEP_TIMEOUT	usr/lib/mios/agent-pipe/mios_pipe/routing/conductor.
 MIOS_CONFIGURATOR_HTML	usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py:1274
 MIOS_CPU_LANE_HINTS	usr/lib/mios/agent-pipe/server.py:1164
 MIOS_CPU_LANE_MICRO_MODEL	usr/lib/mios/agent-pipe/server.py:1167
-MIOS_CRAWL4AI_IMAGE	automation/34-render-quadlets.sh:50
 MIOS_CRAWL_BIND	usr/lib/mios/crawl4ai/mios-crawl4ai-service.py:39
 MIOS_CRAWL_CDP_TIMEOUT	usr/lib/mios/crawl4ai/mios-crawl4ai-service.py:138
 MIOS_CRL_PATH	usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py:578
@@ -116,7 +115,6 @@ MIOS_DAG_REPLAN_MAX	usr/lib/mios/agent-pipe/server.py:1436
 MIOS_DATA_DIR	usr/libexec/mios/user-setup.sh:17
 MIOS_DATA_MP	installation/stage-mios-repo.sh:55
 MIOS_DB_AUTHORITATIVE	usr/lib/mios/mios_db_config.py:52
-MIOS_DB_DATA_DIR	automation/34-render-quadlets.sh:50
 MIOS_DB_DB	usr/share/mios/owui/pipes/mios_agent_pipe.py:107
 MIOS_DB_NS	usr/share/mios/owui/pipes/mios_agent_pipe.py:106
 MIOS_DB_PASS	automation/34-render-quadlets.sh:50
@@ -273,9 +271,6 @@ MIOS_PASSWORD_CONFIRM	automation/build-mios.sh:70
 MIOS_PASSWORD_HASH	automation/build-mios.sh:399
 MIOS_PC_INPUT_SECTION	usr/lib/mios/agent-pipe/server.py:1567
 MIOS_PG_BACKEND	usr/lib/mios/agent-pipe/mios_pipe/kernel/config.py:308
-MIOS_PG_HNSW_ITERATIVE_SCAN	automation/34-render-quadlets.sh:50
-MIOS_PG_HNSW_MAX_SCAN_TUPLES	automation/34-render-quadlets.sh:50
-MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER	automation/34-render-quadlets.sh:50
 MIOS_PG_POOL_ENABLE	usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py:273
 MIOS_PG_POOL_MAX	usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py:280
 MIOS_PG_POOL_MIN	usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py:276
@@ -356,8 +351,6 @@ MIOS_SELF_HEAL_LOG	usr/libexec/mios/ai/self_heal.py:336
 MIOS_SELF_HEAL_STATE	usr/libexec/mios/ai/self_heal.py:339
 MIOS_SESSION_ID	usr/libexec/mios/user/session_migrate.py:269
 MIOS_SGLANG	tools/generate-names-registry.py:31
-MIOS_SGLANG_MAX_MODEL_LEN	automation/34-render-quadlets.sh:50
-MIOS_SGLANG_REASONING_PARSER	automation/34-render-quadlets.sh:50
 MIOS_SIGNING_CERT	tools/sign-powershell.ps1:21
 MIOS_SKIP_AI_CLIS	usr/libexec/mios/install-ai-clis.sh:7
 MIOS_SKIP_BIB	installation/mios-install.sh:254

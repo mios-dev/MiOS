@@ -289,14 +289,13 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     }
     if check {
-        if changed > 0 {
-            eprintln!(
-                "mios-render-quadlets: {changed} of {scanned} file(s) are NOT rendered -- run the renderer"
-            );
-            return ExitCode::from(1);
-        }
+        // Deliberately NOT "is the tree already rendered". Stage 34 renders
+        // in place at bake; tracked files are TEMPLATES and keep their
+        // placeholders. The gated property is that every placeholder
+        // RESOLVES -- unresolved ones were reported above.
         println!(
-            "mios-render-quadlets: OK: {scanned} file(s) fully rendered, no residual placeholder"
+            "mios-render-quadlets: OK: {scanned} file(s) scanned, every placeholder \
+             resolves ({changed} would change at bake)"
         );
         return ExitCode::SUCCESS;
     }

@@ -1,0 +1,34 @@
+{
+  "objective": "Convert the substitution engine to Rust: retire stage 34's envsubst + bash-regex renderer in favour of tools/native/mios-render-quadlets, with dirs/extensions/max_depth/runtime_ref_directives all resolved from [build.quadlet_render] SSOT, gated two-sided, and the stage's unreachable dispatch entry removed",
+  "stopping_condition": "cd /home/user/MiOS && ! grep -q envsubst automation/34-render-quadlets.sh && bash automation/98-drift-checks.sh check_render_quadlets >/dev/null 2>&1 && (cd tools/native && cargo test --workspace --exclude mios-wallpaperd >/dev/null 2>&1) && [ -z \"$(git status --porcelain)\" ]",
+  "status": "IN_PROGRESS",
+  "created_at": "2026-09-17T22:06:49.714042",
+  "completed_at": null,
+  "criteria": [
+    {
+      "id": "C-01",
+      "description": "Acceptance tests pass",
+      "criterion_type": "test",
+      "command": "pytest",
+      "passed": false,
+      "details": null
+    },
+    {
+      "id": "C-02",
+      "description": "Working tree clean of uncommitted residue",
+      "criterion_type": "git_clean",
+      "command": null,
+      "passed": false,
+      "details": null
+    },
+    {
+      "id": "C-03",
+      "description": "Artifact manifest validated",
+      "criterion_type": "artifact",
+      "command": null,
+      "passed": false,
+      "details": null
+    }
+  ],
+  "non_goals": []
+}

@@ -1046,6 +1046,7 @@
 | T-1058 | P0 | done | Build/Quadlets | SOCKETREND-01 -- mios-cockpit-link.socket shipped ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}; the renderer's find filter had no *.socket |
 | T-1059 | P1 | done | Build/Toolchain | TOOLCHAIN-01 -- nothing pins a Rust toolchain; CI lints with whatever the runner ships, and a 1.98 lint killed four pushes that were clean under 1.94 |
 | T-1060 | P0 | planned | Gates/Honesty | BARESAFE-01 -- install.env silently DROPS 7 variables including MIOS_AI_ENDPOINT (Law 5's contract); emit() returns 0 on reject and the gate discards the WARNs with 2>/dev/null |
+| T-1061 | P2 | planned | SSOT/Law7 | GPUSSOT-01 -- [gpu].device models one vendor while mios-gpu-passthrough hardcodes three; its only code consumer was stage 34's deleted allowlist |
 
 ---
 
@@ -11679,3 +11680,12 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Why:** an unexpanded `MIOS_AI_ENDPOINT` is Law 5's single contract reaching two of three consumers wrong, and the gate that exists to prevent it reports green.
 **Dep:** --
 **Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
+
+## T-1061 -- GPUSSOT-01: [gpu] was kept alive by an allowlist, not by a consumer  (WS-DRIFT | P2 | S)
+**Goal:** `check_no_inert_ssot_tables` went red on `[gpu]` the moment stage 34's hardcoded envsubst allowlist was deleted (T-1040). That is the check telling the truth for the first time: the table's only code-shaped consumer was its own name sitting in a bash list that existed for mechanical reasons, not because anything read `[gpu].device`.
+**What+How:** The real consumer is `usr/libexec/mios/mios-gpu-passthrough:71`, which emits `AddDevice=nvidia.com/gpu=all` as a literal, alongside `amd.com/gpu=all` and `intel.com/gpu=all`. SSOT models exactly one of the three (`[gpu].device = "nvidia.com/gpu=all"`), so the script cannot read the table without a per-vendor shape for it.
+  **Not resolved by raising the register.** `[ssot_tables].unconsumed` is shrink-only; adding `[gpu]` to go green is the "raise a threshold to pass" move the engineering rules forbid, and it would re-hide a defect that was hidden for exactly that reason once already. Left honestly red instead.
+  **Partially addressed already:** the four llm Quadlets that hardcoded `nvidia.com/gpu=all` now float `${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}`, so the value resolves from SSOT at bake. The gate does not count a `.container` as a consumer (`CODE_EXT` is py/sh/ps1/rs/js/ts/mjs), which is why that change is correct without being sufficient.
+**Done When:** `[gpu]` models every vendor `mios-gpu-passthrough` can emit, that script reads the table instead of three literals, and `check_no_inert_ssot_tables` passes because the table is genuinely consumed -- never because it was registered.
+**Dep:** T-1040
+**Status:** planned | **Domain:** SSOT/Law7 | **Who:** architect

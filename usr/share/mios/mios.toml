@@ -1830,6 +1830,26 @@ extensions = [
   "container", "network", "volume", "pod", "image", "build",
   "toml", "json", "conf", "service", "socket",
 ]
+# Trees the renderer walks. Hardcoded in bash AND again in miosd before T-1040.
+dirs = [
+  "/etc/containers/systemd",
+  "/etc/containers/systemd/users",
+  "/usr/share/containers/systemd",
+  "/usr/share/containers/systemd/users",
+  "/etc/mios",
+  "/usr/share/mios/kb",
+  "/usr/lib/systemd/system/cockpit.socket.d",
+  "/usr/lib/systemd/system",
+]
+# Matches the bash `find -maxdepth 2`; miosd's read_dir was depth 1 and missed users/.
+max_depth = 2
+# Directives whose BARE ${VAR} systemd resolves at runtime from the unit's own
+# Environment=/EnvironmentFile=. The `:-` form is never protected: systemd calls
+# replace_env_full with flags=0 and does no replacement, so it must be baked.
+runtime_ref_directives = [
+  "ExecStart", "ExecStartPre", "ExecStartPost",
+  "ExecStop", "ExecStopPost", "ExecReload", "ExecCondition",
+]
 
 [build.toolchain]
 # The toolchain both workspaces build and lint with (T-1059).
@@ -1839,9 +1859,8 @@ components = ["clippy", "rustfmt"]
 
 [build.tool_dispatch]
 # Bake-time tool-dispatch gates whose lookup cannot resolve. Shrink-only: T-1018.
-max_unreachable = 2
+max_unreachable = 1
 unreachable = [
-  "automation/34-render-quadlets.sh",
   "automation/44-firewall-ports.sh",
 ]
 

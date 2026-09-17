@@ -408,6 +408,34 @@ EOF
     log "check_render_extension_coverage negative test passed"
 }
 
+test_render_quadlets() {
+    log "Testing check_render_quadlets"
+    local unit="${ROOT}/usr/share/containers/systemd/mios-ceph.container"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local ubak tbak
+    ubak="$(mktemp)"; cp "$unit" "$ubak"
+    tbak="$(mktemp)"; cp "$toml" "$tbak"
+    _rq_fail() {
+        cp "$ubak" "$unit"; cp "$tbak" "$toml"
+        rm -f "$ubak" "$tbak"; unset -f _rq_fail; die "$1"
+    }
+
+    # A placeholder nothing can resolve would ship literal into the image, which
+    # is the class that shipped mios-cockpit-link.socket unparseable (T-1058).
+    sed -i 's|^Image=quay.io/ceph/ceph:.*|Image=quay.io/ceph/ceph:${MIOS_NOT_A_REAL_VAR}|' "$unit"
+    _neg_gate check_render_quadlets && _rq_fail "check_render_quadlets passed with an unresolvable placeholder"
+    cp "$ubak" "$unit"
+
+    # An empty scan list must be cannot-run, never a quiet zero-file pass.
+    sed -i 's|^dirs = \[|dirs = [] # |' "$toml"
+    _neg_gate check_render_quadlets && _rq_fail "check_render_quadlets passed with an empty [build.quadlet_render].dirs"
+    cp "$tbak" "$toml"
+
+    rm -f "$ubak" "$tbak"; unset -f _rq_fail
+    _neg_gate check_render_quadlets || die "check_render_quadlets failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_render_quadlets negative test passed"
+}
+
 test_toolchain_pin() {
     log "Testing check_toolchain_pin"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -4539,6 +4567,7 @@ _run_test test_leaked_fixtures
     _run_test test_ratchet_direction
     _run_test test_size_ceiling
     _run_test test_toolchain_pin
+    _run_test test_render_quadlets
     _run_test test_render_extension_coverage
     _run_test test_curl_retry
     _run_test test_resolver_ssot_refs

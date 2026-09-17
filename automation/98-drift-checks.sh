@@ -1845,6 +1845,27 @@ check_size_ceiling() {
     fi
 }
 
+check_render_quadlets() {
+    # Asserts every ${MIOS_*} in the render scope RESOLVES -- not that the tree
+    # is already rendered. Stage 34 renders in place at bake; the tracked files
+    # are templates (T-1040).
+    local bin="" c
+    for c in "$ROOT/tools/native/target/release/mios-render-quadlets" \
+             "$ROOT/tools/native/target/debug/mios-render-quadlets" \
+             /usr/libexec/mios/mios-render-quadlets; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-render-quadlets is not built, so check_render_quadlets could not run -- build it: cd tools/native && cargo build -p mios-render-quadlets"
+        return
+    fi
+    if "$bin" --root "$ROOT" --check; then
+        return 0
+    else
+        _violation "a tracked file carries a \${MIOS_*} placeholder that resolves to nothing -- it would ship literal"
+    fi
+}
+
 check_toolchain_pin() {
     # rust-toolchain.toml is generated, so the question is not "is a pin
     # present" but "is the committed pin still what the SSOT says". A hand
@@ -3685,6 +3706,7 @@ main() {
     check_ratchet_direction
     check_size_ceiling
     check_toolchain_pin
+    check_render_quadlets
     check_render_extension_coverage
     check_bake_plan
     check_bake_plan_integrity
