@@ -3975,22 +3975,40 @@ test_legibility_ratchet() {
 
 test_resolver_differential_parity() {
     log "Testing check_resolver_differential_parity"
-    local bin="" b
-    for b in "${ROOT}/tools/native/target/release/mios-resolver"              "${ROOT}/tools/native/target/release/mios-resolver.exe"              "${ROOT}/tools/native/target/debug/mios-resolver"              "${ROOT}/tools/native/target/debug/mios-resolver.exe"; do
-        [ -f "$b" ] && { bin="$b"; break; }
+    # Hide EVERY candidate, not just the first: breaking after one left the debug
+    # build in place on a tree that has both, so the refusal below never ran.
+    # The check also probes two absolute paths this test cannot move aside.
+    local abs_c
+    for abs_c in /usr/libexec/mios/mios-resolver /usr/bin/mios-resolver; do
+        if [ -f "$abs_c" ]; then
+            log "check_resolver_differential_parity: $abs_c is installed and outside the tree; refusal path not provable here"
+            return 0
+        fi
     done
+    local bin="" b hidden=()
+    for b in "${ROOT}/tools/native/target/release/mios-resolver" \
+             "${ROOT}/tools/native/target/release/mios-resolver.exe" \
+             "${ROOT}/tools/native/target/debug/mios-resolver" \
+             "${ROOT}/tools/native/target/debug/mios-resolver.exe"; do
+        if [ -f "$b" ]; then
+            [ -z "$bin" ] && bin="$b"
+            mv "$b" "${b}.negtest"
+            hidden+=("$b")
+        fi
+    done
+    # ${a[@]+...} keeps the empty-array expansion safe under `set -u` on bash < 4.4.
+    _rdp_restore() { local h; for h in ${hidden[@]+"${hidden[@]}"}; do [ -f "${h}.negtest" ] && mv "${h}.negtest" "$h"; done; return 0; }
 
     # The failure path is assertable either way: with no binary the Python and
     # Rust resolvers were never compared, so REQUIRE_TOOLS=1 must refuse rather
     # than print an advisory skip.
-    if [ -n "$bin" ]; then
-        mv "$bin" "${bin}.negtest"
-    fi
     if MIOS_DRIFT_REQUIRE_TOOLS=1 _neg_gate check_resolver_differential_parity; then
-        [ -n "$bin" ] && mv "${bin}.negtest" "$bin"
+        _rdp_restore
+        unset -f _rdp_restore
         die "check_resolver_differential_parity passed with no resolver binary under REQUIRE_TOOLS=1"
     fi
-    [ -n "$bin" ] && mv "${bin}.negtest" "$bin"
+    _rdp_restore
+    unset -f _rdp_restore
 
     if [ -z "$bin" ]; then
         # Without a binary there is no parity to restore TO. Saying so is
