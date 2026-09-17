@@ -1033,6 +1033,7 @@
 | T-1045 | P2 | done | Gates/Honesty | STUBPRED-01 -- two checks still claim a verdict after only calling .exists(), and the stub detector counts a path join as reading |
 | T-1046 | P2 | planned | Gates/Ratchets | MERGERATCHET-01 -- a shrink-only ratchet cannot tell "this branch grew" from "the base branch grew and we merged it", so merging main forces a raise it forbids |
 | T-1047 | P2 | done | Gates/Honesty | BUDGETKEYS-01 -- check_agent_pipe_budgets walked a hardcoded 9 of 128 keys and announced it had checked all of them |
+| T-1048 | P2 | planned | Gates/Honesty | PROJREG-01 -- check_projection_registry validates the entries it has and never asks whether the registry is complete; 16 of 21 generators are absent |
 
 ---
 
@@ -11403,3 +11404,14 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Remaining:** the nine registered keys are knobs an operator can set to no effect. Each wants wiring or deleting; the register exists to keep them visible, not to bless them.
 **Dep:** T-1018
 **Status:** done | **Domain:** Gates/Honesty | **Who:** architect
+
+## T-1048 -- PROJREG-01: the Law 8 registry is never checked for completeness  (WS-DRIFT | P2 | M)
+**Goal:** `check_projection_registry` walks `[laws.projection_registry].surfaces` and asserts, for each entry, that the generator exists on disk and the check function exists in `98-drift-checks.sh`. That is the forward direction only. Nothing asks the reverse -- *is every generator ON the registry* -- so a generator can write a tracked artifact with no drift check and the registry reports clean. A one-directional check over a register is the same shape as an unanchored allowlist: it validates what it was told about and is silent on what it was not.
+**What+How:** Measured, not sampled. 21 generators on disk (`tools/generate-*.py` + `tools/render-*.py`); the registry names **5** of them. Splitting the other 16 by whether `98-drift-checks.sh` or `tools/drift-checks.py` mentions the generator at all:
+  - **15 are a bookkeeping gap** -- unregistered, but the gate does exercise them under some other name (`generate-adr-index`, `generate-bake-plan`, `generate-bib-configs`, `generate-blade-karg`, `generate-cargo-manifests`, `generate-cockpit-conf`, `generate-egress-firewall`, `generate-gate-index`, `generate-ipa-enroll-env`, `generate-metal-vs-hosted`, `generate-names-registry`, `generate-pipeline-index`, `generate-uki-cmdline`, `render-manpages`, `render-ports`). The register is incomplete as a register; those surfaces are not unguarded.
+  - **1 was a real hole** -- `tools/generate-cosign-policy.py`, unregistered AND unmentioned: a security artifact projected from SSOT with neither half of Law 8. Closed in T-1047's follow-up by `mios-gate signature-policy` + the registry entry. It is named here because *how it stayed invisible* is this task, not that one.
+  Add the reverse assertion: every generator that writes into the tracked tree appears in `[laws.projection_registry].surfaces` with a check that exists. Then add the 15 missing entries -- each needs its real check name looked up, which is the work. Anything genuinely exempt (writes only to `/etc` at runtime, or emits nothing tracked) goes on an itemised shrink-only register with its reason, not a bare count.
+  Belongs in `mios-gate` (Rust): the standing directive, and `[legibility].max_tooling_python_lines` has no headroom for a new Python check.
+**Done When:** a generator added to `tools/` that writes a tracked file and is not registered FAILS the gate -- proved by planting one; every one of the 15 is either registered with a check that exists or itemised as exempt with a reason; and the negative test fails against the pre-repair check so it is not vacuous.
+**Dep:** T-1047
+**Status:** planned | **Domain:** Gates/Honesty | **Who:** architect

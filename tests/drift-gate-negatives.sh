@@ -3838,6 +3838,49 @@ PYEOF2
     log "check_phase_registry negative test passed"
 }
 
+test_signature_policy() {
+    log "Testing check_signature_policy"
+    local art="${ROOT}/usr/lib/containers/policy.json"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local abak tbak
+    abak="$(mktemp)"; tbak="$(mktemp)"
+    cp "$art" "$abak"; cp "$toml" "$tbak"
+    _sp_fail() {
+        cp "$abak" "$art"; cp "$tbak" "$toml"; rm -f "$abak" "$tbak"
+        unset -f _sp_fail
+        die "$1"
+    }
+
+    # A hand-edited policy is the Law 8 case: a derived security artifact
+    # changed without its SSOT.
+    printf '{\n  "default": [\n    {\n      "type": "reject"\n    }\n  ]\n}\n' > "$art"
+    _neg_gate check_signature_policy && _sp_fail "check_signature_policy passed with a hand-edited policy.json"
+    cp "$abak" "$art"
+
+    # Same MEANING, different bytes. The generator's own --check compared parsed
+    # JSON and was blind to exactly this, while the tracked file really had
+    # drifted from what the writer emits.
+    printf '{"default":[{"type":"insecureAcceptEverything"}]}\n' > "$art"
+    _neg_gate check_signature_policy && _sp_fail "check_signature_policy passed on a semantically equal but byte-different policy.json"
+    cp "$abak" "$art"
+
+    # SSOT moved and the artifact did not.
+    sed -i 's/^policy_mode = .*/policy_mode = "reject"/' "$toml"
+    _neg_gate check_signature_policy && _sp_fail "check_signature_policy passed with policy_mode changed and policy.json stale"
+    cp "$tbak" "$toml"
+
+    # Absent must be a violation, not a skip: a policy that is not there is an
+    # unknown policy, not a permissive one.
+    mv "$art" "${art}.negtest"
+    _neg_gate check_signature_policy && { mv "${art}.negtest" "$art"; _sp_fail "check_signature_policy passed with policy.json missing"; }
+    mv "${art}.negtest" "$art"
+
+    cp "$abak" "$art"; cp "$tbak" "$toml"; rm -f "$abak" "$tbak"
+    unset -f _sp_fail
+    _neg_gate check_signature_policy || die "check_signature_policy failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_signature_policy negative test passed"
+}
+
 test_build_tool_dispatch() {
     log "Testing check_build_tool_dispatch"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -4193,6 +4236,7 @@ _run_test test_leaked_fixtures
     _run_test test_no_inert_ssot_tables
     _run_test test_build_tool_dispatch
     _run_test test_phase_registry
+    _run_test test_signature_policy
     _run_test test_drift_stubs
     _run_test test_doc_refs_resolve
     _run_test test_desktop_launchers

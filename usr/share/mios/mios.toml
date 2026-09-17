@@ -2187,6 +2187,7 @@ surfaces = [
   { generator = "tools/generate-blade-dropins.py", check = "check_blade_dropins", output = "usr/share/mios/dropins/" },
   { generator = "tools/generate-pod-quadlets.py", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
   { generator = "tools/render-globals.py", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
+  { generator = "tools/generate-cosign-policy.py", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
 ]
 
 

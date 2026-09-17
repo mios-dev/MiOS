@@ -3217,6 +3217,32 @@ check_bash_phase_ratchet() {
     fi
 }
 
+check_signature_policy() {
+    # Law 8 for the container signature policy. usr/lib/containers/policy.json
+    # is projected from [security.sigstore] and, until T-1047's sweep, was the
+    # ONE generator in the tree with neither half of the law: no regenerate step
+    # and no drift check. Its own generator's --check compared parsed JSON, so
+    # it could not see the tracked file drifting in bytes from what the writer
+    # emits -- which it had.
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_signature_policy could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    if "$bin" signature-policy --root "$ROOT"; then
+        echo "[98-drift-checks]   usr/lib/containers/policy.json regenerates byte-identically from [security.sigstore]"
+        return 0
+    else
+        _violation "usr/lib/containers/policy.json does not match the [security.sigstore] projection -- regenerate it: python3 tools/generate-cosign-policy.py"
+    fi
+}
+
 check_build_tool_dispatch() {
     # Dispatched by ABSOLUTE path, never `command -v`: this check exists
     # because that lookup cannot resolve at bake time (T-1018), so using it
@@ -3618,6 +3644,7 @@ main() {
     check_bash_phase_ratchet
     check_no_silent_tool_skips
     check_build_tool_dispatch
+    check_signature_policy
     check_phase_registry
     check_drift_stubs
     check_negatives_are_effective
