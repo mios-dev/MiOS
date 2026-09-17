@@ -43,8 +43,15 @@ const STUB: &str =
     "fn run(&self, _ctx: &DriftCtx) -> Verdict {\n        Verdict::Skip(\"NOT IMPLEMENTED: probe\".to_string())\n    }";
 const LIAR: &str =
     "fn run(&self, _ctx: &DriftCtx) -> Verdict {\n        Verdict::Pass(\"probe verified\".to_string())\n    }";
+/// A real check OPENS something. T-1045: `ctx.root.is_dir()` and
+/// `ctx.root.join(..).exists()` are not reads, and four checks claimed a verdict
+/// after doing only that.
 const REAL: &str =
-    "fn run(&self, ctx: &DriftCtx) -> Verdict {\n        let _ = ctx.root.is_dir();\n        Verdict::Pass(\"probe verified\".to_string())\n    }";
+    "fn run(&self, ctx: &DriftCtx) -> Verdict {\n        let _ = fs::read_to_string(ctx.root.join(\"x\"));\n        Verdict::Pass(\"probe verified\".to_string())\n    }";
+/// Delegation is the other legitimate shape: everything in projections.rs hands
+/// ctx to a helper that does the reading.
+const DELEGATES: &str =
+    "fn run(&self, ctx: &DriftCtx) -> Verdict {\n        super::regen::regen_and_diff(ctx, \"g.py\", &[\"t\"], &[\"--check\"])\n    }";
 
 #[test]
 fn a_registered_stub_and_a_real_check_are_clean() {
@@ -89,7 +96,7 @@ fn a_blind_check_named_ctx_is_still_blind() {
 /// that reason.
 #[test]
 fn a_reader_whose_ctx_root_is_line_split_is_not_a_stub() {
-    const SPLIT: &str = "fn run(&self, ctx: &DriftCtx) -> Verdict {\n        let p = ctx\n            .root\n            .join(\"x\");\n        let _ = p.exists();\n        Verdict::Pass(\"probe verified\".to_string())\n    }";
+    const SPLIT: &str = "fn run(&self, ctx: &DriftCtx) -> Verdict {\n        let t = fs::read_to_string(ctx\n            .root\n            .join(\"x\"));\n        let _ = t;\n        Verdict::Pass(\"probe verified\".to_string())\n    }";
     let d = tempfile::tempdir().unwrap();
     tree(d.path(), &[("A", "check_a", SPLIT)], &[], 0);
     let (code, out) = run(d.path());
@@ -97,6 +104,26 @@ fn a_reader_whose_ctx_root_is_line_split_is_not_a_stub() {
         code, 0,
         "a line-split ctx.root must read as implemented: {out}"
     );
+}
+
+/// T-1045: the shape four real checks had -- build a path, stat it, claim.
+#[test]
+fn a_stat_only_check_is_a_stub() {
+    const STAT_ONLY: &str = "fn run(&self, ctx: &DriftCtx) -> Verdict {\n        if !ctx.root.join(\"x\").exists() {\n            return Verdict::Fail(\"missing\".to_string());\n        }\n        Verdict::Pass(\"probe verified\".to_string())\n    }";
+    let d = tempfile::tempdir().unwrap();
+    tree(d.path(), &[("A", "check_a", STAT_ONLY)], &[], 0);
+    let (code, out) = run(d.path());
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("never consults ctx.root"), "{out}");
+}
+
+/// Delegating ctx to a helper must NOT read as blind: eleven checks do this.
+#[test]
+fn a_delegating_check_is_not_a_stub() {
+    let d = tempfile::tempdir().unwrap();
+    tree(d.path(), &[("A", "check_a", DELEGATES)], &[], 0);
+    let (code, out) = run(d.path());
+    assert_eq!(code, 0, "{out}");
 }
 
 #[test]

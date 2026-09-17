@@ -18,11 +18,24 @@ const MARKER: &str = "NOT IMPLEMENTED:";
 /// comparison is made on a whitespace-stripped copy or it misses real readers.
 fn reads_the_tree(run_body: &str) -> bool {
     let squashed: String = run_body.chars().filter(|c| !c.is_whitespace()).collect();
-    squashed.contains("ctx.root")
-        || squashed.contains("(ctx,")
-        || squashed.contains("(&ctx")
+    // Delegation counts: everything in projections.rs hands ctx to
+    // regen_and_diff, which does the reading. Eleven checks look blind without
+    // this and are not.
+    let delegates = squashed.contains("(ctx,")
+        || squashed.contains("(&ctx,")
         || squashed.contains("(ctx)")
-        || squashed.contains("(&ctx)")
+        || squashed.contains("(&ctx)");
+    // T-1045: `ctx.root.join("x")` builds a PATH and `.exists()` asks whether a
+    // file is there. Neither opens it. Three checks claimed a verdict after
+    // doing exactly that, and two earlier versions of this predicate -- one
+    // testing the parameter NAME, one testing whether ctx.root is mentioned at
+    // all -- passed them both. Require an actual read.
+    let reads = squashed.contains("read_to_string")
+        || squashed.contains("read_dir")
+        || squashed.contains("fs::read(")
+        || squashed.contains(".parse::<")
+        || squashed.contains("Command::new");
+    delegates || reads
 }
 
 /// Extracts the body of `fn run(...)` from an impl block, or None if absent.
