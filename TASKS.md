@@ -1037,7 +1037,7 @@
 | T-1049 | P1 | done | Gates/Honesty | LAWPTR-01 -- four laws point at enforcer names that exist only in a comment after `exit 0`, and check_law_enforcers substring-matches that comment |
 | T-1050 | P1 | planned | Security/Secrets | LAW11KEYS-01 -- the secret-bearing key list is three hardcoded names; a projected FreeIPA OTP lands in a tracked 0644 env file unseen |
 | T-1051 | P1 | planned | Gates/Ratchets | SIZERATCHET-01 -- max_tracked_mb is 83% vendored payloads Law 12 forbids shedding, at 1 MiB resolution, so `202/202` meant 15 KiB from red |
-| T-1052 | P0 | planned | Gates/Honesty | VARCLOSURE-01 -- Law 9's gate reports `emitted=2879 referenced=0` and PASSes; INTERNAL_PATHS excludes every tree a consumer lives in |
+| T-1052 | P0 | planned | Gates/Honesty | VARCLOSURE-01 -- Law 9's gate reports `emitted=2879 referenced=0` and PASSes; its scan filters hide 461 referenced-but-unemitted vars |
 | T-1053 | P1 | planned | Security/Identity | IPANAME-01 -- the FreeIPA enroll script requires MIOS_IPA_PRINCIPAL/PASSWORD, which nothing emits; enrollment has never been able to work |
 
 ---
@@ -11503,11 +11503,30 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** `check_var_closure` enforces Law 9 ONE-CANONICAL-NAME by asserting R ⊆ E -- every `MIOS_*` a consumer references is emitted by the resolver. Run it and it prints `emitted=2879 referenced=0 missing=0` followed by `PASS: all referenced MIOS_* variables are emitted by SSOT.` **R is empty.** ∅ ⊆ E is true for every E, so the gate has never been able to fail, and the drift gate reports "MIOS_* referenced-set is a subset of emitted-set" on the strength of it.
 **What+How:** Two causes, both measured in `automation/lib/mios_var_closure.py`:
   - `INTERNAL_PATHS` is applied as `if any(rel.startswith(p) or fn.startswith(p) for p in INTERNAL_PATHS): continue` and contains `usr/lib/mios/`, `usr/libexec/mios/`, `config/`, `tools/`, `tests/`, `docs/`, `installation/`, `automation/`, `usr/share/mios/`, `var/lib/mios/` -- which between them are very nearly the whole repository, and specifically every place a `MIOS_*` consumer lives.
-  - What survives that is drained by the line filter `if re.search(rf"\b{v}\s*[:=]", code_part) or "Environment=" in code_part or "$env:" in code_part or "export " in code_part: continue`. Unit files and Quadlets reference their vars almost exclusively as `Environment=MIOS_X=...`, so the `usr/lib/systemd/` and `usr/share/containers/systemd/` trees -- which ARE in scope -- contribute nothing either.
+  - The line filter `if re.search(rf"\b{v}\s*[:=]", code_part) or "Environment=" in code_part or "$env:" in code_part or "export " in code_part: continue`, which drops any line that also looks like an assignment.
+  **Each filter's contribution, measured by disabling them one at a time** (this replaces an earlier unmeasured claim that the line filter was what emptied the `usr/lib/systemd/` and Quadlet trees -- it contributes, but it is not the dominant term):
+  | variant | referenced-but-unemitted found |
+  |---|---:|
+  | as shipped | **0** |
+  | without `INTERNAL_PATHS` | 376 |
+  | without the line filter | 25 |
+  | without either | **461** |
+  So the two together hide 461 real findings, `INTERNAL_PATHS` is responsible for the bulk, and their interaction accounts for the remaining ~60. Note what `R` actually holds: `referenced_set` already skips any name in `E`, so `R` IS the violation set, and `referenced=0 missing=0` means "the scan found nothing to judge", not "nothing was referenced". The gate cannot fail; it has no reachable failing input.
+  **Where the 461 live** -- this is a Law 7 signal as much as a Law 9 one:
+  | tree | findings |
+  |---|---:|
+  | `usr/lib/mios/agent-pipe/` | 224 |
+  | `automation/` | 62 |
+  | `usr/libexec/mios/` | 32 |
+  | `usr/` (other) | 30 |
+  | `tools/` | 25 |
+  | `build-mios.ps1` | 24 |
+  | remainder (`usr/lib/mios/` other, tests, installation, `Get-MiOS.ps1`, config, etc) | 64 |
+  **A design constraint the measurement exposed:** all eleven `MIOS_IPA_*` names are reported, including `MIOS_IPA_REALM`, `MIOS_IPA_DOMAIN` and `MIOS_IPA_SERVER` -- which DO reach their consumer, because it sources the projected `etc/mios/ipa-enroll.env` rather than the resolver. So the emitted set must also account for names emitted by tracked env-file projections, or that class becomes noise and the register fills with false positives. The genuinely broken pair (T-1053) is `MIOS_IPA_PRINCIPAL` / `MIOS_IPA_PASSWORD`, which no file emits at all.
   **The asymmetry in `main()` is the tell.** It guards the emitted side twice, each with a comment explaining why: `if not E: FAIL -- emitter produced 0 vars (resolver broken?)` returns 2, and `if EMIT_ERRORS:` refuses to "report on an emitted set it knows is partial" and returns 2. There is no `if not R:`. The author reasoned carefully about one side of the subset and never about the other, which is the Empty-Set Pass in its purest form: the same care that produced two guards would have produced a third if the question had been asked.
   **This is not theoretical -- it is already hiding a live break.** See T-1053: `usr/libexec/mios/mios-freeipa-enroll.sh` requires `MIOS_IPA_PRINCIPAL` and `MIOS_IPA_PASSWORD`, neither of which anything emits, and the gate whose entire job is to catch that reports clean.
   **Fix shape:** scope the scan to what a consumer actually is rather than to what it is not -- an INTERNAL_PATHS list that excludes `automation/`, `tools/` and `usr/libexec/mios/` is excluding the consumers, not the emitters. Emitters are already handled precisely by `EMITTER_SUFFIXES`; that is the right mechanism and it does not need a path-prefix sledgehammer beside it. Then floor R in SSOT (`[laws].min_referenced_vars`, shrink-only in the other direction) so the set can never silently empty again, and make `not R` a cannot-run (exit 2), not a pass. Belongs in `mios-gate` per ADR-0021 and because `[legibility].max_tooling_python_lines` has no headroom.
-**Done When:** R is non-empty and floored from SSOT; a planted `${MIOS_NEVER_EMITTED}` in a real consumer under `automation/`, `tools/` and `usr/libexec/mios/` each FAIL; an empty R is cannot-run rather than a pass -- proved by a negative test that empties the scan and asserts exit 2; and T-1053's two names are caught by it.
+**Done When:** the scan reaches the consumer trees; a planted `${MIOS_NEVER_EMITTED}` in a real consumer under `automation/`, `tools/` and `usr/libexec/mios/` each FAIL; a scan that reaches zero files is cannot-run rather than a pass -- proved by a negative test that empties the scan and asserts exit 2; the 461 are itemised on a shrink-only register rather than absorbed by a count, with env-file-projected names either emitted or classified so the register is not padded with them; and T-1053's two names are caught by it.
 **Dep:** --
 **Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
 
