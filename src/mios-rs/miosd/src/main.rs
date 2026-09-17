@@ -1378,8 +1378,19 @@ fn run_finalize_osrelease(
         }
     };
 
+    // Say which of the two happened. This returned a bare Ok(()), and stage 88
+    // printed "Os-release version projected from SSOT via miosd" on the strength
+    // of that exit code -- so a missing file or an unresolved version reported a
+    // projection that had not occurred. The bash leg it shadows prints nothing
+    // in the same situation, because its success log sits inside the branch
+    // that did the work (T-1018).
     let p = std::path::Path::new(path);
-    if !p.exists() || ver == "unknown" {
+    if !p.exists() {
+        println!("[miosd] os-release: {path} does not exist -- nothing projected");
+        return Ok(());
+    }
+    if ver == "unknown" {
+        println!("[miosd] os-release: version is unknown -- nothing projected");
         return Ok(());
     }
 
