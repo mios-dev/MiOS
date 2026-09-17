@@ -7264,9 +7264,16 @@ tools/native/mios-aiplane-lint/src/main.rs	415	416	2	19	e4232b1d375c	STAY	local-
 tools/native/mios-aiplane-lint/src/main.rs	423	424	2	26	7553ab7a1856	MIGRATE	fat-inline-narrative	note	0				0
 tools/native/mios-bake-plan/Cargo.toml	1	1	1	7	8bae9675dc26	STAY	ai-header		0				0
 tools/native/mios-bake-plan/src/main.rs	1	1	1	15	99d4acc4e5fd	STAY	ai-header		0				0
-tools/native/mios-bake-plan/src/main.rs	252	258	7	66	5fbbe7f1a560	MIGRATE	narrative-history		0				0
-tools/native/mios-bake-plan/src/main.rs	393	395	3	26	20cf743630df	STAY	midsize-why		0				0
-tools/native/mios-bake-plan/src/main.rs	432	433	2	21	ce9a7d9ee61d	STAY	local-scoped		0				0
+tools/native/mios-bake-plan/src/main.rs	25	32	8	84	a2ecd0e39228	MIGRATE	narrative-rationale		0				0
+tools/native/mios-bake-plan/src/main.rs	114	117	4	37	cecff7214fbf	STAY	midsize-why		0				0
+tools/native/mios-bake-plan/src/main.rs	291	293	3	25	1074f057bafb	STAY	midsize-why		0				0
+tools/native/mios-bake-plan/src/main.rs	309	315	7	66	5fbbe7f1a560	MIGRATE	narrative-history		0				0
+tools/native/mios-bake-plan/src/main.rs	347	350	4	42	26b06bb2fda8	STAY	midsize-why		0				0
+tools/native/mios-bake-plan/src/main.rs	467	469	3	26	20cf743630df	STAY	midsize-why		0				0
+tools/native/mios-bake-plan/src/main.rs	506	507	2	21	ce9a7d9ee61d	STAY	local-scoped		0				0
+tools/native/mios-bake-plan/src/main.rs	594	595	2	27	4bbfa3421c84	STAY	midsize-why		0				0
+tools/native/mios-bake-plan/src/main.rs	605	606	2	19	f30b6daa8a50	STAY	local-scoped		0				0
+tools/native/mios-bake-plan/src/main.rs	622	622	1	11	de3b2e334ce1	STAY	local-scoped		0				0
 tools/native/mios-comment-lex/Cargo.toml	1	1	1	11	5069a5ba4158	STAY	ai-header		0				0
 tools/native/mios-comment-lex/src/main.rs	1	1	1	11	95c2168078b1	STAY	ai-header		0				0
 tools/native/mios-comment-lex/src/main.rs	11	11	1	3	da7780dd97bf	STAY	local-scoped		0				0
@@ -7285,6 +7292,7 @@ tools/native/mios-resolver/src/aliases.rs	1	2	2	20	a492eee19209	STAY	ai-header		
 tools/native/mios-resolver/src/aliases.rs	121	122	2	15	0f37086f1054	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/aliases.rs	216	216	1	5	6e392ef823c2	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/aliases.rs	277	277	1	3	281bd30a0bd6	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/aliases.rs	294	299	6	55	c3683056073a	MIGRATE	narrative-rationale		0				0
 tools/native/mios-resolver/src/db_overlay.rs	1	2	2	18	ed211ff3ccec	STAY	ai-header		0				0
 tools/native/mios-resolver/src/db_overlay.rs	13	13	1	15	71af84aafb38	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/emit.rs	1	2	2	18	b393dc7113d0	STAY	ai-header		0				0

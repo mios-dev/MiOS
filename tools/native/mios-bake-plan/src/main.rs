@@ -22,7 +22,19 @@ fn get_root() -> PathBuf {
     PathBuf::from(".")
 }
 
-fn resolve_image_val(val: &str, sidecars: &BTreeMap<String, String>) -> String {
+/// Resolve `${VAR}` in an `Image=` line the way every other consumer does.
+///
+/// Order is env, then SSOT, then sidecars, then the literal fallback. The SSOT
+/// layer is the one this binary lacked: Quadlets float their tags
+/// (`ceph:${MIOS_VERSION_CEPH}`) and `MIOS_VERSION_*` is neither an env var in a
+/// bare run nor a `MIOS_*_IMAGE` sidecar, so the placeholder survived, the
+/// Quadlet was skipped, and its image then reported as "not referenced by any
+/// Quadlet" -- an error naming the SSOT three lines from the actual cause.
+fn resolve_image_val(
+    val: &str,
+    sidecars: &BTreeMap<String, String>,
+    ssot: &BTreeMap<String, String>,
+) -> String {
     if val.is_empty() {
         return String::new();
     }
@@ -34,6 +46,11 @@ fn resolve_image_val(val: &str, sidecars: &BTreeMap<String, String>) -> String {
         let fallback = &caps[2];
         if let Ok(v) = env::var(var_name) {
             return v;
+        }
+        if let Some(v) = ssot.get(var_name) {
+            if !v.is_empty() {
+                return v.clone();
+            }
         }
         if var_name.starts_with("MIOS_") && var_name.ends_with("_IMAGE") {
             let key = var_name[5..var_name.len() - 6].to_lowercase();
@@ -48,6 +65,11 @@ fn resolve_image_val(val: &str, sidecars: &BTreeMap<String, String>) -> String {
         let var_name = &caps[1];
         if let Ok(v) = env::var(var_name) {
             return v;
+        }
+        if let Some(v) = ssot.get(var_name) {
+            if !v.is_empty() {
+                return v.clone();
+            }
         }
         if var_name.starts_with("MIOS_") && var_name.ends_with("_IMAGE") {
             let key = var_name[5..var_name.len() - 6].to_lowercase();
@@ -88,6 +110,33 @@ fn main() {
     let out_dir = env::var("MIOS_PLAN_OUT")
         .map(PathBuf::from)
         .unwrap_or_else(|_| root.join("usr/lib/mios/bake/plan.d"));
+
+    // The same canonical MIOS_* map every other consumer resolves through.
+    // Degrading to an empty map is deliberate and safe: an unresolved
+    // placeholder is then REPORTED by name below rather than silently dropping
+    // the Quadlet that carries it.
+    let ssot_vars: BTreeMap<String, String> = {
+        let fig = mios_resolver::layers::create_figment(Some(root.as_path()));
+        match fig.extract::<toml::Value>() {
+            Ok(mut merged) => {
+                mios_resolver::db_overlay::maybe_apply_db_overlay(&mut merged, false);
+                let offset = merged
+                    .get("ports")
+                    .and_then(|p| p.get("stack_id"))
+                    .and_then(|v| {
+                        v.as_integer()
+                            .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
+                    })
+                    .map(|id| id * 10000)
+                    .unwrap_or(0);
+                mios_resolver::emit::build_exports_map(&merged, offset)
+            }
+            Err(e) => {
+                eprintln!("[bake-plan-gen] WARNING: SSOT exports unavailable ({e}); floated tags will be reported unresolved");
+                BTreeMap::new()
+            }
+        }
+    };
 
     let content = match fs::read_to_string(&toml_path) {
         Ok(c) => c,
@@ -202,6 +251,7 @@ fn main() {
 
     let quadlet_dir = root.join("usr/share/containers/systemd");
     let mut images_to_bake: Vec<(String, String)> = Vec::new();
+    let mut unresolved: Vec<(String, String)> = Vec::new();
 
     if quadlet_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&quadlet_dir) {
@@ -233,8 +283,15 @@ fn main() {
                 if img.is_empty() {
                     continue;
                 }
-                let resolved = resolve_image_val(&img, &sidecars);
-                if resolved.is_empty() || resolved.contains('$') {
+                let resolved = resolve_image_val(&img, &sidecars, &ssot_vars);
+                if resolved.is_empty() {
+                    continue;
+                }
+                if resolved.contains('$') {
+                    // Dropping this quietly is how a floated tag became "core
+                    // image is not referenced by any Quadlet". Name the variable
+                    // that did not resolve instead.
+                    unresolved.push((base_name.clone(), img.clone()));
                     continue;
                 }
                 let first = resolved.split('/').next().unwrap_or("");
@@ -286,6 +343,23 @@ fn main() {
     }
 
     let mut errors: Vec<String> = Vec::new();
+
+    // Reported BEFORE the core/Quadlet set difference below, because an
+    // unresolved placeholder is the cause and "not referenced by any Quadlet"
+    // is only its downstream symptom. Naming the symptom first sent readers to
+    // the SSOT to add an image that was already there.
+    let unresolved_var_re = Regex::new(r"\$\{([A-Za-z0-9_]+)").ok();
+    for (quadlet, raw) in &unresolved {
+        let var = unresolved_var_re
+            .as_ref()
+            .and_then(|re| re.captures(raw).map(|c| c[1].to_string()))
+            .unwrap_or_else(|| raw.clone());
+        errors.push(format!(
+            "Quadlet '{quadlet}' floats its image tag on ${{{var}}}, which resolved to nothing \
+             -- the variable is unset in the environment and absent from the SSOT exports, so \
+             the image reference '{raw}' could not be compared against [build.bake].core"
+        ));
+    }
     for tok in &firstboot_tokens {
         if !tok.is_empty() && !core.iter().any(|img| img.contains(tok)) {
             errors.push(format!(
@@ -502,17 +576,54 @@ mod tests {
     #[test]
     fn test_resolve_image_val() {
         let sidecars = BTreeMap::new();
+        let ssot = BTreeMap::new();
         assert_eq!(
-            resolve_image_val("ghcr.io/org/app:latest", &sidecars),
+            resolve_image_val("ghcr.io/org/app:latest", &sidecars, &ssot),
             "ghcr.io/org/app:latest"
         );
         assert_eq!(
             resolve_image_val(
                 "${MIOS_CUSTOM_IMAGE:-docker.io/library/redis:alpine}",
-                &sidecars
+                &sidecars,
+                &ssot
             ),
             "docker.io/library/redis:alpine"
         );
+    }
+
+    /// The defect this layer exists for: a floated tag with no env var and no
+    /// sidecar must come from the SSOT map, not survive as a literal.
+    #[test]
+    fn a_floated_tag_resolves_from_ssot_when_the_environment_is_bare() {
+        let sidecars = BTreeMap::new();
+        let mut ssot = BTreeMap::new();
+        ssot.insert("MIOS_VERSION_CEPH".to_string(), "v19".to_string());
+        assert_eq!(
+            resolve_image_val("quay.io/ceph/ceph:${MIOS_VERSION_CEPH}", &sidecars, &ssot),
+            "quay.io/ceph/ceph:v19"
+        );
+        // Absent from SSOT too: the placeholder SURVIVES so the caller can name
+        // the variable, rather than being silently dropped.
+        let empty = BTreeMap::new();
+        assert!(
+            resolve_image_val("quay.io/ceph/ceph:${MIOS_VERSION_CEPH}", &sidecars, &empty)
+                .contains('$')
+        );
+    }
+
+    #[test]
+    fn the_environment_still_outranks_the_ssot() {
+        let sidecars = BTreeMap::new();
+        let mut ssot = BTreeMap::new();
+        ssot.insert(
+            "MIOS_VERSION_PARITY_PROBE".to_string(),
+            "from-ssot".to_string(),
+        );
+        // SAFETY: single-threaded test process, and the var is unique to it.
+        unsafe { env::set_var("MIOS_VERSION_PARITY_PROBE", "from-env") };
+        let got = resolve_image_val("x/y:${MIOS_VERSION_PARITY_PROBE}", &sidecars, &ssot);
+        unsafe { env::remove_var("MIOS_VERSION_PARITY_PROBE") };
+        assert_eq!(got, "x/y:from-env");
     }
 
     #[test]
