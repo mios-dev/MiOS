@@ -1045,7 +1045,7 @@
 | T-1057 | P1 | planned | Build/BakePlan | BAKEPARITY-01 -- the bake stage prefers a generator two fixes behind the one check_bake_plan validates; bare, it renders nothing and blames the SSOT |
 | T-1058 | P0 | done | Build/Quadlets | SOCKETREND-01 -- mios-cockpit-link.socket shipped ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}; the renderer's find filter had no *.socket |
 | T-1059 | P1 | done | Build/Toolchain | TOOLCHAIN-01 -- nothing pins a Rust toolchain; CI lints with whatever the runner ships, and a 1.98 lint killed four pushes that were clean under 1.94 |
-| T-1060 | P1 | planned | Gates/Honesty | BARESAFE-01 -- Law 10 forbids five characters in install.env values; the enforcer tests two, and its `set -u` probe actively masks the `$` case |
+| T-1060 | P0 | planned | Gates/Honesty | BARESAFE-01 -- install.env silently DROPS 7 variables including MIOS_AI_ENDPOINT (Law 5's contract); emit() returns 0 on reject and the gate discards the WARNs with 2>/dev/null |
 
 ---
 
@@ -11641,7 +11641,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Dep:** --
 **Status:** done | **Domain:** Build/Toolchain | **Who:** architect
 
-## T-1060 -- BARESAFE-01: Law 10 names five forbidden characters and the enforcer tests two  (WS-DRIFT | P1 | M)
+## T-1060 -- BARESAFE-01: install.env silently drops Law 5's contract variable  (WS-DRIFT | P0 | M)
 **Goal:** Law 10 BARE-SAFE-ENV requires `install.env` values to be bare -- "no quotes/whitespace/`$`/backtick/`#` in values" -- because the same file is read by three parsers that disagree: systemd `EnvironmentFile=`, `bash source`, and `podman --env-file`. Only bash expands `${...}`. A value carrying one therefore means different things to the three consumers, which is the entire reason the law exists.
 **What+How:** `automation/99-postcheck.sh` BARE-SAFE-ENV asserts four things: no double-quoted value, a bare `KEY=value` shape, no known secret name, and that the render sources clean under `set -u`. **None of them tests for `$`.** Nor for whitespace, backtick or `#`.
   **The `set -u` probe does not merely miss it -- it masks it.** `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1` sources *cleanly* under bash when the port is set earlier in the file, because bash is the one parser that expands. The probe's success is evidence the value is bash-safe, and it gets read as evidence the value is bare. A check whose passing condition is produced by the exact behaviour that makes the other two parsers wrong.
@@ -11653,7 +11653,29 @@ The two shapes want opposite treatment and the mechanism currently has only one 
     - dependency LAST: rc=127, `unbound variable`, the probe fires.
   So the probe **discriminates on ORDERING, not on bareness**. It catches the dangling reference -- the rare case -- and passes the common one, where the resolver emits both names into the same file. Its success is manufactured by the one parser that expands.
   **Still unmeasured, and it is the first step:** whether the real `install.env` render orders dependencies first (probe blind) or last (probe fires), and whether it carries `$` at all. `system-sync-env.sh --dry-run` exits 1 with no output in a build container. Note also that `.` returns rc=2 on a syntax error, so the repaired probe must assert on `source`'s own return value rather than a later command's in the same subshell.
-**Done When:** the BARE-SAFE-ENV enforcer tests every character the law names, with a negative control per character proving each is caught; the `set -u` probe is kept but can no longer stand in for bareness; and whatever the real `install.env` render carries is measured rather than assumed.
+  **PREMISE OVERTURNED -- MEASURED, and the earlier framing in this entry is wrong.** I filed this saying the enforcer fails to test for `$`. That is true and it is **moot**: the PRODUCER already filters all six characters upstream, so nothing non-bare can reach the file for the enforcer to catch. Testing the render for characters the producer removes is itself a check that cannot fail.
+  **What the producer actually does** (`usr/libexec/mios/system-sync-env.sh:30`):
+    ```
+    _ENV_UNSAFE='[[:space:]"'"'"'$`#]'
+    emit() { ... if [[ "$_v" =~ $_ENV_UNSAFE ]]; then
+                     printf 'WARN skip %s ...' "$_k" >&2
+                     return 0            # <- the variable is DROPPED, and this is SUCCESS
+                 fi; printf '%s=%s\n' "$_k" "$_v"; }
+    ```
+  A value that fails the filter is not escaped, not quoted, not reported as an error -- it is **omitted**, and `emit` returns 0.
+  **The render is producible after all, and my "UNMEASURED" was a failure of effort.** The blocker was never the build container: `system-sync-env.sh` hardcodes `RESOLVER=/usr/lib/mios/userenv.sh`, an absolute path absent from a source checkout. Repointed at the in-tree resolver it runs clean -- **rc=0, 84 lines, 7 variables dropped**:
+    ```
+    WARN skip MIOS_USER_FULLNAME          WARN skip MIOS_A2O_LANE_A_ROLE
+    WARN skip MIOS_AI_ENDPOINT            WARN skip MIOS_A2O_LANE_B_MODEL
+    WARN skip MIOS_AI_BACKEND             WARN skip MIOS_A2O_LANE_B_ROLE
+                                          WARN skip MIOS_A2O_CLAUDE_EFFORT_FLAG
+    ```
+  `grep -c '^MIOS_AI_ENDPOINT=' <render>` returns **0**. **Law 5's single endpoint contract is not wrong in install.env -- it is absent from it**, and 215 tracked files mention the name.
+  **Why the gate cannot see it.** `automation/99-postcheck.sh:519` reads the render as `bash "$_sync_env" --dry-run 2>/dev/null`, discarding exactly the WARN lines that report the drops. All four BARE-SAFE-ENV assertions then pass **honestly**: what survived really is bare. The gate validates that the survivors are well-formed and never that everything survived -- Swallowed Failure plus Measuring the Wrong Property, in one line.
+  **Root cause is shared with T-1040.** The values are rejected because they carry `$` -- `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1` -- and they carry `$` because the resolver emits cross-references without expanding them. One recursive expander fixes the dropped variables here AND the nested-default corruption in stage 34. They are the same defect wearing two hats.
+  **Blast radius before arming anything:** removing `2>/dev/null` and failing on `WARN skip` makes the bake fail immediately on 7 variables. That is the correct outcome and it is a pipeline that goes red on the next build, so it is the operator's call when to arm it.
+  **Two further measurements** worth keeping: a backtick value would be EXECUTED by the gate's own `set -u` probe, since the probe sources the render as code -- only the producer's filter keeps that unreachable; and a whitespace-bearing value masks entirely unless it is the final line.
+**Done When:** no variable can leave `install.env` silently -- `emit()` fails rather than returning 0 on a reject, the gate stops discarding stderr and treats a `WARN skip` as fatal, and a referenced-subset-of-emitted closure assertion covers the file; the per-character tests move onto `emit()` where they can actually fail, rather than onto a render the producer has already sanitised; and `MIOS_AI_ENDPOINT` is present in the render because the resolver expanded it, not because the filter was loosened.
 **Why:** an unexpanded `MIOS_AI_ENDPOINT` is Law 5's single contract reaching two of three consumers wrong, and the gate that exists to prevent it reports green.
 **Dep:** --
 **Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
