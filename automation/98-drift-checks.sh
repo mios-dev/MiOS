@@ -52,6 +52,31 @@ _violation() {
     return 1
 }
 
+_subject_present() {
+    # Bash twin of drift-checks.py _absent (bdf6aba swept Python only).
+    # Present -> 0; absent though TRACKED or git mute -> _violation, then 1.
+    local __p="$1" __rel __out __rc
+    [[ -f "$__p" ]] && return 0
+    [[ -e "$ROOT/.git" ]] || return 1
+    __rel="$(realpath --relative-to="$ROOT" "$__p" 2>/dev/null || true)"
+    if [[ -z "$__rel" ]]; then
+        __rel="${__p#"$ROOT"/}"
+    fi
+    if ! command -v git >/dev/null 2>&1; then
+        _violation "cannot tell whether $__rel is tracked: git is not installed" || true
+        return 1
+    fi
+    # --literal-pathspecs: an unexpanded glob must never match index entries.
+    __out="$(git -C "$ROOT" --literal-pathspecs ls-files -- "$__rel" 2>&1)" || __rc=$?
+    if [[ -n "${__rc:-}" ]]; then
+        _violation "cannot tell whether $__rel is tracked: git ls-files exit ${__rc}: ${__out:-no message}" || true
+        return 1
+    fi
+    [[ -z "$__out" ]] && return 1
+    _violation "$__rel is tracked but missing from the worktree -- the subject of this check is gone, which is not a pass" || true
+    return 1
+}
+
 _need_python() {
     # Folded from 56 copies; fails, not skips, under MIOS_DRIFT_REQUIRE_TOOLS=1.
     command -v python3 >/dev/null 2>&1 && return 0
@@ -1423,7 +1448,7 @@ check_coordination_hygiene() {
     local bad=""
     local f
     for f in "$ROOT/AGY-TASKS.md" "$ROOT/TASKS.md"; do
-        [[ -f "$f" ]] || continue
+        _subject_present "$f" || continue
 
         local line_num=0
         while read -r line || [[ -n "$line" ]]; do
@@ -1598,7 +1623,7 @@ check_version_ssot() {
 
     local _cargo_ver
     for _toml in "$ROOT/tools/native/Cargo.toml" "$ROOT/tools/native/mios-version-check/Cargo.toml" "$ROOT/tools/native/mios-wallpaperd/Cargo.toml"; do
-        [[ -f "$_toml" ]] || continue
+        _subject_present "$_toml" || continue
         _cargo_ver="$(grep -m1 -E '^[[:space:]]*version[[:space:]]*=' "$_toml" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/' || true)"
         [[ -n "$_cargo_ver" && "$_cargo_ver" != "$ssot" ]] && bad+="    ${_toml#$ROOT/} version = [$_cargo_ver], expected [$ssot]"$'\n'
     done
@@ -2301,7 +2326,7 @@ check_negative_test_coverage() {
 check_soft_mode_not_committed() {
     local hits="" f
     for f in "$ROOT"/.github/workflows/*.yml "$ROOT"/.forgejo/workflows/*.yml "$ROOT"/automation/build.sh "$ROOT"/Justfile; do
-        [[ -f "$f" ]] || continue
+        _subject_present "$f" || continue
         if grep -qE "MIOS_DRIFT_CHECK_SOFT=1|MIOS_SSOT_LINT_SOFT=1" "$f"; then
             hits+="    ${f#"$ROOT"/}: contains committed soft-mode override (MIOS_DRIFT_CHECK_SOFT=1 or MIOS_SSOT_LINT_SOFT=1)"$'\n'
         fi
@@ -2427,7 +2452,7 @@ check_kickstart_shell_syntax() {
     local bad_ks="" f
 
     for f in "$cfg" "$iso_toml"; do
-        [[ -f "$f" ]] || continue
+        _subject_present "$f" || continue
         local post_sh
         post_sh="$(sed -n '/%post/,/%end/p' "$f" | sed 's/.*%post.*//; s/.*%end.*//')"
         if [[ -n "$post_sh" ]]; then
