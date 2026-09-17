@@ -4054,8 +4054,15 @@ PYEOF
 
 test_bootstrap_sync() {
     log "Testing check_bootstrap_sync"
-    local boot="${MIOS_BOOTSTRAP_ROOT:-/c/mios-bootstrap}"
-    [ -d "$boot" ] || { log "bootstrap repo absent; skipping"; return 0; }
+    # Sibling resolution as tools/sync-bootstrap.py does it (T-1033). The old
+    # MSYS-only /c/ default skipped every local run.
+    local boot="${MIOS_BOOTSTRAP_ROOT:-}"
+    if [ -z "$boot" ]; then
+        for _b in "$(dirname "$ROOT")/mios-bootstrap" "/c/mios-bootstrap"; do
+            [ -d "$_b" ] && { boot="$_b"; break; }
+        done
+    fi
+    [ -n "$boot" ] && [ -d "$boot" ] || { log "bootstrap repo absent; skipping"; return 0; }
     local f="${boot}/installation/UNIFY.md"
     [ -f "$f" ] || { log "no mirrored file to mutate; skipping"; return 0; }
     local bak; bak="$(mktemp)"; cp "$f" "$bak"
