@@ -1030,6 +1030,7 @@
 | T-1042 | P1 | done | AI-Plane/DB | BACKFILL-01 -- check_backfill_coverage fails at every bake and was invisible under 55 checks that could not fail |
 | T-1043 | P2 | partial | Gates/Honesty | PIPENUM-01 -- check_pipeline_numbering reports PASS against a root that does not exist |
 | T-1044 | P2 | planned | Gates/Ratchets | PYTEST-01 -- the tooling-Python ratchet sits at its measurement, so a new Python TEST cannot be added at all |
+| T-1045 | P2 | planned | Gates/Honesty | STUBPRED-01 -- two checks still claim a verdict after only calling .exists(), and the stub detector counts a path join as reading |
 
 ---
 
@@ -11326,7 +11327,14 @@ The two shapes want opposite treatment and the mechanism currently has only one 
   One deliberate divergence from the twin: bash SKIPS when `drift-gate-index.tsv` is absent, which is an Empty-Set Pass. The Rust version FAILS -- a missing SSOT projection is exactly what this suite exists to catch.
   Verified: the real tree PASSES having read three files; a planted hand-written label, a planted ordinal gap, an emptied index, and a nonexistent root each FAIL with the specific reason. Fixtures restored.
   **Corrected count for the remaining audit: 17 ctx-reading checks read `ctx.root`, not 20.**
-**Remaining:** those 17 have not been audited for empty-set paths of their own. The `--root <nonexistent>` probe no longer finds them because they now fail there for want of files; the audit needs planted-but-empty fixtures, not a missing tree.
+**The audit is now DONE, with planted-but-empty fixtures rather than a missing tree.** Built a root where every directory the suite reads EXISTS and every file in it is zero bytes. Three checks reported PASS against it:
+  - `check_ssot_parse` -- an empty file is valid TOML, so "parses successfully" was true of a zero-byte `mios.toml`. Now requires at least one top-level table; the real tree reports **157**.
+  - `check_backfill_coverage` -- zero `emb vector` tables made "all covered" vacuously true. Now fails when the scan finds none, because the shipped schema always has them and finding zero means the scan failed. The real tree reports **25**.
+  - `check_law_enforcers` -- **a third stub in disguise.** It called `ctx.root.join(...)`, tested `.exists()`, and returned `Pass("Law enforcers resolution validated clean")` without ever opening the file. Building a path is not reading the tree, which is why two successive stub detectors let it through.
+  **Zero checks now pass against a present-but-empty tree**, and the real tree still reads `19 passed, 0 failed, 55 skipped`.
+**`check_law_enforcers` is implemented rather than registered**, for the same reason as `check_pipeline_numbering`: registering would raise `max_unimplemented` and `check_ratchet_direction` forbids that. CLAUDE.md calls `[laws]` the canonical registry, so the check now validates it -- ids dense 1..N, slugs present and unique, `applies_to` in {bootc, wsl, both}, `enforced_by` non-empty, and every named symbol actually present in the named `automation/` file. Real tree: **16 laws each resolve to an enforcer that exists.** Negative controls: a dangling enforcer name, an id gap, and an invalid `applies_to` each fail with the specific reason.
+  One scheme learned along the way: Law 15's `enforced_by` is `process:...`, which is legitimate -- triple-check-before-acting cannot be gated, only followed. The check accepts `process:` and still requires the descriptor to say something.
+**Note:** Law 15's descriptor names its parity gates by ORDINAL -- "98-drift-checks.sh checks 22+27" -- which is exactly the drift `check_pipeline_numbering` exists to prevent, and it is now stale besides: T-1033 made `check_bootstrap_sync` the runnable gate for the mirrored-surface half of that law. Left alone deliberately; rewriting a law's descriptor is the operator's call.
 **Why:** T-1030's thesis, in the one place left where it was still demonstrably true.
 **Dep:** T-1037
 **Status:** partial | **Domain:** Gates/Honesty | **Who:** architect
@@ -11341,3 +11349,17 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Why:** A gate whose cheapest satisfying move is "write no test" will eventually be satisfied that way.
 **Dep:** --
 **Status:** planned | **Domain:** Gates/Ratchets | **Who:** architect
+
+## T-1045 -- STUBPRED-01: a path join is not a read, and two checks still claim without looking  (WS-DRIFT | P2 | M)
+**Goal:** `mios-gate drift-stubs` classifies a check as implemented if its `run` body mentions `ctx.root` or passes `ctx` onward. That is the third version of this predicate and it is still wrong: `ctx.root.join("x")` builds a PATH, and `.exists()` asks whether a file is there. Neither reads anything. A check can do both and then return a constant `Pass`.
+**What+How:** Measured, not suspected. Requiring an actual read -- `read_to_string`, `read_dir`, `.parse::<`, `Command::new` -- or delegation of `ctx` to a helper, and excluding the 54 registered stubs, leaves **three** checks that claim a verdict after only calling `.exists()`:
+  - `check_law_enforcers` -- FIXED in T-1043, implemented rather than registered.
+  - `check_bib_single_config_invariant` -- `Justfile` exists -> `Pass("BIB single config invariant verified")`. Never opens it.
+  - `check_deploy_plane` -- two kickstart files exist -> `Pass("Deploy plane verified")`. Never opens either.
+  Eleven others matched the tightened predicate and are **false positives**: everything in `projections.rs` delegates to `regen_and_diff(ctx, ...)` / `regen_and_diff_shell(ctx, ...)`, which do the reading, and `dummy_pass` in `mod.rs` is a unit-test double. Any tightening must keep accepting delegation or it will report those eleven as liars.
+**Why this is awkward, and what it needs from the operator.** Tightening the predicate reclassifies the two remaining checks as stubs, which takes `[drift.unimplemented]` from 54 to 56. `check_ratchet_direction` forbids raising a shrink-only ceiling -- correctly, and it already blocked this once. So the two must be IMPLEMENTED, not registered, exactly as `check_pipeline_numbering` and `check_law_enforcers` were. That is real work: `check_bib_single_config_invariant` has to know what the BIB single-config invariant IS, and `check_deploy_plane` has to validate a kickstart rather than stat it.
+**Where:** `src/mios-rs/mios-gate/src/stubs.rs` `reads_the_tree`, `src/mios-rs/miosd/src/drift/deploy.rs`, `usr/share/mios/mios.toml` `[drift.unimplemented]`
+**Done When:** the predicate requires a read or a delegation; no check reaches `Verdict::Pass` having only called `.exists()`; the eleven delegating checks still classify as implemented; and the ceiling has not risen.
+**Note:** this is the third refinement of the same property in three commits -- parameter name, then `ctx.root` mention, now an actual read. Each one was found by testing the checker rather than trusting it, and each previous version passed its own tests. Worth remembering before writing the fourth.
+**Dep:** T-1037
+**Status:** planned | **Domain:** Gates/Honesty | **Who:** architect
