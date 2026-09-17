@@ -780,10 +780,18 @@ check_bootstrap_ports_drift() {
 }
 
 check_agent_pipe_budgets() {
-    local lint_bin="$ROOT/tools/native/target/release/mios-aiplane-lint"
-    if [ ! -x "$lint_bin" ] && command -v mios-aiplane-lint >/dev/null 2>&1; then
-        lint_bin="$(command -v mios-aiplane-lint)"
-    fi
+    # Absolute paths, never `command -v`: the Containerfile's rust-builder stage
+    # copies tools/native/target/release/mios-* into /usr/libexec/mios, which
+    # nothing puts on PATH, so the lookup this replaced could never resolve at
+    # bake and this check always fell through to the Python below it (T-1018).
+    local lint_bin=""
+    local _lc
+    for _lc in "${MIOS_AIPLANE_LINT_BIN:-}" \
+               "$ROOT/tools/native/target/release/mios-aiplane-lint" \
+               "$ROOT/tools/native/target/debug/mios-aiplane-lint" \
+               /usr/libexec/mios/mios-aiplane-lint; do
+        if [ -n "$_lc" ] && [ -x "$_lc" ]; then lint_bin="$_lc"; break; fi
+    done
     if [ -x "$lint_bin" ]; then
         if MIOS_DRIFT_ROOT="$ROOT" "$lint_bin"; then
             echo "[98-drift-checks]   all [agent_pipe] budget variables have code consumers"
