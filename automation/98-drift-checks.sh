@@ -3930,23 +3930,31 @@ check_os_update_timer_enabled() {
 check_wsl_distro_resolution() {
     echo "[98-drift-checks] WSL distro launcher resolves target distribution without fallback ambiguity"
     local win_dir="$ROOT/usr/share/mios/windows"
-    if [[ -d "$win_dir" ]]; then
-        local f
-        for f in "$win_dir"/*.ps1; do
-            if [[ -f "$f" ]]; then
-                # Compliant means the distro is DERIVED, not asserted: either via
-                # the shared Resolve-MiosDistro, or by the Lxss registry walk that
-                # resolver was lifted from (mios-claude-mcp-setup.ps1 owns it).
-                # The literal is allowed only as the last-resort default.
-                if grep -q "podman-MiOS-DEV" "$f"; then
-                    if ! grep -q "Resolve-MiosDistro" "$f" && ! grep -q "CurrentVersion\\\\Lxss" "$f"; then
-                        _violation "Script $(basename "$f") carries a hardcoded 'podman-MiOS-DEV' distro literal instead of resolving it (Resolve-MiosDistro or the Lxss registry walk)"
-                    fi
-                fi
-            fi
-        done
-        echo "[98-drift-checks]   All Windows scripts perform generative Resolve-MiosDistro resolution"
+    # A tracked directory: absent, it is the subject going missing, which is
+    # the worst state available rather than every script resolving.
+    if [[ ! -d "$win_dir" ]]; then
+        _violation "usr/share/mios/windows is absent -- no Windows script could be read, so distro resolution was never tested"
+        return
     fi
+    local f n=0
+    for f in "$win_dir"/*.ps1; do
+        [[ -f "$f" ]] || continue
+        n=$(( n + 1 ))
+        # Compliant means the distro is DERIVED, not asserted: either via
+        # the shared Resolve-MiosDistro, or by the Lxss registry walk that
+        # resolver was lifted from (mios-claude-mcp-setup.ps1 owns it).
+        # The literal is allowed only as the last-resort default.
+        if grep -q "podman-MiOS-DEV" "$f"; then
+            if ! grep -q "Resolve-MiosDistro" "$f" && ! grep -q "CurrentVersion\\\\Lxss" "$f"; then
+                _violation "Script $(basename "$f") carries a hardcoded 'podman-MiOS-DEV' distro literal instead of resolving it (Resolve-MiosDistro or the Lxss registry walk)"
+            fi
+        fi
+    done
+    if (( n == 0 )); then
+        _violation "usr/share/mios/windows holds no .ps1 file -- a corpus of zero cannot show that every Windows script resolves its distro"
+        return
+    fi
+    echo "[98-drift-checks]   all $n Windows script(s) perform generative Resolve-MiosDistro resolution"
 }
 
 # --- no ad-hoc regex/string TOML parsing used where canonical resolver exists ---
