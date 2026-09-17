@@ -1930,11 +1930,22 @@ check_target_languages() {
 }
 
 check_bake_plan() {
-    _need_python || return 0
-    if python3 "$ROOT/tools/generate-bake-plan.py" --check; then
+    # Validates the NATIVE producer: what stage 85 bakes with (T-1057).
+    local bin="" c
+    for c in "$ROOT/tools/native/target/release/mios-bake-plan" \
+             "$ROOT/tools/native/target/debug/mios-bake-plan" \
+             /usr/libexec/mios/mios-bake-plan; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        # No Python fallback: certifying a different program is the defect.
+        _violation "mios-bake-plan is not built, so check_bake_plan could not run -- build it: cd tools/native && cargo build -p mios-bake-plan"
+        return
+    fi
+    if (cd "$ROOT" && "$bin" --check); then
         echo "[98-drift-checks]   bake-plan lists in sync with mios.toml [build.bake] SSOT"
     else
-        _violation "bake-plan lists are STALE vs mios.toml -- regenerate with python3 tools/generate-bake-plan.py"
+        _violation "bake-plan lists are STALE vs mios.toml -- regenerate with tools/native/target/release/mios-bake-plan"
     fi
 }
 
