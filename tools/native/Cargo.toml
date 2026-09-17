@@ -12,6 +12,7 @@ members = [
     "mios-ssot-walk",
     "mios-template-compile",
     "mios-template-conform",
+    "mios-toolchain-pin",
     "mios-unit-gen",
     "mios-version-check",
     "mios-wallpaperd",

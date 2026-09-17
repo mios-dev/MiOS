@@ -116,6 +116,20 @@ main() {
     step "4e/6 container signature policy (derived from [security.sigstore])"
     "$PY" tools/generate-cosign-policy.py >/dev/null
 
+    step "4g/6 rust toolchain pin (from [build.toolchain])"
+    # Before the size ceiling, which must stay last: this writes a root file and
+    # so changes what the index measures.
+    _tp=""
+    for _c in tools/native/target/release/mios-toolchain-pin tools/native/target/debug/mios-toolchain-pin; do
+        [ -x "$_c" ] && { _tp="$_c"; break; }
+    done
+    if [ -n "$_tp" ]; then
+        "$_tp" >/dev/null
+    else
+        echo "[sync-generated]      mios-toolchain-pin not built; rust-toolchain.toml NOT regenerated." >&2
+        echo "[sync-generated]      check_toolchain_pin still validates it, so this fails there, not here." >&2
+    fi
+
     step "4f/6 tracked-size ceiling (measurement + [legibility].tracked_mb_headroom)"
     # Last of the generators on purpose: it measures the git INDEX, so it must
     # run after everything else has been staged, and its own one-line edit

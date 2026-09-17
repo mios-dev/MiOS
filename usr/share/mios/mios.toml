@@ -1831,6 +1831,12 @@ extensions = [
   "toml", "json", "conf", "service", "socket",
 ]
 
+[build.toolchain]
+# The toolchain both workspaces build and lint with (T-1059).
+# Projected into the root rust-toolchain.toml; rustup finds it by ascent.
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]
+
 [build.tool_dispatch]
 # Bake-time tool-dispatch gates whose lookup cannot resolve. Shrink-only: T-1018.
 max_unreachable = 2
@@ -2212,6 +2218,7 @@ surfaces = [
   { generator = "tools/generate-uki-cmdline.py", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
   { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
   { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
+  { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
   { generator = "tools/render-ports.py", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
 ]
 

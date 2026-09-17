@@ -1555,6 +1555,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-toolchain-pin"
+version = "0.3.0"
+dependencies = [
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "mios-unit-gen"
 version = "0.3.0"
 dependencies = [

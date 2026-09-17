@@ -408,6 +408,47 @@ EOF
     log "check_render_extension_coverage negative test passed"
 }
 
+test_toolchain_pin() {
+    log "Testing check_toolchain_pin"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local pin="${ROOT}/rust-toolchain.toml"
+    local tbak pbak
+    tbak="$(mktemp)"; cp "$toml" "$tbak"
+    pbak="$(mktemp)"; cp "$pin" "$pbak"
+    _tp_fail() {
+        cp "$tbak" "$toml"; cp "$pbak" "$pin"
+        rm -f "$tbak" "$pbak"; unset -f _tp_fail; die "$1"
+    }
+
+    # A hand edit to a generated file. This is the state the check exists to
+    # catch: the pin says one thing, the SSOT says another, and CI silently
+    # lints with whichever the file happens to name.
+    sed -i 's/^channel = ".*"/channel = "1.0.0"/' "$pin"
+    _neg_gate check_toolchain_pin && _tp_fail "check_toolchain_pin passed with a hand-edited rust-toolchain.toml"
+    cp "$pbak" "$pin"
+
+    # The SSOT moved and nobody regenerated. Same divergence, opposite side.
+    sed -i 's/^channel = "\([^"]*\)"$/channel = "9.9.9"/' "$toml"
+    _neg_gate check_toolchain_pin && _tp_fail "check_toolchain_pin passed with the SSOT ahead of the generated pin"
+    cp "$tbak" "$toml"
+
+    # No pin at all is the pre-T-1059 state: both workspaces lint-floating.
+    # Absent must never read as clean.
+    rm -f "$pin"
+    _neg_gate check_toolchain_pin && _tp_fail "check_toolchain_pin passed with rust-toolchain.toml absent"
+    cp "$pbak" "$pin"
+
+    # An empty component list would restore the floating behaviour while
+    # leaving a pin in place -- `-D warnings` means nothing without clippy.
+    sed -i 's/^components = \[.*\]$/components = []/' "$toml"
+    _neg_gate check_toolchain_pin && _tp_fail "check_toolchain_pin passed with no components declared"
+    cp "$tbak" "$toml"
+
+    rm -f "$tbak" "$pbak"; unset -f _tp_fail
+    _neg_gate check_toolchain_pin || die "check_toolchain_pin failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_toolchain_pin negative test passed"
+}
+
 test_size_ceiling() {
     log "Testing check_size_ceiling"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -4497,6 +4538,7 @@ _run_test test_leaked_fixtures
     _run_test test_toml_projection
     _run_test test_ratchet_direction
     _run_test test_size_ceiling
+    _run_test test_toolchain_pin
     _run_test test_render_extension_coverage
     _run_test test_curl_retry
     _run_test test_resolver_ssot_refs

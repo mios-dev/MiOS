@@ -1845,6 +1845,29 @@ check_size_ceiling() {
     fi
 }
 
+check_toolchain_pin() {
+    # rust-toolchain.toml is generated, so the question is not "is a pin
+    # present" but "is the committed pin still what the SSOT says". A hand
+    # edit here silently un-pins CI, which is the exact state T-1059 closed:
+    # clippy::for_kv_map fired under 1.98.0 and killed four pushes that were
+    # clean under the 1.94.1 a contributor happened to have.
+    local bin="" c
+    for c in "$ROOT/tools/native/target/release/mios-toolchain-pin" \
+             "$ROOT/tools/native/target/debug/mios-toolchain-pin" \
+             /usr/libexec/mios/mios-toolchain-pin; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-toolchain-pin is not built, so check_toolchain_pin could not run -- build it: cd tools/native && cargo build -p mios-toolchain-pin"
+        return
+    fi
+    if "$bin" --root "$ROOT" --check; then
+        return 0
+    else
+        _violation "rust-toolchain.toml is missing or differs from [build.toolchain] -- regenerate it: tools/native/target/release/mios-toolchain-pin"
+    fi
+}
+
 check_ratchet_direction() {
     # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
     # commit, with both paths proved equal first: 78 ceilings on each side, and
@@ -3650,6 +3673,7 @@ main() {
     check_toml_projection
     check_ratchet_direction
     check_size_ceiling
+    check_toolchain_pin
     check_render_extension_coverage
     check_bake_plan
     check_bake_plan_integrity
