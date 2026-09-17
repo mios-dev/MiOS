@@ -1042,6 +1042,7 @@
 | T-1054 | P2 | planned | Gates/Honesty | VARCLOSURE-02 -- a tracked .env projection emits names the closure gate cannot see, so 11 of the 425 ledger rows are false positives |
 | T-1055 | P2 | planned | Gates/Ratchets | RATCHETSEC-01 -- two RATCHET_SECTIONS entries are dotted paths the first-component comparison can never match, so they have always been inert |
 | T-1056 | P2 | planned | Build/Generators | NAMESGEN-01 -- tools/native/generate-names-registry is built and never called; sync-generated still runs the Python twin |
+| T-1057 | P1 | planned | Build/BakePlan | BAKEPARITY-01 -- the bake stage prefers a generator two fixes behind the one check_bake_plan validates; bare, it renders nothing and blames the SSOT |
 
 ---
 
@@ -11581,3 +11582,17 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Done When:** one generator per artifact; the surviving one is invoked by `sync-generated.sh`; byte-equality was proved before the other was deleted; and something enumerates `tools/native/` crates that no pipeline invokes, so a fourth instance cannot accumulate silently.
 **Dep:** --
 **Status:** planned | **Domain:** Build/Generators | **Who:** architect
+
+## T-1057 -- BAKEPARITY-01: the bake stage prefers a generator two fixes behind the one the gate checks  (WS-BUILD | P1 | M)
+**Goal:** `automation/85-bake-plan.sh` dispatches `miosd bake-plan` → `/usr/libexec/mios/mios-bake-plan` → `tools/native/target/release/mios-bake-plan` → `python3 tools/generate-bake-plan.py`, while `check_bake_plan` validates **only** the Python's output. There are THREE implementations: `tools/generate-bake-plan.py` (290 lines), `tools/native/mios-bake-plan/src/main.rs` (539), and `src/mios-rs/miosd/src/bake_plan.rs` (484, a declared mirror of the second). `miosd`'s `run_bake_plan` does not call its own module -- it shells out to the Python. So the producer the stage prefers and the producer the gate certifies are different programs.
+**What+How:** Measured by rendering each into an EMPTY directory from the SSOT and diffing, not by reading them.
+  - Run bare, the Python writes all 6 artifacts and exits 0. The Rust writes **nothing** and exits 2 with three `VALIDATION ERROR: Core image '<X>' is not referenced by any Quadlet` lines naming `codeberg.org/forgejo/forgejo:12`, `docker.io/rancher/k3s:v1.36.3-k3s1`, `quay.io/ceph/ceph:v19`.
+  - Those three are precisely the core images whose Quadlets float the tag: `Image=quay.io/ceph/ceph:${MIOS_VERSION_CEPH}` and siblings. The one forgejo image that passes, `code.forgejo.org/forgejo/runner:7`, is literal on both sides.
+  - Cause, exactly: the Rust's `resolve_image_val` resolves `${VAR}` from `env::var` only, plus sidecars for `MIOS_*_IMAGE` names. `MIOS_VERSION_CEPH` is neither, so the placeholder survives, `resolved.contains('$')` sends the Quadlet to `continue`, and the core-side set difference then blames the SSOT. **The image IS referenced by a Quadlet; the tool could not resolve the tag, dropped the Quadlet silently, and reported the wrong subject.**
+  - **The Python already carries the fix, with the bug written in its comments:** it resolves through `mios_toml.emit_exports()` -- "the same canonical key map every other consumer uses" -- and collects an `unresolved` list so it can "name the variable that did not resolve instead". Its comment states the failure mode verbatim: "a floated tag turned into 'core image is not referenced by any Quadlet' three lines of SSOT away from the actual cause."
+  - **Parity DOES hold once the environment is supplied.** With `MIOS_VERSION_*` exported from `env-baseline.txt`, the Rust renders the same 6 paths and all six are byte-identical to the Python's. Not a degenerate diff: two independent implementations, proven to differ in one respect first.
+  **So the Rust is the older logic, and making it canonical as-is would regress a fix the Python already has.** The direction (native canonical) is unchanged; the prerequisite is not optional.
+  **Also unresolved by this task:** `85-bake-plan.sh` still gates on `command -v miosd`, one of the 3 entries on `[build.tool_dispatch].unreachable` (T-1018), so on a bake where that lookup fails the stage silently falls to the next branch -- and which branch that is decides whether the build gets the fixed generator or the stale one.
+**Done When:** one generator produces the plan and the same one is what `check_bake_plan` validates; the Rust resolves floated tags from SSOT rather than only from `env`, proved by a bare run (no exported `MIOS_VERSION_*`) rendering all 6 artifacts byte-identically to the Python's; an unresolvable placeholder names the VARIABLE, not the core image -- proved by planting one; the miosd module and `tools/native` copy do not drift again (one of them is deleted, or a gate diffs them); and `85-bake-plan.sh` dispatches by absolute path so the branch taken is not a function of PATH.
+**Dep:** T-1018
+**Status:** planned | **Domain:** Build/BakePlan | **Who:** architect
