@@ -1823,7 +1823,7 @@ ip_resolve = 4
 
 [build.tool_dispatch]
 # Bake-time tool-dispatch gates whose lookup cannot resolve. Shrink-only: T-1018.
-max_unreachable = 14
+max_unreachable = 13
 unreachable = [
   "automation/01-system-files-overlay.sh",
   "automation/05-repos.sh",
@@ -1837,7 +1837,6 @@ unreachable = [
   "automation/85-bake-plan.sh",
   "automation/88-finalize.sh",
   "automation/98-drift-checks.sh",
-  "automation/build.sh",
 ]
 
 [ai_tag]
@@ -10597,20 +10596,24 @@ checks = [
 # T-1038. Phase scripts present in automation/ that build.sh does NOT run.
 # Shrink-only, and the ceiling may never sit above the measurement.
 #
-# 55-native-build.sh is the single entry and it is deliberate, not an oversight.
-# It ends with `ln -sf "${DEST_DIR}/${bin}" "/usr/bin/${bin}"`, the only such
-# line in the tree, which would put miosd on PATH -- and that is exactly what
-# the 14 remaining `command -v miosd` gates are waiting for (T-1018). Register
-# it and every stage numbered ABOVE 55 flips to a Rust renderer that has never
-# run in a bake, in the same bake, while stages below 55 keep taking bash: a
-# split brain inside one build. The audit measured what that would arm; see
-# docs/design/miosd-renderer-parity-audit.md. Register this phase once 76, 85
-# and 88 are converted, or once the /usr/bin symlink is dropped in favour of
-# per-stage absolute-path dispatch.
-unregistered = [
-  "55-native-build.sh",
-]
-max_unregistered = 1
+# The register is empty as of T-1018 stage 5. It previously held
+# 55-native-build.sh on the reasoning that registering it would put miosd on
+# PATH -- its `ln -sf "${DEST_DIR}/${bin}" "/usr/bin/${bin}"` is the only such
+# line in the tree -- and so arm the `command -v miosd` gates in every stage
+# numbered above 55, producing a split brain inside one bake.
+#
+# That reasoning read the script instead of measuring whether the line runs.
+# 55-native-build.sh guards its whole body on `command -v cargo`, no [packages]
+# section installs a Rust toolchain, and no phase dnf-installs one: in a bake
+# the stage prints its "cargo toolchain not available" warning and does nothing.
+# The binaries in the image come from the Containerfile's rust-builder stage,
+# COPYed to /usr/libexec/mios, which is not on PATH -- so no stage, above or
+# below 55, has ever reached its Rust branch. Registering 55 arms nothing.
+# It also cannot change which phases run: build.sh selected via the
+# automation/[0-9][0-9]-*.sh glob (build_catalog_authoritative = false and no
+# build_phases.json), and that glob already included 55.
+unregistered = []
+max_unregistered = 0
 list = [
   { ordinal = "01", name = "system-files-overlay", script = "01-system-files-overlay.sh", fatal = true, apply_class = "containerfile" },
   { ordinal = "02", name = "materialize-build-ctx", script = "02-materialize-build-ctx.sh", fatal = true, apply_class = "universal" },
@@ -10654,6 +10657,7 @@ list = [
   { ordinal = "52", name = "apply-boot-fixes", script = "52-apply-boot-fixes.sh", fatal = true, apply_class = "universal" },
   { ordinal = "53", name = "enable-log-copy-service", script = "53-enable-log-copy-service.sh", fatal = false, apply_class = "universal" },
   { ordinal = "54", name = "bake-coderun-sandbox", script = "54-bake-coderun-sandbox.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "55", name = "native-build", script = "55-native-build.sh", fatal = true, apply_class = "universal" },
   { ordinal = "56", name = "fonts", script = "56-fonts.sh", fatal = true, apply_class = "universal" },
   { ordinal = "57", name = "gnome", script = "57-gnome.sh", fatal = false, apply_class = "universal" },
   { ordinal = "58", name = "gnome-remote-desktop", script = "58-gnome-remote-desktop.sh", fatal = false, apply_class = "universal" },

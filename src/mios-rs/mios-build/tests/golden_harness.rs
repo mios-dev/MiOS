@@ -29,21 +29,79 @@ fn normalize_newlines(s: &str) -> String {
     s.replace("\r\n", "\n")
 }
 
+fn ssot_path() -> PathBuf {
+    // CARGO_MANIFEST_DIR is src/mios-rs/mios-build; the SSOT is three levels up.
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("..")
+        .join("usr/share/mios/mios.toml")
+}
+
+/// The registry is whatever mios.toml says it is.
+///
+/// This test used to snapshot `default_registry()` -- a six-phase hardcoded
+/// list -- and call it golden, which blessed the very fallback that made a
+/// six-of-seventy-one-phase build look complete. A golden over a constant
+/// proves the constant has not changed, not that the loader works.
 #[test]
-fn test_phase_registry_golden_plan() {
-    let registry = PhaseRegistry::default_registry();
-    let mut plan_str = String::new();
-    for p in registry.phases() {
-        plan_str.push_str(&format!("{}\n", p));
+fn test_phase_registry_loads_from_ssot() {
+    let registry = PhaseRegistry::load_from_toml(&ssot_path()).expect("SSOT phase registry loads");
+    let phases = registry.phases();
+    assert!(
+        phases.len() > 60,
+        "expected the full pipeline from SSOT, got {} phases -- a short list is the \
+         silent-degradation shape this test exists to catch",
+        phases.len()
+    );
+    assert_eq!(phases[0].script, "01-system-files-overlay.sh");
+    assert_eq!(
+        phases[phases.len() - 1].script,
+        "99-postcheck.sh",
+        "postcheck must be last; it is the bake-time law gate"
+    );
+    // Ordinals ascend, so a misplaced entry cannot ride along unnoticed.
+    for w in phases.windows(2) {
+        assert!(
+            w[0].ordinal <= w[1].ordinal,
+            "phase ordinals out of order: {} then {}",
+            w[0].ordinal,
+            w[1].ordinal
+        );
     }
-    assert_snapshot!(plan_str, @r#"
-    [01] system-files-overlay (01-system-files-overlay.sh) [fatal=true]
-    [02] materialize-build-ctx (02-materialize-build-ctx.sh) [fatal=true]
-    [05] repos (05-repos.sh) [fatal=true]
-    [07] kernel (07-kernel.sh) [fatal=true]
-    [98] drift-checks (98-drift-checks.sh) [fatal=true]
-    [99] postcheck (99-postcheck.sh) [fatal=true]
-    "#);
+}
+
+/// Each way of not having a registry is an error, not a short build.
+#[test]
+fn test_phase_registry_refuses_rather_than_defaults() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+
+    let absent = dir.path().join("nonexistent.toml");
+    assert!(
+        PhaseRegistry::load_from_toml(&absent).is_err(),
+        "a missing manifest must be an error"
+    );
+
+    let unparseable = dir.path().join("bad.toml");
+    fs::write(&unparseable, "this is not [ valid toml").expect("write fixture");
+    assert!(
+        PhaseRegistry::load_from_toml(&unparseable).is_err(),
+        "an unparseable manifest must be an error"
+    );
+
+    let silent = dir.path().join("no-phases.toml");
+    fs::write(&silent, "[build]\nrechunk_max_layers = 67\n").expect("write fixture");
+    assert!(
+        PhaseRegistry::load_from_toml(&silent).is_err(),
+        "a manifest with no [build.phases].list must be an error"
+    );
+
+    let empty = dir.path().join("empty-list.toml");
+    fs::write(&empty, "[build.phases]\nlist = []\n").expect("write fixture");
+    assert!(
+        PhaseRegistry::load_from_toml(&empty).is_err(),
+        "an empty phase list must be an error"
+    );
 }
 
 #[test]
