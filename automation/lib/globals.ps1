@@ -1047,6 +1047,7 @@ $script:MIOS_DOCS_SIGNALS_WHY = if ($env:MIOS_DOCS_SIGNALS_WHY) { $env:MIOS_DOCS
 $script:MIOS_DOCS_STAY_MAX_LINES = if ($env:MIOS_DOCS_STAY_MAX_LINES) { $env:MIOS_DOCS_STAY_MAX_LINES } else { 2 }
 $script:MIOS_DOCS_STAY_MAX_WORDS = if ($env:MIOS_DOCS_STAY_MAX_WORDS) { $env:MIOS_DOCS_STAY_MAX_WORDS } else { 25 }
 $script:MIOS_DRIFT_BUDGET_KEYS_MAX_UNCONSUMED = if ($env:MIOS_DRIFT_BUDGET_KEYS_MAX_UNCONSUMED) { $env:MIOS_DRIFT_BUDGET_KEYS_MAX_UNCONSUMED } else { 9 }
+$script:MIOS_DRIFT_BUDGET_KEYS_REQUIRED = if ($env:MIOS_DRIFT_BUDGET_KEYS_REQUIRED) { $env:MIOS_DRIFT_BUDGET_KEYS_REQUIRED } else { 'tool_max_iters,replan_max,no_progress_window,max_consecutive_failures,wall_clock_budget_s,reflexion_enable,swarm_max_width,max_dispatch_depth,default_hop_budget' }
 $script:MIOS_DRIFT_BUDGET_KEYS_UNCONSUMED = if ($env:MIOS_DRIFT_BUDGET_KEYS_UNCONSUMED) { $env:MIOS_DRIFT_BUDGET_KEYS_UNCONSUMED } else { 'client_tools_passthrough,lane_concurrency_cpu,lane_concurrency_gpu0,reflexion_limit,tool_backend_model,tool_loop_limit,trace_enable,trace_max_spans_per_trace,trace_max_traces' }
 $script:MIOS_DRIFT_DENYLIST = if ($env:MIOS_DRIFT_DENYLIST) { $env:MIOS_DRIFT_DENYLIST } else { 'mios_ctxpack,mios_deliberate,mios_embed_backfill,mios_persona,mios_provider_translate,mios_smartroute,mios_worker_tools' }
 $script:MIOS_DRIFT_MONITOR_AXES = if ($env:MIOS_DRIFT_MONITOR_AXES) { $env:MIOS_DRIFT_MONITOR_AXES } else { 'verdict,intent' }

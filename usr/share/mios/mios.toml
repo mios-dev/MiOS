@@ -10526,7 +10526,31 @@ suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never pa
 # here shrink-only: implement a check and take it off the list; a new stub fails
 # the gate. Gate: `mios-gate drift-stubs`.
 [drift.budget_keys]
-# T-1047. [agent_pipe]/[dispatch] keys that SSOT declares and NOTHING reads.
+# T-1047. Budget keys that MUST exist in [agent_pipe] or [dispatch].
+#
+# Enumerating the tables catches a key ADDED with no consumer. It cannot catch
+# a key DELETED, because a deleted key is simply absent from the enumeration --
+# the set shrinks and nothing is missing from it. The hardcoded nine-name list
+# this replaced was doing two jobs and only one of them was the defect; this is
+# the other one, moved out of Rust source and into SSOT where an
+# operator-tunable registry belongs (Law 7).
+#
+# Seeded with exactly the nine the old constant named, so the floor is no
+# weaker than what it replaced. Removing an entry here is removing a guarantee:
+# do it only when the knob is genuinely retired.
+required = [
+  "tool_max_iters",
+  "replan_max",
+  "no_progress_window",
+  "max_consecutive_failures",
+  "wall_clock_budget_s",
+  "reflexion_enable",
+  "swarm_max_width",
+  "max_dispatch_depth",
+  "default_hop_budget",
+]
+
+# [agent_pipe]/[dispatch] keys that SSOT declares and NOTHING reads.
 # Shrink-only, and the ceiling may never sit above the measurement. Itemised
 # rather than a bare count: a count lets one dead key swap for another without
 # the gate noticing, which is the defect [docs] already carries.

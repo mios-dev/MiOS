@@ -98,9 +98,25 @@ const CONSUMER_DIRS: [&str; 4] = [
 
 /// Source that could read a key: Python, shell, Rust, and the extensionless
 /// libexec verbs. Build artefacts and vendored venvs are not source.
+///
+/// Two exclusions are not incidental. This lint's OWN crate is skipped because
+/// it necessarily spells budget keys -- its tests contain them as literals --
+/// and a check that reads itself will find every key it looks for. Test files
+/// are skipped for the same reason one directory out: naming a key is not
+/// consuming it, which is exactly why `reflexion_limit` and `tool_loop_limit`
+/// are on the unconsumed register despite appearing in tools/drift-checks.py.
+/// Verified rather than assumed: the residue is 9 with or without either
+/// exclusion, so neither costs a real consumer.
 fn is_consumer_source(path: &Path) -> bool {
     let s = path.to_string_lossy();
     if s.contains("/target/") || s.contains("/.venv/") || s.contains("/node_modules/") {
+        return false;
+    }
+    if s.contains("mios-aiplane-lint") {
+        return false;
+    }
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if s.contains("/tests/") || name.starts_with("test_") || name.starts_with("test-") {
         return false;
     }
     match path.extension().and_then(|e| e.to_str()) {
@@ -172,6 +188,29 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    // A key REMOVED from SSOT is invisible to enumeration -- it is simply not
+    // in the set, so nothing is missing from it. The hardcoded list this
+    // replaced anchored a floor as a side effect of being hardcoded; that floor
+    // now lives in SSOT and is checked explicitly.
+    let required = required_keys(&toml_val);
+    if required.is_empty() {
+        eprintln!(
+            "    [drift.budget_keys].required is empty or absent -- a floor of zero keys \
+             cannot catch a key being deleted from SSOT"
+        );
+        std::process::exit(1);
+    }
+    let present: std::collections::BTreeSet<String> = budget_keys(&toml_val).into_iter().collect();
+    let absent: Vec<&String> = required.iter().filter(|r| !present.contains(*r)).collect();
+    if !absent.is_empty() {
+        eprintln!(
+            "    {} required budget key(s) missing from [agent_pipe]/[dispatch]: {:?}",
+            absent.len(),
+            absent
+        );
+        std::process::exit(1);
+    }
 
     let keys = budget_keys(&toml_val);
     if keys.is_empty() {
@@ -250,6 +289,23 @@ fn main() {
     }
 }
 
+/// Keys that must exist in [agent_pipe] or [dispatch]. The floor enumeration
+/// cannot provide: a deleted key is absent from the enumerated set, not missing
+/// from it.
+fn required_keys(toml_val: &toml::Value) -> Vec<String> {
+    toml_val
+        .get("drift")
+        .and_then(|d| d.get("budget_keys"))
+        .and_then(|b| b.get("required"))
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// The itemised shrink-only register of keys SSOT declares that nothing reads.
 fn registered_unconsumed(toml_val: &toml::Value) -> Vec<String> {
     toml_val
@@ -307,6 +363,53 @@ mod tests {
             ],
             "nested tables count, and a table that is not a budget table does not"
         );
+    }
+
+    /// A key DELETED from SSOT is absent from the enumeration, not missing from
+    /// it, so enumeration alone cannot see it go. The required floor can.
+    #[test]
+    fn test_required_floor_sees_a_deleted_key() {
+        let toml_val: toml::Value = toml::from_str(
+            r#"
+            [agent_pipe]
+            tool_max_iters = 15
+            [drift.budget_keys]
+            required = ["tool_max_iters", "swarm_max_width"]
+        "#,
+        )
+        .unwrap();
+        let present: std::collections::BTreeSet<String> =
+            budget_keys(&toml_val).into_iter().collect();
+        let required = required_keys(&toml_val);
+        let absent: Vec<&String> = required.iter().filter(|r| !present.contains(*r)).collect();
+        assert_eq!(
+            absent,
+            vec!["swarm_max_width"],
+            "a required key missing from both tables must be reported"
+        );
+    }
+
+    /// This lint's own source spells budget keys -- the test above this one
+    /// contains "swarm_max_width" as a literal. Scanning itself would make
+    /// every key it looks for appear consumed.
+    #[test]
+    fn test_own_crate_is_not_a_consumer() {
+        assert!(!is_consumer_source(Path::new(
+            "tools/native/mios-aiplane-lint/src/main.rs"
+        )));
+        assert!(!is_consumer_source(Path::new(
+            "usr/lib/mios/agent-pipe/test_mios_x.py"
+        )));
+        assert!(!is_consumer_source(Path::new(
+            "src/mios-rs/miosd/tests/x.rs"
+        )));
+        // A real consumer is still one.
+        assert!(is_consumer_source(Path::new(
+            "usr/libexec/mios/mios-swarm-pack-firstboot"
+        )));
+        assert!(is_consumer_source(Path::new(
+            "usr/lib/mios/agent-pipe/router.py"
+        )));
     }
 
     /// Neither table present must yield nothing, so main() can refuse rather
