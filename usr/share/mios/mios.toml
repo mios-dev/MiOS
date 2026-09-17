@@ -11159,7 +11159,7 @@ max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are no
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 121259  # -117: check-credential-literals.py + its sibling test, ported to mios-gate (T-1035)
+max_tooling_python_lines = 121254  # -5: generate-cosign-policy.py tightened while being made fail-closed (T-1018 stage 9)
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]

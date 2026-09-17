@@ -109,6 +109,13 @@ main() {
     step "4d/6 UKI cmdline (derived from kargs.d)"
     "$PY" tools/generate-uki-cmdline.py >/dev/null
 
+    # policy.json is derived from [security.sigstore] but was never regenerated
+    # here, so its tracked form (compact) had drifted from what the generator
+    # writes (indented) without anything noticing -- the generator's --check
+    # compared parsed JSON, which is blind to exactly that.
+    step "4e/6 container signature policy (derived from [security.sigstore])"
+    "$PY" tools/generate-cosign-policy.py >/dev/null
+
     step "5/6 env-baseline (clean env)"
     if [ -x usr/libexec/mios/mios-env-snapshot ] || [ -r usr/libexec/mios/mios-env-snapshot ]; then
         env -i PATH="$PATH" HOME="${HOME:-/root}" \
