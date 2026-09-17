@@ -1036,6 +1036,7 @@
 | T-1048 | P2 | done | Gates/Honesty | PROJREG-01 -- check_projection_registry validates the entries it has and never asks whether the registry is complete; 16 of 21 generators are absent |
 | T-1049 | P1 | planned | Gates/Honesty | LAWPTR-01 -- four laws point at enforcer names that exist only in a comment after `exit 0`, and check_law_enforcers substring-matches that comment |
 | T-1050 | P1 | planned | Security/Secrets | LAW11KEYS-01 -- the secret-bearing key list is three hardcoded names; a projected FreeIPA OTP lands in a tracked 0644 env file unseen |
+| T-1051 | P1 | planned | Gates/Ratchets | SIZERATCHET-01 -- max_tracked_mb is 83% vendored payloads Law 12 forbids shedding, at 1 MiB resolution, so `202/202` meant 15 KiB from red |
 
 ---
 
@@ -11469,3 +11470,26 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Done When:** the secret-bearing key list resolves from `mios.toml` in both consumers with no literal left in either; `MIOS_IPA_OTP` is on it; a 0644 tracked env file carrying a registered secret key FAILS the gate -- proved by planting one; the IPA OTP no longer reaches a tracked world-readable file; and removing a key from the SSOT registry is itself caught, so the register cannot be drained silently.
 **Dep:** T-1022
 **Status:** planned | **Domain:** Security/Secrets | **Who:** architect
+
+## T-1051 -- SIZERATCHET-01: the tracked-size ratchet is 83% a measurement of the baked payloads it can never shed  (WS-DRIFT | P1 | M)
+**Goal:** `[legibility].max_tracked_mb = 202` is a shrink-only ceiling whose breach message says "do NOT raise". It is measured as `round(nbytes / 1048576)` over every tracked blob. 83% of those bytes are `usr/share/mios/vendored/`, which Law 12 BAKE-NOT-FETCH requires the image to carry -- so the ratchet's stated remedy, shed bytes, is closed against the thing that dominates its measurement, and the 17% it *can* govern is drowned out.
+**What+How:** Measured from the git index, not estimated:
+  | slice | size |
+  |---|---:|
+  | `usr/share/mios/vendored/` | **168.24 MiB** |
+  | everything else (the authored tree) | **34.30 MiB** |
+  | total | 202.54 MiB |
+  Two blobs -- `vendored/k3s/k3s` (63.29 MiB) and `vendored/wheels/hermes_agent.tar.gz` (41.21 MiB) -- are **104.50 MiB between them**, more than half the ceiling. Adding one vendored wheel moves this ratchet further than every line of source the project will write this year, and deleting one is a Law 12 violation.
+  **The 1 MiB resolution is the second half of the defect.** `round()` means the ceiling `202` encodes any measurement in [201.5, 202.5) MiB, so the slack a branch has depends on where in that window the base happens to sit -- invisible from the ceiling itself:
+  | ref | bytes | MiB | rounds to | slack to the boundary |
+  |---|---:|---:|---:|---:|
+  | `origin/main` | 211,808,325 | 201.9962 | 202 | 528 KiB |
+  | `d4b3e871` (branch, before this batch) | 212,321,647 | 202.4857 | 202 | **15 KiB** |
+  | `9397d259` (T-1048) | 212,371,842 | 202.5336 | **203** | over by 35 KiB |
+  So the branch had already consumed 513 KiB of main's 528 KiB and was one small source file from red, while the gate still printed `202/202` -- a PASS that carried no signal about how close it was. T-1048's commit (a Rust check, its tests, a negative test, task records) added ~50 KiB and crossed it. Nothing in that commit is removable waste; it is the deliverable.
+  **The fix has precedent in the same function.** `_is_generated` already excludes machine-projected files from the shell and PowerShell ceilings, with the reasoning written out: counting them "measured the wrong thing", and excluding them "LOWERS both floors ... so the ratchet binds strictly tighter on the code it actually governs". `vendored/` is the same argument with a bigger number. Excluding it by SSOT prefix (as `[legibility].python_ai_plane_prefixes` already does for the AI plane) takes the ceiling from 202 to ~34 and makes it bind on authored content. That is a TIGHTENING, not a raise, and it must be committed as one -- with the new ceiling set from `origin/main`'s authored size, so the branch does not bank its own growth.
+  **The alternative reading is real and should be answered, not assumed away:** that the ratchet is working -- the branch genuinely added ~500 KiB and ought to shed some. It is weak because the 500 KiB is Rust gates, their tests, and the task/ledger record the project's own conventions require ("every artifact is tracked"), but the choice of which reading governs is the operator's, not something to improvise inside a PR.
+  **Do not fix by raising `max_tracked_mb` to 203.** That buys one commit and restores the same zero-headroom state one rounding window later.
+**Done When:** the tracked-size ratchet measures a quantity the project can actually shrink; a vendored blob added or removed does not move it; the authored tree crossing its ceiling FAILS -- proved by planting; and the gate reports headroom rather than only a pass/fail, so `202/202` can never again mean "15 KiB from red".
+**Dep:** --
+**Status:** planned | **Domain:** Gates/Ratchets | **Who:** architect
