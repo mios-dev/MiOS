@@ -42,7 +42,7 @@
 41	check_no_mkdir_in_var	no imperative /var mkdir in numbered automation/Containerfiles
 42	check_quadlet_privilege	every Quadlet declares User=; root only where allowlisted; Group=/Delegate=yes present
 43	check_unit_security	systemd unit security hardening options meet baseline policy
-44	check_var_closure	MIOS_* referenced-set is a subset of emitted-set
+44	check_var_closure	MIOS_* closure: $n_found referenced-but-unemitted name(s), all on the ledger (ceiling $ceiling)
 45	check_lint_is_final	all $n root Containerfile(s) end with 'RUN bootc container lint'
 46	check_firstboot_degrade_open	firstboot scripts degrade open on egress failure (Law 12)
 47	check_vendor_urls	no vendor cloud URL in active config

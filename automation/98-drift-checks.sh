@@ -1067,27 +1067,67 @@ check_quadlet_privilege() {
 
 check_var_closure() {
     local tool="$ROOT/automation/lib/mios_var_closure.py"
+    local ledger="$ROOT/usr/share/mios/reference/var-closure-baseline.tsv"
     _need_python || return 0
     if [[ ! -f "$tool" ]]; then
         _violation "mios_var_closure.py absent -- a tracked deliverable is missing, so this check cannot run"
         return
     fi
-    local _vc_rc=0
-    MIOS_ROOT="$ROOT" python3 "$tool" >/dev/null 2>"$ROOT/.varclosure.err" || _vc_rc=$?
-    if (( _vc_rc == 0 )); then
-        rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
-        echo "[98-drift-checks]   MIOS_* referenced-set is a subset of emitted-set"
-    else
-        sed 's/^/    /' "$ROOT/.varclosure.err" >&2 2>/dev/null || true
-        rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
-        # rc=2 is the emitter refusing to answer; rc=1 is a real closure breach.
-        # Reporting the former as the latter sends the reader to the wrong file.
-        if (( _vc_rc == 2 )); then
-            _violation "var-closure could not build a complete emitted set (the SSOT resolver is broken or partial) -- run python automation/lib/mios_var_closure.py"
-        else
-            _violation "var-closure reported referenced but NOT emitted variables -- run python automation/lib/mios_var_closure.py"
-        fi
+    if [[ ! -f "$ledger" ]]; then
+        _violation "var-closure-baseline.tsv absent -- a gate with no ledger must never report green (T-1052)"
+        return
     fi
+    local _vc_rc=0
+    MIOS_ROOT="$ROOT" python3 "$tool" >"$ROOT/.varclosure.out" 2>"$ROOT/.varclosure.err" || _vc_rc=$?
+    # rc=2 is the emitter refusing to answer -- a partial or broken resolver.
+    # Reporting that as a closure breach sends the reader to the wrong file.
+    if (( _vc_rc == 2 )); then
+        sed 's/^/    /' "$ROOT/.varclosure.err" >&2 2>/dev/null || true
+        rm -f "$ROOT/.varclosure.out" "$ROOT/.varclosure.err" 2>/dev/null || true
+        _violation "var-closure could not build a complete emitted set (the SSOT resolver is broken or partial) -- run python automation/lib/mios_var_closure.py"
+        return
+    fi
+
+    local found ceiling n_found n_ledger
+    found="$(sed -n 's/^  \(MIOS_[A-Z0-9_]*\)  .*/\1/p' "$ROOT/.varclosure.err" | sort -u)"
+    rm -f "$ROOT/.varclosure.out" "$ROOT/.varclosure.err" 2>/dev/null || true
+    ceiling="$(sed -n 's/^#!ceiling \([0-9]*\).*/\1/p' "$ledger" | head -1)"
+    if [[ -z "$ceiling" ]]; then
+        _violation "var-closure-baseline.tsv carries no #!ceiling -- an unbounded ledger is not a ratchet"
+        return
+    fi
+    n_found="$(printf '%s\n' "$found" | grep -c '^MIOS_' || true)"
+    n_ledger="$(grep -c '^MIOS_' "$ledger" || true)"
+
+    # The ledger anchors the SCAN, not just the verdict. This gate's previous
+    # version passed because its scan reached no consumer at all; a named ledger
+    # makes that failure mode loud -- the names would simply vanish.
+    local nleft nright
+    nleft="$(comm -23 <(printf '%s\n' "$found" | grep '^MIOS_' | sort -u) <(grep '^MIOS_' "$ledger" | cut -f1 | sort -u) | head -20)"
+    nright="$(comm -13 <(printf '%s\n' "$found" | grep '^MIOS_' | sort -u) <(grep '^MIOS_' "$ledger" | cut -f1 | sort -u) | head -20)"
+    local bad=0
+    if [[ -n "$nleft" ]]; then
+        bad=1
+        while IFS= read -r v; do
+            [[ -n "$v" ]] && _violation "var-closure: '$v' is referenced but NOT emitted and is not on the ledger -- emit it from the SSOT cascade or stop referencing it"
+        done <<< "$nleft"
+    fi
+    if [[ -n "$nright" ]]; then
+        bad=1
+        while IFS= read -r v; do
+            [[ -n "$v" ]] && _violation "var-closure: '$v' is on the ledger but no longer found -- tighten the ledger and the ceiling in the same commit"
+        done <<< "$nright"
+    fi
+    if [[ "$n_ledger" != "$ceiling" ]]; then
+        bad=1
+        _violation "var-closure: the ledger holds $n_ledger name(s) but declares a ceiling of $ceiling"
+    fi
+    if [[ "$n_found" != "$ceiling" ]]; then
+        bad=1
+        _violation "var-closure: $n_found referenced-but-unemitted name(s) against a ceiling of $ceiling -- this ratchet is EXACT in both directions"
+    fi
+    (( bad == 0 )) && echo "[98-drift-checks]   MIOS_* closure: $n_found referenced-but-unemitted name(s), all on the ledger (ceiling $ceiling)"
+    return 0
 }
 
 check_lint_is_final() {

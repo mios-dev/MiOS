@@ -1752,6 +1752,70 @@ EOF
     log "Test_no_hardcode_version negative test passed"
 }
 
+test_var_closure() {
+    log "Testing check_var_closure"
+    local ledger="${ROOT}/usr/share/mios/reference/var-closure-baseline.tsv"
+    local bak; bak="$(mktemp)"; cp "$ledger" "$bak"
+    local planted=""
+    _vc_fail() {
+        cp "$bak" "$ledger"; rm -f "$bak"
+        [[ -n "$planted" ]] && rm -f "$planted"
+        unset -f _vc_fail
+        die "$1"
+    }
+
+    # The defect: the scan skipped every tree a consumer lives in, so no input
+    # could make this gate fail. One plant per formerly-excluded tree, because
+    # a single one would not show that the exclusion list is gone rather than
+    # merely shorter.
+    # Split so the literal never appears in this file: the names registry
+    # harvests tracked sources, and a fixture name spelled out here lands in
+    # usr/share/mios/referenced_names.txt as if something referenced it.
+    local probe="MIOS""_NEVER_EMITTED_PROBE"
+    local d
+    for d in automation tools usr/libexec/mios; do
+        planted="${ROOT}/${d}/zz-varclosure-probe.sh"
+        printf '#!/usr/bin/env bash\necho "${%s}"\n' "$probe" > "$planted"
+        _neg_gate check_var_closure && _vc_fail "check_var_closure passed with an unemitted reference planted in ${d}/"
+        case "${_NEG_GATE_OUT}" in
+            *"$probe"*) : ;;
+            *) _vc_fail "check_var_closure failed for the wrong reason on a plant in ${d}/: ${_NEG_GATE_OUT}" ;;
+        esac
+        rm -f "$planted"; planted=""
+    done
+
+    # A name dropped from the ledger must read as a NEW breach, not as slack.
+    sed -i '2,$ { /^MIOS_[A-Z0-9_]*\t/ { s/^\(MIOS_[A-Z0-9_]*\)\t.*//; q } }' "$ledger"
+    _neg_gate check_var_closure && _vc_fail "check_var_closure passed with a name removed from the ledger"
+    cp "$bak" "$ledger"
+
+    # A ledger entry nothing references any more must fail too: a register that
+    # only grows is how 436 accumulated in the first place.
+    printf '%s\tnowhere\n' "MIOS""_GHOST_NAME_NEGATIVE" >> "$ledger"
+    _neg_gate check_var_closure && _vc_fail "check_var_closure passed with a stale ledger entry"
+    case "${_NEG_GATE_OUT}" in
+        *"no longer found"*) : ;;
+        *) _vc_fail "check_var_closure failed for the wrong reason on a stale entry: ${_NEG_GATE_OUT}" ;;
+    esac
+    cp "$bak" "$ledger"
+
+    # An unbounded ledger is not a ratchet.
+    sed -i '/^#!ceiling/d' "$ledger"
+    _neg_gate check_var_closure && _vc_fail "check_var_closure passed with no #!ceiling in the ledger"
+    cp "$bak" "$ledger"
+
+    # Absent must be a violation, not a skip: a gate with no data reporting
+    # green is exactly how this check spent its whole life.
+    mv "$ledger" "${ledger}.negtest"
+    _neg_gate check_var_closure && { mv "${ledger}.negtest" "$ledger"; _vc_fail "check_var_closure passed with the ledger missing"; }
+    mv "${ledger}.negtest" "$ledger"
+
+    cp "$bak" "$ledger"; rm -f "$bak"
+    unset -f _vc_fail
+    _neg_gate check_var_closure || die "check_var_closure failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_var_closure negative test passed"
+}
+
 test_law_enforcers() {
     log "Testing check_law_enforcers"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -4417,6 +4481,7 @@ _run_test test_leaked_fixtures
     _run_test test_v2v_import_ssot
     _run_test test_no_hardcode_version
     _run_test test_law_enforcers
+    _run_test test_var_closure
     _run_test test_usr_over_etc
     _run_test test_projection_registry
     _run_test test_bake_plan_integrity
