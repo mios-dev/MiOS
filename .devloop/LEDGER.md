@@ -194,3 +194,46 @@ bake-plan implementations owns stage 85.
 
 **Trap added:** `$?` after a pipe reports the pipe's status — walked into for the THIRD time today,
 on `mios-gate` output. It is in this ledger twice now. Capture the status without a pipe.
+
+---
+
+## 2026-09-17 · the AI plane had no local test coverage all session · status: partial
+
+**Do this first, before any AI-plane change.** CI does not invoke suites directly — it calls
+`tests/run-suites.sh`. So should you. Running `tests/test-*.py` by hand gives 42 spurious
+failures from PYTHONPATH alone.
+
+```bash
+python3 -m pip install --ignore-installed PyJWT -r usr/lib/mios/agent-pipe/requirements.txt pyflakes
+apt-get install -y bubblewrap
+bash tests/run-suites.sh lint   # 6 passed, 0 failed
+bash tests/run-suites.sh unit   # 574 passed, 0 failed   <-- matches CI exactly
+```
+
+**Why it matters, concretely.** Without those dependencies 50 of the 184 agent-pipe suites fail on
+`ModuleNotFoundError`. Earlier today I read that correctly as an environment gap and moved past it
+— and then shipped `KeyError: 'system_logs'` in `embed_backfill.py`, which CI caught. Diagnosing a
+gap honestly is not the same as closing it. It is closed now; the whole unit tier runs here.
+
+**Baselines, all re-measured today:**
+- drift gate: **19 violations from six checks** (was 20 from seven)
+- negative suite: **7 failures**, each a consequence of a standing-red check
+- `miosd drift-check --root .`: **20 passed, 0 failed, 54 skipped** — and **0 passed** against both
+  a nonexistent root and a present-but-empty one
+- `tests/run-suites.sh unit`: **574 passed, 0 failed**
+
+**Four shrink-only registers now exist, and every one treats a ceiling above its measurement as a
+violation:** `[build.tool_dispatch]` 14, `[build.phases].unregistered` 1, `[drift.unimplemented]`
+54, and `[security.credential_literals]` which pins VALUES not keys.
+
+**Traps, cumulative — the first two bit more than once each:**
+- `$?` after a pipe reports the pipe's status. Three times today.
+- Sourcing a shell library inside a pipeline puts it in a SUBSHELL; every variable it sets is lost.
+- **Reproducing a command in your shell is not reproducing the check.** The gate runs its own
+  interpreter and environment.
+- **A predicate that tests the wrong property passes its own tests.** The stub detector went
+  through three versions — parameter name, then `ctx.root` mentioned, then an actual read — and
+  each earlier one was green on its own suite. Test the checker, not just with it.
+- A helper named `regen_and_diff` did not diff. Read a helper before reusing it.
+- Touching `automation/build.sh` promotes it to lint-shell's warning tier and surfaces nine
+  pre-existing findings. Budget for them or leave the file alone.

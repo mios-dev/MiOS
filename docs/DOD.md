@@ -20,10 +20,32 @@ A change is done when ALL of these hold, with the evidence recorded in the commi
 
 ## This repo's actual gates
 
+**Run the tiers the way CI runs them.** CI does not invoke the suites directly; it calls
+`tests/run-suites.sh`, and so should you. Invoking `tests/test-*.py` by hand gives 42 spurious
+failures from PYTHONPATH alone — the harness sets it.
+
+```bash
+bash tests/run-suites.sh lint     # 6 suites
+bash tests/run-suites.sh unit     # 574 suites — agent-pipe + tests/
+bash tests/run-suites.sh gate     # the drift gate + its negative suite
+```
+
+**The AI plane needs its dependencies or it is not being tested at all.** Without them 50 of the
+184 agent-pipe suites fail on `ModuleNotFoundError` and read as "environment gaps" you move past
+— which is exactly how a `KeyError` in `embed_backfill.py` reached CI. One command:
+
+```bash
+python3 -m pip install --ignore-installed PyJWT -r usr/lib/mios/agent-pipe/requirements.txt pyflakes
+apt-get install -y bubblewrap     # tests/test-sandbox-seccomp.sh refuses to run unsandboxed
+```
+
+With both in place `tests/run-suites.sh unit` is **574 passed, 0 failed** locally, matching CI.
+
 | Gate | Command | Meaning |
 |---|---|---|
-| Drift gate | `bash automation/98-drift-checks.sh` | The release gate. Baseline is **20 violations from seven standing-red checks**; compare the SET, not the number. |
-| Negative suite | `bash tests/drift-gate-negatives.sh` | Proves each check CAN fail. Baseline is **8 failures, identical on `origin/main`** — a ninth is yours. |
+| Drift gate | `bash automation/98-drift-checks.sh` | The release gate. Baseline is **19 violations from six standing-red checks**; compare the SET, not the number. |
+| Negative suite | `bash tests/drift-gate-negatives.sh` | Proves each check CAN fail. Baseline is **7 failures, identical on `origin/main`** — an eighth is yours. Each one is a consequence of a standing-red check: the harness fails when a check is already red on the *unmutated* tree. |
+| Native drift suite | `src/mios-rs/target/release/miosd drift-check --root .` | The bake runs this at `Containerfile:103`. **20 passed, 0 failed, 54 skipped.** The 54 skips are registered stubs (`[drift.unimplemented]`, shrink-only). Point it at a nonexistent root AND at a present-but-empty one: both must report **0 passed**. |
 | Generators | `bash tools/sync-generated.sh` | Must be idempotent: a second run produces zero diff. **`git add` the new files BEFORE syncing** — the manual-corpus census reads the git index, not the worktree. |
 | Shell | `bash automation/lint-shell.sh` | Modified scripts are graded at *warning* level, so a pattern 66 stages share becomes a violation the moment you touch one of them. |
 | Rust | `cd src/mios-rs && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` | Same for `tools/native` (`--exclude mios-wallpaperd`). |
