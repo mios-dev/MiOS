@@ -48,6 +48,28 @@ fn run(dir: &Path, json: bool) -> (i32, String) {
 
 const DEAD: &str = "#!/usr/bin/env bash\nif command -v miosd >/dev/null 2>&1; then :; fi\n";
 
+/// Mention is not subject: a comment recording why a branch was REMOVED counted
+/// as the branch still being there, which is how retiring stage 85's lookup left
+/// the register unable to go down.
+#[test]
+fn a_commented_lookup_is_not_a_dispatch_gate() {
+    let commented =
+        "#!/usr/bin/env bash\n# if command -v miosd >/dev/null 2>&1; then :; fi\ntrue\n";
+    let indented = "#!/usr/bin/env bash\nif true; then\n    # command -v miosd\n    :\nfi\n";
+    for body in [commented, indented] {
+        let d = tempfile::tempdir().unwrap();
+        tree(d.path(), 0, &[], &[("10-a.sh", body)]);
+        let (code, out) = run(d.path(), false);
+        assert_eq!(0, code, "a commented lookup must not count: {out}");
+    }
+    // The same text as CODE still counts, so the exclusion narrowed the match
+    // rather than disabling it.
+    let d = tempfile::tempdir().unwrap();
+    tree(d.path(), 0, &[], &[("10-a.sh", DEAD)]);
+    let (code, out) = run(d.path(), false);
+    assert_eq!(1, code, "a real gate must still be caught: {out}");
+}
+
 #[test]
 fn a_registered_gate_at_the_ceiling_is_clean() {
     let d = tempfile::tempdir().unwrap();

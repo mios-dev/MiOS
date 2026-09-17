@@ -149,6 +149,12 @@ pub fn check(root: &Path) -> Report {
             continue;
         };
         for (lineno, line) in text.lines().enumerate() {
+            // A comment naming the lookup is not a dispatch gate. Mention is not
+            // subject: the comment recording why a branch was REMOVED counted as
+            // the branch still being there.
+            if line.trim_start().starts_with('#') {
+                continue;
+            }
             for c in bin_re.captures_iter(line) {
                 let Some(bin) = c.get(1).map(|m| m.as_str()) else {
                     continue;

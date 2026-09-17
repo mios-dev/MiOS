@@ -22,14 +22,8 @@ fn get_root() -> PathBuf {
     PathBuf::from(".")
 }
 
-/// Resolve `${VAR}` in an `Image=` line the way every other consumer does.
-///
-/// Order is env, then SSOT, then sidecars, then the literal fallback. The SSOT
-/// layer is the one this binary lacked: Quadlets float their tags
-/// (`ceph:${MIOS_VERSION_CEPH}`) and `MIOS_VERSION_*` is neither an env var in a
-/// bare run nor a `MIOS_*_IMAGE` sidecar, so the placeholder survived, the
-/// Quadlet was skipped, and its image then reported as "not referenced by any
-/// Quadlet" -- an error naming the SSOT three lines from the actual cause.
+/// Resolve `${VAR}` in an `Image=` line: env, then SSOT, then sidecars, then
+/// the literal fallback. The SSOT layer is the one this binary lacked (T-1057).
 fn resolve_image_val(
     val: &str,
     sidecars: &BTreeMap<String, String>,

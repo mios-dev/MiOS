@@ -291,12 +291,9 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
             aliases.push(format!("MIOS_IMAGE_{}", key));
         }
     } else if let Some(rest) = dotted_path.strip_prefix("versions.") {
-        // Mirrors mios_toml.py: `[versions].ceph` exports MIOS_VERSIONS_CEPH
-        // canonically AND MIOS_VERSION_CEPH as the legacy singular. Absent here,
-        // the Rust resolver emitted only the plural while every Quadlet floats
-        // its tag on the singular -- so a Rust consumer resolving an `Image=`
-        // line found nothing, skipped the Quadlet, and then reported its image
-        // as missing from [build.bake].core (T-1057).
+        // Mirrors mios_toml.py: the legacy singular beside the plural. Absent
+        // here, Quadlets floating `${MIOS_VERSION_*}` resolved to nothing in
+        // every Rust consumer (T-1057).
         let key = rest.to_uppercase().replace(['.', '-'], "_");
         aliases.push(format!("MIOS_VERSION_{}", key));
     } else if let Some(rest) = dotted_path.strip_prefix("desktop.") {
