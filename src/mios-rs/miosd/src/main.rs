@@ -151,7 +151,15 @@ enum Commands {
         spec: String,
     },
     /// Symlink security services into multi-user.target.wants and fix config perms
-    Harden,
+    Harden {
+        /// Prefix every system path with this directory. Defaults to "/".
+        /// Exists so the hardening can be exercised against a fixture tree --
+        /// with the paths hardcoded absolute there was no way to test it that
+        /// did not rewrite fapolicyd.conf and systemd's wants directory on the
+        /// machine running the test.
+        #[arg(long, default_value = "/")]
+        root: String,
+    },
     /// Render /etc/yum.repos.d/fedora-{version}.repo file
     RenderRepos {
         /// Force online metalink mode (defaults to local vendored mirror if present)
@@ -834,8 +842,8 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Harden => {
-            if let Err(e) = run_harden() {
+        Commands::Harden { root } => {
+            if let Err(e) = run_harden(root) {
                 eprintln!("[miosd] Harden error: {}", e);
                 std::process::exit(1);
             }
@@ -1157,54 +1165,79 @@ ip_resolve=4
     Ok(())
 }
 
-fn run_harden() -> Result<(), Box<dyn std::error::Error>> {
-    let usb_conf = std::path::Path::new("/usr/lib/usbguard/usbguard-daemon.conf");
+/// Harden: tighten the usbguard config mode, set fapolicyd trust, enable the
+/// three hardening units.
+///
+/// Every write in here used to be `let _ = ...`, and each one was followed by
+/// an unconditional success line -- "[miosd] enabled usbguard.service" printed
+/// whether or not the symlink was created. A hardening step that reports
+/// success it did not achieve is worse than one that fails: the failure is
+/// recoverable, the false report is not visible at all (T-1018).
+fn run_harden(root: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let at = |p: &str| std::path::Path::new(root).join(p.trim_start_matches('/'));
+    let usb_conf = at("/usr/lib/usbguard/usbguard-daemon.conf");
+    let usb_conf = usb_conf.as_path();
     if usb_conf.exists() {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(usb_conf, std::fs::Permissions::from_mode(0o600));
+            std::fs::set_permissions(usb_conf, std::fs::Permissions::from_mode(0o600))
+                .map_err(|e| format!("harden: cannot set 0600 on {}: {e}", usb_conf.display()))?;
         }
     }
 
-    let fapo_configs = vec![
+    for cfg_rel in [
         "/usr/lib/fapolicyd/fapolicyd.conf",
         "/etc/fapolicyd/fapolicyd.conf",
-    ];
-    for cfg in fapo_configs {
-        let p = std::path::Path::new(cfg);
-        if p.exists() {
-            if let Ok(content) = std::fs::read_to_string(p) {
-                let mut new_lines = Vec::new();
-                for line in content.lines() {
-                    if line.starts_with("trust =") {
-                        new_lines.push("trust = file,rpmdb".to_string());
-                    } else {
-                        new_lines.push(line.to_string());
-                    }
-                }
-                let _ = std::fs::write(p, new_lines.join("\n") + "\n");
-            }
+    ] {
+        let p = at(cfg_rel);
+        let p = p.as_path();
+        let cfg = p.display().to_string();
+        if !p.exists() {
+            continue;
         }
+        let content =
+            std::fs::read_to_string(p).map_err(|e| format!("harden: cannot read {cfg}: {e}"))?;
+        let rewritten: Vec<String> = content
+            .lines()
+            .map(|l| {
+                if l.starts_with("trust =") {
+                    "trust = file,rpmdb".to_string()
+                } else {
+                    l.to_string()
+                }
+            })
+            .collect();
+        std::fs::write(p, rewritten.join("\n") + "\n")
+            .map_err(|e| format!("harden: cannot write {cfg}: {e}"))?;
+        println!("[miosd] fapolicyd trust = file,rpmdb in {cfg}");
     }
 
-    let wants_dir = std::path::Path::new("/usr/lib/systemd/system/multi-user.target.wants");
-    let _ = std::fs::create_dir_all(wants_dir);
+    let wants_dir = at("/usr/lib/systemd/system/multi-user.target.wants");
+    let wants_dir = wants_dir.as_path();
+    std::fs::create_dir_all(wants_dir)
+        .map_err(|e| format!("harden: cannot create {}: {e}", wants_dir.display()))?;
 
-    let units = vec!["usbguard.service", "auditd.service", "fapolicyd.service"];
-    for u in units {
-        let src = format!("/usr/lib/systemd/system/{}", u);
-        let _dst = wants_dir.join(u);
-        if std::path::Path::new(&src).exists() {
-            #[cfg(unix)]
-            {
-                let _ = std::fs::remove_file(&_dst);
-                let _ = std::os::unix::fs::symlink(format!("../{}", u), &_dst);
-            }
-            println!("[miosd] enabled {}", u);
-        } else {
-            println!("[miosd] skip: {} not installed", u);
+    for u in ["usbguard.service", "auditd.service", "fapolicyd.service"] {
+        let src = at(&format!("/usr/lib/systemd/system/{u}"));
+        if !src.exists() {
+            println!("[miosd] skip: {u} not installed");
+            continue;
         }
+        let dst = wants_dir.join(u);
+        #[cfg(unix)]
+        {
+            match std::fs::remove_file(&dst) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    return Err(format!("harden: cannot replace {}: {e}", dst.display()).into())
+                }
+            }
+            std::os::unix::fs::symlink(format!("../{u}"), &dst)
+                .map_err(|e| format!("harden: cannot enable {u}: {e}"))?;
+        }
+        println!("[miosd] enabled {u}");
     }
 
     Ok(())
