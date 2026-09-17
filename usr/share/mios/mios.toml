@@ -10524,6 +10524,33 @@ suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never pa
 # Verdict::Skip("NOT IMPLEMENTED: ..."), which is the truth, and are registered
 # here shrink-only: implement a check and take it off the list; a new stub fails
 # the gate. Gate: `mios-gate drift-stubs`.
+[drift.budget_keys]
+# T-1047. [agent_pipe]/[dispatch] keys that SSOT declares and NOTHING reads.
+# Shrink-only, and the ceiling may never sit above the measurement. Itemised
+# rather than a bare count: a count lets one dead key swap for another without
+# the gate noticing, which is the defect [docs] already carries.
+#
+# mios-aiplane-lint walks all 128 scalar leaves under both tables. It used to
+# walk a hardcoded list of nine, so these nine were invisible: an operator
+# could set any of them and nothing would happen, silently.
+#
+# Each is a knob with no reader. Wire it or delete it -- do not just move the
+# ceiling. `reflexion_limit` and `tool_loop_limit` are named by
+# tools/drift-checks.py, but only as keys it asserts are PRESENT; naming a key
+# is not consuming it, and that is exactly how they stayed dead.
+unconsumed = [
+  "client_tools_passthrough",
+  "lane_concurrency_cpu",
+  "lane_concurrency_gpu0",
+  "reflexion_limit",
+  "tool_backend_model",
+  "tool_loop_limit",
+  "trace_enable",
+  "trace_max_spans_per_trace",
+  "trace_max_traces",
+]
+max_unconsumed = 9
+
 [drift.unimplemented]
 max_unimplemented = 54
 checks = [

@@ -792,12 +792,17 @@ check_agent_pipe_budgets() {
                /usr/libexec/mios/mios-aiplane-lint; do
         if [ -n "$_lc" ] && [ -x "$_lc" ]; then lint_bin="$_lc"; break; fi
     done
+    # The lint prints its own tally -- N of M consumed, K registered unconsumed.
+    # This wrapper used to answer it with "all ... have code consumers", which
+    # was the overclaim the lint itself was making when it walked a hardcoded
+    # nine of 128 keys (T-1047). Do not reintroduce a summary here that asserts
+    # more than the tool it wraps just measured.
     if [ -x "$lint_bin" ]; then
         if MIOS_DRIFT_ROOT="$ROOT" "$lint_bin"; then
-            echo "[98-drift-checks]   all [agent_pipe] budget variables have code consumers"
+            echo "[98-drift-checks]   every [agent_pipe]/[dispatch] key enumerated from SSOT; unconsumed ones itemised in the register"
             return 0
         else
-            _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase"
+            _violation "[agent_pipe]/[dispatch] budget keys: unregistered dead key, stale register entry, or a ceiling off its measurement"
             return 1
         fi
     fi
@@ -805,7 +810,8 @@ check_agent_pipe_budgets() {
     _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py agent-pipe-budgets
     then
-        echo "[98-drift-checks]   all [agent_pipe] budget variables have code consumers"
+        # The Python leg still walks its own narrower list; say only that.
+        echo "[98-drift-checks]   [agent_pipe] budget keys checked by the Python fallback (narrower than mios-aiplane-lint)"
     else
         _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase"
     fi

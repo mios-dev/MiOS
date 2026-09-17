@@ -3,17 +3,36 @@ use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const BUDGET_KEYS: &[&str] = &[
-    "tool_max_iters",
-    "replan_max",
-    "no_progress_window",
-    "max_consecutive_failures",
-    "wall_clock_budget_s",
-    "reflexion_enable",
-    "swarm_max_width",
-    "max_dispatch_depth",
-    "default_hop_budget",
-];
+/// Every scalar leaf under `[agent_pipe]` and `[dispatch]`, read from SSOT.
+///
+/// This was a hardcoded list of nine names. The tables hold 128, so the check
+/// walked 7% of its own subject and announced "all [agent_pipe] budget
+/// variables have code consumers" over the other 93%. Adding an unconsumed key
+/// to either table passed at rc=0, which is the failure the message denies.
+/// It was also a registry of operator-tunable names living in Rust source
+/// rather than in SSOT (Law 7).
+pub fn budget_keys(toml_val: &toml::Value) -> Vec<String> {
+    fn leaves(val: &toml::Value, out: &mut Vec<String>) {
+        if let Some(table) = val.as_table() {
+            for (k, v) in table {
+                if v.is_table() {
+                    leaves(v, out);
+                } else {
+                    out.push(k.clone());
+                }
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for t in ["agent_pipe", "dispatch"] {
+        if let Some(v) = toml_val.get(t) {
+            leaves(v, &mut out);
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
 
 fn key_in_toml_value(val: &toml::Value, target_key: &str) -> bool {
     if let Some(table) = val.as_table() {
@@ -63,15 +82,48 @@ pub fn validate_budgets(
     }
 }
 
-fn read_all_python_files(dir: &Path) -> std::io::Result<String> {
+/// The directories a budget key can legitimately be consumed from.
+///
+/// This used to be `usr/lib/mios/agent-pipe` alone, which is narrower than the
+/// consumer surface: `[dispatch].gpu_profile` is read by
+/// `usr/libexec/mios/mios-swarm-pack-firstboot` and would have been reported
+/// dead. A false "unconsumed" is as damaging as a missed one -- it sends
+/// someone to delete a key that is load-bearing.
+const CONSUMER_DIRS: [&str; 4] = [
+    "usr/lib/mios",
+    "usr/libexec/mios",
+    "src/mios-rs",
+    "tools/native",
+];
+
+/// Source that could read a key: Python, shell, Rust, and the extensionless
+/// libexec verbs. Build artefacts and vendored venvs are not source.
+fn is_consumer_source(path: &Path) -> bool {
+    let s = path.to_string_lossy();
+    if s.contains("/target/") || s.contains("/.venv/") || s.contains("/node_modules/") {
+        return false;
+    }
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("py") | Some("sh") | Some("rs") => true,
+        // A libexec verb has no extension; a .md or .json beside it is not code.
+        None => true,
+        _ => false,
+    }
+}
+
+fn read_consumer_sources(root: &Path) -> std::io::Result<String> {
     let mut code = String::new();
-    if dir.is_dir() {
-        for entry in walkdir::WalkDir::new(dir)
+    for rel in CONSUMER_DIRS {
+        let dir = root.join(rel);
+        if !dir.is_dir() {
+            continue;
+        }
+        for entry in walkdir::WalkDir::new(&dir)
             .into_iter()
             .filter_map(|e| e.ok())
         {
             let path = entry.path();
-            if path.is_file() && path.extension().is_some_and(|ext| ext == "py") {
+            if path.is_file() && is_consumer_source(path) {
                 if let Ok(c) = fs::read_to_string(path) {
                     code.push_str(&c);
                     code.push('\n');
@@ -113,37 +165,176 @@ fn main() {
         }
     };
 
-    let mut search_dir = root.join("usr/lib/mios/agent-pipe");
-    if !search_dir.is_dir() {
-        search_dir = root.clone();
-    }
-
-    let code_contents = match read_all_python_files(&search_dir) {
+    let code_contents = match read_consumer_sources(&root) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("    Failed to read python code: {}", e);
+            eprintln!("    Failed to read consumer sources: {}", e);
             std::process::exit(1);
         }
     };
 
-    match validate_budgets(&toml_val, &code_contents, BUDGET_KEYS) {
+    let keys = budget_keys(&toml_val);
+    if keys.is_empty() {
+        // An empty subject is the Empty-Set Pass this rewrite exists to remove:
+        // zero keys would otherwise "all" be consumed.
+        eprintln!("    [agent_pipe] and [dispatch] declare no keys -- nothing was checked");
+        std::process::exit(1);
+    }
+    let key_refs: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
+
+    // Itemised, not a count: a bare ceiling lets one dead key swap for another.
+    let registered = registered_unconsumed(&toml_val);
+    let ceiling = unconsumed_ceiling(&toml_val);
+
+    match validate_budgets(&toml_val, &code_contents, &key_refs) {
         Ok(()) => {
-            println!("[mios-aiplane-lint] PASS: all [agent_pipe]/[dispatch] budget keys defined and consumed");
+            if !registered.is_empty() {
+                eprintln!(
+                    "    {} key(s) are on [drift.budget_keys].unconsumed but now HAVE a consumer -- remove them and lower the ceiling: {:?}",
+                    registered.len(),
+                    registered
+                );
+                std::process::exit(1);
+            }
+            println!(
+                "[mios-aiplane-lint] PASS: all {} [agent_pipe]/[dispatch] keys defined and consumed",
+                keys.len()
+            );
             std::process::exit(0);
         }
         Err(missing) => {
-            eprintln!(
-                "    Missing code consumers or TOML definitions for budget keys: {:?}",
-                missing
+            let unregistered: Vec<&String> =
+                missing.iter().filter(|m| !registered.contains(m)).collect();
+            let stale: Vec<&String> = registered.iter().filter(|r| !missing.contains(r)).collect();
+            if !unregistered.is_empty() {
+                eprintln!(
+                    "    {} [agent_pipe]/[dispatch] key(s) have no consumer and are not registered -- wire them or add them to [drift.budget_keys].unconsumed with a reason: {:?}",
+                    unregistered.len(),
+                    unregistered
+                );
+                std::process::exit(1);
+            }
+            if !stale.is_empty() {
+                eprintln!(
+                    "    {} registered key(s) now HAVE a consumer -- remove them and lower the ceiling: {:?}",
+                    stale.len(),
+                    stale
+                );
+                std::process::exit(1);
+            }
+            if missing.len() as i64 > ceiling {
+                eprintln!(
+                    "    {} unconsumed key(s) exceeds the ceiling of {} -- shrink-only",
+                    missing.len(),
+                    ceiling
+                );
+                std::process::exit(1);
+            }
+            if (missing.len() as i64) < ceiling {
+                eprintln!(
+                    "    ceiling is {} but only {} key(s) are unconsumed -- lower it; a ceiling above the measurement is slack",
+                    ceiling,
+                    missing.len()
+                );
+                std::process::exit(1);
+            }
+            println!(
+                "[mios-aiplane-lint] PASS: {} of {} [agent_pipe]/[dispatch] keys consumed, {} registered unconsumed (ceiling {})",
+                keys.len() - missing.len(),
+                keys.len(),
+                missing.len(),
+                ceiling
             );
-            std::process::exit(1);
+            std::process::exit(0);
         }
     }
+}
+
+/// The itemised shrink-only register of keys SSOT declares that nothing reads.
+fn registered_unconsumed(toml_val: &toml::Value) -> Vec<String> {
+    toml_val
+        .get("drift")
+        .and_then(|d| d.get("budget_keys"))
+        .and_then(|b| b.get("unconsumed"))
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn unconsumed_ceiling(toml_val: &toml::Value) -> i64 {
+    toml_val
+        .get("drift")
+        .and_then(|d| d.get("budget_keys"))
+        .and_then(|b| b.get("max_unconsumed"))
+        .and_then(|v| v.as_integer())
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The subject is the tables, not a list in this file.
+    #[test]
+    fn test_budget_keys_enumerates_both_tables_and_nested_ones() {
+        let toml_val: toml::Value = toml::from_str(
+            r#"
+            [agent_pipe]
+            tool_max_iters = 15
+            [agent_pipe.quality]
+            min_length = 4
+            [dispatch]
+            default_hop_budget = 2
+            [dispatch.autonomy]
+            max_dispatch_depth = 2
+            [unrelated]
+            not_a_budget = 1
+        "#,
+        )
+        .unwrap();
+        let keys = budget_keys(&toml_val);
+        assert_eq!(
+            keys,
+            vec![
+                "default_hop_budget",
+                "max_dispatch_depth",
+                "min_length",
+                "tool_max_iters"
+            ],
+            "nested tables count, and a table that is not a budget table does not"
+        );
+    }
+
+    /// Neither table present must yield nothing, so main() can refuse rather
+    /// than report that all zero keys are consumed.
+    #[test]
+    fn test_budget_keys_empty_when_tables_absent() {
+        let toml_val: toml::Value = toml::from_str("[other]\nx = 1\n").unwrap();
+        assert!(budget_keys(&toml_val).is_empty());
+    }
+
+    /// The regression this rewrite exists for: a key added to the table with no
+    /// consumer must be reported. Under the hardcoded nine-name list it was not.
+    #[test]
+    fn test_unconsumed_key_in_table_is_caught() {
+        let toml_val: toml::Value = toml::from_str(
+            r#"
+            [agent_pipe]
+            tool_max_iters = 15
+            planted_unconsumed = 99
+        "#,
+        )
+        .unwrap();
+        let code = r#"iter_limit = config.get("tool_max_iters", 15)"#;
+        let keys = budget_keys(&toml_val);
+        let refs: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
+        let errs = validate_budgets(&toml_val, code, &refs).unwrap_err();
+        assert_eq!(errs, vec!["planted_unconsumed"]);
+    }
 
     #[test]
     fn test_validate_budgets_pass() {

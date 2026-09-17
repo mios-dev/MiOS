@@ -1032,6 +1032,7 @@
 | T-1044 | P2 | planned | Gates/Ratchets | PYTEST-01 -- the tooling-Python ratchet sits at its measurement, so a new Python TEST cannot be added at all |
 | T-1045 | P2 | done | Gates/Honesty | STUBPRED-01 -- two checks still claim a verdict after only calling .exists(), and the stub detector counts a path join as reading |
 | T-1046 | P2 | planned | Gates/Ratchets | MERGERATCHET-01 -- a shrink-only ratchet cannot tell "this branch grew" from "the base branch grew and we merged it", so merging main forces a raise it forbids |
+| T-1047 | P2 | done | Gates/Honesty | BUDGETKEYS-01 -- check_agent_pipe_budgets walked a hardcoded 9 of 128 keys and announced it had checked all of them |
 
 ---
 
@@ -11385,3 +11386,20 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Done When:** merging a base branch that grew tooling Python does not trip the ratchet, while a commit on the branch that adds a single Python line still does -- both proved by planting; a ceiling raised in an earlier commit on the branch still FAILS (which it does not today); and the ceiling's recorded provenance names the base commit it was baselined against.
 **Dep:** T-1044
 **Status:** planned | **Domain:** Gates/Ratchets | **Who:** architect
+
+## T-1047 -- BUDGETKEYS-01: the budget gate checked 9 of 128 keys and said "all"  (WS-DRIFT | P2 | M)
+**Goal:** `check_agent_pipe_budgets` prints "all [agent_pipe] budget variables have code consumers". `BUDGET_KEYS` in `tools/native/mios-aiplane-lint` was a hardcoded list of **nine** names and the lint walked that list, never the tables. The tables hold **128** scalar leaves, so the check covered 7% of its own subject and announced the other 93%. Adding an unconsumed key to `[agent_pipe]` passed at rc=0 on both the Rust and the Python leg -- planted and measured, not suspected. It was also a registry of operator-tunable names living in Rust source rather than in SSOT (Law 7).
+**What+How:** Replaced the constant with `budget_keys()`, which walks every scalar leaf under `[agent_pipe]` and `[dispatch]` including nested tables. Measured the residue rather than assuming it: **9 of 128 have no consumer**, itemised in `[drift.budget_keys].unconsumed` with `max_unconsumed = 9`, shrink-only, ceiling-may-not-exceed-measurement.
+  The search surface was also too narrow and would have produced a FALSE positive. The lint read `usr/lib/mios/agent-pipe` alone; `[dispatch].gpu_profile` is read by `usr/libexec/mios/mios-swarm-pack-firstboot`, so widening the key set without widening the search would have reported a load-bearing key dead. `CONSUMER_DIRS` now covers `usr/lib/mios`, `usr/libexec/mios`, `src/mios-rs` and `tools/native`, across `.py`/`.sh`/`.rs` plus the extensionless libexec verbs, excluding `target/`, `.venv/` and `node_modules/`. That is what takes the residue from 10 to 9.
+  Two of the nine -- `reflexion_limit` and `tool_loop_limit` -- appear in `tools/drift-checks.py`, but only as key names it asserts are PRESENT in the TOML. Naming a key is not consuming it, and that is precisely how they stayed dead while looking alive to a grep. Registered as dead, with that noted.
+  The register is itemised rather than a count, for the reason the `[docs]` ratchet already demonstrates: a bare ceiling lets one dead key swap for another with the gate none the wiser.
+**Verified** (each control fails for its planted reason, fixtures restored):
+  - an unconsumed key added to `[agent_pipe]` -- **the exact case that passed at rc=0 before** -- now exits 1 naming it;
+  - a registered key that gains a consumer exits 1 with "registered key(s) now HAVE a consumer";
+  - a ceiling above the measurement exits 1 with "a ceiling above the measurement is slack";
+  - a manifest declaring neither table exits 1 with "nothing was checked" rather than reporting that all zero keys are consumed;
+  - clean tree: `119 of 128 keys consumed, 9 registered unconsumed (ceiling 9)`, rc=0.
+  Crate tests 3 -> 6, the three new ones covering the enumeration, the empty-table case and the regression itself.
+**Remaining:** the nine registered keys are knobs an operator can set to no effect. Each wants wiring or deleting; the register exists to keep them visible, not to bless them.
+**Dep:** T-1018
+**Status:** done | **Domain:** Gates/Honesty | **Who:** architect
