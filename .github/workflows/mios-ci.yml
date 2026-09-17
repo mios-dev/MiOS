@@ -48,6 +48,19 @@ jobs:
             || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages $packages
           set -e
 
+      - name: Build the native gate binaries
+        # mios-unit-gen is check_unit_projection's rendering half, so it must
+        # exist before the gate tier runs. Rationale: commit 8abb1e0f.
+        run: |
+          # mios-aiplane-lint is check_agent_pipe_budgets' Rust leg. Without it
+          # the check silently falls to the Python fallback, which still walks a
+          # narrow hardcoded key list -- so the enumerating version (T-1047)
+          # would never run in CI, and the register it enforces would go
+          # unchecked on every PR.
+          cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver -p mios-aiplane-lint -p mios-size-ceiling
+          # The native gate binary backs a check that fails when it is absent.
+          cd ../../src/mios-rs && cargo build -p mios-gate
+
       - name: Generated artifacts match the SSOT
         run: |
           bash ./tools/sync-generated.sh
@@ -72,19 +85,6 @@ jobs:
           git clone --depth 1 https://github.com/mios-dev/mios-bootstrap.git \
               "${RUNNER_TEMP}/mios-bootstrap"
           echo "MIOS_BOOTSTRAP_ROOT=${RUNNER_TEMP}/mios-bootstrap" >> "$GITHUB_ENV"
-
-      - name: Build the native gate binaries
-        # mios-unit-gen is check_unit_projection's rendering half, so it must
-        # exist before the gate tier runs. Rationale: commit 8abb1e0f.
-        run: |
-          # mios-aiplane-lint is check_agent_pipe_budgets' Rust leg. Without it
-          # the check silently falls to the Python fallback, which still walks a
-          # narrow hardcoded key list -- so the enumerating version (T-1047)
-          # would never run in CI, and the register it enforces would go
-          # unchecked on every PR.
-          cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver -p mios-aiplane-lint -p mios-size-ceiling
-          # The native gate binary backs a check that fails when it is absent.
-          cd ../../src/mios-rs && cargo build -p mios-gate
 
       - name: Static analysis tier
         run: bash ./tests/run-suites.sh lint

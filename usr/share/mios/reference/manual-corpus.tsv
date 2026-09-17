@@ -23,11 +23,11 @@
 .github/workflows/mios-ci.yml	30	48	19	193	c90f747b0a61	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:c90f747b0a61	193	1
 .github/workflows/mios-ci.yml	37	40	4	33	33cbeac6be34	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	46	46	1	3	7049f3245d69	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	57	59	3	26	caf1572eec44	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	67	70	4	39	d539d0e0e2a9	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	77	78	2	18	3eccb7bc25b4	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	80	84	5	44	a0305653ecf6	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	86	86	1	13	a9cd0e1dbe91	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	52	53	2	18	3eccb7bc25b4	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	55	59	5	44	a0305653ecf6	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	61	61	1	13	a9cd0e1dbe91	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	70	72	3	26	caf1572eec44	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	80	83	4	39	d539d0e0e2a9	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	124	125	2	19	7fb2aefb3bfd	STAY	local-scoped		0				0
 .github/workflows/mios-ci.yml	137	139	3	26	c994d98176da	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	156	156	1	7	73ad13adbb04	STAY	local-scoped		0				0
