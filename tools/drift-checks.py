@@ -4950,12 +4950,21 @@ def check_docs_ratchet() -> int:
     import os, sys, glob
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     sys.path.insert(0, os.path.join(root, "usr", "lib", "mios"))
+    # mios_comments.py is a tracked deliverable and imports stdlib only, so an
+    # import failure is the subject going missing, never an absent dependency.
+    _rc = _absent(root, os.path.join(root, "usr/lib/mios/mios_comments.py"))
+    if _rc is not None:
+        if _rc:
+            print("usr/lib/mios/mios_comments.py is gone, so no comment block was"
+                  " classified and the ratchet counted nothing")
+        return _rc
     try:
         import tomllib
         import mios_comments as mc
     except Exception as e:
-        sys.stderr.write("[98-drift-checks]   WARNING: docs ratchet unavailable (%s)\n" % e)
-        return 0
+        print("mios_comments.py is present but the docs ratchet could not load it"
+              " (%s), so no comment block was ever classified" % e)
+        return 1
 
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
         data = tomllib.load(fh)
