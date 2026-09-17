@@ -237,3 +237,85 @@ violation:** `[build.tool_dispatch]` 14, `[build.phases].unregistered` 1, `[drif
 - A helper named `regen_and_diff` did not diff. Read a helper before reusing it.
 - Touching `automation/build.sh` promotes it to lint-shell's warning tier and surfaces nine
   pre-existing findings. Budget for them or leave the file alone.
+
+---
+
+## T-1018 stages 5-8 · status: partial
+
+**Done since the last entry.** The negative suite's own vacuous test, then four stage conversions.
+
+- `tests/drift-gate-negatives.sh::test_resolver_differential_parity` hid the FIRST of four
+  resolver binaries and `break`ed, while the check it tests walks all four. On a tree with both a
+  release and a debug build the check found the debug one, so the "no binary under
+  REQUIRE_TOOLS=1" refusal had never executed. Unanchored allowlist, inside the suite that exists
+  to catch unanchored allowlists. It also now declines to claim a proof when
+  `/usr/libexec/mios/mios-resolver` or `/usr/bin/mios-resolver` exists, since those are outside the
+  tree and not the test's to move.
+- **Stage 5, `automation/build.sh`** — the orchestrator. Three defects, compounding: the dispatch
+  never resolved; `MIOS_ROOT` defaulted to `"."` so miosd read the registry against the caller's
+  cwd; and `PhaseRegistry::load_from_toml` swallowed every failure and returned a hardcoded
+  SIX-phase default at exit 0. Together those would have produced a six-of-seventy-one-phase image
+  reporting BUILD COMPLETE. The registry now returns `Result` with a variant per failure.
+- **Stage 6, `76-uki-render`** — and the four subcommands behind it. `render-uki-cmdline`,
+  `generate-quadlets`, `cosign-policy` and `bake-plan` each carried the same five lines: a
+  cwd-relative script path, and an else-branch printing "... up to date." and returning Ok without
+  opening the artefact. Collapsed into one `run_repo_generator` that resolves against MIOS_ROOT and
+  errors when the generator is absent.
+- **Stage 7, `33-generate-quadlets`** — dispatch only; both legs exec the same generator.
+- **Stage 8, `01-system-files-overlay`** — Law 3. The Rust `overlay-bind-images` used `read_dir` at
+  depth 1 where the bash globs `*/` too, so `users/mios-coderun-sandbox@.container` was never
+  bound: an image that would not have shipped with the host. Its `firstboot_tokens` read was also a
+  line scan that would have yielded an EMPTY token set on a reflowed array, and an empty set binds
+  everything including the two heavy GPU lanes the register exists to keep out. Both fixed;
+  symlink failures no longer swallowed. A `--qdir` override was added because with the paths
+  hardcoded there was no way to test the bind without writing to `/usr/share` on the test host.
+
+`[build.tool_dispatch].max_unreachable` **14 → 10**, one per conversion, each refused by the gate
+before I lowered it. `[build.phases].unregistered` is now **empty** (ceiling 0).
+
+**55-native-build.sh was registered, and the register's premise was wrong.** It was held off
+`[build.phases].list` because registering it would create `/usr/bin/miosd` and arm every gate above
+ordinal 55. But the stage guards its whole body on `command -v cargo`, no `[packages]` section
+installs a Rust toolchain, and no phase installs one — so in a bake it warns and does nothing. The
+image's binaries come from the Containerfile's `rust-builder` stage. The symlink has never been
+created. Registering it arms nothing, and since selection went through the glob (which already
+included 55) it changes no phase count: the converted driver selects the same 68 scripts in the
+same order.
+
+**Next: stage 34 is a genuine fork — do not flip its dispatch.** The audit's note that "the Rust
+path is correct and byte-parity would ship a broken image" does not survive measurement:
+
+- 24 of the 48 distinct `${MIOS_*}` placeholders in the shipped corpus are NOT on 34's allowlist.
+- That allowlist is the build-time/runtime boundary, not an oversight.
+  `usr/lib/systemd/system/mios-agents.service` carries its own comment saying its ExecStart uses
+  plain `${VAR}` so **systemd** expands it at runtime from `Environment=` plus
+  `EnvironmentFile=-/etc/mios/install.env` — the mios.toml→env SSOT bridge.
+- `miosd render-quadlets` has no allowlist. Containerfile line 99 exports `MIOS_AI_MODEL` and
+  `MIOS_AI_EMBED_MODEL` for the bake; both appear as `${MIOS_AI_MODEL:-...}` in
+  `etc/mios/kb.conf.toml` and `usr/share/mios/kb/manifest.json`, both inside 34's walk. The Rust
+  path would freeze them at bake and sever the override.
+- It also differs in ways unrelated to the allowlist: `read_dir` depth 1 vs `find -maxdepth 2`, no
+  extension filter, no `mios-llm-heavy` multi-LoRA case, `let _ = fs::write` swallowing failures,
+  no `chmod 0644`.
+
+**Remaining order:** 85 (also forked — two shipping bake-plan implementations, `run_bake_plan`
+shelling out to Python beside a native `src/mios-rs/miosd/src/bake_plan.rs`), 49, 88, 44 (blocked
+on T-1040), 40+51 as one commit, 05, then the hollow-check gate. 49, 88, 40, 51 and 05 are not
+forked.
+
+**Baselines, unchanged across all four conversions:** drift gate **19 violations from six checks**,
+count-for-count; `tests/run-suites.sh unit` **574 passed, 0 failed**; mios-gate four green; cargo
+clippy `--all-targets` and `cargo fmt` clean.
+
+**Unverified:** still no bake. Every conversion is proved by offline diffing and by two-sided
+controls, not by a real build.
+
+**Traps added today:**
+- The corpus ledger goes stale the moment you edit a commented file, and `cargo fmt` counts —
+  re-run `tools/sync-generated.sh` AFTER the last edit or `check_manual_ledger` fails and the
+  baseline reads 20 instead of 19. Cost three gate runs.
+- A comment of 60+ words is classified MIGRATE by the corpus lexer, and
+  `[docs].max_unmigrated_narrative` is 0. Say it in fewer words rather than harvesting a
+  test-local note into the manual.
+- Absolute paths hardcoded inside a checker mean the checker cannot be tested without mutating the
+  host. Give it an override and the two-sided control becomes possible.

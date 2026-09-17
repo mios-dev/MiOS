@@ -169,6 +169,12 @@ enum Commands {
         /// Destination directory for bound image symlinks
         #[arg(long, default_value = "/usr/lib/bootc/bound-images.d")]
         dest: String,
+        /// Quadlet source directory; repeatable. Defaults to the two system
+        /// directories. Exists so the bind can be exercised against a fixture
+        /// tree -- with the paths hardcoded there was no way to test it that
+        /// did not write to /usr/share on the host running the test.
+        #[arg(long = "qdir")]
+        qdirs: Vec<String>,
     },
     /// Run native greenboot health check validation
     Greenboot,
@@ -844,8 +850,8 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::OverlayBindImages { dest } => {
-            if let Err(e) = run_overlay_bind_images(dest) {
+        Commands::OverlayBindImages { dest, qdirs } => {
+            if let Err(e) = run_overlay_bind_images(dest, qdirs) {
                 eprintln!("[miosd] Overlay bind images error: {}", e);
                 std::process::exit(1);
             }
@@ -912,76 +918,147 @@ async fn main() {
     }
 }
 
-fn run_overlay_bind_images(dest_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let bdir = std::path::Path::new(dest_dir);
-    std::fs::create_dir_all(bdir)?;
-
-    let mios_toml_path =
-        std::env::var("MIOS_TOML").unwrap_or_else(|_| "/usr/share/mios/mios.toml".to_string());
-    let mut fb_tokens: Vec<String> = Vec::new();
-    if let Ok(content) = std::fs::read_to_string(&mios_toml_path) {
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with("firstboot_tokens") {
-                if let Some(val) = trimmed.split('=').nth(1) {
-                    let cleaned = val.replace(['[', ']', '"', ','], " ");
-                    for tok in cleaned.split_whitespace() {
-                        fb_tokens.push(tok.to_string());
+/// Collect *.container and *.image at `qdir` and one level below it.
+///
+/// The bash this replaces globs both "${QDIR}/*.container" and
+/// "${QDIR}/*/*.container" (likewise .image). A single read_dir sees only the
+/// first, which silently dropped every Quadlet under a subdirectory -- today
+/// usr/share/containers/systemd/users/mios-coderun-sandbox@.container -- from
+/// /usr/lib/bootc/bound-images.d. An unbound image does not ship with the host
+/// (Law 3: BOUND-IMAGES), and nothing downstream would have said so.
+fn collect_quadlets(qdir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    fn is_quadlet(p: &std::path::Path) -> bool {
+        matches!(
+            p.extension().and_then(|s| s.to_str()).unwrap_or(""),
+            "container" | "image"
+        )
+    }
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(qdir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            if is_quadlet(&path) {
+                out.push(path);
+            }
+        } else if path.is_dir() {
+            if let Ok(sub) = std::fs::read_dir(&path) {
+                for s in sub.flatten() {
+                    let sp = s.path();
+                    if sp.is_file() && is_quadlet(&sp) {
+                        out.push(sp);
                     }
                 }
             }
         }
     }
+    out.sort();
+    out
+}
 
-    let qdirs = vec!["/usr/share/containers/systemd", "/etc/containers/systemd"];
-    for qdir_str in qdirs {
+fn run_overlay_bind_images(
+    dest_dir: &str,
+    qdirs_override: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let bdir = std::path::Path::new(dest_dir);
+    std::fs::create_dir_all(bdir)?;
+
+    // Parse the TOML; do NOT scan lines. The scan this replaces matched any line
+    // starting with "firstboot_tokens" (so "firstboot_tokens_extra" too) and read
+    // only the text after the first '=' on that one line, so a reflow of the
+    // array across lines would yield an EMPTY token set -- and an empty set binds
+    // every image, including the two heavy GPU lanes the register exists to keep
+    // out of the image. Same defect class as render-chrony's silent hardcoded
+    // fallback (T-1018).
+    let mios_toml_path =
+        std::env::var("MIOS_TOML").unwrap_or_else(|_| "/usr/share/mios/mios.toml".to_string());
+    let mut fb_tokens: Vec<String> = Vec::new();
+    let toml_text = std::fs::read_to_string(&mios_toml_path)
+        .map_err(|e| format!("overlay-bind-images: {mios_toml_path} could not be read: {e}"))?;
+    let parsed: toml::Value = toml_text
+        .parse()
+        .map_err(|e| format!("overlay-bind-images: {mios_toml_path} did not parse: {e}"))?;
+    if let Some(arr) = parsed
+        .get("build")
+        .and_then(|b| b.get("bake"))
+        .and_then(|b| b.get("firstboot_tokens"))
+        .and_then(|v| v.as_array())
+    {
+        for tok in arr {
+            if let Some(sv) = tok.as_str() {
+                if !sv.is_empty() {
+                    fb_tokens.push(sv.to_string());
+                }
+            }
+        }
+    }
+
+    let qdirs: Vec<String> = if qdirs_override.is_empty() {
+        vec![
+            "/usr/share/containers/systemd".to_string(),
+            "/etc/containers/systemd".to_string(),
+        ]
+    } else {
+        qdirs_override.to_vec()
+    };
+    for qdir_str in &qdirs {
         let qdir = std::path::Path::new(qdir_str);
         if !qdir.exists() {
             continue;
         }
 
-        if let Ok(entries) = std::fs::read_dir(qdir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-                    if ext == "container" || ext == "image" {
-                        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                        let mut img_line = String::new();
-                        if let Ok(c) = std::fs::read_to_string(&path) {
-                            for l in c.lines() {
-                                if l.starts_with("Image=") {
-                                    img_line = l.trim_start_matches("Image=").trim().to_string();
-                                    break;
-                                }
-                            }
-                        }
-
-                        let mut is_fb = false;
-                        if !img_line.is_empty() {
-                            for tok in &fb_tokens {
-                                if img_line.contains(tok) {
-                                    is_fb = true;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if is_fb {
-                            println!("[miosd] LBI: {} (firstboot tier -- web-pulled at first boot, not bound)", name);
-                            continue;
-                        }
-
-                        let _dst_file = bdir.join(name);
-                        #[cfg(unix)]
-                        {
-                            let _ = std::fs::remove_file(&_dst_file);
-                            let _ = std::os::unix::fs::symlink(&path, &_dst_file);
-                        }
-                        println!("[miosd] LBI: bound {} ({:?})", name, path);
+        for path in collect_quadlets(qdir) {
+            let name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let mut img_line = String::new();
+            if let Ok(c) = std::fs::read_to_string(&path) {
+                for l in c.lines() {
+                    if let Some(rest) = l.strip_prefix("Image=") {
+                        img_line = rest.trim().to_string();
+                        break;
                     }
                 }
             }
+
+            let is_fb = !img_line.is_empty() && fb_tokens.iter().any(|t| img_line.contains(t));
+            if is_fb {
+                println!(
+                    "[miosd] LBI: {} (firstboot tier -- web-pulled at first boot, not bound)",
+                    name
+                );
+                continue;
+            }
+
+            let dst_file = bdir.join(&name);
+            #[cfg(unix)]
+            {
+                // A swallowed symlink failure is an unbound image that still
+                // reports as bound; Law 3 has no way to notice afterwards.
+                match std::fs::remove_file(&dst_file) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => {
+                        return Err(format!(
+                            "overlay-bind-images: cannot replace {}: {e}",
+                            dst_file.display()
+                        )
+                        .into())
+                    }
+                }
+                std::os::unix::fs::symlink(&path, &dst_file).map_err(|e| {
+                    format!(
+                        "overlay-bind-images: cannot bind {} -> {}: {e}",
+                        dst_file.display(),
+                        path.display()
+                    )
+                })?;
+            }
+            println!("[miosd] LBI: bound {} ({})", name, path.display());
         }
     }
 
