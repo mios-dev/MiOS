@@ -728,6 +728,12 @@ test_bake_unresolved_image() {
     local q="${ROOT}/usr/share/containers/systemd/mios-ceph.container"
     local bak="${q}.bak"
     cp "$q" "$bak"
+    # Restore on EVERY exit path. Without this, the `die` on the message
+    # assertion below returned before the `cp` at the end of the function and
+    # left mios-ceph.container mutated, which then failed two later bake tests
+    # that read the same file -- one wording change cost three failures.
+    _bui_restore() { [ -f "$bak" ] && cp "$bak" "$q" && rm -f "$bak"; }
+    trap _bui_restore EXIT INT TERM
 
     sed -i 's|^Image=.*|Image=quay.io/ceph/ceph:${UNRESOLVABLE_PROBE_TAG}|' "$q"
 
@@ -739,9 +745,14 @@ test_bake_unresolved_image() {
 
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT"         MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh"         check_bake_plan >/dev/null 2>&1 && die "check_bake_plan passed despite an Image= that resolves nowhere"
 
-    printf '%s' "$out" | grep -q "does not resolve against the SSOT" || die "check_bake_plan failed without naming the unresolvable Image="
+    # Assert the PROPERTY -- that the check names what failed to resolve -- not
+    # one producer's prose. This matched the Python generator's wording; the
+    # gate now validates the native producer (T-1057), whose message is
+    # different and strictly better because it names the VARIABLE.
+    printf '%s' "$out" | grep -q "UNRESOLVABLE_PROBE_TAG" || die "check_bake_plan failed without naming the unresolvable Image="
 
-    cp "$bak" "$q" && rm -f "$bak"
+    _bui_restore
+    trap - EXIT INT TERM; unset -f _bui_restore
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT"         MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh"         check_bake_plan >/dev/null 2>&1         || die "check_bake_plan failed after restoration"
     log "Test_bake_unresolved_image negative test passed"
 }
