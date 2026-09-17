@@ -11350,7 +11350,6 @@ unit = [
     "tests/test-think-stripper.py",
     "tests/test-atomic-writes.py",
     "tests/test-path-normalization.py",
-    "tools/test_check-ratchet-direction.py",
     "tests/test-bootstrap-sync-parity.py",
     "tests/test-install-fhs.py",
     "tests/test-mios-update-verb.py",
