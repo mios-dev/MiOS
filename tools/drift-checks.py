@@ -3958,61 +3958,6 @@ def check_negative_coverage() -> int:
 
     return 0
 
-def check_law_enforcers() -> int:
-    import os, sys, re
-    import tomllib
-
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(toml_path):
-        # A tracked deliverable. Its absence is the anomaly, not a
-        # reason to report success.
-        print('check_law_enforcers: a required SSOT file is missing, so nothing was'
-              ' compared', file=sys.stderr)
-        return 1
-
-    with open(toml_path, "rb") as f:
-        data = tomllib.load(f)
-
-    laws_section = data.get("laws", {})
-    laws = laws_section.get("laws", [])
-    drift_script = os.path.join(root, "automation/98-drift-checks.sh")
-    with open(drift_script, "r", encoding="utf-8") as f:
-        drift_code = f.read()
-
-    postcheck_script = os.path.join(root, "automation/99-postcheck.sh")
-    postcheck_code = ""
-    if os.path.isfile(postcheck_script):
-        with open(postcheck_script, "r", encoding="utf-8") as f:
-            postcheck_code = f.read()
-
-    missing = []
-    for law in laws:
-        if not isinstance(law, dict):
-            continue
-        law_id = law.get("id")
-        slug = law.get("slug")
-        enforced = law.get("enforced_by", "")
-        for target in [t.strip() for t in enforced.split(",") if t.strip()]:
-            if ":" not in target:
-                continue
-            fname, ref = target.split(":", 1)
-            fname = fname.strip()
-            ref = ref.strip()
-            if fname == "98-drift-checks.sh":
-                if not re.search(rf"^{ref}\s*\(\)", drift_code, re.MULTILINE):
-                    missing.append(f"Law {law_id} ({slug}) -> {target} not found in 98-drift-checks.sh")
-            elif fname == "99-postcheck.sh":
-                if not os.path.isfile(postcheck_script) or (ref not in postcheck_code and f"item{ref}" not in postcheck_code):
-                    missing.append(f"Law {law_id} ({slug}) -> {target} not found in 99-postcheck.sh")
-
-    if missing:
-        for m in missing:
-            sys.stderr.write(f"    {m}\n")
-        return 1
-
-    return 0
-
 def check_usr_over_etc() -> int:
     import os, sys, subprocess
 
@@ -5309,7 +5254,6 @@ SUBCOMMANDS = {
     "bib-rootfs-label-policy": check_bib_rootfs_label_policy,
     "smoke-manifest": check_smoke_manifest,
     "negative-coverage": check_negative_coverage,
-    "law-enforcers": check_law_enforcers,
     "usr-over-etc": check_usr_over_etc,
     "projection-registry": check_projection_registry,
     "bib-config-mount": check_bib_config_mount,

@@ -1754,19 +1754,57 @@ EOF
 
 test_law_enforcers() {
     log "Testing check_law_enforcers"
-    local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local bak_file="${toml_file}.law_bak"
-    cp "$toml_file" "$bak_file"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local post="${ROOT}/automation/99-postcheck.sh"
+    local tbak pbak
+    tbak="$(mktemp)"; pbak="$(mktemp)"
+    cp "$toml" "$tbak"; cp "$post" "$pbak"
+    _le_fail() {
+        cp "$tbak" "$toml"; cp "$pbak" "$post"; rm -f "$tbak" "$pbak"
+        unset -f _le_fail
+        die "$1"
+    }
 
-    sed -i 's/check_usr_over_etc/check_nonexistent_bogus_law/' "$toml_file"
+    # A drift-check target that names no function.
+    sed -i 's/check_usr_over_etc/check_nonexistent_bogus_law/' "$toml"
+    _neg_gate check_law_enforcers && _le_fail "check_law_enforcers passed with a drift-check target that is not defined"
+    cp "$tbak" "$toml"
 
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_law_enforcers >/dev/null 2>&1 && die "Check_law_enforcers passed despite missing law enforcer"
+    # T-1049: the defect this check could not see. A marker that exists ONLY in
+    # a comment after the script's `exit 0` is not enforcement, and the previous
+    # reader matched it as a bare substring for four laws at once.
+    sed -i 's|99-postcheck.sh:BOUND-IMAGES|99-postcheck.sh:item14|' "$toml"
+    printf '\n# References for laws: item14\n' >> "$post"
+    _neg_gate check_law_enforcers && _le_fail "check_law_enforcers passed with an enforcer that exists only in a comment after exit 0"
+    case "${_NEG_GATE_OUT}" in
+        *"only in a comment or after"*) : ;;
+        *) _le_fail "check_law_enforcers failed for the wrong reason on a commented enforcer: ${_NEG_GATE_OUT}" ;;
+    esac
+    cp "$tbak" "$toml"; cp "$pbak" "$post"
 
-    cp "$bak_file" "$toml_file"
-    rm -f "$bak_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_law_enforcers >/dev/null 2>&1 \
-        || die "Check_law_enforcers failed after restoration"
-    log "Test_law_enforcers negative test passed"
+    # A marker that is nowhere at all must fail too, so the case above is not
+    # passing merely because the name was unusual.
+    sed -i 's|99-postcheck.sh:BARE-SAFE-ENV|99-postcheck.sh:NO-SUCH-MARKER-ANYWHERE|' "$toml"
+    _neg_gate check_law_enforcers && _le_fail "check_law_enforcers passed with a postcheck marker that appears nowhere"
+    cp "$tbak" "$toml"
+
+    # The bare second enforcer in a comma list inherits its file rather than
+    # being dropped: the old reader split on comma first and skipped any piece
+    # without a colon, so Law 12's second target was never checked.
+    sed -i 's/check_dag_integrity,check_firstboot_degrade_open/check_dag_integrity,check_never_defined_anywhere/' "$toml"
+    _neg_gate check_law_enforcers && _le_fail "check_law_enforcers passed with an undefined SECOND enforcer in a comma list"
+    cp "$tbak" "$toml"
+
+    # An enforcer kind this check cannot verify must say so rather than fall
+    # through to silence, which is what happened to every unrecognised prefix.
+    sed -i 's|98-drift-checks.sh:check_no_hardcode|somewhere-else.sh:check_no_hardcode|' "$toml"
+    _neg_gate check_law_enforcers && _le_fail "check_law_enforcers passed with an unrecognised enforcer kind"
+    cp "$tbak" "$toml"
+
+    rm -f "$tbak" "$pbak"
+    unset -f _le_fail
+    _neg_gate check_law_enforcers || die "check_law_enforcers failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_law_enforcers negative test passed"
 }
 
 test_usr_over_etc() {

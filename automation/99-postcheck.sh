@@ -3,6 +3,7 @@
 # AI-hint: Final build-time validation script that enforces mandatory security invariants, such as OpenSSH version minimums and C...
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
@@ -620,4 +621,3 @@ fi
 mios_ok "Validation successful"
 exit 0
 
-# References for laws: item14 item12 item16 item17

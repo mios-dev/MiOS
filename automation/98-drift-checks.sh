@@ -2960,12 +2960,26 @@ check_guacamole_consistency() {
 }
 
 check_law_enforcers() {
-    _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py law-enforcers
-    then
-        echo "[98-drift-checks]   all [laws].enforced_by targets resolve in codebase"
+    # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
+    # commit. The successor is strictly stronger: the old reader matched a
+    # 99-postcheck.sh target as a bare SUBSTRING, which a comment after `exit 0`
+    # satisfied for four laws, and it silently dropped both a bare second
+    # enforcer in a comma list and any unrecognised enforcer kind.
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_law_enforcers could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    if "$bin" law-enforcers --root "$ROOT"; then
+        echo "[98-drift-checks]   all [laws].enforced_by targets resolve to live enforcement"
     else
-        _violation "[laws].enforced_by target function missing from codebase"
+        _violation "a [laws].enforced_by target does not resolve to live enforcement -- a comment or dead code is not an enforcer"
     fi
 }
 

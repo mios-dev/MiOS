@@ -2151,15 +2151,15 @@ seccomp_deny   = ["swapon", "swapoff", "reboot", "settimeofday", "clock_settime"
 laws = [
   { id = 1,  slug = "USR-OVER-ETC",         applies_to = "both",  enforced_by = "98-drift-checks.sh:check_usr_over_etc" },
   { id = 2,  slug = "NO-MKDIR-IN-VAR",       applies_to = "both",  enforced_by = "98-drift-checks.sh:check_no_mkdir_in_var" },
-  { id = 3,  slug = "BOUND-IMAGES",          applies_to = "bootc", enforced_by = "99-postcheck.sh:item14" },
+  { id = 3,  slug = "BOUND-IMAGES",          applies_to = "bootc", enforced_by = "99-postcheck.sh:BOUND-IMAGES" },
   { id = 4,  slug = "BOOTC-CONTAINER-LINT",  applies_to = "bootc", enforced_by = "98-drift-checks.sh:check_lint_is_final" },
-  { id = 5,  slug = "UNIFIED-AI-REDIRECTS",  applies_to = "both",  enforced_by = "99-postcheck.sh:item12" },
+  { id = 5,  slug = "UNIFIED-AI-REDIRECTS",  applies_to = "both",  enforced_by = "99-postcheck.sh:UNIFIED-AI-REDIRECTS" },
   { id = 6,  slug = "UNPRIVILEGED-QUADLETS", applies_to = "bootc", enforced_by = "98-drift-checks.sh:check_quadlet_privilege" },
   { id = 7,  slug = "NO-HARDCODE",           applies_to = "both",  enforced_by = "98-drift-checks.sh:check_no_hardcode" },
   { id = 8,  slug = "SSOT-PROJECTION",       applies_to = "both",  enforced_by = "98-drift-checks.sh:check_projection_registry" },
   { id = 9,  slug = "ONE-CANONICAL-NAME",    applies_to = "both",  enforced_by = "98-drift-checks.sh:check_var_closure" },
-  { id = 10, slug = "BARE-SAFE-ENV",         applies_to = "both",  enforced_by = "99-postcheck.sh:item16" },
-  { id = 11, slug = "SECRETS-NEVER-IN-ENV",  applies_to = "bootc", enforced_by = "99-postcheck.sh:item17" },
+  { id = 10, slug = "BARE-SAFE-ENV",         applies_to = "both",  enforced_by = "99-postcheck.sh:BARE-SAFE-ENV" },
+  { id = 11, slug = "SECRETS-NEVER-IN-ENV",  applies_to = "bootc", enforced_by = "99-postcheck.sh:SECRETS-NEVER-IN-ENV" },
   { id = 12, slug = "BAKE-NOT-FETCH",        applies_to = "both",  enforced_by = "98-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open" },
   { id = 13, slug = "NATIVE-DROPINS",        applies_to = "both",  enforced_by = "98-drift-checks.sh:check_resolver_twin_parity" },
   { id = 14, slug = "TARGET-LANGUAGES",      applies_to = "both",  enforced_by = "98-drift-checks.sh:check_target_languages" },
@@ -11233,16 +11233,15 @@ max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are no
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 121269  # +15 on merging origin/main @04fd07a4, and the
-                                   # ratchet cannot tell this from me adding Python.
-                                   # 14 lines are main's own a328b2fd (the Law 9 gate
-                                   # fix in mios_var_closure.py) and are not mine to
-                                   # fold or delete; 1 is a deliberate one-line comment
-                                   # in render-globals.py marking why that line is not
-                                   # an f-string, which is what stopped the file
-                                   # PARSING on the bake interpreter (T-1031). The
-                                   # register has no concept of a base-branch merge --
-                                   # filed as T-1046.
+max_tooling_python_lines = 121213  # -56: check_law_enforcers ported to mios-gate and
+                                   # its Python twin deleted in the same commit
+                                   # (ADR-0021, T-1049). Pulled down to the new
+                                   # measurement rather than left as slack -- a
+                                   # ceiling above what it measures is headroom
+                                   # nobody earned. The previous value carried +15
+                                   # inherited from merging origin/main @04fd07a4,
+                                   # which the register cannot distinguish from
+                                   # branch growth -- filed as T-1046.
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]

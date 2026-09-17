@@ -156,7 +156,7 @@
 155	check_resolver_differential_parity	differential output between resolvers across platforms is zero
 156	check_generator_host_parity	generators avoid the non-portable fnmatch.fnmatch idiom (source check, nothing is rendered)
 157	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
-158	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
+158	check_law_enforcers	all [laws].enforced_by targets resolve to live enforcement
 159	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
 160	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
 161	check_projection_coverage	every SSOT projector in scope is on the Law 8 registry

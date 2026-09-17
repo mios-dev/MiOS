@@ -6,6 +6,7 @@
 
 mod credentials;
 mod dispatch;
+mod laws;
 mod phases;
 mod projreg;
 mod sigpolicy;
@@ -77,7 +78,8 @@ impl Report {
 
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
                      checks: build-tool-dispatch, credential-literals, drift-stubs,\n\
-                             phase-registry, projection-coverage, signature-policy\n";
+                             law-enforcers, phase-registry, projection-coverage,\n\
+                             signature-policy\n";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -134,6 +136,7 @@ fn main() -> ExitCode {
         "build-tool-dispatch" => dispatch::check(&root),
         "credential-literals" => credentials::check(&root),
         "drift-stubs" => stubs::check(&root),
+        "law-enforcers" => laws::check(&root),
         "phase-registry" => phases::check(&root),
         "projection-coverage" => projreg::check(&root),
         "signature-policy" => sigpolicy::check(&root),
