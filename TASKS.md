@@ -1044,7 +1044,7 @@
 | T-1056 | P2 | planned | Build/Generators | NAMESGEN-01 -- tools/native/generate-names-registry is built and never called; sync-generated still runs the Python twin |
 | T-1057 | P1 | planned | Build/BakePlan | BAKEPARITY-01 -- the bake stage prefers a generator two fixes behind the one check_bake_plan validates; bare, it renders nothing and blames the SSOT |
 | T-1058 | P0 | done | Build/Quadlets | SOCKETREND-01 -- mios-cockpit-link.socket shipped ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}; the renderer's find filter had no *.socket |
-| T-1059 | P1 | planned | Build/Toolchain | TOOLCHAIN-01 -- nothing pins a Rust toolchain; CI lints with whatever the runner ships, and a 1.98 lint killed four pushes that were clean under 1.94 |
+| T-1059 | P1 | done | Build/Toolchain | TOOLCHAIN-01 -- nothing pins a Rust toolchain; CI lints with whatever the runner ships, and a 1.98 lint killed four pushes that were clean under 1.94 |
 
 ---
 
@@ -11619,4 +11619,4 @@ The two shapes want opposite treatment and the mechanism currently has only one 
   **The tension, and how it was settled:** a pin argues with the standing "latest packages" convention -- it freezes the linter, and new lints then arrive only when someone bumps the row rather than on the day the runner changes. Put to the operator as reproducibility against staying current; they chose reproducibility. "Latest packages" still governs the value in the row, which is bumped forward on next touch like every other pin -- what changes is that the bump is a commit somebody reviews instead of a runner-image change nobody sees.
 **Done When:** the Rust toolchain version is a single SSOT value, projected rather than hand-written, and a local `cargo clippy -- -D warnings` and CI's cannot disagree about which lints are in force.
 **Dep:** --
-**Status:** planned | **Domain:** Build/Toolchain | **Who:** architect
+**Status:** done | **Domain:** Build/Toolchain | **Who:** architect
