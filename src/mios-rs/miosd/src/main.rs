@@ -1334,40 +1334,53 @@ fn run_finalize_osrelease(
     Ok(())
 }
 
-fn run_cosign_policy(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let py_script = std::path::Path::new("tools/generate-cosign-policy.py");
-    if py_script.exists() {
-        let mut cmd = std::process::Command::new("python3");
-        cmd.arg(py_script);
-        if check {
-            cmd.arg("--check");
-        }
-        let status = cmd.status()?;
-        if !status.success() {
-            return Err("generate-cosign-policy python execution failed".into());
-        }
-    } else {
-        println!("[miosd] cosign-policy: policy.json up to date.");
+/// Run one of the repo's generator scripts, resolved against MIOS_ROOT.
+///
+/// Four subcommands each carried their own copy of this. Every copy resolved
+/// the script relative to the process working directory, and every copy ended
+/// in an else-branch that printed "... up to date." and returned Ok when the
+/// script was not there -- a claim about an artefact it had never opened. Run
+/// from anywhere but the repo root, `miosd render-uki-cmdline` reported the
+/// kernel cmdline current without reading a single kargs.d fragment, and the
+/// build stage that called it took that for a render (T-1018).
+///
+/// An absent generator is now an error naming the root it looked under, so a
+/// wrong MIOS_ROOT fails loudly instead of passing quietly.
+fn run_repo_generator(
+    rel: &str,
+    check: bool,
+    subject: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
+    let script = std::path::Path::new(&root).join(rel);
+    if !script.is_file() {
+        return Err(format!(
+            "{}: generator {} not found (MIOS_ROOT={}) -- nothing was rendered, \
+             so nothing can be reported up to date",
+            subject,
+            script.display(),
+            root
+        )
+        .into());
+    }
+    let mut cmd = std::process::Command::new("python3");
+    cmd.arg(&script);
+    if check {
+        cmd.arg("--check");
+    }
+    let status = cmd.status()?;
+    if !status.success() {
+        return Err(format!("{}: {} failed", subject, script.display()).into());
     }
     Ok(())
 }
 
+fn run_cosign_policy(check: bool) -> Result<(), Box<dyn std::error::Error>> {
+    run_repo_generator("tools/generate-cosign-policy.py", check, "cosign-policy")
+}
+
 fn run_bake_plan(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let py_script = std::path::Path::new("tools/generate-bake-plan.py");
-    if py_script.exists() {
-        let mut cmd = std::process::Command::new("python3");
-        cmd.arg(py_script);
-        if check {
-            cmd.arg("--check");
-        }
-        let status = cmd.status()?;
-        if !status.success() {
-            return Err("generate-bake-plan python execution failed".into());
-        }
-    } else {
-        println!("[miosd] bake-plan: bake plan lists up to date.");
-    }
-    Ok(())
+    run_repo_generator("tools/generate-bake-plan.py", check, "bake-plan")
 }
 
 fn run_firewall_ports() -> Result<(), Box<dyn std::error::Error>> {
@@ -1537,37 +1550,9 @@ fn run_render_chrony(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std:
 }
 
 fn run_render_uki_cmdline(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let py_script = std::path::Path::new("tools/generate-uki-cmdline.py");
-    if py_script.exists() {
-        let mut cmd = std::process::Command::new("python3");
-        cmd.arg(py_script);
-        if check {
-            cmd.arg("--check");
-        }
-        let status = cmd.status()?;
-        if !status.success() {
-            return Err("generate-uki-cmdline python execution failed".into());
-        }
-    } else {
-        println!("[miosd] render-uki-cmdline: kernel cmdline up to date.");
-    }
-    Ok(())
+    run_repo_generator("tools/generate-uki-cmdline.py", check, "render-uki-cmdline")
 }
 
 fn run_generate_quadlets(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let py_script = std::path::Path::new("tools/generate-pod-quadlets.py");
-    if py_script.exists() {
-        let mut cmd = std::process::Command::new("python3");
-        cmd.arg(py_script);
-        if check {
-            cmd.arg("--check");
-        }
-        let status = cmd.status()?;
-        if !status.success() {
-            return Err("generate-pod-quadlets python execution failed".into());
-        }
-    } else {
-        println!("[miosd] generate-quadlets: quadlets up to date.");
-    }
-    Ok(())
+    run_repo_generator("tools/generate-pod-quadlets.py", check, "generate-quadlets")
 }
