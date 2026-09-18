@@ -66,7 +66,8 @@ _step_header() {
     local step=$1 total=$2 name=$3 elapsed_total=$4
     local elapsed_fmt
     elapsed_fmt=$(printf '%02d:%02d' $(( elapsed_total / 60 )) $(( elapsed_total % 60 )))
-    local label="STEP $(printf '%02d' "$step")/$(printf '%02d' "$total") : ${name}"
+    local label
+    label="STEP $(printf '%02d' "$step")/$(printf '%02d' "$total") : ${name}"
     local right=" ${elapsed_fmt}"
     local inner=$(( W - 6 ))
     local label_len=${#label} right_len=${#right}
@@ -145,16 +146,16 @@ _warn_report() {
 }
 
 _final_summary() {
-    local scripts=$1 fails=$2 warns=$3 missing_pkgs=$4 elapsed=$5
+    local scripts=$1 fail_count=$2 warn_count=$3 missing_pkgs=$4 elapsed=$5
     local result_label
-    if [[ $fails -gt 0 ]]; then result_label="BUILD FAILED"; else result_label="BUILD COMPLETE"; fi
+    if [[ $fail_count -gt 0 ]]; then result_label="BUILD FAILED"; else result_label="BUILD COMPLETE"; fi
     local elapsed_fmt
     elapsed_fmt=$(printf '%dm %02ds' $(( elapsed / 60 )) $(( elapsed % 60 )))
     _hline '=' '+' '+'
     _row "  'MiOS' ${VERSION_STR} -- ${result_label}"
     _hline '-' '+' '+'
     _row "  Duration:   ${elapsed_fmt}"
-    _row "  Scripts:    ${scripts} executed | ${fails} FAILED | ${warns} warned"
+    _row "  Scripts:    ${scripts} executed | ${fail_count} FAILED | ${warn_count} warned"
     _row "  Packages:   ${missing_pkgs} critical missing"
     _hline '-' '+' '+'
 }
@@ -215,17 +216,48 @@ auth=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
     if ($0 ~ /=[[:space:]]*true/) print "true"
 }' "$MIOS_TOML" 2>/dev/null || true)
 
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# nothing puts on PATH at bake time, so this lookup could never succeed and the
+# whole Rust dispatch below it was dead on every build ever run (T-1018).
+_miosd=""
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "${_build_root}/src/mios-rs/target/release/miosd" \
+          "${_build_root}/src/mios-rs/target/debug/miosd"; do
+    if [[ -n "$_c" && -x "$_c" ]]; then _miosd="$_c"; break; fi
+done
+
+# miosd resolves the registry as $MIOS_ROOT/usr/share/mios/mios.toml, so the
+# root has to be derived from the manifest this script already validated --
+# not left to miosd's "." default, which depends on the caller's cwd.
+_mios_root="${MIOS_TOML%/usr/share/mios/mios.toml}"
+[[ "$_mios_root" == "$MIOS_TOML" ]] && _mios_root="$_build_root"
+
 ALL_SCRIPTS=()
-if command -v miosd >/dev/null 2>&1; then
-    mapfile -t PHASE_SCRIPTS < <(miosd build --list 2>/dev/null | awk -F':' '{print $1}')
-    if (( ${#PHASE_SCRIPTS[@]} > 0 )); then
-        for _n in "${PHASE_SCRIPTS[@]}"; do
-            echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
-            if [[ -f "$SCRIPT_DIR/$_n" ]]; then
-                ALL_SCRIPTS+=("$SCRIPT_DIR/$_n")
-            fi
-        done
+if [[ -n "$_miosd" ]]; then
+    _phase_list="$(mktemp)"
+    # No pipe: $? after one reports the pipe's status, not miosd's.
+    if MIOS_ROOT="$_mios_root" "$_miosd" build --list >"$_phase_list" 2>&1; then
+        mapfile -t PHASE_SCRIPTS < <(awk -F':' '{print $1}' "$_phase_list")
+    else
+        # A short or absent phase list is not a degraded build, it is a
+        # different build wearing the same success message. Refuse.
+        printf '[FATAL] miosd build --list failed (MIOS_ROOT=%s)\n' "$_mios_root" >&2
+        sed 's/^/        /' "$_phase_list" >&2
+        rm -f "$_phase_list"
+        exit 1
     fi
+    rm -f "$_phase_list"
+    if (( ${#PHASE_SCRIPTS[@]} == 0 )); then
+        printf '[FATAL] miosd build --list returned no phases\n' >&2
+        exit 1
+    fi
+    for _n in "${PHASE_SCRIPTS[@]}"; do
+        echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
+        if [[ -f "$SCRIPT_DIR/$_n" ]]; then
+            ALL_SCRIPTS+=("$SCRIPT_DIR/$_n")
+        fi
+    done
 fi
 
 if (( ${#ALL_SCRIPTS[@]} == 0 )); then
@@ -326,7 +358,7 @@ echo ""
 _hline '-' '+' '+'
 _row " POST-BUILD: Package Health Check"
 _hline '-' '+' '+'
-CRITICAL_PACKAGES=($(get_packages "critical" 2>/dev/null || true))
+mapfile -t CRITICAL_PACKAGES < <(get_packages "critical" 2>/dev/null || true)
 VALIDATION_FAIL=0
 PKG_OK=0
 PKG_MISS=0
@@ -422,6 +454,7 @@ if [[ -d "$_agent_pipe_dir" ]] && [[ -x "$_test_py" ]]; then
             _row "  [SKIP] $_tb (DB-integration -- needs live pgvector; runs in CI/runtime)"
             continue
         fi
+        # shellcheck disable=SC2046  # compgen emits one name per line; unset needs them split
         if _tout="$( cd "$_agent_pipe_dir" && { unset $(compgen -v MIOS_ 2>/dev/null); "$_test_py" "$_tb"; } 2>&1 | tr -d '\0' )"; then
             _row "  [ OK ] $_tb"
         else
@@ -445,6 +478,7 @@ if [[ -d "$_libexec_dir" ]] && command -v python3 >/dev/null 2>&1; then
     shopt -s nullglob
     for _t in "$_libexec_dir"/test_mios_*.py; do
         # MIOS_* resolver exports so hermetic libexec tests match the drift-gate.
+        # shellcheck disable=SC2046  # compgen emits one name per line; unset needs them split
         if _lxout="$( cd "$_libexec_dir" && { unset $(compgen -v MIOS_ 2>/dev/null); PYTHONIOENCODING=utf-8 python3 "$(basename "$_t")"; } 2>&1 )"; then
             _row "  [ OK ] $(basename "$_t")"
         else

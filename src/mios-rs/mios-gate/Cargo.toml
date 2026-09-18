@@ -1,0 +1,15 @@
+# AI-hint: Crate manifest for mios-gate -- the native drift-gate binary (ADR-0021 category: gate).
+# AI-related: src/mios-rs/Cargo.toml, automation/98-drift-checks.sh, usr/share/mios/mios.toml
+[package]
+name = "mios-gate"
+version.workspace = true
+edition.workspace = true
+description = "MiOS native drift-gate checks (ADR-0021 gate category)"
+
+[dependencies]
+regex = "1"
+serde_json = "1.0"
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3"

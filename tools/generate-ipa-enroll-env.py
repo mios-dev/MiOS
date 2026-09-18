@@ -33,7 +33,8 @@ def main():
     server = ipa.get("server", "ipa.mios.internal")
     domain = ipa.get("domain", "mios.internal")
     principal = ipa.get("enroll_principal", "admin")
-    otp = ipa.get("otp", "placeholder-one-time-password")
+    otp_file = ipa.get("otp_file", "/etc/mios/secrets.env")
+    otp_key = ipa.get("otp_key", "MIOS_IPA_OTP")
 
     rendered = f"""# FreeIPA Zero-Touch Enrollment Config
 MIOS_IPA_ENABLED="{enabled}"
@@ -41,7 +42,8 @@ MIOS_IPA_REALM="{realm}"
 MIOS_IPA_SERVER="{server}"
 MIOS_IPA_DOMAIN="{domain}"
 MIOS_IPA_ENROLL_PRINCIPAL="{principal}"
-MIOS_IPA_OTP="{otp}"
+MIOS_IPA_OTP_FILE="{otp_file}"
+MIOS_IPA_OTP_KEY="{otp_key}"
 """
 
     if check_mode:

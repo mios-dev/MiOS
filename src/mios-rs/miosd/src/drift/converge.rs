@@ -12,7 +12,7 @@ impl Check for ConvergeSSOTCheck {
         "Assert system convergence scripts agree with SSOT model"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Converge SSOT check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Converge SSOT".to_string())
     }
 }
 
@@ -25,7 +25,7 @@ impl Check for GuacamoleConsistencyCheck {
         "Assert guacamole configuration matches SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Guacamole consistency check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Guacamole consistency".to_string())
     }
 }
 
@@ -38,6 +38,6 @@ impl Check for RouterParityCheck {
         "Assert model router configuration matches SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Router parity check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Router parity".to_string())
     }
 }

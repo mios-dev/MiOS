@@ -1,0 +1,14 @@
+# AI-hint: Cargo manifest for mios-toolchain-pin -- projects the repo-root rust-toolchain.toml from [build.toolchain].
+# AI-related: usr/share/mios/mios.toml, automation/98-drift-checks.sh, tools/sync-generated.sh
+
+[package]
+name = "mios-toolchain-pin"
+version.workspace = true
+edition.workspace = true
+description = "Project the repo-root rust-toolchain.toml from the [build.toolchain] SSOT"
+
+[dependencies]
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3"

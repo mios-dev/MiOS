@@ -1,14 +1,47 @@
 #!/usr/bin/env python3
+# AI-hint: MiOS system and orchestration module providing generate-pipeline-index capabilities.
+# AI-functions: _ssot, main
 
 import os
 import sys
 import glob
 import re
 
+def _ssot(root):
+    """The layered SSOT; {} when unreadable (degrade-open)."""
+    for lib in (os.path.join(root, "usr/lib/mios"), "/usr/lib/mios"):
+        if os.path.isdir(lib) and lib not in sys.path:
+            sys.path.insert(0, lib)
+    try:
+        import mios_toml
+        return mios_toml.load_merged() or {}
+    except Exception:
+        try:
+            import tomllib
+        except ImportError:
+            return {}
+        try:
+            with open(os.environ.get("MIOS_TOML") or os.path.join(
+                    root, "usr/share/mios/mios.toml"), "rb") as fh:
+                return tomllib.load(fh) or {}
+        except OSError:
+            return {}
+
 def main():
     root = os.environ.get("MIOS_DRIFT_ROOT", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     automation_dir = os.path.join(root, "automation")
-    output_path = os.path.join(root, "usr/share/mios/reference/pipeline-index.tsv")
+
+    # The scheme this generator projects is declared, not restated: the map it
+    # writes, the numbering space it accepts, and whether prefixes must be
+    # unique all come from the SSOT that documents them.
+    cfg = _ssot(root).get("pipeline") or {}
+    space = cfg.get("space") or {}
+    invariants = cfg.get("invariants") or {}
+    nn_min = int(space.get("min", 0))
+    nn_max = int(space.get("max", 99))
+    prefix_unique = bool(invariants.get("prefix_unique", True))
+    output_path = os.path.join(root, str(
+        cfg.get("map") or "usr/share/mios/reference/pipeline-index.tsv"))
 
     if not os.path.isdir(automation_dir):
         sys.stderr.write(f"ERROR: {automation_dir} not found\n")
@@ -26,7 +59,12 @@ def main():
             continue
         nn, name = match.group(1), match.group(2)
 
-        if nn in seen_nns:
+        if not (nn_min <= int(nn) <= nn_max):
+            sys.stderr.write(
+                f"ERROR: {basename} prefix {nn} is outside the declared "
+                f"[pipeline].space {nn_min}..{nn_max}\n")
+            sys.exit(1)
+        if prefix_unique and nn in seen_nns:
             sys.stderr.write(f"ERROR: Duplicate NN prefix found: {nn} in {basename}\n")
             sys.exit(1)
         seen_nns.add(nn)

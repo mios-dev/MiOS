@@ -151,24 +151,45 @@ enum Commands {
         spec: String,
     },
     /// Symlink security services into multi-user.target.wants and fix config perms
-    Harden,
+    Harden {
+        /// Prefix every system path with this directory. Defaults to "/".
+        /// Exists so the hardening can be exercised against a fixture tree --
+        /// with the paths hardcoded absolute there was no way to test it that
+        /// did not rewrite fapolicyd.conf and systemd's wants directory on the
+        /// machine running the test.
+        #[arg(long, default_value = "/")]
+        root: String,
+    },
     /// Render /etc/yum.repos.d/fedora-{version}.repo file
     RenderRepos {
         /// Force online metalink mode (defaults to local vendored mirror if present)
         #[arg(long)]
         online: bool,
-        /// Fedora release version (defaults to 44)
-        #[arg(long, default_value = "44")]
+        /// Fedora release version. No default: the version belongs to
+        /// mios.toml [versions].fedora and the caller passes it, rather than a
+        /// literal here going stale beside it (Law 7).
+        #[arg(long)]
         fedora_version: String,
         /// Target repo file path (defaults to /etc/yum.repos.d/fedora-{version}.repo)
         #[arg(long)]
         output: Option<String>,
+        /// Vendored RPM mirror to probe for. Defaults to the system path;
+        /// overridable so the offline branch can be exercised against a
+        /// fixture instead of only on a host that happens to have the mirror.
+        #[arg(long, default_value = "/usr/share/mios/vendored/rpms")]
+        vendored_dir: String,
     },
     /// Bind Quadlet images into /usr/lib/bootc/bound-images.d excluding firstboot tokens
     OverlayBindImages {
         /// Destination directory for bound image symlinks
         #[arg(long, default_value = "/usr/lib/bootc/bound-images.d")]
         dest: String,
+        /// Quadlet source directory; repeatable. Defaults to the two system
+        /// directories. Exists so the bind can be exercised against a fixture
+        /// tree -- with the paths hardcoded there was no way to test it that
+        /// did not write to /usr/share on the host running the test.
+        #[arg(long = "qdir")]
+        qdirs: Vec<String>,
     },
     /// Run native greenboot health check validation
     Greenboot,
@@ -206,6 +227,76 @@ enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+}
+
+/// Prefix + name + suffix. An ordinal prefix is a seed, not a literal.
+/// Twin of `get_dest_path` in usr/libexec/mios/mios-new.
+fn resolve_name(
+    name: &str,
+    cfg: &toml::Value,
+    repo_root: &std::path::Path,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut final_name = name.to_string();
+    let dest_dir = cfg.get("dest_dir").and_then(|d| d.as_str()).unwrap_or(".");
+
+    if let Some(prefix) = cfg.get("name_prefix").and_then(|p| p.as_str()) {
+        match regex::Regex::new(r"^(\d+)-$")?.captures(prefix) {
+            Some(caps) => {
+                let width = caps[1].len();
+                if !regex::Regex::new(r"^\d+-")?.is_match(&final_name) {
+                    let n = if cfg
+                        .get("name_ordinal_next")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
+                        next_ordinal(&repo_root.join(dest_dir), width)
+                    } else {
+                        caps[1].parse::<u32>().unwrap_or(1)
+                    };
+                    final_name = format!("{:0width$}-{}", n, final_name, width = width);
+                }
+            }
+            None => {
+                if !final_name.starts_with(prefix) {
+                    final_name = format!("{}{}", prefix, final_name);
+                }
+            }
+        }
+    }
+
+    if let Some(suffix) = cfg.get("name_suffix").and_then(|s| s.as_str()) {
+        if !final_name.ends_with(suffix) {
+            final_name = format!("{}{}", final_name, suffix);
+        }
+    }
+
+    Ok(final_name)
+}
+
+/// Lowest unused ordinal in `dest_dir`. The listing IS the allocation record,
+/// so it cannot drift the way a hand-bumped `name_prefix` did. Missing or empty
+/// yields 1. Twin of `next_ordinal` in usr/libexec/mios/mios-new.
+fn next_ordinal(dest_dir: &std::path::Path, width: usize) -> u32 {
+    let mut used = std::collections::HashSet::new();
+    if let Ok(entries) = std::fs::read_dir(dest_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let digits: String = name.chars().take(width).collect();
+            if digits.len() == width
+                && digits.chars().all(|c| c.is_ascii_digit())
+                && name.chars().nth(width) == Some('-')
+            {
+                if let Ok(n) = digits.parse::<u32>() {
+                    used.insert(n);
+                }
+            }
+        }
+    }
+    let mut n = 1;
+    while used.contains(&n) {
+        n += 1;
+    }
+    n
 }
 
 fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -250,13 +341,27 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
         }
     }
 
+    // Name BEFORE render: {{id}} must agree with the filename the allocator chose.
+    let final_name = match tmpl_cfg.as_ref() {
+        Some(cfg) => resolve_name(name, cfg, &repo_root)?,
+        None => name.to_string(),
+    };
+    let ordinal = regex::Regex::new(r"^(\d+)-")?
+        .captures(&final_name)
+        .map(|c| c[1].to_string());
+
     let mut rendered = content;
     if type_name == "adr" {
+        // The ordinal comes from whoever knows it: the caller if they numbered
+        // the name, otherwise the allocator that chose the destination.
         let (adr_id, clean_name) =
             if let Some(m) = regex::Regex::new(r"^(\d{4})[-_]?(.*)$")?.captures(name) {
                 (m[1].to_string(), m[2].to_string())
             } else {
-                ("0012".to_string(), name.to_string())
+                (
+                    ordinal.clone().unwrap_or_else(|| "0000".to_string()),
+                    name.to_string(),
+                )
             };
         let raw_title = clean_name.replace(['-', '_'], " ");
         let title = if raw_title.is_empty() {
@@ -323,40 +428,13 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
             return Ok(());
         }
 
-        let mut final_name = name.to_string();
-        if let Some(fixed) = cfg.get("fixed_name").and_then(|f| f.as_str()) {
-            let dest_path = repo_root.join(fixed);
-            if dest_path.exists() {
-                eprintln!("Error: Target file already exists at {:?}", dest_path);
-                std::process::exit(1);
+        let dest_path = match cfg.get("fixed_name").and_then(|f| f.as_str()) {
+            Some(fixed) => repo_root.join(fixed),
+            None => {
+                let dest_dir = cfg.get("dest_dir").and_then(|d| d.as_str()).unwrap_or(".");
+                repo_root.join(dest_dir).join(&final_name)
             }
-            std::fs::write(&dest_path, rendered)?;
-            println!(
-                "Scaffolded new {} at: {}",
-                type_name,
-                dest_path.display().to_string().replace('\\', "/")
-            );
-            return Ok(());
-        }
-
-        if let Some(prefix) = cfg.get("name_prefix").and_then(|p| p.as_str()) {
-            if prefix == "0012-" && !regex::Regex::new(r"^\d{4}-")?.is_match(&final_name) {
-                final_name = format!("0012-{}", final_name);
-            } else if prefix == "99-" && !regex::Regex::new(r"^\d{2}-")?.is_match(&final_name) {
-                final_name = format!("99-{}", final_name);
-            } else if !final_name.starts_with(prefix) {
-                final_name = format!("{}{}", prefix, final_name);
-            }
-        }
-
-        if let Some(suffix) = cfg.get("name_suffix").and_then(|s| s.as_str()) {
-            if !final_name.ends_with(suffix) {
-                final_name = format!("{}{}", final_name, suffix);
-            }
-        }
-
-        let dest_dir = cfg.get("dest_dir").and_then(|d| d.as_str()).unwrap_or(".");
-        let dest_path = repo_root.join(dest_dir).join(final_name);
+        };
 
         if let Some(parent) = dest_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -377,59 +455,68 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
-    let mut iommu = "on".to_string();
-    let mut vfio_ids = String::new();
-    let mut hugepages = String::new();
-    let mut isolcpus = String::new();
-    let mut nohz_full = String::new();
-    let mut rcu_nocbs = String::new();
-    let mut thp = String::new();
-
-    let mut in_kargs = false;
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_kargs = trimmed == "[kargs]";
-            continue;
+    // A line scan cannot tell a [kargs] key from a comment or a continuation,
+    // and unwrap_or_default() turned an unreadable SSOT into "render the
+    // defaults anyway". Parse, or fail.
+    let content = std::fs::read_to_string(toml_path)
+        .map_err(|e| format!("cannot read {}: {}", toml_path, e))?;
+    let parsed: toml::Value = content.parse()?;
+    let conf = parsed.get("kargs");
+    // Python casts hugepages with str() before strip(); an integer in SSOT is
+    // legal TOML and must render as its digits, not as a quoted debug form.
+    let field = |k: &str, dflt: &str| -> String {
+        match conf.and_then(|c| c.get(k)) {
+            Some(toml::Value::String(v)) => v.trim().to_string(),
+            Some(toml::Value::Integer(v)) => v.to_string(),
+            Some(v) => v.to_string().trim().trim_matches('"').to_string(),
+            None => dflt.to_string(),
         }
-        if in_kargs && trimmed.contains('=') {
-            let parts: Vec<&str> = trimmed.splitn(2, '=').collect();
-            let key = parts[0].trim();
-            let val = parts[1]
-                .split('#')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .trim_matches('"');
-            match key {
-                "iommu" => iommu = val.to_string(),
-                "vfio_ids" => vfio_ids = val.to_string(),
-                "hugepages" => hugepages = val.to_string(),
-                "isolcpus" => isolcpus = val.to_string(),
-                "nohz_full" => nohz_full = val.to_string(),
-                "rcu_nocbs" => rcu_nocbs = val.to_string(),
-                "THP" => thp = val.to_string(),
-                _ => {}
-            }
-        }
-    }
+    };
+    let iommu = field("iommu", "on");
+    let vfio_ids = field("vfio_ids", "");
+    let hugepages = field("hugepages", "");
+    let isolcpus = field("isolcpus", "");
+    let nohz_full = field("nohz_full", "");
+    let rcu_nocbs = field("rcu_nocbs", "");
+    let thp = field("THP", "");
 
     let vfio_path = std::path::Path::new(kargs_dir).join("01-mios-vfio.toml");
     if vfio_path.exists() {
-        let mut kargs_list: Vec<String> = vec![];
-        if iommu == "intel" {
-            kargs_list.extend(["intel_iommu=on", "iommu=pt"].iter().map(|s| s.to_string()));
-        } else if iommu == "amd" {
-            kargs_list.extend(["amd_iommu=on", "iommu=pt"].iter().map(|s| s.to_string()));
-        } else if iommu == "on" {
-            kargs_list.extend(
+        // 01-mios-vfio.toml is NOT wholly generated. It carries hand-declared
+        // kargs that no SSOT key produces -- rd.driver.pre=vfio-pci, which
+        // binds vfio-pci in the initramfs before a GPU driver can claim the
+        // card, and kvm-intel.nested=1. The Python renderer this must match
+        // reads the file and strips ONLY the entries it manages. Starting from
+        // an empty list deletes the rest from the kernel command line while
+        // the header still claims the file came from [kargs].
+        let existing: toml::Value = std::fs::read_to_string(&vfio_path)?.parse()?;
+        let mut kargs_list: Vec<String> = existing
+            .get("kargs")
+            .and_then(|v| v.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        kargs_list
+            .retain(|k| !matches!(k.as_str(), "intel_iommu=on" | "amd_iommu=on" | "iommu=pt"));
+        match iommu.as_str() {
+            "intel" => {
+                kargs_list.extend(["intel_iommu=on", "iommu=pt"].iter().map(|s| s.to_string()))
+            }
+            "amd" => kargs_list.extend(["amd_iommu=on", "iommu=pt"].iter().map(|s| s.to_string())),
+            "on" => kargs_list.extend(
                 ["intel_iommu=on", "amd_iommu=on", "iommu=pt"]
                     .iter()
                     .map(|s| s.to_string()),
-            );
+            ),
+            _ => {}
         }
 
+        kargs_list.retain(|k| !k.starts_with("vfio-pci.ids"));
         if !vfio_ids.is_empty() {
             kargs_list.push(format!("vfio-pci.ids={}", vfio_ids));
         }
@@ -449,6 +536,7 @@ fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std:
         }
         lines.push("]".to_string());
         std::fs::write(&vfio_path, lines.join("\n") + "\n")?;
+        println!("Updated {}", vfio_path.display());
     }
 
     let mut custom_kargs = vec![];
@@ -486,8 +574,10 @@ fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std:
         }
         lines.push("]".to_string());
         std::fs::write(&custom_path, lines.join("\n") + "\n")?;
+        println!("Generated {}", custom_path.display());
     } else if custom_path.exists() {
-        let _ = std::fs::remove_file(&custom_path);
+        std::fs::remove_file(&custom_path)?;
+        println!("Removed stale {}", custom_path.display());
     }
 
     Ok(())
@@ -555,33 +645,46 @@ fn run_render_quadlets(dirs: &[String]) -> Result<(), Box<dyn std::error::Error>
 }
 
 fn run_render_ports(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
-    let mut in_ports = false;
-    let mut stack_id: u32 = 0;
-    let mut entries: Vec<(String, String)> = Vec::new();
+    // Parse the TOML; do NOT scan lines. The line scan this replaced treated any
+    // line containing '=' inside [ports] as a key/value pair, so a COMMENT
+    // became an environment variable name -- including one carrying a backtick
+    // pair, which `bash source` reads as command substitution. install.env is
+    // the file Law 10 (BARE-SAFE-ENV) governs. T-1018.
+    let content = std::fs::read_to_string(toml_path)
+        .map_err(|e| format!("render-ports: {toml_path} could not be read: {e}"))?;
+    let parsed: toml::Value = content
+        .parse()
+        .map_err(|e| format!("render-ports: {toml_path} did not parse: {e}"))?;
+    let ports = parsed
+        .get("ports")
+        .and_then(|p| p.as_table())
+        .ok_or_else(|| format!("render-ports: {toml_path} declares no [ports] table"))?;
 
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_ports = trimmed == "[ports]";
+    let stack_id = ports
+        .get("stack_id")
+        .and_then(|v| v.as_integer())
+        .unwrap_or(0);
+    let offset = stack_id * 10000;
+
+    // Sorted by the SSOT key, matching the Python renderer this must stay
+    // byte-identical to; only integers are ports, so an array or a string in
+    // this table is skipped rather than emitted as a value.
+    let mut names: Vec<&String> = ports.keys().collect();
+    names.sort();
+
+    let mut entries: Vec<String> = Vec::new();
+    for name in names {
+        if name == "stack_id" || name == "categories" {
             continue;
         }
-        if in_ports && trimmed.contains('=') {
-            let parts: Vec<&str> = trimmed.splitn(2, '=').collect();
-            let key = parts[0].trim();
-            let val = parts[1]
-                .split('#')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .trim_matches('"');
-
-            if key == "stack_id" {
-                stack_id = val.parse().unwrap_or(0);
-            } else {
-                entries.push((key.to_uppercase(), val.to_string()));
-            }
-        }
+        let Some(value) = ports.get(name).and_then(|v| v.as_integer()) else {
+            continue;
+        };
+        let rendered = if value == 53 { value } else { value + offset };
+        entries.push(format!("MIOS_PORT_{}={}", name.to_uppercase(), rendered));
+    }
+    if entries.is_empty() {
+        return Err("render-ports: [ports] yielded no integer port, so nothing was written".into());
     }
 
     let mut out_lines = Vec::new();
@@ -592,19 +695,7 @@ fn run_render_ports(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::
             }
         }
     }
-
-    for (key, val) in entries {
-        let final_val = if let Ok(num) = val.parse::<u32>() {
-            if num == 53 {
-                "53".to_string()
-            } else {
-                (num + (stack_id * 10000)).to_string()
-            }
-        } else {
-            val
-        };
-        out_lines.push(format!("MIOS_PORT_{}={}", key, final_val));
-    }
+    out_lines.extend(entries);
 
     if let Some(parent) = std::path::Path::new(out_path).parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -758,8 +849,8 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Harden => {
-            if let Err(e) = run_harden() {
+        Commands::Harden { root } => {
+            if let Err(e) = run_harden(root) {
                 eprintln!("[miosd] Harden error: {}", e);
                 std::process::exit(1);
             }
@@ -768,14 +859,17 @@ async fn main() {
             online,
             fedora_version,
             output,
+            vendored_dir,
         } => {
-            if let Err(e) = run_render_repos(*online, fedora_version, output.as_deref()) {
+            if let Err(e) =
+                run_render_repos(*online, fedora_version, output.as_deref(), vendored_dir)
+            {
                 eprintln!("[miosd] Render repos error: {}", e);
                 std::process::exit(1);
             }
         }
-        Commands::OverlayBindImages { dest } => {
-            if let Err(e) = run_overlay_bind_images(dest) {
+        Commands::OverlayBindImages { dest, qdirs } => {
+            if let Err(e) = run_overlay_bind_images(dest, qdirs) {
                 eprintln!("[miosd] Overlay bind images error: {}", e);
                 std::process::exit(1);
             }
@@ -842,76 +936,147 @@ async fn main() {
     }
 }
 
-fn run_overlay_bind_images(dest_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let bdir = std::path::Path::new(dest_dir);
-    std::fs::create_dir_all(bdir)?;
-
-    let mios_toml_path =
-        std::env::var("MIOS_TOML").unwrap_or_else(|_| "/usr/share/mios/mios.toml".to_string());
-    let mut fb_tokens: Vec<String> = Vec::new();
-    if let Ok(content) = std::fs::read_to_string(&mios_toml_path) {
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with("firstboot_tokens") {
-                if let Some(val) = trimmed.split('=').nth(1) {
-                    let cleaned = val.replace(['[', ']', '"', ','], " ");
-                    for tok in cleaned.split_whitespace() {
-                        fb_tokens.push(tok.to_string());
+/// Collect *.container and *.image at `qdir` and one level below it.
+///
+/// The bash this replaces globs both "${QDIR}/*.container" and
+/// "${QDIR}/*/*.container" (likewise .image). A single read_dir sees only the
+/// first, which silently dropped every Quadlet under a subdirectory -- today
+/// usr/share/containers/systemd/users/mios-coderun-sandbox@.container -- from
+/// /usr/lib/bootc/bound-images.d. An unbound image does not ship with the host
+/// (Law 3: BOUND-IMAGES), and nothing downstream would have said so.
+fn collect_quadlets(qdir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    fn is_quadlet(p: &std::path::Path) -> bool {
+        matches!(
+            p.extension().and_then(|s| s.to_str()).unwrap_or(""),
+            "container" | "image"
+        )
+    }
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(qdir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            if is_quadlet(&path) {
+                out.push(path);
+            }
+        } else if path.is_dir() {
+            if let Ok(sub) = std::fs::read_dir(&path) {
+                for s in sub.flatten() {
+                    let sp = s.path();
+                    if sp.is_file() && is_quadlet(&sp) {
+                        out.push(sp);
                     }
                 }
             }
         }
     }
+    out.sort();
+    out
+}
 
-    let qdirs = vec!["/usr/share/containers/systemd", "/etc/containers/systemd"];
-    for qdir_str in qdirs {
+fn run_overlay_bind_images(
+    dest_dir: &str,
+    qdirs_override: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let bdir = std::path::Path::new(dest_dir);
+    std::fs::create_dir_all(bdir)?;
+
+    // Parse the TOML; do NOT scan lines. The scan this replaces matched any line
+    // starting with "firstboot_tokens" (so "firstboot_tokens_extra" too) and read
+    // only the text after the first '=' on that one line, so a reflow of the
+    // array across lines would yield an EMPTY token set -- and an empty set binds
+    // every image, including the two heavy GPU lanes the register exists to keep
+    // out of the image. Same defect class as render-chrony's silent hardcoded
+    // fallback (T-1018).
+    let mios_toml_path =
+        std::env::var("MIOS_TOML").unwrap_or_else(|_| "/usr/share/mios/mios.toml".to_string());
+    let mut fb_tokens: Vec<String> = Vec::new();
+    let toml_text = std::fs::read_to_string(&mios_toml_path)
+        .map_err(|e| format!("overlay-bind-images: {mios_toml_path} could not be read: {e}"))?;
+    let parsed: toml::Value = toml_text
+        .parse()
+        .map_err(|e| format!("overlay-bind-images: {mios_toml_path} did not parse: {e}"))?;
+    if let Some(arr) = parsed
+        .get("build")
+        .and_then(|b| b.get("bake"))
+        .and_then(|b| b.get("firstboot_tokens"))
+        .and_then(|v| v.as_array())
+    {
+        for tok in arr {
+            if let Some(sv) = tok.as_str() {
+                if !sv.is_empty() {
+                    fb_tokens.push(sv.to_string());
+                }
+            }
+        }
+    }
+
+    let qdirs: Vec<String> = if qdirs_override.is_empty() {
+        vec![
+            "/usr/share/containers/systemd".to_string(),
+            "/etc/containers/systemd".to_string(),
+        ]
+    } else {
+        qdirs_override.to_vec()
+    };
+    for qdir_str in &qdirs {
         let qdir = std::path::Path::new(qdir_str);
         if !qdir.exists() {
             continue;
         }
 
-        if let Ok(entries) = std::fs::read_dir(qdir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-                    if ext == "container" || ext == "image" {
-                        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                        let mut img_line = String::new();
-                        if let Ok(c) = std::fs::read_to_string(&path) {
-                            for l in c.lines() {
-                                if l.starts_with("Image=") {
-                                    img_line = l.trim_start_matches("Image=").trim().to_string();
-                                    break;
-                                }
-                            }
-                        }
-
-                        let mut is_fb = false;
-                        if !img_line.is_empty() {
-                            for tok in &fb_tokens {
-                                if img_line.contains(tok) {
-                                    is_fb = true;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if is_fb {
-                            println!("[miosd] LBI: {} (firstboot tier -- web-pulled at first boot, not bound)", name);
-                            continue;
-                        }
-
-                        let _dst_file = bdir.join(name);
-                        #[cfg(unix)]
-                        {
-                            let _ = std::fs::remove_file(&_dst_file);
-                            let _ = std::os::unix::fs::symlink(&path, &_dst_file);
-                        }
-                        println!("[miosd] LBI: bound {} ({:?})", name, path);
+        for path in collect_quadlets(qdir) {
+            let name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let mut img_line = String::new();
+            if let Ok(c) = std::fs::read_to_string(&path) {
+                for l in c.lines() {
+                    if let Some(rest) = l.strip_prefix("Image=") {
+                        img_line = rest.trim().to_string();
+                        break;
                     }
                 }
             }
+
+            let is_fb = !img_line.is_empty() && fb_tokens.iter().any(|t| img_line.contains(t));
+            if is_fb {
+                println!(
+                    "[miosd] LBI: {} (firstboot tier -- web-pulled at first boot, not bound)",
+                    name
+                );
+                continue;
+            }
+
+            let dst_file = bdir.join(&name);
+            #[cfg(unix)]
+            {
+                // A swallowed symlink failure is an unbound image that still
+                // reports as bound; Law 3 has no way to notice afterwards.
+                match std::fs::remove_file(&dst_file) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => {
+                        return Err(format!(
+                            "overlay-bind-images: cannot replace {}: {e}",
+                            dst_file.display()
+                        )
+                        .into())
+                    }
+                }
+                std::os::unix::fs::symlink(&path, &dst_file).map_err(|e| {
+                    format!(
+                        "overlay-bind-images: cannot bind {} -> {}: {e}",
+                        dst_file.display(),
+                        path.display()
+                    )
+                })?;
+            }
+            println!("[miosd] LBI: bound {} ({})", name, path.display());
         }
     }
 
@@ -928,13 +1093,19 @@ fn run_render_repos(
     online: bool,
     fedora_version: &str,
     output_path: Option<&str>,
+    vendored_dir: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let ver = if fedora_version.is_empty() {
-        "44"
-    } else {
-        fedora_version
-    };
-    let vendored = std::path::Path::new("/usr/share/mios/vendored/rpms").exists() && !online;
+    // An empty version used to fall back to the literal "44", which would have
+    // written /etc/yum.repos.d/fedora-44.repo on a tree whose SSOT had moved on
+    // -- every package for the whole build coming from the wrong release, under
+    // a filename that looks deliberate. The caller owns the version.
+    if fedora_version.trim().is_empty() {
+        return Err(
+            "render-repos: --fedora-version is empty; pass mios.toml [versions].fedora".into(),
+        );
+    }
+    let ver = fedora_version;
+    let vendored = std::path::Path::new(vendored_dir).exists() && !online;
 
     let content = if vendored {
         format!(
@@ -1010,54 +1181,79 @@ ip_resolve=4
     Ok(())
 }
 
-fn run_harden() -> Result<(), Box<dyn std::error::Error>> {
-    let usb_conf = std::path::Path::new("/usr/lib/usbguard/usbguard-daemon.conf");
+/// Harden: tighten the usbguard config mode, set fapolicyd trust, enable the
+/// three hardening units.
+///
+/// Every write in here used to be `let _ = ...`, and each one was followed by
+/// an unconditional success line -- "[miosd] enabled usbguard.service" printed
+/// whether or not the symlink was created. A hardening step that reports
+/// success it did not achieve is worse than one that fails: the failure is
+/// recoverable, the false report is not visible at all (T-1018).
+fn run_harden(root: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let at = |p: &str| std::path::Path::new(root).join(p.trim_start_matches('/'));
+    let usb_conf = at("/usr/lib/usbguard/usbguard-daemon.conf");
+    let usb_conf = usb_conf.as_path();
     if usb_conf.exists() {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(usb_conf, std::fs::Permissions::from_mode(0o600));
+            std::fs::set_permissions(usb_conf, std::fs::Permissions::from_mode(0o600))
+                .map_err(|e| format!("harden: cannot set 0600 on {}: {e}", usb_conf.display()))?;
         }
     }
 
-    let fapo_configs = vec![
+    for cfg_rel in [
         "/usr/lib/fapolicyd/fapolicyd.conf",
         "/etc/fapolicyd/fapolicyd.conf",
-    ];
-    for cfg in fapo_configs {
-        let p = std::path::Path::new(cfg);
-        if p.exists() {
-            if let Ok(content) = std::fs::read_to_string(p) {
-                let mut new_lines = Vec::new();
-                for line in content.lines() {
-                    if line.starts_with("trust =") {
-                        new_lines.push("trust = file,rpmdb".to_string());
-                    } else {
-                        new_lines.push(line.to_string());
-                    }
-                }
-                let _ = std::fs::write(p, new_lines.join("\n") + "\n");
-            }
+    ] {
+        let p = at(cfg_rel);
+        let p = p.as_path();
+        let cfg = p.display().to_string();
+        if !p.exists() {
+            continue;
         }
+        let content =
+            std::fs::read_to_string(p).map_err(|e| format!("harden: cannot read {cfg}: {e}"))?;
+        let rewritten: Vec<String> = content
+            .lines()
+            .map(|l| {
+                if l.starts_with("trust =") {
+                    "trust = file,rpmdb".to_string()
+                } else {
+                    l.to_string()
+                }
+            })
+            .collect();
+        std::fs::write(p, rewritten.join("\n") + "\n")
+            .map_err(|e| format!("harden: cannot write {cfg}: {e}"))?;
+        println!("[miosd] fapolicyd trust = file,rpmdb in {cfg}");
     }
 
-    let wants_dir = std::path::Path::new("/usr/lib/systemd/system/multi-user.target.wants");
-    let _ = std::fs::create_dir_all(wants_dir);
+    let wants_dir = at("/usr/lib/systemd/system/multi-user.target.wants");
+    let wants_dir = wants_dir.as_path();
+    std::fs::create_dir_all(wants_dir)
+        .map_err(|e| format!("harden: cannot create {}: {e}", wants_dir.display()))?;
 
-    let units = vec!["usbguard.service", "auditd.service", "fapolicyd.service"];
-    for u in units {
-        let src = format!("/usr/lib/systemd/system/{}", u);
-        let _dst = wants_dir.join(u);
-        if std::path::Path::new(&src).exists() {
-            #[cfg(unix)]
-            {
-                let _ = std::fs::remove_file(&_dst);
-                let _ = std::os::unix::fs::symlink(format!("../{}", u), &_dst);
-            }
-            println!("[miosd] enabled {}", u);
-        } else {
-            println!("[miosd] skip: {} not installed", u);
+    for u in ["usbguard.service", "auditd.service", "fapolicyd.service"] {
+        let src = at(&format!("/usr/lib/systemd/system/{u}"));
+        if !src.exists() {
+            println!("[miosd] skip: {u} not installed");
+            continue;
         }
+        let dst = wants_dir.join(u);
+        #[cfg(unix)]
+        {
+            match std::fs::remove_file(&dst) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    return Err(format!("harden: cannot replace {}: {e}", dst.display()).into())
+                }
+            }
+            std::os::unix::fs::symlink(format!("../{u}"), &dst)
+                .map_err(|e| format!("harden: cannot enable {u}: {e}"))?;
+        }
+        println!("[miosd] enabled {u}");
     }
 
     Ok(())
@@ -1231,8 +1427,19 @@ fn run_finalize_osrelease(
         }
     };
 
+    // Say which of the two happened. This returned a bare Ok(()), and stage 88
+    // printed "Os-release version projected from SSOT via miosd" on the strength
+    // of that exit code -- so a missing file or an unresolved version reported a
+    // projection that had not occurred. The bash leg it shadows prints nothing
+    // in the same situation, because its success log sits inside the branch
+    // that did the work (T-1018).
     let p = std::path::Path::new(path);
-    if !p.exists() || ver == "unknown" {
+    if !p.exists() {
+        println!("[miosd] os-release: {path} does not exist -- nothing projected");
+        return Ok(());
+    }
+    if ver == "unknown" {
+        println!("[miosd] os-release: version is unknown -- nothing projected");
         return Ok(());
     }
 
@@ -1264,40 +1471,53 @@ fn run_finalize_osrelease(
     Ok(())
 }
 
-fn run_cosign_policy(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let py_script = std::path::Path::new("tools/generate-cosign-policy.py");
-    if py_script.exists() {
-        let mut cmd = std::process::Command::new("python3");
-        cmd.arg(py_script);
-        if check {
-            cmd.arg("--check");
-        }
-        let status = cmd.status()?;
-        if !status.success() {
-            return Err("generate-cosign-policy python execution failed".into());
-        }
-    } else {
-        println!("[miosd] cosign-policy: policy.json up to date.");
+/// Run one of the repo's generator scripts, resolved against MIOS_ROOT.
+///
+/// Four subcommands each carried their own copy of this. Every copy resolved
+/// the script relative to the process working directory, and every copy ended
+/// in an else-branch that printed "... up to date." and returned Ok when the
+/// script was not there -- a claim about an artefact it had never opened. Run
+/// from anywhere but the repo root, `miosd render-uki-cmdline` reported the
+/// kernel cmdline current without reading a single kargs.d fragment, and the
+/// build stage that called it took that for a render (T-1018).
+///
+/// An absent generator is now an error naming the root it looked under, so a
+/// wrong MIOS_ROOT fails loudly instead of passing quietly.
+fn run_repo_generator(
+    rel: &str,
+    check: bool,
+    subject: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
+    let script = std::path::Path::new(&root).join(rel);
+    if !script.is_file() {
+        return Err(format!(
+            "{}: generator {} not found (MIOS_ROOT={}) -- nothing was rendered, \
+             so nothing can be reported up to date",
+            subject,
+            script.display(),
+            root
+        )
+        .into());
+    }
+    let mut cmd = std::process::Command::new("python3");
+    cmd.arg(&script);
+    if check {
+        cmd.arg("--check");
+    }
+    let status = cmd.status()?;
+    if !status.success() {
+        return Err(format!("{}: {} failed", subject, script.display()).into());
     }
     Ok(())
 }
 
+fn run_cosign_policy(check: bool) -> Result<(), Box<dyn std::error::Error>> {
+    run_repo_generator("tools/generate-cosign-policy.py", check, "cosign-policy")
+}
+
 fn run_bake_plan(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let py_script = std::path::Path::new("tools/generate-bake-plan.py");
-    if py_script.exists() {
-        let mut cmd = std::process::Command::new("python3");
-        cmd.arg(py_script);
-        if check {
-            cmd.arg("--check");
-        }
-        let status = cmd.status()?;
-        if !status.success() {
-            return Err("generate-bake-plan python execution failed".into());
-        }
-    } else {
-        println!("[miosd] bake-plan: bake plan lists up to date.");
-    }
-    Ok(())
+    run_repo_generator("tools/generate-bake-plan.py", check, "bake-plan")
 }
 
 fn run_firewall_ports() -> Result<(), Box<dyn std::error::Error>> {
@@ -1345,32 +1565,31 @@ fn run_firewall_ports() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_render_nut(toml_path: &str, conf_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
-    let mut name = String::new();
-    let mut driver = "usbhid-ups".to_string();
-    let mut port = "auto".to_string();
-    let mut desc = "MiOS Uninterruptible Power Supply".to_string();
-    let mut in_ups = false;
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_ups = trimmed == "[power.ups]" || trimmed == "[ups]";
-            continue;
-        }
-        if in_ups && trimmed.contains('=') {
-            let parts: Vec<&str> = trimmed.splitn(2, '=').collect();
-            let key = parts[0].trim();
-            let val = parts[1].trim().trim_matches('"').trim_matches('\'');
-            match key {
-                "name" => name = val.to_string(),
-                "driver" => driver = val.to_string(),
-                "port" => port = val.to_string(),
-                "desc" => desc = val.to_string(),
-                _ => {}
-            }
-        }
-    }
+    // Parse the TOML; do NOT scan lines. This table happens to be all
+    // single-line scalars today, so the scan produced the right answer -- but a
+    // comment containing '=' or a multi-line value would break it exactly as it
+    // broke [ports] and [network.ntp]. And unwrap_or_default() meant a
+    // NONEXISTENT manifest rendered four default config files and exited 0.
+    // T-1018.
+    let content = std::fs::read_to_string(toml_path)
+        .map_err(|e| format!("render-nut: {toml_path} could not be read: {e}"))?;
+    let parsed: toml::Value = content
+        .parse()
+        .map_err(|e| format!("render-nut: {toml_path} did not parse: {e}"))?;
+    let ups = parsed
+        .get("power")
+        .and_then(|p| p.get("ups"))
+        .or_else(|| parsed.get("ups"));
+    let field = |k: &str, dflt: &str| -> String {
+        ups.and_then(|u| u.get(k))
+            .and_then(|v| v.as_str())
+            .unwrap_or(dflt)
+            .to_string()
+    };
+    let name = field("name", "");
+    let driver = field("driver", "usbhid-ups");
+    let port = field("port", "auto");
+    let desc = field("desc", "MiOS Uninterruptible Power Supply");
 
     let dir = std::path::Path::new(conf_dir);
     std::fs::create_dir_all(dir)?;
@@ -1411,31 +1630,29 @@ fn run_render_nut(toml_path: &str, conf_dir: &str) -> Result<(), Box<dyn std::er
 }
 
 fn run_render_chrony(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
-    let mut servers: Vec<String> = Vec::new();
-    let mut in_ntp = false;
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_ntp = trimmed == "[network.ntp]" || trimmed == "[ntp]";
-            continue;
-        }
-        if in_ntp && trimmed.starts_with("servers") && trimmed.contains('=') {
-            let val_part = trimmed.split('=').nth(1).unwrap_or("").trim();
-            let raw = val_part.trim_matches(|c| c == '[' || c == ']' || c == ' ');
-            for item in raw.split(',') {
-                let clean = item.trim().trim_matches('"').trim_matches('\'');
-                if !clean.is_empty() {
-                    servers.push(clean.to_string());
-                }
-            }
-        }
-    }
-
-    if servers.is_empty() {
-        servers.push("time.cloudflare.com".to_string());
-        servers.push("time.google.com".to_string());
-    }
+    // Parse the TOML; do NOT scan lines. [network.ntp].servers is a MULTI-LINE
+    // array, so the line scan this replaced read only `servers = [`, stripped it
+    // to nothing, and silently substituted two hardcoded public NTP hosts --
+    // Law 7, and a sovereignty question on a machine whose SSOT named a pool.
+    // There is no hardcoded fallback now: an absent table yields no servers,
+    // which is what the Python renderer this must match byte-for-byte does.
+    // T-1018.
+    let content = std::fs::read_to_string(toml_path)
+        .map_err(|e| format!("render-chrony: {toml_path} could not be read: {e}"))?;
+    let parsed: toml::Value = content
+        .parse()
+        .map_err(|e| format!("render-chrony: {toml_path} did not parse: {e}"))?;
+    let servers: Vec<String> = parsed
+        .get("network")
+        .and_then(|n| n.get("ntp"))
+        .and_then(|n| n.get("servers"))
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
 
     let mut body = String::new();
     body.push_str(
@@ -1470,37 +1687,9 @@ fn run_render_chrony(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std:
 }
 
 fn run_render_uki_cmdline(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let py_script = std::path::Path::new("tools/generate-uki-cmdline.py");
-    if py_script.exists() {
-        let mut cmd = std::process::Command::new("python3");
-        cmd.arg(py_script);
-        if check {
-            cmd.arg("--check");
-        }
-        let status = cmd.status()?;
-        if !status.success() {
-            return Err("generate-uki-cmdline python execution failed".into());
-        }
-    } else {
-        println!("[miosd] render-uki-cmdline: kernel cmdline up to date.");
-    }
-    Ok(())
+    run_repo_generator("tools/generate-uki-cmdline.py", check, "render-uki-cmdline")
 }
 
 fn run_generate_quadlets(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let py_script = std::path::Path::new("tools/generate-pod-quadlets.py");
-    if py_script.exists() {
-        let mut cmd = std::process::Command::new("python3");
-        cmd.arg(py_script);
-        if check {
-            cmd.arg("--check");
-        }
-        let status = cmd.status()?;
-        if !status.success() {
-            return Err("generate-pod-quadlets python execution failed".into());
-        }
-    } else {
-        println!("[miosd] generate-quadlets: quadlets up to date.");
-    }
-    Ok(())
+    run_repo_generator("tools/generate-pod-quadlets.py", check, "generate-quadlets")
 }

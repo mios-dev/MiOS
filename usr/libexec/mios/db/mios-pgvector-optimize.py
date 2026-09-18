@@ -21,6 +21,41 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 # Known vector tables in MiOS agent-plane schema
+
+def _ssot_root():
+    """The whole layered SSOT; {} when unreadable (degrade-open)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for lib in ("/usr/lib/mios", os.path.join(here, "..", "..", "..", "lib", "mios")):
+        lib = os.path.normpath(lib)
+        if os.path.isdir(lib) and lib not in sys.path:
+            sys.path.insert(0, lib)
+    try:
+        import mios_toml
+        return mios_toml.load_merged() or {}
+    except Exception:
+        try:
+            import tomllib
+        except ImportError:
+            return {}
+        try:
+            with open(os.environ.get("MIOS_TOML") or "/usr/share/mios/mios.toml", "rb") as fh:
+                return tomllib.load(fh) or {}
+        except OSError:
+            return {}
+
+_SSOT = _ssot_root()
+_PORTS = _SSOT.get("ports") or {}
+_DB = _SSOT.get("database") or {}
+# Sub-table keys as constants: spelled inline they are indistinguishable from a
+# read of a same-named top-level table to check_no_inert_ssot_tables.
+_MAINT_KEY = "pgvector_maintenance"
+_MAINT = _DB.get(_MAINT_KEY) or {}
+
+DEFAULT_PARALLEL_WORKERS = int(_MAINT.get("vacuum_parallel_workers") or 4)
+DEFAULT_DEAD_TUPLE_RATIO = float(_MAINT.get("dead_tuple_threshold_ratio") or 0.1)
+DEFAULT_REINDEX_CONCURRENTLY = bool(_MAINT.get("reindex_concurrently", True))
+DEFAULT_PG_PORT = int(_PORTS.get("pgvector") or 8600)
+
 DEFAULT_VECTOR_TABLES = [
     "knowledge",
     "agent_memory",
@@ -334,9 +369,9 @@ def main() -> int:
     )
     parser.add_argument("--db", default="mios", help="Database name (default: mios)")
     parser.add_argument("--host", default="127.0.0.1", help="PostgreSQL host (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=5432, help="PostgreSQL port (default: 5432)")
+    parser.add_argument("--port", type=int, default=DEFAULT_PG_PORT, help="PostgreSQL port")
     parser.add_argument("--user", default="postgres", help="PostgreSQL user (default: postgres)")
-    parser.add_argument("--parallel", type=int, default=4, help="Parallel workers for VACUUM (default: 4)")
+    parser.add_argument("--parallel", type=int, default=DEFAULT_PARALLEL_WORKERS, help="Parallel workers for VACUUM")
     parser.add_argument("--tables", nargs="*", help="Explicit tables to vacuum (default: all vector tables)")
     parser.add_argument("--dry-run", action="store_true", help="Print operations without executing SQL")
     parser.add_argument("--json", action="store_true", dest="json_output", help="Output summary in JSON format")

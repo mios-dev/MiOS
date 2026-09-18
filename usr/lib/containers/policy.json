@@ -1,1 +1,7 @@
-{"default":[{"type":"insecureAcceptEverything"}]}
+{
+  "default": [
+    {
+      "type": "insecureAcceptEverything"
+    }
+  ]
+}

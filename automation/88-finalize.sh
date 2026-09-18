@@ -3,6 +3,7 @@
 # AI-hint: Finalizes the build by applying systemd presets, setting the default boot target, scrubbing credential leaks, purging D...
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
@@ -38,9 +39,24 @@ EOF
 ln -sf ${MIOS_USR_DIR}/version ${MIOS_USR_DIR}/mios-version
 
 OSR=/usr/lib/os-release
-if command -v miosd >/dev/null 2>&1; then
-    miosd finalize-osrelease --path "$OSR" --version "$MIOS_VERSION"
-    mios_ok "Os-release version projected from SSOT via miosd: ${MIOS_VERSION}"
+
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# nothing puts on PATH at bake time, so the lookup this replaced could never
+# succeed and the branch below it was dead on every build (T-1018).
+_miosd=""
+_here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "${_here}/src/mios-rs/target/release/miosd" \
+          "${_here}/src/mios-rs/target/debug/miosd"; do
+    if [[ -n "$_c" && -x "$_c" ]]; then _miosd="$_c"; break; fi
+done
+
+# No blanket success log here: miosd prints what it actually did, including the
+# two cases where it projects nothing. Asserting the projection on the strength
+# of the exit code is what made the old miosd leg unfalsifiable.
+if [[ -n "$_miosd" ]]; then
+    "$_miosd" finalize-osrelease --path "$OSR" --version "$MIOS_VERSION"
 elif [[ -f "$OSR" && "$MIOS_VERSION" != "unknown" ]]; then
     for _k in VERSION VERSION_ID BUILD_ID IMAGE_VERSION OSTREE_VERSION; do
         sed -i -E "s|^${_k}=.*|${_k}=\"${MIOS_VERSION}\"|" "$OSR"

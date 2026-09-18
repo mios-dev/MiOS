@@ -2,6 +2,7 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Configures Fedora 44 repository metadata, sets `install_weak_deps=False` in DNF, and enforces priority 98 for base repos to ensure stable package resolution on ucore.
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
@@ -34,12 +35,24 @@ if [[ ! -f "$GPG_KEY_PATH" ]]; then
 fi
 
 mios_log "Add Fedora ${_fver} repository"
-if command -v miosd >/dev/null 2>&1; then
-    _online_flag=""
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# nothing puts on PATH at bake time, so the lookup this replaced could never
+# succeed and the branch below it was dead on every build (T-1018).
+_miosd=""
+_r05="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "${_r05}/src/mios-rs/target/release/miosd" \
+          "${_r05}/src/mios-rs/target/debug/miosd"; do
+    if [[ -n "$_c" && -x "$_c" ]]; then _miosd="$_c"; break; fi
+done
+
+if [[ -n "$_miosd" ]]; then
+    _online_flag=()
     if [[ "${MIOS_ONLINE_BUILD:-0}" == "1" ]]; then
-        _online_flag="--online"
+        _online_flag=(--online)
     fi
-    miosd render-repos --fedora-version "$_fver" $_online_flag
+    "$_miosd" render-repos --fedora-version "$_fver" "${_online_flag[@]}"
     mios_ok "Rendered fedora-${_fver}.repo via miosd"
 elif [ -d "/usr/share/mios/vendored/rpms" ] && [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
     mios_log "Using local vendored RPM mirror for Fedora ${_fver}"

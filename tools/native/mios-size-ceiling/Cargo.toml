@@ -1,0 +1,10 @@
+# AI-hint: Cargo manifest for mios-size-ceiling -- generates [legibility].max_tracked_mb from the tracked-blob measurement plus a declared headroom.
+# AI-related: usr/share/mios/mios.toml, tools/drift-checks.py, automation/98-drift-checks.sh
+[package]
+name = "mios-size-ceiling"
+version.workspace = true
+edition.workspace = true
+description = "Generate the tracked-size ceiling from the index measurement plus SSOT headroom"
+
+[dependencies]
+toml = "0.8"

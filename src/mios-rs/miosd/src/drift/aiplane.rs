@@ -12,7 +12,7 @@ impl Check for AgentPipeBudgetsCheck {
         "Assert agent pipe context token budgets are within bounds"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Agent pipe budgets check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Agent pipe budgets".to_string())
     }
 }
 
@@ -25,7 +25,7 @@ impl Check for VLLMNameCanonicalCheck {
         "Assert canonical MIOS_AI_VLLM_* environment variable naming"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("vLLM canonical name check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: vLLM canonical name".to_string())
     }
 }
 
@@ -38,7 +38,7 @@ impl Check for HintCoverageCheck {
         "Assert AI-hint comment header coverage meets ratchet baseline"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("AI hint coverage check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: AI hint coverage".to_string())
     }
 }
 
@@ -51,7 +51,7 @@ impl Check for StructuredAIManifestCheck {
         "Assert structured AI manifest reference integrity"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Structured AI manifest check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Structured AI manifest".to_string())
     }
 }
 
@@ -64,6 +64,6 @@ impl Check for CapabilityManifestCheck {
         "Assert capability manifest matches SSOT definitions"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Capability manifest check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Capability manifest".to_string())
     }
 }

@@ -76,7 +76,11 @@ PK_MAP = {
     "session": "id",
     "config_kv": "id",
     "account_preference": ("account_id", "layer", "key"),
-    "feature_set": "id"
+    "feature_set": "id",
+    # T-1042. system_logs is embeddable (emb vector(768) + an HNSW index) and has
+    # `id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY`. It was in neither list,
+    # which check_backfill_coverage has been failing on at every bake.
+    "system_logs": "id"
 }
 
 _BACKFILL_EXEMPT = [
@@ -169,6 +173,14 @@ def get_text_projection(table: str, row: dict) -> Optional[str]:
         name = row.get("name") or ""
         desc = row.get("description") or ""
         return f"Feature: {name}\nDescription: {desc}".strip() or None
+    elif table == "system_logs":
+        # Byte-identical to what usr/libexec/mios/log/mios-log-streamer embeds at
+        # insert time: `f"[{unit}] {message}"`. A backfilled row and a streamed
+        # row must land in the same place in the vector space, or the HNSW index
+        # answers differently depending on which path wrote the row (T-1042).
+        unit = row.get("unit") or ""
+        message = row.get("message") or ""
+        return f"[{unit}] {message}".strip() or None
     return None
 
 async def embed_text_with_retry(client: httpx.AsyncClient, text: str, url: str, model: str, prefix: str = "search_document: ") -> Optional[list[float]]:
@@ -215,9 +227,18 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
             "session": "id, meta",
             "config_kv": "id, scope, key, description, value",
             "account_preference": "account_id, layer, key, value",
-            "feature_set": "id, name, description"
+            "feature_set": "id, name, description",
+            "system_logs": "id, unit, message"
         }
-        cols = cols_map[table]
+        # A bare cols_map[table] raised KeyError deep inside the loop the moment
+        # system_logs joined PK_MAP, taking the whole backfill down. A table can
+        # be registered without its projection; say which one and keep going for
+        # the rest rather than aborting every table (T-1042).
+        cols = cols_map.get(table)
+        if cols is None:
+            log.error("PK_MAP has %s but cols_map does not -- skipping, and this is a bug", table)
+            results[table] = 0
+            continue
 
         order_col = pk if isinstance(pk, str) else ", ".join(pk)
 

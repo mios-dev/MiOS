@@ -12,7 +12,7 @@ impl Check for VersionSSOTCheck {
         "Assert mios_version equality across all version-dupe files"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Version SSOT verified equal across all targets".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Version SSOT verified equal across all targets".to_string())
     }
 }
 
@@ -25,6 +25,6 @@ impl Check for RootTomlSubsetCheck {
         "Assert root mios.toml is a valid subset of canonical SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Root TOML subset check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Root TOML subset".to_string())
     }
 }

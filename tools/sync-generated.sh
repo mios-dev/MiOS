@@ -47,8 +47,12 @@ _register_new_files() {
     command -v git >/dev/null 2>&1 || return 0
     git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || return 0
     local new f
-    new="$(git -C "$ROOT" ls-files --others --exclude-standard \
-        -- automation tools usr etc srv tests 2>/dev/null || true)"
+    # No path filter. The old list -- automation tools usr etc srv tests --
+    # omitted src/, so a new crate under src/mios-rs was invisible to the
+    # census: the tree looked synced locally and CI failed on a stale
+    # manual-corpus.tsv. --exclude-standard already honours .gitignore, which
+    # is what keeps target/ and friends out, so the list only added a trap.
+    new="$(git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true)"
     [[ -n "$new" ]] || return 0
     while IFS= read -r f; do
         [[ -n "$f" ]] || continue
@@ -77,7 +81,19 @@ main() {
     "$PY" tools/generate-pod-quadlets.py >/dev/null
 
     step "4/6 names registry"
-    "$PY" tools/generate-names-registry.py >/dev/null
+    # The native twin, with the Python leg as the fallback. Both are held to
+    # byte-identical output by check_names_registry_equivalence, which is what
+    # makes preferring either one safe; before that gate existed the twin
+    # emitted 3486 lines where this leg emits 1229 (T-1056).
+    _nr=""
+    for _c in tools/native/target/release/generate-names-registry tools/native/target/debug/generate-names-registry; do
+        [ -x "$_c" ] && { _nr="$_c"; break; }
+    done
+    if [ -n "$_nr" ]; then
+        MIOS_DRIFT_ROOT="$ROOT" "$_nr" >/dev/null
+    else
+        "$PY" tools/generate-names-registry.py >/dev/null
+    fi
 
     # Index generators. Both were missing here, so adding a drift check or a
     # numbered automation phase left their index stale and the gate red on a
@@ -104,6 +120,42 @@ main() {
     # kargs.d/*.toml, and it was gated without ever being regenerated here.
     step "4d/6 UKI cmdline (derived from kargs.d)"
     "$PY" tools/generate-uki-cmdline.py >/dev/null
+
+    # policy.json is derived from [security.sigstore] but was never regenerated
+    # here, so its tracked form (compact) had drifted from what the generator
+    # writes (indented) without anything noticing -- the generator's --check
+    # compared parsed JSON, which is blind to exactly that.
+    step "4e/6 container signature policy (derived from [security.sigstore])"
+    "$PY" tools/generate-cosign-policy.py >/dev/null
+
+    step "4g/6 rust toolchain pin (from [build.toolchain])"
+    # Before the size ceiling, which must stay last: this writes a root file and
+    # so changes what the index measures.
+    _tp=""
+    for _c in tools/native/target/release/mios-toolchain-pin tools/native/target/debug/mios-toolchain-pin; do
+        [ -x "$_c" ] && { _tp="$_c"; break; }
+    done
+    if [ -n "$_tp" ]; then
+        "$_tp" >/dev/null
+    else
+        echo "[sync-generated]      mios-toolchain-pin not built; rust-toolchain.toml NOT regenerated." >&2
+        echo "[sync-generated]      check_toolchain_pin still validates it, so this fails there, not here." >&2
+    fi
+
+    step "4f/6 tracked-size ceiling (measurement + [legibility].tracked_mb_headroom)"
+    # Last of the generators on purpose: it measures the git INDEX, so it must
+    # run after everything else has been staged, and its own one-line edit
+    # cannot move a MiB boundary.
+    _sc=""
+    for _c in tools/native/target/release/mios-size-ceiling tools/native/target/debug/mios-size-ceiling; do
+        [ -x "$_c" ] && { _sc="$_c"; break; }
+    done
+    if [ -n "$_sc" ]; then
+        "$_sc" >/dev/null
+    else
+        echo "[sync-generated]      mios-size-ceiling not built; max_tracked_mb NOT regenerated." >&2
+        echo "[sync-generated]      check_size_ceiling still validates it, so this fails there, not here." >&2
+    fi
 
     step "5/6 env-baseline (clean env)"
     if [ -x usr/libexec/mios/mios-env-snapshot ] || [ -r usr/libexec/mios/mios-env-snapshot ]; then

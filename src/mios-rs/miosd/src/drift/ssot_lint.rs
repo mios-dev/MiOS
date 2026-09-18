@@ -12,6 +12,6 @@ impl Check for SSOTLintEquivalenceCheck {
         "Assert native mios-ssot-lint output matches legacy 97-ssot-lint.sh"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("SSOT lint equivalence verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: SSOT lint equivalence".to_string())
     }
 }

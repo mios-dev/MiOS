@@ -62,17 +62,11 @@ unresolved = [
 # [ssot_tables] -- Shrink-only register: top-level SSOT tables no code reads.
 # ----------------------------------------------------------------------------
 [ssot_tables]
-doc = "A top-level table nothing reads is dead SSOT: it looks operator-tunable and is not, and every edit to it is silently ignored. The gate demands ACCESS-SHAPED evidence of consumption -- a direct index of the parsed SSOT, a toml-get lookup, a quoted dotted path naming a real key, the [dotfiles.registry] manifest, or a resolver-projected MIOS_<TABLE>_* variable derived from the table's own keys appearing in a hand-written consumer -- because name-appearance was measured and rejected: any doc sentence or word collision kept a dead table alive (T-996, and the T-997 measurement that closed the text-search direction). Projection surfaces are NOT consumption: the generated globals twins render every table and seed-db-config mirrors nearly every table into config_kv wholesale, so crediting either would make the gate vacuous again. Each entry here is a table whose consumption is currently broken, accepted deliberately while its wiring lands: browser (family/flags reach no browser launcher; MIOS_BROWSER_AI_* belongs to [browser_ai]), database (its MIOS_DATABASE_* projection has zero consumers; the db maintenance scripts read live PostgreSQL settings instead), editor (declared empty, so nothing can flow through it), git (likewise empty), hwcaps (ld_so_hwcaps_autoselect and native_rebuild reach no consumer; the rebuild script they describe is absent), logging (its intended consumer hardcodes the values its keys were meant to carry), pipeline (the stage-numbering enforcers hardcode the scheme this table describes), preflight (the Windows preflight reads none of its thresholds), repos (its repo definitions feed no dnf/bootc surface). Draining an entry: wire a real consumer or delete the table, then lower max_unconsumed. Gate: check_no_inert_ssot_tables."
-max_unconsumed = 9
+doc = "A top-level table nothing reads is dead SSOT: it looks operator-tunable and is not, and every edit to it is silently ignored. The gate demands ACCESS-SHAPED evidence of consumption -- a direct index of the parsed SSOT, a toml-get lookup, a quoted dotted path naming a real key, the [dotfiles.registry] manifest, or a resolver-projected MIOS_<TABLE>_* variable derived from the table's own keys appearing in a hand-written consumer -- because name-appearance was measured and rejected: any doc sentence or word collision kept a dead table alive (T-996, and the T-997 measurement that closed the text-search direction). Projection surfaces are NOT consumption: the generated globals twins render every table and seed-db-config mirrors nearly every table into config_kv wholesale, so crediting either would make the gate vacuous again. Each entry here is a table whose consumption is currently broken, accepted deliberately while its wiring lands: browser (family/flags reach no browser launcher; MIOS_BROWSER_AI_* belongs to [browser_ai]), hwcaps (ld_so_hwcaps_autoselect and native_rebuild reach no consumer; the rebuild script they describe is absent), preflight (the Windows preflight reads none of its thresholds), repos (its repo definitions feed no dnf/bootc surface). Draining an entry: wire a real consumer or delete the table, then lower max_unconsumed. Gate: check_no_inert_ssot_tables."
+max_unconsumed = 3
 unconsumed = [
   "browser",                           # family/flags reach no launcher
-  "database",                          # MIOS_DATABASE_* emitted, zero consumed
-  "editor",                            # empty table -- no keys to consume
-  "git",                               # empty table -- no keys to consume
   "hwcaps",                            # rebuild script it describes is absent
-  "logging",                           # consumer unit hardcodes these values
-  "pipeline",                          # numbering enforcers hardcode the scheme
-  "preflight",                         # thresholds read by no preflight code
   "repos",                             # repo defs feed no dnf/bootc surface
 ]
 
@@ -1116,7 +1110,19 @@ ConditionPathExists = "/usr/share/mios/agents/Containerfile"
 [units."mios-agents.service".Service]
 Type = "simple"
 comment = "# systemd does NOT expand bash ${VAR:-default} in ExecStart -- it resolves to\n# empty (code-server then dies \"Invalid URL\"). Set the defaults here; install.env\n# (the mios.toml -> env SSOT bridge) overrides them when present. ExecStart uses\n# plain ${VAR}."
-Environment = ["MIOS_PORT_CODE_SERVER=${MIOS_PORT_CODE_SERVER:-8900}", "MIOS_DEFAULT_PASSWORD=mios"]
+Environment = [
+  "MIOS_PORT_CODE_SERVER=${MIOS_PORT_CODE_SERVER:-8900}",
+  "MIOS_DEFAULT_PASSWORD=mios",
+  # Law 10 keeps these four out of install.env -- a space, parentheses or a
+  # {} placeholder, or an empty value the resolver drops -- while ExecStart
+  # references each BARE, which the renderer leaves for systemd to expand.
+  # Without a supply here systemd expanded all four to the empty string
+  # (T-1064). `mios-gate protected-refs` fails the build on the general case.
+  "\"MIOS_A2O_LANE_B_MODEL=${MIOS_A2O_LANE_B_MODEL:-}\"",
+  "\"MIOS_A2O_CLAUDE_EFFORT_FLAG=${MIOS_A2O_CLAUDE_EFFORT_FLAG:-}\"",
+  "\"MIOS_A2O_AGY_EFFORT_FLAG=${MIOS_A2O_AGY_EFFORT_FLAG:-}\"",
+  "\"MIOS_A2O_GEMINI_EFFORT_FLAG=${MIOS_A2O_GEMINI_EFFORT_FLAG:-}\"",
+]
 EnvironmentFile = "-/etc/mios/install.env"
 TimeoutStartSec = "1200s"
 comment2 = "# Build the local super-container image on first deploy (idempotent no-op after)."
@@ -1704,14 +1710,19 @@ provenance_taint = false
 # baked into world-readable units. SHRINK-ONLY; T-175 rotates them to
 # /etc/mios/secrets.env (gate: check_credential_literals).
 [security.credential_literals]
+# T-1035. Each entry pins path:KEY=VALUE, not just path:KEY. A key-only register
+# cannot tell the shipped placeholder from an operator's real password: setting
+# MIOS_PG_PASS in the build environment bakes that value into a 0644 file under
+# /usr and the key-only gate stayed green. Every value below is a placeholder
+# and none is a secret; changing any of them is a NEW finding by design.
 grandfathered = [
-  "usr/lib/systemd/system/mios-agents.service:MIOS_DEFAULT_PASSWORD",
-  "usr/lib/systemd/system/mios-ha-bootstrap.service:HA_PASSWORD",
-  "usr/share/containers/systemd/mios-guacamole.container:POSTGRESQL_PASSWORD",
-  "usr/share/containers/systemd/mios-k3s.container:K3S_TOKEN",
-  "usr/share/containers/systemd/mios-open-webui.container:RAG_OPENAI_API_KEY",
-  "usr/share/containers/systemd/mios-open-webui.container:WEBUI_SECRET_KEY",
-  "usr/share/containers/systemd/mios-pgvector.container:POSTGRES_PASSWORD",
+  "usr/lib/systemd/system/mios-agents.service:MIOS_DEFAULT_PASSWORD=mios",
+  "usr/lib/systemd/system/mios-ha-bootstrap.service:HA_PASSWORD=mios",
+  "usr/share/containers/systemd/mios-guacamole.container:POSTGRESQL_PASSWORD=mios",
+  "usr/share/containers/systemd/mios-k3s.container:K3S_TOKEN=mios-cluster-secret",
+  "usr/share/containers/systemd/mios-open-webui.container:RAG_OPENAI_API_KEY=sk-noop",
+  "usr/share/containers/systemd/mios-open-webui.container:WEBUI_SECRET_KEY=mios-stable-secret-change-me",
+  "usr/share/containers/systemd/mios-pgvector.container:POSTGRES_PASSWORD=mios",
 ]
 
 # [security.redact] -- DURA-02 redaction on PERSIST; every schema table sits in
@@ -1821,6 +1832,49 @@ minrate = "1k"
 max_parallel_downloads = 10
 ip_resolve = 4
 
+
+[build.quadlet_render]
+# File extensions automation/34-render-quadlets.sh substitutes ${MIOS_*} in.
+# SSOT because the renderer and check_render_extension_coverage must agree:
+# `.socket` was absent, so usr/lib/systemd/system/mios-cockpit-link.socket
+# shipped `ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK}` (T-1040).
+extensions = [
+  "container", "network", "volume", "pod", "image", "build",
+  "toml", "json", "conf", "service", "socket",
+]
+# Trees the renderer walks. Hardcoded in bash AND again in miosd before T-1040.
+dirs = [
+  "/etc/containers/systemd",
+  "/etc/containers/systemd/users",
+  "/usr/share/containers/systemd",
+  "/usr/share/containers/systemd/users",
+  "/etc/mios",
+  "/usr/share/mios/kb",
+  "/usr/lib/systemd/system/cockpit.socket.d",
+  "/usr/lib/systemd/system",
+]
+# Matches the bash `find -maxdepth 2`; miosd's read_dir was depth 1 and missed users/.
+max_depth = 2
+# Directives whose BARE ${VAR} systemd resolves at runtime from the unit's own
+# Environment=/EnvironmentFile=. The `:-` form is never protected: systemd calls
+# replace_env_full with flags=0 and does no replacement, so it must be baked.
+runtime_ref_directives = [
+  "ExecStart", "ExecStartPre", "ExecStartPost",
+  "ExecStop", "ExecStopPost", "ExecReload", "ExecCondition",
+]
+
+[build.toolchain]
+# The toolchain both workspaces build and lint with (T-1059).
+# Projected into the root rust-toolchain.toml; rustup finds it by ascent.
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]
+
+[build.tool_dispatch]
+# Bake-time tool-dispatch gates whose lookup cannot resolve. Shrink-only: T-1018.
+max_unreachable = 1
+unreachable = [
+  "automation/44-firewall-ports.sh",
+]
 
 [ai_tag]
 # Shrink-only, and set to the measured count so the next untagged file
@@ -2143,15 +2197,15 @@ seccomp_deny   = ["swapon", "swapoff", "reboot", "settimeofday", "clock_settime"
 laws = [
   { id = 1,  slug = "USR-OVER-ETC",         applies_to = "both",  enforced_by = "98-drift-checks.sh:check_usr_over_etc" },
   { id = 2,  slug = "NO-MKDIR-IN-VAR",       applies_to = "both",  enforced_by = "98-drift-checks.sh:check_no_mkdir_in_var" },
-  { id = 3,  slug = "BOUND-IMAGES",          applies_to = "bootc", enforced_by = "99-postcheck.sh:item14" },
+  { id = 3,  slug = "BOUND-IMAGES",          applies_to = "bootc", enforced_by = "99-postcheck.sh:BOUND-IMAGES" },
   { id = 4,  slug = "BOOTC-CONTAINER-LINT",  applies_to = "bootc", enforced_by = "98-drift-checks.sh:check_lint_is_final" },
-  { id = 5,  slug = "UNIFIED-AI-REDIRECTS",  applies_to = "both",  enforced_by = "99-postcheck.sh:item12" },
+  { id = 5,  slug = "UNIFIED-AI-REDIRECTS",  applies_to = "both",  enforced_by = "99-postcheck.sh:UNIFIED-AI-REDIRECTS" },
   { id = 6,  slug = "UNPRIVILEGED-QUADLETS", applies_to = "bootc", enforced_by = "98-drift-checks.sh:check_quadlet_privilege" },
   { id = 7,  slug = "NO-HARDCODE",           applies_to = "both",  enforced_by = "98-drift-checks.sh:check_no_hardcode" },
   { id = 8,  slug = "SSOT-PROJECTION",       applies_to = "both",  enforced_by = "98-drift-checks.sh:check_projection_registry" },
   { id = 9,  slug = "ONE-CANONICAL-NAME",    applies_to = "both",  enforced_by = "98-drift-checks.sh:check_var_closure" },
-  { id = 10, slug = "BARE-SAFE-ENV",         applies_to = "both",  enforced_by = "99-postcheck.sh:item16" },
-  { id = 11, slug = "SECRETS-NEVER-IN-ENV",  applies_to = "bootc", enforced_by = "99-postcheck.sh:item17" },
+  { id = 10, slug = "BARE-SAFE-ENV",         applies_to = "both",  enforced_by = "99-postcheck.sh:BARE-SAFE-ENV" },
+  { id = 11, slug = "SECRETS-NEVER-IN-ENV",  applies_to = "bootc", enforced_by = "99-postcheck.sh:SECRETS-NEVER-IN-ENV" },
   { id = 12, slug = "BAKE-NOT-FETCH",        applies_to = "both",  enforced_by = "98-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open" },
   { id = 13, slug = "NATIVE-DROPINS",        applies_to = "both",  enforced_by = "98-drift-checks.sh:check_resolver_twin_parity" },
   { id = 14, slug = "TARGET-LANGUAGES",      applies_to = "both",  enforced_by = "98-drift-checks.sh:check_target_languages" },
@@ -2179,7 +2233,38 @@ surfaces = [
   { generator = "tools/generate-blade-dropins.py", check = "check_blade_dropins", output = "usr/share/mios/dropins/" },
   { generator = "tools/generate-pod-quadlets.py", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
   { generator = "tools/render-globals.py", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
+  { generator = "tools/generate-cosign-policy.py", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
+  { generator = "tools/generate-adr-index.py", check = "check_adr_index", output = "ADR.md" },
+  { generator = "tools/generate-bake-plan.py", check = "check_bake_plan", output = "usr/lib/mios/bake/plan.d/NN-<group>.list, usr/lib/mios/bake/plan.d/firstboot.list, usr/share/mios/artifacts/sbom/bound-images.tsv" },
+  { generator = "tools/generate-bib-configs.py", check = "check_bib_configs_projection", output = "config/artifacts/bib.toml, config/artifacts/iso.toml" },
+  { generator = "tools/generate-blade-karg.py", check = "check_blade_karg", output = "usr/lib/bootc/kargs.d/05-mios-blade.toml" },
+  { generator = "tools/generate-cargo-manifests.py", check = "check_cargo_manifest_generated", output = "tools/native/Cargo.toml" },
+  { generator = "tools/generate-cockpit-conf.py", check = "check_cockpit_projection", output = "etc/cockpit/cockpit.conf" },
+  { generator = "tools/generate-egress-firewall.py", check = "check_egress_firewall", output = "usr/share/mios/security/egress.nft" },
+  { generator = "tools/generate-gate-index.py", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
+  { generator = "tools/generate-ipa-enroll-env.py", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
+  { generator = "tools/generate-metal-vs-hosted.py", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
+  { generator = "tools/generate-names-registry.py", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
+  { generator = "tools/generate-pipeline-index.py", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
+  { generator = "tools/generate-uki-cmdline.py", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
+  { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
+  { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
+  { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
+  { generator = "tools/render-ports.py", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
 ]
+
+# The scope this registry is measured against. `mios-gate projection-coverage`
+# reads these globs, enumerates what they match, and asserts every hit is on
+# `surfaces` above or itemised on `exempt` below -- the reverse direction that
+# `check_projection_registry` (forward only) never asked. Single `*`, final
+# path segment only; a pattern the matcher cannot express is a hard error, not
+# a silent widening.
+generator_globs = ["tools/generate-*.py", "tools/render-*.py"]
+
+# Shrink-only. A generator belongs here ONLY if it projects nothing tracked, and
+# then with the reason spelled out -- a bare name would make this a count.
+exempt = []
+max_exempt = 0
 
 
 [security.sigstore]
@@ -2207,6 +2292,26 @@ root = [
 # Units legitimately without Group=/Delegate=yes (Law 6 exempt from those two keys only).
 no_group_delegate = [
   "mios-coderun-sandbox@.container",        # UserNS=keep-id user unit -- Delegate n/a
+]
+
+# Law 10 BARE-SAFE-ENV: /etc/mios/install.env is bare KEY=value, readable by
+# all three parsers (systemd EnvironmentFile=, bash source, podman --env-file).
+# A value carrying whitespace, a quote, `$`, a backtick or `#` cannot be written
+# bare without changing what it means, so system-sync-env.sh skips it.
+#
+# Skipping SILENTLY is the defect: MIOS_AI_ENDPOINT was dropped this way and
+# Law 5 routes every agent through it (T-1060). These keys are declared, with
+# the reason each value cannot be bare; ANY other unsafe value now fails the
+# render instead of vanishing. Shrink-only: max_declared comes down as values
+# are made bare, never up.
+[security.non_bare_env]
+max_declared = 5
+keys = [
+  "MIOS_USER_FULLNAME",           # a person's display name -- the space IS the content
+  "MIOS_A2O_LANE_A_ROLE",         # prose describing a lane's share of the work
+  "MIOS_A2O_LANE_B_ROLE",         # same, and parenthesised
+  "MIOS_A2O_LANE_B_MODEL",        # an external lane's display model name -- spaces + parentheses
+  "MIOS_A2O_CLAUDE_EFFORT_FLAG",  # a CLI flag template: a space and a {} placeholder
 ]
 
 [security.nohc_allowlist]
@@ -7426,7 +7531,10 @@ realm = "MIOS.INTERNAL"
 server = "ipa.mios.internal"
 domain = "mios.internal"
 enroll_principal = "admin"
-otp = "placeholder-one-time-password"
+# The one-time password is a credential, so the SSOT carries a POINTER to it.
+# A value here is committed to git and projected into a 0644 file (T-1050).
+otp_file = "/etc/mios/secrets.env"
+otp_key = "MIOS_IPA_OTP"
 
 [cockpit]
 allow_unencrypted = true
@@ -7911,6 +8019,12 @@ min_disk_free_gb    = 280        # 256 GB partition + headroom
 min_ram_gb          = 8
 require_virt        = true       # Hyper-V + WSL2 require virtualization
 require_admin       = true       # auto-elevation handles this; check is informational
+
+# BUILD-host readiness: the above gate an install, these gate `just build`.
+[preflight.build]
+required_tools    = ["podman", "git", "just"]
+required_files    = ["Containerfile"]
+min_disk_free_gb  = 20           # working space for one image build, not the install
 
 # ----------------------------------------------------------------------------
 # [network.retry] -- transient-error retry schedules (seconds). Used by
@@ -9961,9 +10075,6 @@ alias_ll = "ls -la"
 alias_gs = "git status"
 alias_gp = "git push"
 
-[editor]
-[git]
-
 [ssh]
 host          = "mios-*"
 user          = "agent"
@@ -9990,7 +10101,12 @@ required_markers = ["## Status", "## Context", "## Decision", "## Rationale", "#
 generated = false
 scaffold = true
 dest_dir = "usr/share/doc/mios/adr"
-name_prefix = "0012-"
+# name_prefix on a SEQUENTIAL type is an ordinal seed, not a literal: it supplies
+# the zero-pad width and the first number ever allocated. name_ordinal_next tells
+# the scaffolder to allocate the next FREE ordinal by scanning dest_dir, so two
+# ADRs scaffolded in a row cannot collide on the same number.
+name_prefix = "0001-"
+name_ordinal_next = true
 name_suffix = ".md"
 emit = "file"
 
@@ -10011,6 +10127,9 @@ required_markers = []
 generated = false
 scaffold = true
 dest_dir = "automation"
+# Deliberately NOT name_ordinal_next: the NN- ordinal encodes EXECUTION ORDER,
+# so the author places a new step next to its peers (`mios new automation-step
+# 45-myfeature`). The prefix is only the fallback for an unnumbered name.
 name_prefix = "99-"
 name_suffix = ".sh"
 emit = "file"
@@ -10497,7 +10616,160 @@ counters = [
 ]
 suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never parse or fold into the MiOS scheme."
 
+# T-1037. miosd Check implementations that were never written: their `run` takes
+# `_ctx`, never reads the tree, and returned a constant Verdict::Pass with a
+# message CLAIMING verification. Containerfile:103 invokes this suite at every
+# bake, so the bake's own gate was certifying a tree it had not read -- pointed
+# at a directory that does not exist it reported "55 passed". They now report
+# Verdict::Skip("NOT IMPLEMENTED: ..."), which is the truth, and are registered
+# here shrink-only: implement a check and take it off the list; a new stub fails
+# the gate. Gate: `mios-gate drift-stubs`.
+# Ceilings that are GENERATED budgets rather than shrink-only ratchets, so
+# check_ratchet_direction lets them rise. Itemised with a reason on purpose: a
+# bare key here is indistinguishable from a silent skip, and a skip nobody can
+# see is how a gate stops being one. An entry naming something that is not a
+# ceiling is a finding, so a stale exemption cannot lie in wait for a future key
+# of that name.
+#
+# A TABLE of key -> reason, deliberately not an array of inline tables: that
+# shape renders differently in the two resolver twins, and its registered
+# divergence set is a shrink-only 12 that a thirteenth key breaches
+# (check_resolver_differential_parity). Law 13 costs a shape here.
+[drift.generated_ceilings]
+"legibility.max_tracked_mb" = "emitted by tools/native/mios-size-ceiling as round(tracked MiB) + [legibility].tracked_mb_headroom; it tracks the deliverable's size, which Law 12 BAKE-NOT-FETCH requires to grow, so shrink-only is the wrong shape for it (T-1051)"
+
+[drift.budget_keys]
+# T-1047. Budget keys that MUST exist in [agent_pipe] or [dispatch].
+#
+# Enumerating the tables catches a key ADDED with no consumer. It cannot catch
+# a key DELETED, because a deleted key is simply absent from the enumeration --
+# the set shrinks and nothing is missing from it. The hardcoded nine-name list
+# this replaced was doing two jobs and only one of them was the defect; this is
+# the other one, moved out of Rust source and into SSOT where an
+# operator-tunable registry belongs (Law 7).
+#
+# Seeded with exactly the nine the old constant named, so the floor is no
+# weaker than what it replaced. Removing an entry here is removing a guarantee:
+# do it only when the knob is genuinely retired.
+required = [
+  "tool_max_iters",
+  "replan_max",
+  "no_progress_window",
+  "max_consecutive_failures",
+  "wall_clock_budget_s",
+  "reflexion_enable",
+  "swarm_max_width",
+  "max_dispatch_depth",
+  "default_hop_budget",
+]
+
+# [agent_pipe]/[dispatch] keys that SSOT declares and NOTHING reads.
+# Shrink-only, and the ceiling may never sit above the measurement. Itemised
+# rather than a bare count: a count lets one dead key swap for another without
+# the gate noticing, which is the defect [docs] already carries.
+#
+# mios-aiplane-lint walks all 128 scalar leaves under both tables. It used to
+# walk a hardcoded list of nine, so these nine were invisible: an operator
+# could set any of them and nothing would happen, silently.
+#
+# Each is a knob with no reader. Wire it or delete it -- do not just move the
+# ceiling. `reflexion_limit` and `tool_loop_limit` are named by
+# tools/drift-checks.py, but only as keys it asserts are PRESENT; naming a key
+# is not consuming it, and that is exactly how they stayed dead.
+unconsumed = [
+  "client_tools_passthrough",
+  "lane_concurrency_cpu",
+  "lane_concurrency_gpu0",
+  "reflexion_limit",
+  "tool_backend_model",
+  "tool_loop_limit",
+  "trace_enable",
+  "trace_max_spans_per_trace",
+  "trace_max_traces",
+]
+max_unconsumed = 9
+
+[drift.unimplemented]
+max_unimplemented = 54
+checks = [
+  "check_agent_pipe_budgets",
+  "check_bake_budget",
+  "check_bake_plan",
+  "check_bake_ref_defaults",
+  "check_bootstrap_ports_drift",
+  "check_capability_manifest",
+  "check_cli_eval_safety",
+  "check_cli_sql_safety",
+  "check_container_ports",
+  "check_containerfile_pinned_clones",
+  "check_converge_ssot",
+  "check_council_gate_ssot",
+  "check_dag_integrity",
+  "check_db_seed_coverage",
+  "check_drift_projection",
+  "check_etc_duplicates",
+  "check_firstboot_degrade_open",
+  "check_globals_image_parity",
+  "check_globals_ports",
+  "check_greenboot_enablement",
+  "check_guacamole_consistency",
+  "check_hint_coverage",
+  "check_lint_is_final",
+  "check_module_boundary",
+  "check_module_length",
+  "check_negative_test_coverage",
+  "check_no_bare_port_literals",
+  "check_no_hardcode",
+  "check_no_hardcode_version",
+  "check_no_hardcoded_ssot_literal",
+  "check_no_mkdir_in_var",
+  "check_python_lint",
+  "check_quadlet_privilege",
+  "check_rbac_tiers",
+  "check_roadmap_index",
+  "check_root_toml_subset",
+  "check_router_parity",
+  "check_sbom_metadata",
+  "check_shellcheck",
+  "check_soft_mode_not_committed",
+  "check_ssot_lint_equivalence",
+  "check_structured",
+  "check_target_languages",
+  "check_template_conformance",
+  "check_unwired_modules",
+  "check_userenv_parity",
+  "check_usr_over_etc",
+  "check_var_closure",
+  "check_vendor_urls",
+  "check_vendored_assets_non_stub",
+  "check_verb_backends",
+  "check_verb_templates",
+  "check_version_ssot",
+  "check_vllm_name_canonical",
+]
+
 [build.phases]
+# T-1038. Phase scripts present in automation/ that build.sh does NOT run.
+# Shrink-only, and the ceiling may never sit above the measurement.
+#
+# The register is empty as of T-1018 stage 5. It previously held
+# 55-native-build.sh on the reasoning that registering it would put miosd on
+# PATH -- its `ln -sf "${DEST_DIR}/${bin}" "/usr/bin/${bin}"` is the only such
+# line in the tree -- and so arm the `command -v miosd` gates in every stage
+# numbered above 55, producing a split brain inside one bake.
+#
+# That reasoning read the script instead of measuring whether the line runs.
+# 55-native-build.sh guards its whole body on `command -v cargo`, no [packages]
+# section installs a Rust toolchain, and no phase dnf-installs one: in a bake
+# the stage prints its "cargo toolchain not available" warning and does nothing.
+# The binaries in the image come from the Containerfile's rust-builder stage,
+# COPYed to /usr/libexec/mios, which is not on PATH -- so no stage, above or
+# below 55, has ever reached its Rust branch. Registering 55 arms nothing.
+# It also cannot change which phases run: build.sh selected via the
+# automation/[0-9][0-9]-*.sh glob (build_catalog_authoritative = false and no
+# build_phases.json), and that glob already included 55.
+unregistered = []
+max_unregistered = 0
 list = [
   { ordinal = "01", name = "system-files-overlay", script = "01-system-files-overlay.sh", fatal = true, apply_class = "containerfile" },
   { ordinal = "02", name = "materialize-build-ctx", script = "02-materialize-build-ctx.sh", fatal = true, apply_class = "universal" },
@@ -10541,6 +10813,7 @@ list = [
   { ordinal = "52", name = "apply-boot-fixes", script = "52-apply-boot-fixes.sh", fatal = true, apply_class = "universal" },
   { ordinal = "53", name = "enable-log-copy-service", script = "53-enable-log-copy-service.sh", fatal = false, apply_class = "universal" },
   { ordinal = "54", name = "bake-coderun-sandbox", script = "54-bake-coderun-sandbox.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "55", name = "native-build", script = "55-native-build.sh", fatal = true, apply_class = "universal" },
   { ordinal = "56", name = "fonts", script = "56-fonts.sh", fatal = true, apply_class = "universal" },
   { ordinal = "57", name = "gnome", script = "57-gnome.sh", fatal = false, apply_class = "universal" },
   { ordinal = "58", name = "gnome-remote-desktop", script = "58-gnome-remote-desktop.sh", fatal = false, apply_class = "universal" },
@@ -10605,7 +10878,7 @@ max_key_divergence = 983
 # Values that differ for keys both resolvers emit. The remainder is
 # Python's repr of nested arrays/tables, which needs preserve_order on
 # the toml crate to match -- AGY-1676, with a toolchain that can link.
-max_value_divergence = 12
+max_value_divergence = 0
 
 [tasks]
 # AGY task hygiene ratchet. Duplicate task IDs make dependencies ambiguous.
@@ -10736,7 +11009,7 @@ port_clean = [
 ]
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.
-# Method + full census: docs/agy/doc-generative-documentation.md
+# Method + full census: docs/design/doc-generative-documentation.md
 max_unmigrated_narrative = 0   # MIGRATE blocks still in source
 max_overlong_hints       = 0    # AI-hint headers over [ai_tag].hint_max_chars
 
@@ -10808,7 +11081,7 @@ ref_allowlist = [
   "{bib",
   "wsl2}.toml",
   "automation/lib/bake.sh",
-  "docs/agy/doc-mios-metal.md",
+  "docs/design/doc-mios-metal.md",
   "usr/share/mios/mini/headscale-policy.hujson",
   "usr/lib/greenboot/check/required.d/41-mios-critical-services.sh",
   "usr/libexec/mios/mios-greenboot-critical-gen",
@@ -11032,16 +11305,31 @@ not_mirrored = [
 # [legibility] -- the repo IS the deliverable. Floors fall only. See ROADMAP.md.
 [legibility]
 max_tracked_files = 3344
-max_tracked_mb    = 202  # +1: tens of MB of vendored wheels arrived under Law 12
-                         # (BAKE-NOT-FETCH), and roadmap prose tipped the rounding.
-                         # This ceiling is dominated by bake payloads rather than by anything
-                         # legibility governs -- exclude usr/share/mios/vendored/ and re-baseline
-                         # it down, the way generated globals are already excluded from the
-                         # shell/PowerShell counts, rather than raising it again.
+# GENERATED by tools/native/mios-size-ceiling; do not hand-edit. The valid band
+# is round(tracked MiB) .. that + tracked_mb_headroom, and a committed value
+# outside it fails check_size_ceiling. This ceiling is NOT shrink-only, which is
+# why it is itemised in [drift.generated_ceilings] rather than silently skipped.
+# The alternative considered and not taken -- exclude usr/share/mios/vendored/
+# (83% of the measurement, and Law 12 forbids shedding it) and re-baseline down
+# the way generated globals are excluded from the shell/PowerShell counts -- is
+# recorded in T-1051 with the numbers.
+max_tracked_mb    = 204
+# The allowance, and the only operator-tunable half: how far the tree may grow
+# between regenerations before the gate says anything. 0 makes the ceiling exact
+# and every MiB boundary a failure, which is the state T-1051 was filed about.
+tracked_mb_headroom = 1
 max_shell_lines   = 39903  # bash is glue only (Law 14)
 max_ps_lines      = 22618  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
-max_libexec_verbs     = 285
+max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are not verbs
+
+# Script mass that converts to Rust binaries; the AI plane is exempt.
+python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
+max_tooling_python_lines = 77454   # 121210 -> 77454: a sibling unit test is not
+                                   # tooling to port, and 36% of this was test
+                                   # code (T-1044). Pulled to the measurement,
+                                   # never left as slack. Merge inheritance it
+                                   # cannot see: T-1046.
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]
@@ -11124,7 +11412,6 @@ unit = [
     "tests/test-think-stripper.py",
     "tests/test-atomic-writes.py",
     "tests/test-path-normalization.py",
-    "tools/test_check-ratchet-direction.py",
     "tests/test-bootstrap-sync-parity.py",
     "tests/test-install-fhs.py",
     "tests/test-mios-update-verb.py",
@@ -11523,7 +11810,7 @@ target    = "bare metal, headless"
 config    = ["metal"]
 archetype = "headless"
 artifacts = ["iso", "raw"]
-doc       = "docs/agy/doc-mios-metal.md"
+doc       = "docs/design/doc-mios-metal.md"
 status    = "design"
 
 [variants.entries.mios-xbox]

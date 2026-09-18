@@ -37,7 +37,7 @@ Three-layer resolution (highest wins): `~/.config/mios/mios.toml` (per-user) →
 The `justfile` is the source of truth for the Linux build; `just --list` shows every target.
 
 ```bash
-just preflight        # host readiness checks (tools/preflight.sh)
+just preflight        # host readiness checks (mios-probe, thresholds from [preflight])
 just build            # podman build the OCI image (runs preflight + flight-status first)
 just lint             # bootc container lint against the freshly built image
 just drift-gate       # source-tree fitness functions — NO built image needed; safe on every PR

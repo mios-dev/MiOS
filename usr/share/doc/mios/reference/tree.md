@@ -45,7 +45,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   ├─ install.ps1               Windows installer (worker for pipeline phases 9-10)
 │   ├─ install.sh                Linux Phase-3 system installer (worker for pipeline phase 9)
 │   ├─ install-mios-agents.sh    AI-agent CLI installer (Cline / Cursor / Claude Code wiring)
-│   ├─ preflight.ps1 / tools/preflight.sh   prerequisite checks (worker for pipeline phase 1)
+│   ├─ preflight.ps1 / mios-probe           prerequisite checks (worker for pipeline phase 1)
 │   ├─ push-to-github.ps1        GHCR image push helper
 │   ├─ Justfile                  per-target build recipes (build / iso / qcow2 / vhdx / wsl2 / sbom)
 │   ├─ Containerfile             OCI image definition (FROM ucore-hci, runs automation/)

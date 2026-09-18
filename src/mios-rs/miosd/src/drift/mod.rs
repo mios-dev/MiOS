@@ -87,7 +87,20 @@ impl Check for SSOTParseCheck {
         }
         match fs::read_to_string(&p) {
             Ok(content) => match content.parse::<toml::Value>() {
-                Ok(_) => Verdict::Pass(format!("SSOT TOML at {} parses successfully", p.display())),
+                // T-1043: an EMPTY file is valid TOML, so "parses" was true of a
+                // zero-byte mios.toml and this reported Pass on a tree with no
+                // SSOT in it at all. An SSOT with no tables is not an SSOT.
+                Ok(v) => match v.as_table().map(|t| t.len()).unwrap_or(0) {
+                    0 => Verdict::Fail(format!(
+                        "SSOT TOML at {} parses but declares no tables",
+                        p.display()
+                    )),
+                    n => Verdict::Pass(format!(
+                        "SSOT TOML at {} parses successfully ({} top-level tables)",
+                        p.display(),
+                        n
+                    )),
+                },
                 Err(e) => Verdict::Fail(format!("SSOT TOML parse error: {}", e)),
             },
             Err(e) => Verdict::Fail(format!("Failed to read SSOT file: {}", e)),
@@ -188,10 +201,22 @@ impl Check for BackfillCoverageCheck {
             }
         }
 
+        // T-1043: zero embeddable tables made "all covered" vacuously true, so
+        // an empty schema-init.sql reported Pass. The shipped schema always has
+        // them; finding none means the scan failed, not that the work is done.
+        if emb_tables.is_empty() {
+            return Verdict::Fail(format!(
+                "no 'emb vector' table found in {} -- nothing was compared",
+                schema_path.display()
+            ));
+        }
         if !errors.is_empty() {
             Verdict::Fail(errors.join("\n"))
         } else {
-            Verdict::Pass("All emb vector tables covered".to_string())
+            Verdict::Pass(format!(
+                "all {} emb vector table(s) covered",
+                emb_tables.len()
+            ))
         }
     }
 }

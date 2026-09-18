@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # AI-hint: The generative documentation CLI. Builds the comment corpus ledger that makes "this comment's knowledge landed in a doc" a machine-checkable fact, and reports the census that drives the documentation ratchet. Only `prune` edits source, and only where the landing predicate proves the knowledge is already in a doc.
-# AI-related: usr/lib/mios/mios_comments.py, usr/share/mios/reference/manual-corpus.tsv, automation/98-drift-checks.sh, docs/agy/doc-generative-documentation.md
+# AI-related: usr/lib/mios/mios_comments.py, usr/share/mios/reference/manual-corpus.tsv, automation/98-drift-checks.sh, docs/design/doc-generative-documentation.md
 # AI-functions: cmd_ledger, cmd_audit, cmd_coverage, cmd_harvest, cmd_prune, cmd_landing, cmd_render, landed, main
 """mios-manual -- corpus ledger and census for the MiOS documentation system.
 
-Spec: docs/agy/doc-generative-documentation.md sections 3.4 and 5.
+Spec: docs/design/doc-generative-documentation.md sections 3.4 and 5.
 
 Subcommands:
   ledger   rebuild usr/share/mios/reference/manual-corpus.tsv from the tree

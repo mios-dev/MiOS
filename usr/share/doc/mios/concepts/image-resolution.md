@@ -31,4 +31,4 @@ Historically, image resolution was coupled to credentials defined in `globals.sh
 - The credential fallback logic in `globals.sh` and `globals.ps1` is **deprecated and inactive** on all fresh execution paths.
 - Canonical entry points do not source the legacy `globals` files for image name resolution.
 - Registry hosts and image tags are resolved directly from `mios.toml` `[image]` SSOT properties, ensuring clean, unified configuration.
-- Cross-reference: [AGY-89 Globals Clobber Fix](file:///C:/MiOS/docs/agy/mios-finalization-plan.md).
+- Cross-reference: [AGY-89 Globals Clobber Fix](file:///C:/MiOS/docs/design/mios-finalization-plan.md).

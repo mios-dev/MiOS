@@ -4,6 +4,7 @@
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 source "$(dirname "$0")/lib/common.sh"
@@ -105,8 +106,19 @@ fi
 
 BDIR="/usr/lib/bootc/bound-images.d"
 install -d -m 0755 "${BDIR}"
-if command -v miosd >/dev/null 2>&1; then
-    miosd overlay-bind-images --dest "${BDIR}"
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# nothing puts on PATH at bake time, so the lookup this replaced could never
+# succeed and the branch below it was dead on every build (T-1018).
+_miosd=""
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/src/mios-rs/target/release/miosd" \
+          "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/src/mios-rs/target/debug/miosd"; do
+    if [[ -n "$_c" && -x "$_c" ]]; then _miosd="$_c"; break; fi
+done
+
+if [[ -n "$_miosd" ]]; then
+    MIOS_TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}" "$_miosd" overlay-bind-images --dest "${BDIR}"
     mios_ok "LBI binding completed via miosd"
 else
     _MIOS_TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}"
@@ -141,6 +153,8 @@ fi
 mios_step "Pathing compatibility symlinks"
 
 if [ ! -L /home ] && [ -d /home ] && [ ! "$(ls -A /home)" ]; then
+    # shellcheck disable=SC2114  # guarded above: only an EMPTY, non-symlink /home,
+    # which is the bootc layout's placeholder before it becomes /var/home
     rm -rf /home
     ln -sf /var/home /home
     mios_ok "Path: symlinked /home -> /var/home"

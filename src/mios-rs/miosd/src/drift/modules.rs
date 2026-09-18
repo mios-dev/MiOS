@@ -12,7 +12,7 @@ impl Check for ModuleBoundaryCheck {
         "Assert agent-pipe python modules respect architectural boundary rules"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Module boundary check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Module boundary".to_string())
     }
 }
 
@@ -25,7 +25,7 @@ impl Check for ModuleLengthCheck {
         "Assert no python module exceeds maximum allowed line count"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Module length check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Module length".to_string())
     }
 }
 
@@ -38,6 +38,6 @@ impl Check for UnwiredModulesCheck {
         "Assert no dead or unwired modules exist without explicit allowlist"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Unwired modules check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Unwired modules".to_string())
     }
 }
