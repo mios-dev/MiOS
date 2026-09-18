@@ -57,7 +57,14 @@ def build_exports() -> dict:
                 and canonical not in mios_toml.WALK_EMIT_KEEP):
             exports[canonical] = processed
         for alias in mios_toml.get_aliases(dotted):
-            exports[_sanitize(alias)] = processed
+            # image.sidecars.*_VERSION carries the TAG, matching
+            # mios_toml.emit_exports and mios-resolver. Without it globals.sh
+            # disagreed with the resolver userenv.sh actually uses (T-1065).
+            if alias.endswith("_VERSION") and dotted.startswith("image.sidecars."):
+                p_str = str(processed)
+                exports[_sanitize(alias)] = p_str.rsplit(":", 1)[1] if ":" in p_str else "latest"
+            else:
+                exports[_sanitize(alias)] = processed
 
     for name, value in (mios_toml.colors(data) or {}).items():
         exports.setdefault("MIOS_COLOR_" + name.upper(), value)
