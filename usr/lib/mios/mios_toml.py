@@ -757,20 +757,28 @@ def emit_exports() -> dict[str, str]:
             if vp is not None and vp != "":
                 exports[_re_unsafe.sub("_", k)] = str(vp)
 
-    _resolve_cross_references(exports)
+    resolve_cross_references(exports)
     return exports
 
 
-def _resolve_cross_references(exports: dict[str, str]) -> None:
+def resolve_cross_references(exports: dict[str, str]) -> None:
     """Resolve ${MIOS_*} that one emitted value makes to another.
 
     Twin of resolve_cross_references in tools/native/mios-resolver/src/emit.rs
-    (Law 13). Of the three parsers that read the projection -- systemd
-    EnvironmentFile=, bash source and podman --env-file -- only bash expands, so
-    an emitted MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1
-    means three different things. It is also why system-sync-env.sh DROPPED that
+    (Law 13), and public because both the resolver and the drift gate call it.
+
+    Apply it where the consumer CANNOT expand: systemd EnvironmentFile= and
+    podman --env-file read a value literally, so an emitted
+    MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1 means one thing
+    to bash and another to them. It is also why system-sync-env.sh DROPPED that
     variable rather than emitting it: its filter rejects any value containing
     `$` (T-1060).
+
+    Do NOT apply it to the export map that renders automation/lib/globals.{sh,ps1}.
+    Those are sourced by bash and PowerShell, which expand at load time, and the
+    live reference is the feature: exporting MIOS_PORT_AGENT_PIPE before sourcing
+    propagates into MIOS_AI_ENDPOINT. render-globals.build_exports() therefore
+    returns the unexpanded map.
 
     Reads a snapshot so the result does not depend on dict order, leaves `$$`
     alone because systemd owns it, and leaves an unresolvable name verbatim

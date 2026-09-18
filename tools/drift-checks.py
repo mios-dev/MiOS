@@ -185,6 +185,21 @@ def check_resolver_differential_parity() -> int:
 
     py_exports = render_globals.build_exports()
 
+    # build_exports() returns the UNEXPANDED map on purpose: it renders
+    # automation/lib/globals.{sh,ps1}, which bash and PowerShell expand at source
+    # time, and keeping `${MIOS_PORT_AGENT_PIPE}` live there is what lets an
+    # operator's pre-export propagate. mios-resolver --emit=json is the resolved
+    # view and bakes. Comparing the two directly measured that difference in
+    # representation, not a divergence between the resolvers -- 103 "mismatches"
+    # that were the same 91 values written two correct ways. Both sides are put
+    # in the baked form first, by the same twin the Rust emitter calls, so what
+    # survives is real disagreement about a value.
+    _mt_dir = os.path.join(root, "usr", "lib", "mios")
+    if _mt_dir not in sys.path:
+        sys.path.insert(0, _mt_dir)
+    import mios_toml as _mios_toml
+    _mios_toml.resolve_cross_references(py_exports)
+
     try:
         res = subprocess.run([resolver_bin, "--emit=json"], capture_output=True, text=True, check=True)
         import json

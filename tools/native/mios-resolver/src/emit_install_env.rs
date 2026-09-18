@@ -3,7 +3,7 @@
 use std::path::Path;
 use toml::Value;
 
-use crate::emit::build_exports_map;
+use crate::emit::{build_exports_map, resolve_cross_references};
 
 pub fn emit_install_env(
     merged: &Value,
@@ -29,6 +29,12 @@ pub fn emit_install_env(
             exports.insert(k.clone(), val_str);
         }
     }
+
+    // After the [env] merge, so an [env] value can both reference an
+    // exported key and be referenced by one. Unresolved values still carry
+    // `$` and are dropped by the bare-safe filter below (Law 10) -- which is
+    // exactly how MIOS_AI_ENDPOINT went missing before T-1060.
+    resolve_cross_references(&mut exports);
 
     let mut lines = Vec::new();
 
