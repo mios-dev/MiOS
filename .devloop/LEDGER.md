@@ -775,3 +775,92 @@ working as intended, so local clippy is CI's clippy.
 Python repr for list-of-table values, Rust emits TOML inline-table syntax. The
 ceiling is 12 and the measurement is 12 -- no headroom, so the next such key
 fails the gate.
+
+---
+
+## Both open decisions executed, and two premises of mine were wrong
+
+The operator chose "keep-distinct first, then regenerate" for the value-dup
+ledger and "declare them non-bare with reasons" for install.env. Executing both
+corrected two things I had recorded as fact.
+
+**Wrong premise 1: "no generator, no --write mode."** `value-dup-baseline.tsv`
+documents its own regenerate path in its header
+(`MIOS_VALUE_DUP_BASELINE_BUMP=1`). The decision had been framed around
+hand-maintaining 48 rows, which was never necessary.
+
+**Wrong premise 2: the ledger header's own advice.** It says to record "distinct
+facts that happen to share a value" in `value-aliases.tsv` as `keep-distinct`.
+`check_value_aliases` FAILS a keep-distinct pair whose values are EQUAL --
+keep-distinct pins a false friend that resolves DIFFERENTLY. Following the
+header literally adds a fresh violation. Two rows written that way were rejected
+by the gate and removed rather than re-asserted the other way.
+
+**What the regenerate actually silenced.** 40 keys were newly under the ratchet.
+Exactly ONE came from this session (`MIOS_BUILD_QUADLET_RENDER_MAX_DEPTH`
+joining the scalar group '2'). The other 39 were added to `mios.toml` by earlier
+work and never recorded: `MIOS_BLADE_REQUIRES_*` x7, the radosgw port triple,
+version and storage keys. **The ledger had been drifting for many commits and
+nobody could see it, because `check_no_duplicate_value_key` counts as ONE
+violation however stale its ledger.** That is a Count-Only Ratchet, and I fell
+for it myself: I compared 20-vs-20 and called it baseline without reading what
+the check was saying.
+
+Five `derive` rows were added for genuine alias pairs, each verified equal under
+**the oracle the gate actually uses** -- `mios-env-snapshot`, which
+`check_value_aliases` runs with `MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL=false`.
+I first verified against `mios-resolver --emit=json` and proposed two rows on
+that basis; the gate rejected them because it reads a different resolver. **Verify
+with the tool that judges, not a tool that agrees.**
+
+## A fourth env view, and a divergence no gate can see (T-1065)
+
+There are now four known environment projections:
+`mios-resolver --emit=json`, `render-globals.build_exports()`,
+`mios_toml.emit_exports()`, and `mios-env-snapshot`. They do not all agree:
+
+    MIOS_K3S_VERSION   rust: docker.io/rancher/k3s:v1.36.3-k3s1   snapshot: v1.36.3-k3s1
+    MIOS_CEPH_VERSION  rust: quay.io/ceph/ceph:v19                snapshot: v19
+
+`check_resolver_differential_parity` structurally cannot catch this: it compares
+Rust against `build_exports()`, never against the snapshot. Filed as T-1065.
+
+## install.env: declared, then armed
+
+`[security.non_bare_env]` holds the 5 keys that legitimately cannot be bare with
+a reason each, plus `max_declared` as a shrink-only ceiling that postcheck now
+ENFORCES -- an unread ceiling is decorative, and an exemption list that grows one
+convenient entry at a time becomes the rule. `emit()` skips a declared key and
+FAILS an undeclared one; `99-postcheck.sh` no longer discards the stderr that
+carried the only record of a drop.
+
+The registry is read from the TOML, not the resolved environment, because
+`[security]` is WALK_MOSTLY_DEAD -- build policy is not runtime environment, the
+same reason `privileged_quadlets` is parsed that way. An unreadable SSOT yields
+an EMPTY allowlist, so everything becomes fatal.
+
+## Two self-inflicted lessons worth keeping
+
+1. **`system-sync-env.sh` could not be run without polluting the machine.** It
+   hardcoded `/usr/lib/mios/userenv.sh`, so measuring it meant creating that path
+   on the host -- and doing so broke `tests/test-powershell-flatten.sh`, a
+   failure that was mine, not the code's. It now re-bases on `MIOS_ROOT`
+   (absolute when unset, so the deployed shape is byte-identical). If a script
+   cannot be tested without side effects, that is the first thing to fix.
+2. **The resolver clobbers the caller's environment.** `MIOS_ROOT` and
+   `MIOS_TOML_VENDOR` are overwritten when `userenv.sh` is sourced, because the
+   shell binding exports unconditionally. The caller's root is captured BEFORE
+   sourcing. Same property as 5efe9e70, biting from the other side.
+
+## Baselines after all of it
+
+| tier | before this session | now |
+|---|---|---|
+| `98-drift-checks.sh` | 20 violations / 7 checks | **19 / 6** |
+| `drift-gate-negatives.sh` | 8 failures | **7** (CI-confirmed on fc1415f0) |
+| `run-suites.sh lint` | 6/0 | 6/0 |
+| `run-suites.sh unit` | 573/0 | 573/0 |
+
+Four CI runs this session were **cancelled by my own push cadence**, not failing.
+Pushing again while a run is in flight is why the baseline went unconfirmed for
+so long. Let a run finish.
