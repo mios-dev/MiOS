@@ -53,6 +53,47 @@ fn is_literal(val: &str) -> bool {
     !val.chars().all(|c| c.is_ascii_digit())
 }
 
+/// Every KEY=VALUE on one unit line that could carry a credential.
+///
+/// `Environment=` is the declarative surface. `--env KEY=VALUE` on an Exec line
+/// is the OTHER one, and scanning only the first measured the wrong property:
+/// mios-agents.service hands its container a password as
+/// `--env PASSWORD=${MIOS_DEFAULT_PASSWORD}` on an ExecStart continuation, so a
+/// plain literal planted there passed this gate at rc=0 while the identical
+/// literal on an `Environment=` line failed it. Both controls were run.
+///
+/// Bare `-e` is deliberately NOT matched: it collides with ordinary flags such
+/// as `bash -e`, and nothing in the corpus uses it to pass an environment pair.
+fn credential_pairs(line: &str) -> Vec<(&str, &str)> {
+    let trimmed = line.trim();
+    let mut out = Vec::new();
+
+    if let Some(rest) = trimmed.strip_prefix("Environment=") {
+        if let Some(pair) = rest.split_once('=') {
+            out.push(pair);
+        }
+    }
+
+    // A single Exec line can carry several `--env` flags, so walk them all
+    // rather than taking the first.
+    let mut hay = trimmed;
+    while let Some(idx) = hay.find("--env") {
+        let after = &hay[idx + "--env".len()..];
+        hay = after;
+        // `--env KEY=V` and `--env=KEY=V` both occur in podman invocations.
+        let after = after.strip_prefix('=').unwrap_or(after);
+        // Whitespace-split drops the trailing line-continuation backslash.
+        let Some(token) = after.split_whitespace().next() else {
+            continue;
+        };
+        if let Some(pair) = token.split_once('=') {
+            out.push(pair);
+        }
+    }
+
+    out
+}
+
 fn walk(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
     let Ok(rd) = std::fs::read_dir(dir) else {
         return;
@@ -108,29 +149,25 @@ pub fn check(root: &Path) -> Report {
             .to_string_lossy()
             .replace('\\', "/");
         for line in body.lines() {
-            let Some(rest) = line.trim().strip_prefix("Environment=") else {
-                continue;
-            };
-            let Some((key, value)) = rest.split_once('=') else {
-                continue;
-            };
-            if !key
-                .chars()
-                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
-            {
-                continue;
+            for (key, value) in credential_pairs(line) {
+                if !key
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+                {
+                    continue;
+                }
+                if !is_credential_key(key) {
+                    continue;
+                }
+                let value = value.trim();
+                if !is_literal(value) {
+                    continue;
+                }
+                // The register pins the VALUE, not just the key. A key-only register
+                // cannot tell the shipped placeholder from an operator's real
+                // password baked in by a build-environment variable.
+                found.insert(format!("{rel}:{key}={value}"));
             }
-            if !is_credential_key(key) {
-                continue;
-            }
-            let value = value.trim();
-            if !is_literal(value) {
-                continue;
-            }
-            // The register pins the VALUE, not just the key. A key-only register
-            // cannot tell the shipped placeholder from an operator's real
-            // password baked in by a build-environment variable.
-            found.insert(format!("{rel}:{key}={value}"));
         }
     }
 
@@ -181,5 +218,59 @@ pub fn check(root: &Path) -> Report {
             files.len()
         ),
         findings,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The surface that was unscanned. mios-agents.service passes its container
+    /// a password as `--env PASSWORD=...` on an ExecStart continuation; before
+    /// credential_pairs, a plain literal there passed the gate at rc=0 while the
+    /// identical literal on an `Environment=` line failed it.
+    #[test]
+    fn exec_env_flag_is_a_credential_surface() {
+        assert_eq!(
+            credential_pairs("  --env PASSWORD=hunter2 \\"),
+            vec![("PASSWORD", "hunter2")]
+        );
+        assert_eq!(
+            credential_pairs("  --env=PASSWORD=hunter2 \\"),
+            vec![("PASSWORD", "hunter2")]
+        );
+    }
+
+    #[test]
+    fn environment_lines_still_parse() {
+        assert_eq!(
+            credential_pairs("Environment=PASSWORD=hunter2"),
+            vec![("PASSWORD", "hunter2")]
+        );
+    }
+
+    /// One Exec line can carry many flags; taking only the first would leave
+    /// every later pair unscanned.
+    #[test]
+    fn every_env_flag_on_a_line_is_extracted() {
+        let pairs =
+            credential_pairs("ExecStart=/usr/bin/podman run --env A=1 --env PASSWORD=x --env B=2");
+        assert_eq!(pairs, vec![("A", "1"), ("PASSWORD", "x"), ("B", "2")]);
+    }
+
+    /// Indirection is not a literal -- this is what keeps the shipped
+    /// `--env PASSWORD=${MIOS_DEFAULT_PASSWORD}` from being reported.
+    #[test]
+    fn indirected_values_are_not_literals() {
+        let pairs = credential_pairs("  --env PASSWORD=${MIOS_DEFAULT_PASSWORD} \\");
+        assert_eq!(pairs, vec![("PASSWORD", "${MIOS_DEFAULT_PASSWORD}")]);
+        assert!(!is_literal(pairs[0].1));
+        assert!(is_literal("hunter2"));
+    }
+
+    /// A bare `-e` is an ordinary flag (`bash -e`), not an environment pair.
+    #[test]
+    fn bare_dash_e_is_not_matched() {
+        assert!(credential_pairs("ExecStart=/bin/bash -e PASSWORD=x").is_empty());
     }
 }
