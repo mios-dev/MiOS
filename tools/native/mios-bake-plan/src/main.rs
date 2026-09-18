@@ -32,8 +32,13 @@ fn resolve_image_val(
     if val.is_empty() {
         return String::new();
     }
-    let var_fallback_re = Regex::new(r"\$\{([A-Za-z0-9_]+):-([^}]*)\}").unwrap();
-    let var_simple_re = Regex::new(r"\$\{([A-Za-z0-9_]+)\}").unwrap();
+    // Ported from the miosd mirror before deleting it: these say WHY the panic
+    // is unreachable rather than just panicking.
+    let var_fallback_re = Regex::new(r"\$\{([A-Za-z0-9_]+):-([^}]*)\}").expect(
+        "bake_plan: ${VAR:-default} pattern is a compile-time literal and must be valid regex",
+    );
+    let var_simple_re = Regex::new(r"\$\{([A-Za-z0-9_]+)\}")
+        .expect("bake_plan: ${VAR} pattern is a compile-time literal and must be valid regex");
 
     let s1 = var_fallback_re.replace_all(val, |caps: &regex::Captures| {
         let var_name = &caps[1];
