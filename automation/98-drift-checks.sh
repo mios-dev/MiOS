@@ -3817,6 +3817,7 @@ main() {
     check_comment_landing
     check_credential_literals
     check_protected_refs
+    check_names_registry_equivalence
     check_redact_coverage
     check_task_schema
     check_daemon_governor
@@ -4514,6 +4515,65 @@ check_credential_literals() {
     fi
     "$bin" credential-literals --root "$ROOT" || \
         _violation "a credential literal is baked into a world-readable systemd unit or Quadlet whose exact path:KEY=VALUE is not on the shrink-only register (Law 11)"
+}
+
+# --- the Rust names-registry twin reproduces the Python leg byte for byte ---
+check_names_registry_equivalence() {
+    echo "[98-drift-checks] the native names-registry generator emits the same two artefacts as the Python leg"
+    # The twin was transliterated from a pre-fix revision and never called, so
+    # five later corrections landed on one side only: it emitted 3486 lines
+    # where the Python emits 1229. Nothing compared them, so pointing
+    # sync-generated at it would have rewritten the registry (T-1056).
+    local bin="$ROOT/tools/native/target/release/generate-names-registry"
+    [[ -x "$bin" ]] || bin="$ROOT/tools/native/target/debug/generate-names-registry"
+    if [[ ! -x "$bin" ]] && command -v cargo >/dev/null 2>&1; then
+        cargo build --manifest-path "$ROOT/tools/native/Cargo.toml" -p generate-names-registry >/dev/null 2>&1 || true
+    fi
+    if [[ ! -x "$bin" ]]; then
+        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+            _violation "generate-names-registry could not be built, so its equivalence to the Python leg is unverified"
+            return
+        fi
+        echo "[98-drift-checks]   generate-names-registry binary absent" >&2
+        return 0
+    fi
+
+    local names="$ROOT/usr/share/mios/names.generated.txt"
+    local refs="$ROOT/usr/share/mios/referenced_names.txt"
+    if [[ ! -f "$names" || ! -f "$refs" ]]; then
+        _violation "a names-registry artefact is missing, so the twins could not be compared"
+        return
+    fi
+    # Both legs write in place, so the committed bytes are copied out first and
+    # restored under every exit -- a comparison must not leave the tree changed.
+    local keep; keep="$(mktemp -d)"
+    cp "$names" "$keep/names" && cp "$refs" "$keep/refs" || {
+        rm -rf "$keep"; _violation "could not snapshot the names-registry artefacts"; return; }
+
+    local rc=0
+    MIOS_DRIFT_ROOT="$ROOT" "$bin" >/dev/null 2>"$keep/err" || rc=$?
+
+    # Compare, then RESTORE, then report. _violation returns 1 and errexit is
+    # live, so a bare call aborts the function -- reporting first left the tree
+    # holding the twin's output, which is the leak this gate exists to prevent.
+    local names_differ=0 refs_differ=0
+    cmp -s "$keep/names" "$names" || names_differ=1
+    cmp -s "$keep/refs" "$refs" || refs_differ=1
+    if (( rc != 0 )); then
+        sed 's/^/    /' "$keep/err" >&2 2>/dev/null || true
+    fi
+    (( names_differ )) && { diff "$keep/names" "$names" 2>/dev/null | head -10 >&2 || true; }
+    (( refs_differ )) && { diff "$keep/refs" "$refs" 2>/dev/null | head -10 >&2 || true; }
+    cp "$keep/names" "$names"
+    cp "$keep/refs" "$refs"
+    rm -rf "$keep"
+
+    local bad=0
+    (( rc != 0 )) && { _violation "the native names-registry generator exited $rc" || true; bad=1; }
+    (( names_differ )) && { _violation "the native generator's names.generated.txt differs from the Python leg's" || true; bad=1; }
+    (( refs_differ )) && { _violation "the native generator's referenced_names.txt differs from the Python leg's" || true; bad=1; }
+    (( bad == 0 )) && echo "[98-drift-checks]   both artefacts regenerate byte-identically from the native twin"
+    return 0
 }
 
 # --- every ref the Quadlet renderer leaves unbaked is actually supplied at runtime ---

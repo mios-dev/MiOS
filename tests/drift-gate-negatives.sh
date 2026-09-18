@@ -3943,6 +3943,55 @@ test_credential_literals() {
     log "check_credential_literals negative test passed"
 }
 
+test_names_registry_equivalence() {
+    log "Testing check_names_registry_equivalence"
+    local src="${ROOT}/tools/native/generate-names-registry/src/main.rs"
+    local bin="${ROOT}/tools/native/target/release/generate-names-registry"
+    [[ -x "$bin" ]] || bin="${ROOT}/tools/native/target/debug/generate-names-registry"
+    if [[ ! -x "$bin" ]] || ! command -v cargo >/dev/null 2>&1; then
+        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+            die "check_names_registry_equivalence negative test needs the built twin and cargo"
+        fi
+        log "check_names_registry_equivalence negative test skipped (twin or cargo absent)"
+        return 0
+    fi
+    local backup; backup="$(mktemp)"
+    cp "$src" "$backup"
+    local names="${ROOT}/usr/share/mios/names.generated.txt"
+    local refs="${ROOT}/usr/share/mios/referenced_names.txt"
+    local keep; keep="$(mktemp -d)"
+    cp "$names" "$keep/names"; cp "$refs" "$keep/refs"
+    _nre_restore() {
+        cp "$backup" "$src" 2>/dev/null || true
+        cp "$keep/names" "$names" 2>/dev/null || true
+        cp "$keep/refs" "$refs" 2>/dev/null || true
+        (cd "${ROOT}/tools/native" && cargo build -p generate-names-registry >/dev/null 2>&1) || true
+        rm -rf "$backup" "$keep"
+    }
+
+    # Re-introduce one measured divergence: the Python leg excludes the two
+    # generated globals files because they DEFINE the namespace. Scanning them
+    # makes the registry cite itself, which is 2273 of the 2340 extra names.
+    sed -i '/^        "automation\/lib\/globals.sh",$/d; /^        "automation\/lib\/globals.ps1",$/d' "$src"
+    if ! (cd "${ROOT}/tools/native" && cargo build -p generate-names-registry >/dev/null 2>&1); then
+        _nre_restore; die "check_names_registry_equivalence negative test could not build the mutated twin"
+    fi
+    _neg_gate check_names_registry_equivalence && { _nre_restore; die "check_names_registry_equivalence passed with divergent twins"; }
+    case "$_NEG_GATE_OUT" in
+        *referenced_names.txt*) ;;
+        *) _nre_restore; die "check_names_registry_equivalence failed for the wrong reason: $_NEG_GATE_OUT" ;;
+    esac
+    # The gate must also leave the artefacts as it found them: it runs a
+    # generator that writes in place, so a leak here is a corrupted registry.
+    if ! cmp -s "$keep/refs" "$refs"; then
+        _nre_restore; die "check_names_registry_equivalence left referenced_names.txt rewritten by the twin"
+    fi
+
+    _nre_restore
+    _neg_gate check_names_registry_equivalence || die "check_names_registry_equivalence failed after restoration: $_NEG_GATE_OUT"
+    log "check_names_registry_equivalence negative test passed"
+}
+
 test_protected_refs() {
     log "Testing check_protected_refs"
     local unit="${ROOT}/usr/lib/systemd/system/mios-agents.service"
@@ -4655,6 +4704,7 @@ _run_test test_leaked_fixtures
     _run_test test_comment_landing
     _run_test test_credential_literals
     _run_test test_protected_refs
+    _run_test test_names_registry_equivalence
     _run_test test_redact_coverage
     _run_test test_daemon_governor
     _run_test test_manual_links

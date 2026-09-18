@@ -81,7 +81,19 @@ main() {
     "$PY" tools/generate-pod-quadlets.py >/dev/null
 
     step "4/6 names registry"
-    "$PY" tools/generate-names-registry.py >/dev/null
+    # The native twin, with the Python leg as the fallback. Both are held to
+    # byte-identical output by check_names_registry_equivalence, which is what
+    # makes preferring either one safe; before that gate existed the twin
+    # emitted 3486 lines where this leg emits 1229 (T-1056).
+    _nr=""
+    for _c in tools/native/target/release/generate-names-registry tools/native/target/debug/generate-names-registry; do
+        [ -x "$_c" ] && { _nr="$_c"; break; }
+    done
+    if [ -n "$_nr" ]; then
+        MIOS_DRIFT_ROOT="$ROOT" "$_nr" >/dev/null
+    else
+        "$PY" tools/generate-names-registry.py >/dev/null
+    fi
 
     # Index generators. Both were missing here, so adding a drift check or a
     # numbered automation phase left their index stale and the gate red on a
