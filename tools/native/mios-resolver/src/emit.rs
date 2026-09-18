@@ -65,7 +65,28 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
         }
     }
 
+    resolve_cross_references(&mut exports);
     exports
+}
+
+/// Resolve `${MIOS_*}` that one emitted value makes to another.
+///
+/// Of the three parsers that read the projection -- systemd `EnvironmentFile=`,
+/// `bash source` and podman `--env-file` -- only bash expands, so an emitted
+/// `MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1` means three
+/// different things. It is also why `system-sync-env.sh` DROPPED that variable
+/// rather than emitting it: its filter rejects any value containing `$` (T-1060).
+///
+/// Expansion reads a snapshot, so the result does not depend on map order, and
+/// a name that resolves to nothing is left verbatim rather than blanked -- the
+/// caller can then report it instead of shipping an empty string.
+fn resolve_cross_references(exports: &mut BTreeMap<String, String>) {
+    let snapshot = exports.clone();
+    for value in exports.values_mut() {
+        if value.contains("${") {
+            *value = crate::expand::expand(value, &snapshot).text;
+        }
+    }
 }
 
 #[cfg(test)]

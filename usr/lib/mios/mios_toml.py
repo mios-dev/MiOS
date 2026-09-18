@@ -757,7 +757,95 @@ def emit_exports() -> dict[str, str]:
             if vp is not None and vp != "":
                 exports[_re_unsafe.sub("_", k)] = str(vp)
 
+    _resolve_cross_references(exports)
     return exports
+
+
+def _resolve_cross_references(exports: dict[str, str]) -> None:
+    """Resolve ${MIOS_*} that one emitted value makes to another.
+
+    Twin of resolve_cross_references in tools/native/mios-resolver/src/emit.rs
+    (Law 13). Of the three parsers that read the projection -- systemd
+    EnvironmentFile=, bash source and podman --env-file -- only bash expands, so
+    an emitted MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1
+    means three different things. It is also why system-sync-env.sh DROPPED that
+    variable rather than emitting it: its filter rejects any value containing
+    `$` (T-1060).
+
+    Reads a snapshot so the result does not depend on dict order, leaves `$$`
+    alone because systemd owns it, and leaves an unresolvable name verbatim
+    rather than blanking it so a caller can report it.
+    """
+    import re as _re2
+
+    snapshot = dict(exports)
+    _MAX_DEPTH = 16
+
+    def _expand(text: str, depth: int = 0) -> str:
+        if depth > _MAX_DEPTH or "${" not in text:
+            return text
+        out = []
+        i = 0
+        n = len(text)
+        while i < n:
+            if text.startswith("$$", i):
+                out.append("$$")
+                i += 2
+                continue
+            if text.startswith("${", i):
+                close = _matching_brace(text, i)
+                if close is not None:
+                    inner = text[i + 2 : close]
+                    name, default = _split_default(inner)
+                    if _re2.fullmatch(r"MIOS_[A-Za-z0-9_]*", name):
+                        val = snapshot.get(name)
+                        if val:
+                            out.append(_expand(val, depth + 1))
+                        elif default is not None:
+                            out.append(_expand(default, depth + 1))
+                        else:
+                            out.append(text[i : close + 1])
+                        i = close + 1
+                        continue
+            out.append(text[i])
+            i += 1
+        return "".join(out)
+
+    def _matching_brace(text: str, open_at: int):
+        depth = 0
+        i = open_at
+        while i < len(text):
+            if text.startswith("${", i):
+                depth += 1
+                i += 2
+                continue
+            if text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    return i
+            i += 1
+        return None
+
+    def _split_default(inner: str):
+        depth = 0
+        i = 0
+        while i < len(inner):
+            if inner.startswith("${", i):
+                depth += 1
+                i += 2
+                continue
+            if inner[i] == "}":
+                depth = max(0, depth - 1)
+                i += 1
+                continue
+            if depth == 0 and inner.startswith(":-", i):
+                return inner[:i], inner[i + 2 :]
+            i += 1
+        return inner, None
+
+    for key, value in list(exports.items()):
+        if "${" in value:
+            exports[key] = _expand(value)
 
 if __name__ == "__main__":
     import json
