@@ -10863,7 +10863,7 @@ max_key_divergence = 983
 # Values that differ for keys both resolvers emit. The remainder is
 # Python's repr of nested arrays/tables, which needs preserve_order on
 # the toml crate to match -- AGY-1676, with a toolchain that can link.
-max_value_divergence = 12
+max_value_divergence = 0
 
 [tasks]
 # AGY task hygiene ratchet. Duplicate task IDs make dependencies ambiguous.

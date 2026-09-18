@@ -694,8 +694,51 @@ def process_val(dotted, v, stack_offset=0):
         except (ValueError, TypeError):
             pass
     if isinstance(v, list):
-        return ",".join(str(x) for x in v)
+        # A list of scalars stays comma-joined and unquoted, which is what every
+        # consumer of a MIOS_*_LIST expects. A list of TABLES or of lists is
+        # rendered as TOML inline syntax, matching mios-resolver.
+        #
+        # str(dict) gives a PYTHON REPR -- {'ordinal': '01', 'fatal': True} --
+        # which only Python can parse and which disagreed with the Rust
+        # resolver's TOML inline tables on 12 keys. That was the whole residual
+        # of check_resolver_differential_parity, sitting exactly at its ceiling
+        # of 12 with no headroom (T-1063). TOML wins because it is a real
+        # format and because Rust is the destination tier.
+        return ",".join(
+            _toml_inline(x) if isinstance(x, (dict, list)) else str(x) for x in v
+        )
     return v
+
+
+def _toml_inline(v):
+    """Render a value as TOML inline syntax, byte-compatible with the toml crate.
+
+    Key order inside a table is alphabetical among scalars and arrays, with
+    nested TABLES emitted last -- that is what the Rust serializer does, and the
+    comparison is byte-for-byte, so the order is part of the contract.
+    """
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, str):
+        # The toml crate prefers a LITERAL string (single quotes, no escaping)
+        # when the content contains a backslash, because a basic string would
+        # have to double every one. MIOS_DOCS_SANITIZE_PATH_REWRITES carries
+        # Windows paths, so this is the difference between 'C:\MiOS\' and
+        # "C:\\MiOS\\" -- both valid TOML, only one byte-equal to the resolver.
+        if "\\" in v and "'" not in v and "\n" not in v and "\r" not in v:
+            return "'" + v + "'"
+        return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if isinstance(v, (int, float)):
+        return str(v)
+    if isinstance(v, list):
+        return "[" + ", ".join(_toml_inline(x) for x in v) + "]"
+    if isinstance(v, dict):
+        plain = [(k, x) for k, x in v.items() if not isinstance(x, dict)]
+        tables = [(k, x) for k, x in v.items() if isinstance(x, dict)]
+        parts = ["%s = %s" % (k, _toml_inline(x)) for k, x in sorted(plain)]
+        parts += ["%s = %s" % (k, _toml_inline(x)) for k, x in sorted(tables)]
+        return "{ " + ", ".join(parts) + " }"
+    return str(v)
 
 # The CI suite registry is read from the TOML directly by its own reader.
 # Projecting it produced two dozen shell constants no consumer reads,
@@ -741,6 +784,17 @@ def emit_exports() -> dict[str, str]:
         if not (sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP):
             exports[canonical] = str(processed)
         for alias in get_aliases(dotted):
+            # image.sidecars.* emits BOTH MIOS_<X>_IMAGE and MIOS_<X>_VERSION
+            # from one key (get_aliases / aliases.rs), so without this split the
+            # two names carry an identical value and the tree gains 23 new
+            # duplicate-value groups -- exactly what value-dup-baseline.tsv says
+            # to collapse rather than record. Dropping the split here was tried
+            # and reverted for that reason.
+            #
+            # It is still the ONLY one of three emitters that splits, which is
+            # T-1065's real finding: the fix is to stop emitting the redundant
+            # _VERSION alias in both twins, not to change how it is rendered.
+            # That removes 23 keys and needs its own change.
             if alias.endswith("_VERSION") and dotted.startswith("image.sidecars."):
                 exports[_re_unsafe.sub("_", alias)] = str(processed).rsplit(":", 1)[1] if ":" in str(processed) else "latest"
             else:
