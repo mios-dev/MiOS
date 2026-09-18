@@ -43,6 +43,29 @@ CONSUMER_GLOBS = ("*.container", "*.service", "*.timer", "*.py", "*.sh", "*.toml
                   "*.ps1", "*.psm1", "*.yaml", "*.yml", "Justfile", ".env.mios", "*.tmpl")
 
 
+def _env_projection_names(data: dict) -> set[str]:
+    """MIOS_* names a tracked .env projection supplies; a consumer that sources
+    one gets them without the resolver cascade. Discovered from SSOT."""
+    names = set()
+    reg = (data.get("laws") or {}).get("projection_registry") or {}
+    for surface in reg.get("surfaces") or []:
+        if not isinstance(surface, dict):
+            continue
+        for out in str(surface.get("output", "")).split(","):
+            out = out.strip()
+            if not out.endswith(".env"):
+                continue
+            path = os.path.join(ROOT, out)
+            if not os.path.isfile(path):
+                continue
+            with open(path, encoding="utf-8", errors="ignore") as fh:
+                for line in fh:
+                    m = re.match(r"\s*(?:export\s+)?(MIOS_[A-Z0-9_]+)\s*=", line)
+                    if m:
+                        names.add(m.group(1))
+    return names
+
+
 def emitted_set() -> set[str]:
     """Collect every exported MIOS_* name via Python SSOT resolver + mios.toml section prefixes."""
     emitted = set()
@@ -67,8 +90,10 @@ def emitted_set() -> set[str]:
             for k in data.keys():
                 pref = "MIOS_" + k.upper().replace("-", "_").replace(".", "_") + "_"
                 emitted.add(pref)
-        except Exception:
-            pass
+            emitted.update(_env_projection_names(data))
+        except Exception as exc:
+            EMIT_ERRORS.append("usr/share/mios/mios.toml is present but unusable "
+                               "(%s: %s)" % (type(exc).__name__, exc))
 
     ue = os.path.join(ROOT, "usr/lib/mios/userenv.sh")
     if os.path.isfile(ue):

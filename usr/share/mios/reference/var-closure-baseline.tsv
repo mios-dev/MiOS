@@ -3,10 +3,17 @@
 #
 # WHAT THE GATE ASSERTS
 #   Referenced is a subset of emitted: every MIOS_* a consumer reads is a name
-#   the SSOT resolver emits.  The tree violates that 425 times today, so the gate
-#   RATCHETS rather than blocking: every referenced-but-unemitted name that
-#   exists now is recorded below with a sample location, and the count is
-#   pinned by the ceiling.
+#   the SSOT resolver emits.  The tree still violates that, so the gate RATCHETS
+#   rather than blocking: every referenced-but-unemitted name that exists now is
+#   recorded below with a sample location, and the count is pinned by the
+#   ceiling.  (The count lives in #!ceiling, not in this prose, which went stale
+#   at 425 while the ledger drained.)
+#
+#   EMITTED also covers a name supplied by a tracked .env projection named in
+#   [laws.projection_registry].surfaces, because a consumer that sources one
+#   gets the var without the resolver cascade.  That makes this gate depend on
+#   check_ipa_enroll_projection, which is what proves such a file is a faithful
+#   projection of its SSOT table rather than hand-written (T-1054).
 #
 #   VIOLATION if a name appears that is not recorded here -- a consumer would
 #   read an unset variable;
@@ -33,7 +40,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 418
+#!ceiling 415
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:607
@@ -165,13 +172,10 @@ MIOS_IMG_RECHUNK	tools/lib/generate-sbom.py:85
 MIOS_INSTALL_LOG	automation/build-mios.sh:27
 MIOS_INSTALL_MODE	automation/01-system-files-overlay.sh:171
 MIOS_IPA_AUTOMOUNT	usr/libexec/mios/mios-freeipa-enroll.sh:35
-MIOS_IPA_DOMAIN	usr/libexec/mios/mios-freeipa-enroll.sh:26
 MIOS_IPA_HOSTNAME	usr/libexec/mios/mios-freeipa-enroll.sh:33
 MIOS_IPA_NTP	usr/libexec/mios/mios-freeipa-enroll.sh:34
 MIOS_IPA_PASSWORD	usr/libexec/mios/mios-freeipa-enroll.sh:26
 MIOS_IPA_PRINCIPAL	usr/libexec/mios/mios-freeipa-enroll.sh:26
-MIOS_IPA_REALM	usr/libexec/mios/mios-freeipa-enroll.sh:26
-MIOS_IPA_SERVER	usr/libexec/mios/mios-freeipa-enroll.sh:26
 MIOS_K3S_FILTER	tools/generate-k3s-manifests.sh:9
 MIOS_K3S_OUT	tools/generate-k3s-manifests.ps1:7
 MIOS_KB_COLLECTION	var/lib/mios/embeddings/ingest_local.py:83
