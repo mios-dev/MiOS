@@ -48,6 +48,15 @@
 # it from a clean clone.
 !/.devloop/
 !/.devloop/**
+# ...but NOT the orchestrator's per-run scratch directories. `!/.devloop/**` above
+# re-includes everything under .devloop, and a .gitignore negation OUTRANKS
+# .git/info/exclude, so the `.devloop/run-*/` line the orchestrator writes there is
+# inert in this repo -- every run left its scratch dir showing as untracked, and
+# devloop.sh then refuses to merge into a tree it dirtied itself ("base tree dirty
+# before merge -- halting"). A later pattern wins within a file, so re-ignore them
+# here. LEDGER.md and goal_state.json stay tracked: those are the durable handoff
+# state, and no run-* directory has ever been committed.
+/.devloop/run-*/
 !/specs/
 !/specs/**
 # ...except the w10-live-boot staging dump: path-mangled edit-target artifacts
