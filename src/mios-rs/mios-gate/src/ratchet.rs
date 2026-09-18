@@ -15,11 +15,11 @@ const SSOT: &str = "usr/share/mios/mios.toml";
 /// This is the predecessor's list minus two entries it could never use.
 /// `check-ratchet-direction.py` compared against `full_key.split(".")[0]`, the
 /// FIRST path component, while listing `build.ratchet` and
-/// `security.privileged_quadlets` -- dotted names that comparison can never
-/// match. Widening them here to `build` and `security` would be a tightening
-/// smuggled into a port: it newly captures `build.rechunk_max_layers`, a tuning
-/// value nobody decided was shrink-only. Filed as T-1055; behaviour preserved.
-const RATCHET_SECTIONS: [&str; 14] = [
+/// `security.privileged_quadlets` -- dotted names the comparison can never
+/// match, since `section` is the text before the first dot. `gates` went the
+/// other way: a real-looking name for a table mios.toml does not have. The test
+/// below now rejects both shapes (T-1055).
+const RATCHET_SECTIONS: [&str; 13] = [
     "docs",
     "legibility",
     "resolver",
@@ -32,7 +32,6 @@ const RATCHET_SECTIONS: [&str; 14] = [
     "ai_tag",
     "rust",
     "drift",
-    "gates",
     "sandbox",
 ];
 
@@ -263,9 +262,27 @@ pub fn check(root: &Path) -> Report {
 #[cfg(test)]
 // Test fixtures are literals authored here, so a parse failure is a broken
 // test rather than an input the binary must survive.
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// The register is compared against `full.split('.').next()`, which never
+    /// contains a dot, so a dotted entry is dead by construction; and an entry
+    /// naming no table is dead by fact. Both read as scope that is not there.
+    #[test]
+    fn every_ratchet_section_can_match_something() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let text = std::fs::read_to_string(root.join(SSOT)).expect("SSOT is readable");
+        let v: toml::Value = text.parse().expect("SSOT parses");
+        let top = v.as_table().expect("SSOT is a table");
+        for s in RATCHET_SECTIONS {
+            assert!(
+                !s.contains('.'),
+                "{s} contains a dot, so it can never equal a first path component"
+            );
+            assert!(top.contains_key(s), "{s} names no table in {SSOT}");
+        }
+    }
 
     #[test]
     fn ceiling_keys_by_name_and_by_section() {
