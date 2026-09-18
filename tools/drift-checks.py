@@ -10,6 +10,7 @@ unchanged -- only their container is.
 """
 import sys
 import os
+import re
 
 os.environ.setdefault("MIOS_DRIFT_ROOT", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -184,6 +185,21 @@ def check_resolver_differential_parity() -> int:
 
     py_exports = render_globals.build_exports()
 
+    # build_exports() returns the UNEXPANDED map on purpose: it renders
+    # automation/lib/globals.{sh,ps1}, which bash and PowerShell expand at source
+    # time, and keeping `${MIOS_PORT_AGENT_PIPE}` live there is what lets an
+    # operator's pre-export propagate. mios-resolver --emit=json is the resolved
+    # view and bakes. Comparing the two directly measured that difference in
+    # representation, not a divergence between the resolvers -- 103 "mismatches"
+    # that were the same 91 values written two correct ways. Both sides are put
+    # in the baked form first, by the same twin the Rust emitter calls, so what
+    # survives is real disagreement about a value.
+    _mt_dir = os.path.join(root, "usr", "lib", "mios")
+    if _mt_dir not in sys.path:
+        sys.path.insert(0, _mt_dir)
+    import mios_toml as _mios_toml
+    _mios_toml.resolve_cross_references(py_exports)
+
     try:
         res = subprocess.run([resolver_bin, "--emit=json"], capture_output=True, text=True, check=True)
         import json
@@ -215,6 +231,9 @@ def check_resolver_differential_parity() -> int:
 
     print("    mios-resolver --emit=json matches Python SSOT render 100%")
     sys.exit(0)
+
+# A sibling unit test, by either naming convention in the tree.
+_TEST_BASENAME = re.compile(r"^test[-_]")
 
 def check_legibility_ratchet() -> int:
     import os, subprocess, sys
@@ -289,6 +308,8 @@ def check_legibility_ratchet() -> int:
             return False
         return "GENERATED" in head and "DO NOT EDIT" in head
 
+    _ai_plane = tuple(lim.get("python_ai_plane_prefixes") or ())
+
     measured = {
         "max_tracked_files": len(rels),
         "max_tracked_mb": round(nbytes / 1048576),
@@ -296,10 +317,26 @@ def check_legibility_ratchet() -> int:
                                   if r.endswith((".sh", ".bash")) and not _is_generated(r)]),
         "max_ps_lines": lines([r for r in rels
                                if r.endswith((".ps1", ".psm1")) and not _is_generated(r)]),
+        # ADR-0021. Law 14 keeps the AI plane in Python, so it is exempt by
+        # prefix from SSOT rather than by a list baked in here.
+        # A sibling unit test is not tooling to port. Counting them made this
+        # ratchet pull against check_module_test_coverage the same way
+        # max_libexec_verbs did below, and 36% of what it measured was test
+        # code. Floor re-baselined down by what the exclusion removes (T-1044).
+        "max_tooling_python_lines": lines([
+            r for r in rels
+            if r.endswith(".py") and not _is_generated(r)
+            and not _TEST_BASENAME.match(r.rsplit("/", 1)[-1])
+            and not any(r.startswith(pfx) for pfx in _ai_plane)]),
         "max_automation_phases": len([r for r in rels if r.startswith("automation/")
                                       and r.endswith(".sh") and r[11:13].isdigit()]),
+        # Sibling unit tests are not verbs. Counting them made this ratchet pull
+        # against check_module_test_coverage: adding the test that gate demands
+        # tripped this one, so the cheapest way to stay green was to not write
+        # the test. Floor re-baselined down by the 16 already present.
         "max_libexec_verbs": len([r for r in rels if r.startswith("usr/libexec/mios/")
-                                  and r.count("/") == 3]),
+                                  and r.count("/") == 3
+                                  and not _TEST_BASENAME.match(r.rsplit("/", 1)[-1])]),
     }
     viol = []
     for k, got in sorted(measured.items()):
@@ -3645,61 +3682,6 @@ def check_negative_coverage() -> int:
 
     return 0
 
-def check_law_enforcers() -> int:
-    import os, sys, re
-    import tomllib
-
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if not os.path.isfile(toml_path):
-        # A tracked deliverable. Its absence is the anomaly, not a
-        # reason to report success.
-        print('check_law_enforcers: a required SSOT file is missing, so nothing was'
-              ' compared', file=sys.stderr)
-        return 1
-
-    with open(toml_path, "rb") as f:
-        data = tomllib.load(f)
-
-    laws_section = data.get("laws", {})
-    laws = laws_section.get("laws", [])
-    drift_script = os.path.join(root, "automation/98-drift-checks.sh")
-    with open(drift_script, "r", encoding="utf-8") as f:
-        drift_code = f.read()
-
-    postcheck_script = os.path.join(root, "automation/99-postcheck.sh")
-    postcheck_code = ""
-    if os.path.isfile(postcheck_script):
-        with open(postcheck_script, "r", encoding="utf-8") as f:
-            postcheck_code = f.read()
-
-    missing = []
-    for law in laws:
-        if not isinstance(law, dict):
-            continue
-        law_id = law.get("id")
-        slug = law.get("slug")
-        enforced = law.get("enforced_by", "")
-        for target in [t.strip() for t in enforced.split(",") if t.strip()]:
-            if ":" not in target:
-                continue
-            fname, ref = target.split(":", 1)
-            fname = fname.strip()
-            ref = ref.strip()
-            if fname == "98-drift-checks.sh":
-                if not re.search(rf"^{ref}\s*\(\)", drift_code, re.MULTILINE):
-                    missing.append(f"Law {law_id} ({slug}) -> {target} not found in 98-drift-checks.sh")
-            elif fname == "99-postcheck.sh":
-                if not os.path.isfile(postcheck_script) or (ref not in postcheck_code and f"item{ref}" not in postcheck_code):
-                    missing.append(f"Law {law_id} ({slug}) -> {target} not found in 99-postcheck.sh")
-
-    if missing:
-        for m in missing:
-            sys.stderr.write(f"    {m}\n")
-        return 1
-
-    return 0
-
 def check_usr_over_etc() -> int:
     import os, sys, subprocess
 
@@ -4194,10 +4176,14 @@ def check_template_self_conformance() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     tmpl_dir = os.path.join(root, "usr/share/mios/templates")
     scaffold_script = os.path.join(root, "usr/libexec/mios/mios-new")
+    conform_tool = os.path.join(root, "usr/libexec/mios/check-template-conformance")
 
-    # Both are tracked deliverables (Law 16); returning 0 here asserted that
+    # All three are tracked deliverables (Law 16); returning 0 here asserted that
     # "every template scaffolds" while scaffolding none of them.
-    missing = [p for p, ok in ((tmpl_dir, os.path.isdir(tmpl_dir)), (scaffold_script, os.path.isfile(scaffold_script))) if not ok]
+    subjects = ((tmpl_dir, os.path.isdir(tmpl_dir)),
+                (scaffold_script, os.path.isfile(scaffold_script)),
+                (conform_tool, os.path.isfile(conform_tool)))
+    missing = [p for p, ok in subjects if not ok]
     if missing:
         print("template self-conformance subject missing: %s" % ", ".join(
             _under(p, root) for p in missing))
@@ -4211,16 +4197,48 @@ def check_template_self_conformance() -> int:
         return 1
     failures = []
 
+    # A conforming file is the deliverable; a zero exit is not. Same predicate
+    # as check_template_conformance: MIOS_THEME_ROOT keeps SSOT and the
+    # grandfather list on the real tree, --root walks only what was scaffolded.
+    # One root per template -- match regexes anchor at the root, and the
+    # `quadlet` umbrella and `quadlet-container` claim the same destination.
+    scaffolded = 0
+    walk_env = dict(os.environ, MIOS_THEME_ROOT=os.path.abspath(root),
+                    MIOS_TOML_ROOT=os.path.abspath(root))
     for t in sorted(templates):
         if t in ("conformance-grandfathered.list", "PLACEHOLDERS.md"):
             continue
-        with tempfile.TemporaryDirectory() as tmpdir:
-            env = dict(os.environ, MIOS_DRIFT_CHECK_ROOT=tmpdir, MIOS_THEME_ROOT=tmpdir)
-            cmd = [sys.executable, scaffold_script, t, "testmock"]
-            res = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        with tempfile.TemporaryDirectory() as scaffold_root:
+            env = dict(os.environ, MIOS_DRIFT_CHECK_ROOT=scaffold_root,
+                       MIOS_THEME_ROOT=scaffold_root)
+            res = subprocess.run(
+                [sys.executable, scaffold_script, t, "testmock"],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if res.returncode != 0:
-                failures.append(f"Template '{t}' failed to scaffold: {res.stderr.strip()}")
+                failures.append("Template %r failed to scaffold: %s"
+                                % (t, (res.stderr or res.stdout or "").strip()
+                                   or "exit %d, no diagnostic" % res.returncode))
                 continue
+            scaffolded += 1
+
+            res = subprocess.run(
+                [sys.executable, conform_tool, "--root", scaffold_root],
+                env=walk_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True)
+            if res.returncode == 0:
+                continue
+            out = ((res.stdout or "") + (res.stderr or "")).strip()
+            detail = [ln.strip() for ln in out.splitlines()
+                      if ln.strip() and ": Missing" in ln or "Out-of-order" in ln]
+            if not detail:
+                detail = [out or "exit %d, no diagnostic" % res.returncode]
+            for ln in detail:
+                failures.append("template %r scaffolds a non-conforming file: %s"
+                                % (t, ln))
+
+    if not scaffolded:
+        print("no template scaffolded, so nothing was examined")
+        return 1
 
     if failures:
         for f in failures:
@@ -4253,7 +4271,7 @@ def check_secret_handling() -> int:
     import os, sys, re, glob
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    key_regex = re.compile(r'-----BEGIN (?:RSA|OPENSSH|EC|PGP|PRIVATE) KEY-----')
+    key_regex = re.compile(r'-----BEGIN (?:RSA|OPENSSH|EC|PGP|PRIVATE)[A-Z ]*KEY[A-Z ]*-----\r?\n(?:[^\n]*\r?\n){0,6}?[A-Za-z0-9+/=]{40,}')  # T-1022: a PEM header is not a key
     conn_regex = re.compile(r'(?:postgres|mysql|mongodb|redis)://[a-zA-Z0-9_-]+:[^@\s\"\'`]{4,}@')
     token_regex = re.compile(r'\b(?:AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]{20})\b')
 
@@ -4969,7 +4987,6 @@ SUBCOMMANDS = {
     "bib-rootfs-label-policy": check_bib_rootfs_label_policy,
     "smoke-manifest": check_smoke_manifest,
     "negative-coverage": check_negative_coverage,
-    "law-enforcers": check_law_enforcers,
     "usr-over-etc": check_usr_over_etc,
     "projection-registry": check_projection_registry,
     "bib-config-mount": check_bib_config_mount,

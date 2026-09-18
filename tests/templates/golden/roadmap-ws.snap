@@ -1,4 +1,5 @@
 <!-- AI-hint: Describe the roadmap workstream tasks and progress here. -->
+## WS-SAMPLE-TEST — Sample test
 <!--
 id: WS-SAMPLE-TEST
 title: Sample test
@@ -14,6 +15,7 @@ acceptance: |
 -->
 *Description of sample-test*
 
+### SAMPLE-TEST-01 — Task 1 for sample-test  **[P2]**  (→ T-999)
 - **What:** Detail the task description.
 - **Why:** Explain the rationale.
 - **Files:** List of modified/new files.

@@ -12,7 +12,7 @@ impl Check for FirstbootDegradeOpenCheck {
         "Assert all firstboot scripts implement explicit degrade-open fallback handling"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Firstboot degrade-open check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Firstboot degrade-open".to_string())
     }
 }
 
@@ -25,6 +25,6 @@ impl Check for GreenbootEnablementCheck {
         "Assert greenboot health check scripts are correctly registered and enabled"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Greenboot enablement check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Greenboot enablement".to_string())
     }
 }

@@ -4,6 +4,7 @@
 # AI-related: mios-cosign
 set -euo pipefail
 
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 source "$(dirname "$0")/lib/common.sh"
@@ -46,8 +47,24 @@ SYSFILES="/ctx/system_files"
 install -d -m 0755 /usr/share/pki/containers
 install -d -m 0755 /usr/lib/containers/registries.d
 
-if command -v miosd >/dev/null 2>&1; then
-    miosd cosign-policy
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# nothing puts on PATH at bake time, so the lookup this replaced could never
+# succeed (T-1018). Note the elif below is dead too: SYSFILES is
+# /ctx/system_files, and the Containerfile builds /ctx from automation/, usr/,
+# etc/, tools/ and VERSION -- it never creates a system_files/ directory, and
+# the repo has none. Both non-default branches were unreachable, so policy.json
+# arrived purely as an overlay copy and this stage generated nothing.
+_miosd=""
+_here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "${_here}/src/mios-rs/target/release/miosd" \
+          "${_here}/src/mios-rs/target/debug/miosd"; do
+    if [[ -n "$_c" && -x "$_c" ]]; then _miosd="$_c"; break; fi
+done
+
+if [[ -n "$_miosd" ]]; then
+    MIOS_ROOT="${MIOS_ROOT:-$_here}" "$_miosd" cosign-policy
     mios_ok "Policy.json generated via miosd"
 elif [[ -f "${SYSFILES}/usr/lib/containers/policy.json" ]]; then
     install -m 0644 "${SYSFILES}/usr/lib/containers/policy.json" /usr/lib/containers/policy.json

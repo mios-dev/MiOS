@@ -12,7 +12,7 @@ impl Check for ContainerfilePinnedClonesCheck {
         "Assert git clones in Containerfiles use explicit commit pins"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Containerfile git clones commit pin check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Containerfile git clones commit pin".to_string())
     }
 }
 
@@ -25,7 +25,7 @@ impl Check for SBOMMetadataCheck {
         "Assert SBOM metadata is valid and present"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("SBOM metadata check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: SBOM metadata".to_string())
     }
 }
 
@@ -38,7 +38,7 @@ impl Check for VendoredAssetsNonStubCheck {
         "Assert vendored assets are complete non-stub implementations"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Vendored assets check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Vendored assets".to_string())
     }
 }
 
@@ -51,7 +51,7 @@ impl Check for BakeRefDefaultsCheck {
         "Assert bake ref defaults are valid"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Bake ref defaults check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Bake ref defaults".to_string())
     }
 }
 
@@ -64,6 +64,6 @@ impl Check for VendorURLsCheck {
         "Assert vendor URLs resolve and meet security policy"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Vendor URLs check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Vendor URLs".to_string())
     }
 }

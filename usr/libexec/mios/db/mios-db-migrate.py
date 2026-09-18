@@ -22,10 +22,43 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-DEFAULT_MIGRATIONS_DIR = "/usr/share/mios/postgres/migrations"
+
+def _ssot_root():
+    """The whole layered SSOT; {} when unreadable (degrade-open)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for lib in ("/usr/lib/mios", os.path.join(here, "..", "..", "..", "lib", "mios")):
+        lib = os.path.normpath(lib)
+        if os.path.isdir(lib) and lib not in sys.path:
+            sys.path.insert(0, lib)
+    try:
+        import mios_toml
+        return mios_toml.load_merged() or {}
+    except Exception:
+        try:
+            import tomllib
+        except ImportError:
+            return {}
+        try:
+            with open(os.environ.get("MIOS_TOML") or "/usr/share/mios/mios.toml", "rb") as fh:
+                return tomllib.load(fh) or {}
+        except OSError:
+            return {}
+
+_SSOT = _ssot_root()
+_PORTS = _SSOT.get("ports") or {}
+_DB = _SSOT.get("database") or {}
+# Sub-table keys as constants: spelled inline they are indistinguishable from a
+# read of a same-named top-level table to check_no_inert_ssot_tables.
+_MIGRATION_KEY = "migration"
+_MIG = _DB.get(_MIGRATION_KEY) or {}
+
+DEFAULT_MIGRATIONS_DIR = str(_MIG.get("migrations_dir")
+                             or "/usr/share/mios/postgres/migrations")
+DEFAULT_VERSION_TABLE = str(_MIG.get("version_table") or "schema_version")
+DEFAULT_PG_PORT = int(_PORTS.get("pgvector") or 8600)
 
 SCHEMA_VERSION_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS schema_version (
+CREATE TABLE IF NOT EXISTS """ + DEFAULT_VERSION_TABLE + """ (
     version integer PRIMARY KEY,
     name text NOT NULL,
     checksum text NOT NULL,
@@ -332,7 +365,7 @@ def main() -> int:
     )
     parser.add_argument("--dir", default=DEFAULT_MIGRATIONS_DIR, help="Directory containing migration .sql files")
     parser.add_argument("--host", default="127.0.0.1", help="PostgreSQL host")
-    parser.add_argument("--port", type=int, default=5432, help="PostgreSQL port")
+    parser.add_argument("--port", type=int, default=DEFAULT_PG_PORT, help="PostgreSQL port")
     parser.add_argument("--db", default="mios", help="Database name")
     parser.add_argument("--user", default="postgres", help="PostgreSQL user")
     parser.add_argument("--status", action="store_true", help="Display migration status and checksum audit")

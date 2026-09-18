@@ -1023,16 +1023,16 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## AGY-94 -- Land the 11-workstream adversarial-audit follow-up register: restore the lost drop-in fanout, un-inert `[accounts].db_backed`, pin the from-source clones  (WS-HARDEN | P1 | L)  **[DONE]**
 **Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- every capability MiOS already ships is SSOT-wired AND drift-gated, or explicitly removed; here two silently-inert capabilities are made real again.
-**What+How:** Work the ~40-item follow-up list in `docs/agy/agy-audit-followups.md`, regressions first. (1) `automation/41-mios-dropin-fanout.sh` writes drop-ins to the WRONG path (not the image's `/usr/lib/systemd/system`) and its GATES fanout loop was dropped, so virt-gate / bare-metal-only / mios-virt-gate / mios-wsl2 conditioning no longer gates units -- restore the fanout (or replace it with an SSOT table plus committed static `.d` dirs), add a post-build assertion that fanned drop-ins exist in the FINAL image, and add a drift-check for orphaned committed drop-ins with no generator source. (2) Verify `tools/lib/userenv.sh` actually exports `MIOS_ACCOUNTS_DB_BACKED` from `[accounts].db_backed`; without it `17-accounts-db.sh` takes the default-false branch and disables the service. (3) P2 reproducibility: pin the mios-sys/mios-cuda from-source git clones (tags/digests) with retry/backoff, and strip the stale `'MiOS' v0.2.4` headers from `automation/manifest.json` (they escape the version gate only because `.json` is excluded). (4) P2 resolver/lint: single-source the duplicated walk / `EXCLUDED_SECTIONS` / `WALK_*` logic between `check-resolver-twin.py` and `userenv.sh`; broaden `lint-shell.sh` to cover `automation/lib`, `tools/lib` and `usr/libexec` shebang files (common.sh / packages.sh / globals.sh are UNLINTED today); extend eval-safety to the userenv twins' `eval "$exports"`; memoize `is_db_authoritative()` / `load_db_config()` so each call stops reconnecting to PG and re-walking the whole TOML. (5) Re-audit that AGY-90/91's applied verbosity edits match the changelist verbatim, that check-30's DESCRIPTION (not its logic) was fixed, and that check-46 is still green.
-**Where:** `docs/agy/agy-audit-followups.md`, `automation/41-mios-dropin-fanout.sh`, `automation/17-accounts-db.sh`, `tools/lib/userenv.sh`, `tools/check-resolver-twin.py`, `tools/lint-shell.sh`, `automation/manifest.json`, `automation/38-drift-checks.sh`
+**What+How:** Work the ~40-item follow-up list in `docs/design/agy-audit-followups.md`, regressions first. (1) `automation/41-mios-dropin-fanout.sh` writes drop-ins to the WRONG path (not the image's `/usr/lib/systemd/system`) and its GATES fanout loop was dropped, so virt-gate / bare-metal-only / mios-virt-gate / mios-wsl2 conditioning no longer gates units -- restore the fanout (or replace it with an SSOT table plus committed static `.d` dirs), add a post-build assertion that fanned drop-ins exist in the FINAL image, and add a drift-check for orphaned committed drop-ins with no generator source. (2) Verify `tools/lib/userenv.sh` actually exports `MIOS_ACCOUNTS_DB_BACKED` from `[accounts].db_backed`; without it `17-accounts-db.sh` takes the default-false branch and disables the service. (3) P2 reproducibility: pin the mios-sys/mios-cuda from-source git clones (tags/digests) with retry/backoff, and strip the stale `'MiOS' v0.2.4` headers from `automation/manifest.json` (they escape the version gate only because `.json` is excluded). (4) P2 resolver/lint: single-source the duplicated walk / `EXCLUDED_SECTIONS` / `WALK_*` logic between `check-resolver-twin.py` and `userenv.sh`; broaden `lint-shell.sh` to cover `automation/lib`, `tools/lib` and `usr/libexec` shebang files (common.sh / packages.sh / globals.sh are UNLINTED today); extend eval-safety to the userenv twins' `eval "$exports"`; memoize `is_db_authoritative()` / `load_db_config()` so each call stops reconnecting to PG and re-walking the whole TOML. (5) Re-audit that AGY-90/91's applied verbosity edits match the changelist verbatim, that check-30's DESCRIPTION (not its logic) was fixed, and that check-46 is still green.
+**Where:** `docs/design/agy-audit-followups.md`, `automation/41-mios-dropin-fanout.sh`, `automation/17-accounts-db.sh`, `tools/lib/userenv.sh`, `tools/check-resolver-twin.py`, `tools/lint-shell.sh`, `automation/manifest.json`, `automation/38-drift-checks.sh`
 **Done When:** fanned drop-ins are asserted present in the built image and the orphan-dropin check is green; `MIOS_ACCOUNTS_DB_BACKED` appears in the build env closure; the clone pins and `manifest.json` version headers are clean; the shell linter's file list includes the three core build libs; checks 30 and 46 are green and `just drift-gate` passes; per-phase report filed against the AGY-93 plan.
 **Why:** today conditional units may run on hosts they were meant to skip (virt/bare-metal/WSL2 gating silently lost), the entire accounts-DB workstream ships disabled, the from-source builds are non-reproducible default-branch clones, and the three most load-bearing build libraries are never linted.
 **Dep:** AGY-90, AGY-91, AGY-93 (folds in as its P1/P2 detail)
 
 ## AGY-95 -- Turn the "PostgresOS" research into shipped accounts wiring: userdb projection, lldap decision, ADR, peer-OS cleanup  (WS-ACCT | P1 | L)  **[DONE]**
 **Goal:** E-23 DB-driven configuration and vector recall -- PostgreSQL becomes the accounts SSOT with a lossless projection to the OS, instead of a flag that ships inert.
-**What+How:** Execute `docs/agy/doc-postgresos-accounts.md` and `doc-peer-os-landscape.md`. "PostgresOS" is the operator's COINAGE, not a product, which is exactly why `MIOS_ACCOUNTS_DB_BACKED` ships inert -- it must be assembled from FOSS bricks. (P1) Add/verify the bridge so `tools/lib/userenv.sh` auto-derives `MIOS_ACCOUNTS_DB_BACKED` from `[accounts].db_backed` at build time, plus a drift-check asserting the derivation, so `17-accounts-db.sh` stops defaulting the service off. (P2) Project each `[accounts]` row into a generated `/usr/lib/userdb/<name>.user` JSON drop-in -- systemd userdb, with nss-systemd synthesizing passwd/shadow/group -- the same render+gate shape as `mios-theme-render` and the dotfiles registry; mine libnss-pgsql's schema but do NOT ship it (archived/dead). (P2) Evaluate lldap-over-Postgres as the cross-platform SSOT LDAP face (RFC2307 to SSSD/nslcd) so Postgres stays authoritative without a second directory store; record OpenLDAP back-sql and Keycloak+SCIM as the alternatives. (P2) Write an ADR stating that "PostgresOS" is a MiOS concept name mapped to a concrete stack (systemd userdb projection + lldap + SCIM-as-pattern + the Windows autounattend/SetupComplete `New-LocalUser` path) with no upstream repo. (P3) Close every ROADMAP/doc reference to a distinct "PodmanOS" (reality: `quay.io/podman/machine-os`, FCOS + bootc-switch) and repoint the archived bootc-image-builder reference at osbuild/image-builder. Windows half is already landed in mios-bootstrap (RID-500 rename moved from the specialize pass into SetupComplete.cmd; the `MiOS-AccountSync` minute-task reconciles DB to Windows accounts).
-**Where:** `docs/agy/doc-postgresos-accounts.md`, `docs/agy/doc-peer-os-landscape.md`, `tools/lib/userenv.sh`, `automation/17-accounts-db.sh`, `usr/share/mios/mios.toml` (`[accounts]`), a userdb generator under `usr/libexec/mios`, `automation/38-drift-checks.sh`, `docs/adr/`, `ROADMAP.md`
+**What+How:** Execute `docs/design/doc-postgresos-accounts.md` and `doc-peer-os-landscape.md`. "PostgresOS" is the operator's COINAGE, not a product, which is exactly why `MIOS_ACCOUNTS_DB_BACKED` ships inert -- it must be assembled from FOSS bricks. (P1) Add/verify the bridge so `tools/lib/userenv.sh` auto-derives `MIOS_ACCOUNTS_DB_BACKED` from `[accounts].db_backed` at build time, plus a drift-check asserting the derivation, so `17-accounts-db.sh` stops defaulting the service off. (P2) Project each `[accounts]` row into a generated `/usr/lib/userdb/<name>.user` JSON drop-in -- systemd userdb, with nss-systemd synthesizing passwd/shadow/group -- the same render+gate shape as `mios-theme-render` and the dotfiles registry; mine libnss-pgsql's schema but do NOT ship it (archived/dead). (P2) Evaluate lldap-over-Postgres as the cross-platform SSOT LDAP face (RFC2307 to SSSD/nslcd) so Postgres stays authoritative without a second directory store; record OpenLDAP back-sql and Keycloak+SCIM as the alternatives. (P2) Write an ADR stating that "PostgresOS" is a MiOS concept name mapped to a concrete stack (systemd userdb projection + lldap + SCIM-as-pattern + the Windows autounattend/SetupComplete `New-LocalUser` path) with no upstream repo. (P3) Close every ROADMAP/doc reference to a distinct "PodmanOS" (reality: `quay.io/podman/machine-os`, FCOS + bootc-switch) and repoint the archived bootc-image-builder reference at osbuild/image-builder. Windows half is already landed in mios-bootstrap (RID-500 rename moved from the specialize pass into SetupComplete.cmd; the `MiOS-AccountSync` minute-task reconciles DB to Windows accounts).
+**Where:** `docs/design/doc-postgresos-accounts.md`, `docs/design/doc-peer-os-landscape.md`, `tools/lib/userenv.sh`, `automation/17-accounts-db.sh`, `usr/share/mios/mios.toml` (`[accounts]`), a userdb generator under `usr/libexec/mios`, `automation/38-drift-checks.sh`, `docs/adr/`, `ROADMAP.md`
 **Done When:** `db_backed` is no longer inert and its derivation is drift-gated; the `/usr/lib/userdb/*.user` projection lands and regenerate-and-diff is green; the lldap decision and the PostgresOS ADR are committed; no doc still references a distinct "PodmanOS"; `just drift-gate` green.
 **Why:** the accounts workstream currently ships a true SSOT value that reaches nothing, and contributors chase two products ("PostgresOS", "PodmanOS") that do not exist.
 **Dep:** AGY-94 (shares the `db_backed` inert regression)
@@ -1248,7 +1248,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## AGY-117 -- Declare the `[mini]` split-plane block in SSOT and project the all-dGPU vfio-pci bind from it  (WS-MINI | P2 | M)  **[DONE]**
 **Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- the MiOS-Metal router-host topology becomes SSOT-declared and drift-gated instead of living only in prose.
-**What+How:** Per `docs/agy/doc-mios-metal.md`, add a `[mini]` block to mios.toml describing the router host (binds ALL dGPUs to `vfio-pci`; owns NICs, radios, TPM and boot) and the guest allocation (all GPUs + 75-90% CPU/RAM via `guest_cpu_percent`/`guest_ram_percent`). Write a generator that projects those keys into real `vfio-pci` bind material -- `vfio_pci.ids=` kargs under `usr/lib/bootc/kargs.d` and/or a `modprobe.d` bind -- and a regenerate-and-diff drift-check over that output. Encode the three critic corrections in the block/generator: whole-GPU-to-one-guest (no driver-free fractioning), ~1GB host floor (not a literal "tiny" host), no-firewalld nft. Static projection only; ships inert, no live hardware touched.
+**What+How:** Per `docs/design/doc-mios-metal.md`, add a `[mini]` block to mios.toml describing the router host (binds ALL dGPUs to `vfio-pci`; owns NICs, radios, TPM and boot) and the guest allocation (all GPUs + 75-90% CPU/RAM via `guest_cpu_percent`/`guest_ram_percent`). Write a generator that projects those keys into real `vfio-pci` bind material -- `vfio_pci.ids=` kargs under `usr/lib/bootc/kargs.d` and/or a `modprobe.d` bind -- and a regenerate-and-diff drift-check over that output. Encode the three critic corrections in the block/generator: whole-GPU-to-one-guest (no driver-free fractioning), ~1GB host floor (not a literal "tiny" host), no-firewalld nft. Static projection only; ships inert, no live hardware touched.
 **Where:** `mios.toml [mini]`, a new generator under `usr/libexec/mios/`, `usr/lib/bootc/kargs.d` or `modprobe.d`, `automation/38-drift-checks.sh`
 **Done When:** the generator writes real vfio bind config (not just env echoes) derived from every `[mini]` key; the new drift-check fails if the projection is stale or the generator is deleted; `just drift-gate` exit 0; the feature ships disabled by default.
 **Why:** without it the split-plane design exists only in a doc, so nothing enforces the GPU-passthrough topology and any future host build silently diverges from the north star.
@@ -1786,8 +1786,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## AGY-156 [x] -- Disambiguate the install.sh family with a role-marker contract and collision gate  (WS-DEPLOY | P2 | M) **[DONE]**
 **Goal:** E-21 One deploy front door: flatten every install path -- surviving redirectors and installers are thin, documented, and unambiguous about what they do.
-**What+How:** Four divergent install.sh-family scripts coexist: root `install.sh` (redirector to build-mios.sh, FHS overlay), `tools/install.sh` (bootc `install to-disk`, which DESTROYS the target disk), and `automation/install.sh` + `automation/install-fhs.sh` (bootc-guarded FHS installers). The mios-kickstart.cfg comment records that a consumer once called `tools/install.sh` expecting an FHS overlay — today that same call wipes a disk. Add a `# MIOS_INSTALLER_ROLE=<role>` marker header to each script, add a drift-check asserting every `*/install.sh` declares a distinct, known role, and write `docs/agy/doc-install-family.md` disambiguating them.
-**Where:** `install.sh`, `tools/install.sh`, `automation/install.sh`, `automation/install-fhs.sh`, `docs/agy/doc-install-family.md` (new), `automation/38-drift-checks.sh` (new check), `tests/drift-gate-negatives.sh`
+**What+How:** Four divergent install.sh-family scripts coexist: root `install.sh` (redirector to build-mios.sh, FHS overlay), `tools/install.sh` (bootc `install to-disk`, which DESTROYS the target disk), and `automation/install.sh` + `automation/install-fhs.sh` (bootc-guarded FHS installers). The mios-kickstart.cfg comment records that a consumer once called `tools/install.sh` expecting an FHS overlay — today that same call wipes a disk. Add a `# MIOS_INSTALLER_ROLE=<role>` marker header to each script, add a drift-check asserting every `*/install.sh` declares a distinct, known role, and write `docs/design/doc-install-family.md` disambiguating them.
+**Where:** `install.sh`, `tools/install.sh`, `automation/install.sh`, `automation/install-fhs.sh`, `docs/design/doc-install-family.md` (new), `automation/38-drift-checks.sh` (new check), `tests/drift-gate-negatives.sh`
 **Done When:** each installer declares a distinct role marker; the gate FAILS if two share a role or a marker is missing (negative test); the doc is committed and cross-referenced from ROADMAP; `just drift-gate` green.
 **Why:** four same-named scripts with radically different blast radii is a live data-loss hazard — the confusion has already happened once, recorded in a code comment.
 **Dep:** none
@@ -2282,7 +2282,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 ## AGY-211 -- Define the canonical `[mini]` / `[mini.mesh]` SSOT tables so both mini generators stop falling through to defaults  (WS-MINI | P1 | S) **[DONE]**
 **Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- the MiOS-Metal split-plane is SSOT-reachable instead of permanently inert.
 **What+How:** `usr/libexec/mios/mios-metal-vfio-gen:7-8` reads `d['mini']['enabled']` and `d['mini']['bind_dgpu_vfio']`, and `mios-metal-mesh-gen:7-8` reads `d['mini']['mesh']['enabled']` and `d['mini']['mesh']['headscale_domain']`, but mios.toml defines only `[mini.gpu]` (assignments/arbitration, ~line 289) with NO top-level `[mini]` and NO `[mini.mesh]` -- so BOTH generators silently take their hardcoded defaults (`enabled=false` forever, `domain=mesh.mios.local`) and the SSOT is unreachable. Add a canonical `[mini]` block adjacent to `[mini.gpu]` (`enabled`, `bind_dgpu_vfio`, `host_floor_cores`, `host_floor_ram_gb`) plus a real `[mini.mesh]` (`enabled`, `headscale_domain`), each key commented per `doc-mios-metal.md` §1.1/§2e, and add a gate that parses every `d.get('mini',...)` key the two generators reference and asserts it exists in mios.toml (fail-open only when python3 is absent, mirroring check 53).
-**Where:** `usr/share/mios/mios.toml` (`[mini]`/`[mini.mesh]` near line 289), `usr/libexec/mios/mios-metal-vfio-gen`, `usr/libexec/mios/mios-metal-mesh-gen`, `automation/38-drift-checks.sh`, `docs/agy/doc-mios-metal.md`
+**Where:** `usr/share/mios/mios.toml` (`[mini]`/`[mini.mesh]` near line 289), `usr/libexec/mios/mios-metal-vfio-gen`, `usr/libexec/mios/mios-metal-mesh-gen`, `automation/38-drift-checks.sh`, `docs/design/doc-mios-metal.md`
 **Done When:** the generators resolve real committed keys, not defaults -- `mios-metal-vfio-gen` prints `MIOS_METAL_ENABLED=true` when `[mini].enabled=true`; the new drift-check asserts every referenced mini key exists; a negative test in `tests/drift-gate-negatives.sh` deletes one key and proves non-zero exit; `just drift-gate` green on HEAD.
 **Why:** an operator can set nothing about the Mini split-plane today -- both generators ignore mios.toml entirely and emit fixed defaults, so the whole feature is unconfigurable.
 **Dep:** none
@@ -2345,7 +2345,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 ## AGY-218 -- Add `[storage.guest_passthrough]` SSOT and gate that the boot controller is never passed to the guest  (WS-MINI | P2 | S) **[DONE]**
 **Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a misconfiguration that would strand the host's own filesystem is impossible to commit.
 **What+How:** `doc-mios-metal.md` §2c and step 5 require the drift-gate to validate that `[storage.guest_passthrough]` never names the boot controller's BDF, because passing the boot NVMe strands host `/var`. Grep for `^[storage` returns nothing -- the block does not exist. Add `[storage.guest_passthrough]` (a list of non-boot controller BDFs to `<hostdev>` into the guest) plus `[storage].boot_controller_bdf`, and a drift-check that FAILS when any guest_passthrough BDF equals the declared boot controller BDF or overlaps `[mini.gpu].assignments` incorrectly. Static SSOT validation only -- no live disk enumeration.
-**Where:** `usr/share/mios/mios.toml` (new `[storage.guest_passthrough]` / `[storage].boot_controller_bdf`), `automation/38-drift-checks.sh`, `docs/agy/doc-mios-metal.md` §2c cross-ref
+**Where:** `usr/share/mios/mios.toml` (new `[storage.guest_passthrough]` / `[storage].boot_controller_bdf`), `automation/38-drift-checks.sh`, `docs/design/doc-mios-metal.md` §2c cross-ref
 **Done When:** the drift-check parses `[storage.guest_passthrough]` and exits non-zero when it names `[storage].boot_controller_bdf`; a negative test setting guest_passthrough to include the boot BDF asserts the gate fails; the check passes on a clean HEAD (empty/inert by default); drift-gate green.
 **Why:** one wrong BDF in a config file would hand the host's boot disk to a guest and brick the router on next boot, with nothing today catching it before hardware.
 **Dep:** AGY-215 (the domain generator consumes the passthrough list)
@@ -3218,7 +3218,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 ## AGY-315 -- virt-v2v: drift-check `mios-v2v-import` SSOT parity and document the import on-ramp  (WS-RUNTIME | P2 | S)**[DONE]**
 **Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- the new wrapper is gated against hardcoding and discoverable in the run-plane doc.
 **What+How:** The AGY-314 wrapper needs a gate proving it reads SSOT plus a doc so the feature is findable. Add a drift-check at the next free number, registered in `main()` beside the other runtime checks, that (a) `bash -n` parses `mios-v2v-import`, (b) asserts it resolves `output_storage` / `output_network` / `output_format` from `[virt.v2v]` rather than hardcoding them (grep for a literal pool or format and fail unless it is a SSOT-default fallback), and (c) asserts `--dry-run` prints a non-empty planned `virt-v2v` command whose format matches `[virt.v2v].output_format`, degrading open when the `virt-v2v` binary is absent. Add a short section on the v2v import on-ramp -- including that it ships inert -- to the container-runtime doc.
-**Where:** `automation/38-drift-checks.sh` (new check + `main()`), `usr/libexec/mios/mios-v2v-import`, `tests/drift-gate-negatives.sh`, `docs/agy/doc-container-runtime.md` (or `usr/share/doc/mios/concepts/container-os-runtime.md`)
+**Where:** `automation/38-drift-checks.sh` (new check + `main()`), `usr/libexec/mios/mios-v2v-import`, `tests/drift-gate-negatives.sh`, `docs/design/doc-container-runtime.md` (or `usr/share/doc/mios/concepts/container-os-runtime.md`)
 **Done When:** the check parses the wrapper, asserts SSOT resolution with no hardcoded pool/format, and validates the `--dry-run` plan against `[virt.v2v]`; a negative test hardcoding a format makes it red; the doc section lands; `bash -n` clean; `just drift-gate` green.
 **Why:** without the gate the wrapper drifts back to literals (a Law 7 regression), and without the doc the on-ramp is invisible and stays as unused as virt-v2v is today.
 **Dep:** AGY-314 (`mios-v2v-import`)
@@ -3388,8 +3388,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## AGY-334 -- `mios-userdb-render`: project the `account` table into systemd userdb JSON drop-ins  (WS-DB | P2 | M) **[DONE]**
 **Goal:** E-23 DB-driven configuration and vector recall -- Postgres becomes the account SSOT on Linux, projected to the OS rather than hand-maintained in `/etc`.
-**What+How:** Implement §3(a) of `docs/agy/doc-postgresos-accounts.md` as a NEW `usr/libexec/mios/mios-userdb-render` (Python, same `get_pg_config()` + psycopg + `MIOS_TOML` gate style as `usr/libexec/mios/materialize-user-config.py`). SELECT enabled Linux-scoped rows from `account` (`WHERE enabled AND os_targets IN ('both','linux')` -- the same predicate as `mios-account-sync`'s `query_db_accounts`) and write one JSON User Record per user to `/run/userdb/<name>.user` (runtime tmpfs, since the DB is the runtime SSOT and `/usr` is immutable), following systemd.io/USER_RECORD: `userName`, `uid`, `gid`, `realName`<-display, `homeDirectory`<-home_dir, `shell`, `disposition:"regular"`; the hashed secret goes in a `.user-privileged` companion at mode 0600, NEVER plaintext. Idempotent via compare-before-write, mirroring `materialize-user-config.py:160-176`. Gate the whole run on `MIOS_ACCOUNTS_DB_BACKED` like `automation/17-accounts-db.sh`, and fail-open (log, exit 0) when psycopg or the DB is absent so offline boot is unaffected. This is a PROJECTION only -- Postgres stays out of the login critical path per the doc's libnss-pgsql caution.
-**Where:** `usr/libexec/mios/mios-userdb-render`, `docs/agy/doc-postgresos-accounts.md`, `usr/libexec/mios/materialize-user-config.py`
+**What+How:** Implement §3(a) of `docs/design/doc-postgresos-accounts.md` as a NEW `usr/libexec/mios/mios-userdb-render` (Python, same `get_pg_config()` + psycopg + `MIOS_TOML` gate style as `usr/libexec/mios/materialize-user-config.py`). SELECT enabled Linux-scoped rows from `account` (`WHERE enabled AND os_targets IN ('both','linux')` -- the same predicate as `mios-account-sync`'s `query_db_accounts`) and write one JSON User Record per user to `/run/userdb/<name>.user` (runtime tmpfs, since the DB is the runtime SSOT and `/usr` is immutable), following systemd.io/USER_RECORD: `userName`, `uid`, `gid`, `realName`<-display, `homeDirectory`<-home_dir, `shell`, `disposition:"regular"`; the hashed secret goes in a `.user-privileged` companion at mode 0600, NEVER plaintext. Idempotent via compare-before-write, mirroring `materialize-user-config.py:160-176`. Gate the whole run on `MIOS_ACCOUNTS_DB_BACKED` like `automation/17-accounts-db.sh`, and fail-open (log, exit 0) when psycopg or the DB is absent so offline boot is unaffected. This is a PROJECTION only -- Postgres stays out of the login critical path per the doc's libnss-pgsql caution.
+**Where:** `usr/libexec/mios/mios-userdb-render`, `docs/design/doc-postgresos-accounts.md`, `usr/libexec/mios/materialize-user-config.py`
 **Done When:** `python -m py_compile usr/libexec/mios/mios-userdb-render` passes; a mocked-cursor dry-run emits a User Record that `python -c "import json;json.load(...)"` accepts with `userName`/`uid`/`homeDirectory` matching the fixture rows; a second run on unchanged input writes nothing.
 **Why:** `[accounts].db_backed` ships inert today -- accounts exist in Postgres but the Linux side has no way to see them, so the DB-driven account model is a schema with no consumer.
 **Dep:** none
@@ -3406,7 +3406,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## AGY-336 -- Land `[accounts.lldap]` SSOT knobs + userenv alias derivation for the cross-platform LDAP face  (WS-DB | P3 | S) **[DONE]**
 **Goal:** E-23 DB-driven configuration and vector recall -- the cross-platform identity face gets an operator-tunable SSOT surface before any container exists to consume it.
-**What+How:** Per §3(a)/§2 of `docs/agy/doc-postgresos-accounts.md`, lldap-over-Postgres is the adopt-now cross-platform account SSOT face. Add an `[accounts.lldap]` sub-table to `usr/share/mios/mios.toml` beside the existing `[accounts]` block (`:92`): `enable=false`, `base_dn=""`, `db_schema="lldap"` (a separate schema in the SAME `mios` Postgres so Postgres stays the single SSOT), `ldap_port`, `http_port` -- all resolved-at-build/float, with NO hand-pinned image tag (SBOM law, ADR-0003). Extend the alias-derivation switch in BOTH `usr/lib/mios/userenv.sh` and `tools/lib/userenv.sh` (they must stay byte-identical per check 27) to emit `MIOS_ACCOUNTS_LLDAP_ENABLE`/`_BASE_DN`/`_DB_SCHEMA`/`_LDAP_PORT`/`_HTTP_PORT`, following the exact pattern at `userenv.sh:198-199` for `accounts.db_backed`. Do NOT deploy a container here -- that is AGY-337's projector plus a later Quadlet task.
+**What+How:** Per §3(a)/§2 of `docs/design/doc-postgresos-accounts.md`, lldap-over-Postgres is the adopt-now cross-platform account SSOT face. Add an `[accounts.lldap]` sub-table to `usr/share/mios/mios.toml` beside the existing `[accounts]` block (`:92`): `enable=false`, `base_dn=""`, `db_schema="lldap"` (a separate schema in the SAME `mios` Postgres so Postgres stays the single SSOT), `ldap_port`, `http_port` -- all resolved-at-build/float, with NO hand-pinned image tag (SBOM law, ADR-0003). Extend the alias-derivation switch in BOTH `usr/lib/mios/userenv.sh` and `tools/lib/userenv.sh` (they must stay byte-identical per check 27) to emit `MIOS_ACCOUNTS_LLDAP_ENABLE`/`_BASE_DN`/`_DB_SCHEMA`/`_LDAP_PORT`/`_HTTP_PORT`, following the exact pattern at `userenv.sh:198-199` for `accounts.db_backed`. Do NOT deploy a container here -- that is AGY-337's projector plus a later Quadlet task.
 **Where:** `usr/share/mios/mios.toml`, `usr/lib/mios/userenv.sh`, `tools/lib/userenv.sh`
 **Done When:** the TOML parses (`python -c "import tomllib,pathlib;tomllib.loads(pathlib.Path('usr/share/mios/mios.toml').read_text())"`); `bash -n` passes on both userenv.sh copies; the two userenv.sh files remain byte-identical (drift check 27); `just drift-gate` green.
 **Why:** Without keys to float TO, any lldap work would arrive as hardcoded ports and DNs in a unit file -- a Law 7 violation created by the very task meant to unify identity.
@@ -3433,8 +3433,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## AGY-339 -- Generate the Windows `New-LocalUser` account manifest from the `account` table  (WS-DB | P2 | M) **[DONE]**
 **Goal:** E-23 DB-driven configuration and vector recall -- the Windows account set becomes a projection of Postgres rather than hand-authored unattend XML.
-**What+How:** Per §3(b)/§4 of `docs/agy/doc-postgresos-accounts.md`, Windows has no NSS/PAM, so the honest baseline is a generated manifest a SetupComplete step consumes. Add `usr/libexec/mios/mios-winaccounts-render` (psycopg, gated on `MIOS_ACCOUNTS_DB_BACKED`) that SELECTs `WHERE enabled AND os_targets IN ('both','windows')` from `account` and writes a deterministic JSON manifest `{name, display, groups[], is_admin, password_hash?}` to a stable path (e.g. `/var/lib/mios/win-accounts.json`) which the Windows plane reads to drive `New-LocalUser`/`Add-LocalGroupMember`. This task stays inside `C:\MiOS` and emits ONLY the manifest -- do NOT edit `C:\mios-bootstrap` (autounattend/SetupComplete) or the Portal; the manifest IS the contract the other plane reads. Passwords hash-only, never plaintext.
-**Where:** `usr/libexec/mios/mios-winaccounts-render`, `docs/agy/doc-postgresos-accounts.md`
+**What+How:** Per §3(b)/§4 of `docs/design/doc-postgresos-accounts.md`, Windows has no NSS/PAM, so the honest baseline is a generated manifest a SetupComplete step consumes. Add `usr/libexec/mios/mios-winaccounts-render` (psycopg, gated on `MIOS_ACCOUNTS_DB_BACKED`) that SELECTs `WHERE enabled AND os_targets IN ('both','windows')` from `account` and writes a deterministic JSON manifest `{name, display, groups[], is_admin, password_hash?}` to a stable path (e.g. `/var/lib/mios/win-accounts.json`) which the Windows plane reads to drive `New-LocalUser`/`Add-LocalGroupMember`. This task stays inside `C:\MiOS` and emits ONLY the manifest -- do NOT edit `C:\mios-bootstrap` (autounattend/SetupComplete) or the Portal; the manifest IS the contract the other plane reads. Passwords hash-only, never plaintext.
+**Where:** `usr/libexec/mios/mios-winaccounts-render`, `docs/design/doc-postgresos-accounts.md`
 **Done When:** `python -m py_compile usr/libexec/mios/mios-winaccounts-render` passes; a mocked-cursor dry-run emits a `json.load`-valid manifest whose fields, `is_admin` and `groups` match the fixture rows, with stable key ordering across two runs; a disabled-gate run exits 0 writing nothing.
 **Why:** Windows accounts are currently hand-written into autounattend XML, so the two platforms' user sets drift the moment either side changes -- and there is no artifact a gate could compare them against.
 **Dep:** none
@@ -4281,16 +4281,16 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## AGY-441 -- Turn the MiOS-Metal split-plane doc into wired vfio and mesh generators  (WS-ROADMAP | P3 | L)  **[DONE]**
 **Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a documented topology becomes SSOT-driven generated config or an explicitly recorded non-goal.
-**What+How:** `docs/agy/doc-mios-metal.md` scopes a small bootc hypervisor-router host that binds all dGPUs to `vfio-pci` and owns the NICs, radios, TPM and boot chain, hosting the full MiOS OCI image as a NIC-less super-privileged guest reached over headscale. Convert that prose into stub generators under `usr/libexec/mios/mios-metal-*`: one emitting the vfio-pci bind config from the SSOT device declarations, one emitting the headscale mesh config. Checks 68/69 already exist to gate them.
-**Where:** `usr/libexec/mios/mios-metal-*`, `docs/agy/doc-mios-metal.md`.
+**What+How:** `docs/design/doc-mios-metal.md` scopes a small bootc hypervisor-router host that binds all dGPUs to `vfio-pci` and owns the NICs, radios, TPM and boot chain, hosting the full MiOS OCI image as a NIC-less super-privileged guest reached over headscale. Convert that prose into stub generators under `usr/libexec/mios/mios-metal-*`: one emitting the vfio-pci bind config from the SSOT device declarations, one emitting the headscale mesh config. Checks 68/69 already exist to gate them.
+**Where:** `usr/libexec/mios/mios-metal-*`, `docs/design/doc-mios-metal.md`.
 **Done When:** both generators emit valid config from SSOT and checks 68/69 pass against their output.
 **Why:** The split-plane design only exists as prose; nothing in the tree can produce the config it describes, so the north star cannot be tested even on a lab machine.
 **Dep:** none
 
 ## AGY-442 -- Wire `[accounts].db_backed` to Linux userdb and a Windows baseline  (WS-ROADMAP | P3 | L)  **[DONE]**
 **Goal:** E-23 DB-driven configuration and vector recall -- accounts are declared once in SSOT and projected per platform.
-**What+How:** `[accounts].db_backed` currently ships inert. Assemble the FOSS-brick model documented in `docs/agy/doc-postgresos-accounts.md`: a systemd userdb JSON projection for Linux, lldap-over-Postgres as the cross-platform SSOT face, and `New-LocalUser` via autounattend/SetupComplete for the Windows baseline (which has no NSS/PAM). Implement the projection in `usr/libexec/mios/mios-account-sync` against the accounts schema.
-**Where:** `usr/libexec/mios/mios-account-sync`, the accounts schema, `docs/agy/doc-postgresos-accounts.md`.
+**What+How:** `[accounts].db_backed` currently ships inert. Assemble the FOSS-brick model documented in `docs/design/doc-postgresos-accounts.md`: a systemd userdb JSON projection for Linux, lldap-over-Postgres as the cross-platform SSOT face, and `New-LocalUser` via autounattend/SetupComplete for the Windows baseline (which has no NSS/PAM). Implement the projection in `usr/libexec/mios/mios-account-sync` against the accounts schema.
+**Where:** `usr/libexec/mios/mios-account-sync`, the accounts schema, `docs/design/doc-postgresos-accounts.md`.
 **Done When:** one account declared in SSOT produces a valid systemd userdb JSON record on Linux AND a Windows baseline account definition, from a single run of `mios-account-sync`.
 **Why:** A flag that reads as a feature but does nothing is worse than an absent one; operators define accounts twice, per platform, by hand.
 **Dep:** none
@@ -4994,7 +4994,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 ## AGY-679..AGY-700 -- Land the north-star surfaces: liquid-glass shell, MiOS-Metal, DB accounts, dotfile/theme surfaces  (WS-ROADMAP | P3 | L) **[DONE]**
 **Goal:** E-22 Dotfiles projection: one engine, every surface, both platforms -- the exploratory north-stars become real, SSOT-projected surfaces instead of documents.
 **What+How:** (679-682) project the Hyprland/Quickshell liquid-glass effects and animations FROM `mios.toml` rather than hand-written `hyprland.conf`; (683-686) the MiOS-Metal split-plane vfio/mesh design (whole-GPU-to-one-guest, headscale routing); (687-690) the PostgresOS DB-backed account model assembled from systemd userdb + lldap-over-Postgres, shipping inert until wired; (691-693) two further `[dotfiles.registry.<surface>]` surfaces beyond the btop proof; (694-695) extend the theme SSOT projection; (696) audit that `MIOS_AI_ENDPOINT` is canonical everywhere; (697) finish the legacy purge to a /v1-only AI plane; (698-700) wire three unwired runtime features.
-**Where:** `usr/share/mios/mios.toml` `[colors]`/`[dotfiles.registry.*]`, `docs/agy/doc-mios-metal.md`, `docs/agy/doc-postgresos-accounts.md`
+**Where:** `usr/share/mios/mios.toml` `[colors]`/`[dotfiles.registry.*]`, `docs/design/doc-mios-metal.md`, `docs/design/doc-postgresos-accounts.md`
 **Done When:** each new surface renders from SSOT and its projection check (theme check 25, `check_dotfiles_projection`) is green, and the endpoint/legacy audits report zero non-allowlisted hits.
 **Why:** these surfaces are the visible product; left as prose they stay hand-maintained, diverge from `mios.toml`, and re-introduce the hardcodes the gates just removed.
 **Dep:** none
@@ -5002,7 +5002,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 ## AGY-701..AGY-730 -- Verify the whole program: a negative test per gate, hermeticity sentinels, the ADR set, and the release  (WS-TESTDOC | P2 | L) **[DONE]**
 **Goal:** E-06 Test and documentation harness -- every gate is proven able to FAIL, and the doc set is complete enough for an agent to pick up a workstream cold.
 **What+How:** (701-715) one negative test per new gate, one task per gate, so a check that can never go red is caught; (716-718) hermeticity sentinels; (719) refresh the roadmap index; (720-724) the ADR set for the batch; (725-727) postmortems for the reds that occurred; (728) the meta "keep-main-green-throughout" tracker; (729) the 0.3.1 version bump so the program actually ships; (730) the final full-green drift-gate sign-off.
-**Where:** `automation/98-drift-checks.sh`, the negative-test harness, `docs/adr/`, `docs/agy/`, `ROADMAP`
+**Where:** `automation/98-drift-checks.sh`, the negative-test harness, `docs/adr/`, `docs/design/`, `ROADMAP`
 **Done When:** the negative-test job runs in CI BEFORE the main gate and every listed gate has a paired failing case, and `just drift-gate` is full-green on the 0.3.1 tag.
 **Why:** a gate with no negative test is a green light that may never have been wired to anything; without it the program claims coverage it does not have.
 **Dep:** the gates added by the preceding workstreams
@@ -5066,7 +5066,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 ## AGY-843..AGY-855 -- Prove and ship this batch: negatives, sentinels, ADRs, published-image smoke  (WS-TESTDOC2 | P2 | L) **[DONE]**
 **Goal:** E-06 Test and documentation harness -- the batch does not count as landed until its gates are proven failable and a published image is smoke-verified.
 **What+How:** (843-850) one NEGATIVE test per gate added by this batch (bake-harden, lossless-harden, no-duplicate-value-key, deploy, runtime-wire, sec), ratcheting check-77's coverage floor; (851) hermeticity sentinels for the snapshot and the bake covering locale, HOME and network; (852) refresh the roadmap index and close the doc-vs-SSOT gap; (853) the ADR set for GUP Phase 2/3, alias-dedup, deploy-real and runtime-wire; (854) the keep-main-green tracker plus a day-0-publish postmortem naming the exact reds (54, 56, lossless-HOME, lossless-locale, names-stale) and their fixes; (855) bump to 0.3.2, run the full drift-gate, then pull `ghcr.io/mios-dev/mios:latest`, boot it and assert the AI plane answers.
-**Where:** the negative-test harness, `automation/98-drift-checks.sh`, `docs/adr/`, `docs/agy/`
+**Where:** the negative-test harness, `automation/98-drift-checks.sh`, `docs/adr/`, `docs/design/`
 **Done When:** negative coverage meets or exceeds the check-77 ratchet, the drift-gate is full-green at 0.3.2, and the published-image smoke returns a real `/v1` completion.
 **Why:** without the negative pass and the published-image smoke the batch's greens prove only that checks ran, not that the shipped artifact works.
 **Dep:** AGY-731..AGY-842
@@ -5074,7 +5074,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 ## AGY-856..AGY-864 -- Build the tooling that MEASURES duplication and gates it permanently  (WS-DEDUP-DISCOVER | P1 | M) **[DONE]**
 **Goal:** E-09 One value, one name -- measure before collapsing, so the dedup campaign is driven by data rather than guesses.
 **What+How:** (856) build `mios-dup-report` that groups the resolved env by VALUE, lists every value carried by >=2 keys, classifies each group {true-alias | distinct-configurable-fact | intentional-many-to-one} and emits a TSV; (857) a cross-surface literal scanner finding every version/ref/port/path/color/model literal in NON-SSOT files (docs, `mios.html`, `knowledge-graph.json`, SBOM, scripts) that equals an SSOT value; (858) extend `check_no_duplicate_value_key` beyond versions to all value classes with an explicit documented allowlist; (859) add `check_no_hardcoded_ssot_literal` (GUP Phase 4 enforcement); (860) enumerate every resolver rule (`get_aliases` plus the 3 emitters) that emits >=2 names for one dotted path, tabled with consumer counts -- the STRUCTURAL dupe source; (861) negative tests ratcheting check-77; (862) commit `value-dup-report.tsv` refreshed by `mios-ssot-regen` and gated; (863) the tracking doc with the measured baseline key count and target; (864) a referenced-but-empty audit deciding keep-vs-drop per key.
-**Where:** `tools/`, `usr/libexec/mios/mios-dup-report`, `usr/share/mios/reference/value-dup-report.tsv`, `docs/agy/`, `automation/98-drift-checks.sh`
+**Where:** `tools/`, `usr/libexec/mios/mios-dup-report`, `usr/share/mios/reference/value-dup-report.tsv`, `docs/design/`, `automation/98-drift-checks.sh`
 **Done When:** `mios-dup-report` runs and its committed TSV is refreshed by `mios-ssot-regen`, both new checks are green with negative tests, and the baseline key count is recorded.
 **Why:** without a measurement the collapse is guesswork -- names get dropped that still have consumers, and new dupes reappear with nothing to catch them.
 **Dep:** none
@@ -10109,7 +10109,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ## WS-DOCGEN -- generative documentation
 
-Programme: `docs/agy/doc-generative-documentation.md`. Epic ids D-# below are that
+Programme: `docs/design/doc-generative-documentation.md`. Epic ids D-# below are that
 document's own sub-taxonomy for the documentation programme.
 
 ## AGY-1580 -- Fix mios-ai-tag's multi-line hint orphaning and repair the 22 damaged headers  (WS-DOCGEN | P0 | M)  **DONE**
@@ -10225,8 +10225,8 @@ document's own sub-taxonomy for the documentation programme.
 
 ## AGY-1593 -- Collapse the 69-copy boilerplate, the 3 duplicate doc pairs, and mios-codebase-index's rival taggability  (WS-DOCGEN | P2 | M) **DONE**
 **Goal:** D-11 Every fact has one home; the codebase is quickly auditable because there is nothing to cross-check.
-**What+How:** (1) The two-paragraph "MiOS is one thing built two ways at once ... `bootc upgrade` it like a `git pull` ... `bootc rollback` it like a Ctrl-Z" block appears in 69 files (~48 KB) and every copy drifts independently -- some name GNOME 50, some name ports, some name lanes. Replace all 69 with `<!-- MIOS-GEN:boilerplate:what-mios-is -->` rendered from the single authored chapter. (2) De-duplicate the three near-verbatim doc pairs (~116 KB, already diverging on facts): `docs/agy/doc-mios-metal.md` <-> `concepts/mios-metal-architecture.md`, `doc-container-runtime.md` <-> `concepts/container-os-runtime.md`, `doc-foss-upstream.md` <-> `concepts/foss-upstream-map.md`; add `docs/agy/README.md` marking that tree process-only, the pattern `usr/share/doc/mios/archive/` already models. (3) Delete `mios-codebase-index`'s private `EXT`/`BASENAMES`/`SKIP_DIR`/`SKIP_SUFFIX` -- a second, already-diverged definition of the corpus that includes `.json` (which mios-ai-tag explicitly skips as comment-less) -- and import `mios-ai-tag` through the same `SourceFileLoader` shim `mios-ai-hint-coverage` uses.
-**Where:** `usr/share/doc/mios/**, docs/agy/**, usr/libexec/mios/mios-codebase-index, usr/share/mios/**`
+**What+How:** (1) The two-paragraph "MiOS is one thing built two ways at once ... `bootc upgrade` it like a `git pull` ... `bootc rollback` it like a Ctrl-Z" block appears in 69 files (~48 KB) and every copy drifts independently -- some name GNOME 50, some name ports, some name lanes. Replace all 69 with `<!-- MIOS-GEN:boilerplate:what-mios-is -->` rendered from the single authored chapter. (2) De-duplicate the three near-verbatim doc pairs (~116 KB, already diverging on facts): `docs/design/doc-mios-metal.md` <-> `concepts/mios-metal-architecture.md`, `doc-container-runtime.md` <-> `concepts/container-os-runtime.md`, `doc-foss-upstream.md` <-> `concepts/foss-upstream-map.md`; add `docs/design/README.md` marking that tree process-only, the pattern `usr/share/doc/mios/archive/` already models. (3) Delete `mios-codebase-index`'s private `EXT`/`BASENAMES`/`SKIP_DIR`/`SKIP_SUFFIX` -- a second, already-diverged definition of the corpus that includes `.json` (which mios-ai-tag explicitly skips as comment-less) -- and import `mios-ai-tag` through the same `SourceFileLoader` shim `mios-ai-hint-coverage` uses.
+**Where:** `usr/share/doc/mios/**, docs/design/**, usr/libexec/mios/mios-codebase-index, usr/share/mios/**`
 **Done When:** the boilerplate exists once; the three pairs are one file each with a pointer; `mios-codebase-index` defines zero taggability constants of its own and its file count matches `mios-ai-hint-coverage`'s denominator.
 **Why:** "fewer, more feature-complete components" is unachievable while three tools disagree about which files exist and one paragraph has 69 independently-drifting copies.
 **Dep:** AGY-1592
@@ -10517,7 +10517,7 @@ demonstrate. Nothing new starts until they do.
 ## AGY-1623 -- Prove the deploy plane on something that is not MiOS-DEV  (WS-DEPLOY | P0 | L)**[DONE]**
 **Goal:** Move "runs on a VM" to "runs where it claims to run".
 **What+How:** Bare metal is untried, and blade/mesh/vfio work is design rather than observation. Pick the smallest real target, install from the artifact the build publishes, and record what actually happened -- including what failed. Do not extend the design further until one non-VM install is observed.
-**Where:** `docs/agy/, ROADMAP.md, cat/`
+**Where:** `docs/design/, ROADMAP.md, cat/`
 **Done When:** one non-VM install is recorded with its failures, and the roadmap's honest-state table is updated from observation rather than intent.
 **Verify:** one non-VM install is recorded, including what failed, and ROADMAP.md's state table is updated from that observation.
 **Do NOT:** extend the blade/mesh design further first. Every unobserved deployment target is a claim with no evidence behind it.
@@ -10727,7 +10727,7 @@ demonstrate. Nothing new starts until they do.
 ## AGY-1644 -- Make agent-operability demonstrable, not asserted  (WS-THESIS | P0 | L)**[DONE]**
 **Goal:** Show an agent operating the system through the SSOT.
 **What+How:** The thesis has four parts that stand or fall together: one file defines the OS, agents operate it natively, projection is what makes it agent-operable, and it is one reproducible artifact. The third is the least evidenced. Build a demonstration in which an agent changes `mios.toml`, the projection propagates, the gates confirm consistency, and the running system reflects it -- recorded as a transcript with the failures included.
-**Where:** `usr/lib/mios/agent-pipe/, usr/libexec/mios/, docs/agy/, ROADMAP.md`
+**Where:** `usr/lib/mios/agent-pipe/, usr/libexec/mios/, docs/design/, ROADMAP.md`
 **Done When:** a recorded end-to-end run exists showing an agent making a change through the SSOT and the system converging, with what did not work stated plainly.
 **Verify:** a recorded end-to-end run shows an agent changing mios.toml, the projection propagating, the gates confirming, and the system converging -- failures included.
 **Do NOT:** argue it from architecture. The claim is about observation.
@@ -10817,7 +10817,7 @@ demonstrate. Nothing new starts until they do.
 ## AGY-1653 -- Verify greenboot actually rolls back  (WS-RUNTIME | P0 | M)**[DONE]**
 **Goal:** The health-check path is observed, not assumed.
 **What+How:** MiOS ships greenboot but the rollback has not been demonstrated. Write a health check that fails deliberately on a test deployment, boot it, and confirm the system rolls back to the previous image. Record what the failure looked like from the console, because that is what an operator will see.
-**Where:** `usr/lib/mios/greenboot/, usr/lib/systemd/system/, docs/agy/`
+**Where:** `usr/lib/mios/greenboot/, usr/lib/systemd/system/, docs/design/`
 **Done When:** a deliberate health-check failure is shown to roll back on a real boot, with the console output recorded.
 **Verify:** a deliberate health-check failure is shown rolling back on a real boot, with the console output recorded.
 **Do NOT:** assert it from the unit files. Rollback is the property that makes immutable updates safe; untested it is a hope.
@@ -10887,7 +10887,7 @@ demonstrate. Nothing new starts until they do.
 ## AGY-1660 -- Decide the accounts model and stop shipping it inert  (WS-ACCOUNTS | P1 | L) **[DONE]**
 **Goal:** `[accounts].db_backed` either works or goes.
 **What+How:** The DB-driven cross-platform account model is assembled from FOSS bricks: systemd userdb JSON projection on Linux, lldap over Postgres as the cross-platform SSOT face, SCIM as a pattern, and autounattend plus `New-LocalUser` as the Windows baseline since Windows has no NSS/PAM. It ships inert. Pick the smallest end-to-end slice -- one account defined in the SSOT appearing on both platforms -- and build that, or remove the table and the doc claim.
-**Where:** `usr/share/mios/mios.toml [accounts], usr/lib/mios/mios_accounts.py, usr/share/mios/windows/, docs/agy/doc-postgresos-accounts.md`
+**Where:** `usr/share/mios/mios.toml [accounts], usr/lib/mios/mios_accounts.py, usr/share/mios/windows/, docs/design/doc-postgresos-accounts.md`
 **Done When:** one account defined in the SSOT is demonstrated on Linux and Windows, or the table is removed and the doc says so.
 **Verify:** one account defined in the SSOT is demonstrated on Linux AND Windows, or [accounts] is removed and the doc says so.
 **Do NOT:** leave it shipping inert. An inert table makes an idea look implemented when it is not.
@@ -10967,7 +10967,7 @@ demonstrate. Nothing new starts until they do.
 ## AGY-1668 -- Establish a backup and restore story  (WS-STORAGE | P2 | L) **[DONE]**
 **Goal:** `/var` can be restored.
 **What+How:** `/var` persists across image updates and holds everything stateful. Define what must survive a rebuild, implement a backup path that captures it, and prove a restore onto a freshly installed system. An untested restore is not a backup.
-**Where:** `usr/libexec/mios/, usr/share/mios/mios.toml, docs/agy/`
+**Where:** `usr/libexec/mios/, usr/share/mios/mios.toml, docs/design/`
 **Done When:** a restore onto a fresh install is demonstrated and the recovery procedure is written from the observed run.
 **Verify:** a restore onto a freshly installed system is demonstrated and the procedure written from that run.
 **Do NOT:** call an untested backup a backup. /var is the only thing that cannot be rebuilt from the SSOT.
@@ -11327,7 +11327,7 @@ demonstrate. Nothing new starts until they do.
 ## AGY-1731 -- Validate the pulled image end to end on MiOS-DEV  (WS-DEPLOY | P1 | M)
 **Goal:** The image that publishes is shown to boot and serve, not merely to build.
 **What+How:** `ghcr.io/mios-dev/mios:latest` now exists locally: 49 GB, 79 layers, carrying `containers.bootc=1` and `ostree.bootable=1`. Run `tests/bake-smoke.sh` against it, then take the further step the smoke test cannot: `bootc switch` a VM onto it, boot, and record which units reached active, which failed, and what greenboot decided. Write the result into ROADMAP.md's state table as an observation with its date.
-**Where:** `tests/bake-smoke.sh, ROADMAP.md, docs/agy/`
+**Where:** `tests/bake-smoke.sh, ROADMAP.md, docs/design/`
 **Done When:** a boot from this image is recorded, including every unit that did not start.
 **Verify:** the recorded run names the image digest, the units that failed, and greenboot's verdict; a run with no failures listed must say so explicitly.
 **Do NOT:** treat a passing smoke test as a boot. The smoke test runs the image as a container; it never exercises the boot path, the units, or rollback.
@@ -11367,7 +11367,7 @@ demonstrate. Nothing new starts until they do.
 ## AGY-1735 -- Give MiOS-Metal a built artifact so it stops being a design  (WS-VARIANT | P2 | L)
 **Goal:** The metal-owning variant exists as something you can boot.
 **What+How:** MiOS-Metal is specified in a doc and configured by `[metal]`, and builds nothing: it is one of two variants still marked design. Produce the artifact its registry entry declares -- an ISO and a BIB recipe -- containing only what a hypervisor-router needs: the vfio bindings derived from `[metal]`, the mesh configuration, no desktop and no AI plane. Then lower `[variants].max_design_variants`.
-**Where:** `config/artifacts/, docs/agy/doc-mios-metal.md, usr/share/mios/mios.toml ([metal], [variants])`
+**Where:** `config/artifacts/, docs/design/doc-mios-metal.md, usr/share/mios/mios.toml ([metal], [variants])`
 **Done When:** the artifact builds, boots headless, and binds the declared devices to vfio.
 **Verify:** the built image carries the bootc labels, and a boot shows the GPUs bound to vfio-pci; the design ceiling drops by one in the same commit.
 **Do NOT:** claim GPU fractioning. The doc's own critic pass established it is impossible driver-free -- whole GPU to one guest.
@@ -11811,7 +11811,7 @@ makes that table generated so the two cannot diverge again.
 ## AGY-1812 -- Audit the 53 remaining gate heredocs for a possible red  (WS-GATE | P1 | L)
 **Goal:** Every check in 98-drift-checks.sh has a known edit that makes it fail.
 **What+How:** 53 Python heredocs remain in the gate, 2340 lines total. For each, write down the concrete edit that should turn it red, then make that edit in a scratch copy of the tree and confirm the check reports a violation. Record the result per check in a table: RED-CONFIRMED, or the reason it could not be made to fail. The ones that cannot be made to fail are the deliverable.
-**Where:** `automation/98-drift-checks.sh`, `docs/agy/audits/`
+**Where:** `automation/98-drift-checks.sh`, `docs/design/audits/`
 **Done When:** every one of the 53 has a recorded verdict and the un-failable ones have follow-up task ids.
 **Verify:** for a random sample of 10 confirmed-red checks, re-apply the recorded edit and show the violation text.
 **Do NOT:** count "I read it and it looks correct" as a verdict. The audit is only worth the tree-edits actually performed; reading is what let these through the first time.
@@ -11831,7 +11831,7 @@ makes that table generated so the two cannot diverge again.
 ## AGY-1814 -- Resolve the 66 gates the falsifiability audit left inconclusive  (WS-GATE | P1 | L)
 **Goal:** No check remains in the unknown bucket.
 **What+How:** A prior 202-check audit finished with 66 checks neither confirmed-failable nor confirmed-hollow. Take them in batches of ten, apply the AGY-1812 method, and give each a verdict. Where a check turns out to be hollow, fix it in the same batch rather than filing it onward.
-**Where:** `automation/98-drift-checks.sh`, `tools/drift-checks.py`, `docs/agy/audits/`
+**Where:** `automation/98-drift-checks.sh`, `tools/drift-checks.py`, `docs/design/audits/`
 **Done When:** all 66 have a verdict and every hollow one has been repaired or has an open task id.
 **Verify:** the audit table shows 0 inconclusive; spot-check five repaired checks by re-injecting their defect.
 **Do NOT:** mark a check conclusive because it produced output. Output is not a verdict -- several of the hollow checks printed a confident PASS line.
@@ -12291,7 +12291,7 @@ makes that table generated so the two cannot diverge again.
 ## AGY-1860 -- A concurrent agent shares this tree and races the verification  (WS-HOSTDEP | P2 | M)
 **Goal:** A measurement is taken against a tree that is not moving.
 **What+How:** AGY writes to the same checkout. A verification run can measure a tree mid-edit and report a failure that is neither reproducible nor real; the recorded incidents include a ratchet reading over its floor because a generated file had just changed, and a commit finding nothing staged because the other agent had committed it. Provide a way to take a consistent snapshot -- a scratch worktree at a named commit -- and use it for any measurement that will be reported.
-**Where:** `tools/`, `tests/`, `docs/agy/`
+**Where:** `tools/`, `tests/`, `docs/design/`
 **Done When:** a documented command produces an isolated tree at a given commit for verification runs.
 **Verify:** run the same measurement twice against the snapshot while editing the main tree, and show the two agree.
 **Do NOT:** solve this with a lock on the working tree. Both agents are meant to work; the fix is isolation for measurement, not exclusion.
@@ -12400,8 +12400,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-1881 -- Six documents reference a gate file that has been renamed  (WS-DOCS | P1 | S) **[DONE]**
 **Goal:** Doc references resolve to files that exist.
-**What+How:** `38-drift-checks.sh` is referenced by `AGY-TASKS.md`, `docs/agy/doc-git-root-unification.md`, `docs/agy/doc-install-family.md`, `docs/agy/impl-db-accounts.md`, `docs/agy/mios-finalization-plan.md` and `docs/agy/verbosity-changelist.md`; the finalization plan alone cites it four times, including specific line numbers. The gate is now `automation/98-drift-checks.sh` and those line numbers no longer point at what the prose describes. Update the references and re-derive the line citations against the current file.
-**Where:** `docs/agy/`, `AGY-TASKS.md`
+**What+How:** `38-drift-checks.sh` is referenced by `AGY-TASKS.md`, `docs/design/doc-git-root-unification.md`, `docs/design/doc-install-family.md`, `docs/design/impl-db-accounts.md`, `docs/design/mios-finalization-plan.md` and `docs/design/verbosity-changelist.md`; the finalization plan alone cites it four times, including specific line numbers. The gate is now `automation/98-drift-checks.sh` and those line numbers no longer point at what the prose describes. Update the references and re-derive the line citations against the current file.
+**Where:** `docs/design/`, `AGY-TASKS.md`
 **Done When:** no tracked document references the old path, and every line citation resolves to the construct it describes.
 **Verify:** `check_doc_refs_resolve` passes, and each updated line citation is opened and read to confirm it points at the right code.
 **Do NOT:** rewrite the paths with a blind substitution. The line numbers must be re-derived; a corrected path with a stale line number is a reference that looks right and is not.
@@ -12471,7 +12471,7 @@ makes that table generated so the two cannot diverge again.
 ## AGY-1888 -- Documentation for the deploy plane overstates what works  (WS-DOCS | P1 | M) **[DONE]**
 **Goal:** The deploy docs say what actually happens.
 **What+How:** The USB and Ventoy machinery works but does not install MiOS: the bare-metal leg is broken, `tools/install.sh` is absent, and what runs installs plain Fedora rather than a bootc image. The correct installer is disconnected and unbuilt. Any document describing deployment must state that, so nobody plans against a capability that does not exist.
-**Where:** `docs/agy/impl-mios-cat-live-boot.md`, `docs/agy/doc-install-family.md`, `usr/share/doc/mios/`
+**Where:** `docs/design/impl-mios-cat-live-boot.md`, `docs/design/doc-install-family.md`, `usr/share/doc/mios/`
 **Done When:** each deploy document states its capability's real status, with the untested parts named.
 **Verify:** follow one document's instructions end to end and record where it diverges from the text.
 **Do NOT:** describe the intended design in the present tense. The recorded gap between the deploy documentation and the deploy reality is the reason this task exists.
@@ -12490,8 +12490,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-1890 -- The finalization plan's P0 items have no completion evidence  (WS-DOCS | P1 | M) **[DONE]**
 **Goal:** The critical path states which blockers are actually cleared.
-**What+How:** `docs/agy/mios-finalization-plan.md` lists ten ordered P0/P1 blockers. Several reference constructs that have since changed. For each, determine whether it is done, and record the evidence -- a commit, a passing check, a measurement -- rather than a status word.
-**Where:** `docs/agy/mios-finalization-plan.md`
+**What+How:** `docs/design/mios-finalization-plan.md` lists ten ordered P0/P1 blockers. Several reference constructs that have since changed. For each, determine whether it is done, and record the evidence -- a commit, a passing check, a measurement -- rather than a status word.
+**Where:** `docs/design/mios-finalization-plan.md`
 **Done When:** every spine item carries either evidence of completion or a current task id.
 **Verify:** for each item marked done, re-run its stated evidence and confirm it still holds.
 **Do NOT:** mark an item done because a related commit exists. The recorded pattern is work that landed adjacent to a blocker without clearing it.
@@ -12901,7 +12901,7 @@ makes that table generated so the two cannot diverge again.
 ## AGY-1921 -- Database-backed accounts ship inert with no path to active  (WS-ACCT | P2 | L)
 **Goal:** The account model has a working first implementation.
 **What+How:** The cross-platform account design assembles from existing components: a userdb JSON projection on Linux, a directory service over the database as the cross-platform face, and the Windows baseline which has no equivalent name-service integration. The key that would enable it ships inert. Implement the Linux leg first, since it is the one with a native integration point.
-**Where:** `usr/libexec/mios/mios-userdb-render`, `usr/share/mios/mios.toml`, `docs/agy/doc-postgresos-accounts.md`
+**Where:** `usr/libexec/mios/mios-userdb-render`, `usr/share/mios/mios.toml`, `docs/design/doc-postgresos-accounts.md`
 **Done When:** an account declared in the database resolves through the system name service on Linux.
 **Verify:** declare an account, render, and resolve it with a standard user lookup.
 **Do NOT:** design for Windows parity in this task. Windows has no name-service integration point, so the two legs are different mechanisms and conflating them stalls both.
@@ -12981,7 +12981,7 @@ makes that table generated so the two cannot diverge again.
 ## AGY-1929 -- The split-plane host design has no executable proof  (WS-METAL | P2 | L)
 **Goal:** The hypervisor-host design is demonstrated at the smallest useful scale.
 **What+How:** The Metal direction is a small bootc host that binds discrete GPUs to passthrough and owns the physical devices, hosting the full image as a privileged guest with no network interface of its own, routed over the mesh. Critic review established that GPU fractioning without vendor drivers is not possible, so a GPU goes wholly to one guest, and the host floor is around a gigabyte rather than negligible. Build the smallest configuration that demonstrates it.
-**Where:** `docs/agy/doc-mios-metal.md`, `automation/`, `usr/share/mios/mios.toml`
+**Where:** `docs/design/doc-mios-metal.md`, `automation/`, `usr/share/mios/mios.toml`
 **Done When:** a host boots, passes a GPU through to a guest running the image, and the guest reaches the network over the mesh.
 **Verify:** run a GPU workload inside the guest and confirm the host has no direct route.
 **Do NOT:** plan for GPU fractioning. It was established as impossible without vendor drivers, and designing around it invalidates the topology.
@@ -13031,7 +13031,7 @@ makes that table generated so the two cannot diverge again.
 ## AGY-1934 -- The finalization plan and this register are not cross-linked  (WS-DOCS | P3 | S)
 **Goal:** Each spine item names the tasks that clear it.
 **What+How:** The finalization plan lists ten ordered blockers; this register now holds tasks that address several. Link them in both directions so the plan says which tasks clear each item and each task names the spine item it serves.
-**Where:** `docs/agy/mios-finalization-plan.md`, `AGY-TASKS.md`
+**Where:** `docs/design/mios-finalization-plan.md`, `AGY-TASKS.md`
 **Done When:** every spine item names its tasks and every task addressing a spine item says so.
 **Verify:** the references resolve in both directions; a task id cited in the plan must exist in the register.
 **Do NOT:** link by workstream label. Workstreams are broad, and the plan needs the specific tasks that close each blocker.

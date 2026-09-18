@@ -18,6 +18,7 @@ except ImportError:
 ROOT = os.environ.get("MIOS_ROOT") or os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
+
 EMITTER_SUFFIXES = (
     "usr/lib/mios/userenv.sh", "tools/lib/userenv.sh",
     "usr/libexec/mios/system-sync-env.sh",
@@ -41,12 +42,29 @@ DIRECTIVE_VARS = frozenset({
 CONSUMER_GLOBS = ("*.container", "*.service", "*.timer", "*.py", "*.sh", "*.toml",
                   "*.ps1", "*.psm1", "*.yaml", "*.yml", "Justfile", ".env.mios", "*.tmpl")
 
-INTERNAL_PATHS = (
-    "usr/lib/mios/", "usr/libexec/mios/", "config/", "tools/", "tests/",
-    "docs/", "installation/", "automation/", "build-mios", "bootstrap",
-    "Get-MiOS", "Uninstall-MiOS", "usr/share/mios/", "var/lib/mios/",
-    "install-mios-agents.sh",
-)
+
+def _env_projection_names(data: dict) -> set[str]:
+    """MIOS_* names a tracked .env projection supplies; a consumer that sources
+    one gets them without the resolver cascade. Discovered from SSOT."""
+    names = set()
+    reg = (data.get("laws") or {}).get("projection_registry") or {}
+    for surface in reg.get("surfaces") or []:
+        if not isinstance(surface, dict):
+            continue
+        for out in str(surface.get("output", "")).split(","):
+            out = out.strip()
+            if not out.endswith(".env"):
+                continue
+            path = os.path.join(ROOT, out)
+            if not os.path.isfile(path):
+                continue
+            with open(path, encoding="utf-8", errors="ignore") as fh:
+                for line in fh:
+                    m = re.match(r"\s*(?:export\s+)?(MIOS_[A-Z0-9_]+)\s*=", line)
+                    if m:
+                        names.add(m.group(1))
+    return names
+
 
 def emitted_set() -> set[str]:
     """Collect every exported MIOS_* name via Python SSOT resolver + mios.toml section prefixes."""
@@ -72,8 +90,10 @@ def emitted_set() -> set[str]:
             for k in data.keys():
                 pref = "MIOS_" + k.upper().replace("-", "_").replace(".", "_") + "_"
                 emitted.add(pref)
-        except Exception:
-            pass
+            emitted.update(_env_projection_names(data))
+        except Exception as exc:
+            EMIT_ERRORS.append("usr/share/mios/mios.toml is present but unusable "
+                               "(%s: %s)" % (type(exc).__name__, exc))
 
     ue = os.path.join(ROOT, "usr/lib/mios/userenv.sh")
     if os.path.isfile(ue):
@@ -98,7 +118,11 @@ def emitted_set() -> set[str]:
     return emitted
 
 def referenced_set(emitted: set[str] | None = None) -> dict[str, str]:
-    """Every MIOS_* token used by a non-emitter file, with a sample location."""
+    """Every MIOS_* a non-emitter references that the resolver does not emit.
+
+    EMITTER_SUFFIXES alone excludes the emitters; the path-prefix list that used
+    to sit beside it excluded the CONSUMERS and took this set to 0 (T-1052).
+    """
     refs: dict[str, str] = {}
     known_emitted = emitted or set()
     table_prefixes = tuple(e for e in known_emitted if e.endswith("_"))
@@ -112,7 +136,7 @@ def referenced_set(emitted: set[str] | None = None) -> dict[str, str]:
             continue
 
         for fn in files:
-            if fn.startswith("test_") or fn.endswith("_test.py") or "/tests/" in norm_dir or "tests/" in reldir:
+            if fn.startswith("test_") or fn.endswith("_test.py") or "/tests/" in norm_dir or reldir == "tests" or reldir.startswith("tests/"):
                 continue
             path = os.path.join(dirpath, fn)
             rel = os.path.relpath(path, ROOT).replace("\\", "/")
@@ -136,9 +160,7 @@ def referenced_set(emitted: set[str] | None = None) -> dict[str, str]:
                                 continue
                             if any(v.startswith(p) for p in table_prefixes):
                                 continue
-                            if any(rel.startswith(p) or fn.startswith(p) for p in INTERNAL_PATHS):
-                                continue
-                            if re.search(rf"\b{v}\s*[:=]", code_part) or "Environment=" in code_part or "$env:" in code_part or "export " in code_part:
+                            if re.search(rf"\b{v}\s*=", code_part):  # an assignment TO v is not a reference
                                 continue
                             refs.setdefault(v, f"{rel}:{n}")
             except (OSError, UnicodeError):
@@ -163,7 +185,7 @@ def main() -> int:
     print(f"mios-var-closure: emitted={len(E)} referenced={len(R)} missing={len(missing)}")
     if missing:
         print("FAIL -- referenced but NOT emitted (a consumer would lose its var):", file=sys.stderr)
-        for v, loc in sorted(missing.items())[:20]:
+        for v, loc in sorted(missing.items()):          # no truncation: a ledger cannot be compared against a sample
             print(f"  {v}  ({loc})", file=sys.stderr)
         return 1
 

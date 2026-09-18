@@ -79,15 +79,15 @@ so a law's number is stable even as the registry grows.
 |---|---|---|---|
 | 1 | USR-OVER-ETC | both | `98-drift-checks.sh:check_usr_over_etc` |
 | 2 | NO-MKDIR-IN-VAR | both | `98-drift-checks.sh:check_no_mkdir_in_var` |
-| 3 | BOUND-IMAGES | bootc | `99-postcheck.sh:item14` |
+| 3 | BOUND-IMAGES | bootc | `99-postcheck.sh:BOUND-IMAGES` |
 | 4 | BOOTC-CONTAINER-LINT | bootc | `98-drift-checks.sh:check_lint_is_final` |
-| 5 | UNIFIED-AI-REDIRECTS | both | `99-postcheck.sh:item12` |
+| 5 | UNIFIED-AI-REDIRECTS | both | `99-postcheck.sh:UNIFIED-AI-REDIRECTS` |
 | 6 | UNPRIVILEGED-QUADLETS | bootc | `98-drift-checks.sh:check_quadlet_privilege` |
 | 7 | NO-HARDCODE | both | `98-drift-checks.sh:check_no_hardcode` |
 | 8 | SSOT-PROJECTION | both | `98-drift-checks.sh:check_projection_registry` |
 | 9 | ONE-CANONICAL-NAME | both | `98-drift-checks.sh:check_var_closure` |
-| 10 | BARE-SAFE-ENV | both | `99-postcheck.sh:item16` |
-| 11 | SECRETS-NEVER-IN-ENV | bootc | `99-postcheck.sh:item17` |
+| 10 | BARE-SAFE-ENV | both | `99-postcheck.sh:BARE-SAFE-ENV` |
+| 11 | SECRETS-NEVER-IN-ENV | bootc | `99-postcheck.sh:SECRETS-NEVER-IN-ENV` |
 | 12 | BAKE-NOT-FETCH | both | `98-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open` |
 | 13 | NATIVE-DROPINS | both | `98-drift-checks.sh:check_resolver_twin_parity` |
 | 14 | TARGET-LANGUAGES | both | `98-drift-checks.sh:check_target_languages` |

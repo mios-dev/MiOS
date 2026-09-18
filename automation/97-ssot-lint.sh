@@ -13,7 +13,7 @@ _self_dir="$(cd "$(dirname "$_self")" && pwd)"
 ROOT="${MIOS_SSOT_LINT_ROOT:-$(cd "$_self_dir/.." && pwd)}"
 
 USERENV="$ROOT/tools/lib/userenv.sh"
-RENDER="$ROOT/automation/34-render-quadlets.sh"
+RENDER="$ROOT/usr/share/mios/reference/env-baseline.txt"
 QUADLET_DIR="$ROOT/usr/share/containers/systemd"
 
 _SOFT="${MIOS_SSOT_LINT_SOFT:-0}"
@@ -23,7 +23,7 @@ if [[ ! -f "$USERENV" ]]; then
     exit 2
 fi
 if [[ ! -f "$RENDER" ]]; then
-    echo "[97-ssot-lint] FATAL: 34-render-quadlets.sh not found at $RENDER" >&2
+    echo "[97-ssot-lint] FATAL: env baseline not found at $RENDER" >&2
     exit 2
 fi
 if [[ ! -d "$QUADLET_DIR" ]]; then
@@ -79,17 +79,12 @@ _in_userenv() {
     return 1
 }
 
-_render_body() {
-    grep -vE '^[[:space:]]*#' "$RENDER" || true
-}
-
-RENDER_BODY="$(_render_body)"
-
+# The renderer has no allowlist any more (T-1040). "Renderable" now means the
+# resolver EMITS the name, so the property is checked against the generated env
+# baseline rather than against a hand-maintained list inside a bash script.
 _in_render() {
     local v="$1"
-    # word-boundary match for the bare var name (covers ${MIOS_X} in the
-    # envsubst string and MIOS_X in the for-loop list)
-    printf '%s\n' "$RENDER_BODY" | grep -qE "(^|[^A-Z0-9_])$v([^A-Z0-9_]|\$)"
+    grep -qE "^${v}=" "$RENDER"
 }
 
 # --- (4) Assert two-sided wiring for every referenced placeholder. ------------
@@ -108,9 +103,9 @@ for v in "${REFS[@]}"; do
     [[ "$in_ue" -eq 0 ]] && miss="userenv.sh slot/export"
     if [[ "$in_rq" -eq 0 ]]; then
         if [[ -n "$miss" ]]; then
-            miss="$miss + 34-render-quadlets.sh allowlist"
+            miss="$miss + resolver emission (env-baseline)"
         else
-            miss="34-render-quadlets.sh allowlist"
+            miss="resolver emission (env-baseline)"
         fi
     fi
     echo "[97-ssot-lint] ERROR: dead key \$$v -- referenced in a Quadlet Exec=/Environment= line but MISSING from: $miss" >&2
@@ -126,7 +121,7 @@ fi
 
 echo "[97-ssot-lint] FAIL: $orphans orphaned key(s) above are un-tunable (collapse to their inline :-default)." >&2
 echo "[97-ssot-lint]   Fix each by (a) adding a typed slot in tools/lib/userenv.sh AND" >&2
-echo "[97-ssot-lint]   (b) adding it to BOTH allowlists in automation/34-render-quadlets.sh." >&2
+echo "[97-ssot-lint]   (b) ensuring the resolver emits it (it then renders without an allowlist)." >&2
 if [[ "$_SOFT" == "1" ]]; then
     echo "[97-ssot-lint] (MIOS_SSOT_LINT_SOFT=1 -> advisory mode, exiting 0)"
     exit 0

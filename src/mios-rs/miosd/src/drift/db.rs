@@ -12,7 +12,7 @@ impl Check for DBSeedCoverageCheck {
         "Assert all SSOT sections and verbs are covered by DB seed script"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("DB seed coverage verified clean".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: DB seed coverage verified clean".to_string())
     }
 }
 
@@ -25,7 +25,7 @@ impl Check for RBACTiersCheck {
         "Assert RBAC permission tiers are valid and PDP fails closed"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("RBAC tiers check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: RBAC tiers".to_string())
     }
 }
 
@@ -38,7 +38,7 @@ impl Check for CLISQLSafetyCheck {
         "Assert no dynamic SQL query string concatenation exists in CLI verbs"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("CLI SQL safety check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: CLI SQL safety".to_string())
     }
 }
 
@@ -51,6 +51,6 @@ impl Check for DriftProjectionCheck {
         "Assert DB to TOML materialization round-trip is lossless"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("DB to TOML round-trip lossless projection verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: DB to TOML round-trip lossless projection".to_string())
     }
 }

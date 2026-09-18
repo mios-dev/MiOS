@@ -25,12 +25,44 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
-DEFAULT_MAX_PRIORITY = 3          # 0=emerg, 1=alert, 2=crit, 3=err
-DEFAULT_BATCH_SIZE = 25
-DEFAULT_FLUSH_INTERVAL = 2.0       # seconds
-DEFAULT_AI_ENDPOINT = "http://127.0.0.1:11450/v1"
-DEFAULT_EMBED_MODEL = "nomic-embed-text"
-DEFAULT_EMBED_DIM = 768
+def _ssot_root() -> Dict[str, Any]:
+    """The whole layered SSOT; {} when unreadable (degrade-open)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for lib in ("/usr/lib/mios", os.path.join(here, "..", "..", "..", "lib", "mios")):
+        lib = os.path.normpath(lib)
+        if os.path.isdir(lib) and lib not in sys.path:
+            sys.path.insert(0, lib)
+    try:
+        import mios_toml
+        return mios_toml.load_merged() or {}
+    except Exception:
+        try:
+            import tomllib
+            with open(os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"), "rb") as fh:
+                return tomllib.load(fh) or {}
+        except Exception:
+            return {}
+
+_SSOT = _ssot_root()
+# Sub-table key as a constant, not a literal at the call site: spelled inline it
+# is indistinguishable from a read of the same-named top-level table to
+# check_no_inert_ssot_tables, which would credit that table a consumer it lacks.
+_PIPE_KEY = "pipeline"
+_PIPE = (_SSOT.get("logging") or {}).get(_PIPE_KEY) or {}
+_PORTS = _SSOT.get("ports") or {}
+# Law 5: the endpoint is MIOS_AI_ENDPOINT, or the SSOT agent-pipe port. The
+# resolver emits the name with a ${MIOS_PORT_*} placeholder, so an unexpanded
+# value is not usable and falls through to the port.
+_ENDPOINT_ENV = os.path.expandvars(os.environ.get("MIOS_AI_ENDPOINT", ""))
+
+DEFAULT_MAX_PRIORITY = int(_PIPE.get("min_priority", 3))   # 0=emerg..3=err
+DEFAULT_BATCH_SIZE = int(_PIPE.get("batch_size", 50))
+DEFAULT_FLUSH_INTERVAL = float(_PIPE.get("flush_interval_s", 5))
+DEFAULT_AI_ENDPOINT = (_ENDPOINT_ENV if _ENDPOINT_ENV and "${" not in _ENDPOINT_ENV
+                       else "http://localhost:%s/v1" % _PORTS.get("agent_pipe", 8700))
+DEFAULT_EMBED_MODEL = str((_SSOT.get("ai") or {}).get("embed_model") or "nomic-embed-text")
+DEFAULT_EMBED_DIM = int(_PIPE.get("embedding_dim", 768))
+DEFAULT_TARGET_TABLE = str(_PIPE.get("target_table", "system_logs"))
 DEFAULT_CURSOR_PATH = "/var/lib/mios/log-streamer/cursor.state"
 
 
@@ -103,7 +135,11 @@ def generate_embeddings_batch(
         if remote_res and len(remote_res) == len(texts):
             return remote_res
 
-    # Deterministic fallback
+    # Deterministic fallback. These vectors are hash-derived, not semantic: they
+    # satisfy the column and the HNSW index but retrieve nonsense. The caller
+    # stamps emb_version only for REMOTE results, so the backfiller's
+    # `emb_version IS DISTINCT FROM <ver>` finds exactly these rows and repairs
+    # them once the endpoint is back (T-1042).
     return [generate_deterministic_embedding(t) for t in texts]
 
 
@@ -199,12 +235,16 @@ def format_sql_insert(records: List[Dict[str, Any]]) -> str:
         emb_list = r.get("emb", [])
         emb_str = "'" + "[" + ",".join(str(x) for x in emb_list) + "]'::vector"
 
-        clause = f"({unit_escaped}, {r['priority']}, {msg_escaped}, {meta_json}, {emb_str}, {ts_escaped}, {origin_escaped})"
+        ver = r.get("emb_version")
+        ver_escaped = "NULL" if not ver else "'" + str(ver).replace("'", "''") + "'"
+
+        clause = f"({unit_escaped}, {r['priority']}, {msg_escaped}, {meta_json}, {emb_str}, {ts_escaped}, {origin_escaped}, {ver_escaped})"
         values_clauses.append(clause)
 
     sql = (
-        "INSERT INTO system_logs (unit, priority, message, metadata, emb, ts, origin_node)\n"
-        "VALUES\n  " + ",\n  ".join(values_clauses) + ";\n"
+        "INSERT INTO " + DEFAULT_TARGET_TABLE
+        + " (unit, priority, message, metadata, emb, ts, origin_node, emb_version)\n"
+        + "VALUES\n  " + ",\n  ".join(values_clauses) + ";\n"
     )
     return sql
 
@@ -365,15 +405,23 @@ def process_log_batch(
     texts_to_embed = [f"[{r['unit']}] {r['message']}" for r in batch]
 
     # 2. Generate embeddings
-    embeddings = generate_embeddings_batch(
-        texts=texts_to_embed,
-        endpoint=endpoint,
-        model=model,
-        mock_embeddings=mock_embeddings,
-    )
+    remote = None
+    if not mock_embeddings:
+        remote = fetch_remote_embeddings(texts_to_embed, endpoint=endpoint, model=model)
+        if remote is not None and len(remote) != len(texts_to_embed):
+            remote = None
+    if remote is not None:
+        embeddings, emb_version = remote, model
+    else:
+        # A hash-derived placeholder is not an embedding. Leaving emb_version
+        # NULL is what marks the row for repair rather than silently shipping a
+        # vector that looks real to every consumer of the HNSW index.
+        embeddings = [generate_deterministic_embedding(t) for t in texts_to_embed]
+        emb_version = None
 
     for i, emb in enumerate(embeddings):
         batch[i]["emb"] = emb
+        batch[i]["emb_version"] = emb_version
 
     # 3. Insert into database
     success = insert_batch_to_postgres(

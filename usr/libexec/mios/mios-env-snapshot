@@ -27,6 +27,37 @@ VENDOR_TOML="${MIOS_VENDOR_TOML:-${ROOT_DIR}/usr/share/mios/mios.toml}"
 # that wrote it.
 _MIOS_ENV_SNAPSHOT_EXCLUDE='^(MIOS_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_CONFIG_DIR|MIOS_USER_TOML|MIOS_USER_TOML_D|MIOS_HOST_TOML_D|MIOS_REPO_URL|MIOS_REPO_ROOT|MIOS_REPO_DIR)='
 
+# This file says "lossless" at the top, and it was not. `env` prints a
+# multi-line value across several lines, and the old `grep '^MIOS_'` kept only
+# the FIRST of them -- continuation lines do not start with MIOS_, so the rest
+# was dropped without a word. Measured: MIOS_OWUI_SYSTEM_PROMPT_TEMPLATE is 2633
+# characters over 42 lines and reached the baseline as the nine characters
+# "# MiOS AI"; MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS lost 214 of its 288 (T-1066).
+# check_value_aliases trusts this output, so a gate was comparing mutilated
+# values confidently.
+#
+# Refusing to emit a multi-line value was the other option and is worse here:
+# two of them exist, so the baseline could never be generated at all. The value
+# is escaped onto one line instead, which keeps every consumer's KEY=value parse
+# working and puts the whole value in the committed baseline's diff. Backslash
+# is escaped first, so the transform is reversible.
+#
+# `read -d ''` over `env -0` is the only way to read a value whose own content
+# contains newlines. An awk with RS="\0" is not portable across awk
+# implementations, and this script must not grow a python dependency.
+_mios_escape_pairs() {
+    local kv
+    while IFS= read -r -d '' kv; do
+        case "$kv" in
+            MIOS_*) ;;
+            *) continue ;;
+        esac
+        kv="${kv//\\/\\\\}"
+        kv="${kv//$'\n'/\\n}"
+        printf '%s\n' "$kv"
+    done
+}
+
 # ONE resolver, always the shell twin. This snapshot is a committed BASELINE that
 # CI re-derives and diffs, so it must depend on the tree alone. Preferring the
 # native mios-resolver when tools/native/target/debug happened to be built made
@@ -45,7 +76,7 @@ env -i \
     MIOS_VENDOR_TOML="${VENDOR_TOML}" \
     MIOS_USER_TOML=/nonexistent/user.toml \
     MIOS_USER_TOML_D=/nonexistent/user.d \
-    bash -c "source \"${USERENV_SH}\" >/dev/null 2>&1 && env" \
-    | grep '^MIOS_' \
+    bash -c "source \"${USERENV_SH}\" >/dev/null 2>&1 && env -0" \
+    | _mios_escape_pairs \
     | grep -vE "${_MIOS_ENV_SNAPSHOT_EXCLUDE}" \
     | sort

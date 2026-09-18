@@ -49,6 +49,7 @@ This document is derived directly from `usr/share/mios/mios.toml`.
 | 52 | apply-boot-fixes | `52-apply-boot-fixes.sh` | yes | universal |
 | 53 | enable-log-copy-service | `53-enable-log-copy-service.sh` | no | universal |
 | 54 | bake-coderun-sandbox | `54-bake-coderun-sandbox.sh` | yes | universal |
+| 55 | native-build | `55-native-build.sh` | yes | universal |
 | 56 | fonts | `56-fonts.sh` | yes | universal |
 | 57 | gnome | `57-gnome.sh` | no | universal |
 | 58 | gnome-remote-desktop | `58-gnome-remote-desktop.sh` | no | universal |
@@ -79,5 +80,5 @@ This document is derived directly from `usr/share/mios/mios.toml`.
 | 98 | drift-checks | `98-drift-checks.sh` | yes | containerfile |
 | 99 | postcheck | `99-postcheck.sh` | yes | containerfile |
 
-<!-- derived from usr/share/mios/mios.toml [build.phases].list (71 phases) -->
+<!-- derived from usr/share/mios/mios.toml [build.phases].list (72 phases) -->
 <!-- /MIOS-GEN:pipeline -->

@@ -23,8 +23,19 @@ LOCAL := env_var_or_default("MIOS_LOCAL_TAG", "localhost/mios:latest") # @verb:S
 MIOS_IMG_BIB := "quay.io/centos-bootc/bootc-image-builder:latest" # @verb:GET_BIB
 BIB := env_var_or_default("MIOS_BIB_IMAGE", MIOS_IMG_BIB)
 
+# Resolved by ABSOLUTE path, never `command -v` (T-1018).
 preflight:
-    @./tools/preflight.sh
+    @bin=""; for c in "${MIOS_PROBE_BIN:-}" \
+        ./src/mios-rs/target/release/mios-probe \
+        ./src/mios-rs/target/debug/mios-probe \
+        /usr/libexec/mios/mios-probe; do \
+        [ -n "$c" ] && [ -x "$c" ] && { bin="$c"; break; }; \
+    done; \
+    if [ -z "$bin" ]; then \
+        echo "[preflight] mios-probe is not built -- run: cd src/mios-rs && cargo build --release -p mios-probe" >&2; \
+        exit 2; \
+    fi; \
+    "$bin" build --root .
 
 check-build-urls:
     @./tools/check-build-urls.sh
