@@ -2282,6 +2282,26 @@ no_group_delegate = [
   "mios-coderun-sandbox@.container",        # UserNS=keep-id user unit -- Delegate n/a
 ]
 
+# Law 10 BARE-SAFE-ENV: /etc/mios/install.env is bare KEY=value, readable by
+# all three parsers (systemd EnvironmentFile=, bash source, podman --env-file).
+# A value carrying whitespace, a quote, `$`, a backtick or `#` cannot be written
+# bare without changing what it means, so system-sync-env.sh skips it.
+#
+# Skipping SILENTLY is the defect: MIOS_AI_ENDPOINT was dropped this way and
+# Law 5 routes every agent through it (T-1060). These keys are declared, with
+# the reason each value cannot be bare; ANY other unsafe value now fails the
+# render instead of vanishing. Shrink-only: max_declared comes down as values
+# are made bare, never up.
+[security.non_bare_env]
+max_declared = 5
+keys = [
+  "MIOS_USER_FULLNAME",           # a person's display name -- the space IS the content
+  "MIOS_A2O_LANE_A_ROLE",         # prose describing a lane's share of the work
+  "MIOS_A2O_LANE_B_ROLE",         # same, and parenthesised
+  "MIOS_A2O_LANE_B_MODEL",        # an external lane's display model name -- spaces + parentheses
+  "MIOS_A2O_CLAUDE_EFFORT_FLAG",  # a CLI flag template: a space and a {} placeholder
+]
+
 [security.nohc_allowlist]
 # SSOT Allowlist for legitimate exceptions to the ports/IPs hardcode check (T-125).
 exempt_files = [
