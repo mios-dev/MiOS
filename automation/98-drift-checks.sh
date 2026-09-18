@@ -1991,16 +1991,21 @@ check_target_languages() {
 }
 
 check_bake_plan() {
-    # Validates the NATIVE producer: what stage 85 bakes with (T-1057).
+    # Stage 85's candidates, in stage 85's order. CI builds debug only, so the
+    # certified binary was one the bake can never run; debug is dropped because
+    # that tree is where the two sides diverge (T-1057).
     local bin="" c
-    for c in "$ROOT/tools/native/target/release/mios-bake-plan" \
-             "$ROOT/tools/native/target/debug/mios-bake-plan" \
-             /usr/libexec/mios/mios-bake-plan; do
+    for c in /usr/libexec/mios/mios-bake-plan \
+             "$ROOT/tools/native/target/release/mios-bake-plan"; do
         [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
     done
+    if [[ -z "$bin" ]] && command -v cargo >/dev/null 2>&1; then
+        cargo build --release --manifest-path "$ROOT/tools/native/Cargo.toml" -p mios-bake-plan >/dev/null 2>&1 || true
+        [[ -x "$ROOT/tools/native/target/release/mios-bake-plan" ]] && bin="$ROOT/tools/native/target/release/mios-bake-plan"
+    fi
     if [[ -z "$bin" ]]; then
         # No Python fallback: certifying a different program is the defect.
-        _violation "mios-bake-plan is not built, so check_bake_plan could not run -- build it: cd tools/native && cargo build -p mios-bake-plan"
+        _violation "mios-bake-plan is not built for release, so check_bake_plan could not certify what stage 85 runs -- build it: cd tools/native && cargo build --release -p mios-bake-plan"
         return
     fi
     if (cd "$ROOT" && "$bin" --check); then
