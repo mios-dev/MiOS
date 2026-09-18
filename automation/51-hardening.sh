@@ -3,13 +3,27 @@
 # AI-hint: Enables and symlinks security services (usbguard, auditd, fapolicyd) into the multi-user.target.wants directory and pr...
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 chmod 0600 /usr/lib/usbguard/usbguard-daemon.conf 2>/dev/null || true
 
-if command -v miosd >/dev/null 2>&1; then
-    miosd harden
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# nothing puts on PATH at bake time, so the lookup this replaced could never
+# succeed and the branch below it was dead on every build (T-1018). Same
+# `miosd harden` stage 40 calls; it is idempotent, and 40 runs first.
+_miosd=""
+_h51="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "${_h51}/src/mios-rs/target/release/miosd" \
+          "${_h51}/src/mios-rs/target/debug/miosd"; do
+    if [[ -n "$_c" && -x "$_c" ]]; then _miosd="$_c"; break; fi
+done
+
+if [[ -n "$_miosd" ]]; then
+    "$_miosd" harden
     mios_ok "Hardening services enabled via miosd"
 else
     WANTS=/usr/lib/systemd/system/multi-user.target.wants

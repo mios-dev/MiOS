@@ -1,0 +1,16 @@
+# AI-hint: Cargo manifest for mios-render-quadlets -- the SSOT-driven replacement for stage 34's envsubst renderer.
+# AI-related: usr/share/mios/mios.toml, automation/34-render-quadlets.sh, automation/98-drift-checks.sh
+
+[package]
+name = "mios-render-quadlets"
+version.workspace = true
+edition.workspace = true
+description = "Expand ${MIOS_*} placeholders from the SSOT with a real parser, preserving systemd runtime references"
+
+[dependencies]
+toml = "0.8"
+walkdir = "2.4"
+mios-resolver = { path = "../mios-resolver" }
+
+[dev-dependencies]
+tempfile = "3"

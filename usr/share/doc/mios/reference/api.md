@@ -917,7 +917,7 @@ The published image is `ghcr.io/mios-dev/mios:latest` and is built `FROM ghcr.io
 Linux orchestrator is `Justfile`; Windows orchestrator is `mios-build-local.ps1`. (The legacy `cloud-ws.ps1` / CloudWS naming is retired -- the Windows path is `mios-build-local.ps1`.) There is no four-stage pipeline.
 
 ```bash
-just preflight    # System prereq check (tools/preflight.sh)
+just preflight    # System prereq check (mios-probe, thresholds from [preflight])
 just build        # Build OCI image -> localhost/mios:latest
 just lint         # Re-run `bootc container lint` on the built image
 just rechunk      # Optimize Day-2 deltas (rechunk into versioned tag)

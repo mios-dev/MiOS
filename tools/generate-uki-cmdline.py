@@ -28,7 +28,7 @@ def main():
                 if "kargs" in d and isinstance(d["kargs"], list):
                     kargs.extend(d["kargs"])
         except Exception as e:
-            print(f"Error parsing {f}: {e}", file=sys.stderr)
+            sys.exit(f"Error parsing {f}: {e}")  # T-1034: continuing here deletes that drop-in's kargs from the cmdline, silently, at exit 0
 
     rendered = " ".join(kargs).strip() + "\n"
 

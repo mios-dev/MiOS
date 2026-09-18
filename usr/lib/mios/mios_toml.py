@@ -436,11 +436,11 @@ def get_aliases(dotted_path):
     elif dotted_path.startswith("urls."):
         # [urls].forge -> MIOS_FORGE_URL; the two repo URLs keep their own shape.
         name = dotted_path[len("urls."):].upper()
-        if name in ("REPO", "BOOTSTRAP_REPO"):
-            aliases.append(f"MIOS_{name}_URL")
-        elif name == "LOCAL_FORGE_REPO":
+        # T-1013: non_addressable is a list of port KEYS, not a URL, and no
+        # consumer reads either spelling. REPO/BOOTSTRAP_REPO matched the default.
+        if name == "LOCAL_FORGE_REPO":
             aliases.append("MIOS_LOCAL_FORGE_REPO")
-        else:
+        elif name != "NON_ADDRESSABLE":
             aliases.append(f"MIOS_{name}_URL")
 
     elif dotted_path.startswith("pgvector.") or dotted_path.startswith("pg."):
@@ -694,8 +694,51 @@ def process_val(dotted, v, stack_offset=0):
         except (ValueError, TypeError):
             pass
     if isinstance(v, list):
-        return ",".join(str(x) for x in v)
+        # A list of scalars stays comma-joined and unquoted, which is what every
+        # consumer of a MIOS_*_LIST expects. A list of TABLES or of lists is
+        # rendered as TOML inline syntax, matching mios-resolver.
+        #
+        # str(dict) gives a PYTHON REPR -- {'ordinal': '01', 'fatal': True} --
+        # which only Python can parse and which disagreed with the Rust
+        # resolver's TOML inline tables on 12 keys. That was the whole residual
+        # of check_resolver_differential_parity, sitting exactly at its ceiling
+        # of 12 with no headroom (T-1063). TOML wins because it is a real
+        # format and because Rust is the destination tier.
+        return ",".join(
+            _toml_inline(x) if isinstance(x, (dict, list)) else str(x) for x in v
+        )
     return v
+
+
+def _toml_inline(v):
+    """Render a value as TOML inline syntax, byte-compatible with the toml crate.
+
+    Key order inside a table is alphabetical among scalars and arrays, with
+    nested TABLES emitted last -- that is what the Rust serializer does, and the
+    comparison is byte-for-byte, so the order is part of the contract.
+    """
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, str):
+        # The toml crate prefers a LITERAL string (single quotes, no escaping)
+        # when the content contains a backslash, because a basic string would
+        # have to double every one. MIOS_DOCS_SANITIZE_PATH_REWRITES carries
+        # Windows paths, so this is the difference between 'C:\MiOS\' and
+        # "C:\\MiOS\\" -- both valid TOML, only one byte-equal to the resolver.
+        if "\\" in v and "'" not in v and "\n" not in v and "\r" not in v:
+            return "'" + v + "'"
+        return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if isinstance(v, (int, float)):
+        return str(v)
+    if isinstance(v, list):
+        return "[" + ", ".join(_toml_inline(x) for x in v) + "]"
+    if isinstance(v, dict):
+        plain = [(k, x) for k, x in v.items() if not isinstance(x, dict)]
+        tables = [(k, x) for k, x in v.items() if isinstance(x, dict)]
+        parts = ["%s = %s" % (k, _toml_inline(x)) for k, x in sorted(plain)]
+        parts += ["%s = %s" % (k, _toml_inline(x)) for k, x in sorted(tables)]
+        return "{ " + ", ".join(parts) + " }"
+    return str(v)
 
 # The CI suite registry is read from the TOML directly by its own reader.
 # Projecting it produced two dozen shell constants no consumer reads,
@@ -741,6 +784,17 @@ def emit_exports() -> dict[str, str]:
         if not (sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP):
             exports[canonical] = str(processed)
         for alias in get_aliases(dotted):
+            # image.sidecars.* emits BOTH MIOS_<X>_IMAGE and MIOS_<X>_VERSION
+            # from one key (get_aliases / aliases.rs), so without this split the
+            # two names carry an identical value and the tree gains 23 new
+            # duplicate-value groups -- exactly what value-dup-baseline.tsv says
+            # to collapse rather than record. Dropping the split here was tried
+            # and reverted for that reason.
+            #
+            # It is still the ONLY one of three emitters that splits, which is
+            # T-1065's real finding: the fix is to stop emitting the redundant
+            # _VERSION alias in both twins, not to change how it is rendered.
+            # That removes 23 keys and needs its own change.
             if alias.endswith("_VERSION") and dotted.startswith("image.sidecars."):
                 exports[_re_unsafe.sub("_", alias)] = str(processed).rsplit(":", 1)[1] if ":" in str(processed) else "latest"
             else:
@@ -757,7 +811,103 @@ def emit_exports() -> dict[str, str]:
             if vp is not None and vp != "":
                 exports[_re_unsafe.sub("_", k)] = str(vp)
 
+    resolve_cross_references(exports)
     return exports
+
+
+def resolve_cross_references(exports: dict[str, str]) -> None:
+    """Resolve ${MIOS_*} that one emitted value makes to another.
+
+    Twin of resolve_cross_references in tools/native/mios-resolver/src/emit.rs
+    (Law 13), and public because both the resolver and the drift gate call it.
+
+    Apply it where the consumer CANNOT expand: systemd EnvironmentFile= and
+    podman --env-file read a value literally, so an emitted
+    MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1 means one thing
+    to bash and another to them. It is also why system-sync-env.sh DROPPED that
+    variable rather than emitting it: its filter rejects any value containing
+    `$` (T-1060).
+
+    Do NOT apply it to the export map that renders automation/lib/globals.{sh,ps1}.
+    Those are sourced by bash and PowerShell, which expand at load time, and the
+    live reference is the feature: exporting MIOS_PORT_AGENT_PIPE before sourcing
+    propagates into MIOS_AI_ENDPOINT. render-globals.build_exports() therefore
+    returns the unexpanded map.
+
+    Reads a snapshot so the result does not depend on dict order, leaves `$$`
+    alone because systemd owns it, and leaves an unresolvable name verbatim
+    rather than blanking it so a caller can report it.
+    """
+    import re as _re2
+
+    snapshot = dict(exports)
+    _MAX_DEPTH = 16
+
+    def _expand(text: str, depth: int = 0) -> str:
+        if depth > _MAX_DEPTH or "${" not in text:
+            return text
+        out = []
+        i = 0
+        n = len(text)
+        while i < n:
+            if text.startswith("$$", i):
+                out.append("$$")
+                i += 2
+                continue
+            if text.startswith("${", i):
+                close = _matching_brace(text, i)
+                if close is not None:
+                    inner = text[i + 2 : close]
+                    name, default = _split_default(inner)
+                    if _re2.fullmatch(r"MIOS_[A-Za-z0-9_]*", name):
+                        val = snapshot.get(name)
+                        if val:
+                            out.append(_expand(val, depth + 1))
+                        elif default is not None:
+                            out.append(_expand(default, depth + 1))
+                        else:
+                            out.append(text[i : close + 1])
+                        i = close + 1
+                        continue
+            out.append(text[i])
+            i += 1
+        return "".join(out)
+
+    def _matching_brace(text: str, open_at: int):
+        depth = 0
+        i = open_at
+        while i < len(text):
+            if text.startswith("${", i):
+                depth += 1
+                i += 2
+                continue
+            if text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    return i
+            i += 1
+        return None
+
+    def _split_default(inner: str):
+        depth = 0
+        i = 0
+        while i < len(inner):
+            if inner.startswith("${", i):
+                depth += 1
+                i += 2
+                continue
+            if inner[i] == "}":
+                depth = max(0, depth - 1)
+                i += 1
+                continue
+            if depth == 0 and inner.startswith(":-", i):
+                return inner[:i], inner[i + 2 :]
+            i += 1
+        return inner, None
+
+    for key, value in list(exports.items()):
+        if "${" in value:
+            exports[key] = _expand(value)
 
 if __name__ == "__main__":
     import json

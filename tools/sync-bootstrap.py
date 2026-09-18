@@ -138,8 +138,8 @@ def unclassified_shared(root, boot, man):
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="sync-bootstrap")
     ap.add_argument("--root", default=ROOT)
-    ap.add_argument("--bootstrap", default=os.environ.get("MIOS_BOOTSTRAP_ROOT")
-                    or r"C:\mios-bootstrap")
+    _sib = os.path.join(os.path.dirname(ROOT), "mios-bootstrap")  # T-1033: the layout the absence message tells you to create
+    ap.add_argument("--bootstrap", default=os.environ.get("MIOS_BOOTSTRAP_ROOT") or (_sib if os.path.isdir(_sib) else r"C:\mios-bootstrap"))
     ap.add_argument("--check", action="store_true", help="report drift, change nothing")
     ap.add_argument("--apply", action="store_true", help="write mios.git's copy into bootstrap")
     args = ap.parse_args(argv)

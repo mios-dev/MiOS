@@ -15,6 +15,14 @@ Type=simple
 # plain ${VAR}.
 Environment=MIOS_PORT_CODE_SERVER=8900
 Environment=MIOS_DEFAULT_PASSWORD=mios
+# install.env is bare KEY=value; these four values carry a space, parentheses
+# or a {} placeholder, so they never reach it. ExecStart references each one
+# bare and the renderer leaves a bare ref for systemd, which expands an unset
+# name to empty. Declaring them here is the supply (T-1064).
+Environment="MIOS_A2O_LANE_B_MODEL=${MIOS_A2O_LANE_B_MODEL:-}"
+Environment="MIOS_A2O_CLAUDE_EFFORT_FLAG=${MIOS_A2O_CLAUDE_EFFORT_FLAG:-}"
+Environment="MIOS_A2O_AGY_EFFORT_FLAG=${MIOS_A2O_AGY_EFFORT_FLAG:-}"
+Environment="MIOS_A2O_GEMINI_EFFORT_FLAG=${MIOS_A2O_GEMINI_EFFORT_FLAG:-}"
 EnvironmentFile=-/etc/mios/install.env
 TimeoutStartSec=1200s
 # Build the local super-container image on first deploy (idempotent no-op after).

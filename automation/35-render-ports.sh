@@ -1,87 +1,35 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
-# AI-hint: Extracts port definitions from mios.toml [ports] section and appends them to install.env as MIOS_PORT_* variables for container environment injection.
+# AI-hint: Renders every [ports] entry from mios.toml into install.env as MIOS_PORT_* via miosd, resolved by absolute path.
+# AI-related: usr/share/mios/mios.toml, src/mios-rs/miosd/src/main.rs, automation/lib/globals.sh
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 TOML_FILE="/usr/share/mios/mios.toml"
 ENV_FILE="/etc/mios/install.env"
+_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mios_log "Extract ports from $TOML_FILE to $ENV_FILE"
 
 mkdir -p "$(dirname "$ENV_FILE")"
 touch "$ENV_FILE"
 
-if command -v miosd >/dev/null 2>&1; then
-    miosd render-ports --toml "$TOML_FILE" --out "$ENV_FILE"
-    mios_ok "Wrote MIOS_PORT_* to $ENV_FILE via miosd"
-    exit 0
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# is not on PATH at bake time, so the lookup this replaced could never succeed
+# and the branch below it was dead on every build (T-1018).
+_miosd=""
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "$_here/../src/mios-rs/target/release/miosd" \
+          "$_here/../src/mios-rs/target/debug/miosd"; do
+    if [ -n "$_c" ] && [ -x "$_c" ]; then _miosd="$_c"; break; fi
+done
+
+if [ -z "$_miosd" ]; then
+    mios_err "miosd not found -- cannot render ports. Build it: cd src/mios-rs && cargo build --release -p miosd"
+    exit 2
 fi
 
-sed -i '/^MIOS_PORT_/d' "$ENV_FILE"
-
-if command -v python3 >/dev/null 2>&1; then
-    if python3 - "$ENV_FILE" <<'PY'
-import sys, os
-for cand in ("/usr/lib/mios", os.path.join(os.path.dirname(os.path.abspath(__file__)), "../usr/lib/mios")):
-    if os.path.isdir(cand):
-        sys.path.insert(0, cand)
-try:
-    import mios_toml
-except Exception:
-    sys.exit(1)
-
-merged = mios_toml.load_merged()
-ports = merged.get("ports") or {}
-try:
-    offset = int(ports.get("stack_id", 0)) * 10000
-except (TypeError, ValueError):
-    offset = 0
-
-lines = []
-for name, value in sorted(ports.items()):
-    if name in ("stack_id", "categories") or not isinstance(value, int):
-        continue
-    lines.append("MIOS_PORT_%s=%d" % (name.upper(), value if value == 53 else value + offset))
-if not lines:
-    sys.exit(1)
-with open(sys.argv[1], "a", encoding="utf-8") as fh:
-    fh.write("\n".join(lines) + "\n")
-PY
-    then
-        mios_ok "Wrote MIOS_PORT_* to $ENV_FILE via the layered SSOT allocator"
-        exit 0
-    fi
-    mios_skip "SSOT allocator unavailable; falling back to flat-table awk"
-fi
-
-awk '
-BEGIN { stack_id = 0 }
-/^\[ports\]/ {flag=1; next}
-/^\[/ {flag=0}
-flag && /=/ {
-    split($0, arr, "=")
-    key = arr[1]
-    val = arr[2]
-
-    sub(/^[ \t]+/, "", key)
-    sub(/[ \t]+$/, "", key)
-    sub(/^[ \t]+/, "", val)
-    sub(/[ \t]+#.*$/, "", val)
-    sub(/[ \t]+$/, "", val)
-
-    if (key == "stack_id") {
-        stack_id = val + 0
-        next
-    }
-
-    if (val ~ /^[0-9]+$/ && val != "53") {
-        val = val + (stack_id * 10000)
-    }
-
-    key = toupper(key)
-
-    print "MIOS_PORT_" key "=" val
-}' "$TOML_FILE" >> "$ENV_FILE"
-
-mios_ok "Wrote MIOS_PORT_* to $ENV_FILE"
+"$_miosd" render-ports --toml "$TOML_FILE" --out "$ENV_FILE"
+mios_ok "Wrote MIOS_PORT_* to $ENV_FILE via miosd"

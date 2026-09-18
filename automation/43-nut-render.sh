@@ -1,115 +1,37 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
-# AI-hint: Projects UPS settings from mios.toml [power.ups] SSOT to /etc/ups/ configurations (nut.conf, ups.conf, upsd.conf, upsmon.conf).
+# AI-hint: Projects UPS settings from mios.toml [power.ups] SSOT into the NUT config directory via miosd, resolved by absolute path.
+# AI-related: usr/share/mios/mios.toml, src/mios-rs/miosd/src/main.rs, usr/lib/mios/log.sh
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 mios_log "NUT configuration render"
 
 TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
 UPS_CONF_DIR="${UPS_CONF_DIR:-/etc/ups}"
+_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ ! -f "$TOML_FILE" ]]; then
     mios_err "manifest file $TOML_FILE not found"
     exit 1
 fi
 
-if command -v miosd >/dev/null 2>&1; then
-    miosd render-nut --toml "$TOML_FILE" --out-dir "$UPS_CONF_DIR"
-    mios_ok "NUT configuration rendered via miosd"
-    exit 0
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# is not on PATH at bake time, so the lookup this replaced could never succeed
+# and the branch below it was dead on every build (T-1018).
+_miosd=""
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "$_here/../src/mios-rs/target/release/miosd" \
+          "$_here/../src/mios-rs/target/debug/miosd"; do
+    if [ -n "$_c" ] && [ -x "$_c" ]; then _miosd="$_c"; break; fi
+done
+
+if [ -z "$_miosd" ]; then
+    mios_err "miosd not found -- cannot render NUT config. Build it: cd src/mios-rs && cargo build --release -p miosd"
+    exit 2
 fi
 
-PYTHON_EXE=""
-if command -v py &>/dev/null; then
-    PYTHON_EXE=py
-elif command -v python3 &>/dev/null && python3 --version &>/dev/null; then
-    PYTHON_EXE=python3
-elif command -v python &>/dev/null && python --version &>/dev/null; then
-    PYTHON_EXE=python
-else
-    PYTHON_EXE=python3
-fi
-
-"$PYTHON_EXE" -c '
-import os
-import sys
-import tomllib
-
-toml_path = sys.argv[1]
-conf_dir = sys.argv[2]
-
-with open(toml_path, "rb") as f:
-    config = tomllib.load(f)
-
-power_conf = config.get("power", {})
-ups_conf = power_conf.get("ups", {})
-name = str(ups_conf.get("name", "")).strip()
-driver = str(ups_conf.get("driver", "usbhid-ups")).strip()
-port = str(ups_conf.get("port", "auto")).strip()
-desc = str(ups_conf.get("desc", "MiOS Uninterruptible Power Supply")).strip()
-
-os.makedirs(conf_dir, exist_ok=True)
-
-nut_lines = [
-    "# AI-hint: NUT framework mode. Generated from mios.toml [power.ups] SSOT.",
-    "# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh",
-]
-if name:
-    nut_lines.append("MODE=standalone")
-else:
-    nut_lines.append("MODE=none")
-
-with open(os.path.join(conf_dir, "nut.conf"), "w", encoding="utf-8") as f:
-    f.write("\n".join(nut_lines) + "\n")
-
-ups_lines = [
-    "# AI-hint: NUT drivers configuration. Generated from mios.toml [power.ups] SSOT.",
-    "# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh",
-]
-if name:
-    ups_lines.extend([
-        "",
-        f"[{name}]",
-        f"    driver = {driver}",
-        f"    port = {port}",
-        f"    desc = \"{desc}\""
-    ])
-
-with open(os.path.join(conf_dir, "ups.conf"), "w", encoding="utf-8") as f:
-    f.write("\n".join(ups_lines) + "\n")
-
-upsd_lines = [
-    "# AI-hint: NUT daemon settings. Generated from mios.toml [power.ups] SSOT.",
-    "# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh",
-]
-if name:
-    upsd_lines.extend([
-        "",
-        "LISTEN 127.0.0.1 3493"
-    ])
-
-with open(os.path.join(conf_dir, "upsd.conf"), "w", encoding="utf-8") as f:
-    f.write("\n".join(upsd_lines) + "\n")
-
-upsmon_lines = [
-    "# AI-hint: NUT monitor settings. Generated from mios.toml [power.ups] SSOT.",
-    "# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh",
-]
-if name:
-    upsmon_lines.extend([
-        "",
-        f"MONITOR {name}@localhost 1 upsmon mios-ups-secret master",
-        "SHUTDOWNCMD \"/sbin/shutdown -h +0\""
-    ])
-
-with open(os.path.join(conf_dir, "upsmon.conf"), "w", encoding="utf-8") as f:
-    f.write("\n".join(upsmon_lines) + "\n")
-
-if name:
-    print(f"Generated standalone NUT configs for UPS {name} in {conf_dir}")
-else:
-    print(f"Generated inert NUT configs (MODE=none) in {conf_dir}")
-' "$TOML_FILE" "$UPS_CONF_DIR"
-
-mios_ok "NUT configuration rendered"
+"$_miosd" render-nut --toml "$TOML_FILE" --out-dir "$UPS_CONF_DIR"
+mios_ok "NUT configuration rendered via miosd"

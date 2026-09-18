@@ -3,6 +3,7 @@
 # AI-hint: Final build-time validation script that enforces mandatory security invariants, such as OpenSSH version minimums and C...
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
@@ -515,8 +516,42 @@ mios_log "Validate BARE-SAFE-ENV: system-sync-env"
 _sync_env="/usr/libexec/mios/system-sync-env.sh"
 [[ -x "$_sync_env" ]] || _sync_env="$(dirname "${BASH_SOURCE[0]}")/../usr/libexec/mios/system-sync-env.sh"
 if [[ -f "$_sync_env" ]]; then
-    if ! _env_render="$(bash "$_sync_env" --dry-run 2>/dev/null)"; then
-        die "BARE-SAFE-ENV: 'system-sync-env.sh"
+    # stderr carried the only record of a dropped variable and was discarded
+    # here, so MIOS_AI_ENDPOINT going missing from install.env was invisible at
+    # bake while Law 5 routed every agent through it (T-1060). It is captured
+    # and echoed now -- on failure AND on success, because a declared
+    # [security.non_bare_env] skip is a thing a reader should still see.
+    _env_err="$(mktemp)"
+    if ! _env_render="$(bash "$_sync_env" --dry-run 2>"$_env_err")"; then
+        cat "$_env_err" >&2
+        rm -f "$_env_err"
+        die "BARE-SAFE-ENV: system-sync-env.sh --dry-run failed -- see the error above"
+    fi
+    [[ -s "$_env_err" ]] && cat "$_env_err" >&2
+    rm -f "$_env_err"
+
+    # Shrink-only: [security.non_bare_env].max_declared is a ceiling, not a
+    # label. Without this the number is decorative and the declared set could
+    # grow one convenient exemption at a time -- which is how an exemption list
+    # becomes the rule.
+    _nb_toml="/usr/share/mios/mios.toml"
+    [[ -r "$_nb_toml" ]] || _nb_toml="$(dirname "${BASH_SOURCE[0]}")/../usr/share/mios/mios.toml"
+    if [[ -r "$_nb_toml" ]]; then
+        _nb_n="$(awk '/^\[/ { _in = ($0 ~ /^\[security\.non_bare_env\]/); next }
+                      _in && match($0, /"MIOS_[A-Z0-9_]*"/) { n++ }
+                      END { print n + 0 }' "$_nb_toml")"
+        _nb_max="$(awk '/^\[/ { _in = ($0 ~ /^\[security\.non_bare_env\]/); next }
+                        _in && /^[[:space:]]*max_declared[[:space:]]*=/ {
+                            gsub(/[^0-9]/, "", $0); print; exit }' "$_nb_toml")"
+        if [[ -z "$_nb_max" ]]; then
+            die "BARE-SAFE-ENV: [security.non_bare_env].max_declared is missing -- the exemption list has no ceiling"
+        fi
+        if (( _nb_n > _nb_max )); then
+            die "BARE-SAFE-ENV: ${_nb_n} keys declared non-bare but the ceiling is ${_nb_max} -- make a value bare, do NOT raise the ceiling"
+        fi
+        mios_ok "BARE-SAFE-ENV: ${_nb_n}/${_nb_max} keys declared non-bare"
+    else
+        die "BARE-SAFE-ENV: mios.toml unreadable -- the non-bare exemption list could not be verified"
     fi
     if printf '%s\n' "$_env_render" | grep -nE '="' >&2; then
         die "BARE-SAFE-ENV: install.env render contains a double-quoted value"
@@ -620,4 +655,3 @@ fi
 mios_ok "Validation successful"
 exit 0
 
-# References for laws: item14 item12 item16 item17

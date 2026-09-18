@@ -1455,6 +1455,10 @@ CREATE TABLE IF NOT EXISTS system_logs (
     ts          timestamptz DEFAULT now(),
     origin_node text NOT NULL DEFAULT 'local'
 );
+-- T-1042: every table the embed backfiller covers carries emb_version; without
+-- it `WHERE emb IS NULL OR emb_version IS DISTINCT FROM %(ver)s` cannot run, and
+-- system_logs could not be added to PK_MAP at all.
+ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS emb_version varchar(64);
 CREATE INDEX IF NOT EXISTS system_logs_emb_hnsw
     ON system_logs USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 CREATE INDEX IF NOT EXISTS system_logs_unit_ts ON system_logs (unit, ts DESC);

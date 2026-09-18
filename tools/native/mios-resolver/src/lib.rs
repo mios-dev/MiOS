@@ -8,6 +8,7 @@ pub mod emit_json;
 pub mod emit_ps;
 pub mod emit_shell;
 pub mod error;
+pub mod expand;
 pub mod layers;
 pub mod merge;
 pub mod model;

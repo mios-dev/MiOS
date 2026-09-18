@@ -3,7 +3,7 @@
 
 # MiOS Architecture Decision Records
 
-**20 ADRs** (17 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
+**21 ADRs** (18 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
 
 | # | Decision | Status | Date | Laws | SSOT keys |
 |---|---|---|---|---|---|
@@ -27,5 +27,6 @@
 | 0018 | ["Shutdown diff snapshotting, boot-cycle diff accrual, and HITL image roll-in pipeline"](usr/share/doc/mios/adr/0018-shutdown-diff-snapshotting-and-boot-cycle-accrual.md) | accepted | 2026-08-25 | 1, 3, 7, 8, 12 | `build.bake`, `security.diff_policy`, `build.roll_in` |
 | 0019 | ["Preemptive context switching, priority scheduling, and consequentiality-gated deliberation"](usr/share/doc/mios/adr/0019-preemptive-scheduling-and-priority-gated-deliberation.md) | accepted | 2026-08-25 | 2, 5, 8, 12 | `dispatch.tenants`, `tools.execution`, `ai.models`, `ai.lanes` |
 | 0020 | ["Edge micro-mesh 16-byte binary wire protocol, dual-tier sandboxing, and hierarchical work-stealing"](usr/share/doc/mios/adr/0020-edge-mesh-binary-wire-protocol-and-dual-tier-sandboxing.md) | accepted | 2026-08-25 | 2, 5, 7, 8, 12 | `blade.mesh`, `nodes`, `nodes.limits`, `nodes.hardware_allowlist` |
+| 0021 | [Rust static binary consolidation — a handful of function-named binaries over one SSOT crate](usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md) | accepted | 2026-09-16 | 5, 7, 8, 9, 12, 13, 14, 16 | `"legibility.max_tooling_python_lines"`, `"legibility.python_ai_plane_prefixes"` |
 
-<!-- derived from the front-matter of 20 file(s) under usr/share/doc/mios/adr/ -->
+<!-- derived from the front-matter of 21 file(s) under usr/share/doc/mios/adr/ -->

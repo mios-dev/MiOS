@@ -12,7 +12,7 @@ impl Check for ResolverParityCheck {
         "Assert single-sourced resolver parity across shell and Python implementations"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Resolver parity across surfaces verified clean".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Resolver parity across surfaces verified clean".to_string())
     }
 }
 
@@ -25,7 +25,7 @@ impl Check for GlobalsPortsCheck {
         "Assert PowerShell globals.ps1 ports match mios.toml [ports] SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Globals.ps1 ports parity verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Globals.ps1 ports parity".to_string())
     }
 }
 
@@ -38,6 +38,6 @@ impl Check for GlobalsImageParityCheck {
         "Assert PowerShell globals.ps1 image references match SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Globals.ps1 image parity verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Globals.ps1 image parity".to_string())
     }
 }

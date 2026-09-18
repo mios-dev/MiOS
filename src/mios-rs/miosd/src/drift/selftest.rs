@@ -12,7 +12,7 @@ impl Check for NegativeTestCoverageCheck {
         "Assert every registered check has a corresponding test in drift-gate-negatives.sh"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Negative test coverage ratchet verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Negative test coverage ratchet".to_string())
     }
 }
 
@@ -25,6 +25,6 @@ impl Check for SoftModeNotCommittedCheck {
         "Assert no MIOS_DRIFT_CHECK_SOFT=1 mode is committed in workflows or Justfile"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("No soft mode committed check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: No soft mode committed".to_string())
     }
 }

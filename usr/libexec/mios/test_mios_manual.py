@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: 30-fixture unit test suite for the mios_comments comment classifier (AGY-1583).
-# AI-related: usr/lib/mios/mios_comments.py, usr/share/mios/mios.toml, docs/agy/doc-generative-documentation.md
+# AI-related: usr/lib/mios/mios_comments.py, usr/share/mios/mios.toml, docs/design/doc-generative-documentation.md
 import os
 import sys
 import unittest

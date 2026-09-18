@@ -12,7 +12,9 @@ impl Check for HardcodeLintCheck {
         "Assert no un-exempted IP, port, or secret hardcodes exist in codebase"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Hardcode lint with anchored allowlist verified clean".to_string())
+        Verdict::Skip(
+            "NOT IMPLEMENTED: Hardcode lint with anchored allowlist verified clean".to_string(),
+        )
     }
 }
 
@@ -25,7 +27,7 @@ impl Check for HardcodeVersionCheck {
         "Assert no hardcoded Fedora version literals exist outside SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Version hardcode lint verified clean".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Version hardcode lint verified clean".to_string())
     }
 }
 
@@ -38,6 +40,6 @@ impl Check for HardcodedSSOTLiteralCheck {
         "Assert no hardcoded version literals exist in SSOT files"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("SSOT literal hardcode check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: SSOT literal hardcode".to_string())
     }
 }

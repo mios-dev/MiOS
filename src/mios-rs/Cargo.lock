@@ -792,6 +792,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-gate"
+version = "0.3.0"
+dependencies = [
+ "regex",
+ "serde_json",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "mios-node"
 version = "0.3.0"
 dependencies = [
@@ -808,6 +818,15 @@ dependencies = [
  "sha2",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "mios-probe"
+version = "0.3.0"
+dependencies = [
+ "serde_json",
+ "tempfile",
+ "toml",
 ]
 
 [[package]]

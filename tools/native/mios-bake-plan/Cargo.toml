@@ -8,3 +8,4 @@ edition.workspace = true
 toml = "0.8"
 regex = "1.10"
 walkdir = "2.4"
+mios-resolver = { path = "../mios-resolver" }

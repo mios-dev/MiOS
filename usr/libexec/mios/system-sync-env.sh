@@ -19,7 +19,15 @@ done
 
 OUT=/etc/mios/install.env
 
-RESOLVER=/usr/lib/mios/userenv.sh
+# Absolute by default, which is the deployed shape. MIOS_ROOT re-bases it so the
+# script can be exercised from a source checkout: hardcoding the absolute path
+# meant the only way to run this was to create /usr/lib/mios on the host, and a
+# script that cannot be tested without polluting the machine does not get tested.
+# Captured BEFORE the resolver is sourced: the shell binding exports
+# unconditionally, so sourcing it overwrites MIOS_ROOT/MIOS_TOML_VENDOR with the
+# deployed defaults and the caller's override would silently vanish.
+_CALLER_ROOT="${MIOS_ROOT:-}"
+RESOLVER="${_CALLER_ROOT}/usr/lib/mios/userenv.sh"
 if [[ ! -r "$RESOLVER" ]]; then
     echo "Mios-sync-env: resolver $RESOLVER not found" >&2
     exit 1
@@ -28,11 +36,40 @@ fi
 . "$RESOLVER"
 
 _ENV_UNSAFE='[[:space:]"'"'"'$`#]'
+
+# Law 10 declares install.env bare KEY=value. A value carrying whitespace, a
+# quote, `$`, a backtick or `#` cannot be written bare without changing what it
+# means, so it is skipped -- but skipping SILENTLY is how MIOS_AI_ENDPOINT went
+# missing while Law 5 routed every agent through it (T-1060). The keys that
+# legitimately cannot be bare are declared in SSOT, with a reason each; anything
+# else is now a hard failure.
+#
+# Read from the TOML rather than the resolved environment because [security] is
+# WALK_MOSTLY_DEAD -- build and validation policy is not runtime environment,
+# which is the same reason [security.privileged_quadlets] is parsed this way.
+# An unreadable SSOT yields an EMPTY allowlist, so every unsafe value becomes
+# fatal: a gate with no data must never wave things through.
+_non_bare_declared() {
+    local _toml="${_CALLER_ROOT}/usr/share/mios/mios.toml"
+    [[ -r "$_toml" ]] || _toml="${MIOS_TOML_VENDOR:-/usr/share/mios/mios.toml}"
+    [[ -r "$_toml" ]] || return 0
+    awk '
+        /^\[/ { _in = ($0 ~ /^\[security\.non_bare_env\]/); next }
+        _in && match($0, /"MIOS_[A-Z0-9_]*"/) {
+            print substr($0, RSTART + 1, RLENGTH - 2)
+        }
+    ' "$_toml"
+}
+_NON_BARE_OK=",$(_non_bare_declared | tr '\n' ',')"
 emit() {
     local _k="$1" _v="$2"
     if [[ "$_v" =~ $_ENV_UNSAFE ]]; then
-        printf 'mios-sync-env: WARN skip %s (value unsafe for a bare env file)\n' "$_k" >&2
-        return 0
+        if [[ "$_NON_BARE_OK" == *",${_k},"* ]]; then
+            printf 'mios-sync-env: skip %s (declared in [security.non_bare_env])\n' "$_k" >&2
+            return 0
+        fi
+        printf 'mios-sync-env: ERROR %s is unsafe for a bare env file and is NOT declared in [security.non_bare_env] -- declare it with a reason, or make the value bare\n' "$_k" >&2
+        return 1
     fi
     printf '%s=%s\n' "$_k" "$_v"
 }
@@ -111,10 +148,15 @@ EOF
     [[ -n "${MIOS_PORT_SGLANG:-}" ]] && emit MIOS_AI_HEAVY_ENDPOINT "http://localhost:${MIOS_PORT_SGLANG}/v1"
     [[ -n "${MIOS_PORT_VLLM:-}" ]]   && emit MIOS_AI_HEAVY_ALT_ENDPOINT "http://localhost:${MIOS_PORT_VLLM}/v1"
 
-    # MIOS_PORT_PGVECTOR is bridged too so shell consumers that can't parse TOML
-    for _pk in MIOS_PORT_LLM_LIGHT MIOS_PORT_HERMES MIOS_PORT_AGENT_PIPE MIOS_PORT_PREFILTER MIOS_PORT_OPENCODE MIOS_PORT_PGVECTOR MIOS_PORT_SGLANG MIOS_PORT_VLLM MIOS_PORT_FORGE_HTTP MIOS_FORGE_HTTP_PORT MIOS_PORT_FORGE_SSH MIOS_FORGE_SSH_PORT MIOS_PORT_OPEN_WEBUI MIOS_PORT_CODE_SERVER MIOS_PORT_SEARXNG MIOS_SEARXNG_PORT MIOS_PORT_TTYD_BASH MIOS_PORT_TTYD_POWERSHELL MIOS_PORT_CRAWL4AI MIOS_PORT_FIRECRAWL MIOS_PORT_CPU_NODE MIOS_PORT_OSCONTROL MIOS_PORT_COCKPIT MIOS_PORT_COCKPIT_LINK; do
+    # Every MIOS_PORT_* the resolver produced, enumerated rather than re-typed.
+    # The hand-typed list here named 20 of 46; stage 35 writes all of them and
+    # this script replaces that whole file at deploy, so 26 vanished -- one the
+    # port hermes-dashboard.service reads bare (T-1067). The three legacy
+    # *_PORT aliases carry no prefix, so they stay named.
+    _port_names="$( { compgen -v MIOS_PORT_ || true; } | sort )"
+    for _pk in ${_port_names} MIOS_FORGE_HTTP_PORT MIOS_FORGE_SSH_PORT MIOS_SEARXNG_PORT; do
         _pv="${!_pk:-}"
-        if [[ -n "$_pv" ]]; then emit ${_pk} "${_pv}"; fi
+        if [[ -n "$_pv" ]]; then emit "${_pk}" "${_pv}"; fi
     done
 
     for _tk in MIOS_TTYD_BASH_SHELL MIOS_TTYD_POWERSHELL_SHELL MIOS_TTYD_BIND MIOS_TTYD_REQUIRE_AUTH MIOS_TTYD_AUTH_USER MIOS_TTYD_AUTH_PASS MIOS_TTYD_SSL_CERT MIOS_TTYD_SSL_KEY MIOS_TTYD_WRITABLE MIOS_TTYD_MAX_CLIENTS MIOS_TTYD_FONT_SIZE; do

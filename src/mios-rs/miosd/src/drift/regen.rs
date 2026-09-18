@@ -14,6 +14,19 @@ pub fn regen_and_diff(
     targets: &[&str],
     extra_args: &[&str],
 ) -> Verdict {
+    // T-1045. This function is named regen_and_diff and it does not diff: it
+    // runs the generator and then asserts the target EXISTS. That is only sound
+    // when the generator itself compares, i.e. when --check is passed and its
+    // exit status is the verdict. Called without it the generator WRITES --
+    // erasing the very drift the check is looking for, and mutating the tree
+    // from inside a read-only gate. Refuse rather than mislead.
+    if !extra_args.contains(&"--check") {
+        return Verdict::Fail(format!(
+            "regen_and_diff({gen_relpath}) called without --check: it would regenerate the \
+             target and then only confirm the file exists, which cannot detect drift. Pass \
+             --check, or use a helper that snapshots and compares."
+        ));
+    }
     let gen_path = ctx.root.join(gen_relpath);
     if !gen_path.exists() {
         return Verdict::Skip(format!(
@@ -204,6 +217,61 @@ fn diff_tree(committed: &Path, rendered: &Path) -> Vec<String> {
         }
     }
     out
+}
+
+/// Regenerate-and-compare for a generator that has NO --check mode: snapshot the
+/// committed artifact, run the generator, compare, then put the snapshot back.
+/// The tree is left exactly as it was found whether the check passes or fails.
+pub fn regen_and_compare_file(ctx: &DriftCtx, gen_relpath: &str, target: &str) -> Verdict {
+    let gen_path = ctx.root.join(gen_relpath);
+    if !gen_path.exists() {
+        return Verdict::Fail(format!(
+            "Generator not found: {gen_relpath} (registered by a drift check)"
+        ));
+    }
+    let committed = ctx.root.join(target);
+    let before = match fs::read(&committed) {
+        Ok(b) => b,
+        Err(e) => return Verdict::Fail(format!("Target artifact {target} unreadable: {e}")),
+    };
+
+    let mut cmd = Command::new("python3");
+    cmd.arg(&gen_path);
+    cmd.env_clear();
+    if let Ok(p) = env::var("PATH") {
+        cmd.env("PATH", p);
+    }
+    if let Ok(h) = env::var("HOME") {
+        cmd.env("HOME", h);
+    }
+    cmd.env("MIOS_ROOT", ctx.root.as_os_str())
+        .env("MIOS_DRIFT_ROOT", ctx.root.as_os_str());
+    let out = match cmd.output() {
+        Ok(o) => o,
+        Err(e) => return Verdict::Fail(format!("Failed to execute {gen_relpath}: {e}")),
+    };
+    let after = fs::read(&committed);
+    // Restore before judging, so a failure never leaves the tree rewritten.
+    let _ = fs::write(&committed, &before);
+
+    if !out.status.success() {
+        return Verdict::Fail(format!(
+            "{gen_relpath} exited with error: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    match after {
+        Ok(a) if a == before => Verdict::Pass(format!(
+            "{target} matches what {gen_relpath} renders ({} bytes)",
+            before.len()
+        )),
+        Ok(a) => Verdict::Fail(format!(
+            "{target} is stale: committed {} bytes, {gen_relpath} renders {} -- run it",
+            before.len(),
+            a.len()
+        )),
+        Err(e) => Verdict::Fail(format!("{target} vanished during regeneration: {e}")),
+    }
 }
 
 #[cfg(test)]

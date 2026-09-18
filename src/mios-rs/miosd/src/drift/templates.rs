@@ -12,7 +12,7 @@ impl Check for TemplateConformanceCheck {
         "Assert file template conformance per Law 14 (ONE-TEMPLATE-PER-TYPE)"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Template conformance per Law 14 verified clean".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Template conformance per Law 14 verified clean".to_string())
     }
 }
 
@@ -25,7 +25,7 @@ impl Check for VerbTemplatesCheck {
         "Assert verb templates match SSOT definitions"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Verb templates verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Verb templates".to_string())
     }
 }
 
@@ -38,6 +38,6 @@ impl Check for VerbBackendsCheck {
         "Assert verb backends exist and are executable"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Verb backends verified".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Verb backends".to_string())
     }
 }

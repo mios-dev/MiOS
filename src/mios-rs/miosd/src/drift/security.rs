@@ -12,7 +12,7 @@ impl Check for CLIEvalSafetyCheck {
         "Assert no unsafe eval-on-agent-args pattern exists in CLI verb scripts"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("CLI eval safety check passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: CLI eval safety".to_string())
     }
 }
 
@@ -25,7 +25,7 @@ impl Check for ShellcheckLintCheck {
         "Assert all shell scripts pass shellcheck lint"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Shellcheck lint passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Shellcheck lint".to_string())
     }
 }
 
@@ -38,6 +38,6 @@ impl Check for PythonCompileLintCheck {
         "Assert all python scripts compile without syntax errors"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Pass("Python compile lint passed".to_string())
+        Verdict::Skip("NOT IMPLEMENTED: Python compile lint".to_string())
     }
 }

@@ -4,6 +4,7 @@
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 _self="${BASH_SOURCE[0]}"
@@ -17,11 +18,8 @@ source "$_self_dir/lib/common.sh" 2>/dev/null || {
 
 mios_log "Projecting bake-plan lists from mios.toml SSOT"
 
-if command -v miosd >/dev/null 2>&1; then
-    miosd bake-plan
-    mios_ok "Bake-plan lists projected via miosd"
-    exit 0
-fi
+# No `command -v miosd` branch: unreachable at bake (T-1018), and it ran the
+# Python anyway. Below dispatches by path, never by lookup.
 
 if [[ -x "/usr/libexec/mios/mios-bake-plan" ]]; then
     mios_log "Using native /usr/libexec/mios/mios-bake-plan"
