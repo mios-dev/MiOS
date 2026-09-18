@@ -2217,12 +2217,10 @@ check_council_gate_ssot() {
 
 check_containerfile_pinned_clones() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py containerfile-pinned-clones
-    then
-        echo "[98-drift-checks]   all git clone invocations in Containerfiles carry explicit"
-    else
-        _violation "found unpinned git clone command in a Containerfile"
-    fi
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py containerfile-pinned-clones 2>&1)" || {
+        _violations_from "" "$out"; return; }
+    echo "[98-drift-checks]   all git clone invocations in Containerfiles carry explicit"
+    echo "[98-drift-checks]   ${out}"
 }
 
 check_firstboot_tier() {

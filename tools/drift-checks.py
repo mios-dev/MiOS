@@ -3790,6 +3790,7 @@ def check_containerfile_pinned_clones() -> int:
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     unpinned = []
+    read = 0
 
     for r, ds, fs in os.walk(root):
         for f in fs:
@@ -3802,14 +3803,21 @@ def check_containerfile_pinned_clones() -> int:
                                 if "--branch" not in line and "--tag" not in line and "-b " not in line and "@" not in line:
                                     rel = os.path.relpath(path, root).replace("\\", "/")
                                     unpinned.append(f"{rel}:{idx} -> {line.strip()}")
+                    read += 1
                 except OSError:
                     pass
+
+    if read < 5:
+        sys.stderr.write("    only %d Containerfile(s) read -- the corpus is wrong, so "
+                         "an empty result is not a pass\n" % read)
+        return 1
 
     if unpinned:
         sys.stderr.write("    Unpinned git clone command(s) found in Containerfiles:\n")
         for u in unpinned:
             sys.stderr.write(f"      {u}\n")
         return 1
+    print("%d Containerfile(s) read for unpinned git clone" % read)
     return 0
 
 def check_replaceme_mount_substitution() -> int:
