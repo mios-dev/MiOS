@@ -22,7 +22,7 @@
 21	check_unwired_modules	no imported-but-dead agent-pipe module
 22	check_cephfs_ssot	CephFS SSOT configuration is valid
 23	check_converge_ssot	[converge] values are read from mios.toml and within legal bounds
-24	check_hummingbird	Hummingbird distroless and Quadlet configuration is valid
+24	check_hummingbird	Hummingbird distroless Containerfile and Quadlet conform when the feature is enabled
 25	check_container_ports	no manual port literals in container definitions
 26	check_bootstrap_ports_drift	bootstrap mios.toml shared surfaces match main repository
 27	check_bootstrap_sync	bootstrap repository sync: shared files in MiOS-bootstrap match main repository SSOT
@@ -114,7 +114,7 @@
 113	check_native_lint	$ws workspace cargo check passed
 114	check_resolver_shell_equivalence	shell resolver logic is identical to python/PS SSOT resolvers
 115	check_resolver_ps_equivalence	the PowerShell half of the resolver twin exists; its CONTENT is check_globals_generated's job
-116	check_cargo_deny	Rust workspace cargo-deny advisories, licenses, and bans pass clean
+116	check_cargo_deny	tools/native/deny.toml supply-chain policy is present
 117	check_ps_repo_parity	Law-15 mirror manifest is self-consistent and mirrored PowerShell surfaces are byte-identical
 118	check_ps_redirectors	PowerShell script entrypoint redirectors point to canonical implementation
 119	check_powershell_parse	all PowerShell scripts (.ps1, .psm1) parse without syntax errors
