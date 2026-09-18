@@ -76,4 +76,4 @@ MiOS-DEV — where comments actually change.
 - `usr/share/doc/mios/reference/tool-index.md` — the projection of every AI-hint.
 - `usr/share/doc/mios/reference/build-pipeline.md` — derived build phases and root exceptions.
 - `usr/share/doc/mios/manual/` — the distilled per-area pages.
-- `docs/agy/doc-generative-documentation.md` — the programme specification.
+- `docs/design/doc-generative-documentation.md` — the programme specification.

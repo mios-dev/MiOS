@@ -42,70 +42,97 @@ struct MiosTomlRoot {
     build: Option<BuildToml>,
 }
 
-impl PhaseRegistry {
-    pub fn load_from_toml(path: &std::path::Path) -> Self {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            if let Ok(root) = toml::from_str::<MiosTomlRoot>(&content) {
-                if let Some(build) = root.build {
-                    if let Some(phases) = build.phases {
-                        if !phases.list.is_empty() {
-                            return Self {
-                                phases: phases.list,
-                            };
-                        }
-                    }
-                }
-            }
-        }
-        Self::default_registry()
-    }
+/// Why loading the registry returns an error instead of a phase list.
+///
+/// Each variant is a case that used to resolve to a six-phase hardcoded default
+/// and exit 0, which made a build that ran six of seventy-one phases
+/// indistinguishable from a complete one.
+#[derive(Debug)]
+pub enum RegistryError {
+    Unreadable {
+        path: String,
+        source: std::io::Error,
+    },
+    Unparseable {
+        path: String,
+        detail: String,
+    },
+    Missing {
+        path: String,
+    },
+    Empty {
+        path: String,
+    },
+}
 
-    pub fn default_registry() -> Self {
-        let phases = vec![
-            Phase {
-                ordinal: "01".into(),
-                name: "system-files-overlay".into(),
-                script: "01-system-files-overlay.sh".into(),
-                fatal: true,
-                apply_class: "universal".into(),
-            },
-            Phase {
-                ordinal: "02".into(),
-                name: "materialize-build-ctx".into(),
-                script: "02-materialize-build-ctx.sh".into(),
-                fatal: true,
-                apply_class: "universal".into(),
-            },
-            Phase {
-                ordinal: "05".into(),
-                name: "repos".into(),
-                script: "05-repos.sh".into(),
-                fatal: true,
-                apply_class: "universal".into(),
-            },
-            Phase {
-                ordinal: "07".into(),
-                name: "kernel".into(),
-                script: "07-kernel.sh".into(),
-                fatal: true,
-                apply_class: "universal".into(),
-            },
-            Phase {
-                ordinal: "98".into(),
-                name: "drift-checks".into(),
-                script: "98-drift-checks.sh".into(),
-                fatal: true,
-                apply_class: "universal".into(),
-            },
-            Phase {
-                ordinal: "99".into(),
-                name: "postcheck".into(),
-                script: "99-postcheck.sh".into(),
-                fatal: true,
-                apply_class: "universal".into(),
-            },
-        ];
-        Self { phases }
+impl fmt::Display for RegistryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unreadable { path, source } => {
+                write!(f, "cannot read the phase registry at {}: {}", path, source)
+            }
+            Self::Unparseable { path, detail } => {
+                write!(f, "cannot parse {} as TOML: {}", path, detail)
+            }
+            Self::Missing { path } => write!(
+                f,
+                "{} declares no [build.phases].list -- the phase order is SSOT-owned \
+                 and there is no default to fall back to",
+                path
+            ),
+            Self::Empty { path } => write!(
+                f,
+                "[build.phases].list in {} is empty -- a build of zero phases is not a build",
+                path
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RegistryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Unreadable { source, .. } => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl PhaseRegistry {
+    /// Load the phase list from `[build.phases].list` in mios.toml.
+    ///
+    /// This used to swallow every failure and return a six-phase hardcoded
+    /// registry (Law 7: NO-HARDCODE). Nothing in the tree could tell the two
+    /// apart: `miosd build --list` printed six script names and exited 0, and
+    /// automation/build.sh took that list verbatim. A build launched from the
+    /// wrong working directory -- MIOS_ROOT defaults to "." -- would therefore
+    /// run 01, 02, 05, 07, 98, 99 and report BUILD COMPLETE, having skipped the
+    /// kernel config, GPU wiring, SELinux, services, the whole AI plane and
+    /// finalize. The registry now refuses rather than guesses (T-1018).
+    pub fn load_from_toml(path: &std::path::Path) -> Result<Self, RegistryError> {
+        let shown = path.display().to_string();
+        let content =
+            std::fs::read_to_string(path).map_err(|source| RegistryError::Unreadable {
+                path: shown.clone(),
+                source,
+            })?;
+        let root =
+            toml::from_str::<MiosTomlRoot>(&content).map_err(|e| RegistryError::Unparseable {
+                path: shown.clone(),
+                detail: e.to_string(),
+            })?;
+        let phases = root
+            .build
+            .and_then(|b| b.phases)
+            .ok_or(RegistryError::Missing {
+                path: shown.clone(),
+            })?;
+        if phases.list.is_empty() {
+            return Err(RegistryError::Empty { path: shown });
+        }
+        Ok(Self {
+            phases: phases.list,
+        })
     }
 
     pub fn phases(&self) -> &[Phase] {
@@ -133,7 +160,7 @@ pub fn run_build(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let root_str = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
     let toml_path = std::path::Path::new(&root_str).join("usr/share/mios/mios.toml");
-    let registry = PhaseRegistry::load_from_toml(&toml_path);
+    let registry = PhaseRegistry::load_from_toml(&toml_path)?;
     if list_only {
         registry.print_list();
         return Ok(());

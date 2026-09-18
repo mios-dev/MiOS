@@ -211,7 +211,8 @@ identity.ipa.realm  MIOS_IDENTITY_IPA_REALM
 identity.ipa.server  MIOS_IDENTITY_IPA_SERVER
 identity.ipa.domain  MIOS_IDENTITY_IPA_DOMAIN
 identity.ipa.enroll_principal  MIOS_IDENTITY_IPA_ENROLL_PRINCIPAL
-identity.ipa.otp  MIOS_IDENTITY_IPA_OTP
+identity.ipa.otp_file  MIOS_IDENTITY_IPA_OTP_FILE
+identity.ipa.otp_key  MIOS_IDENTITY_IPA_OTP_KEY
 locale.timezone  MIOS_LOCALE_TIMEZONE
 locale.keyboard_layout  MIOS_LOCALE_KEYBOARD_LAYOUT
 locale.language  MIOS_LOCALE_LANGUAGE
@@ -519,6 +520,8 @@ security.sigstore.allowed_identities  MIOS_SECURITY_SIGSTORE_ALLOWED_IDENTITIES
 security.privileged_quadlets.max_privileged_root  MIOS_SECURITY_PRIVILEGED_QUADLETS_MAX_PRIVILEGED_ROOT
 security.privileged_quadlets.root  MIOS_SECURITY_PRIVILEGED_QUADLETS_ROOT
 security.privileged_quadlets.no_group_delegate  MIOS_SECURITY_PRIVILEGED_QUADLETS_NO_GROUP_DELEGATE
+security.non_bare_env.max_declared  MIOS_SECURITY_NON_BARE_ENV_MAX_DECLARED
+security.non_bare_env.keys  MIOS_SECURITY_NON_BARE_ENV_KEYS
 security.nohc_allowlist.exempt_files  MIOS_SECURITY_NOHC_ALLOWLIST_EXEMPT_FILES
 security.nohc_allowlist.exempt_patterns  MIOS_SECURITY_NOHC_ALLOWLIST_EXEMPT_PATTERNS
 security.fapolicyd_observe.enable  MIOS_SECURITY_FAPOLICYD_OBSERVE_ENABLE

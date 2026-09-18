@@ -17,7 +17,7 @@ Examples for other local OpenAI-API-compatible runtimes:
 
 Comment lexer + classifier for the generative documentation system.
 
-Spec: docs/agy/doc-generative-documentation.md sections 1.2 and 2.
+Spec: docs/design/doc-generative-documentation.md sections 1.2 and 2.
 
 Two jobs, kept apart on purpose:
 

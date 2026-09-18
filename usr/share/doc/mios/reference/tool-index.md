@@ -259,7 +259,6 @@ is generated, its generator is here.
 | `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. |
 | `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
 | `tools/check-container-names.py` | Drift gate for unmappable container names. |
-| `tools/check-credential-literals.py` | Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S... |
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
 | `tools/check-deploy-formats.py` | Fails when a declared deployment format has no build target, when a build target is undeclared, or when a variant ships a format the matrix does not define. |
 | `tools/check-doc-ratchet-monotone.py` | Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values. |
@@ -277,7 +276,6 @@ is generated, its generator is here.
 | `tools/check-port-fallbacks.py` | Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. |
 | `tools/check-ports-bound.py` | Drift gate for allocated-but-unbound ports. |
 | `tools/check-privileged-quadlets.py` | Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651). |
-| `tools/check-ratchet-direction.py` | Drift check check_ratchet_direction -- asserts that shrink-only ratchet ceilings in mios.toml never increase over HEAD. |
 | `tools/check-redact-coverage.py` | DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
 | `tools/check-role-ssot.py` | Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is. |
@@ -311,7 +309,7 @@ is generated, its generator is here.
 | `tools/generate-ipa-enroll-env.py` | Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT |
 | `tools/generate-metal-vs-hosted.py` | GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml. |
 | `tools/generate-names-registry.py` | MiOS system and orchestration module providing generate-names-registry capabilities. |
-| `tools/generate-pipeline-index.py` | ) or line_str.startswith("# AI-related:"): continue if line_str.startswith("#") and not line_str.startswith("#!"): |
+| `tools/generate-pipeline-index.py` | MiOS system and orchestration module providing generate-pipeline-index capabilities. |
 | `tools/generate-pod-quadlets.py` | Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT). |
 | `tools/generate-uki-cmdline.py` | Flattens usr/lib/bootc/kargs.d/*.toml drop-ins into usr/lib/kernel/cmdline SSOT |
 | `tools/journal-sync.py` | Parses legacy Markdown-based memory logs and synchronizes them into structured JSONL format for the MiOS memory system, extracting timestamps, agent IDs, thoughts, and actions. |
@@ -337,7 +335,6 @@ is generated, its generator is here.
 | `tools/test_check-blade-coverage.py` | Unit tests for tools/check-blade-coverage.py. |
 | `tools/test_check-comment-lex-equivalence.py` | Fixtures for check-comment-lex-equivalence.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
 | `tools/test_check-container-names.py` | Sibling unit test for tools/check-container-names.py. |
-| `tools/test_check-credential-literals.py` | Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered... |
 | `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
 | `tools/test_check-deploy-formats.py` | Sibling test for tools/check-deploy-formats.py; proves the format matrix covers every build target and every recipe. |
 | `tools/test_check-doc-ratchet-monotone.py` | Fixtures for check-doc-ratchet-monotone.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
@@ -355,7 +352,6 @@ is generated, its generator is here.
 | `tools/test_check-port-fallbacks.py` | Unit tests for tools/check-port-fallbacks.py. |
 | `tools/test_check-ports-bound.py` | Unit tests for tools/check-ports-bound.py. |
 | `tools/test_check-privileged-quadlets.py` | Sibling unit test for tools/check-privileged-quadlets.py (AGY-1646 / AGY-1651). |
-| `tools/test_check-ratchet-direction.py` | Unit test verifying that check-ratchet-direction detects raised ratchet ceilings and refuses to pass when it read no ceiling. |
 | `tools/test_check-redact-coverage.py` | Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl... |
 | `tools/test_check-role-ssot.py` | Unit tests for tools/check-role-ssot.py. |
 | `tools/test_check-rust-test-coverage.py` | Unit tests for tools/check-rust-test-coverage.py. |
@@ -390,7 +386,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 137 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 133 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

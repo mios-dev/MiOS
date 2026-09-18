@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use toml::Value;
 
-use crate::emit::build_exports_map;
+use crate::emit::{build_exports_map, resolve_cross_references};
 
 pub fn shlex_quote(s: &str) -> String {
     if s.is_empty() {
@@ -52,6 +52,18 @@ pub fn emit_shell(merged: &Value, stack_offset: i64, ref_names_path: Option<&Pat
         );
     }
 
+    // shlex_quote single-quotes anything containing `$`, and bash does not
+    // expand inside single quotes -- so a live ${MIOS_*} reference here is
+    // exported as literal text, never as its value. Nor is there anything to
+    // expand against: these lines are sorted alphabetically, not
+    // topologically, so a referent may be defined after its referrer. Unlike
+    // automation/lib/globals.sh, which splices and topologically sorts, this
+    // binding also exports unconditionally, so it never offered the
+    // "pre-exported value wins" property that a live reference would serve.
+    // Resolving here is what makes userenv.sh's native tier agree with its
+    // Python fallback.
+    resolve_cross_references(&mut exports);
+
     let mut lines = Vec::new();
     for (k, v) in &exports {
         lines.push(format!("export {}={}", k, shlex_quote(v)));
@@ -85,5 +97,33 @@ mod tests {
         assert_eq!(shlex_quote("with space"), "'with space'");
         assert_eq!(shlex_quote("don't"), "'don'\"'\"'t'");
         assert_eq!(shlex_quote(""), "''");
+    }
+
+    /// shlex_quote single-quotes any value containing `$`, and bash does not
+    /// expand inside single quotes. userenv.sh evals this output in its primary
+    /// tier, so a value that still carried `${MIOS_PORT_AGENT_PIPE}` here was
+    /// exported to consumers verbatim, as that literal text.
+    #[test]
+    fn test_cross_reference_is_resolved_not_quoted_literal() {
+        let val: Value = toml::from_str(
+            r#"
+[ports]
+agent_pipe = 8700
+
+[ai]
+endpoint = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
+"#,
+        )
+        .unwrap();
+        let out = emit_shell(&val, 0, None);
+        let line = out
+            .lines()
+            .find(|l| l.starts_with("export MIOS_AI_ENDPOINT="))
+            .expect("MIOS_AI_ENDPOINT is emitted");
+        assert_eq!(line, "export MIOS_AI_ENDPOINT=http://localhost:8700/v1");
+        assert!(
+            !out.contains("${MIOS_PORT_AGENT_PIPE}"),
+            "a single-quoted ${{...}} is exported as literal text, not expanded"
+        );
     }
 }

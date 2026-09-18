@@ -165,6 +165,55 @@ class TestMissingDeliverable(unittest.TestCase):
         self.assertEqual([], offenders,
                          "route these through _absent(root, path)")
 
+    def test_no_check_answers_a_failed_import_of_a_repo_module_with_success(self):
+        """The sibling shape the isfile guard above cannot see.
+
+        `try: import mios_X / except: return 0` reads as a dependency guard, but
+        every mios_* module here is a tracked deliverable importing stdlib only,
+        so the only way the import fails is the subject going missing. 4ca3d35
+        converted three of these and left check_docs_ratchet's mios_comments.
+        """
+        repo_mods = set()
+        for dirpath, dirnames, filenames in os.walk(_ROOT):
+            dirnames[:] = [d for d in dirnames if d not in (".git", "node_modules")]
+            for name in filenames:
+                if name.endswith(".py"):
+                    repo_mods.add(name[:-3])
+        stdlib = set(sys.stdlib_module_names)
+
+        with open(_MOD_PATH, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        offenders, handlers = [], 0
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Try):
+                continue
+            imported = []
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Import):
+                    imported += [a.name.split(".")[0] for a in sub.names]
+                elif isinstance(sub, ast.ImportFrom) and sub.module:
+                    imported.append(sub.module.split(".")[0])
+            if not imported:
+                continue
+            for h in node.handlers:
+                handlers += 1
+                answered_ok = False
+                for sub in ast.walk(h):
+                    if (isinstance(sub, ast.Return) and isinstance(sub.value, ast.Constant)
+                            and type(sub.value.value) is int and sub.value.value == 0):
+                        answered_ok = True
+                if not answered_ok:
+                    continue
+                hit = sorted({m for m in imported
+                              if m in repo_mods and m not in stdlib})
+                if hit:
+                    offenders.append("line %d imports %s" % (node.lineno, ",".join(hit)))
+        self.assertGreater(handlers, 0, "no import guard was examined at all")
+        self.assertGreater(len(repo_mods), 100, "the repo module index is empty")
+        self.assertEqual([], offenders,
+                         "a tracked module that will not import is a dropped "
+                         "subject -- gate it with _absent(root, path) and fail")
+
 
 # A check whose corpus is `git ls-files` answers a refusing git with an empty
 # list, and every scan of an empty list is clean. _absent covers one named

@@ -3,10 +3,13 @@
 use serde_json::{json, Value as JsonValue};
 use toml::Value;
 
-use crate::emit::build_exports_map;
+use crate::emit::{build_exports_map, resolve_cross_references};
 
 pub fn emit_json(merged: &Value, stack_offset: i64) -> String {
-    let exports = build_exports_map(merged, stack_offset);
+    // Nothing downstream of this JSON re-expands, so the cross-references
+    // are resolved here rather than shipped as text a consumer must parse.
+    let mut exports = build_exports_map(merged, stack_offset);
+    resolve_cross_references(&mut exports);
     let merged_json: JsonValue = serde_json::to_value(merged).unwrap_or(json!({}));
 
     let res = json!({

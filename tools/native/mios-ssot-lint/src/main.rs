@@ -144,31 +144,23 @@ fn in_userenv(v: &str, userenv_lines: &[&str]) -> bool {
     false
 }
 
+/// Anchored `^NAME=`, matching the bash twin. A substring match would also hit
+/// a name mentioned inside another variable's VALUE -- env-baseline is full of
+/// those -- and would report a name as emitted when it is only referenced.
 fn in_render(v: &str, render_lines: &[&str]) -> bool {
-    for line in render_lines {
-        let mut idx = 0;
-        while let Some(pos) = line[idx..].find(v) {
-            let absolute_pos = idx + pos;
-            let valid_before = absolute_pos == 0
-                || !line.as_bytes()[absolute_pos - 1].is_ascii_alphanumeric()
-                    && line.as_bytes()[absolute_pos - 1] != b'_';
-            let end = absolute_pos + v.len();
-            let valid_after = end == line.len()
-                || !line.as_bytes()[end].is_ascii_alphanumeric() && line.as_bytes()[end] != b'_';
-
-            if valid_before && valid_after {
-                return true;
-            }
-            idx = absolute_pos + v.len();
-        }
-    }
-    false
+    render_lines.iter().any(|line| {
+        line.strip_prefix(v)
+            .map(|rest| rest.starts_with('='))
+            .unwrap_or(false)
+    })
 }
 
 fn main() {
     let root = find_root();
     let userenv_path = root.join("tools/lib/userenv.sh");
-    let render_path = root.join("automation/34-render-quadlets.sh");
+    // The renderer has no allowlist since T-1040; "renderable" now means the
+    // resolver emits the name, so the twin reads the generated env baseline.
+    let render_path = root.join("usr/share/mios/reference/env-baseline.txt");
     let quadlet_dir = root.join("usr/share/containers/systemd");
 
     let soft_mode = env::var("MIOS_SSOT_LINT_SOFT").unwrap_or_default() == "1";
@@ -182,7 +174,7 @@ fn main() {
     }
     if !render_path.is_file() {
         println!(
-            "[97-ssot-lint] FATAL: 34-render-quadlets.sh not found at {}",
+            "[97-ssot-lint] FATAL: env baseline not found at {}",
             render_path.display()
         );
         process::exit(2);
@@ -248,9 +240,9 @@ fn main() {
         }
         if !in_rq {
             if !miss.is_empty() {
-                miss.push_str(" + 34-render-quadlets.sh allowlist");
+                miss.push_str(" + resolver emission (env-baseline)");
             } else {
-                miss.push_str("34-render-quadlets.sh allowlist");
+                miss.push_str("resolver emission (env-baseline)");
             }
         }
         eprintln!(
@@ -276,7 +268,7 @@ fn main() {
     );
     eprintln!("[97-ssot-lint]   Fix each by (a) adding a typed slot in tools/lib/userenv.sh AND");
     eprintln!(
-        "[97-ssot-lint]   (b) adding it to BOTH allowlists in automation/34-render-quadlets.sh."
+        "[97-ssot-lint]   (b) ensuring the resolver emits it (it then renders without an allowlist)."
     );
 
     if soft_mode {

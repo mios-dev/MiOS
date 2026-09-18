@@ -16,17 +16,23 @@ impl Check for NamesRegistryCheck {
             return Verdict::Skip("Incomplete git work tree".to_string());
         }
 
-        let gen_bin = ctx
-            .root
-            .join("tools/native/target/debug/generate-names-registry");
-        let gen_bin_win = ctx
-            .root
-            .join("tools/native/target/debug/generate-names-registry.exe");
-
-        if !gen_bin.exists() && !gen_bin_win.exists() {
-            return Verdict::Skip("generate-names-registry binary not compiled".to_string());
-        }
-
-        Verdict::Pass("Names registry projection matches SSOT".to_string())
+        // T-1045. This used to test whether a DEBUG BUILD of the generator
+        // existed and, if so, return Pass("Names registry projection matches
+        // SSOT") -- without running it and without comparing anything. If the
+        // binary was absent it skipped instead, so on an ordinary tree the
+        // check was silent and on a developer's tree it lied. Both halves of
+        // Skip-as-Pass in one function.
+        //
+        // The projection is produced by tools/generate-names-registry.py, the
+        // same generator sync-generated.sh runs, so regenerate and diff it the
+        // way every other projection check already does.
+        // The generator has no --check mode and the tooling-Python ratchet has
+        // no room to add one (T-1044), so compare in Rust: snapshot, render,
+        // diff, restore.
+        super::regen::regen_and_compare_file(
+            ctx,
+            "tools/generate-names-registry.py",
+            "usr/share/mios/referenced_names.txt",
+        )
     }
 }

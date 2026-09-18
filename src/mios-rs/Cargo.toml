@@ -6,6 +6,8 @@ members = [
     "mios-build",
     "mios-config",
     "mios-node",
+    "mios-gate",
+    "mios-probe",
 ]
 resolver = "2"
 

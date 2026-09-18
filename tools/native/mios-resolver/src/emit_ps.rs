@@ -2,11 +2,14 @@
 // AI-related: automation/lib/globals.ps1
 use toml::Value;
 
-use crate::emit::build_exports_map;
+use crate::emit::{build_exports_map, resolve_cross_references};
 use crate::palette::resolve as resolve_palette;
 
 pub fn emit_powershell(merged: &Value, stack_offset: i64) -> String {
-    let exports = build_exports_map(merged, stack_offset);
+    // Emitted as '...' below, and a PowerShell single-quoted string does not
+    // interpolate either, so the same literal-export defect applies here.
+    let mut exports = build_exports_map(merged, stack_offset);
+    resolve_cross_references(&mut exports);
     let palette = resolve_palette(merged);
 
     let mut lines = Vec::new();
@@ -39,6 +42,28 @@ pub fn emit_powershell(merged: &Value, stack_offset: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A PowerShell single-quoted string does not interpolate, so an
+    /// unresolved ${MIOS_*} would be assigned as literal text.
+    #[test]
+    fn test_cross_reference_is_resolved_not_quoted_literal() {
+        let val: Value = toml::from_str(
+            r#"
+[ports]
+agent_pipe = 8700
+
+[ai]
+endpoint = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
+"#,
+        )
+        .unwrap();
+        let out = emit_powershell(&val, 0);
+        assert!(
+            out.contains("else { 'http://localhost:8700/v1' }"),
+            "expected the resolved literal, got:\n{out}"
+        );
+        assert!(!out.contains("${MIOS_PORT_AGENT_PIPE}"));
+    }
 
     #[test]
     fn test_emit_powershell() {

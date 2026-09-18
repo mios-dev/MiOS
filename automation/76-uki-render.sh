@@ -3,6 +3,7 @@
 # AI-hint: Processes boot arguments from kargs.d/*.toml files into a single string at /usr/lib/kernel/cmdline to prepare the Unified Kernel Image (UKI) during the build or deployment phase.
 set -euo pipefail
 
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 mios_log "Render kernel cmdline from bootc kargs.d/*.toml for the UKI"
@@ -21,22 +22,35 @@ GEN_SCRIPT="${ROOT}/tools/generate-uki-cmdline.py"
 KERNEL_CMDLINE_DST="/usr/lib/kernel/cmdline"
 install -d -m 0755 /usr/lib/kernel
 
-if command -v miosd >/dev/null 2>&1; then
-    miosd render-uki-cmdline
-    if [[ "${ROOT}/usr/lib/kernel/cmdline" != "${KERNEL_CMDLINE_DST}" && -f "${ROOT}/usr/lib/kernel/cmdline" ]]; then
-        install -D -m 0644 "${ROOT}/usr/lib/kernel/cmdline" "${KERNEL_CMDLINE_DST}"
-    fi
-    mios_ok "Rendered UKI cmdline via miosd"
-    exit 0
-fi
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# nothing puts on PATH at bake time, so the lookup this replaced could never
+# succeed and the branch below it was dead on every build (T-1018).
+_miosd=""
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "${ROOT}/src/mios-rs/target/release/miosd" \
+          "${ROOT}/src/mios-rs/target/debug/miosd"; do
+    if [[ -n "$_c" && -x "$_c" ]]; then _miosd="$_c"; break; fi
+done
 
 if [[ ! -f "$GEN_SCRIPT" ]]; then
     mios_err "authoritative UKI cmdline generator not found at $GEN_SCRIPT"
     exit 1
 fi
 
-mios_log "Render UKI cmdline via authoritative generator"
-python3 "$GEN_SCRIPT"
+# Both paths run the same generator: miosd render-uki-cmdline execs
+# tools/generate-uki-cmdline.py, which is where the kargs.d parse actually
+# lives. The dispatch is about which side owns the invocation, not about two
+# implementations -- so there is no output to diff, only a root to get right.
+# miosd resolves the script against MIOS_ROOT, so pass it explicitly rather
+# than relying on the caller's cwd.
+if [[ -n "$_miosd" ]]; then
+    mios_log "Render UKI cmdline via miosd"
+    MIOS_ROOT="$ROOT" "$_miosd" render-uki-cmdline
+else
+    mios_log "Render UKI cmdline via authoritative generator"
+    python3 "$GEN_SCRIPT"
+fi
 
 if [[ "${ROOT}/usr/lib/kernel/cmdline" != "${KERNEL_CMDLINE_DST}" ]]; then
     install -D -m 0644 "${ROOT}/usr/lib/kernel/cmdline" "${KERNEL_CMDLINE_DST}"
