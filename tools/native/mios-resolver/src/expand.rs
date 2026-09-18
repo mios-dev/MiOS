@@ -1,5 +1,5 @@
-// AI-hint: Brace-counting recursive expander for ${VAR} and ${VAR:-default}; leaves systemd's $$ escape alone.
-// AI-related: tools/native/mios-render-quadlets/src/main.rs, usr/share/mios/mios.toml
+// AI-hint: The one brace-counting expander for ${VAR} and ${VAR:-default}; map-only, leaves systemd's $$ escape alone.
+// AI-related: tools/native/mios-resolver/src/emit.rs, tools/native/mios-render-quadlets/src/main.rs
 
 use std::collections::BTreeMap;
 
@@ -15,15 +15,11 @@ pub struct Expansion {
     pub unresolved: Vec<String>,
 }
 
-/// Resolution order: process environment, then the SSOT exports map, then the
-/// literal default. Mirrors tools/native/mios-bake-plan so two generators
-/// cannot disagree about what a placeholder means.
+/// Map-only by design. Reading the process environment in here would let a
+/// stray export in the builder shell silently change an emitted value, and
+/// nothing would record it. Callers that want an environment layer compose it
+/// into the map first, where it is visible and testable.
 fn lookup(name: &str, ssot: &BTreeMap<String, String>) -> Option<String> {
-    if let Ok(v) = std::env::var(name) {
-        if !v.is_empty() {
-            return Some(v);
-        }
-    }
     match ssot.get(name) {
         Some(v) if !v.is_empty() => Some(v.clone()),
         _ => None,

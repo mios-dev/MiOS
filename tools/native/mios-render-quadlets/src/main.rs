@@ -4,7 +4,7 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod expand;
+use mios_resolver::expand;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -85,9 +85,10 @@ fn load_config(root: &Path) -> Result<Config, String> {
     })
 }
 
-/// The SSOT exports map every other native consumer resolves through. Degrading
-/// to empty is deliberate: an unresolved placeholder is then NAMED below rather
-/// than silently blanked, which is what envsubst did.
+/// The SSOT exports map every other native consumer resolves through, with the
+/// process environment overlaid on top so an operator export still wins. The
+/// overlay is explicit here rather than hidden inside the expander, so what
+/// outranks what is visible and testable.
 fn ssot_exports(root: &Path) -> BTreeMap<String, String> {
     let fig = mios_resolver::layers::create_figment(Some(root));
     match fig.extract::<toml::Value>() {
@@ -102,14 +103,38 @@ fn ssot_exports(root: &Path) -> BTreeMap<String, String> {
                 })
                 .map(|id| id * 10000)
                 .unwrap_or(0);
-            mios_resolver::emit::build_exports_map(&merged, offset)
+            let mut map = mios_resolver::emit::build_exports_map(&merged, offset);
+            overlay_env(&mut map);
+            map
         }
         Err(e) => {
             eprintln!(
                 "mios-render-quadlets: WARNING: SSOT exports unavailable ({e}); \
                  placeholders will be reported unresolved rather than blanked"
             );
-            BTreeMap::new()
+            let mut map = BTreeMap::new();
+            overlay_env(&mut map);
+            map
+        }
+    }
+}
+
+/// A non-empty `MIOS_*` in the process environment outranks the SSOT, which is
+/// how an operator override reaches the bake. Only `MIOS_*`: anything else is
+/// not ours to substitute.
+fn overlay_env(map: &mut BTreeMap<String, String>) {
+    overlay_from(map, std::env::vars())
+}
+
+/// Split out so the predicate itself is testable: a test that inserted into the
+/// map by hand would assert its own arrangement, not this.
+fn overlay_from<I>(map: &mut BTreeMap<String, String>, vars: I)
+where
+    I: IntoIterator<Item = (String, String)>,
+{
+    for (k, v) in vars {
+        if k.starts_with("MIOS_") && !v.is_empty() {
+            map.insert(k, v);
         }
     }
 }
@@ -443,6 +468,40 @@ mod tests {
             "[Service]\nEnvironmentFile=-/etc/mios/install.env\nExecStart=/bin/true ${MIOS_X}\n";
         let out = render_file(unit, &cfg(), &ssot(&[("MIOS_X", "9")]));
         assert!(!out.changed, "{}", out.rendered);
+    }
+
+    fn vars(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    /// The env layer used to live inside the expander, reading std::env::var
+    /// directly. Moving it to the caller is only safe if it still outranks the
+    /// SSOT, exercised here through the real predicate rather than simulated.
+    #[test]
+    fn a_non_empty_env_var_outranks_the_ssot() {
+        let mut map = ssot(&[("MIOS_PORT_FIXTURE_ONLY", "1111")]);
+        overlay_from(&mut map, vars(&[("MIOS_PORT_FIXTURE_ONLY", "2222")]));
+        let out = render_file("ListenStream=${MIOS_PORT_FIXTURE_ONLY}\n", &cfg(), &map);
+        assert!(out.rendered.contains("2222"), "{}", out.rendered);
+    }
+
+    /// Empty and unset are the same thing here, which is why the guard exists.
+    #[test]
+    fn an_empty_env_var_does_not_shadow_the_ssot() {
+        let mut map = ssot(&[("MIOS_PORT_FIXTURE_ONLY", "1111")]);
+        overlay_from(&mut map, vars(&[("MIOS_PORT_FIXTURE_ONLY", "")]));
+        assert_eq!(Some(&"1111".to_string()), map.get("MIOS_PORT_FIXTURE_ONLY"));
+    }
+
+    /// A non-MIOS_ export is not ours and must never enter the map.
+    #[test]
+    fn a_non_mios_env_var_is_not_overlaid() {
+        let mut map = ssot(&[]);
+        overlay_from(&mut map, vars(&[("PATH", "/nope"), ("WORKER_MODEL", "x")]));
+        assert!(map.is_empty(), "{map:?}");
     }
 
     #[test]
