@@ -270,8 +270,8 @@ check_hint_coverage() {
     local tool="$ROOT/usr/libexec/mios/mios-ai-hint-coverage"
     _need_python || return 0
     if [[ ! -f "$tool" ]]; then
-        echo "[98-drift-checks]   WARNING: mios-ai-hint-coverage not found" >&2
-        return 0
+        _violation "usr/libexec/mios/mios-ai-hint-coverage absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     if python3 "$tool" --root "$ROOT"; then
         echo "[98-drift-checks]   AI-hint coverage within ratchet ceiling"
@@ -580,8 +580,8 @@ check_no_hardcode() {
     _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/mios-hardcode-lint"
     if [[ ! -f "$tool" ]]; then
-        echo "[98-drift-checks]   WARNING: mios-hardcode-lint not found" >&2
-        return 0
+        _violation "usr/libexec/mios/mios-hardcode-lint absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     if python3 "$tool" "$ROOT" >/dev/null 2>"$ROOT/.nohc.err"; then
         rm -f "$ROOT/.nohc.err" 2>/dev/null || true
@@ -597,8 +597,8 @@ check_no_hardcode_version() {
     _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/mios-version-lint"
     if [[ ! -f "$tool" ]]; then
-        echo "[98-drift-checks]   WARNING: mios-version-lint not found" >&2
-        return 0
+        _violation "usr/libexec/mios/mios-version-lint absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     if MIOS_TOML_ROOT="$ROOT" python3 "$tool" "$ROOT" >/dev/null 2>"$ROOT/.nohc_ver.err"; then
         rm -f "$ROOT/.nohc_ver.err" 2>/dev/null || true
@@ -1849,8 +1849,8 @@ check_toml_projection() {
     _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/mios-sync-toml"
     if [[ ! -f "$tool" ]]; then
-        echo "[98-drift-checks]   WARNING: mios-sync-toml not found" >&2
-        return 0
+        _violation "usr/libexec/mios/mios-sync-toml absent -- a tracked deliverable is missing, so this check cannot run"
+        return
     fi
     if python3 "$tool" --check >/dev/null 2>"$ROOT/.synctoml.err"; then
         rm -f "$ROOT/.synctoml.err" 2>/dev/null || true
