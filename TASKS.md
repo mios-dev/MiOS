@@ -1049,6 +1049,7 @@
 | T-1061 | P2 | planned | SSOT/Law7 | GPUSSOT-01 -- [gpu].device models one vendor while mios-gpu-passthrough hardcodes three; its only code consumer was stage 34's deleted allowlist |
 | T-1062 | P1 | planned | Gates/Honesty | TWINFIX-01 -- check_resolver_twin_parity's fixture holds three MIOS_AI_* values with no ${...} in any of them, so it cannot fail on cross-reference handling; it missed the shell binding exporting literals (5efe9e70) |
 | T-1063 | P2 | planned | Gates/Honesty | TWINSERIAL-01 -- the 12 residual resolver value divergences are all list-of-table: Python emits a Python repr ({'ordinal': '01'}), Rust emits TOML inline-table syntax ({ ordinal = "01" }); same data, two serializations, and the ceiling sits exactly at 12 with no headroom |
+| T-1064 | P1 | planned | Security/Secrets | CREDBAKE-01 -- T-175's check_credential_literals scans the PRE-RENDER source, where mios-agents.service:28 `--env PASSWORD=${MIOS_DEFAULT_PASSWORD}` is exempt as ${VAR} indirection. Whether it STAYS indirection at bake rests on declares_unit_environment, a structural inference: MIOS_DEFAULT_PASSWORD resolves to the real value "mios" in the exports map, so if that unit ever stops declaring [Service] Environment= the renderer bakes a credential into a world-readable unit and gate 162 never sees the baked output. Register the protection in SSOT instead of inferring it, and/or run the literal gate over rendered output |
 
 ---
 

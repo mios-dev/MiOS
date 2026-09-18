@@ -139,12 +139,41 @@ where
     }
 }
 
-/// A unit declaring Environment=/EnvironmentFile= owns its Exec refs (T-1040).
+/// A unit declaring Environment=/EnvironmentFile= **in `[Service]`** owns its
+/// Exec refs (T-1040).
+///
+/// The section is the whole point. In a `.container` Quadlet,
+/// `[Container] Environment=` becomes podman's `--env`: it populates the
+/// environment INSIDE the container and has no bearing on how systemd expands
+/// `${VAR}` in the generated unit's Exec lines. Only `[Service]` gives systemd
+/// something to expand against. Scanning the file without regard to section
+/// therefore granted runtime ownership on the strength of a directive that
+/// cannot confer it -- six shipped units declare env solely in `[Container]`
+/// (mios-k3s, mios-node, mios-guacamole, mios-otelcol, mios-forgejo-runner and
+/// mios-llm-worker@), and each would have had any Exec placeholder left
+/// unbaked, to be expanded at runtime from an environment that never contains
+/// it. Latent only because none of the six currently carries a `${MIOS_*}` on a
+/// runtime-ref directive; mios-k3s.container comes closest, and its placeholder
+/// sits on `Image=`, which is not one.
+///
+/// Every runtime_ref_directive is an `Exec*`, and those live only in
+/// `[Service]`, so requiring the declaration to share that section is enough.
 fn declares_unit_environment(content: &str) -> bool {
-    content.lines().any(|l| {
-        let t = l.trim_start();
-        t.starts_with("Environment=") || t.starts_with("EnvironmentFile=")
-    })
+    let mut in_service = false;
+    for line in content.lines() {
+        let t = line.trim();
+        if t.starts_with('[') && t.ends_with(']') {
+            in_service = t == "[Service]";
+            continue;
+        }
+        if !in_service {
+            continue;
+        }
+        if t.starts_with("Environment=") || t.starts_with("EnvironmentFile=") {
+            return true;
+        }
+    }
+    false
 }
 
 fn directive_of(line: &str) -> Option<&str> {
@@ -537,5 +566,39 @@ mod tests {
         std::fs::write(d.path().join(SSOT), "[[[not toml").unwrap();
         let e = load_config(d.path()).expect_err("must refuse");
         assert!(e.contains("did not parse"), "{e}");
+    }
+
+    /// The shape of every shipped .container that declares env: podman's
+    /// --env, which systemd never expands Exec lines against. Under the old
+    /// file-wide scan this returned true.
+    #[test]
+    fn container_environment_does_not_confer_runtime_ownership() {
+        let unit = "[Unit]\nDescription=x\n\n[Container]\nImage=example\nEnvironment=FOO=bar\n\n[Install]\nWantedBy=default.target\n";
+        assert!(!declares_unit_environment(unit));
+    }
+
+    #[test]
+    fn service_environment_does_confer_runtime_ownership() {
+        let unit = "[Unit]\nDescription=x\n\n[Service]\nEnvironment=FOO=bar\nExecStart=/bin/true\n";
+        assert!(declares_unit_environment(unit));
+        let file = "[Unit]\nDescription=x\n\n[Service]\nEnvironmentFile=-/etc/mios/install.env\nExecStart=/bin/true\n";
+        assert!(declares_unit_environment(file));
+    }
+
+    /// mios-pgvector.container's shape: env in BOTH sections, ExecStartPost in
+    /// [Service]. Scoping must not cost it the protection it has earned.
+    #[test]
+    fn service_environment_still_counts_when_container_also_declares_one() {
+        let unit = "[Container]\nEnvironment=IN_CONTAINER=1\n\n[Service]\nEnvironment=FOO=bar\nExecStartPost=/bin/true\n";
+        assert!(declares_unit_environment(unit));
+    }
+
+    /// A [Service] that declares nothing must not inherit ownership from a
+    /// [Container] block that appears BEFORE it -- the section state has to be
+    /// reset on every header, not latched on the first match.
+    #[test]
+    fn a_later_service_section_does_not_inherit_an_earlier_container_env() {
+        let unit = "[Container]\nEnvironment=FOO=bar\n\n[Service]\nExecStart=/bin/true\n";
+        assert!(!declares_unit_environment(unit));
     }
 }
