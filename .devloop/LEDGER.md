@@ -636,3 +636,47 @@ as T-1061 rather than added to the shrink-only register, which would re-hide it.
 one recursive expander serves both. The renderer's `declares_unit_environment`
 should also require `[Service]` scope, and protection should be SSOT-registered
 rather than inferred.
+
+## CI confirms the regression is closed — and what T-1060 will cost
+
+**Verified in CI on `563b4e50`** (job 105428037537), matching the local run from a
+clean tree: **8 failing negative tests** — the standing 7 plus
+`test_no_inert_ssot_tables`, which is `[gpu]` deliberately red under T-1061. No
+"mutation left behind" line, no leaked artefact, `Test_bake_plan negative test
+passed`, and neither `check_render_quadlets` nor `check_bake_plan` reported "not
+built", so the CI build line took effect.
+
+Not claimed: the `FAIL: N drift violation` count. That line was outside the log
+slice I read; the negative-test set is the sharper signal and it matched exactly.
+
+**The seven-push blackout is also closed.** `mergeable_state: dirty` prevented
+GitHub computing a merge ref, so the `pull_request` event produced no run at all
+and only CodeQL reported. Merging `origin/main` restored it. Worth remembering as
+a failure mode: a gate that is *absent* looks exactly like a gate that is quiet.
+
+**T-1060 scoping, before anyone starts it.** The root fix is to expand
+cross-references where the exports map is built
+(`mios-resolver::emit::build_exports_map`), so `MIOS_AI_ENDPOINT` resolves to
+`http://localhost:8700/v1` rather than carrying a literal `${MIOS_PORT_AGENT_PIPE}`.
+That is the same missing capability as T-1040, so `mios-render-quadlets`'s
+`expand.rs` is the engine to reuse rather than a second implementation.
+
+Three consequences to plan for rather than discover:
+
+1. **Law 13 twin parity.** `system-sync-env.sh` resolves through the *Python*
+   side (`usr/lib/mios/userenv.sh` -> `mios_toml.py`), so the expansion must land
+   in BOTH resolvers or `check_resolver_twin_parity` fails.
+2. **~100 emitted values change.** That is how many entries in the tracked
+   `env-baseline.txt` carry an unresolved `${...}` today. Every derived surface
+   that reads them re-projects: globals.sh, globals.ps1, the env baseline itself.
+3. **The value-duplication ratchet will move, direction unknown.** It already
+   sits at 411 groups against a ceiling of 407. Expanding a value can make it
+   collide with an existing one and form a NEW duplicate group -- so the fix may
+   push a shrink-only ratchet further over its ceiling. **Unmeasured.** Measure
+   it before writing code, because the answer decides whether T-1060 is one
+   commit or two.
+
+**Then:** `emit()` must fail rather than `return 0` on a reject, and
+`99-postcheck.sh:519` must stop discarding stderr with `2>/dev/null`. Arming that
+turns the bake red on 7 variables the moment it lands, which is why the expander
+goes first and the gate goes green in the same commit.
