@@ -680,3 +680,98 @@ Three consequences to plan for rather than discover:
 `99-postcheck.sh:519` must stop discarding stderr with `2>/dev/null`. Arming that
 turns the bake red on 7 variables the moment it lands, which is why the expander
 goes first and the gate goes green in the same commit.
+
+---
+
+## The expander landed, then had to be moved one layer down
+
+`724f2f1a` put `resolve_cross_references` inside `build_exports_map`, the shared
+builder behind every Rust emitter. That was one place too early, and it took two
+commits to unpick.
+
+**What the CI failure actually was.** `drift-gate` on `13c18843` did not reach the
+drift checks at all. It died in `sync-generated`: `ROADMAP.md` carried `26k` Rust
+lines against a tree that renders `27k`. `724f2f1a` already had the right value,
+so pushing closed it -- re-running the generator here confirmed `ROADMAP.md` is
+not in the diff. **The lesson is the one already written above: read the job log.
+"Expected standing red" was wrong twice now, and both times the real failure was
+in an earlier step than the one assumed.**
+
+**The parity regression.** Local drift reported **31** violations, not the
+baseline 20. Eleven of them were one check:
+`check_resolver_differential_parity`, value divergence **103 vs ceiling 12**.
+
+The cause was a third emitter nobody had counted. The gate compares
+`mios-resolver --emit=json` against `tools/render-globals.py build_exports()` --
+NOT `mios_toml.py`, the resolver Law 13 names. `build_exports()` renders
+`automation/lib/globals.{sh,ps1}`, which bash and PowerShell expand at source
+time, and keeping `${MIOS_PORT_AGENT_PIPE}` live there is the feature. Measured
+on the tracked artifact:
+
+    MIOS_PORT_AGENT_PIPE=9999; . automation/lib/globals.sh
+    -> MIOS_AI_ENDPOINT=http://localhost:9999/v1
+
+So the 91 new "mismatches" were never disagreements. They were the same values
+written two correct ways, and the gate was comparing a lazy representation
+against a baked one.
+
+**Where expansion belongs:** in the emitters whose reader cannot expand --
+`emit_json`, `emit_install_env`, and (see below) `emit_shell` and `emit_ps`.
+Not in the shared builder, because `mios-render-quadlets` and `mios-bake-plan`
+use that map as a lookup for `expand()`, which already recurses to MAX_DEPTH.
+Confirmed by test, not by argument: those two crates pass 13/13 and 4/4 with the
+raw map restored.
+
+## The defect the split uncovered
+
+`usr/lib/mios/userenv.sh` resolves in three tiers and evals whichever answers
+first; tier 1 is `mios-resolver --emit=shell`. `emit_shell` renders every value
+through `shlex_quote`, which single-quotes anything containing `$` -- and bash
+does not expand inside single quotes. Measured before the fix:
+
+    tier 1 (native)  -> MIOS_AI_ENDPOINT=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1
+    tier 3 (python)  -> MIOS_AI_ENDPOINT=http://localhost:8700/v1
+
+A host WITH the native binary -- the intended configuration -- exported the
+literal text. Law 5 routes every agent through `MIOS_AI_ENDPOINT`. `emit_ps` has
+the same shape, since a PowerShell single-quoted string does not interpolate
+either.
+
+This is pre-existing, not a regression: `724f2f1a` had been masking it by
+accident, and putting expansion back in the right place re-exposed it. **A bug
+hidden by a second bug is still shipping.**
+
+**Why it shipped:** no gate compares the shell binding's VALUES to anything.
+`check_resolver_differential_parity` reads only `--emit=json`.
+`check_resolver_twin_parity` builds its fixture from three `MIOS_AI_*` values
+with no `${...}` in any of them, so it cannot fail on the property it is named
+for. `test_cli_emit_shell_snapshot` passed throughout. Filed as **T-1062**.
+
+## Standing baselines, re-measured on this head
+
+| tier | result |
+|---|---|
+| `98-drift-checks.sh` | 20 violations from 7 checks -- baseline, count-for-count |
+| `drift-gate-negatives.sh` | 8 failures, fixture clean |
+| `run-suites.sh lint` | 6 passed, 0 failed |
+| `run-suites.sh unit` | 573 passed, 0 failed |
+| resolver + dependents | 78 passed, 0 failed; clippy clean at pinned 1.98.0 |
+
+The local toolchain is now **1.98.0, matching `rust-toolchain.toml`** -- T-1059
+working as intended, so local clippy is CI's clippy.
+
+## Two things still open, unchanged by this work
+
+1. **The 5 whitespace-caused drops** (`MIOS_USER_FULLNAME`,
+   `MIOS_A2O_LANE_B_MODEL`, `MIOS_A2O_CLAUDE_EFFORT_FLAG`,
+   `MIOS_A2O_LANE_A_ROLE`, `MIOS_A2O_LANE_B_ROLE`). Arming the emit() gate now
+   turns the bake red on all 5, so "arm it in the same commit so it goes green"
+   does not hold. Recommendation stands: declare them explicitly non-bare with
+   reasons, and make any OTHER drop fatal.
+2. **`value-dup-baseline.tsv`** -- 48 entries changed, no generator, no
+   `--write` mode; needs hand-replaced rows plus the ceiling 407 -> 406.
+
+**T-1063** notes the residual 12 divergences are all one shape: Python emits a
+Python repr for list-of-table values, Rust emits TOML inline-table syntax. The
+ceiling is 12 and the measurement is 12 -- no headroom, so the next such key
+fails the gate.
