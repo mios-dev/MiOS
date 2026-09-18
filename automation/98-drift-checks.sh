@@ -709,28 +709,33 @@ emit("SSOT_SQLITE_VEC", str(mem.get("sqlite_vec_enable", False)).lower())
     echo "[98-drift-checks]   [converge] SSOT values validated (retention=${cold_retention_days}d zstd=${cold_zstd_level} retire_alt=${retire_alt})"
 }
 
+# --- Hummingbird distroless Containerfile and Quadlet conform when the feature is enabled ---
 check_hummingbird() {
     local distroless_enable="${MIOS_CONV_IMAGE_DISTROLESS_ENABLE:-false}"
     local rechunk_enable="${MIOS_CONV_IMAGE_RECHUNK_ENABLE:-false}"
     local containerfile="Containerfile.hummingbird"
     local quadlet="usr/share/containers/systemd/mios-agent-pipe.container"
 
+    # With the feature off and its Containerfile never authored, every branch
+    # below is skipped, so report that rather than a validated configuration.
+    if [[ "$distroless_enable" != "true" && "$rechunk_enable" != "true" && ! -f "$containerfile" ]]; then
+        echo "[98-drift-checks]   Hummingbird distroless off ([conv.image].distroless_enable=false) and $containerfile absent -- nothing examined"
+        return 0
+    fi
+
     if [[ "$distroless_enable" == "true" ]]; then
         if [[ ! -f "$containerfile" ]]; then
-            echo "[98-drift-checks] VIOLATION: distroless_enable=true but $containerfile is missing" >&2
-            VIOLATIONS=$((VIOLATIONS + 1))
+            _violation "distroless_enable=true but $containerfile is missing"
             return 1
         fi
 
         if [[ ! -f "$quadlet" ]]; then
-            echo "[98-drift-checks] VIOLATION: Quadlet definition $quadlet is missing" >&2
-            VIOLATIONS=$((VIOLATIONS + 1))
+            _violation "Quadlet definition $quadlet is missing"
             return 1
         fi
 
         if ! grep -q "Environment=MIOS_AI_ENDPOINT=" "$quadlet"; then
-            echo "[98-drift-checks] VIOLATION: Quadlet $quadlet is missing Environment=MIOS_AI_ENDPOINT" >&2
-            VIOLATIONS=$((VIOLATIONS + 1))
+            _violation "Quadlet $quadlet is missing Environment=MIOS_AI_ENDPOINT"
             return 1
         fi
     fi
@@ -744,8 +749,7 @@ check_hummingbird() {
         fi
 
         if ! grep -F "FROM $expected_base" "$containerfile" >/dev/null 2>&1; then
-            echo "[98-drift-checks] VIOLATION: Containerfile.hummingbird base image does not match distroless_base" >&2
-            VIOLATIONS=$((VIOLATIONS + 1))
+            _violation "Containerfile.hummingbird base image does not match distroless_base"
             return 1
         fi
 
@@ -753,29 +757,26 @@ check_hummingbird() {
         final_stage=$(awk '/^FROM/ { stage="" } { stage=stage "\n" $0 } END { print stage }' "$containerfile")
 
         if echo "$final_stage" | grep -F "/bin/bash" >/dev/null; then
-            echo "[98-drift-checks] VIOLATION: Containerfile.hummingbird final stage contains /bin/bash" >&2
-            VIOLATIONS=$((VIOLATIONS + 1))
+            _violation "Containerfile.hummingbird final stage contains /bin/bash"
             return 1
         fi
 
         local user_line
         user_line=$(echo "$final_stage" | grep -E '^\s*USER\s+' | tail -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
         if [[ "$user_line" != "USER 65534" && "$user_line" != "USER 65534:65534" ]]; then
-            echo "[98-drift-checks] VIOLATION: Containerfile.hummingbird final stage USER is not 65534 or 65534:65534" >&2
-            VIOLATIONS=$((VIOLATIONS + 1))
+            _violation "Containerfile.hummingbird final stage USER is not 65534 or 65534:65534"
             return 1
         fi
     fi
 
     if [[ "$rechunk_enable" == "true" ]]; then
         if ! command -v rpm-ostree >/dev/null 2>&1; then
-            echo "[98-drift-checks] VIOLATION: rechunk_enable=true but rpm-ostree binary not found in PATH" >&2
-            VIOLATIONS=$((VIOLATIONS + 1))
+            _violation "rechunk_enable=true but rpm-ostree binary not found in PATH"
             return 1
         fi
     fi
 
-    echo "[98-drift-checks]   Hummingbird distroless and Quadlet configuration is valid"
+    echo "[98-drift-checks]   Hummingbird distroless Containerfile and Quadlet conform"
 }
 
 check_container_ports() {
@@ -786,10 +787,9 @@ check_container_ports() {
         echo "[98-drift-checks]   no manual port literals in container definitions"
         rm -f "$tmp"
     else
-        echo "[98-drift-checks] VIOLATION: manual port literal found in container Quadlets" >&2
+        _violation "manual port literal found in container Quadlets"
         cat "$tmp" >&2
         rm -f "$tmp"
-        VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
 }
@@ -4032,11 +4032,13 @@ check_resolver_ps_equivalence() {
     fi
 }
 
-# --- Rust workspace cargo-deny advisories, licenses, and bans pass clean ---
+# --- tools/native/deny.toml supply-chain policy is present ---
 check_cargo_deny() {
-    echo "[98-drift-checks] Rust workspace cargo-deny advisories, licenses, and bans pass clean"
+    # Presence of the policy file is the whole assertion: no step in this
+    # repo runs it, so advisories, licenses and bans stay unenforced.
+    echo "[98-drift-checks] tools/native/deny.toml supply-chain policy is present"
     if [[ -f "$ROOT/tools/native/deny.toml" ]]; then
-        echo "[98-drift-checks]   tools/native/deny.toml supply-chain policy present"
+        echo "[98-drift-checks]   tools/native/deny.toml present -- the policy is NOT executed, so advisories/licenses/bans stay unenforced"
     else
         _violation "tools/native/deny.toml missing"
     fi
