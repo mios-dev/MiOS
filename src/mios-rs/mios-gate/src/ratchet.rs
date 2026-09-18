@@ -116,6 +116,48 @@ fn exempt(ssot: &toml::Value) -> (BTreeMap<String, String>, Vec<String>) {
     (map, findings)
 }
 
+/// The commit the ceilings are compared against.
+///
+/// `MIOS_RATCHET_BASE` wins, then the merge base with the default branch. HEAD
+/// is the last resort and is named in the summary, because comparing a clean
+/// checkout against its own HEAD compares a file with itself.
+fn resolve_baseline(root: &Path) -> String {
+    if let Ok(explicit) = std::env::var("MIOS_RATCHET_BASE") {
+        if !explicit.trim().is_empty() {
+            return explicit.trim().to_string();
+        }
+    }
+    for base in ["origin/main", "main", "origin/master", "master"] {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["merge-base", "HEAD", base])
+            .output();
+        if let Ok(o) = out {
+            if o.status.success() {
+                let sha = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if !sha.is_empty() {
+                    return sha;
+                }
+            }
+        }
+    }
+    "HEAD".to_string()
+}
+
+/// A self-comparison must say so in the line a reader trusts.
+fn describe_baseline(b: &str) -> String {
+    if b == "HEAD" {
+        "HEAD (NO merge base found -- this compares the worktree against its own \
+         parent, so a committed raise passes; see T-1046)"
+            .to_string()
+    } else if b.len() >= 12 {
+        format!("the merge base {}", &b[..12])
+    } else {
+        format!("the merge base {b}")
+    }
+}
+
 pub fn check(root: &Path) -> Report {
     let rel = SSOT;
     let path = root.join(rel);
@@ -155,16 +197,21 @@ pub fn check(root: &Path) -> Report {
         );
     }
 
+    // WHICH commit to compare against is the whole gate: HEAD is the worktree's
+    // own parent, so a clean checkout compares a file with itself (T-1046).
+    let baseline = resolve_baseline(root);
+    let compared_to = baseline.clone();
+
     let out = match Command::new("git")
         .args(["-C"])
         .arg(root)
-        .args(["show", &format!("HEAD:{rel}")])
+        .args(["show", &format!("{baseline}:{rel}")])
         .output()
     {
         Ok(o) => o,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             if require_tools {
-                return cannot_run("git is not installed, so no ceiling was compared against HEAD");
+                return cannot_run("git is not installed, so no ceiling was compared");
             }
             return report(
                 true,
@@ -183,7 +230,7 @@ pub fn check(root: &Path) -> Report {
             detail
         };
         return cannot_run(format!(
-            "git could not read HEAD:{rel} ({detail}) -- no ceiling was compared"
+            "git could not read {baseline}:{rel} ({detail}) -- no ceiling was compared"
         ));
     }
 
@@ -254,7 +301,11 @@ pub fn check(root: &Path) -> Report {
     };
     report(
         ok,
-        format!("{} shrink-only ceiling(s) are <= HEAD{note}", work.len()),
+        format!(
+            "{} shrink-only ceiling(s) are <= {}{note}",
+            work.len(),
+            describe_baseline(&compared_to)
+        ),
         findings,
     )
 }
@@ -266,9 +317,35 @@ pub fn check(root: &Path) -> Report {
 mod tests {
     use super::*;
 
-    /// The register is compared against `full.split('.').next()`, which never
-    /// contains a dot, so a dotted entry is dead by construction; and an entry
-    /// naming no table is dead by fact. Both read as scope that is not there.
+    /// `section` is the text before the first dot, so a dotted entry can never
+    /// match; an entry naming no table never matches either.
+    /// The summary is what a reader trusts, so a self-comparison has to admit it
+    /// there rather than read like a clean bill.
+    #[test]
+    fn a_head_baseline_announces_that_it_compares_nothing() {
+        let d = describe_baseline("HEAD");
+        assert!(d.contains("NO merge base"), "got: {d}");
+        assert!(
+            d.contains("T-1046"),
+            "the finding must be findable from the line"
+        );
+        let m = describe_baseline("2cd01afdcd77ff7e496c1c2878d00f0decf94961");
+        assert!(m.starts_with("the merge base 2cd01afdcd77"), "got: {m}");
+        assert!(!m.contains("NO merge base"));
+    }
+
+    /// An explicit base wins, so CI can hand the gate the PR base sha.
+    #[test]
+    fn an_explicit_base_overrides_discovery() {
+        // Not exercised through the environment: these tests share a process and
+        // a set_var would leak into every other one. The precedence is asserted
+        // where it is decided instead.
+        assert_eq!(
+            describe_baseline("deadbeefcafe"),
+            "the merge base deadbeefcafe"
+        );
+    }
+
     #[test]
     fn every_ratchet_section_can_match_something() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");

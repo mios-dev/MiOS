@@ -1948,7 +1948,7 @@ check_ratchet_direction() {
         return
     fi
     if "$bin" ratchet-direction --root "$ROOT"; then
-        echo "[98-drift-checks]   shrink-only ratchet ceilings in mios.toml do not exceed HEAD"
+        echo "[98-drift-checks]   shrink-only ratchet ceilings in mios.toml do not exceed the baseline"
     else
         _violation "a shrink-only ratchet ceiling increased in mios.toml, or a generated-budget exemption is not itemised"
     fi

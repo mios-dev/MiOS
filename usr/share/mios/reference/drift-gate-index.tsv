@@ -63,7 +63,7 @@
 62	check_cargo_manifest_generated	tools/native/Cargo.toml equals its generator projection
 63	check_root_toml_subset	no root mios.toml -- subset check not applicable
 64	check_toml_projection	mios.toml derived copies project verbatim from the canonical SSOT
-65	check_ratchet_direction	shrink-only ratchet ceilings in mios.toml do not exceed HEAD
+65	check_ratchet_direction	shrink-only ratchet ceilings in mios.toml do not exceed the baseline
 66	check_size_ceiling	size ceiling
 67	check_toolchain_pin	toolchain pin
 68	check_render_quadlets	render quadlets
