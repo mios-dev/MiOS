@@ -3943,6 +3943,34 @@ test_credential_literals() {
     log "check_credential_literals negative test passed"
 }
 
+test_protected_refs() {
+    log "Testing check_protected_refs"
+    local unit="${ROOT}/usr/lib/systemd/system/mios-agents.service"
+    local backup; backup="$(mktemp)"
+    cp "$unit" "$backup"
+
+    # Remove the SUPPLY, not the reference. ExecStart still carries the bare
+    # ${MIOS_A2O_LANE_B_MODEL} and the unit still declares [Service] env, so the
+    # renderer still protects it -- and now nothing on the host provides it.
+    # That is the shipped state T-1064 found: systemd expands the absent name to
+    # "" and Lane B runs with --model ''.
+    sed -i '/MIOS_A2O_LANE_B_MODEL=\${MIOS_A2O_LANE_B_MODEL:-}/d' "$unit"
+    if ! grep -q 'MIOS_A2O_LANE_B_MODEL}' "$unit"; then
+        cp "$backup" "$unit"; rm -f "$backup"
+        die "check_protected_refs negative test planted nothing -- the ExecStart reference is gone, so the control proves nothing"
+    fi
+    _neg_gate check_protected_refs && { cp "$backup" "$unit"; rm -f "$backup"; die "check_protected_refs passed with a protected ref that nothing supplies"; }
+    case "$_NEG_GATE_OUT" in
+        *MIOS_A2O_LANE_B_MODEL*) ;;
+        *) cp "$backup" "$unit"; rm -f "$backup"
+           die "check_protected_refs failed, but not for the planted name -- it reported: $_NEG_GATE_OUT" ;;
+    esac
+
+    cp "$backup" "$unit"; rm -f "$backup"
+    _neg_gate check_protected_refs || die "check_protected_refs failed after restoration: $_NEG_GATE_OUT"
+    log "check_protected_refs negative test passed"
+}
+
 test_redact_coverage() {
     log "Testing check_redact_coverage"
     local sql="${ROOT}/usr/share/mios/postgres/schema-init.sql"
@@ -4626,6 +4654,7 @@ _run_test test_leaked_fixtures
     _run_test test_manual_ledger
     _run_test test_comment_landing
     _run_test test_credential_literals
+    _run_test test_protected_refs
     _run_test test_redact_coverage
     _run_test test_daemon_governor
     _run_test test_manual_links

@@ -3816,6 +3816,7 @@ main() {
     check_manual_ledger
     check_comment_landing
     check_credential_literals
+    check_protected_refs
     check_redact_coverage
     check_task_schema
     check_daemon_governor
@@ -4513,6 +4514,28 @@ check_credential_literals() {
     fi
     "$bin" credential-literals --root "$ROOT" || \
         _violation "a credential literal is baked into a world-readable systemd unit or Quadlet whose exact path:KEY=VALUE is not on the shrink-only register (Law 11)"
+}
+
+# --- every ref the Quadlet renderer leaves unbaked is actually supplied at runtime ---
+check_protected_refs() {
+    echo "[98-drift-checks] every bare \${MIOS_*} the Quadlet renderer leaves for systemd is supplied by the unit's own Environment= or by install.env"
+    # The renderer decides WHETHER to protect a ref; nothing checked whether the
+    # name can arrive. systemd expands an unset name to empty, so hollow
+    # protection reads exactly like working indirection (T-1064). Scope comes
+    # from [build.quadlet_render], the renderer's own table.
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_protected_refs could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    "$bin" protected-refs --root "$ROOT" || \
+        _violation "a unit leaves a bare \${MIOS_*} for systemd to expand that no Environment= line and no install.env line supplies -- it resolves to the empty string at runtime"
 }
 
 # --- AGY-TASKS task descriptions conform strictly to task schema contract ---

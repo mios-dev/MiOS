@@ -1110,7 +1110,19 @@ ConditionPathExists = "/usr/share/mios/agents/Containerfile"
 [units."mios-agents.service".Service]
 Type = "simple"
 comment = "# systemd does NOT expand bash ${VAR:-default} in ExecStart -- it resolves to\n# empty (code-server then dies \"Invalid URL\"). Set the defaults here; install.env\n# (the mios.toml -> env SSOT bridge) overrides them when present. ExecStart uses\n# plain ${VAR}."
-Environment = ["MIOS_PORT_CODE_SERVER=${MIOS_PORT_CODE_SERVER:-8900}", "MIOS_DEFAULT_PASSWORD=mios"]
+Environment = [
+  "MIOS_PORT_CODE_SERVER=${MIOS_PORT_CODE_SERVER:-8900}",
+  "MIOS_DEFAULT_PASSWORD=mios",
+  # Law 10 keeps these four out of install.env -- a space, parentheses or a
+  # {} placeholder, or an empty value the resolver drops -- while ExecStart
+  # references each BARE, which the renderer leaves for systemd to expand.
+  # Without a supply here systemd expanded all four to the empty string
+  # (T-1064). `mios-gate protected-refs` fails the build on the general case.
+  "\"MIOS_A2O_LANE_B_MODEL=${MIOS_A2O_LANE_B_MODEL:-}\"",
+  "\"MIOS_A2O_CLAUDE_EFFORT_FLAG=${MIOS_A2O_CLAUDE_EFFORT_FLAG:-}\"",
+  "\"MIOS_A2O_AGY_EFFORT_FLAG=${MIOS_A2O_AGY_EFFORT_FLAG:-}\"",
+  "\"MIOS_A2O_GEMINI_EFFORT_FLAG=${MIOS_A2O_GEMINI_EFFORT_FLAG:-}\"",
+]
 EnvironmentFile = "-/etc/mios/install.env"
 TimeoutStartSec = "1200s"
 comment2 = "# Build the local super-container image on first deploy (idempotent no-op after)."
