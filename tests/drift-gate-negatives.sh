@@ -1129,6 +1129,14 @@ EOF
         die "Check_kickstart_shell_syntax passed despite invalid bash syntax in %post"
     fi
 
+    # Deleting the subject is not a pass. Without this the test certified only
+    # that a PRESENT file parses, which is what let the delete case go unseen.
+    rm -f "$cfg"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_kickstart_shell_syntax >/dev/null 2>&1; then
+        echo "$orig_val" > "$cfg"
+        die "Check_kickstart_shell_syntax passed with its tracked subject deleted"
+    fi
+
     rm -f "$cfg"
     echo "$orig_val" > "$cfg"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_kickstart_shell_syntax >/dev/null 2>&1 \
