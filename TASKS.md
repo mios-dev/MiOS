@@ -1047,6 +1047,8 @@
 | T-1059 | P1 | done | Build/Toolchain | TOOLCHAIN-01 -- nothing pins a Rust toolchain; CI lints with whatever the runner ships, and a 1.98 lint killed four pushes that were clean under 1.94 |
 | T-1060 | P0 | planned | Gates/Honesty | BARESAFE-01 -- install.env silently DROPS 7 variables including MIOS_AI_ENDPOINT (Law 5's contract); emit() returns 0 on reject and the gate discards the WARNs with 2>/dev/null |
 | T-1061 | P2 | planned | SSOT/Law7 | GPUSSOT-01 -- [gpu].device models one vendor while mios-gpu-passthrough hardcodes three; its only code consumer was stage 34's deleted allowlist |
+| T-1062 | P1 | planned | Gates/Honesty | TWINFIX-01 -- check_resolver_twin_parity's fixture holds three MIOS_AI_* values with no ${...} in any of them, so it cannot fail on cross-reference handling; it missed the shell binding exporting literals (5efe9e70) |
+| T-1063 | P2 | planned | Gates/Honesty | TWINSERIAL-01 -- the 12 residual resolver value divergences are all list-of-table: Python emits a Python repr ({'ordinal': '01'}), Rust emits TOML inline-table syntax ({ ordinal = "01" }); same data, two serializations, and the ceiling sits exactly at 12 with no headroom |
 
 ---
 
