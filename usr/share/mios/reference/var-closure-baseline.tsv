@@ -40,7 +40,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 415
+#!ceiling 414
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:607
@@ -174,8 +174,7 @@ MIOS_INSTALL_MODE	automation/01-system-files-overlay.sh:171
 MIOS_IPA_AUTOMOUNT	usr/libexec/mios/mios-freeipa-enroll.sh:35
 MIOS_IPA_HOSTNAME	usr/libexec/mios/mios-freeipa-enroll.sh:33
 MIOS_IPA_NTP	usr/libexec/mios/mios-freeipa-enroll.sh:34
-MIOS_IPA_PASSWORD	usr/libexec/mios/mios-freeipa-enroll.sh:26
-MIOS_IPA_PRINCIPAL	usr/libexec/mios/mios-freeipa-enroll.sh:26
+MIOS_IPA_OTP	usr/libexec/mios/mios-freeipa-enroll.sh:38
 MIOS_K3S_FILTER	tools/generate-k3s-manifests.sh:9
 MIOS_K3S_OUT	tools/generate-k3s-manifests.ps1:7
 MIOS_KB_COLLECTION	var/lib/mios/embeddings/ingest_local.py:83

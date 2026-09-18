@@ -211,7 +211,8 @@ identity.ipa.realm  MIOS_IDENTITY_IPA_REALM
 identity.ipa.server  MIOS_IDENTITY_IPA_SERVER
 identity.ipa.domain  MIOS_IDENTITY_IPA_DOMAIN
 identity.ipa.enroll_principal  MIOS_IDENTITY_IPA_ENROLL_PRINCIPAL
-identity.ipa.otp  MIOS_IDENTITY_IPA_OTP
+identity.ipa.otp_file  MIOS_IDENTITY_IPA_OTP_FILE
+identity.ipa.otp_key  MIOS_IDENTITY_IPA_OTP_KEY
 locale.timezone  MIOS_LOCALE_TIMEZONE
 locale.keyboard_layout  MIOS_LOCALE_KEYBOARD_LAYOUT
 locale.language  MIOS_LOCALE_LANGUAGE

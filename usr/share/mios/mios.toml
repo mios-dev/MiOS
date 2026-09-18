@@ -7531,7 +7531,10 @@ realm = "MIOS.INTERNAL"
 server = "ipa.mios.internal"
 domain = "mios.internal"
 enroll_principal = "admin"
-otp = "placeholder-one-time-password"
+# The one-time password is a credential, so the SSOT carries a POINTER to it.
+# A value here is committed to git and projected into a 0644 file (T-1050).
+otp_file = "/etc/mios/secrets.env"
+otp_key = "MIOS_IPA_OTP"
 
 [cockpit]
 allow_unencrypted = true
