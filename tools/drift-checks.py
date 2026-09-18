@@ -3409,38 +3409,54 @@ def check_cli_eval_safety() -> int:
 
     # os.listdir reached only the top level, so a verb backend one directory
     # down was never read for eval at all.
-    if os.path.isdir(dir_to_scan):
-        for dirpath, dirnames, filenames in os.walk(dir_to_scan):
-            dirnames[:] = [d for d in dirnames
-                           if not d.startswith(".") and d not in ("__pycache__", "node_modules")]
-            for fn in filenames:
-                path = os.path.join(dirpath, fn)
-                if not os.path.isfile(path) or fn.endswith((".py", ".pyc", ".json", ".generated")):
-                    continue
-                try:
-                    with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                        first_line = fh.readline()
-                        if not ("bash" in first_line or "sh" in first_line):
-                            continue
-                        fh.seek(0)
-                        lines = fh.readlines()
-                except OSError:
-                    continue
+    if not os.path.isdir(dir_to_scan):
+        print("usr/libexec/mios is absent, so no verb backend was read for eval",
+              file=sys.stderr)
+        return 1
 
-                rel = os.path.relpath(path, dir_to_scan).replace(os.sep, "/")
-                for idx, line in enumerate(lines):
-                    stripped = line.strip()
-                    if stripped.startswith("#"):
+    scanned = 0
+    for dirpath, dirnames, filenames in os.walk(dir_to_scan):
+        dirnames[:] = [d for d in dirnames
+                       if not d.startswith(".") and d not in ("__pycache__", "node_modules")]
+        for fn in filenames:
+            path = os.path.join(dirpath, fn)
+            if not os.path.isfile(path) or fn.endswith((".py", ".pyc", ".json", ".generated")):
+                continue
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                    first_line = fh.readline()
+                    if not ("bash" in first_line or "sh" in first_line):
                         continue
+                    fh.seek(0)
+                    lines = fh.readlines()
+            except OSError:
+                continue
 
-                    code_part = line.split("#")[0].strip()
-                    if re.search(r'\beval\b', code_part):
-                        viol.append(f"{rel}:{idx+1} has eval: {line.strip()}")
+            scanned += 1
+            rel = os.path.relpath(path, dir_to_scan).replace(os.sep, "/")
+            for idx, line in enumerate(lines):
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    continue
+
+                code_part = line.split("#")[0].strip()
+                if re.search(r'\beval\b', code_part):
+                    viol.append(f"{rel}:{idx+1} has eval: {line.strip()}")
+
+    if scanned < 20:
+        print("only %d shell verb backend(s) read under usr/libexec/mios -- the "
+              "corpus is wrong, so an empty result is not a pass" % scanned,
+              file=sys.stderr)
+        return 1
 
     if viol:
         for v in viol:
             sys.stderr.write(f"  {v}\n")
+        sys.stderr.write("  verbs must not eval agent-controlled inputs; a pre-existing "
+                         "safe eval needs a preceding "
+                         "# TD-1: eval-safe, input=<source>, not agent-controlled comment\n")
         return 1
+    print("%d shell verb backend(s) read for eval" % scanned)
     return 0
 
 def check_resolver_ssot_refs() -> int:

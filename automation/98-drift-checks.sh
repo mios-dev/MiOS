@@ -1852,12 +1852,10 @@ check_roadmap_index() {
 
 check_cli_eval_safety() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py cli-eval-safety
-    then
-        echo "[98-drift-checks]   CLI verbs in usr/libexec/mios/ are eval-safe"
-    else
-        _violation "unverified eval in usr/libexec/mios/ -- verbs must not eval agent-controlled inputs; pre-existing safe evals must have a preceding # TD-1: eval-safe, input=<source>, not agent-controlled comment"
-    fi
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py cli-eval-safety 2>&1)" || {
+        _violations_from "" "$out"; return; }
+    echo "[98-drift-checks]   CLI verbs in usr/libexec/mios/ are eval-safe"
+    echo "[98-drift-checks]   ${out}"
 }
 
 check_shellcheck() {
