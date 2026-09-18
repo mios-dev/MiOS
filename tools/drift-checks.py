@@ -2320,9 +2320,14 @@ def check_no_bare_port_literals() -> int:
             self.generic_visit(node)
 
     violations = []
+    scanned = 0
+    missing = [d for d in scan_dirs if not os.path.isdir(d)]
+    if missing:
+        for d in missing:
+            sys.stderr.write("    %s is absent, so no execution path there was scanned\n"
+                             % os.path.relpath(d, root))
+        return 1
     for d in scan_dirs:
-        if not os.path.isdir(d):
-            continue
         for r, ds, fs in os.walk(d):
             for f in fs:
                 if not f.endswith((".py", ".sh", ".ps1")) or "test_" in f:
@@ -2333,6 +2338,7 @@ def check_no_bare_port_literals() -> int:
                 try:
                     with open(path, "r", encoding="utf-8", errors="ignore") as fh:
                         content = fh.read()
+                    scanned += 1
 
                     if f.endswith(".py"):
                         try:
@@ -2374,10 +2380,17 @@ def check_no_bare_port_literals() -> int:
                 except OSError:
                     pass
 
+    if scanned < 100:
+        sys.stderr.write("    only %d execution-path file(s) scanned -- the corpus is "
+                         "wrong, so an empty result is not a pass\n" % scanned)
+        sys.exit(1)
+
     if violations:
         for v in sorted(set(violations)):
             sys.stderr.write(f"    {v}\n")
         sys.exit(1)
+    print("%d execution-path file(s) scanned for %d retired port(s)"
+          % (scanned, len(banned_ports)))
     sys.exit(0)
 
 def check_verb_stub_backends() -> int:

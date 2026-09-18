@@ -797,12 +797,10 @@ check_agent_pipe_budgets() {
 
 check_no_bare_port_literals() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py no-bare-port-literals
-    then
-        echo "[98-drift-checks]   no bare port literals remain in execution paths"
-    else
-        _violation "bare port literals in execution paths"
-    fi
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py no-bare-port-literals 2>&1)" || {
+        _violations_from "" "$out"; return; }
+    echo "[98-drift-checks]   no bare port literals remain in execution paths"
+    echo "[98-drift-checks]   ${out}"
 }
 
 check_dotfiles_projection() {
