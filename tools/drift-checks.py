@@ -1992,7 +1992,7 @@ def check_no_bare_port_literals() -> int:
     if missing:
         for d in missing:
             sys.stderr.write("    %s is absent, so no execution path there was scanned\n"
-                             % os.path.relpath(d, root))
+                             % os.path.relpath(d, root).replace(os.sep, "/"))
         return 1
     for d in scan_dirs:
         for r, ds, fs in os.walk(d):
