@@ -148,10 +148,15 @@ EOF
     [[ -n "${MIOS_PORT_SGLANG:-}" ]] && emit MIOS_AI_HEAVY_ENDPOINT "http://localhost:${MIOS_PORT_SGLANG}/v1"
     [[ -n "${MIOS_PORT_VLLM:-}" ]]   && emit MIOS_AI_HEAVY_ALT_ENDPOINT "http://localhost:${MIOS_PORT_VLLM}/v1"
 
-    # MIOS_PORT_PGVECTOR is bridged too so shell consumers that can't parse TOML
-    for _pk in MIOS_PORT_LLM_LIGHT MIOS_PORT_HERMES MIOS_PORT_AGENT_PIPE MIOS_PORT_PREFILTER MIOS_PORT_OPENCODE MIOS_PORT_PGVECTOR MIOS_PORT_SGLANG MIOS_PORT_VLLM MIOS_PORT_FORGE_HTTP MIOS_FORGE_HTTP_PORT MIOS_PORT_FORGE_SSH MIOS_FORGE_SSH_PORT MIOS_PORT_OPEN_WEBUI MIOS_PORT_CODE_SERVER MIOS_PORT_SEARXNG MIOS_SEARXNG_PORT MIOS_PORT_TTYD_BASH MIOS_PORT_TTYD_POWERSHELL MIOS_PORT_CRAWL4AI MIOS_PORT_FIRECRAWL MIOS_PORT_CPU_NODE MIOS_PORT_OSCONTROL MIOS_PORT_COCKPIT MIOS_PORT_COCKPIT_LINK; do
+    # Every MIOS_PORT_* the resolver produced, enumerated rather than re-typed.
+    # The hand-typed list here named 20 of 46; stage 35 writes all of them and
+    # this script replaces that whole file at deploy, so 26 vanished -- one the
+    # port hermes-dashboard.service reads bare (T-1067). The three legacy
+    # *_PORT aliases carry no prefix, so they stay named.
+    _port_names="$( { compgen -v MIOS_PORT_ || true; } | sort )"
+    for _pk in ${_port_names} MIOS_FORGE_HTTP_PORT MIOS_FORGE_SSH_PORT MIOS_SEARXNG_PORT; do
         _pv="${!_pk:-}"
-        if [[ -n "$_pv" ]]; then emit ${_pk} "${_pv}"; fi
+        if [[ -n "$_pv" ]]; then emit "${_pk}" "${_pv}"; fi
     done
 
     for _tk in MIOS_TTYD_BASH_SHELL MIOS_TTYD_POWERSHELL_SHELL MIOS_TTYD_BIND MIOS_TTYD_REQUIRE_AUTH MIOS_TTYD_AUTH_USER MIOS_TTYD_AUTH_PASS MIOS_TTYD_SSL_CERT MIOS_TTYD_SSL_KEY MIOS_TTYD_WRITABLE MIOS_TTYD_MAX_CLIENTS MIOS_TTYD_FONT_SIZE; do
