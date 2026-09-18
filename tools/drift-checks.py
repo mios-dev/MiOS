@@ -319,9 +319,14 @@ def check_legibility_ratchet() -> int:
                                if r.endswith((".ps1", ".psm1")) and not _is_generated(r)]),
         # ADR-0021. Law 14 keeps the AI plane in Python, so it is exempt by
         # prefix from SSOT rather than by a list baked in here.
+        # A sibling unit test is not tooling to port. Counting them made this
+        # ratchet pull against check_module_test_coverage the same way
+        # max_libexec_verbs did below, and 36% of what it measured was test
+        # code. Floor re-baselined down by what the exclusion removes (T-1044).
         "max_tooling_python_lines": lines([
             r for r in rels
             if r.endswith(".py") and not _is_generated(r)
+            and not _TEST_BASENAME.match(r.rsplit("/", 1)[-1])
             and not any(r.startswith(pfx) for pfx in _ai_plane)]),
         "max_automation_phases": len([r for r in rels if r.startswith("automation/")
                                       and r.endswith(".sh") and r[11:13].isdigit()]),

@@ -1029,7 +1029,7 @@
 | T-1041 | P1 | planned | Build/Firewall | FIREWALL-01 -- a malformed or absent [firewall] table silently opens a hardcoded wrong port set, and an unbound var aborts the tier mid-sequence |
 | T-1042 | P1 | done | AI-Plane/DB | BACKFILL-01 -- check_backfill_coverage fails at every bake and was invisible under 55 checks that could not fail |
 | T-1043 | P2 | partial | Gates/Honesty | PIPENUM-01 -- check_pipeline_numbering reports PASS against a root that does not exist |
-| T-1044 | P2 | planned | Gates/Ratchets | PYTEST-01 -- the tooling-Python ratchet sits at its measurement, so a new Python TEST cannot be added at all |
+| T-1044 | P2 | done | Gates/Ratchets | PYTEST-01 -- the HEADLINE was stale (the gate had 304 lines of slack, not zero) but the PREMISE was confirmed and is worse than a blocked test: max_tooling_python_lines declares its subject as "script mass that converts to Rust binaries", and 36% of what it measured was TEST code -- 573 files, 43452 lines -- which is not a port target and which check_module_test_coverage actively demands more of. The two gates pulled against each other, so the cheapest way to stay green was to not write the test. The precedent was already in the SAME function: max_libexec_verbs excludes sibling tests via _TEST_BASENAME with a comment saying exactly this; the Python counter never got it. FIX: apply _TEST_BASENAME to the Python counter and pull the floor to the new measurement, 121210 -> 77454, per the ceiling's own stated convention (never leave slack). A FALL is the allowed ratchet direction. CONTROLS, both with the probe git-add -N'd because the counter censuses git ls-files -- the first attempt planted untracked files and moved the number by ZERO, proving nothing: a 40-line tooling file takes it to 77494 and BITES; a 400-line test file leaves it at 77454. Both arms added to test_legibility_ratchet, which previously exercised only max_shell_lines |
 | T-1045 | P2 | done | Gates/Honesty | STUBPRED-01 -- two checks still claim a verdict after only calling .exists(), and the stub detector counts a path join as reading |
 | T-1046 | P2 | planned | Gates/Ratchets | MERGERATCHET-01 -- a shrink-only ratchet cannot tell "this branch grew" from "the base branch grew and we merged it", so merging main forces a raise it forbids |
 | T-1047 | P2 | done | Gates/Honesty | BUDGETKEYS-01 -- check_agent_pipe_budgets walked a hardcoded 9 of 128 keys and announced it had checked all of them |
@@ -11393,7 +11393,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Done When:** a new Python test can be added without a compensating deletion, OR the decision to forbid that is recorded in SSOT with its reason so nobody rediscovers it.
 **Why:** A gate whose cheapest satisfying move is "write no test" will eventually be satisfied that way.
 **Dep:** --
-**Status:** planned | **Domain:** Gates/Ratchets | **Who:** architect
+**Status:** done | **Domain:** Gates/Ratchets | **Who:** architect
 
 ## T-1045 -- STUBPRED-01: a path join is not a read, and two checks still claim without looking  (WS-DRIFT | P2 | M)
 **Goal:** `mios-gate drift-stubs` classifies a check as implemented if its `run` body mentions `ctx.root` or passes `ctx` onward. That is the third version of this predicate and it is still wrong: `ctx.root.join("x")` builds a PATH, and `.exists()` asks whether a file is there. Neither reads anything. A check can do both and then return a constant `Pass`.

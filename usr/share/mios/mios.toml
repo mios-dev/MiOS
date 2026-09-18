@@ -11325,19 +11325,11 @@ max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are no
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 121210  # -59 across two commits: -56 when
-                                   # check_law_enforcers was ported to mios-gate
-                                   # and its Python twin deleted (ADR-0021,
-                                   # T-1049), then -3 repairing the var-closure
-                                   # scan (T-1052). Pulled to the measurement
-                                   # each time rather than left as slack -- a
-                                   # ceiling above what it measures is headroom
-                                   # nobody earned, and T-1052's repair had to
-                                   # fit inside it rather than ask for room.
-                                   # The pre-T-1049 value carried +15 inherited
-                                   # from merging origin/main @04fd07a4, which
-                                   # the register cannot tell from branch growth
-                                   # -- filed as T-1046.
+max_tooling_python_lines = 77454   # 121210 -> 77454: a sibling unit test is not
+                                   # tooling to port, and 36% of this was test
+                                   # code (T-1044). Pulled to the measurement,
+                                   # never left as slack. Merge inheritance it
+                                   # cannot see: T-1046.
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]

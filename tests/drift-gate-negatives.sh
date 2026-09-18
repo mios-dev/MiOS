@@ -4464,6 +4464,28 @@ test_legibility_ratchet() {
         die "check_legibility_ratchet passed despite 3000 new shell lines"
     fi
     git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
+
+    # The Python arm, both ways. A tooling file must still bite; a sibling unit
+    # test must NOT, or this ratchet pulls against check_module_test_coverage
+    # and the cheapest way to stay green is to not write the test (T-1044).
+    local pytool="${ROOT}/tools/mios-negtest-bulk.py"
+    { for i in $(seq 1 600); do echo "# filler $i"; done; } > "$pytool"
+    git -C "$ROOT" add -f -- "$pytool" >/dev/null 2>&1
+    if _neg_gate check_legibility_ratchet; then
+        git -C "$ROOT" rm -q --cached --force -- "$pytool" >/dev/null 2>&1; rm -f "$pytool"
+        die "check_legibility_ratchet passed despite 600 new tooling-python lines"
+    fi
+    git -C "$ROOT" rm -q --cached --force -- "$pytool" >/dev/null 2>&1; rm -f "$pytool"
+
+    local pytest_probe="${ROOT}/tools/test-mios-negtest-bulk.py"
+    { for i in $(seq 1 600); do echo "# filler $i"; done; } > "$pytest_probe"
+    git -C "$ROOT" add -f -- "$pytest_probe" >/dev/null 2>&1
+    if ! _neg_gate check_legibility_ratchet; then
+        git -C "$ROOT" rm -q --cached --force -- "$pytest_probe" >/dev/null 2>&1; rm -f "$pytest_probe"
+        die "check_legibility_ratchet counted a sibling unit test as tooling: $_NEG_GATE_OUT"
+    fi
+    git -C "$ROOT" rm -q --cached --force -- "$pytest_probe" >/dev/null 2>&1; rm -f "$pytest_probe"
+
     _neg_gate check_legibility_ratchet || die "check_legibility_ratchet failed after restoration"
     log "check_legibility_ratchet negative test passed"
 }
