@@ -1202,6 +1202,35 @@ check_resolver_twin_parity() {
         _violation "a resolver is absent -- a tracked deliverable is missing, so this check cannot run"
         return
     fi
+    # The bash leg must run a DIFFERENT implementation, or this check compares
+    # mios_toml.py against itself. userenv.sh resolves in three tiers -- native
+    # mios-resolver, miosd, then the Python fallback -- and under `env -i` with
+    # no binary on PATH it reached tier 3, so mutating mios_toml.py changed BOTH
+    # legs and they went on agreeing. Proven by mutation: disabling
+    # resolve_cross_references in mios_toml.py left the bash leg emitting
+    # ${MIOS_PORT_AGENT_PIPE} verbatim, and the check still passed (T-1062).
+    #
+    # Locate the native resolver and put it on the fixture's PATH so tier 1
+    # fires. Absent, the comparison is vacuous: fail where the environment
+    # declares tools mandatory, and say plainly what went unverified otherwise.
+    local _nat="" _c
+    # debug BEFORE release, matching check_resolver_differential_parity and what
+    # CI step 3 actually builds. Preferring release picked up a binary older
+    # than the fix under test and reported its staleness as a twin mismatch.
+    for _c in "$ROOT/tools/native/target/debug/mios-resolver" \
+              "$ROOT/tools/native/target/release/mios-resolver" \
+              /usr/libexec/mios/mios-resolver /usr/bin/mios-resolver; do
+        [[ -x "$_c" ]] && { _nat="$_c"; break; }
+    done
+    if [[ -z "$_nat" ]]; then
+        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+            _violation "mios-resolver is not built, so userenv.sh would fall back to mios_toml.py and this check would compare it with itself -- build it: cd tools/native && cargo build -p mios-resolver"
+        else
+            echo "[98-drift-checks]   mios-resolver not built -- twin parity NOT verified (both legs would be mios_toml.py); advisory skip"
+        fi
+        return
+    fi
+
     # `local fix="$(...)"` returns the status of `local`, not of mktemp, so this
     # guard never fired: a failed mktemp left $fix EMPTY and the mkdir below
     # then targeted /vendor.d at the filesystem root. Declare, then assign.
@@ -1212,12 +1241,20 @@ check_resolver_twin_parity() {
         return
     fi
     mkdir -p "$fix/vendor.d" "$fix/.config/mios"
-    printf '[ai]\nendpoint = "http://vendor:1000"\nmodel = "vendor-model"\nembed_model = "vendor-embed"\n' > "$fix/vendor.toml"
+    # [ports].agent_pipe exists so the host layer's endpoint can reference it.
+    # With three plain literals this fixture could not fail on the one input
+    # shape where the twins can disagree, and it ran green through the whole of
+    # 5efe9e70 -- the shell binding exporting ${MIOS_*} as literal text (T-1062).
+    printf '[ports]\nagent_pipe = 8700\n[ai]\nendpoint = "http://vendor:1000"\nmodel = "vendor-model"\nembed_model = "vendor-embed"\n' > "$fix/vendor.toml"
     printf '[ai]\nendpoint = "http://vendor-frag:1050"\n'                                                 > "$fix/vendor.d/50-frag.toml"
-    printf '[ai]\nendpoint = "http://host:2000"\nmodel = "host-model"\n'                                  > "$fix/host.toml"
+    # The cross-reference goes in the WINNING layer. Put on vendor it was
+    # overridden by host and never reached the resolved value, so the fixture
+    # still could not fail -- a repaired check that is still vacuous.
+    printf '[ai]\nendpoint = "http://host:${MIOS_PORT_AGENT_PIPE}"\nmodel = "host-model"\n'                 > "$fix/host.toml"
     printf '[ai]\nmodel = "user-model"\n'                                                                 > "$fix/.config/mios/mios.toml"
     local sel='^MIOS_AI_(ENDPOINT|MODEL|EMBED_MODEL)=' bash_out py_out
-    bash_out="$(env -i PATH="$PATH" HOME="$fix" XDG_CONFIG_HOME="$fix/.config" \
+    mkdir -p "$fix/bin" && ln -sf "$_nat" "$fix/bin/mios-resolver"
+    bash_out="$(env -i PATH="$fix/bin:$PATH" HOME="$fix" XDG_CONFIG_HOME="$fix/.config" \
         MIOS_VENDOR_TOML="$fix/vendor.toml" MIOS_VENDOR_TOML_D="$fix/vendor.d" \
         MIOS_HOST_TOML="$fix/host.toml" MIOS_HOST_TOML_D="$fix/host.d" \
         bash -c ". '$ue' >/dev/null 2>&1; env" 2>/dev/null | grep -E "$sel" | sort)"
@@ -1229,9 +1266,12 @@ check_resolver_twin_parity() {
 import os, sys
 sys.path.insert(0, os.environ["MIOS_ROOT_LIB"])
 import mios_toml
-ai = mios_toml.section(mios_toml.load_merged(), "ai")
-for k in sorted(ai):
-    print("MIOS_AI_" + k.upper().replace("-", "_") + "=" + str(ai[k]))
+# emit_exports() is the resolver Law 13 names. Reading section(load_merged())
+# instead compared the bash RESOLVER against a raw table read -- not twin
+# against twin, which is why no cross-reference could ever disagree here: this
+# leg never ran the code that resolves one.
+for k, v in sorted(mios_toml.emit_exports().items()):
+    print(k + "=" + str(v))
 ' 2>/dev/null | grep -E "$sel" | sort)"
     rm -rf "$fix" 2>/dev/null || true
     # Two empty sets compare equal, and the fixture above sets endpoint,
@@ -1242,7 +1282,9 @@ for k in sorted(ai):
         return
     fi
     if [[ "$bash_out" == "$py_out" ]]; then
-        echo "[98-drift-checks]   resolver twin parity: userenv.sh and mios_toml.py agree on the layered MIOS_AI_* set"
+        # Name both implementations: the old line said "userenv.sh and
+        # mios_toml.py" while both legs were mios_toml.py.
+        echo "[98-drift-checks]   resolver twin parity: userenv.sh via native mios-resolver agrees with mios_toml.py on the layered MIOS_AI_* set"
     else
         # Was a SOFT WARNING with no _violation, so a real disagreement
         # between the twins reported success. Law 13 requires agreement.

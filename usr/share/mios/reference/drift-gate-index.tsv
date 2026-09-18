@@ -46,7 +46,7 @@
 45	check_lint_is_final	all $n root Containerfile(s) end with 'RUN bootc container lint'
 46	check_firstboot_degrade_open	firstboot scripts degrade open on egress failure (Law 12)
 47	check_vendor_urls	no vendor cloud URL in active config
-48	check_resolver_twin_parity	resolver twin parity: userenv.sh and mios_toml.py agree on the layered MIOS_AI_* set
+48	check_resolver_twin_parity	mios-resolver not built -- twin parity NOT verified (both legs would be mios_toml.py); advisory skip
 49	check_resolver_twin_equivalence	resolver twin equivalence: userenv.sh and mios_toml.py are equivalent
 50	check_template_conformance	template conformance: all new files conform to templates
 51	check_kargs_projection	kargs.d managed files match the mios.toml [kargs] projection
