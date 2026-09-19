@@ -1060,6 +1060,24 @@
 | T-1072 | P2 | planned | Build/BakePlan | BAKERETIRE-01 -- the retirement half of T-1057, which needs an explicit yes because every step is a DELETION and no bake has been run on this branch. The two producers render byte-identical output today, so this is about binding the identity, not about correctness: (a) drop stage 85's `elif ! python3 tools/generate-bake-plan.py` fallback so a missing native binary is a hard failure rather than a silent change of program; (b) delete miosd's `BakePlan` subcommand -- the variant, its dispatch arm and run_bake_plan -- which is the last caller of run_repo_generator("tools/generate-bake-plan.py") and is invoked by nothing in automation/, the Justfile or usr/libexec/; (c) repoint the [laws.projection_registry] row's generator to tools/native/mios-bake-plan/src/main.rs, matching the mios-size-ceiling and mios-toolchain-pin rows -- note check_projection_registry only tests that the named file EXISTS, so it cannot detect a wrong-producer row today, which is its own defect; (d) usr/libexec/mios/mios-build-driver invokes the Python with `|| true`, swallowing a failed plan regeneration; (e) git rm tools/generate-bake-plan.py. Do NOT do (a) before (b)-(d), or a tree without the native binary loses its producer entirely |
 | T-1073 | P2 | planned | Gates/CI | RATCHETBASE-01 -- the CI half of T-1046. mios-gate ratchet-direction now compares against the merge base with the default branch, which makes it real on a full clone; .github/workflows/mios-ci.yml uses actions/checkout@v4 with no fetch-depth, so CI has depth 1, no origin/main, no merge base, and the gate falls back to the HEAD self-comparison it has always done. Behaviour is therefore UNCHANGED in CI and the 19-violation baseline is preserved -- but the ratchet is still inert exactly where it matters most. Two ways to wire it, both needing a CI round-trip to verify: set fetch-depth: 0 on the drift-gate job (simple, costs a full clone of a ~200MB tracked tree), or export MIOS_RATCHET_BASE from github.event.pull_request.base.sha plus a targeted `git fetch --depth=1 origin <sha>` so the blob is readable (cheap, PR-only, needs a fallback for push events). Measure the clone cost before choosing |
 | T-1074 | P1 | planned | Docs/Pipeline | DOCREF-01 -- 120 of check_doc_refs_resolve's 124 stale references are FORWARD refs to components and chapters that were never built, not broken links; the check cannot be drained by fixing references |
+| T-1080 | P1 | in-progress | Docs | DOCS-01 -- Clear stale comment references in usr/libexec/mios (srf-libexec) |
+| T-1081 | P1 | in-progress | Docs | DOCS-02 -- Clear stale comment references in usr/lib (srf-lib) |
+| T-1082 | P1 | in-progress | QA | DOCS-03 -- Clear stale comment references in tests/ (srf-tests) |
+| T-1083 | P1 | in-progress | Infra | DOCS-04 -- Clear stale comment references in Rust/generators (srf-native) |
+| T-1090 | P1 | open | Tests | CONSOL -- Fold the empirical-stress serial set |
+| T-1091 | P1 | open | Tests | CONSOL -- Fold tests/ into subject modules |
+| T-1092 | P1 | open | AI plane | CONSOL -- Fold the agent-pipe sibling tests |
+| T-1093 | P2 | open | AI plane | CONSOL -- Fold the agent-pipe modules into planes |
+| T-1094 | P1 | open | Verbs | CONSOL -- Fold usr/libexec/mios by subdirectory |
+| T-1095 | P2 | open | Tooling | CONSOL -- Finish tools/ — the 50 that were not gates |
+| T-1096 | P1 | open | Tests | CONSOL -- Delete or register every orphaned test |
+| T-1097 | P1 | open | Repo | CONSOL -- Delete modules nothing imports |
+| T-1098 | P2 | open | Tests | CONSOL -- Prune snapshots and fixtures with no live consumer |
+| T-1099 | P0 | open | Ratchets | CONSOL -- Ratchets follow the deletions down |
+| T-1100 | P0 | blocked | Git | CONSOL -- Restart the branch from the merged main |
+| T-1101 | P1 | in-progress | Orchestration | CONSOL -- Gate and merge the four AGY stale-ref lanes |
+| T-1102 | P1 | open | Docs | CONSOL -- The comment corpus is blind to the libexec verbs |
+| T-1103 | P2 | open | Docs | CONSOL -- The three standing drift violations |
 
 ---
 
@@ -11735,3 +11753,113 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Why:** an AI-doc header is the contract a module states about where it is explained. 120 of them promise a document that does not exist, and the gate has been read as a link-rot meter when it is actually a build-completeness meter.
 **Dep:** T-1027
 **Status:** planned | **Domain:** Docs/Pipeline | **Who:** architect
+
+## T-1080 -- DOCS-01: Clear stale comment references in usr/libexec/mios (srf-libexec)
+**Goal:** 80 of the 152 stale comment references are in usr/libexec/mios/**. Clear at least 40 of them by correcting the path/unit/verb or removing unresolvable references.
+**Where:** `usr/libexec/mios/**`, `usr/share/mios/reference/manual-corpus.tsv`
+**Done When:** `python3 usr/libexec/mios/mios-manual --root . audit --stale --json` reports stale <= 112.
+**Status:** in-progress | **Domain:** Docs | **Who:** agent
+
+## T-1081 -- DOCS-02: Clear stale comment references in usr/lib (srf-lib)
+**Goal:** 17 of the 152 stale comment references are in usr/lib/**. Clear at least 9 of them.
+**Where:** `usr/lib/**`
+**Done When:** `python3 usr/libexec/mios/mios-manual --root . audit --stale --json` reports stale <= 143.
+**Status:** in-progress | **Domain:** Docs | **Who:** agent
+
+## T-1082 -- DOCS-03: Clear stale comment references in tests/ (srf-tests)
+**Goal:** 41 of the 152 stale comment references are in tests/**. Clear at least 21.
+**Where:** `tests/**`
+**Done When:** `python3 usr/libexec/mios/mios-manual --root . audit --stale --json` reports stale <= 131.
+**Status:** in-progress | **Domain:** QA | **Who:** agent
+
+## T-1083 -- DOCS-04: Clear stale comment references in Rust/generators (srf-native)
+**Goal:** 14 of the 152 stale comment references are in Rust sources and generators. Clear at least 7.
+**Where:** `src/mios-rs/**`, `tools/native/**`, `tools/render-manpages.py`, `usr/share/mios/nix/**`, `usr/share/mios/windows/**`
+**Done When:** `python3 usr/libexec/mios/mios-manual --root . audit --stale --json` reports stale <= 145.
+**Status:** in-progress | **Domain:** Infra | **Who:** agent
+
+## T-1090 -- CONSOL: Fold the empirical-stress serial set
+**Goal:** tests/test-empirical-stress-t5NN-t6NN.py is pure serial numbering. Fold into one module.
+**Where:** `tests/`
+**Done When:** One module, one subcommand or class per former file, identical total test count, and CI suite registry updated.
+**Status:** open | **Domain:** Tests | **Who:** agent
+
+## T-1091 -- CONSOL: Fold tests/ into subject modules
+**Goal:** 317 .py, 22 .sh, 7 .ps1. Group by the subsystem under test, not by the feature name.
+**Where:** `tests/`
+**Done When:** Every former file's assertions still run; check_ci_suite_coverage green; no fixture left behind.
+**Dep:** T-1090
+**Status:** open | **Domain:** Tests | **Who:** agent
+
+## T-1092 -- CONSOL: Fold the agent-pipe sibling tests
+**Goal:** One test_mios_*.py per module, mirroring a module layout that is itself about to change.
+**Where:** `usr/lib/mios/agent-pipe/`
+**Done When:** Same test count, same assertion labels, runs through repo runner.
+**Status:** open | **Domain:** AI plane | **Who:** agent
+
+## T-1093 -- CONSOL: Fold the agent-pipe modules into planes
+**Goal:** Group by plane — routing, dispatch, memory, tools, transport — not by concern-per-file.
+**Where:** `usr/lib/mios/agent-pipe/`
+**Done When:** agent-pipe serves router end-to-end; live request returns same response shape; T-1092 suite green.
+**Dep:** T-1092
+**Status:** open | **Domain:** AI plane | **Who:** agent
+
+## T-1094 -- CONSOL: Fold usr/libexec/mios by subdirectory
+**Goal:** Fold usr/libexec/mios by subdirectory: sec/ 30, ux/ 18, ai/ 18, hw/ 17, node/ 16, deploy/ 11, virt/ 10, net/ 10, storage/ 9, kernel/ 6, db/ 6, win/ 5, git/ 5, plus 27 at top level.
+**Where:** `usr/libexec/mios/`
+**Done When:** Every verb still dispatches; libexec_verbs ratchet lowered; no unit references a path that moved.
+**Status:** open | **Domain:** Verbs | **Who:** agent
+
+## T-1095 -- CONSOL: Finish tools/ — the 50 that were not gates
+**Goal:** Fold generators, renderers and one-off helpers with sibling tests.
+**Where:** `tools/`
+**Done When:** Every tool's output byte-identical before and after; tooling_python_lines lowered.
+**Status:** open | **Domain:** Tooling | **Who:** agent
+
+## T-1096 -- CONSOL: Delete or register every orphaned test
+**Goal:** Delete or register every test with no live runner.
+**Where:** `tests/`
+**Done When:** Each orphan either deleted or registered; check_ci_suite_coverage green without exemption.
+**Status:** open | **Domain:** Tests | **Who:** agent
+
+## T-1097 -- CONSOL: Delete modules nothing imports
+**Goal:** Build import graph and delete dead unreachable modules.
+**Where:** entire repo
+**Done When:** Deleted with graph committed; kept modules documented in register.
+**Status:** open | **Domain:** Repo | **Who:** agent
+
+## T-1098 -- CONSOL: Prune snapshots and fixtures with no live consumer
+**Goal:** Prune unused snapshots and fixtures.
+**Where:** `tests/`
+**Done When:** Every remaining snapshot is proven live by mutation test.
+**Status:** open | **Domain:** Tests | **Who:** agent
+
+## T-1099 -- CONSOL: Ratchets follow the deletions down
+**Goal:** Ratchets in mios.toml [legibility] follow deletions down.
+**Where:** `usr/share/mios/mios.toml` `[legibility]`
+**Done When:** Every consolidation commit lowers the floors it earns.
+**Status:** open | **Domain:** Ratchets | **Who:** architect
+
+## T-1100 -- CONSOL: Restart the branch from the merged main
+**Goal:** Restart branch from merged main ec9f4bfe with commits rebased.
+**Where:** git branch
+**Done When:** Branch restarted from main ec9f4bfe, draft PR opened, AGY lanes re-based.
+**Status:** blocked | **Domain:** Git | **Who:** architect
+
+## T-1101 -- CONSOL: Gate and merge the four AGY stale-ref lanes
+**Goal:** Gate and merge the four AGY stale-ref lanes (srf-libexec, srf-tests, srf-lib, srf-native).
+**Where:** `.devloop/lanes.stale-refs.json`
+**Done When:** Each lane gated independently, merged --no-ff, stale refs remeasured.
+**Status:** in-progress | **Domain:** Orchestration | **Who:** agent
+
+## T-1102 -- CONSOL: The comment corpus is blind to the libexec verbs
+**Goal:** Address iter_source_files omission of extensionless verbs.
+**Where:** `usr/lib/mios/mios_comments.py`, `usr/libexec/mios/mios-manual`
+**Done When:** Scanner reads extensionless files or PASS line states true scope.
+**Status:** open | **Domain:** Docs | **Who:** architect
+
+## T-1103 -- CONSOL: The three standing drift violations
+**Goal:** Resolve narrative 258, stale refs 152, doc refs 120.
+**Where:** `usr/share/doc/mios/`, `usr/share/mios/reference/manual-corpus.tsv`
+**Done When:** Narrative harvested, doc refs decided, drift-gate green.
+**Status:** open | **Domain:** Docs | **Who:** architect
