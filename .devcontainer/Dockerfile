@@ -28,9 +28,12 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 
 RUN npm install -g @google/gemini-cli
 
-# The sudoers username must match the account exactly — sudoers is
-# case-sensitive, so a mismatch silently grants nothing and postCreateCommand
-# ("sudo bash /usr/local/bin/mios-root-overlay") stalls on a password prompt.
+# Spell the sudoers username exactly as the account and give it an explicit
+# (ALL) runas spec. This is hygiene, not a fix: the previous "Mios-dev"
+# spelling was measured to work, since sudo matches the username
+# case-insensitively here. visudo -cf fails the build on a malformed rule
+# rather than shipping one that silently grants nothing — postCreateCommand
+# ("sudo bash /usr/local/bin/mios-root-overlay") depends on this drop-in.
 RUN useradd -m -u 1000 -s /usr/bin/zsh mios-dev \
     && echo "mios-dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/mios-dev \
     && chmod 0440 /etc/sudoers.d/mios-dev \
