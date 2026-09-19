@@ -87,9 +87,9 @@ pub enum Mode {
     /// Every placeholder.
     All,
     /// ONLY the `${NAME:-default}` form. systemd cannot expand that form -- see
-    /// `replace_env_full(.., flags=0)` in src/basic/env-util.c, which treats `:`
-    /// as unsupported syntax and does no replacement -- so it must be baked even
-    /// on a line whose bare refs the unit owns at runtime.
+    /// `replace_env_full(.., flags=0)` in systemd's own env-util.c, which treats
+    /// `:` as unsupported syntax and does no replacement -- so it must be baked
+    /// even on a line whose bare refs the unit owns at runtime.
     DefaultsOnly,
 }
 

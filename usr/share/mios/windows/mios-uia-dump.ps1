@@ -1,4 +1,4 @@
-# AI-hint: MiOS configuration and runtime asset for mios-uia-dump.ps1.
+# AI-hint: Dumps the UI Automation control-view tree of the foreground window, a -ProcessId main window, or the desktop root as compact JSON; defers to the compiled mios-launch dump when present.
 # AI-related: mios-launch
 
 [CmdletBinding()]

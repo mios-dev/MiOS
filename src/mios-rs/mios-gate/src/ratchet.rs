@@ -1,5 +1,5 @@
 // AI-hint: Asserts shrink-only ceilings in mios.toml never increase over HEAD, and that a ceiling exempted as a generated budget says so in SSOT rather than by being quietly skipped.
-// AI-related: usr/share/mios/mios.toml, tools/check-ratchet-direction.py, automation/98-drift-checks.sh
+// AI-related: usr/share/mios/mios.toml, src/mios-rs/mios-gate/tests/ratchet.rs, automation/98-drift-checks.sh
 
 use crate::Report;
 use std::collections::BTreeMap;
