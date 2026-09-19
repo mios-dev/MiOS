@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels (T-695, T-696).
-# AI-related: usr/lib/mios/ai/medusa_tree.py, tests/test-medusa-tree.py, usr/share/mios/llamacpp/llama-swap.yaml
+# AI-related: usr/lib/mios/ai/medusa_tree.py, tests/test-medusa-tree.py, usr/share/mios/llamacpp/mios-llm-light.yaml
 """Medusa / EAGLE multi-head token tree speculative engine for MiOS llama-swap.
 
 Predicts multi-token candidates using lightweight Medusa heads, verifies tree candidates in parallel

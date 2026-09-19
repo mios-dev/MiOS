@@ -17,7 +17,7 @@ Ingested documents are parsed and vectorized to build the knowledge base.
 ## Flow
 - **Parser**: Converts PDFs, text, and code files.
 - **Embedding**: Generates vectors using the light embedding lane.
-- **Utility**: Run [generate-manual.py](tools/generate-manual.py).
+- **Utility**: Run [mios-manual](usr/libexec/mios/mios-manual) (`render` for the derived sections, `distill` for the harvested prose).
 
 #### System References
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Hardware-tiered modern model matrix allocator for Consumer, Prosumer, and Poweruser tiers.
-# AI-related: usr/share/mios/llamacpp/llama-swap.yaml, usr/share/doc/mios/manual/ch66-model-matrix-allocator.md, tests/test-ai.py
+# AI-related: usr/share/mios/llamacpp/mios-llm-light.yaml, usr/share/doc/mios/manual/ch66-model-matrix-allocator.md, tests/test-ai.py
 # AI-functions: ModelMatrixAllocator, detect_host_hardware, project_llama_swap_yaml, main
 """
 WS-AI (T-571): Hardware-Tiered Modern Model Matrix Allocator for Consumer, Prosumer, and Poweruser.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Static CUDA Graph capture manager and multi-batch hardware replay buffer (T-709, T-710).
-# AI-related: usr/lib/mios/ai/cuda_graphs.py, tests/test-cuda-graphs.py, usr/share/mios/llamacpp/llama-swap.yaml
+# AI-related: usr/lib/mios/ai/cuda_graphs.py, tests/test-cuda-graphs.py, usr/share/mios/llamacpp/mios-llm-light.yaml
 """Static CUDA Graph capture manager and multi-batch hardware replay buffer for MiOS inference.
 
 Captures LLM decoding kernels into static GPU execution graphs for fixed batch sizes (1, 2, 4, 8, 16),
