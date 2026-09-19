@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Audio feedback daemon playing subtle non-intrusive sound cues with pure Python PCM synthesis
-# AI-related: tests/test-audio-feedback.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
 # AI-functions: AudioFeedbackEngine, synthesize_event_pcm, play_audio_cue, main
 """
 MiOS Audio Feedback Daemon & Harmonic PCM Synthesizer.

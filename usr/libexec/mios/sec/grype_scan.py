@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Grype CVE vulnerability scanning, policy gating, and SARIF report generation.
-# AI-related: tests/test-grype-scan.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Grype Vulnerability Scanner and CVE Security Gate.
 Executes vulnerability scans against host packages, container sidecars, and SBOMs,

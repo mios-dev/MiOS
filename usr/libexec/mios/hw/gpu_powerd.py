@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: PCIe ASPM L1.2 and runtime D3cold GPU power manager in mios-gpu-powerd (T-683, T-684).
-# AI-related: usr/libexec/mios/hw/gpu_powerd.py, tests/test-gpu-power.py, automation/21-gpu-power.sh
+# AI-related: usr/libexec/mios/hw/gpu_powerd.py, tests/test-hw.py, automation/21-gpu-power.sh
 """PCIe ASPM L1.2 and runtime D3cold GPU power manager for MiOS.
 
 Transitions idle discrete GPUs into sub-3W D3cold sleep states via PCIe ASPM L1.2,

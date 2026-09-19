@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Storage integrity scrubber daemon with idle I/O priority and PSI pressure throttling (T-717, T-718).
-# AI-related: usr/libexec/mios/storage/scrubd.py, tests/test-storage-scrubd.py, automation/38-storage-scrub.sh
+# AI-related: usr/libexec/mios/storage/scrubd.py, tests/test-storage.py, automation/38-storage-scrub.sh
 """Storage integrity scrubber daemon with idle I/O priority and PSI pressure throttling for MiOS.
 
 Executes background Btrfs/CephFS parity scrubs under ionice idle class,

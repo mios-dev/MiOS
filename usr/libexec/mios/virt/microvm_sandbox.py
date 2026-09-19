@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge (T-673, T-674).
-# AI-related: usr/libexec/mios/virt/microvm_sandbox.py, tests/test-microvm-sandbox.py, usr/bin/mios-microvm
+# AI-related: usr/libexec/mios/virt/microvm_sandbox.py, tests/test-virt.py, usr/bin/mios-microvm
 """Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager for MiOS.
 
 Direct-boots minimal Linux kernel and alpine initramfs over /dev/kvm in <50ms,

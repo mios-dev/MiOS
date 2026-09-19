@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire ring buffer feeder (T-687, T-688).
-# AI-related: usr/libexec/mios/ai/tts_stream.py, tests/test-tts-stream.py, usr/libexec/mios/mios-tts
+# AI-related: usr/libexec/mios/ai/tts_stream.py, tests/test-ai.py, usr/libexec/mios/mios-tts
 """Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire feeder for MiOS.
 
 Synthesizes 24kHz PCM audio chunks in real time, feeds PipeWire low-latency playback ring buffers,

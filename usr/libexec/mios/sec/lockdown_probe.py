@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Linux kernel lockdown mode probe, Secure Boot status, and module signing integrity auditor.
-# AI-related: tests/test-lockdown-probe.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Linux Kernel Lockdown Mode and Integrity Probe.
 Verifies whether the running kernel enforces lockdown [integrity] or [confidentiality],

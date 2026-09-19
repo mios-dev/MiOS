@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Storage benchmark harness measuring 4K random IOPS, 1M sequential throughput, and fsync latency against AI model inference floors.
-# AI-related: usr/bin/mios-bench-storage, tests/test-bench-storage.py, usr/share/doc/mios/reference/storage-benchmarks.md
+# AI-related: usr/bin/mios-bench-storage, tests/test-storage.py, usr/share/doc/mios/reference/storage-benchmarks.md
 # AI-functions: run_random_4k_read_benchmark, run_random_4k_write_benchmark, run_seq_1m_read_benchmark, run_seq_1m_write_benchmark, run_fsync_latency_benchmark, evaluate_inference_floors, main
 """
 MiOS Storage Performance Benchmark Harness (mios-bench-storage).

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Predictive S.M.A.R.T. drive health monitor and automated CephFS evacuation manager (T-639, T-640).
-# AI-related: usr/libexec/mios/storage/disk_health.py, usr/libexec/mios/storage/smart_health.py, tests/test-smart-cephfs-evacuation.py
+# AI-related: usr/libexec/mios/storage/disk_health.py, usr/libexec/mios/storage/smart_health.py, tests/test-storage.py
 """Predictive S.M.A.R.T. drive health monitor and automated CephFS evacuation manager for MiOS.
 
 Polls NVMe and SATA drive S.M.A.R.T. telemetry, parses nvme-cli / smartctl JSON outputs,

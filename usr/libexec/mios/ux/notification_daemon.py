@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: System notification daemon routing agent-pipe / Hermes alerts and HITL approvals to desktop toasts
-# AI-related: tests/test-notification-daemon.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
 # AI-functions: NotificationDaemonEngine, NotificationMessage, send_desktop_notification, main
 """
 MiOS Desktop Notification Bridge & Human-in-the-Loop (HITL) Alert Daemon.

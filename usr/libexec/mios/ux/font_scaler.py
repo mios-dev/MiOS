@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Dynamic font size scaler for High-DPI displays calculating font metrics and fontconfig XML rules.
-# AI-related: tests/test-font-scaler.py, usr/share/mios/mios.toml, usr/share/mios/themes/fonts.conf
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/share/mios/themes/fonts.conf
 # AI-functions: FontScalerEngine, DisplayMetrics, ScaledFontConfig, main
 """
 MiOS High-DPI Dynamic Font Size Scaler (T-462).

@@ -1,5 +1,5 @@
 // AI-hint: Zero-copy network buffer pooling for mios-node frames (T-393 / AGY-1991).
-// AI-related: src/mios-rs/mios-node/src/net.rs, usr/libexec/mios/node/buffer_pool.py, tests/test-node-buffer-pool.py
+// AI-related: src/mios-rs/mios-node/src/net.rs, usr/libexec/mios/node/buffer_pool.py, tests/test-node.py
 //! MiOS Zero-Copy Network Buffer Pool
 //!
 //! Provides bucketed pre-allocation (Small 256B, Medium 4KB, Large 64KB, Huge 1MB),

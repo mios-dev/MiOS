@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: In-kernel udev netlink hardware change monitor and PostgreSQL hardware inventory recorder.
-# AI-related: usr/libexec/mios/hw/inventory_monitor.py, tests/test-inventory-monitor.py, tests/test-hw-degrade.py
+# AI-related: usr/libexec/mios/hw/inventory_monitor.py, tests/test-hw.py
 """In-Kernel Udev Netlink Hardware Monitor & Inventory Engine (T-563).
 
 Captures NETLINK_KOBJECT_UEVENT hardware lifecycle events (PCIe, NVMe, GPU, USB,

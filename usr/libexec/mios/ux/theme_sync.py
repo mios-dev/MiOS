@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Cross-platform palette synchronizer writing directly to Windows Registry (.reg) and GTK 3/4 CSS
-# AI-related: tests/test-theme-sync.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
 # AI-functions: ThemeSyncEngine, hex_to_dword_bgr, generate_reg_content, generate_gtk3_css, generate_gtk4_css, main
 """
 MiOS Cross-Platform Theme & Palette Synchronizer.

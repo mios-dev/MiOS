@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Interactive and headless first-boot onboarding wizard for credentials, Wi-Fi & AI lanes
-# AI-related: tests/test-firstboot-wizard.py, usr/share/mios/mios.toml, usr/libexec/mios/net/nm_preseed.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/libexec/mios/net/nm_preseed.py
 # AI-functions: FirstBootWizardEngine, WizardState, WizardConfig, run_wizard
 """
 MiOS First-Boot Out-of-Box-Experience (OOBE) Wizard.

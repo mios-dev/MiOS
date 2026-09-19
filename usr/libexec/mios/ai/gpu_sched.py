@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: CUDA/ROCm compute stream priority scheduler and background preemption manager (T-631, T-632).
-# AI-related: usr/libexec/mios/ai/gpu_sched.py, tests/test-gpu-sched.py, usr/lib/mios/agent-pipe/server.py
+# AI-related: usr/libexec/mios/ai/gpu_sched.py, tests/test-ai.py, usr/lib/mios/agent-pipe/server.py
 """GPU Compute Stream Priority Scheduler and Background Preemption Manager for MiOS.
 
 Prioritizes interactive voice (Whisper STT / Kokoro TTS) and real-time chat on high-priority

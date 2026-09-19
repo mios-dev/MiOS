@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Hyprland and Sway tiling window manager configuration generator from SSOT with hot-reload support
-# AI-related: tests/test-wm-config-gen.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
 # AI-functions: WmConfigGenEngine, generate_hyprland_conf, generate_sway_config, trigger_wm_reload, main
 """
 MiOS Window Manager (Hyprland & Sway) Configuration Generator.

@@ -1,5 +1,5 @@
 // AI-hint: Automated fallback to Tailscale and WireGuard overlay when LAN broadcast is partitioned (T-396 / AGY-1994).
-// AI-related: src/mios-rs/mios-node/src/heartbeat.rs, usr/libexec/mios/node/overlay.py, tests/test-node-overlay.py
+// AI-related: src/mios-rs/mios-node/src/heartbeat.rs, usr/libexec/mios/node/overlay.py, tests/test-node.py
 //! MiOS Multi-Transport Router & LAN Partition Overlay Failover Engine
 //!
 //! Implements multi-transport routing across Direct LAN, WireGuard overlay, Tailscale mesh,

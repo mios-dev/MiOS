@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Greenboot post-bake health gate validating service initialization with automated rollback and diff quarantine on regressions.
-# AI-related: usr/share/doc/mios/adr/0018-shutdown-diff-snapshotting-and-boot-cycle-accrual.md, usr/share/doc/mios/manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md, tests/test-greenboot-gate.py
+# AI-related: usr/share/doc/mios/adr/0018-shutdown-diff-snapshotting-and-boot-cycle-accrual.md, usr/share/doc/mios/manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md, tests/test-sec.py
 # AI-functions: GreenbootGateEngine, atomic_write_json, main
 """
 WS-DIFFCYCLE (T-470): Greenboot Post-Bake Health Gate & Automated Fallback.

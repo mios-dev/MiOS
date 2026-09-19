@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon (T-663, T-664).
-# AI-related: usr/libexec/mios/hw/gpu_heatd.py, tests/test-gpu-interconnect.py, usr/share/cockpit/mios-gpu/
+# AI-related: usr/libexec/mios/hw/gpu_heatd.py, tests/test-hw.py, usr/share/cockpit/mios-gpu/
 """Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon for MiOS.
 
 Polls NVML / DCGM and ROCm-SMI link counters, calculates NxN P2P bidirectional bandwidth matrices,

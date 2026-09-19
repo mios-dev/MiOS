@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Bandwidth-throttled Ceph self-healing daemon and PG rebalance orchestrator (T-729, T-730).
-# AI-related: usr/libexec/mios/storage/ceph_heal.py, tests/test-ceph-heal.py, usr/libexec/mios/mios-ceph-heal
+# AI-related: usr/libexec/mios/storage/ceph_heal.py, tests/test-storage.py, usr/libexec/mios/mios-ceph-heal
 """Bandwidth-throttled Ceph self-healing daemon and PG rebalance orchestrator for MiOS.
 
 Detects failed OSDs, marks out after 5min grace period, throttles recovery backfill (osd_max_backfills=1),

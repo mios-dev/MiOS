@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Transactional ledger replication across CephFS pools with SHA-256 integrity verification.
-# AI-related: usr/lib/systemd/system/mios-ledger-sync.service, tests/test-ledger-sync.py, usr/share/mios/mios.toml
+# AI-related: usr/lib/systemd/system/mios-ledger-sync.service, tests/test-storage.py, usr/share/mios/mios.toml
 # AI-functions: canonical_json, compute_hash, compute_hmac, Block, LedgerChain, LedgerSyncEngine, main
 """
 MiOS CephFS Transactional Ledger Replication & Integrity Verification Engine.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Cockpit Storage integration module for CephFS tiered CRUSH pools and encrypted volume monitoring.
-# AI-related: usr/libexec/mios/storage/cockpit_ceph.py, tests/test-cockpit-ceph.py, usr/share/cockpit/mios-storage/
+# AI-related: usr/libexec/mios/storage/cockpit_ceph.py, tests/test-storage.py, usr/share/cockpit/mios-storage/
 """Cockpit Storage Integration for CephFS Tiered Pools & Encrypted Volumes (T-550).
 
 Provides telemetry aggregation and Cockpit Storage UI backend services for

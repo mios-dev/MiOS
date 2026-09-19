@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: TPM2 remote attestation quote generator, signed report builder, and peer measurement verifier.
-# AI-related: tests/test-remote-attestation.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Remote Attestation and TPM2 Hardware Integrity Engine.
 Generates TPM2 hardware quotes over Platform Configuration Registers (0, 7, 11, 14),

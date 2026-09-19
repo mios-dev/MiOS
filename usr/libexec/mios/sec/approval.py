@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Interactive Human-In-The-Loop (HITL) permission escalation and destructive tool interception engine.
-# AI-related: tests/test-hitl-approval.py, usr/share/mios/mios.toml
+# AI-related: tests/test-sec.py, usr/share/mios/mios.toml
 # AI-functions: ApprovalEngine, ApprovalRequest, Status, requires_approval
 """
 MiOS Interactive Human-In-The-Loop (HITL) Permission Escalation and Approval Engine.

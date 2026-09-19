@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: SPIFFE/SPIRE workload identity agent managing 24h short-lived X.509 SVID certificates and mTLS validation.
-# AI-related: usr/share/doc/mios/manual/ch61-spiffe-workload-identity-and-mtls.md, tests/test-spiffe-mtls.py
+# AI-related: usr/share/doc/mios/manual/ch61-spiffe-workload-identity-and-mtls.md, tests/test-sec.py
 # AI-functions: SpiffeIdentityAgent, atomic_write_json, main
 """
 WS-SEC (T-567): SPIFFE/SPIRE Workload Identity Agent & Ephemeral 24h mTLS Certificate Rotator.

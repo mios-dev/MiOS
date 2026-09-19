@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Dynamic VRAM layer swapping and LRU KV-cache paging manager for llama-swap (T-629, T-630).
-# AI-related: usr/libexec/mios/ai/vram_swap.py, tests/test-vram-swap.py, usr/share/mios/llamacpp/llama-swap.yaml
+# AI-related: usr/libexec/mios/ai/vram_swap.py, tests/test-ai.py, usr/share/mios/llamacpp/llama-swap.yaml
 """Dynamic host RAM layer swapping and LRU KV-cache paging manager for MiOS.
 
 Manages GPU VRAM allocation, streams model layers dynamically from pinned host RAM,

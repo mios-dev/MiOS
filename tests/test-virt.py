@@ -6,7 +6,7 @@ from __future__ import annotations
 
 
 # ======================================================================
-# from tests/test-adversarial-virt-display.py
+# from tests/test-virt.py
 # ======================================================================
 import configparser
 import importlib.util
@@ -768,7 +768,7 @@ class avd_TestAdversarialMultiMonitorSync(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-hugepages-mgr.py
+# from tests/test-virt.py
 # ======================================================================
 """
 Automated unit tests for dynamic hugepages allocation, kernel memory compaction triggering,
@@ -901,7 +901,7 @@ class hm_TestHugepagesManager(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-iommu-parser.py
+# from tests/test-virt.py
 # ======================================================================
 """
 Automated unit tests for IOMMU group parser, multifunction device detection,
@@ -1068,7 +1068,7 @@ class ip_TestIOMMUParser(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-microvm-bridge.py
+# from tests/test-virt.py
 # ======================================================================
 """Unit and benchmark test suite for Ephemeral Cloud-Hypervisor microVM orchestrator and Virtio-VSOCK bridge (T-570)."""
 
@@ -1215,7 +1215,7 @@ class mb_TestMicroVMBridge(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-microvm-sandbox.py
+# from tests/test-virt.py
 # ======================================================================
 """Automated unit test suite for MiOS MicroVM Sandbox Manager."""
 
@@ -1246,7 +1246,7 @@ class ms_TestMicroVMSandbox(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-pipewire-bridge.py
+# from tests/test-virt.py
 # ======================================================================
 """Unit tests for low-latency PipeWire JACK inter-VM audio bridge and Scream IVSHMEM sink."""
 
@@ -1368,7 +1368,7 @@ class pb_TestPipeWireBridge(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-vfio-bind.py
+# from tests/test-virt.py
 # ======================================================================
 """
 Automated unit tests for VFIO dynamic runtime unbind/rebind, primary display guard,
@@ -1519,7 +1519,7 @@ class vb_TestVFIOBind(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-virtiofs-mount.py
+# from tests/test-virt.py
 # ======================================================================
 """
 Automated unit tests for VirtIO-FS daemon command construction, POSIX ACL / xattr configuration,
@@ -1636,7 +1636,7 @@ class vm_TestVirtioFSMount(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-vtpm-provision.py
+# from tests/test-virt.py
 # ======================================================================
 """
 Automated unit tests for vTPM2 swtpm provisioning, per-VM state isolation,

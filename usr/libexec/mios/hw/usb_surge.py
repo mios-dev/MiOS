@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Udev USB over-current event handler and port power cycling daemon (T-677, T-678).
-# AI-related: usr/libexec/mios/hw/usb_surge.py, tests/test-usb-surge.py, /etc/udev/rules.d/98-usb-overcurrent.rules
+# AI-related: usr/libexec/mios/hw/usb_surge.py, tests/test-hw.py, /etc/udev/rules.d/98-usb-overcurrent.rules
 """Udev USB over-current event handler and port power cycling daemon for MiOS.
 
 Intercepts kernel over-current uevents, isolates faulting USB ports in <500ms,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative FIDO2 pam_u2f and ssh-ed25519-sk hardware key enrollment and challenge sandbox engine.
-# AI-related: tests/test-fido2-hardware-sandbox.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS FIDO2 / WebAuthn Hardware Security Key Manager & Sandbox Engine.
 

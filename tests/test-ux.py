@@ -9,7 +9,7 @@ import unittest
 
 
 # ======================================================================
-# from tests/test-audio-feedback.py  (prefix af_)
+# from tests/test-ux.py  (prefix af_)
 # ======================================================================
 """Unit and integration test suite for AudioFeedbackEngine and audio_feedback CLI."""
 
@@ -94,7 +94,7 @@ def af_main() -> int:
 
 
 # ======================================================================
-# from tests/test-biometric-lock.py  (prefix bl_)
+# from tests/test-ux.py  (prefix bl_)
 # ======================================================================
 """Unit and integration test suite for BiometricLockManager and biometric_lock CLI."""
 
@@ -192,7 +192,7 @@ def bl_main() -> int:
 
 
 # ======================================================================
-# from tests/test-btop-theme.py  (prefix bt_)
+# from tests/test-ux.py  (prefix bt_)
 # ======================================================================
 """Unit and integration test suite for BtopThemeRenderer and btop_theme CLI."""
 
@@ -293,7 +293,7 @@ def bt_main() -> int:
 
 
 # ======================================================================
-# from tests/test-clipboard-sync.py  (prefix cs_)
+# from tests/test-ux.py  (prefix cs_)
 # ======================================================================
 """Unit and integration test suite for ClipboardSyncEngine and clipboard_sync CLI."""
 
@@ -404,7 +404,7 @@ def cs_main() -> int:
 
 
 # ======================================================================
-# from tests/test-diff-auditor.py  (prefix da_)
+# from tests/test-ux.py  (prefix da_)
 # ======================================================================
 """Unit and integration test suite for DiffAuditorEngine and diff_auditor CLI."""
 
@@ -501,7 +501,7 @@ def da_main() -> int:
 
 
 # ======================================================================
-# from tests/test-editor-config-gen.py  (prefix ecg_)
+# from tests/test-ux.py  (prefix ecg_)
 # ======================================================================
 """Unit and integration test suite for EditorConfigGen and editor_config_gen CLI."""
 
@@ -606,7 +606,7 @@ def ecg_main() -> int:
 
 
 # ======================================================================
-# from tests/test-fastfetch-gen.py  (prefix fg_)
+# from tests/test-ux.py  (prefix fg_)
 # ======================================================================
 """Unit and integration test suite for FastfetchGenEngine and fastfetch_gen CLI."""
 
@@ -686,7 +686,7 @@ def fg_main() -> int:
 
 
 # ======================================================================
-# from tests/test-firstboot-wizard.py  (prefix fw_)
+# from tests/test-ux.py  (prefix fw_)
 # ======================================================================
 """Unit and integration test suite for FirstBootWizardEngine and CLI."""
 
@@ -785,7 +785,7 @@ def fw_main() -> int:
 
 
 # ======================================================================
-# from tests/test-focus-audio.py  (prefix fa_)
+# from tests/test-ux.py  (prefix fa_)
 # ======================================================================
 """Unit and integration test suite for FocusAudioSynthesizer and focus_audio CLI."""
 
@@ -891,7 +891,7 @@ def fa_main() -> int:
 
 
 # ======================================================================
-# from tests/test-font-scaler.py  (prefix fs_)
+# from tests/test-ux.py  (prefix fs_)
 # ======================================================================
 """Unit and integration test suite for FontScalerEngine and font_scaler CLI."""
 
@@ -991,7 +991,7 @@ def fs_main() -> int:
 
 
 # ======================================================================
-# from tests/test-gnome-extension.py  (prefix ge_)
+# from tests/test-ux.py  (prefix ge_)
 # ======================================================================
 """Unit and integration test suite for GnomeExtensionManager and gnome_extension CLI."""
 
@@ -1094,7 +1094,7 @@ def ge_main() -> int:
 
 
 # ======================================================================
-# from tests/test-living-wallpaper.py  (prefix lw_)
+# from tests/test-ux.py  (prefix lw_)
 # ======================================================================
 """Unit and integration test suite for LivingWallpaperEngine and living_wallpaper CLI."""
 
@@ -1215,7 +1215,7 @@ def lw_main() -> int:
 
 
 # ======================================================================
-# from tests/test-notification-daemon.py  (prefix nd_)
+# from tests/test-ux.py  (prefix nd_)
 # ======================================================================
 """Unit and integration test suite for NotificationDaemonEngine and notification_daemon CLI."""
 
@@ -1305,7 +1305,7 @@ def nd_main() -> int:
 
 
 # ======================================================================
-# from tests/test-status-bar.py  (prefix sb_)
+# from tests/test-ux.py  (prefix sb_)
 # ======================================================================
 """Unit and integration test suite for StatusBarEngine and status_bar CLI."""
 
@@ -1400,7 +1400,7 @@ def sb_main() -> int:
 
 
 # ======================================================================
-# from tests/test-theme-sync.py  (prefix ts_)
+# from tests/test-ux.py  (prefix ts_)
 # ======================================================================
 """Unit and integration test suite for ThemeSyncEngine and theme_sync CLI."""
 
@@ -1508,7 +1508,7 @@ def ts_main() -> int:
 
 
 # ======================================================================
-# from tests/test-tmux-theme.py  (prefix tt_)
+# from tests/test-ux.py  (prefix tt_)
 # ======================================================================
 """Unit and integration test suite for TmuxThemeEngine and tmux_theme CLI."""
 
@@ -1596,7 +1596,7 @@ def tt_main() -> int:
 
 
 # ======================================================================
-# from tests/test-wallpaper-occlusion-throttle.py  (prefix wot_)
+# from tests/test-ux.py  (prefix wot_)
 # ======================================================================
 """
 Automated unit, frame pacing benchmark, and IPC telemetry test suite for
@@ -1927,7 +1927,7 @@ def wot_main() -> int:
 
 
 # ======================================================================
-# from tests/test-wm-config-gen.py  (prefix wcg_)
+# from tests/test-ux.py  (prefix wcg_)
 # ======================================================================
 """Unit and integration test suite for WmConfigGenEngine and wm_config_gen CLI."""
 

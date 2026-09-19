@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Portable drive LUKS2 FIDO2 / CTAP2 token enrollment helper using systemd-cryptenroll.
-# AI-related: tests/test-fido2-enroll.py, usr/libexec/mios/mios-luks-enroll, usr/share/mios/mios.toml
+# AI-related: tests/test-sec.py, usr/libexec/mios/mios-luks-enroll, usr/share/mios/mios.toml
 # AI-functions: Fido2EnrollEngine, Fido2Token, LuksKeyslot, EnrollmentResult, StatusResult, main
 """
 MiOS Portable Drive LUKS2 FIDO2 / CTAP2 Token Enrollment Engine.

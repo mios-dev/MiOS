@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher (T-711, T-712).
-# AI-related: usr/libexec/mios/sec/sbom_gen.py, tests/test-sbom-gen.py, automation/94-sbom.sh
+# AI-related: usr/libexec/mios/sec/sbom_gen.py, tests/test-sec.py, automation/94-sbom.sh
 """Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher for MiOS.
 
 Scans rootfs package inventories (RPM, Python wheels, Flatpaks), generates validated CycloneDX 1.5

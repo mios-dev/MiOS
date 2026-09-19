@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator (T-661, T-662).
-# AI-related: usr/libexec/mios/sec/cve_scan.py, tests/test-cve-scan.py, automation/93-cve-scan.sh
+# AI-related: usr/libexec/mios/sec/cve_scan.py, tests/test-sec.py, automation/93-cve-scan.sh
 """Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator for MiOS.
 
 Audits synthesized OCI image layers against CVE databases, generates structured JSON-LD reports,

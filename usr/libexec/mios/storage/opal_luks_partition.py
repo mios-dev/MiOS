@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Hardware OPAL 2.0 SED / LUKS2 automated disk partitioning and TPM 2.0 enrollment engine.
-# AI-related: usr/libexec/mios/storage/opal_luks_partition.py, tests/test-opal-luks-partition.py, etc/crypttab
+# AI-related: usr/libexec/mios/storage/opal_luks_partition.py, tests/test-storage.py, etc/crypttab
 """Hardware OPAL 2.0 SED / LUKS2 Automated Disk Partitioning Engine (T-549).
 
 Discovers NVMe/SATA storage drives, detects TCG OPAL 2.0 Self-Encrypting Drive (SED)

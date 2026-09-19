@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Remote delta backup synchronizer utilizing chunk hashing, zstd compression, and rsync/rclone transports.
-# AI-related: usr/lib/systemd/system/mios-backup-remote.service, usr/lib/systemd/system/mios-backup-remote.timer, tests/test-backup-remote.py
+# AI-related: usr/lib/systemd/system/mios-backup-remote.service, usr/lib/systemd/system/mios-backup-remote.timer, tests/test-storage.py
 # AI-functions: hash_file_chunk, create_snapshot_manifest, compute_delta_plan, compress_chunk_zstd, sync_delta_payload, verify_remote_manifest, main
 """
 MiOS Remote Delta Snapshot Backup Synchronizer.

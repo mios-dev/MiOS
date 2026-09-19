@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Linux pstore kernel panic scanner, boot failure tracker, and emergency bootc rollback engine.
-# AI-related: tests/test-panic-rollback.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Kernel Panic Monitor and Emergency bootc Rollback Engine.
 Scans pstore ramoops logs for early-boot kernel crashes, maintains persistent failure counters,

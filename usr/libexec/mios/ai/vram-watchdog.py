@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Per-lane VRAM watermark monitor and emergency KV-cache eviction daemon.
-# AI-related: tests/test-vram-watchdog.py, usr/share/doc/mios/manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md
+# AI-related: tests/test-ai.py, usr/share/doc/mios/manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md
 """
 MiOS VRAM Watermark Monitor & Emergency Eviction Daemon.
 Monitors GPU memory utilization thresholds and triggers KV-cache slot eviction on NVMe when VRAM > 95%.

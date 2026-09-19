@@ -6,7 +6,7 @@ import sys
 import unittest
 
 # ======================================================================
-# from tests/test-empirical-stress-t339-t345-t733-t734.py
+# from tests/test-stress.py
 # ======================================================================
 """
 Empirical stress tests for batch T-339, T-340, T-341, T-342, T-343, T-344,
@@ -104,14 +104,14 @@ def es339_main() -> int:
     except Exception:
         import traceback
         traceback.print_exc()
-        print("FAILED: test-empirical-stress-t339-t345-t733-t734.py")
+        print("FAILED: test-stress.py")
         return 1
     print("All stress tests passed.")
     return 0
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t573-t582.py
+# from tests/test-stress.py
 # ======================================================================
 """Empirical Stress & Boundary Testing Suite for MiOS T-573 to T-582: - hw/powerd.py (T-573/T-574) - ux/wallpaperd.py (T-575/T-576) - agent-pipe/mios_mcp.py (T-577/T-578) - audio/wakeword.py (T-579/T-580) - config/nix_project.py (T-581/T-582)"""
 
@@ -934,7 +934,7 @@ class es573_TestNixProjectStressAndBoundaries(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t583-t592.py
+# from tests/test-stress.py
 # ======================================================================
 """
 Multi-Perspective Empirical Stress Harness for MiOS Workstream Batch T-583..T-592.
@@ -1083,7 +1083,7 @@ def es583_main() -> int:
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t593-t602.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions, failure modes, and recovery invariance across VPN killswitch, NAT traversal, Bcachefs, Parquet log RAG, and service mesh.
 import unittest
@@ -1214,7 +1214,7 @@ class es593_TestEmpiricalStressT593T602(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t603-t612.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across worktrees, async HTTPX, Libei input, PostgreSQL autovacuum, and hardware watchdogs.
 import unittest
@@ -1282,7 +1282,7 @@ class es603_TestEmpiricalStressT603T612(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t613-t622.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across WirePlumber audio, git merge fuzzing, IOMMU isolation, config drift, and Raft consensus.
 import unittest
@@ -1355,7 +1355,7 @@ class es613_TestEmpiricalStressT613T622(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t623-t632.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across Fan Control, WebRTC Streamer, Secret Enclave, VRAM Swapper, and GPU Priority Scheduler.
 """Empirical adversarial stress test suite for tasks T-623 through T-632."""
@@ -1501,7 +1501,7 @@ class es623_TestEmpiricalStressT623T632(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t633-t642.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across Energy Capping, Prompt Cache, PagedAttention, S.M.A.R.T. Evacuation, and Crash Triage.
 """Empirical adversarial stress test suite for tasks T-633 through T-642."""
@@ -1665,7 +1665,7 @@ class es633_TestEmpiricalStressT633T642(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t643-t652.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across USBGuard, Flatpak Snapshot, Live ISO, Tensor Kernels, and Reactive Loop.
 """Empirical adversarial stress test suite for tasks T-643 through T-652."""
@@ -1773,7 +1773,7 @@ class es643_TestEmpiricalStressT643T652(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t653-t662.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across Council Consensus, Speculative Decoding, CPU Topology, Mesh Logs, and CVE Scanner.
 """Empirical adversarial stress test suite for tasks T-653 through T-662."""
@@ -1864,7 +1864,7 @@ class es653_TestEmpiricalStressT653T662(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t663-t672.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across GPU Heatmap, Systemd Harden, OOMD PSI, Elastic Training, and Multi-modal WS.
 """Empirical adversarial stress test suite for tasks T-663 through T-672."""
@@ -1951,7 +1951,7 @@ class es663_TestEmpiricalStressT663T672(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t673-t682.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across MicroVM Sandbox, Context Compactor, USB Surge, TRNG Entropy, and Kernel Livepatch.
 """Empirical adversarial stress test suite for tasks T-673 through T-682."""
@@ -2024,7 +2024,7 @@ class es673_TestEmpiricalStressT673T682(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t683-t692.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across GPU Power, GBNF Grammar, Streaming TTS, CCID Multiplexer, and OverlayFS.
 """Empirical adversarial stress test suite for tasks T-683 through T-692."""
@@ -2118,7 +2118,7 @@ class es683_TestEmpiricalStressT683T692(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t693-t702.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across Accelerator Router, Medusa Tree, Split-DNS, Fastboot, and KASLR.
 """Empirical adversarial stress test suite for tasks T-693 through T-702."""
@@ -2197,7 +2197,7 @@ class es693_TestEmpiricalStressT693T702(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t703-t712.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across Bit-Perfect Audio, Native Storage, Journal FSS, CUDA Graphs, and SBOM Generator.
 """Empirical adversarial stress test suite for tasks T-703 through T-712."""
@@ -2267,7 +2267,7 @@ class es703_TestEmpiricalStressT703T712(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t713-t722.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across NCCL Tuner, LFS Cache, Storage Scrubber, eBPF Tracer, and Thermal Governor.
 """Empirical adversarial stress test suite for tasks T-713 through T-722."""
@@ -2345,7 +2345,7 @@ class es713_TestEmpiricalStressT713T722(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t723-t732.py
+# from tests/test-stress.py
 # ======================================================================
 # Tests boundary conditions across Macaroon Auth, PgVector HNSW, GPU Terminal, Ceph Heal, and ROCm PagedAttention.
 """Empirical adversarial stress test suite for tasks T-723 through T-732."""
@@ -2414,7 +2414,7 @@ class es723_TestEmpiricalStressT723T732(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t735-t744.py
+# from tests/test-stress.py
 # ======================================================================
 """
 Empirical stress tests for batch T-735 through T-744.
@@ -2479,14 +2479,14 @@ def es735_main() -> int:
     except Exception:
         import traceback
         traceback.print_exc()
-        print("FAILED: test-empirical-stress-t735-t744.py")
+        print("FAILED: test-stress.py")
         return 1
     print("All empirical stress tests for T-735..T-744 passed.")
     return 0
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t745-t754.py
+# from tests/test-stress.py
 # ======================================================================
 """
 Empirical stress tests for batch T-745 through T-754.
@@ -2550,14 +2550,14 @@ def es745_main() -> int:
     except Exception:
         import traceback
         traceback.print_exc()
-        print("FAILED: test-empirical-stress-t745-t754.py")
+        print("FAILED: test-stress.py")
         return 1
     print("All empirical stress tests for T-745..T-754 passed.")
     return 0
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t755-t764.py
+# from tests/test-stress.py
 # ======================================================================
 """
 Empirical stress tests for batch T-755 through T-764.
@@ -2615,14 +2615,14 @@ def es755_main() -> int:
     except Exception:
         import traceback
         traceback.print_exc()
-        print("FAILED: test-empirical-stress-t755-t764.py")
+        print("FAILED: test-stress.py")
         return 1
     print("All empirical stress tests for T-755..T-764 passed.")
     return 0
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t765-t774.py
+# from tests/test-stress.py
 # ======================================================================
 """
 Empirical stress tests for batch T-765 through T-774.
@@ -2675,14 +2675,14 @@ def es765_main() -> int:
     except Exception:
         import traceback
         traceback.print_exc()
-        print("FAILED: test-empirical-stress-t765-t774.py")
+        print("FAILED: test-stress.py")
         return 1
     print("All empirical stress tests for T-765..T-774 passed.")
     return 0
 
 
 # ======================================================================
-# from tests/test-empirical-stress-t966-t975.py
+# from tests/test-stress.py
 # ======================================================================
 """
 Empirical stress tests for batch T-966 through T-975 (Sovereign HCI & AIOS).
@@ -2739,7 +2739,7 @@ def es966_main() -> int:
     except Exception:
         import traceback
         traceback.print_exc()
-        print("FAILED: test-empirical-stress-t966-t975.py")
+        print("FAILED: test-stress.py")
         return 1
     print("All empirical stress tests for T-966..T-975 passed.")
     return 0

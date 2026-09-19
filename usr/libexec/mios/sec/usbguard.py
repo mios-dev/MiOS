@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative USBGuard policy generator and desktop authorization notifier (T-643, T-644).
-# AI-related: usr/libexec/mios/sec/usbguard.py, tests/test-usbguard-policy.py, automation/48-usbguard.sh
+# AI-related: usr/libexec/mios/sec/usbguard.py, tests/test-sec.py, automation/48-usbguard.sh
 """Declarative USBGuard policy generator and desktop authorization notifier for MiOS.
 
 Enforces in-kernel USB device authorization, whitelists known peripherals declared in mios.toml,

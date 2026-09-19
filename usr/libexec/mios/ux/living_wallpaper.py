@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Real-time living wallpaper GLSL/WGSL fragment shader renderer with CPU/GPU telemetry modulation
-# AI-related: tests/test-living-wallpaper.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
 # AI-functions: LivingWallpaperEngine, TelemetrySnapshot, hex_to_rgb_norm, main
 """
 MiOS Living Wallpaper Telemetry Modulator & Shader Renderer.

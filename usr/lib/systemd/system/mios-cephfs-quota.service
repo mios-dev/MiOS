@@ -1,5 +1,5 @@
 # AI-hint: Systemd service for CephFS dynamic quota reconciliation and monitoring.
-# AI-related: usr/libexec/mios/storage/mios-cephfs-quota, usr/lib/systemd/system/mios-cephfs-quota.timer, tests/test-cephfs-quota.py
+# AI-related: usr/libexec/mios/storage/mios-cephfs-quota, usr/lib/systemd/system/mios-cephfs-quota.timer, tests/test-storage.py
 
 [Unit]
 Description=MiOS CephFS Tenant Dynamic Quota Enforcement Service

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 
 # ======================================================================
-# from tests/test-backup-remote.py
+# from tests/test-storage.py
 # ======================================================================
 """Automated tests for WS-DURA remote delta backup synchronization (T-408 / AGY-2006)."""
 
@@ -197,7 +197,7 @@ def br_main() -> int:
 
 
 # ======================================================================
-# from tests/test-bench-storage.py
+# from tests/test-storage.py
 # ======================================================================
 """Automated tests for WS-STRG storage benchmark tool (T-409 / AGY-2007)."""
 
@@ -336,7 +336,7 @@ def bs_main() -> int:
 
 
 # ======================================================================
-# from tests/test-ceph-heal.py
+# from tests/test-storage.py
 # ======================================================================
 """Automated unit test suite for MiOS Ceph Self-Healing Orchestrator."""
 
@@ -361,7 +361,7 @@ class ch_TestCephHeal(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-cephfs-quota.py
+# from tests/test-storage.py
 # ======================================================================
 """Automated tests for CephFS dynamic quota parsing, extended attribute quotas, resizing, and monitoring."""
 
@@ -505,7 +505,7 @@ def cq_main() -> int:
 
 
 # ======================================================================
-# from tests/test-cockpit-ceph.py
+# from tests/test-storage.py
 # ======================================================================
 """Automated tests for Cockpit CephFS & Storage Telemetry Backend (T-550)."""
 
@@ -605,7 +605,7 @@ class cc_TestCockpitCeph(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-container-gc-lru.py
+# from tests/test-storage.py
 # ======================================================================
 """Unit and integration tests for ContainerGCManager."""
 
@@ -704,7 +704,7 @@ def cgl_main() -> int:
 
 
 # ======================================================================
-# from tests/test-empirical-challenger-2.py
+# from tests/test-storage.py
 # ======================================================================
 """MiOS Empirical Adversarial Test Harness (Challenger 2).  Executes stress-testing, boundary attacks, simulated memory pressure, fuzzing payloads, security exclusions, SQL injection defense, and zero-downtime safety checks against: - T-404: Ceph RADOS Gateway Quadlet S3 Container - T-405: LUKS2 Zero-Downtime Key Rotation Engine (mios-luks-rotate) - T-407: SQLite / PostgreSQL Database Doctor (mios-db-doctor) - T-408: Remote Delta Snapshot Backup Synchronizer (mios-backup-remote) - T-409: Storage Performance Benchmark Harness (mios-bench-storage) - T-410: Automated tmpfs Spill-to-NVMe Manager (mios-tmpfs-spill) - T-411: Unified Journald Log Aggregation & pgvector Streamer (mios-log-streamer) - T-412: Zero-Downtime Database Migration Runner (mios-db-migrate)"""
 
@@ -1177,7 +1177,7 @@ def ec2_main() -> int:
 
 
 # ======================================================================
-# from tests/test-ledger-sync.py
+# from tests/test-storage.py
 # ======================================================================
 """Automated tests for CephFS transactional ledger replication, block hashing, and reconciliation."""
 
@@ -1383,7 +1383,7 @@ def ls_main() -> int:
 
 
 # ======================================================================
-# from tests/test-opal-luks-partition.py
+# from tests/test-storage.py
 # ======================================================================
 """Automated tests for Hardware OPAL 2.0 SED / LUKS2 Partitioning Engine (T-549)."""
 
@@ -1484,7 +1484,7 @@ class olp_TestOpalLuksPartition(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-smart-cephfs-evacuation.py
+# from tests/test-storage.py
 # ======================================================================
 """Automated unit test suite for MiOS S.M.A.R.T. Drive Health and CephFS Evacuation."""
 
@@ -1580,7 +1580,7 @@ class sce_TestSmartCephfsEvacuation(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-storage-scrubd.py
+# from tests/test-storage.py
 # ======================================================================
 """Automated unit test suite for MiOS Storage Scrubber Daemon."""
 

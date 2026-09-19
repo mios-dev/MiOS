@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Semantic KV-cache context compaction engine and episodic summary generator for agent-pipe.
-# AI-related: usr/lib/mios/agent-pipe/mios_compact.py, usr/share/doc/mios/manual/ch62-agent-context-compaction.md, tests/test-context-compact.py
+# AI-related: usr/lib/mios/agent-pipe/mios_compact.py, usr/share/doc/mios/manual/ch62-agent-context-compaction.md, tests/test-sec.py
 # AI-functions: KVCompactEngine, estimate_tokens, summarize_turns, main
 """
 WS-AI (T-547): Semantic KV-Cache Context Compaction Engine & Episodic Summary Generator.

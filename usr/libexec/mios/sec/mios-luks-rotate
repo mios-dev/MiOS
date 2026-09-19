@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated zero-downtime LUKS2 and dm-crypt encryption key rotation for Ceph OSDs and secure partitions.
-# AI-related: usr/lib/systemd/system/mios-luks-rotate.service, usr/lib/systemd/system/mios-luks-rotate.timer, tests/test-luks-rotate.py, usr/share/mios/mios.toml
+# AI-related: usr/lib/systemd/system/mios-luks-rotate.service, usr/lib/systemd/system/mios-luks-rotate.timer, tests/test-sec.py, usr/share/mios/mios.toml
 # AI-functions: LUKSDevice, LUKSRotationEngine, main
 """
 MiOS LUKS2 / dm-crypt Automated Key Rotation Engine.

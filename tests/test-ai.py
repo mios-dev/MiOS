@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 
-# ===== merged from tests/test-accelerator-router.py (prefix ar_) =====
+# ===== merged from tests/test-ai.py (prefix ar_) =====
 """Automated unit test suite for MiOS Hierarchical Accelerator Router."""
 
 import os
@@ -42,7 +42,7 @@ class ar_TestAcceleratorRouter(unittest.TestCase):
         self.assertFalse(res.is_power_gated)
 
 
-# ===== merged from tests/test-audit-chain.py (prefix ac_) =====
+# ===== merged from tests/test-ai.py (prefix ac_) =====
 """Unit and integration test suite for AuditChainRecorder and audit_chain CLI (T-554)."""
 
 
@@ -220,7 +220,7 @@ class ac_TestAuditChain(unittest.TestCase):
             self.assertEqual(code, 0)
 
 
-# ===== merged from tests/test-gpu-sched.py (prefix gs_) =====
+# ===== merged from tests/test-ai.py (prefix gs_) =====
 """Automated unit test suite for MiOS GPU Compute Stream Priority Scheduler."""
 
 import os
@@ -299,7 +299,7 @@ class gs_TestGPUSched(unittest.TestCase):
         self.assertTrue(status["sub_50ms_target_met"])
 
 
-# ===== merged from tests/test-m1-adversarial.py (prefix ma_) =====
+# ===== merged from tests/test-ai.py (prefix ma_) =====
 """Adversarial Stress Test Suite for Milestone 1: 1. Self-Healing Circuit Breaker & Safe Remediation Engine (T-382)    - Rapid bursts of failures (100 rapid events)    - Multi-unit isolation & interleaved failure/recovery sequences    - Circuit breaker window expiration & quarantine timing    - Invalid / binary / corrupted journal logs    - Malformed & traversal /usr immutability attack paths    - Corrupted state JSON recovery and schema validation    - SafeConfigEditor atomic file operations & error handling  2. Synthetic Training Q&A Data Pipeline (T-383)    - Secret redactor: nested keys (JSON/YAML/TOML/Env), multi-line keys (RSA/EC/SSH), tokens, bearer auth    - Secret redactor: multi-word passwords inside quotes    - Secret redactor: false-positive preservation on standard prose and config keys    - Hierarchical markdown parser: 6-level deep headers, header level jumping, headers inside code blocks    - Unclosed code fences, malformed tables, empty sections, unicode/emoji handling    - Q&A synthesis schema adherence & JSONL single-line validation"""
 
 
@@ -747,7 +747,7 @@ def ma_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ===== merged from tests/test-model-matrix-alloc.py (prefix mma_) =====
+# ===== merged from tests/test-ai.py (prefix mma_) =====
 """Unit and integration test suite for ModelMatrixAllocator and model_matrix_alloc CLI (T-572)."""
 
 
@@ -859,7 +859,7 @@ class mma_TestModelMatrixAlloc(unittest.TestCase):
             self.assertEqual(code, 0)
 
 
-# ===== merged from tests/test-paged-attention.py (prefix pa_) =====
+# ===== merged from tests/test-ai.py (prefix pa_) =====
 """Automated unit test suite for MiOS PagedAttention Virtual Block Manager."""
 
 import os
@@ -940,7 +940,7 @@ class pa_TestPagedAttention(unittest.TestCase):
         self.assertEqual(stats["active_sessions"], 2)
 
 
-# ===== merged from tests/test-prompt-cache.py (prefix pc_) =====
+# ===== merged from tests/test-ai.py (prefix pc_) =====
 """Automated unit test suite for MiOS Radix Tree Prefix Hash Cache Manager."""
 
 import os
@@ -1021,7 +1021,7 @@ class pc_TestPromptCache(unittest.TestCase):
         self.assertLess(res2["estimated_ttft_ms"], TTFT_TARGET_MS)
 
 
-# ===== merged from tests/test-self-healing.py (prefix sh_) =====
+# ===== merged from tests/test-ai.py (prefix sh_) =====
 """
 Automated unit tests for systemd failure parsing, journald log diagnosis,
 circuit breaker rate limiting, /usr immutability protection, and RCA logging.
@@ -1228,7 +1228,7 @@ def sh_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ===== merged from tests/test-skill-synthesizer.py (prefix ss_) =====
+# ===== merged from tests/test-ai.py (prefix ss_) =====
 """Automated tests for WS-ORCH trace distillation and SKILL.md markdown generation."""
 
 
@@ -1271,7 +1271,7 @@ def ss_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ===== merged from tests/test-speculative-decoding.py (prefix sd_) =====
+# ===== merged from tests/test-ai.py (prefix sd_) =====
 """Automated unit test suite for MiOS Speculative Decoding Manager."""
 
 import os
@@ -1306,7 +1306,7 @@ class sd_TestSpeculativeDecoding(unittest.TestCase):
         self.assertTrue(res["meets_target"])
 
 
-# ===== merged from tests/test-synthetic-qa.py (prefix sq_) =====
+# ===== merged from tests/test-ai.py (prefix sq_) =====
 """
 Automated unit tests for hierarchical markdown header parsing, context preservation,
 multi-turn Q&A synthesis, secret and token redaction, and JSONL dataset generation.
@@ -1467,7 +1467,7 @@ def sq_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ===== merged from tests/test-tensor-kernels.py (prefix tk_) =====
+# ===== merged from tests/test-ai.py (prefix tk_) =====
 """Automated unit test suite for MiOS GPU Tensor Kernel Dispatcher."""
 
 import os
@@ -1500,7 +1500,7 @@ class tk_TestTensorKernels(unittest.TestCase):
         self.assertGreaterEqual(res["efficiency_pct"], 90.0)
 
 
-# ===== merged from tests/test-tts-stream.py (prefix ts_) =====
+# ===== merged from tests/test-ai.py (prefix ts_) =====
 """Automated unit test suite for MiOS Streaming TTS Pipeline."""
 
 import os
@@ -1530,7 +1530,7 @@ class ts_TestTTSStream(unittest.TestCase):
             self.assertLess(res.first_packet_latency_ms, MAX_FIRST_PACKET_LATENCY_MS)
 
 
-# ===== merged from tests/test-visual-rag.py (prefix vr_) =====
+# ===== merged from tests/test-ai.py (prefix vr_) =====
 """Automated tests for WS-AI visual state hashing and metadata generation."""
 
 
@@ -1569,7 +1569,7 @@ def vr_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ===== merged from tests/test-vram-swap.py (prefix vs_) =====
+# ===== merged from tests/test-ai.py (prefix vs_) =====
 """Automated unit test suite for MiOS Dynamic VRAM Swapper and LRU KV Pager."""
 
 import os
@@ -1649,7 +1649,7 @@ class vs_TestVRAMSwap(unittest.TestCase):
         self.assertLess(lat, MAX_SWAP_LATENCY_MS)
 
 
-# ===== merged from tests/test-vram-watchdog.py (prefix vw_) =====
+# ===== merged from tests/test-ai.py (prefix vw_) =====
 """Automated tests for WS-AI GPU memory evaluation and watermark threshold breaches."""
 
 

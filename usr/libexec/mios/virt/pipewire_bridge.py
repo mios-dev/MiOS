@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Low-latency PipeWire JACK / PulseAudio inter-VM audio bridge with Scream IVSHMEM sink.
-# AI-related: tests/test-pipewire-bridge.py, usr/share/doc/mios/manual/ch67-discrete-gpu-vfio-looking-glass-and-displays.md
+# AI-related: tests/test-virt.py, usr/share/doc/mios/manual/ch67-discrete-gpu-vfio-looking-glass-and-displays.md
 """
 MiOS Inter-VM PipeWire Low-Latency Audio Bridge.
 

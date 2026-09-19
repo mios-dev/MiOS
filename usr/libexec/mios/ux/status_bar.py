@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Quickshell / QML system status bar component streaming live LLM VRAM, tokens/sec and agent turns
-# AI-related: tests/test-status-bar.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
 # AI-functions: StatusBarEngine, StatusBarState, generate_qml_component, main
 """
 MiOS Status Bar AI Telemetry Component & QML Bridge.

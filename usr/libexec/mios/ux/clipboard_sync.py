@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Secret-redacting cross-platform clipboard synchronizer between host Wayland/X11 and guest VMs.
-# AI-related: tests/test-clipboard-sync.py, usr/share/mios/mios.toml, usr/lib/systemd/user/mios-clipboard-sync.service
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/systemd/user/mios-clipboard-sync.service
 # AI-functions: ClipboardSyncEngine, RedactionRule, RedactionResult, main
 """
 MiOS Secret-Redacting Cross-Platform Clipboard Synchronizer (T-465).

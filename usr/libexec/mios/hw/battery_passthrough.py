@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Guest virtual ACPI battery and power state passthrough daemon for MiOS.
-# AI-related: usr/libexec/mios/hw/battery_passthrough.py, tests/test-battery-passthrough.py
+# AI-related: usr/libexec/mios/hw/battery_passthrough.py, tests/test-hw.py
 """Guest virtual ACPI battery and power state passthrough daemon for MiOS.
 
 Reads physical power supply state from /sys/class/power_supply/ (BAT0, AC, etc.)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Dynamic quota enforcement per tenant subvolume via CephFS extended attributes and subvolume resizing.
-# AI-related: usr/lib/systemd/system/mios-cephfs-quota.service, usr/lib/systemd/system/mios-cephfs-quota.timer, tests/test-cephfs-quota.py, usr/share/mios/mios.toml
+# AI-related: usr/lib/systemd/system/mios-cephfs-quota.service, usr/lib/systemd/system/mios-cephfs-quota.timer, tests/test-storage.py, usr/share/mios/mios.toml
 # AI-functions: parse_size_bytes, format_size_bytes, parse_count, CephFSQuotaManager, main
 """
 MiOS CephFS Dynamic Quota Enforcement Utility.

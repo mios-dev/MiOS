@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Btop system monitor theme renderer mapping exact RGB hex colors from mios.toml [colors] SSOT.
-# AI-related: tests/test-btop-theme.py, usr/share/mios/mios.toml, etc/btop/themes/mios.theme
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, etc/btop/themes/mios.theme
 # AI-functions: BtopThemeRenderer, main
 """
 MiOS Btop System Monitor Theme Renderer (T-461).

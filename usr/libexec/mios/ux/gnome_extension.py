@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: GNOME Shell extension generator, validator, and manager embedding MiOS agent status in the top panel.
-# AI-related: tests/test-gnome-extension.py, usr/share/mios/mios.toml, usr/share/gnome-shell/extensions/mios-status@mios-dev.org/
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/share/gnome-shell/extensions/mios-status@mios-dev.org/
 # AI-functions: GnomeExtensionManager, main
 """
 MiOS GNOME Shell Top-Panel Extension Manager & Projector (T-459).

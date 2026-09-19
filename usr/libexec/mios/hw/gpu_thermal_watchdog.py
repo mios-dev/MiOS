@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: GPU thermal, junction temperature, and clock frequency watchdog for MiOS.
-# AI-related: usr/libexec/mios/hw/gpu_thermal_watchdog.py, tests/test-gpu-thermal-watchdog.py
+# AI-related: usr/libexec/mios/hw/gpu_thermal_watchdog.py, tests/test-hw.py
 """GPU thermal, junction temperature, and clock frequency watchdog for MiOS.
 
 Monitors discrete GPU junction/hotspot temperatures via DRM/hwmon and NVML,

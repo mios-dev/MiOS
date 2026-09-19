@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: UKI Secure Boot signing key generation, UEFI enrollment, and TPM2 PCR sealing engine.
-# AI-related: tests/test-uki-enroll.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Unified Kernel Image (UKI) Enrollment and TPM2 Policy Sealing Engine.
 Automates cryptographic key generation for UKI Secure Boot signing, UEFI db enrollment,

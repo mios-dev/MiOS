@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Composefs image descriptor verification, fs-verity Merkle root calculation, and prepare-root audit.
-# AI-related: tests/test-composefs-verify.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Composefs and fs-verity Filesystem Integrity Verifier.
 Validates composefs image headers, calculates fs-verity Merkle tree root digests,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Multi-vendor GPU VRAM scrubber, zeroization verifier, and Quadlet memory config auditor.
-# AI-related: tests/test-vram-sanitize.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS GPU VRAM Memory Sanitization and Multi-Tenant Memory Scrubber.
 Probes NVIDIA, AMD ROCm, and Intel GPU accelerators, overwrites device VRAM with zeroed patterns

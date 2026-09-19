@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Cosign container image signature verification, Rekor transparency log validation, and policy.json auditor.
-# AI-related: tests/test-cosign-verify.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Cosign and Container Image Supply-Chain Signature Verifier.
 Validates OCI container signatures, Rekor transparency log inclusion proofs,

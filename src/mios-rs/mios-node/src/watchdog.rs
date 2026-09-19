@@ -1,5 +1,5 @@
 // AI-hint: Hardware watchdog timer integration (/dev/watchdog) with safe 'V' magic close.
-// AI-related: src/mios-rs/mios-node/src/node.rs, usr/libexec/mios/node/watchdog.py, tests/test-node-watchdog.py
+// AI-related: src/mios-rs/mios-node/src/node.rs, usr/libexec/mios/node/watchdog.py, tests/test-node.py
 //! MiOS Hardware Watchdog Supervisor & Device Controller
 //! Integrates Linux `/dev/watchdog` timer with automatic keepalive pinging, systemd notify fallback,
 //! and safe magic close ('V' / 0x56) on clean termination.

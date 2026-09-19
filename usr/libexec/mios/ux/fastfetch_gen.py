@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Fastfetch configuration generator projecting host hardware, bootc image and AI model specs into JSONC
-# AI-related: tests/test-fastfetch-gen.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
 # AI-functions: FastfetchGenEngine, generate_fastfetch_jsonc, main
 """
 MiOS Fastfetch Configuration Generator.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: CRDT LWW-Element-Set and Vector Clock state synchronization engine for edge mesh nodes.
-# AI-related: src/mios-rs/mios-node/src/state_sync.rs, tests/test-node-crdt.py, usr/share/doc/mios/adr/0020-edge-node-mesh-protocol-and-dual-tier-execution.md
+# AI-related: src/mios-rs/mios-node/src/state_sync.rs, tests/test-node.py, usr/share/doc/mios/adr/0020-edge-node-mesh-protocol-and-dual-tier-execution.md
 """
 MiOS Distributed Lock-Free State Synchronization Engine.
 Implements Last-Write-Wins Element-Set (LWW-Element-Set) CRDT, Vector Clock Causality,

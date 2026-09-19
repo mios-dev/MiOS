@@ -5,7 +5,7 @@ from __future__ import annotations
 
 
 # ======================================================================
-# from tests/test-adversarial-hw-power.py (prefix ahp_)
+# from tests/test-hw.py (prefix ahp_)
 # ======================================================================
 import importlib.util
 import json
@@ -528,7 +528,7 @@ def ahp_main() -> int:
 
 
 # ======================================================================
-# from tests/test-battery-passthrough.py (prefix bp_)
+# from tests/test-hw.py (prefix bp_)
 # ======================================================================
 """Automated tests for MiOS Guest Virtual ACPI Battery Passthrough Daemon (T-421)."""
 
@@ -727,7 +727,7 @@ def bp_main() -> int:
 
 
 # ======================================================================
-# from tests/test-cpu-governor.py (prefix cg_)
+# from tests/test-hw.py (prefix cg_)
 # ======================================================================
 """Automated tests for MiOS CPU Governor Manager and Libvirt Hook Integration (T-420)."""
 
@@ -907,7 +907,7 @@ def cg_main() -> int:
 
 
 # ======================================================================
-# from tests/test-cpu-topology.py (prefix ct_)
+# from tests/test-hw.py (prefix ct_)
 # ======================================================================
 """Automated unit test suite for MiOS CPU Topology Allocator."""
 
@@ -940,7 +940,7 @@ class ct_TestCPUTopology(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-energyd-power-cap.py (prefix epc_)
+# from tests/test-hw.py (prefix epc_)
 # ======================================================================
 """Automated unit test suite for MiOS Hardware Energy Metering and Power Capping."""
 
@@ -1039,7 +1039,7 @@ class epc_TestEnergydPowerCap(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-fan-control.py (prefix fc_)
+# from tests/test-hw.py (prefix fc_)
 # ======================================================================
 """Automated unit test suite for MiOS Multi-zone PID Fan Controller."""
 
@@ -1154,7 +1154,7 @@ class fc_TestFanControl(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-gpu-interconnect.py (prefix gi_)
+# from tests/test-hw.py (prefix gi_)
 # ======================================================================
 """Automated unit test suite for MiOS GPU Interconnect Profiler."""
 
@@ -1187,7 +1187,7 @@ class gi_TestGPUInterconnect(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-gpu-power.py (prefix gp_)
+# from tests/test-hw.py (prefix gp_)
 # ======================================================================
 """Automated unit test suite for MiOS GPU Power Manager."""
 
@@ -1219,7 +1219,7 @@ class gp_TestGPUPower(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-gpu-slice-cdi.py (prefix gsc_)
+# from tests/test-hw.py (prefix gsc_)
 # ======================================================================
 """Unit and integration tests for GPUSliceManager and CDI generator."""
 
@@ -1323,7 +1323,7 @@ def gsc_main() -> int:
 
 
 # ======================================================================
-# from tests/test-gpu-thermal-watchdog.py (prefix gtw_)
+# from tests/test-hw.py (prefix gtw_)
 # ======================================================================
 """Automated tests for MiOS GPU Thermal, Junction Temperature & Fan Watchdog (T-424)."""
 
@@ -1497,7 +1497,7 @@ def gtw_main() -> int:
 
 
 # ======================================================================
-# from tests/test-hw-degrade.py (prefix hd_)
+# from tests/test-hw.py (prefix hd_)
 # ======================================================================
 """Automated unit test suite for PCIe Link Width & Speed Degradation Detector (T-564)."""
 
@@ -1618,7 +1618,7 @@ class hd_TestHwDegrade(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-inventory-monitor.py (prefix im_)
+# from tests/test-hw.py (prefix im_)
 # ======================================================================
 """Automated unit test suite for Hardware Netlink Inventory Monitor (T-563)."""
 
@@ -1703,7 +1703,7 @@ class im_TestInventoryMonitor(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-nccl-tune.py (prefix nt_)
+# from tests/test-hw.py (prefix nt_)
 # ======================================================================
 """Automated unit test suite for MiOS NCCL Topology Tuner."""
 
@@ -1736,7 +1736,7 @@ class nt_TestNCCLTune(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-power-profile-transitions.py (prefix ppt_)
+# from tests/test-hw.py (prefix ppt_)
 # ======================================================================
 """Automated tests for MiOS Power Profile Transitions & Inference Downscaler (T-573 / T-574)."""
 
@@ -2070,7 +2070,7 @@ class ppt_TestPowerProfileTransitions(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-thermald.py (prefix th_)
+# from tests/test-hw.py (prefix th_)
 # ======================================================================
 """Automated unit test suite for MiOS Thermal Governor Daemon."""
 
@@ -2101,7 +2101,7 @@ class th_TestThermald(unittest.TestCase):
 
 
 # ======================================================================
-# from tests/test-usb-hotplug.py (prefix uh_)
+# from tests/test-hw.py (prefix uh_)
 # ======================================================================
 """Automated tests for MiOS USB Controller & DAC Hotplug Passthrough Manager (T-422)."""
 
@@ -2300,7 +2300,7 @@ def uh_main() -> int:
 
 
 # ======================================================================
-# from tests/test-usb-surge.py (prefix us_)
+# from tests/test-hw.py (prefix us_)
 # ======================================================================
 """Automated unit test suite for MiOS USB Surge Protection Daemon."""
 

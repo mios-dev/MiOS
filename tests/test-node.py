@@ -5,7 +5,7 @@ from __future__ import annotations
 
 
 # ============================================================================
-# from tests/test-adversarial-m1.py (prefix am1_)
+# from tests/test-node.py (prefix am1_)
 # ============================================================================
 import json
 import os
@@ -290,7 +290,7 @@ class am1_TestAdversarialWatchdog(unittest.TestCase):
 
 
 # ============================================================================
-# from tests/test-m2-adversarial.py (prefix m2a_)
+# from tests/test-node.py (prefix m2a_)
 # ============================================================================
 """Adversarial Stress Test Suite for Milestone 2: 1. Async TCP Framing & Wire Codec (T-386)    - Byte-by-byte (1-byte chunk) stream feeding across 50 multi-opcode frames    - Irregular/randomized chunk slicing across packet boundaries    - High-concurrency async TCP client/server throughput (30 concurrent clients, 300 frames)    - Corrupted CRC32 injection across head, middle, and tail of payload    - Corrupted magic, version, opcode, and underflow rejection    - Oversized payload length header rejection (> 64MB)    - Zero-byte payload valid frame roundtrip (CRC32=0)    - Stream buffer partial frame drainage and resume    - NodeWireDispatcher error response generation for unhandled opcodes  2. Heartbeat Monitor & Dead-Peer Eviction (T-387)    - Mathematical boundary precision (0s, 4.999s, 5.0s, 9.999s, 10.0s, 14.999s, 15.0s)    - Rapid flapping and state churn across 20 peers for 100 timesteps    - Mass simultaneous eviction of 100 peers in a single sweep    - Complete listener notification dispatch on mass eviction    - Clean re-admission after eviction with strike and state reset    - Local node ID self-filtering rejection    - Monotonic time jitter / backward timestamp protection    - Custom threshold configuration lifecycle"""
 
@@ -754,7 +754,7 @@ def m2a_main() -> int:
 
 
 # ============================================================================
-# from tests/test-m2-challenger2-adversarial.py (prefix m2c2a_)
+# from tests/test-node.py (prefix m2c2a_)
 # ============================================================================
 """Adversarial Stress Test Suite for Milestone 2 / T-388 (Challenger 2): 1. Cryptographic Handshake Adversarial Tests:    - Exhaustive single-bit and multi-byte signature tampering across Init and Resp packets (all 64 bytes fuzzed).    - Signature truncation (< 64 bytes) and extension (> 64 bytes) rejection.    - Forged identity pubkeys and ephemeral pubkeys injection / MITM rejection.    - Imposter node identity spoofing and unauthorized packet creation.    - Replay attack resilience and ephemeral key freshness (no key reuse).    - Key derivation symmetry, directional TX/RX key separation, and anti-reflection guarantee.  2. Wire AEAD Encryption Adversarial Tests:    - Exhaustive bit-flip fuzzing across all payload ciphertext bytes.    - Exhaustive bit-flip fuzzing across all 16 bytes of the Poly1305 MAC tag.    - Ciphertext truncation (< 16 bytes) and partial MAC tag drop handling.    - AAD / Node ID spoofing and cross-node ciphertext injection rejection.    - Strict nonce sequence progression, out-of-order packet drop, and wire replay attack prevention.    - High-volume multi-frame stream stress (1,000 frames) with boundary payload sizes (0B, 1B, 15B, 16B, 17B, 64B, 65B, 64KB).    - Layered defense validation: Wire CRC32 transport integrity vs Poly1305 cryptographic authenticity.  3. Concurrency & RFC Standards Compliance:    - Concurrent multi-session thread isolation across 20 distinct mesh nodes.    - Session renegotiation & zero cross-session decryption leakage.    - RFC 8439 / RFC 7748 / RFC 5869 cryptographic correctness verification."""
 
@@ -1263,7 +1263,7 @@ def m2c2a_main() -> int:
 
 
 # ============================================================================
-# from tests/test-m2-deep-adversarial.py (prefix m2da_)
+# from tests/test-node.py (prefix m2da_)
 # ============================================================================
 from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
@@ -1561,7 +1561,7 @@ def m2da_main() -> int:
 
 
 # ============================================================================
-# from tests/test-mesh-logs.py (prefix ml_)
+# from tests/test-node.py (prefix ml_)
 # ============================================================================
 """Automated unit test suite for MiOS Mesh Log Forwarder."""
 
@@ -1597,7 +1597,7 @@ class ml_TestMeshLogs(unittest.TestCase):
 
 
 # ============================================================================
-# from tests/test-node-ble-bootstrap.py (prefix nbb_)
+# from tests/test-node.py (prefix nbb_)
 # ============================================================================
 """Automated tests for WS-NODE BLE GATT bootstrap, X25519 ECDH key exchange, and ChaCha20-Poly1305 provisioning."""
 
@@ -1703,7 +1703,7 @@ def nbb_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-buffer-pool.py (prefix nbp_)
+# from tests/test-node.py (prefix nbp_)
 # ============================================================================
 """Automated tests for WS-NODE BufferPool, PooledBuffer RAII recycling, and zero-copy slicing."""
 
@@ -1830,7 +1830,7 @@ def nbp_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-capabilities.py (prefix ncap_)
+# from tests/test-node.py (prefix ncap_)
 # ============================================================================
 """Automated tests for WS-NODE capabilities telemetry, Opcode 0x02 NodeAnnounce framing, and registry."""
 
@@ -1952,7 +1952,7 @@ def ncap_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-cgroups-pinning.py (prefix ncgp_)
+# from tests/test-node.py (prefix ncgp_)
 # ============================================================================
 """Automated tests for WS-NODE worker CPU core affinity, Core 0 exclusion, and cgroup v2 limits."""
 
@@ -2036,7 +2036,7 @@ def ncgp_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-crdt-gc.py (prefix ncg_)
+# from tests/test-node.py (prefix ncg_)
 # ============================================================================
 """Automated tests for WS-NODE CRDT state compaction and snapshot garbage collection."""
 
@@ -2123,7 +2123,7 @@ def ncg_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-crdt.py (prefix ncrdt_)
+# from tests/test-node.py (prefix ncrdt_)
 # ============================================================================
 """Automated tests for WS-NODE edge mesh CRDT state synchronization and vector clock causality."""
 
@@ -2211,7 +2211,7 @@ def ncrdt_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-discovery.py (prefix nd_)
+# from tests/test-node.py (prefix nd_)
 # ============================================================================
 """Automated tests for WS-NODE mDNS zero-conf discovery, packet validation, and challenge handshake."""
 
@@ -2303,7 +2303,7 @@ def nd_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-m1-adversarial.py (prefix nm1a_)
+# from tests/test-node.py (prefix nm1a_)
 # ============================================================================
 """
 Milestone 1 Adversarial Stress Verification Suite.
@@ -2630,7 +2630,7 @@ class nm1a_TestT400WatchdogStress(unittest.TestCase):
 
 
 # ============================================================================
-# from tests/test-node-m2-adversarial-challenger.py (prefix nm2ac_)
+# from tests/test-node.py (prefix nm2ac_)
 # ============================================================================
 import os
 import sys
@@ -2967,7 +2967,7 @@ class nm2ac_TestM2AdversarialChallenger(unittest.TestCase):
 
 
 # ============================================================================
-# from tests/test-node-overlay.py (prefix no_)
+# from tests/test-node.py (prefix no_)
 # ============================================================================
 """Automated tests for WS-NODE MultiTransportRouter, 3-strike LAN partition failover, and anti-flap recovery."""
 
@@ -3090,7 +3090,7 @@ def no_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-scheduler.py (prefix ns_)
+# from tests/test-node.py (prefix ns_)
 # ============================================================================
 """Automated tests for WS-NODE WorkStealingScheduler, priority tiers, and hardware pin invariants."""
 
@@ -3254,7 +3254,7 @@ def ns_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-wasm-hardware.py (prefix nwh_)
+# from tests/test-node.py (prefix nwh_)
 # ============================================================================
 """Automated tests for WS-NODE Tier-1 Wasm sandbox GPIO and I2C hardware host imports."""
 
@@ -3376,7 +3376,7 @@ def nwh_main() -> int:
 
 
 # ============================================================================
-# from tests/test-node-watchdog.py (prefix nw_)
+# from tests/test-node.py (prefix nw_)
 # ============================================================================
 """Automated tests for WS-NODE hardware watchdog supervisor, keepalive pinging, and magic close ('V')."""
 
@@ -3443,7 +3443,7 @@ def nw_main() -> int:
 
 
 # ============================================================================
-# from tests/test-wasm-sandbox.py (prefix ws_)
+# from tests/test-node.py (prefix ws_)
 # ============================================================================
 """Automated tests for WS-NODE Tier-1 Wasm sandbox execution, fuel limiting, and host imports."""
 

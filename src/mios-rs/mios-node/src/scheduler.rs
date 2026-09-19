@@ -1,5 +1,5 @@
 // AI-hint: Task offloading priority queue with work-stealing scheduler for mios-node (T-392 / AGY-1990).
-// AI-related: src/mios-rs/mios-node/src/executor.rs, usr/libexec/mios/node/scheduler.py, tests/test-node-scheduler.py
+// AI-related: src/mios-rs/mios-node/src/executor.rs, usr/libexec/mios/node/scheduler.py, tests/test-node.py
 //! MiOS Task Offloading Priority Queue & Work-Stealing Scheduler
 //!
 //! Provides prioritized task ingestion (Critical, High, Normal, Low), lock-free/synchronized

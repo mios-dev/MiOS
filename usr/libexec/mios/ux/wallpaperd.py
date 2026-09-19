@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Window-occlusion aware living wallpaper daemon with Vulkan compute priority queue and telemetry IPC socket.
-# AI-related: tests/test-wallpaper-occlusion-throttle.py, usr/share/mios/mios.toml, usr/libexec/mios/ux/living_wallpaper.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/libexec/mios/ux/living_wallpaper.py
 # AI-functions: WallpaperDaemonEngine, OcclusionDetector, VulkanComputeQueue, TelemetrySocketServer, send_socket_command, main
 """
 MiOS Living Wallpaper Occlusion Engine Daemon (mios-wallpaperd).

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: SLSA Level 3 build provenance generator, DSSE envelope signer, and in-toto v1 statement verifier.
-# AI-related: tests/test-slsa-provenance.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS SLSA Level 3 Build Provenance Generator and Verifier.
 Generates in-toto SLSA v1 provenance statements (https://slsa.dev/provenance/v1),

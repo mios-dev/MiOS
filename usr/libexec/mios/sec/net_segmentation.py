@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Zero-trust nftables network segmentation and container namespace firewall isolation.
-# AI-related: tests/test-net-segmentation.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Container Network Segmentation and Zero-Trust Firewall Engine.
 Enforces strict nftables traffic isolation across Podman container subnets,

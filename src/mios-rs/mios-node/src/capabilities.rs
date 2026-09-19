@@ -1,5 +1,5 @@
 // AI-hint: Edge node capability advertising in Announce frames for mios-node (T-394 / AGY-1992).
-// AI-related: src/mios-rs/mios-node/src/protocol.rs, usr/libexec/mios/node/capabilities.py, tests/test-node-capabilities.py
+// AI-related: src/mios-rs/mios-node/src/protocol.rs, usr/libexec/mios/node/capabilities.py, tests/test-node.py
 //! MiOS Edge Node Capability Advertising & Telemetry Engine
 //!
 //! Encapsulates Opcode 0x02 `NodeAnnounce` payloads with CPU, RAM, GPU/VRAM telemetry,

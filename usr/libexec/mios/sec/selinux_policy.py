@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: SELinux Type Enforcement policy generator, module compiler, and AVC denial parser for AI sidecars.
-# AI-related: tests/test-selinux-policy.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS SELinux Policy Manager and Sidecar Confinement Engine.
 Generates Type Enforcement (.te) definitions for mios_sidecar_t, compiles .mod and .pp packages,

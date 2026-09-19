@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Zero-copy network buffer pooling for mios-node frames (T-393 / AGY-1991).
-# AI-related: usr/libexec/mios/node/wire.py, tests/test-node-buffer-pool.py
+# AI-related: usr/libexec/mios/node/wire.py, tests/test-node.py
 """
 MiOS Zero-Copy Network Buffer Pool.
 Provides bucketed allocations (Small=256B, Medium=4KB, Large=64KB, Huge=1MB),

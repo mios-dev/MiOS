@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Task offloading priority queue with work-stealing scheduler for mios-node (T-392 / AGY-1990).
-# AI-related: usr/libexec/mios/node/wasm_sandbox.py, tests/test-node-scheduler.py
+# AI-related: usr/libexec/mios/node/wasm_sandbox.py, tests/test-node.py
 """
 MiOS Task Offloading Priority Queue & Work-Stealing Scheduler.
 Provides 4-tier priority queues (Critical=0, High=1, Normal=2, Low=3),

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated CPU governor switching and frequency scaling manager for MiOS.
-# AI-related: usr/libexec/mios/hw/cpu_governor.py, /etc/libvirt/hooks/qemu, tests/test-cpu-governor.py
+# AI-related: usr/libexec/mios/hw/cpu_governor.py, /etc/libvirt/hooks/qemu, tests/test-hw.py
 """Automated CPU governor switcher and frequency scaling manager for MiOS.
 
 Manages CPU frequency governors via /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor.

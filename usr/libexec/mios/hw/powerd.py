@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Power supply state detector and battery-aware AI inference downscaler daemon for MiOS.
-# AI-related: usr/libexec/mios/hw/powerd.py, usr/lib/systemd/system/mios-powerd.service, tests/test-power-profile-transitions.py
+# AI-related: usr/libexec/mios/hw/powerd.py, usr/lib/systemd/system/mios-powerd.service, tests/test-hw.py
 """Power-supply state detector (mios-powerd) and battery-aware AI inference downscaler.
 
 Monitors AC/DC power supply state via /sys/class/power_supply or netlink udev events.

@@ -1,5 +1,5 @@
 # AI-hint: Systemd service for CephFS transactional ledger replication and integrity verification.
-# AI-related: usr/libexec/mios/storage/mios-ledger-sync, tests/test-ledger-sync.py, usr/share/mios/mios.toml
+# AI-related: usr/libexec/mios/storage/mios-ledger-sync, tests/test-storage.py, usr/share/mios/mios.toml
 
 [Unit]
 Description=MiOS CephFS Transactional Ledger Replication Service

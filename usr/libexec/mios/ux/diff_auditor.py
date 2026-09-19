@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Interactive CLI and Quickshell diff auditor enabling operator inspection, approval, rejection, and bake staging.
-# AI-related: usr/share/doc/mios/adr/0018-shutdown-diff-snapshotting-and-boot-cycle-accrual.md, usr/share/doc/mios/manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md, tests/test-diff-auditor.py
+# AI-related: usr/share/doc/mios/adr/0018-shutdown-diff-snapshotting-and-boot-cycle-accrual.md, usr/share/doc/mios/manual/ch63-diff-snapshotting-boot-accrual-and-hitl-rollin.md, tests/test-ux.py
 # AI-functions: DiffAuditorEngine, atomic_write_json, main
 """
 WS-DIFFCYCLE (T-468): Human-In-The-Loop Interactive Diff Auditor.

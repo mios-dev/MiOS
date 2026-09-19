@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 
-# ==== from tests/test-auditd-rules.py (prefix ar_) ====
+# ==== from tests/test-sec.py (prefix ar_) ====
 """Unit and integration test suite for AuditdRulesManager and CLI."""
 
 
@@ -122,7 +122,7 @@ def ar_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-boot-chain-verify.py (prefix bcv_) ====
+# ==== from tests/test-sec.py (prefix bcv_) ====
 """Automated tests for WS-SEC UKI PE headers, PCR 4/7/11 checks, and fs-verity digests."""
 
 
@@ -187,7 +187,7 @@ def bcv_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-composefs-verify.py (prefix cfv_) ====
+# ==== from tests/test-sec.py (prefix cfv_) ====
 """Unit and integration test suite for ComposefsVerifier and CLI."""
 
 
@@ -328,7 +328,7 @@ def cfv_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-context-compact.py (prefix cc_) ====
+# ==== from tests/test-sec.py (prefix cc_) ====
 """Unit and integration test suite for KVCompactEngine and mios_kv_compact CLI (T-548)."""
 
 
@@ -475,7 +475,7 @@ class cc_TestContextCompact(unittest.TestCase):
             self.assertEqual(code, 0)
 
 
-# ==== from tests/test-cosign-verify.py (prefix cosv_) ====
+# ==== from tests/test-sec.py (prefix cosv_) ====
 """Unit and integration test suite for CosignVerifier and CLI."""
 
 
@@ -610,7 +610,7 @@ def cosv_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-cve-scan.py (prefix cve_) ====
+# ==== from tests/test-sec.py (prefix cve_) ====
 """Automated unit test suite for MiOS CVE Vulnerability Scanner."""
 
 import os
@@ -648,7 +648,7 @@ class cve_TestCVEScanner(unittest.TestCase):
         self.assertEqual(report["summary"]["critical"], 1)
 
 
-# ==== from tests/test-empirical-challenger-1.py (prefix ec1_) ====
+# ==== from tests/test-sec.py (prefix ec1_) ====
 import os
 import sys
 import unittest
@@ -1071,7 +1071,7 @@ class ec1_TestAdversarialLookingGlass(unittest.TestCase):
             self.assertEqual(res_real["checks"]["kvmfr_device"], "fail")
 
 
-# ==== from tests/test-entropy-seed.py (prefix es_) ====
+# ==== from tests/test-sec.py (prefix es_) ====
 """Automated unit test suite for MiOS Hardware Entropy Seeder."""
 
 import os
@@ -1099,7 +1099,7 @@ class es_TestEntropySeed(unittest.TestCase):
         self.assertGreaterEqual(res.shannon_entropy, 7.85)
 
 
-# ==== from tests/test-fido2-enroll.py (prefix fe_) ====
+# ==== from tests/test-sec.py (prefix fe_) ====
 """Unit and integration test suite for Fido2EnrollEngine and fido2_enroll CLI."""
 
 
@@ -1273,7 +1273,7 @@ def fe_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-fido2-hardware-sandbox.py (prefix fhs_) ====
+# ==== from tests/test-sec.py (prefix fhs_) ====
 """Unit and integration tests for FIDO2SecurityManager."""
 
 
@@ -1367,7 +1367,7 @@ def fhs_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-greenboot-gate.py (prefix gg_) ====
+# ==== from tests/test-sec.py (prefix gg_) ====
 """Unit and integration test suite for GreenbootGateEngine and greenboot_gate CLI."""
 
 
@@ -1493,7 +1493,7 @@ def gg_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-grype-scan.py (prefix gs_) ====
+# ==== from tests/test-sec.py (prefix gs_) ====
 """Unit and integration test suite for GrypeScanner and CLI."""
 
 
@@ -1633,7 +1633,7 @@ def gs_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-hitl-approval.py (prefix ha_) ====
+# ==== from tests/test-sec.py (prefix ha_) ====
 """
 Automated unit tests for MiOS HITL Permission Escalation and Approval Engine (SEC-06).
 
@@ -2029,7 +2029,7 @@ def ha_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-journal-fss.py (prefix jf_) ====
+# ==== from tests/test-sec.py (prefix jf_) ====
 """Automated unit test suite for MiOS Journal FSS Manager."""
 
 import os
@@ -2059,7 +2059,7 @@ class jf_TestJournalFSS(unittest.TestCase):
         self.assertFalse(self.mgr.verify_journal_integrity(logs, tamper_index=5))
 
 
-# ==== from tests/test-kaslr-mgr.py (prefix km_) ====
+# ==== from tests/test-sec.py (prefix km_) ====
 """Automated unit test suite for MiOS KASLR Randomizer Manager."""
 
 import os
@@ -2089,7 +2089,7 @@ class km_TestKASLRMgr(unittest.TestCase):
         self.assertGreaterEqual(entropy, MIN_KASLR_ENTROPY_BITS)
 
 
-# ==== from tests/test-kernel-livepatch.py (prefix kl_) ====
+# ==== from tests/test-sec.py (prefix kl_) ====
 """Unit and integration test suite for LivepatchManager and livepatch_mgr CLI (T-546)."""
 
 
@@ -2214,7 +2214,7 @@ class kl_TestKernelLivepatch(unittest.TestCase):
             self.assertEqual(code, 0)
 
 
-# ==== from tests/test-lockdown-probe.py (prefix lp_) ====
+# ==== from tests/test-sec.py (prefix lp_) ====
 """Unit and integration test suite for LockdownProbe and CLI."""
 
 
@@ -2306,7 +2306,7 @@ def lp_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-luks-rotate.py (prefix lr_) ====
+# ==== from tests/test-sec.py (prefix lr_) ====
 """Automated tests for LUKS2 metadata parsing, header backup, atomic key rotation, and safety rollback."""
 
 
@@ -2527,7 +2527,7 @@ def lr_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-net-segmentation.py (prefix ns_) ====
+# ==== from tests/test-sec.py (prefix ns_) ====
 """Unit and integration test suite for NetSegmentationManager and CLI."""
 
 
@@ -2627,7 +2627,7 @@ def ns_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-panic-rollback.py (prefix pr_) ====
+# ==== from tests/test-sec.py (prefix pr_) ====
 """Unit and integration test suite for PanicRollbackHandler and CLI."""
 
 
@@ -2744,7 +2744,7 @@ def pr_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-quadlet-secrets-rotation.py (prefix qsr_) ====
+# ==== from tests/test-sec.py (prefix qsr_) ====
 """Automated tests for WS-SEC Quadlet secret file permissions audit and token rotation."""
 
 
@@ -2827,7 +2827,7 @@ def qsr_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-remote-attestation.py (prefix ra_) ====
+# ==== from tests/test-sec.py (prefix ra_) ====
 """Unit and integration test suite for RemoteAttestationEngine and CLI."""
 
 
@@ -2935,7 +2935,7 @@ def ra_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-sbom-gen.py (prefix sg_) ====
+# ==== from tests/test-sec.py (prefix sg_) ====
 """Automated unit test suite for MiOS SBOM Generator."""
 
 import os
@@ -2959,7 +2959,7 @@ class sg_TestSBOMGen(unittest.TestCase):
         self.assertTrue(res.cosign_attestation_signature.startswith("cosign_sig_"))
 
 
-# ==== from tests/test-secret-mem.py (prefix sm_) ====
+# ==== from tests/test-sec.py (prefix sm_) ====
 """Automated unit test suite for MiOS Secure In-Memory Secret Enclave."""
 
 import os
@@ -3035,7 +3035,7 @@ class sm_TestSecretMem(unittest.TestCase):
         self.assertIn("madv_wipeonfork_flag", status)
 
 
-# ==== from tests/test-selinux-policy.py (prefix sp_) ====
+# ==== from tests/test-sec.py (prefix sp_) ====
 """Unit and integration test suite for SelinuxPolicyManager and CLI."""
 
 
@@ -3153,7 +3153,7 @@ def sp_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-slsa-provenance.py (prefix slp_) ====
+# ==== from tests/test-sec.py (prefix slp_) ====
 """Unit and integration test suite for SlsaProvenanceEngine and CLI."""
 
 
@@ -3292,7 +3292,7 @@ def slp_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-smartcard-mux.py (prefix scm_) ====
+# ==== from tests/test-sec.py (prefix scm_) ====
 """Automated unit test suite for MiOS Virtual CCID Multiplexer."""
 
 import os
@@ -3323,7 +3323,7 @@ class scm_TestSmartcardMux(unittest.TestCase):
         self.assertEqual(len(signatures), 10)
 
 
-# ==== from tests/test-spiffe-mtls.py (prefix smt_) ====
+# ==== from tests/test-sec.py (prefix smt_) ====
 """Unit and integration test suite for SpiffeIdentityAgent and spiffe_identity CLI (T-568)."""
 
 
@@ -3464,7 +3464,7 @@ class smt_TestSpiffeIdentityMtls(unittest.TestCase):
             self.assertEqual(code, 0)
 
 
-# ==== from tests/test-systemd-harden.py (prefix sh_) ====
+# ==== from tests/test-sec.py (prefix sh_) ====
 """Automated unit test suite for MiOS Systemd Hardening Manager."""
 
 import os
@@ -3499,7 +3499,7 @@ class sh_TestSystemdHardening(unittest.TestCase):
         self.assertGreater(audit.exposure_score, 3.0)
 
 
-# ==== from tests/test-uki-enroll.py (prefix ue_) ====
+# ==== from tests/test-sec.py (prefix ue_) ====
 """Unit and integration test suite for UkiEnrollEngine and CLI."""
 
 
@@ -3643,7 +3643,7 @@ def ue_main() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-# ==== from tests/test-usbguard-policy.py (prefix up_) ====
+# ==== from tests/test-sec.py (prefix up_) ====
 """Automated unit test suite for MiOS USBGuard Policy Manager."""
 
 import os
@@ -3686,7 +3686,7 @@ class up_TestUSBGuardPolicy(unittest.TestCase):
         self.assertIn("SN_NEW_02", rules)
 
 
-# ==== from tests/test-vram-sanitize.py (prefix vs_) ====
+# ==== from tests/test-sec.py (prefix vs_) ====
 """Unit and integration test suite for VramSanitizer and CLI."""
 
 

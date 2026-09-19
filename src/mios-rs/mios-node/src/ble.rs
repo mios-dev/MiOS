@@ -1,5 +1,5 @@
 // AI-hint: BLE beaconing for offline local mesh bootstrap for mios-node (T-395 / AGY-1993).
-// AI-related: src/mios-rs/mios-node/src/crypto.rs, usr/libexec/mios/node/ble.py, tests/test-node-ble-bootstrap.py
+// AI-related: src/mios-rs/mios-node/src/crypto.rs, usr/libexec/mios/node/ble.py, tests/test-node.py
 //! MiOS BLE Beaconing & Offline Local Mesh Bootstrap Engine
 //!
 //! Implements GATT service/characteristic definitions for headless edge blades,

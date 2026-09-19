@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Offline procedural ambient background audio synthesizer for deep focus programming sessions.
-# AI-related: tests/test-focus-audio.py, usr/share/mios/mios.toml, usr/share/mios/audio/focus-presets.json
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/share/mios/audio/focus-presets.json
 # AI-functions: FocusAudioSynthesizer, FocusPreset, main
 """
 MiOS Offline Procedural Focus Audio Synthesizer (T-464).

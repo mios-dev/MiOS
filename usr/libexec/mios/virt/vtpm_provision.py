@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Virtual TPM2 (swtpm) ephemeral socket provisioning for Secure Boot Windows 11 guests (T-417).
-# AI-related: tests/test-vtpm-provision.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
+# AI-related: tests/test-virt.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
 """
 MiOS Virtual TPM2 (swtpm) Provisioning and Domain XML Generator.
 Provisions isolated, persistent TPM2 emulator instances per VM under /var/lib/libvirt/swtpm/<vm_id>/

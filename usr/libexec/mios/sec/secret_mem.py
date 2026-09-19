@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Secure in-memory secret enclave runtime (mlock, MADV_DONTDUMP, MADV_WIPEONFORK, explicit_bzero).
-# AI-related: usr/libexec/mios/sec/secret_mem.py, tests/test-secret-mem.py, usr/lib/mios/agent-pipe/server.py
+# AI-related: usr/libexec/mios/sec/secret_mem.py, tests/test-sec.py, usr/lib/mios/agent-pipe/server.py
 """Secure in-memory secret enclave runtime for MiOS.
 
 Allocates memory-locked, non-dumpable, wipe-on-fork pages to isolate decrypted tokens,

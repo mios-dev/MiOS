@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated IOMMU group parser and PCIe ACS override topology recommendation tool (T-413).
-# AI-related: tests/test-iommu-parser.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
+# AI-related: tests/test-virt.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
 """
 MiOS IOMMU Group Parser and PCIe ACS Override Topology Auditor.
 Audits /sys/kernel/iommu_groups/ to verify target GPU isolation for VFIO passthrough.

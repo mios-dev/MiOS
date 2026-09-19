@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Auditd rule generation, syntax validation, deployment, and security audit log parser.
-# AI-related: tests/test-auditd-rules.py, usr/share/doc/mios/manual/sec.md
+# AI-related: tests/test-sec.py, usr/share/doc/mios/manual/sec.md
 """
 MiOS Auditd Security Rules Manager and Configuration Access Monitor.
 Generates Linux audit rules watching critical configuration paths (/etc/mios, /usr/share/mios),

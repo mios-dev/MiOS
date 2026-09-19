@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Terminal multiplexer tmux theme generator deriving active pane styles and status bar formatting from SSOT
-# AI-related: tests/test-tmux-theme.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
 # AI-functions: TmuxThemeEngine, generate_tmux_config, main
 """
 MiOS Tmux Theme & Status Line Generator.

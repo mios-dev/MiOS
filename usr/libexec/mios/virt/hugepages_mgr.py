@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Hugepages automatic allocation, compaction, and teardown manager for KVM guests (T-418).
-# AI-related: tests/test-hugepages-mgr.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
+# AI-related: tests/test-virt.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
 """
 MiOS Hugepages Automatic Allocation, Memory Compaction, and Teardown Manager.
 Dynamically provisions 2MB (2048kB) and 1GB (1048576kB) hugepages for KVM guest memory backing.

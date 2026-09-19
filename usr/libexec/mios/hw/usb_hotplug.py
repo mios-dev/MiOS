@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: USB hotplug manager routing game controllers and audio DACs dynamically to guests.
-# AI-related: usr/libexec/mios/hw/usb_hotplug.py, usr/lib/udev/rules.d/90-mios-usb-passthrough.rules, tests/test-usb-hotplug.py
+# AI-related: usr/libexec/mios/hw/usb_hotplug.py, usr/lib/udev/rules.d/90-mios-usb-passthrough.rules, tests/test-hw.py
 """USB hotplug manager routing game controllers and audio DACs dynamically to guests.
 
 Scans USB bus topology, classifies devices into eligible guest passthrough targets
