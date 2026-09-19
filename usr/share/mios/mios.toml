@@ -6714,6 +6714,7 @@ pkgs = [
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "python3-openai",
+    "python3-httpx",    # mios_mcp imports it directly; never lean on python3-openai pulling it in
     "nodejs",           # required by claude-code + gemini-cli (npm-installed)
     "npm",
     "nano",             # baseline text editor for operator config edits (operator-flagged: "nano: command not found")
