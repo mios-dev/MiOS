@@ -7,12 +7,12 @@
  "criteria": [
   {
    "id": "C-01",
-   "description": "Drift gate at its standing red: exactly 14 violations (15 -> 14: check_no_inert_ssot_tables drained via T-1061, 1 line)",
+   "description": "check_doc_refs_resolve exits 0 (all stale documentation references resolved). NOT MET and not reachable by fixing references: 120 of the 124 name paths that exist nowhere in the repo -- unbuilt components and unwritten chapters, filed as T-1074.",
    "criterion_type": "test",
    "command": "cd /home/user/MiOS && ./src/mios-rs/target/release/mios-gate doc-refs-resolve --root . >/dev/null 2>&1 && [ -z \"$(git status --porcelain)\" ]",
    "target_path": null,
    "passed": false,
-   "details": "pending CI on this head"
+   "details": "120 stale references remain after fixing the 4 that were real moves. Separately this goal's side-work drained check_no_inert_ssot_tables (T-1061) and guarded emit()'s reject path (T-1060), taking the gate's standing red 15 -> 14 pending CI."
   },
   {
    "id": "C-02",
