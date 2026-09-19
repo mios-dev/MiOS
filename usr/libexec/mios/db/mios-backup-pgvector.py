@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated pg_dump and zstd snapshot generator with rolling retention for pgvector.
-# AI-related: usr/lib/systemd/system/mios-backup-pgvector.service, tests/test-backup-pgvector.py, usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+# AI-related: usr/lib/systemd/system/mios-backup-pgvector.service, tests/test-db.py, usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
 """
 Automated PostgreSQL+pgvector Backup & zstd Snapshot Engine.
 Dumps database state via pg_dump, compresses with zstd, and enforces rolling retention.

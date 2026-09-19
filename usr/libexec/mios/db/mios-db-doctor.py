@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Database integrity checker, corruption detector, and automated non-destructive repair engine for SQLite and PostgreSQL.
-# AI-related: usr/lib/greenboot/check/required.d/55-mios-db-check.sh, tests/test-db-doctor.py, usr/share/containers/systemd/mios-pgvector.container
+# AI-related: usr/lib/greenboot/check/required.d/55-mios-db-check.sh, tests/test-db.py, usr/share/containers/systemd/mios-pgvector.container
 """
 MiOS Database Doctor & Automated Repair Engine.
 Inspects SQLite databases using PRAGMA integrity_check / quick_check,

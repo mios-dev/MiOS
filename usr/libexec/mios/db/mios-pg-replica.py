@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: PostgreSQL hot-standby streaming replication manager, lag monitor, fencing coordinator, and atomic failover promoter.
-# AI-related: usr/lib/systemd/system/mios-pg-replica.service, tests/test-pg-replica.py, usr/share/containers/systemd/mios-pgvector.container
+# AI-related: usr/lib/systemd/system/mios-pg-replica.service, tests/test-db.py, usr/share/containers/systemd/mios-pgvector.container
 """
 PostgreSQL Hot-Standby Streaming Replication & Failover Manager.
 Provisions standby replicas using pg_basebackup with physical replication slots,

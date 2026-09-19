@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Zero-downtime PostgreSQL schema migration runner with SHA-256 integrity hashing and atomic transaction rollback.
-# AI-related: usr/share/mios/postgres/migrations/, tests/test-db-migrate.py, usr/share/mios/postgres/schema-init.sql
+# AI-related: usr/share/mios/postgres/migrations/, tests/test-db.py, usr/share/mios/postgres/schema-init.sql
 """
 MiOS Database Schema Migration Runner.
 Applies transactional SQL migrations from /usr/share/mios/postgres/migrations/
