@@ -1033,3 +1033,65 @@ so long. Let a run finish.
      checkout from an earlier container.
 - blockers: -dev-loop main and mios-bootstrap main refuse pushes from this
   codespace (403; its token is scoped to mios.git).
+
+## 2026-09-19 · HANDOFF from Claude Code to AGY (operator: "handoff all work to AGY")
+- objective: FULL porting and refactoring GLOBALLY. Consolidate MiOS into fewer
+  multi-purpose files, port to Rust where applicable (tools/native), float
+  every version on latest, and keep the SSOT complete.
+- STOP FIRST, CONCURRENCY: three agents (agy x2, claude) run with cwd `/`,
+  the root overlay. It shares /workspaces/MiOS/.git and its files are
+  symlinks into this checkout, so `git checkout -- .` / `git restore` at `/`
+  writes through into /workspaces/MiOS and discards another agent's
+  uncommitted work. That happened at 0abd155c: the stateful-image float
+  below was wiped before it could be committed. Rule: one agent per git
+  worktree (`git worktree add ../mios-<agent> main`). Never restore files
+  you did not change. Commit small and push to main often (operator order:
+  push to main, always).
+- next, in order:
+  1. RE-APPLY the reverted stateful float (operator decision: float
+     everything, no guards). In usr/share/mios/mios.toml: [versions] k3s,
+     forgejo, ceph = "latest"; [images] forge_runner and pgvector -> :latest;
+     the [build.bake].core entries for runner/forgejo/pgvector/k3s/ceph ->
+     :latest; and every embedded ${MIOS_{CEPH,FORGE,FORGE_RUNNER,K3S,PGVECTOR}_IMAGE:-...}
+     fallback -> :latest. Also usr/libexec/mios/mios-forgejo-runner-firstboot.sh:33
+     (runner:7 -> :latest; replace the blank line before `. "$TOKEN_FILE"` with
+     `# shellcheck source=/dev/null`, which costs zero shell lines) and the
+     configurator placeholders for forgejo:12 / runner:7. Then
+     tools/sync-generated.sh, `MIOS_ROOT=$PWD tools/native/target/release/mios-bake-plan`,
+     and MIOS_VALUE_DUP_BASELINE_BUMP=1 for check_no_duplicate_value_key.
+     The expected ledger diff is exactly: ceiling 405 -> 403, the '12', '7',
+     'v1.36.3-k3s1' and 'v19' groups gone, and the floated keys joining the
+     exempt 'latest' group. At bake, mios-bake-plan latest-image resolves
+     registries with no `latest` tag (live: forgejo 16.0.5, runner 13.2.0,
+     ceph v21, pgvector pg18).
+  2. Stale doc refs: 95 left (mios-gate doc-refs-resolve now lists all of
+     them, by full path). None is a rename in git history. For each: repoint
+     only with evidence that an existing file covers the subject, mark
+     "planned" with a TASKS/AGY-TASKS id, or bring "retire" to the operator
+     (T-1074).
+  3. tests/ consolidation, wave 2. Wave 1 folded 144 files into 8 subject
+     modules (tests/test-{stress,sec,node,ux,hw,ai,storage,virt}.py), 906
+     tests preserved and re-counted independently. Left: agent-pipe (39),
+     lib/ai (16), deploy (8), db (6), win (5), kernel (5), net (4), git (4),
+     plus 77 unmapped. Recipe: baseline each file's rc and test count, merge
+     with token-position renaming (classes included, imports in place, entry
+     points stripped), run a negative control, re-verify after git rm, and
+     update [ci.tiers].unit centrally.
+  4. Open lane findings: mios_worktree.py:22 defaults repo_root to
+     "/mnt/c/MiOS" (Law 7), and there is no .containerignore, so .worktrees/
+     trees reach the build context.
+  5. [versions].fedora = "44" still pins; consumers include automation/05-repos.sh
+     and 06-enable-external-repos.sh. Derive it from the base image at build
+     (rpm -E %fedora).
+  6. Rust porting (CLAUDE.md "Rust static binaries, globally"): tools/*.py
+     gates and generators into tools/native. Build in the dev container,
+     which now declares rust/cargo/clippy/rustfmt/gcc; it takes effect on
+     the next rebuild.
+- blockers: -dev-loop has 3 verified commits on branch
+  claude/adopt-mios-challenger-tests (in ~/.dev-loop): the 7 challenger
+  suites, a fix to a test that is red on -dev-loop main, and floated
+  devcontainer bases. mios-bootstrap has 1 on claude/packages-ai-httpx.
+  Both were refused with a 403 from the codespace token. After -dev-loop
+  lands, delete the 7 copies from MiOS tests/.
+- monitor: the Claude Code session that wrote this entry watches all agents
+  and reports what it sees.
