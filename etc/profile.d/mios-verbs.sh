@@ -134,7 +134,14 @@ _mios_complete() {
         COMPREPLY=( $(compgen -W "mini dash build config dotfiles dev pull update help mon monitor" -- "$cur") )
     fi
 }
-complete -F _mios_complete mios
+# `complete` and `compgen` are bash builtins, but /etc/profile.d is read by
+# every login shell — zsh included, where this line is a hard error
+# ("command not found: complete") on every login. Register per shell.
+if [ -n "${BASH_VERSION:-}" ]; then
+    complete -F _mios_complete mios
+elif [ -n "${ZSH_VERSION:-}" ]; then
+    compdef '_values "mios verb" mini dash build config dotfiles dev pull update help mon monitor' mios 2>/dev/null || true
+fi
 
 command_not_found_handle() {
     if [[ "${1:-}" == @* ]] && [[ "${1}" != "@" ]]; then
@@ -149,3 +156,10 @@ command_not_found_handle() {
     return 127
 }
 export -f command_not_found_handle 2>/dev/null || true
+
+# zsh spells the hook command_not_found_handler (trailing "r"), so without this
+# the @verb shorthand is silently dead in any zsh login shell — which is the
+# default shell in this repo's dev container.
+if [ -n "${ZSH_VERSION:-}" ]; then
+    command_not_found_handler() { command_not_found_handle "$@"; }
+fi

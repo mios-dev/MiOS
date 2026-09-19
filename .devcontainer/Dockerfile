@@ -28,6 +28,12 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 
 RUN npm install -g @google/gemini-cli
 
+# mios-mon's TUI imports rich/textual/psutil and pip-installs them on first run
+# if they are missing. Bake them so a fresh container does not spend that first
+# run downloading — and so the tool degrades to a clear message rather than a
+# FATAL when the network or pip is unavailable.
+RUN python3 -m pip install --no-cache-dir rich textual psutil
+
 # Spell the sudoers username exactly as the account and give it an explicit
 # (ALL) runas spec. This is hygiene, not a fix: the previous "Mios-dev"
 # spelling was measured to work, since sudo matches the username
