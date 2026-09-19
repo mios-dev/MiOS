@@ -2149,16 +2149,38 @@ test_bake_ref_parity() {
     [[ -f "$script_file" ]] || die "test_bake_ref_parity: $script_file is missing -- the test would otherwise skip silently"
     if true; then
         local orig_val
-        orig_val="$(cat "$script_file")"
+        # Byte-exact capture: $(cat) strips EVERY trailing newline and `echo` adds
+        # exactly one back, so that round-trip silently rewrites any file whose tail
+        # is not a single newline. printf X / ${var%X} preserves the tail verbatim,
+        # which is the idiom the rest of this suite already uses.
+        orig_val="$(cat "$script_file"; printf X)"
+        _bakeref_restore() { printf '%s' "${orig_val%X}" > "$script_file"; }
 
-        sed -i 's/MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v0.3.0/MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v9.9.9/' "$script_file"
+        # Derive the default from the file instead of hardcoding it. This sed looked
+        # for `MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v0.3.0`; the default later floated to
+        # `latest`, the pattern stopped matching, and the mutation became a silent
+        # no-op. check_bake_ref_defaults was then run against a PRISTINE file, passed
+        # exactly as it should have, and this test reported that as "the check passed
+        # despite a wrong bake_ref default" -- the verdict inverted, blaming the check
+        # for the test's own stale plant. A mutation that matches nothing must fail
+        # loudly instead of silently no-op'ing (SKILL.md 6).
+        local cur_ref planted='DEVLOOP-PLANTED-BAKEREF-PARITY'
+        cur_ref="$(sed -n 's/.*MIOS_BUILD_BAKE_REFS_QUICKSHELL:-\([^}]*\)}.*/\1/p' "$script_file" | head -1)"
+        [[ -n "$cur_ref" ]] || die "test_bake_ref_parity: no MIOS_BUILD_BAKE_REFS_QUICKSHELL default found in $script_file -- the plant would be a no-op"
+        sed -i "s#MIOS_BUILD_BAKE_REFS_QUICKSHELL:-${cur_ref}}#MIOS_BUILD_BAKE_REFS_QUICKSHELL:-${planted}}#" "$script_file"
+        grep -q "$planted" "$script_file" || {
+            _bakeref_restore
+            die "test_bake_ref_parity: the plant did not land (default read as '${cur_ref}') -- a no-op mutation makes the next assertion meaningless"
+        }
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1; then
-            echo "$orig_val" > "$script_file"
-            die "Check_bake_ref_defaults passed despite wrong bake_ref default"
+            _bakeref_restore
+            die "Check_bake_ref_defaults passed despite wrong bake_ref default '${planted}'"
         fi
 
-        echo "$orig_val" > "$script_file"
+        _bakeref_restore
+        [[ "$(cat "$script_file"; printf X)" == "$orig_val" ]] \
+            || die "test_bake_ref_parity: $script_file was not restored byte-exactly"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1 \
             || die "test_bake_ref_parity: check_bake_ref_defaults failed after restoration"
     fi
