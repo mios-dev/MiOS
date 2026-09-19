@@ -1,5 +1,5 @@
 # AI-hint: MiOS system and orchestration module providing varlink activator capabilities.
-# AI-related: varlink.service
+# AI-related: tests/test-varlink-socket-activation.py
 # AI-functions: __init__, define_method, dispatch, register, handle_rpc, VarlinkMethod, VarlinkInterface, VarlinkServer
 
 """

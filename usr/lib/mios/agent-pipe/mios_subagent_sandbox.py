@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Ephemeral Bubblewrap subagent isolation engine with scoped bind-mounts and systemd cgroups.
-# AI-related: usr/share/doc/mios/manual/ch64-subagent-sandboxing-and-cgroups.md, tests/test-subagent-cgroups.py
+# AI-related: tests/test-subagent-cgroups.py
 # AI-functions: SubagentSandbox, validate_workspace_path, build_sandbox_command, main
 """
 WS-AI (T-551): Ephemeral Bubblewrap Subagent Isolation Engine with Scoped Bind-Mounts.

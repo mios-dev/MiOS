@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager (T-669, T-670).
-# AI-related: usr/lib/mios/ai/train_elastic.py, tests/test-train-elastic.py, usr/share/containers/systemd/mios-train.container
+# AI-related: usr/lib/mios/ai/train_elastic.py, tests/test-train-elastic.py
 """Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager for MiOS.
 
 Streams non-blocking optimizer and weight state dictionaries to background worker threads,
