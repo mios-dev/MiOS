@@ -45,8 +45,7 @@ def _scan(root: str, *paths: str):
     """Subjects that are there; a tracked one that is gone exits 1, not 0."""
     seen = [(p, _absent(root, p)) for p in paths]
     for p, rc in seen:
-        if rc:
-            raise SystemExit(rc)
+        if rc: raise SystemExit(rc)
     return [p for p, rc in seen if rc is None]
 
 def _tracked(root: str, *pathspec: str):

@@ -1,9 +1,0 @@
-[command]
-name = "review"
-description = "SCOPE staged code review, security audit, and contract preservation"
-version = "2.0.0"
-entrypoint = "python3 scripts/review.py"
-aliases = ["rv"]
-
-[parameters]
-ref = { type = "string", description = "Target commit or ref range to review", default = "HEAD" }
