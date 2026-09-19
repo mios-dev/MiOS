@@ -1095,3 +1095,17 @@ so long. Let a run finish.
   lands, delete the 7 copies from MiOS tests/.
 - monitor: the Claude Code session that wrote this entry watches all agents
   and reports what it sees.
+
+## 2026-09-19 20:17 · 25cb47de · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
+
+## 2026-09-19 20:30 · 3960d72c · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 1 dirty path(s)
