@@ -24,7 +24,7 @@ class TestAgentWorktree(unittest.TestCase):
 
     def test_subagent_id_validation(self):
         mgr = AgentWorktreeManager(dry_run=False)
-        invalid_ids = ["../escaped", "sub/agent", "bad name", "agent;rm", "agent$var", ".."]
+        invalid_ids = ["../escaped", "sub/agent", "bad name", "agent;rm", "agent$var", "..", ".", ""]
         for bad_id in invalid_ids:
             res_c = mgr.create_worktree(bad_id)
             self.assertEqual(res_c["status"], "error", f"Expected error for ID {bad_id}")

@@ -28,22 +28,22 @@ The core system architecture consists of:
 | 11 | Concurrent Worktree Index Isolation | Ensure zero index lock contention during concurrent worker builds and gate runs via worktree-specific index files and `git_lock.py` backoff | M3 | R3, Survey §1.3 |
 | 12 | Atomic Diff Reconciliation | Reconcile diffs sequentially via two-sided gate, path ownership audit, and `--no-ff` merge with instant conflict abort | M3 | R3, Survey §1.4 |
 | 13 | E2E Testing Suite (Tiers 1-4) | Comprehensive opaque-box test suite covering worktree isolation, stray leakage detection, and concurrent Claude Code/AGY spawning | E2E | Acceptance Criteria |
-| 14 | Adversarial Hardening (Tier 5) | White-box stress testing of edge cases, rapid lock contention, dirty baselines, and nested negative controls | Final (M4) | Project Pattern |
+| 14 | Adversarial Hardening (Tier 5) | White-box stress testing of edge cases, rapid lock contention, dirty baselines, and nested negative controls | M4 | Project Pattern |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| E2E | E2E Testing Track | Requirement-driven test suite (Tiers 1-4) covering R1, R2, R3, and publishing `TEST_READY.md` | none | IN_PROGRESS |
+| E2E | E2E Testing Track | Requirement-driven test suite (Tiers 1-4) covering R1, R2, R3, and publishing `TEST_READY.md` | none | DONE |
 | M1 | Strict Worktree Isolation | Enforce worktree provisioning, sanitization, and prompt alignment for all manager and worker runs | none | DONE |
 | M2 | Leakage Detection & Enforcement | Implement base-tree snapshotting, two-sided gate leakage audit in `adapters.py`, orchestrator audits in `devloop.sh`, and diagnostic error reporting | M1 | DONE |
 | M3 | Concurrent Worker Lanes & Claude Code CLI | Multi-lane concurrent spawning via `job.py`, Claude Code CLI (`claude -p`) harness verification, and atomic diff reconciliation | M1, M2 | DONE |
-| M4 | Final Milestone & Hardening | Pass 100% of E2E tests (Tiers 1-4) and adversarial coverage hardening (Tier 5) | E2E, M3 | PLANNED |
+| M4 | Final Milestone & Hardening | Pass 100% of E2E tests (Tiers 1-4) and adversarial coverage hardening (Tier 5) | E2E, M3 | DONE |
 
 ## Interface Contracts
 ### `adapters.py` ↔ `devloop.sh`
 - `adapters.py base-audit --root <root> --before <snapshot_file> [--lanes <lanes_json>]`:
   - Returns exit code 0 if base tree has no modifications outside allowed metadata paths (`.devloop/`, `.git/`, `AGENTS.md`, `TASKS.md`, `<worktree_root>/`).
-  - Returns exit code 6 (or non-zero) if stray modifications or untracked files exist, outputting the newline-delimited list of stray paths to `stderr`.
+  - Returns exit code 6 if stray modifications or untracked files exist, outputting the newline-delimited list of stray paths to `stderr`.
 - `adapters.py gate --lane <lane_json> --wt <worktree_dir> --run <run_dir> [--root <base_root>]`:
   - Executes positive and negative controls.
   - Takes snapshots of both worktree (`wt`) and base repository (`root`).

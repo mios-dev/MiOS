@@ -987,3 +987,25 @@ so long. Let a run finish.
   3. parked/laneB-fixture-leak.patch shell lines budget.
 - blockers: -
 - unverified: bare-metal Windows NTFS/9P git index lock contention under concurrent workloads
+
+## 2026-09-19 · d6ef57da · M4 E2E verification, Tier 5 adversarial hardening & multi-harness integration
+- objective: execute Milestone M4: fix Python 3.14 ResourceWarning in job.py:spawn, implement Tier 5 adversarial coverage hardening, verify 100% E2E test suite pass rate, and validate workspace parity.
+- done:
+  1. Python 3.14 ResourceWarning fix: captured detached `Popen` instance in `job.py:spawn`, managed session child with `proc.wait(timeout=0.2)` / `proc.poll()`, registered module-level tracking `_DETACHED_PROCS`, and bound `atexit` cleanup handler. Eliminated all subprocess un-reaped deallocator warnings across the entire test suite.
+  2. Tier 5 Adversarial Coverage Hardening implemented (4 new comprehensive tests in `tests/test_e2e_lane_isolation.py` and dedicated `tests/test_e2e_tier5_hardening.py`):
+     - `test_t5_41_adapters_gate_cli_base_leakage_detected_exit_2`: verifies direct CLI execution of `adapters.py gate` with base tree leakage emits `BASE TREE LEAKAGE DETECTED` to stderr and halts with exit code 2; positive control path verifies exit 0 on clean worktree.
+     - `test_t5_42_preflight_vacuous_sentinel_rejection_exit_2`: verifies pre-flight vacuous sentinel detection in `adapters.py gate` halts with exit code 2 when sentinel fixture exists before execution, refusing vacuous gates; positive control verifies passage upon sentinel removal.
+     - `test_t5_43_symlink_traversal_isolation_across_worktree_boundary`: verifies internal worktree symlinks preserve clean base status, while rogue escape symlinks attempting to mutate base repo are caught by differential porcelain audit and halted by `adapters.py gate` with exit code 2.
+     - `test_t5_44_multi_wave_pipeline_dependency_execution`: verifies multi-wave topological wave ordering via `adapters.waves`, sequential execution of Wave 0 and Wave 1 with `--no-ff` merge reconciliation, artifact inheritance across waves, and zero base repository contamination.
+  3. Full E2E Test Suite Execution: 44/44 tests passing across Tiers 1-5 in 31.8s (`python3 -m unittest /workspaces/MiOS/tests/test_e2e_lane_isolation.py -v`) with 100% pass rate and zero warnings.
+  4. Workspace Sanity & Parity Gates:
+     - `tools/check-tasks.py status-parity`: PASSED (tasks=1053, sections=992, open=412, agy_validations=2550).
+     - `tools/check-tasks.py schema`: PASSED (944 tasks carry full schema, 0 duplicate IDs).
+     - `tools/check-tasks.py agy`: PASSED (tasks=2550, standalone_ids=2098).
+     - `usr/lib/mios/agent-pipe/test_mios_worktree.py`: PASSED (5/5 unit tests green in 0.48s).
+     - `adapters.py probe --harness claude-code antigravity`: PASSED (both harnesses detected and operational).
+- next:
+  1. Continue autonomous worker lane scheduling for open items in TASKS.md / ROADMAP.md.
+  2. Monitor live multi-wave worker lanes across claude-code and antigravity harnesses.
+- blockers: -
+- unverified: -

@@ -31,11 +31,12 @@ class AgentWorktreeManager:
 
     def create_worktree(self, subagent_id: str, base_branch: str = "main") -> Dict[str, Any]:
         """Provisions an isolated git worktree and scratch directory for a subagent."""
-        if not self.SUBAGENT_ID_RE.match(subagent_id) or ".." in subagent_id:
+        if not subagent_id or subagent_id in (".", "..") or not self.SUBAGENT_ID_RE.match(subagent_id) or ".." in subagent_id:
             return {
                 "status": "error",
                 "action": "create",
                 "subagent_id": subagent_id,
+                "error": "Invalid subagent_id: cannot contain path traversal characters",
                 "message": f"Invalid subagent_id: {subagent_id!r}",
             }
 
@@ -79,11 +80,12 @@ class AgentWorktreeManager:
 
     def cleanup_worktree(self, subagent_id: str, merge: bool = False, target_branch: str = "main") -> Dict[str, Any]:
         """Merges verified diffs, unmounts worktree, deletes topic branch, and scrubs scratch."""
-        if not self.SUBAGENT_ID_RE.match(subagent_id) or ".." in subagent_id:
+        if not subagent_id or subagent_id in (".", "..") or not self.SUBAGENT_ID_RE.match(subagent_id) or ".." in subagent_id:
             return {
                 "status": "error",
                 "action": "cleanup",
                 "subagent_id": subagent_id,
+                "error": "Invalid subagent_id: cannot contain path traversal characters",
                 "message": f"Invalid subagent_id: {subagent_id!r}",
             }
 
