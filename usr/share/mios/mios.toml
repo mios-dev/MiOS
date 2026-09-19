@@ -11378,6 +11378,7 @@ lint = [
 # Behavioural suites. Each asserts something about the tree it ships from.
 unit = [
     "tests/powershell/run-pester.sh",
+    "tests/test-baresafe-emit.py",
     "tests/test-sandbox-seccomp.sh",
     "tests/test-powershell-flatten.sh",
     "tests/test-pgvector-major-upgrade.sh",
