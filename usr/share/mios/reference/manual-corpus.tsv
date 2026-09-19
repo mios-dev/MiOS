@@ -4513,11 +4513,11 @@ tests/test-drain-handler.py	1	3	3	17	7f7372fac752	STAY	ai-header		0				0
 tests/test-drain-handler.py	4	4	1	12	5a9665f1096b	STAY	local-scoped		0				0
 tests/test-drain-handler.py	20	20	1	8	8593efad3626	STAY	local-scoped		0				0
 tests/test-drain-handler.py	28	28	1	5	bafcfefc724d	STAY	local-scoped		0				0
-tests/test-drift-reconciler.py	1	3	3	16	58d60d5f0e41	STAY	ai-header		0				0
+tests/test-drift-reconciler.py	1	3	3	16	bbdde4a8c0c7	STAY	ai-header		0				0
 tests/test-driver-slipstream.py	1	3	3	19	492177375852	STAY	ai-header		0				0
 tests/test-driver-slipstream.py	4	4	1	9	6d2a80d0410e	STAY	local-scoped		0				0
 tests/test-driver-slipstream.py	29	29	1	13	b40455c08b7f	STAY	local-scoped		0				0
-tests/test-ebpf-trace.py	1	3	3	18	bdfb8b6b7759	STAY	ai-header		0				0
+tests/test-ebpf-trace.py	1	3	3	18	b664d81b36b9	STAY	ai-header		0				0
 tests/test-ebpf-trace.py	4	4	1	9	93b653b7f0c1	STAY	local-scoped		0				0
 tests/test-ebpf-trace.py	19	19	1	9	c54463f547fd	STAY	local-scoped		0				0
 tests/test-editor-config-gen.py	1	3	3	20	6b18636e4f75	STAY	ai-header		0				0
@@ -13242,7 +13242,7 @@ usr/libexec/mios/cat/launcher.py	16	16	1	10	16d4f1853f95	STAY	local-scoped		0			
 usr/libexec/mios/cat/launcher.py	33	33	1	9	850cd6a0423b	STAY	local-scoped		0				0
 usr/libexec/mios/cat/launcher.py	43	43	1	10	a4f04c802009	STAY	local-scoped		0				0
 usr/libexec/mios/ceph-bootstrap.sh	1	3	3	27	984e5ca09120	STAY	ai-header		0				0
-usr/libexec/mios/cfg/drift_reconciler.py	1	3	3	16	654263433a89	STAY	ai-header		0				0
+usr/libexec/mios/cfg/drift_reconciler.py	1	3	3	16	b2f53189575e	STAY	ai-header		0				0
 usr/libexec/mios/cfg/drift_reconciler.py	11	11	1	11	2a30fe104416	STAY	local-scoped		0				0
 usr/libexec/mios/cfg/drift_reconciler.py	24	24	1	10	145a4d487285	STAY	local-scoped		0				0
 usr/libexec/mios/cfg/drift_reconciler.py	48	48	1	11	a19741e9bfe0	STAY	local-scoped		0				0
@@ -13604,7 +13604,7 @@ usr/libexec/mios/diag/coredump_sanitizer.py	39	39	1	8	988efc78b054	STAY	local-sc
 usr/libexec/mios/diag/coredump_sanitizer.py	41	41	1	4	ed2335558154	STAY	local-scoped		0				0
 usr/libexec/mios/diag/coredump_sanitizer.py	45	45	1	1	df2e2388b8dd	DROP	banner		0				0
 usr/libexec/mios/diag/coredump_sanitizer.py	51	51	1	4	d061ab4d03f7	STAY	local-scoped		0				0
-usr/libexec/mios/diag/ebpf_trace.py	1	3	3	20	5bbdd774bc87	STAY	ai-header		0				0
+usr/libexec/mios/diag/ebpf_trace.py	1	3	3	20	4b6a3dc67ffa	STAY	ai-header		0				0
 usr/libexec/mios/diag/ebpf_trace.py	4	8	4	38	8b33fcd48c5a	STAY	midsize-why		0				0
 usr/libexec/mios/diag/ebpf_trace.py	29	29	1	3	f94457d92a5a	DROP	banner		0				0
 usr/libexec/mios/diag/ebpf_trace.py	36	36	1	9	168ede125a90	STAY	local-scoped		0				0
