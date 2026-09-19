@@ -1,6 +1,6 @@
 #!/bin/bash
-# AI-hint: Initializes the MiOS Day-0 root overlay by symlinking the repository tree into the filesystem root (/) and establishing the /v1/ inference schema for AI agent interaction.
-# AI-related: /usr/share/mios/ai/v1, /usr/share/mios/ai/v1/models.json
+# AI-hint: Initializes the MiOS Day-0 root overlay by symlinking the repository tree into the filesystem root (/), keeping sudoers.d root-owned so sudo still works, and seeding the dev user's mios.toml.
+# AI-related: .devcontainer/Dockerfile, etc/sudoers.d
 set -e
 
 if [ -d "/mios/.git" ]; then
@@ -49,40 +49,19 @@ if [ "$(id -u)" -eq 0 ]; then
     chown root:root /etc/sudoers /etc/sudoers.d 2>/dev/null || true
     chmod 0440 /etc/sudoers 2>/dev/null || true
     chmod 0755 /etc/sudoers.d 2>/dev/null || true
+    # sudo refuses to run at all if any file in sudoers.d is not owned by root, and
+    # the merge above links each one to a file the checkout user owns: one link took
+    # sudo down for the whole container. Replace each link with a root-owned 0440
+    # copy of the same content, and drop any that visudo rejects.
+    for f in /etc/sudoers.d/*; do
+        [ -L "$f" ] || continue
+        src=$(readlink -f "$f") || continue
+        rm -f "$f"
+        install -o root -g root -m 0440 "$src" "$f" 2>/dev/null || continue
+        visudo -cf "$f" >/dev/null 2>&1 || { echo "  [DROP] $f: visudo rejected it"; rm -f "$f"; }
+    done
 else
     echo "  [SKIP] Root overlay merge requires root privileges; using user-level provisioning only"
-fi
-
-if [ "$(id -u)" -eq 0 ]; then
-    if mkdir -p /v1/chat 2>/dev/null; then
-        cat <<EON > /v1/chat/completions
-{
-  "spec": "POST /v1/chat/completions",
-  "implementation": "Native system proxy",
-  "status": "ready"
-}
-EON
-    fi
-
-    if mkdir -p /usr/share/mios/ai/v1 2>/dev/null; then
-        cat <<EON > /usr/share/mios/ai/v1/models.json
-{
-  "object": "list",
-  "data": [],
-  "documentation": "Native model discovery schema."
-}
-EON
-        ln -sf /usr/share/mios/ai/v1/models.json /v1/models 2>/dev/null || true
-    fi
-else
-    mkdir -p "${HOME}/.local/share/mios/ai/v1"
-    cat <<EON > "${HOME}/.local/share/mios/ai/v1/models.json"
-{
-  "object": "list",
-  "data": [],
-  "documentation": "User-scoped model discovery schema."
-}
-EON
 fi
 
 TARGET_USER="${SUDO_USER:-${MIOS_TARGET_USER:-${USER:-mios-dev}}}"

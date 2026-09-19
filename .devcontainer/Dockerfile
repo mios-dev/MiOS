@@ -3,14 +3,17 @@
 #
 # This is the DEVELOPMENT container for editing this source tree. It is not the
 # OS image: that is built by the root Containerfile from ${BASE_IMAGE}
-# (ucore-hci). Fedora is pinned rather than floating on :latest so the image
-# name and the container's contents cannot drift apart, per the repo's pinning
-# convention (newest stable upstream, bumped forward on next touch).
-ARG FEDORA_VERSION=44
-FROM registry.fedoraproject.org/fedora:${FEDORA_VERSION}
+# (ucore-hci). Nothing here is pinned: Fedora and every package float on the
+# latest release, so a rebuild always picks up current upstream.
+FROM registry.fedoraproject.org/fedora:latest
 
 # Core MiOS build/lifecycle toolchain, plus the shared dev toolchain every MiOS
 # repo's container carries (see mios-bootstrap and -dev-loop devcontainers).
+# rust/cargo/clippy/rustfmt/gcc: tools/native and src/mios-rs are Rust (Law 14),
+# and the final OS image strips compilers (91-strip-build-toolchain.sh), so the
+# dev container is where they are built and tested. gcc is the linker rustc needs.
+# python3-rich/-textual/-psutil: installation/mios-mon.py's TUI, from Fedora's
+# RPMs rather than pip, so the package manager owns them.
 RUN dnf install -y --setopt=install_weak_deps=False \
         just \
         podman podman-compose buildah skopeo \
@@ -18,6 +21,8 @@ RUN dnf install -y --setopt=install_weak_deps=False \
         jq yq rsync git \
         nodejs npm \
         python3 python3-pip \
+        python3-rich python3-textual python3-psutil \
+        rust cargo clippy rustfmt gcc \
         sudo zsh \
         findutils grep sed gawk diffutils patch \
         ripgrep tar gzip unzip zip \
@@ -30,12 +35,6 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 # the Antigravity CLI (agy) plus the dev-loop skill per-user at postCreate,
 # by delegating to -dev-loop's own setup script rather than duplicating it.
 RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
-
-# mios-mon's TUI imports rich/textual/psutil and pip-installs them on first run
-# if they are missing. Bake them so a fresh container does not spend that first
-# run downloading — and so the tool degrades to a clear message rather than a
-# FATAL when the network or pip is unavailable.
-RUN python3 -m pip install --no-cache-dir rich textual psutil
 
 # Spell the sudoers username exactly as the account and give it an explicit
 # (ALL) runas spec. This is hygiene, not a fix: the previous "Mios-dev"

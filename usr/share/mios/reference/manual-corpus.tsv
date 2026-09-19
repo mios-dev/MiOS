@@ -1,5 +1,6 @@
 # path	start_line	end_line	lines	words	sha12	class	reason	as	stale	landed_doc	landed_anchor	landed_words	pruned
-.devcontainer/install-root-overlay.sh	1	3	3	30	094931fbe262	STAY	ai-header		0				0
+.devcontainer/install-root-overlay.sh	1	3	3	34	042af278d93e	STAY	ai-header		0				0
+.devcontainer/install-root-overlay.sh	52	55	4	57	9f1d9650eda2	STAY	midsize-why		0				0
 .forgejo/workflows/build-mios.yml	1	2	2	29	03639af37e12	STAY	ai-header		0				0
 .forgejo/workflows/build-mios.yml	1	18	18	147	a58a0dbdcdd6	STAY	ai-header		0	usr/share/doc/mios/manual/workflows.md	mios-src:a58a0dbdcdd6	147	1
 .forgejo/workflows/build-mios.yml	17	22	6	63	1328de9fd76a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:1328de9fd76a	63	1

@@ -1,14 +1,11 @@
 {
-  "name": "MiOS System Root Dev (Fedora 44)",
+  "name": "MiOS System Root Dev (Fedora latest)",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": "..",
-    "args": {
-      "FEDORA_VERSION": "44"
-    }
+    "context": ".."
   },
   "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {
+    "ghcr.io/devcontainers/features/common-utils:latest": {
       "username": "mios-dev",
       "userUid": "1000",
       "userGid": "1000"
