@@ -6,6 +6,7 @@
 
 mod credentials;
 mod dispatch;
+mod inert_tables;
 mod laws;
 mod phases;
 mod projreg;
@@ -82,7 +83,8 @@ impl Report {
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
                      checks: build-tool-dispatch, credential-literals, drift-stubs,\n\
                              law-enforcers, phase-registry, projection-coverage,\n\
-                             protected-refs, ratchet-direction, render-coverage,\n\
+                             no-inert-ssot-tables, protected-refs, ratchet-direction,\n\
+                             render-coverage,\n\
                              signature-policy\n";
 
 fn main() -> ExitCode {
@@ -141,6 +143,7 @@ fn main() -> ExitCode {
         "credential-literals" => credentials::check(&root),
         "drift-stubs" => stubs::check(&root),
         "law-enforcers" => laws::check(&root),
+        "no-inert-ssot-tables" => inert_tables::check(&root),
         "phase-registry" => phases::check(&root),
         "projection-coverage" => projreg::check(&root),
         "protected-refs" => protected_refs::check(&root),

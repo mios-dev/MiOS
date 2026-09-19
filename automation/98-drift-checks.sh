@@ -4789,11 +4789,24 @@ check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-
 
 # --- every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register ---
 check_no_inert_ssot_tables() {
-    echo "[98-drift-checks] every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py no-inert-ssot-tables
-    )" || {
-        _violations_from "check_no_inert_ssot_tables: " "$out"; return; }
-    echo "[98-drift-checks]   $out"
+    # Ported to mios-gate (ADR-0021, Law 14); python twin deleted (T-1001).
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_no_inert_ssot_tables could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    local out
+    if out="$("$bin" no-inert-ssot-tables --root "$ROOT" 2>&1)"; then
+        echo "[98-drift-checks]   every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register"
+    else
+        _violations_from "" "$out"
+    fi
 }
 
 # --- file paths referenced in documentation exist in the repository ---

@@ -4393,6 +4393,16 @@ test_no_inert_ssot_tables() {
 unused_key = "nothing reads this"
 ' "$tbl" >> "$toml"
     _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed despite an SSOT table with no consumer"
+    # THE FALSE-CREDIT ARM (T-1001); git add -N or the corpus cannot see the decoy.
+    local decoy="${ROOT}/usr/libexec/mios/mios-negtest-decoy.py"
+    printf '#!/usr/bin/env python3\n"""Reads usr/share/mios/mios.toml elsewhere."""\nd = compute()\nif d["%s"]:\n    pass\n' "$tbl" > "$decoy"
+    git -C "$ROOT" add -N -- "$decoy" >/dev/null 2>&1
+    _nist_decoy_clean() { git -C "$ROOT" rm --cached -q -- "$decoy" >/dev/null 2>&1; rm -f "$decoy"; unset -f _nist_decoy_clean; }
+    if _neg_gate check_no_inert_ssot_tables; then
+        _nist_decoy_clean
+        _nist_fail "check_no_inert_ssot_tables was SATISFIED by a local dict subscript -- the T-1001 false credit is back"
+    fi
+    _nist_decoy_clean
     # Raising the ceiling must not absorb the plant: the ceiling has to EQUAL
     # the register, so a raised ceiling is itself a violation.
     sed -i 's/^max_unconsumed = [0-9]*$/max_unconsumed = 999/' "$toml"
