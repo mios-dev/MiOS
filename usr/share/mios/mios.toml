@@ -7003,9 +7003,9 @@ placeholders             = ["FEDORA_VERSION", "MIOS_VERSION"]
 
 [versions]
 fedora                   = "44"
-k3s                      = "v1.36.3-k3s1"
-forgejo                  = "12"
-ceph                     = "v19"
+k3s                      = "latest"
+forgejo                  = "latest"
+ceph                     = "latest"
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every
@@ -7025,13 +7025,13 @@ open_webui         = "ghcr.io/open-webui/open-webui:main"
 # hermes-agent's built-in dashboard at port 9119.
 code_server        = "ghcr.io/coder/code-server:latest"
 guacamole          = "docker.io/guacamole/guacamole:latest"
-forge_runner       = "code.forgejo.org/forgejo/runner:7"
+forge_runner       = "code.forgejo.org/forgejo/runner:latest"
 crowdsec           = "docker.io/crowdsecurity/crowdsec:latest"
 postgres           = "docker.io/library/postgres:latest"
 guacd              = "docker.io/guacamole/guacd:latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
-pgvector           = "docker.io/pgvector/pgvector:pg18"
+pgvector           = "docker.io/pgvector/pgvector:latest"
 # mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
 # llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
 llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda"
@@ -7493,15 +7493,15 @@ core = [
   "localhost/mios-cuda",
   "localhost/mios-crawl4ai-slim:latest",
   "localhost/mios-firecrawl:v1.0.0",
-  "code.forgejo.org/forgejo/runner:7",
-  "codeberg.org/forgejo/forgejo:12",
+  "code.forgejo.org/forgejo/runner:latest",
+  "codeberg.org/forgejo/forgejo:latest",
   "docker.io/adguard/adguardhome:latest",
   "docker.io/guacamole/guacamole:latest",
   "docker.io/guacamole/guacd:latest",
   "docker.io/jaegertracing/all-in-one:latest",
   "docker.io/lmsysorg/sglang:latest",
-  "docker.io/pgvector/pgvector:pg18",
-  "docker.io/rancher/k3s:v1.36.3-k3s1",
+  "docker.io/pgvector/pgvector:latest",
+  "docker.io/rancher/k3s:latest",
   "docker.io/searxng/searxng:latest",
   "docker.io/valkey/valkey:latest",
   "docker.io/vllm/vllm-openai:latest",
@@ -7509,7 +7509,7 @@ core = [
   "ghcr.io/mios-dev/mios-node:latest",
   "ghcr.io/open-webui/open-webui:main",
   "quay.io/centos-bootc/bootc-image-builder:latest",
-  "quay.io/ceph/ceph:v19",
+  "quay.io/ceph/ceph:latest",
   "quay.io/poseidon/matchbox:latest"
 ]
 groups = ["sys", "cuda", "heavy", "extra"]
@@ -8647,7 +8647,7 @@ Wants = "network-online.target"
 ContainerName = "mios-ceph"
 Exec = "mon"
 Group = "root"
-Image = "${MIOS_CEPH_IMAGE:-quay.io/ceph/ceph:v19}"
+Image = "${MIOS_CEPH_IMAGE:-quay.io/ceph/ceph:latest}"
 Pod = "mios-system.pod"
 User = "root"
 Volume = [
@@ -8677,7 +8677,7 @@ HealthCmd = "/usr/bin/curl -sf http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/ || e
 HealthInterval = "30s"
 HealthRetries = 3
 HealthTimeout = "5s"
-Image = "${MIOS_CEPH_IMAGE:-quay.io/ceph/ceph:v19}"
+Image = "${MIOS_CEPH_IMAGE:-quay.io/ceph/ceph:latest}"
 Label = [
   "io.podman_desktop.openInBrowser=http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/",
   "org.opencontainers.image.title=mios-radosgw",
@@ -8858,7 +8858,7 @@ Environment = [
 EnvironmentFile = "/etc/mios/install.env"
 Exec = "forgejo web"
 Group = "1000"
-Image = "${MIOS_FORGE_IMAGE:-codeberg.org/forgejo/forgejo:12}"
+Image = "${MIOS_FORGE_IMAGE:-codeberg.org/forgejo/forgejo:latest}"
 Label = [
   "org.opencontainers.image.title=mios-forge",
   "org.opencontainers.image.url=http://localhost:${MIOS_PORT_FORGE_HTTP:-8400}/",
@@ -8902,7 +8902,7 @@ Environment = [
 EnvironmentFile = "/etc/mios/forge/runner-token"
 Exec = "forgejo-runner daemon"
 Group = "0"
-Image = "${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:7}"
+Image = "${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:latest}"
 Label = [
   "org.opencontainers.image.title=mios-forgejo-runner",
   "org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/",
@@ -9003,7 +9003,7 @@ ContainerName = "mios-k3s"
 Environment = "K3S_TOKEN=mios-cluster-secret"
 Exec = "k3s server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs"
 Group = "root"
-Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.36.3-k3s1}"
+Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:latest}"
 Pod = "mios-system.pod"
 PodmanArgs = "--privileged"
 User = "root"
@@ -9328,7 +9328,7 @@ Environment = [
 ]
 Exec = "postgres -c port=${MIOS_PORT_PGVECTOR:-8600} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PG_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PG_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER:-1}"
 Group = "${MIOS_PGVECTOR_GID:-826}"
-Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:pg18}"
+Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:latest}"
 Label = [
   "org.opencontainers.image.title=mios-pgvector",
   "org.opencontainers.image.documentation=https://github.com/pgvector/pgvector"
