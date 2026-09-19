@@ -1127,3 +1127,155 @@ so long. Let a run finish.
 - next: T-1084 (HARVEST narrative blocks), T-1085 (DOCS-REFS), T-1091 (fold tests into subject modules)
 - blockers: -
 - unverified: none; all controls verified with positive & negative sentinels (DEVLOOP-PLANTED-SRF-LIB: 122->123 rc 1, DEVLOOP-PLANTED-SRF-TESTS: 114->115 rc 1, DEVLOOP-PLANTED-SRF-NATIVE: 124->125 rc 1, DEVLOOP-PLANTED-SRF-LIBEXEC: 61->62 rc 1), drift-checks legibility-ratchet exit 0, test_mios_comments 31/31 passed.
+
+## 2026-09-19 23:30 · 8f747ba5 · run-exit-1 (ratchet debt declared, 3-commit allowance)
+- objective: Stand up the dev-loop environment in a Claude Code on the web container
+  (Fedora devcontainer + agy), establish a trustworthy CI-equivalent baseline, and land
+  verified fixes for the defects that make the gate suites themselves unreliable.
+- topology: **B (Claude Code hosted), NOT A.** agy 1.2.7 installed, keyring alive, skill
+  installed, 22 grants written -- but NOT AUTHENTICATED (`agy -p /permissions` exits 1,
+  "authentication required"). agy-login.sh needs an interactive Google OAuth code from the
+  operator, so no AGY native lane could be dispatched. AGENTS.md authorizes this fallback;
+  reporting it as required.
+- environment: cloud-fedora-setup.sh built dev-loop-fedora:44 + /usr/local/bin/fedora
+  (verified: Fedora 44, gcc 16.2.1, python 3.14.7). The cloud Fedora image has NO cargo and
+  NO just; the Ubuntu HOST has cargo/rustc at /root/.cargo/bin, so MiOS Rust builds run
+  host-side. `just` is absent entirely, so gates were driven via tests/run-suites.sh.
+  Provisioned as CI does: release mios-bake-plan, 8 debug native binaries, mios-gate
+  (release), agent-pipe requirements + pyflakes (needs
+  `--break-system-packages --ignore-installed PyJWT`: PyJWT 2.7.0 is debian-owned, no
+  RECORD), shellcheck, bubblewrap, jsonschema.
+- MEASUREMENT HAZARDS -- both cost me a wrong answer; write them down:
+  1. automation/98-drift-checks.sh and tests/drift-gate-negatives.sh MUTATE THE TRACKED TREE
+     while running (98-drift-checks plants a control in usr/share/mios/mios.toml, backing it
+     up as mios.toml.negbak). Anything measured concurrently is contaminated. My first
+     sync-generated.sh run showed 4 stale artifacts; on a quiet tree it shows ZERO. Never
+     measure and gate at the same time.
+  2. The gate logs carry ANSI/binary bytes, so `grep -c` silently UNDERCOUNTS. Use `grep -ac`.
+     I reported a 23-violation baseline that was really 25.
+- BASELINE (clean, fully provisioned, nothing concurrent):
+  - unit tier **411/411 green**. The one failure (tests/test-sandbox-seccomp.sh) was an
+    ENVIRONMENT PHANTOM: bubblewrap absent. Its live tier skips loudly without bwrap; its
+    REFUSAL tier silently depends on bwrap and then dies with "the refusal did not say why",
+    misattributing an environment fact to a code defect. Worth fixing.
+  - gate tier RED: 7 distinct checks. check_chrony_projection, check_kargs_projection and
+    check_nut_projection appeared ONLY in a contaminated run and are NOT real -- do not chase.
+- done (3 pre-existing gate checks RED -> GREEN):
+  - [-dev-loop] PR #10, MERGED. validate.sh was red on two tests at 63b71a8, now
+    `== conformance: PASS`:
+    1. agy-doctor reported "NO grants are active" when agy could not run at all -- it called
+       `agy -p /permissions` with 2>/dev/null and never read the exit status, collapsing two
+       causes into one and sending the operator to setup-antigravity.sh, which rewrites
+       already-correct grants and changes nothing. Now splits on exit status; non-zero reports
+       grants UNVERIFIED, quotes stderr (URLs elided, 200-char cap), names agy-login.sh.
+    2. test_devloop_concurrent_multi_lane_clean_merge passed ONLY because jsonschema was
+       absent (8-char objectives vs minLength 10). Proven by blocking the import with a stub
+       package on PYTHONPATH: the ORIGINAL fixture then passes.
+    3. test_the_wave_waits_on_one_deadline_not_n pinned the literal '--interval 20 || :'; the
+       interval became configurable so it went red while the `|| :` it guards was intact.
+  - [MiOS] PR #28, MERGED:
+    4. bake-plan projections were stale -- cb87244 floated k3s/forgejo/runner/ceph/pgvector to
+       `latest` in the SSOT without re-running the projector. Regenerated with the RELEASE
+       tools/native/target/release/mios-bake-plan from the repo root (what check_bake_plan
+       itself shells out to). check_bake_plan + check_bake_plan_integrity now exit 0.
+       NOTE: tools/sync-generated.sh does NOT regenerate the bake plan, so CI's "Generated
+       artifacts match the SSOT" step can report a clean tree while these lists are stale.
+       Also: mios-bake-plan treats any unrecognised arg as "run" -- `--help` WRITES all six
+       artifacts.
+    5. test_bake_ref_parity sed'd for `MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v0.3.0`; the default
+       floated to `latest`, so the mutation was a SILENT NO-OP, the check then passed on a
+       pristine file, and the test reported "Check_bake_ref_defaults passed despite wrong
+       bake_ref default" -- verdict inverted, blaming the check for the test's own stale
+       plant. Plant is now derived from the file and grep-confirmed to have landed.
+  - [MiOS] PR #29, OPEN:
+    6. check_version_literals_ssot flagged 7 literals inside `#[cfg(test)] mod tests` in
+       tools/native/mios-bake-plan/src/latest.rs -- upstream tag fixtures that must DIFFER by
+       construction. 7 -> 0, nothing else changed verdict. Negative control that matters for a
+       NARROWED check: a literal at line 5 of that same file (production, above the cfg(test)
+       at 290) is still flagged, as is one in automation/85-bake-plan.sh.
+       This single fix turned check_version_ssot GREEN and cleared TWO negatives failures
+       (test_version_ssot "failed after restoration", test_dead_git_corpus
+       "version-literals-ssot failed with a working git"). Both assert their subject passes on
+       a clean tree; the subject was already failing, so neither could ever hold.
+- REGRESSION I CAUSED, and the operator's decision:
+  My two MiOS PRs each breached a ZERO-HEADROOM shrink-only ratchet. Exact, and exactly my
+  diffs: tests/drift-gate-negatives.sh net +22 -> shell_lines 39894/39872; tools/drift-checks.py
+  net +53 -> tooling_python_lines 77141/77088. Compacting the comments (the rationale belongs
+  in commit messages) brought it to 39887 and 77121, i.e. +15 shell and +33 python residual.
+  Raising a floor is mechanically blocked: check_ratchet_direction compares every ceiling
+  against the merge base ("80 shrink-only ceiling(s) are <= the merge base cb872445da09").
+  I also staled two projections (check_manual_ledger, check_ai_manifests_fresh) -- both
+  REGENERATED and back to exit 0, which also clears the new
+  "check_ai_manifests_fresh failed after restoration" negatives failure.
+  **OPERATOR DECISION (2026-09-19): allow the growth over 3 commits/turns, and repay it by
+  converting and/or consolidating to the upstream target languages/patterns -- keep it FOSS.**
+  Repayment plan, Law 14 + the "Rust static binaries, globally" directive:
+    commit 1 (this one): land the compacted fixes + regenerated projections; ratchet red,
+      authorized and recorded here.
+    commit 2: port the version-literals scanner into the existing Rust gate as
+      src/mios-rs/mios-gate/src/version_literals.rs, register it in main.rs, delete the Python
+      check_version_literals_ssot + _rust_cfg_test_lines (~70 lines) and rewire
+      check_version_ssot to prefer the binary the way check_bake_plan already does. Removing
+      ~70 python lines clears the +33 outright; .rs counts against no ratchet. This also
+      CONSOLIDATES: mios-gate already hosts doc_refs.rs, the Rust twin of the Python doc-refs
+      scanner, and two live scanners with different behaviour is a standing finding.
+    commit 3: settle the shell residual and re-baseline both floors DOWN to the new measured
+      values (shrink-only, permitted).
+  Net gate state after commit 1: 7 distinct checks -> 5 (doc_refs_resolve, docs_ratchet,
+  no_duplicate_value_key, hint_coverage, legibility_ratchet). Only legibility_ratchet is mine.
+- next:
+  1. Finish the 3-commit repayment above. Do not let the allowance lapse silently.
+  2. A principled, precedented option for shell_lines, for the operator: max_shell_lines
+     applies NO sibling-unit-test exclusion, while max_tooling_python_lines and
+     max_libexec_verbs both do, with the reason stated in-file -- "a sibling unit test is not
+     tooling to port" and "adding the test that gate demands tripped this one, so the cheapest
+     way to stay green was to not write the test". Extending a shell TEST to repair a vacuous
+     gate therefore pushes a ratchet meant for hand-written glue. Excluding tests and
+     re-baselining the floor DOWN follows the _is_generated and T-1044 precedents in that same
+     function, which both lowered floors to bind tighter on real glue.
+  3. check_version_literals_ssot has three further defects, all needing a blast-radius decision
+     because repairing them makes the gate REDDER: the pattern `\bv?0\.[0-9]+\.[0-9]+\b` cannot
+     match 1.N.N so it goes vacuous the day mios_version hits 1.0.0; the exemptions are ten
+     hardcoded version VALUES skipped in EVERY file (unanchored allowlist -- a real hardcoded
+     0.1.0 is invisible in scope) plus two substring matches on prose, and per Law 7 that list
+     belongs in the SSOT as an itemised path-anchored register; and it scans only automation/,
+     usr/libexec/ and tools/ while its PASS line claims more. It also matches literals inside
+     COMMENTS -- the first draft of the fix's own comment tripped it.
+  4. automation/lint-shell.sh: its AI-hint says "Degrades open if shellcheck is absent" but the
+     code exits 2. It also exits 0 when the glob matches zero files -- an Empty-Set Pass that
+     would hide a broken ROOT.
+  5. The 2 remaining negatives failures, both the same red-baseline-inverts-verdict shape:
+     check_no_duplicate_value_key "failed on the unmutated tree", and
+     check_legibility_ratchet "counted a sibling unit test as tooling" (which is item 2 above).
+  6. mios-gate --help under-lists its own subcommands: doc-refs-resolve works but is not shown.
+  7. **T-1096 is BLOCKED and must NOT be run as specified.** Its 7 orphans are exactly the
+     adversarial challenger suites this ledger said to delete "after -dev-loop lands". Verified
+     file by file: they are NOT in -dev-loop, and claude/adopt-mios-challenger-tests lives in a
+     ~/.dev-loop checkout absent from this container, unpushed, previously 403'd. Deleting them
+     now removes the only working copies. Land them in -dev-loop FIRST.
+  8. Lane-plan constraints measured this session (6 read-only surveys), for whoever dispatches
+     the CONSOL waves:
+     - EVERY [legibility] ratchet is at or near ZERO headroom (automation_phases 72/72,
+       libexec_verbs 270/270, shell_lines 39872, tooling_python_lines 77088, tracked_mb 203/204).
+       A lane that adds a line to those categories fails the ratchet, so lane gate scripts must
+       live OUTSIDE the repo (heredocs, not tracked files). I breached this myself -- see above.
+     - Do NOT gate a lane on `bash ./tests/run-suites.sh gate`: it is red at HEAD for unrelated
+       reasons, so it is red before and after the work and cannot distinguish.
+     - usr/share/mios/reference/manual-corpus.tsv is the serialization chokepoint -- a repo-wide
+       Law-8 projection over every tracked source file, so EVERY folding lane must rewrite it.
+       Three independent surveys found this collision. One folding lane per wave, or the host
+       regenerates after the merge.
+     - T-1095 (tools/) is not one lane: [laws.projection_registry] enforces generator_globs
+       tools/generate-*.py and tools/render-*.py in BOTH directions with max_exempt = 0.
+     - T-1092 (agent-pipe tests) is not one lane either: 186 test_mios_*.py at the top level
+       (188 tracked), 3999 assertion labels, 179 registered suites all exit 0 today.
+     - usr/share/mios/reference/version-literals-audit.tsv is ALREADY STALE at base
+       (357 records vs ~156 rendered).
+- blockers:
+  - agy authentication needs the operator: `bash skills/dev-loop/scripts/env/agy-login.sh`.
+    Until then every run is topology B and no native AGY subagent lane can be dispatched.
+  - -dev-loop has no CI workflows, so its PRs have no check runs to watch.
+- unverified: no image was built (no podman here, only docker; bake stages not run). The lint
+  tier was never run to completion. cargo fmt/clippy/test were not run, which CI does. The
+  bake-plan change is verified against the projector and both drift checks, NOT against a real
+  image build.

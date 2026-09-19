@@ -2714,36 +2714,29 @@ def check_ai_endpoint_local() -> int:
         return 1
     return 0
 
-def _rust_cfg_test_lines(rel: str, lines: list) -> set:
-    """1-based line numbers inside Rust #[cfg(test)] items, for .rs files only.
+def _rust_cfg_test_lines(rel, lines):
+    """1-based lines inside Rust #[cfg(test)] items; .rs only, else empty.
 
-    Brace-matched from the attribute to the end of the item it annotates. Braces
-    inside string literals are not parsed, so an unbalanced one can close a range
-    EARLY -- which scans more lines, never fewer, so the failure direction is
-    "flags too much", never "misses a real hardcoded version".
+    Brace-matched. Braces in strings are not parsed, so an unbalanced one ends a
+    range EARLY -- scanning more, never less, so it over-flags, never under-flags.
     """
     if not rel.endswith(".rs"):
         return set()
-    out: set = set()
-    n = len(lines)
-    i = 0
+    out, n, i = set(), len(lines), 0
     while i < n:
-        if re.match(r"\s*#\[cfg\(test\)\]", lines[i]):
-            depth = 0
-            opened = False
-            j = i
-            while j < n:
-                depth += lines[j].count("{") - lines[j].count("}")
-                if "{" in lines[j]:
-                    opened = True
-                if opened and depth <= 0:
-                    break
-                j += 1
-            end = min(j, n - 1)
-            out.update(range(i + 1, end + 2))
-            i = end + 1
-        else:
+        if not re.match(r"\s*#\[cfg\(test\)\]", lines[i]):
             i += 1
+            continue
+        depth, opened, j = 0, False, i
+        while j < n:
+            depth += lines[j].count("{") - lines[j].count("}")
+            opened = opened or "{" in lines[j]
+            if opened and depth <= 0:
+                break
+            j += 1
+        end = min(j, n - 1)
+        out.update(range(i + 1, end + 2))
+        i = end + 1
     return out
 
 
@@ -2796,22 +2789,9 @@ def check_version_literals_ssot() -> int:
         except OSError:
             continue
 
-        # A version literal inside a Rust #[cfg(test)] module is test DATA -- a
-        # third-party upstream tag handed to the code under test -- not this
-        # project's shipped version identity.
-        # tools/native/mios-bake-plan/src/latest.rs is the clearest case: its
-        # tag-sorting tests need several DIFFERENT versions by construction (the
-        # fixture series exists precisely so the highest of it can be picked),
-        # so demanding every one of them equal the canonical version would make
-        # the test assert nothing. Scanning them produced 7 false violations that
-        # kept check_version_ssot permanently red -- and that red baseline is why
-        # drift-gate-negatives' test_version_ssot reported "Check_version_ssot
-        # failed after restoration": its subject was already failing before any
-        # mutation, so the post-restore assertion could never pass and it blamed
-        # the restore. A control that is itself broken inverts its verdict
-        # (SKILL.md 6).
-        # No coverage is lost: only NON-canonical literals are ever reported, so
-        # a test hardcoding the real version was never flagged by this check.
+        # A version literal in a Rust test module is test DATA -- an upstream tag
+        # handed to the code under test -- not our shipped identity. Only
+        # NON-canonical literals are ever reported, so nothing is lost.
         skip_lines = _rust_cfg_test_lines(rel, lines)
 
         for idx, line in enumerate(lines):
