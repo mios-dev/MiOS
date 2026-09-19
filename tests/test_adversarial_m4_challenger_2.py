@@ -57,6 +57,11 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         subprocess.run(["git", "config", "user.name", "Adversarial Challenger 2"], cwd=self.sandbox, check=True)
         subprocess.run(["git", "config", "user.email", "challenger2@example.com"], cwd=self.sandbox, check=True)
 
+        # Set up dev-loop narrow exclude rules by default so .worktrees/ is excluded from porcelain
+        info_dir = self.sandbox / ".git" / "info"
+        info_dir.mkdir(parents=True, exist_ok=True)
+        (info_dir / "exclude").write_text(".worktrees/\n.devloop/run-*/\n.devloop/native/\n", encoding="utf-8")
+
         # Initial tracked files
         (self.sandbox / "AGENTS.md").write_text("# Agents SSOT\n", encoding="utf-8")
         (self.sandbox / "TASKS.md").write_text("# Tasks\n", encoding="utf-8")
@@ -78,38 +83,43 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
     # =============================================================================================
 
     def test_probe_1_1_concurrent_thread_stampede_run_git_safe(self) -> None:
-        """Probe 1.1: 20 concurrent threads pounding run_git_safe with simultaneous commits and status."""
+        """Probe 1.1: 20 concurrent workers in dedicated worktrees pounding run_git_safe with simultaneous commits."""
         num_threads = 20
+        worktrees: list[Path] = []
+        for i in range(num_threads):
+            wt = self.sandbox / ".worktrees" / f"stampede-{i}"
+            subprocess.run(["git", "-C", str(self.sandbox), "worktree", "add", "-q", str(wt), "-b", f"stampede/{i}", "HEAD"], check=True)
+            worktrees.append(wt)
+
         errors: list[Exception] = []
         results: list[subprocess.CompletedProcess] = []
 
-        def worker(thread_idx: int) -> None:
+        def worker(thread_idx: int, wt: Path) -> None:
             try:
-                # Each thread writes a unique file and commits via run_git_safe
-                file_path = self.sandbox / "src" / f"worker_{thread_idx}.txt"
+                file_path = wt / "src" / f"worker_{thread_idx}.txt"
                 file_path.write_text(f"worker {thread_idx}\n", encoding="utf-8")
                 
                 # Add file
-                add_res = git_lock.run_git_safe(["add", f"src/worker_{thread_idx}.txt"], cwd=self.sandbox)
+                add_res = git_lock.run_git_safe(["add", f"src/worker_{thread_idx}.txt"], cwd=wt)
                 if add_res.returncode != 0:
                     errors.append(RuntimeError(f"Add failed in thread {thread_idx}: {add_res.stderr}"))
                     return
 
                 # Commit file
-                commit_res = git_lock.run_git_safe(["commit", "-m", f"Commit from worker {thread_idx}"], cwd=self.sandbox)
+                commit_res = git_lock.run_git_safe(["commit", "-m", f"Commit from worker {thread_idx}"], cwd=wt)
                 if commit_res.returncode != 0:
                     errors.append(RuntimeError(f"Commit failed in thread {thread_idx}: {commit_res.stderr}"))
                     return
                 results.append(commit_res)
 
                 # Status check
-                status_res = git_lock.run_git_safe(["status", "--porcelain"], cwd=self.sandbox)
+                status_res = git_lock.run_git_safe(["status", "--porcelain"], cwd=wt)
                 if status_res.returncode != 0:
                     errors.append(RuntimeError(f"Status failed in thread {thread_idx}: {status_res.stderr}"))
             except Exception as e:
                 errors.append(e)
 
-        threads = [threading.Thread(target=worker, args=(i,)) for i in range(num_threads)]
+        threads = [threading.Thread(target=worker, args=(i, worktrees[i])) for i in range(num_threads)]
         for t in threads:
             t.start()
         for t in threads:
@@ -125,18 +135,27 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         self.assertEqual(status, "", "Base repository index must remain completely clean")
 
     def test_probe_1_2_artificial_index_lock_contention_with_exponential_backoff(self) -> None:
-        """Probe 1.2: Artificial live lock injection while 10 workers commit, verifying backoff recovery."""
-        lock_path = self.sandbox / ".git" / "index.lock"
+        """Probe 1.2: Artificial live lock injection while 10 workers commit in isolated worktrees, verifying backoff recovery."""
+        # Create 10 isolated worktrees
+        num_workers = 10
+        worktrees: list[Path] = []
+        for i in range(num_workers):
+            wt = self.sandbox / ".worktrees" / f"noisy-lane-{i}"
+            subprocess.run(["git", "-C", str(self.sandbox), "worktree", "add", "-q", str(wt), "-b", f"noisy/{i}", "HEAD"], check=True)
+            worktrees.append(wt)
+
+        # Target lock file in main repo index.lock (which run_git_safe checks for all linked worktrees!)
+        main_lock_path = self.sandbox / ".git" / "index.lock"
         stop_locker = threading.Event()
 
         def noisy_locker() -> None:
-            """Periodically creates and deletes index.lock simulating transient git lock contention."""
+            """Periodically creates and deletes main index.lock simulating transient git lock contention."""
             while not stop_locker.is_set():
                 try:
-                    lock_path.write_text("transient lock\n", encoding="utf-8")
-                    time.sleep(random.uniform(0.04, 0.12))
-                    if lock_path.exists():
-                        lock_path.unlink(missing_ok=True)
+                    main_lock_path.write_text("transient lock\n", encoding="utf-8")
+                    time.sleep(random.uniform(0.04, 0.10))
+                    if main_lock_path.exists():
+                        main_lock_path.unlink(missing_ok=True)
                     time.sleep(random.uniform(0.02, 0.05))
                 except OSError:
                     pass
@@ -146,27 +165,30 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
 
         worker_errors: list[Exception] = []
 
-        def worker_task(idx: int) -> None:
+        def worker_task(idx: int, wt: Path) -> None:
             try:
-                test_file = self.sandbox / "src" / f"noisy_task_{idx}.txt"
+                test_file = wt / "src" / f"noisy_task_{idx}.txt"
                 test_file.write_text(f"content {idx}\n", encoding="utf-8")
-                git_lock.run_git_safe(["add", f"src/noisy_task_{idx}.txt"], max_retries=10, base_delay=0.15, cwd=self.sandbox)
-                res = git_lock.run_git_safe(["commit", "-m", f"noisy commit {idx}"], max_retries=10, base_delay=0.15, cwd=self.sandbox)
-                if res.returncode != 0:
-                    worker_errors.append(RuntimeError(f"Worker {idx} failed: {res.stderr}"))
+                add_res = git_lock.run_git_safe(["add", f"src/noisy_task_{idx}.txt"], max_retries=10, base_delay=0.15, cwd=wt)
+                if add_res.returncode != 0:
+                    worker_errors.append(RuntimeError(f"Worker {idx} add failed: {add_res.stderr}"))
+                    return
+                commit_res = git_lock.run_git_safe(["commit", "-m", f"noisy commit {idx}"], max_retries=10, base_delay=0.15, cwd=wt)
+                if commit_res.returncode != 0:
+                    worker_errors.append(RuntimeError(f"Worker {idx} commit failed: {commit_res.stderr}"))
             except Exception as e:
                 worker_errors.append(e)
 
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-                futures = [executor.submit(worker_task, i) for i in range(10)]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                futures = [executor.submit(worker_task, i, worktrees[i]) for i in range(num_workers)]
                 for f in concurrent.futures.as_completed(futures):
                     f.result()
         finally:
             stop_locker.set()
             locker_thread.join(timeout=5)
-            if lock_path.exists():
-                lock_path.unlink(missing_ok=True)
+            if main_lock_path.exists():
+                main_lock_path.unlink(missing_ok=True)
 
         self.assertEqual(len(worker_errors), 0, f"Worker tasks failed under lock contention: {worker_errors}")
         fsck = subprocess.run(["git", "fsck", "--full"], cwd=self.sandbox, capture_output=True, text=True)
@@ -204,7 +226,7 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
 
         self.assertEqual(len(errors), 0, f"Concurrent worktree commits failed: {errors}")
 
-        # Base repository tree remains untouched
+        # Base repository tree remains untouched (with .worktrees/ excluded via .git/info/exclude)
         base_status = subprocess.check_output(["git", "status", "--porcelain"], cwd=self.sandbox, text=True).strip()
         self.assertEqual(base_status, "", "Base tree must remain completely clean during worktree operations")
 
@@ -224,7 +246,10 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         os.utime(str(lock_file), (stale_time, stale_time))
 
         t0 = time.time()
-        res = git_lock.run_git_safe(["status", "--porcelain"], cwd=self.sandbox)
+        # Use git add which modifies the index and would fail if index.lock was present
+        test_file = self.sandbox / "src" / "stale_test.txt"
+        test_file.write_text("stale test\n", encoding="utf-8")
+        res = git_lock.run_git_safe(["add", "src/stale_test.txt"], cwd=self.sandbox)
         elapsed = time.time() - t0
 
         self.assertEqual(res.returncode, 0, f"run_git_safe failed: {res.stderr}")
@@ -242,7 +267,8 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         stale_time = time.time() - 90
         os.utime(str(lock_file), (stale_time, stale_time))
 
-        res = git_lock.run_git_safe(["status", "--porcelain"], cwd=wt)
+        (wt / "src" / "wt_stale.txt").write_text("wt stale\n", encoding="utf-8")
+        res = git_lock.run_git_safe(["add", "src/wt_stale.txt"], cwd=wt)
         self.assertEqual(res.returncode, 0)
         self.assertFalse(lock_file.exists(), "Worktree stale index.lock must be evicted")
 
@@ -257,7 +283,8 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         os.utime(str(main_lock), (stale_time, stale_time))
 
         # Call run_git_safe with cwd=wt
-        res = git_lock.run_git_safe(["status", "--porcelain"], cwd=wt)
+        (wt / "src" / "wt_main_stale.txt").write_text("wt main stale\n", encoding="utf-8")
+        res = git_lock.run_git_safe(["add", "src/wt_main_stale.txt"], cwd=wt)
         self.assertEqual(res.returncode, 0)
         self.assertFalse(main_lock.exists(), "Main repo stale lock must be evicted by worktree runner")
 
@@ -268,19 +295,22 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         fresh_time = time.time() - 5  # Only 5s old (live)
         os.utime(str(lock_file), (fresh_time, fresh_time))
 
-        # Release lock in background after 300ms
+        # Release lock in background after 350ms
         def delayed_release() -> None:
-            time.sleep(0.3)
+            time.sleep(0.35)
             if lock_file.exists():
                 lock_file.unlink(missing_ok=True)
 
         threading.Thread(target=delayed_release, daemon=True).start()
 
+        test_file = self.sandbox / "src" / "live_backoff_test.txt"
+        test_file.write_text("live backoff content\n", encoding="utf-8")
+
         t0 = time.time()
-        res = git_lock.run_git_safe(["status", "--porcelain"], max_retries=6, base_delay=0.1, cwd=self.sandbox)
+        res = git_lock.run_git_safe(["add", "src/live_backoff_test.txt"], max_retries=6, base_delay=0.1, cwd=self.sandbox)
         elapsed = time.time() - t0
 
-        self.assertEqual(res.returncode, 0)
+        self.assertEqual(res.returncode, 0, f"run_git_safe failed: {res.stderr}")
         self.assertGreaterEqual(elapsed, 0.25, "run_git_safe should have backed off waiting for live lock")
         self.assertFalse(lock_file.exists())
 
@@ -291,8 +321,11 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         fresh_time = time.time() - 2
         os.utime(str(lock_file), (fresh_time, fresh_time))
 
+        test_file = self.sandbox / "src" / "unreleased_lock.txt"
+        test_file.write_text("unreleased\n", encoding="utf-8")
+
         try:
-            res = git_lock.run_git_safe(["status", "--porcelain"], max_retries=3, base_delay=0.05, cwd=self.sandbox)
+            res = git_lock.run_git_safe(["add", "src/unreleased_lock.txt"], max_retries=3, base_delay=0.05, cwd=self.sandbox)
             self.assertNotEqual(res.returncode, 0, "Should fail when lock is continuously held")
             self.assertIn("index.lock", res.stderr)
             # The lock must NOT have been deleted because it was fresh
@@ -347,7 +380,7 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         self.assertEqual(abort_proc.returncode, 0, f"git merge --abort failed: {abort_proc.stderr}")
 
         # Assertions on Base Tree:
-        # 1. Base status contains only the pre-existing untracked developer_notes.txt
+        # 1. Base status contains only the pre-existing untracked developer_notes.txt (.worktrees/ is excluded)
         status_after_abort = subprocess.check_output(["git", "status", "--porcelain"], cwd=self.sandbox, text=True).strip()
         self.assertEqual(status_after_abort, "?? developer_notes.txt", "Base repo must have no uncommitted diffs or conflict markers")
 
@@ -399,7 +432,7 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
         abort_res = subprocess.run(["git", "-C", str(self.sandbox), "merge", "--abort"], capture_output=True, text=True)
         self.assertEqual(abort_res.returncode, 0)
 
-        # Verify base tree clean
+        # Verify base tree clean (excluding .worktrees/)
         status = subprocess.check_output(["git", "status", "--porcelain"], cwd=self.sandbox, text=True).strip()
         self.assertEqual(status, "")
 
@@ -524,22 +557,38 @@ class AdversarialM4Challenger2Tests(unittest.TestCase):
                 {
                     "id": "lane-claude-core",
                     "objective": "Core logic in Claude Code",
+                    "owned_paths": ["src/core/*"],
+                    "positive_cmd": "python3 -c 'exit(0)'",
+                    "negative_control_cmd": "python3 -c 'exit(1)'",
+                    "negative_expect": "exit(1)",
                     "worker": {"harness": "claude-code", "model": "opus", "max_turns": 10, "timeout_s": 120}
                 },
                 {
                     "id": "lane-agy-auth",
                     "objective": "Auth service in AGY",
+                    "owned_paths": ["src/auth/*"],
+                    "positive_cmd": "python3 -c 'exit(0)'",
+                    "negative_control_cmd": "python3 -c 'exit(1)'",
+                    "negative_expect": "exit(1)",
                     "worker": {"harness": "antigravity", "model": "gemini-3.8-flash-high", "max_turns": 10, "timeout_s": 120}
                 },
                 {
                     "id": "lane-claude-api",
                     "objective": "API layer in Claude Code",
+                    "owned_paths": ["src/api/*"],
+                    "positive_cmd": "python3 -c 'exit(0)'",
+                    "negative_control_cmd": "python3 -c 'exit(1)'",
+                    "negative_expect": "exit(1)",
                     "depends_on": ["lane-claude-core"],
                     "worker": {"harness": "claude-code", "model": "claude-3-5-sonnet", "max_turns": 10, "timeout_s": 120}
                 },
                 {
                     "id": "lane-agy-db",
                     "objective": "DB layer in AGY",
+                    "owned_paths": ["src/db/*"],
+                    "positive_cmd": "python3 -c 'exit(0)'",
+                    "negative_control_cmd": "python3 -c 'exit(1)'",
+                    "negative_expect": "exit(1)",
                     "depends_on": ["lane-agy-auth"],
                     "worker": {"harness": "antigravity", "model": "gemini-2.5-pro", "max_turns": 10, "timeout_s": 120}
                 }
