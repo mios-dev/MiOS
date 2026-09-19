@@ -6891,10 +6891,6 @@ tools/check-blade-coverage.py	196	196	1	6	f1055d0df47c	STAY	local-scoped		0				0
 tools/check-blade-coverage.py	206	206	1	7	5413e68c5e42	STAY	local-scoped		0				0
 tools/check-blade-coverage.py	211	211	1	11	043af57b59c1	STAY	local-scoped		0				0
 tools/check-build-urls.sh	1	2	2	11	202e614e1411	STAY	ai-header		0				0
-tools/check-comment-lex-equivalence.py	1	1	1	15	edaaccdb5b68	STAY	ai-header		0				0
-tools/check-comment-lex-equivalence.py	26	26	1	8	da68aa5d4fc5	STAY	inline-scoped		0				0
-tools/check-comment-lex-equivalence.py	29	29	1	6	5603c1139187	STAY	local-scoped		0				0
-tools/check-comment-lex-equivalence.py	39	39	1	3	0c75562665ea	STAY	local-scoped		0				0
 tools/check-comment-ratchet.py	31	37	7	58	6052f6ace2c5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:6052f6ace2c5	58	1
 tools/check-container-names.py	1	3	3	11	f3d1b01df9be	STAY	ai-header		0				0
 tools/check-container-names.py	4	4	1	10	436d755eed6d	STAY	local-scoped		0				0
@@ -6914,8 +6910,20 @@ tools/check-deploy-formats.py	14	17	4	50	6c7ce53e8862	STAY	midsize-why		0				0
 tools/check-deploy-formats.py	20	21	2	24	3c4bdd4035c9	STAY	local-scoped		0				0
 tools/check-deploy-formats.py	87	88	2	25	6486dcfb60d4	STAY	local-scoped		0				0
 tools/check-deploy-formats.py	95	97	3	32	86c0b82c6556	STAY	midsize-why		0				0
-tools/check-doc-ratchet-monotone.py	1	3	3	18	8f8e97099fc4	STAY	ai-header		0				0
-tools/check-doc-ratchet-monotone.py	11	11	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+tools/check-docs.py	1	3	3	31	5fb9ee5e307d	STAY	ai-header		0				0
+tools/check-docs.py	4	4	1	9	c5eb742f91fb	STAY	local-scoped		0				0
+tools/check-docs.py	14	14	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+tools/check-docs.py	76	77	2	21	ffb865e4fa00	STAY	local-scoped		0				0
+tools/check-docs.py	82	82	1	11	e18a0d8ee7f7	STAY	local-scoped		0				0
+tools/check-docs.py	161	161	1	8	da68aa5d4fc5	STAY	inline-scoped		0				0
+tools/check-docs.py	164	164	1	6	5603c1139187	STAY	local-scoped		0				0
+tools/check-docs.py	174	174	1	3	0c75562665ea	STAY	local-scoped		0				0
+tools/check-docs.py	203	206	4	45	ae6233893c67	STAY	midsize-why		0				0
+tools/check-docs.py	214	214	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
+tools/check-docs.py	251	253	3	43	d5dab987de7e	STAY	midsize-why		0				0
+tools/check-docs.py	295	295	1	11	5746d9a5d672	STAY	local-scoped		0				0
+tools/check-docs.py	315	316	2	16	6bb5884b07dc	STAY	local-scoped		0				0
+tools/check-docs.py	332	332	1	12	14b364d94a59	STAY	local-scoped		0				0
 tools/check-firstboot-degrade-open.py	1	3	3	19	b9d559b08e7f	STAY	ai-header		0				0
 tools/check-firstboot-degrade-open.py	4	8	4	32	3d0f175a5e58	MIGRATE	midsize-narrative		0				0
 tools/check-firstboot-degrade-open.py	19	19	1	14	250687ff30b0	STAY	local-scoped		0				0
@@ -6939,9 +6947,6 @@ tools/check-fleet-safety.py	55	55	1	9	1c97aaa43aef	STAY	inline-scoped		0				0
 tools/check-fleet-safety.py	63	63	1	9	37b136b08dcb	STAY	local-scoped		0				0
 tools/check-fleet-safety.py	94	94	1	8	87f2dff758ac	STAY	local-scoped		0				0
 tools/check-fleet-safety.py	144	145	2	20	9e3dd68ec45e	STAY	local-scoped		0				0
-tools/check-header-comment-syntax.py	1	3	3	23	d4145a5b80dd	STAY	ai-header		0				0
-tools/check-header-comment-syntax.py	9	12	4	45	ae6233893c67	STAY	midsize-why		0				0
-tools/check-header-comment-syntax.py	20	20	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
 tools/check-leaked-fixtures.py	1	3	3	28	d9f688294b69	STAY	ai-header		0				0
 tools/check-leaked-fixtures.py	4	18	14	131	dd8626e7b274	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:dd8626e7b274	131	1
 tools/check-leaked-fixtures.py	10	10	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
@@ -6950,10 +6955,6 @@ tools/check-leaked-fixtures.py	13	15	3	35	a65cabe48efb	STAY	midsize-why		0				0
 tools/check-leaked-fixtures.py	17	18	2	28	074d04eddb2c	STAY	midsize-why		0				0
 tools/check-leaked-fixtures.py	22	22	1	14	7d6713012da3	STAY	local-scoped		0				0
 tools/check-leaked-fixtures.py	36	36	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
-tools/check-manual-links.py	1	3	3	11	4ee46b5b1ca1	STAY	ai-header		0				0
-tools/check-manual-links.py	4	4	1	17	1b7aa2ddc996	STAY	local-scoped		0				0
-tools/check-manual-links.py	13	14	2	21	ffb865e4fa00	STAY	local-scoped		0				0
-tools/check-manual-links.py	19	19	1	11	e18a0d8ee7f7	STAY	local-scoped		0				0
 tools/check-mios-toml-integrity.py	1	3	3	16	24ec5a9aad53	STAY	ai-header		0				0
 tools/check-mios-toml-integrity.py	4	4	1	14	d6e3c6d6fb9c	STAY	local-scoped		0				0
 tools/check-mios-toml-integrity.py	20	20	1	10	99851b339a52	STAY	local-scoped		0				0
@@ -6968,8 +6969,6 @@ tools/check-module-length.py	33	33	1	12	3abab5a9b48c	STAY	local-scoped		0				0
 tools/check-module-length.py	45	45	1	9	c199f3aad405	STAY	local-scoped		0				0
 tools/check-negatives-registered.py	1	3	3	24	c82dc680e3fc	STAY	ai-header		0				0
 tools/check-negatives-registered.py	32	35	4	35	2d82a8cbd20a	STAY	midsize-why		0				0
-tools/check-no-generated-prose-in-resolvers.py	1	3	3	18	c17b13c25de3	STAY	ai-header		0				0
-tools/check-no-generated-prose-in-resolvers.py	10	12	3	43	d5dab987de7e	STAY	midsize-why		0				0
 tools/check-node-pool.py	1	3	3	27	6279177bbccd	STAY	ai-header		0				0
 tools/check-node-pool.py	4	4	1	13	0d4d60c666ae	STAY	local-scoped		0				0
 tools/check-node-pool.py	12	12	1	5	0afcda800e58	STAY	inline-scoped		0				0
@@ -7011,10 +7010,6 @@ tools/check-privileged-quadlets.py	1	3	3	16	6b9225616539	STAY	ai-header		0				0
 tools/check-privileged-quadlets.py	4	4	1	11	d208bae3cf8f	STAY	local-scoped		0				0
 tools/check-privileged-quadlets.py	30	30	1	6	4f3db1087c8f	STAY	local-scoped		0				0
 tools/check-privileged-quadlets.py	63	63	1	3	d6ac2824c30b	STAY	local-scoped		0				0
-tools/check-redact-coverage.py	1	3	3	21	6bcf24a9fccf	STAY	ai-header		0				0
-tools/check-redact-coverage.py	4	4	1	13	60070670de5d	STAY	local-scoped		0				0
-tools/check-redact-coverage.py	14	14	1	11	5746d9a5d672	STAY	local-scoped		0				0
-tools/check-redact-coverage.py	34	35	2	16	6bb5884b07dc	STAY	local-scoped		0				0
 tools/check-resolver-twin.py	1	4	4	21	444d4dee466b	STAY	ai-header		0				0
 tools/check-resolver-twin.py	112	112	1	10	6ad077957853	STAY	local-scoped		0				0
 tools/check-resolver-twin.py	119	119	1	7	bdea67827137	STAY	local-scoped		0				0
@@ -7386,7 +7381,7 @@ tools/mios-sysext-pack.sh	1	3	3	26	7b05607d03cd	STAY	ai-header		0				0
 tools/mios-sysext-pack.sh	12	12	1	4	f54205d690b4	STAY	inline-scoped		0				0
 tools/mios-upstream-monitor.sh	1	3	3	31	a105c05f6948	STAY	ai-header		0				0
 tools/mios-upstream-monitor.sh	44	44	1	2	888a2c18ceff	DROP	banner		0				0
-tools/mios_tracked.py	1	4	4	32	73c26da30688	STAY	ai-header		0				0
+tools/mios_tracked.py	1	4	4	32	fe08241112ae	STAY	ai-header		0				0
 tools/mios_tracked.py	5	8	3	27	2d993b1c9b16	STAY	midsize-why		0				0
 tools/mios_tracked.py	16	16	1	13	9a5f8e51f5cb	STAY	local-scoped		0				0
 tools/mios_tracked.py	20	20	1	7	bb0474634a89	STAY	local-scoped		0				0
@@ -7826,19 +7821,21 @@ tools/test_check-blade-coverage.py	155	155	1	2	f027f588bb55	DROP	generated-artif
 tools/test_check-blade-coverage.py	157	157	1	2	8a13647ebcd0	DROP	generated-artifact		0				0
 tools/test_check-blade-coverage.py	169	169	1	12	ada2c1d0dd23	DROP	generated-artifact		0				0
 tools/test_check-blade-coverage.py	203	203	1	13	d273b3a4c985	DROP	generated-artifact		0				0
-tools/test_check-comment-lex-equivalence.py	1	4	4	30	55cde668b437	DROP	generated-artifact		0				0
-tools/test_check-comment-lex-equivalence.py	5	9	4	35	385add9fd404	DROP	generated-artifact		0	usr/share/doc/mios/manual/tools.md	mios-src:385add9fd404	35	0
 tools/test_check-comment-lex-equivalence.py	46	51	6	49	2a391675b742	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:2a391675b742	49	1
-tools/test_check-comment-lex-equivalence.py	51	51	1	11	821dc270fdb6	DROP	generated-artifact		0				0
 tools/test_check-container-names.py	1	3	3	10	1f597bbc0def	DROP	generated-artifact		0				0
 tools/test_check-container-names.py	29	29	1	8	b4e01c619022	DROP	generated-artifact		0				0
 tools/test_check-daemon-governor.py	1	3	3	23	90be61304748	DROP	generated-artifact		0				0
 tools/test_check-daemon-governor.py	4	4	1	11	5e5dabd04683	DROP	generated-artifact		0				0
 tools/test_check-deploy-formats.py	1	3	3	22	0537b84d8a3e	DROP	generated-artifact		0				0
 tools/test_check-deploy-formats.py	36	36	1	12	c8c12d26b69c	DROP	generated-artifact		0				0
-tools/test_check-doc-ratchet-monotone.py	1	4	4	30	a508215205a2	DROP	generated-artifact		0				0
-tools/test_check-doc-ratchet-monotone.py	5	9	4	35	385add9fd404	DROP	generated-artifact		0	usr/share/doc/mios/manual/tools.md	mios-src:385add9fd404	35	0
-tools/test_check-doc-ratchet-monotone.py	51	51	1	11	821dc270fdb6	DROP	generated-artifact		0				0
+tools/test_check-docs.py	1	2	2	21	eedae0b0e52b	DROP	generated-artifact		0				0
+tools/test_check-docs.py	3	3	1	7	e923ea3c5301	DROP	generated-artifact		0				0
+tools/test_check-docs.py	54	54	1	11	821dc270fdb6	DROP	generated-artifact		0				0
+tools/test_check-docs.py	120	121	2	19	8bd6b48c8fa0	DROP	generated-artifact		0				0
+tools/test_check-docs.py	184	184	1	11	821dc270fdb6	DROP	generated-artifact		0				0
+tools/test_check-docs.py	223	223	1	12	2c0a7d3d847f	DROP	generated-artifact		0				0
+tools/test_check-docs.py	257	259	3	37	cb2ad2847a09	DROP	generated-artifact		0				0
+tools/test_check-docs.py	391	391	1	9	efb84a4df82f	DROP	generated-artifact		0				0
 tools/test_check-firstboot-degrade-open.py	1	3	3	10	97f03528e1fe	DROP	generated-artifact		0				0
 tools/test_check-firstboot-degrade-open.py	31	31	1	9	cf314b1c46dd	DROP	generated-artifact		0				0
 tools/test_check-firstboot-degrade-open.py	45	45	1	12	13ada0727717	DROP	generated-artifact		0				0
@@ -7854,16 +7851,11 @@ tools/test_check-fleet-safety.py	76	76	1	12	5d4375461d40	DROP	generated-artifact
 tools/test_check-fleet-safety.py	81	81	1	9	bc5660dd0bfa	DROP	generated-artifact		0				0
 tools/test_check-fleet-safety.py	135	136	2	20	35ce7e12187a	DROP	generated-artifact		0				0
 tools/test_check-fleet-safety.py	188	189	2	18	33c191c7e9f1	DROP	generated-artifact		0				0
-tools/test_check-header-comment-syntax.py	1	3	3	19	d03b95607f17	DROP	generated-artifact		0				0
-tools/test_check-header-comment-syntax.py	31	31	1	12	2c0a7d3d847f	DROP	generated-artifact		0				0
 tools/test_check-leaked-fixtures.py	1	3	3	21	19b966809634	DROP	generated-artifact		0				0
 tools/test_check-leaked-fixtures.py	4	9	5	47	dd5debb0d430	DROP	generated-artifact		0				0
 tools/test_check-leaked-fixtures.py	32	37	6	46	be53a8d5e31f	DROP	generated-artifact		0				0
 tools/test_check-leaked-fixtures.py	78	78	1	13	bd6fd81d0931	DROP	generated-artifact		0				0
 tools/test_check-leaked-fixtures.py	90	97	8	69	dfa476495d90	DROP	generated-artifact		0				0
-tools/test_check-manual-links.py	1	3	3	28	da1ff5e20ee8	DROP	generated-artifact		0				0
-tools/test_check-manual-links.py	4	4	1	12	768ae6e67084	DROP	generated-artifact		0				0
-tools/test_check-manual-links.py	56	57	2	19	8bd6b48c8fa0	DROP	generated-artifact		0				0
 tools/test_check-mios-toml-integrity.py	1	3	3	12	1962ebf9f631	DROP	generated-artifact		0				0
 tools/test_check-mios-toml-integrity.py	38	38	1	6	d274bf4d0fe6	DROP	generated-artifact		0				0
 tools/test_check-mios-toml-integrity.py	45	45	1	3	621979598e08	DROP	generated-artifact		0				0
@@ -7876,9 +7868,6 @@ tools/test_check-module-length.py	92	92	1	12	ff1655abddcd	DROP	generated-artifac
 tools/test_check-negatives-registered.py	1	3	3	22	9e9ffee04cd5	DROP	generated-artifact		0				0
 tools/test_check-negatives-registered.py	28	28	1	8	ab1c28fabdf5	DROP	generated-artifact		0				0
 tools/test_check-negatives-registered.py	33	33	1	13	167fa2a04b92	DROP	generated-artifact		0				0
-tools/test_check-no-generated-prose-in-resolvers.py	1	4	4	32	6b2ac73c78d9	DROP	generated-artifact		0				0
-tools/test_check-no-generated-prose-in-resolvers.py	5	10	5	45	137aaeb86c7f	DROP	generated-artifact		0				0
-tools/test_check-no-generated-prose-in-resolvers.py	18	20	3	37	cb2ad2847a09	DROP	generated-artifact		0				0
 tools/test_check-node-pool.py	1	3	3	9	784efa5d8be2	DROP	generated-artifact		0				0
 tools/test_check-node-pool.py	4	4	1	6	90332d866c0e	DROP	generated-artifact		0				0
 tools/test_check-node-pool.py	17	17	1	3	c4eab4cecb60	DROP	generated-artifact		0				0
@@ -7905,8 +7894,6 @@ tools/test_check-ports-bound.py	90	90	1	13	89876c749dca	DROP	generated-artifact	
 tools/test_check-privileged-quadlets.py	1	3	3	12	ef61dd4f9f8d	DROP	generated-artifact		0				0
 tools/test_check-privileged-quadlets.py	38	38	1	6	d274bf4d0fe6	DROP	generated-artifact		0				0
 tools/test_check-privileged-quadlets.py	45	45	1	4	639f6348546e	DROP	generated-artifact		0				0
-tools/test_check-redact-coverage.py	1	3	3	22	3c0557a0d266	DROP	generated-artifact		0				0
-tools/test_check-redact-coverage.py	4	4	1	10	48dc9edf7fbe	DROP	generated-artifact		0				0
 tools/test_check-role-ssot.py	1	3	3	9	7b25fea80668	DROP	generated-artifact		0				0
 tools/test_check-role-ssot.py	4	4	1	6	97d401b572fb	DROP	generated-artifact		0				0
 tools/test_check-role-ssot.py	20	20	1	3	c4eab4cecb60	DROP	generated-artifact		0				0

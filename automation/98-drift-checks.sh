@@ -4014,7 +4014,7 @@ check_resolver_shell_equivalence() {
 check_comment_lex_equivalence() {
     echo "[98-drift-checks] comment lexing preserves semantic intent across documentation generators"
     local out
-    if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-comment-lex-equivalence.py 2>&1); then
+    if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-docs.py comment-lex 2>&1); then
         printf '%s\n' "$out" | tail -n 12 >&2
         _violation "comment lexer equivalence check failed"
     fi
@@ -4493,14 +4493,14 @@ check_docs_ratchet() {
 # --- documentation ratchet ceilings never exceed their recorded floor (shrink-only) ---
 check_docs_ratchet_monotone() {
     echo "[98-drift-checks] documentation ratchet ceilings never exceed their recorded floor (shrink-only)"
-    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-doc-ratchet-monotone.py" 2>&1)" || { _violations_from "" "$out"; return; }
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-docs.py" ratchet-monotone 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   documentation ratchet ceilings did not rise"
 }
 
 # --- resolver output contains pure configuration without raw generated prose ---
 check_no_generated_prose_in_resolvers() {
     echo "[98-drift-checks] resolver output contains pure configuration without raw generated prose"
-    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-no-generated-prose-in-resolvers.py 2>&1)" || { _violations_from "" "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-docs.py no-generated-prose 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4684,7 +4684,7 @@ check_verify_images() {
 check_header_comment_syntax() {
     echo "[98-drift-checks] file header comments strictly conform to comment parser syntax"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-header-comment-syntax.py 2>&1)" || { _violations_from "check_header_comment_syntax: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-docs.py header-syntax 2>&1)" || { _violations_from "check_header_comment_syntax: " "$out"; return; }
     echo "[98-drift-checks]   every AI header uses the comment character its format understands"
 }
 
@@ -4731,7 +4731,7 @@ check_leaked_fixtures() {
 # --- log sanitizer redacts all sensitive fields listed in security schema ---
 check_redact_coverage() {
     echo "[98-drift-checks] log sanitizer redacts all sensitive fields listed in security schema"
-    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-redact-coverage.py 2>&1)" || { _violations_from "check_redact_coverage: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-docs.py redact-coverage 2>&1)" || { _violations_from "check_redact_coverage: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4745,7 +4745,7 @@ check_daemon_governor() {
 # --- all cross-references and internal links in manual docs resolve ---
 check_manual_links() {
     echo "[98-drift-checks] all cross-references and internal links in manual docs resolve"
-    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)" || { _violations_from "check_manual_links: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-docs.py manual-links 2>&1)" || { _violations_from "check_manual_links: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 

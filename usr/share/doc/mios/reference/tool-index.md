@@ -256,26 +256,21 @@ is generated, its generator is here.
 | `tools/audit-image-provisioning.py` | Post-build image-audit validator asserting provisioning status (AGY / T-286). |
 | `tools/audit-version-literals.py` | Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin... |
 | `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. |
-| `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
 | `tools/check-container-names.py` | Drift gate for unmappable container names. |
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
 | `tools/check-deploy-formats.py` | Fails when a declared deployment format has no build target, when a build target is undeclared, or when a variant ships a format the matrix does not define. |
-| `tools/check-doc-ratchet-monotone.py` | Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values. |
+| `tools/check-docs.py` | Documentation-plane drift gates in one module: ratchet monotonicity, manual links, comment-lexer equivalence, header comment syntax, generated prose in resolvers, redaction coverage. The subcommand... |
 | `tools/check-firstboot-degrade-open.py` | Drift gate for Law 12 BAKE-NOT-FETCH -- firstboot scripts must degrade open on egress failure. |
 | `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
 | `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. Detected from the tree, and every one must sit in the shrink-only [blades.hazards].accepted register under a ratchet. |
-| `tools/check-header-comment-syntax.py` | Fails when an AI header uses a comment syntax the file's own format does not understand. |
 | `tools/check-leaked-fixtures.py` | Fails when a negative test's injected fixture, or a backup file it made, is left behind in the tracked tree. |
-| `tools/check-manual-links.py` | Link-integrity gate for the shipped docs. |
 | `tools/check-mios-toml-integrity.py` | Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682). |
 | `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). |
 | `tools/check-negatives-registered.py` | Fails on an orphaned negative test; ratchets checks with none. Coverage is ARG_POS (argument position), never substring presence. |
-| `tools/check-no-generated-prose-in-resolvers.py` | Drift check 157 check_no_generated_prose_in_resolvers -- asserts zero AI-hint: and zero MIOS_UNITS_*_COMMENT= in globals.sh/ps1. |
 | `tools/check-node-pool.py` | Drift gate for the fan-out pool. [nodes.*] is dispatched by capacity behind per-lane and per-endpoint semaphores, so a node that repeats another... |
 | `tools/check-port-fallbacks.py` | Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. |
 | `tools/check-ports-bound.py` | Drift gate for allocated-but-unbound ports. |
 | `tools/check-privileged-quadlets.py` | Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651). |
-| `tools/check-redact-coverage.py` | DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
 | `tools/check-role-ssot.py` | Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is. |
 | `tools/check-rust-test-coverage.py` | Fails when a Rust crate ships with no test at all, because cargo test reports ok for a crate that asserts nothing. |
@@ -330,26 +325,21 @@ is generated, its generator is here.
 | `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a... |
 | `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap... |
 | `tools/test_check-blade-coverage.py` | Unit tests for tools/check-blade-coverage.py. |
-| `tools/test_check-comment-lex-equivalence.py` | Fixtures for check-comment-lex-equivalence.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
 | `tools/test_check-container-names.py` | Sibling unit test for tools/check-container-names.py. |
 | `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
 | `tools/test_check-deploy-formats.py` | Sibling test for tools/check-deploy-formats.py; proves the format matrix covers every build target and every recipe. |
-| `tools/test_check-doc-ratchet-monotone.py` | Fixtures for check-doc-ratchet-monotone.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
+| `tools/test_check-docs.py` | Sibling unit tests for tools/check-docs.py -- one suite per subcommand, each owning its counters and returning its own verdict. |
 | `tools/test_check-firstboot-degrade-open.py` | Sibling unit test for tools/check-firstboot-degrade-open.py. |
 | `tools/test_check-firstboot-provisioners.py` | Sibling unit test for tools/check-firstboot-provisioners.py. |
 | `tools/test_check-fleet-safety.py` | Unit tests for tools/check-fleet-safety.py -- both detectors independently, plus every way the accepted register can stop measuring. |
-| `tools/test_check-header-comment-syntax.py` | Sibling test for tools/check-header-comment-syntax.py; proves it catches a C-style header in a hash-comment format. |
 | `tools/test_check-leaked-fixtures.py` | Sibling test for tools/check-leaked-fixtures.py; proves the scan catches an injected fixture and a backup file. |
-| `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T... |
 | `tools/test_check-mios-toml-integrity.py` | Sibling unit test for tools/check-mios-toml-integrity.py (AGY-1646 / AGY-1682). |
 | `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). |
 | `tools/test_check-negatives-registered.py` | Sibling test for tools/check-negatives-registered.py; proves it names a negative test the harness defines but never invokes. |
-| `tools/test_check-no-generated-prose-in-resolvers.py` | Fixtures for check-no-generated-prose-in-resolvers.py -- proves it flags an AI-hint or a MIOS_UNITS_*_COMMENT payload inside a generated resolver, and passes on a clean one. |
 | `tools/test_check-node-pool.py` | Unit tests for tools/check-node-pool.py. |
 | `tools/test_check-port-fallbacks.py` | Unit tests for tools/check-port-fallbacks.py. |
 | `tools/test_check-ports-bound.py` | Unit tests for tools/check-ports-bound.py. |
 | `tools/test_check-privileged-quadlets.py` | Sibling unit test for tools/check-privileged-quadlets.py (AGY-1646 / AGY-1651). |
-| `tools/test_check-redact-coverage.py` | Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl... |
 | `tools/test_check-role-ssot.py` | Unit tests for tools/check-role-ssot.py. |
 | `tools/test_check-rust-test-coverage.py` | Unit tests for tools/check-rust-test-coverage.py. |
 | `tools/test_check-schema-consumers.py` | Sibling unit test for tools/check-schema-consumers.py. |
@@ -382,7 +372,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 129 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 119 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
