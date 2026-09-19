@@ -29,7 +29,7 @@ MOD = _load()
 class TestExtractedChecks(unittest.TestCase):
     def test_the_module_imports(self):
         """A heredoc could not be imported at all; that was the defect."""
-        self.assertTrue(callable(MOD.check_doc_refs_resolve))
+        self.assertTrue(callable(MOD.check_resolver_differential_parity))
 
     def test_every_subcommand_maps_to_a_callable(self):
         # Not a fixed count: the module grows as more checks leave their
