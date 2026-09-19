@@ -1109,3 +1109,20 @@ so long. Let a run finish.
 - next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
 - blockers: -
 - unverified: anything not yet committed: 1 dirty path(s)
+
+## 2026-09-19 20:47 · 0d97cdeb · run-exit-0
+- objective: Milestone 1 (T-1090/T-1100 parity, T-1102 libexec verb scanning) & Milestone 2 (multi-harness concurrent stale-refs resolution across srf-lib, srf-tests, srf-native, srf-libexec)
+- done:
+  - Landed T-1090 (done), T-1100 (completed), T-1102 (done) in commit 15f9e2f1 with extensionless verb scanning in usr/lib/mios/mios_comments.py.
+  - Executed all 4 stale reference lanes using claude-code harness workers in isolated dedicated worktrees under .devloop/lanes.stale-refs.json.
+  - Lane srf-lib: cleared 10 stale refs in usr/lib/** (commit 8496827a, merged fb25ef37).
+  - Lane srf-tests: cleared 18 stale refs across 17 test files (commit b0851730, merged dd2dc490; 113 unit tests passed).
+  - Lane srf-native: cleared 8 stale refs across Rust workspaces/tools (commit a6bb887d, merged 1370d9d4; token-identical, cargo fmt green).
+  - Lane srf-libexec: cleared 71 stale refs across 69 files in usr/libexec/mios/** (commit 0f846ed1, merged 0d97cdeb) using atomic comment-only script.
+  - Remeasured repo-wide stale references: dropped from 152 to 25 (ceiling was <= 110).
+  - Regenerated and verified manual corpus ledger: usr/share/mios/reference/manual-corpus.tsv up to date (19,523 rows, 718 tombstones).
+  - Ratcheted max_tooling_python_lines in usr/share/mios/mios.toml down to 77092 (shrink-only).
+  - Updated TASKS.md parity for T-1080 (done), T-1081 (done), T-1082 (done), T-1083 (done), T-1101 (done). Both check-tasks.py status-parity and schema exit 0.
+- next: T-1084 (HARVEST narrative blocks), T-1085 (DOCS-REFS), T-1091 (fold tests into subject modules)
+- blockers: -
+- unverified: none; all controls verified with positive & negative sentinels, drift-checks legibility-ratchet exit 0, test_mios_comments 31/31 passed.

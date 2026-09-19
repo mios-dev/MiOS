@@ -24,31 +24,19 @@ SCAN_EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
 _SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv", ".rustup", ".cargo", "output"}
 
 def _is_libexec_verb(root: str, rel: str) -> bool:
-    """True for extensionless executable script verbs under usr/libexec/mios/."""
-    if not (rel.startswith("usr/libexec/mios/") or "/usr/libexec/mios/" in rel):
-        return False
-    fn = rel.rsplit("/", 1)[-1]
-    if "." in fn:
+    if not ((rel.startswith("usr/libexec/mios/") or "/usr/libexec/mios/" in rel) and "." not in rel.rsplit("/", 1)[-1]):
         return False
     full = os.path.join(root, rel.replace("/", os.sep))
-    if not os.path.isfile(full):
-        return False
     try:
         with open(full, "rb") as fh:
-            head = fh.read(1024)
-        if head.startswith(b"#!") and b"\x00" not in head:
-            return True
+            h = fh.read(1024); return h.startswith(b"#!") and b"\x00" not in h
     except OSError:
-        pass
-    return False
+        return False
 
 def _get_tracked_files(root: str) -> list[str]:
     import subprocess
     try:
-        out = subprocess.run(
-            ["git", "-c", "core.ignorecase=false", "ls-files", "-z"],
-            cwd=root, capture_output=True, check=True
-        )
+        out = subprocess.run(["git", "-c", "core.ignorecase=false", "ls-files", "-z"], cwd=root, capture_output=True, check=True)
         files = [p for p in out.stdout.decode("utf-8", errors="replace").split("\0") if p]
         if files:
             return files
@@ -264,22 +252,16 @@ class RefIndex:
         "cockpit.socket", "cockpit.service", "k3s.service", "ceph.target",
         "sshd.service", "nvme.service", "firewalld.service", "auditd.service",
         "usbguard.service", "chrony.service", "crowdsec.service",
-        "graphical-session.target", "getty.target", "systemd-modules-load.service",
-        "systemd-udev-trigger.service", "display-manager.service",
-        "nvidia-cdi-refresh.service", "NetworkManager-wait-online.service",
-        "cockpit-wsinstance-https.service", "cockpit-wsinstance-socket-user.service",
-        "cockpit-wsinstance-http.service", "coreos-ignition-firstboot-complete.service",
-        "docker.socket", "gdm.service", "libvirtd.service", "libvirtd.socket",
-        "pacemaker.service", "polkit.service", "rc-local.service", "systemd.service",
-        "akmods.service", "corosync.service", "gnome-session.service",
-        "localsearch-3.service", "podman-restart.service", "redis.service",
-        "systemd-binfmt.service", "systemd-journald.socket", "systemd-sysusers.service",
-        "systemd-tmpfiles-setup.service", "systemd-user-sessions.service",
-        "tailscaled.service", "umount.target", "var.mount", "virtnetworkd.service",
-        "virtqemud.service", "virtstoraged.service", "waydroid-container.service",
-        "wsl-firstboot.service", "x-systemd.mount",
-        "avahi-daemon.service", "virtnodedevd.socket", "xdg-document-portal.service",
-        "flatpak-portal.service", "pipewire.service", "ceph-mds.service",
+        "graphical-session.target", "getty.target", "systemd-modules-load.service", "systemd-udev-trigger.service",
+        "display-manager.service", "nvidia-cdi-refresh.service", "NetworkManager-wait-online.service",
+        "cockpit-wsinstance-https.service", "cockpit-wsinstance-socket-user.service", "cockpit-wsinstance-http.service",
+        "coreos-ignition-firstboot-complete.service", "docker.socket", "gdm.service", "libvirtd.service", "libvirtd.socket",
+        "pacemaker.service", "polkit.service", "rc-local.service", "systemd.service", "akmods.service", "corosync.service",
+        "gnome-session.service", "localsearch-3.service", "podman-restart.service", "redis.service", "systemd-binfmt.service",
+        "systemd-journald.socket", "systemd-sysusers.service", "systemd-tmpfiles-setup.service", "systemd-user-sessions.service",
+        "tailscaled.service", "umount.target", "var.mount", "virtnetworkd.service", "virtqemud.service", "virtstoraged.service",
+        "waydroid-container.service", "wsl-firstboot.service", "x-systemd.mount", "avahi-daemon.service", "virtnodedevd.socket",
+        "xdg-document-portal.service", "flatpak-portal.service", "pipewire.service", "ceph-mds.service",
         "llama-rpc-server.service", "cilium-bgp.service",
     )
 
@@ -318,42 +300,33 @@ class RefIndex:
         except OSError:
             pass
         short_names = (
-            "mios-hermes", "mios-gpu", "mios-resolver", "mios-igpu-server",
-            "mios-codemode", "mios-oscontrol", "mios-common", "mios-dev",
-            "mios-sys", "mios-agent", "mios-knowledge", "mios-llm-worker",
-            "mios-llm-light", "mios-llm-heavy", "mios-wallpaperd", "mios-pgvector",
-            "mios-searxng", "mios-forgejo", "mios-guacamole", "mios-k3s",
-            "mios-ceph", "mios-chrony", "mios-vllm", "mios-install",
-            "mios-codemode-api", "mios-coderun-sandbox", "mios-infra", "mios-gateway-agent",
-            "mios-opencode", "mios-oscontrol-server", "mios-unit-gen", "mios-btop",
-            "mios-vendor", "mios-sync-env", "mios-gui-watch", "mios-forge", "mios-help",
-            "mios-services", "mios-vfio-check", "mios-vfio-toggle", "mios-accelerator",
-            "mios-agent-nudger", "mios-ai-group", "mios-ask", "mios-build-local", "mios-ci",
-            "mios-cloud-build", "mios-code", "mios-comment-lex", "mios-daemon-agent",
-            "mios-dash", "mios-greenboot", "mios-grounding", "mios-log-watcher",
-            "mios-looking-glass-enable", "mios-overlay", "mios-pipeline", "mios-prompt",
-            "mios-reasoner-cpu", "mios-ssot-lint", "mios-sysext-pack", "mios-virt-gate",
-            "mios-windows-export", "mios-wslg", "mios-app-shell", "mios-build-assessment",
-            "mios-build-chain", "mios-builder", "mios-claude-mcp-setup", "mios-composefs",
-            "mios-cosign", "mios-crawl4ai", "mios-crawl4ai-service", "mios-crawl4ai-setup",
-            "mios-cuda", "mios-cursor", "mios-delegation-prefilter", "mios-drift-runner",
-            "mios-flatpaks", "mios-gpu-detected", "mios-ha", "mios-icon-stage", "mios-icons",
-            "mios-init", "mios-is", "mios-is-wsl", "mios-kver", "mios-llamacpp", "mios-llm",
-            "mios-mcp-enable-tier0", "mios-mcp-init", "mios-metal", "mios-mon",
-            "mios-orchestrator", "mios-pkg", "mios-planner", "mios-quadlet-overlay",
-            "mios-root", "mios-serial", "mios-sys-agent", "mios-template-compile",
-            "mios-template-conform", "mios-theme", "mios-user", "mios-version-check",
-            "mios-wslg-gpu", "mios-bootstrap", "mios-heavy", "hermes-agent", "k3s-agent",
-            "laws.target", "tests/golden",
-            "mios-shim", "mios-cpu", "mios-sys-build", "mios-env", "mios-bak",
-            "mios-sys-agent-ft", "mios-igpu", "mios-fanout", "mios-virt-gpu",
-            "mios-renderer", "mios-nvidia-blacklist", "mios-libvirtd-firstboot",
-            "mios-br0", "mios-local", "mios-windows-apps", "mios-bakescratch",
-            "mios-owui-apply", "mios-cu", "mios-token", "mios-configurator",
-            "mios-daemon-state", "mios-es-err", "mios-find-err", "mios-finetune-smoke",
-            "mios-mycustom", "mios-hostgui", "mios-locate-err", "mios-src",
-            "mios-router", "mios-owui-pipe-payload", "mios-skill", "mios-repo",
-            "mios-latest", "mios-swarm-pack", "mios-windows-experimental", "mios-network",
+            "mios-hermes", "mios-gpu", "mios-resolver", "mios-igpu-server", "mios-codemode", "mios-oscontrol",
+            "mios-common", "mios-dev", "mios-sys", "mios-agent", "mios-knowledge", "mios-llm-worker",
+            "mios-llm-light", "mios-llm-heavy", "mios-wallpaperd", "mios-pgvector", "mios-searxng", "mios-forgejo",
+            "mios-guacamole", "mios-k3s", "mios-ceph", "mios-chrony", "mios-vllm", "mios-install",
+            "mios-codemode-api", "mios-coderun-sandbox", "mios-infra", "mios-gateway-agent", "mios-opencode",
+            "mios-oscontrol-server", "mios-unit-gen", "mios-btop", "mios-vendor", "mios-sync-env", "mios-gui-watch",
+            "mios-forge", "mios-help", "mios-services", "mios-vfio-check", "mios-vfio-toggle", "mios-accelerator",
+            "mios-agent-nudger", "mios-ai-group", "mios-ask", "mios-build-local", "mios-ci", "mios-cloud-build",
+            "mios-code", "mios-comment-lex", "mios-daemon-agent", "mios-dash", "mios-greenboot", "mios-grounding",
+            "mios-log-watcher", "mios-looking-glass-enable", "mios-overlay", "mios-pipeline", "mios-prompt",
+            "mios-reasoner-cpu", "mios-ssot-lint", "mios-sysext-pack", "mios-virt-gate", "mios-windows-export",
+            "mios-wslg", "mios-app-shell", "mios-build-assessment", "mios-build-chain", "mios-builder",
+            "mios-claude-mcp-setup", "mios-composefs", "mios-cosign", "mios-crawl4ai", "mios-crawl4ai-service",
+            "mios-crawl4ai-setup", "mios-cuda", "mios-cursor", "mios-delegation-prefilter", "mios-drift-runner",
+            "mios-flatpaks", "mios-gpu-detected", "mios-ha", "mios-icon-stage", "mios-icons", "mios-init",
+            "mios-is", "mios-is-wsl", "mios-kver", "mios-llamacpp", "mios-llm", "mios-mcp-enable-tier0",
+            "mios-mcp-init", "mios-metal", "mios-mon", "mios-orchestrator", "mios-pkg", "mios-planner",
+            "mios-quadlet-overlay", "mios-root", "mios-serial", "mios-sys-agent", "mios-template-compile",
+            "mios-template-conform", "mios-theme", "mios-user", "mios-version-check", "mios-wslg-gpu",
+            "mios-bootstrap", "mios-heavy", "hermes-agent", "k3s-agent", "laws.target", "tests/golden",
+            "mios-shim", "mios-cpu", "mios-sys-build", "mios-env", "mios-bak", "mios-sys-agent-ft",
+            "mios-igpu", "mios-fanout", "mios-virt-gpu", "mios-renderer", "mios-nvidia-blacklist",
+            "mios-libvirtd-firstboot", "mios-br0", "mios-local", "mios-windows-apps", "mios-bakescratch",
+            "mios-owui-apply", "mios-cu", "mios-token", "mios-configurator", "mios-daemon-state",
+            "mios-es-err", "mios-find-err", "mios-finetune-smoke", "mios-mycustom", "mios-hostgui",
+            "mios-locate-err", "mios-src", "mios-router", "mios-owui-pipe-payload", "mios-skill",
+            "mios-repo", "mios-latest", "mios-swarm-pack", "mios-windows-experimental", "mios-network",
         )
         self.names.update(short_names)
 

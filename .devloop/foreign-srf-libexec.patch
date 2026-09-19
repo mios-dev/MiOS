@@ -1,0 +1,1576 @@
+diff --git a/usr/libexec/mios/ai/accelerator_router.py b/usr/libexec/mios/ai/accelerator_router.py
+index 1f62c517..b9cc61d1 100644
+--- a/usr/libexec/mios/ai/accelerator_router.py
++++ b/usr/libexec/mios/ai/accelerator_router.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Hierarchical accelerator router with NPU priority and CPU vector fallback (T-693, T-694).
+-# AI-related: usr/libexec/mios/ai/accelerator_router.py, tests/test-ai.py, automation/22-accelerators.sh
++# AI-related: usr/libexec/mios/ai/accelerator_router.py, tests/test-ai.py
+ """Hierarchical accelerator router with NPU priority and CPU vector fallback for MiOS.
+ 
+ Discovers Intel VPU, AMD XDNA NPUs, and CPU vector extensions (AVX-512, AMX, Neon),
+diff --git a/usr/libexec/mios/ai/audit_chain.py b/usr/libexec/mios/ai/audit_chain.py
+index 8500127b..074bdace 100644
+--- a/usr/libexec/mios/ai/audit_chain.py
++++ b/usr/libexec/mios/ai/audit_chain.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Cryptographic Merkle-tree agent audit chain recorder and Ed25519 block signer.
+-# AI-related: usr/share/doc/mios/manual/ch65-merkle-audit-chain-and-signatures.md, tests/test-ai.py
++# AI-related: tests/test-ai.py
+ # AI-functions: AuditChainRecorder, MerkleTree, generate_ed25519_keypair, main
+ """
+ WS-AI (T-553): Cryptographic Merkle-Tree Agent Audit Chain Recorder & Ed25519 Block Signer.
+diff --git a/usr/libexec/mios/ai/model_matrix_alloc.py b/usr/libexec/mios/ai/model_matrix_alloc.py
+index 7e0dcce2..e7aed177 100644
+--- a/usr/libexec/mios/ai/model_matrix_alloc.py
++++ b/usr/libexec/mios/ai/model_matrix_alloc.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Hardware-tiered modern model matrix allocator for Consumer, Prosumer, and Poweruser tiers.
+-# AI-related: usr/share/mios/llamacpp/mios-llm-light.yaml, usr/share/doc/mios/manual/ch66-model-matrix-allocator.md, tests/test-ai.py
++# AI-related: usr/share/mios/llamacpp/mios-llm-light.yaml, usr/share/doc/mios/manual/ch10-local-inference-lanes-and-llama-cpp.md, tests/test-ai.py
+ # AI-functions: ModelMatrixAllocator, detect_host_hardware, project_llama_swap_yaml, main
+ """
+ WS-AI (T-571): Hardware-Tiered Modern Model Matrix Allocator for Consumer, Prosumer, and Poweruser.
+diff --git a/usr/libexec/mios/ai/tensor_kernels.py b/usr/libexec/mios/ai/tensor_kernels.py
+index d9014a0e..215c2a3e 100644
+--- a/usr/libexec/mios/ai/tensor_kernels.py
++++ b/usr/libexec/mios/ai/tensor_kernels.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher (T-649, T-650).
+-# AI-related: usr/libexec/mios/ai/tensor_kernels.py, tests/test-ai.py, automation/20-drivers.sh
++# AI-related: usr/libexec/mios/ai/tensor_kernels.py, tests/test-ai.py, automation/20-hardware.sh
+ """GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher for MiOS.
+ 
+ Detects CUDA SM compute architectures (sm_80, sm_89, sm_90a) and ROCm architectures (gfx1100),
+diff --git a/usr/libexec/mios/ai/tts_stream.py b/usr/libexec/mios/ai/tts_stream.py
+index 6d3a8f6f..3ecef519 100644
+--- a/usr/libexec/mios/ai/tts_stream.py
++++ b/usr/libexec/mios/ai/tts_stream.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire ring buffer feeder (T-687, T-688).
+-# AI-related: usr/libexec/mios/ai/tts_stream.py, tests/test-ai.py, usr/libexec/mios/mios-tts
++# AI-related: usr/libexec/mios/ai/tts_stream.py, tests/test-ai.py
+ """Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire feeder for MiOS.
+ 
+ Synthesizes 24kHz PCM audio chunks in real time, feeds PipeWire low-latency playback ring buffers,
+diff --git a/usr/libexec/mios/audio/bitperfect_mgr.py b/usr/libexec/mios/audio/bitperfect_mgr.py
+index df7a020c..ea4c60db 100644
+--- a/usr/libexec/mios/audio/bitperfect_mgr.py
++++ b/usr/libexec/mios/audio/bitperfect_mgr.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager (T-703, T-704).
+-# AI-related: usr/libexec/mios/audio/bitperfect_mgr.py, tests/test-bitperfect-audio.py, automation/25-pipewire.sh
++# AI-related: usr/libexec/mios/audio/bitperfect_mgr.py, tests/test-bitperfect-audio.py
+ """Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager for MiOS.
+ 
+ Dynamically adapts PipeWire daemon clock rates (44.1k-192k) to source stream audio for bit-perfect playback,
+diff --git a/usr/libexec/mios/audio/wireplumber_manager.py b/usr/libexec/mios/audio/wireplumber_manager.py
+index 92c0c766..b4190f70 100644
+--- a/usr/libexec/mios/audio/wireplumber_manager.py
++++ b/usr/libexec/mios/audio/wireplumber_manager.py
+@@ -1,6 +1,5 @@
+ #!/usr/bin/env python3
+ # AI-hint: WirePlumber high-fidelity Bluetooth policy manager and virtual loopback provisioner for MiOS.
+-# AI-doc: usr/share/doc/mios/manual/desktop.md
+ import argparse
+ import json
+ import os
+diff --git a/usr/libexec/mios/boot/fastboot_mgr.py b/usr/libexec/mios/boot/fastboot_mgr.py
+index 8c7162b5..fbab85e6 100644
+--- a/usr/libexec/mios/boot/fastboot_mgr.py
++++ b/usr/libexec/mios/boot/fastboot_mgr.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Zero-timeout systemd-boot silent fastboot configurator and baked UKI kargs manager (T-699, T-700).
+-# AI-related: usr/libexec/mios/boot/fastboot_mgr.py, tests/test-fastboot-mgr.py, automation/10-systemd-boot.sh
++# AI-related: usr/libexec/mios/boot/fastboot_mgr.py, tests/test-fastboot-mgr.py
+ """Zero-timeout systemd-boot silent fastboot configurator and baked UKI kargs manager for MiOS.
+ 
+ Configures systemd-boot loader.conf with timeout 0 for instant sub-300ms firmware handoff,
+diff --git a/usr/libexec/mios/build/liveiso.py b/usr/libexec/mios/build/liveiso.py
+index d3333a10..126f4dac 100644
+--- a/usr/libexec/mios/build/liveiso.py
++++ b/usr/libexec/mios/build/liveiso.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Hybrid live ISO and iPXE netboot artifact synthesis pipeline using BIB (T-647, T-648).
+-# AI-related: usr/libexec/mios/build/liveiso.py, tests/test-liveiso-build.py, automation/92-export-iso.sh
++# AI-related: usr/libexec/mios/build/liveiso.py, tests/test-liveiso-build.py
+ """Hybrid live ISO and iPXE netboot artifact synthesis pipeline for MiOS.
+ 
+ Orchestrates Bootc Image Builder (BIB) invocation inside the build container, generates
+diff --git a/usr/libexec/mios/cluster/raft_coordinator.py b/usr/libexec/mios/cluster/raft_coordinator.py
+index 5ca3ffc5..38a5a6a2 100644
+--- a/usr/libexec/mios/cluster/raft_coordinator.py
++++ b/usr/libexec/mios/cluster/raft_coordinator.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Embedded Raft consensus coordinator and Patroni HA database failover engine for MiOS cluster.
+-# AI-doc: usr/share/doc/mios/manual/cluster.md
++# AI-doc: usr/share/doc/mios/manual/ch07-cluster-and-storage-fabric.md
+ import argparse
+ import json
+ import os
+diff --git a/usr/libexec/mios/config/nix_project.py b/usr/libexec/mios/config/nix_project.py
+index d297a4f4..4b2cb2f5 100644
+--- a/usr/libexec/mios/config/nix_project.py
++++ b/usr/libexec/mios/config/nix_project.py
+@@ -1,6 +1,5 @@
+ #!/usr/bin/env python3
+ # AI-hint: Declarative mios.toml to Nix flake/home-manager projection generator for atomic user package generations.
+-# AI-doc: usr/share/doc/mios/manual/nix.md
+ # AI-related: usr/share/mios/nix/flake-template.nix, usr/share/mios/nix/nix.conf, usr/lib/tmpfiles.d/50-nix.conf
+ 
+ """Declarative Nix Flake Projection Generator and Generation Manager (T-582 / AGY-2180).
+diff --git a/usr/libexec/mios/containers/native_storage.py b/usr/libexec/mios/containers/native_storage.py
+index 867a9275..d5867582 100644
+--- a/usr/libexec/mios/containers/native_storage.py
++++ b/usr/libexec/mios/containers/native_storage.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Native in-kernel ID-mapped OverlayFS storage configurator for rootless Podman (T-705, T-706).
+-# AI-related: usr/libexec/mios/containers/native_storage.py, tests/test-native-storage.py, automation/35-podman-storage.sh
++# AI-related: usr/libexec/mios/containers/native_storage.py, tests/test-native-storage.py
+ """Native in-kernel ID-mapped OverlayFS storage configurator for MiOS rootless Podman.
+ 
+ Configures native in-kernel overlayfs with metacopy=on and userxattr for rootless containers,
+diff --git a/usr/libexec/mios/db/pg_vacuum_tuner.py b/usr/libexec/mios/db/pg_vacuum_tuner.py
+index 93258a02..9368ceeb 100644
+--- a/usr/libexec/mios/db/pg_vacuum_tuner.py
++++ b/usr/libexec/mios/db/pg_vacuum_tuner.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Declarative PostgreSQL autovacuum tuner, pg_cron scheduler, and concurrent HNSW reindexer for MiOS.
+-# AI-doc: usr/share/doc/mios/manual/database.md
++# AI-doc: usr/share/doc/mios/manual/ch12-unified-memory-and-pgvector-schema.md
+ import argparse
+ import json
+ import os
+diff --git a/usr/libexec/mios/desktop/gpu_terminal.py b/usr/libexec/mios/desktop/gpu_terminal.py
+index 4b004941..0f32363a 100644
+--- a/usr/libexec/mios/desktop/gpu_terminal.py
++++ b/usr/libexec/mios/desktop/gpu_terminal.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: GPU-accelerated terminal configuration and Wayland zero-copy DMA-BUF presentation manager (T-727, T-728).
+-# AI-related: usr/libexec/mios/desktop/gpu_terminal.py, tests/test-gpu-terminal.py, automation/28-terminal.sh
++# AI-related: usr/libexec/mios/desktop/gpu_terminal.py, tests/test-gpu-terminal.py
+ """GPU-accelerated terminal configuration and Wayland DMA-BUF presentation manager for MiOS.
+ 
+ Configures Alacritty / Ghostty with Vulkan glyph shaders and Wayland zero-copy DMA-BUF presentation,
+diff --git a/usr/libexec/mios/diag/coredump_sanitizer.py b/usr/libexec/mios/diag/coredump_sanitizer.py
+index d4565f1a..25ab813c 100644
+--- a/usr/libexec/mios/diag/coredump_sanitizer.py
++++ b/usr/libexec/mios/diag/coredump_sanitizer.py
+@@ -1,10 +1,9 @@
+ # AI-hint: MiOS system and orchestration module providing coredump sanitizer capabilities.
+-# AI-related: mios-crash
+ # AI-functions: __init__, process_crash, CrashMinidump, CoredumpSanitizer
+ 
+ """
+ coredump_sanitizer.py — T-751 WS-DIAG
+-Sanitized systemd-coredump configurator and automated minidump extractor in mios-crash.
++Sanitized systemd-coredump configurator and automated minidump extractor.
+ 
+ Extracts demangled stack minidumps into PostgreSQL bug_tracker, strips MADV_DONTDUMP
+ secret memory, and immediately purges raw core files.
+diff --git a/usr/libexec/mios/diag/ebpf_trace.py b/usr/libexec/mios/diag/ebpf_trace.py
+index 3f650732..1f5974d5 100644
+--- a/usr/libexec/mios/diag/ebpf_trace.py
++++ b/usr/libexec/mios/diag/ebpf_trace.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+-# AI-hint: Declarative eBPF kernel tracing suite and bpftrace histogram recorder in mios-trace (T-719, T-720).
+-# AI-related: usr/lib/mios/agent-pipe/mios_trace.py, tests/test-ebpf-trace.py, automation/45-ebpf-tools.sh
++# AI-hint: Declarative eBPF kernel tracing suite and bpftrace histogram recorder (T-719, T-720).
++# AI-related: usr/lib/mios/agent-pipe/mios_trace.py, tests/test-ebpf-trace.py
+ """Declarative eBPF kernel tracing suite and bpftrace histogram recorder for MiOS.
+ 
+ Attaches dynamic eBPF probes for disk I/O, network TCP drops, and scheduler latency in <10ms,
+diff --git a/usr/libexec/mios/display/looking_glass.py b/usr/libexec/mios/display/looking_glass.py
+index 641b7c49..f366a0be 100644
+--- a/usr/libexec/mios/display/looking_glass.py
++++ b/usr/libexec/mios/display/looking_glass.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Looking Glass B6 spice-direct host input client configuration and keybinding integration.
+-# AI-related: tests/test-looking-glass-config.py, usr/share/mios/looking-glass/client.ini, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
++# AI-related: tests/test-looking-glass-config.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
+ """
+ MiOS Looking Glass B6 Client Configuration & Direct Input Manager.
+ 
+diff --git a/usr/libexec/mios/git/lfs_pull.py b/usr/libexec/mios/git/lfs_pull.py
+index 2252a4b3..4fb57d12 100644
+--- a/usr/libexec/mios/git/lfs_pull.py
++++ b/usr/libexec/mios/git/lfs_pull.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager (T-715, T-716).
+-# AI-related: usr/bin/mios_lfs_pull.py, tests/test-lfs-cache.py, usr/bin/mios-lfs-pull
++# AI-related: usr/libexec/mios/git/lfs_pull.py, tests/test-lfs-cache.py
+ """Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager for MiOS.
+ 
+ Downloads only requested model quantization blobs (e.g. Q4_K_M), verifies SHA-256 integrity,
+diff --git a/usr/libexec/mios/git/merge_fuzzer.py b/usr/libexec/mios/git/merge_fuzzer.py
+index d9872193..790065fb 100644
+--- a/usr/libexec/mios/git/merge_fuzzer.py
++++ b/usr/libexec/mios/git/merge_fuzzer.py
+@@ -1,6 +1,5 @@
+ #!/usr/bin/env python3
+ # AI-hint: Continuous differential AST git merge fuzzing harness and mutation generator for MiOS.
+-# AI-doc: usr/share/doc/mios/manual/git.md
+ import argparse
+ import ast
+ import json
+diff --git a/usr/libexec/mios/hw/cpu_topology.py b/usr/libexec/mios/hw/cpu_topology.py
+index fb47857f..e415ee86 100644
+--- a/usr/libexec/mios/hw/cpu_topology.py
++++ b/usr/libexec/mios/hw/cpu_topology.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator (T-657, T-658).
+-# AI-related: usr/libexec/mios/hw/cpu_topology.py, tests/test-hw.py, automation/24-cpu-affinity.sh
++# AI-related: usr/libexec/mios/hw/cpu_topology.py, tests/test-hw.py
+ """Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator for MiOS.
+ 
+ Inspects sysfs topology on boot across Intel P/E hybrid, AMD 3D V-Cache dual-CCD, and multi-socket NUMA,
+diff --git a/usr/libexec/mios/hw/fand.py b/usr/libexec/mios/hw/fand.py
+index 1ea12df7..83ab9a3f 100644
+--- a/usr/libexec/mios/hw/fand.py
++++ b/usr/libexec/mios/hw/fand.py
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env python3
+ # AI-hint: Multi-zone PID Fan Controller daemon with 5°C hysteresis, hwmon sensor discovery, and acoustic rate-limiting.
+ # AI-related: usr/libexec/mios/hw/fand.py, tests/test-hw.py, usr/share/mios/mios.toml
+-"""Multi-zone PID Fan Controller daemon for MiOS (mios-fand).
++"""Multi-zone PID Fan Controller daemon for MiOS.
+ 
+ Modulates chassis, CPU, GPU, and NVMe fan channels smoothly across multi-zone PID curves
+ with a 5°C hysteresis deadband to prevent acoustic pulsing, and limits RPM/PWM ramp transitions
+diff --git a/usr/libexec/mios/hw/gpu_heatd.py b/usr/libexec/mios/hw/gpu_heatd.py
+index 6a748609..0170c6df 100644
+--- a/usr/libexec/mios/hw/gpu_heatd.py
++++ b/usr/libexec/mios/hw/gpu_heatd.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon (T-663, T-664).
+-# AI-related: usr/libexec/mios/hw/gpu_heatd.py, tests/test-hw.py, usr/share/cockpit/mios-gpu/
++# AI-related: usr/libexec/mios/hw/gpu_heatd.py, tests/test-hw.py
+ """Multi-GPU NVLink / PCIe interconnect profiler and P2P bandwidth heatmap daemon for MiOS.
+ 
+ Polls NVML / DCGM and ROCm-SMI link counters, calculates NxN P2P bidirectional bandwidth matrices,
+diff --git a/usr/libexec/mios/hw/gpu_powerd.py b/usr/libexec/mios/hw/gpu_powerd.py
+index c7c80fe8..5fb54bf2 100644
+--- a/usr/libexec/mios/hw/gpu_powerd.py
++++ b/usr/libexec/mios/hw/gpu_powerd.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+-# AI-hint: PCIe ASPM L1.2 and runtime D3cold GPU power manager in mios-gpu-powerd (T-683, T-684).
+-# AI-related: usr/libexec/mios/hw/gpu_powerd.py, tests/test-hw.py, automation/21-gpu-power.sh
++# AI-hint: PCIe ASPM L1.2 and runtime D3cold GPU power manager (T-683, T-684).
++# AI-related: usr/libexec/mios/hw/gpu_powerd.py, tests/test-hw.py
+ """PCIe ASPM L1.2 and runtime D3cold GPU power manager for MiOS.
+ 
+ Transitions idle discrete GPUs into sub-3W D3cold sleep states via PCIe ASPM L1.2,
+diff --git a/usr/libexec/mios/hw/gpu_slice.py b/usr/libexec/mios/hw/gpu_slice.py
+index 757fb607..08e36930 100644
+--- a/usr/libexec/mios/hw/gpu_slice.py
++++ b/usr/libexec/mios/hw/gpu_slice.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Declarative NVIDIA MIG / AMD ROCm GPU slice configurator and dynamic CDI spec generator.
+-# AI-related: tests/test-hw.py, usr/share/doc/mios/manual/virt.md
++# AI-related: tests/test-hw.py, usr/share/doc/mios/manual/ch20-container-device-interface-plumbing.md
+ """
+ MiOS GPU Slicing, Partitioning & Container Device Interface (CDI) Engine.
+ 
+diff --git a/usr/libexec/mios/hw/iommu_validator.py b/usr/libexec/mios/hw/iommu_validator.py
+index b1158988..df98293c 100644
+--- a/usr/libexec/mios/hw/iommu_validator.py
++++ b/usr/libexec/mios/hw/iommu_validator.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Strict IOMMU DMA remapper and PCIe ACS group validator for MiOS VFIO passthrough.
+-# AI-doc: usr/share/doc/mios/manual/hardware.md
++# AI-doc: usr/share/doc/mios/manual/ch19-hardware-passthrough-and-vfio-pci.md
+ import argparse
+ import json
+ import os
+diff --git a/usr/libexec/mios/hw/nccl_tune.py b/usr/libexec/mios/hw/nccl_tune.py
+index 3a12cb60..9cc9deda 100644
+--- a/usr/libexec/mios/hw/nccl_tune.py
++++ b/usr/libexec/mios/hw/nccl_tune.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+-# AI-hint: Automated NCCL topology discovery and NVLink/PCIe parameter optimizer in mios-nccl-tune (T-713, T-714).
+-# AI-related: usr/libexec/mios/hw/nccl_tune.py, tests/test-hw.py, automation/20-drivers.sh
++# AI-hint: Automated NCCL topology discovery and NVLink/PCIe parameter optimizer (T-713, T-714).
++# AI-related: usr/libexec/mios/hw/nccl_tune.py, tests/test-hw.py, automation/20-hardware.sh
+ """Automated NCCL topology discovery and NVLink/PCIe parameter optimizer for MiOS.
+ 
+ Auto-detects multi-GPU interconnect topologies (NVLink bridges, PCIe switches),
+diff --git a/usr/libexec/mios/hw/thermald.py b/usr/libexec/mios/hw/thermald.py
+index 401c7999..c35b9be6 100644
+--- a/usr/libexec/mios/hw/thermald.py
++++ b/usr/libexec/mios/hw/thermald.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+-# AI-hint: Proactive PID thermal frequency governor and dynamic EPP stepping daemon in mios-thermald (T-721, T-722).
+-# AI-related: usr/libexec/mios/hw/thermald.py, tests/test-hw.py, usr/libexec/mios/mios-thermald
++# AI-hint: Proactive PID thermal frequency governor and dynamic EPP stepping daemon (T-721, T-722).
++# AI-related: usr/libexec/mios/hw/thermald.py, tests/test-hw.py
+ """Proactive PID thermal frequency governor and dynamic EPP stepping daemon for MiOS.
+ 
+ Monitors CPU/GPU core temperatures every 500ms, modulates Energy Performance Preference (EPP)
+diff --git a/usr/libexec/mios/hw/watchdog_manager.py b/usr/libexec/mios/hw/watchdog_manager.py
+index 4c4cd1e3..7787c98f 100644
+--- a/usr/libexec/mios/hw/watchdog_manager.py
++++ b/usr/libexec/mios/hw/watchdog_manager.py
+@@ -1,6 +1,5 @@
+ #!/usr/bin/env python3
+ # AI-hint: Tiered hardware watchdog driver configurator and systemd watchdog integration for MiOS.
+-# AI-doc: usr/share/doc/mios/manual/hardware.md
+ import argparse
+ import json
+ import os
+diff --git a/usr/libexec/mios/ipc/shm_ring.py b/usr/libexec/mios/ipc/shm_ring.py
+index 1ae4ea0d..2cf7bb53 100644
+--- a/usr/libexec/mios/ipc/shm_ring.py
++++ b/usr/libexec/mios/ipc/shm_ring.py
+@@ -1,10 +1,9 @@
+ # AI-hint: MiOS system and orchestration module providing shm ring capabilities.
+-# AI-related: mios-shm-ring
+ # AI-functions: __init__, push_frame, pop_frame, SHMFrame, LockFreeSHMRing
+ 
+ """
+ shm_ring.py — T-767 WS-NODE
+-Lock-free POSIX shared memory circular ring IPC engine in mios-shm-ring.
++Lock-free POSIX shared memory circular ring IPC engine.
+ 
+ Allocates POSIX shared memory (/dev/shm) with atomic lock-free SPSC circular rings
+ and eventfd signaling for zero-copy 4K 60FPS video and audio streaming (<1us latency).
+diff --git a/usr/libexec/mios/kernel/dkms_engine.py b/usr/libexec/mios/kernel/dkms_engine.py
+index 143fae6d..d210daab 100644
+--- a/usr/libexec/mios/kernel/dkms_engine.py
++++ b/usr/libexec/mios/kernel/dkms_engine.py
+@@ -1,10 +1,9 @@
+ # AI-hint: MiOS system and orchestration module providing dkms engine capabilities.
+-# AI-related: mios-dkms
+ # AI-functions: __init__, build_module, CompiledModule, DKMSSandboxEngine
+ 
+ """
+ dkms_engine.py — T-765 WS-BUILD
+-Ephemeral containerized DKMS engine and MOK kernel module signer in mios-dkms.
++Ephemeral containerized DKMS engine and MOK kernel module signer.
+ 
+ Compiles out-of-tree .ko drivers inside bubblewrap sandbox against active UKI kernel,
+ signs with local MOK key, and caches in /var/lib/dkms/<kver>/ by build hash.
+diff --git a/usr/libexec/mios/kernel/kpatch_mgr.py b/usr/libexec/mios/kernel/kpatch_mgr.py
+index 37497ac4..272e5ffb 100644
+--- a/usr/libexec/mios/kernel/kpatch_mgr.py
++++ b/usr/libexec/mios/kernel/kpatch_mgr.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+-# AI-hint: Declarative kernel kpatch/livepatch manager and MOK signature validator in mios-kpatch (T-681, T-682).
+-# AI-related: usr/libexec/mios/kernel/kpatch_mgr.py, tests/test-kpatch-mgr.py, usr/libexec/mios/mios-kpatch
++# AI-hint: Declarative kernel kpatch/livepatch manager and MOK signature validator (T-681, T-682).
++# AI-related: usr/libexec/mios/kernel/kpatch_mgr.py, tests/test-kpatch-mgr.py
+ """Declarative kernel kpatch/livepatch manager and MOK signature validator for MiOS.
+ 
+ Applies cryptographically signed kernel livepatches in <100ms via ftrace,
+diff --git a/usr/libexec/mios/kernel/oomd_psi.py b/usr/libexec/mios/kernel/oomd_psi.py
+index 2e1a72dd..402a94e6 100644
+--- a/usr/libexec/mios/kernel/oomd_psi.py
++++ b/usr/libexec/mios/kernel/oomd_psi.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies (T-667, T-668).
+-# AI-related: usr/libexec/mios/kernel/oomd_psi.py, tests/test-oomd-psi.py, automation/26-oomd.sh
++# AI-related: usr/libexec/mios/kernel/oomd_psi.py, tests/test-oomd-psi.py
+ """Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies for MiOS.
+ 
+ Configures systemd-oomd to evict memory thrashing background tasks at 50% PSI pressure limit,
+diff --git a/usr/libexec/mios/mios-models b/usr/libexec/mios/mios-models
+index 1a6c214e..f722472e 100644
+--- a/usr/libexec/mios/mios-models
++++ b/usr/libexec/mios/mios-models
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: FBM CLI. `mios models list` prints the DECLARED set from the layered [ai].firstboot_models SSOT joined against what is on disk (it used to glob the filesystem and never open the TOML at all, so it could not show a declared-but-missing model); `sync` re-runs the first-boot provisioner; `add`/`rm` edit the USER overlay at ~/.config/mios/mios.toml rather than the vendor file, per the vendor<host<user cascade; `cache` pre-seeds from a local directory for air-gapped installs.
+-# AI-related: mios-models-firstboot, mios-models-firstboot.service, /usr/share/mios/mios.toml, /usr/lib/mios/mios_toml.py, tools/check-firstboot-models.py
++# AI-related: mios-models-firstboot, mios-models-firstboot.service, /usr/share/mios/mios.toml, /usr/lib/mios/mios_toml.py
+ # AI-functions: _user_toml_path, _declared_models, _on_disk, _fmt_size, do_list, do_sync, do_add, do_rm, do_cache, main
+ import sys
+ import os
+diff --git a/usr/libexec/mios/net/mdns_mesh.py b/usr/libexec/mios/net/mdns_mesh.py
+index c3b5fc97..c915af22 100644
+--- a/usr/libexec/mios/net/mdns_mesh.py
++++ b/usr/libexec/mios/net/mdns_mesh.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Zero-configuration mDNS/DNS-SD peer discovery and automated WireGuard mesh peering daemon.
+-# AI-related: tests/test-mdns-wireguard-mesh.py, usr/share/doc/mios/manual/net.md
++# AI-related: tests/test-mdns-wireguard-mesh.py, usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
+ """
+ MiOS Edge Mesh Zero-Configuration mDNS/DNS-SD Peer Discovery & WireGuard Daemon.
+ 
+diff --git a/usr/libexec/mios/net/nat_traversal.py b/usr/libexec/mios/net/nat_traversal.py
+index 07868693..f45360f4 100644
+--- a/usr/libexec/mios/net/nat_traversal.py
++++ b/usr/libexec/mios/net/nat_traversal.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Tiered NAT traversal engine for MiOS P2P mesh (UPnP, NAT-PMP, STUN hole punching, DERP relay).
+-# AI-doc: usr/share/doc/mios/manual/networking.md
++# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
+ import argparse
+ import json
+ import os
+diff --git a/usr/libexec/mios/net/ptp_time_sync.py b/usr/libexec/mios/net/ptp_time_sync.py
+index 80de0d9e..1e78f96a 100644
+--- a/usr/libexec/mios/net/ptp_time_sync.py
++++ b/usr/libexec/mios/net/ptp_time_sync.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: PTP IEEE 1588 hardware timestamping and Chrony NTS smooth clock synchronization daemon.
+-# AI-related: usr/share/doc/mios/manual/ch66-high-precision-ptp-and-nts-time-sync.md, tests/test-ptp-time.py, usr/lib/systemd/system/ptp4l.service, automation/47-time-sync.sh
++# AI-related: tests/test-ptp-time.py, usr/lib/systemd/system/ptp4l.service, automation/42-chrony-render.sh
+ # AI-functions: PTPCapabilityProbe, PTPConfigGenerator, PTPStatusMonitor, PTPTimeSyncDaemon, main
+ """
+ WS-NODE (T-565): PTP IEEE 1588 Hardware Timestamping & Chrony NTS Smooth Clock Synchronization Daemon.
+diff --git a/usr/libexec/mios/net/service_mesh.py b/usr/libexec/mios/net/service_mesh.py
+index 5071e678..1e4b0237 100644
+--- a/usr/libexec/mios/net/service_mesh.py
++++ b/usr/libexec/mios/net/service_mesh.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Declarative Traefik / Envoy service mesh proxy generator and Unix socket router for MiOS.
+-# AI-doc: usr/share/doc/mios/manual/networking.md
++# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
+ import argparse
+ import json
+ import os
+diff --git a/usr/libexec/mios/net/split_dns.py b/usr/libexec/mios/net/split_dns.py
+index 9c0ac8f5..21789e62 100644
+--- a/usr/libexec/mios/net/split_dns.py
++++ b/usr/libexec/mios/net/split_dns.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Split-DNS systemd-resolved configurator for .mios mesh domains and strict DoT (T-697, T-698).
+-# AI-related: usr/libexec/mios/net/split_dns.py, tests/test-split-dns.py, automation/43-dns-split.sh
++# AI-related: usr/libexec/mios/net/split_dns.py, tests/test-split-dns.py
+ """Split-DNS systemd-resolved configurator for .mios mesh domains and strict DoT for MiOS.
+ 
+ Directs internal `.mios` domain resolution to local WireGuard CoreDNS/AdGuard instances,
+diff --git a/usr/libexec/mios/net/vpn_killswitch.py b/usr/libexec/mios/net/vpn_killswitch.py
+index e1ecb96d..43653b72 100644
+--- a/usr/libexec/mios/net/vpn_killswitch.py
++++ b/usr/libexec/mios/net/vpn_killswitch.py
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env python3
+ # AI-hint: Declarative nftables VPN kill-switch and fwmark split-tunnel manager for MiOS.
+ # Enforces strict default-drop on non-VPN public WAN traffic while preserving local mesh connectivity via fwmark 0x100.
+-# AI-doc: usr/share/doc/mios/manual/networking.md
++# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
+ import argparse
+ import json
+ import os
+diff --git a/usr/libexec/mios/node/mesh_logs.py b/usr/libexec/mios/node/mesh_logs.py
+index eec85fc1..d3ca486f 100644
+--- a/usr/libexec/mios/node/mesh_logs.py
++++ b/usr/libexec/mios/node/mesh_logs.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink (T-659, T-660).
+-# AI-related: usr/libexec/mios/node/mesh_logs.py, tests/test-node.py, automation/49-fluentbit-logs.sh
++# AI-related: usr/libexec/mios/node/mesh_logs.py, tests/test-node.py
+ """Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink for MiOS.
+ 
+ Streams systemd-journald logs over WireGuard mesh to central PostgreSQL cluster_logs table,
+diff --git a/usr/libexec/mios/node/topology_switch.py b/usr/libexec/mios/node/topology_switch.py
+index 5ab3b540..1e075b56 100644
+--- a/usr/libexec/mios/node/topology_switch.py
++++ b/usr/libexec/mios/node/topology_switch.py
+@@ -1,5 +1,5 @@
+ # AI-hint: MiOS system and orchestration module providing topology switch capabilities.
+-# AI-related: mios-node, mios-asr, gdm.service, pipewire.service, mios-asr.service, guacamole.service, k3s.service, ceph-mds.service, llama-rpc-server.service, cilium-bgp.service
++# AI-related: mios-node, usr/libexec/mios/ai/mios_asr.py, gdm.service, pipewire.service, guacamole.service, k3s.service, ceph-mds.service, llama-rpc-server.service, cilium-bgp.service
+ # AI-functions: __init__, transition_to, NodeProfile, DynamicTopologySwitcher
+ 
+ """
+diff --git a/usr/libexec/mios/sec/cve_scan.py b/usr/libexec/mios/sec/cve_scan.py
+index 7cf1a8df..00cb6b72 100644
+--- a/usr/libexec/mios/sec/cve_scan.py
++++ b/usr/libexec/mios/sec/cve_scan.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator (T-661, T-662).
+-# AI-related: usr/libexec/mios/sec/cve_scan.py, tests/test-sec.py, automation/93-cve-scan.sh
++# AI-related: usr/libexec/mios/sec/cve_scan.py, tests/test-sec.py
+ """Automated Trivy / Grype OCI image vulnerability scanner and CVE report generator for MiOS.
+ 
+ Audits synthesized OCI image layers against CVE databases, generates structured JSON-LD reports,
+diff --git a/usr/libexec/mios/sec/entropy_seed.py b/usr/libexec/mios/sec/entropy_seed.py
+index 824fac93..79e4c8e2 100644
+--- a/usr/libexec/mios/sec/entropy_seed.py
++++ b/usr/libexec/mios/sec/entropy_seed.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder in automation (T-679, T-680).
+-# AI-related: usr/libexec/mios/sec/entropy_seed.py, tests/test-sec.py, automation/15-entropy.sh
++# AI-related: usr/libexec/mios/sec/entropy_seed.py, tests/test-sec.py
+ """Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder for MiOS.
+ 
+ Harvests and whitens 256 bits each from CPU RDSEED, TPM 2.0 TRNG, and JitterEntropy,
+diff --git a/usr/libexec/mios/sec/greenboot_gate.py b/usr/libexec/mios/sec/greenboot_gate.py
+index 5c07eb5d..8ca46496 100644
+--- a/usr/libexec/mios/sec/greenboot_gate.py
++++ b/usr/libexec/mios/sec/greenboot_gate.py
+@@ -4,7 +4,7 @@
+ # AI-functions: GreenbootGateEngine, atomic_write_json, main
+ """
+ WS-DIFFCYCLE (T-470): Greenboot Post-Bake Health Gate & Automated Fallback.
+-Invoked during early system boot by Greenboot required checks (60-mios-diff-bake-verify.sh).
++Invoked during early system boot by Greenboot required checks.
+ Verifies that newly baked image layers initialize critical AI and system services cleanly,
+ triggering automated bootc rollback and quarantining offending diffs if regressions occur.
+ """
+diff --git a/usr/libexec/mios/sec/journal_fss.py b/usr/libexec/mios/sec/journal_fss.py
+index b0288820..26623f3c 100644
+--- a/usr/libexec/mios/sec/journal_fss.py
++++ b/usr/libexec/mios/sec/journal_fss.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Forward-Secure Sealed (FSS) journald logger and TPM key enrollment manager (T-707, T-708).
+-# AI-related: usr/libexec/mios/sec/journal_fss.py, tests/test-sec.py, automation/46-journal-fss.sh
++# AI-related: usr/libexec/mios/sec/journal_fss.py, tests/test-sec.py
+ """Forward-Secure Sealed (FSS) journald logger and TPM key enrollment manager for MiOS.
+ 
+ Initializes systemd-journald FSS with 15-minute epoch key evolution, seals verification keys into TPM 2.0,
+diff --git a/usr/libexec/mios/sec/kaslr_mgr.py b/usr/libexec/mios/sec/kaslr_mgr.py
+index 551cbb0a..1799201b 100644
+--- a/usr/libexec/mios/sec/kaslr_mgr.py
++++ b/usr/libexec/mios/sec/kaslr_mgr.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Early EFI_RNG_PROTOCOL KASLR entropy collector and kernel memory randomizer (T-701, T-702).
+-# AI-related: usr/libexec/mios/sec/kaslr_mgr.py, tests/test-sec.py, automation/10-systemd-boot.sh
++# AI-related: usr/libexec/mios/sec/kaslr_mgr.py, tests/test-sec.py
+ """Early EFI_RNG_PROTOCOL KASLR entropy collector and kernel memory randomizer for MiOS.
+ 
+ Queries UEFI EFI_RNG_PROTOCOL in early boot stub, randomizes kernel physical/virtual base offsets,
+diff --git a/usr/libexec/mios/sec/livepatch_mgr.py b/usr/libexec/mios/sec/livepatch_mgr.py
+index a03dde6d..eab87dff 100644
+--- a/usr/libexec/mios/sec/livepatch_mgr.py
++++ b/usr/libexec/mios/sec/livepatch_mgr.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Kernel livepatch manager with MOK signature validation and late CPU microcode reload.
+-# AI-related: usr/share/doc/mios/manual/ch60-kernel-livepatch-and-microcode.md, tests/test-sec.py
++# AI-related: tests/test-sec.py
+ # AI-functions: LivepatchManager, atomic_write_json, main
+ """
+ WS-SEC (T-545): MOK-signed kpatch livepatching manager and late CPU microcode reload daemon.
+diff --git a/usr/libexec/mios/sec/sbom_gen.py b/usr/libexec/mios/sec/sbom_gen.py
+index c85fc78b..71f370ba 100644
+--- a/usr/libexec/mios/sec/sbom_gen.py
++++ b/usr/libexec/mios/sec/sbom_gen.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher (T-711, T-712).
+-# AI-related: usr/libexec/mios/sec/sbom_gen.py, tests/test-sec.py, automation/94-sbom.sh
++# AI-related: usr/libexec/mios/sec/sbom_gen.py, tests/test-sec.py, automation/90-generate-sbom.sh
+ """Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher for MiOS.
+ 
+ Scans rootfs package inventories (RPM, Python wheels, Flatpaks), generates validated CycloneDX 1.5
+diff --git a/usr/libexec/mios/sec/smartcard_mux.py b/usr/libexec/mios/sec/smartcard_mux.py
+index 6ae758a7..e272100d 100644
+--- a/usr/libexec/mios/sec/smartcard_mux.py
++++ b/usr/libexec/mios/sec/smartcard_mux.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Global MiOS-USB graduated hardware key runtime and virtual CCID PC/SC multiplexer (T-689, T-690).
+-# AI-related: usr/libexec/mios/sec/smartcard_mux.py, tests/test-sec.py, automation/48-smartcard.sh
++# AI-related: usr/libexec/mios/sec/smartcard_mux.py, tests/test-sec.py
+ """Global MiOS-USB graduated hardware key runtime and virtual CCID PC/SC multiplexer for MiOS.
+ 
+ Multiplexes physical USB smartcard / YubiKey hardware tokens across rootless containers, microVMs,
+diff --git a/usr/libexec/mios/sec/spiffe_identity.py b/usr/libexec/mios/sec/spiffe_identity.py
+index 39b07d8e..f0f44977 100644
+--- a/usr/libexec/mios/sec/spiffe_identity.py
++++ b/usr/libexec/mios/sec/spiffe_identity.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: SPIFFE/SPIRE workload identity agent managing 24h short-lived X.509 SVID certificates and mTLS validation.
+-# AI-related: usr/share/doc/mios/manual/ch61-spiffe-workload-identity-and-mtls.md, tests/test-sec.py
++# AI-related: tests/test-sec.py
+ # AI-functions: SpiffeIdentityAgent, atomic_write_json, main
+ """
+ WS-SEC (T-567): SPIFFE/SPIRE Workload Identity Agent & Ephemeral 24h mTLS Certificate Rotator.
+diff --git a/usr/libexec/mios/sec/systemd_harden.py b/usr/libexec/mios/sec/systemd_harden.py
+index 41610316..fcaa2a27 100644
+--- a/usr/libexec/mios/sec/systemd_harden.py
++++ b/usr/libexec/mios/sec/systemd_harden.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Declarative systemd unit hardening generator and security audit gate (T-665, T-666).
+-# AI-related: usr/libexec/mios/sec/systemd_harden.py, tests/test-sec.py, automation/47-systemd-harden.sh
++# AI-related: usr/libexec/mios/sec/systemd_harden.py, tests/test-sec.py
+ """Declarative systemd unit hardening generator and security audit gate for MiOS.
+ 
+ Generates least-privilege security drop-ins (ProtectSystem=strict, PrivateTmp=yes, SystemCallFilter=...),
+diff --git a/usr/libexec/mios/sec/usbguard.py b/usr/libexec/mios/sec/usbguard.py
+index f6d903aa..0e68fde0 100644
+--- a/usr/libexec/mios/sec/usbguard.py
++++ b/usr/libexec/mios/sec/usbguard.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Declarative USBGuard policy generator and desktop authorization notifier (T-643, T-644).
+-# AI-related: usr/libexec/mios/sec/usbguard.py, tests/test-sec.py, automation/48-usbguard.sh
++# AI-related: usr/libexec/mios/sec/usbguard.py, tests/test-sec.py, automation/51-hardening.sh
+ """Declarative USBGuard policy generator and desktop authorization notifier for MiOS.
+ 
+ Enforces in-kernel USB device authorization, whitelists known peripherals declared in mios.toml,
+diff --git a/usr/libexec/mios/seed-db-config.py b/usr/libexec/mios/seed-db-config.py
+index 45693e89..e13d0188 100644
+--- a/usr/libexec/mios/seed-db-config.py
++++ b/usr/libexec/mios/seed-db-config.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: MiOS system and orchestration module providing seed-db-config capabilities.
+-# AI-related: /usr/share/mios/mios.toml, /usr/share/mios/automation, mios-find, mios-bootstrap, mios-debloat, mios-xbox-features
++# AI-related: /usr/share/mios/mios.toml, /usr/share/mios/automation, mios-find, mios-bootstrap, mios-bootstrap/field/autounattend/mios-debloat.json, mios-bootstrap/field/autounattend/mios-xbox-features.txt
+ # AI-functions: get_seeded_sections, get_pg_config, main
+ 
+ import os
+diff --git a/usr/libexec/mios/storage/ceph_heal.py b/usr/libexec/mios/storage/ceph_heal.py
+index 5165308a..38446b2c 100644
+--- a/usr/libexec/mios/storage/ceph_heal.py
++++ b/usr/libexec/mios/storage/ceph_heal.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Bandwidth-throttled Ceph self-healing daemon and PG rebalance orchestrator (T-729, T-730).
+-# AI-related: usr/libexec/mios/storage/ceph_heal.py, tests/test-storage.py, usr/libexec/mios/mios-ceph-heal
++# AI-related: usr/libexec/mios/storage/ceph_heal.py, tests/test-storage.py
+ """Bandwidth-throttled Ceph self-healing daemon and PG rebalance orchestrator for MiOS.
+ 
+ Detects failed OSDs, marks out after 5min grace period, throttles recovery backfill (osd_max_backfills=1),
+diff --git a/usr/libexec/mios/storage/cockpit_ceph.py b/usr/libexec/mios/storage/cockpit_ceph.py
+index 093ad13d..cafd748b 100644
+--- a/usr/libexec/mios/storage/cockpit_ceph.py
++++ b/usr/libexec/mios/storage/cockpit_ceph.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Cockpit Storage integration module for CephFS tiered CRUSH pools and encrypted volume monitoring.
+-# AI-related: usr/libexec/mios/storage/cockpit_ceph.py, tests/test-storage.py, usr/share/cockpit/mios-storage/
++# AI-related: usr/libexec/mios/storage/cockpit_ceph.py, tests/test-storage.py
+ """Cockpit Storage Integration for CephFS Tiered Pools & Encrypted Volumes (T-550).
+ 
+ Provides telemetry aggregation and Cockpit Storage UI backend services for
+diff --git a/usr/libexec/mios/storage/container_gc.py b/usr/libexec/mios/storage/container_gc.py
+index b07f732e..3f232941 100644
+--- a/usr/libexec/mios/storage/container_gc.py
++++ b/usr/libexec/mios/storage/container_gc.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: LRU container image garbage collector and block deduplicator daemon in mios-container-gc.
+-# AI-related: tests/test-storage.py, usr/share/doc/mios/manual/storage.md
++# AI-related: tests/test-storage.py
+ """
+ MiOS OCI Container Image Storage LRU Garbage Collection & Deduplication Daemon.
+ 
+diff --git a/usr/libexec/mios/storage/mios-bench-storage b/usr/libexec/mios/storage/mios-bench-storage
+index e04e4bf9..0a263f56 100644
+--- a/usr/libexec/mios/storage/mios-bench-storage
++++ b/usr/libexec/mios/storage/mios-bench-storage
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Storage benchmark harness measuring 4K random IOPS, 1M sequential throughput, and fsync latency against AI model inference floors.
+-# AI-related: usr/bin/mios-bench-storage, tests/test-storage.py, usr/share/doc/mios/reference/storage-benchmarks.md
++# AI-related: usr/bin/mios-bench-storage, tests/test-storage.py
+ # AI-functions: run_random_4k_read_benchmark, run_random_4k_write_benchmark, run_seq_1m_read_benchmark, run_seq_1m_write_benchmark, run_fsync_latency_benchmark, evaluate_inference_floors, main
+ """
+ MiOS Storage Performance Benchmark Harness (mios-bench-storage).
+diff --git a/usr/libexec/mios/storage/opal_luks_partition.py b/usr/libexec/mios/storage/opal_luks_partition.py
+index b19ab947..6301a6a0 100644
+--- a/usr/libexec/mios/storage/opal_luks_partition.py
++++ b/usr/libexec/mios/storage/opal_luks_partition.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Hardware OPAL 2.0 SED / LUKS2 automated disk partitioning and TPM 2.0 enrollment engine.
+-# AI-related: usr/libexec/mios/storage/opal_luks_partition.py, tests/test-storage.py, etc/crypttab
++# AI-related: usr/libexec/mios/storage/opal_luks_partition.py, tests/test-storage.py, /etc/crypttab
+ """Hardware OPAL 2.0 SED / LUKS2 Automated Disk Partitioning Engine (T-549).
+ 
+ Discovers NVMe/SATA storage drives, detects TCG OPAL 2.0 Self-Encrypting Drive (SED)
+diff --git a/usr/libexec/mios/storage/scrubd.py b/usr/libexec/mios/storage/scrubd.py
+index 1c1b644d..87c6cd33 100644
+--- a/usr/libexec/mios/storage/scrubd.py
++++ b/usr/libexec/mios/storage/scrubd.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Storage integrity scrubber daemon with idle I/O priority and PSI pressure throttling (T-717, T-718).
+-# AI-related: usr/libexec/mios/storage/scrubd.py, tests/test-storage.py, automation/38-storage-scrub.sh
++# AI-related: usr/libexec/mios/storage/scrubd.py, tests/test-storage.py
+ """Storage integrity scrubber daemon with idle I/O priority and PSI pressure throttling for MiOS.
+ 
+ Executes background Btrfs/CephFS parity scrubs under ionice idle class,
+diff --git a/usr/libexec/mios/telemetry/log_archiver.py b/usr/libexec/mios/telemetry/log_archiver.py
+index 78280edd..e42d8eac 100644
+--- a/usr/libexec/mios/telemetry/log_archiver.py
++++ b/usr/libexec/mios/telemetry/log_archiver.py
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env python3
+ # AI-hint: Structured Parquet log archival daemon and episodic vector indexer for MiOS.
+ # Compacts journald JSON logs into columnar Parquet files and indexes error clusters into pgvector.
+-# AI-doc: usr/share/doc/mios/manual/telemetry.md
++# AI-doc: usr/share/doc/mios/manual/ch35-system-monitoring-and-telemetry.md
+ import argparse
+ import gzip
+ import json
+diff --git a/usr/libexec/mios/ui/libei_input.py b/usr/libexec/mios/ui/libei_input.py
+index 11c4d9f3..e4484d2c 100644
+--- a/usr/libexec/mios/ui/libei_input.py
++++ b/usr/libexec/mios/ui/libei_input.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Libei emulated input provider and Wayland portal input injector for MiOS PC control.
+-# AI-doc: usr/share/doc/mios/manual/desktop.md
++# AI-doc: usr/share/doc/mios/manual/ch15-computer-use-and-desktop-control.md
+ import argparse
+ import json
+ import os
+diff --git a/usr/libexec/mios/user/roaming_seat.py b/usr/libexec/mios/user/roaming_seat.py
+index 0d7b1df6..c248f519 100644
+--- a/usr/libexec/mios/user/roaming_seat.py
++++ b/usr/libexec/mios/user/roaming_seat.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Network-wide roaming multi-seat session orchestrator and GPU assignment manager.
+-# AI-related: usr/share/doc/mios/manual/ch65-multi-seat-and-session-roaming.md, tests/test-roaming-seat.py, usr/lib/systemd/system/mios-seat-router.service
++# AI-related: tests/test-roaming-seat.py, usr/lib/systemd/system/mios-seat-router.service
+ # AI-functions: GPUDevice, SeatAssignment, UserRegistry, GPUManager, LogindSeatManager, CephFSMountManager, RoamingSeatOrchestrator, main
+ """
+ WS-USER (T-559): Network-Wide Roaming Multi-Seat Session Orchestrator & GPU Assignment Manager.
+diff --git a/usr/libexec/mios/user/session_migrate.py b/usr/libexec/mios/user/session_migrate.py
+index 281e09f6..d07d20e4 100644
+--- a/usr/libexec/mios/user/session_migrate.py
++++ b/usr/libexec/mios/user/session_migrate.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Dynamic cross-node Wayland session checkpoint and migration protocol.
+-# AI-related: usr/share/doc/mios/manual/ch65-multi-seat-and-session-roaming.md, tests/test-session-migrate.py, usr/share/containers/systemd/mios-wayland-bridge.container
++# AI-related: tests/test-session-migrate.py
+ # AI-functions: WindowDescriptor, SessionCheckpoint, WaylandCompositorBridge, SessionCheckpointStore, SessionMigrateEngine, main
+ """
+ WS-USER (T-560): Dynamic Cross-Node Wayland Session Checkpoint and Migration Protocol.
+diff --git a/usr/libexec/mios/ux/biometric_lock.py b/usr/libexec/mios/ux/biometric_lock.py
+index e7eb6fe2..04e39e15 100644
+--- a/usr/libexec/mios/ux/biometric_lock.py
++++ b/usr/libexec/mios/ux/biometric_lock.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Screen lock manager with biometric FIDO2 and fingerprint authentication integration.
+-# AI-related: tests/test-ux.py, usr/share/mios/pam/swaylock, usr/share/mios/pam/gdm-password
++# AI-related: tests/test-ux.py, /etc/pam.d/swaylock, /etc/pam.d/gdm-password
+ # AI-functions: BiometricLockManager, BiometricSensor, main
+ """
+ MiOS Screen Lock Manager with Biometric & FIDO2 Authentication (T-463).
+diff --git a/usr/libexec/mios/ux/editor_config_gen.py b/usr/libexec/mios/ux/editor_config_gen.py
+index fc84498b..adfb7093 100644
+--- a/usr/libexec/mios/ux/editor_config_gen.py
++++ b/usr/libexec/mios/ux/editor_config_gen.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: VS Code, Cursor, and Continue IDE configuration generator routing completions to local MiOS brain.
+-# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/share/mios/templates/vscode-settings.json.j2
++# AI-related: tests/test-ux.py, usr/share/mios/mios.toml
+ # AI-functions: EditorConfigGen, main
+ """
+ MiOS Editor AI Configuration Projector & Generator (T-460).
+diff --git a/usr/libexec/mios/ux/focus_audio.py b/usr/libexec/mios/ux/focus_audio.py
+index 23252658..1af7f310 100644
+--- a/usr/libexec/mios/ux/focus_audio.py
++++ b/usr/libexec/mios/ux/focus_audio.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Offline procedural ambient background audio synthesizer for deep focus programming sessions.
+-# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/share/mios/audio/focus-presets.json
++# AI-related: tests/test-ux.py, usr/share/mios/mios.toml
+ # AI-functions: FocusAudioSynthesizer, FocusPreset, main
+ """
+ MiOS Offline Procedural Focus Audio Synthesizer (T-464).
+diff --git a/usr/libexec/mios/virt/microvm_bridge.py b/usr/libexec/mios/virt/microvm_bridge.py
+index ef21d143..3056f5e4 100644
+--- a/usr/libexec/mios/virt/microvm_bridge.py
++++ b/usr/libexec/mios/virt/microvm_bridge.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Ephemeral Cloud-Hypervisor microVM orchestrator and Virtio-VSOCK agent tool bridge.
+-# AI-related: usr/share/doc/mios/manual/ch67-cloud-hypervisor-microvms-and-vsock-isolation.md, tests/test-virt.py, usr/share/containers/systemd/mios-microvm.container
++# AI-related: tests/test-virt.py
+ # AI-functions: MicroVMConfig, MicroVMResult, VSOCKBridge, CloudHypervisorOrchestrator, main
+ """
+ WS-VFIO (T-569): Ephemeral Cloud-Hypervisor MicroVM Orchestrator & Virtio-VSOCK Agent Tool Bridge.
+diff --git a/usr/libexec/mios/virt/microvm_sandbox.py b/usr/libexec/mios/virt/microvm_sandbox.py
+index d5f07f6d..458b8f69 100644
+--- a/usr/libexec/mios/virt/microvm_sandbox.py
++++ b/usr/libexec/mios/virt/microvm_sandbox.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager and vsock IPC bridge (T-673, T-674).
+-# AI-related: usr/libexec/mios/virt/microvm_sandbox.py, tests/test-virt.py, usr/bin/mios-microvm
++# AI-related: usr/libexec/mios/virt/microvm_sandbox.py, tests/test-virt.py
+ """Ephemeral Firecracker / Cloud-Hypervisor microVM sandbox manager for MiOS.
+ 
+ Direct-boots minimal Linux kernel and alpine initramfs over /dev/kvm in <50ms,
+diff --git a/usr/libexec/mios/virt/mios_microvm.py b/usr/libexec/mios/virt/mios_microvm.py
+index 3fb5582d..33c7b67b 100644
+--- a/usr/libexec/mios/virt/mios_microvm.py
++++ b/usr/libexec/mios/virt/mios_microvm.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # AI-hint: MiOS system and orchestration module providing mios microvm capabilities.
+-# AI-related: /usr/share/mios/microvm/vmlinux, mios-microvm, mios-vm
++# AI-related: /usr/share/mios/microvm/vmlinux
+ # AI-functions: _memfd_create, __init__, launch, destroy, _rootfs_size_bytes, _populate_memfd, _start_hypervisor, cmd_launch, cmd_status, cmd_destroy, main, MicroVM
+ 
+ """
+diff --git a/usr/share/mios/reference/manual-corpus.tsv b/usr/share/mios/reference/manual-corpus.tsv
+index cd0d5828..2569213a 100644
+--- a/usr/share/mios/reference/manual-corpus.tsv
++++ b/usr/share/mios/reference/manual-corpus.tsv
+@@ -13178,14 +13178,14 @@ usr/libexec/mios/a2a/attestation.py	398	398	1	1	1c6286e89a54	DROP	banner		0				0
+ usr/libexec/mios/a2a/attestation.py	404	404	1	2	698164c29552	STAY	local-scoped		0				0
+ usr/libexec/mios/a2a/attestation.py	414	414	1	2	5c531072160a	STAY	local-scoped		0				0
+ usr/libexec/mios/a2a/attestation.py	420	420	1	1	67c9a9ad709a	DROP	banner		0				0
+-usr/libexec/mios/ai/accelerator_router.py	1	3	3	19	4b0920602351	STAY	ai-header		0				0
++usr/libexec/mios/ai/accelerator_router.py	1	3	3	18	eaaf1a1072ac	STAY	ai-header		0				0
+ usr/libexec/mios/ai/accelerator_router.py	4	8	4	41	aab214378148	STAY	midsize-why		0				0
+ usr/libexec/mios/ai/accelerator_router.py	25	25	1	4	ab6ee4333b0a	DROP	banner		0				0
+ usr/libexec/mios/ai/accelerator_router.py	26	26	1	3	a78f16509de0	DROP	banner		0				0
+ usr/libexec/mios/ai/accelerator_router.py	27	27	1	2	eaf5cc77bb52	DROP	banner		0				0
+ usr/libexec/mios/ai/accelerator_router.py	32	32	1	9	0fbf4697c60b	STAY	local-scoped		0				0
+ usr/libexec/mios/ai/accelerator_router.py	39	39	1	10	4d4938a3ca75	STAY	local-scoped		0				0
+-usr/libexec/mios/ai/audit_chain.py	1	4	4	21	a99798569476	STAY	ai-header		0				0
++usr/libexec/mios/ai/audit_chain.py	1	4	4	20	5d73f65faa42	STAY	ai-header		0				0
+ usr/libexec/mios/ai/audit_chain.py	5	11	6	63	4253fe478ce8	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/ai/audit_chain.py	30	30	1	10	4bec06295223	STAY	local-scoped		0				0
+ usr/libexec/mios/ai/audit_chain.py	38	38	1	10	a0b6e985bd4d	STAY	local-scoped		0				0
+@@ -13237,7 +13237,7 @@ usr/libexec/mios/ai/mios_asr.py	42	44	3	9	22a2e0a03bc8	STAY	midsize-why		0				0
+ usr/libexec/mios/ai/mios_asr.py	52	54	3	8	bde67df79fa9	STAY	midsize-why		0				0
+ usr/libexec/mios/ai/mios_asr.py	60	60	1	3	fd17e4e9b68f	STAY	local-scoped		0				0
+ usr/libexec/mios/ai/mios_asr.py	71	71	1	4	2098ea8fa864	STAY	local-scoped		0				0
+-usr/libexec/mios/ai/model_matrix_alloc.py	1	4	4	23	f421b91fea6f	STAY	ai-header		0				0
++usr/libexec/mios/ai/model_matrix_alloc.py	1	4	4	23	015d570b0574	STAY	ai-header		0				0
+ usr/libexec/mios/ai/model_matrix_alloc.py	5	11	6	49	bd27c4d011ce	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/ai/model_matrix_alloc.py	28	28	1	9	c49c3939a122	STAY	inline-scoped		0				0
+ usr/libexec/mios/ai/model_matrix_alloc.py	96	96	1	7	db18d696dc98	STAY	local-scoped		0				0
+@@ -13346,7 +13346,7 @@ usr/libexec/mios/ai/synthetic_qa.py	224	224	1	10	708cea7c933b	STAY	local-scoped
+ usr/libexec/mios/ai/synthetic_qa.py	259	259	1	5	34c49d6c8e59	STAY	local-scoped		0				0
+ usr/libexec/mios/ai/synthetic_qa.py	286	289	4	14	ba39599a6271	STAY	midsize-why		0				0
+ usr/libexec/mios/ai/synthetic_qa.py	354	354	1	4	0520b55a6116	STAY	local-scoped		0				0
+-usr/libexec/mios/ai/tensor_kernels.py	1	3	3	18	ae059f9821cb	STAY	ai-header		0				0
++usr/libexec/mios/ai/tensor_kernels.py	1	3	3	18	c7e602c6b248	STAY	ai-header		0				0
+ usr/libexec/mios/ai/tensor_kernels.py	4	8	4	34	81327734c1bf	STAY	midsize-why		0				0
+ usr/libexec/mios/ai/tensor_kernels.py	26	26	1	4	35bce3131866	STAY	inline-scoped		0				0
+ usr/libexec/mios/ai/tensor_kernels.py	32	32	1	9	ca36ad51ef05	STAY	local-scoped		0				0
+@@ -13354,7 +13354,7 @@ usr/libexec/mios/ai/tensor_kernels.py	46	46	1	7	2de7ca239afb	STAY	local-scoped
+ usr/libexec/mios/ai/tensor_kernels.py	57	57	1	8	85cdcb5301fe	STAY	local-scoped		0				0
+ usr/libexec/mios/ai/tensor_kernels.py	67	67	1	5	3881580244c7	STAY	local-scoped		0				0
+ usr/libexec/mios/ai/tensor_kernels.py	69	69	1	3	34a822d977d8	STAY	inline-scoped		0				0
+-usr/libexec/mios/ai/tts_stream.py	1	3	3	21	322a79b01126	STAY	ai-header		0				0
++usr/libexec/mios/ai/tts_stream.py	1	3	3	20	86bf69981ed5	STAY	ai-header		0				0
+ usr/libexec/mios/ai/tts_stream.py	4	8	4	37	48e95b249a87	STAY	midsize-why		0				0
+ usr/libexec/mios/ai/tts_stream.py	35	35	1	9	879383f0a3d6	STAY	local-scoped		0				0
+ usr/libexec/mios/ai/tts_stream.py	42	42	1	12	ffd2b7133604	STAY	local-scoped		0				0
+@@ -13408,7 +13408,7 @@ usr/libexec/mios/app/snapshot.py	64	64	1	8	8a89361588b1	STAY	local-scoped		0
+ usr/libexec/mios/app/snapshot.py	71	71	1	3	350a12a533e5	STAY	local-scoped		0				0
+ usr/libexec/mios/app/snapshot.py	84	84	1	10	d1fbfca16ca3	STAY	local-scoped		0				0
+ usr/libexec/mios/app/snapshot.py	102	102	1	2	1ba9081b8216	STAY	local-scoped		0				0
+-usr/libexec/mios/audio/bitperfect_mgr.py	1	3	3	20	b56fa3266d2a	STAY	ai-header		0				0
++usr/libexec/mios/audio/bitperfect_mgr.py	1	3	3	19	ba78aef4cca0	STAY	ai-header		0				0
+ usr/libexec/mios/audio/bitperfect_mgr.py	4	8	4	41	cf8a05f3043a	STAY	midsize-why		0				0
+ usr/libexec/mios/audio/bitperfect_mgr.py	36	36	1	11	06f0a5cf1560	STAY	local-scoped		0				0
+ usr/libexec/mios/audio/bitperfect_mgr.py	44	44	1	10	00d0d1551364	STAY	local-scoped		0				0
+@@ -13472,13 +13472,13 @@ usr/libexec/mios/audio/wakeword.py	716	716	1	2	b37a41a26b42	DROP	banner		0				0
+ usr/libexec/mios/audio/wakeword.py	727	727	1	2	8bfce2564968	DROP	banner		0				0
+ usr/libexec/mios/audio/wakeword.py	747	747	1	9	0cb151ecff33	STAY	local-scoped		0				0
+ usr/libexec/mios/audio/wakeword.py	779	781	3	3	a2870653de05	DROP	banner		0				0
+-usr/libexec/mios/audio/wireplumber_manager.py	1	3	3	16	0c89ebaee692	STAY	ai-header		0				0
+-usr/libexec/mios/audio/wireplumber_manager.py	11	11	1	11	8247b5358c18	STAY	local-scoped		0				0
+-usr/libexec/mios/audio/wireplumber_manager.py	24	24	1	9	c83cfbffc073	STAY	local-scoped		0				0
+-usr/libexec/mios/audio/wireplumber_manager.py	46	46	1	10	89ab66290350	STAY	local-scoped		0				0
+-usr/libexec/mios/audio/wireplumber_manager.py	94	94	1	8	36f93e66ca56	STAY	local-scoped		0				0
++usr/libexec/mios/audio/wireplumber_manager.py	1	2	2	14	ad62d3c06f9d	STAY	ai-header		0				0
++usr/libexec/mios/audio/wireplumber_manager.py	10	10	1	11	8247b5358c18	STAY	local-scoped		0				0
++usr/libexec/mios/audio/wireplumber_manager.py	23	23	1	9	c83cfbffc073	STAY	local-scoped		0				0
++usr/libexec/mios/audio/wireplumber_manager.py	45	45	1	10	89ab66290350	STAY	local-scoped		0				0
++usr/libexec/mios/audio/wireplumber_manager.py	93	93	1	8	36f93e66ca56	STAY	local-scoped		0				0
+ usr/libexec/mios/automation/35-xrdp-enhanced-session.sh	1	3	3	17	51f402748562	STAY	ai-header		0				0
+-usr/libexec/mios/boot/fastboot_mgr.py	1	3	3	19	e5020499f51f	STAY	ai-header		0				0
++usr/libexec/mios/boot/fastboot_mgr.py	1	3	3	18	752a1a69f015	STAY	ai-header		0				0
+ usr/libexec/mios/boot/fastboot_mgr.py	4	8	4	37	f1f72a2e4193	MIGRATE	midsize-narrative		0				0
+ usr/libexec/mios/boot/fastboot_mgr.py	32	32	1	3	1f620f292e41	STAY	inline-scoped		0				0
+ usr/libexec/mios/boot/fastboot_mgr.py	35	35	1	9	dc58e646cad8	STAY	local-scoped		0				0
+@@ -13486,7 +13486,7 @@ usr/libexec/mios/boot/fastboot_mgr.py	41	41	1	5	7e1d8d48915f	STAY	local-scoped
+ usr/libexec/mios/boot/fastboot_mgr.py	52	52	1	7	c9ea08f0cd8a	STAY	local-scoped		0				0
+ usr/libexec/mios/boot/fastboot_mgr.py	55	55	1	5	93a35525a0d5	STAY	local-scoped		0				0
+ usr/libexec/mios/bootc-switch-from-build.sh	1	3	3	25	2a37a9d953f2	STAY	ai-header		0				0
+-usr/libexec/mios/build/liveiso.py	1	3	3	20	49c0d4752a68	STAY	ai-header		0				0
++usr/libexec/mios/build/liveiso.py	1	3	3	19	a2ac235d7fcc	STAY	ai-header		0				0
+ usr/libexec/mios/build/liveiso.py	4	8	4	33	449a3af9c83c	STAY	midsize-why		0				0
+ usr/libexec/mios/build/liveiso.py	26	26	1	3	a961402ec6b1	DROP	banner		0				0
+ usr/libexec/mios/build/liveiso.py	33	33	1	9	52419ae184f0	STAY	local-scoped		0				0
+@@ -13515,61 +13515,61 @@ usr/libexec/mios/cfg/drift_reconciler.py	11	11	1	11	2a30fe104416	STAY	local-scop
+ usr/libexec/mios/cfg/drift_reconciler.py	24	24	1	10	145a4d487285	STAY	local-scoped		0				0
+ usr/libexec/mios/cfg/drift_reconciler.py	48	48	1	11	a19741e9bfe0	STAY	local-scoped		0				0
+ usr/libexec/mios/check-template-conformance	1	4	4	20	9da3c4ac6dce	STAY	ai-header		0				0
+-usr/libexec/mios/cluster/raft_coordinator.py	1	3	3	18	750796296a23	STAY	ai-header		0				0
++usr/libexec/mios/cluster/raft_coordinator.py	1	3	3	18	ac7fcacecaee	STAY	ai-header		0				0
+ usr/libexec/mios/cluster/raft_coordinator.py	12	12	1	12	c80bafc5e634	STAY	local-scoped		0				0
+ usr/libexec/mios/cluster/raft_coordinator.py	29	29	1	8	d68678103259	STAY	local-scoped		0				0
+ usr/libexec/mios/cluster/raft_coordinator.py	59	59	1	9	e04452d85cab	STAY	local-scoped		0				0
+ usr/libexec/mios/config-history.py	1	3	3	14	d7a9c43793e0	STAY	ai-header		0				0
+-usr/libexec/mios/config/nix_project.py	1	4	4	21	fc827ffc4388	STAY	ai-header		0				0
+-usr/libexec/mios/config/nix_project.py	6	10	4	31	1577a1135467	MIGRATE	midsize-narrative		0				0
+-usr/libexec/mios/config/nix_project.py	32	32	1	6	efa198aae66a	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	95	95	1	10	d1e5b45fa389	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	97	97	1	2	f7093025dd61	DROP	banner		0				0
+-usr/libexec/mios/config/nix_project.py	108	108	1	9	69eada563607	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	159	159	1	10	9e5b126f0f41	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	234	234	1	9	28b19a8d3436	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	239	239	1	7	19b93d311272	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	249	249	1	4	6c44c0f61bab	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	259	259	1	6	b604ee49d779	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	271	271	1	5	a29d7174e521	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	276	276	1	9	e55bd60bc051	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	285	285	1	6	46166159daf3	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	301	301	1	10	242603982919	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	307	307	1	6	d9cc1ad08262	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	317	317	1	10	e7e5f3986753	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	326	326	1	4	a49ec7335996	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	332	332	1	5	814f1bf4265f	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	355	355	1	10	e453b837d263	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	363	363	1	3	6489d76fd0b3	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	369	369	1	3	15caa57795ad	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	378	378	1	3	e78bafd8d440	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	385	385	1	8	b19c397a8204	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	397	397	1	2	f92f8b9d224d	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	406	406	1	2	dfad63f54829	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	419	419	1	7	b0d372ce86d0	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	424	424	1	10	deb2638a5194	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	428	428	1	5	dc2e8558f433	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	434	434	1	5	4c3d4020827a	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	443	443	1	3	d9e64a40765f	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	455	455	1	4	3ea459f68222	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	465	465	1	2	1a75a2d8fa4a	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	467	467	1	5	d57ca014cbd6	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	499	499	1	10	c8ad4d6c46a0	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	500	500	1	5	9408b4058d14	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	505	505	1	6	7260ec373715	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	513	513	1	5	3f31c07af170	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	517	517	1	4	58bc58b61428	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	548	548	1	4	5cdde2a5a618	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	556	556	1	3	afef1055c149	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	571	571	1	7	39610ef784d8	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	596	596	1	8	34910700b766	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	602	602	1	4	48f116666ba3	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	618	618	1	3	51e0af47399b	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	718	718	1	4	600c5be1e8b5	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	739	739	1	4	a08566fce6ce	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	751	751	1	3	6cbe779c83b8	STAY	local-scoped		0				0
+-usr/libexec/mios/config/nix_project.py	768	768	1	11	fd1b5d45cc0b	STAY	local-scoped		0				0
+-usr/libexec/mios/containers/native_storage.py	1	3	3	18	d7df42d3a78c	STAY	ai-header		0				0
++usr/libexec/mios/config/nix_project.py	1	3	3	19	9098f03934d1	STAY	ai-header		0				0
++usr/libexec/mios/config/nix_project.py	5	9	4	31	1577a1135467	MIGRATE	midsize-narrative		0				0
++usr/libexec/mios/config/nix_project.py	31	31	1	6	efa198aae66a	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	94	94	1	10	d1e5b45fa389	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	96	96	1	2	f7093025dd61	DROP	banner		0				0
++usr/libexec/mios/config/nix_project.py	107	107	1	9	69eada563607	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	158	158	1	10	9e5b126f0f41	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	233	233	1	9	28b19a8d3436	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	238	238	1	7	19b93d311272	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	248	248	1	4	6c44c0f61bab	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	258	258	1	6	b604ee49d779	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	270	270	1	5	a29d7174e521	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	275	275	1	9	e55bd60bc051	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	284	284	1	6	46166159daf3	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	300	300	1	10	242603982919	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	306	306	1	6	d9cc1ad08262	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	316	316	1	10	e7e5f3986753	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	325	325	1	4	a49ec7335996	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	331	331	1	5	814f1bf4265f	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	354	354	1	10	e453b837d263	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	362	362	1	3	6489d76fd0b3	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	368	368	1	3	15caa57795ad	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	377	377	1	3	e78bafd8d440	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	384	384	1	8	b19c397a8204	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	396	396	1	2	f92f8b9d224d	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	405	405	1	2	dfad63f54829	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	418	418	1	7	b0d372ce86d0	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	423	423	1	10	deb2638a5194	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	427	427	1	5	dc2e8558f433	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	433	433	1	5	4c3d4020827a	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	442	442	1	3	d9e64a40765f	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	454	454	1	4	3ea459f68222	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	464	464	1	2	1a75a2d8fa4a	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	466	466	1	5	d57ca014cbd6	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	498	498	1	10	c8ad4d6c46a0	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	499	499	1	5	9408b4058d14	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	504	504	1	6	7260ec373715	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	512	512	1	5	3f31c07af170	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	516	516	1	4	58bc58b61428	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	547	547	1	4	5cdde2a5a618	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	555	555	1	3	afef1055c149	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	570	570	1	7	39610ef784d8	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	595	595	1	8	34910700b766	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	601	601	1	4	48f116666ba3	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	617	617	1	3	51e0af47399b	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	717	717	1	4	600c5be1e8b5	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	738	738	1	4	a08566fce6ce	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	750	750	1	3	6cbe779c83b8	STAY	local-scoped		0				0
++usr/libexec/mios/config/nix_project.py	767	767	1	11	fd1b5d45cc0b	STAY	local-scoped		0				0
++usr/libexec/mios/containers/native_storage.py	1	3	3	17	22887e4474fb	STAY	ai-header		0				0
+ usr/libexec/mios/containers/native_storage.py	4	8	4	33	3b75de7c90fc	STAY	midsize-why		0				0
+ usr/libexec/mios/containers/native_storage.py	25	25	1	1	65dd31ba17c2	DROP	banner		0				0
+ usr/libexec/mios/containers/native_storage.py	26	26	1	5	be03fd13b788	STAY	inline-scoped		0				0
+@@ -13657,7 +13657,7 @@ usr/libexec/mios/db/mios-pgvector-optimize.py	297	300	4	15	ee7ac3c5148b	STAY	mid
+ usr/libexec/mios/db/mios-pgvector-optimize.py	310	310	1	9	20fd21a48b28	STAY	local-scoped		0				0
+ usr/libexec/mios/db/mios-pgvector-optimize.py	332	332	1	5	6aba058b02b3	STAY	local-scoped		0				0
+ usr/libexec/mios/db/mios-pgvector-optimize.py	359	359	1	5	b51af8a051d0	STAY	local-scoped		0				0
+-usr/libexec/mios/db/pg_vacuum_tuner.py	1	3	3	17	041b9d5f26a8	STAY	ai-header		0				0
++usr/libexec/mios/db/pg_vacuum_tuner.py	1	3	3	17	81dd9e7bc8e5	STAY	ai-header		0				0
+ usr/libexec/mios/db/pg_vacuum_tuner.py	11	11	1	11	516212d80db6	STAY	local-scoped		0				0
+ usr/libexec/mios/db/pg_vacuum_tuner.py	28	28	1	7	456f2a10f202	STAY	local-scoped		0				0
+ usr/libexec/mios/db/pg_vacuum_tuner.py	48	48	1	11	b4df0ccf55d9	STAY	local-scoped		0				0
+@@ -13861,7 +13861,7 @@ usr/libexec/mios/deploy/usb_format.py	249	249	1	5	cacdc77bfab2	STAY	local-scoped
+ usr/libexec/mios/deploy/usb_format.py	268	268	1	3	c420cdda74e3	STAY	local-scoped		0				0
+ usr/libexec/mios/deploy/usb_format.py	273	273	1	4	cdde5a5e133e	STAY	local-scoped		0				0
+ usr/libexec/mios/deploy/usb_format.py	294	294	1	8	c9d87dbb4080	STAY	local-scoped		0				0
+-usr/libexec/mios/desktop/gpu_terminal.py	1	3	3	18	74690d592d5b	STAY	ai-header		0				0
++usr/libexec/mios/desktop/gpu_terminal.py	1	3	3	17	57cf689a4864	STAY	ai-header		0				0
+ usr/libexec/mios/desktop/gpu_terminal.py	4	8	4	33	10e398ae4e4b	STAY	midsize-why		0				0
+ usr/libexec/mios/desktop/gpu_terminal.py	29	29	1	2	b5937d63f0b7	DROP	banner		0				0
+ usr/libexec/mios/desktop/gpu_terminal.py	35	35	1	9	6814e59fdbe8	STAY	local-scoped		0				0
+@@ -13869,14 +13869,14 @@ usr/libexec/mios/desktop/gpu_terminal.py	42	42	1	4	61aa951f0528	STAY	local-scope
+ usr/libexec/mios/desktop/gpu_terminal.py	57	57	1	6	11de0efa8343	STAY	local-scoped		0				0
+ usr/libexec/mios/desktop/gpu_terminal.py	59	59	1	5	410685de27dc	STAY	inline-scoped		0				0
+ usr/libexec/mios/desktop/gpu_terminal.py	64	64	1	2	b09ebe291492	STAY	inline-scoped		0				0
+-usr/libexec/mios/diag/coredump_sanitizer.py	1	3	3	17	ba2af6eedf00	STAY	ai-header		0				0
+-usr/libexec/mios/diag/coredump_sanitizer.py	5	11	6	29	db32030f5e3c	MIGRATE	narrative-history		0				0
+-usr/libexec/mios/diag/coredump_sanitizer.py	31	33	3	7	c3424811e265	STAY	midsize-why		0				0
+-usr/libexec/mios/diag/coredump_sanitizer.py	39	39	1	8	988efc78b054	STAY	local-scoped		0				0
+-usr/libexec/mios/diag/coredump_sanitizer.py	41	41	1	4	ed2335558154	STAY	local-scoped		0				0
+-usr/libexec/mios/diag/coredump_sanitizer.py	45	45	1	1	df2e2388b8dd	DROP	banner		0				0
+-usr/libexec/mios/diag/coredump_sanitizer.py	51	51	1	4	d061ab4d03f7	STAY	local-scoped		0				0
+-usr/libexec/mios/diag/ebpf_trace.py	1	3	3	20	4b6a3dc67ffa	STAY	ai-header		0				0
++usr/libexec/mios/diag/coredump_sanitizer.py	1	2	2	15	9bb9e7598b3b	STAY	ai-header		0				0
++usr/libexec/mios/diag/coredump_sanitizer.py	4	10	6	27	42ed9e28a76f	MIGRATE	narrative-history		0				0
++usr/libexec/mios/diag/coredump_sanitizer.py	30	32	3	7	c3424811e265	STAY	midsize-why		0				0
++usr/libexec/mios/diag/coredump_sanitizer.py	38	38	1	8	988efc78b054	STAY	local-scoped		0				0
++usr/libexec/mios/diag/coredump_sanitizer.py	40	40	1	4	ed2335558154	STAY	local-scoped		0				0
++usr/libexec/mios/diag/coredump_sanitizer.py	44	44	1	1	df2e2388b8dd	DROP	banner		0				0
++usr/libexec/mios/diag/coredump_sanitizer.py	50	50	1	4	d061ab4d03f7	STAY	local-scoped		0				0
++usr/libexec/mios/diag/ebpf_trace.py	1	3	3	17	d8a10fea2121	STAY	ai-header		0				0
+ usr/libexec/mios/diag/ebpf_trace.py	4	8	4	38	8b33fcd48c5a	STAY	midsize-why		0				0
+ usr/libexec/mios/diag/ebpf_trace.py	29	29	1	3	f94457d92a5a	DROP	banner		0				0
+ usr/libexec/mios/diag/ebpf_trace.py	36	36	1	9	168ede125a90	STAY	local-scoped		0				0
+@@ -13896,7 +13896,7 @@ usr/libexec/mios/diff/diff-accrual.py	182	182	1	9	0dfc2f8cf56d	STAY	local-scoped
+ usr/libexec/mios/diff/diff-accrual.py	246	246	1	2	25b4c966fae4	STAY	local-scoped		0				0
+ usr/libexec/mios/diff/diff-accrual.py	253	253	1	2	d8717a248a0c	STAY	local-scoped		0				0
+ usr/libexec/mios/diff/diff-accrual.py	258	258	1	2	969f47b903e0	STAY	local-scoped		0				0
+-usr/libexec/mios/display/looking_glass.py	1	3	3	18	c396d0c3916e	STAY	ai-header		0				0
++usr/libexec/mios/display/looking_glass.py	1	3	3	17	62738d193604	STAY	ai-header		0				0
+ usr/libexec/mios/display/looking_glass.py	4	10	6	36	5f3978004e21	MIGRATE	narrative-rationale		0				0
+ usr/libexec/mios/display/looking_glass.py	30	30	1	11	648e61bc0b84	STAY	local-scoped		0				0
+ usr/libexec/mios/display/looking_glass.py	68	68	1	12	cff885e8f8a3	STAY	local-scoped		0				0
+@@ -13979,16 +13979,16 @@ usr/libexec/mios/git/ast_merge.py	361	361	1	7	6469a98b2d70	STAY	local-scoped		0
+ usr/libexec/mios/git/ast_merge.py	391	391	1	7	10c423b831b5	STAY	local-scoped		0				0
+ usr/libexec/mios/git/ast_merge.py	392	392	1	6	d7294c8d174e	STAY	local-scoped		0				0
+ usr/libexec/mios/git/ast_merge.py	437	437	1	3	414602b0392c	STAY	local-scoped		0				0
+-usr/libexec/mios/git/lfs_pull.py	1	3	3	20	2a0dc23be7c4	STAY	ai-header		0				0
++usr/libexec/mios/git/lfs_pull.py	1	3	3	19	7689169b51b8	STAY	ai-header		0				0
+ usr/libexec/mios/git/lfs_pull.py	4	8	4	35	e5ba61a9913a	STAY	midsize-why		0				0
+ usr/libexec/mios/git/lfs_pull.py	35	35	1	10	45e54d3b6e2e	STAY	local-scoped		0				0
+ usr/libexec/mios/git/lfs_pull.py	44	44	1	11	1346974569a7	STAY	local-scoped		0				0
+-usr/libexec/mios/git/merge_fuzzer.py	1	3	3	17	efad9d9cbbba	STAY	ai-header		0				0
+-usr/libexec/mios/git/merge_fuzzer.py	13	13	1	13	25361b759969	STAY	local-scoped		0				0
+-usr/libexec/mios/git/merge_fuzzer.py	21	21	1	11	6ee9982ac023	STAY	local-scoped		0				0
+-usr/libexec/mios/git/merge_fuzzer.py	33	33	1	5	513550b23aa5	STAY	local-scoped		0				0
+-usr/libexec/mios/git/merge_fuzzer.py	38	38	1	4	36e49d117a57	STAY	local-scoped		0				0
+-usr/libexec/mios/git/merge_fuzzer.py	48	48	1	10	43c117fbc5d0	STAY	local-scoped		0				0
++usr/libexec/mios/git/merge_fuzzer.py	1	2	2	15	ef5523569f6b	STAY	ai-header		0				0
++usr/libexec/mios/git/merge_fuzzer.py	12	12	1	13	25361b759969	STAY	local-scoped		0				0
++usr/libexec/mios/git/merge_fuzzer.py	20	20	1	11	6ee9982ac023	STAY	local-scoped		0				0
++usr/libexec/mios/git/merge_fuzzer.py	32	32	1	5	513550b23aa5	STAY	local-scoped		0				0
++usr/libexec/mios/git/merge_fuzzer.py	37	37	1	4	36e49d117a57	STAY	local-scoped		0				0
++usr/libexec/mios/git/merge_fuzzer.py	47	47	1	10	43c117fbc5d0	STAY	local-scoped		0				0
+ usr/libexec/mios/git/pre_commit.py	1	3	3	16	ee59cf625040	STAY	ai-header		0				0
+ usr/libexec/mios/git/pre_commit.py	4	13	9	51	dc063169a6c4	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/git/pre_commit.py	59	59	1	8	255c9986d063	STAY	local-scoped		0				0
+@@ -14105,7 +14105,7 @@ usr/libexec/mios/hw/cpu_governor.py	244	244	1	12	e3023cdd485c	STAY	local-scoped
+ usr/libexec/mios/hw/cpu_governor.py	260	260	1	9	62209363baab	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/cpu_governor.py	306	306	1	11	9f305d4ec48f	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/cpu_governor.py	341	341	1	3	5c9ed7fd0e1c	STAY	local-scoped		0				0
+-usr/libexec/mios/hw/cpu_topology.py	1	3	3	19	aa247c488591	STAY	ai-header		0				0
++usr/libexec/mios/hw/cpu_topology.py	1	3	3	18	2e960469fabd	STAY	ai-header		0				0
+ usr/libexec/mios/hw/cpu_topology.py	4	8	4	38	fd5bf55f0166	STAY	midsize-why		0				0
+ usr/libexec/mios/hw/cpu_topology.py	33	33	1	2	95cb3553f98f	STAY	inline-scoped		0				0
+ usr/libexec/mios/hw/cpu_topology.py	34	34	1	2	74b0f9af3881	STAY	inline-scoped		0				0
+@@ -14132,7 +14132,7 @@ usr/libexec/mios/hw/energyd.py	231	231	1	5	7dd252cada91	STAY	local-scoped		0
+ usr/libexec/mios/hw/energyd.py	241	241	1	5	44a5d83865b7	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/energyd.py	261	261	1	9	107e15a78298	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/fand.py	1	3	3	22	1d3ff782dcbd	STAY	ai-header		0				0
+-usr/libexec/mios/hw/fand.py	4	9	5	50	ee3052eeeb50	STAY	midsize-why		0				0
++usr/libexec/mios/hw/fand.py	4	9	5	49	543023bc6b78	STAY	midsize-why		0				0
+ usr/libexec/mios/hw/fand.py	29	29	1	5	abfbb68fd24e	STAY	inline-scoped		0				0
+ usr/libexec/mios/hw/fand.py	30	30	1	8	b8c0139d21ab	STAY	inline-scoped		0				0
+ usr/libexec/mios/hw/fand.py	31	31	1	5	6aed8abc52e4	STAY	inline-scoped		0				0
+@@ -14158,14 +14158,14 @@ usr/libexec/mios/hw/fand.py	267	267	1	6	7f47eade8185	STAY	inline-scoped		0				0
+ usr/libexec/mios/hw/fand.py	281	281	1	8	dbe9ce1ed79c	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/fand.py	295	295	1	10	263210935bf8	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/fand.py	317	317	1	5	fa420fc394d5	STAY	local-scoped		0				0
+-usr/libexec/mios/hw/gpu_heatd.py	1	3	3	19	575dd8d8b27e	STAY	ai-header		0				0
++usr/libexec/mios/hw/gpu_heatd.py	1	3	3	18	90465d33a8ee	STAY	ai-header		0				0
+ usr/libexec/mios/hw/gpu_heatd.py	4	8	4	37	e6ff06e4e738	STAY	midsize-why		0				0
+ usr/libexec/mios/hw/gpu_heatd.py	27	27	1	3	003c9675ea4d	DROP	banner		0				0
+ usr/libexec/mios/hw/gpu_heatd.py	33	33	1	9	13907a08cc6a	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/gpu_heatd.py	42	42	1	9	fd5ebd2f2638	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/gpu_heatd.py	52	52	1	8	056c83ed199c	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/gpu_heatd.py	68	68	1	6	649e8af97863	STAY	local-scoped		0				0
+-usr/libexec/mios/hw/gpu_powerd.py	1	3	3	20	780fcbd63557	STAY	ai-header		0				0
++usr/libexec/mios/hw/gpu_powerd.py	1	3	3	17	d9271429247a	STAY	ai-header		0				0
+ usr/libexec/mios/hw/gpu_powerd.py	4	8	4	36	5a7549632997	STAY	midsize-why		0				0
+ usr/libexec/mios/hw/gpu_powerd.py	28	28	1	3	a9649ea7b60a	DROP	banner		0				0
+ usr/libexec/mios/hw/gpu_powerd.py	30	30	1	3	945dbf639682	MIGRATE	banner-fact	heading-fact	0				0
+@@ -14175,7 +14175,7 @@ usr/libexec/mios/hw/gpu_powerd.py	46	46	1	3	c88a4c262243	STAY	inline-scoped		0
+ usr/libexec/mios/hw/gpu_powerd.py	54	54	1	11	af47312a35d8	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/gpu_powerd.py	57	57	1	7	5371d20974cc	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/gpu_powerd.py	58	58	1	3	2c64c67885f7	STAY	inline-scoped		0				0
+-usr/libexec/mios/hw/gpu_slice.py	1	3	3	19	9eb7e761ca0a	STAY	ai-header		0				0
++usr/libexec/mios/hw/gpu_slice.py	1	3	3	19	b47147cd6da6	STAY	ai-header		0				0
+ usr/libexec/mios/hw/gpu_slice.py	4	12	8	62	e89e537a1da8	MIGRATE	narrative-rationale		0				0
+ usr/libexec/mios/hw/gpu_slice.py	43	43	1	3	7827c4c8727b	STAY	inline-scoped		0				0
+ usr/libexec/mios/hw/gpu_slice.py	57	57	1	10	6a2a11e9e881	STAY	local-scoped		0				0
+@@ -14236,12 +14236,12 @@ usr/libexec/mios/hw/inventory_monitor.py	277	277	1	8	901f923fdecc	STAY	local-sco
+ usr/libexec/mios/hw/inventory_monitor.py	281	281	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+ usr/libexec/mios/hw/inventory_monitor.py	285	285	1	3	ccf03833bab0	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/inventory_monitor.py	380	380	1	2	81d37417dd77	DROP	banner		0				0
+-usr/libexec/mios/hw/iommu_validator.py	1	3	3	18	b6ba780c6987	STAY	ai-header		0				0
++usr/libexec/mios/hw/iommu_validator.py	1	3	3	18	d5532ac9d264	STAY	ai-header		0				0
+ usr/libexec/mios/hw/iommu_validator.py	11	11	1	11	50a1e6f78ff3	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/iommu_validator.py	18	18	1	17	74252f1379de	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/iommu_validator.py	64	64	1	15	f163cceeeab9	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/iommu_validator.py	72	72	1	6	82507d58df79	STAY	local-scoped		0				0
+-usr/libexec/mios/hw/nccl_tune.py	1	3	3	19	468cb49ffbc4	STAY	ai-header		0				0
++usr/libexec/mios/hw/nccl_tune.py	1	3	3	17	ad6527a1fc81	STAY	ai-header		0				0
+ usr/libexec/mios/hw/nccl_tune.py	4	8	4	30	d5dc3cbf090f	STAY	midsize-why		0				0
+ usr/libexec/mios/hw/nccl_tune.py	29	29	1	3	8ab41371d484	DROP	banner		0				0
+ usr/libexec/mios/hw/nccl_tune.py	37	37	1	9	fc654aff5143	STAY	local-scoped		0				0
+@@ -14287,7 +14287,7 @@ usr/libexec/mios/hw/powerd.py	450	450	1	2	6db52c094711	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/powerd.py	467	467	1	4	73ce6d6c2778	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/powerd.py	520	520	1	4	94d0d12a4021	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/powerd.py	549	549	1	4	3428a69ccd29	STAY	local-scoped		0				0
+-usr/libexec/mios/hw/thermald.py	1	3	3	21	31fec01c62a3	STAY	ai-header		0				0
++usr/libexec/mios/hw/thermald.py	1	3	3	18	b3432ebb2eb9	STAY	ai-header		0				0
+ usr/libexec/mios/hw/thermald.py	4	8	4	40	b7e734be95bc	STAY	midsize-why		0				0
+ usr/libexec/mios/hw/thermald.py	30	30	1	3	250ba9048647	DROP	banner		0				0
+ usr/libexec/mios/hw/thermald.py	35	35	1	8	d27bc93aa203	STAY	local-scoped		0				0
+@@ -14330,19 +14330,19 @@ usr/libexec/mios/hw/usb_surge.py	36	36	1	10	4263d5504f10	STAY	local-scoped		0
+ usr/libexec/mios/hw/usb_surge.py	43	43	1	10	56be115ba5ee	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/usb_surge.py	46	46	1	6	c1885fc2f97b	STAY	local-scoped		0				0
+ usr/libexec/mios/hw/usb_surge.py	47	47	1	3	f7356360af54	STAY	inline-scoped		0				0
+-usr/libexec/mios/hw/watchdog_manager.py	1	3	3	16	2c0dea352399	STAY	ai-header		0				0
+-usr/libexec/mios/hw/watchdog_manager.py	20	20	1	12	8e97c0ccae0c	STAY	local-scoped		0				0
+-usr/libexec/mios/hw/watchdog_manager.py	37	37	1	9	8513d58b8a23	STAY	local-scoped		0				0
+-usr/libexec/mios/hw/watchdog_manager.py	55	55	1	5	c25f513817bd	STAY	local-scoped		0				0
+-usr/libexec/mios/hw/watchdog_manager.py	68	68	1	4	8dc7fbd2c9e8	STAY	local-scoped		0				0
++usr/libexec/mios/hw/watchdog_manager.py	1	2	2	14	38cea833f151	STAY	ai-header		0				0
++usr/libexec/mios/hw/watchdog_manager.py	19	19	1	12	8e97c0ccae0c	STAY	local-scoped		0				0
++usr/libexec/mios/hw/watchdog_manager.py	36	36	1	9	8513d58b8a23	STAY	local-scoped		0				0
++usr/libexec/mios/hw/watchdog_manager.py	54	54	1	5	c25f513817bd	STAY	local-scoped		0				0
++usr/libexec/mios/hw/watchdog_manager.py	67	67	1	4	8dc7fbd2c9e8	STAY	local-scoped		0				0
+ usr/libexec/mios/install-ai-clis.sh	1	4	4	18	11e4d1148fc6	STAY	ai-header		0				0
+ usr/libexec/mios/install-ai-clis.sh	26	26	1	1	111c0070b618	STAY	inline-scoped		0				0
+ usr/libexec/mios/install-nvidia-wsl-userland.sh	1	3	3	14	72493bba8652	STAY	ai-header		0				0
+-usr/libexec/mios/ipc/shm_ring.py	1	3	3	18	547582e9eebf	STAY	ai-header		0				0
+-usr/libexec/mios/ipc/shm_ring.py	5	11	6	37	5dc5ec2b28d4	MIGRATE	narrative-history		0				0
+-usr/libexec/mios/ipc/shm_ring.py	28	30	3	8	4dbbde6870ac	STAY	midsize-why		0				0
+-usr/libexec/mios/ipc/shm_ring.py	39	39	1	7	daadd9c3567d	STAY	local-scoped		0				0
+-usr/libexec/mios/ipc/shm_ring.py	52	52	1	4	259751d148cf	STAY	local-scoped		0				0
++usr/libexec/mios/ipc/shm_ring.py	1	2	2	16	edcea0b37a76	STAY	ai-header		0				0
++usr/libexec/mios/ipc/shm_ring.py	4	10	6	35	403f57c687cb	MIGRATE	narrative-history		0				0
++usr/libexec/mios/ipc/shm_ring.py	27	29	3	8	4dbbde6870ac	STAY	midsize-why		0				0
++usr/libexec/mios/ipc/shm_ring.py	38	38	1	7	daadd9c3567d	STAY	local-scoped		0				0
++usr/libexec/mios/ipc/shm_ring.py	51	51	1	4	259751d148cf	STAY	local-scoped		0				0
+ usr/libexec/mios/kernel/crash_dedupe.py	1	3	3	17	1dbe1d12a280	STAY	ai-header		0				0
+ usr/libexec/mios/kernel/crash_dedupe.py	4	9	5	34	04db7042b310	STAY	midsize-why		0				0
+ usr/libexec/mios/kernel/crash_dedupe.py	27	27	1	9	bad7a8050db3	STAY	local-scoped		0				0
+@@ -14377,12 +14377,12 @@ usr/libexec/mios/kernel/crash_triage.py	134	134	1	11	cd28fcd12b1f	STAY	local-sco
+ usr/libexec/mios/kernel/crash_triage.py	168	168	1	11	d1c4adbb484e	STAY	local-scoped		0				0
+ usr/libexec/mios/kernel/crash_triage.py	182	182	1	10	75a4d2b1a6dc	STAY	local-scoped		0				0
+ usr/libexec/mios/kernel/crash_triage.py	197	197	1	7	e6f8cd1f5046	STAY	local-scoped		0				0
+-usr/libexec/mios/kernel/dkms_engine.py	1	3	3	17	8df8fef4b40a	STAY	ai-header		0				0
+-usr/libexec/mios/kernel/dkms_engine.py	5	11	6	38	275b67dafdf9	MIGRATE	narrative-history		0				0
+-usr/libexec/mios/kernel/dkms_engine.py	31	33	3	8	b3511e58018a	STAY	midsize-why		0				0
+-usr/libexec/mios/kernel/dkms_engine.py	39	39	1	10	91dac706bf61	STAY	local-scoped		0				0
+-usr/libexec/mios/kernel/dkms_engine.py	43	43	1	2	1339be72d0fb	STAY	local-scoped		0				0
+-usr/libexec/mios/kernel/dkms_engine.py	51	51	1	4	0aa8c6d768d3	STAY	local-scoped		0				0
++usr/libexec/mios/kernel/dkms_engine.py	1	2	2	15	8a1900667818	STAY	ai-header		0				0
++usr/libexec/mios/kernel/dkms_engine.py	4	10	6	36	c81960626213	MIGRATE	narrative-history		0				0
++usr/libexec/mios/kernel/dkms_engine.py	30	32	3	8	b3511e58018a	STAY	midsize-why		0				0
++usr/libexec/mios/kernel/dkms_engine.py	38	38	1	10	91dac706bf61	STAY	local-scoped		0				0
++usr/libexec/mios/kernel/dkms_engine.py	42	42	1	2	1339be72d0fb	STAY	local-scoped		0				0
++usr/libexec/mios/kernel/dkms_engine.py	50	50	1	4	0aa8c6d768d3	STAY	local-scoped		0				0
+ usr/libexec/mios/kernel/fuzz_harness.py	1	3	3	16	db2128ac00ad	STAY	ai-header		0				0
+ usr/libexec/mios/kernel/fuzz_harness.py	4	9	5	36	3758ad4a08f3	STAY	midsize-why		0				0
+ usr/libexec/mios/kernel/fuzz_harness.py	27	27	1	6	31c663d294a6	STAY	local-scoped		0				0
+@@ -14398,12 +14398,12 @@ usr/libexec/mios/kernel/fuzz_harness.py	121	121	1	4	60511f5043bd	STAY	local-scop
+ usr/libexec/mios/kernel/fuzz_harness.py	138	138	1	9	37941bce246f	STAY	local-scoped		0				0
+ usr/libexec/mios/kernel/fuzz_harness.py	145	145	1	9	de56cc0da82f	STAY	local-scoped		0				0
+ usr/libexec/mios/kernel/fuzz_harness.py	178	178	1	4	cba368cddbb4	STAY	local-scoped		0				0
+-usr/libexec/mios/kernel/kpatch_mgr.py	1	3	3	19	f1454b40ecdd	STAY	ai-header		0				0
++usr/libexec/mios/kernel/kpatch_mgr.py	1	3	3	16	acb65e9ef99d	STAY	ai-header		0				0
+ usr/libexec/mios/kernel/kpatch_mgr.py	4	8	4	32	b95ed1c7ae8a	STAY	midsize-why		0				0
+ usr/libexec/mios/kernel/kpatch_mgr.py	36	36	1	8	b78e1b58a2f2	STAY	local-scoped		0				0
+ usr/libexec/mios/kernel/kpatch_mgr.py	45	45	1	12	631660fd095b	STAY	local-scoped		0				0
+ usr/libexec/mios/kernel/kpatch_mgr.py	59	59	1	5	f9387a3cb2f7	STAY	local-scoped		0				0
+-usr/libexec/mios/kernel/oomd_psi.py	1	3	3	18	d54be45ddf69	STAY	ai-header		0				0
++usr/libexec/mios/kernel/oomd_psi.py	1	3	3	17	278fc1c0a4cc	STAY	ai-header		0				0
+ usr/libexec/mios/kernel/oomd_psi.py	4	8	4	33	ddc7d1c24efe	STAY	midsize-why		0				0
+ usr/libexec/mios/kernel/oomd_psi.py	27	27	1	3	3ced8c9784d9	DROP	banner		0				0
+ usr/libexec/mios/kernel/oomd_psi.py	31	31	1	9	bab1fa04bf24	STAY	local-scoped		0				0
+@@ -15373,7 +15373,7 @@ usr/libexec/mios/mios-model-router	91	91	1	11	e04bb2282d21	STAY	local-scoped		0
+ usr/libexec/mios/mios-model-router	105	105	1	7	b8c521a5be48	STAY	inline-scoped		0				0
+ usr/libexec/mios/mios-model-router	106	106	1	3	1e2075dbb071	STAY	inline-scoped		0				0
+ usr/libexec/mios/mios-model-router	148	149	2	23	8b0e60701452	STAY	local-scoped		0				0
+-usr/libexec/mios/mios-models	1	4	4	95	0211c2dd652a	MIGRATE_HEADER	overlong-hint		0				0
++usr/libexec/mios/mios-models	1	4	4	94	c7a426927069	MIGRATE_HEADER	overlong-hint		0				0
+ usr/libexec/mios/mios-models	23	24	2	21	f32ba7ba654a	STAY	local-scoped		0				0
+ usr/libexec/mios/mios-models	34	37	4	30	a7eca9370094	STAY	midsize-why		0				0
+ usr/libexec/mios/mios-models	38	39	2	21	e0cabdf6c982	STAY	local-scoped		0				0
+@@ -15859,7 +15859,7 @@ usr/libexec/mios/net/cilium_bgp.py	24	24	1	3	8aad932da2e8	DROP	banner		0				0
+ usr/libexec/mios/net/cilium_bgp.py	28	30	3	10	f5f87f7bd8ec	STAY	midsize-why		0				0
+ usr/libexec/mios/net/cilium_bgp.py	41	41	1	9	663b04aa0a79	STAY	local-scoped		0				0
+ usr/libexec/mios/net/cilium_bgp.py	50	50	1	9	6b1f33c79f8a	STAY	local-scoped		0				0
+-usr/libexec/mios/net/mdns_mesh.py	1	3	3	16	f47e2a3028a8	STAY	ai-header		0				0
++usr/libexec/mios/net/mdns_mesh.py	1	3	3	16	07878bbe9b35	STAY	ai-header		0				0
+ usr/libexec/mios/net/mdns_mesh.py	4	11	7	59	508cfead5545	MIGRATE	narrative-rationale		0				0
+ usr/libexec/mios/net/mdns_mesh.py	35	35	1	3	7a90fd7308c1	STAY	inline-scoped		0				0
+ usr/libexec/mios/net/mdns_mesh.py	38	38	1	10	c7b662949af1	STAY	local-scoped		0				0
+@@ -15869,7 +15869,7 @@ usr/libexec/mios/net/mdns_mesh.py	91	91	1	7	b9cc07d30152	STAY	local-scoped		0
+ usr/libexec/mios/net/mdns_mesh.py	99	99	1	9	8a94a1174cd2	STAY	local-scoped		0				0
+ usr/libexec/mios/net/mdns_mesh.py	139	139	1	13	abb6aff21220	STAY	local-scoped		0				0
+ usr/libexec/mios/net/mdns_mesh.py	201	201	1	2	8c1b13188948	DROP	banner		0				0
+-usr/libexec/mios/net/nat_traversal.py	1	3	3	20	4b0fff48f301	STAY	ai-header		0				0
++usr/libexec/mios/net/nat_traversal.py	1	3	3	20	4a10594199fa	STAY	ai-header		0				0
+ usr/libexec/mios/net/nat_traversal.py	25	25	1	14	394c5563d978	STAY	local-scoped		0				0
+ usr/libexec/mios/net/nat_traversal.py	40	40	1	11	d15ac022f3a8	STAY	local-scoped		0				0
+ usr/libexec/mios/net/nat_traversal.py	52	52	1	10	3b253f765c36	STAY	local-scoped		0				0
+@@ -15894,7 +15894,7 @@ usr/libexec/mios/net/nm_preseed.py	158	158	1	7	63e1d3e3ee3d	STAY	local-scoped		0
+ usr/libexec/mios/net/nm_preseed.py	170	170	1	8	115efcfca0de	STAY	local-scoped		0				0
+ usr/libexec/mios/net/nm_preseed.py	180	180	1	3	1cca302bc2a5	STAY	local-scoped		0				0
+ usr/libexec/mios/net/nm_preseed.py	189	189	1	7	028182608992	STAY	local-scoped		0				0
+-usr/libexec/mios/net/ptp_time_sync.py	1	4	4	26	487d8ca2e019	STAY	ai-header		0				0
++usr/libexec/mios/net/ptp_time_sync.py	1	4	4	25	514cb6a3bd83	STAY	ai-header		0				0
+ usr/libexec/mios/net/ptp_time_sync.py	5	14	9	79	5e6f8db6a7c9	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/net/ptp_time_sync.py	32	32	1	7	69e3df6fc856	STAY	local-scoped		0				0
+ usr/libexec/mios/net/ptp_time_sync.py	43	43	1	7	824a24a9469d	STAY	local-scoped		0				0
+@@ -15919,16 +15919,16 @@ usr/libexec/mios/net/ptp_time_sync.py	372	372	1	7	4046fb75126b	STAY	local-scoped
+ usr/libexec/mios/net/ptp_time_sync.py	386	386	1	7	c3148187fbef	STAY	local-scoped		0				0
+ usr/libexec/mios/net/ptp_time_sync.py	395	395	1	9	53999d629aea	STAY	local-scoped		0				0
+ usr/libexec/mios/net/ptp_time_sync.py	464	464	1	4	78064a3b6e3d	STAY	local-scoped		0				0
+-usr/libexec/mios/net/service_mesh.py	1	3	3	18	18b851d15c67	STAY	ai-header		0				0
++usr/libexec/mios/net/service_mesh.py	1	3	3	18	8552f3ea951c	STAY	ai-header		0				0
+ usr/libexec/mios/net/service_mesh.py	43	43	1	14	3144f0d38f6b	STAY	local-scoped		0				0
+ usr/libexec/mios/net/service_mesh.py	56	56	1	6	da6632679e14	STAY	local-scoped		0				0
+ usr/libexec/mios/net/service_mesh.py	109	109	1	6	e03b416b6f2c	STAY	local-scoped		0				0
+-usr/libexec/mios/net/split_dns.py	1	3	3	19	7da98f16bdd2	STAY	ai-header		0				0
++usr/libexec/mios/net/split_dns.py	1	3	3	18	90797e3b6907	STAY	ai-header		0				0
+ usr/libexec/mios/net/split_dns.py	4	8	4	36	9a842a1fb321	STAY	midsize-why		0				0
+ usr/libexec/mios/net/split_dns.py	27	27	1	2	c9c0bf2271de	DROP	banner		0				0
+ usr/libexec/mios/net/split_dns.py	32	32	1	8	2b87a4ea9f88	STAY	local-scoped		0				0
+ usr/libexec/mios/net/split_dns.py	41	41	1	8	be0c85cedfc3	STAY	local-scoped		0				0
+-usr/libexec/mios/net/vpn_killswitch.py	1	4	4	31	ab8ef4fe3b59	STAY	ai-header		0				0
++usr/libexec/mios/net/vpn_killswitch.py	1	4	4	31	a22483c494d4	STAY	ai-header		0				0
+ usr/libexec/mios/net/vpn_killswitch.py	28	28	1	10	382eefedb76a	STAY	local-scoped		0				0
+ usr/libexec/mios/net/vpn_killswitch.py	47	47	1	11	d9c6c3242e87	STAY	local-scoped		0				0
+ usr/libexec/mios/net/vpn_killswitch.py	134	134	1	8	c844b7ba81ec	STAY	local-scoped		0				0
+@@ -16023,7 +16023,7 @@ usr/libexec/mios/node/hardware.py	41	41	1	4	32db509d8197	STAY	local-scoped		0
+ usr/libexec/mios/node/hardware.py	55	55	1	9	f7189a18745a	STAY	local-scoped		0				0
+ usr/libexec/mios/node/hardware.py	86	86	1	5	9fb35af92fdb	STAY	local-scoped		0				0
+ usr/libexec/mios/node/hardware.py	117	117	1	8	645540caa3fd	STAY	local-scoped		0				0
+-usr/libexec/mios/node/mesh_logs.py	1	3	3	20	59360ec0b3f1	STAY	ai-header		0				0
++usr/libexec/mios/node/mesh_logs.py	1	3	3	19	d76d4640b7ea	STAY	ai-header		0				0
+ usr/libexec/mios/node/mesh_logs.py	4	8	4	41	cd6d881e795a	STAY	midsize-why		0				0
+ usr/libexec/mios/node/mesh_logs.py	36	36	1	10	fb351cfd7e4c	STAY	local-scoped		0				0
+ usr/libexec/mios/node/mesh_logs.py	46	46	1	10	9785adffad33	STAY	local-scoped		0				0
+@@ -16056,7 +16056,7 @@ usr/libexec/mios/node/scheduler.py	149	149	1	9	d460733415bf	STAY	local-scoped		0
+ usr/libexec/mios/node/scheduler.py	174	174	1	5	540d28aba7aa	STAY	local-scoped		0				0
+ usr/libexec/mios/node/scheduler.py	181	181	1	4	e76e9ab37daf	STAY	local-scoped		0				0
+ usr/libexec/mios/node/scheduler.py	188	188	1	6	d7297389f5b8	STAY	local-scoped		0				0
+-usr/libexec/mios/node/topology_switch.py	1	3	3	26	16f7fa1a008a	STAY	ai-header		0				0
++usr/libexec/mios/node/topology_switch.py	1	3	3	25	e9b1f751ad00	STAY	ai-header		0				0
+ usr/libexec/mios/node/topology_switch.py	5	12	7	45	6d8bf3e1bc94	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/node/topology_switch.py	24	24	1	2	35f087155d52	DROP	banner		0				0
+ usr/libexec/mios/node/topology_switch.py	29	31	3	11	937f07ede26d	STAY	midsize-why		0				0
+@@ -16232,12 +16232,12 @@ usr/libexec/mios/sec/cosign_verify.py	80	80	1	9	b7be0d923f7d	STAY	local-scoped
+ usr/libexec/mios/sec/cosign_verify.py	97	97	1	4	6b856e2f1d5d	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/cosign_verify.py	108	108	1	11	f1cfddb19738	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/cosign_verify.py	168	168	1	13	0826aa54f0c4	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/cve_scan.py	1	3	3	20	53afa141bb11	STAY	ai-header		0				0
++usr/libexec/mios/sec/cve_scan.py	1	3	3	19	f20869237ae1	STAY	ai-header		0				0
+ usr/libexec/mios/sec/cve_scan.py	4	8	4	38	c3612f56f866	STAY	midsize-why		0				0
+ usr/libexec/mios/sec/cve_scan.py	27	27	1	4	85e2d779252e	DROP	banner		0				0
+ usr/libexec/mios/sec/cve_scan.py	33	33	1	10	ffbe359754b2	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/cve_scan.py	44	44	1	6	c77fb0b3f9da	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/entropy_seed.py	1	3	3	20	aeb29a34e336	STAY	ai-header		0				0
++usr/libexec/mios/sec/entropy_seed.py	1	3	3	19	6635da6c5d0e	STAY	ai-header		0				0
+ usr/libexec/mios/sec/entropy_seed.py	4	8	4	37	c76020c10c34	STAY	midsize-why		0				0
+ usr/libexec/mios/sec/entropy_seed.py	27	27	1	3	51a1f51041ef	DROP	banner		0				0
+ usr/libexec/mios/sec/entropy_seed.py	29	29	1	5	b5a8b114e80b	STAY	inline-scoped		0				0
+@@ -16293,7 +16293,7 @@ usr/libexec/mios/sec/fido2_manager.py	154	154	1	5	8d9be8544a7a	STAY	local-scoped
+ usr/libexec/mios/sec/fido2_manager.py	173	173	1	3	2fea102e6923	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/fido2_manager.py	218	218	1	2	8c1b13188948	DROP	banner		0				0
+ usr/libexec/mios/sec/greenboot_gate.py	1	4	4	26	2aa29acce323	STAY	ai-header		0				0
+-usr/libexec/mios/sec/greenboot_gate.py	5	10	5	42	7c19f505eafd	MIGRATE	midsize-narrative		0				0
++usr/libexec/mios/sec/greenboot_gate.py	5	10	5	41	a7d24ddfccf1	MIGRATE	midsize-narrative		0				0
+ usr/libexec/mios/sec/greenboot_gate.py	38	38	1	13	5047cb64d8d6	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/greenboot_gate.py	62	62	1	10	b2722babc375	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/greenboot_gate.py	81	81	1	5	8f368a4db268	STAY	local-scoped		0				0
+@@ -16317,13 +16317,13 @@ usr/libexec/mios/sec/grype_scan.py	80	80	1	8	a8687249825c	STAY	local-scoped		0
+ usr/libexec/mios/sec/grype_scan.py	95	95	1	10	a069002db5a6	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/grype_scan.py	130	130	1	7	6958658d9251	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/grype_scan.py	171	171	1	7	33576253f9e4	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/journal_fss.py	1	3	3	19	d5eca1a965d2	STAY	ai-header		0				0
++usr/libexec/mios/sec/journal_fss.py	1	3	3	18	fb6a05d511c8	STAY	ai-header		0				0
+ usr/libexec/mios/sec/journal_fss.py	4	8	4	39	ad74ca2a15ee	STAY	midsize-why		0				0
+ usr/libexec/mios/sec/journal_fss.py	33	33	1	11	e7ec5b65f89c	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/journal_fss.py	40	40	1	9	fe9be0d9e034	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/journal_fss.py	54	54	1	9	c2905d90ae55	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/journal_fss.py	59	59	1	3	617ae96f20cf	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/kaslr_mgr.py	1	3	3	18	25953753917a	STAY	ai-header		0				0
++usr/libexec/mios/sec/kaslr_mgr.py	1	3	3	17	516d4a7b9d98	STAY	ai-header		0				0
+ usr/libexec/mios/sec/kaslr_mgr.py	4	8	4	34	e4b231e2a1b3	STAY	midsize-why		0				0
+ usr/libexec/mios/sec/kaslr_mgr.py	32	32	1	2	b8bd0cc8a9da	DROP	banner		0				0
+ usr/libexec/mios/sec/kaslr_mgr.py	35	35	1	10	6473e7c0bbd2	STAY	local-scoped		0				0
+@@ -16331,7 +16331,7 @@ usr/libexec/mios/sec/kaslr_mgr.py	41	41	1	7	fca1be1c7e0e	STAY	local-scoped		0
+ usr/libexec/mios/sec/kaslr_mgr.py	42	42	1	11	6483f54cd86c	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/kaslr_mgr.py	57	57	1	8	92f6c42793c9	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/kaslr_mgr.py	60	60	1	12	f169e5a7c36e	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/livepatch_mgr.py	1	4	4	22	cadded0b67a9	STAY	ai-header		0				0
++usr/libexec/mios/sec/livepatch_mgr.py	1	4	4	21	0c1103c7e4a1	STAY	ai-header		0				0
+ usr/libexec/mios/sec/livepatch_mgr.py	5	10	5	43	f4dbfde3a1b7	MIGRATE	midsize-narrative		0				0
+ usr/libexec/mios/sec/livepatch_mgr.py	31	31	1	13	5047cb64d8d6	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/livepatch_mgr.py	55	55	1	10	f998031f6d8f	STAY	local-scoped		0				0
+@@ -16436,7 +16436,7 @@ usr/libexec/mios/sec/rotate-quadlet-secrets.py	20	20	1	7	9df1aec420c3	STAY	local
+ usr/libexec/mios/sec/rotate-quadlet-secrets.py	43	43	1	9	67b3bf546ea3	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/rotate-quadlet-secrets.py	49	49	1	8	0d3f2115e3c2	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/rotate-quadlet-secrets.py	102	102	1	6	08c4427e99ae	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/sbom_gen.py	1	3	3	18	97368ce4031c	STAY	ai-header		0				0
++usr/libexec/mios/sec/sbom_gen.py	1	3	3	18	fb5f38cea8c1	STAY	ai-header		0				0
+ usr/libexec/mios/sec/sbom_gen.py	4	8	4	37	d966143c2cce	STAY	midsize-why		0				0
+ usr/libexec/mios/sec/sbom_gen.py	33	33	1	9	b90ea9f8b61e	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/sbom_gen.py	39	39	1	10	e8e235204aaf	STAY	local-scoped		0				0
+@@ -16489,13 +16489,13 @@ usr/libexec/mios/sec/slsa_provenance.py	165	165	1	8	e0e7bd26f8a9	STAY	local-scop
+ usr/libexec/mios/sec/slsa_provenance.py	169	170	2	16	4c59b4696ffc	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/slsa_provenance.py	194	194	1	4	642c492fb51b	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/slsa_provenance.py	256	256	1	9	24a5036039b0	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/smartcard_mux.py	1	3	3	20	7e1d29af5704	STAY	ai-header		0				0
++usr/libexec/mios/sec/smartcard_mux.py	1	3	3	19	d43cb67b2656	STAY	ai-header		0				0
+ usr/libexec/mios/sec/smartcard_mux.py	4	8	4	39	16c7e8d30348	STAY	midsize-why		0				0
+ usr/libexec/mios/sec/smartcard_mux.py	27	27	1	3	c5b8de75e64b	DROP	banner		0				0
+ usr/libexec/mios/sec/smartcard_mux.py	33	33	1	8	13ea85e9339a	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/smartcard_mux.py	41	41	1	10	edc453c221eb	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/smartcard_mux.py	44	44	1	7	d0122f2fccf2	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/spiffe_identity.py	1	4	4	23	02af1ee82ead	STAY	ai-header		0				0
++usr/libexec/mios/sec/spiffe_identity.py	1	4	4	22	fc74e40f48ac	STAY	ai-header		0				0
+ usr/libexec/mios/sec/spiffe_identity.py	5	10	5	46	2e6682baccf7	MIGRATE	midsize-narrative		0				0
+ usr/libexec/mios/sec/spiffe_identity.py	32	32	1	13	5047cb64d8d6	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/spiffe_identity.py	56	56	1	5	e497c19dc721	STAY	local-scoped		0				0
+@@ -16511,7 +16511,7 @@ usr/libexec/mios/sec/spiffe_identity.py	215	218	4	14	b05ce6a4b11c	STAY	midsize-w
+ usr/libexec/mios/sec/spiffe_identity.py	222	222	1	7	26ff83087c6f	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/spiffe_identity.py	311	314	4	20	de496d7c8fe4	STAY	midsize-why		0				0
+ usr/libexec/mios/sec/spiffe_identity.py	358	358	1	10	5bc4e7eae9a6	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/systemd_harden.py	1	3	3	18	346fb33bbc58	STAY	ai-header		0				0
++usr/libexec/mios/sec/systemd_harden.py	1	3	3	17	edd1ce55cf9a	STAY	ai-header		0				0
+ usr/libexec/mios/sec/systemd_harden.py	4	8	4	31	f8114a324a6b	STAY	midsize-why		0				0
+ usr/libexec/mios/sec/systemd_harden.py	26	26	1	5	d3d0ad95761f	STAY	inline-scoped		0				0
+ usr/libexec/mios/sec/systemd_harden.py	31	31	1	8	bf456d03da9c	STAY	local-scoped		0				0
+@@ -16539,7 +16539,7 @@ usr/libexec/mios/sec/uki_enroll.py	98	98	1	4	5fe837cba9aa	STAY	local-scoped		0
+ usr/libexec/mios/sec/uki_enroll.py	140	140	1	12	3702d2b8d937	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/uki_enroll.py	160	160	1	3	c76f0e7787a2	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/uki_enroll.py	178	178	1	9	c421f23ce07e	STAY	local-scoped		0				0
+-usr/libexec/mios/sec/usbguard.py	1	3	3	17	d829cdf84611	STAY	ai-header		0				0
++usr/libexec/mios/sec/usbguard.py	1	3	3	17	6050741ce5b1	STAY	ai-header		0				0
+ usr/libexec/mios/sec/usbguard.py	4	8	4	35	10c2a62f0bef	STAY	midsize-why		0				0
+ usr/libexec/mios/sec/usbguard.py	32	32	1	5	445696fc70c1	STAY	inline-scoped		0				0
+ usr/libexec/mios/sec/usbguard.py	37	37	1	9	7ba55dd86669	STAY	local-scoped		0				0
+@@ -16569,7 +16569,7 @@ usr/libexec/mios/sec/vram_sanitize.py	120	121	2	17	a2810408225d	STAY	local-scope
+ usr/libexec/mios/sec/vram_sanitize.py	134	134	1	10	3626bd103e42	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/vram_sanitize.py	138	138	1	13	09c2cb68d5f6	STAY	local-scoped		0				0
+ usr/libexec/mios/sec/vram_sanitize.py	146	146	1	10	a2d9b55453b8	STAY	local-scoped		0				0
+-usr/libexec/mios/seed-db-config.py	1	4	4	22	f8dd5169902c	STAY	ai-header		0				0
++usr/libexec/mios/seed-db-config.py	1	4	4	22	04ef2b4e7e5f	STAY	ai-header		0				0
+ usr/libexec/mios/seed-db-config.py	19	19	1	10	2fea8c49ed82	STAY	local-scoped		0				0
+ usr/libexec/mios/selinux-init	1	4	4	31	0794e6e13904	STAY	ai-header		0				0
+ usr/libexec/mios/selinux-init	61	61	1	1	810b9fff4f63	STAY	inline-scoped		0				0
+@@ -16582,7 +16582,7 @@ usr/libexec/mios/storage/bcachefs_tier.py	82	82	1	10	81390a496a84	STAY	local-sco
+ usr/libexec/mios/storage/bcachefs_tier.py	92	92	1	11	9a858d835d03	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/bcachefs_tier.py	97	97	1	6	c4db78893847	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/bcachefs_tier.py	102	102	1	8	412a3591699a	STAY	local-scoped		0				0
+-usr/libexec/mios/storage/ceph_heal.py	1	3	3	17	f0189f0c744b	STAY	ai-header		0				0
++usr/libexec/mios/storage/ceph_heal.py	1	3	3	16	27545fc404ff	STAY	ai-header		0				0
+ usr/libexec/mios/storage/ceph_heal.py	4	8	4	38	de0622fbac4a	STAY	midsize-why		0				0
+ usr/libexec/mios/storage/ceph_heal.py	29	29	1	3	7e81a7c2419a	DROP	banner		0				0
+ usr/libexec/mios/storage/ceph_heal.py	36	36	1	11	854a97d70cb1	STAY	local-scoped		0				0
+@@ -16597,7 +16597,7 @@ usr/libexec/mios/storage/ceph_mds.py	48	48	1	7	fb308f796ce8	STAY	local-scoped		0
+ usr/libexec/mios/storage/ceph_mds.py	50	50	1	10	0f037a14c0f7	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/ceph_mds.py	54	54	1	11	c9cff23c40eb	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/ceph_mds.py	59	59	1	2	2e26503f031b	STAY	local-scoped		0				0
+-usr/libexec/mios/storage/cockpit_ceph.py	1	3	3	20	81d6c180fca6	STAY	ai-header		0				0
++usr/libexec/mios/storage/cockpit_ceph.py	1	3	3	19	a133ffd7a569	STAY	ai-header		0				0
+ usr/libexec/mios/storage/cockpit_ceph.py	4	9	5	43	d4d3f14c9a9b	STAY	midsize-why		0				0
+ usr/libexec/mios/storage/cockpit_ceph.py	27	27	1	9	fe1616f4aad1	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/cockpit_ceph.py	30	30	1	4	d0459f8d54ca	DROP	banner		0				0
+@@ -16614,7 +16614,7 @@ usr/libexec/mios/storage/cockpit_ceph.py	231	231	1	5	49bd7d84552c	STAY	inline-sc
+ usr/libexec/mios/storage/cockpit_ceph.py	252	252	1	8	440a8fddbb22	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/cockpit_ceph.py	257	257	1	6	199db9567c7c	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/cockpit_ceph.py	327	327	1	2	34ef27c9a4bf	DROP	banner		0				0
+-usr/libexec/mios/storage/container_gc.py	1	3	3	17	19d6af30ab8c	STAY	ai-header		0				0
++usr/libexec/mios/storage/container_gc.py	1	3	3	16	57470a3e2e19	STAY	ai-header		0				0
+ usr/libexec/mios/storage/container_gc.py	4	12	8	69	5ff0a26427e8	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/storage/container_gc.py	48	48	1	8	1473d361eb08	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/container_gc.py	61	61	1	8	bcaf9e338a7d	STAY	local-scoped		0				0
+@@ -16663,7 +16663,7 @@ usr/libexec/mios/storage/mios-backup-remote	421	421	1	4	2bf81d27b5b1	STAY	local-
+ usr/libexec/mios/storage/mios-backup-remote	429	429	1	4	6ee369fcd39d	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/mios-backup-remote	434	434	1	4	6c461c0268c9	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/mios-backup-remote	444	444	1	3	4959a8f86ec8	STAY	local-scoped		0				0
+-usr/libexec/mios/storage/mios-bench-storage	1	4	4	33	21e0a2a97d82	STAY	ai-header		0				0
++usr/libexec/mios/storage/mios-bench-storage	1	4	4	32	a20bf11cad90	STAY	ai-header		0				0
+ usr/libexec/mios/storage/mios-bench-storage	5	9	4	25	d8bd61016a09	STAY	midsize-why		0				0
+ usr/libexec/mios/storage/mios-bench-storage	25	25	1	6	d5d945447568	DROP	banner		0				0
+ usr/libexec/mios/storage/mios-bench-storage	33	33	1	1	d14fda39b689	DROP	banner		0				0
+@@ -16748,7 +16748,7 @@ usr/libexec/mios/storage/mios-ledger-sync	403	403	1	1	a12dd3a7fd32	STAY	local-sc
+ usr/libexec/mios/storage/mios-ledger-sync	407	407	1	2	6c6bf82113d4	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/mios-ledger-sync	413	413	1	1	073c1634c496	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/mios-ledger-sync	423	423	1	14	b5d92fc66fa2	STAY	local-scoped		0				0
+-usr/libexec/mios/storage/opal_luks_partition.py	1	3	3	20	bf77685dbba3	STAY	ai-header		0				0
++usr/libexec/mios/storage/opal_luks_partition.py	1	3	3	20	99f966541867	STAY	ai-header		0				0
+ usr/libexec/mios/storage/opal_luks_partition.py	4	10	6	54	5174fc9d7b9a	MIGRATE	narrative-rationale		0				0
+ usr/libexec/mios/storage/opal_luks_partition.py	29	29	1	5	6015218a4f6f	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/opal_luks_partition.py	31	31	1	7	333b33b64984	STAY	inline-scoped		0				0
+@@ -16777,7 +16777,7 @@ usr/libexec/mios/storage/opal_luks_partition.py	377	378	2	10	e511b9ce9c3a	STAY	l
+ usr/libexec/mios/storage/opal_luks_partition.py	390	390	1	3	b88f00ced5e1	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/opal_luks_partition.py	397	397	1	3	c756536f7a9c	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/opal_luks_partition.py	463	463	1	7	27c3ba371785	STAY	local-scoped		0				0
+-usr/libexec/mios/storage/scrubd.py	1	3	3	21	9f5c5d30b633	STAY	ai-header		0				0
++usr/libexec/mios/storage/scrubd.py	1	3	3	20	aff0cc1d2cf0	STAY	ai-header		0				0
+ usr/libexec/mios/storage/scrubd.py	4	8	4	39	ef32c59d92bd	STAY	midsize-why		0				0
+ usr/libexec/mios/storage/scrubd.py	36	36	1	7	d80af8068b38	STAY	local-scoped		0				0
+ usr/libexec/mios/storage/scrubd.py	43	43	1	11	ab5549203206	STAY	local-scoped		0				0
+@@ -16810,7 +16810,7 @@ usr/libexec/mios/system-sync-env.sh	175	175	1	6	488d82ebb0a1	STAY	local-scoped
+ usr/libexec/mios/system-sync-env.sh	180	180	1	3	20fbe2598a8b	STAY	inline-scoped		0				0
+ usr/libexec/mios/system-sync-env.sh	187	187	1	0	8a331fdde703	DROP	banner		0				0
+ usr/libexec/mios/system-sync-env.sh	192	192	1	2	388074d6d2fa	STAY	inline-scoped		0				0
+-usr/libexec/mios/telemetry/log_archiver.py	1	4	4	30	57bdd19eecfb	STAY	ai-header		0				0
++usr/libexec/mios/telemetry/log_archiver.py	1	4	4	30	902118e1f1ab	STAY	ai-header		0				0
+ usr/libexec/mios/telemetry/log_archiver.py	19	19	1	12	3bbe3da9bed2	STAY	local-scoped		0				0
+ usr/libexec/mios/telemetry/log_archiver.py	32	32	1	12	002412ac056e	STAY	local-scoped		0				0
+ usr/libexec/mios/telemetry/log_archiver.py	63	63	1	11	331c2b87dcc5	STAY	local-scoped		0				0
+@@ -16924,7 +16924,7 @@ usr/libexec/mios/tune-performance.sh	1058	1058	1	2	19ef44cbbc49	STAY	inline-scop
+ usr/libexec/mios/tune-performance.sh	1102	1102	1	2	beaa09695b24	DROP	banner		0				0
+ usr/libexec/mios/tune-performance.sh	1108	1108	1	6	e6fdbe351075	STAY	inline-scoped		0				0
+ usr/libexec/mios/tune-performance.sh	1110	1110	1	4	150bc0c6029c	STAY	inline-scoped		0				0
+-usr/libexec/mios/ui/libei_input.py	1	3	3	18	1ec2e2112433	STAY	ai-header		0				0
++usr/libexec/mios/ui/libei_input.py	1	3	3	18	6eac8cda18ee	STAY	ai-header		0				0
+ usr/libexec/mios/ui/libei_input.py	11	11	1	14	aafcdc2d038c	STAY	local-scoped		0				0
+ usr/libexec/mios/ui/libei_input.py	26	26	1	11	6e3e63c4008d	STAY	local-scoped		0				0
+ usr/libexec/mios/ui/libei_input.py	36	36	1	10	29c3e4325efd	STAY	local-scoped		0				0
+@@ -16968,7 +16968,7 @@ usr/libexec/mios/user-setup.sh	132	132	1	4	f30bca54f4bf	STAY	inline-scoped		0
+ usr/libexec/mios/user-setup.sh	134	134	1	0	75a3dedb3323	DROP	banner		0				0
+ usr/libexec/mios/user-setup.sh	138	138	1	2	5f516b80a4eb	DROP	commented-out-code		0				0
+ usr/libexec/mios/user-setup.sh	139	139	1	3	baf7c267d39d	DROP	commented-out-code		0				0
+-usr/libexec/mios/user/roaming_seat.py	1	4	4	25	0435cf329d81	STAY	ai-header		0				0
++usr/libexec/mios/user/roaming_seat.py	1	4	4	24	62912124168a	STAY	ai-header		0				0
+ usr/libexec/mios/user/roaming_seat.py	5	14	9	74	636ff0cd4002	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/user/roaming_seat.py	33	33	1	8	83de3bed532b	STAY	local-scoped		0				0
+ usr/libexec/mios/user/roaming_seat.py	50	50	1	7	c0ce56923776	STAY	local-scoped		0				0
+@@ -17007,7 +17007,7 @@ usr/libexec/mios/user/roaming_seat.py	432	432	1	3	c3a45a29e7db	DROP	banner		0
+ usr/libexec/mios/user/roaming_seat.py	453	453	1	9	ca13a35e97c8	STAY	local-scoped		0				0
+ usr/libexec/mios/user/roaming_seat.py	478	478	1	5	b7710b2fcad1	STAY	local-scoped		0				0
+ usr/libexec/mios/user/roaming_seat.py	579	579	1	4	78064a3b6e3d	STAY	local-scoped		0				0
+-usr/libexec/mios/user/session_migrate.py	1	4	4	22	8b7c4c198b65	STAY	ai-header		0				0
++usr/libexec/mios/user/session_migrate.py	1	4	4	20	7ea515ee24dd	STAY	ai-header		0				0
+ usr/libexec/mios/user/session_migrate.py	5	13	8	72	b91217aec0d0	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/user/session_migrate.py	32	32	1	6	a4b416b9ba3d	STAY	local-scoped		0				0
+ usr/libexec/mios/user/session_migrate.py	50	50	1	9	0ecd191a3da0	STAY	local-scoped		0				0
+@@ -17054,7 +17054,7 @@ usr/libexec/mios/ux/audio_feedback.py	157	157	1	4	d8ec8fc9d4d8	STAY	local-scoped
+ usr/libexec/mios/ux/audio_feedback.py	164	164	1	3	6e1d707c44e6	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/audio_feedback.py	173	173	1	3	7a497f7f02b2	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/audio_feedback.py	182	182	1	5	dbe7e11c23e3	STAY	local-scoped		0				0
+-usr/libexec/mios/ux/biometric_lock.py	1	4	4	21	e9b062d075eb	STAY	ai-header		0				0
++usr/libexec/mios/ux/biometric_lock.py	1	4	4	21	bf104da5d398	STAY	ai-header		0				0
+ usr/libexec/mios/ux/biometric_lock.py	5	12	7	44	ad6a5522c79d	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/ux/biometric_lock.py	41	41	1	8	6dc45638c23e	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/biometric_lock.py	42	42	1	3	0219f745cbc5	DROP	banner		0				0
+@@ -17105,7 +17105,7 @@ usr/libexec/mios/ux/diff_auditor.py	175	175	1	7	8139b175b029	STAY	local-scoped
+ usr/libexec/mios/ux/diff_auditor.py	186	186	1	9	8c192e9fc135	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/diff_auditor.py	355	355	1	3	03662ccf0e87	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/diff_auditor.py	383	383	1	4	8e0ce170d2db	STAY	local-scoped		0				0
+-usr/libexec/mios/ux/editor_config_gen.py	1	4	4	24	ccea0eebfb0e	STAY	ai-header		0				0
++usr/libexec/mios/ux/editor_config_gen.py	1	4	4	23	bd585fb4585c	STAY	ai-header		0				0
+ usr/libexec/mios/ux/editor_config_gen.py	5	13	8	53	38036c65eaae	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/ux/editor_config_gen.py	41	41	1	9	1153ddbc6e6e	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/editor_config_gen.py	64	64	1	7	743a783f65cd	STAY	local-scoped		0				0
+@@ -17139,7 +17139,7 @@ usr/libexec/mios/ux/firstboot_wizard.py	119	119	1	9	d9e2c3f55c65	STAY	local-scop
+ usr/libexec/mios/ux/firstboot_wizard.py	151	151	1	3	429618abfbfe	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/firstboot_wizard.py	174	174	1	8	450a88c7dcb5	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/firstboot_wizard.py	194	194	1	4	da56e66e15e3	STAY	local-scoped		0				0
+-usr/libexec/mios/ux/focus_audio.py	1	4	4	22	171328526f3c	STAY	ai-header		0				0
++usr/libexec/mios/ux/focus_audio.py	1	4	4	21	4aedb3a0befd	STAY	ai-header		0				0
+ usr/libexec/mios/ux/focus_audio.py	5	19	14	89	31f7cb1787dc	MIGRATE	narrative-rationale		0				0
+ usr/libexec/mios/ux/focus_audio.py	54	54	1	7	b0a703ce1ce1	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/focus_audio.py	57	57	1	7	cbab8db772e0	STAY	inline-scoped		0				0
+@@ -17177,6 +17177,7 @@ usr/libexec/mios/ux/font_scaler.py	159	159	1	10	73dc5fb5a40a	STAY	local-scoped
+ usr/libexec/mios/ux/font_scaler.py	167	167	1	9	1ac68ac045a7	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/font_scaler.py	191	191	1	5	768f0d2d6ff2	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/font_scaler.py	233	233	1	6	b95253d4eee8	STAY	local-scoped		0				0
++usr/libexec/mios/ux/font_scaler.py	310	310	1	2	c4157e47e1f2	STAY	local-scoped		0				0
+ usr/libexec/mios/ux/gnome_extension.py	1	4	4	26	7040b2af441f	STAY	ai-header		0				0
+ usr/libexec/mios/ux/gnome_extension.py	5	17	12	66	4e69ea1e8e0a	MIGRATE	narrative-rationale		0				0
+ usr/libexec/mios/ux/gnome_extension.py	46	46	1	10	1b1dba103083	STAY	local-scoped		0				0
+@@ -17364,7 +17365,7 @@ usr/libexec/mios/virt/iommu_parser.py	312	312	1	8	543386e8d307	STAY	local-scoped
+ usr/libexec/mios/virt/iommu_parser.py	327	331	5	36	15d06ebfbf67	STAY	midsize-why		0				0
+ usr/libexec/mios/virt/iommu_parser.py	379	380	2	16	8f973fd23e75	STAY	local-scoped		0				0
+ usr/libexec/mios/virt/iommu_parser.py	434	434	1	11	c200447904e6	STAY	local-scoped		0				0
+-usr/libexec/mios/virt/microvm_bridge.py	1	4	4	22	335bb65aae7c	STAY	ai-header		0				0
++usr/libexec/mios/virt/microvm_bridge.py	1	4	4	20	0219bb8b11d2	STAY	ai-header		0				0
+ usr/libexec/mios/virt/microvm_bridge.py	5	13	8	59	1eb37adc451e	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/virt/microvm_bridge.py	32	32	1	6	c56ede08128c	STAY	local-scoped		0				0
+ usr/libexec/mios/virt/microvm_bridge.py	51	51	1	7	11980e28669d	STAY	local-scoped		0				0
+@@ -17396,7 +17397,7 @@ usr/libexec/mios/virt/microvm_migrate.py	4	10	6	31	c07d30241390	MIGRATE	narrativ
+ usr/libexec/mios/virt/microvm_migrate.py	32	34	3	9	c805d5989b72	STAY	midsize-why		0				0
+ usr/libexec/mios/virt/microvm_migrate.py	39	39	1	8	02a3fccf4654	STAY	local-scoped		0				0
+ usr/libexec/mios/virt/microvm_migrate.py	60	60	1	11	ec7c2c120aad	STAY	local-scoped		0				0
+-usr/libexec/mios/virt/microvm_sandbox.py	1	3	3	19	b1e5058e6832	STAY	ai-header		0				0
++usr/libexec/mios/virt/microvm_sandbox.py	1	3	3	18	c8a9b4dc9444	STAY	ai-header		0				0
+ usr/libexec/mios/virt/microvm_sandbox.py	4	8	4	33	d83d324e68b9	STAY	midsize-why		0				0
+ usr/libexec/mios/virt/microvm_sandbox.py	35	35	1	9	8b1fb160c76a	STAY	local-scoped		0				0
+ usr/libexec/mios/virt/microvm_sandbox.py	44	44	1	13	4d264e2a89c3	STAY	local-scoped		0				0
+@@ -17404,7 +17405,7 @@ usr/libexec/mios/virt/microvm_sandbox.py	49	49	1	8	ce9648b8dd23	STAY	local-scope
+ usr/libexec/mios/virt/microvm_sandbox.py	50	50	1	5	9c2b71f9faad	STAY	inline-scoped		0				0
+ usr/libexec/mios/virt/microvm_sandbox.py	52	52	1	5	f088d915edb9	STAY	local-scoped		0				0
+ usr/libexec/mios/virt/microvm_sandbox.py	54	54	1	6	583666a697f1	STAY	inline-scoped		0				0
+-usr/libexec/mios/virt/mios_microvm.py	1	4	4	29	554fa3587bf2	STAY	ai-header		0				0
++usr/libexec/mios/virt/mios_microvm.py	1	4	4	27	7a677285ba86	STAY	ai-header		0				0
+ usr/libexec/mios/virt/mios_microvm.py	6	21	15	85	62961a2669ff	MIGRATE	narrative-history		0				0
+ usr/libexec/mios/virt/mios_microvm.py	37	37	1	2	a4ec6f4a29a4	STAY	local-scoped		0				0
+ usr/libexec/mios/virt/mios_microvm.py	46	46	1	8	4f61b554c9c1	STAY	local-scoped		0				0

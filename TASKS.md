@@ -1060,7 +1060,7 @@
 | T-1072 | P2 | planned | Build/BakePlan | BAKERETIRE-01 -- the retirement half of T-1057, which needs an explicit yes because every step is a DELETION and no bake has been run on this branch. The two producers render byte-identical output today, so this is about binding the identity, not about correctness: (a) drop stage 85's `elif ! python3 tools/generate-bake-plan.py` fallback so a missing native binary is a hard failure rather than a silent change of program; (b) delete miosd's `BakePlan` subcommand -- the variant, its dispatch arm and run_bake_plan -- which is the last caller of run_repo_generator("tools/generate-bake-plan.py") and is invoked by nothing in automation/, the Justfile or usr/libexec/; (c) repoint the [laws.projection_registry] row's generator to tools/native/mios-bake-plan/src/main.rs, matching the mios-size-ceiling and mios-toolchain-pin rows -- note check_projection_registry only tests that the named file EXISTS, so it cannot detect a wrong-producer row today, which is its own defect; (d) usr/libexec/mios/mios-build-driver invokes the Python with `|| true`, swallowing a failed plan regeneration; (e) git rm tools/generate-bake-plan.py. Do NOT do (a) before (b)-(d), or a tree without the native binary loses its producer entirely |
 | T-1073 | P2 | planned | Gates/CI | RATCHETBASE-01 -- the CI half of T-1046. mios-gate ratchet-direction now compares against the merge base with the default branch, which makes it real on a full clone; .github/workflows/mios-ci.yml uses actions/checkout@v4 with no fetch-depth, so CI has depth 1, no origin/main, no merge base, and the gate falls back to the HEAD self-comparison it has always done. Behaviour is therefore UNCHANGED in CI and the 19-violation baseline is preserved -- but the ratchet is still inert exactly where it matters most. Two ways to wire it, both needing a CI round-trip to verify: set fetch-depth: 0 on the drift-gate job (simple, costs a full clone of a ~200MB tracked tree), or export MIOS_RATCHET_BASE from github.event.pull_request.base.sha plus a targeted `git fetch --depth=1 origin <sha>` so the blob is readable (cheap, PR-only, needs a fallback for push events). Measure the clone cost before choosing |
 | T-1074 | P1 | planned | Docs/Pipeline | DOCREF-01 -- 120 of check_doc_refs_resolve's 124 stale references are FORWARD refs to components and chapters that were never built, not broken links; the check cannot be drained by fixing references |
-| T-1080 | P1 | in-progress | Docs | DOCS-01 -- Clear stale comment references in usr/libexec/mios (srf-libexec) |
+| T-1080 | P1 | done | Docs | DOCS-01 -- Clear stale comment references in usr/libexec/mios (srf-libexec) |
 | T-1081 | P1 | done | Docs | DOCS-02 -- Clear stale comment references in usr/lib (srf-lib) |
 | T-1082 | P1 | done | QA | DOCS-03 -- Clear stale comment references in tests/ (srf-tests) |
 | T-1083 | P1 | done | Infra | DOCS-04 -- Clear stale comment references in Rust/generators (srf-native) |
@@ -1075,7 +1075,7 @@
 | T-1098 | P2 | open | Tests | CONSOL -- Prune snapshots and fixtures with no live consumer |
 | T-1099 | P0 | open | Ratchets | CONSOL -- Ratchets follow the deletions down |
 | T-1100 | P0 | completed | Git | CONSOL -- Restart the branch from the merged main |
-| T-1101 | P1 | in-progress | Orchestration | CONSOL -- Gate and merge the four AGY stale-ref lanes |
+| T-1101 | P1 | done | Orchestration | CONSOL -- Gate and merge the four AGY stale-ref lanes |
 | T-1102 | P1 | done | Docs | CONSOL -- The comment corpus is blind to the libexec verbs |
 | T-1103 | P2 | open | Docs | CONSOL -- The three standing drift violations |
 
@@ -11758,7 +11758,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** 80 of the 152 stale comment references are in usr/libexec/mios/**. Clear at least 40 of them by correcting the path/unit/verb or removing unresolvable references.
 **Where:** `usr/libexec/mios/**`, `usr/share/mios/reference/manual-corpus.tsv`
 **Done When:** `python3 usr/libexec/mios/mios-manual --root . audit --stale --json` reports stale <= 112.
-**Status:** in-progress | **Domain:** Docs | **Who:** agent
+**Status:** done -- cleared 71 stale comment references across 69 files in usr/libexec/mios/** in commit 0f846ed1 (merged 0d97cdeb) | **Domain:** Docs | **Who:** agent
 
 ## T-1081 -- DOCS-02: Clear stale comment references in usr/lib (srf-lib)
 **Goal:** 17 of the 152 stale comment references are in usr/lib/**. Clear at least 9 of them.
@@ -11850,7 +11850,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** Gate and merge the four AGY stale-ref lanes (srf-libexec, srf-tests, srf-lib, srf-native).
 **Where:** `.devloop/lanes.stale-refs.json`
 **Done When:** Each lane gated independently, merged --no-ff, stale refs remeasured.
-**Status:** in-progress | **Domain:** Orchestration | **Who:** agent
+**Status:** done -- all four lanes independently gated with two-sided verification, merged via --no-ff (fb25ef37, dd2dc490, 1370d9d4, 0d97cdeb), repo-wide stale references reduced from 152 to 25 | **Domain:** Orchestration | **Who:** agent
 
 ## T-1102 -- CONSOL: The comment corpus is blind to the libexec verbs
 **Goal:** Address iter_source_files omission of extensionless verbs.
