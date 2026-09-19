@@ -1,50 +1,29 @@
 # AI-hint: Defines the `mios()` shell function to intercept and route canonical verbs (mini, dash, build, config, etc.) to specific `/usr/libexec/mios/` helpers while allowin...
 # AI-doc: usr/share/doc/mios/manual/profile.d.md
+# shellcheck shell=bash
 [ -n "${PS1:-}" ] || return 0
+
+_mios_dashboard() {
+    local _label="$1"; shift
+    local _c _dash=""
+    for _c in /usr/libexec/mios/mios-dashboard.sh \
+              /mnt/m/usr/libexec/mios/mios-dashboard.sh; do
+        [[ -x "$_c" ]] && { _dash="$_c"; break; }
+    done
+    [[ -n "$_dash" ]] || { echo "Mios $_label: mios-dashboard.sh not found" >&2; return 127; }
+    "$_dash" "$@"
+}
 
 mios() {
     case "${1:-help}" in
         mini)
-            shift
-            local _dash=""
-            for _c in /usr/libexec/mios/mios-dashboard.sh \
-                      /mnt/m/usr/libexec/mios/mios-dashboard.sh; do
-                [[ -x "$_c" ]] && { _dash="$_c"; break; }
-            done
-            if [[ -n "$_dash" ]]; then
-                "$_dash" --mini "$@"
-            else
-                echo "Mios mini: mios-dashboard.sh not found" >&2
-                return 127
-            fi
+            shift; _mios_dashboard mini --mini "$@"
             ;;
         dash|dashboard)
-            shift
-            local _dash=""
-            for _c in /usr/libexec/mios/mios-dashboard.sh \
-                      /mnt/m/usr/libexec/mios/mios-dashboard.sh; do
-                [[ -x "$_c" ]] && { _dash="$_c"; break; }
-            done
-            if [[ -n "$_dash" ]]; then
-                MIOS_DASH_SERVICES=1 MIOS_COMPACT=0 "$_dash" "$@"
-            else
-                echo "Mios dash: mios-dashboard.sh not found" >&2
-                return 127
-            fi
+            shift; ( export MIOS_DASH_SERVICES=1 MIOS_COMPACT=0; _mios_dashboard dash "$@" )
             ;;
         mon|monitor)
-            shift
-            local _dash=""
-            for _c in /usr/libexec/mios/mios-dashboard.sh \
-                      /mnt/m/usr/libexec/mios/mios-dashboard.sh; do
-                [[ -x "$_c" ]] && { _dash="$_c"; break; }
-            done
-            if [[ -n "$_dash" ]]; then
-                "$_dash" --monitor "$@"
-            else
-                echo "Mios monitor: mios-dashboard.sh not found" >&2
-                return 127
-            fi
+            shift; _mios_dashboard monitor --monitor "$@"
             ;;
         build)
             shift
@@ -131,10 +110,12 @@ export -f mios 2>/dev/null || true
 _mios_complete() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "mini dash build config dotfiles dev pull update help mon monitor" -- "$cur") )
+        mapfile -t COMPREPLY < <(compgen -W "mini dash build config dotfiles dev pull update help mon monitor" -- "$cur")
     fi
 }
-complete -F _mios_complete mios
+# `complete` is a bash builtin and /etc/profile.d is read by every login shell,
+# so an unguarded call is a hard error in zsh on every login.
+if [ -n "${BASH_VERSION:-}" ]; then complete -F _mios_complete mios; fi
 
 command_not_found_handle() {
     if [[ "${1:-}" == @* ]] && [[ "${1}" != "@" ]]; then
@@ -149,3 +130,7 @@ command_not_found_handle() {
     return 127
 }
 export -f command_not_found_handle 2>/dev/null || true
+
+# zsh spells the hook with a trailing "r"; without this the @verb shorthand is
+# silently dead in every zsh login shell.
+if [ -n "${ZSH_VERSION:-}" ]; then command_not_found_handler() { command_not_found_handle "$@"; }; fi

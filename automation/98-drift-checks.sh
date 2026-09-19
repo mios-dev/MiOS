@@ -1184,7 +1184,7 @@ check_firstboot_degrade_open() {
     # certified the script; all thirteen passed and the gate could not fail,
     # while forge-firstboot.sh really did abort firstboot on an unreachable
     # Forgejo API. The tool scopes the question to the egress calls themselves.
-    _run_py_check check_firstboot_degrade_open tools/check-firstboot-degrade-open.py
+    _run_py_check check_firstboot_degrade_open "tools/check-runtime.py firstboot-degrade-open"
 }
 
 check_vendor_urls() {
@@ -1324,7 +1324,7 @@ check_resolver_twin_equivalence() {
     _need_python || return 0
     local mismatches
     # MIOS_VERSION_MANIFEST (and other build-time MIOS_* vars) into this gate's env, and
-    if ! mismatches=$(env -i PATH="$PATH" MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-resolver-twin.py" 2>&1); then
+    if ! mismatches=$(env -i PATH="$PATH" MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-runtime.py" resolver-twin 2>&1); then
         printf '%s\n' "$mismatches" >&2
         _violation "resolver twin equivalence check failed -- userenv.sh and mios_toml.py have drifted"
     else
@@ -3277,7 +3277,7 @@ check_module_length() {
     echo "[98-drift-checks] shell and script module line counts remain within maintainability limits"
     # Walks the package RECURSIVELY against the [refactor] shrink-only register.
     # The former body used find -maxdepth 1 and saw 9 of 112 modules.
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-module-length.py 2>&1)" || { _violations_from "check_module_length: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py module-length 2>&1)" || { _violations_from "check_module_length: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4004,7 +4004,7 @@ check_resolver_shell_equivalence() {
     local out
     if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" \
                  MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" \
-                 "$PYTHON" tools/check-resolver-twin.py 2>&1); then
+                 "$PYTHON" tools/check-runtime.py resolver-twin 2>&1); then
         printf '%s\n' "$out" | tail -n 12 >&2
         _violation "resolver shell equivalence check failed"
     fi
@@ -4014,7 +4014,7 @@ check_resolver_shell_equivalence() {
 check_comment_lex_equivalence() {
     echo "[98-drift-checks] comment lexing preserves semantic intent across documentation generators"
     local out
-    if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-comment-lex-equivalence.py 2>&1); then
+    if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-docs.py comment-lex 2>&1); then
         printf '%s\n' "$out" | tail -n 12 >&2
         _violation "comment lexer equivalence check failed"
     fi
@@ -4493,14 +4493,14 @@ check_docs_ratchet() {
 # --- documentation ratchet ceilings never exceed their recorded floor (shrink-only) ---
 check_docs_ratchet_monotone() {
     echo "[98-drift-checks] documentation ratchet ceilings never exceed their recorded floor (shrink-only)"
-    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-doc-ratchet-monotone.py" 2>&1)" || { _violations_from "" "$out"; return; }
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-docs.py" ratchet-monotone 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   documentation ratchet ceilings did not rise"
 }
 
 # --- resolver output contains pure configuration without raw generated prose ---
 check_no_generated_prose_in_resolvers() {
     echo "[98-drift-checks] resolver output contains pure configuration without raw generated prose"
-    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-no-generated-prose-in-resolvers.py 2>&1)" || { _violations_from "" "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-docs.py no-generated-prose 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4636,7 +4636,7 @@ check_protected_refs() {
 check_task_schema() {
     echo "[98-drift-checks] AGY-TASKS task descriptions conform strictly to task schema contract"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-task-schema.py 2>&1)" || { _violations_from "check_task_schema: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tasks.py schema 2>&1)" || { _violations_from "check_task_schema: " "$out"; return; }
     echo "[98-drift-checks]   every AGY task carries Verify/Do-NOT and resolvable deps"
 }
 
@@ -4644,7 +4644,7 @@ check_task_schema() {
 check_negatives_registered() {
     echo "[98-drift-checks] every drift check has a corresponding negative test registered"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-negatives-registered.py 2>&1)" || { _violations_from "check_negatives_registered: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py negatives-registered 2>&1)" || { _violations_from "check_negatives_registered: " "$out"; return; }
     echo "[98-drift-checks]   no orphaned negative tests, and the untested-check count is within its ratchet"
 }
 
@@ -4652,7 +4652,7 @@ check_negatives_registered() {
 check_temp_fixture_cleanup() {
     echo "[98-drift-checks] test suite cleans up all temporary fixtures and directories"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-temp-fixture-cleanup.py 2>&1)" || { _violations_from "check_temp_fixture_cleanup: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py temp-fixture-cleanup 2>&1)" || { _violations_from "check_temp_fixture_cleanup: " "$out"; return; }
     echo "[98-drift-checks]   every temp-dir fixture is removed by the test that made it"
 }
 
@@ -4660,7 +4660,7 @@ check_temp_fixture_cleanup() {
 check_variant_registry() {
     echo "[98-drift-checks] every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-variant-registry.py 2>&1)" || { _violations_from "check_variant_registry: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ssot.py variant-registry 2>&1)" || { _violations_from "check_variant_registry: " "$out"; return; }
     echo "[98-drift-checks]   every variant names a real table, edition, archetype, artifact and doc"
 }
 
@@ -4668,7 +4668,7 @@ check_variant_registry() {
 check_deploy_formats() {
     echo "[98-drift-checks] deployment artifact target formats comply with bootc/BIB spec"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-deploy-formats.py 2>&1)" || { _violations_from "check_deploy_formats: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ssot.py deploy-formats 2>&1)" || { _violations_from "check_deploy_formats: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4676,7 +4676,7 @@ check_deploy_formats() {
 check_verify_images() {
     echo "[98-drift-checks] container image verification signatures and digests are valid"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-verify-images.py 2>&1)" || { _violations_from "check_verify_images: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-runtime.py verify-images 2>&1)" || { _violations_from "check_verify_images: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4684,7 +4684,7 @@ check_verify_images() {
 check_header_comment_syntax() {
     echo "[98-drift-checks] file header comments strictly conform to comment parser syntax"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-header-comment-syntax.py 2>&1)" || { _violations_from "check_header_comment_syntax: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-docs.py header-syntax 2>&1)" || { _violations_from "check_header_comment_syntax: " "$out"; return; }
     echo "[98-drift-checks]   every AI header uses the comment character its format understands"
 }
 
@@ -4692,7 +4692,7 @@ check_header_comment_syntax() {
 check_rust_test_coverage() {
     echo "[98-drift-checks] Rust crate test coverage meets or exceeds minimum threshold"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-rust-test-coverage.py 2>&1)" || { _violations_from "check_rust_test_coverage: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py rust-test-coverage 2>&1)" || { _violations_from "check_rust_test_coverage: " "$out"; return; }
     echo "[98-drift-checks]   every Rust crate has a test or is a registered exception"
 }
 
@@ -4716,7 +4716,7 @@ check_ci_suite_coverage() {
 check_tracked_readable() {
     echo "[98-drift-checks] every tracked file is present and readable, so no corpus-scanning gate drops one in silence"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tracked-readable.py 2>&1)" || { _violations_from "check_tracked_readable: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py tracked-readable 2>&1)" || { _violations_from "check_tracked_readable: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4724,28 +4724,28 @@ check_tracked_readable() {
 check_leaked_fixtures() {
     echo "[98-drift-checks] no transient test fixtures or dump files are committed in git"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-leaked-fixtures.py 2>&1)" || { _violations_from "check_leaked_fixtures: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py leaked-fixtures 2>&1)" || { _violations_from "check_leaked_fixtures: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 # --- log sanitizer redacts all sensitive fields listed in security schema ---
 check_redact_coverage() {
     echo "[98-drift-checks] log sanitizer redacts all sensitive fields listed in security schema"
-    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-redact-coverage.py 2>&1)" || { _violations_from "check_redact_coverage: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-docs.py redact-coverage 2>&1)" || { _violations_from "check_redact_coverage: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 # --- daemon governor runtime limits and cgroup constraints are valid ---
 check_daemon_governor() {
     echo "[98-drift-checks] daemon governor runtime limits and cgroup constraints are valid"
-    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-daemon-governor.py 2>&1)" || { _violations_from "check_daemon_governor: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-runtime.py daemon-governor 2>&1)" || { _violations_from "check_daemon_governor: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 # --- all cross-references and internal links in manual docs resolve ---
 check_manual_links() {
     echo "[98-drift-checks] all cross-references and internal links in manual docs resolve"
-    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)" || { _violations_from "check_manual_links: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-docs.py manual-links 2>&1)" || { _violations_from "check_manual_links: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4759,7 +4759,7 @@ check_adr_index() {
 # --- every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason ---
 check_schema_consumers() {
     echo "[98-drift-checks] every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-schema-consumers.py 2>&1)" || { _violations_from "check_schema_consumers: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py schema-consumers 2>&1)" || { _violations_from "check_schema_consumers: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4770,23 +4770,23 @@ _run_py_check() {
     echo "[98-drift-checks]   $out"
 }
 
-check_tasks_status_parity() { _run_py_check check_tasks_status_parity tools/check-tasks-status-parity.py; }
-check_agy_tasks() { _run_py_check check_agy_tasks tools/check-agy-tasks.py; }
-check_mios_toml_integrity() { _run_py_check check_mios_toml_integrity tools/check-mios-toml-integrity.py; }
-check_privileged_quadlets_minimal() { _run_py_check check_privileged_quadlets_minimal tools/check-privileged-quadlets.py; }
-check_container_names() { _run_py_check check_container_names tools/check-container-names.py; }
-check_service_urls() { _run_py_check check_service_urls tools/check-service-urls.py ""; }
-check_ports_bound() { _run_py_check check_ports_bound tools/check-ports-bound.py ""; }
-check_blade_coverage() { _run_py_check check_blade_coverage tools/check-blade-coverage.py ""; }
-check_fleet_safety() { _run_py_check check_fleet_safety tools/check-fleet-safety.py ""; }
-check_ssot_consumer_keys() { _run_py_check check_ssot_consumer_keys tools/check-ssot-consumer-keys.py ""; }
-check_unit_projection() { _run_py_check check_unit_projection tools/check-unit-projection.py ""; }
+check_tasks_status_parity() { _run_py_check check_tasks_status_parity "tools/check-tasks.py status-parity"; }
+check_agy_tasks() { _run_py_check check_agy_tasks "tools/check-tasks.py agy"; }
+check_mios_toml_integrity() { _run_py_check check_mios_toml_integrity "tools/check-ssot.py toml-integrity"; }
+check_privileged_quadlets_minimal() { _run_py_check check_privileged_quadlets_minimal "tools/check-runtime.py privileged-quadlets"; }
+check_container_names() { _run_py_check check_container_names "tools/check-runtime.py container-names"; }
+check_service_urls() { _run_py_check check_service_urls "tools/check-runtime.py service-urls" ""; }
+check_ports_bound() { _run_py_check check_ports_bound "tools/check-ssot.py ports-bound" ""; }
+check_blade_coverage() { _run_py_check check_blade_coverage "tools/check-ssot.py blade-coverage" ""; }
+check_fleet_safety() { _run_py_check check_fleet_safety "tools/check-ssot.py fleet-safety" ""; }
+check_ssot_consumer_keys() { _run_py_check check_ssot_consumer_keys "tools/check-ssot.py consumer-keys" ""; }
+check_unit_projection() { _run_py_check check_unit_projection "tools/check-ssot.py unit-projection" ""; }
 check_metal_vs_hosted() { _run_py_check check_metal_vs_hosted "tools/generate-metal-vs-hosted.py --check" ""; }
-check_node_pool() { _run_py_check check_node_pool tools/check-node-pool.py ""; }
-check_port_fallbacks() { _run_py_check check_port_fallbacks tools/check-port-fallbacks.py ""; }
-check_role_ssot() { _run_py_check check_role_ssot tools/check-role-ssot.py ""; }
+check_node_pool() { _run_py_check check_node_pool "tools/check-ssot.py node-pool" ""; }
+check_port_fallbacks() { _run_py_check check_port_fallbacks "tools/check-ssot.py port-fallbacks" ""; }
+check_role_ssot() { _run_py_check check_role_ssot "tools/check-ssot.py role-ssot" ""; }
 check_blade_karg() { _run_py_check check_blade_karg "tools/generate-blade-karg.py --check"; }
-check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners tools/check-firstboot-provisioners.py; }
+check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners "tools/check-runtime.py firstboot-provisioners"; }
 check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-desktop.py --check"; }
 
 # --- every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register ---

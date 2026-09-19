@@ -1,5 +1,5 @@
 // AI-hint: Proptest differential test for mios-resolver -- asserts emit_json survives arbitrary valid [ports] tables and stack_id offsets.
-// AI-related: tools/native/mios-resolver/src/emit_json.rs, tools/check-resolver-twin.py
+// AI-related: tools/native/mios-resolver/src/emit_json.rs, tools/check-runtime.py
 use mios_resolver::emit_json::emit_json;
 use proptest::prelude::*;
 

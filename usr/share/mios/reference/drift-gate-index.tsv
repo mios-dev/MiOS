@@ -170,25 +170,25 @@
 169	check_verb_stub_backends	verb stub backends gate verified clean
 170	check_account_column_parity	account column parity gate verified clean
 171	check_module_length	shell and script module line counts remain within maintainability limits
-172	check_firstboot_provisioners	Drift gate for the first-boot provisioner triples (FBM T-200/T-202)
+172	check_firstboot_provisioners	firstboot provisioners
 173	check_schema_consumers	every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason
-174	check_tasks_status_parity	Drift gate for a lying roadmap
-175	check_agy_tasks	Drift gate for AGY task unique IDs and dependency resolution (AGY-1687)
-176	check_mios_toml_integrity	Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682)
-177	check_privileged_quadlets_minimal	Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651)
-178	check_container_names	Drift gate for unmappable container names
-179	check_service_urls	Drift gate for service addressing
-180	check_ports_bound	Drift gate for allocated-but-unbound ports
-181	check_blade_coverage	Drift gate for the blade ACTIVATION axis
+174	check_tasks_status_parity	tasks status parity
+175	check_agy_tasks	agy tasks
+176	check_mios_toml_integrity	mios toml integrity
+177	check_privileged_quadlets_minimal	privileged quadlets minimal
+178	check_container_names	container names
+179	check_service_urls	service urls
+180	check_ports_bound	ports bound
+181	check_blade_coverage	blade coverage
 182	check_blade_karg	blade karg
 183	check_blade_reconcile_schema	blade reconciliation schema conforms to hardware capability specs
-184	check_role_ssot	Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is
-185	check_port_fallbacks	Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>
-186	check_node_pool	Drift gate for the fan-out pool
+184	check_role_ssot	role ssot
+185	check_port_fallbacks	port fallbacks
+186	check_node_pool	node pool
 187	check_metal_vs_hosted	GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml
-188	check_unit_projection	Drift gate for the [units] projection debt register
-189	check_ssot_consumer_keys	Drift gate for the SSOT<->consumer contract
-190	check_fleet_safety	Drift gate for hazards that are SAFE on one node and dangerous above it
+188	check_unit_projection	unit projection
+189	check_ssot_consumer_keys	ssot consumer keys
+190	check_fleet_safety	fleet safety
 191	check_adr_index	ADR architecture decision record index matches committed ADR files
 192	check_vendored_assets_non_stub	vendored assets are non-stub
 193	check_resolved_env_lossless	resolved environment is lossless

@@ -3985,7 +3985,7 @@ def check_templates_bootstrap_sync() -> int:
     return 0
 
 def check_secret_handling() -> int:
-    import os, sys, re, glob
+    import os, sys, re
 
     root = os.environ.get("MIOS_DRIFT_ROOT", ".")
     key_regex = re.compile(r'-----BEGIN (?:RSA|OPENSSH|EC|PGP|PRIVATE)[A-Z ]*KEY[A-Z ]*-----\r?\n(?:[^\n]*\r?\n){0,6}?[A-Za-z0-9+/=]{40,}')  # T-1022: a PEM header is not a key
@@ -4001,18 +4001,25 @@ def check_secret_handling() -> int:
     violations = []
 
     for dirpath, dirnames, filenames in os.walk(root):
+        # `.git` below root marks a nested checkout: another repo's source.
+        if dirpath != root and (".git" in dirnames or ".git" in filenames):
+            dirnames[:] = []
+            continue
         dirnames[:] = [d for d in dirnames if d not in (".git", "__pycache__", ".cargo", "target", "node_modules", ".venv", ".agents", ".tmp.driveupload", "root")]
         for f in filenames:
             if f.endswith((".png", ".jpg", ".tar", ".zip", ".exe", ".pyc", ".iso", ".qcow2", ".vhdx")):
                 continue
             path = os.path.join(dirpath, f)
             rel = os.path.relpath(path, root).replace("\\", "/")
-            if rel in EXEMPT_PATHS or rel.startswith("tests/") or rel.startswith("scratch/") or rel.startswith(".agents/"):
-                continue
             try:
                 with open(path, "r", encoding="utf-8", errors="ignore") as fh:
                     content = fh.read()
             except Exception:
+                continue
+            # The exemptions below cover secret SHAPES, not this: tests/ included.
+            if rel.endswith(".ps1") and "mios-secrets.env" in content:
+                violations.append(f"{rel}: writes/reads secrets in plaintext %TEMP%\\mios-secrets.env")
+            if rel in EXEMPT_PATHS or rel.startswith("tests/") or rel.startswith("scratch/") or rel.startswith(".agents/"):
                 continue
 
             if key_regex.search(content):
@@ -4021,18 +4028,6 @@ def check_secret_handling() -> int:
                 violations.append(f"{rel}: contains hardcoded database password connection string")
             if token_regex.search(content):
                 violations.append(f"{rel}: contains hardcoded API secret token")
-
-    ps_files = glob.glob(os.path.join(root, "**/*.ps1"), recursive=True)
-    for ps in ps_files:
-        rel = os.path.relpath(ps, root).replace("\\", "/")
-        if "/.git" in rel:
-            continue
-        try:
-            with open(ps, "r", encoding="utf-8", errors="ignore") as fh:
-                if "mios-secrets.env" in fh.read():
-                    violations.append(f"{rel}: writes/reads secrets in plaintext %TEMP%\\mios-secrets.env")
-        except Exception:
-            continue
 
     if violations:
         for v in violations:
