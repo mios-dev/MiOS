@@ -900,3 +900,11 @@ so long. Let a run finish.
 - blockers: The gate run resulted in a **MERGE CONFLICT** when attempting to merge `.devloop/findings/T-1001.md`. The worktree `.worktrees/t1001-gate05` and branch are preserved for manual review.
 - next: Operator needs to resolve the merge conflict manually.
 - unverified: -
+
+## 2026-09-19 03:44 · T-1001 re-measurement · status: partial
+
+- objective: MiOS T-1001 re-measurement, third attempt, watched. Single lane.
+- done: Dispatched `t1001-gate05` lane natively. Worker properly measured the claims (refuting claim 1 because the predicate strictly demands code reads like `_toml_section`, and confirming claim 2 because the check only iterates top-level keys). Both positive and negative gates PASSED.
+- blockers: MERGE CONFLICT during `--no-ff` merge of `lane/t1001-gate05` (conflicts in `.devloop/LEDGER.md`, `.devloop/findings/T-1000.md`, and `.devloop/findings/T-1001.md`). Merge aborted and worktree `.worktrees/t1001-gate05` kept for operator review.
+- next: Operator intervention required to resolve the merge conflicts. Task T-1001 cannot be closed yet.
+- unverified: -
