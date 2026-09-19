@@ -141,12 +141,11 @@ class TestMissingDeliverable(unittest.TestCase):
             for node in ast.walk(fn):
                 if not isinstance(node, ast.If):
                     continue
-                t = node.test
-                if not (isinstance(t, ast.UnaryOp) and isinstance(t.op, ast.Not)):
-                    continue
-                c = t.operand
-                if not (isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
-                        and c.func.attr in ("isfile", "isdir", "exists")):
+                # Any presence test, not just `not isfile(x)`: the multi-subject
+                # forms `not A or not B` and `not (A and B)` hid three of these.
+                if not any(isinstance(n, ast.Attribute)
+                           and n.attr in ("isfile", "isdir", "exists")
+                           for n in ast.walk(node.test)):
                     continue
                 if len(node.body) != 1:
                     continue

@@ -15,12 +15,9 @@ import re
 os.environ.setdefault("MIOS_DRIFT_ROOT", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 def _absent(root: str, path: str):
-    """None when path is there; otherwise the status the caller must return.
-
-    Absent though TRACKED is a dropped deliverable and fails; a checkout that
-    never had it still skips, which is the state the guard was written for.
-    """
-    if os.path.isfile(path):
+    """None when path (file or directory) is there; else the status to return.
+    Absent though TRACKED fails; a root that never had it still skips."""
+    if os.path.exists(path):
         return None
     import subprocess
     rel = os.path.relpath(path, root).replace(os.sep, "/")
@@ -43,6 +40,14 @@ def _absent(root: str, path: str):
     sys.stderr.write("    %s is tracked but missing from the worktree -- the "
                      "subject of this check is gone, which is not a pass\n" % rel)
     return 1
+
+def _scan(root: str, *paths: str):
+    """Subjects that are there; a tracked one that is gone exits 1, not 0."""
+    seen = [(p, _absent(root, p)) for p in paths]
+    for p, rc in seen:
+        if rc:
+            raise SystemExit(rc)
+    return [p for p, rc in seen if rc is None]
 
 def _tracked(root: str, *pathspec: str):
     """(paths, None) when git listed a corpus; (None, status) when it did not.
@@ -1353,9 +1358,9 @@ def check_structured() -> int:
     import tomllib as _toml
 
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    if _toml is None:
-        sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping [nodes.*] check\n")
-    elif os.path.isfile(toml_path):
+    if not _scan(root, toml_path):
+        return 0
+    if os.path.isfile(toml_path):
         with open(toml_path, "rb") as fh:
             data = _toml.load(fh)
         nodes = data.get("nodes", {}) or {}
@@ -1363,7 +1368,7 @@ def check_structured() -> int:
         for ud in ("usr/share/containers/systemd", "usr/lib/systemd/system",
                    "etc/containers/systemd"):
             base = os.path.join(root, ud)
-            if not os.path.isdir(base):
+            if not _scan(root, base):
                 continue
             for dirpath, _dn, files in os.walk(base):
                 for fn in files:
@@ -1554,7 +1559,7 @@ def check_bake_plan_integrity() -> int:
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     plan_dir = os.path.join(root, "usr/lib/mios/bake/plan.d")
 
-    if not os.path.isfile(toml_path) or not os.path.isdir(plan_dir):
+    if len(_scan(root, toml_path, plan_dir)) < 2:
         sys.exit(0)
 
     with open(toml_path, "rb") as f:
@@ -1982,7 +1987,7 @@ def check_firstboot_tier() -> int:
     qdir = os.path.join(root, "usr/share/containers/systemd")
     bdir = os.path.join(root, "usr/lib/bootc/bound-images.d")
 
-    if not os.path.isfile(toml_path) or not os.path.isfile(fb_list):
+    if len(_scan(root, toml_path, fb_list)) < 2:
         sys.exit(0)
 
     with open(toml_path, "rb") as f:
@@ -2664,9 +2669,7 @@ def check_dag_integrity() -> int:
         os.path.join(root, "usr/share/containers/systemd"),
     ]
 
-    for d in scan_dirs:
-        if not os.path.isdir(d):
-            continue
+    for d in _scan(root, *scan_dirs):
         for f in os.listdir(d):
             fpath = os.path.join(d, f)
             if not os.path.isfile(fpath) or not f.endswith((".service", ".container", ".pod")):
@@ -3172,9 +3175,7 @@ def check_test_hermeticity() -> int:
 
     # os.listdir reached only the top level, so a suite in a tests/ subdirectory
     # was never read -- agent-pipe keeps two of its own down there.
-    for d in search_dirs:
-        if not os.path.isdir(d):
-            continue
+    for d in _scan(root, *search_dirs):
         for dirpath, dirnames, filenames in os.walk(d):
             dirnames[:] = [x for x in dirnames
                            if not x.startswith(".") and x not in ("__pycache__", "node_modules")]
@@ -3535,7 +3536,7 @@ def check_win11_vm_template_xml() -> int:
     xml_path = os.path.join(root, "tools/win11-secureboot-template.xml")
     ssot_path = os.path.join(root, "usr/share/mios/mios.toml")
 
-    if not (os.path.isfile(xml_path) and os.path.isfile(ssot_path)):
+    if len(_scan(root, xml_path, ssot_path)) < 2:
         return 0
 
     bad = []
@@ -4356,8 +4357,7 @@ def check_unit_dependency_closure() -> int:
 
     viol = []
     dirs_to_check = [systemd_dir, quadlet_dir]
-    for d in dirs_to_check:
-        if not os.path.isdir(d): continue
+    for d in _scan(root, *dirs_to_check):
         for root_dir, _, files in os.walk(d):
             for f in files:
                 fp = os.path.join(root_dir, f)
