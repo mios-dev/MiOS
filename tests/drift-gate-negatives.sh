@@ -4731,7 +4731,7 @@ test_canonical_bools() {
     # design, and planting there produced a green gate and very nearly a false report that the
     # check was hollow -- a broken control inverts a result rather than weakening it.
     local line
-    line="$(grep -n '^\[verbs\.' "$toml" | grep -v '_defaults' | head -1 | cut -d: -f1)"
+    line="$(awk '/^\[verbs\./ && !/_defaults/ { print NR; exit }' "$toml")"
     [[ -n "$line" ]] || { _cb_restore; die "check_canonical_bools: no non-default [verbs.*] table to plant in"; }
 
     sed -i "$((line + 1))i hidden = \"false\"" "$toml"

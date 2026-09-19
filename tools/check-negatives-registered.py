@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Fails on an orphaned negative test, and ratchets the drift checks that have no negative test at all.
+# AI-hint: Fails on an orphaned negative test; ratchets checks with none. Coverage is ARG_POS (argument position), never substring presence.
 # AI-related: tests/drift-gate-negatives.sh, automation/98-drift-checks.sh
 import os
 import re
@@ -51,13 +51,7 @@ def main() -> int:
         print("only %d dispatched checks parsed from main() -- the subject list is wrong"
               % len(dispatched))
         return 1
-    # Coverage is ARGUMENT POSITION, not substring presence. `c not in s_harness`
-    # credited a name appearing anywhere: as a prefix of a longer check's name,
-    # or as a fixture string inside another check's test. Five checks counted as
-    # falsifiable had never been driven red.
-    arg_pos = re.compile(r'(?:_neg_gate|\.sh"|"\$[A-Za-z_]\w*")\s+"?(check_[a-z0-9_]+)\b')
-    exercised = set(arg_pos.findall(s_harness))
-    uncovered = sorted({c for c in dispatched if c not in exercised})
+    uncovered = sorted(set(dispatched) - set(re.findall(r'(?:_neg_gate|\.sh"|"\$[A-Za-z_]\w*")\s+"?(check_[a-z0-9_]+)\b', s_harness)))
     if len(uncovered) > int(ceiling):
         print("drift checks with no negative test: %d > ceiling %d "
               "(write one, then lower [tests].max_checks_without_negative)"
