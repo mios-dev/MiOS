@@ -2167,7 +2167,25 @@ enable   = true
 
 
 [gpu]
+# The CDI device the GPU-bearing Quadlets float at bake as
+# ${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}. It names ONE vendor because a Quadlet
+# carries one baked default; the runtime reconciler below covers the rest.
 device = "nvidia.com/gpu=all"
+
+# Per-vendor CDI wiring, read at runtime via `mios-toml-get --section gpu.cdi`.
+# `specs` are the spec filenames whose presence in MIOS_CDI_DIR proves a vendor
+# live; `device` is the AddDevice= value written into the Quadlet drop-in.
+[gpu.cdi.nvidia]
+device = "nvidia.com/gpu=all"
+specs  = ["nvidia.yaml", "nvidia-wsl.yaml", "wsl2-nvidia.yaml"]
+
+[gpu.cdi.amd]
+device = "amd.com/gpu=all"
+specs  = ["amd.json", "amd.yaml", "wsl2-amd.yaml"]
+
+[gpu.cdi.intel]
+device = "intel.com/gpu=all"
+specs  = ["intel.yaml", "intel.json", "wsl2-intel.yaml"]
 
 [sandbox]
 enable = false
@@ -7552,6 +7570,9 @@ headscale_domain = "mesh.mios.local"
 vnet_cidr = "100.64.0.0/10"
 swtpm_vtpm = true
 
+# Per-vendor enable gate for the [gpu.cdi.<vendor>] wiring above. false here
+# keeps a vendor's CDI spec on disk but stops mios-gpu-passthrough from wiring
+# it into any Quadlet drop-in. A vendor with no flag defaults to enabled.
 [gpu.vendors]
 nvidia = true
 amd    = true

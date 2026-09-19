@@ -1311,6 +1311,12 @@ $script:MIOS_GITCONFIG_PULL_REBASE = if ($env:MIOS_GITCONFIG_PULL_REBASE) { $env
 $script:MIOS_GOSSIP_FANOUT = if ($env:MIOS_GOSSIP_FANOUT) { $env:MIOS_GOSSIP_FANOUT } else { 3 }
 $script:MIOS_GOSSIP_INTERVAL_MIN = if ($env:MIOS_GOSSIP_INTERVAL_MIN) { $env:MIOS_GOSSIP_INTERVAL_MIN } else { 0 }
 $script:MIOS_GOSSIP_MIN_TRUST = if ($env:MIOS_GOSSIP_MIN_TRUST) { $env:MIOS_GOSSIP_MIN_TRUST } else { '0.0' }
+$script:MIOS_GPU_CDI_AMD_DEVICE = if ($env:MIOS_GPU_CDI_AMD_DEVICE) { $env:MIOS_GPU_CDI_AMD_DEVICE } else { 'amd.com/gpu=all' }
+$script:MIOS_GPU_CDI_AMD_SPECS = if ($env:MIOS_GPU_CDI_AMD_SPECS) { $env:MIOS_GPU_CDI_AMD_SPECS } else { 'amd.json,amd.yaml,wsl2-amd.yaml' }
+$script:MIOS_GPU_CDI_INTEL_DEVICE = if ($env:MIOS_GPU_CDI_INTEL_DEVICE) { $env:MIOS_GPU_CDI_INTEL_DEVICE } else { 'intel.com/gpu=all' }
+$script:MIOS_GPU_CDI_INTEL_SPECS = if ($env:MIOS_GPU_CDI_INTEL_SPECS) { $env:MIOS_GPU_CDI_INTEL_SPECS } else { 'intel.yaml,intel.json,wsl2-intel.yaml' }
+$script:MIOS_GPU_CDI_NVIDIA_DEVICE = if ($env:MIOS_GPU_CDI_NVIDIA_DEVICE) { $env:MIOS_GPU_CDI_NVIDIA_DEVICE } else { 'nvidia.com/gpu=all' }
+$script:MIOS_GPU_CDI_NVIDIA_SPECS = if ($env:MIOS_GPU_CDI_NVIDIA_SPECS) { $env:MIOS_GPU_CDI_NVIDIA_SPECS } else { 'nvidia.yaml,nvidia-wsl.yaml,wsl2-nvidia.yaml' }
 $script:MIOS_GPU_DEVICE = if ($env:MIOS_GPU_DEVICE) { $env:MIOS_GPU_DEVICE } else { 'nvidia.com/gpu=all' }
 $script:MIOS_GPU_VENDORS_AMD = if ($env:MIOS_GPU_VENDORS_AMD) { $env:MIOS_GPU_VENDORS_AMD } else { 'true' }
 $script:MIOS_GPU_VENDORS_INTEL = if ($env:MIOS_GPU_VENDORS_INTEL) { $env:MIOS_GPU_VENDORS_INTEL } else { 'true' }
