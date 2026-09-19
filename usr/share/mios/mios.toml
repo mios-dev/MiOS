@@ -2166,15 +2166,10 @@ model    = "granite4.1:8b"
 enable   = true
 
 
-[gpu]
-# The CDI device the GPU-bearing Quadlets float at bake as
-# ${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}. It names ONE vendor because a Quadlet
-# carries one baked default; the runtime reconciler below covers the rest.
-device = "nvidia.com/gpu=all"
-
 # Per-vendor CDI wiring, read at runtime via `mios-toml-get --section gpu.cdi`.
+# `device` is the AddDevice= value (the GPU Quadlets bake nvidia's directly);
 # `specs` are the spec filenames whose presence in MIOS_CDI_DIR proves a vendor
-# live; `device` is the AddDevice= value written into the Quadlet drop-in.
+# live.
 [gpu.cdi.nvidia]
 device = "nvidia.com/gpu=all"
 specs  = ["nvidia.yaml", "nvidia-wsl.yaml", "wsl2-nvidia.yaml"]
@@ -9023,7 +9018,7 @@ Description = "'MiOS' K3s Service (Podman-native)"
 Wants = "network-online.target"
 
 [containers.mios-llm-heavy.Container]
-AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+AddDevice = "${MIOS_GPU_CDI_NVIDIA_DEVICE:-nvidia.com/gpu=all}"
 ContainerName = "mios-llm-heavy"
 Environment = [
   "HF_HUB_OFFLINE=1",
@@ -9071,7 +9066,7 @@ Description = "'MiOS' vLLM heavy lane (OpenAI /v1, PagedAttention + APC; gated)"
 Wants = "network-online.target"
 
 [containers.mios-llm-heavy-alt.Container]
-AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+AddDevice = "${MIOS_GPU_CDI_NVIDIA_DEVICE:-nvidia.com/gpu=all}"
 ContainerName = "mios-llm-heavy-alt"
 Environment = [
   "HF_HUB_OFFLINE=1",
@@ -9112,7 +9107,7 @@ Description = "'MiOS' SGLang heavy lane (OpenAI /v1, HiCache CPU KV-offload; nat
 Wants = "network-online.target"
 
 [containers.mios-llm-light.Container]
-AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+AddDevice = "${MIOS_GPU_CDI_NVIDIA_DEVICE:-nvidia.com/gpu=all}"
 ContainerName = "mios-llm-light"
 Entrypoint = "/app/llama-swap"
 Environment = [
@@ -9157,7 +9152,7 @@ Description = "'MiOS' LLM-Light (llama.cpp multi-model + KV-paging lane, served 
 Wants = "network-online.target"
 
 [containers."mios-llm-worker@".Container]
-AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+AddDevice = "${MIOS_GPU_CDI_NVIDIA_DEVICE:-nvidia.com/gpu=all}"
 ContainerName = "mios-llm-worker-%i"
 Entrypoint = "/app/llama-server"
 Environment = [

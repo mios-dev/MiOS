@@ -1317,7 +1317,6 @@ $script:MIOS_GPU_CDI_INTEL_DEVICE = if ($env:MIOS_GPU_CDI_INTEL_DEVICE) { $env:M
 $script:MIOS_GPU_CDI_INTEL_SPECS = if ($env:MIOS_GPU_CDI_INTEL_SPECS) { $env:MIOS_GPU_CDI_INTEL_SPECS } else { 'intel.yaml,intel.json,wsl2-intel.yaml' }
 $script:MIOS_GPU_CDI_NVIDIA_DEVICE = if ($env:MIOS_GPU_CDI_NVIDIA_DEVICE) { $env:MIOS_GPU_CDI_NVIDIA_DEVICE } else { 'nvidia.com/gpu=all' }
 $script:MIOS_GPU_CDI_NVIDIA_SPECS = if ($env:MIOS_GPU_CDI_NVIDIA_SPECS) { $env:MIOS_GPU_CDI_NVIDIA_SPECS } else { 'nvidia.yaml,nvidia-wsl.yaml,wsl2-nvidia.yaml' }
-$script:MIOS_GPU_DEVICE = if ($env:MIOS_GPU_DEVICE) { $env:MIOS_GPU_DEVICE } else { 'nvidia.com/gpu=all' }
 $script:MIOS_GPU_VENDORS_AMD = if ($env:MIOS_GPU_VENDORS_AMD) { $env:MIOS_GPU_VENDORS_AMD } else { 'true' }
 $script:MIOS_GPU_VENDORS_INTEL = if ($env:MIOS_GPU_VENDORS_INTEL) { $env:MIOS_GPU_VENDORS_INTEL } else { 'true' }
 $script:MIOS_GPU_VENDORS_NVIDIA = if ($env:MIOS_GPU_VENDORS_NVIDIA) { $env:MIOS_GPU_VENDORS_NVIDIA } else { 'true' }

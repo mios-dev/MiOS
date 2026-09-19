@@ -1292,7 +1292,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_GPU_CDI_INTEL_SPECS:=intel.yaml,intel.json,wsl2-intel.yaml}"
 : "${MIOS_GPU_CDI_NVIDIA_DEVICE:=nvidia.com/gpu=all}"
 : "${MIOS_GPU_CDI_NVIDIA_SPECS:=nvidia.yaml,nvidia-wsl.yaml,wsl2-nvidia.yaml}"
-: "${MIOS_GPU_DEVICE:=nvidia.com/gpu=all}"
 : "${MIOS_GPU_VENDORS_AMD:=true}"
 : "${MIOS_GPU_VENDORS_INTEL:=true}"
 : "${MIOS_GPU_VENDORS_NVIDIA:=true}"
