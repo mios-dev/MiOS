@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Structured Parquet log archival daemon and episodic vector indexer for MiOS.
 # Compacts journald JSON logs into columnar Parquet files and indexes error clusters into pgvector.
-# AI-doc: usr/share/doc/mios/manual/ch35-system-monitoring-and-telemetry.md
 import argparse
 import gzip
 import json

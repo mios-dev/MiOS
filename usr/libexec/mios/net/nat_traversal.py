@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Tiered NAT traversal engine for MiOS P2P mesh (UPnP, NAT-PMP, STUN hole punching, DERP relay).
-# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
 import argparse
 import json
 import os
