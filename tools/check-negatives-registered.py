@@ -51,7 +51,7 @@ def main() -> int:
         print("only %d dispatched checks parsed from main() -- the subject list is wrong"
               % len(dispatched))
         return 1
-    uncovered = sorted(set(dispatched) - set(re.findall(r'(?:_neg_gate|\.sh"|"\$[A-Za-z_]\w*")\s+"?(check_[a-z0-9_]+)\b', s_harness)))
+    uncovered = sorted(set(dispatched) - set(re.findall(r'(?:_neg_gate|\.sh"|"\$[A-Za-z_]\w*")[\s\\]+"?(check_[a-z0-9_]+)\b', s_harness)))
     if len(uncovered) > int(ceiling):
         print("drift checks with no negative test: %d > ceiling %d "
               "(write one, then lower [tests].max_checks_without_negative)"

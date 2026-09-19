@@ -3670,13 +3670,10 @@ def check_db_seed_coverage() -> int:
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     seed_script = os.path.join(root, "usr/libexec/mios/seed-db-config.py")
 
-    if not os.path.isfile(toml_path):
-        sys.stderr.write(f"    Missing SSOT file: {toml_path}\n")
-        return 1
-
-    if not os.path.isfile(seed_script):
-        sys.stderr.write(f"    Missing db seeder script: {seed_script}\n")
-        return 1
+    for label, path in (("SSOT file", toml_path), ("db seeder script", seed_script)):
+        if not os.path.isfile(path):
+            sys.stderr.write(f"    Missing {label}: {path}\n")
+            return 1
 
     try:
         with open(toml_path, "rb") as f:
@@ -3685,17 +3682,13 @@ def check_db_seed_coverage() -> int:
         sys.stderr.write(f"    Failed to parse mios.toml: {e}\n")
         return 1
 
+    # One failure path, not four: an unloadable spec, a module that raises on
+    # import and a missing entry point are one outcome to the caller.
     spec = importlib.util.spec_from_file_location("seed_db_config", seed_script)
-    if not spec or not spec.loader:
-        sys.stderr.write(f"    Failed to load module spec from {seed_script}\n")
-        return 1
-    seed_mod = importlib.util.module_from_spec(spec)
+    seed_mod = importlib.util.module_from_spec(spec) if spec and spec.loader else None
     try:
         spec.loader.exec_module(seed_mod)
-        get_seeded_sections = getattr(seed_mod, "get_seeded_sections", None)
-        if not get_seeded_sections:
-            sys.stderr.write(f"    get_seeded_sections function absent in {seed_script}\n")
-            return 1
+        get_seeded_sections = seed_mod.get_seeded_sections
     except Exception as e:
         sys.stderr.write(f"    Failed to import get_seeded_sections from {seed_script}: {e}\n")
         return 1
@@ -3703,11 +3696,18 @@ def check_db_seed_coverage() -> int:
     seeded_set = set(get_seeded_sections(data))
     handled_separately = {"verbs", "packages"}
 
-    uncovered = []
-    for sec_name in data.keys():
-        if sec_name not in seeded_set and sec_name not in handled_separately:
-            uncovered.append(f"Section '{sec_name}' is not handled by seed-db-config.py")
-
+    # The allowlist is checked BOTH ways: a name only in the SSOT never reaches
+    # the database; a name only in the allowlist is a rotted entry from a dropped
+    # table. An absent or empty allowlist is reported, or a rename goes vacuous.
+    known = getattr(seed_mod, "_CANONICAL_SECTIONS", None)
+    if not isinstance(known, (set, frozenset)) or not known:
+        sys.stderr.write(f"    _CANONICAL_SECTIONS absent or empty in {seed_script};"
+                         f" the allowlist half of this check would prove nothing\n")
+        return 1
+    uncovered = [f"Section '{s}' is not handled by seed-db-config.py"
+                 for s in data if s not in seeded_set and s not in handled_separately]
+    uncovered += [f"Section '{s}' is listed in seed-db-config.py but mios.toml no"
+                  f" longer has it" for s in sorted(known) if s not in data]
     if uncovered:
         for u in uncovered:
             sys.stderr.write(f"    {u}\n")

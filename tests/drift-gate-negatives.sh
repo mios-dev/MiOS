@@ -2171,23 +2171,51 @@ test_db_seed_coverage() {
     local seed_script="${ROOT}/usr/libexec/mios/seed-db-config.py"
     local orig_val
     local orig_seed
+    local probe
+    local anchor
+    # Assembled, never a literal: a static scan of this file must not match it.
+    probe="unseeded_$(printf 'bogus')_probe_section"
+    anchor="'$(printf 'database')',"
     orig_val="$(cat "$toml_file"; printf X)"
     orig_seed="$(cat "$seed_script"; printf X)"
 
-    echo "" >> "$toml_file"
-    echo "[unseeded_bogus_test_section]" >> "$toml_file"
-    echo "Key = \"value\"" >> "$toml_file"
-
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_db_seed_coverage >/dev/null 2>&1; then
+    _dbseed_restore() {
         printf '%s' "${orig_val%X}" > "$toml_file"
         printf '%s' "${orig_seed%X}" > "$seed_script"
-        die "Check_db_seed_coverage passed despite unseeded section in mios.toml"
+    }
+    _dbseed_gate() {
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" \
+            MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" \
+            check_db_seed_coverage >/dev/null 2>&1
+    }
+
+    # Baseline first: a plant proves nothing against an already-red check.
+    if ! _dbseed_gate; then
+        _dbseed_restore
+        die "test_db_seed_coverage: check_db_seed_coverage is red on the CLEAN tree; no plant below can prove anything"
     fi
 
+    # Direction 1: a section in the SSOT that the seeder never reaches.
+    printf '\n[%s]\nKey = "value"\n' "$probe" >> "$toml_file"
+    if _dbseed_gate; then
+        _dbseed_restore
+        die "Check_db_seed_coverage passed despite unseeded section in mios.toml"
+    fi
     printf '%s' "${orig_val%X}" > "$toml_file"
-    printf '%s' "${orig_seed%X}" > "$seed_script"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_db_seed_coverage >/dev/null 2>&1 \
-        || die "Check_db_seed_coverage failed after restoration"
+
+    # Direction 2: an allowlist name the SSOT does not carry.
+    sed -i "s|${anchor}|${anchor} '${probe}',|" "$seed_script"
+    if ! grep -q "${probe}" "$seed_script"; then
+        _dbseed_restore
+        die "test_db_seed_coverage: stale-entry plant did not apply; the arm would have proven nothing"
+    fi
+    if _dbseed_gate; then
+        _dbseed_restore
+        die "Check_db_seed_coverage passed despite an allowlist entry naming a section mios.toml no longer has"
+    fi
+
+    _dbseed_restore
+    _dbseed_gate || die "Check_db_seed_coverage failed after restoration"
     log "Test_db_seed_coverage negative test passed"
 }
 

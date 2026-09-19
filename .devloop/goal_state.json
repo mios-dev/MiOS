@@ -1,44 +1,44 @@
 {
-  "objective": "Burn down the measured-defect backlog in TASKS.md: each open row re-measured before any code is written, fixed at root cause with two-sided controls, one task per commit, and the drift baseline held at exactly its standing red",
-  "stopping_condition": "cd /home/user/MiOS && [ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 19 ] && [ -z \"$(git status --porcelain)\" ]",
-  "status": "IN_PROGRESS",
-  "created_at": "2026-09-18T16:44:19.505888",
-  "completed_at": null,
-  "criteria": [
-    {
-      "id": "C-01",
-      "description": "Drift gate at its standing red: exactly 16 violations, no new check failing (18 -> 16: check_unit_dependency_closure drained, 2 lines)",
-      "criterion_type": "test",
-      "command": "[ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 16 ]",
-      "target_path": null,
-      "passed": false,
-      "details": "Exit code 1"
-    },
-    {
-      "id": "C-02",
-      "description": "Working tree clean of uncommitted residue",
-      "criterion_type": "git_clean",
-      "command": null,
-      "target_path": null,
-      "passed": true,
-      "details": "Working tree clean"
-    },
-    {
-      "id": "C-03",
-      "description": "Both Rust workspaces build, format and test clean",
-      "criterion_type": "test",
-      "command": "cd tools/native && cargo fmt --all -- --check && cargo test --workspace --exclude mios-wallpaperd >/dev/null && cd ../../src/mios-rs && cargo fmt --all -- --check && cargo test --workspace >/dev/null",
-      "target_path": null,
-      "passed": true,
-      "details": "Exit code 0"
-    }
-  ],
-  "non_goals": [
-    "Deleting any shipped component, generator, subcommand or file without the operator's explicit yes",
-    "Raising any shrink-only ratchet; a ceiling may only fall",
-    "Running a bake -- no image has been built on this branch, so no claim may depend on one",
-    "Fixing the six standing-red checks that predate this branch (they are main's, not this branch's)"
-  ],
-  "ratchet_history": [],
-  "stop": ""
+ "objective": "Burn down the measured-defect backlog in TASKS.md: each open row re-measured before any code is written, fixed at root cause with two-sided controls, one task per commit, and the drift baseline held at exactly its standing red",
+ "stopping_condition": "cd /home/user/MiOS && [ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 15 ] && [ -z \"$(git status --porcelain)\" ]",
+ "status": "IN_PROGRESS",
+ "created_at": "2026-09-18T16:44:19.505888",
+ "completed_at": null,
+ "criteria": [
+  {
+   "id": "C-01",
+   "description": "Drift gate at its standing red: exactly 15 violations, no new check failing (16 -> 15: check_db_seed_coverage drained, 1 line)",
+   "criterion_type": "test",
+   "command": "[ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 15 ]",
+   "target_path": null,
+   "passed": false,
+   "details": "Exit code 1"
+  },
+  {
+   "id": "C-02",
+   "description": "Working tree clean of uncommitted residue",
+   "criterion_type": "git_clean",
+   "command": null,
+   "target_path": null,
+   "passed": true,
+   "details": "Working tree clean"
+  },
+  {
+   "id": "C-03",
+   "description": "Both Rust workspaces build, format and test clean",
+   "criterion_type": "test",
+   "command": "cd tools/native && cargo fmt --all -- --check && cargo test --workspace --exclude mios-wallpaperd >/dev/null && cd ../../src/mios-rs && cargo fmt --all -- --check && cargo test --workspace >/dev/null",
+   "target_path": null,
+   "passed": true,
+   "details": "Exit code 0"
+  }
+ ],
+ "non_goals": [
+  "Deleting any shipped component, generator, subcommand or file without the operator's explicit yes",
+  "Raising any shrink-only ratchet; a ceiling may only fall",
+  "Running a bake -- no image has been built on this branch, so no claim may depend on one",
+  "Fixing the six standing-red checks that predate this branch (they are main's, not this branch's)"
+ ],
+ "ratchet_history": [],
+ "stop": ""
 }
