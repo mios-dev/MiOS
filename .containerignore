@@ -1,0 +1,9 @@
+.git
+.worktrees
+.devloop
+.vscode
+.agents
+.github
+target/
+__pycache__/
+*.pyc

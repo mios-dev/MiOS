@@ -19,12 +19,12 @@ class AgentWorktreeManager:
 
     def __init__(
         self,
-        repo_root: str = "/mnt/c/MiOS",
+        repo_root: Optional[str] = None,
         base_worktree_dir: str = "/tmp/agent-workspaces",
         base_scratch_dir: str = "/var/lib/mios/ai/scratch",
         dry_run: bool = False,
     ):
-        self.repo_root = repo_root
+        self.repo_root = repo_root or os.environ.get("MIOS_ROOT", os.environ.get("MIOS_TOML_ROOT", os.getcwd()))
         self.base_worktree_dir = base_worktree_dir
         self.base_scratch_dir = base_scratch_dir
         self.dry_run = dry_run

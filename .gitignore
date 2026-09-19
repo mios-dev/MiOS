@@ -39,6 +39,8 @@
 !/.cursorrules
 !/.editorconfig
 !/.env.mios
+!/.containerignore
+!/.dockerignore
 !/.github/
 !/.github/**
 !/images/
