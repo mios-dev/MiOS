@@ -3,7 +3,9 @@
   "build": {
     "dockerfile": "Dockerfile",
     "context": "..",
-    "args": { "FEDORA_VERSION": "44" }
+    "args": {
+      "FEDORA_VERSION": "44"
+    }
   },
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
@@ -32,5 +34,6 @@
   "mounts": [
     "source=${localWorkspaceFolder},target=/mios,type=bind,consistency=cached"
   ],
-  "postCreateCommand": "sudo bash /usr/local/bin/mios-root-overlay"
+  "postCreateCommand": "sudo bash /usr/local/bin/mios-root-overlay ; { git clone --depth 1 https://github.com/mios-dev/-dev-loop.git \"$HOME/.dev-loop\" 2>/dev/null || git -C \"$HOME/.dev-loop\" pull --ff-only 2>/dev/null; } ; bash \"$HOME/.dev-loop/skills/dev-loop/scripts/env/setup-antigravity.sh\" --quiet || true",
+  "postStartCommand": "bash -c '. \"$HOME/.dev-loop/skills/dev-loop/scripts/env/agy-keyring.sh\" || true'"
 }

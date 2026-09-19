@@ -26,7 +26,10 @@ RUN dnf install -y --setopt=install_weak_deps=False \
         ShellCheck \
     && dnf clean all
 
-RUN npm install -g @google/gemini-cli
+# Agent CLIs available by default: the Claude Code CLI system-wide here, and
+# the Antigravity CLI (agy) plus the dev-loop skill per-user at postCreate,
+# by delegating to -dev-loop's own setup script rather than duplicating it.
+RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
 
 # mios-mon's TUI imports rich/textual/psutil and pip-installs them on first run
 # if they are missing. Bake them so a fresh container does not spend that first
