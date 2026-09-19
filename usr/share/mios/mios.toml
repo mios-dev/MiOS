@@ -11278,6 +11278,8 @@ not_mirrored = [
   "GEMINI.md", ".gitignore", "VERSION",
   ".clinerules",
   ".cursorrules",
+  ".devcontainer/Dockerfile",
+  ".devcontainer/devcontainer.json",
   ".editorconfig",
   ".env.mios",
   ".gitattributes",
