@@ -985,8 +985,8 @@
 | T-997 | P2 | planned | CI/Enforcement | GATE-02 -- check_schema_consumers shares the name-collision blind spot; a SQL-context predicate closes it |
 | T-998 | P3 | planned | CI/Enforcement | GATE-03 -- the value-dup ledger's sanctioned remedy for coincidental duplicates is rejected by check_value_aliases |
 | T-999 | P2 | planned | AI/SearchLocale | SEARCH-01 -- the anchor stopword screen is English-only while the tokenizer it screens is deliberately multilingual |
-| T-1000 | P1 | planned | CI/Enforcement | GATE-04 -- the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot |
-| T-1001 | P1 | planned | CI/Enforcement | GATE-05 -- check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one |
+| T-1000 | P1 | done | CI/Enforcement | GATE-04 -- the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot |
+| T-1001 | P1 | done | CI/Enforcement | GATE-05 -- check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one |
 | T-1002 | P1 | planned | Security/Law5 | LAW5-01 -- retired lane ports are hardcoded across the code surface and no gate covers code |
 | T-1003 | P2 | done    | Provisioning/Preflight | PREFLIGHT-01 -- built as src/mios-rs/mios-probe; thresholds now resolve from SSOT and the shell probe is retired |
 | T-1004 | P2 | planned | Desktop/BrowserLaunch | BROWSER-01 -- build the launcher [browser] specifies, as a Rust static binary |
