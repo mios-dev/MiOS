@@ -4636,7 +4636,7 @@ check_protected_refs() {
 check_task_schema() {
     echo "[98-drift-checks] AGY-TASKS task descriptions conform strictly to task schema contract"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-task-schema.py 2>&1)" || { _violations_from "check_task_schema: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tasks.py schema 2>&1)" || { _violations_from "check_task_schema: " "$out"; return; }
     echo "[98-drift-checks]   every AGY task carries Verify/Do-NOT and resolvable deps"
 }
 
@@ -4770,8 +4770,8 @@ _run_py_check() {
     echo "[98-drift-checks]   $out"
 }
 
-check_tasks_status_parity() { _run_py_check check_tasks_status_parity tools/check-tasks-status-parity.py; }
-check_agy_tasks() { _run_py_check check_agy_tasks tools/check-agy-tasks.py; }
+check_tasks_status_parity() { _run_py_check check_tasks_status_parity "tools/check-tasks.py status-parity"; }
+check_agy_tasks() { _run_py_check check_agy_tasks "tools/check-tasks.py agy"; }
 check_mios_toml_integrity() { _run_py_check check_mios_toml_integrity tools/check-mios-toml-integrity.py; }
 check_privileged_quadlets_minimal() { _run_py_check check_privileged_quadlets_minimal tools/check-privileged-quadlets.py; }
 check_container_names() { _run_py_check check_container_names tools/check-container-names.py; }

@@ -255,7 +255,6 @@ is generated, its generator is here.
 | `tools/ascii-sweep.py` | A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent... |
 | `tools/audit-image-provisioning.py` | Post-build image-audit validator asserting provisioning status (AGY / T-286). |
 | `tools/audit-version-literals.py` | Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin... |
-| `tools/check-agy-tasks.py` | Drift gate for AGY task unique IDs and dependency resolution (AGY-1687). |
 | `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. |
 | `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
 | `tools/check-container-names.py` | Drift gate for unmappable container names. |
@@ -283,8 +282,7 @@ is generated, its generator is here.
 | `tools/check-schema-consumers.py` | Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree --... |
 | `tools/check-service-urls.py` | Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp... |
 | `tools/check-ssot-consumer-keys.py` | Drift gate for the SSOT<->consumer contract. Shipped Python reads config as _toml_section("<table>").get("<key>"); this asserts that <t... |
-| `tools/check-task-schema.py` | Fails when an AGY task omits a required field, names a dependency that does not exist, or reuses an id beyond the shrink-only ceiling. |
-| `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice, and references AGY-TASKS.md (AGY-1647). |
+| `tools/check-tasks.py` | Task-plane drift gates in one module: TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution. The subcommand selects the gate. |
 | `tools/check-temp-fixture-cleanup.py` | Fails when a test creates a temporary directory without arranging to remove it. |
 | `tools/check-tracked-readable.py` | Fails when a tracked file cannot be read, because every corpus-scanning gate silently drops such a file and still reports clean. |
 | `tools/check-unit-projection.py` | Drift gate for the [units] projection debt register. |
@@ -331,7 +329,6 @@ is generated, its generator is here.
 | `tools/sync-bootstrap.py` | Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ... |
 | `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a... |
 | `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap... |
-| `tools/test_check-agy-tasks.py` | Sibling unit test for tools/check-agy-tasks.py (AGY-1646 / AGY-1687). |
 | `tools/test_check-blade-coverage.py` | Unit tests for tools/check-blade-coverage.py. |
 | `tools/test_check-comment-lex-equivalence.py` | Fixtures for check-comment-lex-equivalence.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
 | `tools/test_check-container-names.py` | Sibling unit test for tools/check-container-names.py. |
@@ -358,8 +355,7 @@ is generated, its generator is here.
 | `tools/test_check-schema-consumers.py` | Sibling unit test for tools/check-schema-consumers.py. |
 | `tools/test_check-service-urls.py` | Unit tests for tools/check-service-urls.py. |
 | `tools/test_check-ssot-consumer-keys.py` | Unit tests for tools/check-ssot-consumer-keys.py. |
-| `tools/test_check-task-schema.py` | Sibling unit test for tools/check-task-schema.py (AGY-1646). |
-| `tools/test_check-tasks-status-parity.py` | Sibling unit test for tools/check-tasks-status-parity.py. |
+| `tools/test_check-tasks.py` | Sibling unit tests for tools/check-tasks.py -- one suite per subcommand (status-parity, schema, agy), each with its own failure counter. |
 | `tools/test_check-temp-fixture-cleanup.py` | Sibling test for tools/check-temp-fixture-cleanup.py; proves it names a test that makes a temp directory and never removes it. |
 | `tools/test_check-tracked-readable.py` | Fixtures for check-tracked-readable.py -- proves it reports a tracked file removed from the worktree, and that a clean tree passes. |
 | `tools/test_check-unit-projection.py` | Unit tests for tools/check-unit-projection.py. |
@@ -386,7 +382,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 133 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 129 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

@@ -172,8 +172,8 @@
 171	check_module_length	shell and script module line counts remain within maintainability limits
 172	check_firstboot_provisioners	Drift gate for the first-boot provisioner triples (FBM T-200/T-202)
 173	check_schema_consumers	every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason
-174	check_tasks_status_parity	Drift gate for a lying roadmap
-175	check_agy_tasks	Drift gate for AGY task unique IDs and dependency resolution (AGY-1687)
+174	check_tasks_status_parity	tasks status parity
+175	check_agy_tasks	agy tasks
 176	check_mios_toml_integrity	Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682)
 177	check_privileged_quadlets_minimal	Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651)
 178	check_container_names	Drift gate for unmappable container names

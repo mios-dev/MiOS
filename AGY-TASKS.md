@@ -11256,10 +11256,10 @@ demonstrate. Nothing new starts until they do.
 
 ## AGY-1724 -- Ratchet the AGY task schema downward from 1607 until every OPEN task is falsifiable  (WS-PROCESS | P2 | L)
 **Goal:** No open task can be called done without a command that proves it.
-**What+How:** `tools/check-task-schema.py` enforces the eight fields only from id 1607 up, via a hardcoded `SCHEMA_FROM`. Below that line there are 672 DONE tasks, which need nothing, and **482 OPEN tasks, every one of which is missing both Verify and Do NOT**. Move `SCHEMA_FROM` into `[tasks].schema_from` as a shrink-only ceiling, then retro-fit the open tasks in batches, lowering the key as each batch lands. A DONE task is exempt by its marker, not by its id.
-**Where:** `tools/check-task-schema.py, usr/share/mios/mios.toml ([tasks].schema_from), AGY-TASKS.md`
+**What+How:** `tools/check-tasks.py schema` enforces the eight fields only from id 1607 up, via a hardcoded `SCHEMA_FROM`. Below that line there are 672 DONE tasks, which need nothing, and **482 OPEN tasks, every one of which is missing both Verify and Do NOT**. Move `SCHEMA_FROM` into `[tasks].schema_from` as a shrink-only ceiling, then retro-fit the open tasks in batches, lowering the key as each batch lands. A DONE task is exempt by its marker, not by its id.
+**Where:** `tools/check-tasks.py, usr/share/mios/mios.toml ([tasks].schema_from), AGY-TASKS.md`
 **Done When:** `[tasks].schema_from` is 1 and every OPEN task carries all eight fields.
-**Verify:** `python3 tools/check-task-schema.py` passes, and raising `[tasks].schema_from` fails the ratchet-direction check from AGY-1723.
+**Verify:** `python3 tools/check-tasks.py schema` passes, and raising `[tasks].schema_from` fails the ratchet-direction check from AGY-1723.
 **Do NOT:** mechanically paste a Verify line onto 482 tasks. A Verify nobody checked is worse than an absent one, because it looks like coverage. Retro-fit in batches you have actually read.
 **Why:** the task list is the plan; a task with no falsifiable Verify is an opinion about what to do next.
 **Dep:** AGY-1736
