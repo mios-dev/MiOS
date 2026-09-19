@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Screen lock manager with biometric FIDO2 and fingerprint authentication integration.
-# AI-related: tests/test-ux.py, usr/share/mios/pam/swaylock, usr/share/mios/pam/gdm-password
+# AI-related: tests/test-ux.py, /etc/pam.d/swaylock, /etc/pam.d/gdm-password
 # AI-functions: BiometricLockManager, BiometricSensor, main
 """
 MiOS Screen Lock Manager with Biometric & FIDO2 Authentication (T-463).

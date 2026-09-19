@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Forward-Secure Sealed (FSS) journald logger and TPM key enrollment manager (T-707, T-708).
-# AI-related: usr/libexec/mios/sec/journal_fss.py, tests/test-sec.py, automation/46-journal-fss.sh
+# AI-related: usr/libexec/mios/sec/journal_fss.py, tests/test-sec.py
 """Forward-Secure Sealed (FSS) journald logger and TPM key enrollment manager for MiOS.
 
 Initializes systemd-journald FSS with 15-minute epoch key evolution, seals verification keys into TPM 2.0,

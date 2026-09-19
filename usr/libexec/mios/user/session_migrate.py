@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Dynamic cross-node Wayland session checkpoint and migration protocol.
-# AI-related: usr/share/doc/mios/manual/ch65-multi-seat-and-session-roaming.md, tests/test-session-migrate.py, usr/share/containers/systemd/mios-wayland-bridge.container
+# AI-related: tests/test-session-migrate.py
 # AI-functions: WindowDescriptor, SessionCheckpoint, WaylandCompositorBridge, SessionCheckpointStore, SessionMigrateEngine, main
 """
 WS-USER (T-560): Dynamic Cross-Node Wayland Session Checkpoint and Migration Protocol.

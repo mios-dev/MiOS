@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Kernel livepatch manager with MOK signature validation and late CPU microcode reload.
-# AI-related: usr/share/doc/mios/manual/ch60-kernel-livepatch-and-microcode.md, tests/test-sec.py
+# AI-related: tests/test-sec.py
 # AI-functions: LivepatchManager, atomic_write_json, main
 """
 WS-SEC (T-545): MOK-signed kpatch livepatching manager and late CPU microcode reload daemon.

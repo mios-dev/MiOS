@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: PTP IEEE 1588 hardware timestamping and Chrony NTS smooth clock synchronization daemon.
-# AI-related: usr/share/doc/mios/manual/ch66-high-precision-ptp-and-nts-time-sync.md, tests/test-ptp-time.py, usr/lib/systemd/system/ptp4l.service, automation/47-time-sync.sh
+# AI-related: tests/test-ptp-time.py, usr/lib/systemd/system/ptp4l.service, automation/42-chrony-render.sh
 # AI-functions: PTPCapabilityProbe, PTPConfigGenerator, PTPStatusMonitor, PTPTimeSyncDaemon, main
 """
 WS-NODE (T-565): PTP IEEE 1588 Hardware Timestamping & Chrony NTS Smooth Clock Synchronization Daemon.

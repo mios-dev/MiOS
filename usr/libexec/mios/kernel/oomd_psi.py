@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies (T-667, T-668).
-# AI-related: usr/libexec/mios/kernel/oomd_psi.py, tests/test-oomd-psi.py, automation/26-oomd.sh
+# AI-related: usr/libexec/mios/kernel/oomd_psi.py, tests/test-oomd-psi.py
 """Declarative systemd-oomd memory pressure configuration and cgroup2 PSI policies for MiOS.
 
 Configures systemd-oomd to evict memory thrashing background tasks at 50% PSI pressure limit,

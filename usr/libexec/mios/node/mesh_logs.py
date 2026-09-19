@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink (T-659, T-660).
-# AI-related: usr/libexec/mios/node/mesh_logs.py, tests/test-node.py, automation/49-fluentbit-logs.sh
+# AI-related: usr/libexec/mios/node/mesh_logs.py, tests/test-node.py
 """Fluent Bit encrypted mesh log forwarder and central PostgreSQL cluster sink for MiOS.
 
 Streams systemd-journald logs over WireGuard mesh to central PostgreSQL cluster_logs table,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Multi-zone PID Fan Controller daemon with 5°C hysteresis, hwmon sensor discovery, and acoustic rate-limiting.
 # AI-related: usr/libexec/mios/hw/fand.py, tests/test-hw.py, usr/share/mios/mios.toml
-"""Multi-zone PID Fan Controller daemon for MiOS (mios-fand).
+"""Multi-zone PID Fan Controller daemon for MiOS.
 
 Modulates chassis, CPU, GPU, and NVMe fan channels smoothly across multi-zone PID curves
 with a 5°C hysteresis deadband to prevent acoustic pulsing, and limits RPM/PWM ramp transitions

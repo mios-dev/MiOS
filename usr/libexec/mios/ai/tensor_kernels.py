@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher (T-649, T-650).
-# AI-related: usr/libexec/mios/ai/tensor_kernels.py, tests/test-ai.py, automation/20-drivers.sh
+# AI-related: usr/libexec/mios/ai/tensor_kernels.py, tests/test-ai.py, automation/20-hardware.sh
 """GPU compute capability detector and FlashAttention-3 / CUTLASS kernel dispatcher for MiOS.
 
 Detects CUDA SM compute architectures (sm_80, sm_89, sm_90a) and ROCm architectures (gfx1100),

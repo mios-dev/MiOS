@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Ephemeral Cloud-Hypervisor microVM orchestrator and Virtio-VSOCK agent tool bridge.
-# AI-related: usr/share/doc/mios/manual/ch67-cloud-hypervisor-microvms-and-vsock-isolation.md, tests/test-virt.py, usr/share/containers/systemd/mios-microvm.container
+# AI-related: tests/test-virt.py
 # AI-functions: MicroVMConfig, MicroVMResult, VSOCKBridge, CloudHypervisorOrchestrator, main
 """
 WS-VFIO (T-569): Ephemeral Cloud-Hypervisor MicroVM Orchestrator & Virtio-VSOCK Agent Tool Bridge.

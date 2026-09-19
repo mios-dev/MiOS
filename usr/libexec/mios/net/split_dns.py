@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Split-DNS systemd-resolved configurator for .mios mesh domains and strict DoT (T-697, T-698).
-# AI-related: usr/libexec/mios/net/split_dns.py, tests/test-split-dns.py, automation/43-dns-split.sh
+# AI-related: usr/libexec/mios/net/split_dns.py, tests/test-split-dns.py
 """Split-DNS systemd-resolved configurator for .mios mesh domains and strict DoT for MiOS.
 
 Directs internal `.mios` domain resolution to local WireGuard CoreDNS/AdGuard instances,

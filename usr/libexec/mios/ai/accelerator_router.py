@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Hierarchical accelerator router with NPU priority and CPU vector fallback (T-693, T-694).
-# AI-related: usr/libexec/mios/ai/accelerator_router.py, tests/test-ai.py, automation/22-accelerators.sh
+# AI-related: usr/libexec/mios/ai/accelerator_router.py, tests/test-ai.py
 """Hierarchical accelerator router with NPU priority and CPU vector fallback for MiOS.
 
 Discovers Intel VPU, AMD XDNA NPUs, and CPU vector extensions (AVX-512, AMX, Neon),

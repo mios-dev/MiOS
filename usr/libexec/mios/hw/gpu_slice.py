@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative NVIDIA MIG / AMD ROCm GPU slice configurator and dynamic CDI spec generator.
-# AI-related: tests/test-hw.py, usr/share/doc/mios/manual/virt.md
+# AI-related: tests/test-hw.py, usr/share/doc/mios/manual/ch20-container-device-interface-plumbing.md
 """
 MiOS GPU Slicing, Partitioning & Container Device Interface (CDI) Engine.
 

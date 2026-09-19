@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Hybrid live ISO and iPXE netboot artifact synthesis pipeline using BIB (T-647, T-648).
-# AI-related: usr/libexec/mios/build/liveiso.py, tests/test-liveiso-build.py, automation/92-export-iso.sh
+# AI-related: usr/libexec/mios/build/liveiso.py, tests/test-liveiso-build.py
 """Hybrid live ISO and iPXE netboot artifact synthesis pipeline for MiOS.
 
 Orchestrates Bootc Image Builder (BIB) invocation inside the build container, generates

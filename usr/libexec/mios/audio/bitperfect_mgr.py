@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager (T-703, T-704).
-# AI-related: usr/libexec/mios/audio/bitperfect_mgr.py, tests/test-bitperfect-audio.py, automation/25-pipewire.sh
+# AI-related: usr/libexec/mios/audio/bitperfect_mgr.py, tests/test-bitperfect-audio.py
 """Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager for MiOS.
 
 Dynamically adapts PipeWire daemon clock rates (44.1k-192k) to source stream audio for bit-perfect playback,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Cryptographic Merkle-tree agent audit chain recorder and Ed25519 block signer.
-# AI-related: usr/share/doc/mios/manual/ch65-merkle-audit-chain-and-signatures.md, tests/test-ai.py
+# AI-related: tests/test-ai.py
 # AI-functions: AuditChainRecorder, MerkleTree, generate_ed25519_keypair, main
 """
 WS-AI (T-553): Cryptographic Merkle-Tree Agent Audit Chain Recorder & Ed25519 Block Signer.

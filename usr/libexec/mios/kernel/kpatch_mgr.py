@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# AI-hint: Declarative kernel kpatch/livepatch manager and MOK signature validator in mios-kpatch (T-681, T-682).
-# AI-related: usr/libexec/mios/kernel/kpatch_mgr.py, tests/test-kpatch-mgr.py, usr/libexec/mios/mios-kpatch
+# AI-hint: Declarative kernel kpatch/livepatch manager and MOK signature validator (T-681, T-682).
+# AI-related: usr/libexec/mios/kernel/kpatch_mgr.py, tests/test-kpatch-mgr.py
 """Declarative kernel kpatch/livepatch manager and MOK signature validator for MiOS.
 
 Applies cryptographically signed kernel livepatches in <100ms via ftrace,

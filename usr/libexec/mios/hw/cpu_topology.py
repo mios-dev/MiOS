@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator (T-657, T-658).
-# AI-related: usr/libexec/mios/hw/cpu_topology.py, tests/test-hw.py, automation/24-cpu-affinity.sh
+# AI-related: usr/libexec/mios/hw/cpu_topology.py, tests/test-hw.py
 """Vendor-agnostic boot-time CPU topology discovery and dynamic NUMA/core partition allocator for MiOS.
 
 Inspects sysfs topology on boot across Intel P/E hybrid, AMD 3D V-Cache dual-CCD, and multi-socket NUMA,

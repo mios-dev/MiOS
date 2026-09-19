@@ -1,5 +1,5 @@
 # AI-hint: MiOS system and orchestration module providing topology switch capabilities.
-# AI-related: mios-node, mios-asr, gdm.service, pipewire.service, mios-asr.service, guacamole.service, k3s.service, ceph-mds.service, llama-rpc-server.service, cilium-bgp.service
+# AI-related: mios-node, usr/libexec/mios/ai/mios_asr.py, gdm.service, pipewire.service, guacamole.service, k3s.service, ceph-mds.service, llama-rpc-server.service, cilium-bgp.service
 # AI-functions: __init__, transition_to, NodeProfile, DynamicTopologySwitcher
 
 """

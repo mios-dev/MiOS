@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Libei emulated input provider and Wayland portal input injector for MiOS PC control.
-# AI-doc: usr/share/doc/mios/manual/desktop.md
+# AI-doc: usr/share/doc/mios/manual/ch15-computer-use-and-desktop-control.md
 import argparse
 import json
 import os

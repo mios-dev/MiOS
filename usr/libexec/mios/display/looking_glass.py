@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Looking Glass B6 spice-direct host input client configuration and keybinding integration.
-# AI-related: tests/test-looking-glass-config.py, usr/share/mios/looking-glass/client.ini, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
+# AI-related: tests/test-looking-glass-config.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
 """
 MiOS Looking Glass B6 Client Configuration & Direct Input Manager.
 

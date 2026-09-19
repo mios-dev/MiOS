@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: WirePlumber high-fidelity Bluetooth policy manager and virtual loopback provisioner for MiOS.
-# AI-doc: usr/share/doc/mios/manual/desktop.md
 import argparse
 import json
 import os
