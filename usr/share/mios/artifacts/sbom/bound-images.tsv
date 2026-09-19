@@ -14,7 +14,7 @@ docker.io/lmsysorg/sglang:latest	local	sys	1.0
 docker.io/vllm/vllm-openai:latest	local	extra	1.0
 ghcr.io/mios-dev/mios-node:latest	local	extra	1.0
 ghcr.io/open-webui/open-webui:main	local	heavy	1.0
-docker.io/jaegertracing/all-in-one:1.76.0	local	extra	1.0
+docker.io/jaegertracing/all-in-one:latest	local	extra	1.0
 docker.io/pgvector/pgvector:pg18	local	extra	1.0
 quay.io/poseidon/matchbox:latest	local	extra	1.0
 docker.io/searxng/searxng:latest	local	extra	1.0

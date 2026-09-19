@@ -7004,7 +7004,6 @@ placeholders             = ["FEDORA_VERSION", "MIOS_VERSION"]
 [versions]
 fedora                   = "44"
 k3s                      = "v1.36.3-k3s1"
-k8s_repo                 = "v1.36"
 forgejo                  = "12"
 ceph                     = "v19"
 
@@ -7042,10 +7041,10 @@ adguard            = "docker.io/adguard/adguardhome:latest"
 vllm               = "docker.io/vllm/vllm-openai:latest"
 sglang             = "docker.io/lmsysorg/sglang:latest"
 valkey             = "docker.io/valkey/valkey:latest"
-# Pinned, not floating: `all-in-one` is the Jaeger v1 line only (v2 ships as
-# jaegertracing/jaeger), and the tag decides which env model the collector's
-# host-port vars belong to -- so a float would silently unbind two SSOT ports.
-otelcol            = "docker.io/jaegertracing/all-in-one:1.76.0"
+# `all-in-one` is the Jaeger v1 line only (v2 ships as jaegertracing/jaeger),
+# so :latest can never cross into v2's env model; its manifest is digest-identical
+# to the last v1 release. Floating it cannot unbind the collector's SSOT ports.
+otelcol            = "docker.io/jaegertracing/all-in-one:latest"
 
 # ----------------------------------------------------------------------------
 # [image.sys] / [image.cuda] -- SSOT sections for the consolidated shared bases
@@ -7475,7 +7474,6 @@ quickshell = "v0.3.0"
 surfer     = "17d9a1577170880cdac13dca7c3d6871716fc046"
 hyprland   = "main"
 lookingglass = "B7"
-syft = "v1.19.0"
 searxng = "master"
 
 [build.bake]
@@ -7490,7 +7488,7 @@ core = [
   "docker.io/adguard/adguardhome:latest",
   "docker.io/guacamole/guacamole:latest",
   "docker.io/guacamole/guacd:latest",
-  "docker.io/jaegertracing/all-in-one:1.76.0",
+  "docker.io/jaegertracing/all-in-one:latest",
   "docker.io/lmsysorg/sglang:latest",
   "docker.io/pgvector/pgvector:pg18",
   "docker.io/rancher/k3s:v1.36.3-k3s1",
@@ -9570,7 +9568,7 @@ Group = "${MIOS_OTELCOL_GID:-829}"
 # Pinned: `all-in-one` is the Jaeger v1 line only (v2 ships as
 # jaegertracing/jaeger), and :latest == 1.76.0. The tag decides which env model
 # the two host-port vars below belong to, so it cannot float.
-Image = "${MIOS_OTELCOL_IMAGE:-docker.io/jaegertracing/all-in-one:1.76.0}"
+Image = "${MIOS_OTELCOL_IMAGE:-docker.io/jaegertracing/all-in-one:latest}"
 # Jaeger v1 binds via viper AutomaticEnv with `-`/`.` -> `_`, so
 # `collector.otlp.grpc.host-port` and `query.http-server.host-port` map to the
 # two names below. Without them the SSOT keys named numbers nothing bound.
