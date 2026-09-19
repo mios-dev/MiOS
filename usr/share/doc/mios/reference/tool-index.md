@@ -226,7 +226,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-v2v-import` | Virt-V2V guest import wrapper resolving storage pool, network, and output format from mios.toml [virt.v2v] SSOT. |
 | `usr/libexec/mios/mios-vendor-refresh` | One-command offline asset vendor refresh tool. Re-pulls vendored k3s, cursors, fonts, and wheels at LATEST tag resolution. |
 | `usr/libexec/mios/mios-verify-launch` | Synchronously queries the mios-daemon-agent to verify if an app actually launched via a live window/process probe and historical failure logs, preventing agents from reporting false successes. |
-| `usr/libexec/mios/mios-version-lint` | NO-HARDCODE-VERSION law enforcement (Law 7 / ADR-0003). Scans tracked source for hand-pinned version literals in URLs, pip/npm pins, and @sha256 image digests. |
+| `usr/libexec/mios/mios-version-lint` | NO-HARDCODE-VERSION law enforcement (Law 7 / ADR-0003). Scans the source tree for hand-pinned version literals in URLs, pip/npm pins, and @sha256 image digests. |
 | `usr/libexec/mios/mios-viking` | Provides a tiered, read-only virtual filesystem (viking://) for agents to navigate local skills, knowledge, and memory via L0 (abstract), L1 (overview), and L2 (raw) levels to manage context window... |
 | `usr/libexec/mios/mios-web-extract` | Python utility to fetch a URL and strip HTML noise (scripts, styles, nav) to return raw, readable text for grounding agent responses on actual web content rather than search snippets. |
 | `usr/libexec/mios/mios-web-search` | Python backend for the web_search verb that queries a local SearXNG instance using concurrent fan-out (RAG-Fusion) to provide agents with real-time, grounded data for facts, weather, and news. |
