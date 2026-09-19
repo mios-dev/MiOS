@@ -4,8 +4,8 @@
 # AI-functions: _memfd_create, __init__, launch, destroy, _rootfs_size_bytes, _populate_memfd, _start_hypervisor, cmd_launch, cmd_status, cmd_destroy, main, MicroVM
 
 """
-mios-microvm — T-733 WS-VFIO
-Virtio-PMEM direct DAX memory storage manager for mios-microvm ephemeral
+mios_microvm.py — T-733 WS-VFIO
+Virtio-PMEM direct DAX memory storage manager for ephemeral microVM
 sandboxes.  Allocates anonymous host memfd buffers, populates them with a
 base rootfs image, and passes them to Cloud-Hypervisor via --pmem dax=on.
 Guest kernel is booted with root=/dev/pmem0 rootflags=dax to bypass page
@@ -15,9 +15,9 @@ On VM exit the memfd is destroyed, instantly reclaiming RAM with zero
 NVMe write amplification.
 
 Usage:
-  mios-microvm launch --rootfs <image.raw> [--memory 4G] [--cpus 4]
-  mios-microvm status
-  mios-microvm destroy <vm-id>
+  python3 /usr/libexec/mios/virt/mios_microvm.py launch --rootfs <image.raw> [--memory 4G] [--cpus 4]
+  python3 /usr/libexec/mios/virt/mios_microvm.py status
+  python3 /usr/libexec/mios/virt/mios_microvm.py destroy <vm-id>
 """
 from __future__ import annotations
 

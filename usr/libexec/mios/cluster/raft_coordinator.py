@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Embedded Raft consensus coordinator and Patroni HA database failover engine for MiOS cluster.
-# AI-doc: usr/share/doc/mios/manual/ch07-cluster-and-storage-fabric.md
 import argparse
 import json
 import os
