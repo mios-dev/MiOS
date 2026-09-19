@@ -1,9 +1,9 @@
 # AI-hint: Systemd service for zero-configuration mDNS peer discovery and WireGuard mesh configuration.
-# AI-related: /usr/libexec/mios/net/mdns_mesh.py, network-online.target, wireguard.target, multi-user.target
+# AI-related: /usr/libexec/mios/net/mdns_mesh.py, network-online.target, multi-user.target
 
 [Unit]
 Description=MiOS Zero-Configuration mDNS Peer Discovery & WireGuard Peering Daemon
-After=network-online.target wireguard.target
+After=network-online.target
 Wants=network-online.target
 
 [Service]

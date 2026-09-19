@@ -7,9 +7,9 @@
   "criteria": [
     {
       "id": "C-01",
-      "description": "Drift gate at its standing red: exactly 18 violations, no new check failing (19 -> 18: check_module_test_coverage drained)",
+      "description": "Drift gate at its standing red: exactly 16 violations, no new check failing (18 -> 16: check_unit_dependency_closure drained, 2 lines)",
       "criterion_type": "test",
-      "command": "[ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 18 ]",
+      "command": "[ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 16 ]",
       "target_path": null,
       "passed": false,
       "details": "Exit code 1"
