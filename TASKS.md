@@ -1061,9 +1061,9 @@
 | T-1073 | P2 | planned | Gates/CI | RATCHETBASE-01 -- the CI half of T-1046. mios-gate ratchet-direction now compares against the merge base with the default branch, which makes it real on a full clone; .github/workflows/mios-ci.yml uses actions/checkout@v4 with no fetch-depth, so CI has depth 1, no origin/main, no merge base, and the gate falls back to the HEAD self-comparison it has always done. Behaviour is therefore UNCHANGED in CI and the 19-violation baseline is preserved -- but the ratchet is still inert exactly where it matters most. Two ways to wire it, both needing a CI round-trip to verify: set fetch-depth: 0 on the drift-gate job (simple, costs a full clone of a ~200MB tracked tree), or export MIOS_RATCHET_BASE from github.event.pull_request.base.sha plus a targeted `git fetch --depth=1 origin <sha>` so the blob is readable (cheap, PR-only, needs a fallback for push events). Measure the clone cost before choosing |
 | T-1074 | P1 | planned | Docs/Pipeline | DOCREF-01 -- 120 of check_doc_refs_resolve's 124 stale references are FORWARD refs to components and chapters that were never built, not broken links; the check cannot be drained by fixing references |
 | T-1080 | P1 | in-progress | Docs | DOCS-01 -- Clear stale comment references in usr/libexec/mios (srf-libexec) |
-| T-1081 | P1 | in-progress | Docs | DOCS-02 -- Clear stale comment references in usr/lib (srf-lib) |
-| T-1082 | P1 | in-progress | QA | DOCS-03 -- Clear stale comment references in tests/ (srf-tests) |
-| T-1083 | P1 | in-progress | Infra | DOCS-04 -- Clear stale comment references in Rust/generators (srf-native) |
+| T-1081 | P1 | done | Docs | DOCS-02 -- Clear stale comment references in usr/lib (srf-lib) |
+| T-1082 | P1 | done | QA | DOCS-03 -- Clear stale comment references in tests/ (srf-tests) |
+| T-1083 | P1 | done | Infra | DOCS-04 -- Clear stale comment references in Rust/generators (srf-native) |
 | T-1090 | P1 | done | Tests | CONSOL -- Fold the empirical-stress serial set |
 | T-1091 | P1 | open | Tests | CONSOL -- Fold tests/ into subject modules |
 | T-1092 | P1 | open | AI plane | CONSOL -- Fold the agent-pipe sibling tests |
@@ -11764,19 +11764,19 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** 17 of the 152 stale comment references are in usr/lib/**. Clear at least 9 of them.
 **Where:** `usr/lib/**`
 **Done When:** `python3 usr/libexec/mios/mios-manual --root . audit --stale --json` reports stale <= 143.
-**Status:** in-progress | **Domain:** Docs | **Who:** agent
+**Status:** done -- cleared 10 stale comment references in usr/lib/** in commit 8496827a (merged fb25ef37) | **Domain:** Docs | **Who:** agent
 
 ## T-1082 -- DOCS-03: Clear stale comment references in tests/ (srf-tests)
 **Goal:** 41 of the 152 stale comment references are in tests/**. Clear at least 21.
 **Where:** `tests/**`
 **Done When:** `python3 usr/libexec/mios/mios-manual --root . audit --stale --json` reports stale <= 131.
-**Status:** in-progress | **Domain:** QA | **Who:** agent
+**Status:** done -- cleared 18 stale comment references in tests/** in commit b0851730 (merged dd2dc490) | **Domain:** QA | **Who:** agent
 
 ## T-1083 -- DOCS-04: Clear stale comment references in Rust/generators (srf-native)
 **Goal:** 14 of the 152 stale comment references are in Rust sources and generators. Clear at least 7.
 **Where:** `src/mios-rs/**`, `tools/native/**`, `tools/render-manpages.py`, `usr/share/mios/nix/**`, `usr/share/mios/windows/**`
 **Done When:** `python3 usr/libexec/mios/mios-manual --root . audit --stale --json` reports stale <= 145.
-**Status:** in-progress | **Domain:** Infra | **Who:** agent
+**Status:** done -- cleared 8 stale comment references in Rust/tools in commit a6bb887d (merged 1370d9d4) | **Domain:** Infra | **Who:** agent
 
 ## T-1090 -- CONSOL: Fold the empirical-stress serial set
 **Goal:** tests/test-empirical-stress-t5NN-t6NN.py is pure serial numbering. Fold into one module.
