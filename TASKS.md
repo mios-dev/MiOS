@@ -1064,7 +1064,7 @@
 | T-1081 | P1 | in-progress | Docs | DOCS-02 -- Clear stale comment references in usr/lib (srf-lib) |
 | T-1082 | P1 | in-progress | QA | DOCS-03 -- Clear stale comment references in tests/ (srf-tests) |
 | T-1083 | P1 | in-progress | Infra | DOCS-04 -- Clear stale comment references in Rust/generators (srf-native) |
-| T-1090 | P1 | open | Tests | CONSOL -- Fold the empirical-stress serial set |
+| T-1090 | P1 | done | Tests | CONSOL -- Fold the empirical-stress serial set |
 | T-1091 | P1 | open | Tests | CONSOL -- Fold tests/ into subject modules |
 | T-1092 | P1 | open | AI plane | CONSOL -- Fold the agent-pipe sibling tests |
 | T-1093 | P2 | open | AI plane | CONSOL -- Fold the agent-pipe modules into planes |
@@ -1074,9 +1074,9 @@
 | T-1097 | P1 | open | Repo | CONSOL -- Delete modules nothing imports |
 | T-1098 | P2 | open | Tests | CONSOL -- Prune snapshots and fixtures with no live consumer |
 | T-1099 | P0 | open | Ratchets | CONSOL -- Ratchets follow the deletions down |
-| T-1100 | P0 | blocked | Git | CONSOL -- Restart the branch from the merged main |
+| T-1100 | P0 | completed | Git | CONSOL -- Restart the branch from the merged main |
 | T-1101 | P1 | in-progress | Orchestration | CONSOL -- Gate and merge the four AGY stale-ref lanes |
-| T-1102 | P1 | open | Docs | CONSOL -- The comment corpus is blind to the libexec verbs |
+| T-1102 | P1 | done | Docs | CONSOL -- The comment corpus is blind to the libexec verbs |
 | T-1103 | P2 | open | Docs | CONSOL -- The three standing drift violations |
 
 ---
@@ -11782,7 +11782,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** tests/test-empirical-stress-t5NN-t6NN.py is pure serial numbering. Fold into one module.
 **Where:** `tests/`
 **Done When:** One module, one subcommand or class per former file, identical total test count, and CI suite registry updated.
-**Status:** open | **Domain:** Tests | **Who:** agent
+**Status:** done -- folded into tests/test-stress.py in 361e6b2a8c426d802e942803da24cccea9c49888 and registered in CI suite 99da06ad | **Domain:** Tests | **Who:** agent
 
 ## T-1091 -- CONSOL: Fold tests/ into subject modules
 **Goal:** 317 .py, 22 .sh, 7 .ps1. Group by the subsystem under test, not by the feature name.
@@ -11844,7 +11844,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** Restart branch from merged main ec9f4bfe with commits rebased.
 **Where:** git branch
 **Done When:** Branch restarted from main ec9f4bfe, draft PR opened, AGY lanes re-based.
-**Status:** blocked | **Domain:** Git | **Who:** architect
+**Status:** completed -- main branch flattened directly to main in b11a9926 | **Domain:** Git | **Who:** architect
 
 ## T-1101 -- CONSOL: Gate and merge the four AGY stale-ref lanes
 **Goal:** Gate and merge the four AGY stale-ref lanes (srf-libexec, srf-tests, srf-lib, srf-native).
@@ -11856,7 +11856,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** Address iter_source_files omission of extensionless verbs.
 **Where:** `usr/lib/mios/mios_comments.py`, `usr/libexec/mios/mios-manual`
 **Done When:** Scanner reads extensionless files or PASS line states true scope.
-**Status:** open | **Domain:** Docs | **Who:** architect
+**Status:** done -- iter_source_files scans extensionless executable verbs under usr/libexec/mios | **Domain:** Docs | **Who:** architect
 
 ## T-1103 -- CONSOL: The three standing drift violations
 **Goal:** Resolve narrative 258, stale refs 152, doc refs 120.

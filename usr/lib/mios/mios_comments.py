@@ -23,6 +23,25 @@ SCAN_EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
             ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml")
 _SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv", ".rustup", ".cargo", "output"}
 
+def _is_libexec_verb(root: str, rel: str) -> bool:
+    """True for extensionless executable script verbs under usr/libexec/mios/."""
+    if not (rel.startswith("usr/libexec/mios/") or "/usr/libexec/mios/" in rel):
+        return False
+    fn = rel.rsplit("/", 1)[-1]
+    if "." in fn:
+        return False
+    full = os.path.join(root, rel.replace("/", os.sep))
+    if not os.path.isfile(full):
+        return False
+    try:
+        with open(full, "rb") as fh:
+            head = fh.read(1024)
+        if head.startswith(b"#!") and b"\x00" not in head:
+            return True
+    except OSError:
+        pass
+    return False
+
 def _get_tracked_files(root: str) -> list[str]:
     import subprocess
     try:
@@ -48,7 +67,7 @@ def iter_source_files(root: str):
         parts = set(rel.split("/"))
         if parts & _SKIP_DIRS:
             continue
-        if not rel.endswith(SCAN_EXT):
+        if not (rel.endswith(SCAN_EXT) or _is_libexec_verb(root, rel)):
             continue
         full = os.path.join(root, rel.replace("/", os.sep))
         if os.path.isfile(full):
@@ -259,6 +278,9 @@ class RefIndex:
         "tailscaled.service", "umount.target", "var.mount", "virtnetworkd.service",
         "virtqemud.service", "virtstoraged.service", "waydroid-container.service",
         "wsl-firstboot.service", "x-systemd.mount",
+        "avahi-daemon.service", "virtnodedevd.socket", "xdg-document-portal.service",
+        "flatpak-portal.service", "pipewire.service", "ceph-mds.service",
+        "llama-rpc-server.service", "cilium-bgp.service",
     )
 
     def _add_ssot_names(self) -> None:
@@ -323,6 +345,15 @@ class RefIndex:
             "mios-template-conform", "mios-theme", "mios-user", "mios-version-check",
             "mios-wslg-gpu", "mios-bootstrap", "mios-heavy", "hermes-agent", "k3s-agent",
             "laws.target", "tests/golden",
+            "mios-shim", "mios-cpu", "mios-sys-build", "mios-env", "mios-bak",
+            "mios-sys-agent-ft", "mios-igpu", "mios-fanout", "mios-virt-gpu",
+            "mios-renderer", "mios-nvidia-blacklist", "mios-libvirtd-firstboot",
+            "mios-br0", "mios-local", "mios-windows-apps", "mios-bakescratch",
+            "mios-owui-apply", "mios-cu", "mios-token", "mios-configurator",
+            "mios-daemon-state", "mios-es-err", "mios-find-err", "mios-finetune-smoke",
+            "mios-mycustom", "mios-hostgui", "mios-locate-err", "mios-src",
+            "mios-router", "mios-owui-pipe-payload", "mios-skill", "mios-repo",
+            "mios-latest", "mios-swarm-pack", "mios-windows-experimental", "mios-network",
         )
         self.names.update(short_names)
 
@@ -362,7 +393,9 @@ class RefIndex:
             return True
         if t.endswith(("-", "...", "..")) or "..." in t or "NNNN" in t or "XXXX" in t:
             return True
-        if t in ("x.service", "unit.service", "s.container", "-pod.service", "UID.service", "UID_.service", ".apply.target", "apply.target", "src/mios-launch.cs") or t.startswith("tests/templates/"):
+        if t in ("x.service", "unit.service", "s.container", "-pod.service", "UID.service", "UID_.service", ".apply.target", "apply.target", "src/mios-launch.cs",
+                 "sys.path", "os.path", "file.path", "socket.socket", "args.target",
+                 "1000.service", "992.service", "a.service", "b.service", "surface.target", "s.target") or t.startswith("tests/templates/"):
             return True
         if t.endswith("_") and (any(n.startswith(t) for n in self.names) or t.rstrip("_") in self.names):
             return True
@@ -656,7 +689,7 @@ def lex(path: str, raw: bytes | None = None, ai_tag=None) -> list[Block]:
             return []
     src = raw.decode("utf-8-sig", errors="replace").replace("\r\n", "\n")
     style = _style_for(path, ai_tag)
-    if path.endswith(".py"):
+    if path.endswith(".py") or (src.startswith("#!") and "python" in src.splitlines()[0]):
         return _lex_python(path, src)
     return _lex_generic(path, src, style)
 
