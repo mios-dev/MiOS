@@ -197,7 +197,11 @@ test_names_registry() {
 # directory named build/, so two tracked files left the corpus in silence.
 test_dead_git_corpus() {
     log "Testing the names generator and the version-literal scan against a refusing git"
-    local shim reg before after
+    local shim reg before after VLBIN=""
+    for VLBIN in /usr/libexec/mios/mios-gate "${ROOT}/src/mios-rs/target/release/mios-gate" ""; do
+        [[ -n "$VLBIN" && -x "$VLBIN" ]] && break
+    done
+    [[ -n "$VLBIN" ]] || die "mios-gate is not built, so the dead-git corpus test has no subject"
     shim="$(mktemp -d)"
     printf '#!/bin/sh\necho "fatal: refusing to list" >&2\nexit 128\n' > "${shim}/git"
     chmod +x "${shim}/git"
@@ -214,8 +218,8 @@ test_dead_git_corpus() {
         die "generate-names-registry.py altered referenced_names.txt while refusing to run"
     fi
 
-    if PATH="${shim}:$PATH" MIOS_DRIFT_ROOT="$ROOT" \
-        python3 "${ROOT}/tools/drift-checks.py" version-literals-ssot >/dev/null 2>&1; then
+    if PATH="${shim}:$PATH" \
+        "$VLBIN" version-literals-ssot --root "$ROOT" >/dev/null 2>&1; then
         rm -rf "$shim"
         die "version-literals-ssot reported clean on a corpus git never gave it"
     fi
@@ -223,7 +227,7 @@ test_dead_git_corpus() {
 
     python3 "${ROOT}/tools/generate-names-registry.py" >/dev/null 2>&1 \
         || die "generate-names-registry.py failed with a working git"
-    MIOS_DRIFT_ROOT="$ROOT" python3 "${ROOT}/tools/drift-checks.py" version-literals-ssot >/dev/null 2>&1 \
+    "$VLBIN" version-literals-ssot --root "$ROOT" >/dev/null 2>&1 \
         || die "version-literals-ssot failed with a working git"
     log "dead-git corpus negative test passed"
 }

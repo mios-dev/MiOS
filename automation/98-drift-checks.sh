@@ -1740,17 +1740,18 @@ check_version_ssot() {
         [[ -n "$_cargo_ver" && "$_cargo_ver" != "$ssot" ]] && bad+="    ${_toml#$ROOT/} version = [$_cargo_ver], expected [$ssot]"$'\n'
     done
 
-    local literal_bad="" exit_code=0
-    # Was set +e / set -e around this call. The restore is unconditional, so it
-    # switched errexit back ON for every check main() dispatched afterwards,
-    # undoing main()'s accumulate mode. Capture the status directly instead.
-    literal_bad="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_CANONICAL_VER="$ssot" python3 tools/drift-checks.py version-literals-ssot 2>&1)" || exit_code=$?
-    if [[ $exit_code -ne 0 ]]; then
+    # Ported to the native gate (ADR-0021), beside doc_refs. No python fallback:
+    # certifying a program other than the one that runs is itself the defect.
+    local literal_bad="" vlbin="" _c
+    for _c in /usr/libexec/mios/mios-gate "$ROOT/src/mios-rs/target/release/mios-gate"; do
+        [[ -x "$_c" ]] && { vlbin="$_c"; break; }
+    done
+    if [[ -z "$vlbin" ]]; then
+        bad+="    mios-gate is not built, so version literals were NOT scanned -- cd src/mios-rs && cargo build --release -p mios-gate"$'\n'
+    elif ! literal_bad="$(MIOS_CANONICAL_VER="$ssot" "$vlbin" version-literals-ssot --root "$ROOT" 2>&1)"; then
         bad+="$literal_bad"$'\n'
-    else
-        if [[ -n "$literal_bad" ]]; then
-            echo "$literal_bad" >&2
-        fi
+    elif [[ -n "$literal_bad" ]]; then
+        echo "$literal_bad" >&2
     fi
 
     if [[ -n "$bad" ]]; then

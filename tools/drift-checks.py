@@ -2714,107 +2714,6 @@ def check_ai_endpoint_local() -> int:
         return 1
     return 0
 
-def _rust_cfg_test_lines(rel, lines):
-    """1-based lines inside Rust #[cfg(test)] items; .rs only, else empty.
-
-    Brace-matched. Braces in strings are not parsed, so an unbalanced one ends a
-    range EARLY -- scanning more, never less, so it over-flags, never under-flags.
-    """
-    if not rel.endswith(".rs"):
-        return set()
-    out, n, i = set(), len(lines), 0
-    while i < n:
-        if not re.match(r"\s*#\[cfg\(test\)\]", lines[i]):
-            i += 1
-            continue
-        depth, opened, j = 0, False, i
-        while j < n:
-            depth += lines[j].count("{") - lines[j].count("}")
-            opened = opened or "{" in lines[j]
-            if opened and depth <= 0:
-                break
-            j += 1
-        end = min(j, n - 1)
-        out.update(range(i + 1, end + 2))
-        i = end + 1
-    return out
-
-
-def check_version_literals_ssot() -> int:
-    import os, sys, re, subprocess
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    canonical_ver = os.environ.get("MIOS_CANONICAL_VER", "")
-    if not canonical_ver:
-        toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-        if os.path.isfile(toml_path):
-            import tomllib
-            with open(toml_path, "rb") as fh:
-                d = tomllib.load(fh)
-                canonical_ver = str((d.get("meta") or {}).get("mios_version") or (d.get("system") or {}).get("version") or "").strip()
-
-    root_toml = os.path.join(root, "mios.toml")
-    if os.path.isfile(root_toml):
-        try:
-            with open(root_toml, "r", encoding="utf-8", errors="ignore") as fh:
-                for line in fh:
-                    if re.search(r'^\s*mios_version\s*=', line) and canonical_ver not in line:
-                        sys.stderr.write(f"    TODO(td-2): root mios.toml has version divergence from canonical {canonical_ver}\n")
-        except OSError:
-            pass
-
-    pattern = re.compile(r'\bv?0\.[0-9]+\.[0-9]+\b')
-    viol = []
-
-    # The walk this replaced skipped every directory named build/, so a literal
-    # in automation/build/ or usr/libexec/mios/build/ was missed, and silently.
-    paths, status = _tracked(root)
-    if paths is None:
-        return status
-    tracked = [os.path.normpath(os.path.join(root, f)) for f in paths]
-
-    for path in tracked:
-        rel = os.path.relpath(path, root).replace("\\", "/")
-        if not (rel.startswith("automation") or rel.startswith("usr/libexec/") or rel.startswith("tools")):
-            continue
-        if rel.endswith((".pyc", ".png", ".jpg", ".generated", ".json", ".log", ".ready", ".lock", ".d", ".o", ".rlib", ".rmeta", ".a")):
-            continue
-        if "/tests/golden/" in rel:
-            continue
-        if not os.path.isfile(path):
-            continue
-
-        try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                lines = fh.readlines()
-        except OSError:
-            continue
-
-        # A version literal in a Rust test module is test DATA -- an upstream tag
-        # handed to the code under test -- not our shipped identity. Only
-        # NON-canonical literals are ever reported, so nothing is lost.
-        skip_lines = _rust_cfg_test_lines(rel, lines)
-
-        for idx, line in enumerate(lines):
-            if (idx + 1) in skip_lines:
-                continue
-            for m in pattern.finditer(line):
-                ver = m.group(0)
-                ver_clean = ver[1:] if ver.startswith('v') else ver
-                if ver_clean != canonical_ver:
-                    if ver_clean in ("0.0.0", "0.0.1", "0.8.3", "0.2.4", "0.5.0", "0.6.0", "0.80.0", "0.9.6", "0.0.76", "0.1.0"):
-                        continue
-                    if "INTEL_SG_FALLBACK_TAG" in line:
-                        continue
-                    if "Upstream v0.15.0" in line:
-                        continue
-                    viol.append(f"    {rel}:{idx+1} hardcodes different version literal [{ver}], expected [{canonical_ver}]")
-
-    if viol:
-        for v in viol:
-            sys.stderr.write(v + "\n")
-        return 1
-    return 0
-
 def check_bake_refs_parity() -> int:
     import os, sys, re, subprocess
     import tomllib
@@ -4715,7 +4614,6 @@ SUBCOMMANDS = {
     "canonical-bools": check_canonical_bools,
     "dag-integrity": check_dag_integrity,
     "ai-endpoint-local": check_ai_endpoint_local,
-    "version-literals-ssot": check_version_literals_ssot,
     "bake-refs-parity": check_bake_refs_parity,
     "cli-eval-safety": check_cli_eval_safety,
     "resolver-ssot-refs": check_resolver_ssot_refs,
