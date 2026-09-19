@@ -1858,7 +1858,9 @@ runtime_ref_directives = [
 [build.toolchain]
 # The toolchain both workspaces build and lint with (T-1059).
 # Projected into the root rust-toolchain.toml; rustup finds it by ascent.
-channel = "1.98.0"
+# A channel, never a version number: CI and every workstation track the same
+# current stable, so they still agree, and nothing freezes on an old release.
+channel = "stable"
 components = ["clippy", "rustfmt"]
 
 [build.tool_dispatch]

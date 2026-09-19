@@ -1,5 +1,5 @@
 # AI-hint: Pins the Rust toolchain both workspaces build and lint with; GENERATED from [build.toolchain], do not edit.
 # AI-related: usr/share/mios/mios.toml, tools/native/mios-toolchain-pin/src/main.rs
 [toolchain]
-channel = "1.98.0"
+channel = "stable"
 components = ["clippy", "rustfmt"]
