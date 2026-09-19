@@ -51,7 +51,17 @@ def main() -> int:
         print("only %d dispatched checks parsed from main() -- the subject list is wrong"
               % len(dispatched))
         return 1
-    uncovered = sorted({c for c in dispatched if c not in s_harness})
+    # COVERAGE IS ARGUMENT POSITION, NOT SUBSTRING PRESENCE. `c not in s_harness` credited a
+    # check whose name merely appeared anywhere in the harness, and it was wrong two ways
+    # (measured 2026-09-19): check_ai_manifest was credited because it is a PREFIX of
+    # check_ai_manifests_fresh, and check_dag_integrity, check_dead_lane,
+    # check_dotfiles_projection and check_no_hardcode were credited because each appears as a
+    # fixture string inside ANOTHER check's test -- a sed pattern, not a subject. Five checks
+    # counted as falsifiable had never been driven red. The name must now sit where the harness
+    # PASSES it to the gate: after _neg_gate, or after a bash invocation of a script path.
+    arg_pos = re.compile(r'(?:_neg_gate|\.sh"|"\$[A-Za-z_]\w*")\s+"?(check_[a-z0-9_]+)\b')
+    exercised = set(arg_pos.findall(s_harness))
+    uncovered = sorted({c for c in dispatched if c not in exercised})
     if len(uncovered) > int(ceiling):
         print("drift checks with no negative test: %d > ceiling %d "
               "(write one, then lower [tests].max_checks_without_negative)"

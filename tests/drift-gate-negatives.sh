@@ -4652,6 +4652,102 @@ test_package_registry() {
     log "check_package_registry negative test passed"
 }
 
+# --------------------------------------------------------------------------------------------
+# Roadmap campaign 1 (Falsifiable gates): four checks that were dispatched by the gate and had
+# no negative test at all, so nothing had ever shown them going red. Each arm below was
+# measured against the real gate before being written down.
+#
+# Probe values are assembled from pieces on purpose (the AI-convention at the top of this
+# file): a literal vendor URL or retired model-id sitting in this file would be found by the
+# very scans these tests exercise.
+# --------------------------------------------------------------------------------------------
+
+test_vendor_urls() {
+    log "Testing check_vendor_urls"
+    local probe="${ROOT}/etc/mios/ai/drift-neg-probe.yaml"
+    local url="https://api.$(printf open)$(printf ai).com/v1"
+
+    printf 'endpoint: %s\n' "$url" > "$probe"
+    _neg_gate check_vendor_urls && {
+        rm -f "$probe"
+        die "check_vendor_urls passed with a vendor cloud URL in active AI-plane config"
+    }
+
+    # The check strips comment lines before scanning, and that is the property that makes it a
+    # check of the ACTIVE surface rather than of file text. Assert it, or a future "simplify"
+    # that drops the stripping would go unnoticed -- and would then fire on every historical
+    # note in the tree.
+    printf '# endpoint: %s\n' "$url" > "$probe"
+    _neg_gate check_vendor_urls || {
+        rm -f "$probe"
+        die "check_vendor_urls failed on a COMMENTED-OUT URL: ${_NEG_GATE_OUT}"
+    }
+
+    rm -f "$probe"
+    _neg_gate check_vendor_urls || die "check_vendor_urls failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_vendor_urls negative test passed"
+}
+
+test_retired_models() {
+    log "Testing check_retired_models"
+    local probe="${ROOT}/etc/mios/ai/drift-neg-probe-model.yaml"
+    local retired="gem$(printf ma4)"
+
+    printf 'model: %s\n' "$retired" > "$probe"
+    _neg_gate check_retired_models && {
+        rm -f "$probe"
+        die "check_retired_models passed with a retired model-id in a consumer unit"
+    }
+
+    rm -f "$probe"
+    _neg_gate check_retired_models || die "check_retired_models failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_retired_models negative test passed"
+}
+
+test_etc_duplicates() {
+    log "Testing check_etc_duplicates"
+    local usr_dir="${ROOT}/usr/share/containers/systemd"
+    local etc_dir="${ROOT}/etc/containers/systemd"
+    local base
+    base="$(find "$usr_dir" -maxdepth 1 -name '*.container' -printf '%f\n' 2>/dev/null | sort | head -1)"
+    # Empty-Set Pass guard: with no generated unit to shadow there is nothing to plant, and a
+    # test that silently asserts about an empty set is the defect this suite exists to catch.
+    [[ -n "$base" ]] || die "check_etc_duplicates: no generated .container in $usr_dir to shadow"
+
+    mkdir -p "$etc_dir"
+    printf '# drift-gate-negatives probe\n' > "${etc_dir}/${base}"
+    _neg_gate check_etc_duplicates && {
+        rm -f "${etc_dir}/${base}"
+        die "check_etc_duplicates passed with an etc/ unit shadowing generated ${base}"
+    }
+
+    rm -f "${etc_dir}/${base}"
+    _neg_gate check_etc_duplicates || die "check_etc_duplicates failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_etc_duplicates negative test passed"
+}
+
+test_canonical_bools() {
+    log "Testing check_canonical_bools"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup="${toml}.neg-bak"
+    cp -p "$toml" "$backup"
+    _cb_restore() { cp -p "$backup" "$toml"; rm -f "$backup"; }
+
+    # The probe must land in a REAL verb table. [verbs._defaults] is skipped by the check by
+    # design, and planting there produced a green gate and very nearly a false report that the
+    # check was hollow -- a broken control inverts a result rather than weakening it.
+    local line
+    line="$(grep -n '^\[verbs\.' "$toml" | grep -v '_defaults' | head -1 | cut -d: -f1)"
+    [[ -n "$line" ]] || { _cb_restore; die "check_canonical_bools: no non-default [verbs.*] table to plant in"; }
+
+    sed -i "$((line + 1))i hidden = \"false\"" "$toml"
+    _neg_gate check_canonical_bools && { _cb_restore; die "check_canonical_bools passed with a quoted bool in a verb table"; }
+
+    _cb_restore
+    _neg_gate check_canonical_bools || die "check_canonical_bools failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_canonical_bools negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -4850,6 +4946,10 @@ _run_test test_leaked_fixtures
     _run_test test_os_update_timer_enabled
     _run_test test_verb_stub_backends
     _run_test test_package_registry
+    _run_test test_vendor_urls
+    _run_test test_retired_models
+    _run_test test_etc_duplicates
+    _run_test test_canonical_bools
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s
