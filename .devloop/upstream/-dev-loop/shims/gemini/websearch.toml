@@ -1,0 +1,9 @@
+[command]
+name = "websearch"
+description = "Real-time vendor documentation and error triage discovery"
+version = "2.0.0"
+entrypoint = "python3 scripts/research.py search"
+aliases = ["s"]
+
+[parameters]
+query = { type = "string", description = "Documentation query or error message", required = true }

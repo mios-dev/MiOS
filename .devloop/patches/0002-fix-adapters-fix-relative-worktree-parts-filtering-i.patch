@@ -1,0 +1,26 @@
+From 7a373d91cc61680f2ca86f0ed407cb351317939b Mon Sep 17 00:00:00 2001
+From: MiOS-DEV <mios.helpdesk@proton.me>
+Date: Sat, 19 Sep 2026 17:22:42 +0000
+Subject: [PATCH 2/2] fix(adapters): fix relative worktree parts filtering in
+ sentinel vacuous check
+
+---
+ skills/dev-loop/scripts/adapters.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/skills/dev-loop/scripts/adapters.py b/skills/dev-loop/scripts/adapters.py
+index cb642bf..35c77d4 100755
+--- a/skills/dev-loop/scripts/adapters.py
++++ b/skills/dev-loop/scripts/adapters.py
+@@ -637,7 +637,7 @@ def cmd_gate(a):
+     # Your control must be valid too (SKILL.md 6): refuse BEFORE running it, not after.
+     for _sent in re.findall(r"\bDEVLOOP-PLANTED-[A-Z0-9-]+\b", lane["negative_control_cmd"]):
+         _hits = [str(q.relative_to(wt)) for q in wt.rglob(f"*{_sent}*")
+-                 if ".git" not in q.parts and ".worktrees" not in q.parts]
++                 if ".git" not in q.relative_to(wt).parts and ".worktrees" not in q.relative_to(wt).parts]
+         if _hits:
+             die(f"negative control is VACUOUS BEFORE IT RAN: its sentinel {_sent} already exists "
+                 f"in the worktree ({', '.join(_hits[:3])}), so the planted citation would resolve "
+-- 
+2.55.0
+

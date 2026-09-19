@@ -1,0 +1,11 @@
+---
+description: Real-time documentation lookup and error triage (alias /s)
+globs: ["*"]
+alwaysApply: false
+---
+
+# Cursor Rule: /websearch & /s
+
+When checking API specifications, library usage, or error codes:
+- Execute `python3 scripts/research.py search "<query>"`.
+- Ground all code edits against official vendor documentation.

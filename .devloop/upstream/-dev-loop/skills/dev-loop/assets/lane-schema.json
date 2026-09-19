@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/dev-loop/lane-schema.json",
+  "title": "Dev Loop lane specification (v2)",
+  "description": "One orchestrator run: base ref, layout, default worker settings, N lanes. Each lane = one git worktree + one worker in one harness + one two-sided merge gate. Strict: unknown keys are rejected so a typo cannot silently disable a control.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "base_ref",
+    "lanes"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "2"
+    },
+    "objective": {
+      "type": "string",
+      "description": "Run-level objective (the L0 Definition of Done). Lanes carry their own."
+    },
+    "base_ref": {
+      "type": "string",
+      "description": "Git ref every lane branches from (main, origin/main, a SHA)."
+    },
+    "worktree_root": {
+      "type": "string",
+      "default": ".worktrees",
+      "description": "Relative dir holding one worktree per lane; orchestrators add it to .git/info/exclude."
+    },
+    "terminal_layout": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "tmux_grid",
+        "wt_grid",
+        "detached",
+        "headless"
+      ],
+      "default": "auto",
+      "description": "auto = tmux_grid on POSIX / wt_grid on Windows if available, else detached. headless = run lanes sequentially in the foreground."
+    },
+    "integration_cmd": {
+      "type": "string",
+      "description": "Optional command run on the base branch after all merges (whole-project integration suite)."
+    },
+    "worker": {
+      "$ref": "#/$defs/worker",
+      "description": "Default worker settings; each lane may override any key."
+    },
+    "lanes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/lane"
+      }
+    }
+  },
+  "$defs": {
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "harness": {
+          "type": "string",
+          "enum": [
+            "claude-code",
+            "codex",
+            "gemini-cli",
+            "antigravity",
+            "copilot",
+            "opencode",
+            "cursor",
+            "openai-compatible",
+            "custom"
+          ],
+          "default": "openai-compatible",
+          "description": "Which agent runs the lane. See references/harness-adapters.md for the exact command each expands to."
+        },
+        "command": {
+          "type": "string",
+          "description": "custom harness only (or override for any): template with {obj} {wt} {report} {lane_json} {n} {t} placeholders."
+        },
+        "model": {
+          "type": "string",
+          "description": "Model id passed to the harness (--model / lane model for openai-compatible)."
+        },
+        "effort": {
+          "type": "string",
+          "description": "Reasoning effort passed as --effort to the harnesses that take it (claude-code, antigravity). adapters.py defaults claude-code lanes to xhigh and omits the flag elsewhere when unset."
+        },
+        "base_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "openai-compatible: API root, e.g. https://api.openai.com/v1 or http://localhost:11434/v1."
+        },
+        "api_key_env": {
+          "type": "string",
+          "default": "OPENAI_API_KEY",
+          "description": "NAME of the env var holding the key. Never the key."
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 40,
+          "description": "Applied where the harness supports it (claude-code, openai-compatible)."
+        },
+        "timeout_s": {
+          "type": "integer",
+          "minimum": 30,
+          "default": 1800,
+          "description": "Outer wall-clock cap; always enforced."
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 0
+        },
+        "allowed_tools": {
+          "type": "string",
+          "description": "claude-code: --allowedTools value (default Read,Edit,Write,Glob,Grep,Bash). copilot: comma list of --allow-tool patterns, e.g. shell(git:*),shell(pytest:*),write (default --allow-all-tools; git push/commit always denied)."
+        },
+        "permission_mode": {
+          "type": "string",
+          "description": "claude-code: --permission-mode (default dontAsk). codex: --ask-for-approval value (default never)."
+        },
+        "sandbox": {
+          "type": "string",
+          "description": "codex: --sandbox (default workspace-write). antigravity: --sandbox value."
+        },
+        "extra_args": {
+          "type": "string",
+          "description": "Appended verbatim to the harness command line."
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment injected into the worker process (non-secret values; secrets by env NAME only)."
+        },
+        "structured_output": {
+          "type": "boolean",
+          "default": true,
+          "description": "claude-code/codex: enforce the devloop_report schema natively (--json-schema / --output-schema). Others fall back to the fenced-JSON parser."
+        },
+        "max_budget_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "claude-code: --max-budget-usd cap."
+        },
+        "agent": {
+          "type": "string",
+          "description": "copilot/opencode: named custom agent (.github/agents/<n>.agent.md, .opencode/agent/<n>.md)."
+        },
+        "output_format": {
+          "type": "string",
+          "description": "gemini-cli: text (default, safer \u2014 json aborts on non-fatal tool errors) or json."
+        }
+      }
+    },
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "objective",
+        "owned_paths",
+        "positive_cmd",
+        "negative_control_cmd",
+        "negative_expect"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+          "description": "Lane id \u2192 worktree dir and branch lane/<id>. (v1 alias: worker_id)"
+        },
+        "domain": {
+          "type": "string",
+          "description": "Subsystem domain for L1 grouping (backend, frontend, qa, security, infra, docs)."
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 10,
+          "description": "The lane's Definition-of-Done objective. (v1 alias: command)"
+        },
+        "owned_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Exclusive globs this lane may modify; the host rejects a diff touching anything else."
+        },
+        "read_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Extra paths the worker should read (never modify)."
+        },
+        "worktree": {
+          "type": "string",
+          "description": "Override worktree path (default <worktree_root>/<id>). Must be relative and contain no '..'."
+        },
+        "positive_cmd": {
+          "type": "string",
+          "description": "Must exit 0 on the finished worktree. (v1 alias: test_cmd)"
+        },
+        "negative_control_cmd": {
+          "type": "string",
+          "description": "Must exit non-zero AND leave the tree exactly as it found it (trap cleanup)."
+        },
+        "negative_expect": {
+          "type": "string",
+          "description": "Regex (ERE / .NET) that must match the negative control's combined output -- it must name the planted violation. Prefer the tool's OWN error for a real mutation. Where the plant is synthetic, use the sentinel DEVLOOP-PLANTED-<LANE_ID> (lane id uppercased, non-alphanumerics to '-'): it must appear in negative_control_cmd, be unique to this lane, and not exist in the tree. Never alternate it with text the tool prints anyway -- that makes the control pass without the plant. See SKILL.md section 6."
+        },
+        "full_gate_cmd": {
+          "type": "string",
+          "description": "Optional whole-project gate run in the worktree after both controls."
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Lane ids that must merge before this lane starts (DAG; cycles rejected)."
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "worker",
+            "auditor",
+            "standby"
+          ],
+          "default": "worker"
+        },
+        "standby": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "watch_ref",
+            "idle_threshold_s"
+          ],
+          "properties": {
+            "watch_ref": {
+              "type": "string"
+            },
+            "idle_threshold_s": {
+              "type": "integer",
+              "minimum": 60
+            }
+          }
+        },
+        "worker": {
+          "$ref": "#/$defs/worker"
+        },
+        "extra_context": {
+          "type": "string",
+          "description": "Free text appended to the lane prompt."
+        },
+        "mutation_cmd": {
+          "type": "string",
+          "description": "Optional mutation-testing gate scoped to the lane's diff (mutmut --CI, cargo mutants, stryker); must exit 0. Surviving mutants = tests that cannot fail."
+        },
+        "task_id": {
+          "type": "string",
+          "description": "Id of the task in .devloop/tasks.jsonl this lane implements; the host writes it as a Task-Id: commit trailer and flips the task to done on merge."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+[command]
+name = "research"
+description = "Deep upstream repository research, release diffing, and breaking change analysis"
+version = "2.0.0"
+entrypoint = "python3 scripts/research.py diff"
+aliases = ["rs"]
+
+[parameters]
+base = { type = "string", description = "Base git ref or tag", required = true }
+upstream = { type = "string", description = "Upstream git ref or tag", default = "HEAD" }

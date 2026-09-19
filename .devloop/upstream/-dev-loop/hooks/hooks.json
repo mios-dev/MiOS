@@ -1,0 +1,15 @@
+{
+  "description": "dev-loop enforcement: block sweeping git adds / secret writes / pipe-to-shell, refuse to stop without a true devloop_report, inject project state, hand off before compaction.",
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"", "timeout": 10}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/prompt-context.sh\"", "timeout": 10}]}],
+    "PreToolUse": [
+      {"matcher": "Bash", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh\"", "timeout": 5}]},
+      {"matcher": "Edit|Write|MultiEdit|NotebookEdit", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/no-env.sh\"", "timeout": 5}]}
+    ],
+    "PostToolUse": [{"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/format.sh\"", "timeout": 60}]}],
+    "PreCompact": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.sh\"", "timeout": 15}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/stop-gate.sh\"", "timeout": 15}]}],
+    "SubagentStop": [{"matcher": "dev-loop:lane-worker|lane-worker", "hooks": [{"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/stop-gate.sh\"", "timeout": 15}]}]
+  }
+}

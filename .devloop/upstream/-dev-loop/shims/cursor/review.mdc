@@ -1,0 +1,11 @@
+---
+description: SCOPE staged code review and security audit (alias /rv)
+globs: ["*"]
+alwaysApply: false
+---
+
+# Cursor Rule: /review & /rv
+
+Before committing or requesting merge:
+- Execute `python3 scripts/review.py HEAD`.
+- Ensure zero blockers in `REVIEW.md`.
