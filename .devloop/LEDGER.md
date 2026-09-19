@@ -970,3 +970,20 @@ so long. Let a run finish.
   lines of budget against a floor sitting at its exact measured value.
 - blockers: -
 - unverified: CI on d311e751 not yet read
+
+## 2026-09-19 · 0dc62726 · lane-isolation & multi-harness concurrency resolved
+- objective: fix the AGY/worker lane-isolation defect and enable concurrent AGY + Claude Code CLI lanes
+- done:
+  1. Base-tree leakage prevention: .gitignore updated to mask devcontainer directories (/workspaces, /vscode, /v1, etc.) and obsolete unignores removed.
+  2. tools/drift-checks.py: all 5 root-walking checks pruned (.worktrees, .devloop), eliminating N+1 count inflation and test fixture collisions during live worker runs. Verified: 17/17 drift check tests pass (tools/test_drift-checks.py).
+  3. usr/lib/mios/agent-pipe/mios_worktree.py: refactored to use atomic `git merge-tree` without checking out the base branch, added SUBAGENT_ID_RE regex validation, and replaced silent pass with explicit error capture. Verified: 5/5 unit tests pass (test_mios_worktree.py).
+  4. E2E verification: 40/40 tests pass across all 4 tiers in tests/test_e2e_lane_isolation.py (33.66s).
+  5. Multi-harness concurrency: Claude Code CLI (`claude -p` v2.1.278) spawned and verified in isolated worktree (.worktrees/claude-worker-1), producing structured audit report on claude/worker-1 with zero base-tree pollution.
+  6. Upstream research: docs/research/UPSTREAM_AUDIT_DEVLOOP.md documented upstream patterns (ccswarm, baton, awesome-harness-engineering, Ralph on-disk state machine).
+  7. Continuous campaign launched under teamwork_preview (conversation ef5ad5b0-9742-43b6-a7a9-8e2522bfd727) continually scheduling open TASKS.md / ROADMAP.md items across Claude Code and AGY lanes.
+- next:
+  1. Complete Victory Audit on the teamwork engine track.
+  2. Monitor Continuous Campaign Orchestrator dispatching the first batch of open tasks from TASKS.md.
+  3. parked/laneB-fixture-leak.patch shell lines budget.
+- blockers: -
+- unverified: bare-metal Windows NTFS/9P git index lock contention under concurrent workloads
