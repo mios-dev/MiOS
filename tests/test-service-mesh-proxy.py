@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS Traefik / Envoy declarative service mesh generator.
-# AI-doc: usr/share/doc/mios/manual/networking.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 import unittest
 import sys
 import os

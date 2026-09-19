@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS Parquet log archiver and semantic pgvector diagnostic indexer.
-# AI-doc: usr/share/doc/mios/manual/telemetry.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 import unittest
 import sys
 import os

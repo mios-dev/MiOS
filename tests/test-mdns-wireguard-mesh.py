@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit test suite for MiOS mDNS peer discovery and WireGuard mesh daemon (T-588 / AGY-2186).
-# AI-related: usr/libexec/mios/net/mdns_mesh.py, usr/share/doc/mios/manual/net.md
+# AI-related: usr/libexec/mios/net/mdns_mesh.py
 """Unit and integration tests for MDNSMeshManager and WireGuard synthesizer."""
 
 from __future__ import annotations

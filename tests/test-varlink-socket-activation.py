@@ -1,5 +1,5 @@
 # AI-hint: Tests for T-743 & T-744: Varlink schema validation and sub-1ms RPC.
-# AI-related: varlink.service
+# AI-related: usr/lib/mios/ipc/varlink_activator.py
 # AI-functions: _create_server, test_varlink_valid_rpc_sub_1ms, test_varlink_missing_param_error
 
 """Tests for T-743 & T-744: Varlink schema validation and sub-1ms RPC."""

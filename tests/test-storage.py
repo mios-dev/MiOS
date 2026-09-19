@@ -1110,7 +1110,7 @@ class ec2_TestAdversarialBackupRemote(unittest.TestCase):
         self.assertGreater(plan["dedup_ratio_pct"], 0.0)
 
 class ec2_TestAdversarialDbDoctorAndMigrate(unittest.TestCase):
-    """Adversarial testing on mios-db-doctor and mios-db-migrate."""
+    """Adversarial testing on usr/libexec/mios/db/mios-db-doctor.py and usr/libexec/mios/db/mios-db-migrate.py."""
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="mios-db-adv-")

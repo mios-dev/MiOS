@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS IOMMU DMA remapper and PCIe ACS validator.
-# AI-doc: usr/share/doc/mios/manual/hardware.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 import unittest
 import sys
 import os
