@@ -4752,6 +4752,55 @@ test_canonical_bools() {
     log "check_canonical_bools negative test passed"
 }
 
+# Campaign 1 batch 2: generated surfaces with no negative test (Law 8).
+
+test_gate_index() {
+    log "Testing check_gate_index"
+    local tsv="${ROOT}/usr/share/mios/reference/drift-gate-index.tsv"
+    local bak; bak="$(mktemp)"; cp "$tsv" "$bak"
+    _gi_restore() { cp "$bak" "$tsv"; rm -f "$bak"; unset -f _gi_restore; }
+
+    [[ -s "$tsv" ]] || { _gi_restore; die "check_gate_index: the index is empty, so a diff proves nothing"; }
+    printf 'check_%s_planted\tplanted\tplanted\n' "devloop" >> "$tsv"
+    _neg_gate check_gate_index && { _gi_restore; die "check_gate_index passed with a hand-added row in the generated index"; }
+
+    _gi_restore
+    _neg_gate check_gate_index || die "check_gate_index failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_gate_index negative test passed"
+}
+
+test_pod_quadlets() {
+    log "Testing check_pod_quadlets"
+    local dir="${ROOT}/usr/share/containers/systemd"
+    local f; f="$(find "$dir" -maxdepth 1 -type f -name '*.image' -o -maxdepth 1 -type f -name '*.container' 2>/dev/null | sort | head -1)"
+    # Empty-set guard: nothing generated means nothing to mutate.
+    [[ -n "$f" ]] || die "check_pod_quadlets: no generated unit in $dir to mutate"
+    local bak; bak="$(mktemp)"; cp "$f" "$bak"
+    _pq_restore() { cp "$bak" "$f"; rm -f "$bak"; unset -f _pq_restore; }
+
+    printf '\n# devloop planted\n' >> "$f"
+    _neg_gate check_pod_quadlets && { _pq_restore; die "check_pod_quadlets passed with a hand-edited generated unit"; }
+
+    _pq_restore
+    _neg_gate check_pod_quadlets || die "check_pod_quadlets failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_pod_quadlets negative test passed"
+}
+
+test_egress_firewall() {
+    log "Testing check_egress_firewall"
+    local nft="${ROOT}/usr/share/mios/security/egress.nft"
+    local bak; bak="$(mktemp)"; cp "$nft" "$bak"
+    _ef_restore() { cp "$bak" "$nft"; rm -f "$bak"; unset -f _ef_restore; }
+
+    [[ -s "$nft" ]] || { _ef_restore; die "check_egress_firewall: the ruleset is empty, so a diff proves nothing"; }
+    printf '\n# devloop planted\n' >> "$nft"
+    _neg_gate check_egress_firewall && { _ef_restore; die "check_egress_firewall passed with a hand-edited generated ruleset"; }
+
+    _ef_restore
+    _neg_gate check_egress_firewall || die "check_egress_firewall failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_egress_firewall negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -4954,6 +5003,9 @@ _run_test test_leaked_fixtures
     _run_test test_retired_models
     _run_test test_etc_duplicates
     _run_test test_canonical_bools
+    _run_test test_gate_index
+    _run_test test_pod_quadlets
+    _run_test test_egress_firewall
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s

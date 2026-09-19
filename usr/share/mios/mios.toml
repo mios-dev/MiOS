@@ -11358,7 +11358,7 @@ max_leaked_fixtures = 0
 # measured gap it never enforced: write a test, lower the number.
 # 48 -> 47: four new two-sided tests, less five the tightened
 # argument-position coverage predicate correctly re-counted.
-max_checks_without_negative = 47
+max_checks_without_negative = 44
 
 [ci.python]
 # Installed on a runner before the unit tier.
