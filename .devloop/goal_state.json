@@ -7,9 +7,9 @@
   "criteria": [
     {
       "id": "C-01",
-      "description": "Drift gate at its standing red: exactly 19 violations, no new check failing",
+      "description": "Drift gate at its standing red: exactly 18 violations, no new check failing (19 -> 18: check_module_test_coverage drained)",
       "criterion_type": "test",
-      "command": "[ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 19 ]",
+      "command": "[ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 18 ]",
       "target_path": null,
       "passed": false,
       "details": "Exit code 1"
@@ -39,5 +39,6 @@
     "Running a bake -- no image has been built on this branch, so no claim may depend on one",
     "Fixing the six standing-red checks that predate this branch (they are main's, not this branch's)"
   ],
-  "ratchet_history": []
+  "ratchet_history": [],
+  "stop": ""
 }
