@@ -93,10 +93,13 @@ echo "Bound-images: group=${GROUP} -> ${#IMAGES[@]} image"
 baked=0; failed=0
 for img in "${IMAGES[@]}"; do
     echo "Bound-image: baking $img"
+    # A :latest its registry does not publish resolves to the newest release, re-tagged as $img.
+    src="$(/usr/libexec/mios/mios-bake-plan latest-image "$img")" || src="$img"
     _pulled=0
     for _try in 1 2 3 4 5; do
         if CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
-             podman --root "$STORE" --runroot "$SCRATCH/run" pull "$img"; then
+             podman --root "$STORE" --runroot "$SCRATCH/run" pull "$src"; then
+            [ "$src" = "$img" ] || podman --root "$STORE" --runroot "$SCRATCH/run" tag "$src" "$img"
             _pulled=1; break
         fi
         _wait=$((_try * 3))

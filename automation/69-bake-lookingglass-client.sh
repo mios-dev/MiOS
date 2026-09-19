@@ -2,6 +2,7 @@
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Automates the compilation and installation of the Looking Glass client binary to /usr/bin/ if not already present, handling version detection and toolchain checks during the MiOS build process.
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
@@ -26,14 +27,8 @@ if [[ -n "$MISSING" ]]; then
     exit 0
 fi
 
-LG_BRANCH="${MIOS_BUILD_BAKE_REFS_LOOKINGGLASS:-B7}"
-if [[ -z "$LG_BRANCH" ]]; then
-    LG_BRANCH=$(git ls-remote --heads https://github.com/gnif/LookingGlass.git 'B*' 2>/dev/null \
-        | awk -F/ '{print $NF}' \
-        | sort -V \
-        | tail -n1 || true)
-    [[ -n "$LG_BRANCH" ]] || die "Looking Glass: git ls-remote returned no B* release branch"
-fi
+LG_BRANCH="${MIOS_BUILD_BAKE_REFS_LOOKINGGLASS:-latest}"
+[[ "$LG_BRANCH" != latest ]] || LG_BRANCH="$(/usr/libexec/mios/mios-bake-plan latest-git https://github.com/gnif/LookingGlass.git)" || die "Looking Glass: newest release could not be resolved"
 record_version looking-glass "$LG_BRANCH" "https://github.com/gnif/LookingGlass/tree/${LG_BRANCH}"
 BUILD_DIR="/tmp/LookingGlass-build"
 

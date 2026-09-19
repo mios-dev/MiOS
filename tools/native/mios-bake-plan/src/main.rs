@@ -1,4 +1,6 @@
-// AI-hint: Rust bake-plan generator (AGY-139 / Law 14). Projects plan.d/*.list and bound-images.tsv from mios.toml SSOT.
+// AI-hint: Rust bake-plan generator (AGY-139 / Law 14). Projects plan.d/*.list and bound-images.tsv from mios.toml SSOT, and resolves floating refs at bake time (latest-image / latest-git).
+mod latest;
+
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
@@ -100,9 +102,12 @@ fn classify(img: &str, groups: &[String], group_members: &BTreeMap<String, Vec<S
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    let root = get_root();
+    if let Some(code) = latest::dispatch(&args, &root) {
+        process::exit(code);
+    }
     let check = args.iter().any(|a| a == "--check");
 
-    let root = get_root();
     let toml_path = env::var("MIOS_TOML")
         .map(PathBuf::from)
         .unwrap_or_else(|_| root.join("usr/share/mios/mios.toml"));
@@ -181,13 +186,9 @@ fn main() {
                 .collect()
         })
         .unwrap_or_else(|| {
-            vec![
-                "vllm".to_string(),
-                "sglang".to_string(),
-                "ai".to_string(),
-                "infra".to_string(),
-                "extra".to_string(),
-            ]
+            // No built-in group list: a default here would be a second SSOT.
+            eprintln!("[bake-plan-gen] ERROR: [build.bake].groups is missing in mios.toml");
+            process::exit(1);
         });
 
     let mut group_members: BTreeMap<String, Vec<String>> = BTreeMap::new();

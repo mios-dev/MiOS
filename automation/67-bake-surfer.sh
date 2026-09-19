@@ -10,7 +10,8 @@ source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/packages.sh"
 install_packages "ai"
 
-PIN_REF="${MIOS_BUILD_BAKE_REFS_SURFER:-17d9a1577170880cdac13dca7c3d6871716fc046}"
+PIN_REF="${MIOS_BUILD_BAKE_REFS_SURFER:-latest}"
+[ "$PIN_REF" != latest ] || PIN_REF="$(/usr/libexec/mios/mios-bake-plan latest-git "${MIOS_URL_SURFER:-https://github.com/zen-browser/surfer.git}")" || { echo "surfer: newest ref could not be resolved" >&2; exit 1; }
 mios_log "Surfer pin ref: ${PIN_REF}"
 
 git config --global user.email "build@mios.local"  2>/dev/null || true

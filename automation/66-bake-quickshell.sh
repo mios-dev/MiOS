@@ -3,6 +3,7 @@
 # AI-hint: Installs Qt6 build-time tools, clones the quickshell repository, compiles it, and deploys the default declarative QML pa...
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
@@ -13,7 +14,8 @@ install_packages_strict "quickshell-build"
 mios_log "Compiling quickshell from upstream"
 source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
 
-PIN_REF="${MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v0.3.0}"
+PIN_REF="${MIOS_BUILD_BAKE_REFS_QUICKSHELL:-latest}"
+[ "$PIN_REF" != latest ] || PIN_REF="$(/usr/libexec/mios/mios-bake-plan latest-git "${MIOS_URL_QUICKSHELL:-https://github.com/quickshell-mirror/quickshell.git}")" || { echo "quickshell: newest release could not be resolved" >&2; exit 1; }
 mios_log "Quickshell pin ref: ${PIN_REF}"
 
 BUILD_DIR="/tmp/quickshell-build"
@@ -46,7 +48,7 @@ for attempt in 1 2 3; do
 
     rm -rf build && mkdir -p build && cd build
     if cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release .. && \
-       (ninja 2>/dev/null || cmake --build . --parallel $(nproc) 2>/dev/null || make -j1) && \
+       (ninja 2>/dev/null || cmake --build . --parallel "$(nproc)" 2>/dev/null || make -j1) && \
        (make install 2>/dev/null || cmake --install .); then
         if [[ -x /usr/bin/quickshell ]]; then
             QUICKSHELL_OK=1
