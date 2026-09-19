@@ -8408,7 +8408,7 @@ usr/lib/mios/agent-pipe/mios_kv_compact.py	215	215	1	7	118a666fb399	STAY	local-s
 usr/lib/mios/agent-pipe/mios_kv_compact.py	249	249	1	2	c148ad9c77b9	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_kv_compact.py	252	252	1	9	16a863a6902b	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_kv_compact.py	303	303	1	6	3e3a2832a08e	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/mios_kvfork.py	1	3	3	44	ce4522b67424	MIGRATE_HEADER	overlong-hint		0				0
+usr/lib/mios/agent-pipe/mios_kvfork.py	1	3	3	43	d5bec8e7b4fc	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_kvfork.py	4	17	13	62	75f37e70e95d	MIGRATE	narrative-rationale		0				0
 usr/lib/mios/agent-pipe/mios_kvfork.py	93	93	1	6	6a7250911e5e	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/mios_kvfork.py	97	97	1	7	bbb0780bd202	STAY	local-scoped		0				0
