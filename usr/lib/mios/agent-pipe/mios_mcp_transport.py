@@ -104,10 +104,16 @@ async def _mcp_http_rpc(
         for chunk in text_content.split("\n\n"):
             for line in chunk.splitlines():
                 if line.startswith("data:"):
+                    # loads_lenient RETURNS None on unsalvageable input rather than
+                    # raising, so the except below could never fire and a garbage
+                    # first data line returned None to a caller expecting a
+                    # JSON-RPC object. Skip it and try the next, as intended.
                     try:
-                        return _loads_lenient(line[5:].strip())
+                        parsed = _loads_lenient(line[5:].strip())
                     except Exception:
                         continue
+                    if parsed is not None:
+                        return parsed
         return {"error": {"code": -32700, "message": "no SSE data event"}}
 
     try:
@@ -117,9 +123,13 @@ async def _mcp_http_rpc(
             raw = r.body
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8", "replace")
-            return _loads_lenient(raw)
+            parsed = _loads_lenient(raw)
+            if parsed is not None:
+                return parsed
         elif hasattr(r, "text"):
-            return _loads_lenient(r.text)
+            parsed = _loads_lenient(r.text)
+            if parsed is not None:
+                return parsed
         return {"error": {"code": -32700, "message": "non-JSON response"}}
     except Exception:
         return {"error": {"code": -32700, "message": "non-JSON response"}}

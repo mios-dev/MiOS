@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: The three largest drift checks, lifted out of their shell heredocs so they can be imported, linted and tested.
 # AI-related: mios_manifest, mios_capreg, mios_surface, mios_comments, /usr/libexec/mios/mios-resolver, /usr/share/mios/mios.toml, mios-resolver, mios-env-snapshot, mios-drift-ctx-test, mios-bootstrap
-# AI-functions: check_doc_refs_resolve, check_resolver_differential_parity, check_legibility_ratchet, lines, _is_generated, check_no_inert_ssot_tables, check_no_duplicate_value_key, emit, esc, unesc, _shape, check_unwired_modules
+# AI-functions: check_resolver_differential_parity, check_legibility_ratchet, lines, _is_generated, check_no_inert_ssot_tables, check_no_duplicate_value_key, emit, esc, unesc, _shape, check_unwired_modules
 """Each subcommand is one check: it prints violations and exits non-zero.
 
 They lived as heredocs inside the shell gate, where nothing could import or
@@ -63,96 +63,6 @@ def _under(path: str, root: str) -> str:
     """Repo-relative when the path is inside root, else the path as given."""
     rel = os.path.relpath(path, root)
     return path if rel.startswith("..") else rel.replace(os.sep, "/")
-
-def check_doc_refs_resolve() -> int:
-    import os, sys, re
-    import tomllib
-
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    _rc = _absent(root, toml_path)
-    if _rc is not None:
-        sys.exit(_rc)
-
-    with open(toml_path, "rb") as fh:
-        data = tomllib.load(fh)
-
-    docs_cfg = data.get("docs") or {}
-    max_stale = int(docs_cfg.get("max_stale_doc_refs", 0))
-    allowlist = set(docs_cfg.get("ref_allowlist") or [])
-
-    stale = []
-    ref_re = re.compile(r'^\s*#\s*AI-(?:related|doc):\s*(.+)$|<!--\s*AI-(?:related|doc):\s*(.*?)\s*-->', re.MULTILINE)
-    md_link_re = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
-
-    for rpath, _, files in os.walk(root):
-        if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored', 'output', '.rustup', '.cargo']):
-            continue
-        for fn in files:
-            if not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
-                continue
-            if fn in ('AGY-TASKS.md', 'TASKS.md', 'doc-generative-documentation.md', 'drift-gate-negatives.sh'):
-                continue
-            fpath = os.path.join(rpath, fn)
-            dirpath = os.path.dirname(fpath)
-            try:
-                with open(fpath, 'r', encoding='utf-8', errors='ignore') as sfh:
-                    text = sfh.read()
-                for m in ref_re.finditer(text):
-                    raw_line = m.group(1) or m.group(2) or ''
-                    tokens = [t.strip().rstrip(',') for t in raw_line.split(',') if t.strip()]
-                    for t in tokens:
-                        t_clean = t.rstrip(',').strip()
-                        t_clean = re.sub(r':\d+.*$', '', t_clean).strip()
-                        t_clean = re.sub(r'\s*\([^)]*\)', '', t_clean).strip()
-                        # "file.toml [section]" is a file + section, not a path.
-                        t_clean = re.sub(r'\s*\[[^\]]*\]\s*$', '', t_clean).strip()
-                        if not t_clean or any(al in t_clean for al in allowlist):
-                            continue
-                        if t_clean.startswith('[') or t_clean.startswith('@@') or t_clean.startswith('<'):
-                            continue
-                        if not ('/' in t_clean or t_clean.endswith(('.sh', '.py', '.toml', '.ps1', '.json', '.yaml', '.yml', '.md'))):
-                            continue
-                        if t_clean.startswith('/etc/') or t_clean.startswith('/var/') or t_clean.startswith('/tmp/') or t_clean.startswith('/proc/') or t_clean.startswith('/sys/') or t_clean.startswith('/run/'):
-                            continue
-                        if t_clean.startswith('http://') or t_clean.startswith('https://') or t_clean.startswith('localhost'):
-                            continue
-
-                        rel = t_clean.lstrip('/')
-                        cands = [
-                            os.path.normpath(os.path.join(dirpath, rel)),
-                            os.path.normpath(os.path.join(os.path.dirname(dirpath), rel)),
-                            os.path.normpath(os.path.join(os.path.dirname(os.path.dirname(dirpath)), rel)),
-                            os.path.normpath(os.path.join(root, 'usr/lib/mios/agent-pipe', rel)),
-                            os.path.normpath(os.path.join(root, rel)),
-                        ]
-                        if not any(os.path.exists(c) for c in cands):
-                            stale.append(f'{fn}: {t_clean}')
-                if fn.endswith('.md'):
-                    for m in md_link_re.finditer(text):
-                        target = m.group(2).split('#')[0].strip()
-                        if not target or target.startswith(('http://', 'https://', 'mailto:', '#', 'file://')):
-                            continue
-                        if not (target.endswith(('.md', '.sh', '.py', '.toml', '.json', '.txt', '.png', '.svg', '.jpg')) or '/' in target):
-                            continue
-                        rel = target.lstrip('/')
-                        cands = [
-                            os.path.normpath(os.path.join(dirpath, rel)),
-                            os.path.normpath(os.path.join(os.path.dirname(dirpath), rel)),
-                            os.path.normpath(os.path.join(root, rel)),
-                        ]
-                        if not any(os.path.exists(c) for c in cands):
-                            stale.append(f'{fn}: {target}')
-            except Exception:
-                pass
-
-    if len(stale) > max_stale:
-        sys.stdout.write(f"    check_doc_refs_resolve: {len(stale)} stale reference(s) found (max allowed {max_stale}):\n")
-        for s in stale[:10]:
-            sys.stdout.write(f"      {s}\n")
-        sys.exit(1)
-
-    sys.exit(0)
 
 def check_resolver_differential_parity() -> int:
     import os, sys, subprocess
@@ -350,200 +260,6 @@ def check_legibility_ratchet() -> int:
                                       for k, v in sorted(measured.items())), file=sys.stderr)
     print("\n".join(viol))
     sys.exit(1 if viol else 0)
-
-def check_no_inert_ssot_tables() -> int:
-    """Consumption is access-shaped evidence, never name-appearance (T-996).
-
-    A table counts as consumed only when code READS it: a direct index of the
-    parsed SSOT, a toml-get lookup, or a resolver-projected MIOS_<TABLE>_* var
-    whose name derives from one of the table's own keys and appears in a
-    hand-written consumer. A doc sentence, a comment, or a word collision no
-    longer keeps a dead table alive. Tables with no consumer sit in the
-    shrink-only [ssot_tables].unconsumed register under a max_unconsumed
-    ceiling that must equal the register's size.
-    """
-    import os, sys, re
-    import tomllib
-
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    _rc = _absent(root, toml_path)
-    if _rc is not None:
-        sys.exit(_rc)
-
-    with open(toml_path, "rb") as fh:
-        data = tomllib.load(fh)
-
-    paths, _rc = _tracked(root)
-    if _rc is not None:
-        sys.exit(_rc)
-
-    CODE_EXT = (".py", ".sh", ".ps1", ".rs", ".js", ".ts", ".mjs")
-    NON_CONSUMER_DIRS = ("docs/", "usr/share/doc/", "usr/share/mios/reference/")
-    # Comment-form only: gates that EMBED this marker as a string constant
-    # (to implement this very exclusion) must not read as generated projections.
-    GENERATED = b"# GENERATED IN FULL from usr/share/mios/mios.toml"
-    # A test stubs config; it does not consume it ([ssot_consumers] doc).
-    _TEST_RE = re.compile(r"(^|/)tests?/|(^|/)test[-_]")
-    # Generic subscript/get evidence only counts where the file loads the
-    # SSOT, otherwise any report-dict subscript or one-word list literal that
-    # collides with a table name reads as a consumer.
-    _SSOT_CONTEXT = re.compile(r"mios\.toml|mios_toml|_toml_section|load_merged"
-                               r"|MIOS_TOML")
-
-    def _corpus():
-        for rel in paths:
-            if rel == "usr/share/mios/mios.toml" or _TEST_RE.search(rel):
-                continue
-            if rel.startswith(NON_CONSUMER_DIRS) or "/docs/" in rel:
-                continue
-            fpath = os.path.join(root, rel)
-            try:
-                with open(fpath, "rb") as fh:
-                    head = fh.read(4096)
-                    if not (rel.endswith(CODE_EXT) or head[:2] == b"#!"):
-                        continue
-                    if GENERATED in head:
-                        continue
-                    blob = head + fh.read()
-            except OSError:
-                continue
-            yield rel, blob.decode("utf-8", "ignore")
-
-    def _key_tokens(value, out):
-        if isinstance(value, dict):
-            for k, v in value.items():
-                for tok in str(k).upper().replace("-", "_").split("_"):
-                    if tok:
-                        out.add(tok)
-                _key_tokens(v, out)
-
-    def _predicates(table):
-        t = re.escape(table)
-        anywhere = [
-            # a quoted dotted path is evidence only when it names a real key
-            # of the table, so 'git.exe' can never stand in for [git]
-        ]
-        keys = [re.escape(str(k)) for k in data[table].keys()]
-        if keys:
-            anywhere.append(re.compile(
-                r'["\']' + t + r'\.(' + "|".join(keys) + r')\b'))
-        anywhere += [
-            # the SSOT-specific accessors: section reads and dotted lookups
-            re.compile(r'_toml_section\(\s*["\']' + t + r'["\']'),
-            re.compile(r'toml[-_]get\s+["\']?' + t + r'[.\s"\']'),
-            re.compile(r'toml[-_]value\S*\s+["\']?' + t + r'["\'.\s]'),
-            re.compile(r'-Section\s+["\']' + t + r'(\.[a-z0-9_]+)?["\']'),
-            re.compile(r'startswith\(\s*["\']' + t + r'\.'),
-            # an awk/regex program parsing the section header out of the file
-            re.compile(r'\\\[' + t + r'\\\]'),
-        ]
-        in_ssot_context = [
-            re.compile(r'\[["\']' + t + r'["\']\]'),
-            re.compile(r'\.get\(\s*["\']' + t + r'["\']'),
-        ]
-        return anywhere, in_ssot_context
-
-    tables = {name for name, val in data.items() if isinstance(val, dict)}
-    pending = {}
-    var_pats = {}
-    for name in tables:
-        pending[name] = _predicates(name)
-        tokens = set()
-        _key_tokens(data[name], tokens)
-        if tokens:
-            up = name.upper().replace("-", "_")
-            var_pats[name] = (re.compile(r"MIOS_" + up + r"_([A-Z0-9_]+)"), tokens)
-
-    consumed = set()
-    # [dotfiles.registry.*].section is the SSOT's own consumer manifest: the
-    # dotfiles renderer resolves each registered template from that table.
-    for entry in ((data.get("dotfiles") or {}).get("registry") or {}).values():
-        if isinstance(entry, dict) and entry.get("section") in tables:
-            consumed.add(entry["section"])
-            pending.pop(entry["section"], None)
-
-    for _rel, text in _corpus():
-        ssot_file = bool(_SSOT_CONTEXT.search(text))
-        for name in list(pending):
-            anywhere, ctx = pending[name]
-            hit = any(p.search(text) for p in anywhere)
-            if not hit and ssot_file:
-                hit = any(p.search(text) for p in ctx)
-            if not hit and name in var_pats:
-                var_re, tokens = var_pats[name]
-                for m in var_re.finditer(text):
-                    if tokens & set(m.group(1).split("_")):
-                        hit = True
-                        break
-            if hit:
-                consumed.add(name)
-                del pending[name]
-        if not pending:
-            break
-
-    viol = []
-    reg_tbl = data.get("ssot_tables")
-    if not isinstance(reg_tbl, dict):
-        viol.append("[ssot_tables] is absent -- nothing bounds how many SSOT "
-                    "tables may sit dead with no consumer")
-        reg, ceiling = [], None
-    else:
-        reg = reg_tbl.get("unconsumed")
-        ceiling = reg_tbl.get("max_unconsumed")
-        if reg is None:
-            viol.append("[ssot_tables] declares no `unconsumed` key -- an "
-                        "implied empty register is indistinguishable from a "
-                        "forgotten one")
-            reg = []
-        if ceiling is None:
-            viol.append("[ssot_tables].max_unconsumed is unset -- without a "
-                        "ceiling the register absorbs new breakage as fast as "
-                        "it appears")
-
-    if len(reg) != len(set(reg)):
-        dupes = sorted({r for r in reg if reg.count(r) > 1})
-        viol.append("[ssot_tables].unconsumed lists a table twice: %s"
-                    % ", ".join(dupes))
-    if reg != sorted(reg):
-        viol.append("[ssot_tables].unconsumed is not sorted -- an unsorted "
-                    "register hides an addition inside a reordering")
-    for name in reg:
-        if name not in tables:
-            viol.append("[ssot_tables].unconsumed entry `%s` names a table "
-                        "the SSOT no longer declares -- drop the entry" % name)
-        elif name in consumed:
-            viol.append("[ssot_tables].unconsumed entry `%s` has a consumer "
-                        "now -- drop it from the register; the register only "
-                        "shrinks" % name)
-    if ceiling is not None:
-        if len(reg) > ceiling:
-            viol.append("[ssot_tables].unconsumed holds %d entries, over the "
-                        "ratchet ceiling max_unconsumed = %d. The ceiling "
-                        "only comes DOWN" % (len(reg), ceiling))
-        elif len(reg) < ceiling:
-            viol.append("[ssot_tables].max_unconsumed = %d exceeds the %d "
-                        "registered entries -- lower it to %d so the ground "
-                        "gained is held" % (ceiling, len(reg), len(reg)))
-
-    registered = set(reg)
-    for name in sorted(tables - consumed - registered):
-        viol.append("SSOT table [%s] has no access-shaped consumer -- wire "
-                    "it, drop it, or record it in [ssot_tables].unconsumed "
-                    "with a reason" % name)
-    if not consumed:
-        viol.append("no consumption evidence found for ANY table -- the gate "
-                    "would pass vacuously over an empty set")
-
-    if viol:
-        for v in viol:
-            sys.stdout.write(v + "\n")
-        sys.exit(1)
-
-    sys.stdout.write("tables=%d consumed=%d registered-unconsumed=%d "
-                     "(ceiling %s)\n" % (len(tables), len(consumed), len(reg),
-                                         ceiling))
-    sys.exit(0)
 
 def check_no_duplicate_value_key() -> int:
     """One value, one name, ratcheted against the baseline ledger.
@@ -3864,13 +3580,10 @@ def check_db_seed_coverage() -> int:
     toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     seed_script = os.path.join(root, "usr/libexec/mios/seed-db-config.py")
 
-    if not os.path.isfile(toml_path):
-        sys.stderr.write(f"    Missing SSOT file: {toml_path}\n")
-        return 1
-
-    if not os.path.isfile(seed_script):
-        sys.stderr.write(f"    Missing db seeder script: {seed_script}\n")
-        return 1
+    for label, path in (("SSOT file", toml_path), ("db seeder script", seed_script)):
+        if not os.path.isfile(path):
+            sys.stderr.write(f"    Missing {label}: {path}\n")
+            return 1
 
     try:
         with open(toml_path, "rb") as f:
@@ -3879,17 +3592,13 @@ def check_db_seed_coverage() -> int:
         sys.stderr.write(f"    Failed to parse mios.toml: {e}\n")
         return 1
 
+    # One failure path, not four: an unloadable spec, a module that raises on
+    # import and a missing entry point are one outcome to the caller.
     spec = importlib.util.spec_from_file_location("seed_db_config", seed_script)
-    if not spec or not spec.loader:
-        sys.stderr.write(f"    Failed to load module spec from {seed_script}\n")
-        return 1
-    seed_mod = importlib.util.module_from_spec(spec)
+    seed_mod = importlib.util.module_from_spec(spec) if spec and spec.loader else None
     try:
         spec.loader.exec_module(seed_mod)
-        get_seeded_sections = getattr(seed_mod, "get_seeded_sections", None)
-        if not get_seeded_sections:
-            sys.stderr.write(f"    get_seeded_sections function absent in {seed_script}\n")
-            return 1
+        get_seeded_sections = seed_mod.get_seeded_sections
     except Exception as e:
         sys.stderr.write(f"    Failed to import get_seeded_sections from {seed_script}: {e}\n")
         return 1
@@ -3897,11 +3606,18 @@ def check_db_seed_coverage() -> int:
     seeded_set = set(get_seeded_sections(data))
     handled_separately = {"verbs", "packages"}
 
-    uncovered = []
-    for sec_name in data.keys():
-        if sec_name not in seeded_set and sec_name not in handled_separately:
-            uncovered.append(f"Section '{sec_name}' is not handled by seed-db-config.py")
-
+    # The allowlist is checked BOTH ways: a name only in the SSOT never reaches
+    # the database; a name only in the allowlist is a rotted entry from a dropped
+    # table. An absent or empty allowlist is reported, or a rename goes vacuous.
+    known = getattr(seed_mod, "_CANONICAL_SECTIONS", None)
+    if not isinstance(known, (set, frozenset)) or not known:
+        sys.stderr.write(f"    _CANONICAL_SECTIONS absent or empty in {seed_script};"
+                         f" the allowlist half of this check would prove nothing\n")
+        return 1
+    uncovered = [f"Section '{s}' is not handled by seed-db-config.py"
+                 for s in data if s not in seeded_set and s not in handled_separately]
+    uncovered += [f"Section '{s}' is listed in seed-db-config.py but mios.toml no"
+                  f" longer has it" for s in sorted(known) if s not in data]
     if uncovered:
         for u in uncovered:
             sys.stderr.write(f"    {u}\n")
@@ -4957,8 +4673,6 @@ SUBCOMMANDS = {
     "drift-projection": check_drift_projection,
     "unwired-modules": check_unwired_modules,
     "no-duplicate-value-key": check_no_duplicate_value_key,
-    "no-inert-ssot-tables": check_no_inert_ssot_tables,
-    "doc-refs-resolve": check_doc_refs_resolve,
     "resolver-differential-parity": check_resolver_differential_parity,
     "legibility-ratchet": check_legibility_ratchet,
     "header-integrity": check_header_integrity,

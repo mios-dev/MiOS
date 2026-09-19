@@ -1,39 +1,44 @@
 {
-  "objective": "Burn down the measured-defect backlog in TASKS.md: each open row re-measured before any code is written, fixed at root cause with two-sided controls, one task per commit, and the drift baseline held at exactly its standing red",
-  "stopping_condition": "cd /home/user/MiOS && [ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 19 ] && [ -z \"$(git status --porcelain)\" ]",
-  "status": "IN_PROGRESS",
-  "created_at": "2026-09-18T16:44:19.505888",
-  "completed_at": null,
-  "criteria": [
-    {
-      "id": "C-01",
-      "description": "Drift gate at its standing red: exactly 19 violations, no new check failing",
-      "criterion_type": "test",
-      "command": "[ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 19 ]",
-      "passed": true,
-      "details": "Exit code 0"
-    },
-    {
-      "id": "C-02",
-      "description": "Working tree clean of uncommitted residue",
-      "criterion_type": "git_clean",
-      "command": null,
-      "passed": false,
-      "details": "Dirty files: M .devloop/goal_state.json"
-    },
-    {
-      "id": "C-03",
-      "description": "Both Rust workspaces build, format and test clean",
-      "criterion_type": "test",
-      "command": "cd tools/native && cargo fmt --all -- --check && cargo test --workspace --exclude mios-wallpaperd >/dev/null && cd ../../src/mios-rs && cargo fmt --all -- --check && cargo test --workspace >/dev/null",
-      "passed": true,
-      "details": "Exit code 0"
-    }
-  ],
-  "non_goals": [
-    "Deleting any shipped component, generator, subcommand or file without the operator's explicit yes",
-    "Raising any shrink-only ratchet; a ceiling may only fall",
-    "Running a bake -- no image has been built on this branch, so no claim may depend on one",
-    "Fixing the six standing-red checks that predate this branch (they are main's, not this branch's)"
-  ]
+ "objective": "Burn down the measured-defect backlog in TASKS.md: each open row re-measured before any code is written, fixed at root cause with two-sided controls, one task per commit, and the drift baseline held at exactly its standing red",
+ "stopping_condition": "cd /home/user/MiOS && [ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 15 ] && [ -z \"$(git status --porcelain)\" ]",
+ "status": "CRITERIA_MET_IN_CI",
+ "created_at": "2026-09-18T16:44:19.505888",
+ "completed_at": null,
+ "criteria": [
+  {
+   "id": "C-01",
+   "description": "Drift gate at its standing red: exactly 15 violations, no new check failing (16 -> 15: check_db_seed_coverage drained, 1 line)",
+   "criterion_type": "test",
+   "command": "[ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 15 ]",
+   "target_path": null,
+   "passed": true,
+   "details": "MET in CI on 6bbed1c8 (run 35431234283): FAIL: 15 drift violation. Distribution: check_doc_refs_resolve 11, check_docs_ratchet 3, check_no_inert_ssot_tables 1. All three are main's standing red. Not re-measurable in this container, which lacks shellcheck/powershell/dotnet-sdk/bubblewrap and the native builds CI performs."
+  },
+  {
+   "id": "C-02",
+   "description": "Working tree clean of uncommitted residue",
+   "criterion_type": "git_clean",
+   "command": null,
+   "target_path": null,
+   "passed": true,
+   "details": "Working tree clean"
+  },
+  {
+   "id": "C-03",
+   "description": "Both Rust workspaces build, format and test clean",
+   "criterion_type": "test",
+   "command": "cd tools/native && cargo fmt --all -- --check && cargo test --workspace --exclude mios-wallpaperd >/dev/null && cd ../../src/mios-rs && cargo fmt --all -- --check && cargo test --workspace >/dev/null",
+   "target_path": null,
+   "passed": true,
+   "details": "Exit code 0"
+  }
+ ],
+ "non_goals": [
+  "Deleting any shipped component, generator, subcommand or file without the operator's explicit yes",
+  "Raising any shrink-only ratchet; a ceiling may only fall",
+  "Running a bake -- no image has been built on this branch, so no claim may depend on one",
+  "Fixing the six standing-red checks that predate this branch (they are main's, not this branch's)"
+ ],
+ "ratchet_history": [],
+ "stop": ""
 }

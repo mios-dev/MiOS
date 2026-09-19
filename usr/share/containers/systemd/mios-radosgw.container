@@ -3,7 +3,7 @@
 # /usr/share/containers/systemd/mios-radosgw.container
 
 [Unit]
-After=network-online.target mios-ceph.container
+After=network-online.target mios-ceph.service
 ConditionPathExists=/etc/ceph/ceph.conf
 ConditionVirtualization=!container
 Description='MiOS' Ceph RADOS Gateway (S3 Object Storage)

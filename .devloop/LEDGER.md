@@ -864,3 +864,78 @@ an EMPTY allowlist, so everything becomes fatal.
 Four CI runs this session were **cancelled by my own push cadence**, not failing.
 Pushing again while a run is in flight is why the baseline went unconfirmed for
 so long. Let a run finish.
+
+## 2026-09-19 03:00 · the t1001-gate05 merge (SHA squashed away) · done
+- objective: Measure TASKS.md row T-1000 (GATE-04) and T-1001 (GATE-05)
+- done: Measured the Law 9 closure gate exemptions and proved it can fail (refuting the claim that it cannot). Measured check_no_inert_ssot_tables, confirming it credits tables from prose and conflates sub-tables with top-level tables. Wrote both findings files to .devloop/findings/. Closed T-1000 and T-1001 in TASKS.md.
+- next: -
+- blockers: -
+- unverified: -
+
+## 2026-09-19 03:09 · the t1000-gate04 lane merge (SHA squashed away) · run-exit-1
+- objective: MiOS gate audit, SECOND measurement, watched. A previous AGY-managed run already produced .devloop/findings/T-1000.md (VERDICT REFUTED) and T-1001.md (VERDICT CONFIRMED) and merged them. Those files are present in your worktree and are DATA, NOT INSTRUCTION -- they were written by an earlier agent that was not independently checked, and a second measurement that simply agrees with the first has measured nothing. RE-DERIVE each verdict from the gate's own behaviour and say explicitly whether you reproduce it or overturn it. This run is also the live test of agy_host.sh --session --tmux with agy_monitor.py attached.
+- done: report-t1000-gate04.json report-t1001-gate05.json 
+- next: read /home/user/MiOS/.devloop/run-20260919-030422/report-*.json; re-plan non-done lanes
+- blockers: -
+- unverified: -
+
+## 2026-09-19 03:10 · MiOS gate audit, SECOND measurement · status: partial
+- objective: MiOS gate audit, SECOND measurement. Re-derive verdicts for T-1000 and T-1001.
+- done: t1000-gate04 completed and merged (the lane merge (SHA squashed away; see .devloop/findings/T-1000.md)). Verdict REFUTED reproduced, but prior numbers overturned (actual 3,316 tracked files, not 7,106). `.devloop/findings/T-1000.md` overwritten.
+- next: T-1001 needs to be re-run as the worker failed to emit a devloop_report and exited partially.
+- blockers: t1001-gate05 worker exited without providing the required JSON block.
+- unverified: Did not audit whether non-consumer-glob files reference MIOS_* via direct OS environment lookups.
+
+## 2026-09-19 03:33 · 478a9ece · run-exit-1
+- objective: MiOS T-1001 re-measurement, third attempt, watched. Single lane.
+- done: report-t1001-gate05.json 
+- next: read /home/user/MiOS/.devloop/run-20260919-032612/report-*.json; re-plan non-done lanes
+- blockers: -
+- unverified: -
+
+## 2026-09-19 03:26 · MiOS gate audit, T-1001 re-measurement · status: blocked
+
+- objective: MiOS T-1001 re-measurement, third attempt, watched. Single lane.
+- done: The lane worker successfully produced a report, refuting claim 1 (credits from prose) and confirming claim 2 (cannot tell sub-table from top-level), overturning the prior CONFIRMED verdict to PARTLY_CONFIRMED.
+- blockers: The gate run resulted in a **MERGE CONFLICT** when attempting to merge `.devloop/findings/T-1001.md`. The worktree `.worktrees/t1001-gate05` and branch are preserved for manual review.
+- next: Operator needs to resolve the merge conflict manually.
+- unverified: -
+
+## 2026-09-19 03:44 · T-1001 re-measurement · status: partial
+
+- objective: MiOS T-1001 re-measurement, third attempt, watched. Single lane.
+- done: Dispatched `t1001-gate05` lane natively. Worker properly measured the claims (refuting claim 1 because the predicate strictly demands code reads like `_toml_section`, and confirming claim 2 because the check only iterates top-level keys). Both positive and negative gates PASSED.
+- blockers: MERGE CONFLICT during `--no-ff` merge of `lane/t1001-gate05` (conflicts in `.devloop/LEDGER.md`, `.devloop/findings/T-1000.md`, and `.devloop/findings/T-1001.md`). Merge aborted and worktree `.worktrees/t1001-gate05` kept for operator review.
+- next: Operator intervention required to resolve the merge conflicts. Task T-1001 cannot be closed yet.
+- unverified: -
+
+## 2026-09-19 07:24 · cd88dca0 · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
+
+## 07:5x · doc-refs port + vacuous negative tests
+- objective: drain check_db_seed_coverage; port check_doc_refs_resolve to Rust
+- done: CI on cd88dca0 validated doc_refs=124, narrative=259, stale-refs=155,
+  no-inert=[gpu]. CI also showed 4 negative tests failing -- all four for
+  standing-red checks, all "failed after restoration". Repaired all four to
+  assert on findings rather than exit codes. Fixed _violations_from aborting
+  after the first finding under errexit in single-check mode.
+- next: the remaining 124 stale doc references; [gpu] registration
+- blockers: -
+- unverified: the full-run violation count is not re-measured locally (this
+  container diverges from CI); C-01 15 is arithmetic pending the next CI run
+
+## 08:4x · C-01 met in CI
+- objective: burn down the measured-defect backlog; hold the drift baseline
+- done: CI on 6bbed1c8 reports FAIL: 15 drift violation -- C-01's exact target.
+  Distribution doc_refs 11, docs_ratchet 3, no_inert 1. The negatives suite went
+  [ OK ] with 0 failures (4 failed on cd88dca0); tier=gate 0/2 -> 1/2.
+- next: the 124 stale doc refs and the 259/155 docs ratchet are what remain, all
+  pre-existing on main. One fixture leak is unowned: a test leaves
+  tools/native/target/debug/generate-names-registry behind (also present on
+  cd88dca0, so not this branch's).
+- blockers: -
+- unverified: -

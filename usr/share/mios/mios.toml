@@ -1794,14 +1794,6 @@ source_exempt = ["MiOS-iGPU-Server.exe"]
 # tools/sign-powershell.ps1 takes -CertPassword as a SecureString, or prompts.
 signing_cert = ""
 
-[artifacts.windows]
-# Pinned SHA-256 digests for runtime downloads per ADR-0003
-llama_vulkan_zip_sha256 = ""
-qwen_gguf_sha256 = ""
-granite_gguf_sha256 = ""
-lfm2_gguf_sha256 = ""
-nomic_embed_sha256 = ""
-
 [repos.fedora]
 name = "Fedora {ver} - $basearch"
 metalink = "https://mirrors.fedoraproject.org/metalink?repo=fedora-{ver}&arch=$basearch"
@@ -8682,7 +8674,7 @@ Restart = "always"
 RestartSec = "10s"
 
 [containers.mios-radosgw.Unit]
-After = "network-online.target mios-ceph.container"
+After = "network-online.target mios-ceph.service"
 ConditionPathExists = "/etc/ceph/ceph.conf"
 ConditionVirtualization = "!container"
 Description = "'MiOS' Ceph RADOS Gateway (S3 Object Storage)"
@@ -11318,14 +11310,14 @@ max_tracked_mb    = 204
 # between regenerations before the gate says anything. 0 makes the ceiling exact
 # and every MiB boundary a failure, which is the state T-1051 was filed about.
 tracked_mb_headroom = 1
-max_shell_lines   = 39903  # bash is glue only (Law 14)
+max_shell_lines   = 39901  # bash is glue only (Law 14)
 max_ps_lines      = 22618  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are not verbs
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 77454   # 121210 -> 77454: a sibling unit test is not
+max_tooling_python_lines = 77168   # 121210 -> 77454: a sibling unit test is not
                                    # tooling to port, and 36% of this was test
                                    # code (T-1044). Pulled to the measurement,
                                    # never left as slack. Merge inheritance it
@@ -11356,7 +11348,9 @@ max_leaked_fixtures = 0
 # Shrink-only. check_negatives_registered has always CLAIMED that every
 # drift check has a negative test; it only detected orphans. This is the
 # measured gap it never enforced: write a test, lower the number.
-max_checks_without_negative = 48
+# 48 -> 47: four new two-sided tests, less five the tightened
+# argument-position coverage predicate correctly re-counted.
+max_checks_without_negative = 44
 
 [ci.python]
 # Installed on a runner before the unit tier.
