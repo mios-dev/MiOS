@@ -1,2 +1,2 @@
-quay.io/ceph/ceph:v19
+quay.io/ceph/ceph:latest
 ghcr.io/open-webui/open-webui:main
