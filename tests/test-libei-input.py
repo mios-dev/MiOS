@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS Libei synthetic input injector.
-# AI-doc: usr/share/doc/mios/manual/desktop.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 import unittest
 import sys
 import os

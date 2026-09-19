@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS PostgreSQL autovacuum tuner and pg_cron HNSW reindexer.
-# AI-doc: usr/share/doc/mios/manual/database.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 import unittest
 import sys
 import os

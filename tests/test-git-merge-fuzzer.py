@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS differential AST git merge fuzzer.
-# AI-doc: usr/share/doc/mios/manual/git.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 import unittest
 import sys
 import os

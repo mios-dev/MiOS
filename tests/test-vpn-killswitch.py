@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS VPN Kill-Switch and fwmark split-tunnel manager.
-# AI-doc: usr/share/doc/mios/manual/networking.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 import unittest
 import sys
 import os

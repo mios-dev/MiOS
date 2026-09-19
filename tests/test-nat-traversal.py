@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS Tiered NAT Traversal Engine (UPnP, STUN, DERP relay).
-# AI-doc: usr/share/doc/mios/manual/networking.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 import unittest
 import sys
 import os

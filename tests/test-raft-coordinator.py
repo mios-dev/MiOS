@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS embedded Raft consensus coordinator and Patroni failover.
-# AI-doc: usr/share/doc/mios/manual/cluster.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 import unittest
 import sys
 import os
