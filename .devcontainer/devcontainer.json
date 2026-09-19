@@ -1,1 +1,39 @@
-{"name":"MiOS System Root Dev (Fedora 41)","build":{"dockerfile":"Dockerfile","context":".."},"features":{"ghcr.io/devcontainers/features/common-utils:2":{"username":"mios-dev","userUid":"1000","userGid":"1000"}},"customizations":{"vscode":{"settings":{"terminal.integrated.defaultProfile.linux":"zsh"},"extensions":["ms-azuretools.vscode-docker","redhat.vscode-yaml","ms-vscode.powershell","eamodio.gitlens","usernamehw.errorlens","editorconfig.editorconfig"]}},"remoteUser":"mios-dev","workspaceFolder":"/mios","mounts":["source=,target=/mios,type=bind,consistency=cached"],"postCreateCommand":"sudo bash /usr/local/bin/mios-root-overlay"}
+{
+  "name": "MiOS System Root Dev (Fedora 44)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "FEDORA_VERSION": "44"
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "username": "mios-dev",
+      "userUid": "1000",
+      "userGid": "1000"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      },
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        "ms-vscode.powershell",
+        "eamodio.gitlens",
+        "usernamehw.errorlens",
+        "editorconfig.editorconfig"
+      ]
+    }
+  },
+  "remoteUser": "mios-dev",
+  "workspaceFolder": "/mios",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/mios,type=bind,consistency=cached"
+  ],
+  "postCreateCommand": "sudo bash /usr/local/bin/mios-root-overlay ; { git clone --depth 1 https://github.com/mios-dev/-dev-loop.git \"$HOME/.dev-loop\" 2>/dev/null || git -C \"$HOME/.dev-loop\" pull --ff-only 2>/dev/null; } ; bash \"$HOME/.dev-loop/skills/dev-loop/scripts/env/setup-antigravity.sh\" --quiet || true",
+  "postStartCommand": "bash -c '. \"$HOME/.dev-loop/skills/dev-loop/scripts/env/agy-keyring.sh\" || true'"
+}
