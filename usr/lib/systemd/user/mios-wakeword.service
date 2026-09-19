@@ -1,5 +1,4 @@
 # AI-hint: Systemd user service running the Three-Stage Acoustic Wake-Word filter chain (RNNoise, Silero VAD, OpenWakeWord) for hands-free system activation.
-# AI-doc: usr/share/doc/mios/manual/audio.md
 [Unit]
 # /usr/lib/systemd/user/mios-wakeword.service
 #

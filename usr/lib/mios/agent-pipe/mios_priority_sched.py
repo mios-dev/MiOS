@@ -1,5 +1,5 @@
 # AI-hint: MiOS system and orchestration module providing mios priority sched capabilities.
-# AI-related: mios-priority-hint
+# AI-related: usr/lib/mios/agent-pipe/test_mios_priority_sched.py, tests/test-priority-sched.py
 # AI-functions: age_s, inject_headers, to_request_body_extra, _priority_name, __init__, wrap, augment_headers, sorted_queue, drain, classify_turn, PriorityRequest, PriorityGate
 
 """
