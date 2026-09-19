@@ -4660,7 +4660,7 @@ check_temp_fixture_cleanup() {
 check_variant_registry() {
     echo "[98-drift-checks] every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-variant-registry.py 2>&1)" || { _violations_from "check_variant_registry: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ssot.py variant-registry 2>&1)" || { _violations_from "check_variant_registry: " "$out"; return; }
     echo "[98-drift-checks]   every variant names a real table, edition, archetype, artifact and doc"
 }
 
@@ -4668,7 +4668,7 @@ check_variant_registry() {
 check_deploy_formats() {
     echo "[98-drift-checks] deployment artifact target formats comply with bootc/BIB spec"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-deploy-formats.py 2>&1)" || { _violations_from "check_deploy_formats: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ssot.py deploy-formats 2>&1)" || { _violations_from "check_deploy_formats: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4772,19 +4772,19 @@ _run_py_check() {
 
 check_tasks_status_parity() { _run_py_check check_tasks_status_parity "tools/check-tasks.py status-parity"; }
 check_agy_tasks() { _run_py_check check_agy_tasks "tools/check-tasks.py agy"; }
-check_mios_toml_integrity() { _run_py_check check_mios_toml_integrity tools/check-mios-toml-integrity.py; }
+check_mios_toml_integrity() { _run_py_check check_mios_toml_integrity "tools/check-ssot.py toml-integrity"; }
 check_privileged_quadlets_minimal() { _run_py_check check_privileged_quadlets_minimal tools/check-privileged-quadlets.py; }
 check_container_names() { _run_py_check check_container_names tools/check-container-names.py; }
 check_service_urls() { _run_py_check check_service_urls tools/check-service-urls.py ""; }
-check_ports_bound() { _run_py_check check_ports_bound tools/check-ports-bound.py ""; }
-check_blade_coverage() { _run_py_check check_blade_coverage tools/check-blade-coverage.py ""; }
-check_fleet_safety() { _run_py_check check_fleet_safety tools/check-fleet-safety.py ""; }
-check_ssot_consumer_keys() { _run_py_check check_ssot_consumer_keys tools/check-ssot-consumer-keys.py ""; }
-check_unit_projection() { _run_py_check check_unit_projection tools/check-unit-projection.py ""; }
+check_ports_bound() { _run_py_check check_ports_bound "tools/check-ssot.py ports-bound" ""; }
+check_blade_coverage() { _run_py_check check_blade_coverage "tools/check-ssot.py blade-coverage" ""; }
+check_fleet_safety() { _run_py_check check_fleet_safety "tools/check-ssot.py fleet-safety" ""; }
+check_ssot_consumer_keys() { _run_py_check check_ssot_consumer_keys "tools/check-ssot.py consumer-keys" ""; }
+check_unit_projection() { _run_py_check check_unit_projection "tools/check-ssot.py unit-projection" ""; }
 check_metal_vs_hosted() { _run_py_check check_metal_vs_hosted "tools/generate-metal-vs-hosted.py --check" ""; }
-check_node_pool() { _run_py_check check_node_pool tools/check-node-pool.py ""; }
-check_port_fallbacks() { _run_py_check check_port_fallbacks tools/check-port-fallbacks.py ""; }
-check_role_ssot() { _run_py_check check_role_ssot tools/check-role-ssot.py ""; }
+check_node_pool() { _run_py_check check_node_pool "tools/check-ssot.py node-pool" ""; }
+check_port_fallbacks() { _run_py_check check_port_fallbacks "tools/check-ssot.py port-fallbacks" ""; }
+check_role_ssot() { _run_py_check check_role_ssot "tools/check-ssot.py role-ssot" ""; }
 check_blade_karg() { _run_py_check check_blade_karg "tools/generate-blade-karg.py --check"; }
 check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners tools/check-firstboot-provisioners.py; }
 check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-desktop.py --check"; }
