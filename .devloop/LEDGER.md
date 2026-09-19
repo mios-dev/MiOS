@@ -939,3 +939,34 @@ so long. Let a run finish.
   cd88dca0, so not this branch's).
 - blockers: -
 - unverified: -
+
+## 2026-09-19 15:06 · 89d9feea · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
+
+## 2026-09-19 · d311e751 · consolidation campaign closed
+- objective: fold the sprawling check-* gate files into few multi-purpose modules
+- done: group 4 (runtime/units, 8 gates) merged into tools/check-runtime.py +
+  tools/test_check-runtime.py. That closes all five groups: tasks, docs, ssot,
+  testhygiene, runtime -- 69 check-* files became 10.
+  Controls this group: nine gate invocations byte-identical before AND after
+  `git rm` (resolver-twin captured from both of its call sites, which use
+  different env); all nine rc=0 through the real 98-drift-checks.sh dispatcher;
+  32 unittest tests and 45 script-assertion labels compared as sorted sets, not
+  counted; negative control (cn_main forced to 0) gave rc=1 with nine named
+  failures in that suite alone and everything else still running; unknown
+  subcommand exits 2. Whole drift suite 14 violations before and after, same
+  set -- baseline measured by stashing, because a fresh worktree lacks the
+  built binaries and reads 22.
+  max_tooling_python_lines 77111 -> 77093; tracked files 3276 -> 3263.
+- next: (1) the AGY lane-isolation defect -- the manager edited the base tree
+  although worktree_root was set, which is what leaked negatives fixtures last
+  run; fix that BEFORE relaunching lanes. (2) concurrent AGY coding lanes.
+  (3) /teamwork-preview is not installed on this host, so no prompt can
+  require it yet. (4) parked/laneB-fixture-leak.patch still needs 17 shell
+  lines of budget against a floor sitting at its exact measured value.
+- blockers: -
+- unverified: CI on d311e751 not yet read

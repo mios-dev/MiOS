@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: NO-HARDCODE-VERSION law enforcement (Law 7 / ADR-0003). Scans tracked source for hand-pinned version literals in URLs, pip/npm pins, and @sha256 image digests.
+# AI-hint: NO-HARDCODE-VERSION law enforcement (Law 7 / ADR-0003). Scans the source tree for hand-pinned version literals in URLs, pip/npm pins, and @sha256 image digests.
 # AI-related: ../../../automation/98-drift-checks.sh, ../../share/mios/mios.toml, ../lib/mios_toml.py
 # AI-functions: main, scan_file, load_allowlist
 """NO-HARDCODE-VERSION law enforcement: forbid hand-pinned versions in URLs, package pins, and image digests unless allowlisted."""
@@ -91,6 +91,10 @@ def main():
     all_violations = []
 
     for dirpath, dirnames, filenames in os.walk(root):
+        # `.git` below root marks a nested checkout: another repo's source.
+        if dirpath != root and (".git" in dirnames or ".git" in filenames):
+            dirnames[:] = []
+            continue
         dirnames[:] = [d for d in dirnames if d not in (".git", ".gemini", ".claude", ".agents", ".system_generated", "node_modules", "venv", "__pycache__", ".tox", "target", "build")]
 
         for filename in filenames:

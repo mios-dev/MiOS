@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS configuration drift auditor and 3-way overlay reconciler.
-# AI-doc: usr/share/doc/mios/manual/architecture.md
+# AI-doc: usr/share/doc/mios/concepts/architecture.md
 import unittest
 import sys
 import os

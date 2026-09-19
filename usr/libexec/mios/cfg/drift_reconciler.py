@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative configuration drift auditor and 3-way OCI overlay reconciler for MiOS.
-# AI-doc: usr/share/doc/mios/manual/architecture.md
+# AI-doc: usr/share/doc/mios/concepts/architecture.md
 import argparse
 import json
 import os

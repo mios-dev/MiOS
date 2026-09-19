@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing.
-# AI-related: usr/share/mios/mios.toml, Justfile, tools/check-verify-images.py
+# AI-related: usr/share/mios/mios.toml, Justfile, tools/check-runtime.py
 """Verify every deployment format the SSOT declares actually produced a file.
 
 The gate this replaces walked a glob list and ended on the failure counter, so

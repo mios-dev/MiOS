@@ -2166,8 +2166,21 @@ model    = "granite4.1:8b"
 enable   = true
 
 
-[gpu]
+# Per-vendor CDI wiring, read at runtime via `mios-toml-get --section gpu.cdi`.
+# `device` is the AddDevice= value (the GPU Quadlets bake nvidia's directly);
+# `specs` are the spec filenames whose presence in MIOS_CDI_DIR proves a vendor
+# live.
+[gpu.cdi.nvidia]
 device = "nvidia.com/gpu=all"
+specs  = ["nvidia.yaml", "nvidia-wsl.yaml", "wsl2-nvidia.yaml"]
+
+[gpu.cdi.amd]
+device = "amd.com/gpu=all"
+specs  = ["amd.json", "amd.yaml", "wsl2-amd.yaml"]
+
+[gpu.cdi.intel]
+device = "intel.com/gpu=all"
+specs  = ["intel.yaml", "intel.json", "wsl2-intel.yaml"]
 
 [sandbox]
 enable = false
@@ -7552,6 +7565,9 @@ headscale_domain = "mesh.mios.local"
 vnet_cidr = "100.64.0.0/10"
 swtpm_vtpm = true
 
+# Per-vendor enable gate for the [gpu.cdi.<vendor>] wiring above. false here
+# keeps a vendor's CDI spec on disk but stops mios-gpu-passthrough from wiring
+# it into any Quadlet drop-in. A vendor with no flag defaults to enabled.
 [gpu.vendors]
 nvidia = true
 amd    = true
@@ -9002,7 +9018,7 @@ Description = "'MiOS' K3s Service (Podman-native)"
 Wants = "network-online.target"
 
 [containers.mios-llm-heavy.Container]
-AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+AddDevice = "${MIOS_GPU_CDI_NVIDIA_DEVICE:-nvidia.com/gpu=all}"
 ContainerName = "mios-llm-heavy"
 Environment = [
   "HF_HUB_OFFLINE=1",
@@ -9050,7 +9066,7 @@ Description = "'MiOS' vLLM heavy lane (OpenAI /v1, PagedAttention + APC; gated)"
 Wants = "network-online.target"
 
 [containers.mios-llm-heavy-alt.Container]
-AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+AddDevice = "${MIOS_GPU_CDI_NVIDIA_DEVICE:-nvidia.com/gpu=all}"
 ContainerName = "mios-llm-heavy-alt"
 Environment = [
   "HF_HUB_OFFLINE=1",
@@ -9091,7 +9107,7 @@ Description = "'MiOS' SGLang heavy lane (OpenAI /v1, HiCache CPU KV-offload; nat
 Wants = "network-online.target"
 
 [containers.mios-llm-light.Container]
-AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+AddDevice = "${MIOS_GPU_CDI_NVIDIA_DEVICE:-nvidia.com/gpu=all}"
 ContainerName = "mios-llm-light"
 Entrypoint = "/app/llama-swap"
 Environment = [
@@ -9136,7 +9152,7 @@ Description = "'MiOS' LLM-Light (llama.cpp multi-model + KV-paging lane, served 
 Wants = "network-online.target"
 
 [containers."mios-llm-worker@".Container]
-AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+AddDevice = "${MIOS_GPU_CDI_NVIDIA_DEVICE:-nvidia.com/gpu=all}"
 ContainerName = "mios-llm-worker-%i"
 Entrypoint = "/app/llama-server"
 Environment = [
@@ -11317,7 +11333,7 @@ max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are no
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 77168   # 121210 -> 77454: a sibling unit test is not
+max_tooling_python_lines = 77093   # 121210 -> 77454: a sibling unit test is not
                                    # tooling to port, and 36% of this was test
                                    # code (T-1044). Pulled to the measurement,
                                    # never left as slack. Merge inheritance it
@@ -11378,6 +11394,7 @@ lint = [
 # Behavioural suites. Each asserts something about the tree it ships from.
 unit = [
     "tests/powershell/run-pester.sh",
+    "tests/test-baresafe-emit.py",
     "tests/test-sandbox-seccomp.sh",
     "tests/test-powershell-flatten.sh",
     "tests/test-pgvector-major-upgrade.sh",

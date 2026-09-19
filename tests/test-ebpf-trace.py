@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for eBPF Probe Attachment & Tracing Overhead (T-719, T-720).
-# AI-related: usr/bin/mios_trace.py, tests/test-ebpf-trace.py
+# AI-related: usr/lib/mios/agent-pipe/mios_trace.py, tests/test-ebpf-trace.py
 """Automated unit test suite for MiOS eBPF Tracer Manager."""
 
 import os

@@ -127,9 +127,12 @@ def referenced_set(emitted: set[str] | None = None) -> dict[str, str]:
     known_emitted = emitted or set()
     table_prefixes = tuple(e for e in known_emitted if e.endswith("_"))
 
-    for dirpath, _dirs, files in os.walk(ROOT):
+    for dirpath, dirs, files in os.walk(ROOT):
         norm_dir = dirpath.replace("\\", "/")
-        if any(sk in norm_dir for sk in ("/.git", "/.venv", "/node_modules", "/target", "/.claude", "/.agents", "/.gemini", "/.system_generated")):
+        # `.git` below ROOT marks a nested checkout: another repo's source.
+        nested = dirpath != ROOT and ".git" in dirs + files
+        if nested or any(sk in norm_dir for sk in ("/.git", "/.venv", "/node_modules", "/target", "/.claude", "/.agents", "/.gemini", "/.system_generated")):
+            dirs[:] = []
             continue
         reldir = os.path.relpath(dirpath, ROOT).replace("\\", "/")
         if reldir.startswith("docs/") and "_design.md" in files:
@@ -152,13 +155,9 @@ def referenced_set(emitted: set[str] | None = None) -> dict[str, str]:
                             continue
                         for m in VAR_RE.finditer(code_part):
                             v = m.group(0)
-                            if v in DIRECTIVE_VARS:
-                                continue
-                            if v.endswith("_"):
-                                continue
-                            if v in known_emitted:
-                                continue
-                            if any(v.startswith(p) for p in table_prefixes):
+                            if (v in DIRECTIVE_VARS or v.endswith("_")
+                                    or v in known_emitted
+                                    or any(v.startswith(p) for p in table_prefixes)):
                                 continue
                             if re.search(rf"\b{v}\s*=", code_part):  # an assignment TO v is not a reference
                                 continue
@@ -181,11 +180,11 @@ def main() -> int:
             print("  %s" % e, file=sys.stderr)
         return 2
 
-    missing = {v: loc for v, loc in R.items() if v not in E}
-    print(f"mios-var-closure: emitted={len(E)} referenced={len(R)} missing={len(missing)}")
-    if missing:
+    # R is already referenced-minus-emitted; re-filtering by E removed nothing.
+    print(f"mios-var-closure: emitted={len(E)} referenced-but-unemitted={len(R)}")
+    if R:
         print("FAIL -- referenced but NOT emitted (a consumer would lose its var):", file=sys.stderr)
-        for v, loc in sorted(missing.items()):          # no truncation: a ledger cannot be compared against a sample
+        for v, loc in sorted(R.items()):                # no truncation: a ledger cannot be compared against a sample
             print(f"  {v}  ({loc})", file=sys.stderr)
         return 1
 
