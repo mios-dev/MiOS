@@ -20,6 +20,7 @@ MIOS_AI_QUADLETS_DEFAULT=(
 )
 
 if [ -r "$CONF_FILE" ]; then
+    # shellcheck source=/dev/null
     source "$CONF_FILE"
 fi
 MIOS_AI_QUADLETS=("${MIOS_AI_QUADLETS[@]:-${MIOS_AI_QUADLETS_DEFAULT[@]}}")

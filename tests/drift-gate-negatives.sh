@@ -4006,19 +4006,19 @@ test_names_registry_equivalence() {
         log "check_names_registry_equivalence negative test skipped (twin or cargo absent)"
         return 0
     fi
-    local backup; backup="$(mktemp)"
-    cp "$src" "$backup"
+    local backup; backup="$(mktemp)"; cp "$src" "$backup"
     local names="${ROOT}/usr/share/mios/names.generated.txt"
     local refs="${ROOT}/usr/share/mios/referenced_names.txt"
-    local keep; keep="$(mktemp -d)"
-    cp "$names" "$keep/names"; cp "$refs" "$keep/refs"
+    local keep; keep="$(mktemp -d)"; cp "$names" "$keep/names"; cp "$refs" "$keep/refs"
+    # The rebuild CREATES this binary when nothing had built it, and the restore rebuild cannot un-create it.
+    local _nre_bin="${ROOT}/tools/native/target/debug/generate-names-registry" _nre_had=0; [[ -f "$_nre_bin" ]] && _nre_had=1 || :
     _nre_restore() {
         cp "$backup" "$src" 2>/dev/null || true
-        cp "$keep/names" "$names" 2>/dev/null || true
-        cp "$keep/refs" "$refs" 2>/dev/null || true
+        cp "$keep/names" "$names" 2>/dev/null || true; cp "$keep/refs" "$refs" 2>/dev/null || true
         (cd "${ROOT}/tools/native" && cargo build -p generate-names-registry >/dev/null 2>&1) || true
-        rm -rf "$backup" "$keep"
+        [[ "$_nre_had" = 1 ]] || rm -f "$_nre_bin"; rm -rf "$backup" "$keep"
     }
+    trap _nre_restore EXIT; trap '_nre_restore; exit 130' INT TERM   # no die path runs on a signal (SKILL 6)
 
     # Re-introduce one measured divergence: the Python leg excludes the two
     # generated globals files because they DEFINE the namespace. Scanning them
@@ -4038,7 +4038,7 @@ test_names_registry_equivalence() {
         _nre_restore; die "check_names_registry_equivalence left referenced_names.txt rewritten by the twin"
     fi
 
-    _nre_restore
+    _nre_restore; trap - EXIT INT TERM
     _neg_gate check_names_registry_equivalence || die "check_names_registry_equivalence failed after restoration: $_NEG_GATE_OUT"
     log "check_names_registry_equivalence negative test passed"
 }
@@ -4749,7 +4749,7 @@ test_package_registry() {
 test_vendor_urls() {
     log "Testing check_vendor_urls"
     local probe="${ROOT}/etc/mios/ai/drift-neg-probe.yaml"
-    local url="https://api.$(printf open)$(printf ai).com/v1"
+    local url; url="https://api.$(printf open)$(printf ai).com/v1"
 
     printf 'endpoint: %s\n' "$url" > "$probe"
     _neg_gate check_vendor_urls && {
@@ -4775,7 +4775,7 @@ test_vendor_urls() {
 test_retired_models() {
     log "Testing check_retired_models"
     local probe="${ROOT}/etc/mios/ai/drift-neg-probe-model.yaml"
-    local retired="gem$(printf ma4)"
+    local retired; retired="gem$(printf ma4)"
 
     printf 'model: %s\n' "$retired" > "$probe"
     _neg_gate check_retired_models && {
