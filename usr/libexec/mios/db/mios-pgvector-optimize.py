@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated VACUUM ANALYZE and concurrent HNSW/IVFFlat index rebuilding engine for pgvector.
-# AI-related: usr/lib/systemd/system/mios-pgvector-optimize.service, usr/lib/systemd/system/mios-pgvector-optimize.timer, tests/test-pgvector-optimize.py
+# AI-related: usr/lib/systemd/system/mios-pgvector-optimize.service, usr/lib/systemd/system/mios-pgvector-optimize.timer, tests/test-db.py
 """
 Automated pgvector Database Optimizer.
 Performs VACUUM (ANALYZE, PARALLEL 4) on tables, inspects dead tuple ratios,
