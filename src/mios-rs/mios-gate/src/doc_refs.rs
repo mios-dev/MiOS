@@ -217,7 +217,7 @@ pub fn check(root: &Path) -> Report {
                     continue;
                 }
                 if !resolves(root, &dir, &t) {
-                    stale.push(format!("{base}: {t}"));
+                    stale.push(format!("{rel}: {t}"));
                 }
             }
         }
@@ -243,7 +243,7 @@ pub fn check(root: &Path) -> Report {
                     }
                 }
                 if !ok {
-                    stale.push(format!("{base}: {target}"));
+                    stale.push(format!("{rel}: {target}"));
                 }
             }
         }
@@ -269,7 +269,9 @@ pub fn check(root: &Path) -> Report {
             "{n} stale reference(s) across {} tracked file(s) (max allowed {max_stale}):",
             files.len()
         )];
-        findings.extend(stale.into_iter().take(10));
+        // Every one: this list is the backlog someone has to work through, and a
+        // silent cap hid 93 of 103 from the people deciding them (T-1074).
+        findings.extend(stale);
         return report(false, String::new(), findings);
     }
     report(
@@ -349,6 +351,32 @@ mod tests {
         assert!(
             rep.findings.iter().any(|f| f.contains("does-not-exist.py")),
             "the finding must name the missing target: {:?}",
+            rep.findings
+        );
+    }
+
+    #[test]
+    fn every_stale_reference_is_listed_not_the_first_ten() {
+        let d = repo();
+        let r = d.path();
+        for i in 0..25 {
+            let _ = fs::write(
+                r.join(format!("f{i}.py")),
+                format!("# AI-related: tools/missing-{i}.py\n"),
+            );
+        }
+        track(r);
+        let rep = check(r);
+        let listed = (0..25)
+            .filter(|i| {
+                rep.findings
+                    .iter()
+                    .any(|f| f.ends_with(&format!("missing-{i}.py")))
+            })
+            .count();
+        assert_eq!(
+            listed, 25,
+            "a capped list hides the rest: {:?}",
             rep.findings
         );
     }
