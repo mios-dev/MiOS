@@ -309,10 +309,10 @@ fn main() {
     // T-1039. The Quadlet scan above skips every `localhost/*` image, because a
     // locally built image is not discovered from a Quadlet's Image= line. The
     // python generator then RE-ADDS every localhost image declared in `core`;
-    // this port never did, so `localhost/mios-sys`, `localhost/mios-cuda`,
-    // `localhost/mios-crawl4ai-slim:latest` and `localhost/mios-firecrawl:v1.0.0`
-    // were dropped from the plan lists. Law 12: an image missing from the plan
-    // is an image the bake does not carry.
+    // this port never did, so every `localhost/*` entry of `[build.bake].core`
+    // -- the mios-sys and mios-cuda bases and the webtools crawl4ai and
+    // firecrawl images -- was dropped from the plan lists. Law 12: an image
+    // missing from the plan is an image the bake does not carry.
     for core_img in &core {
         if core_img.starts_with("localhost/")
             && !images_to_bake.iter().any(|(img, _)| img == core_img)

@@ -482,13 +482,14 @@ fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std:
 
     let vfio_path = std::path::Path::new(kargs_dir).join("01-mios-vfio.toml");
     if vfio_path.exists() {
-        // 01-mios-vfio.toml is NOT wholly generated. It carries hand-declared
-        // kargs that no SSOT key produces -- rd.driver.pre=vfio-pci, which
-        // binds vfio-pci in the initramfs before a GPU driver can claim the
-        // card, and kvm-intel.nested=1. The Python renderer this must match
-        // reads the file and strips ONLY the entries it manages. Starting from
-        // an empty list deletes the rest from the kernel command line while
-        // the header still claims the file came from [kargs].
+        // usr/lib/bootc/kargs.d/01-mios-vfio.toml is NOT wholly generated. It
+        // carries hand-declared kargs that no SSOT key produces --
+        // rd.driver.pre=vfio-pci, which binds vfio-pci in the initramfs before
+        // a GPU driver can claim the card, and kvm-intel.nested=1. The Python
+        // renderer this must match reads the file and strips ONLY the entries
+        // it manages. Starting from an empty list deletes the rest from the
+        // kernel command line while the header still claims the file came
+        // from [kargs].
         let existing: toml::Value = std::fs::read_to_string(&vfio_path)?.parse()?;
         let mut kargs_list: Vec<String> = existing
             .get("kargs")

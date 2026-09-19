@@ -50,8 +50,9 @@ impl Fixture {
 
 const DEFAULTS: &str = "[kargs]\niommu = \"on\"\nvfio_ids = \"\"\nhugepages = \"\"\nisolcpus = \"\"\nnohz_full = \"\"\nrcu_nocbs = \"\"\nTHP = \"\"\n";
 
-/// The regression this file exists for. 01-mios-vfio.toml is NOT wholly
-/// generated: rd.driver.pre=vfio-pci binds vfio-pci in the initramfs before a
+/// The regression this file exists for. The shipped drop-in,
+/// usr/lib/bootc/kargs.d/01-mios-vfio.toml, is NOT wholly generated:
+/// rd.driver.pre=vfio-pci binds vfio-pci in the initramfs before a
 /// GPU driver can claim the card, and kvm-intel.nested=1 enables nested KVM.
 /// Neither comes from any [kargs] key. A renderer that rebuilds the list from
 /// scratch deletes both from the kernel command line, exits 0, and leaves a

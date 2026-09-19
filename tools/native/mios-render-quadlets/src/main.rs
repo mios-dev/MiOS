@@ -1,5 +1,5 @@
 // AI-hint: SSOT-driven Quadlet placeholder renderer; replaces stage 34's envsubst + bash-regex pair with a real parser.
-// AI-related: usr/share/mios/mios.toml, automation/34-render-quadlets.sh, tools/native/mios-render-quadlets/src/expand.rs
+// AI-related: usr/share/mios/mios.toml, automation/34-render-quadlets.sh, tools/native/mios-resolver/src/expand.rs
 
 #![forbid(unsafe_code)]
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
