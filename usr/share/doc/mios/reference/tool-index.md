@@ -260,18 +260,12 @@ is generated, its generator is here.
 | `tools/check-docs.py` | Documentation-plane drift gates in one module: ratchet monotonicity, manual links, comment-lexer equivalence, header comment syntax, generated prose in resolvers, redaction coverage. The subcommand... |
 | `tools/check-firstboot-degrade-open.py` | Drift gate for Law 12 BAKE-NOT-FETCH -- firstboot scripts must degrade open on egress failure. |
 | `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
-| `tools/check-leaked-fixtures.py` | Fails when a negative test's injected fixture, or a backup file it made, is left behind in the tracked tree. |
-| `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). |
-| `tools/check-negatives-registered.py` | Fails on an orphaned negative test; ratchets checks with none. Coverage is ARG_POS (argument position), never substring presence. |
 | `tools/check-privileged-quadlets.py` | Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651). |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
-| `tools/check-rust-test-coverage.py` | Fails when a Rust crate ships with no test at all, because cargo test reports ok for a crate that asserts nothing. |
-| `tools/check-schema-consumers.py` | Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree --... |
 | `tools/check-service-urls.py` | Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp... |
 | `tools/check-ssot.py` | SSOT-plane drift gates in one module: mios.toml integrity, consumer keys, unit projection, port fallbacks and binding, variant registry, deploy formats, role SSOT, node pool, blade coverage and fleet... |
 | `tools/check-tasks.py` | Task-plane drift gates in one module: TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution. The subcommand selects the gate. |
-| `tools/check-temp-fixture-cleanup.py` | Fails when a test creates a temporary directory without arranging to remove it. |
-| `tools/check-tracked-readable.py` | Fails when a tracked file cannot be read, because every corpus-scanning gate silently drops such a file and still reports clean. |
+| `tools/check-testhygiene.py` | Test-and-fixture hygiene gates in one module: leaked fixtures, temp fixture cleanup, negative-test registration, Rust test coverage, schema consumers, tracked-file readability and module length. The... |
 | `tools/check-verify-images.py` | Drives tools/verify-images.py against fixture build trees and fails unless an empty tree, a partial tree and a corrupt artifact are each rejected by name. |
 | `tools/ci-suites.py` | Resolves the [ci] suite registry for the runners and fails when a tracked suite is neither registered in a tier nor exempted. |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
@@ -319,17 +313,11 @@ is generated, its generator is here.
 | `tools/test_check-docs.py` | Sibling unit tests for tools/check-docs.py -- one suite per subcommand, each owning its counters and returning its own verdict. |
 | `tools/test_check-firstboot-degrade-open.py` | Sibling unit test for tools/check-firstboot-degrade-open.py. |
 | `tools/test_check-firstboot-provisioners.py` | Sibling unit test for tools/check-firstboot-provisioners.py. |
-| `tools/test_check-leaked-fixtures.py` | Sibling test for tools/check-leaked-fixtures.py; proves the scan catches an injected fixture and a backup file. |
-| `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). |
-| `tools/test_check-negatives-registered.py` | Sibling test for tools/check-negatives-registered.py; proves it names a negative test the harness defines but never invokes. |
 | `tools/test_check-privileged-quadlets.py` | Sibling unit test for tools/check-privileged-quadlets.py (AGY-1646 / AGY-1651). |
-| `tools/test_check-rust-test-coverage.py` | Unit tests for tools/check-rust-test-coverage.py. |
-| `tools/test_check-schema-consumers.py` | Sibling unit test for tools/check-schema-consumers.py. |
 | `tools/test_check-service-urls.py` | Unit tests for tools/check-service-urls.py. |
 | `tools/test_check-ssot.py` | Sibling unit tests for tools/check-ssot.py -- one suite per subcommand. Class names are prefixed because five TestCase names collide across the merged sources. |
 | `tools/test_check-tasks.py` | Sibling unit tests for tools/check-tasks.py -- one suite per subcommand (status-parity, schema, agy), each with its own failure counter. |
-| `tools/test_check-temp-fixture-cleanup.py` | Sibling test for tools/check-temp-fixture-cleanup.py; proves it names a test that makes a temp directory and never removes it. |
-| `tools/test_check-tracked-readable.py` | Fixtures for check-tracked-readable.py -- proves it reports a tracked file removed from the worktree, and that a clean tree passes. |
+| `tools/test_check-testhygiene.py` | Sibling unit tests for tools/check-testhygiene.py -- one suite per subcommand; the unittest suites run under one discovery pass, the two script-style suites return their own verdict. |
 | `tools/test_check-verify-images.py` | Sibling test for tools/check-verify-images.py; asserts the gate drives the real verifier rather than restating its result. |
 | `tools/test_ci-suites.py` | Sibling test for tools/ci-suites.py; proves the registry reader fails on the shapes it exists to catch. |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
@@ -352,7 +340,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 99 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 87 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

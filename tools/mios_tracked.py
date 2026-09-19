@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Lists tracked files for a gate, raising when git could not answer -- an empty listing is never reported as a clean corpus.
-# AI-related: tools/check-leaked-fixtures.py, tools/check-docs.py, tools/check-temp-fixture-cleanup.py, tools/sync-bootstrap.py
+# AI-related: tools/check-testhygiene.py, tools/check-docs.py, tools/check-ssot.py, tools/sync-bootstrap.py
 # AI-functions: tracked
 """One way to ask git what is tracked, so a refusal cannot read as "nothing".
 

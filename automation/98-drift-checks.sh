@@ -3277,7 +3277,7 @@ check_module_length() {
     echo "[98-drift-checks] shell and script module line counts remain within maintainability limits"
     # Walks the package RECURSIVELY against the [refactor] shrink-only register.
     # The former body used find -maxdepth 1 and saw 9 of 112 modules.
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-module-length.py 2>&1)" || { _violations_from "check_module_length: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py module-length 2>&1)" || { _violations_from "check_module_length: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4644,7 +4644,7 @@ check_task_schema() {
 check_negatives_registered() {
     echo "[98-drift-checks] every drift check has a corresponding negative test registered"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-negatives-registered.py 2>&1)" || { _violations_from "check_negatives_registered: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py negatives-registered 2>&1)" || { _violations_from "check_negatives_registered: " "$out"; return; }
     echo "[98-drift-checks]   no orphaned negative tests, and the untested-check count is within its ratchet"
 }
 
@@ -4652,7 +4652,7 @@ check_negatives_registered() {
 check_temp_fixture_cleanup() {
     echo "[98-drift-checks] test suite cleans up all temporary fixtures and directories"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-temp-fixture-cleanup.py 2>&1)" || { _violations_from "check_temp_fixture_cleanup: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py temp-fixture-cleanup 2>&1)" || { _violations_from "check_temp_fixture_cleanup: " "$out"; return; }
     echo "[98-drift-checks]   every temp-dir fixture is removed by the test that made it"
 }
 
@@ -4692,7 +4692,7 @@ check_header_comment_syntax() {
 check_rust_test_coverage() {
     echo "[98-drift-checks] Rust crate test coverage meets or exceeds minimum threshold"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-rust-test-coverage.py 2>&1)" || { _violations_from "check_rust_test_coverage: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py rust-test-coverage 2>&1)" || { _violations_from "check_rust_test_coverage: " "$out"; return; }
     echo "[98-drift-checks]   every Rust crate has a test or is a registered exception"
 }
 
@@ -4716,7 +4716,7 @@ check_ci_suite_coverage() {
 check_tracked_readable() {
     echo "[98-drift-checks] every tracked file is present and readable, so no corpus-scanning gate drops one in silence"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tracked-readable.py 2>&1)" || { _violations_from "check_tracked_readable: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py tracked-readable 2>&1)" || { _violations_from "check_tracked_readable: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4724,7 +4724,7 @@ check_tracked_readable() {
 check_leaked_fixtures() {
     echo "[98-drift-checks] no transient test fixtures or dump files are committed in git"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-leaked-fixtures.py 2>&1)" || { _violations_from "check_leaked_fixtures: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py leaked-fixtures 2>&1)" || { _violations_from "check_leaked_fixtures: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4759,7 +4759,7 @@ check_adr_index() {
 # --- every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason ---
 check_schema_consumers() {
     echo "[98-drift-checks] every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-schema-consumers.py 2>&1)" || { _violations_from "check_schema_consumers: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-testhygiene.py schema-consumers 2>&1)" || { _violations_from "check_schema_consumers: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
