@@ -986,7 +986,7 @@
 | T-998 | P3 | planned | CI/Enforcement | GATE-03 -- the value-dup ledger's sanctioned remedy for coincidental duplicates is rejected by check_value_aliases |
 | T-999 | P2 | planned | AI/SearchLocale | SEARCH-01 -- the anchor stopword screen is English-only while the tokenizer it screens is deliberately multilingual |
 | T-1000 | P1 | done | CI/Enforcement | GATE-04 -- the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot |
-| T-1001 | P1 | done | CI/Enforcement | GATE-05 -- check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one |
+| T-1001 | P1 | planned | CI/Enforcement | GATE-05 -- check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one |
 | T-1002 | P1 | planned | Security/Law5 | LAW5-01 -- retired lane ports are hardcoded across the code surface and no gate covers code |
 | T-1003 | P2 | done    | Provisioning/Preflight | PREFLIGHT-01 -- built as src/mios-rs/mios-probe; thresholds now resolve from SSOT and the shell probe is retired |
 | T-1004 | P2 | planned | Desktop/BrowserLaunch | BROWSER-01 -- build the launcher [browser] specifies, as a Rust static binary |
@@ -10928,7 +10928,7 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Done When:** a planted read of a name the resolver does not emit FAILS the gate from a normal consumer path under `usr/lib/mios/` -- proved by planting and observing the message name the planted variable; the clean tree's residue is an itemised shrink-only register with a ceiling, not a scalar; the 7 unit-supplied names are resolved as emissions rather than registered as breaches, and the register's remaining entries are each shown to have no setter of any shape; and the negative test fails against the pre-repair module so it is not vacuous.
 **Why:** Law 9 is the invariant that keeps a knob operator-tunable rather than decorative. An enforcer that structurally cannot fire means every one of those 376 reads is a config key the operator can set and the code will never see -- which is precisely the defect T-996 fixed for whole tables and T-997 measured for schema names. BLAST RADIUS: arming this makes the pipeline redder by up to 376 findings; the operator chooses the timing.
 **Dep:** T-996
-**Status:** planned | **Domain:** CI/Enforcement | **Who:** architect
+**Status:** done | **Domain:** CI/Enforcement | **Who:** architect | **Evidence:** `.devloop/findings/T-1000.md` -- REFUTED by direct measurement: the Law 9 closure gate does fire, so there is nothing here to arm.
 
 
 ## T-1001 -- GATE-05: check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one  (WS-DRIFT | P1 | S)
