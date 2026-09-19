@@ -892,3 +892,11 @@ so long. Let a run finish.
 - next: read /home/user/MiOS/.devloop/run-20260919-032612/report-*.json; re-plan non-done lanes
 - blockers: -
 - unverified: -
+
+## 2026-09-19 03:26 · MiOS gate audit, T-1001 re-measurement · status: blocked
+
+- objective: MiOS T-1001 re-measurement, third attempt, watched. Single lane.
+- done: The lane worker successfully produced a report, refuting claim 1 (credits from prose) and confirming claim 2 (cannot tell sub-table from top-level), overturning the prior CONFIRMED verdict to PARTLY_CONFIRMED.
+- blockers: The gate run resulted in a **MERGE CONFLICT** when attempting to merge `.devloop/findings/T-1001.md`. The worktree `.worktrees/t1001-gate05` and branch are preserved for manual review.
+- next: Operator needs to resolve the merge conflict manually.
+- unverified: -
