@@ -11310,14 +11310,14 @@ max_tracked_mb    = 204
 # between regenerations before the gate says anything. 0 makes the ceiling exact
 # and every MiB boundary a failure, which is the state T-1051 was filed about.
 tracked_mb_headroom = 1
-max_shell_lines   = 39903  # bash is glue only (Law 14)
+max_shell_lines   = 39901  # bash is glue only (Law 14)
 max_ps_lines      = 22618  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are not verbs
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 77259   # 121210 -> 77454: a sibling unit test is not
+max_tooling_python_lines = 77168   # 121210 -> 77454: a sibling unit test is not
                                    # tooling to port, and 36% of this was test
                                    # code (T-1044). Pulled to the measurement,
                                    # never left as slack. Merge inheritance it

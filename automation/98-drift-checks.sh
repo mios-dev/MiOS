@@ -101,7 +101,9 @@ _violations_from() {
     local __prefix="$1" __blob="$2" line __n=0
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
-            _violation "${__prefix}${line}"
+            # `|| :`: _violation ends in `return 1`, and under errexit that cut
+            # this loop after the FIRST line in single-check mode.
+            _violation "${__prefix}${line}" || :
             __n=$(( __n + 1 ))
         fi
     done <<<"$__blob"
@@ -4811,11 +4813,25 @@ check_no_inert_ssot_tables() {
 
 # --- file paths referenced in documentation exist in the repository ---
 check_doc_refs_resolve() {
+    # Ported to mios-gate (ADR-0021, Law 14); python twin deleted.
     echo "[98-drift-checks] file paths referenced in documentation exist in the repository"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py doc-refs-resolve
-    )" || {
-        _violations_from "check_doc_refs_resolve: " "$out"; return; }
-    echo "[98-drift-checks]   $out"
+    local bin="" c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_doc_refs_resolve could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    local out
+    if out="$("$bin" doc-refs-resolve --root "$ROOT" 2>&1)"; then
+        echo "[98-drift-checks]   every path named in an AI header or a markdown link resolves in the tracked tree"
+    else
+        _violations_from "check_doc_refs_resolve: " "$out"
+    fi
 }
 
 # --- differential output between resolvers across platforms is zero ---

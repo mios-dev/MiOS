@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: The three largest drift checks, lifted out of their shell heredocs so they can be imported, linted and tested.
 # AI-related: mios_manifest, mios_capreg, mios_surface, mios_comments, /usr/libexec/mios/mios-resolver, /usr/share/mios/mios.toml, mios-resolver, mios-env-snapshot, mios-drift-ctx-test, mios-bootstrap
-# AI-functions: check_doc_refs_resolve, check_resolver_differential_parity, check_legibility_ratchet, lines, _is_generated, check_no_inert_ssot_tables, check_no_duplicate_value_key, emit, esc, unesc, _shape, check_unwired_modules
+# AI-functions: check_resolver_differential_parity, check_legibility_ratchet, lines, _is_generated, check_no_inert_ssot_tables, check_no_duplicate_value_key, emit, esc, unesc, _shape, check_unwired_modules
 """Each subcommand is one check: it prints violations and exits non-zero.
 
 They lived as heredocs inside the shell gate, where nothing could import or
@@ -63,96 +63,6 @@ def _under(path: str, root: str) -> str:
     """Repo-relative when the path is inside root, else the path as given."""
     rel = os.path.relpath(path, root)
     return path if rel.startswith("..") else rel.replace(os.sep, "/")
-
-def check_doc_refs_resolve() -> int:
-    import os, sys, re
-    import tomllib
-
-    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-    _rc = _absent(root, toml_path)
-    if _rc is not None:
-        sys.exit(_rc)
-
-    with open(toml_path, "rb") as fh:
-        data = tomllib.load(fh)
-
-    docs_cfg = data.get("docs") or {}
-    max_stale = int(docs_cfg.get("max_stale_doc_refs", 0))
-    allowlist = set(docs_cfg.get("ref_allowlist") or [])
-
-    stale = []
-    ref_re = re.compile(r'^\s*#\s*AI-(?:related|doc):\s*(.+)$|<!--\s*AI-(?:related|doc):\s*(.*?)\s*-->', re.MULTILINE)
-    md_link_re = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
-
-    for rpath, _, files in os.walk(root):
-        if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored', 'output', '.rustup', '.cargo']):
-            continue
-        for fn in files:
-            if not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
-                continue
-            if fn in ('AGY-TASKS.md', 'TASKS.md', 'doc-generative-documentation.md', 'drift-gate-negatives.sh'):
-                continue
-            fpath = os.path.join(rpath, fn)
-            dirpath = os.path.dirname(fpath)
-            try:
-                with open(fpath, 'r', encoding='utf-8', errors='ignore') as sfh:
-                    text = sfh.read()
-                for m in ref_re.finditer(text):
-                    raw_line = m.group(1) or m.group(2) or ''
-                    tokens = [t.strip().rstrip(',') for t in raw_line.split(',') if t.strip()]
-                    for t in tokens:
-                        t_clean = t.rstrip(',').strip()
-                        t_clean = re.sub(r':\d+.*$', '', t_clean).strip()
-                        t_clean = re.sub(r'\s*\([^)]*\)', '', t_clean).strip()
-                        # "file.toml [section]" is a file + section, not a path.
-                        t_clean = re.sub(r'\s*\[[^\]]*\]\s*$', '', t_clean).strip()
-                        if not t_clean or any(al in t_clean for al in allowlist):
-                            continue
-                        if t_clean.startswith('[') or t_clean.startswith('@@') or t_clean.startswith('<'):
-                            continue
-                        if not ('/' in t_clean or t_clean.endswith(('.sh', '.py', '.toml', '.ps1', '.json', '.yaml', '.yml', '.md'))):
-                            continue
-                        if t_clean.startswith('/etc/') or t_clean.startswith('/var/') or t_clean.startswith('/tmp/') or t_clean.startswith('/proc/') or t_clean.startswith('/sys/') or t_clean.startswith('/run/'):
-                            continue
-                        if t_clean.startswith('http://') or t_clean.startswith('https://') or t_clean.startswith('localhost'):
-                            continue
-
-                        rel = t_clean.lstrip('/')
-                        cands = [
-                            os.path.normpath(os.path.join(dirpath, rel)),
-                            os.path.normpath(os.path.join(os.path.dirname(dirpath), rel)),
-                            os.path.normpath(os.path.join(os.path.dirname(os.path.dirname(dirpath)), rel)),
-                            os.path.normpath(os.path.join(root, 'usr/lib/mios/agent-pipe', rel)),
-                            os.path.normpath(os.path.join(root, rel)),
-                        ]
-                        if not any(os.path.exists(c) for c in cands):
-                            stale.append(f'{fn}: {t_clean}')
-                if fn.endswith('.md'):
-                    for m in md_link_re.finditer(text):
-                        target = m.group(2).split('#')[0].strip()
-                        if not target or target.startswith(('http://', 'https://', 'mailto:', '#', 'file://')):
-                            continue
-                        if not (target.endswith(('.md', '.sh', '.py', '.toml', '.json', '.txt', '.png', '.svg', '.jpg')) or '/' in target):
-                            continue
-                        rel = target.lstrip('/')
-                        cands = [
-                            os.path.normpath(os.path.join(dirpath, rel)),
-                            os.path.normpath(os.path.join(os.path.dirname(dirpath), rel)),
-                            os.path.normpath(os.path.join(root, rel)),
-                        ]
-                        if not any(os.path.exists(c) for c in cands):
-                            stale.append(f'{fn}: {target}')
-            except Exception:
-                pass
-
-    if len(stale) > max_stale:
-        sys.stdout.write(f"    check_doc_refs_resolve: {len(stale)} stale reference(s) found (max allowed {max_stale}):\n")
-        for s in stale[:10]:
-            sys.stdout.write(f"      {s}\n")
-        sys.exit(1)
-
-    sys.exit(0)
 
 def check_resolver_differential_parity() -> int:
     import os, sys, subprocess
@@ -4763,7 +4673,6 @@ SUBCOMMANDS = {
     "drift-projection": check_drift_projection,
     "unwired-modules": check_unwired_modules,
     "no-duplicate-value-key": check_no_duplicate_value_key,
-    "doc-refs-resolve": check_doc_refs_resolve,
     "resolver-differential-parity": check_resolver_differential_parity,
     "legibility-ratchet": check_legibility_ratchet,
     "header-integrity": check_header_integrity,

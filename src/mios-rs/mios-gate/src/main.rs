@@ -6,6 +6,7 @@
 
 mod credentials;
 mod dispatch;
+mod doc_refs;
 mod inert_tables;
 mod laws;
 mod phases;
@@ -141,6 +142,7 @@ fn main() -> ExitCode {
     let report = match name.as_str() {
         "build-tool-dispatch" => dispatch::check(&root),
         "credential-literals" => credentials::check(&root),
+        "doc-refs-resolve" => doc_refs::check(&root),
         "drift-stubs" => stubs::check(&root),
         "law-enforcers" => laws::check(&root),
         "no-inert-ssot-tables" => inert_tables::check(&root),

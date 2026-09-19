@@ -908,3 +908,22 @@ so long. Let a run finish.
 - blockers: MERGE CONFLICT during `--no-ff` merge of `lane/t1001-gate05` (conflicts in `.devloop/LEDGER.md`, `.devloop/findings/T-1000.md`, and `.devloop/findings/T-1001.md`). Merge aborted and worktree `.worktrees/t1001-gate05` kept for operator review.
 - next: Operator intervention required to resolve the merge conflicts. Task T-1001 cannot be closed yet.
 - unverified: -
+
+## 2026-09-19 07:24 · cd88dca0 · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
+
+## 07:5x · doc-refs port + vacuous negative tests
+- objective: drain check_db_seed_coverage; port check_doc_refs_resolve to Rust
+- done: CI on cd88dca0 validated doc_refs=124, narrative=259, stale-refs=155,
+  no-inert=[gpu]. CI also showed 4 negative tests failing -- all four for
+  standing-red checks, all "failed after restoration". Repaired all four to
+  assert on findings rather than exit codes. Fixed _violations_from aborting
+  after the first finding under errexit in single-check mode.
+- next: the remaining 124 stale doc references; [gpu] registration
+- blockers: -
+- unverified: the full-run violation count is not re-measured locally (this
+  container diverges from CI); C-01 15 is arithmetic pending the next CI run

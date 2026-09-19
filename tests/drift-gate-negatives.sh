@@ -3809,9 +3809,24 @@ UNIT
     log "check_unit_dependency_closure negative test passed"
 }
 
+# Counts, not exit codes: narrative and stale-refs are both above a ceiling of
+# 0, so an exit-code arm passes whether or not the plant was seen.
+_docs_counts() {
+    _neg_gate check_docs_ratchet || :
+    local n m
+    n="$(printf '%s' "$_NEG_GATE_OUT" | sed -n 's/.*narrative=\([0-9][0-9]*\)\/.*/\1/p' | head -1)"
+    m="$(printf '%s' "$_NEG_GATE_OUT" | sed -n 's/.*stale-refs=\([0-9][0-9]*\)\/.*/\1/p' | head -1)"
+    case "${n}:${m}" in *[!0-9:]*|:*|*:) echo "-1:-1";; *) echo "${n}:${m}";; esac
+}
+
 test_docs_ratchet() {
     log "Testing check_docs_ratchet"
     local probe="${ROOT}/automation/mios-negtest-narrative.sh"
+    local base planted restored
+    base="$(_docs_counts)"
+    [[ "$base" != "-1:-1" ]] \
+        || die "test_docs_ratchet: could not read narrative/stale-refs counts; the arms below would prove nothing"
+
     cat > "$probe" <<'EOF'
 #!/usr/bin/env bash
 # The operator hit a regression here previously and the root cause was a race.
@@ -3823,12 +3838,11 @@ test_docs_ratchet() {
 true
 EOF
     git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
-    if _neg_gate check_docs_ratchet; then
-        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
-        die "check_docs_ratchet passed despite an unharvested narrative block"
-    fi
-    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
+    planted="$(_docs_counts)"
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1 || :
     rm -f "$probe"
+    [[ "${planted%%:*}" -gt "${base%%:*}" ]] \
+        || die "check_docs_ratchet did not count the planted narrative block (narrative ${base%%:*} -> ${planted%%:*})"
 
     local stale_probe="${ROOT}/automation/mios-negtest-stale-ref.sh"
     cat > "$stale_probe" <<'EOF'
@@ -3837,14 +3851,15 @@ EOF
 true
 EOF
     git -C "$ROOT" add -N -- "$stale_probe" >/dev/null 2>&1
-    if _neg_gate check_docs_ratchet; then
-        git -C "$ROOT" rm -q --cached --force -- "$stale_probe" >/dev/null 2>&1
-        die "check_docs_ratchet passed despite a stale reference"
-    fi
-    git -C "$ROOT" rm -q --cached --force -- "$stale_probe" >/dev/null 2>&1
+    planted="$(_docs_counts)"
+    git -C "$ROOT" rm -q --cached --force -- "$stale_probe" >/dev/null 2>&1 || :
     rm -f "$stale_probe"
+    [[ "${planted##*:}" -gt "${base##*:}" ]] \
+        || die "check_docs_ratchet did not count the planted stale reference (stale-refs ${base##*:} -> ${planted##*:})"
 
-    _neg_gate check_docs_ratchet || die "check_docs_ratchet failed after restoration"
+    restored="$(_docs_counts)"
+    [[ "$restored" == "$base" ]] \
+        || die "check_docs_ratchet did not return to its baseline ($base -> $restored)"
     log "check_docs_ratchet negative test passed"
 }
 
@@ -4166,18 +4181,40 @@ test_desktop_launchers() {
     log "check_desktop_launchers negative test passed"
 }
 
+# Count, not exit code: this check has a standing red baseline, so an exit-code
+# arm passes whether or not the plant was seen.
+_docrefs_count() {
+    _neg_gate check_doc_refs_resolve || :
+    local n
+    n="$(printf '%s' "$_NEG_GATE_OUT" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) stale reference(s).*/\1/p' | head -1)"
+    case "$n" in ''|*[!0-9]*) echo -1;; *) echo "$n";; esac
+}
+
 test_doc_refs_resolve() {
     log "Testing check_doc_refs_resolve"
     local probe="${ROOT}/automation/mios-negtest-docref.sh"
+    local before after restored
+    before="$(_docrefs_count)"
+    if [[ "$before" == "-1" ]]; then
+        die "test_doc_refs_resolve: could not read a finding count from the gate; the arms below would prove nothing"
+    fi
+
     # An AI-related line naming a file that does not exist is a stale reference.
     printf '#!/usr/bin/env bash\n# AI-hint: negtest probe.\n# AI-related: automation/no-such-'"$$"'.sh\ntrue\n' > "$probe"
+    # Staged, or the tracked corpus never sees it and the plant is invisible.
     git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
-    if _neg_gate check_doc_refs_resolve; then
-        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
-        die "check_doc_refs_resolve passed despite a dangling AI-related reference"
+    after="$(_docrefs_count)"
+    # Tolerant, and before the assertion: a cleanup that can fail under set -e
+    # exits the test first and the arm below never gets to report.
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1 || :
+    rm -f "$probe"
+    if [[ "$after" != "$((before + 1))" ]]; then
+        die "check_doc_refs_resolve did not report the planted dangling reference (${before} -> ${after})"
     fi
-    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
-    _neg_gate check_doc_refs_resolve || die "check_doc_refs_resolve failed after restoration"
+
+    restored="$(_docrefs_count)"
+    [[ "$restored" == "$before" ]] \
+        || die "check_doc_refs_resolve did not return to its baseline (${before} -> ${restored})"
     log "check_doc_refs_resolve negative test passed"
 }
 
@@ -4402,10 +4439,23 @@ PYEOF
     log "check_build_tool_dispatch negative test passed"
 }
 
+# Findings, not exit codes: [gpu] is unconsumed on main, so `_neg_gate && fail`
+# can never fire. Each arm asserts the gate NAMES what it planted.
+_nist_names() {
+    _neg_gate check_no_inert_ssot_tables || :
+    case "$_NEG_GATE_OUT" in *"$1"*) return 0;; *) return 1;; esac
+}
+
 test_no_inert_ssot_tables() {
     log "Testing check_no_inert_ssot_tables"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    _neg_gate check_no_inert_ssot_tables || :
+    case "$_NEG_GATE_OUT" in
+        *"access-shaped"*|*"every mios.toml SSOT table"*) : ;;
+        *) rm -f "$bak"
+           die "test_no_inert_ssot_tables: the gate produced no recognisable output; the arms below would prove nothing" ;;
+    esac
     _nist_fail() {
         cp "$bak" "$toml"; rm -f "$bak"
         unset -f _nist_fail
@@ -4420,13 +4470,13 @@ test_no_inert_ssot_tables() {
 [%s]
 unused_key = "nothing reads this"
 ' "$tbl" >> "$toml"
-    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed despite an SSOT table with no consumer"
+    _nist_names "$tbl" || _nist_fail "check_no_inert_ssot_tables did not name the planted table with no consumer"
     # THE FALSE-CREDIT ARM (T-1001); git add -N or the corpus cannot see the decoy.
     local decoy="${ROOT}/usr/libexec/mios/mios-negtest-decoy.py"
     printf '#!/usr/bin/env python3\n"""Reads usr/share/mios/mios.toml elsewhere."""\nd = compute()\nif d["%s"]:\n    pass\n' "$tbl" > "$decoy"
     git -C "$ROOT" add -N -- "$decoy" >/dev/null 2>&1
     _nist_decoy_clean() { git -C "$ROOT" rm --cached -q -- "$decoy" >/dev/null 2>&1; rm -f "$decoy"; unset -f _nist_decoy_clean; }
-    if _neg_gate check_no_inert_ssot_tables; then
+    if ! _nist_names "$tbl"; then
         _nist_decoy_clean
         _nist_fail "check_no_inert_ssot_tables was SATISFIED by a local dict subscript -- the T-1001 false credit is back"
     fi
@@ -4434,7 +4484,7 @@ unused_key = "nothing reads this"
     # Raising the ceiling must not absorb the plant: the ceiling has to EQUAL
     # the register, so a raised ceiling is itself a violation.
     sed -i 's/^max_unconsumed = [0-9]*$/max_unconsumed = 999/' "$toml"
-    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed with a planted table hidden under a raised ceiling"
+    _nist_names "max_unconsumed" || _nist_fail "check_no_inert_ssot_tables did not report the raised [ssot_tables].max_unconsumed ceiling"
     cp "$bak" "$toml"
     # Padding: registering a table that HAS a consumer must fail -- the
     # register only shrinks, and an entry that no longer reproduces is debt
@@ -4447,7 +4497,7 @@ s2, n = re.subn(r'\n  "browser",[^\n]*', '\n  "blades",', s, count=1)
 assert n == 1, "no register entry was swapped -- the mutation would prove nothing"
 open(p, "w").write(s2)
 PYEOF
-    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed with a consumed table padding the register"
+    _nist_names "blades" || _nist_fail "check_no_inert_ssot_tables did not name the consumed table padding the register"
     cp "$bak" "$toml"
     # Removing a register entry leaves its table unconsumed and unregistered.
     python3 - "$toml" <<'PYEOF'
@@ -4458,7 +4508,7 @@ s2, n = re.subn(r'\n  "browser",[^\n]*', '', s, count=1)
 assert n == 1, "no register entry was removed -- the mutation would prove nothing"
 open(p, "w").write(s2)
 PYEOF
-    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed with a register entry dropped but its table still unconsumed"
+    _nist_names "browser" || _nist_fail "check_no_inert_ssot_tables did not name the table whose register entry was dropped"
     cp "$bak" "$toml"
     # Deleting the whole register must read as unbounded debt, not as no debt.
     python3 - "$toml" <<'PYEOF'
@@ -4469,10 +4519,12 @@ s2, n = re.subn(r'# -+\n# \[ssot_tables\].*?\n\]\n', '', s, count=1, flags=re.S)
 assert n == 1, "the [ssot_tables] register was not removed -- the mutation would prove nothing"
 open(p, "w").write(s2)
 PYEOF
-    _neg_gate check_no_inert_ssot_tables && _nist_fail "check_no_inert_ssot_tables passed with [ssot_tables] absent"
+    _nist_names "ssot_tables" || _nist_fail "check_no_inert_ssot_tables did not report the missing [ssot_tables] register"
     cp "$bak" "$toml"; rm -f "$bak"
     unset -f _nist_fail
-    _neg_gate check_no_inert_ssot_tables || die "check_no_inert_ssot_tables failed after restoration"
+    # Restoration: the planted table must be GONE from the findings. Asserting
+    # exit 0 here is what made this test fail in CI -- [gpu] keeps it red.
+    ! _nist_names "$tbl" || die "check_no_inert_ssot_tables still names the planted table after restoration"
     log "check_no_inert_ssot_tables negative test passed"
 }
 
