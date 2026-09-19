@@ -50,7 +50,7 @@ are missing), the table cell was rewritten instead.
 
 #### <a name="58_the_gate"></a>58.The Gate: check_tasks_status_parity
 
-`tools/check-tasks-status-parity.py` compares the summary-table cell to the
+`tools/check-tasks.py status-parity` compares the summary-table cell to the
 **head token** of the detail status — everything before the first ` -- `
 continuation or ` (` qualifier — so a detail line may carry paragraphs of
 evidence while still being comparable to a one-word cell. It also:
