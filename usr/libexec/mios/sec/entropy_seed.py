@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder in automation (T-679, T-680).
-# AI-related: usr/libexec/mios/sec/entropy_seed.py, tests/test-sec.py, automation/15-entropy.sh
+# AI-related: usr/libexec/mios/sec/entropy_seed.py, tests/test-sec.py
 """Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder for MiOS.
 
 Harvests and whitens 256 bits each from CPU RDSEED, TPM 2.0 TRNG, and JitterEntropy,

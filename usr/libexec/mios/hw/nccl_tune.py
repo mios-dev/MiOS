@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# AI-hint: Automated NCCL topology discovery and NVLink/PCIe parameter optimizer in mios-nccl-tune (T-713, T-714).
-# AI-related: usr/libexec/mios/hw/nccl_tune.py, tests/test-hw.py, automation/20-drivers.sh
+# AI-hint: Automated NCCL topology discovery and NVLink/PCIe parameter optimizer (T-713, T-714).
+# AI-related: usr/libexec/mios/hw/nccl_tune.py, tests/test-hw.py, automation/20-hardware.sh
 """Automated NCCL topology discovery and NVLink/PCIe parameter optimizer for MiOS.
 
 Auto-detects multi-GPU interconnect topologies (NVLink bridges, PCIe switches),

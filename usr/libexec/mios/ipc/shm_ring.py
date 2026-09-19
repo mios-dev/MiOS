@@ -1,10 +1,9 @@
 # AI-hint: MiOS system and orchestration module providing shm ring capabilities.
-# AI-related: mios-shm-ring
 # AI-functions: __init__, push_frame, pop_frame, SHMFrame, LockFreeSHMRing
 
 """
 shm_ring.py — T-767 WS-NODE
-Lock-free POSIX shared memory circular ring IPC engine in mios-shm-ring.
+Lock-free POSIX shared memory circular ring IPC engine.
 
 Allocates POSIX shared memory (/dev/shm) with atomic lock-free SPSC circular rings
 and eventfd signaling for zero-copy 4K 60FPS video and audio streaming (<1us latency).

@@ -4,7 +4,7 @@
 # AI-functions: GreenbootGateEngine, atomic_write_json, main
 """
 WS-DIFFCYCLE (T-470): Greenboot Post-Bake Health Gate & Automated Fallback.
-Invoked during early system boot by Greenboot required checks (60-mios-diff-bake-verify.sh).
+Invoked during early system boot by Greenboot required checks.
 Verifies that newly baked image layers initialize critical AI and system services cleanly,
 triggering automated bootc rollback and quarantining offending diffs if regressions occur.
 """

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative systemd unit hardening generator and security audit gate (T-665, T-666).
-# AI-related: usr/libexec/mios/sec/systemd_harden.py, tests/test-sec.py, automation/47-systemd-harden.sh
+# AI-related: usr/libexec/mios/sec/systemd_harden.py, tests/test-sec.py
 """Declarative systemd unit hardening generator and security audit gate for MiOS.
 
 Generates least-privilege security drop-ins (ProtectSystem=strict, PrivateTmp=yes, SystemCallFilter=...),

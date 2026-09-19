@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# AI-hint: Declarative eBPF kernel tracing suite and bpftrace histogram recorder in mios-trace (T-719, T-720).
-# AI-related: usr/lib/mios/agent-pipe/mios_trace.py, tests/test-ebpf-trace.py, automation/45-ebpf-tools.sh
+# AI-hint: Declarative eBPF kernel tracing suite and bpftrace histogram recorder (T-719, T-720).
+# AI-related: usr/lib/mios/agent-pipe/mios_trace.py, tests/test-ebpf-trace.py
 """Declarative eBPF kernel tracing suite and bpftrace histogram recorder for MiOS.
 
 Attaches dynamic eBPF probes for disk I/O, network TCP drops, and scheduler latency in <10ms,

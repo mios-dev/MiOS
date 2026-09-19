@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative Traefik / Envoy service mesh proxy generator and Unix socket router for MiOS.
-# AI-doc: usr/share/doc/mios/manual/networking.md
+# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
 import argparse
 import json
 import os

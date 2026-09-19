@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative PostgreSQL autovacuum tuner, pg_cron scheduler, and concurrent HNSW reindexer for MiOS.
-# AI-doc: usr/share/doc/mios/manual/database.md
+# AI-doc: usr/share/doc/mios/manual/ch12-unified-memory-and-pgvector-schema.md
 import argparse
 import json
 import os

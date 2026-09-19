@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative mios.toml to Nix flake/home-manager projection generator for atomic user package generations.
-# AI-doc: usr/share/doc/mios/manual/nix.md
 # AI-related: usr/share/mios/nix/flake-template.nix, usr/share/mios/nix/nix.conf, usr/lib/tmpfiles.d/50-nix.conf
 
 """Declarative Nix Flake Projection Generator and Generation Manager (T-582 / AGY-2180).

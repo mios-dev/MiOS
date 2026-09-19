@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative nftables VPN kill-switch and fwmark split-tunnel manager for MiOS.
 # Enforces strict default-drop on non-VPN public WAN traffic while preserving local mesh connectivity via fwmark 0x100.
-# AI-doc: usr/share/doc/mios/manual/networking.md
+# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
 import argparse
 import json
 import os

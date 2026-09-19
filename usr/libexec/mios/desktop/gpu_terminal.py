@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: GPU-accelerated terminal configuration and Wayland zero-copy DMA-BUF presentation manager (T-727, T-728).
-# AI-related: usr/libexec/mios/desktop/gpu_terminal.py, tests/test-gpu-terminal.py, automation/28-terminal.sh
+# AI-related: usr/libexec/mios/desktop/gpu_terminal.py, tests/test-gpu-terminal.py
 """GPU-accelerated terminal configuration and Wayland DMA-BUF presentation manager for MiOS.
 
 Configures Alacritty / Ghostty with Vulkan glyph shaders and Wayland zero-copy DMA-BUF presentation,

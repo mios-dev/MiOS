@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Tiered hardware watchdog driver configurator and systemd watchdog integration for MiOS.
-# AI-doc: usr/share/doc/mios/manual/hardware.md
 import argparse
 import json
 import os

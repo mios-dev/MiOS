@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: VS Code, Cursor, and Continue IDE configuration generator routing completions to local MiOS brain.
-# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/share/mios/templates/vscode-settings.json.j2
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml
 # AI-functions: EditorConfigGen, main
 """
 MiOS Editor AI Configuration Projector & Generator (T-460).

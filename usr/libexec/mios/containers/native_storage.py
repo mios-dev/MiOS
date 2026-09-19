@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Native in-kernel ID-mapped OverlayFS storage configurator for rootless Podman (T-705, T-706).
-# AI-related: usr/libexec/mios/containers/native_storage.py, tests/test-native-storage.py, automation/35-podman-storage.sh
+# AI-related: usr/libexec/mios/containers/native_storage.py, tests/test-native-storage.py
 """Native in-kernel ID-mapped OverlayFS storage configurator for MiOS rootless Podman.
 
 Configures native in-kernel overlayfs with metacopy=on and userxattr for rootless containers,

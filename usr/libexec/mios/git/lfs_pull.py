@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager (T-715, T-716).
-# AI-related: usr/bin/mios_lfs_pull.py, tests/test-lfs-cache.py, usr/bin/mios-lfs-pull
+# AI-related: usr/libexec/mios/git/lfs_pull.py, tests/test-lfs-cache.py
 """Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager for MiOS.
 
 Downloads only requested model quantization blobs (e.g. Q4_K_M), verifies SHA-256 integrity,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: LRU container image garbage collector and block deduplicator daemon in mios-container-gc.
-# AI-related: tests/test-storage.py, usr/share/doc/mios/manual/storage.md
+# AI-related: tests/test-storage.py
 """
 MiOS OCI Container Image Storage LRU Garbage Collection & Deduplication Daemon.
 

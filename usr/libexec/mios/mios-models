@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: FBM CLI. `mios models list` prints the DECLARED set from the layered [ai].firstboot_models SSOT joined against what is on disk (it used to glob the filesystem and never open the TOML at all, so it could not show a declared-but-missing model); `sync` re-runs the first-boot provisioner; `add`/`rm` edit the USER overlay at ~/.config/mios/mios.toml rather than the vendor file, per the vendor<host<user cascade; `cache` pre-seeds from a local directory for air-gapped installs.
-# AI-related: mios-models-firstboot, mios-models-firstboot.service, /usr/share/mios/mios.toml, /usr/lib/mios/mios_toml.py, tools/check-firstboot-models.py
+# AI-related: mios-models-firstboot, mios-models-firstboot.service, /usr/share/mios/mios.toml, /usr/lib/mios/mios_toml.py
 # AI-functions: _user_toml_path, _declared_models, _on_disk, _fmt_size, do_list, do_sync, do_add, do_rm, do_cache, main
 import sys
 import os

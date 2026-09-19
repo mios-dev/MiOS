@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Continuous differential AST git merge fuzzing harness and mutation generator for MiOS.
-# AI-doc: usr/share/doc/mios/manual/git.md
 import argparse
 import ast
 import json

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Strict IOMMU DMA remapper and PCIe ACS group validator for MiOS VFIO passthrough.
-# AI-doc: usr/share/doc/mios/manual/hardware.md
+# AI-doc: usr/share/doc/mios/manual/ch19-hardware-passthrough-and-vfio-pci.md
 import argparse
 import json
 import os

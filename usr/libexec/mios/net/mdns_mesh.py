@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Zero-configuration mDNS/DNS-SD peer discovery and automated WireGuard mesh peering daemon.
-# AI-related: tests/test-mdns-wireguard-mesh.py, usr/share/doc/mios/manual/net.md
+# AI-related: tests/test-mdns-wireguard-mesh.py, usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
 """
 MiOS Edge Mesh Zero-Configuration mDNS/DNS-SD Peer Discovery & WireGuard Daemon.
 
