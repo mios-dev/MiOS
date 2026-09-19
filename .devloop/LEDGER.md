@@ -1244,9 +1244,22 @@ so long. Let a run finish.
   4. automation/lint-shell.sh: its AI-hint says "Degrades open if shellcheck is absent" but the
      code exits 2. It also exits 0 when the glob matches zero files -- an Empty-Set Pass that
      would hide a broken ROOT.
-  5. The 2 remaining negatives failures, both the same red-baseline-inverts-verdict shape:
-     check_no_duplicate_value_key "failed on the unmutated tree", and
-     check_legibility_ratchet "counted a sibling unit test as tooling" (which is item 2 above).
+  5. CORRECTION to an earlier line in this entry, which mis-attributed a regression as
+     pre-existing. Measured from the run logs: the ORIGINAL negatives run, before any of my
+     commits, failed 4 tests -- Check_version_ssot, version-literals-ssot,
+     Check_bake_ref_defaults and check_no_duplicate_value_key. It did NOT include
+     check_legibility_ratchet. So:
+     - 3 of the 4 ORIGINAL failures are fixed this session (version_ssot and
+       dead_git_corpus by the version-literals fix, bake_ref_defaults by the plant fix).
+     - check_no_duplicate_value_key "failed on the unmutated tree" is the ONLY genuinely
+       pre-existing negatives failure left. Its subject is one of the standing drift
+       violations, so its baseline is red and its verdict inverts.
+     - check_legibility_ratchet "counted a sibling unit test as tooling" is MINE, caused
+       entirely by the +20 shell_lines overage. Read test_legibility_ratchet (around line
+       4570): its third arm adds 600 lines to a `test-` prefixed file and asserts the check
+       PASSES, proving the sibling-unit-test exclusion works. That assertion cannot hold
+       while ANY other counter is red, so my shell overage inverts it and it blames the
+       exclusion. Clearing the shell debt clears this failure; nothing else is needed.
   6. mios-gate --help under-lists its own subcommands: doc-refs-resolve works but is not shown.
   7. **T-1096 is BLOCKED and must NOT be run as specified.** Its 7 orphans are exactly the
      adversarial challenger suites this ledger said to delete "after -dev-loop lands". Verified
@@ -1271,6 +1284,25 @@ so long. Let a run finish.
        (188 tracked), 3999 assertion labels, 179 registered suites all exit 0 today.
      - usr/share/mios/reference/version-literals-audit.tsv is ALREADY STALE at base
        (357 records vs ~156 rendered).
+- operator directives received after the run started:
+  1. "allow growth over 3 commit(s)/turns and convert and/or consolidate to upstream
+     languages/patterns -- keep it FOSS" -- recorded above; commits 1 and 2 landed.
+  2. "loosen ratchet; allow growth but over 3 commits; RnD a consolidation regimen, wherein
+     growth is scaled against code porting to upstream languages and compaction/condensing of
+     files to hardened code (fewer overall files)". R&D is in flight: prior art on
+     earned-growth ratchets (betterer, SonarQube new-code gates, baseline-by-hash registers),
+     a concrete mios.toml schema, a Rust gate in src/mios-rs/mios-gate, and an adversarial
+     gameability critique (can credit be earned by moving python into a file the counter
+     excludes -- a `^test[-_]` basename, an AI-plane prefix, or a forged GENERATED/DO NOT EDIT
+     header -- or by renaming .py to .rs without porting logic?). The regimen must not become
+     a Count-Only Ratchet; SKILL.md 7 prescribes an ITEMISED or hash-keyed register, not a
+     number. Do NOT hand-apply a scope change to max_shell_lines ahead of that design: it
+     would let hand-written glue hide in a `test-` prefixed shell file, which is precisely the
+     gaming vector the critique is measuring.
+  3. "just install the SDK" -- done: openai-agents 0.22.3 and openai 3.16.2 are installed in
+     this container, and agents.strict_schema.ensure_strict_json_schema imports. That is
+     OpenAI's own reference normaliser for the strict JSON-Schema subset, MIT, so the
+     dev-loop repo can DEPEND on it rather than hand-port it.
 - blockers:
   - agy authentication needs the operator: `bash skills/dev-loop/scripts/env/agy-login.sh`.
     Until then every run is topology B and no native AGY subagent lane can be dispatched.
