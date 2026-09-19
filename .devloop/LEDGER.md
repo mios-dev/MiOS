@@ -885,3 +885,10 @@ so long. Let a run finish.
 - next: T-1001 needs to be re-run as the worker failed to emit a devloop_report and exited partially.
 - blockers: t1001-gate05 worker exited without providing the required JSON block.
 - unverified: Did not audit whether non-consumer-glob files reference MIOS_* via direct OS environment lookups.
+
+## 2026-09-19 03:33 · 478a9ece · run-exit-1
+- objective: MiOS T-1001 re-measurement, third attempt, watched. Single lane.
+- done: report-t1001-gate05.json 
+- next: read /home/user/MiOS/.devloop/run-20260919-032612/report-*.json; re-plan non-done lanes
+- blockers: -
+- unverified: -
