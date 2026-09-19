@@ -1115,14 +1115,15 @@ so long. Let a run finish.
 - done:
   - Landed T-1090 (done), T-1100 (completed), T-1102 (done) in commit 15f9e2f1 with extensionless verb scanning in usr/lib/mios/mios_comments.py.
   - Executed all 4 stale reference lanes using claude-code harness workers in isolated dedicated worktrees under .devloop/lanes.stale-refs.json.
-  - Lane srf-lib: cleared 10 stale refs in usr/lib/** (commit 8496827a, merged fb25ef37).
-  - Lane srf-tests: cleared 18 stale refs across 17 test files (commit b0851730, merged dd2dc490; 113 unit tests passed).
-  - Lane srf-native: cleared 8 stale refs across Rust workspaces/tools (commit a6bb887d, merged 1370d9d4; token-identical, cargo fmt green).
-  - Lane srf-libexec: cleared 71 stale refs across 69 files in usr/libexec/mios/** (commit 0f846ed1, merged 0d97cdeb) using atomic comment-only script.
-  - Remeasured repo-wide stale references: dropped from 152 to 25 (ceiling was <= 110).
+  - Lane srf-lib: cleared 10 stale refs in usr/lib/** (commit 8496827a, merged fb25ef37). Negative control `DEVLOOP-PLANTED-SRF-LIB`: 122 -> 123 stale refs (rc 1).
+  - Lane srf-tests: cleared 18 stale refs across 17 test files (commit b0851730, merged dd2dc490; 113 unit tests passed). Negative control `DEVLOOP-PLANTED-SRF-TESTS`: 114 -> 115 stale refs (rc 1).
+  - Lane srf-native: cleared 8 stale refs across Rust workspaces/tools (commit a6bb887d, merged 1370d9d4; token-identical, cargo fmt green). Negative control `DEVLOOP-PLANTED-SRF-NATIVE`: 124 -> 125 stale refs (rc 1).
+  - Lane srf-libexec: cleared 71 stale refs across 69 files in usr/libexec/mios/** (commit 0f846ed1, merged 0d97cdeb) using atomic comment-only script. Negative control `DEVLOOP-PLANTED-SRF-LIBEXEC`: 61 -> 62 stale refs (rc 1).
+  - Commit trailer anomaly note: commit `0f846ed1` carried trailer `Task-Id: T-1081`, amended by follow-up commit `7ccdad31` (`Task-Id: T-1080`).
+  - Remeasured repo-wide stale references: dropped from 152 to 21 (ceiling was <= 110).
   - Regenerated and verified manual corpus ledger: usr/share/mios/reference/manual-corpus.tsv up to date (19,523 rows, 718 tombstones).
-  - Ratcheted max_tooling_python_lines in usr/share/mios/mios.toml down to 77092 (shrink-only).
+  - Ratcheted max_tooling_python_lines in usr/share/mios/mios.toml down to 77088 (shrink-only, commit 53130f0b).
   - Updated TASKS.md parity for T-1080 (done), T-1081 (done), T-1082 (done), T-1083 (done), T-1101 (done). Both check-tasks.py status-parity and schema exit 0.
 - next: T-1084 (HARVEST narrative blocks), T-1085 (DOCS-REFS), T-1091 (fold tests into subject modules)
 - blockers: -
-- unverified: none; all controls verified with positive & negative sentinels, drift-checks legibility-ratchet exit 0, test_mios_comments 31/31 passed.
+- unverified: none; all controls verified with positive & negative sentinels (DEVLOOP-PLANTED-SRF-LIB: 122->123 rc 1, DEVLOOP-PLANTED-SRF-TESTS: 114->115 rc 1, DEVLOOP-PLANTED-SRF-NATIVE: 124->125 rc 1, DEVLOOP-PLANTED-SRF-LIBEXEC: 61->62 rc 1), drift-checks legibility-ratchet exit 0, test_mios_comments 31/31 passed.
