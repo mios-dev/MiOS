@@ -10,22 +10,25 @@
       "description": "Drift gate at its standing red: exactly 19 violations, no new check failing",
       "criterion_type": "test",
       "command": "[ \"$(bash automation/98-drift-checks.sh 2>&1 | grep -c '^\\[98-drift-checks\\] VIOLATION')\" = 19 ]",
-      "passed": true,
-      "details": "Exit code 0"
+      "target_path": null,
+      "passed": false,
+      "details": "Exit code 1"
     },
     {
       "id": "C-02",
       "description": "Working tree clean of uncommitted residue",
       "criterion_type": "git_clean",
       "command": null,
-      "passed": false,
-      "details": "Dirty files: M .devloop/goal_state.json"
+      "target_path": null,
+      "passed": true,
+      "details": "Working tree clean"
     },
     {
       "id": "C-03",
       "description": "Both Rust workspaces build, format and test clean",
       "criterion_type": "test",
       "command": "cd tools/native && cargo fmt --all -- --check && cargo test --workspace --exclude mios-wallpaperd >/dev/null && cd ../../src/mios-rs && cargo fmt --all -- --check && cargo test --workspace >/dev/null",
+      "target_path": null,
       "passed": true,
       "details": "Exit code 0"
     }
@@ -35,5 +38,6 @@
     "Raising any shrink-only ratchet; a ceiling may only fall",
     "Running a bake -- no image has been built on this branch, so no claim may depend on one",
     "Fixing the six standing-red checks that predate this branch (they are main's, not this branch's)"
-  ]
+  ],
+  "ratchet_history": []
 }
