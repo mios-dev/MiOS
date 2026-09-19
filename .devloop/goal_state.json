@@ -1,33 +1,33 @@
 {
-  "objective": "Drain check_doc_refs_resolve -- the 124 stale documentation references that are 11 of the drift gate's 15 standing violations -- and correct the P0 backlog rows whose defects no longer reproduce",
-  "stopping_condition": "cd /home/user/MiOS && ./src/mios-rs/target/release/mios-gate doc-refs-resolve --root . >/dev/null 2>&1 && [ -z \"$(git status --porcelain)\" ]",
-  "status": "IN_PROGRESS",
-  "created_at": "2026-09-19T11:41:26.772865",
-  "completed_at": null,
-  "criteria": [
-    {
-      "id": "C-01",
-      "description": "Stopping condition: cd /home/user/MiOS && ./src/mios-rs/target/release/mios-gate doc-refs-resolve --root . >/dev/null 2>&1 && [ -z \"$(git status --porcelain)\" ]",
-      "criterion_type": "test",
-      "command": "cd /home/user/MiOS && ./src/mios-rs/target/release/mios-gate doc-refs-resolve --root . >/dev/null 2>&1 && [ -z \"$(git status --porcelain)\" ]",
-      "target_path": null,
-      "passed": false,
-      "details": null
-    },
-    {
-      "id": "C-02",
-      "description": "Working tree clean of uncommitted residue",
-      "criterion_type": "git_clean",
-      "command": null,
-      "target_path": null,
-      "passed": false,
-      "details": null
-    }
-  ],
-  "non_goals": [
-    "Do not refactor unassigned modules or out-of-scope files.",
-    "Do not introduce regressions to passing baseline tests.",
-    "Do not bypass security checks, linters, or suppressions."
-  ],
-  "ratchet_history": []
+ "objective": "Drain check_doc_refs_resolve -- the 124 stale documentation references that are 11 of the drift gate's 15 standing violations -- and correct the P0 backlog rows whose defects no longer reproduce",
+ "stopping_condition": "cd /home/user/MiOS && ./src/mios-rs/target/release/mios-gate doc-refs-resolve --root . >/dev/null 2>&1 && [ -z \"$(git status --porcelain)\" ]",
+ "status": "IN_PROGRESS",
+ "created_at": "2026-09-19T11:41:26.772865",
+ "completed_at": null,
+ "criteria": [
+  {
+   "id": "C-01",
+   "description": "Drift gate at its standing red: exactly 14 violations (15 -> 14: check_no_inert_ssot_tables drained via T-1061, 1 line)",
+   "criterion_type": "test",
+   "command": "cd /home/user/MiOS && ./src/mios-rs/target/release/mios-gate doc-refs-resolve --root . >/dev/null 2>&1 && [ -z \"$(git status --porcelain)\" ]",
+   "target_path": null,
+   "passed": false,
+   "details": "pending CI on this head"
+  },
+  {
+   "id": "C-02",
+   "description": "Working tree clean of uncommitted residue",
+   "criterion_type": "git_clean",
+   "command": null,
+   "target_path": null,
+   "passed": false,
+   "details": null
+  }
+ ],
+ "non_goals": [
+  "Do not refactor unassigned modules or out-of-scope files.",
+  "Do not introduce regressions to passing baseline tests.",
+  "Do not bypass security checks, linters, or suppressions."
+ ],
+ "ratchet_history": []
 }
