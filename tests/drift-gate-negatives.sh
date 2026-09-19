@@ -4652,15 +4652,9 @@ test_package_registry() {
     log "check_package_registry negative test passed"
 }
 
-# --------------------------------------------------------------------------------------------
-# Roadmap campaign 1 (Falsifiable gates): four checks that were dispatched by the gate and had
-# no negative test at all, so nothing had ever shown them going red. Each arm below was
-# measured against the real gate before being written down.
-#
-# Probe values are assembled from pieces on purpose (the AI-convention at the top of this
-# file): a literal vendor URL or retired model-id sitting in this file would be found by the
-# very scans these tests exercise.
-# --------------------------------------------------------------------------------------------
+# Campaign 1: four dispatched checks that had no negative test at all.
+# Probe values are assembled from pieces per the AI-convention above: a
+# literal URL or model-id here would be found by the scans under test.
 
 test_vendor_urls() {
     log "Testing check_vendor_urls"

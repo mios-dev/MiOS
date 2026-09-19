@@ -11356,10 +11356,8 @@ max_leaked_fixtures = 0
 # Shrink-only. check_negatives_registered has always CLAIMED that every
 # drift check has a negative test; it only detected orphans. This is the
 # measured gap it never enforced: write a test, lower the number.
-# 48 -> 47: four checks gained real two-sided tests (vendor_urls,
-# retired_models, etc_duplicates, canonical_bools) while the coverage
-# predicate was tightened from substring presence to argument position,
-# which correctly re-counted five checks that had never been driven red.
+# 48 -> 47: four new two-sided tests, less five the tightened
+# argument-position coverage predicate correctly re-counted.
 max_checks_without_negative = 47
 
 [ci.python]
