@@ -1,57 +1,72 @@
-# Project: MiOS Roadmap Workstream Batch (T-573 to T-582)
+# Project: Dev-Loop Lane Isolation & Concurrent Worker Harness
 
 ## Architecture
-MiOS is an immutable, bootc/OCI-shaped Fedora workstation and a local, self-replicating agentic AI OS.
-This project batch implements 10 sequential roadmap tasks (T-573 through T-582) spanning hardware power management, living wallpaper occlusion throttling, declarative MCP gateway orchestration, acoustic wake-word filtering, and declarative Nix subsystem integration.
-
-### Core Architectural Invariants:
-1. **USR-OVER-ETC**: Default templates and schemas in `/usr/share/mios/` and `/usr/lib/`; `/etc/mios/` and `~/.config/mios/` for runtime overrides.
-2. **NO-MKDIR-IN-VAR**: All `/var` persistent paths (e.g. `/var/nix`) declared declaratively via systemd tmpfiles (`usr/lib/tmpfiles.d/50-nix.conf`), never created via runtime build `mkdir`.
-3. **BOUND-IMAGES**: All container and runtime tool dependencies strictly version-bound in `mios.toml`.
-4. **BOOTC-CONTAINER-LINT**: Read-only `/usr` FHS layout compliant with bootc/ostree constraints.
-5. **UNIFIED-AI-REDIRECTS**: All AI tool calls, agent invocations, and MCP schemas conform strictly to OpenAI-API-compatible surface contracts (`/v1/chat/completions`, JSON schema function definitions).
-6. **UNPRIVILEGED-QUADLETS**: User-facing daemons run in unprivileged user sessions (`usr/lib/systemd/user/`).
-7. **Legibility Ratchet Discipline**: Python modules modularized in domain subdirectories (`usr/libexec/mios/hw/`, `usr/libexec/mios/ux/`, `usr/libexec/mios/audio/`, `usr/libexec/mios/config/`) to preserve the `max_libexec_verbs = 285` ceiling.
-
----
+The dev-loop orchestration harness coordinates autonomous AI coding agents across multiple harnesses (Antigravity/AGY, Claude Code CLI `claude -p`, Codex, OpenCode, Copilot, Cursor).
+The core system architecture consists of:
+1. **Execution Engine & Multi-Lane Orchestration (`devloop.sh`, `DevLoop.ps1`)**:
+   Manages the lifecycle of worker lanes, partitioning tasks into dependency waves (`adapters.py waves`), provisioning isolated git worktrees (`<worktree_root>/<id>`), launching concurrent jobs via detached supervisor (`job.py spawn`), executing sequential pre-merge verification gates (`gate_merge`), and atomically reconciling git commits (`--no-ff`).
+2. **Harness Adapters & Gating Engine (`adapters.py`)**:
+   Synthesizes execution commands (`build_argv`) for diverse CLI agents, prepares isolated prompt contracts, and executes two-sided verification gates (`positive_cmd` and `negative_control_cmd`). Validates path ownership (`cmd_owned`), detects tool permission denials (`cmd_denials`), and enforces supply-chain / security scans.
+3. **Base-Tree State Guard & Leakage Enforcement (`adapters.py`, `agy_session.py`, `devloop.sh`)**:
+   Enforces absolute immutability of the base git repository. Captures baseline `git status --porcelain` snapshots prior to execution and ensures that only designated metadata paths (`.devloop/`, `.git/`, `AGENTS.md`, `TASKS.md`, `<worktree_root>/`) can ever be modified in the base working tree. Halts execution immediately with diagnostic error reporting if stray files or fixture leaks are detected.
+4. **Git Lock & Concurrency Manager (`git_lock.py`, `adapters.py:git`)**:
+   Resolves git directories for primary and linked worktrees, arbitrating concurrent git operations with exponential backoff, jitter, and stale lock eviction (>45s) to eliminate index lock contention.
 
 ## Feature Inventory
-| # | Task | AGY ID | Feature | Description | Milestone | Status | Source |
-|---|------|--------|---------|-------------|-----------|--------|--------|
-| 1 | T-573 | AGY-2171 | Power Supply Detector & Inference Downscaler | `usr/libexec/mios/hw/powerd.py` & service | M1 | DONE | Survey |
-| 2 | T-574 | AGY-2172 | Power Profile Benchmark Suite | `tests/test-power-profile-transitions.py` | M1 | DONE | Survey |
-| 3 | T-575 | AGY-2173 | Living Wallpaper Occlusion Engine | `usr/libexec/mios/ux/wallpaperd.py` & service | M2 | DONE | Survey |
-| 4 | T-576 | AGY-2174 | Wallpaper Frame Pacing Benchmark Suite | `tests/test-wallpaper-occlusion-throttle.py` | M2 | DONE | Survey |
-| 5 | T-577 | AGY-2175 | Declarative MCP Server Lifecycle & Schema Converter | `usr/lib/mios/agent-pipe/mios_mcp.py` | M3 | DONE | Survey |
-| 6 | T-578 | AGY-2176 | MCP Tool Discovery & Execution Test Suite | `tests/test-mcp-gateway-handshake.py` | M3 | DONE | Survey |
-| 7 | T-579 | AGY-2177 | Three-Stage Acoustic Wake-Word Filter Chain | `usr/libexec/mios/audio/wakeword.py` & service | M4 | DONE | Survey |
-| 8 | T-580 | AGY-2178 | Acoustic Wake-Word Benchmark Suite | `tests/test-acoustic-wakeword-pipeline.py` | M4 | DONE | Survey |
-| 9 | T-581 | AGY-2179 | Multi-User Nix Subsystem & Tmpfiles Store | `automation/59-tools.sh` & tmpfiles | M5 | DONE | Survey |
-| 10 | T-582 | AGY-2180 | Declarative Nix Flake Projection Generator | `usr/libexec/mios/config/nix_project.py` & template | M5 | DONE | Survey |
-| 11 | — | — | SSOT Synchronization & Task Registry Parity | `sync-generated.sh`, `mios-sync-toml`, 7 CI Gates | M6 | DONE | Survey |
-| 12 | — | — | Git Delivery & Remote CI Validation | Commit `325b8496` pushed to `origin/main` | M7 | DONE | Survey |
-
----
+| # | Feature | Description | Milestone | Source |
+|---|---------|-------------|-----------|--------|
+| 1 | Worktree Layout Isolation | Enforce worker and manager isolation within dedicated git worktrees under `<worktree_root>/<id>` with narrow `.git/info/exclude` | M1 | R1, Survey §1.1 |
+| 2 | Clean Worktree Provisioning | Fix worktree reuse bug in `devloop.sh` to clean/reset existing worktrees before lane execution | M1 | R1, Survey §1.1 |
+| 3 | Prompt & Dispatch Alignment | Update `manager.md` and `dispatch.*.md` to eliminate unisolated subagent fictions and mandate dedicated worktrees | M1 | R1, Survey §1.2 |
+| 4 | Base-Tree Snapshot Protocol | Implement pre- and post-execution snapshotting (`base_tree_state`) in `adapters.py` and `devloop.sh` | M2 | R2, Survey §1.2 |
+| 5 | Two-Sided Gate Base-Tree Audit | Enforce base-tree immutability inside `adapters.py:cmd_gate`; halt with exit 2 on stray modifications outside allowed metadata paths | M2 | R2, Survey §1.2 |
+| 6 | Orchestrator Pre/Post Leak Audit | Implement automated pre/post execution audits in `devloop.sh` halting with non-zero exit on stray files | M2 | R2, Survey §1.2 |
+| 7 | Diagnostic Stray Path Reporting | Report exact stray file paths on stderr when base tree leakage is detected | M2 | R2, Survey §1.2 |
+| 8 | Fail-Closed Session Guard | Enforce immediate fail-closed termination in `agy_session.py` when base tree mutations are detected | M2 | R2, Survey §1.2 |
+| 9 | Concurrent Detached Execution | Enable parallel detached worker job spawning (`job.py spawn`) across waves for headless and multi-lane runs | M3 | R3, Survey §1.3 |
+| 10 | Claude Code CLI Worker Harness | Full production support for `claude -p` workers with `cwd=wt`, JSON envelope, schema validation, and tool allowlists | M3 | R3, Survey §1.3 |
+| 11 | Concurrent Worktree Index Isolation | Ensure zero index lock contention during concurrent worker builds and gate runs via worktree-specific index files and `git_lock.py` backoff | M3 | R3, Survey §1.3 |
+| 12 | Atomic Diff Reconciliation | Reconcile diffs sequentially via two-sided gate, path ownership audit, and `--no-ff` merge with instant conflict abort | M3 | R3, Survey §1.4 |
+| 13 | E2E Testing Suite (Tiers 1-4) | Comprehensive opaque-box test suite covering worktree isolation, stray leakage detection, and concurrent Claude Code/AGY spawning | E2E | Acceptance Criteria |
+| 14 | Adversarial Hardening (Tier 5) | White-box stress testing of edge cases, rapid lock contention, dirty baselines, and nested negative controls | Final (M4) | Project Pattern |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Hardware Powerd & Downscaler | T-573 (`powerd.py`, unit test `test-power-profile-transitions.py`, service) | None (T-572 done) | DONE |
-| M2 | Living Wallpaper Occlusion | T-575 (`wallpaperd.py`, unit test `test-wallpaper-occlusion-throttle.py`, service) | M1 | DONE |
-| M3 | Declarative MCP Gateway | T-577 (`mios_mcp.py`, `server.py`, unit test `test-mcp-gateway-handshake.py`) | M2 | DONE |
-| M4 | Three-Stage Acoustic Wake-Word | T-579 (`wakeword.py`, unit test `test-acoustic-wakeword-pipeline.py`, service) | M3 | DONE |
-| M5 | Declarative Nix Subsystem | T-581/T-582 (`59-tools.sh`, `50-nix.conf`, `nix_project.py`, flake template) | M4 | DONE |
-| M6 | SSOT Sync & 7 CI Gates Verification | CI registration in `mios.toml`, `TASKS.md`/`AGY-TASKS.md` parity, 7 CI gates pass | M1..M5 | DONE |
-| M7 | Gate Review, Audit & Git Delivery | Reviewers, Challengers, Forensic Auditor (PASS), Commit `325b8496` pushed | M6 | DONE |
+| E2E | E2E Testing Track | Requirement-driven test suite (Tiers 1-4) covering R1, R2, R3, and publishing `TEST_READY.md` | none | IN_PROGRESS |
+| M1 | Strict Worktree Isolation | Enforce worktree provisioning, sanitization, and prompt alignment for all manager and worker runs | none | DONE |
+| M2 | Leakage Detection & Enforcement | Implement base-tree snapshotting, two-sided gate leakage audit in `adapters.py`, orchestrator audits in `devloop.sh`, and diagnostic error reporting | M1 | DONE |
+| M3 | Concurrent Worker Lanes & Claude Code CLI | Multi-lane concurrent spawning via `job.py`, Claude Code CLI (`claude -p`) harness verification, and atomic diff reconciliation | M1, M2 | DONE |
+| M4 | Final Milestone & Hardening | Pass 100% of E2E tests (Tiers 1-4) and adversarial coverage hardening (Tier 5) | E2E, M3 | PLANNED |
 
----
+## Interface Contracts
+### `adapters.py` ↔ `devloop.sh`
+- `adapters.py base-audit --root <root> --before <snapshot_file> [--lanes <lanes_json>]`:
+  - Returns exit code 0 if base tree has no modifications outside allowed metadata paths (`.devloop/`, `.git/`, `AGENTS.md`, `TASKS.md`, `<worktree_root>/`).
+  - Returns exit code 6 (or non-zero) if stray modifications or untracked files exist, outputting the newline-delimited list of stray paths to `stderr`.
+- `adapters.py gate --lane <lane_json> --wt <worktree_dir> --run <run_dir> [--root <base_root>]`:
+  - Executes positive and negative controls.
+  - Takes snapshots of both worktree (`wt`) and base repository (`root`).
+  - Verifies worktree restoration and asserts base repository has zero stray edits.
+  - If stray edits exist in base repository: outputs `BASE TREE LEAKAGE DETECTED: <paths>` to stderr and exits with code 2.
 
-## Key Artifacts Delivered
-- `usr/libexec/mios/hw/powerd.py` & `usr/lib/systemd/system/mios-powerd.service`
-- `usr/libexec/mios/ux/wallpaperd.py` & `usr/lib/systemd/user/mios-wallpaper.service`
-- `usr/lib/mios/agent-pipe/mios_mcp.py`
-- `usr/libexec/mios/audio/wakeword.py` & `usr/lib/systemd/user/mios-wakeword.service`
-- `automation/59-tools.sh`, `usr/lib/tmpfiles.d/50-nix.conf`, `usr/share/mios/nix/nix.conf`
-- `usr/share/mios/nix/flake-template.nix`, `usr/libexec/mios/config/nix_project.py`
-- Test Suites: `test-power-profile-transitions.py` (11 tests), `test-wallpaper-occlusion-throttle.py` (10 tests), `test-mcp-gateway-handshake.py` (15 tests), `test-acoustic-wakeword-pipeline.py` (18 tests), `test-nix-project.py` (10 tests), `test-empirical-stress-t573-t582.py` (28 tests)
-- Commit: `325b849638e456706db36b711760e822c0a94f4b` on `origin/main`
+### Harness Runner ↔ Claude Code CLI (`claude-code`)
+- Invocation:
+  `claude -p "{prompt}" --output-format json --permission-mode dontAsk --allowedTools "{allowed_tools}" --model "{model}" --effort "{effort}" --json-schema "{schema}"`
+- Working Directory: `cwd=wt` (must run strictly within allocated `<worktree_root>/<id>`).
+- Output parsing: Extracts `devloop_report` JSON; checks `permission_denials` and downgrades status to `partial` if non-empty.
+
+## Code Layout
+- Dev-loop core harness:
+  - `/home/mios-dev/.dev-loop/skills/dev-loop/scripts/`
+    - `adapters.py`: Universal adapter and CLI subcommands
+    - `devloop.sh`: Multi-lane bash orchestrator
+    - `agy_session.py`: Antigravity session manager and base tree monitor
+    - `agy_host.sh`: Antigravity host launcher
+    - `job.py`: Detached process runner
+    - `git_lock.py`: Git concurrency and lock helper
+  - Mirrored under `/home/mios-dev/.gemini/config/skills/dev-loop/scripts/`
+- Test suites:
+  - `/home/mios-dev/.dev-loop/tests/`: Harness unit and integration tests
+  - `/workspaces/MiOS/tests/`: Project E2E and CI test suites
+  - `/workspaces/MiOS/tools/`: Project tools and test suites

@@ -3214,6 +3214,7 @@ def check_containerfile_pinned_clones() -> int:
     read = 0
 
     for r, ds, fs in os.walk(root):
+        ds[:] = [d for d in ds if d not in (".git", ".worktrees", ".devloop", "target", "node_modules", ".venv")]
         for f in fs:
             if "Containerfile" in f:
                 path = os.path.join(r, f)
@@ -4005,7 +4006,7 @@ def check_secret_handling() -> int:
         if dirpath != root and (".git" in dirnames or ".git" in filenames):
             dirnames[:] = []
             continue
-        dirnames[:] = [d for d in dirnames if d not in (".git", "__pycache__", ".cargo", "target", "node_modules", ".venv", ".agents", ".tmp.driveupload", "root")]
+        dirnames[:] = [d for d in dirnames if d not in (".git", ".worktrees", "__pycache__", ".cargo", "target", "node_modules", ".venv", ".agents", ".tmp.driveupload", "root")]
         for f in filenames:
             if f.endswith((".png", ".jpg", ".tar", ".zip", ".exe", ".pyc", ".iso", ".qcow2", ".vhdx")):
                 continue
@@ -4062,7 +4063,7 @@ def check_adhoc_toml_parsers() -> int:
     ]
     viol = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in (".git", "target", "node_modules", ".venv")]
+        dirnames[:] = [d for d in dirnames if d not in (".git", ".worktrees", ".devloop", "target", "node_modules", ".venv")]
         for fn in sorted(filenames):
             if not fn.endswith(".ps1") or fn in EXEMPT:
                 continue
@@ -4198,7 +4199,7 @@ def check_ps_port_fallback_ssot() -> int:
 
     viol = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in (".git", "target", "node_modules", ".venv")]
+        dirnames[:] = [d for d in dirnames if d not in (".git", ".worktrees", ".devloop", "target", "node_modules", ".venv")]
         for fn in sorted(filenames):
             if not fn.endswith(".ps1"):
                 continue
@@ -4227,7 +4228,7 @@ def check_ps_encoding_and_bom() -> int:
     BOM = b"\xef\xbb\xbf"
     viol = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in (".git", "target", "node_modules", ".venv")]
+        dirnames[:] = [d for d in dirnames if d not in (".git", ".worktrees", ".devloop", "target", "node_modules", ".venv")]
         for fn in sorted(filenames):
             if not fn.endswith(".ps1"):
                 continue
