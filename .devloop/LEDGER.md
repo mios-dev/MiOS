@@ -1009,3 +1009,27 @@ so long. Let a run finish.
   2. Monitor live multi-wave worker lanes across claude-code and antigravity harnesses.
 - blockers: -
 - unverified: -
+
+## 2026-09-19 · b11a9926 · branches flattened to main
+- objective: one branch, main (operator: "Consolidate and flatten to 1!!!!!! MAIN!")
+- done: five remote branches deleted, each proven contained in main first. Four
+  are ancestors of main. failover/scan-roots-that-vanish differed only where
+  main is newer (the .worktrees/.devloop pruning in four walks) and in one folded
+  line; its _scan fix is in main verbatim and test_drift-checks.py is
+  byte-identical. The eight consol/tests-* branches were cherry-picked, so they
+  are patch-equivalent in main (git cherry: -). No open PRs were affected.
+- claude/worker-1 carried one file, .devloop/findings/claude-worker-audit.md.
+  It was a lane agent's final chat reply saved as a file: it says the file "was
+  not written" and ends with connector boilerplate, so it was not committed
+  verbatim. Its findings were re-checked against main at b11a9926:
+  fixed: drift walks skip .worktrees; subagent_id validated; cleanup merges via
+  merge-tree and reports errors; no lane checker lives under /tmp.
+  STILL OPEN:
+  1. usr/lib/mios/agent-pipe/mios_worktree.py:22 defaults repo_root to
+     "/mnt/c/MiOS" (Law 7 hardcode).
+  2. No .containerignore, so `podman build .` sends every .worktrees/ tree as
+     build context.
+  3. .devloop/goal_state.json runs its stop condition in /home/user/MiOS, a
+     checkout from an earlier container.
+- blockers: -dev-loop main and mios-bootstrap main refuse pushes from this
+  codespace (403; its token is scoped to mios.git).
