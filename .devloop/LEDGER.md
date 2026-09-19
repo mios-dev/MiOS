@@ -927,3 +927,15 @@ so long. Let a run finish.
 - blockers: -
 - unverified: the full-run violation count is not re-measured locally (this
   container diverges from CI); C-01 15 is arithmetic pending the next CI run
+
+## 08:4x · C-01 met in CI
+- objective: burn down the measured-defect backlog; hold the drift baseline
+- done: CI on 6bbed1c8 reports FAIL: 15 drift violation -- C-01's exact target.
+  Distribution doc_refs 11, docs_ratchet 3, no_inert 1. The negatives suite went
+  [ OK ] with 0 failures (4 failed on cd88dca0); tier=gate 0/2 -> 1/2.
+- next: the 124 stale doc refs and the 259/155 docs ratchet are what remain, all
+  pre-existing on main. One fixture leak is unowned: a test leaves
+  tools/native/target/debug/generate-names-registry behind (also present on
+  cd88dca0, so not this branch's).
+- blockers: -
+- unverified: -
