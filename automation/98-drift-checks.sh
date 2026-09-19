@@ -1184,7 +1184,7 @@ check_firstboot_degrade_open() {
     # certified the script; all thirteen passed and the gate could not fail,
     # while forge-firstboot.sh really did abort firstboot on an unreachable
     # Forgejo API. The tool scopes the question to the egress calls themselves.
-    _run_py_check check_firstboot_degrade_open tools/check-firstboot-degrade-open.py
+    _run_py_check check_firstboot_degrade_open "tools/check-runtime.py firstboot-degrade-open"
 }
 
 check_vendor_urls() {
@@ -1324,7 +1324,7 @@ check_resolver_twin_equivalence() {
     _need_python || return 0
     local mismatches
     # MIOS_VERSION_MANIFEST (and other build-time MIOS_* vars) into this gate's env, and
-    if ! mismatches=$(env -i PATH="$PATH" MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-resolver-twin.py" 2>&1); then
+    if ! mismatches=$(env -i PATH="$PATH" MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-runtime.py" resolver-twin 2>&1); then
         printf '%s\n' "$mismatches" >&2
         _violation "resolver twin equivalence check failed -- userenv.sh and mios_toml.py have drifted"
     else
@@ -4004,7 +4004,7 @@ check_resolver_shell_equivalence() {
     local out
     if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" \
                  MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" \
-                 "$PYTHON" tools/check-resolver-twin.py 2>&1); then
+                 "$PYTHON" tools/check-runtime.py resolver-twin 2>&1); then
         printf '%s\n' "$out" | tail -n 12 >&2
         _violation "resolver shell equivalence check failed"
     fi
@@ -4676,7 +4676,7 @@ check_deploy_formats() {
 check_verify_images() {
     echo "[98-drift-checks] container image verification signatures and digests are valid"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-verify-images.py 2>&1)" || { _violations_from "check_verify_images: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-runtime.py verify-images 2>&1)" || { _violations_from "check_verify_images: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4738,7 +4738,7 @@ check_redact_coverage() {
 # --- daemon governor runtime limits and cgroup constraints are valid ---
 check_daemon_governor() {
     echo "[98-drift-checks] daemon governor runtime limits and cgroup constraints are valid"
-    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-daemon-governor.py 2>&1)" || { _violations_from "check_daemon_governor: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-runtime.py daemon-governor 2>&1)" || { _violations_from "check_daemon_governor: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -4773,9 +4773,9 @@ _run_py_check() {
 check_tasks_status_parity() { _run_py_check check_tasks_status_parity "tools/check-tasks.py status-parity"; }
 check_agy_tasks() { _run_py_check check_agy_tasks "tools/check-tasks.py agy"; }
 check_mios_toml_integrity() { _run_py_check check_mios_toml_integrity "tools/check-ssot.py toml-integrity"; }
-check_privileged_quadlets_minimal() { _run_py_check check_privileged_quadlets_minimal tools/check-privileged-quadlets.py; }
-check_container_names() { _run_py_check check_container_names tools/check-container-names.py; }
-check_service_urls() { _run_py_check check_service_urls tools/check-service-urls.py ""; }
+check_privileged_quadlets_minimal() { _run_py_check check_privileged_quadlets_minimal "tools/check-runtime.py privileged-quadlets"; }
+check_container_names() { _run_py_check check_container_names "tools/check-runtime.py container-names"; }
+check_service_urls() { _run_py_check check_service_urls "tools/check-runtime.py service-urls" ""; }
 check_ports_bound() { _run_py_check check_ports_bound "tools/check-ssot.py ports-bound" ""; }
 check_blade_coverage() { _run_py_check check_blade_coverage "tools/check-ssot.py blade-coverage" ""; }
 check_fleet_safety() { _run_py_check check_fleet_safety "tools/check-ssot.py fleet-safety" ""; }
@@ -4786,7 +4786,7 @@ check_node_pool() { _run_py_check check_node_pool "tools/check-ssot.py node-pool
 check_port_fallbacks() { _run_py_check check_port_fallbacks "tools/check-ssot.py port-fallbacks" ""; }
 check_role_ssot() { _run_py_check check_role_ssot "tools/check-ssot.py role-ssot" ""; }
 check_blade_karg() { _run_py_check check_blade_karg "tools/generate-blade-karg.py --check"; }
-check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners tools/check-firstboot-provisioners.py; }
+check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners "tools/check-runtime.py firstboot-provisioners"; }
 check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-desktop.py --check"; }
 
 # --- every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register ---

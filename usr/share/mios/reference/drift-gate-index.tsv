@@ -170,14 +170,14 @@
 169	check_verb_stub_backends	verb stub backends gate verified clean
 170	check_account_column_parity	account column parity gate verified clean
 171	check_module_length	shell and script module line counts remain within maintainability limits
-172	check_firstboot_provisioners	Drift gate for the first-boot provisioner triples (FBM T-200/T-202)
+172	check_firstboot_provisioners	firstboot provisioners
 173	check_schema_consumers	every SQL table declared in schema-init.sql has a reader or a writer, or a registered reason
 174	check_tasks_status_parity	tasks status parity
 175	check_agy_tasks	agy tasks
 176	check_mios_toml_integrity	mios toml integrity
-177	check_privileged_quadlets_minimal	Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651)
-178	check_container_names	Drift gate for unmappable container names
-179	check_service_urls	Drift gate for service addressing
+177	check_privileged_quadlets_minimal	privileged quadlets minimal
+178	check_container_names	container names
+179	check_service_urls	service urls
 180	check_ports_bound	ports bound
 181	check_blade_coverage	blade coverage
 182	check_blade_karg	blade karg
