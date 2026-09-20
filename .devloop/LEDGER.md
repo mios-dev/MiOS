@@ -1311,3 +1311,10 @@ so long. Let a run finish.
   tier was never run to completion. cargo fmt/clippy/test were not run, which CI does. The
   bake-plan change is verified against the projector and both drift checks, NOT against a real
   image build.
+
+## 2026-09-20 00:16 · ea5cfe6 · run-exit-0
+- objective: Topology B, live: this Claude Code session is the L0 host, and it dispatches TWO concurrent Claude Code CLI lanes, each of which is itself a manager that fans out to its own subagents. That is the nesting inversion, running for real while the Antigravity half waits on authentication. Both lanes write only Markdown under .devloop/findings/, so neither can add a line to max_shell_lines or max_tooling_python_lines, both of which sit at their floor.
+- done: report-ccn-docs.json report-ccn-gates.json 
+- next: read /home/user/MiOS/.devloop/run-20260919-235737/report-*.json; re-plan non-done lanes
+- blockers: -
+- unverified: -
