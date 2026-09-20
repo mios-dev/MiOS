@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# GENERATED FROM THREE-REPO DEVCONTAINER SPECIFICATION - DO NOT EDIT
 # AI-hint: Cohesive multi-repository sync and environment provisioning across MiOS, mios-bootstrap, and -dev-loop.
 set -euo pipefail
 
