@@ -194,6 +194,103 @@ fn is_allowlisted(t: &str, allowlist: &[String]) -> bool {
     false
 }
 
+fn slugify_heading(h: &str) -> String {
+    let mut clean = h.trim();
+    if let Some(pos) = clean.rfind("{#") {
+        if clean.ends_with('}') {
+            clean = clean[..pos].trim();
+        }
+    }
+    let mut without_html = String::new();
+    let mut in_tag = false;
+    for c in clean.chars() {
+        if c == '<' {
+            in_tag = true;
+        } else if c == '>' {
+            in_tag = false;
+        } else if !in_tag {
+            without_html.push(c);
+        }
+    }
+    let s = without_html.to_lowercase();
+    let mut slug = String::new();
+    for c in s.chars() {
+        if c.is_alphanumeric() || c == '_' || c == '-' {
+            slug.push(c);
+        } else if c.is_whitespace() {
+            slug.push('-');
+        }
+    }
+    slug
+}
+
+fn collapse_hyphens(s: &str) -> String {
+    let mut out = String::new();
+    let mut last_was_hyphen = false;
+    for c in s.chars() {
+        if c == '-' {
+            if !last_was_hyphen {
+                out.push(c);
+                last_was_hyphen = true;
+            }
+        } else {
+            out.push(c);
+            last_was_hyphen = false;
+        }
+    }
+    out
+}
+
+fn extract_markdown_anchors(text: &str) -> Vec<String> {
+    let mut anchors = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('#') {
+            let without_hashes = trimmed.trim_start_matches('#');
+            if without_hashes.starts_with(' ') || without_hashes.starts_with('\t') {
+                let h = without_hashes.trim();
+                let slug = slugify_heading(h);
+                if !slug.is_empty() {
+                    let collapsed = collapse_hyphens(&slug);
+                    if collapsed != slug {
+                        anchors.push(collapsed);
+                    }
+                    anchors.push(slug);
+                }
+                if let Some(start) = h.rfind("{#") {
+                    if let Some(end) = h[start..].find('}') {
+                        let cid = &h[start + 2..start + end];
+                        if !cid.is_empty() {
+                            anchors.push(cid.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for part in text.split('<') {
+        if let Some(gt) = part.find('>') {
+            let tag = &part[..gt];
+            for attr in ["name=", "id="] {
+                if let Some(pos) = tag.find(attr) {
+                    let rest = &tag[pos + attr.len()..];
+                    if let Some(quote) = rest.chars().next() {
+                        if quote == '"' || quote == '\'' {
+                            if let Some(end_quote) = rest[1..].find(quote) {
+                                let val = &rest[1..1 + end_quote];
+                                if !val.is_empty() {
+                                    anchors.push(val.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    anchors
+}
+
 pub fn check(root: &Path) -> Report {
     let Some(re) = Res::new() else {
         return cannot_run("the reference patterns did not compile");
@@ -264,30 +361,78 @@ pub fn check(root: &Path) -> Report {
         }
         if base.ends_with(".md") {
             for c in re.link.captures_iter(&body) {
-                let target = c
-                    .get(2)
-                    .map(|m| m.as_str())
-                    .unwrap_or("")
-                    .split('#')
-                    .next()
-                    .unwrap_or("")
-                    .trim()
-                    .to_string();
-                if !link_is_path(&target) {
+                let raw_link = c.get(2).map(|m| m.as_str()).unwrap_or("").trim();
+                if raw_link.is_empty()
+                    || raw_link.starts_with("http://")
+                    || raw_link.starts_with("https://")
+                    || raw_link.starts_with("mailto:")
+                    || raw_link.starts_with("file://")
+                {
                     continue;
                 }
-                if is_allowlisted(&target, &allowlist) {
+                let (target_file, fragment) = match raw_link.split_once('#') {
+                    Some((f, frag)) => (f.trim(), Some(frag.trim())),
+                    None => (raw_link, None),
+                };
+                if !target_file.is_empty() && !link_is_path(target_file) {
                     continue;
                 }
-                let rel_t = target.trim_start_matches('/');
-                let mut ok = dir.join(rel_t).exists() || root.join(rel_t).exists();
-                if !ok {
-                    if let Some(p) = dir.parent() {
-                        ok = p.join(rel_t).exists();
+                if is_allowlisted(raw_link, &allowlist)
+                    || (!target_file.is_empty() && is_allowlisted(target_file, &allowlist))
+                {
+                    continue;
+                }
+                if let Some(frag) = fragment {
+                    if is_allowlisted(frag, &allowlist) {
+                        continue;
                     }
                 }
-                if !ok {
-                    stale.push(format!("{rel}: {target}"));
+                let resolved_path = if target_file.is_empty() {
+                    Some(fpath.clone())
+                } else {
+                    let rel_t = target_file.trim_start_matches('/');
+                    let mut cand = None;
+                    if dir.join(rel_t).exists() {
+                        cand = Some(dir.join(rel_t));
+                    } else if root.join(rel_t).exists() {
+                        cand = Some(root.join(rel_t));
+                    } else if let Some(p) = dir.parent() {
+                        if p.join(rel_t).exists() {
+                            cand = Some(p.join(rel_t));
+                        }
+                    }
+                    cand
+                };
+
+                let Some(tpath) = resolved_path else {
+                    stale.push(format!("{rel}: {target_file}"));
+                    continue;
+                };
+
+                if let Some(frag) = fragment {
+                    if !frag.is_empty() && tpath.extension().map_or(false, |ext| ext == "md") {
+                        let target_content = if tpath == fpath {
+                            body.clone()
+                        } else {
+                            match std::fs::read(&tpath) {
+                                Ok(b) => String::from_utf8_lossy(&b).into_owned(),
+                                Err(_) => String::new(),
+                            }
+                        };
+                        let anchors = extract_markdown_anchors(&target_content);
+                        let frag_lower = frag.to_lowercase();
+                        let frag_slug = slugify_heading(frag);
+                        let frag_collapsed = collapse_hyphens(&frag_slug);
+                        let found = anchors.iter().any(|a| {
+                            a == frag
+                                || a.to_lowercase() == frag_lower
+                                || *a == frag_slug
+                                || *a == frag_collapsed
+                        });
+                        if !found {
+                            stale.push(format!("{rel}: {raw_link}"));
+                        }
+                    }
                 }
             }
         }
@@ -528,5 +673,31 @@ mod tests {
             "an empty corpus must not pass: {:?}",
             rep.summary
         );
+    }
+
+    #[test]
+    fn a_link_naming_an_existing_file_with_a_nonexistent_heading_is_stale() {
+        let d = repo();
+        let r = d.path();
+        let _ = fs::write(r.join("target.md"), "# Real Heading\n\nContent\n");
+        let _ = fs::write(r.join("doc.md"), "[link](target.md#nonexistent-heading)\n");
+        track(r);
+        let rep = check(r);
+        assert!(
+            !rep.ok && rep.findings.iter().any(|f| f.contains("nonexistent-heading")),
+            "a link to an existing file with a nonexistent fragment must be reported stale: {:?}",
+            rep.findings
+        );
+    }
+
+    #[test]
+    fn a_link_naming_an_existing_file_with_an_existing_heading_is_clean() {
+        let d = repo();
+        let r = d.path();
+        let _ = fs::write(r.join("target.md"), "# Real Heading\n\nContent\n");
+        let _ = fs::write(r.join("doc.md"), "[link](target.md#real-heading)\n");
+        track(r);
+        let rep = check(r);
+        assert!(rep.ok, "a link to an existing heading must pass: {:?}", rep.findings);
     }
 }

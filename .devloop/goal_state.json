@@ -1,9 +1,9 @@
 {
-  "objective": "Code MiOS from scratch per specs, upstream patterns, and roadmap tasks using autonomous dev-loop orchestration, research spikes, and teamwork multi-agent execution",
+  "objective": "FOSS-compliant OCI bootable bootc/Fedora Desktop OS development under MiOS principles, shifting focus from AI plane to core desktop OS lifecycle and CI/CD+DevOps continuous dev-loops",
   "stopping_condition": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet",
   "status": "COMPLETED",
-  "created_at": "2026-09-20T22:56:27.194962",
-  "completed_at": "2026-09-20T23:20:02.169910",
+  "created_at": "2026-09-20T23:22:13.134051",
+  "completed_at": "2026-09-20T23:27:02.080084",
   "criteria": [
     {
       "id": "C-01",
@@ -34,9 +34,11 @@
     }
   ],
   "non_goals": [
-    "Do not bypass standing legibility ratchets (tracked_files <= 3071, tracked_mb <= 204)",
-    "Do not commit broken runtime changes",
-    "Do not violate Architectural Laws (USR-OVER-ETC, NO-MKDIR-IN-VAR, UNIFIED-AI-REDIRECTS)"
+    "No non-FOSS or proprietary dependencies without explicit OSI/FSF licensing declarations and clear layer isolation.",
+    "Do not expand standalone MiOS-AI runtime features or LLM gateways ahead of core desktop OS substrate and bootc lifecycle stabilization.",
+    "Do not break bootc/Fedora immutable workstation invariants (USR-OVER-ETC, persistent /var, UKI boot chain, driverless host passthrough).",
+    "Do not regress standing legibility ratchets (tracked_files <= 3071, tracked_mb <= 204, tooling_python_lines <= 77019).",
+    "Do not bypass two-sided verification (positive AND negative controls) on any dev-loop task."
   ],
   "ratchet_history": []
 }

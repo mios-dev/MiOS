@@ -1396,4 +1396,24 @@ so long. Let a run finish.
 - blockers: -
 - unverified: -
 
+## 2026-09-20 23:26 · goal_realign_mon020 · Goal Realigned to FOSS Bootable Desktop OS & MON-020 Completed
+- objective: Realign engineering goal to FOSS-compliant OCI bootable bootc/Fedora Desktop OS development under MiOS principles, shifting focus from AI plane to core desktop OS lifecycle and CI/CD+DevOps continuous dev-loops. Complete MON-020 (fragment #anchor validation).
+- done:
+  1. Engineering Goal Realignment (GOALS.md & goal_state.json):
+     - Initialized goal via `goal.py init`: "FOSS-compliant OCI bootable bootc/Fedora Desktop OS development under MiOS principles, shifting focus from AI plane to core desktop OS lifecycle and CI/CD+DevOps continuous dev-loops".
+     - Defined non-goals: strict FOSS compliance (no proprietary dependencies without OSI/FSF licensing declarations), deprioritize standalone MiOS-AI runtime features in favor of bootable desktop OS substrate, preserve bootc/Fedora immutable workstation invariants (USR-OVER-ETC, persistent /var, UKI boot chain), maintain standing legibility ratchets, and enforce two-sided verification.
+  2. Markdown Fragment (#anchor) Validation in doc_refs.rs (MON-020):
+     - Implemented `extract_markdown_anchors`, `slugify_heading`, and `collapse_hyphens` in `src/mios-rs/mios-gate/src/doc_refs.rs`.
+     - Validated target file markdown headings (`# Heading`), custom heading IDs (`{#id}`), and explicit HTML anchors (`<a name="...">`, `<a id="...">`).
+     - Positive control: `a_link_naming_an_existing_file_with_an_existing_heading_is_clean` passes.
+     - Negative control: planted `a_link_naming_an_existing_file_with_a_nonexistent_heading_is_stale` proved failure under old code (which stripped `#` and ignored fragments) and passes under anchor validation.
+     - Verified: all 120 unit and integration tests across `mios-gate` passed.
+  3. Gate & Ratchet Parity:
+     - Verified `python3 tools/drift-checks.py legibility-ratchet` passed clean (`tracked_files = 3071/3071`, `tracked_mb = 203/204`, `tooling_python_lines = 77014/77019`).
+     - Verified `python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema` passed clean.
+- next: Execute MON-021 (unify Python and Rust scanners extension sets to SSOT).
+- blockers: -
+- unverified: -
+
+
 
