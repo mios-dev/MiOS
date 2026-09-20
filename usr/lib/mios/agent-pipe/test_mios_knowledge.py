@@ -306,5 +306,119 @@ def main():
         sys.exit(1)
     print("\nok")
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_vector.py (T-1092)
+# ==============================================================================
+# AI-hint: stdlib unit test for pgvector schema and cosine similarity matching.
+import os
+import unittest
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
+
+def setUpModule():
+    if psycopg is None:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+    port = os.environ.get("MIOS_PORT_PGVECTOR", "8600")
+    conn_str = f"postgresql://mios:mios@localhost:{port}/mios"
+    try:
+        with psycopg.connect(conn_str, connect_timeout=1) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT count(1) FROM verb")
+                if cur.fetchone()[0] == 0:
+                    raise unittest.SkipTest("no seeded pgvector -- integration test")
+    except Exception:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+
+class TestMiosVectorDb(unittest.TestCase):
+
+    def setUp(self):
+        self.conn_str = "postgresql://mios:mios@localhost:8432/mios"
+        with psycopg.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM verb WHERE name LIKE 'test_verb_%%'")
+
+                vec_a = [0.0] * 768
+                vec_a[0] = 1.0
+
+                vec_b = [0.0] * 768
+                vec_b[1] = 1.0
+
+                cur.execute(
+                    "INSERT INTO verb (name, sig, desc_default, tier, permission, emb, emb_model, emb_version) "
+                    "VALUES ('test_verb_a', 'test_sig', 'test search query', 'common', 'read', %s::vector, 'test-model', 'v1')",
+                    (vec_a,)
+                )
+                cur.execute(
+                    "INSERT INTO verb (name, sig, desc_default, tier, permission, emb, emb_model, emb_version) "
+                    "VALUES ('test_verb_b', 'test_sig', 'completely different action', 'common', 'read', %s::vector, 'test-model', 'v1')",
+                    (vec_b,)
+                )
+            conn.commit()
+
+    def tearDown(self):
+        with psycopg.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM verb WHERE name LIKE 'test_verb_%%'")
+            conn.commit()
+
+    def test_pgvector_cosine_similarity(self):
+        with psycopg.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                target_vec = [0.0] * 768
+                target_vec[0] = 0.9
+                target_vec[1] = 0.1
+
+                cur.execute(
+                    "SELECT name, emb <=> %s::vector as distance "
+                    "FROM verb WHERE name LIKE 'test_verb_%%' "
+                    "ORDER BY emb <=> %s::vector ASC LIMIT 1",
+                    (target_vec, target_vec)
+                )
+                row = cur.fetchone()
+                self.assertIsNotNone(row)
+                self.assertEqual(row[0], "test_verb_a")
+
+                dist_a = row[1]
+
+                cur.execute(
+                    "SELECT name, emb <=> %s::vector as distance "
+                    "FROM verb WHERE name = 'test_verb_b'",
+                    (target_vec,)
+                )
+                row_b = cur.fetchone()
+                self.assertIsNotNone(row_b)
+                dist_b = row_b[1]
+
+                self.assertTrue(dist_a < dist_b, f"dist_a={dist_a} should be less than dist_b={dist_b}")
+
+
+def _run_extra_vector():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestMiosVectorDb))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_knowledge_suites():
+    rc = _run_extra_vector()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
     main()
+    _run_all_folded_knowledge_suites()

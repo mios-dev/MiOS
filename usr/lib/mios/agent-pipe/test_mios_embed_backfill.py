@@ -69,5 +69,163 @@ def main() -> int:
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_backfill.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit and regression test suite for mios_backfill functionality.
+# AI-related: mios_pipe.memory.embed_backfill
+# AI-functions: test_text_projections, execute_side_effect, TestMiosEmbedBackfill
+
+import unittest
+from unittest.mock import patch, AsyncMock, MagicMock
+import mios_pipe.memory.embed_backfill as eb
+
+class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
+
+    def test_text_projections(self):
+        s_row = {"name": "TestSkill", "description": "Doing cool things"}
+        self.assertEqual(eb.get_text_projection("skill", s_row), "Skill: TestSkill\nDescription: Doing cool things")
+
+        v_row = {
+            "name": "test_verb",
+            "desc_default": "A description of a verb",
+            "model_name": "TestVerb",
+            "examples": ["test standard usage", "another test"]
+        }
+        self.assertEqual(
+            eb.get_text_projection("verb", v_row),
+            "TestVerb: A description of a verb\nExample requests: test standard usage | another test"
+        )
+
+        tc_row = {
+            "tool": "web_search",
+            "args": {"query": "hello"},
+            "result_preview": "some search results"
+        }
+        self.assertEqual(
+            eb.get_text_projection("tool_call", tc_row),
+            'Tool Call: web_search\nArguments: {"query": "hello"}\nResult: some search results'
+        )
+
+        de_row = {
+            "path": "/etc/hosts",
+            "kind": "file",
+            "size": 128,
+            "summary": "Local DNS mappings"
+        }
+        self.assertEqual(
+            eb.get_text_projection("directory_entry", de_row),
+            "File: /etc/hosts\nKind: file\nSize: 128 bytes\nSummary: Local DNS mappings"
+        )
+
+        ev_row = {
+            "act_type": "critic",
+            "summary": "Critic rejected action"
+        }
+        self.assertEqual(
+            eb.get_text_projection("event", ev_row),
+            "Event: critic\nSummary: Critic rejected action"
+        )
+
+        sess_row = {
+            "title": "My Session",
+            "meta": {"first_prompt": "Hello AI"}
+        }
+        self.assertEqual(
+            eb.get_text_projection("session", sess_row),
+            "Session Title: My Session\nPrompt: Hello AI"
+        )
+
+    @patch("mios_pipe.memory.pg.execute", new_callable=AsyncMock)
+    @patch("httpx.AsyncClient")
+    async def test_run_backfill_success(self, mock_client_cls, mock_execute):
+        mock_client = AsyncMock()
+        mock_client_cls.return_value.__aenter__.return_value = mock_client
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"embedding": [0.1] * 768}
+        mock_client.post.return_value = mock_response
+
+        select_results = {
+            "skill": [{"id": 1, "name": "skill_1", "description": "desc_1"}],
+            "verb": [{"name": "verb_1", "desc_default": "desc_1", "examples": None, "model_name": None}],
+            "tool_call": [{"id": 10, "tool": "tc_1", "args": "{}", "result_preview": "res", "output": None}],
+            "directory_entry": [{"id": 100, "path": "p_1", "kind": "file", "size": 10, "summary": "sum_1"}],
+            "event": [{"id": 500, "act_type": "critic", "summary": "Critic check"}],
+            "session": [{"id": "sess_1", "meta": {"title": "Sess", "first_prompt": "Hello"}}]
+        }
+
+        def execute_side_effect(sql, params=None, fetch=False, **kwargs):
+            if "SELECT" in sql:
+                for k in select_results:
+                    if f"FROM {k}" in sql:
+                        return select_results[k]
+                return []
+            return True
+
+        mock_execute.side_effect = execute_side_effect
+
+        res = await eb.run_backfill("nomic-768-v1")
+
+        self.assertEqual(res["skill"], 1)
+        self.assertEqual(res["verb"], 1)
+        self.assertEqual(res["tool_call"], 1)
+        self.assertEqual(res["directory_entry"], 1)
+        self.assertEqual(res["event"], 1)
+        self.assertEqual(res["session"], 1)
+
+    @patch("mios_pipe.memory.pg.execute", new_callable=AsyncMock)
+    @patch("httpx.AsyncClient")
+    async def test_run_backfill_fail_open(self, mock_client_cls, mock_execute):
+        mock_client = AsyncMock()
+        mock_client_cls.return_value.__aenter__.return_value = mock_client
+
+        mock_client.post.side_effect = Exception("Connection refused")
+
+        select_results = {
+            "skill": [{"id": 1, "name": "skill_1", "description": "desc_1"}]
+        }
+
+        def execute_side_effect(sql, params=None, fetch=False, **kwargs):
+            if "SELECT" in sql:
+                if "FROM skill" in sql:
+                    return select_results["skill"]
+                return []
+            return None
+
+        mock_execute.side_effect = execute_side_effect
+
+        res = await eb.run_backfill("nomic-768-v1")
+        self.assertEqual(res.get("skill"), 0)
+
+
+def _run_extra_backfill():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestMiosEmbedBackfill))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_embed_backfill_suites():
+    rc = _run_extra_backfill()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _rc_main = main()
+    _run_all_folded_embed_backfill_suites()
+    sys.exit(_rc_main)

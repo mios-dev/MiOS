@@ -614,5 +614,110 @@ class TestCallerKeyRevoke(unittest.TestCase):
             _FakeAuthReq({}, auth="Bearer admin-secret")))
         self.assertEqual(res.status_code, 400)
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_a2a_loopback.py (T-1092)
+# ==============================================================================
+# AI-hint: Offline unit test for the mios-a2a-test loopback smoke-test helper -- exercises the pure message-builder, artifact extr...
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
+"""Offline tests for T-066 (A2A federation loopback smoke test).
+
+The network/CLI half of mios-a2a-test needs a live agent-pipe; the pure
+protocol helpers (build_message / extract_artifact_text / classify_task) are
+exercised here with stub Task payloads so the round-trip's shape logic is
+guarded without any live service.
+"""
+import importlib.machinery
+import importlib.util
+import os
+import sys
+
+_fails_a2a_loopback = 0
+
+def _check_a2a_loopback(name, cond, detail=""):
+    global _fails_a2a_loopback
+    if not cond:
+        _fails_a2a_loopback += 1
+    print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
+
+def _load_tester():
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
+    path = os.path.join(repo, "usr", "libexec", "mios", "mios-a2a-test")
+    loader = importlib.machinery.SourceFileLoader("mios_a2a_test", path)
+    mod = importlib.util.module_from_spec(
+        importlib.util.spec_from_loader("mios_a2a_test", loader))
+    loader.exec_module(mod)
+    return mod
+
+def test_build_message(T):
+    m = T.build_message("hello", "ctx-1", "mid-1")
+    _check_a2a_loopback("message has user role", m["role"] == "user")
+    _check_a2a_loopback("message carries one text part",
+          m["parts"] == [{"kind": "text", "text": "hello"}])
+    _check_a2a_loopback("message threads contextId", m.get("contextId") == "ctx-1")
+    _check_a2a_loopback("message carries messageId", m.get("messageId") == "mid-1")
+    m2 = T.build_message("x", "", "mid-2")
+    _check_a2a_loopback("absent contextId omitted (not empty-string)", "contextId" not in m2)
+
+def test_extract_artifact_text(T):
+    task_art = {"artifacts": [{"parts": [{"kind": "text", "text": "the answer"}]}]}
+    _check_a2a_loopback("artifact text extracted", T.extract_artifact_text(task_art) == "the answer")
+    task_hist = {"artifacts": [], "history": [
+        {"role": "user", "parts": [{"kind": "text", "text": "q"}]},
+        {"role": "agent", "parts": [{"kind": "text", "text": "fallback reply"}]},
+    ]}
+    _check_a2a_loopback("falls back to last agent history text",
+          T.extract_artifact_text(task_hist) == "fallback reply")
+    _check_a2a_loopback("empty task -> empty string", T.extract_artifact_text({}) == "")
+
+def test_classify_task(T):
+    good = {"id": "t1", "contextId": "c1",
+            "status": {"state": "completed"},
+            "artifacts": [{"parts": [{"kind": "text", "text": "done"}]}]}
+    v = T.classify_task(good)
+    _check_a2a_loopback("completed+artifact => completed", v["completed"] is True)
+    _check_a2a_loopback("completed+artifact => has_artifact", v["has_artifact"] is True)
+    _check_a2a_loopback("task_id surfaced", v["task_id"] == "t1")
+    _check_a2a_loopback("context_id surfaced", v["context_id"] == "c1")
+
+    working = {"id": "t2", "status": {"state": "working"}, "artifacts": []}
+    v2 = T.classify_task(working)
+    _check_a2a_loopback("non-completed state not marked completed", v2["completed"] is False)
+    _check_a2a_loopback("no artifact => has_artifact False", v2["has_artifact"] is False)
+
+    no_art = {"id": "t3", "status": {"state": "completed"}, "artifacts": []}
+    v3 = T.classify_task(no_art)
+    _check_a2a_loopback("completed but artifact-less flagged", v3["has_artifact"] is False)
+
+def _main_a2a_loopback():
+    T = _load_tester()
+    test_build_message(T)
+    test_extract_artifact_text(T)
+    test_classify_task(T)
+    print(f"\n{'ok' if _fails_a2a_loopback == 0 else str(_fails_a2a_loopback) + ' FAILED'}")
+    return 1 if _fails_a2a_loopback else 0
+
+
+def _run_extra_a2a_loopback():
+    try:
+        return _main_a2a_loopback()
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+
+class TestFolded_a2a_loopback(unittest.TestCase):
+    def test_run_folded(self):
+        rc = _run_extra_a2a_loopback()
+        self.assertIn(rc, (None, 0))
+
+
+
+def _run_all_folded_a2a_suites():
+    rc = _run_extra_a2a_loopback()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

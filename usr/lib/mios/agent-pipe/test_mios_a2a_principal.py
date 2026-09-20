@@ -326,5 +326,189 @@ def main():
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_a2a_passport.py (T-1092)
+# ==============================================================================
+# AI-hint: Standalone unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal): claim shape, text-binding digest, and the send->verif...
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
+"""Standalone unit test for mios_a2a_principal (WS-6 signed delegation principal).
+
+Pure stdlib + the sibling module only -- no server.py / Ed25519 keys. The real
+crypto is the agent passport's _passport_sign/_passport_verify (covered by the
+passport tests + operator on MiOS-DEV); here we inject fakes to prove the
+deterministic glue: claim shape, text-binding, and the absent/unsigned/tamper/ok
+branches the receive path relies on.
+
+Run:  python test_mios_a2a_passport.py
+"""
+
+import sys
+
+import mios_a2a_principal as P
+
+_RESULTS_a2a_passport: list = []
+
+def _check_a2a_passport(name: str, ok: bool, detail: str = "") -> None:
+    _RESULTS_a2a_passport.append((name, ok))
+    print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
+
+def _fake_sign(table, claims):
+    return {"t": table, "h": P.text_digest(repr(sorted(claims.items()))), "sig": "FAKE"}
+
+def _fake_verify(envelope, payload):
+    table, claims = payload
+    want = P.text_digest(repr(sorted(claims.items())))
+    if envelope.get("t") == table and envelope.get("h") == want:
+        return True, "ok"
+    return False, "invalid_signature"
+
+def _nokey_sign(table, claims):
+    return None   # no key provisioned
+
+def t_claims() -> None:
+    c = P.build_claims("agent-pipe", "alice", "peerX", "ctx1", "open notepad")
+    _check_a2a_passport("claims: agent", c["agent"] == "agent-pipe")
+    _check_a2a_passport("claims: principal", c["principal"] == "alice")
+    _check_a2a_passport("claims: peer", c["peer"] == "peerX")
+    _check_a2a_passport("claims: context", c["context"] == "ctx1")
+    _check_a2a_passport("claims: text digest bound",
+           c["text_sha256"] == P.text_digest("open notepad"))
+    _check_a2a_passport("claims: empty principal -> '' (autonomous)",
+           P.build_claims("a", "", "p", "", "x")["principal"] == "")
+
+def _msg(meta):
+    return {P.METADATA_KEY: meta}
+
+def t_roundtrip() -> None:
+    md = P.build_metadata("agent-pipe", "alice", "peerX", "ctx1", "open notepad", _fake_sign)
+    _check_a2a_passport("send: signed (passport present)", isinstance(md.get("passport"), dict))
+    v, reason, claims = P.verify(_msg(md), "open notepad", _fake_verify)
+    _check_a2a_passport("roundtrip: verdict True", v is True, reason)
+    _check_a2a_passport("roundtrip: claims carried", claims.get("principal") == "alice")
+
+def t_tamper() -> None:
+    md = P.build_metadata("agent-pipe", "alice", "peerX", "ctx1", "open notepad", _fake_sign)
+    v, reason, _ = P.verify(_msg(md), "rm -rf /", _fake_verify)
+    _check_a2a_passport("tamper: rejected", v is False)
+    _check_a2a_passport("tamper: caught by digest (before sig)", reason == "text_digest_mismatch", reason)
+    md["passport"]["sig"] = "FORGED"; md["passport"]["h"] = "wronghash"
+    v2, r2, _ = P.verify(_msg(md), "open notepad", _fake_verify)
+    _check_a2a_passport("tamper: bad signature rejected", v2 is False, r2)
+
+def t_unsigned() -> None:
+    md = P.build_metadata("agent-pipe", "alice", "peerX", "ctx1", "hi", _nokey_sign)
+    _check_a2a_passport("unsigned: passport None when no key", md.get("passport") is None)
+    v, reason, claims = P.verify(_msg(md), "hi", _fake_verify)
+    _check_a2a_passport("unsigned: verdict False", v is False)
+    _check_a2a_passport("unsigned: reason 'unsigned'", reason == "unsigned", reason)
+    _check_a2a_passport("unsigned: claims still readable", claims.get("agent") == "agent-pipe")
+
+def t_absent() -> None:
+    v, reason, claims = P.verify({}, "hi", _fake_verify)
+    _check_a2a_passport("absent: verdict None (legacy/non-MiOS peer)", v is None)
+    _check_a2a_passport("absent: reason 'absent'", reason == "absent")
+    _check_a2a_passport("absent: empty claims", claims == {})
+    v2, r2, _ = P.verify(None, "hi", _fake_verify)
+    _check_a2a_passport("absent: None metadata tolerated", v2 is None and r2 == "absent")
+
+def _main_a2a_passport() -> int:
+    for t in (t_claims, t_roundtrip, t_tamper, t_unsigned, t_absent):
+        t()
+    passed = sum(1 for _, ok in _RESULTS_a2a_passport if ok)
+    total = len(_RESULTS_a2a_passport)
+    print(f"\n{passed}/{total} checks passed")
+    return 0 if passed == total else 1
+
+
+def _run_extra_a2a_passport():
+    try:
+        return _main_a2a_passport()
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_principal.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit test suite for mios_pipe.identity.principal module (signed A2A delegation principal).
+# AI-related: mios_pipe/identity/principal.py
+"""Unit tests for mios_pipe.identity.principal."""
+
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from mios_pipe.identity.principal import text_digest, build_claims, build_metadata, verify, TABLE, METADATA_KEY
+
+class TestPrincipal(unittest.TestCase):
+    """Test signed A2A delegation principal claims and digests."""
+
+    def test_text_digest_sha256(self):
+        digest = text_digest("run diagnostic task")
+        self.assertIsInstance(digest, str)
+        self.assertEqual(len(digest), 64)
+        empty_digest = text_digest("")
+        self.assertEqual(len(empty_digest), 64)
+
+    def test_build_claims(self):
+        claims = build_claims(
+            agent="opencode",
+            principal="operator",
+            peer_id="node_42",
+            context_id="ctx_101",
+            text="execute command"
+        )
+        self.assertEqual(claims["agent"], "opencode")
+        self.assertEqual(claims["principal"], "operator")
+        self.assertEqual(claims["peer"], "node_42")
+        self.assertEqual(claims["context"], "ctx_101")
+        self.assertEqual(claims["text_sha256"], text_digest("execute command"))
+
+    def test_build_metadata_unsigned(self):
+        mock_sign = lambda table, claims: None
+        meta = build_metadata(
+            agent="opencode",
+            principal="operator",
+            peer_id="node_42",
+            context_id="ctx_101",
+            text="execute command",
+            sign_fn=mock_sign,
+        )
+        self.assertEqual(meta["claims"]["agent"], "opencode")
+        self.assertIsNone(meta["passport"])
+
+    def test_verify_absent_metadata(self):
+        verdict, reason, claims = verify(None, "text", verify_fn=lambda p, c: (True, "ok"))
+        self.assertIsNone(verdict)
+        self.assertEqual(reason, "absent")
+
+
+def _run_extra_principal():
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPrincipal))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+
+
+
+def _run_all_folded_a2a_principal_suites():
+    rc = _run_extra_a2a_passport()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_principal()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
+    _run_all_folded_a2a_principal_suites()
     sys.exit(main())

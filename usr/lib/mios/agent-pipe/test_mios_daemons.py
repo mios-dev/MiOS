@@ -468,5 +468,488 @@ class SelfImproveProposalsReadTest(unittest.TestCase):
         self.assertEqual(captured["kind"], mios_daemons._PROPOSAL_EVENT_KIND)
         self.assertIn("FROM event", captured["sql"])
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_account_sync.py (T-1092)
+# ==============================================================================
+# AI-hint: stdlib unit test for mios-account-sync daemon.
+# AI-related: usr/libexec/mios/mios-account-sync, usr/lib/mios/agent-pipe/test_mios_account_sync.py
+import sys
+import os
+import unittest
+from unittest.mock import patch, MagicMock, mock_open
+from collections import namedtuple
+
+struct_passwd = namedtuple("struct_passwd", ["pw_name", "pw_passwd", "pw_uid", "pw_gid", "pw_gecos", "pw_dir", "pw_shell"])
+struct_group = namedtuple("struct_group", ["gr_name", "gr_passwd", "gr_gid", "gr_mem"])
+
+class MockPwdModule:
+    def __init__(self):
+        self.users = {}
+    def getpwnam(self, name):
+        if name in self.users:
+            return self.users[name]
+        raise KeyError(name)
+    def getpwall(self):
+        return list(self.users.values())
+
+class MockGrpModule:
+    def __init__(self):
+        self.groups_by_id = {}
+        self.groups_by_name = {}
+    def getgrgid(self, gid):
+        if gid in self.groups_by_id:
+            return self.groups_by_id[gid]
+        raise KeyError(gid)
+    def getgrnam(self, name):
+        if name in self.groups_by_name:
+            return self.groups_by_name[name]
+        raise KeyError(name)
+    def getgrall(self):
+        return list(self.groups_by_name.values())
+
+mock_pwd = MockPwdModule()
+mock_grp = MockGrpModule()
+sys.modules["pwd"] = mock_pwd
+sys.modules["grp"] = mock_grp
+
+from importlib.machinery import SourceFileLoader
+import importlib.util
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
+script_path = os.path.join(root_dir, "usr/libexec/mios/mios-account-sync")
+loader = SourceFileLoader("mios_account_sync", script_path)
+spec = importlib.util.spec_from_loader("mios_account_sync", loader)
+sync_mod = importlib.util.module_from_spec(spec)
+loader.exec_module(sync_mod)
+
+class TestMiosAccountSync(unittest.TestCase):
+
+    def setUp(self):
+        mock_pwd.users.clear()
+        mock_grp.groups_by_id.clear()
+        mock_grp.groups_by_name.clear()
+
+        mock_grp.groups_by_id[1000] = struct_group("mios", "x", 1000, [])
+        mock_grp.groups_by_name["mios"] = mock_grp.groups_by_id[1000]
+
+    @patch("subprocess.run")
+    @patch("os.path.isfile")
+    def test_sync_create_user(self, mock_isfile, mock_run):
+        db_accounts = [{
+            "name": "testuser",
+            "password_hash": "hash123",
+            "uid": 1005,
+            "gid": 1000,
+            "display": "Test User",
+            "home_dir": "/var/home/testuser",
+            "shell": "/bin/bash",
+            "groups": "wheel,libvirt",
+            "is_admin": True,
+            "enabled": True
+        }]
+
+        mock_isfile.return_value = False  # no state file
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+
+        with patch.object(sync_mod, "query_db_accounts", return_value=db_accounts):
+            with patch.object(sync_mod, "get_local_shadow_hashes", return_value={}):
+                with patch("builtins.open", mock_open()) as mock_file:
+                    sync_mod.sync_accounts()
+
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        useradd_called = any("useradd" in cmd for cmd in calls)
+        self.assertTrue(useradd_called, "Should call useradd for new user")
+
+        useradd_cmd = next(cmd for cmd in calls if "useradd" in cmd)
+        self.assertIn("-u", useradd_cmd)
+        self.assertIn("1005", useradd_cmd)
+        self.assertIn("-p", useradd_cmd)
+        self.assertIn("hash123", useradd_cmd)
+        self.assertIn("testuser", useradd_cmd)
+
+    @patch("subprocess.run")
+    @patch("os.path.isfile")
+    def test_sync_update_user(self, mock_isfile, mock_run):
+        mock_pwd.users["testuser"] = struct_passwd(
+            "testuser", "x", 1005, 1000, "Old Name", "/var/home/testuser", "/bin/sh"
+        )
+
+        db_accounts = [{
+            "name": "testuser",
+            "password_hash": "hash123",
+            "uid": 1005,
+            "gid": 1000,
+            "display": "New Name",
+            "home_dir": "/var/home/testuser",
+            "shell": "/bin/bash",
+            "groups": "",
+            "is_admin": False,
+            "enabled": True
+        }]
+
+        mock_isfile.return_value = False
+        mock_run.return_value = MagicMock(returncode=0)
+
+        with patch.object(sync_mod, "query_db_accounts", return_value=db_accounts):
+            with patch.object(sync_mod, "get_local_shadow_hashes", return_value={"testuser": "hash123"}):
+                with patch("builtins.open", mock_open()):
+                    sync_mod.sync_accounts()
+
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        usermod_called = any("usermod" in cmd for cmd in calls)
+        self.assertTrue(usermod_called, "Should update existing user parameters via usermod")
+
+        usermod_cmd = next(cmd for cmd in calls if "usermod" in cmd)
+        self.assertIn("-c", usermod_cmd)
+        self.assertIn("New Name", usermod_cmd)
+        self.assertIn("-s", usermod_cmd)
+        self.assertIn("/bin/bash", usermod_cmd)
+
+    @patch("subprocess.run")
+    @patch("os.path.isfile")
+    def test_sync_password_writeback(self, mock_isfile, mock_run):
+        mock_pwd.users["testuser"] = struct_passwd(
+            "testuser", "x", 1005, 1000, "Test User", "/var/home/testuser", "/bin/bash"
+        )
+
+        db_accounts = [{
+            "name": "testuser",
+            "password_hash": "old_hash",
+            "uid": 1005,
+            "gid": 1000,
+            "display": "Test User",
+            "home_dir": "/var/home/testuser",
+            "shell": "/bin/bash",
+            "groups": "",
+            "is_admin": False,
+            "enabled": True
+        }]
+
+        mock_isfile.return_value = True
+        mock_run.return_value = MagicMock(returncode=0)
+
+        state_data = '{"testuser": "old_hash"}'
+        shadow_data = {"testuser": "new_local_hash"}
+
+        with patch.object(sync_mod, "query_db_accounts", return_value=db_accounts):
+            with patch.object(sync_mod, "get_local_shadow_hashes", return_value=shadow_data):
+                with patch("builtins.open", mock_open(read_data=state_data)) as mock_file:
+                    sync_mod.sync_accounts()
+
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        db_writeback_called = any(any("mios-pg-query" in arg for arg in cmd) for cmd in calls)
+        self.assertTrue(db_writeback_called, "Should trigger a writeback command to the database")
+
+    @patch("subprocess.run")
+    @patch("os.path.isfile")
+    def test_sync_lock_disabled_user(self, mock_isfile, mock_run):
+        mock_pwd.users["testuser"] = struct_passwd(
+            "testuser", "x", 1005, 1000, "Test User", "/var/home/testuser", "/bin/bash"
+        )
+
+        db_accounts = [{
+            "name": "otheruser",
+            "password_hash": "hash321",
+            "uid": 1006,
+            "gid": 1000,
+            "display": "Other User",
+            "home_dir": "/var/home/otheruser",
+            "shell": "/bin/bash",
+            "groups": "",
+            "is_admin": False,
+            "enabled": True
+        }]
+
+        mock_isfile.return_value = False
+        mock_run.return_value = MagicMock(returncode=0)
+
+        shadow_data = {"testuser": "$6$somehash"}
+
+        with patch.object(sync_mod, "query_db_accounts", return_value=db_accounts):
+            with patch.object(sync_mod, "get_local_shadow_hashes", return_value=shadow_data):
+                with patch("builtins.open", mock_open()):
+                    sync_mod.sync_accounts()
+
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        lock_called = any(cmd == ["usermod", "-L", "testuser"] for cmd in calls)
+        self.assertTrue(lock_called, "Should lock local user missing from DB using usermod -L")
+
+
+def _run_extra_account_sync():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        return 0
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_conductor.py (T-1092)
+# ==============================================================================
+# AI-hint: stub
+# AI-related: stub
+import asyncio
+import os
+import sys
+from unittest.mock import patch, MagicMock, AsyncMock
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import mios_pipe.routing.conductor as mios_conductor
+
+async def _main_conductor():
+    with patch("os.path.exists", return_value=True), patch("builtins.open", MagicMock()):
+        jinja2_mock = MagicMock()
+        template_instance = MagicMock()
+        template_instance.render.return_value = "fake_yaml"
+        jinja2_mock.Template.return_value = template_instance
+
+        yaml_mock = MagicMock()
+        yaml_instance = MagicMock()
+        yaml_instance.load.return_value = {
+            "steps": [
+                {
+                    "name": "step1",
+                    "action": "shell",
+                    "args": {"cmd": "echo 'step 1'"}
+                },
+                {
+                    "name": "parallel_group",
+                    "parallel": True,
+                    "fail_fast": True,
+                    "steps": [
+                        {
+                            "name": "step2a",
+                            "action": "shell",
+                            "args": {"cmd": "echo 'step 2a'"}
+                        },
+                        {
+                            "name": "step2b_fail",
+                            "action": "shell",
+                            "args": {"cmd": "exit 1"}
+                        }
+                    ]
+                },
+                {
+                    "name": "step3_skipped",
+                    "action": "shell",
+                    "args": {"cmd": "echo 'step 3'"}
+                }
+            ]
+        }
+        yaml_mock.YAML.return_value = yaml_instance
+
+        mios_conductor.jinja2 = jinja2_mock
+        mios_conductor.ruamel = MagicMock()
+        mios_conductor.ruamel.yaml = yaml_mock
+
+        process_mock_success = MagicMock()
+        process_mock_success.communicate = AsyncMock(return_value=(b"output\n", b""))
+        process_mock_success.returncode = 0
+
+        process_mock_fail = MagicMock()
+        process_mock_fail.communicate = AsyncMock(return_value=(b"", b"error"))
+        process_mock_fail.returncode = 1
+
+        def side_effect(cmd, **kwargs):
+            if "exit 1" in cmd:
+                return process_mock_fail
+            return process_mock_success
+
+        with patch("asyncio.create_subprocess_shell", side_effect=AsyncMock(side_effect=side_effect)) as m_subprocess:
+            res = await mios_conductor.execute_conductor_workflow("test-workflow", {})
+            print("Result:", res)
+            assert res["success"] is False, "Workflow should fail due to step2b_fail"
+            assert res["workflow"] == "test-workflow"
+
+            assert len(res["results"]) == 3, f"Expected 3 step results, got {len(res['results'])}"
+            assert res["results"][0]["step"] == "step1"
+            assert res["results"][1]["step"] == "step2a"
+            assert res["results"][2]["step"] == "step2b_fail"
+
+            print("PASS: Conductor deterministic orchestration via DAG handler.")
+
+
+def _run_extra_conductor():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import asyncio
+        return asyncio.run(_main_conductor())
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+class TestFolded_conductor(unittest.TestCase):
+    def test_run_folded(self):
+        rc = _run_extra_conductor()
+        self.assertIn(rc, (None, 0))
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_daemon.py (T-1092)
+# ==============================================================================
+# AI-hint: stdlib unit test for mios_agent_call daemon runaway controls.
+import unittest
+import asyncio
+import time
+from unittest.mock import patch, MagicMock
+
+import mios_agent_call
+import mios_pipe.routing.agent_call as target_module
+
+class AsyncContextMock:
+    def __init__(self, *args, **kwargs):
+        pass
+    async def __aenter__(self):
+        return self
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+    def __call__(self, *args, **kwargs):
+        return self
+
+async def dummy_async(*args, **kwargs):
+    pass
+
+class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
+
+    async def asyncSetUp(self):
+        target_module._IN_FLIGHT_PROMPTS.clear()
+        target_module._SESSION_TOKENS.clear()
+        target_module._AUTONOMOUS_SOURCE_TOKENS.clear()
+        target_module._dispatch_depth_var.set(0)
+        target_module._opt_int_mb = lambda x: int(x or 0)
+        target_module._lane_sem_key = lambda cfg: "test-lane"
+        target_module._strip_agent_chrome = lambda text: text
+
+        self.old_rr_enable = target_module.RR_ENABLE
+        target_module.RR_ENABLE = False
+
+        class MockSloShed(Exception):
+            pass
+        target_module._SloShed = MockSloShed
+
+    async def asyncTearDown(self):
+        target_module.RR_ENABLE = self.old_rr_enable
+
+    @patch("mios_pipe.routing.agent_call._get_cpu_load")
+    @patch("mios_pipe.routing.agent_call._get_gpu_vram_usage")
+    @patch("mios_pipe.routing.agent_call._host_threshold_val")
+    @patch("mios_pipe.routing.agent_call._agent_binding")
+    @patch("mios_pipe.routing.agent_call._agent_offload_engine")
+    async def test_host_pressure_gate_degrades_to_cpu(self, mock_offload, mock_binding, mock_threshold, mock_vram, mock_cpu):
+        mock_cpu.return_value = 10.0
+        mock_vram.return_value = 95.0 # above 90% threshold
+        mock_offload.return_value = None
+
+        mock_threshold.side_effect = lambda key, default: {
+            "big_ram_model": "mistral-magistral-small-2509",
+            "max_cpu_percent": 85.0,
+            "max_vram_percent": 90.0,
+            "small_ram_model": "granite4.1:8b"
+        }.get(key, default)
+
+        mock_binding.side_effect = [
+            ("http://localhost:8640/v1", "mistral-magistral-small-2509"), # heavy
+            ("http://localhost:8450/v1", "granite4.1:8b"), # degraded cpu
+        ]
+
+        cfg = {"vram_mb": 4096}
+        body = {"messages": [{"role": "user", "content": "hello"}]}
+
+        called_with_cpu = False
+        async def mock_inner(name, cfg, body, headers, client, prefer_cpu=True):
+            nonlocal called_with_cpu
+            called_with_cpu = True
+            return name, "degraded response"
+
+        with patch("mios_pipe.routing.agent_call._call_agent_complete_inner", mock_inner), \
+             patch("mios_pipe.routing.agent_call._admit", dummy_async), \
+             patch("mios_pipe.routing.agent_call._priority_gate", AsyncContextMock), \
+             patch("mios_pipe.routing.agent_call._endpoint_sem", AsyncContextMock), \
+             patch("mios_pipe.routing.agent_call._lane_sem", AsyncContextMock), \
+             patch("mios_pipe.routing.agent_call._model_active", dummy_async), \
+             patch("mios_pipe.routing.agent_call._record_cost", MagicMock()):
+
+            name, text = await target_module._call_agent_complete(
+                "test-agent", cfg, body, {}, MagicMock(), prefer_cpu=False, priority=1.0
+            )
+
+        self.assertTrue(called_with_cpu)
+        self.assertEqual(text, "degraded response")
+
+    @patch("mios_pipe.routing.agent_call._agent_offload_engine")
+    async def test_request_dedup_collapses_inflight(self, mock_offload):
+        cfg = {"vram_mb": 0}
+        body = {"messages": [{"role": "user", "content": "hello"}]}
+        mock_offload.return_value = None
+
+        inner_calls = 0
+        async def mock_inner(name, cfg, body, headers, client, prefer_cpu=True):
+            nonlocal inner_calls
+            inner_calls += 1
+            await asyncio.sleep(0.1) # yield control so concurrent task can enter
+            return name, f"response {inner_calls}"
+
+        with patch("mios_pipe.routing.agent_call._call_agent_complete_inner", mock_inner), \
+             patch("mios_pipe.routing.agent_call._admit", dummy_async), \
+             patch("mios_pipe.routing.agent_call._priority_gate", AsyncContextMock), \
+             patch("mios_pipe.routing.agent_call._endpoint_sem", AsyncContextMock), \
+             patch("mios_pipe.routing.agent_call._lane_sem", AsyncContextMock), \
+             patch("mios_pipe.routing.agent_call._model_active", dummy_async), \
+             patch("mios_pipe.routing.agent_call._record_cost", MagicMock()), \
+             patch("mios_pipe.routing.agent_call._agent_binding", lambda c, e: ("http://localhost:8450/v1", "granite4.1:8b")):
+
+            t1 = asyncio.create_task(
+                target_module._call_agent_complete("agent1", cfg, body, {}, MagicMock(), priority=1.0)
+            )
+            t2 = asyncio.create_task(
+                target_module._call_agent_complete("agent1", cfg, body, {}, MagicMock(), priority=1.0)
+            )
+
+            res1 = await t1
+            res2 = await t2
+
+        self.assertEqual(inner_calls, 1)
+        self.assertEqual(res1, res2)
+        self.assertEqual(res1[1], "response 1")
+
+
+def _run_extra_daemon():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        return 0
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_daemons_suites():
+    rc = _run_extra_account_sync()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_conductor()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_daemon()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
     unittest.main()

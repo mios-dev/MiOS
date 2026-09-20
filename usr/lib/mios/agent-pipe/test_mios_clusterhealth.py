@@ -344,5 +344,268 @@ def main():
     print(f"\n{_fails} FAILED" if _fails else "\nok")
     return 1 if _fails else 0
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_drift_monitor.py (T-1092)
+# ==============================================================================
+# AI-hint: Stdlib offline unit tests for mios_pipe.observability.drift_monitor -- the Jensen-Shannon Goodhart alarm (CONS-02). No network / no DB / no ...
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
+"""Stdlib offline unit tests for the Jensen-Shannon drift monitor (CONS-02)."""
+
+import sys
+
+from mios_pipe.observability import drift_monitor as M_drift_monitor
+
+_fails_drift_monitor = 0
+
+def _check_drift_monitor(name, cond):
+    global _fails_drift_monitor
+    if cond:
+        print(f"ok   - {name}")
+    else:
+        _fails_drift_monitor += 1
+        print(f"FAIL - {name}")
+
+def t_histogram():
+    h = M_drift_monitor.histogram(["yes", "yes", "no", "no"])
+    _check_drift_monitor("histogram: even split", h == {"yes": 0.5, "no": 0.5})
+    _check_drift_monitor("histogram: sums to 1.0", abs(sum(h.values()) - 1.0) < 1e-12)
+    _check_drift_monitor("histogram: empty input -> {} (not a uniform window)",
+          M_drift_monitor.histogram([]) == {})
+    _check_drift_monitor("histogram: labels are stringified",
+          M_drift_monitor.histogram([1, 1, 2]) == {"1": 2 / 3, "2": 1 / 3})
+
+def t_jsd_bounds():
+    p = {"yes": 0.7, "no": 0.3}
+    _check_drift_monitor("jsd: identical -> 0.0", M_drift_monitor.jensen_shannon(p, p) == 0.0)
+    _check_drift_monitor("jsd: disjoint support -> 1.0",
+          M_drift_monitor.jensen_shannon({"a": 1.0}, {"b": 1.0}) == 1.0)
+    d = M_drift_monitor.jensen_shannon(p, {"yes": 0.3, "no": 0.7})
+    _check_drift_monitor("jsd: partial shift is strictly inside the bounds", 0.0 < d < 1.0)
+    _check_drift_monitor("jsd: symmetric",
+          abs(M_drift_monitor.jensen_shannon(p, {"yes": 0.1, "no": 0.9})
+              - M_drift_monitor.jensen_shannon({"yes": 0.1, "no": 0.9}, p)) < 1e-12)
+
+def t_jsd_monotone():
+    base = {"yes": 0.5, "no": 0.5}
+    near = M_drift_monitor.jensen_shannon(base, {"yes": 0.6, "no": 0.4})
+    far = M_drift_monitor.jensen_shannon(base, {"yes": 0.95, "no": 0.05})
+    _check_drift_monitor("jsd: a bigger shift scores higher", far > near)
+
+def t_jsd_degenerate():
+    _check_drift_monitor("jsd: empty baseline -> 0.0 (nothing to compare)",
+          M_drift_monitor.jensen_shannon({}, {"a": 1.0}) == 0.0)
+    _check_drift_monitor("jsd: empty live -> 0.0", M_drift_monitor.jensen_shannon({"a": 1.0}, {}) == 0.0)
+    _check_drift_monitor("jsd: all-zero weights -> 0.0",
+          M_drift_monitor.jensen_shannon({"a": 0.0}, {"a": 0.0}) == 0.0)
+    _check_drift_monitor("jsd: negative and non-numeric weights are dropped",
+          M_drift_monitor.jensen_shannon({"a": 1.0, "b": -5.0, "c": "junk"},
+                           {"a": 1.0}) == 0.0)
+    _check_drift_monitor("jsd: unnormalized input is normalized first",
+          abs(M_drift_monitor.jensen_shannon({"a": 70, "b": 30}, {"a": 0.7, "b": 0.3})) < 1e-12)
+
+def t_compare_alerting():
+    base = {"verdict": {"satisfied": 0.9, "unsatisfied": 0.1}}
+    same = {"verdict": {"satisfied": 0.9, "unsatisfied": 0.1}}
+    r = M_drift_monitor.compare(base, same, threshold=0.2)
+    _check_drift_monitor("compare: no shift -> not alerting", r["alerting"] is False)
+    _check_drift_monitor("compare: no shift -> divergence 0.0", r["max_divergence"] == 0.0)
+
+    flipped = {"verdict": {"satisfied": 0.1, "unsatisfied": 0.9}}
+    r = M_drift_monitor.compare(base, flipped, threshold=0.2)
+    _check_drift_monitor("compare: flipped verdicts -> alerting", r["alerting"] is True)
+    _check_drift_monitor("compare: names the worst axis", r["max_axis"] == "verdict")
+    _check_drift_monitor("compare: axis carries its own flag",
+          r["axes"]["verdict"]["alerting"] is True)
+    _check_drift_monitor("compare: is_alerting agrees", M_drift_monitor.is_alerting(r) is True)
+
+    r = M_drift_monitor.compare(base, flipped, threshold=0.99)
+    _check_drift_monitor("compare: a high threshold suppresses the alarm", r["alerting"] is False)
+    _check_drift_monitor("compare: suppressed alarm still reports the divergence",
+          r["max_divergence"] > 0.0)
+
+def t_compare_incomparable():
+    base = {"verdict": {"satisfied": 1.0}, "intent": {"chat": 1.0}}
+    live = {"verdict": {"unsatisfied": 1.0}}
+    r = M_drift_monitor.compare(base, live, threshold=0.1)
+    _check_drift_monitor("compare: an axis missing from live is compared=False",
+          r["axes"]["intent"]["compared"] is False)
+    _check_drift_monitor("compare: a missing axis never alerts",
+          r["axes"]["intent"]["alerting"] is False)
+    _check_drift_monitor("compare: the present axis still alerts",
+          r["axes"]["verdict"]["alerting"] is True)
+
+def t_compare_thin_window():
+    base = {"verdict": {"satisfied": 1.0}}
+    live = {"verdict": {"unsatisfied": 1.0}}
+    r = M_drift_monitor.compare(base, live, threshold=0.1, min_samples=50,
+                  live_counts={"verdict": 3})
+    _check_drift_monitor("compare: a thin live window is not evidence of drift",
+          r["alerting"] is False)
+    _check_drift_monitor("compare: thin window is marked uncompared",
+          r["axes"]["verdict"]["compared"] is False)
+
+    r = M_drift_monitor.compare(base, live, threshold=0.1, min_samples=50,
+                  live_counts={"verdict": 500})
+    _check_drift_monitor("compare: a full window alerts normally", r["alerting"] is True)
+
+def t_is_alerting_tolerates_junk():
+    _check_drift_monitor("is_alerting: empty report -> False", M_drift_monitor.is_alerting({}) is False)
+    _check_drift_monitor("is_alerting: malformed report -> False", M_drift_monitor.is_alerting(None) is False)
+
+def _server_or_skip():
+    """Import server.py for the route-level cases, or None on a bare checkout
+    without fastapi -- the pure-math cases above still run either way.
+
+    Stubs only `websockets` (the portal terminal proxy imports it at module
+    load and no route here touches it), exactly as test_mios_approutes does."""
+    import types  # noqa: PLC0415
+    ws = types.ModuleType("websockets")
+    wse = types.ModuleType("websockets.exceptions")
+    wse.ConnectionClosed = type("ConnectionClosed", (Exception,), {})
+    ws.exceptions = wse
+    sys.modules.setdefault("websockets", ws)
+    sys.modules.setdefault("websockets.exceptions", wse)
+    for sub in ("legacy", "legacy.client", "client", "sync", "sync.client",
+                "asyncio", "asyncio.client"):
+        sys.modules.setdefault("websockets." + sub,
+                               types.ModuleType("websockets." + sub))
+    try:
+        import server  # noqa: PLC0415
+        return server
+    except Exception:  # noqa: BLE001
+        return None
+
+def t_route_axis_extractors():
+    srv = _server_or_skip()
+    if srv is None:
+        print("skip - route cases (fastapi absent)")
+        return
+    rows = [
+        {"kind": "user_query_satisfied", "payload": {"refine_intent": "chat"}},
+        {"kind": "user_query_satisfied", "payload": '{"refine_intent": "agent"}'},
+        {"kind": "user_query_unsatisfied", "payload": {"refine_intent": ""}},
+    ]
+    dist, n = srv._drift_live_window(rows, "verdict")
+    _check_drift_monitor("route: verdict axis counts every row", n == 3)
+    _check_drift_monitor("route: verdict axis splits 2/1",
+          abs(dist["user_query_satisfied"] - 2 / 3) < 1e-12)
+
+    dist, n = srv._drift_live_window(rows, "intent")
+    _check_drift_monitor("route: intent axis skips the empty label", n == 2)
+    _check_drift_monitor("route: intent axis parses a JSON-string payload",
+          set(dist) == {"chat", "agent"})
+
+    dist, n = srv._drift_live_window(rows, "no_such_axis")
+    _check_drift_monitor("route: an axis with no extractor yields nothing", (dist, n) == ({}, 0))
+
+def t_route_payload_normalization():
+    srv = _server_or_skip()
+    if srv is None:
+        return
+    _check_drift_monitor("route: dict payload passes through",
+          srv._drift_payload({"payload": {"a": 1}}) == {"a": 1})
+    _check_drift_monitor("route: JSON-string payload is parsed",
+          srv._drift_payload({"payload": '{"a": 1}'}) == {"a": 1})
+    _check_drift_monitor("route: unparseable payload -> {}",
+          srv._drift_payload({"payload": "not json"}) == {})
+    _check_drift_monitor("route: missing payload -> {}", srv._drift_payload({}) == {})
+
+def t_route_gate_closed():
+    srv = _server_or_skip()
+    if srv is None:
+        return
+    _check_drift_monitor("route: the monitor ships disabled",
+          srv.DRIFT_MONITOR_ENABLED is False)
+    import asyncio as _a
+    body = _a.run(srv.v1_drift()).body.decode()
+    _check_drift_monitor("route: disabled -> enabled:false, no alert",
+          '"enabled":false' in body.replace(" ", "")
+          and '"alerting":false' in body.replace(" ", ""))
+
+def _main_drift_monitor():
+    t_histogram()
+    t_jsd_bounds()
+    t_jsd_monotone()
+    t_jsd_degenerate()
+    t_compare_alerting()
+    t_compare_incomparable()
+    t_compare_thin_window()
+    t_is_alerting_tolerates_junk()
+    t_route_axis_extractors()
+    t_route_payload_normalization()
+    t_route_gate_closed()
+    print(f"\n{_fails_drift_monitor} FAILED" if _fails_drift_monitor else "\nok")
+    return 1 if _fails_drift_monitor else 0
+
+
+def _run_extra_drift_monitor():
+    try:
+        return _main_drift_monitor()
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_health.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit test suite for mios_pipe.health module.
+# AI-related: mios_pipe/health.py
+"""Unit tests for mios_pipe.health."""
+
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from mios_pipe.health import build_health_response, get_system_version
+
+class TestHealth(unittest.TestCase):
+    """Test health response builder."""
+
+    def test_build_health_response_defaults(self):
+        resp = build_health_response()
+        self.assertEqual(resp["status"], "ok")
+        self.assertIsNotNone(resp["version"])
+        self.assertIsNotNone(resp["backend"])
+        self.assertIsInstance(resp["port"], int)
+
+    def test_build_health_response_overrides(self):
+        resp = build_health_response(status="healthy", version="0.3.0", backend="http://localhost:8642", port=8640)
+        self.assertEqual(resp["status"], "healthy")
+        self.assertEqual(resp["version"], "0.3.0")
+        self.assertEqual(resp["backend"], "http://localhost:8642")
+        self.assertEqual(resp["port"], 8640)
+
+    def test_get_system_version(self):
+        v = get_system_version()
+        self.assertIsInstance(v, str)
+
+
+def _run_extra_health():
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestHealth))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+
+
+
+def _run_all_folded_clusterhealth_suites():
+    rc = _run_extra_drift_monitor()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_health()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
+    _run_all_folded_clusterhealth_suites()
     sys.exit(main())

@@ -516,3 +516,255 @@ test_quarantine_gate()
 test_gates_degrade_open()
 
 print("test_mios_dispatch: ALL PASS")
+
+
+# ==============================================================================
+# Consolidated from test_mios_dispatch_cmd.py (T-1092)
+# ==============================================================================
+# AI-hint: Isolation tests for mios_pipe.routing.dispatch_cmd -- the verb->bash command BUILDER extracted from the dispatch chokepoint (T-273).
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
+
+import sys
+
+from mios_pipe.routing import dispatch_cmd as C
+
+_fails_dispatch_cmd = 0
+
+def _check_dispatch_cmd(name, cond, detail=""):
+    global _fails_dispatch_cmd
+    if cond:
+        print(f"ok   - {name}")
+    else:
+        _fails_dispatch_cmd += 1
+        print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
+
+_CATALOG = {
+    "web_search":  {"cmd": "mios-web-search -n {limit=5} {query!}", "permission": "read"},
+    "open_url":    {"cmd": "mios-open-url {url!}", "permission": "write"},
+    # Opts IN to confinement via an explicit profile -- the only shape that may
+    # ever be sandbox-wrapped.
+    "confined":    {"cmd": "mios-run {x!}", "permission": "write",
+                    "sandbox_profile": "strict"},
+    # A write verb WITHOUT the explicit opt-in: tier alone must not wrap it.
+    "unconfined":  {"cmd": "mios-run {x!}", "permission": "write"},
+}
+
+def _wire(*, enforce=False):
+    C.configure(verb_catalog=_CATALOG, sandbox_enforce=enforce,
+                sandbox_self_confined=("already-confined",))
+
+def t_standalone_configuration():
+    """The module is driven by configure() alone -- no mios_dispatch, no server."""
+    _wire()
+    _check_dispatch_cmd("configure: catalog is injected", "web_search" in C._VERB_CATALOG)
+    _check_dispatch_cmd("configure: enforce flag is injected", C.SANDBOX_ENFORCE is False)
+    _wire(enforce=True)
+    _check_dispatch_cmd("configure: enforce flag updates", C.SANDBOX_ENFORCE is True)
+
+def t_build_dispatch_cmd():
+    _wire()
+    cmd = C._build_dispatch_cmd("web_search", {"query": "hello world"})
+    _check_dispatch_cmd("build: renders the SSOT template", cmd and "mios-web-search" in cmd, str(cmd))
+    _check_dispatch_cmd("build: substitutes the required arg", cmd and "hello world" in cmd, str(cmd))
+    _check_dispatch_cmd("build: applies the {arg=default} form", cmd and "-n 5" in cmd, str(cmd))
+
+    _check_dispatch_cmd("build: an unknown verb yields None",
+          C._build_dispatch_cmd("no_such_verb", {}) is None)
+
+def t_sandbox_profile_resolution():
+    _wire()
+    prof = C._dispatch_sandbox_profile("confined")
+    _check_dispatch_cmd("profile: an explicit override resolves", prof is not None)
+    _check_dispatch_cmd("profile: a read verb resolves too",
+          C._dispatch_sandbox_profile("web_search") is not None)
+    _check_dispatch_cmd("profile: an unknown verb still resolves (fail-closed in mios_sandbox)",
+          C._dispatch_sandbox_profile("no_such_verb") is not None)
+
+def t_sandbox_wrap_is_opt_in():
+    """The OPT-IN gate is the safety property: an explicit [verbs.*].sandbox_profile,
+    NOT the permission tier, is what admits a verb to bwrap. Wrapping a launch or
+    OS-control verb on tier alone would break it."""
+    _wire(enforce=False)
+    prof = C._dispatch_sandbox_profile("confined")
+    cmd, ws = C._sandbox_wrap_cmd("confined", "echo hi", prof)
+    _check_dispatch_cmd("wrap: enforce OFF -> never wrapped", cmd == "echo hi" and ws is None,
+          f"{cmd!r} {ws!r}")
+
+    _wire(enforce=True)
+    cmd, ws = C._sandbox_wrap_cmd("unconfined", "echo hi",
+                                  C._dispatch_sandbox_profile("unconfined"))
+    _check_dispatch_cmd("wrap: a write verb WITHOUT the explicit opt-in is never wrapped",
+          cmd == "echo hi" and ws is None, f"{cmd!r} {ws!r}")
+
+    cmd, ws = C._sandbox_wrap_cmd("confined", "already-confined echo hi",
+                                  C._dispatch_sandbox_profile("confined"))
+    _check_dispatch_cmd("wrap: a self-confining cmd is left alone",
+          cmd == "already-confined echo hi" and ws is None, f"{cmd!r}")
+
+def t_normalize_container_exec():
+    _check_dispatch_cmd("normalize: docker -> podman",
+          C.normalize_container_exec("docker exec -i c bash").startswith("podman"))
+    _check_dispatch_cmd("normalize: code-server -> mios-agents",
+          "mios-agents" in C.normalize_container_exec("podman exec -i code-server bash"))
+    _check_dispatch_cmd("normalize: a tty flag is dropped",
+          "--tty" not in C.normalize_container_exec("podman exec --tty c bash"))
+    _check_dispatch_cmd("normalize: -i is preserved",
+          "-i" in C.normalize_container_exec("podman exec -it c true"))
+    _check_dispatch_cmd("normalize: a bare interactive shell becomes `true`",
+          C.normalize_container_exec("podman exec -i c /bin/bash").endswith("true"))
+
+def _main_dispatch_cmd():
+    t_standalone_configuration()
+    t_build_dispatch_cmd()
+    t_sandbox_profile_resolution()
+    t_sandbox_wrap_is_opt_in()
+    t_normalize_container_exec()
+    print(f"\n{_fails_dispatch_cmd} FAILED" if _fails_dispatch_cmd else "\nok")
+    return 1 if _fails_dispatch_cmd else 0
+
+
+def _run_extra_dispatch_cmd():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        return _main_dispatch_cmd()
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_dispatch_redos.py (T-1092)
+# ==============================================================================
+# AI-hint: Regression test for the ReDoS in dispatch_cmd's podman-exec shell-stripper -- pins a wall-clock bound on a pathological input, not a pattern string.
+# AI-related: usr/lib/mios/agent-pipe/mios_pipe/routing/dispatch_cmd.py
+"""Regression: the podman-exec stripper must not backtrack exponentially.
+
+The flag-repetition group allowed a flag's ARGUMENT to start with '-', so
+"-a -b" had two legal parses and the group backtracked exponentially (~1.64^n
+measured) on model-controlled script text. The bound pinned here is wall-clock
+on a pathological input rather than an assertion about the pattern string,
+because the defect is behavioural; flags-with-arguments are pinned too, since
+that is what the narrowed character class could plausibly break.
+"""
+
+import os
+import re
+import sys
+import time
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                   "mios_pipe/routing/dispatch_cmd.py")
+
+def _shell_strip_pattern():
+    """The live pattern, read from the shipped source.
+
+    Extracted rather than imported: importing dispatch_cmd pulls the whole
+    agent-pipe dependency tree, and this defect is in one literal.
+    """
+    with open(SRC, encoding="utf-8") as fh:
+        body = fh.read()
+    m = re.search(r"r'(\\b\(podman\\s\+exec.*?)',\n", body, re.S)
+    if not m:
+        raise AssertionError("the podman-exec stripper pattern was not found -- "
+                             "renamed or restructured? Update this test.")
+    return m.group(1)
+
+class TestNoExponentialBacktracking(unittest.TestCase):
+    def setUp(self):
+        self.rx = re.compile(_shell_strip_pattern(),
+                             re.IGNORECASE | re.MULTILINE)
+
+    def test_a_pathological_input_stays_fast(self):
+        # Pre-fix this took ~1.9s at n=32 and grew ~2.7x per +2. n=2000 would
+        # not have finished in the lifetime of the process.
+        s = "podman exec " + "-- " * 2000 + "!"
+        t0 = time.time()
+        self.rx.search(s)
+        elapsed = time.time() - t0
+        self.assertLess(elapsed, 1.0,
+                        "shell-stripper took %.3fs on a 2000-repetition input -- "
+                        "the backtracking regression is back" % elapsed)
+
+    def test_growth_is_not_exponential(self):
+        # Doubling the input must not square the time. A generous factor keeps
+        # this stable on a loaded runner while still catching 1.64^n.
+        def t(n):
+            s = "podman exec " + "-- " * n + "!"
+            t0 = time.time()
+            self.rx.search(s)
+            return time.time() - t0
+
+        small, big = t(200), t(400)
+        self.assertLess(big, max(small * 8, 0.5),
+                        "doubling the input multiplied the time by %.1f" %
+                        (big / small if small else 0))
+
+class TestBehaviourUnchanged(unittest.TestCase):
+    def setUp(self):
+        self.rx = re.compile(_shell_strip_pattern(),
+                             re.IGNORECASE | re.MULTILINE)
+
+    def _strip(self, s):
+        return self.rx.sub(r'\1 true', s)
+
+    def test_a_bare_shell_is_neutralised(self):
+        self.assertEqual(self._strip("podman exec -it mios-pgvector bash"),
+                         "podman exec -it mios-pgvector true")
+        self.assertEqual(self._strip("podman exec mios-forge sh"),
+                         "podman exec mios-forge true")
+
+    def test_flags_WITH_arguments_still_strip(self):
+        # The fix narrowed the argument class to [^-\s]\S*, so these are the
+        # cases most likely to break if it were narrowed wrongly.
+        for src, want in (
+            ("podman exec -i --user 1000 mios-ai /bin/bash",
+             "podman exec -i --user 1000 mios-ai true"),
+            ("podman exec -e FOO=bar mios-x zsh -l",
+             "podman exec -e FOO=bar mios-x true"),
+            ("podman exec --workdir /srv mios-y /bin/sh",
+             "podman exec --workdir /srv mios-y true"),
+        ):
+            self.assertEqual(self._strip(src), want, src)
+
+    def test_a_real_command_is_left_alone(self):
+        for s in ("echo hello",
+                  "podman exec -it mios-z bash -c 'ls'"):
+            self.assertEqual(self._strip(s), s, s)
+
+
+def _run_extra_dispatch_redos():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestNoExponentialBacktracking))
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBehaviourUnchanged))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_dispatch_suites():
+    rc = _run_extra_dispatch_cmd()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_dispatch_redos()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
+_run_all_folded_dispatch_suites()

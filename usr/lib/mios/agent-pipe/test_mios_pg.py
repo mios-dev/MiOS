@@ -462,5 +462,402 @@ def main() -> int:
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_db.py (T-1092)
+# ==============================================================================
+# AI-hint: Placeholder test for mios_db.py.
+def test_stub():
+    pass
+
+def _run_extra_db():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        return 0
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_db_config.py (T-1092)
+# ==============================================================================
+# AI-hint: stdlib unit test for mios_db_config resolver.
+import sys
+import os
+import unittest
+from unittest.mock import patch
+sys.path.insert(0, "/usr/lib/mios")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
+import mios_db_config
+
+def setUpModule():
+    if psycopg is None:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+    port = os.environ.get("MIOS_PORT_PGVECTOR", "8600")
+    conn_str = f"postgresql://mios:mios@localhost:{port}/mios"
+    try:
+        with psycopg.connect(conn_str, connect_timeout=1) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT count(1) FROM verb")
+                if cur.fetchone()[0] == 0:
+                    raise unittest.SkipTest("no seeded pgvector -- integration test")
+    except Exception:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+
+class TestMiosDbConfig(unittest.TestCase):
+
+    def setUp(self):
+        self.conn_str = "postgresql://mios:mios@localhost:8432/mios"
+        mios_db_config.clear_cache()
+        mios_db_config.reset_divergences()
+
+    def test_is_db_authoritative(self):
+        os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
+        mios_db_config.clear_cache()
+        self.assertTrue(mios_db_config.is_db_authoritative())
+
+        os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
+        mios_db_config.clear_cache()
+        self.assertFalse(mios_db_config.is_db_authoritative())
+
+        del os.environ["MIOS_DB_AUTHORITATIVE"]
+        mios_db_config.clear_cache()
+
+    def test_toml_fail_open(self):
+        os.environ["MIOS_PORT_PGVECTOR"] = "9999"
+        try:
+            os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
+            val = mios_db_config.get("ai", "kernel_dispatch")
+            self.assertTrue(val)
+        finally:
+            del os.environ["MIOS_PORT_PGVECTOR"]
+            if "MIOS_DB_AUTHORITATIVE" in os.environ:
+                del os.environ["MIOS_DB_AUTHORITATIVE"]
+
+    def test_shadow_compare_divergence(self):
+        with psycopg.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO config_layer (rank, name)
+                    VALUES (3, 'machine')
+                    ON CONFLICT (rank) DO NOTHING
+                    """
+                )
+                cur.execute(
+                    """
+                    INSERT INTO config_kv (scope, key, value, layer, description)
+                    VALUES ('mcp', 'port', '11111'::jsonb, 3, 'Test machine layer override')
+                    ON CONFLICT (scope, key, layer) DO UPDATE SET value = EXCLUDED.value
+                    """
+                )
+            conn.commit()
+
+        try:
+            os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
+            mios_db_config.reset_divergences()
+
+            val = mios_db_config.get("mcp", "port")
+
+            self.assertNotEqual(val, 11111)
+
+            self.assertTrue(mios_db_config.get_divergences() > 0)
+
+            os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
+            val_db = mios_db_config.get("mcp", "port")
+            self.assertEqual(val_db, 11111)
+
+        finally:
+            with psycopg.connect(self.conn_str) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM config_kv WHERE scope = 'mcp' AND key = 'port' AND layer = 3")
+                conn.commit()
+            if "MIOS_DB_AUTHORITATIVE" in os.environ:
+                del os.environ["MIOS_DB_AUTHORITATIVE"]
+
+    def test_health_logic_divergences(self):
+        class MockApp:
+            version = "test-version"
+
+        import mios_pipe.kernel.clusterhealth as ch
+
+        ch.configure(
+            app=MockApp(),
+            BACKEND="http://localhost:8000",
+            BACKEND_MODEL="test-model",
+            ROUTER_ENABLED=False,
+            ROUTER_MODEL="test-router",
+            ROUTER_ENDPOINT="test-ep",
+            PLANNER_ENABLED=False,
+            PLANNER_MODEL="test-planner",
+            PLANNER_ENDPOINT="test-ep",
+            PLANNER_MAX_NODES=3,
+            PLANNER_REFLEXION_CAP=3,
+            DCI_ENABLED=False,
+            DCI_MODEL="test-dci",
+            DCI_ENDPOINT="test-ep",
+            _DCI_ACTS=[],
+            DCI_FLOW_ENABLED=False,
+            DCI_FLOW_R_MAX=3,
+            _DCI_PERSONAS=[],
+            DCI_FLOW_TRIGGER_CONF=0.5,
+            _ALLOWLIST_HOSTS={"localhost", "127.0.0.1"},
+            _HIGH_PRIVILEGE_VERBS={"shell_exec"},
+            _HIGH_PRIVILEGE_CURATED={"shell_exec"},
+            _toml_section=lambda s: {},
+            _TAINT_VERBS={"web_extract"},
+            SKILLS_ENABLED=False,
+            SKILLS_MIN_LENGTH=0,
+            SKILLS_MAX_LENGTH=0,
+            SKILLS_MIN_SUPPORT=0,
+            SKILLS_WINDOW_HOURS=0,
+            SKILLS_AUTO_PROMOTE_THRESHOLD=0,
+            PASSPORT_ENABLE=False,
+            PASSPORT_ALGO="RS256",
+            PASSPORT_AGENT_NAME="test",
+            PASSPORT_KEY_DIR="/test",
+            PASSPORT_VERIFY_ON_READ=False,
+            _passport_load_priv=lambda: None,
+            _passport_kid=lambda: None,
+            REFINE_ENABLED=False,
+            REFINE_MODEL="test",
+            REFINE_ENDPOINT="test",
+            REFINE_BYPASS_CHARS=0,
+            POLISH_ENABLED=False,
+            POLISH_MODEL="test",
+            POLISH_ENDPOINT="test",
+            _AGENT_REGISTRY={},
+            _agent_lane=lambda a: "gpu",
+            LAUNCHER_SOCK="/test.sock",
+            DB_URL="postgresql://test",
+            PORT=8640,
+        )
+
+        mios_db_config.reset_divergences()
+
+        with psycopg.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO config_layer (rank, name)
+                    VALUES (3, 'machine')
+                    ON CONFLICT (rank) DO NOTHING
+                    """
+                )
+                cur.execute(
+                    """
+                    INSERT INTO config_kv (scope, key, value, layer, description)
+                    VALUES ('mcp', 'port', '22222'::jsonb, 3, 'Divergent Test')
+                    ON CONFLICT (scope, key, layer) DO UPDATE SET value = EXCLUDED.value
+                    """
+                )
+            conn.commit()
+
+        try:
+            os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
+            _ = mios_db_config.get("mcp", "port")
+
+            import asyncio
+            res = asyncio.run(ch.health_logic())
+
+            self.assertIn("config_divergences", res)
+            self.assertEqual(res["config_divergences"], mios_db_config.get_divergences())
+            self.assertTrue(res["config_divergences"] > 0)
+        finally:
+            with psycopg.connect(self.conn_str) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM config_kv WHERE scope = 'mcp' AND key = 'port' AND layer = 3")
+                conn.commit()
+            if "MIOS_DB_AUTHORITATIVE" in os.environ:
+                del os.environ["MIOS_DB_AUTHORITATIVE"]
+
+    def test_verb_catalog_sentinel_and_shadow(self):
+        import mios_pipe.routing.verbcatalog as vc
+
+        with psycopg.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE verb
+                    SET parallel_limit = 99
+                    WHERE name = 'list_windows'
+                    """
+                )
+            conn.commit()
+
+        try:
+            os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
+            mios_db_config.reset_divergences()
+
+            cat = vc._load_verb_catalog()
+            self.assertNotEqual(cat["list_windows"]["parallel_limit"], 99)
+            import time
+            for _ in range(50):
+                if mios_db_config.get_divergences() > 0:
+                    break
+                time.sleep(0.05)
+            self.assertTrue(mios_db_config.get_divergences() > 0)
+
+            os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
+            cat_db = vc._load_verb_catalog()
+            self.assertEqual(cat_db["list_windows"]["parallel_limit"], 99)
+
+        finally:
+            with psycopg.connect(self.conn_str) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE verb
+                        SET parallel_limit = 0
+                        WHERE name = 'list_windows'
+                        """
+                    )
+                conn.commit()
+            if "MIOS_DB_AUTHORITATIVE" in os.environ:
+                del os.environ["MIOS_DB_AUTHORITATIVE"]
+
+    @patch("mios_toml.load_merged")
+    @patch("mios_db_config.load_db_config")
+    def test_zero_divergence_on_seeded_tree(self, mock_db_config, mock_load):
+        import mios_toml
+        import mios_pipe.routing.verbcatalog as vc
+
+        vendor_data = mios_toml.load_vendor()
+        mock_load.return_value = vendor_data
+        mock_db_config.return_value = vendor_data
+
+        mios_db_config.reset_divergences()
+
+        merged = mios_db_config.load_merged()
+        self.assertIsNotNone(merged)
+
+        for sec in ["ai", "mcp", "routing", "recipes", "security"]:
+            sec_val = mios_db_config.section(None, sec)
+            self.assertIsNotNone(sec_val)
+
+        self.assertEqual(
+            mios_db_config.get("ai", "kernel_dispatch"),
+            vendor_data.get("ai", {}).get("kernel_dispatch")
+        )
+
+        self.assertIsNotNone(mios_db_config.colors())
+
+        toml_cat = vc._load_verb_catalog()
+        db_cat = vc._load_verb_catalog_from_db()
+        self.assertEqual(vc._compare_catalogs(toml_cat, db_cat), set())
+
+        self.assertEqual(mios_db_config.get_divergences(), 0)
+
+    def test_record_divergence_deduplication(self):
+        mios_db_config.reset_divergences()
+        mios_db_config.record_divergence("scope.key1")
+        mios_db_config.record_divergence("scope.key1")
+        mios_db_config.record_divergence({"scope.key1", "scope.key2"})
+        self.assertEqual(mios_db_config.get_divergences(), 2)
+
+
+def _run_extra_db_config():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestMiosDbConfig))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_dbwrite.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit tests for mios_pipe.dbwrite.
+"""Unit tests for database writer layer."""
+
+import unittest
+
+from mios_pipe.dbwrite import (
+    _db_create,
+    _db_fire,
+    _db_write,
+    _pg_mirror,
+    configure as configure_dbwrite,
+)
+
+class TestDbWrite(unittest.TestCase):
+
+    def setUp(self):
+        self.posts = []
+        configure_dbwrite(
+            pg_enabled=True,
+            pg_primary=False,
+            db_post=lambda sql: self.posts.append(sql),
+        )
+
+    def test_db_create_sql_formatting(self):
+        sql = _db_create("test_table", {"name": "test", "val": 123}, now_fields=("created_at",), _mirror=False)
+        self.assertIn("CREATE test_table SET", sql)
+        self.assertIn("created_at = time::now()", sql)
+        self.assertIn('name = "test"', sql)
+        self.assertIn("val = 123", sql)
+
+    def test_db_write_dispatches_post(self):
+        _db_write("event", {"action": "login"})
+        self.assertEqual(len(self.posts), 1)
+        self.assertIn("CREATE event SET", self.posts[0])
+
+    def test_pg_mirror_degrade_open(self):
+        _pg_mirror("event", {"action": "logout"})
+
+
+def _run_extra_dbwrite():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestDbWrite))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_pg_suites():
+    rc = _run_extra_db()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_db_config()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_dbwrite()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _rc_main = main()
+    _run_all_folded_pg_suites()
+    sys.exit(_rc_main)

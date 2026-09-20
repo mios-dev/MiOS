@@ -110,5 +110,101 @@ def main():
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_compound.py (T-1092)
+# ==============================================================================
+# AI-hint: Standalone unit test for the #49 read-tool-enrich domain-filter fix: a compound that spans domains must keep verbs refine EXPLICITLY hinted (and,...
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
+"""Standalone unit test for the #49 enrich domain-filter contract.
+
+server.py `_read_tool_enrich` restricts AUTO-added enrich verbs to the routed
+domain, but must NOT drop (a) verbs refine explicitly hinted -- a compound can
+span domains -- nor (b) the deterministic local_state core verbs when the turn is
+a state query mis-routed to e.g. apps_windows. This pins that set-logic with a
+reference impl (pure stdlib; mirrors the server.py keep computation), the same
+pattern as test_mios_launch. Live behaviour is verified on MiOS-DEV.
+
+Run:  python test_mios_compound.py
+"""
+
+import sys
+
+_RESULTS_compound: list = []
+
+def _check_compound(name: str, ok: bool, detail: str = "") -> None:
+    _RESULTS_compound.append((name, ok))
+    print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
+
+def _enrich_keep(hints, explicit, dvset, core, local_state):
+    keep = set(dvset) | set(explicit)
+    if local_state:
+        keep |= set(core)
+    return [h for h in hints if h in keep]
+
+APPS = {"list_windows", "focus_window", "close_window", "maximize_window"}
+SYS = {"system_status", "sys_env", "process_list", "container_status"}
+FILES = {"fs_search", "text_view", "directory_lookup"}
+CORE = {"system_status", "mios_apps", "process_list", "container_status", "list_windows"}
+
+def t_compound_cross_domain() -> None:
+    out = _enrich_keep(
+        hints=["list_windows", "system_status"],
+        explicit={"list_windows", "system_status"},
+        dvset=APPS, core=CORE, local_state=True)
+    _check_compound("compound: explicit cross-domain verb kept", "system_status" in out, str(out))
+    _check_compound("compound: domain verb kept", "list_windows" in out, str(out))
+
+def t_local_state_core() -> None:
+    out = _enrich_keep(
+        hints=["list_windows", "system_status", "process_list", "container_status"],
+        explicit={"list_windows"},
+        dvset=APPS, core=CORE, local_state=True)
+    _check_compound("local_state: core system_status survives mis-route",
+           "system_status" in out, str(out))
+    _check_compound("local_state: core process_list survives", "process_list" in out, str(out))
+
+def t_no_overground() -> None:
+    out = _enrich_keep(
+        hints=["fs_search", "system_status"],
+        explicit={"fs_search"},          # system_status was auto-added, NOT asked
+        dvset=FILES, core=CORE, local_state=False)
+    _check_compound("no-overground: auto cross-domain verb dropped",
+           "system_status" not in out, str(out))
+    _check_compound("no-overground: domain verb kept", "fs_search" in out, str(out))
+
+def t_no_domain() -> None:
+    out = _enrich_keep(
+        hints=["list_windows", "system_status"],
+        explicit={"list_windows", "system_status"},
+        dvset=set(), core=set(), local_state=False)
+    _check_compound("subset: only explicit kept when dvset empty",
+           set(out) == {"list_windows", "system_status"}, str(out))
+
+def _main_compound() -> int:
+    for t in (t_compound_cross_domain, t_local_state_core, t_no_overground, t_no_domain):
+        t()
+    passed = sum(1 for _, ok in _RESULTS_compound if ok)
+    total = len(_RESULTS_compound)
+    print(f"\n{passed}/{total} checks passed")
+    return 0 if passed == total else 1
+
+
+def _run_extra_compound():
+    try:
+        return _main_compound()
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+
+
+
+def _run_all_folded_batch_suites():
+    rc = _run_extra_compound()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
+    _run_all_folded_batch_suites()
     sys.exit(main())

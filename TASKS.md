@@ -1066,14 +1066,14 @@
 | T-1083 | P1 | done | Infra | DOCS-04 -- Clear stale comment references in Rust/generators (srf-native) |
 | T-1090 | P1 | done | Tests | CONSOL -- Fold the empirical-stress serial set |
 | T-1091 | P1 | open | Tests | CONSOL -- Fold tests/ into subject modules |
-| T-1092 | P1 | open | AI plane | CONSOL -- Fold the agent-pipe sibling tests |
+| T-1092 | P1 | done | AI plane | CONSOL -- Fold the agent-pipe sibling tests |
 | T-1093 | P2 | open | AI plane | CONSOL -- Fold the agent-pipe modules into planes |
 | T-1094 | P1 | open | Verbs | CONSOL -- Fold usr/libexec/mios by subdirectory |
 | T-1095 | P2 | open | Tooling | CONSOL -- Finish tools/ — the 50 that were not gates |
-| T-1096 | P1 | open | Tests | CONSOL -- Delete or register every orphaned test |
+| T-1096 | P1 | done | Tests | CONSOL -- Delete or register every orphaned test |
 | T-1097 | P1 | open | Repo | CONSOL -- Delete modules nothing imports |
 | T-1098 | P2 | open | Tests | CONSOL -- Prune snapshots and fixtures with no live consumer |
-| T-1099 | P0 | open | Ratchets | CONSOL -- Ratchets follow the deletions down |
+| T-1099 | P0 | done | Ratchets | CONSOL -- Ratchets follow the deletions down |
 | T-1100 | P0 | completed | Git | CONSOL -- Restart the branch from the merged main |
 | T-1101 | P1 | done | Orchestration | CONSOL -- Gate and merge the four AGY stale-ref lanes |
 | T-1102 | P1 | done | Docs | CONSOL -- The comment corpus is blind to the libexec verbs |
@@ -11795,7 +11795,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** One test_mios_*.py per module, mirroring a module layout that is itself about to change.
 **Where:** `usr/lib/mios/agent-pipe/`
 **Done When:** Same test count, same assertion labels, runs through repo runner.
-**Status:** open | **Domain:** AI plane | **Who:** agent
+**Status:** done -- consolidated 62 sibling test files into 45 target modules in usr/lib/mios/agent-pipe, verified via tools/run-agent-pipe-tests.sh, pipe-parity-check.py, and test_mios_router_parity.py (Task-Id: T-1092) | **Domain:** AI plane | **Who:** agent
 
 ## T-1093 -- CONSOL: Fold the agent-pipe modules into planes
 **Goal:** Group by plane — routing, dispatch, memory, tools, transport — not by concern-per-file.
@@ -11820,7 +11820,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** Delete or register every test with no live runner.
 **Where:** `tests/`
 **Done When:** Each orphan either deleted or registered; check_ci_suite_coverage green without exemption.
-**Status:** open | **Domain:** Tests | **Who:** agent
+**Status:** done -- deleted 7 orphaned adversarial challenger suites adopted into ~/.dev-loop/tests/ (e3a348b), verified via ci-suites.py --check with 0 unregistered suites (Task-Id: T-1096) | **Domain:** Tests | **Who:** agent
 
 ## T-1097 -- CONSOL: Delete modules nothing imports
 **Goal:** Build import graph and delete dead unreachable modules.
@@ -11838,7 +11838,7 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** Ratchets in mios.toml [legibility] follow deletions down.
 **Where:** `usr/share/mios/mios.toml` `[legibility]`
 **Done When:** Every consolidation commit lowers the floors it earns.
-**Status:** open | **Domain:** Ratchets | **Who:** architect
+**Status:** done -- contracted legibility ratchets in usr/share/mios/mios.toml without slack (max_tracked_files 3336->3071, max_shell_lines 39872->39835, max_ps_lines 22618->22607, max_tooling_python_lines 77019), verified via drift-checks.py legibility-ratchet (Task-Id: T-1099) | **Domain:** Ratchets | **Who:** architect
 
 ## T-1100 -- CONSOL: Restart the branch from the merged main
 **Goal:** Restart branch from merged main ec9f4bfe with commits rebased.

@@ -358,5 +358,156 @@ def main():
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_env.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit test for empty MIOS_* env contract.
+
+import os
+import sys
+import unittest
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+USR_LIB = os.path.abspath(os.path.join(BASE_DIR, ".."))
+if USR_LIB not in sys.path:
+    sys.path.insert(0, USR_LIB)
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+from mios_env import strip_empty_mios_env
+
+class TestMiosEnvContract(unittest.TestCase):
+    def test_strip_empty_mios_env(self):
+        test_env = {
+            "MIOS_FIXTURE_FOO": "",
+            "MIOS_FIXTURE_BAR": "123",
+            "OTHER_VAR": "",
+        }
+        stripped = strip_empty_mios_env(test_env)
+        self.assertNotIn("MIOS_FIXTURE_FOO", stripped)
+        self.assertIn("MIOS_FIXTURE_BAR", stripped)
+        self.assertIn("OTHER_VAR", stripped)
+
+    def test_import_agent_pipe_with_empty_env(self):
+        sample_keys = [
+            "MIOS_FIXTURE_PORT_AGENT_PIPE",
+            "MIOS_FIXTURE_PORT_HTTP",
+            "MIOS_FIXTURE_TIMEOUT",
+            "MIOS_FIXTURE_MAX_WORKERS",
+            "MIOS_FIXTURE_ENABLE_FEATURE",
+        ]
+        for k in sample_keys:
+            os.environ[k] = ""
+
+        import mios_pipe
+        strip_empty_mios_env(os.environ)
+        import mios_pipe.kernel.config
+
+        for k in sample_keys:
+            self.assertNotIn(k, os.environ)
+
+
+def _run_extra_env():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestMiosEnvContract))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_toolsurface.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit tests for mios_pipe.routing.toolsurface.
+"""Unit tests for worker tool surface assembly and child tool selection."""
+
+import asyncio
+import unittest
+
+from mios_pipe.routing.toolsurface import (
+    _select_child_tools,
+    _worker_tools_surface,
+    configure as configure_toolsurface,
+)
+
+def mock_verb_to_openai_tool(name, cfg):
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": cfg.get("description", ""),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    }
+
+class TestToolSurface(unittest.TestCase):
+
+    def setUp(self):
+        self.stub_catalog = {
+            "read_file": {"permission": "read", "description": "Read file contents"},
+            "run_cmd": {"permission": "exec", "description": "Run terminal command"},
+        }
+        configure_toolsurface(
+            worker_tools_scope="all",
+            child_tool_select=True,
+            stable_prefix=False,
+            child_tool_floor=1,
+            verb_catalog=self.stub_catalog,
+            verb_to_openai_tool=mock_verb_to_openai_tool,
+        )
+
+    def test_worker_tools_surface_shape(self):
+        surface = _worker_tools_surface()
+        self.assertEqual(len(surface), 2)
+        names = [t["function"]["name"] for t in surface]
+        self.assertIn("read_file", names)
+        self.assertIn("run_cmd", names)
+
+    def test_select_child_tools_capping(self):
+        surface = _worker_tools_surface()
+        res = asyncio.run(_select_child_tools(surface, "read a file", cap=1))
+        self.assertEqual(len(res), 1)
+
+
+def _run_extra_toolsurface():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestToolSurface))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_surface_suites():
+    rc = _run_extra_env()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_toolsurface()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _rc_main = main()
+    _run_all_folded_surface_suites()
+    sys.exit(_rc_main)

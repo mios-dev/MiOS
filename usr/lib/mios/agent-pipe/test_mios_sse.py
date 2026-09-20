@@ -113,5 +113,35 @@ def main():
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_streaming.py (T-1092)
+# ==============================================================================
+# AI-hint: Placeholder test for mios_streaming.py.
+def test_stub():
+    pass
+
+def _run_extra_streaming():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        return 0
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_sse_suites():
+    rc = _run_extra_streaming()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _rc_main = main()
+    _run_all_folded_sse_suites()
+    sys.exit(_rc_main)

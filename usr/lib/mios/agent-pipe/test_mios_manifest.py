@@ -270,5 +270,102 @@ def main():
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_ai_manifest.py (T-1092)
+# ==============================================================================
+# AI-hint: Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog manifest projection). Pure stdlib, no server.py/DB/pytest.
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
+"""Unit tests for mios_manifest (WS-A1)."""
+
+import json
+import sys
+
+import mios_manifest as man
+
+_fails_ai_manifest = 0
+
+def _check_ai_manifest(name, cond, detail=""):
+    global _fails_ai_manifest
+    if not cond:
+        _fails_ai_manifest += 1
+    print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
+
+CAT = {
+    "open_app": {"section": "Win", "desc": "launch", "tier": "core",
+                 "permission": "write", "model_name": "launch_windows_app",
+                 "conflict_group": "desktop_ui"},
+    "list_windows": {"section": "Win", "desc": "list", "permission": "read"},
+    "web_search": {"section": "Web", "desc": "search", "permission": "read",
+                   "parallel_limit": 3},
+}
+
+def t_project():
+    mani = man.project_verb_catalog(CAT)
+    _check_ai_manifest("project: registry_kind = verb-catalog", mani["registry_kind"] == "verb-catalog")
+    _check_ai_manifest("project: NOT hermes-build-tools", mani["registry_kind"] != "hermes-build-tools")
+    _check_ai_manifest("project: generated flag", mani["generated"] is True)
+    _check_ai_manifest("project: count matches", mani["count"] == 3, f"{mani['count']}")
+    names = [e["name"] for e in mani["data"]]
+    _check_ai_manifest("project: sorted by name (deterministic order)", names == sorted(names), f"{names}")
+    om = next(e for e in mani["data"] if e["name"] == "open_app")
+    _check_ai_manifest("project: carries model_name", om["model_name"] == "launch_windows_app")
+    _check_ai_manifest("project: carries WS-A7 conflict_group", om.get("conflict_group") == "desktop_ui")
+    ws = next(e for e in mani["data"] if e["name"] == "web_search")
+    _check_ai_manifest("project: carries WS-A7 parallel_limit", ws.get("parallel_limit") == 3)
+    _check_ai_manifest("project: read-default permission", next(
+        e for e in mani["data"] if e["name"] == "list_windows")["permission"] == "read")
+
+def t_deterministic():
+    a = json.dumps(man.project_verb_catalog(CAT), sort_keys=True)
+    b = json.dumps(man.project_verb_catalog(dict(reversed(list(CAT.items())))), sort_keys=True)
+    _check_ai_manifest("deterministic: insertion-order-independent", a == b)
+
+def t_diff():
+    base = man.project_verb_catalog(CAT)
+    _check_ai_manifest("diff: identical -> no diffs", man.diff_manifest(base, base) == [])
+    cat2 = dict(CAT); cat2["new_verb"] = {"section": "X", "desc": "n", "permission": "read"}
+    d = man.diff_manifest(man.project_verb_catalog(cat2), base)
+    _check_ai_manifest("diff: detects ADDED verb", any("new_verb" in x and x.startswith("+") for x in d), f"{d}")
+    d2 = man.diff_manifest(base, man.project_verb_catalog(cat2))
+    _check_ai_manifest("diff: detects REMOVED verb", any("new_verb" in x and x.startswith("-") for x in d2))
+    cat3 = dict(CAT); cat3["open_app"] = {**CAT["open_app"], "permission": "interactive"}
+    d3 = man.diff_manifest(man.project_verb_catalog(cat3), base)
+    _check_ai_manifest("diff: detects CHANGED verb", any("open_app" in x and x.startswith("~") for x in d3), f"{d3}")
+    bad = {**base, "registry_kind": "hermes-build-tools"}
+    _check_ai_manifest("diff: flags wrong registry_kind",
+          any("registry_kind" in x for x in man.diff_manifest(base, bad)))
+    _check_ai_manifest("diff: missing committed -> flagged", man.diff_manifest(base, None) != [])
+
+def _main_ai_manifest():
+    t_project()
+    t_deterministic()
+    t_diff()
+    print(f"\n{'ok' if _fails_ai_manifest == 0 else str(_fails_ai_manifest) + ' FAILED'}")
+    return 1 if _fails_ai_manifest else 0
+
+
+def _run_extra_ai_manifest():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        return _main_ai_manifest()
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_manifest_suites():
+    rc = _run_extra_ai_manifest()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _rc_main = main()
+    _run_all_folded_manifest_suites()
+    sys.exit(_rc_main)

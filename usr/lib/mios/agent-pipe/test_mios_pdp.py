@@ -78,5 +78,123 @@ def main() -> int:
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_auth.py (T-1092)
+# ==============================================================================
+# AI-hint: Placeholder test for mios_auth.py.
+def test_stub():
+    pass
+
+def _run_extra_auth():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        return 0
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_authn.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit tests for mios_pipe.access.authn.
+"""Unit tests for authentication and caller key management."""
+
+import json
+import os
+import tempfile
+import unittest
+
+from mios_pipe.access.authn import (
+    _bind_host,
+    _check_inbound_principal,
+    _load_backend_key,
+    _probe_auth_headers,
+    configure as configure_authn,
+)
+
+class TestAuthn(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.caller_keys_file = os.path.join(self.tmp_dir.name, "caller-keys.json")
+
+        keys_data = {
+            "keys": {
+                "secret_token_123": {"principal": "worker_agent", "scope": "read"},
+            }
+        }
+        with open(self.caller_keys_file, "w", encoding="utf-8") as fh:
+            json.dump(keys_data, fh)
+
+        configure_authn(
+            backend_key="backend_secret_xyz",
+            ingress_key="ingress_secret_999",
+            api_require_auth=True,
+            caller_keys_path=self.caller_keys_file,
+            auth_hostports={"127.0.0.1:8000"},
+            agent_auth_by_hostport={"remote:8000": "Bearer remote_tok"},
+        )
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
+
+    def test_check_inbound_principal_shared_and_caller(self):
+        op = _check_inbound_principal("backend_secret_xyz")
+        self.assertIsNotNone(op)
+        self.assertEqual(op["principal"], "operator")
+
+        ck = _check_inbound_principal("secret_token_123")
+        self.assertIsNotNone(ck)
+        self.assertEqual(ck["principal"], "worker_agent")
+
+        un = _check_inbound_principal("invalid_token_999")
+        self.assertIsNone(un)
+
+    def test_probe_auth_headers(self):
+        hdrs = _probe_auth_headers("http://127.0.0.1:8000/v1/models")
+        self.assertEqual(hdrs.get("Authorization"), "Bearer backend_secret_xyz")
+
+    def test_bind_host(self):
+        self.assertEqual(_bind_host(require_auth=False), "127.0.0.1")
+        self.assertEqual(_bind_host(require_auth=True), "0.0.0.0")
+        self.assertEqual(_bind_host(require_auth=False, override="10.0.0.5"), "10.0.0.5")
+
+
+def _run_extra_authn():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestAuthn))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_pdp_suites():
+    rc = _run_extra_auth()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_authn()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _rc_main = main()
+    _run_all_folded_pdp_suites()
+    sys.exit(_rc_main)

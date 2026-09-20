@@ -243,7 +243,127 @@ def test_deepen_early_exit():
 
     print("[PASS] deepen early-exit: disabled / satisfied / unsatisfied / judge-error")
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_dag_validate.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit test suite for pre-execution DAG validator dag_validate.py.
+# AI-related: mios_pipe/routing/dag_validate.py
+"""Unit tests for mios_pipe.routing.dag_validate."""
+
+import unittest
+import sys
+import os
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from mios_pipe.routing.dag_validate import validate_dag, DAGValidationVerdict
+
+class TestDAGValidate(unittest.TestCase):
+    """Test Kahn topological classification and validation over plan nodes."""
+
+    def test_valid_acyclic_dag(self):
+        dag = {
+            "nodes": [
+                {"id": "1", "tool": "search", "deps": []},
+                {"id": "2", "tool": "read", "deps": ["1"]},
+                {"id": "3", "tool": "summarize", "deps": ["1", "2"]},
+            ]
+        }
+        verdict = validate_dag(dag)
+        self.assertTrue(verdict.is_valid)
+        self.assertEqual(verdict.status, "acyclic")
+        self.assertEqual(verdict.topological_order, ["1", "2", "3"])
+        self.assertEqual(len(verdict.remediation_order), 3)
+
+    def test_cycle_detection(self):
+        dag = {
+            "nodes": [
+                {"id": "1", "tool": "node1", "deps": ["2"]},
+                {"id": "2", "tool": "node2", "deps": ["1"]},
+            ]
+        }
+        verdict = validate_dag(dag)
+        self.assertFalse(verdict.is_valid)
+        self.assertEqual(verdict.status, "cycle_nodes")
+        self.assertEqual(sorted(verdict.cycle_nodes), ["1", "2"])
+        self.assertEqual(len(verdict.remediation_order), 2)
+
+    def test_self_loop_detection(self):
+        dag = {
+            "nodes": [
+                {"id": "1", "tool": "self_loop", "deps": ["1"]},
+            ]
+        }
+        verdict = validate_dag(dag)
+        self.assertFalse(verdict.is_valid)
+        self.assertEqual(verdict.status, "cycle_nodes")
+        self.assertIn("1", verdict.cycle_nodes)
+        self.assertEqual(len(verdict.remediation_order), 1)
+
+    def test_dangling_dependency(self):
+        dag = {
+            "nodes": [
+                {"id": "1", "tool": "node1", "deps": ["999"]},
+            ]
+        }
+        verdict = validate_dag(dag)
+        self.assertFalse(verdict.is_valid)
+        self.assertEqual(verdict.status, "dangling_deps")
+        self.assertIn("1", verdict.dangling_deps)
+        self.assertEqual(verdict.dangling_deps["1"], ["999"])
+        self.assertEqual(len(verdict.remediation_order), 1)
+
+    def test_duplicate_node_ids(self):
+        dag = {
+            "nodes": [
+                {"id": "1", "tool": "node1_first", "deps": []},
+                {"id": "1", "tool": "node1_duplicate", "deps": []},
+            ]
+        }
+        verdict = validate_dag(dag)
+        self.assertFalse(verdict.is_valid)
+        self.assertEqual(verdict.status, "duplicate_ids")
+        self.assertIn("1", verdict.duplicate_ids)
+        self.assertEqual(len(verdict.remediation_order), 1)
+
+    def test_orphan_roots(self):
+        nodes = [
+            {"id": "a", "deps": ["b"]},
+            {"id": "b", "deps": ["c"]},
+            {"id": "c", "deps": ["a"]},
+        ]
+        verdict = validate_dag(nodes)
+        self.assertFalse(verdict.is_valid)
+        self.assertIn(verdict.status, ("orphan_roots", "cycle_nodes"))
+        self.assertEqual(len(verdict.remediation_order), 3)
+
+
+def _run_extra_dag_validate():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestDAGValidate))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_dag_exec_suites():
+    rc = _run_extra_dag_validate()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
+    _run_all_folded_dag_exec_suites()
     test_verb_node_dispatches_via_broker()
     test_agent_node_dispatches_via_agent_call()
     test_dag_levels_topo_order()

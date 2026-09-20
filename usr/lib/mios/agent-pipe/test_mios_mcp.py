@@ -293,7 +293,58 @@ def test_back_compat_negotiation_accepts_older_revision():
     assert st["protocolVersion"] == "2025-06-18", st   # older revision honored
     assert "mcp.old.t" in tools, tools
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_mcp_dispatch.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit test suite for mios_pipe.mcp_dispatch module.
+# AI-related: mios_pipe/mcp_dispatch.py
+"""Unit tests for mios_pipe.mcp_dispatch."""
+
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from mios_pipe.mcp_dispatch import build_mcp_tool_envelope
+
+class TestMcpDispatch(unittest.TestCase):
+    """Test MCP tool envelope builder."""
+
+    def test_build_mcp_tool_envelope(self):
+        env = build_mcp_tool_envelope("query_db", {"query": "hello"}, call_id="call_123")
+        self.assertEqual(env["type"], "function")
+        self.assertEqual(env["id"], "call_123")
+        self.assertEqual(env["function"]["name"], "query_db")
+        self.assertEqual(env["function"]["arguments"], {"query": "hello"})
+
+
+def _run_extra_mcp_dispatch():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestMcpDispatch))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_mcp_suites():
+    rc = _run_extra_mcp_dispatch()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
+    _run_all_folded_mcp_suites()
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in fns:
         fn()

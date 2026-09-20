@@ -1341,3 +1341,35 @@ so long. Let a run finish.
 - blockers: -
 - unverified: -
 
+## 2026-09-20 16:51 · worker_consol_m3 · T-1092, T-1096, T-1099 verified and completed
+- objective: Autonomous MiOS engineering across open CONSOL campaign tasks: T-1092 agent-pipe test consolidation, T-1096 orphan test resolution, T-1099 legibility ratchets contraction, task parity updates in TASKS.md.
+- done:
+  1. Agent-Pipe Test Consolidation (T-1092):
+     - Executed AST folding and consolidation of 62 sibling test files into 45 subject test modules in `usr/lib/mios/agent-pipe/` matching module layout (`tools/consolidate_agent_pipe.py`).
+     - Preserved standalone intent router parity gate (`usr/lib/mios/agent-pipe/test_mios_router_parity.py`) required by `automation/98-drift-checks.sh:check_router_parity`.
+     - Verified all 46 targets: `bash tools/run-agent-pipe-tests.sh` passed clean with 0 failures across all unit test scripts in a clean environment.
+     - Verified `test_mios_worktree.py` (5/5 unit tests passed in 0.562s).
+     - Verified `test_mios_router_parity.py` (9/9 routes passed on golden corpus).
+     - Verified `tools/pipe-parity-check.py` passed clean with zero circular imports or route surface drifts.
+  2. Orphan Test Cleanup & Registration (T-1096):
+     - Verified adoption of 7 adversarial challenger suites into `~/.dev-loop/tests/` (commit `e3a348b`).
+     - Cleaned up the 7 orphaned test suites from `tests/` (`test_adversarial_challenger_2.py`, `test_adversarial_concurrency.py`, `test_adversarial_m4_challenger_2.py`, `test_challenger_adversarial_probes.py`, `test_challenger_lane_stress.py`, `test_e2e_lane_isolation.py`, `test_e2e_tier5_hardening.py`).
+     - Verified `python3 tools/ci-suites.py --check` passed clean (355 suites registered across 3 tiers, 6/6 exempt, 0 unregistered).
+  3. Legibility Ratchets Contraction (T-1099):
+     - Contracted floors in `usr/share/mios/mios.toml` `[legibility]` without slack following deletions:
+       - `max_tracked_files`: 3336 -> 3071 (lowered by 265 files)
+       - `max_shell_lines`: 39872 -> 39835 (lowered by 37 lines)
+       - `max_ps_lines`: 22618 -> 22607 (lowered by 11 lines)
+       - `max_tooling_python_lines`: held strictly at 77019
+       - `max_tracked_mb`: held at 204 (measured 203 + 1 headroom)
+     - Verified `python3 tools/drift-checks.py legibility-ratchet` passed clean with zero violations.
+  4. Task Backlog Synchronization:
+     - Flipped T-1092, T-1096, and T-1099 in `TASKS.md` from `open` to `done` citing Task-Id trailers and verification commands.
+     - Verified `python3 tools/check-tasks.py status-parity`: 1,071 tasks, 1,010 sections, open count reduced to 419 (100% parity).
+     - Verified `python3 tools/check-tasks.py schema`: 944 tasks carry full schema, 0 duplicate IDs.
+  5. Regression Gates:
+     - Verified `python3 tests/test-db.py` (38/38 unit tests passed in 0.127s).
+- next: Execute next open CONSOL and engineering tasks (T-1091 tests folding, T-1093 agent-pipe planes, T-1094 libexec verbs).
+- blockers: -
+- unverified: Full image bake (`podman build` / BIB) requires root container virtualization.
+

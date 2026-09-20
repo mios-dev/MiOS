@@ -427,7 +427,116 @@ def test_link_rank_scorer_ssot():
             == W._rank_links_by_structure(cands, src, set(), cfg=d)), "embed degrade-open"
     print("test_link_rank_scorer_ssot OK")
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_applet_webresearch.py (T-1092)
+# ==============================================================================
+# AI-hint: Isolation tests for the web-research SSE applet (mios_pipe.routing.applet_webresearch).
+# AI-related: mios_pipe.routing
+# AI-functions: check, _events, main
+
+"""Isolation tests for the web-research SSE applet (mios_pipe.routing.applet_webresearch)."""
+import asyncio
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mios_pipe.routing import applet_webresearch as wr  # noqa: E402
+
+_fails_applet_webresearch = 0
+
+def _check_applet_webresearch(cond, msg):
+    global _fails_applet_webresearch
+    print(("[PASS] " if cond else "[FAIL] ") + msg)
+    if not cond:
+        _fails_applet_webresearch += 1
+
+async def _collect(query, dispatch, **kw):
+    frames = []
+    async for f in wr.stream_webresearch(query, dispatch, **kw):
+        frames.append(f)
+    return frames
+
+def _events(frames):
+    return [f.split("\n", 1)[0].replace("event: ", "") for f in frames]
+
+async def _main_async_applet_webresearch():
+    async def d_ok(tool, args):
+        _check_applet_webresearch(tool == "web_search", "dispatch invoked with web_search verb")
+        _check_applet_webresearch(args.get("query") == "langs", "query forwarded to dispatch args")
+        return {"results": [
+            {"title": "Rust", "url": "https://rust-lang.org", "snippet": "systems lang"},
+            {"title": "Zig", "url": "https://ziglang.org"},
+        ]}
+    fr = await _collect("langs", d_ok, limit=5)
+    ev = _events(fr)
+    _check_applet_webresearch(ev[0] == "status", f"first frame is status ({ev[:1]})")
+    _check_applet_webresearch(ev.count("result") == 2, f"two result frames ({ev.count('result')})")
+    _check_applet_webresearch(ev[-1] == "done", "last frame is done")
+    body = "".join(fr)
+    _check_applet_webresearch("https://rust-lang.org" in body and ">Rust<" in body, "result html carries url+title")
+    _check_applet_webresearch(all(f.endswith("\n\n") for f in fr), "every SSE frame terminates with a blank line")
+
+    called = {"n": 0}
+    async def d_never(t, a):
+        called["n"] += 1
+        return {}
+    fr = await _collect("   ", d_never)
+    _check_applet_webresearch(_events(fr) == ["error", "done"], "empty query -> error,done")
+    _check_applet_webresearch(called["n"] == 0, "dispatch NOT called on empty query")
+
+    async def d_boom(t, a):
+        raise RuntimeError("boom-net")
+    fr = await _collect("x", d_boom)
+    _check_applet_webresearch(_events(fr)[-1] == "done" and "error" in _events(fr), "dispatch error -> error,done")
+    _check_applet_webresearch("boom-net" in "".join(fr), "error frame carries the failure message")
+
+    async def d_xss(t, a):
+        return {"results": [{"title": "<script>alert(1)</script>", "url": "https://x/"}]}
+    body = "".join(await _collect("x", d_xss))
+    _check_applet_webresearch("<script>alert" not in body and "&lt;script&gt;" in body, "title HTML-escaped (no raw <script>)")
+
+    _check_applet_webresearch(len(wr._extract_results({"data": [{"a": 1}]})) == 1, "extract: dict.data list")
+    _check_applet_webresearch(len(wr._extract_results([{"a": 1}, {"b": 2}])) == 2, "extract: bare list")
+    _check_applet_webresearch(len(wr._extract_results({"stdout": json.dumps({"hits": [{"x": 1}]})})) == 1, "extract: json-in-stdout")
+    _check_applet_webresearch(wr._extract_results("garbage") == [], "extract: unknown -> []")
+
+def _main_applet_webresearch():
+    asyncio.run(_main_async_applet_webresearch())
+    try:
+        r = wr.build_router()
+        paths = {getattr(rt, "path", None) for rt in r.routes}
+        _check_applet_webresearch("/portal/app/webresearch" in paths, "router exposes the applet page route")
+        _check_applet_webresearch("/portal/app/webresearch/stream" in paths, "router exposes the SSE stream route")
+    except Exception as e:  # noqa: BLE001
+        _check_applet_webresearch(False, f"build_router() failed: {e}")
+    print("ALL PASS" if _fails_applet_webresearch == 0 else f"{_fails_applet_webresearch} FAILED")
+    return 1 if _fails_applet_webresearch else 0
+
+
+def _run_extra_applet_webresearch():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        return _main_applet_webresearch()
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_web_research_suites():
+    rc = _run_extra_applet_webresearch()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
+    _run_all_folded_web_research_suites()
     test_web_text_anchor_helpers_native()
     test_link_rank_scorer_ssot()
     test_judge_gate_loop_vs_stop()

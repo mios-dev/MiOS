@@ -145,5 +145,137 @@ def main():
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_mcp_pool.py (T-1092)
+# ==============================================================================
+# AI-hint: Standalone assert-script unit test for MCPClientPool (CONV-13).
+# AI-related: ./mios_gateway_queue.py
+
+import os
+import sys
+import asyncio
+from unittest import mock
+
+import unittest
+
+try:
+    import mcp
+    from mios_gateway_queue import MCPClientPool
+except ImportError as e:
+    raise unittest.SkipTest(f"skipping mcp tests: {e}")
+
+_fails_mcp_pool = 0
+
+def _check_mcp_pool(name, cond, detail=""):
+    global _fails_mcp_pool
+    if not cond:
+        _fails_mcp_pool += 1
+    print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
+
+class MockTool:
+    def __init__(self, name, description, inputSchema):
+        self.name = name
+        self.description = description
+        self.inputSchema = inputSchema
+
+class MockToolsResult:
+    def __init__(self, tools):
+        self.tools = tools
+
+class MockSession:
+    def __init__(self, tools):
+        self.tools = tools
+        self.inited = False
+        self.closed = False
+
+    async def list_tools(self):
+        return MockToolsResult(self.tools)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.closed = True
+
+async def test_mcp_pool_lifecycle():
+    server_configs = {
+        "playwright": {
+            "enabled": True,
+            "transport": "stdio",
+            "command": "npx",
+            "args": ["-y", "@playwright/mcp"],
+            "env": {"TEST_VAR": "value"}
+        },
+        "disabled_srv": {
+            "enabled": False,
+            "transport": "stdio"
+        }
+    }
+
+    mock_tool = MockTool(
+        name="navigate",
+        description="Navigate to URL",
+        inputSchema={"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}
+    )
+    mock_session = MockSession(tools=[mock_tool])
+
+    pool = MCPClientPool(server_configs)
+
+    _check_mcp_pool("pool: clients created", "playwright" in pool.clients)
+    _check_mcp_pool("pool: disabled client ignored", "disabled_srv" not in pool.clients)
+
+    async def mock_connect(self):
+        self.session = mock_session
+        return mock_session
+
+    async def mock_close(self):
+        pass
+
+    with mock.patch.object(mcp.StdioClient, "connect", mock_connect), \
+         mock.patch.object(mcp.StdioClient, "close", mock_close):
+
+        await pool.startup()
+
+        tools = pool.get_tools()
+        _check_mcp_pool("pool: fetched tool successfully", len(tools) == 1)
+        _check_mcp_pool("pool: namespaced tool name", tools[0]["name"] == "mcp.playwright.navigate")
+        _check_mcp_pool("pool: tool description matches", tools[0]["description"] == "Navigate to URL")
+        _check_mcp_pool("pool: inputSchema is preserved", "properties" in tools[0]["inputSchema"])
+
+        await pool.shutdown()
+        _check_mcp_pool("pool: shutdown clears clients dict", len(pool.clients) == 0)
+        _check_mcp_pool("pool: shutdown clears tools cache", len(pool.get_tools()) == 0)
+
+async def _main_mcp_pool():
+    await test_mcp_pool_lifecycle()
+    if _fails_mcp_pool > 0:
+        sys.exit(1)
+    sys.exit(0)
+
+
+def _run_extra_mcp_pool():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import asyncio
+        return asyncio.run(_main_mcp_pool())
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_gateway_queue_suites():
+    rc = _run_extra_mcp_pool()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _rc_main = main()
+    _run_all_folded_gateway_queue_suites()
+    sys.exit(_rc_main)

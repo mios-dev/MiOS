@@ -476,5 +476,155 @@ async def main() -> int:
     print(f"\n{passed}/{total} checks passed")
     return 0 if passed == total else 1
 
+
+
+# ==============================================================================
+# Consolidated from test_mios_admission.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit tests for mios_pipe.scheduler.admission.
+"""Unit tests for admission control and lane semaphore management."""
+
+import unittest
+
+from mios_pipe.scheduler.admission import (
+    _SloShed,
+    _endpoint_key,
+    _lane_sem,
+    configure as configure_admission,
+)
+
+class TestAdmission(unittest.TestCase):
+
+    def setUp(self):
+        configure_admission(
+            agent_concurrency=4,
+            endpoint_concurrency=2,
+        )
+
+    def test_sloshed_exception_class(self):
+        err = _SloShed("slo_test")
+        self.assertIsInstance(err, Exception)
+
+    def test_lane_sem_cache_identity(self):
+        sem1 = _lane_sem("gpu_test")
+        sem2 = _lane_sem("gpu_test")
+        self.assertIs(sem1, sem2)
+
+    def test_endpoint_key_parsing(self):
+        self.assertEqual(_endpoint_key("http://localhost:11434/v1"), "localhost:11434")
+        self.assertEqual(_endpoint_key("https://127.0.0.1:8000/api/chat"), "127.0.0.1:8000")
+
+
+def _run_extra_admission():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestAdmission))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_vram.py (T-1092)
+# ==============================================================================
+# AI-hint: Unit tests for mios_pipe.scheduler.vram.
+"""Unit tests for VRAM and model residency manager."""
+
+import asyncio
+import unittest
+
+from mios_pipe.scheduler.vram import (
+    _model_active,
+    _model_is_active,
+    _norm_model_tag,
+    configure as configure_vram,
+)
+
+class TestVram(unittest.TestCase):
+
+    def setUp(self):
+        configure_vram(
+            vram_budget_mb=23000,
+            vram_checkpoint_enable=True,
+        )
+
+    def test_norm_model_tag(self):
+        self.assertEqual(_norm_model_tag("mios-hermes"), "mios-hermes:latest")
+        self.assertEqual(_norm_model_tag("qwen3.5:4b"), "qwen3.5:4b")
+        self.assertEqual(_norm_model_tag("llama3:latest"), "llama3:latest")
+
+    def test_model_active_refcount_roundtrip(self):
+        ep = "http://localhost:8450/v1"
+        model = "mios-hermes"
+
+        self.assertFalse(_model_is_active(ep, model))
+
+        asyncio.run(_model_active(ep, model, +1))
+        self.assertTrue(_model_is_active(ep, model))
+
+        asyncio.run(_model_active(ep, model, -1))
+        self.assertFalse(_model_is_active(ep, model))
+
+
+def _run_extra_vram():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        import unittest
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestVram))
+        res = unittest.TextTestRunner().run(suite)
+        return 0 if res.wasSuccessful() else 1
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+# ==============================================================================
+# Consolidated from test_mios_vram_scheduler.py (T-1092)
+# ==============================================================================
+# AI-hint: Placeholder test for mios_vram_scheduler.py.
+def test_stub():
+    pass
+
+def _run_extra_vram_scheduler():
+    import os
+    _saved_env = dict(os.environ)
+    try:
+        return 0
+    except SystemExit as _e:
+        return _e.code if _e.code is not None else 0
+    finally:
+        os.environ.clear()
+        os.environ.update(_saved_env)
+
+
+
+def _run_all_folded_sched_suites():
+    rc = _run_extra_admission()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_vram()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+    rc = _run_extra_vram_scheduler()
+    if rc not in (None, 0):
+        import sys
+        sys.exit(f"Folded test suite failed: exit code {rc}")
+
 if __name__ == "__main__":
+    _run_all_folded_sched_suites()
     sys.exit(asyncio.run(main()))
