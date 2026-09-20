@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# AI-hint: Cohesive multi-repository sync and environment provisioning across MiOS, mios-bootstrap, and -dev-loop.
+set -euo pipefail
+
+WORKSPACE_DIR="/workspaces"
+mkdir -p "$WORKSPACE_DIR"
+
+echo "=== [1/5] Syncing Three-Repo Workspace Layout ==="
+# Ensure all three repositories are cloned side-by-side
+declare -A REPOS=(
+    ["MiOS"]="https://github.com/mios-dev/MiOS.git"
+    ["mios-bootstrap"]="https://github.com/mios-dev/mios-bootstrap.git"
+    ["-dev-loop"]="https://github.com/mios-dev/-dev-loop.git"
+)
+
+for repo in "${!REPOS[@]}"; do
+    target="${WORKSPACE_DIR}/${repo}"
+    if [ ! -d "$target/.git" ]; then
+        if [ "$repo" = "-dev-loop" ] && [ -d "$HOME/.dev-loop/.git" ]; then
+            echo "  [LINK/SYNC] Existing checkout at $HOME/.dev-loop found"
+            ln -sfn "$HOME/.dev-loop" "$target"
+        else
+            echo "  [CLONE] $repo -> $target"
+            git clone --depth 1 "${REPOS[$repo]}" "$target" 2>/dev/null || {
+                echo "  [WARN] Failed to clone ${REPOS[$repo]} (token authorization required)"
+            }
+        fi
+    else
+        echo "  [EXISTS] $target"
+    fi
+done
+
+# Create non-colliding symlinks for dev-loop access
+if [ -d "${WORKSPACE_DIR}/-dev-loop" ] || [ -L "${WORKSPACE_DIR}/-dev-loop" ]; then
+    ln -sfn "${WORKSPACE_DIR}/-dev-loop" "${WORKSPACE_DIR}/dev-loop"
+    if [ ! -d "$HOME/.dev-loop" ] || [ -L "$HOME/.dev-loop" ]; then
+        ln -sfn "${WORKSPACE_DIR}/-dev-loop" "$HOME/.dev-loop"
+    fi
+fi
+
+echo "=== [2/5] Initializing Root Overlay (MiOS System Repo) ==="
+if [ -x "${WORKSPACE_DIR}/MiOS/.devcontainer/install-root-overlay.sh" ]; then
+    sudo bash "${WORKSPACE_DIR}/MiOS/.devcontainer/install-root-overlay.sh" || echo "  [WARN] Overlay init completed with warnings"
+elif [ -x "/usr/local/bin/mios-root-overlay" ]; then
+    sudo bash "/usr/local/bin/mios-root-overlay" || echo "  [WARN] Overlay init completed with warnings"
+fi
+
+echo "=== [3/5] Configuring Antigravity Keyring & Shims ==="
+DEVLOOP_ENV="${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/env"
+if [ -r "${DEVLOOP_ENV}/setup-antigravity.sh" ]; then
+    bash "${DEVLOOP_ENV}/setup-antigravity.sh" --quiet || echo "  [WARN] Dev-loop setup-antigravity encountered warnings"
+fi
+
+echo "=== [4/5] Installing Multi-Harness Shims & Skills ==="
+if [ -x "${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/install.sh" ]; then
+    sh "${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/install.sh" --all --user >/dev/null 2>&1 || true
+fi
+
+echo "=== [5/5] Checking Toolchain Readiness ==="
+echo "  Rust:    $(rustc --version 2>/dev/null || echo 'missing')"
+echo "  Cargo:   $(cargo --version 2>/dev/null || echo 'missing')"
+echo "  Python:  $(python3 --version 2>/dev/null || echo 'missing') (compat: $(python3.11 --version 2>/dev/null || echo 'missing'))"
+echo "  Podman:  $(podman --version 2>/dev/null || echo 'missing')"
+echo "  Docker:  $(docker --version 2>/dev/null || echo 'missing (podman-docker shim)')"
+echo "  Claude:  $(claude --version 2>/dev/null || echo 'missing')"
+echo "  Agy:     $(agy --version 2>/dev/null || echo 'missing')"
+echo "  Gemini:  $(gemini -v 2>/dev/null || gemini --version 2>/dev/null || echo 'missing')"
+echo "Multi-repo devcontainer setup complete."

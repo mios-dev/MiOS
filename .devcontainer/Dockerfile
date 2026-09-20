@@ -1,47 +1,31 @@
-# AI-hint: Defines the Fedora-based container environment for MiOS development, installing the core toolchain (podman, bootc, rpm-ostree), the AI CLIs, and configuring the mios-dev user and root overlay bootstrap.
-# AI-related: mios-dev, mios-root-overlay
-#
-# This is the DEVELOPMENT container for editing this source tree. It is not the
-# OS image: that is built by the root Containerfile from ${BASE_IMAGE}
-# (ucore-hci). Nothing here is pinned: Fedora and every package float on the
-# latest release, so a rebuild always picks up current upstream.
+# AI-hint: Defines the unified Fedora development container for the MiOS ecosystem (MiOS, mios-bootstrap, and -dev-loop).
+# Floats on Fedora latest, providing full toolchain coverage: Rust, dual Python (3.14 + 3.11), Podman/Docker, and Agent CLIs.
 FROM registry.fedoraproject.org/fedora:latest
 
-# Core MiOS build/lifecycle toolchain, plus the shared dev toolchain every MiOS
-# repo's container carries (see mios-bootstrap and -dev-loop devcontainers).
-# rust/cargo/clippy/rustfmt/gcc: tools/native and src/mios-rs are Rust (Law 14),
-# and the final OS image strips compilers (91-strip-build-toolchain.sh), so the
-# dev container is where they are built and tested. gcc is the linker rustc needs.
-# python3-rich/-textual/-psutil: installation/mios-mon.py's TUI, from Fedora's
-# RPMs rather than pip, so the package manager owns them.
+# 1. Base OS Packages, Compilers, Runtimes, and Utilities
 RUN dnf install -y --setopt=install_weak_deps=False \
         just \
-        podman podman-compose buildah skopeo \
+        podman podman-compose podman-docker buildah skopeo \
         bootc bootupd ostree rpm-ostree \
-        jq yq rsync git \
+        jq yq rsync git tmux \
         nodejs npm \
-        python3 python3-pip \
-        python3-rich python3-textual python3-psutil \
-        rust cargo clippy rustfmt gcc \
+        python3 python3-pip python3-devel \
+        python3.11 python3.11-devel \
+        python3-rich python3-textual python3-psutil python3-pytest python3-jsonschema \
+        rust cargo clippy rustfmt gcc gcc-c++ make \
+        dbus-daemon dbus-tools gnome-keyring libsecret \
+        procps-ng util-linux shadow-utils authselect \
         sudo zsh \
         findutils grep sed gawk diffutils patch \
         ripgrep tar gzip unzip zip \
-        policycoreutils util-linux authselect \
         openssl qemu-img attr \
         ShellCheck \
     && dnf clean all
 
-# Agent CLIs available by default: the Claude Code CLI system-wide here, and
-# the Antigravity CLI (agy) plus the dev-loop skill per-user at postCreate,
-# by delegating to -dev-loop's own setup script rather than duplicating it.
-RUN npm install -g @google/gemini-cli @anthropic-ai/claude-code
+# 2. Agent CLIs (System-wide node packages)
+RUN npm install -g @anthropic-ai/claude-code @google/gemini-cli
 
-# Spell the sudoers username exactly as the account and give it an explicit
-# (ALL) runas spec. This is hygiene, not a fix: the previous "Mios-dev"
-# spelling was measured to work, since sudo matches the username
-# case-insensitively here. visudo -cf fails the build on a malformed rule
-# rather than shipping one that silently grants nothing — postCreateCommand
-# ("sudo bash /usr/local/bin/mios-root-overlay") depends on this drop-in.
+# 3. User Setup (mios-dev UID 1000, matching host bind mount and sudoers)
 RUN useradd -m -u 1000 -s /usr/bin/zsh mios-dev \
     && echo "mios-dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/mios-dev \
     && chmod 0440 /etc/sudoers.d/mios-dev \
@@ -50,18 +34,7 @@ RUN useradd -m -u 1000 -s /usr/bin/zsh mios-dev \
 COPY .devcontainer/install-root-overlay.sh /usr/local/bin/mios-root-overlay
 RUN chmod +x /usr/local/bin/mios-root-overlay
 
-ENV MIOS_DEVCONTAINER=1
-ENV MIOS_VERSION=0.3.0
-
-# The Antigravity CLI is baked into the image rather than left to postCreate.
-# Two reasons postCreate could not be trusted: a Codespaces prebuild does not
-# re-run postCreateCommand for codespaces created from that prebuild, and the
-# dev-loop checkout agy used to come from lives in a PRIVATE repo that a public
-# repo's codespace token cannot clone -- so it failed silently behind `|| true`.
-#
-# Guarded on purpose: a transient network failure must degrade to a warning,
-# never fail the image build. A failed devcontainer build drops Codespaces into
-# a recovery container with nothing installed at all, which is far worse.
+# 4. Antigravity CLI (baked into image with error-tolerant fallback)
 USER mios-dev
 RUN set -u; tmp="$(mktemp -d)"; \
     if curl -fsSL --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh -o "$tmp/install.sh" \
@@ -71,7 +44,10 @@ RUN set -u; tmp="$(mktemp -d)"; \
          echo "WARNING: Antigravity CLI not installed at build time" >&2; \
     fi; \
     rm -rf "$tmp"
-ENV PATH="/home/mios-dev/.local/bin:${PATH}"
 
-WORKDIR /mios
+ENV PATH="/home/mios-dev/.local/bin:${PATH}"
+ENV MIOS_DEVCONTAINER=1
+ENV MIOS_VERSION=0.3.0
+
+WORKDIR /workspaces/MiOS
 CMD ["/usr/bin/zsh"]
