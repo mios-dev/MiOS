@@ -16,7 +16,10 @@
     "vscode": {
       "settings": {
         "terminal.integrated.defaultProfile.linux": "zsh",
-        "python.defaultInterpreterPath": "/usr/bin/python3"
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "git.autoRepositoryDetection": "subFolders",
+        "git.repositoryScanMaxDepth": 5,
+        "git.openRepositoryInParentFolders": "always"
       },
       "extensions": [
         "rust-lang.rust-analyzer",
@@ -58,6 +61,7 @@
     }
   },
   "remoteUser": "mios-dev",
+  "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind,consistency=cached",
   "workspaceFolder": "/workspaces/MiOS",
   "postCreateCommand": "bash /workspaces/MiOS/.devcontainer/setup-devcontainer.sh",
   "postStartCommand": "bash -c '. /workspaces/-dev-loop/skills/dev-loop/scripts/env/agy-keyring.sh 2>/dev/null || true'",

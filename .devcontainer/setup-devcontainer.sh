@@ -39,6 +39,14 @@ if [ -d "${WORKSPACE_DIR}/-dev-loop" ] || [ -L "${WORKSPACE_DIR}/-dev-loop" ]; t
     fi
 fi
 
+# Enable nested git repository access and recursive submodule hydration
+git config --global --add safe.directory "*"
+for repo_dir in "${WORKSPACE_DIR}"/*; do
+    if [ -d "$repo_dir/.git" ] || [ -f "$repo_dir/.git" ]; then
+        (cd "$repo_dir" && git submodule update --init --recursive 2>/dev/null || true)
+    fi
+done
+
 echo "=== [2/5] Initializing Root Overlay (MiOS System Repo) ==="
 if [ -x "${WORKSPACE_DIR}/MiOS/.devcontainer/install-root-overlay.sh" ]; then
     sudo bash "${WORKSPACE_DIR}/MiOS/.devcontainer/install-root-overlay.sh" || echo "  [WARN] Overlay init completed with warnings"
