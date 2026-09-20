@@ -79,6 +79,7 @@
 /.devloop/run-*/
 /.devloop/backlog_archive.jsonl
 /.devloop/HISTORICAL_BACKLOG.md
+/.devloop/unified_tasks.jsonl
 /docs/distilled/
 /docs/research/task-migration-and-halflife.md
 !/specs/
