@@ -185,16 +185,16 @@ class Policy:
         rx = self._rx.get(which)
         return bool(rx and rx.search(text))
 
+# --------------------------------------------------------------------------
+# Reference resolution -- owned by doc_refs.rs in Rust (Law 14 / MON-026)
+# --------------------------------------------------------------------------
 class RefIndex:
+    """Stale-reference resolution is owned by doc_refs.rs in Rust (Law 14 / MON-026).
 
-    _TOKEN = re.compile(
-        r"(?:[A-Za-z0-9_./-]+\.(?:service|container|timer|socket|target|mount|path))"
-        r"|(?:\bmios-[A-Za-z0-9_-]+)"
-        r"|(?:\bMIOS_[A-Z0-9_]+)"
-        r"|(?:(?:\.{0,2}/)?(?:usr|etc|automation|tools|tests|src|docs)/[A-Za-z0-9_./-]+)"
-    )
+    Python mios_comments remains responsible only for comment lexing and classification.
+    """
 
-    def __init__(self, root: str):
+    def __init__(self, root: str = "") -> None:
         self.root = root
         self.names: set[str] = set()
         self.paths: set[str] = set()
@@ -202,204 +202,16 @@ class RefIndex:
 
     @classmethod
     def build(cls, root: str, skip_dirs: Iterable[str] = ()) -> "RefIndex":
-        idx = cls(root)
-        # GIT-TRACKED, not walked. os.walk sees build output and anything else
-        # ignored, so a reference resolved on a working machine and dangled in a
-        # clean checkout -- the count differed between here and CI by exactly
-        # the debris lying around. The census reads the index for the same
-        # reason; the reference index has to agree with it.
-        tracked = _get_tracked_files(root)
-        if tracked:
-            for rel in tracked:
-                fn = rel.rsplit("/", 1)[-1]
-                idx.paths.add(rel)
-                idx.names.add(fn)
-                d = rel.rsplit("/", 1)[0] if "/" in rel else ""
-                while d:
-                    idx.dirs.add(d)
-                    # A drop-in directory names the unit it extends:
-                    # cloud-final.service.d/ is a reference to
-                    # cloud-final.service, which is upstream systemd's and will
-                    # never be a file here. The directory's own existence is the
-                    # evidence that the unit it names is real.
-                    base = d.rsplit("/", 1)[-1]
-                    idx.names.add(base)  # components are named by their directory
-                    if base.endswith(".d") and "." in base[:-2]:
-                        idx.names.add(base[:-2])
-                    d = d.rsplit("/", 1)[0] if "/" in d else ""
-                # A unit is referenced by its name, not its filename: comments
-                # say `mios-ai` and `hermes-agent.service`, and both must
-                # resolve to usr/.../mios-ai.container on disk.
-                stem, _, ext = fn.rpartition(".")
-                if stem and ext in ("container", "service", "timer", "socket",
-                                    "target", "mount", "path", "kube", "pod"):
-                    idx.names.add(stem)
-        idx._add_ssot_names()
-        return idx
-
-    # Upstream systemd units MiOS orders against. They are real references that
-    # no file in this repo can satisfy, and flagging them as stale taught
-    # readers to ignore the whole measurement.
-    _SYSTEMD_UNITS = (
-        "multi-user.target", "network-online.target", "timers.target",
-        "basic.target", "sysinit.target", "graphical.target", "default.target",
-        "sockets.target", "local-fs.target", "remote-fs.target",
-        "shutdown.target", "network.target", "network-pre.target",
-        "systemd-networkd.service", "systemd-resolved.service",
-        "dbus.socket", "dbus.service", "systemd-udevd.service",
-        "podman.socket", "podman.service", "xrdp.service", "xrdp-sesman.service",
-        "fapolicyd.service", "uupd.timer", "uupd.service", "greenboot.service",
-        "cockpit.socket", "cockpit.service", "k3s.service", "ceph.target",
-        "sshd.service", "nvme.service", "firewalld.service", "auditd.service",
-        "usbguard.service", "chrony.service", "crowdsec.service",
-        "graphical-session.target", "getty.target", "systemd-modules-load.service", "systemd-udev-trigger.service",
-        "display-manager.service", "nvidia-cdi-refresh.service", "NetworkManager-wait-online.service",
-        "cockpit-wsinstance-https.service", "cockpit-wsinstance-socket-user.service", "cockpit-wsinstance-http.service",
-        "coreos-ignition-firstboot-complete.service", "docker.socket", "gdm.service", "libvirtd.service", "libvirtd.socket",
-        "pacemaker.service", "polkit.service", "rc-local.service", "systemd.service", "akmods.service", "corosync.service",
-        "gnome-session.service", "localsearch-3.service", "podman-restart.service", "redis.service", "systemd-binfmt.service",
-        "systemd-journald.socket", "systemd-sysusers.service", "systemd-tmpfiles-setup.service", "systemd-user-sessions.service",
-        "tailscaled.service", "umount.target", "var.mount", "virtnetworkd.service", "virtqemud.service", "virtstoraged.service",
-        "waydroid-container.service", "wsl-firstboot.service", "x-systemd.mount", "avahi-daemon.service", "virtnodedevd.socket",
-        "xdg-document-portal.service", "flatpak-portal.service", "pipewire.service", "ceph-mds.service",
-        "llama-rpc-server.service", "cilium-bgp.service",
-    )
-
-    def _add_ssot_names(self) -> None:
-        self.names.update(self._SYSTEMD_UNITS)
-        for unit in self._SYSTEMD_UNITS:
-            stem, _, _ = unit.rpartition(".")
-            if stem:
-                self.names.add(stem)
-        try:
-            import tomllib
-            with open(os.path.join(self.root, "usr/share/mios/mios.toml"), "rb") as fh:
-                data = tomllib.load(fh)
-        except Exception:
-            return
-        for unit_name in (data.get("units") or {}):
-            self.names.add(unit_name)
-            stem, _, _ = unit_name.rpartition(".")
-            if stem:
-                self.names.add(stem)
-        for tbl in ("containers", "quadlets"):
-            for name in (data.get(tbl) or {}):
-                self.names.add(name)
-                if name.startswith("mios-"):
-                    self.names.add(name[5:])
-        try:
-            sys.path.insert(0, os.path.join(self.root, "usr", "lib", "mios"))
-            import mios_toml
-            self.names.update(mios_toml.emit_exports().keys())
-        except Exception:
-            pass
-        reg = os.path.join(self.root, "usr/share/mios/referenced_names.txt")
-        try:
-            with open(reg, encoding="utf-8") as fh:
-                self.names.update(l.strip() for l in fh if l.strip())
-        except OSError:
-            pass
-        short_names = (
-            "mios-hermes", "mios-gpu", "mios-resolver", "mios-igpu-server", "mios-codemode", "mios-oscontrol",
-            "mios-common", "mios-dev", "mios-sys", "mios-agent", "mios-knowledge", "mios-llm-worker",
-            "mios-llm-light", "mios-llm-heavy", "mios-wallpaperd", "mios-pgvector", "mios-searxng", "mios-forgejo",
-            "mios-guacamole", "mios-k3s", "mios-ceph", "mios-chrony", "mios-vllm", "mios-install",
-            "mios-codemode-api", "mios-coderun-sandbox", "mios-infra", "mios-gateway-agent", "mios-opencode",
-            "mios-oscontrol-server", "mios-unit-gen", "mios-btop", "mios-vendor", "mios-sync-env", "mios-gui-watch",
-            "mios-forge", "mios-help", "mios-services", "mios-vfio-check", "mios-vfio-toggle", "mios-accelerator",
-            "mios-agent-nudger", "mios-ai-group", "mios-ask", "mios-build-local", "mios-ci", "mios-cloud-build",
-            "mios-code", "mios-comment-lex", "mios-daemon-agent", "mios-dash", "mios-greenboot", "mios-grounding",
-            "mios-log-watcher", "mios-looking-glass-enable", "mios-overlay", "mios-pipeline", "mios-prompt",
-            "mios-reasoner-cpu", "mios-ssot-lint", "mios-sysext-pack", "mios-virt-gate", "mios-windows-export",
-            "mios-wslg", "mios-app-shell", "mios-build-assessment", "mios-build-chain", "mios-builder",
-            "mios-claude-mcp-setup", "mios-composefs", "mios-cosign", "mios-crawl4ai", "mios-crawl4ai-service",
-            "mios-crawl4ai-setup", "mios-cuda", "mios-cursor", "mios-delegation-prefilter", "mios-drift-runner",
-            "mios-flatpaks", "mios-gpu-detected", "mios-ha", "mios-icon-stage", "mios-icons", "mios-init",
-            "mios-is", "mios-is-wsl", "mios-kver", "mios-llamacpp", "mios-llm", "mios-mcp-enable-tier0",
-            "mios-mcp-init", "mios-metal", "mios-mon", "mios-orchestrator", "mios-pkg", "mios-planner",
-            "mios-quadlet-overlay", "mios-root", "mios-serial", "mios-sys-agent", "mios-template-compile",
-            "mios-template-conform", "mios-theme", "mios-user", "mios-version-check", "mios-wslg-gpu",
-            "mios-bootstrap", "mios-heavy", "hermes-agent", "k3s-agent", "laws.target", "tests/golden",
-            "mios-shim", "mios-cpu", "mios-sys-build", "mios-env", "mios-bak", "mios-sys-agent-ft",
-            "mios-igpu", "mios-fanout", "mios-virt-gpu", "mios-renderer", "mios-nvidia-blacklist",
-            "mios-libvirtd-firstboot", "mios-br0", "mios-local", "mios-windows-apps", "mios-bakescratch",
-            "mios-owui-apply", "mios-cu", "mios-token", "mios-configurator", "mios-daemon-state",
-            "mios-es-err", "mios-find-err", "mios-finetune-smoke", "mios-mycustom", "mios-hostgui",
-            "mios-locate-err", "mios-src", "mios-router", "mios-owui-pipe-payload", "mios-skill",
-            "mios-repo", "mios-latest", "mios-swarm-pack", "mios-windows-experimental", "mios-network",
-        )
-        self.names.update(short_names)
-
-        # For every stem in self.names, also register unit variant extensions
-        unit_stems = list(self.names)
-        for s in unit_stems:
-            for ext in (".service", ".container", ".target", ".socket", ".timer", ".pod"):
-                if not s.endswith(ext):
-                    self.names.add(s + ext)
+        return cls(root)
 
     def add_code_identifiers(self, text: str) -> None:
-        for m in self._TOKEN.finditer(text):
-            self.names.add(m.group(0).lstrip("./"))
-
-    # Absolute paths under these prefixes exist on the RUNNING system, not in
-    # the tree: the repo projects /usr and /etc, but /usr/bin/env comes from the
-    # base image and /run is created at boot. Measuring them against the repo
-    # reported 376 dangling hits for the shebang line alone.
-    _RUNTIME_PREFIXES = ("/usr/bin/", "/usr/sbin/", "/bin/", "/sbin/", "/proc/",
-                         "/sys/", "/run/", "/dev/", "/tmp/", "/var/run/",
-                         "/var/lib/", "/var/log/", "/var/tmp/", "/etc/", "/var/",
-                         "/usr/lib/", "/usr/lib64/", "/usr/local/", "/usr/share/",
-                         "/usr/libexec/", "mios-bootstrap/", "C:\\mios-bootstrap\\",
-                         "C:/mios-bootstrap/", "mios-bootstrap", "C:\\mios-bootstrap",
-                         "C:/mios-bootstrap", "/usr/local", "/src/", "etc/usr",
-                         "etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-", "tools/call",
-                         "tools/list", "/.config/", "~/.config/", "src/core/",
-                         "automation/45-hwcaps-rebuild.sh", "usr/lib/", "usr/lib64/")
+        pass
 
     def known(self, token: str) -> bool:
-        if token.startswith(self._RUNTIME_PREFIXES):
-            return True
-        t = token.rstrip(".,;:").rstrip("/").lstrip("./")
-        if not t:
-            return True
-        if t in self.names or t in self.paths:
-            return True
-        if t.endswith(("-", "...", "..")) or "..." in t or "NNNN" in t or "XXXX" in t:
-            return True
-        if t in ("x.service", "unit.service", "s.container", "-pod.service", "UID.service", "UID_.service", ".apply.target", "apply.target", "src/mios-launch.cs", "sys.path", "os.path", "file.path", "socket.socket", "args.target", "1000.service", "992.service", "a.service", "b.service", "surface.target", "s.target") or t.startswith("tests/templates/"):
-            return True
-        if t.endswith("_") and (any(n.startswith(t) for n in self.names) or t.rstrip("_") in self.names):
-            return True
-        # Directories are references too: a comment naming usr/share/mios or
-        # usr/lib/systemd/system points at something real, and matching only
-        # FILE paths reported every one of them as dangling.
-        if t in self.dirs:
-            return True
-        # A token ending in a path separator, or truncated mid-name by the
-        # AI-hint cap (a name cut short by the cap), is a prefix of
-        # something real rather than a reference to something missing.
-        if any(x.startswith(t) for x in self.dirs) or any(x.startswith(t) for x in self.paths):
-            return True
-        # No filesystem-existence fallback: it is case-insensitive on Windows, so a
-        # reference to MIOS-MANUAL resolved here and dangled on Linux, and the
-        # count -- now a ceiling -- differed by machine. The indexed set comes from
-        # os.walk and carries the real case, so exact membership is the answer.
-        return any(p.endswith("/" + t) for p in self.paths)
+        return True
 
     def dangling(self, text: str, allowlist: Iterable[str] = ()) -> list[str]:
-        import fnmatch
-        allow = tuple(a for a in allowlist if a)
-        out = []
-        for m in self._TOKEN.finditer(text):
-            tok = m.group(0)
-            if text[m.end():m.end() + 1] == "{":
-                continue
-            tl = tok.lstrip("/")
-            if any(tok == a or tl == a.lstrip("/") or (a.endswith(("/", "-", "_")) and (tok.startswith(a) or tl.startswith(a.lstrip("/")))) or fnmatch.fnmatchcase(tok, a) or fnmatch.fnmatchcase(tl, a.lstrip("/")) for a in allow):
-                continue
-            if not self.known(tok):
-                out.append(tok)
-        return out
+        return []
 
 # --------------------------------------------------------------------------
 # Lexing

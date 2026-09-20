@@ -1431,3 +1431,22 @@ so long. Let a run finish.
 - next: Consolidate disparate resolvers into Rust target (MON-026 / mios_comments.py RefIndex to doc_refs.rs) and advance Desktop OS & bootc substrate.
 - blockers: -
 - unverified: -
+
+## 2026-09-20 23:35 · mon026_resolver_consolidation · MON-026 Two Live Resolvers Consolidated into Rust SSOT
+- objective: Consolidate the two live stale-reference resolvers into Rust (MON-026), eliminating duplicate resolution logic from usr/lib/mios/mios_comments.py RefIndex, preserving doc_refs.rs as the sole SSOT resolver under Law 14, and moving test coverage to doc_refs.rs.
+- done:
+  1. Python RefIndex Consolidation (usr/lib/mios/mios_comments.py):
+     - Removed 188 lines of duplicate heuristic resolution logic (`_SYSTEMD_UNITS`, `_RUNTIME_PREFIXES`, `known()`, `_add_ssot_names()`, `add_code_identifiers()`) from `RefIndex`.
+     - Preserved lightweight `RefIndex` class interface for backwards compatibility across `classify()`, `mios-manual`, and existing unit test suites.
+  2. Test Suite & Rust doc_refs Verification:
+     - Verified `usr/lib/mios/test_mios_comments.py` passes 33/33 tests.
+     - Verified `usr/libexec/mios/test_mios_manual.py` passes 10/10 tests.
+     - Verified `src/mios-rs/mios-gate/src/doc_refs.rs` maintains full test coverage (allowlists, missing targets, present targets, prefixes, anchors, multiple extensions) with all 123 `mios-gate` cargo tests passing.
+  3. Ratchet & Task Ledger Parity:
+     - `tooling_python_lines` dropped from 77014 to 76826 (ceiling 77019), advancing the code consolidation and minification goals.
+     - Marked `MON-026` as done in `.devloop/tasks.jsonl` with verification evidence.
+     - Verified `python3 tools/drift-checks.py legibility-ratchet` holds clean.
+     - Verified `python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema` clean.
+- next: Advance Desktop OS & bootc substrate (GNOME desktop integration, packages, bootc lifecycle, and FOSS compliance).
+- blockers: -
+- unverified: -
