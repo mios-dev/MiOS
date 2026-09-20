@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS -- dev-loop finding: the ccn-docs lane's audit of whether the
+     reference docs' claims still hold against the code they describe.
+     AI-related: usr/share/doc/mios/reference/, .devloop/LEDGER.md -->
 # ccn-docs — do the reference docs' claims hold against the code?
 
 Lane `ccn-docs` ran as a **nested manager**: a lane that is itself a host. It

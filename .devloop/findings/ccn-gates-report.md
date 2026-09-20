@@ -1,3 +1,6 @@
+<!-- AI-hint: MiOS -- dev-loop finding: the ccn-gates lane's audit of which drift
+     gates can be driven red, with per-gate evidence and verdicts.
+     AI-related: automation/98-drift-checks.sh, tests/drift-gate-negatives.sh -->
 # ccn-gates — "Checks That Cannot Fail" audit of `automation/98-drift-checks.sh`
 
 Lane: `ccn-gates` (nested manager). Target: 220 check functions in
