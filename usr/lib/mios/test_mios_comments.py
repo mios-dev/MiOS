@@ -125,6 +125,10 @@ def test_stale(p):
     check("stale-known", mc.classify(fresh, p, idx).stale, False)
     gone = blk("see automation/00-this-script-does-not-exist.sh for the gate")
     check("stale-dangling", mc.classify(gone, p, idx).stale, True)
+    # MON-019: allowlist matching must be anchored, not substring containment
+    allow = ["tools/allowed-token/path.py"]
+    check("stale-allowlist-exact", len(idx.dangling("see tools/allowed-token/path.py for details", allowlist=allow)), 0)
+    check("stale-allowlist-substring-not-exempt", len(idx.dangling("see tools/prefix-tools/allowed-token/path.py for details", allowlist=allow)), 1)
 
 def test_lexer():
     src = (

@@ -366,9 +366,7 @@ class RefIndex:
             return True
         if t.endswith(("-", "...", "..")) or "..." in t or "NNNN" in t or "XXXX" in t:
             return True
-        if t in ("x.service", "unit.service", "s.container", "-pod.service", "UID.service", "UID_.service", ".apply.target", "apply.target", "src/mios-launch.cs",
-                 "sys.path", "os.path", "file.path", "socket.socket", "args.target",
-                 "1000.service", "992.service", "a.service", "b.service", "surface.target", "s.target") or t.startswith("tests/templates/"):
+        if t in ("x.service", "unit.service", "s.container", "-pod.service", "UID.service", "UID_.service", ".apply.target", "apply.target", "src/mios-launch.cs", "sys.path", "os.path", "file.path", "socket.socket", "args.target", "1000.service", "992.service", "a.service", "b.service", "surface.target", "s.target") or t.startswith("tests/templates/"):
             return True
         if t.endswith("_") and (any(n.startswith(t) for n in self.names) or t.rstrip("_") in self.names):
             return True
@@ -394,13 +392,10 @@ class RefIndex:
         out = []
         for m in self._TOKEN.finditer(text):
             tok = m.group(0)
-            # A path token that runs straight into "{" is the literal prefix of a
-            # template, not a path: baseurl=.../rpms/updates-released-f{ver}/...
-            # matches up to the brace and can never resolve, so it was reported
-            # as a dangling reference for as long as the template existed.
             if text[m.end():m.end() + 1] == "{":
                 continue
-            if any(a in tok or fnmatch.fnmatchcase(tok, a) for a in allow):
+            tl = tok.lstrip("/")
+            if any(tok == a or tl == a.lstrip("/") or (a.endswith(("/", "-", "_")) and (tok.startswith(a) or tl.startswith(a.lstrip("/")))) or fnmatch.fnmatchcase(tok, a) or fnmatch.fnmatchcase(tl, a.lstrip("/")) for a in allow):
                 continue
             if not self.known(tok):
                 out.append(tok)

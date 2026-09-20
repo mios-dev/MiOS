@@ -1373,3 +1373,27 @@ so long. Let a run finish.
 - blockers: -
 - unverified: Full image bake (`podman build` / BIB) requires root container virtualization.
 
+## 2026-09-20 23:18 · mon019_allowlist · MON-019 verified and completed
+- objective: [MiOS srf] Replace unanchored substring allowlist matching (.contains / `a in tok`) with anchored exact, prefix, and glob matching across Rust doc_refs.rs and Python mios_comments.py.
+- done:
+  1. Anchored Allowlist Matching in doc_refs.rs:
+     - Implemented `is_allowlisted` and `glob_to_regex_str` in `src/mios-rs/mios-gate/src/doc_refs.rs`.
+     - Matched exact tokens, directory/stem prefixes (ending in `/`, `-`, `_`), and globs (`*`, `?`).
+     - Replaced `.contains(a.as_str())` with `is_allowlisted(&t, &allowlist)` for header references and markdown links.
+     - Updated fixture `repo()` `ref_allowlist` to `["some/allowed-token/path.py"]`.
+     - Positive control: `the_allowlist_exempts_a_matching_token` passes.
+     - Negative control: added `a_token_merely_containing_an_allowlist_entry_is_stale` which proved failure under `.contains()` and passes under `is_allowlisted`.
+     - Verified: all 118 unit and integration tests across `mios-gate` passed.
+  2. Anchored Matching in mios_comments.py:
+     - Updated `RefIndex.dangling()` in `usr/lib/mios/mios_comments.py` to match exact tokens, prefixes, and `fnmatchcase`.
+     - Added test cases `stale-allowlist-exact` and `stale-allowlist-substring-not-exempt` to `usr/lib/mios/test_mios_comments.py`.
+     - Verified: `python3 usr/lib/mios/test_mios_comments.py` 33/33 passed.
+  3. Legibility Ratchet & Gates:
+     - Held `usr/lib/mios/mios_comments.py` under the line floor (`tooling_python_lines = 77014 / 77019`).
+     - Verified: `python3 tools/drift-checks.py legibility-ratchet` passed clean.
+     - Verified: `python3 tools/check-tasks.py status-parity` and `schema` passed clean.
+- next: Execute MON-020 (fragment #anchor validation in doc_refs.rs).
+- blockers: -
+- unverified: -
+
+

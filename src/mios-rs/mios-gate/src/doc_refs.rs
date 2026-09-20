@@ -153,6 +153,47 @@ fn link_is_path(t: &str) -> bool {
     LINK_SUFFIX.iter().any(|e| t.ends_with(e)) || t.ends_with(".jpg") || t.contains('/')
 }
 
+fn glob_to_regex_str(pat: &str) -> String {
+    let mut s = String::from("^");
+    for c in pat.chars() {
+        match c {
+            '*' => s.push_str(".*"),
+            '?' => s.push('.'),
+            '.' | '+' | '(' | ')' | '[' | ']' | '{' | '}' | '^' | '$' | '|' | '\\' => {
+                s.push('\\');
+                s.push(c);
+            }
+            _ => s.push(c),
+        }
+    }
+    s.push('$');
+    s
+}
+
+fn is_allowlisted(t: &str, allowlist: &[String]) -> bool {
+    let t_trim = t.trim_start_matches('/');
+    for a in allowlist {
+        let a_trim = a.trim_start_matches('/');
+        if t == a || t_trim == a_trim {
+            return true;
+        }
+        if (a.ends_with('/') || a.ends_with('-') || a.ends_with('_'))
+            && (t.starts_with(a) || t_trim.starts_with(a_trim))
+        {
+            return true;
+        }
+        if a.contains('*') || a.contains('?') {
+            let pat = glob_to_regex_str(a_trim);
+            if let Ok(re) = Regex::new(&pat) {
+                if re.is_match(t_trim) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 pub fn check(root: &Path) -> Report {
     let Some(re) = Res::new() else {
         return cannot_run("the reference patterns did not compile");
@@ -213,7 +254,7 @@ pub fn check(root: &Path) -> Report {
                 if !header_ref_is_path(&t) {
                     continue;
                 }
-                if allowlist.iter().any(|a| t.contains(a.as_str())) {
+                if is_allowlisted(&t, &allowlist) {
                     continue;
                 }
                 if !resolves(root, &dir, &t) {
@@ -233,6 +274,9 @@ pub fn check(root: &Path) -> Report {
                     .trim()
                     .to_string();
                 if !link_is_path(&target) {
+                    continue;
+                }
+                if is_allowlisted(&target, &allowlist) {
                     continue;
                 }
                 let rel_t = target.trim_start_matches('/');
@@ -302,7 +346,7 @@ mod tests {
         }
         if let Err(e) = fs::write(
             r.join(SSOT),
-            "[docs]\nmax_stale_doc_refs = 0\nref_allowlist = [\"allowed-token\"]\n",
+            "[docs]\nmax_stale_doc_refs = 0\nref_allowlist = [\"some/allowed-token/path.py\"]\n",
         ) {
             unreachable!("fixture ssot: {e}");
         }
@@ -436,6 +480,23 @@ mod tests {
         let _ = fs::write(r.join("c.py"), "# AI-related: some/allowed-token/path.py\n");
         track(r);
         assert!(check(r).ok, "an allowlisted token must be exempt");
+    }
+
+    #[test]
+    fn a_token_merely_containing_an_allowlist_entry_is_stale() {
+        let d = repo();
+        let r = d.path();
+        let _ = fs::write(
+            r.join("d.py"),
+            "# AI-related: prefix/some/allowed-token/path.py/suffix.py\n",
+        );
+        track(r);
+        let rep = check(r);
+        assert!(
+            !rep.ok && rep.findings.iter().any(|f| f.contains("prefix/some/allowed-token/path.py/suffix.py")),
+            "a token merely containing an allowlist entry without matching must be reported stale: {:?}",
+            rep.findings
+        );
     }
 
     #[test]
