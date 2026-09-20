@@ -15,6 +15,7 @@ COPY CLAUDE.md             /ctx/rootmd/CLAUDE.md
 COPY GEMINI.md             /ctx/rootmd/GEMINI.md
 
 COPY .git                  /ctx/.git/
+COPY Justfile              /ctx/Justfile
 
 FROM docker.io/library/rust:slim AS rust-builder
 WORKDIR /build
@@ -67,7 +68,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/dnf,sharing=locked \
     set -ex; \
     install -d -m 0755 /tmp/build; \
-    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
+    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/bib-configs /ctx/tools /ctx/Justfile /tmp/build/; \
     if [ -d /ctx/.git ]; then \
         cp -a /ctx/.git /tmp/build/.git 2>/dev/null && echo "[ctx] .git -> /tmp/build" \
             || echo "[ctx] WARN: .git copy failed"; \
