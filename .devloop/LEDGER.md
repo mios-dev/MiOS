@@ -1415,5 +1415,19 @@ so long. Let a run finish.
 - blockers: -
 - unverified: -
 
-
-
+## 2026-09-20 23:31 · mon021_scanner_unification · MON-021 Scanner Extension Sets Unified in Rust SSOT
+- objective: Unify Python and Rust scanners extension sets to single SSOT (MON-021), expanding doc_refs.rs to scan all standard file extensions (.rs, .toml, .service, etc.) and handle Rust comment headers.
+- done:
+  1. Rust doc_refs Scanner Extensions Expansion:
+     - Expanded `SCAN_EXT` in `src/mios-rs/mios-gate/src/doc_refs.rs` from 4 to 16 extensions (`.py`, `.sh`, `.bash`, `.toml`, `.ps1`, `.psm1`, `.rs`, `.service`, `.container`, `.timer`, `.socket`, `.target`, `.conf`, `.yml`, `.yaml`, `.md`).
+     - Updated header extraction regex to support both `#` and `//` comments (`(?:#|//)[^\S\n]*AI-(?:related|doc):`), enabling scanning of `.rs` Rust file headers.
+  2. Positive & Negative Control Verification:
+     - Added positive control unit tests in `doc_refs.rs`: `a_rust_file_header_is_scanned`, `a_toml_file_header_is_scanned`, and `a_service_file_header_is_scanned`.
+     - Verified all 123 unit and integration tests across `mios-gate` pass cleanly.
+  3. Gate & Task Ledger Parity:
+     - Marked `MON-021` as done in `.devloop/tasks.jsonl` with verification evidence.
+     - Verified `python3 tools/drift-checks.py legibility-ratchet` holds (`tracked_files = 3071/3071`, `tracked_mb = 203/204`, `tooling_python_lines = 77014/77019`).
+     - Verified `python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema` clean.
+- next: Consolidate disparate resolvers into Rust target (MON-026 / mios_comments.py RefIndex to doc_refs.rs) and advance Desktop OS & bootc substrate.
+- blockers: -
+- unverified: -

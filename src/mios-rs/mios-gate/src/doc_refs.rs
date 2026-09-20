@@ -8,7 +8,10 @@ use std::process::Command;
 
 const CHECK: &str = "doc-refs-resolve";
 const SSOT: &str = "usr/share/mios/mios.toml";
-const SCAN_EXT: [&str; 4] = [".py", ".sh", ".ps1", ".md"];
+const SCAN_EXT: [&str; 16] = [
+    ".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
+    ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml", ".md",
+];
 /// Files whose references are deliberately outside the check: task registers
 /// name planned paths, and the negative-test harness plants paths on purpose.
 const SKIP_BASENAME: [&str; 4] = [
@@ -61,7 +64,7 @@ impl Res {
     fn new() -> Option<Res> {
         Some(Res {
             header: Regex::new(
-                r"(?m)^[^\S\n]*#[^\S\n]*AI-(?:related|doc):[^\S\n]*(.+)$|<!--\s*AI-(?:related|doc):\s*(.*?)\s*-->",
+                r"(?m)^[^\S\n]*(?:#|//)[^\S\n]*AI-(?:related|doc):[^\S\n]*(.+)$|<!--\s*AI-(?:related|doc):\s*(.*?)\s*-->",
             )
             .ok()?,
             link: Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").ok()?,
@@ -699,5 +702,47 @@ mod tests {
         track(r);
         let rep = check(r);
         assert!(rep.ok, "a link to an existing heading must pass: {:?}", rep.findings);
+    }
+
+    #[test]
+    fn a_rust_file_header_is_scanned() {
+        let d = repo();
+        let r = d.path();
+        let _ = fs::write(r.join("lib.rs"), "// AI-related: nonexistent/missing.rs\n");
+        track(r);
+        let rep = check(r);
+        assert!(
+            !rep.ok && rep.findings.iter().any(|f| f.contains("missing.rs")),
+            "a rust file with a stale header ref must be reported stale: {:?}",
+            rep.findings
+        );
+    }
+
+    #[test]
+    fn a_toml_file_header_is_scanned() {
+        let d = repo();
+        let r = d.path();
+        let _ = fs::write(r.join("config.toml"), "# AI-related: nonexistent/missing.toml\n");
+        track(r);
+        let rep = check(r);
+        assert!(
+            !rep.ok && rep.findings.iter().any(|f| f.contains("missing.toml")),
+            "a toml file with a stale header ref must be reported stale: {:?}",
+            rep.findings
+        );
+    }
+
+    #[test]
+    fn a_service_file_header_is_scanned() {
+        let d = repo();
+        let r = d.path();
+        let _ = fs::write(r.join("app.service"), "# AI-related: nonexistent/missing.service\n");
+        track(r);
+        let rep = check(r);
+        assert!(
+            !rep.ok && rep.findings.iter().any(|f| f.contains("missing.service")),
+            "a service file with a stale header ref must be reported stale: {:?}",
+            rep.findings
+        );
     }
 }
