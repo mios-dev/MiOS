@@ -294,6 +294,87 @@ fn extract_markdown_anchors(text: &str) -> Vec<String> {
     anchors
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RenameSuggestion {
+    None,
+    Exact(String),
+    Ambiguous(Vec<String>),
+}
+
+/// Suggests a replacement for a stale reference using git rename history
+/// (`git log -1 --format=%H` + `git show -M --diff-filter=R --name-status`) and
+/// basename fallback across tracked files. Emits exactly one suggestion when
+/// unambiguous, or lists candidates without guessing when multiple match.
+pub fn suggest_rename(root: &Path, stale_path: &str) -> RenameSuggestion {
+    let stale = stale_path.trim_start_matches('/');
+
+    // 1. Try git commit rename history
+    if let Ok(out) = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["log", "-1", "--format=%H", "--"])
+        .arg(stale)
+        .output()
+    {
+        if out.status.success() {
+            let commit = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !commit.is_empty() {
+                if let Ok(diff_out) = Command::new("git")
+                    .arg("-C")
+                    .arg(root)
+                    .args(["show", "-M", "--diff-filter=R", "--name-status", "--format="])
+                    .arg(&commit)
+                    .output()
+                {
+                    if diff_out.status.success() {
+                        let diff_text = String::from_utf8_lossy(&diff_out.stdout);
+                        let mut rename_targets = Vec::new();
+                        for line in diff_text.lines() {
+                            let parts: Vec<&str> = line.split('\t').collect();
+                            if parts.len() >= 3 && parts[0].starts_with('R') {
+                                let src = parts[1].trim();
+                                let dst = parts[2].trim();
+                                if src == stale {
+                                    rename_targets.push(dst.to_string());
+                                }
+                            }
+                        }
+                        if rename_targets.len() == 1 {
+                            let dst = &rename_targets[0];
+                            if root.join(dst).exists() {
+                                return RenameSuggestion::Exact(dst.clone());
+                            }
+                        } else if rename_targets.len() > 1 {
+                            return RenameSuggestion::Ambiguous(rename_targets);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Basename matching fallback across tracked files
+    let base = stale.rsplit('/').next().unwrap_or(stale);
+    if let Some(files) = corpus(root) {
+        let mut matches: Vec<String> = files
+            .into_iter()
+            .filter(|f| {
+                let f_base = f.rsplit('/').next().unwrap_or(f);
+                f_base == base && f.as_str() != stale
+            })
+            .collect();
+        matches.sort();
+
+        if matches.len() == 1 {
+            return RenameSuggestion::Exact(matches.into_iter().next().unwrap());
+        } else if matches.len() > 1 {
+            return RenameSuggestion::Ambiguous(matches);
+        }
+    }
+
+    RenameSuggestion::None
+}
+
 pub fn check(root: &Path) -> Report {
     let Some(re) = Res::new() else {
         return cannot_run("the reference patterns did not compile");
@@ -744,5 +825,47 @@ mod tests {
             "a service file with a stale header ref must be reported stale: {:?}",
             rep.findings
         );
+    }
+
+    #[test]
+    fn when_a_stale_path_was_renamed_once_the_system_shall_emit_exactly_one_suggestion() {
+        let d = repo();
+        let r = d.path();
+        let _ = fs::write(r.join("old_module.py"), "# Old module\n");
+        track(r);
+        let _ = Command::new("git").arg("-C").arg(r).args(["commit", "-m", "init old module"]).output();
+
+        let _ = fs::rename(r.join("old_module.py"), r.join("new_module.py"));
+        track(r);
+        let _ = Command::new("git").arg("-C").arg(r).args(["commit", "-m", "rename to new module"]).output();
+
+        let suggestion = suggest_rename(r, "old_module.py");
+        assert_eq!(
+            suggestion,
+            RenameSuggestion::Exact("new_module.py".to_string()),
+            "a renamed path must produce exactly one suggestion: {:?}",
+            suggestion
+        );
+    }
+
+    #[test]
+    fn when_two_or_more_files_match_the_system_shall_emit_no_suggestion_and_list_the_candidates() {
+        let d = repo();
+        let r = d.path();
+        let _ = fs::create_dir_all(r.join("dir_a"));
+        let _ = fs::create_dir_all(r.join("dir_b"));
+        let _ = fs::write(r.join("dir_a/target.py"), "# A\n");
+        let _ = fs::write(r.join("dir_b/target.py"), "# B\n");
+        track(r);
+
+        let suggestion = suggest_rename(r, "target.py");
+        match suggestion {
+            RenameSuggestion::Ambiguous(cands) => {
+                assert_eq!(cands.len(), 2);
+                assert!(cands.contains(&"dir_a/target.py".to_string()));
+                assert!(cands.contains(&"dir_b/target.py".to_string()));
+            }
+            other => panic!("expected Ambiguous candidates, got {:?}", other),
+        }
     }
 }

@@ -1450,3 +1450,22 @@ so long. Let a run finish.
 - next: Advance Desktop OS & bootc substrate (GNOME desktop integration, packages, bootc lifecycle, and FOSS compliance).
 - blockers: -
 - unverified: -
+
+## 2026-09-20 23:40 · mon022_rename_suggestion · MON-022 Rename-History Fix Suggestion in Rust
+- objective: Implement kernel-style rename-history fix suggestion helper in Rust (MON-022), porting the git log --follow -M discipline into doc_refs.rs, emitting exactly one suggestion for unique renames and listing candidates for ambiguous matches.
+- done:
+  1. Rust suggest_rename Implementation (src/mios-rs/mios-gate/src/doc_refs.rs):
+     - Implemented `RenameSuggestion` enum (`None`, `Exact(String)`, `Ambiguous(Vec<String>)`).
+     - Implemented `suggest_rename(root, stale_path)` leveraging `git log -1 --format=%H` for instant commit identification, followed by `git show -M --diff-filter=R --name-status` to extract exact rename records without full-history graph traversals.
+     - Added basename matching fallback across the git-tracked corpus.
+  2. Acceptance Criteria Unit Tests:
+     - Positive control: `when_a_stale_path_was_renamed_once_the_system_shall_emit_exactly_one_suggestion` creates a git repo, commits an initial file, commits a rename, and asserts `RenameSuggestion::Exact("new_module.py")`.
+     - Negative control: `when_two_or_more_files_match_the_system_shall_emit_no_suggestion_and_list_the_candidates` creates two files sharing the same basename in different subdirectories, asserts `RenameSuggestion::Ambiguous` containing both candidates.
+     - Verified: all 125 tests in `mios-gate` pass cleanly.
+  3. Gate & Task Parity:
+     - Marked `MON-022` as done in `.devloop/tasks.jsonl` with verification evidence.
+     - Verified `python3 tools/drift-checks.py legibility-ratchet` holds (`tracked_files = 3071/3071`, `tracked_mb = 203/204`, `tooling_python_lines = 76826/77019`).
+     - Verified `python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema` clean.
+- next: Execute MON-023 (finding-identity baseline replacing raw count gate) and advance Desktop OS & bootc substrate.
+- blockers: -
+- unverified: -
