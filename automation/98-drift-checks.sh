@@ -96,6 +96,20 @@ _need_python() {
     return 1
 }
 
+_gate_bin() {
+    # Folded from 13 copies.  ONE resolution order for the native gate, because
+    # a copy that forgot the debug path made check_version_ssot violate
+    # unconditionally in CI (which builds `cargo build -p mios-gate`, debug).
+    local c
+    for c in "${MIOS_GATE_BIN:-}" \
+             "$ROOT/src/mios-rs/target/release/mios-gate" \
+             "$ROOT/src/mios-rs/target/debug/mios-gate" \
+             /usr/libexec/mios/mios-gate; do
+        [[ -n "$c" && -x "$c" ]] && { printf '%s' "$c"; return 0; }
+    done
+    return 1
+}
+
 _violations_from() {
     # Folded from 42 copies of this loop.
     local __prefix="$1" __blob="$2" line __n=0
@@ -1740,17 +1754,16 @@ check_version_ssot() {
         [[ -n "$_cargo_ver" && "$_cargo_ver" != "$ssot" ]] && bad+="    ${_toml#$ROOT/} version = [$_cargo_ver], expected [$ssot]"$'\n'
     done
 
-    local literal_bad="" exit_code=0
-    # Was set +e / set -e around this call. The restore is unconditional, so it
-    # switched errexit back ON for every check main() dispatched afterwards,
-    # undoing main()'s accumulate mode. Capture the status directly instead.
-    literal_bad="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_CANONICAL_VER="$ssot" python3 tools/drift-checks.py version-literals-ssot 2>&1)" || exit_code=$?
-    if [[ $exit_code -ne 0 ]]; then
+    # Ported to the native gate (ADR-0021), beside doc_refs. No python fallback:
+    # certifying a program other than the one that runs is itself the defect.
+    local literal_bad="" vlbin=""
+    vlbin="$(_gate_bin)" || vlbin=""
+    if [[ -z "$vlbin" ]]; then
+        bad+="    mios-gate is not built, so version literals were NOT scanned -- cd src/mios-rs && cargo build -p mios-gate"$'\n'
+    elif ! literal_bad="$(MIOS_CANONICAL_VER="$ssot" "$vlbin" version-literals-ssot --root "$ROOT" 2>&1)"; then
         bad+="$literal_bad"$'\n'
-    else
-        if [[ -n "$literal_bad" ]]; then
-            echo "$literal_bad" >&2
-        fi
+    elif [[ -n "$literal_bad" ]]; then
+        echo "$literal_bad" >&2
     fi
 
     if [[ -n "$bad" ]]; then
@@ -1869,12 +1882,7 @@ check_render_extension_coverage() {
     # ships verbatim. mios-cockpit-link.socket carried
     # ListenStream=0.0.0.0:${MIOS_PORT_COCKPIT_LINK} because `.socket` was
     # missing from the renderer's find filter (T-1040).
-    local bin="" c
-    for c in "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_render_extension_coverage could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -1963,13 +1971,7 @@ check_ratchet_direction() {
     # also carries the [drift.generated_ceilings] exemption, which a ceiling
     # that is GENERATED rather than hand-maintained needs -- and which must be
     # itemised with a reason, never a bare name.
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_ratchet_direction could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -3185,13 +3187,7 @@ check_law_enforcers() {
     # 99-postcheck.sh target as a bare SUBSTRING, which a comment after `exit 0`
     # satisfied for four laws, and it silently dropped both a bare second
     # enforcer in a comma list and any unrecognised enforcer kind.
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_law_enforcers could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -3458,13 +3454,7 @@ check_signature_policy() {
     # and no drift check. Its own generator's --check compared parsed JSON, so
     # it could not see the tracked file drifting in bytes from what the writer
     # emits -- which it had.
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_signature_policy could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -3483,13 +3473,7 @@ check_projection_coverage() {
     # only, which is silent on a generator that is on NO row. This one
     # enumerates the generators from the SSOT globs and asks whether each is on
     # the register, so an unregistered projector cannot ship unnoticed.
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_projection_coverage could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -3505,13 +3489,7 @@ check_build_tool_dispatch() {
     # Dispatched by ABSOLUTE path, never `command -v`: this check exists
     # because that lookup cannot resolve at bake time (T-1018), so using it
     # here would make the check the first thing it detects.
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_build_tool_dispatch could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -3526,13 +3504,7 @@ check_build_tool_dispatch() {
 # --- every automation/NN-*.sh on disk is a phase build.sh actually runs ---
 check_phase_registry() {
     echo "[98-drift-checks]   every automation/NN-*.sh is registered as a build phase"
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_phase_registry could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -3544,13 +3516,7 @@ check_phase_registry() {
 # --- no miosd drift Check claims a verdict about a tree it never reads ---
 check_drift_stubs() {
     echo "[98-drift-checks]   no miosd drift Check claims a verdict it did not compute"
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_drift_stubs could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -4536,13 +4502,7 @@ check_credential_literals() {
     # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
     # commit. The register now pins path:KEY=VALUE, so a grandfathered KEY whose
     # VALUE becomes an operator's real password is a NEW finding (T-1035).
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_credential_literals could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -4617,13 +4577,7 @@ check_protected_refs() {
     # name can arrive. systemd expands an unset name to empty, so hollow
     # protection reads exactly like working indirection (T-1064). Scope comes
     # from [build.quadlet_render], the renderer's own table.
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_protected_refs could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -4792,13 +4746,7 @@ check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-
 # --- every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register ---
 check_no_inert_ssot_tables() {
     # Ported to mios-gate (ADR-0021, Law 14); python twin deleted (T-1001).
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_no_inert_ssot_tables could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return
@@ -4815,13 +4763,7 @@ check_no_inert_ssot_tables() {
 check_doc_refs_resolve() {
     # Ported to mios-gate (ADR-0021, Law 14); python twin deleted.
     echo "[98-drift-checks] file paths referenced in documentation exist in the repository"
-    local bin="" c
-    for c in "${MIOS_GATE_BIN:-}" \
-             "$ROOT/src/mios-rs/target/release/mios-gate" \
-             "$ROOT/src/mios-rs/target/debug/mios-gate" \
-             /usr/libexec/mios/mios-gate; do
-        [[ -n "$c" && -x "$c" ]] && { bin="$c"; break; }
-    done
+    local c bin; bin="$(_gate_bin)" || bin=""
     if [[ -z "$bin" ]]; then
         _violation "mios-gate is not built, so check_doc_refs_resolve could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
         return

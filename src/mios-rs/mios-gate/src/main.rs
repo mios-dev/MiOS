@@ -16,6 +16,7 @@ mod ratchet;
 mod rendercov;
 mod sigpolicy;
 mod stubs;
+mod version_literals;
 
 use std::process::ExitCode;
 
@@ -82,11 +83,11 @@ impl Report {
 }
 
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
-                     checks: build-tool-dispatch, credential-literals, drift-stubs,\n\
-                             law-enforcers, phase-registry, projection-coverage,\n\
-                             no-inert-ssot-tables, protected-refs, ratchet-direction,\n\
-                             render-coverage,\n\
-                             signature-policy\n";
+                     checks: build-tool-dispatch, credential-literals, doc-refs-resolve,\n\
+                             drift-stubs, law-enforcers, no-inert-ssot-tables,\n\
+                             phase-registry, projection-coverage, protected-refs,\n\
+                             ratchet-direction, render-coverage, signature-policy,\n\
+                             version-literals-ssot\n";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -152,6 +153,7 @@ fn main() -> ExitCode {
         "ratchet-direction" => ratchet::check(&root),
         "render-coverage" => rendercov::check(&root),
         "signature-policy" => sigpolicy::check(&root),
+        "version-literals-ssot" => version_literals::check(&root),
         _ => {
             eprint!("mios-gate: no such check {name:?}\n{USAGE}");
             return ExitCode::from(EXIT_CANNOT_RUN);

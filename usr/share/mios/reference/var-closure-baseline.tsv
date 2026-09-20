@@ -40,7 +40,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 414
+#!ceiling 413
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:607
@@ -91,7 +91,6 @@ MIOS_BUILDS_DIR	config/bootstrap/bootstrap.sh:23
 MIOS_CACHE_BUSTED	Get-MiOS.ps1:312
 MIOS_CACHE_DIR	usr/libexec/mios/user-setup.sh:17
 MIOS_CALLER_KEYS_PATH	usr/lib/mios/agent-pipe/server.py:696
-MIOS_CANONICAL_VER	tools/drift-checks.py:3302
 MIOS_CATALOG_FAIL_MODE	usr/lib/mios/agent-pipe/server.py:344
 MIOS_CAT_SH	installation/mios-install.sh:96
 MIOS_CHECK_ID	usr/lib/mios/log.sh:26

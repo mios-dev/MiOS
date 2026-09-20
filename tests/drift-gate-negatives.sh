@@ -197,7 +197,13 @@ test_names_registry() {
 # directory named build/, so two tracked files left the corpus in silence.
 test_dead_git_corpus() {
     log "Testing the names generator and the version-literal scan against a refusing git"
-    local shim reg before after
+    local shim reg before after VLBIN=""
+    for VLBIN in "${ROOT}/src/mios-rs/target/release/mios-gate" \
+                 "${ROOT}/src/mios-rs/target/debug/mios-gate" \
+                 /usr/libexec/mios/mios-gate ""; do
+        [[ -n "$VLBIN" && -x "$VLBIN" ]] && break
+    done
+    [[ -n "$VLBIN" ]] || die "mios-gate is not built, so the dead-git corpus test has no subject"
     shim="$(mktemp -d)"
     printf '#!/bin/sh\necho "fatal: refusing to list" >&2\nexit 128\n' > "${shim}/git"
     chmod +x "${shim}/git"
@@ -214,8 +220,8 @@ test_dead_git_corpus() {
         die "generate-names-registry.py altered referenced_names.txt while refusing to run"
     fi
 
-    if PATH="${shim}:$PATH" MIOS_DRIFT_ROOT="$ROOT" \
-        python3 "${ROOT}/tools/drift-checks.py" version-literals-ssot >/dev/null 2>&1; then
+    if PATH="${shim}:$PATH" \
+        "$VLBIN" version-literals-ssot --root "$ROOT" >/dev/null 2>&1; then
         rm -rf "$shim"
         die "version-literals-ssot reported clean on a corpus git never gave it"
     fi
@@ -223,7 +229,7 @@ test_dead_git_corpus() {
 
     python3 "${ROOT}/tools/generate-names-registry.py" >/dev/null 2>&1 \
         || die "generate-names-registry.py failed with a working git"
-    MIOS_DRIFT_ROOT="$ROOT" python3 "${ROOT}/tools/drift-checks.py" version-literals-ssot >/dev/null 2>&1 \
+    "$VLBIN" version-literals-ssot --root "$ROOT" >/dev/null 2>&1 \
         || die "version-literals-ssot failed with a working git"
     log "dead-git corpus negative test passed"
 }
@@ -2148,17 +2154,32 @@ test_bake_ref_parity() {
     local script_file="${ROOT}/automation/66-bake-quickshell.sh"
     [[ -f "$script_file" ]] || die "test_bake_ref_parity: $script_file is missing -- the test would otherwise skip silently"
     if true; then
+        # printf X / ${var%X}: $(cat) + echo collapses a non-single-newline tail.
         local orig_val
-        orig_val="$(cat "$script_file")"
+        orig_val="$(cat "$script_file"; printf X)"
+        _bakeref_restore() { printf '%s' "${orig_val%X}" > "$script_file"; }
 
-        sed -i 's/MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v0.3.0/MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v9.9.9/' "$script_file"
+        # Derive the plant from the file, never a literal: the old hardcoded
+        # `:-v0.3.0` stopped matching once the default floated, so the sed no-op'd,
+        # the check passed on a pristine file, and this test blamed the check for
+        # its own stale plant. A no-op mutation must fail loudly (SKILL.md 6).
+        local cur_ref planted='DEVLOOP-PLANTED-BAKEREF-PARITY'
+        cur_ref="$(sed -n 's/.*MIOS_BUILD_BAKE_REFS_QUICKSHELL:-\([^}]*\)}.*/\1/p' "$script_file" | head -1)"
+        [[ -n "$cur_ref" ]] || die "test_bake_ref_parity: no MIOS_BUILD_BAKE_REFS_QUICKSHELL default found in $script_file -- the plant would be a no-op"
+        sed -i "s#MIOS_BUILD_BAKE_REFS_QUICKSHELL:-${cur_ref}}#MIOS_BUILD_BAKE_REFS_QUICKSHELL:-${planted}}#" "$script_file"
+        grep -q "$planted" "$script_file" || {
+            _bakeref_restore
+            die "test_bake_ref_parity: the plant did not land (default read as '${cur_ref}') -- a no-op mutation makes the next assertion meaningless"
+        }
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1; then
-            echo "$orig_val" > "$script_file"
-            die "Check_bake_ref_defaults passed despite wrong bake_ref default"
+            _bakeref_restore
+            die "Check_bake_ref_defaults passed despite wrong bake_ref default '${planted}'"
         fi
 
-        echo "$orig_val" > "$script_file"
+        _bakeref_restore
+        [[ "$(cat "$script_file"; printf X)" == "$orig_val" ]] \
+            || die "test_bake_ref_parity: $script_file was not restored byte-exactly"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1 \
             || die "test_bake_ref_parity: check_bake_ref_defaults failed after restoration"
     fi
