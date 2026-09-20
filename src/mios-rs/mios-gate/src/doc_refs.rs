@@ -8,6 +8,7 @@ use std::process::Command;
 
 const CHECK: &str = "doc-refs-resolve";
 const SSOT: &str = "usr/share/mios/mios.toml";
+const BASELINE_FILE: &str = "usr/share/mios/reference/stale-refs-baseline.tsv";
 const SCAN_EXT: [&str; 16] = [
     ".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
     ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml", ".md",
@@ -375,6 +376,30 @@ pub fn suggest_rename(root: &Path, stale_path: &str) -> RenameSuggestion {
     RenameSuggestion::None
 }
 
+fn load_baseline(root: &Path) -> Option<std::collections::HashSet<String>> {
+    let path = root.join(BASELINE_FILE);
+    if !path.is_file() {
+        return None;
+    }
+    let text = std::fs::read_to_string(&path).ok()?;
+    let mut set = std::collections::HashSet::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some((f, rest)) = trimmed.split_once('\t') {
+            let tok = rest.split('\t').next().unwrap_or(rest).trim();
+            set.insert(format!("{}: {}", f.trim(), tok));
+        } else if let Some((f, tok)) = trimmed.split_once(':') {
+            set.insert(format!("{}: {}", f.trim(), tok.trim()));
+        } else {
+            set.insert(trimmed.to_string());
+        }
+    }
+    Some(set)
+}
+
 pub fn check(root: &Path) -> Report {
     let Some(re) = Res::new() else {
         return cannot_run("the reference patterns did not compile");
@@ -536,10 +561,31 @@ pub fn check(root: &Path) -> Report {
         );
     }
 
+    let baseline = load_baseline(root);
+    if let Some(ref base_set) = baseline {
+        let new_breaks: Vec<&String> = stale.iter().filter(|f| !base_set.contains(*f)).collect();
+        if !new_breaks.is_empty() {
+            let mut findings = vec![format!(
+                "{} new stale reference(s) not in baseline ({}):",
+                new_breaks.len(),
+                BASELINE_FILE
+            )];
+            for nb in new_breaks {
+                findings.push((*nb).clone());
+            }
+            return report(false, String::new(), findings);
+        }
+    }
+
     let n = stale.len() as i64;
-    if n > max_stale {
+    let allowed_ceiling = if baseline.is_some() {
+        baseline.as_ref().map_or(max_stale, |b| b.len() as i64)
+    } else {
+        max_stale
+    };
+    if n > allowed_ceiling {
         let mut findings = vec![format!(
-            "{n} stale reference(s) across {} tracked file(s) (max allowed {max_stale}):",
+            "{n} stale reference(s) across {} tracked file(s) (max allowed {allowed_ceiling}):",
             files.len()
         )];
         // Every one: this list is the backlog someone has to work through, and a
@@ -867,5 +913,36 @@ mod tests {
             }
             other => panic!("expected Ambiguous candidates, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn when_a_diff_fixes_one_reference_and_introduces_a_different_one_at_the_same_total_the_system_shall_fail_the_gate() {
+        let d = repo();
+        let r = d.path();
+        // Setup baseline directory and file containing a known stale ref for a.py
+        let _ = fs::create_dir_all(r.join("usr/share/mios/reference"));
+        let _ = fs::write(
+            r.join(BASELINE_FILE),
+            "a.py\ttools/missing_a.py\tdangling\n",
+        );
+        // a.py is fixed (points to present.py)
+        let _ = fs::write(r.join("present.py"), "x = 1\n");
+        let _ = fs::write(r.join("a.py"), "# AI-related: present.py\n");
+        // b.py introduces a new stale ref (points to tools/missing_b.py)
+        let _ = fs::write(r.join("b.py"), "# AI-related: tools/missing_b.py\n");
+        track(r);
+
+        // Total stale refs count is 1 (equal to baseline count of 1)
+        let rep = check(r);
+        assert!(
+            !rep.ok,
+            "introducing a different reference at the same total must fail the gate: {:?}",
+            rep.findings
+        );
+        assert!(
+            rep.findings.iter().any(|f| f.contains("not in baseline") || f.contains("missing_b.py")),
+            "the findings must name the new break: {:?}",
+            rep.findings
+        );
     }
 }

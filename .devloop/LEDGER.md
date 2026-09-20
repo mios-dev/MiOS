@@ -1469,3 +1469,24 @@ so long. Let a run finish.
 - next: Execute MON-023 (finding-identity baseline replacing raw count gate) and advance Desktop OS & bootc substrate.
 - blockers: -
 - unverified: -
+
+## 2026-09-20 23:43 · mon023_finding_identity_baseline · MON-023 Finding-Identity Baseline in Rust doc_refs
+- objective: Replace raw count gate with finding-identity baseline keyed (file, token, reason) in doc_refs.rs (MON-023), ensuring a diff cannot trade one fix for one new break at the same total count.
+- done:
+  1. Finding-Identity Baseline Implementation (src/mios-rs/mios-gate/src/doc_refs.rs):
+     - Added `BASELINE_FILE` constant pointing to `usr/share/mios/reference/stale-refs-baseline.tsv`.
+     - Implemented `load_baseline(root)` parser reading TSV / formatted finding keys into a HashSet.
+     - Updated `check(root)` to check current findings against the baseline: any new finding not grandfathered in the baseline triggers immediate failure, preventing trading one fix for a new break.
+  2. Acceptance Criteria Unit Test:
+     - Implemented `when_a_diff_fixes_one_reference_and_introduces_a_different_one_at_the_same_total_the_system_shall_fail_the_gate`:
+       - Writes baseline with `a.py: tools/missing_a.py`.
+       - Fixes `a.py` and introduces new stale ref in `b.py: tools/missing_b.py` (total count stays 1).
+       - Asserts gate failure with finding identifying `missing_b.py` as not in baseline.
+     - Verified: all 126 `mios-gate` cargo tests pass cleanly.
+  3. Gate & Task Parity:
+     - Marked `MON-023` as done in `.devloop/tasks.jsonl` with verification evidence.
+     - Verified `python3 tools/drift-checks.py legibility-ratchet` holds (`tracked_files = 3071/3071`, `tracked_mb = 203/204`, `tooling_python_lines = 76826/77019`).
+     - Verified `python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema` clean.
+- next: Advance Desktop OS & bootc substrate (GNOME desktop integration, packages, bootc lifecycle, and FOSS compliance).
+- blockers: -
+- unverified: -
