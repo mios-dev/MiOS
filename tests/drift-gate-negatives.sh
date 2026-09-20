@@ -198,7 +198,9 @@ test_names_registry() {
 test_dead_git_corpus() {
     log "Testing the names generator and the version-literal scan against a refusing git"
     local shim reg before after VLBIN=""
-    for VLBIN in /usr/libexec/mios/mios-gate "${ROOT}/src/mios-rs/target/release/mios-gate" ""; do
+    for VLBIN in "${ROOT}/src/mios-rs/target/release/mios-gate" \
+                 "${ROOT}/src/mios-rs/target/debug/mios-gate" \
+                 /usr/libexec/mios/mios-gate ""; do
         [[ -n "$VLBIN" && -x "$VLBIN" ]] && break
     done
     [[ -n "$VLBIN" ]] || die "mios-gate is not built, so the dead-git corpus test has no subject"
