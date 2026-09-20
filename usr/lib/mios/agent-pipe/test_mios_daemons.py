@@ -43,18 +43,13 @@ class GossipLoopTest(unittest.TestCase):
 
         class _Resp:
             status_code = 200
-
             @staticmethod
-            def json():
-                return {"peers": [{"id": "fresh", "endpoint": "http://fresh",
-                                   "heartbeat": 2}]}
+            def json(): return {"peers": [{"id": "fresh", "endpoint": "http://fresh", "heartbeat": 2}]}
 
         class _Client:
-            async def get(self, _url, timeout=5.0):
-                return _Resp()
+            async def get(self, _url, timeout=5.0): return _Resp()
 
-        async def _get_client():
-            return _Client()
+        async def _get_client(): return _Client()
 
         sleeper = _CancelAfter(fire_after=2)
         orig_sleep = mios_daemons.asyncio.sleep
@@ -265,6 +260,21 @@ class SelfImproveActPassTest(unittest.TestCase):
         for k, v in saved.items():
             setattr(mios_daemons, k, v)
 
+    def _setup_act(self, report, draft, evaluate, execute):
+        saved = {k: getattr(mios_daemons, k) for k in (
+            "_toml_section", "_selfimprove_report", "_act_draft_proposal",
+            "_act_evaluate_proposal", "_mios_pg"
+        )}
+        mios_daemons._toml_section = lambda _s: {
+            "act_enabled": True, "improvable_targets": ["zq_ok"],
+            "protected_targets": ["zp_no"], "accept_margin": 0.0,
+            "max_proposals_per_pass": 3}
+        mios_daemons._selfimprove_report = report
+        mios_daemons._act_draft_proposal = draft
+        mios_daemons._act_evaluate_proposal = evaluate
+        mios_daemons._mios_pg = _PG(execute)
+        return saved
+
     def test_disabled_is_noop(self):
         drafted = {"called": False}
 
@@ -303,19 +313,7 @@ class SelfImproveActPassTest(unittest.TestCase):
             captured.append((sql, params))
             return None
 
-        saved = {"_toml_section": mios_daemons._toml_section,
-                 "_selfimprove_report": mios_daemons._selfimprove_report,
-                 "_act_draft_proposal": mios_daemons._act_draft_proposal,
-                 "_act_evaluate_proposal": mios_daemons._act_evaluate_proposal,
-                 "_mios_pg": mios_daemons._mios_pg}
-        mios_daemons._toml_section = lambda _s: {
-            "act_enabled": True, "improvable_targets": ["zq_ok"],
-            "protected_targets": ["zp_no"], "accept_margin": 0.0,
-            "max_proposals_per_pass": 3}
-        mios_daemons._selfimprove_report = _report
-        mios_daemons._act_draft_proposal = _draft
-        mios_daemons._act_evaluate_proposal = _evaluate
-        mios_daemons._mios_pg = _PG(_execute)
+        saved = self._setup_act(_report, _draft, _evaluate, _execute)
         try:
             out = _run(mios_daemons._selfimprove_act_pass())
         finally:
@@ -345,19 +343,7 @@ class SelfImproveActPassTest(unittest.TestCase):
         async def _execute(sql, params, fetch=False):
             captured.append((sql, params))
 
-        saved = {"_toml_section": mios_daemons._toml_section,
-                 "_selfimprove_report": mios_daemons._selfimprove_report,
-                 "_act_draft_proposal": mios_daemons._act_draft_proposal,
-                 "_act_evaluate_proposal": mios_daemons._act_evaluate_proposal,
-                 "_mios_pg": mios_daemons._mios_pg}
-        mios_daemons._toml_section = lambda _s: {
-            "act_enabled": True, "improvable_targets": ["zq_ok"],
-            "protected_targets": ["zp_no"], "accept_margin": 0.0,
-            "max_proposals_per_pass": 3}
-        mios_daemons._selfimprove_report = _report
-        mios_daemons._act_draft_proposal = _draft
-        mios_daemons._act_evaluate_proposal = _evaluate
-        mios_daemons._mios_pg = _PG(_execute)
+        saved = self._setup_act(_report, _draft, _evaluate, _execute)
         try:
             out = _run(mios_daemons._selfimprove_act_pass())
         finally:
@@ -384,19 +370,7 @@ class SelfImproveActPassTest(unittest.TestCase):
         async def _execute(sql, params, fetch=False):
             captured.append((sql, params))
 
-        saved = {"_toml_section": mios_daemons._toml_section,
-                 "_selfimprove_report": mios_daemons._selfimprove_report,
-                 "_act_draft_proposal": mios_daemons._act_draft_proposal,
-                 "_act_evaluate_proposal": mios_daemons._act_evaluate_proposal,
-                 "_mios_pg": mios_daemons._mios_pg}
-        mios_daemons._toml_section = lambda _s: {
-            "act_enabled": True, "improvable_targets": ["zq_ok"],
-            "protected_targets": ["zp_no"], "accept_margin": 0.0,
-            "max_proposals_per_pass": 3}
-        mios_daemons._selfimprove_report = _report
-        mios_daemons._act_draft_proposal = _draft
-        mios_daemons._act_evaluate_proposal = _evaluate
-        mios_daemons._mios_pg = _PG(_execute)
+        saved = self._setup_act(_report, _draft, _evaluate, _execute)
         try:
             out = _run(mios_daemons._selfimprove_act_pass())
         finally:
@@ -485,29 +459,21 @@ struct_passwd = namedtuple("struct_passwd", ["pw_name", "pw_passwd", "pw_uid", "
 struct_group = namedtuple("struct_group", ["gr_name", "gr_passwd", "gr_gid", "gr_mem"])
 
 class MockPwdModule:
-    def __init__(self):
-        self.users = {}
+    def __init__(self): self.users = {}
     def getpwnam(self, name):
-        if name in self.users:
-            return self.users[name]
+        if name in self.users: return self.users[name]
         raise KeyError(name)
-    def getpwall(self):
-        return list(self.users.values())
+    def getpwall(self): return list(self.users.values())
 
 class MockGrpModule:
-    def __init__(self):
-        self.groups_by_id = {}
-        self.groups_by_name = {}
+    def __init__(self): self.groups_by_id = {}; self.groups_by_name = {}
     def getgrgid(self, gid):
-        if gid in self.groups_by_id:
-            return self.groups_by_id[gid]
+        if gid in self.groups_by_id: return self.groups_by_id[gid]
         raise KeyError(gid)
     def getgrnam(self, name):
-        if name in self.groups_by_name:
-            return self.groups_by_name[name]
+        if name in self.groups_by_name: return self.groups_by_name[name]
         raise KeyError(name)
-    def getgrall(self):
-        return list(self.groups_by_name.values())
+    def getgrall(self): return list(self.groups_by_name.values())
 
 mock_pwd = MockPwdModule()
 mock_grp = MockGrpModule()
@@ -529,26 +495,15 @@ class TestMiosAccountSync(unittest.TestCase):
         mock_pwd.users.clear()
         mock_grp.groups_by_id.clear()
         mock_grp.groups_by_name.clear()
-
         mock_grp.groups_by_id[1000] = struct_group("mios", "x", 1000, [])
         mock_grp.groups_by_name["mios"] = mock_grp.groups_by_id[1000]
 
     @patch("subprocess.run")
     @patch("os.path.isfile")
     def test_sync_create_user(self, mock_isfile, mock_run):
-        db_accounts = [{
-            "name": "testuser",
-            "password_hash": "hash123",
-            "uid": 1005,
-            "gid": 1000,
-            "display": "Test User",
-            "home_dir": "/var/home/testuser",
-            "shell": "/bin/bash",
-            "groups": "wheel,libvirt",
-            "is_admin": True,
-            "enabled": True
-        }]
-
+        db_accounts = [{"name": "testuser", "password_hash": "hash123", "uid": 1005, "gid": 1000,
+                        "display": "Test User", "home_dir": "/var/home/testuser", "shell": "/bin/bash",
+                        "groups": "wheel,libvirt", "is_admin": True, "enabled": True}]
         mock_isfile.return_value = False  # no state file
         mock_run.return_value = MagicMock(returncode=0, stdout="")
 
@@ -574,20 +529,9 @@ class TestMiosAccountSync(unittest.TestCase):
         mock_pwd.users["testuser"] = struct_passwd(
             "testuser", "x", 1005, 1000, "Old Name", "/var/home/testuser", "/bin/sh"
         )
-
-        db_accounts = [{
-            "name": "testuser",
-            "password_hash": "hash123",
-            "uid": 1005,
-            "gid": 1000,
-            "display": "New Name",
-            "home_dir": "/var/home/testuser",
-            "shell": "/bin/bash",
-            "groups": "",
-            "is_admin": False,
-            "enabled": True
-        }]
-
+        db_accounts = [{"name": "testuser", "password_hash": "hash123", "uid": 1005, "gid": 1000,
+                        "display": "New Name", "home_dir": "/var/home/testuser", "shell": "/bin/bash",
+                        "groups": "", "is_admin": False, "enabled": True}]
         mock_isfile.return_value = False
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -612,23 +556,11 @@ class TestMiosAccountSync(unittest.TestCase):
         mock_pwd.users["testuser"] = struct_passwd(
             "testuser", "x", 1005, 1000, "Test User", "/var/home/testuser", "/bin/bash"
         )
-
-        db_accounts = [{
-            "name": "testuser",
-            "password_hash": "old_hash",
-            "uid": 1005,
-            "gid": 1000,
-            "display": "Test User",
-            "home_dir": "/var/home/testuser",
-            "shell": "/bin/bash",
-            "groups": "",
-            "is_admin": False,
-            "enabled": True
-        }]
-
+        db_accounts = [{"name": "testuser", "password_hash": "old_hash", "uid": 1005, "gid": 1000,
+                        "display": "Test User", "home_dir": "/var/home/testuser", "shell": "/bin/bash",
+                        "groups": "", "is_admin": False, "enabled": True}]
         mock_isfile.return_value = True
         mock_run.return_value = MagicMock(returncode=0)
-
         state_data = '{"testuser": "old_hash"}'
         shadow_data = {"testuser": "new_local_hash"}
 
@@ -647,23 +579,11 @@ class TestMiosAccountSync(unittest.TestCase):
         mock_pwd.users["testuser"] = struct_passwd(
             "testuser", "x", 1005, 1000, "Test User", "/var/home/testuser", "/bin/bash"
         )
-
-        db_accounts = [{
-            "name": "otheruser",
-            "password_hash": "hash321",
-            "uid": 1006,
-            "gid": 1000,
-            "display": "Other User",
-            "home_dir": "/var/home/otheruser",
-            "shell": "/bin/bash",
-            "groups": "",
-            "is_admin": False,
-            "enabled": True
-        }]
-
+        db_accounts = [{"name": "otheruser", "password_hash": "hash321", "uid": 1006, "gid": 1000,
+                        "display": "Other User", "home_dir": "/var/home/otheruser", "shell": "/bin/bash",
+                        "groups": "", "is_admin": False, "enabled": True}]
         mock_isfile.return_value = False
         mock_run.return_value = MagicMock(returncode=0)
-
         shadow_data = {"testuser": "$6$somehash"}
 
         with patch.object(sync_mod, "query_db_accounts", return_value=db_accounts):
@@ -675,17 +595,7 @@ class TestMiosAccountSync(unittest.TestCase):
         lock_called = any(cmd == ["usermod", "-L", "testuser"] for cmd in calls)
         self.assertTrue(lock_called, "Should lock local user missing from DB using usermod -L")
 
-
-def _run_extra_account_sync():
-    import os
-    _saved_env = dict(os.environ)
-    try:
-        return 0
-    except SystemExit as _e:
-        return _e.code if _e.code is not None else 0
-    finally:
-        os.environ.clear()
-        os.environ.update(_saved_env)
+def _run_extra_account_sync(): return 0
 
 
 
@@ -714,33 +624,12 @@ async def _main_conductor():
         yaml_instance = MagicMock()
         yaml_instance.load.return_value = {
             "steps": [
-                {
-                    "name": "step1",
-                    "action": "shell",
-                    "args": {"cmd": "echo 'step 1'"}
-                },
-                {
-                    "name": "parallel_group",
-                    "parallel": True,
-                    "fail_fast": True,
-                    "steps": [
-                        {
-                            "name": "step2a",
-                            "action": "shell",
-                            "args": {"cmd": "echo 'step 2a'"}
-                        },
-                        {
-                            "name": "step2b_fail",
-                            "action": "shell",
-                            "args": {"cmd": "exit 1"}
-                        }
-                    ]
-                },
-                {
-                    "name": "step3_skipped",
-                    "action": "shell",
-                    "args": {"cmd": "echo 'step 3'"}
-                }
+                {"name": "step1", "action": "shell", "args": {"cmd": "echo 'step 1'"}},
+                {"name": "parallel_group", "parallel": True, "fail_fast": True, "steps": [
+                    {"name": "step2a", "action": "shell", "args": {"cmd": "echo 'step 2a'"}},
+                    {"name": "step2b_fail", "action": "shell", "args": {"cmd": "exit 1"}},
+                ]},
+                {"name": "step3_skipped", "action": "shell", "args": {"cmd": "echo 'step 3'"}},
             ]
         }
         yaml_mock.YAML.return_value = yaml_instance
@@ -758,40 +647,31 @@ async def _main_conductor():
         process_mock_fail.returncode = 1
 
         def side_effect(cmd, **kwargs):
-            if "exit 1" in cmd:
-                return process_mock_fail
-            return process_mock_success
+            return process_mock_fail if "exit 1" in cmd else process_mock_success
 
         with patch("asyncio.create_subprocess_shell", side_effect=AsyncMock(side_effect=side_effect)) as m_subprocess:
             res = await mios_conductor.execute_conductor_workflow("test-workflow", {})
             print("Result:", res)
             assert res["success"] is False, "Workflow should fail due to step2b_fail"
             assert res["workflow"] == "test-workflow"
-
             assert len(res["results"]) == 3, f"Expected 3 step results, got {len(res['results'])}"
             assert res["results"][0]["step"] == "step1"
             assert res["results"][1]["step"] == "step2a"
             assert res["results"][2]["step"] == "step2b_fail"
-
             print("PASS: Conductor deterministic orchestration via DAG handler.")
 
-
 def _run_extra_conductor():
-    import os
     _saved_env = dict(os.environ)
     try:
-        import asyncio
         return asyncio.run(_main_conductor())
     except SystemExit as _e:
         return _e.code if _e.code is not None else 0
     finally:
-        os.environ.clear()
-        os.environ.update(_saved_env)
+        os.environ.clear(); os.environ.update(_saved_env)
 
 class TestFolded_conductor(unittest.TestCase):
     def test_run_folded(self):
-        rc = _run_extra_conductor()
-        self.assertIn(rc, (None, 0))
+        self.assertIn(_run_extra_conductor(), (None, 0))
 
 
 
@@ -808,17 +688,12 @@ import mios_agent_call
 import mios_pipe.routing.agent_call as target_module
 
 class AsyncContextMock:
-    def __init__(self, *args, **kwargs):
-        pass
-    async def __aenter__(self):
-        return self
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
-    def __call__(self, *args, **kwargs):
-        return self
+    def __init__(self, *args, **kwargs): pass
+    async def __aenter__(self): return self
+    async def __aexit__(self, exc_type, exc_val, exc_tb): pass
+    def __call__(self, *args, **kwargs): return self
 
-async def dummy_async(*args, **kwargs):
-    pass
+async def dummy_async(*args, **kwargs): pass
 
 class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
 
@@ -830,12 +705,9 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
         target_module._opt_int_mb = lambda x: int(x or 0)
         target_module._lane_sem_key = lambda cfg: "test-lane"
         target_module._strip_agent_chrome = lambda text: text
-
         self.old_rr_enable = target_module.RR_ENABLE
         target_module.RR_ENABLE = False
-
-        class MockSloShed(Exception):
-            pass
+        class MockSloShed(Exception): pass
         target_module._SloShed = MockSloShed
 
     async def asyncTearDown(self):
@@ -852,10 +724,8 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
         mock_offload.return_value = None
 
         mock_threshold.side_effect = lambda key, default: {
-            "big_ram_model": "mistral-magistral-small-2509",
-            "max_cpu_percent": 85.0,
-            "max_vram_percent": 90.0,
-            "small_ram_model": "granite4.1:8b"
+            "big_ram_model": "mistral-magistral-small-2509", "max_cpu_percent": 85.0,
+            "max_vram_percent": 90.0, "small_ram_model": "granite4.1:8b"
         }.get(key, default)
 
         mock_binding.side_effect = [
@@ -865,8 +735,8 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
 
         cfg = {"vram_mb": 4096}
         body = {"messages": [{"role": "user", "content": "hello"}]}
-
         called_with_cpu = False
+
         async def mock_inner(name, cfg, body, headers, client, prefer_cpu=True):
             nonlocal called_with_cpu
             called_with_cpu = True
@@ -879,7 +749,6 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
              patch("mios_pipe.routing.agent_call._lane_sem", AsyncContextMock), \
              patch("mios_pipe.routing.agent_call._model_active", dummy_async), \
              patch("mios_pipe.routing.agent_call._record_cost", MagicMock()):
-
             name, text = await target_module._call_agent_complete(
                 "test-agent", cfg, body, {}, MagicMock(), prefer_cpu=False, priority=1.0
             )
@@ -908,48 +777,21 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
              patch("mios_pipe.routing.agent_call._model_active", dummy_async), \
              patch("mios_pipe.routing.agent_call._record_cost", MagicMock()), \
              patch("mios_pipe.routing.agent_call._agent_binding", lambda c, e: ("http://localhost:8450/v1", "granite4.1:8b")):
-
-            t1 = asyncio.create_task(
-                target_module._call_agent_complete("agent1", cfg, body, {}, MagicMock(), priority=1.0)
-            )
-            t2 = asyncio.create_task(
-                target_module._call_agent_complete("agent1", cfg, body, {}, MagicMock(), priority=1.0)
-            )
-
-            res1 = await t1
-            res2 = await t2
+            t1 = asyncio.create_task(target_module._call_agent_complete("agent1", cfg, body, {}, MagicMock(), priority=1.0))
+            t2 = asyncio.create_task(target_module._call_agent_complete("agent1", cfg, body, {}, MagicMock(), priority=1.0))
+            res1, res2 = await t1, await t2
 
         self.assertEqual(inner_calls, 1)
         self.assertEqual(res1, res2)
         self.assertEqual(res1[1], "response 1")
 
-
-def _run_extra_daemon():
-    import os
-    _saved_env = dict(os.environ)
-    try:
-        return 0
-    except SystemExit as _e:
-        return _e.code if _e.code is not None else 0
-    finally:
-        os.environ.clear()
-        os.environ.update(_saved_env)
-
-
+def _run_extra_daemon(): return 0
 
 def _run_all_folded_daemons_suites():
-    rc = _run_extra_account_sync()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
-    rc = _run_extra_conductor()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
-    rc = _run_extra_daemon()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
+    for fn in (_run_extra_account_sync, _run_extra_conductor, _run_extra_daemon):
+        if (rc := fn()) not in (None, 0):
+            import sys
+            sys.exit(f"Folded test suite failed: exit code {rc}")
 
 if __name__ == "__main__":
     unittest.main()

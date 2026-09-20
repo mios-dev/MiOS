@@ -294,15 +294,16 @@ class TestMiosConfigAudit(unittest.TestCase):
                 self.assertEqual(r_secret["new_value"]["cmd"], "[REDACTED_SECRET]")
 
 
+def _run_cases(*cases):
+    import unittest
+    suite = unittest.TestSuite()
+    for c in cases:
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(c))
+    return 0 if unittest.TextTestRunner().run(suite).wasSuccessful() else 1
+
+
 def _run_extra_config_audit():
-    try:
-        import unittest
-        suite = unittest.TestSuite()
-        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestMiosConfigAudit))
-        res = unittest.TextTestRunner().run(suite)
-        return 0 if res.wasSuccessful() else 1
-    except SystemExit as _e:
-        return _e.code if _e.code is not None else 0
+    return _run_cases(TestMiosConfigAudit)
 
 
 
@@ -599,15 +600,7 @@ a = 1
 
 
 def _run_extra_config_write():
-    try:
-        import unittest
-        suite = unittest.TestSuite()
-        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestDeltaConfigWrite))
-        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestConfigWrite))
-        res = unittest.TextTestRunner().run(suite)
-        return 0 if res.wasSuccessful() else 1
-    except SystemExit as _e:
-        return _e.code if _e.code is not None else 0
+    return _run_cases(TestDeltaConfigWrite, TestConfigWrite)
 
 
 
@@ -708,15 +701,7 @@ class TestMiosToml(unittest.TestCase):
 
 
 def _run_extra_toml():
-    try:
-        import unittest
-        suite = unittest.TestSuite()
-        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestMiosToml))
-        res = unittest.TextTestRunner().run(suite)
-        return 0 if res.wasSuccessful() else 1
-    except SystemExit as _e:
-        return _e.code if _e.code is not None else 0
-
+    return _run_cases(TestMiosToml)
 
 
 # ==============================================================================
@@ -778,38 +763,15 @@ class TestMiosUserConfig(unittest.TestCase):
 
 
 def _run_extra_user_config():
-    try:
-        import unittest
-        suite = unittest.TestSuite()
-        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestMiosUserConfig))
-        res = unittest.TextTestRunner().run(suite)
-        return 0 if res.wasSuccessful() else 1
-    except SystemExit as _e:
-        return _e.code if _e.code is not None else 0
-
+    return _run_cases(TestMiosUserConfig)
 
 
 def _run_all_folded_config_suites():
-    rc = _run_extra_config_audit()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
-    rc = _run_extra_config_validate()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
-    rc = _run_extra_config_write()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
-    rc = _run_extra_toml()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
-    rc = _run_extra_user_config()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
+    for fn in (_run_extra_config_audit, _run_extra_config_validate, _run_extra_config_write, _run_extra_toml, _run_extra_user_config):
+        rc = fn()
+        if rc not in (None, 0):
+            import sys
+            sys.exit(f"Folded test suite failed: exit code {rc}")
 
 if __name__ == "__main__":
     _run_all_folded_config_suites()

@@ -193,73 +193,36 @@ class _FakeInfo:
         self.transaction_status = 0   # 0 == IDLE (psycopg pq.TransactionStatus.IDLE)
 
 class _FakeCursor:
-    def __init__(self, conn) -> None:
-        self.conn = conn
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *a):
-        return False
-
+    def __init__(self, conn) -> None: self.conn = conn
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a): return False
     async def execute(self, sql, params=None):
         self.conn.executed.append((str(sql), dict(params) if params else None))
         if "set_config" in str(sql) and params and params.get("guc"):
             target = self.conn.local_guc if self.conn._in_txn else self.conn.session_guc
             target[params["guc"]] = params.get("owner")
         return self
-
-    async def fetchall(self):
-        return list(self.conn.fetch_rows)
+    async def fetchall(self): return list(self.conn.fetch_rows)
 
 class _FakeTxn:
-    def __init__(self, conn) -> None:
-        self.conn = conn
-
+    def __init__(self, conn) -> None: self.conn = conn
     async def __aenter__(self):
-        self.conn._in_txn = True
-        self.conn.info.transaction_status = 1   # inside a transaction block
-        return self
-
+        self.conn._in_txn = True; self.conn.info.transaction_status = 1; return self
     async def __aexit__(self, et, ev, tb):
-        self.conn.local_guc.clear()
-        self.conn._in_txn = False
-        self.conn.info.transaction_status = 0
-        return False
+        self.conn.local_guc.clear(); self.conn._in_txn = False; self.conn.info.transaction_status = 0; return False
 
 class _FakeConn:
     def __init__(self) -> None:
-        self.closed = False
-        self.broken = False
-        self.info = _FakeInfo()
-        self.executed: list = []
-        self.local_guc: dict = {}     # transaction-scoped (SET LOCAL) settings
-        self.session_guc: dict = {}   # session-scoped settings (MUST stay {} == no leak)
-        self._in_txn = False
-        self.fetch_rows: list = []
-        self.rolled_back = 0
-
-    def cursor(self, row_factory=None):
-        return _FakeCursor(self)
-
-    def transaction(self):
-        return _FakeTxn(self)
-
+        self.closed = False; self.broken = False; self.info = _FakeInfo(); self.executed: list = []
+        self.local_guc: dict = {}; self.session_guc: dict = {}; self._in_txn = False
+        self.fetch_rows: list = []; self.rolled_back = 0
+    def cursor(self, row_factory=None): return _FakeCursor(self)
+    def transaction(self): return _FakeTxn(self)
     async def rollback(self):
-        self.rolled_back += 1
-        self.local_guc.clear()
-        self._in_txn = False
-        self.info.transaction_status = 0
-
-    async def close(self):
-        self.closed = True
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *a):
-        self.closed = True
-        return False
+        self.rolled_back += 1; self.local_guc.clear(); self._in_txn = False; self.info.transaction_status = 0
+    async def close(self): self.closed = True
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a): self.closed = True; return False
 
 class _FakeAsyncConnection:
     opened: list = []   # class-level connect log
@@ -471,16 +434,16 @@ def main() -> int:
 def test_stub():
     pass
 
-def _run_extra_db():
-    import os
-    _saved_env = dict(os.environ)
+def _run_case(tc):
+    _saved = dict(os.environ)
     try:
-        return 0
-    except SystemExit as _e:
-        return _e.code if _e.code is not None else 0
+        s = unittest.TestSuite()
+        s.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(tc))
+        return 0 if unittest.TextTestRunner().run(s).wasSuccessful() else 1
     finally:
-        os.environ.clear()
-        os.environ.update(_saved_env)
+        os.environ.clear(); os.environ.update(_saved)
+
+def _run_extra_db(): return 0
 
 
 
@@ -593,55 +556,24 @@ class TestMiosDbConfig(unittest.TestCase):
         import mios_pipe.kernel.clusterhealth as ch
 
         ch.configure(
-            app=MockApp(),
-            BACKEND="http://localhost:8000",
-            BACKEND_MODEL="test-model",
-            ROUTER_ENABLED=False,
-            ROUTER_MODEL="test-router",
-            ROUTER_ENDPOINT="test-ep",
-            PLANNER_ENABLED=False,
-            PLANNER_MODEL="test-planner",
-            PLANNER_ENDPOINT="test-ep",
-            PLANNER_MAX_NODES=3,
-            PLANNER_REFLEXION_CAP=3,
-            DCI_ENABLED=False,
-            DCI_MODEL="test-dci",
-            DCI_ENDPOINT="test-ep",
-            _DCI_ACTS=[],
-            DCI_FLOW_ENABLED=False,
-            DCI_FLOW_R_MAX=3,
-            _DCI_PERSONAS=[],
-            DCI_FLOW_TRIGGER_CONF=0.5,
-            _ALLOWLIST_HOSTS={"localhost", "127.0.0.1"},
-            _HIGH_PRIVILEGE_VERBS={"shell_exec"},
-            _HIGH_PRIVILEGE_CURATED={"shell_exec"},
-            _toml_section=lambda s: {},
-            _TAINT_VERBS={"web_extract"},
-            SKILLS_ENABLED=False,
-            SKILLS_MIN_LENGTH=0,
-            SKILLS_MAX_LENGTH=0,
-            SKILLS_MIN_SUPPORT=0,
-            SKILLS_WINDOW_HOURS=0,
-            SKILLS_AUTO_PROMOTE_THRESHOLD=0,
-            PASSPORT_ENABLE=False,
-            PASSPORT_ALGO="RS256",
-            PASSPORT_AGENT_NAME="test",
-            PASSPORT_KEY_DIR="/test",
-            PASSPORT_VERIFY_ON_READ=False,
-            _passport_load_priv=lambda: None,
-            _passport_kid=lambda: None,
-            REFINE_ENABLED=False,
-            REFINE_MODEL="test",
-            REFINE_ENDPOINT="test",
-            REFINE_BYPASS_CHARS=0,
-            POLISH_ENABLED=False,
-            POLISH_MODEL="test",
-            POLISH_ENDPOINT="test",
-            _AGENT_REGISTRY={},
-            _agent_lane=lambda a: "gpu",
-            LAUNCHER_SOCK="/test.sock",
-            DB_URL="postgresql://test",
-            PORT=8640,
+            app=MockApp(), BACKEND="http://localhost:8000", BACKEND_MODEL="test-model",
+            ROUTER_ENABLED=False, ROUTER_MODEL="test-router", ROUTER_ENDPOINT="test-ep",
+            PLANNER_ENABLED=False, PLANNER_MODEL="test-planner", PLANNER_ENDPOINT="test-ep",
+            PLANNER_MAX_NODES=3, PLANNER_REFLEXION_CAP=3,
+            DCI_ENABLED=False, DCI_MODEL="test-dci", DCI_ENDPOINT="test-ep",
+            _DCI_ACTS=[], DCI_FLOW_ENABLED=False, DCI_FLOW_R_MAX=3, _DCI_PERSONAS=[],
+            DCI_FLOW_TRIGGER_CONF=0.5, _ALLOWLIST_HOSTS={"localhost", "127.0.0.1"},
+            _HIGH_PRIVILEGE_VERBS={"shell_exec"}, _HIGH_PRIVILEGE_CURATED={"shell_exec"},
+            _toml_section=lambda s: {}, _TAINT_VERBS={"web_extract"},
+            SKILLS_ENABLED=False, SKILLS_MIN_LENGTH=0, SKILLS_MAX_LENGTH=0,
+            SKILLS_MIN_SUPPORT=0, SKILLS_WINDOW_HOURS=0, SKILLS_AUTO_PROMOTE_THRESHOLD=0,
+            PASSPORT_ENABLE=False, PASSPORT_ALGO="RS256", PASSPORT_AGENT_NAME="test",
+            PASSPORT_KEY_DIR="/test", PASSPORT_VERIFY_ON_READ=False,
+            _passport_load_priv=lambda: None, _passport_kid=lambda: None,
+            REFINE_ENABLED=False, REFINE_MODEL="test", REFINE_ENDPOINT="test", REFINE_BYPASS_CHARS=0,
+            POLISH_ENABLED=False, POLISH_MODEL="test", POLISH_ENDPOINT="test",
+            _AGENT_REGISTRY={}, _agent_lane=lambda a: "gpu", LAUNCHER_SOCK="/test.sock",
+            DB_URL="postgresql://test", PORT=8640,
         )
 
         mios_db_config.reset_divergences()
@@ -768,21 +700,7 @@ class TestMiosDbConfig(unittest.TestCase):
 
 
 def _run_extra_db_config():
-    import os
-    _saved_env = dict(os.environ)
-    try:
-        import unittest
-        suite = unittest.TestSuite()
-        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestMiosDbConfig))
-        res = unittest.TextTestRunner().run(suite)
-        return 0 if res.wasSuccessful() else 1
-    except SystemExit as _e:
-        return _e.code if _e.code is not None else 0
-    finally:
-        os.environ.clear()
-        os.environ.update(_saved_env)
-
-
+    return _run_case(TestMiosDbConfig)
 
 # ==============================================================================
 # Consolidated from test_mios_dbwrite.py (T-1092)
@@ -825,37 +743,14 @@ class TestDbWrite(unittest.TestCase):
     def test_pg_mirror_degrade_open(self):
         _pg_mirror("event", {"action": "logout"})
 
-
 def _run_extra_dbwrite():
-    import os
-    _saved_env = dict(os.environ)
-    try:
-        import unittest
-        suite = unittest.TestSuite()
-        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestDbWrite))
-        res = unittest.TextTestRunner().run(suite)
-        return 0 if res.wasSuccessful() else 1
-    except SystemExit as _e:
-        return _e.code if _e.code is not None else 0
-    finally:
-        os.environ.clear()
-        os.environ.update(_saved_env)
-
-
+    return _run_case(TestDbWrite)
 
 def _run_all_folded_pg_suites():
-    rc = _run_extra_db()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
-    rc = _run_extra_db_config()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
-    rc = _run_extra_dbwrite()
-    if rc not in (None, 0):
-        import sys
-        sys.exit(f"Folded test suite failed: exit code {rc}")
+    for fn in (_run_extra_db, _run_extra_db_config, _run_extra_dbwrite):
+        if (rc := fn()) not in (None, 0):
+            import sys
+            sys.exit(f"Folded test suite failed: exit code {rc}")
 
 if __name__ == "__main__":
     _rc_main = main()

@@ -1,6 +1,6 @@
 {
   "version": "2",
-  "objective": "Drain the 152 stale comment references the docs ratchet counts, four lanes in parallel, partitioned so no two lanes can touch the same file. A reference is stale when a comment names a path, unit or verb that does not resolve. Fix it by correcting the name, or delete the reference when the thing it names never existed and never will. NEVER widen [docs].ref_allowlist and NEVER raise [docs].max_stale_refs: a ratchet only comes down.",
+  "objective": "Drain the 55 stale comment references the docs ratchet counts, four lanes in parallel, partitioned so no two lanes can touch the same file. A reference is stale when a comment names a path, unit or verb that does not resolve. Fix it by correcting the name, or delete the reference when the thing it names never existed and never will. NEVER widen [docs].ref_allowlist and NEVER raise [docs].max_stale_refs: a ratchet only comes down.",
   "base_ref": "main",
   "worktree_root": ".worktrees",
   "terminal_layout": "auto",
@@ -13,7 +13,7 @@
     {
       "id": "srf-libexec",
       "domain": "docs",
-      "objective": "80 of the 152 stale comment references are in usr/libexec/mios/**. Clear at least 40 of them. For each: read the comment, find what it MEANT to name (git log and the surrounding code usually say), and either correct the path/unit/verb or remove the reference if the named thing does not exist anywhere in the repo or its history. Do not rewrite the prose around it beyond what the correction needs. Regenerate the corpus ledger (python3 usr/libexec/mios/mios-manual --root . ledger --write) before finishing, and leave usr/share/mios/reference/manual-corpus.tsv staged as part of your change.",
+      "objective": "31 of the 55 stale comment references are in usr/libexec/mios/**. Clear at least 15 of them. For each: read the comment, find what it MEANT to name (git log and the surrounding code usually say), and either correct the path/unit/verb or remove the reference if the named thing does not exist anywhere in the repo or its history. Do not rewrite the prose around it beyond what the correction needs. Regenerate the corpus ledger (python3 usr/libexec/mios/mios-manual --root . ledger --write) before finishing, and leave usr/share/mios/reference/manual-corpus.tsv staged as part of your change.",
       "owned_paths": [
         "usr/libexec/mios/**",
         "usr/share/mios/reference/manual-corpus.tsv"
@@ -29,7 +29,7 @@
         "model": "opus",
         "effort": "xhigh"
       },
-      "positive_cmd": "python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;n=json.load(sys.stdin)['stale'];print('stale-refs',n);sys.exit(0 if n<=112 else 1)\"",
+      "positive_cmd": "python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;n=json.load(sys.stdin)['stale'];print('stale-refs',n);sys.exit(0 if n<=40 else 1)\"",
       "negative_control_cmd": "f=usr/libexec/mios/ux/font_scaler.py; cp \"$f\" .nc-srf-libexec.bak; trap 'mv .nc-srf-libexec.bak \"$f\"' EXIT; B=$(python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['stale'])\"); printf '\\n# AI-related: usr/share/mios/DEVLOOP-PLANTED-SRF-LIBEXEC.md\\n' >> \"$f\"; A=$(python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['stale'])\"); echo \"DEVLOOP-PLANTED-SRF-LIBEXEC: stale-refs $B -> $A\"; [ \"$A\" -gt \"$B\" ] || { echo \"the plant changed nothing, so this control is vacuous\"; exit 0; }; exit 1",
       "negative_expect": "DEVLOOP-PLANTED-SRF-LIBEXEC",
       "task_id": "T-1080"
@@ -37,7 +37,7 @@
     {
       "id": "srf-lib",
       "domain": "docs",
-      "objective": "17 of the 152 stale comment references are in usr/lib/**. Clear at least 9 of them, by the same rule as every lane in this run: correct the name, or delete the reference when the named thing does not exist. Regenerate the corpus ledger before finishing.",
+      "objective": "6 of the 55 stale comment references are in usr/lib/**. Clear at least 3 of them, by the same rule as every lane in this run: correct the name, or delete the reference when the named thing does not exist. Verify the corpus ledger with ledger --check before finishing; do NOT run ledger --write or touch manual-corpus.tsv, which is regenerated centrally after merges.",
       "owned_paths": [
         "usr/lib/**"
       ],
@@ -51,7 +51,7 @@
         "model": "opus",
         "effort": "xhigh"
       },
-      "positive_cmd": "python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;n=json.load(sys.stdin)['stale'];print('stale-refs',n);sys.exit(0 if n<=143 else 1)\"",
+      "positive_cmd": "python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;n=json.load(sys.stdin)['stale'];print('stale-refs',n);sys.exit(0 if n<=52 else 1)\"",
       "negative_control_cmd": "f=usr/lib/mios/userenv.sh; cp \"$f\" .nc-srf-lib.bak; trap 'mv .nc-srf-lib.bak \"$f\"' EXIT; B=$(python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['stale'])\"); printf '\\n# AI-related: usr/share/mios/DEVLOOP-PLANTED-SRF-LIB.md\\n' >> \"$f\"; A=$(python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['stale'])\"); echo \"DEVLOOP-PLANTED-SRF-LIB: stale-refs $B -> $A\"; [ \"$A\" -gt \"$B\" ] || { echo \"the plant changed nothing, so this control is vacuous\"; exit 0; }; exit 1",
       "negative_expect": "DEVLOOP-PLANTED-SRF-LIB",
       "task_id": "T-1081"
@@ -59,7 +59,7 @@
     {
       "id": "srf-tests",
       "domain": "qa",
-      "objective": "41 of the 152 stale comment references are in tests/**. Clear at least 21. Most are AI-doc headers naming manual chapters that were never generated (usr/share/doc/mios/manual/storage.md, testing.md): point them at a chapter that exists, or drop the AI-doc line. Two classes are NOT stale references at all and must be reported, not 'fixed': a path inside a string that a negative test deliberately plants, and a bare identifier like sys.path that is not a path reference. Say so in contract_updates rather than mangling the test to satisfy the counter. Regenerate the corpus ledger before finishing.",
+      "objective": "12 of the 55 stale comment references are in tests/**. Clear at least 6. Most are AI-doc headers naming manual chapters that were never generated (usr/share/doc/mios/manual/storage.md, testing.md): point them at a chapter that exists, or drop the AI-doc line. Two classes are NOT stale references at all and must be reported, not 'fixed': a path inside a string that a negative test deliberately plants, and a bare identifier like sys.path that is not a path reference. Say so in contract_updates rather than mangling the test to satisfy the counter. Verify the corpus ledger with ledger --check before finishing; do NOT run ledger --write or touch manual-corpus.tsv, which is regenerated centrally after merges.",
       "owned_paths": [
         "tests/**"
       ],
@@ -73,7 +73,7 @@
         "model": "opus",
         "effort": "xhigh"
       },
-      "positive_cmd": "python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;n=json.load(sys.stdin)['stale'];print('stale-refs',n);sys.exit(0 if n<=131 else 1)\"",
+      "positive_cmd": "python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;n=json.load(sys.stdin)['stale'];print('stale-refs',n);sys.exit(0 if n<=49 else 1)\"",
       "negative_control_cmd": "f=tests/test-microvm.py; cp \"$f\" .nc-srf-tests.bak; trap 'mv .nc-srf-tests.bak \"$f\"' EXIT; B=$(python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['stale'])\"); printf '\\n# AI-related: usr/share/mios/DEVLOOP-PLANTED-SRF-TESTS.md\\n' >> \"$f\"; A=$(python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['stale'])\"); echo \"DEVLOOP-PLANTED-SRF-TESTS: stale-refs $B -> $A\"; [ \"$A\" -gt \"$B\" ] || { echo \"the plant changed nothing, so this control is vacuous\"; exit 0; }; exit 1",
       "negative_expect": "DEVLOOP-PLANTED-SRF-TESTS",
       "task_id": "T-1082"
@@ -81,7 +81,7 @@
     {
       "id": "srf-native",
       "domain": "infra",
-      "objective": "14 of the 152 stale comment references are in Rust sources and a handful of generators. Clear at least 7. The named files are src/mios-rs/mios-gate/src/ratchet.rs, src/mios-rs/miosd/src/main.rs, src/mios-rs/miosd/tests/render_kargs.rs, tools/native/mios-bake-plan/src/main.rs, tools/native/mios-render-quadlets/src/main.rs, tools/native/mios-resolver/src/expand.rs, tools/render-manpages.py, usr/share/mios/nix/nix.conf and usr/share/mios/windows/mios-uia-dump.ps1. Several name drop-in filenames such as 01-mios-vfio.toml in prose; check whether the drop-in exists before deleting the reference. Comments only: do not change Rust behaviour, and cargo fmt/clippy/test must still pass. Regenerate the corpus ledger before finishing.",
+      "objective": "2 of the 55 stale comment references are in Rust sources and a handful of generators. Clear at least 1. The named files are src/mios-rs/mios-gate/src/ratchet.rs, src/mios-rs/miosd/src/main.rs, src/mios-rs/miosd/tests/render_kargs.rs, tools/native/mios-bake-plan/src/main.rs, tools/native/mios-render-quadlets/src/main.rs, tools/native/mios-resolver/src/expand.rs, tools/render-manpages.py, usr/share/mios/nix/nix.conf and usr/share/mios/windows/mios-uia-dump.ps1. Several name drop-in filenames such as 01-mios-vfio.toml in prose; check whether the drop-in exists before deleting the reference. Comments only: do not change Rust behaviour, and cargo fmt/clippy/test must still pass. Verify the corpus ledger with ledger --check before finishing; do NOT run ledger --write or touch manual-corpus.tsv, which is regenerated centrally after merges.",
       "owned_paths": [
         "src/mios-rs/**",
         "tools/native/**",
@@ -99,7 +99,7 @@
         "model": "opus",
         "effort": "xhigh"
       },
-      "positive_cmd": "python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;n=json.load(sys.stdin)['stale'];print('stale-refs',n);sys.exit(0 if n<=145 else 1)\"",
+      "positive_cmd": "python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;n=json.load(sys.stdin)['stale'];print('stale-refs',n);sys.exit(0 if n<=54 else 1)\"",
       "negative_control_cmd": "f=tools/render-manpages.py; cp \"$f\" .nc-srf-native.bak; trap 'mv .nc-srf-native.bak \"$f\"' EXIT; B=$(python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['stale'])\"); printf '\\n# AI-related: usr/share/mios/DEVLOOP-PLANTED-SRF-NATIVE.md\\n' >> \"$f\"; A=$(python3 usr/libexec/mios/mios-manual --root . audit --stale --json | python3 -c \"import json,sys;print(json.load(sys.stdin)['stale'])\"); echo \"DEVLOOP-PLANTED-SRF-NATIVE: stale-refs $B -> $A\"; [ \"$A\" -gt \"$B\" ] || { echo \"the plant changed nothing, so this control is vacuous\"; exit 0; }; exit 1",
       "negative_expect": "DEVLOOP-PLANTED-SRF-NATIVE",
       "task_id": "T-1083"
