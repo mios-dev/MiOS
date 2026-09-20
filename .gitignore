@@ -77,6 +77,10 @@
 # here. LEDGER.md and goal_state.json stay tracked: those are the durable handoff
 # state, and no run-* directory has ever been committed.
 /.devloop/run-*/
+/.devloop/backlog_archive.jsonl
+/.devloop/HISTORICAL_BACKLOG.md
+/docs/distilled/
+/docs/research/task-migration-and-halflife.md
 !/specs/
 !/specs/**
 # ...except the w10-live-boot staging dump: path-mangled edit-target artifacts
