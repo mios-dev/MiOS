@@ -1,18 +1,18 @@
 {
-  "objective": "Code MiOS per specs and upstream patterns /remote-control/goal",
-  "stopping_condition": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema",
-  "status": "COMPLETED",
-  "created_at": "2026-09-20T16:08:30.563343",
-  "completed_at": "2026-09-20T16:08:56.894522",
+  "objective": "Code MiOS from scratch per specs, upstream patterns, and roadmap tasks using autonomous dev-loop orchestration, research spikes, and teamwork multi-agent execution",
+  "stopping_condition": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet",
+  "status": "IN_PROGRESS",
+  "created_at": "2026-09-20T22:56:27.194962",
+  "completed_at": null,
   "criteria": [
     {
       "id": "C-01",
-      "description": "Stopping condition: python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema",
+      "description": "Stopping condition: python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet",
       "criterion_type": "test",
-      "command": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema",
+      "command": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet",
       "target_path": null,
-      "passed": true,
-      "details": "Exit code 0"
+      "passed": false,
+      "details": null
     },
     {
       "id": "C-02",
@@ -20,8 +20,8 @@
       "criterion_type": "git_clean",
       "command": null,
       "target_path": null,
-      "passed": true,
-      "details": "Working tree clean (excluding 1 evaluator-written/worktree path(s): .devloop/goal_state.json)"
+      "passed": false,
+      "details": null
     },
     {
       "id": "C-03",
@@ -29,14 +29,14 @@
       "criterion_type": "artifact",
       "command": null,
       "target_path": null,
-      "passed": true,
-      "details": "Task artifacts validate"
+      "passed": false,
+      "details": null
     }
   ],
   "non_goals": [
-    "Do not refactor unassigned modules or out-of-scope files.",
-    "Do not introduce regressions to passing baseline tests.",
-    "Do not bypass security checks, linters, or suppressions."
+    "Do not bypass standing legibility ratchets (tracked_files <= 3071, tracked_mb <= 204)",
+    "Do not commit broken runtime changes",
+    "Do not violate Architectural Laws (USR-OVER-ETC, NO-MKDIR-IN-VAR, UNIFIED-AI-REDIRECTS)"
   ],
   "ratchet_history": []
 }
