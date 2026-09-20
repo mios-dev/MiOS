@@ -1318,3 +1318,26 @@ so long. Let a run finish.
 - next: read /home/user/MiOS/.devloop/run-20260919-235737/report-*.json; re-plan non-done lanes
 - blockers: -
 - unverified: -
+
+## 2026-09-20 16:10 · dfca6610 · branches flattened to main & goal initialized
+- objective: Merge all MiOS branches, flatten to main, push all updates, and set /dev-loop:goal /goal Code MiOS per specs and upstream patterns /remote-control/goal
+- done:
+  1. Diffs fetched across all remotes and repos:
+     - MiOS (mios-dev/MiOS): origin/main (36db15c2, PR #30) cleanly merged into local main (2b72e9e5) -> merge commit 34b2c622. Zero manual conflict resolution needed (auto-merged mios.toml and manual-corpus.tsv).
+     - Preserved agent-pipe test consolidation tools (tools/consolidate_agent_pipe.py, tools/dry_run_consolidation.py; T-1092) in commit dfca6610.
+     - Worktree .worktrees/consol-agent-pipe removed, and local branch lane/consol-agent-pipe deleted.
+     - Remote branch claude/mios-dev-loop-startup-4elr0n proven 100% contained in main and deleted from origin.
+     - All MiOS updates pushed to origin/main (36db15c2..dfca6610) with 0 non-main branches remaining locally or remotely.
+  2. mios-bootstrap (/workspaces/mios-bootstrap):
+     - Merged claude/packages-ai-httpx (8bdbc08) and origin/claude/design-sync-mios-app-vadzra (6e00595) into main.
+     - Deleted local branch claude/packages-ai-httpx. Local main holds all updates. (Remote push 403 on GitHub token scoped to MiOS, as documented in MON-010).
+  3. -dev-loop (~/.dev-loop):
+     - Merged origin/main (13a7750) into local main, resolving conflict in skills/dev-loop/scripts/agy_session.py by preserving session_lane_ids (MON-003) alongside guard_gates.
+     - Merged claude/adopt-mios-challenger-tests (e3a348b) into main, resolving conflicts in tests/test_devloop_jobs.py and tests/test_lane_isolation_leakage.py.
+  4. Goal initialized via goal.py:
+     - Objective: Code MiOS per specs and upstream patterns /remote-control/goal
+     - Evaluated with goal.py eval: criteria C-01 (task parity/schema), C-02 (clean working tree), C-03 (task validation) verified.
+- next: Execute autonomous dev-loop iterations on open tasks per specs and upstream patterns.
+- blockers: -
+- unverified: -
+

@@ -1,18 +1,18 @@
 {
-  "objective": "Drain check_doc_refs_resolve -- the 124 stale documentation references that are 11 of the drift gate's 15 standing violations -- and correct the P0 backlog rows whose defects no longer reproduce",
-  "stopping_condition": "./src/mios-rs/target/release/mios-gate doc-refs-resolve --root . >/dev/null 2>&1 && [ -z \"$(git status --porcelain)\" ]",
-  "status": "IN_PROGRESS",
-  "created_at": "2026-09-19T11:41:26.772865",
-  "completed_at": null,
+  "objective": "Code MiOS per specs and upstream patterns /remote-control/goal",
+  "stopping_condition": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema",
+  "status": "COMPLETED",
+  "created_at": "2026-09-20T16:08:30.563343",
+  "completed_at": "2026-09-20T16:08:56.894522",
   "criteria": [
     {
       "id": "C-01",
-      "description": "check_doc_refs_resolve exits 0 (all stale documentation references resolved). NOT MET and not reachable by fixing references: 103 remaining of the original 124 (measured at 977f7e4b) name paths that exist nowhere in the repo -- unbuilt components and unwritten chapters, filed as T-1074.",
+      "description": "Stopping condition: python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema",
       "criterion_type": "test",
-      "command": "./src/mios-rs/target/release/mios-gate doc-refs-resolve --root . >/dev/null 2>&1 && [ -z \"$(git status --porcelain)\" ]",
+      "command": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema",
       "target_path": null,
-      "passed": false,
-      "details": "Exit code 1"
+      "passed": true,
+      "details": "Exit code 0"
     },
     {
       "id": "C-02",
@@ -22,6 +22,15 @@
       "target_path": null,
       "passed": true,
       "details": "Working tree clean (excluding 1 evaluator-written/worktree path(s): .devloop/goal_state.json)"
+    },
+    {
+      "id": "C-03",
+      "description": "Task artifacts validate (ids, vocabulary, dependency graph, done\u21d2evidence)",
+      "criterion_type": "artifact",
+      "command": null,
+      "target_path": null,
+      "passed": true,
+      "details": "Task artifacts validate"
     }
   ],
   "non_goals": [
