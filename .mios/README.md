@@ -37,3 +37,21 @@ governed by their existing laws.
   `<REPLACEMENT_CREDENTIAL>` placeholders.
 - Never place generated output, logs, caches, or model artifacts in tracked
   dotfolders.
+
+## Separate secrets repository
+
+The recommended upstream pattern is a split repository model, documented in
+`.research/separate-dotfiles-secrets-repository-pattern-2026-09.md`:
+
+- `mios-dotfiles` carries non-secret operator configuration and
+  `secret_ref` references.
+- `mios-secrets` is a separate private repository containing only
+  SOPS/age-encrypted payloads and safe recipient metadata.
+- `.secrets/` is the local checkout boundary and remains README-only in this
+  repository; it is not a plaintext credential store.
+- Decrypted values exist only at deployment/runtime in the approved protected
+  sink, such as `/etc/mios/secrets.env` with mode `0600`, or an OS secret
+  manager.
+
+Do not create a plaintext `.secrets.git` repository or put private identities,
+tokens, password hashes, or decrypted archives into this repository.
