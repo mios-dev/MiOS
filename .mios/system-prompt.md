@@ -14,7 +14,7 @@ Open these repository-relative paths from the current VS Code workspace:
 - [`/.dotfiles/README.md`](../.dotfiles/README.md) — bootstrap-owned dotfiles boundary
 - [`/.secrets/README.md`](../.secrets/README.md) — encrypted secret-input boundary
 - [`/.prompts/README.md`](../.prompts/README.md) — prompt source index
-- [`/.research/README.md`](../.research/README.md) — research staging rules
+- [`/.research/README.md`](../.research/README.md) — research evidence rules
 - [`/.research/separate-dotfiles-secrets-repository-pattern-2026-09.md`](../.research/separate-dotfiles-secrets-repository-pattern-2026-09.md) — secret/dotfile research
 - [`/AGENTS.md`](../AGENTS.md) — canonical repository agent contract
 - [`/CLAUDE.md`](../CLAUDE.md) — system-repository engineering contract
@@ -36,13 +36,36 @@ sources:
 | System identity and laws | `AGENTS.md`, `CLAUDE.md` | architectural constraints |
 | System implementation | `usr/`, `etc/`, `var/`, `Containerfile`, `automation/` | current code and image behavior |
 | Operator overlay | `mios-bootstrap.git`, especially `mios.toml`, profiles, `etc/skel/` | installer and user choices |
-| Research evidence | `.research/`, `docs/research/`, `usr/share/doc/mios/upstream/` | verified findings and sources |
+| Research evidence | `.research/`, `docs/research/`, `usr/share/doc/mios/upstream/` | versioned findings and sources |
 | Product tasks | `TASKS.md`, `ROADMAP.md` | MiOS implementation priorities |
 | Parallel engineering | `AGY-TASKS.md`, `PROJECT.md`, `.devloop/` | dev-loop work only; never treat it as image ownership |
 
 Do not copy entire files by default. Quote the smallest relevant paths and line
 ranges, preserve task IDs, and label each claim as repository fact, upstream
 fact, inference, or unknown.
+
+### Evidence and configuration handling
+
+Use established upstream patterns rather than inventing a MiOS-specific
+research or configuration lifecycle:
+
+- **SOPS/age pattern:** encrypted operator data may be versioned as ciphertext;
+  recipient metadata may be public, but identity files and decrypted values stay
+  outside Git and outside prompts.
+- **chezmoi pattern:** non-secret dotfiles and secret retrieval are separate;
+  resolve a secret at apply/runtime time rather than embedding it in a
+  template or copied context.
+- **yadm pattern:** encryption is defense in depth; private repository access
+  does not replace encryption, least privilege, or key rotation.
+- **MiOS ADR-0010 pattern:** render and copy projected configuration through
+  the declared dotfile contract; do not use symlink farms or treat research
+  notes as runtime configuration.
+
+For every research result, record the source, retrieval date, relevant path or
+line range, confidence badge, and unresolved questions. Keep research evidence,
+operator configuration, encrypted secret input, and deployed runtime output as
+separate surfaces. A task description may reference a finding; it must not
+silently turn a finding into a runtime default or a secret value.
 
 ## Shared non-negotiable rules
 
@@ -220,9 +243,12 @@ will be persisted without review.
 1. Select exactly one application block matching the destination auth profile.
 2. Add only the minimum relevant excerpts from the monitored paths.
 3. Redact credentials and private identifiers before copying.
-4. Paste the returned findings into `.research/` or task updates, with source
-   and run-date metadata.
-5. Promote implementation changes through the owning repository only.
+4. Capture returned findings as a dated, source-linked research record or task
+   update, preserving `[VERIFIED]`, `[PARTIALLY VERIFIED]`, `[UNVERIFIED]`, or
+   `[CONTRADICTED]` labels.
+5. If configuration is needed, keep the non-secret declaration in the owning
+   SSOT and resolve any `secret_ref` only at protected apply/deployment time.
+   Never copy decrypted output into research, prompts, templates, logs, or Git.
 
 This file is a reusable control prompt, not a runtime secret store and not a
 replacement for `/usr/share/mios/ai/system.md`.
