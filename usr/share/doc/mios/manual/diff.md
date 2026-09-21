@@ -8,4 +8,4 @@ WS-DIFFCYCLE: Shutdown Diff Snapshotting and Boot-Cycle Accrual Engine.
 Captures modified files, redacts secrets, classifies risks (Safe vs High-Risk),
 and persists audit ledgers atomically with sub-3s execution SLA.
 
-<!-- mios-src:c6170951afa0 from usr/libexec/mios/diff/diff-accrual.py:5-9 -->
+<!-- mios-src:c6170951afa0 from usr/libexec/mios/deploy/diff_accrual.py:6-10 -->

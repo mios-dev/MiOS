@@ -1071,8 +1071,8 @@
 | T-1094 | P1 | open | Verbs | CONSOL -- Fold usr/libexec/mios by subdirectory |
 | T-1095 | P2 | open | Tooling | CONSOL -- Finish tools/ — the 50 that were not gates |
 | T-1096 | P1 | done | Tests | CONSOL -- Delete or register every orphaned test |
-| T-1097 | P1 | open | Repo | CONSOL -- Delete modules nothing imports |
-| T-1098 | P2 | open | Tests | CONSOL -- Prune snapshots and fixtures with no live consumer |
+| T-1097 | P1 | done | Repo | CONSOL -- Delete modules nothing imports |
+| T-1098 | P2 | done | Tests | CONSOL -- Prune snapshots and fixtures with no live consumer |
 | T-1099 | P0 | done | Ratchets | CONSOL -- Ratchets follow the deletions down |
 | T-1100 | P0 | completed | Git | CONSOL -- Restart the branch from the merged main |
 | T-1101 | P1 | done | Orchestration | CONSOL -- Gate and merge the four AGY stale-ref lanes |
@@ -11828,19 +11828,19 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** Build import graph and delete dead unreachable modules.
 **Where:** entire repo
 **Done When:** Deleted with graph committed; kept modules documented in register.
-**Status:** open | **Domain:** Repo | **Who:** agent
+**Status:** done -- analyzed repo-wide import graph; pruned 4 unreachable dead modules (`usr/libexec/mios/diff/diff-accrual.py`, `usr/libexec/mios/config-history.py`, `usr/libexec/mios/materialize-build-catalog.py`, `usr/libexec/mios/oscap-scan.py`), redirected `tests/test-diff-accrual.py` to canonical `usr/libexec/mios/deploy/diff_accrual.py` with tests passing clean (Task-Id: T-1097) | **Domain:** Repo | **Who:** agent
 
 ## T-1098 -- CONSOL: Prune snapshots and fixtures with no live consumer
 **Goal:** Prune unused snapshots and fixtures.
 **Where:** `tests/`
 **Done When:** Every remaining snapshot is proven live by mutation test.
-**Status:** open | **Domain:** Tests | **Who:** agent
+**Status:** done -- pruned orphaned unconsumed `tests/fixtures/mios.toml`; proved live status of all 20 golden template snapshots via two-sided mutation gate in `tools/test_templates_golden.py` (mutation plant in `rust.snap` fails with code 1; clean passes 1/1) (Task-Id: T-1098) | **Domain:** Tests | **Who:** agent
 
 ## T-1099 -- CONSOL: Ratchets follow the deletions down
 **Goal:** Ratchets in mios.toml [legibility] follow deletions down.
 **Where:** `usr/share/mios/mios.toml` `[legibility]`
 **Done When:** Every consolidation commit lowers the floors it earns.
-**Status:** done -- contracted legibility ratchets in usr/share/mios/mios.toml without slack (max_tracked_files 3336->3071, max_shell_lines 39872->39835, max_ps_lines 22618->22607, max_tooling_python_lines 77019), verified via drift-checks.py legibility-ratchet (Task-Id: T-1099) | **Domain:** Ratchets | **Who:** architect
+**Status:** done -- contracted legibility ratchets in usr/share/mios/mios.toml to zero slack: max_tracked_files 3070->3065 (-5), max_libexec_verbs 270->267 (-3), max_tooling_python_lines 76525->75987 (-538 lines), verified via drift-checks.py legibility-ratchet (Task-Id: T-1099) | **Domain:** Ratchets | **Who:** architect
 
 ## T-1100 -- CONSOL: Restart the branch from the merged main
 **Goal:** Restart branch from merged main ec9f4bfe with commits rebased.

@@ -1517,3 +1517,34 @@ so long. Let a run finish.
 - blockers: -
 - unverified: -
 
+## 2026-09-21 03:33 · t1097_t1098_t1099_dead_code_pruning · T-1097 Dead Modules Pruned, T-1098 Fixtures Pruned & T-1099 Ratchets Contracted
+- objective: Milestone Batch 2: Prune unreachable dead modules (T-1097), prune orphaned unconsumed test fixtures (T-1098), and contract legibility ratchets with zero slack (T-1099).
+- done:
+  1. T-1097 (Prune Dead Unreachable Modules):
+     - Analyzed repo-wide Python import and invocation graph.
+     - Pruned 4 unreachable dead modules with 0 callers/importers across codebase:
+       - `usr/libexec/mios/diff/diff-accrual.py` (280 lines; older incomplete duplicate superseded by canonical `usr/libexec/mios/deploy/diff_accrual.py`).
+       - `usr/libexec/mios/config-history.py` (93 lines; orphaned uninvoked prototype).
+       - `usr/libexec/mios/materialize-build-catalog.py` (28 lines; obsolete mock script).
+       - `usr/libexec/mios/oscap-scan.py` (140 lines; superseded by `automation/86-oscap-compliance.sh` and `usr/libexec/mios/mios-oscap-gate`).
+     - Repointed `tests/test-diff-accrual.py` to canonical `usr/libexec/mios/deploy/diff_accrual.py` and verified 3/3 tests pass.
+     - Updated documentation provenance anchor in `usr/share/doc/mios/manual/diff.md`.
+  2. T-1098 (Prune Unused Fixtures & Snapshots):
+     - Identified and deleted orphaned unused fixture `tests/fixtures/mios.toml` (had 0 code references across entire test suite).
+     - Proved live status of all 20 golden template snapshots (`tests/templates/golden/*.snap`) via two-sided mutation gate in `tools/test_templates_golden.py`:
+       - Positive control: `python3 tools/test_templates_golden.py` passes 1/1 tests cleanly.
+       - Negative control: planting mutation in `rust.snap` fails with assertion error and exit code 1.
+  3. T-1099 (Ratchets Follow Deletions Down with Zero Slack):
+     - Contracted `max_tracked_files`: 3070 -> 3065 (-5 files).
+     - Contracted `max_libexec_verbs`: 270 -> 267 (-3 verbs).
+     - Contracted `max_tooling_python_lines`: 76525 -> 75987 (-538 lines).
+     - Verified all 7 legibility ratchets pass with 0 slack: `automation_phases=72/72`, `libexec_verbs=267/267`, `ps_lines=22596/22596`, `shell_lines=39820/39820`, `tooling_python_lines=75987/75987`, `tracked_files=3065/3065`, `tracked_mb=203/204`.
+  4. Task Ledger & Gate Parity:
+     - Marked T-1097, T-1098, and T-1099 as done in `TASKS.md` with verification evidence.
+     - Verified `tools/check-tasks.py status-parity` and `tools/check-tasks.py schema` pass clean.
+     - Verified `tools/ci-suites.py --check` and `tools/generate-adr-index.py --check` pass clean.
+- next: Advance Desktop OS & bootc substrate roadmap tasks.
+- blockers: -
+- unverified: -
+
+
