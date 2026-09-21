@@ -8,7 +8,8 @@
 ## MiOS repository bootstrap - start here
 
 When running in a new remote, cloud, ephemeral, or otherwise context-free
-workspace, pull all three repositories before researching or changing MiOS.
+workspace, repository bootstrap is the **first tool action**. Do not research,
+edit, or answer a MiOS implementation question from prompt text alone.
 Use the platform's existing Git credential manager or protected environment;
 never put credentials in commands, prompts, logs, or this file.
 
@@ -29,26 +30,56 @@ Use a workspace layout like this, substituting the approved workspace root:
 
 Bootstrap sequence:
 
-1. Clone or fetch all three repositories at the requested branch/ref.
-2. Read each repository's `AGENTS.md` and `README.md`; then read
+1. Discover the workspace root and inspect only whether the three destination
+   directories already exist. Do not assume the current checkout is complete.
+2. Clone missing repositories using their canonical URLs. Fetch existing
+   repositories without destroying local changes:
+
+   ```sh
+   git clone https://github.com/mios-dev/MiOS.git MiOS
+   git clone https://github.com/mios-dev/mios-bootstrap.git mios-bootstrap
+   git clone https://github.com/mios-dev/mios-dev-loop.git mios-dev-loop
+   ```
+
+   If a destination exists, run `git -C <repo> fetch --all --prune` and inspect
+   its current branch, commit, and worktree status. Never run reset, clean,
+   checkout, or destructive synchronization automatically.
+3. Verify that each repository is a real Git checkout and record its remote,
+   branch/ref, HEAD commit, and clean/dirty status. If cloning, fetching, or
+   verification is blocked, stop and report the exact repository and blocked
+   operation; do not continue with inferred context.
+4. Read each repository's `AGENTS.md` and `README.md`; then read
    `MiOS/.mios/REPOSITORIES.md`, `MiOS/PROJECT.md` or the dev-loop
    `PROJECT.md`, and the task/roadmap files relevant to the request.
-3. Start parallel work in `mios-dev-loop`, using its documented lane launcher,
+5. Start parallel work in `mios-dev-loop`, using its documented lane launcher,
    isolated worktree layout, adapter commands, two-sided gates, and tests.
    Do not run worker changes directly in the base `MiOS` checkout.
-4. For MiOS source validation, use the documented `just drift-gate` entry point
+6. For MiOS source validation, use the documented `just drift-gate` entry point
    when the repository checkout provides `justfile`; for an image build use
    `just preflight`, `just build`, and `just lint` in the approved
    MiOS-DEV/OCI build environment. If a target is absent, consult the current
    `README.md`, `CLAUDE.md`, and CI workflow rather than inventing a substitute.
    Do not build the image directly on an unapproved host.
-5. For hosted CI/CD, use `MiOS/.github/workflows/mios-ci.yml` as the source of
+7. For hosted CI/CD, use `MiOS/.github/workflows/mios-ci.yml` as the source of
    truth for checkout, bootstrap overlay, Podman/OCI build, lint, signing,
    publishing, and artifact verification. Do not duplicate workflow commands
    from memory.
-6. Return to the repository's current branch/ref and exact workflow logs before
+8. Return to the repository's current branch/ref and exact workflow logs before
    reporting results. A report must state which repositories were fetched,
    which revisions were inspected, and which lane or CI/CD entry point ran.
+
+Bootstrap result required before work:
+
+```text
+Repository bootstrap
+Workspace: <absolute workspace path>
+MiOS HEAD/ref/status: <commit, ref, clean|dirty>
+mios-bootstrap HEAD/ref/status: <commit, ref, clean|dirty>
+mios-dev-loop HEAD/ref/status: <commit, ref, clean|dirty>
+Bootstrap action: <cloned | fetched | already verified>
+Context files read: <paths>
+Blocked: <none or exact repository/operation>
+```
 
 The dev-loop is the coordination layer; it does not replace the MiOS build
 pipeline. The MiOS repository is the source of the OCI image, and the
