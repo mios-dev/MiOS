@@ -36,7 +36,9 @@ Three-layer resolution (highest wins): `~/.config/mios/mios.toml` (per-user) →
 
 Root dotfolders are the repository control plane described in
 [`.mios/README.md`](.mios/README.md), not replacements for the FHS overlay:
-`.prompts/` holds prompt organization, `.dotfiles/` documents the
+`.prompts/` holds prompt organization, `.mios/system-prompt.md` provides
+auth-separated copy/paste blocks for external research/chat applications,
+`.dotfiles/` documents the
 `mios-bootstrap.git`-owned non-secret operator dotfiles layer,
 `.research/` holds research staging,
 `.docs/` holds documentation staging, and `.secrets/` is a tracked README-only

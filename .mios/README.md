@@ -29,6 +29,9 @@ governed by their existing laws.
 ## Promotion rules
 
 - Write new prompt sources and indexes in `.prompts/`.
+- Use `.mios/system-prompt.md` as the copy/paste control prompt for external
+  research/chat applications; select exactly one auth-separated application
+  block and pass only redacted excerpts.
 - Keep non-secret operator dotfile structure and `secret_ref` references in
   the separate repository described by `.dotfiles/README.md`.
 - Promote reviewed prompts to `usr/share/mios/prompts/` as complete files.

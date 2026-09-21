@@ -99,6 +99,8 @@ runtime FHS destinations. The contract is documented in [`.mios/README.md`](.mio
 
 * `.prompts/` organizes prompt sources and indexes; shipped prompt files land
   under `usr/share/mios/prompts/`.
+* `.mios/system-prompt.md` is the copy/paste control prompt for external
+  research/chat applications, with separate auth-profile blocks.
 * `.dotfiles/` documents the bootstrap-owned non-secret operator dotfiles
   layer; it may contain layout and `secret_ref` metadata, never credential
   values.
