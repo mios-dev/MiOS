@@ -1266,7 +1266,7 @@ Documentation = "https://chromedevtools.github.io/devtools-protocol/"
 After = "mios-agent-pipe.service"
 Wants = "mios-agent-pipe.service"
 comment2 = "# ChromeDev flatpak must be installed (system or user scope). If\n# missing, the unit no-ops cleanly instead of crash-looping."
-ConditionPathExists = ["|/var/lib/flatpak/app/com.google.ChromeDev", "|%h/.local/share/flatpak/app/com.google.ChromeDev"]
+ConditionPathExists = ["|/var/lib/flatpak/app/org.chromium.Chromium", "|%h/.local/share/flatpak/app/org.chromium.Chromium", "|/var/lib/flatpak/app/com.google.ChromeDev", "|%h/.local/share/flatpak/app/com.google.ChromeDev"]
 
 [units."mios-hermes-browser.service".Service]
 Type = "simple"
@@ -1300,7 +1300,7 @@ Description = "'MiOS' Hermes-Browser-Worker (ChromeDev CDP :9223 for the worker)
 Documentation = "https://chromedevtools.github.io/devtools-protocol/"
 After = "hermes-worker.service"
 Wants = "hermes-worker.service"
-ConditionPathExists = ["|/var/lib/flatpak/app/com.google.ChromeDev", "|%h/.local/share/flatpak/app/com.google.ChromeDev"]
+ConditionPathExists = ["|/var/lib/flatpak/app/org.chromium.Chromium", "|%h/.local/share/flatpak/app/org.chromium.Chromium", "|/var/lib/flatpak/app/com.google.ChromeDev", "|%h/.local/share/flatpak/app/com.google.ChromeDev"]
 
 [units."mios-hermes-browser-worker.service".Service]
 Type = "simple"
@@ -5855,6 +5855,7 @@ flatpaks      = [
     "fedora:org.gnome.Epiphany",                       # 50.x current (vs. potentially-stale Flathub)
     "com.github.tchx84.Flatseal",                      # Flatpak permissions UI
     "com.mattjakeman.ExtensionManager",                # GNOME shell extensions
+    "org.chromium.Chromium",                           # FOSS Chromium browser with Wayland + CDP support
     "com.google.ChromeDev",
 ]
 
@@ -5899,6 +5900,17 @@ description = "Google Chrome Dev channel. Operator-facing alt browser + Hermes-A
 GDK_BACKEND        = "wayland"
 # Ozone-Wayland + WaylandWindowDecorations so Chrome draws its own
 # libadwaita-aware decorations and gets rounded corners on WSLg.
+CHROME_DEFAULT_ARGS = "--ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations --gtk-version=4 --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1"
+
+[[desktop.apps]]
+id          = "org.chromium.Chromium"
+remote      = "flathub"
+role        = "browser"
+default     = false
+launcher    = "mios-chromium"
+description = "Chromium Web Browser (FOSS upstream). Operator-facing alt browser + CDP automation target."
+[desktop.apps.org.chromium.Chromium.overrides]
+GDK_BACKEND         = "wayland"
 CHROME_DEFAULT_ARGS = "--ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations --gtk-version=4 --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1"
 
 # code-editor role is served by code-server (mios-code-server.container,
