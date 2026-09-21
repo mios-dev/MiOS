@@ -7,7 +7,6 @@ tools/compile-dashboard-binary.py
 tools/compile-templates.py
 tools/gen-pipe-boundary-manifest.py
 tools/generate-ai-manifest.py
-tools/generate-bake-plan.py
 tools/generate-bib-configs.py
 tools/generate-blade-dropins.py
 tools/generate-cockpit-conf.py

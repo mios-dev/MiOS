@@ -118,12 +118,6 @@ enum Commands {
     },
     /// Configure firewalld offline rules for MiOS services
     FirewallPorts,
-    /// Synthesize bake-plan lists (.list) under /usr/lib/mios/bake/plan.d/
-    BakePlan {
-        /// Verify plan.d matches generator output without mutating
-        #[arg(long)]
-        check: bool,
-    },
     /// Render /usr/lib/containers/policy.json from mios.toml [security.sigstore]
     CosignPolicy {
         /// Verify policy.json matches generator output without mutating
@@ -820,12 +814,6 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::BakePlan { check } => {
-            if let Err(e) = run_bake_plan(*check) {
-                eprintln!("[miosd] Bake plan error: {}", e);
-                std::process::exit(1);
-            }
-        }
         Commands::CosignPolicy { check } => {
             if let Err(e) = run_cosign_policy(*check) {
                 eprintln!("[miosd] Cosign policy error: {}", e);
@@ -1515,10 +1503,6 @@ fn run_repo_generator(
 
 fn run_cosign_policy(check: bool) -> Result<(), Box<dyn std::error::Error>> {
     run_repo_generator("tools/generate-cosign-policy.py", check, "cosign-policy")
-}
-
-fn run_bake_plan(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    run_repo_generator("tools/generate-bake-plan.py", check, "bake-plan")
 }
 
 fn run_firewall_ports() -> Result<(), Box<dyn std::error::Error>> {

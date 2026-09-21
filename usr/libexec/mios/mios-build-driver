@@ -184,8 +184,10 @@ _log "running SSOT preflight drift hardening (Quadlets, bake plan, naming regist
 if [[ -f "$MIOS_REPO/tools/generate-pod-quadlets.py" ]]; then
     python3 "$MIOS_REPO/tools/generate-pod-quadlets.py" 2>&1 | tee -a "$LOG_FILE" || true
 fi
-if [[ -f "$MIOS_REPO/tools/generate-bake-plan.py" ]]; then
-    python3 "$MIOS_REPO/tools/generate-bake-plan.py" 2>&1 | tee -a "$LOG_FILE" || true
+if [[ -x /usr/libexec/mios/mios-bake-plan ]]; then
+    /usr/libexec/mios/mios-bake-plan 2>&1 | tee -a "$LOG_FILE"
+elif [[ -x "$MIOS_REPO/tools/native/target/release/mios-bake-plan" ]]; then
+    "$MIOS_REPO/tools/native/target/release/mios-bake-plan" 2>&1 | tee -a "$LOG_FILE"
 fi
 if [[ -f "$MIOS_REPO/tools/generate-names-registry.py" ]]; then
     python3 "$MIOS_REPO/tools/generate-names-registry.py" 2>&1 | tee -a "$LOG_FILE" || true

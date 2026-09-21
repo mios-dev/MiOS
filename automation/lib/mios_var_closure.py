@@ -98,7 +98,7 @@ def emitted_set() -> set[str]:
     ue = os.path.join(ROOT, "usr/lib/mios/userenv.sh")
     if os.path.isfile(ue):
         try:
-            env = dict(os.environ)
+            env = {k: v for k, v in os.environ.items() if not k.startswith("MIOS_")}
             env.update(
                 MIOS_VENDOR_TOML=toml_path,
                 MIOS_HOST_TOML="/dev/null", MIOS_USER_TOML="/dev/null",

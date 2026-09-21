@@ -2242,7 +2242,7 @@ surfaces = [
   { generator = "tools/render-globals.py", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
   { generator = "tools/generate-cosign-policy.py", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
   { generator = "tools/generate-adr-index.py", check = "check_adr_index", output = "ADR.md" },
-  { generator = "tools/generate-bake-plan.py", check = "check_bake_plan", output = "usr/lib/mios/bake/plan.d/NN-<group>.list, usr/lib/mios/bake/plan.d/firstboot.list, usr/share/mios/artifacts/sbom/bound-images.tsv" },
+  { generator = "tools/native/mios-bake-plan/src/main.rs", check = "check_bake_plan", output = "usr/lib/mios/bake/plan.d/NN-<group>.list, usr/lib/mios/bake/plan.d/firstboot.list, usr/share/mios/artifacts/sbom/bound-images.tsv" },
   { generator = "tools/generate-bib-configs.py", check = "check_bib_configs_projection", output = "config/artifacts/bib.toml, config/artifacts/iso.toml" },
   { generator = "tools/generate-blade-karg.py", check = "check_blade_karg", output = "usr/lib/bootc/kargs.d/05-mios-blade.toml" },
   { generator = "tools/generate-cargo-manifests.py", check = "check_cargo_manifest_generated", output = "tools/native/Cargo.toml" },

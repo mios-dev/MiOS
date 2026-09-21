@@ -33,8 +33,8 @@ elif [[ -x "${ROOT}/tools/native/target/release/mios-bake-plan" ]]; then
         mios_err "failed to generate bake plan lists (native binary)"
         exit 1
     fi
-elif ! python3 "${ROOT}/tools/generate-bake-plan.py"; then
-    mios_err "failed to generate bake plan lists"
+else
+    mios_err "no native mios-bake-plan binary found (/usr/libexec/mios/mios-bake-plan or tools/native/target/release/mios-bake-plan)"
     exit 1
 fi
 

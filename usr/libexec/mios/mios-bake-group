@@ -83,7 +83,7 @@ for img in "${IMAGES[@]}"; do
             echo "  mios-bake-group can only PULL registry images. Build ${img} in its"
             echo "  own builder step (57-mios-sys-build.sh) or route it to the firstboot"
             echo "  tier via [build.bake].firstboot_tokens in mios.toml, then regenerate"
-            echo "  the plan (tools/generate-bake-plan.py)."
+            echo "  the plan (mios-bake-plan)."
             exit 1
             ;;
     esac

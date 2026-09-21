@@ -40,7 +40,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 413
+#!ceiling 411
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:607
@@ -280,7 +280,6 @@ MIOS_PG_URI	usr/libexec/mios/user/roaming_seat.py:83
 MIOS_PHASE_EMOJIS	automation/support/hermes-discord-reactions-patch.py:12
 MIOS_PHASE_TIMERS	automation/support/hermes-discord-reactions-patch.py:13
 MIOS_PIPE_DIR	tools/pipe-parity-check.py:18
-MIOS_PLAN_OUT	tools/generate-bake-plan.py:26
 MIOS_PODMAN_PS_SNAPSHOT	etc/profile.d/mios-podman-ps.sh:15
 MIOS_POD_OUT	tools/generate-pod-quadlets.py:84
 MIOS_POLICIES	automation/38-selinux.sh:45
@@ -334,7 +333,6 @@ MIOS_RR_SLICE_TIMEOUT_S	usr/lib/mios/agent-pipe/server.py:1245
 MIOS_RR_SLICE_TOKENS	usr/lib/mios/agent-pipe/server.py:1244
 MIOS_RUNAWAY_REAP	usr/lib/mios/agent-pipe/server.py:675
 MIOS_RUN_TEMPLATE	usr/lib/mios/agent-pipe/mios_pipe/routing/dag_exec.py:740
-MIOS_SBOM_DIR	tools/generate-bake-plan.py:216
 MIOS_SCHEDULE_SECTION	usr/lib/mios/agent-pipe/server.py:1561
 MIOS_SCRATCHPAD_ENABLE	usr/lib/mios/agent-pipe/server.py:1742
 MIOS_SCRATCHPAD_INJECT	usr/lib/mios/agent-pipe/server.py:1744
