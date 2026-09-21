@@ -60,6 +60,7 @@ pipeline.
 - [`/.mios/README.md`](./README.md) - root control-plane contract
 - [`/.mios/REPOSITORIES.md`](./REPOSITORIES.md) - three-repository topology
 - [`/.mios/system-prompt.md`](./system-prompt.md) - this report prompt
+- [`/.prompt.MD`](../.prompt.MD) - root shortcut to this report prompt
 - [`/.dotfiles/README.md`](../.dotfiles/README.md) - bootstrap dotfile boundary
 - [`/.secrets/README.md`](../.secrets/README.md) - encrypted-input boundary
 - [`/.prompts/README.md`](../.prompts/README.md) - prompt source index

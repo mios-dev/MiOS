@@ -3,7 +3,7 @@
 The MiOS repository has two distinct layers:
 
 1. **Root dotfolders** are the source-control workflow and review control
-   plane. They organize prompts, research, documentation staging, secrets
+   plane. They organize prompts, research, documentation, secrets
    boundaries, and generated work without pretending those paths are runtime
    FHS destinations.
 2. **FHS directories** (`etc/`, `usr/`, `var/`, `srv/`) are the deployable
@@ -14,31 +14,28 @@ The MiOS repository has two distinct layers:
 |---|---|---|---|
 | `.mios/` | workflow contract and metadata | tracked | nowhere |
 | `.dotfiles/` | bootstrap-owned operator-dotfiles boundary and layout | tracked, no secrets | projected user/host dotfiles |
-| `.prompts/` | prompt authoring/indexes | tracked, no secrets | `usr/share/mios/prompts/` after projection |
-| `.research/` | working research and evidence staging | tracked when promoted | `docs/research/` |
-| `.docs/` | documentation drafts and publication manifests | tracked | `docs/` or `usr/share/doc/mios/` |
+| `.prompts/` | prompt catalog and contract index | tracked, no secrets | nowhere |
+| `.research/` | research evidence and reports | tracked, no secrets | nowhere |
+| `.docs/` | documentation and publication manifests | tracked | nowhere |
 | `.secrets/` | local secret boundary and placeholders | README only | secret manager or `/etc/mios/secrets.env` |
 | `.artifacts/` | generated outputs and validation results | ignored | nowhere |
 | `.work/` | disposable agent/build scratch | ignored | nowhere |
 
 Dotfolders do not replace the existing `mios.toml` SSOT, the FHS overlay, or
-the `usr/share/mios/prompts/` shipped surface. They make authoring and
-promotion visible at repository root while keeping generated/runtime paths
-governed by their existing laws.
+the `usr/share/mios/prompts/` shipped surface. They provide a visible
+repository control plane while generated/runtime paths remain governed by
+their existing laws.
 
-## Promotion rules
+## Control-plane rules
 
-- Write new prompt sources and indexes in `.prompts/`.
-- Use `.mios/system-prompt.md` as the copy/paste control prompt for external
-  research/chat applications; select exactly one auth-separated application
-  block and pass only redacted excerpts.
+- Use `.mios/system-prompt.md` as the formal report system prompt for external
+  research and engineering applications.
+- Use `.prompts/README.md` as the prompt catalog; shipped prompt contracts
+  remain under `usr/share/mios/prompts/`.
 - Keep non-secret operator dotfile structure and `secret_ref` references in
   the separate repository described by `.dotfiles/README.md`.
-- Promote reviewed prompts to `usr/share/mios/prompts/` as complete files.
-- Stage research in `.research/`; publish durable reports under
-  `docs/research/`.
-- Stage documentation in `.docs/`; publish shipped documentation under
-  `usr/share/doc/mios/` only when it belongs in the image.
+- Keep research evidence in `.research/` and durable documentation in their
+  owning documented paths.
 - Never put credentials in `.secrets/`; use `[REDACTED]` or
   `<REPLACEMENT_CREDENTIAL>` placeholders.
 - Never place generated output, logs, caches, or model artifacts in tracked
