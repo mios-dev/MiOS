@@ -11,7 +11,7 @@ Generates, validates, and manages the native GNOME Shell extension package:
 Provides:
 - metadata.json supporting GNOME Shell 45, 46, 47, 48.
 - extension.js implementing an asynchronous PanelMenu.Button with non-blocking Soup.Session
-  HTTP polling of the local agent stack (http://127.0.0.1:8640/v1 and http://127.0.0.1:11450/v1).
+  HTTP polling of the local agent stack (http://127.0.0.1:8700/v1 and http://127.0.0.1:8500/v1).
 - stylesheet.css rendered dynamically with colors derived from mios.toml [colors] SSOT.
 - Quick-launch dropdown links to Open WebUI, Cockpit, and Code-Server.
 """
@@ -174,8 +174,8 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {{ Extension, gettext as _ }} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-const AGENT_ENDPOINT = 'http://127.0.0.1:8640/v1/models';
-const INFERENCE_ENDPOINT = 'http://127.0.0.1:11450/v1/models';
+const AGENT_ENDPOINT = 'http://127.0.0.1:8700/v1/models';
+const INFERENCE_ENDPOINT = 'http://127.0.0.1:8500/v1/models';
 const POLL_INTERVAL_SECONDS = 3;
 
 const MiOSStatusIndicator = GObject.registerClass(
@@ -213,7 +213,7 @@ class MiOSStatusIndicator extends PanelMenu.Button {{
         this.menu.addMenuItem(this._headerItem);
 
         // Telemetry details
-        this._laneItem = new PopupMenu.PopupMenuItem(_('Lane: mios-llm-light (:11450)'), {{ reactive: false }});
+        this._laneItem = new PopupMenu.PopupMenuItem(_('Lane: mios-llm-light (:8500)'), {{ reactive: false }});
         this._laneItem.actor.add_style_class_name('mios-status-telemetry');
         this.menu.addMenuItem(this._laneItem);
 
@@ -228,7 +228,7 @@ class MiOSStatusIndicator extends PanelMenu.Button {{
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // Quick action links
-        this._addQuickLink(_('Open WebUI (:3030)'), 'http://localhost:3030');
+        this._addQuickLink(_('Open WebUI (:8200)'), 'http://localhost:8200');
         this._addQuickLink(_('Cockpit Console (:9090)'), 'http://localhost:9090');
         this._addQuickLink(_('Code-Server IDE (:8443)'), 'http://localhost:8443');
 

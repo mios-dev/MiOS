@@ -158,7 +158,7 @@ async def chat_completions(req: ChatCompletionRequest):
     model_id = req.model or gateway_cfg.get("model") or ai_cfg.get("agent_model") or "granite4.1:3b"
     max_steps = gateway_cfg.get("max_steps", 30)
 
-    # Law 5: :8640 is a RETIRED port. [ai].endpoint is
+    # Law 5: the legacy orchestrator port is RETIRED. [ai].endpoint is
     # "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1" -- resolve it the same way.
     _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
     ai_endpoint = os.environ.get(

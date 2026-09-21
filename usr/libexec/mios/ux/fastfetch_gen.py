@@ -73,7 +73,7 @@ class FastfetchGenEngine:
         if self.mock:
             return {
                 "os_name": "MiOS Linux (bootc/OCI workstation)",
-                "ai_engine": "mios-llm-light (llama-swap :11450)",
+                "ai_engine": "mios-llm-light (llama-swap :8500)",
                 "active_model": "Qwen2.5-Coder-7B-Instruct-GGUF",
                 "bootc_image": "ghcr.io/mios-dev/mios:latest (sha256:7f8a91b2c3d4)",
                 "mesh_nodes": "1 (Local Node)",
@@ -102,7 +102,7 @@ class FastfetchGenEngine:
 
         return {
             "os_name": os_name,
-            "ai_engine": "mios-llm-light (llama-swap :11450)",
+            "ai_engine": "mios-llm-light (llama-swap :8500)",
             "active_model": "Qwen2.5-Coder-7B-Instruct-GGUF",
             "bootc_image": bootc_img,
             "mesh_nodes": "1 (Local Node)",

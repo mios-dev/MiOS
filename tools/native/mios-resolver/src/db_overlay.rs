@@ -74,7 +74,13 @@ mod tests {
 
     #[test]
     fn test_db_authoritative_default() {
-        assert!(!is_db_authoritative());
+        let prev = std::env::var("MIOS_ACCOUNTS_DB_BACKED");
+        std::env::remove_var("MIOS_ACCOUNTS_DB_BACKED");
+        let authoritative = is_db_authoritative();
+        if let Ok(val) = prev {
+            std::env::set_var("MIOS_ACCOUNTS_DB_BACKED", val);
+        }
+        assert!(!authoritative);
     }
 
     #[test]

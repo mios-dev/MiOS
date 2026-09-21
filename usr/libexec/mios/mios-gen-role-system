@@ -26,7 +26,7 @@ import os
 import sys
 import urllib.request
 
-AGENT_PIPE = os.environ.get("MIOS_AGENT_PIPE", "http://127.0.0.1:8640").rstrip("/")
+AGENT_PIPE = os.environ.get("MIOS_AGENT_PIPE", "http://127.0.0.1:8700").rstrip("/")
 OUT_DIR = os.environ.get("MIOS_ROLE_SYSTEMS_DIR", "/etc/mios/ai/v1/role-systems")
 A2A_PEERS = os.environ.get("MIOS_A2A_PEERS", "/etc/mios/ai/v1/a2a-peers.json")
 

@@ -13,14 +13,14 @@ sends EVERY turn AND emit tool calls — fast. MEASURED head-to-head on that exa
   dGPU (qwen3:1.7b,4090) 2.2s cold / 0.2s warm, EMITS open_app    -> the only one
 The small/integrated lanes are ~100 tok/s prefill; the 4090 is ~85x faster AND
 llama.cpp prefix-caches the stable tool surface (cached_tokens 15257 -> 0.2s turns).
-So the dGPU(:11450) with a SMALL model (qwen3:1.7b ~2GB VRAM — does NOT fight gaming
+So the dGPU(:8500) with a SMALL model (qwen3:1.7b ~2GB VRAM — does NOT fight gaming
 like the 16GB heavy model did) is the front door; iGPU(:11436) + CPU(:11451) are
 slow fallbacks + delegated workers.
 
 Logical models:
-  mios-orchestrator -> dGPU light node (:11450 qwen3:1.7b) PRIMARY; iGPU/CPU FALLBACK
+  mios-orchestrator -> dGPU light node (:8500 qwen3:1.7b) PRIMARY; iGPU/CPU FALLBACK
                        (failover, preference order). The entry point / front door.
-  mios-fanout       -> ROUND-ROBIN across ALL worker nodes (dGPU :11450 qwen3:1.7b,
+  mios-fanout       -> ROUND-ROBIN across ALL worker nodes (dGPU :8500 qwen3:1.7b,
                        iGPU :11436, CPU :11451) so concurrent delegated children land
                        on DIFFERENT hardware and run truly in parallel.
   mios-heavy        -> legacy compat (failover across workers).

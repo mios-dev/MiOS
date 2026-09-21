@@ -50,7 +50,7 @@ else
     done
 fi
 
-# Coverage probe: tests/test-lint-python-coverage.sh re-derives the set with the
+# Coverage probe: tests/test-lint-coverage.sh re-derives the set with the
 # gate's OWN logic, so the two can never disagree about what is covered.
 if [ "${MIOS_LINT_PYTHON_LIST:-0}" = "1" ]; then
     printf '%s\n' "${files[@]}"

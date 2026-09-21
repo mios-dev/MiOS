@@ -125,10 +125,10 @@ if [[ "$_HERMES_ROLE_MODEL" != "none" ]]; then
     _log "hermes role model: pinning Hermes to ${_AI_MODEL_RESOLVED} (auto-picked base kept as fallback)"
 fi
 
-_AI_BACKEND="$(_mios_toml_value ai backend 'http://localhost:8450')"
+_AI_BACKEND="$(_mios_toml_value ai backend 'http://localhost:8500')"
 _AI_BACKEND="${_AI_BACKEND%/}"
 
-_AGENT_ENDPOINT="$(_mios_toml_value ai endpoint 'http://localhost:8640/v1')"
+_AGENT_ENDPOINT="$(_mios_toml_value ai endpoint 'http://localhost:8700/v1')"
 _AGENT_ENDPOINT="${_AGENT_ENDPOINT%/}"
 _AGENT_MODEL="$(_mios_toml_value ai agent_model 'MiOS-Agent')"
 
@@ -435,7 +435,7 @@ platform_toolsets:
   api_server:
     - terminal       # shell commands
     - file           # read/write/patch
-    - web            # web_search via SearXNG (:8888) + web_extract via Firecrawl (:3002) -- FREE, local
+    - web            # web_search via SearXNG (:8800) + web_extract via Firecrawl (:3002) -- FREE, local
     - browser        # browser_navigate / _snapshot / _click / ... via CDP -> ChromeDev flatpak
     - messaging      # send_message for Discord, Telegram, etc.
     - discord        # read + participate (fetch messages, search members, create threads)
@@ -535,7 +535,7 @@ mcp_servers:
     command: /usr/libexec/mios/mios-mcp-server
     args: []
     env:
-      MIOS_AGENT_PIPE_URL: http://localhost:8640
+      MIOS_AGENT_PIPE_URL: http://localhost:8700
     timeout: 120
     connect_timeout: 30
     supports_parallel_tool_calls: true
@@ -559,7 +559,7 @@ except Exception:
     sys.exit(0)
 if not isinstance(d, dict):
     sys.exit(0)
-ep = (os.environ.get("MIOS_AGENT_ENDPOINT") or "http://localhost:8640/v1").rstrip("/")
+ep = (os.environ.get("MIOS_AGENT_ENDPOINT") or "http://localhost:8700/v1").rstrip("/")
 model = os.environ.get("MIOS_AGENT_MODEL") or "MiOS-Agent"
 m = d.get("model") if isinstance(d.get("model"), dict) else {}
 m["provider"] = "custom:mios-orchestrator"; m["default"] = model
@@ -569,7 +569,7 @@ cps = d.get("custom_providers") if isinstance(d.get("custom_providers"), list) e
 if not any(isinstance(c, dict) and c.get("name") == "mios-orchestrator" for c in cps):
     cps.insert(0, {"name": "mios-orchestrator", "base_url": ep, "api_key": ""})
 d["custom_providers"] = cps
-d["toolsets"] = []                                  # tools run SERVER-SIDE in :8640
+d["toolsets"] = []                                  # tools run SERVER-SIDE in :8700
 pt = d.get("platform_toolsets")
 if isinstance(pt, dict):
     for k in list(pt.keys()):
@@ -584,7 +584,7 @@ PYEOF
     then
         chown 850:850 "$HERMES_DATA_CFG" 2>/dev/null || true
         chmod 0640 "$HERMES_DATA_CFG" 2>/dev/null || true
-        _log "gateway -> THIN :8640 client (${_AGENT_MODEL} @ ${_AGENT_ENDPOINT}); Discord/platforms route to the orchestrator"
+        _log "gateway -> THIN :8700 client (${_AGENT_MODEL} @ ${_AGENT_ENDPOINT}); Discord/platforms route to the orchestrator"
     else
         _log "WARN: gateway thin-client transform failed -- left as leaf (still functional)"
     fi
@@ -595,7 +595,6 @@ _op_user="$(_mios_toml_value 'identity' 'username' 'mios')"
 _op_cfg_should_reseed() {
     local f="$1"
     [[ ! -f "$f" ]] && return 0
-    grep -qE '0\.0\.0\.0:11434|127\.0\.0\.1:11434|https://localhost:11434' "$f" 2>/dev/null && return 0
     [[ "$_should_seed" -eq 1 ]] && return 0
     MIOS_AGENT_ENDPOINT="$_AGENT_ENDPOINT" MIOS_AGENT_MODEL="$_AGENT_MODEL" \
     python3 - "$f" <<'EOF' 2>/dev/null || return 0
@@ -798,7 +797,7 @@ EOF
             _log "WARN: thin-client transform failed -- copied leaf config to $_u_cfg as fallback"
         fi
     else
-        _log "operator CLI config $_u_cfg already current (thin :8640 client) -- not overwriting"
+        _log "operator CLI config $_u_cfg already current (thin :8700 client) -- not overwriting"
     fi
 
     if [[ -z "$_api_key_val" ]]; then
@@ -915,7 +914,7 @@ if [[ -x /usr/libexec/mios/mios-owui-install-pipe ]]; then
             | while IFS= read -r _line; do _log "$_line"; done \
             || _log "WARN: mios-owui-install-pipe failed (non-fatal, continuing)"
     else
-        _log "WARN: OWUI not reachable on :3030 after 90s -- skipping install-pipe"
+        _log "WARN: OWUI not reachable on :${port:-8200} after 90s -- skipping install-pipe"
     fi
 fi
 
@@ -936,19 +935,10 @@ fi
 
 if command -v curl >/dev/null 2>&1; then
     _log "pre-warming model weights (load-only, NO prompts)..."
-
-    (curl -sf --max-time 240 \
-        http://localhost:11434/api/chat \
-        -d '{"model":"mios-sys-agent","messages":[{"role":"user","content":"ok"}],"stream":false,"keep_alive":-1,"options":{"num_gpu":0,"num_thread":8,"num_predict":1}}' \
-        >/dev/null 2>&1 &) || true
-
-    for _wmodel in qwen3.5:4b qwen3:1.7b qwen2.5-coder:7b; do
-        (curl -sf --max-time 180 \
-            http://localhost:11434/api/generate \
-            -d "{\"model\":\"$_wmodel\",\"prompt\":\"\",\"stream\":false,\"keep_alive\":\"-1\",\"options\":{\"num_predict\":0}}" \
-            >/dev/null 2>&1 &) || true
-    done
-    _log "  pre-warm dispatched: mios-sys-agent (CPU) + 4 chat-path models (GPU/load-only)"
+    _LLM_LIGHT_PORT="${MIOS_PORT_LLM_LIGHT:-8500}"
+    (curl -sf --max-time 2 \
+        "http://localhost:${_LLM_LIGHT_PORT}/v1/models" >/dev/null 2>&1 &) || true
+    _log "  pre-warm dispatched: mios-llm-light (:8500)"
 fi
 
 for _legacy in mios-log-watcher mios-agent-nudger mios-cron-director; do

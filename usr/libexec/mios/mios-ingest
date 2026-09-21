@@ -94,7 +94,7 @@ def _summarize(text: str) -> dict:
 
 def _embed(text: str):
     """Single-vector embed via the light-lane OpenAI /v1/embeddings
-    (mios-llm-light :11450, nomic-embed-text, 768-dim) -- the SAME model+endpoint
+    (mios-llm-light :8500, nomic-embed-text, 768-dim) -- the SAME model+endpoint
     agent-pipe uses so cosine recall is comparable. MiOS is /v1-only: the OpenAI
     shape ({input} -> {data:[{embedding}]}). Returns a list[float] or None on ANY
     failure (network down, light lane swapping, bad shape) -- the caller then stores

@@ -12,7 +12,7 @@ FILTER_SRC=/usr/share/mios/owui/pipes/mios_antimeta_filter.py
 FILTER_ID="mios_antimeta"
 FILTER_NAME="MiOS Anti-Meta Filter"
 SIDECAR_ID="mios_sidecar"
-OWUI_URL="${MIOS_OWUI_URL:-http://localhost:3030}"
+OWUI_URL="${MIOS_OWUI_URL:-http://localhost:8200}"
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
 
 [ -f "$PIPE_SRC" ] || { echo "Mios-owui-install-pipe: $PIPE_SRC missing" >&2; exit 2; }

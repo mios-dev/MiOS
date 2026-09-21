@@ -270,7 +270,7 @@ class ModelMatrixAllocator:
         return {
             "version": "1.0",
             "tier": tier,
-            "port": 11450,
+            "port": 8500,
             "health_check": "/v1/models",
             "models": config_models,
         }

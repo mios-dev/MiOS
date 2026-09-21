@@ -18,7 +18,7 @@ if [[ "$RECHUNK_ENABLE" != "true" ]]; then
     exit 0
 fi
 
-BUNDLE_URL="${MIOS_DELTA_BUNDLE_URL:-http://localhost:8640/v1/update/delta.tar}"
+BUNDLE_URL="${MIOS_DELTA_BUNDLE_URL:-http://localhost:8700/v1/update/delta.tar}"
 PUB_KEY_PATH="/etc/mios/ai/v1/keys/mios_audit_pub.pem"
 TMP_DIR="/var/tmp/mios-delta-update"
 OLD_OCI="/var/tmp/mios-delta-old-oci"

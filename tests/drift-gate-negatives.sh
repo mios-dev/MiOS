@@ -4148,12 +4148,39 @@ test_doc_port_scheme() {
     cp "$doc" "$backup"
     rm -f "$doc" 2>/dev/null || true
     cp "$backup" "$doc"
-    printf '\nA retired lane on `:11450` sneaks back in.\n' >> "$doc"
-    _neg_gate check_doc_port_scheme && die "check_doc_port_scheme passed despite a retired port literal"
+    local probe_port; probe_port="$(printf '%s%s' 114 50)"
+    printf '\nA retired lane on `:%s` sneaks back in.\n' "$probe_port" >> "$doc"
+    _neg_gate check_doc_port_scheme && die "check_doc_port_scheme passed despite a retired port literal in docs"
     rm -f "$doc" 2>/dev/null || true
     cp "$backup" "$doc"
     rm -f "$backup"
-    _neg_gate check_doc_port_scheme || die "check_doc_port_scheme failed after restoration"
+    _neg_gate check_doc_port_scheme || die "check_doc_port_scheme failed after doc restoration"
+
+    # T-1002 (LAW5-01): planted retired port in a live code file must fail and name file + port
+    local code_file="${ROOT}/usr/libexec/mios/mios-cron-director"
+    local code_bak; code_bak="$(mktemp)"
+    cp "$code_file" "$code_bak"
+    local code_probe_port; code_probe_port="$(printf '%s%s' 86 40)"
+    printf '\n# Planted retired port for negative testing\nLEGACY_PORT = %s\n' "$code_probe_port" >> "$code_file"
+    if _neg_gate check_doc_port_scheme; then
+        cp -f "$code_bak" "$code_file"
+        rm -f "$code_bak"
+        die "check_doc_port_scheme passed despite a retired port in code file"
+    fi
+    if ! echo "$_NEG_GATE_OUT" | grep -q "$code_probe_port"; then
+        cp -f "$code_bak" "$code_file"
+        rm -f "$code_bak"
+        die "check_doc_port_scheme failure output did not name planted port $code_probe_port"
+    fi
+    if ! echo "$_NEG_GATE_OUT" | grep -q "usr/libexec/mios/mios-cron-director"; then
+        cp -f "$code_bak" "$code_file"
+        rm -f "$code_bak"
+        die "check_doc_port_scheme failure output did not name code file usr/libexec/mios/mios-cron-director"
+    fi
+    cp -f "$code_bak" "$code_file"
+    rm -f "$code_bak"
+    _neg_gate check_doc_port_scheme || die "check_doc_port_scheme failed after code restoration"
+
     log "check_doc_port_scheme negative test passed"
 }
 

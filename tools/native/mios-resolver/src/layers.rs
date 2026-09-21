@@ -54,15 +54,13 @@ pub fn resolve_tier_dirs(
         .unwrap_or_else(|| env::var("MIOS_TOML_ROOT").unwrap_or_default());
     let root = normalize_path_str(&root_str);
 
-    let vendor = env::var("MIOS_VENDOR_TOML")
-        .or_else(|_| env::var("MIOS_TOML"))
-        .unwrap_or_else(|_| {
-            if !root.is_empty() {
-                format!("{}/usr/share/mios/mios.toml", root)
-            } else {
-                "usr/share/mios/mios.toml".to_string()
-            }
-        });
+    let vendor = if !root.is_empty() {
+        env::var("MIOS_VENDOR_TOML").unwrap_or_else(|_| format!("{}/usr/share/mios/mios.toml", root))
+    } else {
+        env::var("MIOS_VENDOR_TOML")
+            .or_else(|_| env::var("MIOS_TOML"))
+            .unwrap_or_else(|_| "usr/share/mios/mios.toml".to_string())
+    };
 
     let host = env::var("MIOS_HOST_TOML").unwrap_or_else(|_| {
         if !root.is_empty() {
@@ -76,13 +74,17 @@ pub fn resolve_tier_dirs(
         // Mirror userenv.sh: ${XDG_CONFIG_HOME:-$HOME/.config}. A literal "~"
         // never expands here, so resolve HOME (USERPROFILE on Windows) instead
         // or the whole user tier is silently dropped.
-        let xdg = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
-            let home = env::var("HOME")
-                .or_else(|_| env::var("USERPROFILE"))
-                .unwrap_or_default();
-            format!("{}/.config", home)
-        });
-        format!("{}/mios/mios.toml", xdg)
+        if !root.is_empty() {
+            format!("{}/etc/skel/.config/mios/mios.toml", root)
+        } else {
+            let xdg = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
+                let home = env::var("HOME")
+                    .or_else(|_| env::var("USERPROFILE"))
+                    .unwrap_or_default();
+                format!("{}/.config", home)
+            });
+            format!("{}/mios/mios.toml", xdg)
+        }
     });
 
     let vendor_d = env::var("MIOS_VENDOR_TOML_D").unwrap_or_else(|_| {

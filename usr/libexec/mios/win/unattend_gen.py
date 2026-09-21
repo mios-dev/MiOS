@@ -218,7 +218,7 @@ class UnattendGenerator:
         first_cmds = ET.SubElement(comp_oobe_shell, "FirstLogonCommands")
         fl_list = [
             ("PowerShell Execution Policy", "powershell.exe -NoProfile -Command \"Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy RemoteSigned -Force\""),
-            ("MiOS AI Endpoint Variable", "powershell.exe -NoProfile -Command \"[System.Environment]::SetEnvironmentVariable('MIOS_AI_ENDPOINT', 'http://127.0.0.1:8640/v1', 'Machine')\""),
+            ("MiOS AI Endpoint Variable", "powershell.exe -NoProfile -Command \"[System.Environment]::SetEnvironmentVariable('MIOS_AI_ENDPOINT', 'http://127.0.0.1:8700/v1', 'Machine')\""),
         ]
         if self.config.enable_wsl2:
             fl_list.append(("Enable WSL2 & VM Platform", "powershell.exe -NoProfile -Command \"Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform,Microsoft-Windows-Subsystem-Linux -NoRestart\""))

@@ -39,7 +39,7 @@ import sys
 import urllib.error
 import urllib.request
 
-PIPE_URL = os.environ.get("MIOS_AGENT_PIPE_URL", "http://127.0.0.1:8640")
+PIPE_URL = os.environ.get("MIOS_AGENT_PIPE_URL", "http://127.0.0.1:8700")
 DEFAULT_TIMEOUT = float(os.environ.get("MIOS_HANDOFF_TIMEOUT", "180"))
 
 

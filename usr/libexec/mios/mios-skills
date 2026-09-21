@@ -7,9 +7,9 @@ Phase C.2 of the AgentOS roadmap. Mines the Postgres `tool_call`
 table for repeating verb sequences and codifies them as `skill`
 rows that EVERY agent in the MiOS stack reads from a single source:
 
-  * mios-agent-pipe (:8640) -- reads via /skills/* REST endpoints
+  * mios-agent-pipe (:8700) -- reads via /skills/* REST endpoints
                                AND directly from Postgres.
-  * MiOS-Hermes (:8642)     -- pulls /skills/openai-tools at startup
+  * MiOS-Hermes (:8720)     -- pulls /skills/openai-tools at startup
                                so Hermes' OpenAI-compat tool surface
                                advertises promoted skills as callable
                                tools (no Hermes-side hardcoding).
@@ -136,7 +136,7 @@ def _pg_rows(sql_inner: str, params: list | None = None) -> list:
 
 
 AGENT_PIPE_ENDPOINT = os.environ.get(
-    "MIOS_AGENT_PIPE_ENDPOINT", "http://localhost:8640/v1",
+    "MIOS_AGENT_PIPE_ENDPOINT", "http://localhost:8700/v1",
 ).rstrip("/")
 AGENT_PIPE_ROOT = AGENT_PIPE_ENDPOINT[:-3] if AGENT_PIPE_ENDPOINT.endswith("/v1") else AGENT_PIPE_ENDPOINT
 

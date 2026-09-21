@@ -73,66 +73,6 @@ unconsumed = [
 # ----------------------------------------------------------------------------
 # [unit_projection] -- Shrink-only debt register for the [units] projection.
 # ----------------------------------------------------------------------------
-[unit_projection]
-doc = "[units.*] is the SOURCE and usr/lib/systemd/system is the DERIVED artifact (Law 8), but the declarations went stale while nothing compared them: mios-unit-gen --check rendered into memory, printed PASSED and returned, and its golden test diffed the unit tree against tests/golden/, a byte copy of that same tree. This register lists every unit [units.*] declares whose rendering no longer matches the file it ships. It only shrinks -- tools/native/mios-unit-gen/tests/projection.rs fails an entry that has stopped drifting as loudly as one that starts, so the count cannot be padded. Draining an entry: `mios-unit-gen --render <unit> | diff - usr/lib/systemd/system/<unit>`, then correct [units.*] (the file on disk is what boots, so it wins). A unit absent from BOTH this register and [units.*] is not covered at all -- 52 of the tree's 120 units are in that state, which is the larger debt behind T-317."
-max_drift = 55
-drift = [
-  "hermes-worker-firstboot.service",
-  "hermes-worker.path",
-  "hermes-worker.service",
-  "mios-account-sync.service",
-  "mios-additionalimagestores-perms.path",
-  "mios-adguard-firstboot.service",
-  "mios-agent-pipe.service",
-  "mios-agents.service",
-  "mios-ai-firstboot.service",
-  "mios-ai-firstboot.timer",
-  "mios-aios-refresh.timer",
-  "mios-bound-images-firstboot.service",
-  "mios-ceph-bootstrap.service",
-  "mios-daemon.service",
-  "mios-dashboard-issue.timer",
-  "mios-desktop.target",
-  "mios-embed-backfill.service",
-  "mios-embed-backfill.timer",
-  "mios-finetune-serve.service",
-  "mios-firewall-ports.service",
-  "mios-firstboot.target",
-  "mios-forge-firstboot.service",
-  "mios-forgejo-runner-firstboot.service",
-  "mios-gpu-amd.service",
-  "mios-gpu-detect.service",
-  "mios-gpu-intel.service",
-  "mios-gpu-nvidia.service",
-  "mios-gpu-nvidia.service.d/10-cycle-fix.conf",
-  "mios-gpu-pv-detect.service",
-  "mios-gpu-status.service",
-  "mios-ha-node.target",
-  "mios-headless.target",
-  "mios-hermes-browser-worker.service",
-  "mios-hermes-browser.service",
-  "mios-hermes-firstboot.service",
-  "mios-hybrid.target",
-  "mios-k3s-master.target",
-  "mios-k3s-worker.target",
-  "mios-libexec-perms.path",
-  "mios-mcp.service",
-  "mios-models-firstboot.service",
-  "mios-opencode-gateway.service",
-  "mios-pgvector-backup.service",
-  "mios-pgvector-backup.timer",
-  "mios-podman-gc.service",
-  "mios-policy-arbiter.service",
-  "mios-shell-session-gc.service",
-  "mios-skills-miner.timer",
-  "mios-suggestion-refresh.timer",
-  "mios-swarm-pack-firstboot.service",
-  "mios-sys-env-refresh.timer",
-  "mios-userdb-render.service",
-  "mios-webtools-firstboot.service",
-  "mios-wsl-firstboot.service",
-  "mios-wsl-flatpak-export-sync.path",
-]
 
 [units."mios-podman-gc.service".Unit]
 comment = "# AI-hint: Systemd unit that executes a forced Podman system prune to reclaim disk space from unused images and containers, specifically targeting WSL and non-containerized environments."
@@ -11085,6 +11025,34 @@ port_clean = [
     "usr/share/mios/owui/pipes/mios_agent_pipe.py"
 ]
 
+# Itemised shrink-only register of code files retaining retired ports (T-1002 / LAW5-01).
+# Strictly limited to intentional cleanup routines (e.g. Setup-MiOSLanPortProxy.ps1) and regression test fixtures.
+# Any unlisted code file under usr/libexec/mios or usr/lib/mios containing a retired port FAILS the gate.
+max_retired_code_exemptions = 21
+retired_code_exemptions = [
+  "usr/libexec/mios/Setup-MiOSLanPortProxy.ps1",
+  "usr/lib/mios/agent-pipe/test_mios_a2a_client.py",
+  "usr/lib/mios/agent-pipe/test_mios_agent_call.py",
+  "usr/lib/mios/agent-pipe/test_mios_agentreg.py",
+  "usr/lib/mios/agent-pipe/test_mios_batch.py",
+  "usr/lib/mios/agent-pipe/test_mios_blades.py",
+  "usr/lib/mios/agent-pipe/test_mios_clusterhealth.py",
+  "usr/lib/mios/agent-pipe/test_mios_config.py",
+  "usr/lib/mios/agent-pipe/test_mios_daemons.py",
+  "usr/lib/mios/agent-pipe/test_mios_endpoints.py",
+  "usr/lib/mios/agent-pipe/test_mios_firewall.py",
+  "usr/lib/mios/agent-pipe/test_mios_http_caps.py",
+  "usr/lib/mios/agent-pipe/test_mios_knowledge.py",
+  "usr/lib/mios/agent-pipe/test_mios_kvgc.py",
+  "usr/lib/mios/agent-pipe/test_mios_lanes.py",
+  "usr/lib/mios/agent-pipe/test_mios_memguard.py",
+  "usr/lib/mios/agent-pipe/test_mios_pg.py",
+  "usr/lib/mios/agent-pipe/test_mios_portal.py",
+  "usr/lib/mios/agent-pipe/test_mios_route_reload.py",
+  "usr/lib/mios/agent-pipe/test_mios_sched.py",
+  "usr/lib/mios/agent-pipe/tests/test_mios_health.py",
+]
+
 # Ratchet floors, monotone decreasing. Measured, not guessed.
 # Method + full census: docs/design/doc-generative-documentation.md
 max_unmigrated_narrative = 0   # MIGRATE blocks still in source
@@ -11383,7 +11351,7 @@ not_mirrored = [
 
 # [legibility] -- the repo IS the deliverable. Floors fall only. See ROADMAP.md.
 [legibility]
-max_tracked_files = 3065
+max_tracked_files = 3050
 # GENERATED by tools/native/mios-size-ceiling; do not hand-edit. The valid band
 # is round(tracked MiB) .. that + tracked_mb_headroom, and a committed value
 # outside it fails check_size_ceiling. This ceiling is NOT shrink-only, which is
@@ -11474,10 +11442,8 @@ unit = [
     "tests/test-blade-reachability.sh",
     "tests/test-seat-auth-posture.sh",
     "tests/test-seat-activates-nothing.py",
-    "tests/test-greenboot-blade-guard.sh",
-    "tests/test-greenboot-blade-reachability.sh",
-    "tests/test-lint-python-coverage.sh",
-    "tests/test-lint-shell-coverage.sh",
+    "tests/test-greenboot-blade.sh",
+    "tests/test-lint-coverage.sh",
     "tests/test-owui-pipe-endpoints.py",
     "tests/doc-production-evidence.sh",
     "tests/test-a2o-fallback.sh",
@@ -11598,24 +11564,20 @@ unit = [
     "tests/test-reactive-loop.py",
     "tests/test-council-consensus.py",
     "tests/test-oomd-psi.py",
-    "tests/test-train-elastic.py",
+    "tests/test-ai-acceleration.py",
     "tests/test-multimodal-ws.py",
     "tests/test-context-compactor.py",
     "tests/test-kpatch-mgr.py",
-    "tests/test-grammar-decode.py",
     "tests/test-overlay-workspace.py",
     "tests/test-ai.py",
-    "tests/test-medusa-tree.py",
     "tests/test-split-dns.py",
     "tests/test-fastboot-mgr.py",
     "tests/test-bitperfect-audio.py",
     "tests/test-native-storage.py",
-    "tests/test-cuda-graphs.py",
     "tests/test-lfs-cache.py",
     "tests/test-ebpf-trace.py",
     "tests/test-macaroon-auth.py",
     "tests/test-gpu-terminal.py",
-    "tests/test-rocm-paged-attn.py",
     "tests/test-priority-sched.py",
     "tests/test-kvfork.py",
     "tests/test-deliberate.py",
@@ -11625,7 +11587,6 @@ unit = [
     "tests/test-microvm.py",
     "tests/test-virtio-pmem-dax-io.py",
     "tests/test-stress.py",
-    "tests/test-speculative-branch-pruning.py",
     "tests/test-streaming-asr-latency.py",
     "tests/test-ceph-mds-active-active.py",
     "tests/test-netavark-firewall-isolation.py",
@@ -11635,21 +11596,13 @@ unit = [
     "tests/test-quadlet-prewarm-offline.py",
     "tests/test-coredump-sanitization.py",
     "tests/test-wireguard-endpoint-roaming.py",
-    "tests/test-streamingllm-perplexity.py",
-    "tests/test-quantization-kernel-throughput.py",
     "tests/test-cilium-bgp-ecmp.py",
     "tests/test-bcachefs-tiered-storage.py",
-    "tests/test-fp8-kv-cache-capacity.py",
     "tests/test-dkms-container-build.py",
-    "tests/test-shm-ring-throughput.py",
-    "tests/test-intel-arc-pagedattention.py",
-    "tests/test-mxfp4-kv-cache-density.py",
-    "tests/test-kquants-mixed-precision.py",
     "tests/test-self-replicate-build.py",
     "tests/test-microvm-live-migration.py",
     "tests/test-seat-blade-transition.py",
     "tests/test-swarm-pss-memory.py",
-    "tests/test-tensor-pipeline-rpc.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

@@ -89,8 +89,8 @@ def _lane_sem(key: str) -> asyncio.Semaphore:
 
 def _endpoint_key(ep: str) -> str:
     """host:port of an endpoint URL -- the identity of the physical inference
- daemon. Strips scheme + path so http://localhost:11434
-    /v1 and http://localhost:11434/api/chat collapse to one key."""
+    daemon. Strips scheme + path so http://localhost:8500
+    /v1 and http://localhost:8500/v1/models collapse to one key."""
     s = str(ep or "")
     s = s.split("://", 1)[-1]          # drop scheme
     return s.split("/", 1)[0] or s     # keep host:port

@@ -888,7 +888,7 @@ async def lifespan(app):
             trace_span=_trace_span
         )
 
-        # Law 5: :8642 is a RETIRED port. [ai].endpoint is
+        # Law 5: the legacy hermes port is RETIRED. [ai].endpoint is
         # "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1" -- mirror that resolution.
         _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
         ai_endpoint = os.environ.get(
@@ -1177,7 +1177,7 @@ def _cap_cpu_lane_model(ep: str, model: str) -> str:
 def _is_slow_lane_ep(ep: str) -> bool:
     """True for a CPU/iGPU light-lane endpoint (same _CPU_LANE_HINTS the model-cap
     uses): local CPU :11435, the remote potato CPU (…:11435) and the Windows iGPU
-    :11436 all match; the dGPU :11434 and remote GPU lanes do not."""
+    :11436 all match; the dGPU and remote GPU lanes do not."""
     return bool(ep) and any(h and h in ep for h in _CPU_LANE_HINTS)
 
 def _agent_binding(cfg: dict, engine: Optional[str] = None) -> tuple:

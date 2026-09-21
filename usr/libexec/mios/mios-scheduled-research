@@ -21,7 +21,7 @@ import time
 import urllib.request
 
 PROMPT_DIR = "/var/lib/mios/cron-director/prompts"
-PIPE_URL = os.environ.get("MIOS_SCHED_PIPE_URL", "http://127.0.0.1:8640/v1/chat/completions")
+PIPE_URL = os.environ.get("MIOS_SCHED_PIPE_URL", "http://127.0.0.1:8700/v1/chat/completions")
 PIPE_MODEL = os.environ.get("MIOS_SCHED_MODEL", "mios-agent")
 PIPE_TIMEOUT = float(os.environ.get("MIOS_SCHED_TIMEOUT", "240"))
 SCHED_BOUNDED = os.environ.get("MIOS_SCHED_BOUNDED", "true").lower() \

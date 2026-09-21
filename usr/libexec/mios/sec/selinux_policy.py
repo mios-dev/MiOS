@@ -32,7 +32,7 @@ class SelinuxPolicyManager:
         allowed_dirs: Optional[List[str]] = None,
     ) -> str:
         """Generates SELinux Type Enforcement (.te) source code for AI sidecar container isolation."""
-        ports = allowed_ports or [5432, 8640, 8642, 8888, 11450]
+        ports = allowed_ports or [5432, 8500, 8700, 8720, 8800]
         dirs = allowed_dirs or ["/var/lib/mios", "/var/log/mios", "/tmp"]
 
         ports_str = ", ".join(str(p) for p in sorted(ports))

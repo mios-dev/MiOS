@@ -37,7 +37,7 @@ class PolicyConfig:
     enable_dev_mode: bool = True
     enable_long_paths: bool = True
     setup_profile: bool = True
-    ai_endpoint: str = "http://127.0.0.1:8640/v1"
+    ai_endpoint: str = "http://127.0.0.1:8700/v1"
     profile_path: Optional[str] = None
 
 class PowerShellPolicyEngine:
@@ -223,7 +223,7 @@ def main() -> int:
     parser.add_argument("--policy", choices=["RemoteSigned", "Unrestricted", "Restricted", "AllSigned"], default="RemoteSigned", help="PowerShell execution policy")
     parser.add_argument("--disable-dev-mode", action="store_true", help="Do not enable Developer Mode")
     parser.add_argument("--disable-long-paths", action="store_true", help="Do not enable Long Paths")
-    parser.add_argument("--ai-endpoint", default="http://127.0.0.1:8640/v1", help="Canonical MiOS AI endpoint")
+    parser.add_argument("--ai-endpoint", default="http://127.0.0.1:8700/v1", help="Canonical MiOS AI endpoint")
     parser.add_argument("--emit-reg", action="store_true", help="Emit Windows .reg registry export")
     parser.add_argument("--emit-ps1", action="store_true", help="Emit PowerShell deployment script")
     parser.add_argument("--apply", action="store_true", help="Apply settings directly to Windows Registry")

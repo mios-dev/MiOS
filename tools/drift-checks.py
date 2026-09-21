@@ -4529,6 +4529,39 @@ def check_doc_port_scheme() -> int:
         except OSError:
             pass
 
+    # Code surface scanning (T-1002 / LAW5-01):
+    code_exemptions, scanned_exempt_hits = set(docs.get("retired_code_exemptions", [])), set()
+    max_ex = docs.get("max_retired_code_exemptions")
+    if max_ex is not None and len(code_exemptions) != max_ex:
+        tag = "EXCEEDS ceiling" if len(code_exemptions) > max_ex else "is BELOW ceiling"
+        viol.append(f"[docs].retired_code_exemptions count {len(code_exemptions)} {tag} {max_ex}" +
+                    (" -- lower max_retired_code_exemptions to lock in progress" if len(code_exemptions) < max_ex else ""))
+    for f in code_exemptions:
+        if not os.path.isfile(os.path.join(root, f)):
+            viol.append(f"[docs].retired_code_exemptions names a missing file: {f}")
+    for c_dir in ("usr/libexec/mios", "usr/lib/mios"):
+        full_c = os.path.join(root, c_dir)
+        if not os.path.isdir(full_c):
+            continue
+        for dp, _, files in os.walk(full_c):
+            if "__pycache__" in dp or ".git" in dp:
+                continue
+            for fname in files:
+                full_path = os.path.join(dp, fname)
+                rel_path = os.path.relpath(full_path, root).replace("\\", "/")
+                try:
+                    with open(full_path, "r", encoding="utf-8", errors="ignore") as fh:
+                        for idx, line in enumerate(fh, 1):
+                            m = pat.search(line)
+                            if m:
+                                if rel_path in code_exemptions:
+                                    scanned_exempt_hits.add(rel_path)
+                                else:
+                                    viol.append(f"retired port {m.group(2)} in code file {rel_path}:{idx}: {line.strip()}")
+                except OSError:
+                    pass
+    for sf in sorted(code_exemptions - scanned_exempt_hits):
+        viol.append(f"[docs].retired_code_exemptions contains clean file {sf} -- remove it to shrink the register")
     if viol:
         for v in viol:
             print(v, file=sys.stderr)
@@ -4583,76 +4616,30 @@ def check_blade_reconcile_schema() -> int:
         return 1
     return 0
 
-SUBCOMMANDS = {
-    "bootstrap-ports-drift": check_bootstrap_ports_drift,
-    "agent-schema": check_agent_schema,
-    "names-registry": check_names_registry,
-    "gate-registry": check_gate_registry,
-    "firstboot-tier": check_firstboot_tier,
-    "cephfs-ssot": check_cephfs_ssot,
-    "verb-stub-backends": check_verb_stub_backends,
-    "no-bare-port-literals": check_no_bare_port_literals,
-    "globals-image-parity": check_globals_image_parity,
-    "bake-plan-integrity": check_bake_plan_integrity,
-    "negative-test-coverage": check_negative_test_coverage,
-    "structured": check_structured,
-    "drift-build-catalog": check_drift_build_catalog,
-    "drift-projection": check_drift_projection,
-    "unwired-modules": check_unwired_modules,
-    "no-duplicate-value-key": check_no_duplicate_value_key,
-    "resolver-differential-parity": check_resolver_differential_parity,
-    "legibility-ratchet": check_legibility_ratchet,
-    "header-integrity": check_header_integrity,
-    "rbac-tiers": check_rbac_tiers,
-    "ai-manifest": check_ai_manifest,
-    "capability-manifest": check_capability_manifest,
-    "surface-parity": check_surface_parity,
-    "container-ports": check_container_ports,
-    "agent-pipe-budgets": check_agent_pipe_budgets,
-    "verb-backends": check_verb_backends,
-    "python-untested-ratchet": check_python_untested_ratchet,
-    "canonical-bools": check_canonical_bools,
-    "dag-integrity": check_dag_integrity,
-    "ai-endpoint-local": check_ai_endpoint_local,
-    "bake-refs-parity": check_bake_refs_parity,
-    "cli-eval-safety": check_cli_eval_safety,
-    "resolver-ssot-refs": check_resolver_ssot_refs,
-    "bake-budget": check_bake_budget,
-    "greenboot": check_greenboot,
-    "router-intent-coverage": check_router_intent_coverage,
-    "council-gate-ssot": check_council_gate_ssot,
-    "test-hermeticity": check_test_hermeticity,
-    "containerfile-pinned-clones": check_containerfile_pinned_clones,
-    "replaceme-mount-substitution": check_replaceme_mount_substitution,
-    "bib-rootfs-label-policy": check_bib_rootfs_label_policy,
-    "smoke-manifest": check_smoke_manifest,
-    "negative-coverage": check_negative_coverage,
-    "usr-over-etc": check_usr_over_etc,
-    "projection-registry": check_projection_registry,
-    "bib-config-mount": check_bib_config_mount,
-    "win11-vm-template-xml": check_win11_vm_template_xml,
-    "db-seed-coverage": check_db_seed_coverage,
-    "account-column-parity": check_account_column_parity,
-    "v2v-import-ssot": check_v2v_import_ssot,
-    "value-aliases": check_value_aliases,
-    "negatives-are-effective": check_negatives_are_effective,
-    "pipefail-grep-lint": check_pipefail_grep_lint,
-    "skip-list-covered": check_skip_list_covered,
-    "template-self-conformance": check_template_self_conformance,
-    "templates-bootstrap-sync": check_templates_bootstrap_sync,
-    "secret-handling": check_secret_handling,
-    "os-update-timer-enabled": check_os_update_timer_enabled,
-    "adhoc-toml-parsers": check_adhoc_toml_parsers,
-    "install-uninstall-symmetry": check_install_uninstall_symmetry,
-    "ps-port-fallback-ssot": check_ps_port_fallback_ssot,
-    "ps-encoding-and-bom": check_ps_encoding_and_bom,
-    "unit-security": check_unit_security,
-    "unit-dependency-closure": check_unit_dependency_closure,
-    "docs-ratchet": check_docs_ratchet,
-    "generator-host-parity": check_generator_host_parity,
-    "doc-port-scheme": check_doc_port_scheme,
-    "blade-reconcile-schema": check_blade_reconcile_schema,
-}
+_SUBCOMMAND_NAMES = (
+    "bootstrap-ports-drift", "agent-schema", "names-registry", "gate-registry",
+    "firstboot-tier", "cephfs-ssot", "verb-stub-backends", "no-bare-port-literals",
+    "globals-image-parity", "bake-plan-integrity", "negative-test-coverage",
+    "structured", "drift-build-catalog", "drift-projection", "unwired-modules",
+    "no-duplicate-value-key", "resolver-differential-parity", "legibility-ratchet",
+    "header-integrity", "rbac-tiers", "ai-manifest", "capability-manifest",
+    "surface-parity", "container-ports", "agent-pipe-budgets", "verb-backends",
+    "python-untested-ratchet", "canonical-bools", "dag-integrity",
+    "ai-endpoint-local", "bake-refs-parity", "cli-eval-safety",
+    "resolver-ssot-refs", "bake-budget", "greenboot", "router-intent-coverage",
+    "council-gate-ssot", "test-hermeticity", "containerfile-pinned-clones",
+    "replaceme-mount-substitution", "bib-rootfs-label-policy", "smoke-manifest",
+    "negative-coverage", "usr-over-etc", "projection-registry",
+    "bib-config-mount", "win11-vm-template-xml", "db-seed-coverage",
+    "account-column-parity", "v2v-import-ssot", "value-aliases",
+    "negatives-are-effective", "pipefail-grep-lint", "skip-list-covered",
+    "template-self-conformance", "templates-bootstrap-sync", "secret-handling",
+    "os-update-timer-enabled", "adhoc-toml-parsers", "install-uninstall-symmetry",
+    "ps-port-fallback-ssot", "ps-encoding-and-bom", "unit-security",
+    "unit-dependency-closure", "docs-ratchet", "generator-host-parity",
+    "doc-port-scheme", "blade-reconcile-schema",
+)
+SUBCOMMANDS = {k: globals()["check_" + k.replace("-", "_")] for k in _SUBCOMMAND_NAMES}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in SUBCOMMANDS:

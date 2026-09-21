@@ -10,21 +10,21 @@ DEFAULT_SOCKET_DIR = "/run/mios/sockets"
 DEFAULT_ROUTES = [
     {
         "name": "agent_pipe",
-        "listen_port": 8640,
+        "listen_port": 8700,
         "socket_path": "/run/mios/sockets/agent_pipe.sock",
         "enable_mtls": False,
         "trace_propagation": True,
     },
     {
         "name": "hermes_gateway",
-        "listen_port": 8642,
+        "listen_port": 8720,
         "socket_path": "/run/mios/sockets/hermes.sock",
         "enable_mtls": False,
         "trace_propagation": True,
     },
     {
         "name": "llm_light",
-        "listen_port": 8450,
+        "listen_port": 8500,
         "socket_path": "/run/mios/sockets/llm_light.sock",
         "enable_mtls": False,
         "trace_propagation": False,

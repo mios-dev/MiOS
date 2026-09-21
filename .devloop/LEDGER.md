@@ -1547,4 +1547,32 @@ so long. Let a run finish.
 - blockers: -
 - unverified: -
 
+## 2026-09-21 13:07 · t1021_t1002_test_consolidation_port_sealing · T-1021 Test Consolidation, R2 Ratchet Compaction & T-1002 Retired Port Sealing Sealed
+- objective: Consolidate shell tests into unified domain suites (T-1021 / GATECAT-01), compact tooling to satisfy legibility ratchets (R2), and seal retired port detection gate across code surface with parity (T-1002 / LAW5-01).
+- done:
+  1. T-1021 (GATECAT-01 Test Domain Consolidation):
+     - Consolidated `tests/test-lint-python-coverage.sh` and `tests/test-lint-shell-coverage.sh` into `tests/test-lint-coverage.sh` (chmod +x).
+     - Consolidated `tests/test-greenboot-blade-guard.sh` and `tests/test-greenboot-blade-reachability.sh` into `tests/test-greenboot-blade.sh` (chmod +x, 15/15 assertions).
+     - Removed 4 superseded test files via `git rm`.
+     - Updated `usr/share/mios/mios.toml:[ci.tiers].unit` with consolidated suites, removing deleted paths.
+     - Updated `Justfile` lines 145-148 (`drift-gate` target) and `automation/lint-python.sh` line 53 comment reference.
+     - Verified `python3 tools/ci-suites.py --check` passes with 0 orphaned suites (340 registered suites, 6/6 exempt).
+  2. R2 Zero-Slack Ratchet Compaction:
+     - Compacted `SUBCOMMANDS` table and `check_doc_port_scheme` in `tools/drift-checks.py` (-56 lines).
+     - Reduced `tooling_python_lines` to 75,974 lines (13 lines under 75,987 floor).
+     - Reduced `shell_lines` to 39,796 lines (24 lines under 39,820 floor).
+     - Contracted `max_tracked_files` in `usr/share/mios/mios.toml` from 3065 to 3050 (tracked_files = 3049/3050).
+     - Verified `python3 tools/drift-checks.py legibility-ratchet` exits 0 on all 7 dimensions with zero warnings/overages.
+  3. T-1002 (LAW5-01 Retired Port Sealing):
+     - Verified `check_doc_port_scheme` in `tools/drift-checks.py` audits both doc files and recursive code files under `usr/libexec/mios` and `usr/lib/mios`.
+     - Verified 0 unlisted retired port hits in live code; all 21 test/cleanup fixtures registered in `retired_code_exemptions` under zero-slack `max_retired_code_exemptions = 21`.
+     - Proved two-sided negative gate in `tests/drift-gate-negatives.sh:test_doc_port_scheme` passes and verifies planted port detection in both docs (README.md:11450) and live code (mios-cron-director:8640).
+     - Verified `python3 tests/test-ai-acceleration.py` passes 22/22 tests.
+     - Marked T-1002 as `done` in `TASKS.md` summary table (row 990) and detail section (10962).
+     - Verified `python3 tools/check-tasks.py status-parity` and `python3 tools/check-tasks.py schema` exit 0.
+- next: Advance Desktop OS & bootc substrate roadmap tasks.
+- blockers: -
+- unverified: -
+
+
 

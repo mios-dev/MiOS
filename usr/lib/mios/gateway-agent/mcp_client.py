@@ -29,7 +29,7 @@ class MiOSMCPClient:
 
             command = "/usr/libexec/mios/mios-mcp-server"
             env = dict(os.environ)
-            # Law 5: :8640 is a RETIRED port -- the pipe answers on [ports].agent_pipe.
+            # Law 5: the legacy orchestrator port is RETIRED -- the pipe answers on [ports].agent_pipe.
             _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
             env["MIOS_AGENT_PIPE_URL"] = os.environ.get(
                 "MIOS_AGENT_PIPE_URL", "http://localhost:%s" % _pipe_port)

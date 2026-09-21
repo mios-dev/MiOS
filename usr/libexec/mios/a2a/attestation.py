@@ -212,7 +212,7 @@ class A2AAuthenticator:
         payload: Dict[str, Any] = {
             "agent_name": str(agent_name),
             "capabilities": sorted(list(capabilities)),
-            "endpoints": dict(endpoints) if endpoints is not None else {"rpc": f"http://127.0.0.1:8640/a2a"},
+            "endpoints": dict(endpoints) if endpoints is not None else {"rpc": f"http://127.0.0.1:8700/a2a"},
             "expires_at": exp,
             "issued_at": now,
             "node_id": nid,

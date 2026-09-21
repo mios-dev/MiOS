@@ -6,8 +6,8 @@
 MiOS Editor AI Configuration Projector & Generator (T-460).
 
 Automatically projects IDE configuration settings for VS Code, Cursor, and Continue:
-- Routes chat/orchestration requests to http://localhost:8640/v1 (agent-pipe / Hermes).
-- Routes code completion and fast tab autocomplete to http://localhost:11450/v1 (mios-llm-light).
+- Routes chat/orchestration requests to http://localhost:8700/v1 (agent-pipe / Hermes).
+- Routes code completion and fast tab autocomplete to http://localhost:8500/v1 (mios-llm-light).
 - Preconfigures nomic-embed-text for local embeddings without cloud dependencies.
 - Guarantees 100% offline pair programming per Architectural Law 5 (UNIFIED-AI-REDIRECTS).
 """
@@ -31,8 +31,8 @@ try:
 except ImportError:
     mios_toml = None
 
-DEFAULT_AGENT_ENDPOINT = "http://localhost:8640/v1"
-DEFAULT_INFERENCE_ENDPOINT = "http://localhost:11450/v1"
+DEFAULT_AGENT_ENDPOINT = "http://localhost:8700/v1"
+DEFAULT_INFERENCE_ENDPOINT = "http://localhost:8500/v1"
 DEFAULT_MODEL = "mios-opencode"
 DEFAULT_EMBED_MODEL = "nomic-embed-text"
 DEFAULT_API_KEY = "mios-local"

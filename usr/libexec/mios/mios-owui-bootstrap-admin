@@ -143,7 +143,7 @@ def _write_password_file(pw: str, name: str, email: str, source: str) -> None:
         f"# Auto-created by mios-owui-bootstrap-admin at {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n"
         f"# Source: {source}\n"
         "#\n"
-        "# Use these to log in at http://localhost:3030/. This password is\n"
+        "# Use these to log in at http://localhost:8200/. This password is\n"
         "# reconciled from the MiOS SSOT ([identity].default_password, or\n"
         "# MIOS_OPERATOR_PASSWORD / MIOS_OWUI_ADMIN_PASSWORD) on every first-\n"
         "# boot run -- to change it, set the SSOT field, NOT the OWUI profile\n"

@@ -3,7 +3,7 @@
 # AI-related: mios-searxng, mios-owui-apply-system-prompt
 """mios-owui-apply-websearch -- enable Open WebUI's built-in web-search
 augmentation + point it at the local SearXNG (mios-searxng container
-on :8899).
+on :8800).
 
 OWUI's web-search feature is OFF by default in upstream. When enabled,
 every chat turn can be augmented by retrieving + injecting web results
@@ -27,7 +27,7 @@ DB = Path(os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
 
 SEARXNG_QUERY = os.environ.get(
     "MIOS_OWUI_SEARXNG_QUERY",
-    "http://host.containers.internal:8899/search?q=<query>",
+    "http://host.containers.internal:8800/search?q=<query>",
 )
 
 DESIRED = {

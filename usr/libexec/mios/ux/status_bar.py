@@ -58,7 +58,7 @@ class StatusBarEngine:
 
     def __init__(
         self,
-        endpoint: str = "http://127.0.0.1:11450/v1",
+        endpoint: str = "http://127.0.0.1:8500/v1",
         mock: bool = False,
         dry_run: bool = False,
     ):
@@ -248,7 +248,7 @@ def main() -> int:
     parser.add_argument("--interval", type=float, default=1.0, help="Stream polling interval in seconds")
     parser.add_argument("--count", type=int, default=1, help="Number of stream iterations")
     parser.add_argument("--generate-qml", help="Generate Quickshell / QML component to output path")
-    parser.add_argument("--endpoint", default="http://127.0.0.1:11450/v1", help="Inference API endpoint")
+    parser.add_argument("--endpoint", default="http://127.0.0.1:8500/v1", help="Inference API endpoint")
     parser.add_argument("--dry-run", action="store_true", help="Simulate execution without writing files")
     parser.add_argument("--mock", action="store_true", help="Deterministic mock execution for CI")
     parser.add_argument("--json", action="store_true", help="Format output as JSON dictionary")

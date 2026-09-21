@@ -11,7 +11,7 @@ import sys
 import time
 from typing import Optional
 
-from mios_config import PORT  # SSOT agent-pipe port (no restated :8640 literal)
+from mios_config import PORT  # SSOT agent-pipe port (no restated port literal)
 
 def percentile(values, p):
     """p-th percentile (0-100) of `values`, nearest-rank on a sorted copy."""

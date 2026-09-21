@@ -66,8 +66,8 @@ def _portal_port(env: str, key: str, default: int) -> int:
     """One [ports] value: MIOS_PORT_* -> [ports].<key> -> the SSOT literal.
 
     Law 5/7: the literal is the SSOT's own number (check_port_fallbacks holds the
-    two in agreement), not a stale one -- the previous defaults named 8033 and the
-    RETIRED 8899. A set-but-EMPTY env var (bare `KEY=` in install.env, which
+    two in agreement), not a stale one -- the previous defaults named stale and
+    retired ports. A set-but-EMPTY env var (bare `KEY=` in install.env, which
     Law 10 permits) must not win over the config tier, and a non-numeric value
     must not 500 the portal page, so each candidate is tried in turn."""
     for cand in (os.environ.get(env), _pcfg("ports", key, None), default):

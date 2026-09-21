@@ -184,9 +184,9 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
 
 async def _a2a_tailnet_candidates() -> list:
     try:
-        port = int(os.environ.get("MIOS_A2A_DISCOVER_PORT") or (_toml_section("a2a") or {}).get("discover_port") or 8640)
+        port = int(os.environ.get("MIOS_A2A_DISCOVER_PORT") or (_toml_section("a2a") or {}).get("discover_port") or 8700)
     except ValueError:
-        port = 8640
+        port = 8700
     urls: list = []
     for u in (os.environ.get("MIOS_A2A_DISCOVER_URLS", "") or "").split(","):
         u = u.strip().rstrip("/")
@@ -216,7 +216,7 @@ def _a2a_load_peers() -> list:
     """Layered peer registry read: vendor < /etc < user. Later overlays
     REPLACE earlier entries with the same id (matches MCP client semantics)
     so an operator can disable a vendor peer by re-declaring it disabled.
-    The LOCAL self-peer (loopback :8640) is EXCLUDED -- it is a self-loop vector
+    The LOCAL self-peer (loopback :8700) is EXCLUDED -- it is a self-loop vector
     (see _a2a_self_peer_url); delegation to oneself is a no-op on a single node."""
     by_id: dict = {}
     for p in _A2A_PEER_REGISTRY_PATHS:

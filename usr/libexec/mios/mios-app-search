@@ -24,7 +24,7 @@ import urllib.parse
 import urllib.request
 
 AGENT_PIPE_URL = os.environ.get(
-    "MIOS_AGENT_PIPE_URL", "http://localhost:8640"
+    "MIOS_AGENT_PIPE_URL", "http://localhost:8700"
 ).rstrip("/")
 
 

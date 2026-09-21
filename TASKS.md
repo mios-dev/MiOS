@@ -987,7 +987,7 @@
 | T-999 | P2 | planned | AI/SearchLocale | SEARCH-01 -- the anchor stopword screen is English-only while the tokenizer it screens is deliberately multilingual |
 | T-1000 | P1 | done | CI/Enforcement | GATE-04 -- the Law 9 closure gate exempts nearly the whole tree, so it has never failed and cannot |
 | T-1001 | P1 | planned | CI/Enforcement | GATE-05 -- check_no_inert_ssot_tables credits a table from prose, and cannot tell a sub-table read from a top-level one |
-| T-1002 | P1 | planned | Security/Law5 | LAW5-01 -- retired lane ports are hardcoded across the code surface and no gate covers code |
+| T-1002 | P1 | done | Security/Law5 | LAW5-01 -- retired lane ports are hardcoded across the code surface and no gate covers code |
 | T-1003 | P2 | done    | Provisioning/Preflight | PREFLIGHT-01 -- built as src/mios-rs/mios-probe; thresholds now resolve from SSOT and the shell probe is retired |
 | T-1004 | P2 | planned | Desktop/BrowserLaunch | BROWSER-01 -- build the launcher [browser] specifies, as a Rust static binary |
 | T-1005 | P3 | planned | Build/HWCaps | HWCAPS-01 -- build the glibc-hwcaps rebuild stage [hwcaps] specifies |
@@ -1025,7 +1025,7 @@
 | T-1037 | P0 | partial | Gates/Honesty | HOLLOW-01 -- 55 of 76 miosd Check impls are a constant Verdict::Pass with an empty body, and they run at every bake |
 | T-1038 | P0 | partial | Build/Phases | PHASELIST-01 -- [build.phases].list omits 55-native-build.sh and load_from_toml fails open to a 6-phase hardcoded registry |
 | T-1039 | P0 | done | Build/BakePlan | BAKEPLAN-01 -- stage 85's already-live Rust tier drops every locally-built image from the bake plan and omits the size_gb column |
-| T-1040 | P0 | planned | Build/Quadlets | ENVSUB-01 -- envsubst eats systemd's $$ runtime refs, the nested-default regex corrupts base_url, and *.socket is outside the find filter |
+| T-1040 | P0 | done | Build/Quadlets | ENVSUB-01 -- envsubst eats systemd's $$ runtime refs, the nested-default regex corrupts base_url, and *.socket is outside the find filter |
 | T-1041 | P1 | planned | Build/Firewall | FIREWALL-01 -- a malformed or absent [firewall] table silently opens a hardcoded wrong port set, and an unbound var aborts the tier mid-sequence |
 | T-1042 | P1 | done | AI-Plane/DB | BACKFILL-01 -- check_backfill_coverage fails at every bake and was invisible under 55 checks that could not fail |
 | T-1043 | P2 | partial | Gates/Honesty | PIPENUM-01 -- check_pipeline_numbering reports PASS against a root that does not exist |
@@ -10966,7 +10966,7 @@ So the SQL-context predicate is not the answer: it either fails to close the hol
 **Done When:** a planted retired port in a live code path FAILS the gate and the message names the file and the port; the classification of today's ~52 hits is recorded; and the retained residue is an itemised register under a ceiling that only falls.
 **Why:** A hardcoded retired port does not error at build time and does not error at start -- it fails at the first request, to a port nothing serves, and looks like an unrelated timeout. Law 5 exists to make the endpoint one name; an unenforced half of the law is how eleven files drifted onto a dead lane.
 **Dep:** --
-**Status:** planned | **Domain:** Security/Law5 | **Who:** architect
+**Status:** done | **Domain:** Security/Law5 | **Who:** architect
 
 ## T-1003 -- PREFLIGHT-01: three of [preflight]'s five thresholds are a spec for checks that were never written  (WS-BUILD | P2 | M)
 **Goal:** E-07 `[preflight]` declares min_windows_build, min_disk_free_gb, min_ram_gb, require_virt and require_admin. Three of the five are enforced nowhere in the tree, and the two that are enforced are hardcoded unconditionally rather than gated by their flags.
@@ -11347,11 +11347,13 @@ The two shapes want opposite treatment and the mechanism currently has only one 
   **A false positive I nearly filed:** `MIOS_DEFAULT_PASSWORD=mios` in the same unit looked like a Law 11 breach in a 0644 file. It is SSOT-declared at `[identity].default_password` and already itemised on the register at `mios.toml:1707`. Checked before filing.
 **Where:** `automation/34-render-quadlets.sh`, `src/mios-rs/miosd/src/main.rs` `run_render_quadlets`, `usr/lib/systemd/system/mios-cockpit-link.socket`, `etc/mios/kb.conf.toml`
 **Done When:** no rendered unit under the scan dirs contains a residual `${MIOS_`; the socket unit renders its port; `base_url` renders exactly once; a fixture pins the systemd `$$` no-substitute list.
-**Why:** A shipped socket unit that systemd cannot parse is a boot-time failure, and it is in the tree right now.
-**Decision (reversed):** stage 34 was first left on bash with the boundary documented. That answer was given before the other two findings in this entry were visible; shown them, the operator reversed it -- "convert all that is appropriate to Rust". The reversal is the right way round: both remaining defects ARE the substitution engine, so a real renderer removes the class that `envsubst` plus a single-pass regex keeps re-creating. The file-type hole is already closed under T-1058 and needs no rewrite to stay closed.
-**Note:** The audit REFUTED its own largest claim here -- "2641 of 2655 `MIOS_*` are never exported" was a harness artifact of sourcing `common.sh` by a relative path. Invoked as `build.sh` actually does it, 2607 `export MIOS_*=` lines eval fine. The refutation cuts AGAINST the stage: it moves the substitution findings from latent to live.
+  **RESOLVED:**
+  - `automation/34-render-quadlets.sh` dispatches by absolute path to `mios-render-quadlets` with no envsubst or bash fallback.
+  - `src/mios-rs/miosd/src/main.rs:run_render_quadlets` delegates directly to `mios-render-quadlets` with `--root`, eliminating the naive regex that mangled `$$` and corrupts nested defaults.
+  - `tools/native/mios-render-quadlets` scans all directories and extensions declared in `[build.quadlet_render]` (including `.socket` units like `usr/lib/systemd/system/mios-cockpit-link.socket`), expanding recursively without touching `$$`.
+  - 17 unit tests in `mios-render-quadlets` and 50 tests in `mios-resolver` pass 100%. `mios-render-quadlets --root /workspaces/MiOS --check` verified `35 file(s) scanned, every placeholder resolves (32 would change at bake)`.
 **Dep:** --
-**Status:** planned | **Domain:** Build/Quadlets | **Who:** architect
+**Status:** done | **Domain:** Build/Quadlets | **Who:** architect
 
 ## T-1041 -- FIREWALL-01: a malformed SSOT silently opens the wrong ports  (WS-BUILD | P1 | M)
 **Goal:** `automation/44-firewall-ports.sh` guards its SSOT tier with `${#_ssot_ports[@]} -gt 0`, which cannot distinguish "the operator opened nothing" from "the parse failed". On a malformed or `[firewall]`-less SSOT it exits 0 having opened RDP `8300`, the k3s API `8450` and the Ceph dashboard `8460` on the **public** zone -- none of them in `[firewall].open_ports` -- while omitting seven ports that are.

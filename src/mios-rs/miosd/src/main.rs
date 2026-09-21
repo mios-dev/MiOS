@@ -578,64 +578,36 @@ fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std:
     Ok(())
 }
 
-fn run_render_quadlets(dirs: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    let target_dirs = if dirs.is_empty() {
-        vec![
-            "/etc/containers/systemd".to_string(),
-            "/etc/containers/systemd/users".to_string(),
-            "/usr/share/containers/systemd".to_string(),
-            "/usr/share/containers/systemd/users".to_string(),
-            "/etc/mios".to_string(),
-            "/usr/share/mios/kb".to_string(),
-            "/usr/lib/systemd/system/cockpit.socket.d".to_string(),
-            "/usr/lib/systemd/system".to_string(),
-        ]
-    } else {
-        dirs.to_vec()
-    };
-
-    let re_default = regex::Regex::new(r"\$\{([A-Z_][A-Z0-9_]*):-([^}]*)\}")?;
-    let re_plain = regex::Regex::new(r"\$\{([A-Z_][A-Z0-9_]*)\}")?;
-
-    for dir_path in target_dirs {
-        let path = std::path::Path::new(&dir_path);
-        if !path.exists() {
-            continue;
-        }
-
-        if let Ok(entries) = std::fs::read_dir(path) {
-            for entry in entries.flatten() {
-                let fpath = entry.path();
-                if fpath.is_file() {
-                    if let Ok(content) = std::fs::read_to_string(&fpath) {
-                        if !content.contains("${MIOS_") {
-                            continue;
-                        }
-
-                        let mut rendered = re_default
-                            .replace_all(&content, |caps: &regex::Captures| {
-                                let var_name = &caps[1];
-                                let default_val = &caps[2];
-                                std::env::var(var_name).unwrap_or_else(|_| default_val.to_string())
-                            })
-                            .to_string();
-
-                        rendered = re_plain
-                            .replace_all(&rendered, |caps: &regex::Captures| {
-                                let var_name = &caps[1];
-                                std::env::var(var_name).unwrap_or_else(|_| caps[0].to_string())
-                            })
-                            .to_string();
-
-                        if rendered != content {
-                            let _ = std::fs::write(&fpath, rendered);
-                        }
-                    }
-                }
-            }
+fn run_render_quadlets(_dirs: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
+    let mut renderer = None;
+    for c in [
+        "/usr/libexec/mios/mios-render-quadlets",
+        "/usr/bin/mios-render-quadlets",
+    ] {
+        if std::path::Path::new(c).is_file() {
+            renderer = Some(std::path::PathBuf::from(c));
+            break;
         }
     }
-
+    if renderer.is_none() {
+        let p1 = std::path::Path::new(&root).join("tools/native/target/release/mios-render-quadlets");
+        let p2 = std::path::Path::new(&root).join("tools/native/target/debug/mios-render-quadlets");
+        if p1.is_file() {
+            renderer = Some(p1);
+        } else if p2.is_file() {
+            renderer = Some(p2);
+        }
+    }
+    let Some(bin) = renderer else {
+        return Err("mios-render-quadlets binary not found -- refusing to render with a naive regex that corrupts $$ and cannot nest".into());
+    };
+    let mut cmd = std::process::Command::new(bin);
+    cmd.arg("--root").arg(&root);
+    let status = cmd.status()?;
+    if !status.success() {
+        return Err("mios-render-quadlets failed".into());
+    }
     Ok(())
 }
 

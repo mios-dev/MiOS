@@ -32,7 +32,7 @@ HEALTH_CHECK_SERVICES = [
     "systemd-resolved.service",
     "sshd.service",
 ]
-HEALTH_ENDPOINT_URL = "http://127.0.0.1:8640/v1/models"
+HEALTH_ENDPOINT_URL = "http://127.0.0.1:8700/v1/models"
 
 def atomic_write_json(target_path: str, data: Any) -> None:
     """Write JSON data to disk using an atomic replace pattern to prevent corruption."""
@@ -149,7 +149,7 @@ class GreenbootGateEngine:
                         "sshd.service": "active (running)",
                     },
                     "endpoint_healthy": False,
-                    "endpoint_error": "Connection refused to http://127.0.0.1:8640/v1/models",
+                    "endpoint_error": "Connection refused to http://127.0.0.1:8700/v1/models",
                 }
             return {
                 "healthy": True,

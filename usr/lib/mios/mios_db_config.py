@@ -28,7 +28,7 @@ def get_pg_config() -> dict:
     try:
         port = int(e.get("MIOS_PORT_PGVECTOR") or 8600)
     except (TypeError, ValueError):
-        port = 8432
+        port = 8600
     return {
         "host": e.get("MIOS_PG_HOST", "localhost"),
         "port": port,

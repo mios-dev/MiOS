@@ -17,9 +17,9 @@ benchmark runner (SWE-bench / OSWorld / tau-bench). This is that harness.
       Drives the agent-pipe endpoint. suite = JSON list of
         [{"task","prompt","expect": "<substring>" | ["any","of"]}, ...].
       Runs each task k times, marks ok when an `expect` substring is present,
-      records latency, writes the results JSON. Needs the live :8640 lane.
+      records latency, writes the results JSON. Needs the live :8700 lane.
 
-Endpoint resolves from MIOS_AI_ENDPOINT (Law 5) -> default http://localhost:8640/v1.
+Endpoint resolves from MIOS_AI_ENDPOINT (Law 5) -> default http://localhost:8700/v1.
 Degrade-open: a dead lane records a failed/errored trial, never crashes the run.
 """
 from __future__ import annotations
@@ -43,7 +43,7 @@ except Exception as e:  # noqa: BLE001 -- module must ship alongside the agent-p
     sys.stderr.write(f"mios-bench: cannot import mios_bench scoring core: {e}\n")
     sys.exit(2)
 
-_ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1").rstrip("/")
+_ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8700/v1").rstrip("/")
 _MODEL = os.environ.get("MIOS_BENCH_MODEL", "mios")
 _KEY = os.environ.get("MIOS_API_SERVER_KEY") or os.environ.get("MIOS_API_KEY") or ""
 

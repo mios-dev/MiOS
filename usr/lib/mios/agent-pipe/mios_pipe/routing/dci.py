@@ -37,7 +37,7 @@ def configure(*, db_post=None, db_create=None, db_fire=None,
 
 DCI_ENABLED = os.environ.get("MIOS_AGENT_PIPE_DCI_ENABLED",
                               "true").lower() not in {"false", "0", "no"}
-DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", _STACK_MODEL)  # = _STACK_MODEL (granite4.1:8b on :11450; gemma4:12b retired -> 404)
+DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", _STACK_MODEL)  # = _STACK_MODEL (granite4.1:8b on :8500; gemma4:12b retired -> 404)
 DCI_ENDPOINT = os.environ.get(
     "MIOS_AGENT_PIPE_DCI_ENDPOINT", _LIGHT_BASE,  # mios-llm-light (WS-0B: one owned port key)
 ).rstrip("/")

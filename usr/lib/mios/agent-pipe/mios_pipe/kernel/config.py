@@ -138,7 +138,7 @@ _INGRESS_KEY = os.environ.get("MIOS_AGENT_PIPE_INGRESS_KEY", "").strip()
 # MIOS_STACK_MODEL; embeddings + vision keep their own. Every reasoning stage
 _STACK_MODEL = (os.environ.get("MIOS_STACK_MODEL")        # explicit per-deploy override
                 or os.environ.get("MIOS_AI_MODEL")        # WS-0B: ONE owned key = [ai].model (install.env)
-                or "granite4.1:8b")  # served brain on :11450 (gemma4:12b retired -> 404;)
+                or "granite4.1:8b")  # served brain on :8500 (gemma4:12b retired -> 404;)
 _MICRO_MODEL = (os.environ.get("MIOS_MICRO_MODEL")
                 or _toml_section("ai").get("micro_model")
                 or _STACK_MODEL)

@@ -21,11 +21,11 @@ class NetSegmentationManager:
     """Manages nftables rule generation, pairing validation, and firewall rule enforcement."""
 
     DEFAULT_ALLOWED_PAIRINGS = [
-        {"src": "open-webui", "dst": "hermes", "port": 8642, "proto": "tcp", "desc": "OWUI browser agent chat gateway"},
-        {"src": "agent-pipe", "dst": "hermes", "port": 8642, "proto": "tcp", "desc": "Agent-pipe orchestration forwarding"},
+        {"src": "open-webui", "dst": "hermes", "port": 8720, "proto": "tcp", "desc": "OWUI browser agent chat gateway"},
+        {"src": "agent-pipe", "dst": "hermes", "port": 8720, "proto": "tcp", "desc": "Agent-pipe orchestration forwarding"},
         {"src": "hermes", "dst": "pgvector", "port": 5432, "proto": "tcp", "desc": "Hermes PostgreSQL vector memory recall"},
-        {"src": "hermes", "dst": "llm-light", "port": 11450, "proto": "tcp", "desc": "Hermes primary llama.cpp inference lane"},
-        {"src": "hermes", "dst": "searxng", "port": 8888, "proto": "tcp", "desc": "Hermes metasearch backing web_search tool"},
+        {"src": "hermes", "dst": "llm-light", "port": 8500, "proto": "tcp", "desc": "Hermes primary llama.cpp inference lane"},
+        {"src": "hermes", "dst": "searxng", "port": 8800, "proto": "tcp", "desc": "Hermes metasearch backing web_search tool"},
     ]
 
     # Matrix of strictly forbidden direct flows

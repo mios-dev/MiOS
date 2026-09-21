@@ -19,7 +19,7 @@ fi
 
 if [[ ! -f "$WORKER_CFG" ]]; then
     cp -f "$VENDOR_CFG" "$WORKER_CFG"
-    _log "seeded $WORKER_CFG from $VENDOR_CFG (non-thin worker, model=mios-heavy @ :11441)"
+    _log "seeded $WORKER_CFG from $VENDOR_CFG (non-thin worker, model=mios-heavy @ :8520)"
 elif [[ "$VENDOR_CFG" -nt "$WORKER_CFG" ]]; then
     cp -f "$VENDOR_CFG" "$WORKER_CFG"
     _log "re-seeded $WORKER_CFG -- vendor template is newer (schema heal)"
