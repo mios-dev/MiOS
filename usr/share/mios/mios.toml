@@ -8130,6 +8130,39 @@ gguf_quant      = "q8_0"               # adapter export precision
 work_dir        = "/var/lib/mios/finetune"
 serve_port      = 11438                # mios-finetune-serve OpenAI /v1 endpoint (opt-in)
 
+# ----------------------------------------------------------------------------
+# [finetune.micro] -- dedicated MiOS-Micro miniature model training (~1.5B)
+# Grounded training for low-latency classification, log triage, and system CLI.
+# Base model: Qwen2.5-Coder-1.5B-Instruct (Apache-2.0, strictly FOSS compliant).
+# ----------------------------------------------------------------------------
+[finetune.micro]
+enable           = true
+target_role      = "micro"
+base_model       = "qwen2.5-coder:1.5b"
+hf_base          = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+output_tag       = "mios-micro:1.5b"
+device           = "auto"
+load_in_4bit     = "auto"
+prefer_unsloth   = true
+lora_r           = 16
+lora_alpha       = 32
+lora_dropout     = 0.05
+target_modules   = "auto"
+epochs           = 3
+learning_rate    = 3.0e-4
+batch_size       = 4
+grad_accum       = 4
+max_seq_len      = 4096
+warmup_ratio     = 0.03
+grad_checkpointing = true
+teacher_endpoint = "http://localhost:${MIOS_PORT_LLM_LIGHT}"
+dataset_path     = "/var/lib/mios/finetune/mios-micro-sft.jsonl"
+min_examples     = 24
+gguf_convert     = true
+gguf_quant       = "q8_0"
+work_dir         = "/var/lib/mios/finetune/micro"
+
+
 
 [verbs.find_file]
 section = "Discovery / resolution"

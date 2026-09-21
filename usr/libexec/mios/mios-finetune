@@ -40,13 +40,21 @@ ETC_TOML = "/etc/mios/mios.toml"
 USER_TOML = os.path.expanduser("~/.config/mios/mios.toml")
 
 
-def load_cfg() -> dict:
+def load_cfg(role: str | None = None) -> dict:
     cfg = mios_toml.load_merged(layers=[VENDOR_TOML, ETC_TOML, USER_TOML])
-    ft = dict(mios_toml.section(cfg, "finetune"))
+    if role and role == "micro" and isinstance(cfg.get("finetune", {}).get("micro"), dict):
+        ft = dict(cfg["finetune"]["micro"])
+    else:
+        ft = dict(mios_toml.section(cfg, "finetune"))
+    prefix = f"MIOS_FINETUNE_{role.upper()}_" if role and role != "refiner" else "MIOS_FINETUNE_"
     for k in list(ft.keys()):
-        env = os.environ.get("MIOS_FINETUNE_" + k.upper())
+        env = os.environ.get(prefix + k.upper())
         if env is not None:
             ft[k] = env
+        elif not role or role == "refiner":
+            env_generic = os.environ.get("MIOS_FINETUNE_" + k.upper())
+            if env_generic is not None:
+                ft[k] = env_generic
     return ft
 
 
@@ -289,10 +297,12 @@ def export_gguf(cfg: dict, adapter_dir: str) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="mios-finetune")
+    ap.add_argument("--role", choices=["refiner", "micro"], default=None,
+                    help="target role to fine-tune (refiner or micro)")
     ap.add_argument("--dry-run", action="store_true",
                     help="validate config/device/deps/dataset; do NOT train")
     a = ap.parse_args()
-    cfg = load_cfg()
+    cfg = load_cfg(a.role)
     if not _cb(cfg.get("enable"), True):
         print(json.dumps({"success": False, "error": "finetune.enable=false"}))
         return 1

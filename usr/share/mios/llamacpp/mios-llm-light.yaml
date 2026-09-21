@@ -34,6 +34,23 @@ models:
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300
 
+  # mios-micro:1.5b -- dedicated MiOS miniature model (Qwen2.5-Coder-1.5B base, Apache-2.0).
+  # Sub-250ms resident model providing native OpenAI JSON tool-calling and structured outputs
+  # for mios-log-watcher, mios-cron-director, prefilter, and mios-micro-llm CLI.
+  "mios-micro:1.5b":
+    aliases:
+      - mios-micro
+      - micro
+    cmd: >
+      /app/llama-server --model /models/mios-micro-1.5b.gguf
+      --port ${PORT} --host 127.0.0.1
+      --ctx-size 8192 --parallel 1 --cache-reuse 256
+      --n-gpu-layers 999 --flash-attn on
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --slot-save-path /var/lib/mios/llamacpp/slots --jinja
+    proxy: "http://127.0.0.1:${PORT}"
+    ttl: -1
+
   # light_brain + coder -- IBM Granite 4.1 8B Instruct (dense). fleet
   # modernization: the served chat/reasoning GGUF moves from gemma4:12b to Granite 4.1
   # 8B (ibm-granite/granite-4.1-8b; GGUF unsloth/granite-4.1-8b-GGUF Q4_K_M ~5.5GB).

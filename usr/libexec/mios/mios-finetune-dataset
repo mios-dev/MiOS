@@ -46,14 +46,21 @@ ETC_TOML = "/etc/mios/mios.toml"
 USER_TOML = os.path.expanduser("~/.config/mios/mios.toml")
 
 
-def load_cfg() -> dict:
+def load_cfg(role: str | None = None) -> dict:
     cfg = mios_toml.load_merged(layers=[VENDOR_TOML, ETC_TOML, USER_TOML])
-    ft = dict(mios_toml.section(cfg, "finetune"))
-    # MIOS_FINETUNE_<KEY> env overrides (string-typed; we coerce on read).
+    if role and role == "micro" and isinstance(cfg.get("finetune", {}).get("micro"), dict):
+        ft = dict(cfg["finetune"]["micro"])
+    else:
+        ft = dict(mios_toml.section(cfg, "finetune"))
+    prefix = f"MIOS_FINETUNE_{role.upper()}_" if role and role != "refiner" else "MIOS_FINETUNE_"
     for k in list(ft.keys()):
-        env = os.environ.get("MIOS_FINETUNE_" + k.upper())
+        env = os.environ.get(prefix + k.upper())
         if env is not None:
             ft[k] = env
+        elif not role or role == "refiner":
+            env_generic = os.environ.get("MIOS_FINETUNE_" + k.upper())
+            if env_generic is not None:
+                ft[k] = env_generic
     return ft
 
 
@@ -107,11 +114,24 @@ def fetch_catalog(pipe_url: str, timeout: float = 10.0) -> list[dict]:
     """[{name, description}] from the live OpenAI-tools verb catalog."""
     try:
         data = _get(pipe_url.rstrip("/") + "/v1/verbs/openai-tools", timeout)
+        tools = data if isinstance(data, list) else (
+            data.get("tools") or data.get("data") or [])
     except Exception as e:
-        print(f"[finetune-dataset] WARN fetch_catalog: {e}", file=sys.stderr)
+        tools = []
+    if not tools:
+        try:
+            cfg = mios_toml.load_merged(layers=[VENDOR_TOML, ETC_TOML, USER_TOML])
+            verbs = cfg.get("verbs", {})
+            out = []
+            for name, v in verbs.items():
+                if isinstance(v, dict):
+                    desc = v.get("description", v.get("summary", ""))
+                    out.append({"name": name, "description": desc})
+            if out:
+                return out
+        except Exception:
+            pass
         return []
-    tools = data if isinstance(data, list) else (
-        data.get("tools") or data.get("data") or [])
     out = []
     for t in tools:
         fn = t.get("function", t) if isinstance(t, dict) else {}
@@ -375,15 +395,32 @@ def build(cfg: dict, limit: int | None) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="mios-finetune-dataset")
+    ap.add_argument("--role", choices=["refiner", "micro"], default="refiner",
+                    help="Target role dataset to generate (default: refiner)")
     ap.add_argument("--limit", type=int, default=None,
                     help="smoke mode: only this many catalog verbs + 1 intent class")
     ap.add_argument("--out", default=None, help="override dataset_path")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="Validate configuration and catalog reachability without generating dataset")
     a = ap.parse_args()
-    cfg = load_cfg()
+    cfg = load_cfg(a.role)
     if a.out:
         cfg["dataset_path"] = a.out
     if a.limit is not None and not a.out:
-        cfg["dataset_path"] = "/tmp/mios-finetune-smoke.jsonl"
+        cfg["dataset_path"] = f"/tmp/mios-finetune-{a.role}-smoke.jsonl"
+    if a.dry_run:
+        pipe_url = str(cfg.get("pipe_url") or "http://127.0.0.1:8700")
+        catalog = fetch_catalog(pipe_url)
+        plan = {
+            "target_role": a.role,
+            "teacher_endpoint": cfg.get("teacher_endpoint"),
+            "dataset_path": cfg.get("dataset_path"),
+            "catalog_verbs": len(catalog),
+            "dry_run": True,
+            "ready": len(catalog) > 0,
+        }
+        print(json.dumps({"success": True, "plan": plan}, indent=2))
+        return 0
     res = build(cfg, a.limit)
     print(json.dumps(res, indent=2))
     return 0 if res.get("success") else 1
