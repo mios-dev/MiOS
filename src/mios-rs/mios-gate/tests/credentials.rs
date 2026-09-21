@@ -189,3 +189,36 @@ fn an_empty_register_with_no_literals_is_clean() {
     let (code, out) = run(d.path());
     assert_eq!(code, 0, "{out}");
 }
+
+#[test]
+fn secret_keys_below_min_floor_fails() {
+    let d = tempfile::tempdir().unwrap();
+    tree(d.path(), &["Environment=LOG_LEVEL=debug"], &[]);
+    fs::write(
+        d.path().join("usr/share/mios/mios.toml"),
+        "[security.credential_literals]\ngrandfathered = []\n\n[security.secret_keys]\nmin_keys = 3\nkeys = [\"A\", \"B\"]\n",
+    )
+    .unwrap();
+    let (code, out) = run(d.path());
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("below min_keys floor"), "{out}");
+}
+
+#[test]
+fn secret_keys_explicit_key_is_caught_as_literal() {
+    let d = tempfile::tempdir().unwrap();
+    tree(
+        d.path(),
+        &["Environment=CUSTOM_DISPATCH_GRANT=supersecret123"],
+        &[],
+    );
+    fs::write(
+        d.path().join("usr/share/mios/mios.toml"),
+        "[security.credential_literals]\ngrandfathered = []\n\n[security.secret_keys]\nmin_keys = 1\nkeys = [\"CUSTOM_DISPATCH_GRANT\"]\n",
+    )
+    .unwrap();
+    let (code, out) = run(d.path());
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("CUSTOM_DISPATCH_GRANT=supersecret123"), "{out}");
+}
+

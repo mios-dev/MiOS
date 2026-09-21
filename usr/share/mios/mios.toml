@@ -2321,6 +2321,18 @@ keys = [
   "MIOS_A2O_CLAUDE_EFFORT_FLAG",  # a CLI flag template: a space and a {} placeholder
 ]
 
+# Law 11 SECRETS-NEVER-IN-ENV: secret-bearing environment variable names
+# that must NEVER leak into world-readable files like /etc/mios/install.env.
+# min_keys is a floor -- an explicit register shared between postcheck,
+# system-sync-env.sh, and mios-gate credentials.rs.
+[security.secret_keys]
+min_keys = 3
+keys = [
+  "MIOS_USER_PASSWORD_HASH",
+  "MIOS_FORGE_ADMIN_PASSWORD",
+  "MIOS_GITHUB_TOKEN",
+]
+
 [security.nohc_allowlist]
 # SSOT Allowlist for legitimate exceptions to the ports/IPs hardcode check (T-125).
 exempt_files = [

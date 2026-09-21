@@ -537,12 +537,8 @@ if [[ -f "$_sync_env" ]]; then
     _nb_toml="/usr/share/mios/mios.toml"
     [[ -r "$_nb_toml" ]] || _nb_toml="$(dirname "${BASH_SOURCE[0]}")/../usr/share/mios/mios.toml"
     if [[ -r "$_nb_toml" ]]; then
-        _nb_n="$(awk '/^\[/ { _in = ($0 ~ /^\[security\.non_bare_env\]/); next }
-                      _in && match($0, /"MIOS_[A-Z0-9_]*"/) { n++ }
-                      END { print n + 0 }' "$_nb_toml")"
-        _nb_max="$(awk '/^\[/ { _in = ($0 ~ /^\[security\.non_bare_env\]/); next }
-                        _in && /^[[:space:]]*max_declared[[:space:]]*=/ {
-                            gsub(/[^0-9]/, "", $0); print; exit }' "$_nb_toml")"
+        _nb_n="$(awk '/^\[/ { _in = ($0 ~ /^\[security\.non_bare_env\]/); next } _in && match($0, /"MIOS_[A-Z0-9_]*"/) { n++ } END { print n + 0 }' "$_nb_toml")"
+        _nb_max="$(awk '/^\[/ { _in = ($0 ~ /^\[security\.non_bare_env\]/); next } _in && /^[[:space:]]*max_declared[[:space:]]*=/ { gsub(/[^0-9]/, "", $0); print; exit }' "$_nb_toml")"
         if [[ -z "$_nb_max" ]]; then
             die "BARE-SAFE-ENV: [security.non_bare_env].max_declared is missing -- the exemption list has no ceiling"
         fi
@@ -561,14 +557,19 @@ if [[ -f "$_sync_env" ]]; then
         printf '%s\n' "$_law10_bad" >&2
         die "BARE-SAFE-ENV: install.env render has a non-bare 'KEY=value' line"
     fi
-    if printf '%s\n' "$_env_render" | grep -nE '^(MIOS_USER_PASSWORD_HASH|MIOS_FORGE_ADMIN_PASSWORD|MIOS_GITHUB_TOKEN)=' >&2; then
+    _law11_keys="$(bash "$_sync_env" --secret-keys)"
+    _sk_n="$(printf '%s\n' "$_law11_keys" | grep -c . || true)"
+    _sk_min=3
+    if (( _sk_n < _sk_min )); then
+        die "SECRETS-NEVER-IN-ENV: ${_sk_n} keys declared in [security.secret_keys], below floor of ${_sk_min}"
+    fi
+    _law11_names="$(printf '%s\n' "$_law11_keys" | paste -sd'|' -)"
+    if printf '%s\n' "$_env_render" | grep -nE "^(${_law11_names})=" >&2; then
         die "BARE-SAFE-ENV: a secret name leaked into install.env"
     fi
-    _law10_tmp="$(mktemp)"
-    printf '%s\n' "$_env_render" > "$_law10_tmp"
+    _law10_tmp="$(mktemp)"; printf '%s\n' "$_env_render" > "$_law10_tmp"
     if ! bash -u -c ". '$_law10_tmp'" >/dev/null 2>&1; then
-        rm -f "$_law10_tmp"
-        die "BARE-SAFE-ENV: install.env render does not source clean under 'set -u'"
+        rm -f "$_law10_tmp"; die "BARE-SAFE-ENV: install.env render does not source clean under 'set -u'"
     fi
     rm -f "$_law10_tmp"
     mios_ok "Install.env render is bare KEY=value, secret-free, and set -u clean"
@@ -576,9 +577,10 @@ else
     mios_skip "system-sync-env.sh not found -- BARE-SAFE-ENV render check"
 fi
 
-# MIOS_GITHUB_TOKEN) OR a unix-crypt hash literal ($6$.../$y$...), the carrying file
+# Law 11 SECRETS-NEVER-IN-ENV: secret-bearing env files must be 0600
 mios_log "Validate SECRETS-NEVER-IN-ENV: secret-bearing env files are 0600"
-_law11_secret_re='(MIOS_USER_PASSWORD_HASH|MIOS_FORGE_ADMIN_PASSWORD|MIOS_GITHUB_TOKEN)=|[$]6[$]|[$]y[$]'
+[[ -n "${_law11_names:-}" ]] || die "SECRETS-NEVER-IN-ENV: no secret keys registered"
+_law11_secret_re="(${_law11_names})=|[$]6[$]|[$]y[$]"
 _law11_dirs=(/etc /run/secrets /usr/share/mios /usr/lib/mios /var/lib/mios)
 _law11_bad=""
 for d in "${_law11_dirs[@]}"; do

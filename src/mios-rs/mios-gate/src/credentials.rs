@@ -21,9 +21,12 @@ fn cannot_run(why: impl Into<String>) -> Report {
     }
 }
 
-/// A credential-shaped variable name. Counters and feature flags are not
-/// credentials, however they are spelled.
-fn is_credential_key(key: &str) -> bool {
+/// A credential-shaped variable name or an explicit key from [security.secret_keys].
+/// Counters and feature flags are not credentials, however they are spelled.
+fn is_credential_key(key: &str, explicit: &BTreeSet<String>) -> bool {
+    if explicit.contains(key) {
+        return true;
+    }
     let looks = key.contains("PASSWORD")
         || key.contains("SECRET")
         || key.contains("APIKEY")
@@ -136,6 +139,19 @@ pub fn check(root: &Path) -> Report {
         return cannot_run("no unit files were scanned, so nothing was compared");
     }
 
+    let sec_table = val.get("security");
+    let explicit_secrets: BTreeSet<String> = sec_table
+        .and_then(|s| s.get("secret_keys"))
+        .and_then(|sk| sk.get("keys"))
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+
     let mut found: BTreeSet<String> = BTreeSet::new();
     for path in &files {
         let Ok(body) = std::fs::read_to_string(path) else {
@@ -156,7 +172,7 @@ pub fn check(root: &Path) -> Report {
                 {
                     continue;
                 }
-                if !is_credential_key(key) {
+                if !is_credential_key(key, &explicit_secrets) {
                     continue;
                 }
                 let value = value.trim();
@@ -171,9 +187,7 @@ pub fn check(root: &Path) -> Report {
         }
     }
 
-    let cfg = val
-        .get("security")
-        .and_then(|s| s.get("credential_literals"));
+    let cfg = sec_table.and_then(|s| s.get("credential_literals"));
     let allowed: BTreeSet<String> = cfg
         .and_then(|c| c.get("grandfathered"))
         .and_then(|v| v.as_array())
@@ -186,6 +200,18 @@ pub fn check(root: &Path) -> Report {
         .unwrap_or_default();
 
     let mut findings: Vec<String> = Vec::new();
+    if let Some(sec) = sec_table {
+        if let Some(sk) = sec.get("secret_keys") {
+            let min_keys = sk.get("min_keys").and_then(|m| m.as_integer()).unwrap_or(0);
+            if (explicit_secrets.len() as i64) < min_keys {
+                findings.push(format!(
+                    "[security.secret_keys] declares {} keys, below min_keys floor of {}",
+                    explicit_secrets.len(),
+                    min_keys
+                ));
+            }
+        }
+    }
     for e in &allowed {
         if !e.contains('=') {
             findings.push(format!(
