@@ -5,6 +5,56 @@
 > it is not a credential store. Copy the complete prompt or one auth profile;
 > never paste credentials into either.
 
+## MiOS repository bootstrap - start here
+
+When running in a new remote, cloud, ephemeral, or otherwise context-free
+workspace, pull all three repositories before researching or changing MiOS.
+Use the platform's existing Git credential manager or protected environment;
+never put credentials in commands, prompts, logs, or this file.
+
+| Repository | Canonical URL | First context |
+|---|---|---|
+| System image and OCI source | [mios-dev/MiOS](https://github.com/mios-dev/MiOS) | `AGENTS.md`, `CLAUDE.md`, `README.md`, `Containerfile`, `automation/`, and `justfile` when present |
+| Installer and operator overlay | [mios-dev/mios-bootstrap](https://github.com/mios-dev/mios-bootstrap) | `AGENTS.md`, `README.md`, `mios.toml`, installer and profile paths |
+| Parallel dev-loop harness | [mios-dev/mios-dev-loop](https://github.com/mios-dev/mios-dev-loop) | `AGENTS.md`, `PROJECT.md`, `README.md`, `devloop.sh`, adapters, gates, and tests |
+
+Use a workspace layout like this, substituting the approved workspace root:
+
+```text
+<workspace>/
+  MiOS/             # mios.git: immutable system image and build source
+  mios-bootstrap/   # mios-bootstrap.git: installer and operator overlay
+  mios-dev-loop/    # mios-dev-loop: parallel lanes and verification harness
+```
+
+Bootstrap sequence:
+
+1. Clone or fetch all three repositories at the requested branch/ref.
+2. Read each repository's `AGENTS.md` and `README.md`; then read
+   `MiOS/.mios/REPOSITORIES.md`, `MiOS/PROJECT.md` or the dev-loop
+   `PROJECT.md`, and the task/roadmap files relevant to the request.
+3. Start parallel work in `mios-dev-loop`, using its documented lane launcher,
+   isolated worktree layout, adapter commands, two-sided gates, and tests.
+   Do not run worker changes directly in the base `MiOS` checkout.
+4. For MiOS source validation, use the documented `just drift-gate` entry point
+   when the repository checkout provides `justfile`; for an image build use
+   `just preflight`, `just build`, and `just lint` in the approved
+   MiOS-DEV/OCI build environment. If a target is absent, consult the current
+   `README.md`, `CLAUDE.md`, and CI workflow rather than inventing a substitute.
+   Do not build the image directly on an unapproved host.
+5. For hosted CI/CD, use `MiOS/.github/workflows/mios-ci.yml` as the source of
+   truth for checkout, bootstrap overlay, Podman/OCI build, lint, signing,
+   publishing, and artifact verification. Do not duplicate workflow commands
+   from memory.
+6. Return to the repository's current branch/ref and exact workflow logs before
+   reporting results. A report must state which repositories were fetched,
+   which revisions were inspected, and which lane or CI/CD entry point ran.
+
+The dev-loop is the coordination layer; it does not replace the MiOS build
+pipeline. The MiOS repository is the source of the OCI image, and the
+bootstrap repository supplies the installer/user overlay consumed by that
+pipeline.
+
 ## VS Code shortcuts - monitored paths
 
 - [`/.mios/README.md`](./README.md) - root control-plane contract
