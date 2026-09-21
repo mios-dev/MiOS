@@ -13,7 +13,7 @@ The MiOS repository has two distinct layers:
 | Root path | Purpose | Commit policy | Deploys to |
 |---|---|---|---|
 | `.mios/` | workflow contract and metadata | tracked | nowhere |
-| `.dotfiles/` | external operator-dotfiles boundary and layout | tracked, no secrets | projected user/host dotfiles |
+| `.dotfiles/` | bootstrap-owned operator-dotfiles boundary and layout | tracked, no secrets | projected user/host dotfiles |
 | `.prompts/` | prompt authoring/indexes | tracked, no secrets | `usr/share/mios/prompts/` after projection |
 | `.research/` | working research and evidence staging | tracked when promoted | `docs/research/` |
 | `.docs/` | documentation drafts and publication manifests | tracked | `docs/` or `usr/share/doc/mios/` |
@@ -41,20 +41,22 @@ governed by their existing laws.
 - Never place generated output, logs, caches, or model artifacts in tracked
   dotfolders.
 
-## Separate secrets repository
+## Three repositories and secret data
 
-The recommended upstream pattern is a split repository model, documented in
+The corrected three-repository model and secret-data pattern are documented in
 `.research/separate-dotfiles-secrets-repository-pattern-2026-09.md`:
 
-- `mios-dotfiles` carries non-secret operator configuration and
-  `secret_ref` references.
-- `mios-secrets` is a separate private repository containing only
-  SOPS/age-encrypted payloads and safe recipient metadata.
-- `.secrets/` is the local checkout boundary and remains README-only in this
-  repository; it is not a plaintext credential store.
+- `mios.git` owns the immutable system layer.
+- `mios-bootstrap.git` owns installation, profiles, and operator dotfiles.
+- `mios-dev-loop` is the parallel orchestration repository and is excluded from
+  the product merge boundary.
+- `.secrets/` is a README-only local boundary in this repository; encrypted
+  secret data is operator-controlled bootstrap input, not a fourth MiOS source
+  repository.
 - Decrypted values exist only at deployment/runtime in the approved protected
   sink, such as `/etc/mios/secrets.env` with mode `0600`, or an OS secret
   manager.
 
-Do not create a plaintext `.secrets.git` repository or put private identities,
-tokens, password hashes, or decrypted archives into this repository.
+Do not create a fourth MiOS code repository, plaintext `.secrets.git`
+repository, or put private identities, tokens, password hashes, or decrypted
+archives into this repository.

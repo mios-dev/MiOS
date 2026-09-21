@@ -3,14 +3,14 @@
 This directory is intentionally tracked only through this README. Its
 contents are ignored and must remain local.
 
-It represents the local boundary for a separate private repository such as
-`mios-dev/mios-secrets`; it is not that repository itself and must not become
-a nested Git checkout committed into `mios.git`.
+It represents the local boundary for encrypted operator input consumed by
+`mios-bootstrap.git`; it is not a fourth MiOS repository and must not become a
+nested Git checkout committed into `mios.git`.
 
 ## Expected encrypted repository shape
 
 ```text
-mios-secrets/
+operator-secret-input/
 ├── README.md
 ├── .sops.yaml
 ├── recipients/

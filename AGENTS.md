@@ -99,8 +99,9 @@ runtime FHS destinations. The contract is documented in [`.mios/README.md`](.mio
 
 * `.prompts/` organizes prompt sources and indexes; shipped prompt files land
   under `usr/share/mios/prompts/`.
-* `.dotfiles/` documents the separate non-secret operator dotfiles repository;
-  it may contain layout and `secret_ref` metadata, never credential values.
+* `.dotfiles/` documents the bootstrap-owned non-secret operator dotfiles
+  layer; it may contain layout and `secret_ref` metadata, never credential
+  values.
 * `.research/` stages evidence; durable research lands under `docs/research/`.
 * `.docs/` stages documentation; shipped documentation lands under
   `usr/share/doc/mios/`.

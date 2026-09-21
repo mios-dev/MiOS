@@ -4,29 +4,28 @@
 **Scope:** MiOS root dotfolder workflow, operator dotfiles, credentials,
 machine bootstrap, and cross-platform projection
 
-## Decision summary
+## Corrected decision summary
 
-MiOS should use a split repository model:
+MiOS has three overall engineering repositories:
 
 | Surface | Recommended repository | Contents | Plaintext allowed? |
 |---|---|---|---|
-| System source | `mios-dev/MiOS` | Immutable FHS overlay, shipped prompts, generators, SSOT defaults | Only non-secret defaults |
-| Operator dotfiles | `mios-dev/mios-dotfiles` or a private operator-owned equivalent | User preferences and non-secret projected dotfiles | Yes, if intentionally non-secret |
-| Operator secrets | `mios-dev/mios-secrets` | SOPS-encrypted files using age or an approved KMS recipient | No |
-| Local checkout boundary | `.secrets/` | Encrypted checkout metadata and ignored local material | Never commit plaintext |
+| System source | `mios-dev/MiOS` (`mios.git`) | Immutable FHS overlay, shipped prompts, generators, SSOT defaults | Only non-secret defaults |
+| Operator/user overlay | `mios-dev/mios-bootstrap` (`mios-bootstrap.git`) | Installer, profiles, user dotfiles, non-secret `secret_ref` references | Only intentionally non-secret values |
+| Parallel engineering harness | `mios-dev/mios-dev-loop` (`-dev-loop`) | Worktrees, agent lanes, orchestration, verification | No system/runtime secrets |
+| Secret data | Operator-controlled encrypted input associated with bootstrap | SOPS/age ciphertext and safe recipient metadata | No plaintext |
 | Runtime secret sink | `/etc/mios/secrets.env` or an OS secret manager | Decrypted, permission-protected runtime values | Only at runtime, mode `0600` |
 
-The requested name `.secrets.git` is not recommended as the repository name.
-Use a normal repository name such as `mios-secrets`, with the local root
-checkout or mount represented by `.secrets/`. The `.git` suffix describes a
-repository implementation detail, not a useful identity for the secret
-service.
+The earlier `mios-dotfiles` and `mios-secrets` repository split was incorrect
+for MiOS. Dotfiles are already owned by `mios-bootstrap`; encrypted secrets are
+data consumed by that repository's install/provisioning flow, not a fourth
+MiOS engineering repository.
 
 ## Verified upstream patterns
 
 | Pattern | Evidence | MiOS interpretation |
 |---|---|---|
-| Encrypted files can be versioned in Git while keys remain outside Git | SOPS documents encrypted YAML, JSON, ENV, INI, and binary files with age, PGP, and cloud KMS backends: <https://github.com/getsops/sops#readme> | `mios-secrets` may be Git-backed, but only ciphertext and non-secret policy metadata are committed |
+| Encrypted files can be versioned in Git while keys remain outside Git | SOPS documents encrypted YAML, JSON, ENV, INI, and binary files with age, PGP, and cloud KMS backends: <https://github.com/getsops/sops#readme> | Bootstrap may consume Git-backed encrypted input, but only ciphertext and non-secret policy metadata are committed |
 | age uses explicit recipients and supports multiple recipients | age documents `-r/--recipient`, recipient files, multiple recipients, and separate identity files: <https://github.com/FiloSottile/age#readme> | Encrypt for the operator recovery key plus approved machine/deployment recipients; never commit identity files |
 | A public dotfiles repository can fetch secrets from a password manager at apply time | chezmoi documents password-manager template functions that insert values during application: <https://www.chezmoi.io/user-guide/password-managers/> | Non-secret dotfiles can remain separate from credentials; MiOS should prefer its existing secret resolver rather than embedding provider-specific functions |
 | Encrypted dotfile archives still benefit from a private repository | yadm explicitly recommends a private repository for confidential files even when encrypted: <https://yadm.io/docs/encryption> | Repository access control is defense in depth; encryption is not a reason to make a secret repository public |
@@ -44,11 +43,11 @@ Owns the system image and its non-secret contract:
 - documentation of the contract.
 
 It must not contain operator tokens, private keys, password hashes, decrypted
-secret fixtures, or a live checkout of `mios-secrets`.
+secret fixtures, or a live checkout of encrypted operator input.
 
-### `mios-dotfiles.git`
+### `mios-bootstrap.git`
 
-Should contain operator-owned, non-secret configuration such as:
+Owns the operator-facing, non-secret configuration such as:
 
 - shell aliases and prompt/theme preferences;
 - editor settings that do not contain credentials;
@@ -57,12 +56,15 @@ Should contain operator-owned, non-secret configuration such as:
 - encrypted references such as `secret_ref = "mios/ssh/github"` without the
   referenced value.
 
-It may be public or private according to operator privacy needs. Privacy is
-not a substitute for encryption when a value is a credential.
+This is the existing bootstrap/user-overlay repository, not a new dotfiles
+repository. Privacy is not a substitute for encryption when a value is a
+credential.
 
-### `mios-secrets.git`
+### Encrypted secret data
 
-Should contain only encrypted payloads and safe metadata:
+If the operator chooses Git-backed encrypted data, it may use a private
+operator-controlled repository or archive associated with bootstrap. It should
+contain only:
 
 - SOPS-encrypted TOML, YAML, JSON, ENV, or binary files;
 - `.sops.yaml` creation rules without private identities;
@@ -72,17 +74,18 @@ Should contain only encrypted payloads and safe metadata:
 
 It must not contain age identity files, KMS credentials, plaintext `.env`
 files, decrypted archives, shell histories, or runtime logs. Access should be
-private, least-privilege, audited, and separately revocable from the system
+private, least-privilege, audited, and separately revocable from both product
+repositories. This storage choice does not create a fourth MiOS engineering
 repository.
 
 ## Recommended flow
 
-1. The operator edits non-secret choices through the MiOS configurator or
-   `mios-dotfiles` source.
+1. The operator edits non-secret choices through the MiOS configurator or the
+   `mios-bootstrap` user-overlay source.
 2. A dotfile surface references a secret by stable `secret_ref`, never by
    value.
-3. A deployment-specific resolver obtains the encrypted `mios-secrets`
-   checkout or archive.
+3. A deployment-specific bootstrap resolver obtains the operator-controlled
+   encrypted operator input.
 4. SOPS/age decrypts only the required item into a protected temporary or
    runtime sink.
 5. MiOS projects the resulting configuration through the existing
@@ -127,13 +130,13 @@ would be:
   source, without naming a cloud provider in MiOS artifacts;
 - add redacted positive/negative tests for projection and rotation failure.
 
-This research does **not** authorize creating `mios-secrets.git`, generating
-keys, cloning a private repository, or decrypting any material.
+This research does **not** authorize creating a fourth MiOS repository,
+generating keys, cloning private secret data, or decrypting any material.
 
 ## Unknowns
 
-- Which Git forge is the operator's authoritative private publisher:
-  GitHub, Forgejo, or another local forge?
+- Which Git forge or local encrypted-data mechanism is the operator's
+  authoritative private publisher: GitHub, Forgejo, or another store?
 - Which recipient authority is required for multi-Blade recovery: operator
   age key, TPM-bound identity, hardware token, or an external KMS?
 - Which secrets are host-scoped, user-scoped, Blade-scoped, or fleet-scoped?

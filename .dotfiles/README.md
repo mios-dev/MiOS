@@ -1,45 +1,39 @@
 # MiOS operator dotfiles boundary
 
-`.dotfiles/` is the root-level control-plane boundary for the separate
-operator dotfiles repository. It is not the runtime home directory and is not
-a replacement for `mios.toml`.
+`.dotfiles/` is the root-level control-plane boundary for the
+`mios-bootstrap.git` operator/user overlay. It is not a fourth repository, not
+the runtime home directory, and not a replacement for `mios.toml`.
 
-## Repository model
+## Three-repository model
 
 | Repository | Owns | Secret policy |
 |---|---|---|
-| `mios-dev/MiOS` | immutable system overlay, generators, validators, shipped defaults | no operator secrets |
-| `mios-dev/mios-dotfiles` | non-secret operator preferences and `secret_ref` references | plaintext only when intentionally non-secret |
-| `mios-dev/mios-secrets` | encrypted secret payloads and public recipient metadata | ciphertext only |
+| `mios-dev/MiOS` (`mios.git`) | immutable system overlay, generators, validators, shipped defaults | no operator secrets |
+| `mios-dev/mios-bootstrap` (`mios-bootstrap.git`) | installer, user-editable overlay, profiles, dotfiles, `secret_ref` references | no plaintext runtime secrets |
+| `mios-dev/mios-dev-loop` (`-dev-loop`) | parallel orchestration, worktrees, agent lanes, verification | no system/runtime secrets |
 
-The external repositories are separate from this checkout. A deployment may
-materialize them under a protected workspace, but this repository must not
-vendor either checkout or record a machine-specific absolute path.
+These are the three MiOS engineering repositories. The dev-loop repository is
+developed in parallel and is not merged into either product repository.
+Encrypted secret material is an operator-controlled data source associated
+with bootstrap, not a fourth MiOS source repository.
 
-## Expected non-secret dotfiles repository shape
+## Bootstrap-owned dotfiles shape
 
 ```text
-mios-dotfiles/
-├── README.md
-├── manifest.toml
-├── profiles/
-│   ├── common.toml
-│   ├── linux.toml
-│   ├── macos.toml
-│   └── windows.toml
-├── surfaces/
-│   ├── shell/
-│   ├── editor/
-│   ├── git/
-│   └── ssh/
-└── references/
-    └── secrets.toml
+mios-bootstrap/
+├── mios.toml
+├── profile/
+├── etc/skel/.config/mios/
+├── etc/
+├── usr/
+└── .dotfiles/
 ```
 
-`references/secrets.toml` may contain stable `secret_ref` names and policy
-metadata only. It must not contain credential values, private keys, tokens,
-or provider access details that disclose a secret.
+The bootstrap repository owns the operator-facing dotfile/profile layer and
+may carry stable `secret_ref` names and policy metadata. It must not contain
+credential values, private keys, tokens, or provider access details that
+disclose a secret.
 
-The repository is projected through the MiOS dotfile renderer and the layered
-`mios.toml` resolver. Render-and-copy with drift checks is the contract;
-symlink farms are not.
+The layer is projected through the MiOS dotfile renderer and layered
+`mios.toml` resolver during the bootstrap merge. Render-and-copy with drift
+checks is the contract; symlink farms are not.
