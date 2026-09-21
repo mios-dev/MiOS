@@ -11398,7 +11398,7 @@ max_tracked_mb    = 204
 # and every MiB boundary a failure, which is the state T-1051 was filed about.
 tracked_mb_headroom = 1
 max_shell_lines   = 39820  # bash is glue only (Law 14)
-max_ps_lines      = 22607  # no new PowerShell-as-program (Law 14)
+max_ps_lines      = 22596  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 270  # verbs only; the 16 sibling unit tests here are not verbs
 
