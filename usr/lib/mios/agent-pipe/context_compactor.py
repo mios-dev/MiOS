@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Hierarchical semantic context compactor and invariant pinning manager in agent-pipe (T-675, T-676).
-# AI-related: usr/lib/mios/agent-pipe/context_compactor.py, tests/test-context-compactor.py, usr/lib/mios/agent-pipe/server.py
+# AI-related: usr/lib/mios/agent-pipe/context_compactor.py, tests/test-context-processing.py, usr/lib/mios/agent-pipe/server.py
 """Hierarchical semantic context compactor and invariant pinning manager for MiOS agent-pipe.
 
 Monitors active session token counts, pins system invariants, and summarizes intermediate conversation turns

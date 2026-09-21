@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-# AI-hint: Automated unit test suite for WS-AI / PROMPT-01 contextual prompt compression and token pruning.
-# AI-related: usr/libexec/mios/prompt/pruning.py, usr/share/doc/mios/manual/prompt.md
-"""
-Automated unit tests for linguistic token pruning, AST/code syntax preservation,
-message list compression, and CLI execution.
+# AI-hint: Automated unit test suite for MiOS Context & Prompt Processing domain (T-1021 / GATECAT-01).
+# AI-related: usr/lib/mios/agent-pipe/context_compactor.py, usr/lib/mios/agent-pipe/mios_pipe/context/ctxpack.py, usr/libexec/mios/prompt/pruning.py, usr/lib/mios/agent-pipe/mios_pipe/routing/turn.py
+"""Automated unit test suite for MiOS Context & Prompt Processing.
+
+Consolidates:
+- Semantic context compaction & invariant retention (test-context-compactor)
+- Priority context window packing & needle heuristics (test-context-trim)
+- Contextual prompt compression, code syntax preservation & CLI (test-prompt-pruning)
+- Chain-of-thought <think> reasoning tag stripping (test-think-stripper)
 """
 
 from __future__ import annotations
@@ -13,12 +17,25 @@ import io
 import json
 import os
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
+
+# Resolve agent-pipe path via standard helper
+try:
+    import _agentpipe_path  # noqa: F401
+except ImportError:
+    sys.path.insert(0, os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe"))
+
+# Resolve prompt pruning path
 sys.path.insert(0, os.path.join(_ROOT, "usr", "libexec", "mios", "prompt"))
+
+from context_compactor import ContextCompactor, ConversationTurn
+from mios_pipe.context.ctxpack import pack
+from mios_pipe.routing.turn import _strip_think_tags, _split_think_tags
 
 try:
     import pruning
@@ -32,6 +49,56 @@ except ImportError:
         _spec.loader.exec_module(pruning)
     else:
         raise
+
+
+class TestContextCompactor(unittest.TestCase):
+    """Automated unit test suite for MiOS Context Compactor."""
+
+    def setUp(self):
+        self.compactor = ContextCompactor(max_context_tokens=8192, dry_run=True)
+
+    def test_pinned_invariants_preservation(self):
+        """Test pinned system invariants and architectural rules are strictly preserved."""
+        turns = [
+            ConversationTurn("system", "LAW: USR-OVER-ETC", 300, is_pinned=True),
+            ConversationTurn("user", "Hello world", 100, is_pinned=False),
+            ConversationTurn("assistant", "Hi", 100, is_pinned=False),
+        ]
+        res = self.compactor.compact_dialog(turns)
+        self.assertEqual(res.pinned_invariants_count, 1)
+        self.assertIn("Preserved 1 pinned system rules", res.recap_summary)
+
+    def test_100k_token_dialog_compaction_retains_constraints(self):
+        """Test long-horizon dialog compaction retains 100% of injected constraints."""
+        turns = [
+            ConversationTurn("system", "LAW: USR-OVER-ETC", 500, is_pinned=True),
+            ConversationTurn("user", "CONSTRAINT: Secret token is 9988", 200, is_pinned=False),
+            ConversationTurn("assistant", "Working on task...", 4000, is_pinned=False),
+            ConversationTurn("user", "CONSTRAINT: Never format NVMe", 200, is_pinned=False),
+            ConversationTurn("assistant", "Done.", 4000, is_pinned=False),
+        ]
+        res = self.compactor.compact_dialog(turns)
+        self.assertEqual(len(res.retained_constraint_keys), 3)
+        self.assertLess(res.compacted_token_count, res.original_token_count)
+
+
+class TestContextTrim(unittest.TestCase):
+    """Validates priority packing, needle retention, and token budget bounds."""
+
+    def test_system_prompt_retention(self):
+        items = [
+            {"type": "system", "text": "SYSTEM_INSTRUCTION", "prio": 100},
+            {"type": "memory", "text": "PINNED_FACT", "prio": 80},
+            {"type": "chat", "text": "OLD_INTERMEDIATE_TURN", "prio": 10},
+            {"type": "chat", "text": "RECENT_USER_TURN", "prio": 50},
+        ]
+        # Restrict budget so that only top items fit
+        res = pack(items, budget=8, text_of=lambda x: x["text"], priority_of=lambda x: x["prio"])
+        kept_types = [x["type"] for x in res.kept]
+        self.assertIn("system", kept_types)
+        self.assertIn("memory", kept_types)
+        self.assertNotIn("OLD_INTERMEDIATE_TURN", [x["text"] for x in res.kept])
+
 
 class TestPromptPruning(unittest.TestCase):
     """Validates compression ratio, syntax preservation, and header deduplication."""
@@ -202,7 +269,6 @@ class TestPromptPruning(unittest.TestCase):
             self.assertNotIn("Please be advised that", data[0]["content"])
 
     def test_cli_file_input_output(self):
-        import tempfile
         with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as in_f:
             in_f.write("Please be advised that host is localhost. Best regards!")
             in_path = in_f.name
@@ -283,19 +349,52 @@ class TestPromptPruning(unittest.TestCase):
 
     def test_target_ratio_bounds(self):
         text = "Please be advised that in order to start, run mios. Best regards!"
-        # Target ratio 0.0 should still produce valid result
         c0, s0 = self.pruner.compress(text, target_ratio=0.0)
         self.assertIsNotNone(c0)
         self.assertIn("original_chars", s0)
 
-        # Target ratio 0.5 should perform aggressive pruning
         c5, s5 = self.pruner.compress(text, target_ratio=0.5)
         self.assertGreater(s5["reduction_ratio"], 0.30)
 
-def main() -> int:
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestPromptPruning)
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() else 1
+
+class TestThinkStripper(unittest.TestCase):
+    """Verify _strip_think_tags removes qwen3 reasoning leaks from sub-agent output."""
+
+    CASES = [
+        ("clean string with no think tags", "clean string with no think tags"),
+        (
+            "Before. <think>internal reasoning here</think> After.",
+            "Before. After.",
+        ),
+        (
+            "<think>only think</think>",
+            "",
+        ),
+        (
+            "Header.\n<think>multi\nline\nthought</think>\nFooter.",
+            "Header.\nFooter.",
+        ),
+        (
+            "Body. <think>unclosed tail because token budget ran out",
+            "Body.",
+        ),
+        (
+            "<THINK>case-insensitive</THINK> kept text",
+            "kept text",
+        ),
+    ]
+
+    def test_strip_think_tags(self):
+        for inp, expected in self.CASES:
+            with self.subTest(inp=inp):
+                got = _strip_think_tags(inp)
+                self.assertEqual(got.strip(), expected.strip())
+
+    def test_split_think_tags(self):
+        reasoning, answer = _split_think_tags("Answer prefix <think>pondering</think> Answer suffix")
+        self.assertEqual(reasoning, "pondering")
+        self.assertEqual(answer, "Answer prefix Answer suffix")
+
 
 if __name__ == "__main__":
-    sys.exit(main())
+    unittest.main()
