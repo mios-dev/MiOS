@@ -43,6 +43,8 @@
 !/.dockerignore
 !/.mios/
 !/.mios/**
+!/.dotfiles/
+!/.dotfiles/**
 !/.docs/
 !/.docs/**
 !/.prompts/

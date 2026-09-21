@@ -13,6 +13,7 @@ The MiOS repository has two distinct layers:
 | Root path | Purpose | Commit policy | Deploys to |
 |---|---|---|---|
 | `.mios/` | workflow contract and metadata | tracked | nowhere |
+| `.dotfiles/` | external operator-dotfiles boundary and layout | tracked, no secrets | projected user/host dotfiles |
 | `.prompts/` | prompt authoring/indexes | tracked, no secrets | `usr/share/mios/prompts/` after projection |
 | `.research/` | working research and evidence staging | tracked when promoted | `docs/research/` |
 | `.docs/` | documentation drafts and publication manifests | tracked | `docs/` or `usr/share/doc/mios/` |
@@ -28,6 +29,8 @@ governed by their existing laws.
 ## Promotion rules
 
 - Write new prompt sources and indexes in `.prompts/`.
+- Keep non-secret operator dotfile structure and `secret_ref` references in
+  the separate repository described by `.dotfiles/README.md`.
 - Promote reviewed prompts to `usr/share/mios/prompts/` as complete files.
 - Stage research in `.research/`; publish durable reports under
   `docs/research/`.
