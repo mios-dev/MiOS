@@ -75,6 +75,15 @@ Two-stage Preference Fine-Tuning:
 DPO without an SFT pass tends to under-train; the dataset is too small
 to teach format from scratch.
 
+### The Occamy-1.0 Co-Work Recipe: Staged Specialization & Fusion
+
+For complex co-work workloads involving long-horizon state tracking, context compactions, and multi-step tool execution, MiOS adopts the **Occamy-1.0 staged specialization and parameter-space fusion recipe** (Accio-Lab/Dressage):
+
+1. **Marathon Expert (SFT → HDPO):** Dedicated to sustained, multi-turn task execution, persistent state tracking across tool calls and context compactions, and error recovery. Trained via SFT followed by Hybrid Direct Preference Optimization (HDPO) to penalize speculative hallucination.
+2. **Sprint Expert (SFT):** Dedicated to rapid tool calling, terminal interaction, coding, and strict instruction following.
+3. **Uniform Parameter-Space Merge:** Combines the weights of both experts via a uniform parameter average, fusing long-horizon continuity with rapid tool execution with **zero inference-time routing or ensembling overhead**.
+4. **Single-Rollout Asynchronous Optimization (SAO):** Online reinforcement learning refinement over executable sandbox environments with deterministic task-level state transition verifications.
+
 ## Local fine-tuning paths
 
 The Fine-Tuning Jobs API (`POST /v1/fine_tuning/jobs`) is part of the

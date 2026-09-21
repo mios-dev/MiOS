@@ -69,24 +69,12 @@ def render(rows: list) -> str:
     n = len(rows)
     accepted = sum(1 for r in rows if r["status"] == "accepted")
     out = [
-        "<!-- AI-hint: Repo-root breadcrumb to the MiOS Architecture Decision "
-        "Records. GENERATED from the ADR front-matter by "
-        "tools/generate-adr-index.py; do not hand-edit -- run the generator. "
-        "The ADRs themselves stay baked at usr/share/doc/mios/adr/ (Law 1: a "
-        "running MiOS carries its own why), so this file is a pointer, not a "
-        "copy. -->",
-        "<!-- AI-related: usr/share/doc/mios/adr/, "
-        "usr/share/doc/mios/adr/README.md, usr/share/mios/mios.toml [laws], "
-        "tools/generate-adr-index.py -->",
+        "<!-- AI-hint: Repo-root breadcrumb to the MiOS Architecture Decision Records. GENERATED from the ADR front-matter by tools/generate-adr-index.py; do not hand-edit -- run the generator. The ADRs themselves stay baked at usr/share/doc/mios/adr/ (Law 1: a running MiOS carries its own why), so this file is a pointer, not a copy. -->",
+        "<!-- AI-related: usr/share/doc/mios/adr/, usr/share/doc/mios/adr/README.md, usr/share/mios/mios.toml [laws], tools/generate-adr-index.py -->",
         "",
         "# MiOS Architecture Decision Records",
         "",
-        f"**{n} ADRs** ({accepted} accepted). The records live at "
-        "[`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked "
-        "into the image** -- a running MiOS carries its own *why*. This file is "
-        "the root breadcrumb so an agent starting at either repo root reaches "
-        "any decision in two hops; the format and status lifecycle are "
-        "described in [the ADR README](usr/share/doc/mios/adr/README.md).",
+        f"**{n} ADRs** ({accepted} accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).",
         "",
         "| # | Decision | Status | Date | Laws | SSOT keys |",
         "|---|---|---|---|---|---|",
@@ -143,6 +131,19 @@ def validate_adr_ssot_consistency(root: str) -> list[str]:
     images = ssot.get("image") or {}
     check_image_node("", images)
 
+    # Enforce single canonical ADR directory: no shadow ADR namespaces in any */adr/
+    shadow_adrs = []
+    for dirpath, _, filenames in os.walk(root):
+        rel = os.path.relpath(dirpath, root)
+        if rel == ADR_DIR or rel.startswith(".git"):
+            continue
+        if os.path.basename(dirpath) == "adr":
+            for f in filenames:
+                if f.endswith(".md") and f[:1].isdigit():
+                    shadow_adrs.append(os.path.join(rel, f))
+    if shadow_adrs:
+        violations.append(f"shadow ADR namespace found outside {ADR_DIR}: {', '.join(shadow_adrs)}")
+
     return violations
 
 def main() -> int:
@@ -150,24 +151,12 @@ def main() -> int:
     check = "--check" in sys.argv
     rows = collect(root)
     if not rows:
-        # NOT a skip: the baked ADRs are a committed, always-present surface, so
-        # an empty collection means the directory was moved/renamed/emptied or
-        # the `adr:` front-matter key stopped parsing. Passing here would also
-        # silently disarm the ADR-0003/0009/0010 SSOT assertions below, which are
-        # only reached once rows exist. Fail loudly in BOTH modes.
-        print(
-            f"VIOLATION: no ADR front-matter collected under {ADR_DIR}/ -- the "
-            f"{OUT} index and the ADR-0003/0009/0010 SSOT consistency assertions "
-            "cannot be verified (directory missing/renamed/empty, or the `adr:` "
-            "front-matter key no longer parses)",
-            file=sys.stderr)
+        print(f"VIOLATION: no ADR front-matter collected under {ADR_DIR}/ -- {OUT} cannot be verified", file=sys.stderr)
         return 1
     malformed = getattr(collect, "malformed", [])
     if malformed:
         for fn in malformed:
-            print("VIOLATION: %s/%s has no `adr:` front-matter, so it can never "
-                  "appear in %s -- add the front-matter or rename the file"
-                  % (ADR_DIR, fn, OUT), file=sys.stderr)
+            print(f"VIOLATION: {ADR_DIR}/{fn} has no `adr:` front-matter -- add it or rename", file=sys.stderr)
         return 1
     body = render(rows)
     path = os.path.join(root, OUT)

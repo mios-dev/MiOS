@@ -1490,3 +1490,30 @@ so long. Let a run finish.
 - next: Advance Desktop OS & bootc substrate (GNOME desktop integration, packages, bootc lifecycle, and FOSS compliance).
 - blockers: -
 - unverified: -
+
+## 2026-09-21 03:15 · t1014_t1017_governance_reconciliation · T-1014 Shadow ADRs Promoted & T-1017 Ghost Stages Reconciled
+- objective: Milestone Batch 1 Governance & Documentation reconciliation: promote shadow ADRs (T-1014), reconcile ghost stage citations (T-1017), incorporate Occamy-1.0 co-work fine-tune recipe, and contract legibility ceilings to zero-slack.
+- done:
+  1. T-1014 (Shadow ADR Namespace Promotion & Elimination):
+     - Promoted `docs/adr/0004-version-floating-and-sidecars.md` -> `usr/share/doc/mios/adr/0022-version-floating-and-sidecars.md`.
+     - Promoted `docs/adr/0005-unified-native-resolver.md` -> `usr/share/doc/mios/adr/0023-unified-native-resolver.md`.
+     - Removed shadow directory `docs/adr/`.
+     - Reconciled `usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md`: marked ADR-0023 superseded.
+     - Added shadow ADR namespace gate to `tools/generate-adr-index.py` prohibiting ADR-shaped files outside `usr/share/doc/mios/adr/`.
+     - Regenerated `ADR.md` (23 ADRs, 18 accepted).
+     - Proved two-sided controls: positive control `python3 tools/generate-adr-index.py --check` passes; negative control planting `docs/adr/0099-test-shadow.md` exits 1 naming violation.
+  2. T-1017 (Ghost Stage Citations Reconciliation):
+     - Audited all modules across `usr/libexec/mios/*/*.py`.
+     - Reconciled all ghost stage references (repointed to live automation stages such as `20-hardware.sh` or stripped where unmapped).
+     - Proved 0 ghost stage citations remaining in live libexec modules.
+  3. Occamy-1.0 Co-Work Recipe Integration:
+     - Documented staged specialization (Marathon Expert SFT->HDPO + Sprint Expert SFT), uniform parameter-space merge, and SAO online RL in `usr/share/mios/cookbooks/finetune-flow.md`.
+  4. Ratchet Parity & Contraction:
+     - Compacted `tools/generate-adr-index.py` strings (-12 lines).
+     - Contracted `max_tooling_python_lines` from 76536 to 76525 in `usr/share/mios/mios.toml` (zero slack).
+     - Marked T-1014 and T-1017 as `done` in `TASKS.md`.
+     - Verified all standing gates: `legibility-ratchet`, `generate-adr-index --check`, `check-tasks status-parity`, `check-tasks schema`.
+- next: Milestone Batch 2 (`T-1097` & `T-1098` & `T-1099`): prune dead modules nothing imports, prune orphaned test fixtures, and pull down legibility ratchets with zero slack.
+- blockers: -
+- unverified: -
+

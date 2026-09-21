@@ -3,7 +3,7 @@
 
 # MiOS Architecture Decision Records
 
-**21 ADRs** (18 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
+**23 ADRs** (18 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
 
 | # | Decision | Status | Date | Laws | SSOT keys |
 |---|---|---|---|---|---|
@@ -28,5 +28,7 @@
 | 0019 | ["Preemptive context switching, priority scheduling, and consequentiality-gated deliberation"](usr/share/doc/mios/adr/0019-preemptive-scheduling-and-priority-gated-deliberation.md) | accepted | 2026-08-25 | 2, 5, 8, 12 | `dispatch.tenants`, `tools.execution`, `ai.models`, `ai.lanes` |
 | 0020 | ["Edge micro-mesh 16-byte binary wire protocol, dual-tier sandboxing, and hierarchical work-stealing"](usr/share/doc/mios/adr/0020-edge-mesh-binary-wire-protocol-and-dual-tier-sandboxing.md) | accepted | 2026-08-25 | 2, 5, 7, 8, 12 | `blade.mesh`, `nodes`, `nodes.limits`, `nodes.hardware_allowlist` |
 | 0021 | [Rust static binary consolidation — a handful of function-named binaries over one SSOT crate](usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md) | accepted | 2026-09-16 | 5, 7, 8, 9, 12, 13, 14, 16 | `"legibility.max_tooling_python_lines"`, `"legibility.python_ai_plane_prefixes"` |
+| 0022 | ["Version floating, image sidecars, and offline vendoring policy"](usr/share/doc/mios/adr/0022-version-floating-and-sidecars.md) | superseded | 2026-08-02 | 7, 8, 12 | `image.sidecars`, `versions` |
+| 0023 | ["Unified native resolver architecture"](usr/share/doc/mios/adr/0023-unified-native-resolver.md) | superseded | 2026-08-05 | 7, 8, 9, 13, 14 | `migration.use_rust_resolver_shell`, `migration.use_rust_resolver_powershell`, `migration.use_rust_resolver_python`, `migration.use_rust_resolver_install_env` |
 
-<!-- derived from the front-matter of 21 file(s) under usr/share/doc/mios/adr/ -->
+<!-- derived from the front-matter of 23 file(s) under usr/share/doc/mios/adr/ -->
