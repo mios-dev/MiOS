@@ -71,7 +71,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
 - **Done**: 25
-- **Active**: 8
+- **Active**: 9
 - **Proposed**: 5
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -95,6 +95,8 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 - `WS-DEPRED` — AI-plane dependency reduction (Hermes→agent-pipe collapse + sidecar consolidations) ✅
 - `WS-SCHED` — Engine-level Priority Scheduling and Preemptive Context Switching (active)
 - `WS-ORCH` — Structured Deliberation (DCI), Event-Bus Coordination, and LOO Scoring (active)
+- `WS-MODELOCI` — Model & Dataset OCI Distribution Architecture (CNCF ModelPack, KitOps ModelKit, Bound-Images Integration) (active)
+
 
 **Deployment & Sovereignty**
 - `WS-MDRIVE` — Sovereign "run off M:" deployment (Hyper-V Gen 2 .vhdx + Ceph OSD on M:) (proposed)
@@ -633,6 +635,49 @@ acceptance: |
 - **Files:** `usr/lib/mios/agent-pipe/a2a.py`, `usr/share/mios/ai/v1/agent-card.schema.json`, `usr/lib/mios/agent-pipe/server.py`.
 - **Accept:** A2A negotiation selects semantic-frame format between capable peers and falls back gracefully to standard text on legacy endpoints.
 - **Deps:** none.
+
+## WS-MODELOCI — Model & Dataset OCI Distribution Architecture (CNCF ModelPack, KitOps ModelKit, Bound-Images Integration)
+<!--
+id: WS-MODELOCI
+title: Model & Dataset OCI Distribution Architecture
+theme: AI-Plane & Orchestration
+status: active
+priority: P1
+laws: [2, 3, 5, 12]
+ssot_keys: ["finetune.micro", "llamacpp", "ports.llm_light"]
+adr: [12]
+deps: [WS-DEPRED]
+acceptance: |
+  Models and fine-tuning datasets package, publish, and ingest via standard OCI v1.1 manifests, CNCF ModelPack specifications, and bootc bound-images.
+-->
+
+### MODELOCI-01 — CNCF ModelPack & Kitfile Manifest Integration for MiOS-Micro  **[P1]**
+- **What:** Standardize model metadata and layer descriptors in `mios-micro` to comply with CNCF ModelPack (`modelpack/model-spec`) and KitOps `Kitfile` schema v1.0.0.
+- **Why:** Replaces ad-hoc model file transfers with versioned, tamper-proof OCI artifacts with discrete layer addresses for model weights (`application/vnd.cncf.model.weight.v1.raw`) and datasets (`application/vnd.cncf.dataset.v1`).
+- **Files:** `/workspaces/mios-micro/Kitfile`, `/workspaces/mios-micro/src/mios_micro/convert.py`, `/workspaces/mios-micro/AGENTS.md`.
+- **Accept:** `kit pack` or ORAS manifest validation produces an OCI v1.1 manifest with valid `artifactType: application/vnd.cncf.model.manifest.v1+json`.
+- **Deps:** none.
+
+### MODELOCI-02 — Multi-Layer OCI Artifact Publishing Pipeline  **[P1]**
+- **What:** Automate packaging and publishing of discrete GGUF model layers and SFT datasets to `ghcr.io/mios-dev/mios-micro:1.5b` and local forge registries.
+- **Why:** Enables CI/CD pipelines and downstream nodes to pull only needed layers (e.g. weights only or dataset only) with cryptographic digest pinning.
+- **Files:** `/workspaces/mios-micro/.github/workflows/package-oci.yml`, `/workspaces/mios-micro/Containerfile`.
+- **Accept:** Workflow builds container image and emits OCI artifact layers with SHA256 digests verified in GHCR registry.
+- **Deps:** `MODELOCI-01`.
+
+### MODELOCI-03 — Bootc Bound-Image Integration for Resident Inference  **[P1]**
+- **What:** Integrate `mios-micro` as a pre-bound container image in `/usr/lib/bootc/bound-images.d/mios-micro.json`, wired directly to `llama-swap` on port key `llm_light`.
+- **Why:** Satisfies Law 3 (BOUND-IMAGES) and Law 12 (BAKE-NOT-FETCH), guaranteeing immediate resident availability upon initial host boot without network fetching.
+- **Files:** `usr/lib/bootc/bound-images.d/mios-micro.json`, `usr/share/containers/systemd/mios-llm-light.container`, `usr/share/mios/llamacpp/mios-llm-light.yaml`.
+- **Accept:** Host image build registers `mios-micro` in `bound-images.tsv` and boots with warm slot responding on port 8500.
+- **Deps:** `MODELOCI-02`.
+
+### MODELOCI-04 — Two-Sided Latency & Schema Conformance Gate  **[P2]**
+- **What:** Integrate two-sided verification gate in dev-loop evaluating resident inference latency (<250ms target) and negative prompt rejection.
+- **Why:** Enforces architectural invariants against prompt injection and model drift in autonomous daemons (`mios-log-watcher`, `mios-cron-director`).
+- **Files:** `src/mios_micro/eval.py`, `tests/test_micro_eval.py`, `tools/drift-checks.py`.
+- **Accept:** Positive control verifies valid JSON log triage in <250ms; negative control verifies invalid unroutable prompts fail with explicit rejection.
+- **Deps:** `MODELOCI-03`.
 
 # Deployment & Sovereignty
 
