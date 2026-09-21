@@ -23,3 +23,4 @@ localhost/mios-crawl4ai-slim:latest	local	extra	1.0
 localhost/mios-cuda	local	cuda	1.0
 localhost/mios-firecrawl:v1.0.0	local	extra	1.0
 localhost/mios-sys	local	sys	1.0
+ghcr.io/mios-dev/mios-micro:latest	local	cuda	1.5
