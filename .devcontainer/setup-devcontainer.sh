@@ -55,9 +55,16 @@ elif [ -x "/usr/local/bin/mios-root-overlay" ]; then
 fi
 
 echo "=== [3/5] Configuring Antigravity Keyring & Shims ==="
-DEVLOOP_ENV="${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/env"
-if [ -r "${DEVLOOP_ENV}/setup-antigravity.sh" ]; then
-    bash "${DEVLOOP_ENV}/setup-antigravity.sh" --quiet || echo "  [WARN] Dev-loop setup-antigravity encountered warnings"
+if ! command -v agy >/dev/null 2>&1; then
+    DEVLOOP_ENV="${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/env"
+    if [ -r "${DEVLOOP_ENV}/setup-antigravity.sh" ]; then
+        bash "${DEVLOOP_ENV}/setup-antigravity.sh" --quiet || echo "  [WARN] Dev-loop setup-antigravity encountered warnings"
+    fi
+
+    if ! command -v agy >/dev/null 2>&1; then
+        echo "  [INSTALL] AGY CLI"
+        curl -fsSL --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh | bash || echo "  [WARN] AGY install failed; install manually when network is available"
+    fi
 fi
 
 echo "=== [4/5] Installing Multi-Harness Shims & Skills ==="

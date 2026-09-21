@@ -1,6 +1,6 @@
 # AI-hint: Defines the unified Fedora development container for the MiOS ecosystem (MiOS, mios-bootstrap, and -dev-loop).
 # Floats on Fedora latest, providing full toolchain coverage: Rust, dual Python (3.14 + 3.11), Podman/Docker, and Agent CLIs.
-FROM registry.fedoraproject.org/fedora:latest
+FROM docker.io/library/fedora:latest
 
 # 1. Base OS Packages, Compilers, Runtimes, and Utilities
 RUN dnf install -y --setopt=install_weak_deps=False \
@@ -34,15 +34,13 @@ RUN useradd -m -u 1000 -s /usr/bin/zsh mios-dev \
 COPY .devcontainer/install-root-overlay.sh /usr/local/bin/mios-root-overlay
 RUN chmod +x /usr/local/bin/mios-root-overlay
 
-# 4. Antigravity CLI (baked into image with error-tolerant fallback)
+# 4. Antigravity CLI (baked into image, not just tolerated)
 USER mios-dev
-RUN set -u; tmp="$(mktemp -d)"; \
-    if curl -fsSL --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh -o "$tmp/install.sh" \
-       && [ -s "$tmp/install.sh" ] && bash "$tmp/install.sh" >/dev/null 2>&1; then \
-         /home/mios-dev/.local/bin/agy --version; \
-    else \
-         echo "WARNING: Antigravity CLI not installed at build time" >&2; \
-    fi; \
+RUN set -eux; \
+    tmp="$(mktemp -d)"; \
+    curl -fsSL --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh -o "$tmp/install.sh"; \
+    bash "$tmp/install.sh"; \
+    /home/mios-dev/.local/bin/agy --version; \
     rm -rf "$tmp"
 
 ENV PATH="/home/mios-dev/.local/bin:${PATH}"
