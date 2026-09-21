@@ -32,6 +32,18 @@ Shared build helpers live in `automation/lib/` (`common.sh`, `packages.sh`, `pat
 
 Three-layer resolution (highest wins): `~/.config/mios/mios.toml` (per-user) → `/etc/mios/…` (host/admin) → `/usr/share/mios/mios.toml` (vendor default). Empty strings do **not** override non-empty values below them.
 
+### Root dotfolder workflow
+
+Root dotfolders are the repository control plane described in
+[`.mios/README.md`](.mios/README.md), not replacements for the FHS overlay:
+`.prompts/` holds prompt organization, `.research/` holds research staging,
+`.docs/` holds documentation staging, and `.secrets/` is a tracked README-only
+boundary whose contents are ignored. Deployable prompt and documentation
+artifacts remain under `usr/share/mios/prompts/`, `docs/`, and
+`usr/share/doc/mios/` according to their existing ownership and projection
+rules. Generated `.artifacts/` and scratch `.work/` content must never be
+committed.
+
 ## Common commands (`just` is the Linux SSOT)
 
 The `justfile` is the source of truth for the Linux build; `just --list` shows every target.

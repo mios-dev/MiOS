@@ -92,6 +92,25 @@ directly.
    repo's `etc/`, `usr/`, `var/` on top. The next boot IS the edit — the
    premise that makes MiOS self-developing.
 
+### Root dotfolder control plane
+
+Root-level dotfolders are workflow control-plane directories, not alternate
+runtime FHS destinations. The contract is documented in [`.mios/README.md`](.mios/README.md):
+
+* `.prompts/` organizes prompt sources and indexes; shipped prompt files land
+  under `usr/share/mios/prompts/`.
+* `.research/` stages evidence; durable research lands under `docs/research/`.
+* `.docs/` stages documentation; shipped documentation lands under
+  `usr/share/doc/mios/`.
+* `.secrets/` contains only its tracked README; its contents are ignored and
+  must never contain real credentials.
+* `.artifacts/` and `.work/` are disposable generated/scratch paths and are
+  ignored.
+
+Do not move FHS-owned files into dotfolders merely for organization. A
+dotfolder source is promoted through the existing SSOT, projection, review,
+and drift-gate workflow before it becomes a deployable artifact.
+
 ## 3. `mios.toml` is THE singular SSOT
 
 **`mios.toml` is the singular file that runs the entire pipeline.** It
