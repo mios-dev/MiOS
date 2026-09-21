@@ -10712,6 +10712,7 @@ suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never pa
 # divergence set is a shrink-only 12 that a thirteenth key breaches
 # (check_resolver_differential_parity). Law 13 costs a shape here.
 [drift.generated_ceilings]
+"build.rechunk_max_layers" = "OCI layer ceiling for hhd-dev/rechunk; trades layer count against pull size and rebuild caching, so it is an operator-tunable budget rather than a shrink-only code-debt ratchet (T-1071)"
 "legibility.max_tracked_mb" = "emitted by tools/native/mios-size-ceiling as round(tracked MiB) + [legibility].tracked_mb_headroom; it tracks the deliverable's size, which Law 12 BAKE-NOT-FETCH requires to grow, so shrink-only is the wrong shape for it (T-1051)"
 
 [drift.budget_keys]

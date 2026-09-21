@@ -19,7 +19,7 @@ const SSOT: &str = "usr/share/mios/mios.toml";
 /// match, since `section` is the text before the first dot. `gates` went the
 /// other way: a real-looking name for a table mios.toml does not have. The test
 /// below now rejects both shapes (T-1055).
-const RATCHET_SECTIONS: [&str; 13] = [
+const RATCHET_SECTIONS: [&str; 14] = [
     "docs",
     "legibility",
     "resolver",
@@ -33,6 +33,7 @@ const RATCHET_SECTIONS: [&str; 13] = [
     "rust",
     "drift",
     "sandbox",
+    "build",
 ];
 
 fn report(ok: bool, summary: String, findings: Vec<String>) -> Report {
@@ -369,9 +370,8 @@ mod tests {
         // Contains-only matches are section-scoped, not global.
         assert!(is_ceiling_key("soft_max_lines", "legibility"));
         assert!(!is_ceiling_key("soft_max_lines", "branding"));
-        // T-1055: `build` is deliberately NOT a ratchet section here, because
-        // the predecessor's `build.ratchet` entry never matched anything.
-        assert!(!is_ceiling_key("rechunk_max_layers", "build"));
+        // T-1071: `build` is in RATCHET_SECTIONS, capturing `rechunk_max_layers`.
+        assert!(is_ceiling_key("rechunk_max_layers", "build"));
         assert!(!is_ceiling_key("enabled", "legibility"));
     }
 
