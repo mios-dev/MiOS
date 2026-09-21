@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-# AI-hint: Unit and integration tests for Windows autounattend.xml schema validator.
-# AI-related: usr/libexec/mios/win/unattend_validate.py, autounattend.xml
-"""Unit and integration test suite for UnattendValidator and unattend_validate CLI."""
+# AI-hint: Consolidated unit test suite for MiOS Windows Unattended domain (autounattend.xml generation, hardware bypass injection, and schema validation) (T-1021 / GATECAT-01).
+# AI-related: usr/libexec/mios/win/unattend_gen.py, usr/libexec/mios/win/unattend_validate.py, autounattend.xml
+"""Consolidated Windows Unattended Domain Test Suite.
+
+Consolidates:
+- Windows 11 autounattend.xml generator, hardware bypasses, and presets (test-unattend-gen.py)
+- Windows autounattend.xml XML schema, namespaces, and settings pass validator (test-unattend-validate.py)
+"""
 
 from __future__ import annotations
 
@@ -11,19 +16,116 @@ import os
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
-_TARGET_PATH = os.path.join(_ROOT, "usr", "libexec", "mios", "win", "unattend_validate.py")
+_WIN_DIR = os.path.join(_ROOT, "usr", "libexec", "mios", "win")
 
-spec = importlib.util.spec_from_file_location("unattend_validate", _TARGET_PATH)
-if spec and spec.loader:
-    unattend_validate = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = unattend_validate
-    spec.loader.exec_module(unattend_validate)
+# Dynamic loader for unattend_gen
+_GEN_PATH = os.path.join(_WIN_DIR, "unattend_gen.py")
+spec_gen = importlib.util.spec_from_file_location("unattend_gen", _GEN_PATH)
+if spec_gen and spec_gen.loader:
+    unattend_gen = importlib.util.module_from_spec(spec_gen)
+    sys.modules[spec_gen.name] = unattend_gen
+    spec_gen.loader.exec_module(unattend_gen)
 else:
-    raise ImportError(f"Could not load module from {_TARGET_PATH}")
+    raise ImportError(f"Could not load module from {_GEN_PATH}")
+
+# Dynamic loader for unattend_validate
+_VAL_PATH = os.path.join(_WIN_DIR, "unattend_validate.py")
+spec_val = importlib.util.spec_from_file_location("unattend_validate", _VAL_PATH)
+if spec_val and spec_val.loader:
+    unattend_validate = importlib.util.module_from_spec(spec_val)
+    sys.modules[spec_val.name] = unattend_validate
+    spec_val.loader.exec_module(unattend_validate)
+else:
+    raise ImportError(f"Could not load module from {_VAL_PATH}")
+
+
+# ============================================================================
+# Domain 6.1: Windows 11 Autounattend.xml Generator & Presets
+# (Migrated from tests/test-unattend-gen.py)
+# ============================================================================
+
+class TestUnattendGen(unittest.TestCase):
+    """Test suite for Windows 11 XML answer file generation, pass structure, bypasses, and presets."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory(prefix="mios-test-unattend-")
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_generate_xml_tree_structure(self):
+        cfg = unattend_gen.UnattendConfig(
+            preset=unattend_gen.Preset.DEVELOPER,
+            username="mios",
+            computer_name="MiOS-DevNode",
+            driver_path="M:\\drivers",
+            bypass_tpm=True,
+            bypass_secure_boot=True,
+            disable_telemetry=True,
+            enable_dev_mode=True,
+            enable_wsl2=True,
+        )
+        gen = unattend_gen.UnattendGenerator(cfg, mock=True)
+        xml_str = gen.generate_xml_string()
+
+        self.assertIn("<?xml", xml_str)
+        self.assertIn(unattend_gen.UNATTEND_NS, xml_str)
+        self.assertIn("BypassTPMCheck", xml_str)
+        self.assertIn("BypassSecureBootCheck", xml_str)
+        self.assertIn("AllowTelemetry", xml_str)
+        self.assertIn("AllowDevelopmentWithoutDevLicense", xml_str)
+        self.assertIn("AutoLogon", xml_str)
+        self.assertIn("MiOS-DevNode", xml_str)
+
+    def test_run_writes_valid_xml_file(self):
+        out_file = os.path.join(self.temp_dir.name, "autounattend.xml")
+        cfg = unattend_gen.UnattendConfig(
+            preset=unattend_gen.Preset.MINIMAL,
+            username="operator",
+        )
+        gen = unattend_gen.UnattendGenerator(cfg, mock=False)
+        res = gen.run(output_path=out_file)
+
+        self.assertEqual(res["status"], "success")
+        self.assertTrue(os.path.exists(out_file))
+
+        tree = ET.parse(out_file)
+        root = tree.getroot()
+        self.assertEqual(root.tag.split("}")[-1], "unattend")
+
+    def test_cli_execution_mock_json(self):
+        test_args = [
+            "unattend_gen.py",
+            "--preset", "developer",
+            "--username", "mios",
+            "--computer-name", "MiOS-Test",
+            "--mock",
+            "--json",
+        ]
+        with patch.object(sys, "argv", test_args):
+            exit_code = unattend_gen.main()
+            self.assertEqual(exit_code, 0)
+
+    def test_cli_execution_emit_xml(self):
+        test_args = [
+            "unattend_gen.py",
+            "--emit-xml",
+            "--mock",
+        ]
+        with patch.object(sys, "argv", test_args):
+            exit_code = unattend_gen.main()
+            self.assertEqual(exit_code, 0)
+
+
+# ============================================================================
+# Domain 6.2: Windows Autounattend Schema Validator
+# (Migrated from tests/test-unattend-validate.py)
+# ============================================================================
 
 VALID_XML_SAMPLE = """<?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend"
@@ -99,7 +201,6 @@ class TestUnattendValidate(unittest.TestCase):
         self.assertIn("windowsPE", res.passes_found)
         self.assertIn("specialize", res.passes_found)
         self.assertIn("oobeSystem", res.passes_found)
-        # All 5 Win11 bypasses must be detected
         self.assertTrue(all(res.hardware_bypasses.values()))
 
     def test_validate_repo_autounattend_xml(self):
@@ -207,7 +308,6 @@ class TestUnattendValidate(unittest.TestCase):
 
     def test_strict_mode_fails_on_warnings(self):
         strict_val = unattend_validate.UnattendValidator(strict=True)
-        # XML without xmlns:wcm (generates warning)
         xml = """<unattend xmlns="urn:schemas-microsoft-com:unattend">
           <settings pass="windowsPE">
             <component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" />
@@ -248,10 +348,6 @@ class TestUnattendValidate(unittest.TestCase):
             if os.path.exists(tf_path):
                 os.remove(tf_path)
 
-def main() -> int:
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestUnattendValidate)
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() else 1
 
 if __name__ == "__main__":
-    sys.exit(main())
+    unittest.main()

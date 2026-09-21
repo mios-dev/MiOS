@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-# AI-hint: Automated unit test suite for Looking Glass B6 spice-direct host input and configuration manager.
-# AI-related: usr/libexec/mios/display/looking_glass.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
-"""Unit tests for Looking Glass B6 spice-direct configuration, client.ini, and keybindings."""
+# AI-hint: Consolidated unit test suite for MiOS Looking Glass & Display domain (T-1021 / GATECAT-01).
+# AI-related: usr/libexec/mios/display/looking_glass.py, usr/libexec/mios/vfio/setup-looking-glass.py, usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md
+"""Automated unit test suite for MiOS Looking Glass & Display domain.
+
+Consolidates:
+- Looking Glass B6 SPICE-direct client configuration, client.ini, and keybindings (test-looking-glass-config.py)
+- Looking Glass B6 IVSHMEM shared memory setup and VFIO passthrough validation (test-looking-glass-setup.py)
+"""
 
 from __future__ import annotations
 
@@ -13,15 +18,32 @@ import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
-_LG_PATH = os.path.join(_ROOT, "usr", "libexec", "mios", "display", "looking_glass.py")
 
-spec = importlib.util.spec_from_file_location("looking_glass", _LG_PATH)
-if spec and spec.loader:
-    looking_glass = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = looking_glass
-    spec.loader.exec_module(looking_glass)
+# Load Looking Glass B6 Config Manager (usr/libexec/mios/display/looking_glass.py)
+_LG_CONFIG_PATH = os.path.join(_ROOT, "usr", "libexec", "mios", "display", "looking_glass.py")
+spec_lg = importlib.util.spec_from_file_location("looking_glass", _LG_CONFIG_PATH)
+if spec_lg and spec_lg.loader:
+    looking_glass = importlib.util.module_from_spec(spec_lg)
+    sys.modules[spec_lg.name] = looking_glass
+    spec_lg.loader.exec_module(looking_glass)
 else:
-    raise ImportError(f"Could not load looking_glass module from {_LG_PATH}")
+    raise ImportError(f"Could not load looking_glass module from {_LG_CONFIG_PATH}")
+
+# Load Looking Glass B6 IVSHMEM/VFIO Setup (usr/libexec/mios/vfio/setup-looking-glass.py)
+_LG_SETUP_PATH = os.path.join(_ROOT, "usr", "libexec", "mios", "vfio", "setup-looking-glass.py")
+spec_setup = importlib.util.spec_from_file_location("setup_looking_glass", _LG_SETUP_PATH)
+if spec_setup and spec_setup.loader:
+    setup_looking_glass = importlib.util.module_from_spec(spec_setup)
+    sys.modules[spec_setup.name] = setup_looking_glass
+    spec_setup.loader.exec_module(setup_looking_glass)
+else:
+    raise ImportError(f"Could not load setup-looking-glass module from {_LG_SETUP_PATH}")
+
+
+# ============================================================================
+# Domain 4.1: Looking Glass B6 Client Configuration & Keybinding Manager
+# (Migrated from tests/test-looking-glass-config.py)
+# ============================================================================
 
 class TestLookingGlassConfig(unittest.TestCase):
     """Validates Looking Glass B6 client configuration, INI synthesis, and keybinding generators."""
@@ -128,10 +150,45 @@ class TestLookingGlassConfig(unittest.TestCase):
         self.assertEqual(res["checks"]["shm_device"], "pass")
         self.assertEqual(res["checks"]["ini_generation"], "pass")
 
-def main() -> int:
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestLookingGlassConfig)
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() else 1
+
+# ============================================================================
+# Domain 4.2: Looking Glass IVSHMEM Shared Memory & VFIO Setup
+# (Migrated from tests/test-looking-glass-setup.py)
+# ============================================================================
+
+class TestLookingGlassSetup(unittest.TestCase):
+    """Validates Looking Glass IVSHMEM XML generation and memory allocation checks."""
+
+    def test_ivshmem_xml_generation(self):
+        lg = setup_looking_glass.LookingGlassManager(size_mb=128)
+        xml = lg.generate_ivshmem_xml()
+        self.assertIn('<shmem name="looking-glass">', xml)
+        self.assertIn('<model type="ivshmem-plain"/>', xml)
+        self.assertIn('<size unit="M">128</size>', xml)
+
+    def test_mock_shm_validation(self):
+        lg = setup_looking_glass.LookingGlassManager()
+        self.assertTrue(lg.validate_shm_allocation(mock=True))
+
+    def test_mock_kvmfr_validation(self):
+        lg = setup_looking_glass.LookingGlassManager()
+        self.assertTrue(lg.validate_kvmfr_device(mock=True))
+
+    def test_verify_all_mock(self):
+        lg = setup_looking_glass.LookingGlassManager(size_mb=64)
+        res = lg.verify_all(mock=True)
+        self.assertEqual(res["status"], "pass")
+        self.assertEqual(res["checks"]["shm_allocation"], "pass")
+        self.assertEqual(res["checks"]["kvmfr_device"], "pass")
+
+    def test_service_unit_file(self):
+        svc_path = os.path.join(_ROOT, "usr", "lib", "systemd", "system", "mios-vfio-setup.service")
+        self.assertTrue(os.path.exists(svc_path), f"Service file missing at {svc_path}")
+        with open(svc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("setup-looking-glass.py --verify", content)
+        self.assertIn("[Install]", content)
+
 
 if __name__ == "__main__":
-    sys.exit(main())
+    unittest.main()

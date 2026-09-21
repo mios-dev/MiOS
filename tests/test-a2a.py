@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-# AI-hint: Automated unit test suite for WS-FED / A2A-01 agent capability exchange and cryptographic attestation.
-# AI-related: usr/libexec/mios/a2a/attestation.py, usr/lib/mios/agent-pipe/server.py
-"""Automated unit test suite for A2A mutual capability attestation and Ed25519 signing."""
+# AI-hint: Consolidated unit test suite for MiOS A2A (Agent-to-Agent) federation: Ed25519 cryptographic attestation, mutual capability handshake, and identity-aware delegation (T-1021 / GATECAT-01).
+# AI-related: usr/libexec/mios/a2a/attestation.py, usr/lib/mios/agent-pipe/mios_a2a_delegation.py
+"""Consolidated A2A Domain Test Suite.
+
+Consolidates:
+- Mutual capability attestation and Ed25519 signing (test-a2a-attestation.py)
+- Identity-aware A2A delegation and frame negotiation (test-a2a-delegation.py)
+"""
 
 from __future__ import annotations
 
@@ -19,8 +24,14 @@ from cryptography.hazmat.primitives import serialization
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
-_ATTESTATION_PATH = os.path.join(_ROOT, "usr", "libexec", "mios", "a2a", "attestation.py")
+_AGENT_PIPE = os.path.join(_ROOT, "usr", "lib", "mios", "agent-pipe")
+if _AGENT_PIPE not in sys.path:
+    sys.path.insert(0, _AGENT_PIPE)
+_A2A_DIR = os.path.join(_ROOT, "usr", "libexec", "mios", "a2a")
+if _A2A_DIR not in sys.path:
+    sys.path.insert(0, _A2A_DIR)
 
+_ATTESTATION_PATH = os.path.join(_A2A_DIR, "attestation.py")
 spec = importlib.util.spec_from_file_location("attestation", _ATTESTATION_PATH)
 if spec and spec.loader:
     attestation = importlib.util.module_from_spec(spec)
@@ -28,6 +39,19 @@ if spec and spec.loader:
     spec.loader.exec_module(attestation)
 else:
     raise ImportError(f"Could not load attestation module from {_ATTESTATION_PATH}")
+
+from mios_a2a_delegation import (
+    AgentCard as DelegationAgentCard,
+    DelegationRouter,
+    PayloadMode,
+    DelegationFrame,
+)
+
+
+# ============================================================================
+# Domain 1.1: Cryptographic Attestation & Mutual Capability Handshake
+# (Migrated from tests/test-a2a-attestation.py)
+# ============================================================================
 
 class TestA2AAttestation(unittest.TestCase):
     """Validates Ed25519 key management, AgentCard signing, tampering rejection, clock skew, and negotiation."""
@@ -311,9 +335,6 @@ class TestA2AAttestation(unittest.TestCase):
             self.assertTrue(os.path.isfile(priv_file))
             self.assertTrue(os.path.isfile(pub_file))
 
-            with open(pub_file, "r", encoding="utf-8") as f:
-                pub_hex = f.read().strip()
-
             # 2. Test CLI sign-card
             stdout = io.StringIO()
             with redirect_stdout(stdout):
@@ -382,10 +403,109 @@ class TestA2AAttestation(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertIn('"authenticated": false', stdout.getvalue())
 
-def main() -> int:
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestA2AAttestation)
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() else 1
+
+# ============================================================================
+# Domain 1.2: Identity-Aware Progressive Payload Negotiation & Delegation
+# (Migrated from tests/test-a2a-delegation.py)
+# ============================================================================
+
+def _make_router() -> DelegationRouter:
+    router = DelegationRouter()
+    router.register(DelegationAgentCard(
+        agent_id="agent-full",
+        endpoint="http://localhost:8640",
+        supported_interfaces=["text", "semantic_frame", "embedding_hints"],
+        reasoning_profile="deliberate",
+        cost_hint=0.8,
+        capabilities={"summarize": True, "code": True},
+    ))
+    router.register(DelegationAgentCard(
+        agent_id="agent-text-only",
+        endpoint="http://localhost:8641",
+        supported_interfaces=["text"],
+        reasoning_profile="fast",
+        cost_hint=0.3,
+        capabilities={"summarize": True},
+    ))
+    return router
+
+
+class TestA2ADelegation(unittest.TestCase):
+    """Validates A2A payload mode negotiation, progressive frames, peer selection, and wire serialization."""
+
+    def test_negotiate_semantic_frame_when_both_support(self):
+        """Negotiation selects semantic_frame when both peers support it."""
+        router = _make_router()
+        src = router.get_card("agent-full")
+        tgt = router.get_card("agent-full")
+        mode = router.negotiate_mode(src, tgt)
+        self.assertEqual(mode, PayloadMode.EMBEDDING_HINTS)
+
+    def test_negotiate_fallback_to_text(self):
+        """Negotiation falls back to text when one peer only supports text."""
+        router = _make_router()
+        src = router.get_card("agent-full")
+        tgt = router.get_card("agent-text-only")
+        mode = router.negotiate_mode(src, tgt)
+        self.assertEqual(mode, PayloadMode.TEXT)
+
+    def test_build_frame_uses_negotiated_mode(self):
+        """build_frame() packs structured content for capable peers."""
+        router = _make_router()
+        frame = router.build_frame(
+            "agent-full", "agent-full",
+            content_text="plain fallback",
+            semantic_frame={"intent": "summarize", "key": "v"},
+            embedding_hints=[0.1, 0.2, 0.3],
+        )
+        self.assertIn(frame.mode, (PayloadMode.SEMANTIC_FRAME, PayloadMode.EMBEDDING_HINTS))
+
+    def test_best_peer_by_capability(self):
+        """best_peer() returns the lowest cost_hint peer with that capability."""
+        router = _make_router()
+        peer = router.best_peer("summarize")
+        self.assertIsNotNone(peer)
+        self.assertEqual(peer.agent_id, "agent-text-only")  # cost_hint=0.3 < 0.8
+
+    def test_wire_roundtrip(self):
+        """DelegationFrame serializes and deserializes cleanly."""
+        frame = DelegationFrame(
+            mode=PayloadMode.SEMANTIC_FRAME,
+            content={"intent": "test"},
+            source_agent="a", target_agent="b",
+        )
+        d = frame.to_wire()
+        frame2 = DelegationFrame.from_wire(d)
+        self.assertEqual(frame2.mode, PayloadMode.SEMANTIC_FRAME)
+        self.assertEqual(frame2.content["intent"], "test")
+
+    def test_recursive_task_delegation_chain(self):
+        """Validates multi-hop recursive task delegation from Agent A to Agent B to Agent C."""
+        router = _make_router()
+        router.register(DelegationAgentCard(
+            agent_id="agent-eval",
+            endpoint="http://localhost:8642",
+            supported_interfaces=["text", "semantic_frame"],
+            reasoning_profile="deliberate",
+            cost_hint=0.5,
+            capabilities={"eval": True},
+        ))
+        # Hop 1: A -> B
+        frame_hop1 = router.build_frame("agent-full", "agent-text-only", content_text="initial task")
+        self.assertEqual(frame_hop1.mode, PayloadMode.TEXT)
+        self.assertEqual(frame_hop1.source_agent, "agent-full")
+        self.assertEqual(frame_hop1.target_agent, "agent-text-only")
+
+        # Hop 2: B -> C (recursive subtask delegation)
+        frame_hop2 = router.build_frame(
+            frame_hop1.target_agent, "agent-eval",
+            content_text="subtask",
+            semantic_frame={"subtask": "eval_result"},
+        )
+        self.assertEqual(frame_hop2.source_agent, "agent-text-only")
+        self.assertEqual(frame_hop2.target_agent, "agent-eval")
+        self.assertEqual(frame_hop2.mode, PayloadMode.TEXT)  # agent-text-only only supports text
+
 
 if __name__ == "__main__":
-    sys.exit(main())
+    unittest.main()
