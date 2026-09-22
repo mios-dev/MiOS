@@ -35,6 +35,7 @@
 /.devcontainer/**
 
 !/.gitignore
+!/artifact.md
 !/.gitattributes
 !/.clinerules
 !/.cursorrules
