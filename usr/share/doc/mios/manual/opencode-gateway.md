@@ -78,3 +78,37 @@ Emit a well-formed OpenAI SSE delta stream.
         subprocess selector (defaults to `model` for back-compat callers).
 
 <!-- mios-src:3242f7b0c8f2 from usr/lib/mios/agents/opencode-gateway/server.py:269-277 -->
+### MiOS opencode → OpenAI /v1 gateway shim. opencode (the...
+
+MiOS opencode → OpenAI /v1 gateway shim.
+
+opencode (the SST/charm CLI coding agent) speaks its own CLI protocol, not the
+OpenAI /v1 chat-completions contract that the MiOS agent-pipe council expects.
+This shim wraps `opencode run` behind a minimal OpenAI-compatible HTTP server so
+opencode can be dispatched as a first-class /v1 council peer (like Hermes at
+:8720), without teaching agent-pipe a bespoke protocol.
+
+Endpoints:
+  GET  /v1/models            → advertise the single opencode model id
+  POST /v1/chat/completions  → run opencode, return an OpenAI chat.completion
+                               (or an SSE delta stream when stream=true)
+
+Config (all via env, SSOT-rendered by the unit / userenv.sh):
+  MIOS_PORT_OPENCODE_GATEWAY   listen port (default 8780)
+  MIOS_OPENCODE_BIN            path to the opencode binary
+  MIOS_OPENCODE_MODEL          model id to advertise/forward (ONE canonical id;
+                               must match [agents.opencode].model + the key in
+                               opencode.json)
+  MIOS_OPENCODE_PROVIDER       opencode provider name from opencode.json
+                               (default "local"); used to build the `-m
+                               provider/model` selector
+  MIOS_OPENCODE_CONFIG         explicit path to opencode.json; exported to the
+                               child as OPENCODE_CONFIG so opencode does NOT
+                               depend on a hardcoded /root/.config location
+  MIOS_OPENCODE_HOST           bind host (default 127.0.0.1)
+  MIOS_OPENCODE_TIMEOUT_S      per-run timeout seconds (default 90; SSOT key
+                               [ai].opencode_gateway_timeout_s). Legacy
+                               MIOS_OPENCODE_TIMEOUT is still honoured as a
+                               fallback for older overlays.
+
+<!-- mios-src:89df15f298de from usr/lib/mios/agents/opencode-gateway/server.py:4-35 -->

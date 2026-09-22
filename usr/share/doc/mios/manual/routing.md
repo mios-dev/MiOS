@@ -2874,3 +2874,40 @@ OpenAI grounding rule: 'include only search results/citations that support
  (a Fedora answer citing 'Shaolin monks'). web-tools hardening.
 
 <!-- mios-src:903c4a53bef3 from usr/lib/mios/agent-pipe/mios_pipe/routing/web_research.py:932-938 -->
+### Both are baked into the image; if either is absent, fail...
+
+Both are baked into the image; if either is absent, fail with a legible
+dependency error instead of a NameError leaking out of the render path.
+
+<!-- mios-src:be6c567e45a7 from usr/lib/mios/agent-pipe/mios_pipe/routing/conductor.py:14-15 -->
+
+### Map a workflow name to its YAML under CONDUCTOR_DIR. The...
+
+Map a workflow name to its YAML under CONDUCTOR_DIR.
+
+    The name arrives from model-refined dispatch input, so it is untrusted:
+    reject anything that is not a bare name, then confirm the resolved path
+    really sits inside CONDUCTOR_DIR (catches symlink escapes) BEFORE the file
+    is read and its shell steps are executed.
+
+<!-- mios-src:607474d3f265 from usr/lib/mios/agent-pipe/mios_pipe/routing/conductor.py:52-57 -->
+
+### One [ports] value: MIOS_PORT_* -> [ports].<key> -> the SSOT...
+
+One [ports] value: MIOS_PORT_* -> [ports].<key> -> the SSOT literal.
+
+    Law 5/7: the literal is the SSOT's own number (check_port_fallbacks holds the
+    two in agreement), not a stale one -- the previous defaults named stale and
+    retired ports. A set-but-EMPTY env var (bare `KEY=` in install.env, which
+    Law 10 permits) must not win over the config tier, and a non-numeric value
+    must not 500 the portal page, so each candidate is tried in turn.
+
+<!-- mios-src:2bd0469dd60c from usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py:66-72 -->
+
+### Resolve the anchor stopword screen from SSOT...
+
+Resolve the anchor stopword screen from SSOT: MIOS_SEARCH_ANCHOR_STOPWORDS, the
+    CSV the resolver emits for [search].anchor_stopwords (Law 9: one canonical name, so
+    the override is reachable) -> that table -> empty (degrade-open). Lowercased.
+
+<!-- mios-src:1c3a403a2d2f from usr/lib/mios/agent-pipe/mios_pipe/routing/web_research.py:163-165 -->

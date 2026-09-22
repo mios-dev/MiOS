@@ -59,3 +59,13 @@ Strict Architectural Invariant:
     On single-core systems, Core 0 is retained.
 
 <!-- mios-src:3386c02b7254 from usr/libexec/mios/node/cgroups.py:49-53 -->
+### topology_switch.py — T-970 WS-NODE Dual-mode dynamic...
+
+topology_switch.py — T-970 WS-NODE
+Dual-mode dynamic topology switcher (Seat UI vs Headless Blade) in mios-node.
+
+Dynamically transitions system state between interactive Workstation Seat mode
+(Wayland, GNOME, ASR audio, Guacamole) and Headless Compute Blade mode (k3s, Ceph,
+RPC inference workers) without GPU memory leaks or orphaned processes.
+
+<!-- mios-src:6d8bf3e1bc94 from usr/libexec/mios/node/topology_switch.py:5-12 -->

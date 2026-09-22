@@ -698,3 +698,230 @@ AI-functions: _github_error, _github_warning, validate_file, _emit, collect_file
 
 <!-- mios-src:eb7085e80097 from automation/validate-kargs.py:1-3 -->
 
+### `miosd harden` is one function serving BOTH this stage and...
+
+`miosd harden` is one function serving BOTH this stage and 51: it rewrites
+trust= (this stage's job) and enables usbguard/auditd/fapolicyd (51's). The
+old leg ran it and then `exit 0`, which skipped the `systemctl enable` below.
+That is not the same thing: miosd writes the multi-user.target.wants symlink
+directly, while `systemctl enable` reads [Install] and honours whatever else
+it declares. fapolicyd is not installed on the machine this was converted on,
+so that equivalence could not be measured -- and an unmeasured equivalence is
+not one. The enable stays exactly where it was, after either leg.
+
+<!-- mios-src:36d96bd5efd8 from automation/40-fapolicyd-trust.sh:26-33 -->
+
+### Absolute path, never `command -v`: miosd installs to...
+
+Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+nothing puts on PATH at bake time, so the lookup this replaced could never
+succeed (T-1018). Note the elif below is dead too: SYSFILES is
+/ctx/system_files, and the Containerfile builds /ctx from automation/, usr/,
+etc/, tools/ and VERSION -- it never creates a system_files/ directory, and
+the repo has none. Both non-default branches were unreachable, so policy.json
+arrived purely as an overlay copy and this stage generated nothing.
+
+<!-- mios-src:f4717cb51488 from automation/49-cosign-policy.sh:50-56 -->
+
+### Both paths run the same generator
+
+Both paths run the same generator: miosd render-uki-cmdline execs
+tools/generate-uki-cmdline.py, which is where the kargs.d parse actually
+lives. The dispatch is about which side owns the invocation, not about two
+implementations -- so there is no output to diff, only a root to get right.
+miosd resolves the script against MIOS_ROOT, so pass it explicitly rather
+than relying on the caller's cwd.
+
+<!-- mios-src:cb2dc2e83237 from automation/76-uki-render.sh:41-46 -->
+
+### T-1032. Windows-only shim
+
+T-1032. Windows-only shim: where a host ships `python` but no `python3`,
+materialise one under that name so the checks below can call it. Two rules
+make it safe, and BOTH were missing:
+  1. Never when a real python3 already resolves. On Linux it always does, so
+     this whole block must no-op there.
+  2. Never reuse a cached copy. The copy lives in TEMP and outlives
+     interpreter upgrades; a stale one puts every check on a DIFFERENT
+     interpreter than sync-generated.sh, just, CI and the operator's own
+     `python3 tools/...`, and silently absorbs version-dependent failures.
+
+<!-- mios-src:18bb33a2f550 from automation/98-drift-checks.sh:8-16 -->
+
+### Every value here used to come from ${MIOS_CONV_*:-literal}....
+
+Every value here used to come from ${MIOS_CONV_*:-literal}. Nothing exports
+MIOS_CONV_* -- not globals.sh, not run-suites.sh, not this script -- so the
+check validated its own hardcoded defaults on every run and never opened
+mios.toml at all. The defaults had already drifted from the SSOT:
+retire_heavy_alt is true in [converge.inference] but defaulted to false
+here, which permanently skipped the one assertion that inspects a real
+systemd unit; cold_retention_days is 90 against an asserted 30; and
+cold_zstd_level is 10 against an asserted 3.
+
+Read the SSOT. An env var may still override for testing, but the FALLBACK
+is now the SSOT value rather than a literal, so the check cannot silently
+grade a file it never read.
+
+<!-- mios-src:03520b292756 from automation/98-drift-checks.sh:653-664 -->
+
+### The lint prints its own tally -- N of M consumed, K...
+
+The lint prints its own tally -- N of M consumed, K registered unconsumed.
+This wrapper used to answer it with "all ... have code consumers", which
+was the overclaim the lint itself was making when it walked a hardcoded
+nine of 128 keys (T-1047). Do not reintroduce a summary here that asserts
+more than the tool it wraps just measured.
+
+<!-- mios-src:7ea252901d10 from automation/98-drift-checks.sh:836-840 -->
+
+### Was
+
+Was: grep the whole FILE for "|| true" (or set +e / trap / exit 0) and
+call that degrade-open. File-global, so one unrelated cleanup guard
+certified the script; all thirteen passed and the gate could not fail,
+while forge-firstboot.sh really did abort firstboot on an unreachable
+Forgejo API. The tool scopes the question to the egress calls themselves.
+
+<!-- mios-src:63cfee7b6954 from automation/98-drift-checks.sh:1196-1200 -->
+
+### The bash leg must run a DIFFERENT implementation, or this...
+
+The bash leg must run a DIFFERENT implementation, or this check compares
+mios_toml.py against itself. userenv.sh resolves in three tiers -- native
+mios-resolver, miosd, then the Python fallback -- and under `env -i` with
+no binary on PATH it reached tier 3, so mutating mios_toml.py changed BOTH
+legs and they went on agreeing. Proven by mutation: disabling
+resolve_cross_references in mios_toml.py left the bash leg emitting
+${MIOS_PORT_AGENT_PIPE} verbatim, and the check still passed (T-1062).
+
+Locate the native resolver and put it on the fixture's PATH so tier 1
+fires. Absent, the comparison is vacuous: fail where the environment
+declares tools mandatory, and say plainly what went unverified otherwise.
+
+<!-- mios-src:83d75fddcaa5 from automation/98-drift-checks.sh:1244-1254 -->
+
+### emit_exports() is the resolver Law 13 names. Reading...
+
+emit_exports() is the resolver Law 13 names. Reading section(load_merged())
+instead compared the bash RESOLVER against a raw table read -- not twin
+against twin, which is why no cross-reference could ever disagree here: this
+leg never ran the code that resolves one.
+
+<!-- mios-src:6aefbbd7b328 from automation/98-drift-checks.sh:1308-1311 -->
+
+### Two empty sets compare equal, and the fixture above sets...
+
+Two empty sets compare equal, and the fixture above sets endpoint,
+model and embed_model, so emitting nothing means BOTH resolvers are
+broken -- previously reported as a pass.
+
+<!-- mios-src:2050f85cc226 from automation/98-drift-checks.sh:1316-1318 -->
+
+### This check used to `cp -r` the committed kargs.d into the...
+
+This check used to `cp -r` the committed kargs.d into the "expected"
+directory and then render into that same copy, so 15 of the 17 files were
+diffed against copies of themselves and could only ever match. Its
+Extra/Missing branches were unreachable for the same reason, and the
+renderer's exit status was discarded, so a completely broken renderer
+still printed the PASS line.
+
+75-kargs-render.sh is an in-place mutator, not a whole-directory
+generator: it manages exactly two files -- it rewrites 01-mios-vfio.toml
+when present, and writes or REMOVES 99-mios-kargs.toml depending on
+whether [kargs] declares custom arguments. The other 15 files are
+hand-maintained and are not projections of anything, so this check does
+not claim to verify them.
+
+<!-- mios-src:503d1db46fed from automation/98-drift-checks.sh:1369-1381 -->
+
+### [legibility].max_tracked_mb is generated, so the gate that...
+
+[legibility].max_tracked_mb is generated, so the gate that matters is not
+"is it big enough" -- check_legibility_ratchet asks that -- but "is the
+committed number still what the tree implies". Outside the band, the value
+is either already breached or carrying slack nobody declared.
+No env override here on purpose. MIOS_GATE_BIN exists and is grandfathered
+on the var-closure ledger; adding a second name nothing emits is exactly
+what that ledger's header forbids, and check_var_closure caught this one
+the moment it was written.
+
+<!-- mios-src:8e8c39e21261 from automation/98-drift-checks.sh:1898-1905 -->
+
+### Ported to mios-gate per ADR-0021; the python twin is...
+
+Ported to mios-gate per ADR-0021; the python twin is deleted in the same
+commit, with both paths proved equal first: 78 ceilings on each side, and
+the same key named with the same exit code on a planted raise. The port
+also carries the [drift.generated_ceilings] exemption, which a ceiling
+that is GENERATED rather than hand-maintained needs -- and which must be
+itemised with a reason, never a bare name.
+
+<!-- mios-src:88c6612e99d2 from automation/98-drift-checks.sh:1968-1973 -->
+
+### Ported to mios-gate per ADR-0021; the python twin is...
+
+Ported to mios-gate per ADR-0021; the python twin is deleted in the same
+commit. The successor is strictly stronger: the old reader matched a
+99-postcheck.sh target as a bare SUBSTRING, which a comment after `exit 0`
+satisfied for four laws, and it silently dropped both a bare second
+enforcer in a comma list and any unrecognised enforcer kind.
+
+<!-- mios-src:29615be54a23 from automation/98-drift-checks.sh:3185-3189 -->
+
+### Law 8 for the container signature policy....
+
+Law 8 for the container signature policy. usr/lib/containers/policy.json
+is projected from [security.sigstore] and, until T-1047's sweep, was the
+ONE generator in the tree with neither half of the law: no regenerate step
+and no drift check. Its own generator's --check compared parsed JSON, so
+it could not see the tracked file drifting in bytes from what the writer
+emits -- which it had.
+
+<!-- mios-src:31dacd9e02b5 from automation/98-drift-checks.sh:3451-3456 -->
+
+### main() dispatches each check as a bare statement under the...
+
+main() dispatches each check as a bare statement under the file's
+`set -euo pipefail`, and 189 checks END with _violation, which returns 1.
+So the first failing check aborted the whole run: of 207 dispatched
+checks only the first 12 ever executed, and the aggregate summary below
+was unreachable whenever it had anything to report. Accumulate instead;
+VIOLATIONS is the signal, not the exit status of the last check.
+
+<!-- mios-src:56f047239147 from automation/98-drift-checks.sh:3667-3672 -->
+
+### This tests EXISTENCE and nothing else. It used to say...
+
+This tests EXISTENCE and nothing else. It used to say "present and
+verified" while claiming to compare resolver logic: a globals.ps1 with a
+port changed to 9999 passed it rc=0, and check_globals_generated caught
+that same plant rc=1.
+
+<!-- mios-src:4ac4f61abe48 from automation/98-drift-checks.sh:3992-3995 -->
+
+### Ported to mios-gate per ADR-0021; the python twin is...
+
+Ported to mios-gate per ADR-0021; the python twin is deleted in the same
+commit. The register now pins path:KEY=VALUE, so a grandfathered KEY whose
+VALUE becomes an operator's real password is a NEW finding (T-1035).
+
+<!-- mios-src:f78fa7ea982c from automation/98-drift-checks.sh:4502-4504 -->
+
+### Header integrity
+
+Header integrity: a tagger must never absorb line 1. See AGY-1607.
+--- no AI-hint tagger has absorbed a shebang or a MIOS_* build directive from line 1 ---
+
+<!-- mios-src:b6768304192e from automation/98-drift-checks.sh:4836-4837 -->
+
+### stderr carried the only record of a dropped variable and...
+
+stderr carried the only record of a dropped variable and was discarded
+here, so MIOS_AI_ENDPOINT going missing from install.env was invisible at
+bake while Law 5 routed every agent through it (T-1060). It is captured
+and echoed now -- on failure AND on success, because a declared
+[security.non_bare_env] skip is a thing a reader should still see.
+
+<!-- mios-src:8bbbe72c2e67 from automation/99-postcheck.sh:519-523 -->

@@ -429,3 +429,235 @@ degraded status transitions, routing table pruning, eviction event dispatching, 
 -------------------------------------------------------------------------
 
 <!-- mios-src:844288c053a9 from tests/test-node-m2-adversarial-challenger.py:155-157 -->
+### The registry is whatever mios.toml says it is. This test...
+
+The registry is whatever mios.toml says it is.
+
+This test used to snapshot `default_registry()` -- a six-phase hardcoded
+list -- and call it golden, which blessed the very fallback that made a
+six-of-seventy-one-phase build look complete. A golden over a constant
+proves the constant has not changed, not that the loader works.
+
+<!-- mios-src:4e84b507d438 from src/mios-rs/mios-build/tests/golden_harness.rs:41-46 -->
+
+### The defect this port exists for. A key-only register...
+
+The defect this port exists for. A key-only register grandfathers the KEY,
+so an operator's real password baked in by a build-environment variable
+reads as the same entry and the gate stays green.
+
+<!-- mios-src:742c96b615ed from src/mios-rs/mios-gate/tests/credentials.rs:57-59 -->
+
+### T-1043, and a bug in this gate's first predicate: naming...
+
+T-1043, and a bug in this gate's first predicate: naming the parameter `ctx`
+instead of `_ctx` proves nothing. check_pipeline_numbering read ctx.in_image
+for an early skip and then returned a constant Pass, so a parameter-name test
+classified it as implemented and it kept claiming a verdict.
+
+<!-- mios-src:f2762f500bbf from src/mios-rs/mios-gate/tests/stubs.rs:80-83 -->
+
+### The regression this file exists for. The shipped drop-in...
+
+The regression this file exists for. The shipped drop-in,
+usr/lib/bootc/kargs.d/01-mios-vfio.toml, is NOT wholly generated:
+rd.driver.pre=vfio-pci binds vfio-pci in the initramfs before a
+GPU driver can claim the card, and kvm-intel.nested=1 enables nested KVM.
+Neither comes from any [kargs] key. A renderer that rebuilds the list from
+scratch deletes both from the kernel command line, exits 0, and leaves a
+header claiming the file came from SSOT.
+
+<!-- mios-src:9e4749c8da2b from src/mios-rs/miosd/tests/render_kargs.rs:53-59 -->
+
+### The old fixture was "set -e" plus an echo and no escape...
+
+The old fixture was "set -e" plus an echo and no escape token. That is
+not a Law 12 violation -- there is no egress to fail -- and the gate it
+certified only ever tested for the substring. This fixture is the real
+thing: an unguarded fetch reached with errexit active.
+
+<!-- mios-src:63b36ce0a21b from tests/drift-gate-negatives.sh:982-985 -->
+
+### The defect
+
+The defect: the scan skipped every tree a consumer lives in, so no input
+could make this gate fail. One plant per formerly-excluded tree, because
+a single one would not show that the exclusion list is gone rather than
+merely shorter.
+Split so the literal never appears in this file: the names registry
+harvests tracked sources, and a fixture name spelled out here lands in
+usr/share/mios/referenced_names.txt as if something referenced it.
+
+<!-- mios-src:88ebac152c52 from tests/drift-gate-negatives.sh:1980-1986 -->
+
+### The bare second enforcer in a comma list inherits its file...
+
+The bare second enforcer in a comma list inherits its file rather than
+being dropped: the old reader split on comma first and skipped any piece
+without a colon, so Law 12's second target was never checked.
+
+<!-- mios-src:32d7b29b500e from tests/drift-gate-negatives.sh:2068-2070 -->
+
+### T-1035
+
+T-1035: the half a key-only register could not see. POSTGRES_PASSWORD is
+GRANDFATHERED, so changing its value used to read as the same entry and
+the gate stayed green while an operator's real password sat in a 0644
+file under /usr.
+
+<!-- mios-src:f4a756d53e6e from tests/drift-gate-negatives.sh:4004-4007 -->
+
+### Padding
+
+Padding: registering a table that HAS a consumer must fail -- the
+register only shrinks, and an entry that no longer reproduces is debt
+already paid. `blades` is read by its own fleet-safety gate.
+
+<!-- mios-src:b77e156b31c0 from tests/drift-gate-negatives.sh:4537-4539 -->
+
+### Automated Acoustic Noise Rejection, VAD Accuracy, and...
+
+Automated Acoustic Noise Rejection, VAD Accuracy, and Wake-Word Trigger Benchmark Suite.
+
+Verifies:
+1. >98% accuracy (True Positive Rate) on noisy wake-phrase audio ("Hey MiOS").
+2. <0.5% false positive rate on ambient noise, silence, and non-wake speech.
+3. Low CPU overhead (<0.1% idle overhead, <0.2% on single core benchmark).
+4. Stage 1 (RNNoise Suppressor) noise reduction and spectral estimation.
+5. Stage 2 (Silero VAD) speech presence probability and hangover smoothing.
+6. Stage 3 (OpenWakeWord Detector) acoustic phoneme sequence matching.
+7. Downstream streaming STT session signal callback execution.
+8. CLI flags: --status, --json, --process-pcm, --threshold, --mock, --daemon.
+9. Systemd user service unit configuration.
+
+<!-- mios-src:2047485d57a2 from tests/test-acoustic-wakeword-pipeline.py:4-17 -->
+
+### MiOS Empirical Adversarial Test Harness (Challenger 1)....
+
+MiOS Empirical Adversarial Test Harness (Challenger 1).  Adversarially tests and stress-tests: - pgvector Automated VACUUM & Concurrent HNSW Reindexing (T-401) - CephFS Transactional Ledger Replication & Integrity Hashing (T-402) - CephFS Dynamic Quota Enforcement & Subvolume Sizing (T-403) - Ceph RADOS Gateway Quadlet Isolation (T-404) - LUKS2 / dm-crypt Automated Key Rotation & Safety Rollback (T-405) - PostgreSQL Hot-Standby Streaming Replication & Fencing Coordinator (T-406) - Database Corruption Detector & Non-Destructive Repair Engine (T-407) - Database Schema Migration Runner & Rollback Safety (T-412)
+
+<!-- mios-src:cc71563a7feb from tests/test-adversarial-t401-t406.py:4-4 -->
+
+### Consolidated Agent Pipe Scheduling Domain Test Suite....
+
+Consolidated Agent Pipe Scheduling Domain Test Suite.
+
+Consolidates:
+- WS-AI continuous batch preemption and turn scheduling (test-agent-pipe-preempt.py)
+- WS-SCHED agent-pipe token-bucket rate limiter and quotas (test-agent-pipe-quota.py)
+- Engine-level priority scheduling and gate drain ordering (test-priority-sched.py)
+
+<!-- mios-src:299549cf650d from tests/test-agent-pipe-scheduling.py:4-10 -->
+
+### Automated unit test suite for MiOS Context & Prompt...
+
+Automated unit test suite for MiOS Context & Prompt Processing.
+
+Consolidates:
+- Semantic context compaction & invariant retention (test-context-compactor)
+- Priority context window packing & needle heuristics (test-context-trim)
+- Contextual prompt compression, code syntax preservation & CLI (test-prompt-pruning)
+- Chain-of-thought <think> reasoning tag stripping (test-think-stripper)
+
+<!-- mios-src:f6b2a73a4f1f from tests/test-context-processing.py:4-11 -->
+
+### Consolidated Git Operations Domain Test Suite....
+
+Consolidated Git Operations Domain Test Suite.
+
+Consolidates:
+- Differential AST Git merge fuzzing and conflict simulation (test-git-merge-fuzzer.py)
+- Git pre-commit linter and commit message hook validator (test-git-pre-commit.py)
+- Multi-master Git DAG reconciliation and consensus signing (test-git-reconcile.py)
+
+<!-- mios-src:e22b818cc059 from tests/test-git-ops.py:4-10 -->
+
+### Part 2
+
+==============================================================================
+Part 2: Reachability Probe & Posture Behavior (ADR-0016 D8)
+==============================================================================
+
+<!-- mios-src:3083d6145b4a from tests/test-greenboot-blade.sh:108-110 -->
+
+### Run cargo in the workspace on any platform. These tests...
+
+Run cargo in the workspace on any platform.
+
+    These tests used to shell into a WSL distro by name and cd to /usr/share/mios,
+    so they only ever ran on one machine. Skip when there is no toolchain
+    rather than letting its absence look like a pass.
+
+<!-- mios-src:6c5474a14772 from tests/test-mios-check-ssot.py:15-20 -->
+
+### Run the validator's own unit tests over its synthetic...
+
+Run the validator's own unit tests over its synthetic fixtures.
+
+        Named for what it does: these are the crate's fixtures, NOT the live
+        mios.toml. The old name claimed the shipped SSOT was being validated
+        while asserting only on cargo output, which is the kind of gap this
+        repo's gates exist to catch.
+
+<!-- mios-src:4476af675502 from tests/test-mios-check-ssot.py:28-34 -->
+
+### Run a cargo command in the workspace, on whatever platform...
+
+Run a cargo command in the workspace, on whatever platform we are on.
+
+    This suite used to shell into a WSL distro by name ("podman-MiOS-DEV") and
+    cd to /usr/share/mios, so it could only pass on one developer's Windows box and
+    failed outright on any CI runner. Skip -- loudly -- when there is no
+    toolchain, so a missing cargo can never read as a passing dispatcher test.
+
+<!-- mios-src:d2c82383b151 from tests/test-mios-cli-dispatcher.py:14-20 -->
+
+### Consolidated Node Mesh Domain Test Suite (WS-NODE Edge...
+
+Consolidated Node Mesh Domain Test Suite (WS-NODE Edge Micro-Mesh).
+
+Combines and preserves 100% test coverage across 4 core networking subsystems:
+1. Async TCP framing, stream buffer reassembly, CRC32 checks, and channel dispatch (TestAsyncNetFraming)
+2. Mutual Ed25519 identity authentication, X25519 ECDH key exchange, HKDF-SHA256 session derivation, ChaCha20-Poly1305 AEAD wire encryption, and tamper/imposter rejection (TestNodeCryptoHandshake)
+3. Heartbeat monitor, 5s intervals, 3-strike dead peer detection (15s eviction), degraded transitions, routing table pruning, and eviction event listeners (TestNodeHeartbeatEviction)
+4. 16-byte fixed binary wire protocol framing, big-endian header packing/unpacking, CRC32 verification, opcode dispatch, and payload limits (TestNodeWireProtocol)
+
+<!-- mios-src:a4f01ca75917 from tests/test-node-mesh.py:5-12 -->
+
+### Unit Test Suite for MiOS UID 1000 Enforcement & Systemd...
+
+Unit Test Suite for MiOS UID 1000 Enforcement & Systemd User Session Boundary.
+Implements T-965 / AGY-2563.
+
+<!-- mios-src:c8017625fc8f from tests/test-uid-enforcement.py:5-8 -->
+
+### test-virtio-pmem-dax-io.py — T-734 WS-VFIO Automated...
+
+test-virtio-pmem-dax-io.py — T-734 WS-VFIO
+Automated benchmark suite for virtio-pmem DAX microVM I/O.
+
+In CI (no Cloud-Hypervisor available) all benchmarks run in dry-run / memory
+simulation mode:
+  - memfd allocation + mmap read simulates the >15 GB/s memory path
+  - time.perf_counter timing asserts sub-25ms "boot" (memfd init) latency
+
+On a real MiOS host with Cloud-Hypervisor:
+  - Launches 10 sequential VMs, measures boot-to-init latency
+  - Runs in-guest fio read benchmark, asserts >15 GB/s
+  - Asserts host NVMe write counters unchanged
+
+<!-- mios-src:c29bbd75736b from tests/test-virtio-pmem-dax-io.py:5-18 -->
+
+### The preset script is present when the tree carries it....
+
+The preset script is present when the tree carries it.
+
+        `src/autounattend/*` is git-ignored (.gitignore un-ignores the directory
+        and then excludes its contents), so this script exists in a developer's
+        working tree but never in a clean checkout -- which is why this assertion
+        passed locally and failed on every runner. Tracking it is not the fix
+        either: it is 56 lines of PowerShell against a shrink-only ps_lines
+        ceiling that Law 14 keeps there deliberately. Skip where it cannot
+        exist, and say so, rather than assert a file the repo excludes.
+
+<!-- mios-src:f5bf22f169aa from tests/test-windows-driver-pack.py:21-30 -->

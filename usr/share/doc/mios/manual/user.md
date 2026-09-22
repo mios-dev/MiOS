@@ -223,3 +223,64 @@ surface visible windows -- without it, `flatpak run epiphany` from the broker
 never appears even though the compositor + sockets are healthy.
 
 <!-- mios-src:6baee29ec169 from usr/lib/systemd/user/mios-wslg-env.service:4-14 -->
+### usr/lib/systemd/user/mios-wakeword.service MiOS Three-Stage...
+
+/usr/lib/systemd/user/mios-wakeword.service
+
+MiOS Three-Stage Acoustic Wake-Word service -- manages continuous low-overhead
+hands-free voice trigger detection on the user's audio input device.
+
+ARCHITECTURE:
+Audio frames pass through RNNoise (denoiser) -> Silero VAD (speech detection) ->
+OpenWakeWord (phrase matcher). When the user speaks the wake phrase ("Hey MiOS"),
+it activates the downstream streaming STT session without high idle CPU or GPU load.
+
+RUNTIME:
+Runs as an unprivileged user service within user@$UID.service with access to
+PipeWire / PulseAudio session endpoints.
+
+<!-- mios-src:c3f267aca45a from usr/lib/systemd/user/mios-wakeword.service:3-15 -->
+
+### usr/lib/systemd/user/mios-wallpaper.service Living...
+
+/usr/lib/systemd/user/mios-wallpaper.service
+
+Living wallpaper background rendering daemon with Wayland layer-shell occlusion
+awareness and low-priority Vulkan compute queue scheduling. Suspends rendering
+to 0 FPS (0% GPU load) when desktop is occluded by open windows to preserve 98%+
+GPU capacity for local AI inference lanes.
+
+<!-- mios-src:30931545ab6a from usr/lib/systemd/user/mios-wallpaper.service:4-9 -->
+
+### WS-USER (T-559): Network-Wide Roaming Multi-Seat Session...
+
+WS-USER (T-559): Network-Wide Roaming Multi-Seat Session Orchestrator & GPU Assignment Manager.
+
+Orchestrates multi-seat hardware assignment dynamically for roaming users across cluster blades:
+- Authenticates users against PostgreSQL users_registry or local encrypted credential store.
+- Dynamically assigns available physical GPU outputs (seat0, seat1) or virtual display heads.
+- Mounts and maps encrypted user CephFS home volumes (/var/home/<username>).
+- Balances GPU allocations across concurrent local physical and remote streaming (Sunshine/Moonlight) users.
+- Enforces strict hardware de-allocation and seat cleanup on logout.
+
+<!-- mios-src:636ff0cd4002 from usr/libexec/mios/user/roaming_seat.py:5-14 -->
+
+### WS-USER (T-560): Dynamic Cross-Node Wayland Session...
+
+WS-USER (T-560): Dynamic Cross-Node Wayland Session Checkpoint and Migration Protocol.
+
+Migrates active Wayland desktop sessions and application states seamlessly across cluster blades:
+- Checkpoints running user container/Wayland state via headless compositor bridge (hyprland/sway/gnome).
+- Preserves user application processes in detached background cgroups during display handoff.
+- Synchronizes window geometry, workspace layout, and session state to CephFS (/var/lib/mios/sessions/).
+- Restores and re-attaches desktop session to a new physical seat or remote streaming bridge on the target node.
+
+<!-- mios-src:b91217aec0d0 from usr/libexec/mios/user/session_migrate.py:5-13 -->
+
+### MiOS Standard Non-System UID 1000 Enforcement & Migration...
+
+MiOS Standard Non-System UID 1000 Enforcement & Migration Engine.
+Implements T-964 / AGY-2562: Validates and enforces that primary user 'mios'
+has UID 1000 and GID 1000, aligning with systemd user session requirements.
+
+<!-- mios-src:4b712c70a198 from usr/libexec/mios/user/uid_enforce.py:5-9 -->

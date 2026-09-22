@@ -1281,3 +1281,388 @@ synthesizes enriched system prompts with domain-specific technical rigor and gui
 while strictly preserving canonical project laws and OpenAI endpoint contracts.
 
 <!-- mios-src:d583386802a0 from usr/lib/mios/agent-pipe/mios_persona.py:4-11 -->
+### Hierarchical semantic context compactor and invariant...
+
+Hierarchical semantic context compactor and invariant pinning manager for MiOS agent-pipe.
+
+Monitors active session token counts, pins system invariants, and summarizes intermediate conversation turns
+into structured recaps, enabling 100k+ token sessions to proceed indefinitely with 100% intent retention.
+
+<!-- mios-src:974df998df9b from usr/lib/mios/agent-pipe/context_compactor.py:4-8 -->
+
+### mios_a2a_delegation.py — T-345 MAO-06 Identity-Aware...
+
+mios_a2a_delegation.py — T-345 MAO-06
+Identity-Aware Delegation & Progressive Payload Negotiation for A2A federation.
+
+Extends AgentCard schema with:
+  supportedInterfaces[]  — ["text", "semantic_frame", "embedding_hints"]
+  reasoning_profile      — "fast" | "deliberate" | "reflexive"
+  cost_hint              — float (relative token cost estimate)
+
+Payload negotiation selects the most compact mutually-supported format,
+targeting ~35% token reduction when semantic_frame is available on both sides.
+
+<!-- mios-src:b94da8ce9c43 from usr/lib/mios/agent-pipe/mios_a2a_delegation.py:4-15 -->
+
+### mios_deliberate.py — T-341 MAO-02 Deliberative Collective...
+
+mios_deliberate.py — T-341 MAO-02
+Deliberative Collective Intelligence (DCI) — 4-archetype deliberation council
+with typed interaction grammar and Decision Packet output.
+
+Archetypes: Framer | Explorer | Challenger | Integrator
+Grammar acts: propose | challenge | evidence | reframe | synthesize | concede
+
+Decision Packet schema:
+  {
+    "chosen_actions": [...],
+    "residual_objections": [...],
+    "reopen_conditions": [...],
+    "round_count": N,
+    "consensus_score": 0.0..1.0
+  }
+
+<!-- mios-src:5c1a74511770 from usr/lib/mios/agent-pipe/mios_deliberate.py:4-20 -->
+
+### Orchestrates a single DCI deliberation session. In...
+
+Orchestrates a single DCI deliberation session.
+
+    In production each archetype is backed by an LLM call; in unit-test mode
+    the caller provides a `responder` callable that returns (act, content)
+    tuples per archetype so tests run without a live inference engine.
+
+<!-- mios-src:c81acd91ad5d from usr/lib/mios/agent-pipe/mios_deliberate.py:79-85 -->
+
+### Distance over WORDS, not characters. A character diff is...
+
+Distance over WORDS, not characters.
+
+        A character diff is not a semantic measure: two drafts sharing no word
+        at all still score ~0.77 similar on letter overlap alone, which both
+        understates real rewrites and makes the convergence threshold mean
+        different things at different draft lengths. Comparing token sequences
+        keeps ordering sensitivity (still difflib) while giving disjoint drafts
+        the 1.0 they deserve -- and it is cheaper on long drafts, because the
+        sequences are words rather than characters.
+
+<!-- mios-src:23f41ce94db3 from usr/lib/mios/agent-pipe/mios_deliberate.py:245-254 -->
+
+### WS-AI (T-547): Semantic KV-Cache Context Compaction Engine...
+
+WS-AI (T-547): Semantic KV-Cache Context Compaction Engine & Episodic Summary Generator.
+Integrated into agent-pipe to prevent context overflow while preserving agent reasoning integrity.
+Monitors multi-turn conversation token usage; when capacity exceeds 75%, condenses intermediate tool
+executions and verbose historical logs into structured milestones while strictly preserving system/developer
+prompts, active goal constraints, and recent conversational turns.
+
+<!-- mios-src:1f51fe50e2be from usr/lib/mios/agent-pipe/mios_kv_compact.py:5-11 -->
+
+### Task / CVE IDs (T-545, AGY-2145, CVE-2026-1001)
+
+Task / CVE IDs (T-545, AGY-2145, CVE-2026-1001)
+
+<!-- mios-src:ac84e5672032 from usr/lib/mios/agent-pipe/mios_kv_compact.py:60-60 -->
+
+### Compact conversation history while strictly maintaining: 1....
+
+Compact conversation history while strictly maintaining:
+        1. System / developer prompts (immutable, uncompacted at head).
+        2. Active goal / task definitions.
+        3. Most recent conversational turns (preserve_recent_turns).
+        4. Structured milestone summary replacing verbose middle turns.
+
+<!-- mios-src:801a9fd6d9f6 from usr/lib/mios/agent-pipe/mios_kv_compact.py:158-164 -->
+
+### mios_kvfork.py — T-340 SCHED-05 Turn-boundary preemption &...
+
+mios_kvfork.py — T-340 SCHED-05
+Turn-boundary preemption & snapshot-suspend-resume via llama.cpp KV-cache slot
+save/restore API (/slots endpoint).  Suspended conversations are checkpointed
+to /var/lib/mios/llamacpp/slots/ and their task row updated to `suspended`.
+
+The KV slot is keyed by session_id; the file is named
+  /var/lib/mios/llamacpp/slots/<session_id>.kv
+
+Real llama.cpp HTTP endpoint: POST /slots/<slot_id>/action
+  body: {"action": "save",   "filename": "<name>"}
+  body: {"action": "restore", "filename": "<name>"}
+  body: {"action": "erase"}
+
+<!-- mios-src:75f37e70e95d from usr/lib/mios/agent-pipe/mios_kvfork.py:4-17 -->
+
+### Manages KV-cache slot save/restore for session preemption....
+
+Manages KV-cache slot save/restore for session preemption.
+
+    In production this issues HTTP calls to the llama.cpp /slots endpoint.
+    In unit-test mode (no running server) it simulates saves/restores via the
+    local filesystem so CI does not require a live inference engine.
+
+<!-- mios-src:18e525b9a969 from usr/lib/mios/agent-pipe/mios_kvfork.py:109-115 -->
+
+### Resume a previously suspended conversation: restore its KV...
+
+Resume a previously suspended conversation: restore its KV slot.
+
+<!-- mios-src:e1ab6820c8d8 from usr/lib/mios/agent-pipe/mios_kvfork.py:148-150 -->
+
+### mios_manifest_rag.py — T-343 MAO-04 Manifest-Guided...
+
+mios_manifest_rag.py — T-343 MAO-04
+Manifest-Guided Progressive-Disclosure Tree Retrieval.
+
+Prevents cosine vector space collapse by navigating a hierarchical manifest
+tree top-down (LLM-select pruning on node summaries) before executing vector
+similarity on leaf documents.
+
+manifest.json format at each node:
+  {
+    "summary": "<natural language description of this directory>",
+    "children": ["subdir-a", "subdir-b", ...],
+    "leaf_docs": [{"id": "...", "path": "...", "summary": "..."}]
+  }
+
+<!-- mios-src:f08425843cfe from usr/lib/mios/agent-pipe/mios_manifest_rag.py:4-18 -->
+
+### Progressive disclosure retrieval over a manifest tree....
+
+Progressive disclosure retrieval over a manifest tree.
+
+    `pruner` selects and re-ranks child nodes or leaf documents by
+    LLM-assisted relevance.  In dry-run / unit-test mode a simple
+    substring keyword filter serves as the pruner.
+
+<!-- mios-src:f36fb680fcae from usr/lib/mios/agent-pipe/mios_manifest_rag.py:49-55 -->
+
+### Convert an arbitrary JSON Schema (such as an MCP tool...
+
+Convert an arbitrary JSON Schema (such as an MCP tool inputSchema) into
+    a strict OpenAI function parameter definition.
+    - Ensures root type is 'object'
+    - Ensures all properties are listed in 'required'
+    - Widens optional properties with 'null' type
+    - Sets 'additionalProperties: False'
+    - Recursively processes nested objects and arrays.
+
+<!-- mios-src:11000847e472 from usr/lib/mios/agent-pipe/mios_mcp_schema.py:18-24 -->
+
+### The two MCP client transports, split out of mios_mcp.py....
+
+The two MCP client transports, split out of mios_mcp.py.
+
+Neither transport touches the injected module state in mios_mcp (the client
+factory, the shared tool registry and its lock, the embedder): they take
+everything they need as arguments, which is what made this the safe cut when
+the module went past the 800-line ceiling.
+
+<!-- mios-src:246d63ed5db8 from usr/lib/mios/agent-pipe/mios_mcp_transport.py:4-10 -->
+
+### mios_pg_events.py — T-342 MAO-03 PostgreSQL LISTEN/NOTIFY...
+
+mios_pg_events.py — T-342 MAO-03
+PostgreSQL LISTEN/NOTIFY event-bus coordination.
+
+Daemon agents call `listen()` to subscribe to the `mios_agent_events` channel.
+Mutations on `tasks`, `pending_action`, and `event` tables fire NOTIFY via
+SQL triggers defined in schema-init.sql.
+
+The EventBus uses psycopg3 async connection with `notify_timeout=0.05`
+so reaction latency stays well under the 50ms SLA.
+
+In unit-test mode (no DB) the bus runs in dry-run mode: NOTIFY events are
+injected directly via `inject()` for hermetic CI testing.
+
+<!-- mios-src:53c8cc16c527 from usr/lib/mios/agent-pipe/mios_pg_events.py:4-17 -->
+
+### mios_priority_sched.py — T-339 SCHED-04 Engine-level...
+
+mios_priority_sched.py — T-339 SCHED-04
+Engine-level priority scheduling: forward x-priority header to heavy inference
+lanes (vLLM, SGLang, llama-swap) so foreground user turns preempt background
+autonomous-agent batches at the engine level.
+
+Priority scale: 1 (highest) .. 10 (lowest). Foreground user = 1. Autonomous
+agent batches = 5..10.  Values map to vLLM/SGLang priority and llama-swap
+priority_boost.
+
+<!-- mios-src:d8ef6b55edb5 from usr/lib/mios/agent-pipe/mios_priority_sched.py:5-14 -->
+
+### Simple priority gate — wraps outbound HTTP calls to...
+
+Simple priority gate — wraps outbound HTTP calls to inference lanes and
+    injects the priority signal.  A real production implementation would use
+    an asyncio PriorityQueue; this in-process implementation provides the
+    correct interface for unit testing and progressive enhancement.
+
+<!-- mios-src:4bec9914167d from usr/lib/mios/agent-pipe/mios_priority_sched.py:69-74 -->
+
+### mios_reputation.py — T-344 MAO-07 IntrospecLOO...
+
+mios_reputation.py — T-344 MAO-07
+IntrospecLOO (Introspective Leave-One-Out) marginal contribution evaluation
+for swarm/council agent sessions.
+
+After a multi-agent council completes, each peer's marginal utility is
+computed by evaluating the decision quality with and without that agent's
+contributions.  The delta updates the `peer_reputation` PostgreSQL table.
+
+Dry-run mode (no DB): reputation updates are accumulated in-memory.
+
+<!-- mios-src:d61c58aacbd8 from usr/lib/mios/agent-pipe/mios_reputation.py:4-14 -->
+
+### WS-AI (T-551): Ephemeral Bubblewrap Subagent Isolation...
+
+WS-AI (T-551): Ephemeral Bubblewrap Subagent Isolation Engine with Scoped Bind-Mounts.
+Wraps subagent tool executions inside an ephemeral bwrap + systemd-run container scope.
+Enforces read-only host mounts (/usr, /etc, /bin, /lib), isolated proc/dev/tmp namespaces,
+designated workspace read-write sandboxes, and strict cgroup resource constraints
+(MemoryMax=4G, CPUQuota=200%, TasksMax=256).
+
+<!-- mios-src:94b75d536e99 from usr/lib/mios/agent-pipe/mios_subagent_sandbox.py:5-11 -->
+
+### pss_regulator.py — T-972 WS-AI PSS memory budget regulator...
+
+pss_regulator.py — T-972 WS-AI
+PSS memory budget regulator and swarm agent OOM circuit breaker in agent-pipe.
+
+Enforces strict Proportional Set Size (PSS) host memory budgets across multi-agent
+swarms, allowing >1,500 concurrent background workers within a 16GB RAM limit.
+
+<!-- mios-src:ec3895191319 from usr/lib/mios/agent-pipe/pss_regulator.py:4-10 -->
+
+### Law 5/7
+
+Law 5/7: the collector's port resolves from the SSOT name, never a bare literal.
+[observability].otel_endpoint ships a ${MIOS_PORT_OTELCOL_OTLP} placeholder and
+os.path.expandvars leaves it VERBATIM when the var is unset, so an unexpanded
+value is not an endpoint -- drop it and rebuild from the resolved port.
+
+<!-- mios-src:60b5d3050b64 from usr/lib/mios/agent-pipe/server.py:270-273 -->
+
+### Law 5/7
+
+Law 5/7: :8000 was the RETIRED SurrealDB lane, and this value is pushed into
+mios_pipe/db.py via _configure_db(db_url=...) -- so the stale literal here
+OVERRODE db.py's already-correct SSOT resolution. Resolve the same way it does.
+
+<!-- mios-src:6f5830056385 from usr/lib/mios/agent-pipe/server.py:716-718 -->
+
+### sse_streamer.py — T-747 WS-AI Zero-copy SSE/WebSocket token...
+
+sse_streamer.py — T-747 WS-AI
+Zero-copy SSE/WebSocket token streamer and TCP_NODELAY socket flusher.
+
+Streams chunked OpenAI-compatible token deltas over SSE and WebSockets with
+immediate socket flushing (TCP_NODELAY) and adaptive backpressure (<1ms chunk latency).
+
+Frames are `chat.completion.chunk` objects shaped exactly like the canonical
+emitter in ``mios_pipe/routing/sse.py`` so any OpenAI client can parse them, and
+every stream terminates with the ``[DONE]`` sentinel. Closing a stream wakes its
+blocked producer AND consumer, so a cancelled route never strands a task.
+
+<!-- mios-src:a090434ff399 from usr/lib/mios/agent-pipe/sse_streamer.py:4-15 -->
+
+### Pushes token delta into client queue, measuring dispatch...
+
+Pushes token delta into client queue, measuring dispatch latency.
+
+        Returns the dispatch latency in ms, or -1.0 if the stream is gone (a
+        closed stream is NOT a 0.0ms success). A terminal `finish` is emitted as
+        its own empty-delta chunk, the way the OpenAI stream protocol specifies.
+
+<!-- mios-src:6c8767e8ebb3 from usr/lib/mios/agent-pipe/sse_streamer.py:120-125 -->
+
+### Drive one HTTP SSE response end-to-end
+
+Drive one HTTP SSE response end-to-end: emits keep-alives while idle,
+        always terminates with `[DONE]`, converts a mid-stream failure into an
+        `error` finish_reason instead of a truncated body, and retires the stream
+        on client disconnect so no producer is left blocked on a dead queue.
+
+<!-- mios-src:47270fc8a4f4 from usr/lib/mios/agent-pipe/sse_streamer.py:212-215 -->
+
+### Consolidated from test_mios_config_audit.py (T-1092)...
+
+==============================================================================
+Consolidated from test_mios_config_audit.py (T-1092)
+==============================================================================
+AI-hint: Unit and regression test suite for mios_config_audit functionality.
+AI-related: localhost:8432
+AI-functions: setUpModule, setUp, tearDown, _cleanup, test_config_kv_redaction, test_container_env_redaction, test_verb_cmd_redaction, TestMiosConfigAudit
+
+<!-- mios-src:6907de0cfe9f from usr/lib/mios/agent-pipe/test_mios_config.py:95-100 -->
+
+### Consolidated from test_mios_config_validate.py (T-1092)...
+
+==============================================================================
+Consolidated from test_mios_config_validate.py (T-1092)
+==============================================================================
+AI-hint: Hermetic unit tests for the WS-CONFIG server-side SAFETY validator
+AI-related: ./mios_pipe/kernel/config.py, ./mios_pipe/routing/portal.py
+
+<!-- mios-src:8fbc5c78599b from usr/lib/mios/agent-pipe/test_mios_config.py:310-314 -->
+
+### Consolidated from test_mios_toml.py (T-1092)...
+
+==============================================================================
+Consolidated from test_mios_toml.py (T-1092)
+==============================================================================
+AI-hint: Standalone unit test for mios_toml.py overlay and DB authoritative fallbacks.
+AI-related: /usr/lib/mios/mios_toml.py
+AI-functions: TestMiosToml
+
+<!-- mios-src:634d6ba1561b from usr/lib/mios/agent-pipe/test_mios_config.py:607-612 -->
+
+### Consolidated from test_mios_user_config.py (T-1092)...
+
+==============================================================================
+Consolidated from test_mios_user_config.py (T-1092)
+==============================================================================
+AI-hint: Unit and regression test suite for mios_user_config functionality.
+AI-functions: test_parse_simple_toml_tomllib, test_path_escape_guard, TestMiosUserConfig
+
+<!-- mios-src:85b5a93d4061 from usr/lib/mios/agent-pipe/test_mios_config.py:707-711 -->
+
+### Consolidated from test_mios_dispatch_redos.py (T-1092)...
+
+==============================================================================
+Consolidated from test_mios_dispatch_redos.py (T-1092)
+==============================================================================
+AI-hint: Regression test for the ReDoS in dispatch_cmd's podman-exec shell-stripper -- pins a wall-clock bound on a pathological input, not a pattern string.
+AI-related: usr/lib/mios/agent-pipe/mios_pipe/routing/dispatch_cmd.py
+
+<!-- mios-src:8f90a69ed788 from usr/lib/mios/agent-pipe/test_mios_dispatch.py:639-643 -->
+
+### Consolidated from test_mios_backfill.py (T-1092)...
+
+==============================================================================
+Consolidated from test_mios_backfill.py (T-1092)
+==============================================================================
+AI-hint: Unit and regression test suite for mios_backfill functionality.
+AI-related: mios_pipe.memory.embed_backfill
+AI-functions: test_text_projections, execute_side_effect, TestMiosEmbedBackfill
+
+<!-- mios-src:69bc578efc9e from usr/lib/mios/agent-pipe/test_mios_embed_backfill.py:74-79 -->
+
+### Consolidated from test_mios_build_catalog.py (T-1092)...
+
+==============================================================================
+Consolidated from test_mios_build_catalog.py (T-1092)
+==============================================================================
+AI-hint: Unit and regression test suite for mios_build_catalog functionality.
+AI-functions: setUpModule, test_seeding_and_materializing, test_materialization, mock_open_impl, write_impl, TestMiosBuildCatalog
+
+<!-- mios-src:3c32f7084d7f from usr/lib/mios/agent-pipe/test_mios_verbcatalog.py:166-170 -->
+
+### Consolidated from test_mios_applet_webresearch.py (T-1092)...
+
+==============================================================================
+Consolidated from test_mios_applet_webresearch.py (T-1092)
+==============================================================================
+AI-hint: Isolation tests for the web-research SSE applet (mios_pipe.routing.applet_webresearch).
+AI-related: mios_pipe.routing
+AI-functions: check, _events, main
+
+<!-- mios-src:f65b48453236 from usr/lib/mios/agent-pipe/test_mios_web_research.py:432-437 -->

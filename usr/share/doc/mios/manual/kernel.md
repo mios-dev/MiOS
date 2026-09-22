@@ -222,3 +222,22 @@ Contract:
 The Dispatcher is duck-typed: any object exposing `async run(decision, **ctx)`.
 
 <!-- mios-src:719fdeb5222b from usr/lib/mios/agent-pipe/mios_pipe/kernel/kernel.py:4-18 -->
+### Headless kernel crash dump triage engine and symbol...
+
+Headless kernel crash dump triage engine and symbol resolver for MiOS.
+
+Decompresses /var/crash/vmcore.zst post-panic, analyzes kdump/vmcore/pstore/dmesg oops outputs,
+demangles C/Rust backtraces, isolates faulting kernel/DKMS modules, formats markdown incident
+reports in /var/log/mios/crash/, and files structured tickets into PostgreSQL bug_tracker.
+
+<!-- mios-src:b787735fa70d from usr/libexec/mios/kernel/crash_triage.py:4-9 -->
+
+### dkms_engine.py — T-765 WS-BUILD Ephemeral containerized...
+
+dkms_engine.py — T-765 WS-BUILD
+Ephemeral containerized DKMS engine and MOK kernel module signer.
+
+Compiles out-of-tree .ko drivers inside bubblewrap sandbox against active UKI kernel,
+signs with local MOK key, and caches in /var/lib/dkms/<kver>/ by build hash.
+
+<!-- mios-src:c81960626213 from usr/libexec/mios/kernel/dkms_engine.py:4-10 -->

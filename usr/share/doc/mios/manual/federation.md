@@ -425,3 +425,12 @@ P4: surface a stdio MCP server's stderr (first chunk) in the journal instead of
         silently discarding it -- otherwise a spawn/crash is an opaque 'stdio init failed'.
 
 <!-- mios-src:f2dca439aad7 from usr/lib/mios/agent-pipe/mios_pipe/federation/mcp.py:224-225 -->
+### Layered peer registry read
+
+Layered peer registry read: vendor < /etc < user. Later overlays
+    REPLACE earlier entries with the same id (matches MCP client semantics)
+    so an operator can disable a vendor peer by re-declaring it disabled.
+    The LOCAL self-peer (loopback :8700) is EXCLUDED -- it is a self-loop vector
+    (see _a2a_self_peer_url); delegation to oneself is a no-op on a single node.
+
+<!-- mios-src:2a0e3b1eecf9 from usr/lib/mios/agent-pipe/mios_pipe/federation/a2a_client.py:216-220 -->

@@ -699,3 +699,103 @@ declares output globs must match at least one file, that file must clear the
 size floor, and its leading bytes must be the ones its format is defined by.
 
 <!-- mios-src:78492b2882e5 from tools/verify-images.py:4-12 -->
+### Scanned for coverage. Anything a runner could reasonably be...
+
+Scanned for coverage. Anything a runner could reasonably be expected to
+execute, so a dead suite has to be declared dead rather than merely ignored.
+
+The two fitness-function stages are named because leaving them out was not a
+gap, it was a hole: deleting "automation/98-drift-checks.sh" from
+[ci.tiers].gate raised no violation here, the gate tier stayed non-empty so
+run-suites.sh's zero-suite guard never fired either, and the entire drift gate
+stopped running while both reported green.
+
+<!-- mios-src:a4e35d4e1afd from tools/ci-suites.py:17-24 -->
+
+### The shell commands a workflow actually executes. Parity...
+
+The shell commands a workflow actually executes.
+
+    Parity used to be `f"run-suites.sh {tier}" in body`: a raw substring over the
+    whole file, comments and disabled steps included. A step commented out, or
+    guarded `if: false`, kept satisfying the one check whose entire job is to
+    notice that a publisher has quietly stopped running a tier. Only the value of
+    a live `run:` key counts now.
+
+<!-- mios-src:04b5f8b3842e from tools/ci-suites.py:76-83 -->
+
+### build_exports() returns the UNEXPANDED map on purpose: it...
+
+build_exports() returns the UNEXPANDED map on purpose: it renders
+automation/lib/globals.{sh,ps1}, which bash and PowerShell expand at source
+time, and keeping `${MIOS_PORT_AGENT_PIPE}` live there is what lets an
+operator's pre-export propagate. mios-resolver --emit=json is the resolved
+view and bakes. Comparing the two directly measured that difference in
+representation, not a divergence between the resolvers -- 103 "mismatches"
+that were the same 91 values written two correct ways. Both sides are put
+in the baked form first, by the same twin the Rust emitter calls, so what
+survives is real disagreement about a value.
+
+<!-- mios-src:a3cec1454e43 from tools/drift-checks.py:102-110 -->
+
+### Size the deliverable from the INDEX blobs, not the...
+
+Size the deliverable from the INDEX blobs, not the checkout. .gitattributes
+checks *.ps1 out as CRLF on every platform, so the working tree carries
+~24 KiB of line-ending expansion the commit does not contain -- and with the
+total sitting a few KiB past the 201.5 MiB rounding boundary, that expansion
+alone pushed tracked_mb to 202 and held this ratchet red against content
+nobody added. Blobs are identical in every clean checkout of a commit.
+
+<!-- mios-src:b895f41ea56b from tools/drift-checks.py:182-187 -->
+
+### ADR-0021. Law 14 keeps the AI plane in Python, so it is...
+
+ADR-0021. Law 14 keeps the AI plane in Python, so it is exempt by
+prefix from SSOT rather than by a list baked in here.
+A sibling unit test is not tooling to port. Counting them made this
+ratchet pull against check_module_test_coverage the same way
+max_libexec_verbs did below, and 36% of what it measured was test
+code. Floor re-baselined down by what the exclusion removes (T-1044).
+
+<!-- mios-src:320398d89ba2 from tools/drift-checks.py:234-239 -->
+
+### A test's OWN name is not evidence that it invokes anything...
+
+A test's OWN name is not evidence that it invokes anything: `test_check_foo`
+used to satisfy the gate-invocation search purely because `check_foo` appears
+in its definition line, certifying a body that asserts nothing. Search only
+what follows the signature.
+
+<!-- mios-src:a3b125a34468 from tools/drift-checks.py:3726-3729 -->
+
+### Every exit that is not a rendered policy is an error. This...
+
+Every exit that is not a rendered policy is an error. This used to wrap
+the SSOT read in `except Exception: pass` and carry on with
+policy_mode = "insecureAcceptEverything" -- the value that accepts any
+signature -- under a header claiming SSOT provenance.
+
+<!-- mios-src:abdc7aec96a3 from tools/generate-cosign-policy.py:7-10 -->
+
+### BYTES, not parsed JSON. The parsed comparison this replaces...
+
+BYTES, not parsed JSON. The parsed comparison this replaces called the
+compact tracked file "in sync" with an indented render, so a bake that
+ran the generator would rewrite a file every check reported current.
+Law 8 asks for regenerate-and-diff; semantic equality is weaker.
+
+<!-- mios-src:1c368f6d4cf4 from tools/generate-cosign-policy.py:39-42 -->
+
+### Census size AND line counts from the INDEX blobs, never the...
+
+Census size AND line counts from the INDEX blobs, never the checkout.
+On-disk bytes are not a function of the commit: .gitattributes checks
+*.ps1 out as CRLF on every platform, so the tree runs ~24 KiB heavier
+than the blobs, and the total sits ~13 KiB from the 201.5 MiB rounding
+boundary -- committed and CI-rendered values landed on opposite sides.
+Reading the checkout also counts a co-worker's UNCOMMITTED edits into
+a committed table. Blobs are identical in every clean checkout of the
+same commit, so the gate converges.
+
+<!-- mios-src:ce4d50bb40a1 from tools/roadmap-index.py:269-276 -->

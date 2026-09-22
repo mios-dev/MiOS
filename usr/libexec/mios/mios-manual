@@ -491,8 +491,13 @@ def cmd_harvest(args) -> int:
         skipped_count = 0
 
         for b, v in wanted:
-            slug = b.path.replace('/', '_').replace('\\', '_').replace('.', '_').replace('-', '_')
-            dest_rel = f"usr/share/doc/mios/manual/_harvest/{slug}.md"
+            # One page per SOURCE DIRECTORY, matching `_distill_dest`'s grouping --
+            # not one page per source FILE. A per-file destination fans out into
+            # hundreds of tiny tracked pages (one per script), which trips the
+            # legibility ratchet's tracked_files ceiling the moment this bulk
+            # migration is committed, for no documentation benefit: an operator
+            # already navigates the manual by directory, not by original filename.
+            dest_rel = _distill_dest(b.path, "usr/share/doc/mios/manual/_harvest")
             dest_abs = os.path.join(root, dest_rel.replace("/", os.sep))
 
             existing = ""
