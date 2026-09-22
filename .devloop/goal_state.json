@@ -3,7 +3,7 @@
   "stopping_condition": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet",
   "status": "COMPLETED",
   "created_at": "2026-09-20T23:22:13.134051",
-  "completed_at": "2026-09-20T23:27:02.080084",
+  "completed_at": "2026-09-22T19:28:19.082143",
   "criteria": [
     {
       "id": "C-01",
@@ -21,7 +21,7 @@
       "command": null,
       "target_path": null,
       "passed": true,
-      "details": "Working tree clean"
+      "details": "Working tree clean (excluding 1 evaluator-written/worktree path(s): .devloop/goal_state.json)"
     },
     {
       "id": "C-03",
