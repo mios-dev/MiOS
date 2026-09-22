@@ -3059,6 +3059,7 @@ async def _kernel_dag_handler(decision, *, refined=None, session_id=None, **ctx)
     conductor_enable = str(_orch.get("conductor_enable", "false")).lower() in {"true", "1", "yes", "on"}
 
     if conductor_enable and refined and "workflow" in refined:
+        mios_conductor.configure(dispatch_verb=dispatch_mios_verb)
         return await mios_conductor.execute_conductor_workflow(
             refined["workflow"],
             refined.get("params", {}),

@@ -1,0 +1,50 @@
+# Full Fedora development environment for the self-hosting MiOS build pipeline.
+# Keep this toolchain aligned with the mios-bootstrap and -dev-loop containers.
+FROM registry.fedoraproject.org/fedora:44
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        just \
+        podman podman-compose buildah skopeo \
+        bootc bootupd ostree rpm-ostree \
+        curl wget ca-certificates gh jq yq rsync git tmux \
+        nodejs npm \
+        python3 python3-pip python3-devel \
+        python3.11 python3.11-devel \
+        ruby ruby-devel \
+        python3-rich python3-textual python3-psutil python3-pytest python3-jsonschema \
+        rust cargo clippy rustfmt gcc gcc-c++ make \
+        dbus-daemon dbus-tools gnome-keyring libsecret \
+        procps-ng util-linux shadow-utils authselect \
+        sudo zsh \
+        findutils grep sed gawk diffutils patch \
+        ripgrep tar gzip unzip zip \
+        openssl qemu-img attr \
+        ShellCheck \
+    && dnf clean all
+
+RUN npm install -g @anthropic-ai/claude-code @github/copilot @google/gemini-cli
+
+RUN useradd -m -u 1000 -s /usr/bin/zsh mios-dev \
+    && echo "mios-dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/mios-dev \
+    && chmod 0440 /etc/sudoers.d/mios-dev \
+    && visudo -cf /etc/sudoers.d/mios-dev
+
+COPY .devcontainer/install-root-overlay.sh /usr/local/bin/mios-root-overlay
+RUN chmod +x /usr/local/bin/mios-root-overlay
+
+USER mios-dev
+RUN set -u; tmp="$(mktemp -d)"; \
+    if curl -fsSL --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh -o "$tmp/install.sh" \
+       && [ -s "$tmp/install.sh" ] && bash "$tmp/install.sh" >/dev/null 2>&1; then \
+         /home/mios-dev/.local/bin/agy --version; \
+    else \
+         echo "WARNING: Antigravity CLI not installed at build time" >&2; \
+    fi; \
+    rm -rf "$tmp"
+
+ENV PATH="/home/mios-dev/.local/bin:${PATH}"
+ENV MIOS_DEVCONTAINER=1
+ENV MIOS_VERSION=0.3.0
+
+WORKDIR /workspaces/MiOS
+CMD ["/usr/bin/zsh"]

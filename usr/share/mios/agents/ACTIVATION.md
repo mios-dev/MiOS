@@ -90,7 +90,10 @@ definition stays in `mios.toml` but inert (no duplicate service).
 **5. Persistence** — `/var/lib/mios/agents:/home/coder:rw` keeps `agy`/`claude`
 logins and war-room state across container restarts; the `/:/mnt/mios-root`
 bind-mount is the live deployed root, so the agents develop MiOS from within
-itself.
+itself. On first start, `mios-agents-firstboot` also seeds the portrait
+code-server profile at
+`/home/coder/.local/share/code-server/User/settings.json`; existing user
+settings remain authoritative.
 
 **6. Role SSOT** — `[frontier]` in `usr/share/mios/mios.toml` is the single
 source of truth for orchestrator/lane-A/lane-B engine+model+effort. `mios-sync-env`

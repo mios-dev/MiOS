@@ -1,21 +1,18 @@
 # AI-hint: stub
 # AI-related: stub
 name: test-workflow
-description: A 3-step parallel workflow to test conductor
+description: Deterministic smoke workflow using only an allowlisted argv action.
 steps:
   - name: step1
-    action: shell
-    args:
-      cmd: "echo 'step 1'"
+    action: exec
+    argv: ["/usr/bin/printf", "step 1\n"]
   - name: parallel_group
     parallel: true
     fail_fast: true
     steps:
       - name: step2a
-        action: shell
-        args:
-          cmd: "echo 'step 2a'"
+        action: exec
+        argv: ["/usr/bin/printf", "step 2a\n"]
       - name: step2b
-        action: shell
-        args:
-          cmd: "echo 'step 2b'"
+        action: exec
+        argv: ["/usr/bin/printf", "step 2b\n"]

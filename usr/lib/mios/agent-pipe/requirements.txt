@@ -1,5 +1,8 @@
 sqlite-vec
 fastapi
+jinja2
+pydantic
+ruamel.yaml
 uvicorn
 uvloop
 httpx

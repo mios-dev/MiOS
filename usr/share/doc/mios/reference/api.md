@@ -49,6 +49,16 @@ Those orchestration concerns are documented in the concepts/ and guides/ trees;
 here we specify only the OpenAI-compatible wire surface they (and external
 clients) consume.
 
+For the bounded self-hosting management surface layered alongside this contract,
+see [MiOS-API architecture](../concepts/mios-api-architecture.md).
+
+## Capability inventory
+
+`GET /v1/capabilities` returns the caller-filtered, SSOT-projected inventory of
+MiOS verbs, recipes, and structured skills. `GET /v1/capabilities/dag` returns
+their dependency graph. These resources are the discovery surface for clients
+and federated peers; they do not execute an operation.
+
 ## Where the surface is served
 
 `MIOS_AI_ENDPOINT` is the logical front door. Behind it, the OpenAI-compatible

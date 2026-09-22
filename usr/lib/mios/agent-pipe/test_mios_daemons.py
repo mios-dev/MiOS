@@ -614,22 +614,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mios_pipe.routing.conductor as mios_conductor
 
 async def _main_conductor():
-    with patch("os.path.exists", return_value=True), patch("builtins.open", MagicMock()):
+    with patch.object(mios_conductor, "CONDUCTOR_DIR", "/tmp/mios-conductor-test"), \
+         patch("os.path.exists", return_value=True), patch("builtins.open", MagicMock()):
         jinja2_mock = MagicMock()
         template_instance = MagicMock()
         template_instance.render.return_value = "fake_yaml"
         jinja2_mock.Template.return_value = template_instance
+        sandbox_mock = MagicMock()
+        sandbox_mock.return_value.from_string.return_value = template_instance
 
         yaml_mock = MagicMock()
         yaml_instance = MagicMock()
         yaml_instance.load.return_value = {
             "steps": [
-                {"name": "step1", "action": "shell", "args": {"cmd": "echo 'step 1'"}},
+                {"name": "step1", "action": "exec", "argv": ["/usr/bin/printf", "step 1\n"]},
                 {"name": "parallel_group", "parallel": True, "fail_fast": True, "steps": [
-                    {"name": "step2a", "action": "shell", "args": {"cmd": "echo 'step 2a'"}},
-                    {"name": "step2b_fail", "action": "shell", "args": {"cmd": "exit 1"}},
+                    {"name": "step2a", "action": "exec", "argv": ["/usr/bin/printf", "step 2a\n"]},
+                    {"name": "step2b_fail", "action": "exec", "argv": ["/usr/bin/printf", "exit 1"]},
                 ]},
-                {"name": "step3_skipped", "action": "shell", "args": {"cmd": "echo 'step 3'"}},
+                {"name": "step3_skipped", "action": "exec", "argv": ["/usr/bin/printf", "step 3\n"]},
             ]
         }
         yaml_mock.YAML.return_value = yaml_instance
@@ -637,6 +640,8 @@ async def _main_conductor():
         mios_conductor.jinja2 = jinja2_mock
         mios_conductor.ruamel = MagicMock()
         mios_conductor.ruamel.yaml = yaml_mock
+        mios_conductor.SandboxedEnvironment = sandbox_mock
+        mios_conductor.configure(allowed_exec_commands={"/usr/bin/printf"})
 
         process_mock_success = MagicMock()
         process_mock_success.communicate = AsyncMock(return_value=(b"output\n", b""))
@@ -646,10 +651,10 @@ async def _main_conductor():
         process_mock_fail.communicate = AsyncMock(return_value=(b"", b"error"))
         process_mock_fail.returncode = 1
 
-        def side_effect(cmd, **kwargs):
-            return process_mock_fail if "exit 1" in cmd else process_mock_success
+        def side_effect(*argv, **kwargs):
+            return process_mock_fail if "exit 1" in argv else process_mock_success
 
-        with patch("asyncio.create_subprocess_shell", side_effect=AsyncMock(side_effect=side_effect)) as m_subprocess:
+        with patch("asyncio.create_subprocess_exec", side_effect=AsyncMock(side_effect=side_effect)) as m_subprocess:
             res = await mios_conductor.execute_conductor_workflow("test-workflow", {})
             print("Result:", res)
             assert res["success"] is False, "Workflow should fail due to step2b_fail"

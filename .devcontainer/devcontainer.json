@@ -2,8 +2,16 @@
   "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
   "name": "MiOS Agentic AIOS & CI/CD Builder Harness",
   "build": {
-    "dockerfile": "Dockerfile",
+    "dockerfile": "Containerfile",
     "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:latest": {
+      "username": "mios-dev",
+      "userUid": "1000",
+      "userGid": "1000",
+      "upgradePackages": false
+    }
   },
   "containerEnv": {
     "MIOS_AI_ENDPOINT": "http://127.0.0.1:8080/v1",
@@ -15,6 +23,7 @@
     "vscode": {
       "extensions": [
         "ms-python.python",
+        "redhat.vscode-podman",
         "redhat.vscode-yaml",
         "tamasfe.even-better-toml",
         "github.copilot",
@@ -22,7 +31,26 @@
       ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/bin/python3",
-        "terminal.integrated.defaultProfile.linux": "bash"
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "workbench.colorTheme": "Dark Modern",
+        "workbench.experimental.modernUI": true,
+        "window.density.layout": "compact",
+        "workbench.activityBar.location": "top",
+        "workbench.sideBar.location": "left",
+        "workbench.secondarySideBar.defaultVisibility": "hidden",
+        "workbench.panel.defaultLocation": "bottom",
+        "workbench.panel.alignment": "justify",
+        "workbench.layoutControl.enabled": false,
+        "workbench.editor.openSideBySideDirection": "down",
+        "workbench.editor.splitInGroupLayout": "horizontal",
+        "editor.minimap.enabled": false,
+        "editor.wordWrap": "on",
+        "editor.glyphMargin": false,
+        "editor.stickyScroll.enabled": false,
+        "editor.fontSize": 16,
+        "editor.lineNumbers": "on",
+        "terminal.integrated.fontSize": 14,
+        "terminal.integrated.tabs.enabled": false
       }
     },
     "devloop": {
@@ -30,6 +58,38 @@
       "verification": "two-sided",
       "two_clock_ratchet": true,
       "manifest_tracking": true
+    },
+    "codespaces": {
+      "repositories": {
+        "mios-dev/MiOS": {
+          "permissions": {
+            "contents": "write",
+            "pull_requests": "write",
+            "workflows": "write"
+          }
+        },
+        "mios-dev/mios-bootstrap": {
+          "permissions": {
+            "contents": "write",
+            "pull_requests": "write",
+            "workflows": "write"
+          }
+        },
+        "mios-dev/-dev-loop": {
+          "permissions": {
+            "contents": "write",
+            "pull_requests": "write",
+            "workflows": "write"
+          }
+        },
+        "mios-dev/mios-micro": {
+          "permissions": {
+            "contents": "write",
+            "pull_requests": "write",
+            "workflows": "write"
+          }
+        }
+      }
     }
   },
   "forwardPorts": [
@@ -43,5 +103,11 @@
   ],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "postStartCommand": "bash .devcontainer/post-start.sh",
-  "remoteUser": "spark"
+  "remoteUser": "mios-dev",
+  "workspaceFolder": "/workspaces/MiOS",
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  }
 }

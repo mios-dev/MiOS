@@ -1,0 +1,58 @@
+{
+  "folders": [
+    {
+      "name": "MiOS (System Root)",
+      "path": "/workspaces/MiOS"
+    },
+    {
+      "name": "mios-bootstrap (Installer & Overlay)",
+      "path": "/workspaces/mios-bootstrap"
+    },
+    {
+      "name": "dev-loop (Agent Orchestration)",
+      "path": "/workspaces/-dev-loop"
+    }
+  ],
+  "settings": {
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    "editor.formatOnSave": true,
+    "python.defaultInterpreterPath": "/usr/bin/python3",
+    "workbench.colorTheme": "Dark Modern",
+    "workbench.experimental.modernUI": true,
+    "window.density.layout": "compact",
+    "workbench.activityBar.location": "top",
+    "workbench.sideBar.location": "left",
+    "workbench.secondarySideBar.defaultVisibility": "hidden",
+    "workbench.panel.defaultLocation": "bottom",
+    "workbench.panel.alignment": "justify",
+    "workbench.layoutControl.enabled": false,
+    "workbench.editor.openSideBySideDirection": "down",
+    "workbench.editor.splitInGroupLayout": "horizontal",
+    "editor.minimap.enabled": false,
+    "editor.wordWrap": "on",
+    "editor.glyphMargin": false,
+    "editor.stickyScroll.enabled": false,
+    "editor.fontSize": 16,
+    "editor.lineNumbers": "on",
+    "terminal.integrated.fontSize": 14,
+    "terminal.integrated.tabs.enabled": false,
+    "rust-analyzer.linkedProjects": [
+      "/workspaces/MiOS/src/mios-rs/Cargo.toml",
+      "/workspaces/MiOS/tools/native/Cargo.toml"
+    ]
+  },
+  "extensions": {
+    "recommendations": [
+      "rust-lang.rust-analyzer",
+      "ms-python.python",
+      "redhat.vscode-podman",
+      "redhat.vscode-yaml",
+      "ms-vscode.powershell",
+      "timonwong.shellcheck",
+      "tamasfe.even-better-toml",
+      "eamodio.gitlens",
+      "usernamehw.errorlens",
+      "editorconfig.editorconfig"
+    ]
+  }
+}

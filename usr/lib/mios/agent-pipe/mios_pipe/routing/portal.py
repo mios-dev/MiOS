@@ -375,7 +375,19 @@ min-width:280px;min-height:720px;max-width:100%}
 /* minmax(0,1fr) NOT plain 1fr: a bare 1fr is minmax(auto,1fr), whose auto
    minimum lets the track expand to the terminal's wide min-content and overflow
    the viewport (the chip then shifts off-screen / appears to float). */
-@media(max-width:600px){#grid{grid-template-columns:1fr}}
+@media(max-width:600px){
+  body{font-size:16px}
+  .bar{gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 10px}
+  .bar .spacer{display:none}
+  .btn{min-height:44px;padding:9px 12px;font-size:14px}
+  .top,.hoststrip,section{padding-left:12px;padding-right:12px}
+  .websearch{flex-direction:column}
+  .websearch .btn{width:100%}
+  #grid,.grid{grid-template-columns:1fr}
+  .embed-box{height:min(68vh,560px)}
+  .card.term.exp .embed-box{height:min(56vh,460px)}
+  .sheet{max-height:90vh;padding:16px}
+}
 .addr{font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:8px;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .addr a{color:var(--mut)}.addr a:hover{color:var(--accent)}

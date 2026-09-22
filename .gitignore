@@ -41,7 +41,9 @@
 !/.devcontainer/post-create.sh
 !/.devcontainer/devcontainer.json
 !/.devcontainer/Dockerfile
+!/.devcontainer/Containerfile
 !/.devcontainer/README.md
+!/.devcontainer/mios-ecosystem.code-workspace
 !/harness/
 !/harness/**
 !/invariants/
@@ -158,6 +160,7 @@ docs/design/w10-live-boot/*
 !/manifest.json
 !/system-prompt.md
 !/image-versions.yml
+!/mios.code-workspace
 !/install.sh
 !/install-mios-agents.sh
 !/Get-MiOS.ps1

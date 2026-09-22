@@ -1,0 +1,21 @@
+{
+  "workbench.colorTheme": "Dark Modern",
+  "workbench.experimental.modernUI": true,
+  "window.density.layout": "compact",
+  "workbench.activityBar.location": "top",
+  "workbench.sideBar.location": "left",
+  "workbench.secondarySideBar.defaultVisibility": "hidden",
+  "workbench.panel.defaultLocation": "bottom",
+  "workbench.panel.alignment": "justify",
+  "workbench.layoutControl.enabled": false,
+  "workbench.editor.openSideBySideDirection": "down",
+  "workbench.editor.splitInGroupLayout": "horizontal",
+  "editor.minimap.enabled": false,
+  "editor.wordWrap": "on",
+  "editor.glyphMargin": false,
+  "editor.stickyScroll.enabled": false,
+  "editor.fontSize": 16,
+  "editor.lineNumbers": "on",
+  "terminal.integrated.fontSize": 14,
+  "terminal.integrated.tabs.enabled": false
+}
