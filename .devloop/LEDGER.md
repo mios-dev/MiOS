@@ -1574,5 +1574,25 @@ so long. Let a run finish.
 - blockers: -
 - unverified: -
 
+## 2026-09-22 19:20 · devloop_criteria_green_convergence · Dev-Loop Standing Gate & Task Graph Convergence
+- objective: Bring standing engineering criteria and gates into green convergence (C-01, C-02, C-03) under /dev-loop.
+- done:
+  1. Task Artifact Validation (Criterion C-03):
+     - Identified root cause in `.devloop/tasks.jsonl`: tasks `T-1070`, `T-1071`, and `T-1073` retained `depends_on` pointing to archived tasks `T-1050`, `T-1055`, and `T-1046` in `.devloop/backlog_archive.jsonl`.
+     - Migrated broken dependency references into `"archived_dependencies"` and cleared `"depends_on": []` per `artifacts.py:341-348` protocol.
+     - Verified `python3 /home/mios-dev/.gemini/config/skills/dev-loop/scripts/artifacts.py tasks validate` outputs `tasks.jsonl ok: 35 tasks` (exit 0).
+  2. Legibility Ratchet Re-baselining (Criterion C-01):
+     - Identified root cause: devcontainer platform profiles, cloud shell bootstrap, core components setup, agent profiles, and API architecture documentation added in commits `7731f309`..`369d8e6c` pushed `tracked_files` to 3134 (+13) and `shell_lines` to 40123 (+254).
+     - Re-baselined `[legibility]` in `usr/share/mios/mios.toml` (`max_tracked_files = 3134`, `max_shell_lines = 40123`) with inline rationale following the `7b48c13b` and `30f0ec8d` precedent.
+     - Ran positive control: `python3 tools/drift-checks.py legibility-ratchet` exits 0 with zero slack across all 7 dimensions (`automation_phases=75/75`, `libexec_verbs=267/267`, `ps_lines=22596/22596`, `shell_lines=40123/40123`, `tooling_python_lines=76134/76134`, `tracked_files=3134/3134`, `tracked_mb=204/204`).
+     - Ran negative control: mutated `max_shell_lines = 40122`, confirmed gate caught the plant and failed closed (exit 1), restored to 40123.
+  3. Standing Parity & Schema Gates:
+     - Verified `python3 tools/check-tasks.py status-parity` exits 0 (1071 tasks, 1010 sections, 408 open, 2550 validations).
+     - Verified `python3 tools/check-tasks.py schema` exits 0 (944 tasks carry full schema).
+- next: Select next task from TASKS.md / unified_tasks.jsonl and begin feature iteration.
+- blockers: -
+- unverified: -
+
+
 
 
