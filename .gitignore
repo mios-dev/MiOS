@@ -36,6 +36,9 @@
 
 !/.gitignore
 !/artifact.md
+!/.devcontainer/
+!/.devcontainer/configure-agy-runtime.sh
+!/.devcontainer/post-start.sh
 !/.gitattributes
 !/.clinerules
 !/.cursorrules

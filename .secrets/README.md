@@ -64,3 +64,15 @@ The MiOS contract is therefore: repository metadata may name a stable
 `secret_ref`, Blink supplies SSH transport authentication, and the runtime
 secret source supplies the AGY application credential. Plaintext values remain
 outside Git and outside generated artifacts.
+
+The supported AGY API-key setup is deliberately non-secret:
+
+1. Configure `modelProvider = "gemini"` in the user's AGY settings.
+2. Inject `GEMINI_API_KEY` only at runtime through the Codespaces secret
+   mechanism or an equivalent protected runtime source.
+3. Run `.devcontainer/configure-agy-runtime.sh`; it preserves other AGY
+   settings, writes mode `0600`, and reports only whether the variable is
+   present.
+4. Launch AGY after the runtime variable is available. The API key is not
+   an OpenAI-provider credential and does not change the MiOS
+   `MIOS_AI_ENDPOINT` contract.
