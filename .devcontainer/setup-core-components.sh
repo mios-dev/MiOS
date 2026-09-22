@@ -31,7 +31,7 @@ echo "[devcontainer:core] Building upstream native workspaces..."
 (cd "${ROOT}/tools/native" && cargo build --release --workspace --exclude mios-wallpaperd)
 sudo install -d -m 0755 "${INSTALL_DIR}"
 for binary in \
-    "${ROOT}"/src/mios-rs/target/release/mios-* \
+    "${ROOT}"/src/mios-rs/target/release/mios* \
     "${ROOT}"/tools/native/target/release/mios-* \
     "${ROOT}"/tools/native/target/release/generate-names-registry; do
     [[ -x "${binary}" ]] || continue
