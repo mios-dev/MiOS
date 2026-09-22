@@ -2102,7 +2102,7 @@ check_cli_eval_safety() {
     _need_python || return 0
     local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py cli-eval-safety 2>&1)" || {
         _violations_from "" "$out"; return; }
-    echo "[98-drift-checks]   CLI verbs in usr/libexec/mios/ are eval-safe"
+    echo "[98-drift-checks]   CLI verbs in usr/libexec/mios/ are eval-safe and os.system-free"
     echo "[98-drift-checks]   ${out}"
 }
 

@@ -2823,7 +2823,37 @@ def check_cli_eval_safety() -> int:
                          "safe eval needs a preceding "
                          "# TD-1: eval-safe, input=<source>, not agent-controlled comment\n")
         return 1
-    print("%d shell verb backend(s) read for eval" % scanned)
+
+    # TD-2: ban os.system() across all scripts in usr/libexec/mios
+    os_sys_viol = []
+    for dirpath, dirnames, filenames in os.walk(dir_to_scan):
+        dirnames[:] = [d for d in dirnames
+                       if not d.startswith(".") and d not in ("__pycache__", "node_modules")]
+        for fn in filenames:
+            path = os.path.join(dirpath, fn)
+            if not os.path.isfile(path) or fn.startswith("test_") or fn.endswith((".pyc", ".json", ".generated", ".png", ".jpg")):
+                continue
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                    for idx, line in enumerate(fh, 1):
+                        stripped = line.strip()
+                        if stripped.startswith("#"):
+                            continue
+                        code_part = line.split("#")[0].strip()
+                        if re.search(r'\bos\.system\s*\(', code_part):
+                            rel = os.path.relpath(path, dir_to_scan).replace(os.sep, "/")
+                            os_sys_viol.append(f"{rel}:{idx} has os.system: {line.strip()}")
+            except OSError:
+                continue
+
+    if os_sys_viol:
+        for v in os_sys_viol:
+            sys.stderr.write(f"  {v}\n")
+        sys.stderr.write("  os.system() is forbidden under usr/libexec/mios (TD-2); "
+                         "use subprocess.run([...], check=...) with an argv list instead\n")
+        return 1
+
+    print("%d shell verb backend(s) read for eval; os.system banned under usr/libexec/mios" % scanned)
     return 0
 
 def check_resolver_ssot_refs() -> int:

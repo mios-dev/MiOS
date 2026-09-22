@@ -65,7 +65,15 @@ output_format = v2v_cfg.get("output_format", "qcow2")
 target_name = guest_name or "imported-guest"
 target_input = input_path or "/var/lib/libvirt/images/sample.ova"
 
-cmd_str = f"virt-v2v -o libvirt -os {output_storage} -of {output_format} -on {target_name} {target_input}"
+cmd_list = [
+    "virt-v2v",
+    "-o", "libvirt",
+    "-os", output_storage,
+    "-of", output_format,
+    "-on", target_name,
+    target_input,
+]
+cmd_str = " ".join(cmd_list)
 
 if dry_run or not guest_name:
     print(f"[mios-v2v-import] Planned command: {cmd_str}")
@@ -78,10 +86,13 @@ if not enabled:
     sys.exit(0)
 
 import shutil
+import subprocess
+
 if not shutil.which("virt-v2v"):
     print("[mios-v2v-import] virt-v2v binary absent -- skipped live import.")
     sys.exit(0)
 
 print(f"[mios-v2v-import] Executing: {cmd_str}")
-os.system(cmd_str)
+res = subprocess.run(cmd_list)
+sys.exit(res.returncode)
 PYEOF

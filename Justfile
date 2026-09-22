@@ -104,7 +104,7 @@ drift-gate:
     @echo "[drift-gate] native golden-master (systemd unit snapshots)"
     @# A new unit file with no golden snapshot only failed in CI, six minutes in.
     @if command -v cargo >/dev/null 2>&1; then \
-        cd ./tools/native && cargo test -p mios-unit-gen --test golden_master -q; \
+        cd ./tools/native && cargo test -p mios-unit-gen --test projection -q; \
     elif [ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" = "1" ]; then \
         echo "[drift-gate] cargo absent and MIOS_DRIFT_REQUIRE_TOOLS=1" >&2; exit 1; \
     else \

@@ -6,6 +6,7 @@ import sys
 import os
 import pathlib
 import re
+import subprocess
 try:
     import tomllib
 except ImportError:
@@ -111,8 +112,9 @@ def do_sync():
         sentinel.unlink()
         
     print("Running mios-models-firstboot...")
-    os.system(f"python3 {fb}")
-    
+    res = subprocess.run([sys.executable, str(fb)])
+    return res.returncode
+
 
 def do_add(name, source=None, sha256=None, lane=None):
     """Append an entry to the USER overlay's [[ai.firstboot_models]].
@@ -219,7 +221,7 @@ def main():
     if cmd == "list":
         do_list()
     elif cmd == "sync":
-        do_sync()
+        sys.exit(do_sync() or 0)
     elif cmd == "add" and len(sys.argv) > 2:
         sys.exit(do_add(*sys.argv[2:6]) or 0)
     elif cmd == "rm" and len(sys.argv) > 2:
