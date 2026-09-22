@@ -15,6 +15,12 @@ workspaces. Their release binaries are available from `/opt/mios/bin`, while
 the in-tree release targets remain available to the normal `just` preflight
 checks.
 
+Every Dev Container start runs `boot-mios-systems.sh`, which reapplies the
+root overlay, incrementally rebuilds the source-matched native components, and
+records the active platform contract before the verification gate runs. This
+keeps resumed workspaces aligned with the checked-out MiOS system source rather
+than relying on one-time creation state.
+
 Run `miosd --help` to inspect the native control-plane interface. Run
 `mios-agent-pipe-dev` explicitly when developing the API gateway; it uses the
 service-compatible runtime and checked-out source. Podman

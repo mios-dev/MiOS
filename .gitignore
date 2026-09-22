@@ -47,6 +47,7 @@
 !/.devcontainer/setup-core-components.sh
 !/.devcontainer/mios-agent-pipe-dev
 !/.devcontainer/platform-bootstrap.sh
+!/.devcontainer/boot-mios-systems.sh
 !/.devcontainer/artifact-builder/
 !/.devcontainer/artifact-builder/devcontainer.json
 !/.devcontainer/cloud-shell/

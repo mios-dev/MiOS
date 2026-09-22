@@ -26,7 +26,7 @@
     5432
   ],
   "postCreateCommand": "bash .devcontainer/post-create.sh && bash .devcontainer/platform-bootstrap.sh",
-  "postStartCommand": "bash .devcontainer/post-start.sh",
+  "postStartCommand": "bash .devcontainer/boot-mios-systems.sh && bash .devcontainer/post-start.sh",
   "remoteUser": "mios-dev",
   "workspaceFolder": "/workspaces/MiOS"
 }
