@@ -280,12 +280,13 @@ async def _podman_ps() -> dict:
 
 _PORTAL_HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>MiOS</title>
 <link rel="manifest" href="/portal/manifest.webmanifest">
 <meta name="theme-color" content="#282262">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MiOS">
 <link rel="icon" href="/portal/icon.svg">
 <link rel="icon" type="image/png" sizes="192x192" href="/portal/icon-192.png">
@@ -315,7 +316,7 @@ _PORTAL_HTML = r"""<!DOCTYPE html>
 --mono:ui-monospace,"Cascadia Code","Source Code Pro",Consolas,monospace;
 --sans:-apple-system,"Segoe UI",system-ui,Roboto,sans-serif}
 *{box-sizing:border-box}
-body{margin:0;color:var(--fg);font:15px/1.5 var(--sans);overflow-x:hidden;
+body{margin:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);color:var(--fg);font:15px/1.5 var(--sans);overflow-x:hidden;
 background:radial-gradient(1100px 520px at 12% -12%,
   color-mix(in srgb,var(--accent) 13%,transparent),transparent 60%),
   radial-gradient(900px 500px at 100% 0%,
@@ -377,7 +378,7 @@ min-width:280px;min-height:720px;max-width:100%}
    the viewport (the chip then shifts off-screen / appears to float). */
 @media(max-width:600px){
   body{font-size:16px}
-  .bar{gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 10px}
+  .bar{gap:8px;padding:10px 12px}
   .bar .spacer{display:none}
   .btn{min-height:44px;padding:9px 12px;font-size:14px}
   .top,.hoststrip,section{padding-left:12px;padding-right:12px}
@@ -943,11 +944,12 @@ _PORTAL_SW = (
 
 _PORTAL_LOGIN_HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>MiOS &middot; Sign in</title>
 <meta name="theme-color" content="#282262">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MiOS">
 <link rel="manifest" href="/portal/manifest.webmanifest">
 <link rel="icon" href="/portal/icon.svg">
@@ -961,7 +963,9 @@ _PORTAL_LOGIN_HTML = r"""<!DOCTYPE html>
 --sans:-apple-system,"Segoe UI",system-ui,Roboto,sans-serif}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-color:var(--fg);font:15px/1.5 var(--sans);padding:20px;
+color:var(--fg);font:15px/1.5 var(--sans);
+padding:calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right))
+  calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
 background:radial-gradient(1000px 500px at 15% -10%,
   color-mix(in srgb,var(--accent) 14%,transparent),transparent 60%),
   radial-gradient(900px 520px at 100% 0%,
