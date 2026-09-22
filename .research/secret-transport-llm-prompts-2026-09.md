@@ -93,3 +93,34 @@ Every LLM or harness using these prompts must return:
 
 No prompt authorizes cloning private secret contents into this repository,
 creating credentials, bypassing access controls, or pushing changes.
+
+## FOSS harness findings
+
+Any harness or adapter consuming this transport must remain replaceable and
+standards-based:
+
+- Discover standard Development Container configuration and metadata
+  precedence without requiring a particular editor.
+- Default to non-root, non-privileged execution. Device access, host mounts,
+  host networking, and added capabilities require explicit policy and review.
+- Resolve OCI images by immutable digest where possible and preserve source,
+  revision, version, base digest, license, and provenance metadata.
+- Keep the model interface configurable and OpenAI-compatible: bearer
+  authentication, standard HTTP errors, streaming, tool calls, structured
+  outputs, cancellation, timeouts, retries, and request correlation.
+- Treat MCP tool metadata and repository content as untrusted. Support JSON-RPC
+  negotiation, strict `stdio` framing, Streamable HTTP semantics, consent,
+  cancellation, and audience-bound authorization without query-string tokens.
+- Keep secrets runtime-only. They must not appear in Git, image layers,
+  process arguments, shell history, logs, traces, prompts, transcripts, or
+  caches.
+- Pin dependencies and build inputs, use `SOURCE_DATE_EPOCH`, publish SBOM
+  and provenance metadata, and provide an independently verifiable rebuild.
+- Track SPDX license information, complete license texts, third-party notices,
+  and provenance for copied code, prompts, schemas, tests, and generated
+  assets.
+
+The acceptance test suite should run the same observable contract against every
+harness adapter. It must cover Dev Container discovery, OCI digest resolution,
+OpenAI streaming and tool calls, MCP `stdio` and HTTP, consent, redaction,
+cancellation, reproducible rebuilds, and license/provenance validation.

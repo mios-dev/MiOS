@@ -668,3 +668,37 @@ The reusable LLM prompt set for this goal is maintained at
 research, architecture review, implementation, harness compatibility, and
 red-team release gates. Any LLM or harness may use it, but no prompt authorizes
 access to real credentials, decryption of operator data, or secret persistence.
+
+---
+
+## 18. FOSS harness conformance findings
+
+The harness bundle is not ready for release or push until its adapters pass a
+provider-neutral conformance gate. The gate must validate:
+
+1. Standard Development Container discovery, image metadata merging, lifecycle
+   operations, and deterministic configuration precedence.
+2. Non-root, non-privileged defaults with explicit review for devices,
+   capabilities, host mounts, host networking, and elevated execution.
+3. OCI image and local-layout support using immutable digests, multi-platform
+   indexes, standard annotations, SBOMs, and signed provenance.
+4. Configurable OpenAI-compatible HTTP behavior: bearer authentication,
+   `/v1/models`, chat or Responses requests, streaming, tool calls, structured
+   outputs, errors, cancellation, timeouts, retries, and request IDs.
+5. MCP JSON-RPC interoperability: initialization and capability negotiation,
+   strict `stdio` framing, Streamable HTTP POST/GET and SSE behavior, session
+   lifecycle, cancellation, consent, Origin validation, and audience-bound
+   authorization. Tokens must never be sent in query strings.
+6. Runtime-only secret use. Synthetic credentials must not appear in source,
+   Git history, image layers, process arguments, shell history, logs, traces,
+   prompts, transcripts, or caches.
+7. Reproducible builds using pinned inputs and `SOURCE_DATE_EPOCH`, with
+   digest comparison from a clean environment.
+8. FOSS provenance using SPDX identifiers or REUSE-compatible metadata,
+   complete license texts, third-party notices, dependency inventories, and
+   source provenance for copied or generated assets.
+
+These are release criteria for every harness implementation, regardless of
+which model, editor, terminal, or launcher invokes it. Vendor-specific
+features may exist only as optional adapters and must not be required by the
+MiOS core contract.
