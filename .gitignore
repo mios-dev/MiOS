@@ -44,6 +44,8 @@
 !/.devcontainer/Containerfile
 !/.devcontainer/README.md
 !/.devcontainer/mios-ecosystem.code-workspace
+!/.devcontainer/setup-core-components.sh
+!/.devcontainer/mios-agent-pipe-dev
 !/harness/
 !/harness/**
 !/invariants/

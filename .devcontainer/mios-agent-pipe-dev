@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Launch the gateway explicitly; host-oriented systemd units stay disabled.
+set -euo pipefail
+
+readonly ROOT="${MIOS_ROOT:-/workspaces/MiOS}"
+readonly PYTHON="${MIOS_AGENT_PIPE_PYTHON:-/opt/mios/agent-pipe-venv/bin/python}"
+readonly SERVER="${ROOT}/usr/lib/mios/agent-pipe/server.py"
+
+if [[ ! -x "${PYTHON}" ]]; then
+    echo "mios-agent-pipe-dev: missing runtime: ${PYTHON}" >&2
+    exit 1
+fi
+if [[ ! -f "${SERVER}" ]]; then
+    echo "mios-agent-pipe-dev: missing server source: ${SERVER}" >&2
+    exit 1
+fi
+
+cd "${ROOT}"
+exec "${PYTHON}" "${SERVER}" "$@"

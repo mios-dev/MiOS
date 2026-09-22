@@ -7,6 +7,22 @@ mios-bootstrap, and -dev-loop workspace layout. It must build and pass
 Codespaces and a bare Linux/macOS/Windows Podman install, with no GPU, no KVM,
 and no elevated container privileges.
 
+## Development-safe MiOS core
+
+The image includes rootless Podman/Quadlet networking dependencies and a
+dedicated agent-pipe Python runtime. Post-create applies the complete MiOS root
+overlay, initializes the developer's MiOS state directories, and builds the
+source-matched native `miosd` binary outside the checkout at
+`/opt/mios/bin/miosd`.
+
+Run `miosd --help` to inspect the native control-plane interface. Run
+`mios-agent-pipe-dev` explicitly when developing the API gateway; it uses the
+dedicated `/opt/mios/agent-pipe-venv` runtime and checked-out source. Podman
+sidecars, pgvector, inference lanes, systemd units, hardware services, and
+host-security services are deliberately not started automatically. They need
+host-specific privileges, devices, credentials, or persistent state and remain
+explicit developer actions.
+
 ## Mobile portrait workbench
 
 The Dev Container and its two workspace files default to Dark Modern with a
