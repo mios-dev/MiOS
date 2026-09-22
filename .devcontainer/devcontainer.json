@@ -1,208 +1,47 @@
 {
-  "name": "MiOS Ecosystem Unified Dev (Fedora latest)",
+  "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+  "name": "MiOS Agentic AIOS & CI/CD Builder Harness",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
   },
-  "features": {
-    "ghcr.io/devcontainers/features/common-utils:latest": {
-      "username": "mios-dev",
-      "userUid": "1000",
-      "userGid": "1000",
-      "upgradePackages": false
-    }
+  "containerEnv": {
+    "MIOS_AI_ENDPOINT": "http://127.0.0.1:8080/v1",
+    "MIOS_AI_ROLE": "builder",
+    "DEVLOOP_HARNESS": "embedded",
+    "PYTHONUNBUFFERED": "1"
   },
   "customizations": {
     "vscode": {
-      "settings": {
-        "terminal.integrated.defaultProfile.linux": "zsh",
-        "python.defaultInterpreterPath": "/usr/bin/python3",
-        "git.autoRepositoryDetection": "subFolders",
-        "git.repositoryScanMaxDepth": 5,
-        "git.openRepositoryInParentFolders": "always",
-        "workbench.layoutControl.enabled": false,
-        "workbench.activityBar.location": "top",
-        "workbench.statusBar.visible": true,
-        "workbench.secondarySideBar.defaultVisibility": "hidden",
-        "workbench.panel.defaultLocation": "bottom",
-        "workbench.panel.opensMaximized": "never",
-        "workbench.sideBar.location": "left",
-        "workbench.editor.openSideBySideDirection": "down",
-        "workbench.editor.splitInGroupLayout": "vertical",
-        "workbench.editor.showTabs": "single",
-        "workbench.tree.indent": 12,
-        "workbench.tree.renderIndentGuides": "none",
-        "workbench.tree.expandMode": "singleClick",
-        "workbench.list.smoothScrolling": true,
-        "explorer.autoReveal": false,
-        "zenMode.centerLayout": false,
-        "zenMode.hideActivityBar": true,
-        "zenMode.showTabs": "single",
-        "editor.wordWrap": "on",
-        "editor.wordWrapColumn": 80,
-        "editor.wrappingStrategy": "advanced",
-        "editor.minimap.enabled": false,
-        "editor.glyphMargin": false,
-        "editor.lineNumbers": "on",
-        "editor.lineNumbersMinChars": 3,
-        "editor.showFoldingControls": "never",
-        "editor.dragAndDrop": false,
-        "editor.fontSize": 13,
-        "editor.lineHeight": 19,
-        "editor.cursorWidth": 3,
-        "editor.cursorBlinking": "smooth",
-        "editor.mouseWheelZoom": true,
-        "editor.smoothScrolling": true,
-        "editor.mouseWheelScrollSensitivity": 2,
-        "editor.fastScrollSensitivity": 5,
-        "editor.renderWhitespace": "none",
-        "editor.guides.indentation": false,
-        "editor.overviewRulerBorder": false,
-        "editor.scrollbar.verticalScrollbarSize": 14,
-        "editor.scrollbar.horizontalScrollbarSize": 10,
-        "editor.autoClosingBrackets": "always",
-        "editor.autoClosingQuotes": "always",
-        "editor.selectionHighlight": false,
-        "editor.occurrencesHighlight": "off",
-        "terminal.integrated.fontSize": 12,
-        "terminal.integrated.lineHeight": 1.1,
-        "terminal.integrated.wordWrap": true,
-        "terminal.integrated.scrollback": 10000,
-        "terminal.integrated.smoothScrolling": true,
-        "terminal.integrated.mouseWheelScrollSensitivity": 2,
-        "terminal.integrated.gpuAcceleration": "off",
-        "breadcrumbs.enabled": true,
-        "breadcrumbs.filePath": "last",
-        "window.zoomLevel": -0.5,
-        "window.commandCenter": false,
-        "window.menuBarVisibility": "compact",
-        "workbench.editor.tabActionLocation": "left",
-        "workbench.editor.labelFormat": "short",
-        "workbench.colorCustomizations": {
-          "editor.background": "#000000",
-          "editor.foreground": "#d4d4d4",
-          "editorGutter.background": "#000000",
-          "editorLineNumber.foreground": "#6e7681",
-          "editorLineNumber.activeForeground": "#ffffff",
-          "editorCursor.foreground": "#ffffff",
-          "editorGroup.border": "#1a1a1a",
-          "editorGroupHeader.tabsBackground": "#000000",
-          "editorGroupHeader.tabsBorder": "#1a1a1a",
-          "editorGroupHeader.noTabsBackground": "#000000",
-          "editorGroupHeader.border": "#1a1a1a",
-          "tab.activeBackground": "#000000",
-          "tab.activeForeground": "#ffffff",
-          "tab.activeBorder": "#007acc",
-          "tab.activeBorderTop": "#007acc",
-          "tab.inactiveBackground": "#000000",
-          "tab.inactiveForeground": "#8b949e",
-          "tab.border": "#1a1a1a",
-          "tab.unfocusedActiveBackground": "#000000",
-          "tab.unfocusedActiveForeground": "#ffffff",
-          "tab.unfocusedInactiveBackground": "#000000",
-          "tab.unfocusedInactiveForeground": "#8b949e",
-          "sideBar.background": "#000000",
-          "sideBar.foreground": "#cccccc",
-          "sideBar.border": "#1a1a1a",
-          "sideBarTitle.foreground": "#ffffff",
-          "sideBarSectionHeader.background": "#000000",
-          "sideBarSectionHeader.foreground": "#cccccc",
-          "sideBarSectionHeader.border": "#1a1a1a",
-          "activityBar.background": "#000000",
-          "activityBar.foreground": "#ffffff",
-          "activityBar.inactiveForeground": "#6e7681",
-          "activityBar.border": "#1a1a1a",
-          "activityBarBadge.background": "#007acc",
-          "activityBarBadge.foreground": "#ffffff",
-          "statusBar.background": "#000000",
-          "statusBar.foreground": "#cccccc",
-          "statusBar.border": "#1a1a1a",
-          "statusBar.noFolderBackground": "#000000",
-          "statusBar.noFolderForeground": "#cccccc",
-          "statusBar.noFolderBorder": "#1a1a1a",
-          "statusBar.debuggingBackground": "#000000",
-          "statusBar.debuggingForeground": "#ffffff",
-          "statusBar.debuggingBorder": "#1a1a1a",
-          "statusBarItem.remoteBackground": "#000000",
-          "statusBarItem.remoteForeground": "#ffffff",
-          "titleBar.activeBackground": "#000000",
-          "titleBar.activeForeground": "#cccccc",
-          "titleBar.inactiveBackground": "#000000",
-          "titleBar.inactiveForeground": "#6e7681",
-          "titleBar.border": "#1a1a1a",
-          "panel.background": "#000000",
-          "panel.border": "#1a1a1a",
-          "panelTitle.activeForeground": "#ffffff",
-          "panelTitle.inactiveForeground": "#8b949e",
-          "panelTitle.activeBorder": "#007acc",
-          "terminal.background": "#000000",
-          "terminal.foreground": "#cccccc",
-          "terminal.border": "#1a1a1a",
-          "terminalCursor.foreground": "#ffffff",
-          "breadcrumb.background": "#000000",
-          "breadcrumb.foreground": "#8b949e",
-          "breadcrumb.focusForeground": "#ffffff",
-          "quickInput.background": "#000000",
-          "quickInput.foreground": "#cccccc",
-          "menu.background": "#000000",
-          "menu.foreground": "#cccccc"
-        },
-        "workbench.colorTheme": "Default Dark Modern"
-      },
       "extensions": [
-        "rust-lang.rust-analyzer",
         "ms-python.python",
-        "ms-azuretools.vscode-docker",
         "redhat.vscode-yaml",
-        "ms-vscode.powershell",
-        "timonwong.shellcheck",
         "tamasfe.even-better-toml",
-        "eamodio.gitlens",
-        "usernamehw.errorlens",
-        "editorconfig.editorconfig"
-      ]
-    },
-    "codespaces": {
-      "repositories": {
-        "mios-dev/MiOS": {
-          "permissions": {
-            "contents": "write",
-            "pull_requests": "write",
-            "workflows": "write"
-          }
-        },
-        "mios-dev/mios-bootstrap": {
-          "permissions": {
-            "contents": "write",
-            "pull_requests": "write",
-            "workflows": "write"
-          }
-        },
-        "mios-dev/-dev-loop": {
-          "permissions": {
-            "contents": "write",
-            "pull_requests": "write",
-            "workflows": "write"
-          }
-        },
-        "mios-dev/mios-micro": {
-          "permissions": {
-            "contents": "write",
-            "pull_requests": "write",
-            "workflows": "write"
-          }
-        }
+        "github.copilot",
+        "github.copilot-chat"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "terminal.integrated.defaultProfile.linux": "bash"
       }
+    },
+    "devloop": {
+      "profile": "Builder",
+      "verification": "two-sided",
+      "two_clock_ratchet": true,
+      "manifest_tracking": true
     }
   },
-  "remoteUser": "mios-dev",
-  "workspaceFolder": "/workspaces/MiOS",
-  "postCreateCommand": "bash /workspaces/MiOS/.devcontainer/setup-devcontainer.sh",
-  "postStartCommand": "bash -c '. /workspaces/-dev-loop/skills/dev-loop/scripts/env/agy-keyring.sh 2>/dev/null || true'",
-  "postAttachCommand": "code --execute-command workbench.action.closeSidebar",
-  "hostRequirements": {
-    "cpus": 4,
-    "memory": "16gb",
-    "storage": "32gb"
-  }
+  "forwardPorts": [
+    8080,
+    8633,
+    8640,
+    8642,
+    11450,
+    11441,
+    5432
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+  "remoteUser": "spark"
 }

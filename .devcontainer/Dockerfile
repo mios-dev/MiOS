@@ -1,51 +1,27 @@
-# AI-hint: Defines the unified Fedora development container for the MiOS ecosystem (MiOS, mios-bootstrap, and -dev-loop).
-# Floats on Fedora latest, providing full toolchain coverage: Rust, dual Python (3.14 + 3.11), Podman/Docker, and Agent CLIs.
-FROM docker.io/library/fedora:latest
+# FOSS OCI Compliant DevContainer for MiOS Agent Harness
+#
+# Base image is digest-pinned (not just tag-pinned) for reproducibility: the
+# `fedora-minimal:42` tag can move, the digest cannot. Refresh the pin
+# deliberately by re-querying the registry, e.g.:
+#   curl -s "https://registry.fedoraproject.org/v2/fedora-minimal/manifests/42" \
+#     -H "Accept: application/vnd.oci.image.index.v1+json" -D - -o /dev/null \
+#     | grep -i docker-content-digest
+FROM registry.fedoraproject.org/fedora-minimal:42@sha256:09a2061e2cfb85ac8e7fa7f2234d0ace6ad4f2b7dfdf0f257c90405e4f07577d
 
-# 1. Base OS Packages, Compilers, Runtimes, and Utilities
-RUN dnf install -y --setopt=install_weak_deps=False \
-        just \
-        podman podman-compose podman-docker buildah skopeo \
-        bootc bootupd ostree rpm-ostree \
-        jq yq rsync git tmux \
-        nodejs npm \
-        python3 python3-pip python3-devel \
-        python3.11 python3.11-devel \
-        python3-rich python3-textual python3-psutil python3-pytest python3-jsonschema \
-        rust cargo clippy rustfmt gcc gcc-c++ make \
-        dbus-daemon dbus-tools gnome-keyring libsecret \
-        procps-ng util-linux shadow-utils authselect \
-        sudo zsh \
-        findutils grep sed gawk diffutils patch \
-        ripgrep tar gzip unzip zip \
-        openssl qemu-img attr \
-        ShellCheck \
-    && dnf clean all
+LABEL org.opencontainers.image.title="MiOS DevContainer Agent Harness" \
+      org.opencontainers.image.description="Embedded agentic harness for MiOS + MiOS-AI autonomous build pipeline" \
+      org.opencontainers.image.licenses="Apache-2.0"
 
-# 2. Agent CLIs (System-wide node packages)
-RUN npm install -g @anthropic-ai/claude-code @google/gemini-cli
+RUN microdnf install -y \
+    git bash curl jq tar gzip procps-ng shadow-utils \
+    python3 python3-pip python3-pyyaml python3-cffi \
+    && microdnf clean all
 
-# 3. User Setup (mios-dev UID 1000, matching host bind mount and sudoers)
-RUN useradd -m -u 1000 -s /usr/bin/zsh mios-dev \
-    && echo "mios-dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/mios-dev \
-    && chmod 0440 /etc/sudoers.d/mios-dev \
-    && visudo -cf /etc/sudoers.d/mios-dev
+# Configure unprivileged non-root operator user
+RUN useradd -m -u 1000 -s /bin/bash spark \
+    && mkdir -p /var/lib/mios /var/cache/mios /etc/mios \
+    && chown -R spark:spark /var/lib/mios /var/cache/mios /etc/mios
 
-COPY .devcontainer/install-root-overlay.sh /usr/local/bin/mios-root-overlay
-RUN chmod +x /usr/local/bin/mios-root-overlay
-
-# 4. Antigravity CLI (baked into image, not just tolerated)
-USER mios-dev
-RUN set -eux; \
-    tmp="$(mktemp -d)"; \
-    curl -fsSL --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh -o "$tmp/install.sh"; \
-    bash "$tmp/install.sh"; \
-    /home/mios-dev/.local/bin/agy --version; \
-    rm -rf "$tmp"
-
-ENV PATH="/home/mios-dev/.local/bin:${PATH}"
-ENV MIOS_DEVCONTAINER=1
-ENV MIOS_VERSION=0.3.0
-
-WORKDIR /workspaces/MiOS
-CMD ["/usr/bin/zsh"]
+USER spark
+WORKDIR /workspace
+ENTRYPOINT ["/bin/bash"]

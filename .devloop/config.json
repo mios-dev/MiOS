@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "architecture": "three-tier",
+  "roles": [
+    "Explorer",
+    "Architect",
+    "Builder",
+    "Critic",
+    "UI_Verifier"
+  ],
+  "worktree_root": ".worktrees",
+  "manifest_path": ".devloop_artifacts/manifest.json",
+  "laws": {
+    "immutable_root": true,
+    "unified_ai_redirects": true,
+    "strict_two_sided_verification": true,
+    "no_blanket_staging": true
+  }
+}

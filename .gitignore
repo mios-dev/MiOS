@@ -39,6 +39,14 @@
 !/.devcontainer/
 !/.devcontainer/configure-agy-runtime.sh
 !/.devcontainer/post-start.sh
+!/.devcontainer/post-create.sh
+!/.devcontainer/devcontainer.json
+!/.devcontainer/Dockerfile
+!/.devcontainer/README.md
+!/harness/
+!/harness/**
+!/invariants/
+!/invariants/**
 !/.gitattributes
 !/.clinerules
 !/.cursorrules

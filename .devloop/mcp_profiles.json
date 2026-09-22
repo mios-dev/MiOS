@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "schemaVersion": "1",
+    "provenanceStatus": "unverified-upstream",
+    "note": "Command names below are illustrative MCP server launchers. No pinned version, publisher, or license has been verified yet for mcp-server-git, mcp-server-filesystem, ast-grep-mcp, or mcp-lsp. Verify provenance (upstream repository, release, SPDX license) before treating any entry as required. Every entry is 'optional': a harness adapter must SKIP a missing server binary rather than fail the whole profile, matching the invariants/test_*.sh SKIP-vs-FAIL contract in harness/verification_gates.py."
+  },
+  "Builder": {
+    "mcpServers": {
+      "git": {
+        "command": "mcp-server-git",
+        "args": ["--repository", "."],
+        "optional": true,
+        "unavailableAction": "skip"
+      },
+      "filesystem": {
+        "command": "mcp-server-filesystem",
+        "args": ["/workspace"],
+        "optional": true,
+        "unavailableAction": "skip"
+      },
+      "ast-grep": {
+        "command": "ast-grep-mcp",
+        "args": [],
+        "optional": true,
+        "unavailableAction": "skip"
+      }
+    }
+  },
+  "Critic": {
+    "mcpServers": {
+      "git": {
+        "command": "mcp-server-git",
+        "args": ["--repository", "."],
+        "optional": true,
+        "unavailableAction": "skip"
+      },
+      "lsp": {
+        "command": "mcp-lsp",
+        "args": [],
+        "optional": true,
+        "unavailableAction": "skip"
+      },
+      "ast-grep": {
+        "command": "ast-grep-mcp",
+        "args": [],
+        "optional": true,
+        "unavailableAction": "skip"
+      }
+    }
+  }
+}
