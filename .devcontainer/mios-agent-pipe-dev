@@ -3,7 +3,7 @@
 set -euo pipefail
 
 readonly ROOT="${MIOS_ROOT:-/workspaces/MiOS}"
-readonly PYTHON="${MIOS_AGENT_PIPE_PYTHON:-/opt/mios/agent-pipe-venv/bin/python}"
+readonly PYTHON="${MIOS_AGENT_PIPE_PYTHON:-/usr/lib/mios/agents/.venv/bin/python}"
 readonly SERVER="${ROOT}/usr/lib/mios/agent-pipe/server.py"
 
 if [[ ! -x "${PYTHON}" ]]; then

@@ -4,9 +4,8 @@ set -euo pipefail
 
 readonly ROOT=/workspaces/MiOS
 readonly RUST_MANIFEST="${ROOT}/src/mios-rs/Cargo.toml"
-readonly TARGET_DIR=/opt/mios/target
 readonly INSTALL_DIR=/opt/mios/bin
-readonly AGENT_PIPE_PYTHON=/opt/mios/agent-pipe-venv/bin/python
+readonly AGENT_PIPE_PYTHON=/usr/lib/mios/agents/.venv/bin/python
 
 if [[ ! -f "${RUST_MANIFEST}" ]]; then
     echo "[devcontainer:core] Missing miosd workspace manifest: ${RUST_MANIFEST}" >&2
@@ -27,10 +26,17 @@ install -d -m 0755 \
     "${HOME}/.local/share/mios/agent-pipe" \
     "${HOME}/.cache/mios/agent-pipe"
 
-echo "[devcontainer:core] Building source-matched miosd..."
-sudo install -d -o "${USER}" -g "${USER}" -m 0755 "${TARGET_DIR}" "${INSTALL_DIR}"
-CARGO_TARGET_DIR="${TARGET_DIR}" cargo build --manifest-path "${RUST_MANIFEST}" --release --package miosd
-sudo install -m 0755 "${TARGET_DIR}/release/miosd" "${INSTALL_DIR}/miosd"
+echo "[devcontainer:core] Building upstream native workspaces..."
+(cd "${ROOT}/src/mios-rs" && cargo build --release)
+(cd "${ROOT}/tools/native" && cargo build --release --workspace --exclude mios-wallpaperd)
+sudo install -d -m 0755 "${INSTALL_DIR}"
+for binary in \
+    "${ROOT}"/src/mios-rs/target/release/mios-* \
+    "${ROOT}"/tools/native/target/release/mios-* \
+    "${ROOT}"/tools/native/target/release/generate-names-registry; do
+    [[ -x "${binary}" ]] || continue
+    sudo install -m 0755 "${binary}" "${INSTALL_DIR}/$(basename "${binary}")"
+done
 sudo ln -sfn "${INSTALL_DIR}/miosd" /usr/local/bin/miosd
 miosd --help >/dev/null
 

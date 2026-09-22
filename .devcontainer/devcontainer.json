@@ -5,6 +5,11 @@
     "dockerfile": "Containerfile",
     "context": ".."
   },
+  "privileged": true,
+  "init": true,
+  "mounts": [
+    "source=mios-podman-storage,target=/var/lib/containers/storage,type=volume"
+  ],
   "features": {
     "ghcr.io/devcontainers/features/common-utils:latest": {
       "username": "mios-dev",

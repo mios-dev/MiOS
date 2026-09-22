@@ -25,8 +25,9 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 RUN npm install -g @anthropic-ai/claude-code @github/copilot @google/gemini-cli
 
 COPY usr/lib/mios/agent-pipe/requirements.txt /tmp/mios-agent-pipe-requirements.txt
-RUN python3.11 -m venv /opt/mios/agent-pipe-venv \
-    && /opt/mios/agent-pipe-venv/bin/pip install --no-cache-dir -r /tmp/mios-agent-pipe-requirements.txt \
+RUN install -d -m 0755 /usr/lib/mios/agents \
+    && python3.11 -m venv /usr/lib/mios/agents/.venv \
+    && /usr/lib/mios/agents/.venv/bin/pip install --no-cache-dir -r /tmp/mios-agent-pipe-requirements.txt \
     && rm -f /tmp/mios-agent-pipe-requirements.txt
 
 RUN useradd -m -u 1000 -s /usr/bin/zsh mios-dev \
@@ -51,7 +52,7 @@ RUN set -u; tmp="$(mktemp -d)"; \
 ENV PATH="/home/mios-dev/.local/bin:${PATH}"
 ENV MIOS_DEVCONTAINER=1
 ENV MIOS_VERSION=0.3.0
-ENV MIOS_AGENT_PIPE_PYTHON=/opt/mios/agent-pipe-venv/bin/python
+ENV MIOS_AGENT_PIPE_PYTHON=/usr/lib/mios/agents/.venv/bin/python
 
 WORKDIR /workspaces/MiOS
 CMD ["/usr/bin/zsh"]
