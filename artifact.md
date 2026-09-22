@@ -588,10 +588,10 @@ You are acting as an L0 Orchestrator / L1 Supervisor executing the Dev Loop engi
 ### Objective
 
 Research and implement a harness-agnostic, OpenAI-compatible upstream
-integration for local agent authentication and tool invocation across MiOS,
-GitHub Codespaces, and a remote terminal client. Treat this section as a
-research-and-code prompt, not as permission to introduce credentials into the
-repository.
+integration for transporting encrypted operator secrets from
+`github.com/mios-dev/.secrets.git` through a mobile remote shell and into a
+short-lived MiOS process. Treat this section as a research-and-code prompt,
+not as permission to introduce credentials into the repository.
 
 ### Research requirements
 
@@ -605,13 +605,18 @@ repository.
    `AGENTS.md`, `CLAUDE.md`, `.mios/README.md`, `.secrets/README.md`, and
    `usr/share/mios/mios.toml`. Record source URLs, observed constraints,
    version/date, and any unresolved behavior in a durable research note.
-3. Keep the design independent of any editor, agent harness, vendor-native
-   protocol, or proprietary side channel. Harnesses are launchers only; the
-   application contract is OpenAI-compatible HTTP with `MIOS_AI_ENDPOINT`,
-   `MIOS_AI_MODEL`, and `MIOS_AI_KEY` resolved by the existing MiOS layers.
-4. Distinguish SSH transport authentication from application/API
-   authentication. SSH-agent forwarding may sign SSH requests but must never
-   be treated as a bearer-token transport.
+3. Keep the design independent of any editor, agent harness, model family,
+   vendor-native protocol, or proprietary side channel. Harnesses are
+   launchers only; the application contract is OpenAI-compatible HTTP with
+   `MIOS_AI_ENDPOINT`, `MIOS_AI_MODEL`, and `MIOS_AI_KEY` resolved by the
+   existing MiOS layers.
+4. Distinguish mobile-shell transport authentication, Git repository
+   authorization, ciphertext decryption, and application/API authentication.
+   SSH-agent forwarding may sign SSH requests but must never be treated as a
+   bearer-token transport.
+5. Treat `mios-dev/.secrets.git` as encrypted operator data. It is not a
+   runtime secret store, a fourth code repository, or permission to inspect
+   secret contents.
 
 ### Implementation requirements
 
@@ -622,11 +627,12 @@ repository.
 2. Prefer the existing MiOS resolver and projection contracts. Required
    references fail closed with a redacted error; optional integrations may
    degrade open only when their consuming feature is explicitly optional.
-3. Inject a runtime credential only for the child process that needs it.
-   Never persist it to `/workspaces`, `/var` scratch, shell history, process
-   arguments, image layers, logs, or generated manifests. Do not put secrets
-   in `devcontainer.json`, Dockerfile `ENV`, Quadlet `Environment=`, or
-   world-readable `install.env`.
+3. Fetch ciphertext with least-privilege Git access, decrypt only the
+   requested entry using an external identity, and inject plaintext only for
+   the child process that needs it. Never persist it to `/workspaces`,
+   `/var` scratch, shell history, process arguments, image layers, logs, or
+   generated manifests. Do not put secrets in `devcontainer.json`, Dockerfile
+   `ENV`, Quadlet `Environment=`, or world-readable `install.env`.
 4. Add positive and negative tests for missing references, invalid secret
    names, accidental plaintext values, redaction, and successful
    OpenAI-compatible request shaping. Tests must inspect presence and
@@ -652,3 +658,13 @@ repository.
 Stop and ask the operator before selecting a secret backend, changing the
 OpenAI-compatible endpoint contract, adding a new persistent credential store,
 or performing any deployment, boot switch, or `git push`.
+
+---
+
+## 17. Provider-neutral secret-transport prompt pack
+
+The reusable LLM prompt set for this goal is maintained at
+`.research/secret-transport-llm-prompts-2026-09.md`. It covers upstream
+research, architecture review, implementation, harness compatibility, and
+red-team release gates. Any LLM or harness may use it, but no prompt authorizes
+access to real credentials, decryption of operator data, or secret persistence.
