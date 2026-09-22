@@ -46,6 +46,9 @@
 !/.devcontainer/mios-ecosystem.code-workspace
 !/.devcontainer/setup-core-components.sh
 !/.devcontainer/mios-agent-pipe-dev
+!/.devcontainer/platform-bootstrap.sh
+!/.devcontainer/artifact-builder/
+!/.devcontainer/artifact-builder/devcontainer.json
 !/harness/
 !/harness/**
 !/invariants/

@@ -1,11 +1,9 @@
 # MiOS devcontainer harness — portability contract
 
-The committed `devcontainer.json` is the full MiOS artifact-builder baseline.
+The committed `devcontainer.json` is the portable MiOS development baseline.
 It provisions the MiOS, mios-bootstrap, and -dev-loop workspace layout and
-uses privileged nested Podman with persistent container storage. It is intended
-to run the same upstream `just` workflow that produces MiOS OCI/bootc images,
-OCI archives, RAW disks, ISOs, QCOW2, VHDX, WSL exports, and USB installer
-images.
+automatically initializes the development core on every supported Dev
+Container connection, including GitHub Codespaces.
 
 ## Development-safe MiOS core
 
@@ -34,15 +32,28 @@ usable vertical space and touch targets in portrait remote sessions. VS Code
 does not detect or rotate its layout for device orientation; users can still
 override these defaults from the layout controls or their user settings.
 
-## Privileged artifact-builder boundary
+## Platform-aware connection bootstrap
 
-MiOS disk artifact targets invoke `bootc-image-builder` through nested,
-privileged Podman and mount the container image store. The canonical profile
-therefore sets `privileged: true` and persists
-`/var/lib/containers/storage`; use it only on a trusted builder host. It does
-not hardcode GPU, KVM, or host-specific device mappings. Hardware-dependent
-checks remain conditional, and artifact builds that need a particular device
-must request it explicitly.
+`.devcontainer/platform-bootstrap.sh` records the detected platform and
+portable profile in `~/.config/mios/devcontainer.env` during post-create.
+GitHub Codespaces runs the Dev Container lifecycle automatically. Google Cloud
+Shell can run a persistent `$HOME/.customize_environment` bootstrap at VM
+start, while Oracle Cloud Shell retains standard shell initialization in its
+persistent home; neither cloud shell automatically applies a repository's
+Dev Container configuration by itself.
+
+## Privileged artifact-builder profile
+
+Use `.devcontainer/artifact-builder/devcontainer.json` on a trusted,
+self-managed Podman/Docker host to run `just raw`, `just iso`, `just qcow2`,
+or `just vhdx`. The profile enables privileged nested Podman and persistent
+container storage for `bootc-image-builder`. The portable default supports
+development, validation, and OCI workflows but does not claim that restricted
+cloud platforms can locally produce privileged disk artifacts.
+
+The privileged profile does not hardcode GPU, KVM, or host-specific device
+mappings. Hardware-dependent checks remain conditional, and artifact builds
+that need a particular device must request it explicitly.
 
 ## Adding local hardware passthrough (not committed)
 
