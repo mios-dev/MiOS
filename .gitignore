@@ -37,7 +37,6 @@
 !/.gitignore
 !/artifact.md
 !/.devcontainer/
-!/.devcontainer/configure-agy-runtime.sh
 !/.devcontainer/post-start.sh
 !/.devcontainer/post-create.sh
 !/.devcontainer/devcontainer.json
