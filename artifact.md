@@ -669,6 +669,29 @@ research, architecture review, implementation, harness compatibility, and
 red-team release gates. Any LLM or harness may use it, but no prompt authorizes
 access to real credentials, decryption of operator data, or secret persistence.
 
+For a Gemini Apps `/deep-research` run covering the complete goal, paste the
+standalone prompt from
+`.research/gemini-deep-research-foss-harness-secrets-2026-09.md`. The file is
+deliberately self-contained and provider-neutral: it targets the encrypted
+secrets repository, mobile-shell transport, Codespaces, Development
+Containers, OCI, OpenAI-compatible APIs, MCP, reproducibility, provenance,
+licensing, and harness conformance.
+
+After this commit is pushed, use either of these canonical locations when
+starting the research job:
+
+* Repository file:
+  `https://github.com/mios-dev/MiOS/blob/main/.research/gemini-deep-research-foss-harness-secrets-2026-09.md`
+* Raw prompt:
+  `https://raw.githubusercontent.com/mios-dev/MiOS/main/.research/gemini-deep-research-foss-harness-secrets-2026-09.md`
+
+When asking Gemini to review a specific implementation, include the GitHub
+commit URL or compare URL in the same request, and instruct it to treat the
+prompt file as the research brief. The research job must return citations,
+verified upstream behavior, implementation-ready file changes, tests, and
+unresolved operator decisions; it must not request credentials, decrypt the
+private secrets repository, commit, or push.
+
 ---
 
 ## 18. FOSS harness conformance findings
