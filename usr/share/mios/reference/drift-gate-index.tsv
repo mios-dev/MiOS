@@ -72,7 +72,7 @@
 71	check_bake_plan_integrity	bake-plan integrity gate verified clean
 72	check_bake_ref_defaults	all baker scripts have non-empty defaults matching SSOT bake_refs
 73	check_roadmap_index	roadmap index in sync with frontmatter metadata
-74	check_cli_eval_safety	CLI verbs in usr/libexec/mios/ are eval-safe
+74	check_cli_eval_safety	CLI verbs in usr/libexec/mios/ are eval-safe and os.system-free
 75	check_sbom_metadata	SBOM metadata manifests are structurally valid
 76	check_hyprland_conf_heredoc	Hyprland configuration template is in sync with baker script heredoc
 77	check_shellcheck	shellcheck: shell scripts conform to error-level linting
