@@ -49,6 +49,9 @@
 !/.devcontainer/platform-bootstrap.sh
 !/.devcontainer/artifact-builder/
 !/.devcontainer/artifact-builder/devcontainer.json
+!/.devcontainer/cloud-shell/
+!/.devcontainer/cloud-shell/bootstrap.sh
+!/.devcontainer/cloud-shell/README.md
 !/harness/
 !/harness/**
 !/invariants/

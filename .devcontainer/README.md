@@ -42,6 +42,13 @@ start, while Oracle Cloud Shell retains standard shell initialization in its
 persistent home; neither cloud shell automatically applies a repository's
 Dev Container configuration by itself.
 
+`.devcontainer/cloud-shell/bootstrap.sh install` installs the portable
+Dev Containers launcher once under persistent `$HOME/.local`; use
+`mios-cloud-shell up` from a later shell connection to create or update the
+portable development environment. See
+[Cloud Shell bootstrap](cloud-shell/README.md) for the provider-specific
+details.
+
 ## Privileged artifact-builder profile
 
 Use `.devcontainer/artifact-builder/devcontainer.json` on a trusted,
