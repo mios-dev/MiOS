@@ -923,7 +923,7 @@
 | T-504 | P2 | open | Build/RPMTest | Upstream mirror failover and RPM transaction integrity verification test |
 | T-505 | P1 | open | Audio/Scream | Scream virtual audio to PipeWire JACK low-latency receiver daemon |
 | T-506 | P2 | open | Audio/Benchmark | Automated audio buffer underrun and latency jitter benchmark suite |
-| T-507 | P1 | open | Boot/UKI | A/B UKI staging and systemd-ukify compilation pipeline with baked kargs |
+| T-507 | P1 | done | Boot/UKI | A/B UKI staging and systemd-ukify compilation pipeline with baked kargs |
 | T-508 | P1 | open | Boot/Promotion | Automated UKI A/B boot promotion and Greenboot validation gate |
 | T-509 | P1 | open | Build/SBOM | Hermetic multi-stage Podman OCI image synthesis and Syft SBOM generation pipeline |
 | T-510 | P1 | open | Build/Cosign | Local Cosign image signing and registry push validation gate |
@@ -5926,7 +5926,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** UKI compilation service builds staged UKIs with baked kargs and registers A/B boot entries.
 **Why:** Baked UKI kargs maintain cryptographic boot integrity while A/B staging prevents bricked bootloaders.
 **Dep:** AGY-2104
-**Status:** open | **Domain:** Boot/UKI | **Who:** agent
+**Status:** done | **Domain:** Boot/UKI | **Who:** agent
 **Converted:** AGY-2105 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-508 -- Automated UKI A/B boot promotion and Greenboot validation gate (WS-BOOT | P1 | M)

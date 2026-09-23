@@ -11582,6 +11582,7 @@ unit = [
     "tests/test-subuid-alloc.py",
     "tests/test-egpu-hotplug.py",
     "tests/test-adguard-dns.py",
+    "tests/test-ukify-stage.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",
