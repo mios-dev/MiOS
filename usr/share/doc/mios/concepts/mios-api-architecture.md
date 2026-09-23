@@ -1,3 +1,6 @@
+<!-- AI-hint: Architecture specification for MiOS-API unified AI and system management planes. -->
+<!-- AI-related: usr/share/doc/mios/README.md, usr/share/mios/mios.toml -->
+
 # MiOS-API architecture
 
 ## Decision

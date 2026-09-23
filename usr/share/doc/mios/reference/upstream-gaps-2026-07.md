@@ -1,4 +1,5 @@
-<!-- AI-HINT: Prioritized upstream-vs-MiOS gap report (2026-07). Grounded in a 44-item research pass across 7 subsystems (inference lanes, pgvector-RAG, agent orchestration/MCP, bootc-OCI, embeddings, security/egress, GPU/CDI/VFIO, Windows DISM). Each gap cites the upstream source + the exact MiOS file/line that lags. Use the Top-10 table for sequencing; do not invent gaps beyond what is cited here. -->
+<!-- AI-hint: Prioritized upstream-vs-MiOS gap report (2026-07) across seven core subsystems. -->
+<!-- AI-related: usr/share/doc/mios/README.md, usr/share/mios/mios.toml -->
 
 # Upstream-vs-MiOS Gap Report — 2026-07
 

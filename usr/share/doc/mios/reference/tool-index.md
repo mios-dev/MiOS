@@ -480,7 +480,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/applet_webresearch.py` | Web-research SSE applet -- app-ifies the "Discovery / resolution" verb cluster (web_search/web_extract/crawl) as an HTML-over-S... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/chat.py` | The agent-pipe CHAT-COMPLETIONS router-brain, extracted VERBATIM from AI-related: ./server.py, ./mios_vision.py, ./mios_oscontrol.py, ./mios_... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/classify.py` | Layer-1 micro-LLM CLASSIFIER cluster, extracted verbatim from server.py |
-| `usr/lib/mios/agent-pipe/mios_pipe/routing/conductor.py` | MiOS system and orchestration module providing conductor capabilities. |
+| `usr/lib/mios/agent-pipe/mios_pipe/routing/conductor.py` | MiOS system and orchestration module providing constrained conductor capabilities. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/consensus.py` | Pure consensus math for multi-judge Definition-of-Done verdicts. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/council_diversity.py` | Council input-diversity gate + confidence-aware aggregation bypass (T-047 RouteMoA GAP-1 / T-048 MOSAIC GAP-2). |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/cua.py` | WS-8 computer-use perceive->act->verify loop core (the PURE half). |

@@ -790,13 +790,11 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res1, res2)
         self.assertEqual(res1[1], "response 1")
 
-def _run_extra_daemon(): return 0
-
 def _run_all_folded_daemons_suites():
-    for fn in (_run_extra_account_sync, _run_extra_conductor, _run_extra_daemon):
+    for fn in (_run_extra_account_sync, _run_extra_conductor):
         if (rc := fn()) not in (None, 0):
-            import sys
             sys.exit(f"Folded test suite failed: exit code {rc}")
 
 if __name__ == "__main__":
+    _run_all_folded_daemons_suites()
     unittest.main()

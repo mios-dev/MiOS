@@ -40,7 +40,7 @@
 #   FEWER is also a failure: fixing a name must be paid for by tightening this
 #   number in the same commit, which is how a ledger drains instead of settling.
 #
-#!ceiling 411
+#!ceiling 410
 #
 # name	sample location
 MIOS_ADMIT_ENABLE	usr/lib/mios/agent-pipe/server.py:607
@@ -107,7 +107,6 @@ MIOS_CPU_LANE_MICRO_MODEL	usr/lib/mios/agent-pipe/server.py:1167
 MIOS_CRAWL_BIND	usr/lib/mios/crawl4ai/mios-crawl4ai-service.py:39
 MIOS_CRAWL_CDP_TIMEOUT	usr/lib/mios/crawl4ai/mios-crawl4ai-service.py:138
 MIOS_CRL_PATH	usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py:578
-MIOS_CTX_DIR	usr/libexec/mios/materialize-build-catalog.py:10
 MIOS_CTX_FIT	usr/lib/mios/agent-pipe/server.py:1693
 MIOS_CUA_ENABLE	usr/lib/mios/agent-pipe/server.py:3805
 MIOS_CUA_MAX_STEPS	usr/lib/mios/agent-pipe/server.py:3808

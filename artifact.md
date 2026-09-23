@@ -1,9 +1,9 @@
 # MiOS & MiOS-AI Autonomous CI/CD Pipeline Artifact Bundle (`artifact.md`)
 
-**Date:** 2026-09-21
-**Classification:** Complete Inline Codebase & Harness Snippet Manifest
-**Target Environments:** MiOS Immutable Fedora bootc Workstation + Embedded DevContainer Agent Harnesses
-**Specification:** [Development Containers Specification](https://containers.dev) / [Open Container Initiative (OCI)](https://opencontainers.org)
+**Date:** 2026-09-22  
+**Classification:** Complete Inline Codebase & Harness Snippet Manifest  
+**Target Environments:** MiOS Immutable Fedora bootc Workstation + Embedded DevContainer Agent Harnesses  
+**Specification:** [Development Containers Specification](https://containers.dev) / [Open Container Initiative (OCI)](https://opencontainers.org)  
 
 ---
 
@@ -378,27 +378,27 @@ echo "[PASS] [INVARIANT-REL] Two-sided control passed."
 
 ## 10. Autonomous CI/CD Automation Pipeline
 
-### File: `automation/01-ingest-daily-telemetry.sh`
+### File: `automation/cicd/01-ingest-daily-telemetry.sh`
 ```bash
 #!/bin/bash
 set -euo pipefail
 echo "==> [01-INGEST] Ingesting git deltas, gap telemetry, and upstream CVEs..."
 ```
 
-### File: `automation/02-distill-agent-weights.py`
+### File: `automation/cicd/02-distill-agent-weights.py`
 ```python
 #!/usr/bin/env python3
 print("==> [02-DISTILL] Grounding SFT and DPO datasets from verified daily telemetry...")
 ```
 
-### File: `automation/03-build-bootc-oci.sh`
+### File: `automation/cicd/03-build-bootc-oci.sh`
 ```bash
 #!/bin/bash
 set -euo pipefail
 echo "==> [03-BUILD] Compiling bootc container image with composefs..."
 ```
 
-### File: `automation/04-deploy-atomic-switch.sh`
+### File: `automation/cicd/04-deploy-atomic-switch.sh`
 ```bash
 #!/bin/bash
 set -euo pipefail

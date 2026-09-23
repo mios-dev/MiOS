@@ -81,6 +81,66 @@ def _winquote(s: str) -> str:
 _PLACEHOLDER = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
+_SHELL_TOKENS = {"|", ";", "&&", "||", "&", ">", ">>", "<"}
+
+
+def _build_argv(
+    template: str, params: dict, declared_args: list[str], *, windows: bool
+) -> tuple[list[str], str]:
+    # Validate declared placeholder keys
+    req_placeholders = _PLACEHOLDER.findall(template)
+    undeclared = [k for k in req_placeholders if k not in declared_args]
+    if undeclared:
+        print(
+            f"mios-os-recipe: template contains undeclared placeholder(s): {','.join(undeclared)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    missing = [k for k in req_placeholders if k not in params]
+    if missing:
+        print(
+            f"mios-os-recipe: missing required arg(s): {','.join(missing)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    try:
+        raw_tokens = shlex.split(template)
+    except Exception:
+        raw_tokens = []
+
+    has_shell = any(tok in _SHELL_TOKENS for tok in raw_tokens) or any(
+        sub in template for sub in ("$(", "`", "2>", "&>")
+    )
+
+    if has_shell and not windows:
+        # Bash execution via positional arguments ($1, $2, ...)
+        # Pass template as positional-argument script: metacharacters in params remain inert
+        keys_order: list[str] = []
+
+        def _to_pos(m: re.Match) -> str:
+            k = m.group(1)
+            if k not in keys_order:
+                keys_order.append(k)
+            idx = keys_order.index(k) + 1
+            return f'"${idx}"'
+
+        script = _PLACEHOLDER.sub(_to_pos, template)
+        pos_args = [str(params[k]) for k in keys_order]
+        argv = ["/bin/bash", "-c", script, "mios-os-recipe", *pos_args]
+        display_cmd = f"/bin/bash -c {shlex.quote(script)} mios-os-recipe {' '.join(shlex.quote(a) for a in pos_args)}".strip()
+        return argv, display_cmd
+    else:
+        # Direct argv execution (no shell)
+        argv = []
+        for tok in raw_tokens:
+            interpolated = _PLACEHOLDER.sub(lambda m: str(params[m.group(1)]), tok)
+            argv.append(interpolated)
+        display_cmd = " ".join(shlex.quote(a) for a in argv)
+        return argv, display_cmd
+
+
 def _expand(template: str, params: dict, *, windows: bool) -> str:
     missing: list[str] = []
 
@@ -159,11 +219,17 @@ def _run(name: str, kv: dict, *, want_json: bool, target_os: Optional[str]) -> i
             if k in params:
                 params[k] = _wsl_to_windows(str(params[k]))
 
-    cmd = _expand(str(template), params, windows=(chosen == "windows"))
+    argv, cmd = _build_argv(
+        str(template), params, declared_args, windows=(chosen == "windows")
+    )
 
     try:
         r = subprocess.run(
-            cmd, shell=True, check=False, capture_output=True, text=True,
+            argv,
+            shell=False,
+            check=False,
+            capture_output=True,
+            text=True,
             timeout=int(os.environ.get("MIOS_OS_RECIPE_TIMEOUT", "30")),
         )
         stdout, stderr, code = r.stdout, r.stderr, r.returncode

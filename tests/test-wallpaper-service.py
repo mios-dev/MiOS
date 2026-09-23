@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for WS-LANG mios-wallpaperd native living wallpaper service.
-# AI-related: src/mios-rs/crates/mios-wallpaperd/src/main.rs, usr/share/mios/branding/living-wallpaper.html
+# AI-related: tools/native/mios-wallpaperd/src/main.rs, usr/share/mios/branding/living-wallpaper.html
 """Automated tests for WS-LANG living wallpaper Rust crate and HTML template."""
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
-_WALL_RS = os.path.join(_ROOT, "src", "mios-rs", "crates", "mios-wallpaperd", "src", "main.rs")
+_WALL_RS = os.path.join(_ROOT, "tools", "native", "mios-wallpaperd", "src", "main.rs")
 
 class TestWallpaperService(unittest.TestCase):
     """Validates mios-wallpaperd Rust crate structure and source code."""

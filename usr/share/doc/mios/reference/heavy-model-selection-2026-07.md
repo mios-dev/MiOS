@@ -1,4 +1,5 @@
-<!-- AI-HINT: Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. OPERATOR DECISION 2026-07-10: stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ @ 256k (see the DECISION section at top). Workflow had recommended openai/gpt-oss-20b (native MXFP4, first-party repo, only strong candidate that actually reaches the 128k mandate co-tenanted on a shared card) -- kept below as superseded. Runner-up: Qwen/Qwen3-14B-AWQ. Family-diverse alt honoring the SSOT intent: cyankiwi/Magistral-Small-2509-AWQ-4bit (Mistral, compressed-tensors W4A16 — NOT classic AutoAWQ). Every hf_repo below is grounded in the research JSON; do NOT invent repo ids. The SSOT still names Magistral 2509 — this doc argues gpt-oss wins on the 128k+trust axes and should carry the bake; keep Magistral as the diversity/SSOT-honoring alt. -->
+<!-- AI-hint: Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. -->
+<!-- AI-related: usr/share/doc/mios/README.md, usr/share/mios/mios.toml -->
 
 # Heavy-lane model selection — shared 24GB RTX 4090 (2026-07)
 

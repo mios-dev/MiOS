@@ -317,12 +317,7 @@ _PORTAL_HTML = r"""<!DOCTYPE html>
 --sans:-apple-system,"Segoe UI",system-ui,Roboto,sans-serif}
 *{box-sizing:border-box}
 body{margin:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);color:var(--fg);font:15px/1.5 var(--sans);overflow-x:hidden;
-background:radial-gradient(1100px 520px at 12% -12%,
-  color-mix(in srgb,var(--accent) 13%,transparent),transparent 60%),
-  radial-gradient(900px 500px at 100% 0%,
-  color-mix(in srgb,var(--panel) 30%,transparent),transparent 55%),
-  radial-gradient(820px 520px at 50% 118%,
-  color-mix(in srgb,var(--info) 18%,transparent),transparent 60%),var(--bg);
+background:radial-gradient(1100px 520px at 12% -12%, color-mix(in srgb,var(--accent) 13%,transparent),transparent 60%), radial-gradient(900px 500px at 100% 0%, color-mix(in srgb,var(--panel) 30%,transparent),transparent 55%), radial-gradient(820px 520px at 50% 118%, color-mix(in srgb,var(--info) 18%,transparent),transparent 60%),var(--bg);
 background-attachment:fixed}
 /* background-attachment:fixed is an iOS Safari render footgun (forces odd
    layer repaints during scroll that shove other elements around). Pin it on
@@ -342,27 +337,21 @@ border-radius:9px;padding:7px 12px;font-size:13px;cursor:pointer;transition:.15s
 .btn.active{background:color-mix(in srgb,var(--accent) 15%,var(--card2))}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#1a1230;font-weight:700}
 .btn.primary:hover{background:color-mix(in srgb,var(--accent) 84%,#fff);color:#1a1230}
-.drop{position:absolute;right:0;top:110%;background:var(--card);border:1px solid var(--line);
-border-radius:10px;padding:8px;min-width:200px;display:none;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.drop{position:absolute;right:0;top:110%;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;min-width:200px;display:none;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .drop.open{display:block}
-.drop label{display:flex;justify-content:space-between;align-items:center;
-padding:7px 8px;font-size:13px;color:var(--mut);gap:10px}
-.drop select,.drop input{background:var(--bg);color:var(--fg);border:1px solid var(--line);
-border-radius:7px;padding:4px 7px;font-size:13px}
+.drop label{display:flex;justify-content:space-between;align-items:center;padding:7px 8px;font-size:13px;color:var(--mut);gap:10px}
+.drop select,.drop input{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:4px 7px;font-size:13px}
 section{padding:18px 22px}
 .h{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
-.h h2{font-size:15px;letter-spacing:.4px;text-transform:uppercase;color:var(--silver);
-margin:0;border-left:4px solid var(--accent);padding-left:9px}
+.h h2{font-size:15px;letter-spacing:.4px;text-transform:uppercase;color:var(--silver);margin:0;border-left:4px solid var(--accent);padding-left:9px}
 .h .n{color:var(--ok);font-size:12px;font-weight:600}
 /* Top column: SearXNG search + MiOS AI chat, centered, same width as the
    header. */
 .top{width:min(760px,100%);margin:20px auto 8px;padding:0 18px}
 .websearch{display:flex;gap:8px;margin:0 0 12px}
-.websearch input{flex:1;background:var(--card);border:1px solid var(--line);color:var(--fg);
-border-radius:11px;padding:12px 16px;font-size:15px}
+.websearch input{flex:1;background:var(--card);border:1px solid var(--line);color:var(--fg);border-radius:11px;padding:12px 16px;font-size:15px}
 .websearch input:focus{outline:none;border-color:var(--accent)}
-.hoststrip{width:min(760px,100%);margin:0 auto 2px;padding:8px 18px 0;display:flex;
-gap:18px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--mut)}
+.hoststrip{width:min(760px,100%);margin:0 auto 2px;padding:8px 18px 0;display:flex;gap:18px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--mut)}
 .hoststrip b{color:var(--fg)}
 /* chat window: portrait-ish 4:5 (taller than landscape, not phone-tall),
    inline + drag-resizable */
@@ -962,16 +951,9 @@ _PORTAL_LOGIN_HTML = r"""<!DOCTYPE html>
 --line:color-mix(in srgb,var(--mut) 24%,transparent);
 --sans:-apple-system,"Segoe UI",system-ui,Roboto,sans-serif}
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-color:var(--fg);font:15px/1.5 var(--sans);
-padding:calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right))
-  calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
-background:radial-gradient(1000px 500px at 15% -10%,
-  color-mix(in srgb,var(--accent) 14%,transparent),transparent 60%),
-  radial-gradient(900px 520px at 100% 0%,
-  color-mix(in srgb,var(--panel) 32%,transparent),transparent 55%),
-  radial-gradient(820px 520px at 50% 118%,
-  color-mix(in srgb,var(--info) 18%,transparent),transparent 60%),var(--bg)}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;color:var(--fg);font:15px/1.5 var(--sans);
+padding:calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+background:radial-gradient(1000px 500px at 15% -10%, color-mix(in srgb,var(--accent) 14%,transparent),transparent 60%), radial-gradient(900px 520px at 100% 0%, color-mix(in srgb,var(--panel) 32%,transparent),transparent 55%), radial-gradient(820px 520px at 50% 118%, color-mix(in srgb,var(--info) 18%,transparent),transparent 60%),var(--bg)}
 form{background:var(--card);border:1px solid var(--line);border-radius:16px;
 padding:30px 28px;width:min(360px,100%);box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .brand{font-size:34px;font-weight:700;letter-spacing:.5px;text-align:center}

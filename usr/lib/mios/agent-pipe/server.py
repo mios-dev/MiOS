@@ -3061,10 +3061,7 @@ async def _kernel_dag_handler(decision, *, refined=None, session_id=None, **ctx)
     if conductor_enable and refined and "workflow" in refined:
         mios_conductor.configure(dispatch_verb=dispatch_mios_verb)
         return await mios_conductor.execute_conductor_workflow(
-            refined["workflow"],
-            refined.get("params", {}),
-            session_id=session_id
-        )
+            refined["workflow"], refined.get("params", {}), session_id=session_id)
     return await execute_dag(refined or {}, session_id=session_id)
 
 def _kernel_stage2b(mode: str):

@@ -17,6 +17,21 @@ pub const WALLPAPER_URL_KEY: &str = r"SOFTWARE\MiOS";
 pub const WALLPAPER_URL_VALUE: &str = "WallpaperUrl";
 pub const WALLPAPER_URL_FALLBACK: &str = "file:///C:/Windows/Web/MiOS/living-wallpaper.html";
 
+#[derive(Debug, Clone)]
+pub struct WallpaperConfig {
+    pub html_path: String,
+    pub framerate: u32,
+}
+
+impl WallpaperConfig {
+    pub fn default_config() -> Self {
+        Self {
+            html_path: "/usr/share/mios/branding/living-wallpaper.html".to_string(),
+            framerate: 60,
+        }
+    }
+}
+
 fn main() {
     let arg = std::env::args().nth(1).unwrap_or_default();
     match arg.as_str() {

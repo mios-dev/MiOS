@@ -1,4 +1,4 @@
-<!-- AI-HINT: Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md. Every claim below was checked against a primary source (NVD, upstream release tags, registry APIs) and badged; the report also adjudicates a batch of externally-generated deep-research reports whose version numbers, registries, and fix-lines were partly fabricated. Use the reconciliation table to know what is real; do not cite the external reports directly.
+<!-- AI-hint: Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md.
      AI-related: usr/share/mios/mios.toml, mios-pgvector, mios-llm-heavy, mios-llm-heavy-alt, mios-llm-light, usr/libexec/mios/mios-resolve-latest, usr/share/doc/mios/reference/upstream-gaps-2026-07.md, usr/share/mios/prompts/upstream-research.xml.md -->
 
 # Upstream-vs-MiOS Verification Report — 2026-08
