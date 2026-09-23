@@ -11576,6 +11576,7 @@ unit = [
     "tests/test-microvm-squashfs-nbd.py",
     "tests/test-firewall-nftables.py",
     "tests/test-flatpak-overrides.py",
+    "tests/test-tpm2-seal.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

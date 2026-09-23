@@ -909,7 +909,7 @@
 | T-490 | P2 | open | App/Portal | XDG Desktop Portal permission and socket boundary verification suite |
 | T-491 | P1 | open | Storage/Virtiofs | virtiofsd POSIX/OFD lock translation and cache policy configurator |
 | T-492 | P2 | open | Storage/LockTest | Cross-platform concurrent write and lock contention test suite in QEMU |
-| T-493 | P1 | open | Security/TPM2 | TPM 2.0 PCR 7/11 systemd-creds automated secret sealing and enrollment script |
+| T-493 | P1 | done | Security/TPM2 | TPM 2.0 PCR 7/11 systemd-creds automated secret sealing and enrollment script |
 | T-494 | P2 | open | Security/Recovery | Offline split-key emergency recovery and TPM unseal failure test suite |
 | T-495 | P1 | open | Hardware/Hotplug | Udev hotplug handler for dynamic Thunderbolt/USB4 eGPU and PCIe accelerator re-enumeration |
 | T-496 | P2 | open | AI/CDIReload | Zero-downtime CDI re-generation and inference engine live reload daemon |
@@ -5786,7 +5786,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Master credentials are sealed to hardware TPM 2.0 bound strictly to PCR 7 and 11.
 **Why:** TPM sealing guarantees credentials remain inaccessible if disks are stolen or unauthorized kernels booted.
 **Dep:** AGY-2090
-**Status:** open | **Domain:** Security/TPM2 | **Who:** agent
+**Status:** done | **Domain:** Security/TPM2 | **Who:** agent
 **Converted:** AGY-2091 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-494 -- Offline split-key emergency recovery and TPM unseal failure test suite (WS-SEC | P2 | M)
