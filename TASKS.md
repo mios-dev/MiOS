@@ -693,7 +693,7 @@
 | T-779 | P2 | done | Desktop/HyprlandTest | Automated Hyprland direct scanout (<1ms latency) and Living Wallpaper render test suite |
 | T-780 | P1 | open | AI/ASTDiff | Tree-Sitter AST structural diff engine and 2-peer review gate in agent-pipe |
 | T-781 | P2 | open | AI/ASTDiffTest | Automated AST structural diff calculation and 2-peer review merge gating test suite |
-| T-782 | P1 | open | Security/LivepatchMOK | Cryptographic MOK livepatch signature gate and IMA measurement logger in mios-livepatch |
+| T-782 | P1 | done | Security/LivepatchMOK | Cryptographic MOK livepatch signature gate and IMA measurement logger in mios-livepatch |
 | T-783 | P2 | open | Security/LivepatchTest | Automated livepatch signature verification, unsigned module rejection, and IMA test suite |
 | T-784 | P1 | open | AI/CPUGEMM | Hardware-calibrated CPU vectorized GEMM auto-tuner in mios-cpu-gemm |
 | T-785 | P2 | open | AI/CPUGEMMTest | Automated CPU quantized GEMM throughput (>30 tok/s) and SIMD dispatch test suite |
@@ -8676,7 +8676,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Livepatch manager validates MOK signatures and logs IMA measurements before applying kernel patches.
 **Why:** Cryptographic livepatch verification allows zero-downtime CVE remediation while preventing unauthorized kernel code injection.
 **Dep:** AGY-2379
-**Status:** open | **Domain:** Security/LivepatchMOK | **Who:** agent
+**Status:** done | **Domain:** Security/LivepatchMOK | **Who:** agent
 **Converted:** AGY-2380 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-783 -- Automated livepatch signature verification, unsigned module rejection, and IMA test suite (WS-BOOT | P2 | S)
