@@ -226,6 +226,15 @@ enum Commands {
         #[command(subcommand)]
         action: SecretAction,
     },
+    /// Local settings HTTP engine hosting mios.html and /portal/config SSOT API
+    ConfigServer {
+        /// Optional custom bind address (e.g. 127.0.0.1:8700)
+        #[arg(long)]
+        bind: Option<String>,
+        /// Optional custom port (default: 8700 or $MIOS_PORT_AGENT_PIPE)
+        #[arg(long)]
+        port: Option<u16>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -995,6 +1004,24 @@ async fn main() {
                         }
                     }
                 }
+            }
+        }
+        Commands::ConfigServer { bind, port } => {
+            let config = miosd::server::ConfigServerConfig::resolve(bind.clone(), *port);
+            println!("[miosd] Starting MiOS Config Server at http://{}", config.bind_addr);
+            println!("[miosd] Serving mios.html from {:?}", config.html_path);
+            println!("[miosd] Writing profile saves to {:?}", config.profile_path);
+
+            let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+            tokio::spawn(async move {
+                let _ = tokio::signal::ctrl_c().await;
+                println!("[miosd] Received SIGINT/Ctrl-C, shutting down config server...");
+                let _ = shutdown_tx.send(());
+            });
+
+            if let Err(e) = miosd::server::run_config_server(config, Some(shutdown_rx)).await {
+                eprintln!("[miosd] Config server error: {}", e);
+                std::process::exit(1);
             }
         }
     }

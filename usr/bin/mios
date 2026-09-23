@@ -340,6 +340,7 @@ KNOWN_VERBS = {
     "status": ["/usr/libexec/mios/mios-system-status"],
     "logs":   ["journalctl", "-u", "miosd.service", "-f"],
     "backup": ["/usr/libexec/mios/mios-backup"],
+    "secret": ["/usr/libexec/mios/miosd", "secret"],
     "help":   None,        # special-cased below
 }
 
@@ -496,6 +497,7 @@ def main(argv: list[str]) -> int:
             "  mios new <type> <name>               scaffold a new file from templates\n"
             "  mios user                            initialize user space (dotfiles/XDG)\n"
             "  mios models                          manage first-boot large models (list, sync, add, rm)\n"
+            "  mios secret                          secure secrets management & Linux Keyrings\n"
             "  mios help                            this help\n\n"
             "Chat (anything else):\n"
             "  mios <prompt>                        chat + tool calls against Hermes-Agent\n"
@@ -521,6 +523,15 @@ def main(argv: list[str]) -> int:
             if os.path.isabs(__file__) else None
         )
         resolved_target = os.path.join(root, target.lstrip("/\\")) if root else target
+        if not pathlib.Path(target).is_file() and not (root and pathlib.Path(resolved_target).is_file()):
+            if target.endswith("miosd") and root:
+                for cand in [
+                    os.path.join(root, "src/mios-rs/target/release/miosd"),
+                    os.path.join(root, "src/mios-rs/target/debug/miosd"),
+                ]:
+                    if pathlib.Path(cand).is_file():
+                        resolved_target = cand
+                        break
         if pathlib.Path(target).is_file() or (root and pathlib.Path(resolved_target).is_file()) or subprocess.run(
             ["sh", "-c", f"command -v {target}"], capture_output=True, text=True
         ).returncode == 0:

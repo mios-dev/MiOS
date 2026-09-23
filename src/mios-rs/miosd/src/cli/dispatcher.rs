@@ -45,6 +45,7 @@ pub static KNOWN_VERBS: &[(&str, &[&str])] = &[
     ("status", &["/usr/libexec/mios/mios-system-status"]),
     ("logs", &["journalctl", "-u", "miosd.service", "-f"]),
     ("backup", &["/usr/libexec/mios/mios-backup"]),
+    ("secret", &["/usr/libexec/mios/miosd", "secret"]),
 ];
 
 pub struct CliDispatcher;
