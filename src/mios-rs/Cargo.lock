@@ -835,6 +835,7 @@ version = "0.3.0"
 dependencies = [
  "chrono",
  "clap",
+ "libc",
  "mios-build",
  "mios-config",
  "regex",

@@ -7,17 +7,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-mios_log "Resolving build-toolchain package list"
-TOOLCHAIN_STR="$(get_packages "build-toolchain")"
+mios_log "Resolving and combing all build-time package groups"
+BUILD_GROUPS=(
+    "build-toolchain"
+    "quickshell-build"
+    "looking-glass-build"
+    "k3s-selinux-build"
+    "cockpit-plugins-build"
+)
 
-if [[ -z "${TOOLCHAIN_STR// /}" ]]; then
-    mios_warn "No packages in 'build-toolchain' block; nothing to strip"
-    exit 0
+for grp in "${BUILD_GROUPS[@]}"; do
+    pkgs="$(get_packages "$grp" || true)"
+    if [[ -n "${pkgs// /}" ]]; then
+        mios_log "Combing build group '${grp}': ${pkgs}"
+        $DNF_BIN "${DNF_SETOPT[@]}" remove -y --noautoremove $pkgs 2>&1 \
+            | grep -E '^\s*(Removing|Error|Warning|Nothing)' || true
+    fi
+done
+
+# Purge standalone bake-only tools
+if [[ -f /usr/local/bin/syft ]]; then
+    mios_log "Removing standalone build-time tool /usr/local/bin/syft"
+    rm -f /usr/local/bin/syft
 fi
-
-mios_log "Removing ${TOOLCHAIN_STR}"
-$DNF_BIN "${DNF_SETOPT[@]}" remove -y --noautoremove $TOOLCHAIN_STR 2>&1 \
-    | grep -E '^\s*(Removing|Error|Warning|Nothing)' || true
 
 mios_log "Verifying toolchain removal"
 for bin in gcc g++ cc cmake make go; do

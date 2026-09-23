@@ -221,6 +221,51 @@ enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// Secure secret management, native Linux Keyrings, desktop prompt, and pipeline safety net
+    Secret {
+        #[command(subcommand)]
+        action: SecretAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SecretAction {
+    /// Securely prompt operator on desktop (zenity/pinentry) or TTY (no-echo)
+    Prompt {
+        #[arg(short, long, default_value = "Password: ")]
+        message: String,
+        #[arg(long, default_value = "MiOS Authentication")]
+        title: String,
+        #[arg(long)]
+        gui: bool,
+        #[arg(long)]
+        tty: bool,
+    },
+    /// Store secret securely in Linux Keyrings / FreeDesktop Secret Service
+    Set {
+        #[arg(short, long)]
+        key: String,
+        #[arg(short, long, default_value = "mios")]
+        service: String,
+        #[arg(long)]
+        prompt: bool,
+        #[arg(long)]
+        value: Option<String>,
+    },
+    /// Retrieve secret from Linux Keyrings / FreeDesktop Secret Service
+    Get {
+        #[arg(short, long)]
+        key: String,
+        #[arg(short, long, default_value = "mios")]
+        service: String,
+    },
+    /// Pipeline safety scanner: audit directory or files for leaked credentials
+    Scan {
+        #[arg(default_value = ".")]
+        path: String,
+        #[arg(long)]
+        strict: bool,
+    },
 }
 
 /// Prefix + name + suffix. An ordinal prefix is a seed, not a literal.
@@ -893,6 +938,64 @@ async fn main() {
             full_args.extend(args.clone());
             let rc = miosd::cli::dispatch(full_args);
             std::process::exit(rc);
+        }
+        Commands::Secret { action } => {
+            match action {
+                SecretAction::Prompt { message, title, gui, tty } => {
+                    match miosd::secret::prompt(title, message, *gui, *tty) {
+                        Ok(secret) => println!("{}", secret),
+                        Err(e) => {
+                            eprintln!("[miosd secret] Prompt error: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                SecretAction::Set { key, service, prompt, value } => {
+                    let val = if *prompt || value.is_none() {
+                        let prompt_msg = format!("Enter secret for {}: ", key);
+                        match miosd::secret::prompt("MiOS Keyring", &prompt_msg, false, false) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                eprintln!("[miosd secret] Prompt error: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    } else {
+                        value.clone().unwrap_or_default()
+                    };
+                    if let Err(e) = miosd::secret::set(service, key, &val) {
+                        eprintln!("[miosd secret] Set error: {}", e);
+                        std::process::exit(1);
+                    }
+                    eprintln!("Stored secret for '{}/{}' in Linux Keyring.", service, key);
+                }
+                SecretAction::Get { key, service } => {
+                    match miosd::secret::get(service, key) {
+                        Ok(val) => println!("{}", val),
+                        Err(e) => {
+                            eprintln!("[miosd secret] Get error: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                SecretAction::Scan { path, strict } => {
+                    let p = std::path::Path::new(path);
+                    match miosd::secret::scan(p, *strict) {
+                        Ok(findings) => {
+                            if findings == 0 {
+                                eprintln!("Pipeline safety check: PASS (0 credential leaks detected in {})", path);
+                            } else {
+                                eprintln!("Pipeline safety check: FAILED ({} credential leaks detected in {})", findings, path);
+                                std::process::exit(1);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[miosd secret] Scan error: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
         }
     }
 }

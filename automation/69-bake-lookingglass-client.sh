@@ -5,6 +5,7 @@ set -euo pipefail
 # shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/packages.sh"
 
 if [[ -x /usr/bin/looking-glass-client ]]; then
     mios_ok "Looking-glass-client already present"
@@ -32,16 +33,8 @@ LG_BRANCH="${MIOS_BUILD_BAKE_REFS_LOOKINGGLASS:-latest}"
 record_version looking-glass "$LG_BRANCH" "https://github.com/gnif/LookingGlass/tree/${LG_BRANCH}"
 BUILD_DIR="/tmp/LookingGlass-build"
 
-if command -v dnf5 >/dev/null 2>&1; then _DNF=dnf5; elif command -v dnf >/dev/null 2>&1; then _DNF=dnf; else _DNF=""; fi
-if [[ -n "$_DNF" ]]; then
-    mios_log "Ensure Looking Glass client build deps"
-    "$_DNF" install -y --setopt=install_weak_deps=False \
-        fontconfig-devel spice-protocol nettle-devel libglvnd-devel libdecor-devel libsamplerate-devel \
-        pipewire-devel wayland-devel wayland-protocols-devel libxkbcommon-x11-devel \
-        libXi-devel libXinerama-devel libXcursor-devel libXpresent-devel \
-        libXScrnSaver-devel libXrandr-devel binutils-devel dejavu-sans-mono-fonts \
-        >/dev/null 2>&1 || mios_warn "Some LG client build deps could not be installed"
-fi
+mios_log "Ensure Looking Glass client build deps from SSOT"
+install_packages "looking-glass-build"
 
 LG_OK=""
 for attempt in 1 2 3; do

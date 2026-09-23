@@ -1,11 +1,16 @@
 // AI-hint: Main entry point for mios-wallpaperd wallpaper daemon on Windows.
 #![windows_subsystem = "windows"] // no console window, ever.
 
+#[cfg(windows)]
 mod guiwatch;
+#[cfg(windows)]
 mod host;
+#[cfg(windows)]
 mod workerw;
 
+#[cfg(windows)]
 use std::ffi::OsString;
+#[cfg(windows)]
 use std::time::Duration;
 
 pub const SERVICE_NAME: &str = "MiOS-Wallpaper-Service";
@@ -32,6 +37,7 @@ impl WallpaperConfig {
     }
 }
 
+#[cfg(windows)]
 fn main() {
     let arg = std::env::args().nth(1).unwrap_or_default();
     match arg.as_str() {
@@ -48,8 +54,14 @@ fn main() {
     }
 }
 
+#[cfg(not(windows))]
+fn main() {
+    eprintln!("mios-wallpaperd is a Windows-only service daemon.");
+}
+
 /// Windows-service controller (session 0). It cannot draw on the user's desktop itself, so it keeps a
 /// "host" child alive in the active interactive session and relaunches it on exit or session change.
+#[cfg(windows)]
 mod service {
     use super::*;
     use windows_service::service::{
@@ -111,6 +123,7 @@ mod service {
 
 /// Launch/track the "host" child inside the active interactive session (CreateProcessAsUser with the
 /// console-session token) so the wallpaper renders on the real desktop, not session 0.
+#[cfg(windows)]
 mod session {
     use std::sync::atomic::{AtomicU32, Ordering};
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
@@ -192,7 +205,9 @@ mod session {
 
 /// Small shared helpers (UTF-16 conversion, process liveness, current exe path).
 pub mod util {
+    #[cfg(windows)]
     use windows::Win32::Foundation::CloseHandle;
+    #[cfg(windows)]
     use windows::Win32::System::Threading::{
         GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
     };
@@ -208,6 +223,8 @@ pub mod util {
     pub fn current_exe_wide() -> Vec<u16> {
         wide(&current_exe_string())
     }
+
+    #[cfg(windows)]
     pub fn process_alive(pid: u32) -> bool {
         const STILL_ACTIVE: u32 = 259;
         unsafe {
@@ -224,6 +241,7 @@ pub mod util {
     }
 
     /// Read a REG_SZ under HKLM (used to fetch the SSOT WallpaperUrl written by Set-MiOSWallpaper).
+    #[cfg(windows)]
     pub fn reg_read_sz(subkey: &str, value: &str) -> Option<String> {
         use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
         unsafe {

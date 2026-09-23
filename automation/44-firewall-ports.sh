@@ -9,8 +9,20 @@ source "$(dirname "$0")/lib/common.sh"
 
 mios_log "Configuring firewalld ports for 'MiOS' services"
 
-if command -v miosd >/dev/null 2>&1; then
-    miosd firewall-ports
+# Absolute path, never `command -v`: miosd installs to /usr/libexec/mios, which
+# is not on PATH at bake time, so the lookup this replaced could never succeed
+# and the branch below it was dead on every build (T-1018).
+_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_miosd=""
+for _c in "${MIOS_MIOSD_BIN:-}" \
+          /usr/libexec/mios/miosd \
+          "$_here/../src/mios-rs/target/release/miosd" \
+          "$_here/../src/mios-rs/target/debug/miosd"; do
+    if [ -n "$_c" ] && [ -x "$_c" ]; then _miosd="$_c"; break; fi
+done
+
+if [ -n "$_miosd" ]; then
+    "$_miosd" firewall-ports
     mios_ok "Configured firewalld ports via miosd"
     exit 0
 fi
