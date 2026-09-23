@@ -159,6 +159,26 @@ _is_section_enabled() {
     return 0
 }
 
+_dnf_retry_exec() {
+    local max_attempts=3
+    local delay=2
+    local attempt=1
+    local ret=0
+    while [[ $attempt -le $max_attempts ]]; do
+        if "$@"; then
+            return 0
+        fi
+        ret=$?
+        if [[ $attempt -lt $max_attempts ]]; then
+            echo "[packages.sh] WARN: DNF execution failed (rc=$ret); retrying in ${delay}s (attempt $attempt/$max_attempts)..." >&2
+            sleep "$delay"
+            delay=$((delay * 2))
+        fi
+        attempt=$((attempt + 1))
+    done
+    return $ret
+}
+
 install_packages() {
     local category="$1"
     if ! _is_section_enabled "$category"; then
@@ -169,8 +189,8 @@ install_packages() {
     packages=$(get_packages "$category")
     if [[ -n "${packages// }" ]]; then
         echo "[packages.sh] Installing '$category' packages"
-        ($DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" --setopt=strict=0 --skip-unavailable --exclude=PackageKit $packages) || {
-            echo "[packages.sh] WARNING: Some '$category' packages failed to install" >&2
+        _dnf_retry_exec "$DNF_BIN" "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" --setopt=strict=0 --skip-unavailable --exclude=PackageKit $packages || {
+            echo "[packages.sh] WARNING: Some '$category' packages failed to install after retries" >&2
             echo "[packages.sh] Packages requested: $packages" >&2
         }
     else
@@ -183,8 +203,8 @@ install_packages_strict() {
     local packages
     packages=$(get_packages_strict "$category") || return 1
     echo "[packages.sh] Installing '$category' packages"
-    $DNF_BIN "${DNF_SETOPT[@]}" install -y --allowerasing --setopt=strict=0 --skip-unavailable --exclude=PackageKit $packages || {
-        echo "[packages.sh] FATAL: Mandatory '$category' packages failed to install" >&2
+    _dnf_retry_exec "$DNF_BIN" "${DNF_SETOPT[@]}" install -y --allowerasing --setopt=strict=0 --skip-unavailable --exclude=PackageKit $packages || {
+        echo "[packages.sh] FATAL: Mandatory '$category' packages failed to install after retries" >&2
         echo "[packages.sh] Packages requested: $packages" >&2
         return 1
     }
@@ -203,7 +223,8 @@ install_packages_optional() {
         return 0
     fi
     echo "[packages.sh] Installing optional '$category' packages"
-    ($DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" --skip-unavailable --exclude=PackageKit $packages) || {
-        echo "[packages.sh] WARNING: Some optional '$category' packages failed" >&2
+    _dnf_retry_exec "$DNF_BIN" "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" --skip-unavailable --exclude=PackageKit $packages || {
+        echo "[packages.sh] WARNING: Some optional '$category' packages failed after retries" >&2
     }
 }
+

@@ -65,6 +65,9 @@ if [[ -z "${DNF_SETOPT+x}" || "$(declare -p DNF_SETOPT 2>/dev/null)" != "declare
         --setopt=minrate=1k          # drop any mirror delivering < 1 kB/s after timeout
         --setopt=max_parallel_downloads=10  # pull from 10 mirrors simultaneously
         --setopt=ip_resolve=4        # prefer IPv4; many Fedora IPv6 paths time out in WSL2
+        --setopt=cachedir=/var/cache/dnf5
+        --setopt=keepcache=1
+        --setopt=clean_requirements_on_remove=1
     )
 fi
 if [[ -z "${DNF_OPTS+x}" || "$(declare -p DNF_OPTS 2>/dev/null)" != "declare -a"* ]]; then

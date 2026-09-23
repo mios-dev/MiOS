@@ -65,6 +65,7 @@ ARG MIOS_AI_EMBED_MODEL=nomic-embed-text
 
 RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
+    --mount=type=cache,dst=/var/cache/dnf5,sharing=locked \
     --mount=type=cache,dst=/var/cache/dnf,sharing=locked \
     set -ex; \
     install -d -m 0755 /tmp/build; \

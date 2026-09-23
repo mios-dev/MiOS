@@ -919,7 +919,7 @@
 | T-500 | P2 | done | UI/ThemeBus | Real-time DBus and WebGL wallpaper theme synchronization bus |
 | T-501 | P1 | open | Build/Testbed | Headless QEMU KVM/TCG microVM boot and Greenboot verification test runner |
 | T-502 | P1 | open | Build/RollbackTest | Automated boot-failure and Greenboot atomic rollback recovery test suite |
-| T-503 | P1 | open | Build/DNF5 | Atomic DNF5 package installation pipeline with local cache staging |
+| T-503 | P1 | done | Build/DNF5 | Atomic DNF5 package installation pipeline with local cache staging |
 | T-504 | P2 | open | Build/RPMTest | Upstream mirror failover and RPM transaction integrity verification test |
 | T-505 | P1 | open | Audio/Scream | Scream virtual audio to PipeWire JACK low-latency receiver daemon |
 | T-506 | P2 | open | Audio/Benchmark | Automated audio buffer underrun and latency jitter benchmark suite |
@@ -5886,7 +5886,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** DNF5 builds execute atomically with local caching and automated mirror failover.
 **Why:** Hermetic package caching accelerates build cycles and provides offline build repeatability.
 **Dep:** AGY-2100
-**Status:** open | **Domain:** Build/DNF5 | **Who:** agent
+**Status:** done | **Domain:** Build/DNF5 | **Who:** agent
 **Converted:** AGY-2101 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-504 -- Upstream mirror failover and RPM transaction integrity verification test (WS-BUILD | P2 | S)
