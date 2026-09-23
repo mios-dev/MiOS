@@ -913,7 +913,7 @@
 | T-494 | P2 | open | Security/Recovery | Offline split-key emergency recovery and TPM unseal failure test suite |
 | T-495 | P1 | done | Hardware/Hotplug | Udev hotplug handler for dynamic Thunderbolt/USB4 eGPU and PCIe accelerator re-enumeration |
 | T-496 | P2 | open | AI/CDIReload | Zero-downtime CDI re-generation and inference engine live reload daemon |
-| T-497 | P1 | open | Network/DNS | systemd-resolved to mios-adguard split-horizon DNS routing configurator |
+| T-497 | P1 | done | Network/DNS | systemd-resolved to mios-adguard split-horizon DNS routing configurator |
 | T-498 | P2 | open | Network/DNSTest | DNS-over-HTTPS leak prevention and encrypted query test suite |
 | T-499 | P1 | done | UI/Theme | Multi-surface theme renderer with ANSI OSC 4/10/11 PTY injector and GTK/QT CSS generator |
 | T-500 | P2 | done | UI/ThemeBus | Real-time DBus and WebGL wallpaper theme synchronization bus |
@@ -5826,7 +5826,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** System DNS resolves internal mesh hostnames and external DoH queries seamlessly through AdGuard Home.
 **Why:** Split-horizon encrypted DNS blocks telemetry tracking and secures name resolution across private and public domains.
 **Dep:** AGY-2094
-**Status:** open | **Domain:** Network/DNS | **Who:** agent
+**Status:** done | **Domain:** Network/DNS | **Who:** agent
 **Converted:** AGY-2095 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-498 -- DNS-over-HTTPS leak prevention and encrypted query test suite (WS-NET | P2 | S)

@@ -250,6 +250,8 @@ etc/xdg/xdg-desktop-portal/*
 
 !/etc/systemd/
 etc/systemd/*
+!/etc/systemd/resolved.conf.d/
+!/etc/systemd/resolved.conf.d/*
 !/etc/systemd/user/
 etc/systemd/user/*
 !/etc/systemd/user/*.service.d/
@@ -551,6 +553,8 @@ usr/lib/sysctl.d/*
 usr/lib/systemd/*
 !/usr/lib/systemd/journald.conf.d/
 !/usr/lib/systemd/journald.conf.d/**
+!/usr/lib/systemd/resolved.conf.d/
+!/usr/lib/systemd/resolved.conf.d/**
 !/usr/lib/systemd/system/
 !/usr/lib/systemd/system-preset/
 !/usr/lib/systemd/user/
