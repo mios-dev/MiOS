@@ -4449,6 +4449,24 @@ globals()["portal_login_page_logic"] = sys.modules["mios_portal"].portal_login_p
 globals()["portal_login_logic"] = sys.modules["mios_portal"].portal_login_logic
 globals()["portal_page_logic"] = sys.modules["mios_portal"].portal_page_logic
 
+from mios_webhook import WebhookReceiver as _WebhookReceiver  # noqa: E402
+_webhook_receiver = _WebhookReceiver()
+
+@app.post("/v1/webhooks/{source}")
+async def v1_incoming_webhook(source: str, request: Request) -> JSONResponse:
+    raw_body = await request.body()
+    headers = dict(request.headers)
+    success, status_msg, details = await _webhook_receiver.ingest_webhook(
+        raw_body=raw_body,
+        headers=headers,
+        source=source,
+    )
+    if not success:
+        return JSONResponse(status_code=401, content={"error": status_msg, "details": details})
+
+    code = 200 if status_msg == "duplicate" else 202
+    return JSONResponse(status_code=code, content={"status": status_msg, **details})
+
 def main() -> int:
     host = _bind_host(_API_REQUIRE_AUTH, os.environ.get("MIOS_BIND_HOST", ""))
     log.info("starting on %s:%d -> backend=%s model=%s "

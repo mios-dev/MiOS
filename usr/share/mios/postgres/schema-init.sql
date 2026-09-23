@@ -1486,3 +1486,20 @@ CREATE INDEX IF NOT EXISTS threat_events_divergence ON threat_events (divergence
 CREATE INDEX IF NOT EXISTS threat_events_severity ON threat_events (severity);
 CREATE INDEX IF NOT EXISTS threat_events_ts ON threat_events (ts DESC);
 
+-- ── agent_inbox: HMAC-SHA256 authenticated webhook queue (T-517) ──────────────
+CREATE TABLE IF NOT EXISTS agent_inbox (
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    idempotency_key text UNIQUE NOT NULL,             -- SHA256 payload hash to prevent duplicates
+    source          text NOT NULL,                    -- e.g. 'github', 'forgejo', 'alertmanager'
+    event_type      text NOT NULL,                    -- e.g. 'push', 'issue', 'alert'
+    payload         jsonb NOT NULL,
+    status          text DEFAULT 'pending',           -- pending | processing | dispatched | duplicate | failed
+    retry_count     integer DEFAULT 0,
+    created_at      timestamptz DEFAULT now(),
+    processed_at    timestamptz,
+    origin_node     text NOT NULL DEFAULT 'local'
+);
+CREATE INDEX IF NOT EXISTS agent_inbox_idempotency ON agent_inbox (idempotency_key);
+CREATE INDEX IF NOT EXISTS agent_inbox_status_created ON agent_inbox (status, created_at);
+CREATE INDEX IF NOT EXISTS agent_inbox_source_event ON agent_inbox (source, event_type);
+

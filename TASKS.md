@@ -933,7 +933,7 @@
 | T-514 | P2 | done | CLI/Plugins | Dynamic plugin loader and subcommand discovery in /usr/libexec/mios/plugins/ |
 | T-515 | P1 | done | Kernel/Kdump | Reserved memory kdump kernel deployment and automated zstd crash dump extractor |
 | T-516 | P1 | done | Kernel/FlightRecorder | In-kernel eBPF circular flight recorder ring and crash diagnostic parser |
-| T-517 | P1 | open | AI/Webhooks | HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe |
+| T-517 | P1 | done | AI/Webhooks | HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe |
 | T-518 | P1 | open | AI/WebSocket | Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) |
 | T-519 | P1 | open | Hardware/NUMA | Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator |
 | T-520 | P2 | open | Hardware/P2PTest | Automated inter-GPU P2P bandwidth and memory latency validation benchmark |
@@ -6026,7 +6026,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Webhook receiver validates cryptographic signatures and queues events idempotently.
 **Why:** Authenticated webhook ingestion allows autonomous event-driven triggers without opening unauthenticated attack surfaces.
 **Dep:** AGY-2114
-**Status:** open | **Domain:** AI/Webhooks | **Who:** agent
+**Status:** done | **Domain:** AI/Webhooks | **Who:** agent
 **Converted:** AGY-2115 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-518 -- Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) (WS-ORCH | P1 | M)
