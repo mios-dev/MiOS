@@ -11593,6 +11593,7 @@ unit = [
     "tests/test-cli-engine.py",
     "tests/test-plugin-loader.py",
     "tests/test-kdump-crash.py",
+    "tests/test-ebpf-flightrec.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

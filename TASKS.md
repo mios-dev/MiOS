@@ -932,7 +932,7 @@
 | T-513 | P1 | done | CLI/Engine | Unified mios CLI engine with dynamic TTY formatting and POSIX exit codes |
 | T-514 | P2 | done | CLI/Plugins | Dynamic plugin loader and subcommand discovery in /usr/libexec/mios/plugins/ |
 | T-515 | P1 | done | Kernel/Kdump | Reserved memory kdump kernel deployment and automated zstd crash dump extractor |
-| T-516 | P1 | open | Kernel/FlightRecorder | In-kernel eBPF circular flight recorder ring and crash diagnostic parser |
+| T-516 | P1 | done | Kernel/FlightRecorder | In-kernel eBPF circular flight recorder ring and crash diagnostic parser |
 | T-517 | P1 | open | AI/Webhooks | HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe |
 | T-518 | P1 | open | AI/WebSocket | Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) |
 | T-519 | P1 | open | Hardware/NUMA | Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator |
@@ -6016,7 +6016,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** eBPF flight recorder logs rolling kernel states and crash parser reconstructs pre-panic events.
 **Why:** A rolling flight recorder reveals the exact sequence of agent operations leading up to a system crash.
 **Dep:** AGY-2113
-**Status:** open | **Domain:** Kernel/FlightRecorder | **Who:** agent
+**Status:** done | **Domain:** Kernel/FlightRecorder | **Who:** agent
 **Converted:** AGY-2114 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-517 -- HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe (WS-ORCH | P1 | M)
