@@ -509,6 +509,22 @@ def main(argv: list[str]) -> int:
             "  mios --json <schema-name> <prompt>   structured output (schema-name = file in\n"
             "                                       /usr/lib/mios/schemas/ without .schema.json)\n"
         )
+        try:
+            root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or (
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                if os.path.isabs(__file__) else None
+            )
+            _lib_path = os.path.join(root, "usr", "lib", "mios") if root else "/usr/lib/mios"
+            if _lib_path not in sys.path and os.path.isdir(_lib_path):
+                sys.path.insert(0, _lib_path)
+            from cli.plugin_loader import get_available_plugins
+            plugins = get_available_plugins()
+            if plugins:
+                sys.stderr.write("\nPlugins:\n")
+                for p_name, p_info in plugins.items():
+                    sys.stderr.write(f"  mios {p_name.ljust(30)} {p_info.description}\n")
+        except Exception:
+            pass
         return 0 if len(argv) >= 2 else 1
 
     if len(argv) >= 3 and argv[1].lower() == "ai" and argv[2].lower() == "clear":
@@ -612,6 +628,15 @@ def main(argv: list[str]) -> int:
         ).returncode == 0:
             exec_target = target if pathlib.Path(target).is_file() else (resolved_target if root and pathlib.Path(resolved_target).is_file() else target)
             os.execvp(exec_target, [exec_target] + cmd[1:] + argv[2:])
+
+    # Dynamic plugin dispatch (T-514)
+    try:
+        from cli.plugin_loader import get_available_plugins, run_plugin
+        plugins = get_available_plugins()
+        if first_low in plugins:
+            return run_plugin(first_low, argv[2:])
+    except Exception as e:
+        sys.stderr.write(f"mios: plugin error: {e}\n")
 
     use_tools  = False
     schema_obj = None
