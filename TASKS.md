@@ -924,7 +924,7 @@
 | T-505 | P1 | open | Audio/Scream | Scream virtual audio to PipeWire JACK low-latency receiver daemon |
 | T-506 | P2 | open | Audio/Benchmark | Automated audio buffer underrun and latency jitter benchmark suite |
 | T-507 | P1 | done | Boot/UKI | A/B UKI staging and systemd-ukify compilation pipeline with baked kargs |
-| T-508 | P1 | open | Boot/Promotion | Automated UKI A/B boot promotion and Greenboot validation gate |
+| T-508 | P1 | done | Boot/Promotion | Automated UKI A/B boot promotion and Greenboot validation gate |
 | T-509 | P1 | open | Build/SBOM | Hermetic multi-stage Podman OCI image synthesis and Syft SBOM generation pipeline |
 | T-510 | P1 | open | Build/Cosign | Local Cosign image signing and registry push validation gate |
 | T-511 | P1 | open | Security/eBPF | In-kernel eBPF network flow aggregation probe and mios-netflowd collector daemon |
@@ -5936,7 +5936,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Greenboot gate automatically promotes verified staged UKI binaries to default boot entries.
 **Why:** Automated promotion guarantees that unverified kernel parameter modifications do not persist across crashes.
 **Dep:** AGY-2105
-**Status:** open | **Domain:** Boot/Promotion | **Who:** agent
+**Status:** done | **Domain:** Boot/Promotion | **Who:** agent
 **Converted:** AGY-2106 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-509 -- Hermetic multi-stage Podman OCI image synthesis and Syft SBOM generation pipeline (WS-BUILD | P1 | M)

@@ -463,6 +463,7 @@ usr/lib/greenboot/check/*
 usr/lib/greenboot/check/required.d/*
 !/usr/lib/greenboot/check/required.d/10-mios-composefs.sh
 !/usr/lib/greenboot/check/required.d/10-mios-role.sh
+!/usr/lib/greenboot/check/required.d/10-uki-promote.sh
 !/usr/lib/greenboot/check/required.d/15-composefs-verity.sh
 !/usr/lib/greenboot/check/required.d/20-podman.sh
 !/usr/lib/greenboot/check/required.d/30-network.sh
