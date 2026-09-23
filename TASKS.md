@@ -717,7 +717,7 @@
 | T-803 | P2 | open | Network/XDPTest | Automated 10M pps packet routing throughput, sub-microsecond XDP latency, and DDoS test suite |
 | T-804 | P1 | open | AI/BitNetTernary | BitNet b1.58 ternary tensor execution engine and pure integer addition GEMM kernels |
 | T-805 | P2 | open | AI/BitNetTest | Automated 70B BitNet RAM fitting (<14GB), 200 tok/s CPU speedup, and energy benchmark suite |
-| T-806 | P1 | open | Virtualization/SquashFSNBD | SquashFS template streaming over Unix-socket NBD with ephemeral RAM overlay in mios-microvm |
+| T-806 | P1 | done | Virtualization/SquashFSNBD | SquashFS template streaming over Unix-socket NBD with ephemeral RAM overlay in mios-microvm |
 | T-807 | P2 | open | Virtualization/NBDTest | Automated 100-microVM concurrent boot latency (<15ms) and shared SquashFS NBD test suite |
 | T-808 | P1 | open | AI/FP6KVCache | Dynamic FP6 (E3M2) KV-cache quantizer and bit-packed CUDA kernel manager in llama-swap |
 | T-809 | P2 | open | AI/FP6Test | Automated 62.5% KV memory savings, FP6 reasoning accuracy (>99.8%), and packing benchmark suite |
@@ -8916,7 +8916,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Virtualization manager streams SquashFS templates over NBD and boots microVMs in <15ms.
 **Why:** SquashFS NBD streaming enables massive microVM sandbox density with near-zero memory and disk footprints.
 **Dep:** AGY-2403
-**Status:** open | **Domain:** Virtualization/SquashFSNBD | **Who:** agent
+**Status:** done | **Domain:** Virtualization/SquashFSNBD | **Who:** agent
 **Converted:** AGY-2404 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-807 -- Automated 100-microVM concurrent boot latency (<15ms) and shared SquashFS NBD test suite (WS-VFIO | P2 | S)

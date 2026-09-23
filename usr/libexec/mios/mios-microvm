@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# AI-hint: Entry point for mios-microvm virtualization manager (T-806).
+# AI-doc: usr/share/doc/mios/manual/ch19-microvm-squashfs-nbd-overlay.md
+set -euo pipefail
+
+_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 "${_DIR}/virt/mios_microvm.py" "$@"
