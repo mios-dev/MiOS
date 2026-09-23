@@ -297,6 +297,9 @@ etc/dconf/profile/*
 !/etc/skel/.local/share/fonts/
 !/etc/skel/.local/share/fonts/.keep
 
+!/etc/sysctl.d/
+!/etc/sysctl.d/**
+
 !/etc/mios/
 etc/mios/*
 !/etc/mios/kb.conf.toml
@@ -529,6 +532,8 @@ usr/lib/pam.d/*
 !/usr/lib/sysctl.d/
 usr/lib/sysctl.d/*
 !/usr/lib/sysctl.d/*mios*
+!/usr/lib/sysctl.d/20-memory.conf
+!/usr/lib/sysctl.d/20-mios-memory.conf
 
 !/usr/lib/systemd/
 usr/lib/systemd/*

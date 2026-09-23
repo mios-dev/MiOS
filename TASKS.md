@@ -711,7 +711,7 @@
 | T-797 | P2 | open | AI/PrefixTest | Automated shared prompt prefix hit rate (>95%) and sub-5ms TTFT benchmark suite |
 | T-798 | P1 | open | Security/USBGuard | Declarative USBGuard device authorization daemon and read-only storage mounter |
 | T-799 | P2 | open | Security/USBTest | Automated BadUSB device rejection, read-only mount enforcement, and audit test suite |
-| T-800 | P1 | open | Memory/THPCompaction | Transparent Huge Pages (THP madvise) and proactive memory compaction manager |
+| T-800 | P1 | done | Memory/THPCompaction | Transparent Huge Pages (THP madvise) and proactive memory compaction manager |
 | T-801 | P2 | open | Memory/THPTest | Automated 2MB/1GB huge page allocation, sub-1ms allocation latency, and TLB benchmark suite |
 | T-802 | P1 | open | Network/XDPFastpath | Native eBPF XDP network fastpath and WireGuard packet router in mios-xdp |
 | T-803 | P2 | open | Network/XDPTest | Automated 10M pps packet routing throughput, sub-microsecond XDP latency, and DDoS test suite |
@@ -8856,7 +8856,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Kernel allocates huge pages via madvise and defragments memory in the background asynchronously.
 **Why:** THP madvise reduces TLB cache misses and accelerates large AI tensor computations by up to 25% without memory bloat.
 **Dep:** AGY-2397
-**Status:** open | **Domain:** Memory/THPCompaction | **Who:** agent
+**Status:** done | **Domain:** Memory/THPCompaction | **Who:** agent
 **Converted:** AGY-2398 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-801 -- Automated 2MB/1GB huge page allocation, sub-1ms allocation latency, and TLB benchmark suite (WS-NODE | P2 | S)

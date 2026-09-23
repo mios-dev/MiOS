@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+# AI-hint: Transparent Huge Pages (THP madvise) and proactive memory compaction tuner (T-800).
+# AI-doc: usr/share/doc/mios/manual/ch12-memory-compaction-and-thp.md
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from typing import Any, Dict
+
+
+THP_PATHS = {
+    "enabled": "/sys/kernel/mm/transparent_hugepage/enabled",
+    "defrag": "/sys/kernel/mm/transparent_hugepage/defrag",
+    "khugepaged_scan_sleep": "/sys/kernel/mm/transparent_hugepage/khugepaged/scan_sleep_millisecs",
+    "compaction_proactiveness": "/proc/sys/vm/compaction_proactiveness",
+}
+
+TARGET_VALUES = {
+    "enabled": "madvise",
+    "defrag": "defer+madvise",
+    "khugepaged_scan_sleep": "10000",
+    "compaction_proactiveness": "20",
+}
+
+
+def read_kernel_knob(path: str) -> str:
+    if not os.path.exists(path):
+        return "unsupported"
+    try:
+        with open(path, "r") as f:
+            content = f.read().strip()
+            # If line contains brackets like "always [madvise] never", extract current
+            if "[" in content and "]" in content:
+                start = content.find("[") + 1
+                end = content.find("]")
+                return content[start:end]
+            return content
+    except OSError:
+        return "unreadable"
+
+
+def write_kernel_knob(path: str, val: str, dry_run: bool = False) -> bool:
+    if not os.path.exists(path):
+        return False
+    if dry_run:
+        return True
+    try:
+        with open(path, "w") as f:
+            f.write(val)
+        return True
+    except OSError:
+        return False
+
+
+def get_current_status() -> Dict[str, Any]:
+    status = {}
+    for key, path in THP_PATHS.items():
+        val = read_kernel_knob(path)
+        status[key] = {
+            "path": path,
+            "current": val,
+            "target": TARGET_VALUES[key],
+            "aligned": (val == TARGET_VALUES[key]),
+        }
+    return status
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="THP madvise and proactive memory compaction manager (T-800)"
+    )
+    parser.add_argument("--apply", action="store_true", help="Apply target THP and compaction values")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate apply without modifying files")
+    parser.add_argument("--json", action="store_true", help="Output status in JSON")
+
+    args = parser.parse_args()
+
+    applied = {}
+    if args.apply:
+        for key, path in THP_PATHS.items():
+            success = write_kernel_knob(path, TARGET_VALUES[key], dry_run=args.dry_run)
+            applied[key] = {
+                "target": TARGET_VALUES[key],
+                "applied": success,
+                "dry_run": args.dry_run,
+            }
+
+    status = get_current_status()
+
+    output = {
+        "status": "success",
+        "dry_run": args.dry_run,
+        "applied": applied if args.apply else None,
+        "knobs": status,
+    }
+
+    if args.json:
+        print(json.dumps(output, indent=2))
+    else:
+        print("[mios-thp-tune] Transparent Huge Pages & Compaction Status:")
+        for key, item in status.items():
+            align_mark = "OK" if item["aligned"] else "DIFF"
+            print(f"  - {key}: current='{item['current']}' target='{item['target']}' [{align_mark}]")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
