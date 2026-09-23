@@ -11548,6 +11548,7 @@ unit = [
     "tests/test-bake-group.sh",
     "tests/test-firstboot-prestage.sh",
     "tests/test-role-apply-precedence.sh",
+    "tests/test-hyprland-direct-scanout.sh",
     "tests/test-theme-merge.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",

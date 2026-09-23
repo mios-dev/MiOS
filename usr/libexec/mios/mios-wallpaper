@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# AI-hint: Unified CLI entry point and execution wrapper for the MiOS Living Wallpaper daemon (WBRAND-05 / T-778).
+# AI-doc: usr/share/doc/mios/manual/ch68-living-wallpaper-shaders-and-ssot-theme-engine.md
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WALLPAPERD=""
+
+for cand in \
+    "$SCRIPT_DIR/ux/wallpaperd.py" \
+    /usr/libexec/mios/ux/wallpaperd.py; do
+    if [[ -f "$cand" ]]; then
+        WALLPAPERD="$cand"
+        break
+    fi
+done
+
+if [[ -z "$WALLPAPERD" ]]; then
+    echo "[mios-wallpaper] Error: wallpaperd.py not found" >&2
+    exit 1
+fi
+
+exec python3 "$WALLPAPERD" "$@"

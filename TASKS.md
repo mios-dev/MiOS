@@ -688,9 +688,9 @@
 | T-774 | P2 | done | AI/KQuantsTest | Automated 32B model VRAM fitting (<16GB) and perplexity parity test suite |
 | T-775 | P1 | open | Database/MemCompact | Semantic memory distillation daemon and non-blocking vector reindexer in mios-mem-compact |
 | T-776 | P2 | open | Database/CompactTest | Automated vector memory compaction, disk reclamation, and non-blocking query test suite |
-| T-777 | P1 | open | Desktop/HyprlandQuickshell | Hyprland + Quickshell native desktop environment and direct DRM scanout manager |
-| T-778 | P1 | open | Desktop/LivingWallpaper | Cross-platform MiOS Living Wallpaper engine and reactive state shader daemon |
-| T-779 | P2 | open | Desktop/HyprlandTest | Automated Hyprland direct scanout (<1ms latency) and Living Wallpaper render test suite |
+| T-777 | P1 | done | Desktop/HyprlandQuickshell | Hyprland + Quickshell native desktop environment and direct DRM scanout manager |
+| T-778 | P1 | done | Desktop/LivingWallpaper | Cross-platform MiOS Living Wallpaper engine and reactive state shader daemon |
+| T-779 | P2 | done | Desktop/HyprlandTest | Automated Hyprland direct scanout (<1ms latency) and Living Wallpaper render test suite |
 | T-780 | P1 | open | AI/ASTDiff | Tree-Sitter AST structural diff engine and 2-peer review gate in agent-pipe |
 | T-781 | P2 | open | AI/ASTDiffTest | Automated AST structural diff calculation and 2-peer review merge gating test suite |
 | T-782 | P1 | open | Security/LivepatchMOK | Cryptographic MOK livepatch signature gate and IMA measurement logger in mios-livepatch |
@@ -8626,7 +8626,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Hyprland and Quickshell launch as primary desktop with direct scanout and GNOME fallback.
 **Why:** Hyprland + Quickshell provides sub-millisecond input response, ultra-smooth animations, and modular tiling.
 **Dep:** AGY-2374
-**Status:** open | **Domain:** Desktop/HyprlandQuickshell | **Who:** agent
+**Status:** done | **Domain:** Desktop/HyprlandQuickshell | **Who:** agent
 **Converted:** AGY-2375 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-778 -- Cross-platform MiOS Living Wallpaper engine and reactive state shader daemon (WS-APP | P1 | M)
@@ -8636,7 +8636,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Living wallpaper engine renders reactive procedural visuals across all supported desktop platforms.
 **Why:** Living wallpaper unifies MiOS visual identity and provides intuitive ambient feedback of AI system activity.
 **Dep:** AGY-2375
-**Status:** open | **Domain:** Desktop/LivingWallpaper | **Who:** agent
+**Status:** done | **Domain:** Desktop/LivingWallpaper | **Who:** agent
 **Converted:** AGY-2376 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-779 -- Automated Hyprland direct scanout (<1ms latency) and Living Wallpaper render test suite (WS-APP | P2 | S)
@@ -8646,7 +8646,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates Hyprland direct scanout, Quickshell initialization, and low-power living wallpaper rendering.
 **Why:** Continuous testing ensures desktop rendering pipelines maintain ultra-low latency and peak visual fluidity.
 **Dep:** AGY-2376
-**Status:** open | **Domain:** Desktop/HyprlandTest | **Who:** agent
+**Status:** done | **Domain:** Desktop/HyprlandTest | **Who:** agent
 **Converted:** AGY-2377 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-780 -- Tree-Sitter AST structural diff engine and 2-peer review gate in agent-pipe (WS-ORCH | P1 | M)

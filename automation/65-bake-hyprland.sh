@@ -35,6 +35,17 @@ general {
     allow_tearing = false
 }
 
+render {
+    direct_scanout = 1
+}
+
+env = GTK_THEME,Adwaita:dark
+env = QT_QPA_PLATFORM,wayland;xcb
+env = QT_QPA_PLATFORMTHEME,qt6ct
+env = XDG_CURRENT_DESKTOP,Hyprland
+env = XDG_SESSION_TYPE,wayland
+env = XDG_SESSION_DESKTOP,Hyprland
+
 decoration {
     rounding = 12
     active_opacity = 1.0
@@ -146,3 +157,20 @@ sed -i \
 
 chmod 0644 /usr/share/mios/hyprland/hyprland.conf
 mios_ok "Wrote /usr/share/mios/hyprland/hyprland.conf"
+
+mkdir -p /usr/share/wayland-sessions
+cat << 'EOF' > /usr/share/wayland-sessions/hyprland.desktop
+[Desktop Entry]
+Name=Hyprland
+Comment=An intelligent dynamic tiling Wayland compositor
+Exec=Hyprland
+Type=Application
+DesktopNames=Hyprland
+EOF
+chmod 0644 /usr/share/wayland-sessions/hyprland.desktop
+mios_ok "Registered /usr/share/wayland-sessions/hyprland.desktop"
+
+mkdir -p /etc/hypr
+if [[ ! -e /etc/hypr/hyprland.conf ]]; then
+    ln -sf /usr/share/mios/hyprland/hyprland.conf /etc/hypr/hyprland.conf
+fi
