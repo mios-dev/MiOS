@@ -62,6 +62,24 @@ SCRIPT
 sudo chmod 755 /usr/local/bin/mios-agent-gemini
 echo "Installed /usr/local/bin/mios-agent-gemini"
 
+sudo tee /usr/local/bin/mios-agent-agy > /dev/null <<'SCRIPT'
+set -euo pipefail
+PROMPT_FILE=""
+for p in /usr/share/mios/ai/system.md /etc/mios/ai/system-prompt.md /system-prompt.md "${PWD}/system-prompt.md" "${PWD}/.agents/rules/AGENTS.md" "${PWD}/AGENTS.md" "${PWD}/GEMINI.md"; do
+    [[ -r "$p" ]] && PROMPT_FILE="$p" && break
+done
+[[ -z "$PROMPT_FILE" ]] && { echo "Mios-agent-agy: no system prompt found" >&2; exit 1; }
+export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}"
+export MIOS_AI_MODEL="${MIOS_AI_MODEL:-mi-os-7b}"
+if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]] && command -v dbus-launch >/dev/null 2>&1; then
+    eval "$(dbus-launch --sh-syntax 2>/dev/null || true)"
+fi
+echo "[agent] launching agy with prompt: $PROMPT_FILE" >&2
+exec agy "$@"
+SCRIPT
+sudo chmod 755 /usr/local/bin/mios-agent-agy
+echo "Installed /usr/local/bin/mios-agent-agy"
+
 sudo tee /usr/local/bin/mios-llm > /dev/null <<'SCRIPT'
 set -euo pipefail
 PROMPT_FILE=""
@@ -96,4 +114,5 @@ echo ""
 echo "Done. Run:"
 echo "  mios-agent-claude     # if the 'claude' CLI binary is installed"
 echo "  mios-agent-gemini     # if the 'gemini' CLI binary is installed"
+echo "  mios-agent-agy        # if the 'agy' CLI binary is installed"
 echo "  mios-llm 'your question here'   # vendor-neutral, OpenAI /v1 only"

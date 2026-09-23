@@ -1,0 +1,7 @@
+# AI-hint: Pipeline slash command definition for Antigravity CLI (AGY) automated CI/CD runs.
+# AI-related: commands/, .agents/workflows/pipeline.md, usr/share/mios/mios.toml
+
+[command]
+name = "pipeline"
+description = "Execute MiOS CI/CD pipeline cycles, standing gates verification, and SSOT projections."
+workflow = ".agents/workflows/pipeline.md"

@@ -1117,6 +1117,8 @@ automation/cicd/01-ingest-daily-telemetry.sh	1	4	4	20	a9fb2231a3bf	STAY	ai-heade
 automation/cicd/02-distill-agent-weights.py	1	4	4	16	2fa94fc2fd72	STAY	ai-header		0				0
 automation/cicd/03-build-bootc-oci.sh	1	4	4	15	d9f4d943d11d	STAY	ai-header		0				0
 automation/cicd/04-deploy-atomic-switch.sh	1	4	4	14	08b0ae97c533	STAY	ai-header		0				0
+automation/cicd/05-run-agy-pipeline-agent.sh	1	4	4	25	b7186be410fb	STAY	ai-header		0				0
+automation/cicd/05-run-agy-pipeline-agent.sh	42	42	1	8	3e6e1765bffc	STAY	local-scoped		0				0
 automation/enroll-mok.sh	1	3	3	32	6ba038552116	STAY	ai-header		0				0
 automation/enroll-mok.sh	9	9	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 automation/firstboot/mios-cephfs-mount-setup.sh	1	3	3	18	f56f5e85369c	STAY	ai-header		0				0
@@ -2041,6 +2043,11 @@ build-mios.ps1	8010	8012	3	30	5f6a976bc43e	STAY	midsize-why		0				0
 build-mios.ps1	8015	8015	1	7	6dc417d295c6	STAY	inline-scoped		0				0
 build-mios.ps1	8019	8020	2	21	733e0bc657eb	STAY	local-scoped		0				0
 build-mios.ps1	8029	8029	1	8	062111253253	STAY	local-scoped		0				0
+commands/agy/dev-loop.toml	1	2	2	15	a88e1e58ce24	STAY	ai-header		0				0
+commands/agy/pipeline.toml	1	2	2	16	b09cd64e6b35	STAY	ai-header		0				0
+commands/antigravity/dev-loop.toml	1	2	2	15	a88e1e58ce24	STAY	ai-header		0				0
+commands/antigravity/pipeline.toml	1	2	2	16	b09cd64e6b35	STAY	ai-header		0				0
+commands/gemini/dev-loop.toml	1	2	2	12	21cc5eec2491	STAY	ai-header		0				0
 config/artifacts/bib.toml	1	1	1	24	a647fd6d4c27	STAY	ai-header		0				0
 config/artifacts/iso.toml	1	1	1	22	1749c2d37fb0	STAY	ai-header		0				0
 config/artifacts/iso.toml	26	26	1	11	123012e1e482	STAY	local-scoped		0				0
@@ -2282,9 +2289,10 @@ image-versions.yml	13	15	3	17	7e814370c961	STAY	midsize-why		0				0
 image-versions.yml	16	16	1	1	61d5a5d4a572	DROP	banner		0				0
 install-mios-agents.sh	1	3	3	25	fdb5301ad766	STAY	ai-header		0				0
 install-mios-agents.sh	6	6	1	1	338602c31e64	STAY	local-scoped		0				0
-install-mios-agents.sh	97	97	1	7	7956a7d8f91d	STAY	inline-scoped		0				0
-install-mios-agents.sh	98	98	1	7	6f9913071165	STAY	inline-scoped		0				0
-install-mios-agents.sh	99	99	1	4	a0d2a372d023	STAY	inline-scoped		0				0
+install-mios-agents.sh	115	115	1	7	7956a7d8f91d	STAY	inline-scoped		0				0
+install-mios-agents.sh	116	116	1	7	6f9913071165	STAY	inline-scoped		0				0
+install-mios-agents.sh	117	117	1	7	70e31d52cd32	STAY	inline-scoped		0				0
+install-mios-agents.sh	118	118	1	4	a0d2a372d023	STAY	inline-scoped		0				0
 install.ps1	1	3	3	30	7c5c18d83cc9	STAY	ai-header		0				0
 install.ps1	4	4	1	0	e3b0c44298fc	STAY	inline-scoped		0				0
 install.ps1	20	20	1	0	62b67e1f685b	DROP	banner		0				0
@@ -4144,6 +4152,23 @@ tests/test-agent-pipe-scheduling.py	148	148	1	9	b50218296c9a	STAY	local-scoped		
 tests/test-agent-pipe-scheduling.py	156	156	1	8	bb55fdf659b6	STAY	local-scoped		0				0
 tests/test-agent-pipe-scheduling.py	163	163	1	5	89bc9342a1bb	STAY	local-scoped		0				0
 tests/test-agent-worktree.py	1	3	3	14	24662073047d	STAY	ai-header		0				0
+tests/test-agy-agent-pipeline.py	1	3	3	19	96998c1d719c	STAY	ai-header		0				0
+tests/test-agy-agent-pipeline.py	4	4	1	11	5054170d9487	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	17	17	1	12	2acfb3fe4380	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	20	20	1	7	9d6088907bab	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	25	25	1	2	20a31388f020	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	33	33	1	4	08a5cc22ba9e	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	37	37	1	4	6fb522225001	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	42	42	1	8	d515443d69b3	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	74	74	1	9	2640c301481c	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	88	88	1	5	bd5db7a00902	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	99	99	1	3	d682b3c922cd	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	106	106	1	7	0f1dd440e43b	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	119	119	1	7	75fc8e231803	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	137	137	1	6	8136f163e144	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	143	143	1	6	d5aeedae441a	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	148	148	1	4	27791d04e6b3	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	153	153	1	3	562eade50095	STAY	local-scoped		0				0
 tests/test-ai-acceleration.py	1	3	3	21	c22009f06770	STAY	ai-header		0				0
 tests/test-ai-acceleration.py	4	4	1	7	7df9a6369970	STAY	local-scoped		0				0
 tests/test-ai-acceleration.py	38	38	1	6	cf2f22d96a15	STAY	local-scoped		0				0
@@ -19174,20 +19199,20 @@ usr/share/mios/mios.toml	11530	11536	7	64	351d4a832370	MIGRATE	narrative-rationa
 usr/share/mios/mios.toml	11538	11539	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11543	11543	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11552	11552	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11743	11743	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11749	11750	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11777	11778	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11787	11790	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	11792	11793	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11797	11799	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11805	11805	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11807	11809	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11875	11878	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11880	11880	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11959	11960	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11965	11969	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	11971	11974	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11977	11982	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	11744	11744	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11750	11751	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11778	11779	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11788	11791	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	11793	11794	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11798	11800	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11806	11806	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11808	11810	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11876	11879	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11881	11881	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11960	11961	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11966	11970	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	11972	11975	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11978	11983	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/nix/nix.conf	1	2	2	13	27ffd5dc0fa9	STAY	ai-header		0				0
 usr/share/mios/nix/nix.conf	4	4	1	7	49f68b33b675	STAY	local-scoped		0				0
 usr/share/mios/nix/nix.conf	7	7	1	5	95ad535dfeaf	STAY	local-scoped		0				0

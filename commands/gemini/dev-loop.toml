@@ -1,0 +1,5 @@
+# AI-hint: Dev-loop command definition for Gemini CLI multi-harness dispatch.
+# AI-related: commands/, usr/share/mios/mios.toml
+
+[command]
+name = "dev-loop"

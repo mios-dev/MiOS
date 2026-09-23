@@ -11605,6 +11605,7 @@ unit = [
     "tests/test-storage-segregate.py",
     "tests/test-snapshot-transport-restore.py",
     "tests/test-wol-proxy.py",
+    "tests/test-agy-agent-pipeline.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

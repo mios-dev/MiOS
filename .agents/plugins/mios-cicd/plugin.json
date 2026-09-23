@@ -1,0 +1,5 @@
+{
+  "name": "mios-cicd",
+  "description": "Antigravity plugin for MiOS core development, CI/CD pipelines, and automated artifacting",
+  "version": "1.0.0"
+}

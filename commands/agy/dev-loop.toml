@@ -1,0 +1,7 @@
+# AI-hint: Dev-loop slash command definition for Antigravity CLI (AGY) multi-harness dispatch.
+# AI-related: commands/, .agents/workflows/dev-loop.md, usr/share/mios/mios.toml
+
+[command]
+name = "dev-loop"
+description = "Autonomous engineering loop for MiOS core development, Rust binaries, and standing gates."
+workflow = ".agents/workflows/dev-loop.md"
