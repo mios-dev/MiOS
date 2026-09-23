@@ -925,7 +925,7 @@
 | T-506 | P2 | open | Audio/Benchmark | Automated audio buffer underrun and latency jitter benchmark suite |
 | T-507 | P1 | done | Boot/UKI | A/B UKI staging and systemd-ukify compilation pipeline with baked kargs |
 | T-508 | P1 | done | Boot/Promotion | Automated UKI A/B boot promotion and Greenboot validation gate |
-| T-509 | P1 | open | Build/SBOM | Hermetic multi-stage Podman OCI image synthesis and Syft SBOM generation pipeline |
+| T-509 | P1 | done | Build/SBOM | Hermetic multi-stage Podman OCI image synthesis and Syft SBOM generation pipeline |
 | T-510 | P1 | open | Build/Cosign | Local Cosign image signing and registry push validation gate |
 | T-511 | P1 | open | Security/eBPF | In-kernel eBPF network flow aggregation probe and mios-netflowd collector daemon |
 | T-512 | P1 | open | Security/Anomaly | Jensen-Shannon divergence anomaly alarm and PostgreSQL threat_events vector sink |
@@ -5946,7 +5946,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Build pipeline compiles OCI image and generates verifiable SPDX SBOM automatically.
 **Why:** Cryptographic SBOMs guarantee supply-chain transparency and enable automated vulnerability scanning.
 **Dep:** AGY-2106
-**Status:** open | **Domain:** Build/SBOM | **Who:** agent
+**Status:** done | **Domain:** Build/SBOM | **Who:** agent
 **Converted:** AGY-2107 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-510 -- Local Cosign image signing and registry push validation gate (WS-BUILD | P1 | M)

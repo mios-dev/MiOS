@@ -1,0 +1,24 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "mios",
+  "documentNamespace": "https://github.com/mios-dev/mios/spdx/0.3.0",
+  "creationInfo": {
+    "creators": [
+      "Tool: mios-sbom-pipeline-0.3.0",
+      "Organization: MiOS"
+    ],
+    "created": "2026-09-23T21:59:39Z"
+  },
+  "packages": [
+    {
+      "name": "mios-core",
+      "SPDXID": "SPDXRef-Package-mios-core",
+      "versionInfo": "0.3.0",
+      "downloadLocation": "https://github.com/mios-dev/mios",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0"
+    }
+  ]
+}
