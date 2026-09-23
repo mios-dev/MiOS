@@ -11588,6 +11588,7 @@ unit = [
     "tests/test-sbom-export.py",
     "tests/test-cosign-publish.py",
     "tests/test-ebpf-netflow.py",
+    "tests/test-net-anomaly.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

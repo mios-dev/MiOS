@@ -1466,3 +1466,23 @@ CREATE INDEX IF NOT EXISTS system_logs_priority_ts ON system_logs (priority, ts 
 CREATE INDEX IF NOT EXISTS system_logs_ts ON system_logs (ts DESC);
 CREATE INDEX IF NOT EXISTS system_logs_origin ON system_logs (origin_node);
 
+-- ── threat_events: security anomaly vector sink (T-512) ────────────────────────
+CREATE TABLE IF NOT EXISTS threat_events (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_type    text NOT NULL,                      -- e.g. 'network_anomaly', 'lateral_movement'
+    divergence    double precision NOT NULL,          -- Jensen-Shannon divergence score
+    description   text NOT NULL,
+    flow_summary  jsonb DEFAULT '{}'::jsonb,
+    emb           vector(768),
+    emb_version   varchar(64) DEFAULT 'nomic-embed-text-v1.5',
+    severity      text DEFAULT 'medium',              -- low | medium | high | critical
+    resolved      boolean DEFAULT false,
+    ts            timestamptz DEFAULT now(),
+    origin_node   text NOT NULL DEFAULT 'local'
+);
+CREATE INDEX IF NOT EXISTS threat_events_emb_hnsw
+    ON threat_events USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX IF NOT EXISTS threat_events_divergence ON threat_events (divergence DESC);
+CREATE INDEX IF NOT EXISTS threat_events_severity ON threat_events (severity);
+CREATE INDEX IF NOT EXISTS threat_events_ts ON threat_events (ts DESC);
+
