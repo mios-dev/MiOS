@@ -345,6 +345,8 @@ etc/mios/*
 !/usr/lib/systemd/
 !/usr/lib/systemd/**
 !/usr/libexec/
+!/usr/src/
+!/usr/src/**
 !/usr/share/
 !/usr/share/doc/
 !/usr/share/doc/mios/
