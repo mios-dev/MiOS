@@ -498,6 +498,10 @@ def main(argv: list[str]) -> int:
             "  mios user                            initialize user space (dotfiles/XDG)\n"
             "  mios models                          manage first-boot large models (list, sync, add, rm)\n"
             "  mios secret                          secure secrets management & Linux Keyrings\n"
+            "  mios status                          system status (--json, --yaml, --table)\n"
+            "  mios version                         system version & Law conformance\n"
+            "  mios health                          system health assessment\n"
+            "  mios info                            system telemetry and platform info\n"
             "  mios help                            this help\n\n"
             "Chat (anything else):\n"
             "  mios <prompt>                        chat + tool calls against Hermes-Agent\n"
@@ -514,14 +518,85 @@ def main(argv: list[str]) -> int:
         sys.stderr.write("mios: mios-ai-clear not found at %s\n" % _clear)
         return 1
 
+    # T-513: Dynamic TTY / JSON / YAML output formatting engine
+    root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or (
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if os.path.isabs(__file__) else None
+    )
+    _lib_path = os.path.join(root, "usr", "lib", "mios") if root else "/usr/lib/mios"
+    if _lib_path not in sys.path and os.path.isdir(_lib_path):
+        sys.path.insert(0, _lib_path)
+
+    first_low = argv[1].lower()
+    if first_low in ("version", "-v", "--version", "health", "info"):
+        try:
+            from cli.formatter import (
+                OutputFormatter,
+                get_system_health,
+                get_system_info,
+                get_system_version,
+            )
+            force_fmt = None
+            if "--json" in argv:
+                force_fmt = "json"
+            elif "--yaml" in argv:
+                force_fmt = "yaml"
+            elif "--table" in argv or "--text" in argv:
+                force_fmt = "table"
+
+            formatter = OutputFormatter(force_format=force_fmt)
+            if first_low in ("version", "-v", "--version"):
+                res = get_system_version()
+                title = "MiOS Version"
+            elif first_low == "health":
+                res = get_system_health()
+                title = "MiOS System Health"
+            else:
+                res = get_system_info()
+                title = "MiOS System Information"
+
+            print(formatter.format(res, title=title))
+            return 0
+        except Exception as e:
+            sys.stderr.write(f"mios: output formatting error: {e}\n")
+            return 1
+
+    if first_low == "status":
+        try:
+            from cli.formatter import OutputFormatter, get_system_status
+            status_bin = os.path.join(root, "usr", "libexec", "mios", "mios-system-status") if root else "/usr/libexec/mios/mios-system-status"
+            if os.path.isfile(status_bin):
+                cmd = [status_bin] if os.access(status_bin, os.X_OK) else [sys.executable, status_bin]
+                cp = subprocess.run(cmd, capture_output=True, text=True)
+                if cp.returncode == 0 and cp.stdout.strip():
+                    try:
+                        data = json.loads(cp.stdout)
+                    except Exception:
+                        data = get_system_status()
+                else:
+                    data = get_system_status()
+            else:
+                data = get_system_status()
+
+            force_fmt = None
+            if "--json" in argv:
+                force_fmt = "json"
+            elif "--yaml" in argv:
+                force_fmt = "yaml"
+            elif "--table" in argv or "--text" in argv:
+                force_fmt = "table"
+
+            formatter = OutputFormatter(force_format=force_fmt)
+            print(formatter.format(data, title="MiOS System Status"))
+            return 0
+        except Exception as e:
+            sys.stderr.write(f"mios status: {e}\n")
+            return 1
+
     first = argv[1]
     if first in KNOWN_VERBS and KNOWN_VERBS[first] is not None:
         cmd = KNOWN_VERBS[first]
         target = cmd[0]
-        root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or (
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            if os.path.isabs(__file__) else None
-        )
         resolved_target = os.path.join(root, target.lstrip("/\\")) if root else target
         if not pathlib.Path(target).is_file() and not (root and pathlib.Path(resolved_target).is_file()):
             if target.endswith("miosd") and root:

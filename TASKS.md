@@ -929,7 +929,7 @@
 | T-510 | P1 | done | Build/Cosign | Local Cosign image signing and registry push validation gate |
 | T-511 | P1 | done | Security/eBPF | In-kernel eBPF network flow aggregation probe and mios-netflowd collector daemon |
 | T-512 | P1 | done | Security/Anomaly | Jensen-Shannon divergence anomaly alarm and PostgreSQL threat_events vector sink |
-| T-513 | P1 | open | CLI/Engine | Unified mios CLI engine with dynamic TTY formatting and POSIX exit codes |
+| T-513 | P1 | done | CLI/Engine | Unified mios CLI engine with dynamic TTY formatting and POSIX exit codes |
 | T-514 | P2 | open | CLI/Plugins | Dynamic plugin loader and subcommand discovery in /usr/libexec/mios/plugins/ |
 | T-515 | P1 | open | Kernel/Kdump | Reserved memory kdump kernel deployment and automated zstd crash dump extractor |
 | T-516 | P1 | open | Kernel/FlightRecorder | In-kernel eBPF circular flight recorder ring and crash diagnostic parser |
@@ -5986,7 +5986,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Unified CLI formats outputs adaptively and supports --json/--yaml across all core verbs.
 **Why:** Dual-format CLI output enables seamless script automation for agents and high ergonomics for operators.
 **Dep:** AGY-2110
-**Status:** open | **Domain:** CLI/Engine | **Who:** agent
+**Status:** done | **Domain:** CLI/Engine | **Who:** agent
 **Converted:** AGY-2111 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-514 -- Dynamic plugin loader and subcommand discovery in /usr/libexec/mios/plugins/ (WS-CLI | P2 | S)
