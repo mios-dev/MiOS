@@ -11557,6 +11557,7 @@ unit = [
     "tests/test-pstore-crash.py",
     "tests/test-usbguard-sec.py",
     "tests/test-webrtc-screen-stream.py",
+    "tests/test-pipewire-aec.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

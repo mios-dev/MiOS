@@ -697,7 +697,7 @@
 | T-783 | P2 | open | Security/LivepatchTest | Automated livepatch signature verification, unsigned module rejection, and IMA test suite |
 | T-784 | P1 | open | AI/CPUGEMM | Hardware-calibrated CPU vectorized GEMM auto-tuner in mios-cpu-gemm |
 | T-785 | P2 | open | AI/CPUGEMMTest | Automated CPU quantized GEMM throughput (>30 tok/s) and SIMD dispatch test suite |
-| T-786 | P1 | open | Audio/AECFilter | PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter |
+| T-786 | P1 | done | Audio/AECFilter | PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter |
 | T-787 | P2 | open | Audio/AECTest | Automated acoustic echo cancellation (>40dB suppression) and full-duplex test suite |
 | T-788 | P1 | done | Desktop/WebRTCStream | Hardware-accelerated PipeWire WebRTC desktop video streamer in mios-screen-stream |
 | T-789 | P2 | open | Desktop/WebRTCTest | Automated 4K 60FPS WebRTC desktop stream latency (<30ms) and encoder test suite |
@@ -8716,7 +8716,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** PipeWire manages virtual loopbacks and suppresses speaker acoustic echo in microphone streams.
 **Why:** Acoustic echo cancellation allows seamless full-duplex conversational voice interaction while media plays.
 **Dep:** AGY-2383
-**Status:** open | **Domain:** Audio/AECFilter | **Who:** agent
+**Status:** done | **Domain:** Audio/AECFilter | **Who:** agent
 **Converted:** AGY-2384 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-787 -- Automated acoustic echo cancellation (>40dB suppression) and full-duplex test suite (WS-NODE | P2 | S)

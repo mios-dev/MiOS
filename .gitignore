@@ -306,6 +306,9 @@ etc/dconf/profile/*
 !/etc/usbguard/
 !/etc/usbguard/**
 
+!/etc/pipewire/
+!/etc/pipewire/**
+
 !/etc/mios/
 etc/mios/*
 !/etc/mios/kb.conf.toml

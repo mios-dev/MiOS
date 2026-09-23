@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+# AI-hint: PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter utility (T-786).
+# AI-doc: usr/share/doc/mios/manual/ch16-audio-loopback-and-webrtc-aec.md
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from typing import Any, Dict, List, Optional
+
+DEFAULT_AEC_CONF = "/etc/pipewire/pipewire.conf.d/20-aec-loopback.conf"
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.normpath(os.path.join(_HERE, "..", "..", ".."))
+if not os.path.exists(DEFAULT_AEC_CONF):
+    _local_conf = os.path.join(_REPO_ROOT, "etc", "pipewire", "pipewire.conf.d", "20-aec-loopback.conf")
+    if os.path.exists(_local_conf):
+        DEFAULT_AEC_CONF = _local_conf
+
+
+def parse_aec_conf(conf_path: str) -> Dict[str, Any]:
+    """Validates and parses PipeWire AEC loopback configuration."""
+    if not os.path.isfile(conf_path):
+        return {
+            "status": "missing",
+            "conf_path": conf_path,
+            "has_echo_cancel": False,
+            "has_virtual_sink": False,
+            "source_name": None,
+            "sink_name": None,
+            "aec_library": None,
+        }
+
+    try:
+        with open(conf_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        return {
+            "status": "unreadable",
+            "conf_path": conf_path,
+            "has_echo_cancel": False,
+            "has_virtual_sink": False,
+        }
+
+    has_echo_cancel = "libpipewire-module-echo-cancel" in content
+    has_virtual_sink = "libpipewire-module-loopback" in content
+    has_webrtc_aec = "aec/libspa-aec-webrtc" in content
+
+    source_match = re.search(r'node\.name\s*=\s*"([^"]+)"', content)
+    source_name = "echo-cancel-source" if "echo-cancel-source" in content else None
+    sink_name = "virtual-sink" if "virtual-sink" in content else None
+
+    # Check WebRTC AEC parameters
+    aec_params = {
+        "extended_filter": "webrtc.extended_filter = true" in content,
+        "delay_agnostic": "webrtc.delay_agnostic = true" in content,
+        "noise_suppression": "webrtc.noise_suppression = true" in content,
+        "voice_detection": "webrtc.voice_detection = true" in content,
+    }
+
+    is_valid = has_echo_cancel and has_virtual_sink and has_webrtc_aec and source_name and sink_name
+
+    return {
+        "status": "valid" if is_valid else "incomplete",
+        "conf_path": conf_path,
+        "has_echo_cancel": has_echo_cancel,
+        "has_virtual_sink": has_virtual_sink,
+        "has_webrtc_aec": has_webrtc_aec,
+        "source_name": source_name,
+        "sink_name": sink_name,
+        "aec_params": aec_params,
+    }
+
+
+def query_active_pipewire_nodes() -> Dict[str, Any]:
+    """Queries running PipeWire daemon for active echo-cancel source and virtual sinks."""
+    if not shutil.which("pw-dump"):
+        return {
+            "pipewire_running": False,
+            "nodes_found": [],
+            "note": "pw-dump not present or headless container environment",
+        }
+
+    try:
+        res = subprocess.run(["pw-dump", "Node"], capture_output=True, text=True, timeout=3)
+        if res.returncode == 0 and res.stdout.strip():
+            nodes = json.loads(res.stdout)
+            names = [n.get("info", {}).get("props", {}).get("node.name", "") for n in nodes if isinstance(n, dict)]
+            return {
+                "pipewire_running": True,
+                "nodes_found": names,
+            }
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
+        pass
+
+    return {
+        "pipewire_running": False,
+        "nodes_found": [],
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter (T-786)"
+    )
+    parser.add_argument("--check", action="store_true", help="Validate PipeWire AEC loopback configuration")
+    parser.add_argument("--conf", default=DEFAULT_AEC_CONF, help="Path to PipeWire AEC configuration")
+    parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    args = parser.parse_args()
+
+    parsed = parse_aec_conf(args.conf)
+    active = query_active_pipewire_nodes()
+
+    output = {
+        "configuration": parsed,
+        "runtime": active,
+    }
+
+    if args.json:
+        print(json.dumps(output, indent=2))
+    else:
+        print(f"[mios-audio-aec] Configuration: {args.conf} -> {parsed['status'].upper()}")
+        print(f"  - Echo-Cancel Module: {parsed['has_echo_cancel']}")
+        print(f"  - SPA WebRTC Library: {parsed['has_webrtc_aec']}")
+        print(f"  - Clean Source: {parsed['source_name']}")
+        print(f"  - App Virtual Sink: {parsed['sink_name']}")
+        print(f"  - Noise Suppression: {parsed['aec_params'].get('noise_suppression')}")
+        print(f"  - PipeWire Runtime Active: {active['pipewire_running']}")
+
+    return 0 if parsed["status"] == "valid" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
