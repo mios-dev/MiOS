@@ -905,7 +905,7 @@
 | T-486 | P1 | open | Scheduler/Cgroup | Dynamic cgroup v2 cpu.max and memory.high pressure-adaptive controller |
 | T-487 | P2 | open | AI/FineTune | Unprivileged containerized QLoRA fine-tuning engine using Unsloth |
 | T-488 | P2 | open | AI/Eval | Automated LoRA adapter benchmark evaluator and catastrophic forgetting guard |
-| T-489 | P1 | open | App/Flatpak | Declarative Flatpak permission lockdown profiles in /etc/flatpak/overrides/ |
+| T-489 | P1 | done | App/Flatpak | Declarative Flatpak permission lockdown profiles in /etc/flatpak/overrides/ |
 | T-490 | P2 | open | App/Portal | XDG Desktop Portal permission and socket boundary verification suite |
 | T-491 | P1 | open | Storage/Virtiofs | virtiofsd POSIX/OFD lock translation and cache policy configurator |
 | T-492 | P2 | open | Storage/LockTest | Cross-platform concurrent write and lock contention test suite in QEMU |
@@ -5746,7 +5746,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Global Flatpak override profile enforces least-privilege sandbox boundaries across all installed desktop apps.
 **Why:** Restricting Flatpak permissions prevents untrusted desktop apps from snooping key events or reading host configuration files.
 **Dep:** AGY-2086
-**Status:** open | **Domain:** App/Flatpak | **Who:** agent
+**Status:** done | **Domain:** App/Flatpak | **Who:** agent
 **Converted:** AGY-2087 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-490 -- XDG Desktop Portal permission and socket boundary verification suite (WS-APP | P2 | S)

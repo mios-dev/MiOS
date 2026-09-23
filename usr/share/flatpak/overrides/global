@@ -1,0 +1,11 @@
+# AI-hint: Global Flatpak permission lockdown profile enforcing least-privilege sandbox boundaries across all desktop apps (T-489).
+# AI-doc: usr/share/doc/mios/manual/ch31-desktop-applications-and-flatpaks.md
+
+[Context]
+sockets=!x11;wayland;
+filesystems=!host;!host-os;!host-etc;
+devices=!all;
+
+[Session Bus Policy]
+org.freedesktop.portal.*=talk
+org.freedesktop.Flatpak=none

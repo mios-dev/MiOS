@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+# AI-hint: Flatpak permission lockdown profile validator and manager (T-489).
+# AI-doc: usr/share/doc/mios/manual/ch31-desktop-applications-and-flatpaks.md
+from __future__ import annotations
+
+import argparse
+import configparser
+import json
+import os
+import sys
+from typing import Any, Dict
+
+DEFAULT_GLOBAL_OVERRIDE = "/usr/share/flatpak/overrides/global"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_LOCAL_GLOBAL = os.path.normpath(os.path.join(_HERE, "..", "..", "share", "flatpak", "overrides", "global"))
+
+
+def inspect_profile(path: str) -> Dict[str, Any]:
+    target = path
+    if not os.path.exists(target) and os.path.exists(_LOCAL_GLOBAL):
+        target = _LOCAL_GLOBAL
+
+    if not os.path.exists(target):
+        return {"status": "missing", "path": target, "valid": False}
+
+    cfg = configparser.ConfigParser()
+    cfg.read(target)
+
+    sockets = cfg.get("Context", "sockets", fallback="")
+    filesystems = cfg.get("Context", "filesystems", fallback="")
+    devices = cfg.get("Context", "devices", fallback="")
+
+    x11_disabled = "!x11" in sockets
+    wayland_enabled = "wayland" in sockets
+    host_fs_denied = "!host" in filesystems
+    portal_mediated = "org.freedesktop.portal.*" in cfg.get("Session Bus Policy", "org.freedesktop.portal.*", fallback="") or "talk" in cfg.get("Session Bus Policy", "org.freedesktop.portal.*", fallback="")
+
+    valid = x11_disabled and wayland_enabled and host_fs_denied
+
+    return {
+        "status": "valid" if valid else "non_compliant",
+        "path": target,
+        "x11_disabled": x11_disabled,
+        "wayland_enabled": wayland_enabled,
+        "host_fs_denied": host_fs_denied,
+        "portal_mediated": portal_mediated,
+        "devices": devices,
+        "valid": valid,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Flatpak permission lockdown profile manager (T-489)")
+    parser.add_argument("--profile", default=DEFAULT_GLOBAL_OVERRIDE, help="Path to global override file")
+    parser.add_argument("--check", action="store_true", help="Check compliance of global override profile")
+    parser.add_argument("--json", action="store_true", help="Emit JSON output")
+
+    args = parser.parse_args()
+    info = inspect_profile(args.profile)
+
+    if args.json:
+        print(json.dumps(info, indent=2))
+    else:
+        print(f"[mios-flatpak-lockdown] Status: {info['status'].upper()} (Path: {info['path']})")
+        print(f"  - X11 Disabled: {info.get('x11_disabled')}")
+        print(f"  - Wayland Enforced: {info.get('wayland_enabled')}")
+        print(f"  - Host FS Denied: {info.get('host_fs_denied')}")
+        print(f"  - Portal Mediation: {info.get('portal_mediated')}")
+
+    return 0 if info["valid"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

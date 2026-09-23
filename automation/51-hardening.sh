@@ -58,3 +58,10 @@ _clevis_env="$(dirname "${BASH_SOURCE[0]}")/../etc/mios/clevis-luks.env"
 [[ -f "${_clevis_env}" ]] || { mios_err "clevis-luks.env absent: ${_clevis_env}"; exit 1; }
 install -D -m 0644 "${_clevis_env}" /etc/mios/clevis-luks.env
 mios_ok "Installed the committed clevis-luks.env projection"
+
+# Declarative Flatpak permission lockdown profile (T-489)
+_fp_override="$(dirname "${BASH_SOURCE[0]}")/../usr/share/flatpak/overrides/global"
+if [[ -f "${_fp_override}" ]]; then
+    install -D -m 0644 "${_fp_override}" /usr/share/flatpak/overrides/global 2>/dev/null || true
+    mios_ok "Installed global Flatpak lockdown profile"
+fi

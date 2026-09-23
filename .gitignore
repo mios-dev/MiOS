@@ -381,6 +381,9 @@ usr/share/fontconfig/*
 usr/share/fontconfig/conf.avail/*
 !/usr/share/fontconfig/conf.avail/*mios*
 
+!/usr/share/flatpak/
+!/usr/share/flatpak/**
+
 usr/libexec/*
 !/usr/libexec/mios/
 !/usr/libexec/mios/**
