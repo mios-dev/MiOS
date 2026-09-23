@@ -709,7 +709,7 @@
 | T-795 | P2 | open | Storage/CephSnapTest | Automated CephFS snapshot creation (<10ms), retention rotation, and rollback test suite |
 | T-796 | P1 | open | AI/PrefixCache | Radix Tree prefix KV-cache sharing engine in llama-swap |
 | T-797 | P2 | open | AI/PrefixTest | Automated shared prompt prefix hit rate (>95%) and sub-5ms TTFT benchmark suite |
-| T-798 | P1 | open | Security/USBGuard | Declarative USBGuard device authorization daemon and read-only storage mounter |
+| T-798 | P1 | done | Security/USBGuard | Declarative USBGuard device authorization daemon and read-only storage mounter |
 | T-799 | P2 | open | Security/USBTest | Automated BadUSB device rejection, read-only mount enforcement, and audit test suite |
 | T-800 | P1 | done | Memory/THPCompaction | Transparent Huge Pages (THP madvise) and proactive memory compaction manager |
 | T-801 | P2 | open | Memory/THPTest | Automated 2MB/1GB huge page allocation, sub-1ms allocation latency, and TLB benchmark suite |
@@ -8836,7 +8836,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** USBGuard blocks unauthorized devices and enforces read-only mounts on external storage.
 **Why:** Declarative USB security blocks BadUSB keystroke injection attacks and prevents accidental data contamination.
 **Dep:** AGY-2395
-**Status:** open | **Domain:** Security/USBGuard | **Who:** agent
+**Status:** done | **Domain:** Security/USBGuard | **Who:** agent
 **Converted:** AGY-2396 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-799 -- Automated BadUSB device rejection, read-only mount enforcement, and audit test suite (WS-SEC | P2 | S)

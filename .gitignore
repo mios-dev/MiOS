@@ -300,6 +300,12 @@ etc/dconf/profile/*
 !/etc/sysctl.d/
 !/etc/sysctl.d/**
 
+!/etc/udisks2/
+!/etc/udisks2/**
+
+!/etc/usbguard/
+!/etc/usbguard/**
+
 !/etc/mios/
 etc/mios/*
 !/etc/mios/kb.conf.toml

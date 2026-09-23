@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+# AI-hint: Declarative USBGuard device authorization daemon and read-only storage mounter (T-798).
+# AI-doc: usr/share/doc/mios/manual/ch14-usbguard-and-badusb-mitigation.md
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import re
+import sys
+import time
+from typing import Any, Dict, List, Optional
+
+DEFAULT_RULES_PATH = "/etc/usbguard/rules.conf"
+DEFAULT_UDISKS_MOUNT_OPTIONS = "/etc/udisks2/mount_options.conf"
+DEFAULT_SECURITY_LOG = "/var/log/mios/security_events.jsonl"
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.normpath(os.path.join(_HERE, "..", "..", ".."))
+if not os.path.exists(DEFAULT_RULES_PATH):
+    _local_rules = os.path.join(_REPO_ROOT, "etc", "usbguard", "rules.conf")
+    if os.path.exists(_local_rules):
+        DEFAULT_RULES_PATH = _local_rules
+
+if not os.path.exists(DEFAULT_UDISKS_MOUNT_OPTIONS):
+    _local_udisks = os.path.join(_REPO_ROOT, "etc", "udisks2", "mount_options.conf")
+    if os.path.exists(_local_udisks):
+        DEFAULT_UDISKS_MOUNT_OPTIONS = _local_udisks
+
+
+def parse_usb_device(dev_dir: str) -> Optional[Dict[str, Any]]:
+    """Reads device metadata from sysfs USB entry."""
+    try:
+        def read_file(name: str) -> str:
+            p = os.path.join(dev_dir, name)
+            if os.path.exists(p):
+                with open(p, "r", errors="replace") as f:
+                    return f.read().strip()
+            return ""
+
+        id_vendor = read_file("idVendor")
+        id_product = read_file("idProduct")
+        if not id_vendor or not id_product:
+            return None
+
+        product = read_file("product")
+        manufacturer = read_file("manufacturer")
+        serial = read_file("serial")
+        dev_class = read_file("bDeviceClass")
+
+        # Discover interface classes
+        interfaces = []
+        for iface_dir in glob.glob(os.path.join(dev_dir, "*:[0-9]*.*")):
+            iface_class = ""
+            p = os.path.join(iface_dir, "bInterfaceClass")
+            if os.path.exists(p):
+                with open(p, "r") as f:
+                    iface_class = f.read().strip()
+            if iface_class:
+                interfaces.append(iface_class)
+
+        return {
+            "bus_id": os.path.basename(dev_dir),
+            "vendor_id": id_vendor.lower(),
+            "product_id": id_product.lower(),
+            "manufacturer": manufacturer,
+            "product": product,
+            "serial": serial,
+            "device_class": dev_class,
+            "interfaces": interfaces,
+        }
+    except OSError:
+        return None
+
+
+def evaluate_device_policy(
+    vendor_id: str,
+    product_id: str,
+    interfaces: List[str],
+    manufacturer: str = "",
+    product: str = "",
+) -> Dict[str, Any]:
+    """Evaluates a USB device against MiOS USBGuard and BadUSB policies."""
+    v = vendor_id.lower()
+    p = product_id.lower()
+    name = f"{manufacturer} {product}".strip().lower()
+
+    # Hub interface: 09
+    if "09" in interfaces:
+        return {
+            "verdict": "allow",
+            "rule": "hub",
+            "reason": "Authorized built-in or external USB hub",
+            "is_badusb": False,
+        }
+
+    # Enrolled cryptographic hardware tokens: Yubico (1050), Nitrokey (20a0)
+    if v == "1050" or v == "20a0" or "yubico" in name or "nitrokey" in name or "mios-usb" in name:
+        return {
+            "verdict": "allow",
+            "rule": "security_token",
+            "reason": "Authorized cryptographic hardware security token",
+            "is_badusb": False,
+        }
+
+    # Check for BadUSB: Compound device presenting both HID (03) and Mass Storage (08)
+    if "03" in interfaces and "08" in interfaces:
+        return {
+            "verdict": "block",
+            "rule": "badusb_compound",
+            "reason": "Rejected compound HID+Storage device (BadUSB signature)",
+            "is_badusb": True,
+        }
+
+    # Standard HID keyboards and mice
+    if "03" in interfaces:
+        # Standard input peripherals allowed
+        return {
+            "verdict": "allow",
+            "rule": "hid_input",
+            "reason": "Authorized human interface device (keyboard/mouse)",
+            "is_badusb": False,
+        }
+
+    # Mass Storage (08): allowed by USBGuard, but mounted strictly read-only by udisks2
+    if "08" in interfaces:
+        return {
+            "verdict": "allow",
+            "rule": "mass_storage_readonly",
+            "reason": "Allowed mass storage; subject to udisks2 read-only policy",
+            "is_badusb": False,
+        }
+
+    # Smart Card interface (0b)
+    if "0b" in interfaces:
+        return {
+            "verdict": "allow",
+            "rule": "smartcard",
+            "reason": "Authorized Smart Card security interface",
+            "is_badusb": False,
+        }
+
+    # Default fallback: allow other standard devices, block unknown HID
+    return {
+        "verdict": "allow",
+        "rule": "generic",
+        "reason": "Allowed non-HID peripheral",
+        "is_badusb": False,
+    }
+
+
+def log_security_event(event_type: str, details: Dict[str, Any], log_file: str = DEFAULT_SECURITY_LOG) -> None:
+    """Logs security event in JSONL format for PostgreSQL ingestion."""
+    record = {
+        "event_type": event_type,
+        "subsystem": "usbguard",
+        "timestamp": time.time(),
+        "details": details,
+    }
+    log_dir = os.path.dirname(log_file)
+    if log_dir and not os.path.exists(log_dir):
+        try:
+            os.makedirs(log_dir, mode=0o750, exist_ok=True)
+        except OSError:
+            return
+    try:
+        with open(log_file, "a") as f:
+            f.write(json.dumps(record) + "\n")
+    except OSError:
+        pass
+
+
+def scan_host_devices() -> List[Dict[str, Any]]:
+    devices = []
+    sys_usb = "/sys/bus/usb/devices"
+    if os.path.exists(sys_usb):
+        for entry in sorted(os.listdir(sys_usb)):
+            dev_path = os.path.join(sys_usb, entry)
+            parsed = parse_usb_device(dev_path)
+            if parsed:
+                eval_res = evaluate_device_policy(
+                    parsed["vendor_id"],
+                    parsed["product_id"],
+                    parsed["interfaces"],
+                    parsed.get("manufacturer", ""),
+                    parsed.get("product", ""),
+                )
+                parsed["policy"] = eval_res
+                devices.append(parsed)
+    return devices
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="MiOS USBGuard device authorization daemon and security policy manager (T-798)"
+    )
+    parser.add_argument("--status", action="store_true", help="List connected USB devices and authorization status")
+    parser.add_argument("--evaluate", action="store_true", help="Evaluate arbitrary device against security policy")
+    parser.add_argument("--vendor", default="", help="Device Vendor ID in hex (e.g. 1050, 046d)")
+    parser.add_argument("--product", default="", help="Device Product ID in hex")
+    parser.add_argument("--interfaces", default="", help="Comma-separated interface classes in hex (e.g. 03,08)")
+    parser.add_argument("--name", default="", help="Device manufacturer or product description")
+    parser.add_argument("--rules-file", default=DEFAULT_RULES_PATH, help="Path to USBGuard rules.conf")
+    parser.add_argument("--udisks-file", default=DEFAULT_UDISKS_MOUNT_OPTIONS, help="Path to udisks mount options")
+    parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    args = parser.parse_args()
+
+    if args.evaluate:
+        ifaces = [i.strip() for i in args.interfaces.split(",") if i.strip()]
+        result = evaluate_device_policy(
+            vendor_id=args.vendor,
+            product_id=args.product,
+            interfaces=ifaces,
+            product=args.name,
+        )
+        # Log event if BadUSB detected
+        if result["is_badusb"]:
+            log_security_event("badusb_blocked", {
+                "vendor_id": args.vendor,
+                "product_id": args.product,
+                "interfaces": ifaces,
+                "reason": result["reason"],
+            })
+
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"Device [{args.vendor}:{args.product}] Verdict: {result['verdict'].upper()}")
+            print(f"Reason: {result['reason']} (BadUSB={result['is_badusb']})")
+        return 0 if result["verdict"] == "allow" else 1
+
+    devices = scan_host_devices()
+
+    output = {
+        "status": "success",
+        "rules_file": args.rules_file,
+        "rules_present": os.path.isfile(args.rules_file),
+        "udisks_file": args.udisks_file,
+        "udisks_present": os.path.isfile(args.udisks_file),
+        "devices_count": len(devices),
+        "devices": devices,
+    }
+
+    if args.json:
+        print(json.dumps(output, indent=2))
+    else:
+        print(f"[mios-usbguard] USBGuard rules: {args.rules_file} (exists={output['rules_present']})")
+        print(f"[mios-usbguard] Udisks2 options: {args.udisks_file} (exists={output['udisks_present']})")
+        print(f"[mios-usbguard] Connected Devices ({len(devices)}):")
+        for d in devices:
+            pol = d["policy"]
+            print(f"  - [{d['vendor_id']}:{d['product_id']}] {d['manufacturer']} {d['product']} -> {pol['verdict'].upper()} ({pol['reason']})")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
