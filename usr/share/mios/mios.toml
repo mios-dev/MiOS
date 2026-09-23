@@ -11552,6 +11552,7 @@ unit = [
     "tests/test-dnf5-pipeline.sh",
     "tests/test-theme-merge.py",
     "tests/test-theme-live-render.py",
+    "tests/test-cdi-gen.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

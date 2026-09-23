@@ -941,7 +941,7 @@
 | T-522 | P1 | open | Storage/ZeroKnowledge | Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator |
 | T-523 | P1 | open | Network/WoL | Signed Proxy WoL with SecureON payload and peer wake daemon |
 | T-524 | P1 | open | Hardware/IPKVM | Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner |
-| T-525 | P1 | open | Hardware/CDI | Scoped CDI specification generator for NVIDIA/AMD/Intel rootless Podman containers |
+| T-525 | P1 | done | Hardware/CDI | Scoped CDI specification generator for NVIDIA/AMD/Intel rootless Podman containers |
 | T-526 | P2 | open | Hardware/CDITest | Rootless container GPU device isolation and cgroup v2 eBPF device filter test suite |
 | T-527 | P1 | open | Boot/Composefs | Composefs fs-verity root filesystem sealing and atomic image descriptor validator |
 | T-528 | P1 | open | Storage/CephFSUser | Global per-user encrypted CephFS subvolume manager with remote snapshot replication |
@@ -6106,7 +6106,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** CDI generator creates scoped GPU specifications for rootless containers automatically.
 **Why:** Scoped CDI specifications prevent containerized AI processes from accessing unauthorized host devices.
 **Dep:** AGY-2122
-**Status:** open | **Domain:** Hardware/CDI | **Who:** agent
+**Status:** done | **Domain:** Hardware/CDI | **Who:** agent
 **Converted:** AGY-2123 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-526 -- Rootless container GPU device isolation and cgroup v2 eBPF device filter test suite (WS-VFIO | P2 | S)
