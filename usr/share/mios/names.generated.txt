@@ -228,6 +228,8 @@ network.firewalld_default_zone  MIOS_NETWORK_FIREWALLD_DEFAULT_ZONE
 network.allow_ssh  MIOS_NETWORK_ALLOW_SSH
 network.allow_cockpit  MIOS_NETWORK_ALLOW_COCKPIT
 network.allow_libvirt_bridge  MIOS_NETWORK_ALLOW_LIBVIRT_BRIDGE
+network.firewall.container_matrix.default_policy  MIOS_NETWORK_FIREWALL_CONTAINER_MATRIX_DEFAULT_POLICY
+network.firewall.container_matrix.rules  MIOS_NETWORK_FIREWALL_CONTAINER_MATRIX_RULES
 network.ntp.servers  MIOS_NETWORK_NTP_SERVERS
 network.quadlet.network  MIOS_NETWORK_QUADLET_NETWORK
 network.quadlet.subnet  MIOS_NETWORK_QUADLET_SUBNET

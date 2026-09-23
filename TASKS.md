@@ -935,7 +935,7 @@
 | T-516 | P1 | done | Kernel/FlightRecorder | In-kernel eBPF circular flight recorder ring and crash diagnostic parser |
 | T-517 | P1 | done | AI/Webhooks | HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe |
 | T-518 | P1 | done | AI/WebSocket | Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) |
-| T-519 | P1 | open | Hardware/NUMA | Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator |
+| T-519 | P1 | done | Hardware/NUMA | Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator |
 | T-520 | P2 | open | Hardware/P2PTest | Automated inter-GPU P2P bandwidth and memory latency validation benchmark |
 | T-521 | P1 | open | Storage/Encryption | Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool |
 | T-522 | P1 | open | Storage/ZeroKnowledge | Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator |
@@ -5821,8 +5821,8 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 
 ## T-497 -- systemd-resolved to mios-adguard split-horizon DNS routing configurator (WS-NET | P1 | S)
 **Goal:** Route system DNS queries through local AdGuard Home with split-horizon resolution for .mios domains.
-**What+How:** Implement `automation/46-dns-config.sh`. Configure `/etc/systemd/resolved.conf.d/10-adguard.conf` pointing `DNS=127.0.0.1:5353` and `Domains=~mios ~cluster.local`, with AdGuard Home forwarding external queries over encrypted DoH.
-**Where:** automation/46-dns-config.sh, usr/share/containers/systemd/mios-adguard.container
+**What+How:** Implement `automation/30-dns-config.sh`. Configure `/etc/systemd/resolved.conf.d/10-adguard.conf` pointing `DNS=127.0.0.1:5353` and `Domains=~mios ~cluster.local`, with AdGuard Home forwarding external queries over encrypted DoH.
+**Where:** automation/30-dns-config.sh, usr/share/containers/systemd/mios-adguard.container
 **Done When:** System DNS resolves internal mesh hostnames and external DoH queries seamlessly through AdGuard Home.
 **Why:** Split-horizon encrypted DNS blocks telemetry tracking and secures name resolution across private and public domains.
 **Dep:** AGY-2094
@@ -5941,8 +5941,8 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 
 ## T-509 -- Hermetic multi-stage Podman OCI image synthesis and Syft SBOM generation pipeline (WS-BUILD | P1 | M)
 **Goal:** Synthesize OCI container images in rootless Podman and generate machine-readable SPDX SBOMs.
-**What+How:** Implement `automation/90-export-sbom.sh`. Execute `podman build -t localhost:5000/mios:latest .` inside `podman-MiOS-DEV`, extract package bill of materials using `syft packages oci-dir:... -o spdx-json`, and embed SBOM in `/usr/share/doc/mios/sbom.json`.
-**Where:** automation/90-export.sh, Containerfile
+**What+How:** Implement `automation/92-export-sbom.sh`. Execute `podman build -t localhost:5000/mios:latest .` inside `podman-MiOS-DEV`, extract package bill of materials using `syft packages oci-dir:... -o spdx-json`, and embed SBOM in `/usr/share/doc/mios/sbom.json`.
+**Where:** automation/92-export-sbom.sh, Containerfile
 **Done When:** Build pipeline compiles OCI image and generates verifiable SPDX SBOM automatically.
 **Why:** Cryptographic SBOMs guarantee supply-chain transparency and enable automated vulnerability scanning.
 **Dep:** AGY-2106
@@ -6001,8 +6001,8 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 
 ## T-515 -- Reserved memory kdump kernel deployment and automated zstd crash dump extractor (WS-DIAG | P1 | M)
 **Goal:** Capture minimal compressed kernel crash dumps on panics and reboot safely.
-**What+How:** Implement `automation/22-kdump-config.sh`. Configure `crashkernel=256M` in UKI kargs, deploy minimal kdump initramfs to `/boot/initramfs-kdump.img`, and write compressed `vmcore` bundles with `zstd` to `/var/crash/` before triggering safe reboot.
-**Where:** automation/22-kdump-config.sh, etc/kdump.conf
+**What+How:** Implement `automation/28-kdump-config.sh`. Configure `crashkernel=256M` in UKI kargs, deploy minimal kdump initramfs to `/boot/initramfs-kdump.img`, and write compressed `vmcore` bundles with `zstd` to `/var/crash/` before triggering safe reboot.
+**Where:** automation/28-kdump-config.sh, etc/kdump.conf
 **Done When:** Kdump captures compressed crash dumps to persistent storage and reboots safely on panics.
 **Why:** Forensic crash dumps provide essential diagnostics to troubleshoot driver panics and hardware faults.
 **Dep:** AGY-2112
@@ -6046,7 +6046,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** NUMA affinity generator binds multi-GPU workers to optimal local CPU nodes automatically.
 **Why:** NUMA memory and PCIe affinity alignment maximizes tensor copy throughput and prevents cross-socket bus contention.
 **Dep:** AGY-2116
-**Status:** open | **Domain:** Hardware/NUMA | **Who:** agent
+**Status:** done | **Domain:** Hardware/NUMA | **Who:** agent
 **Converted:** AGY-2117 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-520 -- Automated inter-GPU P2P bandwidth and memory latency validation benchmark (WS-VFIO | P2 | S)

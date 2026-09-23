@@ -14642,8 +14642,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2095 -- systemd-resolved to mios-adguard split-horizon DNS routing configurator  (WS-NET | P1 | S)
 **Goal:** Route system DNS queries through local AdGuard Home with split-horizon resolution for .mios domains.
-**What+How:** Implement `automation/46-dns-config.sh`. Configure `/etc/systemd/resolved.conf.d/10-adguard.conf` pointing `DNS=127.0.0.1:5353` and `Domains=~mios ~cluster.local`, with AdGuard Home forwarding external queries over encrypted DoH.
-**Where:** automation/46-dns-config.sh, usr/share/containers/systemd/mios-adguard.container
+**What+How:** Implement `automation/30-dns-config.sh`. Configure `/etc/systemd/resolved.conf.d/10-adguard.conf` pointing `DNS=127.0.0.1:5353` and `Domains=~mios ~cluster.local`, with AdGuard Home forwarding external queries over encrypted DoH.
+**Where:** automation/30-dns-config.sh, usr/share/containers/systemd/mios-adguard.container
 **Verify:** Resolve `blade-0.mios` (assert Headscale IP returned) and `kernel.org` (assert DoH upstream query resolved).
 **Do NOT:** Allow unencrypted cleartext DNS queries over port 53 to leak to public WAN.
 **Done When:** System DNS resolves internal mesh hostnames and external DoH queries seamlessly through AdGuard Home.
@@ -14762,8 +14762,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2107 -- Hermetic multi-stage Podman OCI image synthesis and Syft SBOM generation pipeline  (WS-BUILD | P1 | M)
 **Goal:** Synthesize OCI container images in rootless Podman and generate machine-readable SPDX SBOMs.
-**What+How:** Implement `automation/90-export-sbom.sh`. Execute `podman build -t localhost:5000/mios:latest .` inside `podman-MiOS-DEV`, extract package bill of materials using `syft packages oci-dir:... -o spdx-json`, and embed SBOM in `/usr/share/doc/mios/sbom.json`.
-**Where:** automation/90-export.sh, Containerfile
+**What+How:** Implement `automation/92-export-sbom.sh`. Execute `podman build -t localhost:5000/mios:latest .` inside `podman-MiOS-DEV`, extract package bill of materials using `syft packages oci-dir:... -o spdx-json`, and embed SBOM in `/usr/share/doc/mios/sbom.json`.
+**Where:** automation/92-export-sbom.sh, Containerfile
 **Verify:** Build image; verify `/usr/share/doc/mios/sbom.json` exists, is valid SPDX JSON, and enumerates all installed RPMs and Flatpaks.
 **Do NOT:** Omit transitive package dependencies from generated SBOM manifests.
 **Done When:** Build pipeline compiles OCI image and generates verifiable SPDX SBOM automatically.
@@ -14822,8 +14822,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2113 -- Reserved memory kdump kernel deployment and automated zstd crash dump extractor  (WS-DIAG | P1 | M)
 **Goal:** Capture minimal compressed kernel crash dumps on panics and reboot safely.
-**What+How:** Implement `automation/22-kdump-config.sh`. Configure `crashkernel=256M` in UKI kargs, deploy minimal kdump initramfs to `/boot/initramfs-kdump.img`, and write compressed `vmcore` bundles with `zstd` to `/var/crash/` before triggering safe reboot.
-**Where:** automation/22-kdump-config.sh, etc/kdump.conf
+**What+How:** Implement `automation/28-kdump-config.sh`. Configure `crashkernel=256M` in UKI kargs, deploy minimal kdump initramfs to `/boot/initramfs-kdump.img`, and write compressed `vmcore` bundles with `zstd` to `/var/crash/` before triggering safe reboot.
+**Where:** automation/28-kdump-config.sh, etc/kdump.conf
 **Verify:** Trigger a simulated kernel crash via `sysrq-trigger`; verify kdump kernel executes, writes `/var/crash/vmcore.zst`, and reboots back into working system.
 **Do NOT:** Write uncompressed monolithic core dumps exceeding 1GB to root partition.
 **Done When:** Kdump captures compressed crash dumps to persistent storage and reboots safely on panics.

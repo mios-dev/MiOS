@@ -41,7 +41,7 @@ class TestKdumpCrash(unittest.TestCase):
         self.assertIn("d /var/crash", content)
 
     def test_phase_script_present(self):
-        phase_path = os.path.join(_ROOT, "automation", "22-kdump-config.sh")
+        phase_path = os.path.join(_ROOT, "automation", "28-kdump-config.sh")
         self.assertTrue(os.path.isfile(phase_path), f"Missing {phase_path}")
         self.assertTrue(os.access(phase_path, os.X_OK))
 

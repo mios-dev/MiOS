@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# AI-hint: Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator (T-519).
+# AI-doc: usr/share/doc/mios/manual/ch02-architecture.md
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+log = logging.getLogger("mios-gpu-numa")
+
+
+class GpuNumaDiscovery:
+    """Discovers GPU PCI topology, NUMA affinity, and NVLink interconnect matrix."""
+
+    def __init__(self, sysfs_root: str = "/sys", nvidia_smi_cmd: str = "nvidia-smi") -> None:
+        self.sysfs_root = Path(sysfs_root)
+        self.nvidia_smi_cmd = nvidia_smi_cmd
+
+    def scan_pci_gpus(self) -> List[Dict[str, Any]]:
+        """Scans /sys/bus/pci/devices/ for display controllers (0x0300, 0x0302)."""
+        pci_dir = self.sysfs_root / "bus" / "pci" / "devices"
+        gpus: List[Dict[str, Any]] = []
+
+        if not pci_dir.exists():
+            return gpus
+
+        for dev_path in sorted(pci_dir.iterdir()):
+            class_file = dev_path / "class"
+            if not class_file.exists():
+                continue
+
+            try:
+                pci_class = class_file.read_text(encoding="utf-8").strip()
+            except Exception:
+                continue
+
+            # 0x030000 = VGA compatible controller, 0x030200 = 3D controller
+            if pci_class.startswith("0x0300") or pci_class.startswith("0x0302"):
+                numa_file = dev_path / "numa_node"
+                numa_node = 0
+                if numa_file.exists():
+                    try:
+                        node_val = int(numa_file.read_text(encoding="utf-8").strip())
+                        numa_node = max(0, node_val)
+                    except Exception:
+                        numa_node = 0
+
+                vendor_file = dev_path / "vendor"
+                vendor = ""
+                if vendor_file.exists():
+                    try:
+                        vendor = vendor_file.read_text(encoding="utf-8").strip()
+                    except Exception:
+                        pass
+
+                gpus.append({
+                    "pci_id": dev_path.name,
+                    "pci_class": pci_class,
+                    "numa_node": numa_node,
+                    "vendor": vendor,
+                })
+
+        return gpus
+
+    def query_nvidia_topo(self) -> Tuple[str, List[Dict[str, Any]]]:
+        """Runs nvidia-smi topo -m to discover interconnect matrix (NVLink vs PCIe)."""
+        try:
+            res = subprocess.run(
+                [self.nvidia_smi_cmd, "topo", "-m"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if res.returncode != 0:
+                return "SYS", []
+            return self.parse_topo_matrix(res.stdout)
+        except Exception:
+            return "SYS", []
+
+    @staticmethod
+    def parse_topo_matrix(topo_text: str) -> Tuple[str, List[Dict[str, Any]]]:
+        """Parses nvidia-smi topo -m output table."""
+        has_nvlink = False
+        has_pix = False
+        devices: List[Dict[str, Any]] = []
+
+        lines = [line.strip() for line in topo_text.strip().splitlines() if line.strip()]
+        for line in lines:
+            if "Affinity" in line or "Legend" in line:
+                continue
+            if re.search(r"\bNV\d+\b|\bNVL\b", line):
+                has_nvlink = True
+            elif "PIX" in line or "PXB" in line or "PHB" in line:
+                has_pix = True
+
+            # Match GPU rows e.g. "GPU0   X    NV12 ..."
+            m = re.match(r"^(GPU\d+)\s+([A-Z0-9\s]+)", line)
+            if m and "X" in m.group(2).split():
+                devices.append({
+                    "gpu": m.group(1),
+                    "matrix_row": m.group(2).split(),
+                })
+
+        if has_nvlink:
+            level = "NVL"
+        elif has_pix:
+            level = "PHB"
+        else:
+            level = "SYS"
+
+        return level, devices
+
+    def generate_affinity(
+        self,
+        gpu_indices: Optional[List[int]] = None,
+        mock_topo: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Generates optimal NUMA node, CPU bind arguments, and NCCL settings."""
+        gpus = self.scan_pci_gpus()
+        p2p_level = mock_topo or "SYS"
+
+        if not mock_topo:
+            topo_level, _ = self.query_nvidia_topo()
+            p2p_level = topo_level
+
+        # If specific GPU indices selected, filter; default to all discovered GPUs
+        active_indices = gpu_indices if gpu_indices is not None else list(range(max(1, len(gpus))))
+        cuda_visible = ",".join(str(i) for i in active_indices)
+
+        # Primary NUMA node affinity
+        primary_numa = 0
+        if gpus and len(gpus) > active_indices[0]:
+            primary_numa = gpus[active_indices[0]]["numa_node"]
+
+        numactl_args = f"--cpunodebind={primary_numa} --membind={primary_numa}"
+
+        return {
+            "CUDA_VISIBLE_DEVICES": cuda_visible,
+            "NCCL_P2P_LEVEL": p2p_level,
+            "NUMA_CPU_NODE": str(primary_numa),
+            "NUMACTL_ARGS": numactl_args,
+            "NUMACTL_CMD": f"numactl {numactl_args}",
+            "DISCOVERED_GPUS": gpus,
+        }
+
+    def write_env_file(self, output_path: Path, affinity: Dict[str, Any]) -> None:
+        """Writes Quadlet environment file."""
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        content = (
+            f"# Generated by mios-gpu-numa (T-519)\n"
+            f"CUDA_VISIBLE_DEVICES={affinity['CUDA_VISIBLE_DEVICES']}\n"
+            f"NCCL_P2P_LEVEL={affinity['NCCL_P2P_LEVEL']}\n"
+            f"NUMA_CPU_NODE={affinity['NUMA_CPU_NODE']}\n"
+            f"NUMACTL_ARGS={affinity['NUMACTL_ARGS']}\n"
+        )
+        output_path.write_text(content, encoding="utf-8")
+        log.info("Wrote GPU NUMA environment file to %s", output_path)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Multi-GPU PCIe/NVLink topology and NUMA affinity generator")
+    parser.add_argument("--sysfs-root", default="/sys", help="Path to /sys root for PCI scanning")
+    parser.add_argument("--output-env", default="/run/mios/gpu-numa.env", help="Path to write Quadlet environment file")
+    parser.add_argument("--mock-topo", choices=["NVL", "PHB", "SYS"], help="Mock topology level for testing")
+    parser.add_argument("--gpu-indices", type=str, help="Comma-separated GPU indices (e.g. 0,1)")
+    parser.add_argument("--json", action="store_true", help="Output JSON affinity mapping to stdout")
+    parser.add_argument("--exec", nargs=argparse.REMAINDER, help="Execute command wrapped in numactl")
+
+    args = parser.parse_args()
+
+    indices = [int(x.strip()) for x in args.gpu_indices.split(",")] if args.gpu_indices else None
+    discovery = GpuNumaDiscovery(sysfs_root=args.sysfs_root)
+    affinity = discovery.generate_affinity(gpu_indices=indices, mock_topo=args.mock_topo)
+
+    if args.json:
+        print(json.dumps(affinity, indent=2))
+        return 0
+
+    if args.exec:
+        numa_node = affinity["NUMA_CPU_NODE"]
+        cmd = ["numactl", f"--cpunodebind={numa_node}", f"--membind={numa_node}"] + args.exec
+        log.info("Executing wrapped command: %s", " ".join(cmd))
+        os.execvp("numactl", cmd)
+
+    env_path = Path(args.output_env)
+    discovery.write_env_file(env_path, affinity)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

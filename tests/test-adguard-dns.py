@@ -13,7 +13,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 _USR_CONF = os.path.join(_ROOT, "usr", "lib", "systemd", "resolved.conf.d", "10-adguard.conf")
 _ETC_CONF = os.path.join(_ROOT, "etc", "systemd", "resolved.conf.d", "10-adguard.conf")
-_SCRIPT = os.path.join(_ROOT, "automation", "46-dns-config.sh")
+_SCRIPT = os.path.join(_ROOT, "automation", "30-dns-config.sh")
 
 
 class TestAdguardDNS(unittest.TestCase):

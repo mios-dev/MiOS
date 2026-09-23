@@ -19,6 +19,9 @@
 25	script	gpu-cdi-toolkits	automation/25-gpu-cdi-toolkits.sh	MIOS_APPLY_CLASS=universal
 26	script	nvidia-cdi-refresh	automation/26-nvidia-cdi-refresh.sh	MIOS_APPLY_CLASS=universal
 27	script	vm-gating	automation/27-vm-gating.sh	MIOS_APPLY_CLASS=universal
+28	script	kdump-config	automation/28-kdump-config.sh	MIOS_APPLY_CLASS=universal
+30	script	dns-config	automation/30-dns-config.sh	MIOS_APPLY_CLASS=universal
+31	script	subuid-alloc	automation/31-subuid-alloc.sh	MIOS_APPLY_CLASS=universal
 33	script	generate-quadlets	automation/33-generate-quadlets.sh	MIOS_APPLY_CLASS=universal
 34	script	render-quadlets	automation/34-render-quadlets.sh	MIOS_APPLY_CLASS=universal
 35	script	render-ports	automation/35-render-ports.sh	MIOS_APPLY_CLASS=universal
@@ -67,6 +70,7 @@
 88	script	finalize	automation/88-finalize.sh	MIOS_APPLY_CLASS=bake-only
 90	script	generate-sbom	automation/90-generate-sbom.sh	MIOS_APPLY_CLASS=bake-only
 91	script	strip-build-toolchain	automation/91-strip-build-toolchain.sh	MIOS_APPLY_CLASS=bake-only
+92	script	export-sbom	automation/92-export-sbom.sh	MIOS_APPLY_CLASS=universal
 94	script	cleanup	automation/94-cleanup.sh	MIOS_APPLY_CLASS=bake-only
 97	script	ssot-lint	automation/97-ssot-lint.sh	MIOS_APPLY_CLASS=universal
 98	script	drift-checks	automation/98-drift-checks.sh	MIOS_APPLY_CLASS=universal

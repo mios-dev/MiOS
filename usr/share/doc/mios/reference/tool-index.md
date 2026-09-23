@@ -49,6 +49,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-app-type` | Resolves an abstract application type (e.g. browser, editor) into a concrete app name using the [[desktop.app_types]] SSOT in mios.toml. |
 | `usr/libexec/mios/mios-apps` | Provides a unified inventory of all launchable entities (Flatpaks, RPMs, Windows apps, shims, and service URLs) across all environments, used by agents to discover and target specific applications... |
 | `usr/libexec/mios/mios-as-operator` | Executes commands in a fresh WSL login session as the operator user to bootstrap the full WSLg environment (Wayland, user-bus, and interop) required for GUI applications and Flatpaks to function... |
+| `usr/libexec/mios/mios-audio-aec` | PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter utility (T-786). |
 | `usr/libexec/mios/mios-autocenter` | Executes a polling loop to identify and center newly mapped windows (WSLg/Flatpak) by comparing current HWNDs against a pre-launch snapshot via the os_control executor to ensure correct placement of... |
 | `usr/libexec/mios/mios-bake-group` | MiOS configuration and runtime asset for mios-bake-group. |
 | `usr/libexec/mios/mios-bench` | MiOS agentic-capability benchmark harness CLI. `score` (OFFLINE, pure): reads a trial-results JSON, prints the CLASSic rollup + pass@k / pass^k (tau-bench) via the tested mios_bench core. `run`... |
@@ -59,6 +60,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-build-tail` | Retrieves and streams the most recent raw build log from /var/log/mios or /tmp, used by agents to inspect real-time or historical build output from the mios-build-driver. |
 | `usr/libexec/mios/mios-cache-clear` | Executes a safe, selective purge of non-essential OWUI, Hermes, and system cache data while preserving critical auth, config, and model assets to reset state without causing user lockouts or data... |
 | `usr/libexec/mios/mios-cdi-detect` | Detects GPU hardware (NVIDIA, AMD, Intel) and generates corresponding CDI specification files in /run/cdi/ to enable containerized GPU access before the nvidia-cdi-refresh service. |
+| `usr/libexec/mios/mios-cdi-gen` | Scoped CDI specification generator for NVIDIA, AMD, and Intel rootless Podman containers (T-525). |
 | `usr/libexec/mios/mios-cdp-fetch` | Fetches rendered text and title from a URL via the Chrome DevTools Protocol (CDP) on port 9222 to provide the agent with grounded, non-hallucinated DOM content instead of predicted text. |
 | `usr/libexec/mios/mios-ceph-configure` | Automated client cache configuration utility for CephFS, rendering performance options into /etc/ceph/ceph.conf. |
 | `usr/libexec/mios/mios-cephfs-provision` | Automated provisioning utility for CephFS user home subvolumes and path-scoped CephX keyrings. |
@@ -76,6 +78,8 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-computer-use-server` | Provides a dual-protocol (MCP/A2A) and REST-compliant FastAPI server that exposes local desktop automation tools, window management, and input injection as a federated capability for the central... |
 | `usr/libexec/mios/mios-conductor` | stub |
 | `usr/libexec/mios/mios-configurator-launch` | Opens the unified MiOS Settings surface. PRIMARY target is the configurator embedded in the MiOS Portal at /configure on the `agent_pipe` port (probed with curl); only when the Portal is unreachable... |
+| `usr/libexec/mios/mios-cosign-publish` | Local Cosign image signing, registry push, and signature validation gate (T-510). |
+| `usr/libexec/mios/mios-crash-parse` | Crash diagnostic parser and pre-panic timeline reconstruction (T-516). |
 | `usr/libexec/mios/mios-crawl` | Python script providing a thin client to the local crawl4ai service to fetch and convert web pages into LLM-ready markdown, used by agents to ground responses in actual content rather than search... |
 | `usr/libexec/mios/mios-cron-director` | A cron-task scheduler that parses system and user rules from TOML files, executing commands via bash while optionally gating execution through a local LLM's YES/NO decision based on system state. |
 | `usr/libexec/mios/mios-cron-schedule` | CLI tool for managing cron-director rules by translating human-readable intervals into cron expressions, storing prompt text in /var/lib/mios/cron-director/prompts, and updating... |
@@ -97,6 +101,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-dotfiles` | The operator-facing `mios dotfiles` verb backend (ADR-0010) -- projects |
 | `usr/libexec/mios/mios-dotfiles-render` | The GLOBAL runtime theme + dotfiles projector -- renders EVERY committed theme surface (the btop theme, oh-my-posh, quickshell, fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the... |
 | `usr/libexec/mios/mios-dup-report` | Value duplication reporter wrapper for MiOS resolved environment |
+| `usr/libexec/mios/mios-egpu-hotplug` | Dynamic Thunderbolt/USB4 eGPU and PCIe accelerator hotplug handler and CDI refresher (T-495). |
 | `usr/libexec/mios/mios-enroll-secure-boot` | Enrolls the ublue/akmods Machine Owner Key (MOK) via mokutil to allow Secure Boot systems to load signed NVIDIA and ZFS kernel modules. |
 | `usr/libexec/mios/mios-env-probe` | Captures and formats the system's hardware, service status, and configuration facts into brief, full, or machine-readable formats to provide the Hermes agent with deterministic environmental context. |
 | `usr/libexec/mios/mios-env-snapshot` | Captures a clean-environment snapshot of resolved MIOS_* environment variables for lossless diffing. |
@@ -106,17 +111,20 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-finetune-dataset` | A script to generate a supervised fine-tuning (SFT) JSONL dataset by distilling a teacher model's responses to live system verbs and intent schemas into a training corpus for the MiOS role model. |
 | `usr/libexec/mios/mios-finetune-serve` | A Python server providing OpenAI-compatible and MiOS-native chat endpoints for fine-tuned LoRA adapters, used by the agent-pipe refiner to serve specialized models on any hardware via the... |
 | `usr/libexec/mios/mios-firecrawl` | Python script to scrape web pages via the local Firecrawl API (port 3002) to produce clean, LLM-ready markdown, providing a high-quality alternative to crawl4ai for rendering news and article content. |
+| `usr/libexec/mios/mios-firewall-isolate` | Declarative nftables inter-container firewall rule generator and micro-segmentation enforcer (T-479). |
 | `usr/libexec/mios/mios-flatpak` | Agent-facing JSON-wrapped CLI for managing flatpak packages (search, install, upgrade, run) providing structured output for automated lifecycle management and non-interactive installation. |
 | `usr/libexec/mios/mios-flatpak-beta-migrate` | One-shot migration script that identifies Flatpaks from the flathub remote and reinstalls them from flathub-beta to update the origin while preserving user data. |
 | `usr/libexec/mios/mios-flatpak-icon-sanitize` | Renames .svg files containing non-SVG data (e.g., PNGs) to .disabled-not-svg to prevent the WSLg weston compositor from crashing during RemoteApp list generation. |
 | `usr/libexec/mios/mios-flatpak-init` | Initializes system-wide flatpak overrides at first boot to grant all flatpaks read/write access to standard XDG user directories and shared themes, ensuring persistent data access in bootc-compatible... |
 | `usr/libexec/mios/mios-flatpak-install` | Non-interactive wrapper for `flatpak install` that forces `--noninteractive` and `--from` flags to prevent agent hangs, while ensuring new apps inherit MiOS system-wide XDG override policies. |
+| `usr/libexec/mios/mios-flatpak-lockdown` | Flatpak permission lockdown profile validator and manager (T-489). |
 | `usr/libexec/mios/mios-flatpak-overrides-apply` | Executes `flatpak override` to apply global theme, portal, and cursor settings from `mios.toml` to all flatpak applications, ensuring consistent UI styling across the system. |
 | `usr/libexec/mios/mios-flatpak-preflight` | Validates if a flatpak app can successfully bootstrap its sandbox by running a probe command and checking for specific stderr signatures (GPU, portal, or D-Bus errors) to provide a synchronous... |
 | `usr/libexec/mios/mios-forgejo-runner-firstboot.sh` | bash Run `forgejo-runner register` once so /srv/mios/forge-runner/.runner AI-related: /usr/libexec/mios/mios-forgejo-runner-fir... |
 | `usr/libexec/mios/mios-freeipa-enroll.sh` | bash Bash oneshot run by mios-freeipa-enroll.service that joins the host to a FreeIPA domain via ipa-client-install; gated on /etc/mios/i... |
 | `usr/libexec/mios/mios-gen-role-system` | Generates unified, SSOT-driven SYSTEM prompts for MiOS agent roles by merging mios.toml configs, live verb/skill catalogs, and A2A peer surfaces into a single source for Modelfile and agent-pipe... |
 | `usr/libexec/mios/mios-generate-icons` | Generates the MiOS XDG icon theme index.theme and SVG icon stubs |
+| `usr/libexec/mios/mios-gpu-numa` | Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator (T-519). |
 | `usr/libexec/mios/mios-gpu-passthrough` | Syncs Quadlet container configurations with live CDI specifications in /run/cdi/ to automatically map the GPU vendors declared in mios.toml [gpu.cdi] onto background AI service Quadlets... |
 | `usr/libexec/mios/mios-gui` | A wrapper script that resolves and launches flatpak applications via shims, exact IDs, or fuzzy matches, then BOUNDED-polls the OS-control executor for a newly-mapped window to honestly confirm the... |
 | `usr/libexec/mios/mios-gui-launch` | A wrapper script that launches Linux GUI applications via WSLg by enforcing required environment variables (WAYLAND_DISPLAY, XDG_CURRENT_DESKTOP, XDG_SESSION_TYPE), detaching the process, and logging... |
@@ -133,6 +141,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-html` | A shim script that resolves and opens the mios.html configurator in the operator's default browser via a WSL UNC path, mapping "configurator" and "settings" commands to the UI for editing mios.toml. |
 | `usr/libexec/mios/mios-ingest` | Python script for offline ingestion of local files (md, txt, rst, org) into the Postgres+pgvector knowledge table via parameterized mios-pg-query (extended-protocol bound params), utilizing... |
 | `usr/libexec/mios/mios-installer` | Unified cross-platform package manager entry point that abstracts winget, dnf, and flatpak into a single interface for installing, searching, and listing software across Windows and Linux... |
+| `usr/libexec/mios/mios-kdump` | Kdump status manager and automated zstd crash dump extractor (T-515). |
 | `usr/libexec/mios/mios-keyring-autounlock` | A dual-mode helper that unlocks the gnome-keyring-daemon using credentials from mios.toml, supporting both proactive systemd startup and D-Bus activation to provide libsecret and xdg-desktop-portal... |
 | `usr/libexec/mios/mios-kg` | CLI for the PostgreSQL/pgvector Personal Knowledge Graph (PKG) that resolves ambiguous user phrases into concrete app targets via the kg_lookup() helper in the agent-pipe. WS-A3: every read + write... |
 | `usr/libexec/mios/mios-knowledge-add` | Registers markdown files or directories into the OWUI `file` table and links them to a named Knowledge collection to enable RAG capabilities for the MiOS-Agent model via meta.knowledge binding. |
@@ -140,6 +149,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-lan-status` | Checks and configures Windows-side port forwarding for MiOS services (e.g., Open WebUI, mios-llm-light) to ensure LAN/Wi-Fi accessibility from the host machine via a PowerShell helper script. |
 | `usr/libexec/mios/mios-launch` | Universal launcher that resolves and executes applications across multiple environments (internal services, URLs, Windows binaries, MiOS shims, Linux GUI apps, and PATH binaries) based on a... |
 | `usr/libexec/mios/mios-launcher-daemon` | Broker service that provides a Unix socket for the mios-hermes agent to execute shell commands within the operator's user context, enabling GUI apps and Windows .exe interop via the operator's... |
+| `usr/libexec/mios/mios-livepatch` | Cryptographic MOK livepatch signature gate and IMA measurement logger (T-782). |
 | `usr/libexec/mios/mios-living-wallpaper` | Daemon script to manage the GPU-accelerated animated living wallpaper on Linux (WBRAND-05). |
 | `usr/libexec/mios/mios-lldap-seed` | Projects Postgres account table rows into lldap bootstrap format. |
 | `usr/libexec/mios/mios-locate` | Linux-side filesystem search shim that provides a unified interface for agents to locate files/directories using plocate, locate, or find, supporting filtering by count, extension, type, and specific... |
@@ -155,10 +165,12 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-metal-mesh-gen` | Generates Headscale/Tailscale mesh configuration from mios.toml [metal.mesh] SSOT. |
 | `usr/libexec/mios/mios-metal-vfio-gen` | Generates vfio-pci binding kargs/modprobe configuration from mios.toml [metal] SSOT. |
 | `usr/libexec/mios/mios-micro-llm` | Thin client for the resident qwen3:1.7b model on the mios-llm-light /v1 lane, providing low-latency (<500ms) classification for mios-log-watcher, mios-cron-director, and other system agents. |
+| `usr/libexec/mios/mios-microvm` | Entry point for mios-microvm virtualization manager (T-806). |
 | `usr/libexec/mios/mios-model-router` | Acts as the primary OpenAI-compatible entry point and load balancer for MiOS, routing requests to specific hardware lanes (dGPU, iGPU, CPU) based on performance profiles and managing the 17K-token... |
 | `usr/libexec/mios/mios-models` | FBM CLI. `mios models list` prints the DECLARED set from the layered [ai].firstboot_models SSOT joined against what is on disk (it used to glob the filesystem and never open the TOML at all, so it... |
 | `usr/libexec/mios/mios-models-firstboot` | FBM first-boot large-model provisioner. Reads [ai].firstboot_models from the layered mios.toml, downloads each GGUF with resume, VERIFIES its sha256 (streamed, chunked) and discards the part file on... |
 | `usr/libexec/mios/mios-mon.py` | MiOS Unified TUI App -- The single cross-platform shared surface. |
+| `usr/libexec/mios/mios-netflowd` | In-kernel eBPF network flow collector daemon and summary stream processor (T-511). |
 | `usr/libexec/mios/mios-new` | Command-line utility to scaffold new MiOS files from canonical templates, interpolating names, dates, and settings. |
 | `usr/libexec/mios/mios-oci-delta-apply` | stub |
 | `usr/libexec/mios/mios-oci-delta-service.sh` | GAP-5 (T-050) edge distribution wrapper |
@@ -183,6 +195,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-policy-arbiter` | WS-9 out-of-process HITL policy-arbiter SERVICE. A tiny stdlib HTTP service (no deps, loopback) that answers the agent-pipe's HITL arbiter client (_hitl_arbiter_verdict): POST / with {verb,tier,args}... |
 | `usr/libexec/mios/mios-powershell` | Executes PowerShell scripts on Windows via pwsh.exe or powershell.exe, providing a first-class `powershell_run` verb for agents to interact with Windows cmdlets, registry, and COM objects with... |
 | `usr/libexec/mios/mios-ps` | Displays a list of all MiOS containers by reading the root-owned podman-ps.json snapshot, allowing non-root users to view container status and images without direct podman socket access. |
+| `usr/libexec/mios/mios-pstore` | Persistent pstore ramoops kernel crash buffer manager and post-mortem extractor (T-790). |
 | `usr/libexec/mios/mios-rag` | Python tool for RAG retrieval that embeds MiOS documentation into Postgres+pgvector (table mios_rag) via nomic-embed-text to provide context to agents during the agent-pipe enrich stage. WS-A3: the... |
 | `usr/libexec/mios/mios-rechunk` | GAP-5 -- post-build binary diff between new OCI layer blobs and prior manifest |
 | `usr/libexec/mios/mios-registry` | WS-A17 read-mostly local package-registry CLI. `list` prints the materialized package index, `verify` checks the committed registry.json is in sync with the live SSOT (exit 1 on drift, used by the... |
@@ -192,6 +205,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-restart` | Executes smart restarts for MiOS services, handling specific logic for Podman Quadlets (systemctl-based), standard systemd units, and hermes-agent soft restarts to clear in-process skill caches. |
 | `usr/libexec/mios/mios-sandbox-exec` | Executes agent-generated code within a bubblewrap-based userspace sandbox, enforcing filesystem isolation, resource limits (cgroups), network restrictions and (T-230) a SECCOMP syscall filter based... |
 | `usr/libexec/mios/mios-scheduled-research` | Executes scheduled research tasks by processing prompts through the agent-pipe with a bounded research path to prevent resource exhaustion, then reporting results to Discord via mios-discord-send. |
+| `usr/libexec/mios/mios-screen-stream` | Hardware-accelerated PipeWire WebRTC desktop video streamer (T-788). |
 | `usr/libexec/mios/mios-screenshot` | A bash wrapper for capturing the primary Windows monitor as a PNG via mios-pc-control, supporting optional --open and --clipboard flags to provide a unified interface for remote screen capture. |
 | `usr/libexec/mios/mios-seccomp-filter` | Emits the compiled seccomp cBPF program that mios-sandbox-exec hands bwrap on --seccomp FD. Reads the denylist and action from mios.toml [sandbox] through the layered resolver, builds the program... |
 | `usr/libexec/mios/mios-shell-session` | SHELL-01 runner for the persistent PTY substrate. Drives tmux with the pure protocol in mios_pipe.routing.pty: `exec` sends one nonce-framed command into the chat's session (creating it under the... |
@@ -206,6 +220,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-stage-oci-archive` | Stages built mios oci-archive tarball to /mnt/mios-repo/mios-latest.tar for tools/install.sh (AGY-152) |
 | `usr/libexec/mios/mios-steamcmd` | A wrapper for Valve's SteamCMD providing a unified interface for game installation, updates, and status checks via both GUI-based URI dispatching and headless SteamCMD commands for server hosting. |
 | `usr/libexec/mios/mios-stresstest` | A developer tool to stress-test the agent-pipe chat endpoint via a Python harness, used to validate system stability, concurrency limits, and latency under load. |
+| `usr/libexec/mios/mios-subuid-alloc` | Deterministic /etc/subuid and /etc/subgid subordinate UID/GID allocator (T-477). |
 | `usr/libexec/mios/mios-suggestion-refresh` | Refreshes OWUI's ui.prompt_suggestions by analyzing MiOS state (kanban, daemon nudges, recent intents) via a refine model to generate 5-28 context-aware starter chips for the operator. |
 | `usr/libexec/mios/mios-summarize` | Provides tiered summarization (L0/L1/L2) via a local LLM on the CPU-bound light lane to generate concise abstracts and structured overviews for efficient document indexing and navigation. |
 | `usr/libexec/mios/mios-swarm-pack-firstboot` | Parses mios.toml to arm concurrent llama-server instances in swarm mode, enforcing vram_budget_mb limits to prevent OOM on shared GPUs and generating per-worker environment files in /run/mios/swarm/. |
@@ -217,18 +232,24 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-sysview` | Provides a unified system inspection tool for agents to query journalctl, process lists, and podman containers by abstracting complex command construction and flag validation into a single interface. |
 | `usr/libexec/mios/mios-template-engine` | Thin shim delegating template rendering to the mios-new canonical generator, preserving the legacy <kind> <target_filepath> [description] contract. |
 | `usr/libexec/mios/mios-text-edit` | Provides a robust, filesystem-direct text editing primitive for agents to view, create, and mutate files via atomic str_replace or line-based insertion, bypassing unreliable UI-driven keystroke... |
-| `usr/libexec/mios/mios-theme-render` | Deprecated compatibility alias wrapper. Delegates execution to mios-dotfiles-render. |
+| `usr/libexec/mios/mios-theme-broadcast` | Theme event emitter synchronizing GNOME settings and living wallpaper via DBus and Unix domain sockets (T-500). |
+| `usr/libexec/mios/mios-theme-render` | Multi-surface live theme renderer with ANSI OSC 4/10/11 PTY injector and GTK/QT CSS generator (T-499). |
+| `usr/libexec/mios/mios-thp-tune` | Transparent Huge Pages (THP madvise) and proactive memory compaction tuner (T-800). |
 | `usr/libexec/mios/mios-toml-get` | Thin shell-facing CLI over the shared usr/lib/mios/mios_toml.py resolver, so bash scripts + `python3 - <<PY` heredocs stop re-rolling their own awk/regex mios.toml scanners (which mishandle... |
 | `usr/libexec/mios/mios-tool-clone` | Copies a system-shipped MiOS shim from /usr/libexec/mios/ to /usr/local/bin/ to create a mutable version that overrides the default on PATH, allowing agents to iteratively modify and improve existing... |
 | `usr/libexec/mios/mios-tool-search` | A thin client for the agent-pipe tool-search endpoint that performs RAG-based retrieval of the verb catalog to resolve ambiguous intents via semantic similarity scoring. |
+| `usr/libexec/mios/mios-tpm-seal` | TPM 2.0 PCR 7/11 automated secret sealing and enrollment manager (T-493). |
 | `usr/libexec/mios/mios-ttyd-expose` | Configures and toggles the Tailscale HTTPS reverse proxy for the ttyd terminal service on port 7681, enabling secure mobile access via the Tailnet based on the [ttyd].tailnet_expose setting in... |
 | `usr/libexec/mios/mios-ttyd-launch` | Parses MIOS_TTYD_* environment variables and mios.toml configurations to construct and execute the ttyd web terminal process for either bash or powershell shells on specific ports. |
+| `usr/libexec/mios/mios-ukify-stage` | A/B UKI staging and systemd-ukify compilation pipeline with baked kargs (T-507). |
+| `usr/libexec/mios/mios-usbguard` | Declarative USBGuard device authorization daemon and read-only storage mounter (T-798). |
 | `usr/libexec/mios/mios-userdb-render` | Projects Postgres account table rows into systemd userdb JSON drop-ins. |
 | `usr/libexec/mios/mios-v2v-import` | Virt-V2V guest import wrapper resolving storage pool, network, and output format from mios.toml [virt.v2v] SSOT. |
 | `usr/libexec/mios/mios-vendor-refresh` | One-command offline asset vendor refresh tool. Re-pulls vendored k3s, cursors, fonts, and wheels at LATEST tag resolution. |
 | `usr/libexec/mios/mios-verify-launch` | Synchronously queries the mios-daemon-agent to verify if an app actually launched via a live window/process probe and historical failure logs, preventing agents from reporting false successes. |
 | `usr/libexec/mios/mios-version-lint` | NO-HARDCODE-VERSION law enforcement (Law 7 / ADR-0003). Scans the source tree for hand-pinned version literals in URLs, pip/npm pins, and @sha256 image digests. |
 | `usr/libexec/mios/mios-viking` | Provides a tiered, read-only virtual filesystem (viking://) for agents to navigate local skills, knowledge, and memory via L0 (abstract), L1 (overview), and L2 (raw) levels to manage context window... |
+| `usr/libexec/mios/mios-wallpaper` | Unified CLI entry point and execution wrapper for the MiOS Living Wallpaper daemon (WBRAND-05 / T-778). |
 | `usr/libexec/mios/mios-web-extract` | Python utility to fetch a URL and strip HTML noise (scripts, styles, nav) to return raw, readable text for grounding agent responses on actual web content rather than search snippets. |
 | `usr/libexec/mios/mios-web-search` | Python backend for the web_search verb that queries a local SearXNG instance using concurrent fan-out (RAG-Fusion) to provide agents with real-time, grounded data for facts, weather, and news. |
 | `usr/libexec/mios/mios-webtools-firstboot.sh` | Build-if-missing bootstrap for the mios-webtools container images |
@@ -241,8 +262,9 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wsl-flatpak-export-sync.sh` | Mirror flatpak's `.desktop` + icon exports into the system XDG dirs so |
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
+| `usr/libexec/mios/mios-xdp` | Native eBPF XDP network fastpath and WireGuard packet router manager (T-802). |
 
-<!-- derived from the AI-hint headers of 212 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 234 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)
@@ -373,6 +395,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_drain_handler.py` | Graceful worker shutdown and SIGTERM drain handler in server.py. |
 | `usr/lib/mios/agent-pipe/mios_embed_backfill.py` | Re-export shim for mios_pipe.memory.embed_backfill |
 | `usr/lib/mios/agent-pipe/mios_endpoints.py` | Pure endpoint capability detection extracted verbatim from server.py (strangler-fig refactor R-wave). |
+| `usr/lib/mios/agent-pipe/mios_events.py` | Authenticated WebSocket real-time agent execution token stream hub (T-518). |
 | `usr/lib/mios/agent-pipe/mios_evict.py` | Re-export shim for mios_pipe.scheduler.evict |
 | `usr/lib/mios/agent-pipe/mios_fanout.py` | Re-export shim for mios_pipe.routing.fanout |
 | `usr/lib/mios/agent-pipe/mios_firewall.py` | Re-export shim for mios_pipe.access.firewall |
@@ -402,6 +425,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_memguard.py` | Re-export shim for mios_pipe.access.memguard |
 | `usr/lib/mios/agent-pipe/mios_memory.py` | Re-export shim for mios_pipe.memory.memory |
 | `usr/lib/mios/agent-pipe/mios_native_loop.py` | Re-export shim for mios_pipe.routing.native_loop |
+| `usr/lib/mios/agent-pipe/mios_net_anomaly.py` | Jensen-Shannon divergence network anomaly detector and PostgreSQL threat_events vector sink (T-512). |
 | `usr/lib/mios/agent-pipe/mios_oscontrol.py` | Re-export shim for mios_pipe.routing.oscontrol |
 | `usr/lib/mios/agent-pipe/mios_owui.py` | Re-export shim for mios_pipe.routing.owui |
 | `usr/lib/mios/agent-pipe/mios_pdp.py` | Re-export shim for mios_pipe.access.pdp |
@@ -588,6 +612,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_verity.py` | Re-export shim for mios_pipe.lifecycle.verity |
 | `usr/lib/mios/agent-pipe/mios_vision.py` | Re-export shim for mios_pipe.routing.vision |
 | `usr/lib/mios/agent-pipe/mios_web_research.py` | Re-export shim for mios_pipe.routing.web_research |
+| `usr/lib/mios/agent-pipe/mios_webhook.py` | HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue (T-517). |
 | `usr/lib/mios/agent-pipe/mios_worker_tools.py` | Re-export shim for mios_pipe.memory.worker_tools |
 | `usr/lib/mios/agent-pipe/mios_worktree.py` | Ephemeral subagent git worktree lifecycle manager and branch pruner for MiOS agent-pipe. |
 | `usr/lib/mios/agent-pipe/multimodal_ws.py` | Duplex multi-modal WebSocket streaming pipeline (audio, vision, TTS, tools) in agent-pipe (T-671, T-672). |
@@ -739,6 +764,8 @@ is generated, its generator is here.
 | `usr/lib/mios/ai/streaming_llm.py` | MiOS system and orchestration module providing streaming llm capabilities. |
 | `usr/lib/mios/ai/tensor_pipeline.py` | MiOS system and orchestration module providing tensor pipeline capabilities. |
 | `usr/lib/mios/ai/train_elastic.py` | Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager (T-669, T-670). |
+| `usr/lib/mios/cli/formatter.py` | Dynamic TTY / Rich / JSON / YAML output formatter and adaptive CLI engine (T-513). |
+| `usr/lib/mios/cli/plugin_loader.py` | Dynamic plugin loader and subcommand discovery for MiOS CLI (T-514). |
 | `usr/lib/mios/crawl4ai/mios-crawl4ai-service.py` | FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w... |
 | `usr/lib/mios/gateway-agent/__init__.py` | MiOS system and orchestration module providing init capabilities. |
 | `usr/lib/mios/gateway-agent/mcp_client.py` | MiOS system and orchestration module providing mcp client capabilities. |
@@ -753,7 +780,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 417 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 422 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

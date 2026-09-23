@@ -60,6 +60,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-endpoint.target` | `usr/lib/systemd/system` | MiOS' Endpoint Role |
 | `mios-finetune-serve.service` | `usr/lib/systemd/system` | MiOS' fine-tune serve (base+adapter refiner backend) |
 | `mios-firewall-ports.service` | `usr/lib/systemd/system` | MiOS': ensure firewalld has the MiOS service ports open |
+| `mios-firewall.service` | `usr/lib/systemd/system` | MiOS': Declarative nftables container micro-segmentation firewall |
 | `mios-firstboot.target` | `usr/lib/systemd/system` | MiOS' first-boot provisioning |
 | `mios-flatpak-init.service` | `usr/lib/systemd/system` | MiOS' flatpak override policy (system-wide XDG grants) |
 | `mios-flatpak-install.service` | `usr/lib/systemd/system` | MiOS' Flatpak First-Boot Installer |
@@ -132,8 +133,10 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-podman-ps.timer` | `usr/lib/systemd/system` | MiOS' refresh the podman container snapshot for the dashboard |
 | `mios-policy-arbiter.service` | `usr/lib/systemd/system` | MiOS' out-of-process HITL policy arbiter (WS-9) |
 | `mios-powerd.service` | `usr/lib/systemd/system` | MiOS' Hardware Power Supply Monitor and Battery-Aware AI Downscaler Daemon |
+| `mios-pstore.service` | `usr/lib/systemd/system` | MiOS Persistent Kernel Crash Buffer Extractor |
 | `mios-pxe-hub.container` | `usr/share/containers/systemd` | MiOS' PXE Boot Hub |
 | `mios-radosgw.container` | `usr/share/containers/systemd` | MiOS' Ceph RADOS Gateway (S3 Object Storage) |
+| `mios-registry.service` | `usr/lib/systemd/system` | MiOS Local OCI Distribution Registry (T-510) |
 | `mios-role.service` | `usr/lib/systemd/system` | MiOS' System Init & Role Engine |
 | `mios-searxng.container` | `usr/share/containers/systemd` | MiOS' SearXNG metasearch (privacy-respecting search proxy) |
 | `mios-secret-init.service` | `usr/lib/systemd/system` | MiOS Quadlet Secrets Environment Initialization |
@@ -189,5 +192,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (181 unit(s)) -->
+<!-- derived from tracked unit files (184 unit(s)) -->
 <!-- /MIOS-GEN:units -->

@@ -12,7 +12,7 @@ import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
-_EXPORT_SCRIPT = os.path.join(_ROOT, "automation", "90-export-sbom.sh")
+_EXPORT_SCRIPT = os.path.join(_ROOT, "automation", "92-export-sbom.sh")
 _SBOM_JSON = os.path.join(_ROOT, "usr", "share", "doc", "mios", "sbom.json")
 
 

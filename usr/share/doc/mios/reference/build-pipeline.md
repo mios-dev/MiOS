@@ -47,6 +47,9 @@ Two columns below are worth reading carefully:
 | 25 | gpu-cdi-toolkits | `25-gpu-cdi-toolkits.sh` | yes | universal |
 | 26 | nvidia-cdi-refresh | `26-nvidia-cdi-refresh.sh` | yes | universal |
 | 27 | vm-gating | `27-vm-gating.sh` | no | universal |
+| 28 | kdump-config | `28-kdump-config.sh` | no | universal |
+| 30 | dns-config | `30-dns-config.sh` | yes | universal |
+| 31 | subuid-alloc | `31-subuid-alloc.sh` | yes | universal |
 | 33 | generate-quadlets | `33-generate-quadlets.sh` | yes | universal |
 | 34 | render-quadlets | `34-render-quadlets.sh` | yes | universal |
 | 35 | render-ports | `35-render-ports.sh` | yes | universal |
@@ -95,12 +98,13 @@ Two columns below are worth reading carefully:
 | 88 | finalize | `88-finalize.sh` | yes | universal |
 | 90 | generate-sbom | `90-generate-sbom.sh` | yes | universal |
 | 91 | strip-build-toolchain | `91-strip-build-toolchain.sh` | no | universal |
+| 92 | export-sbom | `92-export-sbom.sh` | no | universal |
 | 94 | cleanup | `94-cleanup.sh` | yes | universal |
 | 97 | ssot-lint | `97-ssot-lint.sh` | yes | containerfile |
 | 98 | drift-checks | `98-drift-checks.sh` | yes | containerfile |
 | 99 | postcheck | `99-postcheck.sh` | yes | containerfile |
 
-<!-- derived from usr/share/mios/mios.toml [build.phases].list (72 phases) -->
+<!-- derived from usr/share/mios/mios.toml [build.phases].list (76 phases) -->
 <!-- /MIOS-GEN:pipeline -->
 
 ## Root Quadlet exceptions (Law 6)
