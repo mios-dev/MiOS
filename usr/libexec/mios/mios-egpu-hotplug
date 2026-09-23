@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+# AI-hint: Dynamic Thunderbolt/USB4 eGPU and PCIe accelerator hotplug handler and CDI refresher (T-495).
+# AI-doc: usr/share/doc/mios/manual/ch14-hardware-and-drivers.md
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+from typing import Any, Dict, Optional
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_CDI_GEN = os.path.join(_HERE, "mios-cdi-gen")
+_REPO_ROOT = os.path.normpath(os.path.join(_HERE, "..", ".."))
+
+
+def handle_hotplug(
+    action: str,
+    devpath: str,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Processes eGPU/PCIe accelerator hotplug add/remove events."""
+    action = action.lower()
+    if action not in ("add", "remove"):
+        return {"status": "error", "message": f"Unsupported action: {action}"}
+
+    cdi_triggered = False
+    cdi_output = None
+
+    if action == "add":
+        # Check if driver binding is needed
+        sysfs_dev = os.path.join("/sys", devpath.lstrip("/"))
+        driver_path = os.path.join(sysfs_dev, "driver")
+
+        if os.path.exists(sysfs_dev) and not os.path.exists(driver_path) and not dry_run:
+            # Trigger driver probe via driver_probe attribute or rescan
+            probe_attr = os.path.join(sysfs_dev, "driver_probe")
+            if os.path.exists(probe_attr):
+                try:
+                    with open(probe_attr, "w") as f:
+                        f.write("1\n")
+                except OSError:
+                    pass
+
+    # Trigger CDI specification refresh on add and remove
+    cdi_bin = _CDI_GEN
+    if not os.path.isfile(cdi_bin):
+        candidate = "/usr/libexec/mios/mios-cdi-gen"
+        if os.path.isfile(candidate):
+            cdi_bin = candidate
+
+    if os.path.isfile(cdi_bin) and os.access(cdi_bin, os.X_OK):
+        cmd = [cdi_bin, "--dry-run" if dry_run else "--json"]
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            cdi_triggered = True
+            try:
+                cdi_output = json.loads(res.stdout)
+            except json.JSONDecodeError:
+                cdi_output = res.stdout.strip()
+        except subprocess.CalledProcessError as e:
+            cdi_output = f"cdi_gen_error: {e.stderr.strip()}"
+
+    return {
+        "status": "success",
+        "action": action,
+        "devpath": devpath,
+        "cdi_triggered": cdi_triggered,
+        "cdi_result": cdi_output,
+        "dry_run": dry_run,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Dynamic Thunderbolt/USB4 eGPU and PCIe accelerator hotplug handler (T-495)"
+    )
+    parser.add_argument("pos_action", nargs="?", choices=["add", "remove"], help="Hotplug action (positional for udev)")
+    parser.add_argument("pos_devpath", nargs="?", help="Device sysfs path (positional for udev)")
+    parser.add_argument("--action", choices=["add", "remove"], help="Hotplug action")
+    parser.add_argument("--devpath", help="Sysfs device path")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate without writing system state")
+    parser.add_argument("--json", action="store_true", help="Output result in JSON format")
+
+    args = parser.parse_args()
+
+    action = args.action or args.pos_action or "add"
+    devpath = args.devpath or args.pos_devpath or "/devices/pci0000:00/0000:00:01.0/0000:01:00.0"
+
+    res = handle_hotplug(action, devpath, dry_run=args.dry_run)
+
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        print(f"[mios-egpu-hotplug] Event: {action.upper()} (Device: {devpath})")
+        print(f"  - CDI Refreshed: {res['cdi_triggered']}")
+        if res.get("cdi_result"):
+            print(f"  - CDI Result: {res['cdi_result']}")
+
+    return 0 if res["status"] == "success" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

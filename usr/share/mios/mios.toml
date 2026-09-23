@@ -11578,6 +11578,7 @@ unit = [
     "tests/test-flatpak-overrides.py",
     "tests/test-tpm2-seal.py",
     "tests/test-subuid-alloc.py",
+    "tests/test-egpu-hotplug.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

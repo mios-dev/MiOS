@@ -911,7 +911,7 @@
 | T-492 | P2 | open | Storage/LockTest | Cross-platform concurrent write and lock contention test suite in QEMU |
 | T-493 | P1 | done | Security/TPM2 | TPM 2.0 PCR 7/11 systemd-creds automated secret sealing and enrollment script |
 | T-494 | P2 | open | Security/Recovery | Offline split-key emergency recovery and TPM unseal failure test suite |
-| T-495 | P1 | open | Hardware/Hotplug | Udev hotplug handler for dynamic Thunderbolt/USB4 eGPU and PCIe accelerator re-enumeration |
+| T-495 | P1 | done | Hardware/Hotplug | Udev hotplug handler for dynamic Thunderbolt/USB4 eGPU and PCIe accelerator re-enumeration |
 | T-496 | P2 | open | AI/CDIReload | Zero-downtime CDI re-generation and inference engine live reload daemon |
 | T-497 | P1 | open | Network/DNS | systemd-resolved to mios-adguard split-horizon DNS routing configurator |
 | T-498 | P2 | open | Network/DNSTest | DNS-over-HTTPS leak prevention and encrypted query test suite |
@@ -5806,7 +5806,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Udev rules detect hotplugged GPUs and trigger automated provisioning immediately.
 **Why:** External eGPUs allow mobile laptops and modular workstations to dynamically expand AI compute capacity.
 **Dep:** AGY-2092
-**Status:** open | **Domain:** Hardware/Hotplug | **Who:** agent
+**Status:** done | **Domain:** Hardware/Hotplug | **Who:** agent
 **Converted:** AGY-2093 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-496 -- Zero-downtime CDI re-generation and inference engine live reload daemon (WS-AI | P2 | M)

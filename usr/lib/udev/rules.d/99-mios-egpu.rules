@@ -1,0 +1,21 @@
+# AI-hint: Dynamic Thunderbolt/USB4 eGPU and PCIe accelerator hotplug udev rules (T-495).
+# AI-doc: usr/share/doc/mios/manual/ch14-hardware-and-drivers.md
+
+# Automatically authorize Thunderbolt/USB4 external enclosures
+ACTION=="add", SUBSYSTEM=="thunderbolt", ATTR{authorized}=="0", ATTR{authorized}="1"
+
+# VGA Compatible Controllers (0x030000)
+ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x030000", RUN+="/usr/libexec/mios/mios-egpu-hotplug add %p"
+ACTION=="remove", SUBSYSTEM=="pci", ATTR{class}=="0x030000", RUN+="/usr/libexec/mios/mios-egpu-hotplug remove %p"
+
+# 3D Display Controllers (0x030200)
+ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x030200", RUN+="/usr/libexec/mios/mios-egpu-hotplug add %p"
+ACTION=="remove", SUBSYSTEM=="pci", ATTR{class}=="0x030200", RUN+="/usr/libexec/mios/mios-egpu-hotplug remove %p"
+
+# Miscellaneous Display Controllers (0x038000)
+ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x038000", RUN+="/usr/libexec/mios/mios-egpu-hotplug add %p"
+ACTION=="remove", SUBSYSTEM=="pci", ATTR{class}=="0x038000", RUN+="/usr/libexec/mios/mios-egpu-hotplug remove %p"
+
+# Processing Accelerators (0x120000)
+ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x120000", RUN+="/usr/libexec/mios/mios-egpu-hotplug add %p"
+ACTION=="remove", SUBSYSTEM=="pci", ATTR{class}=="0x120000", RUN+="/usr/libexec/mios/mios-egpu-hotplug remove %p"
