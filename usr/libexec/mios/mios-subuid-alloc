@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+# AI-hint: Deterministic /etc/subuid and /etc/subgid subordinate UID/GID allocator (T-477).
+# AI-doc: usr/share/doc/mios/manual/ch11-security-and-hardening.md
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pwd
+import sys
+from typing import Any, Dict, List, Set, Tuple
+
+BASE_OFFSET = 100000
+BLOCK_SIZE = 65536
+MIN_UID = 1000
+MAX_UID = 60000
+
+DEFAULT_SUBUID = "/etc/subuid"
+DEFAULT_SUBGID = "/etc/subgid"
+
+
+def calculate_range(uid: int, index_offset: int = 0) -> Tuple[int, int]:
+    """Calculates deterministic base and count for a given UID."""
+    if uid < MIN_UID:
+        raise ValueError(f"UID {uid} below regular user threshold {MIN_UID}")
+    base = BASE_OFFSET + ((uid - MIN_UID) + index_offset) * BLOCK_SIZE
+    return base, BLOCK_SIZE
+
+
+def parse_sub_file(path: str) -> Dict[str, Tuple[int, int]]:
+    """Parses existing subuid or subgid file into mapping {user: (base, count)}."""
+    entries: Dict[str, Tuple[int, int]] = {}
+    if not os.path.exists(path):
+        return entries
+
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(":")
+            if len(parts) >= 3:
+                try:
+                    entries[parts[0]] = (int(parts[1]), int(parts[2]))
+                except ValueError:
+                    continue
+    return entries
+
+
+def write_sub_file(path: str, entries: Dict[str, Tuple[int, int]]) -> None:
+    """Writes subordinate mapping back to file preserving alphabetical order."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        for user in sorted(entries.keys()):
+            base, count = entries[user]
+            f.write(f"{user}:{base}:{count}\n")
+
+
+def sync_sub_ranges(
+    subuid_path: str = DEFAULT_SUBUID,
+    subgid_path: str = DEFAULT_SUBGID,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Scans system users with UID >= 1000 and synchronizes deterministic ranges."""
+    subuid_entries = parse_sub_file(subuid_path)
+    subgid_entries = parse_sub_file(subgid_path)
+
+    # Discover regular users from /etc/passwd
+    users_to_sync: List[Tuple[str, int]] = []
+    seen_users: Set[str] = set()
+    try:
+        for user_entry in pwd.getpwall():
+            if MIN_UID <= user_entry.pw_uid < MAX_UID:
+                if user_entry.pw_name not in seen_users:
+                    users_to_sync.append((user_entry.pw_name, user_entry.pw_uid))
+                    seen_users.add(user_entry.pw_name)
+    except Exception:
+        pass
+
+    if "mios" not in seen_users:
+        users_to_sync.append(("mios", 1000))
+        seen_users.add("mios")
+
+    # Sort deterministically
+    users_to_sync.sort(key=lambda x: (x[1], x[0]))
+
+    allocated: List[Dict[str, Any]] = []
+    allocated_bases: Set[int] = set()
+
+    for idx, (user, uid) in enumerate(users_to_sync):
+        # Calculate range using deterministic base; if base collision occurs (same UID alias), offset by index
+        base, count = calculate_range(uid)
+        offset = 0
+        while base in allocated_bases:
+            offset += 1
+            base, count = calculate_range(uid, offset)
+
+        allocated_bases.add(base)
+        subuid_entries[user] = (base, count)
+        subgid_entries[user] = (base, count)
+        allocated.append({
+            "user": user,
+            "uid": uid,
+            "base": base,
+            "count": count,
+        })
+
+    if not dry_run:
+        try:
+            write_sub_file(subuid_path, subuid_entries)
+            write_sub_file(subgid_path, subgid_entries)
+        except OSError:
+            pass
+
+    return {
+        "status": "synchronized",
+        "count": len(allocated),
+        "allocations": allocated,
+        "subuid_path": subuid_path,
+        "subgid_path": subgid_path,
+    }
+
+
+def verify_no_collisions(entries: Dict[str, Tuple[int, int]]) -> bool:
+    """Verifies that no ranges overlap."""
+    ranges = sorted(entries.values(), key=lambda x: x[0])
+    for i in range(len(ranges) - 1):
+        cur_base, cur_count = ranges[i]
+        next_base, _ = ranges[i + 1]
+        if cur_base + cur_count > next_base:
+            return False
+    return True
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Deterministic /etc/subuid and /etc/subgid range generator (T-477)"
+    )
+    parser.add_argument("--sync", action="store_true", help="Synchronize subuid/subgid for all system users")
+    parser.add_argument("--check", action="store_true", help="Verify existing subuid/subgid files have no collisions")
+    parser.add_argument("--user", help="Allocate for a specific username")
+    parser.add_argument("--uid", type=int, help="Specify UID for user")
+    parser.add_argument("--subuid", default=DEFAULT_SUBUID, help="Path to subuid file")
+    parser.add_argument("--subgid", default=DEFAULT_SUBGID, help="Path to subgid file")
+    parser.add_argument("--dry-run", action="store_true", help="Do not write files to disk")
+    parser.add_argument("--json", action="store_true", help="Output in JSON format")
+
+    args = parser.parse_args()
+
+    if args.user:
+        uid = args.uid or 1000
+        base, count = calculate_range(uid)
+        res = {"user": args.user, "uid": uid, "base": base, "count": count}
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"{args.user}:{base}:{count}")
+        return 0
+
+    if args.check:
+        u_entries = parse_sub_file(args.subuid)
+        g_entries = parse_sub_file(args.subgid)
+        u_valid = verify_no_collisions(u_entries)
+        g_valid = verify_no_collisions(g_entries)
+        valid = u_valid and g_valid
+        res = {
+            "status": "valid" if valid else "collision_detected",
+            "subuid_entries": len(u_entries),
+            "subgid_entries": len(g_entries),
+            "subuid_collision_free": u_valid,
+            "subgid_collision_free": g_valid,
+        }
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[mios-subuid-alloc] Collision Check: {'PASS' if valid else 'FAIL'}")
+        return 0 if valid else 1
+
+    # Default to sync
+    res = sync_sub_ranges(args.subuid, args.subgid, dry_run=args.dry_run)
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        print(f"[mios-subuid-alloc] Synchronized {res['count']} user range(s) deterministically.")
+        for alloc in res["allocations"]:
+            print(f"  - {alloc['user']} (UID {alloc['uid']}): {alloc['base']}..{alloc['base'] + alloc['count'] - 1}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

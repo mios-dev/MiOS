@@ -893,7 +893,7 @@
 | T-474 | P1 | open | Git/Rebase | Automated Conflict Detection and Semantic 3-Way Rebase Engine for Root FS |
 | T-475 | P1 | open | Search/Scrubbing | Pre-Search Query Sanitization & Secret Scrubbing Filter in agent-pipe |
 | T-476 | P2 | open | Search/Cache | Search Result Semantic Vector Cache & Deduplication in pgvector |
-| T-477 | P1 | open | User/SubUID | Deterministic /etc/subuid and /etc/subgid range generator in sysusers automation |
+| T-477 | P1 | done | User/SubUID | Deterministic /etc/subuid and /etc/subgid range generator in sysusers automation |
 | T-478 | P2 | open | Security/ACL | POSIX ACL and user namespace validator in greenboot pre-flight checks |
 | T-479 | P1 | done | Network/Firewall | Declarative nftables inter-container firewall rule generator |
 | T-480 | P2 | open | Security/PenTest | Container bridge lateral movement penetration test in CI test suites |
@@ -5626,7 +5626,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Subordinate UID/GID ranges are generated deterministically with zero collision across user accounts.
 **Why:** Non-overlapping user namespaces are essential for secure multi-tenant rootless container execution.
 **Dep:** AGY-2074
-**Status:** open | **Domain:** User/SubUID | **Who:** agent
+**Status:** done | **Domain:** User/SubUID | **Who:** agent
 **Converted:** AGY-2075 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-478 -- POSIX ACL and user namespace validator in greenboot pre-flight checks (WS-SEC | P2 | S)
