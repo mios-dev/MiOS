@@ -11595,6 +11595,7 @@ unit = [
     "tests/test-kdump-crash.py",
     "tests/test-ebpf-flightrec.py",
     "tests/test-webhook-receiver.py",
+    "tests/test-events-websocket.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

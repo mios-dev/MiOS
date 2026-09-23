@@ -934,7 +934,7 @@
 | T-515 | P1 | done | Kernel/Kdump | Reserved memory kdump kernel deployment and automated zstd crash dump extractor |
 | T-516 | P1 | done | Kernel/FlightRecorder | In-kernel eBPF circular flight recorder ring and crash diagnostic parser |
 | T-517 | P1 | done | AI/Webhooks | HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe |
-| T-518 | P1 | open | AI/WebSocket | Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) |
+| T-518 | P1 | done | AI/WebSocket | Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) |
 | T-519 | P1 | open | Hardware/NUMA | Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator |
 | T-520 | P2 | open | Hardware/P2PTest | Automated inter-GPU P2P bandwidth and memory latency validation benchmark |
 | T-521 | P1 | open | Storage/Encryption | Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool |
@@ -6036,7 +6036,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** WebSocket endpoint streams real-time execution events with sub-50ms latency.
 **Why:** Streaming agent telemetry provides full visibility into agent reasoning and tool executions for UI dashboards.
 **Dep:** AGY-2115
-**Status:** open | **Domain:** AI/WebSocket | **Who:** agent
+**Status:** done | **Domain:** AI/WebSocket | **Who:** agent
 **Converted:** AGY-2116 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-519 -- Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator (WS-VFIO | P1 | M)

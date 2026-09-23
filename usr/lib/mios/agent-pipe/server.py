@@ -4467,6 +4467,37 @@ async def v1_incoming_webhook(source: str, request: Request) -> JSONResponse:
     code = 200 if status_msg == "duplicate" else 202
     return JSONResponse(status_code=code, content={"status": status_msg, **details})
 
+from mios_events import AgentEventHub as _AgentEventHub  # noqa: E402
+_event_hub = _AgentEventHub()
+
+@app.websocket("/v1/events/ws")
+async def v1_events_websocket(websocket: WebSocket):
+    token = websocket.query_params.get("token") or websocket.headers.get("authorization")
+    if not _event_hub.authenticate(token):
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    session_id = websocket.query_params.get("session_id")
+    q = _event_hub.register(websocket, session_id=session_id)
+    try:
+        while True:
+            send_task = asyncio.create_task(q.get())
+            recv_task = asyncio.create_task(websocket.receive_text())
+            done, pending = await asyncio.wait([send_task, recv_task], return_when=asyncio.FIRST_COMPLETED)
+            for t in pending:
+                t.cancel()
+
+            if send_task in done:
+                msg = send_task.result()
+                await websocket.send_text(msg)
+            if recv_task in done:
+                _ = recv_task.result()
+    except Exception:
+        pass
+    finally:
+        _event_hub.unregister(websocket)
+
 def main() -> int:
     host = _bind_host(_API_REQUIRE_AUTH, os.environ.get("MIOS_BIND_HOST", ""))
     log.info("starting on %s:%d -> backend=%s model=%s "
