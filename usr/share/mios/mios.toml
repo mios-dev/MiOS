@@ -11559,6 +11559,7 @@ unit = [
     "tests/test-webrtc-screen-stream.py",
     "tests/test-pipewire-aec.py",
     "tests/test-livepatch-mok.py",
+    "tests/test-xdp-fastpath.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

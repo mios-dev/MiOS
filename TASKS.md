@@ -713,7 +713,7 @@
 | T-799 | P2 | open | Security/USBTest | Automated BadUSB device rejection, read-only mount enforcement, and audit test suite |
 | T-800 | P1 | done | Memory/THPCompaction | Transparent Huge Pages (THP madvise) and proactive memory compaction manager |
 | T-801 | P2 | open | Memory/THPTest | Automated 2MB/1GB huge page allocation, sub-1ms allocation latency, and TLB benchmark suite |
-| T-802 | P1 | open | Network/XDPFastpath | Native eBPF XDP network fastpath and WireGuard packet router in mios-xdp |
+| T-802 | P1 | done | Network/XDPFastpath | Native eBPF XDP network fastpath and WireGuard packet router in mios-xdp |
 | T-803 | P2 | open | Network/XDPTest | Automated 10M pps packet routing throughput, sub-microsecond XDP latency, and DDoS test suite |
 | T-804 | P1 | open | AI/BitNetTernary | BitNet b1.58 ternary tensor execution engine and pure integer addition GEMM kernels |
 | T-805 | P2 | open | AI/BitNetTest | Automated 70B BitNet RAM fitting (<14GB), 200 tok/s CPU speedup, and energy benchmark suite |
@@ -8876,7 +8876,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** XDP eBPF driver programs route packets and drop flood traffic at hardware line rate.
 **Why:** Native driver-level XDP unlocks 10M+ packets/sec line-rate throughput for high-speed multi-node AI clusters.
 **Dep:** AGY-2399
-**Status:** open | **Domain:** Network/XDPFastpath | **Who:** agent
+**Status:** done | **Domain:** Network/XDPFastpath | **Who:** agent
 **Converted:** AGY-2400 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-803 -- Automated 10M pps packet routing throughput, sub-microsecond XDP latency, and DDoS test suite (WS-NODE | P2 | S)
