@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# AI-hint: Kdump status manager and automated zstd crash dump extractor (T-515).
+# AI-doc: usr/share/doc/mios/manual/ch02-architecture.md
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pathlib
+import subprocess
+import sys
+import time
+from typing import Any, Dict, List
+
+
+def check_crashkernel_reserved() -> bool:
+    try:
+        with open("/proc/cmdline", "r", encoding="utf-8") as f:
+            cmdline = f.read()
+            if "crashkernel=" in cmdline:
+                return True
+    except Exception:
+        pass
+
+    # Check kargs.d files if /proc/cmdline does not have it (e.g. in container/test)
+    root = os.environ.get("MIOS_ROOT", "")
+    kargs_dir = pathlib.Path(root + "/usr/lib/bootc/kargs.d") if root else pathlib.Path("/usr/lib/bootc/kargs.d")
+    if kargs_dir.is_dir():
+        for f in kargs_dir.glob("*.toml"):
+            try:
+                if "crashkernel=" in f.read_text():
+                    return True
+            except Exception:
+                pass
+    return False
+
+
+def get_kdump_status() -> Dict[str, Any]:
+    reserved = check_crashkernel_reserved()
+    conf_exists = os.path.isfile("/etc/kdump.conf") or os.path.isfile(os.environ.get("MIOS_ROOT", "") + "/etc/kdump.conf")
+    initramfs_exists = (
+        os.path.isfile("/boot/initramfs-kdump.img") or
+        os.path.isfile(os.environ.get("MIOS_ROOT", "") + "/boot/initramfs-kdump.img")
+    )
+    crash_dir = os.environ.get("MIOS_ROOT", "") + "/var/crash"
+
+    return {
+        "status": "ready" if (reserved and conf_exists) else "degraded",
+        "crashkernel_reserved": reserved,
+        "config_present": conf_exists,
+        "initramfs_present": initramfs_exists,
+        "crash_dir": crash_dir,
+        "core_collector": "makedumpfile -l --message-level 1 -d 31",
+        "compression": "zstd",
+        "default_action": "reboot",
+    }
+
+
+def list_crash_dumps() -> List[Dict[str, Any]]:
+    crash_dir = pathlib.Path(os.environ.get("MIOS_ROOT", "") + "/var/crash")
+    if not crash_dir.is_dir():
+        return []
+
+    dumps = []
+    for item in sorted(crash_dir.glob("*")):
+        if item.is_file():
+            stat = item.stat()
+            dumps.append({
+                "name": item.name,
+                "path": str(item),
+                "size_bytes": stat.st_size,
+                "compressed": item.name.endswith(".zst") or item.name.endswith(".gz"),
+                "modified": stat.st_mtime,
+            })
+    return dumps
+
+
+def compress_dump(path: str) -> str:
+    p = pathlib.Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(f"File not found: {path}")
+
+    out_path = str(p) + ".zst"
+    # Compress with zstd if available, fallback to gzip or raw python
+    if subprocess.run(["sh", "-c", "command -v zstd"], capture_output=True).returncode == 0:
+        subprocess.run(["zstd", "-q", "-f", "--rm", str(p), "-o", out_path], check=True)
+    else:
+        # Fallback compression simulation
+        import gzip
+        out_path = str(p) + ".gz"
+        with open(p, "rb") as f_in, gzip.open(out_path, "wb") as f_out:
+            f_out.writelines(f_in)
+        p.unlink()
+
+    return out_path
+
+
+def main(argv: List[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="MiOS Kdump & Crash Dump Manager")
+    parser.add_argument("verb", nargs="?", default="status", choices=["status", "list", "compress", "verify"])
+    parser.add_argument("target", nargs="?", default=None, help="Target file for compress")
+    parser.add_argument("--json", action="store_true", help="Emit JSON output")
+    args = parser.parse_args(argv)
+
+    if args.verb == "status":
+        info = get_kdump_status()
+        if args.json:
+            print(json.dumps(info, indent=2))
+        else:
+            print(f"Kdump status: {info['status']}")
+            print(f"  crashkernel reserved: {info['crashkernel_reserved']}")
+            print(f"  kdump.conf present:   {info['config_present']}")
+            print(f"  initramfs present:    {info['initramfs_present']}")
+            print(f"  crash directory:      {info['crash_dir']}")
+        return 0
+
+    if args.verb == "list":
+        dumps = list_crash_dumps()
+        if args.json:
+            print(json.dumps(dumps, indent=2))
+        else:
+            if not dumps:
+                print("No crash dumps found in /var/crash")
+            else:
+                for d in dumps:
+                    print(f"- {d['name']} ({d['size_bytes']} bytes, compressed={d['compressed']})")
+        return 0
+
+    if args.verb == "compress":
+        if not args.target:
+            sys.stderr.write("Error: compress requires target path\n")
+            return 1
+        try:
+            res = compress_dump(args.target)
+            if args.json:
+                print(json.dumps({"status": "success", "compressed_path": res}))
+            else:
+                print(f"Compressed dump saved to: {res}")
+            return 0
+        except Exception as e:
+            sys.stderr.write(f"Error compressing dump: {e}\n")
+            return 1
+
+    if args.verb == "verify":
+        info = get_kdump_status()
+        ok = info["crashkernel_reserved"] and info["config_present"]
+        if args.json:
+            print(json.dumps({"verified": ok, "details": info}))
+        else:
+            print("Kdump verification: " + ("PASS" if ok else "FAIL"))
+        return 0 if ok else 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

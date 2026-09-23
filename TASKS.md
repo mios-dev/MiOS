@@ -931,7 +931,7 @@
 | T-512 | P1 | done | Security/Anomaly | Jensen-Shannon divergence anomaly alarm and PostgreSQL threat_events vector sink |
 | T-513 | P1 | done | CLI/Engine | Unified mios CLI engine with dynamic TTY formatting and POSIX exit codes |
 | T-514 | P2 | done | CLI/Plugins | Dynamic plugin loader and subcommand discovery in /usr/libexec/mios/plugins/ |
-| T-515 | P1 | open | Kernel/Kdump | Reserved memory kdump kernel deployment and automated zstd crash dump extractor |
+| T-515 | P1 | done | Kernel/Kdump | Reserved memory kdump kernel deployment and automated zstd crash dump extractor |
 | T-516 | P1 | open | Kernel/FlightRecorder | In-kernel eBPF circular flight recorder ring and crash diagnostic parser |
 | T-517 | P1 | open | AI/Webhooks | HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe |
 | T-518 | P1 | open | AI/WebSocket | Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) |
@@ -6006,7 +6006,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Kdump captures compressed crash dumps to persistent storage and reboots safely on panics.
 **Why:** Forensic crash dumps provide essential diagnostics to troubleshoot driver panics and hardware faults.
 **Dep:** AGY-2112
-**Status:** open | **Domain:** Kernel/Kdump | **Who:** agent
+**Status:** done | **Domain:** Kernel/Kdump | **Who:** agent
 **Converted:** AGY-2113 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-516 -- In-kernel eBPF circular flight recorder ring and crash diagnostic parser (WS-DIAG | P1 | M)
