@@ -1,0 +1,25 @@
+# AI-hint: SSH configuration snippet for Blink Shell connecting to MiOS Codespaces, Google Cloud Shell, and local hosts.
+# AI-related: /usr/share/doc/mios/guides/blinkshell-codespaces-cloudshell.md, usr/share/mios/tmux/blink-mobile-keys.tmux.conf
+
+# GitHub Codespaces Host Profile for Blink Shell
+Host cs-mios
+    HostName cs.github.com
+    User codespace
+    RequestTTY yes
+    RemoteCommand tmux -f /usr/share/mios/tmux/blink-mobile-keys.tmux.conf new-session -A -s mios || bash -l
+    ProxyCommand gh cs ssh --stdio -c mios
+
+# Google Cloud Shell Profile for Blink Shell
+Host gcp-mios
+    HostName ssh.cloud.google.com
+    Port 6000
+    RequestTTY yes
+    RemoteCommand bash -l -c 'tmux -f /usr/share/mios/tmux/blink-mobile-keys.tmux.conf new-session -A -s mios || bash -l'
+
+# Local / Tailscale MiOS Blade
+Host mios-blade
+    HostName 10.89.0.1
+    User mios
+    RequestTTY yes
+    RemoteCommand tmux -f /usr/share/mios/tmux/blink-mobile-keys.tmux.conf new-session -A -s mios
+    SetEnv TERM=xterm-256color

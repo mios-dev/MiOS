@@ -41,6 +41,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-ai-firstboot` | Provisioning script that installs the hermes-agent Python venv and extracts llama.cpp GGUF models to enable AI services, creating a sentinel file to gate network-less boot retries. |
 | `usr/libexec/mios/mios-ai-hint-coverage` | AI-hint coverage fitness-function -- reuses the mios-ai-tag taggability |
 | `usr/libexec/mios/mios-ai-manifest-gen` | WS-A1 anti-drift generator CLI -- regenerates (or --check verifies) the ai/v1 verb-catalog manifest projection (ai/v1/tools.generated.json) from the live mios.toml [verbs.*] SSOT, via the pure... |
+| `usr/libexec/mios/mios-ai-metadata.py` | Extracts, aggregates, and validates native MiOS AI header metadata (hint, related, functions, doc) across all tracked source files and units into strict OpenAI-compatible schemas. |
 | `usr/libexec/mios/mios-ai-reset` | Wipes all non-persistent AI state (chat history, kanban, memory, and browser profiles) while preserving core configs and models to provide a clean slate for testing or new sessions. |
 | `usr/libexec/mios/mios-ai-tag` | Codebase tagger -- writes a rich, structured AI header on every file. |
 | `usr/libexec/mios/mios-app-default` | Mutates /etc/mios/mios.toml to switch the default application for a given type. |
@@ -241,7 +242,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 
-<!-- derived from the AI-hint headers of 211 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 212 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)

@@ -1,0 +1,51 @@
+{
+  "type": "json_schema",
+  "name": "mios_ai_metadata",
+  "description": "Strict OpenAI-compatible schema for MiOS native AI-hint and header metadata parsed from source files.",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Repository-relative file path."
+      },
+      "hint": {
+        "type": ["string", "null"],
+        "description": "Primary AI-hint describing file purpose and context."
+      },
+      "related": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Related services, files, ports, or documents."
+      },
+      "functions": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Exported functions, classes, or entrypoints."
+      },
+      "doc": {
+        "type": ["string", "null"],
+        "description": "Associated documentation path if declared in AI-doc header."
+      },
+      "comment_style": {
+        "type": "string",
+        "description": "Comment syntax used (hash, slash, xml, semi, dash)."
+      },
+      "has_shebang": {
+        "type": "boolean",
+        "description": "Whether file starts with an executable shebang."
+      }
+    },
+    "required": [
+      "path",
+      "hint",
+      "related",
+      "functions",
+      "doc",
+      "comment_style",
+      "has_shebang"
+    ]
+  }
+}

@@ -8651,10 +8651,16 @@ mcp_pool_enable        = false    # true = unified MCPClientPool in GatewayWorke
 # [networks.*] -- auto-generated from static units
 # ============================================================================
 
+[networks.mios.Unit]
+Description = "MiOS Core Network"
+
 [networks.mios.Network]
 Gateway = "${MIOS_CORE_NET_GATEWAY:-10.89.0.1}"
 Label = "io.mios.network=core"
 Subnet = "${MIOS_CORE_NET_SUBNET:-10.89.0.0/24}"
+
+[networks.mios.Install]
+WantedBy = "multi-user.target default.target"
 
 # [images.*] -- auto-generated Quadlet .image units
 [images.bootc-image-builder.Image]
@@ -11398,6 +11404,7 @@ not_mirrored = [
   "GEMINI.md", ".gitignore", "VERSION",
   ".clinerules",
   ".cursorrules",
+  ".devcontainer/Containerfile",
   ".devcontainer/Dockerfile",
   ".devcontainer/devcontainer.json",
   ".editorconfig",

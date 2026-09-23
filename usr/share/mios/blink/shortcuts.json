@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BlinkShellShortcuts",
+  "description": "Pre-configured Blink Shell shortcuts, snips, and iOS URL schemes for MiOS visual web and terminal dev environments.",
+  "shortcuts": [
+    {
+      "name": "MiOS Codespaces (Web IDE)",
+      "type": "web",
+      "description": "Launch full visual Codespaces environment in Blink built-in browser",
+      "url": "https://github.com/codespaces/new?repo=mios-dev/MiOS",
+      "blink_command": "code https://github.com/codespaces/new?repo=mios-dev/MiOS",
+      "ios_url_scheme": "blinkshell://run?cmd=code%20https%3A%2F%2Fgithub.com%2Fcodespaces%2Fnew%3Frepo%3Dmios-dev%2FMiOS"
+    },
+    {
+      "name": "MiOS Codespaces (github.dev)",
+      "type": "web",
+      "description": "Instant visual editor on GitHub",
+      "url": "https://github.dev/mios-dev/MiOS",
+      "blink_command": "code https://github.dev/mios-dev/MiOS",
+      "ios_url_scheme": "blinkshell://run?cmd=code%20https%3A%2F%2Fgithub.dev%2Fmios-dev%2FMiOS"
+    },
+    {
+      "name": "MiOS Google Cloud Shell (Web IDE)",
+      "type": "web",
+      "description": "Launch Google Cloud Shell with full visual IDE preloaded with MiOS",
+      "url": "https://shell.cloud.google.com/?show=ide&cloudshell_git_repo=https://github.com/mios-dev/MiOS",
+      "blink_command": "code https://shell.cloud.google.com/?show=ide&cloudshell_git_repo=https://github.com/mios-dev/MiOS",
+      "ios_url_scheme": "blinkshell://run?cmd=code%20https%3A%2F%2Fshell.cloud.google.com%2F%3Fshow%3Dide%26cloudshell_git_repo%3Dhttps%3A%2F%2Fgithub.com%2Fmios-dev%2FMiOS"
+    },
+    {
+      "name": "MiOS Codespaces (SSH Terminal)",
+      "type": "terminal",
+      "description": "Attach to Codespace terminal via SSH with Blink mobile keys and Shift+Tab",
+      "blink_command": "snip cs ssh",
+      "ios_url_scheme": "blinkshell://run?cmd=snip%20cs%20ssh"
+    },
+    {
+      "name": "MiOS Cloud Shell (Terminal)",
+      "type": "terminal",
+      "description": "Attach to Google Cloud Shell terminal session",
+      "blink_command": "snip gcp term",
+      "ios_url_scheme": "blinkshell://run?cmd=snip%20gcp%20term"
+    },
+    {
+      "name": "MiOS Local Open WebUI",
+      "type": "web",
+      "description": "Open local MiOS Open WebUI cognitive interface",
+      "url": "http://localhost:8080",
+      "blink_command": "code http://localhost:8080",
+      "ios_url_scheme": "blinkshell://run?cmd=code%20http%3A%2F%2Flocalhost%3A8080"
+    }
+  ]
+}

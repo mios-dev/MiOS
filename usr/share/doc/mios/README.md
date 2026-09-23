@@ -61,7 +61,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/events.md` | Derived reference documentation for observability event schema kinds. |
 | `usr/share/doc/mios/reference/everything-db-driven.md` | WS-VECTOR research + workflow -- make EVERYTHING in MiOS DB-driven + vectorized: mios.toml is the cold image-baked authoring seed, Postgres/pgvector (mios-pgvector, db=mios, /var) is the LIVE runtime... |
 | `usr/share/doc/mios/reference/features.md` | Derived reference documentation for blade capabilities and features. |
-| `usr/share/doc/mios/reference/heavy-model-selection-2026-07.md` | Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. OPERATOR DECISION 2026-07-10:... |
+| `usr/share/doc/mios/reference/heavy-model-selection-2026-07.md` | Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. |
 | `usr/share/doc/mios/reference/hwcaps.md` | Documentation for x86-64 microarchitecture optimization levels (v1-v4) used to determine which glibc-hwcaps packages to include in the build via the [hwcaps] table in mios.toml; explains the... |
 | `usr/share/doc/mios/reference/install-ordering.md` | The WS-DEPLOY workstream -- refactor + reorder the MiOS install/first-boot pipeline into a logical dependency DAG so a "missing dependency / not-ready / not-yet-built" state is structurally... |
 | `usr/share/doc/mios/reference/laws.md` | Architectural Laws and root exception table for MiOS, derived directly from mios.toml [laws] and [security.privileged_quadlets]. |
@@ -80,8 +80,8 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/tool-index.md` | Index of every shipped MiOS tool, generated from the AI-hint header each one already carries. |
 | `usr/share/doc/mios/reference/tree.md` | Annotated directory tree of the MiOS source and deployment root, providing a map of file functions, cross-references, and entry points for agents to navigate the filesystem and build pipeline. MiOS... |
 | `usr/share/doc/mios/reference/units.md` | Derived reference documentation for systemd unit files shipped with MiOS. |
-| `usr/share/doc/mios/reference/upstream-gaps-2026-07.md` | Prioritized upstream-vs-MiOS gap report (2026-07). Grounded in a 44-item research pass across 7 subsystems (inference lanes, pgvector-RAG, agent orchestration/MCP, bootc-OCI, embeddings,... |
-| `usr/share/doc/mios/reference/upstream-gaps-2026-08.md` | Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md. Every claim below was checked against a primary source (NVD,... |
+| `usr/share/doc/mios/reference/upstream-gaps-2026-07.md` | Prioritized upstream-vs-MiOS gap report (2026-07) across seven core subsystems. |
+| `usr/share/doc/mios/reference/upstream-gaps-2026-08.md` | Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md. |
 | `usr/share/doc/mios/reference/upstream-registry.md` | Comprehensive Upstream Project & Technology Registry for MiOS. |
 
 <!-- derived from the AI-hint headers of 49 file(s) matching usr/share/doc/mios/reference/*.md -->
@@ -111,6 +111,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/concepts/living-wallpaper-engine.md` | Research for a MiOS "living wallpaper" -- a GPU-accelerated animated mesh-gradient background derived from the SSOT [colors] palette, cross-surface (Windows + Linux GNOME/Wayland + optional... |
 | `usr/share/doc/mios/concepts/llamacpp-engine-conversion.md` | Records MiOS's completed inference-engine conversion to llama.cpp (via the upstream llama-swap proxy image) to unlock fleet-wide KV-cache checkpoint/restore/fork for the AIOS Context Manager; Ollama... |
 | `usr/share/doc/mios/concepts/mesh-topology-and-wireguard-backbone.md` | Blueprint and architectural specification for the MiOS v4 multi-site blade mesh, WireGuard/Headscale backbone, and translocation. |
+| `usr/share/doc/mios/concepts/mios-api-architecture.md` | Architecture specification for MiOS-API unified AI and system management planes. |
 | `usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md` | Ground-truth design spec for MiOS's user-facing surfaces (Portal |
 | `usr/share/doc/mios/concepts/mios-metal-architecture.md` | System concepts documentation for the MiOS-Metal Split-Plane Hypervisor-Router Architecture. |
 | `usr/share/doc/mios/concepts/multi-agent-buildout-plan.md` | Defines the parallel execution strategy for multi-agent development of MiOS itself, specifying which AIOS workstreams are agent-parallelizable versus operator-gated and outlining the... |
@@ -134,7 +135,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/concepts/ws-subsystems-activation-2026-06-20.md` | Operator activation playbook for the default-off WS-* subsystems shipped 2026-06-20 (RLS, A2A signed principal, peer reputation, egress firewall, mTLS PKI, self-improve loop) -- what each does, its... |
 | `usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md` | Documentation of the WS-7 security architecture defining the transition from permissive fapolicyd observation to enforced execution whitelisting and verity-rooted UKI builds via mios.toml... |
 
-<!-- derived from the AI-hint headers of 41 file(s) matching usr/share/doc/mios/concepts/*.md -->
+<!-- derived from the AI-hint headers of 42 file(s) matching usr/share/doc/mios/concepts/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/concepts/*.md -->
 
 ## guides
@@ -143,6 +144,8 @@ they are correct by construction rather than by maintenance.
 | File | What it is |
 |---|---|
 | `usr/share/doc/mios/guides/agent-windows-ssh.md` | Guide for the agent's Windows-host control bridge `/usr/libexec/mios/mios-windows`, which reaches the Windows host the WSL2 VM lives inside via TWO backends — WSL interop (default, no setup) and... |
+| `usr/share/doc/mios/guides/blink-tmux-mobile-keys.md` | Guide to configuring Blink Shell on iOS (iPhone/iPad) and tmux for Shift+Tab and mobile terminal shortcut combos. |
+| `usr/share/doc/mios/guides/blinkshell-codespaces-cloudshell.md` | Guide for connecting to GitHub Codespaces and Google Cloud Shell visual dev environments using Blink Shell on iOS. |
 | `usr/share/doc/mios/guides/bootstrap_install.md` | MiOS architectural documentation: MiOS Bootstrap & Installation Guide. |
 | `usr/share/doc/mios/guides/cephfs-xdg-storage.md` | Guides engineering reference documentation for the CephFS + XDG Unified Storage Fabric, documenting cache isolation rules, OCI bootstrap quickstarts, and multi-tenant extension paths. |
 | `usr/share/doc/mios/guides/deploy.md` | Documentation for deploying a built MiOS image -- the OCI artifact plus its RAW/ISO/QCOW2/VHDX/WSL2 disk forms -- onto bootc-managed or FHS Fedora hosts, and the Day-2 bootc lifecycle... |
@@ -155,7 +158,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/guides/security.md` | Documentation of MiOS security hardening posture, mapping kernel boot parameters, sysctl values, SELinux modules/booleans, firewalld ports, and supply-chain controls to the exact files that enforce... |
 | `usr/share/doc/mios/guides/self-build.md` | Documentation for the MiOS self-build lifecycle, detailing the build chain, CI/CD workflows, and local build modes (Bootstrap, CI/CD, Windows, Linux/Justfile, in-place self-build, Ignition appliance)... |
 
-<!-- derived from the AI-hint headers of 12 file(s) matching usr/share/doc/mios/guides/*.md -->
+<!-- derived from the AI-hint headers of 14 file(s) matching usr/share/doc/mios/guides/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/guides/*.md -->
 
 ## upstream

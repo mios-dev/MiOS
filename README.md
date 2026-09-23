@@ -82,6 +82,18 @@ What you actually get out of the box:
 - **Real security defaults**: SELinux enforcing, fapolicyd deny-by-default,
   USBGuard, CrowdSec sovereign-mode IPS, kernel-lockdown integrity, MOK-
   signed kernel modules. Not the security-theater kind.
+- **Global Schemas & TypeScript Safe Routing**: Strict OpenAI JSON Schemas
+  (`usr/lib/mios/schemas/`) and TypeScript type-safe discriminated unions
+  (`usr/lib/mios/ts/`) ensuring zero-parameter-injection across agent pipelines.
+- **Native AI Metadata System**: File-level `AI-hint`, `AI-related`, and
+  `AI-functions` are first-class OS metadata, indexed by `usr/libexec/mios/mios-ai-metadata.py`
+  into `usr/share/mios/ai/v1/metadata.json` for deterministic tool discovery.
+- **Mobile Terminal & Blink Shell Optimization**: Native support for iOS Blink
+  Shell with `Shift + Tab` (backtab) pass-through, extended terminal keys (`extkeys`),
+  and touchscreen shortcuts (`usr/share/mios/tmux/blink-mobile-keys.tmux.conf`).
+- **Rust Static Binary Safety Net**: Security boundaries enforced by static
+  Rust binaries (`tools/native/`), capturing secrets via native Linux Keyrings
+  and executing system mutations strictly via tokenized `execve` boundaries.
 
 These aren't four separate products bolted together -- they're one system. The
 GPU wiring (CDI) is what lets the inference lanes and the passthrough VMs each
@@ -322,7 +334,12 @@ The agent-facing contract lives under `/usr/share/mios/ai/`.
 | [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md) | Architectural laws + OpenAI-compatible API surface (agent contract). |
 | [`usr/share/mios/ai/system.md`](usr/share/mios/ai/system.md) | Canonical agent system prompt. |
 | [`usr/share/mios/ai/audit-prompt.md`](usr/share/mios/ai/audit-prompt.md) | Read-only audit-mode prompt for any OpenAI-API-compatible agent. |
-| [`usr/share/mios/ai/v1/`](usr/share/mios/ai/v1/) | `models.json`, `mcp.json`, etc. -- per-OpenAI-v1-surface manifests. |
+| [`usr/share/mios/ai/v1/`](usr/share/mios/ai/v1/) | `models.json`, `mcp.json`, `metadata.json` -- per-OpenAI-v1-surface manifests. |
+| [`usr/lib/mios/schemas/`](usr/lib/mios/schemas/) | Strict OpenAI-compatible JSON Schemas (`strict: true`, `additionalProperties: false`). |
+| [`usr/lib/mios/ts/`](usr/lib/mios/ts/) | TypeScript global schemas, discriminated union action routing, and structural types. |
+| [`usr/share/mios/tmux/`](usr/share/mios/tmux/) | Tmux configurations and mobile iOS Blink Shell shortcut presets. |
+| [`docs/research/safe-schemas-and-rust-safety-net.md`](docs/research/safe-schemas-and-rust-safety-net.md) | Whole-system type safety, OpenAI wire formats, and Rust keyring safety net. |
+| [`usr/share/doc/mios/guides/blink-tmux-mobile-keys.md`](usr/share/doc/mios/guides/blink-tmux-mobile-keys.md) | iOS Blink Shell x tmux Shift+Tab and mobile gesture guide. |
 | [`usr/share/doc/mios/concepts/architecture.md`](usr/share/doc/mios/concepts/architecture.md) | Filesystem and hardware layout. |
 | [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md) | Build pipeline + shell conventions. |
 | [`usr/share/doc/mios/guides/security.md`](usr/share/doc/mios/guides/security.md) | Hardening kargs and posture. |
