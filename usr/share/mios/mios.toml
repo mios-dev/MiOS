@@ -1965,6 +1965,19 @@ allow_ssh              = true
 allow_cockpit          = true   # opens 9090/tcp
 allow_libvirt_bridge   = true   # for VM networking
 
+# Declarative nftables container micro-segmentation matrix (T-479)
+[network.firewall.container_matrix]
+default_policy = "drop"
+rules = [
+    { source = "open_webui", destination = "agent_pipe", port = 8700, protocol = "tcp" },
+    { source = "agent_pipe", destination = "hermes", port = 8720, protocol = "tcp" },
+    { source = "agent_pipe", destination = "pgvector", port = 5432, protocol = "tcp" },
+    { source = "agent_pipe", destination = "llm_light", port = 8500, protocol = "tcp" },
+    { source = "hermes", destination = "searxng", port = 8800, protocol = "tcp" },
+    { source = "hermes", destination = "pgvector", port = 5432, protocol = "tcp" },
+    { source = "forge_runner", destination = "forge", port = 8400, protocol = "tcp" },
+]
+
 # NTP servers configuration (Chrony)
 [network.ntp]
 servers = [
@@ -11561,6 +11574,7 @@ unit = [
     "tests/test-livepatch-mok.py",
     "tests/test-xdp-fastpath.py",
     "tests/test-microvm-squashfs-nbd.py",
+    "tests/test-firewall-nftables.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

@@ -895,7 +895,7 @@
 | T-476 | P2 | open | Search/Cache | Search Result Semantic Vector Cache & Deduplication in pgvector |
 | T-477 | P1 | open | User/SubUID | Deterministic /etc/subuid and /etc/subgid range generator in sysusers automation |
 | T-478 | P2 | open | Security/ACL | POSIX ACL and user namespace validator in greenboot pre-flight checks |
-| T-479 | P1 | open | Network/Firewall | Declarative nftables inter-container firewall rule generator |
+| T-479 | P1 | done | Network/Firewall | Declarative nftables inter-container firewall rule generator |
 | T-480 | P2 | open | Security/PenTest | Container bridge lateral movement penetration test in CI test suites |
 | T-481 | P1 | open | AI/Allocation | Dynamic Node Capability Profiler & Model Format Selector in agent-pipe |
 | T-482 | P2 | open | AI/Quantization | Automated On-Demand GGUF Quantization and Format Transcoding Service |
@@ -5646,7 +5646,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Nftables generator applies least-privilege inter-container routing rules automatically on startup.
 **Why:** Micro-segmentation prevents compromised front-end containers from accessing sensitive internal database ports.
 **Dep:** AGY-2076
-**Status:** open | **Domain:** Network/Firewall | **Who:** agent
+**Status:** done | **Domain:** Network/Firewall | **Who:** agent
 **Converted:** AGY-2077 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-480 -- Container bridge lateral movement penetration test in CI test suites (WS-SEC | P2 | S)

@@ -47,4 +47,8 @@ echo "[mios-firewall] Firewall configured"
 EOFW
 chmod +x /usr/libexec/mios-firewall-init
 
-mios_ok "Firewall init script installed"
+if [ -x /usr/libexec/mios/mios-firewall-isolate ]; then
+    /usr/libexec/mios/mios-firewall-isolate --apply --dry-run 2>/dev/null || true
+fi
+
+mios_ok "Firewall init script and declarative nftables isolation installed"

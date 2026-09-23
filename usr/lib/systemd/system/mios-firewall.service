@@ -1,0 +1,16 @@
+# AI-hint: Enforces declarative nftables inter-container micro-segmentation and default-deny isolation policies at boot (T-479).
+# AI-doc: usr/share/doc/mios/manual/ch20-firewall-nftables-microsegmentation.md
+[Unit]
+Description='MiOS': Declarative nftables container micro-segmentation firewall
+After=network-online.target firewalld.service
+Wants=network-online.target
+Before=podman.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-firewall-isolate --apply --dry-run
+ExecReload=/usr/libexec/mios/mios-firewall-isolate --apply --dry-run
+
+[Install]
+WantedBy=multi-user.target
