@@ -11550,6 +11550,7 @@ unit = [
     "tests/test-role-apply-precedence.sh",
     "tests/test-hyprland-direct-scanout.sh",
     "tests/test-theme-merge.py",
+    "tests/test-theme-live-render.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",

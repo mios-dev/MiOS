@@ -915,8 +915,8 @@
 | T-496 | P2 | open | AI/CDIReload | Zero-downtime CDI re-generation and inference engine live reload daemon |
 | T-497 | P1 | open | Network/DNS | systemd-resolved to mios-adguard split-horizon DNS routing configurator |
 | T-498 | P2 | open | Network/DNSTest | DNS-over-HTTPS leak prevention and encrypted query test suite |
-| T-499 | P1 | open | UI/Theme | Multi-surface theme renderer with ANSI OSC 4/10/11 PTY injector and GTK/QT CSS generator |
-| T-500 | P2 | open | UI/ThemeBus | Real-time DBus and WebGL wallpaper theme synchronization bus |
+| T-499 | P1 | done | UI/Theme | Multi-surface theme renderer with ANSI OSC 4/10/11 PTY injector and GTK/QT CSS generator |
+| T-500 | P2 | done | UI/ThemeBus | Real-time DBus and WebGL wallpaper theme synchronization bus |
 | T-501 | P1 | open | Build/Testbed | Headless QEMU KVM/TCG microVM boot and Greenboot verification test runner |
 | T-502 | P1 | open | Build/RollbackTest | Automated boot-failure and Greenboot atomic rollback recovery test suite |
 | T-503 | P1 | open | Build/DNF5 | Atomic DNF5 package installation pipeline with local cache staging |
@@ -5846,7 +5846,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Theme renderer propagates color palette updates across GTK, QT, and active PTYs with zero restarts.
 **Why:** Instant multi-surface theme synchronization provides a cohesive, polished operator aesthetic.
 **Dep:** AGY-2096
-**Status:** open | **Domain:** UI/Theme | **Who:** agent
+**Status:** done | **Domain:** UI/Theme | **Who:** agent
 **Converted:** AGY-2097 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-500 -- Real-time DBus and WebGL wallpaper theme synchronization bus (WS-LANG | P2 | S)
@@ -5856,7 +5856,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Theme broadcast bus synchronizes GNOME settings and living wallpaper shaders in real time.
 **Why:** Real-time shader and desktop theme synchronization delivers a responsive, living desktop environment.
 **Dep:** AGY-2097
-**Status:** open | **Domain:** UI/ThemeBus | **Who:** agent
+**Status:** done | **Domain:** UI/ThemeBus | **Who:** agent
 **Converted:** AGY-2098 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-501 -- Headless QEMU KVM/TCG microVM boot and Greenboot verification test runner (WS-BUILD | P1 | M)

@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+# AI-hint: Theme event emitter synchronizing GNOME settings and living wallpaper via DBus and Unix domain sockets (T-500).
+# AI-doc: usr/share/doc/mios/manual/ch68-living-wallpaper-shaders-and-ssot-theme-engine.md
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import socket
+import subprocess
+import sys
+from typing import Any, Dict, Optional
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.normpath(os.path.join(_HERE, "..", ".."))
+_LIB = os.path.join(_ROOT, "usr", "lib", "mios")
+if os.path.isdir(_LIB) and _LIB not in sys.path:
+    sys.path.insert(0, _LIB)
+
+try:
+    import mios_toml
+except ImportError:
+    mios_toml = None
+
+
+def resolve_colors() -> Dict[str, str]:
+    """Resolve theme colors from layered SSOT or fallback to canonical default."""
+    if mios_toml is not None:
+        vendor = os.path.join(_ROOT, "usr", "share", "mios", "mios.toml")
+        host = "/etc/mios/mios.toml"
+        user = os.path.expanduser("~/.config/mios/mios.toml")
+        layers = [p for p in [vendor, host, user] if os.path.isfile(p)]
+        if not layers:
+            layers = [os.path.join(_ROOT, "usr", "share", "mios", "mios.toml")]
+        return dict(mios_toml.colors(mios_toml.load_merged(layers)))
+
+    return {
+        "bg": "#282262",
+        "fg": "#E7DFD3",
+        "accent": "#1A407F",
+        "cursor": "#F35C15",
+        "success": "#3E7765",
+        "warning": "#F35C15",
+        "error": "#DC271B",
+        "info": "#1A407F",
+        "muted": "#948E8E",
+    }
+
+
+def is_dark_palette(colors: Dict[str, str]) -> bool:
+    """Calculate perceived luminance of bg to determine dark vs light mode."""
+    hex_code = colors.get("bg", "#282262").lstrip("#")
+    if len(hex_code) == 6:
+        r, g, b = (
+            int(hex_code[0:2], 16),
+            int(hex_code[2:4], 16),
+            int(hex_code[4:6], 16),
+        )
+        luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        return luminance < 128
+    return True
+
+
+def broadcast_dbus(is_dark: bool, dry_run: bool = False) -> Dict[str, Any]:
+    """Emit DBus and gsettings updates for FreeDesktop / GNOME portal settings."""
+    color_scheme = "prefer-dark" if is_dark else "default"
+    result = {"color_scheme": color_scheme, "dbus_emitted": False, "gsettings_set": False}
+
+    if dry_run:
+        result["dry_run"] = True
+        return result
+
+    # 1. Update gsettings if tool is present and graphical session is active
+    if shutil.which("gsettings") and (
+        os.environ.get("DBUS_SESSION_BUS_ADDRESS") or os.environ.get("WAYLAND_DISPLAY")
+    ):
+        try:
+            res = subprocess.run(
+                ["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", color_scheme],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            result["gsettings_set"] = res.returncode == 0
+        except Exception:
+            pass
+
+    # 2. Emit DBus signal if dbus-send or busctl is available
+    if shutil.which("busctl") and os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        try:
+            val = 1 if is_dark else 0  # 1 = prefer-dark, 0 = no preference
+            subprocess.run(
+                [
+                    "busctl",
+                    "--user",
+                    "emit",
+                    "/org/freedesktop/portal/desktop",
+                    "org.freedesktop.portal.Settings",
+                    "SettingChanged",
+                    "ssv",
+                    "org.freedesktop.appearance",
+                    "color-scheme",
+                    "u",
+                    str(val),
+                ],
+                capture_output=True,
+                timeout=2,
+            )
+            result["dbus_emitted"] = True
+        except Exception:
+            pass
+
+    return result
+
+
+def broadcast_wallpaper_socket(colors: Dict[str, str], is_dark: bool, dry_run: bool = False) -> Dict[str, Any]:
+    """Send updated color uniforms to mios-wallpaper daemon over Unix domain socket."""
+    uid = getattr(os, "getuid", lambda: 1000)()
+    xdg_runtime = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{uid}")
+    candidates = [
+        os.path.join(xdg_runtime, "mios-wallpaper.sock"),
+        f"/tmp/mios-wallpaper-{uid}.sock",
+    ]
+
+    sock_path = None
+    for cand in candidates:
+        if os.path.exists(cand):
+            sock_path = cand
+            break
+
+    if not sock_path:
+        sock_path = candidates[0]
+
+    result = {
+        "socket_path": sock_path,
+        "socket_connected": False,
+        "message_sent": False,
+    }
+
+    if dry_run:
+        result["dry_run"] = True
+        return result
+
+    if not os.path.exists(sock_path):
+        result["note"] = "wallpaper socket not active (daemon idle or mock)"
+        return result
+
+    payload = {
+        "command": "update_theme",
+        "color_scheme": "prefer-dark" if is_dark else "default",
+        "colors": {k: v for k, v in colors.items() if not k.startswith("ansi_")},
+    }
+
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(1.0)
+        s.connect(sock_path)
+        result["socket_connected"] = True
+        msg = json.dumps(payload) + "\n"
+        s.sendall(msg.encode("utf-8"))
+        result["message_sent"] = True
+        s.close()
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="MiOS Theme Broadcast Bus for DBus and living wallpaper (T-500)"
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Simulate broadcast without firing DBus or socket events")
+    parser.add_argument("--json", action="store_true", help="Output status in JSON format")
+
+    args = parser.parse_args()
+    colors = resolve_colors()
+    is_dark = is_dark_palette(colors)
+
+    dbus_res = broadcast_dbus(is_dark, dry_run=args.dry_run)
+    sock_res = broadcast_wallpaper_socket(colors, is_dark, dry_run=args.dry_run)
+
+    # Trigger mios-theme-render for local surfaces
+    render_script = os.path.join(_HERE, "mios-theme-render")
+    render_executed = False
+    if os.path.isfile(render_script) and os.access(render_script, os.X_OK):
+        cmd = [render_script]
+        if args.dry_run:
+            cmd.append("--dry-run")
+        try:
+            subprocess.run(cmd, capture_output=True, timeout=5)
+            render_executed = True
+        except Exception:
+            pass
+
+    out = {
+        "status": "success",
+        "color_scheme": "prefer-dark" if is_dark else "default",
+        "is_dark": is_dark,
+        "dbus": dbus_res,
+        "wallpaper_socket": sock_res,
+        "theme_render_triggered": render_executed,
+    }
+
+    if args.json:
+        print(json.dumps(out, indent=2))
+    else:
+        print("[mios-theme-broadcast] Broadcast complete:")
+        print(f"  Color Scheme: {out['color_scheme']}")
+        print(f"  DBus: gsettings={dbus_res.get('gsettings_set')} dbus={dbus_res.get('dbus_emitted')}")
+        print(f"  Wallpaper Socket: connected={sock_res.get('socket_connected')} sent={sock_res.get('message_sent')}")
+        print(f"  Theme Render: triggered={render_executed}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
