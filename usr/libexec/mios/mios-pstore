@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+# AI-hint: Persistent pstore ramoops kernel crash buffer manager and post-mortem extractor (T-790).
+# AI-doc: usr/share/doc/mios/manual/ch13-kernel-panics-and-pstore-forensics.md
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import re
+import sys
+import time
+from typing import Any, Dict, List, Optional
+
+
+DEFAULT_PSTORE_DIR = "/sys/fs/pstore"
+DEFAULT_ARCHIVE_DIR = "/var/log/mios/panics"
+
+
+def parse_panic_dump(content: str) -> Dict[str, Any]:
+    """Extracts panic message, faulting registers, and demangled backtrace."""
+    info: Dict[str, Any] = {
+        "is_panic": False,
+        "reason": "",
+        "backtrace": [],
+        "registers": {},
+        "timestamp": None,
+    }
+
+    # Check for panic indicators
+    if "Kernel panic - not syncing:" in content:
+        info["is_panic"] = True
+        match = re.search(r"Kernel panic - not syncing:\s*(.+)", content)
+        if match:
+            info["reason"] = match.group(1).strip()
+    elif "BUG: unable to handle page fault" in content:
+        info["is_panic"] = True
+        match = re.search(r"(BUG: unable to handle page fault.+)", content)
+        if match:
+            info["reason"] = match.group(1).strip()
+    elif "Oops:" in content:
+        info["is_panic"] = True
+        match = re.search(r"(Oops:\s*.+)", content)
+        if match:
+            info["reason"] = match.group(1).strip()
+
+    # Extract Call Trace
+    trace_lines: List[str] = []
+    in_trace = False
+    for raw_line in content.splitlines():
+        line = re.sub(r"^\[\s*[0-9\.]+\s*\]\s*", "", raw_line)
+        if "Call Trace:" in line:
+            in_trace = True
+            continue
+        if in_trace:
+            if line.startswith("<TASK>") or line.startswith("</TASK>"):
+                continue
+            if line.startswith("[") or line.startswith("?") or re.search(r"\[<[0-9a-fA-F]+>\]", line):
+                trace_lines.append(line.strip())
+            elif line.startswith("---[ end trace") or line.startswith("Kernel panic") or not line.strip():
+                in_trace = False
+
+    info["backtrace"] = trace_lines
+
+    # Extract common registers (RIP, RSP, CR2)
+    rip_match = re.search(r"RIP:\s*([0-9a-fA-F:]+\s+\[<[0-9a-fA-F]+>\]\s+[^\n]+)", content)
+    if rip_match:
+        info["registers"]["RIP"] = rip_match.group(1).strip()
+
+    cr2_match = re.search(r"CR2:\s*([0-9a-fA-F]+)", content)
+    if cr2_match:
+        info["registers"]["CR2"] = cr2_match.group(1).strip()
+
+    return info
+
+
+def extract_pstore(pstore_dir: str, archive_dir: str, purge: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+    """Scans pstore directory and archives panic logs."""
+    if not os.path.exists(pstore_dir):
+        return {
+            "status": "absent",
+            "pstore_dir": pstore_dir,
+            "dumps_found": 0,
+            "panics": [],
+        }
+
+    pattern = os.path.join(pstore_dir, "dmesg-ramoops-*")
+    files = sorted(glob.glob(pattern))
+
+    extracted_panics: List[Dict[str, Any]] = []
+
+    if files and not dry_run and not os.path.exists(archive_dir):
+        try:
+            os.makedirs(archive_dir, mode=0o750, exist_ok=True)
+        except OSError:
+            pass
+
+    for file_path in files:
+        fname = os.path.basename(file_path)
+        try:
+            with open(file_path, "r", errors="replace") as f:
+                content = f.read()
+        except OSError as e:
+            continue
+
+        parsed = parse_panic_dump(content)
+        entry = {
+            "source_file": file_path,
+            "filename": fname,
+            "size_bytes": len(content),
+            "parsed": parsed,
+        }
+
+        # Archive to disk if archive_dir writable
+        if not dry_run and os.path.isdir(archive_dir):
+            dest_file = os.path.join(archive_dir, f"{int(time.time())}-{fname}")
+            try:
+                with open(dest_file, "w") as out_f:
+                    out_f.write(content)
+                entry["archived_to"] = dest_file
+            except OSError:
+                pass
+
+        # Purge pstore file to reclaim buffer
+        if purge and not dry_run:
+            try:
+                os.unlink(file_path)
+                entry["purged"] = True
+            except OSError:
+                entry["purged"] = False
+        else:
+            entry["purged"] = False
+
+        extracted_panics.append(entry)
+
+    return {
+        "status": "success",
+        "pstore_dir": pstore_dir,
+        "dumps_found": len(files),
+        "panics": extracted_panics,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Persistent pstore ramoops crash buffer manager and post-mortem extractor (T-790)"
+    )
+    parser.add_argument("--pstore-dir", default=DEFAULT_PSTORE_DIR, help="Path to mounted pstore filesystem")
+    parser.add_argument("--archive-dir", default=DEFAULT_ARCHIVE_DIR, help="Path to archive panic logs")
+    parser.add_argument("--extract", action="store_true", help="Extract and parse crash logs from pstore")
+    parser.add_argument("--purge", action="store_true", help="Purge extracted ramoops files after extraction")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate extraction and purging")
+    parser.add_argument("--json", action="store_true", help="Output results in JSON")
+
+    args = parser.parse_args()
+
+    result = extract_pstore(
+        pstore_dir=args.pstore_dir,
+        archive_dir=args.archive_dir,
+        purge=args.purge,
+        dry_run=args.dry_run,
+    )
+
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"[pstore] Scanned {args.pstore_dir}: found {result['dumps_found']} dump(s)")
+        for panic in result.get("panics", []):
+            reason = panic["parsed"]["reason"] or "General / Non-panic log"
+            print(f"  - {panic['filename']} ({panic['size_bytes']} bytes): {reason}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

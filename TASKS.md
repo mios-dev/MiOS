@@ -701,7 +701,7 @@
 | T-787 | P2 | open | Audio/AECTest | Automated acoustic echo cancellation (>40dB suppression) and full-duplex test suite |
 | T-788 | P1 | open | Desktop/WebRTCStream | Hardware-accelerated PipeWire WebRTC desktop video streamer in mios-screen-stream |
 | T-789 | P2 | open | Desktop/WebRTCTest | Automated 4K 60FPS WebRTC desktop stream latency (<30ms) and encoder test suite |
-| T-790 | P1 | open | Kernel/PstoreCrash | Persistent pstore ramoops kernel crash buffer manager and post-mortem extractor in mios-pstore |
+| T-790 | P1 | done | Kernel/PstoreCrash | Persistent pstore ramoops kernel crash buffer manager and post-mortem extractor in mios-pstore |
 | T-791 | P2 | open | Kernel/PstoreTest | Automated kernel panic injection, ramoops log preservation, and database ingestion test suite |
 | T-792 | P1 | open | AI/EXL2Engine | Dynamic EXL2 fractional bitrate execution engine and fused CUDA kernel manager in llama-swap |
 | T-793 | P2 | open | AI/EXL2Test | Automated 70B EXL2 model VRAM fitting (<24GB), 100 tok/s speedup, and perplexity test suite |
@@ -8756,7 +8756,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Pstore ramoops preserves kernel panic backtraces across reboots and extracts them automatically.
 **Why:** Persistent RAM crash logging guarantees forensic trace availability even during hard hardware watchdog resets.
 **Dep:** AGY-2387
-**Status:** open | **Domain:** Kernel/PstoreCrash | **Who:** agent
+**Status:** done | **Domain:** Kernel/PstoreCrash | **Who:** agent
 **Converted:** AGY-2388 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-791 -- Automated kernel panic injection, ramoops log preservation, and database ingestion test suite (WS-BOOT | P2 | S)

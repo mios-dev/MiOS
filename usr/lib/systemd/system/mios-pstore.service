@@ -1,0 +1,13 @@
+[Unit]
+Description=MiOS Persistent Kernel Crash Buffer Extractor
+Documentation=man:pstore(8)
+After=local-fs.target
+Before=basic.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-pstore --extract --purge
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

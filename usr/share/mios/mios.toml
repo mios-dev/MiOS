@@ -11554,6 +11554,7 @@ unit = [
     "tests/test-theme-live-render.py",
     "tests/test-cdi-gen.py",
     "tests/test-thp-compaction.py",
+    "tests/test-pstore-crash.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
     "tests/test-ek-substitution.py",
