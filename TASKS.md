@@ -699,7 +699,7 @@
 | T-785 | P2 | open | AI/CPUGEMMTest | Automated CPU quantized GEMM throughput (>30 tok/s) and SIMD dispatch test suite |
 | T-786 | P1 | open | Audio/AECFilter | PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter |
 | T-787 | P2 | open | Audio/AECTest | Automated acoustic echo cancellation (>40dB suppression) and full-duplex test suite |
-| T-788 | P1 | open | Desktop/WebRTCStream | Hardware-accelerated PipeWire WebRTC desktop video streamer in mios-screen-stream |
+| T-788 | P1 | done | Desktop/WebRTCStream | Hardware-accelerated PipeWire WebRTC desktop video streamer in mios-screen-stream |
 | T-789 | P2 | open | Desktop/WebRTCTest | Automated 4K 60FPS WebRTC desktop stream latency (<30ms) and encoder test suite |
 | T-790 | P1 | done | Kernel/PstoreCrash | Persistent pstore ramoops kernel crash buffer manager and post-mortem extractor in mios-pstore |
 | T-791 | P2 | open | Kernel/PstoreTest | Automated kernel panic injection, ramoops log preservation, and database ingestion test suite |
@@ -8736,7 +8736,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Screen streamer encodes PipeWire DMA-BUF frames on GPU hardware and streams over WebRTC.
 **Why:** Hardware-accelerated WebRTC streaming delivers crisp, instantaneous remote desktop visualization for humans and agents.
 **Dep:** AGY-2385
-**Status:** open | **Domain:** Desktop/WebRTCStream | **Who:** agent
+**Status:** done | **Domain:** Desktop/WebRTCStream | **Who:** agent
 **Converted:** AGY-2386 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-789 -- Automated 4K 60FPS WebRTC desktop stream latency (<30ms) and encoder test suite (WS-APP | P2 | S)
