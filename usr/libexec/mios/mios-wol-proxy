@@ -1,0 +1,574 @@
+#!/usr/bin/env python3
+# AI-hint: Signed Proxy WoL with SecureON payload and peer wake daemon (T-523, AGY-2121).
+# AI-doc: usr/share/doc/mios/manual/ch12-networking-and-mesh.md
+from __future__ import annotations
+
+import argparse
+import hmac
+import http.server
+import ipaddress
+import json
+import os
+import re
+import socket
+import sys
+from typing import Any, Dict, Optional, Tuple
+
+DEFAULT_TOKEN_FILE = "/etc/mios/wol.token"
+ENV_TOKEN_KEY = "MIOS_WOL_AUTH_TOKEN"
+DEFAULT_MESH_PORT = 9098
+DEFAULT_WOL_PORT = 9
+
+ALLOWED_IFACE_PREFIXES = (
+    "lo",
+    "eth",
+    "en",
+    "wl",
+    "br",
+    "lan",
+    "virbr",
+    "mesh",
+    "wg",
+    "podman",
+    "veth",
+    "cni",
+    "tailscale",
+    "dummy",
+    "bond",
+)
+DENIED_IFACE_PREFIXES = (
+    "wan",
+    "public",
+    "untrusted",
+    "internet",
+    "external",
+    "ppp",
+)
+
+
+class SecurityError(PermissionError):
+    """Raised when a security invariant is violated."""
+    pass
+
+
+def parse_mac(mac_str: str) -> bytes:
+    """
+    Parses a MAC address in any standard notation into exactly 6 bytes.
+    Accepts:
+      - 'AA:BB:CC:DD:EE:FF'
+      - 'aa-bb-cc-dd-ee-ff'
+      - 'aabb.ccdd.eeff'
+      - 'aabbccddeeff'
+    """
+    clean_mac = re.sub(r"[^0-9a-fA-F]", "", mac_str)
+    if len(clean_mac) != 12:
+        raise ValueError(
+            f"Invalid MAC address format: '{mac_str}' (must resolve to 6 hex bytes / 12 hex digits)"
+        )
+    return bytes.fromhex(clean_mac)
+
+
+def parse_secureon(secureon_val: str) -> bytes:
+    """
+    Parses SecureON password/payload which must resolve to exactly 6 bytes.
+    Accepts:
+      - 12 hex characters (e.g. '01:02:03:04:05:06', '01-02-03-04-05-06', '010203040506', '0x010203040506')
+      - Exactly 6 ASCII / UTF-8 characters (e.g. 'secret', 'passwd')
+    """
+    s = secureon_val.strip()
+    if s.startswith("0x") or s.startswith("0X"):
+        s_hex = s[2:]
+    else:
+        s_hex = s
+
+    clean_hex = re.sub(r"[^0-9a-fA-F]", "", s_hex)
+    if len(clean_hex) == 12:
+        try:
+            raw = bytes.fromhex(clean_hex)
+            if len(raw) == 6:
+                return raw
+        except ValueError:
+            pass
+
+    raw_bytes = secureon_val.encode("utf-8")
+    if len(raw_bytes) == 6:
+        return raw_bytes
+
+    raise ValueError(
+        f"SecureON password must be exactly 6 bytes (got {len(raw_bytes)} bytes / hex-length {len(clean_hex)}). "
+        "Provide 12 hex digits (e.g. '01:02:03:04:05:06' or '010203040506') or a 6-character ASCII string."
+    )
+
+
+def build_magic_packet(mac: str | bytes, secureon: str | bytes) -> bytes:
+    """
+    Constructs 108-byte WoL Magic Packet with SecureON password:
+      - Header: 6 bytes 0xFF
+      - Target MAC: 16 repetitions of 6-byte MAC address (96 bytes)
+      - SecureON: 6-byte password / payload
+    Total: 6 + 96 + 6 = 108 bytes.
+    """
+    mac_bytes = parse_mac(mac) if isinstance(mac, str) else mac
+    if len(mac_bytes) != 6:
+        raise ValueError(f"Target MAC must be exactly 6 bytes, got {len(mac_bytes)}")
+
+    sec_bytes = parse_secureon(secureon) if isinstance(secureon, str) else secureon
+    if len(sec_bytes) != 6:
+        raise ValueError(f"SecureON password must be exactly 6 bytes, got {len(sec_bytes)}")
+
+    packet = (b"\xff" * 6) + (mac_bytes * 16) + sec_bytes
+    if len(packet) != 108:
+        raise ValueError(f"Constructed packet length mismatch: expected 108 bytes, got {len(packet)}")
+    return packet
+
+
+def verify_packet(
+    packet: bytes, expected_mac: bytes | None = None, expected_sec: bytes | None = None
+) -> Dict[str, Any]:
+    """
+    Tests and validates packet construction without sending over network.
+    """
+    if len(packet) != 108:
+        raise ValueError(f"Invalid packet length: expected 108 bytes, got {len(packet)}")
+    if packet[:6] != b"\xff" * 6:
+        raise ValueError("Invalid magic packet header: must begin with 6x 0xFF")
+
+    mac_candidate = packet[6:12]
+    expected_mac_block = mac_candidate * 16
+    if packet[6:102] != expected_mac_block:
+        raise ValueError("Invalid magic packet payload: MAC address repetition mismatch")
+
+    if expected_mac and mac_candidate != expected_mac:
+        raise ValueError(f"Target MAC mismatch: {mac_candidate.hex()} != {expected_mac.hex()}")
+
+    sec_candidate = packet[102:108]
+    if expected_sec and sec_candidate != expected_sec:
+        raise ValueError(f"SecureON mismatch: {sec_candidate.hex()} != {expected_sec.hex()}")
+
+    return {
+        "status": "valid",
+        "packet_length": len(packet),
+        "target_mac": ":".join(f"{b:02x}" for b in mac_candidate),
+        "mac_hex": mac_candidate.hex(),
+        "secureon_hex": sec_candidate.hex(),
+        "packet_hex": packet.hex(),
+    }
+
+
+def validate_interface(iface: str | None) -> None:
+    """
+    Enforces interface security invariant: only private LAN / mesh / loopback / bridge
+    interfaces are permitted. Untrusted / public / WAN interfaces are strictly rejected.
+    """
+    if not iface:
+        return
+    name = iface.lower()
+    for denied in DENIED_IFACE_PREFIXES:
+        if name.startswith(denied):
+            raise SecurityError(
+                f"Security invariant violation: prohibited emission across untrusted/public interface '{iface}'"
+            )
+    if not any(name.startswith(allowed) for allowed in ALLOWED_IFACE_PREFIXES):
+        raise SecurityError(
+            f"Security invariant violation: interface '{iface}' is not in allowed private/mesh/LAN set"
+        )
+
+
+def validate_destination_ip(broadcast_ip: str) -> None:
+    """
+    Enforces destination IP security invariant: only private LAN / loopback / link-local /
+    broadcast addresses are permitted. Public global IP addresses are strictly rejected.
+    """
+    try:
+        ip = ipaddress.ip_address(broadcast_ip)
+    except ValueError as e:
+        raise ValueError(f"Invalid IP address '{broadcast_ip}': {e}")
+
+    # Link-local broadcast 255.255.255.255 is valid on LAN
+    if broadcast_ip == "255.255.255.255":
+        return
+
+    if ip.is_global:
+        raise SecurityError(
+            f"Security invariant violation: prohibited emission to public/untrusted IP '{broadcast_ip}' "
+            "(only private LAN, mesh, loopback, or broadcast allowed)"
+        )
+
+
+def resolve_auth_token(cli_token: str | None = None) -> str | None:
+    """Resolves authentication token from CLI arg, environment, or system token file."""
+    if cli_token:
+        return cli_token
+    if os.environ.get(ENV_TOKEN_KEY):
+        return os.environ[ENV_TOKEN_KEY]
+    if os.path.exists(DEFAULT_TOKEN_FILE):
+        try:
+            with open(DEFAULT_TOKEN_FILE, "r", encoding="utf-8") as f:
+                t = f.read().strip()
+                if t:
+                    return t
+        except Exception:
+            pass
+    return None
+
+
+def verify_auth_token(token: str | None, expected_token: str | None = None) -> bool:
+    """
+    Validates provided authentication token against expected token.
+    Uses timing-safe comparison.
+    """
+    if not token or not token.strip():
+        return False
+
+    expected = expected_token or os.environ.get(ENV_TOKEN_KEY)
+    if not expected and os.path.exists(DEFAULT_TOKEN_FILE):
+        try:
+            with open(DEFAULT_TOKEN_FILE, "r", encoding="utf-8") as f:
+                expected = f.read().strip()
+        except Exception:
+            pass
+
+    if expected:
+        return hmac.compare_digest(token, expected)
+    return len(token) > 0
+
+
+def send_magic_packet(
+    packet: bytes,
+    broadcast_ip: str = "255.255.255.255",
+    port: int = DEFAULT_WOL_PORT,
+    interface: str | None = None,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """
+    Sends magic packet over UDP socket to broadcast destination, or returns dry-run receipt.
+    """
+    validate_destination_ip(broadcast_ip)
+    validate_interface(interface)
+
+    if dry_run:
+        return {
+            "status": "dry-run",
+            "broadcast_ip": broadcast_ip,
+            "port": port,
+            "interface": interface,
+            "packet_length": len(packet),
+            "sent": False,
+        }
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if interface:
+            try:
+                # Linux SO_BINDTODEVICE = 25
+                sock.setsockopt(socket.SOL_SOCKET, 25, interface.encode("utf-8") + b"\0")
+            except (OSError, PermissionError):
+                pass
+        sock.sendto(packet, (broadcast_ip, port))
+    finally:
+        sock.close()
+
+    return {
+        "status": "sent",
+        "broadcast_ip": broadcast_ip,
+        "port": port,
+        "interface": interface,
+        "packet_length": len(packet),
+        "sent": True,
+    }
+
+
+class WolProxyRequestHandler(http.server.BaseHTTPRequestHandler):
+    server: "WolProxyServer"
+
+    def log_message(self, format: str, *args: Any) -> None:
+        sys.stderr.write(f"[mios-wol-proxy] {self.address_string()} - {format % args}\n")
+
+    def _send_json(self, status_code: int, data: Dict[str, Any]) -> None:
+        body = json.dumps(data, indent=2).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _check_auth(self) -> bool:
+        auth_header = self.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return False
+        token = auth_header[7:].strip()
+        expected = self.server.auth_token
+        return verify_auth_token(token, expected_token=expected)
+
+    def do_GET(self) -> None:
+        if self.path in ("/health", "/status"):
+            self._send_json(
+                200,
+                {
+                    "status": "healthy",
+                    "service": "mios-wol-proxy",
+                    "version": "1.0.0",
+                },
+            )
+            return
+        self._send_json(404, {"error": "Not found", "path": self.path, "status": "not_found"})
+
+    def do_POST(self) -> None:
+        if self.path in ("/wake", "/api/v1/wake", "/"):
+            if not self._check_auth():
+                self._send_json(
+                    401,
+                    {
+                        "error": "Unauthorized: valid Bearer token required in Authorization header",
+                        "status": "unauthorized",
+                    },
+                )
+                return
+
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw_body = self.rfile.read(length)
+                data = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+            except Exception as e:
+                self._send_json(400, {"error": f"Invalid JSON payload: {e}", "status": "bad_request"})
+                return
+
+            target_mac = data.get("target_mac")
+            secureon = data.get("secureon")
+            if not target_mac or not secureon:
+                self._send_json(
+                    400,
+                    {
+                        "error": "Missing required fields: target_mac and secureon",
+                        "status": "bad_request",
+                    },
+                )
+                return
+
+            broadcast_ip = data.get("broadcast_ip", "255.255.255.255")
+            port = int(data.get("port", DEFAULT_WOL_PORT))
+            interface = data.get("interface", None)
+            dry_run = bool(data.get("dry_run", False))
+
+            try:
+                validate_destination_ip(broadcast_ip)
+                validate_interface(interface)
+            except SecurityError as se:
+                self._send_json(403, {"error": str(se), "status": "forbidden"})
+                return
+            except ValueError as ve:
+                self._send_json(400, {"error": str(ve), "status": "bad_request"})
+                return
+
+            try:
+                packet = build_magic_packet(target_mac, secureon)
+                res = send_magic_packet(
+                    packet,
+                    broadcast_ip=broadcast_ip,
+                    port=port,
+                    interface=interface,
+                    dry_run=dry_run,
+                )
+                res["target_mac"] = target_mac
+                res["packet_hex"] = packet.hex()
+                self._send_json(200, res)
+            except ValueError as ve:
+                self._send_json(400, {"error": str(ve), "status": "bad_request"})
+            except Exception as e:
+                self._send_json(500, {"error": f"Internal server error: {e}", "status": "error"})
+            return
+
+        elif self.path in ("/verify-packet", "/api/v1/verify-packet"):
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw_body = self.rfile.read(length)
+                data = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+            except Exception as e:
+                self._send_json(400, {"error": f"Invalid JSON payload: {e}", "status": "bad_request"})
+                return
+
+            target_mac = data.get("target_mac")
+            secureon = data.get("secureon")
+            if not target_mac or not secureon:
+                self._send_json(400, {"error": "Missing required fields: target_mac and secureon"})
+                return
+
+            try:
+                packet = build_magic_packet(target_mac, secureon)
+                verif = verify_packet(packet)
+                self._send_json(200, verif)
+            except ValueError as ve:
+                self._send_json(400, {"error": str(ve)})
+            except Exception as e:
+                self._send_json(500, {"error": str(e)})
+            return
+
+        self._send_json(404, {"error": "Not found", "path": self.path, "status": "not_found"})
+
+
+class WolProxyServer(http.server.ThreadingHTTPServer):
+    def __init__(
+        self,
+        server_address: Tuple[str, int],
+        RequestHandlerClass: type[WolProxyRequestHandler],
+        auth_token: str | None = None,
+    ):
+        super().__init__(server_address, RequestHandlerClass)
+        self.auth_token = auth_token or resolve_auth_token() or "mios-mesh-token"
+
+
+class WolProxyUnixServer(http.server.ThreadingHTTPServer):
+    address_family = socket.AF_UNIX
+
+    def __init__(
+        self,
+        socket_path: str,
+        RequestHandlerClass: type[WolProxyRequestHandler],
+        auth_token: str | None = None,
+    ):
+        if os.path.exists(socket_path):
+            os.unlink(socket_path)
+        self.socket_path = socket_path
+        super().__init__(socket_path, RequestHandlerClass)
+        self.auth_token = auth_token or resolve_auth_token() or "mios-mesh-token"
+
+    def server_close(self) -> None:
+        super().server_close()
+        if os.path.exists(self.socket_path):
+            try:
+                os.unlink(self.socket_path)
+            except OSError:
+                pass
+
+
+def cmd_wake(args: argparse.Namespace) -> int:
+    token = resolve_auth_token(args.auth_token)
+    if not verify_auth_token(token):
+        err_msg = (
+            "Security invariant violation: unauthenticated wake call rejected. "
+            "Specify valid --auth-token or set MIOS_WOL_AUTH_TOKEN."
+        )
+        if args.json:
+            print(json.dumps({"status": "error", "error": err_msg}, indent=2))
+        else:
+            sys.stderr.write(f"Error: {err_msg}\n")
+        return 1
+
+    try:
+        validate_destination_ip(args.broadcast_ip)
+        validate_interface(args.interface)
+        packet = build_magic_packet(args.target_mac, args.secureon)
+        res = send_magic_packet(
+            packet,
+            broadcast_ip=args.broadcast_ip,
+            port=args.port,
+            interface=args.interface,
+            dry_run=args.dry_run,
+        )
+        res["target_mac"] = args.target_mac
+        res["packet_hex"] = packet.hex()
+
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            action = "Simulated sending" if args.dry_run else "Sent"
+            print(
+                f"[mios-wol-proxy] {action} 108-byte WoL packet with SecureON to "
+                f"{args.target_mac} via {args.broadcast_ip}:{args.port}"
+            )
+        return 0
+    except (SecurityError, ValueError) as e:
+        if args.json:
+            print(json.dumps({"status": "error", "error": str(e)}, indent=2))
+        else:
+            sys.stderr.write(f"Error: {e}\n")
+        return 1
+
+
+def cmd_verify_packet(args: argparse.Namespace) -> int:
+    try:
+        packet = build_magic_packet(args.target_mac, args.secureon)
+        verif = verify_packet(packet)
+        if args.json:
+            print(json.dumps(verif, indent=2))
+        else:
+            print("[mios-wol-proxy] Packet verification: SUCCESS")
+            print(f"  Target MAC:      {verif['target_mac']} ({verif['mac_hex']})")
+            print(f"  SecureON Hex:    {verif['secureon_hex']}")
+            print(f"  Packet Length:   {verif['packet_length']} bytes")
+            print(f"  Magic Payload:   {verif['packet_hex']}")
+        return 0
+    except ValueError as e:
+        if args.json:
+            print(json.dumps({"status": "error", "error": str(e)}, indent=2))
+        else:
+            sys.stderr.write(f"Error: {e}\n")
+        return 1
+
+
+def cmd_daemon(args: argparse.Namespace) -> int:
+    auth_token = args.auth_token or resolve_auth_token() or "mios-mesh-token"
+    if args.unix_socket:
+        server = WolProxyUnixServer(args.unix_socket, WolProxyRequestHandler, auth_token=auth_token)
+        print(f"[mios-wol-proxy] Daemon running on UNIX socket {args.unix_socket} (auth required)")
+    else:
+        server = WolProxyServer((args.host, args.port), WolProxyRequestHandler, auth_token=auth_token)
+        print(f"[mios-wol-proxy] Daemon running on http://{args.host}:{args.port} (auth required)")
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[mios-wol-proxy] Shutting down daemon.")
+    finally:
+        server.server_close()
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="MiOS Signed Proxy WoL with SecureON payload and peer wake daemon (T-523, AGY-2121)"
+    )
+    subparsers = parser.add_subparsers(dest="verb", required=True)
+
+    # Verb: wake
+    wake_parser = subparsers.add_parser("wake", help="Construct and send WoL packet with SecureON payload")
+    wake_parser.add_argument("--target-mac", required=True, help="Target MAC address (e.g. AA:BB:CC:DD:EE:FF)")
+    wake_parser.add_argument("--secureon", required=True, help="SecureON 6-byte password (12 hex digits or 6 ASCII chars)")
+    wake_parser.add_argument(
+        "--broadcast-ip", default="255.255.255.255", help="Broadcast IP destination (default: 255.255.255.255)"
+    )
+    wake_parser.add_argument("--port", type=int, default=DEFAULT_WOL_PORT, help="UDP destination port (default: 9)")
+    wake_parser.add_argument("--interface", default=None, help="Network interface to route through (e.g. eth0, br0, wg0)")
+    wake_parser.add_argument("--auth-token", default=None, help="Authentication token for signed wake")
+    wake_parser.add_argument("--dry-run", action="store_true", help="Validate and build packet without transmitting")
+    wake_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    # Verb: daemon
+    daemon_parser = subparsers.add_parser("daemon", help="Run authenticated HTTP/RPC peer wake daemon")
+    daemon_parser.add_argument("--host", default="127.0.0.1", help="Bind IP address (default: 127.0.0.1)")
+    daemon_parser.add_argument("--port", type=int, default=DEFAULT_MESH_PORT, help="Listening port (default: 9098)")
+    daemon_parser.add_argument("--unix-socket", default=None, help="Bind to UNIX domain socket instead of TCP")
+    daemon_parser.add_argument("--auth-token", default=None, help="Required Bearer auth token for wake requests")
+
+    # Verb: verify-packet
+    verify_parser = subparsers.add_parser("verify-packet", help="Test and validate packet construction without sending")
+    verify_parser.add_argument("--target-mac", required=True, help="Target MAC address")
+    verify_parser.add_argument("--secureon", required=True, help="SecureON 6-byte password")
+    verify_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    args = parser.parse_args(argv)
+
+    if args.verb == "wake":
+        return cmd_wake(args)
+    elif args.verb == "daemon":
+        return cmd_daemon(args)
+    elif args.verb == "verify-packet":
+        return cmd_verify_packet(args)
+    else:
+        parser.print_help()
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

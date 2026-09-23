@@ -214,11 +214,14 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-skill-clone` | Copies system-provided Hermes skills from /usr/share/mios/hermes/skills/ to the agent's writable home directory to allow local modification and overriding of system-wide skill definitions. |
 | `usr/libexec/mios/mios-skills` | CLI tool for mining repetitive tool_call sequences into typed-verb DAGs in parameterized Postgres/pgvector, providing a unified skill catalog for mios-agent-pipe, Hermes, and OpenCode to share... |
 | `usr/libexec/mios/mios-smart-resize` | Performs 3-constraint spatial normalization for VLM input image resizing and records output dimensions. |
+| `usr/libexec/mios/mios-snapshot-restore` | Zero-Knowledge untrusted remote snapshot offline recovery validator (T-522, AGY-2120). |
+| `usr/libexec/mios/mios-snapshot-transport` | Zero-Knowledge untrusted remote snapshot transport protocol client (T-522, AGY-2120). |
 | `usr/libexec/mios/mios-sriov-init` | Initializes SR-IOV Virtual Functions on Physical Functions (PFs) by parsing /etc/mios/sriov.conf and writing to /sys/bus/pci/devices/ paths during early boot to enable multi-device networking. |
 | `usr/libexec/mios/mios-ssh-dev-cmd` | Prints the LIVE, copy-pasteable "SSH from your host into the code-server dev container at the MiOS root tree" command. Single source of truth shared by the Linux dashboard (mios-dashboard.sh) and the... |
 | `usr/libexec/mios/mios-ssot-regen` | One-command regeneration of every mios.toml-derived SSOT projection the drift-gate verifies |
 | `usr/libexec/mios/mios-stage-oci-archive` | Stages built mios oci-archive tarball to /mnt/mios-repo/mios-latest.tar for tools/install.sh (AGY-152) |
 | `usr/libexec/mios/mios-steamcmd` | A wrapper for Valve's SteamCMD providing a unified interface for game installation, updates, and status checks via both GUI-based URI dispatching and headless SteamCMD commands for server hosting. |
+| `usr/libexec/mios/mios-storage-segregate` | Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool (T-521, AGY-2119). |
 | `usr/libexec/mios/mios-stresstest` | A developer tool to stress-test the agent-pipe chat endpoint via a Python harness, used to validate system stability, concurrency limits, and latency under load. |
 | `usr/libexec/mios/mios-subuid-alloc` | Deterministic /etc/subuid and /etc/subgid subordinate UID/GID allocator (T-477). |
 | `usr/libexec/mios/mios-suggestion-refresh` | Refreshes OWUI's ui.prompt_suggestions by analyzing MiOS state (kanban, daemon nudges, recent intents) via a refine model to generate 5-28 context-aware starter chips for the operator. |
@@ -259,12 +262,13 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-window-active` | Provides a JSON-formatted status of a specific application's window state, used by MiOS Agents to verify if a process is actually visible and presented to the operator rather than just running in the... |
 | `usr/libexec/mios/mios-windows` | Provides a bridge for the agent to execute Windows-side commands, launch GUI applications, or run elevated PowerShell scripts via WSL interop or Tailscale SSH from within the WSL2 environment. |
 | `usr/libexec/mios/mios-winget` | Wraps winget.exe via WSL interop to provide a unified JSON-structured interface for MiOS agents to search, install, upgrade, and manage Windows-side packages from the Linux-side agent stack. |
+| `usr/libexec/mios/mios-wol-proxy` | Signed Proxy WoL with SecureON payload and peer wake daemon (T-523, AGY-2121). |
 | `usr/libexec/mios/mios-wsl-flatpak-export-sync.sh` | Mirror flatpak's `.desktop` + icon exports into the system XDG dirs so |
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 | `usr/libexec/mios/mios-xdp` | Native eBPF XDP network fastpath and WireGuard packet router manager (T-802). |
 
-<!-- derived from the AI-hint headers of 234 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 238 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)

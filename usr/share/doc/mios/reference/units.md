@@ -171,6 +171,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-webtools-firecrawl-worker.container` | `usr/share/containers/systemd` | MiOS' web-tools firecrawl worker (Bull queue processor) |
 | `mios-webtools-firstboot.service` | `usr/lib/systemd/system` | MiOS' web-tools images build-on-demand firstboot service |
 | `mios-webtools-redis.container` | `usr/share/containers/systemd` | MiOS' web-tools redis (firecrawl queue + ratelimit store) |
+| `mios-wol-proxy.service` | `usr/lib/systemd/system` | MiOS Signed Proxy Wake-on-LAN Daemon with SecureON Payload |
 | `mios-wsl-early.service` | `usr/lib/systemd/system` | MiOS' WSL2 pre-sysinit fixups (rshared root + /dev/{net/tun,fuse}) |
 | `mios-wsl-env-import.service` | `usr/lib/systemd/user` | MiOS': import WSLg env into systemd user-bus + dbus activation |
 | `mios-wsl-firstboot.service` | `usr/lib/systemd/system` | MiOS' WSL2 First Boot Initialization |
@@ -192,5 +193,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (184 unit(s)) -->
+<!-- derived from tracked unit files (185 unit(s)) -->
 <!-- /MIOS-GEN:units -->

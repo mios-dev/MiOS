@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+# AI-hint: Zero-Knowledge untrusted remote snapshot offline recovery validator (T-522, AGY-2120).
+# AI-doc: usr/share/doc/mios/manual/ch11-storage-and-persistence.md
+from __future__ import annotations
+
+import argparse
+import base64
+import hashlib
+import hmac
+import json
+import os
+import sys
+import time
+from typing import Any, Dict
+
+
+def restore_snapshot(meta_file: str, payload_file: str, key_file: str, target_dir: str, dry_run: bool = False) -> Dict[str, Any]:
+    """Restore domain from inert encrypted snapshot using local recovery key."""
+    if not os.path.isfile(meta_file):
+        raise FileNotFoundError(f"Metadata file missing: {meta_file}")
+    if not os.path.isfile(payload_file):
+        raise FileNotFoundError(f"Payload file missing: {payload_file}")
+    if not os.path.isfile(key_file):
+        raise FileNotFoundError(f"Key file missing: {key_file}")
+
+    with open(meta_file, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+
+    with open(key_file, "rb") as f:
+        key_bytes = f.read()
+
+    # Verify key fingerprint
+    actual_key_fp = hashlib.sha256(key_bytes).hexdigest()[:16]
+    expected_key_fp = meta.get("key_fingerprint")
+    if actual_key_fp != expected_key_fp:
+        raise PermissionError(f"Key fingerprint mismatch: key {actual_key_fp} cannot decrypt snapshot requiring {expected_key_fp}")
+
+    with open(payload_file, "rb") as f:
+        ciphertext = f.read()
+
+    # Verify payload SHA-256
+    actual_sha = hashlib.sha256(ciphertext).hexdigest()
+    expected_sha = meta.get("payload_sha256")
+    if actual_sha != expected_sha:
+        raise ValueError(f"Corrupted payload: expected SHA {expected_sha}, found {actual_sha}")
+
+    iv = base64.b64decode(meta.get("iv_b64", ""))
+    expected_auth_tag = meta.get("auth_tag")
+
+    # Verify authentication tag
+    computed_auth_tag = hmac.new(key_bytes, iv + ciphertext, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(computed_auth_tag, expected_auth_tag):
+        raise PermissionError("Authentication failure: snapshot corrupted or invalid recovery key")
+
+    # Decrypt stream using HMAC-CTR
+    keystream = bytearray()
+    counter = 0
+    while len(keystream) < len(ciphertext):
+        block_hmac = hmac.new(key_bytes, iv + counter.to_bytes(8, "big"), hashlib.sha256).digest()
+        keystream.extend(block_hmac)
+        counter += 1
+
+    plaintext = bytes(a ^ b for a, b in zip(ciphertext, keystream[:len(ciphertext)]))
+
+    result = {
+        "status": "success",
+        "snapshot_id": meta.get("snapshot_id"),
+        "domain": meta.get("domain"),
+        "restored_bytes": len(plaintext),
+        "target_dir": target_dir,
+        "authenticated": True,
+        "restored_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+    if dry_run:
+        result["dry_run"] = True
+        return result
+
+    os.makedirs(target_dir, exist_ok=True)
+    out_file = os.path.join(target_dir, f"{meta.get('domain')}-restored.dat")
+    with open(out_file, "wb") as f:
+        f.write(plaintext)
+
+    result["restored_file"] = out_file
+    return result
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="MiOS Offline Snapshot Recovery Tool")
+    parser.add_argument("--meta", required=True, help="Path to snapshot .meta.json file")
+    parser.add_argument("--payload", required=True, help="Path to snapshot .payload.enc file")
+    parser.add_argument("--key-file", required=True, help="Local cryptographic recovery key file")
+    parser.add_argument("--target-dir", required=True, help="Directory to restore decrypted payload into")
+    parser.add_argument("--dry-run", action="store_true", help="Validate credentials and integrity without writing to disk")
+    parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    args = parser.parse_args()
+
+    try:
+        res = restore_snapshot(args.meta, args.payload, args.key_file, args.target_dir, dry_run=args.dry_run)
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[OK] Restored snapshot '{res['snapshot_id']}' for domain '{res['domain']}':")
+            print(f"  Restored Bytes:  {res['restored_bytes']}")
+            print(f"  Destination:     {res.get('restored_file', res['target_dir'])}")
+            print(f"  Authentication:  VERIFIED")
+        return 0
+    except Exception as e:
+        if args.json:
+            print(json.dumps({"status": "error", "error": str(e)}, indent=2))
+        else:
+            print(f"[ERROR] {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

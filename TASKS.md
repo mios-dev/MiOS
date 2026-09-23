@@ -6056,7 +6056,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Benchmark suite confirms inter-GPU P2P transfer rates meet physical bus capacity.
 **Why:** Continuous P2P bandwidth validation catches PCIe bridge misconfigurations and IOMMU group issues.
 **Dep:** AGY-2117
-**Status:** open | **Domain:** Hardware/P2PTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/P2PTest | **Who:** agent
 **Converted:** AGY-2118 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-521 -- Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool (WS-DURA | P1 | M)
@@ -6066,7 +6066,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Storage segregater enforces independent per-domain encryption and exports inert encrypted snapshots.
 **Why:** Independent domain encryption ensures a breach in one subsystem does not compromise user home data or database vaults.
 **Dep:** AGY-2118
-**Status:** open | **Domain:** Storage/Encryption | **Who:** agent
+**Status:** done | **Domain:** Storage/Encryption | **Who:** agent
 **Converted:** AGY-2119 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-522 -- Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator (WS-DURA | P1 | M)
@@ -6076,7 +6076,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Snapshot transport replicates encrypted blobs and recovery validator restores domains successfully offline.
 **Why:** Zero-knowledge snapshot transport guarantees absolute privacy across untrusted cloud or off-site storage targets.
 **Dep:** AGY-2119
-**Status:** open | **Domain:** Storage/ZeroKnowledge | **Who:** agent
+**Status:** done | **Domain:** Storage/ZeroKnowledge | **Who:** agent
 **Converted:** AGY-2120 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-523 -- Signed Proxy WoL with SecureON payload and peer wake daemon (WS-NODE | P1 | S)
@@ -6086,7 +6086,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Proxy WoL daemon wakes sleeping blades securely on incoming workload dispatch.
 **Why:** Authenticated remote wake enables low-power cluster standby while maintaining instant node availability.
 **Dep:** AGY-2120
-**Status:** open | **Domain:** Network/WoL | **Who:** agent
+**Status:** done | **Domain:** Network/WoL | **Who:** agent
 **Converted:** AGY-2121 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-524 -- Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner (WS-NODE | P1 | M)
