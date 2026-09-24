@@ -22,7 +22,7 @@ if command -v cargo >/dev/null 2>&1; then
         (cd "${ROOT_DIR}/src/mios-rs" && cargo build --release)
     fi
 
-    for bin in mios-resolver mios-drift-runner mios-ssot-lint mios-version-check mios-node miosd mios-bake-plan; do
+    for bin in mios-resolver mios-drift-runner mios-ssot-lint mios-version-check mios-node miosd mios-gate mios-probe mios-bake-plan; do
         SRC_BIN=""
         if [[ -f "${ROOT_DIR}/tools/native/target/release/${bin}" ]]; then
             SRC_BIN="${ROOT_DIR}/tools/native/target/release/${bin}"

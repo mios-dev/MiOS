@@ -1,52 +1,123 @@
 /* AI-hint: Edge-to-edge zero-margin integrated terminal theme for VS Code and code-server in MiOS.
-   Eliminates padding, margins, borders, and dead space around xterm canvas and terminal containers. */
+   Completely eliminates margins, padding, borders, gutters, title dead-space, and decoration spacing around xterm canvas and terminal containers. */
 
-/* Root terminal panel container - remove padding and border gaps */
+/* 1. Root workbench panel container - remove padding and border gaps */
+.monaco-workbench .part.panel,
+.monaco-workbench .part.panel > .content,
+.monaco-workbench .part.panel .pane-composite-part,
+.monaco-workbench .part.panel .pane-composite-part > .content,
+.monaco-workbench .part.panel .pane-body.integrated-terminal,
 .monaco-workbench .part.panel .content .terminal-split-pane,
 .monaco-workbench .part.panel .content .terminal-outer-container,
 .monaco-workbench .part.panel .content .terminal-wrapper,
 .monaco-workbench .part.panel .content .xterm,
+.monaco-workbench .pane-composite-part > .content,
+.pane-body.integrated-terminal,
 .terminal-outer-container,
 .terminal-wrapper,
-.terminal-split-pane {
+.terminal-split-pane,
+.terminal-split-pane-wrapper,
+.terminal.xterm,
+.xterm-react-component {
     padding: 0 !important;
     margin: 0 !important;
     border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 
-/* Eliminate dead margins and force canvas to occupy full viewport boundary */
+/* 2. Force xterm screen and viewport canvas to occupy full viewport boundary edge-to-edge */
 .monaco-workbench .terminal .xterm-screen,
 .monaco-workbench .terminal .xterm-viewport,
+.pane-body.integrated-terminal .xterm-screen,
+.pane-body.integrated-terminal .xterm-viewport,
 .xterm-viewport,
 .xterm-screen {
     padding: 0 !important;
     margin: 0 !important;
     left: 0 !important;
     top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
     width: 100% !important;
 }
 
-/* Align terminal split views seamlessly */
-.terminal-split-pane-wrapper {
+/* 3. Eliminate canvas gutter offset and bounds */
+.xterm .xterm-screen canvas,
+.xterm-screen canvas {
+    left: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+}
+
+/* 4. Strip extra padding from text rows within xterm.js */
+.xterm-rows {
     padding: 0 !important;
     margin: 0 !important;
 }
 
-/* Remove tab strip margins when tabs are hidden or collapsed */
+/* 5. Seamless terminal split views without partition dead space */
+.terminal-split-pane-wrapper,
+.terminal-split-pane-wrapper .split-view-container,
+.terminal-split-pane-wrapper .split-view-view {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+}
+
+/* 6. Collapse tab strip and empty tab headers */
 .monaco-workbench .terminal-tabs-widget,
+.monaco-workbench .terminal-tabs-widget.has-no-tabs,
+.monaco-workbench .terminal-tabs-widget:empty,
 .terminal-tabs-widget {
     margin: 0 !important;
     padding: 0 !important;
+    border: none !important;
 }
 
-/* Eliminate gutter offset on xterm canvas */
-.xterm .xterm-screen canvas {
-    left: 0 !important;
-    top: 0 !important;
+/* 7. Zero out shell integration decorations and gutter markers */
+.terminal-shell-integration-decoration,
+.terminal-command-decoration,
+.terminal-decoration {
+    display: none !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
-/* Zero padding around scrollbars and edge containers */
-.terminal-scrollable {
+/* 8. Zero out scrollable container padding and refine scrollbar footprint */
+.terminal-scrollable,
+.terminal-widget,
+.terminal-widget-container {
     padding: 0 !important;
     margin: 0 !important;
+    border: none !important;
+}
+
+.monaco-workbench .terminal .xterm-viewport::-webkit-scrollbar {
+    width: 4px !important;
+}
+
+.monaco-workbench .terminal .xterm-viewport::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-radius: 2px !important;
+}
+
+.monaco-workbench .terminal .xterm-viewport::-webkit-scrollbar-track {
+    background: transparent !important;
+}
+
+/* 9. Compact panel title bar header to maximize usable terminal canvas height */
+.monaco-workbench .part.panel .composite.title {
+    height: 26px !important;
+    padding: 0 4px !important;
+    margin: 0 !important;
+    border-bottom: 1px solid #1a1a1a !important;
+}
+
+.monaco-workbench .part.panel .composite.title .title-label {
+    padding: 0 4px !important;
+    line-height: 26px !important;
+    font-size: 11px !important;
 }

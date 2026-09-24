@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cd /build/src/mios-rs && cargo build --release && \
     cd /build/tools/native && cargo build --release --workspace --exclude mios-wallpaperd && \
     mkdir -p /out && \
-    cp /build/src/mios-rs/target/release/miosd /out/ && \
+    cp /build/src/mios-rs/target/release/miosd /build/src/mios-rs/target/release/mios-gate /build/src/mios-rs/target/release/mios-probe /build/src/mios-rs/target/release/mios-node /out/ 2>/dev/null || true && \
     cp /build/tools/native/target/release/mios-* /out/ 2>/dev/null || true && \
     cp /build/tools/native/target/release/generate-names-registry /out/ 2>/dev/null || true
 

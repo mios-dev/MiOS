@@ -11771,6 +11771,7 @@ unit = [
     "tests/test-socket-swap.sh",
     "tests/test-thermal-governor-recovery.sh",
     "tests/test-vision-redact.py",
+    "tests/test-miosd-secret.sh",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
