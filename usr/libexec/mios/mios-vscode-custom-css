@@ -141,12 +141,38 @@ def locate_workbench_html_files():
         "/usr/share/code",
         "/usr/share/code-insiders",
     ]
+    known_rel_paths = [
+        "lib/vscode/out/vs/code/browser/workbench/workbench.html",
+        "out/vs/code/browser/workbench/workbench.html",
+        "out/vs/code/electron-sandbox/workbench/workbench.html",
+        "resources/app/out/vs/code/electron-sandbox/workbench/workbench.html",
+        "resources/app/out/vs/code/browser/workbench/workbench.html",
+    ]
+    skip_dirs = {"node_modules", ".git", "test", "tests", "docs", "documentation", "cache", ".cache"}
+
     for r in search_roots:
-        if os.path.isdir(r):
-            for pattern in ["**/workbench*.html", "**/workbench.html"]:
-                for match in glob.glob(os.path.join(r, pattern), recursive=True):
-                    if os.path.isfile(match):
-                        candidates.append(match)
+        if not os.path.isdir(r):
+            continue
+        # 1. Fast path: check known relative paths
+        found_in_root = False
+        for rel in known_rel_paths:
+            target = os.path.join(r, rel)
+            if os.path.isfile(target):
+                candidates.append(target)
+                found_in_root = True
+
+        if found_in_root:
+            continue
+
+        # 2. Targeted fallback walk with skip_dirs pruning
+        for root, dirs, files in os.walk(r):
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            for f in files:
+                if f.startswith("workbench") and f.endswith(".html"):
+                    fp = os.path.join(root, f)
+                    if os.path.isfile(fp):
+                        candidates.append(fp)
+
     return sorted(list(set(candidates)))
 
 def install_extension(ext_dirs, dry_run=False, verbose=False):

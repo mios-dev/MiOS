@@ -19,6 +19,7 @@ TARGET_PROJECTIONS = [
     (VSCODE_SETTINGS_SRC, "etc/skel/.config/Code/User/settings.json"),
     (VSCODE_SETTINGS_SRC, ".vscode/settings.json"),
     (CODESERVER_SETTINGS_SRC, "etc/skel/.local/share/code-server/User/settings.json"),
+    (CODESERVER_SETTINGS_SRC, "usr/share/mios/agents/code-server-mobile-settings.json"),
     (CODESERVER_CSS_SRC, "usr/share/mios/themes/code-server-terminal.css"),
 ]
 
@@ -73,7 +74,11 @@ def main() -> int:
             home_targets = [
                 (VSCODE_SETTINGS_SRC, os.path.join(home, ".config/Code/User/settings.json")),
                 (VSCODE_SETTINGS_SRC, os.path.join(home, ".vscode-server/data/Machine/settings.json")),
+                (VSCODE_SETTINGS_SRC, os.path.join(home, ".vscode-server/data/User/settings.json")),
                 (VSCODE_SETTINGS_SRC, os.path.join(home, ".vscode-remote/data/Machine/settings.json")),
+                (VSCODE_SETTINGS_SRC, os.path.join(home, ".vscode-remote/data/User/settings.json")),
+                (VSCODE_SETTINGS_SRC, os.path.join(home, ".vscode-server-insiders/data/Machine/settings.json")),
+                (VSCODE_SETTINGS_SRC, os.path.join(home, ".vscode-server-insiders/data/User/settings.json")),
                 (CODESERVER_SETTINGS_SRC, os.path.join(home, ".local/share/code-server/User/settings.json")),
             ]
             for s, d in home_targets:
@@ -82,6 +87,11 @@ def main() -> int:
                         shutil.copy2(s, d)
                     except Exception:
                         pass
+        if os.access("/usr/share/mios/themes", os.W_OK):
+            try:
+                shutil.copy2(CODESERVER_CSS_SRC, "/usr/share/mios/themes/code-server-terminal.css")
+            except Exception:
+                pass
 
     if args.check:
         if drift:

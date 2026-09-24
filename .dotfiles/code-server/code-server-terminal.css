@@ -11,8 +11,14 @@
 .monaco-workbench .part.panel .content .terminal-outer-container,
 .monaco-workbench .part.panel .content .terminal-wrapper,
 .monaco-workbench .part.panel .content .xterm,
+.monaco-workbench .part.editor .terminal-editor,
 .monaco-workbench .pane-composite-part > .content,
 .pane-body.integrated-terminal,
+.terminal-editor,
+.terminal-editor .terminal-outer-container,
+.terminal-editor .terminal-wrapper,
+.terminal-editor .terminal-split-pane,
+.terminal-editor .xterm,
 .terminal-outer-container,
 .terminal-wrapper,
 .terminal-split-pane,
@@ -31,6 +37,8 @@
 .monaco-workbench .terminal .xterm-viewport,
 .pane-body.integrated-terminal .xterm-screen,
 .pane-body.integrated-terminal .xterm-viewport,
+.terminal-editor .xterm-screen,
+.terminal-editor .xterm-viewport,
 .xterm-viewport,
 .xterm-screen {
     padding: 0 !important;
@@ -60,10 +68,15 @@
 /* 5. Seamless terminal split views without partition dead space */
 .terminal-split-pane-wrapper,
 .terminal-split-pane-wrapper .split-view-container,
-.terminal-split-pane-wrapper .split-view-view {
+.terminal-split-pane-wrapper .split-view-view,
+.monaco-split-view2 > .split-view-container > .split-view-view {
     padding: 0 !important;
     margin: 0 !important;
     border: none !important;
+}
+
+.terminal-split-pane-wrapper .monaco-sash {
+    opacity: 0 !important;
 }
 
 /* 6. Collapse tab strip and empty tab headers */
@@ -79,7 +92,8 @@
 /* 7. Zero out shell integration decorations and gutter markers */
 .terminal-shell-integration-decoration,
 .terminal-command-decoration,
-.terminal-decoration {
+.terminal-decoration,
+.xterm-decoration-container {
     display: none !important;
     width: 0 !important;
     margin: 0 !important;

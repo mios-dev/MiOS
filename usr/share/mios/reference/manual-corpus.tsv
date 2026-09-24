@@ -8496,10 +8496,10 @@ tools/sync-bootstrap.py	141	141	1	10	8aaebeac590f	STAY	inline-scoped		0				0
 tools/sync-bootstrap.py	154	157	4	44	1dc005bdb752	STAY	midsize-why		0				0
 tools/sync-dotfiles.py	1	3	3	17	6f3e4a4d0f86	STAY	ai-header		0				0
 tools/sync-dotfiles.py	17	17	1	3	d83c78935384	STAY	local-scoped		0				0
-tools/sync-dotfiles.py	34	34	1	4	4ae2f0d71481	STAY	local-scoped		0				0
-tools/sync-dotfiles.py	40	40	1	6	5a3144582373	STAY	local-scoped		0				0
-tools/sync-dotfiles.py	56	56	1	5	07ec189d388f	STAY	local-scoped		0				0
-tools/sync-dotfiles.py	69	69	1	11	ffdb8b7ff1f0	STAY	local-scoped		0				0
+tools/sync-dotfiles.py	35	35	1	4	4ae2f0d71481	STAY	local-scoped		0				0
+tools/sync-dotfiles.py	41	41	1	6	5a3144582373	STAY	local-scoped		0				0
+tools/sync-dotfiles.py	57	57	1	5	07ec189d388f	STAY	local-scoped		0				0
+tools/sync-dotfiles.py	70	70	1	11	ffdb8b7ff1f0	STAY	local-scoped		0				0
 tools/sync-generated.sh	1	3	3	24	fdabe5ba4054	STAY	ai-header		0				0
 tools/sync-generated.sh	9	22	14	124	4cf964f45b77	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:4cf964f45b77	124	1
 tools/sync-generated.sh	12	12	1	10	4147b14ec471	STAY	local-scoped		0				0
@@ -17251,17 +17251,19 @@ usr/libexec/mios/mios-vscode-custom-css	19	19	1	7	1e804999d99d	STAY	local-scoped
 usr/libexec/mios/mios-vscode-custom-css	29	29	1	8	1eedc0cab395	STAY	local-scoped		0				0
 usr/libexec/mios/mios-vscode-custom-css	94	94	1	3	d5e0b107bdda	STAY	local-scoped		0				0
 usr/libexec/mios/mios-vscode-custom-css	114	114	1	6	a86dc89f6535	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	154	154	1	9	119fab514913	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	202	202	1	2	803810168d6b	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	215	215	1	5	a5df2d9b8705	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	248	248	1	4	01542a6cba40	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	257	257	1	2	30a19f3af8d0	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	261	261	1	6	122db9fa1d95	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	311	311	1	3	39614171458f	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	367	367	1	2	05b25b89cd8a	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	376	376	1	2	49dee3c606b3	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	382	382	1	2	36e5c06115ff	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	388	388	1	2	5a53f6cfabac	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	156	156	1	7	1ad1943e3674	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	167	167	1	7	efceba24cde4	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	180	180	1	9	119fab514913	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	228	228	1	2	803810168d6b	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	241	241	1	5	a5df2d9b8705	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	274	274	1	4	01542a6cba40	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	283	283	1	2	30a19f3af8d0	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	287	287	1	6	122db9fa1d95	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	337	337	1	3	39614171458f	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	393	393	1	2	05b25b89cd8a	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	402	402	1	2	49dee3c606b3	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	408	408	1	2	36e5c06115ff	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	414	414	1	2	5a53f6cfabac	STAY	local-scoped		0				0
 usr/libexec/mios/mios-wallpaper	1	3	3	20	3826c022f7db	STAY	ai-header		0				0
 usr/libexec/mios/mios-web-extract	1	2	2	33	03eb08011b7b	STAY	ai-header		0				0
 usr/libexec/mios/mios-web-extract	3	14	11	103	92d3b8d59df1	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:92d3b8d59df1	103	0
