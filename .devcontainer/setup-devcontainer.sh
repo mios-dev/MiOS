@@ -72,7 +72,7 @@ if [ -x "${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/install.sh" ]; then
     sh "${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/install.sh" --all --user >/dev/null 2>&1 || true
 fi
 
-echo "=== [5/5] Checking Toolchain Readiness ==="
+echo "=== [5/6] Checking Toolchain Readiness ==="
 echo "  Rust:    $(rustc --version 2>/dev/null || echo 'missing')"
 echo "  Cargo:   $(cargo --version 2>/dev/null || echo 'missing')"
 echo "  Python:  $(python3 --version 2>/dev/null || echo 'missing') (compat: $(python3.11 --version 2>/dev/null || echo 'missing'))"
@@ -81,4 +81,38 @@ echo "  Docker:  $(docker --version 2>/dev/null || echo 'missing (podman-docker 
 echo "  Claude:  $(claude --version 2>/dev/null || echo 'missing')"
 echo "  Agy:     $(agy --version 2>/dev/null || echo 'missing')"
 echo "  Gemini:  $(gemini -v 2>/dev/null || gemini --version 2>/dev/null || echo 'missing')"
+
+echo "=== [6/6] Ensuring Frameless Edge-to-Edge VSCode Environment & Dotfiles ==="
+VSCODE_CSS_TOOL="${WORKSPACE_DIR}/MiOS/usr/libexec/mios/mios-vscode-custom-css"
+if [ ! -f "$VSCODE_CSS_TOOL" ]; then
+    VSCODE_CSS_TOOL="/usr/libexec/mios/mios-vscode-custom-css"
+fi
+if [ -f "$VSCODE_CSS_TOOL" ]; then
+    python3 "$VSCODE_CSS_TOOL" install --all || true
+fi
+
+# Ensure SSOT .dotfiles/vscode/settings.json is projected to all IDE targets
+DOTFILES_DIR="${WORKSPACE_DIR}/MiOS/.dotfiles"
+if [ -d "$DOTFILES_DIR/vscode" ]; then
+    for target_dir in \
+        "${WORKSPACE_DIR}/MiOS/.vscode" \
+        "$HOME/.vscode-server/data/Machine" \
+        "$HOME/.vscode-server-insiders/data/Machine" \
+        "$HOME/.vscode-remote/data/Machine" \
+        "$HOME/.vscode-remote-insiders/data/Machine" \
+        "$HOME/.config/Code/User" \
+        "$HOME/.config/Code - Insiders/User" \
+        "$HOME/.local/share/code-server/User"; do
+        mkdir -p "$target_dir"
+        cp -f "$DOTFILES_DIR/vscode/settings.json" "$target_dir/settings.json" 2>/dev/null || true
+    done
+fi
+
+if [ -f "${WORKSPACE_DIR}/MiOS/usr/libexec/mios/mios-dotfiles" ]; then
+    python3 "${WORKSPACE_DIR}/MiOS/usr/libexec/mios/mios-dotfiles" apply || true
+elif [ -f "/usr/libexec/mios/mios-dotfiles" ]; then
+    python3 "/usr/libexec/mios/mios-dotfiles" apply || true
+fi
+
 echo "Multi-repo devcontainer setup complete."
+

@@ -99,12 +99,13 @@ Two columns below are worth reading carefully:
 | 90 | generate-sbom | `90-generate-sbom.sh` | yes | universal |
 | 91 | strip-build-toolchain | `91-strip-build-toolchain.sh` | no | universal |
 | 92 | export-sbom | `92-export-sbom.sh` | no | universal |
+| 93 | composefs-seal | `93-composefs-seal.sh` | no | bake-only |
 | 94 | cleanup | `94-cleanup.sh` | yes | universal |
 | 97 | ssot-lint | `97-ssot-lint.sh` | yes | containerfile |
 | 98 | drift-checks | `98-drift-checks.sh` | yes | containerfile |
 | 99 | postcheck | `99-postcheck.sh` | yes | containerfile |
 
-<!-- derived from usr/share/mios/mios.toml [build.phases].list (76 phases) -->
+<!-- derived from usr/share/mios/mios.toml [build.phases].list (77 phases) -->
 <!-- /MIOS-GEN:pipeline -->
 
 ## Root Quadlet exceptions (Law 6)

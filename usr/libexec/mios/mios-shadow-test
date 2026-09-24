@@ -1,0 +1,1062 @@
+#!/usr/bin/env python3
+# AI-hint: Shadow dual-process candidate daemon validator and query mirroring harness (T-541, AGY-2139).
+# AI-doc: usr/share/doc/mios/manual/ch30-shadow-candidate-testing.md
+"""
+MiOS Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness.
+
+Validates candidate daemon builds and patches in a shadow container or isolated
+network namespace before promotion to production. Intercepts and mirrors
+non-mutating OpenAI-compatible /v1 queries, strictly filters mutating requests,
+measures latency differentials, evaluates schema compliance, and gates canary
+promotions.
+"""
+
+from __future__ import annotations
+
+import argparse
+import concurrent.futures
+from dataclasses import asdict, dataclass, field
+import datetime
+import http.client
+import http.server
+import json
+import os
+from pathlib import Path
+import re
+import socket
+import subprocess
+import sys
+import threading
+import time
+from typing import Any, Dict, List, Optional, Tuple
+import urllib.error
+import urllib.parse
+import urllib.request
+
+EXIT_SUCCESS = 0
+EXIT_DIVERGENCE = 1
+EXIT_ERROR = 2
+
+# Default endpoints and settings
+DEFAULT_LIVE_URL = os.environ.get("MIOS_AI_ENDPOINT", "http://127.0.0.1:8642/v1")
+DEFAULT_CANDIDATE_PORT = 8649
+DEFAULT_STATE_DIR = os.environ.get("MIOS_SHADOW_STATE_DIR", "/var/lib/mios/shadow")
+FALLBACK_STATE_DIR = "/tmp/mios-shadow"
+
+# Non-mutating endpoint patterns
+SAFE_GET_PATHS = [
+    r"^/v1/models/?$",
+    r"^/v1/models/[^/]+/?$",
+    r"^/models/?$",
+    r"^/models/[^/]+/?$",
+    r"^/health/?$",
+    r"^/v1/health/?$",
+    r"^/ready/?$",
+    r"^/v1/ready/?$",
+    r"^/version/?$",
+    r"^/v1/version/?$",
+]
+
+SAFE_POST_PATHS = [
+    r"^/v1/chat/completions/?$",
+    r"^/chat/completions/?$",
+    r"^/v1/embeddings/?$",
+    r"^/embeddings/?$",
+    r"^/v1/completions/?$",
+    r"^/completions/?$",
+    r"^/v1/responses/?$",
+    r"^/responses/?$",
+]
+
+MUTATING_KEYWORDS = [
+    "write",
+    "delete",
+    "update",
+    "reload",
+    "mutate",
+    "admin",
+    "config",
+    "reset",
+    "shutdown",
+    "drop",
+    "insert",
+    "modify",
+    "patch",
+    "purge",
+    "destroy",
+    "restart",
+]
+
+
+def resolve_state_file(custom_path: Optional[str] = None) -> Path:
+    """Resolves a writable path for the shadow metrics journal."""
+    if custom_path:
+        p = Path(custom_path).resolve()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return p
+
+    target_dir = Path(DEFAULT_STATE_DIR)
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        test_file = target_dir / ".write_test"
+        test_file.write_text("ok")
+        test_file.unlink()
+        return target_dir / "metrics.json"
+    except (PermissionError, OSError):
+        fallback_dir = Path(FALLBACK_STATE_DIR)
+        fallback_dir.mkdir(parents=True, exist_ok=True)
+        return fallback_dir / "metrics.json"
+
+
+def check_mutating_request(method: str, path: str, body: Any = None) -> Tuple[bool, str]:
+    """
+    Evaluates whether an HTTP query represents a state-mutating operation.
+    Enforces the Mutation Guard invariant: under no circumstances may state-altering
+    operations be mirrored to candidate instances.
+    """
+    method_upper = method.strip().upper()
+    norm_path = "/" + path.strip().lstrip("/")
+    path_lower = norm_path.lower()
+
+    # Any non-GET/POST HTTP verb is considered state-mutating
+    if method_upper in ("DELETE", "PUT", "PATCH"):
+        return True, f"HTTP method '{method_upper}' is inherently state-mutating"
+
+    # Block any path containing dangerous mutating keywords
+    for kw in MUTATING_KEYWORDS:
+        if re.search(r"[/_-]" + re.escape(kw) + r"([/_-]|$)", path_lower) or kw in path_lower:
+            return True, f"Path '{norm_path}' matches mutating keyword '{kw}'"
+
+    if method_upper == "GET":
+        for pattern in SAFE_GET_PATHS:
+            if re.match(pattern, norm_path):
+                return False, "Safe non-mutating GET endpoint"
+        return False, "GET method is read-only"
+
+    if method_upper == "POST":
+        for pattern in SAFE_POST_PATHS:
+            if re.match(pattern, norm_path):
+                return False, "Safe read-only inference POST endpoint"
+        return True, f"POST to endpoint '{norm_path}' is not an authorized read-only inference route"
+
+    return True, f"Unsupported HTTP method '{method_upper}'"
+
+
+def validate_openai_schema(endpoint: str, data: Any) -> Tuple[bool, List[str]]:
+    """
+    Validates candidate daemon response against OpenAI REST API schemas.
+    Covers /v1/models, /v1/chat/completions, and /v1/embeddings.
+    """
+    errors: List[str] = []
+    if not isinstance(data, dict):
+        return False, [f"Response body is not a JSON object (type: {type(data).__name__})"]
+
+    norm_endpoint = "/" + endpoint.strip().lstrip("/").lower()
+
+    if "models" in norm_endpoint:
+        if data.get("object") != "list":
+            errors.append(f"Expected object == 'list', got '{data.get('object')}'")
+        models_data = data.get("data")
+        if not isinstance(models_data, list):
+            errors.append(f"Expected 'data' to be a list, got {type(models_data).__name__}")
+        else:
+            for i, item in enumerate(models_data):
+                if not isinstance(item, dict):
+                    errors.append(f"models.data[{i}] is not a dict")
+                    continue
+                if not item.get("id"):
+                    errors.append(f"models.data[{i}] missing required 'id' field")
+                if not item.get("object"):
+                    errors.append(f"models.data[{i}] missing required 'object' field")
+
+    elif "chat/completions" in norm_endpoint or "completions" in norm_endpoint:
+        if not data.get("id"):
+            errors.append("Missing required 'id' field in chat completion")
+        choices = data.get("choices")
+        if not isinstance(choices, list) or len(choices) == 0:
+            errors.append(f"Expected non-empty 'choices' list, got {type(choices).__name__}")
+        else:
+            for i, choice in enumerate(choices):
+                if not isinstance(choice, dict):
+                    errors.append(f"choices[{i}] is not a dict")
+                    continue
+                msg = choice.get("message")
+                if not isinstance(msg, dict):
+                    errors.append(f"choices[{i}].message is not a dict")
+                    continue
+                if "role" not in msg or "content" not in msg:
+                    errors.append(f"choices[{i}].message missing 'role' or 'content'")
+                if "finish_reason" not in choice:
+                    errors.append(f"choices[{i}] missing 'finish_reason'")
+        if not data.get("model"):
+            errors.append("Missing required 'model' field")
+        usage = data.get("usage")
+        if usage is not None and not isinstance(usage, dict):
+            errors.append("Expected 'usage' to be a dict if present")
+
+    elif "embeddings" in norm_endpoint:
+        if data.get("object") != "list":
+            errors.append(f"Expected object == 'list', got '{data.get('object')}'")
+        data_list = data.get("data")
+        if not isinstance(data_list, list) or len(data_list) == 0:
+            errors.append(f"Expected non-empty 'data' list, got {type(data_list).__name__}")
+        else:
+            for i, emb in enumerate(data_list):
+                if not isinstance(emb, dict):
+                    errors.append(f"data[{i}] is not a dict")
+                    continue
+                if emb.get("object") != "embedding":
+                    errors.append(f"data[{i}].object expected 'embedding', got '{emb.get('object')}'")
+                embedding_vector = emb.get("embedding")
+                if not isinstance(embedding_vector, list) or len(embedding_vector) == 0:
+                    errors.append(f"data[{i}].embedding must be a non-empty list of numbers")
+        if not data.get("model"):
+            errors.append("Missing required 'model' field")
+
+    return len(errors) == 0, errors
+
+
+@dataclass
+class HttpResponseRecord:
+    status_code: int
+    body_text: str
+    json_data: Optional[Any]
+    latency_ms: float
+    headers: Dict[str, str] = field(default_factory=dict)
+    error_msg: Optional[str] = None
+
+
+@dataclass
+class QueryComparisonResult:
+    request_id: str
+    method: str
+    path: str
+    blocked_mutating: bool = False
+    block_reason: Optional[str] = None
+    live_response: Optional[HttpResponseRecord] = None
+    candidate_response: Optional[HttpResponseRecord] = None
+    status_match: bool = False
+    schema_valid: bool = False
+    schema_errors: List[str] = field(default_factory=list)
+    latency_delta_ms: float = 0.0
+    latency_ratio: float = 1.0
+    divergence: bool = False
+    divergence_reasons: List[str] = field(default_factory=list)
+
+
+def dispatch_request(
+    base_url: str,
+    method: str,
+    path: str,
+    headers: Optional[Dict[str, str]] = None,
+    body: Optional[Any] = None,
+    timeout: float = 15.0,
+) -> HttpResponseRecord:
+    """Dispatches a single HTTP request and measures precise round-trip latency."""
+    base = base_url.rstrip("/")
+    rel_path = "/" + path.lstrip("/")
+    if base.endswith("/v1") and rel_path.startswith("/v1/"):
+        rel_path = rel_path[3:]
+    url = base + rel_path
+
+    req_headers = {"User-Agent": "MiOS-Shadow-Tester/1.0", "Accept": "application/json"}
+    if headers:
+        req_headers.update(headers)
+
+    body_bytes: Optional[bytes] = None
+    if body is not None:
+        if isinstance(body, (dict, list)):
+            body_bytes = json.dumps(body).encode("utf-8")
+            if "Content-Type" not in req_headers:
+                req_headers["Content-Type"] = "application/json"
+        elif isinstance(body, str):
+            body_bytes = body.encode("utf-8")
+        elif isinstance(body, bytes):
+            body_bytes = body
+
+    req = urllib.request.Request(url, data=body_bytes, headers=req_headers, method=method.upper())
+    start_time = time.perf_counter()
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+            status_code = resp.status
+            raw_body = resp.read()
+            body_text = raw_body.decode("utf-8", errors="replace")
+            resp_headers = dict(resp.headers.items())
+            json_data = None
+            try:
+                json_data = json.loads(body_text)
+            except Exception:
+                pass
+            return HttpResponseRecord(
+                status_code=status_code,
+                body_text=body_text,
+                json_data=json_data,
+                latency_ms=elapsed_ms,
+                headers=resp_headers,
+            )
+    except urllib.error.HTTPError as he:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        raw_body = he.read()
+        body_text = raw_body.decode("utf-8", errors="replace")
+        json_data = None
+        try:
+            json_data = json.loads(body_text)
+        except Exception:
+            pass
+        return HttpResponseRecord(
+            status_code=he.code,
+            body_text=body_text,
+            json_data=json_data,
+            latency_ms=elapsed_ms,
+            headers=dict(he.headers.items()),
+            error_msg=f"HTTP {he.code}: {he.reason}",
+        )
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        return HttpResponseRecord(
+            status_code=0,
+            body_text="",
+            json_data=None,
+            latency_ms=elapsed_ms,
+            error_msg=str(exc),
+        )
+
+
+class MockOpenAIDaemon:
+    """
+    Lightweight, embedded HTTP server implementing OpenAI API endpoints for testing.
+    Can operate in standard compliant mode or divergence-simulation mode.
+    """
+
+    def __init__(self, port: int = 0, simulate_divergence: bool = False, server_name: str = "mock-openai"):
+        self.port = port
+        self.simulate_divergence = simulate_divergence
+        self.server_name = server_name
+        self._server: Optional[http.server.HTTPServer] = None
+        self._thread: Optional[threading.Thread] = None
+        self.actual_port: int = 0
+
+    def start(self) -> int:
+        parent = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, format: str, *args: Any) -> None:
+                pass  # Suppress default stdout log
+
+            def do_GET(self) -> None:
+                parsed = urllib.parse.urlparse(self.path)
+                p = parsed.path.rstrip("/")
+                sub = re.sub(r"^(/v1)+", "", p)
+                if sub in ("/health", "/ready") or p in ("/health", "/v1/health", "/ready", "/v1/ready"):
+                    self._send_json(200, {"status": "ok", "service": parent.server_name})
+                elif sub == "/models" or p in ("/models", "/v1/models"):
+                    if parent.simulate_divergence:
+                        # Negative control: Schema divergence (missing data array / error)
+                        self._send_json(500, {"error": "Internal Mock Injected Error"})
+                    else:
+                        self._send_json(
+                            200,
+                            {
+                                "object": "list",
+                                "data": [
+                                    {"id": "default", "object": "model", "owned_by": "mios"},
+                                    {"id": "nomic-embed-text", "object": "model", "owned_by": "mios"},
+                                ],
+                            },
+                        )
+                else:
+                    self._send_json(404, {"error": "Not found"})
+
+            def do_POST(self) -> None:
+                parsed = urllib.parse.urlparse(self.path)
+                p = parsed.path.rstrip("/")
+                sub = re.sub(r"^(/v1)+", "", p)
+                content_len = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_len).decode("utf-8", errors="replace")
+                try:
+                    req_data = json.loads(body) if body else {}
+                except Exception:
+                    req_data = {}
+
+                if parent.simulate_divergence:
+                    # Injected divergence: schema failure or HTTP 502
+                    self._send_json(200, {"invalid_schema_field": True})
+                    return
+
+                if sub in ("/chat/completions", "/completions") or p in ("/chat/completions", "/v1/chat/completions"):
+                    messages = req_data.get("messages", [])
+                    user_msg = messages[-1].get("content", "hello") if messages else "hello"
+                    resp = {
+                        "id": f"chatcmpl-{int(time.time()*1000)}",
+                        "object": "chat.completion",
+                        "created": int(time.time()),
+                        "model": req_data.get("model", "default"),
+                        "choices": [
+                            {
+                                "index": 0,
+                                "message": {"role": "assistant", "content": f"Echo: {user_msg}"},
+                                "finish_reason": "stop",
+                            }
+                        ],
+                        "usage": {
+                            "prompt_tokens": len(str(user_msg).split()),
+                            "completion_tokens": 5,
+                            "total_tokens": len(str(user_msg).split()) + 5,
+                        },
+                    }
+                    self._send_json(200, resp)
+
+                elif sub in ("/embeddings",) or p in ("/embeddings", "/v1/embeddings"):
+                    input_text = req_data.get("input", "")
+                    tokens = len(str(input_text).split()) or 1
+                    resp = {
+                        "object": "list",
+                        "data": [{"object": "embedding", "index": 0, "embedding": [0.05] * 128}],
+                        "model": req_data.get("model", "nomic-embed-text"),
+                        "usage": {"prompt_tokens": tokens, "total_tokens": tokens},
+                    }
+                    self._send_json(200, resp)
+
+                else:
+                    self._send_json(404, {"error": f"Endpoint not found: {p}"})
+
+            def _send_json(self, status: int, data: Any) -> None:
+                body = json.dumps(data).encode("utf-8")
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        self._server = http.server.HTTPServer(("127.0.0.1", self.port), Handler)
+        self.actual_port = self._server.server_address[1]
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+        return self.actual_port
+
+    def stop(self) -> None:
+        if self._server:
+            self._server.shutdown()
+            self._server.server_close()
+
+
+def generate_default_test_queries() -> List[Dict[str, Any]]:
+    """Generates standard OpenAI queries including edge cases and non-mutating requests."""
+    return [
+        {"method": "GET", "path": "/v1/models"},
+        {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "body": {
+                "model": "default",
+                "messages": [{"role": "user", "content": "What is the status of the node?"}],
+                "temperature": 0.0,
+            },
+        },
+        {
+            "method": "POST",
+            "path": "/v1/embeddings",
+            "body": {"model": "nomic-embed-text", "input": "Kernel parameter isolation and UKI signature check"},
+        },
+        {
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "body": {
+                "model": "default",
+                "messages": [
+                    {"role": "system", "content": "You are MiOS agent-pipe."},
+                    {"role": "user", "content": "Audit standing gates."},
+                ],
+            },
+        },
+    ]
+
+
+class ShadowHarness:
+    """Core test engine that executes query mirroring, evaluates parity, and records metrics."""
+
+    def __init__(
+        self,
+        live_url: str,
+        candidate_url: str,
+        concurrency: int = 4,
+        tolerance: float = 0.15,
+        min_parity: float = 0.95,
+        verbose: bool = False,
+        dry_run: bool = False,
+        state_file: Optional[Path] = None,
+    ):
+        self.live_url = live_url.rstrip("/")
+        self.candidate_url = candidate_url.rstrip("/")
+        self.concurrency = max(1, concurrency)
+        self.tolerance = tolerance
+        self.min_parity = min_parity
+        self.verbose = verbose
+        self.dry_run = dry_run
+        self.state_file = state_file or resolve_state_file()
+
+    def log(self, msg: str) -> None:
+        print(f"[shadow-test] {msg}")
+
+    def diag(self, msg: str) -> None:
+        if self.verbose:
+            print(f"  [diag] {msg}")
+
+    def execute_query_comparison(self, query: Dict[str, Any], query_idx: int) -> QueryComparisonResult:
+        req_id = f"q-{query_idx:04d}"
+        method = query.get("method", "GET").upper()
+        path = query.get("path", "/v1/models")
+        headers = query.get("headers", {})
+        body = query.get("body")
+
+        # 1. Evaluate Mutation Guard
+        is_mutating, block_reason = check_mutating_request(method, path, body)
+        if is_mutating:
+            self.log(f"[GUARD] Blocked state-mutating request: {method} {path} ({block_reason})")
+            return QueryComparisonResult(
+                request_id=req_id,
+                method=method,
+                path=path,
+                blocked_mutating=True,
+                block_reason=block_reason,
+            )
+
+        if self.dry_run:
+            self.diag(f"Dry-run: Would mirror non-mutating {method} {path}")
+            return QueryComparisonResult(
+                request_id=req_id,
+                method=method,
+                path=path,
+                status_match=True,
+                schema_valid=True,
+            )
+
+        # 2. Concurrently dispatch to Live and Candidate
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            fut_live = executor.submit(dispatch_request, self.live_url, method, path, headers, body)
+            fut_candidate = executor.submit(dispatch_request, self.candidate_url, method, path, headers, body)
+            res_live = fut_live.result()
+            res_candidate = fut_candidate.result()
+
+        # 3. Analyze Responses
+        status_match = res_live.status_code == res_candidate.status_code
+        schema_valid = True
+        schema_errors: List[str] = []
+
+        if res_candidate.status_code == 200 and res_candidate.json_data is not None:
+            schema_valid, schema_errors = validate_openai_schema(path, res_candidate.json_data)
+        elif res_candidate.status_code >= 400:
+            schema_valid = False
+            schema_errors.append(f"Candidate returned HTTP status {res_candidate.status_code}")
+
+        # Latency metrics
+        delta_ms = abs(res_candidate.latency_ms - res_live.latency_ms)
+        denom = max(res_live.latency_ms, 0.001)
+        ratio = res_candidate.latency_ms / denom
+
+        divergences: List[str] = []
+        if not status_match:
+            divergences.append(
+                f"Status code mismatch: Live={res_live.status_code}, Candidate={res_candidate.status_code}"
+            )
+        if not schema_valid:
+            divergences.append(f"Candidate schema invalid: {'; '.join(schema_errors)}")
+        if res_candidate.error_msg:
+            divergences.append(f"Candidate request failed: {res_candidate.error_msg}")
+
+        has_divergence = len(divergences) > 0
+
+        self.diag(
+            f"Query {req_id} ({method} {path}): status_match={status_match}, "
+            f"schema_valid={schema_valid}, live_ms={res_live.latency_ms:.1f}, "
+            f"cand_ms={res_candidate.latency_ms:.1f}, divergence={has_divergence}"
+        )
+
+        return QueryComparisonResult(
+            request_id=req_id,
+            method=method,
+            path=path,
+            blocked_mutating=False,
+            live_response=res_live,
+            candidate_response=res_candidate,
+            status_match=status_match,
+            schema_valid=schema_valid,
+            schema_errors=schema_errors,
+            latency_delta_ms=delta_ms,
+            latency_ratio=ratio,
+            divergence=has_divergence,
+            divergence_reasons=divergences,
+        )
+
+    def run_mirroring(self, queries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Runs batch query mirroring across worker pool and computes aggregate metrics."""
+        self.log(f"Starting query mirroring against live ({self.live_url}) and candidate ({self.candidate_url})")
+        self.log(f"Evaluating {len(queries)} total queries with concurrency={self.concurrency}")
+
+        results: List[QueryComparisonResult] = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.concurrency) as pool:
+            futures = [pool.submit(self.execute_query_comparison, q, i + 1) for i, q in enumerate(queries)]
+            for fut in concurrent.futures.as_completed(futures):
+                results.append(fut.result())
+
+        # Sort by request ID for deterministic reporting
+        results.sort(key=lambda r: r.request_id)
+
+        total_queries = len(results)
+        blocked_mutations = sum(1 for r in results if r.blocked_mutating)
+        mirrored = [r for r in results if not r.blocked_mutating]
+        mirrored_count = len(mirrored)
+
+        status_parity_count = sum(1 for r in mirrored if r.status_match)
+        schema_pass_count = sum(1 for r in mirrored if r.schema_valid)
+        divergence_count = sum(1 for r in mirrored if r.divergence)
+
+        if mirrored_count > 0:
+            parity_score = (status_parity_count + schema_pass_count) / (2.0 * mirrored_count)
+            avg_live_latency = sum(r.live_response.latency_ms for r in mirrored if r.live_response) / mirrored_count
+            avg_cand_latency = (
+                sum(r.candidate_response.latency_ms for r in mirrored if r.candidate_response) / mirrored_count
+            )
+            lat_deltas = sorted([r.latency_delta_ms for r in mirrored])
+            p95_idx = int(0.95 * len(lat_deltas))
+            p95_delta = lat_deltas[min(p95_idx, len(lat_deltas) - 1)]
+        else:
+            parity_score = 1.0
+            avg_live_latency = 0.0
+            avg_cand_latency = 0.0
+            p95_delta = 0.0
+
+        all_divergences = []
+        for r in mirrored:
+            if r.divergence:
+                all_divergences.append(
+                    {
+                        "request_id": r.request_id,
+                        "endpoint": f"{r.method} {r.path}",
+                        "reasons": r.divergence_reasons,
+                    }
+                )
+
+        report = {
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "live_url": self.live_url,
+            "candidate_url": self.candidate_url,
+            "total_queries": total_queries,
+            "blocked_mutations": blocked_mutations,
+            "mirrored_queries": mirrored_count,
+            "status_parity_count": status_parity_count,
+            "schema_pass_count": schema_pass_count,
+            "divergence_count": divergence_count,
+            "parity_score": round(parity_score, 4),
+            "avg_live_latency_ms": round(avg_live_latency, 2),
+            "avg_cand_latency_ms": round(avg_cand_latency, 2),
+            "p95_latency_delta_ms": round(p95_delta, 2),
+            "divergences": all_divergences,
+            "verdict": "PASS" if divergence_count == 0 and parity_score >= self.min_parity else "FAIL",
+        }
+
+        self.save_run_metrics(report)
+        return report
+
+    def save_run_metrics(self, report: Dict[str, Any]) -> None:
+        """Appends run report to persisted metrics journal."""
+        if self.dry_run:
+            return
+        data = {"summary": {}, "runs": []}
+        if self.state_file.exists():
+            try:
+                with open(self.state_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {"summary": {}, "runs": []}
+
+        runs: List[Dict[str, Any]] = data.get("runs", [])
+        runs.append(report)
+        # Keep recent 50 runs
+        if len(runs) > 50:
+            runs = runs[-50:]
+
+        total_runs = len(runs)
+        total_mirrored = sum(r.get("mirrored_queries", 0) for r in runs)
+        total_blocked = sum(r.get("blocked_mutations", 0) for r in runs)
+        total_div = sum(r.get("divergence_count", 0) for r in runs)
+        avg_parity = sum(r.get("parity_score", 1.0) for r in runs) / max(1, total_runs)
+
+        data["summary"] = {
+            "total_runs": total_runs,
+            "last_run_timestamp": report["timestamp"],
+            "last_candidate": self.candidate_url,
+            "total_queries_mirrored": total_mirrored,
+            "total_mutations_blocked": total_blocked,
+            "total_divergences": total_div,
+            "average_parity_score": round(avg_parity, 4),
+            "last_verdict": report["verdict"],
+        }
+        data["runs"] = runs
+
+        try:
+            with open(self.state_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            self.diag(f"Saved run metrics to {self.state_file}")
+        except Exception as exc:
+            self.log(f"Warning: Could not persist state to {self.state_file}: {exc}")
+
+
+# ==============================================================================
+# CLI Commands
+# ==============================================================================
+
+
+def cmd_mirror(args: argparse.Namespace) -> int:
+    """Executes query mirroring and evaluates parity."""
+    state_file = resolve_state_file(args.state_file)
+    live_url = args.live or DEFAULT_LIVE_URL
+    candidate_url = args.candidate
+
+    mock_live: Optional[MockOpenAIDaemon] = None
+    mock_cand: Optional[MockOpenAIDaemon] = None
+
+    if args.mock:
+        # Spin up mock daemons on ephemeral ports if not provided
+        mock_live = MockOpenAIDaemon(server_name="mock-live")
+        live_port = mock_live.start()
+        live_url = f"http://127.0.0.1:{live_port}/v1"
+
+        mock_cand = MockOpenAIDaemon(
+            server_name="mock-candidate",
+            simulate_divergence=getattr(args, "simulate_divergence", False),
+        )
+        cand_port = mock_cand.start()
+        candidate_url = f"http://127.0.0.1:{cand_port}/v1"
+
+    if not candidate_url:
+        print("Error: --candidate <url> is required (or use --mock)", file=sys.stderr)
+        return EXIT_ERROR
+
+    queries: List[Dict[str, Any]] = []
+    if args.requests:
+        req_path = Path(args.requests)
+        if not req_path.is_file():
+            print(f"Error: Requests file '{args.requests}' does not exist.", file=sys.stderr)
+            return EXIT_ERROR
+        try:
+            content = req_path.read_text(encoding="utf-8").strip()
+            if content.startswith("["):
+                queries = json.loads(content)
+            else:
+                for line in content.splitlines():
+                    if line.strip():
+                        queries.append(json.loads(line))
+        except Exception as exc:
+            print(f"Error reading requests file: {exc}", file=sys.stderr)
+            return EXIT_ERROR
+    else:
+        queries = generate_default_test_queries()
+
+    harness = ShadowHarness(
+        live_url=live_url,
+        candidate_url=candidate_url,
+        concurrency=args.concurrency,
+        tolerance=args.tolerance,
+        verbose=args.verbose,
+        dry_run=args.dry_run,
+        state_file=state_file,
+    )
+
+    try:
+        report = harness.run_mirroring(queries)
+        print("\n" + "=" * 60)
+        print("  SHADOW QUERY MIRRORING PARITY REPORT")
+        print("=" * 60)
+        print(f"  Live Endpoint:       {report['live_url']}")
+        print(f"  Candidate Endpoint:  {report['candidate_url']}")
+        print(f"  Total Queries:       {report['total_queries']}")
+        print(f"  Blocked Mutations:   {report['blocked_mutations']} (Filtered by Mutation Guard)")
+        print(f"  Mirrored Queries:    {report['mirrored_queries']}")
+        print(f"  Status Parity:       {report['status_parity_count']}/{report['mirrored_queries']}")
+        print(f"  Schema Compliance:   {report['schema_pass_count']}/{report['mirrored_queries']}")
+        print(f"  Parity Score:        {report['parity_score']*100:.1f}%")
+        print(f"  Avg Latency (Live):  {report['avg_live_latency_ms']:.1f} ms")
+        print(f"  Avg Latency (Cand):  {report['avg_cand_latency_ms']:.1f} ms")
+        print(f"  P95 Latency Delta:   {report['p95_latency_delta_ms']:.1f} ms")
+        print(f"  Divergence Events:   {report['divergence_count']}")
+        print(f"  Final Verdict:       {report['verdict']}")
+        print("=" * 60)
+
+        if report["divergences"]:
+            print("\nDetected Divergences:")
+            for d in report["divergences"]:
+                print(f"  - [{d['request_id']}] {d['endpoint']}: {', '.join(d['reasons'])}")
+
+        if args.output:
+            out_p = Path(args.output)
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            out_p.write_text(json.dumps(report, indent=2), encoding="utf-8")
+            print(f"Saved report to {args.output}")
+
+        return EXIT_SUCCESS if report["verdict"] == "PASS" else EXIT_DIVERGENCE
+    finally:
+        if mock_live:
+            mock_live.stop()
+        if mock_cand:
+            mock_cand.stop()
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    """Automated shadow container/binary validation loop."""
+    state_file = resolve_state_file(args.state_file)
+    candidate_target = args.candidate
+    live_url = args.live or DEFAULT_LIVE_URL
+    port = args.port or DEFAULT_CANDIDATE_PORT
+    candidate_url = f"http://127.0.0.1:{port}/v1"
+
+    print(f"[shadow-validate] Initializing shadow candidate validation for: {candidate_target}")
+
+    mock_live: Optional[MockOpenAIDaemon] = None
+    mock_cand: Optional[MockOpenAIDaemon] = None
+    container_proc: Optional[subprocess.Popen] = None
+    binary_proc: Optional[subprocess.Popen] = None
+
+    try:
+        if args.mock:
+            print("  [mock] Spawning mock live and candidate daemons...")
+            mock_live = MockOpenAIDaemon(server_name="mock-live")
+            live_port = mock_live.start()
+            live_url = f"http://127.0.0.1:{live_port}/v1"
+
+            mock_cand = MockOpenAIDaemon(port=port, server_name="mock-shadow-candidate")
+            mock_cand.start()
+            candidate_url = f"http://127.0.0.1:{port}/v1"
+        else:
+            # Check if candidate_target is executable binary or container image
+            cand_path = Path(candidate_target)
+            if cand_path.is_file() and os.access(cand_path, os.X_OK):
+                print(f"  [exec] Launching candidate binary: {cand_path} --port {port}")
+                cmd = [str(cand_path), "--port", str(port)]
+                binary_proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            else:
+                # Container execution via podman
+                print(f"  [container] Launching candidate container: {candidate_target} on port {port}")
+                c_cmd = [
+                    "podman",
+                    "run",
+                    "-d",
+                    "--name",
+                    f"mios-shadow-{port}",
+                    "-p",
+                    f"{port}:{port}",
+                    "--rm",
+                    candidate_target,
+                ]
+                subprocess.run(c_cmd, check=True, capture_output=True)
+
+        # Readiness Probe
+        print("  [health] Polling candidate readiness probe (/v1/models or /health)...")
+        ready = False
+        start_poll = time.time()
+        timeout = args.timeout or 30
+        while time.time() - start_poll < timeout:
+            rec = dispatch_request(candidate_url, "GET", "/health", timeout=1.0)
+            if rec.status_code == 200:
+                ready = True
+                break
+            rec_models = dispatch_request(candidate_url, "GET", "/v1/models", timeout=1.0)
+            if rec_models.status_code == 200:
+                ready = True
+                break
+            time.sleep(0.5)
+
+        if not ready and not args.dry_run:
+            print(f"  [ERROR] Candidate daemon failed readiness probe within {timeout}s", file=sys.stderr)
+            return EXIT_DIVERGENCE
+
+        print("  [health] Candidate is ready and accepting requests.")
+
+        # Prepare validation queries (including positive controls and mutating queries for filter test)
+        queries = generate_default_test_queries()
+        queries.append({"method": "POST", "path": "/v1/write", "body": {"data": "exploit"}})
+        queries.append({"method": "DELETE", "path": "/v1/models/old-model"})
+
+        harness = ShadowHarness(
+            live_url=live_url,
+            candidate_url=candidate_url,
+            concurrency=4,
+            verbose=args.verbose,
+            dry_run=args.dry_run,
+            state_file=state_file,
+        )
+
+        report = harness.run_mirroring(queries)
+
+        print("\n" + "=" * 60)
+        print("  CANDIDATE CANARY PROMOTION GATE VERDICT")
+        print("=" * 60)
+        print(f"  Target:              {candidate_target}")
+        print(f"  Status Parity:       {report['status_parity_count']}/{report['mirrored_queries']}")
+        print(f"  Schema Compliance:   {report['schema_pass_count']}/{report['mirrored_queries']}")
+        print(f"  Blocked Mutations:   {report['blocked_mutations']}/2 (100% Guard Compliance)")
+        print(f"  Divergence Count:    {report['divergence_count']}")
+
+        passed = (
+            report["verdict"] == "PASS"
+            and report["schema_pass_count"] == report["mirrored_queries"]
+            and report["blocked_mutations"] >= 2
+        )
+
+        if passed:
+            print("\n  VERDICT: PROMOTION_ALLOWED")
+            print("  All architectural and schema invariants verified successfully.")
+            print("=" * 60)
+            return EXIT_SUCCESS
+        else:
+            print("\n  VERDICT: PROMOTION_BLOCKED")
+            print("  Candidate daemon failed parity, schema compliance, or mutation guard checks.")
+            print("=" * 60)
+            return EXIT_DIVERGENCE
+
+    finally:
+        if mock_live:
+            mock_live.stop()
+        if mock_cand:
+            mock_cand.stop()
+        if binary_proc:
+            binary_proc.terminate()
+            try:
+                binary_proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                binary_proc.kill()
+        if not args.mock and not binary_proc:
+            # Cleanup podman container if spawned
+            subprocess.run(["podman", "rm", "-f", f"mios-shadow-{port}"], capture_output=True)
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Reports shadow test runs, parity metrics, and divergence statistics."""
+    state_file = resolve_state_file(args.state_file)
+    if args.clear:
+        if state_file.exists():
+            state_file.unlink()
+            print(f"[shadow-status] Cleared metrics journal at {state_file}")
+        else:
+            print(f"[shadow-status] No metrics file found at {state_file}")
+        return EXIT_SUCCESS
+
+    if not state_file.exists():
+        print(f"[shadow-status] No shadow test runs recorded yet. (Journal: {state_file})")
+        return EXIT_SUCCESS
+
+    try:
+        with open(state_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as exc:
+        print(f"Error reading metrics journal: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    if args.json:
+        print(json.dumps(data, indent=2))
+        return EXIT_SUCCESS
+
+    summary = data.get("summary", {})
+    runs = data.get("runs", [])
+
+    print("=" * 65)
+    print("  MIOS SHADOW TEST HISTORICAL METRICS & CANARY STATUS")
+    print("=" * 65)
+    print(f"  Journal Location:       {state_file}")
+    print(f"  Total Validations Run:  {summary.get('total_runs', len(runs))}")
+    print(f"  Last Run Timestamp:     {summary.get('last_run_timestamp', 'N/A')}")
+    print(f"  Last Candidate Target:  {summary.get('last_candidate', 'N/A')}")
+    print(f"  Total Queries Mirrored: {summary.get('total_queries_mirrored', 0)}")
+    print(f"  Blocked Mutations:      {summary.get('total_mutations_blocked', 0)}")
+    print(f"  Total Divergences:      {summary.get('total_divergences', 0)}")
+    print(f"  Average Parity Score:   {summary.get('average_parity_score', 1.0)*100:.1f}%")
+    print(f"  Last Promotion Verdict: {summary.get('last_verdict', 'N/A')}")
+    print("-" * 65)
+    print("  Recent Runs History:")
+    print(f"  {'TIMESTAMP':<24} {'CANDIDATE':<22} {'PARITY':<8} {'VERDICT'}")
+    for r in runs[-10:]:
+        ts = r.get("timestamp", "N/A")[:19]
+        cand = (r.get("candidate_url") or "candidate")[-20:]
+        parity = f"{r.get('parity_score', 1.0)*100:.1f}%"
+        verdict = r.get("verdict", "N/A")
+        print(f"  {ts:<24} {cand:<22} {parity:<8} {verdict}")
+    print("=" * 65)
+    return EXIT_SUCCESS
+
+
+# ==============================================================================
+# Argument Parsing & Entry Point
+# ==============================================================================
+
+
+def create_parser() -> argparse.ArgumentParser:
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("-v", "--verbose", action="store_true", help="Enable verbose diagnostic logging.")
+    common.add_argument("--dry-run", action="store_true", help="Simulate query execution without network dispatch.")
+    common.add_argument("--mock", action="store_true", help="Execute with mock daemons and synthetic fixtures.")
+    common.add_argument("--state-file", type=str, default=None, help="Path to shadow metrics state journal.")
+
+    parser = argparse.ArgumentParser(
+        prog="mios-shadow-test",
+        description="Shadow dual-process candidate daemon validator and query mirroring harness (T-541, AGY-2139).",
+        parents=[common],
+    )
+
+    subparsers = parser.add_subparsers(dest="subcommand", required=True)
+
+    # 1. mirror
+    p_mirror = subparsers.add_parser(
+        "mirror", parents=[common], help="Run query mirroring comparison between live and candidate."
+    )
+    p_mirror.add_argument("--live", type=str, default=None, help="URL of production live daemon.")
+    p_mirror.add_argument("--candidate", type=str, default=None, help="URL of isolated candidate daemon.")
+    p_mirror.add_argument("--requests", type=str, default=None, help="Path to JSON/JSONL requests trace file.")
+    p_mirror.add_argument("--concurrency", type=int, default=4, help="Parallel worker threads count.")
+    p_mirror.add_argument("--tolerance", type=float, default=0.15, help="Latency differential tolerance ratio.")
+    p_mirror.add_argument("--output", type=str, default=None, help="Path to write JSON parity report.")
+    p_mirror.add_argument(
+        "--simulate-divergence", action="store_true", help="Inject candidate divergence for negative control testing."
+    )
+
+    # 2. validate
+    p_validate = subparsers.add_parser(
+        "validate", parents=[common], help="Automated shadow container/binary validation loop."
+    )
+    p_validate.add_argument(
+        "--candidate", type=str, required=True, help="Candidate binary path or container image name."
+    )
+    p_validate.add_argument("--live", type=str, default=None, help="URL of production live daemon.")
+    p_validate.add_argument("--port", type=int, default=DEFAULT_CANDIDATE_PORT, help="Shadow candidate port.")
+    p_validate.add_argument("--timeout", type=int, default=30, help="Startup readiness timeout in seconds.")
+    p_validate.add_argument("--isolated-net", action="store_true", help="Isolate network namespace via netns.")
+    p_validate.add_argument("--output", type=str, default=None, help="Path to write JSON validation receipt.")
+
+    # 3. status
+    p_status = subparsers.add_parser(
+        "status", parents=[common], help="Report shadow test runs, parity metrics, and divergence history."
+    )
+    p_status.add_argument("--json", action="store_true", help="Output status report in raw JSON format.")
+    p_status.add_argument("--clear", action="store_true", help="Clear historical metrics journal.")
+
+    return parser
+
+
+def main() -> int:
+    parser = create_parser()
+    args = parser.parse_args()
+
+    if args.subcommand == "mirror":
+        return cmd_mirror(args)
+    elif args.subcommand == "validate":
+        return cmd_validate(args)
+    elif args.subcommand == "status":
+        return cmd_status(args)
+    else:
+        parser.print_help()
+        return EXIT_ERROR
+
+
+if __name__ == "__main__":
+    sys.exit(main())

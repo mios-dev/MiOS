@@ -1,0 +1,35 @@
+# AI-hint: Quadlet container unit for local whisper.cpp streaming speech-to-text engine (T-533, AGY-2131).
+# AI-doc: usr/share/doc/mios/manual/ch22-streaming-audio-whisper.md
+# /usr/share/containers/systemd/mios-whisper.container
+
+[Unit]
+Description='MiOS' Whisper Streaming STT Engine (whisper.cpp)
+Documentation=https://github.com/ggerganov/whisper.cpp
+After=network-online.target mios-cdi-detect.service
+Wants=network-online.target
+
+[Container]
+ContainerName=mios-whisper
+Image=ghcr.io/ggerganov/whisper.cpp:main
+Pod=mios-ai.pod
+Environment=PORT=${MIOS_PORT_WHISPER:-8178}
+EnvironmentFile=/etc/mios/install.env
+Exec=--model /models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert
+Volume=/usr/share/mios/whisper/models:/models:ro,Z
+Volume=/run/mios:/run/mios:Z
+HealthCmd=curl -fsS http://localhost:${MIOS_PORT_WHISPER:-8178}/health || exit 1
+HealthInterval=30s
+HealthRetries=3
+HealthStartPeriod=30s
+HealthTimeout=10s
+Label=org.opencontainers.image.title=mios-whisper
+Label=org.opencontainers.image.description="Local whisper.cpp streaming server for MiOS real-time speech-to-text"
+
+[Install]
+WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=300s

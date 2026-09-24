@@ -1,0 +1,834 @@
+#!/usr/bin/env python3
+# AI-hint: Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser (T-529, AGY-2127).
+# AI-doc: usr/share/doc/mios/manual/ch18-blade-pre-enrollment.md
+"""
+Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser.
+Parses [cluster.blades] from layered mios.toml SSOT, validates hardware attributes
+and TPM 2.0 Endorsement Key (EK) fingerprints/certificates, and generates declarative
+admission policy manifests for cluster onboarding and remote attestation.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import datetime
+import hashlib
+import ipaddress
+import json
+import os
+import re
+import ssl
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    import tomllib as toml_parser
+except ImportError:
+    try:
+        import tomli as toml_parser  # type: ignore
+    except ImportError:
+        toml_parser = None
+
+# Hardware attribute validation regexes
+MAC_REGEX = re.compile(r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
+BLADE_ID_REGEX = re.compile(r"^[A-Za-z0-9_-]+$")
+HEX64_REGEX = re.compile(r"^[0-9a-f]{64}$")
+SUPPORTED_ARCHITECTURES = {"x86_64", "aarch64"}
+
+DEFAULT_ADMISSION_DIR = "/var/lib/mios/cluster/admission"
+
+MOCK_BLADES: Dict[str, dict] = {
+    "blade-mock-01": {
+        "id": "blade-mock-01",
+        "architecture": "x86_64",
+        "mac": "52:54:00:ab:cd:01",
+        "serial": "MOCK-CHASSIS-0001",
+        "wireguard_ip": "10.42.0.101",
+        "wireguard_pubkey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        "ek_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "roles": ["compute", "worker"],
+        "pcr_baselines": {
+            "0": "0000000000000000000000000000000000000000000000000000000000000000",
+            "7": "7777777777777777777777777777777777777777777777777777777777777777",
+            "11": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
+    },
+    "blade-mock-02": {
+        "id": "blade-mock-02",
+        "architecture": "aarch64",
+        "mac": "52:54:00:ab:cd:02",
+        "serial": "MOCK-CHASSIS-0002",
+        "wireguard_ip": "10.42.0.102",
+        "wireguard_pubkey": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+        "ek_fingerprint": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "roles": ["control-plane", "storage"],
+        "pcr_baselines": {
+            "0": "0000000000000000000000000000000000000000000000000000000000000000",
+            "7": "7777777777777777777777777777777777777777777777777777777777777777",
+            "11": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        },
+    },
+}
+
+
+class ValidationError(Exception):
+    """Raised when blade hardware or cryptographic validation fails."""
+    pass
+
+
+class BladeRecord:
+    """Represents a validated hardware blade registered for cluster admission."""
+
+    def __init__(
+        self,
+        blade_id: str,
+        architecture: str,
+        mac_address: str,
+        chassis_serial: str,
+        wireguard_ip: str,
+        ek_fingerprint: str,
+        wireguard_pubkey: str = "",
+        roles: Optional[List[str]] = None,
+        pcr_baselines: Optional[Dict[str, str]] = None,
+        raw_config: Optional[dict] = None,
+    ):
+        self.blade_id = blade_id
+        self.architecture = architecture
+        self.mac_address = mac_address
+        self.chassis_serial = chassis_serial
+        self.wireguard_ip = wireguard_ip
+        self.ek_fingerprint = ek_fingerprint
+        self.wireguard_pubkey = wireguard_pubkey
+        self.roles = roles or ["worker"]
+        self.pcr_baselines = pcr_baselines or {
+            "0": "0" * 64,
+            "7": "0" * 64,
+            "11": "0" * 64,
+        }
+        self.raw_config = raw_config or {}
+
+    def to_dict(self) -> dict:
+        return {
+            "blade_id": self.blade_id,
+            "architecture": self.architecture,
+            "mac_address": self.mac_address,
+            "chassis_serial": self.chassis_serial,
+            "wireguard_ip": self.wireguard_ip,
+            "ek_fingerprint": self.ek_fingerprint,
+            "wireguard_pubkey": self.wireguard_pubkey,
+            "roles": self.roles,
+            "pcr_baselines": self.pcr_baselines,
+        }
+
+    def generate_manifest(self) -> dict:
+        """Create hardware admission policy manifest dictionary for cluster coordinator."""
+        now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        return {
+            "$schema": "https://mios.dev/schemas/blade-admission-v1.json",
+            "schema_version": "1.0",
+            "policy_type": "tpm2-rats-hardware-admission",
+            "blade_id": self.blade_id,
+            "status": "pre-enrolled",
+            "admission_verdict": "APPROVED",
+            "hardware": {
+                "architecture": self.architecture,
+                "mac_address": self.mac_address,
+                "chassis_serial": self.chassis_serial,
+            },
+            "networking": {
+                "wireguard_ip": self.wireguard_ip,
+                "wireguard_pubkey": self.wireguard_pubkey,
+            },
+            "security": {
+                "tpm_ek_fingerprint": self.ek_fingerprint,
+                "allowed_pcr_baselines": self.pcr_baselines,
+                "rat_profile": "rfc9334-tpm2-quote",
+            },
+            "authorized_roles": self.roles,
+            "created_at": now_utc,
+            "zero_touch_eligible": True,
+        }
+
+
+def extract_fingerprint_from_pem(pem_str: str) -> str:
+    """Extract SHA-256 fingerprint from PEM certificate or key content."""
+    pem_clean = pem_str.strip()
+    try:
+        der = ssl.PEM_cert_to_DER_cert(pem_clean)
+        return hashlib.sha256(der).hexdigest().lower()
+    except Exception:
+        pass
+
+    # Fallback to manual base64 decoding of PEM body
+    lines = pem_clean.splitlines()
+    body_lines = [line.strip() for line in lines if not line.strip().startswith("-----")]
+    b64_str = "".join(body_lines)
+    try:
+        der_bytes = base64.b64decode(b64_str)
+        if not der_bytes:
+            raise ValidationError("PEM decoding resulted in 0 bytes")
+        return hashlib.sha256(der_bytes).hexdigest().lower()
+    except Exception as exc:
+        raise ValidationError(f"Failed to decode PEM certificate body: {exc}")
+
+
+def extract_fingerprint_from_bytes(raw_bytes: bytes) -> str:
+    """Extract SHA-256 fingerprint from raw binary or PEM bytes."""
+    if not raw_bytes:
+        raise ValidationError("Certificate payload is empty (0 bytes)")
+    try:
+        text = raw_bytes.decode("utf-8")
+        if "-----BEGIN" in text:
+            return extract_fingerprint_from_pem(text)
+    except UnicodeDecodeError:
+        pass
+    return hashlib.sha256(raw_bytes).hexdigest().lower()
+
+
+def parse_and_validate_ek(val: Any, blade_id: str = "") -> str:
+    """
+    Validates and normalizes TPM 2.0 Endorsement Key (EK) fingerprint or certificate.
+    STRICT SECURITY RULE:
+    Reject wildcard ('*'), empty, missing, or malformed TPM EK fingerprints with explicit validation error!
+    """
+    prefix = f"Blade '{blade_id}': " if blade_id else ""
+
+    if val is None:
+        raise ValidationError(f"{prefix}Missing required TPM EK fingerprint/certificate")
+
+    if not isinstance(val, (str, bytes)):
+        raise ValidationError(f"{prefix}Invalid TPM EK data type: expected string or bytes, got {type(val).__name__}")
+
+    if isinstance(val, bytes):
+        return extract_fingerprint_from_bytes(val)
+
+    s = val.strip()
+    if not s:
+        raise ValidationError(f"{prefix}Empty TPM EK fingerprint or certificate is strictly forbidden")
+
+    # STRICT RULE: Wildcards ('*') are strictly forbidden
+    if "*" in s:
+        raise ValidationError(f"{prefix}Wildcard ('*') TPM EK certificates or fingerprints are strictly forbidden")
+
+    # If it is a file path, read file
+    if os.path.isfile(s):
+        try:
+            with open(s, "rb") as fh:
+                file_bytes = fh.read()
+            return extract_fingerprint_from_bytes(file_bytes)
+        except Exception as exc:
+            raise ValidationError(f"{prefix}Failed reading TPM EK certificate file '{s}': {exc}")
+
+    # If it contains PEM header
+    if "-----BEGIN" in s:
+        return extract_fingerprint_from_pem(s)
+
+    # Normalize hex fingerprint
+    norm = s.lower()
+    if norm.startswith("sha256:"):
+        norm = norm[7:].strip()
+    elif norm.startswith("urn:"):
+        norm = norm.split(":")[-1].strip()
+
+    norm = re.sub(r"[:\s\-]", "", norm)
+
+    if len(norm) != 64:
+        raise ValidationError(
+            f"{prefix}Malformed TPM EK fingerprint length: expected 64 hex characters, got {len(norm)} ('{s}')"
+        )
+
+    if not HEX64_REGEX.fullmatch(norm):
+        raise ValidationError(
+            f"{prefix}Malformed TPM EK fingerprint: contains non-hexadecimal characters ('{s}')"
+        )
+
+    return norm
+
+
+def validate_blade(blade_dict: dict, blade_id_key: Optional[str] = None) -> BladeRecord:
+    """Validate a single blade dictionary against hardware and security specifications."""
+    if not isinstance(blade_dict, dict):
+        raise ValidationError(f"Blade definition must be a TOML table/dict, got {type(blade_dict).__name__}")
+
+    # 1. Blade ID
+    raw_id = blade_dict.get("id") or blade_id_key or ""
+    raw_id = str(raw_id).strip()
+    if not raw_id:
+        raise ValidationError("Missing blade ID")
+    if "*" in raw_id:
+        raise ValidationError(f"Wildcard in blade ID is forbidden: '{raw_id}'")
+    if not BLADE_ID_REGEX.fullmatch(raw_id):
+        raise ValidationError(f"Invalid blade ID '{raw_id}': must be alphanumeric with hyphens or underscores")
+
+    # 2. TPM EK Fingerprint / Certificate (STRICT SECURITY RULE)
+    ek_raw = (
+        blade_dict.get("ek_fingerprint")
+        or blade_dict.get("tpm_ek_fingerprint")
+        or blade_dict.get("ek_sha256")
+        or blade_dict.get("ek_cert")
+        or blade_dict.get("ek_certificate")
+    )
+    if ek_raw is None:
+        raise ValidationError(f"Blade '{raw_id}' is missing required TPM EK fingerprint/certificate")
+    ek_fingerprint = parse_and_validate_ek(ek_raw, blade_id=raw_id)
+
+    # 3. MAC Address
+    mac = (
+        blade_dict.get("mac")
+        or blade_dict.get("mac_address")
+        or blade_dict.get("ethernet_mac")
+    )
+    if not mac:
+        raise ValidationError(f"Blade '{raw_id}' is missing required MAC address")
+    mac = str(mac).strip()
+    if "*" in mac:
+        raise ValidationError(f"Wildcard MAC address is forbidden for blade '{raw_id}'")
+    if not MAC_REGEX.fullmatch(mac):
+        raise ValidationError(
+            f"Invalid MAC address format '{mac}' for blade '{raw_id}' (expected standard XX:XX:XX:XX:XX:XX)"
+        )
+
+    # 4. Architecture
+    arch = blade_dict.get("architecture") or blade_dict.get("arch")
+    if not arch:
+        raise ValidationError(f"Blade '{raw_id}' is missing required architecture")
+    arch = str(arch).strip().lower()
+    if arch in ("x86_64", "amd64"):
+        norm_arch = "x86_64"
+    elif arch in ("aarch64", "arm64"):
+        norm_arch = "aarch64"
+    else:
+        raise ValidationError(
+            f"Unsupported architecture '{arch}' for blade '{raw_id}': must be 'x86_64' or 'aarch64'"
+        )
+
+    # 5. Chassis Serial
+    serial = blade_dict.get("serial") or blade_dict.get("chassis_serial")
+    if not serial:
+        raise ValidationError(f"Blade '{raw_id}' is missing required chassis serial")
+    serial = str(serial).strip()
+    if "*" in serial or not serial:
+        raise ValidationError(f"Wildcard or empty chassis serial is forbidden for blade '{raw_id}'")
+
+    # 6. WireGuard / Mesh IP
+    wg_ip = (
+        blade_dict.get("wireguard_ip")
+        or blade_dict.get("mesh_ip")
+        or blade_dict.get("ip")
+    )
+    if not wg_ip:
+        raise ValidationError(f"Blade '{raw_id}' is missing required wireguard/mesh IP")
+    wg_ip = str(wg_ip).strip()
+    if "*" in wg_ip:
+        raise ValidationError(f"Wildcard wireguard/mesh IP is forbidden for blade '{raw_id}'")
+    try:
+        if "/" in wg_ip:
+            ipaddress.ip_interface(wg_ip)
+        else:
+            ipaddress.ip_address(wg_ip)
+    except ValueError as exc:
+        raise ValidationError(f"Invalid wireguard/mesh IP '{wg_ip}' for blade '{raw_id}': {exc}")
+
+    # Optional WireGuard Public Key
+    wg_pubkey = (
+        blade_dict.get("wireguard_pubkey")
+        or blade_dict.get("mesh_pubkey")
+        or blade_dict.get("pubkey")
+        or ""
+    )
+    if wg_pubkey:
+        wg_pubkey = str(wg_pubkey).strip()
+        try:
+            raw_b64 = base64.b64decode(wg_pubkey)
+            if len(raw_b64) != 32:
+                raise ValidationError(f"WireGuard public key must decode to 32 bytes, got {len(raw_b64)}")
+        except Exception as exc:
+            raise ValidationError(f"Invalid WireGuard public key for blade '{raw_id}': {exc}")
+
+    # Authorized Roles
+    roles_raw = blade_dict.get("roles") or blade_dict.get("authorized_roles") or ["worker"]
+    if isinstance(roles_raw, str):
+        roles = [r.strip() for r in roles_raw.split(",") if r.strip()]
+    elif isinstance(roles_raw, list):
+        roles = [str(r).strip() for r in roles_raw if str(r).strip()]
+    else:
+        roles = ["worker"]
+
+    # Allowed PCR Baselines (PCR 0, 7, 11)
+    pcr_raw = blade_dict.get("pcr_baselines") or blade_dict.get("pcrs") or {}
+    pcr_baselines: Dict[str, str] = {}
+    for pcr_num in ["0", "7", "11"]:
+        val = pcr_raw.get(pcr_num) or pcr_raw.get(f"pcr{pcr_num}")
+        if val:
+            clean_hash = re.sub(r"[:\s\-]", "", str(val)).lower()
+            if not HEX64_REGEX.fullmatch(clean_hash):
+                raise ValidationError(
+                    f"Blade '{raw_id}': PCR {pcr_num} baseline must be a 64 hex SHA-256 digest, got '{val}'"
+                )
+            pcr_baselines[pcr_num] = clean_hash
+        else:
+            pcr_baselines[pcr_num] = "0" * 64
+
+    return BladeRecord(
+        blade_id=raw_id,
+        architecture=norm_arch,
+        mac_address=mac,
+        chassis_serial=serial,
+        wireguard_ip=wg_ip,
+        ek_fingerprint=ek_fingerprint,
+        wireguard_pubkey=wg_pubkey,
+        roles=roles,
+        pcr_baselines=pcr_baselines,
+        raw_config=blade_dict,
+    )
+
+
+def load_toml_file(path: str) -> dict:
+    """Load a TOML configuration file using tomllib/tomli."""
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Configuration file not found: {path}")
+    if toml_parser is None:
+        raise RuntimeError("No TOML parser available (Python 3.11+ tomllib or tomli required)")
+    with open(path, "rb") as fh:
+        return toml_parser.load(fh)
+
+
+def load_config_data(config_path: Optional[str] = None) -> dict:
+    """
+    Load layered mios.toml configuration.
+    If config_path is specified, loads that file directly.
+    Otherwise attempts mios_toml resolver from /usr/lib/mios, falling back to standard paths.
+    """
+    if config_path:
+        return load_toml_file(config_path)
+
+    # 1. Try importing mios_toml from shared library
+    try:
+        sys.path.insert(0, "/usr/lib/mios")
+        here_parent = Path(__file__).resolve().parent.parent.parent
+        sys.path.insert(0, str(here_parent / "usr" / "lib" / "mios"))
+        import mios_toml
+        return mios_toml.load_merged()
+    except Exception:
+        pass
+
+    # 2. Fallback to standard locations
+    for candidate in [
+        "/etc/mios/mios.toml",
+        "/usr/share/mios/mios.toml",
+        os.path.expanduser("~/.config/mios/mios.toml"),
+    ]:
+        if os.path.isfile(candidate):
+            try:
+                return load_toml_file(candidate)
+            except Exception:
+                pass
+
+    return {}
+
+
+def _is_blade_candidate(d: Any) -> bool:
+    """Check if dictionary has attributes characteristic of a hardware blade declaration."""
+    if not isinstance(d, dict):
+        return False
+    identifying_keys = {
+        "ek_fingerprint",
+        "tpm_ek_fingerprint",
+        "ek_sha256",
+        "ek_cert",
+        "ek_certificate",
+        "mac",
+        "mac_address",
+        "wireguard_ip",
+        "mesh_ip",
+        "chassis_serial",
+    }
+    return bool(identifying_keys.intersection(d.keys()))
+
+
+def extract_blade_declarations(data: dict) -> Dict[str, dict]:
+    """
+    Extracts raw blade declarations from TOML data.
+    Inspects [cluster.blades] (and fallback [blades], [blade]).
+    """
+    # 1. Primary: [cluster.blades] or [cluster.blade]
+    cluster_sec = data.get("cluster")
+    if isinstance(cluster_sec, dict):
+        blades_node = cluster_sec.get("blades")
+        if blades_node is not None:
+            normalized = _normalize_blades_node(blades_node, filter_candidates=False)
+            if normalized:
+                return normalized
+        blade_node = cluster_sec.get("blade")
+        if blade_node is not None:
+            normalized = _normalize_blades_node(blade_node, filter_candidates=False)
+            if normalized:
+                return normalized
+
+    # 2. Fallback: [blades]
+    if "blades" in data:
+        blades_node = data["blades"]
+        normalized = _normalize_blades_node(blades_node, filter_candidates=True)
+        if normalized:
+            return normalized
+
+    # 3. Fallback: [blade]
+    if "blade" in data:
+        blade_node = data["blade"]
+        normalized = _normalize_blades_node(blade_node, filter_candidates=True)
+        if normalized:
+            return normalized
+
+    return {}
+
+
+def _normalize_blades_node(node: Any, filter_candidates: bool = False) -> Dict[str, dict]:
+    result: Dict[str, dict] = {}
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if isinstance(v, dict):
+                if filter_candidates and not _is_blade_candidate(v):
+                    continue
+                b = dict(v)
+                b_id = b.get("id") or k
+                b["id"] = b_id
+                result[b_id] = b
+    elif isinstance(node, list):
+        for idx, item in enumerate(node):
+            if isinstance(item, dict):
+                if filter_candidates and not _is_blade_candidate(item):
+                    continue
+                b = dict(item)
+                b_id = b.get("id") or f"blade-{idx:02d}"
+                b["id"] = b_id
+                result[b_id] = b
+    return result
+
+
+def get_registered_blades(
+    config_path: Optional[str] = None,
+    mock: bool = False,
+    verbose: bool = False,
+) -> Dict[str, BladeRecord]:
+    """Load, validate, and return dictionary of BladeRecord instances."""
+    data = load_config_data(config_path)
+    raw_blades = extract_blade_declarations(data)
+
+    if mock:
+        if verbose:
+            print("[INFO] Mock mode active: loading mock blade fixtures")
+        for mock_id, mock_cfg in MOCK_BLADES.items():
+            if mock_id not in raw_blades:
+                raw_blades[mock_id] = mock_cfg
+
+    validated_blades: Dict[str, BladeRecord] = {}
+    for blade_id, blade_cfg in raw_blades.items():
+        validated = validate_blade(blade_cfg, blade_id_key=blade_id)
+        validated_blades[validated.blade_id] = validated
+
+    return validated_blades
+
+
+# -----------------------------------------------------------------------------
+# CLI Subcommand Implementations
+# -----------------------------------------------------------------------------
+
+
+def cmd_parse(args: argparse.Namespace) -> int:
+    """Parse and validate declared blades from mios.toml or test config."""
+    try:
+        blades = get_registered_blades(
+            config_path=args.config,
+            mock=args.mock,
+            verbose=args.verbose,
+        )
+    except ValidationError as err:
+        print(f"[ERROR] Validation failed: {err}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"[ERROR] Failed parsing configuration: {exc}", file=sys.stderr)
+        return 1
+
+    if not blades:
+        print("No blades declared in pre-enrollment registry.")
+        return 0
+
+    print(f"Successfully parsed and validated {len(blades)} blade declaration(s):")
+    for blade_id, record in sorted(blades.items()):
+        print(
+            f"  [OK] Blade '{blade_id}': arch={record.architecture}, "
+            f"mac={record.mac_address}, ip={record.wireguard_ip}, "
+            f"serial={record.chassis_serial}, roles={record.roles}, "
+            f"ek_fingerprint={record.ek_fingerprint[:16]}...{record.ek_fingerprint[-8:]}"
+        )
+    return 0
+
+
+def cmd_verify_ek(args: argparse.Namespace) -> int:
+    """Verify TPM EK certificate or fingerprint against declared registry."""
+    try:
+        blades = get_registered_blades(
+            config_path=args.config,
+            mock=args.mock,
+            verbose=args.verbose,
+        )
+    except ValidationError as err:
+        print(f"[ERROR] Registry validation error: {err}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"[ERROR] Failed loading registry: {exc}", file=sys.stderr)
+        return 1
+
+    target_id = args.blade_id
+    if target_id not in blades:
+        print(f"[ERROR] Blade '{target_id}' is not enrolled in registry.", file=sys.stderr)
+        return 1
+
+    declared_record = blades[target_id]
+
+    try:
+        candidate_fp = parse_and_validate_ek(args.cert_or_fingerprint, blade_id=target_id)
+    except ValidationError as err:
+        print(f"[ERROR] Cryptographic validation error: {err}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"[ERROR] Failed processing candidate EK: {exc}", file=sys.stderr)
+        return 1
+
+    if candidate_fp.lower() == declared_record.ek_fingerprint.lower():
+        print(
+            f"[OK] TPM EK fingerprint verified for blade '{target_id}' "
+            f"(hash: {candidate_fp})"
+        )
+        return 0
+    else:
+        print(
+            f"[FAIL] TPM EK fingerprint mismatch for blade '{target_id}'!\n"
+            f"  Declared:  {declared_record.ek_fingerprint}\n"
+            f"  Candidate: {candidate_fp}",
+            file=sys.stderr,
+        )
+        return 1
+
+
+def cmd_manifest(args: argparse.Namespace) -> int:
+    """Generate hardware admission policy for a specific blade."""
+    try:
+        blades = get_registered_blades(
+            config_path=args.config,
+            mock=args.mock,
+            verbose=args.verbose,
+        )
+    except ValidationError as err:
+        print(f"[ERROR] Validation failed: {err}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"[ERROR] Failed loading registry: {exc}", file=sys.stderr)
+        return 1
+
+    target_id = args.blade_id
+    if target_id not in blades:
+        print(f"[ERROR] Blade '{target_id}' not found in declared registry.", file=sys.stderr)
+        return 1
+
+    record = blades[target_id]
+    manifest_data = record.generate_manifest()
+    manifest_json = json.dumps(manifest_data, indent=2)
+
+    if args.output:
+        out_path = Path(args.output)
+        if args.dry_run:
+            print(f"[DRY-RUN] Would write hardware admission manifest to: {out_path}")
+            if args.verbose:
+                print(manifest_json)
+            return 0
+        try:
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(manifest_json + "\n", encoding="utf-8")
+            print(f"Wrote admission policy manifest for blade '{target_id}' to: {out_path}")
+        except Exception as exc:
+            print(f"[ERROR] Failed writing manifest file '{out_path}': {exc}", file=sys.stderr)
+            return 1
+    else:
+        print(manifest_json)
+
+    return 0
+
+
+def cmd_manifest_all(args: argparse.Namespace) -> int:
+    """Generate admission policies for all declared blades."""
+    try:
+        blades = get_registered_blades(
+            config_path=args.config,
+            mock=args.mock,
+            verbose=args.verbose,
+        )
+    except ValidationError as err:
+        print(f"[ERROR] Validation failed: {err}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"[ERROR] Failed loading registry: {exc}", file=sys.stderr)
+        return 1
+
+    if not blades:
+        print("No blades declared; 0 admission manifests generated.")
+        return 0
+
+    target_dir = Path(args.dir)
+    if not args.dry_run:
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+    generated_count = 0
+    for blade_id, record in sorted(blades.items()):
+        manifest_data = record.generate_manifest()
+        manifest_json = json.dumps(manifest_data, indent=2)
+        target_file = target_dir / f"{blade_id}.json"
+
+        if args.dry_run:
+            print(f"[DRY-RUN] Would write admission manifest for '{blade_id}' to: {target_file}")
+        else:
+            target_file.write_text(manifest_json + "\n", encoding="utf-8")
+            print(f"Generated admission policy manifest: {target_file}")
+        generated_count += 1
+
+    print(f"Completed manifest generation: {generated_count} policy file(s) processed.")
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Display enrolled blades and validation state."""
+    try:
+        blades = get_registered_blades(
+            config_path=args.config,
+            mock=args.mock,
+            verbose=args.verbose,
+        )
+    except ValidationError as err:
+        print(f"[ERROR] Pre-enrollment registry invalid: {err}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"[ERROR] Failed querying registry status: {exc}", file=sys.stderr)
+        return 1
+
+    if not blades:
+        print("No blades declared in cluster pre-enrollment registry.")
+        return 0
+
+    print("=== MiOS Cluster Blade Pre-Enrollment Registry Status ===")
+    print(f"Total Enrolled Blades: {len(blades)}\n")
+    print(f"{'BLADE ID':<18} {'ARCH':<9} {'MAC ADDRESS':<19} {'MESH IP':<16} {'TPM EK FINGERPRINT':<24} {'STATUS'}")
+    print("-" * 96)
+
+    for blade_id, record in sorted(blades.items()):
+        short_ek = f"{record.ek_fingerprint[:10]}...{record.ek_fingerprint[-10:]}"
+        print(
+            f"{record.blade_id:<18} "
+            f"{record.architecture:<9} "
+            f"{record.mac_address:<19} "
+            f"{record.wireguard_ip:<16} "
+            f"{short_ek:<24} "
+            f"VALID (pre-enrolled)"
+        )
+    return 0
+
+
+# -----------------------------------------------------------------------------
+# Main Entrypoint
+# -----------------------------------------------------------------------------
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
+    parser = argparse.ArgumentParser(
+        prog="mios-blade-enroll",
+        description="Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser (T-529, AGY-2127).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    # Global top-level arguments
+    parser.add_argument("--config", "-c", type=str, default=None, help="Path to mios.toml or test config")
+    parser.add_argument("--mock", action="store_true", help="Enable mock hardware blade fixtures")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate actions without writing files")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+
+    subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
+
+    # parse
+    p_parse = subparsers.add_parser("parse", help="Parse and validate declared blades from config")
+    p_parse.add_argument("--config", "-c", type=str, default=None)
+    p_parse.add_argument("--mock", action="store_true")
+    p_parse.add_argument("--dry-run", action="store_true")
+    p_parse.add_argument("-v", "--verbose", action="store_true")
+
+    # verify-ek
+    p_verify = subparsers.add_parser("verify-ek", help="Verify TPM EK certificate or fingerprint against declared registry")
+    p_verify.add_argument("blade_id", type=str, help="Blade identifier")
+    p_verify.add_argument("cert_or_fingerprint", type=str, help="TPM EK certificate file or SHA-256 fingerprint hex")
+    p_verify.add_argument("--config", "-c", type=str, default=None)
+    p_verify.add_argument("--mock", action="store_true")
+    p_verify.add_argument("-v", "--verbose", action="store_true")
+
+    # manifest
+    p_manifest = subparsers.add_parser("manifest", help="Generate hardware admission policy for a specific blade")
+    p_manifest.add_argument("blade_id", type=str, help="Blade identifier")
+    p_manifest.add_argument("--output", "-o", type=str, default=None, help="Output manifest file path")
+    p_manifest.add_argument("--config", "-c", type=str, default=None)
+    p_manifest.add_argument("--mock", action="store_true")
+    p_manifest.add_argument("--dry-run", action="store_true")
+    p_manifest.add_argument("-v", "--verbose", action="store_true")
+
+    # manifest-all
+    p_manifest_all = subparsers.add_parser("manifest-all", help="Generate admission policies for all declared blades")
+    p_manifest_all.add_argument("--dir", "-d", type=str, default=DEFAULT_ADMISSION_DIR, help="Target directory")
+    p_manifest_all.add_argument("--config", "-c", type=str, default=None)
+    p_manifest_all.add_argument("--mock", action="store_true")
+    p_manifest_all.add_argument("--dry-run", action="store_true")
+    p_manifest_all.add_argument("-v", "--verbose", action="store_true")
+
+    # status
+    p_status = subparsers.add_parser("status", help="Display enrolled blades and validation state")
+    p_status.add_argument("--config", "-c", type=str, default=None)
+    p_status.add_argument("--mock", action="store_true")
+    p_status.add_argument("-v", "--verbose", action="store_true")
+
+    # If no arguments provided, show help
+    if not argv:
+        parser.print_help()
+        return 0
+
+    args = parser.parse_args(argv)
+
+    # Propagate top-level flags if present in argv
+    if "--mock" in argv:
+        args.mock = True
+    if "--dry-run" in argv:
+        args.dry_run = True
+    if "-v" in argv or "--verbose" in argv:
+        args.verbose = True
+    for i, a in enumerate(argv):
+        if a in ("--config", "-c") and i + 1 < len(argv):
+            args.config = argv[i + 1]
+
+    if not args.subcommand:
+        parser.print_help()
+        return 0
+
+    if args.subcommand == "parse":
+        return cmd_parse(args)
+    elif args.subcommand == "verify-ek":
+        return cmd_verify_ek(args)
+    elif args.subcommand == "manifest":
+        return cmd_manifest(args)
+    elif args.subcommand == "manifest-all":
+        return cmd_manifest_all(args)
+    elif args.subcommand == "status":
+        return cmd_status(args)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1987,6 +1987,14 @@ servers = [
     "3.pool.ntp.org",
 ]
 
+# Dedicated Out-of-Band IP-KVM management mesh (T-524)
+[management_mesh]
+subnet      = "10.200.0.0/16"
+interface   = "wg-ipkvm"
+listen_port = 51821
+backends    = ["pikvm", "redfish", "openbmc"]
+mtu         = 1420
+
 # UPS configuration (Network UPS Tools)
 # Set name = "" to disable NUT (boots inert)
 [power.ups]
@@ -10951,6 +10959,7 @@ list = [
   { ordinal = "90", name = "generate-sbom", script = "90-generate-sbom.sh", fatal = true, apply_class = "universal" },
   { ordinal = "91", name = "strip-build-toolchain", script = "91-strip-build-toolchain.sh", fatal = false, apply_class = "universal" },
   { ordinal = "92", name = "export-sbom", script = "92-export-sbom.sh", fatal = false, apply_class = "universal" },
+  { ordinal = "93", name = "composefs-seal", script = "93-composefs-seal.sh", fatal = false, apply_class = "bake-only" },
   { ordinal = "94", name = "cleanup", script = "94-cleanup.sh", fatal = true, apply_class = "universal" },
   { ordinal = "97", name = "ssot-lint", script = "97-ssot-lint.sh", fatal = true, apply_class = "containerfile" },
   { ordinal = "98", name = "drift-checks", script = "98-drift-checks.sh", fatal = true, apply_class = "containerfile" },
@@ -10958,7 +10967,7 @@ list = [
 ]
 
 [build.ratchet]
-max_phase_scripts = 76   # +1: 55-native-build.sh, +kdump-config, +dns-config, +export-sbom
+max_phase_scripts = 77   # +1: 55-native-build.sh, +kdump-config, +dns-config, +export-sbom, +composefs-seal
 
 # ----------------------------------------------------------------------------
 # [templates.placeholders] -- Unified SSOT token vocabulary for scaffolding
@@ -11574,6 +11583,22 @@ unit = [
     "tests/test-theme-merge.py",
     "tests/test-theme-live-render.py",
     "tests/test-cdi-gen.py",
+    "tests/test-cdi-device-isolate.sh",
+    "tests/test-composefs-seal.sh",
+    "tests/test-vscode-custom-css.sh",
+    "tests/test-blade-enroll.sh",
+    "tests/test-greenboot-hardware-degrade.sh",
+    "tests/test-attest-server.sh",
+    "tests/test-audio-stream-whisper.py",
+    "tests/test-audio-stream-whisper.sh",
+    "tests/test-audio-tts-piper.py",
+    "tests/test-audio-tts-piper.sh",
+    "tests/test-hardware-fallback.sh",
+    "tests/test-mesh-distributor.py",
+    "tests/test-task-failover.py",
+    "tests/test-user-cephfs.sh",
+    "tests/test-video-encode-latency.sh",
+    "tests/test-video-encoder-probe.sh",
     "tests/test-thp-compaction.py",
     "tests/test-pstore-crash.py",
     "tests/test-usbguard-sec.py",
@@ -11605,6 +11630,7 @@ unit = [
     "tests/test-storage-segregate.py",
     "tests/test-snapshot-transport-restore.py",
     "tests/test-wol-proxy.py",
+    "tests/test-ipkvm-manager.py",
     "tests/test-agy-agent-pipeline.py",
     "tests/test-dispatcher-defense.py",
     "tests/test-ek-smart-extract.py",
@@ -11740,6 +11766,11 @@ unit = [
     "tests/test-microvm-live-migration.py",
     "tests/test-seat-blade-transition.py",
     "tests/test-swarm-pss-memory.py",
+    "tests/test-ocr-mask.py",
+    "tests/test-shadow-test.sh",
+    "tests/test-socket-swap.sh",
+    "tests/test-thermal-governor-recovery.sh",
+    "tests/test-vision-redact.py",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

@@ -1,0 +1,606 @@
+#!/usr/bin/env python3
+# AI-hint: Multi-vendor hardware video encoder discovery and DMA-BUF capture bridge (T-535, AGY-2133).
+# AI-doc: usr/share/doc/mios/manual/ch24-hardware-video-encoding.md
+"""
+Multi-vendor hardware video encoder discovery and DMA-BUF capture bridge.
+Probes Intel QuickSync (VA-API / QSV), NVIDIA NVENC, and AMD AMF/VCN hardware encoding
+capabilities. Resolves codec priority hierarchy (AV1 > HEVC > AVC), and configures
+low-latency zero-copy DMA-BUF capture pipelines for Sunshine/Moonlight streaming.
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import logging
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+# Codec priority hierarchy: AV1 delivers highest quality per bitrate,
+# followed by HEVC (H.265), with AVC (H.264) as universal baseline.
+CODEC_PRIORITY: List[str] = ["AV1", "HEVC", "AVC"]
+
+DEFAULT_CONF_OUTPUT = os.environ.get("MIOS_SUNSHINE_CONF", "/etc/sunshine/sunshine.conf")
+DEFAULT_JSON_OUTPUT = os.environ.get("MIOS_SUNSHINE_JSON", "/var/lib/mios/sunshine/sunshine.json")
+
+logger = logging.getLogger("mios-video-encoder-probe")
+
+
+class VideoEncoderProbe:
+    """Probes multi-vendor GPU encoding ASICs and configures zero-copy DMA-BUF capture."""
+
+    def __init__(
+        self,
+        mock: Optional[str] = None,
+        mock_codecs: Optional[List[str]] = None,
+        dry_run: bool = False,
+        verbose: bool = False,
+    ) -> None:
+        self.mock = mock or os.environ.get("MIOS_MOCK_GPU")
+        if self.mock:
+            self.mock = self.mock.strip().lower()
+
+        raw_mock_codecs = mock_codecs or (
+            os.environ.get("MIOS_MOCK_CODECS").split(",")
+            if os.environ.get("MIOS_MOCK_CODECS")
+            else None
+        )
+        self.mock_codecs = (
+            [c.strip().upper() for c in raw_mock_codecs if c.strip()]
+            if raw_mock_codecs
+            else None
+        )
+
+        self.dry_run = dry_run
+        self.verbose = verbose
+
+        log_level = logging.DEBUG if verbose else logging.INFO
+        logging.basicConfig(
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            level=log_level,
+        )
+
+    def _read_file(self, path: str) -> str:
+        """Safely reads file content if it exists."""
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                return f.read().strip()
+        except OSError:
+            return ""
+
+    def _run_cmd(self, cmd: List[str]) -> Tuple[int, str, str]:
+        """Safely executes system command without raising exceptions."""
+        try:
+            res = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+            return res.returncode, res.stdout, res.stderr
+        except Exception as e:
+            return -1, "", str(e)
+
+    def _parse_vainfo_output(self, output: str) -> List[str]:
+        """Parses vainfo profile and entrypoint list to extract supported encode codecs."""
+        codecs: set[str] = set()
+        for line in output.splitlines():
+            # Look for encoding entrypoints: VAEntrypointEncSlice, VAEntrypointEncSliceLP
+            if "VAEntrypointEncSlice" in line:
+                if "VAProfileAV1" in line:
+                    codecs.add("AV1")
+                elif "VAProfileHEVC" in line or "VAProfileH265" in line:
+                    codecs.add("HEVC")
+                elif "VAProfileH264" in line or "VAProfileAVC" in line:
+                    codecs.add("AVC")
+        return [c for c in CODEC_PRIORITY if c in codecs]
+
+    def probe_intel(self) -> Optional[Dict[str, Any]]:
+        """Probes Intel QuickSync Video (QSV / VA-API) encoder capability."""
+        if self.mock == "intel":
+            codecs = self.mock_codecs if self.mock_codecs is not None else ["AV1", "HEVC", "AVC"]
+            return {
+                "vendor": "intel",
+                "vendor_id": "0x8086",
+                "asic": "Intel QuickSync Video (QSV / VA-API)",
+                "device_node": "/dev/dri/renderD128",
+                "driver": "Intel iHD driver",
+                "supported_codecs": codecs,
+                "preferred_codec": self.resolve_codec_priority(codecs),
+                "dma_buf_supported": True,
+                "recommended_encoder": "vaapi",
+            }
+
+        # Check DRI render nodes for Intel (0x8086)
+        render_nodes = sorted(glob.glob("/dev/dri/renderD[0-9]*"))
+        for node in render_nodes:
+            node_name = os.path.basename(node)
+            vendor_path = f"/sys/class/drm/{node_name}/device/vendor"
+            vendor_id = self._read_file(vendor_path).lower()
+            if vendor_id == "0x8086":
+                # Probe vainfo
+                vainfo_bin = shutil.which("vainfo")
+                codecs: List[str] = []
+                driver = "Intel iHD/i965"
+                if vainfo_bin:
+                    code, out, _ = self._run_cmd([vainfo_bin, "--display", "drm", "--device", node])
+                    if code == 0:
+                        codecs = self._parse_vainfo_output(out)
+                        m = re.search(r"Driver version:\s*(.+)", out)
+                        if m:
+                            driver = m.group(1).strip()
+                else:
+                    # Baseline expectation if vainfo is not installed
+                    codecs = ["AVC", "HEVC"]
+
+                return {
+                    "vendor": "intel",
+                    "vendor_id": "0x8086",
+                    "asic": "Intel QuickSync Video (QSV / VA-API)",
+                    "device_node": node,
+                    "driver": driver,
+                    "supported_codecs": codecs,
+                    "preferred_codec": self.resolve_codec_priority(codecs),
+                    "dma_buf_supported": True,
+                    "recommended_encoder": "vaapi",
+                }
+        return None
+
+    def probe_nvidia(self) -> Optional[Dict[str, Any]]:
+        """Probes NVIDIA NVENC hardware encoder capability."""
+        if self.mock == "nvidia":
+            codecs = self.mock_codecs if self.mock_codecs is not None else ["AV1", "HEVC", "AVC"]
+            return {
+                "vendor": "nvidia",
+                "vendor_id": "0x10de",
+                "asic": "NVIDIA NVENC (Ada Lovelace / RTX)",
+                "device_node": "/dev/nvidia0",
+                "driver": "NVIDIA UNIX x86_64 Kernel Module 550.54",
+                "supported_codecs": codecs,
+                "preferred_codec": self.resolve_codec_priority(codecs),
+                "dma_buf_supported": True,
+                "recommended_encoder": "nvenc",
+            }
+
+        # Check character device nodes or nvidia-smi
+        has_nvidia_dev = os.path.exists("/dev/nvidia0") or os.path.exists("/dev/nvidiactl") or os.path.exists("/dev/dxg")
+        smi_bin = shutil.which("nvidia-smi")
+
+        if not has_nvidia_dev and not smi_bin:
+            return None
+
+        gpu_name = "NVIDIA GeForce / Quadro"
+        driver_ver = "NVIDIA Proprietary"
+        codecs = ["AVC", "HEVC"]
+
+        if smi_bin:
+            code, out, _ = self._run_cmd(
+                [smi_bin, "--query-gpu=name,driver_version,compute_cap", "--format=csv,noheader,nounits"]
+            )
+            if code == 0 and out.strip():
+                parts = [p.strip() for p in out.strip().split(",")]
+                if parts:
+                    gpu_name = parts[0]
+                if len(parts) > 1:
+                    driver_ver = f"NVIDIA {parts[1]}"
+                # Detect Ada Lovelace (RTX 40-series, RTX 50-series, L4, L40) -> AV1 support
+                if any(x in gpu_name for x in ["RTX 40", "RTX 50", "Ada", "Blackwell", "L4", "L40"]):
+                    codecs = ["AV1", "HEVC", "AVC"]
+                else:
+                    codecs = ["HEVC", "AVC"]
+
+        return {
+            "vendor": "nvidia",
+            "vendor_id": "0x10de",
+            "asic": f"NVIDIA NVENC ({gpu_name})",
+            "device_node": "/dev/nvidia0" if os.path.exists("/dev/nvidia0") else "/dev/nvidiactl",
+            "driver": driver_ver,
+            "supported_codecs": codecs,
+            "preferred_codec": self.resolve_codec_priority(codecs),
+            "dma_buf_supported": True,
+            "recommended_encoder": "nvenc",
+        }
+
+    def probe_amd(self) -> Optional[Dict[str, Any]]:
+        """Probes AMD AMF / Video Core Next (VCN) hardware encoder capability."""
+        if self.mock == "amd":
+            codecs = self.mock_codecs if self.mock_codecs is not None else ["AV1", "HEVC", "AVC"]
+            return {
+                "vendor": "amd",
+                "vendor_id": "0x1002",
+                "asic": "AMD AMF / Video Core Next (VCN)",
+                "device_node": "/dev/dri/renderD129",
+                "driver": "Mesa Gallium driver (radeonsi)",
+                "supported_codecs": codecs,
+                "preferred_codec": self.resolve_codec_priority(codecs),
+                "dma_buf_supported": True,
+                "recommended_encoder": "amf",
+            }
+
+        # Check DRI render nodes for AMD (0x1002)
+        render_nodes = sorted(glob.glob("/dev/dri/renderD[0-9]*"))
+        for node in render_nodes:
+            node_name = os.path.basename(node)
+            vendor_path = f"/sys/class/drm/{node_name}/device/vendor"
+            vendor_id = self._read_file(vendor_path).lower()
+            if vendor_id == "0x1002":
+                vainfo_bin = shutil.which("vainfo")
+                codecs: List[str] = []
+                driver = "Mesa radeonsi"
+                if vainfo_bin:
+                    code, out, _ = self._run_cmd([vainfo_bin, "--display", "drm", "--device", node])
+                    if code == 0:
+                        codecs = self._parse_vainfo_output(out)
+                        m = re.search(r"Driver version:\s*(.+)", out)
+                        if m:
+                            driver = m.group(1).strip()
+                else:
+                    codecs = ["AVC", "HEVC"]
+
+                return {
+                    "vendor": "amd",
+                    "vendor_id": "0x1002",
+                    "asic": "AMD AMF / Video Core Next (VCN)",
+                    "device_node": node,
+                    "driver": driver,
+                    "supported_codecs": codecs,
+                    "preferred_codec": self.resolve_codec_priority(codecs),
+                    "dma_buf_supported": True,
+                    "recommended_encoder": "amf",
+                }
+        return None
+
+    def resolve_codec_priority(self, supported_codecs: List[str]) -> Optional[str]:
+        """
+        Resolves codec priority hierarchy: AV1 > HEVC > AVC.
+        Returns highest quality supported codec, or None if list is empty.
+        """
+        upper_supported = {c.upper() for c in supported_codecs}
+        for codec in CODEC_PRIORITY:
+            if codec in upper_supported:
+                return codec
+        return None
+
+    def probe_all(self) -> Dict[str, Any]:
+        """Probes all GPU vendors and aggregates a structured hardware capability matrix."""
+        adapters: List[Dict[str, Any]] = []
+
+        if self.mock == "none":
+            # Explicit negative control mock
+            pass
+        elif self.mock == "intel":
+            adapter = self.probe_intel()
+            if adapter:
+                adapters.append(adapter)
+        elif self.mock == "nvidia":
+            adapter = self.probe_nvidia()
+            if adapter:
+                adapters.append(adapter)
+        elif self.mock == "amd":
+            adapter = self.probe_amd()
+            if adapter:
+                adapters.append(adapter)
+        elif self.mock == "all":
+            for fn in [self.probe_intel, self.probe_nvidia, self.probe_amd]:
+                adapter = fn()
+                if adapter:
+                    adapters.append(adapter)
+        else:
+            # Physical hardware probe
+            intel = self.probe_intel()
+            if intel:
+                adapters.append(intel)
+            nvidia = self.probe_nvidia()
+            if nvidia:
+                adapters.append(nvidia)
+            amd = self.probe_amd()
+            if amd:
+                adapters.append(amd)
+
+        if adapters:
+            # Pick primary adapter: prioritize discrete NVIDIA/AMD, then Intel
+            primary = adapters[0]
+            for ad in adapters:
+                if ad["vendor"] in ("nvidia", "amd"):
+                    primary = ad
+                    break
+
+            all_codecs = list(dict.fromkeys(
+                c for ad in adapters for c in ad["supported_codecs"]
+            ))
+            preferred = self.resolve_codec_priority(all_codecs)
+
+            return {
+                "hardware_available": True,
+                "primary_vendor": primary["vendor"],
+                "adapters": adapters,
+                "primary_adapter": primary,
+                "supported_codecs": all_codecs,
+                "preferred_codec": preferred,
+                "active_capture_bridge": "wayland-pipewire-dmabuf",
+                "dma_buf_zero_copy": True,
+            }
+
+        # Software fallback (Negative control / GPU-less environment)
+        sw_codecs = ["AVC", "HEVC"]
+        return {
+            "hardware_available": False,
+            "primary_vendor": "none",
+            "adapters": [],
+            "primary_adapter": {
+                "vendor": "none",
+                "vendor_id": "none",
+                "asic": "None (CPU Software Fallback)",
+                "device_node": "none",
+                "driver": "software (libx264/libx265)",
+                "supported_codecs": sw_codecs,
+                "preferred_codec": "AVC",
+                "dma_buf_supported": False,
+                "recommended_encoder": "software",
+            },
+            "supported_codecs": sw_codecs,
+            "preferred_codec": "AVC",
+            "active_capture_bridge": "pipewire-shm",
+            "dma_buf_zero_copy": False,
+        }
+
+    def generate_sunshine_config(self, probe_matrix: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
+        """
+        Generates Sunshine / Moonlight streaming configuration.
+        Returns a tuple of (JSON dictionary, INI/conf formatted string).
+        """
+        primary = probe_matrix.get("primary_adapter") or {}
+        hw_avail = probe_matrix.get("hardware_available", False)
+        preferred = probe_matrix.get("preferred_codec", "AVC")
+        encoder = primary.get("recommended_encoder", "software")
+
+        # Map preferred codec to Sunshine naming
+        codec_map = {
+            "AV1": "av1",
+            "HEVC": "hevc",
+            "AVC": "h264",
+        }
+        sunshine_codec = codec_map.get(preferred, "h264")
+
+        # Capture mode settings
+        if hw_avail and probe_matrix.get("dma_buf_zero_copy", False):
+            capture_type = "wayland"
+            capture_mode = "dmabuf"
+            zero_copy = True
+            pipewire_transport = "wayland-pipewire-dmabuf"
+        else:
+            capture_type = "wayland"
+            capture_mode = "shm"
+            zero_copy = False
+            pipewire_transport = "pipewire-shm"
+
+        adapter_name = primary.get("device_node", "auto")
+
+        json_cfg = {
+            "capture": capture_type,
+            "capture_mode": capture_mode,
+            "encoder": encoder,
+            "codec": sunshine_codec,
+            "adapter_name": adapter_name,
+            "dma_buf": {
+                "enabled": zero_copy,
+                "zero_copy": zero_copy,
+                "pipewire_node": "auto",
+                "transport": pipewire_transport,
+            },
+            "audio": {
+                "channels": 2,
+                "sink": "mios-null-sink",
+            },
+            "encoder_settings": {
+                "nvenc_preset": "p1",
+                "vaapi_low_power": True,
+                "min_threads": 2,
+            },
+            "hardware_encoding": {
+                "available": hw_avail,
+                "vendor": primary.get("vendor", "none"),
+                "asic": primary.get("asic", "None"),
+                "device": primary.get("device_node", "none"),
+                "supported_codecs": probe_matrix.get("supported_codecs", []),
+                "preferred_codec": preferred,
+            },
+        }
+
+        # INI/conf string format for Sunshine
+        conf_lines = [
+            "# Sunshine Hardware Video Encoder and DMA-BUF Capture Bridge Configuration",
+            "# Generated by mios-video-encoder-probe (T-535, AGY-2133)",
+            f"capture = {capture_type}",
+            f"capture_mode = {capture_mode}",
+            f"encoder = {encoder}",
+            f"codec = {sunshine_codec}",
+            f"adapter_name = {adapter_name}",
+            "min_threads = 2",
+            "nvenc_preset = p1",
+            "channels = 2",
+            "audio_sink = mios-null-sink",
+        ]
+        if encoder == "vaapi":
+            conf_lines.append(f"vaapi_device = {adapter_name}")
+            conf_lines.append("vaapi_low_power = true")
+
+        conf_str = "\n".join(conf_lines) + "\n"
+        return json_cfg, conf_str
+
+    def write_config(self, target_path: Optional[str] = None) -> bool:
+        """Writes configuration to specified target or system defaults."""
+        matrix = self.probe_all()
+        json_cfg, conf_str = self.generate_sunshine_config(matrix)
+
+        out_path = target_path
+        if not out_path:
+            # Determine appropriate default output
+            if os.path.exists("/etc/sunshine") or os.access("/etc", os.W_OK):
+                out_path = DEFAULT_CONF_OUTPUT
+            else:
+                out_path = DEFAULT_JSON_OUTPUT
+
+        is_json = out_path.endswith(".json")
+        content = json.dumps(json_cfg, indent=2) + "\n" if is_json else conf_str
+
+        if self.dry_run:
+            logger.info("Dry-run enabled: configuration not written to %s", out_path)
+            sys.stdout.write(content)
+            return True
+
+        target_file = Path(out_path)
+        try:
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(target_file, "w", encoding="utf-8") as f:
+                f.write(content)
+            logger.info("Successfully wrote video encoder configuration to %s", out_path)
+            return True
+        except OSError as e:
+            logger.warning("Unable to write to %s (%s); writing to stdout fallback", out_path, e)
+            sys.stdout.write(content)
+            return True
+
+    def format_status(self) -> str:
+        """Generates human-readable status report."""
+        matrix = self.probe_all()
+        hw_avail = matrix.get("hardware_available", False)
+        primary = matrix.get("primary_adapter", {})
+        preferred = matrix.get("preferred_codec", "None")
+        bridge = matrix.get("active_capture_bridge", "None")
+        dma_buf = "Zero-Copy DMA-BUF Enabled" if matrix.get("dma_buf_zero_copy") else "Disabled (Software Fallback)"
+
+        lines = [
+            "============================================================",
+            " MiOS Hardware Video Encoder & DMA-BUF Capture Bridge Status",
+            "============================================================",
+            f"  Hardware Accelerated: {'Yes' if hw_avail else 'No (Software Fallback)'}",
+            f"  Primary ASIC:         {primary.get('asic', 'None')}",
+            f"  Vendor:               {primary.get('vendor', 'none').upper()} ({primary.get('vendor_id', 'none')})",
+            f"  Device Node:          {primary.get('device_node', 'none')}",
+            f"  Driver:               {primary.get('driver', 'none')}",
+            f"  Supported Codecs:     {', '.join(matrix.get('supported_codecs', []))}",
+            f"  Preferred Codec:      {preferred} (Priority: AV1 > HEVC > AVC)",
+            f"  Capture Pipeline:     {bridge} ({dma_buf})",
+            f"  Recommended Encoder:  {primary.get('recommended_encoder', 'software')}",
+            "  Streaming Host:       Sunshine (mios-sunshine.container)",
+            "============================================================",
+        ]
+        return "\n".join(lines)
+
+
+def parse_args() -> argparse.Namespace:
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument(
+        "--mock",
+        nargs="?",
+        const="intel",
+        default=None,
+        help="Enable mock mode with synthetic hardware (intel, nvidia, amd, none, all).",
+    )
+    common_parser.add_argument(
+        "--mock-codecs",
+        default=None,
+        help="Comma-separated mock codec list (e.g. 'AV1,HEVC,AVC', 'HEVC,AVC', 'AVC').",
+    )
+    common_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simulate execution without modifying filesystem state.",
+    )
+    common_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose diagnostic output.",
+    )
+
+    parser = argparse.ArgumentParser(
+        description="Multi-vendor hardware video encoder discovery and DMA-BUF capture bridge (T-535, AGY-2133).",
+        parents=[common_parser],
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+
+    # probe
+    probe_parser = subparsers.add_parser(
+        "probe",
+        parents=[common_parser],
+        help="Probes available GPU video encoders and outputs capability matrix.",
+    )
+    probe_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output capability matrix in JSON format.",
+    )
+
+    # configure
+    conf_parser = subparsers.add_parser(
+        "configure",
+        parents=[common_parser],
+        help="Writes optimal encoder configuration for Sunshine/Moonlight.",
+    )
+    conf_parser.add_argument(
+        "-o", "--output",
+        default=None,
+        help="Target output configuration path (/etc/sunshine/sunshine.conf or *.json).",
+    )
+
+    # status
+    subparsers.add_parser(
+        "status",
+        parents=[common_parser],
+        help="Reports detected hardware ASICs, codecs, and active capture bridge.",
+    )
+
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+
+    mock_codecs = (
+        [c.strip().upper() for c in args.mock_codecs.split(",") if c.strip()]
+        if args.mock_codecs
+        else None
+    )
+
+    probe = VideoEncoderProbe(
+        mock=args.mock,
+        mock_codecs=mock_codecs,
+        dry_run=args.dry_run,
+        verbose=args.verbose,
+    )
+
+    cmd = args.command or "status"
+
+    if cmd == "probe":
+        matrix = probe.probe_all()
+        if getattr(args, "json", False):
+            print(json.dumps(matrix, indent=2))
+        else:
+            print(probe.format_status())
+        return 0
+
+    if cmd == "configure":
+        target = getattr(args, "output", None)
+        success = probe.write_config(target_path=target)
+        return 0 if success else 1
+
+    if cmd == "status":
+        print(probe.format_status())
+        return 0
+
+    print(f"Unknown command: {cmd}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

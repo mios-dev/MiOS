@@ -70,6 +70,21 @@ if [[ -d "${CTX}/home" ]]; then
     tar -C "${CTX}/home" -cf - . | tar -C /etc/skel --no-overwrite-dir --strip-components=1 -xf - 2>/dev/null || true
 fi
 
+if [[ -d "${CTX}/.dotfiles" ]]; then
+    mios_log "Stage 5b: deploy .dotfiles to /usr/share/mios/dotfiles and /etc/skel"
+    install -d -m 0755 /usr/share/mios/dotfiles
+    cp -a "${CTX}/.dotfiles/." /usr/share/mios/dotfiles/
+    if [[ -d "${CTX}/.dotfiles/vscode" ]]; then
+        install -d -m 0755 /etc/skel/.vscode /etc/skel/.config/Code/User
+        cp -f "${CTX}/.dotfiles/vscode/settings.json" /etc/skel/.vscode/settings.json 2>/dev/null || true
+        cp -f "${CTX}/.dotfiles/vscode/settings.json" /etc/skel/.config/Code/User/settings.json 2>/dev/null || true
+    fi
+    if [[ -d "${CTX}/.dotfiles/code-server" ]]; then
+        install -d -m 0755 /etc/skel/.local/share/code-server/User
+        cp -f "${CTX}/.dotfiles/code-server/settings.json" /etc/skel/.local/share/code-server/User/settings.json 2>/dev/null || true
+    fi
+fi
+
 mios_step "Normalize systemd file permissions"
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" -o -name "*.mount" -o -name "*.conf" -o -name "*.target" -o -name "*.path" -o -name "*.slice" -o -name "*.preset" -o -name "*.automount" -o -name "*.swap" \) -exec chmod 644 {} \; 2>/dev/null || true
 find /usr/lib/systemd -type d -exec chmod 755 {} \; 2>/dev/null || true

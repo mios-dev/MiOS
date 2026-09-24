@@ -18,12 +18,14 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-adguard-firstboot.service` | `usr/lib/systemd/system` | MiOS' AdGuard Home first-boot config generator |
 | `mios-adguard.container` | `usr/share/containers/systemd` | MiOS' AdGuard Home (DNS ad/tracker/malware sinkhole + resolver) |
 | `mios-agent-pipe.service` | `usr/lib/systemd/system` | MiOS' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway) |
+| `mios-agent-pipe.socket` | `usr/lib/systemd/system` | MiOS Agent-Pipe Zero-Downtime Socket Activation |
 | `mios-agents.service` | `usr/lib/systemd/system` | MiOS' A2O agents super-container (Claude + agy/Gemini + tmux war room + code-server) |
 | `mios-ai-firstboot.service` | `usr/lib/systemd/system` | MiOS' AI first-boot provisioning (agent venv + llama.cpp GGUFs) |
 | `mios-ai-firstboot.timer` | `usr/lib/systemd/system` | MiOS' AI first-boot provisioning retry (until the sentinel is written) |
 | `mios-ai.target` | `usr/lib/systemd/system` | MiOS AI Services Target |
 | `mios-aios-refresh.service` | `usr/lib/systemd/system` | MiOS' AIOS refresh -- regenerate SSOT-driven role SYSTEMs + discover the A2A fleet |
 | `mios-aios-refresh.timer` | `usr/lib/systemd/system` | Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discovery) |
+| `mios-attest.service` | `usr/lib/systemd/system` | MiOS RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding Daemon |
 | `mios-backup-pgvector.service` | `usr/lib/systemd/system` | MiOS PostgreSQL+pgvector Automated zstd Snapshot Service |
 | `mios-backup-pgvector.timer` | `usr/lib/systemd/system` | Daily and Pre-Upgrade Automated PostgreSQL+pgvector Backup Timer |
 | `mios-backup-remote.service` | `usr/lib/systemd/system` | MiOS Remote Delta Snapshot Backup Synchronization Service |
@@ -81,6 +83,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-guacd.container` | `usr/share/containers/systemd` | MiOS' Apache Guacamole Daemon |
 | `mios-ha-bootstrap.service` | `usr/lib/systemd/system` | MiOS' HA Cluster Bootstrap (Pacemaker/Corosync) |
 | `mios-ha-node.target` | `usr/lib/systemd/system` | MiOS' HA Cluster Node Role |
+| `mios-hardware-fallback.service` | `usr/lib/systemd/user` | MiOS' Automated Network and Audio Fallback Manager |
 | `mios-headless.target` | `usr/lib/systemd/system` | MiOS' Headless Role |
 | `mios-hermes-browser-worker.service` | `usr/lib/systemd/system` | MiOS' Hermes-Browser-Worker (ChromeDev CDP :9223 for the worker) |
 | `mios-hermes-browser.service` | `usr/lib/systemd/system` | MiOS' Hermes-Browser (ChromeDev w/ CDP for Hermes-Agent) |
@@ -127,6 +130,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-pgvector-optimize.service` | `usr/lib/systemd/system` | MiOS pgvector Database Optimization Service |
 | `mios-pgvector-optimize.timer` | `usr/lib/systemd/system` | Weekly Automated pgvector Index & Table Maintenance Timer |
 | `mios-pgvector.container` | `usr/share/containers/systemd` | MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS) |
+| `mios-piper.container` | `usr/share/containers/systemd` | MiOS' Piper/Kokoro Streaming TTS Engine (piper-http) |
 | `mios-podman-gc.service` | `usr/lib/systemd/system` | MiOS' Podman Garbage Collection |
 | `mios-podman-gc.timer` | `usr/lib/systemd/system` | Weekly Podman Cleanup |
 | `mios-podman-ps.service` | `usr/lib/systemd/system` | MiOS' rootful podman snapshot for the agent-pipe portal/dashboard |
@@ -149,15 +153,19 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-sriov-init.service` | `usr/lib/systemd/system` | MiOS' Universal SR-IOV Initialization |
 | `mios-suggestion-refresh.service` | `usr/lib/systemd/system` | MiOS' starter-chip refresh (revolving suggestions) |
 | `mios-suggestion-refresh.timer` | `usr/lib/systemd/system` | MiOS' starter-chip refresh cadence |
+| `mios-sunshine.container` | `usr/share/containers/systemd` | MiOS' Sunshine Low-Latency Streaming Server (DMA-BUF & HW Encode) |
 | `mios-swarm-pack-firstboot.service` | `usr/lib/systemd/system` | MiOS' swarm small-model pack arming (gpu_profile=swarm only) |
 | `mios-sync-theme.service` | `usr/lib/systemd/system` | MiOS theme bridge -- regenerate /etc/mios/theme from mios.toml [colors] |
 | `mios-sys-env-refresh.service` | `usr/lib/systemd/system` | MiOS' refresh the live system/environment cache (sys_env) in pgvector |
 | `mios-sys-env-refresh.timer` | `usr/lib/systemd/system` | MiOS' refresh cadence for the sys_env environment cache |
+| `mios-thermald.service` | `usr/lib/systemd/system` | MiOS Proactive PID Thermal Daemon and Dynamic Power Cap Modulator |
 | `mios-tmpfs-spill.service` | `usr/lib/systemd/system` | MiOS Automated tmpfs Spill-to-NVMe Manager |
 | `mios-tmpfs-spill.timer` | `usr/lib/systemd/system` | MiOS Periodic Memory Pressure & tmpfs Spillover Monitor Timer |
 | `mios-ttyd-bash.service` | `usr/lib/systemd/system` | MiOS' ttyd -- browser pty bridge (Linux bash session) |
 | `mios-ttyd-expose.service` | `usr/lib/systemd/system` | MiOS' mobile terminal tailnet exposure (gated by [ttyd].tailnet_expose) |
 | `mios-ttyd-powershell.service` | `usr/lib/systemd/system` | MiOS' ttyd -- browser pty bridge (Windows PowerShell session) |
+| `mios-user-snapshot@.service` | `usr/lib/systemd/system` | Hourly CephFS delta snapshot and mesh replication for user %i |
+| `mios-user-snapshot@.timer` | `usr/lib/systemd/system` | Hourly CephFS delta snapshot schedule for user %i |
 | `mios-userdb-render.service` | `usr/lib/systemd/system` | MiOS' PostgreSQL account systemd userdb drop-in renderer |
 | `mios-verify-root.service` | `usr/lib/systemd/system` | MiOS' Root Filesystem Verification |
 | `mios-verify.service` | `usr/lib/systemd/system` | MiOS' Cryptographic Integrity Audit (fs-verity) |
@@ -171,6 +179,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-webtools-firecrawl-worker.container` | `usr/share/containers/systemd` | MiOS' web-tools firecrawl worker (Bull queue processor) |
 | `mios-webtools-firstboot.service` | `usr/lib/systemd/system` | MiOS' web-tools images build-on-demand firstboot service |
 | `mios-webtools-redis.container` | `usr/share/containers/systemd` | MiOS' web-tools redis (firecrawl queue + ratelimit store) |
+| `mios-whisper.container` | `usr/share/containers/systemd` | MiOS' Whisper Streaming STT Engine (whisper.cpp) |
 | `mios-wol-proxy.service` | `usr/lib/systemd/system` | MiOS Signed Proxy Wake-on-LAN Daemon with SecureON Payload |
 | `mios-wsl-early.service` | `usr/lib/systemd/system` | MiOS' WSL2 pre-sysinit fixups (rshared root + /dev/{net/tun,fuse}) |
 | `mios-wsl-env-import.service` | `usr/lib/systemd/user` | MiOS': import WSLg env into systemd user-bus + dbus activation |
@@ -193,5 +202,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (185 unit(s)) -->
+<!-- derived from tracked unit files (194 unit(s)) -->
 <!-- /MIOS-GEN:units -->

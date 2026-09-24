@@ -77,6 +77,9 @@ main() {
     step "2c/6 man    -- usr/share/man (native roff, man(1) reads it directly)"
     "$PY" tools/render-manpages.py --validate
 
+    step "2d/6 dotfiles -- .dotfiles SSOT projection"
+    "$PY" tools/sync-dotfiles.py
+
     step "3/6 quadlets"
     "$PY" tools/generate-pod-quadlets.py >/dev/null
 

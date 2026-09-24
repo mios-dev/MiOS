@@ -1,0 +1,904 @@
+#!/usr/bin/env python3
+# AI-hint: Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner (T-524, AGY-2122).
+# AI-doc: usr/share/doc/mios/manual/ch12-networking-and-mesh.md
+from __future__ import annotations
+
+import argparse
+import ipaddress
+import json
+import os
+import re
+import socket
+import ssl
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from typing import Any, Dict, Optional, Tuple
+
+MANAGEMENT_SUBNET_STR = "10.200.0.0/16"
+MANAGEMENT_SUBNET = ipaddress.ip_network(MANAGEMENT_SUBNET_STR)
+LOOPBACK_SUBNET = ipaddress.ip_network("127.0.0.0/8")
+
+DEFAULT_MESH_IFACE = "wg-ipkvm"
+DEFAULT_MESH_MTU = 1420
+
+DEFAULT_TOKEN_FILE = "/etc/mios/ipkvm.token"
+ENV_TOKEN_KEYS = ("MIOS_IPKVM_TOKEN", "IPKVM_AUTH_TOKEN")
+ENV_MOCK_KEY = "MIOS_IPKVM_MOCK"
+
+SUPPORTED_BACKENDS = ("pikvm", "redfish", "openbmc")
+SUPPORTED_POWER_ACTIONS = ("status", "on", "off", "cycle", "reset")
+
+
+class SecurityError(PermissionError):
+    """Raised when a security invariant or authorization requirement is violated."""
+    pass
+
+
+def parse_target(target: str) -> Tuple[str, Optional[int], Optional[str]]:
+    """Extracts host/IP, optional port, and optional scheme from target string."""
+    target = target.strip()
+    if not target:
+        raise ValueError("Target host or IP address must not be empty.")
+
+    scheme = None
+    if target.startswith("http://"):
+        scheme = "http"
+        target = target[7:]
+    elif target.startswith("https://"):
+        scheme = "https"
+        target = target[8:]
+
+    # Remove trailing path if present
+    if "/" in target:
+        target = target.split("/", 1)[0]
+
+    # IPv6 format [addr]:port or [addr]
+    if target.startswith("[") and "]" in target:
+        host = target[1:target.index("]")]
+        port_part = target[target.index("]") + 1:]
+        port = int(port_part[1:]) if port_part.startswith(":") and port_part[1:].isdigit() else None
+        return host, port, scheme
+
+    if ":" in target:
+        parts = target.split(":", 1)
+        if parts[1].isdigit():
+            return parts[0], int(parts[1]), scheme
+
+    return target, None, scheme
+
+
+def validate_target_ip(target: str) -> Tuple[str, Optional[int]]:
+    """
+    Validates that target strictly resolves to an IP within the dedicated
+    out-of-band management subnet (10.200.0.0/16) or test loopback (127.0.0.1/8).
+    Raises SecurityError on violation.
+    Returns (host, port).
+    """
+    host, port, _ = parse_target(target)
+
+    # Check if host is direct IP address
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        # Hostname: attempt resolution
+        try:
+            resolved_ip_str = socket.gethostbyname(host)
+            ip = ipaddress.ip_address(resolved_ip_str)
+        except Exception as e:
+            raise SecurityError(
+                f"Security invariant violation: unable to resolve target host '{host}': {e}"
+            )
+
+    if ip in MANAGEMENT_SUBNET or ip in LOOPBACK_SUBNET:
+        return host, port
+
+    raise SecurityError(
+        f"Security invariant violation: target IP '{ip}' is not within the dedicated "
+        f"out-of-band management subnet ({MANAGEMENT_SUBNET_STR}) or testing loopback (127.0.0.1). "
+        "Public and unapproved networks are strictly prohibited."
+    )
+
+
+def resolve_auth_token(cli_token: Optional[str] = None) -> Optional[str]:
+    """Resolves authentication token from CLI, environment, or system token file."""
+    if cli_token and cli_token.strip():
+        return cli_token.strip()
+    for env_key in ENV_TOKEN_KEYS:
+        val = os.environ.get(env_key)
+        if val and val.strip():
+            return val.strip()
+    if os.path.exists(DEFAULT_TOKEN_FILE):
+        try:
+            with open(DEFAULT_TOKEN_FILE, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if content:
+                    return content
+        except Exception:
+            pass
+    return None
+
+
+def check_authentication(
+    token: Optional[str],
+    dry_run: bool = False,
+    allow_unauthenticated: bool = False,
+) -> Optional[str]:
+    """
+    Validates authentication token.
+    Raises SecurityError if unauthenticated unless dry_run with explicit bypass is set.
+    """
+    if token and len(token.strip()) > 0:
+        return token.strip()
+    if dry_run and allow_unauthenticated:
+        return None
+    raise SecurityError(
+        "Authentication error: valid auth token required for IP-KVM operations. "
+        "Specify --auth-token, set MIOS_IPKVM_TOKEN, or use --allow-unauthenticated with --dry-run."
+    )
+
+
+def get_mesh_status(interface: str = DEFAULT_MESH_IFACE) -> Dict[str, Any]:
+    """Inspects and reports management mesh interface state (wg-ipkvm, 10.200.0.0/16, MTU 1420)."""
+    sys_path = f"/sys/class/net/{interface}"
+    exists = os.path.isdir(sys_path)
+
+    operstate = "unconfigured"
+    mtu = DEFAULT_MESH_MTU
+    mac = None
+    ip_addr = None
+
+    if exists:
+        try:
+            with open(f"{sys_path}/operstate", "r", encoding="utf-8") as f:
+                operstate = f.read().strip()
+        except Exception:
+            operstate = "unknown"
+        try:
+            with open(f"{sys_path}/mtu", "r", encoding="utf-8") as f:
+                mtu = int(f.read().strip())
+        except Exception:
+            mtu = DEFAULT_MESH_MTU
+        try:
+            with open(f"{sys_path}/address", "r", encoding="utf-8") as f:
+                mac = f.read().strip() or None
+        except Exception:
+            pass
+
+        # Try to find assigned IP from ip addr if available
+        try:
+            import subprocess
+            out = subprocess.check_output(
+                ["ip", "-o", "-4", "addr", "show", interface],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            for part in out.split():
+                if "/" in part and not part.startswith("/"):
+                    ip_addr = part.split("/")[0]
+                    break
+        except Exception:
+            pass
+
+    is_active = exists and (operstate in ("up", "unknown"))
+    link_state = operstate if exists else "unconfigured"
+
+    return {
+        "status": "ok",
+        "interface": interface,
+        "subnet": MANAGEMENT_SUBNET_STR,
+        "expected_mtu": DEFAULT_MESH_MTU,
+        "mtu": mtu,
+        "link_state": link_state,
+        "mesh_active": is_active,
+        "ip_address": ip_addr,
+        "mac_address": mac,
+        "exists": exists,
+    }
+
+
+def _determine_scheme_and_port(
+    host: str,
+    port: Optional[int],
+    default_port: int = 443,
+    scheme_override: Optional[str] = None,
+) -> Tuple[str, int]:
+    """Determines HTTP scheme and port."""
+    final_port = port if port is not None else default_port
+    if scheme_override:
+        scheme = scheme_override
+    elif final_port in (80, 8080, 8000, 8888):
+        scheme = "http"
+    elif host in ("127.0.0.1", "localhost") and final_port not in (443, 8443):
+        scheme = "http"
+    else:
+        scheme = "https"
+    return scheme, final_port
+
+
+def _make_http_request(
+    method: str,
+    url: str,
+    headers: Dict[str, str],
+    body: Optional[Dict[str, Any]] = None,
+    timeout: int = 10,
+    insecure: bool = True,
+) -> Dict[str, Any]:
+    """Performs HTTP/HTTPS request with error handling and SSL bypass for BMC appliances."""
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    ssl_ctx = ssl.create_default_context()
+    if insecure:
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+
+    try:
+        with urllib.request.urlopen(req, context=ssl_ctx, timeout=timeout) as resp:
+            resp_body = resp.read().decode("utf-8")
+            content_type = resp.headers.get("Content-Type", "")
+            if "application/json" in content_type or resp_body.strip().startswith(("{", "[")):
+                try:
+                    return json.loads(resp_body)
+                except Exception:
+                    pass
+            return {"status": "ok", "code": resp.status, "data": resp_body}
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8") if e.fp else ""
+        try:
+            e.close()
+        except Exception:
+            pass
+        raise RuntimeError(f"HTTP error {e.code} from {url}: {err_body or e.reason}")
+    except urllib.error.URLError as e:
+        raise ConnectionError(f"Connection failure to {url}: {e.reason}")
+
+
+def build_backend_request(
+    verb: str,
+    target: str,
+    backend: str,
+    action: Optional[str] = None,
+    iso_url: Optional[str] = None,
+    token: Optional[str] = None,
+    port: Optional[int] = None,
+    scheme: Optional[str] = None,
+) -> Tuple[str, str, Dict[str, str], Optional[Dict[str, Any]]]:
+    """Constructs the HTTP method, URL, headers, and body for a specific backend operation."""
+    host, parsed_port, parsed_scheme = parse_target(target)
+    active_port = port if port is not None else parsed_port
+    active_scheme = scheme or parsed_scheme
+    final_scheme, final_port = _determine_scheme_and_port(
+        host, active_port, default_port=443, scheme_override=active_scheme
+    )
+    base_url = f"{final_scheme}://{host}:{final_port}"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    method = "GET"
+    url = base_url
+    body: Optional[Dict[str, Any]] = None
+
+    if backend == "pikvm":
+        if token:
+            headers["X-KVMD-User"] = "admin"
+            headers["X-KVMD-Passwd"] = token
+
+        if verb == "power":
+            if action == "status":
+                method = "GET"
+                url = f"{base_url}/api/atx"
+            elif action in ("on", "off", "cycle"):
+                method = "POST"
+                url = f"{base_url}/api/atx/power?action={action}"
+                body = {"action": action}
+            elif action == "reset":
+                method = "POST"
+                url = f"{base_url}/api/atx/click"
+                body = {"button": "reset"}
+        elif verb == "mount-iso":
+            method = "POST"
+            url = f"{base_url}/api/msd/set_image"
+            body = {"url": iso_url}
+        elif verb == "eject-iso":
+            method = "POST"
+            url = f"{base_url}/api/msd/eject"
+            body = {}
+        elif verb == "console-stream":
+            method = "GET"
+            url = f"{base_url}/stream"
+
+    elif backend == "redfish":
+        headers["OData-Version"] = "4.0"
+        if token:
+            headers["X-Auth-Token"] = token
+
+        if verb == "power":
+            if action == "status":
+                method = "GET"
+                url = f"{base_url}/redfish/v1/Systems/1"
+            else:
+                reset_map = {
+                    "on": "On",
+                    "off": "ForceOff",
+                    "cycle": "PowerCycle",
+                    "reset": "ForceRestart",
+                }
+                method = "POST"
+                url = f"{base_url}/redfish/v1/Systems/1/Actions/ComputerSystem.Reset"
+                body = {"ResetType": reset_map.get(action or "status", "On")}
+        elif verb == "mount-iso":
+            method = "POST"
+            url = f"{base_url}/redfish/v1/Managers/1/VirtualMedia/CD1/Actions/VirtualMedia.InsertMedia"
+            body = {"Image": iso_url, "Inserted": True, "WriteProtected": True}
+        elif verb == "eject-iso":
+            method = "POST"
+            url = f"{base_url}/redfish/v1/Managers/1/VirtualMedia/CD1/Actions/VirtualMedia.EjectMedia"
+            body = {}
+        elif verb == "console-stream":
+            method = "GET"
+            url = f"{base_url}/redfish/v1/Managers/1/GraphicalConsole"
+
+    elif backend == "openbmc":
+        if token:
+            headers["X-Auth-Token"] = token
+
+        if verb == "power":
+            if action == "status":
+                method = "GET"
+                url = f"{base_url}/xyz/openbmc_project/state/host0"
+            else:
+                transition_map = {
+                    "on": "xyz.openbmc_project.State.Host.Transition.On",
+                    "off": "xyz.openbmc_project.State.Host.Transition.Off",
+                    "cycle": "xyz.openbmc_project.State.Host.Transition.Reboot",
+                    "reset": "xyz.openbmc_project.State.Host.Transition.ForceWarmReboot",
+                }
+                method = "PUT"
+                url = f"{base_url}/xyz/openbmc_project/state/host0/attr/RequestedHostTransition"
+                body = {"data": transition_map.get(action or "status", "xyz.openbmc_project.State.Host.Transition.On")}
+        elif verb == "mount-iso":
+            method = "POST"
+            url = f"{base_url}/redfish/v1/Managers/bmc/VirtualMedia/1/Actions/VirtualMedia.InsertMedia"
+            body = {"Image": iso_url, "Inserted": True, "TransferProtocolType": "HTTP"}
+        elif verb == "eject-iso":
+            method = "POST"
+            url = f"{base_url}/redfish/v1/Managers/bmc/VirtualMedia/1/Actions/VirtualMedia.EjectMedia"
+            body = {}
+        elif verb == "console-stream":
+            method = "GET"
+            url = f"{base_url}/console0"
+
+    else:
+        raise ValueError(f"Unsupported backend '{backend}'. Supported: {', '.join(SUPPORTED_BACKENDS)}")
+
+    return method, url, headers, body
+
+
+def execute_power(
+    target: str,
+    action: str,
+    backend: str = "pikvm",
+    token: Optional[str] = None,
+    port: Optional[int] = None,
+    scheme: Optional[str] = None,
+    dry_run: bool = False,
+    mock: bool = False,
+    allow_unauthenticated: bool = False,
+    timeout: int = 10,
+) -> Dict[str, Any]:
+    """Executes or dry-runs ATX power control on target BMC node."""
+    if action not in SUPPORTED_POWER_ACTIONS:
+        raise ValueError(f"Invalid action '{action}'. Must be one of: {', '.join(SUPPORTED_POWER_ACTIONS)}")
+    if backend not in SUPPORTED_BACKENDS:
+        raise ValueError(f"Invalid backend '{backend}'. Must be one of: {', '.join(SUPPORTED_BACKENDS)}")
+
+    host, target_port = validate_target_ip(target)
+    parsed_scheme = parse_target(target)[2]
+    effective_port = port if port is not None else target_port
+    effective_scheme = scheme or parsed_scheme
+    auth_token = check_authentication(token, dry_run=dry_run, allow_unauthenticated=allow_unauthenticated)
+
+    method, url, headers, body = build_backend_request(
+        verb="power",
+        target=target,
+        backend=backend,
+        action=action,
+        token=auth_token,
+        port=effective_port,
+        scheme=effective_scheme,
+    )
+
+    if dry_run:
+        return {
+            "status": "ok",
+            "success": True,
+            "dry_run": True,
+            "target": target,
+            "action": action,
+            "backend": backend,
+            "planned_request": {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "body": body,
+            },
+        }
+
+    is_mock = mock or (os.environ.get(ENV_MOCK_KEY, "").lower() in ("1", "true", "yes"))
+    if is_mock:
+        power_state = "on" if action in ("status", "on") else ("off" if action == "off" else action)
+        return {
+            "status": "ok",
+            "success": True,
+            "mock": True,
+            "target": target,
+            "action": action,
+            "power_state": power_state,
+            "backend": backend,
+            "simulated_request": {"method": method, "url": url},
+        }
+
+    # Live network call
+    raw = _make_http_request(method, url, headers, body, timeout=timeout)
+    # Parse power state from response
+    power_state = "unknown"
+    if action == "status":
+        if backend == "pikvm":
+            leds = raw.get("result", {}).get("leds", {})
+            power_state = "on" if leds.get("power", False) else "off"
+        elif backend == "redfish":
+            p_val = str(raw.get("PowerState", "")).lower()
+            power_state = "on" if "on" in p_val else "off"
+        elif backend == "openbmc":
+            state_str = str(raw.get("data", {}).get("CurrentHostState", ""))
+            power_state = "on" if "Running" in state_str else "off"
+    else:
+        power_state = action
+
+    return {
+        "status": "ok",
+        "success": True,
+        "target": target,
+        "action": action,
+        "power_state": power_state,
+        "backend": backend,
+        "raw_response": raw,
+    }
+
+
+def execute_mount_iso(
+    target: str,
+    iso_url: str,
+    backend: str = "pikvm",
+    token: Optional[str] = None,
+    port: Optional[int] = None,
+    scheme: Optional[str] = None,
+    dry_run: bool = False,
+    mock: bool = False,
+    allow_unauthenticated: bool = False,
+    timeout: int = 10,
+) -> Dict[str, Any]:
+    """Mounts virtual boot media / ISO on target node."""
+    if not iso_url or not iso_url.strip():
+        raise ValueError("Virtual media ISO URL or path must not be empty.")
+    if backend not in SUPPORTED_BACKENDS:
+        raise ValueError(f"Invalid backend '{backend}'. Must be one of: {', '.join(SUPPORTED_BACKENDS)}")
+
+    host, target_port = validate_target_ip(target)
+    parsed_scheme = parse_target(target)[2]
+    effective_port = port if port is not None else target_port
+    effective_scheme = scheme or parsed_scheme
+    auth_token = check_authentication(token, dry_run=dry_run, allow_unauthenticated=allow_unauthenticated)
+
+    method, url, headers, body = build_backend_request(
+        verb="mount-iso",
+        target=target,
+        backend=backend,
+        iso_url=iso_url,
+        token=auth_token,
+        port=effective_port,
+        scheme=effective_scheme,
+    )
+
+    if dry_run:
+        return {
+            "status": "ok",
+            "success": True,
+            "dry_run": True,
+            "target": target,
+            "iso_url": iso_url,
+            "backend": backend,
+            "planned_request": {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "body": body,
+            },
+        }
+
+    is_mock = mock or (os.environ.get(ENV_MOCK_KEY, "").lower() in ("1", "true", "yes"))
+    if is_mock:
+        return {
+            "status": "ok",
+            "success": True,
+            "mock": True,
+            "target": target,
+            "mounted": True,
+            "iso_url": iso_url,
+            "backend": backend,
+        }
+
+    raw = _make_http_request(method, url, headers, body, timeout=timeout)
+    return {
+        "status": "ok",
+        "success": True,
+        "target": target,
+        "mounted": True,
+        "iso_url": iso_url,
+        "backend": backend,
+        "raw_response": raw,
+    }
+
+
+def execute_eject_iso(
+    target: str,
+    backend: str = "pikvm",
+    token: Optional[str] = None,
+    port: Optional[int] = None,
+    scheme: Optional[str] = None,
+    dry_run: bool = False,
+    mock: bool = False,
+    allow_unauthenticated: bool = False,
+    timeout: int = 10,
+) -> Dict[str, Any]:
+    """Ejects virtual boot media from target node."""
+    if backend not in SUPPORTED_BACKENDS:
+        raise ValueError(f"Invalid backend '{backend}'. Must be one of: {', '.join(SUPPORTED_BACKENDS)}")
+
+    host, target_port = validate_target_ip(target)
+    parsed_scheme = parse_target(target)[2]
+    effective_port = port if port is not None else target_port
+    effective_scheme = scheme or parsed_scheme
+    auth_token = check_authentication(token, dry_run=dry_run, allow_unauthenticated=allow_unauthenticated)
+
+    method, url, headers, body = build_backend_request(
+        verb="eject-iso",
+        target=target,
+        backend=backend,
+        token=auth_token,
+        port=effective_port,
+        scheme=effective_scheme,
+    )
+
+    if dry_run:
+        return {
+            "status": "ok",
+            "success": True,
+            "dry_run": True,
+            "target": target,
+            "backend": backend,
+            "planned_request": {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "body": body,
+            },
+        }
+
+    is_mock = mock or (os.environ.get(ENV_MOCK_KEY, "").lower() in ("1", "true", "yes"))
+    if is_mock:
+        return {
+            "status": "ok",
+            "success": True,
+            "mock": True,
+            "target": target,
+            "ejected": True,
+            "mounted": False,
+            "backend": backend,
+        }
+
+    raw = _make_http_request(method, url, headers, body, timeout=timeout)
+    return {
+        "status": "ok",
+        "success": True,
+        "target": target,
+        "ejected": True,
+        "mounted": False,
+        "backend": backend,
+        "raw_response": raw,
+    }
+
+
+def execute_console_stream(
+    target: str,
+    backend: str = "pikvm",
+    token: Optional[str] = None,
+    port: Optional[int] = None,
+    scheme: Optional[str] = None,
+    dry_run: bool = False,
+    mock: bool = False,
+    allow_unauthenticated: bool = False,
+    timeout: int = 10,
+) -> Dict[str, Any]:
+    """Inspects/retrieves VNC/WebRTC/serial console URL for target node."""
+    if backend not in SUPPORTED_BACKENDS:
+        raise ValueError(f"Invalid backend '{backend}'. Must be one of: {', '.join(SUPPORTED_BACKENDS)}")
+
+    host, target_port = validate_target_ip(target)
+    parsed_scheme = parse_target(target)[2]
+    effective_port = port if port is not None else target_port
+    effective_scheme = scheme or parsed_scheme
+    auth_token = check_authentication(token, dry_run=dry_run, allow_unauthenticated=allow_unauthenticated)
+
+    final_scheme, final_port = _determine_scheme_and_port(
+        host, effective_port, default_port=443, scheme_override=effective_scheme
+    )
+
+    if backend == "pikvm":
+        console_info = {
+            "console_url": f"{final_scheme}://{host}:{final_port}/stream",
+            "webrtc_url": f"wss://{host}:{final_port}/share/webrtc",
+            "vnc_url": f"vnc://{host}:5900",
+            "protocol": "webrtc",
+        }
+    elif backend == "redfish":
+        console_info = {
+            "console_url": f"{final_scheme}://{host}:{final_port}/redfish/v1/console",
+            "protocol": "websocket",
+        }
+    elif backend == "openbmc":
+        console_info = {
+            "console_url": f"wss://{host}:{final_port}/console0",
+            "serial_url": f"ssh://{host}:2200",
+            "protocol": "websocket",
+        }
+    else:
+        raise ValueError(f"Unsupported backend '{backend}'")
+
+    result = {
+        "status": "ok",
+        "success": True,
+        "target": target,
+        "backend": backend,
+        **console_info,
+    }
+
+    if dry_run:
+        result["dry_run"] = True
+    elif mock or (os.environ.get(ENV_MOCK_KEY, "").lower() in ("1", "true", "yes")):
+        result["mock"] = True
+
+    return result
+
+
+def build_cli_parser() -> argparse.ArgumentParser:
+    """Builds comprehensive CLI argument parser."""
+    parser = argparse.ArgumentParser(
+        prog="mios-ipkvm-manager",
+        description="Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner",
+    )
+
+    common_parent = argparse.ArgumentParser(add_help=False)
+    common_parent.add_argument("--json", action="store_true", help="Output result in structured JSON format")
+    common_parent.add_argument("--auth-token", default=None, help="Authentication token for BMC API")
+    common_parent.add_argument(
+        "--backend",
+        choices=SUPPORTED_BACKENDS,
+        default="pikvm",
+        help="BMC API backend: pikvm, redfish, or openbmc (default: pikvm)",
+    )
+    common_parent.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate parameters and build request without transmitting network packets",
+    )
+    common_parent.add_argument(
+        "--mock",
+        action="store_true",
+        help="Simulate execution without requiring physical hardware",
+    )
+    common_parent.add_argument(
+        "--allow-unauthenticated",
+        action="store_true",
+        help="Explicitly bypass auth token requirement in dry-run mode only",
+    )
+    common_parent.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Override destination TCP port for BMC API",
+    )
+    common_parent.add_argument(
+        "--scheme",
+        choices=["http", "https"],
+        default=None,
+        help="Override URL scheme (http or https)",
+    )
+    common_parent.add_argument(
+        "--timeout",
+        type=int,
+        default=10,
+        help="Network request timeout in seconds (default: 10)",
+    )
+
+    subparsers = parser.add_subparsers(dest="verb", required=True, help="Management verb")
+
+    # mesh-status
+    mesh_p = subparsers.add_parser(
+        "mesh-status",
+        parents=[common_parent],
+        help="Inspects and reports WireGuard management mesh interface state",
+    )
+    mesh_p.add_argument(
+        "--interface",
+        default=DEFAULT_MESH_IFACE,
+        help=f"Management WireGuard interface name (default: {DEFAULT_MESH_IFACE})",
+    )
+
+    # power
+    power_p = subparsers.add_parser(
+        "power",
+        parents=[common_parent],
+        help="Controls ATX power via Redfish, OpenBMC, or PiKVM APIs",
+    )
+    power_p.add_argument("--target", required=True, help="Target node name or IP (must be in 10.200.0.0/16 or 127.0.0.1)")
+    power_p.add_argument("--action", required=True, choices=SUPPORTED_POWER_ACTIONS, help="Power action")
+
+    # mount-iso
+    mount_p = subparsers.add_parser(
+        "mount-iso",
+        parents=[common_parent],
+        help="Mounts virtual boot media / ISO image",
+    )
+    mount_p.add_argument("--target", required=True, help="Target node name or IP")
+    mount_p.add_argument("--iso-url", required=True, help="URL or path of virtual media ISO")
+
+    # eject-iso
+    eject_p = subparsers.add_parser(
+        "eject-iso",
+        parents=[common_parent],
+        help="Ejects virtual boot media",
+    )
+    eject_p.add_argument("--target", required=True, help="Target node name or IP")
+
+    # console-stream
+    console_p = subparsers.add_parser(
+        "console-stream",
+        parents=[common_parent],
+        help="Inspects/connects to VNC/WebRTC/serial console URL",
+    )
+    console_p.add_argument("--target", required=True, help="Target node name or IP")
+
+    return parser
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    parser = build_cli_parser()
+    args = parser.parse_args(argv)
+
+    token = resolve_auth_token(args.auth_token)
+
+    try:
+        if args.verb == "mesh-status":
+            result = get_mesh_status(args.interface)
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                state_str = "ACTIVE" if result["mesh_active"] else result["link_state"].upper()
+                print("Management Mesh Status:")
+                print(f"  Interface:    {result['interface']}")
+                print(f"  Subnet:       {result['subnet']}")
+                print(f"  MTU:          {result['mtu']}")
+                print(f"  Link State:   {result['link_state']}")
+                print(f"  IP Address:   {result['ip_address'] or 'None'}")
+                print(f"  Status:       {state_str}")
+            return 0
+
+        elif args.verb == "power":
+            result = execute_power(
+                target=args.target,
+                action=args.action,
+                backend=args.backend,
+                token=token,
+                port=args.port,
+                scheme=args.scheme,
+                dry_run=args.dry_run,
+                mock=args.mock,
+                allow_unauthenticated=args.allow_unauthenticated,
+                timeout=args.timeout,
+            )
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                p_state = result.get("power_state", result.get("action"))
+                prefix = "[DRY RUN] " if result.get("dry_run") else ("[MOCK] " if result.get("mock") else "")
+                print(f"[mios-ipkvm] {prefix}Power {args.action} on {args.target} ({args.backend}): {p_state}")
+            return 0
+
+        elif args.verb == "mount-iso":
+            result = execute_mount_iso(
+                target=args.target,
+                iso_url=args.iso_url,
+                backend=args.backend,
+                token=token,
+                port=args.port,
+                scheme=args.scheme,
+                dry_run=args.dry_run,
+                mock=args.mock,
+                allow_unauthenticated=args.allow_unauthenticated,
+                timeout=args.timeout,
+            )
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                prefix = "[DRY RUN] " if result.get("dry_run") else ("[MOCK] " if result.get("mock") else "")
+                print(f"[mios-ipkvm] {prefix}Mounted virtual media '{args.iso_url}' on {args.target} ({args.backend})")
+            return 0
+
+        elif args.verb == "eject-iso":
+            result = execute_eject_iso(
+                target=args.target,
+                backend=args.backend,
+                token=token,
+                port=args.port,
+                scheme=args.scheme,
+                dry_run=args.dry_run,
+                mock=args.mock,
+                allow_unauthenticated=args.allow_unauthenticated,
+                timeout=args.timeout,
+            )
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                prefix = "[DRY RUN] " if result.get("dry_run") else ("[MOCK] " if result.get("mock") else "")
+                print(f"[mios-ipkvm] {prefix}Ejected virtual media from {args.target} ({args.backend})")
+            return 0
+
+        elif args.verb == "console-stream":
+            result = execute_console_stream(
+                target=args.target,
+                backend=args.backend,
+                token=token,
+                port=args.port,
+                scheme=args.scheme,
+                dry_run=args.dry_run,
+                mock=args.mock,
+                allow_unauthenticated=args.allow_unauthenticated,
+                timeout=args.timeout,
+            )
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                prefix = "[DRY RUN] " if result.get("dry_run") else ("[MOCK] " if result.get("mock") else "")
+                print(
+                    f"[mios-ipkvm] {prefix}Console stream for {args.target} ({args.backend}): "
+                    f"{result.get('console_url')} (protocol: {result.get('protocol')})"
+                )
+            return 0
+
+        else:
+            raise ValueError(f"Unknown verb: {args.verb}")
+
+    except (SecurityError, ValueError, ConnectionError, RuntimeError) as e:
+        if getattr(args, "json", False):
+            err_dict = {
+                "status": "error",
+                "success": False,
+                "error": str(e),
+                "error_type": e.__class__.__name__,
+            }
+            print(json.dumps(err_dict, indent=2))
+        else:
+            sys.stderr.write(f"Error: {e}\n")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

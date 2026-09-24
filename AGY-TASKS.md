@@ -14942,8 +14942,8 @@ makes that table generated so the two cannot diverge again.
 
 ## AGY-2125 -- Composefs fs-verity root filesystem sealing and atomic image descriptor validator  (WS-BOOT | P1 | M)
 **Goal:** Mount immutable /usr using Composefs and fs-verity block-level signature verification.
-**What+How:** Implement `automation/91-composefs-seal.sh`. Enable `composefs=yes` in ostree configuration, generate fs-verity digests for all baked `/usr` files, and seal the root descriptor hash in initramfs cmdline.
-**Where:** automation/91-composefs-seal.sh, Containerfile
+**What+How:** Implement `automation/93-composefs-seal.sh`. Enable `composefs=yes` in ostree configuration, generate fs-verity digests for all baked `/usr` files, and seal the root descriptor hash in initramfs cmdline.
+**Where:** automation/93-composefs-seal.sh, Containerfile
 **Verify:** Attempt to modify a binary in `/usr/bin/`; verify filesystem write returns read-only error and tampered blocks return `EIO`.
 **Do NOT:** Allow unverified or unsigned composefs image descriptors in production bootloader entries.
 **Done When:** Composefs seals the root filesystem and fs-verity blocks runtime binary modifications.

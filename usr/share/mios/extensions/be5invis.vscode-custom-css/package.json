@@ -1,0 +1,83 @@
+{
+	"name": "vscode-custom-css",
+	"displayName": "Custom CSS and JS Loader",
+	"description": "Custom CSS and JS for Visual Studio Code",
+	"version": "7.5.1",
+	"main": "./dist/extension.js",
+	"publisher": "s-h-a-d-o-w",
+	"packageManager": "pnpm@10.29.3",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/s-h-a-d-o-w/vscode-custom-css"
+	},
+	"scripts": {
+		"build": "esbuild src/extension.js --external:vscode --platform=node --bundle --minify --outfile=dist/extension.js && esbuild src/statusbar.js --platform=browser --bundle --minify --outfile=dist/statusbar.js",
+		"package": "pnpm dlx @vscode/vsce package --no-dependencies --allow-star-activation",
+		"vscode:prepublish": "pnpm build"
+	},
+	"engines": {
+		"vscode": "^1.93.0"
+	},
+	"contributes": {
+		"commands": [
+			{
+				"command": "extension.installCustomCSS",
+				"title": "Enable Custom CSS and JS"
+			},
+			{
+				"command": "extension.uninstallCustomCSS",
+				"title": "Disable Custom CSS and JS"
+			},
+			{
+				"command": "extension.updateCustomCSS",
+				"title": "Reload Custom CSS and JS"
+			}
+		],
+		"configuration": {
+			"title": "Custom CSS/JS Configuration",
+			"properties": {
+				"vscode_custom_css.imports": {
+					"description": "Custom CSS/JS files, as an array of URLs, not file paths",
+					"type": "array",
+					"default": []
+				},
+				"vscode_custom_css.statusbar": {
+					"description": "Enable Status Indicator",
+					"type": "boolean",
+					"default": true
+				}
+			}
+		}
+	},
+	"extensionKind": [
+		"ui"
+	],
+	"preview": true,
+	"icon": "images/logo.png",
+	"galleryBanner": {
+		"color": "#EEEEEE"
+	},
+	"activationEvents": [
+		"*"
+	],
+	"categories": [
+		"Other",
+		"Themes"
+	],
+	"devDependencies": {
+		"@eslint/compat": "^1.4.1",
+		"@eslint/js": "^9.17.0",
+		"@types/node": "^24.10.15",
+		"@types/vscode": "^1.93.0",
+		"esbuild": "^0.27.3",
+		"eslint": "^9.19.0",
+		"eslint-config-prettier": "^9.1.0",
+		"eslint-plugin-prettier": "^5.2.1",
+		"globals": "^17.3.0",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.56.1"
+	},
+	"dependencies": {
+		"uuid": "^8.3.2"
+	}
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=MiOS RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding Daemon
+Documentation=file:///usr/share/doc/mios/manual/ch20-remote-attestation.md
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/mios-attest-server serve
+Restart=always
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

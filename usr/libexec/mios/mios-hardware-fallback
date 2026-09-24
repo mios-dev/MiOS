@@ -1,0 +1,700 @@
+#!/usr/bin/env python3
+# AI-hint: Automated network and audio fallback manager with operator desktop alert daemon (T-532, AGY-2130).
+# AI-doc: usr/share/doc/mios/manual/ch21-hardware-fallback.md
+"""
+Automated network and audio fallback manager with operator desktop alert daemon.
+Inspects degraded peripheral statuses from /var/log/mios-hardware-degrade.log or live sysfs/proc probes.
+Triggers automated network failover (secondary NIC, USB tethering) and dynamic PipeWire null-sink binding
+when physical soundcards or primary network interfaces are missing or degraded. Dispatches operator desktop
+notifications with driver and firmware remediation guidance.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import glob
+import json
+import logging
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+DEFAULT_DEGRADE_LOG = os.environ.get("MIOS_HARDWARE_DEGRADE_LOG", "/var/log/mios-hardware-degrade.log")
+DEFAULT_STATE_FILE = os.environ.get("MIOS_FALLBACK_STATE_FILE", "/tmp/mios-hardware-fallback-state.json")
+DEFAULT_NOTIF_LOG = os.environ.get("MIOS_FALLBACK_NOTIF_LOG", "/tmp/mios-hardware-fallback-notifications.log")
+
+PIPEWIRE_CONF_USER_DIR = Path.home() / ".config" / "pipewire" / "pipewire.conf.d"
+FALLBACK_NULL_SINK_NAME = "mios-null-sink"
+
+logger = logging.getLogger("mios-hardware-fallback")
+
+
+class HardwareFallbackManager:
+    """Manages detection of degraded peripherals, auto-failover activation, and operator alerting."""
+
+    def __init__(
+        self,
+        degrade_log: str = DEFAULT_DEGRADE_LOG,
+        state_file: str = DEFAULT_STATE_FILE,
+        notif_log: str = DEFAULT_NOTIF_LOG,
+        mock: bool = False,
+        dry_run: bool = False,
+        verbose: bool = False,
+    ) -> None:
+        self.degrade_log = degrade_log
+        self.state_file = state_file
+        self.notif_log = notif_log
+        self.mock = mock
+        self.dry_run = dry_run
+        self.verbose = verbose
+
+        log_level = logging.DEBUG if verbose else logging.INFO
+        logging.basicConfig(
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            level=log_level,
+        )
+
+    # -------------------------------------------------------------------------
+    # Peripheral Status Assessment
+    # -------------------------------------------------------------------------
+
+    def read_degrade_log(self) -> Optional[Dict[str, Any]]:
+        """Parses the most recent entry from mios-hardware-degrade.log."""
+        if not os.path.isfile(self.degrade_log):
+            if self.verbose:
+                logger.debug("Degrade log file '%s' does not exist", self.degrade_log)
+            return None
+
+        try:
+            with open(self.degrade_log, "r", encoding="utf-8", errors="replace") as fh:
+                lines = [line.strip() for line in fh if line.strip()]
+
+            # Read backwards to find the latest valid json payload
+            for line in reversed(lines):
+                if "|" in line:
+                    parts = line.split("|", 1)
+                    raw_json = parts[1].strip()
+                    try:
+                        data = json.loads(raw_json)
+                        if isinstance(data, dict) and "subsystems" in data:
+                            return data
+                    except json.JSONDecodeError:
+                        continue
+        except Exception as exc:
+            logger.warning("Failed parsing degrade log '%s': %s", self.degrade_log, exc)
+
+        return None
+
+    def probe_live_hardware(self) -> Dict[str, Any]:
+        """Probes live kernel interfaces when no degradation log is available."""
+        if self.mock:
+            return {
+                "overall_status": "degraded",
+                "subsystems": {
+                    "network": {
+                        "status": "degraded",
+                        "details": "Mock live probe: primary network controller down",
+                    },
+                    "audio": {
+                        "status": "degraded",
+                        "details": "Mock live probe: no soundcards detected",
+                    },
+                    "display": {
+                        "status": "healthy",
+                        "details": "Mock live probe: DRM card0 present",
+                    },
+                },
+            }
+
+        # 1. Probe Network
+        net_status = "healthy"
+        net_details = "Network interfaces active"
+        try:
+            sys_net = Path("/sys/class/net")
+            active_ifaces = []
+            down_ifaces = []
+            if sys_net.exists():
+                for iface in sys_net.iterdir():
+                    name = iface.name
+                    if name in ("lo",) or name.startswith("wg"):
+                        continue
+                    oper_file = iface / "operstate"
+                    if oper_file.exists():
+                        state = oper_file.read_text().strip().lower()
+                        if state in ("up", "unknown"):
+                            active_ifaces.append(name)
+                        else:
+                            down_ifaces.append(name)
+                    else:
+                        down_ifaces.append(name)
+
+            if not active_ifaces:
+                net_status = "degraded"
+                net_details = f"No active network interfaces detected (down: {down_ifaces})"
+            else:
+                net_details = f"Active network interfaces: {', '.join(active_ifaces)}"
+        except Exception as exc:
+            net_status = "degraded"
+            net_details = f"Network probe failed: {exc}"
+
+        # 2. Probe Audio
+        audio_status = "healthy"
+        audio_details = "ALSA soundcards present"
+        try:
+            asound_file = Path("/proc/asound/cards")
+            if not asound_file.exists():
+                audio_status = "degraded"
+                audio_details = "/proc/asound/cards does not exist (ALSA driver missing or uninitialized)"
+            else:
+                content = asound_file.read_text().strip()
+                if not content or "no soundcards" in content.lower():
+                    audio_status = "degraded"
+                    audio_details = "No soundcards found in /proc/asound/cards"
+                else:
+                    audio_details = f"ALSA cards detected: {content.splitlines()[0]}"
+        except Exception as exc:
+            audio_status = "degraded"
+            audio_details = f"Audio probe failed: {exc}"
+
+        # 3. Probe Display
+        display_status = "healthy"
+        display_details = "DRM display endpoints present"
+        try:
+            dri_dir = Path("/dev/dri")
+            drm_cards = list(dri_dir.glob("card*")) if dri_dir.exists() else []
+            if not drm_cards:
+                display_status = "degraded"
+                display_details = "No DRM card nodes in /dev/dri"
+            else:
+                display_details = f"DRM card nodes: {', '.join(c.name for c in drm_cards)}"
+        except Exception as exc:
+            display_status = "degraded"
+            display_details = f"Display probe failed: {exc}"
+
+        overall = "degraded" if any(s == "degraded" for s in (net_status, audio_status, display_status)) else "nominal"
+        return {
+            "overall_status": overall,
+            "subsystems": {
+                "network": {"status": net_status, "details": net_details},
+                "audio": {"status": audio_status, "details": audio_details},
+                "display": {"status": display_status, "details": display_details},
+            },
+        }
+
+    def assess_hardware_state(self) -> Dict[str, Any]:
+        """Obtains peripheral state either from degradation log or live probe."""
+        # If in mock mode and using default log, prefer mock degraded probe for end-to-end testing
+        if self.mock and (self.degrade_log == DEFAULT_DEGRADE_LOG or not os.path.isfile(self.degrade_log)):
+            if self.verbose:
+                logger.debug("Mock mode active: using simulated peripheral degradation")
+            return self.probe_live_hardware()
+
+        log_data = self.read_degrade_log()
+        if log_data and "subsystems" in log_data:
+            if self.verbose:
+                logger.debug("Read hardware state from log '%s'", self.degrade_log)
+            return log_data
+
+        if self.verbose:
+            logger.debug("Probing live system devices")
+        return self.probe_live_hardware()
+
+    # -------------------------------------------------------------------------
+    # Network Fallback Action
+    # -------------------------------------------------------------------------
+
+    def discover_alternative_interfaces(self) -> List[str]:
+        """Finds secondary or auxiliary interfaces suitable for network fallback."""
+        if self.mock:
+            return ["usb0", "eth1", "enp0s8"]
+
+        candidates = []
+        sys_net = Path("/sys/class/net")
+        if sys_net.exists():
+            for iface in sys_net.iterdir():
+                name = iface.name
+                if name in ("lo",) or name.startswith("wg") or name.startswith("veth"):
+                    continue
+                # Match Ethernet, USB tethering (rndis, cdc-ether, enx), secondary nics
+                candidates.append(name)
+
+        # Prioritize USB tethering (usb, rndis, enx) and secondary ethernet (eth1, enp*)
+        preferred = sorted(
+            candidates,
+            key=lambda n: (
+                0 if (n.startswith("usb") or n.startswith("rndis") or n.startswith("enx")) else
+                1 if (n.startswith("eth1") or "enp" in n) else 2
+            )
+        )
+        return preferred
+
+    def apply_network_fallback(self, degraded_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Executes automated network failover to secondary NIC or USB tethering."""
+        alt_ifaces = self.discover_alternative_interfaces()
+        chosen_iface = alt_ifaces[0] if alt_ifaces else "usb0"
+
+        logger.info(
+            "Applying network fallback: attempting activation of alternative interface '%s'",
+            chosen_iface,
+        )
+
+        activation_success = True
+        cmd_run = "simulated"
+
+        if not self.dry_run and not self.mock:
+            # Attempt auto-activation via nmcli or ip
+            nmcli = shutil.which("nmcli")
+            ip_cmd = shutil.which("ip")
+
+            if nmcli:
+                cmd_run = f"nmcli device connect {chosen_iface}"
+                res = subprocess.run([nmcli, "device", "connect", chosen_iface], capture_output=True, text=True)
+                activation_success = (res.returncode == 0)
+            elif ip_cmd:
+                cmd_run = f"ip link set {chosen_iface} up"
+                res = subprocess.run([ip_cmd, "link", "set", chosen_iface, "up"], capture_output=True, text=True)
+                activation_success = (res.returncode == 0)
+            else:
+                cmd_run = "manual fallback binding"
+        else:
+            cmd_run = f"[DRY-RUN/MOCK] ip link set {chosen_iface} up"
+
+        return {
+            "fallback_active": True,
+            "chosen_interface": chosen_iface,
+            "alternative_candidates": alt_ifaces,
+            "activation_success": activation_success,
+            "command": cmd_run,
+            "details": degraded_info.get("details", "Primary interface down or absent"),
+        }
+
+    # -------------------------------------------------------------------------
+    # Audio Fallback Action
+    # -------------------------------------------------------------------------
+
+    def apply_audio_fallback(self, degraded_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Binds PipeWire null-sink or loads module-null-sink to prevent media app lockups."""
+        logger.info(
+            "Applying audio fallback: loading PipeWire null-sink '%s'",
+            FALLBACK_NULL_SINK_NAME,
+        )
+
+        sink_loaded = True
+        method_used = "pipewire_conf_dropin"
+
+        if not self.dry_run and not self.mock:
+            pactl = shutil.which("pactl")
+            pw_cli = shutil.which("pw-cli")
+
+            # 1. Try pactl load-module module-null-sink
+            if pactl:
+                res = subprocess.run(
+                    [
+                        pactl,
+                        "load-module",
+                        "module-null-sink",
+                        f"sink_name={FALLBACK_NULL_SINK_NAME}",
+                        'sink_properties=device.description="MiOS_Fallback_Null_Sink"',
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+                if res.returncode == 0:
+                    method_used = "pactl_module_null_sink"
+                    sink_loaded = True
+
+            # 2. Try pw-cli create-node
+            elif pw_cli:
+                node_spec = (
+                    f"{{ factory.name=support.null-audio-sink node.name={FALLBACK_NULL_SINK_NAME} "
+                    f"media.class=Audio/Sink object.linger=true }}"
+                )
+                res = subprocess.run([pw_cli, "create-node", "adapter", node_spec], capture_output=True, text=True)
+                if res.returncode == 0:
+                    method_used = "pw_cli_create_node"
+                    sink_loaded = True
+
+            # 3. Write PipeWire drop-in configuration
+            try:
+                PIPEWIRE_CONF_USER_DIR.mkdir(parents=True, exist_ok=True)
+                conf_file = PIPEWIRE_CONF_USER_DIR / "99-fallback-null-sink.conf"
+                conf_content = f"""# AI-hint: MiOS fallback null-sink configuration (T-532).
+context.objects = [
+    {{ factory = adapter
+      args = {{
+          factory.name = support.null-audio-sink
+          node.name = "{FALLBACK_NULL_SINK_NAME}"
+          node.description = "MiOS Fallback Null Sink"
+          media.class = Audio/Sink
+          object.linger = true
+      }}
+    }}
+]
+"""
+                conf_file.write_text(conf_content, encoding="utf-8")
+                method_used = f"dropin_conf:{conf_file}"
+                sink_loaded = True
+            except Exception as exc:
+                if method_used == "pipewire_conf_dropin":
+                    logger.warning("Could not write PipeWire dropin: %s", exc)
+        else:
+            method_used = "[DRY-RUN/MOCK] PipeWire null-sink bound"
+
+        return {
+            "fallback_active": True,
+            "sink_name": FALLBACK_NULL_SINK_NAME,
+            "method": method_used,
+            "sink_loaded": sink_loaded,
+            "details": degraded_info.get("details", "ALSA soundcard absent or uninitialized"),
+        }
+
+    # -------------------------------------------------------------------------
+    # Operator Desktop Alerts
+    # -------------------------------------------------------------------------
+
+    def dispatch_alert(self, summary: str, body: str, urgency: str = "critical") -> bool:
+        """Dispatches an operator desktop alert via notify-send or DBus with fallback to log."""
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        notif_entry = {
+            "timestamp": timestamp,
+            "summary": summary,
+            "body": body,
+            "urgency": urgency,
+            "dispatched_via": "log",
+        }
+
+        logger.warning("DESKTOP ALERT: [%s] %s -- %s", urgency.upper(), summary, body)
+
+        delivered = False
+
+        if not self.dry_run and not self.mock:
+            # 1. Attempt notify-send
+            notify_send = shutil.which("notify-send")
+            if notify_send and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DBUS_SESSION_BUS_ADDRESS")):
+                try:
+                    res = subprocess.run(
+                        [
+                            notify_send,
+                            "-u",
+                            urgency,
+                            "-a",
+                            "MiOS Hardware Fallback",
+                            "-i",
+                            "dialog-warning",
+                            summary,
+                            body,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if res.returncode == 0:
+                        notif_entry["dispatched_via"] = "notify-send"
+                        delivered = True
+                except Exception as exc:
+                    logger.debug("notify-send failed: %s", exc)
+
+            # 2. Attempt gdbus / dbus-send if notify-send wasn't delivered
+            if not delivered and shutil.which("gdbus") and os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+                try:
+                    cmd = [
+                        "gdbus",
+                        "call",
+                        "--session",
+                        "--dest",
+                        "org.freedesktop.Notifications",
+                        "--object-path",
+                        "/org/freedesktop/Notifications",
+                        "--method",
+                        "org.freedesktop.Notifications.Notify",
+                        "MiOS Hardware Fallback",
+                        "0",
+                        "dialog-warning",
+                        summary,
+                        body,
+                        "[]",
+                        "{}",
+                        "5000",
+                    ]
+                    res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                    if res.returncode == 0:
+                        notif_entry["dispatched_via"] = "gdbus"
+                        delivered = True
+                except Exception as exc:
+                    logger.debug("gdbus notify failed: %s", exc)
+        else:
+            notif_entry["dispatched_via"] = "mock_dispatcher"
+            delivered = True
+
+        # Always record to notification log file for auditing and verification
+        try:
+            notif_path = Path(self.notif_log)
+            notif_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(notif_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(notif_entry) + "\n")
+        except Exception as exc:
+            logger.warning("Could not write notification to '%s': %s", self.notif_log, exc)
+
+        return delivered
+
+    # -------------------------------------------------------------------------
+    # Core Evaluation Loop
+    # -------------------------------------------------------------------------
+
+    def evaluate(self) -> Dict[str, Any]:
+        """Evaluates hardware degradation status, applies network/audio fallbacks, and alerts."""
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        hw_state = self.assess_hardware_state()
+        subsystems = hw_state.get("subsystems", {})
+
+        net_info = subsystems.get("network", {})
+        audio_info = subsystems.get("audio", {})
+        display_info = subsystems.get("display", {})
+
+        result: Dict[str, Any] = {
+            "timestamp": now_iso,
+            "overall_status": hw_state.get("overall_status", "nominal"),
+            "fallbacks_applied": False,
+            "network_fallback": {"fallback_active": False},
+            "audio_fallback": {"fallback_active": False},
+            "display_fallback": {"fallback_active": False},
+            "alerts_dispatched": [],
+        }
+
+        # 1. Network Degradation & Fallback
+        if net_info.get("status") == "degraded":
+            net_res = self.apply_network_fallback(net_info)
+            result["network_fallback"] = net_res
+            result["fallbacks_applied"] = True
+
+            summary = "MiOS Hardware Alert: Network Degraded"
+            body = (
+                f"Primary network controller is down or unavailable. "
+                f"Activated fallback interface '{net_res['chosen_interface']}'. "
+                f"Remediation: Verify physical link, antenna, or install firmware (linux-firmware)."
+            )
+            self.dispatch_alert(summary, body, urgency="critical")
+            result["alerts_dispatched"].append(summary)
+        else:
+            result["network_fallback"]["message"] = net_info.get("details", "Network operational")
+
+        # 2. Audio Degradation & Fallback
+        if audio_info.get("status") == "degraded":
+            audio_res = self.apply_audio_fallback(audio_info)
+            result["audio_fallback"] = audio_res
+            result["fallbacks_applied"] = True
+
+            summary = "MiOS Hardware Alert: Audio Degraded"
+            body = (
+                f"No physical soundcard detected. Bound PipeWire null-sink '{FALLBACK_NULL_SINK_NAME}' "
+                f"to prevent media applications from freezing. "
+                f"Remediation: Verify ALSA/SOF audio DSP firmware (alsa-sof-firmware)."
+            )
+            self.dispatch_alert(summary, body, urgency="normal")
+            result["alerts_dispatched"].append(summary)
+        else:
+            result["audio_fallback"]["message"] = audio_info.get("details", "Audio operational")
+
+        # 3. Display Degradation Alert (Non-blocking)
+        if display_info.get("status") == "degraded":
+            result["display_fallback"] = {
+                "fallback_active": True,
+                "mode": "headless_rendering",
+                "details": display_info.get("details", "DRM card missing"),
+            }
+            summary = "MiOS Hardware Alert: Display Degraded"
+            body = (
+                f"DRM GPU card endpoint not detected; operating in headless mode. "
+                f"Remediation: Verify GPU passthrough (VFIO) or kernel DRM drivers."
+            )
+            self.dispatch_alert(summary, body, urgency="low")
+            result["alerts_dispatched"].append(summary)
+        else:
+            result["display_fallback"]["message"] = display_info.get("details", "Display operational")
+
+        # Save state file
+        if not self.dry_run:
+            try:
+                state_p = Path(self.state_file)
+                state_p.parent.mkdir(parents=True, exist_ok=True)
+                state_p.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+                if self.verbose:
+                    logger.debug("Wrote fallback state to '%s'", self.state_file)
+            except Exception as exc:
+                logger.warning("Failed writing state file '%s': %s", self.state_file, exc)
+
+        return result
+
+    def get_status(self) -> Dict[str, Any]:
+        """Returns current active fallback state."""
+        if os.path.isfile(self.state_file):
+            try:
+                with open(self.state_file, "r", encoding="utf-8") as fh:
+                    return json.load(fh)
+            except Exception as exc:
+                logger.debug("Failed reading state file: %s", exc)
+
+        # Fallback to fresh evaluation
+        return self.evaluate()
+
+
+# -----------------------------------------------------------------------------
+# CLI Subcommands & Main
+# -----------------------------------------------------------------------------
+
+
+def cmd_evaluate(mgr: HardwareFallbackManager, args: argparse.Namespace) -> int:
+    res = mgr.evaluate()
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        status_str = res.get("overall_status", "nominal").upper()
+        fallbacks = "ACTIVE" if res.get("fallbacks_applied") else "INACTIVE"
+        print(f"Hardware Status: {status_str} | Fallbacks: {fallbacks}")
+        if res.get("network_fallback", {}).get("fallback_active"):
+            chosen = res["network_fallback"].get("chosen_interface", "unknown")
+            print(f"  [!] Network Fallback Active: auto-activated '{chosen}'")
+        if res.get("audio_fallback", {}).get("fallback_active"):
+            sink = res["audio_fallback"].get("sink_name", FALLBACK_NULL_SINK_NAME)
+            print(f"  [!] Audio Fallback Active: PipeWire null-sink '{sink}' loaded")
+        if res.get("display_fallback", {}).get("fallback_active"):
+            print(f"  [!] Display Fallback Active: headless rendering fallback")
+        if not res.get("fallbacks_applied"):
+            print("  [*] All monitored hardware components are nominal. No fallback required.")
+    return 0
+
+
+def cmd_status(mgr: HardwareFallbackManager, args: argparse.Namespace) -> int:
+    st = mgr.get_status()
+    if args.json:
+        print(json.dumps(st, indent=2))
+        return 0
+
+    print("=== MiOS Hardware Fallback Manager Status ===")
+    print(f"Evaluated At:     {st.get('timestamp', 'unknown')}")
+    print(f"Hardware State:   {st.get('overall_status', 'nominal').upper()}")
+    print(f"Fallbacks Active: {st.get('fallbacks_applied', False)}")
+
+    net_fb = st.get("network_fallback", {})
+    if net_fb.get("fallback_active"):
+        print(f"  Network: ACTIVE (Fallback NIC: {net_fb.get('chosen_interface')})")
+    else:
+        print(f"  Network: Nominal ({net_fb.get('message', 'OK')})")
+
+    aud_fb = st.get("audio_fallback", {})
+    if aud_fb.get("fallback_active"):
+        print(f"  Audio:   ACTIVE (PipeWire Null Sink: {aud_fb.get('sink_name')})")
+    else:
+        print(f"  Audio:   Nominal ({aud_fb.get('message', 'OK')})")
+
+    disp_fb = st.get("display_fallback", {})
+    if disp_fb.get("fallback_active"):
+        print(f"  Display: ACTIVE ({disp_fb.get('mode', 'headless')})")
+    else:
+        print(f"  Display: Nominal ({disp_fb.get('message', 'OK')})")
+
+    alerts = st.get("alerts_dispatched", [])
+    print(f"Alerts Dispatched: {len(alerts)}")
+    for a in alerts:
+        print(f"  - {a}")
+
+    return 0
+
+
+def cmd_daemon(mgr: HardwareFallbackManager, args: argparse.Namespace) -> int:
+    interval = getattr(args, "interval", 10)
+    logger.info("Starting mios-hardware-fallback daemon (poll interval: %ds)...", interval)
+
+    stop_requested = False
+
+    def handle_signal(sig, frame):
+        nonlocal stop_requested
+        logger.info("Shutdown signal received (%d). Terminating daemon...", sig)
+        stop_requested = True
+
+    signal.signal(signal.SIGINT, handle_signal)
+    signal.signal(signal.SIGTERM, handle_signal)
+
+    while not stop_requested:
+        try:
+            mgr.evaluate()
+        except Exception as exc:
+            logger.error("Error during evaluation cycle: %s", exc)
+
+        # Sleep interval in small chunks to respond quickly to signals
+        elapsed = 0
+        while elapsed < interval and not stop_requested:
+            time.sleep(0.5)
+            elapsed += 0.5
+
+    logger.info("Daemon cleanly stopped.")
+    return 0
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("--mock", action="store_true", help="Run with mock hardware degradation fixtures")
+    common_parser.add_argument("--dry-run", action="store_true", help="Simulate fallback actions without changing state")
+    common_parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose diagnostic logging")
+    common_parser.add_argument("--degrade-log", default=DEFAULT_DEGRADE_LOG, help="Path to hardware degradation log")
+    common_parser.add_argument("--state-file", default=DEFAULT_STATE_FILE, help="Path to fallback state JSON file")
+    common_parser.add_argument("--notif-log", default=DEFAULT_NOTIF_LOG, help="Path to notification recording log")
+    common_parser.add_argument("--json", action="store_true", help="Output status or evaluation in JSON format")
+
+    parser = argparse.ArgumentParser(
+        prog="mios-hardware-fallback",
+        description="Automated network and audio fallback manager with operator desktop alert daemon (T-532, AGY-2130).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[common_parser],
+    )
+
+    subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
+
+    # Subcommand: evaluate
+    p_eval = subparsers.add_parser("evaluate", parents=[common_parser], help="Evaluate hardware state and apply fallbacks")
+
+    # Subcommand: status
+    p_status = subparsers.add_parser("status", parents=[common_parser], help="Print current active fallback states")
+
+    # Subcommand: daemon
+    p_daemon = subparsers.add_parser("daemon", parents=[common_parser], help="Run background evaluation loop daemon")
+    p_daemon.add_argument("--interval", type=int, default=10, help="Evaluation cycle interval in seconds (default: 10)")
+
+    if not argv:
+        parser.print_help()
+        return 0
+
+    args = parser.parse_args(argv)
+
+    mgr = HardwareFallbackManager(
+        degrade_log=args.degrade_log,
+        state_file=args.state_file,
+        notif_log=args.notif_log,
+        mock=args.mock,
+        dry_run=args.dry_run,
+        verbose=args.verbose,
+    )
+
+    if args.subcommand == "evaluate":
+        return cmd_evaluate(mgr, args)
+    elif args.subcommand == "status":
+        return cmd_status(mgr, args)
+    elif args.subcommand == "daemon":
+        return cmd_daemon(mgr, args)
+    else:
+        parser.print_help()
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

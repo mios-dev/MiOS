@@ -1,0 +1,16 @@
+# AI-hint: Automated network and audio fallback manager with operator desktop alert daemon (T-532, AGY-2130).
+# AI-doc: usr/share/doc/mios/manual/ch21-hardware-fallback.md
+[Unit]
+Description='MiOS' Automated Network and Audio Fallback Manager
+Documentation=file:///usr/share/doc/mios/manual/ch21-hardware-fallback.md
+After=graphical-session.target pipewire.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/mios-hardware-fallback evaluate
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=graphical-session.target

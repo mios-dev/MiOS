@@ -1,0 +1,13 @@
+[Unit]
+Description=Hourly CephFS delta snapshot and mesh replication for user %i
+Documentation=man:mios-user-cephfs(8)
+After=network-online.target ceph.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-user-cephfs snapshot %i --auto
+ExecStartPost=/usr/libexec/mios/mios-user-cephfs replicate %i --auto
+TimeoutSec=300
+StandardOutput=journal
+StandardError=journal

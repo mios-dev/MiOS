@@ -206,6 +206,7 @@ NON_FATAL_SCRIPTS="
   27-vm-gating.sh
   14-podman-machine-compat.sh
   53-enable-log-copy-service.sh
+  93-composefs-seal.sh
   91-strip-build-toolchain.sh
   65-bake-hyprland.sh
   66-bake-quickshell.sh

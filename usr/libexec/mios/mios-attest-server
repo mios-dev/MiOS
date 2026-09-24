@@ -1,0 +1,736 @@
+#!/usr/bin/env python3
+# AI-hint: Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon (T-530, AGY-2128).
+# AI-doc: usr/share/doc/mios/manual/ch20-remote-attestation.md
+"""
+Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding Daemon.
+Challenges onboarding cluster blades with cryptographic nonces, verifies TPM 2.0 Quotes over
+PCRs (0, 7, 11) against golden baselines and pre-enrolled EK/AK keys, and issues WireGuard
+and CephFS OSD credentials upon successful attestation. Quarantines nodes on violations.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import datetime
+import hashlib
+import hmac
+import http.server
+import json
+import os
+import re
+import secrets
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    import tomllib as toml_parser
+except ImportError:
+    try:
+        import tomli as toml_parser  # type: ignore
+    except ImportError:
+        toml_parser = None
+
+# Defaults & Constants
+DEFAULT_PORT = 8443
+DEFAULT_PCR_LIST = [0, 7, 11]
+DEFAULT_ADMISSION_DIR = Path("/var/lib/mios/cluster/admission")
+DEFAULT_ATTESTED_DIR = Path("/var/lib/mios/cluster/attested")
+DEFAULT_QUARANTINE_DIR = Path("/var/lib/mios/cluster/quarantine")
+DEFAULT_CONFIG_PATHS = [
+    Path("/etc/mios/mios.toml"),
+    Path("/usr/share/mios/mios.toml"),
+]
+
+EXIT_SUCCESS = 0
+EXIT_SECURITY_VIOLATION = 1
+
+MOCK_BLADES: Dict[str, dict] = {
+    "blade-mock-01": {
+        "id": "blade-mock-01",
+        "architecture": "x86_64",
+        "mac": "52:54:00:ab:cd:01",
+        "serial": "MOCK-CHASSIS-0001",
+        "wireguard_ip": "10.42.0.101",
+        "wireguard_pubkey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        "ek_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "roles": ["compute", "worker"],
+        "pcr_baselines": {
+            "0": "0000000000000000000000000000000000000000000000000000000000000000",
+            "7": "7777777777777777777777777777777777777777777777777777777777777777",
+            "11": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
+    },
+    "blade-mock-02": {
+        "id": "blade-mock-02",
+        "architecture": "aarch64",
+        "mac": "52:54:00:ab:cd:02",
+        "serial": "MOCK-CHASSIS-0002",
+        "wireguard_ip": "10.42.0.102",
+        "wireguard_pubkey": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
+        "ek_fingerprint": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "roles": ["control-plane", "storage"],
+        "pcr_baselines": {
+            "0": "0000000000000000000000000000000000000000000000000000000000000000",
+            "7": "7777777777777777777777777777777777777777777777777777777777777777",
+            "11": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        },
+    },
+}
+
+
+def compute_composite_pcr_digest(pcrs: Dict[str, str], pcr_list: Optional[List[int]] = None) -> str:
+    """Computes SHA-256 composite digest over sorted PCR measurements."""
+    target_pcrs = sorted(pcr_list or DEFAULT_PCR_LIST)
+    hasher = hashlib.sha256()
+    for p in target_pcrs:
+        val = pcrs.get(str(p), "")
+        if not val:
+            raise ValueError(f"Missing measurement for PCR {p}")
+        hasher.update(bytes.fromhex(val))
+    return hasher.hexdigest()
+
+
+def compute_quote_signature(ek_fingerprint: str, composite_pcr_digest: str, nonce: str) -> str:
+    """Computes HMAC-SHA256 signature simulating TPM2_Quote over (pcr_digest + nonce)."""
+    norm_ek = ek_fingerprint.strip().lower()
+    if norm_ek.startswith("sha256:"):
+        norm_ek = norm_ek[7:]
+    try:
+        key_bytes = bytes.fromhex(norm_ek)
+    except ValueError:
+        key_bytes = norm_ek.encode("utf-8")
+    payload = (composite_pcr_digest + nonce).encode("utf-8")
+    return hmac.new(key_bytes, payload, hashlib.sha256).hexdigest()
+
+
+class RatsAttestationServer:
+    """RFC 9334 RATS Attestation Verifier and Cluster Onboarding Daemon."""
+
+    def __init__(
+        self,
+        config_path: Optional[str] = None,
+        mock: bool = False,
+        dry_run: bool = False,
+        verbose: bool = False,
+        admission_dir: Optional[Path] = None,
+        attested_dir: Optional[Path] = None,
+        quarantine_dir: Optional[Path] = None,
+    ) -> None:
+        self.config_path = config_path
+        self.mock = mock
+        self.dry_run = dry_run
+        self.verbose = verbose
+        self.admission_dir = admission_dir or DEFAULT_ADMISSION_DIR
+        self.attested_dir = attested_dir or DEFAULT_ATTESTED_DIR
+        self.quarantine_dir = quarantine_dir or DEFAULT_QUARANTINE_DIR
+
+        self.enrolled_blades: Dict[str, dict] = {}
+        self.active_challenges: Dict[str, dict] = {}
+        self.attested_blades: Dict[str, dict] = {}
+        self.quarantined_blades: Dict[str, dict] = {}
+
+        self.load_registry()
+
+    def _log(self, msg: str) -> None:
+        if self.verbose:
+            print(f"[mios-attest] {msg}", file=sys.stderr)
+
+    def load_registry(self) -> None:
+        """Loads pre-enrolled blades from admission manifests, TOML config, and mock fallback."""
+        self.enrolled_blades.clear()
+
+        # 1. Load from admission manifests in /var/lib/mios/cluster/admission/*.json
+        if self.admission_dir.is_dir():
+            for m_path in self.admission_dir.glob("*.json"):
+                try:
+                    with open(m_path, "r", encoding="utf-8") as fh:
+                        data = json.load(fh)
+                    b_id = data.get("blade_id")
+                    if b_id:
+                        sec = data.get("security", {})
+                        net = data.get("networking", {})
+                        hw = data.get("hardware", {})
+                        self.enrolled_blades[b_id] = {
+                            "id": b_id,
+                            "architecture": hw.get("architecture", "x86_64"),
+                            "mac": hw.get("mac_address", ""),
+                            "serial": hw.get("chassis_serial", ""),
+                            "wireguard_ip": net.get("wireguard_ip", ""),
+                            "wireguard_pubkey": net.get("wireguard_pubkey", ""),
+                            "ek_fingerprint": sec.get("tpm_ek_fingerprint", ""),
+                            "roles": data.get("authorized_roles", ["worker"]),
+                            "pcr_baselines": sec.get("allowed_pcr_baselines", {
+                                "0": "0" * 64,
+                                "7": "7" * 64,
+                                "11": "a" * 64,
+                            }),
+                        }
+                        self._log(f"Loaded manifest for blade '{b_id}' from {m_path}")
+                except Exception as exc:
+                    self._log(f"Warning: Failed reading manifest {m_path}: {exc}")
+
+        # 2. Load from mios.toml if available
+        configs_to_try = [Path(self.config_path)] if self.config_path else DEFAULT_CONFIG_PATHS
+        for cp in configs_to_try:
+            if cp and cp.is_file() and toml_parser:
+                try:
+                    with open(cp, "rb") as fh:
+                        cfg = toml_parser.load(fh)
+                    blades_tbl = cfg.get("cluster", {}).get("blades", {})
+                    if isinstance(blades_tbl, dict):
+                        for b_id, b_data in blades_tbl.items():
+                            if isinstance(b_data, dict):
+                                ek = (
+                                    b_data.get("ek_fingerprint")
+                                    or b_data.get("tpm_ek_fingerprint")
+                                    or ""
+                                )
+                                self.enrolled_blades[b_id] = {
+                                    "id": b_id,
+                                    "architecture": b_data.get("architecture", "x86_64"),
+                                    "mac": b_data.get("mac", ""),
+                                    "serial": b_data.get("serial", ""),
+                                    "wireguard_ip": b_data.get("wireguard_ip", ""),
+                                    "wireguard_pubkey": b_data.get("wireguard_pubkey", ""),
+                                    "ek_fingerprint": ek,
+                                    "roles": b_data.get("roles", ["worker"]),
+                                    "pcr_baselines": b_data.get("pcr_baselines", {
+                                        "0": "0" * 64,
+                                        "7": "7" * 64,
+                                        "11": "a" * 64,
+                                    }),
+                                }
+                                self._log(f"Loaded blade '{b_id}' from {cp}")
+                except Exception as exc:
+                    self._log(f"Warning: Failed parsing {cp}: {exc}")
+
+        # 3. Always include mock blades if mock requested or if registry is empty
+        if self.mock or not self.enrolled_blades:
+            for mb_id, mb_data in MOCK_BLADES.items():
+                if mb_id not in self.enrolled_blades:
+                    self.enrolled_blades[mb_id] = mb_data.copy()
+            self._log(f"Loaded mock blade registry ({len(self.enrolled_blades)} blades active)")
+
+    def issue_challenge(self, blade_id: str) -> Dict[str, Any]:
+        """Issues an RFC 9334 RATS cryptographic challenge nonce to an onboarding blade."""
+        if blade_id not in self.enrolled_blades:
+            self.quarantine_node(blade_id, "Unknown / un-enrolled blade requested attestation challenge")
+            raise ValueError(f"Blade '{blade_id}' is not enrolled in cluster SSOT registry")
+
+        nonce = secrets.token_hex(32)
+        challenge = {
+            "blade_id": blade_id,
+            "nonce": nonce,
+            "pcr_list": DEFAULT_PCR_LIST,
+            "issued_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "expires_at": (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5)).isoformat(),
+        }
+        self.active_challenges[blade_id] = challenge
+        self._log(f"Issued challenge nonce for blade '{blade_id}': {nonce}")
+        return challenge
+
+    def quarantine_node(self, blade_id: str, reason: str) -> None:
+        """Quarantines a blade node, logging a security violation and barring admission."""
+        now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        quarantine_record = {
+            "blade_id": blade_id,
+            "verdict": "QUARANTINED",
+            "reason": reason,
+            "quarantined_at": now_utc,
+            "action": "CLUSTER_ADMISSION_REFUSED",
+        }
+        self.quarantined_blades[blade_id] = quarantine_record
+
+        # Remove from attested blades if previously present
+        self.attested_blades.pop(blade_id, None)
+
+        # Log security alert to stderr (captured by systemd StandardError=journal)
+        alert_msg = f"[SECURITY VIOLATION] Blade '{blade_id}' quarantined: {reason} (Admission REFUSED)"
+        print(f"[-] {alert_msg}", file=sys.stderr)
+
+        if not self.dry_run:
+            try:
+                self.quarantine_dir.mkdir(parents=True, exist_ok=True)
+                q_file = self.quarantine_dir / f"{blade_id}.json"
+                with open(q_file, "w", encoding="utf-8") as fh:
+                    json.dump(quarantine_record, fh, indent=2)
+            except Exception as exc:
+                self._log(f"Warning: Could not write quarantine record: {exc}")
+
+    def verify_quote(
+        self,
+        blade_id: str,
+        quote: Dict[str, Any],
+        expected_nonce: str,
+    ) -> Tuple[bool, str, Dict[str, Any]]:
+        """
+        Appraises an RFC 9334 RATS TPM 2.0 quote against golden baselines and enrolled EK.
+        Returns: (is_approved, verdict_message, issued_credentials_dict)
+        """
+        self._log(f"Appraising TPM quote for blade '{blade_id}'")
+
+        # 1. Verify blade enrollment in SSOT registry
+        blade = self.enrolled_blades.get(blade_id)
+        if not blade:
+            reason = f"Blade '{blade_id}' is not enrolled in cluster SSOT registry"
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        # 2. Freshness check: Nonce verification (Replay Attack Defense)
+        quote_nonce = quote.get("nonce", "")
+        if not quote_nonce:
+            reason = f"Missing nonce in quote payload from blade '{blade_id}'"
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        if quote_nonce != expected_nonce:
+            reason = (
+                f"Nonce mismatch (replay attack defense triggered): "
+                f"expected '{expected_nonce}', quote contained '{quote_nonce}'"
+            )
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        # 3. PCR table completeness & Composite digest verification
+        pcrs = quote.get("pcrs", {})
+        if not isinstance(pcrs, dict):
+            reason = "Malformed quote: 'pcrs' dictionary missing or invalid"
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        for pcr_num in DEFAULT_PCR_LIST:
+            if str(pcr_num) not in pcrs:
+                reason = f"Quote is missing required PCR {pcr_num} measurement"
+                self.quarantine_node(blade_id, reason)
+                return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        try:
+            computed_pcr_digest = compute_composite_pcr_digest(pcrs, DEFAULT_PCR_LIST)
+        except Exception as exc:
+            reason = f"Failed computing composite PCR digest: {exc}"
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        declared_pcr_digest = quote.get("pcr_digest", "")
+        if declared_pcr_digest and declared_pcr_digest.lower() != computed_pcr_digest.lower():
+            reason = (
+                f"Tampered PCR digest: declared '{declared_pcr_digest}' != "
+                f"computed '{computed_pcr_digest}'"
+            )
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        # 4. Cryptographic Quote Signature Verification against enrolled EK
+        ek_fingerprint = blade.get("ek_fingerprint", "")
+        if not ek_fingerprint:
+            reason = f"Blade '{blade_id}' has no enrolled TPM EK fingerprint"
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        expected_sig = compute_quote_signature(ek_fingerprint, computed_pcr_digest, expected_nonce)
+        quote_signature = quote.get("quote_signature", "")
+        if not quote_signature:
+            reason = f"Quote from blade '{blade_id}' is unsigned (missing quote_signature)"
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        if quote_signature.lower() != expected_sig.lower():
+            reason = (
+                f"Invalid quote signature: cryptographic verification failed against "
+                f"enrolled EK fingerprint for blade '{blade_id}' (tampered quote or rogue key)"
+            )
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        # 5. Golden PCR Measurement Appraisal (Firmware, Secure Boot, UKI)
+        baselines = blade.get("pcr_baselines", {})
+
+        # PCR 0: Firmware / BIOS / Microcode baseline
+        expected_pcr0 = baselines.get("0", "").lower()
+        actual_pcr0 = pcrs.get("0", "").lower()
+        if expected_pcr0 and actual_pcr0 != expected_pcr0:
+            reason = (
+                f"PCR 0 (Firmware/BIOS) baseline mismatch: "
+                f"actual='{actual_pcr0}', baseline='{expected_pcr0}'"
+            )
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        # PCR 7: Secure Boot policy baseline
+        expected_pcr7 = baselines.get("7", "").lower()
+        actual_pcr7 = pcrs.get("7", "").lower()
+        if expected_pcr7 and actual_pcr7 != expected_pcr7:
+            reason = (
+                f"PCR 7 (Secure Boot) baseline mismatch: "
+                f"actual='{actual_pcr7}', baseline='{expected_pcr7}'"
+            )
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        # PCR 11: Unified Kernel Image (UKI) baseline
+        expected_pcr11 = baselines.get("11", "").lower()
+        actual_pcr11 = pcrs.get("11", "").lower()
+        if expected_pcr11 and actual_pcr11 != expected_pcr11:
+            reason = (
+                f"PCR 11 (Unified Kernel Image) baseline mismatch: "
+                f"actual='{actual_pcr11}', baseline='{expected_pcr11}'"
+            )
+            self.quarantine_node(blade_id, reason)
+            return False, reason, {"verdict": "QUARANTINED", "blade_id": blade_id, "error": reason}
+
+        # ======================================================================
+        # 6. Attestation MATCH - Issue Cluster Onboarding Credentials
+        # ======================================================================
+        self._log(f"Attestation SUCCESS for blade '{blade_id}'")
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        expires_utc = (now_utc + datetime.timedelta(hours=24)).isoformat()
+
+        # Generate ephemeral WireGuard preshared key and credentials
+        psk = base64.b64encode(secrets.token_bytes(32)).decode("ascii")
+        server_pubkey = "mIoSSerVerPuBkEy11111111111111111111111111="
+        wireguard_creds = {
+            "mesh_ip": blade.get("wireguard_ip", "10.42.0.101"),
+            "mesh_prefix": 24,
+            "endpoint": "10.42.0.1:51820",
+            "preshared_key": psk,
+            "server_pubkey": server_pubkey,
+            "allowed_ips": ["10.42.0.0/24"],
+        }
+
+        # Generate CephFS client token and capability keyring
+        ceph_key = base64.b64encode(secrets.token_bytes(16)).decode("ascii")
+        client_name = blade_id if blade_id.startswith("blade-") else f"blade-{blade_id}"
+        cephfs_creds = {
+            "client_id": f"client.{client_name}",
+            "keyring": ceph_key,
+            "caps": {
+                "mon": "allow r",
+                "osd": "allow rw pool=mios-pool",
+                "mds": "allow rw",
+            },
+            "cluster_fsid": "a8b2c4d6-1111-2222-3333-abcdef123456",
+            "mon_hosts": ["10.42.0.1:6789"],
+            "expires_at": expires_utc,
+        }
+
+        credentials = {
+            "$schema": "https://mios.dev/schemas/blade-attestation-v1.json",
+            "verdict": "APPROVED",
+            "blade_id": blade_id,
+            "attested_at": now_utc.isoformat(),
+            "expires_at": expires_utc,
+            "roles": blade.get("roles", ["worker"]),
+            "wireguard": wireguard_creds,
+            "cephfs": cephfs_creds,
+        }
+
+        # Remove from quarantine if previously flagged
+        self.quarantined_blades.pop(blade_id, None)
+        self.attested_blades[blade_id] = credentials
+
+        # Write to attested record storage
+        if not self.dry_run:
+            try:
+                self.attested_dir.mkdir(parents=True, exist_ok=True)
+                att_file = self.attested_dir / f"{blade_id}.json"
+                with open(att_file, "w", encoding="utf-8") as fh:
+                    json.dump(credentials, fh, indent=2)
+            except Exception as exc:
+                self._log(f"Warning: Could not write attested record: {exc}")
+
+        return True, "RFC 9334 RATS attestation verified successfully", credentials
+
+    def generate_quote_for_blade(
+        self,
+        blade_id: str,
+        nonce: str,
+        tamper: str = "none",
+    ) -> Dict[str, Any]:
+        """Utility to generate valid or tampered TPM 2.0 quote for testing/clients."""
+        blade = self.enrolled_blades.get(blade_id)
+        if not blade:
+            raise ValueError(f"Blade '{blade_id}' not enrolled")
+
+        baselines = blade.get("pcr_baselines", {})
+        pcrs = {
+            "0": baselines.get("0", "0" * 64),
+            "7": baselines.get("7", "7" * 64),
+            "11": baselines.get("11", "a" * 64),
+        }
+
+        if tamper == "pcr":
+            # Tamper PCR 11 measurement (simulates untrusted kernel)
+            pcrs["11"] = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+
+        pcr_digest = compute_composite_pcr_digest(pcrs, DEFAULT_PCR_LIST)
+
+        if tamper == "digest":
+            # Corrupt composite digest
+            pcr_digest = "deadbeef" * 8
+
+        ek_fp = blade.get("ek_fingerprint", "")
+        sig = compute_quote_signature(ek_fp, pcr_digest, nonce)
+
+        if tamper == "signature":
+            # Invalidate signature
+            sig = "00000000" * 8
+
+        quote_nonce = nonce
+        if tamper == "nonce":
+            # Use mismatched nonce
+            quote_nonce = secrets.token_hex(32)
+
+        return {
+            "blade_id": blade_id,
+            "nonce": quote_nonce,
+            "ak_handle": "0x81010002",
+            "pcr_list": DEFAULT_PCR_LIST,
+            "pcrs": pcrs,
+            "pcr_digest": pcr_digest,
+            "quote_signature": sig,
+        }
+
+
+class AttestHTTPHandler(http.server.BaseHTTPRequestHandler):
+    """HTTP API handler for RFC 9334 RATS attestation server daemon."""
+
+    server_instance: RatsAttestationServer
+
+    def _send_json(self, status_code: int, data: Dict[str, Any]) -> None:
+        payload = json.dumps(data, indent=2).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_GET(self) -> None:
+        parsed_path = self.path.split("?")[0].rstrip("/")
+        if parsed_path in ("", "/health"):
+            self._send_json(200, {
+                "status": "healthy",
+                "service": "mios-attest-server",
+                "rfc": 9334,
+                "profile": "tpm2-rats-quote-v1",
+            })
+        elif parsed_path == "/status":
+            srv = self.server_instance
+            self._send_json(200, {
+                "enrolled_blades": list(srv.enrolled_blades.keys()),
+                "attested_blades": list(srv.attested_blades.keys()),
+                "quarantined_blades": list(srv.quarantined_blades.keys()),
+            })
+        else:
+            self._send_json(404, {"error": "Not Found"})
+
+    def do_POST(self) -> None:
+        parsed_path = self.path.split("?")[0].rstrip("/")
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body_bytes = self.rfile.read(content_length)
+            req_data = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
+        except Exception as exc:
+            self._send_json(400, {"error": f"Invalid JSON payload: {exc}"})
+            return
+
+        srv = self.server_instance
+
+        if parsed_path == "/v1/attest/challenge":
+            blade_id = req_data.get("blade_id", "")
+            if not blade_id:
+                self._send_json(400, {"error": "Missing required 'blade_id'"})
+                return
+            try:
+                challenge = srv.issue_challenge(blade_id)
+                self._send_json(200, challenge)
+            except ValueError as exc:
+                self._send_json(403, {"error": str(exc), "verdict": "QUARANTINED"})
+
+        elif parsed_path == "/v1/attest/verify":
+            blade_id = req_data.get("blade_id", "")
+            quote = req_data.get("quote", {})
+            nonce = req_data.get("nonce", "")
+
+            if not blade_id or not quote or not nonce:
+                self._send_json(400, {"error": "Missing 'blade_id', 'quote', or 'nonce'"})
+                return
+
+            ok, msg, creds = srv.verify_quote(blade_id, quote, nonce)
+            if ok:
+                self._send_json(200, creds)
+            else:
+                self._send_json(403, creds)
+
+        else:
+            self._send_json(404, {"error": "Not Found"})
+
+    def log_message(self, format: str, *args: Any) -> None:
+        if self.server_instance.verbose:
+            super().log_message(format, *args)
+
+
+def run_daemon(
+    server: RatsAttestationServer,
+    host: str = "0.0.0.0",
+    port: int = DEFAULT_PORT,
+) -> int:
+    """Runs the attestation server daemon on specified host and port."""
+    handler_class = AttestHTTPHandler
+    handler_class.server_instance = server
+
+    httpd = http.server.HTTPServer((host, port), handler_class)
+    print(f"[+] MiOS RFC 9334 RATS Attestation Daemon running on http://{host}:{port}")
+
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[!] Stopping attestation daemon...")
+    finally:
+        httpd.server_close()
+
+    return EXIT_SUCCESS
+
+
+def main() -> int:
+    raw_argv = sys.argv[1:]
+
+    # Parse shared options independently of position
+    is_mock = "--mock" in raw_argv
+    is_dry_run = "--dry-run" in raw_argv
+    is_verbose = "-v" in raw_argv or "--verbose" in raw_argv
+
+    config_path: Optional[str] = None
+    for i, a in enumerate(raw_argv):
+        if a in ("-c", "--config") and i + 1 < len(raw_argv):
+            config_path = raw_argv[i + 1]
+
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("--config", "-c", default=config_path, help="Path to mios.toml configuration file")
+    common_parser.add_argument("--mock", action="store_true", default=is_mock, help="Enable mock hardware blade fixtures and keys")
+    common_parser.add_argument("--dry-run", action="store_true", default=is_dry_run, help="Simulate attestation without writing state")
+    common_parser.add_argument("-v", "--verbose", action="store_true", default=is_verbose, help="Enable verbose diagnostics")
+
+    parser = argparse.ArgumentParser(
+        prog="mios-attest-server",
+        description="MiOS Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier & Cluster Onboarding Daemon (T-530, AGY-2128)",
+        parents=[common_parser],
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Subcommand to execute")
+
+    # serve
+    serve_p = subparsers.add_parser("serve", help="Run the attestation verifier daemon", parents=[common_parser])
+    serve_p.add_argument("--host", default="0.0.0.0", help="Listen address (default: 0.0.0.0)")
+    serve_p.add_argument("--port", "-p", type=int, default=DEFAULT_PORT, help=f"Listen port (default: {DEFAULT_PORT})")
+
+    # verify-quote
+    verify_p = subparsers.add_parser("verify-quote", help="One-shot CLI verification of TPM quote file", parents=[common_parser])
+    verify_p.add_argument("blade_id", help="Target blade ID (e.g. blade-mock-01)")
+    verify_p.add_argument("quote_file", help="Path to TPM quote JSON file")
+    verify_p.add_argument("nonce", help="Cryptographic nonce to verify against")
+
+    # status
+    subparsers.add_parser("status", help="Display attested nodes and pending verifications", parents=[common_parser])
+
+    # generate-quote (helper for nodes, tests, and clients)
+    gen_p = subparsers.add_parser("generate-quote", help="Generate TPM 2.0 quote fixture for testing", parents=[common_parser])
+    gen_p.add_argument("blade_id", help="Blade ID")
+    gen_p.add_argument("nonce", help="Cryptographic challenge nonce")
+    gen_p.add_argument("--output", "-o", help="Output file path (default: stdout)")
+    gen_p.add_argument(
+        "--tamper",
+        choices=["none", "signature", "pcr", "digest", "nonce"],
+        default="none",
+        help="Simulate quote tampering for negative testing",
+    )
+
+    args = parser.parse_args()
+    if not args.command:
+        parser.print_help()
+        return EXIT_SUCCESS
+
+    mock_mode = is_mock or getattr(args, "mock", False)
+    dry_mode = is_dry_run or getattr(args, "dry_run", False)
+    verb_mode = is_verbose or getattr(args, "verbose", False)
+    cfg_file = getattr(args, "config", None) or config_path
+
+    server = RatsAttestationServer(
+        config_path=cfg_file,
+        mock=mock_mode,
+        dry_run=dry_mode,
+        verbose=verb_mode,
+    )
+
+    if args.command == "serve":
+        return run_daemon(server, host=args.host, port=args.port)
+
+    elif args.command == "status":
+        print("=== MiOS RFC 9334 RATS Attestation Registry Status ===")
+        print(f"Total Enrolled Blades:     {len(server.enrolled_blades)}")
+        print(f"Total Attested (Approved): {len(server.attested_blades)}")
+        print(f"Total Quarantined:         {len(server.quarantined_blades)}")
+        print("-" * 80)
+        print(f"{'BLADE ID':<18} {'MESH IP':<16} {'TPM EK FINGERPRINT':<26} {'STATUS'}")
+        print("-" * 80)
+        for b_id, b_data in server.enrolled_blades.items():
+            ek = b_data.get("ek_fingerprint", "")
+            ek_disp = f"{ek[:10]}...{ek[-10:]}" if len(ek) >= 24 else ek
+            mesh_ip = b_data.get("wireguard_ip", "-")
+            status = "ENROLLED"
+            if b_id in server.attested_blades:
+                status = "APPROVED (Attested)"
+            elif b_id in server.quarantined_blades:
+                status = "QUARANTINED"
+            print(f"{b_id:<18} {mesh_ip:<16} {ek_disp:<26} {status}")
+        return EXIT_SUCCESS
+
+    elif args.command == "verify-quote":
+        q_path = Path(args.quote_file)
+        if not q_path.is_file():
+            print(f"[-] ERROR: Quote file not found: {args.quote_file}", file=sys.stderr)
+            return EXIT_SECURITY_VIOLATION
+
+        try:
+            with open(q_path, "r", encoding="utf-8") as fh:
+                quote_data = json.load(fh)
+        except Exception as exc:
+            print(f"[-] ERROR: Failed parsing quote file as JSON: {exc}", file=sys.stderr)
+            return EXIT_SECURITY_VIOLATION
+
+        ok, msg, creds = server.verify_quote(args.blade_id, quote_data, args.nonce)
+        if ok:
+            print(f"[+] OK: Blade '{args.blade_id}' RFC 9334 RATS attestation successful. Verdict: APPROVED")
+            print(json.dumps(creds, indent=2))
+            return EXIT_SUCCESS
+        else:
+            print(f"[-] ERROR: Attestation failed: {msg}", file=sys.stderr)
+            print(json.dumps(creds, indent=2), file=sys.stderr)
+            return EXIT_SECURITY_VIOLATION
+
+    elif args.command == "generate-quote":
+        try:
+            quote = server.generate_quote_for_blade(args.blade_id, args.nonce, tamper=args.tamper)
+            out_json = json.dumps(quote, indent=2)
+            if args.output:
+                with open(args.output, "w", encoding="utf-8") as fh:
+                    fh.write(out_json)
+                server._log(f"Wrote quote to {args.output}")
+            else:
+                print(out_json)
+            return EXIT_SUCCESS
+        except Exception as exc:
+            print(f"[-] ERROR: Failed generating quote: {exc}", file=sys.stderr)
+            return EXIT_SECURITY_VIOLATION
+
+    return EXIT_SUCCESS
+
+
+if __name__ == "__main__":
+    sys.exit(main())

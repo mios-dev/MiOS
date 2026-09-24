@@ -45,7 +45,20 @@ PY
     log "Merged missing portrait code-server defaults"
 }
 
+seed_code_server_extensions() {
+    local ext_src="/usr/share/mios/extensions/be5invis.vscode-custom-css"
+    local ext_target="/var/lib/mios/agents/.local/share/code-server/extensions/be5invis.vscode-custom-css"
+    [ -d "$ext_src" ] || return 0
+
+    install -d -m 0755 "$(dirname "$ext_target")"
+    if [ ! -d "$ext_target" ]; then
+        cp -r "$ext_src" "$ext_target"
+        log "Seeded custom CSS extension into code-server extensions"
+    fi
+}
+
 seed_code_server_settings
+seed_code_server_extensions
 
 if command -v miosd >/dev/null 2>&1; then
     miosd build-if-missing agents

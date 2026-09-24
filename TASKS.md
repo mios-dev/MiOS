@@ -940,27 +940,27 @@
 | T-521 | P1 | open | Storage/Encryption | Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool |
 | T-522 | P1 | open | Storage/ZeroKnowledge | Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator |
 | T-523 | P1 | open | Network/WoL | Signed Proxy WoL with SecureON payload and peer wake daemon |
-| T-524 | P1 | open | Hardware/IPKVM | Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner |
+| T-524 | P1 | done | Hardware/IPKVM | Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner |
 | T-525 | P1 | done | Hardware/CDI | Scoped CDI specification generator for NVIDIA/AMD/Intel rootless Podman containers |
-| T-526 | P2 | open | Hardware/CDITest | Rootless container GPU device isolation and cgroup v2 eBPF device filter test suite |
-| T-527 | P1 | open | Boot/Composefs | Composefs fs-verity root filesystem sealing and atomic image descriptor validator |
-| T-528 | P1 | open | Storage/CephFSUser | Global per-user encrypted CephFS subvolume manager with remote snapshot replication |
-| T-529 | P1 | open | Node/PreEnroll | Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser |
-| T-530 | P1 | open | Node/Attestation | Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon |
-| T-531 | P1 | open | Hardware/Fallback | Peripheral hardware health evaluator and non-fatal Greenboot degradation reporter |
-| T-532 | P2 | open | Hardware/Alert | Automated network and audio fallback manager with operator desktop alert daemon |
-| T-533 | P1 | open | AI/STT | Low-latency WebRTC streaming audio ingress and streaming Whisper speech-to-text bridge |
-| T-534 | P1 | open | AI/TTS | Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder |
-| T-535 | P1 | open | Hardware/VideoEnc | Multi-vendor hardware video encoder discovery and DMA-BUF capture bridge |
-| T-536 | P2 | open | Hardware/VideoTest | Adaptive bitrate and low-latency frame encoding streaming benchmark suite |
-| T-537 | P1 | open | AI/Partition | Multi-node dynamic AI workload partitioner and capability-aware task router |
-| T-538 | P1 | open | AI/ReDistribute | Automated node failure detection and zero-loss dynamic task re-distribution engine |
-| T-539 | P1 | open | AI/VisionRedact | ATSPI accessibility tree sensitive widget coordinate detector and Wayland frame blur filter |
-| T-540 | P2 | open | AI/OCRMask | Lightweight on-device OCR regex credential masking pipeline for vision frames |
-| T-541 | P1 | open | AI/ShadowTest | Shadow dual-process candidate daemon validator and query mirroring harness |
-| T-542 | P1 | open | AI/SocketHandoff | Zero-downtime systemd socket handoff (sd_listen_fds) daemon swapper for agent-pipe |
-| T-543 | P1 | open | Hardware/Thermal | Proactive PID thermal daemon and dynamic CPU/GPU power cap modulator |
-| T-544 | P2 | open | Hardware/ThermalTest | Continuous thermal stress and governor modulation recovery test suite |
+| T-526 | P2 | done | Hardware/CDITest | Rootless container GPU device isolation and cgroup v2 eBPF device filter test suite |
+| T-527 | P1 | done | Boot/Composefs | Composefs fs-verity root filesystem sealing and atomic image descriptor validator |
+| T-528 | P1 | done | Storage/CephFSUser | Global per-user encrypted CephFS subvolume manager with remote snapshot replication |
+| T-529 | P1 | done | Node/PreEnroll | Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser |
+| T-530 | P1 | done | Node/Attestation | Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon |
+| T-531 | P1 | done | Hardware/Fallback | Peripheral hardware health evaluator and non-fatal Greenboot degradation reporter |
+| T-532 | P2 | done | Hardware/Alert | Automated network and audio fallback manager with operator desktop alert daemon |
+| T-533 | P1 | done | AI/STT | Low-latency WebRTC streaming audio ingress and streaming Whisper speech-to-text bridge |
+| T-534 | P1 | done | AI/TTS | Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder |
+| T-535 | P1 | done | Hardware/VideoEnc | Multi-vendor hardware video encoder discovery and DMA-BUF capture bridge |
+| T-536 | P2 | done | Hardware/VideoTest | Adaptive bitrate and low-latency frame encoding streaming benchmark suite |
+| T-537 | P1 | done | AI/Partition | Multi-node dynamic AI workload partitioner and capability-aware task router |
+| T-538 | P1 | done | AI/ReDistribute | Automated node failure detection and zero-loss dynamic task re-distribution engine |
+| T-539 | P1 | done | AI/VisionRedact | ATSPI accessibility tree sensitive widget coordinate detector and Wayland frame blur filter |
+| T-540 | P2 | done | AI/OCRMask | Lightweight on-device OCR regex credential masking pipeline for vision frames |
+| T-541 | P1 | done | AI/ShadowTest | Shadow dual-process candidate daemon validator and query mirroring harness |
+| T-542 | P1 | done | AI/SocketHandoff | Zero-downtime systemd socket handoff (sd_listen_fds) daemon swapper for agent-pipe |
+| T-543 | P1 | done | Hardware/Thermal | Proactive PID thermal daemon and dynamic CPU/GPU power cap modulator |
+| T-544 | P2 | done | Hardware/ThermalTest | Continuous thermal stress and governor modulation recovery test suite |
 | T-976 | P2 | open | Network/Android | USB CDC-NCM gadget orchestration, host link bring-up, and the edge.android_tether SSOT table |
 | T-977 | P2 | open | Build/Android | AArch64 target triple, explicit linkage decision, and on-device packaging for mios-node |
 | T-978 | P2 | open | Federation/Discovery | Real mDNS responder bound to the tethered interface, replacing the placeholder discovery module |
@@ -6096,7 +6096,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** IP-KVM manager controls hardware power and mounts virtual media over isolated management mesh.
 **Why:** Out-of-Band IP-KVM management guarantees total remote bare-metal control even during OS crashes or BIOS configuration.
 **Dep:** AGY-2121
-**Status:** open | **Domain:** Hardware/IPKVM | **Who:** agent
+**Status:** done | **Domain:** Hardware/IPKVM | **Who:** agent
 **Converted:** AGY-2122 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-525 -- Scoped CDI specification generator for NVIDIA/AMD/Intel rootless Podman containers (WS-VFIO | P1 | M)
@@ -6116,17 +6116,17 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Automated test suite confirms cgroup v2 device filter blocks unauthorized GPU access.
 **Why:** Continuous device testing ensures container isolation boundaries are preserved across Podman updates.
 **Dep:** AGY-2123
-**Status:** open | **Domain:** Hardware/CDITest | **Who:** agent
+**Status:** done | **Domain:** Hardware/CDITest | **Who:** agent
 **Converted:** AGY-2124 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-527 -- Composefs fs-verity root filesystem sealing and atomic image descriptor validator (WS-BOOT | P1 | M)
 **Goal:** Mount immutable /usr using Composefs and fs-verity block-level signature verification.
-**What+How:** Implement `automation/91-composefs-seal.sh`. Enable `composefs=yes` in ostree configuration, generate fs-verity digests for all baked `/usr` files, and seal the root descriptor hash in initramfs cmdline.
-**Where:** automation/91-composefs-seal.sh, Containerfile
+**What+How:** Implement `automation/93-composefs-seal.sh`. Enable `composefs=yes` in ostree configuration, generate fs-verity digests for all baked `/usr` files, and seal the root descriptor hash in initramfs cmdline.
+**Where:** automation/93-composefs-seal.sh, Containerfile
 **Done When:** Composefs seals the root filesystem and fs-verity blocks runtime binary modifications.
 **Why:** Cryptographic composefs sealing guarantees that system binaries cannot be tampered with while running.
 **Dep:** AGY-2124
-**Status:** open | **Domain:** Boot/Composefs | **Who:** agent
+**Status:** done | **Domain:** Boot/Composefs | **Who:** agent
 **Converted:** AGY-2125 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-528 -- Global per-user encrypted CephFS subvolume manager with remote snapshot replication (WS-USER | P1 | M)
@@ -6136,7 +6136,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** CephFS user manager provisions encrypted home subvolumes and replicates remote snapshots automatically.
 **Why:** Per-user CephFS subvolumes enable roaming multi-seat user workspaces with zero-knowledge snapshot security.
 **Dep:** AGY-2125
-**Status:** open | **Domain:** Storage/CephFSUser | **Who:** agent
+**Status:** done | **Domain:** Storage/CephFSUser | **Who:** agent
 **Converted:** AGY-2126 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-529 -- Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser (WS-NODE | P1 | M)
@@ -6146,7 +6146,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** SSOT parser registers declared hardware blades with valid TPM EK fingerprints.
 **Why:** Declarative pre-enrollment establishes an explicit hardware root-of-trust before blades connect to the mesh.
 **Dep:** AGY-2126
-**Status:** open | **Domain:** Node/PreEnroll | **Who:** agent
+**Status:** done | **Domain:** Node/PreEnroll | **Who:** agent
 **Converted:** AGY-2127 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-530 -- Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon (WS-NODE | P1 | M)
@@ -6156,7 +6156,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Attestation daemon authenticates pre-enrolled blades and provisions cluster mesh access automatically.
 **Why:** Automated remote attestation delivers zero-touch bare-metal scaling with complete cryptographic assurance.
 **Dep:** AGY-2127
-**Status:** open | **Domain:** Node/Attestation | **Who:** agent
+**Status:** done | **Domain:** Node/Attestation | **Who:** agent
 **Converted:** AGY-2128 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-531 -- Peripheral hardware health evaluator and non-fatal Greenboot degradation reporter (WS-BOOT | P1 | S)
@@ -6166,7 +6166,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Greenboot hardware evaluator logs degraded peripherals gracefully without blocking system promotion.
 **Why:** Degrade-not-refuse ensures portable bootability across diverse consumer laptops and custom motherboards.
 **Dep:** AGY-2128
-**Status:** open | **Domain:** Hardware/Fallback | **Who:** agent
+**Status:** done | **Domain:** Hardware/Fallback | **Who:** agent
 **Converted:** AGY-2129 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-532 -- Automated network and audio fallback manager with operator desktop alert daemon (WS-NET | P2 | S)
@@ -6176,7 +6176,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Hardware fallback manager routes traffic to secondary devices and alerts operator automatically.
 **Why:** Automated fallback ensures users retain system connectivity and diagnostics even when specific hardware lacks drivers.
 **Dep:** AGY-2129
-**Status:** open | **Domain:** Hardware/Alert | **Who:** agent
+**Status:** done | **Domain:** Hardware/Alert | **Who:** agent
 **Converted:** AGY-2130 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-533 -- Low-latency WebRTC streaming audio ingress and streaming Whisper speech-to-text bridge (WS-AI | P1 | M)
@@ -6186,7 +6186,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Streaming STT engine transcribes microphone audio in real time with sub-150ms token latency.
 **Why:** Real-time streaming speech-to-text enables natural, interactive voice conversations with the OS brain.
 **Dep:** AGY-2130
-**Status:** open | **Domain:** AI/STT | **Who:** agent
+**Status:** done | **Domain:** AI/STT | **Who:** agent
 **Converted:** AGY-2131 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-534 -- Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder (WS-AI | P1 | M)
@@ -6196,7 +6196,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Concurrent TTS engine streams synthesized voice audio concurrently with token generation.
 **Why:** Concurrent sentence-level TTS synthesis delivers human-fluid voice conversation with zero perceptible lag.
 **Dep:** AGY-2131
-**Status:** open | **Domain:** AI/TTS | **Who:** agent
+**Status:** done | **Domain:** AI/TTS | **Who:** agent
 **Converted:** AGY-2132 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-535 -- Multi-vendor hardware video encoder discovery and DMA-BUF capture bridge (WS-VFIO | P1 | M)
@@ -6206,7 +6206,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Video encoder probe detects hardware ASICs and binds zero-copy DMA-BUF streaming automatically.
 **Why:** Hardware video encoding provides 4K60 desktop streaming with minimal CPU utilization and sub-10ms frame encoding latency.
 **Dep:** AGY-2132
-**Status:** open | **Domain:** Hardware/VideoEnc | **Who:** agent
+**Status:** done | **Domain:** Hardware/VideoEnc | **Who:** agent
 **Converted:** AGY-2133 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-536 -- Adaptive bitrate and low-latency frame encoding streaming benchmark suite (WS-VFIO | P2 | S)
@@ -6216,7 +6216,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Benchmark suite confirms adaptive bitrate encoding maintains target frame rates under network jitter.
 **Why:** Continuous encoding testing ensures remote desktop streaming remains fluid across mobile connections.
 **Dep:** AGY-2133
-**Status:** open | **Domain:** Hardware/VideoTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/VideoTest | **Who:** agent
 **Converted:** AGY-2134 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-537 -- Multi-node dynamic AI workload partitioner and capability-aware task router (WS-AI | P1 | M)
@@ -6226,7 +6226,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Mesh distributor partitions and routes subtasks across relevant cluster nodes dynamically.
 **Why:** Distributing AI workloads maximizes cluster throughput and parallelizes multi-agent workflows.
 **Dep:** AGY-2134
-**Status:** open | **Domain:** AI/Partition | **Who:** agent
+**Status:** done | **Domain:** AI/Partition | **Who:** agent
 **Converted:** AGY-2135 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-538 -- Automated node failure detection and zero-loss dynamic task re-distribution engine (WS-AI | P1 | M)
@@ -6236,7 +6236,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Task failover engine detects node drops and completes in-flight AI tasks across surviving nodes.
 **Why:** Dynamic re-distribution guarantees system resiliency across unstable network links or power interruptions.
 **Dep:** AGY-2135
-**Status:** open | **Domain:** AI/ReDistribute | **Who:** agent
+**Status:** done | **Domain:** AI/ReDistribute | **Who:** agent
 **Converted:** AGY-2136 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-539 -- ATSPI accessibility tree sensitive widget coordinate detector and Wayland frame blur filter (WS-AI | P1 | M)
@@ -6246,7 +6246,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Vision redaction filter blurs all ATSPI-reported password fields on captured screen frames.
 **Why:** Visual privacy redaction prevents on-screen user credentials from leaking into agent prompt context or logs.
 **Dep:** AGY-2136
-**Status:** open | **Domain:** AI/VisionRedact | **Who:** agent
+**Status:** done | **Domain:** AI/VisionRedact | **Who:** agent
 **Converted:** AGY-2137 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-540 -- Lightweight on-device OCR regex credential masking pipeline for vision frames (WS-AI | P2 | M)
@@ -6256,7 +6256,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** OCR masking pipeline detects and redacts credential text patterns from vision frames locally.
 **Why:** Local OCR pattern masking catches unmasked plaintext secrets displayed inside non-accessible terminal or web windows.
 **Dep:** AGY-2137
-**Status:** open | **Domain:** AI/OCRMask | **Who:** agent
+**Status:** done | **Domain:** AI/OCRMask | **Who:** agent
 **Converted:** AGY-2138 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-541 -- Shadow dual-process candidate daemon validator and query mirroring harness (WS-ORCH | P1 | M)
@@ -6266,7 +6266,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Shadow testing harness validates candidate daemon patches in isolated namespaces safely.
 **Why:** Shadow testing catches regressions and unhandled exceptions before candidate code handles production user traffic.
 **Dep:** AGY-2138
-**Status:** open | **Domain:** AI/ShadowTest | **Who:** agent
+**Status:** done | **Domain:** AI/ShadowTest | **Who:** agent
 **Converted:** AGY-2139 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-542 -- Zero-downtime systemd socket handoff (sd_listen_fds) daemon swapper for agent-pipe (WS-ORCH | P1 | M)
@@ -6276,7 +6276,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Socket swapper transitions active daemon instances with zero client connection drops.
 **Why:** Zero-downtime socket handoff allows continuous autonomous self-development without operator disruption.
 **Dep:** AGY-2139
-**Status:** open | **Domain:** AI/SocketHandoff | **Who:** agent
+**Status:** done | **Domain:** AI/SocketHandoff | **Who:** agent
 **Converted:** AGY-2140 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-543 -- Proactive PID thermal daemon and dynamic CPU/GPU power cap modulator (WS-VFIO | P1 | M)
@@ -6286,7 +6286,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Thermal daemon proactively modulates power caps and prevents silicon thermal throttling.
 **Why:** Proactive thermal regulation maintains stable inference token throughput and prevents hardware degradation.
 **Dep:** AGY-2140
-**Status:** open | **Domain:** Hardware/Thermal | **Who:** agent
+**Status:** done | **Domain:** Hardware/Thermal | **Who:** agent
 **Converted:** AGY-2141 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-544 -- Continuous thermal stress and governor modulation recovery test suite (WS-VFIO | P2 | S)
@@ -6296,7 +6296,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates thermal power cap modulation and automated frequency recovery.
 **Why:** Continuous thermal testing ensures cooling algorithms operate reliably under sustained AI workloads.
 **Dep:** AGY-2141
-**Status:** open | **Domain:** Hardware/ThermalTest | **Who:** agent
+**Status:** done | **Domain:** Hardware/ThermalTest | **Who:** agent
 **Converted:** AGY-2142 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-545 -- MOK-signed kpatch livepatching manager and late CPU microcode reload daemon (WS-SEC | P1 | M)

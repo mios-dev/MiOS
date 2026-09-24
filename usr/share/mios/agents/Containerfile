@@ -16,6 +16,8 @@ RUN npm install -g @anthropic-ai/claude-code
 USER coder
 WORKDIR /home/coder
 RUN curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 https://antigravity.google/cli/install.sh | bash
+RUN code-server --install-extension be5invis.vscode-custom-css || code-server --install-extension s-h-a-d-o-w.vscode-custom-css || true
+COPY code-server-mobile-settings.json /home/coder/.local/share/code-server/User/settings.json
 USER root
 RUN install -m0755 /home/coder/.local/bin/agy /usr/local/bin/agy
 

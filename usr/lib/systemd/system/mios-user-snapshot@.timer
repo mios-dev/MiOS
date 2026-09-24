@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly CephFS delta snapshot schedule for user %i
+Documentation=man:mios-user-cephfs(8)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

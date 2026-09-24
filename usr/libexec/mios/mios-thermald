@@ -1,0 +1,740 @@
+#!/usr/bin/env python3
+# AI-hint: Proactive PID thermal daemon and dynamic CPU/GPU power cap modulator (T-543, AGY-2141).
+# AI-doc: usr/share/doc/mios/manual/ch32-proactive-thermal-governor.md
+
+"""
+MiOS Proactive PID Thermal Daemon & Dynamic Power Cap Modulator.
+
+Monitors CPU/SoC temperatures via /sys/class/hwmon, GPU temperatures and power draw
+via /sys/class/drm or nvidia-smi / NVML, and CPU frequency / Energy Performance
+Preference (EPP) via /sys/devices/system/cpu/cpu*/cpufreq/.
+
+Proactively modulates power caps and EPP before silicon thermal throttling thresholds
+(e.g., at 80°C instead of hardware 95°C throttle) based on PID temperature error and
+rate of temperature rise (dT/dt). Provides hysteresis recovery restoring full performance
+profile after temperature remains below 70°C for at least 10 seconds.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import os
+import shutil
+import subprocess
+import sys
+import time
+from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger("mios-thermald")
+
+DEFAULT_TARGET_TEMP = 75.0      # °C - PID target setpoint
+DEFAULT_PROACTIVE_TEMP = 78.0   # °C - Early proactive intervention threshold
+DEFAULT_CRITICAL_TEMP = 85.0    # °C - Aggressive emergency throttle threshold
+DEFAULT_RECOVERY_TEMP = 70.0    # °C - Recovery hysteresis threshold
+RECOVERY_HOLD_SECONDS = 10.0    # Minimum sustained seconds below recovery temp
+DEFAULT_GPU_TDP_WATTS = 250.0   # Baseline GPU TDP in Watts
+DEFAULT_EPP_NORMAL = "performance"
+DEFAULT_EPP_MODERATE = "balance_performance"
+DEFAULT_EPP_AGGRESSIVE = "balance_power"
+
+STATE_NORMAL = "NORMAL"
+STATE_PROACTIVE = "PROACTIVE_THROTTLE"
+STATE_EMERGENCY = "EMERGENCY_THROTTLE"
+STATE_RECOVERING = "RECOVERING"
+STATE_MANUAL = "MANUAL"
+
+
+class ThermalSensors:
+    """Discovers and queries Linux sysfs hwmon, DRM, NVML, and cpufreq interfaces."""
+
+    def __init__(self, sysfs_root: str = "/", mock: bool = False):
+        self.sysfs_root = os.path.abspath(sysfs_root)
+        self.mock = mock
+
+    def read_cpu_temp(self) -> Tuple[float, str]:
+        """Read CPU package / die temperature in °C and sensor path."""
+        hwmon_base = os.path.join(self.sysfs_root, "sys/class/hwmon")
+        if not os.path.isdir(hwmon_base):
+            return (45.0, "fallback:no_hwmon_dir")
+
+        package_temp: Optional[float] = None
+        package_sensor: str = ""
+        found_temps: List[Tuple[float, str]] = []
+
+        try:
+            hwmon_entries = sorted(os.listdir(hwmon_base))
+        except OSError as exc:
+            logger.warning(f"Failed to list hwmon directory: {exc}")
+            return (45.0, "error:hwmon_unreadable")
+
+        for entry in hwmon_entries:
+            hwmon_dir = os.path.join(hwmon_base, entry)
+            if not os.path.isdir(hwmon_dir):
+                continue
+
+            try:
+                files = os.listdir(hwmon_dir)
+            except OSError:
+                continue
+
+            for fn in sorted(files):
+                if fn.startswith("temp") and fn.endswith("_input"):
+                    input_path = os.path.join(hwmon_dir, fn)
+                    try:
+                        with open(input_path, "r", encoding="utf-8") as f:
+                            raw_val = f.read().strip()
+                            val = float(raw_val) / 1000.0  # millidegrees C -> °C
+                            found_temps.append((val, input_path))
+
+                            # Check for package label
+                            prefix = fn.split("_")[0]
+                            label_path = os.path.join(hwmon_dir, f"{prefix}_label")
+                            if os.path.isfile(label_path):
+                                with open(label_path, "r", encoding="utf-8") as lf:
+                                    label = lf.read().strip().lower()
+                                    if any(k in label for k in ["package id 0", "tctl", "tdie", "cpu", "soc"]):
+                                        package_temp = val
+                                        package_sensor = input_path
+                    except (ValueError, OSError):
+                        continue
+
+        if package_temp is not None:
+            return (package_temp, package_sensor)
+
+        if found_temps:
+            # Pick maximum reported core temperature if package label is not present
+            found_temps.sort(key=lambda x: x[0], reverse=True)
+            return found_temps[0]
+
+        return (45.0, "fallback:no_temp_nodes")
+
+    def read_gpu_temp_and_power(self) -> Tuple[float, float, float, str]:
+        """Read GPU temperature (°C), current power draw (W), power limit (W), and source."""
+        # 1. Check DRM sysfs hwmon under mock or real sysfs
+        drm_base = os.path.join(self.sysfs_root, "sys/class/drm")
+        if os.path.isdir(drm_base):
+            for card in sorted(os.listdir(drm_base)):
+                if not card.startswith("card"):
+                    continue
+                hwmon_cand = os.path.join(drm_base, card, "device", "hwmon")
+                if os.path.isdir(hwmon_cand):
+                    for h in sorted(os.listdir(hwmon_cand)):
+                        h_dir = os.path.join(hwmon_cand, h)
+                        temp_file = os.path.join(h_dir, "temp1_input")
+                        pwr_file = os.path.join(h_dir, "power1_average")
+                        cap_file = os.path.join(h_dir, "power1_cap")
+
+                        if os.path.isfile(temp_file):
+                            try:
+                                with open(temp_file, "r", encoding="utf-8") as f:
+                                    t = float(f.read().strip()) / 1000.0
+                                p = 50.0
+                                if os.path.isfile(pwr_file):
+                                    with open(pwr_file, "r", encoding="utf-8") as f:
+                                        p = float(f.read().strip()) / 1000000.0
+                                cap = DEFAULT_GPU_TDP_WATTS
+                                if os.path.isfile(cap_file):
+                                    with open(cap_file, "r", encoding="utf-8") as f:
+                                        cap = float(f.read().strip()) / 1000000.0
+                                return (t, p, cap, f"drm:{temp_file}")
+                            except (ValueError, OSError):
+                                pass
+
+        # 2. Try nvidia-smi if running on live host
+        if not self.mock and self.sysfs_root == "/" and shutil.which("nvidia-smi"):
+            try:
+                cmd = ["nvidia-smi", "--query-gpu=temperature.gpu,power.draw,power.limit", "--format=csv,noheader,nounits"]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=2, check=False)
+                if res.returncode == 0 and res.stdout.strip():
+                    first_line = res.stdout.strip().splitlines()[0]
+                    parts = [p.strip() for p in first_line.split(",")]
+                    if len(parts) >= 3:
+                        t = float(parts[0])
+                        p = float(parts[1])
+                        cap = float(parts[2])
+                        return (t, p, cap, "nvidia-smi")
+            except Exception as exc:
+                logger.debug(f"nvidia-smi query failed: {exc}")
+
+        return (42.0, 40.0, DEFAULT_GPU_TDP_WATTS, "fallback:default")
+
+    def read_cpufreq_and_epp(self) -> Tuple[str, float, int]:
+        """Read CPU Energy Performance Preference (EPP), average frequency (MHz), and core count."""
+        cpu_base = os.path.join(self.sysfs_root, "sys/devices/system/cpu")
+        epp = DEFAULT_EPP_NORMAL
+        freqs: List[float] = []
+
+        if os.path.isdir(cpu_base):
+            for entry in sorted(os.listdir(cpu_base)):
+                if entry.startswith("cpu") and entry[3:].isdigit():
+                    cpufreq_dir = os.path.join(cpu_base, entry, "cpufreq")
+                    if os.path.isdir(cpufreq_dir):
+                        epp_file = os.path.join(cpufreq_dir, "energy_performance_preference")
+                        if os.path.isfile(epp_file):
+                            try:
+                                with open(epp_file, "r", encoding="utf-8") as f:
+                                    val = f.read().strip()
+                                    if val:
+                                        epp = val
+                            except OSError:
+                                pass
+
+                        cur_freq_file = os.path.join(cpufreq_dir, "scaling_cur_freq")
+                        if os.path.isfile(cur_freq_file):
+                            try:
+                                with open(cur_freq_file, "r", encoding="utf-8") as f:
+                                    khz = float(f.read().strip())
+                                    freqs.append(khz / 1000.0)
+                            except (ValueError, OSError):
+                                pass
+
+        avg_freq = sum(freqs) / len(freqs) if freqs else 3200.0
+        return (epp, avg_freq, len(freqs) if freqs else 1)
+
+
+class ThermalActuator:
+    """Modulates CPU EPP and GPU TDP power limits."""
+
+    def __init__(self, sysfs_root: str = "/", dry_run: bool = False, mock: bool = False):
+        self.sysfs_root = os.path.abspath(sysfs_root)
+        self.dry_run = dry_run
+        self.mock = mock
+
+    def set_cpu_epp(self, epp_profile: str) -> bool:
+        """Write EPP profile across all online CPU cores."""
+        cpu_base = os.path.join(self.sysfs_root, "sys/devices/system/cpu")
+        if not os.path.isdir(cpu_base):
+            logger.debug("CPU sysfs directory not found; skipping EPP actuation.")
+            return True
+
+        success = True
+        modified_cores = 0
+
+        for entry in sorted(os.listdir(cpu_base)):
+            if entry.startswith("cpu") and entry[3:].isdigit():
+                epp_path = os.path.join(cpu_base, entry, "cpufreq", "energy_performance_preference")
+                if os.path.isfile(epp_path):
+                    if self.dry_run:
+                        modified_cores += 1
+                        continue
+                    try:
+                        with open(epp_path, "w", encoding="utf-8") as f:
+                            f.write(f"{epp_profile}\n")
+                        modified_cores += 1
+                    except OSError as exc:
+                        logger.warning(f"Failed to write EPP to {epp_path}: {exc}")
+                        success = False
+
+        logger.info(f"EPP applied '{epp_profile}' across {modified_cores} core(s) (dry_run={self.dry_run})")
+        return success
+
+    def set_gpu_power_cap(self, cap_watts: float) -> bool:
+        """Set GPU TDP power limit in Watts via DRM sysfs or nvidia-smi."""
+        # 1. DRM sysfs hwmon
+        drm_base = os.path.join(self.sysfs_root, "sys/class/drm")
+        if os.path.isdir(drm_base):
+            for card in sorted(os.listdir(drm_base)):
+                if not card.startswith("card"):
+                    continue
+                hwmon_cand = os.path.join(drm_base, card, "device", "hwmon")
+                if os.path.isdir(hwmon_cand):
+                    for h in sorted(os.listdir(hwmon_cand)):
+                        cap_file = os.path.join(hwmon_cand, h, "power1_cap")
+                        if os.path.isfile(cap_file):
+                            if self.dry_run:
+                                logger.info(f"DRM GPU cap simulation: {cap_watts}W -> {cap_file}")
+                                return True
+                            try:
+                                with open(cap_file, "w", encoding="utf-8") as f:
+                                    f.write(f"{int(cap_watts * 1000000)}\n")  # microwatts
+                                logger.info(f"DRM GPU cap written: {cap_watts}W to {cap_file}")
+                                return True
+                            except OSError as exc:
+                                logger.warning(f"Failed to write GPU cap to {cap_file}: {exc}")
+                                return False
+
+        # 2. nvidia-smi
+        if not self.mock and self.sysfs_root == "/" and shutil.which("nvidia-smi"):
+            if self.dry_run:
+                logger.info(f"nvidia-smi simulation: -pl {int(cap_watts)}")
+                return True
+            try:
+                cmd = ["nvidia-smi", "-pl", str(int(cap_watts))]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=3, check=False)
+                if res.returncode == 0:
+                    logger.info(f"nvidia-smi GPU cap applied: {cap_watts}W")
+                    return True
+                else:
+                    logger.warning(f"nvidia-smi failed (exit {res.returncode}): {res.stderr.strip()}")
+                    return False
+            except Exception as exc:
+                logger.warning(f"nvidia-smi execution error: {exc}")
+                return False
+
+        logger.debug(f"GPU power cap {cap_watts}W processed (mock/dry_run={self.dry_run or self.mock})")
+        return True
+
+
+class PIDThermalGovernor:
+    """Proactive PID thermal governor with rate-of-rise anticipation and hysteresis recovery."""
+
+    def __init__(
+        self,
+        target_temp: float = DEFAULT_TARGET_TEMP,
+        proactive_threshold: float = DEFAULT_PROACTIVE_TEMP,
+        critical_threshold: float = DEFAULT_CRITICAL_TEMP,
+        recovery_threshold: float = DEFAULT_RECOVERY_TEMP,
+        default_gpu_cap: float = DEFAULT_GPU_TDP_WATTS,
+        default_epp: str = DEFAULT_EPP_NORMAL,
+        initial_state: str = STATE_NORMAL,
+        initial_recovery_seconds: float = 0.0,
+        kp: float = 1.5,
+        ki: float = 0.05,
+        kd: float = 2.0,
+    ):
+        self.target_temp = target_temp
+        self.proactive_threshold = proactive_threshold
+        self.critical_threshold = critical_threshold
+        self.recovery_threshold = recovery_threshold
+        self.default_gpu_cap = default_gpu_cap
+        self.default_epp = default_epp
+
+        # PID parameters
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.integral = 0.0
+        self.max_integral = 25.0
+
+        # Dynamic State
+        self.state = initial_state
+        self.last_temp: Optional[float] = None
+        self.last_timestamp: Optional[float] = None
+        self.rate_of_rise: float = 0.0
+        self.recovery_seconds: float = initial_recovery_seconds
+
+        self.current_epp: str = default_epp
+        self.current_gpu_cap: float = default_gpu_cap
+
+    def update(
+        self,
+        cpu_temp: float,
+        gpu_temp: float,
+        now: Optional[float] = None,
+        dt_override: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Compute PID output and determine proactive governor state."""
+        effective_temp = max(cpu_temp, gpu_temp)
+        cur_time = time.time() if now is None else now
+
+        if self.last_timestamp is None:
+            dt = 1.0 if dt_override is None else dt_override
+        else:
+            dt = (cur_time - self.last_timestamp) if dt_override is None else dt_override
+            if dt <= 0.0:
+                dt = 1.0
+
+        if self.last_temp is None:
+            self.rate_of_rise = 0.0
+        else:
+            self.rate_of_rise = (effective_temp - self.last_temp) / dt
+
+        # PID Calculations
+        error = effective_temp - self.target_temp
+        self.integral += error * dt
+        # Anti-windup clamping
+        self.integral = max(-self.max_integral, min(self.max_integral, self.integral))
+        derivative = self.rate_of_rise
+        pid_output = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
+
+        previous_state = self.state
+        target_epp = self.current_epp
+        target_gpu_cap = self.current_gpu_cap
+
+        # Decision Matrix: Proactive Throttling vs Cooldown
+        # 1. Emergency Throttling: temperature >= critical threshold (85°C)
+        if effective_temp >= self.critical_threshold:
+            self.state = STATE_EMERGENCY
+            target_epp = DEFAULT_EPP_AGGRESSIVE
+            target_gpu_cap = self.default_gpu_cap * 0.75  # 25% TDP reduction
+            self.recovery_seconds = 0.0
+
+        # 2. Proactive Throttling:
+        #    a) effective_temp >= proactive_threshold (78°C)
+        #    b) rapid rate-of-rise (dT/dt >= 1.5°C/s and temp >= target_temp)
+        #    c) PID output indicates imminent thermal saturation
+        elif (
+            effective_temp >= self.proactive_threshold
+            or (effective_temp >= self.target_temp and self.rate_of_rise >= 1.2)
+            or pid_output >= 12.0
+        ):
+            self.state = STATE_PROACTIVE
+            self.recovery_seconds = 0.0
+
+            if effective_temp >= 80.0 or self.rate_of_rise >= 2.0:
+                # Stronger proactive mitigation
+                target_epp = DEFAULT_EPP_AGGRESSIVE
+                target_gpu_cap = self.default_gpu_cap * 0.80  # 20% TDP reduction
+            else:
+                target_epp = DEFAULT_EPP_MODERATE
+                target_gpu_cap = self.default_gpu_cap * 0.85  # 15% TDP reduction
+
+        # 3. Hysteresis Recovery: temperature cools below recovery threshold (<70°C)
+        elif effective_temp < self.recovery_threshold:
+            if previous_state in (STATE_PROACTIVE, STATE_EMERGENCY, STATE_RECOVERING):
+                self.recovery_seconds += dt
+                if self.recovery_seconds >= RECOVERY_HOLD_SECONDS:
+                    # Full recovery after sustained 10s cooldown
+                    self.state = STATE_NORMAL
+                    target_epp = self.default_epp
+                    target_gpu_cap = self.default_gpu_cap
+                    self.integral = 0.0
+                else:
+                    self.state = STATE_RECOVERING
+                    # Intermediate smoothing step during cooldown window
+                    target_epp = DEFAULT_EPP_MODERATE
+                    target_gpu_cap = self.default_gpu_cap * 0.90
+            else:
+                self.state = STATE_NORMAL
+                target_epp = self.default_epp
+                target_gpu_cap = self.default_gpu_cap
+                self.recovery_seconds = 0.0
+                self.integral = 0.0
+
+        # 4. Intermediate deadband zone (70°C <= temp < 78°C with modest rate-of-rise)
+        else:
+            self.recovery_seconds = 0.0
+            if previous_state in (STATE_PROACTIVE, STATE_EMERGENCY):
+                # Maintain throttle to prevent oscillation (hysteresis)
+                pass
+            else:
+                self.state = STATE_NORMAL
+                target_epp = self.default_epp
+                target_gpu_cap = self.default_gpu_cap
+
+        policy_changed = (target_epp != self.current_epp) or (abs(target_gpu_cap - self.current_gpu_cap) > 0.5)
+
+        self.current_epp = target_epp
+        self.current_gpu_cap = target_gpu_cap
+        self.last_temp = effective_temp
+        self.last_timestamp = cur_time
+
+        return {
+            "state": self.state,
+            "previous_state": previous_state,
+            "effective_temp": round(effective_temp, 2),
+            "rate_of_rise": round(self.rate_of_rise, 3),
+            "pid_output": round(pid_output, 2),
+            "target_epp": target_epp,
+            "target_gpu_cap": round(target_gpu_cap, 1),
+            "policy_changed": policy_changed,
+            "recovery_seconds": round(self.recovery_seconds, 1),
+            "headroom_to_95c": round(max(0.0, 95.0 - effective_temp), 1),
+        }
+
+
+def get_state_file_path(sysfs_root: str = "/") -> str:
+    """Return runtime path for thermald state cache."""
+    if sysfs_root and os.path.abspath(sysfs_root) != "/":
+        return os.path.join(os.path.abspath(sysfs_root), "run/mios/thermald_state.json")
+    run_dir = "/run/mios"
+    if os.path.isdir(run_dir) and os.access(run_dir, os.W_OK):
+        return os.path.join(run_dir, "thermald_state.json")
+    return os.path.expanduser("/tmp/mios_thermald_state.json")
+
+
+def save_state(state_data: Dict[str, Any], sysfs_root: str = "/") -> None:
+    path = get_state_file_path(sysfs_root)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(state_data, f, indent=2)
+    except OSError as exc:
+        logger.debug(f"Unable to persist thermald state to {path}: {exc}")
+
+
+def load_state(sysfs_root: str = "/") -> Optional[Dict[str, Any]]:
+    path = get_state_file_path(sysfs_root)
+    if os.path.isfile(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None
+    return None
+
+
+def run_daemon(
+    interval: float,
+    sysfs_root: str = "/",
+    dry_run: bool = False,
+    mock: bool = False,
+    once: bool = False,
+    ticks_limit: Optional[int] = None,
+    dt_step: Optional[float] = None,
+) -> int:
+    """Execute daemon regulation loop."""
+    sensors = ThermalSensors(sysfs_root=sysfs_root, mock=mock)
+    actuator = ThermalActuator(sysfs_root=sysfs_root, dry_run=dry_run, mock=mock)
+
+    cached = load_state(sysfs_root)
+    initial_state = cached.get("governor_state", STATE_NORMAL) if cached else STATE_NORMAL
+    initial_rec_sec = cached.get("recovery_seconds", 0.0) if cached else 0.0
+
+    governor = PIDThermalGovernor(
+        initial_state=initial_state,
+        initial_recovery_seconds=initial_rec_sec,
+    )
+
+    logger.info(
+        f"Starting mios-thermald daemon (interval={interval}s, sysfs_root={sysfs_root}, "
+        f"dry_run={dry_run}, mock={mock}, once={once}, dt_step={dt_step})"
+    )
+
+    tick_count = 0
+    sim_time = time.time()
+    while True:
+        tick_count += 1
+        if dt_step is not None:
+            sim_time += dt_step
+            cur_time = sim_time
+            dt_val = dt_step
+        else:
+            cur_time = time.time()
+            dt_val = None
+
+        cpu_temp, cpu_sensor = sensors.read_cpu_temp()
+        gpu_temp, gpu_draw, gpu_cap, gpu_source = sensors.read_gpu_temp_and_power()
+        cur_epp, cur_freq, core_count = sensors.read_cpufreq_and_epp()
+
+        if tick_count == 1:
+            governor.current_epp = cur_epp
+            governor.current_gpu_cap = gpu_cap
+
+        result = governor.update(
+            cpu_temp=cpu_temp,
+            gpu_temp=gpu_temp,
+            now=cur_time,
+            dt_override=dt_val,
+        )
+
+        if result["policy_changed"]:
+            logger.info(
+                f"[Thermal Governor Transition] {result['previous_state']} -> {result['state']} | "
+                f"Effective: {result['effective_temp']}°C (dT/dt: {result['rate_of_rise']:+.2f}°C/s) -> "
+                f"EPP: {result['target_epp']}, GPU Cap: {result['target_gpu_cap']}W"
+            )
+            actuator.set_cpu_epp(result["target_epp"])
+            actuator.set_gpu_power_cap(result["target_gpu_cap"])
+
+        # Update cached state
+        state_snapshot = {
+            "timestamp": time.time(),
+            "cpu_temp": cpu_temp,
+            "cpu_sensor": cpu_sensor,
+            "gpu_temp": gpu_temp,
+            "gpu_draw_watts": gpu_draw,
+            "gpu_cap_watts": result["target_gpu_cap"],
+            "gpu_source": gpu_source,
+            "cpu_freq_mhz": cur_freq,
+            "cpu_cores": core_count,
+            "active_epp": result["target_epp"],
+            "governor_state": result["state"],
+            "rate_of_rise": result["rate_of_rise"],
+            "pid_output": result["pid_output"],
+            "recovery_seconds": result["recovery_seconds"],
+            "headroom_to_95c": result["headroom_to_95c"],
+        }
+        save_state(state_snapshot, sysfs_root)
+
+        if once or (ticks_limit is not None and tick_count >= ticks_limit):
+            break
+
+        if dt_step is None:
+            time.sleep(interval)
+
+    return 0
+
+
+def report_status(
+    sysfs_root: str = "/",
+    mock: bool = False,
+    as_json: bool = False,
+) -> int:
+    """Report thermal status, active power limits, and governor state."""
+    cached = load_state(sysfs_root)
+    sensors = ThermalSensors(sysfs_root=sysfs_root, mock=mock)
+
+    cpu_temp, cpu_sensor = sensors.read_cpu_temp()
+    gpu_temp, gpu_draw, gpu_cap, gpu_source = sensors.read_gpu_temp_and_power()
+    cur_epp, cur_freq, core_count = sensors.read_cpufreq_and_epp()
+
+    governor_state = STATE_NORMAL
+    rate_of_rise = 0.0
+    recovery_sec = 0.0
+    active_gpu_cap = gpu_cap
+
+    if cached and (time.time() - cached.get("timestamp", 0) < 60.0):
+        governor_state = cached.get("governor_state", STATE_NORMAL)
+        rate_of_rise = cached.get("rate_of_rise", 0.0)
+        recovery_sec = cached.get("recovery_seconds", 0.0)
+        active_gpu_cap = cached.get("gpu_cap_watts", gpu_cap)
+
+    # If temperature currently indicates throttle threshold
+    eff_temp = max(cpu_temp, gpu_temp)
+    if eff_temp >= DEFAULT_CRITICAL_TEMP:
+        governor_state = STATE_EMERGENCY
+    elif eff_temp >= DEFAULT_PROACTIVE_TEMP:
+        governor_state = STATE_PROACTIVE
+
+    headroom = max(0.0, 95.0 - eff_temp)
+
+    payload = {
+        "cpu": {
+            "temperature_c": round(cpu_temp, 2),
+            "sensor": cpu_sensor,
+            "frequency_mhz": round(cur_freq, 1),
+            "cores": core_count,
+            "epp": cur_epp,
+        },
+        "gpu": {
+            "temperature_c": round(gpu_temp, 2),
+            "power_draw_w": round(gpu_draw, 1),
+            "power_cap_w": round(active_gpu_cap, 1),
+            "source": gpu_source,
+        },
+        "governor": {
+            "state": governor_state,
+            "rate_of_rise_c_per_sec": round(rate_of_rise, 3),
+            "recovery_hold_seconds": round(recovery_sec, 1),
+            "recovery_required_seconds": RECOVERY_HOLD_SECONDS,
+            "headroom_to_silicon_throttle_c": round(headroom, 1),
+        },
+    }
+
+    if as_json:
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    print("=== MiOS Proactive Thermal Governor Status ===")
+    print(f"  Governor State      : {governor_state}")
+    print(f"  CPU Temperature     : {cpu_temp:.1f}°C (Sensor: {cpu_sensor})")
+    print(f"  CPU Frequency / EPP : {cur_freq:.1f} MHz across {core_count} core(s) | EPP: {cur_epp}")
+    print(f"  GPU Temperature     : {gpu_temp:.1f}°C (Source: {gpu_source})")
+    print(f"  GPU Power Draw/Cap  : {gpu_draw:.1f} W / {active_gpu_cap:.1f} W")
+    print(f"  Rate of Rise (dT/dt): {rate_of_rise:+.2f}°C/s")
+    if recovery_sec > 0.0:
+        print(f"  Cooldown Progress   : {recovery_sec:.1f}s / {RECOVERY_HOLD_SECONDS}s")
+    print(f"  Headroom to 95°C    : {headroom:.1f}°C")
+    return 0
+
+
+def set_policy(
+    epp: Optional[str] = None,
+    gpu_cap: Optional[float] = None,
+    sysfs_root: str = "/",
+    dry_run: bool = False,
+    mock: bool = False,
+) -> int:
+    """Manually apply an EPP profile and/or GPU power cap override."""
+    actuator = ThermalActuator(sysfs_root=sysfs_root, dry_run=dry_run, mock=mock)
+    success = True
+
+    if epp:
+        valid_epp = ["performance", "balance_performance", "balance_power", "power"]
+        if epp not in valid_epp:
+            print(f"Error: Invalid EPP profile '{epp}'. Choose from: {', '.join(valid_epp)}", file=sys.stderr)
+            return 1
+        if not actuator.set_cpu_epp(epp):
+            success = False
+
+    if gpu_cap is not None:
+        if gpu_cap < 50.0 or gpu_cap > 600.0:
+            print(f"Error: GPU power cap {gpu_cap}W is out of plausible safety range (50W - 600W).", file=sys.stderr)
+            return 1
+        if not actuator.set_gpu_power_cap(gpu_cap):
+            success = False
+
+    state = load_state(sysfs_root) or {}
+    state["governor_state"] = STATE_MANUAL
+    if epp:
+        state["active_epp"] = epp
+    if gpu_cap is not None:
+        state["gpu_cap_watts"] = gpu_cap
+    state["timestamp"] = time.time()
+    save_state(state, sysfs_root)
+
+    print(f"Policy override applied: EPP={epp or 'unchanged'}, GPU Cap={gpu_cap if gpu_cap is not None else 'unchanged'}W (state: {STATE_MANUAL})")
+    return 0 if success else 1
+
+
+def main() -> int:
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose debug logging")
+    common_parser.add_argument("--dry-run", action="store_true", help="Simulate sysfs writes and hardware actuation")
+    common_parser.add_argument("--mock", action="store_true", help="Force synthetic execution without requiring host hardware")
+    common_parser.add_argument("--sysfs-root", default=os.environ.get("MIOS_SYSFS_ROOT", "/"), help="Path to sysfs root directory")
+
+    parser = argparse.ArgumentParser(
+        prog="mios-thermald",
+        description="MiOS Proactive PID Thermal Daemon & Dynamic Power Cap Modulator (T-543, AGY-2141)",
+        parents=[common_parser],
+    )
+
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Subcommand to execute")
+
+    # daemon
+    daemon_parser = subparsers.add_parser("daemon", parents=[common_parser], help="Run proactive thermal regulation daemon loop")
+    daemon_parser.add_argument("--interval", type=float, default=1.0, help="Polling and PID evaluation interval in seconds (default: 1.0)")
+    daemon_parser.add_argument("--once", action="store_true", help="Run a single regulation tick and exit")
+    daemon_parser.add_argument("--ticks", type=int, default=None, help="Run a finite number of ticks (useful for automated testing)")
+    daemon_parser.add_argument("--dt", type=float, default=None, help="Simulated time step (seconds) per tick for accelerated testing")
+
+    # status
+    status_parser = subparsers.add_parser("status", parents=[common_parser], help="Query live temperatures, active power caps, and governor state")
+    status_parser.add_argument("--json", action="store_true", help="Output status snapshot in JSON format")
+
+    # set-policy
+    policy_parser = subparsers.add_parser("set-policy", parents=[common_parser], help="Manually override CPU EPP and/or GPU power cap")
+    policy_parser.add_argument("--epp", type=str, choices=["performance", "balance_performance", "balance_power", "power"], help="Energy Performance Preference profile")
+    policy_parser.add_argument("--gpu-cap", type=float, help="GPU TDP power cap in Watts")
+
+    args = parser.parse_args()
+
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(level=log_level, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    if args.command == "daemon":
+        return run_daemon(
+            interval=args.interval,
+            sysfs_root=args.sysfs_root,
+            dry_run=args.dry_run,
+            mock=args.mock,
+            once=args.once,
+            ticks_limit=args.ticks,
+            dt_step=args.dt,
+        )
+    elif args.command == "status":
+        return report_status(
+            sysfs_root=args.sysfs_root,
+            mock=args.mock,
+            as_json=args.json,
+        )
+    elif args.command == "set-policy":
+        if args.epp is None and args.gpu_cap is None:
+            policy_parser.error("At least one of --epp or --gpu-cap must be specified.")
+        return set_policy(
+            epp=args.epp,
+            gpu_cap=args.gpu_cap,
+            sysfs_root=args.sysfs_root,
+            dry_run=args.dry_run,
+            mock=args.mock,
+        )
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

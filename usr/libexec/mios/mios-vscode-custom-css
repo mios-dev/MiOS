@@ -1,0 +1,435 @@
+#!/usr/bin/env python3
+# AI-hint: MiOS VS Code and code-server Custom CSS extension installer and workbench patcher.
+# AI-doc: usr/share/doc/mios/manual/ch16-ide-custom-css.md
+
+import argparse
+import glob
+import json
+import os
+import re
+import shutil
+import sys
+import uuid
+
+CSS_FILE = "/usr/share/mios/themes/code-server-terminal.css"
+ALT_CSS_FILE = "/usr/share/mios/theme/code-server-terminal.css"
+EXT_SRC_DIR = "/usr/share/mios/extensions/be5invis.vscode-custom-css"
+VSIX_SRC_FILE = "/usr/share/mios/extensions/vscode-custom-css-7.5.1.vsix"
+
+# Known extensions directories relative to home / roots
+EXT_DIR_PATTERNS = [
+    ".vscode/extensions",
+    ".vscode-server/extensions",
+    ".vscode-server-insiders/extensions",
+    ".vscode-remote/extensions",
+    ".vscode-remote-insiders/extensions",
+    ".local/share/code-server/extensions",
+]
+
+# Known settings file paths relative to home / roots
+SETTINGS_PATTERNS = [
+    ".vscode-remote/data/Machine/settings.json",
+    ".vscode-remote/data/User/settings.json",
+    ".vscode-remote-insiders/data/Machine/settings.json",
+    ".vscode-remote-insiders/data/User/settings.json",
+    ".vscode-server/data/Machine/settings.json",
+    ".vscode-server/data/User/settings.json",
+    ".vscode-server-insiders/data/Machine/settings.json",
+    ".vscode-server-insiders/data/User/settings.json",
+    ".config/Code/User/settings.json",
+    ".config/Code - Insiders/User/settings.json",
+    ".local/share/code-server/User/settings.json",
+]
+
+DEFAULT_SETTINGS = {
+    "vscode_custom_css.imports": [
+        f"file://{CSS_FILE}"
+    ],
+    "vscode_custom_css.policy": True,
+    "terminal.integrated.lineHeight": 1.0,
+    "terminal.integrated.letterSpacing": 0,
+    "terminal.integrated.shellIntegration.decorationsEnabled": "never",
+    "terminal.integrated.shellIntegration.enabled": False,
+    "terminal.integrated.tabs.enabled": False,
+    "terminal.integrated.fontSize": 14,
+    "window.density.layout": "compact",
+    "workbench.layoutControl.enabled": False,
+    "editor.glyphMargin": False,
+    "editor.minimap.enabled": False,
+}
+
+DEFAULT_COLOR_CUSTOMIZATIONS = {
+    "editorGroup.border": "#000000",
+    "tab.border": "#000000",
+    "sideBar.border": "#000000",
+    "statusBar.border": "#000000",
+    "panel.border": "#000000",
+    "terminal.border": "#000000",
+}
+
+def log(msg, verbose=False, is_verbose=False):
+    if not verbose or is_verbose:
+        print(f"[mios-vscode-custom-css] {msg}")
+
+def get_candidate_homes():
+    homes = set()
+    cur_home = os.environ.get("HOME")
+    if cur_home and os.path.isdir(cur_home):
+        homes.add(os.path.abspath(cur_home))
+
+    for base in ["/home", "/var/home"]:
+        if os.path.isdir(base):
+            for u in os.listdir(base):
+                p = os.path.join(base, u)
+                if os.path.isdir(p):
+                    homes.add(p)
+
+    if os.path.isdir("/root"):
+        homes.add("/root")
+    if os.path.isdir("/etc/skel"):
+        homes.add("/etc/skel")
+    if os.path.isdir("/var/lib/mios/agents"):
+        homes.add("/var/lib/mios/agents")
+
+    # Operator dotfiles boundary
+    ws = os.environ.get("MIOS_ROOT") or os.getcwd()
+    dotfiles_dir = os.path.join(ws, ".dotfiles")
+    if os.path.isdir(dotfiles_dir):
+        homes.add(dotfiles_dir)
+
+    return sorted(list(homes))
+
+def locate_ext_dirs(homes, explicit_target=None):
+    dirs = set()
+    if explicit_target:
+        dirs.add(os.path.abspath(explicit_target))
+        return list(dirs)
+
+    for h in homes:
+        for p in EXT_DIR_PATTERNS:
+            target = os.path.join(h, p)
+            if os.path.isdir(target) or os.path.isdir(os.path.dirname(target)):
+                dirs.add(target)
+
+    # Global code-server extensions dir if present
+    for g in ["/usr/lib/code-server/extensions", "/usr/share/code-server/extensions"]:
+        if os.path.isdir(g) or os.path.isdir(os.path.dirname(g)):
+            dirs.add(g)
+
+    return sorted(list(dirs))
+
+def locate_settings_files(homes, explicit_target=None):
+    files = set()
+    if explicit_target:
+        files.add(os.path.abspath(explicit_target))
+        return list(files)
+
+    for h in homes:
+        for p in SETTINGS_PATTERNS:
+            target = os.path.join(h, p)
+            if os.path.isfile(target) or os.path.isdir(os.path.dirname(target)):
+                files.add(target)
+
+    return sorted(list(files))
+
+def locate_workbench_html_files():
+    candidates = []
+    search_roots = [
+        "/usr/lib/code-server",
+        "/usr/share/code-server",
+        "/opt/visual-studio-code",
+        "/usr/share/code",
+        "/usr/share/code-insiders",
+    ]
+    for r in search_roots:
+        if os.path.isdir(r):
+            for pattern in ["**/workbench*.html", "**/workbench.html"]:
+                for match in glob.glob(os.path.join(r, pattern), recursive=True):
+                    if os.path.isfile(match):
+                        candidates.append(match)
+    return sorted(list(set(candidates)))
+
+def install_extension(ext_dirs, dry_run=False, verbose=False):
+    if not os.path.isdir(EXT_SRC_DIR):
+        # Fallback to local workspace if running from repo root
+        ws_cand = os.path.join(os.getcwd(), "usr/share/mios/extensions/be5invis.vscode-custom-css")
+        if os.path.isdir(ws_cand):
+            src_dir = ws_cand
+        else:
+            log(f"ERROR: Extension source directory not found: {EXT_SRC_DIR}", is_verbose=True)
+            return False
+    else:
+        src_dir = EXT_SRC_DIR
+
+    success = True
+    for d in ext_dirs:
+        dest_pkg = os.path.join(d, "be5invis.vscode-custom-css")
+        log(f"Installing extension to: {dest_pkg}", verbose=True, is_verbose=verbose)
+        if dry_run:
+            continue
+        try:
+            os.makedirs(d, exist_ok=True)
+            if os.path.exists(dest_pkg):
+                if os.path.islink(dest_pkg):
+                    os.unlink(dest_pkg)
+                elif os.path.isdir(dest_pkg):
+                    shutil.rmtree(dest_pkg)
+            shutil.copytree(src_dir, dest_pkg)
+            log(f"  Installed {dest_pkg}")
+        except Exception as e:
+            log(f"  Failed installing to {dest_pkg}: {e}", is_verbose=True)
+            success = False
+
+    return success
+
+def configure_settings(settings_files, dry_run=False, verbose=False):
+    success = True
+    for sf in settings_files:
+        log(f"Configuring settings in: {sf}", verbose=True, is_verbose=verbose)
+        if dry_run:
+            continue
+        data = {}
+        if os.path.isfile(sf):
+            try:
+                with open(sf, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        data = json.loads(content)
+            except Exception as e:
+                log(f"  Warning: failed reading JSON from {sf} ({e}), overwriting.", is_verbose=True)
+                data = {}
+
+        # Merge defaults
+        for k, v in DEFAULT_SETTINGS.items():
+            if k == "vscode_custom_css.imports":
+                current_imports = data.get(k, [])
+                if not isinstance(current_imports, list):
+                    current_imports = []
+                for item in v:
+                    if item not in current_imports:
+                        current_imports.append(item)
+                data[k] = current_imports
+            else:
+                data[k] = v
+
+        # Merge color customizations (frameless borders)
+        colors = data.get("workbench.colorCustomizations")
+        if not isinstance(colors, dict):
+            colors = {}
+        for ck, cv in DEFAULT_COLOR_CUSTOMIZATIONS.items():
+            if ck not in colors:
+                colors[ck] = cv
+        data["workbench.colorCustomizations"] = colors
+
+        try:
+            os.makedirs(os.path.dirname(sf), exist_ok=True)
+            with open(sf, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+                f.write("\n")
+            log(f"  Updated settings in {sf}")
+        except Exception as e:
+            log(f"  Failed writing settings to {sf}: {e}", is_verbose=True)
+            success = False
+
+    return success
+
+def patch_workbench_html(html_path, dry_run=False, verbose=False):
+    if not os.path.isfile(html_path):
+        log(f"Workbench file not found: {html_path}", is_verbose=True)
+        return False
+
+    try:
+        with open(html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        session_id = str(uuid.uuid4())
+        backup_path = f"{html_path}.{session_id}.bak-custom-css"
+
+        # Check if already patched
+        if "<!-- !! VSCODE-CUSTOM-CSS-START !!" in content:
+            log(f"Workbench already patched: {html_path}", verbose=True, is_verbose=verbose)
+            return True
+
+        if dry_run:
+            log(f"Would patch workbench: {html_path}", is_verbose=verbose)
+            return True
+
+        # Write backup
+        with open(backup_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        # Remove CSP header restriction if present
+        clean_content = re.sub(
+            r'<meta\s+http-equiv="Content-Security-Policy"[\s\S]*?\/>',
+            "",
+            content
+        )
+
+        inject_tag = f'<link rel="stylesheet" href="file://{CSS_FILE}">\n'
+        patch_block = (
+            f"<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID {session_id} !! -->\n"
+            f"<!-- !! VSCODE-CUSTOM-CSS-START !! -->\n"
+            f"{inject_tag}"
+            f"<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n</head>"
+        )
+
+        patched_content = clean_content.replace("</head>", patch_block)
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(patched_content)
+
+        log(f"Successfully patched workbench: {html_path}")
+        return True
+    except Exception as e:
+        log(f"Failed patching workbench {html_path}: {e}", is_verbose=True)
+        return False
+
+def unpatch_workbench_html(html_path, dry_run=False, verbose=False):
+    if not os.path.isfile(html_path):
+        return False
+
+    try:
+        with open(html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        m = re.search(r"<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID ([0-9a-fA-F-]+) !! -->", content)
+        if not m:
+            log(f"No custom CSS patch detected in: {html_path}", is_verbose=verbose)
+            return True
+
+        session_id = m.group(1)
+        backup_path = f"{html_path}.{session_id}.bak-custom-css"
+
+        if dry_run:
+            log(f"Would unpatch workbench: {html_path}", is_verbose=verbose)
+            return True
+
+        if os.path.isfile(backup_path):
+            shutil.copyfile(backup_path, html_path)
+            os.unlink(backup_path)
+            log(f"Restored workbench from backup: {backup_path}")
+        else:
+            # Strip patch blocks
+            cleaned = re.sub(
+                r"<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID [\s\S]*?<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n",
+                "",
+                content
+            )
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(cleaned)
+            log(f"Cleaned patch block from: {html_path}")
+
+        return True
+    except Exception as e:
+        log(f"Failed unpatching workbench {html_path}: {e}", is_verbose=True)
+        return False
+
+def check_status(verbose=False):
+    homes = get_candidate_homes()
+    ext_dirs = locate_ext_dirs(homes)
+    settings_files = locate_settings_files(homes)
+    workbench_files = locate_workbench_html_files()
+
+    print("[mios-vscode-custom-css] Status:")
+    print(f"  CSS Source: {CSS_FILE} ({'exists' if os.path.isfile(CSS_FILE) else 'missing'})")
+    print(f"  Extension Dir: {EXT_SRC_DIR} ({'exists' if os.path.isdir(EXT_SRC_DIR) else 'missing'})")
+    print(f"  VSIX Package: {VSIX_SRC_FILE} ({'exists' if os.path.isfile(VSIX_SRC_FILE) else 'missing'})")
+    print("\n  Extensions directories detected:")
+    for d in ext_dirs:
+        installed = os.path.isdir(os.path.join(d, "be5invis.vscode-custom-css"))
+        print(f"    - {d}: {'INSTALLED' if installed else 'not installed'}")
+
+    print("\n  Settings files detected:")
+    for sf in settings_files:
+        has_cfg = False
+        if os.path.isfile(sf):
+            try:
+                with open(sf, "r") as f:
+                    cfg = json.load(f)
+                    has_cfg = "vscode_custom_css.imports" in cfg
+            except Exception:
+                pass
+        print(f"    - {sf}: {'CONFIGURED' if has_cfg else 'not configured'}")
+
+    print("\n  Workbench HTML candidates:")
+    for wb in workbench_files:
+        patched = False
+        if os.path.isfile(wb):
+            with open(wb, "r", errors="ignore") as f:
+                patched = "<!-- !! VSCODE-CUSTOM-CSS-START !!" in f.read()
+        print(f"    - {wb}: {'PATCHED' if patched else 'unpatched'}")
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="MiOS VS Code and code-server Custom CSS extension installer and workbench patcher."
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # install command
+    p_install = subparsers.add_parser("install", help="Install extension and configure settings across environments")
+    p_install.add_argument("--all", action="store_true", help="Install across all detected user and code-server homes")
+    p_install.add_argument("--extensions-dir", help="Explicit extensions directory target")
+    p_install.add_argument("--settings-file", help="Explicit settings.json file target")
+    p_install.add_argument("--patch-html", action="store_true", help="Also attempt to patch detected workbench.html files")
+    p_install.add_argument("--dry-run", action="store_true", help="Simulate actions without writing files")
+    p_install.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+
+    # patch command
+    p_patch = subparsers.add_parser("patch", help="Patch workbench.html with custom CSS tag")
+    p_patch.add_argument("--target", help="Explicit workbench.html file to patch")
+    p_patch.add_argument("--dry-run", action="store_true", help="Simulate actions")
+    p_patch.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+
+    # unpatch command
+    p_unpatch = subparsers.add_parser("unpatch", help="Remove custom CSS patch from workbench.html")
+    p_unpatch.add_argument("--target", help="Explicit workbench.html file to unpatch")
+    p_unpatch.add_argument("--dry-run", action="store_true", help="Simulate actions")
+    p_unpatch.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+
+    # status command
+    p_status = subparsers.add_parser("status", help="Check status of installed extensions and settings")
+    p_status.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+
+    args = parser.parse_args()
+
+    if args.command == "status":
+        check_status(verbose=args.verbose)
+        return 0
+
+    if args.command == "install":
+        homes = get_candidate_homes()
+        ext_dirs = locate_ext_dirs(homes, explicit_target=args.extensions_dir)
+        settings_files = locate_settings_files(homes, explicit_target=args.settings_file)
+
+        ok1 = install_extension(ext_dirs, dry_run=args.dry_run, verbose=args.verbose)
+        ok2 = configure_settings(settings_files, dry_run=args.dry_run, verbose=args.verbose)
+
+        if args.patch_html:
+            for wb in locate_workbench_html_files():
+                patch_workbench_html(wb, dry_run=args.dry_run, verbose=args.verbose)
+
+        return 0 if (ok1 and ok2) else 1
+
+    if args.command == "patch":
+        targets = [args.target] if args.target else locate_workbench_html_files()
+        if not targets:
+            log("No workbench.html files found to patch.")
+            return 0
+        all_ok = True
+        for t in targets:
+            if not patch_workbench_html(t, dry_run=args.dry_run, verbose=args.verbose):
+                all_ok = False
+        return 0 if all_ok else 1
+
+    if args.command == "unpatch":
+        targets = [args.target] if args.target else locate_workbench_html_files()
+        if not targets:
+            log("No workbench.html files found to unpatch.")
+            return 0
+        all_ok = True
+        for t in targets:
+            if not unpatch_workbench_html(t, dry_run=args.dry_run, verbose=args.verbose):
+                all_ok = False
+        return 0 if all_ok else 1
+
+if __name__ == "__main__":
+    sys.exit(main())

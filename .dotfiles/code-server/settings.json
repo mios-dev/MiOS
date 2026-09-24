@@ -1,0 +1,37 @@
+{
+  "workbench.colorTheme": "Dark Modern",
+  "workbench.experimental.modernUI": true,
+  "window.density.layout": "compact",
+  "workbench.layoutControl.enabled": false,
+  "workbench.activityBar.location": "top",
+  "workbench.sideBar.location": "left",
+  "workbench.secondarySideBar.defaultVisibility": "hidden",
+  "workbench.panel.defaultLocation": "bottom",
+  "workbench.panel.alignment": "justify",
+  "workbench.editor.openSideBySideDirection": "down",
+  "workbench.editor.splitInGroupLayout": "horizontal",
+  "editor.minimap.enabled": false,
+  "editor.wordWrap": "on",
+  "editor.glyphMargin": false,
+  "editor.stickyScroll.enabled": false,
+  "editor.fontSize": 16,
+  "editor.lineNumbers": "on",
+  "terminal.integrated.fontSize": 14,
+  "terminal.integrated.tabs.enabled": false,
+  "terminal.integrated.lineHeight": 1.0,
+  "terminal.integrated.letterSpacing": 0,
+  "terminal.integrated.shellIntegration.decorationsEnabled": "never",
+  "terminal.integrated.shellIntegration.enabled": false,
+  "vscode_custom_css.imports": [
+    "file:///usr/share/mios/themes/code-server-terminal.css"
+  ],
+  "vscode_custom_css.policy": true,
+  "workbench.colorCustomizations": {
+    "editorGroup.border": "#000000",
+    "tab.border": "#000000",
+    "sideBar.border": "#000000",
+    "statusBar.border": "#000000",
+    "panel.border": "#000000",
+    "terminal.border": "#000000"
+  }
+}

@@ -65,6 +65,10 @@ if [[ -f /etc/passwd ]]; then
     done
 fi
 
+if [[ -x /usr/libexec/mios/mios-vscode-custom-css ]]; then
+    /usr/libexec/mios/mios-vscode-custom-css install --all >/dev/null 2>&1 || true
+fi
+
 VIRT=$(systemd-detect-virt 2>/dev/null || echo "None")
 
 if [[ "$VIRT" == "container" ]]; then

@@ -1,0 +1,47 @@
+# AI-hint: Quadlet container unit for Sunshine low-latency game/desktop streaming server with GPU CDI device access and DMA-BUF capabilities (T-535, AGY-2133).
+# AI-doc: usr/share/doc/mios/manual/ch24-hardware-video-encoding.md
+# /usr/share/containers/systemd/mios-sunshine.container
+
+[Unit]
+Description='MiOS' Sunshine Low-Latency Streaming Server (DMA-BUF & HW Encode)
+Documentation=https://docs.lizardbyte.dev/projects/sunshine
+After=network-online.target mios-cdi-detect.service
+Wants=network-online.target
+
+[Container]
+ContainerName=mios-sunshine
+Image=docker.io/lizardbyte/sunshine:latest
+EnvironmentFile=/etc/mios/install.env
+Environment=SUNSHINE_USER=mios
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=WAYLAND_DISPLAY=wayland-0
+AddDevice=/dev/dri
+AddDevice=/dev/uinput
+AddDevice=nvidia.com/gpu=all
+AddCapability=CAP_SYS_ADMIN
+AddCapability=CAP_NET_ADMIN
+AddCapability=CAP_SYS_NICE
+SecurityLabelDisable=true
+Network=host
+Volume=/run/user/1000:/run/user/1000:ro
+Volume=/etc/sunshine:/etc/sunshine:Z
+Volume=/var/lib/mios/sunshine:/var/lib/mios/sunshine:Z
+Volume=/dev/dri:/dev/dri:rslave
+Volume=/dev/uinput:/dev/uinput:rslave
+HealthCmd=curl -fsS http://localhost:47990/ || exit 1
+HealthInterval=30s
+HealthRetries=3
+HealthStartPeriod=20s
+HealthTimeout=10s
+Label=org.opencontainers.image.title=mios-sunshine
+Label=org.opencontainers.image.description="Low-latency Sunshine/Moonlight streaming server with multi-vendor hardware encoding and DMA-BUF capture"
+
+[Install]
+WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s

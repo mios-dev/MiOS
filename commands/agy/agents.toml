@@ -1,0 +1,7 @@
+# AI-hint: Agents slash command definition for Antigravity CLI (AGY) session inspection and switching.
+# AI-related: commands/, .agents/workflows/agents.md, .agents/subagents.json
+
+[command]
+name = "agents"
+description = "List, inspect, and switch active MiOS-Dev agents and specialist subagents loaded in the AGY session."
+workflow = ".agents/workflows/agents.md"

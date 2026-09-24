@@ -154,6 +154,41 @@ class TestAgyAgentPipeline(unittest.TestCase):
         res = subprocess.run(["bash", "-n", str(cicd_runner)], capture_output=True, text=True)
         self.assertEqual(res.returncode, 0, f"Syntax error in {cicd_runner}: {res.stderr}")
 
+    def test_agents_command_definitions(self):
+        """Verifies commands/agy/agents.toml, commands/antigravity/agents.toml, and agents workflow."""
+        agy_agents = REPO_ROOT / "commands" / "agy" / "agents.toml"
+        antigravity_agents = REPO_ROOT / "commands" / "antigravity" / "agents.toml"
+        self.assertTrue(agy_agents.is_file(), f"Missing {agy_agents}")
+        self.assertTrue(antigravity_agents.is_file(), f"Missing {antigravity_agents}")
+
+        workflow = REPO_ROOT / ".agents" / "workflows" / "agents.md"
+        self.assertTrue(workflow.is_file(), f"Missing {workflow}")
+        wf_txt = workflow.read_text(encoding="utf-8")
+        self.assertIn("pipeline-auditor", wf_txt)
+        self.assertIn("pipeline-worker", wf_txt)
+        self.assertIn("mios-dev", wf_txt)
+
+    def test_workspace_agents_md_files(self):
+        """Verifies .agents/agents/ contains definitions for all 6 MiOS-Dev agents."""
+        agents_dir = REPO_ROOT / ".agents" / "agents"
+        self.assertTrue(agents_dir.is_dir(), f"Missing {agents_dir}")
+
+        expected = [
+            "mios-dev.md",
+            "pipeline-auditor.md",
+            "pipeline-worker.md",
+            "pipeline-reviewer.md",
+            "artifact-publisher.md",
+            "pipeline-orchestrator.md",
+        ]
+        for fname in expected:
+            fpath = agents_dir / fname
+            self.assertTrue(fpath.is_file(), f"Missing {fpath}")
+            txt = fpath.read_text(encoding="utf-8")
+            self.assertTrue(txt.startswith("---"), f"{fname} missing YAML frontmatter")
+            self.assertIn("name:", txt)
+            self.assertIn("description:", txt)
+
 
 if __name__ == "__main__":
     unittest.main()
