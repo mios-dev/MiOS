@@ -19,7 +19,16 @@ Every Dev Container start runs `boot-mios-systems.sh`, which reapplies the
 root overlay, incrementally rebuilds the source-matched native components, and
 records the active platform contract before the verification gate runs. This
 keeps resumed workspaces aligned with the checked-out MiOS system source rather
-than relying on one-time creation state.
+than relying on one-time creation state. The same boot step re-projects the
+`.dotfiles` SSOT into the live editor `Machine/settings.json` so theme and
+layout settings never drift, but the edge-to-edge terminal CSS itself
+(`vscode_custom_css.imports`) is applied by the `be5invis.vscode-custom-css`
+extension, which can only patch a real local workbench install. It is pinned
+to run on the connecting client via `remote.extensionKind: {"be5invis.vscode-custom-css": ["ui"]}`;
+after every client-side VS Code update, its own upstream docs require
+re-running "Enable Custom CSS and JS" once and reloading the window — see
+`docs/research/spike-vscode-edge-to-edge-terminal.md` for the full root-cause
+trace. This is not automatable from inside the container.
 
 Run `miosd --help` to inspect the native control-plane interface. Run
 `mios-agent-pipe-dev` explicitly when developing the API gateway; it uses the

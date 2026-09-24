@@ -5,6 +5,9 @@
   },
   "podman.socketPath": "unix:///run/user/1000/podman/podman.sock",
   "podman.systemSocketPath": "unix:///run/podman/podman.sock",
+  "remote.extensionKind": {
+    "be5invis.vscode-custom-css": ["ui"]
+  },
   "workbench.colorTheme": "MiOS-Dev",
   "workbench.experimental.modernUI": true,
   "window.titleBarStyle": "custom",

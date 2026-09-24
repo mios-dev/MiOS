@@ -135,6 +135,11 @@
       "scrollbarSlider.hoverBackground": "#00000000",
       "scrollbarSlider.activeBackground": "#00000000",
       "scrollbar.shadow": "#00000000"
+    },
+    "remote.extensionKind": {
+      "be5invis.vscode-custom-css": [
+        "ui"
+      ]
     }
   },
   "extensions": {
