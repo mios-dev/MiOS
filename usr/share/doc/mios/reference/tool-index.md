@@ -179,6 +179,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-mon.py` | MiOS Unified TUI App -- The single cross-platform shared surface. |
 | `usr/libexec/mios/mios-netflowd` | In-kernel eBPF network flow collector daemon and summary stream processor (T-511). |
 | `usr/libexec/mios/mios-new` | Command-line utility to scaffold new MiOS files from canonical templates, interpolating names, dates, and settings. |
+| `usr/libexec/mios/mios-numa-alloc` | MiOS Heterogeneous NUMA Weight Buffer Interleaver and Local Core Affinity Pinner. |
 | `usr/libexec/mios/mios-oci-delta-apply` | stub |
 | `usr/libexec/mios/mios-oci-delta-service.sh` | GAP-5 (T-050) edge distribution wrapper |
 | `usr/libexec/mios/mios-open-url` | Resolves and launches a URL in the MiOS-defined default browser or a specified override by resolving mios.toml entries and dispatching via mios-gui to the operator's WSLg desktop session. |
@@ -282,7 +283,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 | `usr/libexec/mios/mios-xdp` | Native eBPF XDP network fastpath and WireGuard packet router manager (T-802). |
 
-<!-- derived from the AI-hint headers of 252 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 253 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)

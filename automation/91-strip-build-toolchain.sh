@@ -8,13 +8,24 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
 mios_log "Resolving and combing all build-time package groups"
-BUILD_GROUPS=(
-    "build-toolchain"
-    "quickshell-build"
-    "looking-glass-build"
-    "k3s-selinux-build"
-    "cockpit-plugins-build"
-)
+
+# Dynamically discover all *-build package groups from mios.toml alongside build-toolchain
+TOML_FILE="$(_resolve_mios_toml 2>/dev/null || true)"
+DYNAMIC_BUILD_GROUPS=()
+if [[ -n "$TOML_FILE" && -f "$TOML_FILE" ]]; then
+    while IFS= read -r grp; do
+        [[ -n "$grp" ]] && DYNAMIC_BUILD_GROUPS+=("$grp")
+    done < <(grep -E '^\[packages\..*-build\]' "$TOML_FILE" | sed -E 's/^\[packages\.([^]]+)\]/\1/')
+fi
+
+declare -A SEEN_GROUPS
+BUILD_GROUPS=()
+for grp in "build-toolchain" "quickshell-build" "looking-glass-build" "k3s-selinux-build" "cockpit-plugins-build" "${DYNAMIC_BUILD_GROUPS[@]}"; do
+    if [[ -z "${SEEN_GROUPS[$grp]:-}" ]]; then
+        SEEN_GROUPS["$grp"]=1
+        BUILD_GROUPS+=("$grp")
+    fi
+done
 
 for grp in "${BUILD_GROUPS[@]}"; do
     pkgs="$(get_packages "$grp" || true)"

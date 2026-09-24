@@ -115,10 +115,16 @@ else
     assert_fail "Extension directory missing from target extensions folder"
 fi
 
-if python3 -c "import json; s = json.load(open('$SYN_SETTINGS')); assert 'vscode_custom_css.imports' in s and s['editor.fontSize'] == 12" 2>/dev/null; then
-    assert_pass "Target settings.json updated and preserved existing keys"
+if [[ -d "${SYN_EXT}/mios-theme-mobile" && -f "${SYN_EXT}/mios-theme-mobile/package.json" ]]; then
+    assert_pass "MiOS Mobile theme extension properly copied into target extensions folder"
 else
-    assert_fail "Target settings.json missing custom css configuration"
+    assert_fail "MiOS Mobile theme extension missing from target extensions folder"
+fi
+
+if python3 -c "import json; s = json.load(open('$SYN_SETTINGS')); assert 'vscode_custom_css.imports' in s and s['editor.fontSize'] == 12 and s.get('workbench.colorTheme') == 'MiOS Mobile Edge-to-Edge'" 2>/dev/null; then
+    assert_pass "Target settings.json updated with MiOS Mobile Edge-to-Edge theme and preserved existing keys"
+else
+    assert_fail "Target settings.json missing custom css configuration or theme"
 fi
 
 # Test 6: Synthetic workbench HTML patch and unpatch
@@ -163,10 +169,40 @@ fi
 
 # Test 7: Mobile settings template check
 echo "[test-vscode-custom-css] Test 7: Mobile settings template verification"
-if python3 -c "import json; data = json.load(open('$SETTINGS_TPL')); assert 'vscode_custom_css.imports' in data" 2>/dev/null; then
-    assert_pass "Mobile settings template contains vscode_custom_css.imports"
+if python3 -c "import json; data = json.load(open('$SETTINGS_TPL')); assert 'vscode_custom_css.imports' in data and data.get('workbench.colorTheme') == 'MiOS Mobile Edge-to-Edge'" 2>/dev/null; then
+    assert_pass "Mobile settings template contains vscode_custom_css.imports and MiOS Mobile theme"
 else
-    assert_fail "Mobile settings template missing custom CSS properties"
+    assert_fail "Mobile settings template missing custom CSS properties or theme"
+fi
+
+# Test 8: Mobile theme package integrity
+echo "[test-vscode-custom-css] Test 8: MiOS Mobile Edge-to-Edge theme integrity"
+THEME_JSON="${ROOT_DIR}/usr/share/mios/themes/mios-mobile-theme.json"
+THEME_EXT_DIR="${ROOT_DIR}/usr/share/mios/extensions/mios-theme-mobile"
+if [[ -f "$THEME_JSON" ]] && python3 -c "import json; d = json.load(open('$THEME_JSON')); assert d['name'] == 'MiOS Mobile Edge-to-Edge' and 'colors' in d and 'tokenColors' in d" 2>/dev/null; then
+    assert_pass "Theme JSON exists and contains valid color tokens"
+else
+    assert_fail "Theme JSON missing or invalid"
+fi
+
+if [[ -f "${THEME_EXT_DIR}/package.json" ]] && python3 -c "import json; d = json.load(open('${THEME_EXT_DIR}/package.json')); assert d['name'] == 'mios-theme-mobile' and 'contributes' in d" 2>/dev/null; then
+    assert_pass "Theme extension manifest contributes theme properly"
+else
+    assert_fail "Theme extension manifest missing or invalid"
+fi
+
+# Test 9: Edge-to-edge frameless CSS checks
+echo "[test-vscode-custom-css] Test 9: Frameless CSS safe area insets and rounded UI"
+if grep -q "safe-area-inset-bottom" "$CSS_FILE" && grep -q "safe-area-inset-top" "$CSS_FILE"; then
+    assert_pass "Custom CSS includes mobile safe-area insets"
+else
+    assert_fail "Custom CSS missing safe-area-inset rules"
+fi
+
+if grep -q "border-radius" "$CSS_FILE" && grep -q "terminal-outer-container" "$CSS_FILE"; then
+    assert_pass "Custom CSS includes rounded floating status bar and zero-border terminal selectors"
+else
+    assert_fail "Custom CSS missing rounded bottom bar or terminal selectors"
 fi
 
 echo "[test-vscode-custom-css] === Test Results: ${pass_count} passed, ${fail_count} failed ==="

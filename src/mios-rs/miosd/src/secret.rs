@@ -27,9 +27,33 @@ pub fn prompt(
     prompt_tty(message)
 }
 
-/// Prompt via GUI dialog (zenity or pinentry).
+/// Prompt via GUI dialog (Quickshell, zenity, or pinentry).
 fn prompt_gui(title: &str, message: &str) -> Result<String, Box<dyn std::error::Error>> {
-    // 1. Try zenity
+    // 1. Try Quickshell native Wayland prompt if available
+    let qml_path = "/usr/share/mios/quickshell/SecretPrompt.qml";
+    if Path::new(qml_path).exists() && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        if let Ok(child) = Command::new("quickshell")
+            .arg("-p")
+            .arg(qml_path)
+            .env("MIOS_SECRET_PROMPT_TITLE", title)
+            .env("MIOS_SECRET_PROMPT_MSG", message)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            if let Ok(output) = child.wait_with_output() {
+                if output.status.success() && !output.stdout.is_empty() {
+                    let s = String::from_utf8_lossy(&output.stdout);
+                    let trimmed = s.trim_end_matches(['\r', '\n']).to_string();
+                    if !trimmed.is_empty() {
+                        return Ok(trimmed);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Try zenity
     if let Ok(child) = Command::new("zenity")
         .arg("--password")
         .arg(format!("--title={}", title))

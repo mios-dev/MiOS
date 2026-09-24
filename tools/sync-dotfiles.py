@@ -87,6 +87,46 @@ def main() -> int:
                         shutil.copy2(s, d)
                     except Exception:
                         pass
+        # Sync theme extension to skeletons and home profiles
+        theme_src = os.path.join(root, "usr/share/mios/extensions/mios-theme-mobile")
+        if os.path.isdir(theme_src):
+            skel_targets = [
+                os.path.join(root, "etc/skel/.vscode/extensions/mios-theme-mobile"),
+                os.path.join(root, "etc/skel/.local/share/code-server/extensions/mios-theme-mobile"),
+            ]
+            for st in skel_targets:
+                try:
+                    os.makedirs(os.path.dirname(st), exist_ok=True)
+                    if os.path.exists(st):
+                        if os.path.islink(st):
+                            os.unlink(st)
+                        elif os.path.isdir(st):
+                            shutil.rmtree(st)
+                    shutil.copytree(theme_src, st)
+                except Exception:
+                    pass
+
+            home = os.environ.get("HOME", "")
+            if home and os.path.isdir(home):
+                user_ext_targets = [
+                    os.path.join(home, ".vscode-server/extensions/mios-theme-mobile"),
+                    os.path.join(home, ".vscode-server-insiders/extensions/mios-theme-mobile"),
+                    os.path.join(home, ".vscode-remote/extensions/mios-theme-mobile"),
+                    os.path.join(home, ".vscode-remote-insiders/extensions/mios-theme-mobile"),
+                    os.path.join(home, ".local/share/code-server/extensions/mios-theme-mobile"),
+                ]
+                for ut in user_ext_targets:
+                    try:
+                        if os.path.isdir(os.path.dirname(ut)):
+                            if os.path.exists(ut):
+                                if os.path.islink(ut):
+                                    os.unlink(ut)
+                                elif os.path.isdir(ut):
+                                    shutil.rmtree(ut)
+                            shutil.copytree(theme_src, ut)
+                    except Exception:
+                        pass
+
         if os.access("/usr/share/mios/themes", os.W_OK):
             try:
                 shutil.copy2(CODESERVER_CSS_SRC, "/usr/share/mios/themes/code-server-terminal.css")

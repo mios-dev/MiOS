@@ -806,8 +806,9 @@ automation/90-generate-sbom.sh	7	7	1	3	ee573bae3b99	STAY	local-scoped		0				0
 automation/90-generate-sbom.sh	15	15	1	13	29a513d41f36	STAY	local-scoped		0				0
 automation/90-generate-sbom.sh	23	24	2	25	4bf544bfc5e2	STAY	local-scoped		0				0
 automation/91-strip-build-toolchain.sh	1	3	3	32	48d66b80c6d4	STAY	ai-header		0				0
-automation/91-strip-build-toolchain.sh	28	28	1	4	24c57abc8639	STAY	local-scoped		0				0
-automation/91-strip-build-toolchain.sh	48	48	1	4	89a4f7fe6b5f	STAY	inline-scoped		0				0
+automation/91-strip-build-toolchain.sh	12	12	1	10	d90775ff723c	STAY	local-scoped		0				0
+automation/91-strip-build-toolchain.sh	39	39	1	4	24c57abc8639	STAY	local-scoped		0				0
+automation/91-strip-build-toolchain.sh	59	59	1	4	89a4f7fe6b5f	STAY	inline-scoped		0				0
 automation/92-export-sbom.sh	1	4	4	19	16f44b74840f	STAY	ai-header		0				0
 automation/92-export-sbom.sh	18	18	1	4	c8f62a70e412	STAY	local-scoped		0				0
 automation/92-export-sbom.sh	21	21	1	5	953140f703a9	STAY	local-scoped		0				0
@@ -3580,19 +3581,20 @@ src/mios-rs/miosd/src/main.rs	1655	1660	6	56	53e065f25511	MIGRATE	narrative-rati
 src/mios-rs/miosd/src/main.rs	1720	1726	7	72	9dccae407645	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9dccae407645	72	0
 src/mios-rs/miosd/src/secret.rs	1	2	2	20	5674c238ad95	STAY	ai-header		0				0
 src/mios-rs/miosd/src/secret.rs	9	10	2	17	5509df7ee0cd	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	30	30	1	7	dc0193e0511f	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	32	32	1	3	5fc7a5d94fc4	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	49	49	1	3	fd7dd9283446	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	79	79	1	8	d5e67f102af1	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	85	85	1	4	ab41891dc9c6	STAY	inline-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	89	89	1	11	920c6c94bb79	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	155	155	1	13	fbd3ad31bd16	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	179	179	1	9	2a1229e1c684	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	199	199	1	11	e71b168ac71b	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	218	218	1	2	b4ca7cbfd4c5	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	251	251	1	13	24acbe6df118	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	269	269	1	4	03ee29ff4148	STAY	inline-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	273	273	1	0	71f9329a4098	DROP	commented-out-code		0				0
+src/mios-rs/miosd/src/secret.rs	30	30	1	8	eb40e73e635c	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	32	32	1	8	da2fb09926c4	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	56	56	1	3	08c3f7223c47	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	73	73	1	3	fd7dd9283446	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	103	103	1	8	d5e67f102af1	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	109	109	1	4	ab41891dc9c6	STAY	inline-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	113	113	1	11	920c6c94bb79	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	179	179	1	13	fbd3ad31bd16	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	203	203	1	9	2a1229e1c684	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	223	223	1	11	e71b168ac71b	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	242	242	1	2	b4ca7cbfd4c5	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	275	275	1	13	24acbe6df118	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	293	293	1	4	03ee29ff4148	STAY	inline-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	297	297	1	0	71f9329a4098	DROP	commented-out-code		0				0
 src/mios-rs/miosd/src/server.rs	1	2	2	16	8417b0dc920d	STAY	ai-header		0				0
 src/mios-rs/miosd/tests/registry_integration.rs	1	2	2	11	a9b924d8735b	STAY	ai-header		0				0
 src/mios-rs/miosd/tests/registry_integration.rs	14	15	2	20	641219726725	STAY	local-scoped		0				0
@@ -5934,6 +5936,15 @@ tests/test-node.py	3469	3469	1	12	c37df498153b	STAY	local-scoped		0				0
 tests/test-node.py	3492	3492	1	3	7516f5dc74de	DROP	banner		0				0
 tests/test-node.py	3504	3504	1	3	56df2c4ff76b	STAY	inline-scoped		0				0
 tests/test-node.py	3517	3519	3	2	d4fb68a0c3d0	STAY	midsize-why		0				0
+tests/test-numa-interleave-bandwidth.sh	1	3	3	23	44edbd55e66a	STAY	ai-header		0				0
+tests/test-numa-interleave-bandwidth.sh	25	25	1	8	f8ccc3a879cf	STAY	local-scoped		0				0
+tests/test-numa-interleave-bandwidth.sh	32	32	1	5	6b7ff00820d2	STAY	local-scoped		0				0
+tests/test-numa-interleave-bandwidth.sh	41	41	1	8	02fc8ba95e2d	STAY	local-scoped		0				0
+tests/test-numa-interleave-bandwidth.sh	49	49	1	6	53bf40f723b0	STAY	local-scoped		0				0
+tests/test-numa-interleave-bandwidth.sh	58	58	1	6	0f4c1f684545	STAY	local-scoped		0				0
+tests/test-numa-interleave-bandwidth.sh	65	65	1	11	40caf0af3f66	STAY	local-scoped		0				0
+tests/test-numa-interleave-bandwidth.sh	72	72	1	9	aa74fe31fd59	STAY	local-scoped		0				0
+tests/test-numa-interleave-bandwidth.sh	79	79	1	7	39b57158816b	STAY	local-scoped		0				0
 tests/test-oci-extractor.py	1	3	3	19	52b6a9de36c2	STAY	ai-header		0				0
 tests/test-oci-extractor.py	4	4	1	9	1db5b79d2cd8	STAY	local-scoped		0				0
 tests/test-oci-extractor.py	31	31	1	14	a692847a5b20	STAY	local-scoped		0				0
@@ -7445,8 +7456,10 @@ tests/test-vscode-custom-css.sh	51	51	1	5	9b4a2a077799	STAY	local-scoped		0				0
 tests/test-vscode-custom-css.sh	65	65	1	4	0ae2cf7801dd	STAY	local-scoped		0				0
 tests/test-vscode-custom-css.sh	79	79	1	5	67f554ad8cdf	STAY	local-scoped		0				0
 tests/test-vscode-custom-css.sh	99	99	1	5	40986d15b260	STAY	local-scoped		0				0
-tests/test-vscode-custom-css.sh	124	124	1	8	fd552a8e4802	STAY	local-scoped		0				0
-tests/test-vscode-custom-css.sh	164	164	1	6	2894e3d768d7	STAY	local-scoped		0				0
+tests/test-vscode-custom-css.sh	130	130	1	8	fd552a8e4802	STAY	local-scoped		0				0
+tests/test-vscode-custom-css.sh	170	170	1	6	2894e3d768d7	STAY	local-scoped		0				0
+tests/test-vscode-custom-css.sh	178	178	1	6	c6e1e4e0b9c7	STAY	local-scoped		0				0
+tests/test-vscode-custom-css.sh	194	194	1	6	8d56545eaa1a	STAY	local-scoped		0				0
 tests/test-wallpaper-service.py	1	3	3	17	623f29b92001	STAY	ai-header		0				0
 tests/test-wallpaper-service.py	4	4	1	11	6cdd670a737d	STAY	local-scoped		0				0
 tests/test-wallpaper-service.py	17	17	1	8	1c8122210188	STAY	local-scoped		0				0
@@ -8513,6 +8526,7 @@ tools/sync-dotfiles.py	35	35	1	4	4ae2f0d71481	STAY	local-scoped		0				0
 tools/sync-dotfiles.py	41	41	1	6	5a3144582373	STAY	local-scoped		0				0
 tools/sync-dotfiles.py	57	57	1	5	07ec189d388f	STAY	local-scoped		0				0
 tools/sync-dotfiles.py	70	70	1	11	ffdb8b7ff1f0	STAY	local-scoped		0				0
+tools/sync-dotfiles.py	90	90	1	8	098b84c4d870	STAY	local-scoped		0				0
 tools/sync-generated.sh	1	3	3	24	fdabe5ba4054	STAY	ai-header		0				0
 tools/sync-generated.sh	9	22	14	124	4cf964f45b77	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:4cf964f45b77	124	1
 tools/sync-generated.sh	12	12	1	10	4147b14ec471	STAY	local-scoped		0				0
@@ -16577,6 +16591,24 @@ usr/libexec/mios/mios-new	34	37	4	40	a9953fc334b6	STAY	midsize-why		0				0
 usr/libexec/mios/mios-new	72	78	7	60	63ca6741a474	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:63ca6741a474	60	0
 usr/libexec/mios/mios-new	111	115	5	54	86530a7ba918	STAY	midsize-why		0				0
 usr/libexec/mios/mios-new	195	197	3	37	e09267749316	STAY	midsize-why		0				0
+usr/libexec/mios/mios-numa-alloc	1	4	4	27	87729ecec7b0	STAY	ai-header		0				0
+usr/libexec/mios/mios-numa-alloc	17	17	1	5	1955de6dcb3a	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	24	24	1	3	1ce79108ac61	STAY	inline-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	29	29	1	13	72fda2a92ddc	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	44	44	1	10	d02c32ed1885	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	50	50	1	6	76a5a55202a0	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	103	103	1	11	338da343cc1a	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	107	107	1	4	8a1cb3f4f60f	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	111	111	1	4	69be0e34b35a	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	132	132	1	12	3314a0638923	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	141	141	1	8	c12f6f89a207	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	152	152	1	8	de6bbb49d6c5	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	159	159	1	3	3b97d930cd03	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	162	162	1	3	74a0714cdf81	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	173	173	1	9	dda1c28f5fc7	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	176	176	1	8	d4956879f70b	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	225	225	1	2	e9cb356b197a	STAY	local-scoped		0				0
+usr/libexec/mios/mios-numa-alloc	243	243	1	8	427432e6eba1	STAY	local-scoped		0				0
 usr/libexec/mios/mios-oci-delta-apply	1	3	3	6	caf0d8475a91	STAY	ai-header		0				0
 usr/libexec/mios/mios-oci-delta-apply	13	13	1	1	3e073db92ed3	DROP	banner		0				0
 usr/libexec/mios/mios-oci-delta-service.sh	1	2	2	7	45727c7a486e	STAY	ai-header		0				0
@@ -17310,23 +17342,24 @@ usr/libexec/mios/mios-viking	73	73	1	2	f56ee1e18c22	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-viking	141	141	1	13	05c261f293ea	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-viking	216	216	1	2	f56ee1e18c22	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-vscode-custom-css	1	3	3	17	08eb79c7fa0f	STAY	ai-header		0				0
-usr/libexec/mios/mios-vscode-custom-css	19	19	1	7	1e804999d99d	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	29	29	1	8	1eedc0cab395	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	94	94	1	3	d5e0b107bdda	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	114	114	1	6	a86dc89f6535	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	156	156	1	7	1ad1943e3674	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	167	167	1	7	efceba24cde4	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	180	180	1	9	119fab514913	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	228	228	1	2	803810168d6b	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	241	241	1	5	a5df2d9b8705	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	274	274	1	4	01542a6cba40	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	283	283	1	2	30a19f3af8d0	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	287	287	1	6	122db9fa1d95	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	337	337	1	3	39614171458f	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	393	393	1	2	05b25b89cd8a	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	402	402	1	2	49dee3c606b3	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	408	408	1	2	36e5c06115ff	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	414	414	1	2	5a53f6cfabac	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	20	20	1	7	1e804999d99d	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	30	30	1	8	1eedc0cab395	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	111	111	1	3	d5e0b107bdda	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	131	131	1	6	a86dc89f6535	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	173	173	1	7	1ad1943e3674	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	184	184	1	7	efceba24cde4	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	196	196	1	5	ff36a7356900	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	203	203	1	5	7361e62a4d14	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	259	259	1	2	803810168d6b	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	272	272	1	5	a5df2d9b8705	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	305	305	1	4	01542a6cba40	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	314	314	1	2	30a19f3af8d0	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	318	318	1	6	122db9fa1d95	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	368	368	1	3	39614171458f	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	433	433	1	2	05b25b89cd8a	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	442	442	1	2	49dee3c606b3	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	448	448	1	2	36e5c06115ff	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	454	454	1	2	5a53f6cfabac	STAY	local-scoped		0				0
 usr/libexec/mios/mios-wallpaper	1	3	3	20	3826c022f7db	STAY	ai-header		0				0
 usr/libexec/mios/mios-web-extract	1	2	2	33	03eb08011b7b	STAY	ai-header		0				0
 usr/libexec/mios/mios-web-extract	3	14	11	103	92d3b8d59df1	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:92d3b8d59df1	103	0
@@ -20717,20 +20750,20 @@ usr/share/mios/mios.toml	11539	11545	7	64	351d4a832370	MIGRATE	narrative-rationa
 usr/share/mios/mios.toml	11547	11548	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11552	11552	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11561	11561	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11783	11783	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11789	11790	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11817	11818	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11827	11830	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	11832	11833	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11837	11839	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11845	11845	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11847	11849	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11915	11918	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11920	11920	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11999	12000	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12005	12009	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	12011	12014	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12017	12022	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	11784	11784	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11790	11791	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11818	11819	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11828	11831	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	11833	11834	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11838	11840	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11846	11846	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11848	11850	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11916	11919	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11921	11921	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12000	12001	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12006	12010	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	12012	12015	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12018	12023	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/nix/nix.conf	1	2	2	13	27ffd5dc0fa9	STAY	ai-header		0				0
 usr/share/mios/nix/nix.conf	4	4	1	7	49f68b33b675	STAY	local-scoped		0				0
 usr/share/mios/nix/nix.conf	7	7	1	5	95ad535dfeaf	STAY	local-scoped		0				0
