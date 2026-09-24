@@ -1,0 +1,21 @@
+# AI-hint: Systemd service for periodic CephFS atomic subvolume snapshotting and retention management (T-794).
+# AI-related: usr/lib/systemd/system/mios-ceph-snap.timer, usr/libexec/mios/mios-ceph-snap
+
+[Unit]
+Description=MiOS CephFS Subvolume Snapshot Service
+Documentation=file:///usr/share/doc/mios/manual/ch66-v5-authority-inversion-and-cephfs-tiering.md
+After=local-fs.target
+Wants=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-ceph-snap create /var/lib/mios/workspaces
+ExecStartPost=/usr/libexec/mios/mios-ceph-snap prune /var/lib/mios/workspaces
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=60s
+
+[Install]
+WantedBy=multi-user.target

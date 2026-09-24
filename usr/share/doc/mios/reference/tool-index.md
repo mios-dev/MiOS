@@ -65,6 +65,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-cdi-gen` | Scoped CDI specification generator for NVIDIA, AMD, and Intel rootless Podman containers (T-525). |
 | `usr/libexec/mios/mios-cdp-fetch` | Fetches rendered text and title from a URL via the Chrome DevTools Protocol (CDP) on port 9222 to provide the agent with grounded, non-hallucinated DOM content instead of predicted text. |
 | `usr/libexec/mios/mios-ceph-configure` | Automated client cache configuration utility for CephFS, rendering performance options into /etc/ceph/ceph.conf. |
+| `usr/libexec/mios/mios-ceph-snap` | Atomic CephFS subvolume snapshot scheduler and instant rollback daemon (T-794). |
 | `usr/libexec/mios/mios-cephfs-provision` | Automated provisioning utility for CephFS user home subvolumes and path-scoped CephX keyrings. |
 | `usr/libexec/mios/mios-chain-verify` | SEC-03 CLI that verifies the tamper-evident SHA-256 hash chain over the agent-plane `event` table. Reads every chained row (WHERE chain_hash IS NOT NULL) in chain_seq order via mios-pg-query's... |
 | `usr/libexec/mios/mios-chrony-ptp-dropin` | Generates /etc/chrony.d/10-ptp.conf on first boot if /dev/ptp0 exists (PTP hardware present). |
@@ -239,6 +240,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-sync-to-root` | Applies the code-server / war-room workspace (an ext4 replica of the MiOS |
 | `usr/libexec/mios/mios-sync-toml` | Projects the canonical-owned, drift-prone sections of mios.toml into the two |
 | `usr/libexec/mios/mios-sys-env` | Provides a shared, persistent snapshot of hardware, services, and app inventory in pgvector, allowing agents to query current system state via the `sys_env` table instead of performing live probes. |
+| `usr/libexec/mios/mios-sys-sync` | Dynamic kernel sysctl/sysfs parameter synchronizer and udev reload daemon (T-822). |
 | `usr/libexec/mios/mios-system-status` | Provides a single JSON blob of hardware (CPU, GPU, RAM, Disk), service status, and model data (via the mios-llm-light API) to the `system_status` verb to prevent the LLM from hallucinating system... |
 | `usr/libexec/mios/mios-sysview` | Provides a unified system inspection tool for agents to query journalctl, process lists, and podman containers by abstracting complex command construction and flag validation into a single interface. |
 | `usr/libexec/mios/mios-template-engine` | Thin shim delegating template rendering to the mios-new canonical generator, preserving the legacy <kind> <target_filepath> [description] contract. |
@@ -280,7 +282,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 | `usr/libexec/mios/mios-xdp` | Native eBPF XDP network fastpath and WireGuard packet router manager (T-802). |
 
-<!-- derived from the AI-hint headers of 250 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 252 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)

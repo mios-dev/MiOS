@@ -11775,6 +11775,8 @@ unit = [
     "tests/test-quickshell-shell.sh",
     "tests/test-configurator-server.sh",
     "tests/test-cpu-gemm-vectorization.sh",
+    "tests/test-sys-sync-live-reload.sh",
+    "tests/test-ceph-snapshot-rollback.sh",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

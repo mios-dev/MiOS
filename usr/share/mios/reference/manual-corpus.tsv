@@ -4553,6 +4553,20 @@ tests/test-cdi-gen.py	19	19	1	5	a2f53c0cb741	STAY	local-scoped		0				0
 tests/test-cdi-gen.py	41	41	1	5	5ecdaf8c1492	STAY	local-scoped		0				0
 tests/test-cdi-gen.py	51	51	1	5	cb8309774409	STAY	local-scoped		0				0
 tests/test-cdi-gen.py	56	56	1	5	0d78d989e8a5	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	1	3	3	17	5c89183a950f	STAY	ai-header		0				0
+tests/test-ceph-snapshot-rollback.sh	27	27	1	6	7218fc370233	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	41	41	1	4	75b76361224c	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	45	45	1	11	b2e71651965d	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	58	58	1	8	90706e91ff61	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	70	70	1	4	8237c715b954	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	72	72	1	3	53e6d398738a	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	75	75	1	4	05704c68f3a0	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	77	77	1	3	be454eea0b92	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	87	87	1	5	36dc4556325f	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	99	99	1	10	af8a2b07429d	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	109	109	1	4	68c505a4bad3	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	111	111	1	4	160ac8a8acba	STAY	local-scoped		0				0
+tests/test-ceph-snapshot-rollback.sh	126	126	1	7	2757903c358b	STAY	local-scoped		0				0
 tests/test-cilium-bgp-ecmp.py	1	2	2	15	21feb78c49f1	STAY	ai-header		0				0
 tests/test-cilium-bgp-ecmp.py	4	4	1	11	1b85f4649766	STAY	local-scoped		0				0
 tests/test-cilium-bgp-ecmp.py	10	10	1	8	0705d7b1a994	STAY	local-scoped		0				0
@@ -6903,6 +6917,16 @@ tests/test-swarm-pss-memory.py	4	4	1	13	8004328763b2	STAY	local-scoped		0				0
 tests/test-swarm-pss-memory.py	10	10	1	11	fd839db88e66	STAY	local-scoped		0				0
 tests/test-swarm-pss-memory.py	13	13	1	7	8d3092f3951f	STAY	local-scoped		0				0
 tests/test-swarm-pss-memory.py	17	17	1	15	e9f283ceda0c	STAY	local-scoped		0				0
+tests/test-sys-sync-live-reload.sh	1	3	3	17	281d23761b74	STAY	ai-header		0				0
+tests/test-sys-sync-live-reload.sh	25	25	1	5	1308b6ce875a	STAY	local-scoped		0				0
+tests/test-sys-sync-live-reload.sh	33	33	1	9	22a369d3e0f2	STAY	local-scoped		0				0
+tests/test-sys-sync-live-reload.sh	45	45	1	8	4961e3d89b82	STAY	local-scoped		0				0
+tests/test-sys-sync-live-reload.sh	57	57	1	11	59e5d89221f0	STAY	local-scoped		0				0
+tests/test-sys-sync-live-reload.sh	66	66	1	7	d9a7afb03f60	STAY	local-scoped		0				0
+tests/test-sys-sync-live-reload.sh	83	83	1	4	a96dda648b0d	STAY	local-scoped		0				0
+tests/test-sys-sync-live-reload.sh	102	102	1	9	ee2b28280165	STAY	local-scoped		0				0
+tests/test-sys-sync-live-reload.sh	119	119	1	7	73863fa2a736	STAY	local-scoped		0				0
+tests/test-sys-sync-live-reload.sh	128	128	1	10	8749d68b77da	STAY	local-scoped		0				0
 tests/test-systemd-homed-luks.py	1	2	2	14	c8812099c36d	STAY	ai-header		0				0
 tests/test-systemd-homed-luks.py	4	4	1	10	284f97119bfe	STAY	local-scoped		0				0
 tests/test-systemd-homed-luks.py	10	10	1	8	5d1f64020f7c	STAY	local-scoped		0				0
@@ -13398,6 +13422,8 @@ usr/lib/systemd/system/mios-ceph-bootstrap.service	1	2	2	20	dce21997d4b4	STAY	ai
 usr/lib/systemd/system/mios-ceph-bootstrap.service	7	7	1	10	c2bebc79ccb7	STAY	local-scoped		0				0
 usr/lib/systemd/system/mios-ceph-bootstrap.service	17	18	2	12	3187d9a7bd40	STAY	local-scoped		0				0
 usr/lib/systemd/system/mios-ceph-bootstrap.service	21	21	1	9	edc484eda071	STAY	local-scoped		0				0
+usr/lib/systemd/system/mios-ceph-snap.service	1	2	2	16	5e6eee40ebcb	STAY	ai-header		0				0
+usr/lib/systemd/system/mios-ceph-snap.timer	1	2	2	16	541c3fee991c	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-cephfs-quota.service	1	2	2	14	91c2eb3ee3af	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-cephfs-quota.timer	1	2	2	15	a89b876f9fa1	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-chrony-ptp.service	1	1	1	17	9e09d09b604f	STAY	ai-header		0				0
@@ -15612,6 +15638,25 @@ usr/libexec/mios/mios-ceph-configure	5	5	1	6	a75c5bcf4cdb	STAY	local-scoped		0		
 usr/libexec/mios/mios-ceph-configure	13	13	1	7	64271cfd5e64	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-ceph-configure	16	16	1	7	1a122db0d025	STAY	local-scoped		0				0
 usr/libexec/mios/mios-ceph-configure	41	41	1	7	efde8422b67d	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	1	3	3	15	3ba148e973ba	STAY	ai-header		0				0
+usr/libexec/mios/mios-ceph-snap	23	23	1	6	18d6bac9dfac	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	35	35	1	12	4e7d3ec6bb77	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	40	40	1	8	403666954515	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	53	54	2	22	12daeda76b0f	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	57	57	1	6	bd91b20f8643	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	59	59	1	9	992ee536d19e	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	68	68	1	10	9939356cea86	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	81	81	1	3	b03772061b09	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	102	102	1	11	d98293f0ac1f	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	111	111	1	11	06c31602c751	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	122	122	1	6	18faa3d4c85e	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	133	133	1	5	2825f7c7a6af	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	146	146	1	7	a269df6e5bf8	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	181	181	1	6	0d8fea38baa8	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	219	219	1	1	fa8847b0c331	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	225	225	1	1	da25480fb483	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	231	231	1	1	a330395cc0a5	STAY	local-scoped		0				0
+usr/libexec/mios/mios-ceph-snap	236	236	1	1	6c83126bfcb0	STAY	local-scoped		0				0
 usr/libexec/mios/mios-cephfs-provision	1	4	4	28	2848458faf57	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:2848458faf57	28	0
 usr/libexec/mios/mios-cephfs-provision	5	5	1	7	3f69e547a37c	STAY	local-scoped		0				0
 usr/libexec/mios/mios-cephfs-provision	18	18	1	7	64271cfd5e64	STAY	inline-scoped		0				0
@@ -16939,6 +16984,20 @@ usr/libexec/mios/mios-sys-env	4	35	31	201	302766ed89cb	MIGRATE	narrative-history
 usr/libexec/mios/mios-sys-env	56	58	3	30	e990756c73e8	STAY	midsize-why		0				0
 usr/libexec/mios/mios-sys-env	96	97	2	15	b4ee494c185b	STAY	local-scoped		0				0
 usr/libexec/mios/mios-sys-env	168	170	3	35	6b2166a05cb7	STAY	midsize-why		0				0
+usr/libexec/mios/mios-sys-sync	1	3	3	15	54962d4256ba	STAY	ai-header		0				0
+usr/libexec/mios/mios-sys-sync	27	27	1	8	45ad44d987fc	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	46	46	1	11	063d88c14829	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	51	51	1	6	26ba745f564e	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	63	63	1	8	12e6772b939d	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	64	64	1	3	aa5f68b30cf9	STAY	inline-scoped		0				0
+usr/libexec/mios/mios-sys-sync	77	77	1	7	0f9aa980add0	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	87	87	1	17	7d826568d4fe	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	115	115	1	7	b084f83e5906	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	128	128	1	4	3d944332ce75	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	131	131	1	7	78e51008bc91	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	139	139	1	6	a8713b64a879	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	156	156	1	4	9d5879a23313	STAY	local-scoped		0				0
+usr/libexec/mios/mios-sys-sync	187	187	1	8	3c0ae15396e6	STAY	local-scoped		0				0
 usr/libexec/mios/mios-system-status	1	3	3	44	b3e2d1892b9c	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:b3e2d1892b9c	44	0
 usr/libexec/mios/mios-system-status	4	26	22	141	6d81098ea81d	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:6d81098ea81d	141	0
 usr/libexec/mios/mios-system-status	53	56	4	36	1dc8c9e8f075	STAY	midsize-why		0				0
@@ -20593,20 +20652,20 @@ usr/share/mios/mios.toml	11539	11545	7	64	351d4a832370	MIGRATE	narrative-rationa
 usr/share/mios/mios.toml	11547	11548	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11552	11552	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11561	11561	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11779	11779	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11785	11786	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11813	11814	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11823	11826	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	11828	11829	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11833	11835	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11841	11841	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11843	11845	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11911	11914	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11916	11916	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11995	11996	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12001	12005	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	12007	12010	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12013	12018	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	11781	11781	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11787	11788	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11815	11816	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11825	11828	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	11830	11831	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11835	11837	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11843	11843	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11845	11847	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11913	11916	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11918	11918	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11997	11998	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12003	12007	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	12009	12012	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12015	12020	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/nix/nix.conf	1	2	2	13	27ffd5dc0fa9	STAY	ai-header		0				0
 usr/share/mios/nix/nix.conf	4	4	1	7	49f68b33b675	STAY	local-scoped		0				0
 usr/share/mios/nix/nix.conf	7	7	1	5	95ad535dfeaf	STAY	local-scoped		0				0

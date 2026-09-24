@@ -36,6 +36,8 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-bound-images-firstboot.service` | `usr/lib/systemd/system` | First-boot Bound Images Provisioner |
 | `mios-cdi-detect.service` | `usr/lib/systemd/system` | MiOS' CDI spec detection (WSL vs bare metal vs VM) |
 | `mios-ceph-bootstrap.service` | `usr/lib/systemd/system` | MiOS' Ceph Cluster Bootstrap |
+| `mios-ceph-snap.service` | `usr/lib/systemd/system` | MiOS CephFS Subvolume Snapshot Service |
+| `mios-ceph-snap.timer` | `usr/lib/systemd/system` | Periodic CephFS Subvolume Snapshot Timer |
 | `mios-ceph.container` | `usr/share/containers/systemd` | MiOS' Ceph Monitor (Podman-native) |
 | `mios-cephfs-quota.service` | `usr/lib/systemd/system` | MiOS CephFS Tenant Dynamic Quota Enforcement Service |
 | `mios-cephfs-quota.timer` | `usr/lib/systemd/system` | Periodic CephFS Tenant Dynamic Quota Enforcement Timer |
@@ -202,5 +204,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (194 unit(s)) -->
+<!-- derived from tracked unit files (196 unit(s)) -->
 <!-- /MIOS-GEN:units -->

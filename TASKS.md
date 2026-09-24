@@ -705,8 +705,8 @@
 | T-791 | P2 | open | Kernel/PstoreTest | Automated kernel panic injection, ramoops log preservation, and database ingestion test suite |
 | T-792 | P1 | open | AI/EXL2Engine | Dynamic EXL2 fractional bitrate execution engine and fused CUDA kernel manager in llama-swap |
 | T-793 | P2 | open | AI/EXL2Test | Automated 70B EXL2 model VRAM fitting (<24GB), 100 tok/s speedup, and perplexity test suite |
-| T-794 | P1 | open | Storage/CephSnapshot | Atomic CephFS subvolume snapshot scheduler and instant rollback daemon in mios-ceph-snap |
-| T-795 | P2 | open | Storage/CephSnapTest | Automated CephFS snapshot creation (<10ms), retention rotation, and rollback test suite |
+| T-794 | P1 | done | Storage/CephSnapshot | Atomic CephFS subvolume snapshot scheduler and instant rollback daemon in mios-ceph-snap |
+| T-795 | P2 | done | Storage/CephSnapTest | Automated CephFS snapshot creation (<10ms), retention rotation, and rollback test suite |
 | T-796 | P1 | open | AI/PrefixCache | Radix Tree prefix KV-cache sharing engine in llama-swap |
 | T-797 | P2 | open | AI/PrefixTest | Automated shared prompt prefix hit rate (>95%) and sub-5ms TTFT benchmark suite |
 | T-798 | P1 | done | Security/USBGuard | Declarative USBGuard device authorization daemon and read-only storage mounter |
@@ -733,8 +733,8 @@
 | T-819 | P2 | open | AI/SpecDraftTest | Automated speculative decoding speedup (>2.0x) and target output parity benchmark suite |
 | T-820 | P1 | open | Memory/OOMProtection | Proactive systemd-oomd PSI pressure manager and cgroup hierarchy protector |
 | T-821 | P2 | open | Memory/OOMTest | Automated memory exhaustion stress test, worker eviction, and daemon survival test suite |
-| T-822 | P1 | open | Kernel/SysSync | Dynamic kernel sysctl/sysfs parameter synchronizer and udev reload daemon in mios-sys-sync |
-| T-823 | P2 | open | Kernel/SysSyncTest | Automated zero-reboot sysctl parameter application (<50ms) and live udev test suite |
+| T-822 | P1 | done | Kernel/SysSync | Dynamic kernel sysctl/sysfs parameter synchronizer and udev reload daemon in mios-sys-sync |
+| T-823 | P2 | done | Kernel/SysSyncTest | Automated zero-reboot sysctl parameter application (<50ms) and live udev test suite |
 | T-824 | P1 | open | AI/HQQQuantizer | Calibration-free HQQ quantization compiler and fused dequantization GEMM manager |
 | T-825 | P2 | open | AI/HQQTest | Automated sub-30s HQQ model quantization, perplexity parity, and fused GEMM test suite |
 | T-826 | P1 | open | Memory/NUMAAlloc | Heterogeneous NUMA weight buffer interleaver and local core affinity pinner |
@@ -8796,7 +8796,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Snapshot manager takes atomic subvolume snapshots in <10ms and restores workspaces instantaneously.
 **Why:** Instantaneous point-in-time snapshots protect against agent workspace corruption and accidental data deletion.
 **Dep:** AGY-2391
-**Status:** open | **Domain:** Storage/CephSnapshot | **Who:** agent
+**Status:** done | **Domain:** Storage/CephSnapshot | **Who:** agent
 **Converted:** AGY-2392 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-795 -- Automated CephFS snapshot creation (<10ms), retention rotation, and rollback test suite (WS-STRG | P2 | S)
@@ -8806,7 +8806,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates microsecond snapshot creation, data integrity restoration, and automated pruning.
 **Why:** Continuous testing ensures distributed storage snapshot operations maintain reliable instant recovery capabilities.
 **Dep:** AGY-2392
-**Status:** open | **Domain:** Storage/CephSnapTest | **Who:** agent
+**Status:** done | **Domain:** Storage/CephSnapTest | **Who:** agent
 **Converted:** AGY-2393 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-796 -- Radix Tree prefix KV-cache sharing engine in llama-swap (WS-AI | P1 | M)
@@ -9076,7 +9076,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** System synchronizer applies sysctl, sysfs, and udev rule updates on-the-fly in <50ms.
 **Why:** Zero-reboot kernel parameter synchronization enables instant tuning of network, storage, and CPU parameters on live hosts.
 **Dep:** AGY-2419
-**Status:** open | **Domain:** Kernel/SysSync | **Who:** agent
+**Status:** done | **Domain:** Kernel/SysSync | **Who:** agent
 **Converted:** AGY-2420 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-823 -- Automated zero-reboot sysctl parameter application (<50ms) and live udev test suite (WS-NODE | P2 | S)
@@ -9086,7 +9086,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates instant sysctl reload, live sysfs updates, and udev rule execution.
 **Why:** Continuous testing ensures system configuration daemons reliably update kernel state without service interruptions.
 **Dep:** AGY-2420
-**Status:** open | **Domain:** Kernel/SysSyncTest | **Who:** agent
+**Status:** done | **Domain:** Kernel/SysSyncTest | **Who:** agent
 **Converted:** AGY-2421 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-824 -- Calibration-free HQQ quantization compiler and fused dequantization GEMM manager (WS-AI | P1 | M)
