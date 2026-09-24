@@ -2,12 +2,14 @@
 # AI-hint: Synchronizes .dotfiles SSOT into all IDE profiles, skeletons, and themes (T-532, AGY-2130).
 # AI-doc: usr/share/doc/mios/manual/tools.md
 import argparse
+import json
 import os
 import shutil
 import sys
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DOTFILES_DIR = os.path.join(REPO_ROOT, ".dotfiles")
+BOOTSTRAP_ROOT = os.path.abspath(os.path.join(REPO_ROOT, "..", "mios-bootstrap"))
 
 VSCODE_SETTINGS_SRC = os.path.join(DOTFILES_DIR, "vscode", "settings.json")
 CODESERVER_SETTINGS_SRC = os.path.join(DOTFILES_DIR, "code-server", "settings.json")
@@ -22,6 +24,50 @@ TARGET_PROJECTIONS = [
     (CODESERVER_SETTINGS_SRC, "usr/share/mios/agents/code-server-mobile-settings.json"),
     (CODESERVER_CSS_SRC, "usr/share/mios/themes/code-server-terminal.css"),
 ]
+
+# Every devcontainer.json / *.code-workspace whose embedded VS Code settings
+# object must be kept in lockstep with the .dotfiles SSOT (ADR-0010). Each
+# entry is (repo_root, target_rel_path, key_path_into_the_settings_object).
+# The projection is a MERGE, not an overwrite: SSOT keys win on conflict, but
+# any surface-only key (e.g. installer-specific zenMode.* tuning) survives.
+JSON_MERGE_PROJECTIONS = [
+    (REPO_ROOT, ".devcontainer/devcontainer.json", ("customizations", "vscode", "settings")),
+    (REPO_ROOT, ".devcontainer/artifact-builder/devcontainer.json", ("customizations", "vscode", "settings")),
+    (REPO_ROOT, "mios.code-workspace", ("settings",)),
+    (REPO_ROOT, ".devcontainer/mios-ecosystem.code-workspace", ("settings",)),
+    (BOOTSTRAP_ROOT, ".devcontainer/devcontainer.json", ("customizations", "vscode", "settings")),
+]
+
+
+def _get_in(d, path):
+    for key in path:
+        d = d.setdefault(key, {})
+    return d
+
+
+def _project_json_merges(check):
+    """Merge the SSOT vscode settings dict into every devcontainer.json/*.code-workspace."""
+    ssot_settings = json.loads(open(VSCODE_SETTINGS_SRC, "r", encoding="utf-8").read())
+    drift = []
+    for repo_root, rel_target, key_path in JSON_MERGE_PROJECTIONS:
+        dst = os.path.join(repo_root, rel_target)
+        label = f"{os.path.basename(os.path.normpath(repo_root))}/{rel_target}"
+        if not os.path.isfile(dst):
+            continue  # degrade open: sibling repo/profile not checked out here
+        with open(dst, "r", encoding="utf-8") as f:
+            doc = json.load(f)
+        parent = _get_in(doc, key_path[:-1])
+        existing = parent.get(key_path[-1], {})
+        merged = dict(existing)
+        merged.update(ssot_settings)
+        if merged != existing:
+            drift.append(label)
+        if not check:
+            parent[key_path[-1]] = merged
+            with open(dst, "w", encoding="utf-8") as f:
+                json.dump(doc, f, indent=2)
+                f.write("\n")
+    return drift
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Synchronize .dotfiles SSOT to system overlays and IDE profiles")
@@ -132,6 +178,9 @@ def main() -> int:
                 shutil.copy2(CODESERVER_CSS_SRC, "/usr/share/mios/themes/code-server-terminal.css")
             except Exception:
                 pass
+
+    # 5. Merge the SSOT settings into every devcontainer.json / *.code-workspace
+    drift.extend(_project_json_merges(args.check))
 
     if args.check:
         if drift:
