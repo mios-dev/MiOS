@@ -264,10 +264,10 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
         );
     }
 
-    match (req.method.as_str(), req.path.as_str()) {
-        ("GET", "/") => cors_resp(HttpResponse::redirect("/configure")),
+    let mut resp = match (req.method.as_str(), req.path.as_str()) {
+        ("GET", "/") | ("HEAD", "/") => cors_resp(HttpResponse::redirect("/configure")),
 
-        ("GET", "/configure") | ("GET", "/portal/configurator") => {
+        ("GET", "/configure") | ("HEAD", "/configure") | ("GET", "/portal/configurator") | ("HEAD", "/portal/configurator") => {
             if config.html_path.is_file() {
                 match fs::read_to_string(&config.html_path) {
                     Ok(content) => cors_resp(HttpResponse::html(200, "OK", content)),
@@ -289,7 +289,7 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
             }
         }
 
-        ("GET", "/portal/config") => {
+        ("GET", "/portal/config") | ("HEAD", "/portal/config") => {
             let toml_data = read_layered_toml(config);
             cors_resp(HttpResponse::toml(200, "OK", toml_data))
         }
@@ -358,7 +358,7 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
             ))
         }
 
-        ("GET", "/health") | ("GET", "/healthz") => cors_resp(HttpResponse::json(
+        ("GET", "/health") | ("HEAD", "/health") | ("GET", "/healthz") | ("HEAD", "/healthz") => cors_resp(HttpResponse::json(
             200,
             "OK",
             r#"{"status":"ok","engine":"miosd-config-server"}"#.to_string(),
@@ -368,7 +368,12 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
             "text/plain",
             format!("Path not found: {}", req.path).into_bytes(),
         )),
+    };
+
+    if req.method == "HEAD" {
+        resp.body.clear();
     }
+    resp
 }
 
 pub async fn handle_stream(
@@ -390,6 +395,7 @@ pub async fn handle_stream(
     let resp_bytes = resp.to_bytes();
     stream.write_all(&resp_bytes).await?;
     stream.flush().await?;
+    let _ = stream.shutdown().await;
     Ok(())
 }
 

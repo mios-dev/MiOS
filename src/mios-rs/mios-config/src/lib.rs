@@ -91,7 +91,7 @@ pub struct BuildRatchet {
 }
 
 fn default_max_phase_scripts() -> usize {
-    71
+    77
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]

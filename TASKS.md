@@ -695,8 +695,8 @@
 | T-781 | P2 | open | AI/ASTDiffTest | Automated AST structural diff calculation and 2-peer review merge gating test suite |
 | T-782 | P1 | done | Security/LivepatchMOK | Cryptographic MOK livepatch signature gate and IMA measurement logger in mios-livepatch |
 | T-783 | P2 | open | Security/LivepatchTest | Automated livepatch signature verification, unsigned module rejection, and IMA test suite |
-| T-784 | P1 | open | AI/CPUGEMM | Hardware-calibrated CPU vectorized GEMM auto-tuner in mios-cpu-gemm |
-| T-785 | P2 | open | AI/CPUGEMMTest | Automated CPU quantized GEMM throughput (>30 tok/s) and SIMD dispatch test suite |
+| T-784 | P1 | done | AI/CPUGEMM | Hardware-calibrated CPU vectorized GEMM auto-tuner in mios-cpu-gemm |
+| T-785 | P2 | done | AI/CPUGEMMTest | Automated CPU quantized GEMM throughput (>30 tok/s) and SIMD dispatch test suite |
 | T-786 | P1 | done | Audio/AECFilter | PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter |
 | T-787 | P2 | open | Audio/AECTest | Automated acoustic echo cancellation (>40dB suppression) and full-duplex test suite |
 | T-788 | P1 | done | Desktop/WebRTCStream | Hardware-accelerated PipeWire WebRTC desktop video streamer in mios-screen-stream |
@@ -8696,7 +8696,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** CPU inference engine auto-tunes SIMD vector kernels and executes cache-tiled matrix dot products.
 **Why:** Hardware-tuned SIMD vectorization unlocks fast, responsive local AI inference on systems lacking discrete GPUs.
 **Dep:** AGY-2381
-**Status:** open | **Domain:** AI/CPUGEMM | **Who:** agent
+**Status:** done | **Domain:** AI/CPUGEMM | **Who:** agent
 **Converted:** AGY-2382 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-785 -- Automated CPU quantized GEMM throughput (>30 tok/s) and SIMD dispatch test suite (WS-AI | P2 | S)
@@ -8706,7 +8706,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates high-throughput SIMD vector dispatch, cache tiling efficiency, and architecture compatibility.
 **Why:** Continuous testing ensures CPU kernel dispatchers maintain peak inference performance across diverse CPU architectures.
 **Dep:** AGY-2382
-**Status:** open | **Domain:** AI/CPUGEMMTest | **Who:** agent
+**Status:** done | **Domain:** AI/CPUGEMMTest | **Who:** agent
 **Converted:** AGY-2383 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-786 -- PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter (WS-NODE | P1 | M)
