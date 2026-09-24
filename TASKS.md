@@ -731,8 +731,8 @@
 | T-817 | P2 | open | Network/mDNSTest | Automated local mDNS service advertising, sub-200ms peer discovery, and offline test suite |
 | T-818 | P1 | open | AI/SpeculativeDraft | Draft-model speculative decoding and parallel target verification engine in llama-swap |
 | T-819 | P2 | open | AI/SpecDraftTest | Automated speculative decoding speedup (>2.0x) and target output parity benchmark suite |
-| T-820 | P1 | open | Memory/OOMProtection | Proactive systemd-oomd PSI pressure manager and cgroup hierarchy protector |
-| T-821 | P2 | open | Memory/OOMTest | Automated memory exhaustion stress test, worker eviction, and daemon survival test suite |
+| T-820 | P1 | done | Memory/OOMProtection | Proactive systemd-oomd PSI pressure manager and cgroup hierarchy protector |
+| T-821 | P2 | done | Memory/OOMTest | Automated memory exhaustion stress test, worker eviction, and daemon survival test suite |
 | T-822 | P1 | done | Kernel/SysSync | Dynamic kernel sysctl/sysfs parameter synchronizer and udev reload daemon in mios-sys-sync |
 | T-823 | P2 | done | Kernel/SysSyncTest | Automated zero-reboot sysctl parameter application (<50ms) and live udev test suite |
 | T-824 | P1 | open | AI/HQQQuantizer | Calibration-free HQQ quantization compiler and fused dequantization GEMM manager |
@@ -8656,7 +8656,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Agent pipeline parses Tree-Sitter ASTs and enforces 2-peer review gating on structural diffs.
 **Why:** AST structural diffing eliminates whitespace noise and focuses peer review on genuine logic and type mutations.
 **Dep:** AGY-2377
-**Status:** open | **Domain:** AI/ASTDiff | **Who:** agent
+**Status:** done | **Domain:** AI/ASTDiff | **Who:** agent
 **Converted:** AGY-2378 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-781 -- Automated AST structural diff calculation and 2-peer review merge gating test suite (WS-ORCH | P2 | S)
@@ -8666,7 +8666,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates AST diff precision, cosmetic change filtering, and 2-peer review consensus gating.
 **Why:** Continuous testing ensures autonomous code merging pipelines maintain high software quality and security.
 **Dep:** AGY-2378
-**Status:** open | **Domain:** AI/ASTDiffTest | **Who:** agent
+**Status:** done | **Domain:** AI/ASTDiffTest | **Who:** agent
 **Converted:** AGY-2379 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-782 -- Cryptographic MOK livepatch signature gate and IMA measurement logger in mios-livepatch (WS-BOOT | P1 | M)
@@ -9056,7 +9056,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Systemd-oomd evicts runaway worker cgroups under PSI pressure and preserves system stability.
 **Why:** Proactive PSI-based memory reclamation prevents destructive system freezes and guarantees continuous OS availability.
 **Dep:** AGY-2417
-**Status:** open | **Domain:** Memory/OOMProtection | **Who:** agent
+**Status:** done | **Domain:** Memory/OOMProtection | **Who:** agent
 **Converted:** AGY-2418 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-821 -- Automated memory exhaustion stress test, worker eviction, and daemon survival test suite (WS-NODE | P2 | S)
@@ -9066,7 +9066,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** Test suite validates targeted subagent eviction, zero system service degradation, and forensic audit logging.
 **Why:** Continuous testing ensures memory protection policies reliably prevent system lockups during peak AI loads.
 **Dep:** AGY-2418
-**Status:** open | **Domain:** Memory/OOMTest | **Who:** agent
+**Status:** done | **Domain:** Memory/OOMTest | **Who:** agent
 **Converted:** AGY-2419 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-822 -- Dynamic kernel sysctl/sysfs parameter synchronizer and udev reload daemon in mios-sys-sync (WS-NODE | P1 | M)

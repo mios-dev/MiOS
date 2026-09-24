@@ -11777,6 +11777,8 @@ unit = [
     "tests/test-cpu-gemm-vectorization.sh",
     "tests/test-sys-sync-live-reload.sh",
     "tests/test-ceph-snapshot-rollback.sh",
+    "tests/test-ast-diff-peer-review.sh",
+    "tests/test-systemd-oomd-psi.sh",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [

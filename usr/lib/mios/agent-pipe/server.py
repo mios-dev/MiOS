@@ -1066,6 +1066,52 @@ async def lora_list():
         log.error("Failed to list LoRA adapters on heavy backend: %s", e)
         return {"adapters": [], "enabled": True}
 
+@app.post("/v1/ast/diff")
+async def ast_diff_endpoint(request: Request):
+    """Compute AST structural diff across Python, Rust, Go, TypeScript, C (T-780)."""
+    try:
+        body = await request.json()
+        orig = body.get("original", "")
+        mod = body.get("modified", "")
+        lang = body.get("language", "python")
+        from mios_ast_diff import AstDiffEngine
+        engine = AstDiffEngine()
+        result = engine.compute_ast_diff(orig, mod, lang)
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+@app.post("/v1/ast/review")
+async def ast_review_endpoint(request: Request):
+    """2-peer review merge gating on structural diffs (T-780)."""
+    try:
+        body = await request.json()
+        action = body.get("action", "create")
+        from mios_ast_diff import global_gate
+        if action == "create":
+            orig = body.get("original", "")
+            mod = body.get("modified", "")
+            lang = body.get("language", "python")
+            title = body.get("title", "")
+            patch_id = body.get("patch_id")
+            rec = global_gate.create_review(orig, mod, lang, title, patch_id)
+            return JSONResponse(rec)
+        elif action == "vote":
+            review_id = body.get("review_id", "")
+            role = body.get("role", "")
+            decision = body.get("decision", "")
+            comment = body.get("comment", "")
+            rec = global_gate.submit_vote(review_id, role, decision, comment)
+            return JSONResponse(rec)
+        elif action == "status":
+            review_id = body.get("review_id", "")
+            rec = global_gate.get_review(review_id)
+            return JSONResponse(rec)
+        else:
+            return JSONResponse(status_code=400, content={"error": f"Unknown action: {action}"})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
 from mios_pipe.kernel.httpclient import (   # noqa: E402  -- WS-A6/T-226 chokepoint
     _batch_request_hook, _get_client, configure as _configure_httpclient)
 

@@ -265,6 +265,7 @@ etc/xdg/xdg-desktop-portal/*
 
 !/etc/systemd/
 etc/systemd/*
+!/etc/systemd/oomd.conf
 !/etc/systemd/resolved.conf.d/
 !/etc/systemd/resolved.conf.d/*
 !/etc/systemd/user/
@@ -574,6 +575,8 @@ usr/lib/systemd/*
 !/usr/lib/systemd/journald.conf.d/**
 !/usr/lib/systemd/resolved.conf.d/
 !/usr/lib/systemd/resolved.conf.d/**
+!/usr/lib/systemd/oomd.conf.d/
+!/usr/lib/systemd/oomd.conf.d/**
 !/usr/lib/systemd/system/
 !/usr/lib/systemd/system-preset/
 !/usr/lib/systemd/user/
@@ -607,6 +610,11 @@ usr/lib/systemd/system/*
 !/usr/lib/systemd/system/hermes-agent.service
 !/usr/lib/systemd/system/*.service.d/
 !/usr/lib/systemd/system/*.service.d/**
+!/usr/lib/systemd/system/*.slice
+!/usr/lib/systemd/system/*.slice.d/
+!/usr/lib/systemd/system/*.slice.d/**
+!/usr/lib/systemd/system/*.scope.d/
+!/usr/lib/systemd/system/*.scope.d/**
 !/usr/lib/systemd/system/*.socket.d/
 !/usr/lib/systemd/system/*.socket.d/**
 !/usr/lib/systemd/system/*.mount.d/
@@ -617,6 +625,7 @@ usr/lib/systemd/system/systemd-udev-trigger.service.d/*
 usr/lib/systemd/system/user@.service.d/*
 usr/lib/systemd/system/user@0.service.d/*
 !/usr/lib/systemd/system/user@.service.d/10-mios-*.conf
+!/usr/lib/systemd/system/user@.service.d/10-oom-*.conf
 !/usr/lib/systemd/system/user@0.service.d/10-mios-*.conf
 !/usr/lib/systemd/system/systemd-udev-trigger.service.d/10-mios-*.conf
 
