@@ -11431,6 +11431,7 @@ mirror_toml_tables = ["ports"]
 
 # Deliberately NOT mirrored; reasons in installation/UNIFY.md.
 not_mirrored = [
+  "AGENT-ARTIFACT-SYSTEM-PROMPT.md",
   "install.sh", "install.ps1", "bootstrap.sh", "bootstrap.ps1",
   "README.md", "CLAUDE.md", "AGENTS.md",
   "GEMINI.md", ".gitignore", "VERSION",
