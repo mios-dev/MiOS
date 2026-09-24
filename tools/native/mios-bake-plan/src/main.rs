@@ -597,16 +597,18 @@ mod tests {
     fn a_floated_tag_resolves_from_ssot_when_the_environment_is_bare() {
         let sidecars = BTreeMap::new();
         let mut ssot = BTreeMap::new();
-        ssot.insert("MIOS_VERSION_CEPH".to_string(), "v19".to_string());
+        let var_name = "MIOS_VERSION_CEPH_TEST_PROBE";
+        unsafe { env::remove_var(var_name) };
+        ssot.insert(var_name.to_string(), "v19".to_string());
         assert_eq!(
-            resolve_image_val("quay.io/ceph/ceph:${MIOS_VERSION_CEPH}", &sidecars, &ssot),
+            resolve_image_val(&format!("quay.io/ceph/ceph:${{{var_name}}}"), &sidecars, &ssot),
             "quay.io/ceph/ceph:v19"
         );
         // Absent from SSOT too: the placeholder SURVIVES so the caller can name
         // the variable, rather than being silently dropped.
         let empty = BTreeMap::new();
         assert!(
-            resolve_image_val("quay.io/ceph/ceph:${MIOS_VERSION_CEPH}", &sidecars, &empty)
+            resolve_image_val(&format!("quay.io/ceph/ceph:${{{var_name}}}"), &sidecars, &empty)
                 .contains('$')
         );
     }

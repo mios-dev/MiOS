@@ -34,7 +34,7 @@
       "settings": {
         "python.defaultInterpreterPath": "/usr/bin/python3",
         "terminal.integrated.defaultProfile.linux": "bash",
-        "workbench.colorTheme": "MiOS Mobile Edge-to-Edge",
+        "workbench.colorTheme": "MiOS-Dev",
         "workbench.colorCustomizations": {
           "window.border": "#00000000",
           "window.activeBorder": "#00000000",

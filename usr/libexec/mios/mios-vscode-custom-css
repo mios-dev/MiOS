@@ -43,7 +43,7 @@ SETTINGS_PATTERNS = [
 ]
 
 DEFAULT_SETTINGS = {
-    "workbench.colorTheme": "MiOS Mobile Edge-to-Edge",
+    "workbench.colorTheme": "MiOS-Dev",
     "vscode_custom_css.imports": [
         f"file://{CSS_FILE}"
     ],
@@ -322,7 +322,18 @@ def patch_workbench_html(html_path, dry_run=False, verbose=False):
             content
         )
 
+        css_content = ""
+        if os.path.isfile(CSS_FILE):
+            try:
+                with open(CSS_FILE, "r", encoding="utf-8") as cf:
+                    css_content = cf.read()
+            except Exception:
+                css_content = ""
+
         inject_tag = f'<link rel="stylesheet" href="file://{CSS_FILE}">\n'
+        if css_content:
+            inject_tag += f'<style id="mios-custom-terminal-css">\n{css_content}\n</style>\n'
+
         patch_block = (
             f"<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID {session_id} !! -->\n"
             f"<!-- !! VSCODE-CUSTOM-CSS-START !! -->\n"

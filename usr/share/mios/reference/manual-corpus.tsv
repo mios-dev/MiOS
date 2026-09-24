@@ -4873,6 +4873,8 @@ tests/test-hardware-fallback.sh	272	274	3	6	e8441fe36073	DROP	banner		0				0
 tests/test-hardware-fallback.sh	298	298	1	11	57d63be8cba7	STAY	local-scoped		0				0
 tests/test-hardware-fallback.sh	306	308	3	6	7e9fcdf83e6d	DROP	banner		0				0
 tests/test-hardware-fallback.sh	339	341	3	2	98536d045b64	DROP	banner		0				0
+tests/test-hardware-target-profiling.sh	1	3	3	24	483bc1d0c5c7	STAY	ai-header		0				0
+tests/test-hardware-target-profiling.sh	129	129	1	10	57fe56cff5fb	STAY	local-scoped		0				0
 tests/test-httpx-transport.py	1	3	3	17	0dc1d26ae31e	STAY	ai-header		0				0
 tests/test-hw.py	1	2	2	22	8aebec09df5c	STAY	ai-header		0				0
 tests/test-hw.py	3	3	1	13	9d85047132a9	STAY	local-scoped		0				0
@@ -8161,8 +8163,8 @@ tools/native/mios-bake-plan/src/main.rs	347	350	4	42	26b06bb2fda8	STAY	midsize-w
 tools/native/mios-bake-plan/src/main.rs	467	469	3	26	20cf743630df	STAY	midsize-why		0				0
 tools/native/mios-bake-plan/src/main.rs	506	507	2	21	ce9a7d9ee61d	STAY	local-scoped		0				0
 tools/native/mios-bake-plan/src/main.rs	594	595	2	27	4bbfa3421c84	STAY	midsize-why		0				0
-tools/native/mios-bake-plan/src/main.rs	605	606	2	19	f30b6daa8a50	STAY	local-scoped		0				0
-tools/native/mios-bake-plan/src/main.rs	622	622	1	11	de3b2e334ce1	STAY	local-scoped		0				0
+tools/native/mios-bake-plan/src/main.rs	607	608	2	19	f30b6daa8a50	STAY	local-scoped		0				0
+tools/native/mios-bake-plan/src/main.rs	624	624	1	11	de3b2e334ce1	STAY	local-scoped		0				0
 tools/native/mios-comment-lex/Cargo.toml	1	1	1	11	5069a5ba4158	STAY	ai-header		0				0
 tools/native/mios-comment-lex/src/main.rs	1	1	1	11	95c2168078b1	STAY	ai-header		0				0
 tools/native/mios-comment-lex/src/main.rs	11	11	1	3	da7780dd97bf	STAY	local-scoped		0				0
@@ -16335,6 +16337,33 @@ usr/libexec/mios/mios-hardware-fallback	631	631	1	10	ad43233c6c60	STAY	local-sco
 usr/libexec/mios/mios-hardware-fallback	663	663	1	2	e0c9c900e453	STAY	local-scoped		0				0
 usr/libexec/mios/mios-hardware-fallback	666	666	1	2	b34234a596d5	STAY	local-scoped		0				0
 usr/libexec/mios/mios-hardware-fallback	669	669	1	2	f7e315fa1f72	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	1	5	5	35	257bacfa7a18	STAY	ai-header		0				0
+usr/libexec/mios/mios-hardware-profile	19	19	1	8	eee01a6bcef3	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	28	28	1	7	4733a93f07e0	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	52	52	1	8	29bf4cd407cf	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	72	72	1	7	d6375b62af54	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	78	78	1	3	c80369c0f093	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	93	93	1	3	86f8f6d3cf70	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	99	99	1	6	362db7655cd7	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	112	112	1	3	19edd59f2e4b	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	123	123	1	8	9652f739864e	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	132	132	1	2	7ec210d17f28	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	136	136	1	7	38622396748a	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	143	143	1	3	7c229853442a	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	161	161	1	11	181baac01d2b	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	162	162	1	5	a401a8feb54f	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	166	166	1	13	b2c33f2337bf	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	175	175	1	9	b3b07cc4740e	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	179	179	1	9	a19c31abd231	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	183	183	1	5	53b4d1f0466b	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	188	188	1	11	9efab7898ba8	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	228	228	1	14	7bf6f23839de	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	260	260	1	10	7302d7ad0bfb	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	262	262	1	5	dc25c71a4834	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	269	269	1	7	a1543c9d2a58	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	321	321	1	6	e6d32427d4dd	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	335	335	1	4	f2d81f675bf8	STAY	local-scoped		0				0
+usr/libexec/mios/mios-hardware-profile	370	370	1	3	ceb96f9c986f	STAY	local-scoped		0				0
 usr/libexec/mios/mios-hermes-browser	1	4	4	37	72217ad36b3e	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:72217ad36b3e	37	0
 usr/libexec/mios/mios-hermes-dashboard-auth-stub	1	3	3	36	1fa8c3919de7	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:1fa8c3919de7	36	0
 usr/libexec/mios/mios-hermes-discord-reactions-patch	1	2	2	29	b17383b43f96	STAY	ai-header		0				0
@@ -17355,11 +17384,11 @@ usr/libexec/mios/mios-vscode-custom-css	272	272	1	5	a5df2d9b8705	STAY	local-scop
 usr/libexec/mios/mios-vscode-custom-css	305	305	1	4	01542a6cba40	STAY	local-scoped		0				0
 usr/libexec/mios/mios-vscode-custom-css	314	314	1	2	30a19f3af8d0	STAY	local-scoped		0				0
 usr/libexec/mios/mios-vscode-custom-css	318	318	1	6	122db9fa1d95	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	368	368	1	3	39614171458f	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	433	433	1	2	05b25b89cd8a	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	442	442	1	2	49dee3c606b3	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	448	448	1	2	36e5c06115ff	STAY	local-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	454	454	1	2	5a53f6cfabac	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	379	379	1	3	39614171458f	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	444	444	1	2	05b25b89cd8a	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	453	453	1	2	49dee3c606b3	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	459	459	1	2	36e5c06115ff	STAY	local-scoped		0				0
+usr/libexec/mios/mios-vscode-custom-css	465	465	1	2	5a53f6cfabac	STAY	local-scoped		0				0
 usr/libexec/mios/mios-wallpaper	1	3	3	20	3826c022f7db	STAY	ai-header		0				0
 usr/libexec/mios/mios-web-extract	1	2	2	33	03eb08011b7b	STAY	ai-header		0				0
 usr/libexec/mios/mios-web-extract	3	14	11	103	92d3b8d59df1	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:92d3b8d59df1	103	0
@@ -20750,20 +20779,20 @@ usr/share/mios/mios.toml	11539	11545	7	64	351d4a832370	MIGRATE	narrative-rationa
 usr/share/mios/mios.toml	11547	11548	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11552	11552	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11561	11561	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11784	11784	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11790	11791	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11818	11819	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11828	11831	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	11833	11834	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11838	11840	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11846	11846	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11848	11850	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11916	11919	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	11921	11921	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12000	12001	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12006	12010	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	12012	12015	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12018	12023	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	11785	11785	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11791	11792	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11819	11820	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11829	11832	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	11834	11835	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11839	11841	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11847	11847	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11849	11851	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11917	11920	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11922	11922	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12001	12002	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12007	12011	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	12013	12016	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12019	12024	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/nix/nix.conf	1	2	2	13	27ffd5dc0fa9	STAY	ai-header		0				0
 usr/share/mios/nix/nix.conf	4	4	1	7	49f68b33b675	STAY	local-scoped		0				0
 usr/share/mios/nix/nix.conf	7	7	1	5	95ad535dfeaf	STAY	local-scoped		0				0

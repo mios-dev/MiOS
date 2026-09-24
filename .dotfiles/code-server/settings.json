@@ -1,5 +1,5 @@
 {
-  "workbench.colorTheme": "MiOS Mobile Edge-to-Edge",
+  "workbench.colorTheme": "MiOS-Dev",
   "workbench.experimental.modernUI": true,
   "window.titleBarStyle": "custom",
   "window.customTitleBarVisibility": "never",
@@ -21,6 +21,8 @@
   "editor.lineNumbers": "on",
   "terminal.integrated.fontSize": 14,
   "terminal.integrated.tabs.enabled": false,
+  "terminal.integrated.tabs.showActions": "never",
+  "terminal.integrated.tabs.showActiveTerminal": "never",
   "terminal.integrated.lineHeight": 1.0,
   "terminal.integrated.letterSpacing": 0,
   "terminal.integrated.customGlyphs": false,
@@ -75,13 +77,24 @@
     "statusBar.noFolderBorder": "#00000000",
     "panel.background": "#000000",
     "panel.border": "#00000000",
+    "panel.dropBorder": "#00000000",
     "panelTitle.border": "#00000000",
+    "panelTitle.activeBorder": "#00000000",
+    "panelTitle.inactiveBorder": "#00000000",
     "panelSection.border": "#00000000",
     "panelSectionHeader.border": "#00000000",
     "terminal.background": "#000000",
     "terminal.foreground": "#b9c0c8",
     "terminal.border": "#00000000",
+    "terminal.tab.activeBorder": "#00000000",
+    "terminalOverviewRuler.border": "#00000000",
+    "terminalStickyScroll.border": "#00000000",
+    "terminalStickyScrollHover.border": "#00000000",
+    "terminal.findMatchBorder": "#00000000",
+    "terminal.findMatchHighlightBorder": "#00000000",
     "sash.hoverBorder": "#00000000",
-    "focusBorder": "#405568"
+    "focusBorder": "#00000000",
+    "contrastBorder": "#00000000",
+    "contrastActiveBorder": "#00000000"
   }
 }

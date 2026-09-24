@@ -54,4 +54,16 @@ if command -v nvidia-ctk &>/dev/null; then
     mios_ok "NVIDIA CDI spec generated"
 fi
 
+HW_PROFILE="${SCRIPT_DIR}/../usr/libexec/mios/mios-hardware-profile"
+if [[ -x "$HW_PROFILE" ]]; then
+    mios_log "Classify hardware target tier and configure initial profile"
+    "$HW_PROFILE" --apply || true
+    mios_ok "Hardware target profile applied"
+elif [[ -x "/usr/libexec/mios/mios-hardware-profile" ]]; then
+    mios_log "Classify hardware target tier and configure initial profile"
+    /usr/libexec/mios/mios-hardware-profile --apply || true
+    mios_ok "Hardware target profile applied"
+fi
+
 mios_ok "GPU stack: Mesa + AMD ROCm + Intel installed; NVIDIA kmod present=$NVIDIA_PRESENT"
+

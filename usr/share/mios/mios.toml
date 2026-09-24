@@ -11473,7 +11473,7 @@ max_tracked_files = 3134
 # (83% of the measurement, and Law 12 forbids shedding it) and re-baseline down
 # the way generated globals are excluded from the shell/PowerShell counts -- is
 # recorded in T-1051 with the numbers.
-max_tracked_mb    = 207
+max_tracked_mb    = 209
 # The allowance, and the only operator-tunable half: how far the tree may grow
 # between regenerations before the gate says anything. 0 makes the ceiling exact
 # and every MiB boundary a failure, which is the state T-1051 was filed about.
@@ -11586,6 +11586,7 @@ unit = [
     "tests/test-cdi-device-isolate.sh",
     "tests/test-composefs-seal.sh",
     "tests/test-vscode-custom-css.sh",
+    "tests/test-hardware-target-profiling.sh",
     "tests/test-blade-enroll.sh",
     "tests/test-greenboot-hardware-degrade.sh",
     "tests/test-attest-server.sh",

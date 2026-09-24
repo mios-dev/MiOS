@@ -19,15 +19,18 @@
 }
 
 /* ==========================================================================
-   1. SAFE AREA INSETS & MOBILE FIRST VIEWPORT
+   1. SAFE AREA INSETS & MOBILE FIRST VIEWPORT (EDGE-TO-EDGE FRAMELESS)
    ========================================================================== */
 html, body, .monaco-workbench {
-    padding-top: var(--mios-safe-top) !important;
-    padding-left: var(--mios-safe-left) !important;
-    padding-right: var(--mios-safe-right) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
     background: #000000 !important;
     overflow: hidden !important;
     -webkit-font-smoothing: antialiased;
+    width: 100vw !important;
+    max-width: 100vw !important;
 }
 
 /* ==========================================================================
@@ -66,19 +69,84 @@ html, body, .monaco-workbench {
 /* ==========================================================================
    3. EDGE-TO-EDGE ZERO-BORDER FULL-WIDTH INTEGRATED TERMINAL
    ========================================================================== */
-/* Container, wrapper, split pane, and editor tab terminal hierarchy */
-.monaco-workbench .part.panel,
+/* Completely eliminate panel border and header to maximize terminal canvas */
+.monaco-workbench .part.panel {
+    border: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #000000 !important;
+}
+
+.monaco-workbench .part.panel > .composite.title,
+.monaco-workbench .part.panel .pane-composite-part > .title,
+.monaco-workbench .part.panel .composite.title {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    visibility: hidden !important;
+    overflow: hidden !important;
+}
+
 .monaco-workbench .part.panel > .content,
-.monaco-workbench .part.panel .pane-composite-part,
 .monaco-workbench .part.panel .pane-composite-part > .content,
+.monaco-workbench .part.panel .pane-body {
+    height: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+}
+
+/* Split view sashes and divider partitions: completely transparent */
+.monaco-workbench .monaco-sash,
+.monaco-workbench .monaco-sash.horizontal,
+.monaco-workbench .monaco-sash.vertical,
+.monaco-workbench .sash {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    opacity: 0 !important;
+}
+
+.monaco-workbench .monaco-sash::before,
+.monaco-workbench .monaco-sash::after,
+.monaco-workbench .sash::before,
+.monaco-workbench .sash::after {
+    display: none !important;
+    content: none !important;
+    border: none !important;
+}
+
+.monaco-workbench .split-view-container > .split-view-view {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Container, wrapper, split pane, and editor tab terminal hierarchy */
 .monaco-workbench .part.panel .pane-body.integrated-terminal,
 .monaco-workbench .part.panel .content .terminal-split-pane,
 .monaco-workbench .part.panel .content .terminal-outer-container,
 .monaco-workbench .part.panel .content .terminal-wrapper,
 .monaco-workbench .part.panel .content .xterm,
+.monaco-workbench .part.panel .terminal-outer-container,
 .monaco-workbench .part.editor .terminal-editor,
+.monaco-workbench .part.editor .terminal-outer-container,
+.monaco-workbench .part.editor .terminal-wrapper,
+.monaco-workbench .part.editor .xterm,
 .monaco-workbench .pane-composite-part > .content,
 .pane-body.integrated-terminal,
+.pane-body.integrated-terminal .terminal-outer-container,
 .terminal-editor,
 .terminal-editor .terminal-outer-container,
 .terminal-editor .terminal-wrapper,
@@ -92,11 +160,16 @@ html, body, .monaco-workbench {
 .terminal-instance,
 .xterm-react-component {
     padding: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
     margin: 0 !important;
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
     width: 100% !important;
+    max-width: 100% !important;
 }
 
 /* Force xterm screen and viewport canvas to occupy full viewport boundary edge-to-edge */
@@ -125,6 +198,9 @@ html, body, .monaco-workbench {
     top: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
 }
 
 /* Strip inner padding from xterm text rows */
@@ -137,31 +213,53 @@ html, body, .monaco-workbench {
 /* Seamless terminal split views without partition dead space */
 .terminal-split-pane-wrapper,
 .terminal-split-pane-wrapper .split-view-container,
-.terminal-split-pane-wrapper .split-view-view,
-.monaco-split-view2 > .split-view-container > .split-view-view {
+.terminal-split-pane-wrapper .split-view-view {
     padding: 0 !important;
     margin: 0 !important;
     border: none !important;
+    width: 100% !important;
 }
 
-.terminal-split-pane-wrapper .monaco-sash,
-.monaco-workbench .part.panel .sash {
+/* Zero-width completely hidden terminal scrollbars */
+.monaco-workbench .terminal .scrollbar,
+.monaco-workbench .terminal .scrollbar.vertical,
+.monaco-workbench .terminal .scrollbar.horizontal,
+.terminal-wrapper .scrollbar,
+.terminal-wrapper .scrollbar.vertical,
+.terminal-wrapper .scrollbar.horizontal,
+.terminal-editor .scrollbar,
+.terminal-editor .scrollbar.vertical,
+.monaco-workbench .terminal .xterm-viewport::-webkit-scrollbar,
+.terminal-wrapper .xterm-viewport::-webkit-scrollbar,
+.xterm-viewport::-webkit-scrollbar,
+.monaco-scrollable-element > .scrollbar {
+    display: none !important;
+    width: 0px !important;
+    height: 0px !important;
     opacity: 0 !important;
+    pointer-events: none !important;
 }
 
-/* Collapse terminal tabs widget */
+/* Suppress tabs widget, action bars, and decorations inside terminal */
 .monaco-workbench .terminal-tabs-widget,
 .monaco-workbench .terminal-tabs-widget.has-no-tabs,
 .monaco-workbench .terminal-tabs-widget:empty,
-.terminal-tabs-widget {
+.monaco-workbench .terminal-tab-actions,
+.monaco-workbench .terminal-action-bar,
+.monaco-workbench .terminal-header-actions,
+.monaco-workbench .tabs-and-actions-container,
+.terminal-tabs-widget,
+.terminal-tab-actions,
+.terminal-header-actions,
+.tabs-and-actions-container {
     display: none !important;
+    width: 0 !important;
+    height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;
-    width: 0 !important;
 }
 
-/* Zero out shell integration decorations and gutter markers */
 .terminal-shell-integration-decoration,
 .terminal-command-decoration,
 .terminal-decoration,
@@ -174,43 +272,10 @@ html, body, .monaco-workbench {
     padding: 0 !important;
 }
 
-/* Zero out scrollable container padding and refine scrollbar footprint */
-.terminal-scrollable,
-.terminal-widget,
 .terminal-widget-container {
     padding: 0 !important;
     margin: 0 !important;
     border: none !important;
-}
-
-.monaco-workbench .terminal .xterm-viewport::-webkit-scrollbar {
-    width: 2px !important;
-}
-
-.monaco-workbench .terminal .xterm-viewport::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2) !important;
-    border-radius: var(--mios-radius-pill) !important;
-}
-
-.monaco-workbench .terminal .xterm-viewport::-webkit-scrollbar-track {
-    background: transparent !important;
-}
-
-/* Compact panel title bar header to maximize usable terminal canvas height */
-.monaco-workbench .part.panel .composite.title {
-    height: 26px !important;
-    padding: 0 6px !important;
-    margin: 0 !important;
-    border-bottom: var(--mios-border-thin) !important;
-    background: #000000 !important;
-}
-
-.monaco-workbench .part.panel .composite.title .title-label {
-    padding: 0 4px !important;
-    line-height: 26px !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.5px !important;
 }
 
 /* ==========================================================================
@@ -284,16 +349,10 @@ html, body, .monaco-workbench {
     transition: background 0.15s ease !important;
 }
 
-/* SideBar and Panels - Subtle thin borders */
+/* SideBar - Subtle thin border and rounded edge */
 .monaco-workbench .part.sidebar {
     border-radius: 0 var(--mios-radius-md) var(--mios-radius-md) 0 !important;
     border-right: var(--mios-border-thin) !important;
-    background: #000000 !important;
-}
-
-.monaco-workbench .part.panel {
-    border-top: var(--mios-border-thin) !important;
-    border-radius: var(--mios-radius-md) var(--mios-radius-md) 0 0 !important;
     background: #000000 !important;
 }
 

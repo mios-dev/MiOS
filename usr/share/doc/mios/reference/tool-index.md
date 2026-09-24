@@ -136,6 +136,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-handoff` | Migrates active session state, tool outputs, and context from a large model to a smaller/local model by serializing the A2A-context blackboard and dispatching a TAKE-OVER frame to a target peer or... |
 | `usr/libexec/mios/mios-hardcode-lint` | Enforcement gate for the NO-HARDCODE law (Architectural Law 7). Read-only repo scan that FAILS on three regression classes the law forbids: (1) a literal date/timestamp or dated attribution in... |
 | `usr/libexec/mios/mios-hardware-fallback` | Automated network and audio fallback manager with operator desktop alert daemon (T-532, AGY-2130). |
+| `usr/libexec/mios/mios-hardware-profile` | MiOS Hardware Target Matrix Classifier & Dynamic Inference Profiler. |
 | `usr/libexec/mios/mios-hermes-browser` | Launches and manages the ChromeDev flatpak instance on port 9222, providing a dedicated, isolated profile for the Hermes-Agent to perform CDP-based browser actions like navigation and screenshots. |
 | `usr/libexec/mios/mios-hermes-dashboard-auth-stub` | A shim script that injects a minimal Python stub for the missing `hermes_cli.dashboard_auth` package to prevent `hermes-dashboard.service` from crash-looping due to a broken upstream import in the... |
 | `usr/libexec/mios/mios-hermes-discord-reactions-patch` | Python script that patches gateway/platforms/discord.py to inject a multi-stage emoji progression (📡, 🧠, 🛠️, ⏳) into Discord messages to provide operators with visual feedback on the agent's... |
@@ -283,7 +284,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 | `usr/libexec/mios/mios-xdp` | Native eBPF XDP network fastpath and WireGuard packet router manager (T-802). |
 
-<!-- derived from the AI-hint headers of 253 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 254 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)

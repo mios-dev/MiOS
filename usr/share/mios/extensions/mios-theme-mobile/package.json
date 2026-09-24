@@ -1,6 +1,6 @@
 {
   "name": "mios-theme-mobile",
-  "displayName": "MiOS Mobile Edge-to-Edge",
+  "displayName": "MiOS-Dev",
   "description": "Mobile-first edge-to-edge frameless OLED dark theme with rounded surfaces and zero-border terminals for modern smartphones and desktop",
   "version": "1.0.0",
   "publisher": "mios",
@@ -13,7 +13,7 @@
   "contributes": {
     "themes": [
       {
-        "label": "MiOS Mobile Edge-to-Edge",
+        "label": "MiOS-Dev",
         "uiTheme": "vs-dark",
         "path": "./themes/mios-mobile-theme.json"
       }
