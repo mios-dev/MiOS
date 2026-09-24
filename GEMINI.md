@@ -1,8 +1,8 @@
-<!-- AI-hint: Per-tool entry stub for the Gemini CLI on the mios-bootstrap repo (the user-facing installer + user-editable layer of MiOS). Defers all agent identity to the canonical agent prompt (AGENTS.md -> /usr/share/mios/ai/system.md) and records only the Gemini-CLI delta: layered prompt loading order and the binding to the single OpenAI-compatible AI endpoint (MIOS_AI_ENDPOINT) per Architectural Law 5. The endpoint fronts the local mios-llm-light inference lane, the agent-pipe/MiOS-Hermes orchestration, and PostgreSQL+pgvector memory.
+<!-- AI-hint: Per-tool entry stub for the Gemini CLI on mios.git (the system FHS overlay + OCI/bootc image source of MiOS). Defers all agent identity to the canonical agent prompt (AGENTS.md -> /usr/share/mios/ai/system.md) and records only the Gemini-CLI delta: layered prompt loading order and the binding to the single OpenAI-compatible AI endpoint (MIOS_AI_ENDPOINT) per Architectural Law 5. The endpoint fronts the local mios-llm-light inference lane, the agent-pipe/MiOS-Hermes orchestration, and PostgreSQL+pgvector memory.
      AI-related: AGENTS.md, /usr/share/mios/ai/system.md, /etc/mios/ai/system-prompt.md, ~/.config/mios/system-prompt.md, MIOS_AI_ENDPOINT, usr/share/mios/llamacpp/mios-llm-light.yaml, mios-llm-light, mios-agent-pipe, mios-pgvector -->
 # GEMINI.md
 
-> _`GEMINI.md` — per-tool stub for the **Gemini CLI** on `mios-bootstrap.git`.
+> _`GEMINI.md` — per-tool stub for the **Gemini CLI** on `mios.git`.
 > The canonical agent entry point for this repo is **[`AGENTS.md`](AGENTS.md)**
 > (the [agents.md][1] standard), which defers to the deployed vendor canonical
 > **`/usr/share/mios/ai/system.md`**. This stub does NOT re-state the agent
@@ -23,14 +23,13 @@ and no per-tool "API key to the cloud": the editor/CLI you happen to use is
 interchangeable plumbing in front of the same inference lanes, agent
 orchestration, and memory.
 
-This repo (`mios-bootstrap.git`) is the **interactive installer and
-user-editable layer** of that system — Phase 0..4, the three-layer profile
-model, the AI prompt files, and the user templates. (The system FHS overlay,
-Containerfile, Quadlets, and Architectural Laws live in `mios.git`.) This file
-exists so the Gemini CLI plugs into the running system correctly. It carries only
-the **Gemini-CLI delta** — how to load the shared identity and which endpoint to
-bind. Everything substantive lives once in the canonical agent prompt and is
-shared by every agent.
+This repo (`mios.git`) is the **system FHS overlay and OCI image source** —
+`usr/`, `etc/`, `srv/`, `var/`, Containerfile, systemd units, Quadlets, and
+Architectural Laws. (The sibling `mios-bootstrap.git` defines the installer
+and user-editable profile overlay.) This file exists so the Gemini CLI plugs
+into the running system correctly. It carries only the **Gemini-CLI delta** —
+how to load the shared identity and which endpoint to bind. Everything
+substantive lives once in the canonical agent prompt and is shared by every agent.
 
 ### Five Load-Bearing Architectural Invariants
 Ensure you reason about the system substrate using the following four corrected invariants:

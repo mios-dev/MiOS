@@ -12,7 +12,7 @@ This is **`mios.git`** (`github.com/mios-dev/MiOS`) — the **system FHS overlay
 
 **The repo root IS the deployed system root.** `usr/`, `etc/`, `srv/`, `var/` here land at exactly those paths on a booted host — no `system_files/` indirection, no Ansible. Browse `usr/` on GitHub and you're looking at `/usr` on the machine. When you edit a file here you are editing the OS.
 
-This repo defines *what the OS is*. The sibling **`mios-bootstrap.git`** (interactive installer + user-editable overlay; also cloned locally at `C:\mios-bootstrap`) defines *how an operator gets onto it and tunes it*. **Never double-track paths across the two repos** — `mios.git` owns the FHS overlay, Containerfile, systemd units, Quadlets, kernel args, tmpfiles, sysusers; `mios-bootstrap.git` owns installer scripts and the user profile layer.
+This repo defines *what the OS is*. The sibling **`mios-bootstrap.git`** (interactive installer + user-editable overlay; also cloned locally at `C:\mios-bootstrap`) defines *how an operator gets onto it and tunes it*. **Never double-track paths across the two repos** — `mios.git` owns the FHS overlay (including `usr/share/mios/ai/`), Containerfile, systemd units, Quadlets, kernel args, tmpfiles, sysusers; `mios-bootstrap.git` owns installer scripts and the user profile layer.
 
 > Note: several top-level scripts here (`Get-MiOS.ps1`, `build-mios.*`, `bootstrap.*`, `install.*`, `mios.toml`) are bootstrap-owned files that also appear in this working tree. The canonical Linux build surface for *this* repo is the `justfile` + `Containerfile` + `automation/`; treat those as the source of truth.
 
