@@ -1715,11 +1715,11 @@ provenance_taint = false
 # MIOS_PG_PASS in the build environment bakes that value into a 0644 file under
 # /usr and the key-only gate stayed green. Every value below is a placeholder
 # and none is a secret; changing any of them is a NEW finding by design.
+max_literals = 6
 grandfathered = [
   "usr/lib/systemd/system/mios-agents.service:MIOS_DEFAULT_PASSWORD=mios",
   "usr/lib/systemd/system/mios-ha-bootstrap.service:HA_PASSWORD=mios",
   "usr/share/containers/systemd/mios-guacamole.container:POSTGRESQL_PASSWORD=mios",
-  "usr/share/containers/systemd/mios-k3s.container:K3S_TOKEN=mios-cluster-secret",
   "usr/share/containers/systemd/mios-open-webui.container:RAG_OPENAI_API_KEY=sk-noop",
   "usr/share/containers/systemd/mios-open-webui.container:WEBUI_SECRET_KEY=mios-stable-secret-change-me",
   "usr/share/containers/systemd/mios-pgvector.container:POSTGRES_PASSWORD=mios",
@@ -9092,7 +9092,8 @@ Wants = "network-online.target"
 
 [containers.mios-k3s.Container]
 ContainerName = "mios-k3s"
-Environment = "K3S_TOKEN=mios-cluster-secret"
+Environment = "K3S_TOKEN=${K3S_TOKEN:-}"
+EnvironmentFile = "-/etc/mios/secrets.env"
 Exec = "k3s server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs"
 Group = "root"
 Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:latest}"
