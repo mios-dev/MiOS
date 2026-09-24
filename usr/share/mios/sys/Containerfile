@@ -46,6 +46,7 @@ RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeo
     && curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 -o /usr/bin/k3s "https://github.com/k3s-io/k3s/releases/download/${te}/k3s" && chmod +x /usr/bin/k3s
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/coder/code-server/releases/latest | sed 's#.*/tag/##')"; v="${t#v}" \
     && curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 -O "https://github.com/coder/code-server/releases/download/${t}/code-server-${v}-amd64.rpm" && dnf install -y "./code-server-${v}-amd64.rpm" && rm -f "./code-server-${v}-amd64.rpm"
+RUN code-server --install-extension be5invis.vscode-custom-css --install-extension redhat.vscode-podman --install-extension rust-lang.rust-analyzer --install-extension tamasfe.even-better-toml --install-extension ms-python.python || true
 
 RUN mkdir -p /var/opt /opt
 ARG SEARXNG_REF=master

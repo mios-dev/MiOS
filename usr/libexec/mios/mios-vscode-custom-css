@@ -43,6 +43,12 @@ SETTINGS_PATTERNS = [
 ]
 
 DEFAULT_SETTINGS = {
+    "docker.dockerPath": "podman",
+    "docker.environment": {
+        "DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock",
+    },
+    "podman.socketPath": "unix:///run/user/1000/podman/podman.sock",
+    "podman.systemSocketPath": "unix:///run/podman/podman.sock",
     "workbench.colorTheme": "MiOS-Dev",
     "vscode_custom_css.imports": [
         f"file://{CSS_FILE}"
@@ -53,6 +59,20 @@ DEFAULT_SETTINGS = {
     "terminal.integrated.shellIntegration.decorationsEnabled": "never",
     "terminal.integrated.shellIntegration.enabled": False,
     "terminal.integrated.tabs.enabled": False,
+    "terminal.integrated.tabs.showActiveTerminal": "never",
+    "terminal.integrated.tabs.showActions": "never",
+    "terminal.integrated.tabs.hideCondition": "never",
+    "terminal.integrated.cursorBlinking": "never",
+    "terminal.integrated.cursorStyle": "line",
+    "terminal.integrated.cursorWidth": 1,
+    "terminal.integrated.gpuAcceleration": "on",
+    "terminal.integrated.smoothScrolling": False,
+    "terminal.integrated.customGlyphs": False,
+    "terminal.integrated.rescaleOverlappingGlyphs": True,
+    "terminal.integrated.minimumContrastRatio": 1,
+    "terminal.integrated.defaultLocation": "view",
+    "workbench.panel.opensMaximized": "always",
+    "workbench.panel.alignment": "justify",
     "terminal.integrated.fontSize": 14,
     "window.density.layout": "compact",
     "workbench.layoutControl.enabled": False,
@@ -69,19 +89,42 @@ DEFAULT_COLOR_CUSTOMIZATIONS = {
     "editorGroupHeader.tabsBorder": "#00000000",
     "editorGroupHeader.noTabsBorder": "#00000000",
     "tab.border": "#00000000",
+    "tab.activeBorder": "#00000000",
+    "tab.unfocusedActiveBorder": "#00000000",
     "sideBar.border": "#00000000",
     "sideBarSectionHeader.border": "#00000000",
     "activityBar.border": "#00000000",
+    "activityBar.activeBorder": "#00000000",
     "statusBar.border": "#00000000",
     "statusBar.debuggingBorder": "#00000000",
     "statusBar.noFolderBorder": "#00000000",
     "panel.border": "#00000000",
+    "panel.dropBorder": "#00000000",
     "panelTitle.border": "#00000000",
+    "panelTitle.activeBorder": "#00000000",
+    "panelTitle.inactiveBorder": "#00000000",
     "panelSection.border": "#00000000",
     "panelSectionHeader.border": "#00000000",
+    "panelSectionHeader.background": "#000000",
     "terminal.border": "#00000000",
+    "terminal.separator": "#00000000",
+    "terminal.tab.activeBorder": "#00000000",
+    "terminalOverviewRuler.border": "#00000000",
+    "terminalStickyScroll.border": "#00000000",
+    "terminalStickyScrollHover.border": "#00000000",
+    "terminalStickyScroll.background": "#000000",
+    "panelStickyScroll.background": "#000000",
+    "panelStickyScroll.border": "#00000000",
+    "terminal.findMatchBorder": "#00000000",
+    "terminal.findMatchHighlightBorder": "#00000000",
     "sash.hoverBorder": "#00000000",
-    "focusBorder": "#405568",
+    "focusBorder": "#00000000",
+    "contrastBorder": "#00000000",
+    "contrastActiveBorder": "#00000000",
+    "scrollbarSlider.background": "#00000000",
+    "scrollbarSlider.hoverBackground": "#00000000",
+    "scrollbarSlider.activeBackground": "#00000000",
+    "scrollbar.shadow": "#00000000"
 }
 
 def log(msg, verbose=False, is_verbose=False):
@@ -391,6 +434,101 @@ def unpatch_workbench_html(html_path, dry_run=False, verbose=False):
         log(f"Failed unpatching workbench {html_path}: {e}", is_verbose=True)
         return False
 
+def patch_xterm_css(dry_run=False, verbose=False):
+    """Patch all xterm.css files found across vscode server and node_modules with overscan borderless rules."""
+    xterm_files = set()
+    for root_dir in ["/vscode", "/home", "/var/home", "/root", "/usr", "/etc/skel"]:
+        if not os.path.isdir(root_dir):
+            continue
+        for root, dirs, files in os.walk(root_dir):
+            if "xterm.css" in files:
+                full_p = os.path.join(root, "xterm.css")
+                if "node_modules" in full_p and "@xterm" in full_p:
+                    xterm_files.add(full_p)
+
+    overscan_css = (
+        "\n/* !! MIOS-XTERM-OVERSCAN-START !! */\n"
+        "/* MiOS Edge-to-Edge Frameless Overscan Terminal Styling */\n"
+        ".xterm {\n"
+        "    padding: 0 !important;\n"
+        "    margin: 0 !important;\n"
+        "    border: none !important;\n"
+        "    outline: none !important;\n"
+        "    box-shadow: none !important;\n"
+        "    width: 100% !important;\n"
+        "    height: 100% !important;\n"
+        "}\n"
+        ".xterm .xterm-viewport {\n"
+        "    overflow-y: hidden !important;\n"
+        "    scrollbar-width: none !important;\n"
+        "    -ms-overflow-style: none !important;\n"
+        "    margin: 0 !important;\n"
+        "    padding: 0 !important;\n"
+        "    border: none !important;\n"
+        "    outline: none !important;\n"
+        "    box-shadow: none !important;\n"
+        "}\n"
+        ".xterm .xterm-viewport::-webkit-scrollbar {\n"
+        "    display: none !important;\n"
+        "    width: 0 !important;\n"
+        "    height: 0 !important;\n"
+        "}\n"
+        ".xterm .xterm-screen {\n"
+        "    margin: 0 !important;\n"
+        "    padding: 0 !important;\n"
+        "    border: none !important;\n"
+        "    outline: none !important;\n"
+        "    box-shadow: none !important;\n"
+        "}\n"
+        ".xterm .xterm-screen canvas {\n"
+        "    border: none !important;\n"
+        "    margin: 0 !important;\n"
+        "    padding: 0 !important;\n"
+        "    left: 0 !important;\n"
+        "    top: 0 !important;\n"
+        "}\n"
+        ".xterm .xterm-rows {\n"
+        "    padding: 0 !important;\n"
+        "    margin: 0 !important;\n"
+        "}\n"
+        "/* Eliminate gutters in containers hosting xterm */\n"
+        ".terminal-outer-container,\n"
+        ".terminal-wrapper,\n"
+        ".terminal-split-pane,\n"
+        ".terminal.xterm,\n"
+        ".pane-body.integrated-terminal,\n"
+        ".monaco-workbench .part.panel,\n"
+        ".monaco-workbench .part.panel > .content,\n"
+        ".monaco-workbench .part.panel .pane-composite-part > .content {\n"
+        "    padding: 0 !important;\n"
+        "    margin: 0 !important;\n"
+        "    border: none !important;\n"
+        "    outline: none !important;\n"
+        "    box-shadow: none !important;\n"
+        "}\n"
+        "/* !! MIOS-XTERM-OVERSCAN-END !! */\n"
+    )
+
+    count = 0
+    for xf in sorted(list(xterm_files)):
+        try:
+            with open(xf, "r", encoding="utf-8") as f:
+                content = f.read()
+            if "/* !! MIOS-XTERM-OVERSCAN-START !! */" in content:
+                continue
+            if dry_run:
+                log(f"Would patch xterm.css: {xf}", is_verbose=verbose)
+                count += 1
+                continue
+            with open(xf, "a", encoding="utf-8") as f:
+                f.write(overscan_css)
+            log(f"Patched xterm.css for overscan: {xf}")
+            count += 1
+        except Exception as e:
+            log(f"Failed patching {xf}: {e}", is_verbose=True)
+
+    return count
+
 def check_status(verbose=False):
     homes = get_candidate_homes()
     ext_dirs = locate_ext_dirs(homes)
@@ -479,6 +617,7 @@ def main():
 
         ok1 = install_extension(ext_dirs, dry_run=args.dry_run, verbose=args.verbose)
         ok2 = configure_settings(settings_files, dry_run=args.dry_run, verbose=args.verbose)
+        patch_xterm_css(dry_run=args.dry_run, verbose=args.verbose)
 
         if args.patch_html:
             for wb in locate_workbench_html_files():
@@ -487,6 +626,7 @@ def main():
         return 0 if (ok1 and ok2) else 1
 
     if args.command == "patch":
+        patch_xterm_css(dry_run=args.dry_run, verbose=args.verbose)
         targets = [args.target] if args.target else locate_workbench_html_files()
         if not targets:
             log("No workbench.html files found to patch.")

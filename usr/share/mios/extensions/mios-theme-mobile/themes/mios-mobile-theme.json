@@ -26,7 +26,7 @@
     "activityBar.background": "#000000",
     "activityBar.foreground": "#d0d4d8",
     "activityBar.inactiveForeground": "#5c6470",
-    "activityBar.activeBorder": "#405568",
+    "activityBar.activeBorder": "#00000000",
     "activityBarBadge.background": "#405568",
     "activityBarBadge.foreground": "#ffffff",
 
@@ -45,7 +45,7 @@
     "editorGroupHeader.tabsBackground": "#000000",
 
     "tab.border": "#00000000",
-    "tab.activeBorder": "#405568",
+    "tab.activeBorder": "#00000000",
     "tab.activeBorderTop": "#00000000",
     "tab.activeBackground": "#000000",
     "tab.activeForeground": "#d0d4d8",
@@ -53,7 +53,7 @@
     "tab.inactiveForeground": "#747d88",
     "tab.hoverBackground": "#0b0d13",
     "tab.hoverBorder": "#00000000",
-    "tab.unfocusedActiveBorder": "#405568",
+    "tab.unfocusedActiveBorder": "#00000000",
 
     "editor.background": "#000000",
     "editor.foreground": "#d0d4d8",
@@ -80,14 +80,21 @@
     "panelTitle.inactiveForeground": "#747d88",
     "panelSection.border": "#00000000",
     "panelSectionHeader.border": "#00000000",
-    "panelSectionHeader.background": "#0b0d13",
+    "panelSectionHeader.background": "#000000",
     "panel.dropBorder": "#00000000",
 
     "terminal.border": "#00000000",
+    "terminal.separator": "#00000000",
     "terminal.tab.activeBorder": "#00000000",
     "terminalOverviewRuler.border": "#00000000",
+    "terminalOverviewRuler.cursorForeground": "#00000000",
+    "terminalOverviewRuler.findMatchForeground": "#00000000",
     "terminalStickyScroll.border": "#00000000",
     "terminalStickyScrollHover.border": "#00000000",
+    "terminalStickyScroll.background": "#000000",
+    "panelStickyScroll.background": "#000000",
+    "panelStickyScroll.border": "#00000000",
+    "panelInput.border": "#00000000",
     "terminal.findMatchBorder": "#00000000",
     "terminal.findMatchHighlightBorder": "#00000000",
     "terminal.background": "#000000",
@@ -131,29 +138,30 @@
 
     "input.background": "#07080b",
     "input.foreground": "#d0d4d8",
-    "input.border": "#1f2430",
+    "input.border": "#00000000",
     "input.placeholderForeground": "#5c6470",
-    "inputOption.activeBorder": "#405568",
+    "inputOption.activeBorder": "#00000000",
 
     "dropdown.background": "#0e1117",
     "dropdown.foreground": "#d0d4d8",
-    "dropdown.border": "#1f2430",
+    "dropdown.border": "#00000000",
 
     "menu.background": "#0e1117",
     "menu.foreground": "#d0d4d8",
-    "menu.border": "#1f2430",
+    "menu.border": "#00000000",
     "menu.selectionBackground": "#1a2130",
     "menu.selectionForeground": "#ffffff",
 
     "notifications.background": "#0e1117",
     "notifications.foreground": "#d0d4d8",
-    "notifications.border": "#1f2430",
-    "notificationToast.border": "#1f2430",
+    "notifications.border": "#00000000",
+    "notificationToast.border": "#00000000",
 
     "sash.hoverBorder": "#00000000",
-    "scrollbarSlider.background": "#79797920",
-    "scrollbarSlider.hoverBackground": "#64646440",
-    "scrollbarSlider.activeBackground": "#bfbfbf40"
+    "scrollbarSlider.background": "#00000000",
+    "scrollbarSlider.hoverBackground": "#00000000",
+    "scrollbarSlider.activeBackground": "#00000000",
+    "scrollbar.shadow": "#00000000"
   },
   "tokenColors": [
     {

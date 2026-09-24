@@ -49,13 +49,65 @@ def inspect_profile(path: str) -> Dict[str, Any]:
     }
 
 
+def verify_boundaries(path: str) -> Dict[str, Any]:
+    info = inspect_profile(path)
+    if not info.get("valid"):
+        return {"status": "invalid_profile", "valid": False, "checks": {}}
+
+    cfg = configparser.ConfigParser()
+    cfg.read(info["path"])
+
+    sockets = [s.strip() for s in cfg.get("Context", "sockets", fallback="").split(";") if s.strip()]
+    filesystems = [f.strip() for f in cfg.get("Context", "filesystems", fallback="").split(";") if f.strip()]
+
+    # 1. Shadow read test: !host, !host-os, !host-etc explicitly forbid /etc/shadow access
+    shadow_blocked = ("!host" in filesystems or "!host-os" in filesystems or "!host-etc" in filesystems) and "host" not in filesystems and "/etc" not in filesystems
+
+    # 2. X11 socket test: !x11 prevents mounting /tmp/.X11-unix
+    x11_blocked = "!x11" in sockets and "x11" not in sockets
+
+    # 3. Wayland enabled
+    wayland_allowed = "wayland" in sockets
+
+    # 4. Bus policy: org.freedesktop.portal.* allowed, org.freedesktop.Flatpak denied
+    portal_allowed = cfg.get("Session Bus Policy", "org.freedesktop.portal.*", fallback="") in ("talk", "own")
+    flatpak_denied = cfg.get("Session Bus Policy", "org.freedesktop.Flatpak", fallback="") == "none"
+
+    all_passed = shadow_blocked and x11_blocked and wayland_allowed and portal_allowed and flatpak_denied
+
+    return {
+        "status": "contained" if all_passed else "leak_detected",
+        "valid": all_passed,
+        "shadow_blocked": shadow_blocked,
+        "x11_blocked": x11_blocked,
+        "wayland_allowed": wayland_allowed,
+        "portal_allowed": portal_allowed,
+        "flatpak_denied": flatpak_denied,
+    }
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Flatpak permission lockdown profile manager (T-489)")
+    parser = argparse.ArgumentParser(description="Flatpak permission lockdown profile manager (T-489, T-490)")
     parser.add_argument("--profile", default=DEFAULT_GLOBAL_OVERRIDE, help="Path to global override file")
     parser.add_argument("--check", action="store_true", help="Check compliance of global override profile")
+    parser.add_argument("--verify-boundaries", action="store_true", help="Verify XDG desktop portal and sandbox boundary containment")
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
 
     args = parser.parse_args()
+
+    if args.verify_boundaries:
+        res = verify_boundaries(args.profile)
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[mios-flatpak-lockdown] Boundary Verification: {res['status'].upper()}")
+            print(f"  - Direct /etc/shadow Read Blocked: {res.get('shadow_blocked')}")
+            print(f"  - X11 Display Socket Blocked: {res.get('x11_blocked')}")
+            print(f"  - Wayland Socket Allowed: {res.get('wayland_allowed')}")
+            print(f"  - Portal Communication Mediated: {res.get('portal_allowed')}")
+            print(f"  - Flatpak Escape Denied: {res.get('flatpak_denied')}")
+        return 0 if res["valid"] else 1
+
     info = inspect_profile(args.profile)
 
     if args.json:
