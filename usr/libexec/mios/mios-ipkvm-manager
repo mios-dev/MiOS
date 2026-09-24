@@ -16,18 +16,37 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional, Tuple
 
-MANAGEMENT_SUBNET_STR = "10.200.0.0/16"
+def _ssot_root() -> dict:
+    try:
+        import mios_toml
+        return mios_toml.load_merged() or {}
+    except Exception:
+        try:
+            import tomllib
+        except ImportError:
+            return {}
+        try:
+            with open(os.environ.get("MIOS_TOML") or "/usr/share/mios/mios.toml", "rb") as fh:
+                return tomllib.load(fh) or {}
+        except OSError:
+            return {}
+
+_SSOT = _ssot_root()
+_MGMT = _SSOT.get("management_mesh") or {}
+
+MANAGEMENT_SUBNET_STR = str(_MGMT.get("subnet") or "10.200.0.0/16")
 MANAGEMENT_SUBNET = ipaddress.ip_network(MANAGEMENT_SUBNET_STR)
 LOOPBACK_SUBNET = ipaddress.ip_network("127.0.0.0/8")
 
-DEFAULT_MESH_IFACE = "wg-ipkvm"
-DEFAULT_MESH_MTU = 1420
+DEFAULT_MESH_IFACE = str(_MGMT.get("interface") or "wg-ipkvm")
+DEFAULT_MESH_MTU = int(_MGMT.get("mtu") or 1420)
+DEFAULT_LISTEN_PORT = int(_MGMT.get("listen_port") or 51821)
 
 DEFAULT_TOKEN_FILE = "/etc/mios/ipkvm.token"
 ENV_TOKEN_KEYS = ("MIOS_IPKVM_TOKEN", "IPKVM_AUTH_TOKEN")
 ENV_MOCK_KEY = "MIOS_IPKVM_MOCK"
 
-SUPPORTED_BACKENDS = ("pikvm", "redfish", "openbmc")
+SUPPORTED_BACKENDS = tuple(_MGMT.get("backends") or ("pikvm", "redfish", "openbmc"))
 SUPPORTED_POWER_ACTIONS = ("status", "on", "off", "cycle", "reset")
 
 
