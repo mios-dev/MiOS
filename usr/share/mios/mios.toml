@@ -11585,6 +11585,7 @@ unit = [
     "tests/test-cdi-gen.py",
     "tests/test-cdi-device-isolate.sh",
     "tests/test-composefs-seal.sh",
+    "tests/test-bootc-rollback-recovery.sh",
     "tests/test-vscode-custom-css.sh",
     "tests/test-hardware-target-profiling.sh",
     "tests/test-blade-enroll.sh",

@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# AI-hint: Verification suite for atomic bootc rollback, ostree deployment state, /var persistence guards, and greenboot health gates (T-1025).
+# AI-doc: usr/share/doc/mios/manual/ch02-boot-and-lifecycle.md
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+MIOSD_BIN="${ROOT_DIR}/src/mios-rs/target/debug/miosd"
+if [[ ! -x "$MIOSD_BIN" ]]; then
+    if command -v miosd >/dev/null 2>&1; then
+        MIOSD_BIN="$(command -v miosd)"
+    else
+        echo "[test-bootc-rollback] ERROR: miosd binary not found at $MIOSD_BIN" >&2
+        exit 1
+    fi
+fi
+
+pass_count=0
+fail_count=0
+
+assert_eq() {
+    local label="$1"
+    local expected="$2"
+    local actual="$3"
+    if [[ "$expected" == "$actual" ]]; then
+        echo "  [PASS] $label"
+        pass_count=$((pass_count + 1))
+    else
+        echo "  [FAIL] $label: expected '$expected', got '$actual'" >&2
+        fail_count=$((fail_count + 1))
+    fi
+}
+
+assert_contains() {
+    local label="$1"
+    local needle="$2"
+    local haystack="$3"
+    if grep -qF -e "$needle" <<< "$haystack"; then
+        echo "  [PASS] $label"
+        pass_count=$((pass_count + 1))
+    else
+        echo "  [FAIL] $label: output missing '$needle'" >&2
+        echo "  Actual output: $haystack" >&2
+        fail_count=$((fail_count + 1))
+    fi
+}
+
+echo "=== Running MiOS Bootc Rollback & Recovery Test Suite (T-1025) ==="
+
+# Test 1: Positive Control -- bootc-rollback --help
+echo "Test 1: bootc-rollback --help"
+help_out="$("$MIOSD_BIN" bootc-rollback --help 2>&1 || true)"
+assert_contains "help contains subcommand summary" "Inspect, dry-run, or execute atomic bootc rollback" "$help_out"
+assert_contains "help includes --check flag" "--check" "$help_out"
+assert_contains "help includes --dry-run flag" "--dry-run" "$help_out"
+
+# Test 2: Positive Control -- bootc-rollback --dry-run
+echo "Test 2: bootc-rollback --dry-run"
+dry_out="$("$MIOSD_BIN" bootc-rollback --dry-run 2>&1 || true)"
+assert_contains "dry-run verifies Invariant 1 /var persistence" "/var persistence verified (Invariant 1: persistent /var)" "$dry_out"
+assert_contains "dry-run executes simulation" "Simulating atomic bootc rollback" "$dry_out"
+assert_contains "dry-run reports 0 state alterations" "Dry-run completed successfully with 0 state alterations" "$dry_out"
+
+# Test 3: Positive Control -- simulated rollback target check
+echo "Test 3: bootc-rollback --check with simulated deployment"
+check_out="$(MIOS_TEST_ROLLBACK_AVAILABLE=1 "$MIOSD_BIN" bootc-rollback --check 2>&1 || true)"
+assert_contains "check detects armed rollback target" "Rollback deployment verified and armed for recovery" "$check_out"
+
+# Test 4: Positive Control -- greenboot health check
+echo "Test 4: greenboot health check validation"
+greenboot_out="$("$MIOSD_BIN" greenboot 2>&1 || true)"
+assert_contains "greenboot verifies Invariant 1" "/var persistence & writability verified (Invariant 1)" "$greenboot_out"
+assert_contains "greenboot verifies SSOT" "SSOT mios.toml accessibility verified" "$greenboot_out"
+assert_contains "greenboot outputs success" "SUCCESS: Core OS and SSOT health verified" "$greenboot_out"
+
+# Test 5: Negative Control -- planted failure when rollback target is missing
+echo "Test 5: Negative Control: planted failure for unready rollback deployment"
+neg_rc=0
+neg_out="$(MIOS_TEST_FAIL_NO_ROLLBACK=1 "$MIOSD_BIN" bootc-rollback --check 2>&1)" || neg_rc=$?
+if [[ "$neg_rc" -ne 0 ]]; then
+    echo "  [PASS] Negative control correctly rejected unready rollback target (exit code: $neg_rc)"
+    pass_count=$((pass_count + 1))
+else
+    echo "  [FAIL] Negative control failed: expected non-zero exit code, got 0" >&2
+    fail_count=$((fail_count + 1))
+fi
+assert_contains "negative control error mentions missing deployment" "No rollback deployment available" "$neg_out"
+
+echo "=== Test Summary: $pass_count passed, $fail_count failed ==="
+if [[ "$fail_count" -gt 0 ]]; then
+    exit 1
+fi
+exit 0
