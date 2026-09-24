@@ -15,7 +15,7 @@ Before any work, read these authoritative contracts:
 Synchronize these repositories before research or artifact work:
 - https://github.com/mios-dev/MiOS.git
 - https://github.com/mios-dev/mios-bootstrap.git
-- https://github.com/mios-dev/mios-dev-loop.git
+- https://github.com/mios-dev/-dev-loop.git
 
 For every repository, record the remote, branch, HEAD commit, and clean or
 dirty state. Run fetch with pruning first. Pull only a clean, fast-forwardable
