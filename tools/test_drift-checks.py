@@ -92,8 +92,6 @@ class TestExtractedChecks(unittest.TestCase):
 # A checkout that never had a file is a skip; a TRACKED file that has gone
 # missing is the gate's own subject disappearing, and nineteen checks answered
 # that with a silent 0.
-_BOOTSTRAP_EXEMPT = "check_templates_bootstrap_sync"
-
 class TestMissingDeliverable(unittest.TestCase):
     def _repo(self, rel, track=True):
         d = tempfile.mkdtemp(prefix="absent-")
@@ -136,8 +134,6 @@ class TestMissingDeliverable(unittest.TestCase):
             if not isinstance(fn, ast.FunctionDef) or not fn.name.startswith("check_"):
                 continue
             seen += 1
-            if fn.name == _BOOTSTRAP_EXEMPT:
-                continue        # reads the sibling repo, which a clone need not have
             for node in ast.walk(fn):
                 if not isinstance(node, ast.If):
                     continue

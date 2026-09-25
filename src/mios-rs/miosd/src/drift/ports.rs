@@ -16,19 +16,6 @@ impl Check for ContainerPortsCheck {
     }
 }
 
-pub struct BootstrapPortsCheck;
-impl Check for BootstrapPortsCheck {
-    fn id(&self) -> &'static str {
-        "check_bootstrap_ports_drift"
-    }
-    fn describe(&self) -> &'static str {
-        "Assert bootstrap script port references match SSOT"
-    }
-    fn run(&self, _ctx: &DriftCtx) -> Verdict {
-        Verdict::Skip("NOT IMPLEMENTED: Bootstrap ports drift verified clean".to_string())
-    }
-}
-
 pub struct BarePortLiteralsCheck;
 impl Check for BarePortLiteralsCheck {
     fn id(&self) -> &'static str {

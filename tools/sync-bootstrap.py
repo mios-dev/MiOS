@@ -27,6 +27,20 @@ def _norm(p: str) -> bytes:
     with open(p, "rb") as fh:
         return fh.read().replace(b"\r\n", b"\n")
 
+def validate_manifest(man: dict) -> list[str]:
+    """The manifest's own consistency, before anything is compared.
+
+    unclassified_shared() unions mirror_files with not_mirrored, so a path in
+    BOTH lists is invisible to it, and a padded entry names no file at all.
+    """
+    mirror = list(man.get("mirror_files") or ())
+    notmir = list(man.get("not_mirrored") or ())
+    bad = [f"{f}: declared in both [bootstrap.sync].mirror_files and .not_mirrored"
+           for f in sorted(set(mirror) & set(notmir))]
+    bad += [f"{f!r}: malformed [bootstrap.sync].mirror_files entry"
+            for f in mirror if not f or f != f.strip()]
+    return bad
+
 def mirror_files(root: str, boot: str, files, apply: bool):
     """Returns the list of files that differ (before any copy)."""
     drift = []
@@ -37,8 +51,9 @@ def mirror_files(root: str, boot: str, files, apply: bool):
             drift.append(f"{rel}: missing in mios.git (authority) -- remove it from "
                          f"[bootstrap.sync].mirror_files or restore it")
             continue
-        if not os.path.isfile(dst) or _norm(src) != _norm(dst):
-            drift.append(f"{rel}: differs")
+        missing = not os.path.isfile(dst)
+        if missing or _norm(src) != _norm(dst):
+            drift.append(f"{rel}: missing in mios-bootstrap" if missing else f"{rel}: differs")
             if apply:
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 shutil.copyfile(src, dst)
@@ -150,19 +165,20 @@ def main(argv=None) -> int:
               "would be compared, which is indistinguishable from being in sync",
               file=sys.stderr)
         return 1
+    bad = validate_manifest(man)
+    if bad:
+        print("[sync-bootstrap] mios.toml [bootstrap.sync] is inconsistent:", file=sys.stderr)
+        for b in bad:
+            print(f"  {b}", file=sys.stderr)
+        return 1
     if not os.path.isdir(args.bootstrap):
-        # A contributor need not have both repos, but a runner that skips this
-        # reports the same green as a run that compared them -- and that is
-        # exactly how the two repositories drifted while a sync gate passed.
-        # Under MIOS_DRIFT_REQUIRE_TOOLS the absence is the failure.
-        if os.environ.get("MIOS_DRIFT_REQUIRE_TOOLS") == "1":
-            print(f"bootstrap repo absent at {args.bootstrap}: clone "
-                  f"mios-bootstrap beside this checkout, or set "
-                  f"MIOS_BOOTSTRAP_ROOT, so Law 15 is checked rather than assumed",
-                  file=sys.stderr)
-            return 1
-        print(f"[sync-bootstrap] bootstrap repo not present at {args.bootstrap}; skipping")
-        return 0
+        # Absence is a failure, never a skip, with or without
+        # MIOS_DRIFT_REQUIRE_TOOLS: a skip reports the same green as a run that
+        # compared the two repos, and that is how they drifted while this passed.
+        print(f"bootstrap repo absent at {args.bootstrap}: Law 15 NOT checked. Clone "
+              f"mios-bootstrap beside this checkout, or set MIOS_BOOTSTRAP_ROOT",
+              file=sys.stderr)
+        return 1
 
     drift = unclassified_shared(args.root, args.bootstrap, man) if not args.apply else []
     drift += mirror_files(args.root, args.bootstrap, man["mirror_files"], args.apply)

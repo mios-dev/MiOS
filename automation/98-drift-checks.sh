@@ -810,16 +810,6 @@ check_container_ports() {
     fi
 }
 
-check_bootstrap_ports_drift() {
-    _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py bootstrap-ports-drift
-    then
-        echo "[98-drift-checks]   bootstrap mios.toml shared surfaces match main repository"
-    else
-        _violation "bootstrap mios.toml shared surfaces diverge from main repository mios.toml"
-    fi
-}
-
 check_agent_pipe_budgets() {
     # Absolute paths, never `command -v`: the Containerfile's rust-builder stage
     # copies tools/native/target/release/mios-* into /usr/libexec/mios, which
@@ -3715,7 +3705,6 @@ main() {
     check_converge_ssot
     check_hummingbird
     check_container_ports
-    check_bootstrap_ports_drift
     check_bootstrap_sync
     check_agent_pipe_budgets
     check_no_bare_port_literals
@@ -3802,12 +3791,10 @@ main() {
     check_composefs_projection
     check_cockpit_projection
     check_template_self_conformance
-    check_templates_bootstrap_sync
     check_native_lint
     check_resolver_shell_equivalence
     check_resolver_ps_equivalence
     check_cargo_deny
-    check_ps_repo_parity
     check_ps_redirectors
     check_powershell_parse
     check_ps_signatures
@@ -3939,16 +3926,6 @@ check_template_self_conformance() {
     fi
 }
 
-check_templates_bootstrap_sync() {
-    _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py templates-bootstrap-sync
-    then
-        echo "[98-drift-checks]   [templates.*] in sync between mios.toml and mios-bootstrap"
-    else
-        _violation "[templates.*] SSOT mismatch between mios.toml and submodules/mios-bootstrap"
-    fi
-}
-
 check_native_lint() {
     if ! command -v cargo >/dev/null 2>&1; then
         return 0
@@ -4040,112 +4017,6 @@ check_powershell_parse() {
     else
         _violation "automation/lint-powershell.sh missing"
     fi
-}
-
-# --- Law-15 mirror manifest is self-consistent and mirrored PowerShell surfaces are byte-identical ---
-check_ps_repo_parity() {
-    echo "[98-drift-checks] Law-15 mirror manifest is self-consistent and mirrored PowerShell surfaces are byte-identical"
-    _need_python || return 0
-    local before=$VIOLATIONS
-
-    # Resolved the sibling from MIOS_BOOTSTRAP_DIR, which nothing sets: CI
-    # exports MIOS_BOOTSTRAP_ROOT and clones into RUNNER_TEMP, so the
-    # ../mios-bootstrap fallback never existed there and this skipped.
-    local sibling_dir="" cand
-    for cand in "${MIOS_BOOTSTRAP_ROOT:-}" "${MIOS_BOOTSTRAP_DIR:-}"; do
-        if [[ -n "$cand" && -d "$cand" ]]; then sibling_dir="$cand"; break; fi
-    done
-    if [[ -z "$sibling_dir" ]]; then
-        # Same order tools/drift-checks.py uses: SSOT path, then sibling.
-        local ssot_bs
-        ssot_bs="$(cd "$ROOT" && python3 -c '
-import sys, tomllib
-with open(sys.argv[1], "rb") as fh:
-    p = tomllib.load(fh).get("bootstrap", {}).get("bootstrap_repo", "")
-if p and sys.platform != "win32" and p.startswith("C:/"):
-    p = "/mnt/c/" + p[3:]
-print(p)
-' "$ROOT/usr/share/mios/mios.toml" 2>/dev/null || true)"
-        for cand in "$ssot_bs" "$(dirname "$ROOT")/mios-bootstrap"; do
-            if [[ -n "$cand" && -d "$cand" ]]; then sibling_dir="$cand"; break; fi
-        done
-    fi
-
-    if [[ -z "$sibling_dir" ]]; then
-        # Absence used to return 0. Under the CI strictness switch it is a
-        # violation: a gate that cannot see its subject has not passed it.
-        if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
-            _violation "Law-15: mios-bootstrap is unreachable, so PowerShell parity cannot be verified (set MIOS_BOOTSTRAP_ROOT)" || true
-        else
-            echo "[98-drift-checks]   WARNING: mios-bootstrap absent, Law-15 PS parity NOT verified" >&2
-        fi
-        return
-    fi
-
-    # Driven from [bootstrap.sync]; the old hardcoded list had drifted from it.
-    # Asserts what sync-bootstrap.py cannot: it unions mirror_files with
-    # not_mirrored, so a file declared in BOTH is invisible to it.
-    local report rc=0
-    report="$(cd "$ROOT" && python3 - "$ROOT" "$sibling_dir" <<'PY'
-import hashlib, os, sys, tomllib
-
-root, boot = sys.argv[1], sys.argv[2]
-with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
-    sync = tomllib.load(fh).get("bootstrap", {}).get("sync", {})
-mirror = list(sync.get("mirror_files") or ())
-notmir = list(sync.get("not_mirrored") or ())
-
-def sha(p):
-    h = hashlib.sha256()
-    with open(p, "rb") as fh:
-        for blk in iter(lambda: fh.read(1 << 16), b""):
-            h.update(blk)
-    return h.hexdigest()
-
-viol = []
-
-for f in sorted(set(mirror) & set(notmir)):
-    viol.append("Law-15 manifest contradiction: %s is declared in both "
-                "[bootstrap.sync].mirror_files and .not_mirrored" % f)
-
-for f in sorted(mirror):
-    if len(f) != len(f.strip()) or not f:
-        viol.append("Law-15 manifest: mirror_files entry %r is malformed" % f)
-
-ps_mirrored = [f for f in sorted(mirror)
-               if f.lower().endswith((".ps1", ".psm1", ".psd1"))]
-for f in ps_mirrored:
-    a, b = os.path.join(root, f), os.path.join(boot, f)
-    # A missing file used to satisfy the "-f both" guard, so deleting a
-    # mirrored surface from either repo read as parity.
-    if not os.path.isfile(a):
-        viol.append("Law-15: %s is declared mirrored but missing from mios.git" % f)
-    elif not os.path.isfile(b):
-        viol.append("Law-15: %s is declared mirrored but missing from mios-bootstrap" % f)
-    else:
-        sa, sb = sha(a), sha(b)
-        if sa != sb:
-            viol.append("Law-15 drift: %s diverges between mios and mios-bootstrap "
-                        "(%s vs %s)" % (f, sa[:16], sb[:16]))
-
-for v in viol:
-    print(v)
-if viol:
-    sys.exit(1)
-print("OK manifest self-consistent; %d mirrored PowerShell surface(s) byte-identical"
-      % len(ps_mirrored))
-PY
-)" || rc=$?
-
-    if (( rc != 0 )); then
-        local line
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && { _violation "$line" || true; }
-        done <<< "$report"
-        return
-    fi
-    echo "[98-drift-checks]   ${report#OK }"
-    (( VIOLATIONS == before ))
 }
 
 check_ps_redirectors() {
