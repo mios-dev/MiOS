@@ -7,7 +7,45 @@ import os
 import sys
 import re
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # py<3.11
+    import tomli as tomllib  # type: ignore
+
+ROOT = os.environ.get("MIOS_ROOT") or os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
+TOML = os.environ.get("MIOS_TOML") or os.path.join(ROOT, "usr/share/mios/mios.toml")
+OUT_DIR = os.environ.get("MIOS_POD_OUT") or os.path.join(
+    ROOT, "usr/share/containers/systemd")
+
+sys.path.insert(0, os.path.join(ROOT, "usr/lib/mios"))
+import mios_toml  # noqa: E402
+
 _SIDECARS: dict = {}
+_SSOT_EXPORTS: dict = {}
+
+def load_vendor_exports(toml_path: str = TOML) -> dict:
+    """MIOS_* exports of the tree's vendor tier alone (mios_toml.emit_exports).
+    Host/user overlays, drop-ins outside the tree, a native resolver on PATH and
+    the DB overlay are pinned off; os.environ is never read for a value."""
+    os.environ["MIOS_VENDOR_TOML"] = toml_path
+    os.environ["MIOS_VENDOR_TOML_D"] = os.path.join(ROOT, "usr/lib/mios/mios.d")
+    for tier in ("MIOS_HOST_TOML", "MIOS_USER_TOML"):
+        os.environ[tier] = "/dev/null/absent.toml"
+        os.environ[tier + "_D"] = "/dev/null/absent.d"
+    os.environ["MIOS_RESOLVER_NATIVE"] = "0"
+    os.environ["MIOS_DB_AUTHORITATIVE"] = "0"
+    mios_toml.clear_cache()
+    return mios_toml.emit_exports()
+
+class SSOTTemplateConflict(Exception):
+    """A template expression and the SSOT value it stands for disagree."""
+
+def _ssot_expand(text: str) -> str:
+    """text with every ${MIOS_*} expanded from the vendor exports."""
+    probe = dict(_SSOT_EXPORTS, **{"pod-gen-probe": text})
+    mios_toml.resolve_cross_references(probe)
+    return probe["pod-gen-probe"]
 
 def _sidecar_image(var_name: str):
     """Digest-pinned image for a MIOS_<X>_IMAGE var from [image.sidecars] (the
@@ -32,61 +70,60 @@ def load_placeholders(toml_path: str) -> set[str]:
     except Exception:
         return {"FEDORA_VERSION", "MIOS_VERSION"}
 
+# The preserve-as-placeholder var set is operator-defined in [generator].
+# Resolve it here (TOML is known) rather than leaving the renderer hardcoded.
+_PLACEHOLDER_VARS = load_placeholders(TOML)
+
+def _resolve_one(inner: str) -> str:
+    """One ${inner}: SSOT export, then sidecar pin, then the inline default."""
+    name, sep, default = inner.partition(":-")
+    if not re.fullmatch(r"[A-Za-z0-9_]+", name):
+        return "${" + inner + "}"
+    if name.startswith("MIOS_PORT_") or name in _PLACEHOLDER_VARS:
+        return "${%s%s}" % (name, ":-" + _expand(default) if sep else "")
+    ssot = str(_SSOT_EXPORTS.get(name) or "")
+    if ssot and sep and "${MIOS_PORT_" in default:
+        # The export has its port baked in; the default keeps the placeholder.
+        if _ssot_expand(default) != ssot:
+            raise SSOTTemplateConflict(
+                f"{name}: SSOT {ssot!r} != template {default!r} ({_ssot_expand(default)!r})")
+        return _expand(default)
+    if ssot:
+        return ssot
+    if _sidecar_image(name) is not None:
+        return _expand(_sidecar_image(name))
+    return _expand(default) if sep else "${%s}" % name
+
+def _expand(text: str) -> str:
+    """Expand every ${VAR} / ${VAR:-default} in text, nesting included."""
+    out, i = [], 0
+    while (start := text.find("${", i)) != -1:
+        depth, j = 0, start
+        while j < len(text):
+            if text.startswith("${", j):
+                depth, j = depth + 1, j + 2
+                continue
+            if text[j] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        out.append(text[i:start])
+        if depth:  # unbalanced: keep "${" and scan on
+            out.append("${")
+            i = start + 2
+            continue
+        out.append(_resolve_one(text[start + 2:j]))
+        i = j + 1
+    out.append(text[i:])
+    return "".join(out)
+
 def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
     if isinstance(val, list):
         return [resolve_env_vars(x) for x in val]
     if isinstance(val, dict):
         return {k: resolve_env_vars(v) for k, v in val.items()}
-    if not isinstance(val, str):
-        return val
-
-    def _env(var_name: str):
-        v = os.environ.get(var_name)
-        return v if v else None
-
-    def repl_fallback(m):
-        var_name = m.group(1)
-        fallback = m.group(2)
-        if var_name.startswith("MIOS_PORT_") or var_name in _PLACEHOLDER_VARS or var_name.endswith("_VERSION"):
-            return m.group(0)
-        env_val = _env(var_name)
-        if env_val is not None:
-            return env_val
-        pinned = _sidecar_image(var_name)
-        if pinned is not None:
-            return pinned
-        return fallback
-    val = re.sub(r'\$\{([A-Za-z0-9_]+):-([^}]*)\}', repl_fallback, val)
-
-    def repl_var(m):
-        var_name = m.group(1)
-        if var_name.startswith("MIOS_PORT_") or var_name in _PLACEHOLDER_VARS or var_name.endswith("_VERSION"):
-            return m.group(0)
-        env_val = _env(var_name)
-        if env_val is not None:
-            return env_val
-        pinned = _sidecar_image(var_name)
-        if pinned is not None:
-            return pinned
-        return m.group(0)
-    val = re.sub(r'\$\{([A-Za-z0-9_]+)\}', repl_var, val)
-
-    return val
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # py<3.11
-    import tomli as tomllib  # type: ignore
-
-ROOT = os.environ.get("MIOS_ROOT") or os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))
-TOML = os.environ.get("MIOS_TOML") or os.path.join(ROOT, "usr/share/mios/mios.toml")
-OUT_DIR = os.environ.get("MIOS_POD_OUT") or os.path.join(
-    ROOT, "usr/share/containers/systemd")
-
-# The preserve-as-placeholder var set is operator-defined in [generator].
-# Resolve it here (TOML is known) rather than leaving the renderer hardcoded.
-_PLACEHOLDER_VARS = load_placeholders(TOML)
+    return _expand(val) if isinstance(val, str) else val
 
 def _wrap_doc(doc: str, width: int = 76) -> "list[str]":
     """Wrap the SSOT `doc` prose into `# `-prefixed comment lines (deterministic,
@@ -265,7 +302,8 @@ def main(argv: "list[str]") -> int:
         return _selftest()
     check = "--check" in argv
     list_mode = "--list" in argv
-    global _SIDECARS
+    global _SIDECARS, _SSOT_EXPORTS
+    _SSOT_EXPORTS = load_vendor_exports(TOML)
     _SIDECARS = load_sidecars(TOML)
     enabled_map = load_enabled_quadlets(TOML)
     pods = load_pods(TOML)
@@ -476,8 +514,45 @@ def _selftest() -> int:
        pc == render_nested_quadlet("mios-guacd", priv_spec, "container"))
     _SIDECARS = {}
 
+    global _SSOT_EXPORTS
+    _SSOT_EXPORTS = {"T_UTIL": "0.85", "T_VER": "latest", "MIOS_PORT_CHROME_CDP": "9222",
+                     "MIOS_CRAWL_CDP_URL": "http://127.0.0.1:9222"}
+    ssot_spec = {"Container": {
+        "Exec": "--util ${T_UTIL:-0.80}", "Image": "q.io/t:${T_VER}",
+        "Environment": "U=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:${MIOS_PORT_CHROME_CDP:-9222}}"}}
+    os.environ.update(T_UTIL="0.99", T_VER="planted")
+    sc = render_nested_quadlet("mios-test-ssot", ssot_spec, "container")
+    ck("selftest: SSOT wins over the environment", "--util 0.85" in sc and "q.io/t:latest" in sc)
+    ck("selftest: a port-derived SSOT value keeps its placeholder",
+       "Environment=U=http://127.0.0.1:${MIOS_PORT_CHROME_CDP:-9222}\n" in sc)
+    _SSOT_EXPORTS["MIOS_CRAWL_CDP_URL"] = "http://10.0.0.9:9222"
+    try:
+        render_nested_quadlet("mios-test-ssot", ssot_spec, "container")
+        ck("selftest: a template that disagrees with the SSOT is refused", False)
+    except SSOTTemplateConflict as exc:
+        ck("selftest: a template that disagrees with the SSOT is refused", "CDP_URL" in str(exc))
+    _SSOT_EXPORTS = {}
+
+    # Overlays and the environment, planted with another value, change no export.
+    import tempfile
+    with open(TOML, "rb") as f:
+        real = str(tomllib.load(f)["ai"]["vllm"]["max_model_len"])
+    clean = load_vendor_exports(TOML)
+    with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as uf:
+        uf.write(f"[ai.vllm]\nmax_model_len = {int(real) + 1}\n")
+    os.environ.update(MIOS_USER_TOML=uf.name, MIOS_HOST_TOML=uf.name,
+                      MIOS_VLLM_MAX_MODEL_LEN=str(int(real) + 1))
+    planted = load_vendor_exports(TOML)
+    os.unlink(uf.name)
+    ck("selftest: vendor value read", clean.get("MIOS_VLLM_MAX_MODEL_LEN") == real)
+    ck("selftest: overlays and environment change no vendor export", planted == clean)
+
     print(f"\n{'ok' if fails == 0 else str(fails) + ' FAILED'}")
     return 1 if fails else 0
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except SSOTTemplateConflict as exc:
+        print(f"[pod-gen] ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)

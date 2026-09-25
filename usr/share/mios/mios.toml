@@ -9226,7 +9226,6 @@ Wants = "network-online.target"
 
 [containers.mios-k3s.Container]
 ContainerName = "mios-k3s"
-Environment = "K3S_TOKEN=${K3S_TOKEN:-}"
 EnvironmentFile = "-/etc/mios/secrets.env"
 Exec = "k3s server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs"
 Group = "root"
