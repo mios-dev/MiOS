@@ -822,7 +822,7 @@ automation/92-export-sbom.sh	18	18	1	4	c8f62a70e412	STAY	local-scoped		0				0
 automation/92-export-sbom.sh	21	21	1	5	953140f703a9	STAY	local-scoped		0				0
 automation/92-export-sbom.sh	32	32	1	14	2e0c0a52ac0a	STAY	local-scoped		0				0
 automation/92-export-sbom.sh	63	63	1	10	edae31d25144	STAY	local-scoped		0				0
-automation/93-composefs-seal.sh	1	4	4	19	4747474969ec	STAY	ai-header		0				0
+automation/93-composefs-seal.sh	1	4	4	19	1f704505d954	STAY	ai-header		0				0
 automation/93-composefs-seal.sh	36	36	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 automation/93-composefs-seal.sh	63	63	1	4	7712e3124c9f	STAY	local-scoped		0				0
 automation/93-composefs-seal.sh	106	106	1	7	6b470c81fa40	STAY	local-scoped		0				0
@@ -833,7 +833,7 @@ automation/93-composefs-seal.sh	131	131	1	3	9f7d088d4dcd	DROP	banner		0				0
 automation/93-composefs-seal.sh	145	145	1	8	3a7764238ede	STAY	local-scoped		0				0
 automation/93-composefs-seal.sh	161	161	1	7	7512cc56f726	STAY	local-scoped		0				0
 automation/93-composefs-seal.sh	167	167	1	8	31219c561968	STAY	inline-scoped		0				0
-automation/93-composefs-seal.sh	168	168	1	2	a45c072a57b1	STAY	local-scoped		0				0
+automation/93-composefs-seal.sh	168	168	1	2	1227cce23df6	STAY	local-scoped		0				0
 automation/93-composefs-seal.sh	190	190	1	6	5436951f1a77	STAY	local-scoped		0				0
 automation/94-cleanup.sh	1	3	3	33	a55cf294bfa4	STAY	ai-header		0				0
 automation/97-ssot-lint.sh	1	4	4	22	9c010ea3360b	STAY	ai-header		0				0
@@ -4391,7 +4391,7 @@ tests/test-ast-merge.py	115	115	1	6	e3a6841ee62d	STAY	local-scoped		0				0
 tests/test-ast-merge.py	121	121	1	6	0f7c48e45cae	STAY	local-scoped		0				0
 tests/test-atomic-writes.py	1	3	3	18	742c742b246e	STAY	ai-header		0				0
 tests/test-atomic-writes.py	4	4	1	14	76d134a3f42c	STAY	local-scoped		0				0
-tests/test-attest-server.sh	1	3	3	22	d0f7346ce489	STAY	ai-header		0				0
+tests/test-attest-server.sh	1	3	3	22	d5846697fd88	STAY	ai-header		0				0
 tests/test-attest-server.sh	27	27	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-attest-server.sh	113	115	3	9	293e9d2abdcc	STAY	midsize-why		0				0
 tests/test-attest-server.sh	138	140	3	10	461e9165b2ae	STAY	midsize-why		0				0
@@ -4413,7 +4413,7 @@ tests/test-attest-server.sh	324	324	1	7	325ba9c9916f	STAY	local-scoped		0				0
 tests/test-attest-server.sh	346	346	1	10	94f15bc5d967	STAY	local-scoped		0				0
 tests/test-attest-server.sh	369	369	1	3	c862f5beaf8f	STAY	local-scoped		0				0
 tests/test-attest-server.sh	375	377	3	1	fea987bae1f3	DROP	banner		0				0
-tests/test-audio-stream-whisper.py	1	3	3	19	19cdb230ce15	STAY	ai-header		0				0
+tests/test-audio-stream-whisper.py	1	3	3	19	3d60ea7316c1	STAY	ai-header		0				0
 tests/test-audio-stream-whisper.py	4	4	1	12	693ff022af79	STAY	local-scoped		0				0
 tests/test-audio-stream-whisper.py	24	24	1	5	824f1dcc9ed1	STAY	local-scoped		0				0
 tests/test-audio-stream-whisper.py	30	30	1	9	7acafac4c6e1	STAY	local-scoped		0				0
@@ -4453,8 +4453,8 @@ tests/test-audio-stream-whisper.py	329	329	1	5	d91684b5a36f	STAY	local-scoped		0
 tests/test-audio-stream-whisper.py	341	341	1	6	f80e39205d29	STAY	local-scoped		0				0
 tests/test-audio-stream-whisper.py	347	347	1	7	41dde8ab4031	STAY	local-scoped		0				0
 tests/test-audio-stream-whisper.py	369	371	3	2	e4c99ecdd81e	DROP	banner		0				0
-tests/test-audio-stream-whisper.sh	1	3	3	19	66c763d81cab	STAY	ai-header		0				0
-tests/test-audio-tts-piper.py	1	3	3	20	e1039707562b	STAY	ai-header		0				0
+tests/test-audio-stream-whisper.sh	1	3	3	19	2bf0f6d88207	STAY	ai-header		0				0
+tests/test-audio-tts-piper.py	1	3	3	20	e91bae7cfcd3	STAY	ai-header		0				0
 tests/test-audio-tts-piper.py	4	4	1	13	105c59861bfb	STAY	local-scoped		0				0
 tests/test-audio-tts-piper.py	23	23	1	5	824f1dcc9ed1	STAY	local-scoped		0				0
 tests/test-audio-tts-piper.py	29	29	1	9	7acafac4c6e1	STAY	local-scoped		0				0
@@ -4490,7 +4490,7 @@ tests/test-audio-tts-piper.py	369	369	1	5	d91684b5a36f	STAY	local-scoped		0				0
 tests/test-audio-tts-piper.py	381	381	1	3	49d75bae60d8	STAY	local-scoped		0				0
 tests/test-audio-tts-piper.py	413	413	1	3	6d4aca0255f3	STAY	local-scoped		0				0
 tests/test-audio-tts-piper.py	435	437	3	2	e4c99ecdd81e	DROP	banner		0				0
-tests/test-audio-tts-piper.sh	1	3	3	20	9587e47d10d6	STAY	ai-header		0				0
+tests/test-audio-tts-piper.sh	1	3	3	20	41207d115491	STAY	ai-header		0				0
 tests/test-bake-group.sh	1	1	1	2	4189f864510a	STAY	local-scoped		0				0
 tests/test-bake-group.sh	14	16	3	27	24552db92014	STAY	midsize-why		0				0
 tests/test-baremetal-install.py	1	3	3	19	04efba4cf219	STAY	ai-header		0				0
@@ -4511,7 +4511,7 @@ tests/test-bitperfect-audio.py	1	3	3	19	87d48b96eafa	STAY	ai-header		0				0
 tests/test-bitperfect-audio.py	4	4	1	9	c90c3c62d8cb	STAY	local-scoped		0				0
 tests/test-bitperfect-audio.py	19	19	1	12	50bd54c858b2	STAY	local-scoped		0				0
 tests/test-bitperfect-audio.py	27	27	1	9	041d1079f4e6	STAY	local-scoped		0				0
-tests/test-blade-enroll.sh	1	3	3	19	a747bad29ff6	STAY	ai-header		0				0
+tests/test-blade-enroll.sh	1	3	3	19	d52fd6ed72bd	STAY	ai-header		0				0
 tests/test-blade-enroll.sh	28	28	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-blade-enroll.sh	86	88	3	4	829ffa4443bf	STAY	midsize-why		0				0
 tests/test-blade-enroll.sh	114	116	3	7	e5b8b0049ca3	STAY	midsize-why		0				0
@@ -4606,7 +4606,7 @@ tests/test-cilium-bgp-ecmp.py	10	10	1	8	0705d7b1a994	STAY	local-scoped		0				0
 tests/test-cilium-bgp-ecmp.py	20	20	1	10	370e40b7d7b7	STAY	local-scoped		0				0
 tests/test-cli-engine.py	1	3	3	18	e6fed78021ad	STAY	ai-header		0				0
 tests/test-cli-engine.py	22	22	1	10	95f5df5691ff	STAY	local-scoped		0				0
-tests/test-composefs-seal.sh	1	3	3	18	4577f9345052	STAY	ai-header		0				0
+tests/test-composefs-seal.sh	1	3	3	18	81898b29e712	STAY	ai-header		0				0
 tests/test-composefs-seal.sh	27	27	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-composefs-seal.sh	102	104	3	7	96573827244b	STAY	midsize-why		0				0
 tests/test-composefs-seal.sh	125	127	3	12	38f77d2e1a9b	STAY	midsize-why		0				0
@@ -4866,7 +4866,7 @@ tests/test-greenboot-blade.sh	140	140	1	7	ca5921d92b51	STAY	local-scoped		0				0
 tests/test-greenboot-blade.sh	159	159	1	4	425d99312c58	STAY	local-scoped		0				0
 tests/test-greenboot-blade.sh	167	167	1	14	1ae37ca05cb5	STAY	local-scoped		0				0
 tests/test-greenboot-blade.sh	188	188	1	5	4899fe71594a	STAY	local-scoped		0				0
-tests/test-greenboot-hardware-degrade.sh	1	3	3	19	0ceb88f7ec09	STAY	ai-header		0				0
+tests/test-greenboot-hardware-degrade.sh	1	3	3	19	86b2f94e7c6f	STAY	ai-header		0				0
 tests/test-greenboot-hardware-degrade.sh	42	42	1	3	cd045be1f95c	STAY	local-scoped		0				0
 tests/test-greenboot-hardware-degrade.sh	43	43	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-greenboot-hardware-degrade.sh	89	89	1	9	d985e040430f	STAY	local-scoped		0				0
@@ -4888,7 +4888,7 @@ tests/test-greenboot-hardware-degrade.sh	336	336	1	6	7673a522e5f8	STAY	local-sco
 tests/test-greenboot-hardware-degrade.sh	380	382	3	1	fea987bae1f3	DROP	banner		0				0
 tests/test-greenboot-rollback.py	1	3	3	17	cca9e50f74d6	STAY	ai-header		0				0
 tests/test-greenboot-rollback.py	4	4	1	11	10239cbc2323	STAY	local-scoped		0				0
-tests/test-hardware-fallback.sh	1	3	3	19	88ca5811b517	STAY	ai-header		0				0
+tests/test-hardware-fallback.sh	1	3	3	19	6d556768ed9d	STAY	ai-header		0				0
 tests/test-hardware-fallback.sh	28	28	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-hardware-fallback.sh	87	89	3	4	829ffa4443bf	STAY	midsize-why		0				0
 tests/test-hardware-fallback.sh	115	117	3	6	356b513c918c	STAY	midsize-why		0				0
@@ -5412,7 +5412,7 @@ tests/test-mdns-wireguard-mesh.py	30	30	1	11	4d9c7c7b9dbe	STAY	local-scoped		0		
 tests/test-memory-compaction.py	1	3	3	17	b98a16328ff7	STAY	ai-header		0				0
 tests/test-memory-compaction.py	4	4	1	10	de2f62b59e20	STAY	local-scoped		0				0
 tests/test-memory-compaction.py	26	26	1	8	a3e7bad1e928	STAY	local-scoped		0				0
-tests/test-mesh-distributor.py	1	3	3	19	f2775014c43b	STAY	ai-header		0				0
+tests/test-mesh-distributor.py	1	3	3	19	8f753b7383a6	STAY	ai-header		0				0
 tests/test-mesh-distributor.py	4	4	1	11	843d7bd7f9e1	STAY	local-scoped		0				0
 tests/test-mesh-distributor.py	18	18	1	3	8986affc25fd	STAY	local-scoped		0				0
 tests/test-mesh-distributor.py	24	24	1	5	539b8fe1af61	STAY	local-scoped		0				0
@@ -5982,7 +5982,7 @@ tests/test-oci-extractor.py	67	67	1	3	e77c89b579e6	STAY	local-scoped		0				0
 tests/test-oci-extractor.py	88	88	1	6	29fc99895265	STAY	local-scoped		0				0
 tests/test-oci-extractor.py	92	92	1	6	13a164c8a724	STAY	local-scoped		0				0
 tests/test-oci-extractor.py	96	96	1	11	74b71d0fabf6	STAY	local-scoped		0				0
-tests/test-ocr-mask.py	1	3	3	17	25a69b705d38	STAY	ai-header		0				0
+tests/test-ocr-mask.py	1	3	3	17	1535092014ba	STAY	ai-header		0				0
 tests/test-ocr-mask.py	4	9	5	28	462116066b98	STAY	midsize-why		0				0
 tests/test-ocr-mask.py	21	21	1	3	c3315a482fe4	STAY	local-scoped		0				0
 tests/test-ocr-mask.py	25	25	1	9	6fc248b770d1	STAY	local-scoped		0				0
@@ -6452,7 +6452,7 @@ tests/test-session-migrate.py	119	119	1	2	7fbf28708a90	STAY	local-scoped		0				0
 tests/test-session-migrate.py	135	135	1	2	2f3a91efe992	DROP	banner		0				0
 tests/test-session-migrate.py	150	150	1	2	c2c01c042086	DROP	banner		0				0
 tests/test-session-migrate.py	164	164	1	2	3750b3e9435a	DROP	banner		0				0
-tests/test-shadow-test.sh	1	3	3	19	97b913554fd5	STAY	ai-header		0				0
+tests/test-shadow-test.sh	1	3	3	19	5dd47d91a0f6	STAY	ai-header		0				0
 tests/test-shadow-test.sh	32	32	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-shadow-test.sh	58	58	1	5	0739a001e682	STAY	local-scoped		0				0
 tests/test-shadow-test.sh	156	158	3	6	99d6fb44c199	STAY	midsize-why		0				0
@@ -6480,7 +6480,7 @@ tests/test-snapshot-transport-restore.py	161	161	1	4	775269fd6903	STAY	local-sco
 tests/test-snapshot-transport-restore.py	172	172	1	2	0fc0000d99c2	STAY	local-scoped		0				0
 tests/test-snapshot-transport-restore.py	182	182	1	6	470eba59c826	STAY	local-scoped		0				0
 tests/test-snapshot-transport-restore.py	188	188	1	5	4a36269d77fa	STAY	local-scoped		0				0
-tests/test-socket-swap.sh	1	3	3	17	522f331b3a7f	STAY	ai-header		0				0
+tests/test-socket-swap.sh	1	3	3	17	62f4b29d0bed	STAY	ai-header		0				0
 tests/test-socket-swap.sh	12	12	1	6	9a35a9953533	STAY	local-scoped		0				0
 tests/test-socket-swap.sh	19	19	1	10	9084b0ae9338	STAY	local-scoped		0				0
 tests/test-socket-swap.sh	32	32	1	2	aa35be346338	DROP	banner		0				0
@@ -6984,7 +6984,7 @@ tests/test-systemd-oomd-psi.sh	70	70	1	5	1319fc715a57	STAY	local-scoped		0				0
 tests/test-systemd-oomd-psi.sh	81	81	1	4	8d467041a272	STAY	local-scoped		0				0
 tests/test-systemd-oomd-psi.sh	92	92	1	9	a2a6c689157d	STAY	local-scoped		0				0
 tests/test-systemd-oomd-psi.sh	118	118	1	8	8dc1859602b9	STAY	local-scoped		0				0
-tests/test-task-failover.py	1	3	3	20	ae849e4597b6	STAY	ai-header		0				0
+tests/test-task-failover.py	1	3	3	20	b4daf6f593ab	STAY	ai-header		0				0
 tests/test-task-failover.py	4	4	1	12	3740e5f3e450	STAY	local-scoped		0				0
 tests/test-task-failover.py	18	18	1	3	8986affc25fd	STAY	local-scoped		0				0
 tests/test-task-failover.py	23	23	1	7	5fc2bb0a8e32	STAY	local-scoped		0				0
@@ -7027,7 +7027,7 @@ tests/test-theme-live-render.py	1	3	3	19	2a55a91eeb0d	STAY	ai-header		0				0
 tests/test-theme-live-render.py	19	19	1	4	b0a22381077c	STAY	local-scoped		0				0
 tests/test-theme-live-render.py	48	48	1	3	eebf14d35abf	STAY	local-scoped		0				0
 tests/test-theme-merge.py	1	3	3	18	9dfcac286a81	STAY	ai-header		0				0
-tests/test-thermal-governor-recovery.sh	1	3	3	17	e67127a15a28	STAY	ai-header		0				0
+tests/test-thermal-governor-recovery.sh	1	3	3	17	fab23389cdb3	STAY	ai-header		0				0
 tests/test-thermal-governor-recovery.sh	33	33	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-thermal-governor-recovery.sh	93	95	3	6	442ac7e931e1	STAY	midsize-why		0				0
 tests/test-thermal-governor-recovery.sh	121	121	1	7	c33b65485feb	STAY	local-scoped		0				0
@@ -7112,7 +7112,7 @@ tests/test-usbguard-sec.py	47	47	1	10	218e9d70147d	STAY	local-scoped		0				0
 tests/test-usbguard-sec.py	57	58	2	18	c3d162a3b6d6	STAY	local-scoped		0				0
 tests/test-usbguard-sec.py	75	75	1	6	95156e09b623	STAY	local-scoped		0				0
 tests/test-usbguard-sec.py	94	94	1	3	416f9bb07089	STAY	local-scoped		0				0
-tests/test-user-cephfs.sh	1	3	3	16	42146d789ec5	STAY	ai-header		0				0
+tests/test-user-cephfs.sh	1	3	3	16	3922455d42da	STAY	ai-header		0				0
 tests/test-user-cephfs.sh	20	20	1	6	0738afc45194	STAY	local-scoped		0				0
 tests/test-user-cephfs.sh	27	27	1	8	692da4a39809	STAY	local-scoped		0				0
 tests/test-user-cephfs.sh	33	33	1	11	d141652c315f	STAY	local-scoped		0				0
@@ -7208,7 +7208,7 @@ tests/test-varlink-socket-activation.py	5	5	1	10	c9038f727aeb	STAY	local-scoped	
 tests/test-varlink-socket-activation.py	22	22	1	8	e53c5455ad3e	STAY	local-scoped		0				0
 tests/test-varlink-socket-activation.py	36	36	1	6	7cd6adcb711e	STAY	local-scoped		0				0
 tests/test-varlink-socket-activation.py	40	40	1	2	fa89c937c693	STAY	inline-scoped		0				0
-tests/test-video-encode-latency.sh	1	3	3	16	68fdd70a4648	STAY	ai-header		0				0
+tests/test-video-encode-latency.sh	1	3	3	16	9b4708c4be93	STAY	ai-header		0				0
 tests/test-video-encode-latency.sh	31	31	1	3	1efb80fe5567	STAY	local-scoped		0				0
 tests/test-video-encode-latency.sh	32	32	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-video-encode-latency.sh	84	86	3	2	39d29cc3c6fc	STAY	midsize-why		0				0
@@ -7226,7 +7226,7 @@ tests/test-video-encode-latency.sh	455	457	3	10	f3816a4ba512	STAY	midsize-why		0
 tests/test-video-encode-latency.sh	475	477	3	6	18303dfc921c	STAY	midsize-why		0				0
 tests/test-video-encode-latency.sh	484	484	1	9	8ad08500f7dd	STAY	local-scoped		0				0
 tests/test-video-encode-latency.sh	498	500	3	4	53f6c759646b	STAY	midsize-why		0				0
-tests/test-video-encoder-probe.sh	1	3	3	20	623a8499a5f8	STAY	ai-header		0				0
+tests/test-video-encoder-probe.sh	1	3	3	20	082fa6a4a6d3	STAY	ai-header		0				0
 tests/test-video-encoder-probe.sh	44	44	1	3	cd045be1f95c	STAY	local-scoped		0				0
 tests/test-video-encoder-probe.sh	45	45	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 tests/test-video-encoder-probe.sh	98	100	3	6	896ded4f037d	STAY	midsize-why		0				0
@@ -7432,7 +7432,7 @@ tests/test-virtio-pmem-dax-io.py	92	95	4	19	94c1da363301	STAY	midsize-why		0				
 tests/test-virtio-pmem-dax-io.py	102	102	1	5	37cd2e7aa8cb	STAY	local-scoped		0				0
 tests/test-virtio-pmem-dax-io.py	107	107	1	5	ae7940551158	STAY	inline-scoped		0				0
 tests/test-virtio-pmem-dax-io.py	121	123	3	34	113b3395df51	STAY	midsize-why		0				0
-tests/test-vision-redact.py	1	3	3	22	f9544b4d7f4b	STAY	ai-header		0				0
+tests/test-vision-redact.py	1	3	3	22	4d3e3664e3ac	STAY	ai-header		0				0
 tests/test-vision-redact.py	4	4	1	15	e65fb676bd80	STAY	local-scoped		0				0
 tests/test-vision-redact.py	19	19	1	3	8986affc25fd	STAY	local-scoped		0				0
 tests/test-vision-redact.py	24	24	1	7	5fc2bb0a8e32	STAY	local-scoped		0				0
@@ -7482,7 +7482,7 @@ tests/test-vision-redact.py	527	527	1	6	27ea6c21f863	STAY	local-scoped		0				0
 tests/test-vision-redact.py	554	554	1	7	1beb5203eeaa	STAY	local-scoped		0				0
 tests/test-vision-redact.py	568	570	3	1	c94b77680581	DROP	banner		0				0
 tests/test-vpn-killswitch.py	1	3	3	15	2d7bd39c5ff4	STAY	ai-header		0				0
-tests/test-vscode-custom-css.sh	1	3	3	19	c3410befaf64	STAY	ai-header		0				0
+tests/test-vscode-custom-css.sh	1	3	3	19	6a9223a8fa0f	STAY	ai-header		0				0
 tests/test-vscode-custom-css.sh	37	37	1	5	e117b8befcda	STAY	local-scoped		0				0
 tests/test-vscode-custom-css.sh	51	51	1	5	9b4a2a077799	STAY	local-scoped		0				0
 tests/test-vscode-custom-css.sh	65	65	1	4	0ae2cf7801dd	STAY	local-scoped		0				0
@@ -7640,15 +7640,15 @@ tools/check-docs.py	4	4	1	9	c5eb742f91fb	STAY	local-scoped		0				0
 tools/check-docs.py	14	14	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 tools/check-docs.py	76	77	2	21	ffb865e4fa00	STAY	local-scoped		0				0
 tools/check-docs.py	82	82	1	11	e18a0d8ee7f7	STAY	local-scoped		0				0
-tools/check-docs.py	161	161	1	8	da68aa5d4fc5	STAY	inline-scoped		0				0
-tools/check-docs.py	164	164	1	6	5603c1139187	STAY	local-scoped		0				0
-tools/check-docs.py	174	174	1	3	0c75562665ea	STAY	local-scoped		0				0
-tools/check-docs.py	203	206	4	45	ae6233893c67	STAY	midsize-why		0				0
-tools/check-docs.py	214	214	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
-tools/check-docs.py	251	253	3	43	d5dab987de7e	STAY	midsize-why		0				0
-tools/check-docs.py	295	295	1	11	5746d9a5d672	STAY	local-scoped		0				0
-tools/check-docs.py	315	316	2	16	6bb5884b07dc	STAY	local-scoped		0				0
-tools/check-docs.py	332	332	1	12	14b364d94a59	STAY	local-scoped		0				0
+tools/check-docs.py	169	169	1	8	da68aa5d4fc5	STAY	inline-scoped		0				0
+tools/check-docs.py	172	172	1	6	5603c1139187	STAY	local-scoped		0				0
+tools/check-docs.py	182	182	1	3	0c75562665ea	STAY	local-scoped		0				0
+tools/check-docs.py	211	214	4	45	ae6233893c67	STAY	midsize-why		0				0
+tools/check-docs.py	222	222	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
+tools/check-docs.py	259	261	3	43	d5dab987de7e	STAY	midsize-why		0				0
+tools/check-docs.py	303	303	1	11	5746d9a5d672	STAY	local-scoped		0				0
+tools/check-docs.py	323	324	2	16	6bb5884b07dc	STAY	local-scoped		0				0
+tools/check-docs.py	340	340	1	12	14b364d94a59	STAY	local-scoped		0				0
 tools/check-fleet-safety.py	5	14	9	101	601cb0c605d3	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tools.md	mios-src:601cb0c605d3	101	1
 tools/check-leaked-fixtures.py	4	18	14	131	dd8626e7b274	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:dd8626e7b274	131	1
 tools/check-ovmf-enrollment.sh	1	2	2	22	f3474d45d683	STAY	ai-header		0				0
@@ -8942,7 +8942,7 @@ usr/lib/bootc/kargs.d/32-mios-ws7-uki.toml	5	8	4	41	920496a37851	STAY	midsize-wh
 usr/lib/bootc/kargs.d/32-mios-ws7-uki.toml	10	28	19	127	26ab3272add0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/kargs.d.md	mios-src:26ab3272add0	127	1
 usr/lib/bootc/kargs.d/40-mios-ramoops.toml	1	2	2	14	1dc6022a3a15	STAY	ai-header		0				0
 usr/lib/bootc/kargs.d/41-mios-kdump.toml	1	3	3	14	46c03286b938	STAY	ai-header		0				0
-usr/lib/bootc/kargs.d/50-composefs.toml	1	2	2	10	54d7b2a9de79	STAY	ai-header		0				0
+usr/lib/bootc/kargs.d/50-composefs.toml	1	2	2	10	3ac377b69873	STAY	ai-header		0				0
 usr/lib/cockpit/cockpit.conf	1	1	1	20	33b63fd4c7c5	STAY	ai-header		0				0
 usr/lib/cockpit/cockpit.conf.d/10-mios-unencrypted.conf	1	1	1	20	3982f6058138	STAY	ai-header		0				0
 usr/lib/containers/registries.d/ghcr.io-mios-dev.yaml	1	2	2	24	0038779b3688	STAY	ai-header		0				0
@@ -8998,7 +8998,7 @@ usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	97	97	1	4	3cde96fabc27	ST
 usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	142	142	1	8	04fd341975f3	STAY	local-scoped		0				0
 usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	162	162	1	11	5b127a0ac5cf	STAY	local-scoped		0				0
 usr/lib/greenboot/check/required.d/55-mios-db-check.sh	1	3	3	16	c74596d4c8c6	STAY	ai-header		0				0
-usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh	1	3	3	16	e315ca3dfde0	STAY	ai-header		0				0
+usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh	1	3	3	16	2ac00a04de37	STAY	ai-header		0				0
 usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh	6	20	15	88	46c86e5b441b	MIGRATE	narrative-history		0				0
 usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh	33	33	1	7	72e57d0233a1	STAY	local-scoped		0				0
 usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh	68	68	1	3	cd045be1f95c	STAY	local-scoped		0				0
@@ -9155,7 +9155,7 @@ usr/lib/mios/agent-pipe/mios_ast_diff.py	333	333	1	4	0096844e9a46	STAY	local-sco
 usr/lib/mios/agent-pipe/mios_ast_diff.py	338	338	1	6	cbf2d25756e3	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_ast_diff.py	344	344	1	2	ca633ed839d0	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_ast_diff.py	350	350	1	2	04b80bf555d5	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/mios_audio_stream.py	1	3	3	17	dc100e6b99c3	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_audio_stream.py	1	3	3	17	893a80e39b34	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_audio_stream.py	4	9	5	42	fe00f8759223	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/mios_audio_stream.py	31	31	1	3	3f13d36e2a10	DROP	banner		0				0
 usr/lib/mios/agent-pipe/mios_audio_stream.py	34	34	1	4	417e41d61502	STAY	inline-scoped		0				0
@@ -9208,7 +9208,7 @@ usr/lib/mios/agent-pipe/mios_audio_stream.py	626	628	3	4	a4f659ffa165	DROP	banne
 usr/lib/mios/agent-pipe/mios_audio_stream.py	644	644	1	2	3f9b4a8de18c	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_audio_stream.py	651	651	1	2	142bab298110	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_audio_stream.py	657	657	1	2	b34234a596d5	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/mios_audio_tts.py	1	3	3	17	0387f2d9c69d	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_audio_tts.py	1	3	3	17	878e92fce693	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_audio_tts.py	4	10	6	50	cb268f45a2af	MIGRATE	narrative-rationale		0				0
 usr/lib/mios/agent-pipe/mios_audio_tts.py	37	39	3	3	91537e16660b	DROP	banner		0				0
 usr/lib/mios/agent-pipe/mios_audio_tts.py	43	43	1	4	c01e68e7720e	STAY	inline-scoped		0				0
@@ -9511,7 +9511,7 @@ usr/lib/mios/agent-pipe/mios_mcp_transport.py	222	222	1	3	5ade40b19664	STAY	inli
 usr/lib/mios/agent-pipe/mios_mcp_transport.py	285	285	1	4	ca0789af5054	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/mios_memguard.py	1	1	1	5	306966959b0a	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_memory.py	1	1	1	5	2035425d21a6	STAY	ai-header		0				0
-usr/lib/mios/agent-pipe/mios_mesh_distributor.py	1	3	3	16	887607b609eb	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_mesh_distributor.py	1	3	3	16	3fc81c457d7e	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_mesh_distributor.py	4	10	6	50	ff742fe83684	MIGRATE	narrative-rationale		0				0
 usr/lib/mios/agent-pipe/mios_mesh_distributor.py	29	31	3	4	38090d83a741	DROP	banner		0				0
 usr/lib/mios/agent-pipe/mios_mesh_distributor.py	33	33	1	7	ae43f4ce93a9	STAY	inline-scoped		0				0
@@ -9594,7 +9594,7 @@ usr/lib/mios/agent-pipe/mios_net_anomaly.py	80	80	1	11	ad955b6e7182	STAY	local-s
 usr/lib/mios/agent-pipe/mios_net_anomaly.py	89	89	1	11	9bb309e4c75a	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_net_anomaly.py	121	121	1	11	74c5259b073c	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_net_anomaly.py	176	176	1	4	de19961e95fc	STAY	inline-scoped		0				0
-usr/lib/mios/agent-pipe/mios_ocr_mask.py	1	3	3	17	10a2ee5bde87	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_ocr_mask.py	1	3	3	17	86ef34f14a75	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_ocr_mask.py	4	10	6	49	0c0ab188eb45	MIGRATE	narrative-rationale		0				0
 usr/lib/mios/agent-pipe/mios_ocr_mask.py	26	26	1	4	de0b195f8583	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_ocr_mask.py	33	33	1	3	a913d9362fce	STAY	local-scoped		0				0
@@ -11714,7 +11714,7 @@ usr/lib/mios/agent-pipe/mios_surface.py	534	548	15	121	30d811ac91af	MIGRATE	narr
 usr/lib/mios/agent-pipe/mios_surface.py	575	581	7	52	e6243060d128	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/agent-pipe.md	mios-src:e6243060d128	52	1
 usr/lib/mios/agent-pipe/mios_surface.py	594	601	8	52	60fe525377c2	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/agent-pipe.md	mios-src:60fe525377c2	52	1
 usr/lib/mios/agent-pipe/mios_swarm.py	1	1	1	5	767a56cac3e2	STAY	ai-header		0				0
-usr/lib/mios/agent-pipe/mios_task_failover.py	1	3	3	17	ec0313571bc9	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_task_failover.py	1	3	3	17	f3a14b2b201e	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_task_failover.py	4	13	9	79	94edfb8c831b	MIGRATE	narrative-rationale		0				0
 usr/lib/mios/agent-pipe/mios_task_failover.py	32	34	3	2	abb2453c4ed1	DROP	banner		0				0
 usr/lib/mios/agent-pipe/mios_task_failover.py	49	49	1	11	5f5b1fdb6d3c	STAY	local-scoped		0				0
@@ -11798,7 +11798,7 @@ usr/lib/mios/agent-pipe/mios_turn.py	1	1	1	5	1cbf89acbad2	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_verbcatalog.py	1	1	1	5	a5c8d4e62944	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_verity.py	1	1	1	5	79222283772a	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_vision.py	1	1	1	5	6b460674f7e2	STAY	ai-header		0				0
-usr/lib/mios/agent-pipe/mios_vision_redact.py	1	3	3	19	4233fd0627f3	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_vision_redact.py	1	3	3	19	ba0f8a6ab68c	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_vision_redact.py	4	12	8	79	17afe6d46c86	MIGRATE	narrative-rationale		0				0
 usr/lib/mios/agent-pipe/mios_vision_redact.py	29	29	1	5	0e1182dbe8a0	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_vision_redact.py	38	38	1	5	e08af5671a03	STAY	local-scoped		0				0
@@ -12650,7 +12650,7 @@ usr/lib/mios/agent-pipe/test_mios_native_loop.py	247	248	2	24	1d3a054feec7	STAY	
 usr/lib/mios/agent-pipe/test_mios_native_loop.py	277	279	3	37	536fe8d4823e	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/test_mios_native_loop.py	313	315	3	25	acc0c2170261	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/test_mios_native_loop.py	328	329	2	24	f03e6db13f61	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/test_mios_ocr_mask.py	1	3	3	14	570724c37522	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/test_mios_ocr_mask.py	1	3	3	14	83d0e8b21476	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/test_mios_ocr_mask.py	4	4	1	7	2f695d0c8e31	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/test_mios_oscontrol.py	1	3	3	17	9efaad93cd02	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/test_mios_oscontrol.py	4	4	1	9	b0afa39297ae	STAY	local-scoped		0				0
@@ -13526,7 +13526,7 @@ usr/lib/systemd/system/mios-agent-pipe.service	118	125	8	93	946ed1dfa4a2	MIGRATE
 usr/lib/systemd/system/mios-agent-pipe.service	128	134	7	60	7471f670d81d	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/system.md	mios-src:7471f670d81d	60	0
 usr/lib/systemd/system/mios-agent-pipe.service	141	141	1	7	085de397ee74	STAY	local-scoped		0				0
 usr/lib/systemd/system/mios-agent-pipe.service	147	149	3	23	8a10d2bbf1ff	STAY	midsize-why		0				0
-usr/lib/systemd/system/mios-agent-pipe.socket	1	2	2	13	da02ee698011	STAY	ai-header		0				0
+usr/lib/systemd/system/mios-agent-pipe.socket	1	2	2	13	66e26d2a6157	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-agents.service	1	2	2	23	bd0bc1c5e3ec	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-agents.service	12	15	4	35	0a4f9f8c3ad6	STAY	midsize-why		0				0
 usr/lib/systemd/system/mios-agents.service	18	21	4	48	0aef797c2abf	STAY	midsize-why		0				0
@@ -13786,7 +13786,7 @@ usr/lib/systemd/system/mios-sys-env-refresh.service	31	35	5	58	82f1edf23fdd	MIGR
 usr/lib/systemd/system/mios-sys-env-refresh.service	38	39	2	20	98585d0c941d	STAY	local-scoped		0				0
 usr/lib/systemd/system/mios-sys-env-refresh.timer	1	2	2	30	a0902f99cee1	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/system.md	mios-src:a0902f99cee1	30	0
 usr/lib/systemd/system/mios-sys-env-refresh.timer	7	10	4	43	49a86851b405	STAY	midsize-why		0				0
-usr/lib/systemd/system/mios-thermald.service	1	2	2	19	9eed2c872719	STAY	ai-header		0				0
+usr/lib/systemd/system/mios-thermald.service	1	2	2	19	5debd10f571a	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-tmpfs-spill.service	1	2	2	15	c72e8c3f3ec7	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-tmpfs-spill.timer	1	2	2	14	dd1d2dd391b7	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-ttyd-bash.service	1	2	2	29	45db73a50070	STAY	ai-header		0				0
@@ -13881,7 +13881,7 @@ usr/lib/systemd/user/mios-computer-use-server.service	1	2	2	31	38a819dab796	STAY
 usr/lib/systemd/user/mios-computer-use-server.service	4	30	27	217	adb750389465	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/user.md	mios-src:adb750389465	217	0
 usr/lib/systemd/user/mios-computer-use-server.service	38	43	6	52	37f3f3d02cf6	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/user.md	mios-src:37f3f3d02cf6	52	0
 usr/lib/systemd/user/mios-computer-use-server.service	48	54	7	40	c432b58dda41	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/user.md	mios-src:c432b58dda41	40	0
-usr/lib/systemd/user/mios-hardware-fallback.service	1	2	2	16	6af1856ca485	STAY	ai-header		0				0
+usr/lib/systemd/user/mios-hardware-fallback.service	1	2	2	16	355f0271fb53	STAY	ai-header		0				0
 usr/lib/systemd/user/mios-keyring-autounlock.service	1	2	2	25	39fb2cb043fc	STAY	ai-header		0				0
 usr/lib/systemd/user/mios-keyring-autounlock.service	6	9	4	33	a4c63679eb14	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/user.md	mios-src:a4c63679eb14	33	0
 usr/lib/systemd/user/mios-keyring-autounlock.service	13	14	2	13	8da9ccb87e74	STAY	local-scoped		0				0
@@ -15627,7 +15627,7 @@ usr/libexec/mios/mios-apps	381	381	1	5	f9551d7684d9	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-as-operator	1	4	4	45	22474a7f72b1	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:22474a7f72b1	45	0
 usr/libexec/mios/mios-as-operator	8	8	1	7	c0a19a34fd06	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-as-operator	50	50	1	0	92c49024626b	DROP	banner		0				0
-usr/libexec/mios/mios-attest-server	1	3	3	21	8fd5fa6bd3d0	STAY	ai-header		0				0
+usr/libexec/mios/mios-attest-server	1	3	3	21	12558bc4481f	STAY	ai-header		0				0
 usr/libexec/mios/mios-attest-server	4	9	5	51	3150ee21b695	STAY	midsize-why		0				0
 usr/libexec/mios/mios-attest-server	36	36	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-attest-server	40	40	1	2	b03a82c5405d	DROP	banner		0				0
@@ -15698,7 +15698,7 @@ usr/libexec/mios/mios-blade	132	132	1	0	75a3dedb3323	DROP	banner		0				0
 usr/libexec/mios/mios-blade	139	139	1	3	ee573bae3b99	STAY	local-scoped		0				0
 usr/libexec/mios/mios-blade	144	144	1	3	ee573bae3b99	STAY	local-scoped		0				0
 usr/libexec/mios/mios-blade	165	170	6	72	a4df947e4a32	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:a4df947e4a32	72	0
-usr/libexec/mios/mios-blade-enroll	1	3	3	17	1722cfb3020a	STAY	ai-header		0				0
+usr/libexec/mios/mios-blade-enroll	1	3	3	17	533be142a9fc	STAY	ai-header		0				0
 usr/libexec/mios/mios-blade-enroll	4	9	5	38	a529151a7173	STAY	midsize-why		0				0
 usr/libexec/mios/mios-blade-enroll	30	30	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-blade-enroll	34	34	1	4	98b0cead2b26	STAY	local-scoped		0				0
@@ -15863,7 +15863,7 @@ usr/libexec/mios/mios-compact	1	4	4	35	46c5c7e86e30	STAY	ai-header		0	usr/share/
 usr/libexec/mios/mios-compact	5	40	35	216	b6126d134922	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:b6126d134922	216	0
 usr/libexec/mios/mios-compact	72	72	1	10	ccb6b193db98	STAY	local-scoped		0				0
 usr/libexec/mios/mios-compact	194	196	3	24	0c0363d438cc	STAY	midsize-why		0				0
-usr/libexec/mios/mios-composefs-validator	1	3	3	16	74b92e710604	STAY	ai-header		0				0
+usr/libexec/mios/mios-composefs-validator	1	3	3	16	9b8516f01e9f	STAY	ai-header		0				0
 usr/libexec/mios/mios-composefs-validator	4	8	4	25	3afc4c4680c4	STAY	midsize-why		0				0
 usr/libexec/mios/mios-composefs-validator	23	28	6	33	4af6324cf0e3	MIGRATE	narrative-rationale		0				0
 usr/libexec/mios/mios-composefs-validator	39	39	1	6	40e90e7bf7ca	STAY	inline-scoped		0				0
@@ -16374,7 +16374,7 @@ usr/libexec/mios/mios-hardcode-lint	107	109	3	40	2f393bcdc864	STAY	midsize-why		
 usr/libexec/mios/mios-hardcode-lint	262	262	1	7	64271cfd5e64	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-hardcode-lint	322	331	10	102	ffc9278c7b3d	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:ffc9278c7b3d	102	0
 usr/libexec/mios/mios-hardcode-lint	355	356	2	24	8dc7f770c121	STAY	local-scoped		0				0
-usr/libexec/mios/mios-hardware-fallback	1	3	3	18	326cd15be89e	STAY	ai-header		0				0
+usr/libexec/mios/mios-hardware-fallback	1	3	3	18	683d208cf4df	STAY	ai-header		0				0
 usr/libexec/mios/mios-hardware-fallback	4	10	6	55	28f30cd2ae4a	MIGRATE	narrative-history		0				0
 usr/libexec/mios/mios-hardware-fallback	40	40	1	10	ad7b23019b98	STAY	local-scoped		0				0
 usr/libexec/mios/mios-hardware-fallback	64	66	3	3	d77bcd720b0a	DROP	banner		0				0
@@ -16952,7 +16952,7 @@ usr/libexec/mios/mios-seccomp-filter	21	21	1	5	2574c79f1bc1	STAY	inline-scoped		
 usr/libexec/mios/mios-seccomp-filter	27	27	1	5	0afcda800e58	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-seccomp-filter	28	28	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-seccomp-filter	32	32	1	11	f5a911e4cf7e	STAY	local-scoped		0				0
-usr/libexec/mios/mios-shadow-test	1	3	3	16	0d7a41661fe1	STAY	ai-header		0				0
+usr/libexec/mios/mios-shadow-test	1	3	3	16	94cae8ec70fa	STAY	ai-header		0				0
 usr/libexec/mios/mios-shadow-test	4	12	8	49	f3c08d190590	MIGRATE	narrative-rationale		0				0
 usr/libexec/mios/mios-shadow-test	40	40	1	4	ab011d0031aa	STAY	local-scoped		0				0
 usr/libexec/mios/mios-shadow-test	46	46	1	3	116b33c90d79	STAY	local-scoped		0				0
@@ -17060,7 +17060,7 @@ usr/libexec/mios/mios-snapshot-transport	35	35	1	3	c11604a46143	STAY	local-scope
 usr/libexec/mios/mios-snapshot-transport	48	48	1	11	ef3d16ce6dab	STAY	local-scoped		0				0
 usr/libexec/mios/mios-snapshot-transport	68	68	1	9	43ac58cae363	STAY	local-scoped		0				0
 usr/libexec/mios/mios-snapshot-transport	76	76	1	3	2e708078cd7a	STAY	local-scoped		0				0
-usr/libexec/mios/mios-socket-swap	1	3	3	15	eb365a3e1ece	STAY	ai-header		0				0
+usr/libexec/mios/mios-socket-swap	1	3	3	15	ad7e7e48c8df	STAY	ai-header		0				0
 usr/libexec/mios/mios-socket-swap	4	10	6	40	ed375451ac88	MIGRATE	narrative-rationale		0				0
 usr/libexec/mios/mios-socket-swap	45	45	1	10	67acf21ca07d	STAY	local-scoped		0				0
 usr/libexec/mios/mios-socket-swap	56	56	1	10	cd09b5897750	STAY	local-scoped		0				0
@@ -17245,7 +17245,7 @@ usr/libexec/mios/mios-theme-render	169	169	1	3	8b6d3a277898	STAY	local-scoped		0
 usr/libexec/mios/mios-theme-render	171	171	1	3	343a560c6549	STAY	local-scoped		0				0
 usr/libexec/mios/mios-theme-render	173	173	1	3	6367fbb92ff5	STAY	local-scoped		0				0
 usr/libexec/mios/mios-theme-render	176	176	1	6	78221ae2de41	STAY	local-scoped		0				0
-usr/libexec/mios/mios-thermald	1	3	3	17	0220f15f6115	STAY	ai-header		0				0
+usr/libexec/mios/mios-thermald	1	3	3	17	57ec04707680	STAY	ai-header		0				0
 usr/libexec/mios/mios-thermald	5	16	11	84	7ba655c35584	MIGRATE	narrative-history		0				0
 usr/libexec/mios/mios-thermald	32	32	1	4	9811a851fe89	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-thermald	33	33	1	5	735b534950ce	STAY	inline-scoped		0				0
@@ -17344,7 +17344,7 @@ usr/libexec/mios/mios-usbguard	135	135	1	4	51ae2bae884b	STAY	local-scoped		0				
 usr/libexec/mios/mios-usbguard	144	144	1	9	6d26e7a042a0	STAY	local-scoped		0				0
 usr/libexec/mios/mios-usbguard	154	154	1	9	87e3a71d391f	STAY	local-scoped		0				0
 usr/libexec/mios/mios-usbguard	218	218	1	5	10340f1ee7fa	STAY	local-scoped		0				0
-usr/libexec/mios/mios-user-cephfs	1	3	3	17	c4a83ee0c783	STAY	ai-header		0				0
+usr/libexec/mios/mios-user-cephfs	1	3	3	17	6bd04a88a14f	STAY	ai-header		0				0
 usr/libexec/mios/mios-user-cephfs	5	9	4	27	d36e27a50380	STAY	midsize-why		0				0
 usr/libexec/mios/mios-user-cephfs	35	35	1	4	b20eda81d839	STAY	local-scoped		0				0
 usr/libexec/mios/mios-user-cephfs	73	73	1	8	e03570eb74eb	STAY	local-scoped		0				0
@@ -17408,7 +17408,7 @@ usr/libexec/mios/mios-verify-launch	71	71	1	7	afa2168e67b2	STAY	inline-scoped		0
 usr/libexec/mios/mios-version-lint	1	4	4	33	9e2155e6c489	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:9e2155e6c489	33	0
 usr/libexec/mios/mios-version-lint	5	5	1	15	b8d51517fc3e	STAY	local-scoped		0				0
 usr/libexec/mios/mios-version-lint	94	94	1	11	809a30e50500	STAY	local-scoped		0				0
-usr/libexec/mios/mios-video-encoder-probe	1	3	3	16	38c70a22a8da	STAY	ai-header		0				0
+usr/libexec/mios/mios-video-encoder-probe	1	3	3	16	4e7e012fa170	STAY	ai-header		0				0
 usr/libexec/mios/mios-video-encoder-probe	4	9	5	39	bb6cac4494f2	STAY	midsize-why		0				0
 usr/libexec/mios/mios-video-encoder-probe	25	26	2	19	7de324c05dfe	STAY	local-scoped		0				0
 usr/libexec/mios/mios-video-encoder-probe	36	36	1	10	d9efedcf7025	STAY	local-scoped		0				0
@@ -17448,7 +17448,7 @@ usr/libexec/mios/mios-viking	63	63	1	2	f56ee1e18c22	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-viking	73	73	1	2	f56ee1e18c22	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-viking	141	141	1	13	05c261f293ea	STAY	inline-scoped		0				0
 usr/libexec/mios/mios-viking	216	216	1	2	f56ee1e18c22	STAY	inline-scoped		0				0
-usr/libexec/mios/mios-vscode-custom-css	1	3	3	17	08eb79c7fa0f	STAY	ai-header		0				0
+usr/libexec/mios/mios-vscode-custom-css	1	3	3	17	c275b6b44ec6	STAY	ai-header		0				0
 usr/libexec/mios/mios-vscode-custom-css	20	20	1	7	1e804999d99d	STAY	local-scoped		0				0
 usr/libexec/mios/mios-vscode-custom-css	30	30	1	8	1eedc0cab395	STAY	local-scoped		0				0
 usr/libexec/mios/mios-vscode-custom-css	154	154	1	3	d5e0b107bdda	STAY	local-scoped		0				0
@@ -19331,16 +19331,16 @@ usr/share/containers/systemd/mios-node.container	1	3	3	17	b3b2424a42e6	STAY	ai-h
 usr/share/containers/systemd/mios-open-webui.container	1	3	3	17	10c58c7c0265	STAY	ai-header		0				0
 usr/share/containers/systemd/mios-otelcol.container	1	3	3	17	d1ba2df03249	STAY	ai-header		0				0
 usr/share/containers/systemd/mios-pgvector.container	1	3	3	17	d9de0f0c7d0c	STAY	ai-header		0				0
-usr/share/containers/systemd/mios-piper.container	1	3	3	15	9392be49f91d	STAY	ai-header		0				0
+usr/share/containers/systemd/mios-piper.container	1	3	3	15	7f04269ea48d	STAY	ai-header		0				0
 usr/share/containers/systemd/mios-pxe-hub.container	1	3	3	17	6f7db57e3596	STAY	ai-header		0				0
 usr/share/containers/systemd/mios-radosgw.container	1	3	3	17	b27e39608205	STAY	ai-header		0				0
 usr/share/containers/systemd/mios-searxng.container	1	3	3	17	f8882ba79445	STAY	ai-header		0				0
-usr/share/containers/systemd/mios-sunshine.container	1	3	3	23	05cf09d633c2	STAY	ai-header		0				0
+usr/share/containers/systemd/mios-sunshine.container	1	3	3	23	66280d9cf46a	STAY	ai-header		0				0
 usr/share/containers/systemd/mios-webtools-crawl4ai.container	1	3	3	17	cf95a2e996c9	STAY	ai-header		0				0
 usr/share/containers/systemd/mios-webtools-firecrawl-api.container	1	3	3	17	45d67db3a1c8	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/systemd.md	mios-src:45d67db3a1c8	17	0
 usr/share/containers/systemd/mios-webtools-firecrawl-worker.container	1	3	3	17	f0f8acf9ecff	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/systemd.md	mios-src:f0f8acf9ecff	17	0
 usr/share/containers/systemd/mios-webtools-redis.container	1	3	3	17	c03d08345d99	STAY	ai-header		0				0
-usr/share/containers/systemd/mios-whisper.container	1	3	3	15	32ba1a5fd03f	STAY	ai-header		0				0
+usr/share/containers/systemd/mios-whisper.container	1	3	3	15	ed374ccd1490	STAY	ai-header		0				0
 usr/share/containers/systemd/users/mios-coderun-sandbox@.container	1	2	2	33	040d1373415e	STAY	ai-header		0				0
 usr/share/containers/systemd/users/mios-coderun-sandbox@.container	4	44	41	256	7d690d27ea3e	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/users.md	mios-src:7d690d27ea3e	256	0
 usr/share/containers/systemd/users/mios-coderun-sandbox@.container	53	65	13	106	ab8897f7752a	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/users.md	mios-src:ab8897f7752a	106	0

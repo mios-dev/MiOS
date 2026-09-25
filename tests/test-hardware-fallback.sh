@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Verification suite for automated network and audio fallback manager and alert daemon (T-532, AGY-2130).
-# AI-doc: usr/share/doc/mios/manual/ch21-hardware-fallback.md
+# AI-doc: usr/share/doc/mios/manual/ch77-hardware-fallback.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

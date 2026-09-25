@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Verification suite for automated node failure detection and zero-loss dynamic task re-distribution engine (T-538, AGY-2136).
-# AI-doc: usr/share/doc/mios/manual/ch27-task-failover-resilience.md
+# AI-doc: usr/share/doc/mios/manual/ch83-task-failover-resilience.md
 """Test suite for automated node failure detection and zero-loss task re-distribution engine."""
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated network and audio fallback manager with operator desktop alert daemon (T-532, AGY-2130).
-# AI-doc: usr/share/doc/mios/manual/ch21-hardware-fallback.md
+# AI-doc: usr/share/doc/mios/manual/ch77-hardware-fallback.md
 """
 Automated network and audio fallback manager with operator desktop alert daemon.
 Inspects degraded peripheral statuses from /var/log/mios-hardware-degrade.log or live sysfs/proc probes.

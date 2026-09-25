@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Comprehensive test suite for RFC 9334 RATS remote TPM 2.0 quote verifier and onboarding daemon (T-530, AGY-2128).
-# AI-doc: usr/share/doc/mios/manual/ch20-remote-attestation.md
+# AI-doc: usr/share/doc/mios/manual/ch76-remote-attestation.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

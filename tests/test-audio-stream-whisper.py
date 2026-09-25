@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Verification suite for WebRTC streaming audio ingress and streaming Whisper STT bridge (T-533, AGY-2131).
-# AI-doc: usr/share/doc/mios/manual/ch22-streaming-audio-whisper.md
+# AI-doc: usr/share/doc/mios/manual/ch78-streaming-audio-whisper.md
 """Test suite for WebRTC streaming audio ingress and streaming Whisper STT bridge."""
 
 from __future__ import annotations

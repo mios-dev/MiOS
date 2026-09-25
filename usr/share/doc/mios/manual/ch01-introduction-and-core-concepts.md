@@ -46,6 +46,9 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 The `mios.git` repository root *is* the running host's system root (`/`). There is no temporary build directory, no intermediate staging workspace, and no Ansible configuration playbooks.
 
 - **Structure**: The files in the repository (e.g. `usr/`, `etc/`, `srv/`, `var/`) are mapped directly to their FHS positions on the booted system.
+- **Dual Structure (Linux FHS + AI Training Image Shape)**:
+  - **Native Linux FHS Compliant**: Standard system components (`usr/`, `etc/`, `var/`, `srv/`) live where the Filesystem Hierarchy Standard dictates. Standard tools, dracut, systemd, Podman, and bootc interact with a standard POSIX filesystem root overlay.
+  - **AI Training Image Shape**: The repository root is simultaneously structured as an ingestible, high-density AI training corpus dataset. Every source file carries structured machine-readable headers (`AI-hint:`, `AI-doc:`, `AI-related:`), all documentation is linked to an authoritative grounded knowledge base (`usr/share/doc/mios/manual/ch01..ch88.md`), and the corpus ledger (`usr/share/mios/reference/manual-corpus.tsv`) guarantees full provenance and zero fabrication drift for local SFT/LoRA fine-tuning (`mios-finetune-dataset`) and epistemic learning (`/learn`).
 - **Overlay Application**: During the container image build, the script [01-system-files-overlay.sh](automation/01-system-files-overlay.sh) applies the overlay files directly to the rootfs.
 - **Developer Workflow**: To change a configuration or utility in the OS, you edit it at its natural path inside the repository and trigger a rebuild. When the OCI image is updated, `bootc` handles the transactional merge on the target machine.
 

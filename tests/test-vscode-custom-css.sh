@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Verification test suite for VS Code and code-server Custom CSS subsystem and edge-to-edge terminal.
-# AI-doc: usr/share/doc/mios/manual/ch16-ide-custom-css.md
+# AI-doc: usr/share/doc/mios/manual/ch72-ide-custom-css.md
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

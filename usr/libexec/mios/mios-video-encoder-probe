@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Multi-vendor hardware video encoder discovery and DMA-BUF capture bridge (T-535, AGY-2133).
-# AI-doc: usr/share/doc/mios/manual/ch24-hardware-video-encoding.md
+# AI-doc: usr/share/doc/mios/manual/ch80-hardware-video-encoding.md
 """
 Multi-vendor hardware video encoder discovery and DMA-BUF capture bridge.
 Probes Intel QuickSync (VA-API / QSV), NVIDIA NVENC, and AMD AMF/VCN hardware encoding

@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 21: Automated Network and Audio Fallback Manager with Operator Desktop Alert Daemon (T-532, AGY-2130). Covers peripheral degradation recovery, secondary NIC and USB tethering auto-failover, dynamic PipeWire null-sink binding, and desktop notifications. -->
+<!-- AI-hint: Chapter 77: Automated Network and Audio Fallback Manager with Operator Desktop Alert Daemon (T-532, AGY-2130). Covers peripheral degradation recovery, secondary NIC and USB tethering auto-failover, dynamic PipeWire null-sink binding, and desktop notifications. -->
 
-# Chapter 21: Automated Network and Audio Fallback Manager with Operator Desktop Alert Daemon
+# Chapter 77: Automated Network and Audio Fallback Manager with Operator Desktop Alert Daemon
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, failover mechanisms, and alerting lifecycle of the **Automated Network and Audio Fallback Manager with Operator Desktop Alert Daemon** (T-532, AGY-2130), implemented in [`usr/libexec/mios/mios-hardware-fallback`](file:///usr/libexec/mios/mios-hardware-fallback) and managed by [`usr/lib/systemd/user/mios-hardware-fallback.service`](file:///usr/lib/systemd/user/mios-hardware-fallback.service).
 
@@ -48,9 +48,9 @@ flowchart TD
 
 ---
 
-### <a name="21_architecture_overview"></a>21.Architecture Overview: The Resilient Peripheral Fallback Lifecycle
+### <a name="77_architecture_overview"></a>77.Architecture Overview: The Resilient Peripheral Fallback Lifecycle
 
-> Path Reference: `/usr/share/doc/mios/manual.md#21_architecture_overview`
+> Path Reference: `/usr/share/doc/mios/manual.md#77_architecture_overview`
 
 #### Architectural Principle
 
@@ -63,9 +63,9 @@ While `20-hardware-degrade.sh` under Greenboot guarantees that the system boots 
 
 ---
 
-### <a name="21_network_fallback"></a>21.Network Fallback: Secondary NIC and USB Tethering Auto-Failover
+### <a name="77_network_fallback"></a>77.Network Fallback: Secondary NIC and USB Tethering Auto-Failover
 
-> Path Reference: `/usr/share/doc/mios/manual.md#21_network_fallback`
+> Path Reference: `/usr/share/doc/mios/manual.md#77_network_fallback`
 
 #### Detection and Discovery
 
@@ -93,9 +93,9 @@ When the primary network interface is absent or disconnected:
 
 ---
 
-### <a name="21_audio_fallback"></a>21.Audio Fallback: Dynamic PipeWire Null-Sink Binding
+### <a name="77_audio_fallback"></a>77.Audio Fallback: Dynamic PipeWire Null-Sink Binding
 
-> Path Reference: `/usr/share/doc/mios/manual.md#21_audio_fallback`
+> Path Reference: `/usr/share/doc/mios/manual.md#77_audio_fallback`
 
 #### The Missing Soundcard Dilemma
 
@@ -128,9 +128,9 @@ This virtual sink acts as a bit-bucket destination for output streams, allowing 
 
 ---
 
-### <a name="21_desktop_alerts"></a>21.Operator Desktop Alerts: Guidance & Remediation
+### <a name="77_desktop_alerts"></a>77.Operator Desktop Alerts: Guidance & Remediation
 
-> Path Reference: `/usr/share/doc/mios/manual.md#21_desktop_alerts`
+> Path Reference: `/usr/share/doc/mios/manual.md#77_desktop_alerts`
 
 When fallbacks are triggered, the daemon emits notifications across multiple channels to ensure the operator is informed without disrupting active workflows.
 
@@ -165,19 +165,19 @@ sequenceDiagram
 
 ---
 
-### <a name="21_systemd_user_service"></a>21.Systemd User Service: `mios-hardware-fallback.service`
+### <a name="77_systemd_user_service"></a>77.Systemd User Service: `mios-hardware-fallback.service`
 
-> Path Reference: `/usr/share/doc/mios/manual.md#21_systemd_user_service`
+> Path Reference: `/usr/share/doc/mios/manual.md#77_systemd_user_service`
 
 The fallback manager integrates into the user graphical session via systemd user services:
 
 ```ini
 # /usr/lib/systemd/user/mios-hardware-fallback.service
 # AI-hint: Automated network and audio fallback manager with operator desktop alert daemon (T-532, AGY-2130).
-# AI-doc: usr/share/doc/mios/manual/ch21-hardware-fallback.md
+# AI-doc: usr/share/doc/mios/manual/ch77-hardware-fallback.md
 [Unit]
 Description='MiOS' Automated Network and Audio Fallback Manager
-Documentation=file:///usr/share/doc/mios/manual/ch21-hardware-fallback.md
+Documentation=file:///usr/share/doc/mios/manual/ch77-hardware-fallback.md
 After=graphical-session.target pipewire.service
 PartOf=graphical-session.target
 
@@ -193,9 +193,9 @@ WantedBy=graphical-session.target
 
 ---
 
-### <a name="21_cli_reference"></a>21.CLI Reference: `mios-hardware-fallback`
+### <a name="77_cli_reference"></a>77.CLI Reference: `mios-hardware-fallback`
 
-> Path Reference: `/usr/share/doc/mios/manual.md#21_cli_reference`
+> Path Reference: `/usr/share/doc/mios/manual.md#77_cli_reference`
 
 ```text
 Usage: mios-hardware-fallback [OPTIONS] SUBCOMMAND [ARGS...]

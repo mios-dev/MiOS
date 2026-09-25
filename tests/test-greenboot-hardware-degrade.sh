@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Verification suite for peripheral hardware health evaluator and non-fatal Greenboot degradation reporter (T-531, AGY-2129).
-# AI-doc: usr/share/doc/mios/manual/ch19-greenboot-hardware-degrade.md
+# AI-doc: usr/share/doc/mios/manual/ch75-greenboot-hardware-degrade.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

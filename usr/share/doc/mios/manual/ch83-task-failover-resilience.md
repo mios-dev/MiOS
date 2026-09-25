@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 27: Automated Node Failure Detection and Zero-Loss Dynamic Task Re-Distribution Engine (T-538, AGY-2136). Details mesh heartbeat auditing, in-flight task leasing protocols, zero-loss prompt recovery, and PostgreSQL/SQLite state synchronization across the agent plane. -->
+<!-- AI-hint: Chapter 83: Automated Node Failure Detection and Zero-Loss Dynamic Task Re-Distribution Engine (T-538, AGY-2136). Details mesh heartbeat auditing, in-flight task leasing protocols, zero-loss prompt recovery, and PostgreSQL/SQLite state synchronization across the agent plane. -->
 
-# Chapter 27: Automated Node Failure Detection and Zero-Loss Dynamic Task Re-Distribution Engine
+# Chapter 83: Automated Node Failure Detection and Zero-Loss Dynamic Task Re-Distribution Engine
 
-> Part IV: Cluster, Distributed Services & Storage of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, leasing protocols, failure detection mechanics, and zero-loss dynamic task re-distribution engine implemented in [`usr/lib/mios/agent-pipe/mios_task_failover.py`](file:///usr/lib/mios/agent-pipe/mios_task_failover.py).
 
@@ -46,9 +46,9 @@ flowchart TD
 
 ---
 
-### <a name="27_failover_architecture"></a>27.Architectural Overview: Node Resilience in the MiOS Agent Plane
+### <a name="83_failover_architecture"></a>83.Architectural Overview: Node Resilience in the MiOS Agent Plane
 
-> Path Reference: `/usr/share/doc/mios/manual.md#27_failover_architecture`
+> Path Reference: `/usr/share/doc/mios/manual.md#83_failover_architecture`
 
 In a multi-blade or federated MiOS cluster, AI reasoning workloads, multi-turn tool loops, and code generation tasks execute across distributed worker nodes. Node failures (such as hardware panics, network partition, or out-of-memory kernel termination) must never cause prompt truncation, dropped user conversations, or silent request loss.
 
@@ -60,9 +60,9 @@ The **MiOS Task Failover Engine** ([`usr/lib/mios/agent-pipe/mios_task_failover.
 
 ---
 
-### <a name="27_failure_detection_mechanics"></a>27.Failure Detection Mechanics: Heartbeat Auditing and State Transitions
+### <a name="83_failure_detection_mechanics"></a>83.Failure Detection Mechanics: Heartbeat Auditing and State Transitions
 
-> Path Reference: `/usr/share/doc/mios/manual.md#27_failure_detection_mechanics`
+> Path Reference: `/usr/share/doc/mios/manual.md#83_failure_detection_mechanics`
 
 Worker and blade nodes report liveness to the cluster coordinator via periodic heartbeats. The monitor daemon continuously audits the heartbeat registry:
 
@@ -93,9 +93,9 @@ To avoid premature task churn from transient network blips:
 
 ---
 
-### <a name="27_task_leasing_protocol"></a>27.Task Leasing Protocols: In-Flight Execution Leases
+### <a name="83_task_leasing_protocol"></a>83.Task Leasing Protocols: In-Flight Execution Leases
 
-> Path Reference: `/usr/share/doc/mios/manual.md#27_task_leasing_protocol`
+> Path Reference: `/usr/share/doc/mios/manual.md#83_task_leasing_protocol`
 
 Every AI execution initiated by `agent-pipe` is wrapped in an explicit `TaskLease` prior to dispatch.
 
@@ -145,9 +145,9 @@ The task lease data record ([`TaskLease`](file:///usr/lib/mios/agent-pipe/mios_t
 
 ---
 
-### <a name="27_zero_loss_recovery"></a>27.Zero-Loss Prompt Recovery: Dynamic Task Re-Distribution
+### <a name="83_zero_loss_recovery"></a>83.Zero-Loss Prompt Recovery: Dynamic Task Re-Distribution
 
-> Path Reference: `/usr/share/doc/mios/manual.md#27_zero_loss_recovery`
+> Path Reference: `/usr/share/doc/mios/manual.md#83_zero_loss_recovery`
 
 When a node drop is confirmed:
 1. **Extraction**: The engine queries all tasks currently in `leased` status where `node_id == failed_node_id`.
@@ -177,9 +177,9 @@ If all nodes capable of handling the task are down or unresponsive:
 
 ---
 
-### <a name="27_state_synchronization"></a>27.State Synchronization: PostgreSQL & Local SQLite Journaling
+### <a name="83_state_synchronization"></a>83.State Synchronization: PostgreSQL & Local SQLite Journaling
 
-> Path Reference: `/usr/share/doc/mios/manual.md#27_state_synchronization`
+> Path Reference: `/usr/share/doc/mios/manual.md#83_state_synchronization`
 
 #### Architectural Invariant 1: Persistent `/var`
 
@@ -228,9 +228,9 @@ If the central PostgreSQL cluster is temporarily partitioning or starting up:
 
 ---
 
-### <a name="27_cli_and_operation"></a>27.Operational Tooling and CLI Usage
+### <a name="83_cli_and_operation"></a>83.Operational Tooling and CLI Usage
 
-> Path Reference: `/usr/share/doc/mios/manual.md#27_cli_and_operation`
+> Path Reference: `/usr/share/doc/mios/manual.md#83_cli_and_operation`
 
 The CLI tool [`mios_task_failover.py`](file:///usr/lib/mios/agent-pipe/mios_task_failover.py) provides subcommands for monitoring, testing, and synthetic failure simulation.
 
@@ -287,9 +287,9 @@ Example output:
 
 ---
 
-### <a name="27_verification_matrix"></a>27.Verification Matrix
+### <a name="83_verification_matrix"></a>83.Verification Matrix
 
-> Path Reference: `/usr/share/doc/mios/manual.md#27_verification_matrix`
+> Path Reference: `/usr/share/doc/mios/manual.md#83_verification_matrix`
 
 The automated verification suite [`tests/test-task-failover.py`](file:///tests/test-task-failover.py) validates the resilience engine against positive and negative controls:
 

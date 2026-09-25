@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 26: Multi-Node Dynamic AI Workload Partitioning and Capability-Aware Task Routing (T-537, AGY-2135). Details 2-6 bare-metal Blade mesh topology discovery, capability matrix scoring, subtask workflow decomposition, parallel dispatch over WireGuard HCI mesh, and OpenAI-compatible response gathering. -->
+<!-- AI-hint: Chapter 82: Multi-Node Dynamic AI Workload Partitioning and Capability-Aware Task Routing (T-537, AGY-2135). Details 2-6 bare-metal Blade mesh topology discovery, capability matrix scoring, subtask workflow decomposition, parallel dispatch over WireGuard HCI mesh, and OpenAI-compatible response gathering. -->
 
-# Chapter 26: Multi-Node Dynamic AI Workload Partitioning and Capability-Aware Task Routing
+# Chapter 82: Multi-Node Dynamic AI Workload Partitioning and Capability-Aware Task Routing
 
-> Part VII: Cluster Architecture, Storage Fabric & Workload Distribution of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the multi-node AI workload partitioner, dynamic capability-aware task router, and distributed response gathering fabric implemented in [`usr/lib/mios/agent-pipe/mios_mesh_distributor.py`](file:///usr/lib/mios/agent-pipe/mios_mesh_distributor.py).
 
@@ -42,9 +42,9 @@ flowchart TD
 
 ---
 
-### <a name="26_mesh_topology_discovery"></a>26.1 Bare-Metal Blade Mesh Topology & Hardware Boundaries
+### <a name="82_mesh_topology_discovery"></a>82.1 Bare-Metal Blade Mesh Topology & Hardware Boundaries
 
-> Path Reference: `/usr/share/doc/mios/manual.md#26_mesh_topology_discovery`
+> Path Reference: `/usr/share/doc/mios/manual.md#82_mesh_topology_discovery`
 
 #### The 2-6 Bare-Metal Blade Architecture
 
@@ -86,9 +86,9 @@ The mesh distributor discovers topology using a three-tier cascade:
 
 ---
 
-### <a name="26_inference_role_taxonomy"></a>26.2 Inference Role Taxonomy & Capability Matrix
+### <a name="82_inference_role_taxonomy"></a>82.2 Inference Role Taxonomy & Capability Matrix
 
-> Path Reference: `/usr/share/doc/mios/manual.md#26_inference_role_taxonomy`
+> Path Reference: `/usr/share/doc/mios/manual.md#82_inference_role_taxonomy`
 
 Each node in the mesh advertises a discrete set of supported capabilities according to its hardware profile and running container Quadlets:
 
@@ -102,9 +102,9 @@ Each node in the mesh advertises a discrete set of supported capabilities accord
 
 ---
 
-### <a name="26_capability_routing_algorithm"></a>26.3 Dynamic Telemetry Scoring & Routing Algorithm
+### <a name="82_capability_routing_algorithm"></a>82.3 Dynamic Telemetry Scoring & Routing Algorithm
 
-> Path Reference: `/usr/share/doc/mios/manual.md#26_capability_routing_algorithm`
+> Path Reference: `/usr/share/doc/mios/manual.md#82_capability_routing_algorithm`
 
 When a subtask requires role $R$, candidate nodes $\mathcal{C} = \{N \in \text{Nodes} \mid R \in N.\text{roles} \land N.\text{status} \neq \text{offline}\}$ are scored dynamically:
 
@@ -131,9 +131,9 @@ The candidate node yielding the highest non-negative score is selected for dispa
 
 ---
 
-### <a name="26_subtask_fanout_gather"></a>26.4 Subtask Workflow Decomposition & Fan-out/Gather
+### <a name="82_subtask_fanout_gather"></a>82.4 Subtask Workflow Decomposition & Fan-out/Gather
 
-> Path Reference: `/usr/share/doc/mios/manual.md#26_subtask_fanout_gather`
+> Path Reference: `/usr/share/doc/mios/manual.md#82_subtask_fanout_gather`
 
 #### Composite Workflow Analysis
 
@@ -197,9 +197,9 @@ Subtasks without sequential dependencies are dispatched concurrently using a thr
 
 ---
 
-### <a name="26_cli_daemon_interface"></a>26.5 CLI & Programmatic Integration
+### <a name="82_cli_daemon_interface"></a>82.5 CLI & Programmatic Integration
 
-> Path Reference: `/usr/share/doc/mios/manual.md#26_cli_daemon_interface`
+> Path Reference: `/usr/share/doc/mios/manual.md#82_cli_daemon_interface`
 
 #### Command-Line Operations
 

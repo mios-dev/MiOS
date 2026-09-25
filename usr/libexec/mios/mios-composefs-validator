@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Atomic composefs image descriptor validator and fs-verity digest verifier (T-527, AGY-2125).
-# AI-doc: usr/share/doc/mios/manual/ch15-composefs-sealing.md
+# AI-doc: usr/share/doc/mios/manual/ch71-composefs-sealing.md
 """
 MiOS Composefs Atomic Descriptor Validator and fs-verity Digest Verifier.
 Validates composefs (.cfs) images, parses descriptor headers, verifies

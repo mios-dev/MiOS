@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Multi-node dynamic AI workload partitioner and capability-aware task router (T-537, AGY-2135).
-# AI-doc: usr/share/doc/mios/manual/ch26-mesh-workload-partitioning.md
+# AI-doc: usr/share/doc/mios/manual/ch82-mesh-workload-partitioning.md
 """Multi-node dynamic AI workload partitioner and capability-aware task router.
 
 Discovers and tracks live node capabilities across a 2-6 bare-metal Blade mesh,

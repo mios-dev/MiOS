@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 18: Declarative SSOT Blade Pre-Enrollment Registry and TPM EK Fingerprint Parser (T-529, AGY-2127). Details TPM 2.0 Endorsement Key validation, SSOT schema for [cluster.blades], zero-touch admission workflow, and cryptographic rejection of wildcard/unverified keys. -->
+<!-- AI-hint: Chapter 74: Declarative SSOT Blade Pre-Enrollment Registry and TPM EK Fingerprint Parser (T-529, AGY-2127). Details TPM 2.0 Endorsement Key validation, SSOT schema for [cluster.blades], zero-touch admission workflow, and cryptographic rejection of wildcard/unverified keys. -->
 
-# Chapter 18: Declarative SSOT Blade Pre-Enrollment Registry and TPM EK Fingerprint Parser
+# Chapter 74: Declarative SSOT Blade Pre-Enrollment Registry and TPM EK Fingerprint Parser
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, cryptographic verification principles, Single Source of Truth (SSOT) schema, and operational tooling for the **Declarative SSOT Blade Pre-Enrollment Registry and TPM EK Fingerprint Parser** (T-529, AGY-2127).
 
@@ -35,9 +35,9 @@ flowchart TD
 
 ---
 
-### <a name="18_tpm_ek_cryptography"></a>18.TPM EK Cryptography: TPM 2.0 Endorsement Key Foundations
+### <a name="74_tpm_ek_cryptography"></a>74.TPM EK Cryptography: TPM 2.0 Endorsement Key Foundations
 
-> Path Reference: `/usr/share/doc/mios/manual.md#18_tpm_ek_cryptography`
+> Path Reference: `/usr/share/doc/mios/manual.md#74_tpm_ek_cryptography`
 
 #### Overview
 
@@ -82,9 +82,9 @@ Allowing wildcard credentials in hardware pre-enrollment exposes the cluster to:
 
 ---
 
-### <a name="18_ssot_schema"></a>18.SSOT Schema: Declarative Blade Specification in `mios.toml`
+### <a name="74_ssot_schema"></a>74.SSOT Schema: Declarative Blade Specification in `mios.toml`
 
-> Path Reference: `/usr/share/doc/mios/manual.md#18_ssot_schema`
+> Path Reference: `/usr/share/doc/mios/manual.md#74_ssot_schema`
 
 #### TOML Configuration Structure
 
@@ -94,7 +94,7 @@ Each blade declaration defines mandatory physical attributes and cryptographic b
 
 ```toml
 # AI-hint: Declarative pre-enrollment registry for bare-metal cluster blades (T-529).
-# AI-doc: usr/share/doc/mios/manual/ch18-blade-pre-enrollment.md
+# AI-doc: usr/share/doc/mios/manual/ch74-blade-pre-enrollment.md
 
 [cluster.blades.blade-compute-01]
 architecture     = "x86_64"                          # Allowed: "x86_64", "aarch64"
@@ -127,9 +127,9 @@ roles            = ["compute", "worker"]
 
 ---
 
-### <a name="18_admission_workflow"></a>18.Admission Workflow: Zero-Touch Coordinator Policies
+### <a name="74_admission_workflow"></a>74.Admission Workflow: Zero-Touch Coordinator Policies
 
-> Path Reference: `/usr/share/doc/mios/manual.md#18_admission_workflow`
+> Path Reference: `/usr/share/doc/mios/manual.md#74_admission_workflow`
 
 #### Declarative Hardware Admission Manifests
 
@@ -174,9 +174,9 @@ The cluster coordinator consumes these manifests during network bootstrap, enabl
 
 ---
 
-### <a name="18_cli_tooling"></a>18.CLI Tooling: `mios-blade-enroll` Operations
+### <a name="74_cli_tooling"></a>74.CLI Tooling: `mios-blade-enroll` Operations
 
-> Path Reference: `/usr/share/doc/mios/manual.md#18_cli_tooling`
+> Path Reference: `/usr/share/doc/mios/manual.md#74_cli_tooling`
 
 The executable utility `/usr/libexec/mios/mios-blade-enroll` provides administrative and pipeline interfaces for registry validation, cryptographic verification, and manifest rendering.
 
@@ -227,9 +227,9 @@ Global Options:
 
 ---
 
-### <a name="18_troubleshooting"></a>18.Troubleshooting: Diagnostics and Failure Remediation
+### <a name="74_troubleshooting"></a>74.Troubleshooting: Diagnostics and Failure Remediation
 
-> Path Reference: `/usr/share/doc/mios/manual.md#18_troubleshooting`
+> Path Reference: `/usr/share/doc/mios/manual.md#74_troubleshooting`
 
 | Failure Symptom | Cause | Resolution |
 |---|---|---|

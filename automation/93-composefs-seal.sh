@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Composefs fs-verity root filesystem sealing and atomic image descriptor validator (T-527, AGY-2125).
-# AI-doc: usr/share/doc/mios/manual/ch15-composefs-sealing.md
+# AI-doc: usr/share/doc/mios/manual/ch71-composefs-sealing.md
 set -euo pipefail
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
@@ -165,7 +165,7 @@ KARGS_DIRS=(
 )
 
 KARGS_CONTENT="# AI-hint: Boot-time composefs fs-verity root filesystem sealing (T-527)
-# AI-doc: usr/share/doc/mios/manual/ch15-composefs-sealing.md
+# AI-doc: usr/share/doc/mios/manual/ch71-composefs-sealing.md
 kargs = [
   \"ostree.composefs=1\",
 $(if [[ -n "$DIGEST" ]]; then echo "  \"ostree.composefs.digest=${DIGEST}\","; fi)

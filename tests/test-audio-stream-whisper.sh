@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Verification wrapper for WebRTC streaming audio ingress and streaming Whisper STT bridge (T-533, AGY-2131).
-# AI-doc: usr/share/doc/mios/manual/ch22-streaming-audio-whisper.md
+# AI-doc: usr/share/doc/mios/manual/ch78-streaming-audio-whisper.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

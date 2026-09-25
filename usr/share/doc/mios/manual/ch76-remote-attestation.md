@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 20: Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding (T-530, AGY-2128). Details cryptographic challenge-response nonces, composite PCR digest appraisal over PCRs (0, 7, 11), golden baselines, and WireGuard/CephFS credential issuance. -->
+<!-- AI-hint: Chapter 76: Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding (T-530, AGY-2128). Details cryptographic challenge-response nonces, composite PCR digest appraisal over PCRs (0, 7, 11), golden baselines, and WireGuard/CephFS credential issuance. -->
 
-# Chapter 20: Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding
+# Chapter 76: Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, cryptographic verification engine, lifecycle workflows, and operational tooling for the **Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding Daemon** (T-530, AGY-2128).
 
@@ -37,9 +37,9 @@ flowchart TD
 
 ---
 
-### <a name="20_rats_architecture"></a>20.RATS Architecture: RFC 9334 Remote Attestation Framework
+### <a name="76_rats_architecture"></a>76.RATS Architecture: RFC 9334 Remote Attestation Framework
 
-> Path Reference: `/usr/share/doc/mios/manual.md#20_rats_architecture`
+> Path Reference: `/usr/share/doc/mios/manual.md#76_rats_architecture`
 
 #### Overview
 
@@ -51,9 +51,9 @@ MiOS implements the **IETF RFC 9334 Remote ATtestation ProcedureS (RATS)** archi
 
 ---
 
-### <a name="20_attestation_lifecycle"></a>20.Attestation Lifecycle: Challenge-Response and Quote Appraisal
+### <a name="76_attestation_lifecycle"></a>76.Attestation Lifecycle: Challenge-Response and Quote Appraisal
 
-> Path Reference: `/usr/share/doc/mios/manual.md#20_attestation_lifecycle`
+> Path Reference: `/usr/share/doc/mios/manual.md#76_attestation_lifecycle`
 
 The attestation exchange follows strict security invariants to prevent replay attacks, identity spoofing, and compromised code execution:
 
@@ -99,9 +99,9 @@ sequenceDiagram
 
 ---
 
-### <a name="20_credential_issuance"></a>20.Credential Issuance: Zero-Touch Cluster Onboarding
+### <a name="76_credential_issuance"></a>76.Credential Issuance: Zero-Touch Cluster Onboarding
 
-> Path Reference: `/usr/share/doc/mios/manual.md#20_credential_issuance`
+> Path Reference: `/usr/share/doc/mios/manual.md#76_credential_issuance`
 
 Upon receiving an `APPROVED` appraisal verdict, `mios-attest-server` automatically issues cluster credentials to the onboarding blade:
 
@@ -119,9 +119,9 @@ Upon receiving an `APPROVED` appraisal verdict, `mios-attest-server` automatical
 
 ---
 
-### <a name="20_quarantine_handling"></a>20.Quarantine Handling: Security Violations and Admission Barring
+### <a name="76_quarantine_handling"></a>76.Quarantine Handling: Security Violations and Admission Barring
 
-> Path Reference: `/usr/share/doc/mios/manual.md#20_quarantine_handling`
+> Path Reference: `/usr/share/doc/mios/manual.md#76_quarantine_handling`
 
 When an attestation appraisal fails for any reason (tampered quote, altered PCR digest, mismatched nonce, or un-enrolled blade identity):
 1. **Admission Refusal**: The daemon returns HTTP status `403 Forbidden` with verdict `QUARANTINED`.
@@ -141,9 +141,9 @@ When an attestation appraisal fails for any reason (tampered quote, altered PCR 
 
 ---
 
-### <a name="20_daemon_reference"></a>20.Daemon Reference: mios-attest-server CLI & Systemd Service
+### <a name="76_daemon_reference"></a>76.Daemon Reference: mios-attest-server CLI & Systemd Service
 
-> Path Reference: `/usr/share/doc/mios/manual.md#20_daemon_reference`
+> Path Reference: `/usr/share/doc/mios/manual.md#76_daemon_reference`
 
 #### Command-Line Syntax
 
@@ -166,7 +166,7 @@ mios-attest-server generate-quote <blade_id> <nonce> [--output <file>] [--tamper
 ```ini
 [Unit]
 Description=MiOS RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding Daemon
-Documentation=file:///usr/share/doc/mios/manual/ch20-remote-attestation.md
+Documentation=file:///usr/share/doc/mios/manual/ch76-remote-attestation.md
 After=network.target
 
 [Service]

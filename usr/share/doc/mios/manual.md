@@ -3,7 +3,7 @@
 
 Welcome to the comprehensive, All-in-One User Manual and System Documentation for **MiOS** (pronounced *"MyOS"*).
 
-This manual assembles the 51-chapter documentation suite. Each chapter is an authored file under [`manual/`](manual/); this page carries the table of contents and the machine-checked chapter index.
+This manual assembles the 88-chapter documentation suite. Each chapter is an authored file under [`manual/`](manual/); this page carries the table of contents and the machine-checked chapter index.
 
 ---
 
@@ -81,13 +81,6 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [Wayland Input Automation](manual/ch15-computer-use-and-desktop-control.md#15_wayland_input_automation): Explains input emulation via the mios-pc-control command suite.
   * [AT-SPI Accessibility Tuning](manual/ch15-computer-use-and-desktop-control.md#15_at_spi_accessibility_tuning): Documents screen tree traversal for structural UI reasoning.
 
-* **[Chapter 15: Composefs fs-verity Root Filesystem Sealing](manual/ch15-composefs-sealing.md)**
-  * [Composefs Architecture](manual/ch15-composefs-sealing.md#15_composefs_architecture): Details kernel-level composefs immutable root sealing architecture.
-  * [Fs-Verity Integrity](manual/ch15-composefs-sealing.md#15_fsverity_integrity): Covers cryptographic Merkle tree verification of filesystem descriptors.
-  * [Atomic Validator](manual/ch15-composefs-sealing.md#15_atomic_validator): Explains image descriptor validation tooling (mios-composefs-validator).
-  * [Sealing Automation](manual/ch15-composefs-sealing.md#15_sealing_automation): Documents boot sealing automation and drop-in generation.
-
-### Part V: Deep Security, Cryptography & Hardware
 * **[Chapter 16: Immutable Root and Composefs Sealing](manual/ch16-immutable-root-and-composefs-sealing.md)**
   * [Composefs Read-Only Mounts](manual/ch16-immutable-root-and-composefs-sealing.md#16_composefs_read_only_mounts): Explains composefs structures and /usr partition read-only mounts.
   * [fs-verity Signature Verification](manual/ch16-immutable-root-and-composefs-sealing.md#16_fs_verity_signature_verification): Covers system file validation against trusted cryptographic hashes.
@@ -117,34 +110,6 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [NUMA Node Awareness](manual/ch22-cpu-topology-and-performance-pinning.md#22_numa_node_awareness): Details memory node alignment for reduced guest latencies.
   * [Low-Latency VM Tuning](manual/ch22-cpu-topology-and-performance-pinning.md#22_low_latency_vm_tuning): Covers scheduling priority and emulatorpin adjustments.
 
-* **[Chapter 16: IDE Custom CSS and Edge-to-Edge Integrated Terminal](manual/ch16-ide-custom-css.md)**
-  * [Architecture and Components](manual/ch16-ide-custom-css.md): Covers provisioning the vscode-custom-css extension and the mios-vscode-custom-css orchestrator for zero-margin CSS.
-* **[Chapter 18: Declarative SSOT Blade Pre-Enrollment Registry](manual/ch18-blade-pre-enrollment.md)**
-  * [TPM EK Cryptography](manual/ch18-blade-pre-enrollment.md#18_tpm_ek_cryptography): Details TPM 2.0 Endorsement Key validation and zero-touch cluster onboarding.
-  * [SSOT Schema](manual/ch18-blade-pre-enrollment.md#18_ssot_schema): Describes the declarative blade specification in mios.toml [cluster.blades].
-  * [Admission Workflow](manual/ch18-blade-pre-enrollment.md#18_admission_workflow): Explains zero-touch coordinator admission policies.
-* **[Chapter 19: Peripheral Hardware Health Evaluator and Greenboot Degradation Reporter](manual/ch19-greenboot-hardware-degrade.md)**
-  * [Degrade Not Refuse Philosophy](manual/ch19-greenboot-hardware-degrade.md#19_degrade_not_refuse_philosophy): Covers the non-fatal health evaluation architectural principle.
-  * [Peripheral Health Probes](manual/ch19-greenboot-hardware-degrade.md#19_peripheral_health_probes): Explains subsystem diagnostic architecture for hardware health.
-  * [Structured Telemetry](manual/ch19-greenboot-hardware-degrade.md#19_structured_telemetry_and_persistence): Documents telemetry pipeline and structured health persistence.
-* **[Chapter 20: Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier](manual/ch20-remote-attestation.md)**
-  * [RATS Architecture](manual/ch20-remote-attestation.md#20_rats_architecture): Details the RFC 9334 remote attestation framework and challenge-response flow.
-  * [Attestation Lifecycle](manual/ch20-remote-attestation.md#20_attestation_lifecycle): Covers cryptographic quote appraisal and PCR digest verification.
-  * [Credential Issuance](manual/ch20-remote-attestation.md#20_credential_issuance): Explains zero-touch cluster onboarding credential issuance.
-* **[Chapter 21: Automated Network and Audio Fallback Manager](manual/ch21-hardware-fallback.md)**
-  * [Architecture Overview](manual/ch21-hardware-fallback.md#21_architecture_overview): Covers the resilient peripheral fallback lifecycle.
-  * [Network Fallback](manual/ch21-hardware-fallback.md#21_network_fallback): Documents secondary NIC and USB tethering auto-failover.
-  * [Audio Fallback](manual/ch21-hardware-fallback.md#21_audio_fallback): Explains dynamic PipeWire null-sink binding on audio failure.
-* **[Chapter 28: ATSPI Sensitive Widget Detector and Wayland Frame Blur Filter](manual/ch28-vision-redaction.md)**
-  * [Vision Redaction Overview](manual/ch28-vision-redaction.md#28_vision_redaction_overview): Covers sensitive data leakage prevention via screen blur.
-  * [ATSPI Discovery](manual/ch28-vision-redaction.md#28_atspi_sensitive_widget_discovery): Explains accessibility tree sensitive field classification.
-  * [Wayland Capture Integration](manual/ch28-vision-redaction.md#28_wayland_capture_integration): Details Wayland frame capture pipeline and blur mechanics.
-* **[Chapter 29: Lightweight On-Device OCR Credential Masking Pipeline](manual/ch29-ocr-credential-masking.md)**
-  * [Zero-Trust Vision Architecture](manual/ch29-ocr-credential-masking.md#29_zero_trust_vision_architecture): Covers the zero-trust vision privacy pipeline for credential detection.
-  * [OCR Engine Integration](manual/ch29-ocr-credential-masking.md#29_ocr_engine_integration): Explains on-device Tesseract/PaddleOCR integration.
-  * [Bounding Box Redaction](manual/ch29-ocr-credential-masking.md#29_bounding_box_redaction): Documents coordinate masking of detected credentials in frames.
-
-### Part VI: Storage, Network & Web Planes
 * **[Chapter 23: Single-Node Kubernetes Expansion](manual/ch23-single-node-kubernetes-expansion.md)**
   * [K3s Workstation Coexistence](manual/ch23-single-node-kubernetes-expansion.md#23_k3s_workstation_coexistence): Covers resource boundaries between GNOME and K3s services.
   * [Local Ingress and Routing](manual/ch23-single-node-kubernetes-expansion.md#23_local_ingress_and_routing): Details ingress routing rules in single-node clusters.
@@ -174,34 +139,6 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [Host-to-Container Portal](manual/ch29-web-management-and-configurator-ui.md#29_host_to_container_portal): Details how the UI panel maps active container metrics.
   * [Settings Sync Mechanisms](manual/ch29-web-management-and-configurator-ui.md#29_settings_sync_mechanisms): Explains TOML serialization and service reload hooks.
 
-* **[Chapter 17: Global Per-User Encrypted CephFS Subvolumes](manual/ch17-cephfs-user-subvolumes.md)**
-  * [Encrypted Subvolume Architecture](manual/ch17-cephfs-user-subvolumes.md): Covers mios-user-cephfs provisioning isolated fscrypt-encrypted CephFS subvolumes per user across Blade clusters.
-* **[Chapter 22: Low-Latency WebRTC Streaming Audio Ingress and Streaming Whisper Bridge](manual/ch22-streaming-audio-whisper.md)**
-  * [WebRTC Ingress Protocol](manual/ch22-streaming-audio-whisper.md#22_webrtc_ingress_protocol): Details WebRTC ingress, 16kHz PCM framing, and sub-150ms VAD ring buffering.
-  * [Streaming Whisper Engine](manual/ch22-streaming-audio-whisper.md#22_streaming_whisper_engine): Covers Whisper speech-to-text containerization and inference pipeline.
-  * [Token Dispatch and Latency Metrics](manual/ch22-streaming-audio-whisper.md#22_token_dispatch_and_latency_metrics): Explains gateway integration and latency SLA telemetry.
-* **[Chapter 23: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder](manual/ch23-streaming-tts-piper.md)**
-  * [Streaming TTS Architecture](manual/ch23-streaming-tts-piper.md#23_streaming_tts_architecture): Covers streaming TTS, sentence segmentation, and ONNX acceleration.
-  * [PipeWire Buffer Feeder](manual/ch23-streaming-tts-piper.md#23_pipewire_buffer_feeder): Details low-latency PipeWire playback and underrun mitigation.
-  * [Quadlet Containerization](manual/ch23-streaming-tts-piper.md#23_quadlet_containerization): Explains mios-piper.container deployment and configuration.
-* **[Chapter 24: Multi-Vendor Hardware Video Encoder Discovery and DMA-BUF Capture Bridge](manual/ch24-hardware-video-encoding.md)**
-  * [Hardware Encoder Discovery](manual/ch24-hardware-video-encoding.md#24_hardware_encoder_discovery): Details ASIC probing for QuickSync, NVENC, and AMF encoders.
-  * [DMA-BUF Zero-Copy Capture](manual/ch24-hardware-video-encoding.md#24_dmabuf_zero_copy_architecture): Covers Wayland PipeWire DMA-BUF zero-copy capture pipeline.
-  * [Codec Priority Hierarchy](manual/ch24-hardware-video-encoding.md#24_codec_priority_hierarchy): Documents AV1 > HEVC > AVC codec priority hierarchy.
-* **[Chapter 25: Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite](manual/ch25-video-streaming-benchmarks.md)**
-  * [Streaming Latency Budget](manual/ch25-video-streaming-benchmarks.md#25_streaming_latency_budget): Covers 60 FPS streaming latency architecture and sub-12ms SLA.
-  * [Adaptive Bitrate Control Loops](manual/ch25-video-streaming-benchmarks.md#25_adaptive_bitrate_control_loops): Explains ABR control loops and network simulation via tc-netem.
-  * [Packet Loss Recovery](manual/ch25-video-streaming-benchmarks.md#25_packet_loss_recovery): Details IDR refresh and decoder recovery under packet loss.
-* **[Chapter 26: Multi-Node Dynamic AI Workload Partitioning and Capability-Aware Task Routing](manual/ch26-mesh-workload-partitioning.md)**
-  * [Mesh Topology Discovery](manual/ch26-mesh-workload-partitioning.md#26_mesh_topology_discovery): Covers 2–6 bare-metal Blade mesh topology discovery and hardware boundaries.
-  * [Capability Routing Algorithm](manual/ch26-mesh-workload-partitioning.md#26_capability_routing_algorithm): Explains dynamic telemetry scoring and capability-aware routing.
-  * [Subtask Fan-out/Gather](manual/ch26-mesh-workload-partitioning.md#26_subtask_fanout_gather): Details subtask workflow decomposition and parallel gather.
-* **[Chapter 27: Automated Node Failure Detection and Zero-Loss Task Re-Distribution Engine](manual/ch27-task-failover-resilience.md)**
-  * [Failure Detection Mechanics](manual/ch27-task-failover-resilience.md#27_failure_detection_mechanics): Covers heartbeat auditing and node state transitions.
-  * [Task Leasing Protocols](manual/ch27-task-failover-resilience.md#27_task_leasing_protocol): Explains in-flight execution leases and lease handoff.
-  * [Zero-Loss Recovery](manual/ch27-task-failover-resilience.md#27_zero_loss_recovery): Documents dynamic task re-distribution with zero prompt loss.
-
-### Part VII: Build, Test & Upstream Maintenance
 * **[Chapter 30: System Auditing and Drift Verification](manual/ch30-system-auditing-and-drift-verification.md)**
   * [Automated Postcheck Suite](manual/ch30-system-auditing-and-drift-verification.md#30_automated_postcheck_suite): Documents checks run by 99-postcheck.sh at build-time.
   * [Hardcode Lint Rules](manual/ch30-system-auditing-and-drift-verification.md#30_hardcode_lint_rules): Explains build constraints blocking hardcoded URLs or ports.
@@ -287,17 +224,6 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [Justfile Pipeline Automation](manual/ch50-upstream-tracking-and-maintenance.md#50_justfile_pipeline_automation): Details Justfile build automation and check goals.
   * [Release Maturity Runbook](manual/ch50-upstream-tracking-and-maintenance.md#50_release_maturity_runbook): Explains checklist targets required to tag release stages.
 
-* **[Chapter 30: Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness](manual/ch30-shadow-candidate-testing.md)**
-  * [Shadow Mechanics](manual/ch30-shadow-candidate-testing.md#30_shadow_mechanics): Covers isolated execution and network sandboxing for shadow candidate validation.
-  * [Query Mirroring Architecture](manual/ch30-shadow-candidate-testing.md#30_query_mirroring): Details concurrent dual-dispatch query mirroring architecture.
-  * [Divergence Scoring](manual/ch30-shadow-candidate-testing.md#30_divergence_scoring): Explains schema compliance, status parity, and latency differential scoring.
-  * [Safe Promotion Gates](manual/ch30-shadow-candidate-testing.md#30_safe_promotion_gates): Documents automated canary promotion workflow.
-* **[Chapter 31: Zero-Downtime Systemd Socket Handoff Daemon Swapper for Agent-Pipe](manual/ch31-socket-activation-handoff.md)**
-  * [Architectural Motivation](manual/ch31-socket-activation-handoff.md): Covers systemd socket activation and file descriptor inheritance for zero-downtime hot upgrades.
-* **[Chapter 32: Proactive PID Thermal Daemon and Dynamic CPU/GPU Power Cap Modulator](manual/ch32-proactive-thermal-governor.md)**
-  * [Proactive Thermal Regulation](manual/ch32-proactive-thermal-governor.md#32_proactive_thermal_regulation_architecture): Covers proactive PID thermal regulation overcoming reactive silicon throttling.
-  * [PID Control and Rate-of-Rise](manual/ch32-proactive-thermal-governor.md#32_pid_control_and_rate_of_rise): Details the mathematical formulation of predictive thermal governance.
-  * [Dynamic Power Cap Actuation](manual/ch32-proactive-thermal-governor.md#32_dynamic_power_cap_actuation): Explains sysfs-based CPU/GPU power cap modulation matrix.
 
 * **[Chapter 51: Distilled System Knowledge & Code Invariants](manual/ch51-distilled-system-knowledge-code-invariants.md)**
   * [Distilled System Knowledge](manual/ch51-distilled-system-knowledge-code-invariants.md#51_distilled_system_knowledge): Consolidates distilled invariants and recovered technical comments.
@@ -399,6 +325,77 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [Upstream Registry](manual/ch70-upstream-technology-registry-and-ecosystem-advances.md#70_upstream_registry): Comprehensive mapping of upstream components and roles.
   * [Drift Auditing](manual/ch70-upstream-technology-registry-and-ecosystem-advances.md#70_drift_auditing): Automated upstream drift detection and validation playbooks.
 
+### Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration
+
+* **[Chapter 71: Composefs fs-verity Root Filesystem Sealing](manual/ch71-composefs-sealing.md)**
+  * [Composefs Architecture](manual/ch71-composefs-sealing.md#71_composefs_architecture): Details kernel-level composefs immutable root sealing architecture.
+  * [Fs-Verity Integrity](manual/ch71-composefs-sealing.md#71_fsverity_integrity): Covers cryptographic Merkle tree verification of filesystem descriptors.
+  * [Atomic Validator](manual/ch71-composefs-sealing.md#71_atomic_validator): Explains image descriptor validation tooling (mios-composefs-validator).
+  * [Sealing Automation](manual/ch71-composefs-sealing.md#71_sealing_automation): Documents boot sealing automation and drop-in generation.
+* **[Chapter 72: IDE Custom CSS and Edge-to-Edge Integrated Terminal](manual/ch72-ide-custom-css.md)**
+  * [IDE Integration](manual/ch72-ide-custom-css.md): Covers provisioning vscode-custom-css and edge-to-edge terminal styling.
+* **[Chapter 73: Global Per-User Encrypted CephFS Subvolumes](manual/ch73-cephfs-user-subvolumes.md)**
+  * [Encrypted Subvolume Architecture](manual/ch73-cephfs-user-subvolumes.md): Covers mios-user-cephfs isolated subvolume provisioning.
+* **[Chapter 74: Declarative SSOT Blade Pre-Enrollment Registry](manual/ch74-blade-pre-enrollment.md)**
+  * [TPM EK Cryptography](manual/ch74-blade-pre-enrollment.md#74_tpm_ek_cryptography): Details TPM 2.0 Endorsement Key validation and fingerprinting.
+  * [SSOT Schema](manual/ch74-blade-pre-enrollment.md#74_ssot_schema): Explains declarative [cluster.blades] admission records.
+  * [Admission Workflow](manual/ch74-blade-pre-enrollment.md#74_admission_workflow): Documents zero-touch provisioning and onboarding sequence.
+* **[Chapter 75: Peripheral Hardware Health Evaluator and Greenboot Degradation Reporter](manual/ch75-greenboot-hardware-degrade.md)**
+  * [Degrade Not Refuse Philosophy](manual/ch75-greenboot-hardware-degrade.md#75_degrade_not_refuse_philosophy): Non-fatal hardware evaluation architecture.
+  * [Peripheral Health Probes](manual/ch75-greenboot-hardware-degrade.md#75_peripheral_health_probes): Probing audio, video, NIC, and display states.
+  * [Structured Telemetry](manual/ch75-greenboot-hardware-degrade.md#75_structured_telemetry_and_persistence): Hardware state persistence and alerts.
+* **[Chapter 76: Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier](manual/ch76-remote-attestation.md)**
+  * [RATS Architecture](manual/ch76-remote-attestation.md#76_rats_architecture): Details the RFC 9334 remote attestation pipeline.
+  * [Attestation Lifecycle](manual/ch76-remote-attestation.md#76_attestation_lifecycle): Covers cryptographic nonces and golden PCR appraisal.
+  * [Credential Issuance](manual/ch76-remote-attestation.md#76_credential_issuance): Explains zero-touch WireGuard credential issuance.
+* **[Chapter 77: Automated Network and Audio Fallback Manager](manual/ch77-hardware-fallback.md)**
+  * [Architecture Overview](manual/ch77-hardware-fallback.md#77_architecture_overview): Covers the resilient peripheral fallback daemon.
+  * [Network Fallback](manual/ch77-hardware-fallback.md#77_network_fallback): Documents secondary NIC and USB tethering auto-failover.
+  * [Audio Fallback](manual/ch77-hardware-fallback.md#77_audio_fallback): Explains dynamic PipeWire null-sink rebinding.
+* **[Chapter 78: Low-Latency WebRTC Streaming Audio Ingress and Streaming Whisper Bridge](manual/ch78-streaming-audio-whisper.md)**
+  * [WebRTC Ingress Protocol](manual/ch78-streaming-audio-whisper.md#78_webrtc_ingress_protocol): Details real-time WebRTC audio ingress framing.
+  * [Streaming Whisper Engine](manual/ch78-streaming-audio-whisper.md#78_streaming_whisper_engine): Covers local whisper.cpp Quadlet streaming container.
+  * [Token Dispatch and Latency Metrics](manual/ch78-streaming-audio-whisper.md#78_token_dispatch_and_latency_metrics): Sub-150ms VAD and token dispatch.
+* **[Chapter 79: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder](manual/ch79-streaming-tts-piper.md)**
+  * [Streaming TTS Architecture](manual/ch79-streaming-tts-piper.md#79_streaming_tts_architecture): Covers sentence-chunked ONNX synthesis.
+  * [PipeWire Buffer Feeder](manual/ch79-streaming-tts-piper.md#79_pipewire_buffer_feeder): Details low-latency PipeWire audio stream feeding.
+  * [Quadlet Containerization](manual/ch79-streaming-tts-piper.md#79_quadlet_containerization): Explains mios-piper container execution.
+* **[Chapter 80: Multi-Vendor Hardware Video Encoder Discovery and DMA-BUF Capture Bridge](manual/ch80-hardware-video-encoding.md)**
+  * [Hardware Encoder Discovery](manual/ch80-hardware-video-encoding.md#80_hardware_encoder_discovery): QuickSync, NVENC, and AMF hardware probing.
+  * [DMA-BUF Zero-Copy Capture](manual/ch80-hardware-video-encoding.md#80_dmabuf_zero_copy_architecture): Wayland zero-copy DMA-BUF frame capture.
+  * [Codec Priority Hierarchy](manual/ch80-hardware-video-encoding.md#80_codec_priority_hierarchy): Documents AV1 > HEVC > AVC priority selection.
+* **[Chapter 81: Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite](manual/ch81-video-streaming-benchmarks.md)**
+  * [Streaming Latency Budget](manual/ch81-video-streaming-benchmarks.md#81_streaming_latency_budget): Sub-12ms frame encoding SLA for 60 FPS.
+  * [Adaptive Bitrate Control Loops](manual/ch81-video-streaming-benchmarks.md#81_adaptive_bitrate_control_loops): Real-time ABR modulation under congestion.
+  * [Packet Loss Recovery](manual/ch81-video-streaming-benchmarks.md#81_packet_loss_recovery): Details intra-refresh IDR insertion upon packet loss.
+* **[Chapter 82: Multi-Node Dynamic AI Workload Partitioning and Capability-Aware Task Routing](manual/ch82-mesh-workload-partitioning.md)**
+  * [Mesh Topology Discovery](manual/ch82-mesh-workload-partitioning.md#82_mesh_topology_discovery): Cluster blade capability matrix scoring.
+  * [Capability Routing Algorithm](manual/ch82-mesh-workload-partitioning.md#82_capability_routing_algorithm): Dynamic prompt routing based on node VRAM.
+  * [Subtask Fan-out/Gather](manual/ch82-mesh-workload-partitioning.md#82_subtask_fanout_gather): Details subtask decomposition and fan-out/gather.
+* **[Chapter 83: Automated Node Failure Detection and Zero-Loss Task Re-Distribution Engine](manual/ch83-task-failover-resilience.md)**
+  * [Failure Detection Mechanics](manual/ch83-task-failover-resilience.md#83_failure_detection_mechanics): Node heartbeat monitoring and lease expiration.
+  * [Task Leasing Protocols](manual/ch83-task-failover-resilience.md#83_task_leasing_protocol): Explains atomic task leasing across the cluster mesh.
+  * [Zero-Loss Recovery](manual/ch83-task-failover-resilience.md#83_zero_loss_recovery): Documents dynamic re-routing of in-flight prompts.
+* **[Chapter 84: ATSPI Sensitive Widget Detector and Wayland Frame Blur Filter](manual/ch84-vision-redaction.md)**
+  * [Vision Redaction Overview](manual/ch84-vision-redaction.md#84_vision_redaction_overview): Covers on-device vision stream PII redaction.
+  * [ATSPI Discovery](manual/ch84-vision-redaction.md#84_atspi_sensitive_widget_discovery): Explains accessibility tree password/secret widget queries.
+  * [Wayland Capture Integration](manual/ch84-vision-redaction.md#84_wayland_capture_integration): Details real-time frame coordinate blur filtering.
+* **[Chapter 85: Lightweight On-Device OCR Credential Masking Pipeline](manual/ch85-ocr-credential-masking.md)**
+  * [Zero-Trust Vision Architecture](manual/ch85-ocr-credential-masking.md#85_zero_trust_vision_architecture): Local OCR credential sanitization.
+  * [OCR Engine Integration](manual/ch85-ocr-credential-masking.md#85_ocr_engine_integration): Explains fast Tesseract OCR invocation on captured frames.
+  * [Bounding Box Redaction](manual/ch85-ocr-credential-masking.md#85_bounding_box_redaction): Documents regex credential masking over vision boxes.
+* **[Chapter 86: Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness](manual/ch86-shadow-candidate-testing.md)**
+  * [Shadow Mechanics](manual/ch86-shadow-candidate-testing.md#86_shadow_mechanics): Covers isolated execution of candidate daemon versions.
+  * [Query Mirroring Architecture](manual/ch86-shadow-candidate-testing.md#86_query_mirroring): Details live request duplexing without mutating state.
+  * [Divergence Scoring](manual/ch86-shadow-candidate-testing.md#86_divergence_scoring): Explains response comparison and regression scoring.
+  * [Safe Promotion Gates](manual/ch86-shadow-candidate-testing.md#86_safe_promotion_gates): Documents zero-downtime candidate promotion criteria.
+* **[Chapter 87: Zero-Downtime Systemd Socket Handoff Daemon Swapper for Agent-Pipe](manual/ch87-socket-activation-handoff.md)**
+  * [Socket Activation Handoff](manual/ch87-socket-activation-handoff.md): Covers sd_listen_fds file descriptor passing and zero-downtime swaps.
+* **[Chapter 88: Proactive PID Thermal Daemon and Dynamic CPU/GPU Power Cap Modulator](manual/ch88-proactive-thermal-governor.md)**
+  * [Proactive Thermal Regulation](manual/ch88-proactive-thermal-governor.md#88_proactive_thermal_regulation_architecture): Sysfs thermal rate-of-rise tracking.
+  * [PID Control and Rate-of-Rise](manual/ch88-proactive-thermal-governor.md#88_pid_control_and_rate_of_rise): Predictive throttling prior to hardware trip points.
+  * [Dynamic Power Cap Actuation](manual/ch88-proactive-thermal-governor.md#88_dynamic_power_cap_actuation): Real-time modulation of CPU/GPU power limits.
+
 ---
 
 ## The chapter files
@@ -424,41 +421,23 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch12-unified-memory-and-pgvector-schema.md` | Chapter 12: Unified Memory and pgvector Schema. Details pgvector database container setup, connection pools, and permissions. Explains cosine-similarity searches utilizing vector retrieval. Covers... |
 | `usr/share/doc/mios/manual/ch13-model-context-protocol-integration.md` | Chapter 13: Model Context Protocol Integration. Describes how to write custom Python or Go MCP servers. Covers how the AI gateway queries the system tool registry. Details how tools run in sandboxed... |
 | `usr/share/doc/mios/manual/ch14-agent-to-agent-delegation-protocols.md` | Chapter 14: Agent-to-Agent Delegation Protocols. Details the communications standard and payload schema for agent delegation. Explains how the coding subagent (MiOS-OpenCode) takes over code... |
-| `usr/share/doc/mios/manual/ch15-composefs-sealing.md` | Chapter 15: Composefs fs-verity Root Filesystem Sealing and Atomic Validation (T-527, AGY-2125). Details kernel-level fs-verity digest verification, prepare-root composefs mount execution, descriptor... |
 | `usr/share/doc/mios/manual/ch15-computer-use-and-desktop-control.md` | Chapter 15: Computer Use and Desktop Control. Details coordinate grounding on Wayland screens via vision models. Explains input emulation via the mios-pc-control command suite. Documents screen tree... |
-| `usr/share/doc/mios/manual/ch16-ide-custom-css.md` | Chapter 16: IDE Custom CSS and Edge-to-Edge Integrated Terminal. Covers provisioning the vscode-custom-css extension, the edge-to-edge terminal stylesheet, and the mios-vscode-custom-css orchestrator... |
 | `usr/share/doc/mios/manual/ch16-immutable-root-and-composefs-sealing.md` | Chapter 16: Immutable Root and Composefs Sealing. Explains composefs structures and /usr partition read-only mounts. Covers system file validation against trusted cryptographic hashes. Describes how... |
-| `usr/share/doc/mios/manual/ch17-cephfs-user-subvolumes.md` | Chapter 17: Global Per-User Encrypted CephFS Subvolumes. Covers the mios-user-cephfs subvolume manager that provisions isolated, fscrypt-encrypted CephFS subvolumes for each user across bare-metal... |
 | `usr/share/doc/mios/manual/ch17-defense-in-depth-hardening.md` | Chapter 17: Defense in Depth Hardening. Covers telemetry monitoring, IP bans, and custom local parsers. Details binary execution blocking on unauthorized directories. Explains protection policies... |
-| `usr/share/doc/mios/manual/ch18-blade-pre-enrollment.md` | Chapter 18: Declarative SSOT Blade Pre-Enrollment Registry and TPM EK Fingerprint Parser (T-529, AGY-2127). Details TPM 2.0 Endorsement Key validation, SSOT schema for [cluster.blades], zero-touch... |
 | `usr/share/doc/mios/manual/ch18-supply-chain-and-image-integrity.md` | Chapter 18: Supply Chain and Image Integrity. Defines policy-based verification of OCI signatures at pull time. Covers keyless image signing using OIDC identity providers. Explains the generation and... |
-| `usr/share/doc/mios/manual/ch19-greenboot-hardware-degrade.md` | Chapter 19: Peripheral Hardware Health Evaluator and Non-Fatal Greenboot Degradation Reporter (T-531, AGY-2129). Covers the degrade-not-refuse architectural philosophy, peripheral subsystem probes... |
 | `usr/share/doc/mios/manual/ch19-hardware-passthrough-and-vfio-pci.md` | Chapter 19: Hardware Passthrough and VFIO-PCI. Details binding GPUs to vfio-pci on boot, bypassing host drivers. Explains the XML schema mapping for physical GPU passthrough to guests. Documents... |
 | `usr/share/doc/mios/manual/ch20-container-device-interface-plumbing.md` | Chapter 20: Container Device Interface Plumbing. Covers CDI spec generation for CUDA applications running in rootless podman. Explains ROCm/KFD driver mounts and container bindings. Documents Intel... |
-| `usr/share/doc/mios/manual/ch20-remote-attestation.md` | Chapter 20: Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding (T-530, AGY-2128). Details cryptographic challenge-response nonces, composite PCR digest appraisal... |
-| `usr/share/doc/mios/manual/ch21-hardware-fallback.md` | Chapter 21: Automated Network and Audio Fallback Manager with Operator Desktop Alert Daemon (T-532, AGY-2130). Covers peripheral degradation recovery, secondary NIC and USB tethering auto-failover,... |
 | `usr/share/doc/mios/manual/ch21-looking-glass-b7-and-kvmfr.md` | Chapter 21: Looking Glass B7 and KVMFR. Explains building and signing KVMFR module from source. Details allocations under /dev/shm for low-latency memory copy. Documents Wayland client build and... |
 | `usr/share/doc/mios/manual/ch22-cpu-topology-and-performance-pinning.md` | Chapter 22: CPU Topology and Performance Pinning. Maps CPU pinning allocations for isolated workloads. Details memory node alignment for reduced guest latencies. Covers scheduling priority and... |
-| `usr/share/doc/mios/manual/ch22-streaming-audio-whisper.md` | Chapter 22: Low-Latency WebRTC Streaming Audio Ingress and Streaming Whisper Speech-to-Text Bridge (T-533, AGY-2131). Details WebRTC ingress protocol, 16kHz PCM framing, sub-150ms VAD ring buffering,... |
 | `usr/share/doc/mios/manual/ch23-single-node-kubernetes-expansion.md` | Chapter 23: Single-Node Kubernetes Expansion. Covers resource boundaries between GNOME and K3s services. Details ingress routing rules in single-node clusters. Explains custom security policies... |
-| `usr/share/doc/mios/manual/ch23-streaming-tts-piper.md` | Chapter 23: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire... |
 | `usr/share/doc/mios/manual/ch24-cephfs-local-storage-cluster.md` | Chapter 24: CephFS Local Storage Cluster. Covers Ceph Quadlet definitions and storage config. Details block device access exemptions. Maps user directories onto CephFS mounts for auto-backups. |
-| `usr/share/doc/mios/manual/ch24-hardware-video-encoding.md` | Chapter 24: Multi-Vendor Hardware Video Encoder Discovery and DMA-BUF Capture Bridge (T-535, AGY-2133). Details hardware ASIC probing (QuickSync, NVENC, AMF), AV1 > HEVC > AVC codec priority... |
 | `usr/share/doc/mios/manual/ch25-local-search-engine-and-searxng.md` | Chapter 25: Local Search Engine and SearXNG. Explains local container setup and engines configuration. Covers query routing from search tools to SearXNG. Details parsing HTML results into Markdown... |
-| `usr/share/doc/mios/manual/ch25-video-streaming-benchmarks.md` | Chapter 25: Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite (T-536, AGY-2134). Details remote desktop video streaming benchmarks, sub-12ms frame encoding SLA for 60 FPS,... |
-| `usr/share/doc/mios/manual/ch26-mesh-workload-partitioning.md` | Chapter 26: Multi-Node Dynamic AI Workload Partitioning and Capability-Aware Task Routing (T-537, AGY-2135). Details 2-6 bare-metal Blade mesh topology discovery, capability matrix scoring, subtask... |
 | `usr/share/doc/mios/manual/ch26-unified-knowledge-base-ingestion.md` | Chapter 26: Unified Knowledge Base Ingestion. Explains document indexing and embedding tasks. Maps ingestion pipeline and database tables layout. Covers re-indexing databases and recall optimizations. |
 | `usr/share/doc/mios/manual/ch27-shell-configuration-and-environment-cascade.md` | Chapter 27: Shell Configuration and Environment Cascade. Maps configuration overrides bubbling up to login shells. Covers theme configuration and prompt status icons. Documents timezone and UTF-8... |
-| `usr/share/doc/mios/manual/ch27-task-failover-resilience.md` | Chapter 27: Automated Node Failure Detection and Zero-Loss Dynamic Task Re-Distribution Engine (T-538, AGY-2136). Details mesh heartbeat auditing, in-flight task leasing protocols, zero-loss prompt... |
 | `usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md` | Chapter 28: Dynamic Network and Firewall Management. Covers managing port firewalls via firewalld command hooks. Explains how ports are dynamically resolved and bound. Documents Tailscale integration... |
-| `usr/share/doc/mios/manual/ch28-vision-redaction.md` | Chapter 28: ATSPI Accessibility Tree Sensitive Widget Coordinate Detector and Wayland Frame Blur Filter (T-539, AGY-2137). Details ATSPI role discovery, Wayland frame capture integration, bounding... |
-| `usr/share/doc/mios/manual/ch29-ocr-credential-masking.md` | Chapter 29: Lightweight On-Device OCR Regex Credential Masking Pipeline for Vision Frames (T-540, AGY-2138). Details on-device OCR engine integration (Tesseract/PaddleOCR), zero-trust credential... |
 | `usr/share/doc/mios/manual/ch29-web-management-and-configurator-ui.md` | Chapter 29: Web Management and Configurator UI. Covers configuration editing via the static index HTML form. Details how the UI panel maps active container metrics. Explains TOML serialization and... |
-| `usr/share/doc/mios/manual/ch30-shadow-candidate-testing.md` | Chapter 30: Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness (T-541, AGY-2139). Covers shadow execution mechanics, query mirroring architecture, mutation guarding,... |
 | `usr/share/doc/mios/manual/ch30-system-auditing-and-drift-verification.md` | Chapter 30: System Auditing and Drift Verification. Documents checks run by 99-postcheck.sh at build-time. Explains build constraints blocking hardcoded URLs or ports. Maps validation against our... |
 | `usr/share/doc/mios/manual/ch31-desktop-applications-and-flatpaks.md` | Chapter 31: Desktop Applications and Flatpaks. Covers pre-downloading and staging Flatpaks inside the image. Explains locking Flatpak permissions using Flatseal overrides. Details sync hooks... |
-| `usr/share/doc/mios/manual/ch31-socket-activation-handoff.md` | Chapter 31: Zero-Downtime Systemd Socket Handoff (sd_listen_fds) Daemon Swapper for Agent-Pipe (T-542, AGY-2140). Covers systemd socket activation, file descriptor inheritance, SCM_RIGHTS FD... |
-| `usr/share/doc/mios/manual/ch32-proactive-thermal-governor.md` | Chapter 32: Proactive PID Thermal Daemon, Dynamic CPU/GPU Power Cap Modulator, and Thermal Stress Recovery (T-543, AGY-2141, T-544, AGY-2142). Details proactive PID thermal regulation, sysfs... |
 | `usr/share/doc/mios/manual/ch32-swarm-worker-clusters.md` | Chapter 32: Swarm Worker Clusters. Covers dynamic worker provisioning via Quadlet templates. Details task partitioning and worker aggregation pipelines. Explains scheduling and routing algorithms... |
 | `usr/share/doc/mios/manual/ch33-sandboxed-execution-and-coder-sandbox.md` | Chapter 33: Sandboxed Execution and Coder Sandbox. Covers configuring unprivileged containers for code interpretation. Details how policies restrict container sandbox processes. Explains output... |
 | `usr/share/doc/mios/manual/ch34-identity-management-and-freeipa.md` | Chapter 34: Identity Management and FreeIPA. Covers configuring FreeIPA libraries inside Fedora overlay. Details staging user and system accounts prior to install. Explains automatic domain... |
@@ -498,6 +477,24 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch68-living-wallpaper-shaders-and-ssot-theme-engine.md` | Chapter 68: Living Wallpaper WebGL Shaders, FOSS Licensing & Real-Time Theme Synchronization. |
 | `usr/share/doc/mios/manual/ch69-autonomous-epistemic-evolution-and-learn-loop.md` | Chapter 69: Autonomous Epistemic Evolution, /learn Distillation & Model Fine-Tuning. |
 | `usr/share/doc/mios/manual/ch70-upstream-technology-registry-and-ecosystem-advances.md` | Chapter 70: Upstream Ecosystem Registry, Upstream Adoption Playbook & FOSS Drift Auditing. |
+| `usr/share/doc/mios/manual/ch71-composefs-sealing.md` | Chapter 71: Composefs fs-verity Root Filesystem Sealing and Atomic Validation (T-527, AGY-2125). Details kernel-level fs-verity digest verification, prepare-root composefs mount execution, descriptor... |
+| `usr/share/doc/mios/manual/ch72-ide-custom-css.md` | Chapter 72: IDE Custom CSS and Edge-to-Edge Integrated Terminal. Covers provisioning the vscode-custom-css extension, the edge-to-edge terminal stylesheet, and the mios-vscode-custom-css orchestrator... |
+| `usr/share/doc/mios/manual/ch73-cephfs-user-subvolumes.md` | Chapter 73: Global Per-User Encrypted CephFS Subvolumes. Covers the mios-user-cephfs subvolume manager that provisions isolated, fscrypt-encrypted CephFS subvolumes for each user across bare-metal... |
+| `usr/share/doc/mios/manual/ch74-blade-pre-enrollment.md` | Chapter 74: Declarative SSOT Blade Pre-Enrollment Registry and TPM EK Fingerprint Parser (T-529, AGY-2127). Details TPM 2.0 Endorsement Key validation, SSOT schema for [cluster.blades], zero-touch... |
+| `usr/share/doc/mios/manual/ch75-greenboot-hardware-degrade.md` | Chapter 75: Peripheral Hardware Health Evaluator and Non-Fatal Greenboot Degradation Reporter (T-531, AGY-2129). Covers the degrade-not-refuse architectural philosophy, peripheral subsystem probes... |
+| `usr/share/doc/mios/manual/ch76-remote-attestation.md` | Chapter 76: Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding (T-530, AGY-2128). Details cryptographic challenge-response nonces, composite PCR digest appraisal... |
+| `usr/share/doc/mios/manual/ch77-hardware-fallback.md` | Chapter 77: Automated Network and Audio Fallback Manager with Operator Desktop Alert Daemon (T-532, AGY-2130). Covers peripheral degradation recovery, secondary NIC and USB tethering auto-failover,... |
+| `usr/share/doc/mios/manual/ch78-streaming-audio-whisper.md` | Chapter 78: Low-Latency WebRTC Streaming Audio Ingress and Streaming Whisper Speech-to-Text Bridge (T-533, AGY-2131). Details WebRTC ingress protocol, 16kHz PCM framing, sub-150ms VAD ring buffering,... |
+| `usr/share/doc/mios/manual/ch79-streaming-tts-piper.md` | Chapter 79: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire... |
+| `usr/share/doc/mios/manual/ch80-hardware-video-encoding.md` | Chapter 80: Multi-Vendor Hardware Video Encoder Discovery and DMA-BUF Capture Bridge (T-535, AGY-2133). Details hardware ASIC probing (QuickSync, NVENC, AMF), AV1 > HEVC > AVC codec priority... |
+| `usr/share/doc/mios/manual/ch81-video-streaming-benchmarks.md` | Chapter 81: Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite (T-536, AGY-2134). Details remote desktop video streaming benchmarks, sub-12ms frame encoding SLA for 60 FPS,... |
+| `usr/share/doc/mios/manual/ch82-mesh-workload-partitioning.md` | Chapter 82: Multi-Node Dynamic AI Workload Partitioning and Capability-Aware Task Routing (T-537, AGY-2135). Details 2-6 bare-metal Blade mesh topology discovery, capability matrix scoring, subtask... |
+| `usr/share/doc/mios/manual/ch83-task-failover-resilience.md` | Chapter 83: Automated Node Failure Detection and Zero-Loss Dynamic Task Re-Distribution Engine (T-538, AGY-2136). Details mesh heartbeat auditing, in-flight task leasing protocols, zero-loss prompt... |
+| `usr/share/doc/mios/manual/ch84-vision-redaction.md` | Chapter 84: ATSPI Accessibility Tree Sensitive Widget Coordinate Detector and Wayland Frame Blur Filter (T-539, AGY-2137). Details ATSPI role discovery, Wayland frame capture integration, bounding... |
+| `usr/share/doc/mios/manual/ch85-ocr-credential-masking.md` | Chapter 85: Lightweight On-Device OCR Regex Credential Masking Pipeline for Vision Frames (T-540, AGY-2138). Details on-device OCR engine integration (Tesseract/PaddleOCR), zero-trust credential... |
+| `usr/share/doc/mios/manual/ch86-shadow-candidate-testing.md` | Chapter 86: Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness (T-541, AGY-2139). Covers shadow execution mechanics, query mirroring architecture, mutation guarding,... |
+| `usr/share/doc/mios/manual/ch87-socket-activation-handoff.md` | Chapter 87: Zero-Downtime Systemd Socket Handoff (sd_listen_fds) Daemon Swapper for Agent-Pipe (T-542, AGY-2140). Covers systemd socket activation, file descriptor inheritance, SCM_RIGHTS FD... |
+| `usr/share/doc/mios/manual/ch88-proactive-thermal-governor.md` | Chapter 88: Proactive PID Thermal Daemon, Dynamic CPU/GPU Power Cap Modulator, and Thermal Stress Recovery (T-543, AGY-2141, T-544, AGY-2142). Details proactive PID thermal regulation, sysfs... |
 
 <!-- derived from the AI-hint headers of 88 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

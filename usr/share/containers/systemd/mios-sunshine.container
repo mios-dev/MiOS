@@ -1,5 +1,5 @@
 # AI-hint: Quadlet container unit for Sunshine low-latency game/desktop streaming server with GPU CDI device access and DMA-BUF capabilities (T-535, AGY-2133).
-# AI-doc: usr/share/doc/mios/manual/ch24-hardware-video-encoding.md
+# AI-doc: usr/share/doc/mios/manual/ch80-hardware-video-encoding.md
 # /usr/share/containers/systemd/mios-sunshine.container
 
 [Unit]

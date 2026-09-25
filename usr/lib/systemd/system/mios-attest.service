@@ -1,6 +1,6 @@
 [Unit]
 Description=MiOS RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding Daemon
-Documentation=file:///usr/share/doc/mios/manual/ch20-remote-attestation.md
+Documentation=file:///usr/share/doc/mios/manual/ch76-remote-attestation.md
 After=network.target
 
 [Service]

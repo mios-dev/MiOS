@@ -1,6 +1,6 @@
-<!-- AI-hint: Chapter 17: Global Per-User Encrypted CephFS Subvolumes. Covers the mios-user-cephfs subvolume manager that provisions isolated, fscrypt-encrypted CephFS subvolumes for each user across bare-metal Blade clusters, enforcing tenant isolation, key escrow, and cross-blade disaster recovery. -->
+<!-- AI-hint: Chapter 73: Global Per-User Encrypted CephFS Subvolumes. Covers the mios-user-cephfs subvolume manager that provisions isolated, fscrypt-encrypted CephFS subvolumes for each user across bare-metal Blade clusters, enforcing tenant isolation, key escrow, and cross-blade disaster recovery. -->
 
-# Chapter 17: Global Per-User Encrypted CephFS Subvolumes
+# Chapter 73: Global Per-User Encrypted CephFS Subvolumes
 
 ## Overview
 

@@ -91,6 +91,16 @@ directly.
    Merge in Phase-1 clones `mios.git` into `/` and overlays this
    repo's `etc/`, `usr/`, `var/` on top. The next boot IS the edit — the
    premise that makes MiOS self-developing.
+   - **Dual structure (`.git/root` is both Linux FHS and AI training image shape):**
+     The repo root overlay satisfies standard POSIX Linux FHS conventions
+     (`usr/`, `etc/`, `var/`, `srv/`) while simultaneously structured as an
+     ingestible, high-density AI training corpus dataset. Every source file
+     carries structured machine-readable headers (`AI-hint:`, `AI-doc:`,
+     `AI-related:`), the manual suite (`usr/share/doc/mios/manual/ch01..ch88.md`)
+     serves as the authoritative grounded knowledge corpus, and the corpus ledger
+     (`usr/share/mios/reference/manual-corpus.tsv`) guarantees full provenance
+     and zero fabrication drift for local SFT/LoRA fine-tuning
+     (`mios-finetune-dataset`) and continuous epistemic learning (`/learn`).
 
 ### Root dotfolder control plane
 

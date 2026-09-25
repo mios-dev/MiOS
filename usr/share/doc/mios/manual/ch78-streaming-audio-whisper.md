@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 22: Low-Latency WebRTC Streaming Audio Ingress and Streaming Whisper Speech-to-Text Bridge (T-533, AGY-2131). Details WebRTC ingress protocol, 16kHz PCM framing, sub-150ms VAD ring buffering, local whisper.cpp Quadlet streaming container, and real-time token dispatch to agent-pipe / Hermes gateway. -->
+<!-- AI-hint: Chapter 78: Low-Latency WebRTC Streaming Audio Ingress and Streaming Whisper Speech-to-Text Bridge (T-533, AGY-2131). Details WebRTC ingress protocol, 16kHz PCM framing, sub-150ms VAD ring buffering, local whisper.cpp Quadlet streaming container, and real-time token dispatch to agent-pipe / Hermes gateway. -->
 
-# Chapter 22: Low-Latency WebRTC Streaming Audio Ingress and Streaming Whisper Speech-to-Text Bridge
+# Chapter 78: Low-Latency WebRTC Streaming Audio Ingress and Streaming Whisper Speech-to-Text Bridge
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, real-time framing protocol, Voice Activity Detection (VAD) ring buffering, and local Whisper speech-to-text integration implemented in [`usr/lib/mios/agent-pipe/mios_audio_stream.py`](file:///usr/lib/mios/agent-pipe/mios_audio_stream.py) and the Quadlet container [`usr/share/containers/systemd/mios-whisper.container`](file:///usr/share/containers/systemd/mios-whisper.container).
 
@@ -31,9 +31,9 @@ flowchart TD
 
 ---
 
-### <a name="22_webrtc_ingress_protocol"></a>22.WebRTC Ingress Protocol: Real-Time Audio Transport & Framing
+### <a name="78_webrtc_ingress_protocol"></a>78.WebRTC Ingress Protocol: Real-Time Audio Transport & Framing
 
-> Path Reference: `/usr/share/doc/mios/manual.md#22_webrtc_ingress_protocol`
+> Path Reference: `/usr/share/doc/mios/manual.md#78_webrtc_ingress_protocol`
 
 #### Audio Frame Specifications
 
@@ -52,9 +52,9 @@ The ingress engine enforces strict input verification to prevent buffer poisonin
 
 ---
 
-### <a name="22_vad_ring_buffering"></a>22.VAD Ring Buffering: Sub-150ms Voice Activity Detection
+### <a name="78_vad_ring_buffering"></a>78.VAD Ring Buffering: Sub-150ms Voice Activity Detection
 
-> Path Reference: `/usr/share/doc/mios/manual.md#22_vad_ring_buffering`
+> Path Reference: `/usr/share/doc/mios/manual.md#78_vad_ring_buffering`
 
 #### Ring Buffer Architecture
 
@@ -75,9 +75,9 @@ $$\text{RMS} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} x_i^2}$$
 
 ---
 
-### <a name="22_streaming_whisper_engine"></a>22.Streaming Whisper Engine: Quadlet Containerization
+### <a name="78_streaming_whisper_engine"></a>78.Streaming Whisper Engine: Quadlet Containerization
 
-> Path Reference: `/usr/share/doc/mios/manual.md#22_streaming_whisper_engine`
+> Path Reference: `/usr/share/doc/mios/manual.md#78_streaming_whisper_engine`
 
 #### Quadlet Container Deployment
 
@@ -96,9 +96,9 @@ The Whisper inference service runs as an isolated systemd Quadlet container:
 
 ---
 
-### <a name="22_token_dispatch_and_latency_metrics"></a>22.Token Dispatch and Latency Metrics: Gateway Integration
+### <a name="78_token_dispatch_and_latency_metrics"></a>78.Token Dispatch and Latency Metrics: Gateway Integration
 
-> Path Reference: `/usr/share/doc/mios/manual.md#22_token_dispatch_and_latency_metrics`
+> Path Reference: `/usr/share/doc/mios/manual.md#78_token_dispatch_and_latency_metrics`
 
 #### Token Event Schema
 
@@ -140,9 +140,9 @@ $$L_{\text{token}} = T_3 - T_0 \le 150\,\text{ms}$$
 
 ---
 
-### <a name="22_cli_operations_and_troubleshooting"></a>22.CLI Operations and Troubleshooting: Operations Reference
+### <a name="78_cli_operations_and_troubleshooting"></a>78.CLI Operations and Troubleshooting: Operations Reference
 
-> Path Reference: `/usr/share/doc/mios/manual.md#22_cli_operations_and_troubleshooting`
+> Path Reference: `/usr/share/doc/mios/manual.md#78_cli_operations_and_troubleshooting`
 
 #### CLI Subcommands
 

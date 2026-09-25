@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 31: Zero-Downtime Systemd Socket Handoff (sd_listen_fds) Daemon Swapper for Agent-Pipe (T-542, AGY-2140). Covers systemd socket activation, file descriptor inheritance, SCM_RIGHTS FD transfer, graceful connection draining, and automated rollback upon candidate failure. -->
+<!-- AI-hint: Chapter 87: Zero-Downtime Systemd Socket Handoff (sd_listen_fds) Daemon Swapper for Agent-Pipe (T-542, AGY-2140). Covers systemd socket activation, file descriptor inheritance, SCM_RIGHTS FD transfer, graceful connection draining, and automated rollback upon candidate failure. -->
 
-# Chapter 31: Zero-Downtime Socket Activation and Daemon Handoff Swapper
+# Chapter 87: Zero-Downtime Socket Activation and Daemon Handoff Swapper
 
-> Part IV: Detailed Inference & Execution Layers of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, file descriptor passing protocols, connection draining mechanisms, and automated failure recovery implemented in [`usr/libexec/mios/mios-socket-swap`](file:///usr/libexec/mios/mios-socket-swap) and [`usr/lib/systemd/system/mios-agent-pipe.socket`](file:///usr/lib/systemd/system/mios-agent-pipe.socket).
 

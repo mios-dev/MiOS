@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 19: Peripheral Hardware Health Evaluator and Non-Fatal Greenboot Degradation Reporter (T-531, AGY-2129). Covers the degrade-not-refuse architectural philosophy, peripheral subsystem probes (network, audio, display), Greenboot wanted.d integration, structured event telemetry, and PostgreSQL hardware inventory persistence. -->
+<!-- AI-hint: Chapter 75: Peripheral Hardware Health Evaluator and Non-Fatal Greenboot Degradation Reporter (T-531, AGY-2129). Covers the degrade-not-refuse architectural philosophy, peripheral subsystem probes (network, audio, display), Greenboot wanted.d integration, structured event telemetry, and PostgreSQL hardware inventory persistence. -->
 
-# Chapter 19: Peripheral Hardware Health Evaluator and Non-Fatal Greenboot Degradation Reporter
+# Chapter 75: Peripheral Hardware Health Evaluator and Non-Fatal Greenboot Degradation Reporter
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, probe mechanics, and operational model for the **Peripheral Hardware Health Evaluator and Non-Fatal Greenboot Degradation Reporter** (T-531, AGY-2129), implemented in [`usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh`](file:///usr/lib/greenboot/check/wanted.d/20-hardware-degrade.sh).
 
@@ -33,9 +33,9 @@ flowchart TD
 
 ---
 
-### <a name="19_degrade_not_refuse_philosophy"></a>19.Degrade Not Refuse Philosophy: Non-Fatal Health Evaluation
+### <a name="75_degrade_not_refuse_philosophy"></a>75.Degrade Not Refuse Philosophy: Non-Fatal Health Evaluation
 
-> Path Reference: `/usr/share/doc/mios/manual.md#19_degrade_not_refuse_philosophy`
+> Path Reference: `/usr/share/doc/mios/manual.md#75_degrade_not_refuse_philosophy`
 
 #### Architectural Principle
 
@@ -55,9 +55,9 @@ MiOS implements the **"degrade-not-refuse"** architectural invariant:
 
 ---
 
-### <a name="19_peripheral_health_probes"></a>19.Peripheral Health Probes: Subsystem Diagnostic Architecture
+### <a name="75_peripheral_health_probes"></a>75.Peripheral Health Probes: Subsystem Diagnostic Architecture
 
-> Path Reference: `/usr/share/doc/mios/manual.md#19_peripheral_health_probes`
+> Path Reference: `/usr/share/doc/mios/manual.md#75_peripheral_health_probes`
 
 #### 1. Network Subsystem Probe
 The network probe inspects `/sys/class/net/` and `ip link` to evaluate physical and virtual network interfaces:
@@ -80,9 +80,9 @@ The display probe verifies Direct Rendering Manager (DRM) and Graphics Processin
 
 ---
 
-### <a name="19_wanted_d_integration"></a>19.Wanted.d Integration: Lifecycle and Execution Sequencing
+### <a name="75_wanted_d_integration"></a>75.Wanted.d Integration: Lifecycle and Execution Sequencing
 
-> Path Reference: `/usr/share/doc/mios/manual.md#19_wanted_d_integration`
+> Path Reference: `/usr/share/doc/mios/manual.md#75_wanted_d_integration`
 
 #### Sequencing within Greenboot
 
@@ -105,9 +105,9 @@ During boot, `greenboot-healthcheck.service` executes checks in alphanumeric ord
 
 ---
 
-### <a name="19_structured_telemetry_and_persistence"></a>19.Structured Telemetry and Persistence: Telemetry Pipeline
+### <a name="75_structured_telemetry_and_persistence"></a>75.Structured Telemetry and Persistence: Telemetry Pipeline
 
-> Path Reference: `/usr/share/doc/mios/manual.md#19_structured_telemetry_and_persistence`
+> Path Reference: `/usr/share/doc/mios/manual.md#75_structured_telemetry_and_persistence`
 
 #### Structured Event Schema
 
@@ -161,9 +161,9 @@ Every invocation generates a structured JSON payload detailing the state of each
 
 ---
 
-### <a name="19_cli_operations_and_diagnostics"></a>19.CLI Operations and Diagnostics: CLI Operations & Troubleshooting
+### <a name="75_cli_operations_and_diagnostics"></a>75.CLI Operations and Diagnostics: CLI Operations & Troubleshooting
 
-> Path Reference: `/usr/share/doc/mios/manual.md#19_cli_operations_and_diagnostics`
+> Path Reference: `/usr/share/doc/mios/manual.md#75_cli_operations_and_diagnostics`
 
 #### CLI Flags Reference
 

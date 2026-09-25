@@ -1,5 +1,5 @@
 # AI-hint: Quadlet container unit for local Piper/Kokoro streaming text-to-speech engine (T-534, AGY-2132).
-# AI-doc: usr/share/doc/mios/manual/ch23-streaming-tts-piper.md
+# AI-doc: usr/share/doc/mios/manual/ch79-streaming-tts-piper.md
 # /usr/share/containers/systemd/mios-piper.container
 
 [Unit]

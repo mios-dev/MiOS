@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 25: Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite (T-536, AGY-2134). Details remote desktop video streaming benchmarks, sub-12ms frame encoding SLA for 60 FPS, adaptive bitrate (ABR) control loops, tc-netem network simulation, packet loss IDR recovery, and two-sided verification controls. -->
+<!-- AI-hint: Chapter 81: Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite (T-536, AGY-2134). Details remote desktop video streaming benchmarks, sub-12ms frame encoding SLA for 60 FPS, adaptive bitrate (ABR) control loops, tc-netem network simulation, packet loss IDR recovery, and two-sided verification controls. -->
 
-# Chapter 25: Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite
+# Chapter 81: Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the benchmark methodology, SLA latency thresholds, Adaptive Bitrate (ABR) control loops, and network emulation parameters implemented in the **Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite** (T-536, AGY-2134), located at [`tests/test-video-encode-latency.sh`](file:///workspaces/MiOS/tests/test-video-encode-latency.sh).
 
@@ -45,9 +45,9 @@ flowchart TD
 
 ---
 
-### <a name="25_streaming_latency_budget"></a>25.Streaming Latency Budget & 60 FPS Architecture
+### <a name="81_streaming_latency_budget"></a>81.Streaming Latency Budget & 60 FPS Architecture
 
-> Path Reference: `/usr/share/doc/mios/manual.md#25_streaming_latency_budget`
+> Path Reference: `/usr/share/doc/mios/manual.md#81_streaming_latency_budget`
 
 #### Real-Time Display Streaming Budget
 
@@ -66,9 +66,9 @@ Under MiOS Architectural Invariant 5 (Blade Bare-Metal Boundary) and Invariant 3
 
 ---
 
-### <a name="25_latency_thresholds_and_slas"></a>25.Latency Thresholds and SLA Guarantees
+### <a name="81_latency_thresholds_and_slas"></a>81.Latency Thresholds and SLA Guarantees
 
-> Path Reference: `/usr/share/doc/mios/manual.md#25_latency_thresholds_and_slas`
+> Path Reference: `/usr/share/doc/mios/manual.md#81_latency_thresholds_and_slas`
 
 The benchmark suite tests streaming pipelines against two rigid operational boundaries:
 
@@ -83,9 +83,9 @@ The benchmark suite tests streaming pipelines against two rigid operational boun
 
 ---
 
-### <a name="25_adaptive_bitrate_control_loops"></a>25.Adaptive Bitrate (ABR) Control Loops
+### <a name="81_adaptive_bitrate_control_loops"></a>81.Adaptive Bitrate (ABR) Control Loops
 
-> Path Reference: `/usr/share/doc/mios/manual.md#25_adaptive_bitrate_control_loops`
+> Path Reference: `/usr/share/doc/mios/manual.md#81_adaptive_bitrate_control_loops`
 
 #### Congestion Detection & Delay Gradients
 
@@ -104,9 +104,9 @@ The MiOS streaming pipeline utilizes an adaptive bitrate controller derived from
 
 ---
 
-### <a name="25_tc_netem_simulation_parameters"></a>25.Network Simulation Harness & `tc-netem` Parameters
+### <a name="81_tc_netem_simulation_parameters"></a>81.Network Simulation Harness & `tc-netem` Parameters
 
-> Path Reference: `/usr/share/doc/mios/manual.md#25_tc_netem_simulation_parameters`
+> Path Reference: `/usr/share/doc/mios/manual.md#81_tc_netem_simulation_parameters`
 
 #### Traffic Control (`tc-netem`) Emulation Profile
 
@@ -132,9 +132,9 @@ In unprivileged container environments, nested CI runners, or systems without `C
 
 ---
 
-### <a name="25_packet_loss_recovery"></a>25.Packet Loss Recovery & Instantaneous Decoder Refresh (IDR)
+### <a name="81_packet_loss_recovery"></a>81.Packet Loss Recovery & Instantaneous Decoder Refresh (IDR)
 
-> Path Reference: `/usr/share/doc/mios/manual.md#25_packet_loss_recovery`
+> Path Reference: `/usr/share/doc/mios/manual.md#81_packet_loss_recovery`
 
 In real-time UDP video transport, dropped packets corrupt predictive inter-frame reference chains ($P$-frames and $B$-frames). If uncorrected, this induces perpetual screen corruption and visual stutter.
 
@@ -150,9 +150,9 @@ MiOS implements rapid feedback recovery using standard WebRTC mechanisms:
 
 ---
 
-### <a name="25_two_sided_verification"></a>25.Two-Sided Verification & Benchmark Test Cases
+### <a name="81_two_sided_verification"></a>81.Two-Sided Verification & Benchmark Test Cases
 
-> Path Reference: `/usr/share/doc/mios/manual.md#25_two_sided_verification`
+> Path Reference: `/usr/share/doc/mios/manual.md#81_two_sided_verification`
 
 In conformance with the MiOS CI/CD verification standard, the benchmark suite implements two-sided controls—proving both that compliant streams pass and that degraded streams are rejected:
 
@@ -173,9 +173,9 @@ In conformance with the MiOS CI/CD verification standard, the benchmark suite im
 
 ---
 
-### <a name="25_cli_usage"></a>25.CLI Usage and Execution
+### <a name="81_cli_usage"></a>81.CLI Usage and Execution
 
-> Path Reference: `/usr/share/doc/mios/manual.md#25_cli_usage`
+> Path Reference: `/usr/share/doc/mios/manual.md#81_cli_usage`
 
 ```bash
 # Execute standard benchmark suite

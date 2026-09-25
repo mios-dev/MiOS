@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Low-latency WebRTC streaming audio ingress and streaming Whisper STT bridge (T-533, AGY-2131).
-# AI-doc: usr/share/doc/mios/manual/ch22-streaming-audio-whisper.md
+# AI-doc: usr/share/doc/mios/manual/ch78-streaming-audio-whisper.md
 """Low-latency WebRTC streaming audio ingress and streaming Whisper speech-to-text bridge.
 
 Ingests streaming audio frames (16kHz 16-bit PCM mono) over WebRTC / Unix domain

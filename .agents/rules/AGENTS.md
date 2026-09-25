@@ -7,7 +7,7 @@ Canonical workspace rules for the Google Antigravity CLI (`agy`) and its subagen
 ## 1. Operating Substrate & Architectural Invariants
 
 Every Antigravity agent and subagent operating on this repository operates under the singular system contract:
-- **`.git` IS `/`**: The repository root is the deployed system root overlay. Files live where the Filesystem Hierarchy Standard says they live (`usr/`, `etc/`, `var/`).
+- **`.git` IS `/` and Dual-Structure**: The repository root is the deployed system root overlay. It is structured two ways at once: it is 100% **Linux FHS Compliant** (`usr/`, `etc/`, `var/`), while simultaneously formatted as an **AI Training Image Shape / Corpus Dataset**. Every file carries machine-readable AI hints/docs, feeding the local self-replication and fine-tuning pipelines.
 - **Five Invariants**:
   1. `/var` Persists by Default on bootc/ostree systems.
   2. Bootloader and kernel signing is Unified Kernel Image (`shim -> systemd-boot -> signed UKI`) with kargs baked into the UKI, distinct from MOK out-of-tree module signing.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Verification suite for composefs fs-verity root filesystem sealing and atomic validator (T-527, AGY-2125).
-# AI-doc: usr/share/doc/mios/manual/ch15-composefs-sealing.md
+# AI-doc: usr/share/doc/mios/manual/ch71-composefs-sealing.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

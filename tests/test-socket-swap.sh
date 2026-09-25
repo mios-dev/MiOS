@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Integration test suite for zero-downtime socket handoff and daemon swapper (T-542, AGY-2140).
-# AI-doc: usr/share/doc/mios/manual/ch31-socket-activation-handoff.md
+# AI-doc: usr/share/doc/mios/manual/ch87-socket-activation-handoff.md
 set -euo pipefail
 
 ROOT="${MIOS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"

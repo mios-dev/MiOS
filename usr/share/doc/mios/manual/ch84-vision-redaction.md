@@ -1,7 +1,7 @@
-<!-- AI-hint: Chapter 28: ATSPI Accessibility Tree Sensitive Widget Coordinate Detector and Wayland Frame Blur Filter (T-539, AGY-2137). Details ATSPI role discovery, Wayland frame capture integration, bounding box coordinate mapping, blur filter algorithms, and privacy guarantees. -->
-# Chapter 28: ATSPI Accessibility Tree Sensitive Widget Coordinate Detector and Wayland Frame Blur Filter
+<!-- AI-hint: Chapter 84: ATSPI Accessibility Tree Sensitive Widget Coordinate Detector and Wayland Frame Blur Filter (T-539, AGY-2137). Details ATSPI role discovery, Wayland frame capture integration, bounding box coordinate mapping, blur filter algorithms, and privacy guarantees. -->
+# Chapter 84: ATSPI Accessibility Tree Sensitive Widget Coordinate Detector and Wayland Frame Blur Filter
 
-> Part IV: Cluster, Distributed Services & Storage of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 > System Reference: [`mios_vision_redact.py`](file:///usr/lib/mios/agent-pipe/mios_vision_redact.py), [`test-vision-redact.py`](file:///tests/test-vision-redact.py)
 > Task Reference: `T-539` / `AGY-2137`
 
@@ -21,9 +21,9 @@ This chapter details the architecture, accessibility tree inspection mechanics, 
 
 ---
 
-### <a name="28_vision_redaction_overview"></a>28.1 Architectural Overview: Sensitive Data Leakage Prevention
+### <a name="84_vision_redaction_overview"></a>84.1 Architectural Overview: Sensitive Data Leakage Prevention
 
-> Path Reference: `/usr/share/doc/mios/manual.md#28_vision_redaction_overview`
+> Path Reference: `/usr/share/doc/mios/manual.md#84_vision_redaction_overview`
 
 As autonomous AI agents and computer-use tools (`mios-computer-use`, `agent-pipe`, multimodal vision pipelines) capture desktop frames to reason about user interfaces and complete tasks, on-screen credentials—such as passwords, MFA tokens, API secret keys, and personal identification numbers—are at immediate risk of visual leakage. If unredacted frames reach remote or local inference engines, sensitive secrets can be logged in conversational context transcripts, persisted in token journals, or inadvertently cached in multimodal embedding vector stores.
 
@@ -71,9 +71,9 @@ By decoupling coordinate discovery from visual OCR (which is error-prone, halluc
 
 ---
 
-### <a name="28_atspi_sensitive_widget_discovery"></a>28.2 ATSPI Accessibility Tree Discovery and Sensitive Field Classification
+### <a name="84_atspi_sensitive_widget_discovery"></a>84.2 ATSPI Accessibility Tree Discovery and Sensitive Field Classification
 
-> Path Reference: `/usr/share/doc/mios/manual.md#28_atspi_sensitive_widget_discovery`
+> Path Reference: `/usr/share/doc/mios/manual.md#84_atspi_sensitive_widget_discovery`
 
 The Assistive Technology Service Provider Interface (AT-SPI2) provides a standardized D-Bus interface over `org.a11y.Bus` or the user session bus. Applications register their widget hierarchy, roles, states, and accessibility attributes.
 
@@ -114,9 +114,9 @@ Non-sensitive elements (such as standard labels, push buttons, checkboxes, combo
 
 ---
 
-### <a name="28_coordinate_mapping_and_geometry"></a>28.3 Screen Bounding Box Coordinate Mapping and Security Padding
+### <a name="84_coordinate_mapping_and_geometry"></a>84.3 Screen Bounding Box Coordinate Mapping and Security Padding
 
-> Path Reference: `/usr/share/doc/mios/manual.md#28_coordinate_mapping_and_geometry`
+> Path Reference: `/usr/share/doc/mios/manual.md#84_coordinate_mapping_and_geometry`
 
 Screen bounding boxes are resolved in integer pixel coordinates relative to the top-left corner of the primary display (`x = 0, y = 0`):
 
@@ -148,9 +148,9 @@ All boundary calculations are automatically clamped to the frame buffer's native
 
 ---
 
-### <a name="28_blur_and_pixelation_algorithms"></a>28.4 Blur and Pixelation Algorithms: Redaction Mechanics
+### <a name="84_blur_and_pixelation_algorithms"></a>84.4 Blur and Pixelation Algorithms: Redaction Mechanics
 
-> Path Reference: `/usr/share/doc/mios/manual.md#28_blur_and_pixelation_algorithms`
+> Path Reference: `/usr/share/doc/mios/manual.md#84_blur_and_pixelation_algorithms`
 
 `mios_vision_redact.py` implements pure-Python, zero-external-dependency algorithms that run cleanly across any standard Python 3.8+ interpreter, while transparently accelerating via Pillow (`PIL`) or OpenCV (`cv2`) when available.
 
@@ -198,9 +198,9 @@ Pixelation destroys all intra-glyph stroke transitions, making reverse font deco
 
 ---
 
-### <a name="28_wayland_capture_integration"></a>28.5 Wayland Frame Capture Integration & Pipeline Plumbing
+### <a name="84_wayland_capture_integration"></a>84.5 Wayland Frame Capture Integration & Pipeline Plumbing
 
-> Path Reference: `/usr/share/doc/mios/manual.md#28_wayland_capture_integration`
+> Path Reference: `/usr/share/doc/mios/manual.md#84_wayland_capture_integration`
 
 Wayland compositors intentionally restrict unprivileged processes from reading global screen pixels. MiOS uses three native capture pathways:
 
@@ -223,9 +223,9 @@ In environments where binary image packages (`python3-pillow` or `opencv-python`
 
 ---
 
-### <a name="28_cli_and_daemon_reference"></a>28.6 CLI Subcommand Reference & Automation Integration
+### <a name="84_cli_and_daemon_reference"></a>84.6 CLI Subcommand Reference & Automation Integration
 
-> Path Reference: `/usr/share/doc/mios/manual.md#28_cli_and_daemon_reference`
+> Path Reference: `/usr/share/doc/mios/manual.md#84_cli_and_daemon_reference`
 
 `mios_vision_redact.py` provides a three-verb CLI: `scan`, `redact`, and `status`.
 
@@ -312,9 +312,9 @@ Sample output:
 
 ---
 
-### <a name="28_privacy_and_security_guarantees"></a>28.7 Privacy Guarantees and Verification Controls
+### <a name="84_privacy_and_security_guarantees"></a>84.7 Privacy Guarantees and Verification Controls
 
-> Path Reference: `/usr/share/doc/mios/manual.md#28_privacy_and_security_guarantees`
+> Path Reference: `/usr/share/doc/mios/manual.md#84_privacy_and_security_guarantees`
 
 The privacy boundary is validated through two-sided verification controls in [`tests/test-vision-redact.py`](file:///tests/test-vision-redact.py):
 

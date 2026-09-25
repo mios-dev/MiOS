@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: CI agent-pipe unit test runner for mios_ocr_mask (T-540, AGY-2138).
-# AI-doc: usr/share/doc/mios/manual/ch29-ocr-credential-masking.md
+# AI-doc: usr/share/doc/mios/manual/ch85-ocr-credential-masking.md
 """Unit test suite for mios_ocr_mask.py under ci.globs.agent-pipe."""
 
 from __future__ import annotations

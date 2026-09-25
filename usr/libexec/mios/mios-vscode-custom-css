@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: MiOS VS Code and code-server Custom CSS extension installer and workbench patcher.
-# AI-doc: usr/share/doc/mios/manual/ch16-ide-custom-css.md
+# AI-doc: usr/share/doc/mios/manual/ch72-ide-custom-css.md
 
 import argparse
 import glob

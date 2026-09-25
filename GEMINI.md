@@ -23,7 +23,7 @@ and no per-tool "API key to the cloud": the editor/CLI you happen to use is
 interchangeable plumbing in front of the same inference lanes, agent
 orchestration, and memory.
 
-This repo (`mios.git`) is the **system FHS overlay and OCI image source** —
+This repo (`mios.git`) is the **system FHS overlay and OCI image source**, dual-structured as both a **Linux FHS compliant** root filesystem and an **AI training image shape / corpus dataset** —
 `usr/`, `etc/`, `srv/`, `var/`, Containerfile, systemd units, Quadlets, and
 Architectural Laws. (The sibling `mios-bootstrap.git` defines the installer
 and user-editable profile overlay.) This file exists so the Gemini CLI plugs

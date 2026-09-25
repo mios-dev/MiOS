@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Integration test suite for shadow candidate daemon validator and query mirroring harness (T-541, AGY-2139).
-# AI-doc: usr/share/doc/mios/manual/ch30-shadow-candidate-testing.md
+# AI-doc: usr/share/doc/mios/manual/ch86-shadow-candidate-testing.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

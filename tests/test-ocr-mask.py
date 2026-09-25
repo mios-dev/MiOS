@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Integration test suite for on-device OCR regex credential masking pipeline (T-540, AGY-2138).
-# AI-doc: usr/share/doc/mios/manual/ch29-ocr-credential-masking.md
+# AI-doc: usr/share/doc/mios/manual/ch85-ocr-credential-masking.md
 """Integration test suite for mios_ocr_mask.py.
 
 Verifies CLI commands, regex pattern matching (positive controls), coordinate

@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 29: Lightweight On-Device OCR Regex Credential Masking Pipeline for Vision Frames (T-540, AGY-2138). Details on-device OCR engine integration (Tesseract/PaddleOCR), zero-trust credential auditing, regex catalog, solid bounding box redaction, and sub-50ms vision frame latency benchmarks. -->
+<!-- AI-hint: Chapter 85: Lightweight On-Device OCR Regex Credential Masking Pipeline for Vision Frames (T-540, AGY-2138). Details on-device OCR engine integration (Tesseract/PaddleOCR), zero-trust credential auditing, regex catalog, solid bounding box redaction, and sub-50ms vision frame latency benchmarks. -->
 
-# Chapter 29: Lightweight On-Device OCR Regex Credential Masking Pipeline for Vision Frames
+# Chapter 85: Lightweight On-Device OCR Regex Credential Masking Pipeline for Vision Frames
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, credential detection rules, bounding box coordinate redaction, and on-device OCR integration implemented in [`usr/lib/mios/agent-pipe/mios_ocr_mask.py`](file:///usr/lib/mios/agent-pipe/mios_ocr_mask.py).
 
@@ -47,9 +47,9 @@ flowchart TD
 
 ---
 
-### <a name="29_zero_trust_vision_architecture"></a>29.Architectural Overview: Zero-Trust Vision Privacy Pipeline
+### <a name="85_zero_trust_vision_architecture"></a>85.Architectural Overview: Zero-Trust Vision Privacy Pipeline
 
-> Path Reference: `/usr/share/doc/mios/manual.md#29_zero_trust_vision_architecture`
+> Path Reference: `/usr/share/doc/mios/manual.md#85_zero_trust_vision_architecture`
 
 In an agentic operating system where autonomous agents observe desktop screens, browser windows, IDE sessions, and terminal outputs, visual capture surfaces inevitably expose high-entropy secrets. These include:
 - Plaintext API tokens displayed in curl commands or `.env` file views.
@@ -68,9 +68,9 @@ The **MiOS OCR Credential Masking Pipeline** ([`usr/lib/mios/agent-pipe/mios_ocr
 
 ---
 
-### <a name="29_ocr_engine_integration"></a>29.On-Device OCR Engine Integration
+### <a name="85_ocr_engine_integration"></a>85.On-Device OCR Engine Integration
 
-> Path Reference: `/usr/share/doc/mios/manual.md#29_ocr_engine_integration`
+> Path Reference: `/usr/share/doc/mios/manual.md#85_ocr_engine_integration`
 
 The masking pipeline supports multiple on-device OCR backends with automatic fallback:
 
@@ -93,9 +93,9 @@ For continuous integration testing, offline sandboxes, and minimal container env
 
 ---
 
-### <a name="29_regex_catalog_and_validation"></a>29.Comprehensive Credential Regex Catalog
+### <a name="85_regex_catalog_and_validation"></a>85.Comprehensive Credential Regex Catalog
 
-> Path Reference: `/usr/share/doc/mios/manual.md#29_regex_catalog_and_validation`
+> Path Reference: `/usr/share/doc/mios/manual.md#85_regex_catalog_and_validation`
 
 The credential scanner enforces patterns across five distinct vulnerability categories:
 
@@ -117,9 +117,9 @@ where every second digit from the right is doubled (subtracting 9 if the product
 
 ---
 
-### <a name="29_bounding_box_redaction"></a>29.Bounding Box Redaction & Coordinate Masking
+### <a name="85_bounding_box_redaction"></a>85.Bounding Box Redaction & Coordinate Masking
 
-> Path Reference: `/usr/share/doc/mios/manual.md#29_bounding_box_redaction`
+> Path Reference: `/usr/share/doc/mios/manual.md#85_bounding_box_redaction`
 
 When a credential pattern match occurs:
 1. **Coordinate Resolution**: The bounding rect `[x, y, w, h]` associated with the matched text block is retrieved.
@@ -131,9 +131,9 @@ When a credential pattern match occurs:
 
 ---
 
-### <a name="29_cli_usage_and_subcommands"></a>29.CLI Usage & Subcommands
+### <a name="85_cli_usage_and_subcommands"></a>85.CLI Usage & Subcommands
 
-> Path Reference: `/usr/share/doc/mios/manual.md#29_cli_usage_and_subcommands`
+> Path Reference: `/usr/share/doc/mios/manual.md#85_cli_usage_and_subcommands`
 
 The `mios_ocr_mask.py` CLI provides three primary subcommands:
 
@@ -181,9 +181,9 @@ Reports active OCR engines, library availability, and loaded regex rules:
 
 ---
 
-### <a name="29_performance_benchmarks"></a>29.Performance Benchmarks & Latency Budget
+### <a name="85_performance_benchmarks"></a>85.Performance Benchmarks & Latency Budget
 
-> Path Reference: `/usr/share/doc/mios/manual.md#29_performance_benchmarks`
+> Path Reference: `/usr/share/doc/mios/manual.md#85_performance_benchmarks`
 
 The masking pipeline is engineered to operate strictly within local vision processing budgets:
 

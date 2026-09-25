@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 32: Proactive PID Thermal Daemon, Dynamic CPU/GPU Power Cap Modulator, and Thermal Stress Recovery (T-543, AGY-2141, T-544, AGY-2142). Details proactive PID thermal regulation, sysfs telemetry, rate-of-rise (dT/dt) early intervention before silicon throttling (80°C vs 95°C), dynamic EPP and GPU TDP modulation, and automated 10s hysteresis cooldown recovery. -->
+<!-- AI-hint: Chapter 88: Proactive PID Thermal Daemon, Dynamic CPU/GPU Power Cap Modulator, and Thermal Stress Recovery (T-543, AGY-2141, T-544, AGY-2142). Details proactive PID thermal regulation, sysfs telemetry, rate-of-rise (dT/dt) early intervention before silicon throttling (80°C vs 95°C), dynamic EPP and GPU TDP modulation, and automated 10s hysteresis cooldown recovery. -->
 
-# Chapter 32: Proactive PID Thermal Daemon and Dynamic Power Cap Modulator
+# Chapter 88: Proactive PID Thermal Daemon and Dynamic Power Cap Modulator
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the proactive PID thermal daemon, dynamic CPU/GPU power cap modulation, and automated hysteresis recovery implemented in [`usr/libexec/mios/mios-thermald`](file:///usr/libexec/mios/mios-thermald), managed by the systemd unit [`usr/lib/systemd/system/mios-thermald.service`](file:///usr/lib/systemd/system/mios-thermald.service), and verified by [`tests/test-thermal-governor-recovery.sh`](file:///tests/test-thermal-governor-recovery.sh).
 
@@ -42,9 +42,9 @@ flowchart TD
 
 ---
 
-### <a name="32_proactive_thermal_regulation_architecture"></a>32.1 The Proactive Paradigm: Overcoming Reactive Silicon Throttling
+### <a name="88_proactive_thermal_regulation_architecture"></a>88.1 The Proactive Paradigm: Overcoming Reactive Silicon Throttling
 
-> Path Reference: `/usr/share/doc/mios/manual.md#32_proactive_thermal_regulation_architecture`
+> Path Reference: `/usr/share/doc/mios/manual.md#88_proactive_thermal_regulation_architecture`
 
 #### The Cost of Reactive Throttling
 Modern high-performance silicon (AMD Zen, Intel Core/Xeon, NVIDIA Ada Lovelace/Blackwell) features hardware-enforced thermal shutdown thresholds (typically $100^\circ\text{C}$ to $105^\circ\text{C}$) and hardware thermal throttling clamps (starting at $95^\circ\text{C}$). When hardware-enforced throttling triggers:
@@ -60,9 +60,9 @@ The MiOS Proactive Thermal Governor (`mios-thermald`) shifts thermal control fro
 
 ---
 
-### <a name="32_pid_control_and_rate_of_rise"></a>32.2 The Mathematical Formulation of Predictive Thermal Governance
+### <a name="88_pid_control_and_rate_of_rise"></a>88.2 The Mathematical Formulation of Predictive Thermal Governance
 
-> Path Reference: `/usr/share/doc/mios/manual.md#32_pid_control_and_rate_of_rise`
+> Path Reference: `/usr/share/doc/mios/manual.md#88_pid_control_and_rate_of_rise`
 
 #### Differential Temperature and Rate-of-Rise
 At each monitoring tick $t_k$ separated by interval $\Delta t = t_k - t_{k-1}$, the daemon reads CPU package temperature $T_{\text{cpu}}$ and GPU junction temperature $T_{\text{gpu}}$. The governing temperature is the maximum active silicon temperature:
@@ -94,9 +94,9 @@ Where:
 
 ---
 
-### <a name="32_hardware_sensor_telemetry"></a>32.3 Hardware Sensor Telemetry & Sysfs Interfaces
+### <a name="88_hardware_sensor_telemetry"></a>88.3 Hardware Sensor Telemetry & Sysfs Interfaces
 
-> Path Reference: `/usr/share/doc/mios/manual.md#32_hardware_sensor_telemetry`
+> Path Reference: `/usr/share/doc/mios/manual.md#88_hardware_sensor_telemetry`
 
 The daemon monitors Linux kernel sysfs abstractions and vendor interfaces without proprietary binary drivers:
 
@@ -112,9 +112,9 @@ The daemon monitors Linux kernel sysfs abstractions and vendor interfaces withou
 
 ---
 
-### <a name="32_dynamic_power_cap_actuation"></a>32.4 Dynamic Power Cap Actuation & Modulation Matrix
+### <a name="88_dynamic_power_cap_actuation"></a>88.4 Dynamic Power Cap Actuation & Modulation Matrix
 
-> Path Reference: `/usr/share/doc/mios/manual.md#32_dynamic_power_cap_actuation`
+> Path Reference: `/usr/share/doc/mios/manual.md#88_dynamic_power_cap_actuation`
 
 `mios-thermald` controls both CPU Energy Performance Preference (EPP) and GPU Thermal Design Power (TDP) caps based on thermal evaluation:
 
@@ -129,9 +129,9 @@ The daemon monitors Linux kernel sysfs abstractions and vendor interfaces withou
 
 ---
 
-### <a name="32_hysteresis_and_smooth_recovery"></a>32.5 Hysteresis Cooldown & Smooth Performance Restoration
+### <a name="88_hysteresis_and_smooth_recovery"></a>88.5 Hysteresis Cooldown & Smooth Performance Restoration
 
-> Path Reference: `/usr/share/doc/mios/manual.md#32_hysteresis_and_smooth_recovery`
+> Path Reference: `/usr/share/doc/mios/manual.md#88_hysteresis_and_smooth_recovery`
 
 #### The Hysteresis State Machine
 To guarantee stability, the governor implements a non-oscillating finite state machine:
@@ -143,9 +143,9 @@ To guarantee stability, the governor implements a non-oscillating finite state m
 
 ---
 
-### <a name="32_operational_guide_and_systemd"></a>32.6 Operational Guide, CLI Reference, and Systemd Service
+### <a name="88_operational_guide_and_systemd"></a>88.6 Operational Guide, CLI Reference, and Systemd Service
 
-> Path Reference: `/usr/share/doc/mios/manual.md#32_operational_guide_and_systemd`
+> Path Reference: `/usr/share/doc/mios/manual.md#88_operational_guide_and_systemd`
 
 #### Systemd Service Integration
 The daemon runs as a continuous system service:
@@ -177,9 +177,9 @@ mios-thermald --mock --sysfs-root /tmp/custom_sysfs daemon --interval 0.5
 
 ---
 
-### <a name="32_verification_and_stress_testing"></a>32.7 Verification and Stress Testing Test Suite
+### <a name="88_verification_and_stress_testing"></a>88.7 Verification and Stress Testing Test Suite
 
-> Path Reference: `/usr/share/doc/mios/manual.md#32_verification_and_stress_testing`
+> Path Reference: `/usr/share/doc/mios/manual.md#88_verification_and_stress_testing`
 
 The implementation is verified by the integration test suite [`tests/test-thermal-governor-recovery.sh`](file:///tests/test-thermal-governor-recovery.sh), covering 7 exhaustive validation tiers:
 1. **CLI & Help Conformance**: Validates root `-h/--help`, subcommands (`daemon`, `status`, `set-policy`), and rejection of malformed arguments.

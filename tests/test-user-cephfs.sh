@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Test suite for Global per-user encrypted CephFS subvolume manager (T-528, AGY-2126).
-# AI-doc: usr/share/doc/mios/manual/ch17-cephfs-user-subvolumes.md
+# AI-doc: usr/share/doc/mios/manual/ch73-cephfs-user-subvolumes.md
 
 set -euo pipefail
 

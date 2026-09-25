@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Continuous thermal stress and proactive governor modulation recovery test suite (T-544, AGY-2142).
-# AI-doc: usr/share/doc/mios/manual/ch32-proactive-thermal-governor.md
+# AI-doc: usr/share/doc/mios/manual/ch88-proactive-thermal-governor.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

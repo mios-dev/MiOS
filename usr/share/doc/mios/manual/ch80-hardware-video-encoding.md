@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 24: Multi-Vendor Hardware Video Encoder Discovery and DMA-BUF Capture Bridge (T-535, AGY-2133). Details hardware ASIC probing (QuickSync, NVENC, AMF), AV1 > HEVC > AVC codec priority hierarchy, Wayland PipeWire DMA-BUF zero-copy architecture, and Sunshine streaming host containerization. -->
+<!-- AI-hint: Chapter 80: Multi-Vendor Hardware Video Encoder Discovery and DMA-BUF Capture Bridge (T-535, AGY-2133). Details hardware ASIC probing (QuickSync, NVENC, AMF), AV1 > HEVC > AVC codec priority hierarchy, Wayland PipeWire DMA-BUF zero-copy architecture, and Sunshine streaming host containerization. -->
 
-# Chapter 24: Multi-Vendor Hardware Video Encoder Discovery and DMA-BUF Capture Bridge
+# Chapter 80: Multi-Vendor Hardware Video Encoder Discovery and DMA-BUF Capture Bridge
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, multi-vendor GPU encoder discovery, zero-copy DMA-BUF capture pipeline, and low-latency Sunshine/Moonlight streaming host integration implemented in [`usr/libexec/mios/mios-video-encoder-probe`](file:///usr/libexec/mios/mios-video-encoder-probe) and the Quadlet container [`usr/share/containers/systemd/mios-sunshine.container`](file:///usr/share/containers/systemd/mios-sunshine.container).
 
@@ -44,9 +44,9 @@ flowchart TD
 
 ---
 
-### <a name="24_hardware_encoder_discovery"></a>24.Multi-Vendor Hardware Video Encoder Discovery
+### <a name="80_hardware_encoder_discovery"></a>80.Multi-Vendor Hardware Video Encoder Discovery
 
-> Path Reference: `/usr/share/doc/mios/manual.md#24_hardware_encoder_discovery`
+> Path Reference: `/usr/share/doc/mios/manual.md#80_hardware_encoder_discovery`
 
 MiOS implements automated detection of hardware video encoding capabilities across all major workstation GPU vendors without requiring manual driver or device configuration:
 
@@ -71,9 +71,9 @@ MiOS implements automated detection of hardware video encoding capabilities acro
 
 ---
 
-### <a name="24_codec_priority_hierarchy"></a>24.Codec Priority Hierarchy: AV1 > HEVC > AVC
+### <a name="80_codec_priority_hierarchy"></a>80.Codec Priority Hierarchy: AV1 > HEVC > AVC
 
-> Path Reference: `/usr/share/doc/mios/manual.md#24_codec_priority_hierarchy`
+> Path Reference: `/usr/share/doc/mios/manual.md#80_codec_priority_hierarchy`
 
 Video compression efficiency directly impacts both network bandwidth utilization and frame delivery latency in remote workstation streaming. `mios-video-encoder-probe` enforces a strict resolution hierarchy:
 
@@ -89,9 +89,9 @@ When multiple encoders or codecs are detected, the probe automatically selects t
 
 ---
 
-### <a name="24_dmabuf_zero_copy_architecture"></a>24.Wayland PipeWire DMA-BUF Zero-Copy Capture Pipeline
+### <a name="80_dmabuf_zero_copy_architecture"></a>80.Wayland PipeWire DMA-BUF Zero-Copy Capture Pipeline
 
-> Path Reference: `/usr/share/doc/mios/manual.md#24_dmabuf_zero_copy_architecture`
+> Path Reference: `/usr/share/doc/mios/manual.md#80_dmabuf_zero_copy_architecture`
 
 Traditional desktop streaming captures frames by copying pixels from GPU VRAM to host system RAM, and then re-uploading them to the hardware encoder. In 4K at 60 FPS, this creates massive memory bus bottlenecks:
 
@@ -107,9 +107,9 @@ MiOS eliminates this overhead via kernel Direct Memory Access Buffers (DMA-BUF):
 
 ---
 
-### <a name="24_sunshine_streaming_container"></a>24.Sunshine Streaming Containerization & CDI Configuration
+### <a name="80_sunshine_streaming_container"></a>80.Sunshine Streaming Containerization & CDI Configuration
 
-> Path Reference: `/usr/share/doc/mios/manual.md#24_sunshine_streaming_container`
+> Path Reference: `/usr/share/doc/mios/manual.md#80_sunshine_streaming_container`
 
 The Sunshine streaming service is managed as an unprivileged, declarative Quadlet container unit:
 [`usr/share/containers/systemd/mios-sunshine.container`](file:///usr/share/containers/systemd/mios-sunshine.container).
@@ -125,9 +125,9 @@ The Sunshine streaming service is managed as an unprivileged, declarative Quadle
 
 ---
 
-### <a name="24_cli_modes_and_telemetry"></a>24.CLI Modes, Telemetry & Fallback Governance
+### <a name="80_cli_modes_and_telemetry"></a>80.CLI Modes, Telemetry & Fallback Governance
 
-> Path Reference: `/usr/share/doc/mios/manual.md#24_cli_modes_and_telemetry`
+> Path Reference: `/usr/share/doc/mios/manual.md#80_cli_modes_and_telemetry`
 
 The probe CLI [`usr/libexec/mios/mios-video-encoder-probe`](file:///usr/libexec/mios/mios-video-encoder-probe) provides three primary subcommands:
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).
-# AI-doc: usr/share/doc/mios/manual/ch23-streaming-tts-piper.md
+# AI-doc: usr/share/doc/mios/manual/ch79-streaming-tts-piper.md
 """Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder.
 
 Buffers incoming LLM text tokens, detects sentence and clause boundaries in real time,

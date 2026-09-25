@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Adaptive bitrate and low-latency frame encoding streaming benchmark suite (T-536, AGY-2134).
-# AI-doc: usr/share/doc/mios/manual/ch25-video-streaming-benchmarks.md
+# AI-doc: usr/share/doc/mios/manual/ch81-video-streaming-benchmarks.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

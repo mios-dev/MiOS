@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser (T-529, AGY-2127).
-# AI-doc: usr/share/doc/mios/manual/ch18-blade-pre-enrollment.md
+# AI-doc: usr/share/doc/mios/manual/ch74-blade-pre-enrollment.md
 """
 Declarative SSOT blade pre-enrollment registry and TPM EK fingerprint parser.
 Parses [cluster.blades] from layered mios.toml SSOT, validates hardware attributes

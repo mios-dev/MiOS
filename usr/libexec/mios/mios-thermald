@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Proactive PID thermal daemon and dynamic CPU/GPU power cap modulator (T-543, AGY-2141).
-# AI-doc: usr/share/doc/mios/manual/ch32-proactive-thermal-governor.md
+# AI-doc: usr/share/doc/mios/manual/ch88-proactive-thermal-governor.md
 
 """
 MiOS Proactive PID Thermal Daemon & Dynamic Power Cap Modulator.

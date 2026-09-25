@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Verification suite for declarative SSOT blade pre-enrollment registry and TPM EK parser (T-529, AGY-2127).
-# AI-doc: usr/share/doc/mios/manual/ch18-blade-pre-enrollment.md
+# AI-doc: usr/share/doc/mios/manual/ch74-blade-pre-enrollment.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Verification suite for multi-node dynamic AI workload partitioner and capability-aware task router (T-537, AGY-2135).
-# AI-doc: usr/share/doc/mios/manual/ch26-mesh-workload-partitioning.md
+# AI-doc: usr/share/doc/mios/manual/ch82-mesh-workload-partitioning.md
 """Test suite for multi-node dynamic AI workload partitioner and capability-aware router."""
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from typing import Any, Dict, List
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 ROOT_DIR = SCRIPT_DIR.parent
 DISTRIBUTOR_SCRIPT = ROOT_DIR / "usr" / "lib" / "mios" / "agent-pipe" / "mios_mesh_distributor.py"
-MANUAL_FILE = ROOT_DIR / "usr" / "share" / "doc" / "mios" / "manual" / "ch26-mesh-workload-partitioning.md"
+MANUAL_FILE = ROOT_DIR / "usr" / "share" / "doc" / "mios" / "manual" / "ch82-mesh-workload-partitioning.md"
 
 # Import distributor library module directly
 sys.path.insert(0, str(DISTRIBUTOR_SCRIPT.parent))

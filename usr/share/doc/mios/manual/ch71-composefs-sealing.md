@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 15: Composefs fs-verity Root Filesystem Sealing and Atomic Validation (T-527, AGY-2125). Details kernel-level fs-verity digest verification, prepare-root composefs mount execution, descriptor integrity validation, and bootc kargs drop-in configuration. -->
+<!-- AI-hint: Chapter 71: Composefs fs-verity Root Filesystem Sealing and Atomic Validation (T-527, AGY-2125). Details kernel-level fs-verity digest verification, prepare-root composefs mount execution, descriptor integrity validation, and bootc kargs drop-in configuration. -->
 
-# Chapter 15: Composefs fs-verity Root Filesystem Sealing and Atomic Validation
+# Chapter 71: Composefs fs-verity Root Filesystem Sealing and Atomic Validation
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, cryptographic foundations, and operational tooling for **Composefs fs-verity Root Filesystem Sealing and Atomic Image Descriptor Validation** (T-527, AGY-2125).
 
@@ -18,9 +18,9 @@ flowchart TD
 
 ---
 
-### <a name="15_composefs_architecture"></a>15.Composefs Architecture: Immutable Root Sealing Architecture
+### <a name="71_composefs_architecture"></a>71.Composefs Architecture: Immutable Root Sealing Architecture
 
-> Path Reference: `/usr/share/doc/mios/manual.md#15_composefs_architecture`
+> Path Reference: `/usr/share/doc/mios/manual.md#71_composefs_architecture`
 
 #### Overview
 
@@ -37,9 +37,9 @@ Composefs separates filesystem metadata from underlying file content:
 
 ---
 
-### <a name="15_fsverity_integrity"></a>15.Fs-Verity Integrity: Cryptographic Merkle Tree Verification
+### <a name="71_fsverity_integrity"></a>71.Fs-Verity Integrity: Cryptographic Merkle Tree Verification
 
-> Path Reference: `/usr/share/doc/mios/manual.md#15_fsverity_integrity`
+> Path Reference: `/usr/share/doc/mios/manual.md#71_fsverity_integrity`
 
 #### Overview
 
@@ -68,9 +68,9 @@ sequenceDiagram
 
 ---
 
-### <a name="15_atomic_validator"></a>15.Atomic Validator: Image Descriptor Validation Tooling
+### <a name="71_atomic_validator"></a>71.Atomic Validator: Image Descriptor Validation Tooling
 
-> Path Reference: `/usr/share/doc/mios/manual.md#15_atomic_validator`
+> Path Reference: `/usr/share/doc/mios/manual.md#71_atomic_validator`
 
 #### Overview
 
@@ -95,9 +95,9 @@ The validator recognizes both standard and specification magic identifiers:
 
 ---
 
-### <a name="15_sealing_automation"></a>15.Sealing Automation: Boot Sealing and Drop-In Generation
+### <a name="71_sealing_automation"></a>71.Sealing Automation: Boot Sealing and Drop-In Generation
 
-> Path Reference: `/usr/share/doc/mios/manual.md#15_sealing_automation`
+> Path Reference: `/usr/share/doc/mios/manual.md#71_sealing_automation`
 
 #### Overview
 
@@ -120,7 +120,7 @@ The build pipeline script `automation/93-composefs-seal.sh` automates filesystem
    Generates `usr/lib/bootc/kargs.d/50-composefs.toml`:
    ```toml
    # AI-hint: Boot-time composefs fs-verity root filesystem sealing (T-527)
-   # AI-doc: usr/share/doc/mios/manual/ch15-composefs-sealing.md
+   # AI-doc: usr/share/doc/mios/manual/ch71-composefs-sealing.md
    kargs = [
      "ostree.composefs=1",
      "ostree.composefs.digest=<COMPUTED_DIGEST>",

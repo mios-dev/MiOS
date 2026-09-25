@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Verification suite for concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder (T-534, AGY-2132).
-# AI-doc: usr/share/doc/mios/manual/ch23-streaming-tts-piper.md
+# AI-doc: usr/share/doc/mios/manual/ch79-streaming-tts-piper.md
 """Test suite for concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder."""
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated RFC 9334 RATS remote TPM 2.0 quote verifier and zero-touch cluster onboarding daemon (T-530, AGY-2128).
-# AI-doc: usr/share/doc/mios/manual/ch20-remote-attestation.md
+# AI-doc: usr/share/doc/mios/manual/ch76-remote-attestation.md
 """
 Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding Daemon.
 Challenges onboarding cluster blades with cryptographic nonces, verifies TPM 2.0 Quotes over

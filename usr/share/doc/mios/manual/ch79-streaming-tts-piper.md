@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 23: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire audio playback pipeline, sub-300ms time-to-first-sound latency SLA, and Quadlet containerization. -->
+<!-- AI-hint: Chapter 79: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder (T-534, AGY-2132). Details streaming TTS architecture, sentence segmentation, ONNX acceleration, PipeWire audio playback pipeline, sub-300ms time-to-first-sound latency SLA, and Quadlet containerization. -->
 
-# Chapter 23: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder
+# Chapter 79: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder
 
-> Part V: Deep Security, Cryptography & Hardware of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the concurrent streaming speech synthesis architecture, sentence boundary detection, local Piper and Kokoro ONNX neural voice engines, and PipeWire low-latency buffer feeder implemented in [`usr/lib/mios/agent-pipe/mios_audio_tts.py`](file:///usr/lib/mios/agent-pipe/mios_audio_tts.py) and the Quadlet container [`usr/share/containers/systemd/mios-piper.container`](file:///usr/share/containers/systemd/mios-piper.container).
 
@@ -32,9 +32,9 @@ flowchart TD
 
 ---
 
-### <a name="23_streaming_tts_architecture"></a>23.Streaming TTS Ingestion & Sentence Segmentation: Real-Time Token Chunking
+### <a name="79_streaming_tts_architecture"></a>79.Streaming TTS Ingestion & Sentence Segmentation: Real-Time Token Chunking
 
-> Path Reference: `/usr/share/doc/mios/manual.md#23_streaming_tts_architecture`
+> Path Reference: `/usr/share/doc/mios/manual.md#79_streaming_tts_architecture`
 
 #### The Sentence Segmentation Challenge
 
@@ -51,9 +51,9 @@ MiOS circumvents this through real-time sentence and clause segmentation via `Se
 
 ---
 
-### <a name="23_concurrent_synthesis"></a>23.Concurrent Synthesis: Piper & Kokoro ONNX Neural Engines
+### <a name="79_concurrent_synthesis"></a>79.Concurrent Synthesis: Piper & Kokoro ONNX Neural Engines
 
-> Path Reference: `/usr/share/doc/mios/manual.md#23_concurrent_synthesis`
+> Path Reference: `/usr/share/doc/mios/manual.md#79_concurrent_synthesis`
 
 #### Multi-Worker Pipelined Synthesis
 
@@ -75,9 +75,9 @@ Additional supported voices include:
 
 ---
 
-### <a name="23_pipewire_buffer_feeder"></a>23.PipeWire Buffer Feeder: Low-Latency Playback & Underrun Mitigation
+### <a name="79_pipewire_buffer_feeder"></a>79.PipeWire Buffer Feeder: Low-Latency Playback & Underrun Mitigation
 
-> Path Reference: `/usr/share/doc/mios/manual.md#23_pipewire_buffer_feeder`
+> Path Reference: `/usr/share/doc/mios/manual.md#79_pipewire_buffer_feeder`
 
 #### Feeder and Ring Buffer Architecture
 
@@ -97,9 +97,9 @@ In mock / accelerated mode, synthesis completes in under 50ms, achieving convers
 
 ---
 
-### <a name="23_quadlet_containerization"></a>23.Quadlet Containerization: `mios-piper.container`
+### <a name="79_quadlet_containerization"></a>79.Quadlet Containerization: `mios-piper.container`
 
-> Path Reference: `/usr/share/doc/mios/manual.md#23_quadlet_containerization`
+> Path Reference: `/usr/share/doc/mios/manual.md#79_quadlet_containerization`
 
 The Piper/Kokoro TTS engine is deployed as a systemd Quadlet container within the MiOS AI pod:
 - **Unit File**: `/usr/share/containers/systemd/mios-piper.container`
@@ -113,9 +113,9 @@ The Piper/Kokoro TTS engine is deployed as a systemd Quadlet container within th
 
 ---
 
-### <a name="23_cli_reference"></a>23.CLI Operations and Diagnostics: Operations Reference
+### <a name="79_cli_reference"></a>79.CLI Operations and Diagnostics: Operations Reference
 
-> Path Reference: `/usr/share/doc/mios/manual.md#23_cli_reference`
+> Path Reference: `/usr/share/doc/mios/manual.md#79_cli_reference`
 
 #### Subcommands
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Global per-user encrypted CephFS subvolume manager with remote snapshot replication (T-528, AGY-2126).
-# AI-doc: usr/share/doc/mios/manual/ch17-cephfs-user-subvolumes.md
+# AI-doc: usr/share/doc/mios/manual/ch73-cephfs-user-subvolumes.md
 
 """
 MiOS Global Per-User Encrypted CephFS Subvolume Manager with Remote Snapshot Replication.

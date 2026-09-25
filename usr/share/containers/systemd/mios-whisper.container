@@ -1,5 +1,5 @@
 # AI-hint: Quadlet container unit for local whisper.cpp streaming speech-to-text engine (T-533, AGY-2131).
-# AI-doc: usr/share/doc/mios/manual/ch22-streaming-audio-whisper.md
+# AI-doc: usr/share/doc/mios/manual/ch78-streaming-audio-whisper.md
 # /usr/share/containers/systemd/mios-whisper.container
 
 [Unit]

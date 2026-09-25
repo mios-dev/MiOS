@@ -1,6 +1,6 @@
-<!-- AI-hint: Chapter 16: IDE Custom CSS and Edge-to-Edge Integrated Terminal. Covers provisioning the vscode-custom-css extension, the edge-to-edge terminal stylesheet, and the mios-vscode-custom-css orchestrator that applies zero-margin CSS across local dev containers, code-server super-containers, and user skeletons. -->
+<!-- AI-hint: Chapter 72: IDE Custom CSS and Edge-to-Edge Integrated Terminal. Covers provisioning the vscode-custom-css extension, the edge-to-edge terminal stylesheet, and the mios-vscode-custom-css orchestrator that applies zero-margin CSS across local dev containers, code-server super-containers, and user skeletons. -->
 
-# Chapter 16: IDE Custom CSS & Edge-to-Edge Integrated Terminal
+# Chapter 72: IDE Custom CSS & Edge-to-Edge Integrated Terminal
 
 ## 1. Overview and Problem Statement
 

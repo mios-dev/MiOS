@@ -1,8 +1,8 @@
-<!-- AI-hint: Chapter 30: Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness (T-541, AGY-2139). Covers shadow execution mechanics, query mirroring architecture, mutation guarding, divergence scoring, and safe promotion gates for OpenAI-compatible inference daemons. -->
+<!-- AI-hint: Chapter 86: Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness (T-541, AGY-2139). Covers shadow execution mechanics, query mirroring architecture, mutation guarding, divergence scoring, and safe promotion gates for OpenAI-compatible inference daemons. -->
 
-# Chapter 30: Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness
+# Chapter 86: Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness
 
-> Part IV: Detailed Inference & Execution Layers of the [MiOS manual](../manual.md).
+> Part VIII: Substrate Daemons, Resilient Clustering & Hardware Acceleration of the [MiOS manual](../manual.md).
 
 This chapter documents the architecture, sandboxing mechanisms, query mirroring protocols, divergence scoring algorithms, and automated canary promotion gating implemented in [`usr/libexec/mios/mios-shadow-test`](file:///usr/libexec/mios/mios-shadow-test).
 
@@ -71,9 +71,9 @@ flowchart TD
 
 ---
 
-### <a name="30_shadow_mechanics"></a>30.Shadow Mechanics: Isolated Execution and Network Sandboxing
+### <a name="86_shadow_mechanics"></a>86.Shadow Mechanics: Isolated Execution and Network Sandboxing
 
-> Path Reference: `/usr/share/doc/mios/manual.md#30_shadow_mechanics`
+> Path Reference: `/usr/share/doc/mios/manual.md#86_shadow_mechanics`
 
 #### Overview
 
@@ -87,9 +87,9 @@ The **Shadow Dual-Process Validation Engine** isolates candidate daemons prior t
 
 ---
 
-### <a name="30_query_mirroring"></a>30.Query Mirroring Architecture: Concurrency and Dual Dispatch
+### <a name="86_query_mirroring"></a>86.Query Mirroring Architecture: Concurrency and Dual Dispatch
 
-> Path Reference: `/usr/share/doc/mios/manual.md#30_query_mirroring`
+> Path Reference: `/usr/share/doc/mios/manual.md#86_query_mirroring`
 
 #### Dual Concurrency Model
 
@@ -124,9 +124,9 @@ sequenceDiagram
 
 ---
 
-### <a name="30_mutation_guard"></a>30.Mutation Guard: State-Corruption Defense and Request Filtering
+### <a name="86_mutation_guard"></a>86.Mutation Guard: State-Corruption Defense and Request Filtering
 
-> Path Reference: `/usr/share/doc/mios/manual.md#30_mutation_guard`
+> Path Reference: `/usr/share/doc/mios/manual.md#86_mutation_guard`
 
 #### Strict Mutation Guard Invariant
 
@@ -147,9 +147,9 @@ When a mutating request is detected, `mios-shadow-test` immediately rejects mirr
 
 ---
 
-### <a name="30_divergence_scoring"></a>30.Divergence Scoring: Schema Compliance, Status Parity, and Latency Differential
+### <a name="86_divergence_scoring"></a>86.Divergence Scoring: Schema Compliance, Status Parity, and Latency Differential
 
-> Path Reference: `/usr/share/doc/mios/manual.md#30_divergence_scoring`
+> Path Reference: `/usr/share/doc/mios/manual.md#86_divergence_scoring`
 
 #### Scoring Metrics
 
@@ -171,9 +171,9 @@ Every mirrored query pair is evaluated against four objective criteria:
 
 ---
 
-### <a name="30_safe_promotion_gates"></a>30.Safe Promotion Gates: Automated Canary Promotion Workflow
+### <a name="86_safe_promotion_gates"></a>86.Safe Promotion Gates: Automated Canary Promotion Workflow
 
-> Path Reference: `/usr/share/doc/mios/manual.md#30_safe_promotion_gates`
+> Path Reference: `/usr/share/doc/mios/manual.md#86_safe_promotion_gates`
 
 #### Promotion Criteria & Verification Gates
 
@@ -194,9 +194,9 @@ The `validate` subcommand executes an end-to-end shadow loop that enforces stric
 
 ---
 
-### <a name="30_cli_reference"></a>30.Operational CLI Reference
+### <a name="86_cli_reference"></a>86.Operational CLI Reference
 
-> Path Reference: `/usr/share/doc/mios/manual.md#30_cli_reference`
+> Path Reference: `/usr/share/doc/mios/manual.md#86_cli_reference`
 
 #### Command Usage
 

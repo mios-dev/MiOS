@@ -123,6 +123,14 @@ def ml_main() -> int:
         for f in os.listdir(os.path.join(ml_DOCS, "manual"))
         if f.startswith("ch") and f.endswith(".md")
     )
+    ch_nums = {}
+    for c in chapters:
+        m = re.match(r"^ch(\d+)-", os.path.basename(c))
+        if m:
+            ch_nums.setdefault(int(m.group(1)), []).append(c)
+    for num, files in sorted(ch_nums.items()):
+        if len(files) > 1:
+            bad.append(f"duplicate chapter number {num:02d}: {', '.join(files)}")
     bad += [f"chapter unreachable from the ToC: {c}" for c in chapters if c not in referenced]
     rel = ml_relative_link_violations()
     bad += rel

@@ -1083,8 +1083,8 @@
 | T-1106 | P2 | open | CI/Schedules | ACTIONS-01 -- MiOS hosts every scheduled CI job |
 | T-1107 | P1 | open | AI/Bridge | BRIDGE-02 -- A function-named Quadlet for the agent-harness translation bridge |
 | T-1108 | P2 | open | AI/Artifacts | ARTIFACT-03 -- Daily out-of-loop artifact follow-ups |
-| T-1109 | P1 | open | Build/SSOT | SYNCGEN-02 -- main's projections drift from their generators |
-| T-1110 | P2 | open | Docs | MANUAL-03 -- Chapter numbers collide in the manual |
+| T-1109 | P1 | done | Build/SSOT | SYNCGEN-02 -- main's projections drift from their generators |
+| T-1110 | P2 | done | Docs | MANUAL-03 -- Chapter numbers collide in the manual |
 | T-1111 | P1 | done | Security/USB | USBGUARD-02 -- The USBGuard rules differ between the two repos |
 
 ---
@@ -11910,13 +11910,13 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** `tools/sync-generated.sh` rewrites six Quadlets on a clean main -- their `Image=` tags (mios-ceph, mios-forge, mios-k3s, mios-llm-heavy, mios-radosgw, mios-webtools-crawl4ai: `:latest` -> `${MIOS_VERSION_*}`) -- so the CI sync-generated step is red.
 **Where:** the six Quadlets under `usr/share/containers/systemd/`
 **Done When:** `tools/sync-generated.sh` on a clean main leaves `git status --porcelain` empty.
-**Status:** open | **Domain:** Build/SSOT | **Who:** agent
+**Status:** done -- commit 3ee3d0d6 resolved Quadlet image tag rendering drift; tools/sync-generated.sh runs clean with exit code 0 and leaves git status --porcelain empty | **Domain:** Build/SSOT | **Who:** agent
 
 ## T-1110 -- MANUAL-03: Chapter numbers collide in the manual
 **Goal:** Chapters ch15..ch32 added later reuse numbers that existing chapters already hold (two chapter 15s, two 16s, ...), so the ToC lists them out of numeric order.
 **Where:** `usr/share/doc/mios/manual/`, `usr/share/doc/mios/manual.md`
 **Done When:** every chapter number is unique, links and anchors still resolve, and `check_manual_links` stays clean.
-**Status:** open | **Domain:** Docs | **Who:** agent
+**Status:** done -- 18 colliding duplicate chapters moved to unique numbers 71-88, ToC reorganized into Part VIII in monotonic sequential order (1..88), links and anchors updated, tools/check-docs.py duplicate detection added and verified with positive and negative controls | **Domain:** Docs | **Who:** agent
 
 ## T-1111 -- USBGUARD-02: The USBGuard rules differ between the two repos
 **Goal:** `etc/usbguard/rules.conf` has differed between mios.git and mios-bootstrap.git since the T-798 rewrite, so the Law 15 parity gate (`tools/sync-bootstrap.py --check`) is red.

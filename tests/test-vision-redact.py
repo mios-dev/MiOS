@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Verification suite for ATSPI accessibility tree sensitive widget coordinate detector and Wayland frame blur filter (T-539, AGY-2137).
-# AI-doc: usr/share/doc/mios/manual/ch28-vision-redaction.md
+# AI-doc: usr/share/doc/mios/manual/ch84-vision-redaction.md
 """Test suite for ATSPI accessibility tree sensitive widget coordinate detector and Wayland frame blur filter."""
 
 from __future__ import annotations
