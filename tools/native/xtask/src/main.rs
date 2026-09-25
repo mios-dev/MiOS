@@ -74,6 +74,7 @@ mod artifact_prompt {
         pub git_url: String,
         pub raw_base: String,
         pub api_base: String,
+        pub web_base: String,
         pub branch: String,
     }
 
@@ -116,11 +117,16 @@ mod artifact_prompt {
         pub consumer: String,
         pub scheduler: String,
         pub scheduler_item: String,
+        /// Optional skill the task text names; empty renders the spec alone.
+        pub task_skill: String,
         pub verdict_prefix: String,
         pub head_ls_remote: String,
         pub head_api: String,
         pub raw_file: String,
+        pub web_file: String,
+        pub contents_api: String,
         pub self_url: String,
+        pub self_url_fallback: String,
         pub bundle: String,
         pub split_rule: String,
         pub oci_layer_root: String,
@@ -174,6 +180,16 @@ mod artifact_prompt {
             return Err(format!("{at}.{key} is empty"));
         }
         Ok(a.as_slice())
+    }
+
+    /// The Agent Skills name rule: lowercase alphanumerics in single-hyphen runs.
+    pub fn skill_name_ok(name: &str) -> bool {
+        name.len() <= 64
+            && name.split('-').all(|p| {
+                !p.is_empty()
+                    && p.chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+            })
     }
 
     fn schema_name_ok(name: &str) -> bool {
@@ -279,6 +295,7 @@ mod artifact_prompt {
                 git_url: text(r, "git_url", &rat)?,
                 raw_base: text(r, "raw_base", &rat)?.trim_end_matches('/').to_string(),
                 api_base: text(r, "api_base", &rat)?.trim_end_matches('/').to_string(),
+                web_base: text(r, "web_base", &rat)?.trim_end_matches('/').to_string(),
                 branch: text(r, "default_branch", &rat)?,
             });
         }
@@ -375,17 +392,36 @@ mod artifact_prompt {
             }
         }
 
+        let task_skill = match daily.get("task_skill") {
+            None => String::new(),
+            Some(v) => v
+                .as_str()
+                .ok_or_else(|| format!("{at}.task_skill is not a string"))?
+                .trim()
+                .to_string(),
+        };
+        if !task_skill.is_empty() && !skill_name_ok(&task_skill) {
+            return Err(format!(
+                "{at}.task_skill = {task_skill:?} is not a skill name (lowercase letters and \
+                 digits in single-hyphen runs, at most 64)"
+            ));
+        }
+
         Ok(Spec {
             template,
             fixed_name,
             consumer: text(daily, "task_consumer", at)?,
             scheduler: text(daily, "task_scheduler", at)?,
             scheduler_item: text(daily, "task_scheduler_item", at)?,
+            task_skill,
             verdict_prefix: text(daily, "verdict_prefix", at)?,
             head_ls_remote: text(daily, "head_ls_remote", at)?,
             head_api: text(daily, "head_api", at)?,
             raw_file: text(daily, "raw_file", at)?,
+            web_file: text(daily, "web_file", at)?,
+            contents_api: text(daily, "contents_api", at)?,
             self_url: text(daily, "self_url", at)?,
+            self_url_fallback: text(daily, "self_url_fallback", at)?,
             bundle: text(daily, "bundle", at)?,
             split_rule: text(daily, "split_rule", at)?,
             oci_layer_root: text(daily, "oci_layer_root", at)?,
@@ -568,14 +604,49 @@ mod artifact_prompt {
     /// bytes out, with no clock, host or environment read.
     pub fn render(template: &str, spec: &Spec) -> Result<String, String> {
         let canon = spec.canonical();
-        let self_url = fill(
-            &spec.self_url,
+        let tok = sha_token(&canon.name);
+        // No {branch} is offered, so a branch-named spec URL fails to fill.
+        let self_vars = [
+            ("raw_base", canon.raw_base.as_str()),
+            ("web_base", canon.web_base.as_str()),
+            ("sha", tok.as_str()),
+            ("root_file", spec.task.root_file.as_str()),
+        ];
+        let self_url = fill(&spec.self_url, &self_vars)?;
+        let self_fallback = fill(&spec.self_url_fallback, &self_vars)?;
+        for u in [&self_url, &self_fallback] {
+            if !u.contains(&tok) {
+                return Err(format!("the task text URL {u:?} does not pin {{sha}}"));
+            }
+        }
+        let self_head = fill(
+            &spec.head_api,
+            &[("api_base", &canon.api_base), ("branch", &canon.branch)],
+        )?;
+        let web_pattern = fill(
+            &spec.web_file,
             &[
-                ("raw_base", &canon.raw_base),
-                ("branch", &canon.branch),
-                ("root_file", &spec.task.root_file),
+                ("web_base", &canon.web_base),
+                ("sha", &tok),
+                ("path", "<path>"),
             ],
         )?;
+        let api_pattern = fill(
+            &spec.contents_api,
+            &[
+                ("api_base", &canon.api_base),
+                ("sha", &tok),
+                ("path", "<path>"),
+            ],
+        )?;
+        let skill_line = if spec.task_skill.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "Use the skill `{}` (type / and pick it) if it is installed.",
+                spec.task_skill
+            )
+        };
 
         let mut head = String::from(
             "| Repository | `git ls-remote` | REST API (read field `sha`) |\n|---|---|---|\n",
@@ -659,7 +730,13 @@ mod artifact_prompt {
             ("ap_task_title", spec.task.title.clone()),
             ("ap_task_id", spec.task.id.clone()),
             ("ap_consumer", spec.consumer.clone()),
+            ("ap_task_skill_line", skill_line),
+            ("ap_self_head_api", self_head),
+            ("ap_self_sha", tok.clone()),
             ("ap_self_url", self_url),
+            ("ap_self_url_fallback", self_fallback),
+            ("ap_web_file_pattern", web_pattern),
+            ("ap_contents_api_pattern", api_pattern),
             ("ap_submitted", spec.verdict("submitted").to_string()),
             ("ap_rejected", spec.verdict("rejected").to_string()),
             ("ap_blocked", spec.verdict("blocked").to_string()),
@@ -690,6 +767,10 @@ mod artifact_prompt {
 
         let mut out = template.to_string();
         for (k, v) in &pairs {
+            // An empty `*_line` placeholder drops its whole line.
+            if v.is_empty() && k.ends_with("_line") {
+                out = out.replace(&format!("{{{{{k}}}}}\n"), "");
+            }
             out = out.replace(&format!("{{{{{k}}}}}"), v);
         }
         if let Some(i) = out.find("{{") {
@@ -1121,7 +1202,7 @@ mod artifact_prompt_tests {
     }
 
     #[test]
-    fn sub_instruction_urls_pin_a_revision_and_never_a_branch_or_blob() {
+    fn content_urls_pin_a_revision_and_never_a_branch() {
         let (spec, out) = real();
         for s in &spec.subs {
             let line = out
@@ -1133,23 +1214,154 @@ mod artifact_prompt_tests {
             let repo = spec.repos.iter().find(|r| r.name == s.repo).unwrap();
             assert!(!line.contains(&format!("/{}/", repo.branch)), "{line}");
         }
+        // A blob page is allowed for reading only, and only pinned to a SHA.
+        for (i, _) in out.match_indices("/blob/") {
+            assert!(out[i + 6..].starts_with('<'), "{}", &out[i..i + 40]);
+        }
+        for r in &spec.repos {
+            for base in [&r.raw_base, &format!("{}/blob", r.web_base)] {
+                let branch_url = format!("{base}/{}/", r.branch);
+                assert!(!out.contains(&branch_url), "{branch_url}");
+            }
+        }
+    }
+
+    fn task_block(out: &str) -> String {
+        out.split("```text")
+            .nth(1)
+            .and_then(|b| b.split("```").next())
+            .unwrap()
+            .to_string()
     }
 
     #[test]
-    fn the_task_text_fetches_the_root_file_from_the_canonical_default_branch() {
+    fn the_task_text_resolves_the_commit_then_reads_the_pinned_spec() {
         let (spec, out) = real();
         let c = spec.canonical();
-        let url = format!("{}/{}/{}", c.raw_base, c.branch, spec.fixed_name);
-        let block = out
-            .split("```text")
-            .nth(1)
-            .and_then(|b| b.split("```").next())
-            .unwrap();
-        assert!(block.contains(&url), "{block}");
+        let block = task_block(&out);
+        let tok = format!("<{}_SHA>", c.name);
+        for want in [
+            format!("{}/commits/{}", c.api_base, c.branch),
+            format!("{}/{tok}/{}", c.raw_base, spec.fixed_name),
+            format!("{}/blob/{tok}/{}", c.web_base, spec.fixed_name),
+            format!("{}:", spec.verdict("blocked")),
+            "Where this task text is silent, the specification's values apply".into(),
+        ] {
+            assert!(block.contains(&want), "missing {want:?} in {block}");
+        }
         assert!(
-            block.contains(&format!("{}:", spec.verdict("blocked"))),
+            !block.contains(&format!("/{}/{}", c.branch, spec.fixed_name)),
             "{block}"
         );
+    }
+
+    #[test]
+    fn the_spec_never_addresses_its_reader_as_an_identity() {
+        let (_, out) = real();
+        for bad in [
+            "You are",
+            "you are",
+            "nothing else",
+            "the file wins",
+            "authoritative over",
+        ] {
+            assert!(!out.contains(bad), "{bad:?} is in the rendered spec");
+        }
+    }
+
+    #[test]
+    fn a_branch_named_or_unpinned_self_url_is_refused() {
+        for (key, fmt, why) in [
+            (
+                "self_url",
+                "{raw_base}/{branch}/{root_file}",
+                "unknown field",
+            ),
+            (
+                "self_url_fallback",
+                "{web_base}/blob/{branch}/{root_file}",
+                "unknown field",
+            ),
+            ("self_url", "{raw_base}/main/{root_file}", "does not pin"),
+        ] {
+            let text = mutated(|d| {
+                d.insert(key.into(), toml::Value::String(fmt.into()));
+            });
+            let spec = load_spec(&text).unwrap();
+            let e = render(&real_template(&spec), &spec).unwrap_err();
+            assert!(e.contains(why), "{key}={fmt}: {e}");
+        }
+    }
+
+    #[test]
+    fn the_skill_line_renders_only_when_task_skill_is_set() {
+        let (spec, set) = real();
+        assert!(
+            !spec.task_skill.is_empty(),
+            "the committed SSOT names a skill"
+        );
+        let line = format!(
+            "Use the skill `{}` (type / and pick it) if it is installed.",
+            spec.task_skill
+        );
+        assert_eq!(set.matches(&line).count(), 1, "{set}");
+        assert!(task_block(&set).contains(&line));
+
+        let empty = mutated(|d| {
+            d.insert("task_skill".into(), toml::Value::String(String::new()));
+        });
+        let absent = mutated(|d| {
+            d.remove("task_skill");
+        });
+        let mut rendered = Vec::new();
+        for text in [empty, absent] {
+            let s = load_spec(&text).unwrap();
+            let out = render(&real_template(&s), &s).unwrap();
+            assert!(!out.contains(&spec.task_skill), "{out}");
+            let block = task_block(&out);
+            assert!(!block.contains("skill"), "{block}");
+            let lines: Vec<&str> = block.trim().lines().collect();
+            assert!(lines[1].starts_with("1. "), "{block}");
+            assert!(lines.iter().all(|l| !l.trim().is_empty()), "{block}");
+            rendered.push(out);
+        }
+        assert_eq!(
+            rendered[0], rendered[1],
+            "absent and empty must render alike"
+        );
+        assert_eq!(
+            set.lines().count(),
+            rendered[0].lines().count() + 1,
+            "only the skill line differs"
+        );
+
+        for bad in ["Dev_Loop", "dev--loop", "-dev", "a b"] {
+            let text = mutated(|d| {
+                d.insert("task_skill".into(), toml::Value::String(bad.into()));
+            });
+            let e = load_spec(&text).unwrap_err();
+            assert!(e.contains("skill name"), "{bad}: {e}");
+        }
+    }
+
+    #[test]
+    fn fetched_files_record_the_api_blob_sha_and_built_files_a_sha256() {
+        let (spec, out) = real();
+        let block = json_blocks(&out)
+            .into_iter()
+            .find(|b| b.contains("\"json_schema\""))
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&block).unwrap();
+        let props = &v["json_schema"]["schema"]["properties"];
+        let sub = &props["sub_instructions"]["items"]["properties"];
+        assert_eq!(sub["git_blob_sha"]["pattern"], "^[0-9a-f]{40}$");
+        assert_eq!(sub["bytes"]["type"], "integer");
+        assert!(sub.get("sha256").is_none(), "{sub}");
+        let files = &props["files"]["items"]["properties"];
+        assert_eq!(files["sha256"]["pattern"], "^[0-9a-f]{64}$");
+        let c = spec.canonical();
+        let api = format!("{}/contents/<path>?ref=<{}_SHA>", c.api_base, c.name);
+        assert!(out.contains(&api), "{api}");
     }
 
     #[test]
