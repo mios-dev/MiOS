@@ -6133,6 +6133,35 @@ pkgs = [
     "bash-completion",     # tab-complete in interactive shells
 ]
 
+# The ONE development userspace. .devcontainer/Containerfile resolves this list
+# through automation/lib/packages.sh at image build, and every MiOS dev
+# environment builds that same Containerfile: the MiOS devcontainer, the
+# mios-bootstrap and -dev-loop devcontainers (sibling checkout), Codespaces,
+# Cloud Shell (cloud-shell/bootstrap.sh) and the hosted cloud-session projection.
+# Not a bake section -- no automation/NN-*.sh stage installs it into the image.
+[packages.devcontainer]
+enable = true
+pkgs = [
+    "just",
+    "podman", "podman-compose", "buildah", "skopeo",
+    "netavark", "aardvark-dns", "slirp4netns", "passt", "fuse-overlayfs",
+    "bootc", "bootupd", "ostree", "rpm-ostree",
+    "curl", "wget", "ca-certificates", "gh", "jq", "yq", "rsync", "git", "tmux",
+    "nodejs", "npm",
+    "python3", "python3-pip", "python3-devel",
+    "python3.11", "python3.11-devel",   # agent-pipe venv interpreter (/usr/lib/mios/agents/.venv)
+    "ruby", "ruby-devel",
+    "python3-rich", "python3-textual", "python3-psutil", "python3-pytest", "python3-jsonschema",
+    "rust", "cargo", "clippy", "rustfmt", "gcc", "gcc-c++", "make",
+    "dbus-daemon", "dbus-tools", "gnome-keyring", "libsecret",   # agent CLI credential keyring
+    "procps-ng", "util-linux", "shadow-utils", "authselect",
+    "sudo", "zsh",
+    "findutils", "grep", "sed", "gawk", "diffutils", "patch",
+    "ripgrep", "tar", "gzip", "unzip", "zip",
+    "openssl", "qemu-img", "attr",
+    "ShellCheck",
+]
+
 [orchestration]
 conductor_enable = false
 conductor_step_timeout = 300
