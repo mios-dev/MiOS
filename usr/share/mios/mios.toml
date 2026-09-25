@@ -6925,6 +6925,8 @@ pxe_hub_api        = 8585    # matchbox gRPC/API on mios-pxe-hub (upstream defau
 ai_legacy        = 8640    # legacy AI endpoint
 field_live_chat  = 8642    # field live chat
 node             = 8650    # mios-node edge daemon
+whisper            = 8178     # mios-whisper: whisper.cpp streaming STT engine (audio band, index 0). Was a DEAD key: mios-whisper.container carried :-8178 with no SSOT row, so nothing could tune or collision-check it.
+piper              = 8179     # mios-piper: Piper/Kokoro streaming TTS engine (audio band, index 1). Was a DEAD key: mios-piper.container carried :-8179 with no SSOT row.
 
 # Files pairing a MIOS_PORT_* name with a literal that disagrees with this table.
 # SHRINK-ONLY (gate: check_port_fallbacks), and currently EMPTY -- a new entry
@@ -7026,6 +7028,12 @@ stride  = 2
 members = ["ai_legacy", "field_live_chat", "", "", "", "node"]
 doc     = "Edge node, legacy AI endpoint, and field live chat ports."
 
+[ports.categories.audio]
+base    = 8178
+stride  = 1
+members = ["whisper", "piper"]
+doc     = "Streaming speech engines in the mios-ai pod: whisper.cpp STT, then Piper/Kokoro TTS. The base is where the pair's shipped Quadlets already bound (their :-N fallbacks predate this row), so registering them moved nothing; retarget the base to move both."
+
 
 [units]
 forge              = "mios-forge.service"
@@ -7074,8 +7082,8 @@ non_addressable = [
   "firecrawl",
   "forge_ssh", "guacamole_web", "guacd", "hermes_dashboard",
   "k3s_api", "mcp", "model_router", "opencode_gateway", "oscontrol",
-  "otelcol_otlp", "prefilter", "pxe_hub_api", "radosgw", "rdp", "redis",
-  "sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm",
+  "otelcol_otlp", "piper", "prefilter", "pxe_hub_api", "radosgw", "rdp", "redis",
+  "sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm", "whisper",
 ]
 
 # ----------------------------------------------------------------------------

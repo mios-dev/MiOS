@@ -1885,6 +1885,7 @@ to" / "let me know".
 : "${MIOS_PIPELINE_REPORTER:=usr/lib/mios/log.sh}"
 : "${MIOS_PIPELINE_SPACE_MAX:=99}"
 : "${MIOS_PIPELINE_SPACE_MIN:=0}"
+: "${MIOS_PIPER_PORT:=8179}"
 : "${MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP:=200}"
 : "${MIOS_PKG_LOOKUP_MAX_ALIAS_RESULTS:=3}"
 : "${MIOS_PLANNER_SHORT_PROMPT_CHARS:=60}"
@@ -1931,6 +1932,10 @@ to" / "let me know".
 : "${MIOS_PORTS_CATEGORIES_AGENT_DOC:=Agent plane. Ordered along the request path: pipe -> prefilter -> hermes -> workers -> router -> arbiter, then the MCP host and the /v1 gateway shims. All LOOPBACK-only except hermes.}"
 : "${MIOS_PORTS_CATEGORIES_AGENT_MEMBERS:=agent_pipe,prefilter,hermes,,daemon_agent,model_router,arbiter,mcp,opencode_gateway}"
 : "${MIOS_PORTS_CATEGORIES_AGENT_STRIDE:=10}"
+: "${MIOS_PORTS_CATEGORIES_AUDIO_BASE:=8178}"
+[ -n "${MIOS_PORTS_CATEGORIES_AUDIO_DOC+x}" ] || MIOS_PORTS_CATEGORIES_AUDIO_DOC='Streaming speech engines in the mios-ai pod: whisper.cpp STT, then Piper/Kokoro TTS. The base is where the pair'"'"'s shipped Quadlets already bound (their :-N fallbacks predate this row), so registering them moved nothing; retarget the base to move both.'
+: "${MIOS_PORTS_CATEGORIES_AUDIO_MEMBERS:=whisper,piper}"
+: "${MIOS_PORTS_CATEGORIES_AUDIO_STRIDE:=1}"
 : "${MIOS_PORTS_CATEGORIES_BRIDGE_BASE:=8950}"
 : "${MIOS_PORTS_CATEGORIES_BRIDGE_DOC:=Cross-OS bridges (Windows-side UI Automation executor). LOOPBACK-only.}"
 : "${MIOS_PORTS_CATEGORIES_BRIDGE_MEMBERS:=oscontrol}"
@@ -2010,6 +2015,7 @@ to" / "let me know".
 : "${MIOS_PORTS_OTELCOL_OTLP:=8575}"
 : "${MIOS_PORTS_OTELCOL_UI:=8580}"
 : "${MIOS_PORTS_PGVECTOR:=8600}"
+: "${MIOS_PORTS_PIPER:=8179}"
 : "${MIOS_PORTS_PREFILTER:=8710}"
 : "${MIOS_PORTS_PXE_HUB_API:=8585}"
 : "${MIOS_PORTS_RADOSGW:=8470}"
@@ -2023,6 +2029,7 @@ to" / "let me know".
 : "${MIOS_PORTS_TTYD_POWERSHELL:=8320}"
 : "${MIOS_PORTS_UNBOUND:=chrome_cdp_worker,ai_legacy,field_live_chat}"
 : "${MIOS_PORTS_VLLM:=8520}"
+: "${MIOS_PORTS_WHISPER:=8178}"
 : "${MIOS_PORT_ADGUARD_DNS:=53}"
 : "${MIOS_PORT_ADGUARD_UI:=8050}"
 : "${MIOS_PORT_AI_LEGACY:=8640}"
@@ -2042,6 +2049,7 @@ to" / "let me know".
 : "${MIOS_PORT_MODEL_ROUTER:=8750}"
 : "${MIOS_PORT_OSCONTROL:=8950}"
 : "${MIOS_PORT_PGVECTOR:=8600}"
+: "${MIOS_PORT_PIPER:=8179}"
 : "${MIOS_PORT_PREFILTER:=8710}"
 : "${MIOS_PORT_PXE_HUB_API:=8585}"
 : "${MIOS_PORT_RADOSGW:=8470}"
@@ -2053,6 +2061,7 @@ to" / "let me know".
 : "${MIOS_PORT_TTYD_BASH:=8310}"
 : "${MIOS_PORT_TTYD_POWERSHELL:=8320}"
 : "${MIOS_PORT_UNBOUND:=chrome_cdp_worker,ai_legacy,field_live_chat}"
+: "${MIOS_PORT_WHISPER:=8178}"
 : "${MIOS_POSTGRES_IMAGE:=docker.io/library/postgres:latest}"
 : "${MIOS_POSTGRES_VERSION:=latest}"
 : "${MIOS_POWERSHELL_ENUMERATION_LIMIT:=16}"
@@ -2648,7 +2657,7 @@ to" / "let me know".
 [ -n "${MIOS_URLS_CODE_SERVER+x}" ] || MIOS_URLS_CODE_SERVER='http://localhost:'"${MIOS_PORT_CODE_SERVER:-}"'/'
 [ -n "${MIOS_URLS_FORGE+x}" ] || MIOS_URLS_FORGE='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"
 [ -n "${MIOS_URLS_LOCAL_FORGE_REPO+x}" ] || MIOS_URLS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"'/mios/mios.git'
-: "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,ai_legacy,arbiter,ceph_dashboard,crawl4ai,field_live_chat,hermes,llm_light,node,pgvector,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,radosgw,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
+: "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,ai_legacy,arbiter,ceph_dashboard,crawl4ai,field_live_chat,hermes,llm_light,node,pgvector,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,piper,prefilter,pxe_hub_api,radosgw,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm,whisper}"
 [ -n "${MIOS_URLS_OPEN_WEBUI+x}" ] || MIOS_URLS_OPEN_WEBUI='http://localhost:'"${MIOS_PORT_OPEN_WEBUI:-}"'/'
 [ -n "${MIOS_URLS_OTELCOL_UI+x}" ] || MIOS_URLS_OTELCOL_UI='http://localhost:'"${MIOS_PORT_OTELCOL_UI:-}"'/'
 : "${MIOS_URLS_REPO:=https://github.com/mios-dev/MiOS.git}"
@@ -2769,6 +2778,7 @@ to" / "let me know".
 : "${MIOS_WEB_RESEARCH_TOP_N:=6}"
 : "${MIOS_WEB_SEARCH_TRIGGER_CONTEXTS:=web,internet,online}"
 : "${MIOS_WEB_SEARCH_TRIGGER_PHRASES:=search,look up,google,find,search the web,search online}"
+: "${MIOS_WHISPER_PORT:=8178}"
 : "${MIOS_WINDOWS_OWNED_ARTIFACTS_FIREWALL_RULES:=MiOS - igpu-llm,MiOS - ai-node,MiOS}"
 : "${MIOS_WINDOWS_OWNED_ARTIFACTS_PROCESS_NAMES:=MiOS-Wallpaper,MiOS-Wallpaper-Service,MiOS-Launcher,MiOS-iGPU-Server}"
 [ -n "${MIOS_WINDOWS_OWNED_ARTIFACTS_REGISTRY_ROOTS+x}" ] || MIOS_WINDOWS_OWNED_ARTIFACTS_REGISTRY_ROOTS='HKLM:\SOFTWARE\MiOS,HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MiOS,HKCU:\Control Panel\Cursors\Schemes'
