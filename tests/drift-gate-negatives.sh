@@ -4593,6 +4593,15 @@ PYEOF
 
 test_bootstrap_sync() {
     log "Testing check_bootstrap_sync"
+    # Absence leg: runs with no sibling checkout at all.
+    local had_root="${MIOS_BOOTSTRAP_ROOT+x}" saved_root="${MIOS_BOOTSTRAP_ROOT:-}"
+    export MIOS_BOOTSTRAP_ROOT="${ROOT}/.no-such-bootstrap"
+    MIOS_DRIFT_REQUIRE_TOOLS=0 _neg_gate check_bootstrap_sync \
+        && die "check_bootstrap_sync passed with no bootstrap checkout"
+    [[ "$_NEG_GATE_OUT" == *"Law 15 NOT checked"* ]] \
+        || die "check_bootstrap_sync failed without naming the absent checkout: ${_NEG_GATE_OUT}"
+    if [ -n "$had_root" ]; then export MIOS_BOOTSTRAP_ROOT="$saved_root"; else unset MIOS_BOOTSTRAP_ROOT; fi
+
     # Sibling resolution as tools/sync-bootstrap.py does it (T-1033). The old
     # MSYS-only /c/ default skipped every local run.
     local boot="${MIOS_BOOTSTRAP_ROOT:-}"
@@ -4601,16 +4610,30 @@ test_bootstrap_sync() {
             [ -d "$_b" ] && { boot="$_b"; break; }
         done
     fi
-    [ -n "$boot" ] && [ -d "$boot" ] || { log "bootstrap repo absent; skipping"; return 0; }
-    local f="${boot}/installation/UNIFY.md"
-    [ -f "$f" ] || { log "no mirrored file to mutate; skipping"; return 0; }
-    local bak; bak="$(mktemp)"; cp "$f" "$bak"
+    if [ -z "$boot" ] || [ ! -d "$boot" ]; then
+        [ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" = "1" ] && die "bootstrap repo absent, so the file and table legs cannot be planted"
+        log "bootstrap repo absent; file and table legs skipped"; return 0
+    fi
+    local f="${boot}/installation/UNIFY.md" t="${boot}/mios.toml"
+    [ -f "$f" ] && [ -f "$t" ] || die "bootstrap at ${boot} lacks installation/UNIFY.md or mios.toml"
+    local bak tbak; bak="$(mktemp)"; tbak="$(mktemp)"; cp "$f" "$bak"; cp "$t" "$tbak"
     # Drift in a MIRRORED file must fail: mios.git is the authority, and the
     # whole point is that a shared surface cannot change in only one repo.
     printf '\nDRIFT PROBE\n' >> "$f"
-    _neg_gate check_bootstrap_sync && die "check_bootstrap_sync passed despite a mirrored file drifting in bootstrap"
-    cp "$bak" "$f"; rm -f "$bak"
-    _neg_gate check_bootstrap_sync || die "check_bootstrap_sync failed after restoration"
+    _neg_gate check_bootstrap_sync && { cp "$bak" "$f"; die "check_bootstrap_sync passed despite a mirrored file drifting in bootstrap"; }
+    cp "$bak" "$f"
+    [[ "$_NEG_GATE_OUT" == *"installation/UNIFY.md: differs"* ]] \
+        || die "check_bootstrap_sync failed without naming installation/UNIFY.md: ${_NEG_GATE_OUT}"
+    # A mirrored TABLE value: [colors] had no parsed compare but the retired
+    # ports-drift check, whose scalars this leg now covers.
+    sed -i '/^\[colors\]/,/^\[/ s/^bg\( *\)= "[^"]*"/bg\1= "#010203"/' "$t"
+    grep -q '^bg *= "#010203"' "$t" || { cp "$tbak" "$t"; die "the [colors].bg plant did not land in ${t}"; }
+    _neg_gate check_bootstrap_sync && { cp "$tbak" "$t"; die "check_bootstrap_sync passed despite [colors].bg drifting in bootstrap"; }
+    cp "$tbak" "$t"
+    [[ "$_NEG_GATE_OUT" == *"[colors].bg:"* ]] \
+        || die "check_bootstrap_sync failed without naming [colors].bg: ${_NEG_GATE_OUT}"
+    rm -f "$bak" "$tbak"
+    _neg_gate check_bootstrap_sync || die "check_bootstrap_sync failed after restoration: ${_NEG_GATE_OUT}"
     log "check_bootstrap_sync negative test passed"
 }
 

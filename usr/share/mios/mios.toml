@@ -10717,10 +10717,6 @@ python_entries = [
 
 [testing.negative_coverage_exempt]
 exempt = [
-  # Law-15 cross-repo parity: early-returns when the sibling mios-bootstrap
-  # checkout is absent, which is always the case on a CI runner, so an injected
-  # fault would be skipped rather than caught.
-  "check_ps_repo_parity",
   # Authenticode verification: no-ops unless [security.powershell_signing]
   # names a cert AND a Windows PowerShell is present, neither of which holds on
   # a Linux runner -- an injected fault would be skipped, not caught.
@@ -10733,8 +10729,6 @@ exempt = [
   "check_resolver_shell_equivalence",
   # Template validator: meta-conformance engine requires full template hierarchy.
   "check_template_self_conformance",
-  # Bootstrap sync: requires sibling mios-bootstrap repository checkout.
-  "check_templates_bootstrap_sync",
   # Agent schema: requires external jsonschema validator toolchain.
   "check_agent_schema",
   # AI manifest: requires live AI plane model specification.
@@ -10743,8 +10737,6 @@ exempt = [
   "check_bib_rootfs_label_policy",
   # Blade dropins: requires blade hardware profile dropin generator.
   "check_blade_dropins",
-  # Bootstrap ports drift: requires sibling mios-bootstrap checkout.
-  "check_bootstrap_ports_drift",
   # Canonical bools: requires strict TOML boolean parser state.
   "check_canonical_bools",
   # Capability manifest: requires full verb/recipe capability tree.
@@ -10955,13 +10947,12 @@ unconsumed = [
 max_unconsumed = 9
 
 [drift.unimplemented]
-max_unimplemented = 54
+max_unimplemented = 53
 checks = [
   "check_agent_pipe_budgets",
   "check_bake_budget",
   "check_bake_plan",
   "check_bake_ref_defaults",
-  "check_bootstrap_ports_drift",
   "check_capability_manifest",
   "check_cli_eval_safety",
   "check_cli_sql_safety",
@@ -11575,7 +11566,7 @@ mirror_files = [
 ]
 
 # SSOT tables mirrored into bootstrap's root mios.toml.
-mirror_toml_tables = ["ports"]
+mirror_toml_tables = ["ports", "colors"]
 
 # Deliberately NOT mirrored; reasons in installation/UNIFY.md.
 not_mirrored = [

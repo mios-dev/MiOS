@@ -265,7 +265,7 @@ use laws::{
 use modules::{ModuleBoundaryCheck, ModuleLengthCheck, UnwiredModulesCheck};
 use names::NamesRegistryCheck;
 use numbering::{DAGIntegrityCheck, PipelineNumberingCheck, RoadmapIndexCheck};
-use ports::{BarePortLiteralsCheck, BootstrapPortsCheck, ContainerPortsCheck};
+use ports::{BarePortLiteralsCheck, ContainerPortsCheck};
 use projections::{
     BladeDropinsCheck, ChronyProjectionCheck, CockpitProjectionCheck, EgressFirewallCheck,
     IPAEnrollProjectionCheck, KargsProjectionCheck, NutProjectionCheck, PodQuadletsCheck,
@@ -338,7 +338,6 @@ impl Registry {
             Box::new(HardcodeVersionCheck),
             Box::new(HardcodedSSOTLiteralCheck),
             Box::new(ContainerPortsCheck),
-            Box::new(BootstrapPortsCheck),
             Box::new(BarePortLiteralsCheck),
             Box::new(VersionSSOTCheck),
             Box::new(RootTomlSubsetCheck),

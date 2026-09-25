@@ -709,7 +709,7 @@
 | T-795 | P2 | done | Storage/CephSnapTest | Automated CephFS snapshot creation (<10ms), retention rotation, and rollback test suite |
 | T-796 | P1 | open | AI/PrefixCache | Radix Tree prefix KV-cache sharing engine in llama-swap |
 | T-797 | P2 | open | AI/PrefixTest | Automated shared prompt prefix hit rate (>95%) and sub-5ms TTFT benchmark suite |
-| T-798 | P1 | done | Security/USBGuard | Declarative USBGuard device authorization daemon and read-only storage mounter |
+| T-798 | P1 | open | Security/USBGuard | Declarative USBGuard device authorization daemon and read-only storage mounter |
 | T-799 | P2 | open | Security/USBTest | Automated BadUSB device rejection, read-only mount enforcement, and audit test suite |
 | T-800 | P1 | done | Memory/THPCompaction | Transparent Huge Pages (THP madvise) and proactive memory compaction manager |
 | T-801 | P2 | open | Memory/THPTest | Automated 2MB/1GB huge page allocation, sub-1ms allocation latency, and TLB benchmark suite |
@@ -1085,7 +1085,7 @@
 | T-1108 | P2 | open | AI/Artifacts | ARTIFACT-03 -- Daily out-of-loop artifact follow-ups |
 | T-1109 | P1 | open | Build/SSOT | SYNCGEN-02 -- main's projections drift from their generators |
 | T-1110 | P2 | open | Docs | MANUAL-03 -- Chapter numbers collide in the manual |
-| T-1111 | P1 | open | Security/USB | USBGUARD-02 -- The USBGuard rules differ between the two repos |
+| T-1111 | P1 | done | Security/USB | USBGUARD-02 -- The USBGuard rules differ between the two repos |
 
 ---
 
@@ -8844,7 +8844,7 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Done When:** USBGuard blocks unauthorized devices and enforces read-only mounts on external storage.
 **Why:** Declarative USB security blocks BadUSB keystroke injection attacks and prevents accidental data contamination.
 **Dep:** AGY-2395
-**Status:** done | **Domain:** Security/USBGuard | **Who:** agent
+**Status:** open -- its rules.conf never loaded (a repeated with-interface attribute; globbed name rules compare literally) and was reverted by T-1111; the BadUSB policy needs rules the daemon loads, written in both repos at once | **Domain:** Security/USBGuard | **Who:** agent
 **Converted:** AGY-2396 carries this forward with a Verify line that fails when the behaviour is absent.
 
 ## T-799 -- Automated BadUSB device rejection, read-only mount enforcement, and audit test suite (WS-SEC | P2 | S)
@@ -11922,4 +11922,4 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Goal:** `etc/usbguard/rules.conf` has differed between mios.git and mios-bootstrap.git since the T-798 rewrite, so the Law 15 parity gate (`tools/sync-bootstrap.py --check`) is red.
 **Where:** `etc/usbguard/rules.conf` (both repos)
 **Done When:** one owner is decided, the other copy follows it, and `tools/sync-bootstrap.py --check` exits 0.
-**Status:** open | **Domain:** Security/USB | **Who:** architect
+**Status:** done -- mios.git's copy was the wrong one: T-798 rewrote only it, and its rule `block with-interface equals { 03:*:* } with-interface equals { 08:*:* }` repeats an attribute, which the USBGuard rule parser refuses ("with-interface attribute already defined"), so the daemon loads no rule set; its `name "...*"` rules compare literally and never match. mios.git now carries the last mirrored copy (byte-identical to mios-bootstrap), `tools/sync-bootstrap.py --check` exits 0 against bootstrap HEAD, and `tests/test-usbguard-sec.py` fails on a repeated attribute or a globbed name instead of requiring one. T-798's BadUSB policy has to be rewritten as rules the daemon loads, in both repos | **Domain:** Security/USB | **Who:** architect
