@@ -508,6 +508,7 @@ security.arbiter_port  MIOS_SECURITY_ARBITER_PORT
 security.token_ttl_s  MIOS_SECURITY_TOKEN_TTL_S
 security.allowlist_hosts  MIOS_SECURITY_ALLOWLIST_HOSTS
 security.provenance_taint  MIOS_SECURITY_PROVENANCE_TAINT
+security.credential_literals.max_literals  MIOS_SECURITY_CREDENTIAL_LITERALS_MAX_LITERALS
 security.credential_literals.grandfathered  MIOS_SECURITY_CREDENTIAL_LITERALS_GRANDFATHERED
 security.redact.enable  MIOS_SECURITY_REDACT_ENABLE
 security.redact.fail_closed  MIOS_SECURITY_REDACT_FAIL_CLOSED

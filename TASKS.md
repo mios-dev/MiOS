@@ -1078,6 +1078,14 @@
 | T-1101 | P1 | done | Orchestration | CONSOL -- Gate and merge the four AGY stale-ref lanes |
 | T-1102 | P1 | done | Docs | CONSOL -- The comment corpus is blind to the libexec verbs |
 | T-1103 | P2 | open | Docs | CONSOL -- The three standing drift violations |
+| T-1104 | P1 | open | Desktop/Keymap | KEYMAP-01 -- One keymap, projected to every surface, with Vim and Emacs modes |
+| T-1105 | P2 | open | Desktop/Session | DESKTOP-02 -- Hyprland + Quickshell as a second session in the same image |
+| T-1106 | P2 | open | CI/Schedules | ACTIONS-01 -- MiOS hosts every scheduled CI job |
+| T-1107 | P1 | open | AI/Bridge | BRIDGE-02 -- A function-named Quadlet for the agent-harness translation bridge |
+| T-1108 | P2 | open | AI/Artifacts | ARTIFACT-03 -- Daily out-of-loop artifact follow-ups |
+| T-1109 | P1 | open | Build/SSOT | SYNCGEN-02 -- main's projections drift from their generators |
+| T-1110 | P2 | open | Docs | MANUAL-03 -- Chapter numbers collide in the manual |
+| T-1111 | P1 | open | Security/USB | USBGUARD-02 -- The USBGuard rules differ between the two repos |
 
 ---
 
@@ -11867,3 +11875,51 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Where:** `usr/share/doc/mios/`, `usr/share/mios/reference/manual-corpus.tsv`
 **Done When:** Narrative harvested, doc refs decided, drift-gate green.
 **Status:** open | **Domain:** Docs | **Who:** architect
+
+## T-1104 -- KEYMAP-01: One keymap, projected to every surface, with Vim and Emacs modes
+**Goal:** One industry-standard keymap drives the MiOS Rust CLI, the Hyprland binds, the Quickshell shell and the shipped terminal configs, with selectable Vim and Emacs modes. Operator anchors: Super+Q closes the window, Super+B opens the browser, Super+Space opens the MiOS terminal / MiOS CLI.
+**Where:** `usr/share/mios/mios.toml` `[keymap]`, one generator under `tools/native/`, the projected hyprland / Quickshell / tmux / terminal-profile files
+**Done When:** `[keymap]` is the only place a binding is written; the generator projects every surface; a regenerate-and-diff drift check guards each projection (Law 8); a test proves the three anchor bindings on every surface and fails when one is removed.
+**Status:** open | **Domain:** Desktop/Keymap | **Who:** agent
+
+## T-1105 -- DESKTOP-02: Hyprland + Quickshell as a second session in the same image
+**Goal:** Ship the Hyprland + Quickshell desktop as a second login session next to GNOME in the one MiOS image (operator decision, not a separate image variant).
+**Where:** session `.desktop` files, `[packages]`, the keymap projection of T-1104
+**Done When:** the login manager offers both sessions on a booted image; both read the T-1104 keymap; every binding that collides with a GNOME default is listed with its resolution.
+**Status:** open | **Domain:** Desktop/Session | **Who:** agent
+
+## T-1106 -- ACTIONS-01: MiOS hosts every scheduled CI job
+**Goal:** MiOS is the one repository that schedules jobs (operator decision): fleet health, the live-harness run (manual dispatch only -- live runs are on demand), and the daily artifact-prompt regeneration check.
+**Where:** `.github/workflows/`
+**Done When:** each job runs its command locally with the same result; the live-harness job has no schedule, only a manual trigger; no secret value reaches a log.
+**Status:** open | **Domain:** CI/Schedules | **Who:** agent
+
+## T-1107 -- BRIDGE-02: A function-named Quadlet for the agent-harness translation bridge
+**Goal:** MiOS runs the agent-harness translation bridge (an MCP server built as a static binary and OCI image in the dev-loop repository) through a vendor-neutral, function-named Quadlet (Law 5).
+**Where:** `usr/share/containers/systemd/`, `[ports]`, `[quadlets.enable]`, `usr/lib/bootc/bound-images.d/`
+**Done When:** the unit renders from SSOT; the image is a bound image (Law 3); `User=`/`Group=`/`Delegate=yes` (Law 6); the harness credential directories are bind-mounted (read-only where the harness allows) and never baked into the image; it listens on the mesh VPN with MCP authorization; its port lives in `[ports]`.
+**Status:** open | **Domain:** AI/Bridge | **Who:** agent
+
+## T-1108 -- ARTIFACT-03: Daily out-of-loop artifact follow-ups
+**Goal:** Close what the ARTIFACT-PROMPT.md review left open.
+**Where:** `.agents/agents/artifact-publisher.md`, `.agents/subagents.json`, the ingest validator, `[artifacts.daily]`
+**Done When:** both sub-instruction sources use the OpenAI preference keys (`input`/`preferred_output`/`non_preferred_output`); the ingest validator that alone may issue ACCEPTED exists with controls both ways; the consumer and scheduler names in `[artifacts.daily]` are reviewed against Law 5.
+**Status:** open | **Domain:** AI/Artifacts | **Who:** agent
+
+## T-1109 -- SYNCGEN-02: main's projections drift from their generators
+**Goal:** `tools/sync-generated.sh` rewrites six Quadlets on a clean main -- their `Image=` tags (mios-ceph, mios-forge, mios-k3s, mios-llm-heavy, mios-radosgw, mios-webtools-crawl4ai: `:latest` -> `${MIOS_VERSION_*}`) -- so the CI sync-generated step is red.
+**Where:** the six Quadlets under `usr/share/containers/systemd/`
+**Done When:** `tools/sync-generated.sh` on a clean main leaves `git status --porcelain` empty.
+**Status:** open | **Domain:** Build/SSOT | **Who:** agent
+
+## T-1110 -- MANUAL-03: Chapter numbers collide in the manual
+**Goal:** Chapters ch15..ch32 added later reuse numbers that existing chapters already hold (two chapter 15s, two 16s, ...), so the ToC lists them out of numeric order.
+**Where:** `usr/share/doc/mios/manual/`, `usr/share/doc/mios/manual.md`
+**Done When:** every chapter number is unique, links and anchors still resolve, and `check_manual_links` stays clean.
+**Status:** open | **Domain:** Docs | **Who:** agent
+
+## T-1111 -- USBGUARD-02: The USBGuard rules differ between the two repos
+**Goal:** `etc/usbguard/rules.conf` has differed between mios.git and mios-bootstrap.git since the T-798 rewrite, so the Law 15 parity gate (`tools/sync-bootstrap.py --check`) is red.
+**Where:** `etc/usbguard/rules.conf` (both repos)
+**Done When:** one owner is decided, the other copy follows it, and `tools/sync-bootstrap.py --check` exits 0.
+**Status:** open | **Domain:** Security/USB | **Who:** architect

@@ -131,6 +131,11 @@ main() {
     step "4e/6 container signature policy (derived from [security.sigstore])"
     "$PY" tools/generate-cosign-policy.py >/dev/null
 
+    step "4f2/6 daily artifact prompt -- ARTIFACT-PROMPT.md (from [artifacts.daily])"
+    _ap=""; for _c in tools/native/target/release/xtask tools/native/target/debug/xtask; do [ -x "$_c" ] && { _ap="$_c"; break; }; done
+    if [ -n "$_ap" ]; then "$_ap" artifact-prompt --root "$ROOT" >/dev/null
+    else echo "[sync-generated]      xtask not built; ARTIFACT-PROMPT.md NOT regenerated (check_artifact_prompt fails there)." >&2; fi
+
     step "4g/6 rust toolchain pin (from [build.toolchain])"
     # Before the size ceiling, which must stay last: this writes a root file and
     # so changes what the index measures.

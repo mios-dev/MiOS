@@ -1,0 +1,227 @@
+<!-- AI-hint: GENERATED daily out-of-loop artifact prompt -- the task text an external agent is given once, and the contract it fetches fresh from this repo root on every run; projected from mios.toml [artifacts.daily] through usr/share/mios/templates/artifact-prompt. DO NOT EDIT: change the SSOT or the template and run `cargo run -q -p xtask -- artifact-prompt`. -->
+<!-- AI-related: usr/share/mios/mios.toml, usr/share/mios/templates/artifact-prompt, tools/native/xtask/src/main.rs, automation/98-drift-checks.sh, tools/sync-generated.sh -->
+
+# MiOS daily artifact prompt
+
+## Daily {{ap_scheduler_item}} -- paste into {{ap_scheduler}} (repeat: {{ap_cadence}})
+
+Create this task once. Title: **{{ap_task_title}}** (task id `{{ap_task_id}}`). Repeat: **{{ap_cadence}}**. Assign it to **{{ap_consumer}}**. Details: the block below, verbatim.
+The task text never changes when the contract does: every change lands in this file, which the task fetches fresh on every run.
+
+```text
+{{ap_task_title}} -- runs {{ap_cadence}}, out of the loop, with no checkout.
+1. Fetch {{ap_self_url}} fresh on this run. Never use memory, a cache, or an earlier run's copy.
+2. If it cannot be fetched, reply "{{ap_blocked}}: <reason>", end with the line "{{ap_verdict_prefix}} {{ap_blocked}}", and stop.
+3. Otherwise follow that file exactly. It is authoritative over this task text: where the two differ, the file wins.
+4. End every reply with the file's verdict line: {{ap_verdict_prefix}} <{{ap_verdict_words}}>
+```
+
+## Mandate
+
+- **Identity.** You are {{ap_consumer}}, an out-of-loop agent that runs this task {{ap_cadence}}. You have no checkout of any repository and no write access to one. You read public raw files over HTTPS, build candidate artifacts in your own workspace, and report. You never commit, push, open pull requests, or edit a repository.
+- **Fail closed.** A step you cannot complete, or cannot verify, ends the run: `{{ap_blocked}}` when a precondition failed, `{{ap_rejected}}` when a check failed. Never guess, substitute, or skip a rung and carry on. A partial artifact is never submitted.
+- **No secrets, no PII.** No artifact and no reply carries a credential, token, key, cookie, password hash, email address, account or device identifier, private individual's name, or chat/session metadata. Every file is scanned before submission; one hit is `{{ap_rejected}}`.
+- **No memory.** No network means `{{ap_blocked}}`. Never generate from memory: every fact an artifact carries is traced to a file fetched on this run, at a revision resolved on this run.
+- **Precedence.** This file, then the sub-instructions it names, then nothing else. Where a sub-instruction is looser than a format fixed below, the format below wins.
+
+### Verdicts
+
+Your verdict is exactly one of these words:
+
+{{ap_verdict_table}}
+
+`ACCEPTED` is the ingest validator's word alone. It is never yours to write -- not in the verdict line, not in the manifest, not anywhere in the reply. Submitting is not acceptance.
+
+## Step 1 -- resolve today's HEAD of every repository (always)
+
+Resolve the HEAD commit of each repository's default branch live, now, with either form below. Quote in your report the exact evidence line each returned: the `git ls-remote` output line, or the `sha` field of the API response.
+
+{{ap_head_table}}
+
+- Each HEAD is exactly 40 lowercase hexadecimal characters. A failed request, an empty answer, or a branch that does not resolve is `{{ap_blocked}}`.
+- This file carries no commit IDs, by design. The revisions you resolve here are the only ones you use for the rest of this run; below they are written {{ap_sha_tokens}}.
+
+## Step 2 -- No-op rule
+
+Compare the revisions from Step 1 with the `source_revisions` of the manifest in your most recent `{{ap_submitted}}` reply to this task.
+
+- **All equal:** nothing upstream moved. Emit a no-op report instead of a duplicate artifact: a run manifest with `"kind": "no-op"`, the revisions with their evidence lines, empty `sub_instructions`, `files` and `datasets`, and in rung 3's evidence the previous bundle name and the sha256 of its run manifest. Run rungs 1, 3, 10 and 11 of the ladder, attach only that manifest, and end with `{{ap_verdict_prefix}} {{ap_submitted}}`.
+- **Any differs, or the previous manifest cannot be read:** this is a full run. Never assume a no-op.
+
+## Step 3 -- Sub-instructions
+
+Fetch each file below at the revision you resolved for its repository, from exactly the URL shown with the revision placeholder replaced. Always the `raw.githubusercontent.com` form, never a `blob/` page, never a branch name such as `main`. A file that does not return HTTP 200 is `{{ap_blocked}}`. Record each file's sha256. These files are the detailed instructions: read every one, in order, and follow it for the purpose given.
+
+{{ap_sub_instructions}}
+
+## Step 4 -- Deliverables and their exact formats
+
+Build everything in your own workspace, never in a repository. Bundle name: `{{ap_bundle}}`. Submit by attaching the four files below, named exactly so, to your reply under that bundle name.
+
+{{ap_outputs_table}}
+
+Content rules for both datasets:
+
+- Every record is grounded in a sub-instruction fetched on this run, and the run manifest names the files each dataset drew from. The training targets, their base models and their minimum example counts are the ones the sub-instructions declare; a dataset below its target's minimum is `{{ap_rejected}}`.
+- Record content follows the MiOS contract it teaches: every model endpoint is `MIOS_AI_ENDPOINT`, never a vendor cloud URL; no vendor product name appears in a record.
+- UTF-8, one complete JSON object per line, no blank lines, no duplicate lines, no other top-level key.
+- Split: {{ap_split_rule}}. Train and validation are both non-empty and disjoint.
+
+### SFT -- `{{ap_file_sft}}` (OpenAI chat fine-tuning format)
+
+```json
+{"messages":[{"role":"system","content":"<MiOS identity from the system prompt sub-instruction>"},{"role":"user","content":"<question>"},{"role":"assistant","content":"<grounded answer>"}]}
+```
+
+- Exactly one top-level key, `messages`. Roles are `system` (optional, first), `user` and `assistant`; the last message is `assistant` with non-empty `content`.
+
+### DPO -- `{{ap_file_dpo}}` (OpenAI preference fine-tuning format)
+
+```json
+{"input":{"messages":[{"role":"system","content":"<MiOS identity>"},{"role":"user","content":"<question>"}]},"preferred_output":[{"role":"assistant","content":"<the answer the contract requires>"}],"non_preferred_output":[{"role":"assistant","content":"<a plausible answer that breaks the contract>"}]}
+```
+
+- Exactly three top-level keys: `input`, `preferred_output`, `non_preferred_output`. `input.messages` ends with a `user` turn. Each output array holds exactly one non-empty `assistant` message, and the two differ. Any other key set, including any other preference-data convention, is `{{ap_rejected}}`.
+
+### OCI image layout -- `{{ap_file_oci}}`
+
+- An **uncompressed** tar whose root is an OCI image layout: `oci-layout` is exactly `{"imageLayoutVersion":"{{ap_oci_layout_version}}"}`, and `index.json` has `"schemaVersion": 2`.
+- **Full descriptor closure: index -> manifest -> config + layers.** Every descriptor in `index.json` resolves to a blob at `blobs/sha256/<hex>` that is an image manifest (`application/vnd.oci.image.manifest.v1+json`); that manifest's `config` (`application/vnd.oci.image.config.v1+json`) and every entry of `layers` resolve to blobs present in the same tar.
+- For **every** descriptor: the blob exists, its byte count equals `size`, and its sha256 equals `digest`. Index-only, sparse, placeholder, or externally fulfilled layouts are `{{ap_rejected}}`.
+- Layers are uncompressed `application/vnd.oci.image.layer.v1.tar` holding `{{ap_file_sft}}` and `{{ap_file_dpo}}` under `{{ap_oci_layer_root}}`; the config's `rootfs.diff_ids` equal the layer digests. The index descriptor carries the annotation `org.opencontainers.image.ref.name` = the bundle name, and the image manifest carries `org.opencontainers.image.revision` = the MiOS revision from Step 1.
+
+### Run manifest -- `{{ap_file_manifest}}`
+
+JSON that validates against this OpenAI strict `json_schema` (the `response_format` shape). Validate it before you submit; every `bytes` and `sha256` is recomputed from the exact files you attach.
+
+```json
+{
+  "type": "json_schema",
+  "json_schema": {
+    "name": "{{ap_manifest_schema_name}}",
+    "strict": true,
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "bundle", "source_revisions", "sub_instructions", "files", "datasets", "checks", "verdict"],
+      "properties": {
+        "schema_version": {"type": "string", "enum": ["{{ap_manifest_schema_version}}"]},
+        "kind": {"type": "string", "enum": ["artifact", "no-op"]},
+        "bundle": {"type": "string"},
+        "source_revisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["repo", "sha", "evidence"],
+            "properties": {
+              "repo": {"type": "string", "enum": [{{ap_repo_enum}}]},
+              "sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+              "evidence": {"type": "string"}
+            }
+          }
+        },
+        "sub_instructions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["repo", "path", "url", "sha256"],
+            "properties": {
+              "repo": {"type": "string", "enum": [{{ap_repo_enum}}]},
+              "path": {"type": "string"},
+              "url": {"type": "string"},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "media_type", "bytes", "sha256"],
+            "properties": {
+              "name": {"type": "string"},
+              "media_type": {"type": "string"},
+              "bytes": {"type": "integer"},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        },
+        "datasets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "format", "schema_version", "target", "records", "train_records", "validation_records", "split_rule", "license", "provenance", "generation"],
+            "properties": {
+              "file": {"type": "string"},
+              "format": {"type": "string", "enum": [{{ap_dataset_format_enum}}]},
+              "schema_version": {"type": "string"},
+              "target": {"type": "string"},
+              "records": {"type": "integer"},
+              "train_records": {"type": "integer"},
+              "validation_records": {"type": "integer"},
+              "split_rule": {"type": "string"},
+              "license": {"type": "string"},
+              "provenance": {"type": "array", "items": {"type": "string"}},
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["method", "parameters"],
+                "properties": {
+                  "method": {"type": "string"},
+                  "parameters": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rung", "result", "evidence"],
+            "properties": {
+              "rung": {"type": "integer"},
+              "result": {"type": "string", "enum": ["pass", "fail"]},
+              "evidence": {"type": "string"}
+            }
+          }
+        },
+        "verdict": {"type": "string", "enum": [{{ap_verdict_enum}}]}
+      }
+    }
+  }
+}
+```
+
+## Step 5 -- Self-verification ladder
+
+Run every rung, in order, and record each in the manifest's `checks` with its evidence. The first failing rung decides the verdict: rungs 1-2 failing is `{{ap_blocked}}`; any later rung failing is `{{ap_rejected}}`. Only when every rung passes is the verdict `{{ap_submitted}}`.
+
+1. **Revisions.** Every repository's HEAD resolved live on this run; each evidence line quoted.
+2. **Sub-instructions.** Every file fetched at those revisions by its raw URL (HTTP 200); each sha256 recorded.
+3. **No-op decision.** The revisions compared with the previous submission's, or "first run" recorded.
+4. **SFT.** Every line parses; exactly the key `messages`; roles valid; last message a non-empty `assistant`.
+5. **DPO.** Every line parses; exactly `input`, `preferred_output`, `non_preferred_output`; preferred differs from non-preferred.
+6. **Grounding and dedup.** Every record traces to a fetched sub-instruction; no duplicate records within or across datasets; each target's minimum example count met.
+7. **Secrets and PII.** A scan of every file finds nothing.
+8. **Split.** Deterministic by the split rule; train and validation both non-empty and disjoint.
+9. **OCI closure.** `oci-layout` and `index.json` present; index -> manifest -> config + layers all resolve; every blob's size and sha256 match its descriptor; the tar is uncompressed.
+10. **Manifest.** Validates against the strict schema above; `bytes` and `sha256` recomputed for every attached file.
+11. **Verdict line.** The last line of the reply is exactly `{{ap_verdict_prefix}} <word>`, the word one of {{ap_verdict_words}}.
+
+## Report and verdict
+
+Report, in this order: the revisions with their evidence lines; the sub-instruction files with their sha256; the no-op decision; the bundle name with every file's bytes and sha256; each ladder rung with its result; for every failure, the exact remediation. The last line of the reply is the verdict line, and nothing follows it:
+
+```text
+{{ap_verdict_prefix}} <{{ap_verdict_words}}>
+```
+
+## Provenance of this file
+
+Generated from `usr/share/mios/mios.toml` `[artifacts.daily]` through `usr/share/mios/templates/artifact-prompt` by `cargo run -q -p xtask -- artifact-prompt` (`tools/native/xtask`). `check_artifact_prompt` in `automation/98-drift-checks.sh` fails on any hand edit or any SSOT change that was not regenerated.

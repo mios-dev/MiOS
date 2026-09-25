@@ -301,7 +301,9 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/ch14-agent-to-agent-delegation-protocols.md` | Chapter 14: Agent-to-Agent Delegation Protocols. Details the communications standard and payload schema for agent delegation. Explains how the coding subagent (MiOS-OpenCode) takes over code... |
 | `usr/share/doc/mios/manual/ch15-composefs-sealing.md` | Chapter 15: Composefs fs-verity Root Filesystem Sealing and Atomic Validation (T-527, AGY-2125). Details kernel-level fs-verity digest verification, prepare-root composefs mount execution, descriptor... |
 | `usr/share/doc/mios/manual/ch15-computer-use-and-desktop-control.md` | Chapter 15: Computer Use and Desktop Control. Details coordinate grounding on Wayland screens via vision models. Explains input emulation via the mios-pc-control command suite. Documents screen tree... |
+| `usr/share/doc/mios/manual/ch16-ide-custom-css.md` | Chapter 16: IDE Custom CSS and Edge-to-Edge Integrated Terminal. Covers provisioning the vscode-custom-css extension, the edge-to-edge terminal stylesheet, and the mios-vscode-custom-css orchestrator... |
 | `usr/share/doc/mios/manual/ch16-immutable-root-and-composefs-sealing.md` | Chapter 16: Immutable Root and Composefs Sealing. Explains composefs structures and /usr partition read-only mounts. Covers system file validation against trusted cryptographic hashes. Describes how... |
+| `usr/share/doc/mios/manual/ch17-cephfs-user-subvolumes.md` | Chapter 17: Global Per-User Encrypted CephFS Subvolumes. Covers the mios-user-cephfs subvolume manager that provisions isolated, fscrypt-encrypted CephFS subvolumes for each user across bare-metal... |
 | `usr/share/doc/mios/manual/ch17-defense-in-depth-hardening.md` | Chapter 17: Defense in Depth Hardening. Covers telemetry monitoring, IP bans, and custom local parsers. Details binary execution blocking on unauthorized directories. Explains protection policies... |
 | `usr/share/doc/mios/manual/ch18-blade-pre-enrollment.md` | Chapter 18: Declarative SSOT Blade Pre-Enrollment Registry and TPM EK Fingerprint Parser (T-529, AGY-2127). Details TPM 2.0 Endorsement Key validation, SSOT schema for [cluster.blades], zero-touch... |
 | `usr/share/doc/mios/manual/ch18-supply-chain-and-image-integrity.md` | Chapter 18: Supply Chain and Image Integrity. Defines policy-based verification of OCI signatures at pull time. Covers keyless image signing using OIDC identity providers. Explains the generation and... |
@@ -440,5 +442,5 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/workflows.md` | Manual pages distilled from the source comments of workflows, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/xdg-desktop-portal.md` | Manual pages distilled from the source comments of xdg-desktop-portal, sanitized, each passage anchored to the comment it came from. |
 
-<!-- derived from the AI-hint headers of 200 file(s) matching usr/share/doc/mios/manual/*.md -->
+<!-- derived from the AI-hint headers of 202 file(s) matching usr/share/doc/mios/manual/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->

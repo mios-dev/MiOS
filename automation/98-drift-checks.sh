@@ -1964,6 +1964,23 @@ check_toolchain_pin() {
     fi
 }
 
+# --- ARTIFACT-PROMPT.md equals its [artifacts.daily] projection (Law 8) ---
+check_artifact_prompt() {
+    # The out-of-loop daily task fetches this file from main on every run, so
+    # a hand edit or an unregenerated SSOT change reaches that agent directly.
+    # An unbuilt generator is cannot-run, which is a violation, never a skip.
+    local bin="" c
+    for c in "$ROOT/tools/native/target/release/xtask" "$ROOT/tools/native/target/debug/xtask"; do
+        [[ -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "xtask is not built, so check_artifact_prompt could not run -- build it: cd tools/native && cargo build -p xtask"
+        return
+    fi
+    "$bin" artifact-prompt --root "$ROOT" --check && return 0
+    _violation "ARTIFACT-PROMPT.md differs from [artifacts.daily] + usr/share/mios/templates/artifact-prompt, or could not be generated -- regenerate: cd tools/native && cargo run -q -p xtask -- artifact-prompt"
+}
+
 check_ratchet_direction() {
     # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
     # commit, with both paths proved equal first: 78 ceilings on each side, and
@@ -3740,6 +3757,7 @@ main() {
     check_ratchet_direction
     check_size_ceiling
     check_toolchain_pin
+    check_artifact_prompt
     check_render_quadlets
     check_render_extension_coverage
     check_bake_plan

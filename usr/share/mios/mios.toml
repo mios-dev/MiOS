@@ -2276,6 +2276,7 @@ surfaces = [
   { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
   { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
+  { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
   { generator = "tools/render-ports.py", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
 ]
 
@@ -8203,6 +8204,139 @@ gguf_convert     = true
 gguf_quant       = "q8_0"
 work_dir         = "/var/lib/mios/finetune/micro"
 
+# [artifacts.daily] -- the out-of-loop daily artifact task. SSOT for the
+# GENERATED repo-root ARTIFACT-PROMPT.md: xtask artifact-prompt renders it via
+# usr/share/mios/templates/artifact-prompt and check_artifact_prompt diffs it.
+# Every repo, path, verdict word and format the file names comes from here.
+[artifacts.daily]
+template            = "artifact-prompt"  # [templates.<this>] is the template; its fixed_name is the output
+# Tracked-file cost, net +1: this projection owns 2 tracked files, its output
+# (the daily task fetches it from main) and its template, and retired the one
+# root pointer file it supersedes. mios-bootstrap retired its copy too: net 0.
+task_consumer       = "Gemini Spark"     # operator-named out-of-loop agent the task is assigned to
+task_scheduler      = "Google Tasks"     # operator-named place the task text is pasted
+task_scheduler_item = "Google Task"      # one entry there, for the paste heading
+verdict_prefix      = "VERDICT:"         # the reply's last line is "<prefix> <word>"
+# Format strings the generator fills per repo. {sha} renders as a per-repo
+# placeholder that the agent replaces with the HEAD it resolved on that run.
+head_ls_remote = "git ls-remote {git_url} refs/heads/{branch}"
+head_api       = "{api_base}/commits/{branch}"
+raw_file       = "{raw_base}/{sha}/{path}"
+self_url       = "{raw_base}/{branch}/{root_file}"
+# The agent fills these two fields; the generator never does (no dates, no SHAs).
+bundle         = "mios-daily-artifact-{utc_yyyymmdd}-{mios_sha12}"
+split_rule     = "a record is validation when the sha256 of its exact line starts with 0 or 1, otherwise train"
+oci_layer_root = "usr/share/mios/training/<bundle>/"
+# The only words an agent may end on, by role. ACCEPTED is reserved for the
+# ingest validator: the generator refuses any SSOT that offers it.
+verdicts = [
+  { role = "submitted", word = "SUBMITTED", meaning = "every ladder rung passed and the bundle, or a no-op report, is attached" },
+  { role = "rejected",  word = "REJECTED",  meaning = "a check failed; nothing is attached, and every failure names its remediation" },
+  { role = "blocked",   word = "BLOCKED",   meaning = "a precondition failed: no network, a fetch that did not return 200, or a HEAD that did not resolve" },
+]
+
+[[artifacts.daily.tasks]]
+id        = "mios-daily-artifact"
+title     = "MiOS daily artifact (out-of-loop)"
+root_file = "ARTIFACT-PROMPT.md"  # must equal [templates.artifact-prompt].fixed_name
+cadence   = "daily"
+
+[[artifacts.daily.repos]]
+name           = "MiOS"
+canonical      = true   # carries the root file; sub-instructions are verified against its tree
+git_url        = "https://github.com/mios-dev/MiOS.git"
+raw_base       = "https://raw.githubusercontent.com/mios-dev/MiOS"
+api_base       = "https://api.github.com/repos/mios-dev/MiOS"
+default_branch = "main"
+
+[[artifacts.daily.repos]]
+name           = "mios-bootstrap"
+git_url        = "https://github.com/mios-dev/mios-bootstrap.git"
+raw_base       = "https://raw.githubusercontent.com/mios-dev/mios-bootstrap"
+api_base       = "https://api.github.com/repos/mios-dev/mios-bootstrap"
+default_branch = "main"
+
+[[artifacts.daily.repos]]
+name           = "-dev-loop"
+git_url        = "https://github.com/mios-dev/-dev-loop.git"
+raw_base       = "https://raw.githubusercontent.com/mios-dev/-dev-loop"
+api_base       = "https://api.github.com/repos/mios-dev/-dev-loop"
+default_branch = "main"
+
+# Sub-instructions: the detailed instructions, fetched at the resolved HEAD.
+# Every path must be tracked in the canonical tree (xtask verifies with git
+# ls-files; check_artifact_prompt fails otherwise). Order is reading order.
+[[artifacts.daily.sub_instructions]]
+repo    = "MiOS"
+path    = ".agents/agents/artifact-publisher.md"
+purpose = "The publication contract. Follow its Artifact Publication Contract (OCI Images, AI Training Data); its Responsibilities list is for in-repo agents and does not apply to you. Where it describes preference records in general terms, the DPO format fixed below decides the keys."
+
+[[artifacts.daily.sub_instructions]]
+repo    = "MiOS"
+path    = "docs/research/spike-artifact-publisher-oci-and-training-data.md"
+purpose = "Why those gates exist: an index-only OCI archive shipped with no blobs. Read the upstream OCI and fine-tuning sources it cites, and never repeat that failure."
+
+[[artifacts.daily.sub_instructions]]
+repo    = "MiOS"
+path    = "usr/share/mios/ai/system.md"
+purpose = "The MiOS agent identity and laws. Dataset system messages and every preferred answer follow it; every non-preferred answer breaks exactly one of its rules."
+
+[[artifacts.daily.sub_instructions]]
+repo    = "MiOS"
+path    = "usr/share/mios/mios.toml"
+purpose = "Read only [finetune] and [finetune.micro]: the training targets (target_role, base_model, hf_base, output_tag, max_seq_len, min_examples) the datasets are built for."
+
+[[artifacts.daily.sub_instructions]]
+repo    = "MiOS"
+path    = "usr/share/doc/mios/finetune.md"
+purpose = "How the fine-tune subsystem consumes a corpus: grounded in the live capability surface, no hardcoded English, the refiner and mios-micro targets."
+
+[[artifacts.daily.sub_instructions]]
+repo    = "MiOS"
+path    = "usr/share/mios/cookbooks/finetune-flow.md"
+purpose = "The SFT-then-DPO flow the datasets feed, and the validation a trained model must pass."
+
+[[artifacts.daily.sub_instructions]]
+repo    = "MiOS"
+path    = "var/lib/mios/training/sft.jsonl"
+purpose = "Exemplar SFT records, already in the OpenAI chat format: match their shape and grounding; never copy one verbatim."
+
+[[artifacts.daily.sub_instructions]]
+repo    = "MiOS"
+path    = "var/lib/mios/training/dpo.jsonl"
+purpose = "Exemplar DPO records, already in the OpenAI preference format: match their shape; never copy one verbatim."
+
+# Deliverables: file names, formats and schema versions. `oci` version is the
+# OCI imageLayoutVersion; `manifest` names the OpenAI strict json_schema.
+[[artifacts.daily.outputs]]
+id       = "sft"
+file     = "sft.jsonl"
+format   = "openai-chat-sft-jsonl"
+version  = "1"
+describe = "OpenAI chat fine-tuning (SFT), UTF-8 JSONL"
+
+[[artifacts.daily.outputs]]
+id       = "dpo"
+file     = "dpo.jsonl"
+format   = "openai-preference-dpo-jsonl"
+version  = "1"
+describe = "OpenAI preference fine-tuning (DPO), UTF-8 JSONL"
+
+[[artifacts.daily.outputs]]
+id       = "oci"
+file     = "oci-image-layout.tar"
+format   = "oci-image-layout-tar"
+version  = "1.0.0"
+describe = "OCI image layout, uncompressed tar, full descriptor closure"
+
+[[artifacts.daily.outputs]]
+id          = "manifest"
+file        = "manifest.json"
+format      = "openai-strict-json-schema"
+version     = "1"
+schema_name = "mios_daily_artifact_manifest"
+describe    = "Run manifest, JSON valid against the OpenAI strict json_schema below"
+
 
 
 [verbs.find_file]
@@ -10519,6 +10653,20 @@ name_prefix = "mios-"
 name_suffix = ".timer"
 emit = "file"
 
+# The daily out-of-loop artifact prompt at the repo root. GENERATED from
+# [artifacts.daily] by `cargo run -q -p xtask -- artifact-prompt`; gated by
+# check_artifact_prompt. comment/emit/dest_dir are omitted on purpose: the
+# output name is fixed_name, and each would only repeat a value another
+# template already carries (check_no_duplicate_value_key).
+[templates.artifact-prompt]
+match = "^ARTIFACT-PROMPT\\.md$"
+required_header = true
+required_markers = ["-- paste into", "## Mandate", "Sub-instructions", "Deliverables", "Self-verification ladder"]
+required_ordered = ["-- paste into", "## Mandate", "## Step 1", "No-op rule", "Sub-instructions", "Deliverables", "Self-verification ladder", "## Report and verdict"]
+generated = true
+scaffold = true
+fixed_name = "ARTIFACT-PROMPT.md"
+
 [kargs]
 iommu          = "on"                      # Enable IOMMU: "on", "amd", "intel"
 vfio_ids       = ""                        # PCI IDs to bind to vfio-pci (comma-separated, e.g. "10de:1db6")
@@ -11431,7 +11579,6 @@ mirror_toml_tables = ["ports"]
 
 # Deliberately NOT mirrored; reasons in installation/UNIFY.md.
 not_mirrored = [
-  "AGENT-ARTIFACT-SYSTEM-PROMPT.md",
   "install.sh", "install.ps1", "bootstrap.sh", "bootstrap.ps1",
   "README.md", "CLAUDE.md", "AGENTS.md",
   "GEMINI.md", ".gitignore", "VERSION",
