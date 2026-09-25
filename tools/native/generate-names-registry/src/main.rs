@@ -27,6 +27,7 @@ const TARGET_SECTIONS: &[&str] = &[
     "a2a",
     "power",
     "metal",
+    "versions",
 ];
 
 fn alias_for(path: &str) -> Option<String> {
@@ -40,10 +41,15 @@ fn alias_for(path: &str) -> Option<String> {
                     "MIOS_VLLM_{}",
                     rest.to_uppercase().replace(['.', '-', '/'], "_")
                 ))
+            } else if let Some(rest) = path.strip_prefix("ai.sglang.") {
+                Some(format!(
+                    "MIOS_SGLANG_{}",
+                    rest.to_uppercase().replace(['.', '-', '/'], "_")
+                ))
             } else {
-                path.strip_prefix("ai.sglang.").map(|rest| {
+                path.strip_prefix("versions.").map(|rest| {
                     format!(
-                        "MIOS_SGLANG_{}",
+                        "MIOS_VERSION_{}",
                         rest.to_uppercase().replace(['.', '-', '/'], "_")
                     )
                 })
@@ -435,6 +441,22 @@ mod tests {
         assert_eq!(
             alias_for("ai.sglang.hierarchical_cache"),
             Some("MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE".to_string())
+        );
+        assert_eq!(
+            alias_for("versions.ceph"),
+            Some("MIOS_VERSION_CEPH".to_string())
+        );
+        assert_eq!(
+            alias_for("versions.k3s"),
+            Some("MIOS_VERSION_K3S".to_string())
+        );
+        assert_eq!(
+            alias_for("versions.forgejo"),
+            Some("MIOS_VERSION_FORGEJO".to_string())
+        );
+        assert_eq!(
+            alias_for("versions.fedora"),
+            Some("MIOS_VERSION_FEDORA".to_string())
         );
         assert_eq!(alias_for("ports.http"), None);
     }

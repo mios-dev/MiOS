@@ -23,12 +23,13 @@ TARGET_SECTIONS = [
     "ports", "ai", "identity", "locale", "auth", "network", "desktop",
     "branding", "image", "bootstrap", "profile", "colors", "observability",
     "sandbox", "security", "code_mode", "hermes", "routing", "agents", "a2a",
-    "power", "metal"
+    "power", "metal", "versions"
 ]
 
 SHORT_ALIAS_PREFIX = {
     "ai.vllm":   "MIOS_VLLM",
     "ai.sglang": "MIOS_SGLANG",
+    "versions":  "MIOS_VERSION",
 }
 SHORT_ALIAS_IRREGULAR = {
     "ai.vllm.v1_engine":            "MIOS_VLLM_USE_V1",

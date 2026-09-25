@@ -689,3 +689,7 @@ metal.mesh.enabled  MIOS_METAL_MESH_ENABLED
 metal.mesh.headscale_domain  MIOS_METAL_MESH_HEADSCALE_DOMAIN
 metal.mesh.vnet_cidr  MIOS_METAL_MESH_VNET_CIDR
 metal.mesh.swtpm_vtpm  MIOS_METAL_MESH_SWTPM_VTPM
+versions.fedora  MIOS_VERSION_FEDORA
+versions.k3s  MIOS_VERSION_K3S
+versions.forgejo  MIOS_VERSION_FORGEJO
+versions.ceph  MIOS_VERSION_CEPH
