@@ -55,16 +55,24 @@ elif [ -x "/usr/local/bin/mios-root-overlay" ]; then
 fi
 
 echo "=== [3/5] Configuring Antigravity Keyring & Shims ==="
+# The image bakes agy, so this must NOT be gated on agy being absent: the
+# keyring, headless grants and dev-loop skill install are setup-antigravity's
+# job too, and that gate skipped all of them on every baked image. Idempotent.
+DEVLOOP_ENV="${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/env"
+if [ -r "${DEVLOOP_ENV}/setup-antigravity.sh" ]; then
+    bash "${DEVLOOP_ENV}/setup-antigravity.sh" --quiet || echo "  [WARN] Dev-loop setup-antigravity encountered warnings"
+fi
 if ! command -v agy >/dev/null 2>&1; then
-    DEVLOOP_ENV="${WORKSPACE_DIR}/-dev-loop/skills/dev-loop/scripts/env"
-    if [ -r "${DEVLOOP_ENV}/setup-antigravity.sh" ]; then
-        bash "${DEVLOOP_ENV}/setup-antigravity.sh" --quiet || echo "  [WARN] Dev-loop setup-antigravity encountered warnings"
+    echo "  [INSTALL] AGY CLI"
+    agy_tmp="$(mktemp -d)"
+    if bash "${WORKSPACE_DIR}/MiOS/.devcontainer/fetch-installer.sh" \
+         https://antigravity.google/cli/install.sh "${agy_tmp}/install.sh" \
+       && bash "${agy_tmp}/install.sh"; then
+        :
+    else
+        echo "  [WARN] AGY install failed; install manually when network is available"
     fi
-
-    if ! command -v agy >/dev/null 2>&1; then
-        echo "  [INSTALL] AGY CLI"
-        curl -fsSL --retry 4 --retry-delay 2 https://antigravity.google/cli/install.sh | bash || echo "  [WARN] AGY install failed; install manually when network is available"
-    fi
+    rm -rf "${agy_tmp}"
 fi
 
 echo "=== [4/5] Installing Multi-Harness Shims & Skills ==="

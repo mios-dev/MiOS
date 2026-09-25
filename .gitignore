@@ -43,6 +43,7 @@
 !/.devcontainer/devcontainer.json
 !/.devcontainer/Dockerfile
 !/.devcontainer/Containerfile
+!/.devcontainer/fetch-installer.sh
 !/.devcontainer/README.md
 !/.devcontainer/mios-ecosystem.code-workspace
 !/.devcontainer/setup-core-components.sh
