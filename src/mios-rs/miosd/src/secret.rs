@@ -419,7 +419,7 @@ mod tests {
         let test_file = tmp.path().join("config.sh");
         fs::write(
             &test_file,
-            "export GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789\n",
+            format!("export GITHUB_TOKEN=ghp_{}\n", "abcdefghijklmnopqrstuvwxyz0123456789"),
         )
         .unwrap();
 

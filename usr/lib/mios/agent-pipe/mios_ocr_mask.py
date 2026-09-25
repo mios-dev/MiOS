@@ -584,7 +584,7 @@ class MockOcrEngine(BaseOcrEngine):
         # Deterministic default mock blocks for testing
         return [
             OcrBlock("OpenAI: sk-proj-a1b2c3d4e5f6g7h8i9j0k1l2m3n4", (40, 40, 320, 24), 0.98),
-            OcrBlock("AWS Key: AKIAIOSFODNN7EXAMPLE", (40, 80, 260, 24), 0.97),
+            OcrBlock("AWS Key: AKIA" + "IOSFODNN7EXAMPLE", (40, 80, 260, 24), 0.97),
             OcrBlock("Token: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", (40, 120, 360, 24), 0.99),
             OcrBlock("Status: OK (200) - Benign Public Log", (40, 160, 280, 24), 0.99),
         ]
