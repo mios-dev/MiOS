@@ -483,6 +483,21 @@ test_toolchain_pin() {
     log "check_toolchain_pin negative test passed"
 }
 
+test_artifact_prompt() {
+    log "Testing check_artifact_prompt"
+    local out="${ROOT}/ARTIFACT-PROMPT.md" bak; bak="$(mktemp)"; cp "$out" "$bak"
+    _ap_fail() { cp "$bak" "$out"; rm -f "$bak"; unset -f _ap_fail; die "$1"; }
+    # A hand edit: the daily agent would follow text the SSOT never said.
+    printf '\nhand edit\n' >> "$out"
+    _neg_gate check_artifact_prompt && _ap_fail "check_artifact_prompt passed with a hand-edited ARTIFACT-PROMPT.md"
+    # Absent is never clean: the daily task would fetch a 404.
+    rm -f "$out"
+    _neg_gate check_artifact_prompt && _ap_fail "check_artifact_prompt passed with ARTIFACT-PROMPT.md absent"
+    cp "$bak" "$out"; rm -f "$bak"; unset -f _ap_fail
+    _neg_gate check_artifact_prompt || die "check_artifact_prompt failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_artifact_prompt negative test passed"
+}
+
 test_size_ceiling() {
     log "Testing check_size_ceiling"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -5134,6 +5149,7 @@ _run_test test_leaked_fixtures
     _run_test test_gate_index
     _run_test test_pod_quadlets
     _run_test test_egress_firewall
+    _run_test test_artifact_prompt
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s

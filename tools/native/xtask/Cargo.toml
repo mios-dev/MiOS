@@ -1,8 +1,10 @@
-# AI-hint: Cargo xtask crate for cross-platform build, install, and artifact regeneration tasks.
-# AI-related: tools/native/Cargo.toml, automation/98-drift-checks.sh
+# AI-hint: Cargo xtask crate for cross-platform build, install, and artifact regeneration tasks, including the artifact-prompt generator for the repo-root ARTIFACT-PROMPT.md.
+# AI-related: tools/native/Cargo.toml, automation/98-drift-checks.sh, usr/share/mios/mios.toml, usr/share/mios/templates/artifact-prompt
 [package]
 name = "xtask"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+serde_json = "1.0"
+toml = "0.8"

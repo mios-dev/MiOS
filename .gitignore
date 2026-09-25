@@ -4,7 +4,7 @@
 /*
 .*
 !.prompt.MD
-!AGENT-ARTIFACT-SYSTEM-PROMPT.md
+!/ARTIFACT-PROMPT.md
 
 /etc/**
 /usr/**
