@@ -20,7 +20,7 @@ mios() {
             shift; _mios_dashboard mini --mini "$@"
             ;;
         dash|dashboard)
-            shift; ( export MIOS_DASH_SERVICES=1 MIOS_COMPACT=0; _mios_dashboard dash "$@" )
+            shift; ( export MIOS_DASH_SERVICES=1 MIOS_COMPACT=0; _mios_dashboard dash --dash "$@" )
             ;;
         mon|monitor)
             shift; _mios_dashboard monitor --monitor "$@"

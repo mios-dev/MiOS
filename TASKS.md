@@ -691,8 +691,8 @@
 | T-777 | P1 | done | Desktop/HyprlandQuickshell | Hyprland + Quickshell native desktop environment and direct DRM scanout manager |
 | T-778 | P1 | done | Desktop/LivingWallpaper | Cross-platform MiOS Living Wallpaper engine and reactive state shader daemon |
 | T-779 | P2 | done | Desktop/HyprlandTest | Automated Hyprland direct scanout (<1ms latency) and Living Wallpaper render test suite |
-| T-780 | P1 | open | AI/ASTDiff | Tree-Sitter AST structural diff engine and 2-peer review gate in agent-pipe |
-| T-781 | P2 | open | AI/ASTDiffTest | Automated AST structural diff calculation and 2-peer review merge gating test suite |
+| T-780 | P1 | done | AI/ASTDiff | Tree-Sitter AST structural diff engine and 2-peer review gate in agent-pipe |
+| T-781 | P2 | done | AI/ASTDiffTest | Automated AST structural diff calculation and 2-peer review merge gating test suite |
 | T-782 | P1 | done | Security/LivepatchMOK | Cryptographic MOK livepatch signature gate and IMA measurement logger in mios-livepatch |
 | T-783 | P2 | open | Security/LivepatchTest | Automated livepatch signature verification, unsigned module rejection, and IMA test suite |
 | T-784 | P1 | done | AI/CPUGEMM | Hardware-calibrated CPU vectorized GEMM auto-tuner in mios-cpu-gemm |
@@ -936,10 +936,10 @@
 | T-517 | P1 | done | AI/Webhooks | HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue in agent-pipe |
 | T-518 | P1 | done | AI/WebSocket | Authenticated WebSocket real-time agent execution token stream (/v1/events/ws) |
 | T-519 | P1 | done | Hardware/NUMA | Multi-GPU PCIe/NVLink topology discovery and NUMA node affinity generator |
-| T-520 | P2 | open | Hardware/P2PTest | Automated inter-GPU P2P bandwidth and memory latency validation benchmark |
-| T-521 | P1 | open | Storage/Encryption | Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool |
-| T-522 | P1 | open | Storage/ZeroKnowledge | Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator |
-| T-523 | P1 | open | Network/WoL | Signed Proxy WoL with SecureON payload and peer wake daemon |
+| T-520 | P2 | done | Hardware/P2PTest | Automated inter-GPU P2P bandwidth and memory latency validation benchmark |
+| T-521 | P1 | done | Storage/Encryption | Multi-domain independent LUKS2/fscrypt partition segregater and inert snapshot export tool |
+| T-522 | P1 | done | Storage/ZeroKnowledge | Zero-Knowledge untrusted remote snapshot transport protocol and recovery validator |
+| T-523 | P1 | done | Network/WoL | Signed Proxy WoL with SecureON payload and peer wake daemon |
 | T-524 | P1 | done | Hardware/IPKVM | Dedicated Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner |
 | T-525 | P1 | done | Hardware/CDI | Scoped CDI specification generator for NVIDIA/AMD/Intel rootless Podman containers |
 | T-526 | P2 | done | Hardware/CDITest | Rootless container GPU device isolation and cgroup v2 eBPF device filter test suite |

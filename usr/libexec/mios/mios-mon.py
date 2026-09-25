@@ -195,94 +195,136 @@ def _bg_update_usb():
             _USB_INFO_CACHE = "No USB Drive Detected"
         time.sleep(10)
 
-def _bg_update_git():
+def _resolve_git_dir():
+    for c in [os.environ.get("MIOS_ROOT"), os.getcwd(), "/workspaces/MiOS", "/", "/mnt/m", "C:\\MiOS", "C:\\mios-bootstrap"]:
+        if c and os.path.isdir(os.path.join(c, ".git")): return c
+    return None
+
+def _resolve_git_status():
     global _GIT_STATUS_CACHE
+    d = _resolve_git_dir()
+    if not d:
+        _GIT_STATUS_CACHE = "[dim]Git repo not found[/]"
+        return _GIT_STATUS_CACHE
+    try:
+        out = subprocess.check_output(["git", "status", "--porcelain", "-b"], cwd=d, text=True, timeout=2.0)
+        lines = out.splitlines()
+        branch = lines[0].replace("##", "").strip() if lines and "##" in lines[0] else (lines[0].strip() if lines else "unknown")
+        staged = sum(1 for l in lines[1:] if l and l[0] not in (" ", "?"))
+        mod = sum(1 for l in lines[1:] if l and l[:2] != "??" and l[1] != " ")
+        untr = sum(1 for l in lines[1:] if l and l[:2] == "??")
+        _GIT_STATUS_CACHE = f"[cyan]{branch}[/] | [green]{staged} staged[/] | [yellow]{mod} mod[/] | [dim]{untr} untracked[/]"
+    except Exception:
+        _GIT_STATUS_CACHE = "[dim]Git state unavailable[/]"
+    return _GIT_STATUS_CACHE
+
+def _bg_update_git():
     while True:
-        target_dir = "C:\\MiOS" if IS_WINDOWS else "/mnt/m"
-        if not os.path.isdir(target_dir):
-            target_dir = "C:\\mios-bootstrap"
-        if os.path.isdir(os.path.join(target_dir, ".git")):
-            try:
-                out = subprocess.check_output(["git", "status", "--porcelain", "-b"], cwd=target_dir, text=True, timeout=2.0)
-                lines = out.splitlines()
-                branch = lines[0].replace("##", "").strip() if "##" in lines[0] else lines[0].strip()
-                staged = sum(1 for l in lines[1:] if l[0] not in (" ", "?"))
-                modified = sum(1 for l in lines[1:] if l[:2] != "??" and l[1] != " ")
-                untracked = sum(1 for l in lines[1:] if l[:2] == "?")
-                _GIT_STATUS_CACHE = f"Branch: {branch} | [green]{staged} staged[/] | [yellow]{modified} mod[/] | [dim]{untracked} untracked[/]"
-            except Exception:
-                _GIT_STATUS_CACHE = "[dim]Git state unavailable[/]"
-        else:
-            _GIT_STATUS_CACHE = "[dim]Git repo not found[/]"
+        _resolve_git_status()
         time.sleep(5)
 
 threading.Thread(target=_bg_update_usb, daemon=True).start()
 threading.Thread(target=_bg_update_git, daemon=True).start()
 
-def get_usb_drive_info():
-    return _USB_INFO_CACHE
+def get_usb_drive_info(): return _USB_INFO_CACHE
 
 def get_git_tree_status():
-    return _GIT_STATUS_CACHE
+    global _GIT_STATUS_CACHE
+    return _resolve_git_status() if _GIT_STATUS_CACHE in ("[dim]Git state loading...[/]", "[dim]Git repo not found[/]") else _GIT_STATUS_CACHE
+
+def get_credentials_text():
+    u = os.environ.get("MIOS_LINUX_USER") or os.environ.get("USER") or "mios"
+    lp = os.environ.get("MIOS_LOGIN_PASSWORD") or os.environ.get("MIOS_DEFAULT_PASSWORD") or "mios"
+    fp = lp
+    fp_file = "C:\\MiOS\\etc\\mios\\forge\\admin-password" if IS_WINDOWS else "/etc/mios/forge/admin-password"
+    if os.path.isfile(fp_file):
+        try:
+            with open(fp_file, "r") as f: fp = f.read().strip() or lp
+        except Exception: pass
+    return f"[dim]login[/] [cyan]{u}[/]/[yellow]{lp}[/]    [dim]forge[/] [cyan]{u}[/]/[yellow]{fp}[/]"
 
 def get_ascii_logo():
-    logo_path = "C:\\MiOS\\usr\\share\\mios\\branding\\mios.txt" if IS_WINDOWS else "/usr/share/mios/branding/mios.txt"
-    if os.path.exists(logo_path):
-        with open(logo_path, 'r', encoding='utf-8') as f:
-            return "\n".join([l for l in f.read().splitlines() if not l.startswith('#')])
+    p = "C:\\MiOS\\usr\\share\\mios\\branding\\mios.txt" if IS_WINDOWS else "/usr/share/mios/branding/mios.txt"
+    if os.path.exists(p):
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                lines = [l for l in f.read().splitlines() if not l.strip().startswith("#")]
+                while lines and not lines[0].strip(): lines.pop(0)
+                while lines and not lines[-1].strip(): lines.pop()
+                return "\n".join(lines)
+        except Exception: pass
     return "MiOS"
 
 def run_fastfetch():
     try:
-        out = subprocess.check_output(["fastfetch", "--logo", "none"], text=True, stderr=subprocess.DEVNULL, timeout=2.0)
-        return Text.from_ansi(out)
-    except Exception:
-        return Text("[dim]fastfetch unavailable[/]")
+        cfg = "C:\\MiOS\\usr\\share\\mios\\fastfetch\\config.jsonc" if IS_WINDOWS else "/usr/share/mios/fastfetch/config.jsonc"
+        cmd = ["fastfetch", "-c", cfg, "--logo", "none"] if os.path.exists(cfg) else ["fastfetch", "--logo", "none"]
+        out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL, timeout=2.0)
+        sh = os.path.basename(os.environ.get("SHELL", "bash"))
+        clean, skip = [], False
+        for line in out.splitlines():
+            if skip:
+                if any(line.strip().startswith(p) for p in ("CPU", "GPU", "Memory", "Swap", "Disk", "Local IP", "Locale", "Battery", "Power")):
+                    skip = False; clean.append(line)
+                continue
+            if "Shell" in line and not any(line.strip().startswith(p) for p in ("CPU", "GPU", "OS", "Kernel", "Memory")):
+                clean.append(f"\033[33mShell\033[0m  \033[36m{sh}\033[0m")
+                skip = True; continue
+            clean.append(line)
+        return Text.from_ansi("\n".join(clean))
+    except Exception: return None
+
+def get_sys_info_table():
+    sys_info, telem = get_sys_info(), get_telemetry()
+    t = Table(box=box.ROUNDED, border_style="dim cyan", show_header=False, expand=True, padding=(0, 1))
+    for col, rat in [("yellow bold", 1), ("white", 3), ("yellow bold", 1), ("white", 3)]:
+        t.add_column(style=col, ratio=rat)
+    sh = os.path.basename(os.environ.get("SHELL", "bash"))
+    ip = "127.0.0.1"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(("8.8.8.8", 80)); ip = s.getsockname()[0]; s.close()
+    except Exception: pass
+    t.add_row("OS", sys_info.get("os", "Linux"), "CPU", f"{sys_info.get('cpu_model', 'CPU')}")
+    t.add_row("Kernel", sys_info.get("kernel", "Linux"), "Memory", f"{telem.get('ram', 0)} GiB ({telem.get('m_pct', 0)}%)")
+    t.add_row("Uptime", sys_info.get("uptime", "0m"), "Load", str(telem.get("load_avg", "-")))
+    t.add_row("Shell", sh, "Host", f"{sys_info.get('host', 'localhost')} ({ip})")
+    return t
 
 def create_metal_layout():
     sys_info = get_sys_info()
     services = get_services()
-    up = sum(1 for s in services if s[2])
-    down = len(services) - up
-
     t = Table(show_header=False, box=box.SIMPLE, expand=True)
     for i in range(0, len(services), 2):
         s1 = services[i]
-        st1 = "*" if s1[2] else "x"
         c1 = "green" if s1[2] else "red"
-        m1 = f"[{c1}]{st1}[/] {s1[0]}"
+        m1 = f"[{c1}]{'*' if s1[2] else 'x'}[/] {s1[0]}"
         m2 = ""
         if i + 1 < len(services):
             s2 = services[i+1]
-            st2 = "*" if s2[2] else "x"
             c2 = "green" if s2[2] else "red"
-            m2 = f"[{c2}]{st2}[/] {s2[0]}"
+            m2 = f"[{c2}]{'*' if s2[2] else 'x'}[/] {s2[0]}"
         t.add_row(m1, m2)
-
-    return Align.center(Panel(t, title=f"[cyan bold]MiOS Mini[/] - [dim]{sys_info['host']} ({sys_info['os']})[/]", subtitle=f"[green]{up} UP[/] | [red]{down} DOWN[/]", border_style="cyan"))
+    up = sum(1 for s in services if s[2])
+    return Align.center(Panel(t, title=f"[cyan bold]MiOS Mini[/] - [dim]{sys_info['host']} ({sys_info['os']})[/]", subtitle=f"[green]{up} UP[/] | [red]{len(services) - up} DOWN[/]", border_style="cyan"))
 
 def create_dash_layout():
     services = get_services()
-    header = Columns([Align.right(Text(get_ascii_logo(), style="cyan bold")), Align.left(run_fastfetch())], expand=True)
-
+    logo = Align.center(Text(get_ascii_logo(), style="cyan bold", no_wrap=True))
+    fetch = run_fastfetch()
     svcs = Table(box=box.SIMPLE, expand=True)
     for _ in range(2):
-        svcs.add_column("Service", style="cyan")
-        svcs.add_column("Port", style="dim")
-        svcs.add_column("Status")
-
+        svcs.add_column("Service", style="cyan"); svcs.add_column("Port", style="dim", justify="right"); svcs.add_column("Status", justify="center")
     for i in range(0, len(services), 2):
         s1 = services[i]
         st1 = "[green bold]*[/]" if s1[2] else "[red bold]x[/]"
         s2_row = ["", "", ""]
         if i + 1 < len(services):
             s2 = services[i+1]
-            st2 = "[green bold]*[/]" if s2[2] else "[red bold]x[/]"
-            s2_row = [s2[0], str(s2[1]) if s2[1] else "-", st2]
+            s2_row = [s2[0], str(s2[1]) if s2[1] else "-", "[green bold]*[/]" if s2[2] else "[red bold]x[/]"]
         svcs.add_row(s1[0], str(s1[1]) if s1[1] else "-", st1, *s2_row)
-
-    footer_text = f"User: login mios/mios   Host: forge mios/\n\nTree\n{get_git_tree_status()}"
-    return Panel(Group(Panel(header, box=box.SIMPLE, border_style="cyan"), Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan"), Panel(Align.center(footer_text), box=box.SIMPLE, border_style="cyan")), border_style="blue", padding=1)
+    footer = Align.center(f"{get_credentials_text()}\n\n[bold]Tree:[/] {get_git_tree_status()}")
+    header_box = Panel(Group(logo, Text(""), Align.center(fetch) if fetch else get_sys_info_table()), box=box.SIMPLE, border_style="cyan")
+    return Panel(Group(header_box, Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan"), Panel(footer, box=box.SIMPLE, border_style="cyan")), border_style="blue", title="[bold cyan]MiOS Dashboard[/]", padding=(1, 1))
 
 if TEXTUAL_AVAILABLE:
     def load_ssot_colors():
@@ -342,25 +384,31 @@ if TEXTUAL_AVAILABLE:
             height: 1fr;
             width: 100%;
         }}
+        #main-container, #build-container, #flash-container, #ai-container {{
             height: 1fr;
             width: 100%;
             layout: horizontal;
         }}
+        #left-pane {{
             width: 1fr;
             height: 100%;
         }}
+        #right-pane {{
             width: 1fr;
             height: 100%;
         }}
+        #build-stats-pane, #flash-stats-pane, #ai-stats-pane {{
             width: 38;
             height: 100%;
             border: round {SSOT['accent']};
             content-align: center top;
         }}
+        #build-log-box, #flash-log-box, #ai-log-box {{
             width: 1fr;
             height: 100%;
             border: round {SSOT['success']};
         }}
+        #top-right-bar {{
             height: 6;
             width: 100%;
         }}
@@ -370,32 +418,39 @@ if TEXTUAL_AVAILABLE:
             margin: 0;
             padding: 0 1;
         }}
+        #hw-box {{
             height: 2fr;
             border: round {SSOT['subtle']};
         }}
+        #svc-table {{
             height: 1fr;
             width: 100%;
             border: round {SSOT['accent']};
         }}
+        #sys-identity {{
             width: 1fr;
             height: 100%;
             border: round {SSOT['subtle']};
             content-align: center middle;
         }}
+        #forge-box {{
             width: 1fr;
             height: 100%;
             border: round {SSOT['warning']};
             content-align: center middle;
         }}
+        #spark-container {{
             height: 4;
             border: round {SSOT['accent']};
             background: {SSOT['surface']};
             padding: 0 1;
         }}
+        #spark-widget {{
             height: 100%;
             width: 100%;
             color: {SSOT['subtle']};
         }}
+        #log-box {{
             height: 1fr;
             width: 100%;
             border: round {SSOT['success']};
@@ -865,8 +920,8 @@ def main():
     args, unknown = parser.parse_known_args()
 
     mode = "monitor"
-    if args.mini or "-mini" in [a.lower() for a in unknown]: mode = "mini"
-    elif args.dash or "-dash" in [a.lower() for a in unknown]: mode = "dash"
+    if args.mini or "-mini" in [a.lower() for a in unknown] or os.environ.get("MIOS_COMPACT") == "1": mode = "mini"
+    elif args.dash or "-dash" in [a.lower() for a in unknown] or os.environ.get("MIOS_DASH_SERVICES") == "1": mode = "dash"
 
     if mode == "mini":
         console.print(create_metal_layout())

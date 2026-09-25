@@ -525,7 +525,7 @@ def _selftest() -> int:
     ck("selftest: SSOT wins over the environment", "--util 0.85" in sc and "q.io/t:latest" in sc)
     ck("selftest: a port-derived SSOT value keeps its placeholder",
        "Environment=U=http://127.0.0.1:${MIOS_PORT_CHROME_CDP:-9222}\n" in sc)
-    _SSOT_EXPORTS["MIOS_CRAWL_CDP_URL"] = "http://10.0.0.9:9222"
+    _SSOT_EXPORTS["MIOS_CRAWL_CDP_URL"] = "http://10.10.10.99:9222"
     try:
         render_nested_quadlet("mios-test-ssot", ssot_spec, "container")
         ck("selftest: a template that disagrees with the SSOT is refused", False)

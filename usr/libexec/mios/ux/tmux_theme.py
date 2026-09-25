@@ -40,7 +40,7 @@ class TmuxThemeEngine:
 
     def __init__(
         self,
-        style: str = "powerline",
+        style: str = "rounded",
         status_position: str = "bottom",
         mock: bool = False,
         dry_run: bool = False,
@@ -100,9 +100,15 @@ class TmuxThemeEngine:
             "set -g status-justify left",
             'set -g window-status-separator ""',
             "",
+            "# Terminal Capabilities & Extended Keys",
+            'set -g default-terminal "tmux-256color"',
+            'set -as terminal-features ",xterm*:RGB"',
+            'set -as terminal-overrides ",xterm*:Tc"',
+            "",
             "# Pane Borders",
             f'set -g pane-border-style "fg={muted}"',
             f'set -g pane-active-border-style "fg={cursor}"',
+            "set -g pane-border-lines heavy",
             "",
             "# Selection & Copy Mode",
             f'set -g mode-style "bg={accent},fg={fg}"',
@@ -125,13 +131,13 @@ class TmuxThemeEngine:
             ])
         elif self.style == "rounded":
             lines.extend([
-                "# Rounded Glyph Formatting",
-                "set -g status-left-length 40",
-                f'set -g status-left "#[fg={accent},bg={bg}]#[fg={fg},bg={accent},bold]#S#[fg={accent},bg={bg}] "',
-                f'set -g window-status-format "#[fg={muted},bg={bg}] #I:#W "',
-                f'set -g window-status-current-format "#[fg={accent},bg={bg}]#[fg={fg},bg={accent},bold]#I:#W#[fg={accent},bg={bg}]"',
-                "set -g status-right-length 80",
-                f'set -g status-right "#[fg={accent},bg={bg}]#[fg={fg},bg={accent}]%Y-%m-%d %H:%M#[fg={accent},bg={bg}] #[fg={cursor},bg={bg}]#[fg={bg},bg={cursor},bold]#H#[fg={cursor},bg={bg}]"',
+                "# Rounded Glyph Formatting & Oh-My-Posh Graphics",
+                "set -g status-left-length 50",
+                f'set -g status-left "#[fg={accent},bg={bg}]#[fg={fg},bg={accent},bold]  MiOS #[fg={accent},bg={success}]#[fg={bg},bg={success},bold]  #S #[fg={success},bg={bg}] "',
+                f'set -g window-status-format "#[fg={muted},bg={bg}]  #I  #W  "',
+                f'set -g window-status-current-format "#[fg={cursor},bg={bg}]#[fg={bg},bg={cursor},bold] #I  #W #[fg={cursor},bg={bg}]"',
+                "set -g status-right-length 100",
+                f'set -g status-right "#[fg={accent},bg={bg}]#[fg={fg},bg={accent}]  %H:%M #[fg={accent},bg={success}]#[fg={bg},bg={success},bold]  %Y-%m-%d #[fg={success},bg={cursor}]#[fg={bg},bg={cursor},bold]  #H #[fg={cursor},bg={bg}]"',
             ])
         else:  # minimal / plain
             lines.extend([
@@ -181,7 +187,7 @@ def main() -> int:
     )
     parser.add_argument("--render", action="store_true", help="Render tmux configuration")
     parser.add_argument("--output", "--out", dest="out", help="Output path for tmux configuration file")
-    parser.add_argument("--style", default="powerline", choices=["powerline", "rounded", "minimal"],
+    parser.add_argument("--style", default="rounded", choices=["powerline", "rounded", "minimal"],
                         help="Visual styling format for status line segments")
     parser.add_argument("--position", default="bottom", choices=["bottom", "top"],
                         help="Status bar screen position")

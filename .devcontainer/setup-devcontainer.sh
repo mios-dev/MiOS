@@ -89,32 +89,35 @@ echo "  Docker:  $(docker --version 2>/dev/null || echo 'missing (podman-docker 
 echo "  Claude:  $(claude --version 2>/dev/null || echo 'missing')"
 echo "  Agy:     $(agy --version 2>/dev/null || echo 'missing')"
 echo "  Gemini:  $(gemini -v 2>/dev/null || gemini --version 2>/dev/null || echo 'missing')"
+echo "  Posh:    $(oh-my-posh --version 2>/dev/null || echo 'missing')"
+echo "  Fastf:   $(fastfetch --version 2>/dev/null | head -n1 || echo 'missing')"
+echo "  Btop:    $(btop --version 2>/dev/null || echo 'missing')"
+
+if ! command -v oh-my-posh >/dev/null 2>&1 && [ -x "${WORKSPACE_DIR}/MiOS/automation/62-oh-my-posh.sh" ]; then
+    sudo bash "${WORKSPACE_DIR}/MiOS/automation/62-oh-my-posh.sh" || true
+fi
+for pkg in btop fastfetch; do
+    command -v "$pkg" >/dev/null 2>&1 || sudo dnf install -y "$pkg" 2>/dev/null || sudo apt-get install -y "$pkg" 2>/dev/null || true
+done
 
 echo "=== [6/6] Ensuring Frameless Edge-to-Edge VSCode Environment & Dotfiles ==="
 VSCODE_CSS_TOOL="${WORKSPACE_DIR}/MiOS/usr/libexec/mios/mios-vscode-custom-css"
-if [ ! -f "$VSCODE_CSS_TOOL" ]; then
-    VSCODE_CSS_TOOL="/usr/libexec/mios/mios-vscode-custom-css"
-fi
-if [ -f "$VSCODE_CSS_TOOL" ]; then
-    python3 "$VSCODE_CSS_TOOL" install --all || true
-fi
+[ -f "$VSCODE_CSS_TOOL" ] || VSCODE_CSS_TOOL="/usr/libexec/mios/mios-vscode-custom-css"
+[ -f "$VSCODE_CSS_TOOL" ] && python3 "$VSCODE_CSS_TOOL" install --all || true
 
 # Ensure SSOT .dotfiles/vscode/settings.json is projected to all IDE targets
 DOTFILES_DIR="${WORKSPACE_DIR}/MiOS/.dotfiles"
 if [ -d "$DOTFILES_DIR/vscode" ]; then
-    for target_dir in \
-        "${WORKSPACE_DIR}/MiOS/.vscode" \
-        "$HOME/.vscode-server/data/Machine" \
-        "$HOME/.vscode-server-insiders/data/Machine" \
-        "$HOME/.vscode-remote/data/Machine" \
-        "$HOME/.vscode-remote-insiders/data/Machine" \
-        "$HOME/.config/Code/User" \
-        "$HOME/.config/Code - Insiders/User" \
-        "$HOME/.local/share/code-server/User"; do
-        mkdir -p "$target_dir"
-        cp -f "$DOTFILES_DIR/vscode/settings.json" "$target_dir/settings.json" 2>/dev/null || true
+    for target_dir in "${WORKSPACE_DIR}/MiOS/.vscode" "$HOME/.vscode-server/data/Machine" "$HOME/.vscode-server-insiders/data/Machine" "$HOME/.vscode-remote/data/Machine" "$HOME/.vscode-remote-insiders/data/Machine" "$HOME/.config/Code/User" "$HOME/.config/Code - Insiders/User" "$HOME/.local/share/code-server/User"; do
+        mkdir -p "$target_dir" && cp -f "$DOTFILES_DIR/vscode/settings.json" "$target_dir/settings.json" 2>/dev/null || true
     done
 fi
+
+for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [ -f "$rc" ] && ! grep -q "bashrc.d/mios" "$rc"; then
+        printf '\n[ -r "${HOME}/.bashrc.d/mios" ] && . "${HOME}/.bashrc.d/mios"\n' >> "$rc"
+    fi
+done
 
 if [ -f "${WORKSPACE_DIR}/MiOS/usr/libexec/mios/mios-dotfiles" ]; then
     python3 "${WORKSPACE_DIR}/MiOS/usr/libexec/mios/mios-dotfiles" apply || true
@@ -123,4 +126,5 @@ elif [ -f "/usr/libexec/mios/mios-dotfiles" ]; then
 fi
 
 echo "Multi-repo devcontainer setup complete."
+
 

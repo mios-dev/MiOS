@@ -7,10 +7,6 @@
     {
       "name": "mios-bootstrap",
       "path": "../mios-bootstrap"
-    },
-    {
-      "name": "CloudWS-bootc",
-      "path": "../CloudWS-bootc"
     }
   ],
   "settings": {
