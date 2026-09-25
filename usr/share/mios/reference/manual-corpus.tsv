@@ -2292,14 +2292,12 @@ etc/ups/nut.conf	1	2	2	18	f50939792777	STAY	ai-header		0				0
 etc/ups/ups.conf	1	2	2	18	83a3c8ff5316	STAY	ai-header		0				0
 etc/ups/upsd.conf	1	2	2	18	d28a23eb501b	STAY	ai-header		0				0
 etc/ups/upsmon.conf	1	2	2	18	a73752ca00ed	STAY	ai-header		0				0
-etc/usbguard/rules.conf	1	2	2	13	15634e8c771c	STAY	ai-header		0				0
-etc/usbguard/rules.conf	4	4	1	11	c14d7021ceb4	STAY	local-scoped		0				0
-etc/usbguard/rules.conf	7	7	1	7	9118ac502749	STAY	local-scoped		0				0
-etc/usbguard/rules.conf	11	11	1	11	1051fdb847ce	STAY	local-scoped		0				0
-etc/usbguard/rules.conf	15	15	1	14	6230ffdc6748	STAY	local-scoped		0				0
-etc/usbguard/rules.conf	18	18	1	8	ac873e34f1cc	STAY	local-scoped		0				0
-etc/usbguard/rules.conf	21	21	1	12	b4b5446615f9	STAY	local-scoped		0				0
-etc/usbguard/rules.conf	24	24	1	7	212df5bcbb92	STAY	local-scoped		0				0
+etc/usbguard/rules.conf	1	1	1	31	1befb5627b0e	STAY	ai-header		0				0
+etc/usbguard/rules.conf	3	3	1	10	95ef0ae37c69	STAY	local-scoped		0				0
+etc/usbguard/rules.conf	6	6	1	12	cd2cdc423a21	STAY	local-scoped		0				0
+etc/usbguard/rules.conf	9	9	1	16	e0f089badb34	STAY	local-scoped		0				0
+etc/usbguard/rules.conf	12	12	1	11	1cb6ebe23901	STAY	local-scoped		0				0
+etc/usbguard/rules.conf	15	15	1	8	cdb2730740c3	STAY	local-scoped		0				0
 etc/wsl.conf	1	2	2	29	8791245adc81	STAY	ai-header		0				0
 etc/xdg/xdg-desktop-portal/portals.conf	1	2	2	32	e6b1d6cb454c	STAY	ai-header		0				0
 etc/xdg/xdg-desktop-portal/portals.conf	4	20	17	115	b57058e53661	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/xdg-desktop-portal.md	mios-src:b57058e53661	115	1
@@ -7102,9 +7100,12 @@ tests/test-usb-format.py	67	67	1	4	3884b29e8893	DROP	banner		0				0
 tests/test-usb-format.py	73	73	1	2	d1bde9edb58f	STAY	inline-scoped		0				0
 tests/test-usb-format.py	75	75	1	3	52d4e8e16d6d	DROP	banner		0				0
 tests/test-usbguard-sec.py	1	3	3	19	640e73eacdc2	STAY	ai-header		0				0
-tests/test-usbguard-sec.py	20	20	1	10	218e9d70147d	STAY	local-scoped		0				0
-tests/test-usbguard-sec.py	42	42	1	6	95156e09b623	STAY	local-scoped		0				0
-tests/test-usbguard-sec.py	61	61	1	3	416f9bb07089	STAY	local-scoped		0				0
+tests/test-usbguard-sec.py	19	22	4	43	eba2315faa62	STAY	midsize-why		0				0
+tests/test-usbguard-sec.py	28	28	1	10	092e87eb6cb2	STAY	local-scoped		0				0
+tests/test-usbguard-sec.py	47	47	1	10	218e9d70147d	STAY	local-scoped		0				0
+tests/test-usbguard-sec.py	57	58	2	18	c3d162a3b6d6	STAY	local-scoped		0				0
+tests/test-usbguard-sec.py	75	75	1	6	95156e09b623	STAY	local-scoped		0				0
+tests/test-usbguard-sec.py	94	94	1	3	416f9bb07089	STAY	local-scoped		0				0
 tests/test-user-cephfs.sh	1	3	3	16	42146d789ec5	STAY	ai-header		0				0
 tests/test-user-cephfs.sh	20	20	1	6	0738afc45194	STAY	local-scoped		0				0
 tests/test-user-cephfs.sh	27	27	1	8	692da4a39809	STAY	local-scoped		0				0

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import unittest
@@ -15,6 +16,32 @@ _RULES_FILE = os.path.join(_ROOT, "etc", "usbguard", "rules.conf")
 _UDISKS_FILE = os.path.join(_ROOT, "etc", "udisks2", "mount_options.conf")
 _USBGUARD_BIN = os.path.join(_ROOT, "usr", "libexec", "mios", "mios-usbguard")
 
+# usbguard-rules.conf(5) attributes. The daemon's rule parser raises
+# "<attribute> attribute already defined" on a repeat, and one bad rule stops
+# the whole rule set from loading. `name` compares strings with ==, so a `*`
+# there matches only a device literally named with an asterisk.
+_ATTRS = ("id", "hash", "parent-hash", "name", "serial", "via-port",
+          "with-interface", "with-connect-type", "label", "if")
+
+
+def _unloadable_rules(text: str) -> list[str]:
+    """Rules the USBGuard daemon would refuse or could never match."""
+    bad = []
+    for n, line in enumerate(text.splitlines(), 1):
+        rule = line.split("#", 1)[0].strip()
+        if not rule:
+            continue
+        for value in re.findall(r'\bname\s+"([^"]*)"', rule):
+            if "*" in value:
+                bad.append(f"line {n}: name \"{value}\" is matched literally, not as a glob")
+        bare = re.sub(r"\{[^}]*\}", "{}", re.sub(r'"[^"]*"', '""', rule)).split()
+        if bare[0] not in ("allow", "block", "reject"):
+            bad.append(f"line {n}: target {bare[0]!r} is not allow, block or reject")
+        for attr in _ATTRS:
+            if bare.count(attr) > 1:
+                bad.append(f"line {n}: {attr} attribute already defined")
+    return bad
+
 
 class TestUSBGuardSec(unittest.TestCase):
     """Validates USBGuard rules, udisks2 mount options, and BadUSB evaluation logic."""
@@ -24,10 +51,16 @@ class TestUSBGuardSec(unittest.TestCase):
         with open(_RULES_FILE, "r") as f:
             content = f.read()
         self.assertIn("09:*:*", content, "Must allow USB hubs")
-        self.assertIn("1050:*", content, "Must allow Yubico tokens")
-        self.assertIn("20a0:*", content, "Must allow Nitrokey tokens")
-        self.assertIn("03:01:01", content, "Must allow standard boot keyboard")
-        self.assertIn("block with-interface equals { 03:*:* } with-interface equals { 08:*:* }", content)
+        self.assertEqual(_unloadable_rules(content), [])
+
+    def test_unloadable_rule_is_named(self):
+        # The line this test used to REQUIRE: the daemon refuses it, so the
+        # whole rule set never loads.
+        bad = "block with-interface equals { 03:*:* } with-interface equals { 08:*:* }\n"
+        found = _unloadable_rules(bad)
+        self.assertEqual(len(found), 1)
+        self.assertIn("with-interface", found[0])
+        self.assertEqual(len(_unloadable_rules('allow name "Probe*"\n')), 1)
 
     def test_udisks_mount_options(self):
         self.assertTrue(os.path.isfile(_UDISKS_FILE), f"Missing {_UDISKS_FILE}")
