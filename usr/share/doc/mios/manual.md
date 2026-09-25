@@ -81,6 +81,12 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [Wayland Input Automation](manual/ch15-computer-use-and-desktop-control.md#15_wayland_input_automation): Explains input emulation via the mios-pc-control command suite.
   * [AT-SPI Accessibility Tuning](manual/ch15-computer-use-and-desktop-control.md#15_at_spi_accessibility_tuning): Documents screen tree traversal for structural UI reasoning.
 
+* **[Chapter 15: Composefs fs-verity Root Filesystem Sealing](manual/ch15-composefs-sealing.md)**
+  * [Composefs Architecture](manual/ch15-composefs-sealing.md#15_composefs_architecture): Details kernel-level composefs immutable root sealing architecture.
+  * [Fs-Verity Integrity](manual/ch15-composefs-sealing.md#15_fsverity_integrity): Covers cryptographic Merkle tree verification of filesystem descriptors.
+  * [Atomic Validator](manual/ch15-composefs-sealing.md#15_atomic_validator): Explains image descriptor validation tooling (mios-composefs-validator).
+  * [Sealing Automation](manual/ch15-composefs-sealing.md#15_sealing_automation): Documents boot sealing automation and drop-in generation.
+
 ### Part V: Deep Security, Cryptography & Hardware
 * **[Chapter 16: Immutable Root and Composefs Sealing](manual/ch16-immutable-root-and-composefs-sealing.md)**
   * [Composefs Read-Only Mounts](manual/ch16-immutable-root-and-composefs-sealing.md#16_composefs_read_only_mounts): Explains composefs structures and /usr partition read-only mounts.
@@ -111,6 +117,33 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [NUMA Node Awareness](manual/ch22-cpu-topology-and-performance-pinning.md#22_numa_node_awareness): Details memory node alignment for reduced guest latencies.
   * [Low-Latency VM Tuning](manual/ch22-cpu-topology-and-performance-pinning.md#22_low_latency_vm_tuning): Covers scheduling priority and emulatorpin adjustments.
 
+* **[Chapter 16: IDE Custom CSS and Edge-to-Edge Integrated Terminal](manual/ch16-ide-custom-css.md)**
+  * [Architecture and Components](manual/ch16-ide-custom-css.md): Covers provisioning the vscode-custom-css extension and the mios-vscode-custom-css orchestrator for zero-margin CSS.
+* **[Chapter 18: Declarative SSOT Blade Pre-Enrollment Registry](manual/ch18-blade-pre-enrollment.md)**
+  * [TPM EK Cryptography](manual/ch18-blade-pre-enrollment.md#18_tpm_ek_cryptography): Details TPM 2.0 Endorsement Key validation and zero-touch cluster onboarding.
+  * [SSOT Schema](manual/ch18-blade-pre-enrollment.md#18_ssot_schema): Describes the declarative blade specification in mios.toml [cluster.blades].
+  * [Admission Workflow](manual/ch18-blade-pre-enrollment.md#18_admission_workflow): Explains zero-touch coordinator admission policies.
+* **[Chapter 19: Peripheral Hardware Health Evaluator and Greenboot Degradation Reporter](manual/ch19-greenboot-hardware-degrade.md)**
+  * [Degrade Not Refuse Philosophy](manual/ch19-greenboot-hardware-degrade.md#19_degrade_not_refuse_philosophy): Covers the non-fatal health evaluation architectural principle.
+  * [Peripheral Health Probes](manual/ch19-greenboot-hardware-degrade.md#19_peripheral_health_probes): Explains subsystem diagnostic architecture for hardware health.
+  * [Structured Telemetry](manual/ch19-greenboot-hardware-degrade.md#19_structured_telemetry_and_persistence): Documents telemetry pipeline and structured health persistence.
+* **[Chapter 20: Automated RFC 9334 RATS Remote TPM 2.0 Quote Verifier](manual/ch20-remote-attestation.md)**
+  * [RATS Architecture](manual/ch20-remote-attestation.md#20_rats_architecture): Details the RFC 9334 remote attestation framework and challenge-response flow.
+  * [Attestation Lifecycle](manual/ch20-remote-attestation.md#20_attestation_lifecycle): Covers cryptographic quote appraisal and PCR digest verification.
+  * [Credential Issuance](manual/ch20-remote-attestation.md#20_credential_issuance): Explains zero-touch cluster onboarding credential issuance.
+* **[Chapter 21: Automated Network and Audio Fallback Manager](manual/ch21-hardware-fallback.md)**
+  * [Architecture Overview](manual/ch21-hardware-fallback.md#21_architecture_overview): Covers the resilient peripheral fallback lifecycle.
+  * [Network Fallback](manual/ch21-hardware-fallback.md#21_network_fallback): Documents secondary NIC and USB tethering auto-failover.
+  * [Audio Fallback](manual/ch21-hardware-fallback.md#21_audio_fallback): Explains dynamic PipeWire null-sink binding on audio failure.
+* **[Chapter 28: ATSPI Sensitive Widget Detector and Wayland Frame Blur Filter](manual/ch28-vision-redaction.md)**
+  * [Vision Redaction Overview](manual/ch28-vision-redaction.md#28_vision_redaction_overview): Covers sensitive data leakage prevention via screen blur.
+  * [ATSPI Discovery](manual/ch28-vision-redaction.md#28_atspi_sensitive_widget_discovery): Explains accessibility tree sensitive field classification.
+  * [Wayland Capture Integration](manual/ch28-vision-redaction.md#28_wayland_capture_integration): Details Wayland frame capture pipeline and blur mechanics.
+* **[Chapter 29: Lightweight On-Device OCR Credential Masking Pipeline](manual/ch29-ocr-credential-masking.md)**
+  * [Zero-Trust Vision Architecture](manual/ch29-ocr-credential-masking.md#29_zero_trust_vision_architecture): Covers the zero-trust vision privacy pipeline for credential detection.
+  * [OCR Engine Integration](manual/ch29-ocr-credential-masking.md#29_ocr_engine_integration): Explains on-device Tesseract/PaddleOCR integration.
+  * [Bounding Box Redaction](manual/ch29-ocr-credential-masking.md#29_bounding_box_redaction): Documents coordinate masking of detected credentials in frames.
+
 ### Part VI: Storage, Network & Web Planes
 * **[Chapter 23: Single-Node Kubernetes Expansion](manual/ch23-single-node-kubernetes-expansion.md)**
   * [K3s Workstation Coexistence](manual/ch23-single-node-kubernetes-expansion.md#23_k3s_workstation_coexistence): Covers resource boundaries between GNOME and K3s services.
@@ -140,6 +173,33 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [MiOS HTML TOML Editor](manual/ch29-web-management-and-configurator-ui.md#29_mios_html_toml_editor): Covers configuration editing via the static index HTML form.
   * [Host-to-Container Portal](manual/ch29-web-management-and-configurator-ui.md#29_host_to_container_portal): Details how the UI panel maps active container metrics.
   * [Settings Sync Mechanisms](manual/ch29-web-management-and-configurator-ui.md#29_settings_sync_mechanisms): Explains TOML serialization and service reload hooks.
+
+* **[Chapter 17: Global Per-User Encrypted CephFS Subvolumes](manual/ch17-cephfs-user-subvolumes.md)**
+  * [Encrypted Subvolume Architecture](manual/ch17-cephfs-user-subvolumes.md): Covers mios-user-cephfs provisioning isolated fscrypt-encrypted CephFS subvolumes per user across Blade clusters.
+* **[Chapter 22: Low-Latency WebRTC Streaming Audio Ingress and Streaming Whisper Bridge](manual/ch22-streaming-audio-whisper.md)**
+  * [WebRTC Ingress Protocol](manual/ch22-streaming-audio-whisper.md#22_webrtc_ingress_protocol): Details WebRTC ingress, 16kHz PCM framing, and sub-150ms VAD ring buffering.
+  * [Streaming Whisper Engine](manual/ch22-streaming-audio-whisper.md#22_streaming_whisper_engine): Covers Whisper speech-to-text containerization and inference pipeline.
+  * [Token Dispatch and Latency Metrics](manual/ch22-streaming-audio-whisper.md#22_token_dispatch_and_latency_metrics): Explains gateway integration and latency SLA telemetry.
+* **[Chapter 23: Concurrent Streaming Piper/Kokoro TTS Audio Synthesis and PipeWire Buffer Feeder](manual/ch23-streaming-tts-piper.md)**
+  * [Streaming TTS Architecture](manual/ch23-streaming-tts-piper.md#23_streaming_tts_architecture): Covers streaming TTS, sentence segmentation, and ONNX acceleration.
+  * [PipeWire Buffer Feeder](manual/ch23-streaming-tts-piper.md#23_pipewire_buffer_feeder): Details low-latency PipeWire playback and underrun mitigation.
+  * [Quadlet Containerization](manual/ch23-streaming-tts-piper.md#23_quadlet_containerization): Explains mios-piper.container deployment and configuration.
+* **[Chapter 24: Multi-Vendor Hardware Video Encoder Discovery and DMA-BUF Capture Bridge](manual/ch24-hardware-video-encoding.md)**
+  * [Hardware Encoder Discovery](manual/ch24-hardware-video-encoding.md#24_hardware_encoder_discovery): Details ASIC probing for QuickSync, NVENC, and AMF encoders.
+  * [DMA-BUF Zero-Copy Capture](manual/ch24-hardware-video-encoding.md#24_dmabuf_zero_copy_architecture): Covers Wayland PipeWire DMA-BUF zero-copy capture pipeline.
+  * [Codec Priority Hierarchy](manual/ch24-hardware-video-encoding.md#24_codec_priority_hierarchy): Documents AV1 > HEVC > AVC codec priority hierarchy.
+* **[Chapter 25: Adaptive Bitrate and Low-Latency Frame Encoding Streaming Benchmark Suite](manual/ch25-video-streaming-benchmarks.md)**
+  * [Streaming Latency Budget](manual/ch25-video-streaming-benchmarks.md#25_streaming_latency_budget): Covers 60 FPS streaming latency architecture and sub-12ms SLA.
+  * [Adaptive Bitrate Control Loops](manual/ch25-video-streaming-benchmarks.md#25_adaptive_bitrate_control_loops): Explains ABR control loops and network simulation via tc-netem.
+  * [Packet Loss Recovery](manual/ch25-video-streaming-benchmarks.md#25_packet_loss_recovery): Details IDR refresh and decoder recovery under packet loss.
+* **[Chapter 26: Multi-Node Dynamic AI Workload Partitioning and Capability-Aware Task Routing](manual/ch26-mesh-workload-partitioning.md)**
+  * [Mesh Topology Discovery](manual/ch26-mesh-workload-partitioning.md#26_mesh_topology_discovery): Covers 2–6 bare-metal Blade mesh topology discovery and hardware boundaries.
+  * [Capability Routing Algorithm](manual/ch26-mesh-workload-partitioning.md#26_capability_routing_algorithm): Explains dynamic telemetry scoring and capability-aware routing.
+  * [Subtask Fan-out/Gather](manual/ch26-mesh-workload-partitioning.md#26_subtask_fanout_gather): Details subtask workflow decomposition and parallel gather.
+* **[Chapter 27: Automated Node Failure Detection and Zero-Loss Task Re-Distribution Engine](manual/ch27-task-failover-resilience.md)**
+  * [Failure Detection Mechanics](manual/ch27-task-failover-resilience.md#27_failure_detection_mechanics): Covers heartbeat auditing and node state transitions.
+  * [Task Leasing Protocols](manual/ch27-task-failover-resilience.md#27_task_leasing_protocol): Explains in-flight execution leases and lease handoff.
+  * [Zero-Loss Recovery](manual/ch27-task-failover-resilience.md#27_zero_loss_recovery): Documents dynamic task re-distribution with zero prompt loss.
 
 ### Part VII: Build, Test & Upstream Maintenance
 * **[Chapter 30: System Auditing and Drift Verification](manual/ch30-system-auditing-and-drift-verification.md)**
@@ -226,6 +286,18 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [Upstream Drift Monitor](manual/ch50-upstream-tracking-and-maintenance.md#50_upstream_drift_monitor): Covers checking changes between host and remote overlays.
   * [Justfile Pipeline Automation](manual/ch50-upstream-tracking-and-maintenance.md#50_justfile_pipeline_automation): Details Justfile build automation and check goals.
   * [Release Maturity Runbook](manual/ch50-upstream-tracking-and-maintenance.md#50_release_maturity_runbook): Explains checklist targets required to tag release stages.
+
+* **[Chapter 30: Shadow Dual-Process Candidate Daemon Validator and Query Mirroring Harness](manual/ch30-shadow-candidate-testing.md)**
+  * [Shadow Mechanics](manual/ch30-shadow-candidate-testing.md#30_shadow_mechanics): Covers isolated execution and network sandboxing for shadow candidate validation.
+  * [Query Mirroring Architecture](manual/ch30-shadow-candidate-testing.md#30_query_mirroring): Details concurrent dual-dispatch query mirroring architecture.
+  * [Divergence Scoring](manual/ch30-shadow-candidate-testing.md#30_divergence_scoring): Explains schema compliance, status parity, and latency differential scoring.
+  * [Safe Promotion Gates](manual/ch30-shadow-candidate-testing.md#30_safe_promotion_gates): Documents automated canary promotion workflow.
+* **[Chapter 31: Zero-Downtime Systemd Socket Handoff Daemon Swapper for Agent-Pipe](manual/ch31-socket-activation-handoff.md)**
+  * [Architectural Motivation](manual/ch31-socket-activation-handoff.md): Covers systemd socket activation and file descriptor inheritance for zero-downtime hot upgrades.
+* **[Chapter 32: Proactive PID Thermal Daemon and Dynamic CPU/GPU Power Cap Modulator](manual/ch32-proactive-thermal-governor.md)**
+  * [Proactive Thermal Regulation](manual/ch32-proactive-thermal-governor.md#32_proactive_thermal_regulation_architecture): Covers proactive PID thermal regulation overcoming reactive silicon throttling.
+  * [PID Control and Rate-of-Rise](manual/ch32-proactive-thermal-governor.md#32_pid_control_and_rate_of_rise): Details the mathematical formulation of predictive thermal governance.
+  * [Dynamic Power Cap Actuation](manual/ch32-proactive-thermal-governor.md#32_dynamic_power_cap_actuation): Explains sysfs-based CPU/GPU power cap modulation matrix.
 
 * **[Chapter 51: Distilled System Knowledge & Code Invariants](manual/ch51-distilled-system-knowledge-code-invariants.md)**
   * [Distilled System Knowledge](manual/ch51-distilled-system-knowledge-code-invariants.md#51_distilled_system_knowledge): Consolidates distilled invariants and recovered technical comments.
@@ -354,7 +426,9 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch14-agent-to-agent-delegation-protocols.md` | Chapter 14: Agent-to-Agent Delegation Protocols. Details the communications standard and payload schema for agent delegation. Explains how the coding subagent (MiOS-OpenCode) takes over code... |
 | `usr/share/doc/mios/manual/ch15-composefs-sealing.md` | Chapter 15: Composefs fs-verity Root Filesystem Sealing and Atomic Validation (T-527, AGY-2125). Details kernel-level fs-verity digest verification, prepare-root composefs mount execution, descriptor... |
 | `usr/share/doc/mios/manual/ch15-computer-use-and-desktop-control.md` | Chapter 15: Computer Use and Desktop Control. Details coordinate grounding on Wayland screens via vision models. Explains input emulation via the mios-pc-control command suite. Documents screen tree... |
+| `usr/share/doc/mios/manual/ch16-ide-custom-css.md` | Chapter 16: IDE Custom CSS and Edge-to-Edge Integrated Terminal. Covers provisioning the vscode-custom-css extension, the edge-to-edge terminal stylesheet, and the mios-vscode-custom-css orchestrator... |
 | `usr/share/doc/mios/manual/ch16-immutable-root-and-composefs-sealing.md` | Chapter 16: Immutable Root and Composefs Sealing. Explains composefs structures and /usr partition read-only mounts. Covers system file validation against trusted cryptographic hashes. Describes how... |
+| `usr/share/doc/mios/manual/ch17-cephfs-user-subvolumes.md` | Chapter 17: Global Per-User Encrypted CephFS Subvolumes. Covers the mios-user-cephfs subvolume manager that provisions isolated, fscrypt-encrypted CephFS subvolumes for each user across bare-metal... |
 | `usr/share/doc/mios/manual/ch17-defense-in-depth-hardening.md` | Chapter 17: Defense in Depth Hardening. Covers telemetry monitoring, IP bans, and custom local parsers. Details binary execution blocking on unauthorized directories. Explains protection policies... |
 | `usr/share/doc/mios/manual/ch18-blade-pre-enrollment.md` | Chapter 18: Declarative SSOT Blade Pre-Enrollment Registry and TPM EK Fingerprint Parser (T-529, AGY-2127). Details TPM 2.0 Endorsement Key validation, SSOT schema for [cluster.blades], zero-touch... |
 | `usr/share/doc/mios/manual/ch18-supply-chain-and-image-integrity.md` | Chapter 18: Supply Chain and Image Integrity. Defines policy-based verification of OCI signatures at pull time. Covers keyless image signing using OIDC identity providers. Explains the generation and... |
@@ -425,5 +499,5 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch69-autonomous-epistemic-evolution-and-learn-loop.md` | Chapter 69: Autonomous Epistemic Evolution, /learn Distillation & Model Fine-Tuning. |
 | `usr/share/doc/mios/manual/ch70-upstream-technology-registry-and-ecosystem-advances.md` | Chapter 70: Upstream Ecosystem Registry, Upstream Adoption Playbook & FOSS Drift Auditing. |
 
-<!-- derived from the AI-hint headers of 86 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 88 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->
