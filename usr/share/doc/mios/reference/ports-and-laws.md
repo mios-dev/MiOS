@@ -31,6 +31,8 @@ is the obvious case, since it cannot float.
 | agent | arbiter | 8760 |
 | agent | mcp | 8770 |
 | agent | opencode_gateway | 8780 |
+| audio | whisper | 8178 |
+| audio | piper | 8179 |
 | bridge | oscontrol | 8950 |
 | cluster | k3s_api | 8450 |
 | cluster | ceph_dashboard | 8460 |
