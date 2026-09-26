@@ -1624,3 +1624,11 @@ so long. Let a run finish.
 - next: 20:03Z check-in confirms whether a run_once_at delivery resumes the Monitor chat
 - blockers: operator -- delete failover standby trig_01UBWG6L2gYkeyfV7TnQPgTZ, merge #42, re-upload the Spark zip
 - unverified: that the scheduled delivery lands in session_017g2qyj8rXchTBmgqZ34Jun, and that PushNotification reaches the apps
+
+## 2026-09-26 20:40 · a2e56961d · #47 review round + #49
+- objective: answer Copilot's 10 findings on #47; operator chose "own path + bound" for the ModelCar and "separate PR" for layer scanning
+- done: #47 a8afefb25..7df34b64c -- digest grammar (no traversal), digest verification, recursive index walk, SafeTensors header parse, check_ai_artifacts wired into 98-drift-checks with a negative test, ADR template path; ModelCar mounted at /models-micro through a generated mios-micro.image (bound by the existing binder), model map repointed, dead bound-images TOML removed; SFT/DPO swap finding does not reproduce (replied). All 10 threads replied and resolved. #49 (stacked on #47): tar/gzip/zstd layer scan with the shared check_weight_stream.
+- controls: 69/69 then 73/73 mios-gate tests; new tests fail against the old code (5 on #47, 3 on #49); check_ai_artifacts exits 1 naming sft.jsonl:22 on a planted record, 0 restored; full drift gate on #47 = base's 214 violations, no new check (shell_lines +16 on an already-over ratchet)
+- incident: sourcing tests/drift-gate-negatives.sh outside main() ran its leak cleanup and deleted 94 tracked files in the #47 worktree; restored from git, nothing pushed. Run negative tests only through the script's main.
+- next: retarget #49 to main after #47 merges; watch CI on #47 7df34b64c and #49
+- unverified: CI on both heads; the Mount=type=image .image resolution needs podman >= 5 (documented upstream; this container has 4.9)
