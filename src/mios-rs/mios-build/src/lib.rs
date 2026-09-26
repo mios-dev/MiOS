@@ -297,9 +297,6 @@ impl PhaseRegistry {
     /// The registered phases a resolved profile selects, in registry order. A
     /// phase the profile names that the registry lacks is an error, never a skip.
     pub fn for_profile(&self, prof: &ResolvedProfile) -> Result<Vec<Phase>, String> {
-        if prof.all {
-            return Ok(self.phases.clone());
-        }
         let known: std::collections::BTreeSet<&str> =
             self.phases.iter().map(|p| p.name.as_str()).collect();
         let unknown: Vec<&String> = prof
@@ -317,6 +314,10 @@ impl PhaseRegistry {
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
+        }
+        // Named phases are validated even under `all`, so a typo there is never silently accepted.
+        if prof.all {
+            return Ok(self.phases.clone());
         }
         Ok(self
             .phases

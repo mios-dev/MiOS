@@ -2546,7 +2546,8 @@ src/mios-rs/mios-build/src/lib.rs	203	203	1	9	56fb32b10248	STAY	local-scoped		0	
 src/mios-rs/mios-build/src/lib.rs	227	227	1	15	c6f61d04a25a	STAY	local-scoped		0				0
 src/mios-rs/mios-build/src/lib.rs	269	269	1	8	90767502a63f	STAY	local-scoped		0				0
 src/mios-rs/mios-build/src/lib.rs	297	298	2	25	0b9a5a7b01d5	STAY	local-scoped		0				0
-src/mios-rs/mios-build/src/lib.rs	385	385	1	16	82f9741acdba	STAY	local-scoped		0				0
+src/mios-rs/mios-build/src/lib.rs	318	318	1	15	2f16a085277b	STAY	local-scoped		0				0
+src/mios-rs/mios-build/src/lib.rs	386	386	1	16	82f9741acdba	STAY	local-scoped		0				0
 src/mios-rs/mios-build/tests/fixtures/mios.toml	1	1	1	3	f8c3aa3cbcc7	STAY	ai-header		0				0
 src/mios-rs/mios-build/tests/golden_harness.rs	1	2	2	22	5831c07393c7	STAY	ai-header		0				0
 src/mios-rs/mios-build/tests/golden_harness.rs	33	33	1	9	669b2f5e759a	STAY	local-scoped		0				0
@@ -2773,6 +2774,8 @@ src/mios-rs/mios-gate/tests/phases.rs	115	115	1	8	0e39ca294803	STAY	local-scoped
 src/mios-rs/mios-gate/tests/phases.rs	125	126	2	19	510f78f494c1	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/tests/phases.rs	151	151	1	14	b03f97ef5ac1	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/tests/phases.rs	166	167	2	24	ff7b7ce00628	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/tests/profiles.rs	1	2	2	17	e6de5479c784	STAY	ai-header		0				0
+src/mios-rs/mios-gate/tests/profiles.rs	65	65	1	14	7c08f393339b	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/tests/projreg.rs	1	2	2	23	8ed041bd28a2	STAY	ai-header		0				0
 src/mios-rs/mios-gate/tests/projreg.rs	12	13	2	21	30f894daa90b	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/tests/projreg.rs	133	133	1	10	0c7983e262ec	STAY	local-scoped		0				0

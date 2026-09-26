@@ -76,8 +76,13 @@ pub fn check(root: &Path) -> Report {
             let missing: Vec<&String> = floor
                 .phases
                 .iter()
-                .chain(floor.package_sections.iter())
-                .filter(|x| !r.phases.contains(*x) && !r.package_sections.contains(*x))
+                .filter(|x| !r.phases.contains(*x))
+                .chain(
+                    floor
+                        .package_sections
+                        .iter()
+                        .filter(|x| !r.package_sections.contains(*x)),
+                )
                 .collect();
             if !missing.is_empty() {
                 findings.push(format!(
