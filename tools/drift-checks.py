@@ -3823,8 +3823,13 @@ def check_template_self_conformance() -> int:
         if t in ("conformance-grandfathered.list", "PLACEHOLDERS.md"):
             continue
         with tempfile.TemporaryDirectory() as scaffold_root:
+            # MIOS_TEMPLATES_DIR: mios-new prefers an INSTALLED
+            # /usr/share/mios/templates, so on a MiOS host or dev container it
+            # scaffolded the host's templates instead of the tree under test.
             env = dict(os.environ, MIOS_DRIFT_CHECK_ROOT=scaffold_root,
-                       MIOS_THEME_ROOT=scaffold_root)
+                       MIOS_THEME_ROOT=scaffold_root,
+                       MIOS_TEMPLATES_DIR=os.path.join(os.path.abspath(root),
+                                                       "usr/share/mios/templates"))
             res = subprocess.run(
                 [sys.executable, scaffold_script, t, "testmock"],
                 env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
