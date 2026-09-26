@@ -1,5 +1,5 @@
 <!-- AI-hint: Master architectural distillation and full-spectrum systems synthesis for MiOS. -->
-<!-- AI-related: ROADMAP.md, TASKS.md, AGY-TASKS.md, ADR.md, usr/share/doc/mios/adr/, usr/share/mios/mios.toml -->
+<!-- AI-related: ROADMAP.md, TASKS.jsonl, ADR.md, usr/share/doc/mios/adr/, usr/share/mios/mios.toml -->
 # Master Session Architectural Distillation & Full-Spectrum Systems Synthesis
 
 ## 1. Executive Summary

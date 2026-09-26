@@ -2274,6 +2274,7 @@ surfaces = [
   { generator = "tools/generate-pipeline-index.py", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
   { generator = "tools/generate-uki-cmdline.py", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
   { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
+  { generator = "tools/native/mios-task/src/main.rs", check = "check_task_store", output = "TASKS.jsonl" },
   { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
   { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
@@ -6950,7 +6951,7 @@ piper              = 8179     # mios-piper: Piper/Kokoro streaming TTS engine (a
 stale_fallbacks = []
 
 # Allocated ports nothing references yet. SHRINK-ONLY (gate: check_ports_bound).
-# Per-key reasons: TASKS.md T-318. chrome_cdp_worker's only binder is an
+# Per-key reasons: TASKS.jsonl T-318. chrome_cdp_worker's only binder is an
 # `Environment=` literal in a shipped .service -- systemd does not expand ${} in
 # Environment=, and the [units] block that WOULD render the placeholder is inert
 # until T-317 makes mios-unit-gen faithful.
@@ -11114,11 +11115,11 @@ suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never pa
 "build.ratchet.max_phase_scripts" = "Phase scripts expanded during Phase 2 build features (kdump, dns-config, export-sbom, native-build); ceiling raised to 76 to match verified phase scripts on disk (T-515, T-497, T-509)"
 "build.rechunk_max_layers" = "OCI layer ceiling for hhd-dev/rechunk; trades layer count against pull size and rebuild caching, so it is an operator-tunable budget rather than a shrink-only code-debt ratchet (T-1071)"
 "legibility.max_tracked_mb" = "emitted by tools/native/mios-size-ceiling as round(tracked MiB) + [legibility].tracked_mb_headroom; it tracks the deliverable's size, which Law 12 BAKE-NOT-FETCH requires to grow, so shrink-only is the wrong shape for it (T-1051)"
-"legibility.max_tracked_files" = "Re-baselined to 3409 following approved merges on main (T-1104..T-1111, manual corpus, devcontainer, artifacts)"
+"legibility.max_tracked_files" = "Re-baselined to 3434 following approved merges on main (T-1104..T-1111, manual corpus, devcontainer, artifacts; ADR-0026 task store, operator-approved 2026-09-26)"
 "legibility.max_automation_phases" = "Re-baselined to 77 following approved merges on main"
 "legibility.max_libexec_verbs" = "Re-baselined to 310 following approved merges on main"
-"legibility.max_shell_lines" = "Re-baselined to 48117 following approved merges on main"
-"legibility.max_tooling_python_lines" = "Re-baselined to 77149 following approved merges on main"
+"legibility.max_shell_lines" = "Re-baselined to 48230 following approved merges on main (ADR-0026 task store, operator-approved 2026-09-26)"
+"legibility.max_tooling_python_lines" = "Re-baselined to 77671 following approved merges on main (ADR-0026 task store, operator-approved 2026-09-26)"
 
 [drift.budget_keys]
 # T-1047. Budget keys that MUST exist in [agent_pipe] or [dispatch].
@@ -11374,6 +11375,48 @@ max_value_divergence = 0
 schema_from = 1607
 max_duplicate_ids = 0
 
+[tasks.store]
+# ADR-0026: the canonical task record for every id space; written only by tools/native/mios-task.
+path           = "TASKS.jsonl"
+format         = "openai-strict-json-schema-jsonl"
+schema         = "usr/lib/mios/schemas/task-record.schema.json"
+schema_name    = "mios_task_record"
+schema_version = "1"
+# Precedence order, highest first; `repo` names a sibling checkout. `fences = true` only where headings
+# sit inside fenced blocks; `absorbed = true` marks a deleted list whose bytes live only in TASKS.jsonl.
+sources = [
+  { repo = "MiOS",       path = "TASKS.md",                               kind = "section", absorbed = true },
+  { repo = "MiOS",       path = "AGY-TASKS.md",                           kind = "section", absorbed = true },
+  { repo = "MiOS",       path = "usr/share/mios/agents/TASKS.md",         kind = "section", absorbed = true },
+  { repo = "MiOS",       path = "ROADMAP.md",                             kind = "roadmap-item" },
+  { repo = "MiOS",       path = "usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md",    kind = "section", absorbed = true },
+  { repo = "MiOS",       path = "usr/share/mios/docs/MIOS-GEMINI-TASKS-R2-2026-06-22.md", kind = "section", absorbed = true },
+  { repo = "mios-micro", path = "ROADMAP.md",                             kind = "list-item" },
+  { repo = "MiOS",       path = "TASKS.md",                               kind = "table-row", absorbed = true },
+  { repo = "MiOS",       path = ".devloop/tasks.jsonl",                   kind = "jsonl" },
+  { repo = "-dev-loop",  path = ".devloop/tasks.jsonl",                   kind = "jsonl" },
+  { repo = "-dev-loop",  path = ".devloop/backlog_archive.jsonl",         kind = "jsonl" },
+  { repo = "-dev-loop",  path = ".devloop/HISTORICAL_BACKLOG.md",         kind = "folded", fences = true },
+]
+# OpenAI plan-step / response-item status words; the source's own word stays in status_raw.
+statuses = ["pending", "in_progress", "completed", "incomplete", "cancelled"]
+# One id, two different tasks: the listed occurrence is keyed "<source>#<id>" (or "<id>#<nth>").
+# Ids are never reminted; `nth` counts that id's occurrences per kind in one file.
+distinct = [
+  { id = "T-031",  source = "MiOS:TASKS.md", nth = 2 },
+  { id = "T-001",  source = "-dev-loop:.devloop/tasks.jsonl" },
+  { id = "T-002",  source = "-dev-loop:.devloop/backlog_archive.jsonl" },
+  { id = "T-002",  source = "-dev-loop:.devloop/HISTORICAL_BACKLOG.md" },
+  { id = "T-003",  source = "-dev-loop:.devloop/tasks.jsonl" },
+  { id = "T-004",  source = "-dev-loop:.devloop/tasks.jsonl" },
+  { id = "T-005",  source = "-dev-loop:.devloop/backlog_archive.jsonl" },
+  { id = "T-005",  source = "-dev-loop:.devloop/HISTORICAL_BACKLOG.md" },
+  { id = "T-1104", source = "MiOS:.devloop/tasks.jsonl" },
+  { id = "T-1105", source = "MiOS:.devloop/tasks.jsonl" },
+  { id = "T-1106", source = "MiOS:.devloop/tasks.jsonl" },
+  { id = "T-1107", source = "MiOS:.devloop/tasks.jsonl" },
+]
+
 [docs]
 # Measured floor; 0 was never enforced. Ratchet DOWN only. AGY-1601.
 max_stale_refs              = 0
@@ -11487,7 +11530,6 @@ port_clean = [
   "usr/share/doc/mios/upstream/podman.md",
   "usr/share/doc/mios/upstream/related-distros.md",
   "usr/share/doc/mios/upstream/selinux.md",
-  "usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md",
   "usr/share/mios/docs/MIOS-ROADMAP-PROGRESS-2026-06-22.md",
   "usr/share/mios/docs/install-robustness-2026-06-21.md",
     "automation/67-bake-surfer.sh",
@@ -11825,7 +11867,7 @@ not_mirrored = [
 
 # [legibility] -- the repo IS the deliverable. Floors fall only. See ROADMAP.md.
 [legibility]
-max_tracked_files = 3409
+max_tracked_files = 3434
 # Raised to 3409 following approved merges on main: T-1104..T-1111, manual corpus,
 # devcontainer, artifacts, and core OS daemons.
 # GENERATED by tools/native/mios-size-ceiling; do not hand-edit. The valid band
@@ -11836,19 +11878,19 @@ max_tracked_files = 3409
 # (83% of the measurement, and Law 12 forbids shedding it) and re-baseline down
 # the way generated globals are excluded from the shell/PowerShell counts -- is
 # recorded in T-1051 with the numbers.
-max_tracked_mb    = 209
+max_tracked_mb    = 230
 # The allowance, and the only operator-tunable half: how far the tree may grow
 # between regenerations before the gate says anything. 0 makes the ceiling exact
 # and every MiB boundary a failure, which is the state T-1051 was filed about.
 tracked_mb_headroom = 1
-max_shell_lines   = 48117  # bash is glue only (Law 14). Re-baselined to 48117 from approved merges.
+max_shell_lines   = 48230  # bash is glue only (Law 14). Re-baselined to 48230 from approved merges.
 max_ps_lines      = 22596  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 77  # Re-baselined to 77 from approved merges.
 max_libexec_verbs     = 310  # verbs only; re-baselined to 310 from approved merges.
 
 # Script mass that converts to Rust binaries; the AI plane is exempt.
 python_ai_plane_prefixes = ["usr/lib/mios/agent-pipe/", "usr/lib/mios/agents/"]
-max_tooling_python_lines = 77149   # Re-baselined to 77149 from approved merges.
+max_tooling_python_lines = 77671   # Re-baselined to 77671 from approved merges.
 
 # --- Firstboot Models (T-200) ---
 [[ai.firstboot_models]]

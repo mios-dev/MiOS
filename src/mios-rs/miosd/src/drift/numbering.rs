@@ -128,7 +128,7 @@ impl Check for RoadmapIndexCheck {
         "check_roadmap_index"
     }
     fn describe(&self) -> &'static str {
-        "Assert ROADMAP.md task index matches AGY-TASKS.md SSOT"
+        "Assert ROADMAP.md task index matches the TASKS.jsonl SSOT"
     }
     fn run(&self, _ctx: &DriftCtx) -> Verdict {
         Verdict::Skip("NOT IMPLEMENTED: Roadmap index".to_string())
