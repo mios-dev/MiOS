@@ -1,4 +1,4 @@
-<!-- AI-hint: ADR-0025 declares the core MiOS profile once in mios.toml [profiles]; every image kind (OCI, WSL2, devcontainer, cloud projection, Codespace) is the root pipeline run under a profile, and the devcontainer Containerfile becomes a rendered thin shim over it. -->
+<!-- AI-hint: ADR-0025 declares the core MiOS profile once in mios.toml [profiles]; every image kind (OCI, WSL2, devcontainer, cloud projection, Codespace) is the root pipeline run under a profile, and the devcontainer uses the native Dev Containers pattern: devcontainer.json builds the root Containerfile (MiOS) or pulls the CI dev image (mirrors). -->
 <!-- AI-related: usr/share/mios/mios.toml [profiles] [packages.devcontainer] [build.phases] [variants.entries.mios-dev] [bootstrap.sync], Containerfile, .devcontainer/Containerfile, automation/build.sh, automation/lib/packages.sh, src/mios-rs/mios-build/src/lib.rs, tools/native/mios-resolver, usr/libexec/mios/seed-db-config.py, tools/drift-checks.py -->
 ---
 adr: 0025
@@ -19,8 +19,7 @@ superseded_by: []
 ## Status
 
 proposed — 2026-09-26. Design only: no lane below is implemented by this
-record. Q1, Q3 and Q4 were decided by the operator (see "Operator decisions");
-Q2 is still open.
+record. Q1-Q4 were decided by the operator (see "Operator decisions").
 
 ## Context
 
@@ -172,15 +171,24 @@ inverts: it is now installed by the `dev-userspace` phase. `[packages.dev_overla
   existing arg projection) passed into `build.sh`; `ARG BASE_IMAGE` resolved from
   `[profiles.<p>].base`. The final instruction stays `RUN bootc container lint`
   (Law 4) for every profile.
-- **`.devcontainer/Containerfile` becomes a rendered thin shim** (Law 8): the
-  SSOT-staging step it has today (clone-if-not-a-checkout, R1 `:31-58`),
-  widened to stage the whole overlay, then the same `build.sh` under
-  `MIOS_PROFILE=dev`, then the container-only tail (dev user, `CMD`). It carries
-  no package list and no install logic. It is emitted by a Rust renderer from a
-  new `usr/share/mios/templates/containerfile` declared in
-  `[templates.containerfile]` (Law 16, R11), and guarded by a regenerate-and-diff
-  gate `check_devcontainer_projection`. Its bytes are still mirrored (R8), so the
-  mirrors change in the same assignment (Law 15). Alternative in Q2.
+- **The devcontainer uses the native upstream Dev Containers pattern (Q2).**
+  There is no second Containerfile. MiOS's `.devcontainer/devcontainer.json`
+  builds the root `Containerfile` through the spec's own keys:
+  `build.dockerfile: "../Containerfile"`, `build.context: ".."`,
+  `build.args.MIOS_PROFILE` = `[profiles.targets].devcontainer`. Container-only
+  concerns (the dev user, shell, sudo) come from upstream Dev Container Features,
+  which it already uses (`ghcr.io/devcontainers/features/common-utils`), not from
+  hand-written `RUN` steps. `.devcontainer/Containerfile` is retired, along with
+  its entry in `[bootstrap.sync].mirror_files` (R8).
+- **Mirrors pull, they don't build.** mios-bootstrap and -dev-loop have no root
+  `Containerfile`, so their `devcontainer.json` uses the spec's `image` key: the
+  CI-published `dev` tag (Q3), plus the same Features. Codespaces and the cloud
+  projection take the same path, so no repo but MiOS builds a MiOS image.
+- **One gate (Law 8):** `devcontainer.json`'s `build.args.MIOS_PROFILE` and the
+  mirrors' `image` tag are projections of `[profiles.targets]` and `[image].ref`.
+  The existing `devcontainer.json` projector (ADR-0024's
+  `tools/sync-dotfiles.py`) writes them, and `check_devcontainer_projection`
+  re-renders and diffs. A hand edit fails.
 - **WSL2 / MiOS-DEV** is the OCI image built with `targets.wsl2`; the WSL
   artifact is a format of that image, as today.
 
@@ -209,7 +217,7 @@ inverts: it is now installed by the `dev-userspace` phase. `[packages.dev_overla
 |---|---|---|
 | profile resolution, `extends` closure, `MIOS_PROFILE` emit | Rust | `tools/native/mios-resolver` |
 | phase filter, `build --list --profile` | Rust | `src/mios-rs/mios-build`, `src/mios-rs/miosd` |
-| devcontainer Containerfile renderer + `--check` | Rust | new `tools/native/mios-containerfile-render` (or an `xtask` subcommand, R13) |
+| `devcontainer.json` build/image projection + `--check` | Python today (ADR-0024 projector); Rust when that projector ports | `tools/sync-dotfiles.py` |
 | profile integrity + projection gates | Rust runner, Python body where the peers are Python | `tools/drift-checks.py`, wired in `automation/98-drift-checks.sh` |
 | section skip at install time | bash glue (thin, Law 14) | `automation/lib/packages.sh` |
 | profile seeding, runtime profile state | Python (AI plane) | `usr/libexec/mios/seed-db-config.py` |
@@ -237,11 +245,13 @@ hosts the runtime capability view the agents see.
   `extends` is acyclic; `core` ⊆ every profile; every `[profiles.targets]` value
   and every `variants.entries.*.profile` is a declared profile; `[build.phases]`
   `max_phase_scripts` still bounds the phase count.
-- **New `check_devcontainer_projection`** (Law 8): re-render and diff
-  `.devcontainer/Containerfile`; a hand edit fails.
-- **`check_template_conformance`** covers the new `containerfile` type (Law 16).
-- **Law 15 mirrors:** `tools/sync-bootstrap.py --check` (mios-bootstrap) and
-  -dev-loop `tests/test_devcontainer_mirror.py` stay byte-identical gates; -dev-loop's
+- **New `check_devcontainer_projection`** (Law 8): re-render and diff the
+  `build` / `image` blocks of every `devcontainer.json`; a hand edit fails.
+- **No new template type** (Law 16): retiring `.devcontainer/Containerfile`
+  removes the need for a `containerfile` template (R11).
+- **Law 15 mirrors:** `.devcontainer/Containerfile` leaves
+  `[bootstrap.sync].mirror_files`. -dev-loop `tests/test_devcontainer_mirror.py`
+  instead asserts its `devcontainer.json` `image` equals the projected `dev` tag; -dev-loop's
   `FEDORA_PACKAGES` (R3) is replaced by the pulled `dev` image or by the SSOT
   resolution, and a -dev-loop test fails if a literal package list reappears.
 - Every new gate gets a negative in `tests/drift-gate-negatives.sh`.
@@ -253,13 +263,13 @@ L1 → (L2, L3, L5 in parallel) → L4 → (L6, L7).
 
 | Lane | owned_paths | Positive control | Negative control (must fail, naming the plant) |
 |---|---|---|---|
-| **L1 ssot-profiles** | `usr/share/mios/mios.toml`, `usr/libexec/mios/seed-db-config.py`, `usr/share/mios/templates/containerfile` | `python3 tools/drift-checks.py db-seed-coverage` exits 0 with `[profiles]` present; `just drift-gate` green | drop `'profiles'` from `_CANONICAL_SECTIONS` on a copy → fails `Section 'profiles' is not handled by seed-db-config.py` |
+| **L1 ssot-profiles** | `usr/share/mios/mios.toml` (incl. dropping `.devcontainer/Containerfile` from `[bootstrap.sync].mirror_files`), `usr/libexec/mios/seed-db-config.py` | `python3 tools/drift-checks.py db-seed-coverage` exits 0 with `[profiles]` present; `just drift-gate` green | drop `'profiles'` from `_CANONICAL_SECTIONS` on a copy → fails `Section 'profiles' is not handled by seed-db-config.py` |
 | **L2 native-profile** | `tools/native/mios-resolver/**`, `src/mios-rs/mios-build/**`, `src/mios-rs/miosd/src/**` | `cargo test -p mios-build`; `miosd build --list --profile core` prints exactly `[profiles.core].phases` in ordinal order | a copy of `mios.toml` with `DEVLOOP-PLANTED-phase` in `core.phases` → `miosd` exits non-zero naming `DEVLOOP-PLANTED-phase` |
 | **L3 bake-glue** | `automation/build.sh`, `automation/lib/packages.sh`, `Containerfile`, `tests/test-profile-packages.sh` | with a stub `DNF_BIN`, `MIOS_PROFILE=core install_packages gaming` logs `outside profile core` and calls dnf 0 times; `bash -n` clean | a core list naming `DEVLOOP-PLANTED-section` → `get_packages_strict` fails naming it |
-| **L4 devcontainer-render** | `.devcontainer/Containerfile`, `tools/native/mios-containerfile-render/**`, `tools/sync-generated.sh` | renderer `--check` exits 0; `bash tools/sync-generated.sh` reaches a fixed point; the rendered image's RPM set ⊇ `dev` profile set | append `# DEVLOOP-PLANTED-hand-edit` to `.devcontainer/Containerfile` → `check_devcontainer_projection` fails naming the file |
+| **L4 devcontainer-native** | `.devcontainer/devcontainer.json`, `.devcontainer/Containerfile` (deleted), `tools/sync-dotfiles.py` | `devcontainer build` of MiOS's `devcontainer.json` produces an image whose RPM set ⊇ the `dev` profile set; `sync-dotfiles.py --check` exits 0; `bash tools/sync-generated.sh` reaches a fixed point | set `build.args.MIOS_PROFILE` to `DEVLOOP-PLANTED` by hand → `check_devcontainer_projection` fails naming `devcontainer.json` |
 | **L5 gates** | `tools/drift-checks.py`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh` | `just drift-gate` and `bash tests/run-suites.sh lint` green | `core` extending a profile that omits a core phase → `check_profile_integrity` fails `core is not a subset of DEVLOOP-PLANTED-profile` |
 | **L6 cloud-degrade** | `.devcontainer/post-start.sh`, `usr/libexec/mios/mios-profile-extend`, agent-pipe capability module + its `test_mios_*.py` | cold cloud setup ≤ `budget_seconds` with the core verified present; manifest lists what degraded | `budget_seconds = 1` → extender stops after core, exits 0, and the manifest names every skipped component (a missing name fails the test) |
-| **L7 mirrors** | mios-bootstrap `.devcontainer/Containerfile`; -dev-loop `.devcontainer/Containerfile`, `skills/dev-loop/scripts/env/cloud-fedora-setup.sh`, `tests/test_devcontainer_mirror.py` | `tools/sync-bootstrap.py --check` and -dev-loop `validate.sh` green, bytes identical | a one-byte change in the bootstrap copy → `sync-bootstrap.py --check` fails naming `.devcontainer/Containerfile`; a literal `FEDORA_PACKAGES=` list → the -dev-loop test fails naming it |
+| **L7 mirrors** | mios-bootstrap `.devcontainer/devcontainer.json` (and its `.devcontainer/Containerfile`, deleted); -dev-loop `.devcontainer/devcontainer.json`, `.devcontainer/Containerfile` (deleted), `skills/dev-loop/scripts/env/cloud-fedora-setup.sh`, `tests/test_devcontainer_mirror.py` | both mirrors' `devcontainer.json` pull the projected `dev` tag; -dev-loop `validate.sh` green | an `image` tag that differs from the projection → the -dev-loop test fails naming it; a literal `FEDORA_PACKAGES=` list → the -dev-loop test fails naming it |
 
 ## Rationale
 
@@ -269,8 +279,10 @@ L1 → (L2, L3, L5 in parallel) → L4 → (L6, L7).
 - Filtering at `miosd build --list` and at `install_packages` touches two choke
   points instead of seventy stage scripts, and both already refuse loudly (R4) or
   log a skip (R5).
-- A rendered shim keeps the mirror gate (R8) meaningful: the mirrored bytes are a
-  projection of SSOT, so a drift is a regenerate, not a merge.
+- The native Dev Containers pattern (Q2) needs no MiOS-specific renderer or
+  template. The spec's `build` and `image` keys, plus upstream Features, already
+  express "build this Containerfile with this profile" and "pull this image".
+  What is left to gate is two projected values, not a mirrored file.
 - Seeding every section in every profile keeps `check_db_seed_coverage` a
   single, profile-blind rule instead of a matrix.
 
@@ -298,6 +310,6 @@ L1 → (L2, L3, L5 in parallel) → L4 → (L6, L7).
 - **Q4 datastore without systemd — decided: `postgresql-server` + `pgvector`
   from RPM under a small supervisor** in the container image kinds; the
   `mios-pgvector` Quadlet stays the datastore where systemd runs.
-- **Q2 devcontainer shape — open:** rendered thin shim (recommended, keeps the
-  mirror model) · `devcontainer.json` builds the root `Containerfile` with
-  `args.MIOS_PROFILE=dev` (no second file; mirrors then carry the JSON).
+- **Q2 devcontainer shape — decided: native upstream patterns.** The Dev
+  Containers spec's own `build` (MiOS) and `image` (mirrors) keys and upstream
+  Features; no rendered shim and no second Containerfile (see D2).

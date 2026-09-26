@@ -301,7 +301,7 @@ is generated, its generator is here.
 | `tools/check-docs.py` | Documentation-plane drift gates in one module: ratchet monotonicity, manual links, comment-lexer equivalence, header comment syntax, generated prose in resolvers, redaction coverage. The subcommand... |
 | `tools/check-runtime.py` | Runtime and unit gates in one module: container names, privileged Quadlets, service URLs, daemon governor coverage, firstboot degrade-open, firstboot provisioners, artifact verification and resolver... |
 | `tools/check-ssot.py` | SSOT-plane drift gates in one module: mios.toml integrity, consumer keys, unit projection, port fallbacks and binding, variant registry, deploy formats, role SSOT, node pool, blade coverage and fleet... |
-| `tools/check-tasks.py` | Task-plane drift gates in one module: TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution. The subcommand selects the gate. |
+| `tools/check-tasks.py` | Task-plane drift gates in one module: TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution, over the lists TASKS.jsonl keeps (ADR-0026). |
 | `tools/check-testhygiene.py` | Test-and-fixture hygiene gates in one module: leaked fixtures, temp fixture cleanup, negative-test registration, Rust test coverage, schema consumers, tracked-file readability and module length. The... |
 | `tools/ci-suites.py` | Resolves the [ci] suite registry for the runners and fails when a tracked suite is neither registered in a tier nor exempted. |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
