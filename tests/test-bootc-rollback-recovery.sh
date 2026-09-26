@@ -19,6 +19,11 @@ if [[ ! -x "$MIOSD_BIN" ]]; then
     fi
 fi
 
+# miosd's /var/lib/mios probes land in a throwaway root, never the host's /var.
+STATE_ROOT="$(mktemp -d /tmp/test-bootc-rollback.XXXXXX)"
+trap 'rm -rf "$STATE_ROOT"' EXIT
+export MIOS_ROOT="$STATE_ROOT"
+
 pass_count=0
 fail_count=0
 
