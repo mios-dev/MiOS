@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
   "total_files_scanned": 3427,
-  "total_metadata_entries": 2869,
-  "total_hints": 2854,
-  "total_functions_indexed": 1326,
-  "total_related_links": 4630,
+  "total_metadata_entries": 2865,
+  "total_hints": 2850,
+  "total_functions_indexed": 1336,
+  "total_related_links": 4614,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -297,15 +297,6 @@
       "has_shebang": false
     },
     {
-      "path": "AGY-TASKS.md",
-      "hint": "Spinoff task list handed to Gemini AGY to execute in the IDE, in parallel with Claude. Derived from the deploy + DB-driven workstreams Claude started (WS-DEPLOY runtime, WS-HEAVY runtime). AGY takes the CODE-ONLY half (no live-VM dependency) so the two agents don't collide. Each task is self-contained with Who/What/Where/When/How + Start-here + Done-When.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
       "path": "ARTIFACT-PROMPT.md",
       "hint": "GENERATED daily out-of-loop artifact specification -- the task text an external agent is given once, and the declarative specification that task reads at a pinned commit on every run; projected from mios.toml [artifacts.daily] through usr/share/mios/templates/artifact-prompt. DO NOT EDIT: change the SSOT or the template and run `cargo run -q -p xtask -- artifact-prompt`.",
       "related": [
@@ -481,26 +472,6 @@
         "mios-dev",
         "mios-hardening",
         "audit-prompt"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
-      "path": "TASKS.md",
-      "hint": "MiOS -- Master Tasks (SINGULAR monolith)",
-      "related": [
-        "/etc/profile.d/mios-xdg-cephfs.sh",
-        "/etc/mios/ai/v1/caller-keys.json",
-        "/etc/mios/ai/v1/a2a-peers.json",
-        "/usr/share/mios/ai/v1/mcp.json",
-        "/etc/mios/ai/v1/mcp.json",
-        "/usr/libexec/mios/mios-mcp-server",
-        "/etc/mios/hermes/config.local.yaml",
-        "/etc/mios/gateway/",
-        "/usr/libexec/mios/mios-cephfs-provision",
-        "/etc/mios/llamacpp/mios-llm-light.yaml"
       ],
       "functions": [],
       "doc": null,
@@ -3865,7 +3836,7 @@
         "usr/share/mios/mios.toml",
         "Containerfile",
         "automation/98-drift-checks.sh",
-        "TASKS.md"
+        "TASKS.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -3931,7 +3902,7 @@
         "usr/share/mios/mios.toml",
         "automation/build.sh",
         "automation/55-native-build.sh",
-        "TASKS.md"
+        "TASKS.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -4012,7 +3983,7 @@
         "src/mios-rs/miosd/src/drift/",
         "usr/share/mios/mios.toml",
         "Containerfile",
-        "TASKS.md"
+        "TASKS.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -7893,7 +7864,7 @@
     },
     {
       "path": "tools/check-tasks.py",
-      "hint": "Task-plane drift gates in one module: TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution. The subcommand selects the gate.",
+      "hint": "Task-plane drift gates in one module: TASKS.md table-vs-section parity, AGY task schema, and AGY id/dependency resolution, over the lists TASKS.jsonl keeps (ADR-0026).",
       "related": [],
       "functions": [
         "main",
@@ -8953,6 +8924,43 @@
       "hint": "Single-sourced mios.toml SSOT-walk logic for resolver-twin and names-registry generators.",
       "related": [],
       "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/Cargo.toml",
+      "hint": "Cargo manifest for mios-task -- the one writer of the canonical MiOS task store (ADR-0026).",
+      "related": [
+        "tools/native/Cargo.toml",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tools/native/mios-task/src/main.rs",
+      "hint": "mios-task -- sole writer of the canonical task store (ADR-0026): migrate, check-lossless, validate, ready.",
+      "related": [
+        "/usr/share/mios/mios.toml [tasks.store]",
+        "/usr/lib/mios/schemas/task-record.schema.json",
+        "TASKS.jsonl",
+        "/usr/share/doc/mios/adr/0026-global-task-store.md"
+      ],
+      "functions": [
+        "main",
+        "migrate",
+        "check_lossless",
+        "validate",
+        "ready",
+        "parse_markdown",
+        "parse_jsonl",
+        "heading_fields",
+        "body_fields",
+        "normalise_status"
+      ],
       "doc": null,
       "comment_style": "slash",
       "has_shebang": false
@@ -10654,7 +10662,7 @@
       "related": [
         "usr/lib/mios/agent-pipe/server.py",
         "tests/test-ast-diff-peer-review.sh",
-        "TASKS.md"
+        "TASKS.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -15154,15 +15162,6 @@
     },
     {
       "path": "usr/lib/sysctl.d/20-memory.conf",
-      "hint": "Configures proactive memory compaction and memory parameters for AI workloads (T-800).",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/ch12-memory-compaction-and-thp.md",
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/lib/sysctl.d/20-mios-memory.conf",
       "hint": "Configures proactive memory compaction and memory parameters for AI workloads (T-800).",
       "related": [],
       "functions": [],
@@ -26751,6 +26750,23 @@
       "has_shebang": false
     },
     {
+      "path": "usr/share/doc/mios/adr/0026-global-task-store.md",
+      "hint": "ADR-0026 makes one strict-schema JSONL file the canonical record of every MiOS task (T-, AGY-, MON-, F-, M-, CODE-, G- ids), merged losslessly from every task list with verbatim provenance; the pure task lists it absorbed are deleted and can be rebuilt byte-for-byte with `mios-task source`.",
+      "related": [
+        "/usr/share/doc/mios/adr/README.md",
+        "/usr/lib/mios/schemas/task-record.schema.json",
+        "TASKS.jsonl",
+        "/usr/share/mios/mios.toml [tasks]",
+        "tools/native/mios-task",
+        "ROADMAP.md",
+        "tools/check-tasks.py"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "usr/share/doc/mios/adr/README.md",
       "hint": "Index + process spec for MiOS Architecture Decision Records; read this first to learn the ADR format, status lifecycle, and which ADR governs the workstream you are implementing.",
       "related": [
@@ -27050,7 +27066,7 @@
       "related": [
         "mios-bootstrap src/autounattend",
         "ROADMAP.md Part 12",
-        "TASKS.md T-137/T-138/T-149"
+        "TASKS.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -27293,8 +27309,7 @@
       "hint": "Master architectural distillation and full-spectrum systems synthesis for MiOS.",
       "related": [
         "ROADMAP.md",
-        "TASKS.md",
-        "AGY-TASKS.md",
+        "TASKS.jsonl",
         "ADR.md",
         "usr/share/doc/mios/adr/",
         "usr/share/mios/mios.toml"
@@ -29826,7 +29841,7 @@
         "tools/lib/userenv.sh",
         "usr/share/mios/mios.toml",
         "automation/98-drift-checks.sh",
-        "AGY-TASKS.md"
+        "TASKS.jsonl"
       ],
       "functions": [],
       "doc": null,
@@ -30185,7 +30200,7 @@
       "path": "usr/share/doc/mios/reference/deploy-plane-state.md",
       "hint": "The measured state of the MiOS deploy plane: what installs, what does not, and the root causes behind each.",
       "related": [
-        "AGY-TASKS.md",
+        "TASKS.jsonl",
         "installation/",
         "usr/share/mios/ventoy/"
       ],
@@ -30942,26 +30957,6 @@
       "has_shebang": false
     },
     {
-      "path": "usr/share/mios/agents/TASKS.md",
-      "hint": "MiOS architectural documentation: MiOS Frontier \u2014 Task List (A2O War-Room).",
-      "related": [
-        "/etc/mios/install.env",
-        "/usr/share/mios/agents",
-        "mios-frontier",
-        "mios-a2o",
-        "mios-agents",
-        "mios-sync-env",
-        "mios-code-server",
-        "mios-agents-firstboot",
-        "mios-agents-path",
-        "mios-root"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
       "path": "usr/share/mios/agents/constraints.txt",
       "hint": "Pip constraints (lower-bound version floors) for the shared agent-plane Python ASGI stack -- reproducibility + CVE floor; passed to every hermes-agent pip install via `-c`.",
       "related": [
@@ -31414,34 +31409,6 @@
       "functions": [],
       "doc": null,
       "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md",
-      "hint": "Task list for Antigravity/Gemini (Gemini 3.2 Pro, High). The pod-consolidation + build-pipeline + docs + low-residual half of MIOS-ROADMAP-2026-06-22.md, chosen to be DISJOINT from the files Claude is editing concurrently (server.py + mios.toml [agents]/[ai]/[cost] + the opencode gateway + hermes-worker). Read MIOS-ROADMAP-2026-06-22.md for full per-task detail.",
-      "related": [
-        "./MIOS-ROADMAP-2026-06-22.md",
-        "../mios.toml",
-        "../../../../tools/generate-pod-quadlets.py",
-        "../../../containers/systemd"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/share/mios/docs/MIOS-GEMINI-TASKS-R2-2026-06-22.md",
-      "hint": "Round-2 MINOR task list for Antigravity/Gemini (Gemini 3.2 Pro, High). Small, self-contained verification/polish/docs/install-residual tasks chosen to be DISJOINT from (a) Claude's concurrent agent-system work and (b) the in-flight open-agent-federation research -- so the overall roadmap is NOT disrupted. Follows MIOS-GEMINI-TASKS-2026-06-22.md (Round 1, done).",
-      "related": [
-        "./MIOS-GEMINI-TASKS-2026-06-22.md",
-        "./MIOS-ROADMAP-2026-06-22.md",
-        "./install-robustness-2026-06-21.md",
-        "../../../../tools/generate-pod-quadlets.py"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "xml",
       "has_shebang": false
     },
     {
@@ -32124,15 +32091,6 @@
       "related": [],
       "functions": [],
       "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/share/mios/llamacpp/llama-swap.yaml",
-      "hint": "The mios-llm-light model map -- maps OpenAI /v1-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack.",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/llamacpp.md",
       "comment_style": "hash",
       "has_shebang": false
     },

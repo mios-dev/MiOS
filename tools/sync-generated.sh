@@ -42,7 +42,7 @@ step() { printf '[sync-generated] %s\n' "$1"; }
 # Steps 6 and 7 census `git ls-files`, so a file git does not yet TRACK is
 # invisible to both. Intent-to-add makes it visible without staging content, so
 # one pass suffices. Without this, sync and the gate pass locally and CI goes
-# red on the commit that finally tracked the file. See TASKS.md T-326.
+# red on the commit that finally tracked the file. See TASKS.jsonl T-326.
 _register_new_files() {
     command -v git >/dev/null 2>&1 || return 0
     git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || return 0

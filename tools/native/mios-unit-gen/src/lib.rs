@@ -125,7 +125,7 @@ pub fn render_units(ssot_toml: &str) -> Result<BTreeMap<String, String>, UnitGen
 
                         // No hardening baseline is injected: a generator that
                         // adds undeclared directives is not a projection.
-                        // See TASKS.md T-317.
+                        // See TASKS.jsonl T-317.
                         let _ = (is_service, is_unconfined, &existing_keys);
                     }
                 }
@@ -238,7 +238,7 @@ mod tests {
     use super::*;
 
     /// The renderer is a PROJECTION: only what `[units.*]` declares comes
-    /// out. It used to inject a hardening baseline. See TASKS.md T-317.
+    /// out. It used to inject a hardening baseline. See TASKS.jsonl T-317.
     #[test]
     fn test_render_invents_no_directives() {
         let toml_str = r#"
