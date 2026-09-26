@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit and integration tests for MiOS-Cat removable USB hybrid GPT/MBR partition formatter.
-# AI-related: usr/libexec/mios/deploy/usb_format.py, usr/share/mios/mios.toml, cat/MiOS-Cat.sh
+# AI-related: usr/libexec/mios/deploy/usb_format.py, usr/share/mios/mios.toml, field/MiOS-Cat.sh
 """Unit and integration test suite for UsbFormatEngine and CLI."""
 
 from __future__ import annotations
