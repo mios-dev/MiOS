@@ -2534,6 +2534,7 @@ push-to-github.ps1	102	102	1	16	e9c662fbea02	STAY	inline-scoped		0				0
 push-to-github.ps1	105	105	1	12	0ea76892443d	STAY	inline-scoped		0				0
 rust-toolchain.toml	1	2	2	20	d5065b77fdcd	STAY	ai-header		0				0
 src/mios-rs/Cargo.toml	1	2	2	4	794194deab19	STAY	ai-header		0				0
+src/mios-rs/clippy.toml	1	1	1	14	ae396a9da6fc	STAY	local-scoped		0				0
 src/mios-rs/deny.toml	1	1	1	8	39b537faa035	STAY	ai-header		0				0
 src/mios-rs/mios-build/Cargo.toml	1	1	1	3	f8c3aa3cbcc7	STAY	ai-header		0				0
 src/mios-rs/mios-build/src/lib.rs	1	2	2	12	208d8e52475e	STAY	ai-header		0				0
@@ -2582,36 +2583,37 @@ src/mios-rs/mios-gate/src/dispatch.rs	152	154	3	29	315afa844227	STAY	midsize-why
 src/mios-rs/mios-gate/src/dispatch.rs	166	166	1	5	7101450efeed	STAY	inline-scoped		0				0
 src/mios-rs/mios-gate/src/dispatch.rs	190	192	3	37	6ba36b85afbe	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/src.md	mios-src:6ba36b85afbe	37	0
 src/mios-rs/mios-gate/src/doc_refs.rs	1	2	2	39	64b788433b3e	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/src.md	mios-src:64b788433b3e	39	0
-src/mios-rs/mios-gate/src/doc_refs.rs	16	17	2	21	33884da7743a	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	24	24	1	9	b4fe6ff26f1d	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	26	26	1	7	0f13698bd8dd	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	28	28	1	2	acd7d9bb2e53	DROP	commented-out-code		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	68	68	1	13	05777a6659fe	STAY	inline-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	79	81	3	38	9d0bfa3c7f91	STAY	midsize-why		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	106	108	3	33	a8f706ed48b6	STAY	midsize-why		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	123	123	1	9	ffc85c9d94b6	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	128	128	1	11	901c6ec02b05	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	149	149	1	0	2378cc73b854	DROP	banner		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	150	150	1	0	2378cc73b854	DROP	banner		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	153	153	1	0	2378cc73b854	DROP	banner		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	305	308	4	42	1153165e0100	STAY	midsize-why		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	312	312	1	6	2e478393fb06	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	357	357	1	7	9a1f21982aa7	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	445	446	2	22	2d5af9fe5371	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	475	475	1	0	2378cc73b854	DROP	banner		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	476	476	1	0	2378cc73b854	DROP	banner		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	478	478	1	0	2378cc73b854	DROP	banner		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	591	592	2	26	c1a24076cfd0	STAY	midsize-why		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	611	612	2	26	02d4313ccfe3	STAY	midsize-why		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	642	643	2	21	8507bf3bb5b5	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	719	720	2	25	b27d15790cad	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	737	738	2	23	fa0ccfb444c8	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	799	799	1	8	b839c7a17439	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	838	838	1	3	66fd09582fdd	DROP	commented-out-code		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	922	922	1	12	3077b5ce6b16	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	928	928	1	6	ab0ff5a856ba	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	931	931	1	9	2c7bd51f663d	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/src/doc_refs.rs	935	935	1	12	a7de4d7634a7	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	30	31	2	21	33884da7743a	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	38	38	1	9	b4fe6ff26f1d	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	40	40	1	7	0f13698bd8dd	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	42	42	1	2	acd7d9bb2e53	DROP	commented-out-code		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	82	82	1	13	05777a6659fe	STAY	inline-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	93	95	3	38	9d0bfa3c7f91	STAY	midsize-why		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	120	122	3	33	a8f706ed48b6	STAY	midsize-why		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	137	137	1	9	ffc85c9d94b6	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	142	142	1	11	901c6ec02b05	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	163	163	1	0	2378cc73b854	DROP	banner		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	164	164	1	0	2378cc73b854	DROP	banner		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	167	167	1	0	2378cc73b854	DROP	banner		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	319	322	4	42	1153165e0100	STAY	midsize-why		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	326	326	1	6	2e478393fb06	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	377	377	1	7	9a1f21982aa7	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	466	467	2	22	2d5af9fe5371	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	496	496	1	0	2378cc73b854	DROP	banner		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	497	497	1	0	2378cc73b854	DROP	banner		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	499	499	1	0	2378cc73b854	DROP	banner		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	595	595	1	14	cadfeb3dd561	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	619	620	2	26	c1a24076cfd0	STAY	midsize-why		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	639	640	2	26	02d4313ccfe3	STAY	midsize-why		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	670	671	2	21	8507bf3bb5b5	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	747	748	2	25	b27d15790cad	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	765	766	2	23	fa0ccfb444c8	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	827	827	1	8	b839c7a17439	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	874	874	1	3	66fd09582fdd	DROP	commented-out-code		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	973	973	1	12	3077b5ce6b16	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	979	979	1	6	ab0ff5a856ba	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	982	982	1	9	2c7bd51f663d	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/src/doc_refs.rs	986	986	1	12	a7de4d7634a7	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/inert_tables.rs	1	2	2	32	36932f84546d	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/src.md	mios-src:36932f84546d	32	0
 src/mios-rs/mios-gate/src/inert_tables.rs	14	14	1	9	d95f2614690b	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/src/inert_tables.rs	37	37	1	14	fcf60b9fe781	STAY	local-scoped		0				0
@@ -3578,35 +3580,35 @@ src/mios-rs/miosd/src/main.rs	415	416	2	21	d8765406edc5	STAY	local-scoped		0				
 src/mios-rs/miosd/src/main.rs	518	520	3	28	60fc58605af9	STAY	midsize-why		0				0
 src/mios-rs/miosd/src/main.rs	525	526	2	26	db540668704c	STAY	midsize-why		0				0
 src/mios-rs/miosd/src/main.rs	545	552	8	72	25feac2b49b4	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:25feac2b49b4	72	0
-src/mios-rs/miosd/src/main.rs	681	685	5	52	c32687f70f1e	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/src.md	mios-src:c32687f70f1e	52	0
-src/mios-rs/miosd/src/main.rs	702	704	3	35	eac140f6bdf6	STAY	midsize-why		0				0
-src/mios-rs/miosd/src/main.rs	1030	1030	1	1	2c3f52a3a0d7	DROP	commented-out-code		0				0
-src/mios-rs/miosd/src/main.rs	1049	1056	8	63	92b254904551	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:92b254904551	63	0
-src/mios-rs/miosd/src/main.rs	1096	1102	7	78	33504e08e1c5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:33504e08e1c5	78	0
-src/mios-rs/miosd/src/main.rs	1168	1169	2	21	6e21ad86a889	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1208	1211	4	46	f68f86dc4e5b	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/src.md	mios-src:f68f86dc4e5b	46	0
-src/mios-rs/miosd/src/main.rs	1224	1224	1	3	1282e1584a5d	STAY	inline-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1234	1234	1	3	9072e79dea83	STAY	inline-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1248	1248	1	6	7d9d21aa1121	STAY	inline-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1253	1253	1	3	e21e753d044d	STAY	inline-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1263	1263	1	6	5a571b9e6283	STAY	inline-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1268	1268	1	3	e21e753d044d	STAY	inline-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1294	1301	8	73	3b01a76f0ed3	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:3b01a76f0ed3	73	0
-src/mios-rs/miosd/src/main.rs	1372	1372	1	13	502ee6db7099	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1385	1385	1	17	d255df0a9f5e	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1391	1391	1	12	9c6724b62987	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1410	1410	1	14	929a933855e2	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1578	1578	1	14	0f3bbb92f892	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1598	1598	1	12	bfa523721295	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1745	1745	1	7	134335adb263	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1763	1763	1	8	2cc905c073c2	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1778	1778	1	9	5084fa50a6eb	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1803	1803	1	4	5f5556a1917a	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1809	1809	1	7	4fe80e63a637	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1838	1843	6	68	a3fbd6f06e11	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:a3fbd6f06e11	68	0
-src/mios-rs/miosd/src/main.rs	1882	1893	12	117	9ba4dc892ef6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9ba4dc892ef6	117	0
-src/mios-rs/miosd/src/main.rs	1972	1977	6	56	53e065f25511	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:53e065f25511	56	0
-src/mios-rs/miosd/src/main.rs	2037	2043	7	72	9dccae407645	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9dccae407645	72	0
+src/mios-rs/miosd/src/main.rs	682	686	5	52	c32687f70f1e	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/src.md	mios-src:c32687f70f1e	52	0
+src/mios-rs/miosd/src/main.rs	703	705	3	35	eac140f6bdf6	STAY	midsize-why		0				0
+src/mios-rs/miosd/src/main.rs	1042	1042	1	0	32a6e8eeb5e3	DROP	banner		0				0
+src/mios-rs/miosd/src/main.rs	1063	1070	8	63	92b254904551	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:92b254904551	63	0
+src/mios-rs/miosd/src/main.rs	1110	1116	7	78	33504e08e1c5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:33504e08e1c5	78	0
+src/mios-rs/miosd/src/main.rs	1182	1183	2	21	6e21ad86a889	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1222	1225	4	46	f68f86dc4e5b	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/src.md	mios-src:f68f86dc4e5b	46	0
+src/mios-rs/miosd/src/main.rs	1238	1238	1	3	1282e1584a5d	STAY	inline-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1248	1248	1	3	9072e79dea83	STAY	inline-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1262	1262	1	6	7d9d21aa1121	STAY	inline-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1267	1267	1	3	e21e753d044d	STAY	inline-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1277	1277	1	6	5a571b9e6283	STAY	inline-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1282	1282	1	3	e21e753d044d	STAY	inline-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1308	1315	8	73	3b01a76f0ed3	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:3b01a76f0ed3	73	0
+src/mios-rs/miosd/src/main.rs	1386	1386	1	13	502ee6db7099	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1399	1399	1	17	d255df0a9f5e	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1405	1405	1	12	9c6724b62987	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1424	1424	1	14	929a933855e2	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1596	1596	1	14	0f3bbb92f892	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1616	1616	1	12	bfa523721295	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1763	1763	1	7	134335adb263	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1781	1781	1	8	2cc905c073c2	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1796	1796	1	9	5084fa50a6eb	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1821	1821	1	4	5f5556a1917a	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1827	1827	1	7	4fe80e63a637	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1856	1861	6	68	a3fbd6f06e11	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:a3fbd6f06e11	68	0
+src/mios-rs/miosd/src/main.rs	1900	1911	12	117	9ba4dc892ef6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9ba4dc892ef6	117	0
+src/mios-rs/miosd/src/main.rs	1990	1995	6	56	53e065f25511	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:53e065f25511	56	0
+src/mios-rs/miosd/src/main.rs	2055	2061	7	72	9dccae407645	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9dccae407645	72	0
 src/mios-rs/miosd/src/secret.rs	1	2	2	20	5674c238ad95	STAY	ai-header		0				0
 src/mios-rs/miosd/src/secret.rs	9	10	2	17	5509df7ee0cd	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/secret.rs	30	30	1	8	eb40e73e635c	STAY	local-scoped		0				0
@@ -3620,9 +3622,9 @@ src/mios-rs/miosd/src/secret.rs	179	179	1	13	fbd3ad31bd16	STAY	local-scoped		0		
 src/mios-rs/miosd/src/secret.rs	203	203	1	9	2a1229e1c684	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/secret.rs	223	223	1	11	e71b168ac71b	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/secret.rs	242	242	1	2	b4ca7cbfd4c5	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	275	275	1	13	24acbe6df118	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	293	293	1	4	03ee29ff4148	STAY	inline-scoped		0				0
-src/mios-rs/miosd/src/secret.rs	297	297	1	0	71f9329a4098	DROP	commented-out-code		0				0
+src/mios-rs/miosd/src/secret.rs	277	277	1	13	24acbe6df118	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	295	295	1	4	03ee29ff4148	STAY	inline-scoped		0				0
+src/mios-rs/miosd/src/secret.rs	299	299	1	0	71f9329a4098	DROP	commented-out-code		0				0
 src/mios-rs/miosd/src/server.rs	1	2	2	16	8417b0dc920d	STAY	ai-header		0				0
 src/mios-rs/miosd/tests/registry_integration.rs	1	2	2	11	a9b924d8735b	STAY	ai-header		0				0
 src/mios-rs/miosd/tests/registry_integration.rs	14	15	2	20	641219726725	STAY	local-scoped		0				0
@@ -8250,8 +8252,8 @@ tools/native/mios-bake-plan/src/main.rs	347	350	4	42	26b06bb2fda8	STAY	midsize-w
 tools/native/mios-bake-plan/src/main.rs	467	469	3	26	20cf743630df	STAY	midsize-why		0				0
 tools/native/mios-bake-plan/src/main.rs	506	507	2	21	ce9a7d9ee61d	STAY	local-scoped		0				0
 tools/native/mios-bake-plan/src/main.rs	594	595	2	27	4bbfa3421c84	STAY	midsize-why		0				0
-tools/native/mios-bake-plan/src/main.rs	607	608	2	19	f30b6daa8a50	STAY	local-scoped		0				0
-tools/native/mios-bake-plan/src/main.rs	624	624	1	11	de3b2e334ce1	STAY	local-scoped		0				0
+tools/native/mios-bake-plan/src/main.rs	611	612	2	19	f30b6daa8a50	STAY	local-scoped		0				0
+tools/native/mios-bake-plan/src/main.rs	630	630	1	11	de3b2e334ce1	STAY	local-scoped		0				0
 tools/native/mios-comment-lex/Cargo.toml	1	1	1	11	5069a5ba4158	STAY	ai-header		0				0
 tools/native/mios-comment-lex/src/main.rs	1	1	1	11	95c2168078b1	STAY	ai-header		0				0
 tools/native/mios-comment-lex/src/main.rs	11	11	1	3	da7780dd97bf	STAY	local-scoped		0				0
@@ -8271,12 +8273,12 @@ tools/native/mios-comment-lex/src/main.rs	365	365	1	3	7e53fd7f6028	STAY	local-sc
 tools/native/mios-comment-lex/src/main.rs	367	367	1	3	996ad202889d	STAY	local-scoped		0				0
 tools/native/mios-comment-lex/src/main.rs	378	378	1	3	4a4d4873836f	STAY	local-scoped		0				0
 tools/native/mios-comment-lex/src/main.rs	379	379	1	2	70430420a7b1	DROP	commented-out-code		0				0
-tools/native/mios-comment-lex/src/main.rs	398	398	1	0	8a331fdde703	DROP	banner		0				0
-tools/native/mios-comment-lex/src/main.rs	423	423	1	11	06c6d865617b	STAY	local-scoped		0				0
-tools/native/mios-comment-lex/src/main.rs	451	451	1	8	f9bc437e54ca	STAY	local-scoped		0				0
-tools/native/mios-comment-lex/src/main.rs	492	492	1	5	f942b5ef2bd8	STAY	inline-scoped		0				0
-tools/native/mios-comment-lex/src/main.rs	572	572	1	0	c7d465246c95	DROP	commented-out-code		0				0
-tools/native/mios-comment-lex/src/main.rs	579	579	1	4	70c7376c6074	STAY	inline-scoped		0				0
+tools/native/mios-comment-lex/src/main.rs	397	397	1	7	1ee0d95b67cb	STAY	inline-scoped		0				0
+tools/native/mios-comment-lex/src/main.rs	419	419	1	11	06c6d865617b	STAY	local-scoped		0				0
+tools/native/mios-comment-lex/src/main.rs	450	450	1	8	f9bc437e54ca	STAY	local-scoped		0				0
+tools/native/mios-comment-lex/src/main.rs	495	495	1	5	f942b5ef2bd8	STAY	inline-scoped		0				0
+tools/native/mios-comment-lex/src/main.rs	580	580	1	0	c7d465246c95	DROP	commented-out-code		0				0
+tools/native/mios-comment-lex/src/main.rs	587	587	1	4	70c7376c6074	STAY	inline-scoped		0				0
 tools/native/mios-drift-runner/Cargo.toml	1	2	2	13	67d25df14034	STAY	ai-header		0				0
 tools/native/mios-drift-runner/src/main.rs	1	2	2	19	482ec1f80319	STAY	ai-header		0				0
 tools/native/mios-edge-status/Cargo.toml	1	2	2	23	83d0164f9622	STAY	ai-header		0				0
@@ -8385,7 +8387,7 @@ tools/native/mios-resolver/src/expand.rs	284	284	1	9	1070c38a1054	STAY	local-sco
 tools/native/mios-resolver/src/expand.rs	292	294	3	30	54a7305cc8f6	STAY	midsize-why		0				0
 tools/native/mios-resolver/src/expand.rs	321	323	3	24	7611480eb7ad	STAY	midsize-why		0				0
 tools/native/mios-resolver/src/layers.rs	1	2	2	23	22f187317b89	STAY	ai-header		0				0
-tools/native/mios-resolver/src/layers.rs	74	76	3	24	88be67c90449	STAY	midsize-why		0				0
+tools/native/mios-resolver/src/layers.rs	75	77	3	24	88be67c90449	STAY	midsize-why		0				0
 tools/native/mios-resolver/src/lib.rs	1	2	2	19	3563417530a8	STAY	ai-header		0				0
 tools/native/mios-resolver/src/main.rs	1	2	2	22	6335f27798db	STAY	ai-header		0				0
 tools/native/mios-resolver/src/main.rs	34	35	2	19	7d3cb73b5815	STAY	local-scoped		0				0
