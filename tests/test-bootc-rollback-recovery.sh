@@ -27,6 +27,11 @@ fi
 pass_count=0
 fail_count=0
 
+# miosd keeps its state under systemd's STATE_DIRECTORY; point it at a scratch dir so the suite needs no root.
+STATE_DIRECTORY="$(mktemp -d)"
+export STATE_DIRECTORY
+trap 'rm -rf "$STATE_DIRECTORY"' EXIT
+
 assert_eq() {
     local label="$1"
     local expected="$2"
@@ -94,6 +99,13 @@ else
     fail_count=$((fail_count + 1))
 fi
 assert_contains "negative control error mentions missing deployment" "No rollback deployment available" "$neg_out"
+
+# Test 6: Negative Control -- an unwritable state directory fails greenboot, naming the path
+echo "Test 6: Negative Control: unwritable state directory"
+bad_rc=0
+bad_out="$(STATE_DIRECTORY=/dev/null/mios "$MIOSD_BIN" greenboot 2>&1)" || bad_rc=$?
+assert_eq "greenboot rejects an unwritable state dir" "nonzero" "$([[ $bad_rc -ne 0 ]] && echo nonzero || echo zero)"
+assert_contains "the failure names the state dir" "/dev/null/mios is not writable" "$bad_out"
 
 echo "=== Test Summary: $pass_count passed, $fail_count failed ==="
 if [[ "$fail_count" -gt 0 ]]; then

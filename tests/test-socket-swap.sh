@@ -74,7 +74,7 @@ grep -qx "ListenStream=${AGENT_PIPE_PORT}" "${RENDERED_SOCKET}" || { echo "ERROR
 grep -q "ListenStream=/run/mios/agent-pipe.sock" "${SOCKET_UNIT}"
 if command -v systemd-analyze >/dev/null 2>&1; then
     cp "${ROOT}/usr/lib/systemd/system/mios-agent-pipe.service" "${MOCK_DIR}/"
-    systemd-analyze verify "${RENDERED_SOCKET}" || { echo "ERROR: systemd-analyze verify rejected the rendered socket unit"; exit 1; }
+    systemd-analyze verify --man=no "${RENDERED_SOCKET}" || { echo "ERROR: systemd-analyze verify rejected the rendered socket unit"; exit 1; }
 fi
 echo "  [PASS] Socket unit directives validated (TCP ${AGENT_PIPE_PORT} from [ports].agent_pipe)"
 

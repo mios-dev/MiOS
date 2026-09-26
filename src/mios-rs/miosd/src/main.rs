@@ -1560,7 +1560,7 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
         );
     }
 
-    let hist_dir = std::path::Path::new("/var/lib/mios");
+    let hist_dir = &mios_state_dir();
     std::fs::create_dir_all(hist_dir)?;
     let row = format!("{}\t{}\t{}\n", chrono_now_iso(), ts, ref_val);
     let hist_file = hist_dir.join("bootc-switch-history.tsv");
@@ -1575,6 +1575,19 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+/// The daemon's state directory: systemd's STATE_DIRECTORY (first entry) when set, else /var/lib/mios.
+fn mios_state_dir() -> std::path::PathBuf {
+    std::env::var("STATE_DIRECTORY")
+        .ok()
+        .and_then(|v| {
+            v.split(':')
+                .next()
+                .filter(|p| !p.is_empty())
+                .map(std::path::PathBuf::from)
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from("/var/lib/mios"))
+}
+
 fn run_bootc_rollback(
     check: bool,
     dry_run: bool,
@@ -1583,7 +1596,7 @@ fn run_bootc_rollback(
     println!("[miosd] Initiating bootc rollback evaluation (T-1025)...");
 
     // Invariant 1: Ensure /var persistence is intact before and during rollback operations
-    let hist_dir = std::path::Path::new("/var/lib/mios");
+    let hist_dir = &mios_state_dir();
     std::fs::create_dir_all(hist_dir)?;
     let probe_file = hist_dir.join(".rollback-probe");
     std::fs::write(&probe_file, format!("probe {}", chrono_now_iso()))?;
@@ -1730,9 +1743,13 @@ fn run_greenboot() -> Result<(), Box<dyn std::error::Error>> {
     println!("[greenboot] Running native greenboot health check (T-508 / T-1025)...");
 
     // 1. Verify Invariant 1: /var persistence & writability
-    let var_dir = std::path::Path::new("/var/lib/mios");
+    let var_dir = &mios_state_dir();
     if let Err(e) = std::fs::create_dir_all(var_dir) {
-        eprintln!("[greenboot] FAIL: /var/lib/mios is not writable: {}", e);
+        eprintln!(
+            "[greenboot] FAIL: {} is not writable: {}",
+            var_dir.display(),
+            e
+        );
         return Err(format!("/var writability check failed: {}", e).into());
     }
     let probe_file = var_dir.join(".greenboot-probe");
