@@ -1596,3 +1596,17 @@ so long. Let a run finish.
 
 
 
+
+## 2026-09-26 16:18 · cfebb26d1 · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 19 dirty path(s)
+
+## 2026-09-26 16:45 · 903241453 · monitor
+- objective: merge #43 into #42 without losing changes; settle the open design questions
+- done: merge 84db1e117 (every #43 commit kept or superseded); 903241453 regenerates ROADMAP + manual-corpus (drift-gate red cause); -dev-loop #31 opened (merged by operator); QA/QB/QC decided (a); Q3 decided by upstream research: `out_of_tree_changes`
+- next: watch #42 CI on 903241453; operator to say where the three design docs go before the workers' ADR/impl lanes start
+- blockers: design-doc placement (operator rejected copying them into -dev-loop docs/research)
+- unverified: #42 CI on 903241453
