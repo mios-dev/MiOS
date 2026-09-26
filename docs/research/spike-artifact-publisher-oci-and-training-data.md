@@ -64,9 +64,10 @@ Read the installed/local contract sources and primary upstream specifications:
   `oci-archive` must be self-contained. The publisher must therefore reject any
   descriptor without a local blob and independently check digest and size.
 - **Training data:** SFT records need structured chat messages with a usable
-  assistant target. Dataset generation additionally needs provenance and
-  privacy controls; syntactically valid JSONL alone is insufficient training
-  evidence.
+  assistant target, while preference records require the OpenAI preference schema
+  keys (`input`, `preferred_output`, `non_preferred_output`) with distinct targets.
+  Dataset generation additionally needs provenance and privacy controls;
+  syntactically valid JSONL alone is insufficient training evidence.
 - **Two-way check:** The OCI specification permits sparse layouts for
   external-store workflows. That is not a valid exception for a portable MiOS
   release archive; sparse output must be explicitly labelled as a reference
