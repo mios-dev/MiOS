@@ -1407,6 +1407,8 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_IMAGES_BOOTC_IMAGE_BUILDER_SERVICE_TIMEOUTSTARTSEC:=3600}"
 [ -n "${MIOS_IMAGES_MIOS_LLM_HEAVY_IMAGE_IMAGE+x}" ] || MIOS_IMAGES_MIOS_LLM_HEAVY_IMAGE_IMAGE='${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}'
 : "${MIOS_IMAGES_MIOS_LLM_HEAVY_SERVICE_TIMEOUTSTARTSEC:=3600}"
+: "${MIOS_IMAGES_MIOS_MICRO_IMAGE_IMAGE:=ghcr.io/mios-dev/mios-micro:latest}"
+: "${MIOS_IMAGES_MIOS_MICRO_SERVICE_TIMEOUTSTARTSEC:=3600}"
 : "${MIOS_IMAGE_NAME:=ghcr.io/mios-dev/mios}"
 : "${MIOS_IMAGE_REF:=ghcr.io/mios-dev/mios:latest}"
 : "${MIOS_IMAGE_TAG:=latest}"
