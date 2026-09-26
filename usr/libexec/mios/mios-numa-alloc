@@ -11,7 +11,7 @@ import os
 import re
 import sys
 import time
-import subprocess
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 
 # Linux NUMA memory policy constants
@@ -241,7 +241,7 @@ def main():
 
     if args.command:
         # Check if numactl is available for external wrap
-        if args.interleave and subprocess.call(["which", "numactl"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0:
+        if args.interleave and shutil.which("numactl"):
             cmd = ["numactl", "--interleave=all"]
             if args.pin_node is not None:
                 cmd.extend(["--cpunodebind", str(args.pin_node)])
