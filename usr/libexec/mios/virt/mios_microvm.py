@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: MiOS system and orchestration module providing mios microvm capabilities with SquashFS NBD streaming (T-733, T-806).
-# AI-doc: usr/share/doc/mios/manual/ch19-microvm-squashfs-nbd-overlay.md
-# AI-related: /usr/share/mios/microvm/vmlinux
+# AI-doc: usr/share/doc/mios/manual/virt.md
+# AI-related: usr/libexec/mios/mios-microvm
 """
 mios_microvm.py — T-733 / T-806 WS-VFIO
 SquashFS template streaming over Unix-socket NBD with ephemeral RAM overlay

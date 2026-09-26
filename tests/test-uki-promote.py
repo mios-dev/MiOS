@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for automated UKI A/B boot promotion and Greenboot validation gate (T-508).
-# AI-doc: usr/share/doc/mios/manual/ch02-boot-and-lifecycle.md
+# AI-doc: usr/share/doc/mios/manual/ch08-bootloader-and-unified-kernel-images-uki.md
 from __future__ import annotations
 
 import os

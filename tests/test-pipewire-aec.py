@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for PipeWire AEC filter and loopback manager (T-786, T-787).
-# AI-doc: usr/share/doc/mios/manual/ch16-audio-loopback-and-webrtc-aec.md
+# AI-doc: usr/share/doc/mios/manual/audio.md
 from __future__ import annotations
 
 import json

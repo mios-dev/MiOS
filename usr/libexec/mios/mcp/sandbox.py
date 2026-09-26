@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Bubblewrap namespace and filesystem sandboxing engine for Model Context Protocol (MCP) servers (T-377 / AGY-1975).
-# AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/federation/mcp.py, tests/test-mcp-sandbox.py
+# AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/federation/mcp.py, tests/test-mcp.py
 """
 MiOS MCP Bubblewrap Sandboxing Engine.
 

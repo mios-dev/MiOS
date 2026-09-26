@@ -22,7 +22,7 @@ class TestAIMetadata(unittest.TestCase):
 # AI-hint: Test python module purpose.
 # AI-related: /etc/mios/foo.conf, mios-service
 # AI-functions: foo, bar, BazClass
-# AI-doc: usr/share/doc/mios/manual/test.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 
 def foo(): pass
 """
@@ -31,19 +31,19 @@ def foo(): pass
         self.assertEqual(meta["hint"], "Test python module purpose.")
         self.assertEqual(meta["related"], ["/etc/mios/foo.conf", "mios-service"])
         self.assertEqual(meta["functions"], ["foo", "bar", "BazClass"])
-        self.assertEqual(meta["doc"], "usr/share/doc/mios/manual/test.md")
+        self.assertEqual(meta["doc"], "usr/share/doc/mios/manual/tests.md")
         self.assertEqual(meta["comment_style"], "hash")
         self.assertTrue(meta["has_shebang"])
 
     def test_extract_markdown_metadata(self):
         content = """<!-- AI-hint: Markdown guide for operators. -->
-<!-- AI-related: /usr/share/doc/mios/concept.md -->
+<!-- AI-related: /usr/share/doc/mios/concepts/architecture.md -->
 # Guide Title
 """
         meta = mios_ai_metadata.extract_ai_header_metadata(content, "docs/guide.md")
         self.assertIsNotNone(meta)
         self.assertEqual(meta["hint"], "Markdown guide for operators.")
-        self.assertEqual(meta["related"], ["/usr/share/doc/mios/concept.md"])
+        self.assertEqual(meta["related"], ["/usr/share/doc/mios/concepts/architecture.md"])
         self.assertEqual(meta["comment_style"], "xml")
         self.assertFalse(meta["has_shebang"])
 

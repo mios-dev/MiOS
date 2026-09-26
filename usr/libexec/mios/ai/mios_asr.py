@@ -1,5 +1,5 @@
 # AI-hint: MiOS system and orchestration module providing mios asr capabilities.
-# AI-related: /usr/share/mios/ai/conformer.onnx
+# AI-related: tests/test-streaming-asr-latency.py
 # AI-functions: __init__, is_voiced, process_stream, AudioChunk, SileroVAD, StreamingASREngine
 
 """

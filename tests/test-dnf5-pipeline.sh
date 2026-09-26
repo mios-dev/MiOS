@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Verification suite for atomic DNF5 package pipeline, local cache staging, and mirror retry (T-503).
-# AI-doc: usr/share/doc/mios/manual/ch08-package-management-and-dnf5-caching.md
+# AI-doc: usr/share/doc/mios/manual/ch44-host-package-overrides-and-dnf5.md
 set -euo pipefail
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
@@ -34,7 +34,9 @@ echo "PASS: Containerfile mounts /var/cache/dnf5 cache"
 
 # 3. Source packages.sh in subshell and test _dnf_retry_exec
 PACKAGES_SH="${ROOT_DIR}/automation/lib/packages.sh"
+# shellcheck source=/dev/null
 source "${COMMON_SH}"
+# shellcheck source=/dev/null
 source "${PACKAGES_SH}"
 
 if ! declare -f _dnf_retry_exec >/dev/null; then

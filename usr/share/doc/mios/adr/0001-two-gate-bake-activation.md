@@ -1,5 +1,5 @@
 <!-- AI-hint: Two orthogonal gates — BAKE (is it in the image?) vs ACTIVATION (does it start on THIS blade?) — give one universal image many roles with no image variants; read before touching the bound-image bake or blade role gating. -->
-<!-- AI-related: usr/share/mios/mios.toml [build.bake] + [blade], Containerfile bake RUNs, usr/libexec/mios/mios-bake-group, usr/libexec/mios/role-apply, automation/48-mios-dropin-fanout.sh, usr/share/mios/dropins/, /etc/mios/blade.d/ -->
+<!-- AI-related: usr/share/mios/mios.toml ([build.bake] [blade]), Containerfile bake RUNs, usr/libexec/mios/mios-bake-group, usr/libexec/mios/role-apply, automation/48-mios-dropin-fanout.sh, usr/share/mios/dropins/, /etc/mios/blade.d/ -->
 ---
 adr: 0001
 title: Two-gate bake / activation model

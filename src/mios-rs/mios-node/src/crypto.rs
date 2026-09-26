@@ -1,5 +1,5 @@
 // AI-hint: Ed25519 mutual handshake, X25519 ECDH key exchange, HKDF-SHA256 key derivation, and ChaCha20-Poly1305 wire AEAD for mios-node.
-// AI-related: src/mios-rs/mios-node/src/net.rs, src/mios-rs/mios-node/src/protocol.rs, tests/test-node-crypto-handshake.py
+// AI-related: src/mios-rs/mios-node/src/net.rs, src/mios-rs/mios-node/src/protocol.rs, tests/test-node-mesh.py
 //! MiOS Node Cryptographic Handshake & Wire Encryption Engine (T-388 / AGY-1986)
 //!
 //! Provides mutual identity authentication using Ed25519 signatures, forward secrecy via X25519

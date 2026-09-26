@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for THP madvise and memory compaction tuning (T-800).
-# AI-doc: usr/share/doc/mios/manual/ch12-memory-compaction-and-thp.md
+# AI-doc: usr/share/doc/mios/manual/ch22-cpu-topology-and-performance-pinning.md
 from __future__ import annotations
 
 import json

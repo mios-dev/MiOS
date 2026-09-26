@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Automated UKI A/B boot promotion and Greenboot validation gate (T-508).
-# AI-doc: usr/share/doc/mios/manual/ch02-boot-and-lifecycle.md
+# AI-doc: usr/share/doc/mios/manual/ch08-bootloader-and-unified-kernel-images-uki.md
 set -euo pipefail
 
 BOOT_DIR="${MIOS_BOOT_DIR:-/boot}"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner (T-524, AGY-2122).
-# AI-doc: usr/share/doc/mios/manual/ch12-networking-and-mesh.md
+# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
 from __future__ import annotations
 
 import http.server

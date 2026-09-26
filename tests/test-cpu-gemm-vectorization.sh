@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Automated CI verification test suite for CPU vectorized GEMM throughput and SIMD dispatch (T-785).
-# AI-doc: usr/share/doc/mios/manual/ch69-cpu-vectorized-gemm-and-simd-tuning.md
+# AI-doc: usr/share/doc/mios/manual/ch22-cpu-topology-and-performance-pinning.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

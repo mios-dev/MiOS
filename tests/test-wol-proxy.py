@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for signed proxy WoL with SecureON payload and peer wake daemon (T-523, AGY-2121).
-# AI-doc: usr/share/doc/mios/manual/ch12-networking-and-mesh.md
+# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
 from __future__ import annotations
 
 import json

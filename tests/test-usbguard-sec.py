@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for USBGuard declarative authorization and udisks2 read-only mount policies (T-798).
-# AI-doc: usr/share/doc/mios/manual/ch14-usbguard-and-badusb-mitigation.md
+# AI-doc: usr/share/doc/mios/manual/ch17-defense-in-depth-hardening.md
 from __future__ import annotations
 
 import json

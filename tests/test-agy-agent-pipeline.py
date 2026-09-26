@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for MiOS Antigravity CLI (AGY) agent, subagents, workflows, and CI/CD artifacting integration.
-# AI-doc: usr/share/doc/mios/manual/ch11-agentic-os.md
+# AI-doc: usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md
 """Test suite for MiOS Antigravity CLI (AGY) agent and subagents configuration."""
 
 import json

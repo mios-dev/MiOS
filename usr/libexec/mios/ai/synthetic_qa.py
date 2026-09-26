@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Synthetic training data pipeline generating Q&A pairs from local markdown documentation and architectural ADRs.
-# AI-related: usr/share/doc/mios/, cat/ADR-*.md, /var/lib/mios/ai/dataset/
+# AI-related: usr/share/doc/mios/, usr/share/doc/mios/adr/, /var/lib/mios/ai/dataset/
 """
 Synthetic Training Q&A Data Pipeline (T-383 / AGY-1981)
 

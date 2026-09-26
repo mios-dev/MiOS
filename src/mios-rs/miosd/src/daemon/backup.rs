@@ -1,5 +1,5 @@
 // AI-hint: Interval backup scheduler managing pgvector and config snapshots.
-// AI-related: tests/test-backup-pgvector.py, usr/lib/systemd/system/mios-backup-pgvector.service
+// AI-related: tests/test-db.py, usr/lib/systemd/system/mios-backup-pgvector.service
 
 use super::state::BackupState;
 use std::path::{Path, PathBuf};

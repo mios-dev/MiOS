@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for PipeWire WebRTC desktop video streamer (T-788, T-789).
-# AI-doc: usr/share/doc/mios/manual/ch15-desktop-webrtc-streaming.md
+# AI-doc: usr/share/doc/mios/manual/ch38-remote-desktop-and-gnome-grd.md
 from __future__ import annotations
 
 import json

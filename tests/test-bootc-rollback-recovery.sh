@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Verification suite for atomic bootc rollback, ostree deployment state, /var persistence guards, and greenboot health gates (T-1025).
-# AI-doc: usr/share/doc/mios/manual/ch02-boot-and-lifecycle.md
+# AI-doc: usr/share/doc/mios/manual/ch36-greenboot-health-check-and-recovery.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

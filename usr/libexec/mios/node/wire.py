@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: 16-byte fixed binary wire protocol encoder, decoder, async stream codec, and opcode dispatcher for mios-node.
-# AI-related: src/mios-rs/mios-node/src/net.rs, src/mios-rs/mios-node/src/protocol.rs, tests/test-node-async-net.py
+# AI-related: src/mios-rs/mios-node/src/net.rs, src/mios-rs/mios-node/src/protocol.rs, tests/test-node-mesh.py
 # AI-doc: usr/share/doc/mios/manual/node.md
 """
 WS-NODE: Edge Micro-Mesh 16-Byte Fixed Binary Wire Protocol & Async TCP Stream Engine.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for Thunderbolt/USB4 eGPU and PCIe accelerator hotplug handler (T-495).
-# AI-doc: usr/share/doc/mios/manual/ch14-hardware-and-drivers.md
+# AI-doc: usr/share/doc/mios/manual/ch37-gpu-capability-detection-and-passthrough-shims.md
 from __future__ import annotations
 
 import json

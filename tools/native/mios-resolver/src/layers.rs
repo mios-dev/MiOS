@@ -1,5 +1,5 @@
 // AI-hint: Tier and fragment discovery -- builds the figment provider stack in vendor < vendor.d < host < host.d < user < user.d precedence order.
-// AI-related: usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/mios.d
+// AI-related: usr/share/mios/mios.toml, /etc/mios/mios.toml
 use figment::providers::{Format, Toml};
 use figment::Figment;
 use std::env;

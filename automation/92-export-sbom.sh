@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Hermetic Podman OCI image synthesis and Syft SPDX SBOM generation pipeline (T-509).
-# AI-doc: usr/share/doc/mios/manual/ch05-build-and-pipeline.md
+# AI-doc: usr/share/doc/mios/manual/ch18-supply-chain-and-image-integrity.md
 set -euo pipefail
 
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || true
 

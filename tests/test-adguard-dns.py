@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for systemd-resolved to mios-adguard split-horizon DNS routing (T-497).
-# AI-doc: usr/share/doc/mios/manual/ch13-network-and-firewall.md
+# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
 from __future__ import annotations
 
 import configparser

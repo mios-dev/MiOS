@@ -1,5 +1,5 @@
 // AI-hint: Watchdog integration checking /dev/watchdog and logging hardware status.
-// AI-related: usr/libexec/mios/mios-daemon, /dev/watchdog
+// AI-related: usr/libexec/mios/mios-daemon
 
 use super::state::HardwareState;
 use std::path::{Path, PathBuf};

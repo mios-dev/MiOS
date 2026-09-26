@@ -1,5 +1,5 @@
 <!-- AI-hint: MiOS-Cat is the ONE unified front door (stage/install/build/update/provision/manual) that deploys the whole system on every platform off a SMALL always-present MiOS-Repo shadow-config USB partition (the brain: mios.toml + configurator + Portal + MiOS-Cat + a small repos-clone) plus a SEPARATE MiOS-Data bulk store created only on 512 GB+ disks (the OCI tar, disk artifacts, model weights, package mirrors); owned by mios-bootstrap at cat/, with the deep medicat_installer nest flattened and de-duped. Read before touching any install/deploy entry point. -->
-<!-- AI-related: C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh,bat}, C:\mios-bootstrap\Get-MiOS.ps1, C:\mios-bootstrap\bootstrap.ps1, usr/share/mios/mios.toml [cat]/[ai]/[editions]/[colors]/[portal], Justfile (all, vhdx-m), usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md, usr/share/doc/mios/adr/0009-unified-config-surface.md -->
+<!-- AI-related: C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh,bat}, C:\mios-bootstrap\Get-MiOS.ps1, C:\mios-bootstrap\bootstrap.ps1, usr/share/mios/mios.toml ([cat] [ai] [editions] [colors] [portal]), Justfile (all, vhdx-m), usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md, usr/share/doc/mios/adr/0009-unified-config-surface.md -->
 ---
 adr: 0008
 title: MiOS-Cat unified entry point + repo minification

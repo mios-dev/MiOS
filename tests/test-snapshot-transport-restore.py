@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for zero-knowledge remote snapshot transport and offline restore (T-522, AGY-2120).
-# AI-doc: usr/share/doc/mios/manual/ch11-storage-and-persistence.md
+# AI-doc: usr/share/doc/mios/manual/storage.md
 from __future__ import annotations
 
 import json

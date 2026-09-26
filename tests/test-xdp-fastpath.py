@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for native eBPF XDP network fastpath and WireGuard router (T-802, T-803).
-# AI-doc: usr/share/doc/mios/manual/ch18-ebpf-xdp-wireguard-fastpath.md
+# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
 from __future__ import annotations
 
 import json

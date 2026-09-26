@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: systemd capability drop-in fan-out script (WS-BLADE).
-# AI-related: usr/share/mios/dropins/blade-*.conf, usr/share/mios/mios.toml, /usr/lib/systemd/system/
+# AI-related: usr/share/mios/dropins/, usr/share/mios/mios.toml, /usr/lib/systemd/system/
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
