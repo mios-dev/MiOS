@@ -1,3 +1,7 @@
+# AI-hint: Systemd service unit for the RFC 9334 remote-attestation verifier that checks TPM 2.0 quotes and onboards blades into the cluster.
+# AI-doc: usr/share/doc/mios/manual/ch76-remote-attestation.md
+# AI-related: usr/libexec/mios/mios-attest-server
+
 [Unit]
 Description=MiOS RFC 9334 RATS Remote TPM 2.0 Quote Verifier and Zero-Touch Cluster Onboarding Daemon
 Documentation=file:///usr/share/doc/mios/manual/ch76-remote-attestation.md
