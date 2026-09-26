@@ -89,7 +89,9 @@ jobs:
           # actually run, and stage 85 never looks at target/debug.
           cargo build --release -p mios-bake-plan
           # The native gate binary backs a check that fails when it is absent.
-          cd ../../src/mios-rs && cargo build -p mios-gate
+          # miosd is check_kargs_projection's renderer: 75-kargs-render.sh
+          # resolves it under target/, and without it the check cannot render.
+          cd ../../src/mios-rs && cargo build -p mios-gate -p miosd
 
       - name: Generated artifacts match the SSOT
         run: |
