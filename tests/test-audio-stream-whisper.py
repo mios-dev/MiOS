@@ -313,7 +313,8 @@ def test_5_quadlet_container_syntax() -> None:
 def test_6_mock_end_to_end_loopback() -> None:
     log("Test 6: Mock end-to-end streaming audio loopback (--mock)")
 
-    temp_dir = tempfile.mkdtemp(prefix="test-audio-sock-")
+    tmp = tempfile.TemporaryDirectory(prefix="test-audio-sock-")  # removed on every exit path
+    temp_dir = tmp.name
     sock_path = os.path.join(temp_dir, "audio-stream.sock")
 
     server_ingress = mas.AudioStreamIngress(
@@ -334,6 +335,9 @@ def test_6_mock_end_to_end_loopback() -> None:
 
     if not os.path.exists(sock_path):
         assert_fail("Unix domain socket was not created in time")
+        server_ingress.running = False
+        server_thread.join(timeout=1.0)
+        tmp.cleanup()
         return
 
     assert_pass(f"Ingress daemon active and bound to {sock_path}")
@@ -357,11 +361,7 @@ def test_6_mock_end_to_end_loopback() -> None:
         client_sock.close()
         server_ingress.running = False
         server_thread.join(timeout=1.0)
-        try:
-            os.unlink(sock_path)
-            os.rmdir(temp_dir)
-        except Exception:
-            pass
+        tmp.cleanup()
 
     assert_pass("Mock end-to-end streaming loopback completed with clean socket teardown")
 

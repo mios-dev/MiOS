@@ -55,6 +55,7 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+[[ "$MOCK_MODE" == "true" ]] && echo "[test-thermal] --mock: every case already runs on synthetic sysfs"
 
 pass_count=0
 fail_count=0
@@ -273,10 +274,15 @@ else
 fi
 
 if command -v systemd-analyze >/dev/null 2>&1; then
-    if systemd-analyze verify "$SERVICE_PATH" >/dev/null 2>&1; then
+    # The ExecStart binary is checked against the HOST /usr, not this tree; only that line is excused.
+    sa_rc=0; sa_out="$(systemd-analyze verify "$SERVICE_PATH" 2>&1)" || sa_rc=$?
+    # Excused: the ExecStart host-binary line, and warnings about OTHER units' drop-ins; anything naming this unit stays.
+    sa_err="$(printf '%s\n' "$sa_out" | grep -v -F "mios-thermald.service: Command /usr/libexec/mios/mios-thermald is not executable: No such file or directory" \
+        | awk -v u="mios-thermald.service" '!(/ignoring\.$/ && index($0, u) == 0)' | grep -v '^$' || true)"
+    if [[ $sa_rc -eq 0 || -z "$sa_err" ]]; then
         _pass "systemd-analyze verify passed with 0 structural errors"
     else
-        _fail "systemd-analyze verify reported errors on $SERVICE_PATH"
+        _fail "systemd-analyze verify reported errors on $SERVICE_PATH: $sa_err"
     fi
 else
     _pass "systemd-analyze not installed; static unit validation accepted"

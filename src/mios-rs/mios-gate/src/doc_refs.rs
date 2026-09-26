@@ -10,8 +10,22 @@ const CHECK: &str = "doc-refs-resolve";
 const SSOT: &str = "usr/share/mios/mios.toml";
 const BASELINE_FILE: &str = "usr/share/mios/reference/stale-refs-baseline.tsv";
 const SCAN_EXT: [&str; 16] = [
-    ".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
-    ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml", ".md",
+    ".py",
+    ".sh",
+    ".bash",
+    ".toml",
+    ".ps1",
+    ".psm1",
+    ".rs",
+    ".service",
+    ".container",
+    ".timer",
+    ".socket",
+    ".target",
+    ".conf",
+    ".yml",
+    ".yaml",
+    ".md",
 ];
 /// Files whose references are deliberately outside the check: task registers
 /// name planned paths, and the negative-test harness plants paths on purpose.
@@ -323,7 +337,13 @@ pub fn suggest_rename(root: &Path, stale_path: &str) -> RenameSuggestion {
                 if let Ok(diff_out) = Command::new("git")
                     .arg("-C")
                     .arg(root)
-                    .args(["show", "-M", "--diff-filter=R", "--name-status", "--format="])
+                    .args([
+                        "show",
+                        "-M",
+                        "--diff-filter=R",
+                        "--name-status",
+                        "--format=",
+                    ])
                     .arg(&commit)
                     .output()
                 {
@@ -367,7 +387,7 @@ pub fn suggest_rename(root: &Path, stale_path: &str) -> RenameSuggestion {
         matches.sort();
 
         if matches.len() == 1 {
-            return RenameSuggestion::Exact(matches.into_iter().next().unwrap());
+            return RenameSuggestion::Exact(matches.remove(0));
         } else if matches.len() > 1 {
             return RenameSuggestion::Ambiguous(matches);
         }
@@ -398,6 +418,17 @@ fn load_baseline(root: &Path) -> Option<std::collections::HashSet<String>> {
         }
     }
     Some(set)
+}
+
+/// A `rel: target` finding, with the rename suggest_rename finds for its target appended.
+fn with_rename_hint(root: &Path, finding: &str) -> String {
+    let target = finding.split_once(": ").map_or(finding, |(_, t)| t);
+    let target = target.split('#').next().unwrap_or(target);
+    match suggest_rename(root, target) {
+        RenameSuggestion::Exact(dst) => format!("{finding} (renamed: {dst})"),
+        RenameSuggestion::Ambiguous(c) => format!("{finding} (candidates: {})", c.join(", ")),
+        RenameSuggestion::None => finding.to_string(),
+    }
 }
 
 pub fn check(root: &Path) -> Report {
@@ -519,7 +550,7 @@ pub fn check(root: &Path) -> Report {
                 };
 
                 if let Some(frag) = fragment {
-                    if !frag.is_empty() && tpath.extension().map_or(false, |ext| ext == "md") {
+                    if !frag.is_empty() && tpath.extension().is_some_and(|ext| ext == "md") {
                         let target_content = if tpath == fpath {
                             body.clone()
                         } else {
@@ -571,7 +602,7 @@ pub fn check(root: &Path) -> Report {
                 BASELINE_FILE
             )];
             for nb in new_breaks {
-                findings.push((*nb).clone());
+                findings.push(with_rename_hint(root, nb));
             }
             return report(false, String::new(), findings);
         }
@@ -605,6 +636,9 @@ pub fn check(root: &Path) -> Report {
 
 #[cfg(test)]
 mod tests {
+    // Test code: a panic here IS the assertion. Scoped so production code stays under the lint.
+    #![allow(clippy::panic)]
+
     use super::*;
     use std::fs;
 
@@ -814,7 +848,11 @@ mod tests {
         track(r);
         let rep = check(r);
         assert!(
-            !rep.ok && rep.findings.iter().any(|f| f.contains("nonexistent-heading")),
+            !rep.ok
+                && rep
+                    .findings
+                    .iter()
+                    .any(|f| f.contains("nonexistent-heading")),
             "a link to an existing file with a nonexistent fragment must be reported stale: {:?}",
             rep.findings
         );
@@ -828,7 +866,11 @@ mod tests {
         let _ = fs::write(r.join("doc.md"), "[link](target.md#real-heading)\n");
         track(r);
         let rep = check(r);
-        assert!(rep.ok, "a link to an existing heading must pass: {:?}", rep.findings);
+        assert!(
+            rep.ok,
+            "a link to an existing heading must pass: {:?}",
+            rep.findings
+        );
     }
 
     #[test]
@@ -849,7 +891,10 @@ mod tests {
     fn a_toml_file_header_is_scanned() {
         let d = repo();
         let r = d.path();
-        let _ = fs::write(r.join("config.toml"), "# AI-related: nonexistent/missing.toml\n");
+        let _ = fs::write(
+            r.join("config.toml"),
+            "# AI-related: nonexistent/missing.toml\n",
+        );
         track(r);
         let rep = check(r);
         assert!(
@@ -863,7 +908,10 @@ mod tests {
     fn a_service_file_header_is_scanned() {
         let d = repo();
         let r = d.path();
-        let _ = fs::write(r.join("app.service"), "# AI-related: nonexistent/missing.service\n");
+        let _ = fs::write(
+            r.join("app.service"),
+            "# AI-related: nonexistent/missing.service\n",
+        );
         track(r);
         let rep = check(r);
         assert!(
@@ -879,11 +927,19 @@ mod tests {
         let r = d.path();
         let _ = fs::write(r.join("old_module.py"), "# Old module\n");
         track(r);
-        let _ = Command::new("git").arg("-C").arg(r).args(["commit", "-m", "init old module"]).output();
+        let _ = Command::new("git")
+            .arg("-C")
+            .arg(r)
+            .args(["commit", "-m", "init old module"])
+            .output();
 
         let _ = fs::rename(r.join("old_module.py"), r.join("new_module.py"));
         track(r);
-        let _ = Command::new("git").arg("-C").arg(r).args(["commit", "-m", "rename to new module"]).output();
+        let _ = Command::new("git")
+            .arg("-C")
+            .arg(r)
+            .args(["commit", "-m", "rename to new module"])
+            .output();
 
         let suggestion = suggest_rename(r, "old_module.py");
         assert_eq!(
@@ -916,7 +972,8 @@ mod tests {
     }
 
     #[test]
-    fn when_a_diff_fixes_one_reference_and_introduces_a_different_one_at_the_same_total_the_system_shall_fail_the_gate() {
+    fn when_a_diff_fixes_one_reference_and_introduces_a_different_one_at_the_same_total_the_system_shall_fail_the_gate(
+    ) {
         let d = repo();
         let r = d.path();
         // Setup baseline directory and file containing a known stale ref for a.py
@@ -940,7 +997,9 @@ mod tests {
             rep.findings
         );
         assert!(
-            rep.findings.iter().any(|f| f.contains("not in baseline") || f.contains("missing_b.py")),
+            rep.findings
+                .iter()
+                .any(|f| f.contains("not in baseline") || f.contains("missing_b.py")),
             "the findings must name the new break: {:?}",
             rep.findings
         );

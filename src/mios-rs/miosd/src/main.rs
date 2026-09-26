@@ -55,6 +55,9 @@ enum Commands {
         /// Print raw script list for build orchestrator
         #[arg(long)]
         list: bool,
+        /// Select phases through a mios.toml [profiles] entry (ADR-0025)
+        #[arg(long)]
+        profile: Option<String>,
     },
     /// Resolve configuration parameters
     Resolve {
@@ -657,7 +660,8 @@ fn run_render_quadlets(_dirs: &[String]) -> Result<(), Box<dyn std::error::Error
         }
     }
     if renderer.is_none() {
-        let p1 = std::path::Path::new(&root).join("tools/native/target/release/mios-render-quadlets");
+        let p1 =
+            std::path::Path::new(&root).join("tools/native/target/release/mios-render-quadlets");
         let p2 = std::path::Path::new(&root).join("tools/native/target/debug/mios-render-quadlets");
         if p1.is_file() {
             renderer = Some(p1);
@@ -781,8 +785,13 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Build { phase, plan, list } => {
-            if let Err(e) = mios_build::run_build(phase, *plan, *list) {
+        Commands::Build {
+            phase,
+            plan,
+            list,
+            profile,
+        } => {
+            if let Err(e) = mios_build::run_build_profile(phase, *plan, *list, profile.as_deref()) {
                 eprintln!("[miosd] Build error: {}", e);
                 std::process::exit(1);
             }
@@ -871,7 +880,11 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::BootcRollback { check, dry_run, force } => {
+        Commands::BootcRollback {
+            check,
+            dry_run,
+            force,
+        } => {
             if let Err(e) = run_bootc_rollback(*check, *dry_run, *force) {
                 eprintln!("[miosd] Bootc rollback error: {}", e);
                 std::process::exit(1);
@@ -969,16 +982,24 @@ async fn main() {
         }
         Commands::Secret { action } => {
             match action {
-                SecretAction::Prompt { message, title, gui, tty } => {
-                    match miosd::secret::prompt(title, message, *gui, *tty) {
-                        Ok(secret) => println!("{}", secret),
-                        Err(e) => {
-                            eprintln!("[miosd secret] Prompt error: {}", e);
-                            std::process::exit(1);
-                        }
+                SecretAction::Prompt {
+                    message,
+                    title,
+                    gui,
+                    tty,
+                } => match miosd::secret::prompt(title, message, *gui, *tty) {
+                    Ok(secret) => emit_secret(&secret),
+                    Err(e) => {
+                        eprintln!("[miosd secret] Prompt error: {}", e);
+                        std::process::exit(1);
                     }
-                }
-                SecretAction::Set { key, service, prompt, value } => {
+                },
+                SecretAction::Set {
+                    key,
+                    service,
+                    prompt,
+                    value,
+                } => {
                     let val = if *prompt || value.is_none() {
                         let prompt_msg = format!("Enter secret for {}: ", key);
                         match miosd::secret::prompt("MiOS Keyring", &prompt_msg, false, false) {
@@ -997,15 +1018,13 @@ async fn main() {
                     }
                     eprintln!("Stored secret for '{}/{}' in Linux Keyring.", service, key);
                 }
-                SecretAction::Get { key, service } => {
-                    match miosd::secret::get(service, key) {
-                        Ok(val) => println!("{}", val),
-                        Err(e) => {
-                            eprintln!("[miosd secret] Get error: {}", e);
-                            std::process::exit(1);
-                        }
+                SecretAction::Get { key, service } => match miosd::secret::get(service, key) {
+                    Ok(val) => emit_secret(&val),
+                    Err(e) => {
+                        eprintln!("[miosd secret] Get error: {}", e);
+                        std::process::exit(1);
                     }
-                }
+                },
                 SecretAction::Scan { path, strict } => {
                     let p = std::path::Path::new(path);
                     match miosd::secret::scan(p, *strict) {
@@ -1027,7 +1046,10 @@ async fn main() {
         }
         Commands::ConfigServer { bind, port } => {
             let config = miosd::server::ConfigServerConfig::resolve(bind.clone(), *port);
-            println!("[miosd] Starting MiOS Config Server at http://{}", config.bind_addr);
+            println!(
+                "[miosd] Starting MiOS Config Server at http://{}",
+                config.bind_addr
+            );
             println!("[miosd] Serving mios.html from {:?}", config.html_path);
             println!("[miosd] Writing profile saves to {:?}", config.profile_path);
 
@@ -1487,7 +1509,11 @@ fn run_build_if_missing(spec: &str) -> Result<(), Box<dyn std::error::Error>> {
             println!("[miosd] {} newer than {} -> rebuild", p, img);
         }
         if !exists_status.success() || stale.is_some() {
-            let extra = if spec == "agents" { agents_build_args()? } else { Vec::new() };
+            let extra = if spec == "agents" {
+                agents_build_args()?
+            } else {
+                Vec::new()
+            };
             println!("[miosd] building {} from {}...", img, cf);
             let build_status = std::process::Command::new("/usr/bin/podman")
                 .arg("build")
@@ -1560,7 +1586,8 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
         );
     }
 
-    let hist_dir = std::path::Path::new("/var/lib/mios");
+    let hist_dir = mios_state_dir();
+    let hist_dir = hist_dir.as_path();
     std::fs::create_dir_all(hist_dir)?;
     let row = format!("{}\t{}\t{}\n", chrono_now_iso(), ts, ref_val);
     let hist_file = hist_dir.join("bootc-switch-history.tsv");
@@ -1583,7 +1610,8 @@ fn run_bootc_rollback(
     println!("[miosd] Initiating bootc rollback evaluation (T-1025)...");
 
     // Invariant 1: Ensure /var persistence is intact before and during rollback operations
-    let hist_dir = std::path::Path::new("/var/lib/mios");
+    let hist_dir = mios_state_dir();
+    let hist_dir = hist_dir.as_path();
     std::fs::create_dir_all(hist_dir)?;
     let probe_file = hist_dir.join(".rollback-probe");
     std::fs::write(&probe_file, format!("probe {}", chrono_now_iso()))?;
@@ -1726,13 +1754,38 @@ fn run_bootc_rollback(
     Ok(())
 }
 
+/// The secret verbs' contract is the value on stdout for `$(miosd secret get ..)`; written, never logged.
+fn emit_secret(value: &str) {
+    use std::io::Write;
+    let mut out = std::io::stdout().lock();
+    if out
+        .write_all(value.as_bytes())
+        .and_then(|_| out.write_all(b"\n"))
+        .and_then(|_| out.flush())
+        .is_err()
+    {
+        std::process::exit(1);
+    }
+}
+
+/// MiOS state dir, `var/lib/mios` under MIOS_ROOT (default `/`), as daemon/backup.rs resolves it.
+fn mios_state_dir() -> std::path::PathBuf {
+    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| "/".to_string());
+    std::path::Path::new(&root).join("var/lib/mios")
+}
+
 fn run_greenboot() -> Result<(), Box<dyn std::error::Error>> {
     println!("[greenboot] Running native greenboot health check (T-508 / T-1025)...");
 
     // 1. Verify Invariant 1: /var persistence & writability
-    let var_dir = std::path::Path::new("/var/lib/mios");
+    let var_dir = mios_state_dir();
+    let var_dir = var_dir.as_path();
     if let Err(e) = std::fs::create_dir_all(var_dir) {
-        eprintln!("[greenboot] FAIL: /var/lib/mios is not writable: {}", e);
+        eprintln!(
+            "[greenboot] FAIL: {} is not writable: {}",
+            var_dir.display(),
+            e
+        );
         return Err(format!("/var writability check failed: {}", e).into());
     }
     let probe_file = var_dir.join(".greenboot-probe");

@@ -30,7 +30,7 @@ class TestUkifyStage(unittest.TestCase):
 
     def test_dry_run_json(self):
         res = subprocess.run(
-            [_UKIFY_STAGE_BIN, "--dry-run", "--json"],
+            [_UKIFY_STAGE_BIN, "--dry-run", "--json", "--root", _ROOT],  # the repo tree, not the host
             capture_output=True,
             text=True,
             check=True,
@@ -58,6 +58,8 @@ class TestUkifyStage(unittest.TestCase):
                 "--kernel", mock_kernel,
                 "--initrd", mock_initrd,
                 "--cmdline", "console=tty0 root=UUID=123 rw",
+                "--root", self.tmpdir.name,  # never the host /boot
+                "--loader-entry", os.path.join(self.tmpdir.name, "loader", "entries", "mios-next.conf"),
                 "--json",
             ],
             capture_output=True,

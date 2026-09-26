@@ -76,7 +76,29 @@ assert_fail() {
 }
 
 TMP_DIR="$(mktemp -d /tmp/test-cfs-seal.XXXXXX)"
-trap '[[ -n "$TMP_DIR" && -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"' EXIT
+# Every path the seal script can write (repo and, when writable, host): each is restored, or removed if it did not exist.
+SEALED_FILES=("${ROOT_DIR}/usr/lib/bootc/kargs.d/50-composefs.toml" "${ROOT_DIR}/usr/lib/ostree/prepare-root.conf"
+              /usr/lib/bootc/kargs.d/50-composefs.toml /usr/lib/ostree/prepare-root.conf /etc/ostree/prepare-root.conf)
+for _i in "${!SEALED_FILES[@]}"; do [[ -f "${SEALED_FILES[$_i]}" ]] && cp -p "${SEALED_FILES[$_i]}" "${TMP_DIR}/sealed.${_i}"; done
+_restore_sealed() {
+    local _i
+    for _i in "${!SEALED_FILES[@]}"; do
+        if [[ -f "${TMP_DIR}/sealed.${_i}" ]]; then
+            cp -p "${TMP_DIR}/sealed.${_i}" "${SEALED_FILES[$_i]}"
+        else
+            rm -f "${SEALED_FILES[$_i]}"
+        fi
+    done
+    [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"
+    return 0
+}
+trap _restore_sealed EXIT
+
+# A host without composefs tooling runs the mock fixtures every later test already falls back to.
+if [[ "$MOCK_MODE" != "true" ]] && ! command -v mkcomposefs >/dev/null 2>&1 && ! command -v composefs-info >/dev/null 2>&1; then
+    log "host has no composefs tooling; running with mock fixtures"
+    MOCK_MODE=true
+fi
 
 VALIDATOR="${ROOT_DIR}/usr/libexec/mios/mios-composefs-validator"
 SEAL_SCRIPT="${ROOT_DIR}/automation/93-composefs-seal.sh"

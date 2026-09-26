@@ -601,16 +601,22 @@ mod tests {
         unsafe { env::remove_var(var_name) };
         ssot.insert(var_name.to_string(), "v19".to_string());
         assert_eq!(
-            resolve_image_val(&format!("quay.io/ceph/ceph:${{{var_name}}}"), &sidecars, &ssot),
+            resolve_image_val(
+                &format!("quay.io/ceph/ceph:${{{var_name}}}"),
+                &sidecars,
+                &ssot
+            ),
             "quay.io/ceph/ceph:v19"
         );
         // Absent from SSOT too: the placeholder SURVIVES so the caller can name
         // the variable, rather than being silently dropped.
         let empty = BTreeMap::new();
-        assert!(
-            resolve_image_val(&format!("quay.io/ceph/ceph:${{{var_name}}}"), &sidecars, &empty)
-                .contains('$')
-        );
+        assert!(resolve_image_val(
+            &format!("quay.io/ceph/ceph:${{{var_name}}}"),
+            &sidecars,
+            &empty
+        )
+        .contains('$'));
     }
 
     #[test]

@@ -2541,6 +2541,8 @@ from unittest.mock import patch
 ns__HERE = os.path.dirname(os.path.abspath(__file__))
 ns__ROOT = os.path.normpath(os.path.join(ns__HERE, ".."))
 ns__TARGET_PATH = os.path.join(ns__ROOT, "usr", "libexec", "mios", "sec", "net_segmentation.py")
+with open(os.path.join(ns__ROOT, "usr", "share", "mios", "mios.toml"), "rb") as _f:
+    ns__PORTS = tomllib.load(_f)["ports"]  # expected ports come from SSOT, never a literal
 
 ns_spec = importlib.util.spec_from_file_location("net_segmentation", ns__TARGET_PATH)
 if ns_spec and ns_spec.loader:
@@ -2559,9 +2561,9 @@ class ns_TestNetSegmentation(unittest.TestCase):
         self.assertIn("table inet mios_isolation", rules)
         self.assertIn("chain forward_containers", rules)
         self.assertIn("policy drop", rules)
-        self.assertIn("dport 8642", rules)  # hermes
+        self.assertIn("dport %d" % ns__PORTS["hermes"], rules)
         self.assertIn("dport 5432", rules)  # pgvector
-        self.assertIn("dport 11450", rules)  # llm-light
+        self.assertIn("dport %d" % ns__PORTS["llm_light"], rules)
         self.assertIn("log prefix \"MIOS-NET-DROP: \"", rules)
 
     def test_validate_pairing_matrix_valid_default(self):

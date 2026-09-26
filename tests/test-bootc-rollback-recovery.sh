@@ -10,11 +10,19 @@ MIOSD_BIN="${ROOT_DIR}/src/mios-rs/target/debug/miosd"
 if [[ ! -x "$MIOSD_BIN" ]]; then
     if command -v miosd >/dev/null 2>&1; then
         MIOSD_BIN="$(command -v miosd)"
+    elif command -v cargo >/dev/null 2>&1; then
+        echo "[test-bootc-rollback] building miosd for testing..."
+        (cd "${ROOT_DIR}/src/mios-rs" && cargo build -q -p miosd) || { echo "[test-bootc-rollback] ERROR: cargo build -p miosd failed" >&2; exit 1; }
     else
         echo "[test-bootc-rollback] ERROR: miosd binary not found at $MIOSD_BIN" >&2
         exit 1
     fi
 fi
+
+# miosd's /var/lib/mios probes land in a throwaway root, never the host's /var.
+STATE_ROOT="$(mktemp -d /tmp/test-bootc-rollback.XXXXXX)"
+trap 'rm -rf "$STATE_ROOT"' EXIT
+export MIOS_ROOT="$STATE_ROOT"
 
 pass_count=0
 fail_count=0

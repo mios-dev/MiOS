@@ -795,6 +795,7 @@ dependencies = [
 name = "mios-gate"
 version = "0.3.0"
 dependencies = [
+ "mios-build",
  "regex",
  "serde_json",
  "tempfile",

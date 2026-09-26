@@ -762,6 +762,9 @@ from unittest.mock import patch
 mma__HERE = os.path.dirname(os.path.abspath(__file__))
 mma__ROOT = os.path.normpath(os.path.join(mma__HERE, ".."))
 mma__TARGET_PATH = os.path.join(mma__ROOT, "usr", "libexec", "mios", "ai", "model_matrix_alloc.py")
+with open(os.path.join(mma__ROOT, "usr", "share", "mios", "mios.toml"), "rb") as _f:
+    import tomllib
+    mma__LLM_LIGHT = tomllib.load(_f)["ports"]["llm_light"]  # expected port comes from SSOT, never a literal
 
 mma_spec = importlib.util.spec_from_file_location("model_matrix_alloc", mma__TARGET_PATH)
 if mma_spec and mma_spec.loader:
@@ -828,7 +831,7 @@ class mma_TestModelMatrixAlloc(unittest.TestCase):
         conf = allocator.generate_llama_swap_config(alloc)
 
         self.assertEqual(conf["version"], "1.0")
-        self.assertEqual(conf["port"], 11450)
+        self.assertEqual(conf["port"], mma__LLM_LIGHT)
         self.assertIn("mios-coder", conf["models"])
         self.assertIn("mios-reasoning", conf["models"])
         self.assertIn("nomic-embed-text", conf["models"])
@@ -845,7 +848,7 @@ class mma_TestModelMatrixAlloc(unittest.TestCase):
 
         with open(yaml_path, "r", encoding="utf-8") as f:
             content = f.read()
-        self.assertIn("port: 11450", content)
+        self.assertIn("port: %d" % mma__LLM_LIGHT, content)
         self.assertIn("mios-coder:", content)
         self.assertIn("nomic-embed-text:", content)
 

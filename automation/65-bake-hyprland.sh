@@ -17,16 +17,8 @@ for _gen in ux/wm_config_gen.py desktop/gpu_terminal.py win/wt_profile_inject.py
 done
 mios_ok "Rendered Hyprland, Sway, Alacritty, WSL terminal profile and tmux theme from mios.toml"
 
-mkdir -p /usr/share/wayland-sessions
-cat << 'EOF' > /usr/share/wayland-sessions/hyprland.desktop
-[Desktop Entry]
-Name=Hyprland
-Comment=An intelligent dynamic tiling Wayland compositor
-Exec=Hyprland
-Type=Application
-DesktopNames=Hyprland
-EOF
-chmod 0644 /usr/share/wayland-sessions/hyprland.desktop
+# Re-asserted after the RPM install, from the tracked overlay copy (the one source).
+install -D -m 0644 "${SCRIPT_DIR}/../usr/share/wayland-sessions/hyprland.desktop" /usr/share/wayland-sessions/hyprland.desktop
 mios_ok "Registered /usr/share/wayland-sessions/hyprland.desktop"
 
 mkdir -p /etc/hypr
