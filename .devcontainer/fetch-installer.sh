@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Downloads a shell installer to a file and refuses anything that is not a shell script, so devcontainer setup never pipes an unverified transfer into bash.
 # fetch-installer.sh <url> <dest> -- download a shell installer to <dest>,
 # refusing anything that is not a shell script. Download-then-run, never
 # pipe-to-shell, so a bad transfer fails loudly before bash sees it.

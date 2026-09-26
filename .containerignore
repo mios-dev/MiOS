@@ -1,3 +1,4 @@
+# AI-hint: Paths kept out of container build contexts: worktrees, dev-loop state, editor and agent dotfolders, Rust targets and Python caches.
 .worktrees
 .devloop
 .vscode

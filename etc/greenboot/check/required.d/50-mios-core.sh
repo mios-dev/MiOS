@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Greenboot required health check: hands the verdict to `miosd greenboot`, and fails the boot if the miosd core daemon is missing.
 set -e
 
 MIOSD_BIN=""

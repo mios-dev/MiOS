@@ -6,12 +6,14 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import configparser
 import json
 import math
 import os
 import pathlib
 import select
+import shutil
 import socket
 import struct
 import subprocess
@@ -19,6 +21,7 @@ import sys
 import tempfile
 import threading
 import time
+import unittest
 from typing import Any, Dict, List
 
 # Locate project root and scripts
@@ -307,13 +310,24 @@ def test_5_quadlet_container_syntax() -> None:
         assert_fail("Quadlet syntax parsing failed", str(e))
 
 
+def _require_unix_sockets() -> None:
+    """Test 6 talks to an in-process AF_UNIX server; a sandbox that refuses
+    AF_UNIX sockets skips it instead of failing it."""
+    try:
+        socket.socket(socket.AF_UNIX, socket.SOCK_STREAM).close()
+    except OSError as exc:
+        raise unittest.SkipTest(f"AF_UNIX sockets unavailable: {exc}") from exc
+
+
 # ==============================================================================
 # Test 6: Mock end-to-end streaming audio loopback (--mock)
 # ==============================================================================
 def test_6_mock_end_to_end_loopback() -> None:
     log("Test 6: Mock end-to-end streaming audio loopback (--mock)")
+    _require_unix_sockets()
 
     temp_dir = tempfile.mkdtemp(prefix="test-audio-sock-")
+    atexit.register(shutil.rmtree, temp_dir, ignore_errors=True)
     sock_path = os.path.join(temp_dir, "audio-stream.sock")
 
     server_ingress = mas.AudioStreamIngress(
@@ -389,7 +403,10 @@ def main() -> int:
     test_3_realtime_token_emission()
     test_4_negative_control_corrupted_and_zero_frames()
     test_5_quadlet_container_syntax()
-    test_6_mock_end_to_end_loopback()
+    try:
+        test_6_mock_end_to_end_loopback()
+    except unittest.SkipTest as exc:
+        log(f"SKIP Test 6: {exc}")
 
     log(f"=== Test Suite Summary: {pass_count} passed, {fail_count} failed ===")
     if fail_count > 0:

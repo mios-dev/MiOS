@@ -1,3 +1,4 @@
+# AI-hint: Python packages the agent-pipe gateway needs at runtime; also the CI analysis toolchain's install list ([ci.python]).
 sqlite-vec
 fastapi
 jinja2

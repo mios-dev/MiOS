@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Operator go-live script for the agents super-container: build and launch it, sign in the agent CLI, enable auto-approve, bake the result into the image, then smoke-test.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 

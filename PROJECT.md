@@ -1,3 +1,4 @@
+<!-- AI-hint: Architecture notes for the dev-loop lane-isolation harness: multi-lane orchestration, harness adapters and gates, base-tree guard, and git lock management. -->
 # Project: Dev-Loop Lane Isolation & Concurrent Worker Harness
 
 ## Architecture

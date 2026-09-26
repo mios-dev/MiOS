@@ -1,3 +1,4 @@
+<!-- AI-hint: Root documentation staging area: drafts live here; durable docs publish to docs/research/ and usr/share/doc/mios/, never as a second copy of the SSOT. -->
 # Documentation staging
 
 This is the root-level documentation control plane.

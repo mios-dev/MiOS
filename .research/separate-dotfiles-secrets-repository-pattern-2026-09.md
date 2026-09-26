@@ -1,3 +1,4 @@
+<!-- AI-hint: Upstream pattern research on keeping operator dotfiles and secrets in separate repositories, and the resulting MiOS three-repository decision. -->
 # Separate dotfiles and secrets repositories — upstream pattern research
 
 **Run date:** 2026-09-21

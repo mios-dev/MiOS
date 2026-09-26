@@ -1,3 +1,6 @@
+# AI-hint: Systemd oneshot that extracts and purges persistent pstore/ramoops kernel crash buffers at boot for post-mortem forensics.
+# AI-related: usr/libexec/mios/mios-pstore
+
 [Unit]
 Description=MiOS Persistent Kernel Crash Buffer Extractor
 Documentation=man:pstore(8)

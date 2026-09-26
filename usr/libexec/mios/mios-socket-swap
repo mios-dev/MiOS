@@ -36,7 +36,7 @@ logger = logging.getLogger("mios-socket-swap")
 
 SD_LISTEN_FDS_START = 3
 DEFAULT_SERVICE = "agent-pipe"
-DEFAULT_PORT = 8642
+DEFAULT_PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700"))
 DEFAULT_TIMEOUT = 10.0
 DEFAULT_DRAIN_TIMEOUT = 15.0
 

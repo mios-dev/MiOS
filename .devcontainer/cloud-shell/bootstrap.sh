@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
+# AI-hint: Installs a launcher for, and starts, the portable MiOS Dev Container from supported cloud shells (Google Cloud Shell, Oracle Cloud Shell).
 # Install and launch the portable MiOS Dev Container from supported cloud shells.
 set -euo pipefail
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+readonly ROOT
 readonly LOCAL_PREFIX="${HOME}/.local"
 readonly LOCAL_BIN="${LOCAL_PREFIX}/bin"
 readonly SHELL_INIT="${LOCAL_PREFIX}/share/mios/cloud-shell-init.sh"

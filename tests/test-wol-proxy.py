@@ -8,6 +8,7 @@ import os
 import shutil
 import stat
 import subprocess
+import socket
 import sys
 import tempfile
 import threading
@@ -34,6 +35,16 @@ validate_destination_ip = wol_proxy_mod.validate_destination_ip
 SecurityError = wol_proxy_mod.SecurityError
 WolProxyServer = wol_proxy_mod.WolProxyServer
 WolProxyRequestHandler = wol_proxy_mod.WolProxyRequestHandler
+
+
+def setUpModule():
+    """The daemon tests talk to an in-process server on 127.0.0.1; a sandbox
+    that refuses loopback sockets skips them instead of failing them."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+    except OSError as exc:
+        raise unittest.SkipTest(f"loopback sockets unavailable: {exc}") from exc
 
 
 class TestWolProxy(unittest.TestCase):
