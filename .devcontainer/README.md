@@ -7,14 +7,17 @@ Container connection, including GitHub Codespaces.
 
 ## One image, every environment
 
-`Containerfile` is the only MiOS development image definition. The
-mios-bootstrap and -dev-loop devcontainers point `build.dockerfile` at
-`../../MiOS/.devcontainer/Containerfile` (their `initializeCommand` clones this
-repo as a sibling first) and run this directory's lifecycle from
-`/workspaces/MiOS`. Codespaces and Cloud Shell (`cloud-shell/bootstrap.sh`) use
-the same `devcontainer.json`, and the hosted cloud-session projection
-(`-dev-loop` `cloud-fedora-setup.sh`) builds this file unedited and commits its
-lifecycle into the image. No other repository keeps a copy. The dnf package set
+`Containerfile` is the only MiOS development image definition. mios-bootstrap
+and -dev-loop carry byte-identical copies of it in their own `.devcontainer/`,
+gated here by `[bootstrap.sync].mirror_files` (`tools/sync-bootstrap.py --check`)
+and in -dev-loop by `tests/test_devcontainer_mirror.py`; edit it here and copy
+it, never the mirrors. Built from a context that is not a MiOS checkout, it
+shallow-clones MiOS (`ARG MIOS_REF`, default `main`) and reads the package set
+from the clone, so each repo builds it from its own root and runs this
+directory's lifecycle from `/workspaces/MiOS`. Codespaces and Cloud Shell
+(`cloud-shell/bootstrap.sh`) use the same `devcontainer.json`, and the hosted
+cloud-session projection (-dev-loop `cloud-fedora-setup.sh`) builds this file
+unedited and commits its lifecycle into the image. The dnf package set
 is `[packages.devcontainer]` in `usr/share/mios/mios.toml`, resolved at build
 time by `automation/lib/packages.sh`; change it there, not here. The Antigravity
 CLI is baked in, and a build that cannot install it fails instead of shipping
