@@ -2274,6 +2274,7 @@ surfaces = [
   { generator = "tools/generate-pipeline-index.py", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
   { generator = "tools/generate-uki-cmdline.py", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
   { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
+  { generator = "tools/native/mios-task/src/main.rs", check = "check_task_store", output = "usr/share/mios/tasks/tasks.jsonl, usr/share/mios/tasks/passthrough.jsonl, usr/share/mios/tasks/sources.json" },
   { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
   { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
@@ -11370,6 +11371,50 @@ max_value_divergence = 0
 schema_from = 1607
 max_duplicate_ids = 0
 
+[tasks.store]
+# ADR-0026: the canonical task record for every id space; written only by tools/native/mios-task.
+path           = "usr/share/mios/tasks/tasks.jsonl"
+format         = "openai-strict-json-schema-jsonl"
+schema         = "usr/lib/mios/schemas/task-record.schema.json"
+schema_name    = "mios_task_record"
+schema_version = "1"
+# Precedence order, highest first; `repo` names a sibling checkout. `fences = true` only where
+# headings really sit inside fenced blocks (ADR-0026 explains the stray-fence case).
+sources = [
+  { repo = "MiOS",       path = "TASKS.md",                               kind = "section" },
+  { repo = "MiOS",       path = "AGY-TASKS.md",                           kind = "section" },
+  { repo = "MiOS",       path = "usr/share/mios/agents/TASKS.md",         kind = "section" },
+  { repo = "MiOS",       path = "ROADMAP.md",                             kind = "roadmap-item" },
+  { repo = "MiOS",       path = "usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md",    kind = "section" },
+  { repo = "MiOS",       path = "usr/share/mios/docs/MIOS-GEMINI-TASKS-R2-2026-06-22.md", kind = "section" },
+  { repo = "mios-micro", path = "ROADMAP.md",                             kind = "list-item" },
+  { repo = "MiOS",       path = "TASKS.md",                               kind = "table-row" },
+  { repo = "MiOS",       path = ".devloop/tasks.jsonl",                   kind = "jsonl" },
+  { repo = "-dev-loop",  path = ".devloop/tasks.jsonl",                   kind = "jsonl" },
+  { repo = "-dev-loop",  path = ".devloop/backlog_archive.jsonl",         kind = "jsonl" },
+  { repo = "-dev-loop",  path = ".devloop/HISTORICAL_BACKLOG.md",         kind = "folded", fences = true },
+]
+# OpenAI plan-step / response-item status words; the source's own word stays in status_raw.
+statuses = ["pending", "in_progress", "completed", "incomplete", "cancelled"]
+# One id, two different tasks: the listed occurrence is keyed "<source>#<id>" (or "<id>#<nth>").
+# Ids are never reminted; `nth` counts that id's occurrences per kind in one file.
+distinct = [
+  { id = "T-031",  source = "MiOS:TASKS.md", nth = 2 },
+  { id = "T-001",  source = "-dev-loop:.devloop/tasks.jsonl" },
+  { id = "T-002",  source = "-dev-loop:.devloop/backlog_archive.jsonl" },
+  { id = "T-002",  source = "-dev-loop:.devloop/HISTORICAL_BACKLOG.md" },
+  { id = "T-003",  source = "-dev-loop:.devloop/tasks.jsonl" },
+  { id = "T-004",  source = "-dev-loop:.devloop/tasks.jsonl" },
+  { id = "T-005",  source = "-dev-loop:.devloop/backlog_archive.jsonl" },
+  { id = "T-005",  source = "-dev-loop:.devloop/HISTORICAL_BACKLOG.md" },
+  { id = "T-1104", source = "MiOS:.devloop/tasks.jsonl" },
+  { id = "T-1105", source = "MiOS:.devloop/tasks.jsonl" },
+  { id = "T-1106", source = "MiOS:.devloop/tasks.jsonl" },
+  { id = "T-1107", source = "MiOS:.devloop/tasks.jsonl" },
+]
+passthrough_path = "usr/share/mios/tasks/passthrough.jsonl"
+manifest_path    = "usr/share/mios/tasks/sources.json"
+
 [docs]
 # Measured floor; 0 was never enforced. Ratchet DOWN only. AGY-1601.
 max_stale_refs              = 0
@@ -11832,7 +11877,7 @@ max_tracked_files = 3409
 # (83% of the measurement, and Law 12 forbids shedding it) and re-baseline down
 # the way generated globals are excluded from the shell/PowerShell counts -- is
 # recorded in T-1051 with the numbers.
-max_tracked_mb    = 209
+max_tracked_mb    = 235
 # The allowance, and the only operator-tunable half: how far the tree may grow
 # between regenerations before the gate says anything. 0 makes the ceiling exact
 # and every MiB boundary a failure, which is the state T-1051 was filed about.

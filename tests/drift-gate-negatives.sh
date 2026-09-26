@@ -2807,6 +2807,41 @@ test_schema_consumers() {
     log "Test_schema_consumers negative test passed"
 }
 
+test_task_store() {
+    log "Testing check_task_store"
+    local store="${ROOT}/usr/share/mios/tasks/tasks.jsonl"
+    local backup="${store}.negbak"
+    local bin="${ROOT}/tools/native/target/release/mios-task"
+    [[ -x "$bin" ]] || bin="${ROOT}/tools/native/target/debug/mios-task"
+    [[ -x "$bin" ]] || die "test_task_store needs mios-task built (cd tools/native && cargo build -p mios-task)"
+    cp "$store" "$backup"
+    _ts_fail() { cp "$backup" "$store"; rm -f "$backup"; unset -f _ts_fail; die "$1"; }
+
+    # Plant 1 (a short slice) is a cargo test in tools/native/mios-task. Plant 2: a duplicate key.
+    grep -m1 '"key":"T-1029"' "$backup" >> "$store"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_task_store >/dev/null 2>&1 \
+        && _ts_fail "check_task_store passed with two records keyed T-1029"
+    local out; out="$("$bin" validate --root "$ROOT" 2>&1)" || true
+    printf '%s\n' "$out" | grep -q '^INVALID: duplicate key T-1029$' \
+        || _ts_fail "mios-task validate did not name the planted duplicate key T-1029"
+    mv "$backup" "$store"
+    unset -f _ts_fail
+
+    # Plant 3: a list changed after the migration (a table row appended to TASKS.md).
+    local tasks="${ROOT}/TASKS.md" tbak="${ROOT}/TASKS.md.negbak"
+    cp "$tasks" "$tbak"
+    echo "| T-9999 | P3 | open | Test | DEVLOOP-PLANTED stale-store row |" >> "$tasks"
+    local st; st="$("$bin" check-lossless --root "$ROOT" 2>&1)" && { mv "$tbak" "$tasks"; die "mios-task check-lossless passed although TASKS.md changed after the migration"; }
+    printf '%s\n' "$st" | grep -q '^STALE: MiOS:TASKS.md changed after the store was migrated' \
+        || { mv "$tbak" "$tasks"; die "mios-task check-lossless did not name the planted TASKS.md edit as STALE"; }
+    mv "$tbak" "$tasks"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_task_store >/dev/null 2>&1 \
+        || die "check_task_store failed after restoration"
+
+    log "Test_task_store negative test passed"
+}
+
 test_tasks_status_parity() {
     log "Testing check_tasks_status_parity"
     local tasks="${ROOT}/TASKS.md"
@@ -5188,6 +5223,7 @@ _run_test test_leaked_fixtures
     _run_test test_module_length
     _run_test test_firstboot_provisioners
     _run_test test_schema_consumers
+    _run_test test_task_store
     _run_test test_tasks_status_parity
     _run_test test_agy_tasks
     _run_test test_mios_toml_integrity
