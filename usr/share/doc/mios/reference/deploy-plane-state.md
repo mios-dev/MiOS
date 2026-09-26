@@ -1,5 +1,5 @@
 <!-- AI-hint: The measured state of the MiOS deploy plane: what installs, what does not, and the root causes behind each. -->
-<!-- AI-related: AGY-TASKS.md, installation/, usr/share/mios/ventoy/ -->
+<!-- AI-related: TASKS.jsonl, installation/, usr/share/mios/ventoy/ -->
 
 # MiOS Deploy Plane â Hardening Plan
 

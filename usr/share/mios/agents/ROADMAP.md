@@ -8,7 +8,7 @@
 > which an orchestrator agent delegates build/debug work to operator sub-agents,
 > each in its own live lane, with humans watching/steering through the same
 > code-server terminal (the "glass wall"). Companion to `ACTIVATION.md` (bring-up)
-> and the repo-root `ROADMAP.md` / `TASKS.md`. Detailed tasks: `./TASKS.md`.
+> and the repo-root `ROADMAP.md` / `TASKS.jsonl`. Detailed tasks: the F- records in `TASKS.jsonl`.
 >
 > **Honesty rule (inherited):** DONE = **active + live-fired** in the container,
 > not "built + gated-off", not "done-by-code", not introspection-only. Anything
@@ -150,7 +150,7 @@ selftest asserts the role/frontier layout (F-012) ✅. *Status: complete.*
 coded.** Parallel fan-out beyond two lanes, per-task checkpointing/resume,
 orchestrator↔sub-agent structured hand-off (A2A), cost/turn budgets, and a
 "completeness critic" lane. Concrete per-item designs (files to touch,
-degrade-open activation path) now live in `TASKS.md`'s "Phase-7 design
+degrade-open activation path) now live in the F- records of `TASKS.jsonl` ("Phase-7 design
 sketches" section — including F-024 (Lane-B `agy`→`claude` degrade-open
 fallback while the Gemini account quota is exhausted, in-progress) and the
 now-resolved dispatch-vs-nested-tool-loop question (dispatch is the shipped
@@ -160,7 +160,7 @@ and preferred shape; nested tool-loop recorded as the Phase-7 alternative).
 ## 5. Relationship to the MiOS roadmap
 
 mios-frontier is the human-facing face of the A2O program: the repo-root
-`TASKS.md` **T-010** (war-room rework) is the umbrella; the sub-agent
+`TASKS.jsonl` **T-010** (war-room rework) is the umbrella; the sub-agent
 visibility work (FV-*) and constrained-tool-calling (T-111) apply to the lanes;
 the native-typed-launch-args mandate (T-119) governs how the harness exposes its
 own verbs. This file decomposes the war-room into shippable frontier tasks.
@@ -192,6 +192,6 @@ through) as the historical record per the honesty rule.
   engine-agnosticism (no uniform tool-calling protocol exists across
   `claude`/`agy`/`gemini`), degrade-open failure isolation, and surviving an
   orchestrator restart (task state lives on disk, not in-process). A nested
-  tool-loop is recorded as the Phase-7 alternative in `TASKS.md`'s "Phase-7
+  tool-loop is recorded as the Phase-7 alternative in `TASKS.jsonl` ("Phase-7
   design sketches" section, worth revisiting only if the three engines gain a
   uniform structured tool-calling protocol.
