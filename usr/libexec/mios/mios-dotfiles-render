@@ -893,10 +893,62 @@ def cmd_render(names):
     return 0
 
 
+def _vscode_settings_path(rel):
+    """Where a client-portable surface keeps its VS Code settings object, by file
+    type (the rule tools/sync-dotfiles.py projects by): customizations.vscode.
+    settings in a devcontainer.json, the top-level settings in a *.code-workspace."""
+    if rel.endswith(".code-workspace"):
+        return ("settings",)
+    if os.path.basename(rel) == "devcontainer.json":
+        return ("customizations", "vscode", "settings")
+    return None
+
+
+def _check_vscode_client_surfaces(merged, drift):
+    """ADR-0024: refuse every mios.toml [dotfiles.vscode] key on a client-portable
+    surface, naming FILE and KEY; an absent partition or surface is not drift."""
+    pol = mios_toml.section(merged, "dotfiles.vscode")
+    banned = {}
+    for lst, why in (("unregistered_keys", "unregistered"),
+                     ("user_only_keys", "User-settings-only"),
+                     ("desktop_only_keys", "desktop-only")):
+        vals = pol.get(lst)
+        if isinstance(vals, list):
+            for k in vals:
+                banned[str(k)] = why
+    if not banned:
+        return
+    bootstrap_root = os.environ.get("MIOS_BOOTSTRAP_ROOT") or os.path.join(ROOT, "..", "mios-bootstrap")
+    surfaces = [(ROOT, rel) for rel in pol.get("client_portable_surfaces", []) or []]
+    surfaces += [(bootstrap_root, rel) for rel in pol.get("bootstrap_client_portable_surfaces", []) or []]
+    for root, rel in surfaces:
+        path = os.path.join(root, rel)
+        key_path = _vscode_settings_path(rel)
+        if key_path is None or not os.path.isfile(path):
+            continue
+        label = f"{os.path.basename(os.path.normpath(root))}/{rel}"
+        try:
+            doc = json.loads(_jsonc_to_json(_read(path)))
+        except ValueError as e:
+            drift.append(f"vscode-client-surface {label}: did not parse as JSON ({e})")
+            continue
+        settings = doc
+        for part in key_path:
+            settings = settings.get(part, {}) if isinstance(settings, dict) else {}
+        if not isinstance(settings, dict):
+            continue
+        for k in settings:
+            if k in banned:
+                drift.append(f"vscode-client-surface {label}: {banned[k]} key {k} must not reach a "
+                             "client-portable surface (ADR-0024, mios.toml [dotfiles.vscode]) -- "
+                             "re-run python3 tools/sync-dotfiles.py")
+
+
 def cmd_check(names):
     merged = mios_toml.load_merged(_LAYERS)
     drift = []
     if not names:
+        _check_vscode_client_surfaces(merged, drift)
         registered = {os.path.normpath(SURFACES[n].template) for n in SURFACES}
         for td in {os.path.dirname(p) for p in registered}:
             td_abs = os.path.join(ROOT, td)
@@ -931,8 +983,9 @@ def cmd_check(names):
     for d in drift:
         sys.stderr.write(f"    {d}\n")
     if drift:
-        sys.stderr.write(f"[mios-dotfiles-render] FAIL: {len(drift)} theme surface(s) drifted -- "
-                         "re-run `mios-sync-theme` (or fix the template) so every surface projects from [colors] SSOT\n")
+        sys.stderr.write(f"[mios-dotfiles-render] FAIL: {len(drift)} surface(s) drifted -- "
+                         "re-run `mios-sync-theme` / `tools/sync-dotfiles.py` (or fix the template) "
+                         "so every surface projects from the SSOT\n")
         return 1
     print(f"[mios-dotfiles-render] PASS: {sum(os.path.isfile(os.path.join(ROOT, SURFACES[n].template)) for n in SURFACES)} "
           "theme surface(s) match the SSOT projection")

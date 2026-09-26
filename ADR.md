@@ -3,7 +3,7 @@
 
 # MiOS Architecture Decision Records
 
-**23 ADRs** (18 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
+**24 ADRs** (18 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
 
 | # | Decision | Status | Date | Laws | SSOT keys |
 |---|---|---|---|---|---|
@@ -30,5 +30,6 @@
 | 0021 | [Rust static binary consolidation — a handful of function-named binaries over one SSOT crate](usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md) | accepted | 2026-09-16 | 5, 7, 8, 9, 12, 13, 14, 16 | `"legibility.max_tooling_python_lines"`, `"legibility.python_ai_plane_prefixes"` |
 | 0022 | ["Version floating, image sidecars, and offline vendoring policy"](usr/share/doc/mios/adr/0022-version-floating-and-sidecars.md) | superseded | 2026-08-02 | 7, 8, 12 | `image.sidecars`, `versions` |
 | 0023 | ["Unified native resolver architecture"](usr/share/doc/mios/adr/0023-unified-native-resolver.md) | superseded | 2026-08-05 | 7, 8, 9, 13, 14 | `migration.use_rust_resolver_shell`, `migration.use_rust_resolver_powershell`, `migration.use_rust_resolver_python`, `migration.use_rust_resolver_install_env` |
+| 0024 | [VS Code settings are partitioned by the client that applies them](usr/share/doc/mios/adr/0024-vscode-client-scoped-settings.md) | proposed | 2026-09-25 | 7, 8, 9, 15 | `dotfiles.vscode` |
 
-<!-- derived from the front-matter of 23 file(s) under usr/share/doc/mios/adr/ -->
+<!-- derived from the front-matter of 24 file(s) under usr/share/doc/mios/adr/ -->

@@ -4967,6 +4967,52 @@ test_egress_firewall() {
     log "check_egress_firewall negative test passed"
 }
 
+test_dotfiles_projection() {
+    log "Testing check_dotfiles_projection"
+    local surface="${ROOT}/.devcontainer/devcontainer.json"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak_s bak_t; bak_s="$(mktemp)"; bak_t="$(mktemp)"
+    cp "$surface" "$bak_s"; cp "$toml" "$bak_t"
+    _dp_restore() { cp "$bak_s" "$surface"; cp "$bak_t" "$toml"; rm -f "$bak_s" "$bak_t"; unset -f _dp_restore; }
+
+    _neg_gate check_dotfiles_projection || { _dp_restore; die "check_dotfiles_projection is red before any plant, so a plant proves nothing: ${_NEG_GATE_OUT}"; }
+
+    # (1) A desktop-only key back on an API-applied surface must go red naming
+    # the file AND the key (ADR-0024).
+    python3 - "$surface" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p, encoding="utf-8"))
+d["customizations"]["vscode"]["settings"]["window.customTitleBarVisibility"] = "never"
+open(p, "w", encoding="utf-8", newline="").write(json.dumps(d, indent=2) + "\n")
+PY
+    _neg_gate check_dotfiles_projection && { _dp_restore; die "check_dotfiles_projection passed with a desktop-only key on a client-portable surface"; }
+    grep -q "window.customTitleBarVisibility" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection went red without naming the planted key: ${_NEG_GATE_OUT}"; }
+    grep -q "devcontainer/devcontainer.json" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection went red without naming the planted file: ${_NEG_GATE_OUT}"; }
+    cp "$bak_s" "$surface"
+
+    # (2) Dropping the key from [dotfiles.vscode].desktop_only_keys makes it
+    # portable again, so every surface WITHOUT it is now stale (it would flow
+    # back on the next sync): the SSOT/surface disagreement must go red too. A
+    # check that only scans surfaces for listed keys passes here -- that is the
+    # Check-Without-Diff this plant exists to catch.
+    python3 - "$toml" <<'PY'
+import sys
+p = sys.argv[1]
+lines = open(p, encoding="utf-8").read().split("\n")
+hits = [i for i, l in enumerate(lines) if l.lstrip().startswith('"window.customTitleBarVisibility",')]
+assert len(hits) == 1, hits
+del lines[hits[0]]
+open(p, "w", encoding="utf-8", newline="").write("\n".join(lines))
+PY
+    _neg_gate check_dotfiles_projection && { _dp_restore; die "check_dotfiles_projection passed after a desktop-only key left the SSOT list while the surfaces still lack it"; }
+    grep -q "window.customTitleBarVisibility" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection went red without naming the de-listed key: ${_NEG_GATE_OUT}"; }
+
+    _dp_restore
+    _neg_gate check_dotfiles_projection || die "check_dotfiles_projection failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_dotfiles_projection negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -5172,6 +5218,7 @@ _run_test test_leaked_fixtures
     _run_test test_gate_index
     _run_test test_pod_quadlets
     _run_test test_egress_firewall
+    _run_test test_dotfiles_projection
     _run_test test_artifact_prompt
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
