@@ -11790,6 +11790,8 @@ mirror_files = [
   "installation/bin/7z.dll",
   # The one MiOS dev image; the same bytes build from either repo root.
   ".devcontainer/Containerfile",
+  # Harness settings: the no-merge deny applies in every MiOS repo.
+  ".claude/settings.json",
 ]
 
 # SSOT tables mirrored into bootstrap's root mios.toml.
