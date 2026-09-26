@@ -4221,7 +4221,7 @@ def check_unit_dependency_closure() -> int:
         'pacemaker.service', 'k3s-agent.service', 'cryptsetup.target', 'redis.service',
         'sysinit.target', 'greenboot-healthcheck.service', 'ostree-remount.service',
         'ostree-prepare-root.service', 'waydroid-container.service', 'wslg-x11.service',
-        'wslg-wayland.service', 'ceph.target'
+        'wslg-wayland.service', 'ceph.target', 'slices.target'
     }
     known_units.update(well_known)
 
