@@ -88,8 +88,8 @@ jobs:
           # RELEASE too: check_bake_plan resolves the binary stage 85 would
           # actually run, and stage 85 never looks at target/debug.
           cargo build --release -p mios-bake-plan
-          # The native gate binary backs a check that fails when it is absent.
-          cd ../../src/mios-rs && cargo build -p mios-gate
+          # The native gate binary backs a check that fails when it is absent; miosd backs the unit tier's daemon suites.
+          cd ../../src/mios-rs && cargo build -p mios-gate -p miosd
 
       - name: Generated artifacts match the SSOT
         run: |

@@ -55,12 +55,28 @@ print('  [PASS] SCM_RIGHTS FD transfer confirmed')
 # Test 3: Systemd socket unit validation
 echo "--- Test 3: Systemd socket unit validation ---"
 [ -f "${SOCKET_UNIT}" ] || { echo "ERROR: ${SOCKET_UNIT} missing"; exit 1; }
-grep -q "ListenStream=8642" "${SOCKET_UNIT}"
+# Render the unit as the bake does: ${MIOS_*} placeholders from the resolver's exports of the SSOT.
+RENDERED_SOCKET="${MOCK_DIR}/mios-agent-pipe.socket"
+AGENT_PIPE_PORT="$(MIOS_TOML_ROOT="${MIOS_TOML_ROOT:-$ROOT}" python3 - "${SOCKET_UNIT}" "${RENDERED_SOCKET}" "${ROOT}" <<'PY'
+import os, re, sys
+sys.path.insert(0, os.path.join(sys.argv[3], "usr", "lib", "mios"))
+import mios_toml
+exports = mios_toml.emit_exports(mios_toml.vendor_tree(os.environ["MIOS_TOML_ROOT"]))
+text = open(sys.argv[1], encoding="utf-8").read()
+missing = sorted(set(re.findall(r"\$\{(MIOS_[A-Z0-9_]+)\}", text)) - set(exports))
+if missing:
+    sys.exit("unrendered placeholder(s): " + ", ".join(missing))
+open(sys.argv[2], "w", encoding="utf-8").write(re.sub(r"\$\{(MIOS_[A-Z0-9_]+)\}", lambda m: exports[m.group(1)], text))
+print(exports["MIOS_PORT_AGENT_PIPE"])
+PY
+)"
+grep -qx "ListenStream=${AGENT_PIPE_PORT}" "${RENDERED_SOCKET}" || { echo "ERROR: socket unit does not listen on SSOT [ports].agent_pipe (${AGENT_PIPE_PORT})"; exit 1; }
 grep -q "ListenStream=/run/mios/agent-pipe.sock" "${SOCKET_UNIT}"
 if command -v systemd-analyze >/dev/null 2>&1; then
-    systemd-analyze verify "${SOCKET_UNIT}" 2>&1 | grep -v "Unit.*is not executable" || true
+    cp "${ROOT}/usr/lib/systemd/system/mios-agent-pipe.service" "${MOCK_DIR}/"
+    systemd-analyze verify "${RENDERED_SOCKET}" || { echo "ERROR: systemd-analyze verify rejected the rendered socket unit"; exit 1; }
 fi
-echo "  [PASS] Socket unit directives validated"
+echo "  [PASS] Socket unit directives validated (TCP ${AGENT_PIPE_PORT} from [ports].agent_pipe)"
 
 # Test 4: Mock end-to-end socket swap lifecycle (--mock)
 echo "--- Test 4: Mock end-to-end socket swap lifecycle ---"

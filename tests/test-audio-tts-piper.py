@@ -349,8 +349,11 @@ def test_5_quadlet_container_syntax() -> None:
 # ==============================================================================
 def test_6_mock_end_to_end_loopback() -> None:
     log("Test 6: Mock end-to-end streaming loopback (--mock)")
+    with tempfile.TemporaryDirectory(prefix="test-tts-sock-") as temp_dir:
+        _test_6_loopback_in(temp_dir)
 
-    temp_dir = tempfile.mkdtemp(prefix="test-tts-sock-")
+
+def _test_6_loopback_in(temp_dir: str) -> None:
     sock_path = os.path.join(temp_dir, "audio-tts.sock")
 
     worker = mat.StreamingTTSWorker(
@@ -403,12 +406,6 @@ def test_6_mock_end_to_end_loopback() -> None:
         time.sleep(0.3)
         worker.running = False
         server_thread.join(timeout=1.0)
-        try:
-            if os.path.exists(sock_path):
-                os.unlink(sock_path)
-            os.rmdir(temp_dir)
-        except Exception:
-            pass
 
     # Verify worker metrics
     metrics = worker.get_status()

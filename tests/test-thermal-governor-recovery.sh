@@ -273,10 +273,12 @@ else
 fi
 
 if command -v systemd-analyze >/dev/null 2>&1; then
-    if systemd-analyze verify "$SERVICE_PATH" >/dev/null 2>&1; then
+    # verify resolves ExecStart against the host root, so point it at the in-tree binary.
+    sed "s#^ExecStart=/usr/libexec/#ExecStart=${REPO_ROOT}/usr/libexec/#" "$SERVICE_PATH" > "$TMP_DIR/mios-thermald.service"
+    if verify_out="$(systemd-analyze verify "$TMP_DIR/mios-thermald.service" 2>&1)"; then
         _pass "systemd-analyze verify passed with 0 structural errors"
     else
-        _fail "systemd-analyze verify reported errors on $SERVICE_PATH"
+        _fail "systemd-analyze verify reported errors on $SERVICE_PATH: $(grep 'mios-thermald' <<<"$verify_out" | head -3)"
     fi
 else
     _pass "systemd-analyze not installed; static unit validation accepted"

@@ -63,6 +63,10 @@ class GeneratorCheckAgreesWithWrite(unittest.TestCase):
                         before[rel] = fh.read()
 
             try:
+                # --check first, on the untouched tree: after a write it could only ever agree.
+                chk = subprocess.run([sys.executable, gen_abs, "--check"],
+                                     cwd=_ROOT, env=env,
+                                     capture_output=True, text=True)
                 subprocess.run([sys.executable, gen_abs], cwd=_ROOT, env=env,
                                capture_output=True, text=True)
                 changed = []
@@ -73,9 +77,6 @@ class GeneratorCheckAgreesWithWrite(unittest.TestCase):
                     if now != original:
                         changed.append(rel)
 
-                chk = subprocess.run([sys.executable, gen_abs, "--check"],
-                                     cwd=_ROOT, env=env,
-                                     capture_output=True, text=True)
                 if changed:
                     self.assertNotEqual(
                         0, chk.returncode,
