@@ -79,10 +79,10 @@ Part 1 asked what a machine *owns*. This asks what a machine *starts*. The two a
 |---|---|---|
 | Image | identical OCI image and tag | identical |
 | Bake | every payload baked, including model weights | identical |
-| Units started | **6** | **58** |
+| Units started | **7** | **62** |
 | Capabilities granted | *(none)* | `controller`, `gpu-serving`, `service-plane` |
-| Capability-gated units it starts | 0 | 52 |
-| Always-on units (`[blade].seat_side`) | 6 | 6 |
+| Capability-gated units it starts | 0 | 55 |
+| Always-on units (`[blade].seat_side`) | 7 | 7 |
 | Local inference lanes | **0** | up to 5 |
 | Greenboot probes | 1 of 4 critical services | 4 of 4 |
 | Addressing | `/etc/mios` overlay repoints the canonical keys | vendor defaults, all `localhost` |
@@ -97,18 +97,19 @@ Part 1 asked what a machine *owns*. This asks what a machine *starts*. The two a
 | `mios-agent-pipe` | local I/O |
 | `mios-hermes-browser` | local I/O |
 | `mios-hermes-tail` | local I/O |
+| `mios-thermald` | local I/O |
 | `mios-ttyd-bash` | local I/O |
 | `mios-ttyd-powershell` | local I/O |
 
 ## What a seat does not run
 
-52 units are capability-gated off. A failed `ConditionPathExists` is a clean skip, not a failure — the unit is *baked and present*, it simply never starts.
+55 units are capability-gated off. A failed `ConditionPathExists` is a clean skip, not a failure — the unit is *baked and present*, it simply never starts.
 
 | Withheld capability | Units it gates off |
 |---|---|
 | `controller, service-plane` | 2 |
 | `gpu-serving, service-plane` | 3 |
-| `service-plane` | 47 |
+| `service-plane` | 50 |
 
 ## Health: what greenboot asks on each
 
