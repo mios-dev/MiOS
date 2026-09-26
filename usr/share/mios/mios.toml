@@ -11900,12 +11900,13 @@ packages = ["pyflakes"]
 image = "registry.fedoraproject.org/fedora:44"
 # [packages.<set>] lists installed first; devcontainer is the dev image's own set.
 package_sets = ["devcontainer"]
+# Repo-config RPMs installed before any package. Fedora does not package
+# PowerShell; Microsoft's repository does, floating, as it documents for Fedora.
+repos = ["https://packages.microsoft.com/config/rhel/9/packages-microsoft-prod.rpm"]
 # CI-only extras the dev image does not carry: sandbox tests (bubblewrap),
 # composefs sealing (mkcomposefs, composefs-info), unit verification
-# (systemd-analyze) and the PowerShell analyzer's .NET runtime.
-packages = ["bubblewrap", "composefs", "systemd", "dotnet-sdk-8.0"]
-# Fedora does not package PowerShell; the lint tier needs pwsh 7.
-powershell_rpm = "https://github.com/PowerShell/PowerShell/releases/download/v7.6.6/powershell-7.6.6-1.rh.x86_64.rpm"
+# (systemd-analyze), the lint tier's pwsh and the analyzer's .NET runtime.
+packages = ["bubblewrap", "composefs", "systemd", "dotnet-sdk-8.0", "powershell"]
 
 [ci.tiers]
 # Static analysis. No build, no network, no image.

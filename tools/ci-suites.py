@@ -273,6 +273,9 @@ def main(argv: list) -> int:
         args += list(py.get("packages") or ())
         print(" ".join(args))
         return 0
+    if "--dnf-repos" in argv:
+        print(" ".join((ci.get("fedora") or {}).get("repos") or ()))
+        return 0
     if "--fedora-image" in argv or "--dnf-packages" in argv:
         # [ci.fedora]: what the drift-gate container is and what it installs.
         fed = ci.get("fedora") or {}
@@ -291,8 +294,6 @@ def main(argv: list) -> int:
                 return 1
             pkgs += list(section["pkgs"])
         pkgs += list(fed.get("packages") or ())
-        if fed.get("powershell_rpm"):
-            pkgs.append(fed["powershell_rpm"])
         print(" ".join(dict.fromkeys(pkgs)))
         return 0
     for i, a in enumerate(argv):
@@ -300,7 +301,7 @@ def main(argv: list) -> int:
             return cmd_list(root, ci, argv[i + 1])
         if a.startswith("--tier="):
             return cmd_list(root, ci, a.split("=", 1)[1])
-    print("usage: ci-suites.py --tier <name> | --check | --python-packages | --dnf-packages | --fedora-image",
+    print("usage: ci-suites.py --tier <name> | --check | --python-packages | --dnf-repos | --dnf-packages | --fedora-image",
           file=sys.stderr)
     return 2
 

@@ -77,12 +77,14 @@ jobs:
 
       - name: Provision the analysis toolchain
         # Everything comes from the SSOT: [ci.fedora] names the dnf set (the dev
-        # image's [packages.devcontainer] plus CI-only extras and pwsh), and
+        # image's [packages.devcontainer] plus CI-only extras, pwsh from its repo), and
         # [ci.python] the pip set. pyflakes backs lint-python.sh's undefined-name
         # pass and the rest make agent-pipe/server.py importable; both fail
         # closed under MIOS_DRIFT_REQUIRE_TOOLS=1, so a failed install fails here.
         run: |
           set -euo pipefail
+          # shellcheck disable=SC2046
+          dnf install -y $(python3 ./tools/ci-suites.py --dnf-repos)
           # shellcheck disable=SC2046
           dnf install -y --setopt=install_weak_deps=False $(python3 ./tools/ci-suites.py --dnf-packages)
           # shellcheck disable=SC2046
