@@ -9304,6 +9304,7 @@ usr/lib/mios/agent-pipe/mios_audio_tts.py	1	3	3	17	878e92fce693	STAY	ai-header		
 usr/lib/mios/agent-pipe/mios_audio_tts.py	4	10	6	50	cb268f45a2af	MIGRATE	narrative-rationale		0				0
 usr/lib/mios/agent-pipe/mios_audio_tts.py	37	39	3	3	91537e16660b	DROP	banner		0				0
 usr/lib/mios/agent-pipe/mios_audio_tts.py	43	43	1	4	c01e68e7720e	STAY	inline-scoped		0				0
+usr/lib/mios/agent-pipe/mios_audio_tts.py	48	48	1	4	1fc51b0defea	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/mios_audio_tts.py	85	85	1	9	bd9d3c59ecb4	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_audio_tts.py	91	93	3	2	a2008e7d4faa	DROP	banner		0				0
 usr/lib/mios/agent-pipe/mios_audio_tts.py	96	96	1	5	f36c91db0dec	STAY	local-scoped		0				0
@@ -9606,7 +9607,7 @@ usr/lib/mios/agent-pipe/mios_memory.py	1	1	1	5	2035425d21a6	STAY	ai-header		0			
 usr/lib/mios/agent-pipe/mios_mesh_distributor.py	1	3	3	16	3fc81c457d7e	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_mesh_distributor.py	4	10	6	50	ff742fe83684	MIGRATE	narrative-rationale		0				0
 usr/lib/mios/agent-pipe/mios_mesh_distributor.py	29	31	3	4	38090d83a741	DROP	banner		0				0
-usr/lib/mios/agent-pipe/mios_mesh_distributor.py	33	33	1	7	ae43f4ce93a9	STAY	inline-scoped		0				0
+usr/lib/mios/agent-pipe/mios_mesh_distributor.py	33	33	1	7	787959893250	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/mios_mesh_distributor.py	34	34	1	5	3c8b0dbeb68c	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/mios_mesh_distributor.py	35	35	1	5	7ffaa6179cfd	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/mios_mesh_distributor.py	36	36	1	4	304886502c09	STAY	inline-scoped		0				0
