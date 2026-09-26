@@ -3598,16 +3598,17 @@ src/mios-rs/miosd/src/main.rs	1399	1399	1	17	d255df0a9f5e	STAY	local-scoped		0		
 src/mios-rs/miosd/src/main.rs	1405	1405	1	12	9c6724b62987	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/main.rs	1424	1424	1	14	929a933855e2	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/main.rs	1604	1604	1	12	bfa523721295	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1749	1749	1	11	70c515d33699	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1758	1758	1	7	134335adb263	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1777	1777	1	8	2cc905c073c2	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1792	1792	1	9	5084fa50a6eb	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1817	1817	1	4	5f5556a1917a	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1823	1823	1	7	4fe80e63a637	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1852	1857	6	68	a3fbd6f06e11	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:a3fbd6f06e11	68	0
-src/mios-rs/miosd/src/main.rs	1896	1907	12	117	9ba4dc892ef6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9ba4dc892ef6	117	0
-src/mios-rs/miosd/src/main.rs	1986	1991	6	56	53e065f25511	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:53e065f25511	56	0
-src/mios-rs/miosd/src/main.rs	2051	2057	7	72	9dccae407645	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9dccae407645	72	0
+src/mios-rs/miosd/src/main.rs	1749	1749	1	16	438988d50e5f	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1763	1763	1	11	70c515d33699	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1772	1772	1	7	134335adb263	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1791	1791	1	8	2cc905c073c2	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1806	1806	1	9	5084fa50a6eb	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1831	1831	1	4	5f5556a1917a	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1837	1837	1	7	4fe80e63a637	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1866	1871	6	68	a3fbd6f06e11	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:a3fbd6f06e11	68	0
+src/mios-rs/miosd/src/main.rs	1910	1921	12	117	9ba4dc892ef6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9ba4dc892ef6	117	0
+src/mios-rs/miosd/src/main.rs	2000	2005	6	56	53e065f25511	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:53e065f25511	56	0
+src/mios-rs/miosd/src/main.rs	2065	2071	7	72	9dccae407645	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9dccae407645	72	0
 src/mios-rs/miosd/src/secret.rs	1	2	2	20	5674c238ad95	STAY	ai-header		0				0
 src/mios-rs/miosd/src/secret.rs	9	10	2	17	5509df7ee0cd	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/secret.rs	30	30	1	8	eb40e73e635c	STAY	local-scoped		0				0

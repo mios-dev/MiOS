@@ -980,7 +980,7 @@ async fn main() {
                     gui,
                     tty,
                 } => match miosd::secret::prompt(title, message, *gui, *tty) {
-                    Ok(secret) => println!("{}", secret),
+                    Ok(secret) => emit_secret(&secret),
                     Err(e) => {
                         eprintln!("[miosd secret] Prompt error: {}", e);
                         std::process::exit(1);
@@ -1011,7 +1011,7 @@ async fn main() {
                     eprintln!("Stored secret for '{}/{}' in Linux Keyring.", service, key);
                 }
                 SecretAction::Get { key, service } => match miosd::secret::get(service, key) {
-                    Ok(val) => println!("{}", val),
+                    Ok(val) => emit_secret(&val),
                     Err(e) => {
                         eprintln!("[miosd secret] Get error: {}", e);
                         std::process::exit(1);
@@ -1744,6 +1744,20 @@ fn run_bootc_rollback(
         rollback_ref
     );
     Ok(())
+}
+
+/// The secret verbs' contract is the value on stdout for `$(miosd secret get ..)`; written, never logged.
+fn emit_secret(value: &str) {
+    use std::io::Write;
+    let mut out = std::io::stdout().lock();
+    if out
+        .write_all(value.as_bytes())
+        .and_then(|_| out.write_all(b"\n"))
+        .and_then(|_| out.flush())
+        .is_err()
+    {
+        std::process::exit(1);
+    }
 }
 
 /// MiOS state dir, `var/lib/mios` under MIOS_ROOT (default `/`), as daemon/backup.rs resolves it.
