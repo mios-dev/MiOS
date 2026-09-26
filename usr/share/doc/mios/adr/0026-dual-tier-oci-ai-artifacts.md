@@ -42,7 +42,7 @@ MiOS adopts a **Dual-Tiered OCI AI Artifact Architecture**:
 - Declared as pre-bound container images under `/usr/lib/bootc/bound-images.d/` per Law 3 (BOUND-IMAGES) and resolved at image bake time per ADR-0003 with zero hand-pinned digests in `mios.toml`.
 - Delivered to runtime inference engines via native Podman Quadlet image volume mounts:
   ```ini
-  Volume=ghcr.io/mios-dev/mios-micro:latest:/models:image,ro
+  Mount=type=image,source=mios-micro.image,destination=/models-micro
   ```
 - Stored and executed directly from the container storage graph driver without intermediate tar extraction, deduplicated and integrity-sealed via `composefs` and zero-copy `mmap`.
 
@@ -84,7 +84,7 @@ MiOS adopts a **Dual-Tiered OCI AI Artifact Architecture**:
 1. `usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md` (this record).
 2. `usr/share/mios/templates/kitfile` (canonical Law 16 template).
 3. `src/mios-rs/mios-gate/src/artifact.rs` (`mios-gate artifact` validator).
-4. `usr/lib/bootc/bound-images.d/50-mios-micro.toml` (ModelCar bound image registration).
+4. `[images.mios-micro]` in `mios.toml`, generated as `mios-micro.image` (ModelCar bound image: the binder links every `.image` unit into `bound-images.d`).
 5. `usr/share/containers/systemd/mios-llm-light.container` (Quadlet image volume mount).
 
 ## References
