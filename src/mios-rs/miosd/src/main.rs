@@ -261,6 +261,9 @@ pub enum SecretAction {
         gui: bool,
         #[arg(long)]
         tty: bool,
+        /// Descriptor (3 or higher) the caller opened to receive the secret; never stdout
+        #[arg(long)]
+        fd: i32,
     },
     /// Store secret securely in Linux Keyrings / FreeDesktop Secret Service
     Set {
@@ -279,6 +282,9 @@ pub enum SecretAction {
         key: String,
         #[arg(short, long, default_value = "mios")]
         service: String,
+        /// Descriptor (3 or higher) the caller opened to receive the secret; never stdout
+        #[arg(long)]
+        fd: i32,
     },
     /// Pipeline safety scanner: audit directory or files for leaked credentials
     Scan {
@@ -979,8 +985,9 @@ async fn main() {
                     title,
                     gui,
                     tty,
+                    fd,
                 } => match miosd::secret::prompt(title, message, *gui, *tty) {
-                    Ok(secret) => emit_secret(&secret),
+                    Ok(secret) => emit_secret(&secret, *fd),
                     Err(e) => {
                         eprintln!("[miosd secret] Prompt error: {}", e);
                         std::process::exit(1);
@@ -1010,8 +1017,8 @@ async fn main() {
                     }
                     eprintln!("Stored secret for '{}/{}' in Linux Keyring.", service, key);
                 }
-                SecretAction::Get { key, service } => match miosd::secret::get(service, key) {
-                    Ok(val) => emit_secret(&val),
+                SecretAction::Get { key, service, fd } => match miosd::secret::get(service, key) {
+                    Ok(val) => emit_secret(&val, *fd),
                     Err(e) => {
                         eprintln!("[miosd secret] Get error: {}", e);
                         std::process::exit(1);
@@ -1593,17 +1600,28 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-/// Hand a secret to the calling process on stdout, never to a terminal where it would land in scrollback.
-fn emit_secret(value: &str) {
+/// Hand a secret to the caller over the descriptor it opened for it (the gpg --passphrase-fd
+/// pattern): never stdio, never a terminal, so it cannot land in a log or in scrollback.
+fn emit_secret(value: &str, fd: i32) {
     use std::io::{IsTerminal, Write};
-    let stdout = std::io::stdout();
-    if stdout.is_terminal() {
-        eprintln!(
-            "[miosd secret] refusing to print a secret to a terminal; capture or redirect stdout"
-        );
+    if fd < 3 {
+        eprintln!("[miosd secret] refusing descriptor {fd}: stdio is never a secret channel; pass --fd 3 with 3>&1 or a file");
         std::process::exit(2);
     }
-    let mut out = stdout.lock();
+    let mut out = match std::fs::OpenOptions::new()
+        .write(true)
+        .open(format!("/dev/fd/{fd}"))
+    {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("[miosd secret] descriptor {fd} is not open for writing: {e}");
+            std::process::exit(2);
+        }
+    };
+    if out.is_terminal() {
+        eprintln!("[miosd secret] refusing descriptor {fd}: it is a terminal");
+        std::process::exit(2);
+    }
     if out
         .write_all(value.as_bytes())
         .and_then(|_| out.write_all(b"\n"))

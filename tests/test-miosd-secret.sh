@@ -64,20 +64,26 @@ else
     assert_fail "miosd secret set failed"
 fi
 
-RETRIEVED="$("$MIOSD" secret get --service "$TEST_SVC" --key "$TEST_KEY")"
+RETRIEVED="$("$MIOSD" secret get --service "$TEST_SVC" --key "$TEST_KEY" --fd 3 3>&1 >/dev/null)"
 if [[ "$RETRIEVED" == "$TEST_VAL" ]]; then
     assert_pass "miosd secret get accurately retrieved stored value"
 else
     assert_fail "miosd secret get returned '$RETRIEVED', expected '$TEST_VAL'"
 fi
 
-# Test 2b: a secret is never printed to a terminal (stdout is a pseudo-TTY under script(1))
+# Test 2b: a secret never goes to stdio or a terminal
+STDOUT_OUT="$("$MIOSD" secret get --service "$TEST_SVC" --key "$TEST_KEY" --fd 1 2>&1 || true)"
+if grep -q "stdio is never a secret channel" <<< "$STDOUT_OUT" && ! grep -qF "$TEST_VAL" <<< "$STDOUT_OUT"; then
+    assert_pass "miosd secret get refuses stdout (--fd 1)"
+else
+    assert_fail "miosd secret get accepted stdout: '$STDOUT_OUT'"
+fi
 if command -v script >/dev/null 2>&1; then
-    TTY_OUT="$(script -qec "\"$MIOSD\" secret get --service \"$TEST_SVC\" --key \"$TEST_KEY\"" /dev/null 2>&1 || true)"
-    if grep -q "refusing to print a secret to a terminal" <<< "$TTY_OUT" && ! grep -qF "$TEST_VAL" <<< "$TTY_OUT"; then
-        assert_pass "miosd secret get refuses a terminal stdout"
+    TTY_OUT="$(script -qec "\"$MIOSD\" secret get --service \"$TEST_SVC\" --key \"$TEST_KEY\" --fd 3 3>/dev/tty" /dev/null 2>&1 || true)"
+    if grep -q "it is a terminal" <<< "$TTY_OUT" && ! grep -qF "$TEST_VAL" <<< "$TTY_OUT"; then
+        assert_pass "miosd secret get refuses a terminal descriptor"
     else
-        assert_fail "miosd secret get printed to a terminal: '$TTY_OUT'"
+        assert_fail "miosd secret get wrote to a terminal: '$TTY_OUT'"
     fi
 fi
 
