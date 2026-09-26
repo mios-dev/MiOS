@@ -12,8 +12,8 @@ The task text never changes when the specification does: every change lands in t
 MiOS daily artifact (out-of-loop) -- runs daily, out of the loop, with no checkout.
 Use the skill `dev-loop-web` (type / and pick it) if it is installed.
 1. Open https://api.github.com/repos/mios-dev/MiOS/commits/main on this run and read its `sha` field: 40 lowercase hex characters, written `<MiOS_SHA>` below. Never use memory, a cache, or an earlier run's copy.
-2. Read the specification at https://raw.githubusercontent.com/mios-dev/MiOS/<MiOS_SHA>/ARTIFACT-PROMPT.md. If that fetch fails, read https://api.github.com/repos/mios-dev/MiOS/contents/ARTIFACT-PROMPT.md?ref=<MiOS_SHA> (JSON: decode its base64 `content`; byte-exact). If that fails too, read https://github.com/mios-dev/MiOS/blob/<MiOS_SHA>/ARTIFACT-PROMPT.md, for reading only.
-3. If the commit does not resolve or none of these URLs can be read, reply "BLOCKED: <reason>", end with the line "VERDICT: BLOCKED", and stop.
+2. Read the specification at https://raw.githubusercontent.com/mios-dev/MiOS/<MiOS_SHA>/ARTIFACT-PROMPT.md. If that fetch fails, read https://api.github.com/repos/mios-dev/MiOS/contents/ARTIFACT-PROMPT.md?ref=<MiOS_SHA> (JSON: decode its base64 `content`; byte-exact). If that fails too, read https://github.com/mios-dev/MiOS/blob/<MiOS_SHA>/ARTIFACT-PROMPT.md, for reading only. Try each URL with every fetch tool you have (for example a direct fetch and a browser) before the next URL.
+3. If the commit does not resolve or none of these URLs can be read with any tool, reply "BLOCKED: <reason>", end with the line "VERDICT: BLOCKED", and stop.
 4. Otherwise build and verify the artifacts the specification describes. Where this task text is silent, the specification's values apply.
 5. End every reply with the specification's verdict line: VERDICT: <SUBMITTED | REJECTED | BLOCKED>
 ```
