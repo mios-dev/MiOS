@@ -5535,8 +5535,10 @@ tests/test-miosd-supervisor.py	105	105	1	9	96f7ebbec7ff	STAY	local-scoped		0				
 tests/test-miosd-supervisor.py	109	110	2	25	26b768153e9d	STAY	local-scoped		0				0
 tests/test-multimodal-ws.py	1	3	3	18	7495b559b3a9	STAY	ai-header		0				0
 tests/test-multimodal-ws.py	4	4	1	9	4a1e03c0c161	STAY	local-scoped		0				0
-tests/test-multimodal-ws.py	20	20	1	11	d4b9137d4c2d	STAY	local-scoped		0				0
-tests/test-multimodal-ws.py	28	28	1	12	990b44582e0f	STAY	local-scoped		0				0
+tests/test-multimodal-ws.py	13	13	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
+tests/test-multimodal-ws.py	21	21	1	11	d4b9137d4c2d	STAY	local-scoped		0				0
+tests/test-multimodal-ws.py	29	29	1	14	ca980fa29ef2	STAY	local-scoped		0				0
+tests/test-multimodal-ws.py	33	33	1	7	7bed059b7d43	STAY	inline-scoped		0				0
 tests/test-multimonitor-sync.py	1	3	3	19	ae1b18dd9f73	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/tests.md	mios-src:ae1b18dd9f73	19	0
 tests/test-multimonitor-sync.py	4	4	1	13	f2fd3873a1c3	STAY	local-scoped		0				0
 tests/test-multimonitor-sync.py	27	27	1	12	7b3aca85448b	STAY	local-scoped		0				0
@@ -12001,8 +12003,9 @@ usr/lib/mios/agent-pipe/multimodal_ws.py	50	50	1	10	c5df31b74273	STAY	local-scop
 usr/lib/mios/agent-pipe/multimodal_ws.py	53	53	1	5	5a8c070773fc	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/multimodal_ws.py	55	55	1	3	20c4fa9d18ea	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/multimodal_ws.py	59	59	1	4	aad3328ba80c	STAY	inline-scoped		0				0
-usr/lib/mios/agent-pipe/multimodal_ws.py	64	64	1	3	ccbb59a71f20	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/multimodal_ws.py	65	65	1	3	ac5d56b391ee	STAY	inline-scoped		0				0
+usr/lib/mios/agent-pipe/multimodal_ws.py	62	63	2	23	44a863ad5c8b	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/multimodal_ws.py	67	67	1	3	ccbb59a71f20	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/multimodal_ws.py	68	68	1	3	ac5d56b391ee	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/overlay_workspace.py	1	3	3	18	5428193c638f	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/overlay_workspace.py	4	8	4	35	8217eb48a9cf	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/overlay_workspace.py	39	39	1	7	9630021c6c81	STAY	local-scoped		0				0
