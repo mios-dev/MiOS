@@ -1622,18 +1622,19 @@ check_fluff_tokens() {
 }
 
 check_coordination_hygiene() {
-    local bad=""
-    local f
-    for f in "$ROOT/AGY-TASKS.md" "$ROOT/TASKS.md"; do
-        _subject_present "$f" || continue
-
+    # The two absorbed ledgers, as TASKS.jsonl rebuilds them (ADR-0026).
+    local bad="" f text bin="$ROOT/tools/native/target/release/mios-task"
+    [[ -x "$bin" ]] || bin="$ROOT/tools/native/target/debug/mios-task"
+    [[ -x "$bin" ]] || { _violation "mios-task is not built, so check_coordination_hygiene could not run"; return; }
+    for f in AGY-TASKS.md TASKS.md; do
+        text="$("$bin" source "MiOS:$f" --root "$ROOT")" || { _violation "mios-task could not rebuild $f from TASKS.jsonl"; return; }
         local line_num=0
         while read -r line || [[ -n "$line" ]]; do
             line_num=$((line_num + 1))
             if [[ "$line" =~ AppData ]] || [[ "$line" =~ \bTemp\b ]] || [[ "$line" =~ [0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12} ]]; then
                 bad+="    $f:$line_num: contains AppData/Temp/session-id path"$'\n'
             fi
-        done < "$f"
+        done <<< "$text"
     done
 
     if [[ -n "$bad" ]]; then

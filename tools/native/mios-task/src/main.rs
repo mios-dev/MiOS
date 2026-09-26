@@ -1,5 +1,5 @@
 // AI-hint: mios-task -- sole writer of the canonical task store (ADR-0026): migrate, check-lossless, validate, ready.
-// AI-related: /usr/share/mios/mios.toml [tasks.store], /usr/lib/mios/schemas/task-record.schema.json, TASKS.jsonl, TASKS.passthrough.jsonl, TASKS.sources.json, /usr/share/doc/mios/adr/0026-global-task-store.md
+// AI-related: /usr/share/mios/mios.toml [tasks.store], /usr/lib/mios/schemas/task-record.schema.json, TASKS.jsonl, /usr/share/doc/mios/adr/0026-global-task-store.md
 // AI-functions: main, migrate, check_lossless, validate, ready, parse_markdown, parse_jsonl, heading_fields, body_fields, normalise_status
 
 use regex::Regex;
@@ -17,7 +17,8 @@ struct SourceDecl {
     repo: String,
     path: String,
     kind: String,
-    fences: bool, // true only where a list really holds headings inside fenced blocks
+    fences: bool,   // true only where a list really holds headings inside fenced blocks
+    absorbed: bool, // the list was deleted: its bytes live only in the store
 }
 
 struct Distinct {
@@ -29,8 +30,6 @@ struct Distinct {
 struct Config {
     store: String,
     schema: String,
-    passthrough: String,
-    manifest: String,
     sources: Vec<SourceDecl>,
     distinct: Vec<Distinct>,
 }
@@ -53,7 +52,8 @@ fn load_config(root: &Path) -> Result<Config, String> {
     for e in st.get("sources").and_then(|v| v.as_array()).ok_or("[tasks.store].sources is missing")? {
         let g = |k: &str| e.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
         let fences = e.get("fences").and_then(|v| v.as_bool()).unwrap_or(false);
-        sources.push(SourceDecl { repo: g("repo"), path: g("path"), kind: g("kind"), fences });
+        let absorbed = e.get("absorbed").and_then(|v| v.as_bool()).unwrap_or(false);
+        sources.push(SourceDecl { repo: g("repo"), path: g("path"), kind: g("kind"), fences, absorbed });
     }
     let mut distinct = Vec::new();
     if let Some(arr) = st.get("distinct").and_then(|v| v.as_array()) {
@@ -68,8 +68,6 @@ fn load_config(root: &Path) -> Result<Config, String> {
     Ok(Config {
         store: s("path")?,
         schema: s("schema")?,
-        passthrough: s("passthrough_path")?,
-        manifest: s("manifest_path")?,
         sources,
         distinct,
     })
@@ -462,7 +460,7 @@ fn source_key(repo: &str, path: &str) -> String {
 
 const TYPED: [&str; 12] = ["title", "status", "priority", "size", "workstream", "domain", "owner", "goal", "what_how", "where", "why", "do_not"];
 
-fn build_record(key: &str, group: &mut [Occ], ids: &HashSet<String>) -> Value {
+fn build_record(key: &str, group: &mut [Occ], ids: &HashSet<String>, totals: &HashMap<String, (usize, String)>) -> Value {
     group.sort_by_key(|o| (o.prec, o.off));
     let head = group[0].clone();
     let mut val: BTreeMap<&str, String> = BTreeMap::new();
@@ -580,8 +578,9 @@ fn build_record(key: &str, group: &mut [Occ], ids: &HashSet<String>) -> Value {
             group
                 .iter()
                 .map(|o| {
+                    let (n, h) = totals.get(&o.source).cloned().unwrap_or_default();
                     json!({"source_file": o.source, "byte_offset": o.off, "byte_length": o.text.len(),
-                           "kind": o.kind, "sha256": sha(&o.text), "text": o.text})
+                           "kind": o.kind, "sha256": sha(&o.text), "source_bytes": n, "source_sha256": h, "text": o.text})
                 })
                 .collect(),
         ),
@@ -592,7 +591,8 @@ fn build_record(key: &str, group: &mut [Occ], ids: &HashSet<String>) -> Value {
 fn migrate(root: &Path, repos: &HashMap<String, PathBuf>, cfg: &Config) -> Result<(), String> {
     let mut occs: Vec<Occ> = Vec::new();
     let mut passthrough: Vec<(String, usize, String)> = Vec::new();
-    let mut manifest = Map::new();
+    let mut totals: HashMap<String, (usize, String)> = HashMap::new();
+    let stored = stored_slices(&root.join(&cfg.store))?;
     let mut parsed: Vec<String> = Vec::new();
     for d in &cfg.sources {
         let key = source_key(&d.repo, &d.path);
@@ -602,9 +602,16 @@ fn migrate(root: &Path, repos: &HashMap<String, PathBuf>, cfg: &Config) -> Resul
         parsed.push(key.clone());
         let base = repos.get(&d.repo).ok_or(format!("no checkout for repo {} (pass --repo {}=PATH)", d.repo, d.repo))?;
         let p = base.join(&d.path);
-        let bytes = fs::read(&p).map_err(|e| format!("{}: {e}", p.display()))?;
-        let data = String::from_utf8(bytes).map_err(|_| format!("{key}: not UTF-8; refusing, a lossy decode would drop bytes"))?;
-        manifest.insert(key.clone(), json!({"bytes": data.len(), "sha256": sha(&data)}));
+        let data = if d.absorbed && p.exists() {
+            return Err(format!("{key} was absorbed into {} but exists again; delete it (the store holds every byte)", cfg.store));
+        } else if d.absorbed || !p.exists() {
+            // Absorbed lists, and sibling checkouts that are not present, are rebuilt from the store's own slices.
+            rematerialize(&key, &stored).map_err(|e| format!("{key} is not on disk and {e}"))?
+        } else {
+            let bytes = fs::read(&p).map_err(|e| format!("{}: {e}", p.display()))?;
+            String::from_utf8(bytes).map_err(|_| format!("{key}: not UTF-8; refusing, a lossy decode would drop bytes"))?
+        };
+        totals.insert(key.clone(), (data.len(), sha(&data)));
         let (o, pt) = if d.path.ends_with(".jsonl") {
             parse_jsonl(&key, &data)?
         } else {
@@ -651,10 +658,19 @@ fn migrate(root: &Path, repos: &HashMap<String, PathBuf>, cfg: &Config) -> Resul
     for o in &occs {
         groups.entry(key_of(o)).or_default().push(o.clone());
     }
+    // Non-task text rides on the record before it (or the first record of its file), so one file holds every byte.
+    for (src, off, text) in &passthrough {
+        let same: Vec<&Occ> = occs.iter().filter(|o| o.source == *src).collect();
+        let host = same.iter().filter(|o| o.off < *off).max_by_key(|o| o.off).or_else(|| same.iter().min_by_key(|o| o.off));
+        let Some(host) = host else { return Err(format!("{src} has no task record to carry its non-task text")) };
+        let o = Occ { source: src.clone(), off: *off, text: text.clone(), kind: "passthrough".into(), id: host.id.clone(),
+                      prec: usize::MAX, nth: 0, fields: vec![] };
+        groups.entry(key_of(host)).or_default().push(o);
+    }
     let mut records: Vec<((usize, usize), Value)> = groups
         .iter_mut()
         .map(|(k, g)| {
-            let r = build_record(k, g, &ids);
+            let r = build_record(k, g, &ids, &totals);
             ((g[0].prec, g[0].off), r)
         })
         .collect();
@@ -664,19 +680,10 @@ fn migrate(root: &Path, repos: &HashMap<String, PathBuf>, cfg: &Config) -> Resul
         out.push_str(&serde_json::to_string(v).map_err(|e| e.to_string())?);
         out.push('\n');
     }
-    let mut pt = String::new();
-    for (s, off, t) in &passthrough {
-        let line = json!({"source_file": s, "byte_offset": off, "byte_length": t.len(), "sha256": sha(t), "text": t});
-        pt.push_str(&serde_json::to_string(&line).map_err(|e| e.to_string())?);
-        pt.push('\n');
-    }
     write_atomic(&root.join(&cfg.store), &out)?;
-    write_atomic(&root.join(&cfg.passthrough), &pt)?;
-    let man = serde_json::to_string_pretty(&Value::Object(manifest)).map_err(|e| e.to_string())? + "\n";
-    write_atomic(&root.join(&cfg.manifest), &man)?;
     let conflicts: usize = records.iter().map(|r| r.1["conflicts"].as_array().map_or(0, |a| a.len())).sum();
     println!(
-        "migrate: {} record(s) from {} occurrence(s) in {} source(s); {} passthrough slice(s); {} conflict(s) listed",
+        "migrate: {} record(s) from {} occurrence(s) in {} source(s); {} non-task slice(s) carried; {} conflict(s) listed",
         records.len(),
         occs.len(),
         parsed.len(),
@@ -705,82 +712,95 @@ fn read_jsonl(p: &Path) -> Result<Vec<Value>, String> {
         .collect()
 }
 
-fn check_lossless(root: &Path, cfg: &Config) -> Result<bool, String> {
-    let mtext = fs::read_to_string(root.join(&cfg.manifest)).map_err(|e| format!("{}: {e}", cfg.manifest))?;
-    let manifest: Value = serde_json::from_str(&mtext).map_err(|e| e.to_string())?;
-    // source -> (offset, text, sha256, owning key)
-    let mut slices: HashMap<String, Vec<(usize, String, String, String)>> = HashMap::new();
-    let mut add = |src: &Value, s: &Value, owner: String| {
-        slices.entry(src.as_str().unwrap_or("").to_string()).or_default().push((
-            s["byte_offset"].as_u64().unwrap_or(0) as usize,
-            s["text"].as_str().unwrap_or("").to_string(),
-            s["sha256"].as_str().unwrap_or("").to_string(),
-            owner,
-        ));
-    };
-    for r in read_jsonl(&root.join(&cfg.store))? {
+type Slices = HashMap<String, Vec<(usize, String, String, String, usize, String)>>; // src -> (off, text, sha, key, total, total_sha)
+
+fn stored_slices(store: &Path) -> Result<Slices, String> {
+    let mut out: Slices = HashMap::new();
+    if !store.exists() {
+        return Ok(out);
+    }
+    for r in read_jsonl(store)? {
         let key = r["key"].as_str().unwrap_or("?").to_string();
         for s in r["sources"].as_array().cloned().unwrap_or_default() {
-            add(&s["source_file"], &s, key.clone());
+            out.entry(s["source_file"].as_str().unwrap_or("").to_string()).or_default().push((
+                s["byte_offset"].as_u64().unwrap_or(0) as usize,
+                s["text"].as_str().unwrap_or("").to_string(),
+                s["sha256"].as_str().unwrap_or("").to_string(),
+                key.clone(),
+                s["source_bytes"].as_u64().unwrap_or(0) as usize,
+                s["source_sha256"].as_str().unwrap_or("").to_string(),
+            ));
         }
     }
-    for p in read_jsonl(&root.join(&cfg.passthrough))? {
-        add(&p["source_file"], &p, "(passthrough)".into());
+    Ok(out)
+}
+
+/// Rebuild one source list byte-for-byte from its slices; any gap, overlap or hash mismatch is an error naming it.
+fn rematerialize(src: &str, all: &Slices) -> Result<String, String> {
+    let mut v = all.get(src).cloned().ok_or(format!("the store holds no slice of {src}"))?;
+    v.sort_by_key(|x| x.0);
+    let (want, want_sha) = (v[0].4, v[0].5.clone());
+    let (mut pos, mut prev, mut out) = (0usize, "(file start)".to_string(), String::new());
+    for (off, text, s, owner, n, h) in &v {
+        if (*n, h) != (want, &want_sha) {
+            return Err(format!("LOSSY: {src}: {owner} records a different size or hash for the source"));
+        }
+        if sha(text) != *s {
+            return Err(format!("LOSSY: {src}: {owner} slice at offset {off} fails its sha256"));
+        }
+        if *off != pos {
+            let n = if *off > pos { off - pos } else { pos - off };
+            return Err(format!("LOSSY: {src}: {n} byte(s) at offset {pos} not covered (after {prev})"));
+        }
+        out.push_str(text);
+        pos += text.len();
+        prev = owner.clone();
     }
+    if pos != want {
+        return Err(format!("LOSSY: {src}: {} byte(s) at offset {pos} not covered (after {prev})", want.saturating_sub(pos)));
+    }
+    if sha(&out) != want_sha {
+        return Err(format!("LOSSY: {src}: the rebuilt bytes differ from the recorded sha256"));
+    }
+    Ok(out)
+}
+
+fn check_lossless(root: &Path, cfg: &Config) -> Result<bool, String> {
+    let all = stored_slices(&root.join(&cfg.store))?;
     let mut ok = true;
-    for (src, m) in manifest.as_object().ok_or("the manifest is not a JSON object")? {
-        let want = m["bytes"].as_u64().unwrap_or(0) as usize;
-        let mut v = slices.remove(src).unwrap_or_default();
-        v.sort_by_key(|x| x.0);
-        let (mut pos, mut prev) = (0usize, "(file start)".to_string());
-        let mut h = Sha256::new();
-        let mut bad = false;
-        for (off, text, s, owner) in &v {
-            if sha(text) != *s {
-                println!("LOSSY: {src}: {owner} slice at offset {off} fails its sha256");
-                bad = true;
-                break;
+    let mut srcs: Vec<&String> = all.keys().collect();
+    srcs.sort();
+    for src in srcs {
+        match rematerialize(src, &all) {
+            Ok(b) => println!("LOSSLESS: {src}: {} bytes", b.len()),
+            Err(e) => {
+                println!("{e}");
+                ok = false;
             }
-            if *off != pos {
-                let n = if *off > pos { off - pos } else { pos - off };
-                println!("LOSSY: {src}: {n} byte(s) at offset {pos} not covered (after {prev})");
-                bad = true;
-                break;
+        }
+    }
+    // Freshness: a live list in this tree must still hash to what was migrated; an absorbed list must stay gone.
+    let mut seen = HashSet::new();
+    for d in cfg.sources.iter().filter(|d| d.repo == "MiOS") {
+        let key = source_key(&d.repo, &d.path);
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        let want = all.get(&key).and_then(|v| v.first()).map(|x| x.5.clone()).unwrap_or_default();
+        match (d.absorbed, fs::read(root.join(&d.path))) {
+            (true, Ok(_)) => {
+                println!("REAPPEARED: {key} exists again -- its tasks live in {}; delete it", cfg.store);
+                ok = false;
             }
-            h.update(text.as_bytes());
-            pos += text.len();
-            prev = owner.clone();
-        }
-        if !bad && pos != want {
-            println!("LOSSY: {src}: {} byte(s) at offset {pos} not covered (after {prev})", want.saturating_sub(pos));
-            bad = true;
-        }
-        if !bad && format!("{:x}", h.finalize()) != m["sha256"].as_str().unwrap_or("") {
-            println!("LOSSY: {src}: the rebuilt bytes differ from the manifest sha256");
-            bad = true;
-        }
-        if !bad {
-            println!("LOSSLESS: {src}: {want} bytes");
-        }
-        ok &= !bad;
-    }
-    for src in slices.keys() {
-        println!("LOSSY: {src}: slices for a source the manifest does not list");
-        ok = false;
-    }
-    // Freshness: a list in this tree must still hash to what was migrated; sibling repos stay pinned.
-    for (src, m) in manifest.as_object().into_iter().flatten() {
-        if let Some(rel) = src.strip_prefix("MiOS:") {
-            match fs::read(root.join(rel)) {
-                Ok(b) if format!("{:x}", Sha256::digest(&b)) == m["sha256"].as_str().unwrap_or("") => {}
-                Ok(_) => {
-                    println!("STALE: {src} changed after the store was migrated -- rerun: mios-task migrate");
-                    ok = false;
-                }
-                Err(_) => {
-                    println!("STALE: {src} is gone, but the store still records it -- rerun: mios-task migrate");
-                    ok = false;
-                }
+            (true, Err(_)) => {}
+            (false, Ok(b)) if format!("{:x}", Sha256::digest(&b)) == want => {}
+            (false, Ok(_)) => {
+                println!("STALE: {key} changed after the store was migrated -- rerun: mios-task migrate");
+                ok = false;
+            }
+            (false, Err(_)) => {
+                println!("STALE: {key} is gone, but the store still records it -- rerun: mios-task migrate");
+                ok = false;
             }
         }
     }
@@ -922,7 +942,7 @@ fn ready(root: &Path, cfg: &Config, as_json: bool) -> Result<(), String> {
 // ---------------------------------------------------------------- main
 
 fn usage() -> ExitCode {
-    eprintln!("usage: mios-task <migrate|validate|check-lossless|ready [--json]> [--root DIR] [--repo NAME=PATH]...");
+    eprintln!("usage: mios-task <migrate|validate|check-lossless|ready [--json]|source SRC> [--root DIR] [--repo NAME=PATH]...");
     ExitCode::from(64)
 }
 
@@ -932,7 +952,12 @@ fn main() -> ExitCode {
     let mut root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let mut repos: HashMap<String, PathBuf> = HashMap::new();
     let mut as_json = false;
+    let mut src_arg: Option<String> = None;
     let mut i = 1;
+    if cmd == "source" {
+        src_arg = args.get(1).cloned();
+        i = 2;
+    }
     while i < args.len() {
         match args[i].as_str() {
             "--root" if i + 1 < args.len() => {
@@ -968,6 +993,14 @@ fn main() -> ExitCode {
         "check-lossless" => check_lossless(&root, &cfg),
         "validate" => validate(&root, &cfg),
         "ready" => ready(&root, &cfg, as_json).map(|_| true),
+        "source" => {
+            // Print one merged list exactly as it was, e.g. `mios-task source MiOS:TASKS.md`.
+            let Some(src) = src_arg else { return usage() };
+            stored_slices(&root.join(&cfg.store)).and_then(|all| rematerialize(&src, &all)).map(|b| {
+                print!("{b}");
+                true
+            })
+        }
         _ => return usage(),
     };
     match r {
@@ -1046,7 +1079,7 @@ mod tests {
         fs::create_dir_all(d.join("usr/lib/mios/schemas")).unwrap();
         let schema = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../usr/lib/mios/schemas/task-record.schema.json");
         fs::copy(schema, d.join("usr/lib/mios/schemas/task-record.schema.json")).unwrap();
-        fs::write(d.join("usr/share/mios/mios.toml"), "[tasks.store]\npath = \"TASKS.jsonl\"\nschema = \"usr/lib/mios/schemas/task-record.schema.json\"\npassthrough_path = \"TASKS.passthrough.jsonl\"\nmanifest_path = \"TASKS.sources.json\"\nsources = [ { repo = \"MiOS\", path = \"TASKS.md\", kind = \"section\" } ]\n").unwrap();
+        fs::write(d.join("usr/share/mios/mios.toml"), "[tasks.store]\npath = \"TASKS.jsonl\"\nschema = \"usr/lib/mios/schemas/task-record.schema.json\"\nsources = [ { repo = \"MiOS\", path = \"TASKS.md\", kind = \"section\" } ]\n").unwrap();
         fs::write(d.join("TASKS.md"), SAMPLE).unwrap();
         d
     }
@@ -1101,5 +1134,21 @@ mod tests {
         let first = t.lines().next().unwrap().to_string();
         fs::write(&p, format!("{t}{first}\n")).unwrap();
         assert!(!validate(&d, &cfg).unwrap(), "a duplicate key must be INVALID");
+    }
+
+    #[test]
+    fn an_absorbed_list_is_rebuilt_from_the_store_and_may_not_reappear() {
+        let d = sandbox("absorbed");
+        run(&d);
+        fs::remove_file(d.join("TASKS.md")).unwrap();
+        let toml = d.join("usr/share/mios/mios.toml");
+        let t = fs::read_to_string(&toml).unwrap().replace("kind = \"section\" }", "kind = \"section\", absorbed = true }");
+        fs::write(&toml, t).unwrap();
+        let cfg = run(&d); // re-migrates from the store's own slices
+        assert!(check_lossless(&d, &cfg).unwrap());
+        let all = stored_slices(&d.join(&cfg.store)).unwrap();
+        assert_eq!(rematerialize("MiOS:TASKS.md", &all).unwrap(), SAMPLE, "the absorbed list must come back byte-identical");
+        fs::write(d.join("TASKS.md"), "stub\n").unwrap();
+        assert!(!check_lossless(&d, &cfg).unwrap(), "a re-created absorbed list must be REAPPEARED");
     }
 }

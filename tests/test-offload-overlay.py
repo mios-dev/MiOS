@@ -139,7 +139,7 @@ class TestCanonicalAddressIsTheKeyConsumersRead(unittest.TestCase):
             # A fixture is not a consumer: tools/test_render_globals.py carries
             # MIOS_URLS_FORGE as sample data, which is not code reading it.
             "tools/test_",
-            "TASKS.md", "ROADMAP.md", "AGY-TASKS.md", "ADR.md", "tests/")
+            "TASKS.jsonl", "ROADMAP.md", "ADR.md", "tests/")
 
     def _consumers(self, var: str) -> int:
         out = subprocess.run(["git", "-C", _ROOT, "grep", "-l", var],

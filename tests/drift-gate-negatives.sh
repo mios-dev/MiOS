@@ -2307,7 +2307,7 @@ test_unit_projection() {
     cp "$bak" "$toml"
 
     # (2) Toolchain-free half: register below its own ceiling. The renderer half
-    # is asserted by tests/projection.rs. See TASKS.md T-317.
+    # is asserted by tests/projection.rs. See TASKS.jsonl T-317.
     python3 - "$toml" <<'PYX'
 import io, re, sys
 p = sys.argv[1]
@@ -2827,14 +2827,15 @@ test_task_store() {
     mv "$backup" "$store"
     unset -f _ts_fail
 
-    # Plant 3: a list changed after the migration (a table row appended to TASKS.md).
-    local tasks="${ROOT}/TASKS.md" tbak="${ROOT}/TASKS.md.negbak"
-    cp "$tasks" "$tbak"
-    echo "| T-9999 | P3 | open | Test | DEVLOOP-PLANTED stale-store row |" >> "$tasks"
-    local st; st="$("$bin" check-lossless --root "$ROOT" 2>&1)" && { mv "$tbak" "$tasks"; die "mios-task check-lossless passed although TASKS.md changed after the migration"; }
-    printf '%s\n' "$st" | grep -q '^STALE: MiOS:TASKS.md changed after the store was migrated' \
-        || { mv "$tbak" "$tasks"; die "mios-task check-lossless did not name the planted TASKS.md edit as STALE"; }
-    mv "$tbak" "$tasks"
+    # Plant 3: a stub re-created where an absorbed list was. Plant 4: a live list edited after the migration.
+    local st; echo "see TASKS.jsonl" > "${ROOT}/TASKS.md"
+    st="$("$bin" check-lossless --root "$ROOT" 2>&1)" && { rm -f "${ROOT}/TASKS.md"; die "check-lossless passed with a TASKS.md stub back at the root"; }
+    rm -f "${ROOT}/TASKS.md"
+    printf '%s\n' "$st" | grep -q '^REAPPEARED: MiOS:TASKS.md exists again' || die "check-lossless did not name the TASKS.md stub as REAPPEARED"
+    local rm_="${ROOT}/ROADMAP.md" rbak; rbak="$(mktemp)"; cp "$rm_" "$rbak"; echo "DEVLOOP-PLANTED stale line" >> "$rm_"
+    st="$("$bin" check-lossless --root "$ROOT" 2>&1)" && { cp "$rbak" "$rm_"; die "check-lossless passed although ROADMAP.md changed"; }
+    cp "$rbak" "$rm_"; rm -f "$rbak"
+    printf '%s\n' "$st" | grep -q '^STALE: MiOS:ROADMAP.md changed after the store was migrated' || die "check-lossless did not name the ROADMAP.md edit as STALE"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_task_store >/dev/null 2>&1 \
         || die "check_task_store failed after restoration"
@@ -2846,6 +2847,7 @@ test_tasks_status_parity() {
     log "Testing check_tasks_status_parity"
     local tasks="${ROOT}/TASKS.md"
     local backup="${tasks}.negbak"
+    _task_list TASKS.md
     cp "$tasks" "$backup"
 
     # Flip ONE summary-table cell away from what that task's own section says.
@@ -2865,7 +2867,7 @@ test_tasks_status_parity() {
     cp "$tasks" "$backup"
     sed -i "0,/^| ${tid} | P[0-9] | [a-z/-]* |/s//| ${tid} | P1 | ? |/" "$tasks"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1 && die "check_tasks_status_parity accepted a '?' placeholder for ${tid}"
-    mv "$backup" "$tasks"
+    rm -f "$backup" "$tasks"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1 \
         || die "check_tasks_status_parity failed after restoration"
@@ -2877,6 +2879,7 @@ test_agy_tasks() {
     log "Testing check_agy_tasks"
     local agy="${ROOT}/AGY-TASKS.md"
     local backup="${agy}.negbak"
+    _task_list AGY-TASKS.md
     cp "$agy" "$backup"
 
     # Inject duplicate task ID
@@ -2889,7 +2892,7 @@ test_agy_tasks() {
     cp "$agy" "$backup"
     echo -e "\n## AGY-9999 -- Test task\n**Dep:** AGY-999999\n" >> "$agy"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1 && die "check_agy_tasks passed despite dangling Dep reference"
-    mv "$backup" "$agy"
+    rm -f "$backup" "$agy"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1 \
         || die "check_agy_tasks failed after restoration"
@@ -3380,6 +3383,13 @@ test_globals_generated() {
 }
 
 _FAILED=()
+_task_list() { # $1 = absorbed list path: write its bytes, rebuilt from TASKS.jsonl, back to disk (ADR-0026)
+    local b="${ROOT}/tools/native/target/release/mios-task"
+    [[ -x "$b" ]] || b="${ROOT}/tools/native/target/debug/mios-task"
+    [[ -x "$b" ]] || die "mios-task is not built (cd tools/native && cargo build -p mios-task)"
+    "$b" source "MiOS:$1" --root "$ROOT" > "${ROOT}/$1" || die "mios-task could not rebuild $1 from TASKS.jsonl"
+}
+
 _run_test() {
     # Subshell: die() exits the test, not the suite. One CI run then reports
     # every failure instead of the first, which is what turned a queue of
@@ -3701,7 +3711,7 @@ test_ci_suite_coverage() {
 
 test_task_schema() {
     log "Testing check_task_schema"
-    local f="${ROOT}/AGY-TASKS.md" bak; bak="$(mktemp)"; cp "$f" "$bak"
+    local f="${ROOT}/AGY-TASKS.md" bak; bak="$(mktemp)"; _task_list AGY-TASKS.md; cp "$f" "$bak"
     # A task with no Verify line is a task anyone can declare done, and a Dep
     # naming a missing id is an ordering nobody can follow.
     printf '
@@ -3714,7 +3724,7 @@ test_task_schema() {
 **Dep:** AGY-4242
 ' >> "$f"
     _neg_gate check_task_schema && die "check_task_schema passed on a task with no Verify and a dangling Dep"
-    cp "$bak" "$f"; rm -f "$bak"
+    rm -f "$bak" "$f"
     _neg_gate check_task_schema || die "check_task_schema failed after restoration"
     log "check_task_schema negative test passed"
 }

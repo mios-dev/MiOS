@@ -1,5 +1,5 @@
-<!-- AI-hint: ADR-0026 makes one strict-schema JSONL file the canonical record of every MiOS task (T-, AGY-, MON-, F-, M-, CODE-, G- ids), merged losslessly from every task list with verbatim provenance; the old lists become generated, gated views written through one native tool. -->
-<!-- AI-related: /usr/share/doc/mios/adr/README.md, /usr/lib/mios/schemas/task-record.schema.json, TASKS.jsonl, /usr/share/mios/mios.toml [tasks], tools/native/mios-task, TASKS.md, AGY-TASKS.md, ROADMAP.md, usr/share/mios/agents/TASKS.md, tools/check-tasks.py -->
+<!-- AI-hint: ADR-0026 makes one strict-schema JSONL file the canonical record of every MiOS task (T-, AGY-, MON-, F-, M-, CODE-, G- ids), merged losslessly from every task list with verbatim provenance; the pure task lists it absorbed are deleted and can be rebuilt byte-for-byte with `mios-task source`. -->
+<!-- AI-related: /usr/share/doc/mios/adr/README.md, /usr/lib/mios/schemas/task-record.schema.json, TASKS.jsonl, /usr/share/mios/mios.toml [tasks], tools/native/mios-task, ROADMAP.md, tools/check-tasks.py -->
 ---
 adr: 0026
 title: One canonical task store, merged losslessly from every task list
@@ -69,14 +69,13 @@ Defects the census proved:
   join key, and a strict `json_schema` (`strict: true`) under the same rules as every other MiOS schema.
 - **Conflicts:** precedence plus keep-everything. Typed fields come from the highest-precedence source; every
   other occurrence is kept verbatim and every disagreement is listed. Nothing is picked silently.
-- **Old lists:** generated views, sanitized to the standard record shape and retaining every task. A
-  regenerate-and-diff gate fails on a hand edit; writes go through one tool.
+- **One master list:** a single file at the repository root, `TASKS.jsonl`, holds every global task. The pure
+  task lists it absorbed (`TASKS.md`, `AGY-TASKS.md`, `usr/share/mios/agents/TASKS.md`, the two G- documents)
+  are deleted outright; no stub or redirect stays behind. `ROADMAP.md` and `.devloop/tasks.jsonl` remain.
 
 ### What is built
 
-1. **Store:** `TASKS.jsonl` at the repository root, beside `TASKS.md` and `AGY-TASKS.md` (operator
-   decision, 2026-09-26), with `TASKS.passthrough.jsonl` (the non-task text of each list) and
-   `TASKS.sources.json` (each list's size and sha256). All three are whitelisted in `.gitignore`. One record
+1. **Store:** `TASKS.jsonl` at the repository root, one file, whitelisted in `.gitignore`. One record
    per line, valid against `usr/lib/mios/schemas/task-record.schema.json` (`mios_task_record`, strict). The
    store is declared in `mios.toml [tasks.store]` (Law 8): path, schema name and version, the ordered source
    list and its precedence.
@@ -85,7 +84,9 @@ Defects the census proved:
    passthrough of `{key, value_json}` pairs for every field of the defining occurrence that the schema does
    not name (every other occurrence is an import whose full text `sources[]` already keeps), `conflicts[]`, and
    `sources[]` — every verbatim occurrence of the task with `source_file`, `byte_offset`, `byte_length`,
-   `kind` and `sha256`. A strict schema cannot hold an open map (`additionalProperties` must be `false`), so the
+   `kind`, `sha256` and the whole list's `source_bytes`/`source_sha256`. A list's non-task text (headers,
+   banners, tables' framing) rides as a `passthrough` slice on the record before it, so the slices of every
+   list tile it exactly and the one file proves itself. A strict schema cannot hold an open map (`additionalProperties` must be `false`), so the
    passthrough is a pair list, not an object.
 3. **Ids:** kept exactly as written; never reminted. `key` is the unique join key and equals `id`, except where
    two origins use one id for two different tasks (defect 1). There `key` is `<origin>#<id>` for the
@@ -96,11 +97,14 @@ Defects the census proved:
    The source's own words stay in `status_raw`, so the normalisation loses nothing.
 5. **Dependencies:** typed edges. Only `blocks` gates readiness; `related`, `converted_to`, `converted_from`
    (the 649 `**Converted:** AGY-N` links) and `references` never do.
-6. **Tool:** `tools/native/mios-task` (Law 14: a Rust static binary) with `migrate`, `validate`, `render`,
-   `ready --json` and `check`. `ready` reads typed fields only.
-7. **Views:** `TASKS.md`, `AGY-TASKS.md`, `usr/share/mios/agents/TASKS.md`, the `CODE-NN` blocks of
-   `ROADMAP.md` and the other lists are rendered from the store in one standard layout. The sibling
-   repositories' lists are rendered by the same tool into those repositories by their owners.
+6. **Tool:** `tools/native/mios-task` (Law 14: a Rust static binary) with `migrate`, `check-lossless`,
+   `validate`, `ready --json` and `source <list>`. `ready` reads typed fields only. `source` prints an
+   absorbed list byte-for-byte as it was, rebuilt from its slices.
+7. **Absorbed lists:** a deleted list is declared `absorbed = true` in `[tasks.store].sources`. `migrate`
+   rebuilds its bytes from the store instead of reading a file, and `check-lossless` fails `REAPPEARED` if the
+   file exists again, so the master list cannot grow a second copy or a redirect. The task gates in
+   `tools/check-tasks.py` keep their logic and read each absorbed list through the same rebuild.
+8. **Writes (phase 2, separate change):** `mios-task add/set` becomes the only way to change a task.
 
 ### Parsing
 
@@ -152,7 +156,9 @@ Costs:
 
 - The store holds the verbatim text of every list, about 27 MB; `[legibility].max_tracked_mb` is regenerated
   from 209 to 235 by `mios-size-ceiling` (operator-approved).
-- Hand edits to `TASKS.md` and `AGY-TASKS.md` stop working; every write goes through `mios-task`.
+- `TASKS.md` and `AGY-TASKS.md` no longer exist and their records are frozen history. Until `mios-task
+  add/set` lands, a task is added or changed through a live source (`.devloop/tasks.jsonl` or `ROADMAP.md`)
+  followed by `mios-task migrate`; editing `TASKS.jsonl` by hand breaks its slice hashes and fails the gate.
 - The sibling repositories' lists become generated there only when their owners regenerate them.
 - The typed-field parsers are best-effort by design; `extra[]` and `sources[]` carry whatever they miss.
 - The store quotes history verbatim, so scans that read the tree as live configuration skip it exactly as
@@ -160,5 +166,5 @@ Costs:
   schema-consumer register (`tools/check-testhygiene.py`). At the root it is also outside the port-fallback
   sweep, which only walks `automation/`, `usr/`, `etc/` and `tools/`; under `usr/` that sweep rewrote a quoted
   `${MIOS_PORT_*:-N}` inside AGY-990's history and broke its slice hash.
-- The store is a snapshot until the views are generated: `check_task_store` fails `STALE` when a list in
-  this tree changes after the last `mios-task migrate`.
+- `ROADMAP.md` and `.devloop/tasks.jsonl` stay live sources: `check_task_store` fails `STALE` when either
+  changes after the last `mios-task migrate`.
