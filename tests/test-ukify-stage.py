@@ -30,7 +30,7 @@ class TestUkifyStage(unittest.TestCase):
 
     def test_dry_run_json(self):
         res = subprocess.run(
-            [_UKIFY_STAGE_BIN, "--dry-run", "--json"],
+            [_UKIFY_STAGE_BIN, "--dry-run", "--json", "--root", _ROOT],
             capture_output=True,
             text=True,
             check=True,

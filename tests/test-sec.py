@@ -2559,9 +2559,11 @@ class ns_TestNetSegmentation(unittest.TestCase):
         self.assertIn("table inet mios_isolation", rules)
         self.assertIn("chain forward_containers", rules)
         self.assertIn("policy drop", rules)
-        self.assertIn("dport 8642", rules)  # hermes
-        self.assertIn("dport 5432", rules)  # pgvector
-        self.assertIn("dport 11450", rules)  # llm-light
+        ports = net_segmentation.mios_toml.vendor_tree(os.environ.get("MIOS_TOML_ROOT") or ns__ROOT)["ports"]
+        for key in ("hermes", "pgvector", "llm_light", "searxng"):
+            self.assertIn(f"dport {ports[key]} accept", rules, key)
+        accepts = [ln for ln in rules.splitlines() if "dport" in ln]
+        self.assertEqual(len(accepts), len(set(accepts)), "duplicate accept line")
         self.assertIn("log prefix \"MIOS-NET-DROP: \"", rules)
 
     def test_validate_pairing_matrix_valid_default(self):
@@ -3072,13 +3074,13 @@ class sp_TestSelinuxPolicy(unittest.TestCase):
         manager = selinux_policy.SelinuxPolicyManager(mock=True)
         te_src = manager.generate_te_source(
             module_name="mios_sidecar",
-            allowed_ports=[5432, 8642, 11450],
+            allowed_ports=[5432, 8600, 8720],
             allowed_dirs=["/var/lib/mios"],
         )
         self.assertIn("module mios_sidecar 1.0;", te_src)
         self.assertIn("type mios_sidecar_t;", te_src)
         self.assertIn("typeattribute mios_sidecar_t container_domain;", te_src)
-        self.assertIn("5432, 8642, 11450", te_src)
+        self.assertIn("5432, 8600, 8720", te_src)
 
     def test_compile_module_mock(self):
         manager = selinux_policy.SelinuxPolicyManager(mock=True)

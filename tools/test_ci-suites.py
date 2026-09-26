@@ -61,6 +61,15 @@ class TestRegistryReader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             self.assertNotEqual(0, MOD.cmd_check(d, ci))
 
+    def test_a_tool_skip_needs_a_registered_suite_a_reason_and_room_under_the_ceiling(self):
+        ok = {"automation/lint-json.sh": "mktool: no package"}
+        for over in ({"tool_skips": {"tests/unregistered.sh": "mktool: no package"}, "max_tool_skips": 1},
+                     {"tool_skips": {"automation/lint-json.sh": "  "}, "max_tool_skips": 1},
+                     {"tool_skips": ok}):
+            with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertNotEqual(0, MOD.cmd_check(d, self._ci(**over)), over)
+            self.assertIn("tool_skip", out.getvalue().replace("tool-skip", "tool_skip"), over)
+
     def test_an_unknown_tier_is_not_silently_empty(self):
         self.assertEqual(2, MOD.cmd_list(_ROOT, self._ci(), "no-such-tier"))
 

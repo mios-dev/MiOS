@@ -378,6 +378,8 @@ etc/mios/*
 !/usr/share/mios/**
 !/usr/share/applications/
 !/usr/share/applications/mios-*.desktop
+!/usr/share/wayland-sessions/
+!/usr/share/wayland-sessions/hyprland.desktop
 
 
 !/usr/share/applications/mios-*.desktop

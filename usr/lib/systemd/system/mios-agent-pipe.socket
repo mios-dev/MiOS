@@ -6,7 +6,7 @@ Documentation=man:agent-pipe(1) file:///usr/share/doc/mios/manual/ch87-socket-ac
 PartOf=mios-agent-pipe.service
 
 [Socket]
-ListenStream=8642
+ListenStream=${MIOS_PORT_AGENT_PIPE}
 ListenStream=/run/mios/agent-pipe.sock
 SocketMode=0660
 Backlog=128

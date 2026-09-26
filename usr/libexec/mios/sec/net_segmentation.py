@@ -17,16 +17,26 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402 -- the ONE shared layered-mios.toml resolver
+
 class NetSegmentationManager:
     """Manages nftables rule generation, pairing validation, and firewall rule enforcement."""
 
-    DEFAULT_ALLOWED_PAIRINGS = [
-        {"src": "open-webui", "dst": "hermes", "port": 8720, "proto": "tcp", "desc": "OWUI browser agent chat gateway"},
-        {"src": "agent-pipe", "dst": "hermes", "port": 8720, "proto": "tcp", "desc": "Agent-pipe orchestration forwarding"},
-        {"src": "hermes", "dst": "pgvector", "port": 5432, "proto": "tcp", "desc": "Hermes PostgreSQL vector memory recall"},
-        {"src": "hermes", "dst": "llm-light", "port": 8500, "proto": "tcp", "desc": "Hermes primary llama.cpp inference lane"},
-        {"src": "hermes", "dst": "searxng", "port": 8800, "proto": "tcp", "desc": "Hermes metasearch backing web_search tool"},
+    # Each pairing names its destination's SSOT [ports] key; the number resolves through mios.toml (Law 7).
+    ALLOWED_PAIRING_KEYS = [
+        {"src": "open-webui", "dst": "hermes", "port_key": "hermes", "proto": "tcp", "desc": "OWUI browser agent chat gateway"},
+        {"src": "agent-pipe", "dst": "hermes", "port_key": "hermes", "proto": "tcp", "desc": "Agent-pipe orchestration forwarding"},
+        {"src": "hermes", "dst": "pgvector", "port_key": "pgvector", "proto": "tcp", "desc": "Hermes PostgreSQL vector memory recall"},
+        {"src": "hermes", "dst": "llm-light", "port_key": "llm_light", "proto": "tcp", "desc": "Hermes primary llama.cpp inference lane"},
+        {"src": "hermes", "dst": "searxng", "port_key": "searxng", "proto": "tcp", "desc": "Hermes metasearch backing web_search tool"},
     ]
+
+    @property
+    def DEFAULT_ALLOWED_PAIRINGS(self) -> List[Dict[str, Any]]:
+        ports = mios_toml.section(mios_toml.load_merged(), "ports")
+        return [{**{k: v for k, v in p.items() if k != "port_key"}, "port": int(ports[p["port_key"]])}
+                for p in self.ALLOWED_PAIRING_KEYS]
 
     # Matrix of strictly forbidden direct flows
     FORBIDDEN_PAIRINGS = [
@@ -66,9 +76,13 @@ class NetSegmentationManager:
             "",
         ]
 
+        emitted = set()
         for p in active_pairings:
             port = p.get("port")
             proto = p.get("proto", "tcp")
+            if (proto, port) in emitted:
+                continue
+            emitted.add((proto, port))
             desc = p.get("desc", f"{p.get('src')} -> {p.get('dst')}")
             rules.append(f"        # {desc}")
             rules.append(f"        ip saddr {subnet} {proto} dport {port} accept")
@@ -96,9 +110,9 @@ class NetSegmentationManager:
                 if f["src"] == src and f["dst"] == dst:
                     violations.append(f"Forbidden connection '{src}' -> '{dst}': {f['reason']}")
 
-            # Invariant: Database ports (5432) only accessible by hermes / agent-pipe
-            if port == 5432 and src not in ("hermes", "agent-pipe", "host"):
-                violations.append(f"Unauthorized source '{src}' attempting direct connection to database port 5432")
+            # Invariant: the database (pgvector, or the PostgreSQL default port) is reachable only by hermes / agent-pipe
+            if (dst == "pgvector" or port == 5432) and src not in ("hermes", "agent-pipe", "host"):
+                violations.append(f"Unauthorized source '{src}' attempting direct connection to database port {port}")
 
         return (len(violations) == 0, violations)
 

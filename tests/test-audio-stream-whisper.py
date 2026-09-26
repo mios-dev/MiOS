@@ -312,8 +312,11 @@ def test_5_quadlet_container_syntax() -> None:
 # ==============================================================================
 def test_6_mock_end_to_end_loopback() -> None:
     log("Test 6: Mock end-to-end streaming audio loopback (--mock)")
+    with tempfile.TemporaryDirectory(prefix="test-audio-sock-") as temp_dir:
+        _test_6_loopback_in(temp_dir)
 
-    temp_dir = tempfile.mkdtemp(prefix="test-audio-sock-")
+
+def _test_6_loopback_in(temp_dir: str) -> None:
     sock_path = os.path.join(temp_dir, "audio-stream.sock")
 
     server_ingress = mas.AudioStreamIngress(
@@ -357,11 +360,6 @@ def test_6_mock_end_to_end_loopback() -> None:
         client_sock.close()
         server_ingress.running = False
         server_thread.join(timeout=1.0)
-        try:
-            os.unlink(sock_path)
-            os.rmdir(temp_dir)
-        except Exception:
-            pass
 
     assert_pass("Mock end-to-end streaming loopback completed with clean socket teardown")
 
