@@ -443,6 +443,9 @@ pub async fn run_config_server(
 
 #[cfg(test)]
 mod tests {
+    // Test code: a panic here IS the assertion. Scoped so production code stays under the lint.
+    #![allow(clippy::panic)]
+
     use super::*;
 
     #[test]

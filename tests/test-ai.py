@@ -762,6 +762,9 @@ from unittest.mock import patch
 mma__HERE = os.path.dirname(os.path.abspath(__file__))
 mma__ROOT = os.path.normpath(os.path.join(mma__HERE, ".."))
 mma__TARGET_PATH = os.path.join(mma__ROOT, "usr", "libexec", "mios", "ai", "model_matrix_alloc.py")
+with open(os.path.join(mma__ROOT, "usr", "share", "mios", "mios.toml"), "rb") as _f:
+    import tomllib
+    mma__LLM_LIGHT = tomllib.load(_f)["ports"]["llm_light"]  # expected port comes from SSOT, never a literal
 
 mma_spec = importlib.util.spec_from_file_location("model_matrix_alloc", mma__TARGET_PATH)
 if mma_spec and mma_spec.loader:

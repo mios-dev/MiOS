@@ -377,6 +377,9 @@ fn collect_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<(), st
 
 #[cfg(test)]
 mod tests {
+    // Test code: a panic here IS the assertion. Scoped so production code stays under the lint.
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use tempfile::tempdir;
 

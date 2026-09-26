@@ -55,6 +55,7 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+[[ "$MOCK_MODE" == "true" ]] && echo "[test-thermal] --mock: every case already runs on synthetic sysfs"
 
 pass_count=0
 fail_count=0

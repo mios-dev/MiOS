@@ -14,9 +14,9 @@ if [[ ! -x "$MIOSD_BIN" ]]; then
         MIOSD_BIN="${ROOT_DIR}/src/mios-rs/target/release/miosd"
     elif [[ -x "/usr/libexec/mios/miosd" ]]; then
         MIOSD_BIN="/usr/libexec/mios/miosd"
-    else
-        echo "[test-bootc-rollback] building miosd (no prebuilt binary found)..."
-        (cd "${ROOT_DIR}/src/mios-rs" && cargo build -p miosd) >&2 || true
+    elif command -v cargo >/dev/null 2>&1; then
+        echo "[test-bootc-rollback] building miosd for testing..."
+        (cd "${ROOT_DIR}/src/mios-rs" && cargo build -q -p miosd) || { echo "[test-bootc-rollback] ERROR: cargo build -p miosd failed" >&2; exit 1; }
     fi
 fi
 if [[ ! -x "$MIOSD_BIN" ]]; then
@@ -24,13 +24,17 @@ if [[ ! -x "$MIOSD_BIN" ]]; then
     exit 1
 fi
 
+# miosd's /var/lib/mios probes land in a throwaway root, never the host's /var.
+STATE_ROOT="$(mktemp -d /tmp/test-bootc-rollback.XXXXXX)"
+export MIOS_ROOT="$STATE_ROOT"
+
 pass_count=0
 fail_count=0
 
 # miosd keeps its state under systemd's STATE_DIRECTORY; point it at a scratch dir so the suite needs no root.
 STATE_DIRECTORY="$(mktemp -d)"
 export STATE_DIRECTORY
-trap 'rm -rf "$STATE_DIRECTORY"' EXIT
+trap 'rm -rf "$STATE_ROOT" "$STATE_DIRECTORY"' EXIT
 
 assert_eq() {
     local label="$1"

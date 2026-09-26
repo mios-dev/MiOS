@@ -386,11 +386,10 @@ pub fn suggest_rename(root: &Path, stale_path: &str) -> RenameSuggestion {
             .collect();
         matches.sort();
 
-        if matches.len() > 1 {
+        if matches.len() == 1 {
+            return RenameSuggestion::Exact(matches.remove(0));
+        } else if matches.len() > 1 {
             return RenameSuggestion::Ambiguous(matches);
-        }
-        if let Some(only) = matches.into_iter().next() {
-            return RenameSuggestion::Exact(only);
         }
     }
 
@@ -419,6 +418,17 @@ fn load_baseline(root: &Path) -> Option<std::collections::HashSet<String>> {
         }
     }
     Some(set)
+}
+
+/// A `rel: target` finding, with the rename suggest_rename finds for its target appended.
+fn with_rename_hint(root: &Path, finding: &str) -> String {
+    let target = finding.split_once(": ").map_or(finding, |(_, t)| t);
+    let target = target.split('#').next().unwrap_or(target);
+    match suggest_rename(root, target) {
+        RenameSuggestion::Exact(dst) => format!("{finding} (renamed: {dst})"),
+        RenameSuggestion::Ambiguous(c) => format!("{finding} (candidates: {})", c.join(", ")),
+        RenameSuggestion::None => finding.to_string(),
+    }
 }
 
 pub fn check(root: &Path) -> Report {
@@ -592,14 +602,7 @@ pub fn check(root: &Path) -> Report {
                 BASELINE_FILE
             )];
             for nb in new_breaks {
-                // Name the likely rename target so the fix is a lookup, not a search.
-                let target = nb.rsplit_once(": ").map_or(nb.as_str(), |(_, t)| t);
-                let hint = match suggest_rename(root, target) {
-                    RenameSuggestion::Exact(dst) => format!(" (renamed to {dst}?)"),
-                    RenameSuggestion::Ambiguous(c) => format!(" (candidates: {})", c.join(", ")),
-                    RenameSuggestion::None => String::new(),
-                };
-                findings.push(format!("{nb}{hint}"));
+                findings.push(with_rename_hint(root, nb));
             }
             return report(false, String::new(), findings);
         }
@@ -633,6 +636,9 @@ pub fn check(root: &Path) -> Report {
 
 #[cfg(test)]
 mod tests {
+    // Test code: a panic here IS the assertion. Scoped so production code stays under the lint.
+    #![allow(clippy::panic)]
+
     use super::*;
     use std::fs;
 

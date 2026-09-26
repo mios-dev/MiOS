@@ -1631,17 +1631,19 @@ fn emit_secret(value: &str, fd: i32) {
     }
 }
 
-/// The daemon's state directory: systemd's STATE_DIRECTORY (first entry) when set, else /var/lib/mios.
+/// The daemon's state directory.
 fn mios_state_dir() -> std::path::PathBuf {
-    std::env::var("STATE_DIRECTORY")
-        .ok()
-        .and_then(|v| {
-            v.split(':')
-                .next()
-                .filter(|p| !p.is_empty())
-                .map(std::path::PathBuf::from)
-        })
-        .unwrap_or_else(|| std::path::PathBuf::from("/var/lib/mios"))
+    // systemd's STATE_DIRECTORY first, then var/lib/mios under MIOS_ROOT (as daemon/backup.rs), else /var/lib/mios.
+    if let Some(p) = std::env::var("STATE_DIRECTORY").ok().and_then(|v| {
+        v.split(':')
+            .next()
+            .filter(|p| !p.is_empty())
+            .map(std::path::PathBuf::from)
+    }) {
+        return p;
+    }
+    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| "/".to_string());
+    std::path::Path::new(&root).join("var/lib/mios")
 }
 
 fn run_bootc_rollback(

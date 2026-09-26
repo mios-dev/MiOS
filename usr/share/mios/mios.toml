@@ -10243,10 +10243,10 @@ mios-finetune-serve            = ["service-plane"]
 mios-mcp                       = ["service-plane"]
 mios-opencode-gateway          = ["service-plane"]
 mios-policy-arbiter            = ["service-plane"]
-mios-attest        = ["controller", "service-plane"]   # TPM-quote verifier for zero-touch onboarding
-mios-registry                  = ["service-plane"]
-mios-thermald                  = ["service-plane"]   # power-caps the compute lanes, like mios-powerd
-mios-wol-proxy                 = ["service-plane"]
+mios-attest        = ["controller", "service-plane"]   # TPM-quote verifier + onboarding: controller blades only
+mios-registry                  = ["service-plane"]   # local OCI registry
+mios-thermald                  = ["service-plane"]   # CPU/GPU power caps, like mios-powerd: the blade owns the hardware
+mios-wol-proxy                 = ["service-plane"]   # wake-on-LAN relay for the fleet
 # Units that activate a gated unit and cannot work without it. See ADR-0016 D4.
 mios-embed-backfill            = ["service-plane"]
 mios-forge-firstboot           = ["service-plane"]
