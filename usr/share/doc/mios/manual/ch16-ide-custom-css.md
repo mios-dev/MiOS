@@ -41,14 +41,23 @@ flowchart TD
 
 ## 3. Configuration Contract
 
-The following configuration is standard across all MiOS IDE configurations (`settings.json`):
+The following configuration is standard across all MiOS IDE settings **files**
+(a User/skel `settings.json`, the code-server seed). It is deliberately absent
+from the surfaces VS Code applies through its configuration API on whichever
+client connects (a `devcontainer.json` `customizations.vscode.settings` block,
+a `*.code-workspace`): the Custom CSS extension is `extensionKind: ["ui"]` with
+no `browser` entry, so a web client (a browser Codespace, code-server's own
+workbench) never registers `vscode_custom_css.imports`, and an API write of an
+unregistered key throws. `mios.toml [dotfiles.vscode]` names the key as
+desktop-only and `tools/sync-dotfiles.py` keeps it off those surfaces
+(ADR-0024); code-server gets the stylesheet through `mios-vscode-custom-css
+patch` instead.
 
 ```json
 {
   "vscode_custom_css.imports": [
     "file:///usr/share/mios/themes/code-server-terminal.css"
   ],
-  "vscode_custom_css.policy": true,
   "terminal.integrated.fontSize": 14,
   "terminal.integrated.tabs.enabled": false,
   "terminal.integrated.lineHeight": 1.0,

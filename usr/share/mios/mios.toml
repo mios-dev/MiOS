@@ -10225,6 +10225,53 @@ wipe_passphrase   = "mios"        # generic default passphrase gating the "Wipe 
 
 [dotfiles]
 
+# VS Code settings partition (ADR-0024): API-applied surfaces get client-portable
+# keys only; settings FILES keep the full profile. Read by sync-dotfiles.py, mios-dotfiles-render.
+[dotfiles.vscode]
+# Registered only by the Electron workbench, src/vs/workbench/electron-browser/
+# desktop.contribution.ts, which workbench.desktop.main.ts alone imports; the web
+# workbench (vscode.dev, github.dev, a browser Codespace, code-server) has no
+# registration for them. All but window.zoomLevel are APPLICATION-scoped too, so a
+# Workspace-target write of them is refused on the desktop client as well.
+desktop_only_keys = [
+    "window.titleBarStyle",             # src/vs/workbench/electron-browser/desktop.contribution.ts (scope APPLICATION)
+    "window.customTitleBarVisibility",  # src/vs/workbench/electron-browser/desktop.contribution.ts (scope APPLICATION); the key the Codespace named
+    "window.dialogStyle",               # src/vs/workbench/electron-browser/desktop.contribution.ts (scope APPLICATION)
+    "window.zoomLevel",                 # src/vs/workbench/electron-browser/desktop.contribution.ts (window scope)
+    "vscode_custom_css.imports",        # be5invis.vscode-custom-css package.json: extensionKind ui, main-only, no browser entry -- a web extension host never loads it
+]
+# Registered on every client (src/vs/workbench/browser/workbench.contribution.ts,
+# included on web) but APPLICATION-scoped, so a Workspace-target write is refused
+# everywhere ("This setting can be written only into User settings"): User FILE only.
+user_only_keys = [
+    "window.menuBarVisibility",         # src/vs/workbench/browser/workbench.contribution.ts (scope APPLICATION)
+]
+# Keys no current client or extension registers. They are gone from the SSOT
+# settings files; naming them here is what PRUNES them from a surface the additive
+# merge would otherwise let them linger in, and --check refuses their return.
+unregistered_keys = [
+    "workbench.panel.alignment",        # runtime state (src/vs/workbench/browser/layout.ts PANEL_ALIGNMENT), never a setting: use the View: Align Panel commands
+    "vscode_custom_css.policy",         # removed from be5invis.vscode-custom-css at commit 8023aaf, no replacement
+    "docker.dockerPath",                # ms-azuretools.vscode-docker is an extension pack now; Container Tools registers containers.containerCommand instead
+    "docker.environment",               # replaced by containers.environment (ms-azuretools.vscode-containers)
+    "podman.socketPath",                # no extension registers it: redhat.vscode-podman exists on neither the marketplace nor open-vsx
+    "podman.systemSocketPath",          # as above
+]
+# The client-portable surfaces, relative to this repository. The settings object
+# sits at customizations.vscode.settings in a devcontainer.json and at settings in
+# a *.code-workspace; tools/sync-dotfiles.py derives that path from the file name.
+client_portable_surfaces = [
+    ".devcontainer/devcontainer.json",
+    ".devcontainer/artifact-builder/devcontainer.json",
+    "mios.code-workspace",
+    ".devcontainer/mios-ecosystem.code-workspace",
+]
+# The same kind of surface in mios-bootstrap.git (Law 15), relative to that
+# checkout (the sibling directory of this repository, or MIOS_BOOTSTRAP_ROOT).
+bootstrap_client_portable_surfaces = [
+    ".devcontainer/devcontainer.json",
+]
+
 [dotfiles.registry.btop]
 template = "usr/share/mios/theme/templates/btop-mios.theme.tmpl"
 target   = "etc/btop/themes/mios.theme"

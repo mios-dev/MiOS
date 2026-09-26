@@ -871,6 +871,21 @@ check_dotfiles_projection() {
         rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
         _violation "a dotfiles surface drifted from the mios.toml SSOT projection -- re-run mios dotfiles sync (Phase-1 palette drift-gate; mios-dotfiles-render)"
     fi
+    # ADR-0024 second leg: diff each client-portable settings block against the
+    # [dotfiles.vscode] projection, so a key dropped from the list is red too.
+    local sync="$ROOT/tools/sync-dotfiles.py"
+    if [[ ! -f "$sync" ]]; then
+        _violation "tools/sync-dotfiles.py absent -- a tracked deliverable is missing, so the client-portable half of this check cannot run"
+        return
+    fi
+    if MIOS_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" python3 "$sync" --check --client-surfaces >/dev/null 2>"$ROOT/.dotfiles.err"; then
+        rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
+        echo "[98-drift-checks]   every devcontainer.json / *.code-workspace settings block carries exactly the client-portable subset of .dotfiles/vscode/settings.json and no [dotfiles.vscode] desktop-only key (ADR-0024)"
+    else
+        sed 's/^/    /' "$ROOT/.dotfiles.err" >&2 2>/dev/null || true
+        rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
+        _violation "a client-portable VS Code surface drifted from the mios.toml [dotfiles.vscode] projection (ADR-0024) -- re-run python3 tools/sync-dotfiles.py"
+    fi
 }
 
 check_userenv_parity() {
