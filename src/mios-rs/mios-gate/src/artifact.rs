@@ -387,114 +387,87 @@ fn scan_weights(dir: &Path, findings: &mut Vec<String>) {
 /// Verifies individual weight file format.
 fn check_weight_file(path: &Path, findings: &mut Vec<String>) {
     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-    let lower = file_name.to_ascii_lowercase();
-
-    // 1. Reject any file ending in .pt, .bin, .pickle, .pkl
-    if lower.ends_with(".pt")
-        || lower.ends_with(".bin")
-        || lower.ends_with(".pickle")
-        || lower.ends_with(".pkl")
-    {
-        findings.push(format!(
-            "{}: unsafe weights deserialization format rejected (.pt, .bin, .pickle, .pkl)",
-            path.display()
-        ));
+    let label = path.display().to_string();
+    if !is_weight_name(file_name) {
         return;
     }
-
-    // 2. If .gguf file exists, verify first 4 bytes are b"GGUF"
-    if lower.ends_with(".gguf") {
-        match File::open(path) {
-            Ok(mut f) => {
-                let mut magic = [0u8; 4];
-                match f.read_exact(&mut magic) {
-                    Ok(()) => {
-                        if &magic != b"GGUF" {
-                            findings.push(format!(
-                                "{}: invalid GGUF magic header: expected b\"GGUF\", found {:?}",
-                                path.display(),
-                                magic
-                            ));
-                        }
-                    }
-                    Err(e) => {
-                        findings.push(format!(
-                            "{}: failed to read GGUF magic header: {e}",
-                            path.display()
-                        ));
-                    }
-                }
-            }
-            Err(e) => {
-                findings.push(format!("{}: failed to open GGUF file: {e}", path.display()));
-            }
+    let len = match std::fs::metadata(path) {
+        Ok(meta) => meta.len(),
+        Err(e) => {
+            findings.push(format!("{label}: failed to read metadata: {e}"));
+            return;
         }
+    };
+    match File::open(path) {
+        Ok(mut f) => check_weight_stream(&label, file_name, len, &mut f, findings),
+        Err(e) => findings.push(format!("{label}: failed to open weight file: {e}")),
     }
+}
 
-    // 3. If .safetensors file exists, verify file is at least 8 bytes and read 8-byte little-endian header length
-    if lower.ends_with(".safetensors") {
-        match std::fs::metadata(path) {
-            Ok(meta) => {
-                let len = meta.len();
-                if len < 8 {
-                    findings.push(format!(
-                        "{}: safetensors file size ({} bytes) is less than 8 bytes",
-                        path.display(),
-                        len
-                    ));
-                } else {
-                    match File::open(path) {
-                        Ok(mut f) => {
-                            let mut buf = [0u8; 8];
-                            match f.read_exact(&mut buf) {
-                                Ok(()) => {
-                                    let header_len = u64::from_le_bytes(buf);
-                                    if header_len == 0 {
-                                        findings.push(format!(
-                                            "{}: safetensors header length is 0",
-                                            path.display()
-                                        ));
-                                    } else if header_len > len.saturating_sub(8) {
-                                        findings.push(format!(
-                                            "{}: safetensors header length ({header_len}) exceeds payload size ({})",
-                                            path.display(),
-                                            len.saturating_sub(8)
-                                        ));
-                                    } else if header_len > SAFETENSORS_MAX_HEADER {
-                                        findings.push(format!(
-                                            "{}: safetensors header length ({header_len}) exceeds the {SAFETENSORS_MAX_HEADER}-byte format limit",
-                                            path.display()
-                                        ));
-                                    } else {
-                                        check_safetensors_header(
-                                            path,
-                                            &mut f,
-                                            header_len,
-                                            len - 8 - header_len,
-                                            findings,
-                                        );
-                                    }
-                                }
-                                Err(e) => {
-                                    findings.push(format!(
-                                        "{}: failed to read safetensors header: {e}",
-                                        path.display()
-                                    ));
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            findings.push(format!(
-                                "{}: failed to open safetensors file: {e}",
-                                path.display()
-                            ));
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                findings.push(format!("{}: failed to read metadata: {e}", path.display()));
-            }
+/// Pickle-family extensions: loading them executes code.
+fn is_unsafe_weight_name(file_name: &str) -> bool {
+    let lower = file_name.to_ascii_lowercase();
+    [".pt", ".bin", ".pickle", ".pkl"]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+}
+
+/// Names the weight rules apply to: pickle-family, GGUF and SafeTensors.
+pub(crate) fn is_weight_name(file_name: &str) -> bool {
+    let lower = file_name.to_ascii_lowercase();
+    is_unsafe_weight_name(file_name) || lower.ends_with(".gguf") || lower.ends_with(".safetensors")
+}
+
+/// The weight rules over a stream positioned at the start of a `len`-byte
+/// file named `file_name`, reported under `label`. Shared by files on disk
+/// and entries inside OCI layer tarballs.
+pub(crate) fn check_weight_stream(
+    label: &str,
+    file_name: &str,
+    len: u64,
+    r: &mut impl Read,
+    findings: &mut Vec<String>,
+) {
+    let lower = file_name.to_ascii_lowercase();
+    if is_unsafe_weight_name(file_name) {
+        findings.push(format!(
+            "{label}: unsafe weights deserialization format rejected (.pt, .bin, .pickle, .pkl)"
+        ));
+    } else if lower.ends_with(".gguf") {
+        let mut magic = [0u8; 4];
+        match r.read_exact(&mut magic) {
+            Ok(()) if &magic != b"GGUF" => findings.push(format!(
+                "{label}: invalid GGUF magic header: expected b\"GGUF\", found {magic:?}"
+            )),
+            Ok(()) => {}
+            Err(e) => findings.push(format!("{label}: failed to read GGUF magic header: {e}")),
+        }
+    } else if lower.ends_with(".safetensors") {
+        if len < 8 {
+            findings.push(format!(
+                "{label}: safetensors file size ({len} bytes) is less than 8 bytes"
+            ));
+            return;
+        }
+        let mut buf = [0u8; 8];
+        if let Err(e) = r.read_exact(&mut buf) {
+            findings.push(format!("{label}: failed to read safetensors header: {e}"));
+            return;
+        }
+        let header_len = u64::from_le_bytes(buf);
+        let payload = len - 8;
+        if header_len == 0 {
+            findings.push(format!("{label}: safetensors header length is 0"));
+        } else if header_len > payload {
+            findings.push(format!(
+                "{label}: safetensors header length ({header_len}) exceeds payload size ({payload})"
+            ));
+        } else if header_len > SAFETENSORS_MAX_HEADER {
+            findings.push(format!(
+                "{label}: safetensors header length ({header_len}) exceeds the {SAFETENSORS_MAX_HEADER}-byte format limit"
+            ));
+        } else {
+            check_safetensors_header(label, r, header_len, payload - header_len, findings);
         }
     }
 }
@@ -507,33 +480,28 @@ const SAFETENSORS_MAX_HEADER: u64 = 100_000_000;
 /// integer `shape` array and `data_offsets` `[begin, end]` inside the data
 /// section that follows the header.
 fn check_safetensors_header(
-    path: &Path,
-    f: &mut File,
+    label: &str,
+    r: &mut impl Read,
     header_len: u64,
     data_len: u64,
     findings: &mut Vec<String>,
 ) {
     let mut header = vec![0u8; header_len as usize];
-    if let Err(e) = f.read_exact(&mut header) {
+    if let Err(e) = r.read_exact(&mut header) {
         findings.push(format!(
-            "{}: failed to read safetensors JSON header: {e}",
-            path.display()
+            "{label}: failed to read safetensors JSON header: {e}"
         ));
         return;
     }
     let obj = match serde_json::from_slice::<serde_json::Value>(&header) {
         Ok(serde_json::Value::Object(o)) => o,
         Ok(_) => {
-            findings.push(format!(
-                "{}: safetensors header is not a JSON object",
-                path.display()
-            ));
+            findings.push(format!("{label}: safetensors header is not a JSON object"));
             return;
         }
         Err(e) => {
             findings.push(format!(
-                "{}: safetensors header is not valid JSON: {e}",
-                path.display()
+                "{label}: safetensors header is not valid JSON: {e}"
             ));
             return;
         }
@@ -554,19 +522,16 @@ fn check_safetensors_header(
             .and_then(|a| Some((a[0].as_u64()?, a[1].as_u64()?)));
         if !dtype_ok || !shape_ok {
             findings.push(format!(
-                "{}: safetensors tensor {name:?} lacks a string 'dtype' or an integer 'shape'",
-                path.display()
+                "{label}: safetensors tensor {name:?} lacks a string 'dtype' or an integer 'shape'"
             ));
         }
         match offsets {
             Some((begin, end)) if begin <= end && end <= data_len => {}
             Some((begin, end)) => findings.push(format!(
-                "{}: safetensors tensor {name:?} data_offsets [{begin}, {end}] fall outside the {data_len}-byte data section",
-                path.display()
+                "{label}: safetensors tensor {name:?} data_offsets [{begin}, {end}] fall outside the {data_len}-byte data section"
             )),
             None => findings.push(format!(
-                "{}: safetensors tensor {name:?} lacks integer 'data_offsets' [begin, end]",
-                path.display()
+                "{label}: safetensors tensor {name:?} lacks integer 'data_offsets' [begin, end]"
             )),
         }
     }
@@ -723,7 +688,13 @@ fn verify_descriptor(
             return;
         }
     }
-    if !expand || !visited.insert(digest.to_string()) {
+    if !expand {
+        if let Some(media_type) = desc.get("mediaType").and_then(|m| m.as_str()) {
+            crate::artifact_layers::scan_layer(&blob_path, media_type, context, findings);
+        }
+        return;
+    }
+    if !visited.insert(digest.to_string()) {
         return;
     }
     if depth >= MAX_DESCRIPTOR_DEPTH {
@@ -1163,6 +1134,20 @@ mod tests {
     /// index.json through `nest` intermediate nested indexes. Returns the
     /// layout dir and the layer's blob path.
     fn build_layout(root: &Path, nest: usize) -> (PathBuf, PathBuf) {
+        build_layout_with(
+            root,
+            nest,
+            "application/vnd.oci.image.layer.v1.tar",
+            &tar_of(&[("docs/README", b"dummy layer")]),
+        )
+    }
+
+    fn build_layout_with(
+        root: &Path,
+        nest: usize,
+        media: &str,
+        layer: &[u8],
+    ) -> (PathBuf, PathBuf) {
         let oci_dir = root.join("artifacts/modelkit");
         let blobs = oci_dir.join("blobs/sha256");
         std::fs::create_dir_all(&blobs).unwrap();
@@ -1171,8 +1156,7 @@ mod tests {
             r#"{"imageLayoutVersion": "1.0.0"}"#,
         )
         .unwrap();
-        let layer = b"dummy layer";
-        let layer_desc = put_blob(&blobs, "application/vnd.oci.image.layer.v1.tar", layer);
+        let layer_desc = put_blob(&blobs, media, layer);
         let cfg_desc = put_blob(&blobs, "application/vnd.oci.image.config.v1+json", b"{}");
         let manifest = format!(
             r#"{{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{cfg_desc},"layers":[{layer_desc}]}}"#
@@ -1214,7 +1198,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         setup_valid_workspace(tmp.path());
         let (_, layer) = build_layout(tmp.path(), 0);
-        std::fs::write(&layer, b"DUMMY LAYER").unwrap(); // same 11 bytes
+        let mut bytes = std::fs::read(&layer).unwrap();
+        let at = bytes.windows(5).position(|w| w == b"dummy").unwrap();
+        bytes[at] = b'D'; // same size, different content
+        std::fs::write(&layer, bytes).unwrap();
         let report = check(tmp.path());
         assert!(!report.ok);
         assert!(
@@ -1316,5 +1303,134 @@ mod tests {
             "findings: {:#?}",
             report.findings
         );
+    }
+
+    /// A tar holding `files` as (path, bytes).
+    fn tar_of(files: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut b = tar::Builder::new(Vec::new());
+        for (path, bytes) in files {
+            let mut h = tar::Header::new_gnu();
+            h.set_size(bytes.len() as u64);
+            h.set_mode(0o644);
+            h.set_cksum();
+            b.append_data(&mut h, path, *bytes).unwrap();
+        }
+        b.into_inner().unwrap()
+    }
+
+    fn gzip(bytes: &[u8]) -> Vec<u8> {
+        use std::io::Write;
+        let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        e.write_all(bytes).unwrap();
+        e.finish().unwrap()
+    }
+
+    fn safetensors_bytes() -> Vec<u8> {
+        let header = br#"{"w":{"dtype":"F32","shape":[2],"data_offsets":[0,8]}}"#;
+        let mut b = (header.len() as u64).to_le_bytes().to_vec();
+        b.extend_from_slice(header);
+        b.extend_from_slice(&[0u8; 8]);
+        b
+    }
+
+    #[test]
+    fn test_layer_with_safe_weights_passes() {
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        let st = safetensors_bytes();
+        let layer = tar_of(&[
+            ("models/m.safetensors", &st),
+            ("models/m.gguf", b"GGUF\x03\x00\x00\x00"),
+        ]);
+        build_layout_with(
+            tmp.path(),
+            0,
+            "application/vnd.oci.image.layer.v1.tar",
+            &layer,
+        );
+        let report = check(tmp.path());
+        assert!(report.ok, "findings: {:#?}", report.findings);
+    }
+
+    #[test]
+    fn test_pickle_inside_gzip_layer_rejected() {
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        let layer = gzip(&tar_of(&[("models/model.pkl", b"\x80\x04pickle")]));
+        build_layout_with(
+            tmp.path(),
+            0,
+            "application/vnd.oci.image.layer.v1.tar+gzip",
+            &layer,
+        );
+        let report = check(tmp.path());
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.contains("layer[0] models/model.pkl") && f.contains("unsafe weights")),
+            "findings: {:#?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn test_bad_gguf_inside_zstd_layer_rejected() {
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        let tar = tar_of(&[("models/m.gguf", b"NOPE\x03\x00\x00\x00")]);
+        let layer = ruzstd::encoding::compress_to_vec(
+            &tar[..],
+            ruzstd::encoding::CompressionLevel::Fastest,
+        );
+        build_layout_with(
+            tmp.path(),
+            0,
+            "application/vnd.kitops.modelkit.model.v1.tar+zstd",
+            &layer,
+        );
+        let report = check(tmp.path());
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.contains("models/m.gguf") && f.contains("invalid GGUF magic")),
+            "findings: {:#?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn test_unscannable_layer_is_a_finding() {
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        let layer = tar_of(&[("models/m.gguf", b"GGUF\x03\x00\x00\x00")]);
+        build_layout_with(
+            tmp.path(),
+            0,
+            "application/vnd.oci.image.layer.v1.tar+lz4",
+            &layer,
+        );
+        let report = check(tmp.path());
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.contains("unsupported compression")),
+            "findings: {:#?}",
+            report.findings
+        );
+
+        // A gzip media type over bytes that are not gzip: never a silent pass.
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        build_layout_with(
+            tmp.path(),
+            0,
+            "application/vnd.oci.image.layer.v1.tar+gzip",
+            b"not gzip at all",
+        );
+        let report = check(tmp.path());
+        assert!(!report.ok, "a corrupt gzip layer passed");
     }
 }

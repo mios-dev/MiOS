@@ -5,6 +5,7 @@
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod artifact;
+mod artifact_layers;
 mod credentials;
 mod dispatch;
 mod doc_refs;
