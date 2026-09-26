@@ -43,8 +43,8 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 3,432 | The reading surface. |
-| Tracked size | 208 MB | Two vendored assets are most of it. |
+| Tracked files | 3,427 | The reading surface. |
+| Tracked size | 230 MB | Two vendored assets are most of it. |
 | Shell / Python / PowerShell / Rust | 51k / 214k / 25k / 36k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 0.7x. |
 | Drift checks | 220 | Falsifiability audited per check, not assumed. |
 | Units reproducing from SSOT | 15 faithful of 214 | 55 registered as drifting: the largest hole in part 1 of the thesis. |
@@ -66,7 +66,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
    or explicitly declared authored. Anything else is a surface the thesis does
    not cover.
 
-> The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` + `concepts/*` planning docs. Workstreams map to `T-*` in TASKS.md.
+> The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` + `concepts/*` planning docs. Workstreams map to `T-*` records in TASKS.jsonl.
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
@@ -473,7 +473,7 @@ acceptance: |
 
 ## Appendix: Absorbed sources (2026-07-10 consolidation)
 
-ROADMAP.md + TASKS.md are now the **singular** planning SSOT. Folded in:
+ROADMAP.md + TASKS.jsonl are now the **singular** planning SSOT. Folded in:
 - **9 top-level `*-PLAN-*.md`** (2026-06-14/15) → **Part 17 / T-167–T-177**. Originals archived under `usr/share/doc/mios/archive/absorbed-plans-2026-06/`.
 - **~28 `usr/share/doc/mios/concepts/*` docs** → **Part 18 / T-200–T-241** (actionable deltas); the ~24 pure-reference/architecture docs are kept in place and cross-referenced from their Part.
   - [deploy-model.md](file:///c:/MiOS/usr/share/doc/mios/concepts/deploy-model.md) — Mutable Fedora/FHS overlay, immutable bootc, and virtualized VM/Xbox/Windows execution modes.
@@ -1562,7 +1562,7 @@ acceptance: |
 600 researched tasks (AGY-961..AGY-1560) executing the operator directive to minimize MiOS to
 hardened, compiled, tested code rather than loose scripts, and globally unify the codebase.
 Method: strangler-fig (golden-parity before delete), compiled SSOT resolver, codegen, cargo-
-deny/cosign/SLSA supply-chain, policy-as-code governance. Full task text in `AGY-TASKS.md`.
+deny/cosign/SLSA supply-chain, policy-as-code governance. Full task text in the AGY- records of `TASKS.jsonl`.
 
 ### WS-LANG-AUTO -- Rust-port the 121 automation/*.sh build phases -> a compiled `mios-build` orchestrator crate  **[P1/P2]**  (-> AGY-961..AGY-1011, 51 tasks)
 ### WS-LANGX -- Port the 144 usr/libexec/mios bash tools -> compiled binaries (Rust)  **[P1/P2]**  (-> AGY-1012..AGY-1065, 54 tasks)
