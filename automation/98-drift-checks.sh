@@ -2015,6 +2015,28 @@ check_toolchain_pin() {
     fi
 }
 
+# --- etc/mios/ai/config.json equals its [ai] + [ports] projection (Law 8) ---
+check_ai_config_projection() {
+    # The OpenAI-client connection config. Both repos used to carry a hand-kept
+    # copy, and both drifted onto retired lanes' ports; it is generated now, so
+    # a hand edit or an unregenerated [ports]/[ai] move is a violation here.
+    # An unbuilt generator is cannot-run, which is a violation, never a skip.
+    local bin="" c
+    for c in "$ROOT/tools/native/target/release/mios-ai-config" \
+             "$ROOT/tools/native/target/debug/mios-ai-config"; do
+        [[ -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-ai-config is not built, so check_ai_config_projection could not run -- build it: cd tools/native && cargo build -p mios-ai-config"
+        return
+    fi
+    if "$bin" --root "$ROOT" --check; then
+        return 0
+    else
+        _violation "etc/mios/ai/config.json is missing or differs from [ai] + [ports] -- regenerate it: tools/native/target/debug/mios-ai-config --root ."
+    fi
+}
+
 # --- ARTIFACT-PROMPT.md equals its [artifacts.daily] projection (Law 8) ---
 check_artifact_prompt() {
     # The out-of-loop daily task fetches this file from main on every run, so
@@ -2819,7 +2841,7 @@ check_installer_family_roles() {
     echo "[98-drift-checks] installer role markers are unique across every script that declares one"
     # Subjects are the declared family UNION every tracked file already carrying
     # the marker, so a newly added installer is covered the day it lands.
-    local family=("install.sh" "tools/install.sh" "automation/install.sh" "automation/install-fhs.sh")
+    local family=("tools/install.sh" "automation/install.sh" "automation/install-fhs.sh")
     local bad_installers=""
     local roles=()
     local subjects=()
@@ -3795,6 +3817,7 @@ main() {
     check_ratchet_direction
     check_size_ceiling
     check_toolchain_pin
+    check_ai_config_projection
     check_artifact_prompt
     check_render_quadlets
     check_render_extension_coverage
@@ -4074,7 +4097,9 @@ check_ps_redirectors() {
     # "Redirector file missing" branch fired unconditionally on every clean
     # checkout. (mios-pipeline.ps1 itself is 415 lines -- it is the real
     # pipeline script, not a thin redirector, so it does not belong here.)
-    local redirectors=("install.ps1" "mios-build-local.ps1")
+    # install.ps1 left this list when mios-bootstrap became its only owner
+    # (Law 15); installer builds get bootstrap's copy through seed-merge.
+    local redirectors=("mios-build-local.ps1")
     local f line_count max_lines=50
     for f in "${redirectors[@]}"; do
         if [[ -f "$ROOT/$f" ]]; then

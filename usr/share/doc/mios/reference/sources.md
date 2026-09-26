@@ -153,7 +153,7 @@ tool to refresh the KB.
 - `preflight.ps1` -- https://github.com/mios-dev/MiOS/blob/main/preflight.ps1
 - `push-to-github.ps1` -- https://github.com/mios-dev/MiOS/blob/main/push-to-github.ps1
 - `Get-MiOS.ps1` -- https://github.com/mios-dev/MiOS/blob/main/Get-MiOS.ps1
-- `install.ps1` / `install.sh` -- https://github.com/mios-dev/MiOS/blob/main/install.ps1 / install.sh
+- `install.ps1` / `install.sh` (owned by mios-bootstrap) -- https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/install.ps1 / https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/install.sh
 - `image-versions.yml` -- https://github.com/mios-dev/MiOS/blob/main/image-versions.yml (Renovate-tracked digests)
 - `renovate.json` -- https://github.com/mios-dev/MiOS/blob/main/renovate.json
 - `automation/` -- https://github.com/mios-dev/MiOS/tree/main/automation (~48 numbered phase scripts plus `build.sh` and `lib/{common,packages,masking}.sh`)

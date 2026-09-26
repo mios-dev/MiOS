@@ -1,0 +1,14 @@
+# AI-hint: Cargo manifest for mios-ai-config -- projects etc/mios/ai/config.json from [ai] and [ports].
+# AI-related: usr/share/mios/mios.toml, automation/98-drift-checks.sh, tools/sync-generated.sh
+
+[package]
+name = "mios-ai-config"
+version.workspace = true
+edition.workspace = true
+description = "Project etc/mios/ai/config.json from the [ai] and [ports] SSOT"
+
+[dependencies]
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3"
