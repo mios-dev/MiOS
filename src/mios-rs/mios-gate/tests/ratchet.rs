@@ -40,6 +40,8 @@ fn run(dir: &Path) -> (i32, String) {
     let out = Command::new(bin())
         .args(["ratchet-direction", "--root"])
         .arg(dir)
+        // CI exports the PR base for the real repo; a throwaway repo must use its own HEAD.
+        .env_remove("MIOS_RATCHET_BASE")
         .output()
         .unwrap();
     let mut text = String::from_utf8_lossy(&out.stdout).to_string();
