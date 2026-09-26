@@ -1,5 +1,5 @@
-// AI-hint: Projects etc/mios/ai/config.json (the OpenAI-client connection config) from [ai] endpoint/agent_model/embed_model and [ports], so it cannot drift to a retired port.
-// AI-related: usr/share/mios/mios.toml, etc/mios/ai/config.json, automation/98-drift-checks.sh, tools/sync-generated.sh
+// AI-hint: Projects etc/mios/ai/config.json and the vendor usr/share/mios/ai/v1/config.json (the OpenAI-client connection config) from [ai] endpoint/agent_model/embed_model and [ports], so neither can drift to a retired port.
+// AI-related: usr/share/mios/mios.toml, etc/mios/ai/config.json, usr/share/mios/ai/v1/config.json, automation/98-drift-checks.sh, tools/sync-generated.sh
 
 #![forbid(unsafe_code)]
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -8,7 +8,26 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const SSOT: &str = "usr/share/mios/mios.toml";
-const OUTPUT: &str = "etc/mios/ai/config.json";
+/// Every projected copy: the admin-layer client config, and the vendor ai/v1
+/// manifest copy (same four keys plus a descriptive `x-mios` block).
+const OUTPUTS: [(&str, Shape); 2] = [
+    ("etc/mios/ai/config.json", Shape::Client),
+    ("usr/share/mios/ai/v1/config.json", Shape::Manifest),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Shape {
+    Client,
+    Manifest,
+}
+
+/// Descriptive only: nothing here is operator-tunable (the bearer's value is
+/// never in the SSOT or this file, only where it lives).
+const MANIFEST_X_MIOS: &str = "\"x-mios\":{\"ssot\":\"[ai] in /usr/share/mios/mios.toml\",\
+\"served_by\":\"mios-agent-pipe.service\",\
+\"auth\":{\"scheme\":\"Bearer\",\"env\":\"MIOS_AI_KEY\",\"source\":\"/etc/mios/hermes/api.env\"},\
+\"note\":\"Minimal connection config for OpenAI-API-compatible clients. The agent surface refines the prompt, \
+routes to a sub-agent, then polishes the reply -- clients see a single /v1 surface.\"}";
 
 const USAGE: &str = "usage: mios-ai-config [--root DIR] [--check]\n";
 
@@ -46,9 +65,13 @@ fn json_str(s: &str) -> String {
 
 /// The shape the existing consumers read: four keys, one line. `api_key` is
 /// always empty: the bearer lives in /etc/mios/hermes/api.env, not the SSOT.
-fn render(cfg: &AiConfig) -> String {
+fn render(cfg: &AiConfig, shape: Shape) -> String {
+    let extra = match shape {
+        Shape::Client => String::new(),
+        Shape::Manifest => format!(",{MANIFEST_X_MIOS}"),
+    };
     format!(
-        "{{\"base_url\":{},\"default_model\":{},\"embed_model\":{},\"api_key\":\"\"}}\n",
+        "{{\"base_url\":{},\"default_model\":{},\"embed_model\":{},\"api_key\":\"\"{extra}}}\n",
         json_str(&cfg.base_url),
         json_str(&cfg.default_model),
         json_str(&cfg.embed_model)
@@ -146,48 +169,48 @@ fn main() -> ExitCode {
         Ok(c) => c,
         Err(e) => return die(&e),
     };
-    let want = render(&cfg);
-    let out = root.join(OUTPUT);
-
-    if check {
-        let have = match std::fs::read_to_string(&out) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!(
-                    "mios-ai-config: {OUTPUT} is missing or unreadable ({e}) -- regenerate it"
-                );
-                return ExitCode::from(1);
+    let mut stale = 0u8;
+    for (rel, shape) in OUTPUTS {
+        let want = render(&cfg, shape);
+        let out = root.join(rel);
+        if check {
+            match std::fs::read_to_string(&out) {
+                Ok(have) if have == want => println!(
+                    "mios-ai-config: OK: {rel} matches [ai] + [ports] (base_url {})",
+                    cfg.base_url
+                ),
+                Ok(have) => {
+                    eprintln!(
+                        "mios-ai-config: {rel} differs from its projection -- it was hand-edited, \
+                         or the SSOT moved and it was not regenerated"
+                    );
+                    eprintln!("mios-ai-config:   have: {}", have.trim_end());
+                    eprintln!("mios-ai-config:   want: {}", want.trim_end());
+                    stale = 1;
+                }
+                Err(e) => {
+                    eprintln!(
+                        "mios-ai-config: {rel} is missing or unreadable ({e}) -- regenerate it"
+                    );
+                    stale = 1;
+                }
             }
-        };
-        if have == want {
-            println!(
-                "mios-ai-config: OK: {OUTPUT} matches [ai] + [ports] (base_url {})",
-                cfg.base_url
-            );
-            return ExitCode::SUCCESS;
+            continue;
         }
-        eprintln!(
-            "mios-ai-config: {OUTPUT} differs from its projection -- it was hand-edited, \
-             or the SSOT moved and it was not regenerated"
+        if let Some(parent) = out.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                return die(&format!("{} could not be created ({e})", parent.display()));
+            }
+        }
+        if let Err(e) = std::fs::write(&out, &want) {
+            return die(&format!("{rel} could not be written ({e})"));
+        }
+        println!(
+            "mios-ai-config: projected {rel} (base_url {})",
+            cfg.base_url
         );
-        eprintln!("mios-ai-config:   have: {}", have.trim_end());
-        eprintln!("mios-ai-config:   want: {}", want.trim_end());
-        return ExitCode::from(1);
     }
-
-    if let Some(parent) = out.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            return die(&format!("{} could not be created ({e})", parent.display()));
-        }
-    }
-    if let Err(e) = std::fs::write(&out, &want) {
-        return die(&format!("{OUTPUT} could not be written ({e})"));
-    }
-    println!(
-        "mios-ai-config: projected {OUTPUT} (base_url {})",
-        cfg.base_url
-    );
-    ExitCode::SUCCESS
+    ExitCode::from(stale)
 }
 
 #[cfg(test)]
@@ -220,11 +243,14 @@ mod tests {
 
     #[test]
     fn render_keeps_the_consumer_shape_and_never_carries_a_key() {
-        let out = render(&AiConfig {
-            base_url: "http://localhost:8700/v1".into(),
-            default_model: "MiOS AI".into(),
-            embed_model: "nomic-embed-text".into(),
-        });
+        let out = render(
+            &AiConfig {
+                base_url: "http://localhost:8700/v1".into(),
+                default_model: "MiOS AI".into(),
+                embed_model: "nomic-embed-text".into(),
+            },
+            Shape::Client,
+        );
         assert_eq!(
             "{\"base_url\":\"http://localhost:8700/v1\",\"default_model\":\"MiOS AI\",\
              \"embed_model\":\"nomic-embed-text\",\"api_key\":\"\"}\n",
@@ -233,12 +259,32 @@ mod tests {
     }
 
     #[test]
+    fn the_manifest_copy_is_the_client_keys_plus_x_mios_and_parses() {
+        let cfg = AiConfig {
+            base_url: "http://localhost:8700/v1".into(),
+            default_model: "MiOS AI".into(),
+            embed_model: "nomic-embed-text".into(),
+        };
+        let client = render(&cfg, Shape::Client);
+        let manifest = render(&cfg, Shape::Manifest);
+        let prefix = client.trim_end().trim_end_matches('}');
+        assert!(manifest.starts_with(prefix), "{manifest}");
+        let v: serde_json::Value = serde_json::from_str(&manifest).expect("well-formed JSON");
+        assert_eq!("mios-agent-pipe.service", v["x-mios"]["served_by"]);
+        assert_eq!("MiOS AI", v["default_model"]);
+        assert!(!manifest.contains("8640") && !manifest.contains("8642"));
+    }
+
+    #[test]
     fn render_escapes_json_specials() {
-        let out = render(&AiConfig {
-            base_url: "u".into(),
-            default_model: "a\"b\\c".into(),
-            embed_model: "e".into(),
-        });
+        let out = render(
+            &AiConfig {
+                base_url: "u".into(),
+                default_model: "a\"b\\c".into(),
+                embed_model: "e".into(),
+            },
+            Shape::Client,
+        );
         assert!(out.contains("\"a\\\"b\\\\c\""), "{out}");
     }
 

@@ -150,7 +150,7 @@ main() {
         echo "[sync-generated]      check_toolchain_pin still validates it, so this fails there, not here." >&2
     fi
 
-    step "4g2/6 AI client config -- etc/mios/ai/config.json (from [ai] + [ports])"
+    step "4g2/6 AI client config -- etc/mios/ai/config.json + usr/share/mios/ai/v1/config.json (from [ai] + [ports])"
     _ac=""
     for _c in tools/native/target/release/mios-ai-config tools/native/target/debug/mios-ai-config; do
         [ -x "$_c" ] && { _ac="$_c"; break; }
@@ -158,7 +158,7 @@ main() {
     if [ -n "$_ac" ]; then
         "$_ac" --root "$ROOT" >/dev/null
     else
-        echo "[sync-generated]      mios-ai-config not built; etc/mios/ai/config.json NOT regenerated." >&2
+        echo "[sync-generated]      mios-ai-config not built; the AI client config.json copies NOT regenerated." >&2
         echo "[sync-generated]      check_ai_config_projection still validates it, so this fails there, not here." >&2
     fi
 

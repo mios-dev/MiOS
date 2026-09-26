@@ -2276,7 +2276,7 @@ surfaces = [
   { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
   { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
-  { generator = "tools/native/mios-ai-config/src/main.rs", check = "check_ai_config_projection", output = "etc/mios/ai/config.json" },
+  { generator = "tools/native/mios-ai-config/src/main.rs", check = "check_ai_config_projection", output = "etc/mios/ai/config.json, usr/share/mios/ai/v1/config.json" },
   { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
   { generator = "tools/render-ports.py", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
   { generator = "usr/libexec/mios/ux/wm_config_gen.py", check = "check_edge_generators", output = "usr/share/mios/hyprland/hyprland.conf, usr/share/mios/sway/config" },

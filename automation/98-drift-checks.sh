@@ -2015,7 +2015,7 @@ check_toolchain_pin() {
     fi
 }
 
-# --- etc/mios/ai/config.json equals its [ai] + [ports] projection (Law 8) ---
+# --- etc/mios/ai/config.json and usr/share/mios/ai/v1/config.json equal their [ai] + [ports] projection (Law 8) ---
 check_ai_config_projection() {
     # Generated from [ai] + [ports]. A hand edit, an unregenerated SSOT move or
     # an unbuilt generator is a violation, never a skip.
@@ -2031,7 +2031,7 @@ check_ai_config_projection() {
     if "$bin" --root "$ROOT" --check; then
         return 0
     else
-        _violation "etc/mios/ai/config.json is missing or differs from [ai] + [ports] -- regenerate it: tools/native/target/debug/mios-ai-config --root ."
+        _violation "an AI client config.json (etc/mios/ai/ or usr/share/mios/ai/v1/) is missing or differs from [ai] + [ports] -- regenerate it: tools/native/target/debug/mios-ai-config --root ."
     fi
 }
 

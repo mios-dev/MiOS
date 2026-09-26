@@ -487,12 +487,14 @@ test_ai_config_projection() {
     log "Testing check_ai_config_projection"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local out="${ROOT}/etc/mios/ai/config.json"
-    local tbak obak
+    local vout="${ROOT}/usr/share/mios/ai/v1/config.json"
+    local tbak obak vbak
     tbak="$(mktemp)"; cp "$toml" "$tbak"
     obak="$(mktemp)"; cp "$out" "$obak"
+    vbak="$(mktemp)"; cp "$vout" "$vbak"
     _ac_fail() {
-        cp "$tbak" "$toml"; cp "$obak" "$out"
-        rm -f "$tbak" "$obak"; unset -f _ac_fail; die "$1"
+        cp "$tbak" "$toml"; cp "$obak" "$out"; cp "$vbak" "$vout"
+        rm -f "$tbak" "$obak" "$vbak"; unset -f _ac_fail; die "$1"
     }
 
     # A hand edit back onto a retired lane's port: the state both repos' copies
@@ -501,17 +503,25 @@ test_ai_config_projection() {
     _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with a hand-edited config.json port"
     cp "$obak" "$out"
 
+    # The vendor ai/v1 copy is projected too; it sat on :8640 by hand.
+    sed -i 's|"base_url":"http://localhost:[0-9]*/v1"|"base_url":"http://localhost:8640/v1"|' "$vout"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with a hand-edited usr/share/mios/ai/v1/config.json port"
+    cp "$vbak" "$vout"
+
     # The SSOT moved and nobody regenerated.
     sed -i 's/^agent_pipe\( *\)= [0-9][0-9]*/agent_pipe\1= 1/' "$toml"
     _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with [ports].agent_pipe ahead of config.json"
     cp "$tbak" "$toml"
 
-    # Absent must never read as clean.
+    # Absent must never read as clean -- either copy.
     rm -f "$out"
     _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with config.json absent"
     cp "$obak" "$out"
+    rm -f "$vout"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with usr/share/mios/ai/v1/config.json absent"
+    cp "$vbak" "$vout"
 
-    rm -f "$tbak" "$obak"; unset -f _ac_fail
+    rm -f "$tbak" "$obak" "$vbak"; unset -f _ac_fail
     _neg_gate check_ai_config_projection || die "check_ai_config_projection failed after restoration: ${_NEG_GATE_OUT}"
     log "check_ai_config_projection negative test passed"
 }
