@@ -3770,6 +3770,23 @@ test_ps_encoding_and_bom() {
     log "check_ps_encoding_and_bom negative test passed"
 }
 
+test_ps_irm_iex_entry() {
+    log "Testing check_ps_encoding_and_bom (irm|iex entry point)"
+    # An isolated root: the rule is about one file's bytes, not the tree.
+    local tmp; tmp="$(mktemp -d)"
+    printf '\xEF\xBB\xBF# Designed for: irm https://example.invalid/x.ps1 | iex\nparam([string]$A = "a")\n' > "${tmp}/x.ps1"
+    if MIOS_DRIFT_ROOT="$tmp" python3 "${ROOT}/tools/drift-checks.py" ps-encoding-and-bom >"${tmp}/out" 2>&1 \
+        || ! grep -q "x.ps1 is an irm|iex entry point" "${tmp}/out"; then
+        rm -rf "$tmp"; die "check_ps_encoding_and_bom passed a BOM on an irm|iex entry point"
+    fi
+    printf '# Designed for: irm https://example.invalid/x.ps1 | iex\nparam([string]$A = "a")\n' > "${tmp}/x.ps1"
+    if ! MIOS_DRIFT_ROOT="$tmp" python3 "${ROOT}/tools/drift-checks.py" ps-encoding-and-bom >"${tmp}/out" 2>&1; then
+        cat "${tmp}/out" >&2; rm -rf "$tmp"; die "check_ps_encoding_and_bom rejected a pure-ASCII irm|iex entry point"
+    fi
+    rm -rf "$tmp"
+    log "check_ps_encoding_and_bom irm|iex negative test passed"
+}
+
 test_secret_handling() {
     log "Testing check_secret_handling"
     local probe="${ROOT}/tests/mios-negtest-secrets.ps1"
@@ -5095,6 +5112,7 @@ _run_test test_leaked_fixtures
     _run_test test_ps_port_fallback_ssot
     _run_test test_github_slug_casing
     _run_test test_ps_encoding_and_bom
+    _run_test test_ps_irm_iex_entry
     _run_test test_secret_handling
     _run_test test_wsl_distro_resolution
     _run_test test_docs_ratchet
