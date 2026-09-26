@@ -106,9 +106,9 @@ Part 1 asked what a machine *owns*. This asks what a machine *starts*. The two a
 
 | Withheld capability | Units it gates off |
 |---|---|
-| `controller, service-plane` | 2 |
+| `controller, service-plane` | 3 |
 | `gpu-serving, service-plane` | 3 |
-| `service-plane` | 51 |
+| `service-plane` | 50 |
 
 ## Health: what greenboot asks on each
 

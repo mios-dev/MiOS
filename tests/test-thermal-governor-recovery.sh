@@ -276,7 +276,9 @@ fi
 if command -v systemd-analyze >/dev/null 2>&1; then
     # The ExecStart binary is checked against the HOST /usr, not this tree; only that line is excused.
     sa_rc=0; sa_out="$(systemd-analyze verify "$SERVICE_PATH" 2>&1)" || sa_rc=$?
-    sa_err="$(printf '%s\n' "$sa_out" | grep -v -e 'is not executable: No such file or directory' -e 'ignoring\.$' | grep -v '^$' || true)"
+    # Excused: the ExecStart host-binary line, and warnings about OTHER units' drop-ins; anything naming this unit stays.
+    sa_err="$(printf '%s\n' "$sa_out" | grep -v -F "mios-thermald.service: Command /usr/libexec/mios/mios-thermald is not executable: No such file or directory" \
+        | awk -v u="mios-thermald.service" '!(/ignoring\.$/ && index($0, u) == 0)' | grep -v '^$' || true)"
     if [[ $sa_rc -eq 0 || -z "$sa_err" ]]; then
         _pass "systemd-analyze verify passed with 0 structural errors"
     else

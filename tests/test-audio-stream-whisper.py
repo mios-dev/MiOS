@@ -335,6 +335,8 @@ def test_6_mock_end_to_end_loopback() -> None:
 
     if not os.path.exists(sock_path):
         assert_fail("Unix domain socket was not created in time")
+        server_ingress.running = False
+        server_thread.join(timeout=1.0)
         tmp.cleanup()
         return
 

@@ -58,6 +58,8 @@ class TestUkifyStage(unittest.TestCase):
                 "--kernel", mock_kernel,
                 "--initrd", mock_initrd,
                 "--cmdline", "console=tty0 root=UUID=123 rw",
+                "--root", self.tmpdir.name,  # never the host /boot
+                "--loader-entry", os.path.join(self.tmpdir.name, "loader", "entries", "mios-next.conf"),
                 "--json",
             ],
             capture_output=True,

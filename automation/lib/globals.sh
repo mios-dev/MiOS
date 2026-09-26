@@ -344,7 +344,7 @@ export MIOS_VERSION
 : "${MIOS_BLADE_REQUIRES_MIOS_ACCOUNT_SYNC:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_ADGUARD:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_AGENTS:=service-plane}"
-: "${MIOS_BLADE_REQUIRES_MIOS_ATTEST:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_ATTEST:=controller,service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_CEPH:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_COCKPIT_LINK:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_CODE_SERVER:=service-plane}"

@@ -38,8 +38,12 @@ services:
         effect: "NoSchedule"
   mios-attest:
     nodeSelector:
+      mios.capability/controller: "true"
       mios.capability/service-plane: "true"
     tolerations:
+      - key: "mios.capability/controller"
+        operator: "Exists"
+        effect: "NoSchedule"
       - key: "mios.capability/service-plane"
         operator: "Exists"
         effect: "NoSchedule"

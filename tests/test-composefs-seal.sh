@@ -76,13 +76,18 @@ assert_fail() {
 }
 
 TMP_DIR="$(mktemp -d /tmp/test-cfs-seal.XXXXXX)"
-# The seal script writes these tracked files in place; snapshot them and put them back on exit.
-SEALED_FILES=("${ROOT_DIR}/usr/lib/bootc/kargs.d/50-composefs.toml" "${ROOT_DIR}/usr/lib/ostree/prepare-root.conf")
-for _f in "${SEALED_FILES[@]}"; do [[ -f "$_f" ]] && cp -p "$_f" "${TMP_DIR}/$(basename "$_f").orig"; done
+# Every path the seal script can write (repo and, when writable, host): each is restored, or removed if it did not exist.
+SEALED_FILES=("${ROOT_DIR}/usr/lib/bootc/kargs.d/50-composefs.toml" "${ROOT_DIR}/usr/lib/ostree/prepare-root.conf"
+              /usr/lib/bootc/kargs.d/50-composefs.toml /usr/lib/ostree/prepare-root.conf /etc/ostree/prepare-root.conf)
+for _i in "${!SEALED_FILES[@]}"; do [[ -f "${SEALED_FILES[$_i]}" ]] && cp -p "${SEALED_FILES[$_i]}" "${TMP_DIR}/sealed.${_i}"; done
 _restore_sealed() {
-    local _f
-    for _f in "${SEALED_FILES[@]}"; do
-        [[ -f "${TMP_DIR}/$(basename "$_f").orig" ]] && cp -p "${TMP_DIR}/$(basename "$_f").orig" "$_f"
+    local _i
+    for _i in "${!SEALED_FILES[@]}"; do
+        if [[ -f "${TMP_DIR}/sealed.${_i}" ]]; then
+            cp -p "${TMP_DIR}/sealed.${_i}" "${SEALED_FILES[$_i]}"
+        else
+            rm -f "${SEALED_FILES[$_i]}"
+        fi
     done
     [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"
     return 0
