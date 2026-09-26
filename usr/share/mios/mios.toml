@@ -6136,8 +6136,11 @@ pkgs = [
 # The ONE development userspace. .devcontainer/Containerfile resolves this list
 # through automation/lib/packages.sh at image build, and every MiOS dev
 # environment builds that same Containerfile: the MiOS devcontainer, the
-# mios-bootstrap and -dev-loop devcontainers (sibling checkout), Codespaces,
-# Cloud Shell (cloud-shell/bootstrap.sh) and the hosted cloud-session projection.
+# mios-bootstrap and -dev-loop devcontainers (byte-identical mirrors, gated by
+# [bootstrap.sync].mirror_files here and tests/test_devcontainer_mirror.py in
+# -dev-loop), Codespaces, Cloud Shell (cloud-shell/bootstrap.sh) and the hosted
+# cloud-session projection. Built from a context that is not a MiOS checkout,
+# the Containerfile shallow-clones MiOS and reads this list from the clone.
 # Not a bake section -- no automation/NN-*.sh stage installs it into the image.
 [packages.devcontainer]
 enable = true
@@ -11599,6 +11602,8 @@ mirror_files = [
   "etc/skel/.config/mios/system-prompt.md",
   "etc/usbguard/rules.conf",
   "installation/bin/7z.dll",
+  # The one MiOS dev image; the same bytes build from either repo root.
+  ".devcontainer/Containerfile",
 ]
 
 # SSOT tables mirrored into bootstrap's root mios.toml.
@@ -11611,7 +11616,6 @@ not_mirrored = [
   "GEMINI.md", ".gitignore", "VERSION",
   ".clinerules",
   ".cursorrules",
-  ".devcontainer/Containerfile",
   ".devcontainer/Dockerfile",
   ".devcontainer/devcontainer.json",
   ".editorconfig",
