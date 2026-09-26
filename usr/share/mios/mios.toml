@@ -12260,6 +12260,41 @@ artifacts = ["usb-installer", "iso"]
 doc       = "usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md"
 status    = "partial"
 
+# Image profiles (ADR-0025): every MiOS image kind is the one pipeline run
+# under a profile. A profile selects phases from [build.phases].list and
+# sections from [packages]; `extends` unions a parent's selection and `all`
+# selects everything. `floor` is the profile every other one must contain.
+# Read by `miosd build --list --profile`; gate: check_profile_integrity.
+[profiles]
+default = "full"
+floor   = "core"
+
+[profiles.core]
+summary          = "the smallest MiOS that is still MiOS: SSOT, miosd, agent-pipe, the datastore, the verbs"
+package_sections = ["repos", "base", "containers", "build-toolchain", "utils", "ai", "critical"]
+phases           = ["system-files-overlay", "materialize-build-ctx", "repos", "locale-theme",
+                    "user", "hostname", "subuid-alloc", "generate-quadlets", "render-quadlets",
+                    "render-ports", "services", "mios-dropin-fanout", "tools", "finalize",
+                    "cleanup", "ssot-lint", "drift-checks", "postcheck"]
+
+[profiles.dev]
+summary          = "core plus the development userspace"
+extends          = ["core"]
+package_sections = ["devcontainer"]
+
+[profiles.full]
+summary = "every enabled section and every registered phase"
+extends = ["core"]
+all     = true
+
+# Image kind -> profile(s). A list unions its members.
+[profiles.targets]
+oci          = "full"
+wsl2         = ["full", "dev"]
+devcontainer = "dev"
+cloud        = "dev"
+codespace    = "dev"
+
 # Every way MiOS can be deployed, named once. The targets and recipes existed;
 # what did not exist was a statement of the matrix, so [deploy].artifacts listed
 # two of the seven formats the build system actually produces and nothing

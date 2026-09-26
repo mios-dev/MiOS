@@ -3886,6 +3886,7 @@ main() {
     check_desktop_launchers
     check_guacamole_consistency
     check_no_inert_ssot_tables
+    check_profile_integrity
     check_doc_refs_resolve
     check_resolver_differential_parity
     check_generator_host_parity
@@ -4691,6 +4692,21 @@ check_no_inert_ssot_tables() {
     local out
     if out="$("$bin" no-inert-ssot-tables --root "$ROOT" 2>&1)"; then
         echo "[98-drift-checks]   every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register"
+    else
+        _violations_from "" "$out"
+    fi
+}
+
+# --- mios.toml [profiles] is closed over phases, sections, the floor and targets (ADR-0025) ---
+check_profile_integrity() {
+    local bin; bin="$(_gate_bin)" || bin=""
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_profile_integrity could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    local out
+    if out="$("$bin" profile-integrity --root "$ROOT" 2>&1)"; then
+        echo "[98-drift-checks]   every [profiles] entry resolves over registered phases and real sections, contains the floor, and every target is declared"
     else
         _violations_from "" "$out"
     fi

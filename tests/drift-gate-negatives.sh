@@ -4471,6 +4471,32 @@ PYEOF
     log "check_build_tool_dispatch negative test passed"
 }
 
+test_profile_integrity() {
+    log "Testing check_profile_integrity"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    _neg_gate check_profile_integrity || { cp "$bak" "$toml"; rm -f "$bak"; die "test_profile_integrity: red on the CLEAN tree: $_NEG_GATE_OUT"; }
+    _pi_plant() {  # $1 = python replace old, $2 = new, $3 = text the gate must name
+        python3 - "$toml" "$1" "$2" <<'PY'
+import sys
+p, old, new = sys.argv[1:4]
+s = open(p, encoding="utf-8").read()
+assert s.count(old) == 1, old
+open(p, "w", encoding="utf-8").write(s.replace(old, new))
+PY
+        if _neg_gate check_profile_integrity; then cp "$bak" "$toml"; rm -f "$bak"; die "check_profile_integrity passed with $3 planted"; fi
+        case "$_NEG_GATE_OUT" in *"$3"*) : ;; *) cp "$bak" "$toml"; rm -f "$bak"; die "check_profile_integrity did not name $3: $_NEG_GATE_OUT";; esac
+        cp "$bak" "$toml"
+    }
+    _pi_plant '"cleanup", "ssot-lint"' '"cleanup", "devloop-planted-phase", "ssot-lint"' "devloop-planted-phase"
+    _pi_plant 'codespace    = "dev"' 'codespace    = "devloop-planted-profile"' "devloop-planted-profile"
+    _pi_plant 'extends          = ["core"]
+package_sections = ["devcontainer"]' 'package_sections = ["devcontainer"]' "does not contain the floor"
+    rm -f "$bak"; unset -f _pi_plant
+    _neg_gate check_profile_integrity || die "check_profile_integrity failed after restoration: $_NEG_GATE_OUT"
+    log "check_profile_integrity negative test passed"
+}
+
 # Findings, not exit codes: [gpu] is unconsumed on main, so `_neg_gate && fail`
 # can never fire. Each arm asserts the gate NAMES what it planted.
 _nist_names() {
@@ -5106,6 +5132,7 @@ _run_test test_leaked_fixtures
     _run_test test_legibility_ratchet
     _run_test test_bootstrap_sync
     _run_test test_no_inert_ssot_tables
+    _run_test test_profile_integrity
     _run_test test_build_tool_dispatch
     _run_test test_phase_registry
     _run_test test_signature_policy
