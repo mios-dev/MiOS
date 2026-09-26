@@ -19,7 +19,15 @@ echo "  [PASS] CLI help flags verified"
 # Test 2: File descriptor passing and listener handoff (positive control)
 echo "--- Test 2: File descriptor passing and listener handoff ---"
 MOCK_DIR="$(mktemp -d -t mios-sock-test-XXXXXX)"
-trap 'rm -rf "${MOCK_DIR}"' EXIT
+# A mock swap leaves its worker running and holding this script's stdout, so a
+# caller capturing the output (run-suites.sh) would wait forever: stop it here.
+cleanup() {
+    pid="$(python3 "${SWAP_BIN}" --mock --state-dir "${MOCK_DIR}" status --json 2>/dev/null \
+           | python3 -c 'import json,sys; print(json.load(sys.stdin).get("active_pid") or "")' 2>/dev/null || true)"
+    [ -n "${pid}" ] && kill "${pid}" 2>/dev/null || true
+    rm -rf "${MOCK_DIR}"
+}
+trap cleanup EXIT
 
 python3 -c "
 import socket, array, os

@@ -1502,6 +1502,15 @@ name = "mios-drift-runner"
 version = "0.3.0"
 
 [[package]]
+name = "mios-edge-status"
+version = "0.3.0"
+dependencies = [
+ "regex",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "mios-render-quadlets"
 version = "0.3.0"
 dependencies = [

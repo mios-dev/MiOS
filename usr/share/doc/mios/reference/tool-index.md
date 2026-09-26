@@ -341,7 +341,7 @@ is generated, its generator is here.
 | `tools/roadmap-index.py` | MiOS system and orchestration module providing roadmap-index capabilities. |
 | `tools/standardize-docs.py` | A maintenance script that enforces uniform legal headers and footers across all .md files in the specs/ directories to ensure consistent ownership metadata and documentation links. |
 | `tools/sync-bootstrap.py` | Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ... |
-| `tools/sync-dotfiles.py` | Synchronizes .dotfiles SSOT into all IDE profiles, skeletons, and themes (T-532, AGY-2130). |
+| `tools/sync-dotfiles.py` | Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects forwardPorts/containerEnv from... |
 | `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a... |
 | `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap... |
 | `tools/test_check-docs.py` | Sibling unit tests for tools/check-docs.py -- one suite per subcommand, each owning its counters and returning its own verdict. |
@@ -365,12 +365,13 @@ is generated, its generator is here.
 | `tools/test_render_globals.py` | Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X... |
 | `tools/test_render_ports.py` | Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the sche... |
 | `tools/test_sync-bootstrap.py` | Fixtures for sync-bootstrap.py -- the Law 15 mirror. Proves it reports drift without --apply, that a table mirror rewrites values rather than appending duplicates, and that it never touches a surface... |
+| `tools/test_sync-dotfiles.py` | Hermetic fixtures for sync-dotfiles.py: ADR-0024 prune and --check both ways, surface mode kept, empty partition fails loud, forwardPorts/containerEnv projected from [ports] keys and resolved MIOS_*... |
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/test_verify-images.py` | Sibling test for tools/verify-images.py; proves an empty build tree and a zero-filled artifact are both rejected. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 74 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 75 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
@@ -551,6 +552,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/owui.py` | Adapter for Open WebUI requests that identifies and strips OWUI-specific RAG/task templates to isolate the raw user query from downstream processing in the agent-pipe. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/planner.py` | Planner / DAG-decomposition layer extracted verbatim from server.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py` | WEB PORTAL helper logic + PWA asset builders + the swarm-roster probe, extracted VERBATIM from server.py (refactor R10 wave). |
+| `usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py` | Portal terminal edge CSS from mios.toml [theme.edge] plus the patched ttyd -I page baked from [ttyd].version; pure, imports only mios_toml |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/provider_translate.py` | Pure cross-provider wire-format adapter extracted from server.py (refactor WS R2 leaf wave). |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/pty.py` | Pure PTY-session protocol for the persistent shell substrate (SHELL-01). |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/quality_gate.py` | Pure deterministic quality gate producer for smartroute escalation decisions. |
@@ -726,6 +728,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_planner.py` | Stdlib assert-script for mios_planner. No network: the planner LLM call in decompose_intent is exercised only on the early short-prompt-skip / dis... |
 | `usr/lib/mios/agent-pipe/test_mios_policy.py` | Stdlib assert-script for mios_policy (R7 security wave). Proves the |
 | `usr/lib/mios/agent-pipe/test_mios_portal.py` | Standalone unit test for mios_portal (refactor R10) -- proves the moved portal logic works with stubs and no network/DB. |
+| `usr/lib/mios/agent-pipe/test_mios_portal_edge.py` | Sibling unit test for portal_edge: term_css, the golden gate both ways, portal.py's --card-pad-* wiring and the patched ttyd page and its golden. |
 | `usr/lib/mios/agent-pipe/test_mios_preempt.py` | Standalone assert-script unit test for mios_preempt (WS-A12 RR-preemption state machine + snapshot contract, PLUS the T-019/... |
 | `usr/lib/mios/agent-pipe/test_mios_priority_sched.py` | Unit test for mios_priority_sched.py |
 | `usr/lib/mios/agent-pipe/test_mios_promptfmt.py` | Stdlib unit tests for mios_promptfmt (pure prompt text-block |
@@ -810,7 +813,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 431 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 433 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

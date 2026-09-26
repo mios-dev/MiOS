@@ -448,6 +448,7 @@ bootstrap.prereqs.repos.bootstrap_branch  MIOS_BOOTSTRAP_PREREQS_REPOS_BOOTSTRAP
 bootstrap.prereqs.repos.clone_root  MIOS_BOOTSTRAP_PREREQS_REPOS_CLONE_ROOT
 bootstrap.sync.mirror_files  MIOS_BOOTSTRAP_SYNC_MIRROR_FILES
 bootstrap.sync.mirror_toml_tables  MIOS_BOOTSTRAP_SYNC_MIRROR_TOML_TABLES
+bootstrap.sync.mirror_toml_keys  MIOS_BOOTSTRAP_SYNC_MIRROR_TOML_KEYS
 bootstrap.sync.not_mirrored  MIOS_BOOTSTRAP_SYNC_NOT_MIRRORED
 colors.bg  MIOS_COLORS_BG
 colors.fg  MIOS_COLORS_FG

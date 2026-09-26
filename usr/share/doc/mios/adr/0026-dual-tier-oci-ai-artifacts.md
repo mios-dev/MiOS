@@ -1,7 +1,7 @@
 <!-- AI-hint: Dual-tier OCI AI artifact architecture: standard OCI ModelCars for resident inference lanes via Podman Quadlet image mounts and composefs; CNCF KitOps ModelKits for development, training corpora, SFT/DPO datasets, and LoRA adapters. Read before packaging or deploying any AI model or fine-tuning dataset. -->
-<!-- AI-related: usr/share/doc/mios/adr/0024-dual-tier-oci-ai-artifacts.md, ROADMAP.md (MODELOCI-01..04), usr/share/mios/mios.toml [artifacts.daily], [finetune.micro], usr/share/containers/systemd/mios-llm-light.container, usr/lib/bootc/bound-images.d/ -->
+<!-- AI-related: usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md, ROADMAP.md (MODELOCI-01..04), usr/share/mios/mios.toml [artifacts.daily], [finetune.micro], usr/share/containers/systemd/mios-llm-light.container, usr/lib/bootc/bound-images.d/ -->
 ---
-adr: 0024
+adr: 0026
 title: Dual-tier OCI AI artifact architecture for resident inference and daily training corpora
 status: accepted
 date: 2026-09-26
@@ -14,7 +14,7 @@ supersedes: []
 superseded_by: []
 ---
 
-# ADR-0024: Dual-tier OCI AI artifact architecture for resident inference and daily training corpora
+# ADR-0026: Dual-tier OCI AI artifact architecture for resident inference and daily training corpora
 
 ## Status
 
@@ -81,7 +81,7 @@ MiOS adopts a **Dual-Tiered OCI AI Artifact Architecture**:
 
 ## Implementation
 
-1. `usr/share/doc/mios/adr/0024-dual-tier-oci-ai-artifacts.md` (this record).
+1. `usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md` (this record).
 2. `usr/share/mios/templates/kitfile/Kitfile` (canonical Law 16 template).
 3. `src/mios-rs/mios-gate/src/artifact.rs` (`mios-gate artifact` validator).
 4. `usr/lib/bootc/bound-images.d/50-mios-micro.toml` (ModelCar bound image registration).

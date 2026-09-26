@@ -27,6 +27,25 @@ if [ -r "${DEVLOOP_ENV}/agy-keyring.sh" ]; then
     . "${DEVLOOP_ENV}/agy-keyring.sh" || echo "[devcontainer:post-start] keyring not started; agy will ask to authenticate"
 fi
 
+# code-server once per start, loopback only, on [ports].code_server; its generated password stays in ~/.config/code-server.
+MIOS_TOML_GET=/workspaces/MiOS/usr/libexec/mios/mios-toml-get
+[ -f "$MIOS_TOML_GET" ] || MIOS_TOML_GET=/usr/libexec/mios/mios-toml-get
+cs_port="$(python3 "$MIOS_TOML_GET" ports code_server)"
+case "$cs_port" in
+    ''|*[!0-9]*) echo "[devcontainer:post-start] ERROR: [ports].code_server did not resolve (got '${cs_port}')" >&2; exit 1 ;;
+esac
+if (exec 3<>"/dev/tcp/127.0.0.1/${cs_port}") 2>/dev/null; then
+    echo "[devcontainer:post-start] code-server already listening on 127.0.0.1:${cs_port}"
+elif command -v code-server >/dev/null 2>&1; then
+    cs_log="${XDG_STATE_HOME:-${HOME}/.local/state}/mios/code-server.log"
+    mkdir -p "$(dirname "$cs_log")"
+    setsid code-server --bind-addr "127.0.0.1:${cs_port}" >"$cs_log" 2>&1 </dev/null &
+    echo "[devcontainer:post-start] code-server started on 127.0.0.1:${cs_port} (pid $!, log ${cs_log})"
+else
+    echo "[devcontainer:post-start] ERROR: code-server is missing; the dev image bakes it, so rebuild the container" >&2
+    exit 1
+fi
+
 # The verification gate must fail closed: a non-zero exit here fails
 # postStartCommand and surfaces in the devcontainer UI/CLI. Do not mask this
 # with `|| true` -- that turned every failing invariant into a silent pass.

@@ -1598,37 +1598,6 @@ test_metal_vfio() {
     log "Test_metal_vfio negative test passed"
 }
 
-test_hyprland_heredoc() {
-    log "Testing check_hyprland_conf_heredoc"
-    local conf_file="${ROOT}/usr/share/mios/hyprland/hyprland.conf"
-    if [ -f "$conf_file" ]; then
-        local bak_file="${conf_file}.bak"
-        cp "$conf_file" "$bak_file"
-        python3 - "$conf_file" << 'PYEOF'
-import sys, os
-p = sys.argv[1]
-try:
-    os.chmod(p, 0o666)
-except Exception:
-    pass
-val = open(p, 'r', encoding='utf-8', errors='ignore').read()
-try:
-    os.remove(p)
-except Exception:
-    pass
-with open(p, 'w', encoding='utf-8') as f:
-    f.write(val + '\n# INJECTED-DRIFT\n')
-PYEOF
-
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1 && die "Check_hyprland_conf_heredoc passed despite injected drift"
-
-        cp "$bak_file" "$conf_file" && rm -f "$bak_file"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1 \
-            || die "Check_hyprland_conf_heredoc failed after restoration"
-    fi
-    log "Test_hyprland_heredoc negative test passed"
-}
-
 test_target_languages() {
     log "Testing check_target_languages"
     local bogus_file="${ROOT}/usr/libexec/mios/bogus_script.cpp"
@@ -4967,6 +4936,108 @@ test_egress_firewall() {
     log "check_egress_firewall negative test passed"
 }
 
+test_dotfiles_projection() {
+    log "Testing check_dotfiles_projection"
+    local surface="${ROOT}/.devcontainer/devcontainer.json"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak_s bak_t; bak_s="$(mktemp)"; bak_t="$(mktemp)"
+    cp "$surface" "$bak_s"; cp "$toml" "$bak_t"
+    _dp_restore() { cp "$bak_s" "$surface"; cp "$bak_t" "$toml"; rm -f "$bak_s" "$bak_t"; unset -f _dp_restore; }
+
+    _neg_gate check_dotfiles_projection || { _dp_restore; die "check_dotfiles_projection is red before any plant, so a plant proves nothing: ${_NEG_GATE_OUT}"; }
+
+    # (1) A desktop-only key back on an API-applied surface must go red naming
+    # the file AND the key (ADR-0024).
+    python3 - "$surface" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p, encoding="utf-8"))
+d["customizations"]["vscode"]["settings"]["window.customTitleBarVisibility"] = "never"
+open(p, "w", encoding="utf-8", newline="").write(json.dumps(d, indent=2) + "\n")
+PY
+    _neg_gate check_dotfiles_projection && { _dp_restore; die "check_dotfiles_projection passed with a desktop-only key on a client-portable surface"; }
+    grep -q "window.customTitleBarVisibility" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection went red without naming the planted key: ${_NEG_GATE_OUT}"; }
+    grep -q "devcontainer/devcontainer.json" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection went red without naming the planted file: ${_NEG_GATE_OUT}"; }
+    cp "$bak_s" "$surface"
+
+    # (2) Dropping the key from [dotfiles.vscode].desktop_only_keys makes it
+    # portable again, so every surface WITHOUT it is now stale (it would flow
+    # back on the next sync): the SSOT/surface disagreement must go red too. A
+    # check that only scans surfaces for listed keys passes here -- that is the
+    # Check-Without-Diff this plant exists to catch.
+    python3 - "$toml" <<'PY'
+import sys
+p = sys.argv[1]
+lines = open(p, encoding="utf-8").read().split("\n")
+hits = [i for i, l in enumerate(lines) if l.lstrip().startswith('"window.customTitleBarVisibility",')]
+assert len(hits) == 1, hits
+del lines[hits[0]]
+open(p, "w", encoding="utf-8", newline="").write("\n".join(lines))
+PY
+    _neg_gate check_dotfiles_projection && { _dp_restore; die "check_dotfiles_projection passed after a desktop-only key left the SSOT list while the surfaces still lack it"; }
+    grep -q "window.customTitleBarVisibility" <<<"$_NEG_GATE_OUT" || { _dp_restore; die "check_dotfiles_projection went red without naming the de-listed key: ${_NEG_GATE_OUT}"; }
+
+    _dp_restore
+    _neg_gate check_dotfiles_projection || die "check_dotfiles_projection failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_dotfiles_projection negative test passed"
+}
+
+test_edge_generators() {
+    log "Testing check_edge_generators"
+    local conf="${ROOT}/usr/share/mios/hyprland/hyprland.conf"
+    local bak plant; bak="$(mktemp)"; cp -p "$conf" "$bak"
+    plant="$(printf 'gaps_%s = %d' out 10)"
+    _eg_restore() { cp -p "$bak" "$conf"; rm -f "$bak"; unset -f _eg_restore; }
+
+    _neg_gate check_edge_generators || { _eg_restore; die "check_edge_generators is red before any plant, so a plant proves nothing: ${_NEG_GATE_OUT}"; }
+    sed -i "s/^    gaps_out = .*/    ${plant}/" "$conf"
+    grep -q "^    ${plant}\$" "$conf" || { _eg_restore; die "the gaps_out plant did not land in hyprland.conf"; }
+    _neg_gate check_edge_generators && { _eg_restore; die "check_edge_generators passed with a non-zero gap planted in the hyprland.conf the image installs"; }
+    grep -q "hyprland.conf" <<<"$_NEG_GATE_OUT" || { _eg_restore; die "check_edge_generators went red without naming the planted file: ${_NEG_GATE_OUT}"; }
+    grep -qF "$plant" <<<"$_NEG_GATE_OUT" || { _eg_restore; die "check_edge_generators went red without naming the planted line: ${_NEG_GATE_OUT}"; }
+
+    _eg_restore
+    _neg_gate check_edge_generators || die "check_edge_generators failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_edge_generators negative test passed"
+}
+
+test_edge_status() {
+    log "Testing check_edge_status"
+    local conf="${ROOT}/etc/skel/.config/alacritty/alacritty.toml" toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak tbak shim plant d f; bak="$(mktemp)"; tbak="$(mktemp)"; shim="$(mktemp -d)"; cp -p "$conf" "$bak"; cp -p "$toml" "$tbak"
+    plant="$(printf 'padding.x=%d' 7)"
+    _es_restore() { cp -p "$bak" "$conf"; cp -p "$tbak" "$toml"; rm -f "$bak" "$tbak"; rm -rf "$shim"; unset -f _es_restore; }
+
+    _neg_gate check_edge_status || { _es_restore; die "check_edge_status is red before any plant, so a plant proves nothing: ${_NEG_GATE_OUT}"; }
+    # (1) An artifact that no longer measures edge-to-edge must go red naming the key and the value.
+    sed -i 's/^padding = { x = 0, y = 0 }$/padding = { x = 7, y = 0 }/' "$conf"
+    grep -q '^padding = { x = 7' "$conf" || { _es_restore; die "the padding plant did not land in alacritty.toml"; }
+    _neg_gate check_edge_status && { _es_restore; die "check_edge_status passed with alacritty padding planted at 7"; }
+    grep -q "edge alacritty DRIFT" <<<"$_NEG_GATE_OUT" || { _es_restore; die "check_edge_status went red without naming the planted key: ${_NEG_GATE_OUT}"; }
+    grep -qF "$plant" <<<"$_NEG_GATE_OUT" || { _es_restore; die "check_edge_status went red without naming the planted value: ${_NEG_GATE_OUT}"; }
+    cp -p "$bak" "$conf"
+
+    # (2) A reach = "full" entry still naming an owed lane must go red naming the entry and the lane.
+    sed -i 's|^\(alacritty  *= { reach = "full".*\) }$|\1, pending = "owed-lane" }|' "$toml"
+    grep -q '^alacritty .*pending = "owed-lane" }$' "$toml" || { _es_restore; die "the pending plant did not land in mios.toml"; }
+    _neg_gate check_edge_status && { _es_restore; die "check_edge_status passed with pending on a reach = full entry"; }
+    grep -q "edge alacritty DRIFT pending=owed-lane" <<<"$_NEG_GATE_OUT" || { _es_restore; die "check_edge_status went red without naming the pending entry: ${_NEG_GATE_OUT}"; }
+    cp -p "$tbak" "$toml"
+
+    # (3) No cargo on PATH is a violation, never a skip: mirror PATH minus cargo.
+    for d in ${PATH//:/ }; do
+        for f in "$d"/*; do
+            [[ -x "$f" && "${f##*/}" != cargo && ! -e "$shim/${f##*/}" ]] && ln -s "$f" "$shim/${f##*/}"
+        done
+    done
+    PATH="$shim" _neg_gate check_edge_status && { _es_restore; die "check_edge_status passed with cargo absent from PATH"; }
+    grep -q "cargo is not installed" <<<"$_NEG_GATE_OUT" || { _es_restore; die "check_edge_status went red without naming the missing cargo: ${_NEG_GATE_OUT}"; }
+
+    _es_restore
+    _neg_gate check_edge_status || die "check_edge_status failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_edge_status negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -5092,7 +5163,6 @@ _run_test test_leaked_fixtures
     _run_test test_clevis_luks
     _run_test test_clevis_luks_ssot
     _run_test test_metal_vfio
-    _run_test test_hyprland_heredoc
     _run_test test_target_languages
     _run_test test_roadmap_index
     _run_test test_templates_compilation
@@ -5172,6 +5242,9 @@ _run_test test_leaked_fixtures
     _run_test test_gate_index
     _run_test test_pod_quadlets
     _run_test test_egress_firewall
+    _run_test test_dotfiles_projection
+    _run_test test_edge_generators
+    _run_test test_edge_status
     _run_test test_artifact_prompt
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2

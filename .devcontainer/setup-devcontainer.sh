@@ -103,7 +103,18 @@ done
 echo "=== [6/6] Ensuring Frameless Edge-to-Edge VSCode Environment & Dotfiles ==="
 VSCODE_CSS_TOOL="${WORKSPACE_DIR}/MiOS/usr/libexec/mios/mios-vscode-custom-css"
 [ -f "$VSCODE_CSS_TOOL" ] || VSCODE_CSS_TOOL="/usr/libexec/mios/mios-vscode-custom-css"
-[ -f "$VSCODE_CSS_TOOL" ] && python3 "$VSCODE_CSS_TOOL" install --all || true
+CS_CSS="${WORKSPACE_DIR}/MiOS/usr/share/mios/themes/code-server-terminal.css"
+[ -f "$CS_CSS" ] || CS_CSS="/usr/share/mios/themes/code-server-terminal.css"
+TOML_GET="$(dirname "$VSCODE_CSS_TOOL")/mios-toml-get"
+CS_SCROLLBAR_PX="$(python3 "$TOML_GET" --vendor theme.edge code_server_scrollbar_px)"
+CS_PERIMETER_PX="$(python3 "$TOML_GET" --vendor theme.edge code_server_perimeter_px)"
+# Fatal: a baked code-server that differs from the checked-out stylesheet or [theme.edge] is a stale image.
+python3 "$VSCODE_CSS_TOOL" verify --target /usr/lib/code-server/lib/vscode/out/vs/code/browser/workbench/workbench.html --css "$CS_CSS" --scrollbar-px "$CS_SCROLLBAR_PX" --perimeter-px "$CS_PERIMETER_PX"
+css_rc=0
+python3 "$VSCODE_CSS_TOOL" install --all || css_rc=$?
+if [ "$css_rc" -ne 0 ]; then
+    echo "[devcontainer:setup] custom-css extension install failed (exit ${css_rc})"
+fi
 
 # Ensure SSOT .dotfiles/vscode/settings.json is projected to all IDE targets
 DOTFILES_DIR="${WORKSPACE_DIR}/MiOS/.dotfiles"

@@ -226,9 +226,12 @@ decision is always a new record, never a rewrite of the old one.
 | `usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md` | Consolidate the ~1,500-file script estate into a handful of function-named Rust static binaries (gate/gen/resolve/serve/probe) over a shared mios-ssot crate, ported strangler-style one gate at a time... |
 | `usr/share/doc/mios/adr/0022-version-floating-and-sidecars.md` | ADR 0022: Version Floating, Image Sidecars, and Offline Vendoring Policy. |
 | `usr/share/doc/mios/adr/0023-unified-native-resolver.md` | ADR 0023: Unified Native Resolver Architecture. |
+| `usr/share/doc/mios/adr/0024-vscode-client-scoped-settings.md` | ADR-0024 partitions the VS Code SSOT by mios.toml [dotfiles.vscode]: devcontainer.json / *.code-workspace blocks get only client-portable keys, settings FILES the full profile; sync-dotfiles.py... |
+| `usr/share/doc/mios/adr/0025-core-image-profile.md` | ADR-0025 declares the core MiOS profile once in mios.toml [profiles]; every image kind (OCI, WSL2, devcontainer, cloud projection, Codespace) is the root pipeline run under a profile, and the... |
+| `usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md` | Dual-tier OCI AI artifact architecture: standard OCI ModelCars for resident inference lanes via Podman Quadlet image mounts and composefs; CNCF KitOps ModelKits for development, training corpora,... |
 | `usr/share/doc/mios/adr/README.md` | Index + process spec for MiOS Architecture Decision Records; read this first to learn the ADR format, status lifecycle, and which ADR governs the workstream you are implementing. |
 
-<!-- derived from the AI-hint headers of 24 file(s) matching usr/share/doc/mios/adr/*.md -->
+<!-- derived from the AI-hint headers of 27 file(s) matching usr/share/doc/mios/adr/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/adr/*.md -->
 
 ## manual

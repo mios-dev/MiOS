@@ -588,7 +588,7 @@ Rather than forcing a single packaging format across divergent operational plane
 3. **Harmonize Daily Artifact Output with OCI v1.1 Specifications:**
    - Update `[artifacts.daily]` in `usr/share/mios/mios.toml` to emit standardized OCI v1.1 layout archives and declarative `Kitfile` manifests alongside the existing SFT and DPO JSONL files.
 4. **Draft Architecture Decision Record (ADR):**
-   - Record this dual-tier architecture as ADR 0024 (`usr/share/doc/mios/adr/0024-dual-tier-oci-ai-artifacts.md`), establishing OCI ModelCars for inference and OCI 1.1 ModelKits for training datasets and epistemic learning (`/learn`).
+   - Record this dual-tier architecture as ADR 0026 (`usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md`), establishing OCI ModelCars for inference and OCI 1.1 ModelKits for training datasets and epistemic learning (`/learn`).
 
 ---
 

@@ -1,5 +1,5 @@
 // AI-hint: Artifact verification gate for mios-gate: validates OCI descriptor closure, non-executing SafeTensors/GGUF headers, and OpenAI SFT/DPO JSONL datasets.
-// AI-related: src/mios-rs/mios-gate/src/main.rs, usr/share/doc/mios/adr/0024-dual-tier-oci-ai-artifacts.md, ROADMAP.md (MODELOCI-04)
+// AI-related: src/mios-rs/mios-gate/src/main.rs, usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md, ROADMAP.md (MODELOCI-04)
 
 use crate::Report;
 use std::fs::File;
@@ -31,7 +31,10 @@ fn check_sft(path: &Path, findings: &mut Vec<String>) {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
-            findings.push(format!("{}: failed to read SFT dataset: {e}", path.display()));
+            findings.push(format!(
+                "{}: failed to read SFT dataset: {e}",
+                path.display()
+            ));
             return;
         }
     };
@@ -141,7 +144,10 @@ fn check_dpo(path: &Path, findings: &mut Vec<String>) {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
-            findings.push(format!("{}: failed to read DPO dataset: {e}", path.display()));
+            findings.push(format!(
+                "{}: failed to read DPO dataset: {e}",
+                path.display()
+            ));
             return;
         }
     };
@@ -871,7 +877,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         setup_valid_workspace(tmp.path());
         let sft_path = tmp.path().join("var/lib/mios/training/sft.jsonl");
-        std::fs::write(&sft_path, r#"{"role":"user","content":"no messages array"}"#).unwrap();
+        std::fs::write(
+            &sft_path,
+            r#"{"role":"user","content":"no messages array"}"#,
+        )
+        .unwrap();
         let report = check(tmp.path());
         assert!(!report.ok);
         assert!(report
@@ -892,10 +902,7 @@ mod tests {
         .unwrap();
         let report = check(tmp.path());
         assert!(!report.ok);
-        assert!(report
-            .findings
-            .iter()
-            .any(|f| f.contains("invalid role")));
+        assert!(report.findings.iter().any(|f| f.contains("invalid role")));
     }
 
     #[test]
@@ -910,10 +917,7 @@ mod tests {
         .unwrap();
         let report = check(tmp.path());
         assert!(!report.ok);
-        assert!(report
-            .findings
-            .iter()
-            .any(|f| f.contains("identical")));
+        assert!(report.findings.iter().any(|f| f.contains("identical")));
     }
 
     #[test]
@@ -925,10 +929,7 @@ mod tests {
         std::fs::write(models_dir.join("weights.pickle"), b"pickle bytecode").unwrap();
         let report = check(tmp.path());
         assert!(!report.ok);
-        assert!(report
-            .findings
-            .iter()
-            .any(|f| f.contains(".pickle")));
+        assert!(report.findings.iter().any(|f| f.contains(".pickle")));
     }
 
     #[test]
@@ -1018,7 +1019,10 @@ mod tests {
         std::fs::write(&st, b"short").unwrap();
         let report = check(tmp.path());
         assert!(!report.ok);
-        assert!(report.findings.iter().any(|f| f.contains("less than 8 bytes")));
+        assert!(report
+            .findings
+            .iter()
+            .any(|f| f.contains("less than 8 bytes")));
 
         // Valid safetensors: 8 byte header length + JSON header
         let header = b"{}";

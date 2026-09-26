@@ -871,6 +871,67 @@ check_dotfiles_projection() {
         rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
         _violation "a dotfiles surface drifted from the mios.toml SSOT projection -- re-run mios dotfiles sync (Phase-1 palette drift-gate; mios-dotfiles-render)"
     fi
+    # ADR-0024 second leg: diff each client-portable settings block against the
+    # [dotfiles.vscode] projection, so a key dropped from the list is red too.
+    local sync="$ROOT/tools/sync-dotfiles.py"
+    if [[ ! -f "$sync" ]]; then
+        _violation "tools/sync-dotfiles.py absent -- a tracked deliverable is missing, so the client-portable half of this check cannot run"
+        return
+    fi
+    if MIOS_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" python3 "$sync" --check --client-surfaces >/dev/null 2>"$ROOT/.dotfiles.err"; then
+        rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
+        echo "[98-drift-checks]   every devcontainer.json / *.code-workspace settings block carries exactly the client-portable subset of .dotfiles/vscode/settings.json and no [dotfiles.vscode] desktop-only key (ADR-0024)"
+    else
+        sed 's/^/    /' "$ROOT/.dotfiles.err" >&2 2>/dev/null || true
+        rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
+        _violation "a client-portable VS Code surface drifted from the mios.toml [dotfiles.vscode] projection (ADR-0024) -- re-run python3 tools/sync-dotfiles.py"
+    fi
+}
+
+check_edge_generators() {
+    echo "[98-drift-checks] every imperative edge-to-edge generator regenerates the surface the image installs byte-identical"
+    _need_python || return 0
+    local spec gen arg out n=0
+    for spec in "usr/libexec/mios/ux/wm_config_gen.py ." "usr/libexec/mios/desktop/gpu_terminal.py ." \
+                "usr/libexec/mios/win/wt_profile_inject.py ." "usr/libexec/mios/ux/tmux_theme.py ." \
+                "usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py ."; do
+        read -r gen arg <<<"$spec"
+        if [[ ! -f "$ROOT/$gen" ]]; then
+            _violation "$gen absent -- a tracked generator is missing, so its golden cannot be regenerated" || :
+            continue
+        fi
+        # Vendor tier pinned to this tree: an inherited MIOS_VENDOR_TOML would grade another one.
+        if out="$(cd "$ROOT" && MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" MIOS_VENDOR_TOML_D="$ROOT/usr/lib/mios/mios.d" \
+                python3 "$gen" --check-fixture "$arg" 2>&1)"; then
+            n=$(( n + 1 ))
+        else
+            _violations_from "$gen --check-fixture $arg: " "$out" || :
+        fi
+    done
+    (( n == 5 )) || return 1
+    echo "[98-drift-checks]   hyprland.conf, sway/config, skel alacritty.toml, WSL terminal-profile.json, mios-theme.tmux.conf, portal-term.css and ttyd-page.json each match their generator"
+}
+
+check_edge_status() {
+    echo "[98-drift-checks] every [theme.edge.reach] artifact measures at its declared reach (mios-edge-status)"
+    if ! command -v cargo >/dev/null 2>&1; then
+        _violation "cargo is not installed, so mios-edge-status cannot run -- an unmeasured reach table is not a pass"
+        return
+    fi
+    if [[ ! -f "$ROOT/tools/native/mios-edge-status/Cargo.toml" ]]; then
+        _violation "tools/native/mios-edge-status/Cargo.toml absent -- a tracked deliverable is missing, so this check cannot run"
+        return
+    fi
+    local bs="${MIOS_BOOTSTRAP_ROOT:-$ROOT/../mios-bootstrap}" out rc=0
+    local -a args=(--root "$ROOT")
+    [[ -d "$bs" ]] && args+=(--bootstrap "$bs")
+    out="$(cd "$ROOT/tools/native" && cargo run -q -p mios-edge-status -- "${args[@]}" 2>&1)" || rc=$?
+    if (( rc != 0 )); then
+        printf '%s\n' "$out" | grep -vE '^edge [^ ]+ ' | sed 's/^/    /' >&2 || :
+        _violations_from "mios-edge-status exit ${rc}: " "$(printf '%s\n' "$out" | grep -E 'DRIFT|unclassified|unmeasured|error|mios-edge-status' || true)"
+        return
+    fi
+    echo "[98-drift-checks]   $(grep -c '^edge ' <<<"$out" || :) reach entries measured, none drifted"
 }
 
 check_userenv_parity() {
@@ -2174,20 +2235,6 @@ check_sbom_metadata() {
             echo "  [sbom-drift] $err" >&2
         done
         _violation "SBOM metadata manifests in usr/share/mios/artifacts/sbom/ contain invalid/empty fields"
-    fi
-}
-
-check_hyprland_conf_heredoc() {
-    local tmp; tmp="$(mktemp)"
-    local tmp2; tmp2="$(mktemp)"
-    sed -n '/cat << '\''EOF'\'' > \/usr\/share\/mios\/hyprland\/hyprland.conf/,/^EOF$/p' "$ROOT/automation/65-bake-hyprland.sh" | sed '1d;$d' | tr -d '\r' > "$tmp"
-    tr -d '\r' < "$ROOT/usr/share/mios/hyprland/hyprland.conf" > "$tmp2"
-    if diff -u "$tmp2" "$tmp" >/dev/null; then
-        echo "[98-drift-checks]   Hyprland configuration template is in sync with baker script heredoc"
-        rm -f "$tmp" "$tmp2"
-    else
-        rm -f "$tmp" "$tmp2"
-        _violation "usr/share/mios/hyprland/hyprland.conf has drifted from the inline heredoc in automation/65-bake-hyprland.sh -- sync them (B4)"
     fi
 }
 
@@ -3709,6 +3756,8 @@ main() {
     check_agent_pipe_budgets
     check_no_bare_port_literals
     check_dotfiles_projection
+    check_edge_generators
+    check_edge_status
     check_verb_backends
     check_userenv_parity
     check_globals_ports
@@ -3755,7 +3804,6 @@ main() {
     check_roadmap_index
     check_cli_eval_safety
     check_sbom_metadata
-    check_hyprland_conf_heredoc
     check_shellcheck
     check_target_languages
     check_curl_retry

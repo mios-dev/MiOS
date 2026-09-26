@@ -3,7 +3,7 @@
 
 # MiOS Architecture Decision Records
 
-**24 ADRs** (19 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
+**26 ADRs** (19 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
 
 | # | Decision | Status | Date | Laws | SSOT keys |
 |---|---|---|---|---|---|
@@ -30,6 +30,8 @@
 | 0021 | [Rust static binary consolidation — a handful of function-named binaries over one SSOT crate](usr/share/doc/mios/adr/0021-rust-static-binary-consolidation.md) | accepted | 2026-09-16 | 5, 7, 8, 9, 12, 13, 14, 16 | `"legibility.max_tooling_python_lines"`, `"legibility.python_ai_plane_prefixes"` |
 | 0022 | ["Version floating, image sidecars, and offline vendoring policy"](usr/share/doc/mios/adr/0022-version-floating-and-sidecars.md) | superseded | 2026-08-02 | 7, 8, 12 | `image.sidecars`, `versions` |
 | 0023 | ["Unified native resolver architecture"](usr/share/doc/mios/adr/0023-unified-native-resolver.md) | superseded | 2026-08-05 | 7, 8, 9, 13, 14 | `migration.use_rust_resolver_shell`, `migration.use_rust_resolver_powershell`, `migration.use_rust_resolver_python`, `migration.use_rust_resolver_install_env` |
-| 0024 | [Dual-tier OCI AI artifact architecture for resident inference and daily training corpora](usr/share/doc/mios/adr/0024-dual-tier-oci-ai-artifacts.md) | accepted | 2026-09-26 | 1, 3, 5, 12, 14, 16 | `finetune.micro`, `llamacpp`, `artifacts.daily`, `image.sidecars` |
+| 0024 | [VS Code settings are partitioned by the client that applies them](usr/share/doc/mios/adr/0024-vscode-client-scoped-settings.md) | proposed | 2026-09-25 | 7, 8, 9, 15 | `dotfiles.vscode` |
+| 0025 | [One pipeline, one core profile - every MiOS image is the same system](usr/share/doc/mios/adr/0025-core-image-profile.md) | proposed | 2026-09-26 | 1, 2, 7, 8, 9, 12, 14, 15, 16 | `profiles`, `packages.devcontainer`, `build.phases`, `variants.entries`, +1 |
+| 0026 | [Dual-tier OCI AI artifact architecture for resident inference and daily training corpora](usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md) | accepted | 2026-09-26 | 1, 3, 5, 12, 14, 16 | `finetune.micro`, `llamacpp`, `artifacts.daily`, `image.sidecars` |
 
-<!-- derived from the front-matter of 24 file(s) under usr/share/doc/mios/adr/ -->
+<!-- derived from the front-matter of 26 file(s) under usr/share/doc/mios/adr/ -->

@@ -29,7 +29,9 @@
     // bleeds into / overlaps the logo's right edge. Top-position gives
     // a clean separation: logo block, then a horizontal gap, then info.
     "position": "top",
-    "padding": { "top": 1, "right": 0, "left": 2 }
+    // Logo insets from mios.toml [theme.fastfetch].logo_padding_*; left 0 keeps
+    // the logo flush with the terminal edge like every other MiOS terminal surface.
+    "padding": { "top": @MIOS:theme.fastfetch.logo_padding_top@, "right": @MIOS:theme.fastfetch.logo_padding_right@, "left": @MIOS:theme.fastfetch.logo_padding_left@ }
   },
 
   "display": {

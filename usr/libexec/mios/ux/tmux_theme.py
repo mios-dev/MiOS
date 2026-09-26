@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Terminal multiplexer tmux theme generator deriving active pane styles and status bar formatting from SSOT
-# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py
+# AI-related: tests/test-ux.py, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py, usr/share/mios/tmux/mios-theme.tmux.conf
 # AI-functions: TmuxThemeEngine, generate_tmux_config, main
 """
 MiOS Tmux Theme & Status Line Generator.
@@ -19,21 +19,15 @@ import argparse
 import json
 import os
 import sys
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
-# Enable relative import of mios_toml
-_LIB_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "lib", "mios")
-)
-if os.path.isdir(_LIB_DIR) and _LIB_DIR not in sys.path:
-    sys.path.insert(0, _LIB_DIR)
+_TREE = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
+if os.path.join(_TREE, "usr", "lib", "mios") not in sys.path:
+    sys.path.insert(0, os.path.join(_TREE, "usr", "lib", "mios"))
+import mios_toml  # noqa: E402 -- required: the palette resolves through [colors]
 
-try:
-    import mios_toml
-except ImportError:
-    mios_toml = None
+# sourced by usr/share/mios/tmux/blink-mobile-keys.tmux.conf; rendered at bake by automation/65-bake-hyprland.sh
+GOLDEN = "usr/share/mios/tmux/mios-theme.tmux.conf"
 
 class TmuxThemeEngine:
     """Generates tmux configuration files projecting SSOT palette and layout styles."""
@@ -44,47 +38,27 @@ class TmuxThemeEngine:
         status_position: str = "bottom",
         mock: bool = False,
         dry_run: bool = False,
+        data: Optional[Dict[str, Any]] = None,
     ):
         self.style = style
         self.status_position = status_position
         self.mock = mock
         self.dry_run = dry_run
-        self.palette = self._load_palette()
-
-    def _load_palette(self) -> Dict[str, str]:
-        """Fetch color scheme from mios.toml SSOT or built-in defaults."""
-        if mios_toml is not None:
-            try:
-                return mios_toml.colors()
-            except Exception:
-                pass
-        return {
-            "bg": "#282262",
-            "fg": "#E7DFD3",
-            "accent": "#1A407F",
-            "cursor": "#F35C15",
-            "success": "#3E7765",
-            "warning": "#F35C15",
-            "error": "#DC271B",
-            "info": "#1A407F",
-            "muted": "#948E8E",
-            "subtle": "#B7C9D7",
-            "earth": "#734F39",
-            "silver": "#E0E0E0",
-        }
+        self.palette = mios_toml.colors(data)
 
     def generate_config(self) -> str:
         """Render complete .tmux.conf theme snippet."""
         p = self.palette
-        bg = p.get("bg", "#282262")
-        fg = p.get("fg", "#E7DFD3")
-        accent = p.get("accent", "#1A407F")
-        cursor = p.get("cursor", "#F35C15")
-        muted = p.get("muted", "#948E8E")
-        subtle = p.get("subtle", "#B7C9D7")
-        success = p.get("success", "#3E7765")
+        bg = p["bg"]
+        fg = p["fg"]
+        accent = p["accent"]
+        cursor = p["cursor"]
+        muted = p["muted"]
+        subtle = p["subtle"]
+        success = p["success"]
 
         lines = [
+            "# AI-hint: tmux theme rendered by tmux_theme.py from mios.toml [colors]; tmux has no outer padding",
             "# =====================================================================",
             "# MiOS Canonical Tmux Theme",
             f"# Generated from mios.toml SSOT (Style: {self.style})",
@@ -156,11 +130,7 @@ class TmuxThemeEngine:
     def write_output(self, path: str, content: str) -> None:
         """Write content to disk if not in mock or dry-run mode."""
         if not self.mock and not self.dry_run:
-            parent = os.path.dirname(path)
-            if parent:
-                os.makedirs(parent, exist_ok=True)
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(content)
+            mios_toml.write_atomic(path, content)
 
     def run(self, out_path: Optional[str] = None) -> Dict[str, Any]:
         """Execute tmux theme generation pipeline."""
@@ -191,13 +161,22 @@ def main() -> int:
                         help="Visual styling format for status line segments")
     parser.add_argument("--position", default="bottom", choices=["bottom", "top"],
                         help="Status bar screen position")
-    parser.add_argument("--check", help="Verify syntax and compare against existing tmux config")
     parser.add_argument("--dry-run", action="store_true", help="Simulate execution without writing files")
     parser.add_argument("--mock", action="store_true", help="Deterministic mock execution for CI")
     parser.add_argument("--json", action="store_true", help="Format output as JSON dictionary")
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    fixture = parser.add_mutually_exclusive_group()
+    fixture.add_argument("--check-fixture", metavar="ROOT", help=f"Diff ROOT/{GOLDEN} against the vendor-tier render")
+    fixture.add_argument("--write-fixture", metavar="ROOT", help=f"Regenerate ROOT/{GOLDEN} from the vendor tier")
 
     args = parser.parse_args()
+    if args.check_fixture or args.write_fixture:
+        try:
+            rendered = TmuxThemeEngine(mock=True, data=mios_toml.vendor_tree(_TREE)).generate_config()
+            return mios_toml.golden_gate("tmux_theme", args.check_fixture or args.write_fixture,
+                                         {GOLDEN: rendered}, write=bool(args.write_fixture))
+        except (ValueError, OSError) as exc:
+            print(f"[tmux_theme] ERROR: {exc}", file=sys.stderr)
+            return 1
 
     engine = TmuxThemeEngine(
         style=args.style,

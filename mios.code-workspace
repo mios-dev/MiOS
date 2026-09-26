@@ -81,13 +81,11 @@
       "scrollbar.shadow": "#00000000"
     },
     "workbench.experimental.modernUI": true,
-    "window.titleBarStyle": "custom",
     "window.density.layout": "compact",
     "workbench.activityBar.location": "top",
     "workbench.sideBar.location": "left",
     "workbench.secondarySideBar.defaultVisibility": "hidden",
     "workbench.panel.defaultLocation": "bottom",
-    "workbench.panel.alignment": "justify",
     "workbench.layoutControl.enabled": false,
     "workbench.editor.openSideBySideDirection": "down",
     "workbench.editor.splitInGroupLayout": "horizontal",
@@ -100,14 +98,6 @@
     "terminal.integrated.fontSize": 14,
     "terminal.integrated.tabs.enabled": false,
     "terminal.integrated.defaultProfile.linux": "zsh",
-    "docker.dockerPath": "podman",
-    "docker.environment": {
-      "DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock"
-    },
-    "podman.socketPath": "unix:///run/user/1000/podman/podman.sock",
-    "podman.systemSocketPath": "unix:///run/podman/podman.sock",
-    "window.customTitleBarVisibility": "never",
-    "window.dialogStyle": "custom",
     "workbench.panel.opensMaximized": "always",
     "terminal.integrated.defaultLocation": "view",
     "terminal.integrated.tabs.showActions": "never",
@@ -122,14 +112,14 @@
     "terminal.integrated.smoothScrolling": false,
     "terminal.integrated.shellIntegration.decorationsEnabled": "never",
     "terminal.integrated.shellIntegration.enabled": false,
-    "vscode_custom_css.imports": [
-      "file:///usr/share/mios/themes/code-server-terminal.css"
-    ],
-    "vscode_custom_css.policy": true,
     "remote.extensionKind": {
       "be5invis.vscode-custom-css": [
         "ui"
       ]
+    },
+    "containers.containerCommand": "podman",
+    "containers.environment": {
+      "DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock"
     }
   }
 }

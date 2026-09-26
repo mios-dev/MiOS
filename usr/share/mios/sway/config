@@ -1,0 +1,46 @@
+# AI-hint: Sway config rendered by wm_config_gen.py; gaps and border from mios.toml [theme.edge].wm_*
+# =====================================================================
+# MiOS Sway Configuration
+# Generated from mios.toml SSOT
+# =====================================================================
+
+# Mod Key
+set $mod Mod4
+
+# Font Configuration
+font pango:DejaVu Sans Mono 10
+
+# Gaps & Borders
+default_border pixel 0
+default_floating_border pixel 0
+gaps inner 0
+gaps outer 0
+
+# Color Classes: <class> <border> <background> <text> <indicator> <child_border>
+client.focused          #F35C15 #1A407F #E7DFD3 #F35C15 #F35C15
+client.focused_inactive #948E8E #282262 #E7DFD3 #948E8E #948E8E
+client.unfocused        #948E8E #282262 #948E8E #282262 #282262
+client.urgent           #DC271B #DC271B #E7DFD3 #DC271B #DC271B
+
+# Keybindings
+bindsym $mod+Return exec alacritty
+bindsym $mod+q kill
+bindsym $mod+space exec rofi -show drun
+bindsym $mod+v floating toggle
+bindsym $mod+f fullscreen toggle
+bindsym $mod+l exec mios-lock
+bindsym $mod+Shift+e exec swaynag -t warning -m 'Exit Sway?' -b 'Yes' 'swaymsg exit'
+
+# Workspace Switching
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+
+# Window Movement to Workspaces
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5

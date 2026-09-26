@@ -288,6 +288,88 @@ def float_allowlist(data=None):
     d = data if data is not None else load_vendor()
     return section(d, "build.float")
 
+class EdgeInsetsError(ValueError):
+    """[theme].padding / [theme].scrollbar_state outside the grammar MiOS accepts."""
+
+# The non-negative integer subset of the Windows Terminal profile `padding` grammar.
+_WT_PADDING = re.compile(r"([0-9]+)(?: *, *([0-9]+)(?: *, *([0-9]+) *, *([0-9]+))?)?")  # fullmatch only
+_WT_SCROLLBAR_STATES = ("visible", "hidden", "always")
+
+def edge_insets(data):
+    """The ONE parser of the terminal edge intent: {left, top, right, bottom,
+    scrollbar_hidden} from [theme].padding ("#", "#, #" = left-right then
+    top-bottom, or "#, #, #, #" = left, top, right, bottom) and
+    [theme].scrollbar_state. Parity table: usr/share/mios/theme/fixtures/edge/padding-cases.tsv."""
+    theme = section(data, "theme")
+    raw = theme.get("padding")
+    m = None if isinstance(raw, bool) or raw is None else _WT_PADDING.fullmatch(str(raw))
+    if not m:
+        raise EdgeInsetsError(f"[theme].padding: '{'' if raw is None else raw}' is not a non-negative integer WT padding")
+    a, b, c, d = m.groups()
+    if b is None:
+        left = top = right = bottom = int(a)
+    elif c is None:
+        left = right = int(a)
+        top = bottom = int(b)
+    else:
+        left, top, right, bottom = int(a), int(b), int(c), int(d)
+    state = theme.get("scrollbar_state")
+    if state not in _WT_SCROLLBAR_STATES:
+        raise EdgeInsetsError(f"[theme].scrollbar_state: '{state}' is not one of "
+                              + ", ".join(_WT_SCROLLBAR_STATES))
+    return {"left": left, "top": top, "right": right, "bottom": bottom,
+            "scrollbar_hidden": state == "hidden"}
+
+def vendor_tree(root):
+    """Vendor tier (monolith + usr/lib/mios/mios.d) of the tree at root; MIOS_VENDOR_TOML[_D] override it."""
+    vendor = os.environ.get("MIOS_VENDOR_TOML") or os.path.join(root, "usr", "share", "mios", "mios.toml")
+    frag_dir = os.environ.get("MIOS_VENDOR_TOML_D") or os.path.join(root, "usr", "lib", "mios", "mios.d")
+    return load_merged([vendor] + _frags(frag_dir))
+
+def write_atomic(path, text):
+    """Temp file + rename beside path, keeping an existing file's mode (0644 when new)."""
+    import stat
+    import tempfile
+    parent = os.path.dirname(path) or "."
+    os.makedirs(parent, exist_ok=True)
+    mode = stat.S_IMODE(os.stat(path).st_mode) if os.path.exists(path) else 0o644
+    fd, tmp = tempfile.mkstemp(dir=parent, prefix=".mios-write.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+def golden_diff(path, rendered):
+    """None when path holds exactly rendered, else one line naming the file and its first differing line."""
+    try:
+        with open(path, encoding="utf-8", newline="") as fh:
+            committed = fh.read()
+    except OSError as exc:
+        return f"{path}: cannot read the committed golden ({exc.strerror}); run --write-fixture"
+    if committed == rendered:
+        return None
+    old, new = committed.splitlines() + ["<end of file>"], rendered.splitlines() + ["<end of file>"]
+    i = next((i for i, pair in enumerate(zip(old, new)) if pair[0] != pair[1]), None)
+    return f"{path}: differs from the generator only in line endings" if i is None else (
+        f"{path}:{i + 1}: committed {old[i]!r}, generator renders {new[i]!r}")
+
+def golden_gate(tag, root, renders, write=False):
+    """Regenerate (write) or diff every root-relative path in renders; 1 after printing each drift to stderr."""
+    import sys
+    drift = 0
+    for rel, text in renders.items():
+        path = os.path.join(root, rel)
+        if write:
+            write_atomic(path, text)
+        elif (msg := golden_diff(path, text)):
+            print(f"[{tag}] DRIFT {msg}", file=sys.stderr)
+            drift = 1
+    return drift
+
 def get_aliases(dotted_path):
     aliases = []
 
@@ -756,11 +838,11 @@ WALK_EMIT_KEEP = {
     "MIOS_HEADLESS", "MIOS_MONITOR_RUNNING", "MIOS_NO_COLOR", "MIOS_NO_MONITOR",
 }
 
-def emit_exports() -> dict[str, str]:
-    """Emit all derived MIOS_* environment variables from SSOT layers."""
+def emit_exports(data=None) -> dict[str, str]:
+    """Emit all derived MIOS_* environment variables from SSOT layers (or from `data`, a merged table)."""
     import re as _re
     _re_unsafe = _re.compile(r"[^A-Za-z0-9_]")
-    data = load_merged()
+    data = load_merged() if data is None else data
     ports = data.get("ports") or {}
     try:
         stack_offset = int(ports.get("stack_id", 0)) * 10000

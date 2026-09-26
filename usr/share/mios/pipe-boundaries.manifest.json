@@ -834,6 +834,16 @@
       ],
       "public_symbols": []
     },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/conductor.py": {
+      "configure_kwargs": [
+        "allowed_exec_commands",
+        "dispatch_verb"
+      ],
+      "public_symbols": [
+        "StepSpec",
+        "validate_action_fields"
+      ]
+    },
     "usr/lib/mios/agent-pipe/mios_pipe/routing/consensus.py": {
       "configure_kwargs": [],
       "public_symbols": [
@@ -1097,6 +1107,20 @@
       ],
       "public_symbols": [
         "run_db_reseed_bg"
+      ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py": {
+      "configure_kwargs": [],
+      "public_symbols": [
+        "goldens",
+        "main",
+        "resolved_data",
+        "style_block",
+        "term_css",
+        "ttyd_golden",
+        "ttyd_page",
+        "ttyd_rule",
+        "ttyd_source"
       ]
     },
     "usr/lib/mios/agent-pipe/mios_pipe/routing/provider_translate.py": {

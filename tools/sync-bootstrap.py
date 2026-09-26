@@ -39,7 +39,32 @@ def validate_manifest(man: dict) -> list[str]:
            for f in sorted(set(mirror) & set(notmir))]
     bad += [f"{f!r}: malformed [bootstrap.sync].mirror_files entry"
             for f in mirror if not f or f != f.strip()]
+    bad += [f"{k!r}: malformed [bootstrap.sync].mirror_toml_keys entry (want \"<dotted.table>.<key>\")"
+            for k in (man.get("mirror_toml_keys") or ()) if _split_key(k) is None]
     return bad
+
+def _split_key(entry):
+    """'theme.padding' -> ('theme', 'padding'); None when it names no table key."""
+    if not isinstance(entry, str) or entry != entry.strip() or "." not in entry:
+        return None
+    table, key = entry.rsplit(".", 1)
+    return (table, key) if table and key and "" not in table.split(".") else None
+
+def _walk(data: dict, table: str):
+    """Resolve a dotted table name through the nested tables; None when absent."""
+    node = data
+    for part in table.split("."):
+        node = node.get(part) if isinstance(node, dict) else None
+        if node is None:
+            return None
+    return node if isinstance(node, dict) else None
+
+def _load_boot(boot: str):
+    bpath = os.path.join(boot, "mios.toml")
+    if not os.path.isfile(bpath):
+        return bpath, None
+    with open(bpath, "rb") as fh:
+        return bpath, tomllib.load(fh)
 
 def mirror_files(root: str, boot: str, files, apply: bool):
     """Returns the list of files that differ (before any copy)."""
@@ -65,16 +90,17 @@ def mirror_tables(root: str, boot: str, tables, data: dict, apply: bool):
     Compares PARSED values, not text: bootstrap's file has its own comments and
     ordering, and a textual diff would report drift on every formatting choice.
     """
-    drift = []
-    bpath = os.path.join(boot, "mios.toml")
-    if not os.path.isfile(bpath):
-        return [f"bootstrap has no mios.toml at {bpath}"]
-    with open(bpath, "rb") as fh:
-        bdata = tomllib.load(fh)
+    drift, fatal = [], []
+    bpath, bdata = _load_boot(boot)
+    if bdata is None:
+        return [f"bootstrap has no mios.toml at {bpath}"], [bpath]
 
     for table in tables:
-        want = data.get(table) or {}
-        got = bdata.get(table) or {}
+        want = _walk(data, table)
+        if want is None:
+            fatal.append(f"[{table}]: absent in mios.git")
+            continue
+        got = _walk(bdata, table) or {}
         want_s = {k: v for k, v in want.items() if not isinstance(v, dict)}
         got_s = {k: v for k, v in got.items() if not isinstance(v, dict)}
         if want_s == got_s:
@@ -84,7 +110,37 @@ def mirror_tables(root: str, boot: str, tables, data: dict, apply: bool):
                 drift.append(f"[{table}].{k}: main={want_s.get(k)!r} bootstrap={got_s.get(k)!r}")
         if apply:
             _rewrite_table(bpath, table, want_s)
-    return drift
+    return drift + fatal, fatal
+
+def mirror_keys(root: str, boot: str, keys, data: dict, apply: bool):
+    """Mirror single "<dotted.table>.<key>" values; the rest of each table is repo-owned.
+
+    Returns (drift, fatal): fatal is the drift --apply cannot repair.
+    """
+    drift, fatal = [], []
+    if not keys:
+        return drift, fatal
+    bpath, bdata = _load_boot(boot)
+    if bdata is None:
+        return [f"bootstrap has no mios.toml at {bpath}"], [bpath]
+    for entry in keys:
+        table, key = _split_key(entry)
+        want_t = _walk(data, table)
+        if want_t is None or key not in want_t:
+            fatal.append(f"[{table}]: absent in mios.git" if want_t is None
+                         else f"[{table}].{key}: absent in mios.git")
+            continue
+        want = want_t[key]
+        if isinstance(want, dict):
+            fatal.append(f"[{table}].{key}: is a table in mios.git, not a key")
+            continue
+        got = (_walk(bdata, table) or {}).get(key)
+        if want == got:
+            continue
+        drift.append(f"[{table}].{key}: main={want!r} bootstrap={got!r}")
+        if apply:
+            _rewrite_table(bpath, table, {key: want})
+    return drift + fatal, fatal
 
 def _rewrite_table(path: str, table: str, values: dict):
     """Replace the scalar keys of one [table] in place, preserving its comments."""
@@ -111,8 +167,11 @@ def _rewrite_table(path: str, table: str, values: dict):
         out.append(f"{m.group(1)}{key}{m.group(3)}{_toml_val(values[key])}\n")
     for k in sorted(set(values) - seen):
         out.append(f"{k} = {_toml_val(values[k])}\n")
-    io.open(path, "w", encoding="utf-8", newline="\n").write(
-        "".join(lines[:start] + out + lines[end:]))
+    tmp = path + ".sync-tmp"
+    with io.open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("".join(lines[:start] + out + lines[end:]))
+    shutil.copymode(path, tmp)
+    os.replace(tmp, path)
 
 def _toml_val(v):
     if isinstance(v, bool):
@@ -182,13 +241,24 @@ def main(argv=None) -> int:
 
     drift = unclassified_shared(args.root, args.bootstrap, man) if not args.apply else []
     drift += mirror_files(args.root, args.bootstrap, man["mirror_files"], args.apply)
-    drift += mirror_tables(args.root, args.bootstrap,
-                           man.get("mirror_toml_tables") or [], data, args.apply)
+    tdrift, tfatal = mirror_tables(args.root, args.bootstrap,
+                                   man.get("mirror_toml_tables") or [], data, args.apply)
+    keys = man.get("mirror_toml_keys") or []
+    kdrift, kfatal = mirror_keys(args.root, args.bootstrap, keys, data, args.apply)
+    drift += tdrift + kdrift
 
     if args.apply:
-        print(f"[sync-bootstrap] applied {len(drift)} change(s) from mios.git")
+        fatal = tfatal + kfatal
+        print(f"[sync-bootstrap] applied {len(drift) - len(fatal)} change(s) from mios.git")
         for d in drift:
-            print(f"  {d}")
+            if d not in fatal:
+                print(f"  {d}")
+        if fatal:
+            print(f"[sync-bootstrap] {len(fatal)} surface(s) --apply cannot repair:",
+                  file=sys.stderr)
+            for d in fatal:
+                print(f"  {d}", file=sys.stderr)
+            return 1
         return 0
     if drift:
         print(f"[sync-bootstrap] {len(drift)} surface(s) drifted from mios.git:",
@@ -196,8 +266,9 @@ def main(argv=None) -> int:
         for d in drift:
             print(f"  {d}", file=sys.stderr)
         return 1
-    print(f"[sync-bootstrap] {len(man['mirror_files'])} mirrored file(s) and "
-          f"{len(man.get('mirror_toml_tables') or [])} table(s) match mios.git")
+    print(f"[sync-bootstrap] {len(man['mirror_files'])} mirrored file(s), "
+          f"{len(man.get('mirror_toml_tables') or [])} table(s) and "
+          f"{len(keys)} key(s) match mios.git")
     return 0
 
 if __name__ == "__main__":
