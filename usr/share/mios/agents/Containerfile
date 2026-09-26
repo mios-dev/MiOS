@@ -1,7 +1,11 @@
 # AI-hint: MiOS configuration and runtime asset for Containerfile.
 # AI-related: /usr/share/mios/agents, mios-a2o, mios-frontier, mios-frontier-sync, mios-agents, mios-root, mios-agents-path
 
-FROM ghcr.io/coder/code-server:latest
+# Both builders resolve these through mios-toml-get: [image.sidecars].code_server tag, [theme.edge] px.
+ARG MIOS_CODE_SERVER_VERSION
+FROM ghcr.io/coder/code-server:${MIOS_CODE_SERVER_VERSION}
+ARG CODE_SERVER_SCROLLBAR_PX
+ARG CODE_SERVER_PERIMETER_PX
 
 USER root
 RUN apt-get -o Acquire::ForceIPv4=true update \
@@ -10,6 +14,16 @@ RUN apt-get -o Acquire::ForceIPv4=true update \
       nodejs npm python3 python3-pip python3-venv \
       build-essential less procps openssh-client tar gzip \
  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=mios /usr/libexec/mios/mios-vscode-custom-css /usr/libexec/mios/mios-vscode-custom-css
+COPY --from=mios /usr/share/mios/themes/code-server-terminal.css /usr/share/mios/themes/code-server-terminal.css
+RUN set -eu; \
+    wb=/usr/lib/code-server/lib/vscode/out/vs/code/browser/workbench/workbench.html; \
+    test -f "$wb"; \
+    set -- --target "$wb" --css /usr/share/mios/themes/code-server-terminal.css \
+        --scrollbar-px "${CODE_SERVER_SCROLLBAR_PX:?}" --perimeter-px "${CODE_SERVER_PERIMETER_PX:?}"; \
+    python3 /usr/libexec/mios/mios-vscode-custom-css patch "$@"; \
+    python3 /usr/libexec/mios/mios-vscode-custom-css verify "$@"
 
 RUN npm install -g @anthropic-ai/claude-code
 

@@ -2278,6 +2278,12 @@ surfaces = [
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
   { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
   { generator = "tools/render-ports.py", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
+  { generator = "usr/libexec/mios/ux/wm_config_gen.py", check = "check_edge_generators", output = "usr/share/mios/hyprland/hyprland.conf, usr/share/mios/sway/config" },
+  { generator = "usr/libexec/mios/desktop/gpu_terminal.py", check = "check_edge_generators", output = "etc/skel/.config/alacritty/alacritty.toml" },
+  { generator = "usr/libexec/mios/win/wt_profile_inject.py", check = "check_edge_generators", output = "usr/share/mios/wsl/terminal-profile.json" },
+  { generator = "usr/libexec/mios/ux/tmux_theme.py", check = "check_edge_generators", output = "usr/share/mios/tmux/mios-theme.tmux.conf" },
+  { generator = "usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py", check = "check_edge_generators", output = "usr/share/mios/theme/fixtures/edge/portal-term.css, usr/share/mios/theme/fixtures/edge/ttyd-page.json" },
+  { generator = "tools/native/mios-edge-status/src/main.rs", check = "check_edge_status", output = "stdout (one reach line per [theme.edge.reach] key)" },
 ]
 
 # The scope this registry is measured against. `mios-gate projection-coverage`
@@ -2492,6 +2498,9 @@ max_clients        = 0
 # Pinned release: the patched ttyd page (-I) is built from it; a moved .terminal
 # padding rule FAILS the build.
 version            = "1.7.7"
+page_source        = "https://raw.githubusercontent.com/tsl0922/ttyd/{version}/src/html.h"  # the gzipped page ttyd embeds at that tag
+page_sha256        = "6f3716ebd951e101df883bb14922f067c023f11561aa088ef487814183727cf3"  # page_source at version; a bump re-measures it
+page_path          = "/usr/share/mios/ttyd/index.html"  # the patched page mios-ttyd-launch serves with -I
 # xterm font size (px). The MiOS Portal sizes its inline terminal embed to a
 # fixed 80x20 pixel box assuming this; raising it makes the embed show fewer
 # columns/rows in that box (and vice-versa).
@@ -7958,6 +7967,9 @@ wm_gaps_outer_px         = 0      # hyprland general:gaps_out / sway gaps outer
 wm_border_px             = 0      # hyprland general:border_size / sway default_border pixel
 portal_term_chrome_px    = 0      # Portal expanded terminal card: .embed-box border width + radius
 portal_term_bleed        = true   # the ttyd iframe box reaches the card's left/right/bottom inner edges
+ttyd_padding_px          = 0      # ttyd page #terminal-container .terminal padding (upstream 5)
+code_server_density      = "compact"  # window.density.layout, rendered into .dotfiles/{vscode,code-server}/settings.json by tools/sync-dotfiles.py
+code_server_modern_ui    = true   # workbench.experimental.modernUI in the same projections (ModernUI stays on)
 
 # One entry per terminal surface MiOS knows about, printed by mios-edge-status.
 # { reach = "full|partial|none|n/a", why, artifact? (committed path measured),
@@ -7967,9 +7979,9 @@ portal_term_bleed        = true   # the ttyd iframe box reaches the card's left/
 wt-installer             = { reach = "full", why = "Get-MiOS.ps1 Install-MiOSTerminalProfile writes padding/scrollbarState on every MiOS profile and profiles.defaults from [theme] on each install run", artifact = "Get-MiOS.ps1" }
 wt-backend               = { reach = "full", why = "field/lib/Get-MiOS-Backend.ps1 writes the same keys (bootstrap-only file)", artifact = "field/lib/Get-MiOS-Backend.ps1" }
 wt-projection            = { reach = "full", why = "Law 8 projection of the same keys, gated by mios-dotfiles-render check", artifact = "usr/share/mios/theme/fixtures/windows-terminal-settings.expected.json", registry = "windows-terminal" }
-wt-profile-inject        = { reach = "full", why = "wt_profile_inject.py writes padding/scrollbarState from edge_insets(), wired into the build", artifact = "usr/share/mios/theme/fixtures/edge/wt-profiles.json", pending = "edge-imperative-gens" }
-code-server-devcontainer = { reach = "partial", why = "stylesheet gutter 0; scrollbar reserve and 4px card perimeter removed by fail-loud bake patches; compact density; residual 1px transparent card border per edge; terminal-editor inset unverified", artifact = "usr/share/mios/themes/code-server-terminal.css", registry = "code-server-terminal", pending = "edge-code-server" }
-code-server-agents       = { reach = "partial", why = "the same bake in the mios-agents image, which serves production code-server", artifact = "usr/share/mios/themes/code-server-terminal.css", pending = "edge-agents-image" }
+wt-profile-inject        = { reach = "partial", why = "the image ships the WSL terminal profile template wt_profile_inject.py renders (padding/scrollbarState from edge_insets()) and etc/wsl-distribution.conf names it, but WSL documents [windowsterminal].profileTemplate only for the .wsl/tar install while every MiOS installer runs wsl --import, so no install path is shown to apply it", artifact = "usr/share/mios/wsl/terminal-profile.json" }
+code-server-devcontainer = { reach = "partial", why = "stylesheet gutter 0; scrollbar reserve and 4px card perimeter removed by fail-loud bake patches; compact density; residual 1px transparent card border per edge; terminal-editor inset unverified", artifact = "usr/share/mios/themes/code-server-terminal.css", registry = "code-server-terminal" }
+code-server-agents       = { reach = "partial", why = "the same bake in the mios-agents image, which serves production code-server", artifact = "usr/share/mios/themes/code-server-terminal.css" }
 code-server-quadlet      = { reach = "n/a", why = "mios-code-server is retired and disabled (90-mios.preset); its def is inert" }
 vscode-settings          = { reach = "full", why = "window.density.layout compact with modernUI in every settings projection, gated by sync-dotfiles.py --check", artifact = ".dotfiles/code-server/settings.json" }
 vscode-desktop           = { reach = "partial", why = "stylesheet only through the desktop custom-css extension; a client install gets no bundle patch, so the 10px ModernUI scrollbar reserve stays" }
@@ -7980,12 +7992,12 @@ gtk4-user-css            = { reach = "partial", why = "new homes through etc/ske
 gtk4-system-css          = { reach = "none", why = "GTK 4 never loads /etc/gtk-4.0/gtk.css; it reads only the user config dir" }
 gtk3-css                 = { reach = "n/a", why = "no GTK3 VTE terminal ships" }
 vte-shell-integration    = { reach = "n/a", why = "etc/profile.d/vte.sh and vte.csh carry prompt/OSC only, no geometry" }
-alacritty                = { reach = "full", why = "gpu_terminal.py is the one Alacritty generator, SSOT-driven and wired into the build", artifact = "usr/share/mios/theme/fixtures/edge/alacritty.toml", pending = "edge-imperative-gens" }
-hyprland-sway            = { reach = "full", why = "wm_config_gen.py takes gaps and border from [theme.edge].wm_*, wired into the build", artifact = "usr/share/mios/theme/fixtures/edge/hyprland.conf", pending = "edge-imperative-gens" }
-tmux-theme               = { reach = "n/a", why = "tmux has no outer padding; tmux_theme.py is wired into the build for content only", pending = "edge-imperative-gens" }
+alacritty                = { reach = "full", why = "new homes get the etc/skel alacritty.toml gpu_terminal.py renders; 65-bake-hyprland.sh renders it from the build SSOT and check_edge_generators gates the golden; no [packages] section installs alacritty itself", artifact = "etc/skel/.config/alacritty/alacritty.toml" }
+hyprland-sway            = { reach = "full", why = "the hyprland.conf the image ships (and /etc/hypr links) is the wm_config_gen.py render, gaps and border from [theme.edge].wm_*; 65-bake-hyprland.sh renders it from the build SSOT and check_edge_generators gates the golden; the sway config ships beside it with no sway package", artifact = "usr/share/mios/hyprland/hyprland.conf" }
+tmux-theme               = { reach = "n/a", why = "tmux has no outer padding; the image ships the tmux_theme.py render the Blink tmux config sources, colours only" }
 tmux-sessions            = { reach = "n/a", why = "agent PTY, war room and key maps carry no inset concept" }
-portal-chrome            = { reach = "full", why = "portal_edge.term_css() is served by agent-pipe on every Portal page", artifact = "usr/share/mios/theme/fixtures/edge/portal-term.css", pending = "edge-portal" }
-ttyd-page                = { reach = "full", why = "ttyd serves a patched copy of its page (-I) built from [ttyd].version; the build fails when the .terminal padding rule moves", artifact = "usr/share/mios/ttyd/index.html", pending = "unassigned" }
+portal-chrome            = { reach = "full", why = "portal_edge.term_css() is served by agent-pipe on every Portal page", artifact = "usr/share/mios/theme/fixtures/edge/portal-term.css" }
+ttyd-page                = { reach = "full", why = "ttyd serves a patched copy of its page (-I) built from [ttyd].version; the build fails when the .terminal padding rule moves, the page differs from its golden, or the ttyd package is another version", artifact = "usr/share/mios/theme/fixtures/edge/ttyd-page.json" }
 portal-xterm-assets      = { reach = "n/a", why = "the vendored xterm.css is routed but no page instantiates it" }
 fastfetch-logo           = { reach = "partial", why = "the image and new homes carry [theme.fastfetch].logo_padding_*; an existing ~/.config/fastfetch/config.jsonc is kept until mios dotfiles sync fastfetch", artifact = "usr/share/mios/fastfetch/config.jsonc", registry = "fastfetch" }
 oh-my-posh               = { reach = "n/a", why = "prompt blocks, no inset keys" }
@@ -11779,6 +11791,9 @@ mirror_files = [
 # SSOT tables mirrored into bootstrap's root mios.toml.
 mirror_toml_tables = ["ports", "colors"]
 
+# Single keys "<dotted.table>.<key>" mirrored by value; the rest of each table stays repo-owned.
+mirror_toml_keys = ["theme.padding", "theme.scrollbar_state"]
+
 # Deliberately NOT mirrored; reasons in installation/UNIFY.md.
 not_mirrored = [
   "install.sh", "install.ps1", "bootstrap.sh", "bootstrap.ps1",
@@ -11912,6 +11927,7 @@ unit = [
     "tests/test-composefs-seal.sh",
     "tests/test-bootc-rollback-recovery.sh",
     "tests/test-vscode-custom-css.sh",
+    "tests/test-code-server-bake.py",
     "tests/test-hardware-target-profiling.sh",
     "tests/test-blade-enroll.sh",
     "tests/test-greenboot-hardware-degrade.sh",

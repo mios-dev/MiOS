@@ -3,7 +3,9 @@
 # AI-doc: usr/share/doc/mios/manual/tools.md
 import argparse
 import json
+import glob
 import os
+import re
 import shutil
 import stat
 import sys
@@ -57,7 +59,10 @@ def _fatal(msg, code):
 def _vendor_merged():
     if not os.path.isfile(VENDOR_TOML):
         raise SystemExit(_fatal(f"vendor SSOT missing: {VENDOR_TOML}", EXIT_MISSING_SOURCE))
-    return mios_toml.load_merged(layers=[VENDOR_TOML])
+    frag_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(VENDOR_TOML)))),
+                            "usr", "lib", "mios", "mios.d")
+    frags = sorted(glob.glob(os.path.join(frag_dir, "*.toml")))  # Law 13: vendor fragments, as the gate reads them
+    return mios_toml.load_merged(layers=[VENDOR_TOML, *frags])
 
 
 def _name_list(dc, key, what):
@@ -89,6 +94,41 @@ def devcontainer_projection():
             raise SystemExit(_fatal(f"mios.toml [dotfiles.devcontainer].container_env_keys names {n!r}, which "
                                     f"the resolver does not emit as a resolved value ({env[n]!r})", EXIT_BAD_POLICY))
     return {"forwardPorts": [int(v) for v in ports], "containerEnv": env}
+
+
+# [theme.edge] key -> the settings key it owns in both .dotfiles settings sources (operator decision: compact, ModernUI on).
+EDGE_SETTINGS = {"code_server_density": "window.density.layout", "code_server_modern_ui": "workbench.experimental.modernUI"}
+
+
+def project_edge_settings(check):
+    """Render EDGE_SETTINGS from mios.toml [theme.edge] into each .dotfiles settings source in place; exit 3 on an absent key."""
+    edge = mios_toml.section(_vendor_merged(), "theme.edge")
+    missing = [k for k in EDGE_SETTINGS if k not in edge]
+    if missing:
+        raise SystemExit(_fatal(f"mios.toml [theme.edge] lacks {', '.join(missing)}, so the settings they own "
+                                "cannot be projected", EXIT_BAD_POLICY))
+    drift = []
+    for src in (VSCODE_SETTINGS_SRC, CODESERVER_SETTINGS_SRC):
+        label = os.path.relpath(src, REPO_ROOT)
+        with open(src, encoding="utf-8", newline="") as fh:
+            text = fh.read()
+        doc, new = json.loads(text), text
+        for tkey, skey in EDGE_SETTINGS.items():
+            want = edge[tkey]
+            if skey in doc and doc[skey] == want and type(doc[skey]) is type(want):
+                continue
+            drift.append((label, f"{skey} is {doc.get(skey, '<absent>')!r}, mios.toml [theme.edge].{tkey} "
+                                 f"renders {want!r}"))
+            pat = re.compile(r'^([ \t]*' + re.escape(json.dumps(skey)) + r'[ \t]*:[ \t]*)[^,\n]*?([ \t]*,?[ \t]*)$', re.M)
+            if pat.search(new):
+                new = pat.sub(lambda m: m.group(1) + json.dumps(want) + m.group(2), new, count=1)
+            else:
+                new = new.replace("{\n", "{\n  " + json.dumps(skey) + ": " + json.dumps(want) + ",\n", 1)
+        if new != text and not check:
+            if json.loads(new) != dict(doc, **{s: edge[t] for t, s in EDGE_SETTINGS.items()}):
+                raise SystemExit(_fatal(f"{label}: the in-place edit of the [theme.edge] keys did not parse back", EXIT_BAD_POLICY))
+            _write_atomic(src, new)
+    return drift
 
 
 def load_policy():
@@ -269,6 +309,7 @@ def main() -> int:
             return _fatal(f"Missing SSOT source: {src}", EXIT_MISSING_SOURCE)
     pol = load_policy()
     dc_owned = devcontainer_projection()
+    drift.extend(project_edge_settings(args.check))
     with open(VSCODE_SETTINGS_SRC, "r", encoding="utf-8") as f:
         vscode_ssot = json.load(f)
     with open(CODESERVER_SETTINGS_SRC, "r", encoding="utf-8") as f:

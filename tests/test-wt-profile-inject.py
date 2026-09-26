@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # AI-hint: Unit and integration tests for Windows Terminal settings.json profile injector.
-# AI-related: usr/libexec/mios/win/wt_profile_inject.py, usr/share/mios/mios.toml, usr/libexec/mios/win/unattend_gen.py
+# AI-related: usr/libexec/mios/win/wt_profile_inject.py, usr/share/mios/mios.toml, usr/libexec/mios/win/unattend_gen.py, usr/share/mios/wsl/terminal-profile.json, etc/wsl-distribution.conf
 """Unit and integration test suite for WindowsTerminalProfileInjector and CLI."""
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -25,10 +27,21 @@ if spec and spec.loader:
 else:
     raise ImportError(f"Could not load module from {_TARGET_PATH}")
 
+_VENDOR = os.path.join(_ROOT, "usr", "share", "mios", "mios.toml")
+
+def _env(user_toml=""):
+    """The overlay pinned to this tree's vendor tier plus an optional user tier; no host tier."""
+    return patch.dict(os.environ, {
+        "MIOS_VENDOR_TOML": _VENDOR, "MIOS_VENDOR_TOML_D": os.path.join(_ROOT, "usr", "lib", "mios", "mios.d"),
+        "MIOS_HOST_TOML": "/nonexistent/mios.toml", "MIOS_USER_TOML": user_toml or "/nonexistent/user/mios.toml"})
+
 class TestWtProfileInject(unittest.TestCase):
     """Test suite for non-destructive Windows Terminal settings.json merging, palette injection, and CLI."""
 
     def setUp(self):
+        env = _env()
+        env.start()
+        self.addCleanup(env.stop)
         self.temp_dir = tempfile.TemporaryDirectory(prefix="mios-test-wt-")
         self.settings_path = os.path.join(self.temp_dir.name, "settings.json")
 
@@ -91,6 +104,53 @@ class TestWtProfileInject(unittest.TestCase):
         # Scheme injected
         scheme_names = [s["name"] for s in updated["schemes"]]
         self.assertIn("MiOS Dark", scheme_names)
+
+    def _write_user(self, body):
+        path = os.path.join(self.temp_dir.name, "user.toml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+        return path
+
+    def test_profiles_carry_padding_and_scrollbar_from_user_tier(self):
+        user = self._write_user('[theme]\npadding = "3"\nscrollbar_state = "always"\n[theme.edge]\nwm_gaps_outer_px = 7\n')
+        with _env(user):
+            injector = wt_profile_inject.WindowsTerminalProfileInjector(settings_path=self.settings_path, mock=False)
+            injector.run()
+        with open(self.settings_path, "r", encoding="utf-8") as f:
+            mios = [p for p in json.load(f)["profiles"]["list"] if p["name"].startswith("MiOS")]
+        self.assertEqual(len(mios), 3)
+        for p in mios:
+            self.assertEqual(p["padding"], "3")
+            self.assertEqual(p["scrollbarState"], "always")
+
+    def test_padding_normalised_through_edge_insets(self):
+        cases = {"1, 2, 1, 2": "1, 2", "4,4": "4", "1, 2, 3, 4": "1, 2, 3, 4"}
+        for raw, want in cases.items():
+            data = {"theme": {"padding": raw, "scrollbar_state": "visible"}}
+            with self.subTest(raw=raw):
+                self.assertEqual(wt_profile_inject.wt_edge(data), (want, "visible"))
+        with self.assertRaisesRegex(ValueError, r"\[theme\]\.scrollbar_state"):
+            wt_profile_inject.wt_edge({"theme": {"padding": "0", "scrollbar_state": "auto"}})
+
+    def _cli(self, *args):
+        with patch.object(sys, "argv", ["wt_profile_inject.py", *args]):
+            return wt_profile_inject.main()
+
+    def test_wsl_profile_template_both_sides(self):
+        self.assertEqual(self._cli("--check-fixture", _ROOT), 0)
+        with open(os.path.join(_ROOT, "etc", "wsl-distribution.conf"), encoding="utf-8") as f:
+            self.assertIn(f"profileTemplate = /{wt_profile_inject.GOLDEN}\n", f.read())
+        self.assertEqual(self._cli("--write-fixture", self.temp_dir.name), 0)
+        copy = os.path.join(self.temp_dir.name, wt_profile_inject.GOLDEN)
+        with open(copy, encoding="utf-8") as f:
+            text = f.read()
+        pad, bar = wt_profile_inject.wt_edge(wt_profile_inject.mios_toml.vendor_tree(_ROOT))
+        self.assertEqual(json.loads(text)["profiles"], [{"colorScheme": "MiOS Dark", "padding": pad, "scrollbarState": bar}])
+        with open(copy, "w", encoding="utf-8") as f:
+            f.write(text.replace(f'"padding": "{pad}"', '"padding": "8"', 1))
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(self._cli("--check-fixture", self.temp_dir.name), 1)
+        self.assertRegex(err.getvalue(), r"terminal-profile\.json:\d+: committed '\s*\"padding\": \"8\",'")
 
     def test_cli_execution_mock_json(self):
         test_args = [

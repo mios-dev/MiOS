@@ -29,6 +29,15 @@ fi
 
 echo "[20-services] WSL2/OCI service-skip drop-ins delivered via system_files overlay"
 
+# ttyd -I page from [ttyd].version; fails if the anchor moved, the page differs from its golden, or the package version differs
+_portal_edge="$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py"
+_ttyd_url="$(python3 "$_portal_edge" --ttyd-url)"
+_ttyd_src="$(mktemp)"
+curl -fsSL --retry 5 --retry-delay 3 --connect-timeout 20 --max-time 120 "$_ttyd_url" -o "$_ttyd_src"
+python3 "$_portal_edge" --ttyd-page "$_ttyd_src" --installed-version "$(rpm -q --qf '%{VERSION}' ttyd)"
+rm -f "$_ttyd_src"
+echo "[20-services] patched ttyd page baked from ${_ttyd_url}"
+
 tuned-adm profile throughput-performance 2>/dev/null || true
 
 echo "[20-services] chmod 644 applied to unit files; TuneD profile set to throughput-performance"

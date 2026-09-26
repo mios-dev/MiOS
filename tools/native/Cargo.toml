@@ -6,6 +6,7 @@ members = [
     "mios-bake-plan",
     "mios-comment-lex",
     "mios-drift-runner",
+    "mios-edge-status",
     "mios-render-quadlets",
     "mios-resolver",
     "mios-size-ceiling",

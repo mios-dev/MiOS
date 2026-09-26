@@ -320,6 +320,56 @@ def edge_insets(data):
     return {"left": left, "top": top, "right": right, "bottom": bottom,
             "scrollbar_hidden": state == "hidden"}
 
+def vendor_tree(root):
+    """Vendor tier (monolith + usr/lib/mios/mios.d) of the tree at root; MIOS_VENDOR_TOML[_D] override it."""
+    vendor = os.environ.get("MIOS_VENDOR_TOML") or os.path.join(root, "usr", "share", "mios", "mios.toml")
+    frag_dir = os.environ.get("MIOS_VENDOR_TOML_D") or os.path.join(root, "usr", "lib", "mios", "mios.d")
+    return load_merged([vendor] + _frags(frag_dir))
+
+def write_atomic(path, text):
+    """Temp file + rename beside path, keeping an existing file's mode (0644 when new)."""
+    import stat
+    import tempfile
+    parent = os.path.dirname(path) or "."
+    os.makedirs(parent, exist_ok=True)
+    mode = stat.S_IMODE(os.stat(path).st_mode) if os.path.exists(path) else 0o644
+    fd, tmp = tempfile.mkstemp(dir=parent, prefix=".mios-write.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+def golden_diff(path, rendered):
+    """None when path holds exactly rendered, else one line naming the file and its first differing line."""
+    try:
+        with open(path, encoding="utf-8", newline="") as fh:
+            committed = fh.read()
+    except OSError as exc:
+        return f"{path}: cannot read the committed golden ({exc.strerror}); run --write-fixture"
+    if committed == rendered:
+        return None
+    old, new = committed.splitlines() + ["<end of file>"], rendered.splitlines() + ["<end of file>"]
+    i = next((i for i, pair in enumerate(zip(old, new)) if pair[0] != pair[1]), None)
+    return f"{path}: differs from the generator only in line endings" if i is None else (
+        f"{path}:{i + 1}: committed {old[i]!r}, generator renders {new[i]!r}")
+
+def golden_gate(tag, root, renders, write=False):
+    """Regenerate (write) or diff every root-relative path in renders; 1 after printing each drift to stderr."""
+    import sys
+    drift = 0
+    for rel, text in renders.items():
+        path = os.path.join(root, rel)
+        if write:
+            write_atomic(path, text)
+        elif (msg := golden_diff(path, text)):
+            print(f"[{tag}] DRIFT {msg}", file=sys.stderr)
+            drift = 1
+    return drift
+
 def get_aliases(dotted_path):
     aliases = []
 

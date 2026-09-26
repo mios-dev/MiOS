@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Hermetic fixtures for sync-dotfiles.py: ADR-0024 prune and --check both ways, surface mode kept, empty partition fails loud, forwardPorts/containerEnv projected from [ports] keys and resolved MIOS_* names, a stale stylesheet copy refused.
 # AI-related: tools/sync-dotfiles.py, usr/share/mios/mios.toml, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh
-# AI-functions: main, test_rewrite_keeps_surface_mode, test_new_surface_gets_umask_mode, test_forward_ports_projection, test_container_env_projection, test_stale_stylesheet_copy_refused
+# AI-functions: main, test_rewrite_keeps_surface_mode, test_new_surface_gets_umask_mode, test_forward_ports_projection, test_container_env_projection, test_stale_stylesheet_copy_refused, test_edge_settings_projected
 """What the client-portable projection must not get wrong.
 
 A browser client throws on the first API-written key it never registered, so
@@ -33,7 +33,10 @@ SSOT = {
     "window.titleBarStyle": "custom",
     "window.customTitleBarVisibility": "never",
     "editor.fontSize": 15,
+    "window.density.layout": "compact",
+    "workbench.experimental.modernUI": True,
 }
+EDGE = '[theme.edge]\ncode_server_density = "compact"\ncode_server_modern_ui = true\n'
 
 
 def check(name, got, want):
@@ -49,7 +52,7 @@ PORTS = "[ports]\nstack_id = 0\nweb = 9100\napi = 9200\n[ai]\nendpoint = \"http:
 ENV_KEYS = '["MIOS_AI_ENDPOINT"]'
 
 
-def _toml(desktop_only, fwd_keys=FWD_KEYS, ports=PORTS, env_keys=ENV_KEYS):
+def _toml(desktop_only, fwd_keys=FWD_KEYS, ports=PORTS, env_keys=ENV_KEYS, edge=EDGE):
     keys = "".join(f'    "{k}",\n' for k in desktop_only)
     unreg = "".join(f'    "{k}",\n' for k in UNREGISTERED)
     return ("[dotfiles.vscode]\n"
@@ -61,7 +64,7 @@ def _toml(desktop_only, fwd_keys=FWD_KEYS, ports=PORTS, env_keys=ENV_KEYS):
             + "[dotfiles.devcontainer]\n"
             + (f"forward_port_keys = {fwd_keys}\n" if fwd_keys is not None else "")
             + (f"container_env_keys = {env_keys}\n" if env_keys is not None else "")
-            + ports)
+            + ports + edge)
 
 
 def _write(path, text):
@@ -306,10 +309,40 @@ def test_stale_stylesheet_copy_refused():
               os.path.exists(os.path.join(root, "usr/share/mios/dotfiles/code-server/code-server-terminal.css")), False)
 
 
+def test_edge_settings_projected():
+    """[theme.edge] renders window.density.layout / modernUI into both .dotfiles sources and on to their copies."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = os.path.join(tmp, "MiOS")
+        boot = _fixture(root)
+        _run(root, boot)
+        check("edge: green at the vendor values", _run(root, boot, "--check")[0], 0)
+        _write(os.path.join(root, "usr/share/mios/mios.toml"),
+               _toml(DESKTOP_ONLY, edge=EDGE.replace('"compact"', '"spacious"').replace("= true", "= false")))
+        rc, out = _run(root, boot, "--check", "--client-surfaces")
+        check("edge: an edited key is drift", rc, 1)
+        check("edge: the drift names the source and key",
+              "DRIFT .dotfiles/vscode/settings.json: window.density.layout is 'compact', mios.toml "
+              "[theme.edge].code_server_density renders 'spacious'" in out, True)
+        check("edge: projection succeeds", _run(root, boot)[0], 0)
+        for rel in (".dotfiles/vscode/settings.json", ".dotfiles/code-server/settings.json",
+                    "etc/skel/.local/share/code-server/User/settings.json"):
+            d = json.load(open(os.path.join(root, rel), encoding="utf-8"))
+            check(f"edge: {rel} rendered", (d["window.density.layout"], d["workbench.experimental.modernUI"]),
+                  ("spacious", False))
+        dev = _settings(os.path.join(root, ".devcontainer/devcontainer.json"), ("customizations", "vscode", "settings"))
+        check("edge: the devcontainer block follows", dev.get("window.density.layout"), "spacious")
+        check("edge: green after projection", _run(root, boot, "--check")[0], 0)
+        _write(os.path.join(root, "usr/share/mios/mios.toml"), _toml(DESKTOP_ONLY, edge=""))
+        rc, out = _run(root, boot, "--check")
+        check("edge: absent [theme.edge] keys are exit 3", rc, 3)
+        check("edge: exit 3 names the key", "[theme.edge] lacks code_server_density" in out, True)
+
+
 def main() -> int:
     for fn in (test_prune_then_check_both_ways, test_unregistered_key_refused_at_the_source,
                test_rewrite_keeps_surface_mode, test_new_surface_gets_umask_mode, test_empty_partition_fails_loud,
-               test_forward_ports_projection, test_container_env_projection, test_stale_stylesheet_copy_refused):
+               test_forward_ports_projection, test_container_env_projection, test_stale_stylesheet_copy_refused,
+               test_edge_settings_projected):
         fn()
     for f in FAILED:
         print("FAIL " + f, file=sys.stderr)

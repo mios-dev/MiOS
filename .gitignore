@@ -238,6 +238,7 @@ etc/containers/containers.conf.d/*
 etc/fapolicyd/*
 !/etc/fapolicyd/fapolicyd.rules
 !/etc/wsl.conf
+!/etc/wsl-distribution.conf
 !/etc/greenboot/
 !/etc/greenboot/**
 !/etc/chrony.conf
@@ -293,6 +294,8 @@ etc/dconf/profile/*
 !/etc/skel/.config/gtk-3.0/*
 !/etc/skel/.config/gtk-4.0/
 !/etc/skel/.config/gtk-4.0/*
+!/etc/skel/.config/alacritty/
+!/etc/skel/.config/alacritty/alacritty.toml
 !/etc/skel/.config/user-dirs.dirs
 !/etc/skel/Desktop/
 !/etc/skel/Desktop/.keep

@@ -432,6 +432,10 @@ if [[ -f "${SCRIPT_DIR}/98-drift-checks.sh" ]]; then
                 echo "[reproject] WARN: ${_drift_root}/tools/${_proj} not found"
             fi
         done
+        # The edge goldens follow the build SSOT like the image surfaces 65-bake-hyprland.sh rendered.
+        for _gen in ux/wm_config_gen.py desktop/gpu_terminal.py win/wt_profile_inject.py ux/tmux_theme.py; do
+            python3 "${_drift_root}/usr/libexec/mios/${_gen}" --write-fixture "${_drift_root}"
+        done
     else
         echo "[reproject] WARN: python3 unavailable"
     fi
