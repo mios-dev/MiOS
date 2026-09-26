@@ -126,6 +126,7 @@ they are enforced by `automation/98-drift-checks.sh` (offline), `automation/99-p
 | [0013](0013-deploy-surface-consolidation.md) | Deploy-surface consolidation behind installation/mios-install | accepted | 1, 7, 8, 9 | WS-INSTALL, WS-CONFIG |
 | [0014](0014-bootc-install-bare-metal-leg.md) | The bootc-install bare-metal leg: bootc install to-disk --transport oci | proposed | 3, 4, 12 | WS-CAT, WS-MDRIVE |
 | [0015](0015-unified-key-library-architecture.md) | Unified key library architecture & full de-duplication campaign | accepted | 7, 8, 9, 13 | WS-DEDUP-DISCOVER, WS-DEDUP-SIGNOFF |
+| [0026](0026-dual-tier-oci-ai-artifacts.md) | Dual-tier OCI AI artifact architecture for resident inference and daily training corpora | accepted | 1, 3, 5, 12, 14, 16 | WS-DEPRED, WS-SBOM |
 
 ## New MiOS decisions — how to add an ADR
 

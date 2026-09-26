@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod artifact;
 mod credentials;
 mod dispatch;
 mod doc_refs;
@@ -83,7 +84,7 @@ impl Report {
 }
 
 const USAGE: &str = "usage: mios-gate <check> [--root DIR] [--format text|json]\n\
-                     checks: build-tool-dispatch, credential-literals, doc-refs-resolve,\n\
+                     checks: artifact, build-tool-dispatch, credential-literals, doc-refs-resolve,\n\
                              drift-stubs, law-enforcers, no-inert-ssot-tables,\n\
                              phase-registry, projection-coverage, protected-refs,\n\
                              ratchet-direction, render-coverage, signature-policy,\n\
@@ -141,6 +142,7 @@ fn main() -> ExitCode {
     let root = std::path::PathBuf::from(root.unwrap_or_else(|| ".".to_string()));
 
     let report = match name.as_str() {
+        "artifact" => artifact::check(&root),
         "build-tool-dispatch" => dispatch::check(&root),
         "credential-literals" => credentials::check(&root),
         "doc-refs-resolve" => doc_refs::check(&root),

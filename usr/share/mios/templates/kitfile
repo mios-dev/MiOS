@@ -1,0 +1,29 @@
+# AI-hint: CNCF KitOps ModelKit specification template for MiOS models, datasets, and adapters.
+# AI-related: usr/share/mios/mios.toml, ROADMAP.md (MODELOCI-01), usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md
+
+manifestVersion: "1.0.0"
+package:
+  name: "mios-micro"
+  version: "1.5.0"
+  description: "MiOS micro-agent foundation model weights and daily fine-tuning corpora"
+  authors: ["MiOS Engineering"]
+  license: "Apache-2.0"
+model:
+  name: "mios-micro-1.5b"
+  path: "models/mios-micro-1.5b.gguf"
+  description: "Foundation language model for resident inference"
+datasets:
+  - name: "sft"
+    path: "var/lib/mios/training/sft.jsonl"
+    description: "OpenAI chat fine-tuning (SFT) dataset"
+  - name: "dpo"
+    path: "var/lib/mios/training/dpo.jsonl"
+    description: "OpenAI preference fine-tuning (DPO) dataset"
+docs:
+  - path: "usr/share/doc/mios/manual.md"
+    description: "Authoritative grounded manual knowledge corpus"
+  - path: "usr/share/mios/reference/manual-corpus.tsv"
+    description: "Corpus ledger for fine-tuning provenance"
+code:
+  - path: "usr/libexec/mios/mios-finetune-dataset"
+    description: "Dataset synthesis and filtering harness"

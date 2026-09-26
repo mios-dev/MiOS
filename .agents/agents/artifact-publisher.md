@@ -38,7 +38,9 @@ Treat every training dataset as a release artifact, not prompt prose. Emit UTF-8
 JSONL with one complete JSON object per line and validate every line before
 publication. SFT records must contain a non-empty `messages` array with valid
 chat roles and at least one non-empty assistant target; preference records must
-carry a prompt plus distinct, non-empty chosen and rejected responses. Record
+use the OpenAI preference format with input (containing messages, tools, and
+parallel_tool_calls), preferred_output, and non_preferred_output (each an array
+of message objects), with distinct, non-empty assistant targets. Record
 schema/version, source provenance, license/consent, generation parameters, item
 count, content hash, and deterministic train/validation split metadata. Reject
 credentials, tokens, private identifiers, raw chat/session metadata, and

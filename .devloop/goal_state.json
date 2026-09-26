@@ -1,18 +1,18 @@
 {
-  "objective": "FOSS-compliant OCI bootable bootc/Fedora Desktop OS development under MiOS principles, shifting focus from AI plane to core desktop OS lifecycle and CI/CD+DevOps continuous dev-loops",
-  "stopping_condition": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet",
-  "status": "COMPLETED",
-  "created_at": "2026-09-20T23:22:13.134051",
-  "completed_at": "2026-09-22T19:33:16.430788",
+  "objective": "Implement Dual-Tier OCI AI Artifact Architecture (ADR 0026, Quadlet ModelCar Image Volume, Kitfile Template, and Rust mios-gate artifact Validator) preserving Roadmap MODELOCI-01..04",
+  "stopping_condition": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet && python3 tools/ci-suites.py --check",
+  "status": "IN_PROGRESS",
+  "created_at": "2026-09-26T00:31:02.510537",
+  "completed_at": null,
   "criteria": [
     {
       "id": "C-01",
-      "description": "Stopping condition: python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet",
+      "description": "Stopping condition: python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet && python3 tools/ci-suites.py --check",
       "criterion_type": "test",
-      "command": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet",
+      "command": "python3 tools/check-tasks.py status-parity && python3 tools/check-tasks.py schema && python3 tools/drift-checks.py legibility-ratchet && python3 tools/ci-suites.py --check",
       "target_path": null,
-      "passed": true,
-      "details": "Exit code 0"
+      "passed": false,
+      "details": null
     },
     {
       "id": "C-02",
@@ -20,8 +20,8 @@
       "criterion_type": "git_clean",
       "command": null,
       "target_path": null,
-      "passed": true,
-      "details": "Working tree clean"
+      "passed": false,
+      "details": null
     },
     {
       "id": "C-03",
@@ -29,16 +29,14 @@
       "criterion_type": "artifact",
       "command": null,
       "target_path": null,
-      "passed": true,
-      "details": "Task artifacts validate"
+      "passed": false,
+      "details": null
     }
   ],
   "non_goals": [
-    "No non-FOSS or proprietary dependencies without explicit OSI/FSF licensing declarations and clear layer isolation.",
-    "Do not expand standalone MiOS-AI runtime features or LLM gateways ahead of core desktop OS substrate and bootc lifecycle stabilization.",
-    "Do not break bootc/Fedora immutable workstation invariants (USR-OVER-ETC, persistent /var, UKI boot chain, driverless host passthrough).",
-    "Do not regress standing legibility ratchets (tracked_files <= 3071, tracked_mb <= 204, tooling_python_lines <= 77019).",
-    "Do not bypass two-sided verification (positive AND negative controls) on any dev-loop task."
+    "Do not refactor unassigned modules or out-of-scope files.",
+    "Do not introduce regressions to passing baseline tests.",
+    "Do not bypass security checks, linters, or suppressions."
   ],
   "ratchet_history": []
 }
