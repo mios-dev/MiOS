@@ -116,7 +116,6 @@ def expand_template(value: str, lang: str) -> str:
 
 HEADER_SH = '''#!/usr/bin/env bash
 # GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
-# AI-hint: Every mios.toml value as a MIOS_* shell variable with its SSOT default, sourced by build phases and shell tools.
 # AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/render-globals.py
 # AI-functions: _mios_resolve_version
 #
@@ -146,7 +145,6 @@ export MIOS_VERSION
 # Raw: the emitted PowerShell carries Windows path separators ('..\\..\\VERSION'),
 # which Python would otherwise read as escape sequences.
 HEADER_PS = r'''# GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
-# AI-hint: Every mios.toml value as a $script:MIOS_* PowerShell variable with its SSOT default, dot-sourced by the Windows build tooling.
 # AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, tools/render-globals.py
 # AI-functions: Resolve-MiosVersion
 #
