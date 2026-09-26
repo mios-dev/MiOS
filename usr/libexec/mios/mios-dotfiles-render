@@ -13,15 +13,13 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 _SELF = os.path.abspath(__file__)
 ROOT = os.environ.get("MIOS_THEME_ROOT") or os.path.abspath(os.path.join(os.path.dirname(_SELF), "..", "..", ".."))
 
-_VENDOR = os.environ.get("MIOS_VENDOR_TOML") or os.path.join(ROOT, "usr/share/mios/mios.toml")
-_HOST = os.environ.get("MIOS_HOST_TOML", "/etc/mios/mios.toml")
-_USER = os.environ.get("MIOS_USER_TOML") or os.path.join(
-    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "mios/mios.toml")
-_LAYERS = [_VENDOR, _HOST, _USER]
+# Law 13 layers come from layer_paths() per call; the vendor tier is ROOT's.
+os.environ.setdefault("MIOS_TOML_ROOT", ROOT)
 
 sys.path.insert(0, os.path.join(ROOT, "usr/lib/mios"))
 import mios_toml  # noqa: E402
@@ -32,12 +30,13 @@ _HEX = re.compile(r"#[0-9A-Fa-f]{6}\b")
 _SENTINEL = re.compile(r"@MIOS:([a-z0-9_.-]+)@")
 
 _Fixture = collections.namedtuple("_Fixture", "base expected")
-_Surface = collections.namedtuple("_Surface", "name template target section kind fixture policy")
+_Surface = collections.namedtuple("_Surface", "name template target section kind fixture policy edge_props")
+_EdgeProp = collections.namedtuple("_EdgeProp", "name regex pin scope")
 
 
 def _resolve():
     """token -> hex, from the shared layered SSOT resolver (SSOT over canonical defaults)."""
-    return mios_toml.colors(mios_toml.load_merged(_LAYERS))
+    return mios_toml.colors(mios_toml.load_merged(mios_toml.layer_paths()))
 
 
 def _fmt_conf(v):
@@ -69,6 +68,17 @@ def _resolved_for(merged, section):
     if section:
         r.update(_settings(merged, section))
     return r
+
+
+def _edge_tokens(merged):
+    """edge.* tokens, computed only for a template that uses one, from the ONE WT-padding parser (mios_toml.edge_insets)."""
+    ins = mios_toml.edge_insets(merged)
+    theme = mios_toml.section(merged, "theme")
+    out = {f"edge.{side}_px": str(ins[side]) for side in ("left", "top", "right", "bottom")}
+    out["edge.scrollbar_display"] = "none" if ins["scrollbar_hidden"] else "block"
+    out["edge.padding"] = str(theme["padding"])
+    out["edge.scrollbar_state"] = str(theme["scrollbar_state"])
+    return out
 
 
 def _token_map(resolved):
@@ -110,8 +120,15 @@ def _resolve_arbitrary_token(tok, merged):
 
 
 def _render_text(tmpl_text, resolved, merged=None):
+    edge = {}
+
     def sub(match):
         tok = match.group(1)
+        if tok.startswith("edge.") and tok not in resolved and merged is not None:
+            if not edge:
+                edge.update(_edge_tokens(merged))
+            if tok in edge:
+                return edge[tok]
         if tok not in resolved:
             if merged is not None:
                 val = _resolve_arbitrary_token(tok, merged)
@@ -809,7 +826,7 @@ def _load_surfaces():
     a surface name containing a '.'; a missing template/target; an UNKNOWN (or
     not-yet-implemented) kind; a merge kind missing its fixture.base/expected
     (no ungated merge surface -- preserves the no-vacuous-green stance)."""
-    reg = mios_toml.section(mios_toml.load_merged(_LAYERS), "dotfiles.registry")
+    reg = mios_toml.section(mios_toml.load_merged(mios_toml.layer_paths()), "dotfiles.registry")
     out = {}
     for name, cfg in reg.items():
         if not isinstance(cfg, dict):
@@ -841,7 +858,8 @@ def _load_surfaces():
                                  "surface\n")
                 raise SystemExit(3)
             fixture = _Fixture(base, expected)
-        out[name] = _Surface(name, tmpl, art, section, kind, fixture, cfg.get("policy"))
+        out[name] = _Surface(name, tmpl, art, section, kind, fixture, cfg.get("policy"),
+                             _edge_props(name, cfg))
     if not out:
         sys.stderr.write("[mios-dotfiles-render] FATAL: mios.toml [dotfiles.registry.*] is "
                          "empty/absent -- no surface can be projected. If you just added the "
@@ -849,6 +867,91 @@ def _load_surfaces():
                          "scalar cannot also be the parent table of [dotfiles.registry.*]).\n")
         raise SystemExit(3)
     return out
+
+
+def _edge_props(name, cfg):
+    """[dotfiles.registry.<name>].edge_props for an edge = true surface: {prop: regex}, {prop: {re, pin}}
+    (one capture group each) or {prop: {scope, props}} (CSS: see _edge_scoped). Exit 3 on a malformed entry."""
+    if cfg.get("edge") is not True:
+        return None
+    props = cfg.get("edge_props")
+    bad = f"[mios-dotfiles-render] FATAL: [dotfiles.registry.{name}] edge = true "
+    if not isinstance(props, dict) or not props:
+        sys.stderr.write(bad + "needs a non-empty edge_props table\n")
+        raise SystemExit(3)
+    out = []
+    for prop, spec in props.items():
+        if isinstance(spec, dict) and "scope" in spec:
+            try:
+                sc, pr = re.compile(spec["scope"]), re.compile(spec.get("props"))
+            except (re.error, TypeError) as e:
+                sys.stderr.write(bad + f"edge_props.{prop}: want {{scope, props}} regexes ({e})\n")
+                raise SystemExit(3)
+            out.append(_EdgeProp(prop, pr, None, sc))
+            continue
+        regex, pin = (spec.get("re"), spec.get("pin")) if isinstance(spec, dict) else (spec, None)
+        try:
+            rx = re.compile(regex) if isinstance(regex, str) else None
+        except re.error as e:
+            sys.stderr.write(bad + f"edge_props.{prop}: bad regex ({e})\n")
+            raise SystemExit(3)
+        if rx is None or rx.groups != 1 or (pin is not None and not isinstance(pin, str)):
+            sys.stderr.write(bad + f"edge_props.{prop}: want a regex with ONE capture group (or {{re, pin}})\n")
+            raise SystemExit(3)
+        out.append(_EdgeProp(prop, rx, pin, None))
+    return tuple(out)
+
+
+_EDGE_TOKEN = re.compile(r"@MIOS:[a-z0-9_.-]+@(?:px)?")
+_EDGE_GLUE = re.compile(r"!important|calc\(-1 \*|\)|\s")
+_CSS_RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
+
+
+def _edge_value_ok(v):
+    return bool(_EDGE_TOKEN.search(v)) and not _EDGE_GLUE.sub("", _EDGE_TOKEN.sub("", v))
+
+
+def _edge_scoped(surface, ep, tmpl_text):
+    """{scope, props}: in a CSS rule with a selector matching `scope`, every declaration whose property
+    fullmatches `props` must be built from @MIOS: tokens; and a rule that has a scoped selector or uses an
+    @MIOS:edge.* token must have ONLY scoped selectors (an edge rule never reaches the rest of the page)."""
+    drift, seen = [], False
+    for m in _CSS_RULE.finditer(re.sub(r"/\*.*?\*/", "", tmpl_text, flags=re.S)):
+        sels = [s.strip() for s in m.group(1).split(",") if s.strip()]
+        scoped = [s for s in sels if ep.scope.search(s)]
+        if scoped or "@MIOS:edge." in m.group(2):
+            drift += [f"edge-scope {surface.name}: {ep.name}: {s}" for s in sels if s not in scoped]
+        if not scoped:
+            continue
+        seen = True
+        for decl in m.group(2).split(";"):
+            prop, _, val = decl.partition(":")
+            if val and ep.regex.fullmatch(prop.strip()) and not _edge_value_ok(val.strip()):
+                drift.append(f"edge-literal {surface.name}: {ep.name}: {prop.strip()}: {val.strip()}")
+    if not seen:
+        drift.append(f"edge-literal {surface.name}: {ep.name}: <absent> (no rule matches its scope in {surface.template})")
+    return drift
+
+
+def _edge_literals(surface, tmpl_text):
+    """edge-literal drift lines for one surface: an edge_props value that is not built from @MIOS: tokens
+    (or differs from its pin), and a prop whose regex matches nothing in the template."""
+    drift = []
+    for ep in surface.edge_props or ():
+        if ep.scope is not None:
+            drift.extend(_edge_scoped(surface, ep, tmpl_text))
+            continue
+        values = [m.group(1).strip() for m in ep.regex.finditer(tmpl_text)]
+        if not values:
+            drift.append(f"edge-literal {surface.name}: {ep.name}: <absent> (edge_props regex matches nothing in {surface.template})")
+        for v in values:
+            if ep.pin is not None:
+                ok = v == ep.pin
+            else:
+                ok = _edge_value_ok(v)
+            if not ok:
+                drift.append(f"edge-literal {surface.name}: {ep.name}: {v}")
+    return drift
 
 
 SURFACES = _load_surfaces()
@@ -873,8 +976,29 @@ def _entry(name):
     return s.template, s.target, s.section
 
 
+def _write_atomic(path, text):
+    """Temp file beside the target + rename, keeping an existing target's mode (a new one gets the umask default)."""
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    try:
+        mode = os.stat(path).st_mode & 0o7777
+    except FileNotFoundError:
+        mask = os.umask(0)
+        os.umask(mask)
+        mode = 0o666 & ~mask
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=f".{os.path.basename(path)}.")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
 def cmd_render(names):
-    merged = mios_toml.load_merged(_LAYERS)
+    merged = mios_toml.load_merged(mios_toml.layer_paths())
     n = 0
     for name in (names or SURFACES):
         surface = SURFACES[name]
@@ -885,9 +1009,7 @@ def cmd_render(names):
         out = _KINDS[surface.kind][0](surface, merged)  # derive_fn -> committed bytes
         art_rel = _committed_path(surface)
         art_abs = os.path.join(ROOT, art_rel)
-        os.makedirs(os.path.dirname(art_abs), exist_ok=True)
-        with open(art_abs, "w", encoding="utf-8", newline="") as fh:
-            fh.write(out)
+        _write_atomic(art_abs, out)
         print(f"[mios-dotfiles-render] rendered {name} -> {art_rel}")
         n += 1
     return 0
@@ -945,7 +1067,7 @@ def _check_vscode_client_surfaces(merged, drift):
 
 
 def cmd_check(names):
-    merged = mios_toml.load_merged(_LAYERS)
+    merged = mios_toml.load_merged(mios_toml.layer_paths())
     drift = []
     if not names:
         _check_vscode_client_surfaces(merged, drift)
@@ -961,13 +1083,18 @@ def cmd_check(names):
                 if rel not in registered:
                     drift.append(f"ORPHAN TEMPLATE {rel}: no [dotfiles.registry.*] surface "
                                  "references it -- a surface was de-registered (silent de-gate)")
+    enforce = mios_toml.section(merged, "theme.edge").get("enforce") is True
     for name in (names or SURFACES):
         surface = SURFACES[name]
         tmpl_abs = os.path.join(ROOT, surface.template)
         art_rel = _committed_path(surface)
         art_abs = os.path.join(ROOT, art_rel)
         if not os.path.isfile(tmpl_abs):
+            if surface.edge_props:
+                drift.append(f"{name}: edge surface template missing ({surface.template})")
             continue  # unregistered/not-yet-captured surface -> not gated
+        if enforce:
+            drift.extend(_edge_literals(surface, _read(tmpl_abs)))
         if not os.path.isfile(art_abs):
             drift.append(f"{name}: artifact missing ({art_rel})")
             continue
@@ -998,7 +1125,7 @@ def cmd_capture(names):
         return 2
     if names == ["all"]:
         names = list(SURFACES)
-    merged = mios_toml.load_merged(_LAYERS)
+    merged = mios_toml.load_merged(mios_toml.layer_paths())
     resolved = _resolved_for(merged, None)
     tmap = _token_map(resolved)
     rc = 0
@@ -1112,7 +1239,7 @@ def cmd_apply(names, dry_run):
     live file (foreign keys preserved). `diff` / --dry-run writes nothing (prints
     WOULD-write / up-to-date). A surface with no HOME target for this platform is
     a no-op skip."""
-    merged = mios_toml.load_merged(_LAYERS)
+    merged = mios_toml.load_merged(mios_toml.layer_paths())
     verb = "diff" if dry_run else "apply"
     rc = 0
     for name in (names or SURFACES):
@@ -1174,6 +1301,14 @@ def main(argv):
             "  diff   [names]   show what `apply` WOULD write to live HOME (writes nothing)\n")
         return 2
     cmd, rest = argv[1], argv[2:]
+    try:
+        return _dispatch(cmd, rest)
+    except mios_toml.EdgeInsetsError as e:
+        sys.stderr.write(f"[mios-dotfiles-render] FATAL: {e}\n")
+        return 2
+
+
+def _dispatch(cmd, rest):
     if cmd == "render":
         return cmd_render(rest)
     if cmd == "check":

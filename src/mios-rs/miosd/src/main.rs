@@ -1369,6 +1369,72 @@ fn run_harden(root: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// One layered-loader read: `mios-toml-get <section> <key>` (vendor < host < user), empty is an error.
+fn toml_get(section: &str, key: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let out = std::process::Command::new("/usr/libexec/mios/mios-toml-get")
+        .arg(section)
+        .arg(key)
+        .output()?;
+    let val = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if !out.status.success() || val.is_empty() {
+        return Err(format!("[{section}].{key} unresolved").into());
+    }
+    Ok(val)
+}
+
+/// The pinned tag of an image ref; `latest`, a missing tag or a registry port is refused.
+fn pinned_tag(img: &str) -> Option<&str> {
+    let (_, tag) = img.rsplit_once(':')?;
+    (!tag.is_empty() && tag != "latest" && !tag.contains('/')).then_some(tag)
+}
+
+/// Build args of the agents image; same reads and build-context as mios-agents-firstboot.sh.
+fn agents_build_args() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let img = toml_get("image.sidecars", "code_server")?;
+    let tag = pinned_tag(&img)
+        .ok_or_else(|| format!("[image.sidecars].code_server '{img}' has no pinned tag"))?;
+    let sb = toml_get("theme.edge", "code_server_scrollbar_px")?;
+    let pm = toml_get("theme.edge", "code_server_perimeter_px")?;
+    Ok(vec![
+        "--build-arg".into(),
+        format!("MIOS_CODE_SERVER_VERSION={tag}"),
+        "--build-arg".into(),
+        format!("CODE_SERVER_SCROLLBAR_PX={sb}"),
+        "--build-arg".into(),
+        format!("CODE_SERVER_PERIMETER_PX={pm}"),
+        "--build-context".into(),
+        "mios=/".into(),
+    ])
+}
+
+/// Sources whose mtime newer than the image triggers a rebuild (the Containerfile always counts).
+fn build_sources(spec: &str) -> &'static [&'static str] {
+    match spec {
+        "agents" => &[
+            "/usr/share/mios/themes/code-server-terminal.css",
+            "/usr/libexec/mios/mios-vscode-custom-css",
+        ],
+        _ => &[],
+    }
+}
+
+fn image_created_epoch(img: &str) -> u64 {
+    std::process::Command::new("/usr/bin/podman")
+        .args(["image", "inspect", "-f", "{{.Created.Unix}}", img])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().parse().ok())
+        .unwrap_or(0)
+}
+
+fn mtime_epoch(path: &str) -> u64 {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs())
+}
+
 fn run_build_if_missing(spec: &str) -> Result<(), Box<dyn std::error::Error>> {
     let (img, ctx, cf) = match spec {
         "agents" => (
@@ -1409,11 +1475,24 @@ fn run_build_if_missing(spec: &str) -> Result<(), Box<dyn std::error::Error>> {
             .arg("exists")
             .arg(img)
             .status()?;
-        if !exists_status.success() {
+        let stale = if exists_status.success() {
+            let img_epoch = image_created_epoch(img);
+            std::iter::once(cf)
+                .chain(build_sources(spec).iter().copied())
+                .find(|p| img_epoch > 0 && mtime_epoch(p) > img_epoch)
+        } else {
+            None
+        };
+        if let Some(p) = stale {
+            println!("[miosd] {} newer than {} -> rebuild", p, img);
+        }
+        if !exists_status.success() || stale.is_some() {
+            let extra = if spec == "agents" { agents_build_args()? } else { Vec::new() };
             println!("[miosd] building {} from {}...", img, cf);
             let build_status = std::process::Command::new("/usr/bin/podman")
                 .arg("build")
                 .arg("--network=host")
+                .args(&extra)
                 .arg("-t")
                 .arg(img)
                 .arg("-f")

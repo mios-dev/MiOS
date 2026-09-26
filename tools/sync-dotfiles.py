@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-# AI-hint: Syncs the .dotfiles SSOT to every IDE profile, skel and theme copy; merges only its client-portable subset (mios.toml [dotfiles.vscode], ADR-0024) into each devcontainer.json / *.code-workspace, pruning desktop-only keys a web client rejects.
+# AI-hint: Syncs the .dotfiles SSOT to IDE profiles and skel; merges its client-portable subset (ADR-0024) into each devcontainer.json / *.code-workspace and projects forwardPorts/containerEnv from [dotfiles.devcontainer].
 # AI-doc: usr/share/doc/mios/manual/tools.md
 import argparse
 import json
+import glob
 import os
+import re
 import shutil
 import stat
 import sys
@@ -23,7 +25,10 @@ import mios_toml  # noqa: E402
 
 VSCODE_SETTINGS_SRC = os.path.join(DOTFILES_DIR, "vscode", "settings.json")
 CODESERVER_SETTINGS_SRC = os.path.join(DOTFILES_DIR, "code-server", "settings.json")
-CODESERVER_CSS_SRC = os.path.join(DOTFILES_DIR, "code-server", "code-server-terminal.css")
+# The code-server stylesheet is RENDERED (mios-dotfiles-render surface code-server-terminal) into
+# usr/share/mios/themes/; these former byte copies of it must not come back.
+STALE_CSS_COPIES = (".dotfiles/code-server/code-server-terminal.css",
+                    "usr/share/mios/dotfiles/code-server/code-server-terminal.css")
 
 EXIT_DRIFT = 1
 EXIT_MISSING_SOURCE = 2
@@ -38,7 +43,6 @@ TARGET_PROJECTIONS = [
     (VSCODE_SETTINGS_SRC, ".vscode/settings.json"),
     (CODESERVER_SETTINGS_SRC, "etc/skel/.local/share/code-server/User/settings.json"),
     (CODESERVER_SETTINGS_SRC, "usr/share/mios/agents/code-server-mobile-settings.json"),
-    (CODESERVER_CSS_SRC, "usr/share/mios/themes/code-server-terminal.css"),
 ]
 
 # The [dotfiles.vscode] lists, and the ones without which the partition means nothing.
@@ -52,12 +56,85 @@ def _fatal(msg, code):
     return code
 
 
+def _vendor_merged():
+    if not os.path.isfile(VENDOR_TOML):
+        raise SystemExit(_fatal(f"vendor SSOT missing: {VENDOR_TOML}", EXIT_MISSING_SOURCE))
+    frag_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(VENDOR_TOML)))),
+                            "usr", "lib", "mios", "mios.d")
+    frags = sorted(glob.glob(os.path.join(frag_dir, "*.toml")))  # Law 13: vendor fragments, as the gate reads them
+    return mios_toml.load_merged(layers=[VENDOR_TOML, *frags])
+
+
+def _name_list(dc, key, what):
+    names = dc.get(key)
+    if not isinstance(names, list) or not names or not all(isinstance(k, str) and k for k in names):
+        raise SystemExit(_fatal(f"mios.toml [dotfiles.devcontainer].{key} must be a non-empty list of {what}",
+                                EXIT_BAD_POLICY))
+    return names
+
+
+def devcontainer_projection():
+    """What every devcontainer.json owns, as the resolver emits it (emit_exports: stack_id offset and
+    ${MIOS_*} applied): forwardPorts from each [ports] key of [dotfiles.devcontainer].forward_port_keys,
+    in order; containerEnv[n] for each MIOS_* name n of .container_env_keys. Exit 3 on an absent or
+    empty list, or a name without a resolved (integer, for a port) value."""
+    merged = _vendor_merged()
+    dc = mios_toml.section(merged, "dotfiles.devcontainer")
+    keys = _name_list(dc, "forward_port_keys", "[ports] key names")
+    env = {n: None for n in _name_list(dc, "container_env_keys", "emitted MIOS_* names")}
+    exports = mios_toml.emit_exports(merged)
+    ports = [exports.get(f"MIOS_PORTS_{k.upper()}", "") for k in keys]
+    for k, v in zip(keys, ports):
+        if not v.isdigit():
+            raise SystemExit(_fatal(f"mios.toml [dotfiles.devcontainer].forward_port_keys names {k!r}, "
+                                    "which is not an integer [ports] key", EXIT_BAD_POLICY))
+    for n in env:
+        env[n] = exports.get(n)
+        if not env[n] or "${" in env[n]:
+            raise SystemExit(_fatal(f"mios.toml [dotfiles.devcontainer].container_env_keys names {n!r}, which "
+                                    f"the resolver does not emit as a resolved value ({env[n]!r})", EXIT_BAD_POLICY))
+    return {"forwardPorts": [int(v) for v in ports], "containerEnv": env}
+
+
+# [theme.edge] key -> the settings key it owns in both .dotfiles settings sources (operator decision: compact, ModernUI on).
+EDGE_SETTINGS = {"code_server_density": "window.density.layout", "code_server_modern_ui": "workbench.experimental.modernUI"}
+
+
+def project_edge_settings(check):
+    """Render EDGE_SETTINGS from mios.toml [theme.edge] into each .dotfiles settings source in place; exit 3 on an absent key."""
+    edge = mios_toml.section(_vendor_merged(), "theme.edge")
+    missing = [k for k in EDGE_SETTINGS if k not in edge]
+    if missing:
+        raise SystemExit(_fatal(f"mios.toml [theme.edge] lacks {', '.join(missing)}, so the settings they own "
+                                "cannot be projected", EXIT_BAD_POLICY))
+    drift = []
+    for src in (VSCODE_SETTINGS_SRC, CODESERVER_SETTINGS_SRC):
+        label = os.path.relpath(src, REPO_ROOT)
+        with open(src, encoding="utf-8", newline="") as fh:
+            text = fh.read()
+        doc, new = json.loads(text), text
+        for tkey, skey in EDGE_SETTINGS.items():
+            want = edge[tkey]
+            if skey in doc and doc[skey] == want and type(doc[skey]) is type(want):
+                continue
+            drift.append((label, f"{skey} is {doc.get(skey, '<absent>')!r}, mios.toml [theme.edge].{tkey} "
+                                 f"renders {want!r}"))
+            pat = re.compile(r'^([ \t]*' + re.escape(json.dumps(skey)) + r'[ \t]*:[ \t]*)[^,\n]*?([ \t]*,?[ \t]*)$', re.M)
+            if pat.search(new):
+                new = pat.sub(lambda m: m.group(1) + json.dumps(want) + m.group(2), new, count=1)
+            else:
+                new = new.replace("{\n", "{\n  " + json.dumps(skey) + ": " + json.dumps(want) + ",\n", 1)
+        if new != text and not check:
+            if json.loads(new) != dict(doc, **{s: edge[t] for t, s in EDGE_SETTINGS.items()}):
+                raise SystemExit(_fatal(f"{label}: the in-place edit of the [theme.edge] keys did not parse back", EXIT_BAD_POLICY))
+            _write_atomic(src, new)
+    return drift
+
+
 def load_policy():
     """mios.toml [dotfiles.vscode] from the vendor tier. Exit 3 on an absent or
     empty partition: no list must never read as "nothing to prune" (ADR-0024)."""
-    if not os.path.isfile(VENDOR_TOML):
-        raise SystemExit(_fatal(f"vendor SSOT missing: {VENDOR_TOML}", EXIT_MISSING_SOURCE))
-    merged = mios_toml.load_merged(layers=[VENDOR_TOML])
+    merged = _vendor_merged()
     pol = mios_toml.section(merged, "dotfiles.vscode")
     for key in _POLICY_LISTS:
         val = pol.get(key, [])
@@ -158,12 +235,13 @@ def _ssot_unregistered(pol, ssot_settings, label):
             for k in pol.get("unregistered_keys", []) if k in ssot_settings]
 
 
-def project_json_merges(check, pol, ssot_settings):
+def project_json_merges(check, pol, ssot_settings, dc_owned):
     """Merge the CLIENT-PORTABLE subset of the SSOT settings into every
     devcontainer.json / *.code-workspace settings block and PRUNE every
     [dotfiles.vscode] desktop-only / User-only / unregistered key already there.
     SSOT keys win on conflict; any surface-only key (installer-specific zenMode.*
-    tuning) survives. Returns [(label, reason)] -- one line per key and file, so
+    tuning) survives. A devcontainer.json's forwardPorts array and the
+    containerEnv entries in dc_owned are owned. Returns [(label, reason)] -- one line per key and file, so
     --check names exactly what is wrong where."""
     pruned = pruned_keys(pol)
     portable = {k: v for k, v in ssot_settings.items() if k not in pruned}
@@ -193,8 +271,21 @@ def project_json_merges(check, pol, ssot_settings):
                 reasons.append(f"SSOT key {k} differs from the SSOT value")
         if expected != existing and not reasons:
             reasons.append("settings block differs from the SSOT projection")
+        owned_stale = False
+        if os.path.basename(rel_target) == "devcontainer.json":
+            fwd, env = dc_owned["forwardPorts"], dc_owned["containerEnv"]
+            if doc.get("forwardPorts") != fwd:
+                reasons.append(f"forwardPorts {doc.get('forwardPorts')} differs from the "
+                               f"[dotfiles.devcontainer].forward_port_keys projection {fwd}")
+            cenv = doc.get("containerEnv") if isinstance(doc.get("containerEnv"), dict) else {}
+            reasons.extend(f"containerEnv.{n} {cenv.get(n)!r} differs from the resolved SSOT value {v!r} "
+                           "([dotfiles.devcontainer].container_env_keys)" for n, v in env.items() if cenv.get(n) != v)
+            owned_stale = doc.get("forwardPorts") != fwd or any(cenv.get(n) != v for n, v in env.items())
+            if owned_stale:
+                doc["forwardPorts"] = list(fwd)
+                doc["containerEnv"] = dict(cenv, **env)
         drift.extend((label, r) for r in reasons)
-        if not check and expected != existing:
+        if not check and (expected != existing or owned_stale):
             parent[key_path[-1]] = expected
             _write_atomic(dst, json.dumps(doc, indent=2) + "\n")
     return drift
@@ -213,10 +304,12 @@ def main() -> int:
     drift = []
 
     # 1. Verify source existence
-    for src in [VSCODE_SETTINGS_SRC, CODESERVER_SETTINGS_SRC, CODESERVER_CSS_SRC]:
+    for src in [VSCODE_SETTINGS_SRC, CODESERVER_SETTINGS_SRC]:
         if not os.path.isfile(src):
             return _fatal(f"Missing SSOT source: {src}", EXIT_MISSING_SOURCE)
     pol = load_policy()
+    dc_owned = devcontainer_projection()
+    drift.extend(project_edge_settings(args.check))
     with open(VSCODE_SETTINGS_SRC, "r", encoding="utf-8") as f:
         vscode_ssot = json.load(f)
     with open(CODESERVER_SETTINGS_SRC, "r", encoding="utf-8") as f:
@@ -225,6 +318,15 @@ def main() -> int:
     drift.extend(_ssot_unregistered(pol, codeserver_ssot, ".dotfiles/code-server/settings.json"))
 
     if not args.client_surfaces:
+        # 1b. Former byte copies of the rendered code-server stylesheet
+        for rel in STALE_CSS_COPIES:
+            stale = os.path.join(root, rel)
+            if os.path.isfile(stale):
+                drift.append((rel, "stale copy of the rendered stylesheet -- the one copy is "
+                                   "usr/share/mios/themes/code-server-terminal.css (mios-dotfiles-render)"))
+                if not args.check:
+                    os.unlink(stale)
+
         # 2. Check or project mapped files (byte copies: the full desktop profile)
         for src, rel_target in TARGET_PROJECTIONS:
             dst = os.path.join(root, rel_target)
@@ -314,15 +416,10 @@ def main() -> int:
                         except Exception:
                             pass
 
-            if os.access("/usr/share/mios/themes", os.W_OK):
-                try:
-                    shutil.copy2(CODESERVER_CSS_SRC, "/usr/share/mios/themes/code-server-terminal.css")
-                except Exception:
-                    pass
 
     # 5. Merge the client-portable SSOT subset into every devcontainer.json /
     #    *.code-workspace and prune what a connecting client may not register.
-    drift.extend(project_json_merges(args.check, pol, vscode_ssot))
+    drift.extend(project_json_merges(args.check, pol, vscode_ssot, dc_owned))
 
     if args.check:
         if drift:

@@ -2278,6 +2278,12 @@ surfaces = [
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
   { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
   { generator = "tools/render-ports.py", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
+  { generator = "usr/libexec/mios/ux/wm_config_gen.py", check = "check_edge_generators", output = "usr/share/mios/hyprland/hyprland.conf, usr/share/mios/sway/config" },
+  { generator = "usr/libexec/mios/desktop/gpu_terminal.py", check = "check_edge_generators", output = "etc/skel/.config/alacritty/alacritty.toml" },
+  { generator = "usr/libexec/mios/win/wt_profile_inject.py", check = "check_edge_generators", output = "usr/share/mios/wsl/terminal-profile.json" },
+  { generator = "usr/libexec/mios/ux/tmux_theme.py", check = "check_edge_generators", output = "usr/share/mios/tmux/mios-theme.tmux.conf" },
+  { generator = "usr/lib/mios/agent-pipe/mios_pipe/routing/portal_edge.py", check = "check_edge_generators", output = "usr/share/mios/theme/fixtures/edge/portal-term.css, usr/share/mios/theme/fixtures/edge/ttyd-page.json" },
+  { generator = "tools/native/mios-edge-status/src/main.rs", check = "check_edge_status", output = "stdout (one reach line per [theme.edge.reach] key)" },
 ]
 
 # The scope this registry is measured against. `mios-gate projection-coverage`
@@ -2489,6 +2495,12 @@ writable           = true
 # Max active client sessions per instance (ttyd defaults to 1 +
 # rejects further). Raise for collaborative read-only sessions.
 max_clients        = 0
+# Pinned release: the patched ttyd page (-I) is built from it; a moved .terminal
+# padding rule FAILS the build.
+version            = "1.7.7"
+page_source        = "https://raw.githubusercontent.com/tsl0922/ttyd/{version}/src/html.h"  # the gzipped page ttyd embeds at that tag
+page_sha256        = "6f3716ebd951e101df883bb14922f067c023f11561aa088ef487814183727cf3"  # page_source at version; a bump re-measures it
+page_path          = "/usr/share/mios/ttyd/index.html"  # the patched page mios-ttyd-launch serves with -I
 # xterm font size (px). The MiOS Portal sizes its inline terminal embed to a
 # fixed 80x20 pixel box assuming this; raising it makes the embed show fewer
 # columns/rows in that box (and vice-versa).
@@ -7118,7 +7130,7 @@ hermes             = "docker.io/nousresearch/hermes-agent:latest"
 open_webui         = "ghcr.io/open-webui/open-webui:main"
 # hermes_workspace sidecar REMOVED -- replaced by the
 # hermes-agent's built-in dashboard at port 9119.
-code_server        = "ghcr.io/coder/code-server:latest"
+code_server        = "ghcr.io/coder/code-server:4.139.1"   # pinned (-> MIOS_CODE_SERVER_VERSION): the workbench bake patches are release-bound; a bump that moves an anchor FAILS the build
 guacamole          = "docker.io/guacamole/guacamole:latest"
 forge_runner       = "code.forgejo.org/forgejo/runner:latest"
 crowdsec           = "docker.io/crowdsecurity/crowdsec:latest"
@@ -7898,8 +7910,8 @@ acrylic             = true               # WT useAcrylic ON
 opacity             = 50                 # WT opacity 0..100 (50 = 50% transparency)
 system_backdrop     = "acrylic"          # WT 1.18+ per-profile backdrop
 cursor_shape        = "vintage"    # steady half-block; thin "bar" was almost too thin to see on 4K -- "vintage" is the substantial half-block cursor (matches xterm's default visual weight without the full filledBox feel)
-scrollbar_state     = "hidden"           # no scrollbar -- frame uses every col
-padding             = "0"                # zero padding -- frame flush to edges
+scrollbar_state     = "hidden"           # EVERY terminal surface (WT, code-server, VTE, Portal): visible|hidden|always; parsed only by mios_toml.edge_insets()
+padding             = "0"                # EVERY terminal surface: WT grammar "#" | "#, #" (left-right, top-bottom) | "#, #, #, #" (left, top, right, bottom), non-negative integers; "0" = edge to edge
 suppress_app_title  = true               # WT doesn't override our title
 launch_mode         = "focus"            # frame-less / border-less / no-titlebar / no-tab-row -- forces WT to measure the viewport at the actual cell count cols × rows from FIRST PAINT (no titlebar to strip later, no off-by-1/2 cell-count window before scrollbarState='hidden' applies). Required for true edge-to-edge in mios-bootstrap's Install-MiOSTerminalProfile.
 
@@ -7940,6 +7952,60 @@ hub_target_profile  = "MiOS-DEV"    # WT profile launched by the hub .lnk
 # (MiOS-DEV) per the consolidation -- one MiOS, one chord.
 summon_keys         = "win+space"
 summon_window_name  = "MiOS-DEV"
+
+# [theme.edge] -- edge-to-edge terminals on every surface MiOS configures. The
+# insets themselves are [theme].padding / [theme].scrollbar_state; this table
+# holds the chrome that is not a terminal inset. Consumers: mios-dotfiles-render
+# (edge-literal policy), the code-server bake, the imperative generators, Portal.
+[theme.edge]
+enforce                  = true   # mios-dotfiles-render check refuses an edge_props literal on an edge = true surface
+code_server_scrollbar_px = 0      # workbench.js TerminalScrollbarWidth.ModernUI (upstream 10)
+code_server_perimeter_px = 0      # workbench.js COMPACT_FLOATING_PANEL_OUTER_MARGIN (upstream 4)
+code_server_chrome_px    = 0      # code-server terminal container chain (panel content, wrappers, rows, screen): padding/margin/border/offsets
+wm_gaps_inner_px         = 0      # hyprland general:gaps_in / sway gaps inner
+wm_gaps_outer_px         = 0      # hyprland general:gaps_out / sway gaps outer
+wm_border_px             = 0      # hyprland general:border_size / sway default_border pixel
+portal_term_chrome_px    = 0      # Portal expanded terminal card: .embed-box border width + radius
+portal_term_bleed        = true   # the ttyd iframe box reaches the card's left/right/bottom inner edges
+ttyd_padding_px          = 0      # ttyd page #terminal-container .terminal padding (upstream 5)
+code_server_density      = "compact"  # window.density.layout, rendered into .dotfiles/{vscode,code-server}/settings.json by tools/sync-dotfiles.py
+code_server_modern_ui    = true   # workbench.experimental.modernUI in the same projections (ModernUI stays on)
+
+# One entry per terminal surface MiOS knows about, printed by mios-edge-status.
+# { reach = "full|partial|none|n/a", why, artifact? (committed path measured),
+#   registry? (the edge = true [dotfiles.registry.*] surface it gates),
+#   pending? (the lane that still has to deliver it) }
+[theme.edge.reach]
+wt-installer             = { reach = "full", why = "Get-MiOS.ps1 Install-MiOSTerminalProfile writes padding/scrollbarState on every MiOS profile and profiles.defaults from [theme] on each install run", artifact = "Get-MiOS.ps1" }
+wt-backend               = { reach = "full", why = "field/lib/Get-MiOS-Backend.ps1 writes the same keys (bootstrap-only file)", artifact = "field/lib/Get-MiOS-Backend.ps1" }
+wt-projection            = { reach = "full", why = "Law 8 projection of the same keys, gated by mios-dotfiles-render check", artifact = "usr/share/mios/theme/fixtures/windows-terminal-settings.expected.json", registry = "windows-terminal" }
+wt-profile-inject        = { reach = "partial", why = "the image ships the WSL terminal profile template wt_profile_inject.py renders (padding/scrollbarState from edge_insets()) and etc/wsl-distribution.conf names it, but WSL documents [windowsterminal].profileTemplate only for the .wsl/tar install while every MiOS installer runs wsl --import, so no install path is shown to apply it", artifact = "usr/share/mios/wsl/terminal-profile.json" }
+code-server-devcontainer = { reach = "partial", why = "stylesheet gutter 0; scrollbar reserve and 4px card perimeter removed by fail-loud bake patches; compact density; residual 1px transparent card border per edge; terminal-editor inset unverified", artifact = "usr/share/mios/themes/code-server-terminal.css", registry = "code-server-terminal" }
+code-server-agents       = { reach = "partial", why = "the same bake in the mios-agents image, which serves production code-server", artifact = "usr/share/mios/themes/code-server-terminal.css" }
+code-server-quadlet      = { reach = "n/a", why = "mios-code-server is retired and disabled (90-mios.preset); its def is inert" }
+vscode-settings          = { reach = "full", why = "window.density.layout compact with modernUI in every settings projection, gated by sync-dotfiles.py --check", artifact = ".dotfiles/code-server/settings.json" }
+vscode-desktop           = { reach = "partial", why = "stylesheet only through the desktop custom-css extension; a client install gets no bundle patch, so the 10px ModernUI scrollbar reserve stays" }
+github-dev               = { reach = "none", why = "the workbench is served from the vendor CDN; no MiOS code runs in it" }
+codespaces-web           = { reach = "none", why = "the same CDN workbench; extensions cannot apply CSS" }
+ptyxis                   = { reach = "partial", why = "a user-priority vte-terminal.padded rule beats the app style.css; flatpak visibility of the host gtk-4.0 dir unverified; disable-padding is not shipped", artifact = "etc/skel/.config/gtk-4.0/mios-edge.css" }
+gtk4-user-css            = { reach = "partial", why = "new homes through etc/skel; an existing home only after mios dotfiles sync gtk4-edge or mios-theme-render --gtk", artifact = "etc/skel/.config/gtk-4.0/mios-edge.css", registry = "gtk4-edge" }
+gtk4-system-css          = { reach = "none", why = "GTK 4 never loads /etc/gtk-4.0/gtk.css; it reads only the user config dir" }
+gtk3-css                 = { reach = "n/a", why = "no GTK3 VTE terminal ships" }
+vte-shell-integration    = { reach = "n/a", why = "etc/profile.d/vte.sh and vte.csh carry prompt/OSC only, no geometry" }
+alacritty                = { reach = "full", why = "new homes get the etc/skel alacritty.toml gpu_terminal.py renders; 65-bake-hyprland.sh renders it from the build SSOT and check_edge_generators gates the golden; no [packages] section installs alacritty itself", artifact = "etc/skel/.config/alacritty/alacritty.toml" }
+hyprland-sway            = { reach = "full", why = "the hyprland.conf the image ships (and /etc/hypr links) is the wm_config_gen.py render, gaps and border from [theme.edge].wm_*; 65-bake-hyprland.sh renders it from the build SSOT and check_edge_generators gates the golden; the sway config ships beside it with no sway package", artifact = "usr/share/mios/hyprland/hyprland.conf" }
+tmux-theme               = { reach = "n/a", why = "tmux has no outer padding; the image ships the tmux_theme.py render the Blink tmux config sources, colours only" }
+tmux-sessions            = { reach = "n/a", why = "agent PTY, war room and key maps carry no inset concept" }
+portal-chrome            = { reach = "full", why = "portal_edge.term_css() is served by agent-pipe on every Portal page", artifact = "usr/share/mios/theme/fixtures/edge/portal-term.css" }
+ttyd-page                = { reach = "full", why = "ttyd serves a patched copy of its page (-I) built from [ttyd].version; the build fails when the .terminal padding rule moves, the page differs from its golden, or the ttyd package is another version", artifact = "usr/share/mios/theme/fixtures/edge/ttyd-page.json" }
+portal-xterm-assets      = { reach = "n/a", why = "the vendored xterm.css is routed but no page instantiates it" }
+fastfetch-logo           = { reach = "partial", why = "the image and new homes carry [theme.fastfetch].logo_padding_*; an existing ~/.config/fastfetch/config.jsonc is kept until mios dotfiles sync fastfetch", artifact = "usr/share/mios/fastfetch/config.jsonc", registry = "fastfetch" }
+oh-my-posh               = { reach = "n/a", why = "prompt blocks, no inset keys" }
+banner-frame             = { reach = "full", why = "[terminal].right_margin = 0, read by Get-MiOS.ps1" }
+blink-shell              = { reach = "none", why = "app-owned insets; its code action opens the CDN workbench" }
+cloud-shell              = { reach = "none", why = "vendor-hosted terminal; .devcontainer/cloud-shell only provisions" }
+grub-terminal-box        = { reach = "n/a", why = "GRUB theme images, not terminal chrome" }
+rich-tuis                = { reach = "n/a", why = "Rich panels draw inside the terminal" }
 
 [theme.prompt]
 omp_path                = "/usr/share/mios/oh-my-posh/mios.omp.json"
@@ -7984,6 +8050,9 @@ show_logo           = true
 
 [theme.fastfetch]
 logo_color   = "blue"
+logo_padding_top   = 1   # fastfetch logo.padding.top
+logo_padding_right = 0   # fastfetch logo.padding.right
+logo_padding_left  = 0   # fastfetch logo.padding.left: 0 = logo flush with the terminal edge
 keys_color   = "yellow"
 title_color  = "white"
 output_color = "cyan"
@@ -10291,6 +10360,13 @@ bootstrap_client_portable_surfaces = [
     ".devcontainer/devcontainer.json",
 ]
 
+# forwardPorts of every devcontainer.json above (both repos), projected by
+# tools/sync-dotfiles.py from these [ports] keys in order; the array is owned.
+# containerEnv: each named MIOS_* entry is set to the value the resolver emits.
+[dotfiles.devcontainer]
+forward_port_keys  = ["code_server", "agent_pipe", "llm_light", "pgvector"]
+container_env_keys = ["MIOS_AI_ENDPOINT"]
+
 [dotfiles.registry.btop]
 template = "usr/share/mios/theme/templates/btop-mios.theme.tmpl"
 target   = "etc/btop/themes/mios.theme"
@@ -10314,6 +10390,11 @@ linux = "~/.config/quickshell/Theme.qml"
 [dotfiles.registry.fastfetch]
 template = "usr/share/mios/theme/templates/fastfetch-config.jsonc.tmpl"
 target   = "usr/share/mios/fastfetch/config.jsonc"
+edge     = true
+[dotfiles.registry.fastfetch.edge_props]
+logo_padding_top   = '"padding"\s*:\s*\{[^}]*?"top"\s*:\s*([^,}\s]+)'
+logo_padding_right = '"padding"\s*:\s*\{[^}]*?"right"\s*:\s*([^,}\s]+)'
+logo_padding_left  = '"padding"\s*:\s*\{[^}]*?"left"\s*:\s*([^,}\s]+)'
 [dotfiles.registry.fastfetch.apply.target]
 linux   = "~/.config/fastfetch/config.jsonc"
 windows = "%LOCALAPPDATA%/fastfetch/config.jsonc"
@@ -10375,6 +10456,10 @@ windows = "%USERPROFILE%/.gitconfig"
 template = "usr/share/mios/theme/templates/windows-terminal-settings.json.tmpl"
 target   = "usr/share/mios/theme/fixtures/windows-terminal-settings.expected.json"
 kind     = "json-merge"
+edge     = true
+[dotfiles.registry.windows-terminal.edge_props]
+padding        = '"padding"\s*:\s*"([^"]*)"'
+scrollbarState = '"scrollbarState"\s*:\s*"([^"]*)"'
 [dotfiles.registry.windows-terminal.fixture]
 base     = "usr/share/mios/theme/fixtures/windows-terminal-settings.base.json"
 expected = "usr/share/mios/theme/fixtures/windows-terminal-settings.expected.json"
@@ -10412,6 +10497,32 @@ expected = "usr/share/mios/theme/fixtures/ssh-config.expected"
 [dotfiles.registry.ssh-config.apply.target]
 linux    = "~/.ssh/config"
 windows  = "%USERPROFILE%/.ssh/config"
+
+# EDGE surfaces (edge = true): mios-dotfiles-render check applies each edge_props
+# regex to the TEMPLATE; a captured value that is not an @MIOS:...@ token (or,
+# for { re, pin }, not exactly `pin`) is drift, and so is a regex that matches
+# nothing. The one code-server stylesheet: the dev image and mios-agents bake it.
+[dotfiles.registry.code-server-terminal]
+template = "usr/share/mios/theme/templates/code-server-terminal.css.tmpl"
+target   = "usr/share/mios/themes/code-server-terminal.css"
+edge     = true
+[dotfiles.registry.code-server-terminal.edge_props]
+xterm_padding_left     = '\.xterm(?![-\w])[^{}]*\{[^}]*?(?<![-\w])padding(?:-left)?\s*:\s*([^;}]+)'
+xterm_scroll_margin    = '\.xterm-scrollable-element[^{}]*\{[^}]*?(?<![-\w])margin(?:-left)?\s*:\s*([^;}]+)'
+xterm_viewport_right   = '\.xterm-viewport(?![-\w])[^{}]*\{[^}]*?(?<![-\w])right\s*:\s*([^;}]+)'
+terminal_scrollbar     = '\.scrollbar(?![-\w])[^{}]*\{[^}]*?(?<![-\w])display\s*:\s*([^;}]+)'
+terminal_chrome        = { scope = 'terminal|xterm|\.part\.panel', props = '(?:padding|margin|border|left|top|right|bottom|inset)(?:-(?:left|right|top|bottom|width|inline|block)(?:-(?:start|end))?)?' }
+
+# Ptyxis/VTE: GTK 4 loads only the USER gtk.css, which @imports this file.
+[dotfiles.registry.gtk4-edge]
+template = "usr/share/mios/theme/templates/gtk4-edge.css.tmpl"
+target   = "etc/skel/.config/gtk-4.0/mios-edge.css"
+edge     = true
+[dotfiles.registry.gtk4-edge.edge_props]
+vte_padding = 'vte-terminal\.padded[^{}]*\{[^}]*?(?<![-\w])padding\s*:\s*([^;}]+)'
+vte_margin  = { re = 'vte-terminal\.padded[^{}]*\{[^}]*?(?<![-\w])margin\s*:\s*([^;}]+)', pin = "0" }
+[dotfiles.registry.gtk4-edge.apply.target]
+linux = "~/.config/gtk-4.0/mios-edge.css"
 
 [shell]
 alias_ll = "ls -la"
@@ -10733,6 +10844,17 @@ dest_dir = "tools/native"
 name_prefix = ""
 name_suffix = "/Cargo.toml"
 emit = "file"
+
+# mios-dotfiles-render templates: JSON/CSS/INI bodies cannot all carry a hash
+# header, so the one required marker is the SSOT token sentinel.
+[templates.theme-surface]
+match = "^usr/share/mios/theme/templates/[\\w.-]+\\.tmpl$"
+required_header = false
+required_markers = ["@MIOS:"]
+generated = false
+scaffold = true
+dest_dir = "usr/share/mios/theme/templates"
+name_suffix = ".tmpl"
 
 [templates.systemd-timer]
 match = "^usr/lib/systemd/system/[\\w-]+\\.timer$"
@@ -11669,6 +11791,9 @@ mirror_files = [
 # SSOT tables mirrored into bootstrap's root mios.toml.
 mirror_toml_tables = ["ports", "colors"]
 
+# Single keys "<dotted.table>.<key>" mirrored by value; the rest of each table stays repo-owned.
+mirror_toml_keys = ["theme.padding", "theme.scrollbar_state"]
+
 # Deliberately NOT mirrored; reasons in installation/UNIFY.md.
 not_mirrored = [
   "install.sh", "install.ps1", "bootstrap.sh", "bootstrap.ps1",
@@ -11802,6 +11927,7 @@ unit = [
     "tests/test-composefs-seal.sh",
     "tests/test-bootc-rollback-recovery.sh",
     "tests/test-vscode-custom-css.sh",
+    "tests/test-code-server-bake.py",
     "tests/test-hardware-target-profiling.sh",
     "tests/test-blade-enroll.sh",
     "tests/test-greenboot-hardware-degrade.sh",

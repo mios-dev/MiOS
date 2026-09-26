@@ -3,16 +3,14 @@
 # AI-doc: usr/share/doc/mios/manual/ch72-ide-custom-css.md
 
 import argparse
-import glob
 import json
 import os
 import re
 import shutil
 import sys
-import uuid
+import tempfile
 
 CSS_FILE = "/usr/share/mios/themes/code-server-terminal.css"
-ALT_CSS_FILE = "/usr/share/mios/theme/code-server-terminal.css"
 EXT_SRC_DIR = "/usr/share/mios/extensions/be5invis.vscode-custom-css"
 THEME_SRC_DIR = "/usr/share/mios/extensions/mios-theme-mobile"
 VSIX_SRC_FILE = "/usr/share/mios/extensions/vscode-custom-css-7.5.1.vsix"
@@ -331,201 +329,159 @@ def configure_settings(settings_files, dry_run=False, verbose=False):
 
     return success
 
-def patch_workbench_html(html_path, dry_run=False, verbose=False):
-    if not os.path.isfile(html_path):
-        log(f"Workbench file not found: {html_path}", is_verbose=True)
-        return False
+# One-line anchors: the measured code-server 4.139.1 workbench.js text each bake patch rewrites.
+CS_JS_SCROLLBAR = 'get scrollbarWidth(){return this._configurationService.getValue("workbench.experimental.modernUI")===!0?10:14}'
+CS_JS_PERIMETER = (r'var ([\w$]+)=4,([\w$]+)=0,([\w$]+)=(VALUE),([\w$]+)=0;'
+                   r'function [\w$]+\(s\)\{return s\.isModernUICompact\(\)\?\2:\1\}'
+                   r'function [\w$]+\(s\)\{return s\.isModernUICompact\(\)\?\3:\1\}')
+CS_CSS_PERIMETER = ".monaco-workbench.floating-panels.modern-ui-compact{--modern-ui-floating-card-outer-margin:%dpx}"
+BLOCK_START = "<!-- !! VSCODE-CUSTOM-CSS-START !! -->"
+BLOCK_END = "<!-- !! VSCODE-CUSTOM-CSS-END !! -->"
+ORIG_SUFFIX = ".mios-orig"
+_BLOCK_RE = re.compile(r"(?:<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID [0-9a-fA-F-]+ !! -->\n)?"
+                       + re.escape(BLOCK_START) + r"[\s\S]*?" + re.escape(BLOCK_END) + r"\n?")
+_SCROLLBAR_ANY = re.compile(re.escape(CS_JS_SCROLLBAR.rsplit("?", 1)[0]) + r"\?(\d+):14\}")
+_PERIMETER_ANY = re.compile(CS_JS_PERIMETER.replace("VALUE", r"\d+"))
 
+
+class BakeError(Exception):
+    def __init__(self, code, msg):
+        super().__init__(msg)
+        self.code = code
+
+
+def _read(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def _write_atomic(path, text):
+    """temp-file + rename in the target's directory, keeping the target's mode."""
+    d = os.path.dirname(os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(prefix=".mios-", dir=d)
     try:
-        with open(html_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        if os.path.exists(path):
+            shutil.copymode(path, tmp)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
 
-        session_id = str(uuid.uuid4())
-        backup_path = f"{html_path}.{session_id}.bak-custom-css"
 
-        # Check if already patched
-        if "<!-- !! VSCODE-CUSTOM-CSS-START !!" in content:
-            log(f"Workbench already patched: {html_path}", verbose=True, is_verbose=verbose)
-            return True
+def _px(value):
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError(f"not a whole pixel count: {value!r}")
+    if n < 0:
+        raise argparse.ArgumentTypeError(f"negative pixel count: {n}")
+    return n
 
-        if dry_run:
-            log(f"Would patch workbench: {html_path}", is_verbose=verbose)
-            return True
 
-        # Write backup
-        with open(backup_path, "w", encoding="utf-8") as f:
-            f.write(content)
+def _edge_px(key):
+    """[theme.edge].<key> through the ONE layered loader, when the flag is omitted."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for d in (os.path.join(here, "..", "..", "lib", "mios"), "/usr/lib/mios"):
+        if os.path.isfile(os.path.join(d, "mios_toml.py")):
+            sys.path.insert(0, d)
+            break
+    import mios_toml
+    val = mios_toml.section(mios_toml.load_merged(), "theme.edge").get(key)
+    try:
+        return _px(val)
+    except argparse.ArgumentTypeError as e:
+        raise BakeError(2, f"[theme.edge].{key}: {e}")
 
-        # Remove CSP header restriction if present
-        clean_content = re.sub(
-            r'<meta\s+http-equiv="Content-Security-Policy"[\s\S]*?\/>',
-            "",
-            content
-        )
 
-        css_content = ""
-        if os.path.isfile(CSS_FILE):
-            try:
-                with open(CSS_FILE, "r", encoding="utf-8") as cf:
-                    css_content = cf.read()
-            except Exception:
-                css_content = ""
+def build_block(css_text, perimeter_px):
+    return (f"{BLOCK_START}\n<style id=\"mios-custom-terminal-css\">\n{css_text}\n</style>\n"
+            f"<style id=\"mios-edge-perimeter\">{CS_CSS_PERIMETER % perimeter_px}</style>\n{BLOCK_END}\n")
 
-        inject_tag = f'<link rel="stylesheet" href="file://{CSS_FILE}">\n'
-        if css_content:
-            inject_tag += f'<style id="mios-custom-terminal-css">\n{css_content}\n</style>\n'
 
-        patch_block = (
-            f"<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID {session_id} !! -->\n"
-            f"<!-- !! VSCODE-CUSTOM-CSS-START !! -->\n"
-            f"{inject_tag}"
-            f"<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n</head>"
-        )
+def _workbench_js(html_path):
+    return os.path.join(os.path.dirname(os.path.abspath(html_path)), "workbench.js")
 
-        patched_content = clean_content.replace("</head>", patch_block)
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(patched_content)
 
-        log(f"Successfully patched workbench: {html_path}")
-        return True
-    except Exception as e:
-        log(f"Failed patching workbench {html_path}: {e}", is_verbose=True)
-        return False
+def _source(path):
+    """The pristine upstream bytes: the .mios-orig backup when a bake already ran."""
+    orig = path + ORIG_SUFFIX
+    return (_read(orig), True) if os.path.isfile(orig) else (_read(path), False)
+
+
+def bake_workbench(html_path, css_path, scrollbar_px, perimeter_px, dry_run=False):
+    """Inject the stylesheet and rewrite both bundle constants; every anchor is checked before any write."""
+    if not os.path.isfile(html_path):
+        raise BakeError(2, f"anchor not found: {html_path}: </head> (no such file)")
+    if not os.path.isfile(css_path):
+        raise BakeError(2, f"stylesheet not found: {css_path}")
+    js_path = _workbench_js(html_path)
+    html = re.sub(r'<meta\s+http-equiv="Content-Security-Policy"[\s\S]*?\/>', "", _BLOCK_RE.sub("", _read(html_path)))
+    if html.count("</head>") != 1:
+        raise BakeError(2, f"anchor not found: {html_path}: </head>")
+    if not os.path.isfile(js_path):
+        raise BakeError(2, f"anchor not found: {js_path}: get scrollbarWidth (no such file)")
+    js, js_has_orig = _source(js_path)
+    if js.count(CS_JS_SCROLLBAR) != 1:
+        raise BakeError(2, f"anchor not found: {js_path}: get scrollbarWidth")
+    perim = list(re.finditer(CS_JS_PERIMETER.replace("VALUE", "4"), js))
+    if len(perim) != 1:
+        raise BakeError(2, f"anchor not found: {js_path}: COMPACT_FLOATING_PANEL_OUTER_MARGIN")
+    m = perim[0]
+    js_new = js[:m.start(4)] + str(perimeter_px) + js[m.end(4):]
+    js_new = js_new.replace(CS_JS_SCROLLBAR, CS_JS_SCROLLBAR.rsplit("?", 1)[0] + f"?{scrollbar_px}:14}}")
+    html_new = html.replace("</head>", build_block(_read(css_path), perimeter_px) + "</head>")
+    if dry_run:
+        log(f"Would bake {html_path} and {js_path}")
+        return
+    if not js_has_orig:
+        shutil.copy2(js_path, js_path + ORIG_SUFFIX)
+    _write_atomic(js_path, js_new)
+    _write_atomic(html_path, html_new)
+    log(f"Baked {html_path} (scrollbar {scrollbar_px}px, perimeter {perimeter_px}px)")
+
+
+def verify_workbench(html_path, css_path, scrollbar_px, perimeter_px):
+    """Return the list of differences between the baked tree and the stylesheet/pixel values."""
+    errs = []
+    html = _read(html_path) if os.path.isfile(html_path) else ""
+    blocks = [b.group(0) for b in _BLOCK_RE.finditer(html)]
+    css = _read(css_path) if os.path.isfile(css_path) else None
+    if css is None or blocks != [build_block(css, perimeter_px)]:
+        errs.append(f"code-server workbench.html: injected block differs from {css_path}")
+    js_path = _workbench_js(html_path)
+    js = _read(js_path) if os.path.isfile(js_path) else ""
+    for name, rx, want in (("scrollbarWidth ModernUI", _SCROLLBAR_ANY, scrollbar_px),
+                           ("COMPACT_FLOATING_PANEL_OUTER_MARGIN", _PERIMETER_ANY, perimeter_px)):
+        found = [mm.group(1) if rx is _SCROLLBAR_ANY else mm.group(4) for mm in rx.finditer(js)]
+        got = found[0] if len(found) == 1 else ("missing" if not found else "ambiguous")
+        if got != str(want):
+            errs.append(f"code-server workbench.js: {name}={got} want {want}")
+    return errs
+
 
 def unpatch_workbench_html(html_path, dry_run=False, verbose=False):
     if not os.path.isfile(html_path):
         return False
-
     try:
-        with open(html_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        m = re.search(r"<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID ([0-9a-fA-F-]+) !! -->", content)
-        if not m:
-            log(f"No custom CSS patch detected in: {html_path}", is_verbose=verbose)
-            return True
-
-        session_id = m.group(1)
-        backup_path = f"{html_path}.{session_id}.bak-custom-css"
-
-        if dry_run:
-            log(f"Would unpatch workbench: {html_path}", is_verbose=verbose)
-            return True
-
-        if os.path.isfile(backup_path):
-            shutil.copyfile(backup_path, html_path)
-            os.unlink(backup_path)
-            log(f"Restored workbench from backup: {backup_path}")
-        else:
-            # Strip patch blocks
-            cleaned = re.sub(
-                r"<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID [\s\S]*?<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n",
-                "",
-                content
-            )
-            with open(html_path, "w", encoding="utf-8") as f:
-                f.write(cleaned)
+        for p in (html_path, _workbench_js(html_path)):
+            orig = p + ORIG_SUFFIX
+            if os.path.isfile(orig):
+                if not dry_run:
+                    os.replace(orig, p)
+                log(f"Restored {p} from {orig}")
+        content = _read(html_path)
+        if _BLOCK_RE.search(content):
+            if not dry_run:
+                _write_atomic(html_path, _BLOCK_RE.sub("", content))
             log(f"Cleaned patch block from: {html_path}")
-
         return True
     except Exception as e:
         log(f"Failed unpatching workbench {html_path}: {e}", is_verbose=True)
         return False
 
-def patch_xterm_css(dry_run=False, verbose=False):
-    """Patch all xterm.css files found across vscode server and node_modules with overscan borderless rules."""
-    xterm_files = set()
-    for root_dir in ["/vscode", "/home", "/var/home", "/root", "/usr", "/etc/skel"]:
-        if not os.path.isdir(root_dir):
-            continue
-        for root, dirs, files in os.walk(root_dir):
-            if "xterm.css" in files:
-                full_p = os.path.join(root, "xterm.css")
-                if "node_modules" in full_p and "@xterm" in full_p:
-                    xterm_files.add(full_p)
-
-    overscan_css = (
-        "\n/* !! MIOS-XTERM-OVERSCAN-START !! */\n"
-        "/* MiOS Edge-to-Edge Frameless Overscan Terminal Styling */\n"
-        ".xterm {\n"
-        "    padding: 0 !important;\n"
-        "    margin: 0 !important;\n"
-        "    border: none !important;\n"
-        "    outline: none !important;\n"
-        "    box-shadow: none !important;\n"
-        "    width: 100% !important;\n"
-        "    height: 100% !important;\n"
-        "}\n"
-        ".xterm .xterm-viewport {\n"
-        "    overflow-y: hidden !important;\n"
-        "    scrollbar-width: none !important;\n"
-        "    -ms-overflow-style: none !important;\n"
-        "    margin: 0 !important;\n"
-        "    padding: 0 !important;\n"
-        "    border: none !important;\n"
-        "    outline: none !important;\n"
-        "    box-shadow: none !important;\n"
-        "}\n"
-        ".xterm .xterm-viewport::-webkit-scrollbar {\n"
-        "    display: none !important;\n"
-        "    width: 0 !important;\n"
-        "    height: 0 !important;\n"
-        "}\n"
-        ".xterm .xterm-screen {\n"
-        "    margin: 0 !important;\n"
-        "    padding: 0 !important;\n"
-        "    border: none !important;\n"
-        "    outline: none !important;\n"
-        "    box-shadow: none !important;\n"
-        "}\n"
-        ".xterm .xterm-screen canvas {\n"
-        "    border: none !important;\n"
-        "    margin: 0 !important;\n"
-        "    padding: 0 !important;\n"
-        "    left: 0 !important;\n"
-        "    top: 0 !important;\n"
-        "}\n"
-        ".xterm .xterm-rows {\n"
-        "    padding: 0 !important;\n"
-        "    margin: 0 !important;\n"
-        "}\n"
-        "/* Eliminate gutters in containers hosting xterm */\n"
-        ".terminal-outer-container,\n"
-        ".terminal-wrapper,\n"
-        ".terminal-split-pane,\n"
-        ".terminal.xterm,\n"
-        ".pane-body.integrated-terminal,\n"
-        ".monaco-workbench .part.panel,\n"
-        ".monaco-workbench .part.panel > .content,\n"
-        ".monaco-workbench .part.panel .pane-composite-part > .content {\n"
-        "    padding: 0 !important;\n"
-        "    margin: 0 !important;\n"
-        "    border: none !important;\n"
-        "    outline: none !important;\n"
-        "    box-shadow: none !important;\n"
-        "}\n"
-        "/* !! MIOS-XTERM-OVERSCAN-END !! */\n"
-    )
-
-    count = 0
-    for xf in sorted(list(xterm_files)):
-        try:
-            with open(xf, "r", encoding="utf-8") as f:
-                content = f.read()
-            if "/* !! MIOS-XTERM-OVERSCAN-START !! */" in content:
-                continue
-            if dry_run:
-                log(f"Would patch xterm.css: {xf}", is_verbose=verbose)
-                count += 1
-                continue
-            with open(xf, "a", encoding="utf-8") as f:
-                f.write(overscan_css)
-            log(f"Patched xterm.css for overscan: {xf}")
-            count += 1
-        except Exception as e:
-            log(f"Failed patching {xf}: {e}", is_verbose=True)
-
-    return count
 
 def check_status(verbose=False):
     homes = get_candidate_homes()
@@ -582,15 +538,19 @@ def main():
     p_install.add_argument("--all", action="store_true", help="Install across all detected user and code-server homes")
     p_install.add_argument("--extensions-dir", help="Explicit extensions directory target")
     p_install.add_argument("--settings-file", help="Explicit settings.json file target")
-    p_install.add_argument("--patch-html", action="store_true", help="Also attempt to patch detected workbench.html files")
     p_install.add_argument("--dry-run", action="store_true", help="Simulate actions without writing files")
     p_install.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
-    # patch command
-    p_patch = subparsers.add_parser("patch", help="Patch workbench.html with custom CSS tag")
-    p_patch.add_argument("--target", help="Explicit workbench.html file to patch")
-    p_patch.add_argument("--dry-run", action="store_true", help="Simulate actions")
-    p_patch.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    # patch / verify commands (the code-server bake)
+    for name, help_text in (("patch", "Bake the stylesheet and the two bundle patches into code-server's workbench"),
+                            ("verify", "Exit 1 when the baked workbench differs from the stylesheet or the pixel values")):
+        sp = subparsers.add_parser(name, help=help_text)
+        sp.add_argument("--target", help="code-server workbench.html (default: every detected one)")
+        sp.add_argument("--css", default=CSS_FILE, help="Stylesheet to inject (default: %(default)s)")
+        sp.add_argument("--scrollbar-px", type=_px, help="TerminalScrollbarWidth.ModernUI (default: [theme.edge].code_server_scrollbar_px)")
+        sp.add_argument("--perimeter-px", type=_px, help="COMPACT_FLOATING_PANEL_OUTER_MARGIN (default: [theme.edge].code_server_perimeter_px)")
+        sp.add_argument("--dry-run", action="store_true", help="Simulate actions")
+        sp.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     # unpatch command
     p_unpatch = subparsers.add_parser("unpatch", help="Remove custom CSS patch from workbench.html")
@@ -615,25 +575,27 @@ def main():
 
         ok1 = install_extension(ext_dirs, dry_run=args.dry_run, verbose=args.verbose)
         ok2 = configure_settings(settings_files, dry_run=args.dry_run, verbose=args.verbose)
-        patch_xterm_css(dry_run=args.dry_run, verbose=args.verbose)
-
-        if args.patch_html:
-            for wb in locate_workbench_html_files():
-                patch_workbench_html(wb, dry_run=args.dry_run, verbose=args.verbose)
-
         return 0 if (ok1 and ok2) else 1
 
-    if args.command == "patch":
-        patch_xterm_css(dry_run=args.dry_run, verbose=args.verbose)
+    if args.command in ("patch", "verify"):
         targets = [args.target] if args.target else locate_workbench_html_files()
         if not targets:
-            log("No workbench.html files found to patch.")
-            return 0
-        all_ok = True
-        for t in targets:
-            if not patch_workbench_html(t, dry_run=args.dry_run, verbose=args.verbose):
-                all_ok = False
-        return 0 if all_ok else 1
+            log("ERROR: no code-server workbench.html to bake (empty target list)", is_verbose=True)
+            return 2
+        try:
+            sb = _edge_px("code_server_scrollbar_px") if args.scrollbar_px is None else args.scrollbar_px
+            pm = _edge_px("code_server_perimeter_px") if args.perimeter_px is None else args.perimeter_px
+            if args.command == "patch":
+                for t in targets:
+                    bake_workbench(t, args.css, sb, pm, dry_run=args.dry_run)
+                return 0
+            errs = [e for t in targets for e in verify_workbench(t, args.css, sb, pm)]
+        except BakeError as e:
+            log(f"ERROR: {e}", is_verbose=True)
+            return e.code
+        for e in errs:
+            log(f"VIOLATION: {e}", is_verbose=True)
+        return 1 if errs else 0
 
     if args.command == "unpatch":
         targets = [args.target] if args.target else locate_workbench_html_files()

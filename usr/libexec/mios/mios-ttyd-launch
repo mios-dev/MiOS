@@ -86,7 +86,9 @@ fi
 ARGS+=("-T" "xterm-256color")
 ARGS+=("-t" "titleFixed=MiOS ttyd [$VARIANT @ $BIND:$PORT]")
 ARGS+=("-t" "fontSize=${MIOS_TTYD_FONT_SIZE:-14}")
+TTYD_PAGE="$(_toml_get ttyd page_path || true)"
+if [[ -n "$TTYD_PAGE" && -r "$TTYD_PAGE" ]]; then ARGS+=("-I" "$TTYD_PAGE"); fi  # baked by automation/41-services.sh
 
-SHELL_ARGV=( $SHELL_CMD )
+read -r -a SHELL_ARGV <<< "$SHELL_CMD"
 
 exec ttyd "${ARGS[@]}" "${SHELL_ARGV[@]}"

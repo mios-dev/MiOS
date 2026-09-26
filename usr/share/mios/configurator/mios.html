@@ -2877,7 +2877,7 @@
           <option value="visible">visible</option>
           <option value="always">always</option>
         </select>
-        <label for="f-theme-pad">padding</label>
+        <label for="f-theme-pad">padding (EVERY terminal surface: "#" | "#, #" | "#, #, #, #" left, top, right, bottom; non-negative integers)</label>
         <input type="text" id="f-theme-pad" data-key="theme.padding" placeholder="0">
         <div class="checkbox-row">
           <input type="checkbox" id="f-theme-supp" data-key="theme.suppress_app_title">
@@ -2900,6 +2900,45 @@
           <input type="checkbox" id="f-theme-preview" data-key="theme.enable_preview_features">
           <label for="f-theme-preview">enable_preview_features (WT useAtlasEngine + experimental.detectURLs / forceVT / forceFullRepaint)</label>
         </div>
+      </fieldset>
+      <fieldset>
+        <legend>theme.edge (edge-to-edge terminal chrome)</legend>
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-edge-enforce" data-key="theme.edge.enforce">
+          <label for="f-edge-enforce">enforce (the dotfiles renderer refuses an inset literal on an edge surface)</label>
+        </div>
+        <label for="f-edge-cs-scroll">code_server_scrollbar_px (terminal scrollbar reserve baked into code-server)</label>
+        <input type="text" id="f-edge-cs-scroll" data-key="theme.edge.code_server_scrollbar_px" data-type="int" placeholder="0">
+        <label for="f-edge-cs-perim">code_server_perimeter_px (compact card perimeter baked into code-server)</label>
+        <input type="text" id="f-edge-cs-perim" data-key="theme.edge.code_server_perimeter_px" data-type="int" placeholder="0">
+        <label for="f-edge-cs-chrome">code_server_chrome_px (code-server terminal container padding, margin, border and offsets)</label>
+        <input type="text" id="f-edge-cs-chrome" data-key="theme.edge.code_server_chrome_px" data-type="int" placeholder="0">
+        <label for="f-edge-gaps-in">wm_gaps_inner_px (gaps between tiled windows)</label>
+        <input type="text" id="f-edge-gaps-in" data-key="theme.edge.wm_gaps_inner_px" data-type="int" placeholder="0">
+        <label for="f-edge-gaps-out">wm_gaps_outer_px (gaps between windows and monitor edges)</label>
+        <input type="text" id="f-edge-gaps-out" data-key="theme.edge.wm_gaps_outer_px" data-type="int" placeholder="0">
+        <label for="f-edge-border">wm_border_px (tiled window border)</label>
+        <input type="text" id="f-edge-border" data-key="theme.edge.wm_border_px" data-type="int" placeholder="0">
+        <label for="f-edge-portal-chrome">portal_term_chrome_px (Portal terminal card border + radius)</label>
+        <input type="text" id="f-edge-portal-chrome" data-key="theme.edge.portal_term_chrome_px" data-type="int" placeholder="0">
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-edge-portal-bleed" data-key="theme.edge.portal_term_bleed">
+          <label for="f-edge-portal-bleed">portal_term_bleed (the Portal terminal reaches the card's inner edges)</label>
+        </div>
+        <label for="f-edge-ttyd-pad">ttyd_padding_px (ttyd page .terminal padding, baked into the -I page)</label>
+        <input type="text" id="f-edge-ttyd-pad" data-key="theme.edge.ttyd_padding_px" data-type="int" placeholder="0">
+        <label for="f-edge-cs-density">code_server_density (window.density.layout in every VS Code settings projection)</label>
+        <input type="text" id="f-edge-cs-density" data-key="theme.edge.code_server_density" placeholder="compact">
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-edge-cs-modern" data-key="theme.edge.code_server_modern_ui">
+          <label for="f-edge-cs-modern">code_server_modern_ui (workbench.experimental.modernUI in the same projections)</label>
+        </div>
+        <label for="f-ff-pad-top">theme.fastfetch.logo_padding_top</label>
+        <input type="text" id="f-ff-pad-top" data-key="theme.fastfetch.logo_padding_top" data-type="int" placeholder="1">
+        <label for="f-ff-pad-right">theme.fastfetch.logo_padding_right</label>
+        <input type="text" id="f-ff-pad-right" data-key="theme.fastfetch.logo_padding_right" data-type="int" placeholder="0">
+        <label for="f-ff-pad-left">theme.fastfetch.logo_padding_left (0 = logo flush with the terminal edge)</label>
+        <input type="text" id="f-ff-pad-left" data-key="theme.fastfetch.logo_padding_left" data-type="int" placeholder="0">
       </fieldset>
       <fieldset>
         <legend>theme.font</legend>

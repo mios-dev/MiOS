@@ -1,0 +1,4 @@
+/* AI-hint: Portal expanded terminal card CSS rendered by portal_edge.py from mios.toml [theme.edge].portal_term_* */
+.card.term.exp .embed-box{border-width:0px;border-radius:0px}
+.card.term.exp .embed{margin-left:calc(-1*var(--card-pad-x));margin-right:calc(-1*var(--card-pad-x));margin-bottom:calc(-1*var(--card-pad-bottom))}
+.card.term.exp .embed-bar{padding:0 var(--card-pad-x)}

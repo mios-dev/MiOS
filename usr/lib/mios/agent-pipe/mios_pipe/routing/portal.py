@@ -383,7 +383,7 @@ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .addr a{color:var(--mut)}.addr a:hover{color:var(--accent)}
 .card{position:relative;background:var(--card);border:1px solid var(--line);
 border-left:3px solid var(--mut);cursor:pointer;min-width:0;
-border-radius:var(--rad);padding:15px 15px 13px;transition:.15s border-color,.15s transform}
+border-radius:var(--rad);--card-pad-top:15px;--card-pad-x:15px;--card-pad-bottom:13px;padding:var(--card-pad-top) var(--card-pad-x) var(--card-pad-bottom);transition:.15s border-color,.15s transform}
 .card.exp{cursor:default}
 .card.exp:hover{transform:none}
 .card.up{border-left-color:var(--ok)}
@@ -857,6 +857,7 @@ tick();arm();tickConfig();
 def _portal_theme_css() -> str:
     try:
         import mios_toml
+        from mios_pipe.routing import portal_edge
         c = mios_toml.colors()
     except Exception:
         return ""
@@ -870,9 +871,8 @@ def _portal_theme_css() -> str:
              "--ok2": c.get("ansi_10_bright_green") or c.get("success"),
              "--rust": c.get("ansi_13_bright_magenta") or c.get("earth"),
              "--subtle": c.get("subtle") or c.get("muted")}
-    decl = ";".join(f"{k}:{v}" for k, v in roles.items()
-                    if isinstance(v, str) and v.startswith("#"))
-    return f"<style>:root{{{decl}}}</style>" if decl else ""
+    decl = ";".join(f"{k}:{v}" for k, v in roles.items() if isinstance(v, str) and v.startswith("#"))
+    return (f"<style>:root{{{decl}}}</style>" if decl else "") + portal_edge.style_block(safe=True)
 
 _PORTAL_ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
                 '<rect width="512" height="512" rx="104" fill="#282262"/>'

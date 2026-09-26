@@ -3312,6 +3312,7 @@ def check_usr_over_etc() -> int:
     exempt_prefixes = (
         "etc/containers/systemd/",
         "etc/wsl.conf",
+        "etc/wsl-distribution.conf",  # WSL reads only /etc, like wsl.conf
         "etc/cockpit/",
         "etc/containers/",
         "etc/greenboot/",

@@ -3,6 +3,7 @@
 # AI-hint: Installs Hyprland tiling compositor, XWayland, window routing helpers, and constructs the base layout configuration inside...
 # AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
@@ -10,153 +11,11 @@ source "${SCRIPT_DIR}/lib/packages.sh"
 mios_log "Installing Hyprland compositor & tools"
 install_packages_strict "hyprland"
 
-mios_log "Generating baseline Hyprland configuration"
-mkdir -p /usr/share/mios/hyprland
-cat << 'EOF' > /usr/share/mios/hyprland/hyprland.conf
-
-monitor=,preferred,auto,1
-
-input {
-    kb_layout = us
-    follow_mouse = 1
-    sensitivity = 0 # -1.0 - 1.0, 0 means no modification
-    touchpad {
-        natural_scroll = true
-    }
-}
-
-general {
-    gaps_in = 5
-    gaps_out = 12
-    border_size = 2
-    col.active_border = rgba(@@MIOS_COLOR_CURSOR@@ee) rgba(@@MIOS_COLOR_ACCENT@@ee) rgba(@@MIOS_COLOR_SUCCESS@@ee) 60deg
-    col.inactive_border = rgba(@@MIOS_COLOR_BG@@aa)
-    layout = dwindle
-    allow_tearing = false
-}
-
-render {
-    direct_scanout = 1
-}
-
-env = GTK_THEME,Adwaita:dark
-env = QT_QPA_PLATFORM,wayland;xcb
-env = QT_QPA_PLATFORMTHEME,qt6ct
-env = XDG_CURRENT_DESKTOP,Hyprland
-env = XDG_SESSION_TYPE,wayland
-env = XDG_SESSION_DESKTOP,Hyprland
-
-decoration {
-    rounding = 12
-    active_opacity = 1.0
-    inactive_opacity = 0.93
-    fullscreen_opacity = 1.0
-    blur {
-        enabled = true
-        size = 10
-        passes = 4
-        new_optimizations = true
-        xray = true
-        ignore_opacity = true
-        noise = 0.010
-        contrast = 1.08
-        brightness = 0.88
-        vibrancy = 0.25
-        vibrancy_darkness = 0.08
-        popups = true           # frost drop-down menus / context popups too
-        popups_ignorealpha = 0.2
-    }
-    drop_shadow = true
-    shadow_range = 22
-    shadow_render_power = 4
-    shadow_offset = 0 4
-    col.shadow = rgba(0A0A0A99)
-    col.shadow_inactive = rgba(0A0A0A44)
-    dim_inactive = true
-    dim_strength = 0.05
-}
-
-animations {
-    enabled = true
-    bezier = liquid,    0.25, 1.30, 0.35, 1.00
-    bezier = smoothOut, 0.36, 0.00, 0.66, -0.56
-    bezier = smoothIn,  0.25, 1.00, 0.50, 1.00
-    bezier = myBezier,  0.05, 0.90, 0.10, 1.05
-    animation = windows,     1, 5, myBezier, popin 60%
-    animation = windowsIn,   1, 5, myBezier, popin 60%
-    animation = windowsOut,  1, 4, smoothOut, popin 80%
-    animation = windowsMove,  1, 4, liquid
-    animation = border,      1, 10, default
-    animation = borderangle, 1, 8, default
-    animation = fade,        1, 5, smoothIn
-    animation = fadeIn,      1, 5, smoothIn
-    animation = fadeOut,     1, 5, smoothOut
-    animation = workspaces,  1, 5, liquid, slide
-    animation = layers,      1, 4, myBezier, slide
-    animation = layersIn,    1, 4, myBezier, slide
-    animation = layersOut,   1, 4, smoothOut, slide
-}
-
-layerrule = blur, quickshell
-layerrule = ignorealpha 0.2, quickshell
-layerrule = blur, rofi
-layerrule = ignorealpha 0.5, rofi
-layerrule = blur, notifications
-layerrule = ignorealpha 0.3, notifications
-
-windowrulev2 = suppressevent maximize, class:.*
-windowrulev2 = float, class:^(mios-webshell)$
-windowrulev2 = size 1200 800, class:^(mios-webshell)$
-
-windowrulev2 = float, class:^(cockpit)$
-windowrulev2 = size 1400 900, class:^(cockpit)$
-
-exec-once = quickshell --config /usr/share/mios/quickshell/Config.qml
-
-exec-once = systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
-exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
-exec-once = systemctl --user start graphical-session.target
-
-$mainMod = SUPER
-
-bind = $mainMod, Q, killactive,
-bind = $mainMod, M, exit,
-bind = $mainMod, E, exec, mios-webshell
-bind = $mainMod, V, togglefloating,
-bind = $mainMod, R, exec, rofi -show drun
-bind = $mainMod, P, pseudo, # dwindle
-bind = $mainMod, J, togglesplit, # dwindle
-bind = $mainMod, C, exec, xdg-open http://localhost:9090 # Cockpit -- real, see mios-cockpit-link.container
-
-bind = $mainMod, left, movefocus, l
-bind = $mainMod, right, movefocus, r
-bind = $mainMod, up, movefocus, u
-bind = $mainMod, down, movefocus, d
-
-bind = $mainMod, 1, workspace, 1
-bind = $mainMod, 2, workspace, 2
-bind = $mainMod, 3, workspace, 3
-bind = $mainMod, 4, workspace, 4
-bind = $mainMod, 5, workspace, 5
-
-bind = $mainMod SHIFT, 1, movetoworkspace, 1
-bind = $mainMod SHIFT, 2, movetoworkspace, 2
-bind = $mainMod SHIFT, 3, movetoworkspace, 3
-bind = $mainMod SHIFT, 4, movetoworkspace, 4
-bind = $mainMod SHIFT, 5, movetoworkspace, 5
-EOF
-
-: "${MIOS_COLOR_ACCENT:=#1A407F}"
-: "${MIOS_COLOR_INFO:=#1A407F}"
-: "${MIOS_COLOR_MUTED:=#948E8E}"
-sed -i \
-    -e "s/@@MIOS_COLOR_ACCENT@@/${MIOS_COLOR_ACCENT#\#}/g" \
-    -e "s/@@MIOS_COLOR_INFO@@/${MIOS_COLOR_INFO#\#}/g" \
-    -e "s/@@MIOS_COLOR_MUTED@@/${MIOS_COLOR_MUTED#\#}/g" \
-    /usr/share/mios/hyprland/hyprland.conf
-
-chmod 0644 /usr/share/mios/hyprland/hyprland.conf
-mios_ok "Wrote /usr/share/mios/hyprland/hyprland.conf"
+# Render each imperative generator's installed surface from the merged build SSOT (MIOS_VENDOR_TOML), so operator edits ship.
+for _gen in ux/wm_config_gen.py desktop/gpu_terminal.py win/wt_profile_inject.py ux/tmux_theme.py; do
+    python3 "/usr/libexec/mios/${_gen}" --write-fixture /
+done
+mios_ok "Rendered Hyprland, Sway, Alacritty, WSL terminal profile and tmux theme from mios.toml"
 
 mkdir -p /usr/share/wayland-sessions
 cat << 'EOF' > /usr/share/wayland-sessions/hyprland.desktop

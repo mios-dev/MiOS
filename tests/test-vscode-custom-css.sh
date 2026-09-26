@@ -7,7 +7,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOL="${ROOT_DIR}/usr/libexec/mios/mios-vscode-custom-css"
 VSIX="${ROOT_DIR}/usr/share/mios/extensions/vscode-custom-css-7.5.1.vsix"
 EXT_DIR="${ROOT_DIR}/usr/share/mios/extensions/be5invis.vscode-custom-css"
-CSS_FILE="${ROOT_DIR}/usr/share/mios/theme/code-server-terminal.css"
+CSS_FILE="${ROOT_DIR}/usr/share/mios/themes/code-server-terminal.css"
 SETTINGS_TPL="${ROOT_DIR}/usr/share/mios/agents/code-server-mobile-settings.json"
 
 TMP_DIR=""
@@ -143,16 +143,26 @@ cat <<'EOF' > "$SYN_HTML"
 </html>
 EOF
 
-if "$TOOL" patch --target "$SYN_HTML" >/dev/null 2>&1; then
+# The measured code-server 4.139.1 workbench.js anchors the bake rewrites.
+printf '%s' 'var L0e=4,fGn=0,vGn=4,Wre=0;function Hre(s){return s.isModernUICompact()?fGn:L0e}function P0e(s){return s.isModernUICompact()?vGn:L0e}class X{get scrollbarWidth(){return this._configurationService.getValue("workbench.experimental.modernUI")===!0?10:14}}' > "${TMP_DIR}/workbench.js"
+BAKE_ARGS=(--target "$SYN_HTML" --css "$CSS_FILE" --scrollbar-px 0 --perimeter-px 0)
+
+if "$TOOL" patch "${BAKE_ARGS[@]}" >/dev/null 2>&1; then
     assert_pass "patch command succeeded"
 else
     assert_fail "patch command failed"
 fi
 
-if grep -q "<!-- !! VSCODE-CUSTOM-CSS-START !!" "$SYN_HTML" && grep -q "code-server-terminal.css" "$SYN_HTML"; then
-    assert_pass "workbench.html contains injected CSS link"
+if grep -q "<!-- !! VSCODE-CUSTOM-CSS-START !!" "$SYN_HTML" && grep -q "terminal-outer-container" "$SYN_HTML" && ! grep -q "file://" "$SYN_HTML"; then
+    assert_pass "workbench.html carries the inlined stylesheet and no file:// link"
 else
-    assert_fail "workbench.html missing injected CSS link"
+    assert_fail "workbench.html missing the inlined stylesheet, or carries a file:// link"
+fi
+
+if "$TOOL" verify "${BAKE_ARGS[@]}" >/dev/null 2>&1; then
+    assert_pass "verify accepts the baked workbench"
+else
+    assert_fail "verify rejected the baked workbench"
 fi
 
 if "$TOOL" unpatch --target "$SYN_HTML" >/dev/null 2>&1; then

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Windows Terminal settings.json profile injector with MiOS tabs & color palette
-# AI-related: tests/test-wt-profile-inject.py, usr/share/mios/mios.toml, usr/libexec/mios/win/unattend_gen.py
-# AI-functions: WindowsTerminalProfileInjector, ProfileConfig, ColorScheme, inject_wt_profiles
+# AI-related: tests/test-wt-profile-inject.py, usr/share/mios/mios.toml, usr/libexec/mios/win/unattend_gen.py, usr/lib/mios/mios_toml.py, usr/share/mios/wsl/terminal-profile.json, etc/wsl-distribution.conf
+# AI-functions: WindowsTerminalProfileInjector, ProfileConfig, ColorScheme, inject_wt_profiles, wt_edge, fixture_render
 """
 MiOS Windows Terminal Profile & Color Scheme Injector.
 
@@ -20,10 +20,16 @@ import os
 import re
 import shutil
 import sys
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+_TREE = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
+if os.path.join(_TREE, "usr", "lib", "mios") not in sys.path:
+    sys.path.insert(0, os.path.join(_TREE, "usr", "lib", "mios"))
+import mios_toml  # noqa: E402 -- required: padding/scrollbarState resolve through edge_insets()
+
+# WSL's [windowsterminal].profileTemplate (etc/wsl-distribution.conf); rendered at bake by automation/65-bake-hyprland.sh
+GOLDEN = "usr/share/mios/wsl/terminal-profile.json"
 WSL_GUID = "{a4b89f81-9b1c-4e8a-b86a-6b45a98d0001}"
 SSH_GUID = "{a4b89f81-9b1c-4e8a-b86a-6b45a98d0002}"
 SERIAL_GUID = "{a4b89f81-9b1c-4e8a-b86a-6b45a98d0003}"
@@ -52,6 +58,18 @@ DEFAULT_MIOS_COLOR_SCHEME = {
     "brightWhite": "#ECEFF4",
 }
 
+def wt_edge(data: Dict[str, Any]) -> Tuple[str, str]:
+    """(padding, scrollbarState) in WT profile grammar, normalised through edge_insets()."""
+    ins = mios_toml.edge_insets(data)
+    l, t, r, b = ins["left"], ins["top"], ins["right"], ins["bottom"]
+    if l == t == r == b:
+        padding = f"{l}"
+    elif l == r and t == b:
+        padding = f"{l}, {t}"
+    else:
+        padding = f"{l}, {t}, {r}, {b}"
+    return padding, str(mios_toml.section(data, "theme")["scrollbar_state"])
+
 @dataclass
 class TerminalProfile:
     """Windows Terminal profile entry definition."""
@@ -62,6 +80,8 @@ class TerminalProfile:
     startingDirectory: Optional[str] = None
     icon: Optional[str] = None
     hidden: bool = False
+    padding: Optional[str] = None
+    scrollbarState: Optional[str] = None
 
 class WindowsTerminalProfileInjector:
     """Non-destructive modifier for Windows Terminal settings.json."""
@@ -75,7 +95,12 @@ class WindowsTerminalProfileInjector:
         set_default: bool = False,
         dry_run: bool = False,
         mock: bool = False,
+        data: Optional[Dict[str, Any]] = None,
     ):
+        if data is None:
+            extra = [toml_config_path] if toml_config_path else []  # tier-major overlay (Law 13), no DB/native resolver
+            data = mios_toml.load_merged(mios_toml.layer_paths() + extra)
+        self.padding, self.scrollbar_state = wt_edge(data)
         self.settings_path = settings_path
         self.ssh_port = ssh_port
         self.ssh_user = ssh_user
@@ -172,8 +197,8 @@ class WindowsTerminalProfileInjector:
         }
 
     def build_mios_profiles(self) -> List[TerminalProfile]:
-        """Construct the trio of MiOS profiles."""
-        return [
+        """Construct the trio of MiOS profiles, each carrying the SSOT padding and scrollbarState."""
+        profiles = [
             TerminalProfile(
                 guid=WSL_GUID,
                 name="MiOS WSL (Development)",
@@ -197,6 +222,9 @@ class WindowsTerminalProfileInjector:
                 hidden=False,
             ),
         ]
+        for p in profiles:
+            p.padding, p.scrollbarState = self.padding, self.scrollbar_state
+        return profiles
 
     def merge_profiles(self, settings: Dict[str, Any], profiles: List[TerminalProfile]) -> Tuple[int, int]:
         """Merge MiOS profiles into settings.json profiles list without deleting existing items."""
@@ -223,6 +251,10 @@ class WindowsTerminalProfileInjector:
                 p_dict["startingDirectory"] = p.startingDirectory
             if p.icon:
                 p_dict["icon"] = p.icon
+            if p.padding is not None:
+                p_dict["padding"] = p.padding
+            if p.scrollbarState is not None:
+                p_dict["scrollbarState"] = p.scrollbarState
 
             # Find matching profile by GUID or Name
             matched = False
@@ -257,26 +289,25 @@ class WindowsTerminalProfileInjector:
         schemes.append(DEFAULT_MIOS_COLOR_SCHEME.copy())
         return True
 
+    def merged_settings(self, target_path: str) -> Tuple[Dict[str, Any], int, int, List[TerminalProfile]]:
+        """The settings at target_path with the MiOS profiles and scheme merged in."""
+        settings = self.load_settings(target_path)
+        mios_profiles = self.build_mios_profiles()
+        added, updated = self.merge_profiles(settings, mios_profiles)
+        self.merge_schemes(settings)
+        return settings, added, updated, mios_profiles
+
     def run(self) -> Dict[str, Any]:
         """Execute non-destructive Windows Terminal profile injection."""
         target_path = self.locate_settings_file()
-        settings = self.load_settings(target_path)
-        mios_profiles = self.build_mios_profiles()
-
-        added, updated = self.merge_profiles(settings, mios_profiles)
-        self.merge_schemes(settings)
-
+        settings, added, updated, mios_profiles = self.merged_settings(target_path)
         formatted_json = json.dumps(settings, indent=4)
 
         if not self.mock and not self.dry_run:
-            parent = os.path.dirname(target_path)
-            if parent:
-                os.makedirs(parent, exist_ok=True)
             # Create backup if original exists
             if os.path.exists(target_path):
                 shutil.copyfile(target_path, f"{target_path}.bak")
-            with open(target_path, "w", encoding="utf-8") as f:
-                f.write(formatted_json)
+            mios_toml.write_atomic(target_path, formatted_json)
 
         return {
             "status": "success",
@@ -290,6 +321,13 @@ class WindowsTerminalProfileInjector:
             "mock": self.mock,
         }
 
+def fixture_render() -> str:
+    """The WSL terminal profile template, rendered from the vendor tier (WSL adds name and commandLine)."""
+    injector = WindowsTerminalProfileInjector(mock=True, data=mios_toml.vendor_tree(_TREE))
+    profile = {"colorScheme": DEFAULT_MIOS_COLOR_SCHEME["name"], "padding": injector.padding,
+               "scrollbarState": injector.scrollbar_state}
+    return json.dumps({"profiles": [profile], "schemes": [DEFAULT_MIOS_COLOR_SCHEME]}, indent=4) + "\n"
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MiOS Windows Terminal Profile & Color Scheme Injector"
@@ -297,25 +335,34 @@ def main() -> int:
     parser.add_argument("--settings-json", help="Path to Windows Terminal settings.json")
     parser.add_argument("--ssh-port", type=int, default=2222, help="Host SSH port for loopback profile (default: 2222)")
     parser.add_argument("--ssh-user", default="mios", help="Host SSH username (default: mios)")
-    parser.add_argument("--toml-config", help="Optional path to mios.toml for palette overrides")
+    parser.add_argument("--toml-config", help="Optional mios.toml layered above the user tier")
     parser.add_argument("--set-default", action="store_true", help="Set MiOS WSL as the default terminal profile")
     parser.add_argument("--dry-run", action="store_true", help="Simulate profile merging without writing to disk")
     parser.add_argument("--mock", action="store_true", help="Run deterministic mock execution for CI testing")
     parser.add_argument("--json", action="store_true", help="Format output as JSON dictionary")
+    fixture = parser.add_mutually_exclusive_group()
+    fixture.add_argument("--check-fixture", metavar="ROOT", help=f"Diff ROOT/{GOLDEN} against the vendor-tier render")
+    fixture.add_argument("--write-fixture", metavar="ROOT", help=f"Regenerate ROOT/{GOLDEN} from the vendor tier")
 
     args = parser.parse_args()
-
-    injector = WindowsTerminalProfileInjector(
-        settings_path=args.settings_json,
-        ssh_port=args.ssh_port,
-        ssh_user=args.ssh_user,
-        toml_config_path=args.toml_config,
-        set_default=args.set_default,
-        dry_run=args.dry_run,
-        mock=args.mock,
-    )
+    if args.check_fixture or args.write_fixture:
+        try:
+            return mios_toml.golden_gate("wt_profile_inject", args.check_fixture or args.write_fixture,
+                                         {GOLDEN: fixture_render()}, write=bool(args.write_fixture))
+        except (ValueError, OSError) as exc:
+            print(f"[wt_profile_inject] ERROR: {exc}", file=sys.stderr)
+            return 1
 
     try:
+        injector = WindowsTerminalProfileInjector(
+            settings_path=args.settings_json,
+            ssh_port=args.ssh_port,
+            ssh_user=args.ssh_user,
+            toml_config_path=args.toml_config,
+            set_default=args.set_default,
+            dry_run=args.dry_run,
+            mock=args.mock,
+        )
         res = injector.run()
         if args.json:
             print(json.dumps(res, indent=2))

@@ -1589,6 +1589,29 @@ class tt_TestTmuxTheme(unittest.TestCase):
             exit_code = tmux_theme.main()
             self.assertEqual(exit_code, 0)
 
+    def test_installed_theme_golden_both_sides(self):
+        import contextlib, io, tempfile
+        def cli(*args):
+            with patch.object(sys, "argv", ["tmux_theme.py", *args]):
+                return tmux_theme.main()
+        self.assertEqual(cli("--check-fixture", tt__ROOT), 0)
+        with open(os.path.join(tt__ROOT, "usr/share/mios/tmux/blink-mobile-keys.tmux.conf"), encoding="utf-8") as fh:
+            self.assertIn(f"source-file /{tmux_theme.GOLDEN}\n", fh.read())
+        with tempfile.TemporaryDirectory(prefix="mios-test-tt-") as tmp:
+            self.assertEqual(cli("--write-fixture", tmp), 0)
+            path = os.path.join(tmp, tmux_theme.GOLDEN)
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text.rstrip("\n"))
+            self.assertEqual(tmux_theme.mios_toml.golden_diff(path, text), f"{path}: differs from the generator only in line endings")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text.replace("set -g status on\n", "set -g status off\n"))
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(cli("--check-fixture", tmp), 1)
+            self.assertIn("mios-theme.tmux.conf:", err.getvalue())
+            self.assertIn("'set -g status off'", err.getvalue())
+
 def tt_main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(tt_TestTmuxTheme)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
@@ -1951,8 +1974,32 @@ if wcg_spec and wcg_spec.loader:
 else:
     raise ImportError(f"Could not load module from {wcg__TARGET_PATH}")
 
+import contextlib
+import re
+import io
+import shutil
+import tempfile
+import tomllib
+
+wcg__VENDOR = os.path.join(wcg__ROOT, "usr", "share", "mios", "mios.toml")
+
+def wcg_env(user_toml: str = "", vendor: str = wcg__VENDOR):
+    """The overlay pinned to this tree's vendor tier plus an optional user tier; no host tier."""
+    return patch.dict(os.environ, {
+        "MIOS_VENDOR_TOML": vendor, "MIOS_VENDOR_TOML_D": os.path.join(wcg__ROOT, "usr", "lib", "mios", "mios.d"),
+        "MIOS_HOST_TOML": "/nonexistent/mios.toml", "MIOS_USER_TOML": user_toml or "/nonexistent/user/mios.toml"})
+
+def wcg_vendor_edge():
+    with open(wcg__VENDOR, "rb") as fh:
+        return tomllib.load(fh)["theme"]["edge"]
+
 class wcg_TestWmConfigGen(unittest.TestCase):
     """Test suite for Hyprland and Sway compositor config generation and hot-reloading."""
+
+    def setUp(self):
+        self._env = wcg_env()
+        self._env.start()
+        self.addCleanup(self._env.stop)
 
     def test_engine_init_and_palette(self):
         engine = wm_config_gen.WmConfigGenEngine(gaps_inner=6, gaps_outer=12, border_size=3, mock=True)
@@ -1966,15 +2013,17 @@ class wcg_TestWmConfigGen(unittest.TestCase):
     def test_generate_hyprland_conf(self):
         engine = wm_config_gen.WmConfigGenEngine(mock=True)
         conf = engine.generate_hyprland_conf()
-        self.assertIn("# MiOS Hyprland Configuration", conf)
+        edge = wcg_vendor_edge()
         self.assertIn("monitor=,preferred,auto,1", conf)
+        self.assertIn("exec-once = quickshell --config /usr/share/mios/quickshell/Config.qml", conf)
+        self.assertNotIn("@@", conf)
         self.assertIn("general {", conf)
-        self.assertIn("gaps_in = 5", conf)
-        self.assertIn("gaps_out = 10", conf)
+        self.assertIn(f"    gaps_in = {edge['wm_gaps_inner_px']}\n", conf)
+        self.assertIn(f"    gaps_out = {edge['wm_gaps_outer_px']}\n", conf)
+        self.assertIn(f"    border_size = {edge['wm_border_px']}\n", conf)
         self.assertIn("col.active_border =", conf)
         self.assertIn("decoration {", conf)
         self.assertIn("animations {", conf)
-        self.assertIn("bind = $mod, Return, exec, alacritty", conf)
 
     def test_generate_sway_config(self):
         engine = wm_config_gen.WmConfigGenEngine(mock=True)
@@ -1982,7 +2031,10 @@ class wcg_TestWmConfigGen(unittest.TestCase):
         self.assertIn("# MiOS Sway Configuration", conf)
         self.assertIn("set $mod Mod4", conf)
         self.assertIn("font pango:DejaVu Sans Mono 10", conf)
-        self.assertIn("gaps inner 5", conf)
+        edge = wcg_vendor_edge()
+        self.assertIn(f"gaps inner {edge['wm_gaps_inner_px']}\n", conf)
+        self.assertIn(f"gaps outer {edge['wm_gaps_outer_px']}\n", conf)
+        self.assertIn(f"default_border pixel {edge['wm_border_px']}\n", conf)
         self.assertIn("client.focused", conf)
         self.assertIn("bindsym $mod+Return exec alacritty", conf)
 
@@ -2020,6 +2072,74 @@ class wcg_TestWmConfigGen(unittest.TestCase):
         with patch.object(sys, "argv", test_args):
             exit_code = wm_config_gen.main()
             self.assertEqual(exit_code, 0)
+
+    def test_user_tier_overrides_edge_geometry(self):
+        with tempfile.TemporaryDirectory(prefix="mios-test-wcg-") as tmp:
+            user = os.path.join(tmp, "mios.toml")
+            with open(user, "w", encoding="utf-8") as fh:
+                fh.write('[theme]\npadding = "3"\n[theme.edge]\nwm_gaps_outer_px = 7\n')
+            with wcg_env(user_toml=user):
+                engine = wm_config_gen.WmConfigGenEngine(mock=True)
+                self.assertIn("    gaps_out = 7\n", engine.generate_hyprland_conf())
+                self.assertIn("gaps outer 7\n", engine.generate_sway_config())
+                self.assertEqual(engine.gaps_inner, wcg_vendor_edge()["wm_gaps_inner_px"])
+
+    def test_missing_edge_key_names_it(self):
+        with tempfile.TemporaryDirectory(prefix="mios-test-wcg-") as tmp:
+            vendor = os.path.join(tmp, "mios.toml")
+            with open(vendor, "w", encoding="utf-8") as fh:
+                fh.write("[theme.edge]\nwm_gaps_inner_px = 0\nwm_border_px = 0\n")
+            with wcg_env(vendor=vendor):
+                with self.assertRaisesRegex(ValueError, r"\[theme\.edge\]\.wm_gaps_outer_px"):
+                    wm_config_gen.WmConfigGenEngine(mock=True)
+                self.assertEqual(wm_config_gen.WmConfigGenEngine(gaps_inner=1, gaps_outer=2, border_size=3, mock=True).gaps_outer, 2)
+
+    def test_installed_goldens_both_sides(self):
+        self.assertEqual(wm_config_gen.check_fixture(wcg__ROOT), 0)
+        with tempfile.TemporaryDirectory(prefix="mios-test-wcg-") as tmp:
+            self.assertEqual(wm_config_gen.write_fixture(tmp), 0)
+            conf = os.path.join(tmp, "usr/share/mios/hyprland/hyprland.conf")
+            os.chmod(conf, 0o640)
+            with open(conf, encoding="utf-8") as fh:
+                text = fh.read()
+            with open(conf, "w", encoding="utf-8") as fh:
+                fh.write(text.replace(f"    gaps_out = {wcg_vendor_edge()['wm_gaps_outer_px']}\n", "    gaps_out = 10\n"))
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(wm_config_gen.check_fixture(tmp), 1)
+            self.assertIn("hyprland.conf:", err.getvalue())
+            self.assertIn("'    gaps_out = 10'", err.getvalue())
+            self.assertNotIn("sway/config", err.getvalue())
+            with patch.object(sys, "argv", ["wm_config_gen.py", "--write-fixture", tmp]):
+                self.assertEqual(wm_config_gen.main(), 0)
+            self.assertEqual(os.stat(conf).st_mode & 0o777, 0o640)
+            os.unlink(os.path.join(tmp, "usr/share/mios/sway/config"))
+            with contextlib.redirect_stderr(io.StringIO()) as err2:
+                self.assertEqual(wm_config_gen.check_fixture(tmp), 1)
+            self.assertIn("sway/config: cannot read", err2.getvalue())
+
+    def test_bake_renders_operator_edit(self):
+        """65-bake-hyprland.sh renders from the build SSOT: an operator-tuned gap ships, not a build failure."""
+        with open(os.path.join(wcg__ROOT, "automation", "65-bake-hyprland.sh"), encoding="utf-8") as fh:
+            bake = fh.read()
+        self.assertIn("for _gen in ux/wm_config_gen.py ", bake)
+        self.assertIn('--write-fixture /\n', bake)
+        self.assertNotIn("--check-fixture", bake)
+        want = int(wcg_vendor_edge()["wm_gaps_outer_px"]) + 7
+        with tempfile.TemporaryDirectory(prefix="mios-test-bake-") as tmp:
+            with open(wcg__VENDOR, encoding="utf-8") as fh:
+                text = fh.read()
+            op = os.path.join(tmp, "op.toml")
+            edited = re.sub(r"(?m)^(wm_gaps_outer_px\s*=\s*)\d+", rf"\g<1>{want}", text, count=1)
+            self.assertNotEqual(edited, text)
+            with open(op, "w", encoding="utf-8") as fh:
+                fh.write(edited)
+            with patch.dict(os.environ, {"MIOS_VENDOR_TOML": op}):
+                self.assertEqual(wm_config_gen.write_fixture(os.path.join(tmp, "img")), 0)
+                with open(os.path.join(tmp, "img/usr/share/mios/hyprland/hyprland.conf"), encoding="utf-8") as fh:
+                    self.assertIn(f"    gaps_out = {want}\n", fh.read())
+                with contextlib.redirect_stderr(io.StringIO()) as err:
+                    self.assertEqual(wm_config_gen.check_fixture(wcg__ROOT), 1)
+            self.assertIn("hyprland/hyprland.conf:", err.getvalue())
 
 def wcg_main() -> int:
     suite = unittest.TestLoader().loadTestsFromTestCase(wcg_TestWmConfigGen)

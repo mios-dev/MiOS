@@ -1,0 +1,2 @@
+/* AI-hint: {{name}} -- a MiOS theme surface template. mios-dotfiles-render projects it from mios.toml once a [dotfiles.registry.<surface>] entry names it (template + target, kind, edge/edge_props for a terminal surface). */
+/* Tokens: @MIOS:bg@ and the other [colors] names; @MIOS:<table>.<key>@ for any mios.toml key; @MIOS:edge.left_px@, edge.top_px, edge.right_px, edge.bottom_px and edge.scrollbar_display from mios_toml.edge_insets(). A JSON surface drops these comment lines. */
