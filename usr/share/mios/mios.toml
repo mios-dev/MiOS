@@ -11782,7 +11782,6 @@ mirror_files = [
   "installation/mios-install.sh",
   "installation/mios-install.ps1",
   "etc/skel/.config/mios/system-prompt.md",
-  "etc/usbguard/rules.conf",
   "installation/bin/7z.dll",
   # The one MiOS dev image; the same bytes build from either repo root.
   ".devcontainer/Containerfile",
@@ -11810,12 +11809,10 @@ not_mirrored = [
   "etc/skel/.config/aichat/config.yaml",
   "etc/skel/.config/mios/mios.toml",
   "etc/skel/.config/mios/profile.toml",
-  "image-versions.yml",
   "installation/README.md",
   "llms.txt",
   "system-prompt.md",
   "usr/share/mios/names.generated.txt",
-  "usr/share/mios/profile-headless.toml",
   "usr/share/mios/referenced_names.txt",
 ]
 
