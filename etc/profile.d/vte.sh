@@ -86,7 +86,7 @@ elif [[ -n "${ZSH_VERSION:-}" ]]; then
             printf '\e]133;C\e\\\r'
             return $errsv
         }
-        # shellcheck disable=SC2206  # zsh branch: zsh does not word-split, and quoting would add an empty hook
+        # shellcheck disable=SC2206,SC2154  # zsh branch: zsh does not word-split, quoting would add an empty hook, and preexec is zsh-set
         preexec_functions=(__vte_preexec $preexec $preexec_functions)
         unset preexec
     fi
