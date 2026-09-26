@@ -743,6 +743,7 @@ automation/65-bake-hyprland.sh	1	4	4	21	db04e49ee5e9	STAY	ai-header		0				0
 automation/65-bake-hyprland.sh	1	4	4	23	e6c9ebae303b	STAY	ai-header		0	usr/share/doc/mios/manual/automation.md	mios-src:e6c9ebae303b	23	1
 automation/65-bake-hyprland.sh	6	6	1	3	ee573bae3b99	STAY	local-scoped		0				0
 automation/65-bake-hyprland.sh	14	14	1	17	327e8770384d	STAY	local-scoped		0				0
+automation/65-bake-hyprland.sh	20	21	2	23	8a6199184bce	STAY	local-scoped		0				0
 automation/66-bake-quickshell.sh	1	4	4	23	31a1b15da9cf	STAY	ai-header		0				0
 automation/66-bake-quickshell.sh	1	4	4	26	912ff3bb34b1	STAY	ai-header		0	usr/share/doc/mios/manual/automation.md	mios-src:912ff3bb34b1	26	1
 automation/66-bake-quickshell.sh	6	6	1	3	ee573bae3b99	STAY	local-scoped		0				0

@@ -1,0 +1,7 @@
+# AI-hint: GDM Wayland session entry for Hyprland; automation/65-bake-hyprland.sh re-installs it over the hyprland package copy.
+[Desktop Entry]
+Name=Hyprland
+Comment=An intelligent dynamic tiling Wayland compositor
+Exec=Hyprland
+Type=Application
+DesktopNames=Hyprland
