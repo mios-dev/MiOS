@@ -219,6 +219,8 @@ fn secret_keys_explicit_key_is_caught_as_literal() {
     .unwrap();
     let (code, out) = run(d.path());
     assert_eq!(code, 1, "{out}");
-    assert!(out.contains("CUSTOM_DISPATCH_GRANT=supersecret123"), "{out}");
+    assert!(
+        out.contains("CUSTOM_DISPATCH_GRANT=supersecret123"),
+        "{out}"
+    );
 }
-

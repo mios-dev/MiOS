@@ -657,7 +657,8 @@ fn run_render_quadlets(_dirs: &[String]) -> Result<(), Box<dyn std::error::Error
         }
     }
     if renderer.is_none() {
-        let p1 = std::path::Path::new(&root).join("tools/native/target/release/mios-render-quadlets");
+        let p1 =
+            std::path::Path::new(&root).join("tools/native/target/release/mios-render-quadlets");
         let p2 = std::path::Path::new(&root).join("tools/native/target/debug/mios-render-quadlets");
         if p1.is_file() {
             renderer = Some(p1);
@@ -871,7 +872,11 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::BootcRollback { check, dry_run, force } => {
+        Commands::BootcRollback {
+            check,
+            dry_run,
+            force,
+        } => {
             if let Err(e) = run_bootc_rollback(*check, *dry_run, *force) {
                 eprintln!("[miosd] Bootc rollback error: {}", e);
                 std::process::exit(1);
@@ -969,16 +974,24 @@ async fn main() {
         }
         Commands::Secret { action } => {
             match action {
-                SecretAction::Prompt { message, title, gui, tty } => {
-                    match miosd::secret::prompt(title, message, *gui, *tty) {
-                        Ok(secret) => println!("{}", secret),
-                        Err(e) => {
-                            eprintln!("[miosd secret] Prompt error: {}", e);
-                            std::process::exit(1);
-                        }
+                SecretAction::Prompt {
+                    message,
+                    title,
+                    gui,
+                    tty,
+                } => match miosd::secret::prompt(title, message, *gui, *tty) {
+                    Ok(secret) => println!("{}", secret),
+                    Err(e) => {
+                        eprintln!("[miosd secret] Prompt error: {}", e);
+                        std::process::exit(1);
                     }
-                }
-                SecretAction::Set { key, service, prompt, value } => {
+                },
+                SecretAction::Set {
+                    key,
+                    service,
+                    prompt,
+                    value,
+                } => {
                     let val = if *prompt || value.is_none() {
                         let prompt_msg = format!("Enter secret for {}: ", key);
                         match miosd::secret::prompt("MiOS Keyring", &prompt_msg, false, false) {
@@ -997,15 +1010,13 @@ async fn main() {
                     }
                     eprintln!("Stored secret for '{}/{}' in Linux Keyring.", service, key);
                 }
-                SecretAction::Get { key, service } => {
-                    match miosd::secret::get(service, key) {
-                        Ok(val) => println!("{}", val),
-                        Err(e) => {
-                            eprintln!("[miosd secret] Get error: {}", e);
-                            std::process::exit(1);
-                        }
+                SecretAction::Get { key, service } => match miosd::secret::get(service, key) {
+                    Ok(val) => println!("{}", val),
+                    Err(e) => {
+                        eprintln!("[miosd secret] Get error: {}", e);
+                        std::process::exit(1);
                     }
-                }
+                },
                 SecretAction::Scan { path, strict } => {
                     let p = std::path::Path::new(path);
                     match miosd::secret::scan(p, *strict) {
@@ -1027,7 +1038,10 @@ async fn main() {
         }
         Commands::ConfigServer { bind, port } => {
             let config = miosd::server::ConfigServerConfig::resolve(bind.clone(), *port);
-            println!("[miosd] Starting MiOS Config Server at http://{}", config.bind_addr);
+            println!(
+                "[miosd] Starting MiOS Config Server at http://{}",
+                config.bind_addr
+            );
             println!("[miosd] Serving mios.html from {:?}", config.html_path);
             println!("[miosd] Writing profile saves to {:?}", config.profile_path);
 
@@ -1487,7 +1501,11 @@ fn run_build_if_missing(spec: &str) -> Result<(), Box<dyn std::error::Error>> {
             println!("[miosd] {} newer than {} -> rebuild", p, img);
         }
         if !exists_status.success() || stale.is_some() {
-            let extra = if spec == "agents" { agents_build_args()? } else { Vec::new() };
+            let extra = if spec == "agents" {
+                agents_build_args()?
+            } else {
+                Vec::new()
+            };
             println!("[miosd] building {} from {}...", img, cf);
             let build_status = std::process::Command::new("/usr/bin/podman")
                 .arg("build")
