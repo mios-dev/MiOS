@@ -980,7 +980,7 @@ async fn main() {
                     gui,
                     tty,
                 } => match miosd::secret::prompt(title, message, *gui, *tty) {
-                    Ok(secret) => println!("{}", secret),
+                    Ok(secret) => emit_secret(&secret),
                     Err(e) => {
                         eprintln!("[miosd secret] Prompt error: {}", e);
                         std::process::exit(1);
@@ -1011,7 +1011,7 @@ async fn main() {
                     eprintln!("Stored secret for '{}/{}' in Linux Keyring.", service, key);
                 }
                 SecretAction::Get { key, service } => match miosd::secret::get(service, key) {
-                    Ok(val) => println!("{}", val),
+                    Ok(val) => emit_secret(&val),
                     Err(e) => {
                         eprintln!("[miosd secret] Get error: {}", e);
                         std::process::exit(1);
@@ -1591,6 +1591,26 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
 
     println!("[miosd] [ok] staged {} for next boot.", ref_val);
     Ok(())
+}
+
+/// Hand a secret to the calling process on stdout, never to a terminal where it would land in scrollback.
+fn emit_secret(value: &str) {
+    use std::io::{IsTerminal, Write};
+    let stdout = std::io::stdout();
+    if stdout.is_terminal() {
+        eprintln!(
+            "[miosd secret] refusing to print a secret to a terminal; capture or redirect stdout"
+        );
+        std::process::exit(2);
+    }
+    let mut out = stdout.lock();
+    if out
+        .write_all(value.as_bytes())
+        .and_then(|_| out.write_all(b"\n"))
+        .is_err()
+    {
+        std::process::exit(1);
+    }
 }
 
 /// The daemon's state directory: systemd's STATE_DIRECTORY (first entry) when set, else /var/lib/mios.

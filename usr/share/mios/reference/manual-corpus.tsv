@@ -3598,17 +3598,18 @@ src/mios-rs/miosd/src/main.rs	1386	1386	1	13	502ee6db7099	STAY	local-scoped		0		
 src/mios-rs/miosd/src/main.rs	1399	1399	1	17	d255df0a9f5e	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/main.rs	1405	1405	1	12	9c6724b62987	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/main.rs	1424	1424	1	14	929a933855e2	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1596	1596	1	14	0f3bbb92f892	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1616	1616	1	12	bfa523721295	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1763	1763	1	7	134335adb263	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1781	1781	1	8	2cc905c073c2	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1796	1796	1	9	5084fa50a6eb	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1821	1821	1	4	5f5556a1917a	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1827	1827	1	7	4fe80e63a637	STAY	local-scoped		0				0
-src/mios-rs/miosd/src/main.rs	1856	1861	6	68	a3fbd6f06e11	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:a3fbd6f06e11	68	0
-src/mios-rs/miosd/src/main.rs	1900	1911	12	117	9ba4dc892ef6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9ba4dc892ef6	117	0
-src/mios-rs/miosd/src/main.rs	1990	1995	6	56	53e065f25511	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:53e065f25511	56	0
-src/mios-rs/miosd/src/main.rs	2055	2061	7	72	9dccae407645	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9dccae407645	72	0
+src/mios-rs/miosd/src/main.rs	1596	1596	1	19	b3a4912df1ab	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1616	1616	1	14	0f3bbb92f892	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1636	1636	1	12	bfa523721295	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1783	1783	1	7	134335adb263	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1801	1801	1	8	2cc905c073c2	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1816	1816	1	9	5084fa50a6eb	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1841	1841	1	4	5f5556a1917a	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1847	1847	1	7	4fe80e63a637	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/main.rs	1876	1881	6	68	a3fbd6f06e11	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:a3fbd6f06e11	68	0
+src/mios-rs/miosd/src/main.rs	1920	1931	12	117	9ba4dc892ef6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9ba4dc892ef6	117	0
+src/mios-rs/miosd/src/main.rs	2010	2015	6	56	53e065f25511	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/src.md	mios-src:53e065f25511	56	0
+src/mios-rs/miosd/src/main.rs	2075	2081	7	72	9dccae407645	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/src.md	mios-src:9dccae407645	72	0
 src/mios-rs/miosd/src/secret.rs	1	2	2	20	5674c238ad95	STAY	ai-header		0				0
 src/mios-rs/miosd/src/secret.rs	9	10	2	17	5509df7ee0cd	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/secret.rs	30	30	1	8	eb40e73e635c	STAY	local-scoped		0				0
@@ -5518,11 +5519,12 @@ tests/test-mios-update-verb.py	13	13	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 tests/test-miosd-secret.sh	1	3	3	21	2134ada3d4d0	STAY	ai-header		0				0
 tests/test-miosd-secret.sh	47	47	1	5	43010ebc6d1b	STAY	local-scoped		0				0
 tests/test-miosd-secret.sh	55	55	1	6	9db25c53795e	STAY	local-scoped		0				0
-tests/test-miosd-secret.sh	74	74	1	6	07a78bbd86f2	STAY	local-scoped		0				0
-tests/test-miosd-secret.sh	88	88	1	9	bc6f8182300b	STAY	local-scoped		0				0
-tests/test-miosd-secret.sh	104	104	1	10	c61a460ecbd2	STAY	local-scoped		0				0
-tests/test-miosd-secret.sh	120	120	1	10	4dc8e1cc4bee	STAY	local-scoped		0				0
-tests/test-miosd-secret.sh	135	135	1	5	c548696121c3	STAY	local-scoped		0				0
+tests/test-miosd-secret.sh	74	74	1	17	ccb6072fea7d	STAY	local-scoped		0				0
+tests/test-miosd-secret.sh	84	84	1	6	07a78bbd86f2	STAY	local-scoped		0				0
+tests/test-miosd-secret.sh	98	98	1	9	bc6f8182300b	STAY	local-scoped		0				0
+tests/test-miosd-secret.sh	114	114	1	10	c61a460ecbd2	STAY	local-scoped		0				0
+tests/test-miosd-secret.sh	130	130	1	10	4dc8e1cc4bee	STAY	local-scoped		0				0
+tests/test-miosd-secret.sh	145	145	1	5	c548696121c3	STAY	local-scoped		0				0
 tests/test-miosd-supervisor.py	1	3	3	18	0e3a245a173e	STAY	ai-header		0				0
 tests/test-miosd-supervisor.py	25	25	1	7	6c8a35c078a2	STAY	local-scoped		0				0
 tests/test-miosd-supervisor.py	38	38	1	10	40d8c6979f56	STAY	local-scoped		0				0

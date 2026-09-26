@@ -71,6 +71,16 @@ else
     assert_fail "miosd secret get returned '$RETRIEVED', expected '$TEST_VAL'"
 fi
 
+# Test 2b: a secret is never printed to a terminal (stdout is a pseudo-TTY under script(1))
+if command -v script >/dev/null 2>&1; then
+    TTY_OUT="$(script -qec "\"$MIOSD\" secret get --service \"$TEST_SVC\" --key \"$TEST_KEY\"" /dev/null 2>&1 || true)"
+    if grep -q "refusing to print a secret to a terminal" <<< "$TTY_OUT" && ! grep -qF "$TEST_VAL" <<< "$TTY_OUT"; then
+        assert_pass "miosd secret get refuses a terminal stdout"
+    else
+        assert_fail "miosd secret get printed to a terminal: '$TTY_OUT'"
+    fi
+fi
+
 # Test 3: Keyring fallback directory permissions
 echo "[test-miosd-secret] Test 3: Fallback directory permissions"
 KEYRING_DIR="${XDG_RUNTIME_DIR}/mios/keyring/${TEST_SVC}"
