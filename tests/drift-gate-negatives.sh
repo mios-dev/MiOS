@@ -2809,7 +2809,7 @@ test_schema_consumers() {
 
 test_task_store() {
     log "Testing check_task_store"
-    local store="${ROOT}/usr/share/mios/tasks/tasks.jsonl"
+    local store="${ROOT}/TASKS.jsonl"
     local backup="${store}.negbak"
     local bin="${ROOT}/tools/native/target/release/mios-task"
     [[ -x "$bin" ]] || bin="${ROOT}/tools/native/target/debug/mios-task"

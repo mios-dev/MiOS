@@ -596,7 +596,8 @@ pb_SKIP_PREFIXES = (
     "ROADMAP.md",
     "TASKS.md",
     "AGY-TASKS.md",
-    "usr/share/mios/tasks/",
+    "TASKS.jsonl",
+    "TASKS.passthrough.jsonl",
     "ADR.md",
 )
 

@@ -153,8 +153,7 @@ _SWEEP_PATHS = ("automation", "usr", "etc", "tools")
 # prove this sweeper works -- rewriting it turns the proof green over nothing.
 _SWEEP_SKIP = ("manifest.json", ".tsv", "/reference/", "/knowledge/",
                "/target/", "/.git/", "node_modules",
-               "/tools/test_", "/tests/",
-               "/usr/share/mios/tasks/")  # verbatim task history (ADR-0026): never rewritten
+               "/tools/test_", "/tests/")
 
 def _sweep_files(root: str):
     for top in _SWEEP_PATHS:

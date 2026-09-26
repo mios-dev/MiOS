@@ -1,5 +1,5 @@
 // AI-hint: mios-task -- sole writer of the canonical task store (ADR-0026): migrate, check-lossless, validate, ready.
-// AI-related: /usr/share/mios/mios.toml [tasks.store], /usr/lib/mios/schemas/task-record.schema.json, /usr/share/mios/tasks/tasks.jsonl, /usr/share/mios/tasks/passthrough.jsonl, /usr/share/mios/tasks/sources.json, /usr/share/doc/mios/adr/0026-global-task-store.md
+// AI-related: /usr/share/mios/mios.toml [tasks.store], /usr/lib/mios/schemas/task-record.schema.json, TASKS.jsonl, TASKS.passthrough.jsonl, TASKS.sources.json, /usr/share/doc/mios/adr/0026-global-task-store.md
 // AI-functions: main, migrate, check_lossless, validate, ready, parse_markdown, parse_jsonl, heading_fields, body_fields, normalise_status
 
 use regex::Regex;
@@ -1046,7 +1046,7 @@ mod tests {
         fs::create_dir_all(d.join("usr/lib/mios/schemas")).unwrap();
         let schema = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../usr/lib/mios/schemas/task-record.schema.json");
         fs::copy(schema, d.join("usr/lib/mios/schemas/task-record.schema.json")).unwrap();
-        fs::write(d.join("usr/share/mios/mios.toml"), "[tasks.store]\npath = \"usr/share/mios/tasks/tasks.jsonl\"\nschema = \"usr/lib/mios/schemas/task-record.schema.json\"\npassthrough_path = \"usr/share/mios/tasks/passthrough.jsonl\"\nmanifest_path = \"usr/share/mios/tasks/sources.json\"\nsources = [ { repo = \"MiOS\", path = \"TASKS.md\", kind = \"section\" } ]\n").unwrap();
+        fs::write(d.join("usr/share/mios/mios.toml"), "[tasks.store]\npath = \"TASKS.jsonl\"\nschema = \"usr/lib/mios/schemas/task-record.schema.json\"\npassthrough_path = \"TASKS.passthrough.jsonl\"\nmanifest_path = \"TASKS.sources.json\"\nsources = [ { repo = \"MiOS\", path = \"TASKS.md\", kind = \"section\" } ]\n").unwrap();
         fs::write(d.join("TASKS.md"), SAMPLE).unwrap();
         d
     }

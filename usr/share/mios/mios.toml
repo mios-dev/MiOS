@@ -2274,7 +2274,7 @@ surfaces = [
   { generator = "tools/generate-pipeline-index.py", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
   { generator = "tools/generate-uki-cmdline.py", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
   { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
-  { generator = "tools/native/mios-task/src/main.rs", check = "check_task_store", output = "usr/share/mios/tasks/tasks.jsonl, usr/share/mios/tasks/passthrough.jsonl, usr/share/mios/tasks/sources.json" },
+  { generator = "tools/native/mios-task/src/main.rs", check = "check_task_store", output = "TASKS.jsonl, TASKS.passthrough.jsonl, TASKS.sources.json" },
   { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
   { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
@@ -11373,7 +11373,7 @@ max_duplicate_ids = 0
 
 [tasks.store]
 # ADR-0026: the canonical task record for every id space; written only by tools/native/mios-task.
-path           = "usr/share/mios/tasks/tasks.jsonl"
+path           = "TASKS.jsonl"
 format         = "openai-strict-json-schema-jsonl"
 schema         = "usr/lib/mios/schemas/task-record.schema.json"
 schema_name    = "mios_task_record"
@@ -11412,8 +11412,8 @@ distinct = [
   { id = "T-1106", source = "MiOS:.devloop/tasks.jsonl" },
   { id = "T-1107", source = "MiOS:.devloop/tasks.jsonl" },
 ]
-passthrough_path = "usr/share/mios/tasks/passthrough.jsonl"
-manifest_path    = "usr/share/mios/tasks/sources.json"
+passthrough_path = "TASKS.passthrough.jsonl"
+manifest_path    = "TASKS.sources.json"
 
 [docs]
 # Measured floor; 0 was never enforced. Ratchet DOWN only. AGY-1601.

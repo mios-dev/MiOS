@@ -1987,14 +1987,14 @@ check_task_store() {
     out="$("$bin" check-lossless --root "$ROOT" 2>&1)" || rc=$?
     if [[ $rc -ne 0 ]]; then
         printf '%s\n' "$out" | grep -v '^LOSSLESS:' | sed 's/^/    /' >&2
-        _violation "usr/share/mios/tasks/ no longer holds every byte of the task lists it was merged from -- rerun: mios-task migrate (ADR-0026)"
+        _violation "TASKS.jsonl no longer holds every byte of the task lists it was merged from -- rerun: mios-task migrate (ADR-0026)"
         return
     fi
     rc=0
     out="$("$bin" validate --root "$ROOT" 2>&1)" || rc=$?
     if [[ $rc -ne 0 ]]; then
         printf '%s\n' "$out" | head -20 | sed 's/^/    /' >&2
-        _violation "usr/share/mios/tasks/tasks.jsonl has records that are not valid mios_task_record lines (ADR-0026)"
+        _violation "TASKS.jsonl has records that are not valid mios_task_record lines (ADR-0026)"
         return
     fi
     echo "[98-drift-checks]   task store: $(printf '%s' "$out" | tail -1); every source byte accounted for"
