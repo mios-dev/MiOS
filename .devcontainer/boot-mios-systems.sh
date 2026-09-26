@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Devcontainer start hook that reconciles the development-safe MiOS system surface (root overlay pieces) inside the container on every start.
 # Reconcile the development-safe MiOS system surface on each container start.
 set -euo pipefail
 

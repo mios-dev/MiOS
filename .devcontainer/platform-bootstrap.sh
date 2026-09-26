@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Detects which devcontainer platform is running (Codespaces, Google or Oracle Cloud Shell, generic) and records its contract without assuming privileges it lacks.
 # Record the platform-specific contract without assuming unavailable privileges.
 set -euo pipefail
 

@@ -1,3 +1,4 @@
+<!-- AI-hint: The three MiOS engineering repositories (MiOS, mios-bootstrap, mios-dev-loop), what each owns, and how they merge or stay separate. -->
 # MiOS three-repository topology
 
 MiOS has three overall engineering repositories:

@@ -1,3 +1,4 @@
+<!-- AI-hint: Research spike on artifact publisher contracts for OCI images and AI training-data bundles. -->
 # Technical Investigation & Research Spike: Artifact Publisher Contracts
 
 **Spike ID:** `SPIKE-20260924-artifact-publisher-contracts`

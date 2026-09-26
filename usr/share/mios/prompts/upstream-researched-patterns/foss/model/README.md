@@ -1,3 +1,4 @@
+<!-- AI-hint: Index of the FOSS model-plane research prompts: upstream project vetting and model runtime comparison. -->
 # Upstream researched patterns — FOSS/model
 
 This prompt family is for primary-source research of free and open-source

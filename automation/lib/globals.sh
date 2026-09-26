@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+# AI-hint: Every mios.toml value as a MIOS_* shell variable with its SSOT default, sourced by build phases and shell tools.
 # AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/render-globals.py
 # AI-functions: _mios_resolve_version
 #

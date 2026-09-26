@@ -1,3 +1,5 @@
+# AI-hint: Login-shell hook from VTE: reports the working directory to VTE-based terminals so new tabs open in the same directory.
+# shellcheck shell=bash
 
 [ -n "${BASH_VERSION:-}" ] || [ -n "${ZSH_VERSION:-}" ] || return 0
 
@@ -59,6 +61,7 @@ if [[ -n "${BASH_VERSION:-}" ]]; then
         PROMPT_COMMAND+=(__vte_precmd)
         PROMPT_COMMAND+=(__vte_osc7)
     else
+        # shellcheck disable=SC2178  # the array case is the branch above; this one is a scalar
         PROMPT_COMMAND="__vte_prompt_command"
     fi
     PS0=$(__vte_termprop_signal "vte.shell.preexec")
@@ -83,6 +86,7 @@ elif [[ -n "${ZSH_VERSION:-}" ]]; then
             printf '\e]133;C\e\\\r'
             return $errsv
         }
+        # shellcheck disable=SC2206  # zsh branch: zsh does not word-split, and quoting would add an empty hook
         preexec_functions=(__vte_preexec $preexec $preexec_functions)
         unset preexec
     fi

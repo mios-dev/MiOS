@@ -1,3 +1,4 @@
+# AI-hint: Package init for the MiOS CLI engine: exports the output formatter and plugin loader.
 # SPDX-License-Identifier: Apache-2.0
 """MiOS CLI Engine, Output Formatting, and Plugin System Package (T-513, T-514)."""
 

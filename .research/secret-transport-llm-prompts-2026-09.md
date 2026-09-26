@@ -1,3 +1,4 @@
+<!-- AI-hint: Reusable prompt set for researching encrypted operator-secret transport into remote shells and Codespaces without ever handling a real credential. -->
 # Secret transport research prompts for any LLM or harness
 
 **Status:** reusable prompt set

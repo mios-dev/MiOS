@@ -1,3 +1,4 @@
+<!-- AI-hint: The only tracked file in .secrets/: documents the local encrypted-secret boundary consumed by mios-bootstrap; everything else here is ignored. -->
 # Local secret boundary
 
 This directory is intentionally tracked only through this README. Its

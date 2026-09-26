@@ -1,3 +1,4 @@
+<!-- AI-hint: Portability contract for the MiOS devcontainer harness: one Containerfile image, its lifecycle scripts, and how Codespaces and cloud shells bring the MiOS, mios-bootstrap and -dev-loop workspace up. -->
 # MiOS devcontainer harness — portability contract
 
 The committed `devcontainer.json` is the portable MiOS development baseline.

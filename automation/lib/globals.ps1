@@ -1,4 +1,5 @@
 ﻿# GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+# AI-hint: Every mios.toml value as a $script:MIOS_* PowerShell variable with its SSOT default, dot-sourced by the Windows build tooling.
 # AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, tools/render-globals.py
 # AI-functions: Resolve-MiosVersion
 #

@@ -1,3 +1,4 @@
+<!-- AI-hint: Boundary for the mios-bootstrap-owned operator dotfiles layer: the three-repository model and why no secret value is ever tracked here. -->
 # MiOS operator dotfiles boundary
 
 `.dotfiles/` is the root-level control-plane boundary for the

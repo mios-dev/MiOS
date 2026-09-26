@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
+# AI-hint: Creates or refreshes a pull mirror of the MiOS GitHub repository in the local Forgejo instance.
 set -uo pipefail
 
 ENV_FILE=/etc/mios/install.env
+# shellcheck source=/dev/null
 [ -r "$ENV_FILE" ] && { set -a; . "$ENV_FILE"; set +a; }
 
 FORGE_PORT="${MIOS_PORT_FORGE_HTTP:-${MIOS_FORGE_HTTP_PORT:-3000}}"
