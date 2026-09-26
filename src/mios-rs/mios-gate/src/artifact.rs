@@ -460,6 +460,19 @@ fn check_weight_file(path: &Path, findings: &mut Vec<String>) {
                                             path.display(),
                                             len.saturating_sub(8)
                                         ));
+                                    } else if header_len > SAFETENSORS_MAX_HEADER {
+                                        findings.push(format!(
+                                            "{}: safetensors header length ({header_len}) exceeds the {SAFETENSORS_MAX_HEADER}-byte format limit",
+                                            path.display()
+                                        ));
+                                    } else {
+                                        check_safetensors_header(
+                                            path,
+                                            &mut f,
+                                            header_len,
+                                            len - 8 - header_len,
+                                            findings,
+                                        );
                                     }
                                 }
                                 Err(e) => {
@@ -482,6 +495,79 @@ fn check_weight_file(path: &Path, findings: &mut Vec<String>) {
             Err(e) => {
                 findings.push(format!("{}: failed to read metadata: {e}", path.display()));
             }
+        }
+    }
+}
+
+/// The SafeTensors format caps the JSON header at 100 MB.
+const SAFETENSORS_MAX_HEADER: u64 = 100_000_000;
+
+/// Reads and decodes the SafeTensors JSON header: it must be an object whose
+/// entries (other than `__metadata__`) each declare a string `dtype`, an
+/// integer `shape` array and `data_offsets` `[begin, end]` inside the data
+/// section that follows the header.
+fn check_safetensors_header(
+    path: &Path,
+    f: &mut File,
+    header_len: u64,
+    data_len: u64,
+    findings: &mut Vec<String>,
+) {
+    let mut header = vec![0u8; header_len as usize];
+    if let Err(e) = f.read_exact(&mut header) {
+        findings.push(format!(
+            "{}: failed to read safetensors JSON header: {e}",
+            path.display()
+        ));
+        return;
+    }
+    let obj = match serde_json::from_slice::<serde_json::Value>(&header) {
+        Ok(serde_json::Value::Object(o)) => o,
+        Ok(_) => {
+            findings.push(format!(
+                "{}: safetensors header is not a JSON object",
+                path.display()
+            ));
+            return;
+        }
+        Err(e) => {
+            findings.push(format!(
+                "{}: safetensors header is not valid JSON: {e}",
+                path.display()
+            ));
+            return;
+        }
+    };
+    for (name, tensor) in &obj {
+        if name == "__metadata__" {
+            continue;
+        }
+        let dtype_ok = tensor.get("dtype").and_then(|d| d.as_str()).is_some();
+        let shape_ok = tensor
+            .get("shape")
+            .and_then(|s| s.as_array())
+            .is_some_and(|a| a.iter().all(|v| v.as_u64().is_some()));
+        let offsets = tensor
+            .get("data_offsets")
+            .and_then(|o| o.as_array())
+            .filter(|a| a.len() == 2)
+            .and_then(|a| Some((a[0].as_u64()?, a[1].as_u64()?)));
+        if !dtype_ok || !shape_ok {
+            findings.push(format!(
+                "{}: safetensors tensor {name:?} lacks a string 'dtype' or an integer 'shape'",
+                path.display()
+            ));
+        }
+        match offsets {
+            Some((begin, end)) if begin <= end && end <= data_len => {}
+            Some((begin, end)) => findings.push(format!(
+                "{}: safetensors tensor {name:?} data_offsets [{begin}, {end}] fall outside the {data_len}-byte data section",
+                path.display()
+            )),
+            None => findings.push(format!(
+                "{}: safetensors tensor {name:?} lacks integer 'data_offsets' [begin, end]",
+                path.display()
+            )),
         }
     }
 }
@@ -525,20 +611,65 @@ fn find_oci_layouts_recursive(dir: &Path, depth: usize, layouts: &mut Vec<PathBu
     }
 }
 
-/// Resolves an OCI digest (e.g. `sha256:<hash>`) to its location in `blobs/<algo>/<hash>`.
-fn resolve_blob_path(oci_dir: &Path, digest: &str) -> Option<PathBuf> {
+/// Deepest index -> index -> manifest chain the walker follows before reporting.
+const MAX_DESCRIPTOR_DEPTH: usize = 8;
+
+/// Parses an OCI digest into `(algorithm, hex)`, accepting only the registered
+/// algorithms with their exact lowercase-hex length. Anything else (including
+/// `sha256:../../x`) is rejected, so a digest can never name a path outside
+/// `blobs/<algorithm>/`.
+fn parse_digest(digest: &str) -> Option<(&str, &str)> {
     let (algo, hash) = digest.split_once(':')?;
-    if algo.is_empty() || hash.is_empty() {
+    let want = match algo {
+        "sha256" => 64,
+        "sha512" => 128,
+        _ => return None,
+    };
+    if hash.len() != want || !hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
         return None;
     }
+    Some((algo, hash))
+}
+
+/// Resolves an OCI digest (e.g. `sha256:<hash>`) to its location in `blobs/<algo>/<hash>`.
+fn resolve_blob_path(oci_dir: &Path, digest: &str) -> Option<PathBuf> {
+    let (algo, hash) = parse_digest(digest)?;
     Some(oci_dir.join("blobs").join(algo).join(hash))
 }
 
-/// Verifies a single OCI descriptor's physical blob existence and size.
-fn verify_blob_descriptor(
+/// Streams `path` through the digest's algorithm and returns the lowercase hex.
+fn hash_file(path: &Path, algo: &str) -> std::io::Result<String> {
+    use sha2::Digest;
+    fn run<D: sha2::Digest>(mut f: File, mut d: D) -> std::io::Result<Vec<u8>> {
+        let mut buf = vec![0u8; 1 << 16];
+        loop {
+            let n = f.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            d.update(&buf[..n]);
+        }
+        Ok(d.finalize().to_vec())
+    }
+    let f = File::open(path)?;
+    let raw = match algo {
+        "sha512" => run(f, sha2::Sha512::new())?,
+        _ => run(f, sha2::Sha256::new())?,
+    };
+    Ok(raw.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// Verifies one descriptor: the blob exists, its size and its digest match.
+/// When `expand` is set the blob is a manifest or an index, so its config,
+/// layers and child manifests are verified too, recursively. Returns the
+/// descriptor's digest when the blob itself verified.
+fn verify_descriptor(
     oci_dir: &Path,
     desc: &serde_json::Value,
     context: &str,
+    expand: bool,
+    depth: usize,
+    visited: &mut std::collections::BTreeSet<String>,
     findings: &mut Vec<String>,
 ) {
     let Some(digest) = desc.get("digest").and_then(|d| d.as_str()) else {
@@ -549,7 +680,9 @@ fn verify_blob_descriptor(
         findings.push(format!("{context}: missing integer 'size'"));
         return;
     };
-    let Some(blob_path) = resolve_blob_path(oci_dir, digest) else {
+    let (Some((algo, hash)), Some(blob_path)) =
+        (parse_digest(digest), resolve_blob_path(oci_dir, digest))
+    else {
         findings.push(format!("{context}: invalid digest format {:?}", digest));
         return;
     };
@@ -561,19 +694,98 @@ fn verify_blob_descriptor(
         return;
     }
     match std::fs::metadata(&blob_path) {
-        Ok(meta) => {
-            if meta.len() != expected_size {
-                findings.push(format!(
-                    "{context}: blob {digest} size mismatch: expected {expected_size} bytes, found {} bytes",
-                    meta.len()
-                ));
-            }
+        Ok(meta) if meta.len() != expected_size => {
+            findings.push(format!(
+                "{context}: blob {digest} size mismatch: expected {expected_size} bytes, found {} bytes",
+                meta.len()
+            ));
+            return;
         }
+        Ok(_) => {}
         Err(e) => {
             findings.push(format!(
                 "{context}: failed to read metadata for blob {}: {e}",
                 blob_path.display()
             ));
+            return;
+        }
+    }
+    match hash_file(&blob_path, algo) {
+        Ok(actual) if actual != hash => {
+            findings.push(format!(
+                "{context}: blob {digest} digest mismatch: content hashes to {algo}:{actual}"
+            ));
+            return;
+        }
+        Ok(_) => {}
+        Err(e) => {
+            findings.push(format!(
+                "{context}: failed to hash blob {}: {e}",
+                blob_path.display()
+            ));
+            return;
+        }
+    }
+    if !expand || !visited.insert(digest.to_string()) {
+        return;
+    }
+    if depth >= MAX_DESCRIPTOR_DEPTH {
+        findings.push(format!(
+            "{context}: descriptor nesting deeper than {MAX_DESCRIPTOR_DEPTH} levels"
+        ));
+        return;
+    }
+
+    let child = match std::fs::read_to_string(&blob_path)
+        .map_err(|e| e.to_string())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).map_err(|e| e.to_string()))
+    {
+        Ok(v) => v,
+        Err(e) => {
+            findings.push(format!(
+                "{context}: failed to parse manifest JSON at {}: {e}",
+                blob_path.display()
+            ));
+            return;
+        }
+    };
+
+    if let Some(config_desc) = child.get("config") {
+        verify_descriptor(
+            oci_dir,
+            config_desc,
+            &format!("manifest {digest} config"),
+            false,
+            depth + 1,
+            visited,
+            findings,
+        );
+    }
+    if let Some(layers) = child.get("layers").and_then(|l| l.as_array()) {
+        for (l_idx, layer_desc) in layers.iter().enumerate() {
+            verify_descriptor(
+                oci_dir,
+                layer_desc,
+                &format!("manifest {digest} layer[{l_idx}]"),
+                false,
+                depth + 1,
+                visited,
+                findings,
+            );
+        }
+    }
+    // A nested index: every child manifest is walked the same way.
+    if let Some(nested) = child.get("manifests").and_then(|m| m.as_array()) {
+        for (n_idx, n_desc) in nested.iter().enumerate() {
+            verify_descriptor(
+                oci_dir,
+                n_desc,
+                &format!("index {digest} manifests[{n_idx}]"),
+                true,
+                depth + 1,
+                visited,
+                findings,
+            );
         }
     }
 }
@@ -655,120 +867,17 @@ fn check_oci_layout(oci_dir: &Path, findings: &mut Vec<String>) {
         }
     };
 
+    let mut visited = std::collections::BTreeSet::new();
     for (m_idx, manifest_desc) in manifests.iter().enumerate() {
-        let Some(digest) = manifest_desc.get("digest").and_then(|d| d.as_str()) else {
-            findings.push(format!(
-                "{}: manifests[{m_idx}] missing string 'digest'",
-                index_path.display()
-            ));
-            continue;
-        };
-
-        let Some(expected_size) = manifest_desc.get("size").and_then(|s| s.as_u64()) else {
-            findings.push(format!(
-                "{}: manifests[{m_idx}] missing integer 'size'",
-                index_path.display()
-            ));
-            continue;
-        };
-
-        let Some(manifest_blob_path) = resolve_blob_path(oci_dir, digest) else {
-            findings.push(format!(
-                "{}: manifests[{m_idx}] invalid digest format {:?}",
-                index_path.display(),
-                digest
-            ));
-            continue;
-        };
-
-        if !manifest_blob_path.is_file() {
-            findings.push(format!(
-                "{}: manifest blob {} not found at {}",
-                index_path.display(),
-                digest,
-                manifest_blob_path.display()
-            ));
-            continue;
-        }
-
-        match std::fs::metadata(&manifest_blob_path) {
-            Ok(meta) => {
-                if meta.len() != expected_size {
-                    findings.push(format!(
-                        "{}: manifest blob {} size mismatch: expected {} bytes, found {} bytes",
-                        index_path.display(),
-                        digest,
-                        expected_size,
-                        meta.len()
-                    ));
-                }
-            }
-            Err(e) => {
-                findings.push(format!(
-                    "{}: failed to read metadata for manifest blob {}: {e}",
-                    index_path.display(),
-                    manifest_blob_path.display()
-                ));
-                continue;
-            }
-        }
-
-        // Read manifest JSON and verify each layer and config blob
-        let manifest_json = match std::fs::read_to_string(&manifest_blob_path) {
-            Ok(text) => match serde_json::from_str::<serde_json::Value>(&text) {
-                Ok(v) => v,
-                Err(e) => {
-                    findings.push(format!(
-                        "{}: failed to parse manifest JSON at {}: {e}",
-                        index_path.display(),
-                        manifest_blob_path.display()
-                    ));
-                    continue;
-                }
-            },
-            Err(e) => {
-                findings.push(format!(
-                    "{}: failed to read manifest JSON at {}: {e}",
-                    index_path.display(),
-                    manifest_blob_path.display()
-                ));
-                continue;
-            }
-        };
-
-        // Config blob verification
-        if let Some(config_desc) = manifest_json.get("config") {
-            verify_blob_descriptor(
-                oci_dir,
-                config_desc,
-                &format!("manifest {digest} config"),
-                findings,
-            );
-        }
-
-        // Layer blobs verification
-        if let Some(layers) = manifest_json.get("layers").and_then(|l| l.as_array()) {
-            for (l_idx, layer_desc) in layers.iter().enumerate() {
-                verify_blob_descriptor(
-                    oci_dir,
-                    layer_desc,
-                    &format!("manifest {digest} layer[{l_idx}]"),
-                    findings,
-                );
-            }
-        }
-
-        // Nested index manifests verification (if present)
-        if let Some(nested_manifests) = manifest_json.get("manifests").and_then(|m| m.as_array()) {
-            for (n_idx, n_desc) in nested_manifests.iter().enumerate() {
-                verify_blob_descriptor(
-                    oci_dir,
-                    n_desc,
-                    &format!("nested index manifest[{n_idx}]"),
-                    findings,
-                );
-            }
-        }
+        verify_descriptor(
+            oci_dir,
+            manifest_desc,
+            &format!("{}: manifests[{m_idx}]", index_path.display()),
+            true,
+            0,
+            &mut visited,
+            findings,
+        );
     }
 }
 
@@ -981,7 +1090,7 @@ mod tests {
         assert!(report
             .findings
             .iter()
-            .any(|f| f.contains("manifest blob") && f.contains("not found")));
+            .any(|f| f.contains("manifests[0]") && f.contains("not found")));
     }
 
     #[test]
@@ -1035,72 +1144,180 @@ mod tests {
         assert!(report2.ok);
     }
 
-    #[test]
-    fn test_oci_valid_closure() {
-        let tmp = tempfile::tempdir().unwrap();
-        setup_valid_workspace(tmp.path());
-        let oci_dir = tmp.path().join("artifacts/modelkit");
-        let blobs_dir = oci_dir.join("blobs/sha256");
-        std::fs::create_dir_all(&blobs_dir).unwrap();
+    fn sha256_hex(bytes: &[u8]) -> String {
+        use sha2::Digest;
+        sha2::Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    }
 
+    /// Writes `bytes` as a blob and returns its descriptor JSON.
+    fn put_blob(blobs: &Path, media: &str, bytes: &[u8]) -> String {
+        let hash = sha256_hex(bytes);
+        std::fs::write(blobs.join(&hash), bytes).unwrap();
+        format!(
+            r#"{{"mediaType":"{media}","digest":"sha256:{hash}","size":{}}}"#,
+            bytes.len()
+        )
+    }
+
+    /// A layout with one image manifest (config + one layer), reached from
+    /// index.json through `nest` intermediate nested indexes. Returns the
+    /// layout dir and the layer's blob path.
+    fn build_layout(root: &Path, nest: usize) -> (PathBuf, PathBuf) {
+        let oci_dir = root.join("artifacts/modelkit");
+        let blobs = oci_dir.join("blobs/sha256");
+        std::fs::create_dir_all(&blobs).unwrap();
         std::fs::write(
             oci_dir.join("oci-layout"),
             r#"{"imageLayoutVersion": "1.0.0"}"#,
         )
         .unwrap();
-
-        // Layer blob: "dummy layer" (11 bytes)
-        let layer_bytes = b"dummy layer";
-        let layer_hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        std::fs::write(blobs_dir.join(layer_hash), layer_bytes).unwrap();
-
-        // Config blob: "{}" (2 bytes)
-        let cfg_bytes = b"{}";
-        let cfg_hash = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
-        std::fs::write(blobs_dir.join(cfg_hash), cfg_bytes).unwrap();
-
-        // Manifest blob
-        let manifest_json = format!(
-            r#"{{
-                "schemaVersion": 2,
-                "mediaType": "application/vnd.oci.image.manifest.v1+json",
-                "config": {{
-                    "mediaType": "application/vnd.oci.image.config.v1+json",
-                    "digest": "sha256:{cfg_hash}",
-                    "size": {}
-                }},
-                "layers": [
-                    {{
-                        "mediaType": "application/vnd.oci.image.layer.v1.tar",
-                        "digest": "sha256:{layer_hash}",
-                        "size": {}
-                    }}
-                ]
-            }}"#,
-            cfg_bytes.len(),
-            layer_bytes.len()
+        let layer = b"dummy layer";
+        let layer_desc = put_blob(&blobs, "application/vnd.oci.image.layer.v1.tar", layer);
+        let cfg_desc = put_blob(&blobs, "application/vnd.oci.image.config.v1+json", b"{}");
+        let manifest = format!(
+            r#"{{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{cfg_desc},"layers":[{layer_desc}]}}"#
         );
-        let manifest_bytes = manifest_json.as_bytes();
-        let manifest_hash = "1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff";
-        std::fs::write(blobs_dir.join(manifest_hash), manifest_bytes).unwrap();
-
-        // index.json
-        let index_json = format!(
-            r#"{{
-                "schemaVersion": 2,
-                "manifests": [
-                    {{
-                        "mediaType": "application/vnd.oci.image.manifest.v1+json",
-                        "digest": "sha256:{manifest_hash}",
-                        "size": {}
-                    }}
-                ]
-            }}"#,
-            manifest_bytes.len()
+        let mut desc = put_blob(
+            &blobs,
+            "application/vnd.oci.image.manifest.v1+json",
+            manifest.as_bytes(),
         );
-        std::fs::write(oci_dir.join("index.json"), index_json).unwrap();
+        for _ in 0..nest {
+            let index = format!(
+                r#"{{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{desc}]}}"#
+            );
+            desc = put_blob(
+                &blobs,
+                "application/vnd.oci.image.index.v1+json",
+                index.as_bytes(),
+            );
+        }
+        std::fs::write(
+            oci_dir.join("index.json"),
+            format!(r#"{{"schemaVersion":2,"manifests":[{desc}]}}"#),
+        )
+        .unwrap();
+        (oci_dir, blobs.join(sha256_hex(layer)))
+    }
 
+    #[test]
+    fn test_oci_valid_closure() {
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        build_layout(tmp.path(), 0);
         let report = check(tmp.path());
         assert!(report.ok, "findings: {:#?}", report.findings);
+    }
+
+    #[test]
+    fn test_oci_same_size_tampered_blob_fails() {
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        let (_, layer) = build_layout(tmp.path(), 0);
+        std::fs::write(&layer, b"DUMMY LAYER").unwrap(); // same 11 bytes
+        let report = check(tmp.path());
+        assert!(!report.ok);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.contains("layer[0]") && f.contains("digest mismatch")),
+            "findings: {:#?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn test_oci_digest_path_traversal_rejected() {
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        let (oci_dir, _) = build_layout(tmp.path(), 0);
+        // A file outside blobs/ that a traversing digest would otherwise reach.
+        std::fs::write(tmp.path().join("artifacts/outside"), b"xx").unwrap();
+        std::fs::write(
+            oci_dir.join("index.json"),
+            r#"{"schemaVersion":2,"manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"sha256:../../../outside","size":2}]}"#,
+        )
+        .unwrap();
+        let report = check(tmp.path());
+        assert!(!report.ok);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.contains("invalid digest format")),
+            "findings: {:#?}",
+            report.findings
+        );
+        assert!(!report
+            .findings
+            .iter()
+            .any(|f| f.contains("failed to parse manifest JSON")));
+    }
+
+    #[test]
+    fn test_oci_nested_index_is_walked() {
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        let (_, layer) = build_layout(tmp.path(), 2);
+        let report = check(tmp.path());
+        assert!(report.ok, "findings: {:#?}", report.findings);
+        std::fs::remove_file(&layer).unwrap();
+        let report = check(tmp.path());
+        assert!(!report.ok);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.contains("layer[0]") && f.contains("not found")),
+            "a dangling layer two nested indexes down must be found: {:#?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn test_safetensors_header_is_parsed() {
+        let tmp = tempfile::tempdir().unwrap();
+        setup_valid_workspace(tmp.path());
+        let models_dir = tmp.path().join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+        let st = models_dir.join("model.safetensors");
+        let write = |header: &[u8], data: usize| {
+            let mut b = (header.len() as u64).to_le_bytes().to_vec();
+            b.extend_from_slice(header);
+            b.extend(std::iter::repeat_n(0u8, data));
+            std::fs::write(&st, b).unwrap();
+        };
+
+        write(
+            br#"{"w":{"dtype":"F32","shape":[2],"data_offsets":[0,8]}}"#,
+            8,
+        );
+        let report = check(tmp.path());
+        assert!(report.ok, "findings: {:#?}", report.findings);
+
+        write(b"not json at all!", 0);
+        let report = check(tmp.path());
+        assert!(report
+            .findings
+            .iter()
+            .any(|f| f.contains("header is not valid JSON")));
+
+        write(
+            br#"{"w":{"dtype":"F32","shape":[2],"data_offsets":[0,64]}}"#,
+            8,
+        );
+        let report = check(tmp.path());
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.contains("fall outside the 8-byte data section")),
+            "findings: {:#?}",
+            report.findings
+        );
     }
 }

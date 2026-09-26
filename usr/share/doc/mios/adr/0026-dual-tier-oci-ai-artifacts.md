@@ -48,7 +48,7 @@ MiOS adopts a **Dual-Tiered OCI AI Artifact Architecture**:
 
 ### 2. Tier 2: Development & Daily Training Plane (CNCF KitOps ModelKit / OCI 1.1 Referrers)
 - Training datasets (`sft.jsonl`, `dpo.jsonl`), LoRA delta adapters, manual corpus grounding documentation, and training driver scripts are packaged as CNCF KitOps ModelKits adhering to the `Kitfile` v1.0.0 specification.
-- A canonical `Kitfile` template lives under `usr/share/mios/templates/kitfile/Kitfile` per Law 16 (ONE-TEMPLATE-PER-TYPE), populated dynamically from the `[artifacts.daily]` SSOT table.
+- A canonical `Kitfile` template lives at `usr/share/mios/templates/kitfile` (scaffolded as `<type>` = `kitfile`) per Law 16 (ONE-TEMPLATE-PER-TYPE), populated dynamically from the `[artifacts.daily]` SSOT table.
 - Discrete OCI layers are generated with standard media types (`application/vnd.kitops.modelkit.model.v1+tar`, `...dataset.v1+tar`, `...code.v1+tar`), enabling selective layer pulling without downloading unchanged base model weights.
 - Cryptographic provenance is enforced using Sigstore/Cosign: signatures and CycloneDX AIBOM attestations are attached to artifact digests via the OCI Distribution v1.1 Referrers API (`subject` link).
 
@@ -75,14 +75,14 @@ MiOS adopts a **Dual-Tiered OCI AI Artifact Architecture**:
 ## Consequences
 
 - Quadlet templates (`usr/share/containers/systemd/mios-llm-light.container`) gain native image volume mounts pointing to local ModelCar images.
-- A canonical `Kitfile` template is added to `usr/share/mios/templates/kitfile/Kitfile` and registered in `[templates.kitfile]`.
+- A canonical `Kitfile` template is added to `usr/share/mios/templates/kitfile` and registered in `[templates.kitfile]`.
 - `mios-gate` expands with the `artifact` subcommand in `src/mios-rs/mios-gate/`.
 - Daily artifacts emitted under `[artifacts.daily]` conform to the dual-tier standard with verified descriptor closure.
 
 ## Implementation
 
 1. `usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md` (this record).
-2. `usr/share/mios/templates/kitfile/Kitfile` (canonical Law 16 template).
+2. `usr/share/mios/templates/kitfile` (canonical Law 16 template).
 3. `src/mios-rs/mios-gate/src/artifact.rs` (`mios-gate artifact` validator).
 4. `usr/lib/bootc/bound-images.d/50-mios-micro.toml` (ModelCar bound image registration).
 5. `usr/share/containers/systemd/mios-llm-light.container` (Quadlet image volume mount).
