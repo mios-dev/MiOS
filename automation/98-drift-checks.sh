@@ -2017,10 +2017,8 @@ check_toolchain_pin() {
 
 # --- etc/mios/ai/config.json equals its [ai] + [ports] projection (Law 8) ---
 check_ai_config_projection() {
-    # The OpenAI-client connection config. Both repos used to carry a hand-kept
-    # copy, and both drifted onto retired lanes' ports; it is generated now, so
-    # a hand edit or an unregenerated [ports]/[ai] move is a violation here.
-    # An unbuilt generator is cannot-run, which is a violation, never a skip.
+    # Generated from [ai] + [ports]. A hand edit, an unregenerated SSOT move or
+    # an unbuilt generator is a violation, never a skip.
     local bin="" c
     for c in "$ROOT/tools/native/target/release/mios-ai-config" \
              "$ROOT/tools/native/target/debug/mios-ai-config"; do
@@ -4097,8 +4095,6 @@ check_ps_redirectors() {
     # "Redirector file missing" branch fired unconditionally on every clean
     # checkout. (mios-pipeline.ps1 itself is 415 lines -- it is the real
     # pipeline script, not a thin redirector, so it does not belong here.)
-    # install.ps1 left this list when mios-bootstrap became its only owner
-    # (Law 15); installer builds get bootstrap's copy through seed-merge.
     local redirectors=("mios-build-local.ps1")
     local f line_count max_lines=50
     for f in "${redirectors[@]}"; do

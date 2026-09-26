@@ -45,8 +45,7 @@ fn json_str(s: &str) -> String {
 }
 
 /// The shape the existing consumers read: four keys, one line. `api_key` is
-/// always empty -- a credential never comes from the vendor SSOT (Law 11); the
-/// agent surface reads its bearer from /etc/mios/hermes/api.env instead.
+/// always empty: the bearer lives in /etc/mios/hermes/api.env, not the SSOT.
 fn render(cfg: &AiConfig) -> String {
     format!(
         "{{\"base_url\":{},\"default_model\":{},\"embed_model\":{},\"api_key\":\"\"}}\n",

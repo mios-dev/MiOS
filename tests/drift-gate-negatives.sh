@@ -1223,9 +1223,8 @@ test_offline_install_invariant() {
 
 test_installer_family_roles() {
     log "Testing check_installer_family_roles"
-    # The root install.sh this test used to mutate is mios-bootstrap's now
-    # (Law 15), so the collision is planted in a family member this repo owns.
-    # cp -p, not cat/echo: the restore must keep the executable bit.
+    # Plant the collision in a family member this repo owns (root install.sh
+    # is mios-bootstrap's). cp -p keeps the executable bit on restore.
     local s_script="${ROOT}/automation/install-fhs.sh"
     local s_stash
     s_stash="$(mktemp)"
