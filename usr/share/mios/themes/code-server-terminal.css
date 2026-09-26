@@ -1,6 +1,4 @@
-/* AI-hint: Mobile-first edge-to-edge frameless stylesheet for VS Code and code-server across all MiOS environments.
-   Provides rounded corners for modern smartphones (including rounded floating bottom status bar), safe-area insets,
-   zero-border full-width integrated terminals, thin elegant borders, and seamless desktop responsiveness. */
+/* AI-hint: GENERATED (mios-dotfiles-render surface code-server-terminal) -- the ONE MiOS stylesheet for VS Code and code-server: terminal insets from [theme].padding, plus the MiOS look. */
 
 :root {
     --mios-safe-top: env(safe-area-inset-top, 0px);
@@ -67,22 +65,33 @@ html, body, .monaco-workbench {
 }
 
 /* ==========================================================================
-   3. EDGE-TO-EDGE ZERO-BORDER FULL-WIDTH INTEGRATED TERMINAL
+   3. EDGE-TO-EDGE INTEGRATED TERMINAL
+   Insets from mios.toml [theme].padding and [theme].scrollbar_state; every other
+   terminal padding/margin/border/offset from [theme.edge].code_server_chrome_px.
+   Every rule here is scoped to the terminal or its panel. The card
+   around the panel keeps the upstream compact geometry: its margin and border
+   are subtracted in TypeScript, so zeroing them here would only leave a blank
+   strip inside the card; the workbench bake patch removes the perimeter instead.
    ========================================================================== */
-/* Completely eliminate panel border and header to maximize terminal canvas */
-.monaco-workbench .part.panel {
-    border: none !important;
-    border-top: none !important;
-    border-bottom: none !important;
-    border-left: none !important;
-    border-right: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #000000 !important;
+/* Terminal gutter (upstream terminal.css: padding-left var(--vscode-spacing-size200)) */
+.monaco-workbench .xterm {
+    padding-left: 0px !important;
+    padding-top: 0px !important;
+    padding-bottom: 0px !important;
 }
 
+.monaco-workbench .xterm .xterm-scrollable-element {
+    margin-left: calc(-1 * 0px) !important;
+    padding-left: 0px !important;
+}
+
+/* Right inset of the viewport (upstream terminal.css: right 14px, the scrollbar reserve) */
+.monaco-workbench .terminal-editor .terminal-wrapper:not(.fixed-dims) .xterm-viewport,
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(.fixed-dims) .xterm-viewport {
+    right: 0px !important;
+}
+
+/* Panel header hidden to give the terminal the whole card */
 .monaco-workbench .part.panel > .composite.title,
 .monaco-workbench .part.panel .pane-composite-part > .title,
 .monaco-workbench .part.panel .composite.title {
@@ -90,9 +99,9 @@ html, body, .monaco-workbench {
     height: 0 !important;
     min-height: 0 !important;
     max-height: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
+    padding: 0px !important;
+    margin: 0px !important;
+    border: 0px !important;
     visibility: hidden !important;
     overflow: hidden !important;
 }
@@ -102,11 +111,152 @@ html, body, .monaco-workbench {
 .monaco-workbench .part.panel .pane-body {
     height: 100% !important;
     width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
+    margin: 0px !important;
+    padding: 0px !important;
+    border: 0px !important;
 }
 
+/* Container, wrapper, split pane, and editor tab terminal hierarchy */
+.monaco-workbench .part.panel .pane-body.integrated-terminal,
+.monaco-workbench .part.panel .content .terminal-split-pane,
+.monaco-workbench .part.panel .content .terminal-outer-container,
+.monaco-workbench .part.panel .content .terminal-wrapper,
+.monaco-workbench .part.panel .terminal-outer-container,
+.monaco-workbench .part.editor .terminal-editor,
+.monaco-workbench .part.editor .terminal-outer-container,
+.monaco-workbench .part.editor .terminal-wrapper,
+.pane-body.integrated-terminal,
+.pane-body.integrated-terminal .terminal-outer-container,
+.terminal-editor,
+.terminal-editor .terminal-outer-container,
+.terminal-editor .terminal-wrapper,
+.terminal-editor .terminal-split-pane,
+.terminal-outer-container,
+.terminal-wrapper,
+.terminal-split-pane,
+.terminal-split-pane-wrapper,
+.terminal-instance,
+.xterm-react-component {
+    padding: 0px !important;
+    padding-left: 0px !important;
+    padding-right: 0px !important;
+    padding-top: 0px !important;
+    padding-bottom: 0px !important;
+    margin: 0px !important;
+    border: 0px !important;
+    outline: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Screen canvas fills the viewport */
+.monaco-workbench .terminal .xterm-screen,
+.pane-body.integrated-terminal .xterm-screen,
+.terminal-editor .xterm-screen,
+.xterm-screen {
+    padding: 0px !important;
+    margin: 0px !important;
+    border: 0px !important;
+    left: 0px !important;
+    top: 0px !important;
+    right: 0px !important;
+    bottom: 0px !important;
+    width: 100% !important;
+}
+
+.monaco-workbench .terminal .xterm-viewport,
+.pane-body.integrated-terminal .xterm-viewport,
+.terminal-editor .xterm-viewport {
+    padding: 0px !important;
+    margin: 0px !important;
+    border: 0px !important;
+}
+
+/* No canvas gutter offset */
+.xterm-screen canvas {
+    left: 0px !important;
+    top: 0px !important;
+    right: 0px !important;
+    bottom: 0px !important;
+    margin: 0px !important;
+    padding: 0px !important;
+    border: 0px !important;
+}
+
+/* Strip inner padding from xterm text rows */
+.monaco-workbench .terminal .xterm-rows,
+.xterm-rows {
+    padding: 0px !important;
+    margin: 0px !important;
+}
+
+/* Seamless terminal split views without partition dead space */
+.terminal-split-pane-wrapper,
+.terminal-split-pane-wrapper .split-view-container,
+.terminal-split-pane-wrapper .split-view-view {
+    padding: 0px !important;
+    margin: 0px !important;
+    border: 0px !important;
+    width: 100% !important;
+}
+
+/* Terminal scrollbars follow [theme].scrollbar_state */
+.monaco-workbench .terminal .scrollbar,
+.monaco-workbench .terminal .scrollbar.vertical,
+.monaco-workbench .terminal .scrollbar.horizontal,
+.terminal-wrapper .scrollbar,
+.terminal-wrapper .scrollbar.vertical,
+.terminal-wrapper .scrollbar.horizontal,
+.terminal-editor .scrollbar,
+.terminal-editor .scrollbar.vertical,
+.monaco-workbench .terminal .xterm-viewport::-webkit-scrollbar,
+.terminal-wrapper .xterm-viewport::-webkit-scrollbar,
+.xterm-viewport::-webkit-scrollbar,
+.xterm .xterm-scrollable-element > .scrollbar {
+    display: none !important;
+}
+
+/* Suppress tabs widget, action bars, and decorations inside terminal */
+.monaco-workbench .terminal-tabs-widget,
+.monaco-workbench .terminal-tabs-widget.has-no-tabs,
+.monaco-workbench .terminal-tabs-widget:empty,
+.monaco-workbench .terminal-tab-actions,
+.monaco-workbench .terminal-action-bar,
+.monaco-workbench .terminal-header-actions,
+.monaco-workbench .part.panel .tabs-and-actions-container,
+.terminal-tabs-widget,
+.terminal-tab-actions,
+.terminal-header-actions {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0px !important;
+    padding: 0px !important;
+    border: 0px !important;
+}
+
+.terminal-shell-integration-decoration,
+.terminal-command-decoration,
+.terminal-decoration,
+.monaco-workbench .terminal .terminal-decoration-overview-ruler,
+.xterm-decoration-container {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0px !important;
+    padding: 0px !important;
+}
+
+.terminal-widget-container {
+    padding: 0px !important;
+    margin: 0px !important;
+    border: 0px !important;
+}
+
+/* ==========================================================================
+   4. ROUNDED SURFACES & FRAMELESS CARDS FOR MOBILE & DESKTOP
+   ========================================================================== */
 /* Split view sashes and divider partitions: completely transparent */
 .monaco-workbench .monaco-sash,
 .monaco-workbench .monaco-sash.horizontal,
@@ -133,154 +283,6 @@ html, body, .monaco-workbench {
     box-shadow: none !important;
 }
 
-/* Container, wrapper, split pane, and editor tab terminal hierarchy */
-.monaco-workbench .part.panel .pane-body.integrated-terminal,
-.monaco-workbench .part.panel .content .terminal-split-pane,
-.monaco-workbench .part.panel .content .terminal-outer-container,
-.monaco-workbench .part.panel .content .terminal-wrapper,
-.monaco-workbench .part.panel .content .xterm,
-.monaco-workbench .part.panel .terminal-outer-container,
-.monaco-workbench .part.editor .terminal-editor,
-.monaco-workbench .part.editor .terminal-outer-container,
-.monaco-workbench .part.editor .terminal-wrapper,
-.monaco-workbench .part.editor .xterm,
-.monaco-workbench .pane-composite-part > .content,
-.pane-body.integrated-terminal,
-.pane-body.integrated-terminal .terminal-outer-container,
-.terminal-editor,
-.terminal-editor .terminal-outer-container,
-.terminal-editor .terminal-wrapper,
-.terminal-editor .terminal-split-pane,
-.terminal-editor .xterm,
-.terminal-outer-container,
-.terminal-wrapper,
-.terminal-split-pane,
-.terminal-split-pane-wrapper,
-.terminal.xterm,
-.terminal-instance,
-.xterm-react-component {
-    padding: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-    width: 100% !important;
-    max-width: 100% !important;
-}
-
-/* Force xterm screen and viewport canvas to occupy full viewport boundary edge-to-edge */
-.monaco-workbench .terminal .xterm-screen,
-.monaco-workbench .terminal .xterm-viewport,
-.pane-body.integrated-terminal .xterm-screen,
-.pane-body.integrated-terminal .xterm-viewport,
-.terminal-editor .xterm-screen,
-.terminal-editor .xterm-viewport,
-.xterm-viewport,
-.xterm-screen {
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-    left: 0 !important;
-    top: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-}
-
-/* Eliminate canvas gutter offset and bounds */
-.xterm .xterm-screen canvas,
-.xterm-screen canvas {
-    left: 0 !important;
-    top: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-}
-
-/* Strip inner padding from xterm text rows */
-.monaco-workbench .terminal .xterm-rows,
-.xterm-rows {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* Seamless terminal split views without partition dead space */
-.terminal-split-pane-wrapper,
-.terminal-split-pane-wrapper .split-view-container,
-.terminal-split-pane-wrapper .split-view-view {
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-    width: 100% !important;
-}
-
-/* Zero-width completely hidden terminal scrollbars */
-.monaco-workbench .terminal .scrollbar,
-.monaco-workbench .terminal .scrollbar.vertical,
-.monaco-workbench .terminal .scrollbar.horizontal,
-.terminal-wrapper .scrollbar,
-.terminal-wrapper .scrollbar.vertical,
-.terminal-wrapper .scrollbar.horizontal,
-.terminal-editor .scrollbar,
-.terminal-editor .scrollbar.vertical,
-.monaco-workbench .terminal .xterm-viewport::-webkit-scrollbar,
-.terminal-wrapper .xterm-viewport::-webkit-scrollbar,
-.xterm-viewport::-webkit-scrollbar,
-.monaco-scrollable-element > .scrollbar {
-    display: none !important;
-    width: 0px !important;
-    height: 0px !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
-
-/* Suppress tabs widget, action bars, and decorations inside terminal */
-.monaco-workbench .terminal-tabs-widget,
-.monaco-workbench .terminal-tabs-widget.has-no-tabs,
-.monaco-workbench .terminal-tabs-widget:empty,
-.monaco-workbench .terminal-tab-actions,
-.monaco-workbench .terminal-action-bar,
-.monaco-workbench .terminal-header-actions,
-.monaco-workbench .tabs-and-actions-container,
-.terminal-tabs-widget,
-.terminal-tab-actions,
-.terminal-header-actions,
-.tabs-and-actions-container {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-}
-
-.terminal-shell-integration-decoration,
-.terminal-command-decoration,
-.terminal-decoration,
-.monaco-workbench .terminal .terminal-decoration-overview-ruler,
-.xterm-decoration-container {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
-
-.terminal-widget-container {
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-}
-
-/* ==========================================================================
-   4. ROUNDED SURFACES & FRAMELESS CARDS FOR MOBILE & DESKTOP
-   ========================================================================== */
 /* Quick Input / Command Palette / File Search */
 .monaco-workbench .quick-input-widget {
     border-radius: var(--mios-radius-lg) !important;

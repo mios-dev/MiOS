@@ -15,7 +15,7 @@
     }
   },
   "containerEnv": {
-    "MIOS_AI_ENDPOINT": "http://127.0.0.1:8080/v1",
+    "MIOS_AI_ENDPOINT": "http://localhost:8700/v1",
     "MIOS_AI_ROLE": "builder",
     "DEVLOOP_HARNESS": "embedded",
     "PYTHONUNBUFFERED": "1"
@@ -195,13 +195,10 @@
     }
   },
   "forwardPorts": [
-    8080,
-    8633,
-    8640,
-    8642,
-    11450,
-    11441,
-    5432
+    8900,
+    8700,
+    8500,
+    8600
   ],
   "postCreateCommand": "bash .devcontainer/post-create.sh && bash .devcontainer/platform-bootstrap.sh",
   "postStartCommand": "bash .devcontainer/boot-mios-systems.sh && bash .devcontainer/post-start.sh",

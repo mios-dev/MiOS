@@ -288,6 +288,38 @@ def float_allowlist(data=None):
     d = data if data is not None else load_vendor()
     return section(d, "build.float")
 
+class EdgeInsetsError(ValueError):
+    """[theme].padding / [theme].scrollbar_state outside the grammar MiOS accepts."""
+
+# The non-negative integer subset of the Windows Terminal profile `padding` grammar.
+_WT_PADDING = re.compile(r"([0-9]+)(?: *, *([0-9]+)(?: *, *([0-9]+) *, *([0-9]+))?)?")  # fullmatch only
+_WT_SCROLLBAR_STATES = ("visible", "hidden", "always")
+
+def edge_insets(data):
+    """The ONE parser of the terminal edge intent: {left, top, right, bottom,
+    scrollbar_hidden} from [theme].padding ("#", "#, #" = left-right then
+    top-bottom, or "#, #, #, #" = left, top, right, bottom) and
+    [theme].scrollbar_state. Parity table: usr/share/mios/theme/fixtures/edge/padding-cases.tsv."""
+    theme = section(data, "theme")
+    raw = theme.get("padding")
+    m = None if isinstance(raw, bool) or raw is None else _WT_PADDING.fullmatch(str(raw))
+    if not m:
+        raise EdgeInsetsError(f"[theme].padding: '{'' if raw is None else raw}' is not a non-negative integer WT padding")
+    a, b, c, d = m.groups()
+    if b is None:
+        left = top = right = bottom = int(a)
+    elif c is None:
+        left = right = int(a)
+        top = bottom = int(b)
+    else:
+        left, top, right, bottom = int(a), int(b), int(c), int(d)
+    state = theme.get("scrollbar_state")
+    if state not in _WT_SCROLLBAR_STATES:
+        raise EdgeInsetsError(f"[theme].scrollbar_state: '{state}' is not one of "
+                              + ", ".join(_WT_SCROLLBAR_STATES))
+    return {"left": left, "top": top, "right": right, "bottom": bottom,
+            "scrollbar_hidden": state == "hidden"}
+
 def get_aliases(dotted_path):
     aliases = []
 
@@ -756,11 +788,11 @@ WALK_EMIT_KEEP = {
     "MIOS_HEADLESS", "MIOS_MONITOR_RUNNING", "MIOS_NO_COLOR", "MIOS_NO_MONITOR",
 }
 
-def emit_exports() -> dict[str, str]:
-    """Emit all derived MIOS_* environment variables from SSOT layers."""
+def emit_exports(data=None) -> dict[str, str]:
+    """Emit all derived MIOS_* environment variables from SSOT layers (or from `data`, a merged table)."""
     import re as _re
     _re_unsafe = _re.compile(r"[^A-Za-z0-9_]")
-    data = load_merged()
+    data = load_merged() if data is None else data
     ports = data.get("ports") or {}
     try:
         stack_offset = int(ports.get("stack_id", 0)) * 10000

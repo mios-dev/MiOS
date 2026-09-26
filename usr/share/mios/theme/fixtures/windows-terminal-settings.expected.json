@@ -7,7 +7,9 @@
             "font": {
                 "face": "Cascadia Code"
             },
-            "colorScheme": "MiOS"
+            "colorScheme": "MiOS",
+            "padding": "0",
+            "scrollbarState": "hidden"
         },
         "list": [
             {
