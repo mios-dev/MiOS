@@ -336,6 +336,8 @@ def _test_6_loopback_in(temp_dir: str) -> None:
         time.sleep(0.05)
 
     if not os.path.exists(sock_path):
+        server_ingress.running = False
+        server_thread.join(timeout=1.0)  # never leave the server writing into a temp dir being removed
         assert_fail("Unix domain socket was not created in time")
         return
 
