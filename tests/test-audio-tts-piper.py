@@ -6,11 +6,13 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import configparser
 import json
 import os
 import pathlib
 import select
+import shutil
 import socket
 import struct
 import subprocess
@@ -351,6 +353,7 @@ def test_6_mock_end_to_end_loopback() -> None:
     log("Test 6: Mock end-to-end streaming loopback (--mock)")
 
     temp_dir = tempfile.mkdtemp(prefix="test-tts-sock-")
+    atexit.register(shutil.rmtree, temp_dir, ignore_errors=True)
     sock_path = os.path.join(temp_dir, "audio-tts.sock")
 
     worker = mat.StreamingTTSWorker(
