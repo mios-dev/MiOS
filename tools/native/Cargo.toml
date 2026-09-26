@@ -13,6 +13,7 @@ members = [
     "mios-size-ceiling",
     "mios-ssot-lint",
     "mios-ssot-walk",
+    "mios-task",
     "mios-template-compile",
     "mios-template-conform",
     "mios-toolchain-pin",
