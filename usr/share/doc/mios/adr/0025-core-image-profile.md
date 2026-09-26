@@ -117,6 +117,7 @@ reviewed by the operator):
 default = "full"                       # what an unparameterised build means
 
 [profiles.core]
+floor            = true                # the one profile every non-`all` profile contains
 summary          = "the smallest MiOS that is still MiOS: SSOT, miosd, agent-pipe, the datastore, the verbs"
 base             = "fedora-bootc"   # Q1, operator decision
 package_sections = ["repos", "base", "containers", "build-toolchain", "utils", "ai", "critical"]
@@ -133,18 +134,16 @@ budget_disk_mb   = "<measured by L6>"
 extends          = ["core"]
 package_sections = ["devcontainer"]    # the dev userspace, now installed BY a phase
 phases           = ["dev-userspace"]   # new NN-dev-userspace.sh: npm CLIs, venv, code-server, agy
+targets          = ["wsl2", "devcontainer", "cloud", "codespace"]
 
 [profiles.full]
-extends          = ["core"]
 all              = true                # every enabled section and every registered phase
-
-[profiles.targets]                     # image kind -> profile; every consumer reads this
-oci         = "full"
-wsl2        = ["full", "dev"]
-devcontainer = "dev"
-cloud       = "dev"
-codespace   = "dev"
+targets          = ["oci", "wsl2"]     # a kind in several profiles unions them
 ```
+
+Each profile lists the image kinds it serves. A kind-to-profile map and a
+top-level `floor = "core"` would repeat profile names as values, and
+`check_no_duplicate_value_key` counts every repeat as a new duplicate group.
 
 Rules: a profile's resolved set is the union over its `extends` closure; every
 name must resolve (a section in `[packages]`, a phase in `[build.phases].list`,
@@ -181,7 +180,7 @@ inverts: it is now installed by the `dev-userspace` phase. `[packages.dev_overla
   `[templates.containerfile]` (Law 16, R11), and guarded by a regenerate-and-diff
   gate `check_devcontainer_projection`. Its bytes are still mirrored (R8), so the
   mirrors change in the same assignment (Law 15). Alternative in Q2.
-- **WSL2 / MiOS-DEV** is the OCI image built with `targets.wsl2`; the WSL
+- **WSL2 / MiOS-DEV** is the OCI image built with the profiles that list `wsl2`; the WSL
   artifact is a format of that image, as today.
 
 ### D3. The cloud projection: core first, the rest degrades open
@@ -234,8 +233,9 @@ hosts the runtime capability view the agents see.
   `check_var_closure` proves every consumer's reference is emitted.
 - **`check_db_seed_coverage`:** red until `profiles` is in `_CANONICAL_SECTIONS`.
 - **New `check_profile_integrity`:** every name in every profile resolves;
-  `extends` is acyclic; `core` ⊆ every profile; every `[profiles.targets]` value
-  and every `variants.entries.*.profile` is a declared profile; `[build.phases]`
+  `extends` is acyclic; exactly one profile is `floor = true` and it is ⊆ every
+  non-`all` profile; every `targets` is a list; every
+  `variants.entries.*.profile` is a declared profile; `[build.phases]`
   `max_phase_scripts` still bounds the phase count.
 - **New `check_devcontainer_projection`** (Law 8): re-render and diff
   `.devcontainer/Containerfile`; a hand edit fails.

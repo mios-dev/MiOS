@@ -1,4 +1,4 @@
-// AI-hint: Asserts mios.toml [profiles] (ADR-0025) is closed: every profile resolves without a cycle, names only registered phases and real [packages] sections, contains the floor profile, and every [profiles.targets] entry names a declared profile.
+// AI-hint: Asserts mios.toml [profiles] (ADR-0025) is closed: every profile resolves without a cycle, names only registered phases and real [packages] sections, contains the one floor = true profile, and every profile's targets is a list of image kinds.
 // AI-related: usr/share/mios/mios.toml, src/mios-rs/mios-build/src/lib.rs, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh
 // AI-functions: check
 
@@ -58,20 +58,16 @@ pub fn check(root: &Path) -> Report {
         }
     }
 
-    for key in ["default", "floor"] {
-        match profiles.table_str(key) {
-            Some(n) if names.contains(&n) => {}
-            Some(n) => findings.push(format!(
-                "[profiles].{key} = {n:?} is not a declared profile"
-            )),
-            None => findings.push(format!("[profiles].{key} is absent")),
-        }
+    match profiles.table_str("default") {
+        Some(n) if names.contains(&n) => {}
+        Some(n) => findings.push(format!(
+            "[profiles].default = {n:?} is not a declared profile"
+        )),
+        None => findings.push("[profiles].default is absent".to_string()),
     }
 
-    if let Some(floor) = profiles
-        .table_str("floor")
-        .and_then(|f| resolved.iter().find(|r| r.name == f).cloned())
-    {
+    let floor_name = profiles.floor().map_err(|e| findings.push(e)).ok();
+    if let Some(floor) = floor_name.and_then(|f| resolved.iter().find(|r| r.name == f).cloned()) {
         for r in resolved.iter().filter(|r| !r.all && r.name != floor.name) {
             let missing: Vec<&String> = floor
                 .phases
@@ -99,17 +95,8 @@ pub fn check(root: &Path) -> Report {
         }
     }
 
-    match profiles.targets() {
-        Ok(targets) => {
-            for (kind, members) in targets {
-                for m in members.iter().filter(|m| !names.contains(m)) {
-                    findings.push(format!(
-                        "[profiles.targets].{kind} names undeclared profile {m:?}"
-                    ));
-                }
-            }
-        }
-        Err(e) => findings.push(e),
+    if let Err(e) = profiles.targets() {
+        findings.push(e);
     }
 
     Report {
@@ -117,7 +104,7 @@ pub fn check(root: &Path) -> Report {
         ok: findings.is_empty(),
         could_not_run: None,
         summary: format!(
-            "{} profile(s) resolve over registered phases and real package sections; each contains the floor; every target names a declared profile",
+            "{} profile(s) resolve over registered phases and real package sections; each contains the one floor; every targets list parses",
             names.len()
         ),
         findings,

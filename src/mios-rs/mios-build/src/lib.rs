@@ -192,7 +192,7 @@ impl Profiles {
             .ok_or_else(|| "[profiles].default is absent".to_string())
     }
 
-    /// A top-level string key of `[profiles]` (`default`, `floor`).
+    /// A top-level string key of `[profiles]` (`default`).
     pub fn table_str(&self, key: &str) -> Option<String> {
         self.table
             .get(key)
@@ -200,13 +200,31 @@ impl Profiles {
             .map(str::to_string)
     }
 
-    /// Names of the declared profiles (every sub-table except `targets`).
+    /// Names of the declared profiles (every sub-table).
     pub fn names(&self) -> Vec<String> {
         self.table
             .iter()
-            .filter(|(k, v)| v.is_table() && k.as_str() != "targets")
+            .filter(|(_, v)| v.is_table())
             .map(|(k, _)| k.clone())
             .collect()
+    }
+
+    /// The one profile marked `floor = true`; none or several is an error.
+    pub fn floor(&self) -> Result<String, String> {
+        let marked: Vec<String> = self
+            .table
+            .iter()
+            .filter(|(_, v)| v.get("floor").and_then(|f| f.as_bool()) == Some(true))
+            .map(|(k, _)| k.clone())
+            .collect();
+        match marked.as_slice() {
+            [one] => Ok(one.clone()),
+            [] => Err("no profile in [profiles] declares floor = true".to_string()),
+            many => Err(format!(
+                "more than one profile declares floor = true: {}",
+                many.join(", ")
+            )),
+        }
     }
 
     fn strings(def: &toml::value::Table, key: &str, prof: &str) -> Result<Vec<String>, String> {
@@ -252,7 +270,6 @@ impl Profiles {
             .table
             .get(name)
             .and_then(|v| v.as_table())
-            .filter(|_| name != "targets")
             .ok_or_else(|| format!("no profile named {name:?} in [profiles]"))?;
         stack.push(name.to_string());
         for parent in Self::strings(def, "extends", name)? {
@@ -266,30 +283,16 @@ impl Profiles {
         Ok(())
     }
 
-    /// `[profiles.targets]`: image kind -> one or more profile names.
+    /// Image kind -> the profiles whose `targets` list it, in declaration order.
     pub fn targets(&self) -> Result<Vec<(String, Vec<String>)>, String> {
-        let Some(t) = self.table.get("targets") else {
-            return Ok(Vec::new());
-        };
-        let t = t.as_table().ok_or("[profiles.targets] is not a table")?;
-        t.iter()
-            .map(|(kind, v)| {
-                let names = match v {
-                    toml::Value::String(s) => vec![s.clone()],
-                    toml::Value::Array(_) => {
-                        let mut tbl = toml::value::Table::new();
-                        tbl.insert("v".into(), v.clone());
-                        Self::strings(&tbl, "v", "targets")?
-                    }
-                    _ => {
-                        return Err(format!(
-                            "[profiles.targets].{kind} is neither a name nor a list"
-                        ))
-                    }
-                };
-                Ok((kind.clone(), names))
-            })
-            .collect()
+        let mut by_kind: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+        for (name, def) in self.table.iter() {
+            let Some(def) = def.as_table() else { continue };
+            for kind in Self::strings(def, "targets", name)? {
+                by_kind.entry(kind).or_default().push(name.clone());
+            }
+        }
+        Ok(by_kind.into_iter().collect())
     }
 }
 
@@ -428,17 +431,16 @@ list = [
 ]
 [profiles]
 default = "full"
-floor = "core"
 [profiles.core]
+floor = true
 phases = ["c", "a"]
 [profiles.dev]
 extends = ["core"]
 package_sections = ["devcontainer"]
+targets = ["wsl2", "cloud"]
 [profiles.full]
-extends = ["core"]
 all = true
-[profiles.targets]
-wsl2 = ["full", "dev"]
+targets = ["wsl2"]
 "#;
 
     fn reg() -> PhaseRegistry {
@@ -500,14 +502,25 @@ wsl2 = ["full", "dev"]
     }
 
     #[test]
-    fn targets_accept_a_name_or_a_list() {
+    fn targets_invert_each_profiles_list() {
         let t = Profiles::from_toml_str(T).unwrap().targets().unwrap();
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
         assert_eq!(
             t,
-            vec![(
-                "wsl2".to_string(),
-                vec!["full".to_string(), "dev".to_string()]
-            )]
+            vec![
+                ("cloud".to_string(), s(&["dev"])),
+                ("wsl2".to_string(), s(&["dev", "full"])),
+            ]
         );
+    }
+
+    #[test]
+    fn exactly_one_floor() {
+        assert_eq!(Profiles::from_toml_str(T).unwrap().floor().unwrap(), "core");
+        let none = Profiles::from_toml_str(&T.replace("floor = true\n", "")).unwrap();
+        assert!(none.floor().unwrap_err().contains("no profile"));
+        let two =
+            Profiles::from_toml_str(&T.replace("all = true", "all = true\nfloor = true")).unwrap();
+        assert!(two.floor().unwrap_err().contains("core, full"));
     }
 }

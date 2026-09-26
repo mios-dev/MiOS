@@ -17,13 +17,13 @@ pkgs = []
 pkgs = []
 [profiles]
 default = "full"
-floor = "core"
 [profiles.core]
+floor = true
 phases = ["a"]
 package_sections = ["s"]
 [profiles.full]
-extends = ["core"]
 all = true
+targets = ["oci"]
 "#;
 
 fn run(toml: &str) -> (i32, String) {
@@ -52,10 +52,7 @@ fn a_consistent_table_is_clean() {
 
 #[test]
 fn a_phase_typo_under_all_is_still_a_finding() {
-    let (code, text) = run(&BASE.replace(
-        "extends = [\"core\"]\nall = true",
-        "extends = [\"core\"]\nall = true\nphases = [\"zz-planted\"]",
-    ));
+    let (code, text) = run(&BASE.replace("all = true", "all = true\nphases = [\"zz-planted\"]"));
     assert_ne!(code, 0, "{text}");
     assert!(text.contains("zz-planted"), "{text}");
 }
@@ -68,6 +65,22 @@ fn a_section_cannot_stand_in_for_a_floor_phase_of_the_same_name() {
     assert_ne!(code, 0, "{text}");
     assert!(
         text.contains("does not contain the floor") && text.contains("dev"),
+        "{text}"
+    );
+}
+
+#[test]
+fn a_second_floor_and_no_floor_are_findings() {
+    let (code, text) = run(&BASE.replace("all = true", "all = true\nfloor = true"));
+    assert_ne!(code, 0, "{text}");
+    assert!(
+        text.contains("more than one profile declares floor"),
+        "{text}"
+    );
+    let (code, text) = run(&BASE.replace("floor = true\n", ""));
+    assert_ne!(code, 0, "{text}");
+    assert!(
+        text.contains("no profile in [profiles] declares floor"),
         "{text}"
     );
 }

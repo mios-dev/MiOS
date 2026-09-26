@@ -12268,9 +12268,11 @@ status    = "partial"
 # Read by `miosd build --list --profile`; gate: check_profile_integrity.
 [profiles]
 default = "full"
-floor   = "core"
 
+# floor = true marks the one profile every other non-`all` profile must contain.
+# Each profile lists the image kinds it serves; a kind in several profiles unions them.
 [profiles.core]
+floor            = true
 summary          = "the smallest MiOS that is still MiOS: SSOT, miosd, agent-pipe, the datastore, the verbs"
 package_sections = ["repos", "base", "containers", "build-toolchain", "utils", "ai", "critical"]
 phases           = ["system-files-overlay", "materialize-build-ctx", "repos", "locale-theme",
@@ -12282,19 +12284,12 @@ phases           = ["system-files-overlay", "materialize-build-ctx", "repos", "l
 summary          = "core plus the development userspace"
 extends          = ["core"]
 package_sections = ["devcontainer"]
+targets          = ["wsl2", "devcontainer", "cloud", "codespace"]
 
 [profiles.full]
 summary = "every enabled section and every registered phase"
-extends = ["core"]
 all     = true
-
-# Image kind -> profile(s). A list unions its members.
-[profiles.targets]
-oci          = "full"
-wsl2         = ["full", "dev"]
-devcontainer = "dev"
-cloud        = "dev"
-codespace    = "dev"
+targets = ["oci", "wsl2"]
 
 # Every way MiOS can be deployed, named once. The targets and recipes existed;
 # what did not exist was a statement of the matrix, so [deploy].artifacts listed

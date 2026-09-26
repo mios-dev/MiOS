@@ -4489,7 +4489,9 @@ PY
         cp "$bak" "$toml"
     }
     _pi_plant '"cleanup", "ssot-lint"' '"cleanup", "devloop-planted-phase", "ssot-lint"' "devloop-planted-phase"
-    _pi_plant 'codespace    = "dev"' 'codespace    = "devloop-planted-profile"' "devloop-planted-profile"
+    _pi_plant 'extends          = ["core"]' 'extends          = ["devloop-planted-profile"]' "devloop-planted-profile"
+    _pi_plant 'all     = true' 'all     = true
+floor   = true' "more than one profile declares floor"
     _pi_plant 'extends          = ["core"]
 package_sections = ["devcontainer"]' 'package_sections = ["devcontainer"]' "does not contain the floor"
     rm -f "$bak"; unset -f _pi_plant
