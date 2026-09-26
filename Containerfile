@@ -63,6 +63,8 @@ ARG MIOS_HOSTNAME=mios
 ARG MIOS_FLATPAKS=
 ARG MIOS_AI_MODEL=qwen2.5-coder:7b
 ARG MIOS_AI_EMBED_MODEL=nomic-embed-text
+# ADR-0025 image profile ([profiles]); empty means [profiles].default.
+ARG MIOS_PROFILES_DEFAULT
 
 RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
@@ -99,7 +101,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     if [[ -n "${MIOS_FLATPAKS}" ]]; then \
         echo "${MIOS_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \
     fi; \
-    export MIOS_AI_MODEL MIOS_AI_EMBED_MODEL; \
+    export MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_PROFILES_DEFAULT; \
     bash /tmp/build/automation/01-system-files-overlay.sh; \
     chmod +x /tmp/build/automation/build.sh /tmp/build/automation/*.sh 2>/dev/null || true; \
     chmod +x /usr/libexec/mios/copy-build-log.sh 2>/dev/null || true; \
