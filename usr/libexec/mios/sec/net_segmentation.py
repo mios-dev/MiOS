@@ -17,15 +17,20 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
+def _port(key: str, default: int) -> int:
+    """A [ports] value as resolved into MIOS_PORT_<KEY>, else its SSOT default."""
+    return int(os.environ.get("MIOS_PORT_" + key) or default)
+
+
 class NetSegmentationManager:
     """Manages nftables rule generation, pairing validation, and firewall rule enforcement."""
 
     DEFAULT_ALLOWED_PAIRINGS = [
-        {"src": "open-webui", "dst": "hermes", "port": 8720, "proto": "tcp", "desc": "OWUI browser agent chat gateway"},
-        {"src": "agent-pipe", "dst": "hermes", "port": 8720, "proto": "tcp", "desc": "Agent-pipe orchestration forwarding"},
+        {"src": "open-webui", "dst": "hermes", "port": _port("HERMES", 8720), "proto": "tcp", "desc": "OWUI browser agent chat gateway"},
+        {"src": "agent-pipe", "dst": "hermes", "port": _port("HERMES", 8720), "proto": "tcp", "desc": "Agent-pipe orchestration forwarding"},
         {"src": "hermes", "dst": "pgvector", "port": 5432, "proto": "tcp", "desc": "Hermes PostgreSQL vector memory recall"},
-        {"src": "hermes", "dst": "llm-light", "port": 8500, "proto": "tcp", "desc": "Hermes primary llama.cpp inference lane"},
-        {"src": "hermes", "dst": "searxng", "port": 8800, "proto": "tcp", "desc": "Hermes metasearch backing web_search tool"},
+        {"src": "hermes", "dst": "llm-light", "port": _port("LLM_LIGHT", 8500), "proto": "tcp", "desc": "Hermes primary llama.cpp inference lane"},
+        {"src": "hermes", "dst": "searxng", "port": _port("SEARXNG", 8800), "proto": "tcp", "desc": "Hermes metasearch backing web_search tool"},
     ]
 
     # Matrix of strictly forbidden direct flows
