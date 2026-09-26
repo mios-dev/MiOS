@@ -31,10 +31,10 @@ import uuid
 # ==============================================================================
 
 ROLE_HEAVY_REASONING = "heavy_reasoning"    # vLLM / SGLang (mios-heavy, port 8000/8001, dGPU VFIO)
-ROLE_CODING = "coding"                      # mios-opencode (port 8642)
-ROLE_EMBEDDINGS = "embeddings"              # nomic-embed-text (port 11434 / 8642)
+ROLE_CODING = "coding"                      # mios-opencode (served by [ports].llm_light)
+ROLE_EMBEDDINGS = "embeddings"              # nomic-embed-text (served by [ports].llm_light)
 ROLE_TOOL_SANDBOX = "tool_sandbox"          # bwrap / seccomp isolated execution
-ROLE_LIGHT_CHAT = "light_chat"              # llama.cpp / llama-swap (mios-llm-light, port 8642)
+ROLE_LIGHT_CHAT = "light_chat"              # llama.cpp / llama-swap (mios-llm-light, [ports].llm_light)
 
 SUPPORTED_ROLES = [
     ROLE_HEAVY_REASONING,
@@ -49,6 +49,7 @@ STATUS_DEGRADED = "degraded"
 STATUS_OFFLINE = "offline"
 
 DEFAULT_CLUSTER_NODES_PATH = "/run/mios/cluster/nodes.json"
+_LIGHT_PORT = os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")
 
 
 # ==============================================================================
@@ -304,7 +305,7 @@ class MeshTopology:
                 gpu_vram_total_mb=0,
                 cpu_load_pct=15.0,
             ),
-            endpoint_url="http://10.244.0.2:8642/v1",
+            endpoint_url=f"http://10.244.0.2:{_LIGHT_PORT}/v1",
         )
 
         # Blade 03: Secondary heavy reasoning node with higher load and VRAM occupancy
@@ -340,7 +341,7 @@ class MeshTopology:
                 gpu_vram_total_mb=0,
                 cpu_load_pct=35.0,
             ),
-            endpoint_url="http://10.244.0.4:8642/v1",
+            endpoint_url=f"http://10.244.0.4:{_LIGHT_PORT}/v1",
         )
 
         self.nodes = {n.node_id: n for n in [n1, n2, n3, n4]}
@@ -373,7 +374,7 @@ class MeshTopology:
             status=STATUS_ONLINE,
             roles=[ROLE_LIGHT_CHAT, ROLE_EMBEDDINGS, ROLE_CODING, ROLE_TOOL_SANDBOX],
             metrics=NodeMetrics(latency_ms=1.0, active_queue_depth=0),
-            endpoint_url="http://127.0.0.1:8642/v1",
+            endpoint_url=f"http://127.0.0.1:{_LIGHT_PORT}/v1",
         )
         self.nodes = {local_node.node_id: local_node}
 

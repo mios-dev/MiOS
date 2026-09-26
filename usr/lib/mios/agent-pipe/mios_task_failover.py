@@ -40,7 +40,8 @@ DEFAULT_MAX_RETRIES = 3
 
 DEFAULT_DB_PATH = "/var/lib/mios/agent-pipe/task_leases.db"
 DEFAULT_JSON_JOURNAL = "/var/lib/mios/agent-pipe/task_leases.json"
-DEFAULT_ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1")
+_PIPE_PORT = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+DEFAULT_ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", f"http://localhost:{_PIPE_PORT}/v1")
 
 log = logging.getLogger("mios_task_failover")
 
@@ -370,19 +371,19 @@ class TaskFailoverEngine:
         now = time.time()
         self.register_node(
             node_id="blade-1",
-            endpoint="http://10.42.0.1:8642/v1",
+            endpoint=f"http://10.42.0.1:{_PIPE_PORT}/v1",
             capabilities=["gpu", "coder", "general"],
             timeout_threshold_sec=self.heartbeat_timeout_sec,
         )
         self.register_node(
             node_id="blade-2",
-            endpoint="http://10.42.0.2:8642/v1",
+            endpoint=f"http://10.42.0.2:{_PIPE_PORT}/v1",
             capabilities=["gpu", "coder", "general"],
             timeout_threshold_sec=self.heartbeat_timeout_sec,
         )
         self.register_node(
             node_id="blade-3",
-            endpoint="http://10.42.0.3:8642/v1",
+            endpoint=f"http://10.42.0.3:{_PIPE_PORT}/v1",
             capabilities=["cpu", "general"],
             timeout_threshold_sec=self.heartbeat_timeout_sec,
         )
