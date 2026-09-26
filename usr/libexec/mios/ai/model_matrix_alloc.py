@@ -270,7 +270,7 @@ class ModelMatrixAllocator:
         return {
             "version": "1.0",
             "tier": tier,
-            "port": 8500,
+            "port": int(os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")),
             "health_check": "/v1/models",
             "models": config_models,
         }

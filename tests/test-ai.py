@@ -771,6 +771,18 @@ if mma_spec and mma_spec.loader:
 else:
     raise ImportError(f"Could not load module from {mma__TARGET_PATH}")
 
+
+def _llm_light_port() -> int:
+    """The llama-swap lane port the allocator must emit: the resolved
+    MIOS_PORT_LLM_LIGHT when set, else [ports].llm_light from the SSOT."""
+    import tomllib
+    env = os.environ.get("MIOS_PORT_LLM_LIGHT")
+    if env:
+        return int(env)
+    root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+        return int(tomllib.load(fh)["ports"]["llm_light"])
+
 class mma_TestModelMatrixAlloc(unittest.TestCase):
     """Test suite for hardware-tiered model selection, VRAM headroom limits, and llama-swap projection."""
 
@@ -828,7 +840,7 @@ class mma_TestModelMatrixAlloc(unittest.TestCase):
         conf = allocator.generate_llama_swap_config(alloc)
 
         self.assertEqual(conf["version"], "1.0")
-        self.assertEqual(conf["port"], 11450)
+        self.assertEqual(conf["port"], _llm_light_port())
         self.assertIn("mios-coder", conf["models"])
         self.assertIn("mios-reasoning", conf["models"])
         self.assertIn("nomic-embed-text", conf["models"])
@@ -845,7 +857,7 @@ class mma_TestModelMatrixAlloc(unittest.TestCase):
 
         with open(yaml_path, "r", encoding="utf-8") as f:
             content = f.read()
-        self.assertIn("port: 11450", content)
+        self.assertIn(f"port: {_llm_light_port()}", content)
         self.assertIn("mios-coder:", content)
         self.assertIn("nomic-embed-text:", content)
 
