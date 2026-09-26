@@ -210,6 +210,15 @@ def cmd_check(root: str, ci: dict) -> int:
             if tier not in ran:
                 viol.append(f"{wf} never runs the '{tier}' tier")
 
+    skips = ci.get("tool_skips") or {}
+    for path, reason in sorted(skips.items()):
+        if path not in reg:
+            viol.append(f"[ci.tool_skips] {path} runs in no tier -- only a registered suite may skip")
+        if not str(reason).strip():
+            viol.append(f"[ci.tool_skips] {path} names no missing tool")
+    if len(skips) > int(ci.get("max_tool_skips") or 0):
+        viol.append(f"tool-skipping suites {len(skips)} > ceiling {ci.get('max_tool_skips') or 0}")
+
     ceiling = ci.get("max_exempt_suites")
     if ceiling is None:
         viol.append("[ci] has no max_exempt_suites -- an absent ceiling is a broken"
@@ -245,12 +254,15 @@ def main(argv: list) -> int:
         args += list(py.get("packages") or ())
         print(" ".join(args))
         return 0
+    if "--tool-skips" in argv:
+        print("\n".join(sorted(ci.get("tool_skips") or {})))
+        return 0
     for i, a in enumerate(argv):
         if a == "--tier" and i + 1 < len(argv):
             return cmd_list(root, ci, argv[i + 1])
         if a.startswith("--tier="):
             return cmd_list(root, ci, a.split("=", 1)[1])
-    print("usage: ci-suites.py --tier <name> | --check | --python-packages",
+    print("usage: ci-suites.py --tier <name> | --check | --python-packages | --tool-skips",
           file=sys.stderr)
     return 2
 

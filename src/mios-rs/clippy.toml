@@ -1,0 +1,4 @@
+# AI-hint: Clippy config for the src/mios-rs workspace: tests may unwrap and panic, production code stays under the crate-level warn(unwrap_used, panic).
+# AI-related: src/mios-rs/miosd/src/lib.rs, src/mios-rs/miosd/src/main.rs
+allow-unwrap-in-tests = true
+allow-panic-in-tests = true

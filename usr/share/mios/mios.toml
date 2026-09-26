@@ -1072,7 +1072,7 @@ SupplementaryGroups = "mios-hermes"
 WorkingDirectory = "/var/lib/mios/agent-pipe"
 EnvironmentFile = ["-/etc/mios/agent-pipe.env", "-/etc/mios/install.env"]
 Environment = [
-  "MIOS_PORT_AGENT_PIPE=${MIOS_PORT_AGENT_PIPE:-8700}",
+  "MIOS_PORT_AGENT_PIPE=${MIOS_PORT_AGENT_PIPE}",
   "MIOS_AGENT_PIPE_BACKEND_LIGHT=1",
   "MIOS_AI_MODEL=granite4.1:8b",
   "MIOS_NO_TOOL_CHOICE_HINTS=11436",
@@ -10243,6 +10243,10 @@ mios-finetune-serve            = ["service-plane"]
 mios-mcp                       = ["service-plane"]
 mios-opencode-gateway          = ["service-plane"]
 mios-policy-arbiter            = ["service-plane"]
+mios-attest        = ["controller", "service-plane"]   # TPM-quote verifier + onboarding: controller blades only
+mios-registry                  = ["service-plane"]   # local OCI registry
+mios-thermald                  = ["service-plane"]   # CPU/GPU power caps, like mios-powerd: the blade owns the hardware
+mios-wol-proxy                 = ["service-plane"]   # wake-on-LAN relay for the fleet
 # Units that activate a gated unit and cannot work without it. See ADR-0016 D4.
 mios-embed-backfill            = ["service-plane"]
 mios-forge-firstboot           = ["service-plane"]
@@ -11786,6 +11790,8 @@ mirror_files = [
   "installation/bin/7z.dll",
   # The one MiOS dev image; the same bytes build from either repo root.
   ".devcontainer/Containerfile",
+  # Harness settings: the no-merge deny applies in every MiOS repo.
+  ".claude/settings.json",
 ]
 
 # SSOT tables mirrored into bootstrap's root mios.toml.
@@ -11863,6 +11869,8 @@ max_exempt_suites = 6
 # Harnesses, not suites. They execute the tiers rather than asserting anything
 # themselves, so they are covered without consuming the exemption ratchet.
 runners = ["tests/run-suites.sh"]
+# Ceiling, checked by run-suites.sh on every tier; lower it as tools land. A suite in [ci.tool_skips] may exit 77 when a host tool it needs is absent; run-suites.sh counts and names it, never passes it.
+max_tool_skips = 1
 
 [tests]
 # Shrink-only. A negative test that leaves its injected fixture behind ships the
@@ -12167,6 +12175,9 @@ tier = "unit"
 "tests/test-directory-dispatch.sh" = "dispatch returns no hits without a populated directory index, and the suite indexes hits[0] unguarded -- AGY-1715"
 "tests/test-expand-from.py" = "the open-url-fallback-chain skill resolves to not_found, so the suite sees 0 steps where it expects 3 -- AGY-1716"
 "tests/test-reflection.py" = "needs a reachable refine backend; every connection attempt fails and reflection returns None -- AGY-1717"
+
+[ci.tool_skips]
+"tests/test-composefs-seal.sh" = "mkcomposefs + composefs-info: no Ubuntu 24.04 package (noble, noble-updates, noble-backports universe)"
 
 # The MiOS product line, named once. Each variant used to be a different shape:
 # an edition entry, its own table, or only a machine name. status is measured:

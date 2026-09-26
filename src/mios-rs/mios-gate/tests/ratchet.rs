@@ -37,9 +37,12 @@ fn repo(dir: &Path, head_toml: &str, work_toml: &str) {
 }
 
 fn run(dir: &Path) -> (i32, String) {
+    // CI exports MIOS_RATCHET_BASE for the real repo; the fixture repo must use its own merge base.
     let out = Command::new(bin())
         .args(["ratchet-direction", "--root"])
         .arg(dir)
+        // CI exports the PR base for the real repo; a throwaway repo must use its own HEAD.
+        .env_remove("MIOS_RATCHET_BASE")
         .output()
         .unwrap();
     let mut text = String::from_utf8_lossy(&out.stdout).to_string();

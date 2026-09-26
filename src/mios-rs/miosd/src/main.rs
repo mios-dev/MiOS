@@ -261,6 +261,9 @@ pub enum SecretAction {
         gui: bool,
         #[arg(long)]
         tty: bool,
+        /// Descriptor (3 or higher) the caller opened to receive the secret; never stdout
+        #[arg(long)]
+        fd: i32,
     },
     /// Store secret securely in Linux Keyrings / FreeDesktop Secret Service
     Set {
@@ -279,6 +282,9 @@ pub enum SecretAction {
         key: String,
         #[arg(short, long, default_value = "mios")]
         service: String,
+        /// Descriptor (3 or higher) the caller opened to receive the secret; never stdout
+        #[arg(long)]
+        fd: i32,
     },
     /// Pipeline safety scanner: audit directory or files for leaked credentials
     Scan {
@@ -657,7 +663,8 @@ fn run_render_quadlets(_dirs: &[String]) -> Result<(), Box<dyn std::error::Error
         }
     }
     if renderer.is_none() {
-        let p1 = std::path::Path::new(&root).join("tools/native/target/release/mios-render-quadlets");
+        let p1 =
+            std::path::Path::new(&root).join("tools/native/target/release/mios-render-quadlets");
         let p2 = std::path::Path::new(&root).join("tools/native/target/debug/mios-render-quadlets");
         if p1.is_file() {
             renderer = Some(p1);
@@ -871,7 +878,11 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::BootcRollback { check, dry_run, force } => {
+        Commands::BootcRollback {
+            check,
+            dry_run,
+            force,
+        } => {
             if let Err(e) = run_bootc_rollback(*check, *dry_run, *force) {
                 eprintln!("[miosd] Bootc rollback error: {}", e);
                 std::process::exit(1);
@@ -969,16 +980,25 @@ async fn main() {
         }
         Commands::Secret { action } => {
             match action {
-                SecretAction::Prompt { message, title, gui, tty } => {
-                    match miosd::secret::prompt(title, message, *gui, *tty) {
-                        Ok(secret) => println!("{}", secret),
-                        Err(e) => {
-                            eprintln!("[miosd secret] Prompt error: {}", e);
-                            std::process::exit(1);
-                        }
+                SecretAction::Prompt {
+                    message,
+                    title,
+                    gui,
+                    tty,
+                    fd,
+                } => match miosd::secret::prompt(title, message, *gui, *tty) {
+                    Ok(secret) => emit_secret(&secret, *fd),
+                    Err(e) => {
+                        eprintln!("[miosd secret] Prompt error: {}", e);
+                        std::process::exit(1);
                     }
-                }
-                SecretAction::Set { key, service, prompt, value } => {
+                },
+                SecretAction::Set {
+                    key,
+                    service,
+                    prompt,
+                    value,
+                } => {
                     let val = if *prompt || value.is_none() {
                         let prompt_msg = format!("Enter secret for {}: ", key);
                         match miosd::secret::prompt("MiOS Keyring", &prompt_msg, false, false) {
@@ -997,15 +1017,13 @@ async fn main() {
                     }
                     eprintln!("Stored secret for '{}/{}' in Linux Keyring.", service, key);
                 }
-                SecretAction::Get { key, service } => {
-                    match miosd::secret::get(service, key) {
-                        Ok(val) => println!("{}", val),
-                        Err(e) => {
-                            eprintln!("[miosd secret] Get error: {}", e);
-                            std::process::exit(1);
-                        }
+                SecretAction::Get { key, service, fd } => match miosd::secret::get(service, key) {
+                    Ok(val) => emit_secret(&val, *fd),
+                    Err(e) => {
+                        eprintln!("[miosd secret] Get error: {}", e);
+                        std::process::exit(1);
                     }
-                }
+                },
                 SecretAction::Scan { path, strict } => {
                     let p = std::path::Path::new(path);
                     match miosd::secret::scan(p, *strict) {
@@ -1027,7 +1045,10 @@ async fn main() {
         }
         Commands::ConfigServer { bind, port } => {
             let config = miosd::server::ConfigServerConfig::resolve(bind.clone(), *port);
-            println!("[miosd] Starting MiOS Config Server at http://{}", config.bind_addr);
+            println!(
+                "[miosd] Starting MiOS Config Server at http://{}",
+                config.bind_addr
+            );
             println!("[miosd] Serving mios.html from {:?}", config.html_path);
             println!("[miosd] Writing profile saves to {:?}", config.profile_path);
 
@@ -1487,7 +1508,11 @@ fn run_build_if_missing(spec: &str) -> Result<(), Box<dyn std::error::Error>> {
             println!("[miosd] {} newer than {} -> rebuild", p, img);
         }
         if !exists_status.success() || stale.is_some() {
-            let extra = if spec == "agents" { agents_build_args()? } else { Vec::new() };
+            let extra = if spec == "agents" {
+                agents_build_args()?
+            } else {
+                Vec::new()
+            };
             println!("[miosd] building {} from {}...", img, cf);
             let build_status = std::process::Command::new("/usr/bin/podman")
                 .arg("build")
@@ -1560,7 +1585,7 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
         );
     }
 
-    let hist_dir = std::path::Path::new("/var/lib/mios");
+    let hist_dir = &mios_state_dir();
     std::fs::create_dir_all(hist_dir)?;
     let row = format!("{}\t{}\t{}\n", chrono_now_iso(), ts, ref_val);
     let hist_file = hist_dir.join("bootc-switch-history.tsv");
@@ -1575,6 +1600,52 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+/// Hand a secret to the caller over the descriptor it opened for it (the gpg --passphrase-fd
+/// pattern): never stdio, never a terminal, so it cannot land in a log or in scrollback.
+fn emit_secret(value: &str, fd: i32) {
+    use std::io::{IsTerminal, Write};
+    if fd < 3 {
+        eprintln!("[miosd secret] refusing descriptor {fd}: stdio is never a secret channel; pass --fd 3 with 3>&1 or a file");
+        std::process::exit(2);
+    }
+    let mut out = match std::fs::OpenOptions::new()
+        .write(true)
+        .open(format!("/dev/fd/{fd}"))
+    {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("[miosd secret] descriptor {fd} is not open for writing: {e}");
+            std::process::exit(2);
+        }
+    };
+    if out.is_terminal() {
+        eprintln!("[miosd secret] refusing descriptor {fd}: it is a terminal");
+        std::process::exit(2);
+    }
+    if out
+        .write_all(value.as_bytes())
+        .and_then(|_| out.write_all(b"\n"))
+        .is_err()
+    {
+        std::process::exit(1);
+    }
+}
+
+/// The daemon's state directory.
+fn mios_state_dir() -> std::path::PathBuf {
+    // systemd's STATE_DIRECTORY first, then var/lib/mios under MIOS_ROOT (as daemon/backup.rs), else /var/lib/mios.
+    if let Some(p) = std::env::var("STATE_DIRECTORY").ok().and_then(|v| {
+        v.split(':')
+            .next()
+            .filter(|p| !p.is_empty())
+            .map(std::path::PathBuf::from)
+    }) {
+        return p;
+    }
+    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| "/".to_string());
+    std::path::Path::new(&root).join("var/lib/mios")
+}
+
 fn run_bootc_rollback(
     check: bool,
     dry_run: bool,
@@ -1583,7 +1654,7 @@ fn run_bootc_rollback(
     println!("[miosd] Initiating bootc rollback evaluation (T-1025)...");
 
     // Invariant 1: Ensure /var persistence is intact before and during rollback operations
-    let hist_dir = std::path::Path::new("/var/lib/mios");
+    let hist_dir = &mios_state_dir();
     std::fs::create_dir_all(hist_dir)?;
     let probe_file = hist_dir.join(".rollback-probe");
     std::fs::write(&probe_file, format!("probe {}", chrono_now_iso()))?;
@@ -1730,9 +1801,13 @@ fn run_greenboot() -> Result<(), Box<dyn std::error::Error>> {
     println!("[greenboot] Running native greenboot health check (T-508 / T-1025)...");
 
     // 1. Verify Invariant 1: /var persistence & writability
-    let var_dir = std::path::Path::new("/var/lib/mios");
+    let var_dir = &mios_state_dir();
     if let Err(e) = std::fs::create_dir_all(var_dir) {
-        eprintln!("[greenboot] FAIL: /var/lib/mios is not writable: {}", e);
+        eprintln!(
+            "[greenboot] FAIL: {} is not writable: {}",
+            var_dir.display(),
+            e
+        );
         return Err(format!("/var writability check failed: {}", e).into());
     }
     let probe_file = var_dir.join(".greenboot-probe");

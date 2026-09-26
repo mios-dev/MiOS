@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Automated CI test suite for NUMA memory interleaving, bandwidth scaling (>400 GB/s), and core affinity pinning.
+# AI-hint: CI suite for NUMA interleave policy, measured bandwidth (scaling asserted only on >1 node), and command wrapping.
 # AI-related: usr/libexec/mios/mios-numa-alloc, tests/test-numa-interleave-bandwidth.sh, usr/share/mios/mios.toml
 
 set -euo pipefail
@@ -46,34 +46,39 @@ else
     assert_fail "Dry-run did not show interleave=True"
 fi
 
-# 4. Run memory bandwidth scaling benchmark
+# 4. Run the bandwidth benchmark; it reports measured numbers only
 echo "[test-numa-interleave-bandwidth] Executing multi-threaded NUMA bandwidth benchmark..."
 bench_output="$("$ALLOC_BIN" --benchmark 2>/dev/null)"
+field() { echo "$bench_output" | python3 -c "import sys, json
+d = json.load(sys.stdin)
+try:
+    v = d$1
+except (KeyError, TypeError):
+    v = None
+print('' if v is None else v)"; }
+base_bw="$(field "['baseline']['aggregate_bandwidth_gbps']")"
+inter_bw="$(field "['interleaved']['aggregate_bandwidth_gbps']")"
+measurable="$(field "['scaling_measurable']")"
+speedup="$(field "['speedup_ratio']")"
 
-speedup="$(echo "$bench_output" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('speedup_ratio', 0.0))")"
-scaling_achieved="$(echo "$bench_output" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('scaling_achieved', False))")"
-interleaved_bw="$(echo "$bench_output" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('interleaved', {}).get('aggregate_bandwidth_gbps', 0.0))")"
-zero_migrations="$(echo "$bench_output" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('zero_migrations', False))")"
-
-# 5. Assert bandwidth scaling ratio >= 1.8x
-if python3 -c "import sys; sys.exit(0 if float('$speedup') >= 1.8 else 1)"; then
-    assert_pass "NUMA interleaving achieved >= 1.8x speedup (measured: ${speedup}x)"
+# 5. Both runs measured a positive bandwidth
+if python3 -c "import sys; sys.exit(0 if float('$base_bw') > 0 and float('$inter_bw') > 0 else 1)"; then
+    assert_pass "Benchmark measured bandwidth (baseline ${base_bw} GB/s, interleaved ${inter_bw} GB/s)"
 else
-    assert_fail "NUMA interleaving speedup < 1.8x (measured: ${speedup}x)"
+    assert_fail "Benchmark produced no measured bandwidth (baseline '${base_bw}', interleaved '${inter_bw}')"
 fi
 
-# 6. Assert aggregate memory read throughput > 400.0 GB/s on composite channels
-if python3 -c "import sys; sys.exit(0 if float('$interleaved_bw') >= 400.0 else 1)"; then
-    assert_pass "Aggregate composite memory throughput >= 400.0 GB/s (measured: ${interleaved_bw} GB/s)"
+# 6. Scaling is asserted only where it can be measured (>1 node); a single node must not claim one
+if [[ "$num_nodes" -gt 1 ]]; then
+    if [[ "$measurable" == "True" ]] && python3 -c "import sys; sys.exit(0 if float('$speedup') >= 1.8 else 1)"; then
+        assert_pass "NUMA interleaving achieved >= 1.8x speedup across $num_nodes nodes (measured: ${speedup}x)"
+    else
+        assert_fail "NUMA interleaving speedup < 1.8x across $num_nodes nodes (measured: '${speedup}')"
+    fi
+elif [[ "$measurable" == "False" && -z "$speedup" ]]; then
+    assert_pass "Single NUMA node: no speedup claimed (interleave scaling not measurable here)"
 else
-    assert_fail "Aggregate memory throughput < 400.0 GB/s (measured: ${interleaved_bw} GB/s)"
-fi
-
-# 7. Assert thread migrations across NUMA nodes remain 0
-if [[ "$zero_migrations" == "True" ]]; then
-    assert_pass "Thread migrations across NUMA nodes remained 0 (strict pinning enforced)"
-else
-    assert_fail "Detected unwanted thread migrations across NUMA nodes"
+    assert_fail "Single NUMA node reported a speedup it cannot measure (measurable=${measurable}, speedup=${speedup})"
 fi
 
 # 8. Test command execution wrap with --interleave

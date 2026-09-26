@@ -10,14 +10,31 @@ MIOSD_BIN="${ROOT_DIR}/src/mios-rs/target/debug/miosd"
 if [[ ! -x "$MIOSD_BIN" ]]; then
     if command -v miosd >/dev/null 2>&1; then
         MIOSD_BIN="$(command -v miosd)"
-    else
-        echo "[test-bootc-rollback] ERROR: miosd binary not found at $MIOSD_BIN" >&2
-        exit 1
+    elif [[ -x "${ROOT_DIR}/src/mios-rs/target/release/miosd" ]]; then
+        MIOSD_BIN="${ROOT_DIR}/src/mios-rs/target/release/miosd"
+    elif [[ -x "/usr/libexec/mios/miosd" ]]; then
+        MIOSD_BIN="/usr/libexec/mios/miosd"
+    elif command -v cargo >/dev/null 2>&1; then
+        echo "[test-bootc-rollback] building miosd for testing..."
+        (cd "${ROOT_DIR}/src/mios-rs" && cargo build -q -p miosd) || { echo "[test-bootc-rollback] ERROR: cargo build -p miosd failed" >&2; exit 1; }
     fi
 fi
+if [[ ! -x "$MIOSD_BIN" ]]; then
+    echo "[test-bootc-rollback] ERROR: miosd binary not found at $MIOSD_BIN" >&2
+    exit 1
+fi
+
+# miosd's /var/lib/mios probes land in a throwaway root, never the host's /var.
+STATE_ROOT="$(mktemp -d /tmp/test-bootc-rollback.XXXXXX)"
+export MIOS_ROOT="$STATE_ROOT"
 
 pass_count=0
 fail_count=0
+
+# miosd keeps its state under systemd's STATE_DIRECTORY; point it at a scratch dir so the suite needs no root.
+STATE_DIRECTORY="$(mktemp -d)"
+export STATE_DIRECTORY
+trap 'rm -rf "$STATE_ROOT" "$STATE_DIRECTORY"' EXIT
 
 assert_eq() {
     local label="$1"
@@ -86,6 +103,13 @@ else
     fail_count=$((fail_count + 1))
 fi
 assert_contains "negative control error mentions missing deployment" "No rollback deployment available" "$neg_out"
+
+# Test 6: Negative Control -- an unwritable state directory fails greenboot, naming the path
+echo "Test 6: Negative Control: unwritable state directory"
+bad_rc=0
+bad_out="$(STATE_DIRECTORY=/dev/null/mios "$MIOSD_BIN" greenboot 2>&1)" || bad_rc=$?
+assert_eq "greenboot rejects an unwritable state dir" "nonzero" "$([[ $bad_rc -ne 0 ]] && echo nonzero || echo zero)"
+assert_contains "the failure names the state dir" "/dev/null/mios is not writable" "$bad_out"
 
 echo "=== Test Summary: $pass_count passed, $fail_count failed ==="
 if [[ "$fail_count" -gt 0 ]]; then

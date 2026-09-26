@@ -43,9 +43,9 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 3,427 | The reading surface. |
+| Tracked files | 3,430 | The reading surface. |
 | Tracked size | 208 MB | Two vendored assets are most of it. |
-| Shell / Python / PowerShell / Rust | 51k / 214k / 25k / 34k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 0.7x. |
+| Shell / Python / PowerShell / Rust | 51k / 214k / 25k / 35k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 0.7x. |
 | Drift checks | 219 | Falsifiability audited per check, not assumed. |
 | Units reproducing from SSOT | 15 faithful of 214 | 55 registered as drifting: the largest hole in part 1 of the thesis. |
 <!-- ROADMAP_METRICS_END -->
@@ -387,11 +387,12 @@ acceptance: |
 - **Accept:** each ported generator reproduces its committed output byte-for-byte, and its drift-check still fails on a hand-edited derived file.
 - **Deps:** LANG-03.
 
-### LANG-07 — `mios-serve` + the host-side PowerShell surface  **[P2]**  (→ T-1011, T-1012)
+### LANG-07 — `mios-serve` + the host-side PowerShell surface  **[P2]**  (→ T-1011, T-1012, T-1112, T-1113)
 - **What:** Daemons into `mios-serve`; the PowerShell host surface cross-compiled, keeping only the paste-able `irm | iex` entry point as PowerShell. 50 files / 24,776 lines, grandfathered by Law 14 for port, not as a licence for more.
 - **Why:** PowerShell currently outweighs Rust 1.2x in a repo whose native tier is meant to be Rust.
 - **Files:** `src/mios-rs/mios-serve/`, `*.ps1`, `Get-MiOS.ps1` (kept)
 - **Accept:** the `mios` verb dispatcher's backends are binaries; `Get-MiOS.ps1` still runs from one paste with no follow-up step; `[legibility].max_ps_lines` falls.
+- **SSOT serving:** every rendered surface is served from the SSOT by this server/container, not substituted once at bake (T-1112), after which stage 34 substitution retires (T-1113).
 - **Deps:** LANG-02.
 
 ## WS-TEMPLATE — Compiled file-pattern system (one template per file type + conformance check + Law-14)

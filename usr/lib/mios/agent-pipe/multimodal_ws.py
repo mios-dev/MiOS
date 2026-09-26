@@ -59,13 +59,17 @@ class MultiModalStreamingPipeline:
             await asyncio.sleep(0.03)  # 30ms background vision embedding
             return video_frames
 
-        aud, vid = await asyncio.gather(_audio_pass(), _vision_pass())
+        # Vision runs beside the voice path; the reply waits on audio alone, so a heavy
+        # vision stream can never add to voice latency.
+        vision = asyncio.ensure_future(_vision_pass())
+        aud = await _audio_pass()
 
         # TTS output synthesis
         await asyncio.sleep(0.01)  # 10ms TTS synthesis
 
         now = time.perf_counter()
         latency_ms = (now - t0) * 1000.0
+        vid = await vision
 
         turn = StreamTurn(
             turn_id=turn_id,

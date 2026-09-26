@@ -21,6 +21,15 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402 -- the ONE shared layered-mios.toml resolver
+
+
+def llm_light_port() -> int:
+    """SSOT [ports].llm_light: MIOS_PORT_LLM_LIGHT when exported, else the layered mios.toml."""
+    env = os.environ.get("MIOS_PORT_LLM_LIGHT", "")
+    return int(env) if env.isdigit() else int(mios_toml.get("ports", "llm_light"))
+
 TIER_CONSUMER = "consumer"
 TIER_PROSUMER = "prosumer"
 TIER_POWERUSER = "poweruser"
@@ -270,7 +279,7 @@ class ModelMatrixAllocator:
         return {
             "version": "1.0",
             "tier": tier,
-            "port": 8500,
+            "port": llm_light_port(),
             "health_check": "/v1/models",
             "models": config_models,
         }

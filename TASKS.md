@@ -1086,6 +1086,8 @@
 | T-1109 | P1 | done | Build/SSOT | SYNCGEN-02 -- main's projections drift from their generators |
 | T-1110 | P2 | done | Docs | MANUAL-03 -- Chapter numbers collide in the manual |
 | T-1111 | P1 | done | Security/USB | USBGUARD-02 -- The USBGuard rules differ between the two repos |
+| T-1112 | P1 | planned | SSOT/Serve | SSOTSERVE-01 -- every rendered surface is served from the SSOT by the local static/HTTP server/container, not substituted once at bake |
+| T-1113 | P2 | planned | SSOT/Serve | SSOTSERVE-02 -- retire bake-time ${MIOS_*} substitution (stage 34) once SSOTSERVE-01 serves every surface; a baked literal is then a drift failure |
 
 ---
 
@@ -11923,3 +11925,17 @@ The two shapes want opposite treatment and the mechanism currently has only one 
 **Where:** `etc/usbguard/rules.conf` (both repos)
 **Done When:** one owner is decided, the other copy follows it, and `tools/sync-bootstrap.py --check` exits 0.
 **Status:** done -- mios.git's copy was the wrong one: T-798 rewrote only it, and its rule `block with-interface equals { 03:*:* } with-interface equals { 08:*:* }` repeats an attribute, which the USBGuard rule parser refuses ("with-interface attribute already defined"), so the daemon loads no rule set; its `name "...*"` rules compare literally and never match. mios.git now carries the last mirrored copy (byte-identical to mios-bootstrap), `tools/sync-bootstrap.py --check` exits 0 against bootstrap HEAD, and `tests/test-usbguard-sec.py` fails on a repeated attribute or a globbed name instead of requiring one. T-798's BadUSB policy has to be rewritten as rules the daemon loads, in both repos | **Domain:** Security/USB | **Who:** architect
+
+## T-1112 -- SSOTSERVE-01: every rendered surface is served from the SSOT, not substituted once at bake  (WS-LANG | P1 | L)
+**Goal:** Operator directive on MiOS#42 (review of `usr/lib/systemd/system/mios-agent-pipe.socket`): "everything renders from SSOT static/http server/container". Today a unit's `${MIOS_PORT_*}` is filled once by `mios-render-quadlets` at stage 34 ([build.quadlet_render]); an operator override in /etc or ~/.config never reaches an already-baked unit, and two consumers of one value (the socket's ListenStream and the service's bind) agree only if both were rendered from the same bake.
+**What+How:** The local server/container (miosd's config server today, `mios-serve` per LANG-07) renders every derived surface on demand from the layered SSOT (vendor < host < user, Law 13): unit drop-ins with resolved values, dotfiles, client settings, the devcontainer projection. Boot and container start ask it for the rendered set; units consume drop-ins it writes under /run (volatile, regenerated on every start), so a host or user override takes effect on the next start without a rebuild. The same renderer backs the bake path so image and runtime cannot diverge (one renderer, Law 8), and every surface keeps its regenerate-and-diff gate against the server's output.
+**Done When:** changing `[ports].agent_pipe` in /etc/mios/mios.toml and restarting moves both mios-agent-pipe.socket's listener and the service's bind with no rebuild; a test renders a fixture SSOT through the server and diffs every registered surface; the socket/service pair is proven consistent by that test, not by sharing a bake.
+**Dep:** T-1011
+**Status:** planned | **Domain:** SSOT/Serve | **Who:** architect
+
+## T-1113 -- SSOTSERVE-02: retire bake-time placeholder substitution once the server renders every surface  (WS-LANG | P2 | M)
+**Goal:** Two rendering paths (stage 34 substitution and the SSOTSERVE-01 server) are one too many: a value baked by one and served by the other can disagree.
+**What+How:** After T-1112 covers every entry in [build.quadlet_render], stage 34 stops substituting and only asks the server for the bake-time render set; a `${MIOS_*}` literal left in a shipped unit, or a baked value that differs from the server's render, fails the drift gate by name.
+**Done When:** no bake step substitutes placeholders itself; the gate fails naming the surface when a planted baked literal disagrees with the server's render.
+**Dep:** T-1112
+**Status:** planned | **Domain:** SSOT/Serve | **Who:** architect
