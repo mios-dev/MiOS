@@ -99,9 +99,8 @@ pipeline.
 - [`/.research/separate-dotfiles-secrets-repository-pattern-2026-09.md`](../.research/separate-dotfiles-secrets-repository-pattern-2026-09.md) - secret and dotfile research
 - [`/AGENTS.md`](../AGENTS.md) - canonical repository contract
 - [`/CLAUDE.md`](../CLAUDE.md) - system engineering contract
-- [`/TASKS.md`](../TASKS.md) - product task ledger
 - [`/ROADMAP.md`](../ROADMAP.md) - roadmap and sequencing
-- [`/AGY-TASKS.md`](../AGY-TASKS.md) - parallel engineering ledger
+- [`/TASKS.jsonl`](../TASKS.jsonl) - the master task list: every task, one strict-schema record per line (ADR-0026)
 - [`/PROJECT.md`](../PROJECT.md) - dev-loop contract
 - [`/usr/share/mios/mios.toml`](../usr/share/mios/mios.toml) - runtime SSOT
 - [`/usr/share/mios/prompts/upstream-researched-patterns/foss/model/`](../usr/share/mios/prompts/upstream-researched-patterns/foss/model/) - FOSS research prompts

@@ -148,10 +148,9 @@ def sch_main():
             os.path.join(sch__HERE, "../usr/share/mios/mios.toml"),
             os.path.join(root, "usr/share/mios/mios.toml"),
         )
-        shutil.copy(
-            os.path.join(sch__HERE, "../AGY-TASKS.md"),
-            os.path.join(root, "AGY-TASKS.md"),
-        )
+        # The real list as merged, rebuilt from TASKS.jsonl (ADR-0026: AGY-TASKS.md is absorbed).
+        with open(os.path.join(root, "AGY-TASKS.md"), "w", encoding="utf-8") as fh:
+            fh.write(sp_M.list_text(os.path.join(sch__HERE, ".."), "AGY-TASKS.md"))
 
         rc, out = sch_run_tool(root)
         sch_check("valid AGY-TASKS.md passes task schema check", rc == 0, f"rc={rc} out={out}")

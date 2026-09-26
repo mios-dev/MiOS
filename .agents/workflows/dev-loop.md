@@ -12,7 +12,7 @@ This workflow defines the autonomous dev-loop lifecycle when executed by Google 
 ## Lifecycle Phases
 
 ### 1. Definition of Done & Controls
-- Identify target task in `TASKS.md` or `.devloop/tasks.jsonl`.
+- Identify target task in `TASKS.jsonl` (the master list) or `.devloop/tasks.jsonl`.
 - Define the positive control (command that verifies expected behavior).
 - Define the negative control (command that fails when behavior is absent).
 - Record stopping conditions.

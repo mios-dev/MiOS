@@ -1,5 +1,5 @@
 // AI-hint: Asserts every miosd drift Check that was never implemented is on the shrink-only register in SSOT, and that no stub claims a verdict.
-// AI-related: src/mios-rs/miosd/src/drift/, usr/share/mios/mios.toml, Containerfile, TASKS.md
+// AI-related: src/mios-rs/miosd/src/drift/, usr/share/mios/mios.toml, Containerfile, TASKS.jsonl
 
 use crate::Report;
 use std::collections::BTreeSet;
