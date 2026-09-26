@@ -42,18 +42,17 @@ SETTINGS_PATTERNS = [
     ".local/share/code-server/User/settings.json",
 ]
 
+# Seeded into settings FILES only; the API-applied surfaces are projected by
+# tools/sync-dotfiles.py (ADR-0024).
 DEFAULT_SETTINGS = {
-    "docker.dockerPath": "podman",
-    "docker.environment": {
+    "containers.containerCommand": "podman",
+    "containers.environment": {
         "DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock",
     },
-    "podman.socketPath": "unix:///run/user/1000/podman/podman.sock",
-    "podman.systemSocketPath": "unix:///run/podman/podman.sock",
     "workbench.colorTheme": "MiOS-Dev",
     "vscode_custom_css.imports": [
         f"file://{CSS_FILE}"
     ],
-    "vscode_custom_css.policy": True,
     "terminal.integrated.lineHeight": 1.0,
     "terminal.integrated.letterSpacing": 0,
     "terminal.integrated.shellIntegration.decorationsEnabled": "never",
@@ -72,7 +71,6 @@ DEFAULT_SETTINGS = {
     "terminal.integrated.minimumContrastRatio": 1,
     "terminal.integrated.defaultLocation": "view",
     "workbench.panel.opensMaximized": "always",
-    "workbench.panel.alignment": "justify",
     "terminal.integrated.fontSize": 14,
     "window.density.layout": "compact",
     "workbench.layoutControl.enabled": False,

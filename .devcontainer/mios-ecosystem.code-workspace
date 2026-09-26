@@ -24,7 +24,6 @@
     "workbench.sideBar.location": "left",
     "workbench.secondarySideBar.defaultVisibility": "hidden",
     "workbench.panel.defaultLocation": "bottom",
-    "workbench.panel.alignment": "justify",
     "workbench.layoutControl.enabled": false,
     "workbench.editor.openSideBySideDirection": "down",
     "workbench.editor.splitInGroupLayout": "horizontal",
@@ -40,15 +39,6 @@
       "/workspaces/MiOS/src/mios-rs/Cargo.toml",
       "/workspaces/MiOS/tools/native/Cargo.toml"
     ],
-    "docker.dockerPath": "podman",
-    "docker.environment": {
-      "DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock"
-    },
-    "podman.socketPath": "unix:///run/user/1000/podman/podman.sock",
-    "podman.systemSocketPath": "unix:///run/podman/podman.sock",
-    "window.titleBarStyle": "custom",
-    "window.customTitleBarVisibility": "never",
-    "window.dialogStyle": "custom",
     "workbench.panel.opensMaximized": "always",
     "terminal.integrated.defaultLocation": "view",
     "terminal.integrated.tabs.showActions": "never",
@@ -63,10 +53,6 @@
     "terminal.integrated.smoothScrolling": false,
     "terminal.integrated.shellIntegration.decorationsEnabled": "never",
     "terminal.integrated.shellIntegration.enabled": false,
-    "vscode_custom_css.imports": [
-      "file:///usr/share/mios/themes/code-server-terminal.css"
-    ],
-    "vscode_custom_css.policy": true,
     "workbench.colorCustomizations": {
       "window.border": "#00000000",
       "window.activeBorder": "#00000000",
@@ -140,13 +126,17 @@
       "be5invis.vscode-custom-css": [
         "ui"
       ]
+    },
+    "containers.containerCommand": "podman",
+    "containers.environment": {
+      "DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock"
     }
   },
   "extensions": {
     "recommendations": [
       "rust-lang.rust-analyzer",
       "ms-python.python",
-      "redhat.vscode-podman",
+      "ms-azuretools.vscode-containers",
       "redhat.vscode-yaml",
       "ms-vscode.powershell",
       "timonwong.shellcheck",

@@ -33,8 +33,7 @@
     "vscode": {
       "extensions": [
         "be5invis.vscode-custom-css",
-        "redhat.vscode-podman",
-        "ms-azuretools.vscode-docker",
+        "ms-azuretools.vscode-containers",
         "rust-lang.rust-analyzer",
         "vadimcn.vscode-lldb",
         "ms-python.python",
@@ -48,12 +47,6 @@
         "saoudrizwan.claude-dev"
       ],
       "settings": {
-        "docker.dockerPath": "podman",
-        "docker.environment": {
-          "DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock"
-        },
-        "podman.socketPath": "unix:///run/user/1000/podman/podman.sock",
-        "podman.systemSocketPath": "unix:///run/podman/podman.sock",
         "python.defaultInterpreterPath": "/usr/bin/python3",
         "terminal.integrated.defaultProfile.linux": "bash",
         "workbench.colorTheme": "MiOS-Dev",
@@ -127,15 +120,11 @@
           "scrollbar.shadow": "#00000000"
         },
         "workbench.experimental.modernUI": true,
-        "window.titleBarStyle": "custom",
-        "window.customTitleBarVisibility": "never",
         "window.density.layout": "compact",
-        "window.dialogStyle": "custom",
         "workbench.activityBar.location": "top",
         "workbench.sideBar.location": "left",
         "workbench.secondarySideBar.defaultVisibility": "hidden",
         "workbench.panel.defaultLocation": "bottom",
-        "workbench.panel.alignment": "justify",
         "workbench.panel.opensMaximized": "always",
         "terminal.integrated.defaultLocation": "view",
         "workbench.layoutControl.enabled": false,
@@ -164,14 +153,14 @@
         "terminal.integrated.smoothScrolling": false,
         "terminal.integrated.shellIntegration.decorationsEnabled": "never",
         "terminal.integrated.shellIntegration.enabled": false,
-        "vscode_custom_css.imports": [
-          "file:///usr/share/mios/themes/code-server-terminal.css"
-        ],
-        "vscode_custom_css.policy": true,
         "remote.extensionKind": {
           "be5invis.vscode-custom-css": [
             "ui"
           ]
+        },
+        "containers.containerCommand": "podman",
+        "containers.environment": {
+          "DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock"
         }
       }
     }
