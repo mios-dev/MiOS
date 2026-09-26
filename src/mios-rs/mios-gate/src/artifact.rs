@@ -614,10 +614,7 @@ fn find_oci_layouts_recursive(dir: &Path, depth: usize, layouts: &mut Vec<PathBu
 /// Deepest index -> index -> manifest chain the walker follows before reporting.
 const MAX_DESCRIPTOR_DEPTH: usize = 8;
 
-/// Parses an OCI digest into `(algorithm, hex)`, accepting only the registered
-/// algorithms with their exact lowercase-hex length. Anything else (including
-/// `sha256:../../x`) is rejected, so a digest can never name a path outside
-/// `blobs/<algorithm>/`.
+/// Parses `sha256`/`sha512` lowercase-hex digests only, so none can escape `blobs/`.
 fn parse_digest(digest: &str) -> Option<(&str, &str)> {
     let (algo, hash) = digest.split_once(':')?;
     let want = match algo {
