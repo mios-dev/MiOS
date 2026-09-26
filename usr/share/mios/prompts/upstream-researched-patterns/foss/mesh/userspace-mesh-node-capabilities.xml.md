@@ -1,7 +1,7 @@
 <!-- AI-hint: Primary-source prompt for settling which mesh-VPN client features work in
      userspace-networking mode (inbound, serve, funnel, relay through an egress
      proxy, several instances per host, identity-provider role claims).
-     AI-related: usr/share/mios/mios.toml, TASKS.md T-986, usr/share/mios/prompts/upstream-researched-patterns/foss/mesh/README.md -->
+     AI-related: usr/share/mios/mios.toml, TASKS.md T-986, .prompts/README.md -->
 <context>
 MiOS joins hosts that cannot create a TUN device (hosted dev sessions,
 unprivileged containers, the Windows-side dev VM) to its mesh VPN with the

@@ -10883,6 +10883,19 @@ generated = true
 scaffold = true
 fixed_name = "ARTIFACT-PROMPT.md"
 
+# Prompt contracts at any depth under usr/share/mios/prompts/. Only the tags
+# every shipped prompt carries are required, so that none fails; comment and
+# emit are omitted to avoid a duplicate value (check_no_duplicate_value_key).
+[templates.research-prompt]
+match = "^usr/share/mios/prompts/(?:[\\w.-]+/)*[\\w.-]+\\.xml\\.md$"
+required_header = true
+required_markers = ["<role>", "<task>", "<inputs>", "<output_contract>"]
+required_ordered = ["<role>", "</role>", "<task>", "</task>", "<inputs>", "</inputs>", "<output_contract>", "</output_contract>"]
+generated = false
+scaffold = true
+dest_dir = "usr/share/mios/prompts/upstream-researched-patterns/foss"
+name_suffix = ".xml.md"
+
 [kargs]
 iommu          = "on"                      # Enable IOMMU: "on", "amd", "intel"
 vfio_ids       = ""                        # PCI IDs to bind to vfio-pci (comma-separated, e.g. "10de:1db6")

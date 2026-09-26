@@ -1,7 +1,7 @@
 <!-- AI-hint: Primary-source prompt for the self-hosted mesh-VPN coordinator that T-986
      requires on a Blade: features, client compatibility, packaging, and
      behaviour when the coordinator is down.
-     AI-related: TASKS.md T-986, usr/share/mios/mios.toml [metal.mesh], usr/share/mios/prompts/upstream-researched-patterns/foss/mesh/README.md -->
+     AI-related: TASKS.md T-986, usr/share/mios/mios.toml [metal.mesh], .prompts/README.md -->
 <context>
 MiOS Blades own the hardware and form one HCI mesh VPN. Every Blade is a
 member; the coordinator is a singleton, off the data path, and must degrade

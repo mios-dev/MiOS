@@ -1,6 +1,6 @@
 <!-- AI-hint: Primary-source prompt for corroborating or refuting version claims that
      entered the tree from a generated training artifact, before any pin moves.
-     AI-related: usr/share/doc/mios/knowledge/, usr/share/doc/mios/reference/upstream-registry.md, usr/share/mios/mios.toml, usr/share/mios/prompts/upstream-researched-patterns/foss/supply-chain/README.md -->
+     AI-related: usr/share/doc/mios/knowledge/, usr/share/doc/mios/reference/upstream-registry.md, usr/share/mios/mios.toml, .prompts/README.md -->
 <context>
 A generated training artifact contributed six one-line upstream claims to
 the MiOS knowledge tree. The file that preserves them labels them unverified

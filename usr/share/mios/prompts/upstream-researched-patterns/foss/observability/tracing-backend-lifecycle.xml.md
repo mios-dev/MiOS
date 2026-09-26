@@ -1,7 +1,7 @@
 <!-- AI-hint: Primary-source prompt for the lifecycle of the tracing backend image behind
      mios-otelcol: v1 line status, the v2 image and its configuration model,
      and whether the in-tree tag should be pinned or migrated.
-     AI-related: usr/share/mios/mios.toml [image.sidecars] [containers.mios-otelcol] [observability], TASKS.md, usr/share/mios/prompts/upstream-researched-patterns/foss/observability/README.md -->
+     AI-related: usr/share/mios/mios.toml [image.sidecars] [containers.mios-otelcol] [observability], TASKS.md, .prompts/README.md -->
 <context>
 The `mios-otelcol` sidecar runs the FOSS tracing backend Jaeger from its v1
 `all-in-one` image. It receives OTLP gRPC on the SSOT port `otelcol_otlp`
