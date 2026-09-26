@@ -1,5 +1,5 @@
 <!-- AI-hint: Verified, source-cited research on building a DISM-native custom Windows 11 ISO that carries MiOS (the Windows-side layer + a WSL2 podman machine). Two synthesized 5-angle research passes: (A) per-MiOS-component -> DISM offline mechanism table + the must-be-first-logon list; (B) reference build patterns (tiny11/winutil DISM sequences), the definitive WSL2-offline verdict, the oscdimg dual-boot recipe, headless GitHub-Actions CI, and LabConfig hardware-bypass. Feeds ROADMAP Part 12 WS-WISO (T-137/T-138) + the mios-bootstrap/src/autounattend suite. -->
-<!-- AI-related: mios-bootstrap src/autounattend, ROADMAP.md Part 12, TASKS.md T-137/T-138/T-149 -->
+<!-- AI-related: mios-bootstrap src/autounattend, ROADMAP.md Part 12, TASKS.jsonl -->
 
 # DISM-Native Custom Windows 11 ISO for MiOS — verified research (2026-07-04)
 
