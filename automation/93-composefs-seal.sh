@@ -4,6 +4,7 @@
 # AI-doc: usr/share/doc/mios/manual/ch71-composefs-sealing.md
 set -euo pipefail
 
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
@@ -72,11 +73,27 @@ transient = false
 transient = false
 "
 
-TARGET_CONFS=(
-    "${ROOT_DIR}/usr/lib/ostree/prepare-root.conf"
-    "/usr/lib/ostree/prepare-root.conf"
-    "/etc/ostree/prepare-root.conf"
-)
+# --mock is a self-test: everything it writes lands in one temp root, never in
+# the checkout it runs from or on the host (it rewrote both before).
+TEMP_CLEANUP=""
+trap '[[ -n "$TEMP_CLEANUP" && -d "$TEMP_CLEANUP" ]] && rm -rf "$TEMP_CLEANUP"' EXIT
+if [[ "$MOCK_MODE" == "true" ]]; then
+    TEMP_CLEANUP="$(mktemp -d /tmp/mios-cfs-mock.XXXXXX)"
+    WRITE_ROOT="${TEMP_CLEANUP}/out"
+    TARGET_CONFS=("${WRITE_ROOT}/usr/lib/ostree/prepare-root.conf")
+    KARGS_DIRS=("${WRITE_ROOT}/usr/lib/bootc/kargs.d")
+    mkdir -p "${WRITE_ROOT}/usr/lib/ostree" "${WRITE_ROOT}/usr/lib/bootc"
+else
+    TARGET_CONFS=(
+        "${ROOT_DIR}/usr/lib/ostree/prepare-root.conf"
+        "/usr/lib/ostree/prepare-root.conf"
+        "/etc/ostree/prepare-root.conf"
+    )
+    KARGS_DIRS=(
+        "${ROOT_DIR}/usr/lib/bootc/kargs.d"
+        "/usr/lib/bootc/kargs.d"
+    )
+fi
 
 configured_conf_count=0
 for conf in "${TARGET_CONFS[@]}"; do
@@ -96,7 +113,7 @@ for conf in "${TARGET_CONFS[@]}"; do
     fi
 done
 
-if [[ "$configured_conf_count" -eq 0 && "$DRY_RUN" == "false" ]]; then
+if [[ "$configured_conf_count" -eq 0 && "$DRY_RUN" == "false" && "$MOCK_MODE" == "false" ]]; then
     mios_warn "Could not write prepare-root.conf to system paths (read-only filesystem); ensuring repo tree copy exists"
     REPO_CONF="${ROOT_DIR}/usr/lib/ostree/prepare-root.conf"
     mkdir -p "$(dirname "$REPO_CONF")"
@@ -104,14 +121,10 @@ if [[ "$configured_conf_count" -eq 0 && "$DRY_RUN" == "false" ]]; then
 fi
 
 # 2. Locate or synthesize descriptor target directory
-TEMP_CLEANUP=""
-trap '[[ -n "$TEMP_CLEANUP" && -d "$TEMP_CLEANUP" ]] && rm -rf "$TEMP_CLEANUP"' EXIT
-
 TARGET_DIR="${COMPOSEFS_TARGET_DIR:-}"
 OUTPUT_IMAGE="${COMPOSEFS_OUTPUT_IMAGE:-}"
 
 if [[ "$MOCK_MODE" == "true" ]]; then
-    TEMP_CLEANUP="$(mktemp -d /tmp/mios-cfs-mock.XXXXXX)"
     TARGET_DIR="${TEMP_CLEANUP}/rootfs"
     mkdir -p "${TARGET_DIR}/usr/bin" "${TARGET_DIR}/usr/lib" "${TARGET_DIR}/etc"
     echo "#!/bin/sh" > "${TARGET_DIR}/usr/bin/init"
@@ -159,11 +172,6 @@ else
 fi
 
 # 4. Write kernel command-line sealing drop-in: usr/lib/bootc/kargs.d/50-composefs.toml
-KARGS_DIRS=(
-    "${ROOT_DIR}/usr/lib/bootc/kargs.d"
-    "/usr/lib/bootc/kargs.d"
-)
-
 KARGS_CONTENT="# AI-hint: Boot-time composefs fs-verity root filesystem sealing (T-527)
 # AI-doc: usr/share/doc/mios/manual/ch71-composefs-sealing.md
 kargs = [
