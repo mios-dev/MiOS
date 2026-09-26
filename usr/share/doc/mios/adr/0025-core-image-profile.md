@@ -19,8 +19,8 @@ superseded_by: []
 ## Status
 
 proposed — 2026-09-26. Design only: no lane below is implemented by this
-record. The operator decisions it depends on are listed under "Open decisions"
-and nothing in them is assumed settled.
+record. Q1, Q3 and Q4 were decided by the operator (see "Operator decisions");
+Q2 is still open.
 
 ## Context
 
@@ -118,7 +118,7 @@ default = "full"                       # what an unparameterised build means
 
 [profiles.core]
 summary          = "the smallest MiOS that is still MiOS: SSOT, miosd, agent-pipe, the datastore, the verbs"
-base             = "<decided: Q1>"
+base             = "fedora-bootc"   # Q1, operator decision
 package_sections = ["repos", "base", "containers", "build-toolchain", "utils", "ai", "critical"]
 phases           = ["system-files-overlay", "materialize-build-ctx", "repos", "locale-theme",
                     "user", "hostname", "subuid-alloc", "generate-quadlets", "render-quadlets",
@@ -127,7 +127,7 @@ phases           = ["system-files-overlay", "materialize-build-ctx", "repos", "l
 services         = ["miosd", "mios-agent-pipe", "mios-pgvector"]
 seeds            = ["config_kv"]
 budget_seconds   = 300                 # the cloud wall-clock ceiling (R12)
-budget_disk_mb   = "<decided: Q3>"
+budget_disk_mb   = "<measured by L6>"
 
 [profiles.dev]
 extends          = ["core"]
@@ -289,17 +289,15 @@ L1 → (L2, L3, L5 in parallel) → L4 → (L6, L7).
   skipped by profile; `fatal = true` phases outside core are skipped, never run
   and failed.
 
-### Open decisions (operator)
+### Operator decisions
 
-- **Q1 core base image:** `fedora-bootc` (recommended: bootc-lintable, small) ·
-  `ucore-hci:stable` (non-NVIDIA, closest to today's bake) · `fedora:44` container
-  (smallest, but not bootc — Law 4 lint must then be waived for `dev`).
-- **Q2 devcontainer shape:** rendered thin shim (recommended, keeps the mirror
-  model) · `devcontainer.json` builds the root `Containerfile` with
+- **Q1 core base image — decided: `fedora-bootc`.** Small and bootc-lintable, so
+  Law 4's final `bootc container lint` holds for every profile with no waiver.
+- **Q3 cloud delivery — decided: pull a CI-published `dev` tag, cold build as
+  fallback.**
+- **Q4 datastore without systemd — decided: `postgresql-server` + `pgvector`
+  from RPM under a small supervisor** in the container image kinds; the
+  `mios-pgvector` Quadlet stays the datastore where systemd runs.
+- **Q2 devcontainer shape — open:** rendered thin shim (recommended, keeps the
+  mirror model) · `devcontainer.json` builds the root `Containerfile` with
   `args.MIOS_PROFILE=dev` (no second file; mirrors then carry the JSON).
-- **Q3 cloud delivery:** pull a CI-published `dev` tag, cold build as fallback
-  (recommended) · always cold-build · pull only.
-- **Q4 datastore without systemd:** run `postgresql-server` + `pgvector` from
-  RPM under a small supervisor in container kinds (recommended) · require
-  podman-in-container and run the `mios-pgvector` Quadlet image · degrade the
-  datastore open in the cloud (breaks "backed by the database").
