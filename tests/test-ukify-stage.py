@@ -30,7 +30,8 @@ class TestUkifyStage(unittest.TestCase):
 
     def test_dry_run_json(self):
         res = subprocess.run(
-            [_UKIFY_STAGE_BIN, "--dry-run", "--json"],
+            # The tree under test, not the host: a runner has no /usr/lib/kernel/cmdline.
+            [_UKIFY_STAGE_BIN, "--dry-run", "--json", "--root", _ROOT],
             capture_output=True,
             text=True,
             check=True,
@@ -39,6 +40,8 @@ class TestUkifyStage(unittest.TestCase):
         self.assertEqual(data.get("status"), "success")
         self.assertTrue(data.get("dry_run"))
         self.assertIn("baked_kargs", data)
+        with open(os.path.join(_ROOT, "usr", "lib", "kernel", "cmdline"), encoding="utf-8") as fh:
+            self.assertEqual(data["baked_kargs"], fh.read().strip())
         self.assertIn("console=tty0", data["baked_kargs"])
 
     def test_stage_execution(self):
