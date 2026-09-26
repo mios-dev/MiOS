@@ -101,6 +101,7 @@ class NetSegmentationManager:
         """Audits custom container pairing matrix against zero-trust architectural invariants."""
         violations: List[str] = []
 
+        db_port = int(mios_toml.section(mios_toml.load_merged(), "ports")["pgvector"])
         for p in pairings:
             src = p.get("src", "")
             dst = p.get("dst", "")
@@ -110,8 +111,8 @@ class NetSegmentationManager:
                 if f["src"] == src and f["dst"] == dst:
                     violations.append(f"Forbidden connection '{src}' -> '{dst}': {f['reason']}")
 
-            # Invariant: the database (pgvector, or the PostgreSQL default port) is reachable only by hermes / agent-pipe
-            if (dst == "pgvector" or port == 5432) and src not in ("hermes", "agent-pipe", "host"):
+            # Invariant: the database (by name, or by its SSOT [ports].pgvector port) is reachable only by hermes / agent-pipe
+            if (dst == "pgvector" or port == db_port) and src not in ("hermes", "agent-pipe", "host"):
                 violations.append(f"Unauthorized source '{src}' attempting direct connection to database port {port}")
 
         return (len(violations) == 0, violations)

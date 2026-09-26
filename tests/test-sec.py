@@ -2583,6 +2583,13 @@ class ns_TestNetSegmentation(unittest.TestCase):
         self.assertGreaterEqual(len(violations), 2)
         self.assertTrue(any("Direct UI-to-DB" in v for v in violations))
 
+    def test_the_database_port_guard_follows_the_ssot_port(self):
+        mgr = net_segmentation.NetSegmentationManager(mock=True)
+        db_port = int(net_segmentation.mios_toml.section(net_segmentation.mios_toml.load_merged(), "ports")["pgvector"])
+        valid, violations = mgr.validate_pairing_matrix([{"src": "open-webui", "dst": "db-proxy", "port": db_port}])
+        self.assertFalse(valid, "a pairing onto [ports].pgvector under another name must still be guarded")
+        self.assertTrue(any("database port %d" % db_port in v for v in violations), violations)
+
     def test_apply_and_flush_rules_mock(self):
         mgr = net_segmentation.NetSegmentationManager(mock=True)
         rules = mgr.generate_nftables_rules()
