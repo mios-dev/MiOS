@@ -1741,7 +1741,11 @@ fn run_greenboot() -> Result<(), Box<dyn std::error::Error>> {
     let var_dir = mios_state_dir();
     let var_dir = var_dir.as_path();
     if let Err(e) = std::fs::create_dir_all(var_dir) {
-        eprintln!("[greenboot] FAIL: {} is not writable: {}", var_dir.display(), e);
+        eprintln!(
+            "[greenboot] FAIL: {} is not writable: {}",
+            var_dir.display(),
+            e
+        );
         return Err(format!("/var writability check failed: {}", e).into());
     }
     let probe_file = var_dir.join(".greenboot-probe");
