@@ -37,6 +37,10 @@ def _load(root: str) -> dict:
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh).get("ci") or {}
 
+def _load_packages(root: str) -> dict:
+    with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+        return tomllib.load(fh).get("packages") or {}
+
 def _tracked(root: str) -> list:
     """git-tracked, not os.walk: a runner executes what the repository ships.
 
@@ -210,6 +214,30 @@ def cmd_check(root: str, ci: dict) -> int:
             if tier not in ran:
                 viol.append(f"{wf} never runs the '{tier}' tier")
 
+    # container: is resolved before any step can read the SSOT, so the job has to
+    # carry the image as a literal. Hold it to [ci.fedora].image, and that to the
+    # dev image's FROM, or the gate quietly runs on a different Fedora.
+    want = (ci.get("fedora") or {}).get("image")
+    if not want:
+        viol.append("[ci.fedora].image is not set -- the drift-gate container is unpinned")
+    else:
+        wf = os.path.join(root, ".github/workflows/mios-ci.yml")
+        body = open(wf, encoding="utf-8", errors="replace").read() if os.path.isfile(wf) else ""
+        job = re.search(r"^  drift-gate:\n(.*?)(?=^  \S|\Z)", body, re.M | re.S)
+        got = re.search(r"^    container:\s*\n\s+image:\s*(\S+)", job.group(1), re.M) if job else None
+        if not got:
+            viol.append("the drift-gate job declares no container image -- it would run on"
+                        f" the runner's own distro instead of {want}")
+        elif got.group(1).strip("'\"") != want:
+            viol.append(f"the drift-gate container is {got.group(1)}, but [ci.fedora].image"
+                        f" is {want}")
+        dev = os.path.join(root, ".devcontainer/Containerfile")
+        frm = re.search(r"^FROM\s+(\S+)", open(dev, encoding="utf-8").read(), re.M) \
+            if os.path.isfile(dev) else None
+        if not frm or frm.group(1) != want:
+            viol.append(f"[ci.fedora].image {want} differs from the dev image's FROM"
+                        f" ({frm.group(1) if frm else 'absent'})")
+
     ceiling = ci.get("max_exempt_suites")
     if ceiling is None:
         viol.append("[ci] has no max_exempt_suites -- an absent ceiling is a broken"
@@ -245,12 +273,34 @@ def main(argv: list) -> int:
         args += list(py.get("packages") or ())
         print(" ".join(args))
         return 0
+    if "--fedora-image" in argv or "--dnf-packages" in argv:
+        # [ci.fedora]: what the drift-gate container is and what it installs.
+        fed = ci.get("fedora") or {}
+        if "--fedora-image" in argv:
+            if not fed.get("image"):
+                print("[ci.fedora].image is not set", file=sys.stderr)
+                return 1
+            print(fed["image"])
+            return 0
+        pkgs = []
+        for name in (fed.get("package_sets") or ()):
+            section = (_load_packages(root).get(name) or {})
+            if not section.get("pkgs"):
+                print(f"[ci.fedora].package_sets names [packages.{name}], which has no pkgs",
+                      file=sys.stderr)
+                return 1
+            pkgs += list(section["pkgs"])
+        pkgs += list(fed.get("packages") or ())
+        if fed.get("powershell_rpm"):
+            pkgs.append(fed["powershell_rpm"])
+        print(" ".join(dict.fromkeys(pkgs)))
+        return 0
     for i, a in enumerate(argv):
         if a == "--tier" and i + 1 < len(argv):
             return cmd_list(root, ci, argv[i + 1])
         if a.startswith("--tier="):
             return cmd_list(root, ci, a.split("=", 1)[1])
-    print("usage: ci-suites.py --tier <name> | --check | --python-packages",
+    print("usage: ci-suites.py --tier <name> | --check | --python-packages | --dnf-packages | --fedora-image",
           file=sys.stderr)
     return 2
 

@@ -11893,6 +11893,20 @@ requirements = ["usr/lib/mios/agent-pipe/requirements.txt"]
 # undefined-name pass.
 packages = ["pyflakes"]
 
+[ci.fedora]
+# The drift-gate job runs in this container, the same Fedora release the one
+# MiOS dev image (.devcontainer/Containerfile) is built FROM, so the gate sees
+# the toolchain a MiOS contributor has rather than a foreign distro's.
+image = "registry.fedoraproject.org/fedora:44"
+# [packages.<set>] lists installed first; devcontainer is the dev image's own set.
+package_sets = ["devcontainer"]
+# CI-only extras the dev image does not carry: sandbox tests (bubblewrap),
+# composefs sealing (mkcomposefs, composefs-info), unit verification
+# (systemd-analyze) and the PowerShell analyzer's .NET runtime.
+packages = ["bubblewrap", "composefs", "systemd", "dotnet-sdk-8.0"]
+# Fedora does not package PowerShell; the lint tier needs pwsh 7.
+powershell_rpm = "https://github.com/PowerShell/PowerShell/releases/download/v7.6.6/powershell-7.6.6-1.rh.x86_64.rpm"
+
 [ci.tiers]
 # Static analysis. No build, no network, no image.
 lint = [

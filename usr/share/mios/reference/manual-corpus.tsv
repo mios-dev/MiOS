@@ -45,32 +45,36 @@
 .github/workflows/mios-ci.yml	5	13	9	67	dc685a024553	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:dc685a024553	67	1
 .github/workflows/mios-ci.yml	14	15	2	12	4a1b66edc28e	STAY	local-scoped		0				0
 .github/workflows/mios-ci.yml	25	27	3	32	f08853d4ae96	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	30	33	4	46	dcddd3f67c93	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	30	48	19	193	c90f747b0a61	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:c90f747b0a61	193	1
-.github/workflows/mios-ci.yml	37	39	3	20	793cfa31347d	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	64	67	4	33	33cbeac6be34	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	73	73	1	3	7049f3245d69	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	79	80	2	18	3eccb7bc25b4	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	82	86	5	44	a0305653ecf6	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	88	89	2	18	683f801189f9	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	91	93	3	30	a64469a76b36	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	102	104	3	26	caf1572eec44	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	112	115	4	39	d539d0e0e2a9	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	156	157	2	19	7fb2aefb3bfd	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	169	171	3	26	c994d98176da	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	188	188	1	7	73ad13adbb04	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	196	198	3	28	a1828bcdba33	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	40	41	2	22	8fe75e6fed89	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	48	48	1	13	f6155cb53e6f	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	52	54	3	20	793cfa31347d	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	79	83	5	49	69b7ad46396e	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	86	86	1	3	2baccfaa57df	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	88	88	1	3	2baccfaa57df	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	92	93	2	18	3eccb7bc25b4	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	95	99	5	44	a0305653ecf6	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	101	102	2	18	683f801189f9	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	104	106	3	30	a64469a76b36	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	115	117	3	26	caf1572eec44	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	125	128	4	39	d539d0e0e2a9	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	168	169	2	19	7fb2aefb3bfd	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	181	183	3	26	c994d98176da	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	196	204	9	98	6b7280f004e5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6b7280f004e5	98	1
-.github/workflows/mios-ci.yml	201	201	1	3	ee573bae3b99	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	200	200	1	7	73ad13adbb04	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	208	210	3	28	a1828bcdba33	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	208	215	8	59	9084b8acca81	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9084b8acca81	59	1
-.github/workflows/mios-ci.yml	210	213	4	35	848f267d9499	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	234	235	2	13	e3ed29c1c18f	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	213	213	1	3	ee573bae3b99	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	222	225	4	35	848f267d9499	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	246	247	2	13	e3ed29c1c18f	STAY	local-scoped		0				0
 .github/workflows/mios-ci.yml	255	261	7	70	0e4256b66c2a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:0e4256b66c2a	70	1
-.github/workflows/mios-ci.yml	261	262	2	14	13d188373c0c	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	286	286	1	3	fcb2821bceb3	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	315	317	3	27	65ae042547e9	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	273	274	2	14	13d188373c0c	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	298	298	1	3	fcb2821bceb3	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	327	329	3	27	65ae042547e9	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	328	339	12	97	b896b941f929	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:b896b941f929	97	1
 .github/workflows/mios-ci.yml	351	358	8	63	488fc6bcd3a7	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:488fc6bcd3a7	63	1
-.github/workflows/mios-ci.yml	362	362	1	9	2560e4a1eba3	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	374	374	1	9	2560e4a1eba3	STAY	local-scoped		0				0
 .github/workflows/mios-ci.yml	381	422	42	399	feb6b6ba127c	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/workflows.md	mios-src:feb6b6ba127c	399	1
 .github/workflows/mios-ci.yml	469	484	16	152	6ec74752970a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6ec74752970a	152	1
 .github/workflows/mios-ci.yml	592	598	7	72	617b0a013ef0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:617b0a013ef0	72	1
@@ -7907,13 +7911,15 @@ tools/ci-suites.py	14	14	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
 tools/ci-suites.py	15	15	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 tools/ci-suites.py	17	24	8	76	a4e35d4e1afd	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:a4e35d4e1afd	76	0
 tools/ci-suites.py	27	31	5	53	5a969b636c0d	STAY	midsize-why		0				0
-tools/ci-suites.py	41	44	4	18	e0b175bc9fd9	STAY	midsize-why		0				0
-tools/ci-suites.py	54	55	2	18	870aeb0a005d	STAY	local-scoped		0				0
-tools/ci-suites.py	60	60	1	10	63f1931ef8ea	STAY	local-scoped		0				0
-tools/ci-suites.py	70	71	2	25	8eca25411bf1	STAY	local-scoped		0				0
-tools/ci-suites.py	76	83	8	66	04b5f8b3842e	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tools.md	mios-src:04b5f8b3842e	66	0
+tools/ci-suites.py	45	48	4	18	e0b175bc9fd9	STAY	midsize-why		0				0
+tools/ci-suites.py	58	59	2	18	870aeb0a005d	STAY	local-scoped		0				0
+tools/ci-suites.py	64	64	1	10	63f1931ef8ea	STAY	local-scoped		0				0
+tools/ci-suites.py	74	75	2	25	8eca25411bf1	STAY	local-scoped		0				0
+tools/ci-suites.py	80	87	8	66	04b5f8b3842e	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tools.md	mios-src:04b5f8b3842e	66	0
 tools/ci-suites.py	113	115	3	29	9cce0c4717ae	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/tools.md	mios-src:9cce0c4717ae	29	1
-tools/ci-suites.py	167	169	3	37	3704d5d208a7	STAY	midsize-why		0				0
+tools/ci-suites.py	171	173	3	37	3704d5d208a7	STAY	midsize-why		0				0
+tools/ci-suites.py	217	219	3	43	94c6a5b5bef7	STAY	midsize-why		0				0
+tools/ci-suites.py	277	277	1	10	965d37d10f79	STAY	local-scoped		0				0
 tools/compile-dashboard-binary.py	1	2	2	7	4c308f805424	STAY	ai-header		0				0
 tools/compile-dashboard-binary.py	3	6	3	17	05c793e68a18	STAY	midsize-why		0				0
 tools/compile-templates.py	1	4	4	18	f3e8618bdd25	STAY	ai-header		0				0
@@ -21091,22 +21097,26 @@ usr/share/mios/mios.toml	11873	11874	2	25	6aafe01c43dc	STAY	local-scoped		0				0
 usr/share/mios/mios.toml	11876	11880	5	46	24f85126c828	STAY	midsize-why		0				0
 usr/share/mios/mios.toml	11884	11890	7	64	351d4a832370	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:351d4a832370	64	0
 usr/share/mios/mios.toml	11892	11893	2	12	6a2ae67b14e5	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11897	11897	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	11906	11906	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12132	12132	1	11	22b4e5b24ced	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12138	12139	2	25	e61f3f028bab	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12166	12167	2	21	f46457178b95	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12176	12179	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
-usr/share/mios/mios.toml	12181	12182	2	23	1cf73d20daef	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12186	12188	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12194	12194	1	10	c5d7162f575b	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12196	12198	3	39	5443fd28dd4c	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12264	12267	4	50	f7c1b08dd424	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12269	12269	1	12	4f115ff315e3	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12348	12349	2	21	ce116c9bbb02	STAY	local-scoped		0				0
-usr/share/mios/mios.toml	12354	12358	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
-usr/share/mios/mios.toml	12360	12363	4	55	1cc571dcafd1	STAY	midsize-why		0				0
-usr/share/mios/mios.toml	12366	12371	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
+usr/share/mios/mios.toml	11897	11899	3	36	62afd44cb9a9	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11901	11901	1	13	614cdc744b88	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11903	11905	3	25	e3509b054dbe	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	11907	11907	1	11	982b5116bc99	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11911	11911	1	8	8dbd3e4de48c	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	11920	11920	1	11	dfcd1dc58c3b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12146	12146	1	11	22b4e5b24ced	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12152	12153	2	25	e61f3f028bab	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12180	12181	2	21	f46457178b95	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12190	12193	4	49	9f4d0ac73874	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:9f4d0ac73874	49	0
+usr/share/mios/mios.toml	12195	12196	2	23	1cf73d20daef	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12200	12202	3	32	3f7a30e9ccde	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12208	12208	1	10	c5d7162f575b	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12210	12212	3	39	5443fd28dd4c	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12278	12281	4	50	f7c1b08dd424	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12283	12283	1	12	4f115ff315e3	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12362	12363	2	21	ce116c9bbb02	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	12368	12372	5	69	12044cee5de9	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:12044cee5de9	69	0
+usr/share/mios/mios.toml	12374	12377	4	55	1cc571dcafd1	STAY	midsize-why		0				0
+usr/share/mios/mios.toml	12380	12385	6	54	3137ebd37e29	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:3137ebd37e29	54	0
 usr/share/mios/nix/nix.conf	1	2	2	13	27ffd5dc0fa9	STAY	ai-header		0				0
 usr/share/mios/nix/nix.conf	4	4	1	7	49f68b33b675	STAY	local-scoped		0				0
 usr/share/mios/nix/nix.conf	7	7	1	5	95ad535dfeaf	STAY	local-scoped		0				0
