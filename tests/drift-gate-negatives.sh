@@ -3416,6 +3416,41 @@ PYEOF
     log "check_cargo_manifest_generated negative test passed"
 }
 
+test_ai_metadata_fresh() {
+    log "Testing check_ai_metadata_fresh"
+    # The defect: usr/share/mios/ai/v1/metadata.json was exported from the AI-*
+    # headers, but nothing regenerated or compared it, so it drifted thousands
+    # of lines behind the tree. A hand edit to one entry must fail, naming it.
+    local md="${ROOT}/usr/share/mios/ai/v1/metadata.json"
+    local bak; bak="$(mktemp)"; cp "$md" "$bak"
+
+    python3 - "$md" <<'PYEOF'
+import sys
+p = sys.argv[1]
+with open(p, "r", encoding="utf-8", newline="") as fh:
+    t = fh.read()
+anchor = '"path": "usr/libexec/mios/mios-ai-metadata.py",\n      "hint": "'
+out = t.replace(anchor, anchor + "planted ", 1)
+assert out != t, "the plant did not land -- the exporter has no entry of its own"
+with open(p, "w", encoding="utf-8", newline="") as fh:
+    fh.write(out)
+PYEOF
+
+    if _neg_gate check_ai_metadata_fresh; then
+        cp "$bak" "$md"; rm -f "$bak"
+        die "check_ai_metadata_fresh passed with a hand-edited metadata.json entry"
+    fi
+    if [[ "$_NEG_GATE_OUT" != *"entry usr/libexec/mios/mios-ai-metadata.py: differs in hint"* ]]; then
+        cp "$bak" "$md"; rm -f "$bak"
+        printf '%s\n' "$_NEG_GATE_OUT" >&2
+        die "check_ai_metadata_fresh failed but did not name the planted entry"
+    fi
+
+    cp "$bak" "$md"; rm -f "$bak"
+    _neg_gate check_ai_metadata_fresh || { printf '%s\n' "$_NEG_GATE_OUT" >&2; die "check_ai_metadata_fresh failed after restoration"; }
+    log "check_ai_metadata_fresh negative test passed"
+}
+
 test_tracked_readable() {
     log "Testing check_tracked_readable"
     # The defect: a file in the index but gone from the worktree leaves every
@@ -5052,6 +5087,7 @@ main() {
     _run_test test_task_schema
 _run_test test_ci_suite_coverage
 _run_test test_cargo_manifest_generated
+_run_test test_ai_metadata_fresh
 _run_test test_tracked_readable
 _run_test test_leaked_fixtures
     _run_test test_fleet_safety

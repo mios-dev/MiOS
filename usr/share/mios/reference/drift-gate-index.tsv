@@ -205,16 +205,17 @@
 204	check_pipefail_grep_lint	pipefail grep lint check
 205	check_skip_list_covered	checking the agent-pipe skip list lives in the SSOT
 206	check_ai_manifests_fresh	checking AI manifest freshness
-207	check_ports_category_schema	checking port category schema (allocation + collisions)
-208	check_globals_generated	checking generated globals resolvers match SSOT
-209	check_ci_suite_coverage	all workflow CI jobs cover the required test matrix without gaps
-210	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
-211	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
-212	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
-213	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
-214	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
-215	check_verify_images	container image verification signatures and digests are valid
-216	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
-217	check_negatives_registered	every drift check has a corresponding negative test registered
-218	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
-219	check_leaked_fixtures	no transient test fixtures or dump files are committed in git
+207	check_ai_metadata_fresh	usr/share/mios/ai/v1/metadata.json regenerates byte-identically from the tracked AI headers
+208	check_ports_category_schema	checking port category schema (allocation + collisions)
+209	check_globals_generated	checking generated globals resolvers match SSOT
+210	check_ci_suite_coverage	all workflow CI jobs cover the required test matrix without gaps
+211	check_manpages	generated manual pages compile cleanly and match CLI help surfaces
+212	check_rust_test_coverage	Rust crate test coverage meets or exceeds minimum threshold
+213	check_header_comment_syntax	file header comments strictly conform to comment parser syntax
+214	check_variant_registry	every [variants] entry declares its required fields and names a table, edition, archetype, artifact and doc that exist
+215	check_deploy_formats	deployment artifact target formats comply with bootc/BIB spec
+216	check_verify_images	container image verification signatures and digests are valid
+217	check_temp_fixture_cleanup	test suite cleans up all temporary fixtures and directories
+218	check_negatives_registered	every drift check has a corresponding negative test registered
+219	check_tracked_readable	every tracked file is present and readable, so no corpus-scanning gate drops one in silence
+220	check_leaked_fixtures	no transient test fixtures or dump files are committed in git
