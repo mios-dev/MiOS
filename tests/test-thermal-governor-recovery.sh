@@ -10,7 +10,6 @@ SERVICE_PATH="${REPO_ROOT}/usr/lib/systemd/system/mios-thermald.service"
 
 VERBOSE=false
 DRY_RUN=false
-MOCK_MODE=false
 
 show_help() {
     cat <<'EOF'
@@ -41,7 +40,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --mock)
-            MOCK_MODE=true
+            # Every check below already runs on synthetic sysfs; accepted so the
+            # common test CLI works here too.
             shift
             ;;
         -h|--help)
@@ -273,7 +273,13 @@ else
 fi
 
 if command -v systemd-analyze >/dev/null 2>&1; then
-    if systemd-analyze verify "$SERVICE_PATH" >/dev/null 2>&1; then
+    # verify resolves ExecStart against the running host, where the daemon is
+    # only installed on a MiOS machine. Check a copy whose ExecStart points at
+    # the executable in the tree under test; every other directive is as shipped.
+    VERIFY_UNIT="$TMP_DIR/mios-thermald.service"
+    sed "s|^ExecStart=/usr/libexec/mios/|ExecStart=${REPO_ROOT}/usr/libexec/mios/|" \
+        "$SERVICE_PATH" > "$VERIFY_UNIT"
+    if systemd-analyze verify "$VERIFY_UNIT" >/dev/null 2>&1; then
         _pass "systemd-analyze verify passed with 0 structural errors"
     else
         _fail "systemd-analyze verify reported errors on $SERVICE_PATH"
