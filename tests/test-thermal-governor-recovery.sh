@@ -70,6 +70,7 @@ _fail() {
 }
 
 echo "=== MiOS Thermal Governor & Recovery Test Suite (T-544, AGY-2142) ==="
+echo "sysfs: synthetic fixture (--mock requested: ${MOCK_MODE})"
 
 if [[ "$DRY_RUN" == "true" ]]; then
     echo "Dry-run verification:"
