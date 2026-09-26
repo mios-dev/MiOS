@@ -100,12 +100,6 @@ _restore_sealed() {
 }
 trap _restore_sealed EXIT
 
-# A host without composefs tooling runs the mock fixtures every later test already falls back to.
-if [[ "$MOCK_MODE" != "true" ]] && ! command -v mkcomposefs >/dev/null 2>&1 && ! command -v composefs-info >/dev/null 2>&1; then
-    log "host has no composefs tooling; running with mock fixtures"
-    MOCK_MODE=true
-fi
-
 VALIDATOR="${ROOT_DIR}/usr/libexec/mios/mios-composefs-validator"
 SEAL_SCRIPT="${ROOT_DIR}/automation/93-composefs-seal.sh"
 
