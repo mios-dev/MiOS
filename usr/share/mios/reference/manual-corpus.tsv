@@ -2788,7 +2788,8 @@ src/mios-rs/mios-gate/tests/projreg.rs	272	272	1	13	a8b31e75a9fc	STAY	local-scop
 src/mios-rs/mios-gate/tests/ratchet.rs	1	2	2	26	787fe6e13851	STAY	ai-header		0				0
 src/mios-rs/mios-gate/tests/ratchet.rs	26	26	1	11	a7c00d9032b8	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/tests/ratchet.rs	33	33	1	11	c3bea0bc3ad5	STAY	local-scoped		0				0
-src/mios-rs/mios-gate/tests/ratchet.rs	102	103	2	17	82032c169f7b	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/tests/ratchet.rs	45	45	1	15	3136f78f8c03	STAY	local-scoped		0				0
+src/mios-rs/mios-gate/tests/ratchet.rs	104	105	2	17	82032c169f7b	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/tests/stubs.rs	1	2	2	24	25988a1b6f16	STAY	ai-header		0				0
 src/mios-rs/mios-gate/tests/stubs.rs	12	12	1	5	cb5d5d595686	STAY	local-scoped		0				0
 src/mios-rs/mios-gate/tests/stubs.rs	46	48	3	23	43a47b166ff7	STAY	midsize-why		0				0
