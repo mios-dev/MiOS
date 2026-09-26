@@ -250,7 +250,9 @@ pub fn get(service: &str, key: &str) -> Result<String, Box<dyn std::error::Error
     Err(format!("secret not found for service='{}', key='{}'", service, key).into())
 }
 
-fn get_keyring_fallback_dir(service: &str) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+fn get_keyring_fallback_dir(
+    service: &str,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let mut cand = None;
     if let Ok(run_dir) = std::env::var("XDG_RUNTIME_DIR") {
         if !run_dir.is_empty() {
@@ -375,6 +377,9 @@ fn collect_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<(), st
 
 #[cfg(test)]
 mod tests {
+    // Test code: a panic here IS the assertion. Scoped so production code stays under the lint.
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use tempfile::tempdir;
 
@@ -419,7 +424,10 @@ mod tests {
         let test_file = tmp.path().join("config.sh");
         fs::write(
             &test_file,
-            format!("export GITHUB_TOKEN=ghp_{}\n", "abcdefghijklmnopqrstuvwxyz0123456789"),
+            format!(
+                "export GITHUB_TOKEN=ghp_{}\n",
+                "abcdefghijklmnopqrstuvwxyz0123456789"
+            ),
         )
         .unwrap();
 
@@ -444,6 +452,9 @@ mod tests {
         );
 
         let count_normal = scan(tmp.path(), false).unwrap();
-        assert_eq!(count_normal, 0, "normal scanner should ignore without strict");
+        assert_eq!(
+            count_normal, 0,
+            "normal scanner should ignore without strict"
+        );
     }
 }
