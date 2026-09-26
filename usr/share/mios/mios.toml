@@ -1731,13 +1731,14 @@ grandfathered = [
 enable      = true
 # A redaction error refuses the write; never fall through to an unredacted one.
 fail_closed = true
-# Agent-plane free text -- where a secret or PII actually lands.
+# Agent-plane free text -- where a secret or PII actually lands. agent_inbox
+# carries raw webhook payloads and threat_events free-text descriptions.
 tables = [
-  "agent_memory", "config_event", "directory_entry", "event",
+  "agent_inbox", "agent_memory", "config_event", "directory_entry", "event",
   "fact_ledger", "gateway_sessions", "kanban", "knowledge",
   "log_digest", "mios_rag", "peer_reputation", "pending_action",
   "progress_ledger", "scratch", "session", "skill_invocation",
-  "system_logs", "tasks", "tool_call",
+  "system_logs", "tasks", "threat_events", "tool_call",
 ]
 # Structured system/config tables: redaction would CORRUPT the value, not
 # protect it, and they hold no free-form prose.
