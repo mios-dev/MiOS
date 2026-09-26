@@ -334,20 +334,52 @@ pub fn run_build_profile(
     list_only: bool,
     profile: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let Some(name) = profile else {
-        return run_build(phase, plan_only, list_only);
-    };
+    run_build_selected(phase, plan_only, list_only, false, profile)
+}
+
+/// `miosd build`: phases (or, with `sections_only`, package sections) for a
+/// profile. With no profile named, `[profiles].default` applies when the SSOT
+/// declares `[profiles]`; a tree without it keeps the full registry.
+pub fn run_build_selected(
+    phase: &str,
+    plan_only: bool,
+    list_only: bool,
+    sections_only: bool,
+    profile: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let root_str = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
     let toml_path = std::path::Path::new(&root_str).join("usr/share/mios/mios.toml");
-    let registry = PhaseRegistry::load_from_toml(&toml_path)?;
     let text = std::fs::read_to_string(&toml_path)?;
-    let profiles = Profiles::from_toml_str(&text)?;
-    let selected = registry.for_profile(&profiles.resolve(name)?)?;
+    let profiles = Profiles::from_toml_str(&text).ok();
+    let name = match (profile, &profiles) {
+        (Some(n), _) => n.to_string(),
+        (None, Some(p)) => p.default_name()?,
+        (None, None) if sections_only => {
+            return Err(
+                "mios.toml declares no [profiles]; there is no section selection to print".into(),
+            )
+        }
+        (None, None) => return run_build(phase, plan_only, list_only),
+    };
+    let profiles = profiles.ok_or("mios.toml declares no [profiles] table")?;
+    let resolved = profiles.resolve(&name)?;
+    let registry = PhaseRegistry::load_from_toml(&toml_path)?;
+    let selected = registry.for_profile(&resolved)?;
     if selected.is_empty() {
         return Err(format!(
             "profile {name:?} selects no phases -- a build of zero phases is not a build"
         )
         .into());
+    }
+    if sections_only {
+        if resolved.all {
+            println!("*");
+        } else {
+            for s in &resolved.package_sections {
+                println!("{s}");
+            }
+        }
+        return Ok(());
     }
     for p in &selected {
         if list_only {

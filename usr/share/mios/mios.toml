@@ -11929,6 +11929,7 @@ unit = [
     "tests/test-cdi-gen.py",
     "tests/test-cdi-device-isolate.sh",
     "tests/test-composefs-seal.sh",
+    "tests/test-profile-packages.sh",
     "tests/test-bootc-rollback-recovery.sh",
     "tests/test-vscode-custom-css.sh",
     "tests/test-code-server-bake.py",

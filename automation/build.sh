@@ -4,6 +4,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Captured before common.sh re-exports the resolved SSOT environment over it (ADR-0025).
+_requested_profile="${MIOS_PROFILES_DEFAULT:-}"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
 register_common_masks
@@ -235,10 +237,19 @@ _mios_root="${MIOS_TOML%/usr/share/mios/mios.toml}"
 [[ "$_mios_root" == "$MIOS_TOML" ]] && _mios_root="$_build_root"
 
 ALL_SCRIPTS=()
+# ADR-0025: the caller's MIOS_PROFILES_DEFAULT names the image profile; unset, miosd resolves [profiles].default.
+_profile_args=()
+[[ -n "$_requested_profile" ]] && _profile_args=(--profile "$_requested_profile")
 if [[ -n "$_miosd" ]]; then
+    # The profile's package sections, for install_packages* (lib/packages.sh); "*" selects all.
+    if ! BUILD_PROFILE_SECTIONS="$(MIOS_ROOT="$_mios_root" "$_miosd" build --sections "${_profile_args[@]}" 2>&1 | tr '\n' ' ')"; then
+        printf '[FATAL] miosd build --sections failed: %s\n' "$BUILD_PROFILE_SECTIONS" >&2
+        exit 1
+    fi
+    export BUILD_PROFILE_SECTIONS
     _phase_list="$(mktemp)"
     # No pipe: $? after one reports the pipe's status, not miosd's.
-    if MIOS_ROOT="$_mios_root" "$_miosd" build --list >"$_phase_list" 2>&1; then
+    if MIOS_ROOT="$_mios_root" "$_miosd" build --list "${_profile_args[@]}" >"$_phase_list" 2>&1; then
         mapfile -t PHASE_SCRIPTS < <(awk -F':' '{print $1}' "$_phase_list")
     else
         # A short or absent phase list is not a degraded build, it is a

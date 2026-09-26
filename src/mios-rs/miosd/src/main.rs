@@ -58,6 +58,9 @@ enum Commands {
         /// Select phases through a mios.toml [profiles] entry (ADR-0025)
         #[arg(long)]
         profile: Option<String>,
+        /// Print the profile's package sections ("*" = every section) instead of phases
+        #[arg(long)]
+        sections: bool,
     },
     /// Resolve configuration parameters
     Resolve {
@@ -790,8 +793,11 @@ async fn main() {
             plan,
             list,
             profile,
+            sections,
         } => {
-            if let Err(e) = mios_build::run_build_profile(phase, *plan, *list, profile.as_deref()) {
+            if let Err(e) =
+                mios_build::run_build_selected(phase, *plan, *list, *sections, profile.as_deref())
+            {
                 eprintln!("[miosd] Build error: {}", e);
                 std::process::exit(1);
             }
