@@ -37,6 +37,9 @@
 
 !/.gitignore
 !/artifact.md
+!/.claude/
+!/.claude/**
+/.claude/settings.local.json
 !/.devcontainer/
 !/.devcontainer/post-start.sh
 !/.devcontainer/post-create.sh
