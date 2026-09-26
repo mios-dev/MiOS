@@ -1610,3 +1610,17 @@ so long. Let a run finish.
 - next: watch #42 CI on 903241453; operator to say where the three design docs go before the workers' ADR/impl lanes start
 - blockers: design-doc placement (operator rejected copying them into -dev-loop docs/research)
 - unverified: #42 CI on 903241453
+
+## 2026-09-26 19:50 · 0d6e0af32 · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
+
+## 2026-09-26 19:56 · 0d6e0af32 · monitor routines rewired
+- objective: fix the Monitor's tool-name warning and make "launch now" actually reach the Monitor chat
+- done: found that fire_trigger (force run) spawns a NEW empty session with no repos instead of resuming the bound Monitor chat; archived the three stray runs; recreated mios-monitor (trig_01BN5VtBzauVJo6PnGBjwjeh, hourly :49) with keyword tool loading, no warning about the other prefix, and no fire_trigger; mios-comb (trig_01Na9koLC5poom68AX73eQ9v) unchanged; one-shot runs into the Monitor at 19:57Z and 20:20Z
+- next: 20:03Z check-in confirms whether a run_once_at delivery resumes the Monitor chat
+- blockers: operator -- delete failover standby trig_01UBWG6L2gYkeyfV7TnQPgTZ, merge #42, re-upload the Spark zip
+- unverified: that the scheduled delivery lands in session_017g2qyj8rXchTBmgqZ34Jun, and that PushNotification reaches the apps
