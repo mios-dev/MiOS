@@ -1,3 +1,4 @@
+<!-- AI-hint: How to install and launch the portable MiOS Dev Container from Google Cloud Shell and Oracle Cloud Shell, which do not apply devcontainer.json on their own. -->
 # MiOS Cloud Shell bootstrap
 
 GitHub Codespaces automatically consumes `.devcontainer/devcontainer.json` and

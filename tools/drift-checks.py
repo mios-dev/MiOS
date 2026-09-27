@@ -3823,8 +3823,11 @@ def check_template_self_conformance() -> int:
         if t in ("conformance-grandfathered.list", "PLACEHOLDERS.md"):
             continue
         with tempfile.TemporaryDirectory() as scaffold_root:
+            # mios-new prefers installed templates; grade the tree's own.
             env = dict(os.environ, MIOS_DRIFT_CHECK_ROOT=scaffold_root,
-                       MIOS_THEME_ROOT=scaffold_root)
+                       MIOS_THEME_ROOT=scaffold_root,
+                       MIOS_TEMPLATES_DIR=os.path.join(os.path.abspath(root),
+                                                       "usr/share/mios/templates"))
             res = subprocess.run(
                 [sys.executable, scaffold_script, t, "testmock"],
                 env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -4225,7 +4228,7 @@ def check_unit_dependency_closure() -> int:
         'pacemaker.service', 'k3s-agent.service', 'cryptsetup.target', 'redis.service',
         'sysinit.target', 'greenboot-healthcheck.service', 'ostree-remount.service',
         'ostree-prepare-root.service', 'waydroid-container.service', 'wslg-x11.service',
-        'wslg-wayland.service', 'ceph.target'
+        'wslg-wayland.service', 'ceph.target', 'slices.target'
     }
     known_units.update(well_known)
 

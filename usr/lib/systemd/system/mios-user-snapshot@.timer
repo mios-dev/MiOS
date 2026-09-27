@@ -1,3 +1,4 @@
+# AI-hint: Hourly, persistent timer that triggers the per-user CephFS snapshot and replication service.
 [Unit]
 Description=Hourly CephFS delta snapshot schedule for user %i
 Documentation=man:mios-user-cephfs(8)

@@ -1,5 +1,5 @@
 // AI-hint: Node heartbeat monitor, 3-strike dead peer detection, and routing table eviction for mios-node.
-// AI-related: src/mios-rs/mios-node/src/node.rs, src/mios-rs/mios-node/src/lib.rs, tests/test-node-heartbeat-eviction.py
+// AI-related: src/mios-rs/mios-node/src/node.rs, src/mios-rs/mios-node/src/lib.rs, tests/test-node-mesh.py
 //! MiOS Node Heartbeat Monitor & Dead-Peer Eviction Engine (T-387 / AGY-1985)
 //!
 //! Enforces the 5s heartbeat interval, 3-strike failure rule (15s eviction threshold),

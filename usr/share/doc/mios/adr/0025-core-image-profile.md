@@ -1,5 +1,5 @@
 <!-- AI-hint: ADR-0025 declares the core MiOS profile once in mios.toml [profiles]; every image kind (OCI, WSL2, devcontainer, cloud projection, Codespace) is the root pipeline run under a profile, and the devcontainer uses the native Dev Containers pattern: devcontainer.json builds the root Containerfile (MiOS) or pulls the CI dev image (mirrors). -->
-<!-- AI-related: usr/share/mios/mios.toml [profiles] [packages.devcontainer] [build.phases] [variants.entries.mios-dev] [bootstrap.sync], Containerfile, .devcontainer/Containerfile, automation/build.sh, automation/lib/packages.sh, src/mios-rs/mios-build/src/lib.rs, tools/native/mios-resolver, usr/libexec/mios/seed-db-config.py, tools/drift-checks.py -->
+<!-- AI-related: usr/share/mios/mios.toml ([profiles] [packages.devcontainer] [build.phases] [variants.entries.mios-dev] [bootstrap.sync]), Containerfile, .devcontainer/Containerfile, automation/build.sh, automation/lib/packages.sh, src/mios-rs/mios-build/src/lib.rs, tools/native/mios-resolver, usr/libexec/mios/seed-db-config.py, tools/drift-checks.py -->
 ---
 adr: 0025
 title: One pipeline, one core profile - every MiOS image is the same system

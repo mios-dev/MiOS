@@ -1,3 +1,4 @@
+# AI-hint: Oneshot per user: takes a CephFS delta snapshot of the user's subvolume, then replicates it across the mesh.
 [Unit]
 Description=Hourly CephFS delta snapshot and mesh replication for user %i
 Documentation=man:mios-user-cephfs(8)

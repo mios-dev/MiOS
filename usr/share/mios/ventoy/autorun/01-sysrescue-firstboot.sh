@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: SystemRescue autorun on the Ventoy stick: generates SSH host keys and enables SSH access for MiOS field deployment.
 set -euo pipefail
 
 echo "[MiOS SystemRescue Firstboot] Setting up SSH and SSOT credentials"

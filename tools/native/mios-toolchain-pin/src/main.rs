@@ -28,10 +28,11 @@ fn render(channel: &str, components: &[String]) -> String {
     format!(
         "# AI-hint: Pins the Rust toolchain both workspaces build and lint with; \
          GENERATED from [build.toolchain], do not edit.\n\
-         # AI-related: usr/share/mios/mios.toml, tools/native/mios-toolchain-pin/src/main.rs\n\
+         # AI-related: {related}\n\
          [toolchain]\n\
          channel = \"{channel}\"\n\
-         components = [{listed}]\n"
+         components = [{listed}]\n",
+        related = "usr/share/mios/mios.toml, tools/native/mios-toolchain-pin/src/main.rs"
     )
 }
 

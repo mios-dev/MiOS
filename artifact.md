@@ -1,3 +1,4 @@
+<!-- AI-hint: Bundled manifest of MiOS CI/CD pipeline and devcontainer harness snippets, collected inline as one reference artifact. -->
 # MiOS & MiOS-AI Autonomous CI/CD Pipeline Artifact Bundle (`artifact.md`)
 
 **Date:** 2026-09-22  

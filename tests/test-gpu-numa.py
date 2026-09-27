@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for multi-GPU PCIe/NVLink topology discovery and NUMA affinity generator (T-519).
-# AI-doc: usr/share/doc/mios/manual/ch02-architecture.md
+# AI-doc: usr/share/doc/mios/manual/ch22-cpu-topology-and-performance-pinning.md
 from __future__ import annotations
 
 import os

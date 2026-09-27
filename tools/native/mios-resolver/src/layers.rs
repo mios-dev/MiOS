@@ -1,5 +1,5 @@
 // AI-hint: Tier and fragment discovery -- builds the figment provider stack in vendor < vendor.d < host < host.d < user < user.d precedence order.
-// AI-related: usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/mios.d
+// AI-related: usr/share/mios/mios.toml, /etc/mios/mios.toml
 use figment::providers::{Format, Toml};
 use figment::Figment;
 use std::env;
@@ -72,20 +72,15 @@ pub fn resolve_tier_dirs(
     });
 
     let user = env::var("MIOS_USER_TOML").unwrap_or_else(|_| {
-        // Mirror userenv.sh: ${XDG_CONFIG_HOME:-$HOME/.config}. A literal "~"
-        // never expands here, so resolve HOME (USERPROFILE on Windows) instead
-        // or the whole user tier is silently dropped.
-        if !root.is_empty() {
-            format!("{}/etc/skel/.config/mios/mios.toml", root)
-        } else {
-            let xdg = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
-                let home = env::var("HOME")
-                    .or_else(|_| env::var("USERPROFILE"))
-                    .unwrap_or_default();
-                format!("{}/.config", home)
-            });
-            format!("{}/mios/mios.toml", xdg)
-        }
+        // Mirror userenv.sh and mios_toml.py whatever the root: etc/skel seeds
+        // new homes, it is not a user tier. "~" never expands, so resolve HOME.
+        let xdg = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
+            let home = env::var("HOME")
+                .or_else(|_| env::var("USERPROFILE"))
+                .unwrap_or_default();
+            format!("{}/.config", home)
+        });
+        format!("{}/mios/mios.toml", xdg)
     });
 
     let vendor_d = env::var("MIOS_VENDOR_TOML_D").unwrap_or_else(|_| {

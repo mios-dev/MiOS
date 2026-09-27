@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Windows 11 autounattend.xml generator with debloat, developer mode & bypasses
-# AI-related: tests/test-unattend-gen.py, usr/share/mios/mios.toml, usr/libexec/mios/win/ps_policy_config.py
+# AI-related: tests/test-unattend.py, usr/share/mios/mios.toml, usr/libexec/mios/win/ps_policy_config.py
 # AI-functions: UnattendGenerator, UnattendPreset, generate_unattend_xml
 """
 MiOS Windows 11 Unattended Answer File (autounattend.xml) Generator.

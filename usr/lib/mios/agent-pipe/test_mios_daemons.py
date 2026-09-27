@@ -448,7 +448,7 @@ class SelfImproveProposalsReadTest(unittest.TestCase):
 # Consolidated from test_mios_account_sync.py (T-1092)
 # ==============================================================================
 # AI-hint: stdlib unit test for mios-account-sync daemon.
-# AI-related: usr/libexec/mios/mios-account-sync, usr/lib/mios/agent-pipe/test_mios_account_sync.py
+# AI-related: usr/libexec/mios/mios-account-sync
 import sys
 import os
 import unittest

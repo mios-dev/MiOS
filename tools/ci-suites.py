@@ -37,6 +37,10 @@ def _load(root: str) -> dict:
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
         return tomllib.load(fh).get("ci") or {}
 
+def _load_packages(root: str) -> dict:
+    with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+        return tomllib.load(fh).get("packages") or {}
+
 def _tracked(root: str) -> list:
     """git-tracked, not os.walk: a runner executes what the repository ships.
 

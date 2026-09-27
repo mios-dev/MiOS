@@ -10,7 +10,6 @@ SERVICE_PATH="${REPO_ROOT}/usr/lib/systemd/system/mios-thermald.service"
 
 VERBOSE=false
 DRY_RUN=false
-MOCK_MODE=false
 
 show_help() {
     cat <<'EOF'
@@ -41,7 +40,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --mock)
-            MOCK_MODE=true
+            # Every check below already runs on synthetic sysfs; accepted so the
+            # common test CLI works here too.
             shift
             ;;
         -h|--help)

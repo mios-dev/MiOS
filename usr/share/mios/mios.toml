@@ -557,7 +557,7 @@ WantedBy = "remote-fs.target"
 
 
 [units."var-lib-machines.mount".Unit]
-comment = "#  SPDX-License-Identifier: LGPL-2.1-or-later\n#\n#  This file is part of systemd.\n#\n#  systemd is free software; you can redistribute it and/or modify it\n#  under the terms of the GNU Lesser General Public License as published by\n#  the Free Software Foundation; either version 2.1 of the License, or\n#  (at your option) any later version.\n# This unit is required for pre-240 versions of systemd that automatically set\n# up /var/lib/machines.raw as loopback-mounted btrfs file system. Later\n# versions don't do that anymore, but let's keep minimal compatibility by\n# mounting the image still, if it exists."
+comment = "# AI-hint: Upstream systemd unit, carried verbatim: loop-mounts /var/lib/machines.raw at /var/lib/machines when that image exists.\n#  SPDX-License-Identifier: LGPL-2.1-or-later\n#\n#  This file is part of systemd.\n#\n#  systemd is free software; you can redistribute it and/or modify it\n#  under the terms of the GNU Lesser General Public License as published by\n#  the Free Software Foundation; either version 2.1 of the License, or\n#  (at your option) any later version.\n# This unit is required for pre-240 versions of systemd that automatically set\n# up /var/lib/machines.raw as loopback-mounted btrfs file system. Later\n# versions don't do that anymore, but let's keep minimal compatibility by\n# mounting the image still, if it exists."
 Description = "Virtual Machine and Container Storage (Compatibility)"
 ConditionPathExists = "/var/lib/machines.raw"
 
@@ -1556,7 +1556,7 @@ PrivateTmp = "true"
 WantedBy = "multi-user.target"
 
 [units."mios-xdg-userdir-init.service".Unit]
-comment = "# AI-hint: systemd user unit to dynamically update XDG directories when a CephFS network home is mounted.\n# AI-related: ~/.config/systemd/user/mios-xdg-userdir-init.service, [storage.cephfs]"
+comment = "# AI-hint: systemd user unit to dynamically update XDG directories when a CephFS network home is mounted.\n# AI-related: [storage.cephfs]"
 Description = "MiOS XDG User Directories Initialization"
 ConditionPathIsMountPoint = "%h"
 
@@ -1731,13 +1731,14 @@ grandfathered = [
 enable      = true
 # A redaction error refuses the write; never fall through to an unredacted one.
 fail_closed = true
-# Agent-plane free text -- where a secret or PII actually lands.
+# Agent-plane free text -- where a secret or PII actually lands. agent_inbox
+# carries raw webhook payloads and threat_events free-text descriptions.
 tables = [
-  "agent_memory", "config_event", "directory_entry", "event",
+  "agent_inbox", "agent_memory", "config_event", "directory_entry", "event",
   "fact_ledger", "gateway_sessions", "kanban", "knowledge",
   "log_digest", "mios_rag", "peer_reputation", "pending_action",
   "progress_ledger", "scratch", "session", "skill_invocation",
-  "system_logs", "tasks", "tool_call",
+  "system_logs", "tasks", "threat_events", "tool_call",
 ]
 # Structured system/config tables: redaction would CORRUPT the value, not
 # protect it, and they hold no free-form prose.
@@ -11984,6 +11985,21 @@ requirements = ["usr/lib/mios/agent-pipe/requirements.txt"]
 # Only what no requirements file claims: pyflakes backs lint-python.sh's
 # undefined-name pass.
 packages = ["pyflakes"]
+
+[ci.fedora]
+# The drift-gate job runs in this container, the same Fedora release the one
+# MiOS dev image (.devcontainer/Containerfile) is built FROM, so the gate sees
+# the toolchain a MiOS contributor has rather than a foreign distro's.
+image = "registry.fedoraproject.org/fedora:44"
+# [packages.<set>] lists installed first; devcontainer is the dev image's own set.
+package_sets = ["devcontainer"]
+# Repo-config RPMs installed before any package. Fedora does not package
+# PowerShell; Microsoft's repository does, floating, as it documents for Fedora.
+repos = ["https://packages.microsoft.com/config/rhel/9/packages-microsoft-prod.rpm"]
+# CI-only extras the dev image does not carry: sandbox tests (bubblewrap),
+# composefs sealing (mkcomposefs, composefs-info), unit verification
+# (systemd-analyze), the lint tier's pwsh and the analyzer's .NET runtime.
+packages = ["bubblewrap", "composefs", "systemd", "dotnet-sdk-8.0", "powershell"]
 
 [ci.tiers]
 # Static analysis. No build, no network, no image.

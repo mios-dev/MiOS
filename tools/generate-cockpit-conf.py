@@ -38,7 +38,8 @@ def main():
         except Exception:
             pass
 
-    rendered = f"""# Cockpit configuration file
+    rendered = f"""# AI-hint: Cockpit web console settings projected from mios.toml [cockpit]; regenerate with tools/generate-cockpit-conf.py, never edit.
+# Cockpit configuration file
 [WebService]
 AllowUnencrypted = {allow_unencrypted}
 LoginTo = {login_to}

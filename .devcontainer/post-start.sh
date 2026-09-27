@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Devcontainer postStartCommand: re-checks the agent CLIs and the AI endpoint on every start and self-heals a failed first install, best-effort.
 set -euo pipefail
 echo "[devcontainer:post-start] Checking agentic environment and AI endpoint..."
 

@@ -1,3 +1,4 @@
+<!-- AI-hint: Rules for root research staging: evidence and drafts here, durable reports in docs/research/, primary sources cited, no secrets. -->
 # Research staging
 
 Use this root-level dotfolder for evidence collection, source snapshots,

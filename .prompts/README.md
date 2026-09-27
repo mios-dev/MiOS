@@ -1,3 +1,4 @@
+<!-- AI-hint: Index of the tracked, non-secret MiOS prompt catalog and its primary report contract; shipped prompts live under usr/share/mios/prompts/. -->
 # MiOS prompt catalog
 
 `.prompts/` is the tracked, non-secret catalog for MiOS prompt contracts. It

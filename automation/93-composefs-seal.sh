@@ -109,7 +109,7 @@ for conf in "${TARGET_CONFS[@]}"; do
     fi
 done
 
-if [[ "$configured_conf_count" -eq 0 && "$DRY_RUN" == "false" ]]; then
+if [[ "$configured_conf_count" -eq 0 && "$DRY_RUN" == "false" && "$MOCK_MODE" == "false" ]]; then
     mios_warn "Could not write prepare-root.conf to system paths (read-only filesystem); ensuring repo tree copy exists"
     REPO_CONF="${SEAL_ROOT:-${ROOT_DIR}}/usr/lib/ostree/prepare-root.conf"
     mkdir -p "$(dirname "$REPO_CONF")"

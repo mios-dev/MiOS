@@ -1,5 +1,5 @@
 // AI-hint: Golden capture harness (insta + trycmd) for build phase artifacts (AGY-963).
-// AI-related: src/mios-rs/mios-build/src/lib.rs, automation/{34,35,42,43,75,76,85}-*.sh
+// AI-related: src/mios-rs/mios-build/src/lib.rs, automation/34-render-quadlets.sh, automation/35-render-ports.sh, automation/42-chrony-render.sh, automation/43-nut-render.sh, automation/75-kargs-render.sh, automation/76-uki-render.sh, automation/85-bake-plan.sh
 
 use insta::assert_snapshot;
 use mios_build::PhaseRegistry;

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for scoped CDI specification generator (T-525).
-# AI-doc: usr/share/doc/mios/manual/ch14-cdi-gpu-passthrough-and-isolation.md
+# AI-doc: usr/share/doc/mios/manual/ch20-container-device-interface-plumbing.md
 from __future__ import annotations
 
 import json

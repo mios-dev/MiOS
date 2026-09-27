@@ -1,5 +1,5 @@
 <!-- AI-hint: ADR-0024 partitions the VS Code SSOT by mios.toml [dotfiles.vscode]: devcontainer.json / *.code-workspace blocks get only client-portable keys, settings FILES the full profile; sync-dotfiles.py prunes, check_dotfiles_projection gates. -->
-<!-- AI-related: usr/share/mios/mios.toml [dotfiles.vscode], .dotfiles/vscode/settings.json, tools/sync-dotfiles.py, usr/libexec/mios/mios-dotfiles-render, automation/98-drift-checks.sh check_dotfiles_projection, tests/drift-gate-negatives.sh test_dotfiles_projection, .devcontainer/devcontainer.json, .devcontainer/artifact-builder/devcontainer.json, mios.code-workspace, .devcontainer/mios-ecosystem.code-workspace, usr/share/doc/mios/adr/0010-ssot-as-system-dotfiles.md -->
+<!-- AI-related: usr/share/mios/mios.toml [dotfiles.vscode], .dotfiles/vscode/settings.json, tools/sync-dotfiles.py, usr/libexec/mios/mios-dotfiles-render, automation/98-drift-checks.sh (check_dotfiles_projection), tests/drift-gate-negatives.sh (test_dotfiles_projection), .devcontainer/devcontainer.json, .devcontainer/artifact-builder/devcontainer.json, mios.code-workspace, .devcontainer/mios-ecosystem.code-workspace, usr/share/doc/mios/adr/0010-ssot-as-system-dotfiles.md -->
 ---
 adr: 0024
 title: VS Code settings are partitioned by the client that applies them

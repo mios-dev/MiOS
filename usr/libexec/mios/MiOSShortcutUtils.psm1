@@ -1,5 +1,5 @@
 # AI-hint: Shared PowerShell module providing icon rasterization, PNG-to-ICO conversion, icon cache clearing, and WSLg native shortcut creation.
-# AI-related: Update-MiOSStartMenuShortcuts.ps1, refresh-flatpak-shortcuts.ps1
+# AI-related: Update-MiOSStartMenuShortcuts.ps1, tools/refresh-flatpak-shortcuts.ps1
 
 function Convert-PngToIco {
     param([string]$PngPath, [string]$IcoPath)

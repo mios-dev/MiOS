@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Network-wide roaming multi-seat session orchestrator and GPU assignment manager.
-# AI-related: tests/test-roaming-seat.py, usr/lib/systemd/system/mios-seat-router.service
+# AI-related: tests/test-roaming-seat.py
 # AI-functions: GPUDevice, SeatAssignment, UserRegistry, GPUManager, LogindSeatManager, CephFSMountManager, RoamingSeatOrchestrator, main
 """
 WS-USER (T-559): Network-Wide Roaming Multi-Seat Session Orchestrator & GPU Assignment Manager.

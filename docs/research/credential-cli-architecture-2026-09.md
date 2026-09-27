@@ -1,3 +1,4 @@
+<!-- AI-hint: Research on CLI and API credential architecture for MiOS: clients resolve MIOS_AI_ENDPOINT and never hold upstream credentials; short-lived scoped tokens elsewhere. -->
 # Secure Command-Line and API Credential Architecture for MiOS
 
 **Research date:** 2026-09-21  

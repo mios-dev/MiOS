@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for reserved memory kdump and zstd crash dump extraction (T-515).
-# AI-doc: usr/share/doc/mios/manual/ch02-architecture.md
+# AI-doc: usr/share/doc/mios/manual/ch45-diagnostic-tools-and-profilers.md
 from __future__ import annotations
 
 import json

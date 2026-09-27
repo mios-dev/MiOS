@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for deterministic /etc/subuid and /etc/subgid range generator (T-477).
-# AI-doc: usr/share/doc/mios/manual/ch11-security-and-hardening.md
+# AI-doc: usr/share/doc/mios/manual/ch17-defense-in-depth-hardening.md
 from __future__ import annotations
 
 import json

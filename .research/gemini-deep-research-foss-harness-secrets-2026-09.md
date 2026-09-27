@@ -1,3 +1,4 @@
+<!-- AI-hint: Research prompt for an external deep-research run on MiOS secret transport and FOSS harness conformance; never supply real credentials to it. -->
 # Gemini Deep Research Prompt — MiOS secrets transport and FOSS harness conformance
 
 **Use:** Paste this entire file into Gemini Apps with `/deep-research`

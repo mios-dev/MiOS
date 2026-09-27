@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for WS-WISO Windows driver slipstreaming and autounattend generation.
-# AI-related: src/autounattend/ConvertTo-MiOSPreset.ps1, tools/windows/Export-MiOSDrivers.ps1
+# AI-related: tools/windows/Export-MiOSDrivers.ps1
 """Automated tests for WS-WISO driver path parsing and unattend XML injection."""
 
 from __future__ import annotations

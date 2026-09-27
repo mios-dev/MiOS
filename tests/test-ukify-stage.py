@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for A/B UKI staging and systemd-ukify compilation pipeline (T-507).
-# AI-doc: usr/share/doc/mios/manual/ch02-boot-and-lifecycle.md
+# AI-doc: usr/share/doc/mios/manual/ch08-bootloader-and-unified-kernel-images-uki.md
 from __future__ import annotations
 
 import json
@@ -39,6 +39,8 @@ class TestUkifyStage(unittest.TestCase):
         self.assertEqual(data.get("status"), "success")
         self.assertTrue(data.get("dry_run"))
         self.assertIn("baked_kargs", data)
+        with open(os.path.join(_ROOT, "usr", "lib", "kernel", "cmdline"), encoding="utf-8") as fh:
+            self.assertEqual(data["baked_kargs"], fh.read().strip())
         self.assertIn("console=tty0", data["baked_kargs"])
 
     def test_stage_execution(self):

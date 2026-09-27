@@ -392,6 +392,9 @@ pub fn suggest_rename(root: &Path, stale_path: &str) -> RenameSuggestion {
         } else if matches.len() > 1 {
             return RenameSuggestion::Ambiguous(matches);
         }
+        if let Some(only) = matches.pop() {
+            return RenameSuggestion::Exact(only);
+        }
     }
 
     RenameSuggestion::None
@@ -622,7 +625,7 @@ pub fn check(root: &Path) -> Report {
         )];
         // Every one: this list is the backlog someone has to work through, and a
         // silent cap hid 93 of 103 from the people deciding them (T-1074).
-        findings.extend(stale);
+        findings.extend(stale.iter().map(|f| annotate(root, f)));
         return report(false, String::new(), findings);
     }
     report(
@@ -664,6 +667,8 @@ mod tests {
             vec!["init", "-q"],
             vec!["config", "user.email", "g@example.invalid"],
             vec!["config", "user.name", "g"],
+            // The fixture commits; a caller's global signing setup must not reach it.
+            vec!["config", "commit.gpgsign", "false"],
         ] {
             match Command::new("git").arg("-C").arg(&r).args(&a).output() {
                 Ok(o) if o.status.success() => {}

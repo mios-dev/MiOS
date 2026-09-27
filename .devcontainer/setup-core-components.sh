@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Builds and installs the runnable MiOS development core (miosd workspace, agent-pipe runtime) in the devcontainer without starting host services.
 # Provision the runnable MiOS development core without starting host services.
 set -euo pipefail
 

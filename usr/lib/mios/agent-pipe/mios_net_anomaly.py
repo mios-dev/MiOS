@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Jensen-Shannon divergence network anomaly detector and PostgreSQL threat_events vector sink (T-512).
-# AI-doc: usr/share/doc/mios/manual/ch06-security.md
+# AI-doc: usr/share/doc/mios/manual/ch17-defense-in-depth-hardening.md
 from __future__ import annotations
 
 import argparse

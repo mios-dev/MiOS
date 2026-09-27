@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for Hermetic Podman OCI image synthesis and Syft SBOM generation (T-509).
-# AI-doc: usr/share/doc/mios/manual/ch05-build-and-pipeline.md
+# AI-doc: usr/share/doc/mios/manual/ch18-supply-chain-and-image-integrity.md
 from __future__ import annotations
 
 import json

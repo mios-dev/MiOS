@@ -30,6 +30,8 @@ fn repo(dir: &Path, head_toml: &str, work_toml: &str) {
     fs::write(&ssot, head_toml).unwrap();
     git(dir, &["init", "-q"]);
     git(dir, &["config", "user.email", "t@example.invalid"]);
+    // A caller's global commit signing must not reach the fixture.
+    git(dir, &["config", "commit.gpgsign", "false"]);
     git(dir, &["config", "user.name", "t"]);
     git(dir, &["add", "-A"]);
     git(dir, &["commit", "-qm", "base"]);

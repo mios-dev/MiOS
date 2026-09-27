@@ -1,3 +1,4 @@
+<!-- AI-hint: Explains the two layers of the MiOS repository: root dotfolders as the review and workflow control plane, and the FHS directories as the deployable system overlay. -->
 # MiOS root control plane
 
 The MiOS repository has two distinct layers:

@@ -227,7 +227,7 @@ def _determine_scheme_and_port(
     final_port = port if port is not None else default_port
     if scheme_override:
         scheme = scheme_override
-    elif final_port in (80, 8080, 8000, 8888):
+    elif final_port in (80, 8080, 8000):
         scheme = "http"
     elif host in ("127.0.0.1", "localhost") and final_port not in (443, 8443):
         scheme = "http"

@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Devcontainer postCreateCommand: marks the workspace safe for git and runs the one-time harness and MiOS core component setup.
 set -euo pipefail
 echo "[devcontainer:post-create] Initializing embedded agent harness..."
 mkdir -p .devloop_artifacts .worktrees

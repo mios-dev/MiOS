@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Hermetic multi-language pre-commit linter and auto-formatter hook for MiOS repositories.
-# AI-related: tests/test-git-pre-commit.py, usr/share/doc/mios/manual/automation.md
+# AI-related: tests/test-git-ops.py, usr/share/doc/mios/manual/automation.md
 """
 MiOS Git Pre-Commit Linter & Auto-Formatter Engine.
 

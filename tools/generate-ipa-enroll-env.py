@@ -36,7 +36,8 @@ def main():
     otp_file = ipa.get("otp_file", "/etc/mios/secrets.env")
     otp_key = ipa.get("otp_key", "MIOS_IPA_OTP")
 
-    rendered = f"""# FreeIPA Zero-Touch Enrollment Config
+    rendered = f"""# AI-hint: FreeIPA zero-touch enrollment settings projected from mios.toml [identity.ipa]; regenerate with tools/generate-ipa-enroll-env.py, never edit.
+# FreeIPA Zero-Touch Enrollment Config
 MIOS_IPA_ENABLED="{enabled}"
 MIOS_IPA_REALM="{realm}"
 MIOS_IPA_SERVER="{server}"

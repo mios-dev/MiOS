@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Automated zero-reboot sysctl parameter application (<50ms) and live udev test suite (T-823).
-# AI-doc: usr/share/doc/mios/manual/ch18-kernel-sysctl-and-udev-synchronization.md
+# AI-doc: usr/share/doc/mios/manual/kernel.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -88,7 +88,7 @@ net.ipv4.ip_forward = 1
 kernel.pid_max = 4194304
 EOF
 
-MULTI_JSON=$("$SYNC_BIN" --mock-root "$TEST_ROOT" --sysctl --json)
+"$SYNC_BIN" --mock-root "$TEST_ROOT" --sysctl --json >/dev/null
 VM_VAL=$(cat "$TEST_ROOT/proc/sys/vm/max_map_count" 2>/dev/null || echo "")
 NET_VAL=$(cat "$TEST_ROOT/proc/sys/net/ipv4/ip_forward" 2>/dev/null || echo "")
 PID_VAL=$(cat "$TEST_ROOT/proc/sys/kernel/pid_max" 2>/dev/null || echo "")
@@ -136,7 +136,7 @@ key_without_val =
 valid.parameter = 12345
 EOF
 
-NEG_JSON=$("$SYNC_BIN" --mock-root "$TEST_ROOT" --sysctl --json)
+"$SYNC_BIN" --mock-root "$TEST_ROOT" --sysctl --json >/dev/null
 NEG_VAL=$(cat "$TEST_ROOT/proc/sys/valid/parameter" 2>/dev/null || echo "")
 
 if [[ "$NEG_VAL" == "12345" ]]; then

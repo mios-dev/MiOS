@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # AI-hint: HMAC-SHA256 authenticated webhook receiver and idempotent agent_inbox queue (T-517).
-# AI-doc: usr/share/doc/mios/manual/ch02-architecture.md
+# AI-doc: usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md
 from __future__ import annotations
 
 import hashlib

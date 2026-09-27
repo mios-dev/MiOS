@@ -44,8 +44,8 @@ BYTES_PER_SAMPLE = 2  # 16-bit signed PCM (s16le)
 DEFAULT_BUFFER_SECONDS = 5.0
 LATENCY_SLA_TARGET_MS = 300.0
 
-DEFAULT_PIPER_URL = "http://localhost:8179"
-DEFAULT_KOKORO_URL = "http://localhost:8880/v1/audio/speech"
+DEFAULT_PIPER_URL = f"http://localhost:{os.environ.get('MIOS_PORT_PIPER', '8179')}"
+DEFAULT_KOKORO_URL = f"{DEFAULT_PIPER_URL}/v1/audio/speech"  # [ports].piper serves Piper/Kokoro
 DEFAULT_SOCKET_PATH = "/run/mios/audio-tts.sock"
 
 SUPPORTED_ENGINES = ("piper", "kokoro")

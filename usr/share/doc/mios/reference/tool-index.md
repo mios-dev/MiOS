@@ -797,6 +797,7 @@ is generated, its generator is here.
 | `usr/lib/mios/ai/streaming_llm.py` | MiOS system and orchestration module providing streaming llm capabilities. |
 | `usr/lib/mios/ai/tensor_pipeline.py` | MiOS system and orchestration module providing tensor pipeline capabilities. |
 | `usr/lib/mios/ai/train_elastic.py` | Asynchronous non-blocking PyTorch checkpoint engine and TorchElastic preemption manager (T-669, T-670). |
+| `usr/lib/mios/cli/__init__.py` | Package init for the MiOS CLI engine: exports the output formatter and plugin loader. |
 | `usr/lib/mios/cli/formatter.py` | Dynamic TTY / Rich / JSON / YAML output formatter and adaptive CLI engine (T-513). |
 | `usr/lib/mios/cli/plugin_loader.py` | Dynamic plugin loader and subcommand discovery for MiOS CLI (T-514). |
 | `usr/lib/mios/crawl4ai/mios-crawl4ai-service.py` | FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w... |
@@ -813,7 +814,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 433 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 434 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

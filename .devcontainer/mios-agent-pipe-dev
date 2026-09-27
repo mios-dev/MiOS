@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Starts the agent-pipe gateway by hand inside the devcontainer, where the host-oriented systemd units stay disabled.
 # Launch the gateway explicitly; host-oriented systemd units stay disabled.
 set -euo pipefail
 

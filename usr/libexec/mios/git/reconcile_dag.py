@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Multi-master divergent Git DAG reconciliation engine and Ed25519 consensus commit signer.
-# AI-related: usr/libexec/mios/git/reconcile_dag.py, tests/test-git-reconcile.py, usr/libexec/mios/git/ast_merge.py
+# AI-related: usr/libexec/mios/git/reconcile_dag.py, tests/test-git-ops.py, usr/libexec/mios/git/ast_merge.py
 """Multi-Master Divergent Git DAG Reconciliation Engine (T-561).
 
 Reconciles divergent Git commit graphs and branch histories produced by offline

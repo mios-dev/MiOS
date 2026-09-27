@@ -237,7 +237,7 @@ def get_sys_info_table():
     sh = os.path.basename(os.environ.get("SHELL", "bash"))
     ip = "127.0.0.1"
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(("8.8.8.8", 80)); ip = s.getsockname()[0]; s.close()
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(("10.255.255.255", 1)); ip = s.getsockname()[0]; s.close()
     except Exception: pass
     t.add_row("OS", sys_info.get("os", "Linux"), "CPU", f"{sys_info.get('cpu_model', 'CPU')}")
     t.add_row("Kernel", sys_info.get("kernel", "Linux"), "Memory", f"{telem.get('ram', 0)} GiB ({telem.get('m_pct', 0)}%)")

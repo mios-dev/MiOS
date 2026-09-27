@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Security invariant: where Tetragon is installed, the agent-sandboxing TracingPolicy file must be present; skips (exit 2) where it is not.
 set -euo pipefail
 echo "[TEST-INVARIANT-SEC] Verifying Tetragon eBPF TracingPolicy non-interference..."
 

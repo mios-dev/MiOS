@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Headless kernel crash dump triage engine and PostgreSQL bug ticket creator (T-641, T-642).
-# AI-related: usr/libexec/mios/kernel/crash_triage.py, tests/test-kernel-crash-triage.py, usr/lib/systemd/system/mios-crash-triage.service
+# AI-related: usr/libexec/mios/kernel/crash_triage.py, tests/test-kernel-crash-triage.py
 """Headless kernel crash dump triage engine and symbol resolver for MiOS.
 
 Decompresses /var/crash/vmcore.zst post-panic, analyzes kdump/vmcore/pstore/dmesg oops outputs,

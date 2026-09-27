@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Automated inter-GPU P2P bandwidth and memory latency validation benchmark (T-520, AGY-2118).
-# AI-doc: usr/share/doc/mios/manual/ch14-hardware-and-drivers.md
+# AI-doc: usr/share/doc/mios/manual/ch37-gpu-capability-detection-and-passthrough-shims.md
 set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 pass=0
 fail=0

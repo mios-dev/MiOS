@@ -2552,6 +2552,14 @@ if ns_spec and ns_spec.loader:
 else:
     raise ImportError(f"Could not load module from {ns__TARGET_PATH}")
 
+def _ns_ssot_ports() -> dict:
+    """[ports] from the SSOT, overridden by the resolved MIOS_PORT_* env."""
+    import tomllib
+    with open(os.path.join(ns__ROOT, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+        ports = tomllib.load(fh)["ports"]
+    return {k: int(os.environ.get("MIOS_PORT_" + k.upper()) or ports[k])
+            for k in ("hermes", "llm_light", "searxng")}
+
 class ns_TestNetSegmentation(unittest.TestCase):
     """Test suite for nftables isolation ruleset generation, pairing matrix validation, and apply/flush."""
 
@@ -3720,6 +3728,10 @@ if vs_spec and vs_spec.loader:
 else:
     raise ImportError(f"Could not load module from {vs__TARGET_PATH}")
 
+def _vs_quadlet_dir() -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                        "usr", "share", "containers", "systemd")
+
 class vs_TestVramSanitize(unittest.TestCase):
     """Test suite for multi-vendor GPU discovery, VRAM scrubbing, and Quadlet config audits."""
 
@@ -3744,7 +3756,9 @@ class vs_TestVramSanitize(unittest.TestCase):
 
     def test_audit_quadlet_configs_mock(self):
         sanitizer = vram_sanitize.VramSanitizer(mock=True)
-        audit_res = sanitizer.audit_quadlet_configs()
+        # The tree's own Quadlets, not whatever the host has installed.
+        audit_res = sanitizer.audit_quadlet_configs(quadlet_dir=_vs_quadlet_dir())
+        self.assertGreater(audit_res["containers_audited"], 0)
         self.assertTrue(audit_res["audit_passed"])
         self.assertEqual(len(audit_res["findings"]), 0)
 
@@ -3776,6 +3790,7 @@ class vs_TestVramSanitize(unittest.TestCase):
         test_args = [
             "vram_sanitize.py",
             "--audit-configs",
+            "--quadlet-dir", _vs_quadlet_dir(),
             "--mock",
             "--json",
         ]
