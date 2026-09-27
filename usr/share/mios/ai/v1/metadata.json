@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3472,
-  "total_metadata_entries": 2956,
-  "total_hints": 2942,
+  "total_files_scanned": 3573,
+  "total_metadata_entries": 2957,
+  "total_hints": 2943,
   "total_functions_indexed": 1338,
   "total_related_links": 4653,
   "entries": [
@@ -7403,6 +7403,15 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/audio.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-placement-failover.sh",
+      "hint": "Proves placement failover ladder against fixtures, running the REAL functions from blade.sh.",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tests.md",
       "comment_style": "hash",
       "has_shebang": true
     },

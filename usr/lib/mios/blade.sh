@@ -244,7 +244,7 @@ _target_for() {
 }
 
 _ssot_placement() {
-    python3 - <<'PY' 2>/dev/null || true
+    python3 - <<'PY'
 import os, sys
 sys.path.insert(0, os.environ.get("MIOS_USR_DIR", "/usr/lib/mios"))
 import mios_toml
@@ -253,9 +253,25 @@ blade = (mios_toml.load_merged().get("blade") or {})
 placement = blade.get("placement") or {}
 collapse = blade.get("collapse") or {}
 
-fo = placement.get("failover_order") or ["local", "localhost", "cluster"]
+legal_tiers = {"local", "localhost", "cluster"}
+
+raw_fo = placement.get("failover_order")
+if raw_fo is not None and len(raw_fo) == 0:
+    sys.stderr.write("ERROR: empty failover_order\n")
+    sys.exit(1)
+
+fo = raw_fo if raw_fo is not None else ["local", "localhost", "cluster"]
 if isinstance(fo, str):
     fo = [fo]
+
+if not fo:
+    sys.stderr.write("ERROR: empty failover_order\n")
+    sys.exit(1)
+
+for t in fo:
+    if t not in legal_tiers:
+        sys.stderr.write(f"ERROR: unknown failover tier: {t}\n")
+        sys.exit(1)
 
 print("failover_order=%s" % " ".join(fo))
 print("dwell_s=%s" % str(collapse.get("dwell_s") or 30))
@@ -267,40 +283,142 @@ PY
 _resolve_placement_failover() {
     local target="$1" status="${2:-failed}"
     local p_info
-    p_info="$(_ssot_placement)"
+    if ! p_info="$(_ssot_placement 2>&1)"; then
+        printf '%s\n' "$p_info" >&2
+        return 1
+    fi
     local order dwell rec_dwell fail_c
     order="$(printf '%s\n' "$p_info" | sed -n 's/^failover_order=//p')"
     dwell="$(printf '%s\n' "$p_info" | sed -n 's/^dwell_s=//p')"
     rec_dwell="$(printf '%s\n' "$p_info" | sed -n 's/^recover_dwell_s=//p')"
     fail_c="$(printf '%s\n' "$p_info" | sed -n 's/^fail_checks=//p')"
 
-    local state_dir="/run/mios/failover"
+    if [[ -z "$order" ]]; then
+        printf 'ERROR: empty failover_order\n' >&2
+        return 1
+    fi
+
+    local -a order_arr=($order)
+    for t in "${order_arr[@]}"; do
+        case "$t" in
+            local|localhost|cluster) ;;
+            *) printf 'ERROR: unknown tier: %s\n' "$t" >&2; return 1 ;;
+        esac
+    done
+
+    local state_dir="${FAILOVER_STATE_DIR:-/run/mios/failover}"
     mkdir -p "$state_dir" 2>/dev/null || true
     local state_file="${state_dir}/${target}.state"
-    local now
-    now=$(date +%s)
+    local now="${NOW_OVERRIDE:-${CURRENT_TIME:-$(date +%s)}}"
+
+    local current_tier="${order_arr[0]}"
+    local fail_count=0
+    local last_ts=0
+    local last_transition_ts=0
+    local flaps=0
 
     if [[ -r "$state_file" ]]; then
-        local last_ts last_tier flaps
-        last_ts="$(sed -n 's/^last_ts=//p' "$state_file")"
-        last_tier="$(sed -n 's/^last_tier=//p' "$state_file")"
-        flaps="$(sed -n 's/^flaps=//p' "$state_file")"
-        local elapsed=$(( now - ${last_ts:-0} ))
+        local st_tier st_fc st_lts st_tr_ts st_flaps
+        st_tier="$(sed -n 's/^current_tier=//p' "$state_file")"
+        [[ -n "$st_tier" ]] || st_tier="$(sed -n 's/^last_tier=//p' "$state_file")"
+        st_fc="$(sed -n 's/^fail_count=//p' "$state_file")"
+        st_lts="$(sed -n 's/^last_ts=//p' "$state_file")"
+        st_tr_ts="$(sed -n 's/^last_transition_ts=//p' "$state_file")"
+        st_flaps="$(sed -n 's/^flaps=//p' "$state_file")"
 
-        if (( elapsed < ${rec_dwell:-120} )); then
-            printf '%s\tflapping_suppressed\t%s' "${last_tier:-local}" "${flaps:-1}"
+        [[ -n "$st_tier" ]] && current_tier="$st_tier"
+        [[ -n "$st_fc" ]] && fail_count="$st_fc"
+        [[ -n "$st_lts" ]] && last_ts="$st_lts"
+        [[ -n "$st_tr_ts" ]] && last_transition_ts="$st_tr_ts"
+        [[ -n "$st_flaps" ]] && flaps="$st_flaps"
+    fi
+
+    local cur_idx=0
+    local found=0
+    local i
+    for i in "${!order_arr[@]}"; do
+        if [[ "${order_arr[$i]}" == "$current_tier" ]]; then
+            cur_idx=$i
+            found=1
+            break
+        fi
+    done
+    if (( ! found )); then
+        cur_idx=0
+        current_tier="${order_arr[0]}"
+        fail_count=0
+    fi
+
+    local max_fails="${fail_c:-3}"
+    local recover_window="${rec_dwell:-120}"
+
+    if [[ "$status" == "ok" || "$status" == "healthy" ]]; then
+        fail_count=0
+        cat > "$state_file" <<EOF
+current_tier=$current_tier
+last_tier=$current_tier
+fail_count=$fail_count
+last_ts=$now
+last_transition_ts=$last_transition_ts
+flaps=$flaps
+EOF
+        printf '%s\tok\t0\n' "$current_tier"
+        return 0
+    fi
+
+    # status == "failed"
+    fail_count=$(( fail_count + 1 ))
+
+    if (( fail_count >= max_fails )); then
+        local next_idx=$(( cur_idx + 1 ))
+        if (( next_idx < ${#order_arr[@]} )); then
+            if (( last_transition_ts > 0 )); then
+                local elapsed=$(( now - last_transition_ts ))
+                if (( elapsed < recover_window )); then
+                    flaps=$(( flaps + 1 ))
+                    cat > "$state_file" <<EOF
+current_tier=$current_tier
+last_tier=$current_tier
+fail_count=$fail_count
+last_ts=$now
+last_transition_ts=$last_transition_ts
+flaps=$flaps
+EOF
+                    printf '%s\tflapping_suppressed\t%s\n' "$current_tier" "$flaps"
+                    return 0
+                fi
+            fi
+
+            current_tier="${order_arr[$next_idx]}"
+            fail_count=0
+            last_transition_ts=$now
+            flaps=$(( flaps + 1 ))
+
+            cat > "$state_file" <<EOF
+current_tier=$current_tier
+last_tier=$current_tier
+fail_count=$fail_count
+last_ts=$now
+last_transition_ts=$last_transition_ts
+flaps=$flaps
+EOF
+            printf '%s\ttransitioned\t%s\n' "$current_tier" "$flaps"
             return 0
         fi
     fi
 
-    local first_tier
-    first_tier="${order%% *}"
-    [[ -n "$first_tier" ]] || first_tier="local"
-
     cat > "$state_file" <<EOF
+current_tier=$current_tier
+last_tier=$current_tier
+fail_count=$fail_count
 last_ts=$now
-last_tier=$first_tier
-flaps=1
+last_transition_ts=$last_transition_ts
+flaps=$flaps
 EOF
-    printf '%s\tassigned\t1' "$first_tier"
+    if [[ ! -r "$state_file" || $last_ts -eq 0 ]]; then
+        printf '%s\tassigned\t1\n' "$current_tier"
+    else
+        printf '%s\tfailed_checks\t%s\n' "$current_tier" "$fail_count"
+    fi
 }
+

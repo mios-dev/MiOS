@@ -42,7 +42,7 @@ def main():
         # Law 8 asks for regenerate-and-diff; semantic equality is weaker.
         if not os.path.isfile(target_path):
             _die(f"{target_path} does not exist")
-        with open(target_path, "r", encoding="utf-8") as f:
+        with open(target_path, "r", encoding="utf-8", newline="") as f:
             if f.read() != rendered:
                 _die(f"{target_path} is out of sync with [security.sigstore] SSOT"
                      " -- regenerate: python3 tools/generate-cosign-policy.py")
@@ -50,7 +50,7 @@ def main():
         sys.exit(0)
 
     os.makedirs(os.path.dirname(target_path), exist_ok=True)
-    with open(target_path, "w", encoding="utf-8") as f:
+    with open(target_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(rendered)
     print(f"Generated {target_path}")
 
