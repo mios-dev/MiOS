@@ -149,11 +149,11 @@ JSON:
 ### 3. Tell the agent which user to SSH as
 
 In `/etc/mios/mios.toml` (admin overlay; the vendor default at
-`/usr/share/mios/mios.toml` ships `[identity].username = "mios"`):
+`/usr/share/mios/mios.toml` ships `[identity].username = "user"`):
 
 ```toml
 [identity]
-username     = "mios"               # the Linux operator (already set)
+username     = "user"               # the Linux operator (already set)
 windows_user = "YourWindowsUser"    # the Windows-side username for SSH
 ```
 

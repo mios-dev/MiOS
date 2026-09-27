@@ -173,9 +173,9 @@ if ($Action -ne 'Default') {
     if ($Action -eq 'FlashUSB') {
         Write-Host "[*] Action: FlashUSB. Staging and launching interactive MiOS-Cat installer..." -ForegroundColor Cyan
         # 1. Locate source folder
-        $srcDir = Join-Path (Ensure-MiosBootstrapRepo) "cat"
+        $srcDir = Join-Path (Ensure-MiosBootstrapRepo) "field"
         if (-not (Test-Path $srcDir)) {
-            Write-Error "MiOS-Cat (cat) folder not found after fetch -- check network / GitHub access."
+            Write-Error "MiOS-Cat (field) folder not found after fetch -- check network / GitHub access."
             exit 1
         }
         # 2. Resolve staging directory
@@ -469,6 +469,20 @@ $Script:MiosRef          = Get-MiosTomlValue -Section 'bootstrap' -Key 'mios_ref
 $Script:MiosBootstrapRef = Get-MiosTomlValue -Section 'bootstrap' -Key 'bootstrap_ref'  -Default 'main'
 $Script:MiosRawBase      = ConvertTo-MiosRawBase $Script:MiosRepoUrl      $Script:MiosRef          # vendor mios.git raw tree base
 $Script:MiosBootstrapRaw = ConvertTo-MiosRawBase $Script:MiosBootstrapUrl $Script:MiosBootstrapRef  # bootstrap repo raw tree base
+# Release number: VERSION in $LocalRoot (a checkout), else $MiosRawBase/VERSION (irm | iex
+# has no local copy), else [meta].mios_version, else 'unknown'. Never a literal.
+function Get-MiosReleaseVersion {
+    param([string]$LocalRoot = '')
+    $v = ''
+    foreach ($root in @($LocalRoot, $Script:MiosRawBase)) {
+        if ($v -or -not $root) { continue }
+        try { $v = if ($root -match '^[A-Za-z]:|^[\\/]') { [IO.File]::ReadAllText((Join-Path $root 'VERSION')) } else { [string](Invoke-WebRequest -Uri "$root/VERSION" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop).Content } } catch { $v = '' }
+        $v = ([string]$v).Trim(); if ($v -notmatch '^v?\d+(\.\d+)+') { $v = '' }
+    }
+    if (-not $v) { $v = [string](Get-MiosTomlValue -Section 'meta' -Key 'mios_version' -Default '') }
+    if (-not $v) { $v = 'unknown' }
+    return ($v -replace '^v', '')
+}
 
 function Show-MiOSBanner {
     param([string]$Subtitle = '')
@@ -2118,7 +2132,7 @@ namespace MiOS.NativeApp {
         if (-not (Test-Path $uninstKey)) { New-Item -Path $uninstKey -Force | Out-Null }
         $_arTag = Get-MiosTomlValue -Section 'branding' -Key 'tagline_app' -Default (Get-MiosTomlValue -Section 'branding' -Key 'tagline' -Default 'My Personal Operating System')
         Set-ItemProperty -Path $uninstKey -Name 'DisplayName'     -Value ('MiOS - ' + $_arTag) -Force
-        Set-ItemProperty -Path $uninstKey -Name 'DisplayVersion'  -Value 'v0.2.4' -Force
+        Set-ItemProperty -Path $uninstKey -Name 'DisplayVersion'  -Value ('v' + (Get-MiosReleaseVersion -LocalRoot $miosRoot)) -Force
         Set-ItemProperty -Path $uninstKey -Name 'Publisher'       -Value 'mios-dev' -Force
         Set-ItemProperty -Path $uninstKey -Name 'InstallLocation' -Value $miosRoot -Force
         Set-ItemProperty -Path $uninstKey -Name 'URLInfoAbout'    -Value (Get-MiosTomlValue -Section 'branding' -Key 'about_url' -Default 'https://github.com/mios-dev/mios') -Force
@@ -5103,8 +5117,8 @@ if ($_bootstrapExit -eq 0) {
 
 if ($_bootstrapExit -eq 0 -and -not $Unattended) {
     try {
-        $_catSrc = Join-Path $RepoDir 'cat'
-        if (-not (Test-Path $_catSrc)) { $_catSrc = 'C:\mios-bootstrap\cat' }
+        $_catSrc = Join-Path $RepoDir 'field'
+        if (-not (Test-Path $_catSrc)) { $_catSrc = 'C:\mios-bootstrap\field' }
         $_catBat = Join-Path $_catSrc 'MiOS-Cat.bat'
         if (Test-Path $_catBat) {
             Write-Host ''

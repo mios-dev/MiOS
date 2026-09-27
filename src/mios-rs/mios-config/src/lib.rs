@@ -218,7 +218,7 @@ mod tests {
     fn test_deserialize_real_mios_toml() {
         let config = MiosConfig::load_from_path("../../../usr/share/mios/mios.toml")
             .expect("should deserialize real mios.toml");
-        assert_eq!(config.identity.username, "mios");
+        assert_eq!(config.identity.username, "user");
         assert!(config.build.ratchet.max_phase_scripts > 0);
         assert!(!config.build.phases.list.is_empty());
         assert_eq!(config.node.port, 8650);

@@ -483,6 +483,49 @@ test_toolchain_pin() {
     log "check_toolchain_pin negative test passed"
 }
 
+test_ai_config_projection() {
+    log "Testing check_ai_config_projection"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local out="${ROOT}/etc/mios/ai/config.json"
+    local vout="${ROOT}/usr/share/mios/ai/v1/config.json"
+    local tbak obak vbak
+    tbak="$(mktemp)"; cp "$toml" "$tbak"
+    obak="$(mktemp)"; cp "$out" "$obak"
+    vbak="$(mktemp)"; cp "$vout" "$vbak"
+    _ac_fail() {
+        cp "$tbak" "$toml"; cp "$obak" "$out"; cp "$vbak" "$vout"
+        rm -f "$tbak" "$obak" "$vbak"; unset -f _ac_fail; die "$1"
+    }
+
+    # A hand edit back onto a retired lane's port: the state both repos' copies
+    # were in before this file was generated.
+    sed -i 's|"base_url":"http://localhost:[0-9]*/v1"|"base_url":"http://localhost:8642/v1"|' "$out"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with a hand-edited config.json port"
+    cp "$obak" "$out"
+
+    # The vendor ai/v1 copy is projected too; it sat on :8640 by hand.
+    sed -i 's|"base_url":"http://localhost:[0-9]*/v1"|"base_url":"http://localhost:8640/v1"|' "$vout"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with a hand-edited usr/share/mios/ai/v1/config.json port"
+    cp "$vbak" "$vout"
+
+    # The SSOT moved and nobody regenerated.
+    sed -i 's/^agent_pipe\( *\)= [0-9][0-9]*/agent_pipe\1= 1/' "$toml"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with [ports].agent_pipe ahead of config.json"
+    cp "$tbak" "$toml"
+
+    # Absent must never read as clean -- either copy.
+    rm -f "$out"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with config.json absent"
+    cp "$obak" "$out"
+    rm -f "$vout"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with usr/share/mios/ai/v1/config.json absent"
+    cp "$vbak" "$vout"
+
+    rm -f "$tbak" "$obak" "$vbak"; unset -f _ac_fail
+    _neg_gate check_ai_config_projection || die "check_ai_config_projection failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_ai_config_projection negative test passed"
+}
+
 test_artifact_prompt() {
     log "Testing check_artifact_prompt"
     local out="${ROOT}/ARTIFACT-PROMPT.md" bak; bak="$(mktemp)"; cp "$out" "$bak"
@@ -1198,22 +1241,21 @@ test_offline_install_invariant() {
 
 test_installer_family_roles() {
     log "Testing check_installer_family_roles"
-    local s_script="${ROOT}/install.sh"
-    local orig_val
-    orig_val="$(cat "$s_script")"
-    rm -f "$s_script"
-    echo "$orig_val" > "$s_script"
+    # Plant the collision in a family member this repo owns (root install.sh
+    # is mios-bootstrap's). cp -p keeps the executable bit on restore.
+    local s_script="${ROOT}/automation/install-fhs.sh"
+    local s_stash
+    s_stash="$(mktemp)"
+    cp -p "$s_script" "$s_stash"
 
-    sed -i 's/MIOS_INSTALLER_ROLE=root-overlay-redirector/MIOS_INSTALLER_ROLE=bootc-baremetal-disk-installer/g' "$s_script"
+    sed -i 's/MIOS_INSTALLER_ROLE=fhs-overlay-installer/MIOS_INSTALLER_ROLE=bootc-baremetal-disk-installer/g' "$s_script"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_installer_family_roles >/dev/null 2>&1; then
-        rm -f "$s_script"
-        echo "$orig_val" > "$s_script"
+        cp -p "$s_stash" "$s_script"; rm -f "$s_stash"
         die "Check_installer_family_roles passed despite duplicate role marker"
     fi
 
-    rm -f "$s_script"
-    echo "$orig_val" > "$s_script"
+    cp -p "$s_stash" "$s_script"; rm -f "$s_stash"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_installer_family_roles >/dev/null 2>&1 \
         || die "Check_installer_family_roles failed after restoration"
 
@@ -3270,7 +3312,7 @@ test_ps_redirectors() {
     # Pick whichever one this tree actually has.
     local target=""
     local f
-    for f in install.ps1 mios-build-local.ps1 run-pipeline.ps1; do
+    for f in mios-build-local.ps1 run-pipeline.ps1; do
         if [ -f "${ROOT}/$f" ]; then target="${ROOT}/$f"; break; fi
     done
     if [ -z "$target" ]; then
@@ -5177,6 +5219,7 @@ _run_test test_leaked_fixtures
     _run_test test_ratchet_direction
     _run_test test_size_ceiling
     _run_test test_toolchain_pin
+    _run_test test_ai_config_projection
     _run_test test_render_quadlets
     _run_test test_render_extension_coverage
     _run_test test_curl_retry

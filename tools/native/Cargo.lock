@@ -1468,6 +1468,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-ai-config"
+version = "0.3.0"
+dependencies = [
+ "serde_json",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "mios-aiplane-lint"
 version = "0.3.0"
 dependencies = [

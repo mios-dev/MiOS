@@ -68,8 +68,8 @@
 67	check_size_ceiling	size ceiling
 68	check_task_store	task store: $(printf '%s'
 69	check_toolchain_pin	toolchain pin
-70	check_artifact_prompt	ARTIFACT-PROMPT.md equals its [artifacts.daily] projection (Law 8)
-71	check_ai_artifacts	AI artifacts (ADR-0027): SFT/DPO datasets, weight headers, OCI closure with digests
+70	check_ai_config_projection	etc/mios/ai/config.json and usr/share/mios/ai/v1/config.json equal their [ai] + [ports] projection (Law 8)
+71	check_artifact_prompt	ARTIFACT-PROMPT.md equals its [artifacts.daily] projection (Law 8)
 72	check_render_quadlets	render quadlets
 73	check_render_extension_coverage	render extension coverage
 74	check_bake_plan	bake-plan lists in sync with mios.toml [build.bake] SSOT

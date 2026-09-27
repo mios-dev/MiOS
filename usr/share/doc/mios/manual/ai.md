@@ -33,11 +33,11 @@ Formulates structured root cause diagnosis from failure event and journal logs.
 Synthetic Training Q&A Data Pipeline (T-383 / AGY-1981)
 
 Harvests architectural chapters, user guides, manual pages, and ADRs from `/usr/share/doc/mios/`
-and `cat/`, performs hierarchical markdown parsing with context preservation, synthesizes
+and `field/`, performs hierarchical markdown parsing with context preservation, synthesizes
 multi-turn reasoning and domain-specific Q&A pairs for `mios-opencode` fine-tuning,
 enforces secret/token redaction (Rule 14), and emits JSONL datasets to `/var/lib/mios/ai/dataset/`.
 
-<!-- mios-src:749518f59c11 from usr/libexec/mios/ai/synthetic_qa.py:4-11 -->
+<!-- mios-src:33fe7e6e8b1a from usr/libexec/mios/ai/synthetic_qa.py:4-11 -->
 ### fp8_kv_quant.py — T-763 WS-AI Dynamic FP8 (E4M3) KV-cache...
 
 fp8_kv_quant.py — T-763 WS-AI
