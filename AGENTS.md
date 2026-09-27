@@ -203,7 +203,7 @@ layered overlay.
 ## 4-8. Installation, Day-0/N, Build Phases, & Artifact Matrix
 
 Detailed installation processes, bootstrap build phases, terminal profile setups, self-development loops, and artifact matrix specifications have been moved to the companion guide:
-- See [bootstrap_install.md](file:///usr/share/doc/mios/guides/bootstrap_install.md) for full setup instructions.
+- See [bootstrap_install.md (mios-bootstrap)](https://github.com/mios-dev/mios-bootstrap/blob/main/usr/share/doc/mios-bootstrap/guides/bootstrap_install.md) for full setup instructions.
 
 ## 9. MiOS-DEV ≡ MiOS
 
@@ -293,7 +293,7 @@ pgvector memory → MCP (tools) / A2A (agents)**, all behind `MIOS_AI_ENDPOINT`.
 
 ## 12. Setup commands
 
-See [bootstrap_install.md](file:///usr/share/doc/mios/guides/bootstrap_install.md) for Windows and Linux setup/bootstrap command references.
+See [bootstrap_install.md (mios-bootstrap)](https://github.com/mios-dev/mios-bootstrap/blob/main/usr/share/doc/mios-bootstrap/guides/bootstrap_install.md) for Windows and Linux setup/bootstrap command references.
 
 ## 13. Operating rules for agents
 
@@ -368,7 +368,7 @@ Anything persisted to `/var/lib/mios/ai/memory/` or
 
 ## 15-16. File layouts & Persistent paths
 
-See [bootstrap_install.md](file:///usr/share/doc/mios/guides/bootstrap_install.md) for full descriptions of file mappings in this repo and paths persisted on a deployed host.
+See [bootstrap_install.md (mios-bootstrap)](https://github.com/mios-dev/mios-bootstrap/blob/main/usr/share/doc/mios-bootstrap/guides/bootstrap_install.md) for full descriptions of file mappings in this repo and paths persisted on a deployed host.
 
 ## 17. Failure mode
 

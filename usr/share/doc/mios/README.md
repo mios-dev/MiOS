@@ -146,7 +146,6 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/guides/agent-windows-ssh.md` | Guide for the agent's Windows-host control bridge `/usr/libexec/mios/mios-windows`, which reaches the Windows host the WSL2 VM lives inside via TWO backends — WSL interop (default, no setup) and... |
 | `usr/share/doc/mios/guides/blink-tmux-mobile-keys.md` | Guide to configuring Blink Shell on iOS (iPhone/iPad) and tmux for Shift+Tab and mobile terminal shortcut combos. |
 | `usr/share/doc/mios/guides/blinkshell-codespaces-cloudshell.md` | Guide for connecting to GitHub Codespaces and Google Cloud Shell visual dev environments using Blink Shell on iOS. |
-| `usr/share/doc/mios/guides/bootstrap_install.md` | MiOS architectural documentation: MiOS Bootstrap & Installation Guide. |
 | `usr/share/doc/mios/guides/cephfs-xdg-storage.md` | Guides engineering reference documentation for the CephFS + XDG Unified Storage Fabric, documenting cache isolation rules, OCI bootstrap quickstarts, and multi-tenant extension paths. |
 | `usr/share/doc/mios/guides/deploy.md` | Documentation for deploying a built MiOS image -- the OCI artifact plus its RAW/ISO/QCOW2/VHDX/WSL2 disk forms -- onto bootc-managed or FHS Fedora hosts, and the Day-2 bootc lifecycle... |
 | `usr/share/doc/mios/guides/edge-node-join.md` | Operator guide for joining a Raspberry Pi / edge node to a MiOS council over the single outbound-dial port (agent-pipe, port key `agent_pipe`, MIOS_PORT_AGENT_PIPE), using the three-layer mios.toml... |
@@ -158,7 +157,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/guides/security.md` | Documentation of MiOS security hardening posture, mapping kernel boot parameters, sysctl values, SELinux modules/booleans, firewalld ports, and supply-chain controls to the exact files that enforce... |
 | `usr/share/doc/mios/guides/self-build.md` | Documentation for the MiOS self-build lifecycle, detailing the build chain, CI/CD workflows, and local build modes (Bootstrap, CI/CD, Windows, Linux/Justfile, in-place self-build, Ignition appliance)... |
 
-<!-- derived from the AI-hint headers of 14 file(s) matching usr/share/doc/mios/guides/*.md -->
+<!-- derived from the AI-hint headers of 13 file(s) matching usr/share/doc/mios/guides/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/guides/*.md -->
 
 ## upstream

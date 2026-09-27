@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3150,
-  "total_metadata_entries": 2643,
-  "total_hints": 2628,
+  "total_files_scanned": 3149,
+  "total_metadata_entries": 2642,
+  "total_hints": 2627,
   "total_functions_indexed": 1298,
-  "total_related_links": 4452,
+  "total_related_links": 4442,
   "entries": [
     {
       "path": ".devcontainer/install-root-overlay.sh",
@@ -25561,26 +25561,6 @@
         "usr/share/mios/blink/shortcuts.json",
         "usr/share/mios/blink/snips/cs.sh",
         "usr/share/mios/blink/snips/gcp.sh"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/share/doc/mios/guides/bootstrap_install.md",
-      "hint": "MiOS architectural documentation: MiOS Bootstrap & Installation Guide.",
-      "related": [
-        "/usr/share/mios/ai/",
-        "/etc/mios/install.env",
-        "/etc/mios/profile.toml",
-        "/etc/mios/ai/system-prompt.md",
-        "mios-bootstrap",
-        "mios-dev",
-        "mios-build-driver",
-        "mios-llm-light",
-        "mios-pipeline",
-        "localhost:3000"
       ],
       "functions": [],
       "doc": null,
