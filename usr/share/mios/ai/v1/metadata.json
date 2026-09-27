@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3469,
-  "total_metadata_entries": 2953,
-  "total_hints": 2939,
-  "total_functions_indexed": 1336,
-  "total_related_links": 4642,
+  "total_files_scanned": 3472,
+  "total_metadata_entries": 2956,
+  "total_hints": 2942,
+  "total_functions_indexed": 1338,
+  "total_related_links": 4653,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -4407,6 +4407,22 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/mios-gate/src/profiles.rs",
+      "hint": "Asserts mios.toml [profiles] (ADR-0025) is closed: every profile resolves without a cycle, names only registered phases and real [packages] sections, contains the one floor = true profile, and every profile's targets is a list of image kinds.",
+      "related": [
+        "usr/share/mios/mios.toml",
+        "src/mios-rs/mios-build/src/lib.rs",
+        "automation/98-drift-checks.sh",
+        "tests/drift-gate-negatives.sh"
+      ],
+      "functions": [
+        "check"
+      ],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/mios-gate/src/projreg.rs",
       "hint": "Asserts the Law 8 projection registry is complete in BOTH directions -- every generator the discovery globs find is registered or itemised exempt, and every registered entry names a check that exists.",
       "related": [
@@ -4546,6 +4562,19 @@
         "src/mios-rs/mios-gate/src/phases.rs",
         "usr/share/mios/mios.toml",
         "automation/build.sh"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "slash",
+      "has_shebang": false
+    },
+    {
+      "path": "src/mios-rs/mios-gate/tests/profiles.rs",
+      "hint": "Integration tests for mios-gate's profile-integrity check against synthetic mios.toml [profiles] tables.",
+      "related": [
+        "src/mios-rs/mios-gate/src/profiles.rs",
+        "src/mios-rs/mios-build/src/lib.rs",
+        "usr/share/mios/mios.toml"
       ],
       "functions": [],
       "doc": null,
@@ -7392,6 +7421,22 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tests.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-profile-packages.sh",
+      "hint": "ADR-0025 lane L3 -- install_packages* skip a [packages] section outside the build profile (BUILD_PROFILE_SECTIONS from miosd build --sections) and install it when the profile selects it or no profile is set.",
+      "related": [
+        "automation/lib/packages.sh",
+        "automation/build.sh",
+        "src/mios-rs/mios-build/src/lib.rs",
+        "usr/share/mios/mios.toml"
+      ],
+      "functions": [
+        "main"
+      ],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": true
     },
