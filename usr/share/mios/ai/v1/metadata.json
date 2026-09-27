@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3427,
+  "total_files_scanned": 3430,
   "total_metadata_entries": 2867,
-  "total_hints": 2852,
+  "total_hints": 2853,
   "total_functions_indexed": 1336,
-  "total_related_links": 4614,
+  "total_related_links": 4619,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -386,7 +386,7 @@
     },
     {
       "path": "Get-MiOS.ps1",
-      "hint": null,
+      "hint": "Primary entry point for MiOS installation; handles admin elevation, environment validation, and fresh-clone of the bootstrap repo to initiate the preflight, VM setup, and OCI build pipeline.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/root.md",
@@ -3711,6 +3711,18 @@
       "has_shebang": false
     },
     {
+      "path": "src/mios-rs/clippy.toml",
+      "hint": "Clippy config for the src/mios-rs workspace: tests may unwrap and panic, production code stays under the crate-level warn(unwrap_used, panic).",
+      "related": [
+        "src/mios-rs/miosd/src/lib.rs",
+        "src/mios-rs/miosd/src/main.rs"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
       "path": "src/mios-rs/deny.toml",
       "hint": "cargo-deny configuration for src/mios-rs workspace supply-chain security.",
       "related": [],
@@ -6730,7 +6742,7 @@
     },
     {
       "path": "tests/test-numa-interleave-bandwidth.sh",
-      "hint": "Automated CI test suite for NUMA memory interleaving, bandwidth scaling (>400 GB/s), and core affinity pinning.",
+      "hint": "CI suite for NUMA interleave policy, measured bandwidth (scaling asserted only on >1 node), and command wrapping.",
       "related": [
         "usr/libexec/mios/mios-numa-alloc",
         "tests/test-numa-interleave-bandwidth.sh",
@@ -15162,15 +15174,6 @@
     },
     {
       "path": "usr/lib/sysctl.d/20-memory.conf",
-      "hint": "Configures proactive memory compaction and memory parameters for AI workloads (T-800).",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/ch12-memory-compaction-and-thp.md",
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/lib/sysctl.d/20-mios-memory.conf",
       "hint": "Configures proactive memory compaction and memory parameters for AI workloads (T-800).",
       "related": [],
       "functions": [],
@@ -32104,15 +32107,6 @@
       "has_shebang": false
     },
     {
-      "path": "usr/share/mios/llamacpp/llama-swap.yaml",
-      "hint": "The mios-llm-light model map -- maps OpenAI /v1-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack.",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/llamacpp.md",
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
       "path": "usr/share/mios/llamacpp/mios-llm-light.yaml",
       "hint": "The mios-llm-light model map -- maps OpenAI /v1-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack.",
       "related": [],
@@ -33361,6 +33355,19 @@
       "related": [
         "/etc/xdg/user-dirs.defaults",
         "[storage.cephfs]"
+      ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/wayland-sessions/hyprland.desktop",
+      "hint": "Display-manager Wayland session entry for Hyprland; installed by automation/65-bake-hyprland.sh after the hyprland RPM so it wins over the package copy.",
+      "related": [
+        "automation/65-bake-hyprland.sh",
+        "tests/test-hyprland-direct-scanout.sh",
+        "tests/test-quickshell-shell.sh"
       ],
       "functions": [],
       "doc": null,
