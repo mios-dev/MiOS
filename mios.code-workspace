@@ -6,7 +6,19 @@
     },
     {
       "name": "mios-bootstrap",
-      "path": "../mios-bootstrap"
+      "path": "../../mios-bootstrap/main"
+    },
+    {
+      "name": "mios-micro",
+      "path": "../../mios-micro/main"
+    },
+    {
+      "name": "-dev-loop",
+      "path": "../../-dev-loop/main"
+    },
+    {
+      "name": ".secrets",
+      "path": "../../.secrets/main"
     }
   ],
   "settings": {
