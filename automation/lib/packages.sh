@@ -32,7 +32,8 @@ _get_pkgs_from_single_toml() {
     }' "$file" 2>/dev/null)
 
     if [[ "$auth" == "true" ]]; then
-        local mat_json="$(dirname "$file")/package_sets.json"
+        local mat_json
+        mat_json="$(dirname "$file")/package_sets.json"
         if [[ -f "$mat_json" ]]; then
             local pkgs
             pkgs=$(python3 -c "import json; d = json.load(open('$mat_json')); print(' '.join(next(p['pkgs'] for p in d if p['name'] == '$category')))" 2>/dev/null)
@@ -159,6 +160,14 @@ _is_section_enabled() {
     return 0
 }
 
+# ADR-0025: a section outside the build profile is skipped, not failed. build.sh exports
+# BUILD_PROFILE_SECTIONS; unset or "*" selects every section.
+_in_build_profile() {
+    local sel="${BUILD_PROFILE_SECTIONS:-}"
+    [[ -z "${sel// }" || "${sel// }" == "*" ]] && return 0
+    [[ " ${sel} " == *" $1 "* ]]
+}
+
 _dnf_retry_exec() {
     local max_attempts=3
     local delay=2
@@ -181,6 +190,10 @@ _dnf_retry_exec() {
 
 install_packages() {
     local category="$1"
+    if ! _in_build_profile "$category"; then
+        echo "[packages.sh] '$category' is outside the build profile; skipped"
+        return 0
+    fi
     if ! _is_section_enabled "$category"; then
         echo "[packages.sh] [packages.${category}].enable=false"
         return 0
@@ -200,6 +213,10 @@ install_packages() {
 
 install_packages_strict() {
     local category="$1"
+    if ! _in_build_profile "$category"; then
+        echo "[packages.sh] '$category' is outside the build profile; skipped"
+        return 0
+    fi
     local packages
     packages=$(get_packages_strict "$category") || return 1
     echo "[packages.sh] Installing '$category' packages"
@@ -212,6 +229,10 @@ install_packages_strict() {
 
 install_packages_optional() {
     local category="$1"
+    if ! _in_build_profile "$category"; then
+        echo "[packages.sh] '$category' is outside the build profile; skipped"
+        return 0
+    fi
     if ! _is_section_enabled "$category"; then
         echo "[packages.sh] INFO: [packages.${category}].enable=false"
         return 0

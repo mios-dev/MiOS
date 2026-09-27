@@ -12038,6 +12038,7 @@ unit = [
     "tests/test-cdi-gen.py",
     "tests/test-cdi-device-isolate.sh",
     "tests/test-composefs-seal.sh",
+    "tests/test-profile-packages.sh",
     "tests/test-bootc-rollback-recovery.sh",
     "tests/test-vscode-custom-css.sh",
     "tests/test-code-server-bake.py",
@@ -12371,6 +12372,36 @@ archetype = "endpoint"
 artifacts = ["usb-installer", "iso"]
 doc       = "usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md"
 status    = "partial"
+
+# Image profiles (ADR-0025): every MiOS image kind is the one pipeline run
+# under a profile. A profile selects phases from [build.phases].list and
+# sections from [packages]; `extends` unions a parent's selection and `all`
+# selects everything. `floor` is the profile every other one must contain.
+# Read by `miosd build --list --profile`; gate: check_profile_integrity.
+[profiles]
+default = "full"
+
+# floor = true marks the one profile every other non-`all` profile must contain.
+# Each profile lists the image kinds it serves; a kind in several profiles unions them.
+[profiles.core]
+floor            = true
+summary          = "the smallest MiOS that is still MiOS: SSOT, miosd, agent-pipe, the datastore, the verbs"
+package_sections = ["repos", "base", "containers", "build-toolchain", "utils", "ai", "critical"]
+phases           = ["system-files-overlay", "materialize-build-ctx", "repos", "locale-theme",
+                    "user", "hostname", "subuid-alloc", "generate-quadlets", "render-quadlets",
+                    "render-ports", "services", "mios-dropin-fanout", "tools", "finalize",
+                    "cleanup", "ssot-lint", "drift-checks", "postcheck"]
+
+[profiles.dev]
+summary          = "core plus the development userspace"
+extends          = ["core"]
+package_sections = ["devcontainer"]
+targets          = ["wsl2", "devcontainer", "cloud", "codespace"]
+
+[profiles.full]
+summary = "every enabled section and every registered phase"
+all     = true
+targets = ["oci", "wsl2"]
 
 # Every way MiOS can be deployed, named once. The targets and recipes existed;
 # what did not exist was a statement of the matrix, so [deploy].artifacts listed

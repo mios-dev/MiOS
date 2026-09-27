@@ -55,6 +55,12 @@ enum Commands {
         /// Print raw script list for build orchestrator
         #[arg(long)]
         list: bool,
+        /// Select phases through a mios.toml [profiles] entry (ADR-0025)
+        #[arg(long)]
+        profile: Option<String>,
+        /// Print the profile's package sections ("*" = every section) instead of phases
+        #[arg(long)]
+        sections: bool,
     },
     /// Resolve configuration parameters
     Resolve {
@@ -788,8 +794,16 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Build { phase, plan, list } => {
-            if let Err(e) = mios_build::run_build(phase, *plan, *list) {
+        Commands::Build {
+            phase,
+            plan,
+            list,
+            profile,
+            sections,
+        } => {
+            if let Err(e) =
+                mios_build::run_build_selected(phase, *plan, *list, *sections, profile.as_deref())
+            {
                 eprintln!("[miosd] Build error: {}", e);
                 std::process::exit(1);
             }

@@ -12,6 +12,7 @@ mod doc_refs;
 mod inert_tables;
 mod laws;
 mod phases;
+mod profiles;
 mod projreg;
 mod protected_refs;
 mod ratchet;
@@ -151,6 +152,7 @@ fn main() -> ExitCode {
         "law-enforcers" => laws::check(&root),
         "no-inert-ssot-tables" => inert_tables::check(&root),
         "phase-registry" => phases::check(&root),
+        "profile-integrity" => profiles::check(&root),
         "projection-coverage" => projreg::check(&root),
         "protected-refs" => protected_refs::check(&root),
         "ratchet-direction" => ratchet::check(&root),
