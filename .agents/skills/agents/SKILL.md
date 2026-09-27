@@ -1,4 +1,5 @@
 ---
+name: agents
 description: List, inspect, and load the specialist MiOS-Dev agents and subagents for the current AGY environment.
 ---
 

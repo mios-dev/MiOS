@@ -1,8 +1,6 @@
 ---
 name: dev-loop
-description: MiOS Autonomous Development Loop for Antigravity CLI (AGY)
-author: MiOS Core Team
-tags: [dev-loop, autonomous, mios, rust, testing]
+description: Drive the autonomous MiOS development loop with definition of done, two-sided verification controls, standing gate audits, and projection synchronization.
 ---
 
 # MiOS Dev-Loop Workflow (AGY)

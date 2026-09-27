@@ -1,8 +1,6 @@
 ---
 name: pipeline
-description: MiOS CI/CD Pipeline Execution Workflow for Antigravity CLI (AGY)
-author: MiOS Core Team
-tags: [pipeline, cicd, build, validation, mios]
+description: Execute sequential MiOS CI/CD pipeline verification including environment checks, SSOT integrity, test suites, credential audits, and projection synchronization.
 ---
 
 # MiOS Pipeline Execution Workflow (AGY)

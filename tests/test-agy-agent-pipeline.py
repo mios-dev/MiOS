@@ -71,16 +71,20 @@ class TestAgyAgentPipeline(unittest.TestCase):
         self.assertFalse(missing, f"Missing required subagent definitions: {missing}")
 
     def test_workflows_exist_and_formatted(self):
-        """Verifies .agents/workflows/ has valid dev-loop, pipeline, and artifacting workflows."""
+        """Verifies .agents/skills/ (or .agents/workflows/) has valid dev-loop, pipeline, and artifacting skills/workflows."""
+        skills_dir = REPO_ROOT / ".agents" / "skills"
         workflows_dir = REPO_ROOT / ".agents" / "workflows"
-        self.assertTrue(workflows_dir.is_dir(), f"Missing {workflows_dir}")
+        self.assertTrue(skills_dir.is_dir() or workflows_dir.is_dir(), f"Missing {skills_dir} or {workflows_dir}")
 
-        expected_workflows = ["dev-loop.md", "pipeline.md", "artifacting.md"]
-        for wf_name in expected_workflows:
-            wf_path = workflows_dir / wf_name
-            self.assertTrue(wf_path.is_file(), f"Missing workflow {wf_path}")
-            txt = wf_path.read_text(encoding="utf-8")
-            self.assertTrue(txt.startswith("---"), f"Workflow {wf_name} missing YAML frontmatter")
+        expected = ["dev-loop", "pipeline", "artifacting"]
+        for name in expected:
+            skill_path = skills_dir / name / "SKILL.md"
+            wf_path = workflows_dir / f"{name}.md"
+            wf_bak = workflows_dir / f"{name}.md.bak"
+            self.assertTrue(skill_path.is_file() or wf_path.is_file() or wf_bak.is_file(), f"Missing skill/workflow for {name}")
+            target = skill_path if skill_path.is_file() else (wf_path if wf_path.is_file() else wf_bak)
+            txt = target.read_text(encoding="utf-8")
+            self.assertTrue(txt.startswith("---"), f"Skill/Workflow {name} missing YAML frontmatter")
             self.assertIn("name:", txt)
             self.assertIn("description:", txt)
 
@@ -161,9 +165,12 @@ class TestAgyAgentPipeline(unittest.TestCase):
         self.assertTrue(agy_agents.is_file(), f"Missing {agy_agents}")
         self.assertTrue(antigravity_agents.is_file(), f"Missing {antigravity_agents}")
 
+        skill = REPO_ROOT / ".agents" / "skills" / "agents" / "SKILL.md"
         workflow = REPO_ROOT / ".agents" / "workflows" / "agents.md"
-        self.assertTrue(workflow.is_file(), f"Missing {workflow}")
-        wf_txt = workflow.read_text(encoding="utf-8")
+        wf_bak = REPO_ROOT / ".agents" / "workflows" / "agents.md.bak"
+        self.assertTrue(skill.is_file() or workflow.is_file() or wf_bak.is_file(), "Missing agents skill or workflow")
+        target = skill if skill.is_file() else (workflow if workflow.is_file() else wf_bak)
+        wf_txt = target.read_text(encoding="utf-8")
         self.assertIn("pipeline-auditor", wf_txt)
         self.assertIn("pipeline-worker", wf_txt)
         self.assertIn("mios-dev", wf_txt)

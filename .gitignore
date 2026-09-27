@@ -90,6 +90,8 @@
 !/.agents/rules/**
 !/.agents/workflows/
 !/.agents/workflows/**
+!/.agents/skills/
+!/.agents/skills/**
 !/.agents/plugins/
 !/.agents/plugins/**
 !/.agents/subagents.json

@@ -1,8 +1,6 @@
 ---
 name: artifacting
-description: Automated Artifact Generation and Packaging Workflow for Antigravity CLI (AGY)
-author: MiOS Core Team
-tags: [artifacting, sbom, manifest, uki, roff]
+description: Automated artifact generation and packaging workflow for Antigravity CLI (AGY) in MiOS CI/CD release cycles.
 ---
 
 # MiOS Artifacting Workflow (AGY)

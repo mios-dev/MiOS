@@ -1,0 +1,21 @@
+# AI-hint: GENERATED-ONCE static overlay unit (W10 live-chat leg). Injected
+# ONLY into the live-boot rootfs by automation/build/live-iso.sh -- never
+# ships in a real bootc install, so real hosts never carry a bundled GGUF.
+# /usr/lib/systemd/system/mios-live-chat-server.service
+[Unit]
+Description=MiOS live-boot AI chat server (ephemeral, CPU-only, RAM-resident)
+Documentation=file:///usr/share/doc/mios/adr/
+After=local-fs.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/mios/live-chat.conf
+ExecStart=/usr/libexec/mios/mios-live-chat-server
+Restart=on-failure
+RestartSec=2s
+# Ephemeral RAM-overlay session -- no reason to keep the process around
+# past the tty client (below), and no reason to survive a reboot.
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
