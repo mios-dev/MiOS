@@ -260,7 +260,10 @@ fn get_keyring_fallback_dir(
         }
     }
     if cand.is_none() {
+        #[cfg(unix)]
         let uid = unsafe { libc::getuid() };
+        #[cfg(not(unix))]
+        let uid = 1000u32;
         let run_user = std::path::PathBuf::from(format!("/run/user/{}", uid));
         if run_user.is_dir() {
             cand = Some(run_user);

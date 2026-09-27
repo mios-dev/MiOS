@@ -89,7 +89,7 @@ def main(argv: list[str]) -> int:
               f"({len(members)} member(s), version {version})")
         return 0
 
-    with open(CARGO_TOML, "w", encoding="utf-8") as f:
+    with open(CARGO_TOML, "w", encoding="utf-8", newline="\n") as f:
         f.write(content)
     print(f"[generate-cargo-manifests] Projected tools/native/Cargo.toml with {len(members)} member(s) "
           f"and version {version} from SSOT")
