@@ -3,7 +3,7 @@
 
 # MiOS Architecture Decision Records
 
-**26 ADRs** (18 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
+**27 ADRs** (19 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
 
 | # | Decision | Status | Date | Laws | SSOT keys |
 |---|---|---|---|---|---|
@@ -33,5 +33,6 @@
 | 0024 | [VS Code settings are partitioned by the client that applies them](usr/share/doc/mios/adr/0024-vscode-client-scoped-settings.md) | proposed | 2026-09-25 | 7, 8, 9, 15 | `dotfiles.vscode` |
 | 0025 | [One pipeline, one core profile - every MiOS image is the same system](usr/share/doc/mios/adr/0025-core-image-profile.md) | proposed | 2026-09-26 | 1, 2, 7, 8, 9, 12, 14, 15, 16 | `profiles`, `packages.devcontainer`, `build.phases`, `variants.entries`, +1 |
 | 0026 | [One canonical task store, merged losslessly from every task list](usr/share/doc/mios/adr/0026-global-task-store.md) | proposed | 2026-09-26 | 1, 2, 8, 14, 16 | `tasks`, `legibility` |
+| 0027 | [Dual-tier OCI AI artifact architecture for resident inference and daily training corpora](usr/share/doc/mios/adr/0027-dual-tier-oci-ai-artifacts.md) | accepted | 2026-09-26 | 1, 3, 5, 12, 14, 16 | `finetune.micro`, `llamacpp`, `artifacts.daily`, `image.sidecars` |
 
-<!-- derived from the front-matter of 26 file(s) under usr/share/doc/mios/adr/ -->
+<!-- derived from the front-matter of 27 file(s) under usr/share/doc/mios/adr/ -->

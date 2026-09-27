@@ -2062,6 +2062,12 @@ check_artifact_prompt() {
     _violation "ARTIFACT-PROMPT.md differs from [artifacts.daily] + usr/share/mios/templates/artifact-prompt, or could not be generated -- regenerate: cd tools/native && cargo run -q -p xtask -- artifact-prompt"
 }
 
+check_ai_artifacts() {
+    local bin; bin="$(_gate_bin)" || { _violation "mios-gate is not built, so check_ai_artifacts could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"; return; }
+    "$bin" artifact --root "$ROOT" && echo "[98-drift-checks]   AI artifacts (ADR-0027): SFT/DPO datasets, weight headers, OCI closure with digests" \
+        || _violation "mios-gate artifact found AI-artifact violations (datasets, weight headers, or OCI descriptor closure) -- see its findings above"
+}
+
 check_ratchet_direction() {
     # Ported to mios-gate per ADR-0021; the python twin is deleted in the same
     # commit, with both paths proved equal first: 78 ceilings on each side, and
@@ -3827,6 +3833,7 @@ main() {
     check_task_store
     check_toolchain_pin
     check_artifact_prompt
+    check_ai_artifacts
     check_render_quadlets
     check_render_extension_coverage
     check_bake_plan

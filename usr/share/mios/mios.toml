@@ -8949,6 +8949,12 @@ Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
 [images.mios-llm-heavy.Service]
 TimeoutStartSec = 3600
 
+[images.mios-micro.Image]
+Image = "ghcr.io/mios-dev/mios-micro:latest"
+
+[images.mios-micro.Service]
+TimeoutStartSec = 3600
+
 # ============================================================================
 # [containers.*] -- auto-generated from static units
 # ============================================================================
@@ -9484,6 +9490,9 @@ Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
 Label = [
   "org.opencontainers.image.title=mios-llm-light",
   "org.opencontainers.image.documentation=https://github.com/mostlygeek/llama-swap"
+]
+Mount = [
+  "type=image,source=mios-micro.image,destination=/models-micro"
 ]
 Pod = "mios-ai.pod"
 User = "${MIOS_LLAMACPP_UID:-827}"
@@ -10715,6 +10724,17 @@ generated = false
 scaffold = true
 dest_dir = "usr/share/mios"
 name_suffix = ".yaml"
+emit = "file"
+
+[templates.kitfile]
+match = "^Kitfile$|^[\\w./-]+Kitfile$"
+comment = "hash"
+required_header = true
+required_markers = ["manifestVersion: \"1.0.0\"", "package:", "model:"]
+generated = false
+scaffold = true
+dest_dir = "usr/share/mios"
+fixed_name = "Kitfile"
 emit = "file"
 
 [templates.json-schema]

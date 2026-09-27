@@ -498,6 +498,14 @@ test_artifact_prompt() {
     log "check_artifact_prompt negative test passed"
 }
 
+test_ai_artifacts() {
+    local sft="${ROOT}/var/lib/mios/training/sft.jsonl" bak; bak="$(mktemp)"; cp "$sft" "$bak"
+    printf '%s\n' '{"input":{"messages":[]},"preferred_output":[],"non_preferred_output":[]}' >> "$sft"
+    _neg_gate check_ai_artifacts; local rc=$?; cp "$bak" "$sft"; rm -f "$bak"
+    (( rc )) && [[ "$_NEG_GATE_OUT" == *sft.jsonl* ]] || die "check_ai_artifacts did not reject a DPO record in sft.jsonl: ${_NEG_GATE_OUT}"
+    _neg_gate check_ai_artifacts || die "check_ai_artifacts failed after restoration: ${_NEG_GATE_OUT}"
+}
+
 test_size_ceiling() {
     log "Testing check_size_ceiling"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -5310,6 +5318,7 @@ _run_test test_leaked_fixtures
     _run_test test_edge_generators
     _run_test test_edge_status
     _run_test test_artifact_prompt
+    _run_test test_ai_artifacts
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s

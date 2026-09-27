@@ -1,0 +1,9 @@
+# AI-hint: MiOS mios-micro image. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [images.mios-micro] in mios.toml.
+# /usr/share/containers/systemd/mios-micro.image
+
+[Image]
+Image=ghcr.io/mios-dev/mios-micro:latest
+
+[Service]
+TimeoutStartSec=3600
