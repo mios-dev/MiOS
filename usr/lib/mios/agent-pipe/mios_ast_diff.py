@@ -1,5 +1,5 @@
 # AI-hint: Tree-Sitter & Structural AST diff engine and 2-peer review merge gating for agent-pipe.
-# AI-related: usr/lib/mios/agent-pipe/server.py, tests/test-ast-diff-peer-review.sh, TASKS.md
+# AI-related: usr/lib/mios/agent-pipe/server.py, tests/test-ast-diff-peer-review.sh, TASKS.jsonl
 """
 MiOS Agent-Pipe AST Structural Diff Engine & 2-Peer Review Gate.
 Ingests code modifications across Python, Rust, Go, TypeScript, and C.

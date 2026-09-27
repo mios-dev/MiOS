@@ -1,5 +1,5 @@
 // AI-hint: Streams the tar layers of an OCI layout (plain, gzip, zstd) and applies the artifact gate's weight rules to every weight file inside them.
-// AI-related: src/mios-rs/mios-gate/src/artifact.rs, usr/share/doc/mios/adr/0026-dual-tier-oci-ai-artifacts.md
+// AI-related: src/mios-rs/mios-gate/src/artifact.rs, usr/share/doc/mios/adr/0027-dual-tier-oci-ai-artifacts.md
 
 use crate::artifact::{check_weight_stream, is_weight_name};
 use std::fs::File;
