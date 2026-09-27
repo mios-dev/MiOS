@@ -639,6 +639,20 @@ mod artifact_prompt {
                 ("path", "<path>"),
             ],
         )?;
+        // The contents API is byte-exact on the API host, which answers where raw/blob hosts are refused.
+        let self_contents = fill(
+            &spec.contents_api,
+            &[
+                ("api_base", &canon.api_base),
+                ("sha", &tok),
+                ("path", &spec.task.root_file),
+            ],
+        )?;
+        if !self_contents.contains(&tok) {
+            return Err(format!(
+                "the task text URL {self_contents:?} does not pin {{sha}}"
+            ));
+        }
         let skill_line = if spec.task_skill.is_empty() {
             String::new()
         } else {
@@ -734,6 +748,7 @@ mod artifact_prompt {
             ("ap_self_head_api", self_head),
             ("ap_self_sha", tok.clone()),
             ("ap_self_url", self_url),
+            ("ap_self_contents_api", self_contents),
             ("ap_self_url_fallback", self_fallback),
             ("ap_web_file_pattern", web_pattern),
             ("ap_contents_api_pattern", api_pattern),
@@ -1291,6 +1306,36 @@ mod artifact_prompt_tests {
             let e = render(&real_template(&spec), &spec).unwrap_err();
             assert!(e.contains(why), "{key}={fmt}: {e}");
         }
+    }
+
+    #[test]
+    fn the_task_text_falls_back_to_the_byte_exact_contents_api() {
+        // Hosts that refuse raw.githubusercontent.com and github.com/blob still answer api.github.com.
+        let (spec, set) = real();
+        let block = task_block(&set);
+        let contents = format!(
+            "{}/contents/{}?ref=",
+            spec.canonical().api_base,
+            spec.task.root_file
+        );
+        let (c, b) = (block.find(&contents), block.find("/blob/"));
+        assert!(
+            c.is_some(),
+            "task text lacks the contents API fallback: {block}"
+        );
+        assert!(
+            c < b,
+            "the contents API must come before the read-only blob page: {block}"
+        );
+        let text = mutated(|d| {
+            d.insert(
+                "contents_api".into(),
+                toml::Value::String("{api_base}/contents/{path}".into()),
+            );
+        });
+        let s = load_spec(&text).unwrap();
+        let e = render(&real_template(&s), &s).unwrap_err();
+        assert!(e.contains("does not pin"), "{e}");
     }
 
     #[test]

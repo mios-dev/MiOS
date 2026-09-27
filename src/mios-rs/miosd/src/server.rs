@@ -128,8 +128,7 @@ impl HttpResponse {
     }
 
     pub fn html(status_code: u16, status_text: &'static str, html: String) -> Self {
-        Self::new(status_code, status_text)
-            .with_body("text/html; charset=utf-8", html.into_bytes())
+        Self::new(status_code, status_text).with_body("text/html; charset=utf-8", html.into_bytes())
     }
 
     pub fn json(status_code: u16, status_text: &'static str, json_str: String) -> Self {
@@ -145,7 +144,10 @@ impl HttpResponse {
     pub fn redirect(location: &str) -> Self {
         Self::new(302, "Found")
             .with_header("Location", location)
-            .with_body("text/plain", format!("Redirecting to {}", location).into_bytes())
+            .with_body(
+                "text/plain",
+                format!("Redirecting to {}", location).into_bytes(),
+            )
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -258,16 +260,16 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
     };
 
     if req.method == "OPTIONS" {
-        return cors_resp(
-            HttpResponse::new(204, "No Content")
-                .with_header("Content-Length", "0")
-        );
+        return cors_resp(HttpResponse::new(204, "No Content").with_header("Content-Length", "0"));
     }
 
     let mut resp = match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/") | ("HEAD", "/") => cors_resp(HttpResponse::redirect("/configure")),
 
-        ("GET", "/configure") | ("HEAD", "/configure") | ("GET", "/portal/configurator") | ("HEAD", "/portal/configurator") => {
+        ("GET", "/configure")
+        | ("HEAD", "/configure")
+        | ("GET", "/portal/configurator")
+        | ("HEAD", "/portal/configurator") => {
             if config.html_path.is_file() {
                 match fs::read_to_string(&config.html_path) {
                     Ok(content) => cors_resp(HttpResponse::html(200, "OK", content)),
@@ -308,15 +310,13 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
 
             let report = mios_config::MiosValidator::validate_str(body_str);
             if !report.is_valid {
-                let err_msgs: Vec<String> = report
-                    .errors
-                    .into_iter()
-                    .map(|e| e.to_string())
-                    .collect();
-                let json_body = match serde_json::to_string(&serde_json::json!({ "errors": err_msgs })) {
-                    Ok(j) => j,
-                    Err(_) => r#"{"errors":["Validation failed"]}"#.to_string(),
-                };
+                let err_msgs: Vec<String> =
+                    report.errors.into_iter().map(|e| e.to_string()).collect();
+                let json_body =
+                    match serde_json::to_string(&serde_json::json!({ "errors": err_msgs })) {
+                        Ok(j) => j,
+                        Err(_) => r#"{"errors":["Validation failed"]}"#.to_string(),
+                    };
                 return cors_resp(HttpResponse::json(422, "Unprocessable Entity", json_body));
             }
 
@@ -358,11 +358,13 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
             ))
         }
 
-        ("GET", "/health") | ("HEAD", "/health") | ("GET", "/healthz") | ("HEAD", "/healthz") => cors_resp(HttpResponse::json(
-            200,
-            "OK",
-            r#"{"status":"ok","engine":"miosd-config-server"}"#.to_string(),
-        )),
+        ("GET", "/health") | ("HEAD", "/health") | ("GET", "/healthz") | ("HEAD", "/healthz") => {
+            cors_resp(HttpResponse::json(
+                200,
+                "OK",
+                r#"{"status":"ok","engine":"miosd-config-server"}"#.to_string(),
+            ))
+        }
 
         _ => cors_resp(HttpResponse::new(404, "Not Found").with_body(
             "text/plain",
@@ -441,6 +443,9 @@ pub async fn run_config_server(
 
 #[cfg(test)]
 mod tests {
+    // Test code: a panic here IS the assertion. Scoped so production code stays under the lint.
+    #![allow(clippy::panic)]
+
     use super::*;
 
     #[test]
@@ -451,7 +456,10 @@ mod tests {
         let r = req.as_ref().unwrap_or_else(|| unreachable!());
         assert_eq!(r.method, "GET");
         assert_eq!(r.path, "/configure");
-        assert_eq!(r.headers.get("host").map(String::as_str), Some("localhost:8700"));
+        assert_eq!(
+            r.headers.get("host").map(String::as_str),
+            Some("localhost:8700")
+        );
         assert!(r.body.is_empty());
     }
 
@@ -478,12 +486,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_server_loopback_health() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap_or_else(|e| panic!("{}", e));
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|e| panic!("{}", e));
         let local_addr = listener.local_addr().unwrap_or_else(|e| panic!("{}", e));
 
         let tmp_dir = tempfile::tempdir().unwrap_or_else(|e| panic!("{}", e));
         let html_file = tmp_dir.path().join("mios.html");
-        fs::write(&html_file, "<html><body>MiOS Settings</body></html>").unwrap_or_else(|e| panic!("{}", e));
+        fs::write(&html_file, "<html><body>MiOS Settings</body></html>")
+            .unwrap_or_else(|e| panic!("{}", e));
 
         let config = ConfigServerConfig {
             bind_addr: local_addr.to_string(),
@@ -509,12 +520,20 @@ mod tests {
             }
         });
 
-        let mut client_stream = TcpStream::connect(local_addr).await.unwrap_or_else(|e| panic!("{}", e));
+        let mut client_stream = TcpStream::connect(local_addr)
+            .await
+            .unwrap_or_else(|e| panic!("{}", e));
         let req = b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
-        client_stream.write_all(req).await.unwrap_or_else(|e| panic!("{}", e));
+        client_stream
+            .write_all(req)
+            .await
+            .unwrap_or_else(|e| panic!("{}", e));
 
         let mut resp_buf = [0u8; 4096];
-        let n = client_stream.read(&mut resp_buf).await.unwrap_or_else(|e| panic!("{}", e));
+        let n = client_stream
+            .read(&mut resp_buf)
+            .await
+            .unwrap_or_else(|e| panic!("{}", e));
         let resp_str = String::from_utf8_lossy(&resp_buf[..n]);
 
         assert!(resp_str.contains("HTTP/1.1 200 OK"));

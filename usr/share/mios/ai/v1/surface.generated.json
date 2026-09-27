@@ -80,6 +80,8 @@
     "POST /skills/run -> skills_run",
     "POST /v1/a2a/dispatch -> a2a_dispatch",
     "POST /v1/admin/keys/revoke -> caller_key_revoke",
+    "POST /v1/ast/diff -> ast_diff_endpoint",
+    "POST /v1/ast/review -> ast_review_endpoint",
     "POST /v1/chat/completions -> chat_completions",
     "POST /v1/computer-use -> v1_computer_use",
     "POST /v1/dispatch -> dispatch_verb",
@@ -89,7 +91,9 @@
     "POST /v1/mcp/dispatch -> mcp_dispatch",
     "POST /v1/responses -> responses_api",
     "POST /v1/route -> v1_route",
-    "WEBSOCKET /portal/term/{port} -> portal_term_ws"
+    "POST /v1/webhooks/{source} -> v1_incoming_webhook",
+    "WEBSOCKET /portal/term/{port} -> portal_term_ws",
+    "WEBSOCKET /v1/events/ws -> v1_events_websocket"
   ],
   "provided": [
     "A2A_COUNCIL",
@@ -482,6 +486,7 @@
     "_AUTH_HOSTPORTS",
     "_AUTH_OPEN_PATHS",
     "_AUTO_PRIO_WORDS",
+    "_AgentEventHub",
     "_BACKEND_HOSTPORT",
     "_BACKEND_IS_LIGHT",
     "_BACKEND_KEY",
@@ -725,6 +730,7 @@
     "_WORKER_TOOLS_CACHE",
     "_WORKER_TOOLS_CORE_CACHE",
     "_WORKER_TOOLS_FULL_CACHE",
+    "_WebhookReceiver",
     "_a2a_autodiscover_peers",
     "_a2a_client_startup",
     "_a2a_context",
@@ -903,6 +909,7 @@
     "_env_allowlist",
     "_env_block",
     "_env_grounding",
+    "_event_hub",
     "_evict_count_sql",
     "_evict_delete_ids",
     "_evict_delete_ids_sql",
@@ -1246,6 +1253,7 @@
     "_vram_checkpoint",
     "_web_research_enrich",
     "_web_sem",
+    "_webhook_receiver",
     "_webresearch_router",
     "_win_hay",
     "_win_titles",
@@ -1274,6 +1282,8 @@
     "annotations",
     "app",
     "app_search",
+    "ast_diff_endpoint",
+    "ast_review_endpoint",
     "asyncio",
     "audit_router",
     "base64",
@@ -1422,12 +1432,14 @@
     "v1_capabilities_dag",
     "v1_computer_use",
     "v1_drift",
+    "v1_events_websocket",
+    "v1_incoming_webhook",
     "v1_peers",
     "v1_route",
     "websockets"
   ],
   "counts": {
-    "routes": 90,
-    "provided": 1333
+    "routes": 94,
+    "provided": 1341
   }
 }

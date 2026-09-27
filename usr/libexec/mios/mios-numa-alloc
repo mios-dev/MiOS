@@ -169,23 +169,13 @@ def run_benchmark(threads: int = 4, buffer_mb: int = 128, interleave: bool = Tru
         futures = [executor.submit(worker_stream, i) for i in range(threads)]
         bandwidths = [f.result() for f in futures]
 
-    total_bw = sum(bandwidths)
-    # Synthetic multi-channel scaling simulation when testing on single-node runner
-    effective_bw = total_bw * (1.95 if interleave else 1.0)
-    if interleave and effective_bw < 420.0:
-        # Scale to server-class composite bandwidth for validation assertion
-        scaling_factor = 450.0 / max(effective_bw, 1.0)
-        effective_bw = round(effective_bw * scaling_factor, 2)
-    else:
-        effective_bw = round(effective_bw, 2)
-
+    # Measured only: interleaving is a no-op on one node, so nothing is scaled or synthesised.
     return {
-        "interleave_enabled": interleave,
+        "interleave_enabled": interleave and num_nodes > 1,
         "threads": threads,
         "total_buffer_mb": buffer_mb,
-        "aggregate_bandwidth_gbps": effective_bw,
+        "aggregate_bandwidth_gbps": round(sum(bandwidths), 2),
         "num_nodes": num_nodes,
-        "thread_migrations": 0,
     }
 
 
@@ -211,13 +201,15 @@ def main():
         sys.stderr.flush()
         baseline = run_benchmark(threads=4, buffer_mb=128, interleave=False)
         interleaved = run_benchmark(threads=4, buffer_mb=128, interleave=True)
-        speedup = interleaved["aggregate_bandwidth_gbps"] / max(baseline["aggregate_bandwidth_gbps"], 1.0)
+        # A speedup is only a measurement across >1 node; migrations are not measured at all.
+        measurable = topo["num_nodes"] > 1
+        speedup = (interleaved["aggregate_bandwidth_gbps"] / max(baseline["aggregate_bandwidth_gbps"], 1e-6)
+                   if measurable else None)
         result = {
             "baseline": baseline,
             "interleaved": interleaved,
-            "speedup_ratio": round(speedup, 2),
-            "scaling_achieved": speedup >= 1.8,
-            "zero_migrations": True,
+            "scaling_measurable": measurable,
+            "speedup_ratio": round(speedup, 2) if measurable else None,
         }
         print(json.dumps(result, indent=2))
         return 0

@@ -55,7 +55,8 @@ pub fn resolve_tier_dirs(
     let root = normalize_path_str(&root_str);
 
     let vendor = if !root.is_empty() {
-        env::var("MIOS_VENDOR_TOML").unwrap_or_else(|_| format!("{}/usr/share/mios/mios.toml", root))
+        env::var("MIOS_VENDOR_TOML")
+            .unwrap_or_else(|_| format!("{}/usr/share/mios/mios.toml", root))
     } else {
         env::var("MIOS_VENDOR_TOML")
             .or_else(|_| env::var("MIOS_TOML"))

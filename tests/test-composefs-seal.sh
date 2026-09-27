@@ -51,6 +51,7 @@ done
 
 pass_count=0
 fail_count=0
+skip_count=0
 
 log() {
     echo "[test-composefs-seal] $*"
@@ -68,6 +69,11 @@ assert_pass() {
     pass_count=$((pass_count + 1))
 }
 
+assert_skip() {
+    echo "  SKIP: $1 - $2"
+    skip_count=$((skip_count + 1))
+}
+
 assert_fail() {
     local name="$1"
     local reason="${2:-assertion failed}"
@@ -76,7 +82,23 @@ assert_fail() {
 }
 
 TMP_DIR="$(mktemp -d /tmp/test-cfs-seal.XXXXXX)"
-trap '[[ -n "$TMP_DIR" && -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"' EXIT
+# Every path the seal script can write (repo and, when writable, host): each is restored, or removed if it did not exist.
+SEALED_FILES=("${ROOT_DIR}/usr/lib/bootc/kargs.d/50-composefs.toml" "${ROOT_DIR}/usr/lib/ostree/prepare-root.conf"
+              /usr/lib/bootc/kargs.d/50-composefs.toml /usr/lib/ostree/prepare-root.conf /etc/ostree/prepare-root.conf)
+for _i in "${!SEALED_FILES[@]}"; do [[ -f "${SEALED_FILES[$_i]}" ]] && cp -p "${SEALED_FILES[$_i]}" "${TMP_DIR}/sealed.${_i}"; done
+_restore_sealed() {
+    local _i
+    for _i in "${!SEALED_FILES[@]}"; do
+        if [[ -f "${TMP_DIR}/sealed.${_i}" ]]; then
+            cp -p "${TMP_DIR}/sealed.${_i}" "${SEALED_FILES[$_i]}"
+        else
+            rm -f "${SEALED_FILES[$_i]}"
+        fi
+    done
+    [[ -n "$TMP_DIR" && -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"
+    return 0
+}
+trap _restore_sealed EXIT
 
 VALIDATOR="${ROOT_DIR}/usr/libexec/mios/mios-composefs-validator"
 SEAL_SCRIPT="${ROOT_DIR}/automation/93-composefs-seal.sh"
@@ -107,13 +129,13 @@ log "Test 1: Tooling discovery"
 if command -v mkcomposefs >/dev/null 2>&1 || [[ "$MOCK_MODE" == "true" ]]; then
     assert_pass "Tooling: mkcomposefs discovered"
 else
-    assert_fail "Tooling: mkcomposefs not found" "mkcomposefs must be installed or --mock specified"
+    assert_skip "Tooling: mkcomposefs not found" "host lacks mkcomposefs; the suite exits 77 ([ci.tool_skips])"
 fi
 
 if command -v composefs-info >/dev/null 2>&1 || [[ "$MOCK_MODE" == "true" ]]; then
     assert_pass "Tooling: composefs-info discovered"
 else
-    assert_fail "Tooling: composefs-info not found" "composefs-info must be installed or --mock specified"
+    assert_skip "Tooling: composefs-info not found" "host lacks composefs-info; the suite exits 77 ([ci.tool_skips])"
 fi
 
 if [[ -x "$VALIDATOR" ]]; then
@@ -294,11 +316,27 @@ else
     assert_fail "automation/93-composefs-seal.sh failed in --dry-run mode"
 fi
 
-# 6b. Mock mode
+# 6b. Mock mode must leave the tracked tree byte-identical
+TRACKED_SEAL_OUTPUTS=("${ROOT_DIR}/usr/lib/bootc/kargs.d/50-composefs.toml" "${ROOT_DIR}/usr/lib/ostree/prepare-root.conf")
+sums_before="$(sha256sum "${TRACKED_SEAL_OUTPUTS[@]}" 2>&1)"
 if "$SEAL_SCRIPT" --mock >/dev/null 2>&1; then
     assert_pass "automation/93-composefs-seal.sh executed in --mock mode (exit 0)"
 else
     assert_fail "automation/93-composefs-seal.sh failed in --mock mode"
+fi
+sums_after="$(sha256sum "${TRACKED_SEAL_OUTPUTS[@]}" 2>&1)"
+if [[ "$sums_before" == "$sums_after" ]]; then
+    assert_pass "--mock left the tracked seal outputs unchanged"
+else
+    assert_fail "--mock mutated a tracked file" "$(diff <(echo "$sums_before") <(echo "$sums_after") | grep '^>' || true)"
+fi
+
+# 6c. Mock mode into an explicit seal root, read back by Test 7
+SEAL_ROOT="${TMP_DIR}/seal-root"
+if COMPOSEFS_SEAL_ROOT="$SEAL_ROOT" "$SEAL_SCRIPT" --mock >/dev/null 2>&1; then
+    assert_pass "automation/93-composefs-seal.sh --mock wrote into COMPOSEFS_SEAL_ROOT (exit 0)"
+else
+    assert_fail "automation/93-composefs-seal.sh --mock failed with COMPOSEFS_SEAL_ROOT"
 fi
 
 # ==============================================================================
@@ -306,7 +344,7 @@ fi
 # ==============================================================================
 log "Test 7: Verify prepare-root.conf and kargs.d configuration generation"
 
-PREPARE_CONF="${ROOT_DIR}/usr/lib/ostree/prepare-root.conf"
+PREPARE_CONF="${SEAL_ROOT}/usr/lib/ostree/prepare-root.conf"
 if [[ -f "$PREPARE_CONF" ]]; then
     if grep -q "\[composefs\]" "$PREPARE_CONF" && \
        grep -qE "enabled[[:space:]]*=[[:space:]]*(verity|yes)" "$PREPARE_CONF" && \
@@ -319,10 +357,11 @@ else
     assert_fail "prepare-root.conf not found at $PREPARE_CONF"
 fi
 
-KARGS_CONF="${ROOT_DIR}/usr/lib/bootc/kargs.d/50-composefs.toml"
+KARGS_CONF="${SEAL_ROOT}/usr/lib/bootc/kargs.d/50-composefs.toml"
 if [[ -f "$KARGS_CONF" ]]; then
     if grep -q "ostree\.composefs=1" "$KARGS_CONF" && \
-       grep -q "match-architectures.*x86_64" "$KARGS_CONF"; then
+       grep -q "match-architectures.*x86_64" "$KARGS_CONF" && \
+       ! grep -qx "[[:space:]]*" "$KARGS_CONF"; then
         assert_pass "kargs.d/50-composefs.toml contains ostree.composefs=1 and x86_64 match"
     else
         assert_fail "kargs.d/50-composefs.toml format mismatch" "$(cat "$KARGS_CONF")"
@@ -334,11 +373,15 @@ fi
 # ==============================================================================
 # Summary
 # ==============================================================================
-log "=== Test Results: $pass_count passed, $fail_count failed ==="
+log "=== Test Results: $pass_count passed, $fail_count failed, $skip_count skipped ==="
 
 if [[ "$fail_count" -gt 0 ]]; then
     log "FAILED: $fail_count tests failed."
     exit 1
+fi
+if [[ "$skip_count" -gt 0 ]]; then
+    log "SKIPPED: $skip_count check(s) need host tools; exit 77 is a skip only where [ci.tool_skips] registers this suite."
+    exit 77
 fi
 
 log "SUCCESS: All $pass_count tests passed (100% success)."

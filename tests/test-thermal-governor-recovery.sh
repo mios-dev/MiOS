@@ -55,6 +55,7 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+[[ "$MOCK_MODE" == "true" ]] && echo "[test-thermal] --mock: every case already runs on synthetic sysfs"
 
 pass_count=0
 fail_count=0
@@ -70,6 +71,7 @@ _fail() {
 }
 
 echo "=== MiOS Thermal Governor & Recovery Test Suite (T-544, AGY-2142) ==="
+echo "sysfs: synthetic fixture (--mock requested: ${MOCK_MODE})"
 
 if [[ "$DRY_RUN" == "true" ]]; then
     echo "Dry-run verification:"
@@ -273,10 +275,12 @@ else
 fi
 
 if command -v systemd-analyze >/dev/null 2>&1; then
-    if systemd-analyze verify "$SERVICE_PATH" >/dev/null 2>&1; then
+    # verify resolves ExecStart against the host root, so point it at the in-tree binary.
+    sed "s#^ExecStart=/usr/libexec/#ExecStart=${REPO_ROOT}/usr/libexec/#" "$SERVICE_PATH" > "$TMP_DIR/mios-thermald.service"
+    if verify_out="$(systemd-analyze verify "$TMP_DIR/mios-thermald.service" 2>&1)"; then
         _pass "systemd-analyze verify passed with 0 structural errors"
     else
-        _fail "systemd-analyze verify reported errors on $SERVICE_PATH"
+        _fail "systemd-analyze verify reported errors on $SERVICE_PATH: $(grep 'mios-thermald' <<<"$verify_out" | head -3)"
     fi
 else
     _pass "systemd-analyze not installed; static unit validation accepted"

@@ -2541,6 +2541,8 @@ from unittest.mock import patch
 ns__HERE = os.path.dirname(os.path.abspath(__file__))
 ns__ROOT = os.path.normpath(os.path.join(ns__HERE, ".."))
 ns__TARGET_PATH = os.path.join(ns__ROOT, "usr", "libexec", "mios", "sec", "net_segmentation.py")
+with open(os.path.join(ns__ROOT, "usr", "share", "mios", "mios.toml"), "rb") as _f:
+    ns__PORTS = tomllib.load(_f)["ports"]  # expected ports come from SSOT, never a literal
 
 ns_spec = importlib.util.spec_from_file_location("net_segmentation", ns__TARGET_PATH)
 if ns_spec and ns_spec.loader:
@@ -2559,9 +2561,11 @@ class ns_TestNetSegmentation(unittest.TestCase):
         self.assertIn("table inet mios_isolation", rules)
         self.assertIn("chain forward_containers", rules)
         self.assertIn("policy drop", rules)
-        self.assertIn("dport 8642", rules)  # hermes
-        self.assertIn("dport 5432", rules)  # pgvector
-        self.assertIn("dport 11450", rules)  # llm-light
+        ports = net_segmentation.mios_toml.vendor_tree(os.environ.get("MIOS_TOML_ROOT") or ns__ROOT)["ports"]
+        for key in ("hermes", "pgvector", "llm_light", "searxng"):
+            self.assertIn(f"dport {ports[key]} accept", rules, key)
+        accepts = [ln for ln in rules.splitlines() if "dport" in ln]
+        self.assertEqual(len(accepts), len(set(accepts)), "duplicate accept line")
         self.assertIn("log prefix \"MIOS-NET-DROP: \"", rules)
 
     def test_validate_pairing_matrix_valid_default(self):
@@ -2580,6 +2584,13 @@ class ns_TestNetSegmentation(unittest.TestCase):
         self.assertFalse(valid)
         self.assertGreaterEqual(len(violations), 2)
         self.assertTrue(any("Direct UI-to-DB" in v for v in violations))
+
+    def test_the_database_port_guard_follows_the_ssot_port(self):
+        mgr = net_segmentation.NetSegmentationManager(mock=True)
+        db_port = int(net_segmentation.mios_toml.section(net_segmentation.mios_toml.load_merged(), "ports")["pgvector"])
+        valid, violations = mgr.validate_pairing_matrix([{"src": "open-webui", "dst": "db-proxy", "port": db_port}])
+        self.assertFalse(valid, "a pairing onto [ports].pgvector under another name must still be guarded")
+        self.assertTrue(any("database port %d" % db_port in v for v in violations), violations)
 
     def test_apply_and_flush_rules_mock(self):
         mgr = net_segmentation.NetSegmentationManager(mock=True)
@@ -3072,13 +3083,13 @@ class sp_TestSelinuxPolicy(unittest.TestCase):
         manager = selinux_policy.SelinuxPolicyManager(mock=True)
         te_src = manager.generate_te_source(
             module_name="mios_sidecar",
-            allowed_ports=[5432, 8642, 11450],
+            allowed_ports=[5432, 8600, 8720],
             allowed_dirs=["/var/lib/mios"],
         )
         self.assertIn("module mios_sidecar 1.0;", te_src)
         self.assertIn("type mios_sidecar_t;", te_src)
         self.assertIn("typeattribute mios_sidecar_t container_domain;", te_src)
-        self.assertIn("5432, 8642, 11450", te_src)
+        self.assertIn("5432, 8600, 8720", te_src)
 
     def test_compile_module_mock(self):
         manager = selinux_policy.SelinuxPolicyManager(mock=True)

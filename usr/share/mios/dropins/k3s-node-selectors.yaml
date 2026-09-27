@@ -36,6 +36,17 @@ services:
       - key: "mios.capability/service-plane"
         operator: "Exists"
         effect: "NoSchedule"
+  mios-attest:
+    nodeSelector:
+      mios.capability/controller: "true"
+      mios.capability/service-plane: "true"
+    tolerations:
+      - key: "mios.capability/controller"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "mios.capability/service-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
   mios-ceph:
     nodeSelector:
       mios.capability/service-plane: "true"
@@ -315,6 +326,13 @@ services:
       - key: "mios.capability/service-plane"
         operator: "Exists"
         effect: "NoSchedule"
+  mios-registry:
+    nodeSelector:
+      mios.capability/service-plane: "true"
+    tolerations:
+      - key: "mios.capability/service-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
   mios-searxng:
     nodeSelector:
       mios.capability/service-plane: "true"
@@ -337,6 +355,13 @@ services:
         operator: "Exists"
         effect: "NoSchedule"
   mios-sys-env-refresh:
+    nodeSelector:
+      mios.capability/service-plane: "true"
+    tolerations:
+      - key: "mios.capability/service-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+  mios-thermald:
     nodeSelector:
       mios.capability/service-plane: "true"
     tolerations:
@@ -372,6 +397,13 @@ services:
         operator: "Exists"
         effect: "NoSchedule"
   mios-webtools-redis:
+    nodeSelector:
+      mios.capability/service-plane: "true"
+    tolerations:
+      - key: "mios.capability/service-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+  mios-wol-proxy:
     nodeSelector:
       mios.capability/service-plane: "true"
     tolerations:
