@@ -817,6 +817,7 @@ name = "mios-gate"
 version = "0.3.0"
 dependencies = [
  "flate2",
+ "mios-build",
  "regex",
  "ruzstd",
  "serde_json",
