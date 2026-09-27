@@ -3720,6 +3720,23 @@ check_globals_generated() {
     fi
 }
 
+check_ai_metadata_fresh() {
+    # Law 8 for usr/share/mios/ai/v1/metadata.json. It is exported from every
+    # tracked file's AI-* header, but nothing regenerated it and nothing
+    # compared it, so it fell ~2,400 lines behind main and the first unrelated
+    # re-export dragged that whole backlog into a small PR. The exporter's own
+    # --check validates schema only; --check-fresh regenerates in memory and
+    # compares bytes, naming each entry that moved.
+    _need_python || return 0
+    local out
+    if out="$(cd "$ROOT" && python3 usr/libexec/mios/mios-ai-metadata.py --root "$ROOT" --check-fresh 2>&1)"; then
+        echo "[98-drift-checks]   usr/share/mios/ai/v1/metadata.json regenerates byte-identically from the tracked AI headers"
+    else
+        printf '%s\n' "$out" | head -n 48 >&2
+        _violation "check_ai_metadata_fresh: usr/share/mios/ai/v1/metadata.json is stale vs the tracked AI-* headers -- re-run bash tools/sync-generated.sh (Law 8 SSOT-PROJECTION)"
+    fi
+}
+
 check_ai_manifests_fresh() {
     echo "[98-drift-checks]   checking AI manifest freshness"
     # generate-ai-manifest.py resolves its targets and relpaths against the CWD,
@@ -3966,6 +3983,7 @@ main() {
     check_pipefail_grep_lint
     check_skip_list_covered
     check_ai_manifests_fresh
+    check_ai_metadata_fresh
     check_ports_category_schema
     check_globals_generated
     check_ci_suite_coverage

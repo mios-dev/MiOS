@@ -179,6 +179,13 @@ main() {
     step "6/7 AI manifests (they embed automation/ + tools/ content)"
     "$PY" tools/generate-ai-manifest.py >/dev/null
 
+    # After every generator that writes an AI-* header, before the manual
+    # corpus census. It reads the headers of every TRACKED file, so it was
+    # the one projection nothing refreshed and it drifted thousands of lines
+    # behind main; check_ai_metadata_fresh now holds it byte-identical.
+    step "6b/7 AI header metadata -- usr/share/mios/ai/v1/metadata.json"
+    "$PY" usr/libexec/mios/mios-ai-metadata.py --root "$ROOT" --export "$ROOT/usr/share/mios/ai/v1/metadata.json" >/dev/null
+
     # LAST: it censuses every TRACKED source file, so anything above moves it.
     # `git add` a new file BEFORE syncing, or its blocks land only once
     # committed -- green locally, red in CI.
