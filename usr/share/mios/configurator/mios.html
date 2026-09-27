@@ -4992,7 +4992,27 @@ function applyEmbedContext() {
 // empty body degrades SILENTLY to the inline DEFAULTS_TOML already loaded
 // at boot. NEVER attempted under file:// (offline USB fallback, ADR-0008).
 function seedFromServer() {
-  if (!MIOS_EMBEDDED) return;                 // file:// -> inline defaults only
+  if (!MIOS_EMBEDDED) {
+    // The bootstrap embeds the exact TOML into its temporary standalone copy.
+    // This prevents file:// mode from silently presenting DEFAULTS_TOML as the
+    // operator's configuration.
+    const seed = window.MIOS_BOOTSTRAP_TOML;
+    if (typeof seed === "string" && seed.trim()) {
+      try {
+        const parsed = parseToml(seed);
+        if (!parsed || typeof parsed !== "object" || !Object.keys(parsed).length) {
+          throw new Error("empty config");
+        }
+        DATA = parsed;
+        refreshFromData();
+        snapshotLoaded();
+        showStatus("Loaded the staged mios.toml.", "ok");
+      } catch (err) {
+        showStatus(`Staged mios.toml could not be loaded: ${err.message}`, "err");
+      }
+    }
+    return;
+  }
   fetch("/portal/config", { credentials: "same-origin" })
     .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
     .then(text => {
