@@ -13604,6 +13604,7 @@ usr/lib/ssh/sshd_config.d/10-mios.conf	1	2	2	22	da1999eaf821	STAY	ai-header		0		
 usr/lib/ssh/sshd_config.d/50-mios-hardened.conf	1	1	1	29	58f7b40aaef9	STAY	ai-header		0				0
 usr/lib/sssd/conf.d/10-mios.conf	1	2	2	27	7bd232e80446	STAY	ai-header		0				0
 usr/lib/sysctl.d/20-memory.conf	1	2	2	14	bb3d023509a6	STAY	ai-header		0				0
+usr/lib/sysctl.d/20-mios-memory.conf	1	2	2	14	bb3d023509a6	STAY	ai-header		0				0
 usr/lib/sysctl.d/90-mios-le9uo.conf	1	2	2	31	e3e2c438e076	STAY	ai-header		0				0
 usr/lib/sysctl.d/90-mios-le9uo.conf	7	10	4	38	d1c11a72ac91	STAY	midsize-why		0				0
 usr/lib/sysctl.d/90-mios-overlayfs.conf	1	5	5	42	8d5582898694	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/sysctl.d.md	mios-src:8d5582898694	42	0
@@ -19662,6 +19663,15 @@ usr/share/mios/k3s/generated/mios-ai.yaml	1	1	1	17	c60e6a4d7df6	STAY	ai-header		
 usr/share/mios/k3s/generated/mios-node.yaml	1	1	1	19	59a57e92ca38	STAY	ai-header		0				0
 usr/share/mios/k3s/generated/mios-system.yaml	1	1	1	17	8d7aba2e2c38	STAY	ai-header		0				0
 usr/share/mios/k3s/generated/mios-webtools.yaml	1	1	1	17	2dd94a356aee	STAY	ai-header		0				0
+usr/share/mios/llamacpp/llama-swap.yaml	1	2	2	29	49b16fcd29f6	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/llamacpp.md	mios-src:49b16fcd29f6	29	0
+usr/share/mios/llamacpp/llama-swap.yaml	4	23	20	217	47bbd3a1697e	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/llamacpp.md	mios-src:47bbd3a1697e	217	0
+usr/share/mios/llamacpp/llama-swap.yaml	37	39	3	26	62e53abf1dd9	STAY	midsize-why		0				0
+usr/share/mios/llamacpp/llama-swap.yaml	54	72	19	218	b2aa5f67cf2f	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/llamacpp.md	mios-src:b2aa5f67cf2f	218	0
+usr/share/mios/llamacpp/llama-swap.yaml	74	78	5	60	51b232ac18a0	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/llamacpp.md	mios-src:51b232ac18a0	60	0
+usr/share/mios/llamacpp/llama-swap.yaml	110	120	11	103	8cdbdd97b150	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/llamacpp.md	mios-src:8cdbdd97b150	103	0
+usr/share/mios/llamacpp/llama-swap.yaml	122	128	7	75	f0e2e4fcc39a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/llamacpp.md	mios-src:f0e2e4fcc39a	75	0
+usr/share/mios/llamacpp/llama-swap.yaml	136	150	15	142	43f40c467ca1	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/llamacpp.md	mios-src:43f40c467ca1	142	0
+usr/share/mios/llamacpp/llama-swap.yaml	161	172	12	138	1be2f70bf455	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/llamacpp.md	mios-src:1be2f70bf455	138	0
 usr/share/mios/llamacpp/mios-llm-light.yaml	1	2	2	29	49b16fcd29f6	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/llamacpp.md	mios-src:49b16fcd29f6	29	0
 usr/share/mios/llamacpp/mios-llm-light.yaml	4	23	20	217	47bbd3a1697e	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/llamacpp.md	mios-src:47bbd3a1697e	217	0
 usr/share/mios/llamacpp/mios-llm-light.yaml	37	39	3	26	62e53abf1dd9	STAY	midsize-why		0				0
