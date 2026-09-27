@@ -2,7 +2,7 @@
 # AI-doc: usr/share/doc/mios/manual/mios.md
 
 [identity]
-username  = "mios"
+username  = "user"
 fullname  = "'MiOS' User"
 hostname  = "mios"
 shell     = "/bin/bash"

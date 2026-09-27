@@ -728,7 +728,7 @@ export MIOS_VERSION
 : "${MIOS_DEFAULT_PASSWORD:=mios}"
 : "${MIOS_DEFAULT_SHELL:=/bin/bash}"
 : "${MIOS_DEFAULT_TIMEZONE:=UTC}"
-: "${MIOS_DEFAULT_USER:=mios}"
+: "${MIOS_DEFAULT_USER:=user}"
 : "${MIOS_DEPLOYMENT_TARGET_AMI:=false}"
 : "${MIOS_DEPLOYMENT_TARGET_ANACONDA_ISO:=true}"
 : "${MIOS_DEPLOYMENT_TARGET_GCE:=false}"
@@ -1404,7 +1404,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_IDENTITY_IPA_SERVER:=ipa.mios.internal}"
 : "${MIOS_IDENTITY_NAME:=mios}"
 : "${MIOS_IDENTITY_SHELL:=/bin/bash}"
-: "${MIOS_IDENTITY_USERNAME:=mios}"
+: "${MIOS_IDENTITY_USERNAME:=user}"
 : "${MIOS_IMAGES_BOOTC_IMAGE_BUILDER_IMAGE_IMAGE:=quay.io/centos-bootc/bootc-image-builder:latest}"
 : "${MIOS_IMAGES_BOOTC_IMAGE_BUILDER_SERVICE_TIMEOUTSTARTSEC:=3600}"
 [ -n "${MIOS_IMAGES_MIOS_LLM_HEAVY_IMAGE_IMAGE+x}" ] || MIOS_IMAGES_MIOS_LLM_HEAVY_IMAGE_IMAGE='${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}'
@@ -2692,7 +2692,7 @@ to" / "let me know".
 [ -n "${MIOS_URLS_OTELCOL_UI+x}" ] || MIOS_URLS_OTELCOL_UI='http://localhost:'"${MIOS_PORT_OTELCOL_UI:-}"'/'
 : "${MIOS_URLS_REPO:=https://github.com/mios-dev/MiOS.git}"
 [ -n "${MIOS_URLS_SEARXNG+x}" ] || MIOS_URLS_SEARXNG='http://localhost:'"${MIOS_PORT_SEARXNG:-}"
-: "${MIOS_USER:=mios}"
+: "${MIOS_USER:=user}"
 : "${MIOS_USER_FULLNAME:=MiOS Operator}"
 : "${MIOS_USER_GROUPS:=wheel,libvirt,kvm,video,render,input,dialout,docker}"
 : "${MIOS_USER_SHELL:=/bin/bash}"

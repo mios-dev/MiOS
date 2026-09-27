@@ -1576,7 +1576,7 @@ WantedBy = "default.target"
 # MIOS_USER_GROUPS.
 # ----------------------------------------------------------------------------
 [identity]
-username  = "mios"
+username  = "user"
 fullname  = "MiOS Operator"
 hostname  = "mios"
 shell     = "/bin/bash"
