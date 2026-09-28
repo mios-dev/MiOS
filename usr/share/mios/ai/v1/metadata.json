@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3589,
-  "total_metadata_entries": 2961,
-  "total_hints": 2948,
+  "total_files_scanned": 3588,
+  "total_metadata_entries": 2964,
+  "total_hints": 2951,
   "total_functions_indexed": 1338,
   "total_related_links": 4653,
   "entries": [
@@ -233,6 +233,15 @@
         "generate_ed25519_keypair",
         "main"
       ],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": ".dockerignore",
+      "hint": "Paths kept out of container build contexts: worktrees, dev-loop state, editor and agent dotfolders, Rust targets and Python caches.",
+      "related": [],
+      "functions": [],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": false
@@ -15827,6 +15836,15 @@
     },
     {
       "path": "usr/lib/sysctl.d/20-memory.conf",
+      "hint": "Configures proactive memory compaction and memory parameters for AI workloads (T-800).",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/ch22-cpu-topology-and-performance-pinning.md",
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/lib/sysctl.d/20-mios-memory.conf",
       "hint": "Configures proactive memory compaction and memory parameters for AI workloads (T-800).",
       "related": [],
       "functions": [],
@@ -32852,6 +32870,15 @@
       "related": [],
       "functions": [],
       "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/mios/llamacpp/llama-swap.yaml",
+      "hint": "The mios-llm-light model map -- maps OpenAI /v1-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack.",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/llamacpp.md",
       "comment_style": "hash",
       "has_shebang": false
     },

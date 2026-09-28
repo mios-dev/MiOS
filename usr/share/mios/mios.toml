@@ -11884,6 +11884,7 @@ mirror_files = [
   "installation/mios-install.sh",
   "installation/mios-install.ps1",
   "installation/bin/7z.dll",
+  "installation/mios-mon.py",
   # The one MiOS dev image; the same bytes build from either repo root.
   ".devcontainer/Containerfile",
   # Harness settings: the no-merge deny applies in every MiOS repo.
