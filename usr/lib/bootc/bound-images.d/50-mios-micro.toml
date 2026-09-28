@@ -1,0 +1,6 @@
+# AI-hint: Pre-bound container image drop-in for mios-micro resident inference (Law 3 BOUND-IMAGES, Law 12 BAKE-NOT-FETCH).
+# AI-related: usr/share/containers/systemd/mios-llm-light.container, usr/share/doc/mios/adr/0024-dual-tier-oci-ai-artifacts.md
+[image]
+name = "ghcr.io/mios-dev/mios-micro"
+tag = "latest"
+role = "inference-modelcar"
