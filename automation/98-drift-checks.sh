@@ -1226,19 +1226,30 @@ check_lint_is_final() {
     local bad="" cf last n=0 want="RUN bootc container lint"
     for cf in "$ROOT"/Containerfile*; do
         [[ -f "$cf" ]] || continue
+        # Only bootc container images are subject to bootc container lint (Law 4)
+        if ! grep -iqE '^[[:space:]]*LABEL[[:space:]]+.*containers\.bootc=["'\'']?1(["'\'']|[[:space:]]|$)' "$cf"; then
+            # Negative control: non-bootc images must NOT include bootc container lint
+            last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" | tail -1)"
+            last="${last%$'\r'}"
+            if [[ "$last" == "$want" ]]; then
+                bad+="    ${cf#"$ROOT"/}: non-bootc container image contains invalid [$want]"$'\n'
+            fi
+            continue
+        fi
         n=$((n + 1))
         last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" | tail -1)"
+        last="${last%$'\r'}"
         if [[ "$last" != "$want" ]]; then
             bad+="    ${cf#"$ROOT"/}: final instruction is [$last], expected [$want]"$'\n'
         fi
     done
     if [[ "$n" -eq 0 ]]; then
-        _violation "(43) no Containerfile* at the repo root -- Law 4 would pass vacuously"
+        _violation "(43) no bootc Containerfile* (carrying LABEL containers.bootc=1) at the repo root -- Law 4 would pass vacuously"
     elif [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
-        _violation "a Containerfile's final instruction is not 'RUN bootc container lint' (Law 4 BOOTC-CONTAINER-LINT) -- lint MUST be the last layer"
+        _violation "a Containerfile's final instruction is invalid (Law 4 BOOTC-CONTAINER-LINT) -- bootc images must end with '$want'; non-bootc images must not"
     else
-        echo "[98-drift-checks]   all $n root Containerfile(s) end with 'RUN bootc container lint'"
+        echo "[98-drift-checks]   all $n bootc root Containerfile(s) end with 'RUN bootc container lint'"
     fi
 }
 

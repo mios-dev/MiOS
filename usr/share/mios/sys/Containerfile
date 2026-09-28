@@ -1,6 +1,6 @@
 # AI-hint: Containerfile to build the unified localhost/mios-sys image (WS-MIOSSYS).
 # AI-related: usr/share/mios/sys/Containerfile, automation/57-mios-sys-build.sh
-ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia
+ARG BASE_IMAGE=localhost/mios-base:latest
 
 FROM docker.io/library/golang:latest AS go-builder
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/mendableai/firecrawl/releases/latest | sed 's#.*/tag/##')" \
