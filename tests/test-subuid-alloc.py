@@ -28,9 +28,10 @@ class TestSubuidAlloc(unittest.TestCase):
 
     def test_files_exist(self):
         self.assertTrue(os.path.isfile(_ALLOC_BIN), f"Missing {_ALLOC_BIN}")
-        self.assertTrue(os.access(_ALLOC_BIN, os.X_OK), f"Not executable: {_ALLOC_BIN}")
+        if sys.platform != "win32":
+            self.assertTrue(os.access(_ALLOC_BIN, os.X_OK), f"Not executable: {_ALLOC_BIN}")
+            self.assertTrue(os.access(_AUTO_SCRIPT, os.X_OK), f"Not executable: {_AUTO_SCRIPT}")
         self.assertTrue(os.path.isfile(_AUTO_SCRIPT), f"Missing {_AUTO_SCRIPT}")
-        self.assertTrue(os.access(_AUTO_SCRIPT, os.X_OK), f"Not executable: {_AUTO_SCRIPT}")
         self.assertTrue(os.path.isfile(_SYSUSERS_CONF), f"Missing {_SYSUSERS_CONF}")
 
     def test_deterministic_formula(self):
@@ -42,7 +43,7 @@ class TestSubuidAlloc(unittest.TestCase):
         ]
         for uid, expected_base, expected_count in test_cases:
             res = subprocess.run(
-                [_ALLOC_BIN, "--user", f"u{uid}", "--uid", str(uid), "--json"],
+                [sys.executable, _ALLOC_BIN, "--user", f"u{uid}", "--uid", str(uid), "--json"],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -56,7 +57,7 @@ class TestSubuidAlloc(unittest.TestCase):
         subgid_f = os.path.join(self.tmpdir.name, "subgid")
 
         res_sync = subprocess.run(
-            [_ALLOC_BIN, "--sync", "--subuid", subuid_f, "--subgid", subgid_f, "--json"],
+            [sys.executable, _ALLOC_BIN, "--sync", "--subuid", subuid_f, "--subgid", subgid_f, "--json"],
             capture_output=True,
             text=True,
             check=True,
@@ -65,7 +66,7 @@ class TestSubuidAlloc(unittest.TestCase):
         self.assertEqual(sync_data["status"], "synchronized")
 
         res_check = subprocess.run(
-            [_ALLOC_BIN, "--check", "--subuid", subuid_f, "--subgid", subgid_f, "--json"],
+            [sys.executable, _ALLOC_BIN, "--check", "--subuid", subuid_f, "--subgid", subgid_f, "--json"],
             capture_output=True,
             text=True,
             check=True,
