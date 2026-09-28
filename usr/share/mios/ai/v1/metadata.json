@@ -1,9 +1,9 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3588,
+  "total_files_scanned": 3589,
   "total_metadata_entries": 2964,
   "total_hints": 2952,
-  "total_functions_indexed": 1338,
+  "total_functions_indexed": 1345,
   "total_related_links": 4653,
   "entries": [
     {
@@ -3999,15 +3999,6 @@
       "has_shebang": true
     },
     {
-      "path": "installation/mios-mon.py",
-      "hint": "MiOS Unified TUI App -- The single cross-platform shared surface.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "installation/stage-mios-repo.sh",
       "hint": "bash The MISSING USB staging bridge -- stages every built immutable-MiOS artifact (oci-archive tar, Anaconda-bootc installer ISO, raw/qcow2/vhdx ...",
       "related": [],
@@ -6511,6 +6502,19 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/ch44-host-package-overrides-and-dnf5.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-doctor.py",
+      "hint": "Comprehensive unit and regression test suite for mios-doctor diagnostics (Workflow 6).",
+      "related": [],
+      "functions": [
+        "find_bash",
+        "run_doctor",
+        "TestDoctorDiagnostics"
+      ],
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -20542,8 +20546,12 @@
         "get_pg_config",
         "escape_toml_key",
         "format_toml_value",
-        "main",
-        "scope_key"
+        "emit_toml",
+        "parse_layer_arg",
+        "deep_merge",
+        "materialize_from_db",
+        "materialize_fallback",
+        "main"
       ],
       "doc": null,
       "comment_style": "hash",
