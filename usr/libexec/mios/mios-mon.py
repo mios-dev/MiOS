@@ -19,6 +19,7 @@ import subprocess
 from datetime import datetime
 import argparse
 import threading
+from collections import deque
 
 def _install_deps(pkgs=None):
     if pkgs is None:
@@ -622,6 +623,10 @@ if TEXTUAL_AVAILABLE:
             self.tailing = True
             self.log_thread = threading.Thread(target=self.tail_all_logs, daemon=True)
             self.log_thread.start()
+            self.build_log_path = None
+            self.build_log_offset = 0
+            self.set_interval(1.0, self.refresh_build_log)
+            self.refresh_build_log()
 
             self.telemetry_timer = self.set_interval(self.refresh_interval, self.update_telemetry)
             self.set_interval(3.0, self.async_update_services)
@@ -667,11 +672,6 @@ if TEXTUAL_AVAILABLE:
             except Exception:
                 flash_log_box = None
                 ai_log_box = None
-            try:
-                build_log_box = self.query_one("#build-log-box", RichLog)
-            except Exception:
-                build_log_box = None
-
             def stream_proc(cmd):
                 try:
                     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1, errors="ignore")
@@ -782,106 +782,82 @@ if TEXTUAL_AVAILABLE:
                                         file_obj.seek(0)
                                 except Exception: pass
 
-            def _find_build_logs():
-                dirs = [os.environ.get("MIOS_LOG_DIR"),
-                        "M:\\MiOS\\logs", "C:\\MiOS\\logs",
-                        "C:\\mios-bootstrap\\installation",
-                        "/mnt/m/MiOS/logs", "/var/log/mios"]
-                found = [p for p in (os.environ.get("MIOS_UNIFIED_LOG"),
-                                     os.environ.get("MIOS_BUILD_LOG")) if p and os.path.exists(p)]
-                for d in dirs:
-                    if d and os.path.isdir(d):
-                        for pat in ("mios-install-*.log", "mios-build-*.log", "deploy*.log", "build*.log"):
-                            found += glob.glob(os.path.join(d, pat))
-                found = [p for p in dict.fromkeys(found) if os.path.exists(p)]
-                found.sort(key=os.path.getmtime, reverse=True)
-                return found
-
-            def _bcolor(l):
-                ll = l.lower()
-                if ("[error]" in ll or "traceback" in ll or "exception" in ll
-                        or "exit status 0x" in ll or "panic" in ll
-                        or ("fail:" in ll and "non-fatal" not in ll)):
-                    return f"[{SSOT['error']}]{l}[/]"
-                if "[warn]" in ll or "warning" in ll or "skip" in ll or "non-fatal" in ll:
-                    return f"[{SSOT['warning']}]{l}[/]"
-                if ("handoff" in ll or "build-driver" in ll or "phase " in ll
-                        or "complete" in ll or "provision" in ll or "overlay" in ll or "bootc" in ll):
-                    return f"[{SSOT['success']}]{l}[/]"
-                return l
-
-            def stream_build_log():
-                if not build_log_box and not log_box: return
-                current_log = None
-                file_obj = None
-
-                while self.tailing:
-                    logs = _find_build_logs()
-                    if not logs:
-                        time.sleep(1)
-                        continue
-
-                    newest_log = logs[0]
-                    if newest_log != current_log:
-                        current_log = newest_log
-                        self.build_log_path = current_log
-                        if file_obj:
-                            try: file_obj.close()
-                            except Exception: pass
-                        try:
-                            banner = f"[{SSOT['success']}]Streaming build log: {os.path.basename(current_log)}[/]"
-                            if build_log_box: self.call_from_thread(build_log_box.write, banner)
-                            if log_box: self.call_from_thread(log_box.write, banner)
-                            file_obj = open(current_log, 'r', encoding='utf-8', errors='ignore')
-                            lines = file_obj.readlines()
-                            for line in lines[-150:]:
-                                line = line.strip()
-                                if line:
-                                    formatted = _bcolor(line)
-                                    if build_log_box: self.call_from_thread(build_log_box.write, formatted)
-                                    if log_box: self.call_from_thread(log_box.write, formatted)
-                            file_obj.seek(0, 2)
-                        except Exception:
-                            file_obj = None
-                            time.sleep(1)
-                            continue
-
-                    if not file_obj:
-                        time.sleep(1)
-                        continue
-
-                    idle_count = 0
-                    while self.tailing and current_log == newest_log:
-                        line = file_obj.readline()
-                        if line:
-                            line = line.rstrip("\n")
-                            if line.strip():
-                                self.last_build_log_time = time.time()
-                                formatted = _bcolor(line)
-                                if build_log_box: self.call_from_thread(build_log_box.write, formatted)
-                                if log_box: self.call_from_thread(log_box.write, formatted)
-                            idle_count = 0
-                        else:
-                            idle_count += 1
-                            time.sleep(0.2)
-                            if idle_count > 10:
-                                idle_count = 0
-                                check_logs = _find_build_logs()
-                                if check_logs and check_logs[0] != current_log:
-                                    newest_log = check_logs[0]
-                                    break
-                                try:
-                                    if os.path.getsize(current_log) < file_obj.tell():
-                                        file_obj.seek(0)
-                                except Exception: pass
-
             j_cmd = ["stdbuf", "-oL", "journalctl", "-fa", "-n", "0", "--no-pager"]
             if IS_WINDOWS:
                 j_cmd = ["wsl.exe", "-d", "podman-MiOS-DEV", "-u", "root", "--", "stdbuf", "-oL", "journalctl", "-fa", "-n", "0", "--no-pager"]
 
             threading.Thread(target=stream_proc, args=(j_cmd,), daemon=True).start()
             if flash_log_box: threading.Thread(target=stream_flash_log, daemon=True).start()
-            if build_log_box or log_box: threading.Thread(target=stream_build_log, daemon=True).start()
+            # The build log is polled on the UI thread by refresh_build_log.
+            # A detached tail thread could die when root merge replaces its log.
+
+        def refresh_build_log(self):
+            try:
+                build_box = self.query_one("#build-log-box", RichLog)
+                global_box = self.query_one("#log-box", RichLog)
+                paths = [os.environ.get("MIOS_UNIFIED_LOG"), os.environ.get("MIOS_BUILD_LOG")]
+                for directory in (os.environ.get("MIOS_LOG_DIR"),
+                                  r"M:\MiOS\logs", r"C:\MiOS\logs",
+                                  r"C:\mios-bootstrap\installation",
+                                  "/mnt/m/MiOS/logs", "/var/log/mios"):
+                    if directory and os.path.isdir(directory):
+                        for pattern in ("mios-install-*.log", "mios-build-*.log",
+                                        "deploy*.log", "build*.log"):
+                            paths.extend(glob.glob(os.path.join(directory, pattern)))
+                available = []
+                for path in set(filter(None, paths)):
+                    try:
+                        stat = os.stat(path)
+                        if os.path.isfile(path):
+                            available.append((stat.st_mtime_ns, path, stat.st_size))
+                    except OSError:
+                        continue
+                if not available:
+                    return
+                _, path, size = max(available)
+
+                def display(line):
+                    line = line.rstrip("\r\n")
+                    if not line.strip():
+                        return
+                    low = line.lower()
+                    if any(marker in low for marker in ("[error]", "traceback", "exception", "panic")):
+                        line = f"[{SSOT['error']}]{line}[/]"
+                    elif "[warn]" in low or "warning" in low:
+                        line = f"[{SSOT['warning']}]{line}[/]"
+                    build_box.write(line)
+                    global_box.write(line)
+
+                if path != self.build_log_path:
+                    with open(path, "r", encoding="utf-8", errors="ignore") as stream:
+                        history = deque(stream, maxlen=150)
+                        stream.seek(0, os.SEEK_END)
+                        offset = stream.tell()
+                    build_box.clear()
+                    self.build_log_path = path
+                    self.build_log_offset = offset
+                    banner = f"[{SSOT['success']}]Streaming build log: {os.path.basename(path)}[/]"
+                    build_box.write(banner)
+                    global_box.write(banner)
+                    for line in history:
+                        display(line)
+                else:
+                    if size < self.build_log_offset:
+                        build_box.clear()
+                        self.build_log_offset = 0
+                    with open(path, "r", encoding="utf-8", errors="ignore") as stream:
+                        stream.seek(self.build_log_offset)
+                        for _ in range(300):
+                            line = stream.readline()
+                            if not line:
+                                break
+                            display(line)
+                        self.build_log_offset = stream.tell()
+                self.last_build_log_time = os.stat(path).st_mtime
+            except (OSError, ValueError):
+                # Root merge may replace the log directory between stat/open/read.
+                self.build_log_path = None
+                self.build_log_offset = 0
 
         def update_telemetry(self):
             cpu, ram, root, m_disk, load = get_telemetry()
