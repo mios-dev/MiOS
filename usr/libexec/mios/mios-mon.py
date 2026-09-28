@@ -38,6 +38,7 @@ try:
     from rich.console import Console, Group
     from rich.panel import Panel
     from rich.text import Text
+    from rich.markup import escape
     from rich.table import Table
     from rich.align import Align
     from rich.columns import Columns
@@ -50,6 +51,7 @@ except ImportError:
             from rich.console import Console, Group
             from rich.panel import Panel
             from rich.text import Text
+            from rich.markup import escape
             from rich.table import Table
             from rich.align import Align
             from rich.columns import Columns
@@ -625,6 +627,8 @@ if TEXTUAL_AVAILABLE:
             self.log_thread.start()
             self.build_log_path = None
             self.build_log_offset = 0
+            self.build_log_identity = None
+            self.build_log_phase = "-"
             self.set_interval(1.0, self.refresh_build_log)
             self.refresh_build_log()
 
@@ -692,14 +696,15 @@ if TEXTUAL_AVAILABLE:
                             continue
                         is_err = bool(re.search(r'\b(error|failed|critical|fatal)\b', line, re.I))
                         is_warn = bool(re.search(r'\bwarn(ing)?\b', line, re.I))
-                        if is_err: line = f"[{SSOT['error']}]{line}[/]"
-                        elif is_warn: line = f"[{SSOT['warning']}]{line}[/]"
+                        rendered = Text(line)
+                        if is_err: rendered.stylize(SSOT['error'])
+                        elif is_warn: rendered.stylize(SSOT['warning'])
                         elif 'podman' in line.lower() or 'container' in line.lower():
-                            line = f"[{SSOT['subtle']}]{line}[/]"
-                            if ai_log_box: self.call_from_thread(ai_log_box.write, line)
+                            rendered.stylize(SSOT['subtle'])
+                            if ai_log_box: self.call_from_thread(ai_log_box.write, rendered)
                         # On Windows during pipeline builds, only surface real system warnings/errors to log_box
                         if not IS_WINDOWS or is_err or is_warn:
-                            self.call_from_thread(log_box.write, f"[dim cyan][sys][/] {line}")
+                            self.call_from_thread(log_box.write, Text.assemble(("[sys] ", f"dim {SSOT['subtle']}"), rendered))
                     try:
                         proc.kill()
                     except Exception: pass
@@ -741,13 +746,13 @@ if TEXTUAL_AVAILABLE:
                             try: file_obj.close()
                             except Exception: pass
                         try:
-                            self.call_from_thread(flash_log_box.write, f"[{SSOT['success']}]Streaming flash log: {os.path.basename(current_log)}[/]")
+                            self.call_from_thread(flash_log_box.write, Text(f"Streaming flash log: {os.path.basename(current_log)}", style=SSOT['success']))
                             file_obj = open(current_log, 'r', encoding='utf-8', errors='ignore')
                             lines = file_obj.readlines()
                             for line in lines[-40:]:
                                 line = line.replace('\x00', '').strip()
                                 if line:
-                                    self.call_from_thread(flash_log_box.write, line)
+                                    self.call_from_thread(flash_log_box.write, Text(line))
                             file_obj.seek(0, 2)
                         except Exception:
                             file_obj = None
@@ -765,8 +770,8 @@ if TEXTUAL_AVAILABLE:
                             line = line.replace('\x00', '').strip()
                             if line:
                                 self.last_flash_log_time = time.time()
-                                self.call_from_thread(flash_log_box.write, line)
-                                self.call_from_thread(log_box.write, f"[dim]flash[/] {line}")
+                                self.call_from_thread(flash_log_box.write, Text(line))
+                                self.call_from_thread(log_box.write, Text.assemble(("flash ", "dim"), Text(line)))
                             idle_count = 0
                         else:
                             idle_count += 1
@@ -809,55 +814,62 @@ if TEXTUAL_AVAILABLE:
                     try:
                         stat = os.stat(path)
                         if os.path.isfile(path):
-                            available.append((stat.st_mtime_ns, path, stat.st_size))
+                            available.append((stat.st_mtime_ns, path))
                     except OSError:
                         continue
                 if not available:
                     return
-                _, path, size = max(available)
+                _, path = max(available)
 
                 def display(line):
                     line = line.rstrip("\r\n")
                     if not line.strip():
                         return
+                    if "step:" in line:
+                        self.build_log_phase = line.split("step:", 1)[1].strip()
                     low = line.lower()
+                    rendered = Text(line)
                     if any(marker in low for marker in ("[error]", "traceback", "exception", "panic")):
-                        line = f"[{SSOT['error']}]{line}[/]"
+                        rendered.stylize(SSOT['error'])
                     elif "[warn]" in low or "warning" in low:
-                        line = f"[{SSOT['warning']}]{line}[/]"
-                    build_box.write(line)
-                    global_box.write(line)
+                        rendered.stylize(SSOT['warning'])
+                    build_box.write(rendered)
+                    global_box.write(rendered)
 
-                if path != self.build_log_path:
-                    with open(path, "r", encoding="utf-8", errors="ignore") as stream:
+                with open(path, "r", encoding="utf-8", errors="replace") as stream:
+                    stat = os.fstat(stream.fileno())
+                    identity = (stat.st_dev, stat.st_ino)
+                    replaced = (path != self.build_log_path or
+                                identity != self.build_log_identity)
+                    if replaced:
                         history = deque(stream, maxlen=150)
-                        stream.seek(0, os.SEEK_END)
-                        offset = stream.tell()
-                    build_box.clear()
-                    self.build_log_path = path
-                    self.build_log_offset = offset
-                    banner = f"[{SSOT['success']}]Streaming build log: {os.path.basename(path)}[/]"
-                    build_box.write(banner)
-                    global_box.write(banner)
-                    for line in history:
-                        display(line)
-                else:
-                    if size < self.build_log_offset:
                         build_box.clear()
-                        self.build_log_offset = 0
-                    with open(path, "r", encoding="utf-8", errors="ignore") as stream:
+                        self.build_log_phase = "-"
+                        banner = Text(f"Streaming build log: {os.path.basename(path)}", style=SSOT['success'])
+                        build_box.write(banner)
+                        global_box.write(banner)
+                        for line in history:
+                            display(line)
+                    else:
+                        if stat.st_size < self.build_log_offset:
+                            build_box.clear()
+                            self.build_log_offset = 0
+                            self.build_log_phase = "-"
                         stream.seek(self.build_log_offset)
                         for _ in range(300):
                             line = stream.readline()
                             if not line:
                                 break
                             display(line)
-                        self.build_log_offset = stream.tell()
-                self.last_build_log_time = os.stat(path).st_mtime
+                    self.build_log_offset = stream.tell()
+                    self.build_log_path = path
+                    self.build_log_identity = identity
+                    self.last_build_log_time = stat.st_mtime
             except (OSError, ValueError):
                 # Root merge may replace the log directory between stat/open/read.
                 self.build_log_path = None
                 self.build_log_offset = 0
+                self.build_log_identity = None
 
         def update_telemetry(self):
             cpu, ram, root, m_disk, load = get_telemetry()
@@ -956,27 +968,19 @@ if TEXTUAL_AVAILABLE:
 
                 last_build_t = getattr(self, "last_build_log_time", None)
                 bpath = getattr(self, "build_log_path", None)
-                phase_str = "-"
-                if bpath and os.path.exists(bpath):
-                    try:
-                        with open(bpath, "r", encoding="utf-8", errors="ignore") as bf:
-                            btail = bf.readlines()[-80:]
-                        steps = [l for l in btail if "step:" in l]
-                        if steps:
-                            phase_str = steps[-1].split("step:", 1)[1].strip()[:38]
-                    except Exception: pass
+                phase_str = escape(getattr(self, "build_log_phase", "-")[:38])
                 if last_build_t:
                     el = int(time.time() - last_build_t)
                     if el < 20: bstat = f"[{SSOT['success']} bold]BUILDING (active)[/]"
                     elif el < 120: bstat = f"[{SSOT['warning']} bold]IDLE ({el}s since log)[/]"
-                    else: bstat = f"[{SSOT['subtle']}]DONE / INACTIVE ({el}s ago)[/]"
+                    else: bstat = f"[{SSOT['subtle']}]NO RECENT OUTPUT ({el}s since log)[/]"
                 else:
                     bstat = f"[{SSOT['subtle']}]Waiting for build/install...[/]"
                 build_lines = [
                     f"[{SSOT['accent']} bold]MiOS Build / Install[/]",
                     f"[{SSOT['subtle']}]Status:[/] {bstat}",
                     f"[{SSOT['subtle']}]Phase:[/] {phase_str}",
-                    f"[{SSOT['subtle']}]Log:[/] {os.path.basename(bpath) if bpath else '-'}",
+                    f"[{SSOT['subtle']}]Log:[/] {escape(os.path.basename(bpath)) if bpath else '-'}",
                     "",
                     "Live install/build pipeline stream ->",
                 ]
