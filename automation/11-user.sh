@@ -19,7 +19,7 @@ C_USER="${MIOS_USER:-mios}"
 
 mios_log "Creating user ${C_USER} via sysusers"
 if [[ "${C_USER}" != "mios" ]]; then
-    rm -f /usr/lib/sysusers.d/10-mios.conf /etc/sysusers.d/10-mios.conf 2>/dev/null || true
+    rm -f /usr/lib/sysusers.d/10-mios.conf /usr/lib/sysusers.d/50-mios-users.conf /etc/sysusers.d/10-mios.conf /etc/sysusers.d/50-mios-users.conf 2>/dev/null || true
     if getent passwd mios >/dev/null 2>&1; then
         userdel -f mios 2>/dev/null || true
     fi
@@ -38,6 +38,9 @@ m ${C_USER} render
 m ${C_USER} input
 m ${C_USER} dialout
 m ${C_USER} docker
+m ${C_USER} mios-hermes
+m ${C_USER} mios-ai
+m ${C_USER} mios-sys
 EOF
 fi
 
@@ -47,7 +50,7 @@ if ! getent passwd "${C_USER}" >/dev/null 2>&1; then
     mios_log "Sysusers did not create ${C_USER}"
     groupadd -g 1000 "${C_USER}" 2>/dev/null || groupadd "${C_USER}" 2>/dev/null || true
     useradd -u 1000 -g "${C_USER}" -m -d "/var/home/${C_USER}" -s /bin/bash "${C_USER}" 2>/dev/null || useradd -m -s /bin/bash "${C_USER}" 2>/dev/null || true
-    for g in wheel libvirt kvm video render input dialout docker; do
+    for g in wheel libvirt kvm video render input dialout docker mios-hermes mios-ai mios-sys; do
         usermod -aG "$g" "${C_USER}" 2>/dev/null || true
     done
 fi
@@ -56,11 +59,29 @@ if getent passwd "${C_USER}" >/dev/null; then
     home=$(getent passwd "${C_USER}" | cut -d: -f6)
     passwd -u "${C_USER}" 2>/dev/null || true
 
+    c_uid=$(id -u "${C_USER}" 2>/dev/null || echo 1000)
+    alloc_bin="$(dirname "${BASH_SOURCE[0]}")/../usr/libexec/mios/mios-subuid-alloc"
+    sub_line=""
+    if [[ -x "${alloc_bin}" ]]; then
+        sub_line=$("${alloc_bin}" --user "${C_USER}" --uid "${c_uid}" 2>/dev/null || true)
+    elif [[ -f "${alloc_bin}" && -n "$(command -v python3 2>/dev/null || true)" ]]; then
+        sub_line=$(python3 "${alloc_bin}" --user "${C_USER}" --uid "${c_uid}" 2>/dev/null || true)
+    elif [[ -x /usr/libexec/mios/mios-subuid-alloc ]]; then
+        sub_line=$(/usr/libexec/mios/mios-subuid-alloc --user "${C_USER}" --uid "${c_uid}" 2>/dev/null || true)
+    fi
+
+    if [[ -z "${sub_line}" ]]; then
+        uid_base=$((100000 + (c_uid - 1000) * 65536))
+        sub_line="${C_USER}:${uid_base}:65536"
+    fi
+
     for subfile in /etc/subuid /etc/subgid; do
+        install -d -m 0755 "$(dirname "$subfile")" 2>/dev/null || true
         if ! grep -qE "^${C_USER}:" "$subfile" 2>/dev/null; then
-            echo "${C_USER}:100000:65536" >> "$subfile"
-            mios_log "Added ${C_USER} -> ${subfile}"
+            echo "${sub_line}" >> "$subfile"
+            mios_log "Added ${C_USER} -> ${subfile} (${sub_line})"
         fi
+        chmod 0644 "$subfile" 2>/dev/null || true
     done
 
     pw_hash="${MIOS_USER_PASSWORD_HASH:-}"
