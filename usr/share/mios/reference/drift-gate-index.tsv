@@ -44,7 +44,7 @@
 43	check_quadlet_privilege	every Quadlet declares User=; root only where allowlisted; Group=/Delegate=yes present
 44	check_unit_security	systemd unit security hardening options meet baseline policy
 45	check_var_closure	MIOS_* closure: $n_found referenced-but-unemitted name(s), all on the ledger (ceiling $ceiling)
-46	check_lint_is_final	all $n root Containerfile(s) end with 'RUN bootc container lint'
+46	check_lint_is_final	all $n bootc root Containerfile(s) end with 'RUN bootc container lint'
 47	check_firstboot_degrade_open	firstboot scripts degrade open on egress failure (Law 12)
 48	check_vendor_urls	no vendor cloud URL in active config
 49	check_resolver_twin_parity	mios-resolver not built -- twin parity NOT verified (both legs would be mios_toml.py); advisory skip

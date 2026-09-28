@@ -1229,15 +1229,14 @@ check_lint_is_final() {
         # Only bootc container images are subject to bootc container lint (Law 4)
         if ! grep -iqE '^[[:space:]]*LABEL[[:space:]]+.*containers\.bootc=["'\'']?1(["'\'']|[[:space:]]|$)' "$cf"; then
             # Negative control: non-bootc images must NOT include bootc container lint
-            last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" | tail -1)"
-            last="${last%$'\r'}"
-            if [[ "$last" == "$want" ]]; then
+            last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" 2>/dev/null | tail -1 || true)"
+            if grep -qF "$want" "$cf"; then
                 bad+="    ${cf#"$ROOT"/}: non-bootc container image contains invalid [$want]"$'\n'
             fi
             continue
         fi
         n=$((n + 1))
-        last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" | tail -1)"
+        last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" 2>/dev/null | tail -1 || true)"
         last="${last%$'\r'}"
         if [[ "$last" != "$want" ]]; then
             bad+="    ${cf#"$ROOT"/}: final instruction is [$last], expected [$want]"$'\n'

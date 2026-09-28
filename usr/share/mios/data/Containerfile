@@ -6,8 +6,8 @@ FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title="mios-data"
 LABEL org.opencontainers.image.description="MiOS consolidated data plane (PostgreSQL + pgvector extension + Valkey cache)"
 
-RUN microdnf -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs postgresql-server valkey \
-    && microdnf clean all \
+RUN dnf5 -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs postgresql-server valkey \
+    && dnf5 clean all \
     && rm -rf /var/cache/* /tmp/*
 
 WORKDIR /var/lib/pgsql

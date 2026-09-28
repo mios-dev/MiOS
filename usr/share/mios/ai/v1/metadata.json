@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3573,
-  "total_metadata_entries": 2957,
-  "total_hints": 2943,
+  "total_files_scanned": 3577,
+  "total_metadata_entries": 2958,
+  "total_hints": 2944,
   "total_functions_indexed": 1338,
   "total_related_links": 4653,
   "entries": [
@@ -549,6 +549,15 @@
         "mios-coderun-sandbox",
         "mios-additionalimagestores-perms"
       ],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "Containerfile.hummingbird",
+      "hint": "Lightweight Python distroless container for agent-pipe microservice.",
+      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
