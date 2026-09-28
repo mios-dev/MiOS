@@ -306,10 +306,11 @@ foreach ($line in $lines) {
     $name    = $parts[0].Trim()
     $execRaw = $parts[1].Trim()
     $iconRaw = $parts[2].Trim()
-    if (-not $name -or -not $execRaw) { $skipped++; continue }
+    $desktopId = [IO.Path]::GetFileNameWithoutExtension($parts[6].Trim())
+    if (-not $name -or -not $execRaw -or $desktopId -notmatch '^[A-Za-z0-9_.-]+$') { $skipped++; continue }
 
     # Strip .desktop %f/%F/%u/%U/etc field-codes.
-    $execClean = ($execRaw -replace '\s*%[fFuUiIcCkdDnNvm]', '').Trim()
+    $execClean = "/usr/libexec/mios/mios-gui $desktopId"
 
     # Icon resolution: copy the rasterized PNG out to WSLDVCPlugin\
     # then convert PNG -> ICO so Start Menu renders crisply.

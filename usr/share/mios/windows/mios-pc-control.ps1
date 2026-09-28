@@ -33,6 +33,7 @@ public class W32 {
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
     [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int n, bool repaint);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);
     [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, System.Text.StringBuilder s, int max);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
@@ -322,7 +323,7 @@ public class MiosWin {
     }
 
     'window-center' {
-        # Center the window on the primary monitor's work area.
+        # Center the window on its current monitor's work area.
         # Usage: window-center <hwnd-or-pid>
         # Operator directive "MiOS apps STILL don't center
         # launch and don't self center" -- Windows apps launched via
@@ -350,14 +351,18 @@ public class MiosWin {
         if ($hwnd -eq [IntPtr]::Zero) {
             throw "window-center: could not resolve '$arg' to a window handle"
         }
-        $rect = New-Object W32+RECT
-        [W32]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
-        $w = $rect.Right - $rect.Left
-        $h = $rect.Bottom - $rect.Top
-        $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-        $x = $screen.X + [int](($screen.Width - $w) / 2)
-        $y = $screen.Y + [int](($screen.Height - $h) / 2)
-        [W32]::MoveWindow($hwnd, $x, $y, $w, $h, $true) | Out-Null
+        $previousDpi = [IntPtr]::Zero
+        try { $previousDpi = [W32]::SetThreadDpiAwarenessContext([IntPtr]::new(-4)) } catch {}
+        try {
+            $rect = New-Object W32+RECT
+            if (-not [W32]::GetWindowRect($hwnd, [ref]$rect)) { throw "window-center: could not read window rectangle" }
+            $screen = [System.Windows.Forms.Screen]::FromHandle($hwnd).WorkingArea
+            $w = [Math]::Min($rect.Right - $rect.Left, $screen.Width)
+            $h = [Math]::Min($rect.Bottom - $rect.Top, $screen.Height)
+            $x = $screen.X + [int](($screen.Width - $w) / 2)
+            $y = $screen.Y + [int](($screen.Height - $h) / 2)
+            [W32]::MoveWindow($hwnd, $x, $y, $w, $h, $true) | Out-Null
+        } finally { if ($previousDpi -ne [IntPtr]::Zero) { [void][W32]::SetThreadDpiAwarenessContext($previousDpi) } }
         [W32]::ShowWindow($hwnd, 9) | Out-Null  # SW_RESTORE
         [W32]::SetForegroundWindow($hwnd) | Out-Null
         Write-Output "[mios-pc-control] window-center hwnd=$hwnd to ($x,$y) ${w}x${h}"

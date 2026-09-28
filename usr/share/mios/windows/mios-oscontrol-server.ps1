@@ -36,7 +36,7 @@
     POST /window/focus  {title|hwnd}            -> raise + foreground
     POST /window/move   {title|hwnd, x, y}      -> reposition
     POST /window/resize {title|hwnd, width, height}
-    POST /window/center {title|hwnd}            -> center on primary work area
+    POST /window/center {title|hwnd}            -> center on the window's monitor work area
     POST /window/state  {title|hwnd, state:minimize|maximize|restore}
                                   -> each returns {ok, op, count, matched:[...]}
     GET  /screen-layout           -> {ok, count, screens:[{device,primary,bounds,work}]}
@@ -191,6 +191,7 @@ public class OSCW32 {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int InternalGetWindowText(IntPtr h, StringBuilder s, int max);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
@@ -370,14 +371,20 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state, $monitor = 
             'resize' { [void][OSCW32]::SetWindowPos($p, [IntPtr]::Zero, 0, 0, [int]$w, [int]$h, 0x4016) }  # async|nozorder|noactivate|nomove
             'center' {
                 Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-                $sc = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-                $cw = [int]$wnd.w; $ch = [int]$wnd.h
-                $cx = $sc.X + [int](($sc.Width - $cw) / 2)
-                $cy = $sc.Y + [int](($sc.Height - $ch) / 2)
-                # async|nozorder|showwindow -- positions+sizes+shows without blocking;
-                # no NOACTIVATE so a centered window stays usable, no synchronous
-                # ShowWindow/SetForegroundWindow (both can also block a busy app).
-                [void][OSCW32]::SetWindowPos($p, [IntPtr]::Zero, $cx, $cy, $cw, $ch, 0x4044)
+                $previousDpi = [IntPtr]::Zero
+                try { $previousDpi = [OSCW32]::SetThreadDpiAwarenessContext([IntPtr]::new(-4)) } catch {}
+                try {
+                    $rect = New-Object OSCW32+RECT
+                    if (-not [OSCW32]::GetWindowRect($p, [ref]$rect)) { continue }
+                    $sc = [System.Windows.Forms.Screen]::FromHandle($p).WorkingArea
+                    $cw = [Math]::Min([int]($rect.Right - $rect.Left), $sc.Width)
+                    $ch = [Math]::Min([int]($rect.Bottom - $rect.Top), $sc.Height)
+                    if ($cw -le 0 -or $ch -le 0) { continue }
+                    $cx = $sc.X + [int](($sc.Width - $cw) / 2)
+                    $cy = $sc.Y + [int](($sc.Height - $ch) / 2)
+                    # ASYNCWINDOWPOS keeps the listener responsive during app startup.
+                    [void][OSCW32]::SetWindowPos($p, [IntPtr]::Zero, $cx, $cy, $cw, $ch, 0x4044)
+                } finally { if ($previousDpi -ne [IntPtr]::Zero) { [void][OSCW32]::SetThreadDpiAwarenessContext($previousDpi) } }
             }
             'position' {
                 Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
