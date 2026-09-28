@@ -15,6 +15,25 @@ fi
 LLM_LIGHT_PORT="${MIOS_PORT_LLM_LIGHT:-8500}"
 OWUI_PORT="${MIOS_PORT_OPEN_WEBUI:-8200}"
 
+_get_perm() {
+    local target="$1"
+    local p=""
+    p=$(stat -c '%a' "$target" 2>/dev/null || stat -f '%Lp' "$target" 2>/dev/null || true)
+    if [[ "$p" =~ ^[0-7]{3,4}$ ]]; then
+        if [ "${#p}" -eq 4 ]; then
+            p="${p:1:3}"
+        fi
+        echo "$p"
+    else
+        echo ""
+    fi
+}
+
+_is_systemd_booted=0
+if [ -d /run/systemd/system ]; then
+    _is_systemd_booted=1
+fi
+
 _run_as() { sudo -u "$1" -- "${@:2}"; }
 
 ok()   { printf "  \033[32mok\033[0m    %s\n" "$*"; }
@@ -30,13 +49,13 @@ echo "════════════════════════�
 
 echo
 echo "── ── ──  privilege chain"
-if [ "$(id -u)" -eq 0 ] || sudo -n true 2>/dev/null; then
+if [ "$(id -u 2>/dev/null || echo 1000)" -eq 0 ] || sudo -n true 2>/dev/null; then
     ok "current user can sudo non-interactively"
 else
     fail "current user cannot sudo non-interactively (need root or sudoers grant)"
 fi
 if [ -f /etc/sudoers.d/10-mios-hermes ]; then
-    if grep -q 'mios-hermes ALL=' /etc/sudoers.d/10-mios-hermes; then
+    if grep -q 'mios-hermes ALL=' /etc/sudoers.d/10-mios-hermes 2>/dev/null; then
         ok "/etc/sudoers.d/10-mios-hermes grants mios-hermes (agent) NOPASSWD"
     else
         warn "/etc/sudoers.d/10-mios-hermes exists but doesn't grant mios-hermes ALL"
@@ -46,19 +65,30 @@ else
 fi
 
 echo "── ── ──  mios-agent-pipe service"
-state=$(systemctl is-active mios-agent-pipe.service 2>&1)
-if [ "$state" = "active" ]; then ok "mios-agent-pipe.service active"
-else fail "mios-agent-pipe.service: $state"; fi
-nnp=$(systemctl show mios-agent-pipe.service -p NoNewPrivileges --value 2>/dev/null)
-if [ "$nnp" = "no" ]; then ok "NoNewPrivileges=no (sudo escalation possible)"
-else warn "NoNewPrivileges=$nnp"; fi
+if [ "$_is_systemd_booted" -eq 1 ]; then
+    if command -v systemctl >/dev/null 2>&1; then
+        state=$(systemctl is-active mios-agent-pipe.service 2>&1 || true)
+        if [ "$state" = "active" ]; then ok "mios-agent-pipe.service active"
+        else fail "mios-agent-pipe.service: $state"; fi
+        nnp=$(systemctl show mios-agent-pipe.service -p NoNewPrivileges --value 2>/dev/null || echo "unknown")
+        if [ "$nnp" = "no" ]; then ok "NoNewPrivileges=no (sudo escalation possible)"
+        else warn "NoNewPrivileges=$nnp"; fi
+    else
+        warn "systemctl not found in PATH; skipping mios-agent-pipe.service checks"
+    fi
+else
+    info "systemd not booted as PID 1 (/run/systemd/system absent); skipping mios-agent-pipe.service checks"
+fi
 
 echo
 echo "── ── ──  llm-light + main models"
-if curl -sf --max-time 3 http://localhost:${LLM_LIGHT_PORT}/api/tags >/dev/null 2>&1; then
+models=""
+if curl -sf --max-time 3 "http://localhost:${LLM_LIGHT_PORT}/api/tags" >/dev/null 2>&1; then
     ok "llm-light (dGPU/main) API reachable on :${LLM_LIGHT_PORT}"
-    models=$(curl -s --max-time 3 http://localhost:${LLM_LIGHT_PORT}/api/tags 2>/dev/null | \
-        python3 -c 'import sys,json; print(",".join(m["name"] for m in json.load(sys.stdin).get("models",[])))' 2>/dev/null)
+    raw_tags=$(curl -s --max-time 3 "http://localhost:${LLM_LIGHT_PORT}/api/tags" 2>/dev/null || true)
+    if [ -n "$raw_tags" ] && command -v python3 >/dev/null 2>&1; then
+        models=$(python3 -c 'import sys,json; data=json.loads(sys.argv[1]); print(",".join(m.get("name","") for m in data.get("models",[])))' "$raw_tags" 2>/dev/null || echo "")
+    fi
     info "models: ${models:-(none)}"
 else
     fail "llm-light (dGPU/main) not reachable on :${LLM_LIGHT_PORT}"
@@ -66,10 +96,13 @@ fi
 
 echo
 echo "── ── ──  vision grounding"
-_vis_model=$(grep -E '^vision_grounding_model' /usr/share/mios/mios.toml 2>/dev/null \
-    | head -1 | sed -E 's/.*=[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]')
+_vis_model=""
+if [ -f /usr/share/mios/mios.toml ]; then
+    _vis_model=$( (grep -E '^vision_grounding_model' /usr/share/mios/mios.toml 2>/dev/null || true) \
+        | head -1 | sed -E 's/.*=[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]' || true)
+fi
 _vis_probe="${_vis_model:-qwen3-vl:4b}"
-if printf '%s' "${models:-}" | grep -qiE "${_vis_probe%%:*}|qwen3-vl|holo"; then
+if [ -n "${models:-}" ] && printf '%s' "${models:-}" | grep -qiE "${_vis_probe%%:*}|qwen3-vl|holo" 2>/dev/null; then
     ok "vision-grounding VLM ($_vis_probe) served on :${LLM_LIGHT_PORT} -- cu_ground/pc_ground/cu_act hybrid ACTIVE"
 else
     warn "Vision-grounding VLM not served on :${LLM_LIGHT_PORT}"
@@ -81,12 +114,12 @@ echo
 
 echo
 echo "── ── ──  open webui"
-if podman ps --filter name=mios-open-webui --format '{{.Status}}' 2>/dev/null | grep -q Up; then
+if command -v podman >/dev/null 2>&1 && (podman ps --filter name=mios-open-webui --format '{{.Status}}' 2>/dev/null || true) | grep -q Up; then
     ok "mios-open-webui container Up"
 else
     fail "mios-open-webui container not Up (run as sudo if container is rootful)"
 fi
-if curl -sf --max-time 3 http://localhost:${OWUI_PORT}/api/version >/dev/null 2>&1; then
+if curl -sf --max-time 3 "http://localhost:${OWUI_PORT}/api/version" >/dev/null 2>&1; then
     ok "owui API on :${OWUI_PORT} reachable"
 else
     warn "Owui API on :${OWUI_PORT} not reachable"
@@ -97,16 +130,16 @@ echo "── ── ──  baked-image store"
 if [ -d /usr/lib/containers/storage ]; then
     ok "/usr/lib/containers/storage exists"
     if [ -d /usr/lib/containers/storage/overlay-images ]; then
-        perm=$(stat -c '%a' /usr/lib/containers/storage/overlay-images 2>/dev/null || stat -f '%A' /usr/lib/containers/storage/overlay-images 2>/dev/null || stat -f '%Lp' /usr/lib/containers/storage/overlay-images 2>/dev/null || echo 000)
-        if [ "${perm:0:1}" = "7" ] && [ "${perm:1:1}" -ge 5 ]; then
+        perm=$(_get_perm /usr/lib/containers/storage/overlay-images)
+        if [ -n "$perm" ] && [ "${perm:0:1}" -eq 7 ] && [ "${perm:1:1}" -ge 5 ]; then
             ok "overlay-images mode $perm (world-readable, flatpak/podman-as-user works)"
         else
-            fail "overlay-images mode $perm (NOT world-readable -- unprivileged podman dies with EACCES)"
+            fail "overlay-images mode ${perm:-unknown} (NOT world-readable -- unprivileged podman dies with EACCES)"
         fi
     else
         warn "/usr/lib/containers/storage/overlay-images missing"
     fi
-    if grep -q '/usr/lib/containers/storage' /etc/containers/storage.conf 2>/dev/null; then
+    if [ -f /etc/containers/storage.conf ] && grep -q '/usr/lib/containers/storage' /etc/containers/storage.conf 2>/dev/null; then
         ok "/etc/containers/storage.conf lists additionalimagestores"
     else
         warn "/etc/containers/storage.conf does NOT list additionalimagestores"
@@ -119,8 +152,9 @@ echo
 echo "── ── ──  WSLg / display"
 if [ -e /tmp/.X11-unix/X0 ]; then ok "WSLg X server socket present (/tmp/.X11-unix/X0)"
 else warn "No /tmp/.X11-unix/X0"; fi
+_uid=$(id -u 2>/dev/null || echo 1000)
 if [ -e /mnt/wslg/runtime-dir/wayland-0 ]; then ok "WSLg Wayland socket present"
-elif [ -e /run/user/$(id -u)/wayland-0 ]; then ok "WSLg Wayland socket present (user path)"
+elif [ -e "/run/user/${_uid}/wayland-0" ]; then ok "WSLg Wayland socket present (user path)"
 else warn "No WSLg Wayland"; fi
 
 echo
@@ -129,7 +163,9 @@ shims=0
 if [ -d /usr/local/bin ]; then
     for f in /usr/local/bin/*; do
         [ -f "$f" ] || continue
-        head -3 "$f" 2>/dev/null | grep -q 'MiOS shim for the' && shims=$((shims+1))
+        if (head -3 "$f" 2>/dev/null || true) | grep -q 'MiOS shim for the' 2>/dev/null; then
+            shims=$((shims+1))
+        fi
     done
 fi
 info "$shims flatpak shims under /usr/local/bin/ (chrome, nautilus, epiphany, ...)"
@@ -143,7 +179,7 @@ echo
 echo "── ── ──  build pipeline readiness"
 if [ -x /usr/libexec/mios/mios-build-driver ]; then
     ok "mios-build-driver installed"
-    if grep -q '_MIOS_BUILD_ESCAPED' /usr/libexec/mios/mios-build-driver; then
+    if grep -q '_MIOS_BUILD_ESCAPED' /usr/libexec/mios/mios-build-driver 2>/dev/null; then
         ok "build-driver has namespace-escape block"
     else
         warn "Build-driver missing namespace escape"
@@ -154,33 +190,53 @@ fi
 
 echo
 echo "── ── ──  observability layer"
-micro_model=$(grep -hE '^\s*micro_model\s*=' \
-    /etc/mios/mios.toml /usr/share/mios/mios.toml 2>/dev/null | \
-    head -1 | sed -E 's/.*=\s*"([^"]+)".*/\1/')
+micro_model=""
+if [ -f /etc/mios/mios.toml ] || [ -f /usr/share/mios/mios.toml ]; then
+    micro_model=$( (grep -hE '^\s*micro_model\s*=' /etc/mios/mios.toml /usr/share/mios/mios.toml 2>/dev/null || true) | \
+        head -1 | sed -E 's/.*=\s*"([^"]+)".*/\1/' || true)
+fi
 [ -z "$micro_model" ] && micro_model="granite4.1:8b"
-if curl -sf --max-time 3 "http://localhost:${LLM_LIGHT_PORT}/api/tags" 2>/dev/null | \
-   grep -qF "\"$micro_model\""; then
-    ok "micro-LLM ($micro_model) available in llm-light (observability+gating ready)"
+
+if curl -sf --max-time 3 "http://localhost:${LLM_LIGHT_PORT}/api/tags" >/dev/null 2>&1; then
+    raw_tags=$(curl -s --max-time 3 "http://localhost:${LLM_LIGHT_PORT}/api/tags" 2>/dev/null || true)
+    if printf '%s' "$raw_tags" | grep -qF "\"$micro_model\"" 2>/dev/null; then
+        ok "micro-LLM ($micro_model) available in llm-light (observability+gating ready)"
+    else
+        warn "Micro-LLM ($micro_model) NOT available in llm-light"
+    fi
 else
     warn "Micro-LLM NOT available in llm-light"
 fi
 
-for svc in mios-daemon; do
-    state=$(systemctl is-active "$svc.service" 2>/dev/null || echo "Unknown")
-    if [ "$state" = "active" ]; then
-        ok "$svc.service active"
+if [ "$_is_systemd_booted" -eq 1 ]; then
+    if command -v systemctl >/dev/null 2>&1; then
+        for svc in mios-daemon; do
+            state=$(systemctl is-active "$svc.service" 2>/dev/null || echo "inactive")
+            if [ "$state" = "active" ]; then
+                ok "$svc.service active"
+            else
+                warn "$svc.service $state"
+            fi
+        done
     else
-        warn "$svc.service $state"
+        warn "systemctl not found; skipping mios-daemon service check"
     fi
-done
+else
+    info "systemd not booted as PID 1; skipping service checks (mios-daemon)"
+fi
 
 if [ -f /var/lib/mios/daemon/state.json ]; then
     _mtime=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" /var/lib/mios/daemon/state.json 2>/dev/null || stat -c %Y /var/lib/mios/daemon/state.json 2>/dev/null || stat -f %m /var/lib/mios/daemon/state.json 2>/dev/null || echo 0)
-    age=$(( $(date +%s) - _mtime ))
-    if [ "$age" -lt 600 ]; then
-        ok "daemon state.json fresh (${age}s old)"
+    _now=$(date +%s 2>/dev/null || echo 0)
+    if [ "$_mtime" -gt 0 ] && [ "$_now" -gt 0 ]; then
+        age=$(( _now - _mtime ))
+        if [ "$age" -lt 600 ]; then
+            ok "daemon state.json fresh (${age}s old)"
+        else
+            warn "Daemon state.json stale"
+        fi
     else
-        warn "Daemon state.json stale"
+        warn "Daemon state.json timestamp unreadable"
     fi
 fi
 
@@ -190,7 +246,7 @@ if [ -f /etc/mios/cron-rules.toml ]; then
 fi
 
 if [ -f /var/lib/mios/daemon/state.json ]; then
-    n_alerts=$(python3 -c 'import json; print(json.load(open("/var/lib/mios/daemon/state.json")).get("agent_nudger", {}).get("total_alerts", 0))' 2>/dev/null)
+    n_alerts=$(python3 -c 'import json; print(json.load(open("/var/lib/mios/daemon/state.json")).get("agent_nudger", {}).get("total_alerts", 0))' 2>/dev/null || echo "")
     if [ -z "$n_alerts" ] || [ "$n_alerts" = "0" ]; then
         ok "agent-nudger: 0 refusal alerts so far (clean)"
     else
@@ -199,11 +255,11 @@ if [ -f /var/lib/mios/daemon/state.json ]; then
 fi
 
 if [ -S /run/mios-launcher/launcher.sock ]; then
-    sock_perm=$(stat -c '%a' /run/mios-launcher/launcher.sock 2>/dev/null || stat -f '%A' /run/mios-launcher/launcher.sock 2>/dev/null || stat -f '%Lp' /run/mios-launcher/launcher.sock 2>/dev/null || echo 000)
+    sock_perm=$(_get_perm /run/mios-launcher/launcher.sock)
     if [ "$sock_perm" = "666" ] || [ "$sock_perm" = "777" ]; then
         ok "mios-launcher broker socket present + world-writable ($sock_perm)"
     else
-        warn "Mios-launcher broker socket present but mode $sock_perm"
+        warn "Mios-launcher broker socket present but mode ${sock_perm:-unknown}"
     fi
 else
     warn "No mios-launcher broker socket"
@@ -212,21 +268,23 @@ fi
 echo
 echo "── ── ──  skill sync"
 if [ -d /usr/share/mios/hermes/skills ] && [ -d /var/lib/mios/hermes/skills ]; then
-    vendor_names=$(ls /usr/share/mios/hermes/skills/ 2>/dev/null | sort -u)
-    home_names=$(ls /var/lib/mios/hermes/skills/ 2>/dev/null | sort -u)
-    missing=$(comm -23 <(echo "$vendor_names") <(echo "$home_names"))
-    stale=$(comm -13 <(echo "$vendor_names") <(echo "$home_names"))
+    vendor_names=$( (ls /usr/share/mios/hermes/skills/ 2>/dev/null || true) | sort -u)
+    home_names=$( (ls /var/lib/mios/hermes/skills/ 2>/dev/null || true) | sort -u)
+    missing=$(comm -23 <(echo "$vendor_names") <(echo "$home_names") 2>/dev/null || true)
+    stale=$(comm -13 <(echo "$vendor_names") <(echo "$home_names") 2>/dev/null || true)
     if [ -z "$missing" ] && [ -z "$stale" ]; then
         ok "HERMES_HOME skills set matches vendor"
     fi
     if [ -n "$missing" ]; then
         for n in $missing; do
+            [ -n "$n" ] || continue
             warn "Skill MISSING in HERMES_HOME: $n"
         done
     fi
     if [ -n "$stale" ]; then
         for n in $stale; do
-            marker_path=/var/lib/mios/hermes/skills/$n/SKILL.md
+            [ -n "$n" ] || continue
+            marker_path="/var/lib/mios/hermes/skills/$n/SKILL.md"
             if [ -f "$marker_path" ] && grep -q "MiOS-managed:" "$marker_path" 2>/dev/null; then
                 warn "Skill STALE: $n"
             else
@@ -242,12 +300,12 @@ echo
 echo "── ── ──  SOUL.md sync"
 SOUL_SRC=/usr/share/mios/ai/hermes-soul.md
 if [ -f "$SOUL_SRC" ]; then
-    src_size=$(wc -c < "$SOUL_SRC" | tr -d ' ' 2>/dev/null || echo 0)
+    src_size=$( (wc -c < "$SOUL_SRC" 2>/dev/null || echo 0) | tr -d ' ' || echo 0)
     for dst in /var/lib/mios/hermes/SOUL.md \
                /var/home/mios/.hermes/SOUL.md \
                /home/mios/.hermes/SOUL.md; do
         [ -f "$dst" ] || continue
-        dst_size=$(wc -c < "$dst" | tr -d ' ' 2>/dev/null || echo 0)
+        dst_size=$( (wc -c < "$dst" 2>/dev/null || echo 0) | tr -d ' ' || echo 0)
         if [ "$src_size" = "$dst_size" ]; then
             ok "SOUL.md matches vendor: $dst"
         else
@@ -264,13 +322,22 @@ fi
 
 echo
 echo "── ── ──  agent config sanity"
+_has_pyyaml=0
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import yaml' 2>/dev/null; then
+    _has_pyyaml=1
+fi
+
 for cfg in /var/lib/mios/hermes/config.yaml /var/home/mios/.hermes/config.yaml /home/mios/.hermes/config.yaml; do
     [ -f "$cfg" ] || continue
-    if python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' "$cfg" 2>/dev/null; then
-        ks=$(python3 -c 'import yaml,sys; print(",".join(sorted(yaml.safe_load(open(sys.argv[1])).keys())))' "$cfg" 2>/dev/null)
-        ok "$cfg parses as YAML (keys: $ks)"
+    if [ "$_has_pyyaml" -eq 1 ]; then
+        if python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' "$cfg" 2>/dev/null; then
+            ks=$(python3 -c 'import yaml,sys; print(",".join(sorted(yaml.safe_load(open(sys.argv[1])).keys())))' "$cfg" 2>/dev/null || echo "")
+            ok "$cfg parses as YAML (keys: $ks)"
+        else
+            fail "$cfg has YAML PARSE ERROR"
+        fi
     else
-        fail "$cfg has YAML PARSE ERROR"
+        warn "PyYAML not available (python3-pyyaml missing); skipping YAML syntax validation for $cfg"
     fi
 done
 
@@ -278,8 +345,10 @@ echo
 echo "════════════════════════════════════════════════════════════════"
 if [ "$FAIL_COUNT" -eq 0 ]; then
     echo "  RESULT: HEALTHY"
+    echo "════════════════════════════════════════════════════════════════"
+    exit 0
 else
     echo "  RESULT: $FAIL_COUNT failures"
+    echo "════════════════════════════════════════════════════════════════"
+    exit 1
 fi
-echo "════════════════════════════════════════════════════════════════"
-exit "$FAIL_COUNT"
