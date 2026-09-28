@@ -60,6 +60,7 @@ console = Console(safe_box=False)
 _SYS_INFO_CACHE = None
 _USB_INFO_CACHE = "Scanning USB..."
 _GIT_STATUS_CACHE = "[dim]Git state loading...[/]"
+PIPELINE_MODE = False
 
 def check_port(host, port):
     if not port or port <= 0:
@@ -468,7 +469,9 @@ if TEXTUAL_AVAILABLE:
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
-            with TabbedContent(initial="tab-global"):
+            # The installer starts the same monitor with --pipeline so its
+            # live build/install log is front and center during provisioning.
+            with TabbedContent(initial="tab-build" if PIPELINE_MODE else "tab-global"):
                 with TabPane("Global Systems", id="tab-global"):
                     with Horizontal(id="main-container"):
                         with Vertical(id="left-pane"):
@@ -912,12 +915,16 @@ if TEXTUAL_AVAILABLE:
             self.tailing = False
 
 def main():
+    global PIPELINE_MODE
     parser = argparse.ArgumentParser()
     parser.add_argument("--mini", action="store_true")
     parser.add_argument("--dash", action="store_true")
     parser.add_argument("--monitor", action="store_true")
+    parser.add_argument("--pipeline", action="store_true",
+                        help="open directly on the live installer/build log tab")
     parser.add_argument("--once", action="store_true")
     args, unknown = parser.parse_known_args()
+    PIPELINE_MODE = args.pipeline
 
     mode = "monitor"
     if args.mini or "-mini" in [a.lower() for a in unknown] or os.environ.get("MIOS_COMPACT") == "1": mode = "mini"
