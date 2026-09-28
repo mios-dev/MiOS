@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-TOML_PATH="$(_resolve_mios_toml)"
+TOML_PATH="$(_resolve_mios_toml || true)"
 if [[ -z "$TOML_PATH" ]]; then
     exit 0
 fi
@@ -19,9 +19,14 @@ AUTH=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
 }' "$TOML_PATH" 2>/dev/null)
 
 if [[ "$AUTH" == "true" ]]; then
-    mios_log "Build_catalog_authoritative=true; materialize build-ctx into ${MIOS_BUILD_CTX}"
     export MIOS_BUILD_CTX="${MIOS_BUILD_CTX:-$(dirname "$TOML_PATH")}"
-    if /usr/libexec/mios/materialize-build-ctx.py; then
+    export TOML_PATH="$TOML_PATH"
+    mios_log "Build_catalog_authoritative=true; materialize build-ctx into ${MIOS_BUILD_CTX}"
+    _mat_bin="/usr/libexec/mios/materialize-build-ctx.py"
+    if [[ ! -x "$_mat_bin" && -f "${SCRIPT_DIR}/../usr/libexec/mios/materialize-build-ctx.py" ]]; then
+        _mat_bin="${SCRIPT_DIR}/../usr/libexec/mios/materialize-build-ctx.py"
+    fi
+    if python3 "$_mat_bin"; then
         mios_ok "Materialized to ${MIOS_BUILD_CTX}"
     else
         mios_warn "Materialization failed; falling back to TOML"
