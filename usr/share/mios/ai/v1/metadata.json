@@ -2,7 +2,7 @@
   "format": "openai_strict_schema_v1",
   "total_files_scanned": 3588,
   "total_metadata_entries": 2964,
-  "total_hints": 2951,
+  "total_hints": 2952,
   "total_functions_indexed": 1338,
   "total_related_links": 4653,
   "entries": [
@@ -4109,7 +4109,7 @@
     },
     {
       "path": "powershell/profile.ps1",
-      "hint": null,
+      "hint": "MiOS configuration and runtime asset for profile.ps1.",
       "related": [
         "/usr/libexec/mios/mios-dashboard.sh",
         "/usr/libexec/mios/mios-ssh-dev-cmd",
