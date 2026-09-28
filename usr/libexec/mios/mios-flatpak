@@ -5,6 +5,15 @@
 set -euo pipefail
 set -u
 
+if [ "$(id -u)" -eq 0 ]; then
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ "$(stat -c %u "$XDG_RUNTIME_DIR" 2>/dev/null)" != "0" ]; then
+        unset XDG_RUNTIME_DIR
+        if [ -d /run/user/0 ]; then
+            export XDG_RUNTIME_DIR=/run/user/0
+        fi
+    fi
+fi
+
 MAX_OUTPUT_BYTES="${MIOS_FLATPAK_MAX_OUTPUT_BYTES:-262144}"
 DEFAULT_SCOPE="${MIOS_FLATPAK_DEFAULT_SCOPE:-system}"
 
@@ -72,12 +81,12 @@ print(json.dumps({'ok': False, 'verb': sys.argv[1], 'error': sys.argv[2]}))
 
 _resolve_scope() {
     case "${1:-}" in
-        --system|system) echo "" ;;
-        --user|user)     echo "" ;;
+        --system|system) echo "--system" ;;
+        --user|user)     echo "--user" ;;
         *)
             case "$DEFAULT_SCOPE" in
-                user) echo "" ;;
-                *)    echo "" ;;
+                user) echo "--user" ;;
+                *)    echo "--system" ;;
             esac
             ;;
     esac

@@ -36,8 +36,9 @@ class TestFlatpakOverrides(unittest.TestCase):
         self.assertIn("!host", filesystems, "Host filesystem access must be denied")
 
     def test_cli_validator(self):
+        cmd = [sys.executable, _CLI] if sys.platform == "win32" or not os.access(_CLI, os.X_OK) else [_CLI]
         res = subprocess.run(
-            [_CLI, "--profile", _PROFILE, "--check", "--json"],
+            cmd + ["--profile", _PROFILE, "--check", "--json"],
             capture_output=True,
             text=True,
             check=True,
