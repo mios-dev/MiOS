@@ -22,7 +22,7 @@ if ! ( : >> "$LOG_FILE" ) 2>/dev/null; then
     LOG_DIR="/tmp"
     LOG_FILE="$LOG_DIR/mios-build-driver-$(date +%Y%m%d-%H%M%S).log"
 fi
-echo "[mios-build-driver] starting at $" | tee -a "$LOG_FILE"
+echo "[mios-build-driver] starting at $(date -Iseconds)" | tee -a "$LOG_FILE"
 echo "[mios-build-driver] logging to $LOG_FILE"
 
 _log() { echo "[mios-build-driver] $*" | tee -a "$LOG_FILE"; }
@@ -404,6 +404,29 @@ if [[ "$MIOS_REPO" = "/" ]]; then
     if ! git -C / archive --format=tar HEAD | tar -x -C "$BUILD_CTX" 2>&1 | tee -a "$LOG_FILE"; then
         _fail "git archive | tar -x to $BUILD_CTX failed -- see $LOG_FILE"
     fi
+    if [ -d /etc/mios ]; then
+        _log "staging /etc/mios configuration into $BUILD_CTX"
+        mkdir -p "$BUILD_CTX/etc/mios"
+        cp -a /etc/mios/* "$BUILD_CTX/etc/mios/" 2>/dev/null || true
+    fi
+    _mat_py=""
+    for _m in "/usr/libexec/mios/materialize-build-ctx.py" \
+              "$BUILD_CTX/usr/libexec/mios/materialize-build-ctx.py" \
+              "$(cd "$(dirname "$0")" && pwd)/materialize-build-ctx.py"; do
+        if [ -x "$_m" ] || [ -f "$_m" ]; then
+            _mat_py="$_m"
+            break
+        fi
+    done
+    if [ -n "$_mat_py" ]; then
+        _log "invoking materialize-build-ctx.py for DB-driven build context"
+        if MIOS_BUILD_CTX="$BUILD_CTX" python3 "$_mat_py" 2>&1 | tee -a "$LOG_FILE"; then
+            _log "materialize-build-ctx.py completed successfully"
+        else
+            _log "WARN: materialize-build-ctx.py exited non-zero; falling back to static config"
+        fi
+    fi
+    unset _mat_py
     _log "build context staged: $(find "$BUILD_CTX" -type f | wc -l) files"
 fi
 

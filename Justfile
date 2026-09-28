@@ -32,10 +32,25 @@ preflight:
         [ -n "$c" ] && [ -x "$c" ] && { bin="$c"; break; }; \
     done; \
     if [ -z "$bin" ]; then \
-        echo "[preflight] mios-probe is not built -- run: cd src/mios-rs && cargo build --release -p mios-probe" >&2; \
-        exit 2; \
+        if command -v cargo >/dev/null 2>&1 && [ -f "./src/mios-rs/Cargo.toml" ]; then \
+            echo "[preflight] mios-probe not found; attempting on-demand build via cargo..." >&2; \
+            (cd ./src/mios-rs && cargo build --release -p mios-probe >&2) || \
+            (cd ./src/mios-rs && cargo build -p mios-probe >&2) || true; \
+            for c in ./src/mios-rs/target/release/mios-probe ./src/mios-rs/target/debug/mios-probe; do \
+                [ -x "$c" ] && { bin="$c"; break; }; \
+            done; \
+        fi; \
     fi; \
-    "$bin" build --root .
+    if [ -z "$bin" ]; then \
+        if [ "${MIOS_BOOTSTRAP:-0}" = "1" ] || [ "${BOOTSTRAP:-0}" = "1" ] || [ "${MIOS_PREFLIGHT_FALLBACK:-0}" = "1" ] || [ -f "/etc/mios/install.env" ]; then \
+            echo "[preflight] WARNING: mios-probe is not available; continuing in fallback mode" >&2; \
+        else \
+            echo "[preflight] mios-probe is not built -- run: cd src/mios-rs && cargo build --release -p mios-probe" >&2; \
+            exit 2; \
+        fi; \
+    else \
+        "$bin" build --root .; \
+    fi
 
 check-build-urls:
     @./tools/check-build-urls.sh
