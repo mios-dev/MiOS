@@ -1,4 +1,4 @@
-﻿# AI-hint: MiOS configuration and runtime asset for profile.ps1.
+# AI-hint: MiOS configuration and runtime asset for profile.ps1.
 # AI-related: /usr/libexec/mios/mios-dashboard.sh, /usr/libexec/mios/mios-ssh-dev-cmd, mios-dashboard, mios-ssh-dev-cmd, mios-dev, mios-bootstrap, mios-build, mios-pull, mios-update, mios-config
 
 ﻿
@@ -54,7 +54,7 @@ if ($env:MIOS_APP_CONTEXT) {
     } catch {}
 }
 
-if ($true) {
+if ($env:WT_SESSION) {
 
     foreach ($mod in @('Terminal-Icons','posh-git','CompletionPredictor','Microsoft.WinGet.CommandNotFound')) {
         if (Get-Module -ListAvailable -Name $mod -ErrorAction SilentlyContinue) {
@@ -701,6 +701,7 @@ function mios-help {
     Write-Host '  mios config   open the HTML configurator (mios.toml editor)' -ForegroundColor White
     Write-Host '  mios ai       open Open WebUI (rich LLM interface) in your browser' -ForegroundColor White
     Write-Host '  mios dev      wsl into the MiOS-DEV distro (root /, user mios)' -ForegroundColor White
+    Write-Host '  mios mon      interactive full-screen TUI monitor (Textual / dashboard)' -ForegroundColor White
     Write-Host '  mios dash     FULL dashboard: ASCII banner + services + extended sys specs' -ForegroundColor White
     Write-Host '  mios xbox     Xbox VM Secure Boot / XML repair' -ForegroundColor White
     Write-Host '  mios virt     apply optimized VM config + CPU pinning' -ForegroundColor White
@@ -709,7 +710,29 @@ function mios-help {
     Write-Host ''
 }
 
-$Script:MiosKnownVerbs = @('build','update','pull','config','ai','dev','dash','mini','help','code','xbox','virt','vfio','tune','summary','profile','assess','iommu','theme','user')
+function mios-mon {
+    [CmdletBinding()]
+    param([Parameter(ValueFromRemainingArguments)]$Args)
+    $py = if (Get-Command python.exe -ErrorAction SilentlyContinue) { 'python.exe' } else { 'python3' }
+    $mon = @('M:\usr\libexec\mios\mios-mon.py','C:\MiOS\usr\libexec\mios\mios-mon.py','C:\mios-bootstrap\installation\mios-mon.py','M:\MiOS\repo\mios\usr\libexec\mios\mios-mon.py') | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($mon) {
+        if ($Args.Count -eq 0) {
+            & $py $mon --monitor
+        } else {
+            & $py $mon @Args
+        }
+    } else {
+        Write-Host "  [!] mios mon: mios-mon.py not found on M:\ or C:\" -ForegroundColor Yellow
+    }
+}
+
+function mios-monitor {
+    [CmdletBinding()]
+    param([Parameter(ValueFromRemainingArguments)]$Args)
+    mios-mon @Args
+}
+
+$Script:MiosKnownVerbs = @('build','update','pull','config','ai','dev','dash','mini','mon','monitor','help','code','xbox','virt','vfio','tune','summary','profile','assess','iommu','theme','user')
 
 function mios {
     [CmdletBinding()]
@@ -781,7 +804,7 @@ function _MiosResolveStartupVerb {
     return 'mini'
 }
 
-if (-not $Global:MiosStartupVerbFired -and $Host.UI.RawUI -and (-not $env:MIOS_SKIP_MOTD)) {
+if (-not $Global:MiosStartupVerbFired -and $Host.UI.RawUI -and (-not $env:MIOS_SKIP_MOTD) -and $env:WT_SESSION) {
     $Global:MiosStartupVerbFired = $true
     $_startupVerb = _MiosResolveStartupVerb
     if ($_startupVerb) {

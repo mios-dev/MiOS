@@ -613,6 +613,22 @@ def main(argv: list[str]) -> int:
     if first in KNOWN_VERBS and KNOWN_VERBS[first] is not None:
         cmd = KNOWN_VERBS[first]
         target = cmd[0]
+        if target.endswith("mios-dashboard.sh"):
+            for cand in [
+                os.path.join(root, "usr/libexec/mios/mios-mon.py") if root else None,
+                os.path.join(root, "installation/mios-mon.py") if root else None,
+                "C:/MiOS/usr/libexec/mios/mios-mon.py",
+                "M:/usr/libexec/mios/mios-mon.py",
+                "/usr/libexec/mios/mios-mon.py",
+            ]:
+                if cand and pathlib.Path(cand).is_file():
+                    py_exec = sys.executable or ("python.exe" if sys.platform == "win32" else "python3")
+                    py_args = [py_exec, cand] + cmd[1:] + argv[2:]
+                    if sys.platform == "win32":
+                        sys.exit(subprocess.call(py_args))
+                    else:
+                        os.execvp(py_exec, py_args)
+
         resolved_target = os.path.join(root, target.lstrip("/\\")) if root else target
         if not pathlib.Path(target).is_file() and not (root and pathlib.Path(resolved_target).is_file()):
             if target.endswith("miosd") and root:
