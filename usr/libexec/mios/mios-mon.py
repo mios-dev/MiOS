@@ -784,8 +784,18 @@ if TEXTUAL_AVAILABLE:
                 hw_lines.append("")
                 hw_lines.append(f"[{SSOT['subtle']} bold]Disk C:[/] {make_bar(root, 12)} {root}%   |   [{SSOT['subtle']} bold]Disk M:[/] {make_bar(m_disk, 12)} {m_disk}%")
 
-                net = psutil.net_io_counters()
-                hw_lines.append(f"[{SSOT['success']} bold]Net Sent:[/] {net.bytes_sent/(1024**2):.1f} MB   |   [{SSOT['success']} bold]Net Recv:[/] {net.bytes_recv/(1024**2):.1f} MB")
+                try:
+                    net = psutil.net_io_counters()
+                except Exception:
+                    # Windows' GetAdaptersAddresses can transiently fail
+                    # (for example while WSL/virtual adapters are changing).
+                    # Network telemetry is optional; it must not take down
+                    # the entire live monitor refresh.
+                    net = None
+                if net is None:
+                    hw_lines.append(f"[{SSOT['success']} bold]Network I/O:[/] unavailable")
+                else:
+                    hw_lines.append(f"[{SSOT['success']} bold]Net Sent:[/] {net.bytes_sent/(1024**2):.1f} MB   |   [{SSOT['success']} bold]Net Recv:[/] {net.bytes_recv/(1024**2):.1f} MB")
 
             self.query_one("#hw-box", Static).update("\n".join(hw_lines))
 
