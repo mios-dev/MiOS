@@ -202,7 +202,15 @@ def load_merged(layers=None):
             if mios_db_config.is_db_authoritative():
                 db_cfg = mios_db_config.load_db_config()
                 if db_cfg:
+                    orig_packages = merged.get("packages")
                     deep_merge(merged, db_cfg)
+                    if orig_packages:
+                        if "packages" not in merged or not isinstance(merged["packages"], dict) or not merged["packages"]:
+                            merged["packages"] = orig_packages
+                        else:
+                            for pkg_name, pkg_data in orig_packages.items():
+                                if pkg_name not in merged["packages"]:
+                                    merged["packages"][pkg_name] = pkg_data
         except Exception:
             pass
 
