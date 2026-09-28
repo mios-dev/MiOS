@@ -21,8 +21,8 @@ unset _u_omp
 
 if [ -n "$OMP_BIN" ] && [ -x "$OMP_BIN" ] && [ -r "$OMP_THEME" ]; then
     if [ -n "${BASH_VERSION:-}" ]; then
-        eval "$("$OMP_BIN" init bash --config="$OMP_THEME")"
+        eval "$("$OMP_BIN" init bash --config="$OMP_THEME" --print)"
     elif [ -n "${ZSH_VERSION:-}" ]; then
-        eval "$("$OMP_BIN" init zsh --config="$OMP_THEME")"
+        eval "$("$OMP_BIN" init zsh --config="$OMP_THEME" --print)"
     fi
 fi

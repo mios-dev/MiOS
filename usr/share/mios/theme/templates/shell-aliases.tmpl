@@ -11,9 +11,9 @@ if [ -t 1 ] && command -v oh-my-posh >/dev/null 2>&1; then
     [ -r "$_omp_cfg" ] || _omp_cfg="/usr/share/mios/oh-my-posh/mios.omp.json"
     if [ -r "$_omp_cfg" ]; then
         if [ -n "${BASH_VERSION:-}" ]; then
-            eval "$(oh-my-posh init bash --config="$_omp_cfg")"
+            eval "$(oh-my-posh init bash --config="$_omp_cfg" --print)"
         elif [ -n "${ZSH_VERSION:-}" ]; then
-            eval "$(oh-my-posh init zsh --config="$_omp_cfg")"
+            eval "$(oh-my-posh init zsh --config="$_omp_cfg" --print)"
         fi
     fi
     unset _omp_cfg

@@ -6146,6 +6146,9 @@ pkgs = [
     "nftables",            # netavark alternative backend
     "fastfetch",           # MiOS dashboard / motd
     "oh-my-posh",          # MiOS themed prompt
+    "python3-rich",        # MiOS TUI dashboard (mios-mon.py)
+    "python3-textual",     # MiOS TUI dashboard full monitor
+    "python3-psutil",      # MiOS system resource telemetry
     "bash-completion",     # tab-complete in interactive shells
 ]
 
@@ -6221,6 +6224,9 @@ pkgs = [
     "fapolicyd",
     "usbguard",
     "python3.13",
+    "python3-rich",
+    "python3-textual",
+    "python3-psutil",
     # The manual reader itself: without it the rendered pages are
     # unreachable on the running system.
     "man-db",

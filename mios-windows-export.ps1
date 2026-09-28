@@ -1,35 +1,28 @@
-﻿# AI-hint: A Windows-native OCI image exporter that extracts rootfs layers directly from GHCR to create .tar.zst files for WSL or converts existing disk images to .vhdx via qemu-...
+# AI-hint: A Windows-native OCI image exporter that streams rootfs layers directly from container storage to uncompressed .tar or converts disk images to .vhdx via qemu-img.
 # AI-doc: usr/share/doc/mios/manual/root.md
 <#
 .SYNOPSIS
-    Windows-native MiOS OCI exporter / converter -- no podman machine required.
+    Windows-native MiOS OCI exporter / converter.
 
 .DESCRIPTION
-    Complement to mios-cloud-build.ps1 (which routes every conversion
-    through podman-MiOS-DEV). This script does as much as it can WITHOUT
-    a Linux container backend, using only Windows-native tooling:
+    Complement to mios-cloud-build.ps1. Exports deployable artifacts for Windows and WSL2:
 
-      WSL2 tarball  -  Pull the OCI image's rootfs layers straight from
-                       GHCR's registry API + reassemble into a single
-                       .tar via tar.exe (Windows 10+ bundled) + compress
-                       with zstd.exe (auto-installed via winget if
-                       missing). NO podman / WSL distro required.
+      WSL2 rootfs   -  Stream the container filesystem directly from container
+                       storage (via podman export) to a standard uncompressed
+                       .tar preserving all Linux POSIX permissions, ownership,
+                       and symlinks. Avoids intermediate NTFS extraction and
+                       avoids .tar.zst compression (which causes WSL2 error 0x80070057).
 
-      VHDX          -  Convert an existing qcow2 / raw / vmdk to vhdx via
+      VHDX          -  Convert an existing qcow2 / raw / vmdk to native .vhdx via
                        qemu-img.exe (Windows port, auto-installed via
-                       winget from `qemu.qemu`).
+                       winget from `qemu.qemu`), importable into WSL2 via --vhd.
 
       Hyper-V VM    -  Generate a sample New-VM script that attaches the
                        produced VHDX (does NOT auto-import; operator
                        reviews + runs as admin).
 
-    Formats that genuinely require Linux tooling (raw / qcow2 / iso
-    from a fresh OCI image, anaconda-installer iso, etc.) fall through
-    to mios-cloud-build.ps1 with a clear pointer; this script does NOT
-    silently spin up a podman machine on the operator's behalf.
-
 .PARAMETER Image
-    OCI reference to pull. Default: ghcr.io/mios-dev/mios:latest
+    OCI reference to pull / export. Default: ghcr.io/mios-dev/mios:latest
 
 .PARAMETER OutputDir
     Where artifacts land. Default: M:\MiOS\build\<tag> when M:\ exists,
@@ -47,33 +40,21 @@
 
 .EXAMPLE
     .\mios-windows-export.ps1
-    Pulls the rootfs of ghcr.io/mios-dev/mios:latest from GHCR and emits
-    mios.wsl.tar.zst under M:\MiOS\build\latest\. Zero Linux tools used.
+    Streams the rootfs of ghcr.io/mios-dev/mios:latest from container storage and emits
+    mios.wsl.tar under M:\MiOS\build\latest\.
 
 .EXAMPLE
     .\mios-windows-export.ps1 -Targets wsl,vhdx
     Builds the WSL tarball AND -- if a qcow2 or raw is already in the
-    output dir (e.g. produced earlier by mios-cloud-build.ps1) -- converts
-    it to mios.vhdx via Windows-native qemu-img.exe.
+    output dir -- converts it to mios.vhdx via Windows-native qemu-img.exe.
 
 .NOTES
-    Why pure-Windows matters: an operator on a fresh Windows install can
-    clone mios.git + run this script + get a working `wsl --import`-ready
-    tarball with zero prerequisites beyond winget. The dev VM is for
-    BUILDING MiOS; this script is for CONSUMING the GHCR-published
-    artifact when the operator only wants to USE MiOS, not contribute to
-    it.
-
-    OCI rootfs assembly logic mirrors `podman export`: concatenate every
-    image layer's tar contents (gzip-decoded), preserve whiteout marks
-    (.wh.*) for deletions, drop OCI metadata (manifest.json, *.json).
-    Equivalent to: `podman create X && podman export ID -o tar` but
-    entirely off Windows native HTTP + tar.
-
-    No anonymous GitHub token is needed for public images on GHCR --
-    `ghcr.io/mios-dev/mios` is publicly readable, the script fetches a
-    short-lived bearer from ghcr.io/token automatically.
+    WSL2 'wsl --import' requires either an uncompressed .tar rootfs archive
+    or a native .vhdx virtual hard disk (imported with the --vhd flag).
+    Intermediate extraction to NTFS strips POSIX permissions and symlinks.
+    Compressing with .zst causes WSL error 0x80070057.
 #>
+
 
 [CmdletBinding()]
 param(
@@ -198,77 +179,19 @@ function Save-ImageLayers([hashtable]$Ref, [string]$Token, [object]$Manifest, [s
     return $layerFiles
 }
 
-# Stitch every layer into one flat tarball, preserving OCI whiteout
-# semantics (a `.wh.foo` file means "delete foo" in the running rootfs).
-# `tar.exe` (Win10+ bundled) handles gzip directly via `-xzf`. We extract
-# every layer in order into a staging dir, then re-tar that dir.
+# DEPRECATED: Extracting OCI layers to NTFS with Windows tar.exe strips Linux POSIX
+# permissions, file modes, UID/GID ownership, and symlinks. Replaced by direct
+# container storage export via podman export below.
 function Merge-LayersToTar([string[]]$LayerFiles, [string]$StagingDir, [string]$OutTar) {
-    if (-not (Test-CommandExists 'tar.exe')) {
-        throw "tar.exe not found. Win10 1803+ ships it bundled at %SystemRoot%\System32\tar.exe; check your PATH."
-    }
-    if (Test-Path -LiteralPath $StagingDir) {
-        Remove-Item -LiteralPath $StagingDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
-
-    foreach ($layer in $LayerFiles) {
-        Write-Step "Extract $((Split-Path $layer -Leaf))"
-        # --force-local: tar.exe interprets `C:` as a remote host otherwise.
-        & tar.exe --force-local -xzf $layer -C $StagingDir 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "tar -xzf $layer failed (rc=$LASTEXITCODE)"
-        }
-        # Whiteout handling: .wh.<name> files mean "delete <name>"; .wh..wh..opq
-        # means "delete every sibling". The OCI spec leaves processing to the
-        # extractor. For WSL2 the simplest correct interpretation is to honor
-        # whiteouts in-line so the final tar contains the right set.
-        Get-ChildItem -LiteralPath $StagingDir -Recurse -Filter '.wh.*' -Force -ErrorAction SilentlyContinue |
-            ForEach-Object {
-                $parent = $_.Directory.FullName
-                $name   = $_.Name
-                if ($name -eq '.wh..wh..opq') {
-                    # Opaque directory marker -- siblings get wiped.
-                    Get-ChildItem -LiteralPath $parent -Force -ErrorAction SilentlyContinue |
-                        Where-Object { $_.Name -ne '.wh..wh..opq' } |
-                        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-                } else {
-                    $target = Join-Path $parent ($name.Substring(4))   # strip '.wh.'
-                    if (Test-Path -LiteralPath $target) {
-                        Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction SilentlyContinue
-                    }
-                }
-                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
-            }
-    }
-
-    Write-Step "Pack rootfs -> $(Split-Path $OutTar -Leaf)"
-    # Push-Location so tar.exe sees relative paths. Without this it stores
-    # an absolute Windows path and `wsl --import` chokes parsing it.
-    Push-Location -LiteralPath $StagingDir
-    try {
-        & tar.exe --force-local -cf $OutTar . 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "tar -cf $OutTar failed (rc=$LASTEXITCODE)"
-        }
-    } finally {
-        Pop-Location
-    }
+    Write-Warn "DEPRECATED: Merge-LayersToTar strips POSIX permissions and symlinks on NTFS."
+    throw "Merge-LayersToTar is deprecated and disabled: intermediate extraction to NTFS strips Linux POSIX file modes, ownership, and symlinks. Use direct container storage streaming via Export-WslTar."
 }
 
-# Compress to .zst. zstd Windows binary from `Facebook.zstd` (winget).
-# Falls through to keeping the plain .tar if zstd isn't available --
-# `wsl --import` accepts uncompressed too.
+# DEPRECATED: wsl --import does NOT support .tar.zst archives and fails with error 0x80070057 (E_INVALIDARG).
+# WSL2 requires either a standard uncompressed .tar rootfs or a native .vhdx disk (via --vhd).
 function Compress-WithZstd([string]$InTar, [string]$OutZst, [int]$Level = 19) {
-    if (Test-CommandExists 'zstd.exe') {
-        Write-Step "zstd -$Level $InTar"
-        & zstd.exe "-$Level" -f --rm -o $OutZst $InTar 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "zstd compression failed (rc=$LASTEXITCODE)"
-        }
-        Write-Ok "Wrote $OutZst"
-    } else {
-        Write-Warn 'zstd.exe not found; leaving uncompressed .tar (wsl --import accepts either)'
-    }
+    Write-Warn "DEPRECATED: .tar.zst compression is incompatible with 'wsl --import' (causes error 0x80070057)."
+    throw "Compress-WithZstd is deprecated: .tar.zst compression is incompatible with 'wsl --import' (causes error 0x80070057). Target uncompressed mios.wsl.tar directly."
 }
 
 # ── Output directory resolver ─────────────────────────────────────────────
@@ -281,29 +204,124 @@ function Resolve-OutputBase {
 }
 
 # ── Surface handlers ──────────────────────────────────────────────────────
-function Export-WslTar([hashtable]$Ref, [string]$Token, [string]$OutDir) {
-    Write-Step "Surface: wsl2 tarball  (pure Windows: HTTP + tar.exe + zstd.exe)"
-    $manifest = Get-ImageManifest $Ref $Token
-    $layerCache = Join-Path $OutDir '.layers'
-    $layers = Save-ImageLayers $Ref $Token $manifest $layerCache
-    $staging = Join-Path $OutDir '.rootfs-stage'
-    $tar     = Join-Path $OutDir 'mios.wsl.tar'
-    $zst     = Join-Path $OutDir 'mios.wsl.tar.zst'
+function Export-WslTar([string]$ImageRef, [string]$OutDir) {
+    Write-Step "Surface: WSL2 rootfs export (direct container storage stream -> uncompressed .tar)"
+    $tar = Join-Path $OutDir 'mios.wsl.tar'
 
-    if (Test-Path -LiteralPath $zst) {
-        Write-Warn "mios.wsl.tar.zst already exists -- skipping (delete to rebuild)"
+    if (Test-Path -LiteralPath $tar) {
+        Write-Warn "mios.wsl.tar already exists at $tar -- skipping (delete to rebuild)"
+        Write-Host ("    Try it:  wsl --import MiOS `"$env:USERPROFILE\MiOS-VM`" `"$tar`"") -ForegroundColor DarkGray
         return
     }
 
-    Merge-LayersToTar -LayerFiles $layers -StagingDir $staging -OutTar $tar
-    Compress-WithZstd -InTar $tar -OutZst $zst -Level 19
+    # Ensure podman is available
+    if (-not (Test-CommandExists 'podman')) {
+        throw "podman is required for direct rootfs streaming export. Ensure Podman Desktop / podman CLI is installed."
+    }
 
-    # Clean the staging tree -- the operator only cares about the final
-    # tarball, not the 1-3 GB of intermediate extracted files.
-    Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Ok "WSL2 import-ready: $zst"
-    Write-Host ("    Try it:  wsl --import MiOS $env:USERPROFILE\MiOS-VM `"$zst`"") -ForegroundColor DarkGray
+    # Pull image into container storage if not already present
+    Write-Step "Checking container image $ImageRef in local container storage..."
+    & podman image exists $ImageRef 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Step "Pulling $ImageRef into container storage..."
+        & podman pull $ImageRef
+        if ($LASTEXITCODE -ne 0) {
+            throw "podman pull $ImageRef failed with exit code $LASTEXITCODE"
+        }
+    }
+
+    # Create transient container snapshot without entrypoint arguments (entrypoint command override removed to avoid conflicts)
+    Write-Step "Creating transient container snapshot of $ImageRef..."
+    $contLines = (& podman create $ImageRef 2>&1)
+    $contId = ($contLines | Where-Object { $_ -match '^[0-9a-f]{12,64}$' } | Select-Object -Last 1)
+    if ([string]::IsNullOrWhiteSpace($contId)) {
+        $contId = ($contLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
+    }
+    if ([string]::IsNullOrWhiteSpace($contId) -or $contId -match 'error' -or $LASTEXITCODE -ne 0) {
+        $createErr = ($contLines -join "`n").Trim()
+        throw "podman create failed for ${ImageRef}: $createErr"
+    }
+    $contId = $contId.Trim()
+    Write-Ok "Transient export container: $contId"
+
+    $proc = $null
+    $stderrTask = $null
+    try {
+        Write-Step "Streaming rootfs from container storage -> $(Split-Path $tar -Leaf)..."
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName               = "podman"
+        $psi.Arguments              = "export $contId"
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError  = $true
+        $psi.UseShellExecute        = $false
+        $psi.CreateNoWindow         = $true
+
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        if (-not $proc) {
+            throw "Failed to start podman export process"
+        }
+
+        # Asynchronously capture standard error to prevent OS pipe buffer deadlock
+        $stderrTask = $proc.StandardError.ReadToEndAsync()
+
+        $fs = [System.IO.File]::Create($tar)
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            $buf    = New-Object byte[] 65536
+            $stream = $proc.StandardOutput.BaseStream
+            while ($true) {
+                $n = $stream.Read($buf, 0, $buf.Length)
+                if ($n -le 0) { break }
+                $fs.Write($buf, 0, $n)
+                if ($sw.ElapsedMilliseconds -ge 2000) {
+                    $mb = [math]::Round($fs.Length / 1MB)
+                    Write-Step "Exporting WSL2 tar... ${mb} MB"
+                    $sw.Restart()
+                }
+            }
+        } finally {
+            $fs.Close()
+        }
+
+        $proc.WaitForExit()
+        $exportStderr = if ($stderrTask) {
+            try { $stderrTask.Result.Trim() } catch { "" }
+        } else { "" }
+
+        if ($proc.ExitCode -ne 0) {
+            $exportErr = "podman export failed with exit code $($proc.ExitCode)"
+            if ($exportStderr) { $exportErr += ": $exportStderr" }
+            throw $exportErr
+        }
+
+        if (-not (Test-Path -LiteralPath $tar) -or (Get-Item -LiteralPath $tar).Length -eq 0) {
+            throw "podman export produced an empty or missing archive at $tar"
+        }
+
+        $sizeMB = [math]::Round((Get-Item $tar).Length / 1MB, 1)
+        Write-Ok "WSL2 import-ready (uncompressed tar, ${sizeMB} MB): $tar"
+        Write-Host ("    Try it:  wsl --import MiOS `"$env:USERPROFILE\MiOS-VM`" `"$tar`"") -ForegroundColor DarkGray
+    } catch {
+        # Clean up partial output on failure to avoid corrupted archives
+        if (Test-Path -LiteralPath $tar) {
+            try { Remove-Item -LiteralPath $tar -Force -ErrorAction SilentlyContinue } catch {}
+        }
+        throw
+    } finally {
+        if ($proc) {
+            try {
+                if (-not $proc.HasExited) {
+                    $proc.Kill()
+                }
+            } catch {}
+            try { $proc.Dispose() } catch {}
+        }
+        if ($contId) {
+            try { & podman rm -f $contId 2>$null | Out-Null } catch {}
+        }
+    }
 }
+
 
 function Convert-ToVhdx([string]$OutDir) {
     Write-Step "Surface: vhdx  (qemu-img convert -O vhdx,subformat=dynamic)"
@@ -335,6 +353,7 @@ function Convert-ToVhdx([string]$OutDir) {
         return
     }
     Write-Ok "Built: $out"
+    Write-Host ("    Try it in WSL:  wsl --import MiOS `"$env:USERPROFILE\MiOS-VM`" `"$out`" --vhd") -ForegroundColor DarkGray
 }
 
 function New-HyperVScaffold([string]$OutDir, [string]$VmName) {
@@ -380,14 +399,12 @@ $outDir  = Join-Path $outBase $Tag
 New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 Write-Ok "Output dir: $outDir"
 
-# Anonymous bearer for the public-read pull. Even private repos that the
-# operator has access to via gh auth would work if you swap this for a
-# PAT-derived token -- left out of scope for the public-image use case.
-$token = Get-GhcrToken -Repo $ref.Repo
+# Anonymous bearer for optional registry queries. Container streaming resolves through podman.
+$token = try { Get-GhcrToken -Repo $ref.Repo } catch { $null }
 
 foreach ($t in $Targets) {
     switch ($t.ToLower()) {
-        'wsl'    { Export-WslTar          -Ref $ref -Token $token -OutDir $outDir }
+        'wsl'    { Export-WslTar          -ImageRef $Image -OutDir $outDir }
         'vhdx'   { Convert-ToVhdx         -OutDir $outDir }
         'hyperv' { New-HyperVScaffold     -OutDir $outDir -VmName $HyperVName }
         { $_ -in 'qcow2','raw','iso' } {

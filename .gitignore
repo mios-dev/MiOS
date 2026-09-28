@@ -746,3 +746,4 @@ etc/profile.d/80-systemd-osc-context.sh
 tools/native/target/
 **/target/
 /.devloop/native/
+tests/powershell/*.exe

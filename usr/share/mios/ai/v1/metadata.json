@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3577,
-  "total_metadata_entries": 2958,
-  "total_hints": 2944,
+  "total_files_scanned": 3589,
+  "total_metadata_entries": 2961,
+  "total_hints": 2948,
   "total_functions_indexed": 1338,
   "total_related_links": 4653,
   "entries": [
@@ -4091,7 +4091,7 @@
     },
     {
       "path": "mios-windows-export.ps1",
-      "hint": null,
+      "hint": "A Windows-native OCI image exporter that streams rootfs layers directly from container storage to uncompressed .tar or converts disk images to .vhdx via qemu-img.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/root.md",
@@ -5618,6 +5618,33 @@
     {
       "path": "tests/powershell/TomlResolver.Tests.ps1",
       "hint": "Pester characterization tests for MiOS.Toml.psm1 TOML reader module.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/powershell/challenger_m2_adversarial.ps1",
+      "hint": "Milestone 2 Challenger 2 Empirical Adversarial Stress Test Suite",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/powershell/m2_adversarial.Tests.ps1",
+      "hint": "Pester test suite for Milestone 2 Adversarial Verification (m2_challenger_2)",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "tests/powershell/m2_challenger_2_adversarial.ps1",
+      "hint": "Milestone 2 Empirical Adversarial Stress Test Suite (m2_challenger_2)",
       "related": [],
       "functions": [],
       "doc": null,

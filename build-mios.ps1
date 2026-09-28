@@ -5,9 +5,17 @@ param(
     [switch]$BootstrapOnly,
     [switch]$BuildOnly,
     [switch]$FullBuild,
+    [switch]$DeployPipeline,
 
     # -Unattended: take all defaults; no interactive prompts.
-    [switch]$Unattended
+    [switch]$Unattended,
+
+    # -ImportWsl: fast-path WSL import without full bootstrap build.
+    [switch]$ImportWsl,
+    [string]$WslArchive = '',
+    [string]$WslInstallDir = '',
+    [parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Passthrough = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -163,18 +171,12 @@ $script:_PendingResizeLog = "console resize: before=$_resizeBefore after=$_resiz
 
 $script:_PendingResizeLog += " center-skip=amsi-bait-removed"
 
-if ($BuildOnly -or $FullBuild) {
-    Write-Host ""
-    Write-Host "  [warn] -BuildOnly / -FullBuild are deprecated -- the build pipeline now" -ForegroundColor Yellow
-    Write-Host "         runs INSIDE MiOS-DEV. Use the post-bootstrap menu (option 1) to" -ForegroundColor Yellow
-    Write-Host "         hand off to the dev distro after the Windows-side setup completes." -ForegroundColor Yellow
-    Write-Host ""
+# $BootstrapOnly is driven by the script parameter [switch]$BootstrapOnly (default $false).
+# Explicit switches (-FullBuild, -DeployPipeline, -BuildOnly) guarantee $BootstrapOnly is $false.
+if ($FullBuild -or $DeployPipeline -or $BuildOnly) {
+    $BootstrapOnly = $false
 }
-# Override any passed-in / default value: the Windows side is always
-# bootstrap-only from this commit forward. Note this is set at script scope
-# so the conditional PhaseNames block below picks up the forced value.
-$BootstrapOnly = $true
-$script:BootstrapOnly = $true
+$script:BootstrapOnly = [bool]$BootstrapOnly
 
 # Acknowledgment banner. Inlined (script is irm-piped). Respects
 # $env:MIOS_AGREEMENT_BANNER=quiet for unattended runs.
@@ -1064,41 +1066,89 @@ function Move-BelowDash {
 
 function Repair-WslConfig {
     $wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
-    if (-not (Test-Path $wslCfg)) { return }
-    # Keys that are valid in /etc/wsl.conf but NOT in .wslconfig's
-    # [wsl2] section. If we see any of these under [wsl2] we drop
-    # them (they were almost certainly written by an older bootstrap
-    # that confused the two config files, OR by a third-party tool).
     $bootSectionKeys = @('systemd', 'command', 'enabled', 'appendWindowsPath',
                          'default', 'options', 'mountFsTab',
                          'generateHosts', 'generateResolvConf', 'hostname')
-    $lines     = Get-Content $wslCfg
-    $inWsl2    = $false
-    $newLines  = [System.Collections.Generic.List[string]]::new()
-    $scrubbed  = 0
-    foreach ($line in $lines) {
+    $winBuild = [Environment]::OSVersion.Version.Build
+    $targetNetMode = if ($winBuild -ge 22621) { 'mirrored' } else { 'NAT' }
+
+    if (-not (Test-Path $wslCfg)) {
+        $initLines = @(
+            "[wsl2]",
+            "networkingMode=$targetNetMode"
+        )
+        [System.IO.File]::WriteAllLines($wslCfg, $initLines, (New-Object System.Text.UTF8Encoding($false)))
+        Log-Ok ".wslconfig: initialized with [wsl2] networkingMode=$targetNetMode (BOM-free UTF-8)"
+        return
+    }
+
+    $lines = Get-Content $wslCfg
+    $inWsl2 = $false
+    $hasWsl2 = $false
+    $hasNetMode = $false
+    $newLines = [System.Collections.Generic.List[string]]::new()
+    $scrubbed = 0
+    $modified = 0
+
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
         if ($line -match '^\s*\[wsl2\]\s*$') {
             $inWsl2 = $true
-            $newLines.Add($line); continue
+            $hasWsl2 = $true
+            $newLines.Add($line)
+            continue
         }
         if ($line -match '^\s*\[') {
-            # Any other section header closes [wsl2].
+            if ($inWsl2 -and -not $hasNetMode) {
+                $newLines.Add("networkingMode=$targetNetMode")
+                $hasNetMode = $true
+                $modified++
+            }
             $inWsl2 = $false
-            $newLines.Add($line); continue
+            $newLines.Add($line)
+            continue
         }
-        if ($inWsl2 -and $line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=') {
-            $key = $Matches[1]
-            if ($bootSectionKeys -contains $key) {
-                Write-Log "wslconfig-repair: dropped misplaced '$key=' line from [wsl2] (belongs in /etc/wsl.conf, not .wslconfig)" "WARN"
-                $scrubbed++
-                continue
+        if ($inWsl2) {
+            if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$') {
+                $key = $Matches[1]
+                $val = $Matches[2].Trim()
+                if ($bootSectionKeys -contains $key) {
+                    Write-Log "wslconfig-repair: dropped misplaced '$key=' line from [wsl2] (belongs in /etc/wsl.conf, not .wslconfig)" "WARN"
+                    $scrubbed++
+                    continue
+                }
+                if ($key -ieq 'networkingMode') {
+                    $hasNetMode = $true
+                    if ($winBuild -lt 22621 -and $val -ieq 'mirrored') {
+                        Write-Log "wslconfig-repair: rewriting networkingMode=mirrored to NAT for Windows 10 (Build $winBuild)" "INFO"
+                        $newLines.Add("networkingMode=NAT")
+                        $modified++
+                        continue
+                    } elseif ($winBuild -ge 22621 -and $val -ieq 'NAT') {
+                        Write-Log "wslconfig-repair: upgrading networkingMode=NAT to mirrored for Windows 11 22H2+ (Build $winBuild)" "INFO"
+                        $newLines.Add("networkingMode=mirrored")
+                        $modified++
+                        continue
+                    }
+                }
+                # Preserve user-configured memory, processors, swap, etc.
             }
         }
         $newLines.Add($line)
     }
-    if ($scrubbed -gt 0) {
-        [System.IO.File]::WriteAllLines($wslCfg, $newLines, (New-Object System.Text.UTF8Encoding($false)))
-        Log-Ok ".wslconfig: scrubbed $scrubbed misplaced /etc/wsl.conf key(s) from [wsl2]"
+
+    if ($hasWsl2 -and -not $hasNetMode) {
+        $newLines.Add("networkingMode=$targetNetMode")
+        $modified++
+    } elseif (-not $hasWsl2) {
+        $newLines.Add("[wsl2]")
+        $newLines.Add("networkingMode=$targetNetMode")
+        $modified++
+    }
+
+    [System.IO.File]::WriteAllLines($wslCfg, $newLines, (New-Object System.Text.UTF8Encoding($false)))
+    if ($scrubbed -gt 0 -or $modified -gt 0) {
+        Log-Ok ".wslconfig: repaired ($scrubbed misplaced keys dropped, $modified updates, BOM-free UTF-8)"
     }
 }
 
@@ -3648,28 +3698,77 @@ fi
     return $rc
 }
 
-function Export-WslTar([string]$OutFile) {
-    # Stream localhost/mios:latest filesystem from machine → Windows tar via podman socket API
-    Set-Step "Creating container snapshot of localhost/mios:latest..."
-    $contLines = (& podman create localhost/mios:latest /bin/true 2>$null)
+function Export-WslTar([string]$OutFile, [string]$Image = '') {
+    # Dynamically resolve image tag from mios.toml (localhost/mios:latest as fallback)
+    if ([string]::IsNullOrWhiteSpace($Image)) {
+        try {
+            $Image = Get-MiosTomlValue -Section 'image' -Key 'local_tag' -Default 'localhost/mios:latest'
+        } catch {
+            $Image = 'localhost/mios:latest'
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Image)) { $Image = 'localhost/mios:latest' }
+
+    Set-Step "Creating container snapshot of $Image..."
+    Write-Log "Creating export container snapshot from $Image..."
+
+    # Start podman create without entrypoint arguments (entrypoint command override removed to avoid conflicts)
+    $createPsi = New-Object System.Diagnostics.ProcessStartInfo
+    $createPsi.FileName               = "podman"
+    $createPsi.Arguments              = "create $Image"
+    $createPsi.RedirectStandardOutput = $true
+    $createPsi.RedirectStandardError  = $true
+    $createPsi.UseShellExecute        = $false
+    $createPsi.CreateNoWindow         = $true
+
+    $createProc = [System.Diagnostics.Process]::Start($createPsi)
+    # Asynchronously capture standard error to prevent OS pipe buffer deadlock
+    $createStderrTask = $createProc.StandardError.ReadToEndAsync()
+    $createOut  = $createProc.StandardOutput.ReadToEnd()
+    $createProc.WaitForExit()
+    $createErr  = if ($createStderrTask) {
+        try { $createStderrTask.Result } catch { "" }
+    } else { "" }
+
+    if ($createProc.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($createOut)) {
+        $errDetail = if (-not [string]::IsNullOrWhiteSpace($createErr)) { $createErr.Trim() } else { "exit code $($createProc.ExitCode)" }
+        Write-Log "podman create failed for ${Image}: $errDetail" "ERROR"
+        throw "podman create failed for ${Image}: $errDetail"
+    }
+
+    $contLines = $createOut -split "`r?`n"
     $contId = ($contLines | Where-Object { $_ -match '^[0-9a-f]{12,64}$' } | Select-Object -Last 1)
     if ([string]::IsNullOrWhiteSpace($contId)) {
-        $contId = ($contLines | Select-Object -Last 1)
+        $contId = ($contLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
     }
-    if ([string]::IsNullOrWhiteSpace($contId)) { throw "podman create returned no container ID" }
+    if ([string]::IsNullOrWhiteSpace($contId)) { throw "podman create returned no container ID (stdout: $createOut)" }
     $contId = $contId.Trim()
-    Write-Log "export container: $contId"
+    Write-Log "export container ID: $contId"
+
+    $proc = $null
     try {
         Set-Step "Streaming container filesystem -> $([System.IO.Path]::GetFileName($OutFile))..."
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName               = "podman"
         $psi.Arguments              = "export $contId"
         $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError  = $true
         $psi.UseShellExecute        = $false
         $psi.CreateNoWindow         = $true
+
         $proc = [System.Diagnostics.Process]::Start($psi)
-        $fs   = [System.IO.File]::Create($OutFile)
-        $sw   = [System.Diagnostics.Stopwatch]::StartNew()
+
+        # Asynchronously capture standard error to prevent OS pipe buffer deadlock
+        $stderrTask = $proc.StandardError.ReadToEndAsync()
+
+        # Ensure parent directory exists
+        $outParent = [System.IO.Path]::GetDirectoryName($OutFile)
+        if ($outParent -and -not (Test-Path -LiteralPath $outParent)) {
+            New-Item -ItemType Directory -Path $outParent -Force | Out-Null
+        }
+
+        $fs = [System.IO.File]::Create($OutFile)
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
         try {
             $buf    = New-Object byte[] 65536
             $stream = $proc.StandardOutput.BaseStream
@@ -3683,32 +3782,331 @@ function Export-WslTar([string]$OutFile) {
                     $sw.Restart()
                 }
             }
-        } finally { $fs.Close() }
+        } finally {
+            $fs.Close()
+        }
+
         $proc.WaitForExit()
-        if ($proc.ExitCode -ne 0) { throw "podman export exited $($proc.ExitCode)" }
+        $exportStderr = if ($stderrTask) {
+            try { $stderrTask.Result.Trim() } catch { "" }
+        } else { "" }
+
+        if ($proc.ExitCode -ne 0) {
+            # Stderr captured, logged, and diagnosed
+            Write-Log "podman export failed with exit code $($proc.ExitCode): $exportStderr" "ERROR"
+            $exportMsg = "podman export exited $($proc.ExitCode)"
+            if ($exportStderr) { $exportMsg += ": $exportStderr" }
+            throw $exportMsg
+        }
+
+        # Verify output file exists and is not empty
+        if (-not (Test-Path -LiteralPath $OutFile) -or (Get-Item -LiteralPath $OutFile).Length -eq 0) {
+            throw "podman export produced an empty or missing output file: $OutFile"
+        }
+
         return $true
+    } catch {
+        # Streaming failed: kill and dispose process to prevent hangs
+        if ($proc -and -not $proc.HasExited) {
+            try { $proc.Kill() } catch {}
+        }
+        # Delete partial archive to prevent corrupt artifacts
+        if (Test-Path -LiteralPath $OutFile) {
+            try { Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue } catch {}
+        }
+        throw
     } finally {
-        & podman rm $contId 2>$null | Out-Null
+        if ($proc) {
+            try {
+                if (-not $proc.HasExited) {
+                    $proc.Kill()
+                }
+            } catch {}
+            try { $proc.Dispose() } catch {}
+        }
+        # Guaranteed cleanup of transient export container with -f
+        if ($contId) {
+            try { & podman rm -f $contId 2>$null | Out-Null } catch {}
+        }
     }
 }
 
-function Import-MiosWsl([string]$TarFile, [string]$InstallDir) {
-    # Register WSL2 distro from tar (replaces existing 'MiOS' distro if present)
-    if (-not (Test-Path $TarFile)) { throw "WSL2 tar not found: $TarFile" }
-    try { & wsl.exe --unregister $MiosWslDistro 2>$null | Out-Null } catch {}
-    if (-not (Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }
-    Set-Step "wsl --import $MiosWslDistro ..."
-    & wsl.exe --import $MiosWslDistro $InstallDir $TarFile --version 2 2>&1 |
-        ForEach-Object { Write-Log "wsl-import: $_" }
+function Import-MiosWsl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0, Mandatory = $true)]
+        [Alias('TarFile', 'Path', 'File', 'ArchiveFile')]
+        [string]$Archive,
+
+        [Parameter(Position = 1)]
+        [string]$InstallDir = '',
+
+        [Parameter()]
+        [Alias('Distro')]
+        [string]$DistroName = '',
+
+        [Parameter()]
+        [switch]$Force,
+
+        [Parameter()]
+        [switch]$Vhd
+    )
+
+    if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+        throw "WSL is not installed or wsl.exe was not found in PATH."
+    }
+
+    if (-not (Test-Path $Archive)) { throw "WSL2 archive not found: $Archive" }
+
+    $targetDistro = if ($DistroName) { $DistroName } elseif ($MiosWslDistro) { $MiosWslDistro } else { 'MiOS' }
+
+    if (-not $InstallDir) {
+        $InstallDir = if ($script:MiosDistroDir) {
+            Join-Path $script:MiosDistroDir $targetDistro
+        } else {
+            Join-Path $env:LOCALAPPDATA "MiOS"
+        }
+    }
+
+    # Query WSL distros safely with null-byte and whitespace trimming
+    $wslRaw = & wsl.exe -l -v 2>$null
+    $distros = @{}
+    if ($wslRaw) {
+        $distroLines = $wslRaw | ForEach-Object { ($_ -replace "\x00", "").Trim() }
+        foreach ($line in $distroLines) {
+            if (-not $line -or $line -match '^\s*NAME\s+STATE\s+VERSION') { continue }
+            $cleanLine = $line -replace '^\*\s*', ''
+            if ($cleanLine -match '^(\S+)\s+(\S+)\s+(\d+)') {
+                $distros[$Matches[1]] = @{ State = $Matches[2]; Version = $Matches[3] }
+            }
+        }
+    }
+
+    # If distro already exists, check running state and terminate cleanly before unregister or import
+    $distroExists = $distros.ContainsKey($targetDistro)
+    if ($distroExists) {
+        $existingState = $distros[$targetDistro].State
+        Write-Log "Found pre-existing WSL distro '$targetDistro' (State: $existingState)." "INFO"
+        if ($existingState -ieq 'Running') {
+            Set-Step "Terminating running WSL distro '$targetDistro'..."
+            Write-Log "Terminating running WSL distro '$targetDistro' with wsl.exe --terminate..." "INFO"
+            & wsl.exe --terminate $targetDistro 2>&1 | ForEach-Object { Write-Log "wsl-terminate: $_" }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+
+    # Ensure target InstallDir exists
+    if (-not (Test-Path $InstallDir)) {
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    }
+
+    # Avoid WSL error 0x80070050: handle pre-existing ext4.vhdx in target InstallDir
+    $existingVhdx = Join-Path $InstallDir "ext4.vhdx"
+    if (Test-Path -LiteralPath $existingVhdx) {
+        $resolvedSource = try { (Resolve-Path -LiteralPath $Archive).Path } catch { $Archive }
+        $resolvedExisting = try { (Resolve-Path -LiteralPath $existingVhdx).Path } catch { $existingVhdx }
+        if ($resolvedSource -and $resolvedExisting -and ($resolvedSource -ieq $resolvedExisting)) {
+            $stagedSource = Join-Path $InstallDir "source_$((Get-Date).ToString('yyyyMMdd_HHmmss')).vhdx"
+            Write-Log "Archive is located at target ext4.vhdx. Renaming source to $stagedSource..." "INFO"
+            Move-Item -LiteralPath $Archive -Destination $stagedSource -Force
+            $Archive = $stagedSource
+        } else {
+            $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+            $backupVhdx = Join-Path $InstallDir "ext4.vhdx.bak"
+            $backupVhdxTimestamped = Join-Path $InstallDir "ext4.vhdx.bak_${timestamp}"
+            Write-Log "Target InstallDir already contains ext4.vhdx. Backing up to $backupVhdx to avoid 0x80070050..." "INFO"
+            try {
+                Copy-Item -LiteralPath $existingVhdx -Destination $backupVhdx -Force
+                Copy-Item -LiteralPath $existingVhdx -Destination $backupVhdxTimestamped -Force
+                Remove-Item -LiteralPath $existingVhdx -Force -ErrorAction Stop
+            } catch {
+                Write-Log "Remove-Item failed: $($_.Exception.Message). Moving file..." "WARN"
+                Move-Item -LiteralPath $existingVhdx -Destination $backupVhdxTimestamped -Force
+            }
+        }
+    }
+
+    # If distro is registered in WSL, unregister the registration after safe backup and termination
+    if ($distroExists) {
+        Write-Log "Unregistering existing WSL distro '$targetDistro' registration..." "INFO"
+        & wsl.exe --unregister $targetDistro 2>&1 | ForEach-Object { Write-Log "wsl-unregister: $_" }
+        Start-Sleep -Milliseconds 500
+
+        # Verify no orphaned ext4.vhdx remains after unregistering to prevent 0x80070050
+        if (Test-Path -LiteralPath $existingVhdx) {
+            $orphanedBak = Join-Path $InstallDir "ext4.vhdx.orphaned_$((Get-Date).ToString('yyyyMMdd_HHmmss'))"
+            Write-Log "Orphaned ext4.vhdx remained after unregister. Moving to $orphanedBak..." "WARN"
+            Move-Item -LiteralPath $existingVhdx -Destination $orphanedBak -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    # Import distro: detect .vhdx vs .tar
+    Set-Step "wsl --import $targetDistro ..."
+    $isVhd = ($Vhd.IsPresent -or ($Archive -match '\.vhdx?$'))
+    if ($isVhd) {
+        Write-Log "Importing VHDX archive '$Archive' via --vhd into '$InstallDir'..." "INFO"
+        & wsl.exe --import $targetDistro $InstallDir $Archive --vhd 2>&1 |
+            ForEach-Object { Write-Log "wsl-import: $_" }
+    } else {
+        Write-Log "Importing tar archive '$Archive' via --version 2 into '$InstallDir'..." "INFO"
+        & wsl.exe --import $targetDistro $InstallDir $Archive --version 2 2>&1 |
+            ForEach-Object { Write-Log "wsl-import: $_" }
+    }
     if ($LASTEXITCODE -ne 0) { throw "wsl --import exited $LASTEXITCODE" }
-    # Set [boot] systemd=true + [user] default=mios in the new distro.
-    # systemd=true is REQUIRED -- without it WSL boots without systemd
-    # as PID 1 and every Quadlet / service-coupled step downstream fails.
+
+    # Configure /etc/wsl.conf and /usr/lib/wsl.conf without duplicate sections
     try {
-        & wsl.exe -d $MiosWslDistro --user root --exec bash -c `
-            "if ! grep -q '^\[boot\]' /etc/wsl.conf 2>/dev/null; then printf '[boot]\nsystemd=true\n\n' >> /etc/wsl.conf; fi; id mios &>/dev/null && echo -e '[user]\ndefault=mios' >> /etc/wsl.conf || true" 2>$null | Out-Null
-    } catch {}
+        $sanitizePy = @'
+import os, re, shutil
+
+def sanitize_conf(filepath, has_user_mios):
+    if not os.path.exists(filepath):
+        content = "[boot]\nsystemd=true\n"
+        if has_user_mios:
+            content += "\n[user]\ndefault=mios\n"
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        return
+
+    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+        lines = f.read().splitlines()
+
+    seen_sections = set()
+    current_sec = None
+    sec_keys = {}
+    new_lines = []
+
+    for line in lines:
+        sm = re.match(r"^\s*\[([a-zA-Z0-9_-]+)\]\s*$", line)
+        if sm:
+            sec = sm.group(1).lower()
+            if sec in seen_sections:
+                current_sec = sec
+                continue
+            seen_sections.add(sec)
+            current_sec = sec
+            sec_keys[sec] = set()
+            new_lines.append(f"[{sec}]")
+            continue
+
+        km = re.match(r"^\s*([a-zA-Z0-9_.-]+)\s*=\s*(.*)$", line)
+        if km and current_sec:
+            k = km.group(1).lower()
+            v = km.group(2).strip()
+            if k in sec_keys[current_sec]:
+                continue
+            sec_keys[current_sec].add(k)
+            if current_sec == "boot" and k == "systemd":
+                new_lines.append("systemd=true")
+                continue
+            if current_sec == "user" and k == "default":
+                new_lines.append("default=mios" if has_user_mios else f"default={v}")
+                continue
+            new_lines.append(line)
+            continue
+
+        new_lines.append(line)
+
+    if "boot" not in seen_sections:
+        new_lines.append("[boot]")
+        new_lines.append("systemd=true")
+    elif "systemd" not in sec_keys.get("boot", set()):
+        idx = new_lines.index("[boot]") + 1
+        new_lines.insert(idx, "systemd=true")
+
+    if has_user_mios:
+        if "user" not in seen_sections:
+            new_lines.append("[user]")
+            new_lines.append("default=mios")
+        elif "default" not in sec_keys.get("user", set()):
+            idx = new_lines.index("[user]") + 1
+            new_lines.insert(idx, "default=mios")
+
+    output = "\n".join(new_lines).strip() + "\n"
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(output)
+
+has_mios = os.system("id mios >/dev/null 2>&1") == 0
+if os.path.exists("/usr/lib/wsl.conf"):
+    sanitize_conf("/usr/lib/wsl.conf", has_mios)
+    shutil.copyfile("/usr/lib/wsl.conf", "/etc/wsl.conf")
+    os.chmod("/etc/wsl.conf", 0o644)
+else:
+    sanitize_conf("/etc/wsl.conf", has_mios)
+'@
+        $pyB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($sanitizePy))
+        $bashCmd = "if command -v python3 >/dev/null 2>&1; then echo '$pyB64' | base64 -d | python3; else " +
+                   "if [ -f /usr/lib/wsl.conf ]; then " +
+                   "if ! grep -q '^\[boot\]' /usr/lib/wsl.conf 2>/dev/null; then printf '[boot]\nsystemd=true\n\n' >> /usr/lib/wsl.conf; fi; " +
+                   "if id mios >/dev/null 2>&1 && ! grep -q '^\[user\]' /usr/lib/wsl.conf 2>/dev/null; then printf '[user]\ndefault=mios\n\n' >> /usr/lib/wsl.conf; fi; " +
+                   "cp -f /usr/lib/wsl.conf /etc/wsl.conf; chmod 644 /etc/wsl.conf; " +
+                   "else " +
+                   "if ! grep -q '^\[boot\]' /etc/wsl.conf 2>/dev/null; then printf '[boot]\nsystemd=true\n\n' >> /etc/wsl.conf; " +
+                   "elif ! grep -qE '^[[:space:]]*systemd[[:space:]]*=' /etc/wsl.conf 2>/dev/null; then sed -i '/^\[boot\]/a systemd=true' /etc/wsl.conf; fi; " +
+                   "if id mios >/dev/null 2>&1; then if ! grep -q '^\[user\]' /etc/wsl.conf 2>/dev/null; then printf '[user]\ndefault=mios\n\n' >> /etc/wsl.conf; " +
+                   "elif ! grep -qE '^[[:space:]]*default[[:space:]]*=' /etc/wsl.conf 2>/dev/null; then sed -i '/^\[user\]/a default=mios' /etc/wsl.conf; fi; fi; fi; fi"
+        & wsl.exe -d $targetDistro --user root --exec bash -c $bashCmd 2>&1 | ForEach-Object { Write-Log "wsl-conf: $_" }
+    } catch {
+        Write-Log "WARN: /etc/wsl.conf configuration: $($_.Exception.Message)" "WARN"
+    }
+
+    # Reconcile mios user home directory, permissions, and system directory access
+    try {
+        $reconcileCmd = "if id mios >/dev/null 2>&1; then " +
+                        "mkdir -p /var/home/mios/.cache/oh-my-posh /var/home/mios/.config 2>/dev/null; " +
+                        "chown -R mios:mios /var/home/mios 2>/dev/null || true; " +
+                        "chmod 700 /var/home/mios/.cache 2>/dev/null || true; " +
+                        "if [ -d /home/mios ]; then chown -R mios:mios /home/mios 2>/dev/null || true; fi; " +
+                        "fi; " +
+                        "chmod 755 /etc/sudoers.d 2>/dev/null || true; " +
+                        "chmod 444 /etc/sudoers.d/* 2>/dev/null || true; " +
+                        "chmod 755 /etc/fapolicyd 2>/dev/null || true; " +
+                        "chmod 644 /etc/fapolicyd/fapolicyd.rules 2>/dev/null || true"
+        & wsl.exe -d $targetDistro --user root --exec bash -c $reconcileCmd 2>&1 | ForEach-Object { Write-Log "wsl-reconcile: $_" }
+    } catch {
+        Write-Log "WARN: mios home directory reconciliation: $($_.Exception.Message)" "WARN"
+    }
+
+    # Terminate distro so systemd boots as PID 1 on next launch with clean wsl.conf
+    Set-Step "Terminating WSL distro '$targetDistro' so systemd boots as PID 1..."
+    & wsl.exe --terminate $targetDistro 2>$null | Out-Null
+    Start-Sleep -Milliseconds 500
+
     return $true
+}
+
+if ($ImportWsl) {
+    Repair-WslConfig
+    $archive = $WslArchive
+    if (-not $archive) {
+        if ($Passthrough -and $Passthrough.Count -gt 0) {
+            foreach ($p in $Passthrough) {
+                if ($p -and (Test-Path $p)) { $archive = $p; break }
+            }
+        }
+    }
+    if (-not $archive) {
+        $candidates = @(
+            (Join-Path $script:MiosDistroDir "artifacts\mios-wsl2.tar"),
+            (Join-Path $PSScriptRoot "artifacts\mios-wsl2.tar"),
+            (Join-Path $PSScriptRoot "output\disk.wsl2"),
+            (Join-Path $PSScriptRoot "output\disk.vhdx"),
+            (Join-Path $PSScriptRoot "build\artifacts\mios-wsl2.tar"),
+            "M:\MiOS-images\mios-wsl2.tar"
+        )
+        foreach ($cand in $candidates) {
+            if ($cand -and (Test-Path $cand)) { $archive = $cand; break }
+        }
+    }
+    if (-not $archive -or -not (Test-Path $archive)) {
+        if ($Unattended) { throw "No pre-built WSL2 rootfs/vhdx archive found for unattended import." }
+        $archive = Read-Host "Path to pre-built MiOS WSL2 archive (.tar or .vhdx)"
+    }
+    if (-not (Test-Path $archive)) { throw "WSL2 archive not found: '$archive'" }
+    $destDir = if ($WslInstallDir) { $WslInstallDir } elseif ($script:MiosDistroDir) { Join-Path $script:MiosDistroDir $MiosWslDistro } else { Join-Path $env:LOCALAPPDATA "MiOS\distro" }
+    $null = Import-MiosWsl -Archive $archive -InstallDir $destDir
+    Log-Ok "WSL2 distro '$MiosWslDistro' successfully imported from '$archive' to '$destDir'."
+    exit 0
 }
 
 function Invoke-BibBuild([string[]]$Types, [string]$MachineOutDir, [int]$TimeoutMin = 60) {
@@ -3825,7 +4223,9 @@ function Invoke-DeployPipeline([hashtable]$HW) {
         End-Phase 10
     } catch {
         Log-Warn "WSL2 export: $_"
-        End-Phase 10 -Warn
+        End-Phase 10 -Fail
+        $script:ExitCode = 1
+        $ExitCode = 1
     }
 
     # ── Phase 11: Register WSL2 distro ────────────────────────────────────────
@@ -3837,11 +4237,15 @@ function Invoke-DeployPipeline([hashtable]$HW) {
             End-Phase 11
         } catch {
             Log-Warn "WSL2 import: $_"
-            End-Phase 11 -Warn
+            End-Phase 11 -Fail
+            $script:ExitCode = 1
+            $ExitCode = 1
         }
     } else {
-        Log-Warn "Skipped (no WSL2 tar)"
-        End-Phase 11 -Warn
+        Log-Warn "Skipped (no WSL2 tar due to export failure)"
+        End-Phase 11 -Fail
+        $script:ExitCode = 1
+        $ExitCode = 1
     }
 
     # ── Phase 12: BIB disk images (qcow2 + raw) ───────────────────────────────
@@ -4010,14 +4414,38 @@ function Invoke-DistroSh {
 }
 
 function Set-MiosWslConfig {
-    param([int]$RamGB, [int]$Cpus)
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0)]
+        [int]$RamGB = 0,
+
+        [Parameter(Position = 1)]
+        [int]$Cpus = 0,
+
+        [Parameter()]
+        [switch]$Force,
+
+        [Parameter()]
+        [switch]$NoShutdown
+    )
+
+    if ($RamGB -le 0) {
+        $RamGB = if ($script:HW -and $script:HW.RamGB) { $script:HW.RamGB } else { 8 }
+    }
+    if ($Cpus -le 0) {
+        $Cpus = if ($script:HW -and $script:HW.Cpus) { $script:HW.Cpus } else { [Math]::Max(2, [Environment]::ProcessorCount) }
+    }
 
     $wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
-    $requiredKeys = [ordered]@{
+    $winBuild = [Environment]::OSVersion.Version.Build
+    $isWin11_22H2 = ($winBuild -ge 22621)
+    $targetNetMode = if ($isWin11_22H2) { "mirrored" } else { "NAT" }
+
+    $defaultKeys = [ordered]@{
         memory              = "${RamGB}GB"
         processors          = "$Cpus"
         swap                = "4GB"
-        networkingMode      = "NAT"
+        networkingMode      = $targetNetMode
         localhostForwarding = "true"
         dnsTunneling        = "true"
         autoProxy           = "true"
@@ -4028,43 +4456,75 @@ function Set-MiosWslConfig {
 
     if ($cfgRaw -notmatch "\[wsl2\]") {
         $block = "`n[wsl2]`n# MiOS-managed -- host resources for MiOS-DEV`n"
-        foreach ($kv in $requiredKeys.GetEnumerator()) { $block += "$($kv.Key)=$($kv.Value)`n" }
-        Add-Content -Path $wslCfg -Value $block
-        Log-Ok ".wslconfig: wrote [wsl2] -- ${RamGB}GB RAM, $Cpus CPUs, mirrored"
+        foreach ($kv in $defaultKeys.GetEnumerator()) { $block += "$($kv.Key)=$($kv.Value)`n" }
+        $finalContent = if ($cfgRaw.Trim()) { $cfgRaw.TrimEnd() + "`n`n" + $block.TrimStart() } else { $block }
+        [System.IO.File]::WriteAllText($wslCfg, $finalContent, (New-Object System.Text.UTF8Encoding($false)))
+        Log-Ok ".wslconfig: wrote [wsl2] -- ${RamGB}GB RAM, $Cpus CPUs, $targetNetMode"
+        if (-not $NoShutdown) {
+            try { & wsl.exe --shutdown 2>$null | Out-Null } catch {}
+        }
         return
     }
 
     $deprecatedKeys = @('firewall')
+    $bootSectionKeys = @('systemd', 'command', 'enabled', 'appendWindowsPath',
+                         'default', 'options', 'mountFsTab',
+                         'generateHosts', 'generateResolvConf', 'hostname')
     $lines    = (Get-Content $wslCfg)
     $inWsl2   = $false
     $patched  = [System.Collections.Generic.List[string]]::new()
     $inserted = [System.Collections.Generic.HashSet[string]]::new()
+    $effectiveRam = "${RamGB}GB"
+    $effectiveCpus = "$Cpus"
+    $effectiveNetMode = $targetNetMode
+
     foreach ($line in $lines) {
-        if ($line -match "^\[wsl2\]") { $inWsl2 = $true }
-        elseif ($line -match "^\[")   { $inWsl2 = $false }
-        if ($inWsl2 -and $line -match "^(\w+)\s*=") {
+        if ($line -match "^\s*\[wsl2\]\s*$") { $inWsl2 = $true; $patched.Add($line); continue }
+        elseif ($line -match "^\s*\[")        { $inWsl2 = $false; $patched.Add($line); continue }
+        if ($inWsl2 -and $line -match "^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*)$") {
             $key = $Matches[1]
-            if ($deprecatedKeys -contains $key) { continue }
-            if ($requiredKeys.Contains($key)) {
-                $patched.Add("$key=$($requiredKeys[$key])")
+            $val = $Matches[2].Trim()
+            if ($deprecatedKeys -contains $key -or $bootSectionKeys -contains $key) { continue }
+            if ($defaultKeys.Contains($key)) {
+                # Preserve existing memory and processors limits unless -Force is specified
+                if (-not $Force -and ($key -ieq 'memory' -or $key -ieq 'processors') -and $val) {
+                    $patched.Add("$key=$val")
+                    $null = $inserted.Add($key)
+                    if ($key -ieq 'memory') { $effectiveRam = $val }
+                    if ($key -ieq 'processors') { $effectiveCpus = $val }
+                    continue
+                }
+                # Reconcile networkingMode based on Windows build
+                if ($key -ieq 'networkingMode') {
+                    $patched.Add("networkingMode=$targetNetMode")
+                    $null = $inserted.Add($key)
+                    $effectiveNetMode = $targetNetMode
+                    continue
+                }
+                $patched.Add("$key=$($defaultKeys[$key])")
                 $null = $inserted.Add($key)
                 continue
             }
         }
         $patched.Add($line)
     }
-    $missing = $requiredKeys.Keys | Where-Object { -not $inserted.Contains($_) }
+
+    $missing = $defaultKeys.Keys | Where-Object { -not $inserted.Contains($_) }
     if ($missing) {
-        $insertIdx = ($patched | Select-String -Pattern "^\[wsl2\]" | Select-Object -First 1).LineNumber
+        $wsl2Match = ($patched | Select-String -Pattern "^\s*\[wsl2\]\s*$" | Select-Object -First 1)
+        $insertIdx = if ($wsl2Match) { $wsl2Match.LineNumber } else { 0 }
         $offset = 0
         foreach ($key in $missing) {
-            $patched.Insert($insertIdx + $offset, "$key=$($requiredKeys[$key])")
+            $patched.Insert($insertIdx + $offset, "$key=$($defaultKeys[$key])")
             $offset++
         }
     }
-    # BOM-free (see the scrub site above): a UTF-8 BOM makes WSL ignore [wsl2].
+    # BOM-free UTF-8: a UTF-8 BOM makes WSL ignore [wsl2].
     [System.IO.File]::WriteAllLines($wslCfg, $patched, (New-Object System.Text.UTF8Encoding($false)))
-    Log-Ok ".wslconfig: merged [wsl2] -- ${RamGB}GB RAM, $Cpus CPUs, mirrored"
+    Log-Ok ".wslconfig: merged [wsl2] -- $effectiveRam RAM, $effectiveCpus CPUs, $effectiveNetMode"
+    if (-not $NoShutdown) {
+        try { & wsl.exe --shutdown 2>$null | Out-Null } catch {}
+    }
 }
 
 function Set-MiosLanFirewallRules {
@@ -6723,7 +7183,7 @@ $miosRepo = $MiosRepoDir
         }
     }
     if (-not $miosEssentials) {
-        $miosEssentials = 'mkpasswd whois openssl python3-passlib bootc git iptables nftables fastfetch oh-my-posh bash-completion'
+        $miosEssentials = 'mkpasswd whois openssl python3-passlib bootc git iptables nftables fastfetch oh-my-posh python3-rich python3-textual python3-psutil bash-completion'
         Log-Warn "Using fallback dev-VM essentials list (mios.toml [packages.dev_vm_essentials] not found / unparseable)"
     }
     $essentialsRc = -1
@@ -7931,14 +8391,20 @@ if (`$Purge) {
     End-Phase $script:AppRegPhaseId
 
     Start-Phase 9
-    $rc = Invoke-WslBuild -Distro $BuilderDistro -BaseImage $HW.BaseImage `
-                          -AiModel $MiosAiModel -EmbedModel $MiosAiEmbedModel `
-                          -BakeModels $MiosBakeModels `
-                          -MiosUser $MiosUser -MiosHostname $MiosHostname
-    if ($rc -eq 0) {
+    if ($DeployPipeline) {
+        Log-Ok "Skipping Phase 9 container build (-DeployPipeline requested)"
         End-Phase 9
         Invoke-DeployPipeline -HW $HW
-    } else { End-Phase 9 -Fail; $ExitCode = $rc }
+    } else {
+        $rc = Invoke-WslBuild -Distro $BuilderDistro -BaseImage $HW.BaseImage `
+                              -AiModel $MiosAiModel -EmbedModel $MiosAiEmbedModel `
+                              -BakeModels $MiosBakeModels `
+                              -MiosUser $MiosUser -MiosHostname $MiosHostname
+        if ($rc -eq 0) {
+            End-Phase 9
+            Invoke-DeployPipeline -HW $HW
+        } else { End-Phase 9 -Fail; $ExitCode = $rc }
+    }
 
 # end full-install branch
 
