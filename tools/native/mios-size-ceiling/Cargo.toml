@@ -7,4 +7,4 @@ edition.workspace = true
 description = "Generate the tracked-size ceiling from the index measurement plus SSOT headroom"
 
 [dependencies]
-toml = "0.8"
+toml.workspace = true

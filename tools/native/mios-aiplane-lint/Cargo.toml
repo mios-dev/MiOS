@@ -1,10 +1,13 @@
-# AI-hint: Rust agent-pipe budget and SSOT validator Cargo manifest.
+# AI-hint: Cargo manifest for mios-aiplane-lint -- fast regex scanner for AI plane invariants.
+# AI-related: usr/share/doc/mios/adr/0011-unified-languages-and-file-patterns.md, automation/98-drift-checks.sh
+
 [package]
 name = "mios-aiplane-lint"
 version.workspace = true
 edition.workspace = true
+description = "Fast native scanner for AI plane architectural invariants (Law 14, systemd unit shapes, port redirects)"
 
 [dependencies]
-toml = "0.8"
-regex = "1.10"
-walkdir = "2.4"
+regex.workspace = true
+toml.workspace = true
+walkdir.workspace = true
