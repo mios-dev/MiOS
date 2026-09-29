@@ -121,6 +121,7 @@
 # doc-*.md north stars. They existed only on a contributor's disk.
 !/docs/
 !/docs/**
+!/docs/research/architecture-gap-audit-2026-09-29.md
 # The dev-loop handoff ledger. The block-all `.*` rule above hides every
 # dotted directory, and a handoff note only works if the next session can read
 # it from a clean clone.
