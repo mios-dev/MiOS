@@ -606,9 +606,9 @@ class PsiSampler:
             try:
                 # Support both (event) and (old_level, new_level, worst_val, sample)
                 try:
-                    res = listener(prev_level, new_level, worst_val, sample)
-                except TypeError:
                     res = listener(event)
+                except TypeError:
+                    res = listener(prev_level, new_level, worst_val, sample)
                 if asyncio.iscoroutine(res):
                     asyncio.create_task(res)
             except Exception as e:
