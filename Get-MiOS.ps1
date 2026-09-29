@@ -4966,12 +4966,17 @@ $_lhfwd    = [string](Get-MiosTomlValue -Section 'wsl2' -Key 'localhost_forwardi
 $_fwall    = [string](Get-MiosTomlValue -Section 'wsl2' -Key 'firewall'             -Default 'false')
 $_gui      = [string](Get-MiosTomlValue -Section 'wsl2' -Key 'gui_applications'     -Default 'true')
 $_isMirror = ($_netMode -ieq 'mirrored')
+$_wslHostRamGB = try { [math]::Floor((Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).TotalPhysicalMemory / 1GB) } catch { 16 }
+$_wslReservePct = [math]::Min(95, [math]::Max(0, [int](Get-MiosTomlValue -Section 'bootstrap.dev_vm.host_reserve' -Key 'memory_pct' -Default 50)))
+$_wslReserveGB  = [math]::Max(0, [int](Get-MiosTomlValue -Section 'bootstrap.dev_vm.host_reserve' -Key 'memory_gb'  -Default 8))
+$_wslRamGB = [math]::Max(4, $_wslHostRamGB - [math]::Max($_wslReserveGB, [math]::Floor($_wslHostRamGB * $_wslReservePct / 100)))
 
 $_wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
 $_wslCfgRaw = if (Test-Path $_wslCfg) { Get-Content $_wslCfg -Raw } else { "" }
 
 # Build the section body from TOML-resolved values.
 $_keyLines = New-Object System.Collections.Generic.List[string]
+$_keyLines.Add("memory=${_wslRamGB}GB")
 $_keyLines.Add("networkingMode=$_netMode")
 if ($_isMirror) {
     if ($_fwall -ieq 'true') { $_keyLines.Add('firewall=true') }
@@ -4983,7 +4988,7 @@ if ($_gui -ieq 'true') { $_keyLines.Add('guiApplications=true') }
 # Detect divergence: any required key missing or value mismatched.
 $_needWrite = $false
 foreach ($_kv in $_keyLines) {
-    $_pat = '^' + [regex]::Escape($_kv) + '\s*$'
+    $_pat = '(?m)^' + [regex]::Escape($_kv) + '\s*$'
     if ($_wslCfgRaw -notmatch $_pat) { $_needWrite = $true; break }
 }
 if ($_needWrite) {
@@ -4991,7 +4996,8 @@ if ($_needWrite) {
         $_baseline = @"
 
 [wsl2]
-# MiOS pre-Phase-0 minimum, generated from mios.toml [wsl2].* by
+# MiOS pre-Phase-0 settings, generated from mios.toml [wsl2] and
+# [bootstrap.dev_vm.host_reserve] by
 # Get-MiOS.ps1 on every irm|iex. Edit values in mios.html, not here --
 # this block is regenerated.
 $($_keyLines -join "`r`n")
@@ -5011,12 +5017,12 @@ $($_keyLines -join "`r`n")
                 if (-not $_added) { foreach ($_kv in $_keyLines) { $_out.Add($_kv) }; $_added = $true }
                 continue
             } elseif ($_l -match '^\[') { $_in = $false }
-            if ($_in -and $_l -match '^(networkingMode|localhostForwarding|firewall|guiApplications)\s*=') { continue }
+            if ($_in -and $_l -match '^(memory|networkingMode|localhostForwarding|firewall|guiApplications)\s*=') { continue }
             $_out.Add($_l)
         }
         [System.IO.File]::WriteAllLines($_wslCfg, $_out, (New-Object System.Text.UTF8Encoding($false)))
     }
-    Write-Host "  [+] .wslconfig: $_netMode mode written from mios.toml [wsl2].* (pre-Phase-0)" -ForegroundColor Green
+    Write-Host "  [+] .wslconfig: $_netMode mode and ${_wslRamGB}GB RAM written from mios.toml (pre-Phase-0)" -ForegroundColor Green
     & wsl.exe --shutdown 2>$null | Out-Null
 }
 
