@@ -165,9 +165,10 @@ async def _signal_inference_throttling(throttled: bool, event: dict) -> None:
             pass
 
     # 3. Invoke any registered inference worker callbacks
+    import inspect
     for cb in list(_INFERENCE_THROTTLE_CALLBACKS):
         try:
-            if asyncio.iscoroutinefunction(cb):
+            if inspect.iscoroutinefunction(cb):
                 await cb(throttled, event)
             else:
                 cb(throttled, event)

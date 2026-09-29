@@ -301,8 +301,8 @@ public static class MiosDeskLauncher {
                             try { dpi = GetDpiForWindow(hWnd); } catch (EntryPointNotFoundException) {}
                             int requestedWidth = (int)Math.Round(wantedWidth * dpi / 96.0);
                             int requestedHeight = (int)Math.Round(wantedHeight * dpi / 96.0);
-                            int width = Math.Min(requestedWidth, info.work.Right - info.work.Left);
-                            int height = Math.Min(requestedHeight, info.work.Bottom - info.work.Top);
+                            int width = Math.Min(Math.Min(rect.Right - rect.Left, requestedWidth), info.work.Right - info.work.Left);
+                            int height = Math.Min(Math.Min(rect.Bottom - rect.Top, requestedHeight), info.work.Bottom - info.work.Top);
                             if (width > 0 && height > 0) {
                                 int x = info.work.Left + ((info.work.Right - info.work.Left - width) / 2);
                                 int y = info.work.Top + ((info.work.Bottom - info.work.Top - height) / 2);
@@ -388,10 +388,15 @@ public static class MiosDeskLauncher {
             if ([string]::IsNullOrWhiteSpace($monitorScheme)) { $monitorScheme = 'MiOS' }
             $monitorLaunchMode = [string](Get-MiosTomlValue -Section 'theme' -Key 'launch_mode' -Default 'focus')
             $monitorX = 0; $monitorY = 0
+            $displayCols = $monitorCols; $displayRows = $monitorRows
             try {
                 Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
                 $cursor = [System.Windows.Forms.Cursor]::Position
                 $workArea = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
+                $displayCols = [math]::Min($monitorCols, [math]::Max(40, [math]::Floor(($workArea.Width - $chromeWidth - 28) / $cellWidth)))
+                $displayRows = [math]::Min($monitorRows, [math]::Max(12, [math]::Floor(($workArea.Height - $chromeHeight - 32) / $cellHeight)))
+                $monitorWidthPx = ($displayCols * $cellWidth) + $chromeWidth
+                $monitorHeightPx = ($displayRows * $cellHeight) + $chromeHeight
                 $monitorX = [int]($workArea.X + (($workArea.Width - $monitorWidthPx) / 2))
                 $monitorY = [int]($workArea.Y + (($workArea.Height - $monitorHeightPx) / 2))
                 if ($monitorX -lt $workArea.X) { $monitorX = $workArea.X }
@@ -429,7 +434,10 @@ public static class MiosDeskLauncher {
             # monitor that masks a failed themed launch.
             if (-not $profileReady) { return }
             $wtWindowArgsText = $wtWindowArgs -join ' '
-            $wtArgsString = "$wtWindowArgsText --pos `"$monitorX,$monitorY`" --size `"$monitorCols,$monitorRows`" -w new new-tab --profile `"$monitorProfile`" --colorScheme `"$monitorScheme`" --title `"MiOS Build Monitor`" `"$python`" `"$monitorScript`" --pipeline"
+            $monitorCommand = "while (`$true) { & '$($python.Replace("'", "''"))' '$($monitorScript.Replace("'", "''"))' --pipeline; if (`$LASTEXITCODE -eq 0) { break }; Write-Host 'MiOS monitor exited unexpectedly; restarting in 2 seconds' -ForegroundColor Yellow; Start-Sleep -Seconds 2 }"
+            $monitorEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($monitorCommand))
+            $monitorShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+            $wtArgsString = "$wtWindowArgsText --pos `"$monitorX,$monitorY`" --size `"$displayCols,$displayRows`" -w `"MiOS-Monitor`" new-tab --profile `"$monitorProfile`" --colorScheme `"$monitorScheme`" --title `"MiOS Build Monitor`" `"$monitorShell`" -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $monitorEncoded"
             $cmdLine = "`"$wtExe`" $wtArgsString"
             if (([System.Management.Automation.PSTypeName]'MiosDeskLauncher').Type) {
                 $spawnedPid = [MiosDeskLauncher]::Launch($cmdLine, 'MiOS Build Monitor')
@@ -696,56 +704,31 @@ if (Test-Path $installModuleDir) {
 $script:_MiosTomlCache = @{}
 
 function Resolve-MiosTomlText {
-    if ($script:_MiosTomlCache.ContainsKey('_text') -and $script:_MiosTomlCache['_text']) {
+    if ($script:_MiosTomlCache.ContainsKey('_text')) {
         return $script:_MiosTomlCache['_text']
     }
-    # Local fallback for development/testing
-    $localToml = "C:\mios-bootstrap\mios.toml"
-    if (Test-Path $localToml) {
-        try {
-            $script:_MiosTomlCache['_text'] = [IO.File]::ReadAllText($localToml, (New-Object System.Text.UTF8Encoding($false)))
-            $script:_MiosTomlCache['_source'] = "local ($localToml)"
-            return $script:_MiosTomlCache['_text']
-        } catch {}
-    }
-    # Web only -- no local fallback.  See header comment for the rule.
-    try {
-        $cb  = [int][double]::Parse((Get-Date -UFormat %s))
-        $url = "https://raw.githubusercontent.com/mios-dev/MiOS/main/usr/share/mios/mios.toml?cb=$cb"
-        # Use IWR not IRM so the response body comes back as raw text
-        # regardless of Content-Type (raw.githubusercontent.com sometimes
-        # serves .toml as application/octet-stream which IRM can't decode).
-        $resp = Invoke-WebRequest -Uri $url `
-            -Headers @{ 'Cache-Control'='no-cache, no-store, max-age=0'; 'Pragma'='no-cache' } `
-            -UseBasicParsing -ErrorAction Stop
-        if ($resp.Content -is [byte[]]) {
-            $script:_MiosTomlCache['_text'] = [System.Text.Encoding]::UTF8.GetString($resp.Content)
-        } else {
-            $script:_MiosTomlCache['_text'] = [string]$resp.Content
+    # Only a saved operator file is a host layer. The bootstrap checkout's
+    # mios.toml is a template and must never shadow the full system SSOT.
+    foreach ($path in @(
+        (Join-Path $env:USERPROFILE '.config\mios\mios.toml')
+    )) {
+        if ($path -and (Test-Path -LiteralPath $path -PathType Leaf)) {
+            try {
+                $script:_MiosTomlCache['_text'] = [IO.File]::ReadAllText($path, (New-Object System.Text.UTF8Encoding($false)))
+                $script:_MiosTomlCache['_source'] = $path
+                return $script:_MiosTomlCache['_text']
+            } catch {}
         }
-        $script:_MiosTomlCache['_source'] = "origin/main (web)"
-        return $script:_MiosTomlCache['_text']
-    } catch {
-        $script:_MiosTomlCache['_text']   = ''
-        $script:_MiosTomlCache['_source'] = '(unreachable -- vendor defaults only)'
-        return ''
     }
+    $script:_MiosTomlCache['_text'] = ''
+    $script:_MiosTomlCache['_source'] = '(no operator override)'
+    return ''
 }
 
 function Resolve-MiosVendorTomlText {
-    # The system repo owns the complete vendor TOML. The bootstrap repo's
-    # root mios.toml is the operator profile overlay, not a replacement for
-    # the much larger vendor document.
-    $vendorPaths = @(
-        'C:\MiOS\usr\share\mios\mios.toml',
-        'M:\usr\share\mios\mios.toml',
-        (Join-Path $PSScriptRoot 'usr\share\mios\mios.toml')
-    )
-    foreach ($path in $vendorPaths) {
-        if (Test-Path -LiteralPath $path -PathType Leaf) {
-            try { return [IO.File]::ReadAllText($path, (New-Object System.Text.UTF8Encoding($false))) } catch {}
-        }
-    }
+    if ($script:_MiosTomlCache.ContainsKey('_vendor_text')) { return $script:_MiosTomlCache['_vendor_text'] }
+    # Phase 0 discards local install state; fetch the complete system SSOT
+    # from the current repository ref used by this fresh bootstrap run.
     try {
         $cb = [int][double]::Parse((Get-Date -UFormat %s))
         $rawBase = if ($Script:MiosRawBase) { $Script:MiosRawBase } else { 'https://raw.githubusercontent.com/mios-dev/MiOS/main' }
@@ -753,45 +736,49 @@ function Resolve-MiosVendorTomlText {
         $resp = Invoke-WebRequest -Uri $url `
             -Headers @{ 'Cache-Control'='no-cache, no-store, max-age=0'; 'Pragma'='no-cache' } `
             -UseBasicParsing -ErrorAction Stop
-        if ($resp.Content -is [byte[]]) { return [System.Text.Encoding]::UTF8.GetString($resp.Content) }
-        return [string]$resp.Content
-    } catch { return '' }
+        if ($resp.Content -is [byte[]]) { $script:_MiosTomlCache['_vendor_text'] = [System.Text.Encoding]::UTF8.GetString($resp.Content) }
+        else { $script:_MiosTomlCache['_vendor_text'] = [string]$resp.Content }
+        return $script:_MiosTomlCache['_vendor_text']
+    } catch {
+        $script:_MiosTomlCache['_vendor_text'] = ''
+        return ''
+    }
 }
 
 function Get-MiosTomlValue {
     param(
         [Parameter(Mandatory)] [string]$Section,   # e.g. "terminal" or "bootstrap.host_storage"
         [Parameter(Mandatory)] [string]$Key,       # e.g. "cols"
-        [Parameter(Mandatory)] $Default            # returned if not found / unparseable
+        [Parameter(Mandatory)] [AllowEmptyString()] $Default  # returned if not found / unparseable
     )
-    $txt = Resolve-MiosTomlText
-    if (-not $txt) { return $Default }
+    foreach ($txt in @((Resolve-MiosTomlText), (Resolve-MiosVendorTomlText))) {
+    if (-not $txt) { continue }
     # Slice the section body: from `[Section]` (line-anchored) to the next
     # `[other.section]` header or EOF.
     $rxSec = '(?ms)^\[' + [regex]::Escape($Section) + '\][ \t]*\r?\n(?<body>.*?)(?=^\[[^\]]+\]|\z)'
     $mSec  = [regex]::Match($txt, $rxSec)
-    if (-not $mSec.Success) { return $Default }
+    if (-not $mSec.Success) { continue }
     $body  = $mSec.Groups['body'].Value
     # Within the body, find `key = value` (TOML allows leading whitespace).
     $rxKey = '(?m)^[ \t]*' + [regex]::Escape($Key) + '[ \t]*=[ \t]*(?<val>.+?)[ \t]*(?:#.*)?$'
     $mKey  = [regex]::Match($body, $rxKey)
-    if (-not $mKey.Success) { return $Default }
+    if (-not $mKey.Success) { continue }
     $raw   = $mKey.Groups['val'].Value.Trim()
     # Coerce by Default's type. Strings get unquoted; arrays get split.
     if ($Default -is [int]) {
         $n = 0
         if ([int]::TryParse(($raw -replace '_',''), [ref]$n)) { return $n }
-        return $Default
+        continue
     }
     if ($Default -is [bool]) {
         if ($raw -match '^(?i)true$')  { return $true }
         if ($raw -match '^(?i)false$') { return $false }
-        return $Default
+        continue
     }
     if ($Default -is [double] -or $Default -is [single]) {
         $d = 0.0
         if ([double]::TryParse($raw, [ref]$d)) { return $d }
-        return $Default
+        continue
     }
     if ($Default -is [array]) {
         if ($raw -match '^\[(.*)\]$') {
@@ -808,13 +795,14 @@ function Get-MiosTomlValue {
                 $coerced = @()
                 foreach ($it in $items) {
                     $n = 0
-                    if ([int]::TryParse($it, [ref]$n)) { $coerced += $n } else { return $Default }
+                    if ([int]::TryParse($it, [ref]$n)) { $coerced += $n } else { $coerced = $null; break }
                 }
-                return $coerced
+                if ($null -ne $coerced) { return $coerced }
+                continue
             }
             return $items
         }
-        return $Default
+        continue
     }
     if ($raw.Length -ge 2) {
         $first = $raw[0]; $last = $raw[$raw.Length - 1]
@@ -827,15 +815,20 @@ function Get-MiosTomlValue {
             $inner = $inner -replace '\\t', "`t"
             $inner = $inner -replace '\\r', "`r"
             $inner = $inner -replace [regex]::Escape($_bs), '\'
-            return $inner
+            if (-not [string]::IsNullOrWhiteSpace($inner)) { return $inner }
+            continue
         }
         if ($first -eq "'" -and $last -eq "'") {
             # Literal string: strip; no unescaping (TOML literal-string semantics).
-            return $raw.Substring(1, $raw.Length - 2)
+            $inner = $raw.Substring(1, $raw.Length - 2)
+            if (-not [string]::IsNullOrWhiteSpace($inner)) { return $inner }
+            continue
         }
     }
     # Bare value, no surrounding quotes -- return as-is.
-    return $raw
+    if (-not [string]::IsNullOrWhiteSpace($raw)) { return $raw }
+    }
+    return $Default
 }
 
 # The monitor must use the profile named by the operator SSOT. Delay launch
@@ -1925,6 +1918,12 @@ function Install-MiOSTerminalProfile {
     if ($_themeAcrylic -isnot [bool]) { $_themeAcrylic = $true }
     $_themeOpacity     = Get-MiosTomlValue -Section 'theme'      -Key 'opacity'            -Default 50
     if (-not ($_themeOpacity -is [int]) -or $_themeOpacity -lt 0 -or $_themeOpacity -gt 100) { $_themeOpacity = 50 }
+    # Windows disables Acrylic when Terminal loses focus. Keep the MiOS pane
+    # translucent while the operator reads another window on the desktop.
+    $_themeUnfocusedAcrylic = Get-MiosTomlValue -Section 'theme' -Key 'unfocused_acrylic' -Default $false
+    if ($_themeUnfocusedAcrylic -isnot [bool]) { $_themeUnfocusedAcrylic = $false }
+    $_themeUnfocusedOpacity = Get-MiosTomlValue -Section 'theme' -Key 'unfocused_opacity' -Default $_themeOpacity
+    if (-not ($_themeUnfocusedOpacity -is [int]) -or $_themeUnfocusedOpacity -lt 0 -or $_themeUnfocusedOpacity -gt 100) { $_themeUnfocusedOpacity = $_themeOpacity }
     $_themeBackdrop    = Get-MiosTomlValue -Section 'theme'      -Key 'system_backdrop'    -Default 'acrylic'
     if ($_themeBackdrop -notin @('acrylic','mica','tab','default','disable')) { $_themeBackdrop = 'acrylic' }
     # filledBox = full-cell block, Linux terminal default.
@@ -1971,6 +1970,7 @@ function Install-MiOSTerminalProfile {
         antialiasingMode         = 'cleartype'
         useAcrylic               = $_themeAcrylic
         opacity                  = $_themeOpacity
+        unfocusedAppearance      = [ordered]@{ useAcrylic = $_themeUnfocusedAcrylic; opacity = $_themeUnfocusedOpacity }
         systemBackdrop           = $_themeBackdrop
         padding                  = $_themePadding
         suppressApplicationTitle = $_themeSuppress
@@ -2745,31 +2745,8 @@ foreach ($mod in $psModules) {
     }
     $wingetTools = @()
     $tomlFetchOk = $false
-    $tomlSource  = ''
-    $tomlText    = $null
-    foreach ($cand in @(
-        @{ Path='C:\mios-bootstrap\mios.toml'; Source='C:\mios-bootstrap (local dev)' },
-        @{ Path='M:\etc\mios\mios.toml';       Source='M:\etc\mios (host overlay)' },
-        @{ Path='M:\usr\share\mios\mios.toml'; Source='M:\usr\share\mios (vendor on M:)' }
-    )) {
-        if (Test-Path -LiteralPath $cand.Path) {
-            try {
-                $tomlText   = [IO.File]::ReadAllText($cand.Path, (New-Object System.Text.UTF8Encoding($false)))
-                $tomlSource = $cand.Source
-                break
-            } catch {}
-        }
-    }
-    if (-not $tomlText) {
-        try {
-            $cb       = [int][double]::Parse((Get-Date -UFormat %s))
-            $tomlUrl  = "$($Script:MiosRawBase)/usr/share/mios/mios.toml?cb=$cb"
-            $tomlText = Invoke-RestMethod -Uri $tomlUrl `
-                -Headers @{ 'Cache-Control' = 'no-cache, no-store, max-age=0'; 'Pragma' = 'no-cache' } `
-                -ErrorAction Stop
-            $tomlSource = 'origin/main (cold first-run)'
-        } catch {}
-    }
+    $tomlSource  = 'fresh system repository SSOT'
+    $tomlText    = Resolve-MiosVendorTomlText
     try {
         if (-not $tomlText) { throw 'no toml source resolved' }
         # Regex-extract `[packages.windows] ... pkgs = [ ... ]`. Multiline
@@ -3529,9 +3506,9 @@ if (`$true) {
     if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
         `$_ompShell = if (`$PSVersionTable.PSEdition -eq 'Desktop') { 'powershell' } else { 'pwsh' }
         `$ompInit = if (`$miosOmp -and (Test-Path -LiteralPath `$miosOmp)) {
-            (oh-my-posh init `$_ompShell --config `$miosOmp) -join "``n"
+            (oh-my-posh init `$_ompShell --config `$miosOmp --print) -join "``n"
         } else {
-            (oh-my-posh init `$_ompShell) -join "``n"
+            (oh-my-posh init `$_ompShell --print) -join "``n"
         }
         if (`$ompInit) {
             `$ompInit = [regex]::Replace(`$ompInit, 'Get-PSReadLineKeyHandler\s+(?!-)([A-Za-z][\w+]*)', 'Get-PSReadLineKeyHandler -Chord ''`$1''')
@@ -3577,8 +3554,8 @@ function mios-build {
         `$dlDir = Join-Path `$env:USERPROFILE 'Downloads'
         if (Test-Path -LiteralPath `$dlDir) {
             `$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-            # mios.toml -> M:\etc\mios\mios.toml (+ /usr/share copy for
-            # the dev VM via /mnt/m/etc/mios)
+            # Operator edits are a host overlay. Keep the fetched vendor
+            # mios.toml in M:\usr\share\mios intact for layered resolution.
             `$tomlSrc = Get-ChildItem -LiteralPath `$dlDir -Filter 'mios*.toml' -File -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
             if (`$tomlSrc) {
@@ -3589,13 +3566,6 @@ function mios-build {
                 }
                 Copy-Item -LiteralPath `$tomlSrc.FullName -Destination `$tomlDst -Force
                 Write-Host ('         [+] '+`$tomlSrc.Name+' -> '+`$tomlDst) -ForegroundColor Green
-                # Also copy to M:\usr\share\mios so the layered overlay
-                # picks it up even before mios-pull runs.
-                `$tomlDst2 = 'M:\usr\share\mios\mios.toml'
-                if (Test-Path -LiteralPath (Split-Path -Parent `$tomlDst2)) {
-                    Copy-Item -LiteralPath `$tomlSrc.FullName -Destination `$tomlDst2 -Force
-                    Write-Host ('         [+] '+`$tomlSrc.Name+' -> '+`$tomlDst2) -ForegroundColor Green
-                }
                 `$archive = Join-Path `$dlDir (`$tomlSrc.BaseName+'.imported-'+`$stamp+'.toml')
                 Move-Item -LiteralPath `$tomlSrc.FullName -Destination `$archive -Force
             } else {
@@ -4996,12 +4966,17 @@ $_lhfwd    = [string](Get-MiosTomlValue -Section 'wsl2' -Key 'localhost_forwardi
 $_fwall    = [string](Get-MiosTomlValue -Section 'wsl2' -Key 'firewall'             -Default 'false')
 $_gui      = [string](Get-MiosTomlValue -Section 'wsl2' -Key 'gui_applications'     -Default 'true')
 $_isMirror = ($_netMode -ieq 'mirrored')
+$_wslHostRamGB = try { [math]::Floor((Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).TotalPhysicalMemory / 1GB) } catch { 16 }
+$_wslReservePct = [math]::Min(95, [math]::Max(0, [int](Get-MiosTomlValue -Section 'bootstrap.dev_vm.host_reserve' -Key 'memory_pct' -Default 50)))
+$_wslReserveGB  = [math]::Max(0, [int](Get-MiosTomlValue -Section 'bootstrap.dev_vm.host_reserve' -Key 'memory_gb'  -Default 8))
+$_wslRamGB = [math]::Max(4, $_wslHostRamGB - [math]::Max($_wslReserveGB, [math]::Floor($_wslHostRamGB * $_wslReservePct / 100)))
 
 $_wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
 $_wslCfgRaw = if (Test-Path $_wslCfg) { Get-Content $_wslCfg -Raw } else { "" }
 
 # Build the section body from TOML-resolved values.
 $_keyLines = New-Object System.Collections.Generic.List[string]
+$_keyLines.Add("memory=${_wslRamGB}GB")
 $_keyLines.Add("networkingMode=$_netMode")
 if ($_isMirror) {
     if ($_fwall -ieq 'true') { $_keyLines.Add('firewall=true') }
@@ -5013,7 +4988,7 @@ if ($_gui -ieq 'true') { $_keyLines.Add('guiApplications=true') }
 # Detect divergence: any required key missing or value mismatched.
 $_needWrite = $false
 foreach ($_kv in $_keyLines) {
-    $_pat = '^' + [regex]::Escape($_kv) + '\s*$'
+    $_pat = '(?m)^' + [regex]::Escape($_kv) + '\s*$'
     if ($_wslCfgRaw -notmatch $_pat) { $_needWrite = $true; break }
 }
 if ($_needWrite) {
@@ -5021,7 +4996,8 @@ if ($_needWrite) {
         $_baseline = @"
 
 [wsl2]
-# MiOS pre-Phase-0 minimum, generated from mios.toml [wsl2].* by
+# MiOS pre-Phase-0 settings, generated from mios.toml [wsl2] and
+# [bootstrap.dev_vm.host_reserve] by
 # Get-MiOS.ps1 on every irm|iex. Edit values in mios.html, not here --
 # this block is regenerated.
 $($_keyLines -join "`r`n")
@@ -5041,15 +5017,23 @@ $($_keyLines -join "`r`n")
                 if (-not $_added) { foreach ($_kv in $_keyLines) { $_out.Add($_kv) }; $_added = $true }
                 continue
             } elseif ($_l -match '^\[') { $_in = $false }
-            if ($_in -and $_l -match '^(networkingMode|localhostForwarding|firewall|guiApplications)\s*=') { continue }
+            if ($_in -and $_l -match '^(memory|networkingMode|localhostForwarding|firewall|guiApplications)\s*=') { continue }
             $_out.Add($_l)
         }
         [System.IO.File]::WriteAllLines($_wslCfg, $_out, (New-Object System.Text.UTF8Encoding($false)))
     }
-    Write-Host "  [+] .wslconfig: $_netMode mode written from mios.toml [wsl2].* (pre-Phase-0)" -ForegroundColor Green
+    Write-Host "  [+] .wslconfig: $_netMode mode and ${_wslRamGB}GB RAM written from mios.toml (pre-Phase-0)" -ForegroundColor Green
     & wsl.exe --shutdown 2>$null | Out-Null
 }
 
+$_freshVendorToml = Resolve-MiosVendorTomlText
+if (-not $_freshVendorToml -or
+    $_freshVendorToml -notmatch '(?m)^\[meta\]\s*$' -or
+    $_freshVendorToml -notmatch '(?m)^\[identity\]\s*$' -or
+    $_freshVendorToml -notmatch '(?m)^\[packages\.windows\]\s*$') {
+    Write-Host '  [!!] Fresh system mios.toml unavailable or incomplete; Phase 0 was not started.' -ForegroundColor Red
+    exit 1
+}
 try { Invoke-MiOSFullReap } catch { Write-Host "  [!] Invoke-MiOSFullReap failed: $($_.Exception.Message)" -ForegroundColor Yellow }
 
 $_trapFmtFailed = Get-MiosTomlValue -Section 'messages.failure_trap' -Key 'install_failed_template' -Default '[!!] Install failed: {0}'
@@ -5146,6 +5130,11 @@ try {
     }
 } catch {
     Write-Host ("  [!] mios.toml promotion to M:\ failed: $($_.Exception.Message)") -ForegroundColor Yellow
+}
+$_vendorDst = 'M:\usr\share\mios\mios.toml'
+if (-not (Test-Path -LiteralPath $_vendorDst -PathType Leaf) -or
+    [IO.File]::ReadAllText($_vendorDst, (New-Object System.Text.UTF8Encoding($false))) -cne $_freshVendorToml) {
+    throw 'Full fetched system mios.toml was not staged exactly on M:\; refusing to continue the installer.'
 }
 
 $_msgStep06 = Get-MiosTomlValue -Section 'messages.steps' -Key 'step_0_6_features' -Default '[*] Step 0.6: Enabling Windows features (WSL + VirtualMachinePlatform + Hyper-V)...'

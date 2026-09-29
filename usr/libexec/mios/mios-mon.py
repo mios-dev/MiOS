@@ -528,6 +528,7 @@ if TEXTUAL_AVAILABLE:
             "subtle": "#B7C9D7",
             "surface": "#1E194D"
         }
+        transparent_terminal = False
         paths = ["C:\\MiOS\\usr\\share\\mios\\mios.toml", "/usr/share/mios/mios.toml", "/etc/mios/mios.toml", "C:\\mios-bootstrap\\mios.toml"]
         for p in paths:
             if os.path.exists(p):
@@ -544,11 +545,16 @@ if TEXTUAL_AVAILABLE:
                                 for k, v in data["colors"].items():
                                     if k in colors and isinstance(v, str):
                                         colors[k] = v
+                            theme = data.get("theme", {})
+                            transparent_terminal = (IS_WINDOWS and bool(theme.get("acrylic", False))
+                                                    and int(theme.get("opacity", 100)) < 100)
                         break
                     except Exception: pass
-        return colors
+        return colors, transparent_terminal
 
-    SSOT = load_ssot_colors()
+    SSOT, TRANSPARENT_TERMINAL = load_ssot_colors()
+    SCREEN_BACKGROUND = "ansi_default" if TRANSPARENT_TERMINAL else SSOT['bg']
+    PANEL_BACKGROUND = "ansi_default" if TRANSPARENT_TERMINAL else SSOT['surface']
 
     def make_bar(pct, width=15):
         pct = max(0.0, min(100.0, float(pct)))
@@ -567,9 +573,14 @@ if TEXTUAL_AVAILABLE:
         Screen {{
             height: 100%;
             width: 100%;
-            background: {SSOT['bg']};
+            background: {SCREEN_BACKGROUND};
             color: {SSOT['fg']};
             overflow: hidden;
+        }}
+        App, TabbedContent, ContentSwitcher, TabPane,
+        #main-container, #build-container, #flash-container, #ai-container,
+        #left-pane, #right-pane, #top-right-bar {{
+            background: {SCREEN_BACKGROUND};
         }}
         TabbedContent {{
             height: 1fr;
@@ -589,7 +600,7 @@ if TEXTUAL_AVAILABLE:
             width: 100%;
         }}
         .box {{
-            background: {SSOT['surface']};
+            background: {PANEL_BACKGROUND};
             border: round {SSOT['accent']};
             padding: 0 1;
         }}
@@ -597,14 +608,14 @@ if TEXTUAL_AVAILABLE:
             width: 32;
             height: 100%;
             border: round {SSOT['accent']};
-            background: {SSOT['surface']};
+            background: {PANEL_BACKGROUND};
             padding: 1 1;
         }}
         #build-log-box, #flash-log-box, #ai-log-box {{
             width: 1fr;
             height: 100%;
             border: round {SSOT['success']};
-            background: {SSOT['surface']};
+            background: {PANEL_BACKGROUND};
         }}
         #left-pane {{
             width: 48;
@@ -642,7 +653,7 @@ if TEXTUAL_AVAILABLE:
         #spark-container {{
             height: 4;
             border: round {SSOT['accent']};
-            background: {SSOT['surface']};
+            background: {PANEL_BACKGROUND};
             padding: 0 1;
         }}
         #spark-widget {{
@@ -1289,7 +1300,7 @@ def main():
         except KeyboardInterrupt:
             sys.exit(0)
 
-    app = MiosMonitorApp()
+    app = MiosMonitorApp(ansi_color=TRANSPARENT_TERMINAL)
     app.run()
 
 if __name__ == '__main__':

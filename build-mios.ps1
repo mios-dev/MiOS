@@ -45,60 +45,66 @@ if (Test-Path $buildModuleDir) {
 }
 
 $script:_MiosTomlCache = @{}
-function Resolve-MiosTomlText {
-    if ($script:_MiosTomlCache['_text']) { return $script:_MiosTomlCache['_text'] }
+function Resolve-MiosTomlLayers {
+    if ($script:_MiosTomlCache.ContainsKey('_layers')) { return $script:_MiosTomlCache['_layers'] }
+    $layers = @()
     foreach ($p in @(
         (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
+        (Join-Path $env:APPDATA 'MiOS\mios.toml'),
         'M:\etc\mios\mios.toml',
         'M:\usr\share\mios\mios.toml'
         # C:\MiOS deliberately excluded -- dev working tree, not a consumer install path
     )) {
         if ($p -and (Test-Path -LiteralPath $p)) {
             try {
-                $script:_MiosTomlCache['_text']   = [IO.File]::ReadAllText($p, (New-Object System.Text.UTF8Encoding($false)))
-                $script:_MiosTomlCache['_source'] = $p
-                return $script:_MiosTomlCache['_text']
+                $layers += [pscustomobject]@{ Path = $p; Text = [IO.File]::ReadAllText($p, (New-Object System.Text.UTF8Encoding($false))) }
             } catch {
                 try {
-                    $script:_MiosTomlCache['_text']   = Get-Content -LiteralPath $p -Raw -Encoding UTF8 -ErrorAction Stop
-                    $script:_MiosTomlCache['_source'] = $p
-                    return $script:_MiosTomlCache['_text']
+                    $layers += [pscustomobject]@{ Path = $p; Text = Get-Content -LiteralPath $p -Raw -Encoding UTF8 -ErrorAction Stop }
                 } catch {}
             }
         }
     }
-    try {
-        $cb  = [int][double]::Parse((Get-Date -UFormat %s))
-        $ref = if ($null -ne $MiosRef) { $MiosRef } else { 'main' }
-        $url = "https://raw.githubusercontent.com/mios-dev/MiOS/$ref/usr/share/mios/mios.toml?cb=$cb"
-        $script:_MiosTomlCache['_text'] = Invoke-RestMethod -Uri $url `
-            -Headers @{ 'Cache-Control'='no-cache, no-store, max-age=0'; 'Pragma'='no-cache' } `
-            -ErrorAction Stop
-        return $script:_MiosTomlCache['_text']
-    } catch {
-        $script:_MiosTomlCache['_text'] = ''
-        return ''
+    if (-not (Test-Path -LiteralPath 'M:\usr\share\mios\mios.toml')) {
+        try {
+            $cb  = [int][double]::Parse((Get-Date -UFormat %s))
+            $ref = if ($null -ne $MiosRef) { $MiosRef } else { 'main' }
+            $url = "https://raw.githubusercontent.com/mios-dev/MiOS/$ref/usr/share/mios/mios.toml?cb=$cb"
+            $layers += [pscustomobject]@{ Path = $url; Text = (Invoke-RestMethod -Uri $url `
+                -Headers @{ 'Cache-Control'='no-cache, no-store, max-age=0'; 'Pragma'='no-cache' } `
+                -ErrorAction Stop) }
+        } catch {}
     }
+    $script:_MiosTomlCache['_layers'] = $layers
+    return $layers
+}
+function Resolve-MiosTomlText {
+    $layers = @(Resolve-MiosTomlLayers)
+    if ($layers.Count -gt 0) { return $layers[0].Text }
+    return ''
 }
 function Get-MiosTomlValue {
-    param([Parameter(Mandatory)][string]$Section, [Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)]$Default)
-    $txt = Resolve-MiosTomlText
-    if (-not $txt) { return $Default }
-    $rxSec = '(?ms)^\[' + [regex]::Escape($Section) + '\][ \t]*\r?\n(?<body>.*?)(?=^\[[^\]]+\]|\z)'
-    $mSec  = [regex]::Match($txt, $rxSec)
-    if (-not $mSec.Success) { return $Default }
-    $rxKey = '(?m)^[ \t]*' + [regex]::Escape($Key) + '[ \t]*=[ \t]*(?<val>.+?)[ \t]*(?:#.*)?$'
-    $mKey  = [regex]::Match($mSec.Groups['body'].Value, $rxKey)
-    if (-not $mKey.Success) { return $Default }
-    $raw = $mKey.Groups['val'].Value.Trim()
+    param([Parameter(Mandatory)][string]$Section, [Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][AllowEmptyString()]$Default,
+          [string]$SourcePath = '')
+    foreach ($layer in @(Resolve-MiosTomlLayers)) {
+        if ($SourcePath -and $layer.Path -ne $SourcePath) { continue }
+        $txt = $layer.Text
+        if (-not $txt) { continue }
+        $rxSec = '(?ms)^\[' + [regex]::Escape($Section) + '\][ \t]*\r?\n(?<body>.*?)(?=^\[[^\]]+\]|\z)'
+        $mSec  = [regex]::Match($txt, $rxSec)
+        if (-not $mSec.Success) { continue }
+        $rxKey = '(?m)^[ \t]*' + [regex]::Escape($Key) + '[ \t]*=[ \t]*(?<val>.+?)[ \t]*(?:#.*)?$'
+        $mKey  = [regex]::Match($mSec.Groups['body'].Value, $rxKey)
+        if (-not $mKey.Success) { continue }
+        $raw = $mKey.Groups['val'].Value.Trim()
     if ($Default -is [int]) {
         $n = 0; if ([int]::TryParse(($raw -replace '_',''), [ref]$n)) { return $n }
-        return $Default
+        continue
     }
     if ($Default -is [bool]) {
         if ($raw -match '^(?i)true$')  { return $true }
         if ($raw -match '^(?i)false$') { return $false }
-        return $Default
+        continue
     }
     if ($Default -is [array]) {
         if ($raw -match '^\[(.*)\]$') {
@@ -108,15 +114,17 @@ function Get-MiosTomlValue {
             })
             if ($Default.Length -gt 0 -and $Default[0] -is [int]) {
                 $coerced = @()
+                $valid = $true
                 foreach ($it in $items) {
                     $n = 0
-                    if ([int]::TryParse($it, [ref]$n)) { $coerced += $n } else { return $Default }
+                    if ([int]::TryParse($it, [ref]$n)) { $coerced += $n } else { $valid = $false; break }
                 }
-                return $coerced
+                if ($valid) { return $coerced }
+                continue
             }
             return $items
         }
-        return $Default
+        continue
     }
     if ($raw.Length -ge 2) {
         $first = $raw[0]; $last = $raw[$raw.Length - 1]
@@ -130,13 +138,32 @@ function Get-MiosTomlValue {
             $inner = $inner -replace '\\t', "`t"
             $inner = $inner -replace '\\r', "`r"
             $inner = $inner -replace [regex]::Escape($_bs), '\'
-            return $inner
+            if (-not [string]::IsNullOrWhiteSpace($inner)) { return $inner }
+            continue
         }
         if ($first -eq "'" -and $last -eq "'") {
-            return $raw.Substring(1, $raw.Length - 2)
+            $inner = $raw.Substring(1, $raw.Length - 2)
+            if (-not [string]::IsNullOrWhiteSpace($inner)) { return $inner }
+            continue
         }
     }
-    return $raw
+        if (-not [string]::IsNullOrWhiteSpace($raw)) { return $raw }
+    }
+    return $Default
+}
+
+function Resolve-MiosLoginCredential {
+    # Evaluate related auth keys within each layer before moving to the next.
+    # A host/user password must outrank a vendor password even when the keys differ.
+    foreach ($layer in @(Resolve-MiosTomlLayers)) {
+        $hash = [string](Get-MiosTomlValue -Section 'auth' -Key 'password_hash' -Default '' -SourcePath $layer.Path)
+        if ($hash) { return @{ Hash = $hash; Plain = '' } }
+        $plain = [string](Get-MiosTomlValue -Section 'auth' -Key 'password' -Default '' -SourcePath $layer.Path)
+        if ($plain) { return @{ Hash = ''; Plain = $plain } }
+        $plain = [string](Get-MiosTomlValue -Section 'identity' -Key 'default_password' -Default '' -SourcePath $layer.Path)
+        if ($plain) { return @{ Hash = ''; Plain = $plain } }
+    }
+    return @{ Hash = ''; Plain = 'mios' }
 }
 
 $script:MiosInstCols = Get-MiosTomlValue -Section 'terminal.install' -Key 'cols' -Default 80
@@ -701,8 +728,8 @@ public static class MiosDeskLauncher {
                             try { dpi = GetDpiForWindow(hWnd); } catch (EntryPointNotFoundException) {}
                             int requestedWidth = (int)Math.Round(wantedWidth * dpi / 96.0);
                             int requestedHeight = (int)Math.Round(wantedHeight * dpi / 96.0);
-                            int width = Math.Min(requestedWidth, info.work.Right - info.work.Left);
-                            int height = Math.Min(requestedHeight, info.work.Bottom - info.work.Top);
+                            int width = Math.Min(Math.Min(rect.Right - rect.Left, requestedWidth), info.work.Right - info.work.Left);
+                            int height = Math.Min(Math.Min(rect.Bottom - rect.Top, requestedHeight), info.work.Bottom - info.work.Top);
                             if (width > 0 && height > 0) {
                                 int x = info.work.Left + ((info.work.Right - info.work.Left - width) / 2);
                                 int y = info.work.Top + ((info.work.Bottom - info.work.Top - height) / 2);
@@ -790,10 +817,15 @@ public static class MiosDeskLauncher {
             if ([string]::IsNullOrWhiteSpace($monitorScheme)) { $monitorScheme = 'MiOS' }
             $monitorLaunchMode = [string](Get-MiosTomlValue -Section 'theme' -Key 'launch_mode' -Default 'focus')
             $monitorX = 0; $monitorY = 0
+            $displayCols = $monitorCols; $displayRows = $monitorRows
             try {
                 Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
                 $cursor = [System.Windows.Forms.Cursor]::Position
                 $workArea = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
+                $displayCols = [math]::Min($monitorCols, [math]::Max(40, [math]::Floor(($workArea.Width - $chromeWidth - 28) / $cellWidth)))
+                $displayRows = [math]::Min($monitorRows, [math]::Max(12, [math]::Floor(($workArea.Height - $chromeHeight - 32) / $cellHeight)))
+                $monitorWidthPx = ($displayCols * $cellWidth) + $chromeWidth
+                $monitorHeightPx = ($displayRows * $cellHeight) + $chromeHeight
                 $monitorX = [int]($workArea.X + (($workArea.Width - $monitorWidthPx) / 2))
                 $monitorY = [int]($workArea.Y + (($workArea.Height - $monitorHeightPx) / 2))
                 if ($monitorX -lt $workArea.X) { $monitorX = $workArea.X }
@@ -807,7 +839,10 @@ public static class MiosDeskLauncher {
                 'focusFullscreen'{ @('--fullscreen','--focus') }
                 default          { @() }
             }
-            $wtArgsString = "$($wtWindowArgs -join ' ') --pos `"$monitorX,$monitorY`" --size `"$monitorCols,$monitorRows`" -w new new-tab --profile `"$monitorProfile`" --colorScheme `"$monitorScheme`" --title `"MiOS Build Monitor`" `"$python`" `"$monitorScript`" --pipeline"
+            $monitorCommand = "while (`$true) { & '$($python.Replace("'", "''"))' '$($monitorScript.Replace("'", "''"))' --pipeline; if (`$LASTEXITCODE -eq 0) { break }; Write-Host 'MiOS monitor exited unexpectedly; restarting in 2 seconds' -ForegroundColor Yellow; Start-Sleep -Seconds 2 }"
+            $monitorEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($monitorCommand))
+            $monitorShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+            $wtArgsString = "$($wtWindowArgs -join ' ') --pos `"$monitorX,$monitorY`" --size `"$displayCols,$displayRows`" -w `"MiOS-Monitor`" new-tab --profile `"$monitorProfile`" --colorScheme `"$monitorScheme`" --title `"MiOS Build Monitor`" `"$monitorShell`" -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $monitorEncoded"
             $cmdLine = "`"$wtExe`" $wtArgsString"
             if (([System.Management.Automation.PSTypeName]'MiosDeskLauncher').Type) {
                 $spawnedPid = [MiosDeskLauncher]::Launch($cmdLine, 'MiOS Build Monitor')
@@ -1620,59 +1655,13 @@ function Read-Model([string]$Default = "qwen3.5:2b") {
 }
 
 function Resolve-MiosTomlAiDefaults([string]$RepoDir) {
-    $defaults = @{
-        Model               = "qwen3.5:2b"
-        EmbedModel          = "nomic-embed-text"
-        BakeModels          = "qwen3.5:2b,nomic-embed-text"
-        LlamacppBakeModels  = "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
-        VllmBakeModel       = "Qwen/Qwen2.5-0.5B-Instruct"
+    return @{
+        Model              = [string](Get-MiosTomlValue -Section 'ai' -Key 'model' -Default 'qwen3.5:2b')
+        EmbedModel         = [string](Get-MiosTomlValue -Section 'ai' -Key 'embed_model' -Default 'nomic-embed-text')
+        BakeModels         = [string](Get-MiosTomlValue -Section 'ai' -Key 'bake_models' -Default 'qwen3.5:2b,nomic-embed-text')
+        LlamacppBakeModels = [string](Get-MiosTomlValue -Section 'llamacpp' -Key 'bake_models' -Default 'granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf')
+        VllmBakeModel      = [string](Get-MiosTomlValue -Section 'ai.vllm' -Key 'bake_model' -Default 'Qwen/Qwen2.5-0.5B-Instruct')
     }
-    $layers = @()
-    foreach ($p in @(
-        (Join-Path $RepoDir       "mios-bootstrap\mios.toml"),
-        (Join-Path $env:APPDATA   "MiOS\mios.toml"),
-        (Join-Path $env:USERPROFILE ".config\mios\mios.toml")
-    )) { if (Test-Path $p) { $layers += $p } }
-
-    foreach ($card in $layers) {
-        try {
-            $text = Get-Content -Raw -Path $card -ErrorAction Stop
-        } catch { continue }
-
-        # 1. Parse [ai] section
-        $m = [regex]::Match($text, '(?ms)^\[ai\]\s*$(.*?)(?=^\[|\z)')
-        if ($m.Success) {
-            $body = $m.Groups[1].Value
-            foreach ($kv in @(
-                @{ Key='model';        Slot='Model' },
-                @{ Key='embed_model';  Slot='EmbedModel' },
-                @{ Key='bake_models';  Slot='BakeModels' }
-            )) {
-                $rx = [regex]::new('(?m)^\s*' + [regex]::Escape($kv.Key) + '\s*=\s*"([^"]*)"')
-                $hit = $rx.Match($body)
-                if ($hit.Success) { $defaults[$kv.Slot] = $hit.Groups[1].Value }
-            }
-        }
-
-        # 2. Parse [llamacpp] section
-        $m = [regex]::Match($text, '(?ms)^\[llamacpp\]\s*$(.*?)(?=^\[|\z)')
-        if ($m.Success) {
-            $body = $m.Groups[1].Value
-            $rx = [regex]::new('(?m)^\s*bake_models\s*=\s*"([^"]*)"')
-            $hit = $rx.Match($body)
-            if ($hit.Success) { $defaults['LlamacppBakeModels'] = $hit.Groups[1].Value }
-        }
-
-        # 3. Parse [ai.vllm] section
-        $m = [regex]::Match($text, '(?ms)^\[ai\.vllm\]\s*$(.*?)(?=^\[|\z)')
-        if ($m.Success) {
-            $body = $m.Groups[1].Value
-            $rx = [regex]::new('(?m)^\s*bake_model\s*=\s*"([^"]*)"')
-            $hit = $rx.Match($body)
-            if ($hit.Success) { $defaults['VllmBakeModel'] = $hit.Groups[1].Value }
-        }
-    }
-    return $defaults
 }
 
 function New-SeededConfiguratorHtml {
@@ -1742,11 +1731,12 @@ function Open-ConfiguratorInDev([string]$RepoDir, [string]$Html) {
     # the highest-precedence existing layer; the bash side will copy it
     # into the dev VM's ~/Downloads/mios.toml as the working file.
     $sources = @(
+        (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
         (Join-Path $env:APPDATA "MiOS\mios.toml"),
+        'M:\usr\share\mios\mios.toml',
         (Join-Path $RepoDir "usr\share\mios\mios.toml"),
         'C:\MiOS\usr\share\mios\mios.toml',
-        (Join-Path $RepoDir "mios\usr\share\mios\mios.toml"),
-        (Join-Path $RepoDir "mios-bootstrap\mios.toml")
+        (Join-Path $RepoDir "mios\usr\share\mios\mios.toml")
     )
     $seedToml = $null
     foreach ($s in $sources) { if (Test-Path $s) { $seedToml = $s; break } }
@@ -1845,18 +1835,12 @@ echo "[configurator] save target: $DL_DIR/mios.toml"
         return $true
     }
 
-    $userLayer = Join-Path $env:APPDATA "MiOS\mios.toml"
+    $userLayer = Join-Path $env:USERPROFILE '.config\mios\mios.toml'
     $userDir   = Split-Path -Parent $userLayer
     if (-not (Test-Path $userDir)) { New-Item -ItemType Directory -Path $userDir -Force | Out-Null }
     [System.IO.File]::WriteAllText($userLayer, $tomlContent, [Text.UTF8Encoding]::new($false))
 
-    $bootstrapToml = Join-Path $RepoDir "mios-bootstrap\mios.toml"
-    if (Test-Path (Split-Path -Parent $bootstrapToml)) {
-        [System.IO.File]::WriteAllText($bootstrapToml, $tomlContent, [Text.UTF8Encoding]::new($false))
-        Log-Ok "Saved mios.toml -> $userLayer + $bootstrapToml (build pipeline picks up on next pass)"
-    } else {
-        Log-Ok "Saved mios.toml -> $userLayer"
-    }
+    Log-Ok "Saved mios.toml -> $userLayer"
     return $true
 }
 
@@ -1866,11 +1850,12 @@ function Open-ConfiguratorOnWindows([string]$RepoDir, [string]$Html) {
     $stamp   = [datetime]::Now.ToString("yyyyMMdd-HHmmss")
     $staging = Join-Path $stagingDir "mios-$stamp.toml"
     $sources = @(
+        (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
         (Join-Path $env:APPDATA "MiOS\mios.toml"),
+        'M:\usr\share\mios\mios.toml',
         (Join-Path $RepoDir "usr\share\mios\mios.toml"),
         'C:\MiOS\usr\share\mios\mios.toml',
-        (Join-Path $RepoDir "mios\usr\share\mios\mios.toml"),
-        (Join-Path $RepoDir "mios-bootstrap\mios.toml")
+        (Join-Path $RepoDir "mios\usr\share\mios\mios.toml")
     )
     $src = $null
     foreach ($s in $sources) { if (Test-Path $s) { $src = $s; break } }
@@ -1889,15 +1874,11 @@ function Open-ConfiguratorOnWindows([string]$RepoDir, [string]$Html) {
     $null = Read-Host "  Press Enter when finished editing in the browser"
 
     if ((Test-Path $staging) -and ((Get-Item $staging).Length -gt 0)) {
-        $userLayer = Join-Path $env:APPDATA "MiOS\mios.toml"
+        $userLayer = Join-Path $env:USERPROFILE '.config\mios\mios.toml'
         $userDir   = Split-Path -Parent $userLayer
         if (-not (Test-Path $userDir)) { New-Item -ItemType Directory -Path $userDir -Force | Out-Null }
         Copy-Item -Path $staging -Destination $userLayer -Force
-        $bootstrapToml = Join-Path $RepoDir "mios-bootstrap\mios.toml"
-        if (Test-Path (Split-Path -Parent $bootstrapToml)) {
-            Copy-Item -Path $staging -Destination $bootstrapToml -Force
-        }
-        Log-Ok "Staged $staging -> $userLayer (+ bootstrap clone if present)"
+        Log-Ok "Staged $staging -> $userLayer"
     }
 }
 
@@ -1984,8 +1965,10 @@ function Get-Hardware {
     # mios.toml by tools/lib/userenv.sh); fall back to sane defaults.
     $cpuReservePct = if ($env:MIOS_DEV_VM_CPU_RESERVE_PCT)    { [int]$env:MIOS_DEV_VM_CPU_RESERVE_PCT }    else { 15 }
     $cpuReserveMin = if ($env:MIOS_DEV_VM_CPU_RESERVE_MIN)    { [int]$env:MIOS_DEV_VM_CPU_RESERVE_MIN }    else { 2 }
-    $memReservePct = if ($env:MIOS_DEV_VM_MEMORY_RESERVE_PCT) { [int]$env:MIOS_DEV_VM_MEMORY_RESERVE_PCT } else { 15 }
-    $memReserveGB  = if ($env:MIOS_DEV_VM_MEMORY_RESERVE_GB)  { [int]$env:MIOS_DEV_VM_MEMORY_RESERVE_GB }  else { 4 }
+    $memReservePct = if ($env:MIOS_DEV_VM_MEMORY_RESERVE_PCT) { [int]$env:MIOS_DEV_VM_MEMORY_RESERVE_PCT } else { Get-MiosTomlValue -Section 'bootstrap.dev_vm.host_reserve' -Key 'memory_pct' -Default 50 }
+    $memReserveGB  = if ($env:MIOS_DEV_VM_MEMORY_RESERVE_GB)  { [int]$env:MIOS_DEV_VM_MEMORY_RESERVE_GB }  else { Get-MiosTomlValue -Section 'bootstrap.dev_vm.host_reserve' -Key 'memory_gb'  -Default 8 }
+    $memReservePct = [math]::Min(95, [math]::Max(0, $memReservePct))
+    $memReserveGB  = [math]::Max(0, $memReserveGB)
     $diskReserveGB = if ($env:MIOS_DEV_VM_DISK_RESERVE_GB)    { [int]$env:MIOS_DEV_VM_DISK_RESERVE_GB }    else { 32 }
 
     # Compute maximalist dev-VM allocation = host - reserve.
@@ -3299,6 +3282,7 @@ for script in /automation/56-fonts.sh \
     fi
 done
 
+install_gnome_flatpaks() {
 echo "[quadlet-overlay] installing GNOME Flatpaks for WSLg portal (one-time, ~600MB)..."
 sudo install -d -m 0700 -o root -g root /run/user/0 2>/dev/null || true
 export XDG_RUNTIME_DIR=/run/user/0
@@ -3392,6 +3376,7 @@ WRAPPER
         sudo chmod 0755 "/usr/local/bin/$short"
     fi
 done
+}
 
 DEV_USER=$(getent passwd 1000 | cut -d: -f1)
 [[ -z "$DEV_USER" ]] && DEV_USER=user
@@ -3411,14 +3396,20 @@ SUDO
 fi
 
 _mios_pw='__MIOS_LOGIN_PASSWORD__'
-echo "${DEV_USER}:${_mios_pw}" | sudo chpasswd 2>&1 \
-    && echo "[quadlet-overlay] ${DEV_USER} password set (length=${#_mios_pw})" \
-    || echo "[quadlet-overlay] WARN: chpasswd for ${DEV_USER} failed"
-echo "mios:${_mios_pw}" | sudo chpasswd 2>&1 \
-    && echo "[quadlet-overlay] mios password set (length=${#_mios_pw})" \
-    || echo "[quadlet-overlay] WARN: chpasswd for mios failed"
+_mios_pw_hash='__MIOS_LOGIN_PASSWORD_HASH__'
+for account in "$DEV_USER" mios; do
+    if [[ -n "$_mios_pw_hash" ]]; then
+        printf '%s:%s\n' "$account" "$_mios_pw_hash" | sudo chpasswd -e 2>&1 \
+            && echo "[quadlet-overlay] $account password hash applied" \
+            || echo "[quadlet-overlay] WARN: chpasswd -e for $account failed"
+    else
+        printf '%s:%s\n' "$account" "$_mios_pw" | sudo chpasswd 2>&1 \
+            && echo "[quadlet-overlay] $account password set" \
+            || echo "[quadlet-overlay] WARN: chpasswd for $account failed"
+    fi
+done
 
-if command -v python3 >/dev/null 2>&1; then
+if [[ -n "$_mios_pw" ]] && command -v python3 >/dev/null 2>&1; then
     if python3 - "${_mios_pw}" <<'PYVERIFY' 2>&1; then
 import pty, os, sys, select, time
 pw = sys.argv[1]
@@ -3569,6 +3560,12 @@ if [[ -f "$TOML_FILE" ]] && command -v awk >/dev/null 2>&1; then
     fi
 else
     echo "[quadlet-overlay] WARN: $TOML_FILE absent or awk missing; cannot resolve package list"
+fi
+
+if command -v flatpak >/dev/null 2>&1; then
+    install_gnome_flatpaks
+else
+    echo "[quadlet-overlay] Flatpak is not installed after package provisioning; deferring desktop apps to the later installer pass"
 fi
 
 sudo install -d -m 0755 /var/lib/mios
@@ -3750,12 +3747,16 @@ echo "[quadlet-overlay] Ollama:         set MIOS_DEV_ENABLE_AI=1 then re-run for
     $cockpitPort = [int](Get-MiosTomlValue -Section 'ports' -Key 'cockpit' -Default 8090)
     $overlayScript = $overlayScript -replace '__MIOS_COCKPIT_PORT__', $cockpitPort
 
-    $_miosLoginPassword = [string](Get-MiosTomlValue -Section 'auth' -Key 'password' -Default 'mios')
-    if ([string]::IsNullOrWhiteSpace($_miosLoginPassword)) { $_miosLoginPassword = 'mios' }
+    $_loginCredential = Resolve-MiosLoginCredential
+    $_miosLoginPassword = [string]$_loginCredential.Plain
+    $_miosLoginHash = [string]$_loginCredential.Hash
     # Escape single-quote so the bash literal stays sound even if the
     # operator picks a password containing a quote character.
     $_miosLoginPasswordEsc = $_miosLoginPassword -replace "'", "'\''"
-    $overlayScript = $overlayScript -replace '__MIOS_LOGIN_PASSWORD__', $_miosLoginPasswordEsc
+    $_miosLoginHashEsc = $_miosLoginHash -replace "'", "'\''"
+    $overlayScript = $overlayScript.Replace('__MIOS_LOGIN_PASSWORD__', $_miosLoginPasswordEsc)
+    $overlayScript = $overlayScript.Replace('__MIOS_LOGIN_PASSWORD_HASH__', $_miosLoginHashEsc)
+    $_loginCredential = $null
 
     # CRLF -> LF: bash on Linux is allergic to \r in shebang lines /
     # heredoc terminators. The PowerShell here-string ships CRLF on
@@ -7369,7 +7370,7 @@ $miosRepo = $MiosRepoDir
     # ── Phase 3 -- MiOS-DEV distro (formerly MiOS-BUILDER) ───────────────────
     Start-Phase 3
 
-    try { Set-MiosWslConfig -RamGB $HW.RamGB -Cpus $HW.Cpus } catch { Log-Warn "Set-MiosWslConfig (pre-Phase-3): $($_.Exception.Message)" }
+    try { Set-MiosWslConfig -RamGB $HW.RamGB -Cpus $HW.Cpus -Force } catch { Log-Warn "Set-MiosWslConfig (pre-Phase-3): $($_.Exception.Message)" }
     & wsl.exe --shutdown 2>&1 | ForEach-Object { Write-Log "wsl-shutdown-pre-phase3: $_" }
 
     $machineRunning = $false
@@ -8042,7 +8043,7 @@ exit 0
     End-Phase 3
 
     Start-Phase 4
-    try { Set-MiosWslConfig -RamGB $HW.RamGB -Cpus $HW.Cpus } catch { Log-Warn "Set-MiosWslConfig (Phase-4 recheck): $($_.Exception.Message)" }
+    try { Set-MiosWslConfig -RamGB $HW.RamGB -Cpus $HW.Cpus -Force } catch { Log-Warn "Set-MiosWslConfig (Phase-4 recheck): $($_.Exception.Message)" }
 
     Set-Step "Adding Windows Firewall LAN inbound rules for MiOS service ports..."
     try { Set-MiosLanFirewallRules } catch { Log-Warn "Set-MiosLanFirewallRules: $($_.Exception.Message)" }
@@ -8157,50 +8158,32 @@ exit 0
     }
 
     Open-Configurator -RepoDir $MiosRepoDir
+    $script:_MiosTomlCache.Clear()  # configurator may have promoted a new layer
 
     # ── Phase 6 -- Identity ───────────────────────────────────────────────────
     Start-Phase 6
-    $script:CurStep = "Waiting for identity input..."
+    $script:CurStep = "Resolving identity from mios.toml..."
     Show-Dashboard -Force
-    # Re-resolve mios.toml [ai] defaults after the configurator step so
-    # the prompts seed from whatever the operator saved in the GUI.
-    $aiDefaultsPre = Resolve-MiosTomlAiDefaults -RepoDir $MiosRepoDir
-    $MiosUser     = Read-Line "Linux username" "mios"
-    $MiosHostname = Read-Line "Hostname"       "mios"
-    $pwPlain      = Read-Password "Password"
-    if ([string]::IsNullOrWhiteSpace($pwPlain)) { $pwPlain = "mios" }
-    $MiosHash     = Get-PasswordHash $pwPlain
-    # GitHub PAT is required to pull ghcr.io/ublue-os/ucore-hci (GHCR anon bearer token returns 403).
-    # Check env first; fall back to prompt so interactive installs work without pre-setting the var.
+    $MiosUser     = [string](Get-MiosTomlValue -Section 'identity' -Key 'username' -Default 'mios')
+    $MiosHostname = [string](Get-MiosTomlValue -Section 'identity' -Key 'hostname' -Default 'mios')
+    $loginCredential = Resolve-MiosLoginCredential
+    $MiosHash = $loginCredential.Hash
+    if (-not $MiosHash) { $MiosHash = Get-PasswordHash $loginCredential.Plain }
+    $loginCredential = $null
+    # Credentials come from the operator TOML, with environment override for automation.
     $script:GhcrToken = if ($env:MIOS_GITHUB_TOKEN) { $env:MIOS_GITHUB_TOKEN }
                         elseif ($env:GITHUB_TOKEN)   { $env:GITHUB_TOKEN }
-                        else { Read-Line "GitHub PAT for ghcr.io base image pull (github.com/settings/tokens)" "" }
+                        else { [string](Get-MiosTomlValue -Section 'auth' -Key 'github_pat' -Default '') }
     $tokStatus = if ($script:GhcrToken) { "provided (masked)" } else { "none -- anonymous pull (may fail)" }
 
-    # AI model selection (feature parity with build-mios.sh:prompt_model).
-    # Defaults seed from the layered mios.toml [ai] section so per-host
-    # overrides flow through automatically; Get-Hardware's RAM-driven
-    # suggestion is used as the fallback if mios.toml didn't supply one.
+    # The layered TOML fixes the model and bake set before installation.
     $aiDefaults = Resolve-MiosTomlAiDefaults -RepoDir $MiosRepoDir
     $defaultModel = if ($aiDefaults.Model) { $aiDefaults.Model } else { $HW.AiModel }
-    $MiosAiModel       = Read-Model -Default $defaultModel
-    $MiosAiEmbedModel  = Read-Line "AI embedding model" $aiDefaults.EmbedModel
+    $MiosAiModel       = $defaultModel
+    $MiosAiEmbedModel  = $aiDefaults.EmbedModel
     $MiosBakeModels = if ($aiDefaults.BakeModels) { $aiDefaults.BakeModels } else { "$defaultModel,$($aiDefaults.EmbedModel)" }
     $_bakeList = @($MiosBakeModels -split ',' | ForEach-Object { $_.Trim() })
-    # Make sure the embedding model the operator chose is in the set.
-    if ($MiosAiEmbedModel -and ($_bakeList -notcontains $MiosAiEmbedModel)) {
-        $MiosBakeModels = "$MiosBakeModels,$MiosAiEmbedModel"
-        $_bakeList += $MiosAiEmbedModel
-    }
-    if ($MiosAiModel -and ($_bakeList -notcontains $MiosAiModel)) {
-        $_ans = Read-Line "Also bake '$MiosAiModel' into the image? (larger image, fully offline) [y/N]" "N"
-        if ($_ans -match '^[Yy]') {
-            $MiosBakeModels = "$MiosBakeModels,$MiosAiModel"
-            Write-Host "  bake set: $MiosBakeModels" -ForegroundColor DarkGray
-        } else {
-            Write-Host "  bake set: $MiosBakeModels (minimal); '$MiosAiModel' first-boot-pulls" -ForegroundColor DarkGray
-        }
-    }
+    Write-Log "SSOT identity/model selected from layered mios.toml (user=$MiosUser host=$MiosHostname model=$MiosAiModel bake_count=$($_bakeList.Count))"
 
     Log-Ok "Identity: user=$MiosUser  host=$MiosHostname  password=(hashed)  ghcr=$tokStatus  ai=$MiosAiModel"
     $script:IdentInfo = "User:$MiosUser  Host:$MiosHostname  Base:$($HW.BaseImage -replace 'ghcr.io/ublue-os/ucore-hci:','')  Model:$MiosAiModel"

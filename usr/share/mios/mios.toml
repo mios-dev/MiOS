@@ -7772,8 +7772,8 @@ ansi_15_bright_white    = "#FFFFFF"   # pure white
 
 [bootstrap]
 mode             = "auto"
-mios_repo        = "C:/MiOS"
-bootstrap_repo   = "C:/mios-bootstrap"
+mios_repo        = "https://github.com/mios-dev/MiOS.git"
+bootstrap_repo   = "https://github.com/mios-dev/mios-bootstrap.git"
 branch           = "main"
 install_packages = true   # run dnf install on PACKAGES.md after FHS overlay
 reboot_on_finish = true   # interactive y/N prompt at end of install
@@ -7858,8 +7858,8 @@ guacamole_web_port_key   = "guacamole_web"
 [bootstrap.dev_vm.host_reserve]
 cpu_pct             = 15      # reserve 15% of logical CPUs for Windows host
 cpu_min             = 2       # always reserve at least 2 cores
-memory_pct          = 15      # reserve 15% of host RAM for Windows host
-memory_gb           = 4       # always reserve at least 4 GB
+memory_pct          = 50      # reserve 50% of host RAM for Windows host
+memory_gb           = 8       # always reserve at least 8 GB
 disk_gb             = 32      # always keep 32 GB free on M:\ for Windows-side
                               # artifacts (build outputs, podman cache, etc.)
 
@@ -7920,6 +7920,8 @@ rows                = 50
 mode                = "dark"             # "dark" | "light" (rare; vendor=dark)
 acrylic             = true               # WT useAcrylic ON
 opacity             = 50                 # WT opacity 0..100 (50 = 50% transparency)
+unfocused_acrylic   = false              # Windows 11 unblurred transparency while Terminal is inactive
+unfocused_opacity   = 50                 # preserve MiOS transparency while another app has focus
 system_backdrop     = "acrylic"          # WT 1.18+ per-profile backdrop
 cursor_shape        = "vintage"    # steady half-block; thin "bar" was almost too thin to see on 4K -- "vintage" is the substantial half-block cursor (matches xterm's default visual weight without the full filledBox feel)
 scrollbar_state     = "hidden"           # EVERY terminal surface (WT, code-server, VTE, Portal): visible|hidden|always; parsed only by mios_toml.edge_insets()
