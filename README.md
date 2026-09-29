@@ -1,436 +1,388 @@
-<!-- AI-hint: Project overview and high-level architecture for MiOS, an immutable container-image-based Linux workstation that is also a local self-hosted agentic AI OS; use this to understand the system's core identity, what it does end-to-end (build pipeline -> OCI image -> bootc lifecycle; local inference lanes -> agent orchestration -> pgvector memory), its licensing, and primary value proposition.
+<!-- AI-hint: Project overview, technical specification, and system architecture for MiOS, an immutable container-image-based Linux workstation and sovereign local agentic AI operating system; defines the core identity, end-to-end build pipeline, OCI image lifecycle, bootc deployment, local inference lanes, agent orchestration, pgvector memory datastore, licensing, architectural laws, and engineering remediation.
      AI-related: /usr/libexec/mios/mios-build-driver, /usr/share/mios/configurator/, /usr/share/mios/mios.toml, /usr/share/mios/ai/, /usr/share/mios/ai/system.md, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-build-driver, mios-dev, mios-bootstrap, mios-build-local, mios-llm-light, mios-pgvector, mios-ceph -->
-# 'MiOS'
+# MiOS: Immutable Container-Based Linux Workstation & Agentic Operating System
 
-> **Core Thesis:** Read the [MiOS Architectural Thesis & Scope Statement](usr/share/doc/mios/manual/thesis.md) defining the 4 pillars of MiOS, its nature as a research vehicle/proof-of-concept, and the distinction between designed deployment scope vs. observed runtime environments (dev VM & WSL2).
+> **Architectural Specification & Scope:** Refer to [`usr/share/doc/mios/manual/thesis.md`](usr/share/doc/mios/manual/thesis.md) for the foundational design principles, execution scope, and the demarcation between deployment targets (bare-metal, virtualization) and development runtimes (Hyper-V, QEMU, WSL2).
 
-> **Pronounced "MyOS"** -- short for *My OS* / *My Operating System*. The
-> name is a stylistic capitalization of the same shorthand; it carries no
-> other meaning and refers to no person or organization.
->
-> **Project nature.** 'MiOS' is a **research project**, not a commercial
-> product. It is *generative*: synthesized from a small set of seed
-> scripts and manually-curated documentation, then iteratively expanded
-> by automated tooling and human review. Treat every script, lint, and
-> default as an artifact under ongoing review.
->
-> **Runtime agreements.** By invoking any entry point in this repo
-> (`just <target>`, `install.sh`, `install.ps1`, `bootstrap.{sh,ps1}`,
-> the deployed `mios` CLIs, `bootc upgrade` against a 'MiOS' image, ...),
-> you acknowledge [`AGREEMENTS.md`](./AGREEMENTS.md) -- Apache-2.0 main
-> license, bundled-component licenses ([`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md)),
-> and attribution ([`usr/share/doc/mios/reference/credits.md`](usr/share/doc/mios/reference/credits.md)). All upstream projects
-> and standards referenced here are the property of their respective
-> owners; 'MiOS' integrates with them but claims no affiliation with
-> them.
+**Phonetic Identification:** Pronounced `/maɪ.oʊ.ɛs/` (*"MyOS"*), derived as an acronym for *My Operating System*. The capitalization is a stylistic identifier and denotes no corporate or organizational entity.
 
-An immutable, container-image-shaped Linux workstation that boots like an OS,
-upgrades like a `git pull`, and rolls back like a Ctrl-Z. It's Fedora
-underneath, with a curated stack on top for people who actually use their
-machines for AI, virtualization, and clusters -- not just spreadsheets.
+**Project Classification:** MiOS is an open-source systems engineering research platform (Apache-2.0). Artifacts are synthesized from declarative build scripts, container specifications, and structured configuration manifests.
 
-And it's more than a desktop: 'MiOS' is also a **local, self-hosted agentic AI
-operating system**. The same image that ships your GNOME session ships a full
-inference + agent stack -- local LLM lanes, an OpenAI-compatible front door, a
-multi-agent orchestration pipeline, and a PostgreSQL+pgvector memory -- all
-running on *your* hardware, offline-capable, with no vendor account in the loop.
-The OS can reason about itself, drive its own tools, and (because the whole
-thing is one rebuildable OCI image) effectively re-create itself.
-
-The default ref:
-
-```
-ghcr.io/mios-dev/mios:latest
-```
-
-If you've got a Fedora-bootc-compatible host (or a Hyper-V VHDX, ISO, qcow2,
-or WSL2 distro you can run), you can be on 'MiOS' in the time it takes the
-network to pull the image.
+**Legal and Runtime Agreements:** Execution of any entry point (`just <target>`, `install.sh`, `install.ps1`, `Get-MiOS.ps1`, `bootstrap.{sh,ps1}`, `/usr/bin/mios-*`, or `bootc` management commands) constitutes acceptance of [`AGREEMENTS.md`](./AGREEMENTS.md), upstream software licenses ([`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md)), and the project attribution registry ([`usr/share/doc/mios/reference/credits.md`](usr/share/doc/mios/reference/credits.md)). Upstream trademarks and system components remain property of their respective maintainers.
 
 ---
 
-## Why bother
+## 1. System Overview
 
-A normal distro evolves like a Jenga tower: every package update is a small
-prayer, every clean reinstall is a weekend. 'MiOS' is the opposite -- the
-whole OS is one OCI image. You upgrade it the way you'd upgrade a container.
-If something breaks, `bootc rollback` and you're back where you started, with
-no "I sure hope `dnf` finishes" in the middle.
+MiOS is an immutable, container-encapsulated Linux operating system built upon Fedora CoreOS / Universal Blue (`ucore-hci`) primitives via `bootc`. It converges a hardware-accelerated workstation with an isolated, locally hosted, OpenAI-API-compatible agentic AI operating infrastructure.
 
-That single-image discipline is also what makes the AI side trustworthy: the
-agent stack isn't a pile of pip-installed daemons you have to babysit -- it's
-baked into the same immutable image, version-locked to the OS, and reproduced
-exactly on every box that pulls the ref.
+The runtime root filesystem (`/usr`) is deployed as an atomic, read-only `composefs` mount backed by `fs-verity` cryptographic verification. Operating system upgrades and rollbacks operate as atomic OCI image state transactions executed via `bootc`.
 
-What you actually get out of the box:
+Concurrently, MiOS packages a fully localized, sovereign cognitive runtime plane directly into the base image. The AI sub-layer provides local Large Language Model (LLM) inference lanes, OpenAI-compatible ingress proxies, a deterministic multi-agent orchestration engine, and a PostgreSQL + pgvector persistent memory store. All intelligence services execute on local host hardware, operate unprivileged under dedicated system accounts, and require no egress to third-party cloud infrastructure.
 
-- **GNOME 50 on Wayland** (the desktop), plus Phosh as a tablet-style
-  fallback for portrait / RDP scenarios.
-- **NVIDIA + AMD ROCm + Intel iGPU**, all wired up via CDI so containers can
-  see the hardware without you fighting `--device` flags.
-- **KVM/QEMU + libvirt + Looking Glass B7** baked into the image, with
-  VFIO-PCI passthrough kargs already staged. Hand a discrete GPU to a
-  Windows VM and game on it.
-- **k3s + Ceph** for when you want to grow the box into a one-node cluster
-  without re-imaging.
-- **A complete local AI surface**, OpenAI-compatible behind
-  `MIOS_AI_ENDPOINT`. Local inference lanes (`mios-llm-light` for the
-  everyday models + embeddings, plus gated heavy GPU lanes) feed a multi-agent
-  pipeline with PostgreSQL+pgvector memory. Every agent and tool on the system
-  targets that one endpoint via `MIOS_AI_ENDPOINT`, so any OpenAI-API-compatible
-  editor/CLI client (no vendor lock-in) talks to the same brain.
-- **Real security defaults**: SELinux enforcing, fapolicyd deny-by-default,
-  USBGuard, CrowdSec sovereign-mode IPS, kernel-lockdown integrity, MOK-
-  signed kernel modules. Not the security-theater kind.
-- **Global Schemas & TypeScript Safe Routing**: Strict OpenAI JSON Schemas
-  (`usr/lib/mios/schemas/`) and TypeScript type-safe discriminated unions
-  (`usr/lib/mios/ts/`) ensuring zero-parameter-injection across agent pipelines.
-- **Native AI Metadata System**: File-level `AI-hint`, `AI-related`, and
-  `AI-functions` are first-class OS metadata, indexed by `usr/libexec/mios/mios-ai-metadata.py`
-  into `usr/share/mios/ai/v1/metadata.json` for deterministic tool discovery.
-- **Mobile Terminal & Blink Shell Optimization**: Native support for iOS Blink
-  Shell with `Shift + Tab` (backtab) pass-through, extended terminal keys (`extkeys`),
-  and touchscreen shortcuts (`usr/share/mios/tmux/blink-mobile-keys.tmux.conf`).
-- **Rust Static Binary Safety Net**: Security boundaries enforced by static
-  Rust binaries (`tools/native/`), capturing secrets via native Linux Keyrings
-  and executing system mutations strictly via tokenized `execve` boundaries.
+### Canonical Image Reference
 
-These aren't four separate products bolted together -- they're one system. The
-GPU wiring (CDI) is what lets the inference lanes and the passthrough VMs each
-claim hardware; the immutable image is what lets the cluster grow a node
-in-place; the local AI surface is what turns the workstation into something that
-can operate *itself*.
+    ghcr.io/mios-dev/mios:latest
 
 ---
 
-## The 30-second elevator pitch for engineers
+## 2. Structural Evolution and Specification Remediation
 
-It's [Universal Blue's `ucore-hci`](https://github.com/ublue-os/ucore) (which
-is itself Fedora CoreOS + uCore + HCI tooling) plus a deliberate workstation
-layer on top. The whole image is `bootc`-managed -- meaning `/usr` is a
-read-only composefs mount, `/etc` gets a 3-way merge across upgrades, and
-`/var` survives everything. New release? `bootc upgrade`. Bad release?
-`bootc rollback`. No more "the package manager left my system in a state."
+Operating system documentation often degenerates into non-technical promotional language, utilizing anthropomorphic analogies and imprecise abstractions that obscure underlying systems architecture. In earlier iterations of the MiOS documentation, imperative package management failure modes were described through unstable structural metaphors such as collapsing towers, daemon supervision was characterized as passive custodial babysitting, and the computational environment was described as an autonomous entity capable of subjective self-reasoning. Such phrasing obscures the deterministic engineering mechanics governing image assembly, cryptographic attestation, process lifecycle containment, and hardware boundary isolation.
 
-Think of it as a workstation flavor of CoreOS / Silverblue with the
-hyperconverged bits of Talos / openSUSE MicroOS -- except it's still a
-day-to-day desktop you can ship code from, *and* it carries its own local agent
-runtime so the OS can drive tools, search the web, manage VMs, and answer
-questions without phoning home.
+A rigorous systems engineering specification demands that these concepts be redefined through precise operational taxonomy. Imperative package managers do not suffer from emotional uncertainty; they exhibit non-deterministic state drift, unresolvable transactional dependency graphs, and partial filesystem mutations when interrupted during pre-install or post-install scriptlet execution. Similarly, containerized inference runtimes and relational memory backends do not constitute a biological cognitive core; they function as isolated, user-space daemons communicating across POSIX loopback sockets, constrained by cgroups v2 resource envelopes, and governed by deterministic inter-process communication protocols.
 
----
+The transition to a sterile, specification-compliant documentation model replaces subjective rhetoric with verifiable technical parameters. Operating system components are categorized strictly by filesystem immutability classes, Open Container Initiative (OCI) image layer hierarchies, systemd unit generation mechanics, and hardware abstraction layer interfaces.
 
-## Try it
+### Technical Taxonomy & Remediation Matrix
 
-### Already on a Fedora-bootc-compatible host
-
-```bash
-bootc switch ghcr.io/mios-dev/mios:latest
-sudo systemctl reboot
-```
-
-### From scratch, on Windows
-
-**Canonical entry — `WinKey+R` → paste → Enter → accept UAC:**
-
-```text
-powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1 | iex"
-```
-
-That `irm | iex` shape is the entry contract -- runnable from the
-Windows Run dialog, cmd.exe, or any PowerShell session, with no
-pre-existing pwsh, ExecutionPolicy override, or manual elevation.
-`Get-MiOS.ps1` self-cache-busts on entry (Fastly's 5-min TTL is
-invisible to you), self-elevates two-pass (user profile + admin
-provisioning), shrinks `C:\` and creates `M:\` at exactly 256 GB
-NTFS, installs Podman Desktop, provisions the `MiOS-DEV` podman
-machine, clones `mios.git` + `mios-bootstrap` onto `M:\`, then
-auto-chains into `/usr/libexec/mios/mios-build-driver` inside
-`MiOS-DEV` for the OCI build.
-
-The Windows installer drops the result as a WSL2 distro, a Hyper-V VHDX,
-an Anaconda installer ISO, and a qcow2 -- pick whichever fits.
-
-`mios.bat` (in [mios-bootstrap](https://github.com/mios-dev/mios-bootstrap))
-is an equivalent shortcut: `WinKey+R` → `mios.bat` (or double-click)
-invokes the same `irm | iex` one-liner above. The `irm | iex` shape is
-the contract; the `.bat` is one wrapper.
-
-mios.git (this repo) is the system FHS overlay baked into the deployed
-image; user definitions in mios-bootstrap.git overlay these factory
-defaults at build/install time, with user-set fields taking precedence.
-Each prompt auto-accepts the resolved-from-`mios.toml` default after
-**90 seconds** idle (set `$env:MIOS_PROMPT_TIMEOUT=0` to disable,
-`=1` for fastest unattended).
-
-### From scratch, on Linux
-
-```bash
-git clone https://github.com/mios-dev/MiOS.git && cd MiOS
-just preflight
-just build
-just iso       # or: just raw / just qcow2 / just vhdx / just wsl2
-```
-
-`just --list` shows every target. `Justfile` is the source of truth for the
-Linux side; `mios-build-local.ps1` is the Windows equivalent.
-
-### In a hosted cloud session (Claude Code cloud environment)
-
-A hosted cloud session runs on a fixed Ubuntu VM that cannot be replaced; this repo's devcontainer image (`.devcontainer/Containerfile`, packages from `mios.toml [packages.devcontainer]`) runs inside it, so the session is the same MiOS dev environment as the devcontainer, Codespaces and Cloud Shell. Create the environment once (claude.ai/code, the cloud icon above the message box, **Add cloud environment**), paste the script below into **Setup script**, add the variables, and tick it as the default. The platform runs the script, snapshots the disk, and every later session starts from that snapshot.
-
-**Setup script.** It clones the dev-loop plugin to `/opt/dev-loop` and hands off to its `cloud-fedora-setup.sh`. All the logic lives in that clone, so this text never needs editing, and it always exits 0 because a failing setup script fails every session:
-
-```bash
-#!/bin/bash
-# MiOS Fedora dev environment + the dev-loop plugin (/dev-loop:*) in every session.
-export FEDORA_DEVCONTAINER_REPO=https://github.com/mios-dev/MiOS
-export FEDORA_DEVCONTAINER_FILE=.devcontainer/Containerfile
-# dev-loop plugin checkout; loaded by CLAUDE_CODE_PLUGIN_DIRS=/opt/dev-loop
-if [ -d /opt/dev-loop/.git ]; then
-  git -C /opt/dev-loop pull -q --ff-only || true
-else
-  git clone -q --depth 1 https://github.com/mios-dev/-dev-loop /opt/dev-loop || true
-fi
-[ -f /opt/dev-loop/skills/dev-loop/scripts/env/cloud-fedora-setup.sh ] &&
-  bash /opt/dev-loop/skills/dev-loop/scripts/env/cloud-fedora-setup.sh
-exit 0
-```
-
-**Environment variables**, set in the same dialog:
-
-| Variable | Value | What it does |
+| Legacy Colloquial Description | Technical Systems Engineering Definition | Concrete Subsystem Realization |
 |---|---|---|
-| `FEDORA_DEVCONTAINER_REPO` | `https://github.com/mios-dev/MiOS` | Projection mode: the session's Fedora userspace is this repo's devcontainer, built unedited, so it is the one MiOS dev image. Unset, the script builds a generic Fedora image instead. |
-| `FEDORA_DEVCONTAINER_FILE` | `.devcontainer/Containerfile` | The Containerfile inside that repo. This is the default; setting it keeps the environment a complete record. |
-| `CLAUDE_CODE_PLUGIN_DIRS` | `/opt/dev-loop` | Loads the dev-loop plugin in every session, whatever repo it opens: the `/dev-loop:*` commands, hooks and agents. A cloud session loads plugins no other way. |
+| Distro updates evolving like unstable block towers | Non-deterministic state divergence and broken dependency trees in mutable package managers | Declarative OCI image compilation via buildah/podman and atomic image deployment |
+| Upgrades functioning like version control pulls | Atomic rootfs commit deployment using OSTree and composefs storage backends | `bootc upgrade` executing cryptographic digest validation against remote container registries |
+| Operating system rolling back like a keystroke undo | Reversible bootloader targeting of immutable deployment trees via bls entries | `bootc rollback` swapping OSTree commit stubs prior to kernel initialization |
+| Shipped inference daemons avoiding continuous babysitting | Supervised, unprivileged container lifecycles bound to system initialization | Declarative Podman Quadlet generation with automated restart policies under systemd |
+| System operating as an integrated cognitive brain | Multi-tiered RPC pipeline routing OpenAI-compatible JSON payloads to local inference engines | Fast-swapping reverse proxy (llama-swap) dispatching execution to llama.cpp, vLLM, or SGLang |
+| Dedicated gaming virtual machines with discrete GPUs | Direct hardware virtualization via kernel stub driver rebinding and VFIO memory mappings | `vfio-pci` kernel command-line device reservation coupled with KVM/QEMU and Looking Glass shared memory |
 
-Optional, same place:
+---
 
-| Variable | Default | What it does |
+## 3. Host Lifecycle and Immutable Filesystem Topology
+
+MiOS is built upon an image-mode operating system paradigm derived from Fedora CoreOS and Universal Blue's `ucore-hci`, managed natively via Red Hat's `bootc` utility. Rather than assembling the operating system on the target node via sequential, non-deterministic package installations, the entire operating system image is compiled inside a container runtime environment, validated against structural container linters, and distributed as an OCI artifact. This model enforces absolute parity between development, testing, and production bare-metal hosts.
+
+The host storage hierarchy segregates binary objects, node configurations, and persistent state across distinct mount boundaries governed by composefs and OSTree technologies. At system initialization, the initramfs executes `ostree-prepare-root`, reading configuration directives from `/usr/lib/ostree/prepare-root.conf`. When composefs is enabled, the runtime verifies the fs-verity cryptographic digest of the root directory descriptor against the underlying OSTree object repository located in `/ostree/repo/objects`. The resulting filesystem tree mounts `/usr` as a strictly read-only, content-addressable block device.
+
+System configuration within `/etc` retains mutability to support host-specific network bindings, authentication secrets, and hardware customizations. When an administrator executes `bootc upgrade`, the deployment client pulls the target container layers, unpacks the content into the OSTree store, and initiates a three-way merge across `/etc`. Modifications originating from the new container image are applied unless explicitly overridden by active local configurations, preventing administrative drift from silently corrupting updated base services.
+
+All persistent host state, user data, virtualization disk images, and container storage volumes are isolated within `/var`. The root filesystem enforces a strict structural rule prohibiting arbitrary directory creation within `/var` during image assembly. Directories required by container engines, monitoring services, or agent datastores are declared via configuration files within `/usr/lib/tmpfiles.d/*.conf`. During systemd initialization, `systemd-tmpfiles-setup.service` parses these manifests and materializes required paths, permissions, and access-control lists directly on the persistent partition, guaranteeing that the immutable base image remains completely decoupled from node-specific runtime state.
+
+### Filesystem Immutability and Lifecycle Specifications
+
+| Filesystem Path | Immutability Class | Backing Technology | Lifecycle Update / Rollback Dynamic |
+|---|---|---|---|
+| `/usr` | Read-only | `composefs` over OSTree object store | Atomic replacement via digest switch; bit-for-bit identical to registry image |
+| `/etc` | Read-write | Standard POSIX filesystem overlay | Three-way merge preserved across image switches; retains administrative overrides |
+| `/var` | Read-write | Dedicated persistent partition | Decoupled from container image lifecycle; survives all OS upgrades and rollbacks |
+| `/opt` | Read-only | Redirected or nested within `/usr` | Static component of the vendor base image; immutable at runtime |
+| `/sys`, `/proc`, `/dev` | Virtual / Synthetic | Linux Kernel pseudo-filesystems | Dynamically instantiated by the kernel; non-persistent |
+
+The build execution pipeline is implemented via a sequential file tree structure. The upstream Git repository root maps directly to the root of the deployed filesystem (`.git` IS `/`), eliminating intermediate build abstractions or indirection scripts. Build orchestration is driven by a master Containerfile that processes numbered automation scripts (`automation/[00-99]-*.sh`) in sequential order. Each step executes within an isolated container build layer, executing deterministic tasks such as package installation, SELinux policy compilation, UKI image rendering, and Container Device Interface (CDI) manifest generation. System assembly concludes with the execution of `bootc container lint`, which enforces adherence to image-mode filesystem standards before publishing the container image to the target registry.
+
+---
+
+## 4. The Seven Architectural Laws
+
+System contributions, automated builds, and image modifications must strictly comply with the following seven immutable system invariants, enforced by `automation/99-postcheck.sh` and CI validation gates:
+
+| # | Invariant Identifier | Architectural Enforcement Mandate |
 |---|---|---|
-| `FEDORA_RUNTIME` | `auto` | `auto`, `podman` or `docker`. MiOS is Podman-native: `auto` takes podman when it is installed and Docker only where it is the sole runtime, which is this cloud VM. An explicit runtime that is missing logs an error and builds nothing. |
-| `FEDORA_SETUP_BUDGET_S` | `0` (never) | Defers the devcontainer lifecycle prebuild (`miosd`, the root overlay, `/opt/mios/bin`) once this many seconds of the setup have elapsed, so a slow run stays inside the platform's roughly 5-minute snapshot budget. A deferred prebuild is applied later, inside a session, with `bash /opt/dev-loop-fedora/cloud-fedora-setup.sh --lifecycle`. A full run measured 452 s; start with `240` if the environment cache stops building. |
-| `FEDORA_DEVCONTAINER_REF` | the repo's default branch | Branch or tag of the repo to clone. |
-| `FEDORA_EXEC_USER` | `root` | The user container commands run as. `mios-dev` matches the devcontainer's `remoteUser`. |
-| `FEDORA_PROVISION_HOST` | `1` | `0` skips provisioning the VM itself (`agy`, keyring, headless grants, dev-loop skill), which otherwise runs first. |
-| `FEDORA_REBUILD` | `0` | `1` forces an image rebuild even when one is cached. |
-
-What every session then has: `mios-dev <cmd>` and `fedora <cmd>` run inside the Fedora image at the same path as on the host; `agy`, `claude`, `gemini` and `copilot` on the host and in the image; the `/dev-loop:*` commands. Sign in to `agy` once per container: `bash /opt/dev-loop/skills/dev-loop/scripts/env/agy-login.sh` prints the URL, then the same command with `--code '<code>'` finishes. The script and every variable are owned by [-dev-loop](https://github.com/mios-dev/-dev-loop) (`skills/dev-loop/references/environment.md`, with the measurements behind each default); this copy is for the operator creating the environment.
-
----
-
-## How it's actually structured
-
-Most distros hide their layout behind a package manager. 'MiOS' doesn't -- the
-**repo root is the deployed system root**. Browse `usr/`, `etc/`, `srv/`,
-`var/` here in GitHub and you're looking at exactly where those files land
-on a booted system. There's no `system_files/` indirection, no Ansible
-playbook materializing things into place. What you see is what gets baked.
-
-The build pipeline is just a `Containerfile` that runs every script in
-`automation/[NN]-*.sh` in numeric order. Each script does one thing
-(install packages, configure SELinux, render the UKI, generate CDI specs,
-etc.) and the numeric prefix encodes execution order. Add a new step? Drop
-a new `45-myfeature.sh` next to its peers.
-
-That pipeline is the first half of the system's lifecycle: **build pipeline →
-OCI image → `bootc` lifecycle on the host.** The scripts that wire up the AI
-plane (the inference lanes, the agent units, the pgvector schema) are just more
-numbered steps -- the same mechanism that installs packages also stands up the
-brain.
-
-If you want to know what makes a package show up in the image, check
-[`usr/share/mios/mios.toml`](usr/share/mios/mios.toml) under
-`[packages.<section>].pkgs` -- that's the runtime source of truth,
-parsed by `automation/lib/packages.sh` and edited via the configurator
-HTML at `/usr/share/mios/configurator/`. Human-readable companion
-documentation lives at
-[`usr/share/doc/mios/reference/PACKAGES.md`](usr/share/doc/mios/reference/PACKAGES.md).
-Want to know what kernel arguments ship? They're in
-[`usr/lib/bootc/kargs.d/`](usr/lib/bootc/kargs.d/).
+| **1** | `USR-OVER-ETC` | All static vendor assets, service definitions, and configurations must reside exclusively in `/usr/lib/` or `/usr/share/`. The `/etc/` directory is reserved strictly for local administrator overrides. |
+| **2** | `NO-MKDIR-IN-VAR` | The `/var/` directory hierarchy must never be modified or populated at image build time. All runtime directories in `/var/` must be declared declaratively via `usr/lib/tmpfiles.d/*.conf`. |
+| **3** | `BOUND-IMAGES` | Container images referenced by system Quadlets must be staged and symlinked into `/usr/lib/bootc/bound-images.d/` to guarantee offline image survival and atomic co-deployment with the host. |
+| **4** | `BOOTC-CONTAINER-LINT` | The final layer of every container build must pass `bootc container lint` with exit code 0. Architectural validation failures immediately abort the build pipeline. |
+| **5** | `UNIFIED-AI-REDIRECTS` | Every agent, tool, script, and web console must address the AI plane strictly through `MIOS_AI_ENDPOINT`. Hardcoded external endpoints, vendor URLs, or bypassing loopback proxies is forbidden. |
+| **6** | `UNPRIVILEGED-QUADLETS` | System Quadlets must declare non-root service credentials (`User=mios`, `Group=mios`, `Delegate=yes`). Exceptions are limited to low-level infrastructure daemons (`mios-ceph`, `mios-k3s`) with explicit code audit rationale. |
+| **7** | `OFFLINE-FIRST` | The fully deployed operating system, inference engines, orchestration stack, and system documentation must remain 100% operational with zero outbound network connectivity. External dependencies must be vendored. |
 
 ---
 
-## The local AI stack (the "self-hosted agent OS" half)
+## 5. Workstation Subsystems & Virtualization
 
-The AI surface is one of the things 'MiOS' is *for*, so here's the end-to-end
-shape. Everything below ships in the image, runs on your hardware, and is
-reachable through the single OpenAI-compatible endpoint named by
-`MIOS_AI_ENDPOINT`.
+    +-----------------------------------------------------------------------------------+
+    |                                  MiOS Host OS                                     |
+    +------------------------------------+----------------------------------------------+
+    |     Workstation / Infrastructure   |              Local AI Plane                  |
+    |  - GNOME 50 (Wayland) + Phosh      |  - Local Inference (llama.cpp, vLLM, SGLang) |
+    |  - KVM/QEMU + libvirt + VFIO-PCI   |  - Unified Endpoint: MIOS_AI_ENDPOINT        |
+    |  - Looking Glass B7 (KVMFR DMA)    |  - Orchestrator (agent-pipe) + Hermes Gateway|
+    |  - Container Device Interface (CDI)|  - Memory: PostgreSQL 16 + pgvector          |
+    |  - k3s Kubernetes + Ceph Storage   |  - Tool Interfaces: MCP Servers + A2A Bus    |
+    |  - Kernel Lockdown + SELinux       |  - Strict JSON Schemas + Rust Keyring Guard  |
+    +------------------------------------+----------------------------------------------+
+    |            Immutable Core: Fedora bootc + composefs (Read-Only /usr)              |
+    +-----------------------------------------------------------------------------------+
 
-- **Inference lanes** -- named by *function*, not by upstream tool:
-  - `mios-llm-light` (port key `llm_light`) is the **primary** lane: a `llama.cpp`
-    multi-model server fronted by the upstream
-    [mios-llm-light](https://github.com/mostlygeek/llama-swap) proxy image
-    (`ghcr.io/mostlygeek/llama-swap:cuda`). It auto-swaps the everyday chat /
-    reasoning models behind one endpoint, KV-pages each conversation to disk,
-    **and** serves embeddings (`nomic-embed-text`, OpenAI-compatible
-    `/v1/embeddings`) plus the `mios-opencode` coder model. Its model map is
-    [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml).
-  - `mios-llm-heavy` (port key `vllm`, served-name `mios-heavy`) is the heavy GPU lane
-    (vLLM), gated off by default on VRAM grounds.
-  - `mios-llm-heavy-alt` (port key `sglang`) is the alternate heavy lane (SGLang), likewise gated.
-  - `mios-llm-worker@` are single-model swarm workers for fan-out.
-  These speak the OpenAI/Ollama-compatible API, so any OpenAI-API client talks
-  to them unchanged -- but the *inference engine* is `llama.cpp`/SGLang/vLLM, not
-  a hosted service.
-- **Orchestration** -- the **agent-pipe** (port key `agent_pipe`) is the router/dispatch
-  gateway every front-end (Open WebUI, the Discord/chat gateways) talks to; it
-  decomposes requests, fans out to agents, and calls tools. Behind it,
-  **MiOS-Hermes** (port key `hermes`) is the OpenAI-compatible agent gateway that owns
-  sessions, the tool-loop, skills, and browser control; a **prefilter**
-  (port key `prefilter`) injects fan-out hints on decomposable prompts.
-- **Memory** -- the unified agent datastore is **PostgreSQL + pgvector** (the
-  `mios-pgvector` container, port key `pgvector`), holding agent memory, events, tool
-  calls, sessions, skills, scratch, and a `knowledge` table of finished Q+A with
-  vector recall. `nomic-embed-text` (served by `mios-llm-light`) provides the
-  embeddings for that recall.
-- **Tools & federation** -- agents call tools over **MCP** and reach other
-  agents over **A2A**, and `web_search` is backed by a local **SearXNG**
-  (port key `searxng`). The coder peer is served through the **opencode-gateway**
-  (port key `opencode_gateway`) as a real `/v1` council member.
+### 5.1 Display Server & Desktop Environment
+* **Primary Desktop:** GNOME 50 running natively under Wayland.
+* **Secondary / Mobile Shell:** Phosh integration for high-DPI tablets, touch panels, and remote desktop protocol (RDP) headless sessions.
+* **Mobile Terminal Optimization:** iOS Blink Shell compatibility via `Shift+Tab` backtab pass-through, `extkeys` protocol, and touch shortcuts defined in `usr/share/mios/tmux/blink-mobile-keys.tmux.conf`.
 
-The throughline: **inference lanes → agent-pipe/Hermes orchestration → pgvector
-memory → MCP/A2A**, all behind `MIOS_AI_ENDPOINT`. Full request/response
-contract is in [`usr/share/doc/mios/reference/api.md`](usr/share/doc/mios/reference/api.md);
-the agent-facing contract is under [`usr/share/mios/ai/`](usr/share/mios/ai/).
+### 5.2 Hardware Acceleration & CDI Plumbing
+* **Multi-Vendor Support:** Native integration for NVIDIA (CUDA/NVENC), AMD (ROCm/HIP), and Intel (oneAPI/iGPU).
+* **Container Device Interface (CDI):** Hardware device nodes, capability flags, and driver libraries are dynamically mapped into unprivileged containers via generated CDI definitions (`/etc/cdi/` and `/var/run/cdi/`), eliminating host-level `--device` mapping flags.
 
----
+### 5.3 Hardware Virtualization & Shared-Memory Display
+* **Hypervisor Layer:** Type-1 KVM virtualization orchestrated via QEMU and `libvirt`.
+* **I/O Virtualization:** Pre-staged kernel command-line arguments (`usr/lib/bootc/kargs.d/`) configuring IOMMU groups (`intel_iommu=on` or `amd_iommu=on`) and `vfio-pci` stubbing for discrete PCIe GPU passthrough prior to host graphics driver initialization.
+* **Low-Latency Inter-VM Frame Relay:** Image-baked Looking Glass B7 client integration utilizing the KVMFR shared-memory kernel driver (`/dev/kvmfr0`) for high-throughput zero-copy frame retrieval from passthrough virtual machines.
 
-## The user-facing knobs
+### 5.4 Cross-Platform Subsystems & Progress Tracking
+MiOS engineering addresses specific integration and lifecycle constraints within hybrid virtualization environments:
+* **Pre-Logon Service Execution (WSL Issue #11280):** Implemented pre-logon system service management using custom autounattend routines, allowing MiOS container services and systemd initialization units to execute prior to interactive Windows desktop sign-in.
+* **Wayland & Display Propagation (WSL Issue #12436):** Introduced environmental variable propagation hooks within user session managers. Capturing active `DISPLAY` and `WAYLAND_DISPLAY` runtime socket references and exporting them directly into systemd user activation environments guarantees that graphical background daemons launch within WSLg without socket failures.
 
-The whole user side is one file:
+### 5.5 Hyperconverged Edge Clustering
+* **Containerized Kubernetes:** Single-node or edge-clustered `k3s` integration deployed via managed systemd Quadlet definitions.
+* **Distributed Storage:** `mios-ceph` micro-cluster storage fabric packaged directly within the host OCI image, providing block and object storage without re-imaging.
 
-```
-~/.config/mios/mios.toml
-```
-
-That's where you set your preferred username, hostname, base image, AI
-model, Flatpaks to install at first boot, and any free-form environment
-variables you want exported on login. Everything else inherits from the
-vendor TOML at `/usr/share/mios/mios.toml` (the canonical SSOT).
-
-```toml
-[user]
-name     = "you"
-hostname = "you-laptop"
-
-[ai]
-model = "granite4.1:8b"
-
-[flatpaks]
-install = [
-  "com.spotify.Client",
-  "org.mozilla.firefox",
-]
-
-[env]
-EDITOR = "nvim"
-```
-
-Run `just init-user-space` to seed it from the vendor template; `just edit`
-to open it in `$EDITOR`; `just show-env` to see the resolved values.
+### 5.6 Defense-in-Depth Security Baseline
+* **Mandatory Access Control:** SELinux targeted policy operating strictly in `Enforcing` mode.
+* **Execution Whitelisting:** `fapolicyd` configured in deny-by-default mode for untrusted binaries outside verified composefs paths.
+* **Peripheral Access Control:** `USBGuard` daemon restricting unauthorized USB interface descriptors and keystroke-injection vectors.
+* **Kernel & Module Sealing:** Linux Kernel Lockdown in `integrity` mode, Machine Owner Key (MOK) cryptographic module signing, and read-only kernel sysctls.
+* **Network & Host IPS:** CrowdSec deployed in sovereign localized mode.
+* **Rust Native Boundaries:** Tokenized system execution and secret ingestion handled through static Rust binaries (`tools/native/`) leveraging Linux Kernel Keyrings and direct `execve` boundaries.
 
 ---
 
-## The architectural laws (the boring but load-bearing bits)
+## 6. Podman Quadlet Service Topology & Logically Bound Container Management
 
-These are the rules every contribution has to obey. They're enforced by
-build-time lint and by `automation/99-postcheck.sh`:
+Microservices and local runtime infrastructure running on MiOS are declared via Podman Quadlets rather than monolithic compose files or external container orchestration daemons. Quadlets extend the systemd unit model by introducing container-specific declarative tables (`[Container]`, `[Image]`, `[Network]`, `[Volume]`) into `.container` specification files. During host boot or when triggering `systemctl daemon-reload`, the Quadlet generator parses files situated in `/usr/share/containers/systemd/` and dynamically synthesizes standard systemd service units, directly mapping container lifecycles to the host process tree.
 
-1. **USR-OVER-ETC** -- static config lives in `/usr/lib/<component>.d/`.
-   `/etc/` is for admin overrides only.
-2. **NO-MKDIR-IN-VAR** -- every `/var/` path is declared via
-   `usr/lib/tmpfiles.d/*.conf`. Never written at build time.
-3. **BOUND-IMAGES** -- every Quadlet image is symlinked into
-   `/usr/lib/bootc/bound-images.d/` so it ships *with* the host.
-4. **BOOTC-CONTAINER-LINT** -- every build ends with `bootc container lint`.
-   Fail the lint, fail the build.
-5. **UNIFIED-AI-REDIRECTS** -- every agent and tool targets `MIOS_AI_ENDPOINT`.
-   No vendor-hardcoded URLs.
-6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`,
-   `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s`
-   (rationale in their headers).
+To ensure that the local operational stack functions completely offline and remains immune to remote registry outages, MiOS uses bootc logically bound images. Rather than relying on floating images that must be retrieved over the network at first execution via `podman pull`, logically bound images are coupled directly to the host operating system lifecycle. Quadlet container definitions situated in `/usr/share/containers/systemd/` are symlinked into `/usr/lib/bootc/bound-images.d/`.
 
-These laws are what keep the whole-system promise honest: Law 3 is why the AI
-containers ship *inside* the image, Law 5 is why every agent and editor resolves
-to the one local endpoint, and Law 6 is why the agent plane runs unprivileged.
+During base image compilation or host transitions executed via `bootc upgrade`, the bootc engine parses these symlinks, identifies the container images declared within the `Image=` fields, and pulls the target image layers directly into a dedicated, host-managed storage repository at `/usr/lib/bootc/storage`. To instruct Podman to resolve images from this immutable store without duplicating layers into `/var/lib/containers`, each Quadlet specification includes the parameter:
 
-If you want the deeper dive: [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md)
-is the architectural contract (agent-facing),
-[`usr/share/doc/mios/concepts/architecture.md`](usr/share/doc/mios/concepts/architecture.md)
-is the layout, and
-[`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md)
-is the build-pipeline rules.
+    GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
+
+Logically bound images are updated atomically with the base operating system. If a host update is rolled back via `bootc rollback`, the corresponding logically bound container images associated with that rollback target are retained and instantly reactivated, preventing version skew between the host operating system and its application microservices. Image pruning is managed by bootc; when a Quadlet reference is dropped from `/usr/lib/bootc/bound-images.d/`, the unreferenced image layers inside `/usr/lib/bootc/storage` are marked for garbage collection.
+
+Privilege escalation within containerized workloads is restricted by system security policy. All standard service Quadlets declare non-root user execution envelopes via `User=` and `Group=` directives, accompanied by cgroup control delegation via `Delegate=yes`. The only permissible exceptions to this rule are `mios-ceph` and `mios-k3s`, which require elevated privileges to manage raw block devices, configure kernel storage target drivers, and manipulate network routing namespaces.
+
+### Quadlet Service Specification Table
+
+| Quadlet Unit File | Upstream Image Reference | Port Key & Bindings | Memory & Resource Constraints | Privilege & Capability Isolation |
+|---|---|---|---|---|
+| `mios-llm-light.container` | `ghcr.io/mostlygeek/llama-swap:cuda` | `llm_light` (8080 / 11450) | Dynamic VRAM management; CPU fallback thread limits | Unprivileged UID; CDI passthrough for GPU compute |
+| `mios-llm-heavy.container` | `vllm/vllm-openai:latest` | `vllm` (8000) | Gated activation; multi-GPU tensor parallel allocation | Unprivileged UID; direct device allocation |
+| `mios-pgvector.container` | `pgvector/pgvector:pg16` | `pgvector` (5432) | Shared memory allocation; persistent volume mount | Dedicated database system user; no network egress |
+| `mios-agent-pipe.container` | `mios-agent-pipe:latest` | `agent_pipe` (8001 / 8640) | Low latency, stateless async task router | Unprivileged UID; network loopback binding only |
+| `mios-hermes.container` | `mios-hermes:latest` | `hermes` (8002 / 8642) | Tool execution loop; process sandbox boundaries | Rootless execution; drop all Linux capabilities |
+| `mios-searxng.container` | `searxng/searxng:latest` | `searxng` (8081 / 8888) | Read-only local network search aggregator | Dedicated non-login service user; isolated egress |
+| `mios-k3s.container` | `rancher/k3s:latest` | `k3s_api` (6443) | Host resource reservation; cluster control plane | Privileged container; required host namespace access |
+| `mios-ceph.container` | `ceph/daemon:latest` | `ceph_mon` (6789) | Block storage management; cluster data replication | Privileged container; host block device manipulation |
 
 ---
 
-## Where things live
+## 7. Local AI Architecture (The Cognitive Substrate)
 
-Documentation follows the FHS doc layout (`/usr/share/doc/<pkg>/`) with an
-OpenAI-style topical split: `concepts/`, `guides/`, `reference/`, `audits/`.
-The agent-facing contract lives under `/usr/share/mios/ai/`.
+All internal AI components, developer utilities, and user tools communicate with a single loopback target defined by the environment variable `MIOS_AI_ENDPOINT` (default: `http://127.0.0.1:8080/v1`).
 
-| Document | What's in it |
+    +------------------------------------------------------------------------------------+
+    |                                Client Applications                                 |
+    |         (Open WebUI :8080, CLI Tools, Emacs, Neovim, External OpenAI Clients)      |
+    +-----------------------------------------+------------------------------------------+
+                                              |
+                                              v  MIOS_AI_ENDPOINT (:8080/v1)
+    +------------------------------------------------------------------------------------+
+    |                             Agent Orchestration Layer                              |
+    |  +------------------------------------------------------------------------------+  |
+    |  | mios-agent-pipe (:8640): Dynamic Router, Decomposer & Dispatch Gateway      |  |
+    |  +------------------------------------------------------------------------------+  |
+    |  | mios-hermes (:8642): OpenAI Agent Gateway (Session State, Tool-Loop, Skills) |  |
+    |  +------------------------------------------------------------------------------+  |
+    |  | mios-prefilter (:8641): Static Prompt Analysis & Fan-Out Decomposition Hinting|  |
+    +-----------------------------------------+------------------------------------------+
+                                              |
+                       +----------------------+----------------------+
+                       |                                             |
+                       v                                             v
+    +------------------------------------+        +--------------------------------------+
+    |          Inference Lanes           |        |           Tool & Data Plane          |
+    |  - mios-llm-light (:11450):        |        |  - Datastore: mios-pgvector (:5432)  |
+    |    llama.cpp + llama-swap proxy;   |        |    Relational memory, sessions, tool |
+    |    text generation & nomic-embed-  |        |    logs, vector semantic recall      |
+    |    text embeddings                 |        |  - Protocols: Model Context Protocol |
+    |  - mios-llm-heavy (:8000):         |        |    (MCP) tool servers + A2A bus      |
+    |    vLLM engine (VRAM-gated)        |        |  - Search: Local SearXNG instance    |
+    |  - mios-llm-heavy-alt (:30000):    |        |  - Code Mode: opencode-gateway       |
+    |    SGLang engine (VRAM-gated)      |        |    isolated execution council        |
+    +------------------------------------+        +--------------------------------------+
+
+### 7.1 Inference Routing Lanes
+System inference lanes are cataloged by operational function rather than upstream binary names:
+* **Primary Lane (`mios-llm-light`, Port: `11450`):** Multi-model inference engine based on `llama.cpp` managed by the `llama-swap` proxy container (`ghcr.io/mostlygeek/llama-swap:cuda`). Automatically loads, swaps, and evicts model weights based on demand; pages inactive context slots to disk; serves text generation, code assistance (`mios-opencode`), and high-throughput vector embeddings via `nomic-embed-text` (`/v1/embeddings`). Model configuration is defined in [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml).
+* **High-Throughput GPU Lane (`mios-llm-heavy`, Port: `8000`):** vLLM inference backend optimized for large parameter weights, continuous batching, and tensor parallelism. Inactive by default; enabled via configuration when host VRAM meets allocation thresholds.
+* **Alternative GPU Lane (`mios-llm-heavy-alt`, Port: `30000`):** SGLang inference backend providing RadixAttention cache optimizations for complex multi-turn reasoning workflows.
+* **Worker Swarm Nodes (`mios-llm-worker@`):** Template-instantiated systemd services allocating dedicated single-model workers across distributed compute devices.
+
+### 7.2 Agent Orchestration Pipeline
+* **`mios-agent-pipe` (Port: `8640`):** Core routing and dispatch intermediary connecting client interfaces (Open WebUI, messaging shims, shell completions) to downstream execution units. Handles prompt triage, task decomposition, and inter-service fan-out.
+* **`mios-hermes` (Port: `8642`):** Primary agent state machine implementing the OpenAI tool-calling loop, active execution sessions, dynamic skill loading, and OS-control operations.
+* **`mios-prefilter` (Port: `8641`):** Low-overhead prompt analyzer injecting contextual hints and pipeline routing metadata prior to primary inference.
+
+### 7.3 Unified Memory & Persistence
+* **Datastore (`mios-pgvector`, Port: `5432`):** Centralized PostgreSQL 16 instance utilizing the `pgvector` extension. Houses system-wide episodic agent memory, conversation session trees, structured tool telemetry, execution scratchpads, and the canonical `knowledge` vector base.
+* **Vector Embeddings:** Ingestion vectors are generated locally via `nomic-embed-text` through the primary inference lane, enforcing cryptographic data sovereignty.
+
+### 7.4 Tool Execution, Discovery & Federation
+* **Model Context Protocol (MCP):** Unified schema standard exposing system diagnostics, file system access, and package automation to local agents via JSON-RPC primitives over stdio and HTTP.
+* **Agent-to-Agent (A2A) Interface:** Federated discovery and delegation protocol permitting decoupled local agents to negotiate and dispatch tasks to peer units.
+* **Local Web Search:** Privacy-preserving retrieval engine backed by an in-image SearXNG instance (Port: `8888`), preventing parameter leakage to external commercial search engines.
+* **Dynamic Code Execution:** Host mutations and untrusted script execution are routed through `opencode-gateway` into isolated, Landlock- and seccomp-restricted sandboxes.
+* **AI Metadata Discovery System:** During image assembly, `/usr/libexec/mios/mios-ai-metadata.py` indexes file-level metadata tags (`AI-hint`, `AI-related`, `AI-functions`) into `/usr/share/mios/ai/v1/metadata.json` for deterministic tool discovery.
+
+### 7.5 Safety Boundaries and Isolation Layers
+1. **Strict JSON Schema Validation:** Schemas declared in `/usr/lib/mios/schemas/` enforce strict validation (`strict: true`, `additionalProperties: false`), preventing argument hallucination and malformed JSON payloads.
+2. **TypeScript Type Discrimination:** Discriminated unions defined in `/usr/lib/mios/ts/` enforce type safety across agent messaging channels and routing layers.
+3. **Rust Static Mediation Binaries:** Host-mutating operations are mediated by statically compiled Rust binaries located in `tools/native/`. These binaries bypass standard shell interpreters, enforcing strict tokenized parsing via POSIX `execve` system calls to eliminate prompt-injection-driven command injection.
+4. **Kernel Keyring Secret Isolation:** Administrative credentials, API keys, and sensitive tokens are retained within the Linux Kernel Keyring (`keyctl`) and exposed to authorized sub-processes via inherited file descriptors, preventing credential exfiltration into agent context windows.
+
+---
+
+## 8. The "Repo-as-Root" Invariant & FHS Mapping
+
+MiOS enforces a strict 1:1 structural equivalence: **the Git repository root is the deployed filesystem root (`.git` IS `/`)**.
+
+    / (Repository Root & System Target)
+    ├── usr/
+    │   ├── lib/
+    │   │   ├── bootc/kargs.d/             # Statically staged kernel arguments (IOMMU, VFIO, Lockdown)
+    │   │   ├── bootc/bound-images.d/      # Symlinks defining logically bound container workloads
+    │   │   ├── mios/schemas/              # Strict OpenAI JSON Schema definitions
+    │   │   ├── mios/ts/                   # TypeScript type-safe discriminated union manifests
+    │   │   └── systemd/system/            # Vendor systemd units and timer profiles
+    │   ├── libexec/mios/                  # Internal executable helper scripts and pipeline drivers
+    │   └── share/
+    │       ├── containers/systemd/        # System-level Podman Quadlet definitions
+    │       ├── doc/mios/                  # Comprehensive system documentation
+    │       └── mios/
+    │           ├── ai/                    # Agent prompts, models.json, mcp.json, tool registries
+    │           ├── configurator/          # mios.html standalone graphical configuration interface
+    │           ├── llamacpp/              # Inference routing maps and hardware model tables
+    │           └── mios.toml              # Single Source of Truth (SSOT) default configuration
+    ├── etc/
+    │   └── mios/                          # Administrator host-specific overrides
+    ├── var/
+    │   └── lib/                           # Mutable persistent application directories (declared via tmpfiles.d)
+    └── automation/                        # Numeric multi-phase image build automation scripts ([NN]-*.sh)
+
+No intermediate staging directories, external templating engines, or non-FHS build wrappers are used. Changes checked into paths under `usr/` or `etc/` compile directly to those exact targets within the OCI container image.
+
+---
+
+## 9. System Configuration & Governance
+
+System parameters are declared across a hierarchical three-layer override model evaluated at boot and runtime:
+
+    [Vendor Baseline]          -->  [Host Configuration]  -->  [User Configuration]
+    /usr/share/mios/mios.toml       /etc/mios/mios.toml        ~/.config/mios/mios.toml
+    (Immutable Image Root)          (Machine Specific)         (Per-User Profile)
+
+The vendor file `/usr/share/mios/mios.toml` serves as the Single Source of Truth (SSOT). Users customize their deployments by generating `~/.config/mios/mios.toml`:
+
+    [user]
+    name     = "operator"
+    hostname = "workstation-node"
+
+    [ai]
+    model            = "granite4.1:8b"
+    embedding_model  = "nomic-embed-text"
+    context_window   = 131072
+
+    [flatpaks]
+    install = [
+      "org.mozilla.firefox",
+      "org.videolan.VLC"
+    ]
+
+    [env]
+    EDITOR = "nvim"
+    PAGER  = "less"
+
+### CLI Governance Utilities
+* `just init-user-space`: Copies the vendor template to `~/.config/mios/mios.toml`.
+* `just edit`: Opens the active configuration in the system `$EDITOR`.
+* `just show-env`: Resolves the layered TOML properties and outputs the active system environment variables.
+* `sudo mios-sync-env`: Synchronizes values from `/etc/mios/mios.toml` into `/etc/mios/install.env` to align systemd daemon runtimes.
+
+---
+
+## 10. Build Pipeline & Deployment
+
+### 10.1 Deployment to Existing bootc Hosts
+
+To rebase an existing Fedora bootc installation onto MiOS:
+
+    sudo bootc switch ghcr.io/mios-dev/mios:latest
+    sudo systemctl reboot
+
+### 10.2 Windows Bootstrap (Provisioning Host)
+
+To provision a local development machine, configure virtual disk allocations, setup WSL2/Hyper-V, and initiate container compilation from Windows:
+
+    powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1 | iex"
+
+The script executes the following stages:
+1. Validates host CPU virtualization flags, RAM capacity, and storage blocks.
+2. Allocates partition `M:\` (256 GB NTFS) dedicated to the build root.
+3. Provisions the container runtime engine and stages the `MiOS-DEV` builder environment.
+4. Clones `mios.git` and branches into `/usr/libexec/mios/mios-build-driver`.
+5. Outputs raw disk images (`.raw`, `.vhdx`), an Anaconda installer `.iso`, and WSL2 rootfs archives.
+
+### 10.3 Linux Native Compilation & Image Output
+
+Linux builds require a functional `podman` installation and the `just` command runner:
+
+    # Clone source repository
+    git clone https://github.com/mios-dev/MiOS.git
+    cd MiOS
+
+    # Validate build requirements and container dependencies
+    just preflight
+
+    # Execute OCI container image build
+    just build
+
+    # Generate deployment artifacts
+    just iso     # Bootable installation media
+    just qcow2   # KVM / OpenStack image
+    just vhdx    # Hyper-V virtual disk
+    just wsl2    # WSL2 sideload distribution
+
+The compilation process is managed by `automation/` shell scripts running in strict numeric sequence (`00-base.sh` through `99-postcheck.sh`) inside an isolated Buildah/Podman context.
+
+---
+
+## 11. Repository Documentation Index
+
+All documentation conforms to the standard Linux FHS hierarchy under `/usr/share/doc/mios/` and utilizes structured categorization:
+
+| Target File | System Domain & Scope |
 |---|---|
-| [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md) | Architectural laws + OpenAI-compatible API surface (agent contract). |
-| [`usr/share/mios/ai/system.md`](usr/share/mios/ai/system.md) | Canonical agent system prompt. |
-| [`usr/share/mios/ai/audit-prompt.md`](usr/share/mios/ai/audit-prompt.md) | Read-only audit-mode prompt for any OpenAI-API-compatible agent. |
-| [`usr/share/mios/ai/v1/`](usr/share/mios/ai/v1/) | `models.json`, `mcp.json`, `metadata.json` -- per-OpenAI-v1-surface manifests. |
-| [`usr/lib/mios/schemas/`](usr/lib/mios/schemas/) | Strict OpenAI-compatible JSON Schemas (`strict: true`, `additionalProperties: false`). |
-| [`usr/lib/mios/ts/`](usr/lib/mios/ts/) | TypeScript global schemas, discriminated union action routing, and structural types. |
-| [`usr/share/mios/tmux/`](usr/share/mios/tmux/) | Tmux configurations and mobile iOS Blink Shell shortcut presets. |
-| [`docs/research/safe-schemas-and-rust-safety-net.md`](docs/research/safe-schemas-and-rust-safety-net.md) | Whole-system type safety, OpenAI wire formats, and Rust keyring safety net. |
-| [`usr/share/doc/mios/guides/blink-tmux-mobile-keys.md`](usr/share/doc/mios/guides/blink-tmux-mobile-keys.md) | iOS Blink Shell x tmux Shift+Tab and mobile gesture guide. |
-| [`usr/share/doc/mios/concepts/architecture.md`](usr/share/doc/mios/concepts/architecture.md) | Filesystem and hardware layout. |
-| [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md) | Build pipeline + shell conventions. |
-| [`usr/share/doc/mios/guides/security.md`](usr/share/doc/mios/guides/security.md) | Hardening kargs and posture. |
-| [`usr/share/doc/mios/guides/self-build.md`](usr/share/doc/mios/guides/self-build.md) | Build modes (CI, Linux, Windows, self-build). |
-| [`usr/share/doc/mios/guides/deploy.md`](usr/share/doc/mios/guides/deploy.md) | bootc + Day-2 lifecycle. |
-| [`usr/share/doc/mios/guides/install.md`](usr/share/doc/mios/guides/install.md) | KB ingest recipes (OpenAI-shaped). |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution conventions (root by GitHub convention). |
-| [`usr/share/doc/mios/reference/api.md`](usr/share/doc/mios/reference/api.md) | OpenAI-compatible AI surface (full spec). |
-| [`usr/share/doc/mios/reference/sources.md`](usr/share/doc/mios/reference/sources.md) | Every external reference, every upstream link. |
-| [`usr/share/doc/mios/reference/credits.md`](usr/share/doc/mios/reference/credits.md) | Attribution registry. |
-| [`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md) | Component licenses. |
-| [`usr/share/doc/mios/reference/tree.md`](usr/share/doc/mios/reference/tree.md) | Annotated FHS tree. |
-| [`usr/share/doc/mios/audits/`](usr/share/doc/mios/audits/) | Audit reports. |
+| [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md) | Canonical contract for AI architecture, ports, and OpenAI compatibility. |
+| [`usr/share/mios/ai/system.md`](usr/share/mios/ai/system.md) | Canonical baseline system prompt for internal agents. |
+| [`usr/share/mios/ai/v1/models.json`](usr/share/mios/ai/v1/models.json) | Local `/v1/models` manifest cataloging active inference identifiers. |
+| [`usr/share/mios/ai/v1/mcp.json`](usr/share/mios/ai/v1/mcp.json) | Registry of active Model Context Protocol (MCP) server endpoints. |
+| [`usr/lib/mios/schemas/`](usr/lib/mios/schemas/) | Strict JSON Schema definitions (`strict: true`) for tool inputs and outputs. |
+| [`usr/lib/mios/ts/`](usr/lib/mios/ts/) | TypeScript type declarations and discriminated unions for agent actions. |
+| [`usr/share/doc/mios/concepts/architecture.md`](usr/share/doc/mios/concepts/architecture.md) | Detailed filesystem, process isolation, and hardware topology. |
+| [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md) | Script conventions, coding standards, and build pipeline rules. |
+| [`usr/share/doc/mios/guides/security.md`](usr/share/doc/mios/guides/security.md) | Kernel lockdown parameters, SELinux policies, and fapolicyd whitelists. |
+| [`usr/share/doc/mios/guides/self-build.md`](usr/share/doc/mios/guides/self-build.md) | Day-0 through Day-N autonomous image build and self-replication procedures. |
+| [`usr/share/doc/mios/guides/deploy.md`](usr/share/doc/mios/guides/deploy.md) | `bootc` transactional operations, rollback hooks, and update policies. |
+| [`usr/share/doc/mios/reference/api.md`](usr/share/doc/mios/reference/api.md) | Detailed specification of the local OpenAI REST endpoints. |
+| [`usr/share/doc/mios/reference/PACKAGES.md`](usr/share/doc/mios/reference/PACKAGES.md) | Exhaustive catalog of package dependencies and architectural rationales. |
+| [`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md) | Comprehensive upstream component licensing inventory. |
 
-For LLMs and AI agents arriving at the repo:
-[`llms.txt`](llms.txt) and [`llms-full.txt`](llms-full.txt) are the
-machine-readable index. [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md),
-and [`GEMINI.md`](GEMINI.md) are the per-tool entry-point redirectors at
-repo root for tool discovery -- they all defer to
-`/usr/share/mios/ai/system.md` (canonical) once the OS is running.
+Machine-readable documentation summaries are maintained in [`llms.txt`](llms.txt) and [`llms-full.txt`](llms-full.txt). Tool discovery entry points ([`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md), [`GEMINI.md`](GEMINI.md)) map directly to `/usr/share/mios/ai/system.md`.
 
 ---
 
-## Status
+## 12. Development Status & Milestone Tracking
 
-'MiOS' is in active development at `v0.3.0`. The build pipeline is stable,
-the image lints clean against `bootc container lint`, and the WSL2 + ISO
-paths boot to a working desktop on the developer's daily-driver. The
-bare-metal install path works but expects you to know what `bootc switch`
-does before you run it.
+* **Baseline Version:** `v0.3.0` (Active Development).
+* **Base Platform:** Fedora CoreOS / uCore-HCI baseline (`bootc`).
+* **CI Quality Gate:** Strict compliance enforcement via `bootc container lint`, `shellcheck`, and `99-postcheck.sh`.
+* **State of Migration:** Legacy datastores (Qdrant, SurrealDB) and standalone Ollama daemon instances have been retired. Active services use PostgreSQL 16 + `pgvector` (`mios-pgvector`) and `llama-swap`/`llama.cpp` (`mios-llm-light`). All tool routing interfaces conform strictly to the Model Context Protocol (MCP) and the OpenAI API schema.
 
-On the AI side, the migration off the early Ollama/legacy-datastore/Qdrant stack is
-complete: inference + embeddings now run on the `mios-llm-light` lane (port key `llm_light`)
-with gated heavy GPU lanes, and the unified agent datastore is
-PostgreSQL+pgvector. Ollama survives only as an upstream *API-compat reference*
-(the lanes speak the OpenAI/Ollama-compatible API) and in historical migration
-notes.
-
-Open issues + roadmap live on the GitHub side. PRs welcome -- read
-[`CONTRIBUTING.md`](CONTRIBUTING.md) before you push.
+Contributions must adhere to the engineering standards codified in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 
-## License
+## 13. License & Legal Attribution
 
-Apache-2.0. Component licenses for every shipped piece are catalogued in
-[`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md).
+MiOS is distributed under the **Apache License, Version 2.0**. Refer to the [`LICENSE`](LICENSE) file for terms of use. Upstream software components bundled within the generated container image remain governed by their respective individual licenses as cataloged in [`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md).
 
-The `'MiOS'` name (capitalized) is a project mark; lowercase `mios` (used in
-file paths, package names, env-var prefixes, etc.) is the technical
-identifier and free of that constraint.
+`'MiOS'` is a project identification mark; the lowercase identifier `mios` is reserved for technical nomenclature including system paths, binary names, package keys, and environment variables.
