@@ -41,6 +41,16 @@ def load_vendor_exports(toml_path: str = TOML) -> dict:
 class SSOTTemplateConflict(Exception):
     """A template expression and the SSOT value it stands for disagree."""
 
+class QuadletSecurityError(Exception):
+    """A Quadlet violates a security invariant (Law 6 or Law 11)."""
+
+class UnauthorizedPrivilegeError(QuadletSecurityError):
+    """A Quadlet attempts root privilege without [security.privileged_quadlets].root listing (Law 6)."""
+
+class PlaintextSecretError(QuadletSecurityError):
+    """A Quadlet attempts to emit plaintext secrets in world-readable files (Law 11)."""
+
+
 def _ssot_expand(text: str) -> str:
     """text with every ${MIOS_*} expanded from the vendor exports."""
     probe = dict(_SSOT_EXPORTS, **{"pod-gen-probe": text})
@@ -90,6 +100,8 @@ def _resolve_one(inner: str) -> str:
         return _expand(default)
     if ssot:
         return ssot
+    if name in os.environ and os.environ[name] != "":
+        return os.environ[name]
     if _sidecar_image(name) is not None:
         return _expand(_sidecar_image(name))
     return _expand(default) if sep else "${%s}" % name
@@ -249,7 +261,124 @@ def load_enabled_quadlets(toml_path: str) -> dict:
         d = tomllib.load(f)
     return d.get("quadlets", {}).get("enable", {})
 
-def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
+def load_privileged_root(toml_path: str = TOML) -> set[str]:
+    """Allowlist of containers permitted to run with User=0/root or Group=0/root.
+    SSOT: [security.privileged_quadlets].root in mios.toml."""
+    try:
+        with open(toml_path, "rb") as f:
+            d = tomllib.load(f)
+        root_list = (d.get("security") or {}).get("privileged_quadlets") or {}
+        items = root_list.get("root") or []
+        allowed = set()
+        for item in items:
+            cleaned = str(item).split("#", 1)[0].strip()
+            if cleaned:
+                allowed.add(cleaned)
+                if cleaned.endswith(".container"):
+                    allowed.add(cleaned[:-10])
+        return allowed
+    except Exception:
+        return set()
+
+def load_grandfathered_credentials(toml_path: str = TOML) -> set[str]:
+    """Grandfathered path:KEY=VALUE credentials from [security.credential_literals].grandfathered."""
+    try:
+        with open(toml_path, "rb") as f:
+            d = tomllib.load(f)
+        items = (d.get("security") or {}).get("credential_literals", {}).get("grandfathered") or []
+        return {str(x).strip() for x in items if str(x).strip()}
+    except Exception:
+        return set()
+
+def load_secret_keys(toml_path: str = TOML) -> set[str]:
+    """Explicit secret keys from [security.secret_keys].keys."""
+    try:
+        with open(toml_path, "rb") as f:
+            d = tomllib.load(f)
+        items = (d.get("security") or {}).get("secret_keys", {}).get("keys") or []
+        return {str(x).strip() for x in items if str(x).strip()}
+    except Exception:
+        return set()
+
+_PRIVILEGED_ROOT: set[str] = load_privileged_root(TOML)
+_GRANDFATHERED_CREDS: set[str] = load_grandfathered_credentials(TOML)
+_SECRET_KEYS: set[str] = load_secret_keys(TOML)
+
+def is_credential_key(key: str, explicit_secrets: set[str] | None = None) -> bool:
+    if explicit_secrets and key in explicit_secrets:
+        return True
+    k_upper = key.upper()
+    looks = ("PASSWORD" in k_upper or "SECRET" in k_upper or "APIKEY" in k_upper or
+             "API_KEY" in k_upper or "TOKEN" in k_upper)
+    if not looks:
+        return False
+    not_cred = ("MAX_TOKENS" in k_upper or k_upper.endswith("_TOKENS") or
+                k_upper.startswith("ENABLE_") or k_upper.endswith("_ENABLED") or
+                "NUM_" in k_upper or k_upper.endswith("_LIMIT"))
+    return not not_cred
+
+def is_literal_value(val: str) -> bool:
+    if not val:
+        return False
+    clean = val.strip("'\"")
+    if not clean or clean.startswith("${") or clean.startswith("%"):
+        return False
+    if clean.lower() in ("true", "false"):
+        return False
+    if clean.isdigit():
+        return False
+    return True
+
+def _is_root_id(val: any) -> bool:
+    s = str(val).strip().lower()
+    return s in ("0", "root") or s.startswith("0:") or s.startswith("root:")
+
+def validate_environment_entry(name: str, unit_type: str, env_str: str,
+                               grandfathered: set[str] | None = None,
+                               explicit_secrets: set[str] | None = None) -> None:
+    if "=" not in env_str:
+        return
+    k, _, v = env_str.partition("=")
+    k = k.strip()
+    v = v.strip()
+    if is_credential_key(k, explicit_secrets) and is_literal_value(v):
+        unit_target = f"usr/share/containers/systemd/{name}.{unit_type}:{k}={v}"
+        alt_target = f"{name}.{unit_type}:{k}={v}"
+        clean_v = v.strip("'\"")
+        unit_target_clean = f"usr/share/containers/systemd/{name}.{unit_type}:{k}={clean_v}"
+        alt_target_clean = f"{name}.{unit_type}:{k}={clean_v}"
+        if grandfathered and (
+            unit_target in grandfathered or
+            alt_target in grandfathered or
+            unit_target_clean in grandfathered or
+            alt_target_clean in grandfathered
+        ):
+            return
+        raise PlaintextSecretError(
+            f"Quadlet '{name}.{unit_type}' attempts to emit non-placeholder password literal "
+            f"'{k}={v}' into /usr/share/containers/systemd/ (Law 11). "
+            f"Quadlets must emit secret references (e.g. EnvironmentFile=/etc/mios/secrets.env) "
+            f"or placeholder tokens rather than plaintext in /usr."
+        )
+
+def render_nested_quadlet(name: str, spec: dict, unit_type: str,
+                           allowed_root: set[str] | None = None,
+                           grandfathered_creds: set[str] | None = None,
+                           secret_keys: set[str] | None = None) -> str:
+    if allowed_root is None:
+        allowed_root = _PRIVILEGED_ROOT
+    if grandfathered_creds is None:
+        grandfathered_creds = _GRANDFATHERED_CREDS
+    if secret_keys is None:
+        secret_keys = _SECRET_KEYS
+
+    is_auth_root = (
+        name in allowed_root
+        or f"{name}.{unit_type}" in allowed_root
+        or f"{name}.container" in allowed_root
+        or (("@" in name) and (name.split("@")[0] + "@" in allowed_root or f"{name.split('@')[0]}@.container" in allowed_root))
+    )
+
     lines: list[str] = []
     desc = str(spec.get("description") or f"MiOS {name} {unit_type}")
     lines.append(f"# AI-hint: {desc}. (WS-7 pods-as-SSOT).")
@@ -284,6 +413,14 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
             if isinstance(val, list):
                 for item in val:
                     resolved_item = resolve_env_vars(item)
+                    if k in ("User", "Group") and _is_root_id(resolved_item):
+                        if unit_type == "container" and not is_auth_root:
+                            raise UnauthorizedPrivilegeError(
+                                f"Container '{name}' attempts {k}={resolved_item} but is not listed in "
+                                f"[security.privileged_quadlets].root in mios.toml (Law 6)"
+                            )
+                    if k == "Environment" and unit_type == "container":
+                        validate_environment_entry(name, unit_type, str(resolved_item), grandfathered_creds, secret_keys)
                     lines.append(f"{k}={resolved_item}")
             elif isinstance(val, bool):
                 lines.append(f"{k}={'true' if val else 'false'}")
@@ -293,6 +430,14 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
                     continue
                 if k in ("User", "Group") and resolved_val == "":
                     continue
+                if k in ("User", "Group") and _is_root_id(resolved_val):
+                    if unit_type == "container" and not is_auth_root:
+                        raise UnauthorizedPrivilegeError(
+                            f"Container '{name}' attempts {k}={resolved_val} but is not listed in "
+                            f"[security.privileged_quadlets].root in mios.toml (Law 6)"
+                        )
+                if k == "Environment" and unit_type == "container":
+                    validate_environment_entry(name, unit_type, str(resolved_val), grandfathered_creds, secret_keys)
                 lines.append(f"{k}={resolved_val}")
 
     return "\n".join(lines).strip() + "\n"
@@ -302,9 +447,12 @@ def main(argv: "list[str]") -> int:
         return _selftest()
     check = "--check" in argv
     list_mode = "--list" in argv
-    global _SIDECARS, _SSOT_EXPORTS
+    global _SIDECARS, _SSOT_EXPORTS, _PRIVILEGED_ROOT, _GRANDFATHERED_CREDS, _SECRET_KEYS
     _SSOT_EXPORTS = load_vendor_exports(TOML)
     _SIDECARS = load_sidecars(TOML)
+    _PRIVILEGED_ROOT = load_privileged_root(TOML)
+    _GRANDFATHERED_CREDS = load_grandfathered_credentials(TOML)
+    _SECRET_KEYS = load_secret_keys(TOML)
     enabled_map = load_enabled_quadlets(TOML)
     pods = load_pods(TOML)
     ports = load_ports(TOML)
@@ -546,6 +694,74 @@ def _selftest() -> int:
     os.unlink(uf.name)
     ck("selftest: vendor value read", clean.get("MIOS_VLLM_MAX_MODEL_LEN") == real)
     ck("selftest: overlays and environment change no vendor export", planted == clean)
+    for _k in ("MIOS_USER_TOML", "MIOS_HOST_TOML", "MIOS_VLLM_MAX_MODEL_LEN", "T_UTIL", "T_VER"):
+        os.environ.pop(_k, None)
+
+    # --- Privilege Enforcement Controls (Law 6) ---
+    # Negative Control 1: Unauthorized User=0
+    try:
+        render_nested_quadlet("test-unauth-root", {"Container": {"User": "0", "Image": "alpine"}}, "container")
+        ck("selftest: unauthorized container with User=0 is rejected", False)
+    except UnauthorizedPrivilegeError:
+        ck("selftest: unauthorized container with User=0 is rejected", True)
+
+    # Negative Control 2: Unauthorized User=root
+    try:
+        render_nested_quadlet("test-unauth-root", {"Container": {"User": "root", "Image": "alpine"}}, "container")
+        ck("selftest: unauthorized container with User=root is rejected", False)
+    except UnauthorizedPrivilegeError:
+        ck("selftest: unauthorized container with User=root is rejected", True)
+
+    # Negative Control 3: Unauthorized Group=0
+    try:
+        render_nested_quadlet("test-unauth-root", {"Container": {"Group": "0", "Image": "alpine"}}, "container")
+        ck("selftest: unauthorized container with Group=0 is rejected", False)
+    except UnauthorizedPrivilegeError:
+        ck("selftest: unauthorized container with Group=0 is rejected", True)
+
+    # Negative Control 4: Build-environment variable override User=0 rejected
+    os.environ["MIOS_TEST_OVERRIDE_UID"] = "0"
+    try:
+        render_nested_quadlet("test-unauth-root", {"Container": {"User": "${MIOS_TEST_OVERRIDE_UID:-1000}", "Image": "alpine"}}, "container")
+        ck("selftest: build-env override User=0 on unauthorized container is rejected", False)
+    except UnauthorizedPrivilegeError:
+        ck("selftest: build-env override User=0 on unauthorized container is rejected", True)
+    finally:
+        os.environ.pop("MIOS_TEST_OVERRIDE_UID", None)
+
+    # Positive Control 1: Authorized container in privileged_quadlets.root allows User=0 and Group=0
+    auth_out = render_nested_quadlet("mios-ceph", {"Container": {"User": "0", "Group": "0", "Image": "ceph"}}, "container")
+    ck("selftest: authorized container in privileged_quadlets.root allows User=0", "User=0" in auth_out and "Group=0" in auth_out)
+
+    # Positive Control 2: Unprivileged container with standard non-zero UID passes
+    unpriv_out = render_nested_quadlet("mios-adguard", {"Container": {"User": "825", "Group": "825", "Image": "adguard"}}, "container")
+    ck("selftest: unprivileged container with User=825 passes", "User=825" in unpriv_out and "Group=825" in unpriv_out)
+
+    # --- Credential and Plaintext Secret Controls (Law 11) ---
+    # Negative Control 5: Non-placeholder password literal in Environment is rejected
+    try:
+        render_nested_quadlet("test-db", {"Container": {"Environment": ["POSTGRES_PASSWORD=my-super-secret-pw"], "Image": "postgres"}}, "container")
+        ck("selftest: non-placeholder password literal in Environment is rejected", False)
+    except PlaintextSecretError:
+        ck("selftest: non-placeholder password literal in Environment is rejected", True)
+
+    # Negative Control 6: Build-environment variable injected password literal is rejected
+    os.environ["MIOS_INJECTED_PASS"] = "NOT-A-REAL-PASSWORD-negative-test"
+    try:
+        render_nested_quadlet("test-db", {"Container": {"Environment": ["DB_PASSWORD=${MIOS_INJECTED_PASS:-placeholder}"], "Image": "postgres"}}, "container")
+        ck("selftest: build-env injected password literal is rejected", False)
+    except PlaintextSecretError:
+        ck("selftest: build-env injected password literal is rejected", True)
+    finally:
+        os.environ.pop("MIOS_INJECTED_PASS", None)
+
+    # Positive Control 3: Grandfathered placeholder password literal passes
+    gf_out = render_nested_quadlet("mios-pgvector", {"Container": {"Environment": ["POSTGRES_PASSWORD=mios"], "Image": "pgvector"}}, "container")
+    ck("selftest: grandfathered placeholder password literal passes", "Environment=POSTGRES_PASSWORD=mios" in gf_out)
+
+    # Positive Control 4: Secret reference via EnvironmentFile passes
+    ref_out = render_nested_quadlet("mios-pgvector", {"Container": {"EnvironmentFile": "/etc/mios/secrets.env", "Image": "pgvector"}}, "container")
+    ck("selftest: secret reference via EnvironmentFile passes", "EnvironmentFile=/etc/mios/secrets.env" in ref_out)
 
     print(f"\n{'ok' if fails == 0 else str(fails) + ' FAILED'}")
     return 1 if fails else 0
@@ -553,6 +769,6 @@ def _selftest() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except SSOTTemplateConflict as exc:
+    except (SSOTTemplateConflict, QuadletSecurityError) as exc:
         print(f"[pod-gen] ERROR: {exc}", file=sys.stderr)
         sys.exit(1)

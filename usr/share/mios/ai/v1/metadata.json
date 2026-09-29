@@ -4,7 +4,7 @@
   "total_metadata_entries": 2964,
   "total_hints": 2952,
   "total_functions_indexed": 1345,
-  "total_related_links": 4653,
+  "total_related_links": 4655,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -26741,7 +26741,7 @@
     },
     {
       "path": "usr/share/containers/systemd/mios-ai.pod",
-      "hint": "GENERATED Quadlet pod for the co-resident group 'mios-ai' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-ai] in mios.toml. Members (7): mios-llm-light, mios-cpu-node, mios-llm-worker@, mios-llm-heavy, mios-llm-heavy-alt, mios-pgvector, mios-open-webui.",
+      "hint": "GENERATED Quadlet pod for the co-resident group 'mios-ai' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-ai] in mios.toml. Members (9): mios-llm-light, mios-cpu-node, mios-llm-worker@, mios-llm-heavy, mios-llm-heavy-alt, mios-pgvector, mios-open-webui, mios-piper, mios-whisper.",
       "related": [
         "usr/share/mios/mios.toml",
         "tools/generate-pod-quadlets.py",
@@ -26751,7 +26751,9 @@
         "mios-llm-heavy.container",
         "mios-llm-heavy-alt.container",
         "mios-pgvector.container",
-        "mios-open-webui.container"
+        "mios-open-webui.container",
+        "mios-piper.container",
+        "mios-whisper.container"
       ],
       "functions": [],
       "doc": null,
@@ -26922,10 +26924,10 @@
     },
     {
       "path": "usr/share/containers/systemd/mios-piper.container",
-      "hint": "Quadlet container unit for local Piper/Kokoro streaming text-to-speech engine (T-534, AGY-2132).",
+      "hint": "MiOS mios-piper container. (WS-7 pods-as-SSOT).",
       "related": [],
       "functions": [],
-      "doc": "usr/share/doc/mios/manual/ch79-streaming-tts-piper.md",
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -26958,10 +26960,10 @@
     },
     {
       "path": "usr/share/containers/systemd/mios-sunshine.container",
-      "hint": "Quadlet container unit for Sunshine low-latency game/desktop streaming server with GPU CDI device access and DMA-BUF capabilities (T-535, AGY-2133).",
+      "hint": "MiOS mios-sunshine container. (WS-7 pods-as-SSOT).",
       "related": [],
       "functions": [],
-      "doc": "usr/share/doc/mios/manual/ch80-hardware-video-encoding.md",
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -27042,10 +27044,10 @@
     },
     {
       "path": "usr/share/containers/systemd/mios-whisper.container",
-      "hint": "Quadlet container unit for local whisper.cpp streaming speech-to-text engine (T-533, AGY-2131).",
+      "hint": "MiOS mios-whisper container. (WS-7 pods-as-SSOT).",
       "related": [],
       "functions": [],
-      "doc": "usr/share/doc/mios/manual/ch78-streaming-audio-whisper.md",
+      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },

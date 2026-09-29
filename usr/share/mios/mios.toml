@@ -7294,7 +7294,9 @@ members     = [
   "mios-llm-heavy",
   "mios-llm-heavy-alt",
   "mios-pgvector",
-  "mios-open-webui"
+  "mios-open-webui",
+  "mios-piper",
+  "mios-whisper"
 ]
 doc = """Consolidated AI pod."""
 
@@ -9973,6 +9975,132 @@ TimeoutStartSec = "300s"
 After = "network-online.target mios-webtools-firstboot.service"
 Description = "'MiOS' OpenTelemetry Collector and Jaeger Trace Viewer"
 Wants = "network-online.target"
+
+[containers.mios-piper.Unit]
+After = "network-online.target mios-cdi-detect.service"
+Description = "'MiOS' Piper/Kokoro Streaming TTS Engine (piper-http)"
+Documentation = "https://github.com/rhasspy/piper"
+Wants = "network-online.target"
+
+[containers.mios-piper.Container]
+ContainerName = "mios-piper"
+Environment = "PORT=${MIOS_PORT_PIPER:-8179}"
+EnvironmentFile = "/etc/mios/install.env"
+Exec = "--model /models/en_US-lessac-medium.onnx --port ${MIOS_PORT_PIPER:-8179} --host 0.0.0.0"
+HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_PIPER:-8179}/health || exit 1"
+HealthInterval = "30s"
+HealthRetries = 3
+HealthStartPeriod = "30s"
+HealthTimeout = "10s"
+Image = "ghcr.io/rhasspy/piper:latest"
+Label = [
+  "org.opencontainers.image.title=mios-piper",
+  'org.opencontainers.image.description="Local Piper/Kokoro streaming server for MiOS real-time speech synthesis"'
+]
+Pod = "mios-ai.pod"
+Volume = [
+  "/usr/share/mios/piper/models:/models:ro,Z",
+  "/run/mios:/run/mios:Z"
+]
+
+[containers.mios-piper.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-piper.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "5s"
+TimeoutStartSec = "300s"
+
+[containers.mios-whisper.Unit]
+After = "network-online.target mios-cdi-detect.service"
+Description = "'MiOS' Whisper Streaming STT Engine (whisper.cpp)"
+Documentation = "https://github.com/ggerganov/whisper.cpp"
+Wants = "network-online.target"
+
+[containers.mios-whisper.Container]
+ContainerName = "mios-whisper"
+Environment = "PORT=${MIOS_PORT_WHISPER:-8178}"
+EnvironmentFile = "/etc/mios/install.env"
+Exec = "--model /models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert"
+HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_WHISPER:-8178}/health || exit 1"
+HealthInterval = "30s"
+HealthRetries = 3
+HealthStartPeriod = "30s"
+HealthTimeout = "10s"
+Image = "ghcr.io/ggerganov/whisper.cpp:main"
+Label = [
+  "org.opencontainers.image.title=mios-whisper",
+  'org.opencontainers.image.description="Local whisper.cpp streaming server for MiOS real-time speech-to-text"'
+]
+Pod = "mios-ai.pod"
+Volume = [
+  "/usr/share/mios/whisper/models:/models:ro,Z",
+  "/run/mios:/run/mios:Z"
+]
+
+[containers.mios-whisper.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-whisper.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "5s"
+TimeoutStartSec = "300s"
+
+[containers.mios-sunshine.Unit]
+After = "network-online.target mios-cdi-detect.service"
+Description = "'MiOS' Sunshine Low-Latency Streaming Server (DMA-BUF & HW Encode)"
+Documentation = "https://docs.lizardbyte.dev/projects/sunshine"
+Wants = "network-online.target"
+
+[containers.mios-sunshine.Container]
+AddCapability = [
+  "CAP_SYS_ADMIN",
+  "CAP_NET_ADMIN",
+  "CAP_SYS_NICE"
+]
+AddDevice = [
+  "/dev/dri",
+  "/dev/uinput",
+  "nvidia.com/gpu=all"
+]
+ContainerName = "mios-sunshine"
+Environment = [
+  "SUNSHINE_USER=mios",
+  "PULSE_SERVER=unix:/run/user/1000/pulse/native",
+  "XDG_RUNTIME_DIR=/run/user/1000",
+  "WAYLAND_DISPLAY=wayland-0"
+]
+EnvironmentFile = "/etc/mios/install.env"
+HealthCmd = "curl -fsS http://localhost:47990/ || exit 1"
+HealthInterval = "30s"
+HealthRetries = 3
+HealthStartPeriod = "20s"
+HealthTimeout = "10s"
+Image = "docker.io/lizardbyte/sunshine:latest"
+Label = [
+  "org.opencontainers.image.title=mios-sunshine",
+  'org.opencontainers.image.description="Low-latency Sunshine/Moonlight streaming server with multi-vendor hardware encoding and DMA-BUF capture"'
+]
+Network = "host"
+SecurityLabelDisable = true
+Volume = [
+  "/run/user/1000:/run/user/1000:ro",
+  "/etc/sunshine:/etc/sunshine:Z",
+  "/var/lib/mios/sunshine:/var/lib/mios/sunshine:Z",
+  "/dev/dri:/dev/dri:rslave",
+  "/dev/uinput:/dev/uinput:rslave"
+]
+
+[containers.mios-sunshine.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-sunshine.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "5s"
+TimeoutStartSec = "120s"
 
 
 # ─── Editions Matrix ─────────────────────────────────────────────────────────

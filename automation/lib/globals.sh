@@ -1910,7 +1910,7 @@ to" / "let me know".
 : "${MIOS_PODS_MIOS_AI_AFTER:=network-online.target}"
 [ -n "${MIOS_PODS_MIOS_AI_DESCRIPTION+x}" ] || MIOS_PODS_MIOS_AI_DESCRIPTION=''"'"'MiOS'"'"' AI pod (inference, heavy, data, ui)'
 : "${MIOS_PODS_MIOS_AI_DOC:=Consolidated AI pod.}"
-: "${MIOS_PODS_MIOS_AI_MEMBERS:=mios-llm-light,mios-cpu-node,mios-llm-worker@,mios-llm-heavy,mios-llm-heavy-alt,mios-pgvector,mios-open-webui}"
+: "${MIOS_PODS_MIOS_AI_MEMBERS:=mios-llm-light,mios-cpu-node,mios-llm-worker@,mios-llm-heavy,mios-llm-heavy-alt,mios-pgvector,mios-open-webui,mios-piper,mios-whisper}"
 : "${MIOS_PODS_MIOS_AI_NETWORK:=host}"
 : "${MIOS_PODS_MIOS_AI_WANTED_BY:=multi-user.target,default.target}"
 : "${MIOS_PODS_MIOS_AI_WANTS:=network-online.target}"
