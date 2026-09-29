@@ -30,6 +30,8 @@ public class W32 {
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
     [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int n, bool repaint);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
@@ -296,9 +298,24 @@ public class MiosWin {
         } else {
             throw "window-focus: <hwnd-or-pid> must be numeric"
         }
-        [W32]::ShowWindow($hwnd, 9) | Out-Null  # SW_RESTORE
+        $wasZoomed = [W32]::IsZoomed($hwnd)
+        if ([W32]::IsIconic($hwnd)) { [W32]::ShowWindow($hwnd, 9) | Out-Null }
+        $before = New-Object W32+RECT
+        [void][W32]::GetWindowRect($hwnd, [ref]$before)
         [W32]::BringWindowToTop($hwnd) | Out-Null
         [W32]::SetForegroundWindow($hwnd) | Out-Null
+        if (-not $wasZoomed -and $before.Right -gt $before.Left -and $before.Bottom -gt $before.Top) {
+            Start-Sleep -Milliseconds 100
+            $after = New-Object W32+RECT
+            [void][W32]::GetWindowRect($hwnd, [ref]$after)
+            if ([W32]::IsZoomed($hwnd) -or $after.Left -ne $before.Left -or
+                $after.Top -ne $before.Top -or $after.Right -ne $before.Right -or
+                $after.Bottom -ne $before.Bottom) {
+                [void][W32]::ShowWindow($hwnd, 1)
+                [void][W32]::MoveWindow($hwnd, $before.Left, $before.Top,
+                    $before.Right - $before.Left, $before.Bottom - $before.Top, $true)
+            }
+        }
         Write-Output "[mios-pc-control] window-focus hwnd=$hwnd"
     }
 
@@ -354,6 +371,7 @@ public class MiosWin {
         $previousDpi = [IntPtr]::Zero
         try { $previousDpi = [W32]::SetThreadDpiAwarenessContext([IntPtr]::new(-4)) } catch {}
         try {
+            if ([W32]::IsIconic($hwnd)) { [W32]::ShowWindow($hwnd, 9) | Out-Null }
             $rect = New-Object W32+RECT
             if (-not [W32]::GetWindowRect($hwnd, [ref]$rect)) { throw "window-center: could not read window rectangle" }
             $screen = [System.Windows.Forms.Screen]::FromHandle($hwnd).WorkingArea
@@ -363,7 +381,6 @@ public class MiosWin {
             $y = $screen.Y + [int](($screen.Height - $h) / 2)
             [W32]::MoveWindow($hwnd, $x, $y, $w, $h, $true) | Out-Null
         } finally { if ($previousDpi -ne [IntPtr]::Zero) { [void][W32]::SetThreadDpiAwarenessContext($previousDpi) } }
-        [W32]::ShowWindow($hwnd, 9) | Out-Null  # SW_RESTORE
         [W32]::SetForegroundWindow($hwnd) | Out-Null
         Write-Output "[mios-pc-control] window-center hwnd=$hwnd to ($x,$y) ${w}x${h}"
     }
