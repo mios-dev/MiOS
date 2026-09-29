@@ -118,8 +118,10 @@ mios_log "Fixing home directory ownership"
         home=$(getent passwd "$u" | cut -d: -f6)
         if [ -d "$home" ]; then
             uid=$(id -u "$u"); gid=$(id -g "$u")
+            mkdir -p "$home/.cache/oh-my-posh" "$home/.config" 2>/dev/null || true
             chown -R "${uid}:${gid}" "$home"
             chmod 0755 "$home" 2>/dev/null || true
+            chmod -R 0755 "$home/.cache" "$home/.config" 2>/dev/null || true
         fi
     fi
 done

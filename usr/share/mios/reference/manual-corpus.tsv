@@ -1305,7 +1305,7 @@ automation/cicd/02-distill-agent-weights.py	1	4	4	16	2fa94fc2fd72	STAY	ai-header
 automation/cicd/03-build-bootc-oci.sh	1	4	4	15	d9f4d943d11d	STAY	ai-header		0				0
 automation/cicd/04-deploy-atomic-switch.sh	1	4	4	14	08b0ae97c533	STAY	ai-header		0				0
 automation/cicd/05-run-agy-pipeline-agent.sh	1	4	4	25	b7186be410fb	STAY	ai-header		0				0
-automation/cicd/05-run-agy-pipeline-agent.sh	42	42	1	8	3e6e1765bffc	STAY	local-scoped		0				0
+automation/cicd/05-run-agy-pipeline-agent.sh	55	55	1	6	c476e98a56dd	STAY	local-scoped		0				0
 automation/enroll-mok.sh	1	3	3	32	6ba038552116	STAY	ai-header		0				0
 automation/enroll-mok.sh	9	9	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
 automation/firstboot/mios-cephfs-mount-setup.sh	1	3	3	18	f56f5e85369c	STAY	ai-header		0				0
@@ -4827,23 +4827,29 @@ tests/test-agent-pipe-scheduling.py	163	163	1	5	89bc9342a1bb	STAY	local-scoped		
 tests/test-agent-worktree.py	1	3	3	14	24662073047d	STAY	ai-header		0				0
 tests/test-agy-agent-pipeline.py	1	3	3	19	a4da8bd99b1e	STAY	ai-header		0				0
 tests/test-agy-agent-pipeline.py	4	4	1	11	5054170d9487	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	17	17	1	12	2acfb3fe4380	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	20	20	1	7	9d6088907bab	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	25	25	1	2	20a31388f020	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	33	33	1	4	08a5cc22ba9e	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	37	37	1	4	6fb522225001	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	42	42	1	8	d515443d69b3	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	74	74	1	11	e0e7da65174e	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	92	92	1	5	bd5db7a00902	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	103	103	1	3	d682b3c922cd	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	110	110	1	7	0f1dd440e43b	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	123	123	1	7	75fc8e231803	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	141	141	1	6	8136f163e144	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	147	147	1	6	d5aeedae441a	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	152	152	1	4	27791d04e6b3	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	157	157	1	3	562eade50095	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	162	162	1	6	b168a953e21b	STAY	local-scoped		0				0
-tests/test-agy-agent-pipeline.py	179	179	1	9	6f95ebc98f59	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	20	20	1	12	2acfb3fe4380	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	23	23	1	7	9d6088907bab	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	28	28	1	2	20a31388f020	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	36	36	1	4	08a5cc22ba9e	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	40	40	1	4	6fb522225001	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	45	45	1	8	d515443d69b3	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	77	77	1	11	e0e7da65174e	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	95	95	1	5	bd5db7a00902	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	106	106	1	3	d682b3c922cd	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	113	113	1	7	0f1dd440e43b	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	126	126	1	7	75fc8e231803	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	144	144	1	6	8136f163e144	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	150	150	1	6	d5aeedae441a	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	155	155	1	4	27791d04e6b3	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	160	160	1	3	562eade50095	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	166	166	1	6	b168a953e21b	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	183	183	1	9	6f95ebc98f59	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	204	204	1	10	407712653c28	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	208	208	1	9	3ed16aa8e021	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	220	220	1	9	3e92c2261af1	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	225	225	1	7	f7fb81dd9216	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	242	243	2	18	9bd2715054f1	STAY	local-scoped		0				0
+tests/test-agy-agent-pipeline.py	267	267	1	7	1b5da088de80	STAY	local-scoped		0				0
 tests/test-ai-acceleration.py	1	3	3	21	c22009f06770	STAY	ai-header		0				0
 tests/test-ai-acceleration.py	4	4	1	7	7df9a6369970	STAY	local-scoped		0				0
 tests/test-ai-acceleration.py	38	38	1	6	cf2f22d96a15	STAY	local-scoped		0				0
@@ -14355,41 +14361,40 @@ usr/lib/mios/mios_toml.py	13	13	1	2	6a45cb321409	STAY	inline-scoped		0				0
 usr/lib/mios/mios_toml.py	15	15	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 usr/lib/mios/mios_toml.py	16	16	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
 usr/lib/mios/mios_toml.py	20	23	4	49	9e9f33087386	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	34	34	1	10	28dee7d44129	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	42	42	1	8	23a95e7f385c	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	48	50	3	33	c51328849143	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	57	60	4	40	69fb3387c633	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:69fb3387c633	40	0
-usr/lib/mios/mios_toml.py	73	84	12	119	982133a0fda5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:982133a0fda5	119	0
-usr/lib/mios/mios_toml.py	91	92	2	22	c12e49ce3341	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	108	108	1	11	d02f1c80a7a4	STAY	inline-scoped		0				0
-usr/lib/mios/mios_toml.py	136	153	18	145	d55cbc3df935	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:d55cbc3df935	145	0
-usr/lib/mios/mios_toml.py	184	184	1	8	7092dd2ff864	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	217	219	3	33	4179b26ee527	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:4179b26ee527	33	0
-usr/lib/mios/mios_toml.py	227	231	5	45	c59075d9b666	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	240	240	1	9	a238ccd72602	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	249	249	1	12	6fc3b3eee930	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	279	279	1	8	c18280c9a255	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	295	295	1	7	853b01c06737	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	300	300	1	9	de5541b6fb2a	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	302	302	1	11	551b4071cd6f	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	303	303	1	2	c70b63bd9f07	STAY	inline-scoped		0				0
-usr/lib/mios/mios_toml.py	307	310	4	30	16213fb06229	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	332	332	1	13	4aafdbedadd1	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	338	338	1	14	442a9dd78105	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	355	355	1	17	df7479bacacb	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	369	369	1	16	c374e8f1be5e	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	519	522	4	37	ef8cbfde2c4b	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	527	527	1	11	b617b7cff07d	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	529	530	2	21	4dd308b855a3	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	601	604	4	35	d1266b3bad8c	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	609	609	1	11	dd59ef542589	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	783	792	10	95	737153c244c1	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:737153c244c1	95	0
-usr/lib/mios/mios_toml.py	800	805	6	48	d504ff19350f	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:d504ff19350f	48	0
-usr/lib/mios/mios_toml.py	809	813	5	51	ed9ca8c2eb42	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	829	831	3	33	fb5bcdb46f6f	STAY	midsize-why		0				0
-usr/lib/mios/mios_toml.py	846	846	1	15	ac678dfccd0e	STAY	local-scoped		0				0
-usr/lib/mios/mios_toml.py	873	883	11	100	133a719d6497	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:133a719d6497	100	0
-usr/lib/mios/mios_toml.py	905	926	22	158	0b6e10f68be6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:0b6e10f68be6	158	0
+usr/lib/mios/mios_toml.py	35	35	1	8	23a95e7f385c	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	41	43	3	33	c51328849143	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	50	53	4	40	69fb3387c633	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:69fb3387c633	40	0
+usr/lib/mios/mios_toml.py	66	77	12	119	982133a0fda5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:982133a0fda5	119	0
+usr/lib/mios/mios_toml.py	84	85	2	22	c12e49ce3341	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	101	101	1	11	d02f1c80a7a4	STAY	inline-scoped		0				0
+usr/lib/mios/mios_toml.py	129	146	18	145	d55cbc3df935	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:d55cbc3df935	145	0
+usr/lib/mios/mios_toml.py	177	177	1	8	7092dd2ff864	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	210	212	3	33	4179b26ee527	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/mios.md	mios-src:4179b26ee527	33	0
+usr/lib/mios/mios_toml.py	220	224	5	45	c59075d9b666	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	233	233	1	9	a238ccd72602	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	242	242	1	12	6fc3b3eee930	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	272	272	1	8	c18280c9a255	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	288	288	1	7	853b01c06737	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	293	293	1	9	de5541b6fb2a	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	295	295	1	11	551b4071cd6f	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	296	296	1	2	c70b63bd9f07	STAY	inline-scoped		0				0
+usr/lib/mios/mios_toml.py	300	303	4	30	16213fb06229	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	325	325	1	13	4aafdbedadd1	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	331	331	1	14	442a9dd78105	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	348	348	1	17	df7479bacacb	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	362	362	1	16	c374e8f1be5e	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	512	515	4	37	ef8cbfde2c4b	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	520	520	1	11	b617b7cff07d	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	522	523	2	21	4dd308b855a3	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	594	597	4	35	d1266b3bad8c	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	602	602	1	11	dd59ef542589	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	776	785	10	95	737153c244c1	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:737153c244c1	95	0
+usr/lib/mios/mios_toml.py	793	798	6	48	d504ff19350f	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:d504ff19350f	48	0
+usr/lib/mios/mios_toml.py	802	806	5	51	ed9ca8c2eb42	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	822	824	3	33	fb5bcdb46f6f	STAY	midsize-why		0				0
+usr/lib/mios/mios_toml.py	839	839	1	15	ac678dfccd0e	STAY	local-scoped		0				0
+usr/lib/mios/mios_toml.py	866	876	11	100	133a719d6497	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:133a719d6497	100	0
+usr/lib/mios/mios_toml.py	898	919	22	158	0b6e10f68be6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:0b6e10f68be6	158	0
 usr/lib/mios/paths.sh	1	3	3	29	3743f404b585	STAY	ai-header		0				0
 usr/lib/mios/test_mios_comments.py	1	3	3	29	53b9c66d2221	STAY	ai-header		0				0
 usr/lib/mios/test_mios_comments.py	4	13	9	68	54f42dee754a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:54f42dee754a	68	0
@@ -15094,9 +15099,9 @@ usr/lib/tmpfiles.d/mios-theme.conf	1	2	2	33	ab714b960648	STAY	ai-header		0	usr/s
 usr/lib/tmpfiles.d/mios-thp.conf	1	2	2	16	788219030e57	STAY	ai-header		0				0
 usr/lib/tmpfiles.d/mios-tmp-perms.conf	1	2	2	23	4eab02954594	STAY	ai-header		0				0
 usr/lib/tmpfiles.d/mios-user.conf	1	3	3	38	473a98a584ae	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/tmpfiles.d.md	mios-src:473a98a584ae	38	0
-usr/lib/tmpfiles.d/mios-user.conf	11	24	14	131	638f15bbbd1b	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tmpfiles.d.md	mios-src:638f15bbbd1b	131	0
-usr/lib/tmpfiles.d/mios-user.conf	28	33	6	46	fe0efea57622	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tmpfiles.d.md	mios-src:fe0efea57622	46	0
-usr/lib/tmpfiles.d/mios-user.conf	35	39	5	43	de1992f28d11	STAY	midsize-why		0				0
+usr/lib/tmpfiles.d/mios-user.conf	13	26	14	131	638f15bbbd1b	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tmpfiles.d.md	mios-src:638f15bbbd1b	131	0
+usr/lib/tmpfiles.d/mios-user.conf	30	35	6	46	fe0efea57622	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tmpfiles.d.md	mios-src:fe0efea57622	46	0
+usr/lib/tmpfiles.d/mios-user.conf	37	41	5	43	de1992f28d11	STAY	midsize-why		0				0
 usr/lib/tmpfiles.d/mios-virtio.conf	1	2	2	27	0c80a5582f41	STAY	ai-header		0				0
 usr/lib/tmpfiles.d/mios-vllm.conf	1	2	2	15	7bd767435016	STAY	ai-header		0				0
 usr/lib/tmpfiles.d/mios-wsl2-hacks.conf	1	2	2	24	431b32917b35	STAY	ai-header		0				0
@@ -20456,26 +20461,26 @@ usr/libexec/mios/win/wt_profile_inject.py	29	29	1	7	b51af282062f	STAY	inline-sco
 usr/libexec/mios/win/wt_profile_inject.py	31	31	1	10	5c65c389a29e	STAY	local-scoped		0				0
 usr/libexec/mios/win/wt_profile_inject.py	62	62	1	9	4693fcc4c17f	STAY	local-scoped		0				0
 usr/libexec/mios/win/wt_profile_inject.py	75	75	1	5	65b8e5106802	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	90	90	1	6	2f05cdd6165b	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	104	104	1	7	640bc440e580	STAY	inline-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	120	120	1	7	febb4a9456c7	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	126	126	1	5	57adb2f22bfe	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	137	137	1	4	3e93295ca642	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	142	142	1	4	c03c81c74eca	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	146	146	1	8	33cbbb42181d	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	150	150	1	7	49d620119edf	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	156	156	1	9	217edc77e8c3	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	196	196	1	3	c78b3d6994f4	DROP	commented-out-code		0				0
-usr/libexec/mios/win/wt_profile_inject.py	207	207	1	13	10d713562107	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	240	240	1	11	f1c9338e0bd9	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	241	241	1	12	d879a9047c3a	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	275	275	1	7	2a47b5edcd5e	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	279	279	1	2	15667df41ae5	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	295	295	1	8	b3dc7b178349	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	309	309	1	12	a98cf37f2a89	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	317	317	1	6	34a48adc6ddd	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	323	323	1	5	5b0f89edb643	STAY	local-scoped		0				0
-usr/libexec/mios/win/wt_profile_inject.py	341	341	1	15	cbb911979cac	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	91	91	1	6	2f05cdd6165b	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	105	105	1	7	640bc440e580	STAY	inline-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	127	127	1	7	febb4a9456c7	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	133	133	1	5	57adb2f22bfe	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	144	144	1	4	3e93295ca642	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	149	149	1	4	c03c81c74eca	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	153	153	1	8	33cbbb42181d	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	157	157	1	7	49d620119edf	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	163	163	1	9	217edc77e8c3	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	203	203	1	3	c78b3d6994f4	DROP	commented-out-code		0				0
+usr/libexec/mios/win/wt_profile_inject.py	214	214	1	13	10d713562107	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	248	248	1	11	f1c9338e0bd9	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	249	249	1	12	d879a9047c3a	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	285	285	1	7	2a47b5edcd5e	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	289	289	1	2	15667df41ae5	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	305	305	1	8	b3dc7b178349	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	319	319	1	12	a98cf37f2a89	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	327	327	1	6	34a48adc6ddd	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	333	333	1	5	5b0f89edb643	STAY	local-scoped		0				0
+usr/libexec/mios/win/wt_profile_inject.py	351	351	1	15	cbb911979cac	STAY	local-scoped		0				0
 usr/libexec/mios/wsl-early	1	4	4	40	26531f309b2b	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:26531f309b2b	40	0
 usr/libexec/mios/wsl-firstboot	1	4	4	34	8dd4833c7f9a	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:8dd4833c7f9a	34	0
 usr/libexec/mios/wsl-init	1	4	4	36	5928d790c24b	STAY	ai-header		0	usr/share/doc/mios/manual/_harvest/mios.md	mios-src:5928d790c24b	36	0

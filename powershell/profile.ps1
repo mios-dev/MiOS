@@ -472,9 +472,9 @@ if ($env:WT_SESSION) {
         # (powershell for 5.1 / Desktop, pwsh for 7+ / Core).
         $_ompShell = if ($PSVersionTable.PSEdition -eq 'Desktop') { 'powershell' } else { 'pwsh' }
         $ompInit = if ($miosOmp -and (Test-Path -LiteralPath $miosOmp)) {
-            (oh-my-posh init $_ompShell --config $miosOmp) -join "`n"
+            (oh-my-posh init $_ompShell --config $miosOmp --print) -join "`n"
         } else {
-            (oh-my-posh init $_ompShell) -join "`n"
+            (oh-my-posh init $_ompShell --print) -join "`n"
         }
         if ($ompInit) {
             $ompInit = [regex]::Replace($ompInit, 'Get-PSReadLineKeyHandler\s+(?!-)([A-Za-z][\w+]*)', 'Get-PSReadLineKeyHandler -Chord ''$1''')

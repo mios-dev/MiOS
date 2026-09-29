@@ -85,6 +85,7 @@ class TerminalProfile:
     useAcrylic: Optional[bool] = None
     opacity: Optional[int] = None
     systemBackdrop: Optional[str] = None
+    font: Optional[Dict[str, Any]] = None
 
 class WindowsTerminalProfileInjector:
     """Non-destructive modifier for Windows Terminal settings.json."""
@@ -108,6 +109,12 @@ class WindowsTerminalProfileInjector:
         self.use_acrylic = bool(theme.get("acrylic", True))
         self.opacity = int(theme.get("opacity", 50))
         self.system_backdrop = str(theme.get("system_backdrop", "acrylic"))
+        font_cfg = mios_toml.section(data, "theme.font")
+        self.font = {
+            "face": str(font_cfg.get("family", "GeistMono Nerd Font Mono")),
+            "size": int(font_cfg.get("size", 12)),
+            "weight": str(font_cfg.get("weight", "normal")),
+        }
         self.settings_path = settings_path
         self.ssh_port = ssh_port
         self.ssh_user = ssh_user
@@ -230,6 +237,7 @@ class WindowsTerminalProfileInjector:
             ),
         ]
         for p in profiles:
+            p.font = dict(self.font)
             p.padding, p.scrollbarState = self.padding, self.scrollbar_state
             p.useAcrylic = self.use_acrylic
             p.opacity = self.opacity
@@ -261,6 +269,8 @@ class WindowsTerminalProfileInjector:
                 p_dict["startingDirectory"] = p.startingDirectory
             if p.icon:
                 p_dict["icon"] = p.icon
+            if p.font is not None:
+                p_dict["font"] = p.font
             if p.padding is not None:
                 p_dict["padding"] = p.padding
             if p.scrollbarState is not None:
@@ -342,6 +352,7 @@ def fixture_render() -> str:
     injector = WindowsTerminalProfileInjector(mock=True, data=mios_toml.vendor_tree(_TREE))
     profile = {
         "colorScheme": DEFAULT_MIOS_COLOR_SCHEME["name"],
+        "font": injector.font,
         "padding": injector.padding,
         "scrollbarState": injector.scrollbar_state,
         "useAcrylic": injector.use_acrylic,

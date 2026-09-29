@@ -11,7 +11,7 @@
     "profiles": {
         "defaults": {
             "font": {
-                "face": "Cascadia Code"
+                "face": "GeistMono Nerd Font Mono"
             }
         },
         "list": [

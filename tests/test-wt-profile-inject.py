@@ -125,6 +125,11 @@ class TestWtProfileInject(unittest.TestCase):
             self.assertIs(p["useAcrylic"], True)
             self.assertEqual(p["opacity"], 50)
             self.assertEqual(p["systemBackdrop"], "acrylic")
+            self.assertEqual(p["font"], {
+                "face": "GeistMono Nerd Font Mono",
+                "size": 12,
+                "weight": "normal",
+            })
 
     def test_padding_normalised_through_edge_insets(self):
         cases = {"1, 2, 1, 2": "1, 2", "4,4": "4", "1, 2, 3, 4": "1, 2, 3, 4"}
@@ -150,6 +155,11 @@ class TestWtProfileInject(unittest.TestCase):
         pad, bar = wt_profile_inject.wt_edge(wt_profile_inject.mios_toml.vendor_tree(_ROOT))
         self.assertEqual(json.loads(text)["profiles"], [{
             "colorScheme": "MiOS Dark",
+            "font": {
+                "face": "GeistMono Nerd Font Mono",
+                "size": 12,
+                "weight": "normal",
+            },
             "padding": pad,
             "scrollbarState": bar,
             "useAcrylic": True,
