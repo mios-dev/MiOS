@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Updates the live MiOS root filesystem by syncing mios.git and mios-bootstrap.git, merging bootstrap overlays, running build-time automation scripts, and reloading systemd units across all deployment environments.
 # AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/oh-my-posh/mios.omp.json, mios-bootstrap, mios-update, mios-rebuild, mios-env, mios-dev, mios-forge-firstboot, mios-dash
-# AI-functions: say, warn, ok, die
+# AI-functions: say, warn, ok, die, show_help
 
 set -euo pipefail
 
@@ -11,19 +11,40 @@ SKIP_BOOTSTRAP="${MIOS_PULL_SKIP_BOOTSTRAP:-0}"
 SKIP_AUTOMATION="${MIOS_PULL_SKIP_AUTOMATION:-0}"
 SKIP_DAEMON_RELOAD="${MIOS_PULL_SKIP_DAEMON_RELOAD:-0}"
 
+show_help() {
+    cat <<'EOF'
+Usage: mios-pull [OPTIONS]
+
+Updates the live MiOS root filesystem by syncing mios.git and mios-bootstrap.git,
+merging bootstrap overlays, running build-time automation scripts, and reloading
+systemd units across all deployment environments.
+
+Options:
+  -h, --help           Show this help message and exit
+  --check              Check for incoming git commits without applying changes
+  --branch <name>      Target git branch to pull from origin (default: main)
+  --no-bootstrap       Skip cloning/refreshing and merging mios-bootstrap overlay
+  --no-automation      Skip running automation scripts (/automation/*.sh)
+  --no-daemon-reload   Skip systemd-sysusers, systemd-tmpfiles, and daemon-reload
+EOF
+}
+
+ORIG_ARGS=("$@")
+
 while (( $# > 0 )); do
     case "$1" in
-        --help|-h)        sed -n '2,42p' "$0" | sed 's/^# \?//'; exit 0 ;;
+        --help|-h)        show_help; exit 0 ;;
         --check)          MODE="check"; shift ;;
         --no-bootstrap)   SKIP_BOOTSTRAP=1; shift ;;
         --no-automation)  SKIP_AUTOMATION=1; shift ;;
+        --no-daemon-reload) SKIP_DAEMON_RELOAD=1; shift ;;
         --branch)         BRANCH="$2"; shift 2 ;;
-        *) echo "Mios-pull: unknown flag '$1'" >&2; exit 2 ;;
+        *) echo "mios-pull: unknown flag '$1'" >&2; exit 2 ;;
     esac
 done
 
 if [[ $EUID -ne 0 ]] && [[ "$MODE" != "check" ]]; then
-    exec sudo -E "$0" "$@"
+    exec sudo -E "$0" "${ORIG_ARGS[@]}"
 fi
 
 MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/mios-dev/MiOS.git}"
@@ -73,7 +94,7 @@ if [[ "$SKIP_BOOTSTRAP" != "1" ]]; then
     if [[ -d "$boot/.git" ]]; then
         say "refreshing mios-bootstrap clone at $boot ..."
         git -C "$boot" fetch --depth=1 origin "$BRANCH" 2>&1 | tail -2 || true
-        git -C "$boot" reset --hard "origin/${BRANCH}" 2>&1 | tail -2 || true
+        git -C "$boot" reset --hard FETCH_HEAD 2>&1 | tail -2 || true
     else
         say "cloning mios-bootstrap ($BRANCH) -> $boot ..."
         git clone --depth=1 -b "$BRANCH" "$MIOS_BOOTSTRAP_REPO_URL" "$boot" 2>&1 | tail -3
