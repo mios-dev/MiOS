@@ -7858,8 +7858,8 @@ guacamole_web_port_key   = "guacamole_web"
 [bootstrap.dev_vm.host_reserve]
 cpu_pct             = 15      # reserve 15% of logical CPUs for Windows host
 cpu_min             = 2       # always reserve at least 2 cores
-memory_pct          = 50      # reserve 50% of host RAM for Windows host
-memory_gb           = 8       # always reserve at least 8 GB
+memory_pct          = 40      # reserve 40% of host RAM for Windows host (WSL2 gets ~60%)
+memory_gb           = 6       # always reserve at least 6 GB
 disk_gb             = 32      # always keep 32 GB free on M:\ for Windows-side
                               # artifacts (build outputs, podman cache, etc.)
 
