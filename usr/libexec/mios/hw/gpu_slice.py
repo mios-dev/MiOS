@@ -48,11 +48,6 @@ class PhysicalGPU:
     mig_enabled: bool = False
     current_slices: List[str] = field(default_factory=list)
 
-@dataclass
-class CDIDevice:
-    name: str
-    container_edits: Dict[str, Any]
-
 class GPUSliceManager:
     """Manages physical GPU enumeration, MIG/partition slicing, and CDI spec generation."""
 

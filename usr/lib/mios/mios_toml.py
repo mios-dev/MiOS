@@ -30,13 +30,6 @@ def _default_vendor(root=""):
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "share", "mios", "mios.toml"))
 
 _ROOT = os.environ.get("MIOS_TOML_ROOT", "")
-def get_migration(key: str = "", default: bool = True) -> bool | dict:
-    """Return whether a migration toggle in [migration] is enabled (AGY-1573)."""
-    data = load_merged()
-    mig = data.get("migration") or {}
-    if not key:
-        return mig
-    return bool(mig.get(key, default))
 
 def get_version(key: str, default: str = "") -> str:
     """Return a SSOT component version from [versions] (AGY-1573)."""
@@ -755,10 +748,6 @@ def get_aliases(dotted_path):
         aliases.extend([f"MIOS_DB_{key}", f"MIOS_POSTGRES_{key}", f"MIOS_PG_{key}", f"MIOS_PGVECTOR_{key}"])
 
     return aliases
-
-def _toml_walk_common(d, prefix=""):
-    """Canonical recursive section-walk helper shared across TOML resolvers."""
-    return walk(d, prefix)
 
 def walk(d, prefix=""):
     results = []

@@ -20,9 +20,20 @@ OMP_THEME="/usr/share/mios/oh-my-posh/mios.omp.json"
 unset _u_omp
 
 if [ -n "$OMP_BIN" ] && [ -x "$OMP_BIN" ] && [ -r "$OMP_THEME" ]; then
+    _posh_cache="${XDG_CACHE_HOME:-$HOME/.cache}/oh-my-posh"
+    if [ ! -d "$_posh_cache" ] || [ ! -w "$_posh_cache" ]; then
+        mkdir -p "$_posh_cache" 2>/dev/null || true
+    fi
+    if [ ! -w "$_posh_cache" ]; then
+        export POSH_CACHE_DIR="/tmp/posh-cache-${EUID:-$(id -u)}"
+        mkdir -p "$POSH_CACHE_DIR" 2>/dev/null || true
+    else
+        export POSH_CACHE_DIR="$_posh_cache"
+    fi
     if [ -n "${BASH_VERSION:-}" ]; then
         eval "$("$OMP_BIN" init bash --config="$OMP_THEME" --print)"
     elif [ -n "${ZSH_VERSION:-}" ]; then
         eval "$("$OMP_BIN" init zsh --config="$OMP_THEME" --print)"
     fi
+    unset _posh_cache
 fi

@@ -7,7 +7,6 @@ import hashlib
 import json
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 import re
-import shlex
 from typing import Optional
 
 SUPPORTED_LANGS = ("python", "bash", "sh")
@@ -156,9 +155,3 @@ def build_cli_argv(cli: str, payload: dict, conversation_id: Optional[str],
     if net_allowed(cfg, payload.get("net", False)):
         argv.append("--net")
     return argv
-
-def quote_inline_code(code: str) -> str:
-    """Shell-safe single-arg quoting of a snippet, for the rare path that passes
-    code as an argument rather than stdin. Prefer stdin; this exists for the
-    template/SSOT cmd form."""
-    return shlex.quote(code or "")

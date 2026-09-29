@@ -2,8 +2,16 @@
     "profiles": [
         {
             "colorScheme": "MiOS Dark",
+            "font": {
+                "face": "GeistMono Nerd Font Mono",
+                "size": 12,
+                "weight": "normal"
+            },
             "padding": "0",
-            "scrollbarState": "hidden"
+            "scrollbarState": "hidden",
+            "useAcrylic": true,
+            "opacity": 50,
+            "systemBackdrop": "acrylic"
         }
     ],
     "schemes": [

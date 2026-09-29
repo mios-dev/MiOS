@@ -113,13 +113,15 @@ if [ -f /usr/share/locale/locale.alias ]; then
 fi
 
 mios_log "Fixing home directory ownership"
-{ awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd; echo "Mios"; } | sort -u | while read -r u; do
+{ awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd; echo "mios"; } | sort -u | while read -r u; do
     if getent passwd "$u" >/dev/null 2>&1; then
         home=$(getent passwd "$u" | cut -d: -f6)
         if [ -d "$home" ]; then
             uid=$(id -u "$u"); gid=$(id -g "$u")
+            mkdir -p "$home/.cache/oh-my-posh" "$home/.config" 2>/dev/null || true
             chown -R "${uid}:${gid}" "$home"
             chmod 0755 "$home" 2>/dev/null || true
+            chmod -R 0755 "$home/.cache" "$home/.config" 2>/dev/null || true
         fi
     fi
 done

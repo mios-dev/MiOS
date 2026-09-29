@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: MiOS system and orchestration module providing seed-db-config capabilities.
-# AI-related: /usr/share/mios/mios.toml, automation/, mios-find, mios-bootstrap, mios-debloat, mios-xbox-features
+# AI-related: /usr/share/mios/mios.toml, automation/, mios-find, mios-bootstrap, mios-bootstrap/field/autounattend/mios-debloat.json, mios-bootstrap/field/autounattend/mios-xbox-features.txt
 # AI-functions: get_seeded_sections, get_pg_config, main
 
 import os

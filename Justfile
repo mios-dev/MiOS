@@ -94,6 +94,15 @@ ps-gate:
 sync:
     bash ./tools/sync-generated.sh
 
+# Run the CI/CD pipeline automation suite (01-ingest, 02-distill, 03-build, 04-deploy, 05-run-agy-pipeline-agent).
+cicd:
+    @echo "[cicd] Executing full MiOS CI/CD pipeline automation suite..."
+    bash ./automation/cicd/01-ingest-daily-telemetry.sh
+    python3 ./automation/cicd/02-distill-agent-weights.py
+    bash ./automation/cicd/03-build-bootc-oci.sh
+    bash ./automation/cicd/04-deploy-atomic-switch.sh
+    bash ./automation/cicd/05-run-agy-pipeline-agent.sh
+
 drift-gate:
     @echo "[drift-gate] 97-ssot-lint.sh"
     bash ./automation/97-ssot-lint.sh

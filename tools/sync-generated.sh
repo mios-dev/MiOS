@@ -80,6 +80,12 @@ main() {
     step "2d/6 dotfiles -- .dotfiles SSOT projection"
     "$PY" tools/sync-dotfiles.py
 
+    step "2e/6 wsl.conf mirror (etc/wsl.conf SSOT -> usr/lib/wsl.conf reference)"
+    if [[ -f "${ROOT}/etc/wsl.conf" ]]; then
+        mkdir -p "${ROOT}/usr/lib"
+        cp "${ROOT}/etc/wsl.conf" "${ROOT}/usr/lib/wsl.conf"
+    fi
+
     step "3/6 quadlets"
     "$PY" tools/generate-pod-quadlets.py >/dev/null
 

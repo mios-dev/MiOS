@@ -403,6 +403,7 @@ def get_sys_info_table():
     return t
 
 def create_metal_layout():
+    import math
     sys_info = get_sys_info()
     services = get_services()
     try:
@@ -410,64 +411,109 @@ def create_metal_layout():
     except Exception:
         term_cols, term_lines = 80, 24
 
-    is_portrait = term_cols < 60 or term_lines > term_cols
-
-    t = Table(show_header=False, box=box.SIMPLE, expand=True)
-    if is_portrait:
-        for s in services:
-            c = "green" if s[2] else "red"
-            m = f"[{c}]{'*' if s[2] else 'x'}[/] {s[0]}"
-            t.add_row(m)
-    else:
-        for i in range(0, len(services), 2):
-            s1 = services[i]
-            c1 = "green" if s1[2] else "red"
-            m1 = f"[{c1}]{'*' if s1[2] else 'x'}[/] {s1[0]}"
-            m2 = ""
-            if i + 1 < len(services):
-                s2 = services[i+1]
-                c2 = "green" if s2[2] else "red"
-                m2 = f"[{c2}]{'*' if s2[2] else 'x'}[/] {s2[0]}"
-            t.add_row(m1, m2)
     up = sum(1 for s in services if s[2])
-    return Align.center(Panel(t, title=f"[cyan bold]MiOS Mini[/] - [dim]{sys_info['host']} ({sys_info['os']})[/]", subtitle=f"[green]{up} UP[/] | [red]{len(services) - up} DOWN[/]", border_style="cyan"))
+    down = len(services) - up
+
+    # Panel border & margin budget:
+    # 2 rows for panel top/bottom borders + margins
+    max_table_rows = max(3, term_lines - 4)
+
+    # Dynamic column sizing based on terminal width and height
+    max_name_len = max((len(s[0]) for s in services), default=12)
+    col_width = max_name_len + 5  # glyph + spacing + padding
+    max_cols_by_width = max(1, (term_cols - 4) // col_width)
+
+    needed_cols = math.ceil(len(services) / max_table_rows)
+    cols = max(needed_cols, 2)
+    cols = min(cols, max_cols_by_width)
+
+    # If the terminal is too short even with max columns, prioritize UP services
+    if math.ceil(len(services) / cols) > max_table_rows and term_lines <= 24:
+        display_services = [s for s in services if s[2]]
+        if not display_services:
+            display_services = services[:cols * max(1, max_table_rows - 1)]
+        show_down_summary = len(services) - len(display_services)
+    else:
+        display_services = services
+        show_down_summary = 0
+
+    t = Table(show_header=False, box=box.SIMPLE, expand=True, padding=(0, 1))
+    for _ in range(cols):
+        t.add_column()
+
+    num_rows = math.ceil(len(display_services) / cols)
+    for r in range(num_rows):
+        row_items = []
+        for c in range(cols):
+            idx = c * num_rows + r
+            if idx < len(display_services):
+                s = display_services[idx]
+                color = "green" if s[2] else "red"
+                sym = "*" if s[2] else "x"
+                row_items.append(f"[{color}]{sym}[/] {s[0]}")
+            else:
+                row_items.append("")
+        t.add_row(*row_items)
+
+    if show_down_summary > 0:
+        summary_text = f"[dim]+ {show_down_summary} inactive services (run 'mios dash' for full list)[/]"
+        t.add_row(summary_text, *["" for _ in range(cols - 1)])
+
+    return Align.center(Panel(t, title=f"[cyan bold]MiOS Mini[/] - [dim]{sys_info['host']} ({sys_info['os']})[/]", subtitle=f"[green]{up} UP[/] | [red]{down} DOWN[/]", border_style="cyan"))
 
 create_mini_layout = create_metal_layout
 
 def create_dash_layout():
-    services = get_services()
-    logo = Align.center(Text(get_ascii_logo(), style="cyan bold", no_wrap=True))
-    fetch = run_fastfetch()
+    import math
     try:
         term_cols, term_lines = shutil.get_terminal_size((80, 24))
     except Exception:
         term_cols, term_lines = 80, 24
 
-    is_portrait = term_cols < 75 or term_lines > term_cols
+    # On very constrained terminals (< 22 lines), fallback to metal layout to fit screen
+    if term_lines < 22:
+        return create_metal_layout()
+
+    services = get_services()
+    # Compact header when terminal height is constrained (< 34 lines)
+    compact_header = term_lines < 34
+    logo = None if compact_header else Align.center(Text(get_ascii_logo(), style="cyan bold", no_wrap=True))
+    fetch = None if compact_header else run_fastfetch()
+
+    # Determine service column count to fit available height (col_width 24 for 3 cols at 80-wide)
+    avail_service_lines = max(6, term_lines - (10 if compact_header else 22))
+    col_width = 24
+    max_cols_by_width = max(1, (term_cols - 4) // col_width)
+    needed_cols = math.ceil(len(services) / avail_service_lines)
+    cols = max(needed_cols, 2)
+    cols = min(cols, max_cols_by_width)
 
     svcs = Table(box=box.SIMPLE, expand=True)
-    if is_portrait:
+    for _ in range(cols):
         svcs.add_column("Service", style="cyan")
         svcs.add_column("Port", style="dim", justify="right")
         svcs.add_column("Status", justify="center")
-        for s in services:
-            st = "[green bold]*[/]" if s[2] else "[red bold]x[/]"
-            svcs.add_row(s[0], str(s[1]) if s[1] else "-", st)
-    else:
-        for _ in range(2):
-            svcs.add_column("Service", style="cyan"); svcs.add_column("Port", style="dim", justify="right"); svcs.add_column("Status", justify="center")
-        for i in range(0, len(services), 2):
-            s1 = services[i]
-            st1 = "[green bold]*[/]" if s1[2] else "[red bold]x[/]"
-            s2_row = ["", "", ""]
-            if i + 1 < len(services):
-                s2 = services[i+1]
-                s2_row = [s2[0], str(s2[1]) if s2[1] else "-", "[green bold]*[/]" if s2[2] else "[red bold]x[/]"]
-            svcs.add_row(s1[0], str(s1[1]) if s1[1] else "-", st1, *s2_row)
+
+    num_rows = math.ceil(len(services) / cols)
+    for r in range(num_rows):
+        row_items = []
+        for c in range(cols):
+            idx = c * num_rows + r
+            if idx < len(services):
+                s = services[idx]
+                st = "[green bold]*[/]" if s[2] else "[red bold]x[/]"
+                row_items.extend([s[0], str(s[1]) if s[1] else "-", st])
+            else:
+                row_items.extend(["", "", ""])
+        svcs.add_row(*row_items)
 
     footer = Align.center(f"{get_credentials_text()}\n\n[bold]Tree:[/] {get_git_tree_status()}")
-    header_box = Panel(Group(logo, Text(""), Align.center(fetch) if fetch else get_sys_info_table()), box=box.SIMPLE, border_style="cyan")
-    return Panel(Group(header_box, Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan"), Panel(footer, box=box.SIMPLE, border_style="cyan")), border_style="blue", title="[bold cyan]MiOS Dashboard[/]", padding=(1, 1))
+    if compact_header:
+        header_box = Panel(get_sys_info_table(), box=box.SIMPLE, border_style="cyan")
+    else:
+        header_box = Panel(Group(logo, Text(""), Align.center(fetch) if fetch else get_sys_info_table()), box=box.SIMPLE, border_style="cyan")
+
+    return Panel(Group(header_box, Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan"), Panel(footer, box=box.SIMPLE, border_style="cyan")), border_style="blue", title="[bold cyan]MiOS Dashboard[/]", padding=(0, 1))
 
 if TEXTUAL_AVAILABLE:
     def load_ssot_colors():
