@@ -19,6 +19,7 @@ import subprocess
 from datetime import datetime
 import argparse
 import threading
+import xml.etree.ElementTree as ET
 from collections import deque
 
 def _install_deps(pkgs=None):
@@ -87,6 +88,65 @@ _SYS_INFO_CACHE = None
 _USB_INFO_CACHE = "Scanning USB..."
 _GIT_STATUS_CACHE = "[dim]Git state loading...[/]"
 PIPELINE_MODE = False
+
+def monitor_sources_config():
+    """Read collector cadence, history and Linux identities from the SSOT."""
+    settings = {"batch_size": 50, "flush_interval_s": 5,
+                "scrollback_rows": 9000, "distros": ("podman-MiOS-DEV", "MiOS")}
+    try:
+        import tomllib
+    except ImportError:
+        return settings
+    for path in (r"C:\MiOS\usr\share\mios\mios.toml",
+                 "/usr/share/mios/mios.toml", r"C:\mios-bootstrap\mios.toml"):
+        try:
+            with open(path, "rb") as source:
+                data = tomllib.load(source)
+            pipeline = data.get("logging", {}).get("pipeline", {})
+            terminal = data.get("terminal", {})
+            vm = data.get("bootstrap", {}).get("dev_vm", {})
+            settings["batch_size"] = max(1, int(pipeline.get("batch_size", 50)))
+            settings["flush_interval_s"] = max(1, int(pipeline.get("flush_interval_s", 5)))
+            settings["scrollback_rows"] = max(100, int(terminal.get("scrollback_rows", 9000)))
+            machine = vm.get("machine_name", "MiOS-DEV")
+            distro = vm.get("wsl_distro", "MiOS")
+            settings["distros"] = (f"podman-{machine}", distro)
+            break
+        except (OSError, ValueError, TypeError):
+            continue
+    return settings
+
+def parse_windows_events(output):
+    """wevtutil emits adjacent Event XML records, without a wrapper element."""
+    ns = "{http://schemas.microsoft.com/win/2004/08/events/event}"
+    for match in re.finditer(r"<Event\s.*?</Event>", output, re.S):
+        try:
+            root = ET.fromstring(match.group())
+            system = root.find(ns + "System")
+            if system is None:
+                continue
+            record = int(system.findtext(ns + "EventRecordID") or 0)
+            level = int(system.findtext(ns + "Level") or 4)
+            event_id = system.findtext(ns + "EventID") or "?"
+            provider = system.find(ns + "Provider")
+            source = provider.get("Name", "Windows") if provider is not None else "Windows"
+            created = system.find(ns + "TimeCreated")
+            timestamp = created.get("SystemTime", "") if created is not None else ""
+            data = [" ".join((item.text or "").split()) for item in root.iter(ns + "Data")]
+            detail = "; ".join(filter(None, data))[:240]
+            yield record, level, f"{timestamp} {source} #{event_id}" + (f" {detail}" if detail else "")
+        except (ET.ParseError, ValueError):
+            continue
+
+def running_wsl_distros():
+    try:
+        proc = subprocess.run(["wsl.exe", "--list", "--running", "--quiet"],
+                              capture_output=True, timeout=10)
+        raw = proc.stdout
+        decoded = raw.decode("utf-16-le", errors="replace") if b"\x00" in raw else raw.decode("utf-8", errors="replace")
+        return {line.strip().strip("\ufeff") for line in decoded.splitlines() if line.strip()}
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
 
 def check_port(host, port):
     if not port or port <= 0:
@@ -582,7 +642,8 @@ if TEXTUAL_AVAILABLE:
                                 yield Static(id="forge-box", classes="box")
                             with Vertical(id="spark-container"):
                                 yield Sparkline(data=[], id="spark-widget")
-                            yield RichLog(id="log-box", classes="box", markup=True, wrap=True)
+                            yield RichLog(id="log-box", classes="box", markup=True, wrap=True,
+                                          max_lines=monitor_sources_config()["scrollback_rows"])
                 with TabPane("MiOS Build", id="tab-build"):
                     with Horizontal(id="build-container"):
                         with Vertical(id="build-stats-pane", classes="box"):
@@ -623,6 +684,7 @@ if TEXTUAL_AVAILABLE:
 
             self.cpu_history = []
             self.tailing = True
+            self.journal_procs = []
             self.log_thread = threading.Thread(target=self.tail_all_logs, daemon=True)
             self.log_thread.start()
             self.build_log_path = None
@@ -670,15 +732,18 @@ if TEXTUAL_AVAILABLE:
 
         def tail_all_logs(self):
             log_box = self.query_one("#log-box", RichLog)
+            settings = monitor_sources_config()
             try:
                 flash_log_box = self.query_one("#flash-log-box", RichLog)
                 ai_log_box = self.query_one("#ai-log-box", RichLog)
             except Exception:
                 flash_log_box = None
                 ai_log_box = None
-            def stream_proc(cmd):
+            def stream_proc(cmd, label):
                 try:
-                    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1, errors="ignore")
+                    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                            text=True, encoding="utf-8", bufsize=1, errors="replace")
+                    self.journal_procs.append(proc)
                     while self.tailing:
                         if proc.poll() is not None:
                             break
@@ -688,12 +753,6 @@ if TEXTUAL_AVAILABLE:
                             continue
                         line = line.strip()
                         if not line: continue
-                        if "Unexpected output from PTY master" in line or "InitCreateProcessUtilityVm" in line or "Relay(" in line:
-                            continue
-                        if "pam_unix(sudo:session)" in line or "session opened for user root" in line or "session closed for user root" in line or "COMMAND=/bin/sh" in line or "COMMAND=/usr/bin/sh" in line:
-                            continue
-                        if "Created slice" in line or "Removed slice" in line or "user-0.slice" in line or "session-" in line:
-                            continue
                         is_err = bool(re.search(r'\b(error|failed|critical|fatal)\b', line, re.I))
                         is_warn = bool(re.search(r'\bwarn(ing)?\b', line, re.I))
                         rendered = Text(line)
@@ -702,13 +761,50 @@ if TEXTUAL_AVAILABLE:
                         elif 'podman' in line.lower() or 'container' in line.lower():
                             rendered.stylize(SSOT['subtle'])
                             if ai_log_box: self.call_from_thread(ai_log_box.write, rendered)
-                        # On Windows during pipeline builds, only surface real system warnings/errors to log_box
-                        if not IS_WINDOWS or is_err or is_warn:
-                            self.call_from_thread(log_box.write, Text.assemble(("[sys] ", f"dim {SSOT['subtle']}"), rendered))
+                        self.call_from_thread(log_box.write,
+                                              Text.assemble((f"[Linux:{label}] ", f"dim {SSOT['subtle']}"), rendered))
                     try:
-                        proc.kill()
+                        proc.terminate()
                     except Exception: pass
-                except Exception: pass
+                    finally:
+                        if proc in self.journal_procs:
+                            self.journal_procs.remove(proc)
+                except Exception as exc:
+                    if self.tailing:
+                        self.call_from_thread(log_box.write, Text(f"[Linux:{label}] collector: {exc}", style=SSOT['warning']))
+
+            def stream_windows_events():
+                cursors = {"System": None, "Application": None}
+                while self.tailing:
+                    for channel in cursors:
+                        cursor = cursors[channel]
+                        cmd = ["wevtutil", "qe", channel, "/f:xml",
+                               f"/c:{settings['batch_size']}"]
+                        if cursor is None:
+                            cmd.append("/rd:true")
+                        else:
+                            cmd.extend(("/rd:false", f"/q:*[System[EventRecordID>{cursor}]]"))
+                        try:
+                            result = subprocess.run(cmd, capture_output=True,
+                                                    timeout=settings["flush_interval_s"],
+                                                    text=True, encoding="utf-8", errors="replace")
+                            if result.returncode:
+                                raise OSError(result.stderr.strip() or f"wevtutil exit {result.returncode}")
+                            events = list(parse_windows_events(result.stdout))
+                            if cursor is None:
+                                events.reverse()
+                            for record, level, message in events:
+                                if cursor is not None and record <= cursor:
+                                    continue
+                                rendered = Text(f"[Windows:{channel}] {message}")
+                                if level in (1, 2): rendered.stylize(SSOT['error'])
+                                elif level == 3: rendered.stylize(SSOT['warning'])
+                                self.call_from_thread(log_box.write, rendered)
+                                cursors[channel] = record
+                        except (OSError, subprocess.TimeoutExpired) as exc:
+                            self.call_from_thread(log_box.write,
+                                                  Text(f"[Windows:{channel}] collector: {exc}", style=SSOT['warning']))
+                    time.sleep(settings["flush_interval_s"])
 
             def _find_flash_logs():
                 candidates = [
@@ -787,14 +883,34 @@ if TEXTUAL_AVAILABLE:
                                         file_obj.seek(0)
                                 except Exception: pass
 
-            j_cmd = ["stdbuf", "-oL", "journalctl", "-fa", "-n", "0", "--no-pager"]
-            if IS_WINDOWS:
-                j_cmd = ["wsl.exe", "-d", "podman-MiOS-DEV", "-u", "root", "--", "stdbuf", "-oL", "journalctl", "-fa", "-n", "0", "--no-pager"]
-
-            threading.Thread(target=stream_proc, args=(j_cmd,), daemon=True).start()
             if flash_log_box: threading.Thread(target=stream_flash_log, daemon=True).start()
             # The build log is polled on the UI thread by refresh_build_log.
             # A detached tail thread could die when root merge replaces its log.
+            if IS_WINDOWS:
+                threading.Thread(target=stream_windows_events, daemon=True).start()
+                workers = {}
+                last_running = None
+                while self.tailing:
+                    running = {name.casefold(): name for name in running_wsl_distros()}
+                    selected = tuple(running[name.casefold()] for name in settings["distros"]
+                                     if name.casefold() in running)
+                    if selected != last_running:
+                        status = ", ".join(selected) if selected else "waiting for a running MiOS distro"
+                        self.call_from_thread(log_box.write,
+                                              Text(f"[Linux] {status}", style=SSOT['subtle']))
+                        last_running = selected
+                    for configured in settings["distros"]:
+                        name = running.get(configured.casefold())
+                        if name and (name not in workers or not workers[name].is_alive()):
+                            cmd = ["wsl.exe", "-d", name, "-u", "root", "--",
+                                   "journalctl", "-f", "-n", str(settings["batch_size"]),
+                                   "--no-pager", "-o", "short-iso"]
+                            workers[name] = threading.Thread(target=stream_proc, args=(cmd, name), daemon=True)
+                            workers[name].start()
+                    time.sleep(settings["flush_interval_s"])
+            else:
+                stream_proc(["journalctl", "-f", "-n", str(settings["batch_size"]),
+                             "--no-pager", "-o", "short-iso"], "MiOS")
 
         def refresh_build_log(self):
             try:
@@ -1073,6 +1189,9 @@ if TEXTUAL_AVAILABLE:
 
         def on_unmount(self) -> None:
             self.tailing = False
+            for proc in list(getattr(self, "journal_procs", [])):
+                try: proc.terminate()
+                except OSError: pass
 
 def main():
     global PIPELINE_MODE
