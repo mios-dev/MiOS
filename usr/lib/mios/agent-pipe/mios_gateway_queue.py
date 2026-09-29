@@ -342,7 +342,7 @@ class GatewayWorker:
             ]
         }
 
-import mcp
+from mios_mcp_transport import _McpHttpClient, _McpStdioClient
 
 class MCPDispatchTool(Tool):
     def __init__(self, name: str, description: str, inputs: dict, client, main_loop: asyncio.AbstractEventLoop):
@@ -366,77 +366,17 @@ class MCPDispatchTool(Tool):
 
     def forward(self, **kwargs) -> str:
         async def call_mcp():
-            if not self.client.session:
-                await self.client.connect()
-            res = await self.client.session.call_tool(self.raw_name, kwargs)
+            res = await self.client.call_tool(self.raw_name, kwargs)
+            if res.get("error"):
+                raise RuntimeError(res["error"].get("message", "MCP tool call failed"))
             out_texts = []
-            for content in getattr(res, "content", []):
-                if getattr(content, "type", "text") == "text":
-                    out_texts.append(getattr(content, "text", ""))
+            for content in (res.get("result") or {}).get("content") or []:
+                if content.get("type") == "text":
+                    out_texts.append(content.get("text", ""))
             return "\n".join(out_texts)
 
         fut = asyncio.run_coroutine_threadsafe(call_mcp(), self.main_loop)
         return str(fut.result())
-
-class StdioClient:
-    def __init__(self, config: dict):
-        self.config = config
-        self.session = None
-        from mcp import StdioServerParameters
-        self.server_params = StdioServerParameters(
-            command=config.get("command"),
-            args=config.get("args") or [],
-            env=config.get("env")
-        )
-    async def connect(self):
-        from mcp.client.stdio import stdio_client
-        from mcp import ClientSession
-        self._ctx = stdio_client(self.server_params)
-        read, write = await self._ctx.__aenter__()
-        self.session = ClientSession(read, write)
-        await self.session.__aenter__()
-        await self.session.initialize()
-        return self.session
-    async def close(self):
-        if self.session:
-            try:
-                await self.session.__aexit__(None, None, None)
-            except Exception:
-                pass
-        if hasattr(self, "_ctx"):
-            try:
-                await self._ctx.__aexit__(None, None, None)
-            except Exception:
-                pass
-
-class HTTPClient:
-    def __init__(self, config: dict):
-        self.config = config
-        self.session = None
-        self.url = config.get("url")
-    async def connect(self):
-        from mcp.client.sse import sse_client
-        from mcp import ClientSession
-        self._ctx = sse_client(self.url)
-        read, write = await self._ctx.__aenter__()
-        self.session = ClientSession(read, write)
-        await self.session.__aenter__()
-        await self.session.initialize()
-        return self.session
-    async def close(self):
-        if self.session:
-            try:
-                await self.session.__aexit__(None, None, None)
-            except Exception:
-                pass
-        if hasattr(self, "_ctx"):
-            try:
-                await self._ctx.__aexit__(None, None, None)
-            except Exception:
-                pass
-
-mcp.StdioClient = StdioClient
-mcp.HTTPClient = HTTPClient
 
 class MCPClientPool:
     def __init__(self, server_configs: dict):
@@ -447,21 +387,28 @@ class MCPClientPool:
                 continue
             transport = cfg.get("transport", "stdio")
             if transport == "stdio":
-                self.clients[sid] = mcp.StdioClient(cfg)
+                self.clients[sid] = _McpStdioClient(
+                    sid, cfg.get("command", ""), cfg.get("args") or [],
+                    cfg.get("env") or {}, cfg.get("cwd"),
+                )
             else:
-                self.clients[sid] = mcp.HTTPClient(cfg)
+                self.clients[sid] = _McpHttpClient(
+                    sid, cfg.get("url") or cfg.get("server_url") or "",
+                    headers=cfg.get("headers") or {}, transport=transport,
+                )
 
     async def startup(self):
         self.tool_cache = []
         for sid, client in self.clients.items():
             try:
-                session = await client.connect()
-                tools_result = await session.list_tools()
-                for tool in getattr(tools_result, "tools", []):
+                tools_result = await client.list_tools()
+                if tools_result.get("error"):
+                    raise RuntimeError(tools_result["error"].get("message", "MCP discovery failed"))
+                for tool in (tools_result.get("result") or {}).get("tools") or []:
                     self.tool_cache.append({
-                        "name": f"mcp.{sid}.{tool.name}",
-                        "description": tool.description,
-                        "inputSchema": getattr(tool, "inputSchema", {})
+                        "name": f"mcp.{sid}.{tool['name']}",
+                        "description": tool.get("description"),
+                        "inputSchema": tool.get("inputSchema") or {},
                       })
             except Exception as e:
                 log.error(f"Failed to connect MCP client {sid}: {e}")

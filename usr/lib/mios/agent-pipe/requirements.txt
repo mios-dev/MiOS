@@ -10,7 +10,7 @@ httpx
 smolagents
 psycopg[binary]
 websockets
-mcp
+mcp>=2.1.1,<3
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-exporter-otlp
