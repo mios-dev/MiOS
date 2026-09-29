@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3598,
-  "total_metadata_entries": 2972,
-  "total_hints": 2959,
+  "total_files_scanned": 3594,
+  "total_metadata_entries": 2969,
+  "total_hints": 2956,
   "total_functions_indexed": 1347,
-  "total_related_links": 4657,
+  "total_related_links": 4648,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -2318,45 +2318,6 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/root.md",
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "commands/agy/agents.toml",
-      "hint": "Agents slash command definition for Antigravity CLI (AGY) session inspection and switching.",
-      "related": [
-        "commands/",
-        ".agents/workflows/agents.md",
-        ".agents/subagents.json"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "commands/agy/dev-loop.toml",
-      "hint": "Dev-loop slash command definition for Antigravity CLI (AGY) multi-harness dispatch.",
-      "related": [
-        "commands/",
-        ".agents/workflows/dev-loop.md",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "commands/agy/pipeline.toml",
-      "hint": "Pipeline slash command definition for Antigravity CLI (AGY) automated CI/CD runs.",
-      "related": [
-        "commands/",
-        ".agents/workflows/pipeline.md",
-        "usr/share/mios/mios.toml"
-      ],
-      "functions": [],
-      "doc": null,
       "comment_style": "hash",
       "has_shebang": false
     },

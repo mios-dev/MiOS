@@ -91,23 +91,22 @@ class TestAgyAgentPipeline(unittest.TestCase):
             self.assertIn("name:", txt)
             self.assertIn("description:", txt)
 
-    def test_commands_agy_definitions(self):
-        """Verifies commands/agy/ and commands/antigravity/ definitions."""
-        cmd_dir = REPO_ROOT / "commands" / "agy"
-        self.assertTrue(cmd_dir.is_dir(), f"Missing {cmd_dir}")
+    def test_commands_antigravity_definitions(self):
+        """Verifies commands/antigravity/ canonical definitions and absence of duplicate commands/agy/."""
+        # Single canonical owner: commands/antigravity
+        cmd_dir = REPO_ROOT / "commands" / "antigravity"
+        self.assertTrue(cmd_dir.is_dir(), f"Missing canonical {cmd_dir}")
 
-        for cmd_name in ["dev-loop.toml", "pipeline.toml"]:
+        for cmd_name in ["dev-loop.toml", "pipeline.toml", "agents.toml"]:
             cmd_file = cmd_dir / cmd_name
             self.assertTrue(cmd_file.is_file(), f"Missing {cmd_file}")
             txt = cmd_file.read_text(encoding="utf-8")
             self.assertIn("[command]", txt)
             self.assertIn("name =", txt)
 
-        # Antigravity mirror check
-        mirror_dir = REPO_ROOT / "commands" / "antigravity"
-        self.assertTrue(mirror_dir.is_dir(), f"Missing {mirror_dir}")
-        self.assertTrue((mirror_dir / "dev-loop.toml").is_file())
-        self.assertTrue((mirror_dir / "pipeline.toml").is_file())
+        # Deduplication check: commands/agy must NOT exist as a redundant copy (T-1114)
+        duplicate_dir = REPO_ROOT / "commands" / "agy"
+        self.assertFalse(duplicate_dir.exists(), f"Duplicate directory {duplicate_dir} should not exist; keep commands/antigravity as canonical owner")
 
     def test_github_agent_definitions(self):
         """Verifies .github/agents/ definitions for agy-pipeline and agy-subagents."""
@@ -163,11 +162,11 @@ class TestAgyAgentPipeline(unittest.TestCase):
         self.assertEqual(res.returncode, 0, f"Syntax error in {cicd_runner}: {res.stderr}")
 
     def test_agents_command_definitions(self):
-        """Verifies commands/agy/agents.toml, commands/antigravity/agents.toml, and agents workflow."""
-        agy_agents = REPO_ROOT / "commands" / "agy" / "agents.toml"
+        """Verifies canonical commands/antigravity/agents.toml and agents workflow."""
         antigravity_agents = REPO_ROOT / "commands" / "antigravity" / "agents.toml"
-        self.assertTrue(agy_agents.is_file(), f"Missing {agy_agents}")
-        self.assertTrue(antigravity_agents.is_file(), f"Missing {antigravity_agents}")
+        self.assertTrue(antigravity_agents.is_file(), f"Missing canonical {antigravity_agents}")
+        agy_agents = REPO_ROOT / "commands" / "agy" / "agents.toml"
+        self.assertFalse(agy_agents.exists(), f"Duplicate {agy_agents} must not exist")
 
         skill = REPO_ROOT / ".agents" / "skills" / "agents" / "SKILL.md"
         workflow = REPO_ROOT / ".agents" / "workflows" / "agents.md"
