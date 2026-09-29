@@ -1,0 +1,38 @@
+# MiOS CORE Development — Exclusive Ownership Register & Workflow Boundaries
+
+*Updated: 2026-09-29T08:57:30Z per Operator Correction (SSOT Reserved Boundary Enforcement)*
+
+---
+
+## 🚫 Strictly Reserved to Codex & Single Integration Owner (READ-ONLY for All Lane Workers)
+
+Under no circumstances may any worker subagent modify or stage changes to the following paths:
+- `usr/share/mios/mios.toml` (RESERVED: workers submit proposed registrations to the orchestrator; one integration owner applies and regenerates projections after merging)
+- `C:\MiOS\usr\libexec\mios\mios-mon.py` (canonical monitor)
+- `Get-MiOS.ps1`, `build-mios.ps1` (both Windows and Linux mirrors)
+- Windows Terminal profiles/settings, theme assets, Windows launchers, centering, DPI, focus, shortcuts
+- Running installer state on `M:\` and running processes (`podman-MiOS-DEV`, WSL distro)
+- Bootstrap `mios.toml` and root configuration assets
+
+---
+
+## 📋 The 5 Disjoint MiOS CORE Workflows & Exclusive File Allocations
+
+| Workflow | Task(s) | Domain | Exclusively Owned Files | Forbidden Paths | Dedicated Worktree |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Lane 1** | `T-215` | Lifecycle / Offline Upgrade | `automation/43-uupd-installer.sh`<br>`automation/50-uupd-installer.sh`<br>`usr/share/doc/mios/manual/offline-upgrade.md` | `usr/share/mios/mios.toml`, core runtime, Quadlets, Codex files | `C:\worktrees\wf-t215-uupd`<br>Branch: `devloop/t215-offline-upgrade` |
+| **Lane 2** | `T-485` | Agent-Pipe / PSI Monitoring | `usr/lib/mios/agent-pipe/mios_psi.py`<br>`usr/lib/mios/agent-pipe/server.py` (narrow lifecycle hook)<br>`usr/lib/mios/agent-pipe/test_mios_psi.py` | `usr/share/mios/mios.toml`, dispatcher core, router core, non-PSI pipeline logic | `C:\worktrees\wf-t485-psi`<br>Branch: `devloop/t485-psi-monitor` |
+| **Lane 3** | `T-858` | Security / Core Scheduling | `usr/libexec/mios/mios-core-sched`<br>`automation/24-cpu-affinity.sh`<br>`tests/test-core-sched.sh` | `usr/share/mios/mios.toml` (submit registrations to orchestrator), UKI scripts, agent-pipe, monitor, installer | `C:\worktrees\wf-t858-coresched`<br>Branch: `devloop/t858-core-sched` |
+| **Lane 4** | `T-916`<br>`T-917` | Security / ModSign & Lockdown | `automation/02-uki-bootloader.sh`<br>`etc/cmdline.d/02-security.conf`<br>`usr/lib/bootc/kargs.d/30-security.toml`<br>`tests/test-kernel-module-signature-enforce.sh` | `usr/share/mios/mios.toml` (submit registrations to orchestrator), Core scheduler, CPU affinity, offline upgrade | `C:\worktrees\wf-t916-modsign`<br>Branch: `devloop/t916-t917-modsign` |
+| **Lane 5** | `T-261` | Deploy / MiOS-Cat Data Staging | `C:\mios-bootstrap\cat\MiOS-Cat.ps1`<br>`C:\mios-bootstrap\cat\MiOS-Cat.sh`<br>`C:\mios-bootstrap\field\MiOS-Cat.ps1`<br>`C:\mios-bootstrap\field\MiOS-Cat.sh`<br>`C:\mios-bootstrap\field\lib\MiOS-Cat.psm1`<br>`C:\mios-bootstrap\field\lib\cat.sh` | `usr/share/mios/mios.toml`, MiOS root repository, `build-mios.ps1`, `Get-MiOS.ps1` | `C:\worktrees\wf-t261-catdata`<br>Branch: `devloop/t261-cat-data` |
+
+---
+
+## 🔒 Architectural Rules & Standing Gates
+1. **Isolated Worktrees**: Every lane executes within its own directory under `C:\worktrees\`.
+2. **SSOT Reserved Boundary**: `usr/share/mios/mios.toml` is NOT edited by workers. Workers output their proposed phase/tier additions in their report. The orchestrator / integration owner applies them in one atomic commit and runs `bash ./tools/sync-generated.sh`.
+3. **Phase Registry & CI Suites Invariants**:
+   - Lane 3 proposals: `24-cpu-affinity.sh` to `[build.phases].list`, `test-core-sched.sh` to `[ci.tiers]`.
+   - Lane 4 proposals: `02-uki-bootloader.sh` to `[build.phases].list`, `test-kernel-module-signature-enforce.sh` to `[ci.tiers]`.
+4. **Clean Exit**: Each lane must pass unit tests and verify self-contained scripts before reporting done.
+5. **No Push to Main**: Workers commit strictly to their feature branches; integration to `main` is handled strictly after orchestrator verification against current `main`.

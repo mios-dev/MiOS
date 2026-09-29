@@ -29,6 +29,7 @@ Two columns below are worth reading carefully:
 |---|---|---|---|---|
 | 01 | system-files-overlay | `01-system-files-overlay.sh` | yes | containerfile |
 | 02 | materialize-build-ctx | `02-materialize-build-ctx.sh` | yes | universal |
+| 02 | uki-bootloader | `02-uki-bootloader.sh` | yes | universal |
 | 04 | local-rpm-mirror | `04-local-rpm-mirror.sh` | yes | universal |
 | 05 | repos | `05-repos.sh` | yes | universal |
 | 06 | enable-external-repos | `06-enable-external-repos.sh` | no | universal |
@@ -43,6 +44,7 @@ Two columns below are worth reading carefully:
 | 21 | virt | `21-virt.sh` | yes | universal |
 | 22 | akmod-guards | `22-akmod-guards.sh` | no | universal |
 | 23 | gpu-passthrough | `23-gpu-passthrough.sh` | yes | universal |
+| 24 | cpu-affinity | `24-cpu-affinity.sh` | yes | universal |
 | 24 | gpu-pv-shim | `24-gpu-pv-shim.sh` | yes | universal |
 | 25 | gpu-cdi-toolkits | `25-gpu-cdi-toolkits.sh` | yes | universal |
 | 26 | nvidia-cdi-refresh | `26-nvidia-cdi-refresh.sh` | yes | universal |
@@ -105,7 +107,7 @@ Two columns below are worth reading carefully:
 | 98 | drift-checks | `98-drift-checks.sh` | yes | containerfile |
 | 99 | postcheck | `99-postcheck.sh` | yes | containerfile |
 
-<!-- derived from usr/share/mios/mios.toml [build.phases].list (77 phases) -->
+<!-- derived from usr/share/mios/mios.toml [build.phases].list (79 phases) -->
 <!-- /MIOS-GEN:pipeline -->
 
 ## Root Quadlet exceptions (Law 6)

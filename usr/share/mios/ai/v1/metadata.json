@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3589,
-  "total_metadata_entries": 2964,
-  "total_hints": 2952,
-  "total_functions_indexed": 1345,
-  "total_related_links": 4655,
+  "total_files_scanned": 3600,
+  "total_metadata_entries": 2974,
+  "total_hints": 2961,
+  "total_functions_indexed": 1351,
+  "total_related_links": 4664,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -737,6 +737,15 @@
       "has_shebang": true
     },
     {
+      "path": "automation/02-uki-bootloader.sh",
+      "hint": "Configures UKI bootchain security enforcing module.sig_enforce=1 and lockdown=confidentiality (T-916, T-917).",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/ch41-machine-owner-key-management.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "automation/04-local-rpm-mirror.sh",
       "hint": "Configures local RPM mirror repos for DNF when offline build mode is requested or vendored mirror is present.",
       "related": [
@@ -864,6 +873,19 @@
       "path": "automation/23-gpu-passthrough.sh",
       "hint": "Configures GPU passthrough by symlinking systemd unit files for NVIDIA/AMD/Intel drivers into the multi-user.tar...",
       "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/automation.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "automation/24-cpu-affinity.sh",
+      "hint": "Configures CPU affinity, systemd slice hierarchy (system.slice, user.slice, subagent.slice), discovers SMT topology, and validates Linux Core Scheduling (CONFIG_SCHED_CORE).",
+      "related": [
+        "usr/libexec/mios/mios-core-sched",
+        "tests/test-core-sched.sh",
+        "usr/lib/systemd/system/subagent.slice"
+      ],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/automation.md",
       "comment_style": "hash",
@@ -1107,10 +1129,10 @@
     },
     {
       "path": "automation/50-uupd-installer.sh",
-      "hint": "Installs the uupd and greenboot packages, enables the uupd.timer, and disables superseded update timers (bootc-fe...",
+      "hint": "Installs uupd and offline atomic OCI upgrade path with kernel vs userspace soft-reboot differentiation.",
       "related": [],
       "functions": [],
-      "doc": "usr/share/doc/mios/manual/automation.md",
+      "doc": "usr/share/doc/mios/manual/offline-upgrade.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -2970,6 +2992,15 @@
       "has_shebang": false
     },
     {
+      "path": "docs/research/architecture-gap-audit-2026-09-29.md",
+      "hint": "Evidence audit of the operator-supplied MiOS v0.3.0 architecture gap summary against the 2026-09-29 source tree and primary upstream specifications. This is a research record, not a deployment gate.",
+      "related": [],
+      "functions": [],
+      "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
       "path": "docs/research/credential-cli-architecture-2026-09.md",
       "hint": "Research on CLI and API credential architecture for MiOS: clients resolve MIOS_AI_ENDPOINT and never hold upstream credentials; short-lived scoped tokens elsewhere.",
       "related": [],
@@ -3049,6 +3080,15 @@
       "related": [],
       "functions": [],
       "doc": null,
+      "comment_style": "hash",
+      "has_shebang": false
+    },
+    {
+      "path": "etc/cmdline.d/02-security.conf",
+      "hint": "Kernel security command-line parameters enforcing module signature verification and confidentiality lockdown mode in UKI bootchain (T-916, T-917).",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/kargs.d.md",
       "comment_style": "hash",
       "has_shebang": false
     },
@@ -6360,6 +6400,19 @@
       "has_shebang": true
     },
     {
+      "path": "tests/test-core-sched.sh",
+      "hint": "Automated unit and integration test suite for Linux Core Scheduling cookie tagger, SMT isolation, and CPU affinity (T-858).",
+      "related": [
+        "usr/libexec/mios/mios-core-sched",
+        "automation/24-cpu-affinity.sh",
+        "usr/lib/systemd/system/subagent.slice"
+      ],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/tests.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "tests/test-coredump-sanitization.py",
       "hint": "Tests for T-751 & T-752: crash minidump extraction and raw core purge.",
       "related": [
@@ -6887,6 +6940,15 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "tests/test-kernel-module-signature-enforce.sh",
+      "hint": "Automated regression test suite for kernel module signature enforcement (EKEYREJECTED 129), signed module load, and /dev/mem lockdown (EPERM) (T-916, T-917).",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/ch41-machine-owner-key-management.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -10752,7 +10814,7 @@
     },
     {
       "path": "usr/lib/bootc/kargs.d/30-security.toml",
-      "hint": "Defines boot-time kernel arguments for security hardening, specifically enforcing slab_nomerge and lockdown=integrity to allow signed NVIDIA modules whi...",
+      "hint": "Defines boot-time kernel arguments for security hardening, specifically enforcing slab_nomerge, module.sig_enforce=1, and lockdown=confidentiality (T-916, T-917).",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/kargs.d.md",
@@ -13341,6 +13403,15 @@
       "has_shebang": false
     },
     {
+      "path": "usr/lib/mios/agent-pipe/mios_psi.py",
+      "hint": "Continuous Linux PSI (Pressure Stall Information) sampler and throttling monitor (T-485).",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
       "path": "usr/lib/mios/agent-pipe/mios_quarantine.py",
       "hint": "Re-export shim for mios_pipe.access.quarantine",
       "related": [],
@@ -14738,6 +14809,15 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/agent-pipe.md",
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "usr/lib/mios/agent-pipe/test_mios_psi.py",
+      "hint": "Comprehensive unit test suite for mios_psi (T-485 PSI monitor).",
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -21478,6 +21558,26 @@
       ],
       "functions": [],
       "doc": null,
+      "comment_style": "hash",
+      "has_shebang": true
+    },
+    {
+      "path": "usr/libexec/mios/mios-core-sched",
+      "hint": "Manages Linux core scheduling cookies (PR_SCHED_CORE via prctl) for hardware SMT sibling isolation across multi-tenant workloads, with graceful fallback.",
+      "related": [
+        "automation/24-cpu-affinity.sh",
+        "tests/test-core-sched.sh",
+        "usr/lib/systemd/system/subagent.slice"
+      ],
+      "functions": [
+        "get_core_sched_status",
+        "create_cookie",
+        "share_cookie_from",
+        "share_cookie_to",
+        "tag_cgroup",
+        "main"
+      ],
+      "doc": "usr/share/doc/mios/manual/ch63-core-scheduling.md",
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -30302,6 +30402,15 @@
       "related": [],
       "functions": [],
       "doc": null,
+      "comment_style": "xml",
+      "has_shebang": false
+    },
+    {
+      "path": "usr/share/doc/mios/manual/offline-upgrade.md",
+      "hint": null,
+      "related": [],
+      "functions": [],
+      "doc": "usr/share/doc/mios/manual/offline-upgrade.md",
       "comment_style": "xml",
       "has_shebang": false
     },

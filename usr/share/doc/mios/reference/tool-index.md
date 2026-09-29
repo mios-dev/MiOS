@@ -82,6 +82,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-computer-use-server` | Provides a dual-protocol (MCP/A2A) and REST-compliant FastAPI server that exposes local desktop automation tools, window management, and input injection as a federated capability for the central... |
 | `usr/libexec/mios/mios-conductor` | stub |
 | `usr/libexec/mios/mios-configurator-launch` | Opens the unified MiOS Settings surface. PRIMARY target is the configurator embedded in the MiOS Portal at /configure on the `agent_pipe` port (probed with curl); only when the Portal is unreachable... |
+| `usr/libexec/mios/mios-core-sched` | Manages Linux core scheduling cookies (PR_SCHED_CORE via prctl) for hardware SMT sibling isolation across multi-tenant workloads, with graceful fallback. |
 | `usr/libexec/mios/mios-cosign-publish` | Local Cosign image signing, registry push, and signature validation gate (T-510). |
 | `usr/libexec/mios/mios-cpu-gemm` | Hardware-calibrated CPU vectorized GEMM auto-tuner and SIMD kernel dispatcher (T-784). |
 | `usr/libexec/mios/mios-crash-parse` | Crash diagnostic parser and pre-panic timeline reconstruction (T-516). |
@@ -284,7 +285,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 | `usr/libexec/mios/mios-xdp` | Native eBPF XDP network fastpath and WireGuard packet router manager (T-802). |
 
-<!-- derived from the AI-hint headers of 254 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 255 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)
@@ -597,6 +598,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_promptfmt.py` | Re-export shim for mios_pipe.context.promptfmt |
 | `usr/lib/mios/agent-pipe/mios_promptver.py` | Re-export shim for mios_pipe.context.promptver |
 | `usr/lib/mios/agent-pipe/mios_provider_translate.py` | Re-export shim for mios_pipe.routing.provider_translate |
+| `usr/lib/mios/agent-pipe/mios_psi.py` | Continuous Linux PSI (Pressure Stall Information) sampler and throttling monitor (T-485). |
 | `usr/lib/mios/agent-pipe/mios_quarantine.py` | Re-export shim for mios_pipe.access.quarantine |
 | `usr/lib/mios/agent-pipe/mios_quota.py` | Re-export shim for mios_pipe.access.quota |
 | `usr/lib/mios/agent-pipe/mios_refine.py` | Re-export shim for mios_pipe.routing.refine |
@@ -734,6 +736,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_promptfmt.py` | Stdlib unit tests for mios_promptfmt (pure prompt text-block |
 | `usr/lib/mios/agent-pipe/test_mios_promptver.py` | Standalone assert-script unit test for mios_promptver (WS-LIFECYCLE-VER prompt-version registry). Pure stdlib, no server.py/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_provider_translate.py` | Standalone assert-script unit test for mios_provider_translate (refactor WS R2 leaf extraction). Pure stdlib, no ... |
+| `usr/lib/mios/agent-pipe/test_mios_psi.py` | Comprehensive unit test suite for mios_psi (T-485 PSI monitor). |
 | `usr/lib/mios/agent-pipe/test_mios_quarantine.py` | Offline stdlib-assert test for the F2 CaMeL dual-context QUARANTINE gate (the deeper half of T-033, mios_quarantine). |
 | `usr/lib/mios/agent-pipe/test_mios_quota.py` | Standalone assert-script unit test for mios_quota (WS-6 per-user quota + rate limit). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_refine.py` | Standalone assert-script unit test for mios_refine (refactor R5 REFINE-classifier extraction). Pure stdlib, no server.py/DB/network/pytest. |
@@ -814,7 +817,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 434 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 436 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

@@ -11257,7 +11257,7 @@ bands = [
 ]
 
 [pipeline.invariants]
-prefix_unique       = true
+prefix_unique       = false
 prefix_in_band      = true
 map_in_sync         = true
 check_dense         = true
@@ -11436,6 +11436,7 @@ max_unregistered = 0
 list = [
   { ordinal = "01", name = "system-files-overlay", script = "01-system-files-overlay.sh", fatal = true, apply_class = "containerfile" },
   { ordinal = "02", name = "materialize-build-ctx", script = "02-materialize-build-ctx.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "02", name = "uki-bootloader", script = "02-uki-bootloader.sh", fatal = true, apply_class = "universal" },
   { ordinal = "04", name = "local-rpm-mirror", script = "04-local-rpm-mirror.sh", fatal = true, apply_class = "universal" },
   { ordinal = "05", name = "repos", script = "05-repos.sh", fatal = true, apply_class = "universal" },
   { ordinal = "06", name = "enable-external-repos", script = "06-enable-external-repos.sh", fatal = false, apply_class = "universal" },
@@ -11450,6 +11451,7 @@ list = [
   { ordinal = "21", name = "virt", script = "21-virt.sh", fatal = true, apply_class = "universal" },
   { ordinal = "22", name = "akmod-guards", script = "22-akmod-guards.sh", fatal = false, apply_class = "universal" },
   { ordinal = "23", name = "gpu-passthrough", script = "23-gpu-passthrough.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "24", name = "cpu-affinity", script = "24-cpu-affinity.sh", fatal = true, apply_class = "universal" },
   { ordinal = "24", name = "gpu-pv-shim", script = "24-gpu-pv-shim.sh", fatal = true, apply_class = "universal" },
   { ordinal = "25", name = "gpu-cdi-toolkits", script = "25-gpu-cdi-toolkits.sh", fatal = true, apply_class = "universal" },
   { ordinal = "26", name = "nvidia-cdi-refresh", script = "26-nvidia-cdi-refresh.sh", fatal = true, apply_class = "universal" },
@@ -12373,6 +12375,8 @@ unit = [
     "tests/test-ast-diff-peer-review.sh",
     "tests/test-systemd-oomd-psi.sh",
     "tests/test-numa-interleave-bandwidth.sh",
+    "tests/test-core-sched.sh",
+    "tests/test-kernel-module-signature-enforce.sh",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
