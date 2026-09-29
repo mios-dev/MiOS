@@ -1,7 +1,8 @@
-# AI-hint: Defines boot-time kernel arguments for security hardening, specifically enforcing slab_nomerge and lockdown=integrity to allow signed NVIDIA modules whi...
+# AI-hint: Defines boot-time kernel arguments for security hardening, specifically enforcing slab_nomerge, module.sig_enforce=1, and lockdown=confidentiality (T-916, T-917).
 # AI-doc: usr/share/doc/mios/manual/kargs.d.md
 kargs = [
   "slab_nomerge",
-  "lockdown=integrity",
+  "module.sig_enforce=1",
+  "lockdown=confidentiality",
 ]
 match-architectures = ["x86_64"]
