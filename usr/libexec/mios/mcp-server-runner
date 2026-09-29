@@ -115,5 +115,10 @@ elif [[ -x "$MCP_DIR/server" ]]; then
 else
     _log "no custom MCP entrypoint -- serving built-in verb relay over Streamable-HTTP on 127.0.0.1:$MIOS_MCP_PORT"
     export MIOS_MCP_HTTP=1
-    exec /usr/libexec/mios/mios-mcp-server --http
+    MCP_PYTHON="${MIOS_MCP_PYTHON:-/usr/lib/mios/agents/.venv/bin/python3}"
+    if [[ ! -x "$MCP_PYTHON" ]]; then
+        _log "MCP SDK interpreter missing: $MCP_PYTHON"
+        exit 1
+    fi
+    exec "$MCP_PYTHON" /usr/libexec/mios/mios-mcp-server --http
 fi

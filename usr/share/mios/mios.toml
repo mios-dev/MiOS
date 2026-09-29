@@ -3513,7 +3513,7 @@ mdns_advertise     = false              # announce THIS node's A2A endpoint via 
 mdns_refresh_sec   = 300                # minimum seconds between live mDNS browses (throttle floor)
 
 [mcp]
-protocol_version = "2025-11-25"
+protocol_version = "2026-07-28"
 
 [routing]
 router_enable = true   # master switch; false = legacy full-surface behaviour

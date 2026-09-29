@@ -9,7 +9,7 @@
         "MIOS_TOML": "c:\\MiOS\\usr\\share\\mios\\mios.toml",
         "PYTHONPATH": "c:\\MiOS\\usr\\lib\\mios",
         "MIOS_AGENT_PIPE_URL": "http://localhost:8700",
-        "MIOS_MCP_PROTOCOL_VERSION": "2025-11-25"
+        "MIOS_MCP_PROTOCOL_VERSION": "2026-07-28"
       }
     },
     "dev-loop": {

@@ -161,7 +161,7 @@ from unittest import mock
 import unittest
 
 try:
-    import mcp
+    import mios_mcp_transport as transport
     from mios_gateway_queue import MCPClientPool
 except ImportError as e:
     raise unittest.SkipTest(f"skipping mcp tests: {e}")
@@ -214,27 +214,22 @@ async def test_mcp_pool_lifecycle():
         }
     }
 
-    mock_tool = MockTool(
-        name="navigate",
-        description="Navigate to URL",
-        inputSchema={"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}
-    )
-    mock_session = MockSession(tools=[mock_tool])
-
     pool = MCPClientPool(server_configs)
 
     _check_mcp_pool("pool: clients created", "playwright" in pool.clients)
     _check_mcp_pool("pool: disabled client ignored", "disabled_srv" not in pool.clients)
 
-    async def mock_connect(self):
-        self.session = mock_session
-        return mock_session
+    async def mock_list_tools(self):
+        return {"result": {"tools": [{
+            "name": "navigate", "description": "Navigate to URL",
+            "inputSchema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
+        }]}}
 
     async def mock_close(self):
         pass
 
-    with mock.patch.object(mcp.StdioClient, "connect", mock_connect), \
-         mock.patch.object(mcp.StdioClient, "close", mock_close):
+    with mock.patch.object(transport._McpStdioClient, "list_tools", mock_list_tools), \
+         mock.patch.object(transport._McpStdioClient, "close", mock_close):
 
         await pool.startup()
 
