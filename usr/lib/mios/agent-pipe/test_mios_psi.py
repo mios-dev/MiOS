@@ -84,30 +84,29 @@ class TestPsiParsing(unittest.TestCase):
         check("parsing: multi-line memory some and full", rp.some.avg10 == 15.40 and rp.full.avg10 == 5.10)
 
     def test_parse_empty_or_comment_lines(self) -> None:
-        """Negative control: empty, whitespace-only, and comment lines return None."""
-        self.assertIsNone(parse_psi_line(""))
-        self.assertIsNone(parse_psi_line("   \n"))
-        self.assertIsNone(parse_psi_line("# comment line"))
+        """Negative control: empty, whitespace-only, and comment lines return (None, None)."""
+        self.assertEqual(parse_psi_line(""), (None, None))
+        self.assertEqual(parse_psi_line("   \n"), (None, None))
+        self.assertEqual(parse_psi_line("# comment line"), (None, None))
         check("parsing: negative control empty/comment lines return None", True)
 
     def test_parse_unknown_line_type(self) -> None:
-        """Negative control: lines starting with unknown tokens return None."""
-        self.assertIsNone(parse_psi_line("unknown avg10=10.0 avg60=5.0 avg300=1.0 total=0"))
-        self.assertIsNone(parse_psi_line("total avg10=10.0"))
+        """Negative control: lines starting with unknown tokens return (None, None)."""
+        self.assertEqual(parse_psi_line("unknown avg10=10.0 avg60=5.0 avg300=1.0 total=0"), (None, None))
+        self.assertEqual(parse_psi_line("total avg10=10.0"), (None, None))
         check("parsing: negative control unknown line type", True)
 
     def test_parse_malformed_numbers_resilience(self) -> None:
         """Negative control: non-numeric tokens do not cause unhandled crashes."""
         line = "some avg10=corrupted avg60=12.5 avg300=NaN_val total=notanint"
         parsed = parse_psi_line(line)
-        # avg10 is missing/invalid, so parse_psi_line returns None
-        self.assertIsNone(parsed)
+        self.assertEqual(parsed, (None, None))
         check("parsing: negative control malformed numbers handled safely", True)
 
     def test_parse_missing_avg10_field(self) -> None:
         """Negative control: lines missing avg10 are rejected."""
         line = "some avg60=5.0 avg300=2.0 total=1000"
-        self.assertIsNone(parse_psi_line(line))
+        self.assertEqual(parse_psi_line(line), (None, None))
         check("parsing: negative control missing avg10 rejected", True)
 
     def test_read_nonexistent_file(self) -> None:
