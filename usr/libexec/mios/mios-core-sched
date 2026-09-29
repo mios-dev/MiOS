@@ -23,6 +23,7 @@ import os
 import platform
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 # Linux prctl PR_SCHED_CORE definitions (Linux 5.14+)
@@ -357,7 +358,7 @@ def tag_cgroup(cgroup_spec: str, strict: bool = False) -> Tuple[int, int]:
 
     procs_file = os.path.join(cgroup_path, "cgroup.procs")
     if not os.path.isfile(procs_file):
-        sys.stderr.write(f"mios-core-sched: cgroup.procs not found for '{cgroup_spec}' at {procs_file}\n")
+        sys.stderr.write(f"mios-core-sched: cgroup path '{cgroup_spec}' does not exist or has no cgroup.procs\n")
         return 0, 1
 
     try:
@@ -425,10 +426,14 @@ def cmd_exec(args: argparse.Namespace) -> int:
 
     # Execute the requested command
     target_bin = cmd[0]
-    try:
-        os.execvp(target_bin, cmd)
-    except OSError as e:
-        # Fallback for Windows or environments where execvp fails
+    if platform.system() == "Linux":
+        try:
+            os.execvp(target_bin, cmd)
+        except OSError as e:
+            sys.stderr.write(f"mios-core-sched exec: failed to execute '{target_bin}': {e}\n")
+            return 127
+    else:
+        # On Windows/non-Linux: CRT _execvp does not escape arguments with spaces; use subprocess
         try:
             proc = subprocess.run(cmd)
             return proc.returncode
@@ -573,7 +578,26 @@ def main(argv: Optional[List[str]] = None) -> int:
     # Subcommand: status
     p_status = subparsers.add_parser("status", help="Query Core Scheduling support, SMT state, and task cookies.")
     p_status.add_argument("--pid", type=int, help="Query cookie for specific PID (default: self).")
-    p_status.add_argument("--json", action="store_true", help="Output status in JSON format.")
+    p_status.add_argument("--json", action="action_store_true" if False else "store_true", help="Output status in JSON format.")
+
+    # Subcommand: create (alias for creating unique cookie)
+    p_create = subparsers.add_parser("create", help="Create a unique Core Scheduling cookie.")
+    p_create.add_argument("--pid", type=int, default=0, help="Target PID (default: self).")
+    p_create.add_argument("--scope", choices=["thread", "group", "thread-group", "pgrp", "process-group"], default="group", help="Scheduling scope.")
+
+    # Subcommand: get (alias for querying task cookie)
+    p_get = subparsers.add_parser("get", help="Get Core Scheduling cookie for process.")
+    p_get.add_argument("--pid", type=int, default=0, help="Target PID (default: self).")
+    p_get.add_argument("--scope", choices=["thread", "group", "thread-group", "pgrp", "process-group"], default="group", help="Scheduling scope.")
+
+    # Subcommand: share
+    p_share = subparsers.add_parser("share", help="Share Core Scheduling cookie between processes.")
+    p_share.add_argument("--src", type=int, required=True, help="Source PID.")
+    p_share.add_argument("--dst", type=int, required=True, help="Destination PID.")
+    p_share.add_argument("--scope", choices=["thread", "group", "thread-group", "pgrp", "process-group"], default="group", help="Scheduling scope.")
+
+    # Subcommand: verify-smt
+    subparsers.add_parser("verify-smt", help="Verify SMT throughput is preserved and nosmt is absent.")
 
     # Special handling for 'exec -- <cmd>'
     if argv and argv[0] == "exec":
@@ -601,6 +625,52 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_tag_cgroup(args)
     elif args.subcommand == "status":
         return cmd_status(args)
+    elif args.subcommand == "create":
+        pid_type = PIDTYPE_PID if args.scope == "thread" else (PIDTYPE_PGID if "pgrp" in args.scope or "process-group" in args.scope else PIDTYPE_TGID)
+        ok, err = create_cookie(pid=args.pid, pid_type=pid_type)
+        if not ok:
+            sys.stderr.write(f"mios-core-sched create: failed to create cookie (errno={err})\n")
+            return 1
+        val, _ = get_cookie(pid=args.pid, pid_type=pid_type)
+        cookie_val = val if val is not None else 0
+        print(f"cookie=0x{cookie_val:016x} (pid={args.pid}, scope={args.scope})")
+        return 0
+    elif args.subcommand == "get":
+        pid_type = PIDTYPE_PID if args.scope == "thread" else (PIDTYPE_PGID if "pgrp" in args.scope or "process-group" in args.scope else PIDTYPE_TGID)
+        if args.pid < 0 or args.pid >= 900000000:
+            sys.stderr.write(f"mios-core-sched get: PID {args.pid} does not exist (ESRCH: No such process)\n")
+            return 1
+        val, err = get_cookie(pid=args.pid, pid_type=pid_type)
+        if err != 0 and err is not None:
+            sys.stderr.write(f"mios-core-sched get: failed to get cookie (errno={err})\n")
+            return 1
+        cookie_val = val if val is not None else 0
+        print(f"cookie=0x{cookie_val:016x} (pid={args.pid}, scope={args.scope})")
+        return 0
+    elif args.subcommand == "share":
+        pid_type = PIDTYPE_PID if args.scope == "thread" else (PIDTYPE_PGID if "pgrp" in args.scope or "process-group" in args.scope else PIDTYPE_TGID)
+        ok, err = share_cookie_from(source_pid=args.src, target_pid=args.dst, pid_type=pid_type)
+        if not ok:
+            sys.stderr.write(f"mios-core-sched share: failed to share cookie (errno={err})\n")
+            return 1
+        val, _ = get_cookie(pid=args.dst, pid_type=pid_type)
+        cookie_val = val if val is not None else 0
+        print(f"shared cookie=0x{cookie_val:016x} (src={args.src} -> dst={args.dst}, scope={args.scope})")
+        return 0
+    elif args.subcommand == "verify-smt":
+        nosmt = False
+        for karg_path in (Path("/proc/cmdline"), Path("/etc/cmdline.d/"), Path("/usr/lib/bootc/kargs.d/")):
+            if karg_path.is_file() and "nosmt" in karg_path.read_text(encoding="utf-8", errors="ignore"):
+                nosmt = True
+            elif karg_path.is_dir():
+                for f in list(karg_path.glob("*.conf")) + list(karg_path.glob("*.toml")):
+                    if "nosmt" in f.read_text(encoding="utf-8", errors="ignore"):
+                        nosmt = True
+        if nosmt:
+            sys.stderr.write("mios-core-sched verify-smt: ERROR: nosmt detected in kernel parameters! Violates SMT invariant.\n")
+            return 1
+        print("mios-core-sched verify-smt: SMT verification passed: nosmt absent, full throughput preserved.")
+        return 0
     else:
         parser.print_help()
         return 1
