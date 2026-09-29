@@ -15,21 +15,12 @@ import logging
 import os
 import sys
 import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("mios-fastboot-mgr")
 
 MAX_LOADER_TIME_MS = 300.0
-
-@dataclass
-class BootConfiguration:
-    timeout_sec: int
-    console_mode: str
-    is_uki_signed: bool
-    baked_kargs: List[str]
-    emergency_override_key: str  # "Space" or "Esc"
 
 class FastbootManager:
     """Manages systemd-boot loader configuration and UKI direct boot verification."""

@@ -3,7 +3,10 @@
         {
             "colorScheme": "MiOS Dark",
             "padding": "0",
-            "scrollbarState": "hidden"
+            "scrollbarState": "hidden",
+            "useAcrylic": true,
+            "opacity": 50,
+            "systemBackdrop": "acrylic"
         }
     ],
     "schemes": [

@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3600,
-  "total_metadata_entries": 2974,
-  "total_hints": 2961,
-  "total_functions_indexed": 1351,
-  "total_related_links": 4664,
+  "total_files_scanned": 3598,
+  "total_metadata_entries": 2972,
+  "total_hints": 2959,
+  "total_functions_indexed": 1347,
+  "total_related_links": 4657,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -156,20 +156,6 @@
       "has_shebang": false
     },
     {
-      "path": ".devloop/UPSTREAM_AUDIT_MULTI_HARNESS_CONCURRENCY.md",
-      "hint": "Upstream Research & Audit: Claude Code CLI + Antigravity Multi-Harness Autonomous Engineering Loop",
-      "related": [
-        "/workspaces/MiOS/.devloop/tasks.jsonl",
-        "/home/mios-dev/.dev-loop/skills/dev-loop/SKILL.md",
-        "/usr/share/mios/ai/system.md",
-        "MON-001..MON-018"
-      ],
-      "functions": [],
-      "doc": null,
-      "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
       "path": ".devloop/findings/T-1000.md",
       "hint": "MiOS -- dev-loop finding T-1000 (GATE-04): the recorded verdict, evidence and citations from re-measuring whether that gate can be driven red.",
       "related": [
@@ -217,24 +203,6 @@
       "functions": [],
       "doc": null,
       "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
-      "path": ".devloop/foreign-srf-libexec.patch",
-      "hint": "Hierarchical accelerator router with NPU priority and CPU vector fallback (T-693, T-694).",
-      "related": [
-        "usr/libexec/mios/ai/accelerator_router.py",
-        "tests/test-ai.py",
-        "automation/22-accelerators.sh"
-      ],
-      "functions": [
-        "AuditChainRecorder",
-        "MerkleTree",
-        "generate_ed25519_keypair",
-        "main"
-      ],
-      "doc": null,
-      "comment_style": "hash",
       "has_shebang": false
     },
     {
@@ -25407,8 +25375,8 @@
         "automation/",
         "mios-find",
         "mios-bootstrap",
-        "mios-debloat",
-        "mios-xbox-features"
+        "mios-bootstrap/field/autounattend/mios-debloat.json",
+        "mios-bootstrap/field/autounattend/mios-xbox-features.txt"
       ],
       "functions": [
         "get_seeded_sections",

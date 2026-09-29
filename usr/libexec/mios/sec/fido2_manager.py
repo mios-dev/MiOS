@@ -35,14 +35,6 @@ class FIDO2Device:
     resident_keys_supported: bool = True
     serial_number: Optional[str] = None
 
-@dataclass
-class U2FKeyMapping:
-    username: str
-    key_handle: str
-    public_key: str
-    user_presence: str = "+presence"
-    pin_verification: str = "+pin"
-
 class FIDO2SecurityManager:
     """Manages FIDO2 authenticators, PAM enrollment, and SSH security key synthesis."""
 
