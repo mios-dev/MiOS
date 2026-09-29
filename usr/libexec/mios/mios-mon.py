@@ -630,7 +630,7 @@ if TEXTUAL_AVAILABLE:
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
-            with TabbedContent(initial="tab-build" if PIPELINE_MODE else "tab-global"):
+            with TabbedContent(initial="tab-global"):
                 with TabPane("Global Systems", id="tab-global"):
                     with Horizontal(id="main-container"):
                         with Vertical(id="left-pane"):
