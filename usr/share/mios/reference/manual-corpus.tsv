@@ -192,433 +192,435 @@ Get-MiOS.ps1	525	530	6	47	065f55427a08	MIGRATE	narrative-rationale		0	usr/share/
 Get-MiOS.ps1	530	530	1	7	91779b24e9b8	STAY	local-scoped		0				0
 Get-MiOS.ps1	537	544	8	59	0112f387b3fb	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:0112f387b3fb	59	1
 Get-MiOS.ps1	540	540	1	4	24394be85bff	STAY	local-scoped		0				0
-Get-MiOS.ps1	546	546	1	4	d97bf1ff3fda	STAY	local-scoped		0				0
+Get-MiOS.ps1	547	547	1	4	d97bf1ff3fda	STAY	local-scoped		0				0
 Get-MiOS.ps1	548	554	7	63	597bdd1cbe76	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:597bdd1cbe76	63	1
-Get-MiOS.ps1	552	552	1	7	4ecd4c7c6f26	STAY	local-scoped		0				0
+Get-MiOS.ps1	553	554	2	22	10034dea4522	STAY	local-scoped		0				0
 Get-MiOS.ps1	574	584	11	115	3b2ebfee02b9	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:3b2ebfee02b9	115	1
-Get-MiOS.ps1	582	585	4	42	3c4dbbf04062	STAY	midsize-why		0				0
-Get-MiOS.ps1	597	599	3	26	838b9229095e	STAY	midsize-why		0				0
+Get-MiOS.ps1	598	601	4	42	3c4dbbf04062	STAY	midsize-why		0				0
 Get-MiOS.ps1	601	612	12	111	2b0184139248	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:2b0184139248	111	1
-Get-MiOS.ps1	614	614	1	5	c9eba5f619e8	STAY	local-scoped		0				0
-Get-MiOS.ps1	618	618	1	5	85566c592f06	STAY	local-scoped		0				0
-Get-MiOS.ps1	623	625	3	28	5579220183f4	STAY	midsize-why		0				0
+Get-MiOS.ps1	613	615	3	26	838b9229095e	STAY	midsize-why		0				0
 Get-MiOS.ps1	628	634	7	66	36c2e403f349	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:36c2e403f349	66	1
+Get-MiOS.ps1	630	630	1	5	c9eba5f619e8	STAY	local-scoped		0				0
+Get-MiOS.ps1	634	634	1	5	85566c592f06	STAY	local-scoped		0				0
 Get-MiOS.ps1	636	643	8	66	2927a88cbcc0	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:2927a88cbcc0	66	1
-Get-MiOS.ps1	638	639	2	19	3381259d64fd	STAY	local-scoped		0				0
+Get-MiOS.ps1	639	641	3	28	5579220183f4	STAY	midsize-why		0				0
+Get-MiOS.ps1	654	655	2	19	3381259d64fd	STAY	local-scoped		0				0
 Get-MiOS.ps1	654	661	8	80	fa3f1731f18d	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:fa3f1731f18d	80	1
-Get-MiOS.ps1	656	659	4	41	cb9b543c4f47	STAY	midsize-why		0				0
-Get-MiOS.ps1	665	665	1	3	38140d059950	STAY	inline-scoped		0				0
-Get-MiOS.ps1	666	666	1	3	58954bce6c5a	STAY	inline-scoped		0				0
-Get-MiOS.ps1	685	685	1	10	967d7f10010b	STAY	local-scoped		0				0
-Get-MiOS.ps1	689	690	2	14	539bca6dc8fb	STAY	local-scoped		0				0
-Get-MiOS.ps1	692	693	2	20	3393dfc2d7c8	STAY	local-scoped		0				0
-Get-MiOS.ps1	710	711	2	25	a6c0f23a9639	STAY	local-scoped		0				0
-Get-MiOS.ps1	730	731	2	22	42c512a622b6	STAY	local-scoped		0				0
-Get-MiOS.ps1	750	750	1	4	b2cd0843aa34	STAY	inline-scoped		0				0
-Get-MiOS.ps1	751	751	1	2	bf7f68dd62a8	STAY	inline-scoped		0				0
-Get-MiOS.ps1	752	752	1	5	65fb3d77b9f5	STAY	inline-scoped		0				0
-Get-MiOS.ps1	756	757	2	14	f33324ce5ca9	STAY	local-scoped		0				0
-Get-MiOS.ps1	762	762	1	10	934a80baed5c	STAY	local-scoped		0				0
-Get-MiOS.ps1	763	763	1	0	a7ffbb836a84	DROP	banner		0				0
-Get-MiOS.ps1	767	767	1	11	d93a27f97a8b	STAY	local-scoped		0				0
+Get-MiOS.ps1	672	675	4	41	cb9b543c4f47	STAY	midsize-why		0				0
+Get-MiOS.ps1	681	681	1	3	38140d059950	STAY	inline-scoped		0				0
+Get-MiOS.ps1	682	682	1	3	58954bce6c5a	STAY	inline-scoped		0				0
+Get-MiOS.ps1	701	701	1	10	967d7f10010b	STAY	local-scoped		0				0
+Get-MiOS.ps1	705	706	2	14	539bca6dc8fb	STAY	local-scoped		0				0
+Get-MiOS.ps1	708	709	2	20	3393dfc2d7c8	STAY	local-scoped		0				0
+Get-MiOS.ps1	726	727	2	25	a6c0f23a9639	STAY	local-scoped		0				0
+Get-MiOS.ps1	746	747	2	22	42c512a622b6	STAY	local-scoped		0				0
+Get-MiOS.ps1	766	766	1	4	b2cd0843aa34	STAY	inline-scoped		0				0
+Get-MiOS.ps1	767	767	1	2	bf7f68dd62a8	STAY	inline-scoped		0				0
+Get-MiOS.ps1	768	768	1	5	65fb3d77b9f5	STAY	inline-scoped		0				0
+Get-MiOS.ps1	772	773	2	14	f33324ce5ca9	STAY	local-scoped		0				0
 Get-MiOS.ps1	777	784	8	73	3c5769a46ff8	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:3c5769a46ff8	73	1
+Get-MiOS.ps1	778	778	1	10	934a80baed5c	STAY	local-scoped		0				0
+Get-MiOS.ps1	779	779	1	0	a7ffbb836a84	DROP	banner		0				0
+Get-MiOS.ps1	783	783	1	11	d93a27f97a8b	STAY	local-scoped		0				0
 Get-MiOS.ps1	786	795	10	98	56ffc4814e0c	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:56ffc4814e0c	98	1
-Get-MiOS.ps1	793	793	1	10	778a31f4b878	STAY	local-scoped		0				0
 Get-MiOS.ps1	799	804	6	64	443d4fc9b954	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:443d4fc9b954	64	1
-Get-MiOS.ps1	812	812	1	4	1b5f9a52489a	STAY	inline-scoped		0				0
+Get-MiOS.ps1	809	809	1	10	778a31f4b878	STAY	local-scoped		0				0
 Get-MiOS.ps1	815	820	6	56	c51fce9739ae	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:c51fce9739ae	56	1
-Get-MiOS.ps1	822	822	1	8	b1d59cc27fde	STAY	local-scoped		0				0
-Get-MiOS.ps1	828	828	1	7	788bb607cb37	STAY	local-scoped		0				0
-Get-MiOS.ps1	834	836	3	30	0a430550eb7e	MIGRATE	midsize-narrative		0				0
+Get-MiOS.ps1	828	828	1	4	1b5f9a52489a	STAY	inline-scoped		0				0
 Get-MiOS.ps1	837	843	7	74	ef1cf89c72d2	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:ef1cf89c72d2	74	1
+Get-MiOS.ps1	838	838	1	8	b1d59cc27fde	STAY	local-scoped		0				0
+Get-MiOS.ps1	844	844	1	7	788bb607cb37	STAY	local-scoped		0				0
 Get-MiOS.ps1	849	856	8	67	3e7941ddecbc	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:3e7941ddecbc	67	1
-Get-MiOS.ps1	851	851	1	5	381decae3076	STAY	inline-scoped		0				0
-Get-MiOS.ps1	852	852	1	5	e33f03e4e9a0	STAY	inline-scoped		0				0
-Get-MiOS.ps1	853	854	2	23	509e0adc2d28	STAY	local-scoped		0				0
-Get-MiOS.ps1	887	888	2	15	1744dd880f1b	STAY	local-scoped		0				0
-Get-MiOS.ps1	891	891	1	11	4927b91d7e19	STAY	local-scoped		0				0
+Get-MiOS.ps1	850	852	3	30	0a430550eb7e	MIGRATE	midsize-narrative		0				0
+Get-MiOS.ps1	867	867	1	5	381decae3076	STAY	inline-scoped		0				0
+Get-MiOS.ps1	868	868	1	5	e33f03e4e9a0	STAY	inline-scoped		0				0
+Get-MiOS.ps1	869	870	2	23	509e0adc2d28	STAY	local-scoped		0				0
 Get-MiOS.ps1	892	902	11	98	70e295c69c04	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:70e295c69c04	98	1
-Get-MiOS.ps1	901	901	1	5	a3ecb738c0c8	STAY	local-scoped		0				0
+Get-MiOS.ps1	903	904	2	15	1744dd880f1b	STAY	local-scoped		0				0
+Get-MiOS.ps1	907	907	1	11	4927b91d7e19	STAY	local-scoped		0				0
+Get-MiOS.ps1	917	917	1	5	a3ecb738c0c8	STAY	local-scoped		0				0
 Get-MiOS.ps1	953	955	3	27	2940a5f389a2	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:2940a5f389a2	27	1
 Get-MiOS.ps1	984	1005	22	174	094710407b2e	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:094710407b2e	174	1
-Get-MiOS.ps1	1002	1002	1	4	af309d7fb514	STAY	local-scoped		0				0
 Get-MiOS.ps1	1010	1014	5	37	a2fb7a0a0108	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:a2fb7a0a0108	37	1
+Get-MiOS.ps1	1018	1018	1	4	af309d7fb514	STAY	local-scoped		0				0
 Get-MiOS.ps1	1021	1027	7	69	10b7ce9a5d41	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:10b7ce9a5d41	69	1
 Get-MiOS.ps1	1032	1040	9	67	27c791a6ae2d	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:27c791a6ae2d	67	1
-Get-MiOS.ps1	1041	1042	2	14	b23b952037f7	STAY	local-scoped		0				0
-Get-MiOS.ps1	1051	1051	1	8	6b08a712f260	STAY	local-scoped		0				0
 Get-MiOS.ps1	1051	1054	4	36	81cb2b6b22ce	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:81cb2b6b22ce	36	1
-Get-MiOS.ps1	1055	1055	1	4	6daf16f033ab	STAY	local-scoped		0				0
+Get-MiOS.ps1	1057	1058	2	14	b23b952037f7	STAY	local-scoped		0				0
 Get-MiOS.ps1	1060	1064	5	37	777d75b0b18a	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:777d75b0b18a	37	1
-Get-MiOS.ps1	1065	1067	3	24	a1cbb05d7e46	STAY	midsize-why		0				0
+Get-MiOS.ps1	1067	1067	1	8	6b08a712f260	STAY	local-scoped		0				0
+Get-MiOS.ps1	1071	1071	1	4	6daf16f033ab	STAY	local-scoped		0				0
 Get-MiOS.ps1	1077	1086	10	97	56365e4ef5b8	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:56365e4ef5b8	97	1
-Get-MiOS.ps1	1079	1079	1	5	49a779c4575f	DROP	banner		0				0
-Get-MiOS.ps1	1086	1087	2	20	ee6d6dbb2f17	STAY	local-scoped		0				0
+Get-MiOS.ps1	1081	1083	3	24	a1cbb05d7e46	STAY	midsize-why		0				0
 Get-MiOS.ps1	1088	1093	6	46	e05b22a8a82a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:e05b22a8a82a	46	1
-Get-MiOS.ps1	1090	1090	1	11	359c359a74c7	STAY	local-scoped		0				0
-Get-MiOS.ps1	1096	1096	1	12	a55fe6ec7630	STAY	local-scoped		0				0
+Get-MiOS.ps1	1095	1095	1	5	49a779c4575f	DROP	banner		0				0
 Get-MiOS.ps1	1098	1104	7	68	2625a20c5994	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:2625a20c5994	68	1
-Get-MiOS.ps1	1102	1102	1	2	3b6e7b1abd82	STAY	inline-scoped		0				0
-Get-MiOS.ps1	1103	1103	1	3	d685afbeacef	STAY	inline-scoped		0				0
-Get-MiOS.ps1	1106	1108	3	32	3fd55e3ff302	STAY	midsize-why		0				0
+Get-MiOS.ps1	1102	1103	2	20	ee6d6dbb2f17	STAY	local-scoped		0				0
+Get-MiOS.ps1	1106	1106	1	11	359c359a74c7	STAY	local-scoped		0				0
+Get-MiOS.ps1	1112	1112	1	12	a55fe6ec7630	STAY	local-scoped		0				0
 Get-MiOS.ps1	1112	1115	4	34	d9750db7ae91	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:d9750db7ae91	34	1
-Get-MiOS.ps1	1113	1114	2	26	4b1ac73577e1	STAY	midsize-why		0				0
-Get-MiOS.ps1	1118	1119	2	17	77aadef69539	STAY	local-scoped		0				0
+Get-MiOS.ps1	1118	1118	1	2	3b6e7b1abd82	STAY	inline-scoped		0				0
+Get-MiOS.ps1	1119	1119	1	3	d685afbeacef	STAY	inline-scoped		0				0
+Get-MiOS.ps1	1122	1124	3	32	3fd55e3ff302	STAY	midsize-why		0				0
 Get-MiOS.ps1	1128	1133	6	46	0f4c7fdfe642	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:0f4c7fdfe642	46	1
+Get-MiOS.ps1	1129	1130	2	26	4b1ac73577e1	STAY	midsize-why		0				0
+Get-MiOS.ps1	1134	1135	2	17	77aadef69539	STAY	local-scoped		0				0
 Get-MiOS.ps1	1135	1146	12	105	d9d118dd2374	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:d9d118dd2374	105	1
-Get-MiOS.ps1	1143	1143	1	2	1c0a7e132662	STAY	local-scoped		0				0
 Get-MiOS.ps1	1155	1170	16	164	6360c745a50f	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:6360c745a50f	164	1
-Get-MiOS.ps1	1188	1188	1	8	991567c2f645	STAY	local-scoped		0				0
+Get-MiOS.ps1	1159	1159	1	2	1c0a7e132662	STAY	local-scoped		0				0
 Get-MiOS.ps1	1194	1201	8	69	54c69c26bb3d	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:54c69c26bb3d	69	1
+Get-MiOS.ps1	1204	1204	1	8	991567c2f645	STAY	local-scoped		0				0
 Get-MiOS.ps1	1212	1222	11	86	0918c1ef809d	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:0918c1ef809d	86	1
 Get-MiOS.ps1	1243	1287	45	399	cf2adc8ee86f	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/root.md	mios-src:cf2adc8ee86f	399	1
-Get-MiOS.ps1	1261	1261	1	5	49a779c4575f	DROP	banner		0				0
-Get-MiOS.ps1	1279	1281	3	25	87be27a5581b	STAY	midsize-why		0				0
-Get-MiOS.ps1	1304	1305	2	10	8179943297a2	STAY	local-scoped		0				0
+Get-MiOS.ps1	1277	1277	1	5	49a779c4575f	DROP	banner		0				0
+Get-MiOS.ps1	1295	1297	3	25	87be27a5581b	STAY	midsize-why		0				0
 Get-MiOS.ps1	1305	1315	11	87	42354e7f078f	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:42354e7f078f	87	1
+Get-MiOS.ps1	1320	1321	2	10	8179943297a2	STAY	local-scoped		0				0
 Get-MiOS.ps1	1321	1327	7	54	b978023f0c73	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:b978023f0c73	54	1
-Get-MiOS.ps1	1332	1333	2	22	0f4762b7ead6	STAY	local-scoped		0				0
 Get-MiOS.ps1	1337	1339	3	25	ad43c77bee53	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:ad43c77bee53	25	1
-Get-MiOS.ps1	1340	1341	2	15	4d6ed6b48244	STAY	local-scoped		0				0
+Get-MiOS.ps1	1348	1349	2	22	0f4762b7ead6	STAY	local-scoped		0				0
 Get-MiOS.ps1	1354	1365	12	106	64764e21e4c7	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:64764e21e4c7	106	1
-Get-MiOS.ps1	1379	1379	1	5	23d2efe4bf99	STAY	inline-scoped		0				0
-Get-MiOS.ps1	1383	1383	1	1	b3c7ca1d6311	DROP	banner		0				0
-Get-MiOS.ps1	1384	1384	1	1	80d3febd57ec	DROP	banner		0				0
+Get-MiOS.ps1	1356	1357	2	15	4d6ed6b48244	STAY	local-scoped		0				0
 Get-MiOS.ps1	1384	1391	8	78	d277abbb6027	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:d277abbb6027	78	1
-Get-MiOS.ps1	1385	1385	1	1	28c21bb5d90f	DROP	banner		0				0
-Get-MiOS.ps1	1386	1386	1	1	a4dae0113341	DROP	banner		0				0
-Get-MiOS.ps1	1387	1387	1	1	b3c7ca1d6311	DROP	banner		0				0
-Get-MiOS.ps1	1388	1388	1	1	742c925cc5d3	DROP	banner		0				0
-Get-MiOS.ps1	1389	1389	1	1	30ceec6477dc	DROP	banner		0				0
-Get-MiOS.ps1	1390	1390	1	1	a4dae0113341	DROP	banner		0				0
-Get-MiOS.ps1	1391	1391	1	1	28c21bb5d90f	DROP	banner		0				0
-Get-MiOS.ps1	1392	1392	1	1	1245bcd5a7b9	DROP	banner		0				0
-Get-MiOS.ps1	1393	1393	1	1	efc73baf6415	DROP	banner		0				0
-Get-MiOS.ps1	1394	1394	1	1	80d3febd57ec	DROP	banner		0				0
 Get-MiOS.ps1	1394	1396	3	25	15a625b2e5b2	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:15a625b2e5b2	25	1
-Get-MiOS.ps1	1395	1395	1	1	0019a44e379d	DROP	banner		0				0
-Get-MiOS.ps1	1396	1396	1	1	8a327448607d	DROP	banner		0				0
-Get-MiOS.ps1	1397	1397	1	1	349aa94a01f6	DROP	banner		0				0
-Get-MiOS.ps1	1398	1398	1	1	d05357c3eca6	DROP	banner		0				0
-Get-MiOS.ps1	1399	1399	1	1	fc83b9239bb4	DROP	banner		0				0
-Get-MiOS.ps1	1400	1400	1	1	a4a70cb7197b	DROP	banner		0				0
-Get-MiOS.ps1	1401	1401	1	1	175973818443	DROP	banner		0				0
-Get-MiOS.ps1	1402	1402	1	1	6e769235e038	DROP	banner		0				0
-Get-MiOS.ps1	1407	1411	5	52	ac7a17f516f3	STAY	midsize-why		0				0
+Get-MiOS.ps1	1395	1395	1	5	23d2efe4bf99	STAY	inline-scoped		0				0
+Get-MiOS.ps1	1399	1399	1	1	b3c7ca1d6311	DROP	banner		0				0
+Get-MiOS.ps1	1400	1400	1	1	80d3febd57ec	DROP	banner		0				0
+Get-MiOS.ps1	1401	1401	1	1	28c21bb5d90f	DROP	banner		0				0
+Get-MiOS.ps1	1402	1402	1	1	a4dae0113341	DROP	banner		0				0
+Get-MiOS.ps1	1403	1403	1	1	b3c7ca1d6311	DROP	banner		0				0
+Get-MiOS.ps1	1404	1404	1	1	742c925cc5d3	DROP	banner		0				0
+Get-MiOS.ps1	1405	1405	1	1	30ceec6477dc	DROP	banner		0				0
+Get-MiOS.ps1	1406	1406	1	1	a4dae0113341	DROP	banner		0				0
+Get-MiOS.ps1	1407	1407	1	1	28c21bb5d90f	DROP	banner		0				0
+Get-MiOS.ps1	1408	1408	1	1	1245bcd5a7b9	DROP	banner		0				0
+Get-MiOS.ps1	1409	1409	1	1	efc73baf6415	DROP	banner		0				0
 Get-MiOS.ps1	1409	1413	5	53	77a5471db875	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:77a5471db875	53	1
+Get-MiOS.ps1	1410	1410	1	1	80d3febd57ec	DROP	banner		0				0
+Get-MiOS.ps1	1411	1411	1	1	0019a44e379d	DROP	banner		0				0
+Get-MiOS.ps1	1412	1412	1	1	8a327448607d	DROP	banner		0				0
+Get-MiOS.ps1	1413	1413	1	1	349aa94a01f6	DROP	banner		0				0
+Get-MiOS.ps1	1414	1414	1	1	d05357c3eca6	DROP	banner		0				0
+Get-MiOS.ps1	1415	1415	1	1	fc83b9239bb4	DROP	banner		0				0
+Get-MiOS.ps1	1416	1416	1	1	a4a70cb7197b	DROP	banner		0				0
 Get-MiOS.ps1	1416	1433	18	135	3604382583c4	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:3604382583c4	135	1
-Get-MiOS.ps1	1426	1426	1	9	150276cf7ce0	STAY	local-scoped		0				0
+Get-MiOS.ps1	1417	1417	1	1	175973818443	DROP	banner		0				0
+Get-MiOS.ps1	1418	1418	1	1	6e769235e038	DROP	banner		0				0
+Get-MiOS.ps1	1423	1427	5	52	ac7a17f516f3	STAY	midsize-why		0				0
 Get-MiOS.ps1	1435	1441	7	62	58ffff6bee92	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:58ffff6bee92	62	1
+Get-MiOS.ps1	1442	1442	1	9	150276cf7ce0	STAY	local-scoped		0				0
 Get-MiOS.ps1	1443	1451	9	89	502719282064	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:502719282064	89	1
-Get-MiOS.ps1	1519	1521	3	25	92d2c2ce854a	STAY	midsize-why		0				0
 Get-MiOS.ps1	1520	1530	11	84	6f3447f325a5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:6f3447f325a5	84	1
 Get-MiOS.ps1	1532	1534	3	26	f6ff6be699e3	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:f6ff6be699e3	26	1
+Get-MiOS.ps1	1535	1537	3	25	92d2c2ce854a	STAY	midsize-why		0				0
 Get-MiOS.ps1	1559	1572	14	88	3c2f4f35da32	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:3c2f4f35da32	88	1
-Get-MiOS.ps1	1579	1580	2	18	0b491b8bbdb5	STAY	local-scoped		0				0
-Get-MiOS.ps1	1604	1605	2	24	1d6fc6fadd65	STAY	local-scoped		0				0
+Get-MiOS.ps1	1595	1596	2	18	0b491b8bbdb5	STAY	local-scoped		0				0
 Get-MiOS.ps1	1613	1618	6	57	2d880d8138ff	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:2d880d8138ff	57	1
-Get-MiOS.ps1	1627	1628	2	15	36673a4fa2ba	STAY	local-scoped		0				0
-Get-MiOS.ps1	1645	1649	5	44	7740337a8547	STAY	midsize-why		0				0
+Get-MiOS.ps1	1620	1621	2	24	1d6fc6fadd65	STAY	local-scoped		0				0
+Get-MiOS.ps1	1643	1644	2	15	36673a4fa2ba	STAY	local-scoped		0				0
 Get-MiOS.ps1	1656	1670	15	114	2f39901f8939	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:2f39901f8939	114	1
-Get-MiOS.ps1	1689	1689	1	8	afffa7ab5be9	STAY	local-scoped		0				0
+Get-MiOS.ps1	1661	1665	5	44	7740337a8547	STAY	midsize-why		0				0
 Get-MiOS.ps1	1694	1696	3	21	3e24aec83cba	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:3e24aec83cba	21	1
-Get-MiOS.ps1	1706	1708	3	22	19666d5e14fd	STAY	midsize-why		0				0
-Get-MiOS.ps1	1732	1732	1	4	07313d0740c3	STAY	inline-scoped		0				0
+Get-MiOS.ps1	1705	1705	1	8	afffa7ab5be9	STAY	local-scoped		0				0
+Get-MiOS.ps1	1722	1724	3	22	19666d5e14fd	STAY	midsize-why		0				0
 Get-MiOS.ps1	1744	1748	5	51	8f21efc6e7ad	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:8f21efc6e7ad	51	1
-Get-MiOS.ps1	1751	1752	2	21	c974d53293c4	STAY	local-scoped		0				0
-Get-MiOS.ps1	1757	1761	5	38	3b2c1536b966	STAY	midsize-why		0				0
+Get-MiOS.ps1	1748	1748	1	4	07313d0740c3	STAY	inline-scoped		0				0
 Get-MiOS.ps1	1760	1765	6	53	ab4656f72f13	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:ab4656f72f13	53	1
-Get-MiOS.ps1	1772	1772	1	5	91060be1f3ca	STAY	local-scoped		0				0
-Get-MiOS.ps1	1779	1780	2	13	eb2229d0f439	STAY	local-scoped		0				0
-Get-MiOS.ps1	1788	1789	2	18	5553861e38f9	STAY	local-scoped		0				0
-Get-MiOS.ps1	1794	1795	2	13	c267e6bf93a0	STAY	local-scoped		0				0
+Get-MiOS.ps1	1767	1768	2	21	c974d53293c4	STAY	local-scoped		0				0
+Get-MiOS.ps1	1773	1777	5	38	3b2c1536b966	STAY	midsize-why		0				0
+Get-MiOS.ps1	1788	1788	1	5	91060be1f3ca	STAY	local-scoped		0				0
+Get-MiOS.ps1	1795	1796	2	13	eb2229d0f439	STAY	local-scoped		0				0
+Get-MiOS.ps1	1804	1805	2	18	5553861e38f9	STAY	local-scoped		0				0
+Get-MiOS.ps1	1810	1811	2	13	c267e6bf93a0	STAY	local-scoped		0				0
 Get-MiOS.ps1	1813	1834	22	145	bd016a5062b6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:bd016a5062b6	145	1
-Get-MiOS.ps1	1816	1817	2	21	7bbddd503682	STAY	local-scoped		0				0
-Get-MiOS.ps1	1822	1825	4	41	6f97804389c0	STAY	midsize-why		0				0
-Get-MiOS.ps1	1827	1829	3	26	281c13ad5c6c	STAY	midsize-why		0				0
-Get-MiOS.ps1	1846	1846	1	5	23d2efe4bf99	STAY	inline-scoped		0				0
-Get-MiOS.ps1	1851	1851	1	1	b3c7ca1d6311	DROP	banner		0				0
-Get-MiOS.ps1	1852	1852	1	1	80d3febd57ec	DROP	banner		0				0
-Get-MiOS.ps1	1853	1853	1	1	a4dae0113341	DROP	banner		0				0
-Get-MiOS.ps1	1854	1854	1	1	28c21bb5d90f	DROP	banner		0				0
-Get-MiOS.ps1	1855	1855	1	1	b3c7ca1d6311	DROP	banner		0				0
-Get-MiOS.ps1	1856	1856	1	1	742c925cc5d3	DROP	banner		0				0
-Get-MiOS.ps1	1857	1857	1	1	30ceec6477dc	DROP	banner		0				0
-Get-MiOS.ps1	1858	1858	1	1	a4dae0113341	DROP	banner		0				0
-Get-MiOS.ps1	1859	1859	1	1	28c21bb5d90f	DROP	banner		0				0
-Get-MiOS.ps1	1860	1860	1	1	1245bcd5a7b9	DROP	banner		0				0
-Get-MiOS.ps1	1861	1861	1	1	efc73baf6415	DROP	banner		0				0
-Get-MiOS.ps1	1862	1862	1	1	80d3febd57ec	DROP	banner		0				0
-Get-MiOS.ps1	1863	1863	1	1	0019a44e379d	DROP	banner		0				0
-Get-MiOS.ps1	1864	1864	1	1	8a327448607d	DROP	banner		0				0
-Get-MiOS.ps1	1865	1865	1	1	349aa94a01f6	DROP	banner		0				0
-Get-MiOS.ps1	1866	1866	1	1	d05357c3eca6	DROP	banner		0				0
-Get-MiOS.ps1	1867	1867	1	1	fc83b9239bb4	DROP	banner		0				0
-Get-MiOS.ps1	1868	1868	1	1	a4a70cb7197b	DROP	banner		0				0
-Get-MiOS.ps1	1869	1869	1	1	175973818443	DROP	banner		0				0
-Get-MiOS.ps1	1870	1870	1	1	6e769235e038	DROP	banner		0				0
+Get-MiOS.ps1	1832	1833	2	21	7bbddd503682	STAY	local-scoped		0				0
+Get-MiOS.ps1	1838	1841	4	41	6f97804389c0	STAY	midsize-why		0				0
+Get-MiOS.ps1	1843	1845	3	26	281c13ad5c6c	STAY	midsize-why		0				0
+Get-MiOS.ps1	1862	1862	1	5	23d2efe4bf99	STAY	inline-scoped		0				0
+Get-MiOS.ps1	1867	1867	1	1	b3c7ca1d6311	DROP	banner		0				0
+Get-MiOS.ps1	1868	1868	1	1	80d3febd57ec	DROP	banner		0				0
+Get-MiOS.ps1	1869	1869	1	1	a4dae0113341	DROP	banner		0				0
+Get-MiOS.ps1	1870	1870	1	1	28c21bb5d90f	DROP	banner		0				0
+Get-MiOS.ps1	1871	1871	1	1	b3c7ca1d6311	DROP	banner		0				0
+Get-MiOS.ps1	1872	1872	1	1	742c925cc5d3	DROP	banner		0				0
+Get-MiOS.ps1	1873	1873	1	1	30ceec6477dc	DROP	banner		0				0
+Get-MiOS.ps1	1874	1874	1	1	a4dae0113341	DROP	banner		0				0
+Get-MiOS.ps1	1875	1875	1	1	28c21bb5d90f	DROP	banner		0				0
+Get-MiOS.ps1	1876	1876	1	1	1245bcd5a7b9	DROP	banner		0				0
+Get-MiOS.ps1	1877	1877	1	1	efc73baf6415	DROP	banner		0				0
+Get-MiOS.ps1	1878	1878	1	1	80d3febd57ec	DROP	banner		0				0
+Get-MiOS.ps1	1879	1879	1	1	0019a44e379d	DROP	banner		0				0
+Get-MiOS.ps1	1880	1880	1	1	8a327448607d	DROP	banner		0				0
+Get-MiOS.ps1	1881	1881	1	1	349aa94a01f6	DROP	banner		0				0
+Get-MiOS.ps1	1882	1882	1	1	d05357c3eca6	DROP	banner		0				0
+Get-MiOS.ps1	1883	1883	1	1	fc83b9239bb4	DROP	banner		0				0
+Get-MiOS.ps1	1884	1884	1	1	a4a70cb7197b	DROP	banner		0				0
+Get-MiOS.ps1	1885	1885	1	1	175973818443	DROP	banner		0				0
+Get-MiOS.ps1	1886	1886	1	1	6e769235e038	DROP	banner		0				0
 Get-MiOS.ps1	1889	1895	7	45	47ddf1beb043	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:47ddf1beb043	45	1
-Get-MiOS.ps1	1902	1903	2	19	ee9e941df584	STAY	local-scoped		0				0
-Get-MiOS.ps1	1921	1922	2	21	dffb2b2059d7	STAY	local-scoped		0				0
-Get-MiOS.ps1	1929	1929	1	6	d3c60413e38e	STAY	local-scoped		0				0
-Get-MiOS.ps1	1944	1944	1	1	ca8e550fa0e9	DROP	banner		0				0
-Get-MiOS.ps1	1945	1945	1	3	1470779791c5	DROP	commented-out-code		0				0
-Get-MiOS.ps1	1946	1946	1	1	ca8e550fa0e9	DROP	banner		0				0
-Get-MiOS.ps1	1952	1956	5	43	3539859a35fa	STAY	midsize-why		0				0
+Get-MiOS.ps1	1918	1919	2	19	ee9e941df584	STAY	local-scoped		0				0
+Get-MiOS.ps1	1937	1938	2	21	dffb2b2059d7	STAY	local-scoped		0				0
+Get-MiOS.ps1	1945	1945	1	6	d3c60413e38e	STAY	local-scoped		0				0
 Get-MiOS.ps1	1953	1962	10	90	b5a575f427ee	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:b5a575f427ee	90	1
+Get-MiOS.ps1	1960	1960	1	1	ca8e550fa0e9	DROP	banner		0				0
+Get-MiOS.ps1	1961	1961	1	3	1470779791c5	DROP	commented-out-code		0				0
+Get-MiOS.ps1	1962	1962	1	1	ca8e550fa0e9	DROP	banner		0				0
+Get-MiOS.ps1	1968	1972	5	43	3539859a35fa	STAY	midsize-why		0				0
 Get-MiOS.ps1	1992	1994	3	27	72fdafe5116b	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:72fdafe5116b	27	1
-Get-MiOS.ps1	1994	1994	1	4	e73b38f183c0	STAY	inline-scoped		0				0
-Get-MiOS.ps1	2009	2013	5	41	720d88370c85	MIGRATE	midsize-narrative		0				0
-Get-MiOS.ps1	2019	2019	1	8	539220fa9c9d	STAY	local-scoped		0				0
-Get-MiOS.ps1	2022	2022	1	11	7de6402380c4	STAY	local-scoped		0				0
+Get-MiOS.ps1	2010	2010	1	4	e73b38f183c0	STAY	inline-scoped		0				0
 Get-MiOS.ps1	2022	2024	3	28	f9911bb72589	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:f9911bb72589	28	1
-Get-MiOS.ps1	2025	2026	2	15	644c6e06f342	STAY	local-scoped		0				0
+Get-MiOS.ps1	2025	2029	5	41	720d88370c85	MIGRATE	midsize-narrative		0				0
 Get-MiOS.ps1	2027	2034	8	80	7e4c8b067a5a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:7e4c8b067a5a	80	1
-Get-MiOS.ps1	2057	2058	2	11	7c4c7c28acf3	STAY	local-scoped		0				0
-Get-MiOS.ps1	2060	2061	2	16	654835d47e35	STAY	local-scoped		0				0
-Get-MiOS.ps1	2064	2066	3	19	77768ab64c5a	STAY	midsize-why		0				0
+Get-MiOS.ps1	2035	2035	1	8	539220fa9c9d	STAY	local-scoped		0				0
+Get-MiOS.ps1	2038	2038	1	11	7de6402380c4	STAY	local-scoped		0				0
+Get-MiOS.ps1	2041	2042	2	15	644c6e06f342	STAY	local-scoped		0				0
 Get-MiOS.ps1	2067	2083	17	144	68883d89edd4	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:68883d89edd4	144	1
-Get-MiOS.ps1	2070	2071	2	20	610a61bb4db0	STAY	local-scoped		0				0
-Get-MiOS.ps1	2078	2081	4	36	55292dbf7e28	STAY	midsize-why		0				0
-Get-MiOS.ps1	2084	2084	1	2	7321ae926241	STAY	local-scoped		0				0
-Get-MiOS.ps1	2104	2106	3	33	8daef2477889	STAY	midsize-why		0				0
-Get-MiOS.ps1	2109	2113	5	48	400636efdd4f	STAY	midsize-why		0				0
-Get-MiOS.ps1	2119	2119	1	2	500ca545b3a6	STAY	local-scoped		0				0
+Get-MiOS.ps1	2073	2074	2	11	7c4c7c28acf3	STAY	local-scoped		0				0
+Get-MiOS.ps1	2076	2077	2	16	654835d47e35	STAY	local-scoped		0				0
+Get-MiOS.ps1	2080	2082	3	19	77768ab64c5a	STAY	midsize-why		0				0
+Get-MiOS.ps1	2086	2087	2	20	610a61bb4db0	STAY	local-scoped		0				0
+Get-MiOS.ps1	2094	2097	4	36	55292dbf7e28	STAY	midsize-why		0				0
+Get-MiOS.ps1	2100	2100	1	2	7321ae926241	STAY	local-scoped		0				0
+Get-MiOS.ps1	2120	2122	3	33	8daef2477889	STAY	midsize-why		0				0
 Get-MiOS.ps1	2120	2136	17	141	ca4e79dc5a16	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:ca4e79dc5a16	141	1
+Get-MiOS.ps1	2125	2129	5	48	400636efdd4f	STAY	midsize-why		0				0
+Get-MiOS.ps1	2135	2135	1	2	500ca545b3a6	STAY	local-scoped		0				0
 Get-MiOS.ps1	2139	2160	22	192	c24366ea9a59	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:c24366ea9a59	192	1
-Get-MiOS.ps1	2143	2144	2	16	870a5d77d1a1	STAY	local-scoped		0				0
-Get-MiOS.ps1	2157	2160	4	43	554ed95f04ae	STAY	midsize-why		0				0
-Get-MiOS.ps1	2171	2172	2	20	bc01bff7f8c9	STAY	local-scoped		0				0
-Get-MiOS.ps1	2182	2184	3	23	8f12db47c3c0	STAY	midsize-why		0				0
+Get-MiOS.ps1	2159	2160	2	16	870a5d77d1a1	STAY	local-scoped		0				0
+Get-MiOS.ps1	2173	2176	4	43	554ed95f04ae	STAY	midsize-why		0				0
 Get-MiOS.ps1	2182	2189	8	74	48a4ba0d0642	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:48a4ba0d0642	74	1
+Get-MiOS.ps1	2187	2188	2	20	bc01bff7f8c9	STAY	local-scoped		0				0
 Get-MiOS.ps1	2192	2200	9	82	06d557dd77cf	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:06d557dd77cf	82	1
-Get-MiOS.ps1	2199	2201	3	22	27e147548e06	STAY	midsize-why		0				0
+Get-MiOS.ps1	2198	2200	3	23	8f12db47c3c0	STAY	midsize-why		0				0
 Get-MiOS.ps1	2203	2207	5	43	8ca5c82f8612	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:8ca5c82f8612	43	1
-Get-MiOS.ps1	2214	2214	1	5	b2ea3a555993	STAY	local-scoped		0				0
 Get-MiOS.ps1	2214	2225	12	113	4a90f1eb749c	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:4a90f1eb749c	113	1
-Get-MiOS.ps1	2230	2231	2	19	67b17c4b623a	STAY	local-scoped		0				0
-Get-MiOS.ps1	2234	2236	3	27	ceac35dec768	STAY	midsize-why		0				0
-Get-MiOS.ps1	2253	2253	1	5	75954915df6c	STAY	local-scoped		0				0
+Get-MiOS.ps1	2215	2217	3	22	27e147548e06	STAY	midsize-why		0				0
+Get-MiOS.ps1	2230	2230	1	5	b2ea3a555993	STAY	local-scoped		0				0
+Get-MiOS.ps1	2246	2247	2	19	67b17c4b623a	STAY	local-scoped		0				0
+Get-MiOS.ps1	2250	2252	3	27	ceac35dec768	STAY	midsize-why		0				0
 Get-MiOS.ps1	2255	2268	14	123	513a1884c076	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:513a1884c076	123	1
+Get-MiOS.ps1	2269	2269	1	5	75954915df6c	STAY	local-scoped		0				0
 Get-MiOS.ps1	2270	2273	4	27	05274fe1c9b3	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:05274fe1c9b3	27	1
 Get-MiOS.ps1	2289	2300	12	98	5cdd952d723b	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:5cdd952d723b	98	1
-Get-MiOS.ps1	2337	2340	4	27	ed3db8454f89	STAY	midsize-why		0				0
-Get-MiOS.ps1	2344	2346	3	26	02f9e8c9f099	STAY	midsize-why		0				0
 Get-MiOS.ps1	2345	2362	18	154	fc8f88065644	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:fc8f88065644	154	1
-Get-MiOS.ps1	2361	2361	1	10	735d18e3db2d	STAY	inline-scoped		0				0
+Get-MiOS.ps1	2353	2356	4	27	ed3db8454f89	STAY	midsize-why		0				0
+Get-MiOS.ps1	2360	2362	3	26	02f9e8c9f099	STAY	midsize-why		0				0
 Get-MiOS.ps1	2368	2377	10	91	a8ac96e1d228	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:a8ac96e1d228	91	1
-Get-MiOS.ps1	2372	2373	2	18	4a19de40a507	STAY	local-scoped		0				0
-Get-MiOS.ps1	2379	2381	3	30	43ad5696f3ce	STAY	midsize-why		0				0
+Get-MiOS.ps1	2377	2377	1	10	735d18e3db2d	STAY	inline-scoped		0				0
 Get-MiOS.ps1	2380	2390	11	88	f5f35a64a1af	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:f5f35a64a1af	88	1
-Get-MiOS.ps1	2392	2395	4	37	b32d5ce7ebdb	STAY	midsize-why		0				0
-Get-MiOS.ps1	2401	2402	2	13	b8a2e7ed322e	STAY	local-scoped		0				0
+Get-MiOS.ps1	2388	2389	2	18	4a19de40a507	STAY	local-scoped		0				0
+Get-MiOS.ps1	2395	2397	3	30	43ad5696f3ce	STAY	midsize-why		0				0
 Get-MiOS.ps1	2402	2409	8	69	468522cf4252	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:468522cf4252	69	1
-Get-MiOS.ps1	2416	2420	5	38	b1c5a6a92c93	STAY	midsize-why		0				0
+Get-MiOS.ps1	2408	2411	4	37	b32d5ce7ebdb	STAY	midsize-why		0				0
+Get-MiOS.ps1	2417	2418	2	13	b8a2e7ed322e	STAY	local-scoped		0				0
 Get-MiOS.ps1	2417	2420	4	31	b522cb00d7fd	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:b522cb00d7fd	31	1
-Get-MiOS.ps1	2427	2428	2	19	2fb3264a3150	STAY	local-scoped		0				0
+Get-MiOS.ps1	2432	2436	5	38	b1c5a6a92c93	STAY	midsize-why		0				0
+Get-MiOS.ps1	2443	2444	2	19	2fb3264a3150	STAY	local-scoped		0				0
 Get-MiOS.ps1	2446	2456	11	100	e59937c77af1	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:e59937c77af1	100	1
-Get-MiOS.ps1	2450	2452	3	24	7baf6fa322f4	STAY	midsize-why		0				0
-Get-MiOS.ps1	2466	2467	2	13	1c7d2af0b8b9	STAY	local-scoped		0				0
-Get-MiOS.ps1	2472	2472	1	8	24c950b3cd82	STAY	inline-scoped		0				0
+Get-MiOS.ps1	2466	2468	3	24	7baf6fa322f4	STAY	midsize-why		0				0
 Get-MiOS.ps1	2473	2479	7	62	dd6ab125b9e2	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:dd6ab125b9e2	62	1
-Get-MiOS.ps1	2486	2486	1	10	1638bc657fcb	STAY	local-scoped		0				0
-Get-MiOS.ps1	2491	2491	1	3	9a9188225175	DROP	banner		0				0
+Get-MiOS.ps1	2482	2483	2	13	1c7d2af0b8b9	STAY	local-scoped		0				0
+Get-MiOS.ps1	2488	2488	1	8	24c950b3cd82	STAY	inline-scoped		0				0
+Get-MiOS.ps1	2502	2502	1	10	1638bc657fcb	STAY	local-scoped		0				0
 Get-MiOS.ps1	2502	2509	8	59	92d95ef966ad	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:92d95ef966ad	59	1
-Get-MiOS.ps1	2503	2503	1	8	25db22818968	STAY	local-scoped		0				0
+Get-MiOS.ps1	2507	2507	1	3	9a9188225175	DROP	banner		0				0
+Get-MiOS.ps1	2519	2519	1	8	25db22818968	STAY	local-scoped		0				0
 Get-MiOS.ps1	2537	2551	15	119	1842db5d85f4	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:1842db5d85f4	119	1
-Get-MiOS.ps1	2543	2545	3	24	199325890402	STAY	midsize-why		0				0
-Get-MiOS.ps1	2564	2564	1	8	3babfc10ae04	STAY	local-scoped		0				0
+Get-MiOS.ps1	2559	2561	3	24	199325890402	STAY	midsize-why		0				0
 Get-MiOS.ps1	2576	2590	15	104	ef600b96fa8c	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:ef600b96fa8c	104	1
-Get-MiOS.ps1	2577	2581	5	42	2b520a388657	STAY	midsize-why		0				0
-Get-MiOS.ps1	2594	2594	1	11	c3cbeeb68f17	STAY	local-scoped		0				0
+Get-MiOS.ps1	2580	2580	1	8	3babfc10ae04	STAY	local-scoped		0				0
+Get-MiOS.ps1	2593	2597	5	42	2b520a388657	STAY	midsize-why		0				0
+Get-MiOS.ps1	2610	2610	1	11	c3cbeeb68f17	STAY	local-scoped		0				0
 Get-MiOS.ps1	2611	2616	6	57	6a821546868c	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:6a821546868c	57	1
-Get-MiOS.ps1	2637	2639	3	29	f2080d83f7d7	STAY	midsize-why		0				0
 Get-MiOS.ps1	2639	2649	11	91	211242bb3393	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:211242bb3393	91	1
-Get-MiOS.ps1	2681	2684	4	31	551e05ff8f12	STAY	midsize-why		0				0
+Get-MiOS.ps1	2653	2655	3	29	f2080d83f7d7	STAY	midsize-why		0				0
 Get-MiOS.ps1	2681	2686	6	52	79c0635b523c	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:79c0635b523c	52	1
 Get-MiOS.ps1	2696	2705	10	96	51a818bf8e15	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:51a818bf8e15	96	1
+Get-MiOS.ps1	2697	2700	4	31	551e05ff8f12	STAY	midsize-why		0				0
 Get-MiOS.ps1	2710	2715	6	29	fe473714f205	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:fe473714f205	29	1
 Get-MiOS.ps1	2722	2725	4	38	343242e79d3a	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:343242e79d3a	38	1
 Get-MiOS.ps1	2742	2748	7	53	0e925fa1e32d	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:0e925fa1e32d	53	1
-Get-MiOS.ps1	2752	2755	4	24	265a64577413	STAY	midsize-why		0				0
-Get-MiOS.ps1	2759	2762	4	35	261433972add	STAY	midsize-why		0				0
 Get-MiOS.ps1	2761	2767	7	53	a88c33b9a320	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:a88c33b9a320	53	1
-Get-MiOS.ps1	2764	2764	1	2	a481139c89b2	DROP	banner		0				0
+Get-MiOS.ps1	2768	2771	4	24	265a64577413	STAY	midsize-why		0				0
+Get-MiOS.ps1	2775	2778	4	35	261433972add	STAY	midsize-why		0				0
+Get-MiOS.ps1	2780	2780	1	2	a481139c89b2	DROP	banner		0				0
 Get-MiOS.ps1	2800	2810	11	69	5cbe00b61264	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:5cbe00b61264	69	1
-Get-MiOS.ps1	2807	2807	1	8	764e10763971	STAY	local-scoped		0				0
-Get-MiOS.ps1	2839	2839	1	7	d7efcff44ab3	STAY	local-scoped		0				0
-Get-MiOS.ps1	2866	2866	1	8	c066d9de6d00	STAY	local-scoped		0				0
-Get-MiOS.ps1	2896	2897	2	18	cd4c75d9f954	STAY	local-scoped		0				0
-Get-MiOS.ps1	2901	2903	3	23	2cec634d9ff3	STAY	midsize-why		0				0
+Get-MiOS.ps1	2819	2822	4	38	43cc85b3c5b6	STAY	midsize-why		0				0
+Get-MiOS.ps1	2837	2840	4	34	5e87827472a8	STAY	midsize-why		0				0
+Get-MiOS.ps1	2868	2868	1	8	764e10763971	STAY	local-scoped		0				0
+Get-MiOS.ps1	2900	2900	1	7	d7efcff44ab3	STAY	local-scoped		0				0
 Get-MiOS.ps1	2901	2937	37	325	c82d38238c60	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/root.md	mios-src:c82d38238c60	325	1
-Get-MiOS.ps1	2916	2919	4	24	014e2ea05cd0	STAY	midsize-why		0				0
-Get-MiOS.ps1	2937	2938	2	15	2ff1b2f31f1b	STAY	local-scoped		0				0
+Get-MiOS.ps1	2927	2927	1	8	c066d9de6d00	STAY	local-scoped		0				0
 Get-MiOS.ps1	2940	2951	12	98	cda6204b9040	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:cda6204b9040	98	1
-Get-MiOS.ps1	2962	2963	2	13	cd8b05a9de9b	STAY	local-scoped		0				0
-Get-MiOS.ps1	2972	2972	1	3	38140d059950	STAY	inline-scoped		0				0
-Get-MiOS.ps1	2973	2973	1	3	58954bce6c5a	STAY	inline-scoped		0				0
+Get-MiOS.ps1	2957	2958	2	18	cd4c75d9f954	STAY	local-scoped		0				0
+Get-MiOS.ps1	2962	2964	3	23	2cec634d9ff3	STAY	midsize-why		0				0
+Get-MiOS.ps1	2977	2980	4	24	014e2ea05cd0	STAY	midsize-why		0				0
 Get-MiOS.ps1	2979	2985	7	63	02d664fc05f1	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:02d664fc05f1	63	1
-Get-MiOS.ps1	2985	2988	4	33	d4482d251a02	STAY	midsize-why		0				0
-Get-MiOS.ps1	3019	3021	3	25	6774e94a4bc3	STAY	midsize-why		0				0
-Get-MiOS.ps1	3025	3025	1	8	fcea150cc86a	STAY	local-scoped		0				0
-Get-MiOS.ps1	3038	3041	4	30	2b9131ee763e	STAY	midsize-why		0				0
+Get-MiOS.ps1	2998	2999	2	15	2ff1b2f31f1b	STAY	local-scoped		0				0
+Get-MiOS.ps1	3023	3024	2	13	cd8b05a9de9b	STAY	local-scoped		0				0
+Get-MiOS.ps1	3033	3033	1	3	38140d059950	STAY	inline-scoped		0				0
+Get-MiOS.ps1	3034	3034	1	3	58954bce6c5a	STAY	inline-scoped		0				0
+Get-MiOS.ps1	3046	3049	4	33	d4482d251a02	STAY	midsize-why		0				0
 Get-MiOS.ps1	3069	3076	8	56	66da70192690	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:66da70192690	56	1
-Get-MiOS.ps1	3122	3122	1	8	eb0de822c575	STAY	local-scoped		0				0
+Get-MiOS.ps1	3080	3082	3	25	6774e94a4bc3	STAY	midsize-why		0				0
+Get-MiOS.ps1	3086	3086	1	8	fcea150cc86a	STAY	local-scoped		0				0
+Get-MiOS.ps1	3099	3102	4	30	2b9131ee763e	STAY	midsize-why		0				0
 Get-MiOS.ps1	3124	3141	18	142	6d77937736f2	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:6d77937736f2	142	1
-Get-MiOS.ps1	3130	3131	2	15	06cf5c8264ea	STAY	local-scoped		0				0
-Get-MiOS.ps1	3139	3142	4	34	f2b8cf462a8c	STAY	midsize-why		0				0
-Get-MiOS.ps1	3175	3175	1	6	de6d0ba748a7	STAY	local-scoped		0				0
 Get-MiOS.ps1	3180	3213	34	238	36c8751f33bd	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:36c8751f33bd	238	1
-Get-MiOS.ps1	3192	3193	2	16	f912c4555327	STAY	local-scoped		0				0
-Get-MiOS.ps1	3195	3195	1	5	85104fbe90d0	STAY	inline-scoped		0				0
-Get-MiOS.ps1	3196	3196	1	6	371f22449de2	STAY	local-scoped		0				0
-Get-MiOS.ps1	3198	3199	2	22	f696df4d1e31	STAY	local-scoped		0				0
-Get-MiOS.ps1	3203	3207	5	40	17dabf990d7f	STAY	midsize-why		0				0
-Get-MiOS.ps1	3215	3215	1	2	9dbd89a34945	STAY	local-scoped		0				0
-Get-MiOS.ps1	3227	3227	1	12	1e8bbb826af2	STAY	local-scoped		0				0
+Get-MiOS.ps1	3183	3183	1	8	eb0de822c575	STAY	local-scoped		0				0
+Get-MiOS.ps1	3191	3192	2	15	06cf5c8264ea	STAY	local-scoped		0				0
+Get-MiOS.ps1	3200	3203	4	34	f2b8cf462a8c	STAY	midsize-why		0				0
 Get-MiOS.ps1	3232	3241	10	87	6e1f6e541e97	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:6e1f6e541e97	87	1
-Get-MiOS.ps1	3243	3243	1	1	99b8632dc66b	STAY	local-scoped		0				0
+Get-MiOS.ps1	3236	3236	1	6	de6d0ba748a7	STAY	local-scoped		0				0
+Get-MiOS.ps1	3253	3254	2	16	f912c4555327	STAY	local-scoped		0				0
+Get-MiOS.ps1	3256	3256	1	5	85104fbe90d0	STAY	inline-scoped		0				0
+Get-MiOS.ps1	3257	3257	1	6	371f22449de2	STAY	local-scoped		0				0
+Get-MiOS.ps1	3259	3260	2	22	f696df4d1e31	STAY	local-scoped		0				0
 Get-MiOS.ps1	3261	3291	31	196	12cb66ed71e3	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:12cb66ed71e3	196	1
+Get-MiOS.ps1	3264	3268	5	40	17dabf990d7f	STAY	midsize-why		0				0
+Get-MiOS.ps1	3276	3276	1	2	9dbd89a34945	STAY	local-scoped		0				0
+Get-MiOS.ps1	3288	3288	1	12	1e8bbb826af2	STAY	local-scoped		0				0
+Get-MiOS.ps1	3304	3304	1	1	99b8632dc66b	STAY	local-scoped		0				0
 Get-MiOS.ps1	3305	3311	7	64	3187455241fb	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:3187455241fb	64	1
-Get-MiOS.ps1	3342	3345	4	30	11bb8b072b0e	STAY	midsize-why		0				0
 Get-MiOS.ps1	3355	3375	21	127	85c9055ad033	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:85c9055ad033	127	1
-Get-MiOS.ps1	3364	3364	1	10	7cf458a8caea	STAY	local-scoped		0				0
-Get-MiOS.ps1	3381	3381	1	7	e34e8fb41804	STAY	local-scoped		0				0
-Get-MiOS.ps1	3401	3403	3	22	dfe9984ca360	STAY	midsize-why		0				0
+Get-MiOS.ps1	3403	3406	4	30	11bb8b072b0e	STAY	midsize-why		0				0
+Get-MiOS.ps1	3425	3425	1	10	7cf458a8caea	STAY	local-scoped		0				0
+Get-MiOS.ps1	3442	3442	1	7	e34e8fb41804	STAY	local-scoped		0				0
 Get-MiOS.ps1	3456	3461	6	49	e7e1713aa48f	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:e7e1713aa48f	49	1
+Get-MiOS.ps1	3462	3464	3	22	dfe9984ca360	STAY	midsize-why		0				0
 Get-MiOS.ps1	3487	3496	10	79	fa9deff73bf0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:fa9deff73bf0	79	1
-Get-MiOS.ps1	3502	3502	1	2	f382c2ff1524	STAY	local-scoped		0				0
 Get-MiOS.ps1	3520	3523	4	36	bb34a542ebc2	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:bb34a542ebc2	36	1
-Get-MiOS.ps1	3529	3529	1	5	e2c27515e9e6	STAY	local-scoped		0				0
-Get-MiOS.ps1	3557	3558	2	20	e623fa942944	STAY	local-scoped		0				0
 Get-MiOS.ps1	3557	3559	3	20	bd4b101f8f80	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:bd4b101f8f80	20	1
+Get-MiOS.ps1	3563	3563	1	2	f382c2ff1524	STAY	local-scoped		0				0
 Get-MiOS.ps1	3569	3574	6	58	a2823b2e7635	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:a2823b2e7635	58	1
-Get-MiOS.ps1	3574	3576	3	21	c199b14f6ce0	STAY	midsize-why		0				0
 Get-MiOS.ps1	3588	3597	10	84	51f7e92b0d9a	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:51f7e92b0d9a	84	1
-Get-MiOS.ps1	3602	3602	1	5	648daf2642c0	STAY	local-scoped		0				0
+Get-MiOS.ps1	3590	3590	1	5	e2c27515e9e6	STAY	local-scoped		0				0
+Get-MiOS.ps1	3618	3619	2	20	e623fa942944	STAY	local-scoped		0				0
+Get-MiOS.ps1	3635	3637	3	21	c199b14f6ce0	STAY	midsize-why		0				0
 Get-MiOS.ps1	3649	3654	6	53	3a58f5281b1f	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:3a58f5281b1f	53	1
-Get-MiOS.ps1	3654	3658	5	49	a344c3d71a96	STAY	midsize-why		0				0
+Get-MiOS.ps1	3663	3663	1	5	648daf2642c0	STAY	local-scoped		0				0
 Get-MiOS.ps1	3674	3682	9	92	e869e467289e	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:e869e467289e	92	1
 Get-MiOS.ps1	3686	3691	6	42	0cbe9379632f	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:0cbe9379632f	42	1
 Get-MiOS.ps1	3695	3700	6	56	4f2ccf770c05	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:4f2ccf770c05	56	1
 Get-MiOS.ps1	3703	3710	8	71	0bb2493b0c57	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:0bb2493b0c57	71	1
+Get-MiOS.ps1	3715	3719	5	49	a344c3d71a96	STAY	midsize-why		0				0
 Get-MiOS.ps1	3721	3726	6	57	71b1918c52a6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:71b1918c52a6	57	1
-Get-MiOS.ps1	3730	3730	1	9	7caa4c05de16	STAY	local-scoped		0				0
-Get-MiOS.ps1	3740	3741	2	15	e3bcea7823a2	STAY	local-scoped		0				0
-Get-MiOS.ps1	3766	3766	1	6	48651560415a	STAY	local-scoped		0				0
 Get-MiOS.ps1	3782	3791	10	76	bb11ccac7329	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:bb11ccac7329	76	1
+Get-MiOS.ps1	3791	3791	1	9	7caa4c05de16	STAY	local-scoped		0				0
 Get-MiOS.ps1	3793	3798	6	43	1c6ff969906d	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:1c6ff969906d	43	1
+Get-MiOS.ps1	3801	3802	2	15	e3bcea7823a2	STAY	local-scoped		0				0
 Get-MiOS.ps1	3813	3830	18	140	a58a80b19583	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:a58a80b19583	140	1
-Get-MiOS.ps1	3822	3822	1	4	f003166b8f79	STAY	local-scoped		0				0
-Get-MiOS.ps1	3853	3853	1	7	f377b87b3a66	STAY	local-scoped		0				0
-Get-MiOS.ps1	3874	3874	1	7	5ba428d59ef8	STAY	local-scoped		0				0
-Get-MiOS.ps1	3878	3880	3	28	2c92635c1c5a	STAY	midsize-why		0				0
-Get-MiOS.ps1	3911	3911	1	4	aa523e830638	STAY	local-scoped		0				0
-Get-MiOS.ps1	3938	3938	1	4	a6e2f4b65bc2	STAY	inline-scoped		0				0
-Get-MiOS.ps1	3939	3939	1	5	4c7a110f15b1	STAY	inline-scoped		0				0
-Get-MiOS.ps1	3989	3989	1	3	79d84c4adebf	STAY	local-scoped		0				0
-Get-MiOS.ps1	3991	3991	1	3	bd8107dadf0b	STAY	local-scoped		0				0
+Get-MiOS.ps1	3827	3827	1	6	48651560415a	STAY	local-scoped		0				0
+Get-MiOS.ps1	3883	3883	1	4	f003166b8f79	STAY	local-scoped		0				0
+Get-MiOS.ps1	3914	3914	1	7	f377b87b3a66	STAY	local-scoped		0				0
+Get-MiOS.ps1	3935	3935	1	7	5ba428d59ef8	STAY	local-scoped		0				0
+Get-MiOS.ps1	3939	3941	3	28	2c92635c1c5a	STAY	midsize-why		0				0
+Get-MiOS.ps1	3972	3972	1	4	aa523e830638	STAY	local-scoped		0				0
 Get-MiOS.ps1	3995	4007	13	106	ba1dda753b39	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:ba1dda753b39	106	1
-Get-MiOS.ps1	3998	4000	3	27	0fbd3ea5c1d6	STAY	midsize-why		0				0
-Get-MiOS.ps1	4021	4023	3	27	f72df4ef1f21	STAY	midsize-why		0				0
+Get-MiOS.ps1	3999	3999	1	4	a6e2f4b65bc2	STAY	inline-scoped		0				0
+Get-MiOS.ps1	4000	4000	1	5	4c7a110f15b1	STAY	inline-scoped		0				0
 Get-MiOS.ps1	4033	4043	11	59	81af7065bbf6	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:81af7065bbf6	59	1
-Get-MiOS.ps1	4035	4037	3	22	7eeaba37cba2	STAY	midsize-why		0				0
-Get-MiOS.ps1	4051	4052	2	20	7ab1e5c56294	STAY	local-scoped		0				0
+Get-MiOS.ps1	4050	4050	1	3	79d84c4adebf	STAY	local-scoped		0				0
+Get-MiOS.ps1	4052	4052	1	3	bd8107dadf0b	STAY	local-scoped		0				0
+Get-MiOS.ps1	4059	4061	3	27	0fbd3ea5c1d6	STAY	midsize-why		0				0
+Get-MiOS.ps1	4082	4084	3	27	f72df4ef1f21	STAY	midsize-why		0				0
 Get-MiOS.ps1	4085	4087	3	23	c746e415640d	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:c746e415640d	23	1
+Get-MiOS.ps1	4096	4098	3	22	7eeaba37cba2	STAY	midsize-why		0				0
 Get-MiOS.ps1	4108	4122	15	106	3a5f4b913efc	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:3a5f4b913efc	106	1
-Get-MiOS.ps1	4121	4121	1	12	b73f0804b2af	STAY	local-scoped		0				0
-Get-MiOS.ps1	4130	4131	2	18	977c6bbf9611	STAY	local-scoped		0				0
-Get-MiOS.ps1	4152	4152	1	5	8a6e0208186d	STAY	local-scoped		0				0
-Get-MiOS.ps1	4160	4161	2	17	6c3e99fee295	STAY	local-scoped		0				0
+Get-MiOS.ps1	4112	4113	2	20	7ab1e5c56294	STAY	local-scoped		0				0
+Get-MiOS.ps1	4182	4182	1	12	b73f0804b2af	STAY	local-scoped		0				0
+Get-MiOS.ps1	4191	4192	2	18	977c6bbf9611	STAY	local-scoped		0				0
 Get-MiOS.ps1	4195	4200	6	42	49255ef7ec38	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:49255ef7ec38	42	1
-Get-MiOS.ps1	4257	4257	1	7	e62f6d91b234	STAY	local-scoped		0				0
-Get-MiOS.ps1	4265	4267	3	30	2c8440d6dea8	STAY	midsize-why		0				0
-Get-MiOS.ps1	4293	4293	1	11	7a8105d0244b	STAY	local-scoped		0				0
+Get-MiOS.ps1	4213	4213	1	5	8a6e0208186d	STAY	local-scoped		0				0
+Get-MiOS.ps1	4221	4222	2	17	6c3e99fee295	STAY	local-scoped		0				0
 Get-MiOS.ps1	4303	4312	10	75	0b7a39fc6c7a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:0b7a39fc6c7a	75	1
-Get-MiOS.ps1	4325	4326	2	16	c5fbc01147f7	STAY	local-scoped		0				0
-Get-MiOS.ps1	4331	4333	3	25	2afa3bc5581b	STAY	midsize-why		0				0
-Get-MiOS.ps1	4347	4347	1	10	ebff034a72b8	STAY	local-scoped		0				0
-Get-MiOS.ps1	4357	4357	1	7	fc36aaca4809	STAY	local-scoped		0				0
-Get-MiOS.ps1	4410	4410	1	3	f886eaaad941	STAY	local-scoped		0				0
-Get-MiOS.ps1	4418	4418	1	10	6db693b9db3e	STAY	local-scoped		0				0
+Get-MiOS.ps1	4318	4318	1	7	e62f6d91b234	STAY	local-scoped		0				0
+Get-MiOS.ps1	4326	4328	3	30	2c8440d6dea8	STAY	midsize-why		0				0
+Get-MiOS.ps1	4354	4354	1	11	7a8105d0244b	STAY	local-scoped		0				0
+Get-MiOS.ps1	4386	4387	2	16	c5fbc01147f7	STAY	local-scoped		0				0
+Get-MiOS.ps1	4392	4394	3	25	2afa3bc5581b	STAY	midsize-why		0				0
+Get-MiOS.ps1	4408	4408	1	10	ebff034a72b8	STAY	local-scoped		0				0
+Get-MiOS.ps1	4418	4418	1	7	fc36aaca4809	STAY	local-scoped		0				0
 Get-MiOS.ps1	4418	4428	11	90	a979639481c5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:a979639481c5	90	1
-Get-MiOS.ps1	4425	4425	1	5	5a6d33a8e97d	STAY	local-scoped		0				0
 Get-MiOS.ps1	4430	4438	9	66	b9e9a2dab119	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:b9e9a2dab119	66	1
 Get-MiOS.ps1	4440	4444	5	42	50d02e92b4a1	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:50d02e92b4a1	42	1
-Get-MiOS.ps1	4447	4449	3	30	c6744103efb3	STAY	midsize-why		0				0
-Get-MiOS.ps1	4460	4460	1	10	1ee907f33a40	STAY	local-scoped		0				0
-Get-MiOS.ps1	4500	4500	1	7	751f0562346c	STAY	local-scoped		0				0
-Get-MiOS.ps1	4529	4529	1	7	39973c63bb92	STAY	inline-scoped		0				0
-Get-MiOS.ps1	4530	4530	1	7	8c4b24c00488	STAY	inline-scoped		0				0
-Get-MiOS.ps1	4540	4540	1	10	bbf13731979f	STAY	local-scoped		0				0
-Get-MiOS.ps1	4560	4560	1	12	813d46cbe2cd	STAY	local-scoped		0				0
-Get-MiOS.ps1	4576	4576	1	5	e10d695a8962	STAY	local-scoped		0				0
-Get-MiOS.ps1	4583	4583	1	10	cf04f142c018	STAY	local-scoped		0				0
-Get-MiOS.ps1	4626	4626	1	4	62047bcc010b	STAY	local-scoped		0				0
-Get-MiOS.ps1	4637	4637	1	7	9ca9db21b0a5	STAY	local-scoped		0				0
-Get-MiOS.ps1	4656	4656	1	8	3186cf4359e6	STAY	local-scoped		0				0
+Get-MiOS.ps1	4471	4471	1	3	f886eaaad941	STAY	local-scoped		0				0
+Get-MiOS.ps1	4479	4479	1	10	6db693b9db3e	STAY	local-scoped		0				0
+Get-MiOS.ps1	4486	4486	1	5	5a6d33a8e97d	STAY	local-scoped		0				0
+Get-MiOS.ps1	4508	4510	3	30	c6744103efb3	STAY	midsize-why		0				0
+Get-MiOS.ps1	4521	4521	1	10	1ee907f33a40	STAY	local-scoped		0				0
+Get-MiOS.ps1	4561	4561	1	7	751f0562346c	STAY	local-scoped		0				0
+Get-MiOS.ps1	4590	4590	1	7	39973c63bb92	STAY	inline-scoped		0				0
+Get-MiOS.ps1	4591	4591	1	7	8c4b24c00488	STAY	inline-scoped		0				0
+Get-MiOS.ps1	4601	4601	1	10	bbf13731979f	STAY	local-scoped		0				0
+Get-MiOS.ps1	4621	4621	1	12	813d46cbe2cd	STAY	local-scoped		0				0
+Get-MiOS.ps1	4637	4637	1	5	e10d695a8962	STAY	local-scoped		0				0
+Get-MiOS.ps1	4644	4644	1	10	cf04f142c018	STAY	local-scoped		0				0
 Get-MiOS.ps1	4663	4668	6	50	5f7256caea1f	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:5f7256caea1f	50	1
-Get-MiOS.ps1	4669	4669	1	7	46676fd98906	STAY	local-scoped		0				0
 Get-MiOS.ps1	4679	4684	6	47	d037c96248d1	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:d037c96248d1	47	1
-Get-MiOS.ps1	4691	4691	1	7	6e7d55a5c02d	STAY	local-scoped		0				0
-Get-MiOS.ps1	4714	4714	1	9	99978bb05442	STAY	local-scoped		0				0
-Get-MiOS.ps1	4725	4727	3	31	f50b2fb665f3	STAY	midsize-why		0				0
+Get-MiOS.ps1	4687	4687	1	4	62047bcc010b	STAY	local-scoped		0				0
+Get-MiOS.ps1	4698	4698	1	7	9ca9db21b0a5	STAY	local-scoped		0				0
+Get-MiOS.ps1	4717	4717	1	8	3186cf4359e6	STAY	local-scoped		0				0
+Get-MiOS.ps1	4730	4730	1	7	46676fd98906	STAY	local-scoped		0				0
+Get-MiOS.ps1	4752	4752	1	7	6e7d55a5c02d	STAY	local-scoped		0				0
 Get-MiOS.ps1	4772	4779	8	77	d17615a3692f	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:d17615a3692f	77	1
-Get-MiOS.ps1	4792	4792	1	3	f7c90370a90e	STAY	inline-scoped		0				0
+Get-MiOS.ps1	4775	4775	1	9	99978bb05442	STAY	local-scoped		0				0
+Get-MiOS.ps1	4786	4788	3	31	f50b2fb665f3	STAY	midsize-why		0				0
 Get-MiOS.ps1	4817	4838	22	124	a6a0339ccc0a	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:a6a0339ccc0a	124	1
+Get-MiOS.ps1	4853	4853	1	3	f7c90370a90e	STAY	inline-scoped		0				0
 Get-MiOS.ps1	4860	4863	4	31	c0226c9181ad	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:c0226c9181ad	31	1
 Get-MiOS.ps1	4875	4883	9	84	f4cea0117e2a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:f4cea0117e2a	84	1
-Get-MiOS.ps1	4880	4881	2	17	c500e39e4a58	STAY	local-scoped		0				0
-Get-MiOS.ps1	4890	4893	4	31	1386b36001e2	STAY	midsize-why		0				0
 Get-MiOS.ps1	4911	4919	9	85	c7a4de39bb54	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:c7a4de39bb54	85	1
-Get-MiOS.ps1	4929	4932	4	24	c12eb50bb653	STAY	midsize-why		0				0
+Get-MiOS.ps1	4941	4942	2	17	c500e39e4a58	STAY	local-scoped		0				0
 Get-MiOS.ps1	4947	4968	22	167	73c77a41c134	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:73c77a41c134	167	1
-Get-MiOS.ps1	4977	4977	1	7	66fd29b18371	STAY	local-scoped		0				0
-Get-MiOS.ps1	4988	4988	1	9	232909f79384	STAY	local-scoped		0				0
-Get-MiOS.ps1	4999	5002	4	25	80442fc503cc	STAY	midsize-why		0				0
+Get-MiOS.ps1	4951	4954	4	31	1386b36001e2	STAY	midsize-why		0				0
+Get-MiOS.ps1	4990	4993	4	24	c12eb50bb653	STAY	midsize-why		0				0
 Get-MiOS.ps1	5000	5005	6	64	f71d462c5bcf	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:f71d462c5bcf	64	1
-Get-MiOS.ps1	5007	5009	3	25	78899c9817d7	STAY	midsize-why		0				0
 Get-MiOS.ps1	5036	5045	10	84	02ad7ce8863e	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:02ad7ce8863e	84	1
+Get-MiOS.ps1	5038	5038	1	7	66fd29b18371	STAY	local-scoped		0				0
 Get-MiOS.ps1	5047	5052	6	56	1cabe03bd558	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:1cabe03bd558	56	1
-Get-MiOS.ps1	5055	5057	3	23	e123e8cff14b	STAY	midsize-why		0				0
-Get-MiOS.ps1	5065	5067	3	23	e99c866633bf	STAY	midsize-why		0				0
+Get-MiOS.ps1	5049	5049	1	9	232909f79384	STAY	local-scoped		0				0
+Get-MiOS.ps1	5060	5063	4	25	80442fc503cc	STAY	midsize-why		0				0
+Get-MiOS.ps1	5068	5070	3	25	78899c9817d7	STAY	midsize-why		0				0
 Get-MiOS.ps1	5072	5076	5	55	d5f31b3c7265	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:d5f31b3c7265	55	1
 Get-MiOS.ps1	5093	5102	10	79	b5ffbad1c394	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:b5ffbad1c394	79	1
-Get-MiOS.ps1	5100	5103	4	35	df467a44db55	STAY	midsize-why		0				0
+Get-MiOS.ps1	5116	5118	3	23	e123e8cff14b	STAY	midsize-why		0				0
+Get-MiOS.ps1	5126	5128	3	23	e99c866633bf	STAY	midsize-why		0				0
 Get-MiOS.ps1	5159	5178	20	132	0ed8f61076f9	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:0ed8f61076f9	132	1
-Get-MiOS.ps1	5163	5166	4	37	836300ab2678	STAY	midsize-why		0				0
+Get-MiOS.ps1	5161	5164	4	35	df467a44db55	STAY	midsize-why		0				0
 Get-MiOS.ps1	5185	5196	12	94	1dcf45df54a8	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:1dcf45df54a8	94	1
-Get-MiOS.ps1	5188	5189	2	23	fbe94aaaf26a	STAY	local-scoped		0				0
-Get-MiOS.ps1	5206	5206	1	5	d89c9e036792	STAY	local-scoped		0				0
 Get-MiOS.ps1	5208	5214	7	58	8ed7ac7e23de	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:8ed7ac7e23de	58	1
-Get-MiOS.ps1	5218	5218	1	6	e5634cbc78a2	STAY	local-scoped		0				0
-Get-MiOS.ps1	5219	5219	1	3	081f8f379252	STAY	inline-scoped		0				0
+Get-MiOS.ps1	5224	5227	4	37	836300ab2678	STAY	midsize-why		0				0
 Get-MiOS.ps1	5238	5248	11	96	078b1c92c75c	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:078b1c92c75c	96	1
+Get-MiOS.ps1	5249	5250	2	23	fbe94aaaf26a	STAY	local-scoped		0				0
 Get-MiOS.ps1	5250	5252	3	19	233b3297318f	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:233b3297318f	19	1
-Get-MiOS.ps1	5273	5275	3	26	e91028de02c8	STAY	midsize-why		0				0
+Get-MiOS.ps1	5267	5267	1	5	d89c9e036792	STAY	local-scoped		0				0
+Get-MiOS.ps1	5279	5279	1	6	e5634cbc78a2	STAY	local-scoped		0				0
+Get-MiOS.ps1	5280	5280	1	3	081f8f379252	STAY	inline-scoped		0				0
 Get-MiOS.ps1	5280	5287	8	68	200a56ee7396	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:200a56ee7396	68	1
-Get-MiOS.ps1	5297	5298	2	15	0e57646c6497	STAY	local-scoped		0				0
-Get-MiOS.ps1	5300	5304	5	45	67fda8b842a2	STAY	midsize-why		0				0
-Get-MiOS.ps1	5308	5309	2	18	d41d3f7b13a0	STAY	local-scoped		0				0
-Get-MiOS.ps1	5312	5312	1	6	c28e5476da0c	STAY	local-scoped		0				0
 Get-MiOS.ps1	5313	5320	8	70	14737ddc2c17	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:14737ddc2c17	70	1
-Get-MiOS.ps1	5336	5336	1	9	174f245daeca	STAY	local-scoped		0				0
-Get-MiOS.ps1	5361	5363	3	17	32b4e95e2c26	STAY	midsize-why		0				0
-Get-MiOS.ps1	5408	5411	4	28	e93c811c6a26	STAY	midsize-why		0				0
-Get-MiOS.ps1	5413	5415	3	25	d93c8c8caab8	STAY	midsize-why		0				0
-Get-MiOS.ps1	5424	5426	3	28	2dec0692d63d	STAY	midsize-why		0				0
+Get-MiOS.ps1	5335	5337	3	26	e91028de02c8	STAY	midsize-why		0				0
+Get-MiOS.ps1	5359	5360	2	15	0e57646c6497	STAY	local-scoped		0				0
+Get-MiOS.ps1	5362	5366	5	45	67fda8b842a2	STAY	midsize-why		0				0
+Get-MiOS.ps1	5370	5371	2	18	d41d3f7b13a0	STAY	local-scoped		0				0
+Get-MiOS.ps1	5374	5374	1	6	c28e5476da0c	STAY	local-scoped		0				0
+Get-MiOS.ps1	5398	5398	1	9	174f245daeca	STAY	local-scoped		0				0
+Get-MiOS.ps1	5423	5425	3	17	32b4e95e2c26	STAY	midsize-why		0				0
 Get-MiOS.ps1	5430	5435	6	50	cdb3a5b550f6	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/root.md	mios-src:cdb3a5b550f6	50	1
-Get-MiOS.ps1	5437	5439	3	24	ee9d8a2c64ad	STAY	midsize-why		0				0
-Get-MiOS.ps1	5501	5505	5	50	a0a9e7025a57	STAY	midsize-why		0				0
-Get-MiOS.ps1	5527	5527	1	12	bcd5e484ac30	STAY	local-scoped		0				0
-Get-MiOS.ps1	5532	5535	4	36	e39448234b06	STAY	midsize-why		0				0
+Get-MiOS.ps1	5470	5473	4	28	e93c811c6a26	STAY	midsize-why		0				0
+Get-MiOS.ps1	5475	5477	3	25	d93c8c8caab8	STAY	midsize-why		0				0
+Get-MiOS.ps1	5486	5488	3	28	2dec0692d63d	STAY	midsize-why		0				0
+Get-MiOS.ps1	5499	5501	3	24	ee9d8a2c64ad	STAY	midsize-why		0				0
 Get-MiOS.ps1	5539	5543	5	44	ff619ec48c7f	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:ff619ec48c7f	44	1
 Get-MiOS.ps1	5547	5595	49	347	6bf7bc3bddc5	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/root.md	mios-src:6bf7bc3bddc5	347	1
-Get-MiOS.ps1	5557	5559	3	27	13ce12e5a7eb	STAY	midsize-why		0				0
-Get-MiOS.ps1	5586	5589	4	32	2e64808b7eb4	STAY	midsize-why		0				0
+Get-MiOS.ps1	5563	5567	5	50	a0a9e7025a57	STAY	midsize-why		0				0
+Get-MiOS.ps1	5589	5589	1	12	bcd5e484ac30	STAY	local-scoped		0				0
+Get-MiOS.ps1	5594	5597	4	36	e39448234b06	STAY	midsize-why		0				0
 Get-MiOS.ps1	5601	5603	3	20	0281334da27d	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:0281334da27d	20	1
-Get-MiOS.ps1	5627	5628	2	16	a44584e59fa4	STAY	local-scoped		0				0
+Get-MiOS.ps1	5619	5621	3	27	13ce12e5a7eb	STAY	midsize-why		0				0
+Get-MiOS.ps1	5648	5651	4	32	2e64808b7eb4	STAY	midsize-why		0				0
 Get-MiOS.ps1	5649	5663	15	82	73734c1a87ce	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:73734c1a87ce	82	1
+Get-MiOS.ps1	5689	5690	2	16	a44584e59fa4	STAY	local-scoped		0				0
 Get-MiOS.ps1	5825	5830	6	53	aeaae63bb2eb	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/root.md	mios-src:aeaae63bb2eb	53	1
 Get-MiOS.ps1	5847	5851	5	40	76e62210ff3d	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:76e62210ff3d	40	1
 Get-MiOS.ps1	5943	5945	3	23	f8f94ed3cf96	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/root.md	mios-src:f8f94ed3cf96	23	1
@@ -2626,11 +2628,11 @@ installation/mios-common.sh	544	544	1	3	24f834d9220e	STAY	local-scoped		0				0
 installation/mios-common.sh	589	589	1	4	0d969a839b09	DROP	banner		0				0
 installation/mios-install.ps1	18	18	1	9	4a5a7e29e1cf	STAY	local-scoped		0				0
 installation/mios-install.ps1	20	20	1	7	4e8e1e2a8ce4	STAY	inline-scoped		0				0
-installation/mios-install.ps1	26	28	3	2	df19cf9ea8ae	STAY	midsize-why		0				0
-installation/mios-install.ps1	44	46	3	4	cb13c6bf19ce	STAY	midsize-why		0				0
-installation/mios-install.ps1	249	251	3	3	1bbbf991e724	DROP	banner		0				0
-installation/mios-install.ps1	266	268	3	30	f5135bcc4a15	STAY	midsize-why		0				0
-installation/mios-install.ps1	302	306	5	51	7e1eecc99228	MIGRATE	midsize-narrative		0				0
+installation/mios-install.ps1	24	26	3	2	df19cf9ea8ae	STAY	midsize-why		0				0
+installation/mios-install.ps1	42	44	3	4	cb13c6bf19ce	STAY	midsize-why		0				0
+installation/mios-install.ps1	247	249	3	3	1bbbf991e724	DROP	banner		0				0
+installation/mios-install.ps1	264	266	3	30	f5135bcc4a15	STAY	midsize-why		0				0
+installation/mios-install.ps1	300	304	5	51	7e1eecc99228	MIGRATE	midsize-narrative		0				0
 installation/mios-install.sh	1	4	4	22	c6de692fcbb2	STAY	ai-header		0				0
 installation/mios-install.sh	53	53	1	7	99b78d177c1b	STAY	inline-scoped		0				0
 installation/mios-install.sh	64	64	1	3	1ce5f02a6f9f	STAY	inline-scoped		0				0
