@@ -46,7 +46,7 @@ def execute_backup(
         raise RuntimeError("pg_dump or zstd binary not found on system PATH")
 
     dump_cmd = [pg_dump, "-h", host, "-p", str(port), "-U", user, "-d", db_name, "--clean", "--if-exists"]
-    zstd_cmd = [zstd, f"-{zstd_level}", "-T0", "-o", target_path]
+    zstd_cmd = [zstd, f"-{zstd_level}", "--check", "-T0", "-o", target_path]
 
     p1 = subprocess.Popen(dump_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     p2 = subprocess.Popen(zstd_cmd, stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

@@ -5,6 +5,7 @@ import json
 import uuid
 import datetime
 import subprocess
+import shutil
 from pathlib import Path
 
 import mios_evict
@@ -40,8 +41,11 @@ async def export_to_cold(pg, row_ids: list[int], table: str, dest_dir: str, zstd
                 else:
                     f.write(str(r) + "\n")
 
+        _zstd = shutil.which("zstd")
+        if not _zstd:
+            raise RuntimeError("zstd binary not found on system PATH; cannot compress cold tier")
         subprocess.run(
-            ["zstd", f"--level={zstd_level}", "-o", str(zst_path), str(tmp_path)],
+            [_zstd, f"--level={zstd_level}", "-o", str(zst_path), str(tmp_path)],
             check=True,
             capture_output=True
         )
