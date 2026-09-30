@@ -6160,9 +6160,13 @@ pkgs = [
 # -dev-loop), Codespaces, Cloud Shell (cloud-shell/bootstrap.sh) and the hosted
 # cloud-session projection. Built from a context that is not a MiOS checkout,
 # the Containerfile shallow-clones MiOS and reads this list from the clone.
-# Not a bake section -- no automation/NN-*.sh stage installs it into the image.
+# The dev profile and a full build also install its declared dependency closure
+# through the repos phase; the core profile selects self-build without editor extras.
 [packages.devcontainer]
 enable = true
+# The development image shares the self-build dependency closure with MiOS.
+# Section dependencies are resolved and deduplicated by automation/lib/packages.sh.
+requires_sections = ["self-build"]
 pkgs = [
     "just",
     "podman", "podman-compose", "buildah", "skopeo",
@@ -6170,18 +6174,15 @@ pkgs = [
     "bootc", "bootupd", "ostree", "rpm-ostree",
     "curl", "wget", "ca-certificates", "gh", "jq", "yq", "rsync", "git", "tmux",
     "nodejs", "npm",
-    "python3", "python3-pip", "python3-devel",
     "python3.11", "python3.11-devel",   # agent-pipe venv interpreter (/usr/lib/mios/agents/.venv)
     "ruby", "ruby-devel",
-    "python3-rich", "python3-textual", "python3-psutil", "python3-pytest", "python3-jsonschema",
-    "rust", "cargo", "clippy", "rustfmt", "gcc", "gcc-c++", "make",
+    "python3-rich", "python3-textual", "python3-psutil",
     "dbus-daemon", "dbus-tools", "gnome-keyring", "libsecret",   # agent CLI credential keyring
     "procps-ng", "util-linux", "shadow-utils", "authselect",
     "sudo", "zsh",
     "findutils", "grep", "sed", "gawk", "diffutils", "patch",
     "ripgrep", "tar", "gzip", "unzip", "zip",
     "openssl", "qemu-img", "attr",
-    "ShellCheck",
     "btop", "fastfetch", "oh-my-posh",
 ]
 
@@ -6474,16 +6475,40 @@ pkgs = [
     "selinux-policy-devel",
     "binutils",
     "pkgconf-pkg-config",
+    # Both native workspaces and their lint/format gates must build on MiOS.
+    # rustup manages the SSOT-selected channel; distro Rust also works offline.
+    "rust", "cargo", "rustup", "clippy", "rustfmt",
+    "glibc-devel",
+    "musl-devel", "musl-gcc", "musl-libc-static",
+    "ninja-build",                 # quickshell's CMake Ninja backend
+    "python3", "python3-pip", "python3-devel",
+    "openssl-devel", "libffi-devel", # source-built Python extension dependencies
 ]
 
 [packages.self-build]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
+requires_sections = ["build-toolchain"]
+# Default MiOS keeps its full build dependencies so it can rebuild itself.
+# Set false only for an intentionally stripped deployment image.
+retain_toolchain = true
 pkgs = [
     "buildah",
     "podman",
     "skopeo",
     "ostree",
     "bootc",
+    "bootupd", "rpm-ostree",
+    # Rootless build and registry tooling, with weak dependency installation off.
+    "crun", "netavark", "aardvark-dns", "slirp4netns", "passt", "fuse-overlayfs",
+    "shadow-utils", "util-linux", "procps-ng", "sudo", "coreutils", "bash", "dnf5",
+    # Repository, source archive and generated-projection dependencies.
+    "git", "git-lfs", "gh", "curl", "ca-certificates", "rsync",
+    "findutils", "grep", "sed", "gawk", "diffutils", "patch",
+    "tar", "gzip", "bzip2", "xz", "zstd", "unzip", "zip", "cpio",
+    "jq", "yq", "qemu-img", "squashfs-tools", "attr", "just",
+    # Existing self-development checks and templates, not only a compiler.
+    "ShellCheck", "python3-pytest", "python3-jsonschema", "python3-pyyaml",
+    "python3-pyflakes", "python3-cryptography", "python3-aiohttp", "python3-pydantic",
 ]
 
 [packages.boot]
@@ -6823,9 +6848,17 @@ pkgs = [
 
 [packages.ai]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
+# Shared agent runtime packages are resolved by pip in phase 72. Keep SDK-only
+# dependencies here through this canonical manifest, not mismatched distro RPMs.
+python_requirements = ["usr/lib/mios/agent-pipe/requirements.txt"]
 pkgs = [
     "python3-openai",
     "python3-httpx",    # mios_mcp imports it directly; never lean on python3-openai pulling it in
+    "python3", "python3-pip", "python3-devel",
+    "python3-requests", "python3-rich", "python3-textual", "python3-psutil",
+    "python3-jsonschema", "python3-pyyaml", "python3-cryptography",
+    "python3-psycopg3", "python3-psycopg2", # system Python database projections and graph traversal
+    "python3-zstandard",                   # system backup's declared compression lane
     "nodejs",           # required by claude-code + gemini-cli (npm-installed)
     "npm",
     "nano",             # baseline text editor for operator config edits (operator-flagged: "nano: command not found")
@@ -11426,9 +11459,10 @@ checks = [
 # numbered above 55, producing a split brain inside one bake.
 #
 # That reasoning read the script instead of measuring whether the line runs.
-# 55-native-build.sh guards its whole body on `command -v cargo`, no [packages]
-# section installs a Rust toolchain, and no phase dnf-installs one: in a bake
-# the stage prints its "cargo toolchain not available" warning and does nothing.
+# This was a historical missing-package condition. [packages.build-toolchain]
+# now ships Rust/Cargo and the repos phase installs selected build dependencies.
+# Phase 55 must distinguish complete source checkouts from image bake contexts;
+# prebuilt native binaries copied by the Containerfile remain the bake producer.
 # The binaries in the image come from the Containerfile's rust-builder stage,
 # COPYed to /usr/libexec/mios, which is not on PATH -- so no stage, above or
 # below 55, has ever reached its Rust branch. Registering 55 arms nothing.
@@ -12530,7 +12564,7 @@ default = "full"
 [profiles.core]
 floor            = true
 summary          = "the smallest MiOS that is still MiOS: SSOT, miosd, agent-pipe, the datastore, the verbs"
-package_sections = ["repos", "base", "containers", "build-toolchain", "utils", "ai", "critical"]
+package_sections = ["repos", "base", "containers", "build-toolchain", "self-build", "utils", "ai", "critical"]
 phases           = ["system-files-overlay", "materialize-build-ctx", "repos", "locale-theme",
                     "user", "hostname", "subuid-alloc", "generate-quadlets", "render-quadlets",
                     "render-ports", "services", "mios-dropin-fanout", "tools", "finalize",

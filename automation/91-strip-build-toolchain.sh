@@ -1,11 +1,24 @@
 #!/bin/bash
 # MIOS_APPLY_CLASS=bake-only
-# AI-hint: Removes build-toolchain packages (gcc, g++, cmake, etc.) from the final image via dnf to minimize attack surface, ensuring no compilers remain in the PATH after the build phase.
+# AI-hint: Retains MiOS self-development dependencies by default; strips build groups only when packages.self-build.retain_toolchain explicitly opts out.
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
+
+retention="$(get_package_setting self-build retain_toolchain)" || {
+    mios_err "Missing [packages.self-build].retain_toolchain; refusing to remove self-build dependencies"
+    exit 1
+}
+case "$retention" in
+    true)
+        mios_ok "Retaining build dependencies for MiOS self-development and self-building"
+        exit 0
+        ;;
+    false) ;;
+    *) mios_err "Invalid [packages.self-build].retain_toolchain: $retention"; exit 1 ;;
+esac
 
 mios_log "Resolving and combing all build-time package groups"
 

@@ -567,27 +567,24 @@ kubectl
 helm
 podman-plugins
 cosign
-# Build toolchain moved to `packages-build-toolchain` (image-build only;
-# stripped by automation/91-strip-build-toolchain.sh before image commit
-# so the deployed runtime carries no compilers).
+# Build toolchain is composed from [packages.build-toolchain].
+# Default self-build retention keeps it in the deployed image.
 # REMOVED -- podman-docker: conflicts with moby-engine from ucore-hci base
 ```
 
-## Build Toolchain (image-build time ONLY)
+## Build Toolchain and retained development dependencies
 
 These compilers and devel headers are required by image-build phases
 (`37-k3s-selinux.sh` builds the k3s SELinux policy module,
 `53-bake-lookingglass-client.sh` compiles Looking Glass B7 from source)
-but **do not belong on the runtime image** -- a deployed host carrying
-gcc/cmake/golang is unnecessary attack surface for any process that
-gets a shell.
+and by a MiOS host developing and rebuilding its next generation.
 
-`automation/12-virt.sh` installs this block early, the build phases
-that need it consume it, and `automation/91-strip-build-toolchain.sh`
-removes it after `90-generate-sbom.sh` records the versions and before
-`99-cleanup.sh` runs. The block is also in the FHS-install exclude
-list (`mios-bootstrap/build-mios.sh`) so a deployed FHS host never
-installs it in the first place.
+`[packages.self-build]` composes this block using `requires_sections`.
+The package resolver deduplicates the resulting closure. Installation must
+cover the chosen profile independently of whether `automation/21-virt.sh`
+runs. `automation/91-strip-build-toolchain.sh` reads the SSOT retention
+policy; the default `retain_toolchain = true` preserves development tools.
+Set it to false only when deliberately building a stripped deployment.
 
 ```packages-build-toolchain
 make
@@ -600,16 +597,23 @@ binutils
 pkgconf-pkg-config
 ```
 
-## Self-Building Tools (Experimental/Repository dependent)
+## Self-Building Tools
 
 Tools needed for the image to rebuild itself -- part of what makes MiOS
 "self-replicating": a booted host can build the next image of itself.
-May fail if specialized repos are not enabled.
+The authoritative list is `[packages.self-build].pkgs`, with compiler and
+linker dependencies inherited from `[packages.build-toolchain]`. It covers
+OCI image construction and transport, rootless container prerequisites,
+source checkout and archives, and repository verification. The development
+container composes these groups rather than maintaining a separate compiler
+list. Requirements for shared Python services remain in their consumed
+requirements file, and direct system Python dependencies remain RPMs.
 
-```packages-self-build
-bootc-base-imagectl
-konflux-image-tools
-```
+Artifact builders and containerized services use their configured OCI images;
+they do not require redundant host installations of the same server stack.
+Package resolution must report missing required groups and cycles before
+installation. Verify actual image builds and service startup in MiOS-DEV;
+package declarations alone cannot establish deployed self-build capability.
 
 ## Boot & Update Management
 

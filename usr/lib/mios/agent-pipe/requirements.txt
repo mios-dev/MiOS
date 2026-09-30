@@ -7,6 +7,9 @@ ruamel.yaml
 uvicorn
 uvloop
 httpx
+httpx2>=2.5.0
+Pillow
+cryptography
 smolagents
 psycopg[binary]
 websockets

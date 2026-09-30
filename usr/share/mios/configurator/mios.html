@@ -2214,6 +2214,13 @@
         Hover for description.
       </p>
       <div id="package-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px;"></div>
+      <p style="color: var(--muted); font-size: 12px; margin: 8px 0;">
+        Required package sections are installed together. Disabling a required
+        section makes its consumer fail with the section names instead of
+        producing an incomplete development environment.
+      </p>
+      <label for="f-retain-toolchain">retain_toolchain (keep MiOS self-development and self-build dependencies)</label>
+      <input type="text" id="f-retain-toolchain" data-key="packages.self-build.retain_toolchain" data-type="bool" placeholder="true">
     </fieldset>
   </div>
 </details>
