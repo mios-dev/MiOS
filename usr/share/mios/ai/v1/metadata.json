@@ -3,8 +3,8 @@
   "total_files_scanned": 3594,
   "total_metadata_entries": 2956,
   "total_hints": 2943,
-  "total_functions_indexed": 1349,
-  "total_related_links": 4638,
+  "total_functions_indexed": 1361,
+  "total_related_links": 4647,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -7524,7 +7524,7 @@
     },
     {
       "path": "tests/test-refine-guard.py",
-      "hint": "Smoke-test script to verify that the `refine_intent` logic correctly overrides \"chat\" classifications for actionable commands (like URLs or sh...",
+      "hint": "Thin entrypoint shim -- the chat-promotion smoke corpus now lives in the canonical consolidated suite tests/test-refine-guards.py ...",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tests.md",
@@ -7533,7 +7533,7 @@
     },
     {
       "path": "tests/test-refine-guards.py",
-      "hint": "Integration test script to verify that the `refine` post-parse logic correctly demotes long, multi-step prompts to `agent` intent while prese...",
+      "hint": "Canonical consolidated refine post-parse guard suite (absorbed tests/test-refine-guard.py, which is now a delegating shim). Deterministic ...",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tests.md",
@@ -8391,8 +8391,12 @@
     },
     {
       "path": "tools/check-ovmf-enrollment.sh",
-      "hint": "Validates if the system contains pre-enrolled Secure Boot OVMF_VARS files (e.g., OVMF_VARS.secboot.fd) versus standard blank files to ensure firmware compatibility.",
-      "related": [],
+      "hint": "Diagnoses Secure Boot OVMF enrollment by CONTENT, not filenames: parses every OVMF_VARS varstore under /usr/share (raw and qcow2) with the bounded EDK2 variable-store parser and reports which are enrolled (live PK/KEK/db signature lists + SecureBootEnable) versus blank, plus which CODE images are merely Secure Boot capable. Sources tools/find-ovmf-firmware.sh for the shared verification library; never modifies firmware, NVRAM, or VM state.",
+      "related": [
+        "find-ovmf-firmware.sh",
+        "get-secureboot-ovmf.sh",
+        "fix-ovmf-enrollment.sh"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
@@ -8522,10 +8526,20 @@
     },
     {
       "path": "tools/find-ovmf-firmware.sh",
-      "hint": "Scans /usr/share for OVMF firmware files and maps CODE/VARS pairs to identify valid firmware configurations for QEMU/KVM boot environments.",
+      "hint": "Shared OVMF firmware library + discovery UI. Scans /usr/share for OVMF CODE/VARS pairs, proves Secure Boot capability and key enrollment from firmware content (validated qemu firmware descriptors and a bounded EDK2 varstore parser) instead of filenames, and rejects incompatible CODE/VARS pairs (cross-build, size, or format mismatch). tools/get-secureboot-ovmf.sh, tools/check-ovmf-enrollment.sh and tools/fix-ovmf-enrollment.sh source this file; run directly for the discovery report.",
       "related": [],
       "functions": [
-        "find_vars_for_code"
+        "find_vars_for_code",
+        "ovmf_share_root",
+        "ovmf_fwdesc_dir",
+        "ovmf_file_format",
+        "ovmf_descriptor_pairs",
+        "ovmf_vars_enrollment",
+        "ovmf_sb_capability",
+        "ovmf_pair_status",
+        "ovmf_enroll_with_virt_fw_vars",
+        "ovmf_install_verified_vars",
+        "ovmf_repair_menu"
       ],
       "doc": null,
       "comment_style": "hash",
@@ -8533,8 +8547,12 @@
     },
     {
       "path": "tools/fix-ovmf-enrollment.sh",
-      "hint": "A root-level utility to ensure Secure Boot compatibility by downloading or generating pre-enrolled OVMF VARS files in /usr/share/edk2/x64/ for use in VM configurations.",
-      "related": [],
+      "hint": "Root-gated repair that ensures a content-verified ENROLLED OVMF varstore exists: verifies current state with the bounded EDK2 variable-store parser, then either copies the distro-provided enrolled VARS, enrolls a fresh copy of the same-build blank template with virt-fw-vars --enroll-redhat, or fetches current edk2-ovmf via dnf download - every artifact is content-verified and pair-checked before install; never overwrites existing firmware, never touches /var/lib/libvirt/qemu/nvram or live VM state.",
+      "related": [
+        "find-ovmf-firmware.sh",
+        "check-ovmf-enrollment.sh",
+        "get-secureboot-ovmf.sh"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
@@ -8713,8 +8731,12 @@
     },
     {
       "path": "tools/get-secureboot-ovmf.sh",
-      "hint": "Locates and validates the presence of vendor-enrolled OVMF Secure Boot firmware files (CODE and VARS) in /usr/share/edk2/x64 to ensure the VM environment supports Secure Boot.",
-      "related": [],
+      "hint": "Locates enrolled OVMF Secure Boot varstores by CONTENT verification (the bounded EDK2 variable-store parser) across all known layouts (/usr/share/edk2/ovmf Fedora, /usr/share/edk2/x64 kraxel, /usr/share/OVMF symlinks), checks the CODE/VARS pair against qemu firmware descriptors, and offers a verification-gated repair menu - never installing a blank or unverified varstore, never overwriting existing files, and never touching live NVRAM.",
+      "related": [
+        "find-ovmf-firmware.sh",
+        "check-ovmf-enrollment.sh",
+        "fix-ovmf-enrollment.sh"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
@@ -25341,7 +25363,9 @@
         "hash_file_chunk",
         "create_snapshot_manifest",
         "compute_delta_plan",
-        "compress_chunk_zstd",
+        "compress_data_zstd",
+        "decompress_data_zstd",
+        "ensure_zstd_encoder_available",
         "sync_delta_payload",
         "verify_remote_manifest",
         "main"
