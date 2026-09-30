@@ -34,7 +34,7 @@ workspaces. Their release binaries are available from `/opt/mios/bin`, while
 the in-tree release targets remain available to the normal `just` preflight
 checks.
 
-Every Dev Container start runs `boot-mios-systems.sh`, which reapplies the
+Every Dev Container start runs `boot-mios-systems.sh start`, which reapplies the
 root overlay, incrementally rebuilds the source-matched native components, and
 records the active platform contract before the verification gate runs. This
 keeps resumed workspaces aligned with the checked-out MiOS system source rather
@@ -68,8 +68,10 @@ override these defaults from the layout controls or their user settings.
 
 ## Platform-aware connection bootstrap
 
-`.devcontainer/platform-bootstrap.sh` records the detected platform and
+`.devcontainer/boot-mios-systems.sh create` records the detected platform and
 portable profile in `~/.config/mios/devcontainer.env` during post-create.
+The same lifecycle entrypoint runs ordered startup checks with `start`;
+`platform` remains available as a focused setup mode.
 GitHub Codespaces runs the Dev Container lifecycle automatically. Google Cloud
 Shell can run a persistent `$HOME/.customize_environment` bootstrap at VM
 start, while Oracle Cloud Shell retains standard shell initialization in its

@@ -41,8 +41,6 @@
 !/.claude/**
 /.claude/settings.local.json
 !/.devcontainer/
-!/.devcontainer/post-start.sh
-!/.devcontainer/post-create.sh
 !/.devcontainer/devcontainer.json
 !/.devcontainer/Dockerfile
 !/.devcontainer/Containerfile
@@ -51,7 +49,6 @@
 !/.devcontainer/mios-ecosystem.code-workspace
 !/.devcontainer/setup-core-components.sh
 !/.devcontainer/mios-agent-pipe-dev
-!/.devcontainer/platform-bootstrap.sh
 !/.devcontainer/boot-mios-systems.sh
 !/.devcontainer/artifact-builder/
 !/.devcontainer/artifact-builder/devcontainer.json

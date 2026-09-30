@@ -197,8 +197,8 @@ spec:
     }
   },
   "forwardPorts": [8080, 8633, 8640, 8642, 11450, 11441, 5432],
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "postStartCommand": "bash .devcontainer/post-start.sh",
+  "postCreateCommand": "bash .devcontainer/boot-mios-systems.sh create",
+  "postStartCommand": "bash .devcontainer/boot-mios-systems.sh start",
   "remoteUser": "spark"
 }
 ```
@@ -224,24 +224,12 @@ ENTRYPOINT ["/bin/bash"]
 
 ## 6. DevContainer Lifecycle Hooks
 
-### File: `.devcontainer/post-create.sh`
-```bash
-#!/bin/bash
-set -euo pipefail
-echo "[devcontainer:post-create] Initializing embedded agent harness..."
-mkdir -p .devloop_artifacts .worktrees
-git config --global --add safe.directory /workspace
-echo "[devcontainer:post-create] Harness directory structures verified."
-```
-
-### File: `.devcontainer/post-start.sh`
-```bash
-#!/bin/bash
-set -euo pipefail
-echo "[devcontainer:post-start] Checking agentic environment and AI endpoint..."
-python3 harness/verification_gates.py --quick || true
-echo "[devcontainer:post-start] Ready for agent dispatch."
-```
+The current lifecycle is implemented by one modular entrypoint,
+`.devcontainer/boot-mios-systems.sh`. Its `create` mode initializes the
+workspace, core, and platform profile in that order. Its `start` mode reapplies
+the overlay and core, refreshes the platform and editor profile, starts the
+loopback code-server, and runs the fail-closed verification gate. The `platform`
+mode can refresh only the platform profile.
 
 ---
 

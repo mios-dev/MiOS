@@ -1,5 +1,5 @@
 # AI-hint: Hermetic two-sided tests for the code-server workbench bake (mios-vscode-custom-css patch/verify), the dev-image wiring that runs it, and the mios-agents image and builders that bake it.
-# AI-related: /usr/libexec/mios/mios-vscode-custom-css, /.devcontainer/Containerfile, /.devcontainer/setup-devcontainer.sh, /.devcontainer/post-start.sh, /usr/share/mios/agents/Containerfile, /usr/libexec/mios/mios-agents-firstboot.sh, /src/mios-rs/miosd/src/main.rs
+# AI-related: /usr/libexec/mios/mios-vscode-custom-css, /.devcontainer/Containerfile, /.devcontainer/setup-devcontainer.sh, /.devcontainer/boot-mios-systems.sh, /usr/share/mios/agents/Containerfile, /usr/libexec/mios/mios-agents-firstboot.sh, /src/mios-rs/miosd/src/main.rs
 # AI-functions: TestCodeServerBake, TestDevImageWiring, TestAgentsContainerfile, TestBuilders
 
 import hashlib
@@ -242,10 +242,10 @@ class TestDevImageWiring(unittest.TestCase):
         self.assertIn("custom-css extension install failed (exit", sh)
 
     def test_post_start_binds_loopback_from_ports(self):
-        sh = _read(os.path.join(ROOT, ".devcontainer/post-start.sh"))
+        sh = _read(os.path.join(ROOT, ".devcontainer/boot-mios-systems.sh"))
         self.assertIn("ports code_server", sh)
         self.assertIn("127.0.0.1", sh)
-        self.assertIsNone(re.search(r"\b8900\b|\b8080\b", sh), "a code-server port literal in post-start.sh")
+        self.assertIsNone(re.search(r"\b8900\b|\b8080\b", sh), "a code-server port literal in boot-mios-systems.sh")
 
 
 def containerfile_violations(text):

@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3604,
-  "total_metadata_entries": 2966,
-  "total_hints": 2953,
+  "total_files_scanned": 3601,
+  "total_metadata_entries": 2963,
+  "total_hints": 2950,
   "total_functions_indexed": 1348,
   "total_related_links": 4641,
   "entries": [
@@ -42,7 +42,7 @@
     },
     {
       "path": ".devcontainer/boot-mios-systems.sh",
-      "hint": "Devcontainer start hook that reconciles the development-safe MiOS system surface (root overlay pieces) inside the container on every start.",
+      "hint": "Single devcontainer lifecycle entrypoint: create, start, and platform setup retain the original ordered hooks and fail behavior.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -91,33 +91,6 @@
     {
       "path": ".devcontainer/mios-agent-pipe-dev",
       "hint": "Starts the agent-pipe gateway by hand inside the devcontainer, where the host-oriented systemd units stay disabled.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": ".devcontainer/platform-bootstrap.sh",
-      "hint": "Detects which devcontainer platform is running (Codespaces, Google or Oracle Cloud Shell, generic) and records its contract without assuming privileges it lacks.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": ".devcontainer/post-create.sh",
-      "hint": "Devcontainer postCreateCommand: marks the workspace safe for git and runs the one-time harness and MiOS core component setup.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": ".devcontainer/post-start.sh",
-      "hint": "Devcontainer postStartCommand: re-checks the agent CLIs and the AI endpoint on every start and self-heals a failed first install, best-effort.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -6254,7 +6227,7 @@
         "/usr/libexec/mios/mios-vscode-custom-css",
         "/.devcontainer/Containerfile",
         "/.devcontainer/setup-devcontainer.sh",
-        "/.devcontainer/post-start.sh",
+        "/.devcontainer/boot-mios-systems.sh",
         "/usr/share/mios/agents/Containerfile",
         "/usr/libexec/mios/mios-agents-firstboot.sh",
         "/src/mios-rs/miosd/src/main.rs"
