@@ -19,6 +19,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// List SSOT-categorized native executables using both Cargo workspaces
+    NativeTargets {
+        #[arg(long, default_value = ".")]
+        root: String,
+        #[arg(long, default_value = "linux")]
+        platform: String,
+        #[arg(long)]
+        json: bool,
+    },
     /// Run structural drift checks across the repository
     DriftCheck {
         /// Optional root directory to check
@@ -794,6 +803,42 @@ async fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::NativeTargets {
+            root,
+            platform,
+            json,
+        } => match mios_build::native_target_plan(std::path::Path::new(root), platform) {
+            Ok(targets) => {
+                if *json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&targets)
+                            .expect("native target serialization")
+                    );
+                } else {
+                    for target in targets {
+                        println!(
+                            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                            target.workspace,
+                            target.package,
+                            target.binary,
+                            target.category,
+                            target.install_dir,
+                            target.expose_bin,
+                            if target.compat_dirs.is_empty() {
+                                "-".into()
+                            } else {
+                                target.compat_dirs.join(",")
+                            }
+                        );
+                    }
+                }
+            }
+            Err(error) => {
+                eprintln!("[miosd] Native catalog error: {error}");
+                std::process::exit(1);
+            }
+        },
         Commands::Build {
             phase,
             plan,

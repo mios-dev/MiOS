@@ -160,16 +160,28 @@ native_build_checks() {
     cat > "$TMP/bin/cargo" <<'EOF'
 #!/bin/bash
 set -euo pipefail
-case "$PWD" in */tools/native) name=mios-test-native ;; *) name=mios-test-system ;; esac
-if [[ "$1" == metadata ]]; then
-    printf '{"workspace_members":["fixture"],"packages":[{"id":"fixture","name":"fixture","targets":[{"name":"%s","kind":["bin"]}]}]}\n' "$name"
-elif [[ "$1" == build ]]; then
+if [[ "$1" == build ]]; then
     printf '%s\n' "$*" >> "$MIOS_TEST_CARGO_LOG"
+    name=miosd
     while (( $# )); do
-        if [[ "$1" == --target-dir ]]; then out="$2"; break; fi
-        shift
+        case "$1" in
+            --target-dir) out="$2"; shift 2 ;;
+            --bin) name="$2"; shift 2 ;;
+            *) shift ;;
+        esac
     done
     mkdir -p "$out/release"
+    if [[ "$name" == miosd ]]; then
+        cat > "$out/release/miosd" <<'PLAN'
+#!/bin/bash
+[[ "$1" == native-targets ]] || exit 1
+if [[ "${MIOS_TEST_NATIVE_MODE:-}" == catalog ]]; then echo 'fixture category conflict' >&2; exit 1; fi
+printf 'tools/native\tfixture\tmios-test-native\tcli\t/usr/bin\tfalse\t/usr/libexec/mios\n'
+printf 'src/mios-rs\tfixture\tmios-test-system\tdaemons\t/usr/libexec/mios\ttrue\t-\n'
+PLAN
+        chmod +x "$out/release/miosd"
+        exit 0
+    fi
     if [[ "${MIOS_TEST_NATIVE_MODE:-}" != missing ]]; then
         if [[ "${MIOS_TEST_NATIVE_MODE:-}" == foreign ]]; then printf 'MZfixture' > "$out/release/$name";
         else printf '\177ELFfixture' > "$out/release/$name"; fi
@@ -190,6 +202,22 @@ EOF
         pass "native installation follows Cargo binaries and excludes executable sidecars"
     else fail "native artifact installation was incomplete or included foreign artifacts"; fi
     if grep -q -- "--target-dir $fixture/tools/native/target" "$TMP/cargo.log" && [[ ! -e "$TMP/unrelated-output" ]]; then pass "native build controls its output despite inherited CARGO_TARGET_DIR"; else fail "native build used an unrelated target directory"; fi
+    if MIOS_TEST_NATIVE_MODE=catalog run_native > "$TMP/native.log" 2>&1; then fail "native build accepted invalid role catalog";
+    elif grep -q 'fixture category conflict' "$TMP/native.log"; then pass "native build propagates Rust catalog rejection";
+    else fail "catalog rejection lacked expected diagnostic"; fi
+    (
+        export PATH="$TMP/bin:$PATH" MIOS_NATIVE_INSTALL_ROOT="$fixture/stage" MIOS_TEST_CARGO_LOG="$TMP/cargo.log"
+        unset MIOS_NATIVE_DEST_DIR
+        mkdir -p "$fixture/stage/usr/bin" "$fixture/stage/usr/libexec/mios"
+        printf 'old executable' > "$fixture/stage/usr/libexec/mios/mios-test-native"
+        ln -s ../libexec/mios/mios-test-native "$fixture/stage/usr/bin/mios-test-native"
+        bash "$fixture/automation/55-native-build.sh"
+    ) > "$TMP/native-stage.log" 2>&1
+    if [[ ! -L "$fixture/stage/usr/bin/mios-test-native" && -x "$fixture/stage/usr/bin/mios-test-native" ]] &&
+       [[ "$(readlink "$fixture/stage/usr/libexec/mios/mios-test-native")" == /usr/bin/mios-test-native ]] &&
+       [[ "$(readlink "$fixture/stage/usr/bin/mios-test-system")" == /usr/libexec/mios/mios-test-system ]]; then
+        pass "FHS staging replaces legacy symlinks and excludes staging prefixes from aliases"
+    else fail "FHS staging created a cycle or leaked a staging path"; fi
     for mode in foreign missing; do
         rm -f "$fixture/tools/native/target/release/mios-test-native"
         if MIOS_TEST_NATIVE_MODE="$mode" run_native > "$TMP/native.log" 2>&1; then fail "native build accepted $mode artifact";

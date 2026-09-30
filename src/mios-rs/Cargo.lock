@@ -795,6 +795,7 @@ version = "0.3.0"
 dependencies = [
  "insta",
  "serde",
+ "serde_json",
  "tempfile",
  "toml",
  "trycmd",

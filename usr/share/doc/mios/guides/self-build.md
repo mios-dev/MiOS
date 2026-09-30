@@ -170,6 +170,67 @@ list or successful resolver test does not establish that a full deployed image
 has built and can rebuild itself. Retain the build log and report missing RPMs,
 target libraries, repository access or service prerequisites as failures.
 
+## Rust executable roles and upstream contracts
+
+`[build.native]` in `/usr/share/mios/mios.toml` declares the Cargo workspaces,
+platform restrictions and four separate executable categories. These are MiOS
+roles, independent of Cargo target kinds and systemd lifecycle settings:
+
+| Category | Primary role | Canonical Linux destination |
+|---|---|---|
+| `cli` | User commands, generators and verification tools | `/usr/bin` |
+| `apps` | User applications, including desktop applications | `/usr/bin` |
+| `services` | Programs invoked by service units | `/usr/libexec/mios` |
+| `daemons` | Long-running background processes | `/usr/libexec/mios` |
+
+A daemon can also be supervised by a service unit. Its primary executable role
+remains `daemons`; the unit's `Type=` specifies startup and readiness behavior.
+`Type=exec` detects executable startup failures, `Type=oneshot` waits for the
+command to finish, and `Type=notify` requires an implemented readiness protocol.
+See the upstream [service-unit contract](https://github.com/systemd/systemd/blob/main/man/systemd.service.xml)
+and [daemon guidance](https://github.com/systemd/systemd/blob/main/man/daemon.xml).
+
+The Rust `mios-build` library discovers workspace members through
+[`cargo metadata --format-version 1 --no-deps`](https://doc.rust-lang.org/stable/cargo/commands/cargo-metadata.html).
+Only `bin` targets are installed. Libraries, dependency packages, examples,
+tests and artifact sidecars are excluded. Cargo's platform filter describes
+dependency resolution; it does not define application or daemon roles.
+Every executable must have exactly one SSOT category. Duplicate, missing,
+unclassified or stale entries fail before installation.
+
+Inspect the inventory from a full checkout inside MiOS-DEV:
+
+```bash
+miosd native-targets --root . --platform linux --json
+miosd native-targets --root . --platform windows --json
+```
+
+Metadata inspection uses `--offline --locked` and requires prepared Cargo
+dependency metadata and a current lockfile. Cargo's upstream
+[read-only metadata issue](https://github.com/rust-lang/cargo/issues/10096)
+documents why querying metadata without lock protection can mutate a lockfile.
+The [metadata network regression report](https://github.com/rust-lang/cargo/issues/15272)
+also distinguishes full dependency discovery from `--no-deps`. These reports
+justify explicit query flags; they do not establish a new defect in MiOS.
+The image builder fetches both locked graphs first, then uses the same
+`automation/55-native-build.sh` installer to stage the selected Linux artifacts.
+The shared installer replaces old symlinks before creating compatibility links,
+and image staging prefixes never appear in deployed link targets.
+Public and internal paths follow the [Filesystem Hierarchy Standard](https://refspecs.linuxfoundation.org/FHS_3.0/fhs-3.0.html).
+Desktop applications additionally use the upstream [desktop-entry specification](https://specifications.freedesktop.org/desktop-entry/latest-single/)
+for `Type=Application`, `Exec`, `TryExec`, `Terminal` and menu categories.
+
+The initial catalog classifies existing Rust executables. Empty `apps` and
+`services` lists retain distinct conversion destinations; they do not claim
+that the existing desktop or service programs have already been ported.
+T-1132 and T-1133 still track Windows artifact provisioning and renderer ordering.
+Selecting a category does not prove static linking, cross-build success or
+runtime readiness; each conversion must verify those properties separately.
+The [Rust linkage reference](https://doc.rust-lang.org/reference/linkage.html)
+distinguishes executable crate types from C-runtime linkage and recommends
+inspecting the resulting binary. A musl target defaults to a static C runtime;
+foreign dependencies and explicit compiler flags still require artifact checks.
+
 ## Build requirements
 
 | Resource | Minimum | Recommended |

@@ -4,6 +4,429 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// Executable roles are distinct from Cargo libraries and from their shared
+/// implementation modules. The SSOT assigns each executable exactly once.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct NativeTarget {
+    pub workspace: String,
+    pub package: String,
+    pub binary: String,
+    pub category: String,
+    pub install_dir: String,
+    pub expose_bin: bool,
+    pub compat_dirs: Vec<String>,
+    pub platform: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeCategory {
+    binaries: Vec<String>,
+    install_dir: String,
+    expose_bin: bool,
+    compat_dirs: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeConfig {
+    workspaces: Vec<String>,
+    windows_only: Vec<String>,
+    categories: std::collections::BTreeMap<String, NativeCategory>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NativeMetadata {
+    workspace_members: Vec<String>,
+    packages: Vec<NativePackage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NativePackage {
+    id: String,
+    name: String,
+    targets: Vec<NativeCargoTarget>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NativeCargoTarget {
+    name: String,
+    kind: Vec<String>,
+}
+
+fn native_config(ssot: &str) -> Result<NativeConfig, String> {
+    let doc: toml::Value = toml::from_str(ssot).map_err(|e| format!("native catalog TOML: {e}"))?;
+    let config: NativeConfig = doc
+        .get("build")
+        .and_then(|v| v.get("native"))
+        .ok_or("SSOT has no [build.native] catalog")?
+        .clone()
+        .try_into()
+        .map_err(|e| format!("[build.native]: {e}"))?;
+    let required = ["cli", "apps", "services", "daemons"];
+    if config.categories.len() != required.len()
+        || required
+            .iter()
+            .any(|name| !config.categories.contains_key(*name))
+    {
+        return Err(
+            "[build.native.categories] must declare cli, apps, services and daemons exactly".into(),
+        );
+    }
+    if config.workspaces.is_empty() {
+        return Err("[build.native].workspaces is empty".into());
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for workspace in &config.workspaces {
+        if workspace.is_empty()
+            || workspace.starts_with('/')
+            || workspace.contains('\\')
+            || workspace.chars().any(char::is_control)
+            || workspace
+                .split('/')
+                .any(|part| part.is_empty() || part == "." || part == ".." || part.contains(':'))
+            || !seen.insert(workspace)
+        {
+            return Err(format!(
+                "invalid or duplicate native workspace {workspace:?}"
+            ));
+        }
+    }
+    seen.clear();
+    for (category, group) in &config.categories {
+        if group.install_dir != "/usr/bin" && group.install_dir != "/usr/libexec/mios" {
+            return Err(format!(
+                "native {category}: install_dir must be /usr/bin or /usr/libexec/mios"
+            ));
+        }
+        if group
+            .compat_dirs
+            .iter()
+            .any(|directory| directory != "/usr/bin" && directory != "/usr/libexec/mios")
+        {
+            return Err(format!(
+                "native {category}: unsupported compatibility directory"
+            ));
+        }
+        for binary in &group.binaries {
+            if binary.is_empty()
+                || !binary
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+            {
+                return Err(format!("native {category}: invalid executable name"));
+            }
+            if !seen.insert(binary) {
+                return Err(format!(
+                    "native binary {binary} occurs in multiple categories"
+                ));
+            }
+        }
+    }
+    if seen.is_empty() {
+        return Err("native categories declare zero executables".into());
+    }
+    let mut windows = std::collections::BTreeSet::new();
+    for binary in &config.windows_only {
+        if !seen.contains(binary) || !windows.insert(binary) {
+            return Err(format!(
+                "windows_only contains unknown or duplicate native binary {binary}"
+            ));
+        }
+    }
+    Ok(config)
+}
+
+fn plan_native_metadata(
+    config: &NativeConfig,
+    metadata: &[(String, NativeMetadata)],
+    platform: &str,
+) -> Result<Vec<NativeTarget>, String> {
+    if platform != "linux" && platform != "windows" {
+        return Err(format!("unsupported native platform {platform:?}"));
+    }
+    let mut observed = std::collections::BTreeSet::new();
+    let mut plan = Vec::new();
+    for (workspace, data) in metadata {
+        let members: std::collections::BTreeSet<_> = data.workspace_members.iter().collect();
+        for package in &data.packages {
+            if !members.contains(&package.id) {
+                continue;
+            }
+            for target in &package.targets {
+                if !target.kind.iter().any(|kind| kind == "bin") {
+                    continue;
+                }
+                if !observed.insert(target.name.clone()) {
+                    return Err(format!(
+                        "multiple Cargo targets declare native binary {}",
+                        target.name
+                    ));
+                }
+                let (category, group) = config
+                    .categories
+                    .iter()
+                    .find(|(_, group)| group.binaries.contains(&target.name))
+                    .ok_or_else(|| {
+                        format!(
+                            "Cargo executable {} has no SSOT native category",
+                            target.name
+                        )
+                    })?;
+                let target_platform = if config.windows_only.contains(&target.name) {
+                    "windows"
+                } else {
+                    "linux"
+                };
+                if platform != target_platform {
+                    continue;
+                }
+                plan.push(NativeTarget {
+                    workspace: workspace.clone(),
+                    package: package.name.clone(),
+                    binary: target.name.clone(),
+                    category: category.clone(),
+                    install_dir: group.install_dir.clone(),
+                    expose_bin: group.expose_bin,
+                    compat_dirs: group.compat_dirs.clone(),
+                    platform: target_platform.into(),
+                });
+            }
+        }
+    }
+    for group in config.categories.values() {
+        for binary in &group.binaries {
+            if !observed.contains(binary) {
+                return Err(format!(
+                    "SSOT native executable {binary} has no Cargo binary target"
+                ));
+            }
+        }
+    }
+    if plan.is_empty() {
+        return Err(format!("native plan selects zero {platform} executables"));
+    }
+    plan.sort_by(|a, b| {
+        (&a.category, &a.workspace, &a.binary).cmp(&(&b.category, &b.workspace, &b.binary))
+    });
+    Ok(plan)
+}
+
+/// Cargo is queried without compiling. Both workspaces must be inspected,
+/// including platform-specific binaries, before any selected artifact installs.
+pub fn native_target_plan(
+    root: &std::path::Path,
+    platform: &str,
+) -> Result<Vec<NativeTarget>, String> {
+    if platform != "linux" && platform != "windows" {
+        return Err(format!("unsupported native platform {platform:?}"));
+    }
+    let ssot = std::fs::read_to_string(root.join("usr/share/mios/mios.toml"))
+        .map_err(|e| format!("cannot read native SSOT: {e}"))?;
+    let config = native_config(&ssot)?;
+    let mut metadata = Vec::new();
+    for workspace in &config.workspaces {
+        let output = std::process::Command::new("cargo")
+            .args([
+                "metadata",
+                "--no-deps",
+                "--format-version",
+                "1",
+                "--offline",
+                "--locked",
+            ])
+            .current_dir(root.join(workspace))
+            .output()
+            .map_err(|e| format!("native metadata for {workspace}: {e}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "native metadata for {workspace} failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        let data = serde_json::from_slice(&output.stdout)
+            .map_err(|e| format!("invalid Cargo metadata for {workspace}: {e}"))?;
+        metadata.push((workspace.clone(), data));
+    }
+    plan_native_metadata(&config, &metadata, platform)
+}
+
+#[cfg(test)]
+mod native_catalog_tests {
+    use super::*;
+    const CATALOG: &str = r#"
+[build.native]
+workspaces = ["tools/native", "src/mios-rs"]
+windows_only = ["wallpaper"]
+[build.native.categories.cli]
+binaries = ["tool"]
+install_dir = "/usr/bin"
+expose_bin = false
+compat_dirs = ["/usr/libexec/mios"]
+[build.native.categories.apps]
+binaries = ["app"]
+install_dir = "/usr/bin"
+expose_bin = false
+compat_dirs = []
+[build.native.categories.services]
+binaries = ["seeder"]
+install_dir = "/usr/libexec/mios"
+expose_bin = false
+compat_dirs = []
+[build.native.categories.daemons]
+binaries = ["agent", "wallpaper"]
+install_dir = "/usr/libexec/mios"
+expose_bin = true
+compat_dirs = []
+"#;
+    fn metadata(names: &[&str]) -> Vec<(String, NativeMetadata)> {
+        let targets: Vec<_> = names
+            .iter()
+            .map(|name| serde_json::json!({"name": name,"kind":["bin"]}))
+            .collect();
+        let value = serde_json::json!({"workspace_members":["opaque-member", "library-member"],"packages":[
+            {"id":"opaque-member","name":"package","targets":targets},
+            {"id":"not-member","name":"dependency","targets":[{"name":"foreign","kind":["bin"]}]},
+            {"id":"library-member","name":"library","targets":[{"name":"shared","kind":["lib"]}]}]});
+        vec![(
+            "tools/native".into(),
+            serde_json::from_value(value).unwrap(),
+        )]
+    }
+    fn all() -> Vec<(String, NativeMetadata)> {
+        metadata(&["tool", "app", "seeder", "agent", "wallpaper"])
+    }
+    #[test]
+    fn categories_cover_roles_without_copying_libraries_or_dependencies() {
+        let plan = plan_native_metadata(&native_config(CATALOG).unwrap(), &all(), "linux").unwrap();
+        assert_eq!(plan.len(), 4);
+        assert_eq!(
+            plan.iter()
+                .map(|target| target.category.as_str())
+                .collect::<Vec<_>>(),
+            vec!["apps", "cli", "daemons", "services"]
+        );
+        assert_eq!(
+            plan.iter()
+                .find(|target| target.binary == "tool")
+                .unwrap()
+                .compat_dirs,
+            vec!["/usr/libexec/mios"]
+        );
+    }
+    #[test]
+    fn platform_selection_preserves_windows_daemon() {
+        let plan =
+            plan_native_metadata(&native_config(CATALOG).unwrap(), &all(), "windows").unwrap();
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].binary, "wallpaper");
+        assert_eq!(plan[0].category, "daemons");
+    }
+    #[test]
+    fn duplicate_category_membership_fails() {
+        assert!(
+            native_config(&CATALOG.replace("binaries = [\"app\"]", "binaries = [\"tool\"]"))
+                .unwrap_err()
+                .contains("multiple categories")
+        );
+    }
+    #[test]
+    fn missing_category_fails() {
+        assert!(
+            native_config(&CATALOG.replace("categories.services", "categories.other"))
+                .unwrap_err()
+                .contains("must declare")
+        );
+    }
+    #[test]
+    fn unclassified_cargo_target_fails() {
+        assert!(plan_native_metadata(
+            &native_config(CATALOG).unwrap(),
+            &metadata(&["tool", "app", "seeder", "agent", "wallpaper", "unknown"]),
+            "linux"
+        )
+        .unwrap_err()
+        .contains("unknown has no SSOT"));
+    }
+    #[test]
+    fn stale_registry_entry_fails() {
+        assert!(plan_native_metadata(
+            &native_config(CATALOG).unwrap(),
+            &metadata(&["tool", "app", "seeder", "agent"]),
+            "linux"
+        )
+        .unwrap_err()
+        .contains("wallpaper has no Cargo"));
+    }
+    #[test]
+    fn duplicate_cargo_binary_fails() {
+        assert!(plan_native_metadata(
+            &native_config(CATALOG).unwrap(),
+            &metadata(&["tool", "app", "seeder", "agent", "wallpaper", "tool"]),
+            "linux"
+        )
+        .unwrap_err()
+        .contains("multiple Cargo"));
+    }
+    #[test]
+    fn unsupported_platform_fails() {
+        assert!(
+            plan_native_metadata(&native_config(CATALOG).unwrap(), &all(), "other")
+                .unwrap_err()
+                .contains("unsupported")
+        );
+    }
+    #[test]
+    fn workspace_traversal_and_install_escape_fail() {
+        assert!(
+            native_config(&CATALOG.replace("tools/native", "tools\\tnative"))
+                .unwrap_err()
+                .contains("workspace")
+        );
+        assert!(
+            native_config(&CATALOG.replace("tools/native", "../outside"))
+                .unwrap_err()
+                .contains("workspace")
+        );
+        assert!(native_config(&CATALOG.replace("/usr/bin", "/var/bin"))
+            .unwrap_err()
+            .contains("install_dir"));
+    }
+    #[test]
+    fn unknown_windows_binary_fails() {
+        assert!(native_config(&CATALOG.replace(
+            "windows_only = [\"wallpaper\"]",
+            "windows_only = [\"missing\"]"
+        ))
+        .unwrap_err()
+        .contains("windows_only"));
+    }
+    #[test]
+    fn malformed_and_empty_catalogs_fail() {
+        assert!(native_config("broken = [").unwrap_err().contains("TOML"));
+        assert!(native_config(&CATALOG.replace(
+            "workspaces = [\"tools/native\", \"src/mios-rs\"]",
+            "workspaces = []"
+        ))
+        .unwrap_err()
+        .contains("empty"));
+        assert!(native_config(&CATALOG.replace("expose_bin = false", "expose_bin = 1")).is_err());
+    }
+    #[test]
+    fn shipped_ssot_matches_both_real_cargo_workspaces() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let plan = native_target_plan(&root, "linux").unwrap();
+        assert!(plan
+            .iter()
+            .any(|target| target.binary == "mios-render-quadlets"));
+        assert!(plan
+            .iter()
+            .any(|target| target.binary == "mios-node" && target.category == "daemons"));
+        assert!(!plan.iter().any(|target| target.binary == "mios-wallpaperd"));
+        assert!(plan.len() > 10);
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Phase {
     pub ordinal: String,

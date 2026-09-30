@@ -1864,6 +1864,44 @@ runtime_ref_directives = [
 channel = "stable"
 components = ["clippy", "rustfmt"]
 
+# Native executable roles are distinct; libraries remain shared workspace code.
+# Category membership and installation are consumed by miosd native-targets.
+[build.native]
+workspaces = ["tools/native", "src/mios-rs"]
+windows_only = ["mios-wallpaperd"]
+
+[build.native.categories.cli]
+binaries = [
+  "generate-names-registry", "mios-ai-config", "mios-aiplane-lint", "mios-bake-plan",
+  "mios-comment-lex", "mios-drift-runner", "mios-edge-status", "mios-render-quadlets",
+  "mios-resolver", "mios-size-ceiling", "mios-ssot-lint", "mios-task",
+  "mios-template-compile", "mios-template-conform", "mios-toolchain-pin",
+  "mios-unit-gen", "mios-version-check", "xtask", "mios-gate", "mios-probe", "miosd",
+]
+install_dir = "/usr/bin"
+expose_bin = false
+compat_dirs = ["/usr/libexec/mios"]
+
+[build.native.categories.apps]
+# Rust terminal/GUI conversions enter here when implemented; none are claimed.
+binaries = []
+install_dir = "/usr/bin"
+expose_bin = false
+compat_dirs = []
+
+[build.native.categories.services]
+# Service-facing programs; systemd Type= independently defines their lifecycle.
+binaries = []
+install_dir = "/usr/libexec/mios"
+expose_bin = false
+compat_dirs = []
+
+[build.native.categories.daemons]
+binaries = ["mios-node", "mios-wallpaperd"]
+install_dir = "/usr/libexec/mios"
+expose_bin = true
+compat_dirs = []
+
 [build.tool_dispatch]
 # Bake-time tool-dispatch gates whose lookup cannot resolve. Shrink-only: T-1018.
 max_unreachable = 0

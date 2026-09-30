@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Compiles native Rust workspace crates (tools/native and src/mios-rs) and installs binaries into /usr/libexec/mios during image bake.
+# AI-hint: Builds and installs native executables from the SSOT role catalog through miosd native-targets; preserves separate CLI, app, service and daemon categories.
 # AI-related: tools/native/Cargo.toml, src/mios-rs/Cargo.toml, automation/85-bake-plan.sh, /usr/libexec/mios/
 set -euo pipefail
 
@@ -30,29 +30,47 @@ if command -v cargo >/dev/null 2>&1; then
     # A caller's CARGO_TARGET_DIR must not cause installation to read stale
     # workspace artifacts. Build and install from an explicit common output.
     TARGET_DIR="${ROOT_DIR}/tools/native/target"
-    for workspace in tools/native src/mios-rs; do
-        echo "[55-native-build] Compiling ${workspace} workspace crates..."
-        args=(--release --workspace --target-dir "$TARGET_DIR")
-        [[ "$workspace" != tools/native ]] || args+=(--exclude mios-wallpaperd)
-        (cd "${ROOT_DIR}/${workspace}" && cargo build "${args[@]}")
-        # Cargo declares the executable surface. Do not glob sidecar .d files,
-        # Windows .exe artifacts or every executable-marked NTFS checkout file.
-        binaries="$(cd "${ROOT_DIR}/${workspace}" && cargo metadata --no-deps --format-version 1 \
-            | python3 -c 'import json,sys; d=json.load(sys.stdin); members=set(d["workspace_members"]); print("\n".join(t["name"] for p in d["packages"] if p["id"] in members and p["name"] != "mios-wallpaperd" for t in p["targets"] if "bin" in t["kind"]))')"
-        [[ -n "$binaries" ]] || { echo "[55-native-build] FATAL: ${workspace} declares no binaries" >&2; exit 1; }
-        while IFS= read -r bin; do
+    # Bootstrap the existing Rust management program, then let its shared build
+    # library validate Cargo's executable inventory against the role catalog.
+    (cd "${ROOT_DIR}/src/mios-rs" && cargo build --release -p miosd --target-dir "$TARGET_DIR")
+    builder="${TARGET_DIR}/release/miosd"
+    [[ -x "$builder" ]] || { echo "[55-native-build] FATAL: native catalog builder missing" >&2; exit 1; }
+    plan="$("$builder" native-targets --root "$ROOT_DIR" --platform linux)"
+    [[ -n "$plan" ]] || { echo "[55-native-build] FATAL: native catalog selected no executables" >&2; exit 1; }
+    while IFS=$'\t' read -r workspace package bin category install_dir expose_bin compat_dirs; do
+            echo "[55-native-build] Compiling ${category}: ${bin}..."
+            (cd "${ROOT_DIR}/${workspace}" && cargo build --release -p "$package" --bin "$bin" --target-dir "$TARGET_DIR")
             SRC_BIN="${TARGET_DIR}/release/${bin}"
             [[ -f "$SRC_BIN" && -x "$SRC_BIN" ]] || { echo "[55-native-build] FATAL: build did not produce ${SRC_BIN}" >&2; exit 1; }
             magic="$(od -An -tx1 -N4 "$SRC_BIN" | tr -d ' \n')"
             [[ "$magic" == 7f454c46 ]] || { echo "[55-native-build] FATAL: ${SRC_BIN} is not a Linux ELF executable" >&2; exit 1; }
-            echo "[55-native-build] Installing ${bin} to ${DEST_DIR}..."
-            cp "${SRC_BIN}" "${DEST_DIR}/${bin}"
-            chmod +x "${DEST_DIR}/${bin}"
-            if [[ "${EUID}" -eq 0 && "$DEST_DIR" == /usr/libexec/mios && -d /usr/bin ]]; then
-                ln -sf "${DEST_DIR}/${bin}" "/usr/bin/${bin}"
+            prefix="${MIOS_NATIVE_INSTALL_ROOT:-}"
+            [[ -n "$prefix" || "$EUID" -eq 0 ]] || prefix="$ROOT_DIR"
+            if [[ -n "${MIOS_NATIVE_DEST_DIR:-}" ]]; then destination="$DEST_DIR"
+            else destination="${prefix}${install_dir}"; fi
+            mkdir -p "$destination"
+            echo "[55-native-build] Installing ${category}: ${bin} to ${destination}..."
+            # Replace an old symlink itself rather than following it. Otherwise
+            # reversing the canonical and compatibility paths creates a cycle.
+            staged="$(mktemp "${destination}/.${bin}.XXXXXX")"
+            if ! install -m 0755 "$SRC_BIN" "$staged" || ! mv -fT "$staged" "${destination}/${bin}"; then
+                rm -f "$staged"
+                echo "[55-native-build] FATAL: cannot install ${bin}" >&2
+                exit 1
             fi
-        done <<< "$binaries"
-    done
+            if [[ -z "${MIOS_NATIVE_DEST_DIR:-}" ]]; then
+                aliases=(); [[ "$compat_dirs" == - ]] || IFS=',' read -ra aliases <<< "$compat_dirs"
+                [[ "$expose_bin" != true ]] || aliases+=(/usr/bin)
+                for alias in "${aliases[@]}"; do
+                    [[ "${prefix}${alias}" != "$destination" ]] || continue
+                    mkdir -p "${prefix}${alias}"
+                    # Staging roots never appear in a deployed link target.
+                    link_target="${install_dir}/${bin}"
+                    [[ -n "${MIOS_NATIVE_INSTALL_ROOT:-}" || "$EUID" -eq 0 ]] || link_target="${destination}/${bin}"
+                    ln -sfT "$link_target" "${prefix}${alias}/${bin}"
+                done
+            fi
+    done <<< "$plan"
 else
     echo "[55-native-build] FATAL: selected self-build dependency closure did not provide Cargo." >&2
     exit 1

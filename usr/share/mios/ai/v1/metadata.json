@@ -1,6 +1,6 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3594,
+  "total_files_scanned": 3595,
   "total_metadata_entries": 2956,
   "total_hints": 2943,
   "total_functions_indexed": 1361,
@@ -1086,7 +1086,7 @@
     },
     {
       "path": "automation/55-native-build.sh",
-      "hint": "Compiles native Rust workspace crates (tools/native and src/mios-rs) and installs binaries into /usr/libexec/mios during image bake.",
+      "hint": "Builds and installs native executables from the SSOT role catalog through miosd native-targets; preserves separate CLI, app, service and daemon categories.",
       "related": [
         "tools/native/Cargo.toml",
         "src/mios-rs/Cargo.toml",

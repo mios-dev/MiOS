@@ -20,30 +20,19 @@ COPY Justfile              /ctx/Justfile
 
 FROM docker.io/library/rust:slim AS rust-builder
 WORKDIR /build
-ENV CARGO_TARGET_DIR=/build/target
+ENV CARGO_TARGET_DIR=/build/tools/native/target
 COPY src/mios-rs /build/src/mios-rs
 COPY tools/native /build/tools/native
-# mios-wallpaperd is a WINDOWS-only daemon: it depends UNCONDITIONALLY on windows-service (no cfg
-# gating), so it cannot compile on Linux at all, and its wry/tao WebView path would additionally
-# need WebKitGTK dev headers this build-only rust:slim stage does not carry. It is compiled on
-# Windows during Install-MiosRust, never into this Linux OCI image -- exclude it from the workspace
-# build so the bake does not fail on glib-sys.
-#   NOTE: this is BUILD-only and does NOT affect runtime GTK. The MiOS Linux desktop's full
-#   GTK3/GTK4/libadwaita stack (adw-gtk3-dark theme, GNOME apps, Quickshell/Hyprland surfaces)
-#   ships via dnf/flatpak from the base image and is entirely independent of this rust:slim stage.
+COPY usr/share/mios/mios.toml /build/usr/share/mios/mios.toml
+COPY automation/55-native-build.sh /build/automation/55-native-build.sh
+# Fetch the locked dependency graphs before offline metadata inspection. The
+# shared native installer selects Linux binaries and FHS paths from the SSOT;
+# Windows-only artifacts belong to the MiOS-DEV cross-build lane.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/build/target \
-    cd /build/src/mios-rs && cargo build --release --workspace && \
-    cd /build/tools/native && cargo build --release --workspace --exclude mios-wallpaperd && \
-    mkdir -p /out && \
-    cp /build/target/release/miosd \
-       /build/target/release/mios-gate \
-       /build/target/release/mios-probe \
-       /build/target/release/mios-node \
-       /build/target/release/generate-names-registry \
-       /out/ && \
-    cp /build/target/release/mios-* /out/ && \
-    rm -f /out/*.d
+    --mount=type=cache,target=/build/tools/native/target \
+    cargo fetch --locked --manifest-path /build/src/mios-rs/Cargo.toml && \
+    cargo fetch --locked --manifest-path /build/tools/native/Cargo.toml && \
+    MIOS_NATIVE_INSTALL_ROOT=/out bash /build/automation/55-native-build.sh
 
 FROM ${BASE_IMAGE}
 
@@ -60,12 +49,7 @@ LABEL org.opencontainers.image.version="v${MIOS_VERSION}"
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
 
-COPY --from=rust-builder /out/* /usr/libexec/mios/
-RUN chmod 0755 /usr/libexec/mios/* && \
-    ln -sf /usr/libexec/mios/miosd /usr/bin/miosd && \
-    ln -sf /usr/libexec/mios/mios-gate /usr/bin/mios-gate && \
-    ln -sf /usr/libexec/mios/mios-probe /usr/bin/mios-probe && \
-    ln -sf /usr/libexec/mios/mios-node /usr/bin/mios-node
+COPY --from=rust-builder /out/usr/ /usr/
 
 ARG MIOS_USER=mios
 ARG MIOS_HOSTNAME=mios
