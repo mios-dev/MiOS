@@ -72,7 +72,7 @@ For an existing bootc-compatible installation, [deployment guidance](usr/share/d
 
 ## Repository rules
 
-The [architectural laws](usr/share/mios/ai/INDEX.md) and build gates govern contributions. In particular:
+The 16-law registry in [`mios.toml`](usr/share/mios/mios.toml) and its build gates govern contributions. The first six laws define the core image and runtime boundaries:
 
 1. Static system configuration belongs under `/usr`; `/etc` is for overrides.
 2. Persistent `/var` paths are declared through tmpfiles, not created during the image build.
