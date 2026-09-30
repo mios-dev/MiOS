@@ -15,10 +15,13 @@ import importlib.util
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
 import unittest
+import zlib
+from unittest import mock
 
 _br_HERE = os.path.dirname(os.path.abspath(__file__))
 _br_ROOT = os.path.normpath(os.path.join(_br_HERE, ".."))
@@ -32,6 +35,51 @@ if br_spec and br_spec.loader:
     br_spec.loader.exec_module(br_backup_remote)
 else:
     raise ImportError(f"Could not load backup_remote module from {_br_BACKUP_REMOTE_PATH}")
+
+
+def _br_have_zstd_tooling() -> bool:
+    """True when a real zstd encoder (CLI or python zstandard module) is installed on this host."""
+    if shutil.which("zstd"):
+        return True
+    try:
+        import zstandard  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _br_independent_zstd_decode(frame: bytes) -> bytes:
+    """
+    Decodes a Zstandard frame WITHOUT using any mios-backup-remote code:
+    prefers the zstd CLI, falls back to the python zstandard module.
+    Raises ValueError when the frame is not decodable by the independent decoder.
+    """
+    zstd_bin = shutil.which("zstd")
+    if zstd_bin:
+        proc = subprocess.run(
+            [zstd_bin, "-d", "-c", "-"],
+            input=frame,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if proc.returncode != 0:
+            err = proc.stderr.decode("utf-8", errors="replace").strip()
+            raise ValueError(f"independent zstd CLI decode failed (exit {proc.returncode}): {err}")
+        return proc.stdout
+    import zstandard
+    try:
+        dobj = zstandard.ZstdDecompressor().decompressobj()
+        plain = dobj.decompress(frame)
+        if not dobj.eof:
+            raise ValueError("independent decode: truncated Zstandard frame")
+        if dobj.unused_data:
+            raise ValueError("independent decode: trailing bytes after Zstandard frame")
+        return plain
+    except zstandard.ZstdError as e:
+        raise ValueError(f"independent zstandard decode failed: {e}") from e
+
+
+_BR_ZSTD_AVAILABLE = _br_have_zstd_tooling()
 
 class br_TestBackupRemote(unittest.TestCase):
     """Validates chunk hashing, manifest creation, delta plan computation, zstd staging, sync, and verification."""
@@ -112,6 +160,7 @@ class br_TestBackupRemote(unittest.TestCase):
         self.assertEqual(delta_plan["total_raw_bytes"], len(static_data) + len(new_data))
         self.assertGreater(delta_plan["dedup_ratio_pct"], 30.0)
 
+    @unittest.skipUnless(_BR_ZSTD_AVAILABLE, "requires a real zstd encoder (zstd CLI or python zstandard)")
     def test_compression_and_staging(self):
         src_dir = os.path.join(self.test_dir, "src_comp")
         staging_dir = os.path.join(self.test_dir, "staging")
@@ -138,6 +187,276 @@ class br_TestBackupRemote(unittest.TestCase):
         self.assertGreater(comp_bytes, 0)
         self.assertLess(comp_bytes, len(test_payload))  # Verified compression
 
+    @unittest.skipUnless(_BR_ZSTD_AVAILABLE, "requires a real zstd encoder (zstd CLI or python zstandard)")
+    def test_compress_roundtrip_independent_decoder(self):
+        """
+        Positive control: a binary payload compressed by the production encoder
+        must be a genuine Zstandard frame decodable by an INDEPENDENT decoder
+        (zstd CLI when installed, otherwise the python zstandard module) and
+        must round-trip byte-for-byte.
+        """
+        payload = (
+            bytes(range(256)) * 37                       # structured binary (all byte values)
+            + os.urandom(8192)                           # incompressible binary noise
+            + b"\x00" * 512                              # runs of zeros
+        )
+        for level in (1, 3, 19):
+            with self.subTest(level=level):
+                frame = br_backup_remote.compress_data_zstd(payload, level=level)
+                self.assertTrue(
+                    frame.startswith(b"\x28\xb5\x2f\xfd"),
+                    "advertised zstd output must begin with the Zstandard frame magic",
+                )
+                self.assertEqual(_br_independent_zstd_decode(frame), payload)
+                # Production restore consumer must agree with the independent decoder
+                self.assertEqual(br_backup_remote.decompress_data_zstd(frame), payload)
+        # Degenerate payloads must still produce valid frames
+        for edge in (b"", b"x", b"\xff" * 1024):
+            with self.subTest(payload_len=len(edge)):
+                frame = br_backup_remote.compress_data_zstd(edge)
+                self.assertEqual(_br_independent_zstd_decode(frame), edge)
+
+    @unittest.skipUnless(_BR_ZSTD_AVAILABLE, "requires a real zstd encoder (zstd CLI or python zstandard)")
+    def test_staged_chunks_decode_and_match_manifest_hashes(self):
+        """
+        Positive integration: every staged .chunk.zst artifact decodes through the
+        independent decoder and its plaintext sha256 matches the manifest metadata
+        (filename hash, chunk_index hash, and recorded length).
+        """
+        src_dir = os.path.join(self.test_dir, "src_rt")
+        staging_dir = os.path.join(self.test_dir, "staging_rt")
+        os.makedirs(src_dir, exist_ok=True)
+        payload = b"STAGED_ROUNDTRIP_BLOCK_" * 4096
+        with open(os.path.join(src_dir, "data.bin"), "wb") as f:
+            f.write(payload)
+
+        manifest = br_backup_remote.create_snapshot_manifest(src_dir, snapshot_id="snap_rt", chunk_size=64 * 1024)
+        delta_plan = br_backup_remote.compute_delta_plan(manifest, baseline_manifest=None)
+        staged_files, _ = br_backup_remote.stage_delta_chunks(
+            source_dir=src_dir,
+            current_manifest=manifest,
+            delta_plan=delta_plan,
+            staging_dir=staging_dir,
+            zstd_level=3,
+        )
+
+        chunk_files = [f for f in staged_files if f.endswith(".chunk.zst")]
+        self.assertGreater(len(chunk_files), 0)
+        for chunk_file in chunk_files:
+            with open(chunk_file, "rb") as f:
+                frame = f.read()
+            plain = _br_independent_zstd_decode(frame)
+            digest = br_backup_remote.hash_bytes(plain)
+            self.assertEqual(os.path.basename(chunk_file), f"{digest}.chunk.zst")
+            self.assertIn(digest, manifest["chunk_index"])
+            self.assertEqual(manifest["chunk_index"][digest]["length"], len(plain))
+        restored = []
+        for chunk in manifest["files"]["data.bin"]["chunks"]:
+            with open(os.path.join(staging_dir, f"{chunk['sha256']}.chunk.zst"), "rb") as f:
+                restored.append(_br_independent_zstd_decode(f.read()))
+        self.assertEqual(b"".join(restored), payload)
+
+    def test_atomic_staging_write_failure_removes_temporary(self):
+        staging = os.path.join(self.test_dir, "atomic_failure")
+        os.makedirs(staging)
+        target = os.path.join(staging, "manifest_atomic.json")
+        for failure in ("fsync", "replace"):
+            with self.subTest(failure=failure), mock.patch.object(
+                    br_backup_remote.os, failure, side_effect=OSError("planted write failure")):
+                with self.assertRaisesRegex(OSError, "planted write failure"):
+                    br_backup_remote._write_staged_file(target, b"complete bytes")
+            self.assertEqual(os.listdir(staging), [])
+
+    def test_missing_delta_chunk_refuses_manifest_publication(self):
+        staging = os.path.join(self.test_dir, "missing_delta")
+        with self.assertRaisesRegex(ValueError, "absent from snapshot index"):
+            br_backup_remote.stage_delta_chunks(
+                self.test_dir, {"snapshot_id": "missing", "chunk_index": {}},
+                {"new_chunk_hashes": ["missing"]}, staging)
+        self.assertEqual(os.listdir(staging), [])
+
+    @unittest.skipUnless(_BR_ZSTD_AVAILABLE, "requires real Zstandard")
+    def test_source_change_and_manifest_write_failure_discard_staging(self):
+        source = os.path.join(self.test_dir, "changing_source")
+        staging = os.path.join(self.test_dir, "changing_staging")
+        os.makedirs(source)
+        path = os.path.join(source, "data.bin")
+        with open(path, "wb") as f:
+            f.write(b"first bytes")
+        manifest = br_backup_remote.create_snapshot_manifest(source, snapshot_id="changing")
+        plan = br_backup_remote.compute_delta_plan(manifest)
+        with open(path, "wb") as f:
+            f.write(b"other bytes")
+        with self.assertRaisesRegex(ValueError, "changed since snapshot"):
+            br_backup_remote.stage_delta_chunks(source, manifest, plan, staging)
+        self.assertEqual(os.listdir(staging), [])
+        with open(path, "wb") as f:
+            f.write(b"first bytes")
+        real_replace = br_backup_remote.os.replace
+        def fail_manifest(src, dst):
+            if dst.endswith(".json"):
+                raise OSError("planted manifest publication failure")
+            return real_replace(src, dst)
+        with mock.patch.object(br_backup_remote.os, "replace", side_effect=fail_manifest):
+            with self.assertRaisesRegex(OSError, "planted manifest publication failure"):
+                br_backup_remote.stage_delta_chunks(source, manifest, plan, staging)
+        self.assertEqual(os.listdir(staging), [])
+
+    def test_no_encoder_available_fails_and_writes_no_artifact(self):
+        """
+        Negative control: with BOTH encoders unavailable (zstd CLI hidden and
+        zstandard module blocked), compression and staging must fail with the
+        named ZstdUnavailableError and leave NO artifact behind in staging.
+        """
+        src_dir = os.path.join(self.test_dir, "src_noenc")
+        staging_dir = os.path.join(self.test_dir, "staging_noenc")
+        os.makedirs(src_dir, exist_ok=True)
+        with open(os.path.join(src_dir, "data.bin"), "wb") as f:
+            f.write(b"NO_ENCODER_PAYLOAD" * 1000)
+
+        manifest = br_backup_remote.create_snapshot_manifest(src_dir, snapshot_id="snap_noenc", chunk_size=4096)
+        delta_plan = br_backup_remote.compute_delta_plan(manifest, baseline_manifest=None)
+        self.assertGreater(len(delta_plan["new_chunk_hashes"]), 0)
+
+        with mock.patch.object(br_backup_remote.shutil, "which", return_value=None), \
+                mock.patch.dict(sys.modules, {"zstandard": None}):
+            with self.assertRaises(br_backup_remote.ZstdUnavailableError) as ctx:
+                br_backup_remote.compress_data_zstd(b"probe")
+            self.assertIn("zstd", str(ctx.exception).lower())
+
+            with self.assertRaises(br_backup_remote.ZstdUnavailableError):
+                br_backup_remote.stage_delta_chunks(
+                    source_dir=src_dir,
+                    current_manifest=manifest,
+                    delta_plan=delta_plan,
+                    staging_dir=staging_dir,
+                )
+
+        # No artifact may exist: no chunk files, no manifest, nothing falsely labeled
+        if os.path.isdir(staging_dir):
+            leftovers = os.listdir(staging_dir)
+            self.assertEqual(leftovers, [], f"staging must be empty after encoder failure, found: {leftovers}")
+        self.assertFalse(any(n.endswith(".chunk.zst") for n in os.listdir(self.test_dir)))
+
+    def test_encoder_subprocess_failure_fails(self):
+        """
+        Negative control: when the located encoder binary exits non-zero, the
+        operation must fail with ZstdCompressionError (no silent fallback to a
+        fake frame). Uses the real Python interpreter as a failing "zstd" binary:
+        it rejects zstd-style flags and exits with status 2.
+        """
+        fake_zstd = sys.executable
+        with mock.patch.object(br_backup_remote.shutil, "which", return_value=fake_zstd), \
+                mock.patch.dict(sys.modules, {"zstandard": None}):
+            with self.assertRaises(br_backup_remote.ZstdCompressionError) as ctx:
+                br_backup_remote.compress_data_zstd(b"SUBPROCESS_FAILURE_PROBE", level=3)
+        self.assertIn("exit status", str(ctx.exception))
+
+    def test_invalid_compression_settings_fail(self):
+        """Negative control: out-of-range and non-integer zstd levels must fail before any encoder runs."""
+        for bad_level in (0, -1, -100, 23, 64, 1000, 2.5, "3", None):
+            with self.subTest(level=bad_level), \
+                    self.assertRaises(ValueError):
+                br_backup_remote.compress_data_zstd(b"SETTINGS_PROBE", level=bad_level)
+        # Staging path must propagate invalid settings too
+        src_dir = os.path.join(self.test_dir, "src_badlevel")
+        staging_dir = os.path.join(self.test_dir, "staging_badlevel")
+        os.makedirs(src_dir, exist_ok=True)
+        with open(os.path.join(src_dir, "data.bin"), "wb") as f:
+            f.write(b"BAD_LEVEL_PAYLOAD" * 100)
+        manifest = br_backup_remote.create_snapshot_manifest(src_dir, snapshot_id="snap_bad", chunk_size=4096)
+        delta_plan = br_backup_remote.compute_delta_plan(manifest, baseline_manifest=None)
+        with self.assertRaises(ValueError):
+            br_backup_remote.stage_delta_chunks(
+                source_dir=src_dir,
+                current_manifest=manifest,
+                delta_plan=delta_plan,
+                staging_dir=staging_dir,
+                zstd_level=99,
+            )
+        if os.path.isdir(staging_dir):
+            self.assertEqual(os.listdir(staging_dir), [])
+
+    @unittest.skipUnless(_BR_ZSTD_AVAILABLE, "requires a real zstd encoder (zstd CLI or python zstandard)")
+    def test_corrupted_frame_rejected_on_restore(self):
+        """
+        Negative control: corrupted, garbage, and mislabeled (zlib-with-zstd-magic)
+        payloads must be rejected by the restore path, and a corrupted remote store
+        chunk must fail verify_remote_manifest.
+        """
+        payload = b"CORRUPTION_DETECTION_PAYLOAD_" * 512
+        frame = br_backup_remote.compress_data_zstd(payload)
+
+        # 1. Bit flips in the compressed block body and in the trailing content
+        #    checksum must both be rejected (frames embed a zstd content checksum)
+        for pos in (10, len(frame) // 2, len(frame) - 2):
+            with self.subTest(flip_position=pos):
+                corrupted = frame[:pos] + bytes([frame[pos] ^ 0xFF]) + frame[pos + 1:]
+                with self.assertRaises(br_backup_remote.ZstdDecompressionError):
+                    br_backup_remote.decompress_data_zstd(corrupted)
+
+        # 2. Truncated frame: production restore consumer AND independent decoder must reject
+        with self.assertRaises(br_backup_remote.ZstdDecompressionError):
+            br_backup_remote.decompress_data_zstd(frame[: len(frame) // 2])
+        with self.assertRaises(ValueError):
+            _br_independent_zstd_decode(frame[: len(frame) // 2])
+
+        # 2b. Trailing garbage appended after a valid frame must be rejected
+        with self.assertRaises(br_backup_remote.ZstdDecompressionError):
+            br_backup_remote.decompress_data_zstd(frame + b"GARBAGE_TAIL")
+
+        # 3. Garbage without magic
+        with self.assertRaises(br_backup_remote.ZstdDecompressionError):
+            br_backup_remote.decompress_data_zstd(b"\x00" * 128)
+
+        # 4. Mislabeled zlib payload carrying a zstd magic prefix (the historical defect shape)
+        with self.assertRaises(br_backup_remote.ZstdDecompressionError):
+            br_backup_remote.decompress_data_zstd(b"\x28\xb5\x2f\xfd" + zlib.compress(payload))
+
+        # 5. End-to-end: corrupt one chunk in the remote store, verification must fail
+        src_dir = os.path.join(self.test_dir, "src_corrupt")
+        staging_dir = os.path.join(self.test_dir, "staging_corrupt")
+        remote_dir = os.path.join(self.test_dir, "remote_corrupt")
+        os.makedirs(src_dir, exist_ok=True)
+        with open(os.path.join(src_dir, "data.bin"), "wb") as f:
+            f.write(payload)
+        manifest = br_backup_remote.create_snapshot_manifest(src_dir, snapshot_id="snap_cor", chunk_size=4096)
+        delta_plan = br_backup_remote.compute_delta_plan(manifest, baseline_manifest=None)
+        br_backup_remote.stage_delta_chunks(
+            source_dir=src_dir,
+            current_manifest=manifest,
+            delta_plan=delta_plan,
+            staging_dir=staging_dir,
+        )
+        sync_res = br_backup_remote.sync_delta_payload(staging_dir=staging_dir, remote_target=remote_dir, backend="local")
+        self.assertEqual(sync_res["status"], "success")
+        chunk_name = delta_plan["new_chunk_hashes"][0] + ".chunk.zst"
+        remote_chunk = os.path.join(remote_dir, chunk_name)
+        with open(remote_chunk, "rb") as f:
+            good = f.read()
+        with open(remote_chunk, "wb") as f:
+            f.write(good[:6] + bytes([good[6] ^ 0x5A]) + good[7:])
+        ok, msg = br_backup_remote.verify_remote_manifest(remote_target=remote_dir, snapshot_id="snap_cor", backend="local")
+        self.assertFalse(ok, "corrupted remote chunk must fail verification")
+        self.assertIn("failed restore validation", msg)
+
+    def test_planted_invalid_frame_fails_roundtrip(self):
+        """
+        Harness self-proof: a PLANTED invalid frame (exactly the shape the old
+        defect produced: zlib bytes behind a zstd magic prefix) MUST fail the
+        independent round-trip decoder and the production restore consumer.
+        If this test ever passes silently, the round-trip harness is broken.
+        """
+        payload = b"HARNESS_CAN_FAIL_PROOF_" * 200
+        planted = b"\x28\xb5\x2f\xfd" + zlib.compress(payload, 6)
+        # Independent decoder must reject the planted frame
+        with self.assertRaises(ValueError):
+            _br_independent_zstd_decode(planted)
+        # Production restore consumer must reject it as well
+        with self.assertRaises(br_backup_remote.ZstdDecompressionError):
+            br_backup_remote.decompress_data_zstd(planted)
+
+    @unittest.skipUnless(_BR_ZSTD_AVAILABLE, "requires a real zstd encoder (zstd CLI or python zstandard)")
     def test_sync_and_remote_verification(self):
         src_dir = os.path.join(self.test_dir, "src_sync")
         staging_dir = os.path.join(self.test_dir, "staging_sync")
