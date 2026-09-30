@@ -71,19 +71,30 @@ The build execution pipeline is implemented via a sequential file tree structure
 
 ---
 
-## 4. The Seven Architectural Laws
+## 4. The Architectural Laws
 
-System contributions, automated builds, and image modifications must strictly comply with the following seven immutable system invariants, enforced by `automation/99-postcheck.sh` and CI validation gates:
+System contributions, automated builds, and image modifications must strictly comply with the architectural law registry. The canonical source is `usr/share/mios/mios.toml` under `[laws]` -- the single registry of the id, slug, and enforcement-target mapping -- with `automation/98-drift-checks.sh` and `automation/99-postcheck.sh` executing the checks at build time (a failing law aborts the build) and `mios-gate law-enforcers` verifying that every registered enforcement target resolves to live code. The v0.3.0 registry defines sixteen laws:
 
 | # | Invariant Identifier | Architectural Enforcement Mandate |
 |---|---|---|
-| **1** | `USR-OVER-ETC` | All static vendor assets, service definitions, and configurations must reside exclusively in `/usr/lib/` or `/usr/share/`. The `/etc/` directory is reserved strictly for local administrator overrides. |
+| **1** | `USR-OVER-ETC` | All static vendor assets, service definitions, and configurations must reside exclusively in `/usr/lib/<component>.d/` or `/usr/share/`. The `/etc/` directory is reserved strictly for local administrator overrides. |
 | **2** | `NO-MKDIR-IN-VAR` | The `/var/` directory hierarchy must never be modified or populated at image build time. All runtime directories in `/var/` must be declared declaratively via `usr/lib/tmpfiles.d/*.conf`. |
 | **3** | `BOUND-IMAGES` | Container images referenced by system Quadlets must be staged and symlinked into `/usr/lib/bootc/bound-images.d/` to guarantee offline image survival and atomic co-deployment with the host. |
 | **4** | `BOOTC-CONTAINER-LINT` | The final layer of every container build must pass `bootc container lint` with exit code 0. Architectural validation failures immediately abort the build pipeline. |
-| **5** | `UNIFIED-AI-REDIRECTS` | Every agent, tool, script, and web console must address the AI plane strictly through `MIOS_AI_ENDPOINT`. Hardcoded external endpoints, vendor URLs, or bypassing loopback proxies is forbidden. |
-| **6** | `UNPRIVILEGED-QUADLETS` | System Quadlets must declare non-root service credentials (`User=mios`, `Group=mios`, `Delegate=yes`). Exceptions are limited to low-level infrastructure daemons (`mios-ceph`, `mios-k3s`) with explicit code audit rationale. |
-| **7** | `OFFLINE-FIRST` | The fully deployed operating system, inference engines, orchestration stack, and system documentation must remain 100% operational with zero outbound network connectivity. External dependencies must be vendored. |
+| **5** | `UNIFIED-AI-REDIRECTS` | Every agent, tool, script, and web console must address the AI plane strictly through `MIOS_AI_ENDPOINT`, `MIOS_AI_MODEL`, and `MIOS_AI_KEY`. Hardcoded external endpoints, vendor URLs, or bypassing loopback proxies is forbidden. |
+| **6** | `UNPRIVILEGED-QUADLETS` | System Quadlets must declare non-root service credentials (`User=`, `Group=`, `Delegate=yes`). Root execution exists only for the exceptions registered in `[security.privileged_quadlets]`, with the audit rationale in each unit's header. |
+| **7** | `NO-HARDCODE` | No operator-tunable value -- model identifiers, ports, versions, dates -- may be hardcoded. All such values resolve through the `mios.toml` configuration cascade; hand-pinned version literals fail the build (SBOM-not-hardcode / float-latest, ADR-0003 and ADR-0012). |
+| **8** | `SSOT-PROJECTION` | Files derived from `mios.toml` are generated artifacts and are drift-gated. Every generator must be registered in `[laws.projection_registry]`. |
+| **9** | `ONE-CANONICAL-NAME` | Every referenced `MIOS_*` variable must close against the set the system emits (`referenced ⊆ emitted`), enforced by the variable-closure ledger. |
+| **10** | `BARE-SAFE-ENV` | The baked `install.env` render must be bare `KEY=value`, secret-free, and clean under `set -u`, proven by a `system-sync-env --dry-run` execution at postcheck. |
+| **11** | `SECRETS-NEVER-IN-ENV` | Secret keys registered in `[security.secret_keys]` must never be materialized into environment files; secret-bearing files ship with `0600` permissions. |
+| **12** | `BAKE-NOT-FETCH` | Artifacts are baked into the image at build time under bake-DAG integrity checks; the first-boot path degrades open instead of fetching from the network. This law carries the offline-first guarantee. |
+| **13** | `NATIVE-DROPINS` | The native resolvers (`mios-resolver`, `miosd`) and the shell/Python fallback resolvers must remain in proven twin parity under differential fixtures. |
+| **14** | `TARGET-LANGUAGES` | Automation consolidates on the declared target languages. Legacy C# survives only through the `[laws.target_languages]` grandfather registry. |
+| **15** | `DOUBLE-REPO-TRIPLE-CHECK` | Changes touching surfaces shared between `mios.git` and `mios-bootstrap.git` are verified in both repositories; cross-repo parity is drift-checked. |
+| **16** | `ONE-TEMPLATE-PER-TYPE` | Exactly one template exists per file type, projected from the SSOT and validated by `check-template-conformance` (ADR-0011). |
+
+The generated, always-current law-to-enforcer table ships in [`llms.txt`](llms.txt); the decision record behind each law is indexed in [`ADR.md`](ADR.md) from the ADRs baked at `usr/share/doc/mios/adr/`.
 
 ---
 
@@ -148,41 +159,41 @@ During base image compilation or host transitions executed via `bootc upgrade`, 
 
 Logically bound images are updated atomically with the base operating system. If a host update is rolled back via `bootc rollback`, the corresponding logically bound container images associated with that rollback target are retained and instantly reactivated, preventing version skew between the host operating system and its application microservices. Image pruning is managed by bootc; when a Quadlet reference is dropped from `/usr/lib/bootc/bound-images.d/`, the unreferenced image layers inside `/usr/lib/bootc/storage` are marked for garbage collection.
 
-Privilege escalation within containerized workloads is restricted by system security policy. All standard service Quadlets declare non-root user execution envelopes via `User=` and `Group=` directives, accompanied by cgroup control delegation via `Delegate=yes`. The only permissible exceptions to this rule are `mios-ceph` and `mios-k3s`, which require elevated privileges to manage raw block devices, configure kernel storage target drivers, and manipulate network routing namespaces.
+Privilege escalation within containerized workloads is restricted by system security policy. All standard service Quadlets declare non-root user execution envelopes via `User=` and `Group=` directives, accompanied by cgroup control delegation via `Delegate=yes`. Root execution is permissible only for the exceptions registered in `[security.privileged_quadlets]` -- the Ceph/RadosGW storage fabric, `mios-k3s`, the Forgejo runner, the PXE hub, the webtools pod, Redis, the heavy GPU lanes, and the coderun sandbox -- each carrying its audit rationale in the unit file header.
 
 ### Quadlet Service Specification Table
 
 | Quadlet Unit File | Upstream Image Reference | Port Key & Bindings | Memory & Resource Constraints | Privilege & Capability Isolation |
 |---|---|---|---|---|
-| `mios-llm-light.container` | `ghcr.io/mostlygeek/llama-swap:cuda` | `llm_light` (8080 / 11450) | Dynamic VRAM management; CPU fallback thread limits | Unprivileged UID; CDI passthrough for GPU compute |
-| `mios-llm-heavy.container` | `vllm/vllm-openai:latest` | `vllm` (8000) | Gated activation; multi-GPU tensor parallel allocation | Unprivileged UID; direct device allocation |
-| `mios-pgvector.container` | `pgvector/pgvector:pg16` | `pgvector` (5432) | Shared memory allocation; persistent volume mount | Dedicated database system user; no network egress |
-| `mios-agent-pipe.container` | `mios-agent-pipe:latest` | `agent_pipe` (8001 / 8640) | Low latency, stateless async task router | Unprivileged UID; network loopback binding only |
-| `mios-hermes.container` | `mios-hermes:latest` | `hermes` (8002 / 8642) | Tool execution loop; process sandbox boundaries | Rootless execution; drop all Linux capabilities |
-| `mios-searxng.container` | `searxng/searxng:latest` | `searxng` (8081 / 8888) | Read-only local network search aggregator | Dedicated non-login service user; isolated egress |
-| `mios-k3s.container` | `rancher/k3s:latest` | `k3s_api` (6443) | Host resource reservation; cluster control plane | Privileged container; required host namespace access |
-| `mios-ceph.container` | `ceph/daemon:latest` | `ceph_mon` (6789) | Block storage management; cluster data replication | Privileged container; host block device manipulation |
+| `mios-llm-light.container` | `ghcr.io/mostlygeek/llama-swap:cuda` | `llm_light` (8500) | Dynamic VRAM management; CPU fallback thread limits | Unprivileged UID; CDI passthrough for GPU compute |
+| `mios-llm-heavy.container` | `docker.io/vllm/vllm-openai:latest` | `vllm` (8520) | Gated activation; multi-GPU tensor parallel allocation | Unprivileged UID; direct device allocation |
+| `mios-pgvector.container` | `docker.io/pgvector/pgvector:latest` | `pgvector` (8600 host / 5432 in-container) | Shared memory allocation; persistent volume mount | Dedicated database system user; no network egress |
+| `mios-agent-pipe.container` | `mios-agent-pipe:latest` | `agent_pipe` (8700) | Low latency, stateless async task router | Unprivileged UID; network loopback binding only |
+| `mios-hermes.container` | `mios-hermes:latest` | `hermes` (8720) | Tool execution loop; process sandbox boundaries | Rootless execution; drop all Linux capabilities |
+| `mios-searxng.container` | `docker.io/searxng/searxng:latest` | `searxng` (8800) | Read-only local network search aggregator | Dedicated non-login service user; isolated egress |
+| `mios-k3s.container` | `docker.io/rancher/k3s:${MIOS_VERSION_K3S}` | `k3s_api` (8450) | Host resource reservation; cluster control plane | Privileged container; required host namespace access |
+| `mios-ceph.container` | `quay.io/ceph/ceph:${MIOS_VERSION_CEPH}` | `radosgw` (8470) / `ceph_dashboard` (8460) | Block storage management; cluster data replication | Privileged container; host block device manipulation |
 
 ---
 
 ## 7. Local AI Architecture (The Cognitive Substrate)
 
-All internal AI components, developer utilities, and user tools communicate with a single loopback target defined by the environment variable `MIOS_AI_ENDPOINT` (default: `http://127.0.0.1:8080/v1`).
+All internal AI components, developer utilities, and user tools communicate with a single loopback target defined by the environment variable `MIOS_AI_ENDPOINT` (default: `http://localhost:8700/v1`, resolved from the SSOT `agent_pipe` port).
 
     +------------------------------------------------------------------------------------+
     |                                Client Applications                                 |
-    |         (Open WebUI :8080, CLI Tools, Emacs, Neovim, External OpenAI Clients)      |
+    |       (Open WebUI :8200, CLI Tools, Emacs, Neovim, External OpenAI Clients)        |
     +-----------------------------------------+------------------------------------------+
                                               |
-                                              v  MIOS_AI_ENDPOINT (:8080/v1)
+                                              v  MIOS_AI_ENDPOINT (:8700/v1)
     +------------------------------------------------------------------------------------+
     |                             Agent Orchestration Layer                              |
     |  +------------------------------------------------------------------------------+  |
-    |  | mios-agent-pipe (:8640): Dynamic Router, Decomposer & Dispatch Gateway      |  |
+    |  | mios-agent-pipe (:8700): Dynamic Router, Decomposer & Dispatch Gateway      |  |
     |  +------------------------------------------------------------------------------+  |
-    |  | mios-hermes (:8642): OpenAI Agent Gateway (Session State, Tool-Loop, Skills) |  |
+    |  | mios-hermes (:8720): OpenAI Agent Gateway (Session State, Tool-Loop, Skills) |  |
     |  +------------------------------------------------------------------------------+  |
-    |  | mios-prefilter (:8641): Static Prompt Analysis & Fan-Out Decomposition Hinting|  |
+    |  | mios-prefilter (:8710): Static Prompt Analysis & Fan-Out Decomposition Hinting|  |
     +-----------------------------------------+------------------------------------------+
                                               |
                        +----------------------+----------------------+
@@ -190,36 +201,36 @@ All internal AI components, developer utilities, and user tools communicate with
                        v                                             v
     +------------------------------------+        +--------------------------------------+
     |          Inference Lanes           |        |           Tool & Data Plane          |
-    |  - mios-llm-light (:11450):        |        |  - Datastore: mios-pgvector (:5432)  |
+    |  - mios-llm-light (:8500):         |        |  - Datastore: mios-pgvector (:8600)  |
     |    llama.cpp + llama-swap proxy;   |        |    Relational memory, sessions, tool |
     |    text generation & nomic-embed-  |        |    logs, vector semantic recall      |
     |    text embeddings                 |        |  - Protocols: Model Context Protocol |
-    |  - mios-llm-heavy (:8000):         |        |    (MCP) tool servers + A2A bus      |
+    |  - mios-llm-heavy (:8520):         |        |    (MCP) tool servers + A2A bus      |
     |    vLLM engine (VRAM-gated)        |        |  - Search: Local SearXNG instance    |
-    |  - mios-llm-heavy-alt (:30000):    |        |  - Code Mode: opencode-gateway       |
+    |  - mios-llm-heavy-alt (:8530):     |        |  - Code Mode: opencode-gateway       |
     |    SGLang engine (VRAM-gated)      |        |    isolated execution council        |
     +------------------------------------+        +--------------------------------------+
 
 ### 7.1 Inference Routing Lanes
 System inference lanes are cataloged by operational function rather than upstream binary names:
-* **Primary Lane (`mios-llm-light`, Port: `11450`):** Multi-model inference engine based on `llama.cpp` managed by the `llama-swap` proxy container (`ghcr.io/mostlygeek/llama-swap:cuda`). Automatically loads, swaps, and evicts model weights based on demand; pages inactive context slots to disk; serves text generation, code assistance (`mios-opencode`), and high-throughput vector embeddings via `nomic-embed-text` (`/v1/embeddings`). Model configuration is defined in [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml).
-* **High-Throughput GPU Lane (`mios-llm-heavy`, Port: `8000`):** vLLM inference backend optimized for large parameter weights, continuous batching, and tensor parallelism. Inactive by default; enabled via configuration when host VRAM meets allocation thresholds.
-* **Alternative GPU Lane (`mios-llm-heavy-alt`, Port: `30000`):** SGLang inference backend providing RadixAttention cache optimizations for complex multi-turn reasoning workflows.
+* **Primary Lane (`mios-llm-light`, Port: `8500`):** Multi-model inference engine based on `llama.cpp` managed by the `llama-swap` proxy container (`ghcr.io/mostlygeek/llama-swap:cuda`). Automatically loads, swaps, and evicts model weights based on demand; pages inactive context slots to disk; serves text generation, code assistance (`mios-opencode`), and high-throughput vector embeddings via `nomic-embed-text` (`/v1/embeddings`). Model configuration is defined in [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml).
+* **High-Throughput GPU Lane (`mios-llm-heavy`, Port: `8520`):** vLLM inference backend optimized for large parameter weights, continuous batching, and tensor parallelism. Inactive by default; enabled via configuration when host VRAM meets allocation thresholds.
+* **Alternative GPU Lane (`mios-llm-heavy-alt`, Port: `8530`):** SGLang inference backend providing RadixAttention cache optimizations for complex multi-turn reasoning workflows.
 * **Worker Swarm Nodes (`mios-llm-worker@`):** Template-instantiated systemd services allocating dedicated single-model workers across distributed compute devices.
 
 ### 7.2 Agent Orchestration Pipeline
-* **`mios-agent-pipe` (Port: `8640`):** Core routing and dispatch intermediary connecting client interfaces (Open WebUI, messaging shims, shell completions) to downstream execution units. Handles prompt triage, task decomposition, and inter-service fan-out.
-* **`mios-hermes` (Port: `8642`):** Primary agent state machine implementing the OpenAI tool-calling loop, active execution sessions, dynamic skill loading, and OS-control operations.
-* **`mios-prefilter` (Port: `8641`):** Low-overhead prompt analyzer injecting contextual hints and pipeline routing metadata prior to primary inference.
+* **`mios-agent-pipe` (Port: `8700`):** Core routing and dispatch intermediary connecting client interfaces (Open WebUI, messaging shims, shell completions) to downstream execution units. Handles prompt triage, task decomposition, and inter-service fan-out.
+* **`mios-hermes` (Port: `8720`):** Primary agent state machine implementing the OpenAI tool-calling loop, active execution sessions, dynamic skill loading, and OS-control operations.
+* **`mios-prefilter` (Port: `8710`):** Low-overhead prompt analyzer injecting contextual hints and pipeline routing metadata prior to primary inference.
 
 ### 7.3 Unified Memory & Persistence
-* **Datastore (`mios-pgvector`, Port: `5432`):** Centralized PostgreSQL 16 instance utilizing the `pgvector` extension. Houses system-wide episodic agent memory, conversation session trees, structured tool telemetry, execution scratchpads, and the canonical `knowledge` vector base.
+* **Datastore (`mios-pgvector`, Port: `8600` host / `5432` in-container):** Centralized PostgreSQL 16 instance utilizing the `pgvector` extension. Houses system-wide episodic agent memory, conversation session trees, structured tool telemetry, execution scratchpads, and the canonical `knowledge` vector base.
 * **Vector Embeddings:** Ingestion vectors are generated locally via `nomic-embed-text` through the primary inference lane, enforcing cryptographic data sovereignty.
 
 ### 7.4 Tool Execution, Discovery & Federation
 * **Model Context Protocol (MCP):** Unified schema standard exposing system diagnostics, file system access, and package automation to local agents via JSON-RPC primitives over stdio and HTTP.
 * **Agent-to-Agent (A2A) Interface:** Federated discovery and delegation protocol permitting decoupled local agents to negotiate and dispatch tasks to peer units.
-* **Local Web Search:** Privacy-preserving retrieval engine backed by an in-image SearXNG instance (Port: `8888`), preventing parameter leakage to external commercial search engines.
+* **Local Web Search:** Privacy-preserving retrieval engine backed by an in-image SearXNG instance (SSOT port key `searxng`, 8800), preventing parameter leakage to external commercial search engines.
 * **Dynamic Code Execution:** Host mutations and untrusted script execution are routed through `opencode-gateway` into isolated, Landlock- and seccomp-restricted sandboxes.
 * **AI Metadata Discovery System:** During image assembly, `/usr/libexec/mios/mios-ai-metadata.py` indexes file-level metadata tags (`AI-hint`, `AI-related`, `AI-functions`) into `/usr/share/mios/ai/v1/metadata.json` for deterministic tool discovery.
 
@@ -277,9 +288,10 @@ The vendor file `/usr/share/mios/mios.toml` serves as the Single Source of Truth
     hostname = "workstation-node"
 
     [ai]
-    model            = "granite4.1:8b"
-    embedding_model  = "nomic-embed-text"
-    context_window   = 131072
+    model              = "granite4.1:8b"
+    endpoint           = "http://localhost:8700/v1"
+    key                = ""
+    system_prompt_file = "~/.config/mios/system-prompt.md"
 
     [flatpaks]
     install = [
@@ -295,7 +307,7 @@ The vendor file `/usr/share/mios/mios.toml` serves as the Single Source of Truth
 * `just init-user-space`: Copies the vendor template to `~/.config/mios/mios.toml`.
 * `just edit`: Opens the active configuration in the system `$EDITOR`.
 * `just show-env`: Resolves the layered TOML properties and outputs the active system environment variables.
-* `sudo mios-sync-env`: Synchronizes values from `/etc/mios/mios.toml` into `/etc/mios/install.env` to align systemd daemon runtimes.
+* `sudo mios sync-env`: Regenerates `/etc/mios/install.env` from the resolved `mios.toml` values to align systemd daemon runtimes.
 
 ---
 
@@ -316,9 +328,9 @@ To provision a local development machine, configure virtual disk allocations, se
 
 The script executes the following stages:
 1. Validates host CPU virtualization flags, RAM capacity, and storage blocks.
-2. Allocates partition `M:\` (256 GB NTFS) dedicated to the build root.
+2. Allocates partition `M:\` (size resolved from the `mios.toml` `[bootstrap.host_storage]` defaults, ~256 GB NTFS) dedicated to the build root.
 3. Provisions the container runtime engine and stages the `MiOS-DEV` builder environment.
-4. Clones `mios.git` and branches into `/usr/libexec/mios/mios-build-driver`.
+4. Clones `mios.git` and `mios-bootstrap.git`, then chains into `/usr/libexec/mios/mios-build-driver` for the OCI build.
 5. Outputs raw disk images (`.raw`, `.vhdx`), an Anaconda installer `.iso`, and WSL2 rootfs archives.
 
 ### 10.3 Linux Native Compilation & Image Output
@@ -341,7 +353,7 @@ Linux builds require a functional `podman` installation and the `just` command r
     just vhdx    # Hyper-V virtual disk
     just wsl2    # WSL2 sideload distribution
 
-The compilation process is managed by `automation/` shell scripts running in strict numeric sequence (`00-base.sh` through `99-postcheck.sh`) inside an isolated Buildah/Podman context.
+The compilation process is managed by `automation/` shell scripts running in strict numeric sequence (`00-mios-pre-bootc.sh` through `99-postcheck.sh`) inside an isolated Buildah/Podman context.
 
 ---
 
