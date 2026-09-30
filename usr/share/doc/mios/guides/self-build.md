@@ -14,18 +14,22 @@ the full local agent stack — inference lanes, the agent-pipe orchestrator,
 MiOS-Hermes, PostgreSQL+pgvector memory — behind one OpenAI-compatible endpoint.
 
 "Self-replicating" is the literal property this guide documents: because the
-whole OS is a single rebuildable OCI image, a *running* MiOS contains every tool
-(`podman`, `buildah`, `bootc`, `bootc-image-builder`) needed to produce its own
-next generation. The build pipeline is the front half of the system lifecycle —
+whole OS is a single rebuildable OCI image, the default package configuration
+retains the compiler, source, container and verification tools for producing its
+next generation. Disk artifacts use the configured `bootc-image-builder` OCI
+image through Podman; a host command with that name is not a prerequisite.
+The build pipeline is the front half of the system lifecycle —
 **build pipeline → OCI image → bootc lifecycle on the host** — and self-build is
 the loop that closes it: `MiOS vN` builds `MiOS vN+1`, then deploys it atomically
 and can roll it back. This doc is the operator/builder reference for every way
 that loop can be driven.
 
 Source of truth: `Containerfile`, `Justfile`, and
-`usr/share/mios/PACKAGES.md` `packages-self-build`. The build-tool packages
-themselves are declared in `mios.toml` under `[packages.self-build]`
-(`bootc-base-imagectl`, `konflux-image-tools`); see the deeper build-pipeline
+`/usr/share/mios/mios.toml`. `[packages.self-build]` declares image, repository
+and verification tools and composes `[packages.build-toolchain]` through
+`requires_sections`. `[packages.devcontainer]` consumes the same shared groups.
+`/usr/share/doc/mios/reference/PACKAGES.md` explains the package policy; it does
+not supply a fallback package catalog. See the deeper build-pipeline
 rules in [`engineering.md`](engineering.md) and the deploy/Day-2 side in
 [`deploy.md`](deploy.md).
 
@@ -71,20 +75,11 @@ sudo bootc upgrade && sudo systemctl reboot
 
 ### Mode 2 -- Windows local build
 
-```powershell
-.\mios-build-local.ps1
-```
-
-Five-phase orchestrator (`mios-build-local.ps1`):
-
-1. Prompt for username, password, LUKS passphrase, registry credentials.
-2. Create the `mios-builder` Podman machine (rootful, all cores, all
-   RAM, 250 GB disk).
-3. Inject credentials, run `podman build`, rechunk, restore
-   placeholders.
-4. Generate disk images via BIB (RAW, VHDX, WSL2 tarball, Anaconda ISO).
-5. Push to GHCR, mark package public; restore default Podman machine;
-   print report.
+Use the [bootstrap entry and installation guide](https://github.com/mios-dev/mios-bootstrap/blob/main/usr/share/doc/mios-bootstrap/guides/bootstrap_install.md).
+Windows provisions the host and hands builds to `podman-MiOS-DEV`. The resource
+budget comes from the resolved TOML. Operator selections belong in the TOML
+overlay before the build starts. `mios-build-local.ps1` is a compatibility
+redirector, not a separate builder or resource policy.
 
 ### Mode 3 -- Linux local build (Justfile)
 
@@ -104,22 +99,20 @@ Linux side, `mios-build-local.ps1` is the Windows equivalent.
 
 ### Mode 4 -- Self-build (running 'MiOS' builds next 'MiOS')
 
-This is the loop that makes "self-replicating" literal: a running MiOS rebuilds
-itself and switches to the result in place.
+The development substrate rebuilds the image from its full source checkout.
+Run the build in MiOS-DEV:
 
 ```bash
 git clone https://github.com/mios-dev/mios.git
 cd mios
-sudo podman build --no-cache \
-    --build-arg MIOS_USER=mios \
-    --build-arg MIOS_HOSTNAME=mios \
-    -t localhost/mios:dev .
-sudo podman run --rm --entrypoint /usr/bin/bootc localhost/mios:dev container lint
-sudo bootc-base-imagectl rechunk --max-layers 67 \
-    localhost/mios:dev localhost/mios:rechunked
-sudo bootc switch --transport containers-storage localhost/mios:rechunked
-sudo systemctl reboot
+just preflight
+just build
+just lint
 ```
+
+`just rechunk` runs the configured containerized rechunk step. Review the build
+log, image and selected artifact before using the [deployment lifecycle](deploy.md)
+to switch a bootc host. Building an image and deploying it are separate actions.
 
 ### Mode 5 -- Ignition appliance
 
@@ -148,15 +141,34 @@ first generation is built from the upstream base — no prior 'MiOS' image neede
    VHDX, etc.).
 5. Subsequent builds can run from inside the deployed 'MiOS' (Mode 4).
 
-## Verifying self-build capability
+## Dependency retention and verification
+
+`[packages.self-build].retain_toolchain = true` is the default. The cleanup
+phase preserves the selected dependency closure rather than removing tools
+whose package group happens to end in `-build`. Setting retention to false is
+an explicit choice to create an image that needs a separate development builder.
+Core and development profiles must install the selected self-build dependencies
+even when the virtualization phase is absent.
+
+Rust target standard libraries and a matching linker remain prerequisites for
+cross compilation; installing Cargo alone does not provision every target.
+Use the checked-in toolchain and build configuration inside MiOS-DEV. The shared
+agent requirements are installed into `/usr/lib/mios/agents/.venv`; system Python
+consumers obtain their dependencies from the declared RPM groups.
+
+Run these read-only checks from a full checkout inside MiOS-DEV:
 
 ```bash
-which podman buildah bootc bootc-image-builder
-sudo podman info | grep -E "rootless|graphRoot"
+command -v podman buildah skopeo bootc git just cargo rustc make cmake
+podman info
 df -h /var/lib/containers
-sudo podman build --no-cache -t test-build . && echo "Self-build: OK"
-sudo podman rmi test-build
+just preflight
 ```
+
+Then run the selected image build and its runtime checks. A declared package
+list or successful resolver test does not establish that a full deployed image
+has built and can rebuild itself. Retain the build log and report missing RPMs,
+target libraries, repository access or service prerequisites as failures.
 
 ## Build requirements
 

@@ -68,6 +68,12 @@ just build
 
 [`Justfile`](Justfile) also defines `iso`, `raw`, `qcow2`, `vhdx`, and `wsl2` artifact targets. MiOS-DEV is the canonical environment for build operations in the Windows bootstrap path. `just --list` shows the local targets; [self-build](usr/share/doc/mios/guides/self-build.md) describes their dependencies and outputs.
 
+### Dependencies for self-development
+
+The package SSOT declares the shared compiler and linker tools in `[packages.build-toolchain]`, the image, repository and verification tools in `[packages.self-build]`, and service dependencies in their runtime groups. `requires_sections` composes these groups through the existing package resolver; the development image consumes the same dependency closure. Shared agent Python dependencies remain in the requirements file consumed by its isolated environment.
+
+The default `[packages.self-build].retain_toolchain = true` preserves the tools in the final image. Disabling retention deliberately produces a deployment that needs a separate builder. Package declarations and focused tests establish the requested dependency coverage; a successful full image build and runtime checks are still required to verify a deployed generation.
+
 For an existing bootc-compatible installation, [deployment guidance](usr/share/doc/mios/guides/deploy.md) covers image selection, `bootc switch`, upgrades, and rollback. Do not treat a design target as a verified artifact: check the build log and postchecks for the selected image.
 
 ## Repository rules
