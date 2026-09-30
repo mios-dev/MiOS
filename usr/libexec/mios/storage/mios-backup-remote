@@ -421,9 +421,9 @@ def sync_delta_payload(
     # Determine backend
     if backend == "auto":
         if remote_target.startswith("s3:") or remote_target.startswith("b2:") or ":" in remote_target and not ("@" in remote_target or remote_target.startswith("rsync://")):
-            backend = "rclone" if shutil.which("rclone") else "local"
+            backend = "rclone"
         elif "@" in remote_target or remote_target.startswith("rsync://"):
-            backend = "rsync" if shutil.which("rsync") else "local"
+            backend = "rsync"
         else:
             backend = "local"
 
@@ -472,6 +472,16 @@ def verify_remote_manifest(
         try:
             with open(manifest_path, "r", encoding="utf-8") as f:
                 manifest = json.load(f)
+            if (not isinstance(manifest, dict)
+                    or manifest.get("snapshot_id") != snapshot_id
+                    or not isinstance(manifest.get("chunk_index"), dict)
+                    or not isinstance(manifest.get("files"), dict)):
+                return False, "Invalid snapshot manifest identity or structure"
+            for digest, meta in manifest["chunk_index"].items():
+                if (len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest)
+                        or not isinstance(meta, dict)
+                        or type(meta.get("length")) is not int or meta["length"] <= 0):
+                    return False, "Invalid snapshot chunk digest or length"
             # Check all chunk files
             missing_chunks = []
             for h in manifest.get("chunk_index", {}).keys():
@@ -499,7 +509,7 @@ def verify_remote_manifest(
             return False, f"Verification tooling error: {e}"
         except Exception as e:
             return False, f"Manifest validation error: {e}"
-    return True, "Remote manifest assumed valid for non-local backend"
+    return False, f"Restore verification unavailable for non-local backend: {backend}"
 
 
 def prune_old_manifests(

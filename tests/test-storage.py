@@ -91,6 +91,51 @@ class br_TestBackupRemote(unittest.TestCase):
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir, ignore_errors=True)
 
+    def test_python_codec_roundtrip_and_failure_controls(self):
+        try:
+            import zstandard
+        except ImportError:
+            self.skipTest("requires the real Python Zstandard codec")
+        payload = bytes(range(256)) * 100
+        with mock.patch.object(br_backup_remote.shutil, "which", return_value=None):
+            frame = br_backup_remote.compress_data_zstd(payload)
+            self.assertEqual(zstandard.ZstdDecompressor().decompress(frame), payload)
+            self.assertEqual(br_backup_remote.decompress_data_zstd(frame), payload)
+            for broken in (frame[:-1], frame + b"trailing", frame[:-1] + bytes([frame[-1] ^ 1])):
+                with self.subTest(payload_length=len(broken)):
+                    with self.assertRaises(br_backup_remote.ZstdDecompressionError):
+                        br_backup_remote.decompress_data_zstd(broken)
+
+    def test_unimplemented_remote_verification_cannot_report_success(self):
+        for backend in ("rsync", "rclone"):
+            with self.subTest(backend=backend):
+                ok, message = br_backup_remote.verify_remote_manifest("remote:store", "snapshot", backend)
+                self.assertFalse(ok)
+                self.assertIn("verification unavailable", message)
+
+    def test_missing_remote_transport_never_falls_back_to_local_copy(self):
+        remote = os.path.join(self.test_dir, "missing:remote")
+        with mock.patch.object(br_backup_remote.shutil, "which", return_value=None), \
+                mock.patch.object(br_backup_remote.subprocess, "run", side_effect=FileNotFoundError("transport absent")):
+            result = br_backup_remote.sync_delta_payload(self.test_dir, remote)
+        self.assertEqual(result["backend_used"], "rclone")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("transport absent", result["error"])
+        self.assertFalse(os.path.exists(remote))
+
+    def test_empty_or_invalid_manifest_cannot_report_verified(self):
+        remote = os.path.join(self.test_dir, "bad_manifests")
+        os.makedirs(remote)
+        path = os.path.join(remote, "manifest_snapshot.json")
+        for manifest in ({}, {"snapshot_id": "other", "files": {}, "chunk_index": {}},
+                         {"snapshot_id": "snapshot", "files": {}, "chunk_index": {"../outside": {"length": 1}}}):
+            with self.subTest(manifest=manifest):
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(manifest, f)
+                ok, message = br_backup_remote.verify_remote_manifest(remote, "snapshot")
+                self.assertFalse(ok)
+                self.assertIn("Invalid snapshot", message)
+
     def test_hash_file_chunks(self):
         test_file = os.path.join(self.test_dir, "sample.bin")
         # 10KB file with chunk size 4KB -> 3 chunks (4096, 4096, 2048)
