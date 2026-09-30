@@ -199,7 +199,7 @@ class MockSession:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         self.closed = True
 
-async def test_mcp_pool_lifecycle():
+async def _mcp_pool_lifecycle():
     server_configs = {
         "playwright": {
             "enabled": True,
@@ -244,10 +244,15 @@ async def test_mcp_pool_lifecycle():
         _check_mcp_pool("pool: shutdown clears tools cache", len(pool.get_tools()) == 0)
 
 async def _main_mcp_pool():
-    await test_mcp_pool_lifecycle()
+    await _mcp_pool_lifecycle()
     if _fails_mcp_pool > 0:
         sys.exit(1)
     sys.exit(0)
+
+
+def test_mcp_pool_lifecycle():
+    asyncio.run(_mcp_pool_lifecycle())
+    assert _fails_mcp_pool == 0
 
 
 def _run_extra_mcp_pool():

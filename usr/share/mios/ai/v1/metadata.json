@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3594,
-  "total_metadata_entries": 2969,
-  "total_hints": 2956,
-  "total_functions_indexed": 1347,
-  "total_related_links": 4648,
+  "total_files_scanned": 3604,
+  "total_metadata_entries": 2966,
+  "total_hints": 2953,
+  "total_functions_indexed": 1348,
+  "total_related_links": 4641,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -203,15 +203,6 @@
       "functions": [],
       "doc": null,
       "comment_style": "xml",
-      "has_shebang": false
-    },
-    {
-      "path": ".dockerignore",
-      "hint": "Paths kept out of container build contexts: worktrees, dev-loop state, editor and agent dotfolders, Rust targets and Python caches.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
       "has_shebang": false
     },
     {
@@ -608,22 +599,8 @@
     },
     {
       "path": "README.md",
-      "hint": "Project overview and high-level architecture for MiOS, an immutable container-image-based Linux workstation that is also a local self-hosted agentic AI OS; use this to understand the system's core identity, what it does end-to-end (build pipeline -> OCI image -> bootc lifecycle; local inference lanes -> agent orchestration -> pgvector memory), its licensing, and primary value proposition.",
-      "related": [
-        "/usr/libexec/mios/mios-build-driver",
-        "/usr/share/mios/configurator/",
-        "/usr/share/mios/mios.toml",
-        "/usr/share/mios/ai/",
-        "/usr/share/mios/ai/system.md",
-        "/usr/share/mios/llamacpp/mios-llm-light.yaml",
-        "mios-build-driver",
-        "mios-dev",
-        "mios-bootstrap",
-        "mios-build-local",
-        "mios-llm-light",
-        "mios-pgvector",
-        "mios-ceph"
-      ],
+      "hint": "Repository entry point for the MiOS system FHS overlay, its SSOT, image build pipeline, local AI interface, deployment shapes, and documented scope. AI-related: /usr/share/mios/mios.toml, /usr/libexec/mios/mios-build-driver, /usr/share/mios/ai/system.md, mios-bootstrap, MiOS-DEV.",
+      "related": [],
       "functions": [],
       "doc": null,
       "comment_style": "xml",
@@ -3930,7 +3907,7 @@
         "mios-common.ps1",
         "mios-install.sh",
         "build-mios.sh",
-        "field/MiOS-Cat.sh",
+        "field/MiOS-Field.sh",
         "usr/lib/mios/mios_toml.py",
         "mios.toml"
       ],
@@ -3954,8 +3931,8 @@
       "related": [
         "mios-common.sh",
         "build-mios.sh",
-        "field/MiOS-Cat.sh",
-        "field/MiOS-Cat.bat"
+        "field/MiOS-Field.sh",
+        "field/MiOS-Field.bat"
       ],
       "functions": [
         "usage",
@@ -9091,11 +9068,10 @@
     },
     {
       "path": "tools/native/mios-ai-config/Cargo.toml",
-      "hint": "Cargo manifest for mios-ai-config -- projects etc/mios/ai/config.json and usr/share/mios/ai/v1/config.json from [ai] and [ports].",
+      "hint": "Cargo manifest for mios-ai-config native Rust configuration generator.",
       "related": [
-        "usr/share/mios/mios.toml",
         "automation/98-drift-checks.sh",
-        "tools/sync-generated.sh"
+        "tools/native/Cargo.toml"
       ],
       "functions": [],
       "doc": null,
@@ -9119,8 +9095,11 @@
     },
     {
       "path": "tools/native/mios-aiplane-lint/Cargo.toml",
-      "hint": "Rust agent-pipe budget and SSOT validator Cargo manifest.",
-      "related": [],
+      "hint": "Cargo manifest for mios-aiplane-lint -- fast regex scanner for AI plane invariants.",
+      "related": [
+        "usr/share/doc/mios/adr/0011-unified-languages-and-file-patterns.md",
+        "automation/98-drift-checks.sh"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
@@ -9137,8 +9116,12 @@
     },
     {
       "path": "tools/native/mios-bake-plan/Cargo.toml",
-      "hint": "Rust bake-plan generator Cargo manifest (AGY-139).",
-      "related": [],
+      "hint": "Crate manifest for mios-bake-plan -- the native bake-plan / bound-image resolver.",
+      "related": [
+        "tools/native/Cargo.toml",
+        "usr/share/mios/mios.toml",
+        "automation/85-bake-plan.sh"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
@@ -9164,8 +9147,11 @@
     },
     {
       "path": "tools/native/mios-comment-lex/Cargo.toml",
-      "hint": "Cargo manifest for mios-comment-lex -- the native comment lexer for mios-manual.",
-      "related": [],
+      "hint": "Cargo manifest for mios-comment-lex -- the native comment lexing gate (Law 16).",
+      "related": [
+        "tools/native/Cargo.toml",
+        "usr/share/mios/mios.toml"
+      ],
       "functions": [],
       "doc": null,
       "comment_style": "hash",
@@ -10511,7 +10497,8 @@
         "say",
         "warn",
         "ok",
-        "die"
+        "die",
+        "show_help"
       ],
       "doc": null,
       "comment_style": "hash",
@@ -11868,7 +11855,7 @@
     },
     {
       "path": "usr/lib/mios/agent-pipe/mios_mcp_transport.py",
-      "hint": "JSON-RPC 2.0 client transports for MCP servers -- HTTP/SSE and long-lived stdio subprocesses.",
+      "hint": "Upstream FOSS MCP SDK v2 client transports for stdio, Streamable HTTP and legacy SSE.",
       "related": [
         "mios_mcp",
         "mios_mcp_schema",
@@ -11877,7 +11864,7 @@
       "functions": [],
       "doc": null,
       "comment_style": "hash",
-      "has_shebang": true
+      "has_shebang": false
     },
     {
       "path": "usr/lib/mios/agent-pipe/mios_memguard.py",
@@ -12313,7 +12300,7 @@
     },
     {
       "path": "usr/lib/mios/agent-pipe/mios_pipe/federation/mcp.py",
-      "hint": "External-MCP CONSUME client extracted VERBATIM from server.py (refactor R-MCP wave).",
+      "hint": "Compatibility import for the canonical MCP federation router and SDK transports.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/federation.md",
@@ -14537,7 +14524,7 @@
     },
     {
       "path": "usr/lib/mios/agent-pipe/test_mios_mcp_transport.py",
-      "hint": "Stdlib unit test for the MCP JSON-RPC transports -- header env expansion, SSE and JSON response decoding, and error mapping (mios_mcp_transport).",
+      "hint": "Checks the SDK-backed MCP transport adapters and secret-safe header rendering.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/agent-pipe.md",
@@ -15849,15 +15836,6 @@
     },
     {
       "path": "usr/lib/sysctl.d/20-memory.conf",
-      "hint": "Configures proactive memory compaction and memory parameters for AI workloads (T-800).",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/ch22-cpu-topology-and-performance-pinning.md",
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/lib/sysctl.d/20-mios-memory.conf",
       "hint": "Configures proactive memory compaction and memory parameters for AI workloads (T-800).",
       "related": [],
       "functions": [],
@@ -22801,7 +22779,7 @@
     },
     {
       "path": "usr/libexec/mios/mios-mcp-server",
-      "hint": "Provides a Model Context Protocol (MCP) stdio server that exposes the MiOS [verbs.*] catalog as tools and resources for local agents (Hermes, OpenCode) to execute system actions via the agent-pipe.",
+      "hint": "Provides a Model Context Protocol (MCP) server that exposes MiOS verbs and resources through the upstream dual-era FOSS SDK.",
       "related": [
         "mios-daemon-agent",
         "mios-mcp",
@@ -32918,15 +32896,6 @@
       "related": [],
       "functions": [],
       "doc": null,
-      "comment_style": "hash",
-      "has_shebang": false
-    },
-    {
-      "path": "usr/share/mios/llamacpp/llama-swap.yaml",
-      "hint": "The mios-llm-light model map -- maps OpenAI /v1-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack.",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/llamacpp.md",
       "comment_style": "hash",
       "has_shebang": false
     },

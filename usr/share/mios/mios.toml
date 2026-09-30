@@ -2393,7 +2393,7 @@ exempt_files = [
     ".*Get-MiOS\\.ps1$",
     ".*patch_pods\\.py$",
     ".*mios-fix-wslg\\.ps1$",
-    ".*MiOS-Cat-FileChecker\\.ps1$"
+    ".*MiOS-Field-FileChecker\\.ps1$"
 ]
 exempt_patterns = [
     "0\\.0\\.0\\.0",
@@ -2439,7 +2439,7 @@ backend  = "systemd-cryptenroll"           # Enrollment backend: "systemd-crypte
 # A TPM2 PCR policy binds to ONE host: PCR 7 is that machine's Secure Boot
 # state, PCR 14 that machine's MOK enrolment. Neither travels on a drive.
 
-# So a portable MiOS-Cat drive enrolls a SECOND token. ADR-0016 D13.1.
+# So a portable MiOS-Field drive enrolls a SECOND token. ADR-0016 D13.1.
 portable_token = "fido2"
 
 [security.mtls]
@@ -10463,7 +10463,7 @@ threads            = 0
 iso_name           = "MiOS-Live-Chat.iso"
 live_chat_enabled  = "true"                     # .bat-loader alias of `enabled`
 live_chat_iso_name = "MiOS-Live-Chat.iso"       # .bat-loader alias of `iso_name`
-live_chat_iso_src  = "M:\\MiOS-Live-Chat.iso"   # where MiOS-Cat.bat looks for a pre-built ISO
+live_chat_iso_src  = "M:\\MiOS-Live-Chat.iso"   # where MiOS-Field.bat looks for a pre-built ISO
 
 [field.sysrescue]
 enable            = true
@@ -11785,8 +11785,8 @@ ref_allowlist = [
   "x.service", "unit.service", "UID.service", "UID_.service",
   "s.container", "-pod.service", "host.container", ".apply.target",
   "MIOS_FOO", "mios-XXXXX",
-  # Untracked files (installation/MiOS-Cat.bat is gitignored, mios-knowledge-graph.json built at runtime).
-  "installation/MiOS-Cat.bat",
+  # Untracked files (installation/MiOS-Field.bat is gitignored, mios-knowledge-graph.json built at runtime).
+  "installation/MiOS-Field.bat",
   "usr/share/mios/knowledge/mios-knowledge-graph.json",
   "mios-knowledge-graph",
   "C:\\mios-bootstrap\\Get-MiOS.ps1",
@@ -11810,8 +11810,8 @@ ref_allowlist = [
   "usr/share/mios/live-chat/overlay/",
   "/usr/libexec/mios/oh-my-posh/oh-my-posh",
   "build-mios.sh",
-  "field/MiOS-Cat.sh",
-  "field/MiOS-Cat.bat",
+  "field/MiOS-Field.sh",
+  "field/MiOS-Field.bat",
   "tests/templates/conform-cli/",
   "/usr/share/mios/tools/universal-vfio-configurator.sh",
   "automation/57-mios-sys-build.sh",
@@ -12005,7 +12005,7 @@ ai_hint = "Desktop entry for the SearXNG metasearch proxy; used by agents to ide
 # Byte-identical in both repos; mios.git wins. Never list a bootstrap-owned file.
 # build-mios.ps1 and installation/* stay mirrored rather than moved: bootstrap
 # runs them from its own checkout and raw URL (Get-MiOS.ps1, build-mios.sh,
-# field/lib/MiOS-Cat.psm1), so its copy is a mirror of this one, not an owner.
+# field/lib/MiOS-Field.psm1), so its copy is a mirror of this one, not an owner.
 mirror_files = [
   "Get-MiOS.ps1",
   "LICENSE",

@@ -168,7 +168,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-manual` | The generative documentation CLI. Builds the comment corpus ledger that makes "this comment's knowledge landed in a doc" a machine-checkable fact, and reports the census that drives the documentation... |
 | `usr/libexec/mios/mios-map` | A shim script that constructs and opens Google Maps URLs for locations or directions, providing a single-call interface for agents to bypass complex URL construction and browser-launch logic. |
 | `usr/libexec/mios/mios-mcp-enable-tier0.sh` | bash mios-mcp-enable-tier0.sh -- OPERATOR-RUN activation of the Tier-0 MCP servers AI-related: /usr/libexec/mios/mios-mcp-enable-tier0.... |
-| `usr/libexec/mios/mios-mcp-server` | Provides a Model Context Protocol (MCP) stdio server that exposes the MiOS [verbs.*] catalog as tools and resources for local agents (Hermes, OpenCode) to execute system actions via the agent-pipe. |
+| `usr/libexec/mios/mios-mcp-server` | Provides a Model Context Protocol (MCP) server that exposes MiOS verbs and resources through the upstream dual-era FOSS SDK. |
 | `usr/libexec/mios/mios-md` | A CLI shim that launches a local browser-based markdown editor and live previewer, converting local files or inline strings into a URL-encoded state for the standalone viewer at... |
 | `usr/libexec/mios/mios-mdev-define-gen` | Generates mdevctl persistent configuration JSON drop-ins for SR-IOV VFs and vendor mediated devices from mios.toml [mdev] SSOT. |
 | `usr/libexec/mios/mios-metal-mesh-gen` | Generates Headscale/Tailscale mesh configuration from mios.toml [metal.mesh] SSOT. |
@@ -447,7 +447,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_manifest_rag.py` | MiOS system and orchestration module providing mios manifest rag capabilities. |
 | `usr/lib/mios/agent-pipe/mios_mcp.py` | Declarative MCP server lifecycle manager and dynamic tool schema converter in agent-pipe. |
 | `usr/lib/mios/agent-pipe/mios_mcp_schema.py` | Strict OpenAI function-schema conversion for MCP tool definitions. |
-| `usr/lib/mios/agent-pipe/mios_mcp_transport.py` | JSON-RPC 2.0 client transports for MCP servers -- HTTP/SSE and long-lived stdio subprocesses. |
+| `usr/lib/mios/agent-pipe/mios_mcp_transport.py` | Upstream FOSS MCP SDK v2 client transports for stdio, Streamable HTTP and legacy SSE. |
 | `usr/lib/mios/agent-pipe/mios_memguard.py` | Re-export shim for mios_pipe.access.memguard |
 | `usr/lib/mios/agent-pipe/mios_memory.py` | Re-export shim for mios_pipe.memory.memory |
 | `usr/lib/mios/agent-pipe/mios_mesh_distributor.py` | Multi-node dynamic AI workload partitioner and capability-aware task router (T-537, AGY-2135). |
@@ -493,7 +493,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/federation/a2a_client.py` | A2A PEER-CLIENT consumer half extracted VERBATIM from server.py (refactor R11 federation follow-up). |
 | `usr/lib/mios/agent-pipe/mios_pipe/federation/agentcard_sign.py` | Pure A2A AgentCard JWS/JCS signing and verification module. |
 | `usr/lib/mios/agent-pipe/mios_pipe/federation/http_caps.py` | ADVERTISED-SURFACE / capability + read-only admin route-handler LOGIC extracted VERBATIM from server.py (refactor R-CAPS wave). |
-| `usr/lib/mios/agent-pipe/mios_pipe/federation/mcp.py` | External-MCP CONSUME client extracted VERBATIM from server.py (refactor R-MCP wave). |
+| `usr/lib/mios/agent-pipe/mios_pipe/federation/mcp.py` | Compatibility import for the canonical MCP federation router and SDK transports. |
 | `usr/lib/mios/agent-pipe/mios_pipe/health.py` | Health and status endpoint response builder module for MiOS agent-pipe. |
 | `usr/lib/mios/agent-pipe/mios_pipe/identity/__init__.py` | identity manager package |
 | `usr/lib/mios/agent-pipe/mios_pipe/identity/crl.py` | WS-A10 certificate/token revocation list (CRL). Pure-stdlib revocation set: load revoked token-ids / principal-ids from a list (or a caller-t... |
@@ -716,7 +716,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_manifest_rag.py` | Unit test for mios_manifest_rag.py |
 | `usr/lib/mios/agent-pipe/test_mios_mcp.py` | Stdlib unit test for mios_mcp -- the external-MCP CONSUME client extracted from server.py (refactor R-MCP). |
 | `usr/lib/mios/agent-pipe/test_mios_mcp_schema.py` | Stdlib unit test for the strict OpenAI function-schema conversion of MCP tools (mios_mcp_schema). |
-| `usr/lib/mios/agent-pipe/test_mios_mcp_transport.py` | Stdlib unit test for the MCP JSON-RPC transports -- header env expansion, SSE and JSON response decoding, and error mapping (mios_mcp_transport). |
+| `usr/lib/mios/agent-pipe/test_mios_mcp_transport.py` | Checks the SDK-backed MCP transport adapters and secret-safe header rendering. |
 | `usr/lib/mios/agent-pipe/test_mios_memguard.py` | Standalone assert-script unit test for mios_memguard (WS-MEM-VALIDATE / OWASP ASI08 write-time memory-poisoning guard, de-h... |
 | `usr/lib/mios/agent-pipe/test_mios_memory.py` | Standalone assert-script unit test for mios_memory (WS-A15 MemoryProvider seam). |
 | `usr/lib/mios/agent-pipe/test_mios_native_loop.py` | stdlib assert-script for mios_native_loop -- exercises the NATIVE |
