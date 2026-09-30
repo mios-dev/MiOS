@@ -21,6 +21,7 @@ Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=WAYLAND_DISPLAY=wayland-0
 EnvironmentFile=/etc/mios/install.env
+GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
 HealthCmd=curl -fsS http://localhost:47990/ || exit 1
 HealthInterval=30s
 HealthRetries=3

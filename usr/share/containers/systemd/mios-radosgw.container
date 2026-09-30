@@ -13,6 +13,7 @@ Wants=network-online.target
 [Container]
 ContainerName=mios-radosgw
 Exec=radosgw -d --cluster ceph --name client.rgw.gateway --rgw-frontends="beast endpoint=127.0.0.1:${MIOS_PORT_RADOSGW:-8470}"
+GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
 Group=root
 HealthCmd=/usr/bin/curl -sf http://127.0.0.1:${MIOS_PORT_RADOSGW:-8470}/ || exit 1
 HealthInterval=30s

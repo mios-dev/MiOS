@@ -12,6 +12,7 @@ Wants=network-online.target
 [Container]
 ContainerName=mios-ceph
 Exec=mon
+GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
 Group=root
 Image=quay.io/ceph/ceph:latest
 Pod=mios-system.pod

@@ -1,9 +1,9 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3601,
-  "total_metadata_entries": 2963,
-  "total_hints": 2950,
-  "total_functions_indexed": 1348,
+  "total_files_scanned": 3600,
+  "total_metadata_entries": 2962,
+  "total_hints": 2949,
+  "total_functions_indexed": 1349,
   "total_related_links": 4641,
   "entries": [
     {
@@ -91,15 +91,6 @@
     {
       "path": ".devcontainer/mios-agent-pipe-dev",
       "hint": "Starts the agent-pipe gateway by hand inside the devcontainer, where the host-oriented systemd units stay disabled.",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": ".devcontainer/setup-core-components.sh",
-      "hint": "Builds and installs the runnable MiOS development core (miosd workspace, agent-pipe runtime) in the devcontainer without starting host services.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -6234,6 +6225,7 @@
       ],
       "functions": [
         "TestCodeServerBake",
+        "TestDevcontainerLifecycle",
         "TestDevImageWiring",
         "TestAgentsContainerfile",
         "TestBuilders"

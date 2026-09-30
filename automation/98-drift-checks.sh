@@ -2603,6 +2603,16 @@ check_firstboot_tier() {
     fi
 }
 
+check_bound_image_store() {
+    _need_python || return 0
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py bound-image-store
+    then
+        echo "[98-drift-checks]   bound image store scoped to bound Quadlets"
+    else
+        _violation "bound image store contract failed"
+    fi
+}
+
 check_rechunk_budget() {
     local script="$ROOT/automation/build/rechunk.sh"
     if [[ ! -f "$script" ]]; then
@@ -3902,6 +3912,7 @@ main() {
     check_council_gate_ssot
     check_containerfile_pinned_clones
     check_firstboot_tier
+    check_bound_image_store
     check_rechunk_budget
     check_python_lint
     check_test_hermeticity

@@ -272,5 +272,148 @@ class TestUnlistableCorpus(unittest.TestCase):
                 "%s reported success on a corpus git never gave it" % name)
             self.assertTrue(out.strip(), "%s failed silently" % name)
 
+class TestBoundImageStore(unittest.TestCase):
+    """Exercise the source tree and baked binding directory as separate states."""
+
+    STORE = "/usr/lib/bootc/storage"
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="bound-store-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.write("usr/share/mios/mios.toml", '[build.bake]\n'
+                   f'additional_image_store = "{self.STORE}"\n'
+                   'firstboot_tokens = ["floating"]\n')
+        self.unit = self.write("usr/share/containers/systemd/core.container",
+                               self.container("example/core:stable", self.STORE))
+        self.write("usr/lib/bootc/bound-images.d/.gitkeep", "")
+
+    def write(self, relative, content):
+        path = os.path.join(self.root, relative)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        return path
+
+    def container(self, image, store=None):
+        return "[Container]\nImage=" + image + "\n" + (
+            f"GlobalArgs=--storage-opt=additionalimagestore={store}\n" if store else "")
+
+    def check(self, expected, message=""):
+        result = subprocess.run([sys.executable, _MOD_PATH, "bound-image-store"],
+                                env=dict(os.environ, MIOS_DRIFT_ROOT=self.root),
+                                capture_output=True, text=True)
+        self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
+        if message:
+            self.assertIn(message, result.stderr)
+
+    def test_source_and_commented_global_store_pass(self):
+        self.write("etc/containers/storage.conf", '[storage.options]\n'
+                   f'# additionalimagestores = ["{self.STORE}"]\n')
+        self.check(0)
+
+    def test_missing_unit_store_fails(self):
+        self.write("usr/share/containers/systemd/core.container", self.container("example/core:stable"))
+        self.check(1, "core.container: expected one additionalimagestore")
+
+    def test_firstboot_store_fails(self):
+        self.write("usr/share/containers/systemd/float.container", self.container("example/floating", self.STORE))
+        self.check(1, "float.container: firstboot or user-scope")
+
+    def test_user_store_fails(self):
+        self.write("usr/share/containers/systemd/users/user.container", self.container("example/user", self.STORE))
+        self.check(1, "user.container: firstboot or user-scope")
+
+    def test_empty_baked_directory_fails(self):
+        os.unlink(os.path.join(self.root, "usr/lib/bootc/bound-images.d/.gitkeep"))
+        self.check(1, "core.container: missing bound Quadlet symlink")
+
+    def test_global_store_fails(self):
+        self.write("etc/containers/storage.conf", '[storage.options]\n'
+                   f'additionalimagestores = ["{self.STORE}"]\n')
+        self.check(1, "bootc store must not be enabled globally")
+
+    def test_host_override_takes_precedence(self):
+        self.write("usr/share/containers/systemd/core.container", self.container("example/core"))
+        self.write("etc/containers/systemd/core.container", self.container("example/core", self.STORE))
+        self.check(0)
+
+    def test_complete_binding_and_wrong_target(self):
+        marker = os.path.join(self.root, "usr/lib/bootc/bound-images.d/.gitkeep")
+        link = os.path.join(os.path.dirname(marker), "core.container")
+        try:
+            os.symlink(self.unit, link)
+        except OSError as exc:
+            self.skipTest(f"host cannot create symlinks: {exc}")
+        os.unlink(marker)
+        self.check(0)
+        os.unlink(link)
+        other = self.write("other.container", self.container("example/other", self.STORE))
+        os.symlink(other, link)
+        self.check(1, "symlink targets wrong Quadlet")
+
+
+class TestBoundStoreProjection(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location(
+            "pod_projection", os.path.join(_HERE, "generate-pod-quadlets.py"))
+        self.mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.mod)
+        self.temp = tempfile.mkdtemp(prefix="store-projection-")
+        self.addCleanup(shutil.rmtree, self.temp, True)
+        self.toml = os.path.join(self.temp, "mios.toml")
+        with open(self.toml, "w", encoding="utf-8") as fh:
+            fh.write('[build.bake]\nadditional_image_store = "/usr/lib/bootc/storage"\n'
+                     'firstboot_tokens = ["floating"]\n')
+
+    def project(self, args=None, image="example/core"):
+        section = {"Image": image}
+        if args is not None:
+            section["GlobalArgs"] = args
+        containers = {"core": {"Container": section}}
+        self.mod.apply_bound_image_store(containers, self.toml)
+        return containers, section
+
+    def test_preserves_other_args_and_is_idempotent(self):
+        containers, section = self.project(["--log-level=debug"])
+        expected = ["--log-level=debug", "--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]
+        self.assertEqual(expected, section["GlobalArgs"])
+        self.mod.apply_bound_image_store(containers, self.toml)
+        self.assertEqual(expected, section["GlobalArgs"])
+
+    def test_split_option_is_preserved(self):
+        args = "--storage-opt additionalimagestore=/usr/lib/bootc/storage"
+        _, section = self.project(args)
+        self.assertEqual(args, section["GlobalArgs"])
+
+    def test_conflicting_or_duplicate_store_fails(self):
+        for args in (["--storage-opt=additionalimagestore=/other"],
+                     ["--storage-opt=additionalimagestore=/usr/lib/bootc/storage"] * 2):
+            with self.subTest(args=args), self.assertRaisesRegex(ValueError, "conflicting"):
+                self.project(args)
+
+    def test_malformed_args_fail(self):
+        for args in (0, False, [0]):
+            with self.subTest(args=args), self.assertRaisesRegex(ValueError, "GlobalArgs must"):
+                self.project(args)
+
+    def test_floating_image_never_uses_bound_store(self):
+        _, section = self.project(["--log-level=debug"], "example/floating")
+        self.assertEqual(["--log-level=debug"], section["GlobalArgs"])
+        with self.assertRaisesRegex(ValueError, "firstboot image"):
+            self.project("--storage-opt=additionalimagestore=/usr/lib/bootc/storage", "example/floating")
+
+    def test_false_settings_are_not_treated_as_missing(self):
+        for setting, value, message in (("additional_image_store", "false", "absolute path"),
+                                         ("firstboot_tokens", "false", "string array")):
+            with self.subTest(setting=setting):
+                with open(self.toml, "w", encoding="utf-8") as fh:
+                    fh.write('[build.bake]\n')
+                    if setting != "additional_image_store":
+                        fh.write('additional_image_store = "/usr/lib/bootc/storage"\n')
+                    fh.write(f"{setting} = {value}\n")
+                with self.assertRaisesRegex(ValueError, message):
+                    self.project()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

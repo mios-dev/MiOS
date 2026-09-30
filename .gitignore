@@ -47,7 +47,6 @@
 !/.devcontainer/fetch-installer.sh
 !/.devcontainer/README.md
 !/.devcontainer/mios-ecosystem.code-workspace
-!/.devcontainer/setup-core-components.sh
 !/.devcontainer/mios-agent-pipe-dev
 !/.devcontainer/boot-mios-systems.sh
 !/.devcontainer/artifact-builder/

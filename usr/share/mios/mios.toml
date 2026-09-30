@@ -7607,6 +7607,8 @@ searxng = "master"
 
 [build.bake]
 runner_disk_budget_gb = 40
+# Read-only bootc image store for logically bound Quadlets only.
+additional_image_store = "/usr/lib/bootc/storage"
 core = [
   "localhost/mios-sys",
   "localhost/mios-cuda",

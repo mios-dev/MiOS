@@ -26,12 +26,55 @@ EOF
     echo "[devcontainer:platform] Use .devcontainer/artifact-builder on a trusted host for privileged disk artifacts."
 }
 
+mios_core() {
+    local root=/workspaces/MiOS
+    local rust_manifest="${root}/src/mios-rs/Cargo.toml"
+    local install_dir=/opt/mios/bin
+    local agent_pipe_python=/usr/lib/mios/agents/.venv/bin/python
+    local binary
+
+    if [[ ! -f "${rust_manifest}" ]]; then
+        echo "[devcontainer:core] Missing miosd workspace manifest: ${rust_manifest}" >&2
+        return 1
+    fi
+    if [[ ! -x "${agent_pipe_python}" ]]; then
+        echo "[devcontainer:core] Missing agent-pipe runtime: ${agent_pipe_python}" >&2
+        return 1
+    fi
+
+    echo "[devcontainer:core] Verifying agent-pipe runtime..."
+    "${agent_pipe_python}" -c 'import fastapi, httpx, mcp, pydantic, uvicorn'
+
+    echo "[devcontainer:core] Initializing MiOS developer state..."
+    install -d -m 0755 \
+        "${HOME}/.local/state/mios/agent-pipe" \
+        "${HOME}/.local/state/mios/daemon" \
+        "${HOME}/.local/share/mios/agent-pipe" \
+        "${HOME}/.cache/mios/agent-pipe"
+
+    echo "[devcontainer:core] Building upstream native workspaces..."
+    (cd "${root}/src/mios-rs" && cargo build --release)
+    (cd "${root}/tools/native" && cargo build --release --workspace --exclude mios-wallpaperd)
+    sudo install -d -m 0755 "${install_dir}"
+    for binary in \
+        "${root}"/src/mios-rs/target/release/mios* \
+        "${root}"/tools/native/target/release/mios-* \
+        "${root}"/tools/native/target/release/generate-names-registry; do
+        [[ -x "${binary}" ]] || continue
+        sudo install -m 0755 "${binary}" "${install_dir}/$(basename "${binary}")"
+    done
+    sudo ln -sfn "${install_dir}/miosd" /usr/local/bin/miosd
+    miosd --help >/dev/null
+
+    echo "[devcontainer:core] MiOS development core is ready."
+}
+
 mios_create() {
     echo "[devcontainer:post-create] Initializing embedded agent harness..."
     mkdir -p .devloop_artifacts .worktrees
     git config --global --add safe.directory /workspaces/MiOS
     bash /workspaces/MiOS/.devcontainer/setup-devcontainer.sh
-    bash /workspaces/MiOS/.devcontainer/setup-core-components.sh
+    mios_core
     echo "[devcontainer:post-create] Full MiOS workspace and harness are ready."
 }
 
@@ -51,7 +94,7 @@ mios_start() {
     sudo bash "${ROOT}/.devcontainer/install-root-overlay.sh"
 
     echo "[devcontainer:boot] Reconciling MiOS development core..."
-    bash "${ROOT}/.devcontainer/setup-core-components.sh"
+    mios_core
     mios_platform
 
     # Re-seed the live editor Machine/settings.json from .dotfiles on every start:

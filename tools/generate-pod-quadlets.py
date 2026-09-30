@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import sys
 import re
+import shlex
 
 try:
     import tomllib
@@ -256,6 +257,51 @@ def load_images(toml_path: str) -> dict:
         d = tomllib.load(f)
     return d.get("images") or d.get("image") or {}
 
+def apply_bound_image_store(containers: dict, toml_path: str) -> None:
+    """Project the bootc store only onto containers that bootc binds.
+
+    The same firstboot tokens drive overlay-bind-images. A firstboot image is
+    fetched into the normal Podman store and must never read bootc's store.
+    """
+    with open(toml_path, "rb") as f:
+        bake = (tomllib.load(f).get("build") or {}).get("bake") or {}
+    store = bake.get("additional_image_store", "")
+    if store == "":
+        return
+    if not isinstance(store, str) or not store.startswith("/") or any(c.isspace() for c in store):
+        raise ValueError("[build.bake].additional_image_store must be an absolute path")
+    tokens = bake.get("firstboot_tokens", [])
+    if not isinstance(tokens, list) or any(not isinstance(t, str) for t in tokens):
+        raise ValueError("[build.bake].firstboot_tokens must be a string array")
+    wanted = f"--storage-opt=additionalimagestore={store}"
+    for name, spec in containers.items():
+        section = spec.get("Container") if isinstance(spec, dict) else None
+        if not isinstance(section, dict) or not section.get("Image"):
+            continue
+        image = str(resolve_env_vars(section["Image"]))
+        current = section.get("GlobalArgs", [])
+        if not isinstance(current, (str, list)) or (isinstance(current, list) and
+                                                  any(not isinstance(arg, str) for arg in current)):
+            raise ValueError(f"{name}: GlobalArgs must be a string or string array")
+        args = [current] if isinstance(current, str) else current
+        words = [word for arg in args for word in shlex.split(arg)]
+        existing = []
+        for index, word in enumerate(words):
+            if word.startswith("--storage-opt=additionalimagestore="):
+                existing.append(word.removeprefix("--storage-opt=additionalimagestore="))
+            elif word == "--storage-opt" and index + 1 < len(words):
+                option = words[index + 1]
+                if option.startswith("additionalimagestore="):
+                    existing.append(option.removeprefix("additionalimagestore="))
+        if any(token and token in image for token in tokens):
+            if existing:
+                raise ValueError(f"{name}: firstboot image cannot use bootc additional image store")
+            continue
+        if existing and existing != [store]:
+            raise ValueError(f"{name}: conflicting bootc additional image store {existing!r}")
+        if not existing:
+            section["GlobalArgs"] = args + [wanted]
+
 def load_enabled_quadlets(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
@@ -457,6 +503,7 @@ def main(argv: "list[str]") -> int:
     pods = load_pods(TOML)
     ports = load_ports(TOML)
     containers = load_containers(TOML)
+    apply_bound_image_store(containers, TOML)
     networks = load_networks(TOML)
     volumes = load_volumes(TOML)
     images = load_images(TOML)

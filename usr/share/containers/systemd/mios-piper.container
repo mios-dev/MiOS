@@ -13,6 +13,7 @@ ContainerName=mios-piper
 Environment=PORT=${MIOS_PORT_PIPER:-8179}
 EnvironmentFile=/etc/mios/install.env
 Exec=--model /models/en_US-lessac-medium.onnx --port ${MIOS_PORT_PIPER:-8179} --host 0.0.0.0
+GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
 HealthCmd=curl -fsS http://localhost:${MIOS_PORT_PIPER:-8179}/health || exit 1
 HealthInterval=30s
 HealthRetries=3

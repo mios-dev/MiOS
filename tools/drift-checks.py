@@ -1483,6 +1483,7 @@ def check_negative_test_coverage() -> int:
         "check_bake_plan",
         "check_containerfile_pinned_clones",
         "check_firstboot_tier",
+        "check_bound_image_store",
         "check_rechunk_budget",
         "check_gate_registry",
         "check_test_hermeticity",
@@ -2037,6 +2038,130 @@ def check_firstboot_tier() -> int:
             sys.stderr.write(f"    {b}\n")
         sys.exit(1)
     sys.exit(0)
+
+def check_bound_image_store() -> int:
+    """Keep bootc's read-only image store scoped to bound system Quadlets."""
+    import glob
+    import os
+    import shlex
+    import sys
+    import tomllib
+
+    root = os.path.abspath(os.environ["MIOS_DRIFT_ROOT"])
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+    qdirs = [os.path.join(root, "usr/share/containers/systemd"),
+             os.path.join(root, "etc/containers/systemd")]
+    bdir = os.path.join(root, "usr/lib/bootc/bound-images.d")
+    if not os.path.isfile(toml_path) or not os.path.isdir(qdirs[0]):
+        print("bound-image-store: SSOT or generated Quadlet directory is missing", file=sys.stderr)
+        return 1
+    with open(toml_path, "rb") as fh:
+        bake = (tomllib.load(fh).get("build") or {}).get("bake") or {}
+    store = bake.get("additional_image_store")
+    tokens = bake.get("firstboot_tokens", [])
+    if not isinstance(store, str) or not store.startswith("/") or any(c.isspace() for c in store):
+        print("bound-image-store: additional_image_store must be an absolute path without whitespace", file=sys.stderr)
+        return 1
+    if not isinstance(tokens, list) or any(not isinstance(t, str) for t in tokens):
+        print("bound-image-store: firstboot_tokens must be a string array", file=sys.stderr)
+        return 1
+
+    bad = []
+    definitions = {}
+    # Match overlay-bind-images precedence: vendor first, host overrides last.
+    for qdir in qdirs:
+        paths = []
+        for extension in ("container", "image"):
+            paths.extend(glob.glob(os.path.join(qdir, "*." + extension)))
+            paths.extend(glob.glob(os.path.join(qdir, "*", "*." + extension)))
+        for path in sorted(paths):
+            section, images, args = "", [], []
+            main_section = "Container" if path.endswith(".container") else "Image"
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line.startswith("[") and line.endswith("]"):
+                        section = line[1:-1]
+                    elif section == main_section and "=" in line and not line.startswith(("#", ";")):
+                        key, value = (part.strip() for part in line.split("=", 1))
+                        if key == "Image":
+                            images.append(value)
+                        elif key == "GlobalArgs":
+                            args.append(value)
+            definitions[os.path.basename(path)] = (path, images, args)
+    if not definitions:
+        bad.append("no system or user Quadlet image definitions found")
+
+    expected_bound = {}
+    firstboot = set()
+    for name, (path, images, args) in definitions.items():
+        if len(images) != 1 or not images[0]:
+            bad.append(f"{name}: expected one nonempty Image= value")
+            continue
+        try:
+            words = [word for arg in args for word in shlex.split(arg)]
+        except ValueError as exc:
+            bad.append(f"{name}: invalid GlobalArgs quoting: {exc}")
+            continue
+        stores = []
+        for index, word in enumerate(words):
+            if word.startswith("--storage-opt=additionalimagestore="):
+                stores.append(word.removeprefix("--storage-opt=additionalimagestore="))
+            elif word == "--storage-opt" and index + 1 < len(words):
+                option = words[index + 1]
+                if option.startswith("additionalimagestore="):
+                    stores.append(option.removeprefix("additionalimagestore="))
+        is_firstboot = any(token and token in images[0] for token in tokens)
+        is_user = os.path.basename(os.path.dirname(path)) == "users"
+        if is_firstboot:
+            firstboot.add(name)
+        else:
+            expected_bound[name] = path
+        if is_firstboot or is_user:
+            if stores:
+                bad.append(f"{name}: firstboot or user-scope image must not use bootc's image store")
+        elif name.endswith(".container") and stores != [store]:
+            bad.append(f"{name}: expected one additionalimagestore={store} argument")
+
+    # .gitkeep is the explicit source-only placeholder, removed by the bake.
+    actual = {name for name in os.listdir(bdir) if name != ".gitkeep"} if os.path.isdir(bdir) else set()
+    source_only = not actual and os.path.isfile(os.path.join(bdir, ".gitkeep"))
+    if not source_only:
+        for name in actual:
+            link = os.path.join(bdir, name)
+            if not os.path.islink(link) or not os.path.exists(link):
+                bad.append(f"bound-images.d/{name}: missing or broken symlink")
+            if name in firstboot or name not in expected_bound:
+                bad.append(f"bound-images.d/{name}: not a declared bound Quadlet")
+            elif os.path.islink(link) and os.path.normcase(os.path.realpath(link)) != os.path.normcase(os.path.realpath(expected_bound[name])):
+                bad.append(f"bound-images.d/{name}: symlink targets wrong Quadlet")
+        for name in expected_bound.keys() - actual:
+            bad.append(f"bound-images.d/{name}: missing bound Quadlet symlink")
+
+    def globally_enabled(value):
+        if isinstance(value, dict):
+            return any((key == "additionalimagestores" and isinstance(item, list) and store in item)
+                       or globally_enabled(item) for key, item in value.items())
+        return False
+
+    for relative in ("etc/containers", "usr/share/containers"):
+        config_dir = os.path.join(root, relative)
+        configs = [os.path.join(config_dir, "storage.conf")]
+        configs.extend(glob.glob(os.path.join(config_dir, "storage.conf.d", "*.conf")))
+        for path in configs:
+            if not os.path.isfile(path):
+                continue
+            try:
+                with open(path, "rb") as fh:
+                    enabled = globally_enabled(tomllib.load(fh))
+            except (OSError, tomllib.TOMLDecodeError) as exc:
+                bad.append(f"{os.path.relpath(path, root)}: cannot inspect storage config: {exc}")
+                continue
+            if enabled:
+                bad.append(f"{os.path.relpath(path, root)}: bootc store must not be enabled globally")
+    for item in sorted(bad):
+        print(f"bound-image-store: {item}", file=sys.stderr)
+    return 1 if bad else 0
 
 def check_gate_registry() -> int:
     """Lifted from a shell heredoc so it can be imported, linted and tested.
@@ -4569,7 +4694,7 @@ def check_blade_reconcile_schema() -> int:
 
 _SUBCOMMAND_NAMES = (
     "agent-schema", "names-registry", "gate-registry",
-    "firstboot-tier", "cephfs-ssot", "verb-stub-backends", "no-bare-port-literals",
+    "firstboot-tier", "bound-image-store", "cephfs-ssot", "verb-stub-backends", "no-bare-port-literals",
     "globals-image-parity", "bake-plan-integrity", "negative-test-coverage",
     "structured", "drift-build-catalog", "drift-projection", "unwired-modules",
     "no-duplicate-value-key", "resolver-differential-parity", "legibility-ratchet",
