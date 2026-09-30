@@ -1768,6 +1768,235 @@ class vp_TestVTPMProvision(unittest.TestCase):
 
 
 
+
+class OVMFContentProofTests(unittest.TestCase):
+    """Fixtures never touch installed firmware, NVRAM, or VM state."""
+
+    GLOBAL = '8be4df61-93ca-11d2-aa0d-00e098032b8c'
+    DB = 'd719b2cb-3d3a-4596-a3bc-dad00e67656f'
+    ENABLE = 'f0a30bc7-af08-4556-99c4-001009c93a44'
+    RSA = '3c5766e8-269c-4e34-aa14-ed776e85b3b6'
+    SHA256 = 'c1c41626-504c-4092-aca9-41f936934328'
+
+    def setUp(self):
+        from pathlib import Path
+        self.temp = tempfile.TemporaryDirectory(prefix='ovmf-content-')
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.desc = self.base / 'descriptors'
+        self.desc.mkdir()
+        self.lib = os.path.join(avd__ROOT, 'tools', 'find-ovmf-firmware.sh')
+        self.env = dict(os.environ, MIOS_OVMF_SHARE=str(self.base), MIOS_OVMF_FWDESC_DIR=str(self.desc))
+
+    @staticmethod
+    def guid(value):
+        import uuid
+        return uuid.UUID(value).bytes_le
+
+    def signatures(self, kind, payload):
+        import struct
+        owner = self.guid(self.GLOBAL)
+        signature = owner + payload
+        return self.guid(kind) + struct.pack('<III', 28+len(signature), 0, len(signature)) + signature
+
+    def keys(self):
+        rsa = self.signatures(self.RSA, b'\x80' + b'\x11'*254 + b'\x01')
+        db = self.signatures(self.SHA256, b'\x22'*32)
+        return [('PK', self.GLOBAL, rsa, 0x3f, 0x27), ('KEK', self.GLOBAL, rsa, 0x3f, 0x27),
+                ('db', self.DB, db, 0x3f, 0x27), ('SecureBootEnable', self.ENABLE, b'\x01', 0x3f, 3)]
+
+    def store(self, records=(), filename='OVMF_VARS.secboot.fd', normal=False):
+        import struct
+        data = bytearray(b'\xff' * 4096)
+        data[:72] = b'\x00' * 72
+        data[16:32] = self.guid('fff12b8d-7696-4c8b-a985-2747075b4f50')
+        struct.pack_into('<Q4sIHHHBBIIII', data, 32, 4096, b'_FVH', 0x800, 72, 0, 0, 0, 2, 1, 4096, 0, 0)
+        checksum = (-sum(struct.unpack_from('<36H', data))) & 0xffff
+        struct.pack_into('<H', data, 50, checksum)
+        signature = 'ddcf3616-3275-4164-98b6-fe85707ffe7d' if normal else 'aaf32c78-947b-439a-a180-2e144ec37792'
+        data[72:100] = self.guid(signature) + struct.pack('<IBBHI', len(data)-72, 0x5a, 0xfe, 0, 0)
+        offset = 100
+        for name, vendor, payload, state, attrs in records:
+            encoded = (name+'\x00').encode('utf-16-le')
+            if normal:
+                header = struct.pack('<HBBIII16s', 0x55aa, state, 0, attrs, len(encoded), len(payload), self.guid(vendor))
+            else:
+                header = struct.pack('<HBBIQ16sIII16s', 0x55aa, state, 0, attrs, 0, b'\x00'*16, 0, len(encoded), len(payload), self.guid(vendor))
+            entry = header + encoded + payload
+            data[offset:offset+len(entry)] = entry
+            offset = (offset + len(entry) + 3) & ~3
+        path = self.base / filename
+        path.write_bytes(data)
+        return path
+
+    def run_function(self, name, *args):
+        import subprocess
+        result = subprocess.run(['bash', '-c', 'source "$1"; shift; function_name=$1; shift; "$function_name" "$@"',
+                                 'ovmf-fixture', self.lib, name, *map(str,args)], env=self.env, capture_output=True, text=True, timeout=10)
+        return result.returncode, result.stdout.strip()
+
+    def descriptor(self, code, vars_, features=('secure-boot','enrolled-keys'), code_format='raw', vars_format='raw', mode=None):
+        mapping = {'device':'flash','executable':{'filename':str(code),'format':code_format},
+                   'nvram-template':{'filename':str(vars_),'format':vars_format}}
+        if mode is not None:
+            mapping['mode'] = mode
+        path = self.desc / '10-fixture.json'
+        path.write_text(json.dumps({'description':'fixture only','features':list(features),'mapping':mapping}), encoding='utf-8')
+        return path
+
+    def assert_not_enrolled(self, records):
+        rc, out = self.run_function('ovmf_vars_enrollment', self.store(records))
+        self.assertFalse(out.startswith('ENROLLED'), out)
+        return rc, out
+
+    def test_positive_authenticated_keys_and_blank_template(self):
+        rc, out = self.run_function('ovmf_vars_enrollment', self.store(self.keys()))
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(out.startswith('ENROLLED'), out)
+        rc, out = self.run_function('ovmf_vars_enrollment', self.store())
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(out.startswith('BLANK'), out)
+
+    def test_standard_guid_store_layout_is_supported(self):
+        rc, out = self.run_function('ovmf_vars_enrollment', self.store(self.keys(), normal=True))
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(out.startswith('ENROLLED'), out)
+
+    def test_empty_platform_key_cannot_prove_enrollment(self):
+        keys = self.keys(); keys[0] = ('PK', self.GLOBAL, b'', 0x3f, 0x27)
+        self.assertEqual(self.assert_not_enrolled(keys)[0], 1)
+
+    def test_deleted_transition_and_header_only_keys_are_not_live(self):
+        for state in (0x3c, 0x3d, 0x3e, 0x7f):
+            with self.subTest(state=state):
+                keys = self.keys(); keys[0] = (*keys[0][:3], state, 0x27)
+                self.assertEqual(self.assert_not_enrolled(keys)[0], 1)
+
+    def test_foreign_namespace_and_platform_key_alone_fail_closed(self):
+        keys = self.keys(); keys[0] = ('PK', self.DB, keys[0][2], 0x3f, 0x27)
+        self.assertEqual(self.assert_not_enrolled(keys)[0], 1)
+        self.assertEqual(self.assert_not_enrolled(self.keys()[:1])[0], 1)
+
+    def test_truncated_variable_and_store_lengths_fail_closed(self):
+        import struct
+        path = self.store(self.keys()); data=bytearray(path.read_bytes())
+        struct.pack_into('<I', data, 100+40, 4096)
+        path.write_bytes(data)
+        rc,out=self.run_function('ovmf_vars_enrollment',path)
+        self.assertEqual(rc,1,out); self.assertIn('UNKNOWN',out)
+        path=self.store(self.keys()); path.write_bytes(path.read_bytes()[:300])
+        rc,out=self.run_function('ovmf_vars_enrollment',path)
+        self.assertEqual(rc,1,out); self.assertIn('truncated',out)
+
+    def test_missing_authenticated_attributes_and_disabled_intent_fail(self):
+        keys=self.keys(); keys[0]=(*keys[0][:4],7)
+        self.assertEqual(self.assert_not_enrolled(keys)[0],1)
+        keys=self.keys(); keys[-1]=('SecureBootEnable',self.ENABLE,b'\x00',0x3f,3)
+        self.assertEqual(self.assert_not_enrolled(keys)[0],1)
+        self.assertEqual(self.assert_not_enrolled(self.keys()[:-1])[0],1)
+
+    def test_malformed_signature_list_and_duplicate_live_pk_fail(self):
+        keys=self.keys(); keys[0]=('PK',self.GLOBAL,b'not a signature list',0x3f,0x27)
+        self.assertEqual(self.assert_not_enrolled(keys)[0],1)
+        self.assertEqual(self.assert_not_enrolled(self.keys()+self.keys()[:1])[0],1)
+
+    def test_printing_pk_with_external_tool_does_not_bypass_content(self):
+        tool_dir=self.base/'bin';tool_dir.mkdir()
+        tool=tool_dir/'virt-fw-vars';tool.write_text('#!/bin/sh\nprintf "PK: fake\\nKEK: fake\\ndb: fake\\n"\n',encoding='utf-8');tool.chmod(0o755)
+        self.env['PATH']=str(tool_dir)+os.pathsep+self.env['PATH']
+        rc,out=self.run_function('ovmf_vars_enrollment',self.store())
+        self.assertEqual(rc,0,out);self.assertTrue(out.startswith('BLANK'),out)
+
+    def test_lying_secboot_names_never_prove_capability(self):
+        for name in ('OVMF_CODE.secboot.fd','OVMF_CODE.secboot.qcow2'):
+            with self.subTest(name=name):
+                code=self.store(filename=name)
+                rc,out=self.run_function('ovmf_sb_capability',code)
+                self.assertEqual(rc,1,out);self.assertTrue(out.startswith('unknown'),out)
+
+    def test_valid_descriptor_and_content_prove_pair_and_capability(self):
+        code=self.store(filename='OVMF_CODE.fd');vars_=self.store(self.keys())
+        self.descriptor(code,vars_)  # omitted mode defaults to split upstream.
+        for fn,args in [('ovmf_pair_status',(code,vars_)),('ovmf_sb_capability',(code,)),('find_vars_for_code',(code,))]:
+            rc,out=self.run_function(fn,*args)
+            self.assertEqual(rc,0,out)
+        rc,out=self.run_function('ovmf_sb_capability',code)
+        self.assertTrue(out.startswith('yes'),out)
+
+    def test_descriptor_cannot_bless_invalid_image_or_wrong_format(self):
+        code=self.store(filename='OVMF_CODE.fd');vars_=self.store(self.keys())
+        self.descriptor(code,vars_);code.write_bytes(b'empty or truncated')
+        for fn,args in [('ovmf_pair_status',(code,vars_)),('ovmf_sb_capability',(code,))]:
+            rc,out=self.run_function(fn,*args);self.assertEqual(rc,1,out)
+        code=self.store(filename='OVMF_CODE.fd')
+        self.descriptor(code,vars_,code_format='qcow2')
+        rc,out=self.run_function('ovmf_pair_status',code,vars_)
+        self.assertEqual(rc,1,out);self.assertIn('FORMAT_MISMATCH',out)
+
+    def test_descriptor_enrolled_feature_requires_live_keys(self):
+        code=self.store(filename='OVMF_CODE.fd');vars_=self.store()
+        self.descriptor(code,vars_)
+        rc,out=self.run_function('ovmf_pair_status',code,vars_)
+        self.assertEqual(rc,1,out);self.assertIn('ENROLLMENT_MISMATCH',out)
+
+    def test_same_directory_and_size_names_do_not_prove_common_build(self):
+        code=self.store(filename='OVMF_CODE_4M.fd');vars_=self.store(self.keys(),filename='OVMF_VARS_4M.fd')
+        rc,out=self.run_function('ovmf_pair_status',code,vars_)
+        self.assertEqual(rc,1,out);self.assertIn('UNPROVEN_PAIR',out)
+
+
+
+    def test_blank_descriptor_without_features_is_readable(self):
+        code=self.store(filename='OVMF_CODE.fd');vars_=self.store()
+        self.descriptor(code,vars_,features=())
+        rc,out=self.run_function('ovmf_pair_status',code,vars_)
+        self.assertEqual(rc,0,out)
+        rc,out=self.run_function('ovmf_sb_capability',code)
+        self.assertEqual(rc,0,out);self.assertTrue(out.startswith('no '),out)
+
+    def test_invalid_checksum_is_not_blessed_by_descriptor(self):
+        code=self.store(filename='OVMF_CODE.fd');vars_=self.store(self.keys())
+        self.descriptor(code,vars_)
+        data=bytearray(code.read_bytes());data[50]^=1;code.write_bytes(data)
+        rc,out=self.run_function('ovmf_pair_status',code,vars_)
+        self.assertEqual(rc,1,out);self.assertIn('checksum',out)
+
+    def test_install_refuses_existing_file_and_missing_code_hint(self):
+        source=self.store(self.keys());target=self.base/'destination';target.mkdir()
+        output=target/'existing.fd';output.write_bytes(b'keep this existing firmware')
+        rc,out=self.run_function('ovmf_install_verified_vars',source,target,output.name,'')
+        self.assertEqual(rc,1,out);self.assertEqual(output.read_bytes(),b'keep this existing firmware')
+        rc,out=self.run_function('ovmf_install_verified_vars',source,target,'new.fd',self.base/'missing_CODE.fd')
+        self.assertEqual(rc,1,out);self.assertFalse((target/'new.fd').exists())
+        rc,out=self.run_function('ovmf_install_verified_vars',source,target,'published.fd','')
+        self.assertEqual(rc,0,out);self.assertEqual((target/'published.fd').read_bytes(),source.read_bytes())
+        tool_dir=self.base/'copy-tool';tool_dir.mkdir()
+        tool=tool_dir/'cp';tool.write_text('#!/bin/sh\nfor target do :; done\nprintf corrupt > "$target"\n',encoding='utf-8');tool.chmod(0o755)
+        self.env['PATH']=str(tool_dir)+os.pathsep+self.env['PATH']
+        rc,out=self.run_function('ovmf_install_verified_vars',source,target,'corrupt.fd','')
+        self.assertEqual(rc,1,out);self.assertFalse((target/'corrupt.fd').exists())
+
+
+    def test_actual_qcow2_mixed_format_pair(self):
+        import subprocess
+        if not shutil.which('qemu-img'):
+            self.skipTest('qemu-img unavailable; raw proof tests still run')
+        code=self.store(filename='OVMF_CODE.fd');raw=self.store(self.keys());vars_=self.base/'OVMF_VARS.qcow2'
+        subprocess.run(['qemu-img','convert','-f','raw','-O','qcow2',str(raw),str(vars_)],check=True,capture_output=True)
+        self.descriptor(code,vars_,vars_format='qcow2')
+        rc,out=self.run_function('ovmf_pair_status',code,vars_)
+        self.assertEqual(rc,0,out)
+
+    def test_qcow2_backing_file_is_not_trusted_firmware(self):
+        import subprocess
+        if not shutil.which('qemu-img'):
+            self.skipTest('qemu-img unavailable; backing-chain live control not run')
+        backing=self.store(self.keys());vars_=self.base/'OVMF_VARS.qcow2'
+        subprocess.run(['qemu-img','create','-f','qcow2','-F','raw','-b',str(backing),str(vars_)],check=True,capture_output=True)
+        rc,out=self.run_function('ovmf_vars_enrollment',vars_)
+        self.assertEqual(rc,1,out);self.assertTrue(out.startswith('UNKNOWN'),out)
+
+
 def main() -> int:
     rc = 0 if unittest.main(argv=[sys.argv[0]], exit=False).result.wasSuccessful() else 1
     return rc

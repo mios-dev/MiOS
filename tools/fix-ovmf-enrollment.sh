@@ -1,5 +1,6 @@
 #!/bin/bash
-# AI-hint: A root-level utility to ensure Secure Boot compatibility by downloading or generating pre-enrolled OVMF VARS files in /usr/share/edk2/x64/ for use in VM configurations.
+# AI-hint: Root-gated repair that ensures a content-verified ENROLLED OVMF varstore exists: verifies current state with the bounded EDK2 variable-store parser, then either copies the distro-provided enrolled VARS, enrolls a fresh copy of the same-build blank template with virt-fw-vars --enroll-redhat, or fetches current edk2-ovmf via dnf download - every artifact is content-verified and pair-checked before install; never overwrites existing firmware, never touches /var/lib/libvirt/qemu/nvram or live VM state.
+# AI-related: find-ovmf-firmware.sh, check-ovmf-enrollment.sh, get-secureboot-ovmf.sh
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -9,11 +10,15 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-set -e
+SELF_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=tools/find-ovmf-firmware.sh
+source "$SELF_DIR/find-ovmf-firmware.sh"
 
 echo -e "${BOLD}${GREEN}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${GREEN}     OVMF Secure Boot Enrollment Fixer${NC}"
+echo -e "${BOLD}${GREEN}     OVMF Secure Boot Enrollment Fixer (verified)${NC}"
 echo -e "${BOLD}${GREEN}═══════════════════════════════════════════════════════${NC}\n"
+
+OVMF_DIR="${MIOS_OVMF_TARGET_DIR:-$(ovmf_share_root)/edk2/x64}"
 
 if [ "$EUID" -ne 0 ]; then
     echo -e "${RED}[x] This script must be run as root${NC}"
@@ -21,171 +26,62 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-OVMF_DIR="/usr/share/edk2/x64"
-TARGET_VARS="$OVMF_DIR/OVMF_VARS.secboot.4m.fd"
+echo -e "${BLUE}[1/3] Checking current enrollment state (content, not names)...${NC}\n"
 
-echo -e "${BLUE}[1/5] Checking current OVMF files...${NC}\n"
-
-if [ -f "$TARGET_VARS" ]; then
-    echo -e "${GREEN}[ok] Pre-enrolled VARS file already exists!${NC}"
-    echo -e "  Location: $TARGET_VARS"
-    echo -e "  Size: $(stat -c%s "$TARGET_VARS" | numfmt --to=iec-i --suffix=B)"
+FOUND=$(ovmf_find_enrolled_vars)
+if [ -n "$FOUND" ]; then
+    FOUND_PATH=$(echo "$FOUND" | head -1 | cut -f1)
+    echo -e "${GREEN}[ok] Content-verified enrolled varstore already exists:${NC}"
+    echo -e "  Location: $FOUND_PATH ($(ovmf_human_size "$(ovmf_file_size "$FOUND_PATH")"))"
+    echo -e "  Evidence: $(echo "$FOUND" | head -1 | cut -f2)"
     echo
-    echo -e "${YELLOW}You're all set! Use this file in your VM configuration.${NC}"
+    echo -e "${YELLOW}Nothing to fix. Use it as your NVRAM template - for example:${NC}"
+    echo -e "  ${CYAN}<nvram template=\"$FOUND_PATH\">/var/lib/libvirt/qemu/nvram/VM_VARS.fd</nvram>${NC}"
+    echo
+    echo -e "${YELLOW}Safety: live NVRAM under /var/lib/libvirt/qemu/nvram and running VMs are never touched.${NC}"
     exit 0
 fi
 
-echo -e "${YELLOW}[!] Pre-enrolled VARS file not found${NC}"
-echo -e "  Looking for: $TARGET_VARS\n"
-
-echo -e "${BLUE}[2/5] Checking for alternative packages...${NC}\n"
-
-echo -e "${CYAN}Searching AUR for OVMF packages with enrolled keys...${NC}"
-
-if command -v yay &>/dev/null; then
-    echo -e "\n${YELLOW}Available OVMF-related packages:${NC}"
-    yay -Ss ovmf edk2 2>/dev/null | grep -E "^(aur|extra)" | head -20 || true
-    echo
-elif command -v paru &>/dev/null; then
-    echo -e "\n${YELLOW}Available OVMF-related packages:${NC}"
-    paru -Ss ovmf edk2 2>/dev/null | grep -E "^(aur|extra)" | head -20 || true
-    echo
-else
-    echo -e "${YELLOW}[!] No AUR helper found (yay/paru)${NC}"
-fi
-
-echo -e "\n${BLUE}[3/5] Solution options...${NC}\n"
-
-echo -e "${BOLD}Choose a solution:${NC}"
-echo -e "  ${CYAN}1)${NC} Download pre-enrolled OVMF from Gerd Hoffmann's repo (RECOMMENDED)"
-echo -e "  ${CYAN}2)${NC} Copy and manually enroll keys to existing VARS file"
-echo -e "  ${CYAN}3)${NC} Use firmware autoselection (libvirt auto-enrolls)"
-echo -e "  ${CYAN}4)${NC} Exit and manually install alternative package"
+echo -e "${YELLOW}[!] No content-verified enrolled varstore found on this system.${NC}"
+echo -e "  (Blank templates and 'secboot'-named files do NOT count - keys must be"
+echo -e "   present in the varstore content: PK/KEK/db/dbx.)"
 echo
 
-read -p "Enter choice (1-4): " choice
+echo -e "${BLUE}[2/3] Tooling check...${NC}\n"
+if command -v virt-fw-vars &>/dev/null; then
+    echo -e "  ${GREEN}[ok]${NC} virt-fw-vars present (offline enrollment available)"
+else
+    echo -e "  ${YELLOW}[!]${NC} virt-fw-vars missing - offline enrollment unavailable"
+    echo -e "    MiOS ships it via the virt package group: ${CYAN}sudo dnf install virt-firmware${NC}"
+fi
+command -v python3 &>/dev/null \
+    && echo -e "  ${GREEN}[ok]${NC} python3 present (embedded varstore parser available)" \
+    || echo -e "  ${YELLOW}[!]${NC} python3 missing - verification coverage reduced"
+echo
 
-case $choice in
-    1)
-        echo -e "\n${BLUE}[4/5] Downloading pre-enrolled OVMF files...${NC}\n"
+echo -e "${BLUE}[3/3] Repair...${NC}\n"
+echo -e "${YELLOW}Target directory: $OVMF_DIR${NC}"
+echo -e "${YELLOW}Guarantees: only content-verified ENROLLED varstores are written;"
+echo -e "existing files are never overwritten; live NVRAM is never touched.${NC}\n"
 
-        WORK_DIR="/tmp/ovmf-download-$$"
-        mkdir -p "$WORK_DIR"
-        cd "$WORK_DIR"
+ovmf_repair_menu "$OVMF_DIR"
+rc=$?
 
-        echo -e "${CYAN}Downloading from Gerd Hoffmann's Jenkins...${NC}"
-
-        LATEST_URL="https://www.kraxel.org/repos/jenkins/edk2/edk2.git-ovmf-x64-0-20231115.1699.gc4e558ebf9.EOL.noarch.rpm"
-
-        echo -e "  Downloading OVMF package..."
-        if command -v wget &>/dev/null; then
-            wget -q --show-progress "$LATEST_URL" -O ovmf.rpm || {
-                echo -e "${RED}[x] Download failed${NC}"
-                exit 1
-            }
-        elif command -v curl &>/dev/null; then
-            curl -L -# "$LATEST_URL" -o ovmf.rpm || {
-                echo -e "${RED}[x] Download failed${NC}"
-                exit 1
-            }
-        else
-            echo -e "${RED}[x] Neither wget nor curl available${NC}"
-            exit 1
-        fi
-
-        echo -e "\n  Extracting files..."
-        if command -v rpm2cpio &>/dev/null; then
-            rpm2cpio ovmf.rpm | cpio -idmv 2>&1 | grep -i "OVMF.*fd$" || true
-        elif command -v bsdtar &>/dev/null; then
-            bsdtar -xf ovmf.rpm
-        else
-            echo -e "${RED}[x] No extraction tool available (rpm2cpio or bsdtar)${NC}"
-            echo -e "${YELLOW}Install rpmextract: sudo pacman -S rpmextract${NC}"
-            exit 1
-        fi
-
-        EXTRACTED_CODE=$(find . -name "OVMF_CODE.secboot.fd" -o -name "OVMF_CODE.secboot.4m.fd" | head -1)
-        EXTRACTED_VARS=$(find . -name "OVMF_VARS.secboot.fd" -o -name "OVMF_VARS.fd" | grep secboot | head -1)
-
-        if [ -z "$EXTRACTED_CODE" ] || [ -z "$EXTRACTED_VARS" ]; then
-            echo -e "${RED}[x] Could not find OVMF files in package${NC}"
-            ls -R
-            exit 1
-        fi
-
-        echo -e "\n${BLUE}[5/5] Installing files...${NC}\n"
-
-        if [[ "$EXTRACTED_VARS" =~ "4m" ]]; then
-            DEST_VARS="$OVMF_DIR/OVMF_VARS.secboot.4m.fd"
-        else
-            DEST_VARS="$OVMF_DIR/OVMF_VARS.secboot.fd"
-        fi
-
-        cp "$EXTRACTED_VARS" "$DEST_VARS"
-        chmod 644 "$DEST_VARS"
-
-        echo -e "${GREEN}[ok] Installed: $DEST_VARS${NC}"
-        echo -e "  Size: $(stat -c%s "$DEST_VARS" | numfmt --to=iec-i --suffix=B)"
-
-        cd /
-        rm -rf "$WORK_DIR"
-
-        echo -e "\n${GREEN}[ok] Installation complete!${NC}"
-        echo -e "\n${YELLOW}Use this file in your VM XML:${NC}"
-        echo -e "  ${CYAN}<nvram template=\"$DEST_VARS\">...${NC}"
-        ;;
-
-    2)
-        echo -e "\n${BLUE}[4/5] Creating enrolled VARS from template...${NC}\n"
-
-        TEMPLATE_VARS="$OVMF_DIR/OVMF_VARS.4m.fd"
-
-        if [ ! -f "$TEMPLATE_VARS" ]; then
-            echo -e "${RED}[x] Template VARS file not found: $TEMPLATE_VARS${NC}"
-            exit 1
-        fi
-
-        cp "$TEMPLATE_VARS" "$TARGET_VARS"
-        echo -e "${GREEN}[ok] Created: $TARGET_VARS${NC}"
-
-        echo -e "\n${YELLOW}Note: Keys will be enrolled on first VM boot${NC}"
-        echo -e "  Use firmware autoselection with enrolled-keys=yes"
-        ;;
-
-    3)
-        echo -e "\n${YELLOW}Using firmware autoselection...${NC}\n"
-        echo -e "This approach uses libvirt's firmware autoselection."
-        echo -e "Keys will be automatically enrolled on first boot.\n"
-        echo -e "${CYAN}Use this in your VM XML:${NC}"
-        cat << 'XMLEOF'
+if [ $rc -eq 0 ]; then
+    echo
+    echo -e "${BOLD}${GREEN}═══════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${GREEN}                 Repair Complete${NC}"
+    echo -e "${BOLD}${GREEN}═══════════════════════════════════════════════════════${NC}"
+    echo
+    echo -e "${YELLOW}Next: point your VM XML at the verified template, or rely on autoselection:${NC}"
+    cat <<'XMLEOF'
   <os firmware="efi">
-    <type arch="x86_64" machine="pc-q35-10.1">hvm</type>
     <firmware>
       <feature enabled="yes" name="enrolled-keys"/>
       <feature enabled="yes" name="secure-boot"/>
     </firmware>
-    <loader readonly="yes" secure="yes" type="pflash" format="raw">/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd</loader>
-    <nvram template="/usr/share/edk2/x64/OVMF_VARS.4m.fd" format="raw">/var/lib/libvirt/qemu/nvram/Xbox_VARS.fd</nvram>
   </os>
 XMLEOF
-        echo
-        echo -e "${YELLOW}With: enrolled-keys=yes, libvirt will enroll keys automatically${NC}"
-        ;;
-
-    4)
-        echo -e "\n${YELLOW}Manual installation options:${NC}"
-        echo -e "  * Search AUR: ${CYAN}yay -Ss ovmf secureboot${NC}"
-        echo -e "  * Check: ${CYAN}https://aur.archlinux.org/${NC}"
-        echo -e "  * Or install from: ${CYAN}https://www.kraxel.org/repos/${NC}"
-        exit 0
-        ;;
-
-    *)
-        echo -e "${RED}Invalid choice${NC}"
-        exit 1
-        ;;
-esac
-
-echo -e "\n${BOLD}${GREEN}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${GREEN}                 Setup Complete!${NC}"
-echo -e "${BOLD}${GREEN}═══════════════════════════════════════════════════════${NC}\n"
+    echo -e "  ${YELLOW}(libvirt only SELECTS pre-enrolled firmware - it never enrolls keys itself)${NC}"
+fi
+exit $rc
