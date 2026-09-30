@@ -122,7 +122,7 @@ for _venv_attempt in 1 2 3; do
     if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check --ignore-requires-python --no-build-isolation ${_pa} ${PIP_CONSTRAINTS_ARG} \
             ${INSTALL_TARGET} ${_REQ_ARG} \
             aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" "firecrawl-py" \
-            "smolagents>=1.0.0" "litellm>=1.0.0" "mcp" 2>&1 | tail -8; then
+            "smolagents>=1.0.0" "litellm>=1.0.0" "mcp>=2.1.1,<3" 2>&1 | tail -8; then
         _venv_pip_ok=1; break
     fi
     if [ "${_venv_attempt}" -eq 1 ]; then
@@ -227,8 +227,8 @@ if ! "${VENV_DIR}/bin/python3" -c "import fastapi, uvicorn, ptyprocess" 2>/dev/n
     fi
 fi
 
-if ! "${VENV_DIR}/bin/python3" -c "import mcp" 2>/dev/null; then
-    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} "mcp>=1.0" 2>&1 | tail -3; then
+if ! "${VENV_DIR}/bin/python3" -c "from importlib.metadata import version; assert int(version('mcp').split('.')[0]) >= 2" 2>/dev/null; then
+    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} "mcp>=2.1.1,<3" 2>&1 | tail -3; then
         mios_ok "Installed mcp SDK into venv"
     else
         mios_warn "Mcp SDK install failed"

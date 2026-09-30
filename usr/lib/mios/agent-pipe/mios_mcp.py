@@ -365,26 +365,17 @@ async def _mcp_probe_http(cfg: dict, state: dict, sid: str) -> None:
         cli = _McpHttpClient(sid, url, headers=headers, transport=transport)
         _MCP_HTTP_CLIENTS[sid] = cli
 
-    init = await _mcp_http_rpc(
-        url,
-        headers,
-        "initialize",
-        params={
-            "protocolVersion": MCP_PROTOCOL_VERSION,
-            "capabilities": {},
-            "clientInfo": {"name": "mios-agent-pipe", "version": "1.0"},
-        },
-    )
+    init = await cli.initialize()
     if init.get("error"):
         state["status"] = "init-failed"
         state["error"] = init["error"].get("message")
         log.warning("mcp client: initialize failed for %s: %s", sid, state["error"])
         return
 
-    state["protocolVersion"] = (init.get("result") or {}).get("protocolVersion")
-    state["serverInfo"] = (init.get("result") or {}).get("serverInfo")
+    state["protocolVersion"] = init.get("protocolVersion")
+    state["serverInfo"] = init.get("serverInfo")
 
-    tl = await _mcp_http_rpc(url, headers, "tools/list", rid=2)
+    tl = await cli.list_tools()
     if tl.get("error"):
         state["status"] = "tools-list-failed"
         state["error"] = tl["error"].get("message")
@@ -544,16 +535,10 @@ async def _mcp_call_tool(key: str, args: dict) -> dict:
         return resp.get("result") or {}
 
     # HTTP / SSE transport
-    headers = _mcp_render_headers(info.get("headers_template") or {})
-    url = info.get("url") or ""
-    resp = await _mcp_http_rpc(
-        url,
-        headers,
-        "tools/call",
-        params={"name": target_tool, "arguments": args or {}},
-        rid=int(time.time() * 1000) & 0x7FFFFFFF,
-        timeout_s=120.0,
-    )
+    cli = _MCP_HTTP_CLIENTS.get(sid)
+    if cli is None:
+        return {"error": f"HTTP client unavailable: {key}", "tool": key}
+    resp = await cli.call_tool(target_tool, args or {}, timeout_s=120.0)
     if resp.get("error"):
         return {"error": resp["error"].get("message"), "code": resp["error"].get("code"), "tool": key}
     return resp.get("result") or {}
@@ -589,6 +574,11 @@ class McpGateway:
             except Exception:
                 pass
         _MCP_STDIO_CLIENTS.clear()
+        for cli in list(_MCP_HTTP_CLIENTS.values()):
+            try:
+                await cli.close()
+            except Exception:
+                pass
         _MCP_HTTP_CLIENTS.clear()
 
     def get_servers(self) -> List[dict]:
