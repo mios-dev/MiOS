@@ -48,6 +48,11 @@ def test_manifest_is_declared_in_ssot():
     check("edge-intent-keys-mirrored", sorted(sync.get("mirror_toml_keys") or ()),
           ["theme.padding", "theme.scrollbar_state"])
     check("ssot-manifest-consistent", sb.validate_manifest(sync), [])
+    # The installer resolves the system monitor directly. Mirroring the retired
+    # implementation would restore a second app and undo launcher fixes.
+    check("monitor-is-not-mirrored", "installation/mios-mon.py" in sync.get("mirror_files", []), False)
+    check("retired-monitor-is-absent", os.path.exists(os.path.join(ROOT, "installation", "mios-mon.py")), False)
+    check("canonical-monitor-is-present", os.path.isfile(os.path.join(ROOT, "usr", "libexec", "mios", "mios-mon.py")), True)
 
 def test_dry_run_does_not_write():
     """Without --apply the mirror must report and change nothing."""

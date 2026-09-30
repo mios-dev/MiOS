@@ -1,5 +1,6 @@
 #!/bin/bash
-# AI-hint: Validates if the system contains pre-enrolled Secure Boot OVMF_VARS files (e.g., OVMF_VARS.secboot.fd) versus standard blank files to ensure firmware compatibility.
+# AI-hint: Diagnoses Secure Boot OVMF enrollment by CONTENT, not filenames: parses every OVMF_VARS varstore under /usr/share (raw and qcow2) with the bounded EDK2 variable-store parser and reports which are enrolled (live PK/KEK/db signature lists + SecureBootEnable) versus blank, plus which CODE images are merely Secure Boot capable. Sources tools/find-ovmf-firmware.sh for the shared verification library; never modifies firmware, NVRAM, or VM state.
+# AI-related: find-ovmf-firmware.sh, get-secureboot-ovmf.sh, fix-ovmf-enrollment.sh
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -9,127 +10,140 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
+SELF_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=tools/find-ovmf-firmware.sh
+source "$SELF_DIR/find-ovmf-firmware.sh"
+
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${CYAN}   Vendor Secure Boot OVMF Enrollment Checker${NC}"
+echo -e "${BOLD}${CYAN}   Secure Boot OVMF Enrollment Checker (content-verified)${NC}"
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════${NC}\n"
 
-echo -e "${YELLOW}The Problem:${NC}"
-echo -e "  Secure Boot needs VARS files PRE-ENROLLED with Vendor keys"
-echo -e "  Regular OVMF_VARS.fd files are BLANK and won't work!\n"
+echo -e "${YELLOW}The contract:${NC}"
+echo -e "  Enrollment is proven by varstore CONTENT (live PK/KEK/db signature lists in their UEFI namespaces, plus enable intent),"
+echo -e "  never by a filename. A 'secboot'-named VARS can be blank, and a blank"
+echo -e "  template copied to a secboot name enrolls nothing. OVMF never"
+echo -e "  self-enrolls on first boot; libvirt never enrolls keys either.\n"
 
-echo -e "${BLUE}[1] Checking for pre-enrolled VARS files...${NC}\n"
+SHARE=$(ovmf_share_root)
 
-SECBOOT_VARS=$(find /usr/share -name "*VARS*secboot*.fd" 2>/dev/null | grep x64)
+echo -e "${BLUE}[1] Secure Boot capable CODE images:${NC}\n"
+code_files=$(find "$SHARE/edk2" "$SHARE/OVMF" -type f \( -name 'OVMF_CODE*' -o -name 'OVMF*.fd' -o -name 'OVMF*.qcow2' \) 2>/dev/null | sort -u)
+code_count=0
+while IFS= read -r f; do
+    case "$(basename "$f")" in *CODE*) ;; *) continue ;; esac
+    code_count=$((code_count + 1))
+    cap=$(ovmf_sb_capability "$f")
+    case "$cap" in
+        yes*) echo -e "  ${GREEN}[ok]${NC} $f - capable: $cap" ;;
+        no*)  echo -e "  ${YELLOW}[i]${NC} $f - $cap" ;;
+        *)    echo -e "  ${RED}[?]${NC} $f - $cap" ;;
+    esac
+done <<< "$code_files"
+[ $code_count -eq 0 ] && echo -e "  ${RED}[x] No OVMF CODE images found under $SHARE${NC}"
+echo
 
-if [ -n "$SECBOOT_VARS" ]; then
-    echo -e "${GREEN}[ok] Found Secure Boot VARS files:${NC}"
-    echo "$SECBOOT_VARS" | while read -r file; do
-        size=$(stat -c%s "$file" | numfmt --to=iec-i --suffix=B)
-        echo -e "  ${GREEN}[ok]${NC} $file ($size)"
-    done
-else
-    echo -e "${RED}[x] No pre-enrolled Secure Boot VARS files found!${NC}"
-fi
+echo -e "${BLUE}[2] Enrollment state of every VARS varstore (content-parsed):${NC}\n"
+vars_files=$(find "$SHARE/edk2" "$SHARE/OVMF" -type f \( -name 'OVMF_VARS*' -o -name '*VARS*.fd' -o -name '*VARS*.qcow2' \) 2>/dev/null | sort -u)
+enrolled_path=""
+enrolled_list=""
+unknown_count=0
+blank_count=0
+while IFS= read -r f; do
+    state=$(ovmf_vars_enrollment "$f")
+    size=$(ovmf_human_size "$(ovmf_file_size "$f")")
+    case "$state" in
+        ENROLLED*)
+            echo -e "  ${GREEN}[ok]${NC} ENROLLED  $f ($size) - $state"
+            enrolled_list+="$f"$'\n'
+            if [ -z "$enrolled_path" ]; then enrolled_path="$f"; fi
+            ;;
+        BLANK*)
+            blank_count=$((blank_count + 1))
+            echo -e "  ${YELLOW}[!]${NC} BLANK     $f ($size) - not enrolled (usable template; keys must be enrolled or obtained)"
+            ;;
+        *)
+            unknown_count=$((unknown_count + 1))
+            echo -e "  ${RED}[?]${NC} UNKNOWN   $f ($size) - $state"
+            ;;
+    esac
+done <<< "$vars_files"
+[ -z "$vars_files" ] && echo -e "  ${RED}[x] No OVMF VARS files found under $SHARE${NC}"
+echo
 
-echo -e "\n${BLUE}[2] Checking standard VARS files...${NC}\n"
+echo -e "${BLUE}[3] Firmware descriptor pairs (libvirt autoselection DB):${NC}\n"
+desc_count=0
+while IFS=$'\t' read -r json code vars feats fmt desc; do
+    desc_count=$((desc_count + 1))
+    enrolled=""
+    case ",$feats," in *,enrolled-keys,*) enrolled=" ${GREEN}[enrolled-keys]${NC}" ;; esac
+    echo -e "  ${BOLD}$(basename "$json")${NC}:$enrolled $desc"
+    echo -e "    ${CYAN}CODE:${NC} $code"
+    echo -e "    ${CYAN}VARS:${NC} $vars"
+done < <(ovmf_descriptor_pairs)
+[ $desc_count -eq 0 ] && echo -e "  ${YELLOW}(none found in $(ovmf_fwdesc_dir))${NC}"
+echo
 
-STANDARD_VARS=$(find /usr/share/edk2/x64 -name "*VARS*.fd" 2>/dev/null | grep -v secboot)
-
-if [ -n "$STANDARD_VARS" ]; then
-    echo -e "${YELLOW}[!] Found standard (blank) VARS files:${NC}"
-    echo "$STANDARD_VARS" | while read -r file; do
-        size=$(stat -c%s "$file" | numfmt --to=iec-i --suffix=B)
-        echo -e "  ${YELLOW}[!]${NC} $file ($size) - NOT enrolled"
-    done
-fi
-
-echo -e "\n${BLUE}[3] Analyzing available options...${NC}\n"
-
-X64_DIR="/usr/share/edk2/x64"
-
-echo -e "${CYAN}Files in $X64_DIR:${NC}"
-ls -lh "$X64_DIR"/*.fd 2>/dev/null | awk '{printf "  %s  %s\n", $9, $5}'
-
-echo -e "\n${BOLD}${YELLOW}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${YELLOW}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}${YELLOW}                   DIAGNOSIS${NC}"
 echo -e "${BOLD}${YELLOW}═══════════════════════════════════════════════════════${NC}\n"
 
-HAS_SECBOOT_VARS=false
-SECBOOT_VARS_PATH=""
-
-if [ -f "/usr/share/edk2/x64/OVMF_VARS.secboot.4m.fd" ]; then
-    HAS_SECBOOT_VARS=true
-    SECBOOT_VARS_PATH="/usr/share/edk2/x64/OVMF_VARS.secboot.4m.fd"
-elif [ -f "/usr/share/edk2/x64/OVMF_VARS.secboot.fd" ]; then
-    HAS_SECBOOT_VARS=true
-    SECBOOT_VARS_PATH="/usr/share/edk2/x64/OVMF_VARS.secboot.fd"
-fi
-
-if [ "$HAS_SECBOOT_VARS" = true ]; then
-    echo -e "${GREEN}[ok] GOOD NEWS: You have pre-enrolled Secure Boot VARS!${NC}"
-    echo -e "  File: ${CYAN}$SECBOOT_VARS_PATH${NC}"
-    echo -e "\n${YELLOW}Fix: Use this file as your NVRAM template${NC}"
+if [ -n "$enrolled_path" ]; then
+    echo -e "${GREEN}[ok] GOOD NEWS: a content-verified ENROLLED varstore exists:${NC}"
+    echo -e "  File: ${CYAN}$enrolled_path${NC}"
+    [ $blank_count -gt 0 ] && echo -e "  ${YELLOW}($blank_count blank/unenrolled varstores also present - they are templates, not enrolled stores)${NC}"
+    echo -e "\n${YELLOW}Fix: use the enrolled file as your NVRAM template (or use autoselection):${NC}"
+    cat <<XMLHINT
+  <os firmware='efi'>
+    <firmware>
+      <feature enabled='yes' name='secure-boot'/>
+      <feature enabled='yes' name='enrolled-keys'/>
+    </firmware>
+  </os>
+XMLHINT
+    echo -e "  ${YELLOW}(autoselection requires a descriptor with enrolled-keys; libvirt does NOT enroll keys itself)${NC}"
 else
-    echo -e "${RED}[x] PROBLEM: You DON'T have pre-enrolled Secure Boot VARS!${NC}"
-    echo -e "\n${YELLOW}Your edk2-ovmf package is missing the enrolled VARS files.${NC}"
-    echo -e "This is common on Arch-based distros.\n"
+    echo -e "${RED}[x] PROBLEM: NO content-verified enrolled varstore found.${NC}"
+    if [ $unknown_count -gt 0 ]; then
+        echo -e "${YELLOW}($unknown_count varstores could not be parsed - install python3 and python3-cryptography for content verification)${NC}"
+    fi
+    echo -e "${YELLOW}Blank templates exist but enrolling requires one of:${NC}"
+    echo -e "  1. sudo dnf install edk2-ovmf   (modern Fedora ships OVMF_VARS.secboot.fd enrolled)"
+    echo -e "  2. virt-fw-vars --input COPY --output COPY --enroll-redhat --secure-boot"
+    echo -e "     (enrolls MS/RH vendor keys offline - MiOS ships virt-firmware)"
+    echo -e "  3. tools/fix-ovmf-enrollment.sh  (guided, verification-gated repair)"
 fi
+echo
 
-echo -e "\n${BOLD}${CYAN}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${CYAN}                     SOLUTIONS${NC}"
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════${NC}\n"
 
-if [ "$HAS_SECBOOT_VARS" = true ]; then
-    echo -e "${GREEN}Solution: Update your VM XML to use the enrolled VARS file:${NC}\n"
-    echo -e "${CYAN}Old (wrong):${NC}"
-    echo -e '  <nvram template="/usr/share/edk2/x64/OVMF_VARS.4m.fd">...'
-    echo
-    echo -e "${GREEN}New (correct):${NC}"
-    echo -e "  <nvram template=\"$SECBOOT_VARS_PATH\">..."
-    echo
-else
-    echo -e "${YELLOW}Option 1: Check for additional packages${NC}"
-    echo -e "  Fedora provides these in the main edk2-ovmf package."
-    echo -e "  Ensure it is fully installed:"
-    echo -e "  ${CYAN}sudo dnf install edk2-ovmf${NC}"
-    echo
-
-    echo -e "${YELLOW}Option 2: Download pre-enrolled OVMF files manually${NC}"
-    echo -e "  From Fedora/Ubuntu packages (known to work):"
-    echo -e "  ${CYAN}https://www.kraxel.org/repos/jenkins/edk2/${NC}"
-    echo -e "  Download: edk2.git-ovmf-x64-*.rpm (then extract)"
-    echo
-
-    echo -e "${YELLOW}Option 3: Create enrolled VARS using virt-firmware${NC}"
-    echo -e "  ${CYAN}sudo dnf install virt-firmware${NC}"
-    echo -e "  Then enroll Vendor keys manually"
-    echo
-
-    echo -e "${YELLOW}Option 4: Use QEMU's automatic enrollment (simpler)${NC}"
-    echo -e "  Use firmware autoselection with enrolled-keys feature"
-    echo -e "  I can create this configuration for you"
-fi
-
-echo -e "\n${BOLD}${CYAN}═══════════════════════════════════════════════════════${NC}\n"
-
 cat > /tmp/ovmf-diagnosis.txt << EOF
-OVMF Secure Boot Diagnosis
-==========================
+OVMF Secure Boot Diagnosis (content-verified)
+=============================================
 Date: $(date)
+Share root scanned: $SHARE
+Descriptors: $(ovmf_fwdesc_dir)
 
-Pre-enrolled VARS files found: $HAS_SECBOOT_VARS
-Path (if found): $SECBOOT_VARS_PATH
+Enrolled varstores (content-verified):
+${enrolled_list:-NONE}
 
-Available OVMF files:
-$(ls -lh /usr/share/edk2/x64/*.fd 2>/dev/null)
-
-Recommendation:
+Code images analyzed:
 EOF
+while IFS= read -r f; do
+    case "$(basename "$f")" in *CODE*) echo "  $f -> $(ovmf_sb_capability "$f")" >> /tmp/ovmf-diagnosis.txt ;; esac
+done <<< "$code_files"
+while IFS= read -r f; do
+    echo "  $f -> $(ovmf_vars_enrollment "$f")" >> /tmp/ovmf-diagnosis.txt
+done <<< "$vars_files"
 
-if [ "$HAS_SECBOOT_VARS" = true ]; then
-    echo "Use $SECBOOT_VARS_PATH as NVRAM template" >> /tmp/ovmf-diagnosis.txt
+if [ -n "$enrolled_path" ]; then
+    echo "Recommendation: use $enrolled_path as NVRAM template" >> /tmp/ovmf-diagnosis.txt
 else
-    echo "Need to obtain pre-enrolled VARS files - see solutions above" >> /tmp/ovmf-diagnosis.txt
+    echo "Recommendation: obtain/enroll a varstore (dnf install edk2-ovmf, or virt-fw-vars --enroll-redhat); see fix-ovmf-enrollment.sh" >> /tmp/ovmf-diagnosis.txt
 fi
 
 echo -e "${GREEN}[ok] Report saved to: ${CYAN}/tmp/ovmf-diagnosis.txt${NC}\n"
+
+# Exit code: 0 = verified enrolled varstore exists, 1 = none, 2 = undeterminable coverage.
+[ -n "$enrolled_path" ] && exit 0
+[ $unknown_count -gt 0 ] && [ $blank_count -eq 0 ] && exit 2
+exit 1

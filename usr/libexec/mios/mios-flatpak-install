@@ -5,6 +5,15 @@
 set -euo pipefail
 set -eu
 
+if [ "$(id -u)" -eq 0 ]; then
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ "$(stat -c %u "$XDG_RUNTIME_DIR" 2>/dev/null)" != "0" ]; then
+        unset XDG_RUNTIME_DIR
+        if [ -d /run/user/0 ]; then
+            export XDG_RUNTIME_DIR=/run/user/0
+        fi
+    fi
+fi
+
 if [ "$#" -lt 1 ]; then
     cat <<'USAGE' >&2
 usage: mios-flatpak-install <flatpak-id> [<flatpak-id> ...]
@@ -28,13 +37,17 @@ _prefer_beta="${_prefer_beta:-false}"
 
 _resolve_remote_for() {
     local _id="$1"
+    if [ "${_id#*:}" != "$_id" ]; then
+        echo "${_id%%:*}"
+        return
+    fi
     if [ -n "${MIOS_FLATPAK_REMOTE:-}" ]; then
         echo "$MIOS_FLATPAK_REMOTE"
         return
     fi
     if [ "$_prefer_beta" = "true" ] && flatpak remotes 2>/dev/null | grep -q "^flathub-beta"; then
         if flatpak remote-info flathub-beta "$_id" >/dev/null 2>&1; then
-            echo "Flathub-beta"
+            echo "flathub-beta"
             return
         fi
     fi
@@ -57,18 +70,27 @@ _default_branch="${MIOS_FLATPAK_DEFAULT_BRANCH:-24.08}"
 failed=0
 for id in "$@"; do
     _id_remote=$(_resolve_remote_for "$id")
+    if [ "${id#*:}" != "$id" ]; then
+        id="${id#*:}"
+    fi
     echo "[mios-flatpak-install] installing $id from $_id_remote"
-    _out=$("${SUDO[@]}" flatpak install \
+    _tmp="$(mktemp -t mios-fp-inst-XXXXXX)"
+    _rc=0
+    "${SUDO[@]}" flatpak install \
             --system --noninteractive --assumeyes \
-            "$_id_remote" "$id" 2>&1) && _rc=0 || _rc=$?
-    printf '%s\n' "$_out"
+            "$_id_remote" "$id" 2>&1 | tee "$_tmp" || _rc=${PIPESTATUS[0]}
+    _out="$(cat "$_tmp")"
+    rm -f "$_tmp"
     if [ "$_rc" -ne 0 ] && [ "${id#*//}" = "$id" ] \
             && printf '%s' "$_out" | grep -qiE 'multiple refs|must specify.*branch|multiple branches'; then
         echo "[mios-flatpak-install] ambiguous branch for $id"
-        _out=$("${SUDO[@]}" flatpak install \
+        _tmp="$(mktemp -t mios-fp-inst-XXXXXX)"
+        _rc=0
+        "${SUDO[@]}" flatpak install \
                 --system --noninteractive --assumeyes \
-                "$_id_remote" "${id}//${_default_branch}" 2>&1) && _rc=0 || _rc=$?
-        printf '%s\n' "$_out"
+                "$_id_remote" "${id}//${_default_branch}" 2>&1 | tee "$_tmp" || _rc=${PIPESTATUS[0]}
+        _out="$(cat "$_tmp")"
+        rm -f "$_tmp"
     fi
     if [ "$_rc" -eq 0 ]; then
         echo "[mios-flatpak-install] ✓ $id installed"

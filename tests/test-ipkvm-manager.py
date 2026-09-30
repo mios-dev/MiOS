@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for Out-of-Band IP-KVM management mesh and Redfish/PiKVM virtual media provisioner (T-524, AGY-2122).
-# AI-doc: usr/share/doc/mios/manual/ch12-networking-and-mesh.md
+# AI-doc: usr/share/doc/mios/manual/ch28-dynamic-network-and-firewall-management.md
 from __future__ import annotations
 
 import http.server
@@ -9,6 +9,7 @@ import os
 import shutil
 import stat
 import subprocess
+import socket
 import sys
 import tempfile
 import threading
@@ -81,6 +82,16 @@ class MockBmcHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps({"status": "ok", "message": "action accepted"}).encode("utf-8"))
+
+
+def setUpModule():
+    """The daemon tests talk to an in-process server on 127.0.0.1; a sandbox
+    that refuses loopback sockets skips them instead of failing them."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+    except OSError as exc:
+        raise unittest.SkipTest(f"loopback sockets unavailable: {exc}") from exc
 
 
 class TestIpkvmManager(unittest.TestCase):

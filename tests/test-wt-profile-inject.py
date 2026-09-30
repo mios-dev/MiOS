@@ -122,6 +122,14 @@ class TestWtProfileInject(unittest.TestCase):
         for p in mios:
             self.assertEqual(p["padding"], "3")
             self.assertEqual(p["scrollbarState"], "always")
+            self.assertIs(p["useAcrylic"], True)
+            self.assertEqual(p["opacity"], 50)
+            self.assertEqual(p["systemBackdrop"], "acrylic")
+            self.assertEqual(p["font"], {
+                "face": "GeistMono Nerd Font Mono",
+                "size": 12,
+                "weight": "normal",
+            })
 
     def test_padding_normalised_through_edge_insets(self):
         cases = {"1, 2, 1, 2": "1, 2", "4,4": "4", "1, 2, 3, 4": "1, 2, 3, 4"}
@@ -145,7 +153,19 @@ class TestWtProfileInject(unittest.TestCase):
         with open(copy, encoding="utf-8") as f:
             text = f.read()
         pad, bar = wt_profile_inject.wt_edge(wt_profile_inject.mios_toml.vendor_tree(_ROOT))
-        self.assertEqual(json.loads(text)["profiles"], [{"colorScheme": "MiOS Dark", "padding": pad, "scrollbarState": bar}])
+        self.assertEqual(json.loads(text)["profiles"], [{
+            "colorScheme": "MiOS Dark",
+            "font": {
+                "face": "GeistMono Nerd Font Mono",
+                "size": 12,
+                "weight": "normal",
+            },
+            "padding": pad,
+            "scrollbarState": bar,
+            "useAcrylic": True,
+            "opacity": 50,
+            "systemBackdrop": "acrylic",
+        }])
         with open(copy, "w", encoding="utf-8") as f:
             f.write(text.replace(f'"padding": "{pad}"', '"padding": "8"', 1))
         with contextlib.redirect_stderr(io.StringIO()) as err:

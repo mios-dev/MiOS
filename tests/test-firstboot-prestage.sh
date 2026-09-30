@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Tests firstboot image prestaging with stubbed podman pulls, checking which images are pulled and in what order.
 set -euo pipefail
 
 log() { printf '[test-firstboot-prestage] %s\n' "$*"; }

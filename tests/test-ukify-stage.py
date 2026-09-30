@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for A/B UKI staging and systemd-ukify compilation pipeline (T-507).
-# AI-doc: usr/share/doc/mios/manual/ch02-boot-and-lifecycle.md
+# AI-doc: usr/share/doc/mios/manual/ch08-bootloader-and-unified-kernel-images-uki.md
 from __future__ import annotations
 
 import json
@@ -30,7 +30,7 @@ class TestUkifyStage(unittest.TestCase):
 
     def test_dry_run_json(self):
         res = subprocess.run(
-            [_UKIFY_STAGE_BIN, "--dry-run", "--json"],
+            [_UKIFY_STAGE_BIN, "--dry-run", "--json", "--root", _ROOT],  # the repo tree, not the host
             capture_output=True,
             text=True,
             check=True,
@@ -39,6 +39,8 @@ class TestUkifyStage(unittest.TestCase):
         self.assertEqual(data.get("status"), "success")
         self.assertTrue(data.get("dry_run"))
         self.assertIn("baked_kargs", data)
+        with open(os.path.join(_ROOT, "usr", "lib", "kernel", "cmdline"), encoding="utf-8") as fh:
+            self.assertEqual(data["baked_kargs"], fh.read().strip())
         self.assertIn("console=tty0", data["baked_kargs"])
 
     def test_stage_execution(self):
@@ -51,9 +53,14 @@ class TestUkifyStage(unittest.TestCase):
         with open(mock_initrd, "w") as f:
             f.write("mock-initrd\n")
 
+        entry = os.path.join(self.tmpdir.name, "loader", "entries", "mios-next.conf")
+        host_entry = "/boot/loader/entries/mios-next.conf"
+        host_before = os.stat(host_entry).st_mtime_ns if os.path.exists(host_entry) else None
         res = subprocess.run(
             [
                 _UKIFY_STAGE_BIN,
+                "--root", _ROOT,
+                "--loader-entry", entry,
                 "--output", out_efi,
                 "--kernel", mock_kernel,
                 "--initrd", mock_initrd,
@@ -67,6 +74,9 @@ class TestUkifyStage(unittest.TestCase):
         data = json.loads(res.stdout)
         self.assertEqual(data.get("status"), "success")
         self.assertTrue(os.path.isfile(out_efi), f"Missing staged EFI at {out_efi}")
+        self.assertTrue(os.path.isfile(entry), f"Missing loader entry at {entry}")
+        host_after = os.stat(host_entry).st_mtime_ns if os.path.exists(host_entry) else None
+        self.assertEqual(host_before, host_after, "the stage test wrote the HOST loader entry")
 
         # Verify EFI content carries simulated header or ukify binary
         with open(out_efi, "rb") as f:

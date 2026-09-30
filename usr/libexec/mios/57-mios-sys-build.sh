@@ -18,13 +18,15 @@ fi
 log() { printf '[57-mios-sys-build] %s\n' "$*"; }
 
 if [ "${MIOS_BAKE_BOUND_IMAGES:-1}" != "1" ]; then
-    log "SKIP bound-images bake for mios-sys and mios-cuda"
+    log "SKIP bound-images bake for mios-base, mios-sys and mios-cuda"
     exit 0
 fi
 
-BASE="${MIOS_BASE_IMAGE:-ghcr.io/ublue-os/ucore-hci:stable-nvidia}"
+BASE="${MIOS_BASE_IMAGE:-registry.fedoraproject.org/fedora-minimal:latest}"
+SERVICE_BASE="${MIOS_SERVICE_BASE_IMAGE:-localhost/mios-base:latest}"
 
 log "Base image configured: $BASE"
+log "Service base image configured: $SERVICE_BASE"
 log "Target storage root: $STORE"
 
 install -d -m 0700 "$SCRATCH"
@@ -99,26 +101,32 @@ build_image_with_retry() {
     log "Image $target_tag verified successfully"
 }
 
+log "Building localhost/mios-base"
+build_image_with_retry "localhost/mios-base:latest" "/usr/share/mios/base" \
+  --build-arg MIOS_BASE_IMAGE="$BASE"
+
 log "Building localhost/mios-sys"
 build_image_with_retry "localhost/mios-sys" "/usr/share/mios/sys" \
-  --build-arg BASE_IMAGE="$BASE" \
+  --build-arg BASE_IMAGE="$SERVICE_BASE" \
   --build-arg SEARXNG_REF="$SEARXNG_REF"
 
 log "Building localhost/mios-cuda"
 build_image_with_retry "localhost/mios-cuda" "/usr/share/mios/cuda" \
-  --build-arg BASE_IMAGE="$BASE"
+  --build-arg BASE_IMAGE="$SERVICE_BASE"
 
 SBOM_DIR="${SBOM_DIR:-/usr/share/mios/artifacts/sbom}"
+_base_digest="$(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" image inspect localhost/mios-base:latest --format '{{.Digest}}' 2>/dev/null || echo "Local")"
 _sys_digest="$(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" image inspect localhost/mios-sys --format '{{.Digest}}' 2>/dev/null || echo "Local")"
 _cuda_digest="$(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" image inspect localhost/mios-cuda --format '{{.Digest}}' 2>/dev/null || echo "Local")"
 install -d -m 0755 "$SBOM_DIR"
+printf '%s\t%s\t%s\n' "localhost/mios-base:latest" "${_base_digest:-local}" "base" >> "$SBOM_DIR/bound-images.tsv"
 printf '%s\t%s\t%s\n' "localhost/mios-sys:latest" "${_sys_digest:-local}" "sys" >> "$SBOM_DIR/bound-images.tsv"
 printf '%s\t%s\t%s\n' "localhost/mios-cuda:latest" "${_cuda_digest:-local}" "cuda" >> "$SBOM_DIR/bound-images.tsv"
 
 log "Pruning build-stage images from ${STORE}"
 while read -r _img; do
     case "$_img" in
-        localhost/mios-sys:latest|localhost/mios-cuda:latest|"<none>:<none>") continue ;;
+        localhost/mios-base:latest|localhost/mios-base|localhost/mios-sys:latest|localhost/mios-sys|localhost/mios-cuda:latest|localhost/mios-cuda|"<none>:<none>") continue ;;
     esac
     CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" --runroot "$SCRATCH/run" rmi -f "$_img" >/dev/null 2>&1 || true
 done < <(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | sort -u)

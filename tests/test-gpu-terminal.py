@@ -40,8 +40,10 @@ class TestGPUTerminal(unittest.TestCase):
         """Test generated Alacritty config specifies opacity and the [theme.font] family and size."""
         conf = self.mgr.generate_alacritty_config()
         with open(_VENDOR, "rb") as fh:
-            font = tomllib.load(fh)["theme"]["font"]
-        self.assertIn("opacity = 0.95", conf)
+            theme_cfg = tomllib.load(fh)["theme"]
+            font = theme_cfg["font"]
+            expected_opacity = float(theme_cfg.get("opacity", 50)) / 100.0
+        self.assertIn(f"opacity = {expected_opacity:.2f}", conf)
         self.assertEqual(tomllib.loads(conf)["font"], {"normal": {"family": font["family"]}, "size": float(font["size"])})
 
     def test_padding_from_user_tier(self):

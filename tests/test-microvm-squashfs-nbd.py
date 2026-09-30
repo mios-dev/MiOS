@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for SquashFS template streaming over Unix-socket NBD with RAM overlay (T-806, T-807).
-# AI-doc: usr/share/doc/mios/manual/ch19-microvm-squashfs-nbd-overlay.md
+# AI-doc: usr/share/doc/mios/manual/virt.md
 from __future__ import annotations
 
 import json

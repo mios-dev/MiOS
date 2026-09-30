@@ -27,11 +27,26 @@ jobs:
   # are the same set .forgejo/workflows/build-mios.yml runs.
   drift-gate:
     runs-on: ubuntu-24.04
+    # The gate runs on Fedora, the distro the dev image and MiOS itself are
+    # built on, not on the runner's Ubuntu. A literal because container: is
+    # resolved before any step can read the SSOT; tools/ci-suites.py --check
+    # holds it equal to [ci.fedora].image and to .devcontainer/Containerfile.
+    container:
+      image: registry.fedoraproject.org/fedora:44
     permissions:
       contents: read
     steps:
+      - name: Bootstrap git and python
+        # Before checkout: without git in the container, actions/checkout falls
+        # back to a tarball with no .git, and every git-backed check would fail.
+        run: dnf install -y --setopt=install_weak_deps=False git-core python3
+
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Trust the workspace
+        # The checkout is owned by the runner user, not the container's root.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Resolve ratchet comparison baseline
         # Wire ratchet comparison base (T-1073).
@@ -61,19 +76,19 @@ jobs:
           fi
 
       - name: Provision the analysis toolchain
-        # pyflakes backs lint-python.sh's undefined-name pass and the remaining
-        # packages make usr/lib/mios/agent-pipe/server.py importable; both fail
-        # closed under MIOS_DRIFT_REQUIRE_TOOLS=1. The list is [ci.python] in
-        # the SSOT so every publisher installs the same set.
+        # Everything comes from the SSOT: [ci.fedora] names the dnf set (the dev
+        # image's [packages.devcontainer] plus CI-only extras, pwsh from its repo), and
+        # [ci.python] the pip set. pyflakes backs lint-python.sh's undefined-name
+        # pass and the rest make agent-pipe/server.py importable; both fail
+        # closed under MIOS_DRIFT_REQUIRE_TOOLS=1, so a failed install fails here.
         run: |
-          set +e
-          sudo apt-get update -qq
-          sudo apt-get install -y shellcheck powershell dotnet-sdk-8.0 bubblewrap
-          packages="$(python3 ./tools/ci-suites.py --python-packages)"
-          # shellcheck disable=SC2086
-          python3 -m pip install --quiet --disable-pip-version-check $packages \
-            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages $packages
-          set -e
+          set -euo pipefail
+          # shellcheck disable=SC2046
+          dnf install -y $(python3 ./tools/ci-suites.py --dnf-repos)
+          # shellcheck disable=SC2046
+          dnf install -y --setopt=install_weak_deps=False $(python3 ./tools/ci-suites.py --dnf-packages)
+          # shellcheck disable=SC2046
+          python3 -m pip install --quiet --disable-pip-version-check $(python3 ./tools/ci-suites.py --python-packages)
 
       - name: Build the native gate binaries
         # mios-unit-gen is check_unit_projection's rendering half, so it must
@@ -84,12 +99,12 @@ jobs:
           # narrow hardcoded key list -- so the enumerating version (T-1047)
           # would never run in CI, and the register it enforces would go
           # unchecked on every PR.
-          cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver -p mios-aiplane-lint -p mios-size-ceiling -p mios-toolchain-pin -p mios-bake-plan -p mios-render-quadlets -p generate-names-registry -p xtask -p mios-task
+          cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver -p mios-aiplane-lint -p mios-size-ceiling -p mios-toolchain-pin -p mios-ai-config -p mios-bake-plan -p mios-render-quadlets -p generate-names-registry -p xtask -p mios-task
           # RELEASE too: check_bake_plan resolves the binary stage 85 would
           # actually run, and stage 85 never looks at target/debug.
           cargo build --release -p mios-bake-plan
-          # The native gate binary backs a check that fails when it is absent.
-          cd ../../src/mios-rs && cargo build -p mios-gate
+          # The native gate binary backs a check that fails when it is absent; miosd backs the unit tier's daemon suites.
+          cd ../../src/mios-rs && cargo build -p mios-gate -p miosd
 
       - name: Generated artifacts match the SSOT
         run: |
@@ -124,7 +139,6 @@ jobs:
 
       - name: Rust format, lint and tests
         run: |
-          rustup component add clippy rustfmt || true
           cd ./src/mios-rs
           cargo fmt --all --check
           cargo clippy --workspace --all-targets -- -D warnings

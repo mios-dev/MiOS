@@ -75,7 +75,7 @@ export GTK_THEME="${GTK_THEME:-Adwaita}"
 echo "[mios-gui-launch] dispatch: $APP $*" >> "$LOG_FILE"
 echo "[mios-gui-launch] env: DISPLAY=$DISPLAY WAYLAND_DISPLAY=$WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP" >> "$LOG_FILE"
 
-nohup setsid -- "$APP" "$@" >> "$LOG_FILE" 2>&1 &
+nohup setsid -- /usr/libexec/mios/mios-host-launch "$APP" "$@" >> "$LOG_FILE" 2>&1 &
 PID=$!
 disown "$PID" 2>/dev/null || true
 

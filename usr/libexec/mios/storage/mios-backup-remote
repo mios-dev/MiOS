@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Remote delta backup synchronizer utilizing chunk hashing, zstd compression, and rsync/rclone transports.
 # AI-related: usr/lib/systemd/system/mios-backup-remote.service, usr/lib/systemd/system/mios-backup-remote.timer, tests/test-storage.py
-# AI-functions: hash_file_chunk, create_snapshot_manifest, compute_delta_plan, compress_chunk_zstd, sync_delta_payload, verify_remote_manifest, main
+# AI-functions: hash_file_chunk, create_snapshot_manifest, compute_delta_plan, compress_data_zstd, decompress_data_zstd, ensure_zstd_encoder_available, sync_delta_payload, verify_remote_manifest, main
 """
 MiOS Remote Delta Snapshot Backup Synchronizer.
 Performs chunk-level diffing, zstd compression, hash verification,
@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -158,32 +159,165 @@ def compute_delta_plan(
     }
 
 
+ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"  # Zstandard frame magic (little-endian 0xFD2FB528)
+ZSTD_MIN_LEVEL = 1
+ZSTD_MAX_LEVEL = 22
+
+
+class ZstdUnavailableError(RuntimeError):
+    """Raised when no real Zstandard tooling (zstd CLI or python zstandard module) is available."""
+
+    def __init__(self, failures: List[str], purpose: str = "encoder"):
+        self.failures = failures
+        super().__init__(
+            f"No real Zstandard {purpose} available ({'; '.join(failures)}). "
+            "Install the zstd CLI or the python3-zstandard package; "
+            "refusing to produce or trust falsely labeled Zstandard data."
+        )
+
+
+class ZstdCompressionError(RuntimeError):
+    """Raised when a Zstandard encoder fails or returns bytes that are not a valid Zstandard frame."""
+
+
+class ZstdDecompressionError(RuntimeError):
+    """Raised on restore when a payload is not a decodable Zstandard frame (bad magic or corruption)."""
+
+
+def _validate_zstd_level(level: int) -> None:
+    """Rejects compression settings outside the Zstandard level range before any encoder runs."""
+    if isinstance(level, bool) or not isinstance(level, int):
+        raise ValueError(f"Invalid zstd compression level: {level!r} (must be an integer {ZSTD_MIN_LEVEL}-{ZSTD_MAX_LEVEL})")
+    if level < ZSTD_MIN_LEVEL or level > ZSTD_MAX_LEVEL:
+        raise ValueError(f"Invalid zstd compression level: {level} (must be {ZSTD_MIN_LEVEL}-{ZSTD_MAX_LEVEL})")
+
+
 def compress_data_zstd(data: bytes, level: int = DEFAULT_ZSTD_LEVEL) -> bytes:
-    """Compresses bytes using zstd binary or fallback zstandard / zlib."""
+    """
+    Compresses bytes into a genuine Zstandard frame using the zstd CLI or the
+    python zstandard module.
+
+    Raises:
+        ValueError: when the compression level is outside 1-22.
+        ZstdCompressionError: when an encoder subprocess fails or emits bytes
+            that are not a valid Zstandard frame.
+        ZstdUnavailableError: when neither real encoder is available. There is
+            deliberately no zlib fallback: every payload labeled .chunk.zst must
+            be decodable by an independent Zstandard implementation.
+    """
+    _validate_zstd_level(level)
+
+    failures: List[str] = []
+
     zstd_bin = shutil.which("zstd")
     if zstd_bin:
-        proc = subprocess.Popen(
-            [zstd_bin, f"-{level}", "-T0", "-"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        out, err = proc.communicate(input=data)
-        if proc.returncode == 0:
-            return out
+        # --check embeds a content checksum so any decoder can detect corruption
+        cmd = [zstd_bin] + (["--ultra"] if level > 19 else []) + [f"-{level}", "-T0", "--check", "-c", "-"]
+        try:
+            proc = subprocess.run(
+                cmd,
+                input=data,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except OSError as e:
+            failures.append(f"zstd CLI at {zstd_bin} could not be executed: {e}")
+        else:
+            if proc.returncode != 0:
+                err = proc.stderr.decode("utf-8", errors="replace").strip()
+                raise ZstdCompressionError(f"zstd CLI encoder failed with exit status {proc.returncode}: {err}")
+            if not proc.stdout.startswith(ZSTD_MAGIC):
+                raise ZstdCompressionError("zstd CLI encoder returned output without a Zstandard frame header")
+            return proc.stdout
 
-    # Fallback to python zstandard if installed
     try:
         import zstandard as zstd  # type: ignore
-        cctx = zstd.ZstdCompressor(level=level)
-        return cctx.compress(data)
+    except ImportError:
+        failures.append("python zstandard module is not installed")
+    else:
+        try:
+            # write_checksum embeds a content checksum so any decoder can detect corruption
+            frame = zstd.ZstdCompressor(level=level, write_checksum=True).compress(data)
+        except zstd.ZstdError as e:
+            raise ZstdCompressionError(f"python zstandard compression failed at level {level}: {e}") from e
+        if not frame.startswith(ZSTD_MAGIC):
+            raise ZstdCompressionError("python zstandard encoder returned output without a Zstandard frame header")
+        return frame
+
+    raise ZstdUnavailableError(failures, purpose="encoder")
+
+
+def decompress_data_zstd(data: bytes) -> bytes:
+    """
+    Restore-side consumer: decompresses a Zstandard frame produced by
+    compress_data_zstd using the zstd CLI or the python zstandard module.
+
+    Raises:
+        ZstdDecompressionError: when the payload is not a Zstandard frame or
+            fails integrity decode (corruption, truncation, mislabeled data).
+        ZstdUnavailableError: when neither real decoder is available.
+    """
+    if not data.startswith(ZSTD_MAGIC):
+        raise ZstdDecompressionError("Payload is not a Zstandard frame: invalid magic bytes")
+
+    zstd_bin = shutil.which("zstd")
+    if zstd_bin:
+        try:
+            proc = subprocess.run(
+                [zstd_bin, "-d", "-c", "-"],
+                input=data,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except OSError as e:
+            raise ZstdDecompressionError(f"Failed to execute zstd CLI decoder {zstd_bin}: {e}") from e
+        if proc.returncode != 0:
+            err = proc.stderr.decode("utf-8", errors="replace").strip()
+            raise ZstdDecompressionError(
+                f"Zstandard frame failed integrity decode (zstd CLI exit status {proc.returncode}): {err}"
+            )
+        return proc.stdout
+
+    try:
+        import zstandard as zstd  # type: ignore
     except ImportError:
         pass
+    else:
+        try:
+            dobj = zstd.ZstdDecompressor().decompressobj()
+            plain = dobj.decompress(data)
+            if not dobj.eof:
+                raise ZstdDecompressionError("Truncated Zstandard frame: input ended before frame terminator")
+            if dobj.unused_data:
+                raise ZstdDecompressionError("Trailing bytes after Zstandard frame terminator")
+            return plain
+        except zstd.ZstdError as e:
+            raise ZstdDecompressionError(f"Zstandard frame failed integrity decode: {e}") from e
 
-    # Built-in header wrapper simulating zstd payload framing for portability
-    import zlib
-    compressed = zlib.compress(data, level=min(level, 9))
-    return b"\x28\xb5\x2f\xfd" + compressed  # Zstandard magic frame header
+    raise ZstdUnavailableError(
+        ["zstd CLI not found on PATH", "python zstandard module is not installed"],
+        purpose="decoder",
+    )
+
+
+def ensure_zstd_encoder_available() -> None:
+    """Pre-flight probe: compresses a sentinel payload to prove a real encoder works before staging anything."""
+    compress_data_zstd(b"mios-zstd-encoder-preflight-probe")
+
+
+def _write_staged_file(path: str, payload: bytes) -> None:
+    """Publish complete staged bytes atomically; remove the temporary file on failure."""
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=os.path.dirname(path), delete=False) as f:
+            temporary = f.name
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None and os.path.exists(temporary):
+            os.remove(temporary)
 
 
 def extract_and_compress_chunk(
@@ -191,6 +325,7 @@ def extract_and_compress_chunk(
     chunk_meta: Dict[str, Any],
     staging_dir: str,
     zstd_level: int = DEFAULT_ZSTD_LEVEL,
+    expected_hash: Optional[str] = None,
 ) -> str:
     """Reads chunk data from source file, compresses via zstd, and writes to staging_dir."""
     rel_path = chunk_meta["file"]
@@ -203,11 +338,12 @@ def extract_and_compress_chunk(
         data = f.read(length)
 
     sha256 = hash_bytes(data)
+    if len(data) != length or (expected_hash is not None and sha256 != expected_hash):
+        raise ValueError(f"Source chunk changed since snapshot: {rel_path} at offset {offset}")
     compressed = compress_data_zstd(data, level=zstd_level)
 
     out_file = os.path.join(staging_dir, f"{sha256}.chunk.zst")
-    with open(out_file, "wb") as f:
-        f.write(compressed)
+    _write_staged_file(out_file, compressed)
 
     return out_file
 
@@ -225,23 +361,35 @@ def stage_delta_chunks(
     total_compressed_bytes = 0
 
     chunk_index = current_manifest.get("chunk_index", {})
-    for chunk_hash in delta_plan["new_chunk_hashes"]:
-        if chunk_hash in chunk_index:
+    try:
+        for chunk_hash in delta_plan["new_chunk_hashes"]:
+            if chunk_hash not in chunk_index:
+                raise ValueError(f"Delta chunk absent from snapshot index: {chunk_hash}")
             meta = chunk_index[chunk_hash]
             chunk_file = extract_and_compress_chunk(
                 source_dir=source_dir,
                 chunk_meta=meta,
                 staging_dir=staging_dir,
                 zstd_level=zstd_level,
+                expected_hash=chunk_hash,
             )
             staged_files.append(chunk_file)
             total_compressed_bytes += os.path.getsize(chunk_file)
 
-    # Save manifest into staging
-    manifest_file = os.path.join(staging_dir, f"manifest_{current_manifest['snapshot_id']}.json")
-    with open(manifest_file, "w", encoding="utf-8") as f:
-        json.dump(current_manifest, f, indent=2)
-    staged_files.append(manifest_file)
+        # Save manifest into staging (serialize fully before opening the file
+        # so a serialization failure cannot leave a partial manifest behind)
+        manifest_file = os.path.join(staging_dir, f"manifest_{current_manifest['snapshot_id']}.json")
+        manifest_payload = json.dumps(current_manifest, indent=2)
+        _write_staged_file(manifest_file, manifest_payload.encode("utf-8"))
+        staged_files.append(manifest_file)
+    except BaseException:
+        # Never publish partial backups: discard anything staged before the failure
+        for staged in staged_files:
+            try:
+                os.remove(staged)
+            except OSError:
+                pass
+        raise
 
     return staged_files, total_compressed_bytes
 
@@ -273,9 +421,9 @@ def sync_delta_payload(
     # Determine backend
     if backend == "auto":
         if remote_target.startswith("s3:") or remote_target.startswith("b2:") or ":" in remote_target and not ("@" in remote_target or remote_target.startswith("rsync://")):
-            backend = "rclone" if shutil.which("rclone") else "local"
+            backend = "rclone"
         elif "@" in remote_target or remote_target.startswith("rsync://"):
-            backend = "rsync" if shutil.which("rsync") else "local"
+            backend = "rsync"
         else:
             backend = "local"
 
@@ -324,6 +472,16 @@ def verify_remote_manifest(
         try:
             with open(manifest_path, "r", encoding="utf-8") as f:
                 manifest = json.load(f)
+            if (not isinstance(manifest, dict)
+                    or manifest.get("snapshot_id") != snapshot_id
+                    or not isinstance(manifest.get("chunk_index"), dict)
+                    or not isinstance(manifest.get("files"), dict)):
+                return False, "Invalid snapshot manifest identity or structure"
+            for digest, meta in manifest["chunk_index"].items():
+                if (len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest)
+                        or not isinstance(meta, dict)
+                        or type(meta.get("length")) is not int or meta["length"] <= 0):
+                    return False, "Invalid snapshot chunk digest or length"
             # Check all chunk files
             missing_chunks = []
             for h in manifest.get("chunk_index", {}).keys():
@@ -332,10 +490,26 @@ def verify_remote_manifest(
                     missing_chunks.append(h)
             if missing_chunks:
                 return False, f"Missing {len(missing_chunks)} chunk archives on target"
-            return True, f"Verified {len(manifest.get('chunk_index', {}))} chunks successfully"
+            # Restore-path integrity: every chunk must decode as a real
+            # Zstandard frame and match its recorded sha256 / length
+            for h, meta in manifest.get("chunk_index", {}).items():
+                chunk_file = os.path.join(remote_target, f"{h}.chunk.zst")
+                try:
+                    with open(chunk_file, "rb") as cf:
+                        frame = cf.read()
+                    plain = decompress_data_zstd(frame)
+                except ZstdDecompressionError as e:
+                    return False, f"Chunk {h} failed restore validation: {e}"
+                except OSError as e:
+                    return False, f"Chunk {h} unreadable: {e}"
+                if len(plain) != meta.get("length", -1) or hash_bytes(plain) != h:
+                    return False, f"Chunk {h} content mismatch after decompression (sha256/length differ from manifest)"
+            return True, f"Verified {len(manifest.get('chunk_index', {}))} chunks successfully (decodable Zstandard frames, sha256 matched)"
+        except ZstdUnavailableError as e:
+            return False, f"Verification tooling error: {e}"
         except Exception as e:
             return False, f"Manifest validation error: {e}"
-    return True, "Remote manifest assumed valid for non-local backend"
+    return False, f"Restore verification unavailable for non-local backend: {backend}"
 
 
 def prune_old_manifests(
@@ -406,6 +580,15 @@ def main() -> int:
 
     # 3. Compute delta plan
     delta_plan = compute_delta_plan(current_manifest, baseline_manifest)
+
+    # 3a. Pre-flight encoder check: refuse to stage or publish anything when no
+    # real Zstandard encoder exists (never emit falsely labeled .chunk.zst data)
+    if delta_plan["new_chunk_hashes"]:
+        try:
+            ensure_zstd_encoder_available()
+        except (ZstdUnavailableError, ZstdCompressionError) as e:
+            print(f"[mios-backup-remote] ERROR: {e}", file=sys.stderr)
+            return 2
 
     # 4. Stage and compress chunks in temporary directory
     staging_dir = os.path.join(args.manifest_dir, f".staging_{snapshot_id}")

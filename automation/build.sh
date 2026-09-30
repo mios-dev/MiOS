@@ -4,6 +4,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Captured before common.sh re-exports the resolved SSOT environment over it (ADR-0025).
+_requested_profile="${MIOS_PROFILES_DEFAULT:-}"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
 register_common_masks
@@ -235,10 +237,19 @@ _mios_root="${MIOS_TOML%/usr/share/mios/mios.toml}"
 [[ "$_mios_root" == "$MIOS_TOML" ]] && _mios_root="$_build_root"
 
 ALL_SCRIPTS=()
+# ADR-0025: the caller's MIOS_PROFILES_DEFAULT names the image profile; unset, miosd resolves [profiles].default.
+_profile_args=()
+[[ -n "$_requested_profile" ]] && _profile_args=(--profile "$_requested_profile")
 if [[ -n "$_miosd" ]]; then
+    # The profile's package sections, for install_packages* (lib/packages.sh); "*" selects all.
+    if ! BUILD_PROFILE_SECTIONS="$(MIOS_ROOT="$_mios_root" "$_miosd" build --sections "${_profile_args[@]}" 2>&1 | tr '\n' ' ')"; then
+        printf '[FATAL] miosd build --sections failed: %s\n' "$BUILD_PROFILE_SECTIONS" >&2
+        exit 1
+    fi
+    export BUILD_PROFILE_SECTIONS
     _phase_list="$(mktemp)"
     # No pipe: $? after one reports the pipe's status, not miosd's.
-    if MIOS_ROOT="$_mios_root" "$_miosd" build --list >"$_phase_list" 2>&1; then
+    if MIOS_ROOT="$_mios_root" "$_miosd" build --list "${_profile_args[@]}" >"$_phase_list" 2>&1; then
         mapfile -t PHASE_SCRIPTS < <(awk -F':' '{print $1}' "$_phase_list")
     else
         # A short or absent phase list is not a degraded build, it is a
@@ -420,18 +431,10 @@ if [[ -f "${SCRIPT_DIR}/98-drift-checks.sh" ]]; then
         git -C "${_drift_root}" config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
         git -C "${_drift_root}" reset --hard HEAD -q 2>/dev/null || true
     fi
+    for _projection in uki-cmdline ipa-enroll cockpit; do
+        mios_project_config "$_drift_root" "$_projection"
+    done
     if command -v python3 >/dev/null 2>&1; then
-        for _proj in generate-ipa-enroll-env.py generate-uki-cmdline.py generate-cockpit-conf.py; do
-            if [ -f "${_drift_root}/tools/${_proj}" ]; then
-                if python3 "${_drift_root}/tools/${_proj}" >/dev/null 2>&1; then
-                    echo "[reproject] ${_proj}: OK"
-                else
-                    echo "[reproject] WARN: ${_proj} failed"
-                fi
-            else
-                echo "[reproject] WARN: ${_drift_root}/tools/${_proj} not found"
-            fi
-        done
         # The edge goldens follow the build SSOT like the image surfaces 65-bake-hyprland.sh rendered.
         for _gen in ux/wm_config_gen.py desktop/gpu_terminal.py win/wt_profile_inject.py ux/tmux_theme.py; do
             python3 "${_drift_root}/usr/libexec/mios/${_gen}" --write-fixture "${_drift_root}"

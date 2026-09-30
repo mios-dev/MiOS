@@ -1,31 +1,22 @@
 #!/usr/bin/env python3
-# AI-hint: Provides a Model Context Protocol (MCP) stdio server that exposes the MiOS [verbs.*] catalog as tools and resources for local agents (Hermes, OpenCode) to execute system actions via the agent-pipe.
+# AI-hint: Provides a Model Context Protocol (MCP) server that exposes MiOS verbs and resources through the upstream dual-era FOSS SDK.
 # AI-related: mios-daemon-agent, mios-mcp, mios-mcp.service, agent-pipe (port key `agent_pipe`)
-"""mios-mcp-server -- Model Context Protocol stdio server.
+"""mios-mcp-server -- Model Context Protocol stdio and Streamable HTTP relay.
 
 Exposes MiOS's [verbs.*] catalog (SSOT in mios.toml) as MCP tools so
 LOCAL MCP-aware agents can drive MiOS verbs natively.
 
-LOCAL-ONLY by design. Intended consumers:
-  * MiOS-Hermes        (local; primary tool catalog)
-  * MiOS-OpenCode      (local; coding agent)
-  * mios-daemon-agent  (local; background sub-agent)
-  * Any LOCAL MCP client the operator stands up against on-host models
+LOCAL-ONLY by design. Any on-host MCP client using the MiOS local endpoint
+may consume the catalog; the server has no dependency on a hosted model.
 
-NOT for cloud-LLM clients. The operator's binding rule (2026-05-19)
-is "no cloud dependencies": MCP clients that route through hosted LLM
-providers (Claude Desktop, Cursor, GitHub Copilot, Codex Cloud) MUST
-NOT be in the chain. They CAN consume this server, but the MiOS
-operator does not run them.
-
-Protocol: JSON-RPC 2.0 over Streamable HTTP (current transport) + stdio. The
-declared revision is the [mcp].protocol_version SSOT (env
-MIOS_MCP_PROTOCOL_VERSION), shared with the agent-pipe consumer.
+Protocol framing, version negotiation and HTTP security are supplied by the
+upstream FOSS Python MCP SDK v2. It serves 2026-07-28 and legacy peers on the
+same endpoint. [mcp].protocol_version is the preferred client revision.
   https://modelcontextprotocol.io/specification
 
-Implements:
-  initialize          -- handshake; returns serverInfo + capabilities
-  notifications/initialized  -- accepted, no response
+Implements through the SDK:
+  server/discover     -- modern capability and version discovery
+  initialize         -- legacy handshake for older clients
   tools/list          -- renders [verbs.*] as MCP tool specs (calls
                          agent-pipe /v1/verbs)
   tools/call          -- dispatches via agent-pipe /v1/dispatch which
@@ -34,24 +25,20 @@ Implements:
                          + recipe + skill, promoted AND not) via agent-pipe
                          /v1/resources -- progressive-disclosure discovery
   resources/read      -- fetch one mios:// resource via /v1/resources/read
-  ping                -- liveness
-  shutdown            -- (informational; client closes stdio)
+  ping               -- liveness
 
-Defers to v2:
-  notifications/{tools,resources}/list_changed (inotify on mios.toml + the
-  skill store)
-  prompts/list (no MCP prompts yet)
+The dynamic catalog is private and uncached; clients can re-list after a change.
+Prompts remain absent until the MiOS profile declares them.
 """
 from __future__ import annotations
 
-import http.server
+import asyncio
 import json
 import os
 import re
 import sys
 import threading
 import time
-import uuid
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -82,13 +69,12 @@ def _ssot_protocol_version() -> str:
                         data=mios_toml.load_merged(layers))
     if val:
         return str(val).strip()
-    return "2025-11-25"
+    return "2026-07-28"
 
 
 PROTOCOL_VERSION = _ssot_protocol_version()
 SERVER_INFO = {"name": "mios-mcp-server", "version": "0.1.0"}
 TIMEOUT_S = 60
-SESSION_ID = uuid.uuid4().hex
 
 
 def _http_get(path: str, timeout: int | None = None) -> dict:
@@ -139,35 +125,11 @@ def _err(mid, code: int, message: str, data=None) -> dict:
     return {"jsonrpc": "2.0", "id": mid, "error": e}
 
 
-def _handle_initialize(mid, params: dict) -> dict:
-    requested = (params or {}).get("protocolVersion")
-    negotiated = (requested if isinstance(requested, str) and requested.strip()
-                  else PROTOCOL_VERSION)
-    return _ok(mid, {
-        "protocolVersion": negotiated,
-        "capabilities": {
-            "tools": {"listChanged": True},
-            "resources": {"subscribe": False, "listChanged": False},
-        },
-        "serverInfo": SERVER_INFO,
-    })
-
-
 _TOOLS_CACHE_FILE = os.environ.get(
     "MIOS_MCP_TOOLS_CACHE", "/var/lib/mios/mcp/tools.cache.json")
 _TOOLS_CACHE_MEM = None
 _REFRESH_INTERVAL_S = int(os.environ.get("MIOS_MCP_REFRESH_INTERVAL", "30"))
 _LIST_TIMEOUT_S = int(os.environ.get("MIOS_MCP_LIST_TIMEOUT", "8"))
-
-_SSE_EVENTS: set = set()
-_SSE_LOCK = threading.Lock()
-
-
-def _signal_list_changed() -> None:
-    with _SSE_LOCK:
-        for ev in list(_SSE_EVENTS):
-            ev.set()
-
 
 def _tools_cache_save(tools):
     global _TOOLS_CACHE_MEM
@@ -366,18 +328,17 @@ def _refresh_loop() -> None:
     Re-tries faster while the upstream looks unhealthy so the cache re-warms
     promptly once agent-pipe recovers. When the served catalog actually CHANGES
     (e.g. recovers from the SSOT floor / a degraded set back to the full surface),
-    push notifications/tools/list_changed so already-connected clients that honor
-    it (Hermes) re-list mid-session instead of being stuck on the degraded set."""
+    log a catalog change. The SDK serves uncached list results, so clients
+    re-list against the current catalog instead of keeping a stale session."""
     prev = tuple(sorted(t.get("name", "") for t in (_tools_cache_load() or [])))
     while True:
         ok = _refresh_once()
         if ok:
             cur = tuple(sorted(t.get("name", "") for t in (_tools_cache_load() or [])))
             if cur and cur != prev:
-                _signal_list_changed()
                 sys.stderr.write(
                     f"[mios-mcp] catalog changed ({len(cur)} tools); "
-                    f"pushed tools/list_changed\n")
+                    f"uncached list available\n")
             prev = cur
         time.sleep(_REFRESH_INTERVAL_S if ok else max(5, _REFRESH_INTERVAL_S // 6))
 
@@ -474,131 +435,8 @@ def _handle_resources_read(mid, params: dict) -> dict:
     return _ok(mid, {"contents": data.get("contents") or []})
 
 
-def _handle_ping(mid, _params: dict) -> dict:
-    return _ok(mid, {})
-
-
-def _write(msg: dict) -> None:
-    sys.stdout.write(json.dumps(msg, ensure_ascii=False) + "\n")
-    sys.stdout.flush()
-
-
-def _dispatch_rpc(msg: dict):
-    """Route ONE parsed JSON-RPC message to its handler. Returns the response
-    dict, or None for a notification (no reply). Shared by the stdio loop AND
-    the Streamable-HTTP transport so both behave identically."""
-    method = msg.get("method", "")
-    mid = msg.get("id")
-    params = msg.get("params") or {}
-    if mid is None and method.startswith("notifications/"):
-        return None
-    if method == "initialize":
-        return _handle_initialize(mid, params)
-    if method == "tools/list":
-        return _handle_tools_list(mid, params)
-    if method == "tools/call":
-        return _handle_tools_call(mid, params)
-    if method == "resources/list":
-        return _handle_resources_list(mid, params)
-    if method == "resources/read":
-        return _handle_resources_read(mid, params)
-    if method == "ping":
-        return _handle_ping(mid, params)
-    if method == "shutdown":
-        return _ok(mid, {})
-    if mid is not None:
-        return _err(mid, -32601, f"unknown method: {method}")
-    return None
-
-
-class _MCPHTTP(http.server.BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
-
-    def _json(self, obj, code: int = 200, extra_headers: dict | None = None) -> None:
-        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        for k, v in (extra_headers or {}).items():
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_POST(self) -> None:
-        try:
-            n = int(self.headers.get("Content-Length") or 0)
-        except ValueError:
-            n = 0
-        raw = self.rfile.read(n) if n else b""
-        try:
-            msg = json.loads(raw.decode("utf-8", "replace") or "{}")
-        except json.JSONDecodeError:
-            self._json({"jsonrpc": "2.0", "id": None,
-                        "error": {"code": -32700, "message": "parse error"}}, 400)
-            return
-        if isinstance(msg, list):          # JSON-RPC batch
-            out = [r for r in (_dispatch_rpc(m) for m in msg
-                               if isinstance(m, dict)) if r is not None]
-            self._json(out)
-            return
-        if not isinstance(msg, dict):
-            self._json({"jsonrpc": "2.0", "id": None,
-                        "error": {"code": -32600, "message": "invalid request"}}, 400)
-            return
-        resp = _dispatch_rpc(msg)
-        if resp is None:                   # notification -> 202, no body
-            self.send_response(202)
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-        extra = ({"Mcp-Session-Id": SESSION_ID}
-                 if msg.get("method") == "initialize" else None)
-        self._json(resp, extra_headers=extra)
-
-    def do_GET(self) -> None:
-        if self.path.rstrip("/") in ("/health", "/healthz"):
-            self._json({"status": "ok", "server": SERVER_INFO,
-                        "protocolVersion": PROTOCOL_VERSION})
-            return
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("Mcp-Session-Id", SESSION_ID)
-        self.end_headers()
-        ev = threading.Event()
-        with _SSE_LOCK:
-            _SSE_EVENTS.add(ev)
-        try:
-            self.wfile.write(b": keepalive\n\n")
-            self.wfile.flush()
-            while True:
-                fired = ev.wait(timeout=15)
-                if fired:
-                    ev.clear()
-                    payload = json.dumps(
-                        {"jsonrpc": "2.0",
-                         "method": "notifications/tools/list_changed"})
-                    self.wfile.write(
-                        f"event: message\ndata: {payload}\n\n".encode("utf-8"))
-                else:
-                    self.wfile.write(b": keepalive\n\n")
-                self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            return
-        finally:
-            with _SSE_LOCK:
-                _SSE_EVENTS.discard(ev)
-
-    def log_message(self, *_a) -> None:    # quiet; the unit journal is the log
-        return
-
-
 def _ensure_warm() -> None:
-    """Guarantee a servable catalog before the first client connects: disk
-    last-good first, else the mios.toml SSOT verb+recipe floor. So even a
-    cold-started server whose agent-pipe is still booting answers the first
-    tools/list with the full surface -- never zero tools, never toolless-for-life."""
+    """Serve the saved catalog or SSOT floor before the first client connects."""
     global _TOOLS_CACHE_MEM
     _tools_cache_prime()
     if not _TOOLS_CACHE_MEM:
@@ -606,53 +444,141 @@ def _ensure_warm() -> None:
         if floor:
             _TOOLS_CACHE_MEM = floor
             sys.stderr.write(
-                f"[mios-mcp] seeded {len(floor)} tools from mios.toml SSOT floor "
-                f"(cold cache)\n")
+                f"[mios-mcp] seeded {len(floor)} tools from mios.toml SSOT floor\n"
+            )
 
 
-def _run_http(port: int) -> None:
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), _MCPHTTP)
-    srv.daemon_threads = True
-    sys.stderr.write(f"[mcp] Streamable-HTTP server on 127.0.0.1:{port} "
-                     f"(verb relay -> {AGENT_PIPE_URL})\n")
-    sys.stderr.flush()
-    try:
-        srv.serve_forever()
-    except KeyboardInterrupt:
-        pass
+def _sdk_server():
+    """Use the upstream dual-era protocol engine; keep MiOS catalog and dispatch."""
+    from mcp import types
+    from mcp.server import Server
+
+    def result_or_raise(reply: dict) -> dict:
+        if "error" in reply:
+            raise RuntimeError(str(reply["error"].get("message", reply["error"])))
+        return reply.get("result") or {}
+
+    async def list_tools(_ctx, _params):
+        payload = result_or_raise(await asyncio.to_thread(_handle_tools_list, 0, {}))
+        rows = sorted(payload.get("tools") or [], key=lambda row: row.get("name", ""))
+        return types.ListToolsResult(
+            tools=[types.Tool.model_validate(row) for row in rows],
+            ttlMs=0, cacheScope="private",
+        )
+
+    async def call_tool(_ctx, params):
+        reply = await asyncio.to_thread(
+            _handle_tools_call, 0,
+            {"name": params.name, "arguments": params.arguments or {}},
+        )
+        if "error" in reply:
+            return types.CallToolResult(
+                content=[types.TextContent(
+                    type="text",
+                    text=str(reply["error"].get("message", reply["error"])),
+                )],
+                isError=True,
+            )
+        return types.CallToolResult.model_validate(reply.get("result") or {})
+
+    async def list_resources(_ctx, _params):
+        payload = result_or_raise(await asyncio.to_thread(_handle_resources_list, 0, {}))
+        resources = []
+        for row in payload.get("resources") or []:
+            try:
+                resources.append(types.Resource.model_validate(row))
+            except ValueError as error:
+                sys.stderr.write(f"[mios-mcp] skipped invalid resource: {error}\n")
+        resources.sort(key=lambda item: str(item.uri))
+        return types.ListResourcesResult(
+            resources=resources, ttlMs=0, cacheScope="private",
+        )
+
+    async def read_resource(_ctx, params):
+        payload = result_or_raise(await asyncio.to_thread(
+            _handle_resources_read, 0, {"uri": str(params.uri)},
+        ))
+        return types.ReadResourceResult(
+            contents=[types.TextResourceContents.model_validate(row)
+                      if "text" in row else types.BlobResourceContents.model_validate(row)
+                      for row in payload.get("contents") or []],
+            ttlMs=0, cacheScope="private",
+        )
+
+    return Server(
+        name=SERVER_INFO["name"],
+        version=SERVER_INFO["version"],
+        on_list_tools=list_tools,
+        on_call_tool=call_tool,
+        on_list_resources=list_resources,
+        on_read_resource=read_resource,
+    )
+
+
+async def _serve_stdio(server) -> None:
+    from mcp.server.stdio import stdio_server
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(
+            read_stream, write_stream, server.create_initialization_options(),
+        )
+
+
+def _serve_http(server, port: int) -> None:
+    import uvicorn
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
+
+    async def health(_request):
+        return JSONResponse({
+            "status": "ok",
+            "server": SERVER_INFO,
+            "protocolVersion": PROTOCOL_VERSION,
+        })
+
+    app = server.streamable_http_app(
+        streamable_http_path="/mcp",
+        json_response=True,
+        stateless_http=True,
+        host="127.0.0.1",
+        custom_starlette_routes=[
+            Route("/health", health), Route("/healthz", health),
+        ],
+    )
+    sys.stderr.write(
+        f"[mios-mcp] SDK Streamable HTTP on 127.0.0.1:{port}/mcp "
+        f"(verb relay -> {AGENT_PIPE_URL})\n"
+    )
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 
 def main() -> int:
+    from importlib.metadata import version
+
+    try:
+        sdk_major = int(version("mcp").split(".", 1)[0])
+    except Exception:
+        sdk_major = 0
+    if sdk_major < 2:
+        sdk_python = os.environ.get("MIOS_MCP_PYTHON") or "/usr/lib/mios/agents/.venv/bin/python3"
+        if os.path.isfile(sdk_python) and os.path.realpath(sdk_python) != os.path.realpath(sys.executable):
+            os.execv(sdk_python, [sdk_python, os.path.abspath(__file__), *sys.argv[1:]])
+    if sdk_major < 2:
+        raise SystemExit("mios-mcp-server requires the FOSS MCP Python SDK 2.x in the agent venv")
+
+    _ensure_warm()
+    threading.Thread(
+        target=_refresh_loop, name="mcp-tools-refresh", daemon=True,
+    ).start()
+    server = _sdk_server()
     if ("--http" in sys.argv[1:]
             or os.environ.get("MIOS_MCP_HTTP", "").strip().lower()
             in {"1", "true", "yes"}):
         port = int(os.environ.get("MIOS_PORT_MCP")
                    or os.environ.get("MIOS_MCP_PORT")
                    or os.environ.get("MIOS_PORTS_MCP"))
-        _ensure_warm()
-        threading.Thread(target=_refresh_loop, name="mcp-tools-refresh",
-                         daemon=True).start()
-        _run_http(port)
-        return 0
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
-    if hasattr(sys.stdin, "reconfigure"):
-        sys.stdin.reconfigure(encoding="utf-8")
-    for raw in sys.stdin:
-        line = raw.strip()
-        if not line:
-            continue
-        try:
-            msg = json.loads(line)
-        except json.JSONDecodeError:
-            _write({"jsonrpc": "2.0", "id": None,
-                    "error": {"code": -32700, "message": "parse error"}})
-            continue
-        resp = _dispatch_rpc(msg)
-        if resp is not None:
-            _write(resp)
-        if msg.get("method") == "shutdown":
-            return 0
+        _serve_http(server, port)
+    else:
+        asyncio.run(_serve_stdio(server))
     return 0
 
 

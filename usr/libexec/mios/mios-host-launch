@@ -120,4 +120,29 @@ if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
     export DBUS_SESSION_BUS_ADDRESS
 fi
 
+if [ "$IS_WSL" = "1" ] && [ -x /usr/libexec/mios/mios-autocenter ] \
+   && command -v curl >/dev/null 2>&1 \
+   && command -v python3 >/dev/null 2>&1; then
+    _mios_endpoint="${MIOS_OSCONTROL_EXECUTOR:-}"
+    if [ -z "$_mios_endpoint" ]; then
+        for _mios_toml in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+            [ -r "$_mios_toml" ] || continue
+            _mios_endpoint="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' "$_mios_toml" 2>/dev/null)"
+            [ -n "$_mios_endpoint" ] && break
+        done
+    fi
+    _mios_endpoint="${_mios_endpoint%/}"
+    if [ -n "$_mios_endpoint" ]; then
+        _mios_before="$(curl -s --max-time 5 "$_mios_endpoint/windows" 2>/dev/null | python3 -c '
+import sys, json
+try:
+    windows = json.load(sys.stdin).get("windows", [])
+except Exception:
+    windows = []
+print(",".join(str(w.get("hwnd")) for w in windows if w.get("hwnd") not in (None, "None")))
+' 2>/dev/null)"
+        setsid /usr/libexec/mios/mios-autocenter "$_mios_endpoint" "$_mios_before" >/dev/null 2>&1 &
+    fi
+fi
+
 exec "$BIN" "$@"

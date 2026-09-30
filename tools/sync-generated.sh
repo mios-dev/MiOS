@@ -39,6 +39,26 @@ export MIOS_USER_TOML_D="$ROOT/.mios-absent.d"
 
 step() { printf '[sync-generated] %s\n' "$1"; }
 
+# One platform-aware lookup for every native projection. A Windows checkout
+# can contain Linux build artifacts too; select a runnable host suffix first.
+native_bin() {
+    local name="$1" override="${2:-}" suffix candidate
+    local suffixes=("" ".exe")
+    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) suffixes=(".exe" "");; esac
+    if [[ -n "$override" && -x "$override" ]]; then
+        printf '%s' "$override"
+        return 0
+    fi
+    for suffix in "${suffixes[@]}"; do
+        for candidate in "$ROOT/tools/native/target/release/$name$suffix" \
+            "$ROOT/tools/native/target/debug/$name$suffix" \
+            "/usr/libexec/mios/$name$suffix" "/opt/mios/bin/$name$suffix"; do
+            [[ -x "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
+        done
+    done
+    return 1
+}
+
 # Steps 6 and 7 census `git ls-files`, so a file git does not yet TRACK is
 # invisible to both. Intent-to-add makes it visible without staging content, so
 # one pass suffices. Without this, sync and the gate pass locally and CI goes
@@ -80,6 +100,12 @@ main() {
     step "2d/6 dotfiles -- .dotfiles SSOT projection"
     "$PY" tools/sync-dotfiles.py
 
+    step "2e/6 wsl.conf mirror (etc/wsl.conf SSOT -> usr/lib/wsl.conf reference)"
+    if [[ -f "${ROOT}/etc/wsl.conf" ]]; then
+        mkdir -p "${ROOT}/usr/lib"
+        cp "${ROOT}/etc/wsl.conf" "${ROOT}/usr/lib/wsl.conf"
+    fi
+
     step "3/6 quadlets"
     "$PY" tools/generate-pod-quadlets.py >/dev/null
 
@@ -88,10 +114,7 @@ main() {
     # byte-identical output by check_names_registry_equivalence, which is what
     # makes preferring either one safe; before that gate existed the twin
     # emitted 3486 lines where this leg emits 1229 (T-1056).
-    _nr=""
-    for _c in tools/native/target/release/generate-names-registry tools/native/target/debug/generate-names-registry; do
-        [ -x "$_c" ] && { _nr="$_c"; break; }
-    done
+    _nr="$(native_bin generate-names-registry || true)"
     if [ -n "$_nr" ]; then
         MIOS_DRIFT_ROOT="$ROOT" "$_nr" >/dev/null
     else
@@ -115,14 +138,20 @@ main() {
     step "4b2/6 native workspace manifest (members = the crate dirs on disk)"
     "$PY" tools/generate-cargo-manifests.py >/dev/null
 
-    step "4c/6 blade projections (drop-ins + the deploy-time karg)"
-    "$PY" tools/generate-blade-dropins.py >/dev/null
-    "$PY" tools/generate-blade-karg.py >/dev/null
-
-    # AFTER the kargs.d producers: the UKI cmdline is derived from every
-    # kargs.d/*.toml, and it was gated without ever being regenerated here.
-    step "4d/6 UKI cmdline (derived from kargs.d)"
-    "$PY" tools/generate-uki-cmdline.py >/dev/null
+    step "4c/6 native deployment projections (blade + UKI + service configuration)"
+    _unit_gen="$(native_bin mios-unit-gen "${MIOS_UNIT_GEN_BIN:-}" || true)"
+    if [[ -z "$_unit_gen" ]]; then
+        echo "[sync-generated] FATAL: mios-unit-gen is required; build it in MiOS-DEV: cd tools/native && cargo build -p mios-unit-gen" >&2
+        return 1
+    fi
+    for _projection in blade-dropins blade-karg uki-cmdline cockpit ipa-enroll; do
+        if ! "$_unit_gen" --list-projections | tr -d '\r' | grep -Fxq "$_projection"; then
+            echo "[sync-generated] FATAL: mios-unit-gen does not advertise $_projection; rebuild it from this checkout" >&2
+            return 1
+        fi
+        # The cmdline follows every kargs.d producer above.
+        "$_unit_gen" "$_projection" --root "$ROOT" >/dev/null
+    done
 
     # policy.json is derived from [security.sigstore] but was never regenerated
     # here, so its tracked form (compact) had drifted from what the generator
@@ -132,17 +161,14 @@ main() {
     "$PY" tools/generate-cosign-policy.py >/dev/null
 
     step "4f2/6 daily artifact prompt -- ARTIFACT-PROMPT.md (from [artifacts.daily])"
-    _ap=""; for _c in tools/native/target/release/xtask tools/native/target/debug/xtask; do [ -x "$_c" ] && { _ap="$_c"; break; }; done
+    _ap="$(native_bin xtask || true)"
     if [ -n "$_ap" ]; then "$_ap" artifact-prompt --root "$ROOT" >/dev/null
     else echo "[sync-generated]      xtask not built; ARTIFACT-PROMPT.md NOT regenerated (check_artifact_prompt fails there)." >&2; fi
 
     step "4g/6 rust toolchain pin (from [build.toolchain])"
     # Before the size ceiling, which must stay last: this writes a root file and
     # so changes what the index measures.
-    _tp=""
-    for _c in tools/native/target/release/mios-toolchain-pin tools/native/target/debug/mios-toolchain-pin; do
-        [ -x "$_c" ] && { _tp="$_c"; break; }
-    done
+    _tp="$(native_bin mios-toolchain-pin || true)"
     if [ -n "$_tp" ]; then
         "$_tp" >/dev/null
     else
@@ -150,14 +176,20 @@ main() {
         echo "[sync-generated]      check_toolchain_pin still validates it, so this fails there, not here." >&2
     fi
 
+    step "4g2/6 AI client config -- etc/mios/ai/config.json + usr/share/mios/ai/v1/config.json (from [ai] + [ports])"
+    _ac="$(native_bin mios-ai-config || true)"
+    if [ -n "$_ac" ]; then
+        "$_ac" --root "$ROOT" >/dev/null
+    else
+        echo "[sync-generated]      mios-ai-config not built; the AI client config.json copies NOT regenerated." >&2
+        echo "[sync-generated]      check_ai_config_projection still validates it, so this fails there, not here." >&2
+    fi
+
     step "4f/6 tracked-size ceiling (measurement + [legibility].tracked_mb_headroom)"
     # Last of the generators on purpose: it measures the git INDEX, so it must
     # run after everything else has been staged, and its own one-line edit
     # cannot move a MiB boundary.
-    _sc=""
-    for _c in tools/native/target/release/mios-size-ceiling tools/native/target/debug/mios-size-ceiling; do
-        [ -x "$_c" ] && { _sc="$_c"; break; }
-    done
+    _sc="$(native_bin mios-size-ceiling || true)"
     if [ -n "$_sc" ]; then
         "$_sc" >/dev/null
     else
@@ -178,6 +210,13 @@ main() {
 
     step "6/7 AI manifests (they embed automation/ + tools/ content)"
     "$PY" tools/generate-ai-manifest.py >/dev/null
+
+    # After every generator that writes an AI-* header, before the manual
+    # corpus census. It reads the headers of every TRACKED file, so it was
+    # the one projection nothing refreshed and it drifted thousands of lines
+    # behind main; check_ai_metadata_fresh now holds it byte-identical.
+    step "6b/7 AI header metadata -- usr/share/mios/ai/v1/metadata.json"
+    "$PY" usr/libexec/mios/mios-ai-metadata.py --root "$ROOT" --export "$ROOT/usr/share/mios/ai/v1/metadata.json" >/dev/null
 
     # LAST: it censuses every TRACKED source file, so anything above moves it.
     # `git add` a new file BEFORE syncing, or its blocks land only once

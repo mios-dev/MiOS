@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# AI-hint: W10 live-chat leg. ExecStart wrapper for mios-live-chat-server.service.
+set -euo pipefail
+
+: "${LIVE_CHAT_MODEL_PATH:?LIVE_CHAT_MODEL_PATH not set -- /etc/mios/live-chat.conf missing/malformed}"
+: "${LIVE_CHAT_PORT:=8642}"
+: "${LIVE_CHAT_CTX_SIZE:=8192}"
+: "${LIVE_CHAT_THREADS:=0}"
+
+if [[ "$LIVE_CHAT_THREADS" == "0" ]]; then
+    LIVE_CHAT_THREADS="$(nproc 2>/dev/null || echo 4)"
+fi
+
+exec /usr/libexec/mios/llama-server \
+    --model "$LIVE_CHAT_MODEL_PATH" \
+    --host 127.0.0.1 --port "$LIVE_CHAT_PORT" \
+    --ctx-size "$LIVE_CHAT_CTX_SIZE" \
+    --flash-attn on \
+    --cache-type-k q4_0 --cache-type-v q4_0 \
+    --parallel 1 \
+    --threads "$LIVE_CHAT_THREADS" \
+    --n-gpu-layers 0 \
+    --jinja \
+    --alias mios-live-chat

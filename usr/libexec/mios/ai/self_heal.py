@@ -32,10 +32,6 @@ class PathViolationError(Exception):
     """Raised when remediation attempts to modify an immutable path like /usr."""
     pass
 
-class QuarantineError(Exception):
-    """Raised when a unit is quarantined due to circuit breaker trip."""
-    pass
-
 @dataclasses.dataclass
 class FailureEvent:
     unit_name: str

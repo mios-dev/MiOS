@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Reliability invariant that proves the two-sided control itself: a passing positive control and a planted failure that must be caught.
 set -euo pipefail
 echo "[TEST-INVARIANT-REL] Running two-sided control gate..."
 # Positive control

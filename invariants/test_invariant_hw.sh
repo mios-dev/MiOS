@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Hardware invariant: on a bootc VFIO host the CXL IOMMU bypass karg must be present; skips (exit 2) where no VFIO kargs exist.
 set -euo pipefail
 echo "[TEST-INVARIANT-HW] Verifying Kernel CXL IOMMU bypass parameter..."
 

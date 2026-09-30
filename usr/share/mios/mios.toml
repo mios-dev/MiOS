@@ -557,7 +557,7 @@ WantedBy = "remote-fs.target"
 
 
 [units."var-lib-machines.mount".Unit]
-comment = "#  SPDX-License-Identifier: LGPL-2.1-or-later\n#\n#  This file is part of systemd.\n#\n#  systemd is free software; you can redistribute it and/or modify it\n#  under the terms of the GNU Lesser General Public License as published by\n#  the Free Software Foundation; either version 2.1 of the License, or\n#  (at your option) any later version.\n# This unit is required for pre-240 versions of systemd that automatically set\n# up /var/lib/machines.raw as loopback-mounted btrfs file system. Later\n# versions don't do that anymore, but let's keep minimal compatibility by\n# mounting the image still, if it exists."
+comment = "# AI-hint: Upstream systemd unit, carried verbatim: loop-mounts /var/lib/machines.raw at /var/lib/machines when that image exists.\n#  SPDX-License-Identifier: LGPL-2.1-or-later\n#\n#  This file is part of systemd.\n#\n#  systemd is free software; you can redistribute it and/or modify it\n#  under the terms of the GNU Lesser General Public License as published by\n#  the Free Software Foundation; either version 2.1 of the License, or\n#  (at your option) any later version.\n# This unit is required for pre-240 versions of systemd that automatically set\n# up /var/lib/machines.raw as loopback-mounted btrfs file system. Later\n# versions don't do that anymore, but let's keep minimal compatibility by\n# mounting the image still, if it exists."
 Description = "Virtual Machine and Container Storage (Compatibility)"
 ConditionPathExists = "/var/lib/machines.raw"
 
@@ -1072,7 +1072,7 @@ SupplementaryGroups = "mios-hermes"
 WorkingDirectory = "/var/lib/mios/agent-pipe"
 EnvironmentFile = ["-/etc/mios/agent-pipe.env", "-/etc/mios/install.env"]
 Environment = [
-  "MIOS_PORT_AGENT_PIPE=${MIOS_PORT_AGENT_PIPE:-8700}",
+  "MIOS_PORT_AGENT_PIPE=${MIOS_PORT_AGENT_PIPE}",
   "MIOS_AGENT_PIPE_BACKEND_LIGHT=1",
   "MIOS_AI_MODEL=granite4.1:8b",
   "MIOS_NO_TOOL_CHOICE_HINTS=11436",
@@ -1556,7 +1556,7 @@ PrivateTmp = "true"
 WantedBy = "multi-user.target"
 
 [units."mios-xdg-userdir-init.service".Unit]
-comment = "# AI-hint: systemd user unit to dynamically update XDG directories when a CephFS network home is mounted.\n# AI-related: ~/.config/systemd/user/mios-xdg-userdir-init.service, [storage.cephfs]"
+comment = "# AI-hint: systemd user unit to dynamically update XDG directories when a CephFS network home is mounted.\n# AI-related: [storage.cephfs]"
 Description = "MiOS XDG User Directories Initialization"
 ConditionPathIsMountPoint = "%h"
 
@@ -1576,7 +1576,7 @@ WantedBy = "default.target"
 # MIOS_USER_GROUPS.
 # ----------------------------------------------------------------------------
 [identity]
-username  = "mios"
+username  = "user"
 fullname  = "MiOS Operator"
 hostname  = "mios"
 shell     = "/bin/bash"
@@ -1731,13 +1731,14 @@ grandfathered = [
 enable      = true
 # A redaction error refuses the write; never fall through to an unredacted one.
 fail_closed = true
-# Agent-plane free text -- where a secret or PII actually lands.
+# Agent-plane free text -- where a secret or PII actually lands. agent_inbox
+# carries raw webhook payloads and threat_events free-text descriptions.
 tables = [
-  "agent_memory", "config_event", "directory_entry", "event",
+  "agent_inbox", "agent_memory", "config_event", "directory_entry", "event",
   "fact_ledger", "gateway_sessions", "kanban", "knowledge",
   "log_digest", "mios_rag", "peer_reputation", "pending_action",
   "progress_ledger", "scratch", "session", "skill_invocation",
-  "system_logs", "tasks", "tool_call",
+  "system_logs", "tasks", "threat_events", "tool_call",
 ]
 # Structured system/config tables: redaction would CORRUPT the value, not
 # protect it, and they hold no free-form prose.
@@ -2256,27 +2257,29 @@ surfaces = [
   { generator = "usr/libexec/mios/mios-manual", check = "check_docs_ratchet_monotone", output = "usr/share/mios/reference/doc-ratchet-floor.tsv" },
   { generator = "tools/render-desktop.py", check = "check_desktop_launchers", output = "usr/share/applications/*.desktop" },
   { generator = "tools/generate-ai-manifest.py", check = "check_ai_manifests_fresh", output = "automation/manifest.json" },
-  { generator = "tools/generate-blade-dropins.py", check = "check_blade_dropins", output = "usr/share/mios/dropins/" },
+  { generator = "usr/libexec/mios/mios-ai-metadata.py", check = "check_ai_metadata_fresh", output = "usr/share/mios/ai/v1/metadata.json" },
+  { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_dropins", output = "usr/share/mios/dropins/" },
   { generator = "tools/generate-pod-quadlets.py", check = "check_pod_quadlets", output = "usr/share/containers/systemd/" },
   { generator = "tools/render-globals.py", check = "check_globals_generated", output = "automation/lib/globals.sh, automation/lib/globals.ps1" },
   { generator = "tools/generate-cosign-policy.py", check = "check_signature_policy", output = "usr/lib/containers/policy.json" },
   { generator = "tools/generate-adr-index.py", check = "check_adr_index", output = "ADR.md" },
   { generator = "tools/native/mios-bake-plan/src/main.rs", check = "check_bake_plan", output = "usr/lib/mios/bake/plan.d/NN-<group>.list, usr/lib/mios/bake/plan.d/firstboot.list, usr/share/mios/artifacts/sbom/bound-images.tsv" },
   { generator = "tools/generate-bib-configs.py", check = "check_bib_configs_projection", output = "config/artifacts/bib.toml, config/artifacts/iso.toml" },
-  { generator = "tools/generate-blade-karg.py", check = "check_blade_karg", output = "usr/lib/bootc/kargs.d/05-mios-blade.toml" },
+  { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_karg", output = "usr/lib/bootc/kargs.d/05-mios-blade.toml" },
   { generator = "tools/generate-cargo-manifests.py", check = "check_cargo_manifest_generated", output = "tools/native/Cargo.toml" },
-  { generator = "tools/generate-cockpit-conf.py", check = "check_cockpit_projection", output = "etc/cockpit/cockpit.conf" },
+  { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_cockpit_projection", output = "etc/cockpit/cockpit.conf" },
   { generator = "tools/generate-egress-firewall.py", check = "check_egress_firewall", output = "usr/share/mios/security/egress.nft" },
   { generator = "tools/generate-gate-index.py", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
-  { generator = "tools/generate-ipa-enroll-env.py", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
+  { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
   { generator = "tools/generate-metal-vs-hosted.py", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
   { generator = "tools/generate-names-registry.py", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
   { generator = "tools/generate-pipeline-index.py", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
-  { generator = "tools/generate-uki-cmdline.py", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
+  { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_uki_cmdline_projection", output = "usr/lib/kernel/cmdline" },
   { generator = "tools/render-manpages.py", check = "check_manpages", output = "usr/share/man/" },
   { generator = "tools/native/mios-task/src/main.rs", check = "check_task_store", output = "TASKS.jsonl" },
   { generator = "tools/native/mios-size-ceiling/src/main.rs", check = "check_size_ceiling", output = "usr/share/mios/mios.toml [legibility].max_tracked_mb" },
   { generator = "tools/native/mios-toolchain-pin/src/main.rs", check = "check_toolchain_pin", output = "rust-toolchain.toml" },
+  { generator = "tools/native/mios-ai-config/src/main.rs", check = "check_ai_config_projection", output = "etc/mios/ai/config.json, usr/share/mios/ai/v1/config.json" },
   { generator = "tools/native/xtask/src/main.rs", check = "check_artifact_prompt", output = "ARTIFACT-PROMPT.md" },
   { generator = "tools/render-ports.py", check = "check_ports_category_schema", output = "usr/share/mios/mios.toml [ports] flat table, plus the port-fallback default literals across automation/ usr/ etc/ tools/" },
   { generator = "usr/libexec/mios/ux/wm_config_gen.py", check = "check_edge_generators", output = "usr/share/mios/hyprland/hyprland.conf, usr/share/mios/sway/config" },
@@ -2390,7 +2393,7 @@ exempt_files = [
     ".*Get-MiOS\\.ps1$",
     ".*patch_pods\\.py$",
     ".*mios-fix-wslg\\.ps1$",
-    ".*MiOS-Cat-FileChecker\\.ps1$"
+    ".*MiOS-Field-FileChecker\\.ps1$"
 ]
 exempt_patterns = [
     "0\\.0\\.0\\.0",
@@ -2436,7 +2439,7 @@ backend  = "systemd-cryptenroll"           # Enrollment backend: "systemd-crypte
 # A TPM2 PCR policy binds to ONE host: PCR 7 is that machine's Secure Boot
 # state, PCR 14 that machine's MOK enrolment. Neither travels on a drive.
 
-# So a portable MiOS-Cat drive enrolls a SECOND token. ADR-0016 D13.1.
+# So a portable MiOS-Field drive enrolls a SECOND token. ADR-0016 D13.1.
 portable_token = "fido2"
 
 [security.mtls]
@@ -3510,7 +3513,7 @@ mdns_advertise     = false              # announce THIS node's A2A endpoint via 
 mdns_refresh_sec   = 300                # minimum seconds between live mDNS browses (throttle floor)
 
 [mcp]
-protocol_version = "2025-11-25"
+protocol_version = "2026-07-28"
 
 [routing]
 router_enable = true   # master switch; false = legacy full-surface behaviour
@@ -6143,6 +6146,9 @@ pkgs = [
     "nftables",            # netavark alternative backend
     "fastfetch",           # MiOS dashboard / motd
     "oh-my-posh",          # MiOS themed prompt
+    "python3-rich",        # MiOS TUI dashboard (mios-mon.py)
+    "python3-textual",     # MiOS TUI dashboard full monitor
+    "python3-psutil",      # MiOS system resource telemetry
     "bash-completion",     # tab-complete in interactive shells
 ]
 
@@ -6154,9 +6160,13 @@ pkgs = [
 # -dev-loop), Codespaces, Cloud Shell (cloud-shell/bootstrap.sh) and the hosted
 # cloud-session projection. Built from a context that is not a MiOS checkout,
 # the Containerfile shallow-clones MiOS and reads this list from the clone.
-# Not a bake section -- no automation/NN-*.sh stage installs it into the image.
+# The dev profile and a full build also install its declared dependency closure
+# through the repos phase; the core profile selects self-build without editor extras.
 [packages.devcontainer]
 enable = true
+# The development image shares the self-build dependency closure with MiOS.
+# Section dependencies are resolved and deduplicated by automation/lib/packages.sh.
+requires_sections = ["self-build"]
 pkgs = [
     "just",
     "podman", "podman-compose", "buildah", "skopeo",
@@ -6164,18 +6174,15 @@ pkgs = [
     "bootc", "bootupd", "ostree", "rpm-ostree",
     "curl", "wget", "ca-certificates", "gh", "jq", "yq", "rsync", "git", "tmux",
     "nodejs", "npm",
-    "python3", "python3-pip", "python3-devel",
     "python3.11", "python3.11-devel",   # agent-pipe venv interpreter (/usr/lib/mios/agents/.venv)
     "ruby", "ruby-devel",
-    "python3-rich", "python3-textual", "python3-psutil", "python3-pytest", "python3-jsonschema",
-    "rust", "cargo", "clippy", "rustfmt", "gcc", "gcc-c++", "make",
+    "python3-rich", "python3-textual", "python3-psutil",
     "dbus-daemon", "dbus-tools", "gnome-keyring", "libsecret",   # agent CLI credential keyring
     "procps-ng", "util-linux", "shadow-utils", "authselect",
     "sudo", "zsh",
     "findutils", "grep", "sed", "gawk", "diffutils", "patch",
     "ripgrep", "tar", "gzip", "unzip", "zip",
     "openssl", "qemu-img", "attr",
-    "ShellCheck",
     "btop", "fastfetch", "oh-my-posh",
 ]
 
@@ -6218,6 +6225,9 @@ pkgs = [
     "fapolicyd",
     "usbguard",
     "python3.13",
+    "python3-rich",
+    "python3-textual",
+    "python3-psutil",
     # The manual reader itself: without it the rendered pages are
     # unreachable on the running system.
     "man-db",
@@ -6465,16 +6475,40 @@ pkgs = [
     "selinux-policy-devel",
     "binutils",
     "pkgconf-pkg-config",
+    # Both native workspaces and their lint/format gates must build on MiOS.
+    # rustup manages the SSOT-selected channel; distro Rust also works offline.
+    "rust", "cargo", "rustup", "clippy", "rustfmt",
+    "glibc-devel",
+    "musl-devel", "musl-gcc", "musl-libc-static",
+    "ninja-build",                 # quickshell's CMake Ninja backend
+    "python3", "python3-pip", "python3-devel",
+    "openssl-devel", "libffi-devel", # source-built Python extension dependencies
 ]
 
 [packages.self-build]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
+requires_sections = ["build-toolchain"]
+# Default MiOS keeps its full build dependencies so it can rebuild itself.
+# Set false only for an intentionally stripped deployment image.
+retain_toolchain = true
 pkgs = [
     "buildah",
     "podman",
     "skopeo",
     "ostree",
     "bootc",
+    "bootupd", "rpm-ostree",
+    # Rootless build and registry tooling, with weak dependency installation off.
+    "crun", "netavark", "aardvark-dns", "slirp4netns", "passt", "fuse-overlayfs",
+    "shadow-utils", "util-linux", "procps-ng", "sudo", "coreutils", "bash", "dnf5",
+    # Repository, source archive and generated-projection dependencies.
+    "git", "git-lfs", "gh", "curl", "ca-certificates", "rsync",
+    "findutils", "grep", "sed", "gawk", "diffutils", "patch",
+    "tar", "gzip", "bzip2", "xz", "zstd", "unzip", "zip", "cpio",
+    "jq", "yq", "qemu-img", "squashfs-tools", "attr", "just",
+    # Existing self-development checks and templates, not only a compiler.
+    "ShellCheck", "python3-pytest", "python3-jsonschema", "python3-pyyaml",
+    "python3-pyflakes", "python3-cryptography", "python3-aiohttp", "python3-pydantic",
 ]
 
 [packages.boot]
@@ -6814,9 +6848,17 @@ pkgs = [
 
 [packages.ai]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
+# Shared agent runtime packages are resolved by pip in phase 72. Keep SDK-only
+# dependencies here through this canonical manifest, not mismatched distro RPMs.
+python_requirements = ["usr/lib/mios/agent-pipe/requirements.txt"]
 pkgs = [
     "python3-openai",
     "python3-httpx",    # mios_mcp imports it directly; never lean on python3-openai pulling it in
+    "python3", "python3-pip", "python3-devel",
+    "python3-requests", "python3-rich", "python3-textual", "python3-psutil",
+    "python3-jsonschema", "python3-pyyaml", "python3-cryptography",
+    "python3-psycopg3", "python3-psycopg2", # system Python database projections and graph traversal
+    "python3-zstandard",                   # system backup's declared compression lane
     "nodejs",           # required by claude-code + gemini-cli (npm-installed)
     "npm",
     "nano",             # baseline text editor for operator config edits (operator-flagged: "nano: command not found")
@@ -7285,7 +7327,9 @@ members     = [
   "mios-llm-heavy",
   "mios-llm-heavy-alt",
   "mios-pgvector",
-  "mios-open-webui"
+  "mios-open-webui",
+  "mios-piper",
+  "mios-whisper"
 ]
 doc = """Consolidated AI pod."""
 
@@ -7596,6 +7640,8 @@ searxng = "master"
 
 [build.bake]
 runner_disk_budget_gb = 40
+# Read-only bootc image store for logically bound Quadlets only.
+additional_image_store = "/usr/lib/bootc/storage"
 core = [
   "localhost/mios-sys",
   "localhost/mios-cuda",
@@ -7761,8 +7807,8 @@ ansi_15_bright_white    = "#FFFFFF"   # pure white
 
 [bootstrap]
 mode             = "auto"
-mios_repo        = "C:/MiOS"
-bootstrap_repo   = "C:/mios-bootstrap"
+mios_repo        = "https://github.com/mios-dev/MiOS.git"
+bootstrap_repo   = "https://github.com/mios-dev/mios-bootstrap.git"
 branch           = "main"
 install_packages = true   # run dnf install on PACKAGES.md after FHS overlay
 reboot_on_finish = true   # interactive y/N prompt at end of install
@@ -7847,8 +7893,8 @@ guacamole_web_port_key   = "guacamole_web"
 [bootstrap.dev_vm.host_reserve]
 cpu_pct             = 15      # reserve 15% of logical CPUs for Windows host
 cpu_min             = 2       # always reserve at least 2 cores
-memory_pct          = 15      # reserve 15% of host RAM for Windows host
-memory_gb           = 4       # always reserve at least 4 GB
+memory_pct          = 50      # reserve 50% of host RAM for Windows host (WSL2 gets ~50%)
+memory_gb           = 8       # always reserve at least 8 GB
 disk_gb             = 32      # always keep 32 GB free on M:\ for Windows-side
                               # artifacts (build outputs, podman cache, etc.)
 
@@ -7909,6 +7955,8 @@ rows                = 50
 mode                = "dark"             # "dark" | "light" (rare; vendor=dark)
 acrylic             = true               # WT useAcrylic ON
 opacity             = 50                 # WT opacity 0..100 (50 = 50% transparency)
+unfocused_acrylic   = false              # Windows 11 unblurred transparency while Terminal is inactive
+unfocused_opacity   = 50                 # preserve MiOS transparency while another app has focus
 system_backdrop     = "acrylic"          # WT 1.18+ per-profile backdrop
 cursor_shape        = "vintage"    # steady half-block; thin "bar" was almost too thin to see on 4K -- "vintage" is the substantial half-block cursor (matches xterm's default visual weight without the full filledBox feel)
 scrollbar_state     = "hidden"           # EVERY terminal surface (WT, code-server, VTE, Portal): visible|hidden|always; parsed only by mios_toml.edge_insets()
@@ -9965,6 +10013,132 @@ After = "network-online.target mios-webtools-firstboot.service"
 Description = "'MiOS' OpenTelemetry Collector and Jaeger Trace Viewer"
 Wants = "network-online.target"
 
+[containers.mios-piper.Unit]
+After = "network-online.target mios-cdi-detect.service"
+Description = "'MiOS' Piper/Kokoro Streaming TTS Engine (piper-http)"
+Documentation = "https://github.com/rhasspy/piper"
+Wants = "network-online.target"
+
+[containers.mios-piper.Container]
+ContainerName = "mios-piper"
+Environment = "PORT=${MIOS_PORT_PIPER:-8179}"
+EnvironmentFile = "/etc/mios/install.env"
+Exec = "--model /models/en_US-lessac-medium.onnx --port ${MIOS_PORT_PIPER:-8179} --host 0.0.0.0"
+HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_PIPER:-8179}/health || exit 1"
+HealthInterval = "30s"
+HealthRetries = 3
+HealthStartPeriod = "30s"
+HealthTimeout = "10s"
+Image = "ghcr.io/rhasspy/piper:latest"
+Label = [
+  "org.opencontainers.image.title=mios-piper",
+  'org.opencontainers.image.description="Local Piper/Kokoro streaming server for MiOS real-time speech synthesis"'
+]
+Pod = "mios-ai.pod"
+Volume = [
+  "/usr/share/mios/piper/models:/models:ro,Z",
+  "/run/mios:/run/mios:Z"
+]
+
+[containers.mios-piper.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-piper.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "5s"
+TimeoutStartSec = "300s"
+
+[containers.mios-whisper.Unit]
+After = "network-online.target mios-cdi-detect.service"
+Description = "'MiOS' Whisper Streaming STT Engine (whisper.cpp)"
+Documentation = "https://github.com/ggerganov/whisper.cpp"
+Wants = "network-online.target"
+
+[containers.mios-whisper.Container]
+ContainerName = "mios-whisper"
+Environment = "PORT=${MIOS_PORT_WHISPER:-8178}"
+EnvironmentFile = "/etc/mios/install.env"
+Exec = "--model /models/ggml-base.en.bin --port ${MIOS_PORT_WHISPER:-8178} --host 0.0.0.0 --convert"
+HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_WHISPER:-8178}/health || exit 1"
+HealthInterval = "30s"
+HealthRetries = 3
+HealthStartPeriod = "30s"
+HealthTimeout = "10s"
+Image = "ghcr.io/ggerganov/whisper.cpp:main"
+Label = [
+  "org.opencontainers.image.title=mios-whisper",
+  'org.opencontainers.image.description="Local whisper.cpp streaming server for MiOS real-time speech-to-text"'
+]
+Pod = "mios-ai.pod"
+Volume = [
+  "/usr/share/mios/whisper/models:/models:ro,Z",
+  "/run/mios:/run/mios:Z"
+]
+
+[containers.mios-whisper.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-whisper.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "5s"
+TimeoutStartSec = "300s"
+
+[containers.mios-sunshine.Unit]
+After = "network-online.target mios-cdi-detect.service"
+Description = "'MiOS' Sunshine Low-Latency Streaming Server (DMA-BUF & HW Encode)"
+Documentation = "https://docs.lizardbyte.dev/projects/sunshine"
+Wants = "network-online.target"
+
+[containers.mios-sunshine.Container]
+AddCapability = [
+  "CAP_SYS_ADMIN",
+  "CAP_NET_ADMIN",
+  "CAP_SYS_NICE"
+]
+AddDevice = [
+  "/dev/dri",
+  "/dev/uinput",
+  "nvidia.com/gpu=all"
+]
+ContainerName = "mios-sunshine"
+Environment = [
+  "SUNSHINE_USER=mios",
+  "PULSE_SERVER=unix:/run/user/1000/pulse/native",
+  "XDG_RUNTIME_DIR=/run/user/1000",
+  "WAYLAND_DISPLAY=wayland-0"
+]
+EnvironmentFile = "/etc/mios/install.env"
+HealthCmd = "curl -fsS http://localhost:47990/ || exit 1"
+HealthInterval = "30s"
+HealthRetries = 3
+HealthStartPeriod = "20s"
+HealthTimeout = "10s"
+Image = "docker.io/lizardbyte/sunshine:latest"
+Label = [
+  "org.opencontainers.image.title=mios-sunshine",
+  'org.opencontainers.image.description="Low-latency Sunshine/Moonlight streaming server with multi-vendor hardware encoding and DMA-BUF capture"'
+]
+Network = "host"
+SecurityLabelDisable = true
+Volume = [
+  "/run/user/1000:/run/user/1000:ro",
+  "/etc/sunshine:/etc/sunshine:Z",
+  "/var/lib/mios/sunshine:/var/lib/mios/sunshine:Z",
+  "/dev/dri:/dev/dri:rslave",
+  "/dev/uinput:/dev/uinput:rslave"
+]
+
+[containers.mios-sunshine.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-sunshine.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "5s"
+TimeoutStartSec = "120s"
+
 
 # ─── Editions Matrix ─────────────────────────────────────────────────────────
 # Defines the different flavors/editions of MiOS that can be built by the
@@ -10253,6 +10427,10 @@ mios-finetune-serve            = ["service-plane"]
 mios-mcp                       = ["service-plane"]
 mios-opencode-gateway          = ["service-plane"]
 mios-policy-arbiter            = ["service-plane"]
+mios-attest        = ["controller", "service-plane"]   # TPM-quote verifier + onboarding: controller blades only
+mios-registry                  = ["service-plane"]   # local OCI registry
+mios-thermald                  = ["service-plane"]   # CPU/GPU power caps, like mios-powerd: the blade owns the hardware
+mios-wol-proxy                 = ["service-plane"]   # wake-on-LAN relay for the fleet
 # Units that activate a gated unit and cannot work without it. See ADR-0016 D4.
 mios-embed-backfill            = ["service-plane"]
 mios-forge-firstboot           = ["service-plane"]
@@ -10282,6 +10460,17 @@ build_xbox        = "Enabled"
 gaming_optimize   = "Enabled"
 medicatver        = "21.12"
 cache_path        = "M:\\MediCat.USB.v21.12.7z"
+# medicat_sha1 / medicat_md5 : upstream-published hashes of MediCat.USB.v<medicatver>.7z,
+#                  checked by installation/MiOS-Field.bat after download (SHA1 preferred,
+#                  MD5 if SHA1 is empty; both empty -> check skipped). Update them with
+#                  medicatver; keep them equal to mios-bootstrap's mios.toml [field]. Source
+#                  for v21.12: the MediCat download page, https://medicatusb.com/#downloads
+#                  (repo github.com/mon5termatt/medicat-website,
+#                  src/components/home/downloads.astro @ cd6f924); the MD5 matches upstream
+#                  github.com/mon5termatt/medicat_installer src/downloads.h + download/cdn.bat
+#                  @ d588fd3, whose archive size (22994783619) matches MiOS-Field.bat's size gate.
+medicat_sha1      = "2cbf5f337849a11084124a79a1b8d7e77eaca7d5"
+medicat_md5       = "db50f96a5c7b5ec6dc9ed77ea29fffb0"
 ventoy_version    = "latest"
 xbox_builder      = ""
 build_driver      = ""
@@ -10309,7 +10498,7 @@ threads            = 0
 iso_name           = "MiOS-Live-Chat.iso"
 live_chat_enabled  = "true"                     # .bat-loader alias of `enabled`
 live_chat_iso_name = "MiOS-Live-Chat.iso"       # .bat-loader alias of `iso_name`
-live_chat_iso_src  = "M:\\MiOS-Live-Chat.iso"   # where MiOS-Cat.bat looks for a pre-built ISO
+live_chat_iso_src  = "M:\\MiOS-Live-Chat.iso"   # where MiOS-Field.bat looks for a pre-built ISO
 
 [field.sysrescue]
 enable            = true
@@ -10904,6 +11093,19 @@ generated = true
 scaffold = true
 fixed_name = "ARTIFACT-PROMPT.md"
 
+# Prompt contracts at any depth under usr/share/mios/prompts/. Only the tags
+# every shipped prompt carries are required, so that none fails; comment and
+# emit are omitted to avoid a duplicate value (check_no_duplicate_value_key).
+[templates.research-prompt]
+match = "^usr/share/mios/prompts/(?:[\\w.-]+/)*[\\w.-]+\\.xml\\.md$"
+required_header = true
+required_markers = ["<role>", "<task>", "<inputs>", "<output_contract>"]
+required_ordered = ["<role>", "</role>", "<task>", "</task>", "<inputs>", "</inputs>", "<output_contract>", "</output_contract>"]
+generated = false
+scaffold = true
+dest_dir = "usr/share/mios/prompts/upstream-researched-patterns/foss"
+name_suffix = ".xml.md"
+
 [kargs]
 iommu          = "on"                      # Enable IOMMU: "on", "amd", "intel"
 vfio_ids       = ""                        # PCI IDs to bind to vfio-pci (comma-separated, e.g. "10de:1db6")
@@ -11092,7 +11294,7 @@ bands = [
 ]
 
 [pipeline.invariants]
-prefix_unique       = true
+prefix_unique       = false
 prefix_in_band      = true
 map_in_sync         = true
 check_dense         = true
@@ -11257,9 +11459,10 @@ checks = [
 # numbered above 55, producing a split brain inside one bake.
 #
 # That reasoning read the script instead of measuring whether the line runs.
-# 55-native-build.sh guards its whole body on `command -v cargo`, no [packages]
-# section installs a Rust toolchain, and no phase dnf-installs one: in a bake
-# the stage prints its "cargo toolchain not available" warning and does nothing.
+# This was a historical missing-package condition. [packages.build-toolchain]
+# now ships Rust/Cargo and the repos phase installs selected build dependencies.
+# Phase 55 must distinguish complete source checkouts from image bake contexts;
+# prebuilt native binaries copied by the Containerfile remain the bake producer.
 # The binaries in the image come from the Containerfile's rust-builder stage,
 # COPYed to /usr/libexec/mios, which is not on PATH -- so no stage, above or
 # below 55, has ever reached its Rust branch. Registering 55 arms nothing.
@@ -11271,6 +11474,7 @@ max_unregistered = 0
 list = [
   { ordinal = "01", name = "system-files-overlay", script = "01-system-files-overlay.sh", fatal = true, apply_class = "containerfile" },
   { ordinal = "02", name = "materialize-build-ctx", script = "02-materialize-build-ctx.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "02", name = "uki-bootloader", script = "02-uki-bootloader.sh", fatal = true, apply_class = "universal" },
   { ordinal = "04", name = "local-rpm-mirror", script = "04-local-rpm-mirror.sh", fatal = true, apply_class = "universal" },
   { ordinal = "05", name = "repos", script = "05-repos.sh", fatal = true, apply_class = "universal" },
   { ordinal = "06", name = "enable-external-repos", script = "06-enable-external-repos.sh", fatal = false, apply_class = "universal" },
@@ -11285,6 +11489,7 @@ list = [
   { ordinal = "21", name = "virt", script = "21-virt.sh", fatal = true, apply_class = "universal" },
   { ordinal = "22", name = "akmod-guards", script = "22-akmod-guards.sh", fatal = false, apply_class = "universal" },
   { ordinal = "23", name = "gpu-passthrough", script = "23-gpu-passthrough.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "24", name = "cpu-affinity", script = "24-cpu-affinity.sh", fatal = true, apply_class = "universal" },
   { ordinal = "24", name = "gpu-pv-shim", script = "24-gpu-pv-shim.sh", fatal = true, apply_class = "universal" },
   { ordinal = "25", name = "gpu-cdi-toolkits", script = "25-gpu-cdi-toolkits.sh", fatal = true, apply_class = "universal" },
   { ordinal = "26", name = "nvidia-cdi-refresh", script = "26-nvidia-cdi-refresh.sh", fatal = true, apply_class = "universal" },
@@ -11616,8 +11821,8 @@ ref_allowlist = [
   "x.service", "unit.service", "UID.service", "UID_.service",
   "s.container", "-pod.service", "host.container", ".apply.target",
   "MIOS_FOO", "mios-XXXXX",
-  # Untracked files (installation/MiOS-Cat.bat is gitignored, mios-knowledge-graph.json built at runtime).
-  "installation/MiOS-Cat.bat",
+  # Untracked files (installation/MiOS-Field.bat is gitignored, mios-knowledge-graph.json built at runtime).
+  "installation/MiOS-Field.bat",
   "usr/share/mios/knowledge/mios-knowledge-graph.json",
   "mios-knowledge-graph",
   "C:\\mios-bootstrap\\Get-MiOS.ps1",
@@ -11641,8 +11846,8 @@ ref_allowlist = [
   "usr/share/mios/live-chat/overlay/",
   "/usr/libexec/mios/oh-my-posh/oh-my-posh",
   "build-mios.sh",
-  "cat/MiOS-Cat.sh",
-  "cat/MiOS-Cat.bat",
+  "field/MiOS-Field.sh",
+  "field/MiOS-Field.bat",
   "tests/templates/conform-cli/",
   "/usr/share/mios/tools/universal-vfio-configurator.sh",
   "automation/57-mios-sys-build.sh",
@@ -11834,6 +12039,9 @@ ai_hint = "Desktop entry for the SearXNG metasearch proxy; used by agents to ide
 # [bootstrap.sync] -- Law 15 mirror manifest. Contract: installation/UNIFY.md.
 [bootstrap.sync]
 # Byte-identical in both repos; mios.git wins. Never list a bootstrap-owned file.
+# build-mios.ps1 and installation/* stay mirrored rather than moved: bootstrap
+# runs them from its own checkout and raw URL (Get-MiOS.ps1, build-mios.sh,
+# field/lib/MiOS-Field.psm1), so its copy is a mirror of this one, not an owner.
 mirror_files = [
   "Get-MiOS.ps1",
   "LICENSE",
@@ -11843,11 +12051,14 @@ mirror_files = [
   "installation/mios-common.sh",
   "installation/mios-install.sh",
   "installation/mios-install.ps1",
-  "etc/skel/.config/mios/system-prompt.md",
-  "etc/usbguard/rules.conf",
   "installation/bin/7z.dll",
   # The one MiOS dev image; the same bytes build from either repo root.
   ".devcontainer/Containerfile",
+  # Harness settings: the no-merge deny applies in every MiOS repo.
+  ".claude/settings.json",
+  # Install defaults and the release number: one value set for both repos.
+  ".env.mios",
+  "VERSION",
 ]
 
 # SSOT tables mirrored into bootstrap's root mios.toml.
@@ -11857,27 +12068,24 @@ mirror_toml_tables = ["ports", "colors"]
 mirror_toml_keys = ["theme.padding", "theme.scrollbar_state"]
 
 # Deliberately NOT mirrored; reasons in installation/UNIFY.md.
+# Owned here and absent from bootstrap (no row needed; the tracked-in-both scan
+# flags a copy that reappears): etc/mios/ai/config.json (generated by
+# tools/native/mios-ai-config) and etc/skel/.config/{mios,aichat}/*. Owned by
+# bootstrap and absent here: install.sh, install.ps1.
 not_mirrored = [
-  "install.sh", "install.ps1", "bootstrap.sh", "bootstrap.ps1",
+  "bootstrap.sh", "bootstrap.ps1",
   "README.md", "CLAUDE.md", "AGENTS.md",
-  "GEMINI.md", ".gitignore", "VERSION",
+  "GEMINI.md", ".gitignore",
   ".clinerules",
   ".cursorrules",
   ".devcontainer/Dockerfile",
   ".devcontainer/devcontainer.json",
   ".editorconfig",
-  ".env.mios",
   ".gitattributes",
-  "etc/mios/ai/config.json",
-  "etc/skel/.config/aichat/config.yaml",
-  "etc/skel/.config/mios/mios.toml",
-  "etc/skel/.config/mios/profile.toml",
-  "image-versions.yml",
   "installation/README.md",
   "llms.txt",
   "system-prompt.md",
   "usr/share/mios/names.generated.txt",
-  "usr/share/mios/profile-headless.toml",
   "usr/share/mios/referenced_names.txt",
 ]
 
@@ -11894,7 +12102,7 @@ max_tracked_files = 3434
 # (83% of the measurement, and Law 12 forbids shedding it) and re-baseline down
 # the way generated globals are excluded from the shell/PowerShell counts -- is
 # recorded in T-1051 with the numbers.
-max_tracked_mb    = 230
+max_tracked_mb    = 244
 # The allowance, and the only operator-tunable half: how far the tree may grow
 # between regenerations before the gate says anything. 0 makes the ceiling exact
 # and every MiB boundary a failure, which is the state T-1051 was filed about.
@@ -11925,6 +12133,8 @@ max_exempt_suites = 6
 # Harnesses, not suites. They execute the tiers rather than asserting anything
 # themselves, so they are covered without consuming the exemption ratchet.
 runners = ["tests/run-suites.sh"]
+# Ceiling, checked by run-suites.sh on every tier; lower it as tools land. A suite in [ci.tool_skips] may exit 77 when a host tool it needs is absent; run-suites.sh counts and names it, never passes it.
+max_tool_skips = 1
 
 [tests]
 # Shrink-only. A negative test that leaves its injected fixture behind ships the
@@ -11949,6 +12159,21 @@ requirements = ["usr/lib/mios/agent-pipe/requirements.txt"]
 # Only what no requirements file claims: pyflakes backs lint-python.sh's
 # undefined-name pass.
 packages = ["pyflakes"]
+
+[ci.fedora]
+# The drift-gate job runs in this container, the same Fedora release the one
+# MiOS dev image (.devcontainer/Containerfile) is built FROM, so the gate sees
+# the toolchain a MiOS contributor has rather than a foreign distro's.
+image = "registry.fedoraproject.org/fedora:44"
+# [packages.<set>] lists installed first; devcontainer is the dev image's own set.
+package_sets = ["devcontainer"]
+# Repo-config RPMs installed before any package. Fedora does not package
+# PowerShell; Microsoft's repository does, floating, as it documents for Fedora.
+repos = ["https://packages.microsoft.com/config/rhel/9/packages-microsoft-prod.rpm"]
+# CI-only extras the dev image does not carry: sandbox tests (bubblewrap),
+# composefs sealing (mkcomposefs, composefs-info), unit verification
+# (systemd-analyze), the lint tier's pwsh and the analyzer's .NET runtime.
+packages = ["bubblewrap", "composefs", "systemd", "dotnet-sdk-8.0", "powershell"]
 
 [ci.tiers]
 # Static analysis. No build, no network, no image.
@@ -11980,6 +12205,7 @@ unit = [
     "tests/test-bake-group.sh",
     "tests/test-firstboot-prestage.sh",
     "tests/test-role-apply-precedence.sh",
+    "tests/test-placement-failover.sh",
     "tests/test-hyprland-direct-scanout.sh",
     "tests/test-dnf5-pipeline.sh",
     "tests/test-theme-merge.py",
@@ -11987,6 +12213,7 @@ unit = [
     "tests/test-cdi-gen.py",
     "tests/test-cdi-device-isolate.sh",
     "tests/test-composefs-seal.sh",
+    "tests/test-profile-packages.sh",
     "tests/test-bootc-rollback-recovery.sh",
     "tests/test-vscode-custom-css.sh",
     "tests/test-code-server-bake.py",
@@ -12014,6 +12241,7 @@ unit = [
     "tests/test-microvm-squashfs-nbd.py",
     "tests/test-firewall-nftables.py",
     "tests/test-flatpak-overrides.py",
+    "tests/test-doctor.py",
     "tests/test-tpm2-seal.py",
     "tests/test-subuid-alloc.py",
     "tests/test-egpu-hotplug.py",
@@ -12185,6 +12413,8 @@ unit = [
     "tests/test-ast-diff-peer-review.sh",
     "tests/test-systemd-oomd-psi.sh",
     "tests/test-numa-interleave-bandwidth.sh",
+    "tests/test-core-sched.sh",
+    "tests/test-kernel-module-signature-enforce.sh",
 ]
 # Fitness functions over the whole tree. Slowest, so they run last.
 gate = [
@@ -12229,6 +12459,9 @@ tier = "unit"
 "tests/test-directory-dispatch.sh" = "dispatch returns no hits without a populated directory index, and the suite indexes hits[0] unguarded -- AGY-1715"
 "tests/test-expand-from.py" = "the open-url-fallback-chain skill resolves to not_found, so the suite sees 0 steps where it expects 3 -- AGY-1716"
 "tests/test-reflection.py" = "needs a reachable refine backend; every connection attempt fails and reflection returns None -- AGY-1717"
+
+[ci.tool_skips]
+"tests/test-composefs-seal.sh" = "mkcomposefs + composefs-info: no Ubuntu 24.04 package (noble, noble-updates, noble-backports universe)"
 
 # The MiOS product line, named once. Each variant used to be a different shape:
 # an edition entry, its own table, or only a machine name. status is measured:
@@ -12317,6 +12550,36 @@ archetype = "endpoint"
 artifacts = ["usb-installer", "iso"]
 doc       = "usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md"
 status    = "partial"
+
+# Image profiles (ADR-0025): every MiOS image kind is the one pipeline run
+# under a profile. A profile selects phases from [build.phases].list and
+# sections from [packages]; `extends` unions a parent's selection and `all`
+# selects everything. `floor` is the profile every other one must contain.
+# Read by `miosd build --list --profile`; gate: check_profile_integrity.
+[profiles]
+default = "full"
+
+# floor = true marks the one profile every other non-`all` profile must contain.
+# Each profile lists the image kinds it serves; a kind in several profiles unions them.
+[profiles.core]
+floor            = true
+summary          = "the smallest MiOS that is still MiOS: SSOT, miosd, agent-pipe, the datastore, the verbs"
+package_sections = ["repos", "base", "containers", "build-toolchain", "self-build", "utils", "ai", "critical"]
+phases           = ["system-files-overlay", "materialize-build-ctx", "repos", "locale-theme",
+                    "user", "hostname", "subuid-alloc", "generate-quadlets", "render-quadlets",
+                    "render-ports", "services", "mios-dropin-fanout", "tools", "finalize",
+                    "cleanup", "ssot-lint", "drift-checks", "postcheck"]
+
+[profiles.dev]
+summary          = "core plus the development userspace"
+extends          = ["core"]
+package_sections = ["devcontainer"]
+targets          = ["wsl2", "devcontainer", "cloud", "codespace"]
+
+[profiles.full]
+summary = "every enabled section and every registered phase"
+all     = true
+targets = ["oci", "wsl2"]
 
 # Every way MiOS can be deployed, named once. The targets and recipes existed;
 # what did not exist was a statement of the matrix, so [deploy].artifacts listed

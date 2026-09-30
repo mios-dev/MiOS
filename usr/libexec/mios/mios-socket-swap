@@ -36,7 +36,11 @@ logger = logging.getLogger("mios-socket-swap")
 
 SD_LISTEN_FDS_START = 3
 DEFAULT_SERVICE = "agent-pipe"
-DEFAULT_PORT = 8642
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402 -- the ONE shared layered-mios.toml resolver
+
+_ENV_PORT = os.environ.get("MIOS_PORT_AGENT_PIPE", "")
+DEFAULT_PORT = int(_ENV_PORT) if _ENV_PORT.isdigit() else int(mios_toml.get("ports", "agent_pipe"))  # SSOT [ports].agent_pipe
 DEFAULT_TIMEOUT = 10.0
 DEFAULT_DRAIN_TIMEOUT = 15.0
 

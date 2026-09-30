@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Initializes the MiOS Day-0 root overlay by symlinking the repository tree into the filesystem root (/), keeping sudoers.d root-owned so sudo still works, and seeding the dev user's mios.toml.
-# AI-related: .devcontainer/Dockerfile, etc/sudoers.d
+# AI-related: .devcontainer/Containerfile, etc/sudoers.d
 set -e
 
 if [ -d "/mios/.git" ]; then

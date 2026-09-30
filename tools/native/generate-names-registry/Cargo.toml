@@ -5,7 +5,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-toml = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-regex = "1.10"
+toml.workspace = true
+serde.workspace = true
+regex.workspace = true
 mios-resolver = { path = "../mios-resolver" }

@@ -1,0 +1,39 @@
+# AI-hint: Build-mechanics config for automation/build/live-iso.sh (W10 --
+# MiOS-Cat zero-install live-USB-to-AI-chat). Sibling of iso.toml/qcow2.toml
+# but deliberately NOT a bootc-image-builder customization file -- BIB has no
+# "live" --type, so this leg never mounts as /config.toml into the BIB
+# container. Kept separate from mios.toml's [cat.live_chat] on purpose: the
+# MODEL/PORT/CTX_SIZE/ISO_NAME choices there are operator-facing SSOT
+# (Portal-editable, ADR-0009); the dracut/xorriso mechanics below are not --
+# they're this build leg's own plumbing, same as iso.toml's kickstart body
+# is Anaconda plumbing rather than an operator toggle.
+#
+# Flat scalars only (single [live_chat] table, quoted strings) -- parsed by
+# a one-line grep getter in live-iso.sh, no second TOML parser needed.
+# NOTE: dracut-live + squashfs-tools MUST already be installed in the base
+# image (usr/share/mios/mios.toml [image] package list) -- confirmed
+# baked since iso.toml v0.2.0 for the Anaconda ISO leg; this leg is the
+# second consumer of that same package pair.
+
+[live_chat]
+# El Torito/ISO volume label AND the dmsquash-live root= CDLABEL value --
+# these two must always match; live-iso.sh interpolates this into both the
+# `xorriso -V` call and the rendered grub.cfg kernel command line.
+volume_label       = "MIOSLIVE"
+
+# Dracut module(s) the base image's installed initrd does NOT carry (it's
+# built for root=UUID=..., not root=live:...). Space-separated (dracut
+# --add's own syntax), passed verbatim.
+dracut_modules      = "dmsquash-live"
+
+# Extra drivers force-included so the squashfs boots on an UNKNOWN demo
+# machine, not just the builder's own hardware -- storage + common
+# NIC/Wi-Fi chipsets. --no-hostonly is always set in live-iso.sh regardless.
+dracut_drivers      = "ahci nvme sd_mod usb_storage uas xhci_hcd ehci_hcd sdhci_pci virtio_blk virtio_scsi virtio_net e1000e r8169 iwlwifi"
+
+# Appended to the kernel command line after the root=/rd.live.* args
+# live-iso.sh always sets. enforcing=0: the live overlay's freshly-added
+# chat binaries/units don't carry a relabeled SELinux policy for the
+# tmpfs RW layer -- acceptable for a single-purpose, non-inbound-network,
+# discard-on-reboot demo session; NOT set on any real install leg.
+kernel_args_extra  = "quiet rd.live.overlay.overlayfs=1 rd.live.ram=1 enforcing=0"

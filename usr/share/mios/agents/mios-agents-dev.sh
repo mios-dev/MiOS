@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Builds the mios-agents image from the repository and runs it as the development super-container with the workspace mounted.
 set -euo pipefail
 cd "$(dirname "$0")"                              # usr/share/mios/agents
 REPO_SRC="$(cd ../../../.. && pwd)"               # repo root

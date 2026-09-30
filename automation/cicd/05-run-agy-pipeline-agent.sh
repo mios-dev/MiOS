@@ -25,11 +25,24 @@ run_pipeline_agent() {
     else
         log "WARN: Antigravity CLI ('agy') not found on PATH; running standing gates fallback"
         python3 "${REPO_ROOT}/tools/ci-suites.py" --check
-        "${REPO_ROOT}/src/mios-rs/target/debug/mios-gate" phase-registry --root "${REPO_ROOT}"
-        "${REPO_ROOT}/src/mios-rs/target/debug/mios-gate" ratchet-direction --root "${REPO_ROOT}"
-        "${REPO_ROOT}/src/mios-rs/target/debug/mios-gate" credential-literals --root "${REPO_ROOT}"
-        "${REPO_ROOT}/src/mios-rs/target/debug/mios-gate" version-literals-ssot --root "${REPO_ROOT}"
-        "${REPO_ROOT}/src/mios-rs/target/debug/mios-gate" signature-policy --root "${REPO_ROOT}"
+        local gate_bin=""
+        for b in \
+            "${REPO_ROOT}/src/mios-rs/target/release/mios-gate" \
+            "${REPO_ROOT}/src/mios-rs/target/release/mios-gate.exe" \
+            "${REPO_ROOT}/src/mios-rs/target/debug/mios-gate" \
+            "${REPO_ROOT}/src/mios-rs/target/debug/mios-gate.exe"; do
+            if [[ -x "$b" ]]; then
+                gate_bin="$b"
+                break
+            fi
+        done
+        if [[ -n "$gate_bin" ]]; then
+            "$gate_bin" phase-registry --root "${REPO_ROOT}"
+            "$gate_bin" ratchet-direction --root "${REPO_ROOT}"
+            "$gate_bin" credential-literals --root "${REPO_ROOT}"
+            "$gate_bin" version-literals-ssot --root "${REPO_ROOT}"
+            "$gate_bin" signature-policy --root "${REPO_ROOT}"
+        fi
         bash "${REPO_ROOT}/tools/sync-generated.sh"
         log "Standing gates and SSOT synchronization verified via fallback."
         return 0
@@ -39,11 +52,10 @@ run_pipeline_agent() {
     export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}"
     export MIOS_AI_MODEL="${MIOS_AI_MODEL:-mi-os-7b}"
 
-    # Execute agy in headless print mode with auto-approval
+    # Execute agy in headless print mode
     "$agy_bin" -p "$prompt" \
-        --dangerously-skip-permissions \
         --output-format json \
-        > "${output_dir}/agy-pipeline-result.json" 2>&1 || true
+        > "${output_dir}/agy-pipeline-result.json" 2>&1
 
     log "Agent run finished. Artifact saved to ${output_dir}/agy-pipeline-result.json"
 }

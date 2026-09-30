@@ -4795,8 +4795,8 @@ and every MiB boundary a failure, which is the state T-1051 was filed about.
 invariants/test_invariant_{hw,sec}.sh gained
 explicit capability-absence SKIP(2) branches (they
 previously silently PASSed or FAILed on a missing
-device/daemon) and .devcontainer/post-create.sh +
-post-start.sh were hardened to fail closed. Real
+device/daemon) and the create/start modes of
+.devcontainer/boot-mios-systems.sh were hardened to fail closed. Real
 hand-written glue, not a measurement artifact --
 deliberately re-baselined up, not folded, because
 shrinking it back would mean deleting the SKIP

@@ -43,10 +43,10 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 3,427 | The reading surface. |
-| Tracked size | 230 MB | Two vendored assets are most of it. |
-| Shell / Python / PowerShell / Rust | 51k / 214k / 25k / 36k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 0.7x. |
-| Drift checks | 220 | Falsifiability audited per check, not assumed. |
+| Tracked files | 3,594 | The reading surface. |
+| Tracked size | 243 MB | Two vendored assets are most of it. |
+| Shell / Python / PowerShell / Rust | 56k / 218k / 30k / 39k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 0.8x. |
+| Drift checks | 225 | Falsifiability audited per check, not assumed. |
 | Units reproducing from SSOT | 15 faithful of 214 | 55 registered as drifting: the largest hole in part 1 of the thesis. |
 <!-- ROADMAP_METRICS_END -->
 
@@ -62,9 +62,25 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
    the OS".
 3. **Documentation.** 1,724 unharvested narrative comments and 150 stale
    references. Legibility is the deliverable, so this is not tidying.
-4. **Projection completeness.** Every file in the image must be generated+gated
-   or explicitly declared authored. Anything else is a surface the thesis does
-   not cover.
+4. **Projection completeness and code consolidation.** Every file in the image
+   must be generated+gated or explicitly declared authored. At the repository
+   root and one directory level below it, combine related code into existing
+   modular entrypoints where callers and behavior can be preserved. Keep
+   distinct FHS destinations, registered build phases, and externally loaded
+   contracts separate; measure the tracked-file reduction and update every
+   path-based projection when a source file is retired.
+
+**Consolidation evidence (2026-09-30, T-1126):** Three deployment generators and
+one dedicated test file were absorbed into the existing `mios-unit-gen` Rust
+component. Its CLI and the daemon share one renderer for all seven blade/UKI
+outputs; 23 native tests and stale-binary negative controls pass. The broader
+root and one-depth consolidation campaign remains active.
+
+**Service configuration follow-up (T-1127):** The Cockpit and FreeIPA producers
+also use the same native component, retiring two more scripts. Build phases
+share a dispatch helper and the daemon compares both outputs directly. Thirty-one
+renderer tests cover payload preservation, input validation, independent roots,
+and literal shell-value round trips.
 
 > The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` + `concepts/*` planning docs. Workstreams map to `T-*` records in TASKS.jsonl.
 
@@ -222,7 +238,7 @@ acceptance: |
 - **Files:** `usr/share/mios/mios.toml` (`[blade]`/`[blade.archetypes]`/`[blade.requires]`), `usr/libexec/mios/role-apply`, `usr/share/mios/dropins/blade-<cap>.conf` (generated), `automation/48-mios-dropin-fanout.sh`, `usr/lib/bootc/kargs.d/05-mios-blade.toml` (generated), `usr/lib/systemd/system/mios-{compute,endpoint,controller}.target`, `usr/lib/greenboot/check/required.d/10-mios-role.sh`, the `mios blade` verb.
 - **Accept:** one universal image; on a `controller` blade `systemctl status mios-llm-heavy.service` reports condition-skipped with zero VRAM touched, while a `gpu-serving` blade starts it; `mios blade add-capability gpu-serving` lights the unit hot (no reboot); the drop-in generator is drift-gated; `[blades.*]`/`[nodes.*]` fleet-dispatch (Axis B) stays orthogonal to `[blade]` OS-activation (Axis A).
 - **Deps:** none hard; complements WS-BAKEGATE (activation vs bake orthogonality) and WS-MIOSSYS (activation `Condition*` unchanged by consolidation).
-- **Closed (T-315).** All three named deliverables landed. The karg producer (`tools/generate-blade-karg.py` -> `usr/lib/bootc/kargs.d/05-mios-blade.toml`, gate `check_blade_karg`) exists; `[profile]` is retired outright rather than aliased, because measurement showed it was dead on both ends -- no reader, and its only writer emitted `Role` with a capital R; and `role-apply` is demoted to a resolver whose one remaining imperative act is conditional on the role having CHANGED. Two corrections to the plan are recorded in ADR-0016 Decision 4 and T-315: the `systemctl` calls could not simply be deleted (the image bakes `multi-user.target`, so on the first boot after install nothing else reaches the role target, and the default archetype's target requires `graphical.target`), and shipping the karg producer had silently disabled `/etc/mios/role.conf`, its `FEATURES=`, and the hardware fallbacks -- `mios blade set` did nothing and `mios blade add-capability` was erased on the next boot. Resolution is now a five-tier ladder, gated by `check_role_ssot`, with 14 fixture-driven assertions in `tests/test-role-apply-precedence.sh`. Two archetypes (`k3s-master`, `ha-node`) were added because `role-apply` already selected their targets while granting them zero capabilities, and the role targets now form a complete `Conflicts=` graph so day-2 switching actually stops the previous role. See ADR-0016.
+- **Closed (T-315).** All three named deliverables landed. The karg producer (`tools/native/mios-unit-gen/src/lib.rs` -> `usr/lib/bootc/kargs.d/05-mios-blade.toml`, gate `check_blade_karg`) exists; `[profile]` is retired outright rather than aliased, because measurement showed it was dead on both ends -- no reader, and its only writer emitted `Role` with a capital R; and `role-apply` is demoted to a resolver whose one remaining imperative act is conditional on the role having CHANGED. Two corrections to the plan are recorded in ADR-0016 Decision 4 and T-315: the `systemctl` calls could not simply be deleted (the image bakes `multi-user.target`, so on the first boot after install nothing else reaches the role target, and the default archetype's target requires `graphical.target`), and shipping the karg producer had silently disabled `/etc/mios/role.conf`, its `FEATURES=`, and the hardware fallbacks -- `mios blade set` did nothing and `mios blade add-capability` was erased on the next boot. Resolution is now a five-tier ladder, gated by `check_role_ssot`, with 14 fixture-driven assertions in `tests/test-role-apply-precedence.sh`. Two archetypes (`k3s-master`, `ha-node`) were added because `role-apply` already selected their targets while granting them zero capabilities, and the role targets now form a complete `Conflicts=` graph so day-2 switching actually stops the previous role. See ADR-0016.
 
 ## WS-MIOSSYS — MiOS-Sys shared-base consolidation of the sidecar fleet
 <!--
@@ -526,10 +542,10 @@ acceptance: |
 - **Deps:** `DIFFCYCLE-03`.
 
 ### DIFFCYCLE-05 — Greenboot post-bake health gate with automated fallback on diff-induced regressions  **[P1]**
-- **What:** Add greenboot verification script checking that all baked services initialize cleanly; if any service fails, trigger `bootc rollback` and quarantine the offending diff.
-- **Why:** Automated self-rebuilding must be paired with automated rollback to guarantee 100% system uptime and reliability.
+- **What:** Add a greenboot verification script checking the required baked services; on a failed health gate, request `bootc rollback`, quarantine the offending diff, and record which deployment and `/etc` state will be restored.
+- **Why:** Automated self-rebuilding needs a recoverable previous deployment. [Upstream bootc rollback](https://bootc.dev/bootc/man/bootc-rollback.8.html) reorders existing deployments; it does not merge current `/etc` edits into the previous one, so recovery must account for configuration as well as image state.
 - **Files:** `/etc/greenboot/check/required.d/60-mios-diff-bake-verify.sh`, `usr/lib/greenboot/check/required.d/`.
-- **Accept:** Greenboot validates newly baked image health and guarantees safe automated fallback on regressions.
+- **Accept:** A deliberately failing required service queues the previous deployment, records a rollback event, and preserves a separately restorable copy of post-upgrade `/etc` edits; a healthy service leaves the active deployment unchanged. Report uptime from observation, never as a 100% guarantee.
 - **Deps:** `DIFFCYCLE-04`.
 
 # AI-Plane & Orchestration
@@ -919,6 +935,19 @@ acceptance: |
 - **Accept:** one port scheme (the SSOT's) across every doc, guarded by a projection drift-check.
 - **Deps:** none.
 
+### Research intake — verify upstream boundaries before implementation
+
+The 2026-09-29 external architecture report is an investigation input, not a MiOS implementation record. Attach primary-source evidence and a MiOS runtime observation to the existing work before promoting a design claim to **done**:
+
+| Existing work | Required evidence and correction |
+|---|---|
+| `VFIO-01`, `DIFFCYCLE-05` → `T-1119` | Prove signed UKI boot and OSTree composefs `signed` or `verity` mode separately; MOK module trust is a different boundary. Check the booted deployment, measured composefs digest, `/var` persistence, and `/etc` after upgrade **and rollback** on a real bootc host. WSL cannot prove this chain. See [OSTree composefs](https://ostreedev.github.io/ostree/composefs/) and [bootc rollback](https://bootc.dev/bootc/man/bootc-rollback.8.html). |
+| `WS-BAKEGATE`, `WS-MIOSSYS` → `T-1120` | For each bound `.image` or `.container`, verify the `/usr/lib/bootc/bound-images.d/` symlink, image availability at install and after upgrade/rollback, and per-unit `GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage`. Do not enable that store globally for floating images. See [bootc bound images](https://bootc.dev/bootc/logically-bound-images.html). |
+| `VFIO-02` → `T-1121` | Check every device in the assigned IOMMU group before binding and measure the guest GPU and Looking Glass display paths separately. The report's DMA-BUF zero-copy and sub-frame latency claims remain unverified for MiOS; graphics transport does not imply guest CUDA. See [kernel VFIO](https://docs.kernel.org/driver-api/vfio.html) and [Looking Glass](https://github.com/gnif/LookingGlass). |
+| `WS-SCHED`, `WS-DEPRED` → `T-1122` | Observe llama-swap's real queue, health, unload, and TTL behavior with the configured model map and an OOM or hung child. Do not assume a fixed five-second kill sequence or durable KV-cache paging from the report. See the [upstream llama-swap interface](https://github.com/mostlygeek/llama-swap/blob/main/README.md). |
+| `WS-DEPRED`, `WS-TESTDOC` → `T-1123` | Verify MCP stdio and current Streamable HTTP negotiation, request metadata, cancellation, and legacy compatibility through the SDK. HTTP+SSE is deprecated; SSE as a response body is still valid. Keep MCP input-schema requirements distinct from the stricter OpenAI tool schema used at the `/v1` boundary. See the [2026-07-28 transport specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/transports/streamable-http.mdx). |
+| `WS-DURA` → `T-1124`; `WS-LANG` → `T-1125` | Size HNSW and WAL settings from MiOS's actual PostgreSQL image and measured memory/write load; do not copy the report's PostgreSQL 16 or `wal_level=minimal` example into the current pg18 deployment. For keyring-to-child credentials, prove the intended file descriptor survives `execve`; a descriptor left `FD_CLOEXEC` cannot be read by that child. See [pgvector index guidance](https://github.com/pgvector/pgvector/blob/master/README.md) and [kernel key retention](https://docs.kernel.org/security/keys/core.html). |
+
 ## WS-VFIO — Whole-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer
 <!--
 id: WS-VFIO
@@ -935,17 +964,17 @@ acceptance: |
 -->
 
 ### VFIO-01 — UKI and fs-verity Boot Chain End-to-End Verification  **[P1]**
-- **What:** Build signed UKI with baked kargs and initramfs via `automation/40-composefs-verity.sh` and add greenboot validation for composefs rootfs.
-- **Why:** Guarantees hardware-enforced cryptographic validation of the immutable OS substrate.
+- **What:** Build a signed UKI with baked kargs and initramfs via `automation/40-composefs-verity.sh`, configure OSTree composefs verification explicitly, and add greenboot checks for each active trust boundary. Treat MOK out-of-tree module signing separately.
+- **Why:** A signed UKI alone does not demonstrate that the deployed OSTree commit or backing objects are verified; the booted configuration and digest must be measured.
 - **Files:** `automation/40-composefs-verity.sh`, `automation/42-uki-build.sh`, `usr/lib/ostree/prepare-root.conf`, `/etc/greenboot/check/required.d/52-mios-composefs.sh`.
-- **Accept:** The system boots with Secure Boot enforcing, composefs rootfs verified, and greenboot health checks report green.
+- **Accept:** On a real bootc host, report the actual Secure Boot/UKI result, composefs mode, commit signature and fs-verity digest result, plus a negative corrupted-object or wrong-key control that fails at the expected boundary. WSL results are labeled as substrate-only observations.
 - **Deps:** none.
 
 ### VFIO-02 — Full-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer  **[P1]**
 - **What:** Implement `mios-vfio-setup` to bind discrete GPU to `vfio-pci` and configure `/dev/kvmfr0` shared memory for Looking Glass B6.
-- **Why:** Enables native-speed CUDA compute and gaming inside isolated virtual machines.
+- **Why:** Whole-device passthrough is the supported path for guest CUDA when the host keeps its physical GPU driver unbound; Looking Glass is a separate display path whose latency must be measured.
 - **Files:** `usr/libexec/mios/mios-vfio-setup`, `usr/lib/systemd/system/mios-vfio-setup.service`, `usr/share/mios/mios.toml`.
-- **Accept:** Discrete GPU binds to VFIO cleanly on boot and Looking Glass connects with sub-frame display latency.
+- **Accept:** All functions in the GPU's IOMMU group bind safely, the guest demonstrates compute on the assigned device, and Looking Glass capture/display latency is measured on the target hardware. Record reset failures and recovery; do not infer CUDA from a VirtIO graphics transport.
 - **Deps:** none.
 
 ### VFIO-03 — Quadlet Credential Hardening & 0600 secrets.env Rotation Service  **[P1]**
@@ -1206,7 +1235,7 @@ data once a peer exists). Both are accepted, not fixed. This workstream fixes th
 - **Files:** `usr/share/mios/mios.toml` (`[blades]`, `[metal.*]`, `[blade.archetypes]`,
   `[containers.mios-k3s]`, `[storage.ceph]`, `[ha]`), `usr/lib/systemd/system/mios-ha-bootstrap.service`,
   `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/containers/systemd/mios-k3s.container` (generated),
-  `tools/generate-blade-dropins.py`, `tools/generate-pod-quadlets.py`, `tools/check-fleet-safety.py`,
+  `tools/native/mios-unit-gen/src/lib.rs`, `tools/generate-pod-quadlets.py`, `tools/check-fleet-safety.py`,
   `tools/native/`.
 - **Accept:** each lane states its target shape for 2-6 nodes; `k3s-multi-server` and
   `pacemaker-unfenced` retire themselves from `[blades.hazards].accepted` because the detector

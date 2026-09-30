@@ -1,3 +1,4 @@
+# AI-hint: Python packages the agent-pipe gateway needs at runtime; also the CI analysis toolchain's install list ([ci.python]).
 sqlite-vec
 fastapi
 jinja2
@@ -6,10 +7,13 @@ ruamel.yaml
 uvicorn
 uvloop
 httpx
+httpx2>=2.5.0
+Pillow
+cryptography
 smolagents
 psycopg[binary]
 websockets
-mcp
+mcp>=2.1.1,<3
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-exporter-otlp

@@ -315,14 +315,14 @@ pub fn strip_non_code(path: &str, src: &str) -> Vec<String> {
                 }
                 continue;
             }
-            if trimmed.starts_with("\"\"\"") {
-                if trimmed.len() > 3 && !trimmed[3..].contains("\"\"\"") {
+            if let Some(rest) = trimmed.strip_prefix("\"\"\"") {
+                if !rest.is_empty() && !rest.contains("\"\"\"") {
                     in_py_docstring = true;
                     py_docstring_delim = "\"\"\"";
                 }
                 continue;
-            } else if trimmed.starts_with("'''") {
-                if trimmed.len() > 3 && !trimmed[3..].contains("'''") {
+            } else if let Some(rest) = trimmed.strip_prefix("'''") {
+                if !rest.is_empty() && !rest.contains("'''") {
                     in_py_docstring = true;
                     py_docstring_delim = "'''";
                 }
@@ -392,14 +392,10 @@ pub fn strip_non_code(path: &str, src: &str) -> Vec<String> {
                         quote_char = c;
                     }
                 } else if !in_quote {
-                    if style == "#" && c == '#' {
-                        cut_pos = Some(i);
-                        break;
-                    } else if style == "//"
-                        && c == '/'
-                        && i + 1 < chars.len()
-                        && chars[i + 1] == '/'
-                    {
+                    let hash = style == "#" && c == '#';
+                    let slashes =
+                        style == "//" && c == '/' && i + 1 < chars.len() && chars[i + 1] == '/';
+                    if hash || slashes {
                         cut_pos = Some(i);
                         break;
                     }
@@ -445,7 +441,10 @@ pub fn is_comment_only_diff(path: &str, old_src: &str, new_src: &str) -> (bool, 
             );
         }
     }
-    (false, Some("non-comment token stream length mismatch".to_string()))
+    (
+        false,
+        Some("non-comment token stream length mismatch".to_string()),
+    )
 }
 
 /// Runs comment-only diff check against git base ref.
@@ -473,7 +472,11 @@ pub fn check_git_diff(root: &str, base: &str) -> (bool, Vec<String>) {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let files: Vec<&str> = stdout.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+    let files: Vec<&str> = stdout
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect();
     if files.is_empty() {
         return (true, Vec::new());
     }
@@ -538,7 +541,10 @@ fn main() {
         let base = base_opt.as_deref().unwrap_or("main");
         let (ok, violations) = check_git_diff(".", base);
         if ok {
-            println!("[mios-comment-lex] comment-only diff clean against {}", base);
+            println!(
+                "[mios-comment-lex] comment-only diff clean against {}",
+                base
+            );
             std::process::exit(0);
         } else {
             for v in &violations {
@@ -552,7 +558,9 @@ fn main() {
     let path_str = match target {
         Some(p) => p,
         None => {
-            eprintln!("Usage: mios-comment-lex <FILE> | --check-diff [BASE] | --diff-files <A> <B>");
+            eprintln!(
+                "Usage: mios-comment-lex <FILE> | --check-diff [BASE] | --diff-files <A> <B>"
+            );
             std::process::exit(1);
         }
     };
@@ -603,7 +611,10 @@ mod tests {
         let old_py = "#!/usr/bin/env python3\ndef foo():\n    return 42\n";
         let new_py = "#!/usr/bin/env python3\n# AI-hint: added hint\ndef foo():\n    return 43\n";
         let (ok, reason) = is_comment_only_diff("test.py", old_py, new_py);
-        assert!(!ok, "Expected negative control to fail when runtime code changes");
+        assert!(
+            !ok,
+            "Expected negative control to fail when runtime code changes"
+        );
         assert!(reason.unwrap().contains("return 42"));
     }
 }

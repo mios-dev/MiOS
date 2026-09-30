@@ -483,6 +483,49 @@ test_toolchain_pin() {
     log "check_toolchain_pin negative test passed"
 }
 
+test_ai_config_projection() {
+    log "Testing check_ai_config_projection"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local out="${ROOT}/etc/mios/ai/config.json"
+    local vout="${ROOT}/usr/share/mios/ai/v1/config.json"
+    local tbak obak vbak
+    tbak="$(mktemp)"; cp "$toml" "$tbak"
+    obak="$(mktemp)"; cp "$out" "$obak"
+    vbak="$(mktemp)"; cp "$vout" "$vbak"
+    _ac_fail() {
+        cp "$tbak" "$toml"; cp "$obak" "$out"; cp "$vbak" "$vout"
+        rm -f "$tbak" "$obak" "$vbak"; unset -f _ac_fail; die "$1"
+    }
+
+    # A hand edit back onto a retired lane's port: the state both repos' copies
+    # were in before this file was generated.
+    sed -i 's|"base_url":"http://localhost:[0-9]*/v1"|"base_url":"http://localhost:8642/v1"|' "$out"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with a hand-edited config.json port"
+    cp "$obak" "$out"
+
+    # The vendor ai/v1 copy is projected too; it sat on :8640 by hand.
+    sed -i 's|"base_url":"http://localhost:[0-9]*/v1"|"base_url":"http://localhost:8640/v1"|' "$vout"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with a hand-edited usr/share/mios/ai/v1/config.json port"
+    cp "$vbak" "$vout"
+
+    # The SSOT moved and nobody regenerated.
+    sed -i 's/^agent_pipe\( *\)= [0-9][0-9]*/agent_pipe\1= 1/' "$toml"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with [ports].agent_pipe ahead of config.json"
+    cp "$tbak" "$toml"
+
+    # Absent must never read as clean -- either copy.
+    rm -f "$out"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with config.json absent"
+    cp "$obak" "$out"
+    rm -f "$vout"
+    _neg_gate check_ai_config_projection && _ac_fail "check_ai_config_projection passed with usr/share/mios/ai/v1/config.json absent"
+    cp "$vbak" "$vout"
+
+    rm -f "$tbak" "$obak" "$vbak"; unset -f _ac_fail
+    _neg_gate check_ai_config_projection || die "check_ai_config_projection failed after restoration: ${_NEG_GATE_OUT}"
+    log "check_ai_config_projection negative test passed"
+}
+
 test_artifact_prompt() {
     log "Testing check_artifact_prompt"
     local out="${ROOT}/ARTIFACT-PROMPT.md" bak; bak="$(mktemp)"; cp "$out" "$bak"
@@ -1198,22 +1241,21 @@ test_offline_install_invariant() {
 
 test_installer_family_roles() {
     log "Testing check_installer_family_roles"
-    local s_script="${ROOT}/install.sh"
-    local orig_val
-    orig_val="$(cat "$s_script")"
-    rm -f "$s_script"
-    echo "$orig_val" > "$s_script"
+    # Plant the collision in a family member this repo owns (root install.sh
+    # is mios-bootstrap's). cp -p keeps the executable bit on restore.
+    local s_script="${ROOT}/automation/install-fhs.sh"
+    local s_stash
+    s_stash="$(mktemp)"
+    cp -p "$s_script" "$s_stash"
 
-    sed -i 's/MIOS_INSTALLER_ROLE=root-overlay-redirector/MIOS_INSTALLER_ROLE=bootc-baremetal-disk-installer/g' "$s_script"
+    sed -i 's/MIOS_INSTALLER_ROLE=fhs-overlay-installer/MIOS_INSTALLER_ROLE=bootc-baremetal-disk-installer/g' "$s_script"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_installer_family_roles >/dev/null 2>&1; then
-        rm -f "$s_script"
-        echo "$orig_val" > "$s_script"
+        cp -p "$s_stash" "$s_script"; rm -f "$s_stash"
         die "Check_installer_family_roles passed despite duplicate role marker"
     fi
 
-    rm -f "$s_script"
-    echo "$orig_val" > "$s_script"
+    cp -p "$s_stash" "$s_script"; rm -f "$s_stash"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_installer_family_roles >/dev/null 2>&1 \
         || die "Check_installer_family_roles failed after restoration"
 
@@ -1396,19 +1438,24 @@ test_win11_vm_template_xml() {
     log "Test_win11_vm_template_xml negative test passed"
 }
 
+_restore_service_projection() (
+    source "$ROOT/automation/lib/common.sh"
+    mios_project_config "$ROOT" "$1"
+)
+
 test_ipa_enroll_projection() {
     log "Testing check_ipa_enroll_projection"
     local target_file="${ROOT}/etc/mios/ipa-enroll.env"
-    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true; }
+    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; _restore_service_projection ipa-enroll >/dev/null 2>&1 || die "Native ipa-enroll regeneration failed"; }
 
     echo 'MIOS_IPA_REALM="MUTATED.REALM"' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ipa_enroll_projection >/dev/null 2>&1; then
-        MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true
+        _restore_service_projection ipa-enroll >/dev/null 2>&1 || die "Native ipa-enroll regeneration failed"
         die "Check_ipa_enroll_projection passed despite mutated target file"
     fi
 
-    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true
+    _restore_service_projection ipa-enroll >/dev/null 2>&1 || die "Native ipa-enroll regeneration failed"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ipa_enroll_projection >/dev/null 2>&1 \
         || die "Check_ipa_enroll_projection failed after restoration"
     log "Test_ipa_enroll_projection negative test passed"
@@ -1417,16 +1464,22 @@ test_ipa_enroll_projection() {
 test_uki_cmdline_projection() {
     log "Testing check_uki_cmdline_projection"
     local target_file="${ROOT}/usr/lib/kernel/cmdline"
-    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true; }
+    local unit_gen="" candidate
+    for candidate in "${MIOS_UNIT_GEN_BIN:-}" "$ROOT/tools/native/target/release/mios-unit-gen" \
+            "$ROOT/tools/native/target/debug/mios-unit-gen" /usr/libexec/mios/mios-unit-gen; do
+        [[ -n "$candidate" && -x "$candidate" ]] && { unit_gen="$candidate"; break; }
+    done
+    [[ -n "$unit_gen" ]] || die "mios-unit-gen is required for the UKI negative control"
+    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; "$unit_gen" uki-cmdline --root "$ROOT" >/dev/null 2>&1 || true; }
 
     echo 'mutated_bogus_karg=1' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_uki_cmdline_projection >/dev/null 2>&1; then
-        MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true
+        "$unit_gen" uki-cmdline --root "$ROOT" >/dev/null 2>&1 || true
         die "Check_uki_cmdline_projection passed despite mutated cmdline"
     fi
 
-    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true
+    "$unit_gen" uki-cmdline --root "$ROOT" >/dev/null 2>&1 || true
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_uki_cmdline_projection >/dev/null 2>&1 \
         || die "Check_uki_cmdline_projection failed after restoration"
     log "Test_uki_cmdline_projection negative test passed"
@@ -1456,16 +1509,16 @@ test_composefs_projection() {
 test_cockpit_projection() {
     log "Testing check_cockpit_projection"
     local target_file="${ROOT}/etc/cockpit/cockpit.conf"
-    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true; }
+    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; _restore_service_projection cockpit >/dev/null 2>&1 || die "Native cockpit regeneration failed"; }
 
     echo 'AllowUnencrypted = false' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cockpit_projection >/dev/null 2>&1; then
-        MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true
+        _restore_service_projection cockpit >/dev/null 2>&1 || die "Native cockpit regeneration failed"
         die "Check_cockpit_projection passed despite mutated cockpit.conf"
     fi
 
-    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true
+    _restore_service_projection cockpit >/dev/null 2>&1 || die "Native cockpit regeneration failed"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cockpit_projection >/dev/null 2>&1 \
         || die "Check_cockpit_projection failed after restoration"
     log "Test_cockpit_projection negative test passed"
@@ -3270,7 +3323,7 @@ test_ps_redirectors() {
     # Pick whichever one this tree actually has.
     local target=""
     local f
-    for f in install.ps1 mios-build-local.ps1 run-pipeline.ps1; do
+    for f in mios-build-local.ps1 run-pipeline.ps1; do
         if [ -f "${ROOT}/$f" ]; then target="${ROOT}/$f"; break; fi
     done
     if [ -z "$target" ]; then
@@ -3467,6 +3520,41 @@ PYEOF
     cp "$bak" "$manifest"; rm -f "$bak"
     _neg_gate check_cargo_manifest_generated || die "check_cargo_manifest_generated failed after restoration"
     log "check_cargo_manifest_generated negative test passed"
+}
+
+test_ai_metadata_fresh() {
+    log "Testing check_ai_metadata_fresh"
+    # The defect: usr/share/mios/ai/v1/metadata.json was exported from the AI-*
+    # headers, but nothing regenerated or compared it, so it drifted thousands
+    # of lines behind the tree. A hand edit to one entry must fail, naming it.
+    local md="${ROOT}/usr/share/mios/ai/v1/metadata.json"
+    local bak; bak="$(mktemp)"; cp "$md" "$bak"
+
+    python3 - "$md" <<'PYEOF'
+import sys
+p = sys.argv[1]
+with open(p, "r", encoding="utf-8", newline="") as fh:
+    t = fh.read()
+anchor = '"path": "usr/libexec/mios/mios-ai-metadata.py",\n      "hint": "'
+out = t.replace(anchor, anchor + "planted ", 1)
+assert out != t, "the plant did not land -- the exporter has no entry of its own"
+with open(p, "w", encoding="utf-8", newline="") as fh:
+    fh.write(out)
+PYEOF
+
+    if _neg_gate check_ai_metadata_fresh; then
+        cp "$bak" "$md"; rm -f "$bak"
+        die "check_ai_metadata_fresh passed with a hand-edited metadata.json entry"
+    fi
+    if [[ "$_NEG_GATE_OUT" != *"entry usr/libexec/mios/mios-ai-metadata.py: differs in hint"* ]]; then
+        cp "$bak" "$md"; rm -f "$bak"
+        printf '%s\n' "$_NEG_GATE_OUT" >&2
+        die "check_ai_metadata_fresh failed but did not name the planted entry"
+    fi
+
+    cp "$bak" "$md"; rm -f "$bak"
+    _neg_gate check_ai_metadata_fresh || { printf '%s\n' "$_NEG_GATE_OUT" >&2; die "check_ai_metadata_fresh failed after restoration"; }
+    log "check_ai_metadata_fresh negative test passed"
 }
 
 test_tracked_readable() {
@@ -3821,6 +3909,23 @@ test_ps_encoding_and_bom() {
     _neg_gate check_ps_encoding_and_bom \
         || die "check_ps_encoding_and_bom failed after restoration"
     log "check_ps_encoding_and_bom negative test passed"
+}
+
+test_ps_irm_iex_entry() {
+    log "Testing check_ps_encoding_and_bom (irm|iex entry point)"
+    # An isolated root: the rule is about one file's bytes, not the tree.
+    local tmp; tmp="$(mktemp -d)"
+    printf '\xEF\xBB\xBF# Designed for: irm https://example.invalid/x.ps1 | iex\nparam([string]$A = "a")\n' > "${tmp}/x.ps1"
+    if MIOS_DRIFT_ROOT="$tmp" python3 "${ROOT}/tools/drift-checks.py" ps-encoding-and-bom >"${tmp}/out" 2>&1 \
+        || ! grep -q "x.ps1 is an irm|iex entry point" "${tmp}/out"; then
+        rm -rf "$tmp"; die "check_ps_encoding_and_bom passed a BOM on an irm|iex entry point"
+    fi
+    printf '# Designed for: irm https://example.invalid/x.ps1 | iex\nparam([string]$A = "a")\n' > "${tmp}/x.ps1"
+    if ! MIOS_DRIFT_ROOT="$tmp" python3 "${ROOT}/tools/drift-checks.py" ps-encoding-and-bom >"${tmp}/out" 2>&1; then
+        cat "${tmp}/out" >&2; rm -rf "$tmp"; die "check_ps_encoding_and_bom rejected a pure-ASCII irm|iex entry point"
+    fi
+    rm -rf "$tmp"
+    log "check_ps_encoding_and_bom irm|iex negative test passed"
 }
 
 test_secret_handling() {
@@ -4524,6 +4629,34 @@ PYEOF
     log "check_build_tool_dispatch negative test passed"
 }
 
+test_profile_integrity() {
+    log "Testing check_profile_integrity"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    _neg_gate check_profile_integrity || { cp "$bak" "$toml"; rm -f "$bak"; die "test_profile_integrity: red on the CLEAN tree: $_NEG_GATE_OUT"; }
+    _pi_plant() {  # $1 = python replace old, $2 = new, $3 = text the gate must name
+        python3 - "$toml" "$1" "$2" <<'PY'
+import sys
+p, old, new = sys.argv[1:4]
+s = open(p, encoding="utf-8").read()
+assert s.count(old) == 1, old
+open(p, "w", encoding="utf-8").write(s.replace(old, new))
+PY
+        if _neg_gate check_profile_integrity; then cp "$bak" "$toml"; rm -f "$bak"; die "check_profile_integrity passed with $3 planted"; fi
+        case "$_NEG_GATE_OUT" in *"$3"*) : ;; *) cp "$bak" "$toml"; rm -f "$bak"; die "check_profile_integrity did not name $3: $_NEG_GATE_OUT";; esac
+        cp "$bak" "$toml"
+    }
+    _pi_plant '"cleanup", "ssot-lint"' '"cleanup", "devloop-planted-phase", "ssot-lint"' "devloop-planted-phase"
+    _pi_plant 'extends          = ["core"]' 'extends          = ["devloop-planted-profile"]' "devloop-planted-profile"
+    _pi_plant 'all     = true' 'all     = true
+floor   = true' "more than one profile declares floor"
+    _pi_plant 'extends          = ["core"]
+package_sections = ["devcontainer"]' 'package_sections = ["devcontainer"]' "does not contain the floor"
+    rm -f "$bak"; unset -f _pi_plant
+    _neg_gate check_profile_integrity || die "check_profile_integrity failed after restoration: $_NEG_GATE_OUT"
+    log "check_profile_integrity negative test passed"
+}
+
 # Findings, not exit codes: [gpu] is unconsumed on main, so `_neg_gate && fail`
 # can never fire. Each arm asserts the gate NAMES what it planted.
 _nist_names() {
@@ -5105,6 +5238,7 @@ main() {
     _run_test test_task_schema
 _run_test test_ci_suite_coverage
 _run_test test_cargo_manifest_generated
+_run_test test_ai_metadata_fresh
 _run_test test_tracked_readable
 _run_test test_leaked_fixtures
     _run_test test_fleet_safety
@@ -5124,6 +5258,7 @@ _run_test test_leaked_fixtures
     _run_test test_ratchet_direction
     _run_test test_size_ceiling
     _run_test test_toolchain_pin
+    _run_test test_ai_config_projection
     _run_test test_render_quadlets
     _run_test test_render_extension_coverage
     _run_test test_curl_retry
@@ -5148,6 +5283,7 @@ _run_test test_leaked_fixtures
     _run_test test_ps_port_fallback_ssot
     _run_test test_github_slug_casing
     _run_test test_ps_encoding_and_bom
+    _run_test test_ps_irm_iex_entry
     _run_test test_secret_handling
     _run_test test_wsl_distro_resolution
     _run_test test_docs_ratchet
@@ -5159,6 +5295,7 @@ _run_test test_leaked_fixtures
     _run_test test_legibility_ratchet
     _run_test test_bootstrap_sync
     _run_test test_no_inert_ssot_tables
+    _run_test test_profile_integrity
     _run_test test_build_tool_dispatch
     _run_test test_phase_registry
     _run_test test_signature_policy

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Automated test suite for rootless container GPU device isolation and cgroup v2 eBPF device filter (T-526, AGY-2124).
-# AI-doc: usr/share/doc/mios/manual/ch14-cdi-gpu-passthrough-and-isolation.md
+# AI-doc: usr/share/doc/mios/manual/ch20-container-device-interface-plumbing.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

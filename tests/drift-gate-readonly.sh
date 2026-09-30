@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Proves the drift gate and SSOT lint are read-only: running 98-drift-checks.sh and 97-ssot-lint.sh must leave git status unchanged.
 set -euo pipefail
 
 _self="${BASH_SOURCE[0]}"

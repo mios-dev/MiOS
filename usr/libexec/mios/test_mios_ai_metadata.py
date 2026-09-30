@@ -3,6 +3,9 @@
 # AI-related: usr/libexec/mios/mios-ai-metadata.py, usr/lib/mios/schemas/ai_metadata.schema.json
 # AI-functions: TestAIMetadata, main
 
+import io
+import contextlib
+import tempfile
 import unittest
 import os
 import sys
@@ -22,7 +25,7 @@ class TestAIMetadata(unittest.TestCase):
 # AI-hint: Test python module purpose.
 # AI-related: /etc/mios/foo.conf, mios-service
 # AI-functions: foo, bar, BazClass
-# AI-doc: usr/share/doc/mios/manual/test.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 
 def foo(): pass
 """
@@ -31,19 +34,19 @@ def foo(): pass
         self.assertEqual(meta["hint"], "Test python module purpose.")
         self.assertEqual(meta["related"], ["/etc/mios/foo.conf", "mios-service"])
         self.assertEqual(meta["functions"], ["foo", "bar", "BazClass"])
-        self.assertEqual(meta["doc"], "usr/share/doc/mios/manual/test.md")
+        self.assertEqual(meta["doc"], "usr/share/doc/mios/manual/tests.md")
         self.assertEqual(meta["comment_style"], "hash")
         self.assertTrue(meta["has_shebang"])
 
     def test_extract_markdown_metadata(self):
         content = """<!-- AI-hint: Markdown guide for operators. -->
-<!-- AI-related: /usr/share/doc/mios/concept.md -->
+<!-- AI-related: /usr/share/doc/mios/concepts/architecture.md -->
 # Guide Title
 """
         meta = mios_ai_metadata.extract_ai_header_metadata(content, "docs/guide.md")
         self.assertIsNotNone(meta)
         self.assertEqual(meta["hint"], "Markdown guide for operators.")
-        self.assertEqual(meta["related"], ["/usr/share/doc/mios/concept.md"])
+        self.assertEqual(meta["related"], ["/usr/share/doc/mios/concepts/architecture.md"])
         self.assertEqual(meta["comment_style"], "xml")
         self.assertFalse(meta["has_shebang"])
 
@@ -77,6 +80,64 @@ export function buildSchema() {}
             ],
         }
         self.assertTrue(mios_ai_metadata.validate_schema_compliance(catalog))
+
+    def _catalog(self, hint):
+        return {
+            "format": "openai_strict_schema_v1",
+            "total_metadata_entries": 1,
+            "entries": [
+                {
+                    "path": "usr/lib/a.sh",
+                    "hint": hint,
+                    "related": [],
+                    "functions": [],
+                    "doc": None,
+                    "comment_style": "hash",
+                    "has_shebang": True,
+                }
+            ],
+        }
+
+    def _write(self, d, text):
+        path = os.path.join(d, "metadata.json")
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+        return path
+
+    def test_check_fresh_passes_on_identical_export(self):
+        cat = self._catalog("same")
+        with tempfile.TemporaryDirectory() as d:
+            path = self._write(d, mios_ai_metadata.render_catalog_json(cat))
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(mios_ai_metadata.check_export_fresh(cat, path), 0)
+
+    def test_check_fresh_names_the_stale_entry(self):
+        stale = mios_ai_metadata.render_catalog_json(self._catalog("old"))
+        with tempfile.TemporaryDirectory() as d:
+            path = self._write(d, stale)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = mios_ai_metadata.check_export_fresh(self._catalog("new"), path)
+        self.assertEqual(rc, 1)
+        self.assertIn("entry usr/lib/a.sh: differs in hint", err.getvalue())
+
+    def test_check_fresh_catches_formatting_only_drift(self):
+        cat = self._catalog("same")
+        with tempfile.TemporaryDirectory() as d:
+            path = self._write(d, mios_ai_metadata.render_catalog_json(cat) + "\n")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = mios_ai_metadata.check_export_fresh(cat, path)
+        self.assertEqual(rc, 1)
+        self.assertIn("formatting drift", err.getvalue())
+
+    def test_diff_reports_added_and_removed_entries(self):
+        old = self._catalog("x")
+        new = self._catalog("x")
+        new["entries"][0] = dict(new["entries"][0], path="usr/lib/b.sh")
+        lines = mios_ai_metadata.diff_catalog_entries(old, new)
+        self.assertIn("entry usr/lib/b.sh: has an AI header but is missing from the tracked file", lines)
+        self.assertTrue(any(l.startswith("entry usr/lib/a.sh: in the tracked file") for l in lines))
 
 
 if __name__ == "__main__":

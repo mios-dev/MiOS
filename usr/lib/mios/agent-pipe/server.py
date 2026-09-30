@@ -113,6 +113,68 @@ import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
 import mios_quota   # noqa: E402  -- WS-6 per-user quota / rate-limit (inert until configured)
 import mios_capreg   # noqa: E402  -- WS-2 unified RBAC-filtered capability manifest
 import mios_gateway_queue
+from mios_psi import get_psi_monitor, PSIMonitor  # noqa: E402  -- T-485 Linux PSI telemetry & load shedding
+_PSI_MONITOR: Optional[PSIMonitor] = None
+_PSI_MONITOR_TASK: Optional[asyncio.Task] = None
+_PSI_THROTTLED: bool = False
+_INFERENCE_THROTTLE_CALLBACKS: list = []
+
+def is_inference_throttled() -> bool:
+    """True if inference workers should be throttled due to PSI pressure."""
+    if _PSI_THROTTLED:
+        return True
+    try:
+        mon = _PSI_MONITOR or get_psi_monitor()
+        if mon and (mon.is_critical() or mon.is_throttled()):
+            return True
+    except Exception:
+        pass
+    return False
+
+def register_inference_throttle_callback(callback) -> None:
+    """Register a callback invoked when throttling state transitions."""
+    if callback not in _INFERENCE_THROTTLE_CALLBACKS:
+        _INFERENCE_THROTTLE_CALLBACKS.append(callback)
+
+async def _signal_inference_throttling(throttled: bool, event: dict) -> None:
+    """Signals throttling events to inference workers and event subscribers."""
+    global _PSI_THROTTLED
+    _PSI_THROTTLED = throttled
+
+    # 1. Notify GatewayWorker if active
+    global _GATEWAY_WORKER
+    if _GATEWAY_WORKER is not None:
+        try:
+            setattr(_GATEWAY_WORKER, "throttled", throttled)
+        except Exception:
+            pass
+
+    # 2. Broadcast via AgentEventHub if available
+    global _event_hub
+    if "_event_hub" in globals() and _event_hub is not None:
+        try:
+            await _event_hub.broadcast(
+                "throttling" if throttled else "psi_pressure",
+                {
+                    "throttled": throttled,
+                    "level": event.get("level", "CRITICAL" if throttled else "NORMAL"),
+                    "event": event,
+                }
+            )
+        except Exception:
+            pass
+
+    # 3. Invoke any registered inference worker callbacks
+    import inspect
+    for cb in list(_INFERENCE_THROTTLE_CALLBACKS):
+        try:
+            if inspect.iscoroutinefunction(cb):
+                await cb(throttled, event)
+            else:
+                cb(throttled, event)
+        except Exception as ex:
+            log.warning("Inference throttle callback failed: %s", ex)
+
 _GATEWAY_QUEUE = None
 _GATEWAY_WORKER = None
 _GATEWAY_TASK = None
@@ -701,6 +763,7 @@ _AUTH_OPEN_PATHS = frozenset({
     "/v1/models", "/.well-known/agent-card.json", "/.well-known/agent.json",
     "/.well-known/agent-passport.json", "/a2a/card", "/health",
     "/v1/cluster/health",
+    "/v1/system/psi",
     "/v1/agents"})
 _CALLER_KEYS_CACHE: dict = {"mtime": -1.0, "keys": {}}
 
@@ -902,7 +965,23 @@ async def lifespan(app):
         _GATEWAY_TASK = asyncio.create_task(_GATEWAY_WORKER.run(_GATEWAY_QUEUE, concurrency=w_concurrency))
         log.info("GatewayQueue + GatewayWorker started with maxsize=%d concurrency=%d", q_maxsize, w_concurrency)
 
+    try:
+        _psi_mon = get_psi_monitor()
+        _psi_mon.register_throttle_callback(
+            lambda throttled, evt: asyncio.create_task(_signal_inference_throttling(throttled, evt))
+        )
+        await _psi_mon.start()
+        log.info("Linux PSI monitor started (available=%s, level=%s)", _psi_mon.available, _psi_mon.current_level)
+    except Exception as _psi_err:
+        log.warning("Linux PSI monitor startup exception: %s", _psi_err)
+
     yield
+
+    try:
+        _psi_mon = get_psi_monitor()
+        await _psi_mon.stop()
+    except Exception:
+        pass
 
     if _GATEWAY_TASK:
         log.info("GatewayQueue shutting down...")
@@ -1199,6 +1278,31 @@ from mios_pipe.scheduler.vram import (
     _dispatch_priority,
     _reclaim_idle_vram,
 )
+
+_orig_over_global_ceiling = _over_global_ceiling
+_orig_host_stats_cached = _host_stats_cached
+
+def _over_global_ceiling(load_ceil: Optional[float] = None) -> bool:
+    """T-485: True when host load/mem is over ceiling OR Linux PSI critical pressure is reached."""
+    try:
+        mon = get_psi_monitor()
+        if mon and mon.is_critical():
+            return True
+    except Exception:
+        pass
+    return _orig_over_global_ceiling(load_ceil)
+
+def _host_stats_cached(ttl: float = 1.0) -> dict:
+    """T-485: Injects Linux PSI telemetry into host stats."""
+    stats = _orig_host_stats_cached(ttl)
+    try:
+        mon = get_psi_monitor()
+        if mon:
+            stats["psi"] = mon.get_metrics_dict()
+    except Exception:
+        pass
+    return stats
+
 
 _OFFLOAD_ENGINES = ("cpu", "igpu", "accelerator")  # local light lanes, off the dGPU
 
@@ -4259,6 +4363,36 @@ _configure_auth(
 app.middleware("http")(_usage_completeness_mw)
 app.middleware("http")(_inbound_auth_mw)
 
+_PSI_THROTTLE_STATUS = int(os.environ.get("MIOS_PSI_THROTTLE_STATUS", "429"))
+
+@app.middleware("http")
+async def _psi_shed_load_mw(request: Request, call_next):
+    """T-485: Gracefully throttle requests with HTTP 429/503 during critical Linux PSI pressure."""
+    try:
+        mon = get_psi_monitor()
+        if mon and mon.is_critical():
+            path = request.url.path
+            if (path not in _AUTH_OPEN_PATHS and
+                    not path.startswith(("/v1/system/", "/v1/cluster/health", "/health", "/.well-known/"))):
+                reason = mon.get_shed_reason() or "Linux PSI critical pressure stall"
+                status = _PSI_THROTTLE_STATUS if _PSI_THROTTLE_STATUS in (429, 503) else 429
+                return JSONResponse(
+                    status_code=status,
+                    content={
+                        "error": {
+                            "message": f"Request throttled due to system saturation: {reason}",
+                            "type": "pressure_stall_shed",
+                            "code": status,
+                            "psi": mon.get_metrics_dict(),
+                        }
+                    },
+                    headers={"Retry-After": "2"},
+                )
+    except Exception as _e:
+        log.debug("PSI load shed middleware check error: %s", _e)
+    return await call_next(request)
+
+
 __import__("mios_chat")
 sys.modules["mios_chat"].configure(
     _db_write=_db_write,
@@ -4487,6 +4621,45 @@ app.include_router(clusterhealth_router)
 globals()["cluster_health_logic"] = sys.modules["mios_clusterhealth"].cluster_health_logic
 globals()["scheduler_state_logic"] = sys.modules["mios_clusterhealth"].scheduler_state_logic
 globals()["health_logic"] = sys.modules["mios_clusterhealth"].health_logic
+
+# T-485: Surface Linux PSI metrics in /v1/cluster/health and provide system metrics endpoint
+_orig_cluster_health_logic = sys.modules["mios_clusterhealth"].cluster_health_logic
+async def _psi_cluster_health_logic() -> JSONResponse:
+    resp = await _orig_cluster_health_logic()
+    try:
+        mon = get_psi_monitor()
+        body = json.loads(bytes(resp.body).decode("utf-8"))
+        body["psi"] = mon.get_metrics_dict()
+        return JSONResponse(status_code=resp.status_code, content=body, headers=dict(resp.headers))
+    except Exception:
+        return resp
+
+sys.modules["mios_clusterhealth"].cluster_health_logic = _psi_cluster_health_logic
+globals()["cluster_health_logic"] = _psi_cluster_health_logic
+
+_orig_health_logic = sys.modules["mios_clusterhealth"].health_logic
+async def _psi_health_logic() -> dict[str, Any]:
+    res = await _orig_health_logic()
+    try:
+        mon = get_psi_monitor()
+        res["psi"] = {
+            "available": mon.available,
+            "level": mon.current_level,
+            "highest_resource": mon.latest_metrics.highest_resource,
+            "highest_avg10": round(mon.latest_metrics.highest_avg10, 2),
+        }
+    except Exception:
+        pass
+    return res
+
+sys.modules["mios_clusterhealth"].health_logic = _psi_health_logic
+globals()["health_logic"] = _psi_health_logic
+
+@app.get("/v1/system/psi")
+async def v1_system_psi() -> JSONResponse:
+    """T-485: Linux PSI telemetry, resource stall averages, and load-shedding status."""
+    return JSONResponse(get_psi_monitor().get_metrics_dict())
+
 globals()["portal_stats_logic"] = sys.modules["mios_portal"].portal_stats_logic
 globals()["portal_service_detail_logic"] = sys.modules["mios_portal"].portal_service_detail_logic
 globals()["portal_swarm_logic"] = sys.modules["mios_portal"].portal_swarm_logic

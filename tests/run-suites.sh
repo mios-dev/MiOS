@@ -27,8 +27,12 @@ if [[ ${#SUITES[@]} -eq 0 ]]; then
     exit 1
 fi
 
+# The registry, the skip reasons and the [ci].max_tool_skips ceiling are checked on every tier.
+(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/ci-suites.py --check >/dev/null) || { echo "[run-suites] tools/ci-suites.py --check failed" >&2; exit 1; }
+mapfile -t TOOL_SKIPS < <(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/ci-suites.py --tool-skips)
 echo "[run-suites] tier=${TIER} suites=${#SUITES[@]} root=${ROOT}"
 FAILED=()
+SKIPPED=()
 PASSED=0
 for entry in "${SUITES[@]}"; do
     runner="${entry%%	*}"
@@ -44,6 +48,14 @@ for entry in "${SUITES[@]}"; do
         echo "::endgroup::"
     else
         rc=$?
+        # Exit 77 is a skip only for a suite registered in [ci.tool_skips]; anywhere else it is a failure.
+        if [[ $rc -eq 77 ]] && printf '%s\n' "${TOOL_SKIPS[@]}" | grep -qxF -- "$path"; then
+            SKIPPED+=("$path")
+            echo "[SKIP] ${path} ($((SECONDS - start))s)"
+            printf '%s\n' "$out"
+            echo "::warning file=${path}::${path} skipped: a host tool it needs is absent ([ci.tool_skips])"
+            continue
+        fi
         FAILED+=("$path")
         echo "[FAIL] ${path} (exit ${rc}, $((SECONDS - start))s)"
         printf '%s\n' "$out"
@@ -51,7 +63,8 @@ for entry in "${SUITES[@]}"; do
     fi
 done
 
-echo "[run-suites] tier=${TIER}: ${PASSED} passed, ${#FAILED[@]} failed"
+echo "[run-suites] tier=${TIER}: ${PASSED} passed, ${#FAILED[@]} failed, ${#SKIPPED[@]} skipped"
+[[ ${#SKIPPED[@]} -eq 0 ]] || printf '[run-suites]   skipped: %s\n' "${SKIPPED[@]}"
 if [[ ${#FAILED[@]} -gt 0 ]]; then
     printf '[run-suites]   failed: %s\n' "${FAILED[@]}" >&2
     exit 1

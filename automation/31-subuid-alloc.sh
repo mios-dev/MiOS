@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Deterministic /etc/subuid and /etc/subgid range generator for rootless container execution (T-477).
-# AI-doc: usr/share/doc/mios/manual/ch11-security-and-hardening.md
+# AI-doc: usr/share/doc/mios/manual/ch17-defense-in-depth-hardening.md
 set -euo pipefail
+# shellcheck source=/dev/null
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 

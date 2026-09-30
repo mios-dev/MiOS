@@ -1,6 +1,6 @@
 # AI-hint: Hermetic two-sided tests for the code-server workbench bake (mios-vscode-custom-css patch/verify), the dev-image wiring that runs it, and the mios-agents image and builders that bake it.
-# AI-related: /usr/libexec/mios/mios-vscode-custom-css, /.devcontainer/Containerfile, /.devcontainer/setup-devcontainer.sh, /.devcontainer/post-start.sh, /usr/share/mios/agents/Containerfile, /usr/libexec/mios/mios-agents-firstboot.sh, /src/mios-rs/miosd/src/main.rs
-# AI-functions: TestCodeServerBake, TestDevImageWiring, TestAgentsContainerfile, TestBuilders
+# AI-related: /usr/libexec/mios/mios-vscode-custom-css, /.devcontainer/Containerfile, /.devcontainer/setup-devcontainer.sh, /.devcontainer/boot-mios-systems.sh, /usr/share/mios/agents/Containerfile, /usr/libexec/mios/mios-agents-firstboot.sh, /src/mios-rs/miosd/src/main.rs
+# AI-functions: TestCodeServerBake, TestDevcontainerLifecycle, TestDevImageWiring, TestAgentsContainerfile, TestBuilders
 
 import hashlib
 import importlib.machinery
@@ -48,12 +48,87 @@ def _read(path):
         return f.read()
 
 
+def _bash_directory(path):
+    """Let Bash name the directory: Windows may dispatch Bash through WSL."""
+    return subprocess.run(["bash", "-c", "pwd"], cwd=path, check=True,
+                          capture_output=True, text=True).stdout.strip()
+
+
 def _load_tool():
     loader = importlib.machinery.SourceFileLoader("mios_vscode_custom_css", TOOL)
     spec = importlib.util.spec_from_loader(loader.name, loader)
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
     return mod
+
+
+class TestDevcontainerLifecycle(unittest.TestCase):
+    """Run the merged core hook against fake build/install commands."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="core-hook-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.root = _bash_directory(self.tmp)
+        self.log = os.path.join(self.tmp, "calls.log")
+        for directory in ("bin", "src/mios-rs", "tools/native", "runtime"):
+            os.makedirs(os.path.join(self.tmp, directory), exist_ok=True)
+        with open(os.path.join(self.tmp, "src/mios-rs/Cargo.toml"), "w") as fh:
+            fh.write("# fixture\n")
+        for name in ("cargo", "install", "sudo", "miosd"):
+            self.shim("bin/" + name,
+                      'printf "%s %s\\n" "' + name + '" "$*" >> "$CORE_LOG"\n'
+                      'if [[ "' + name + '" == cargo && "${FAIL_BUILD:-}" == 1 ]]; then exit 71; fi\n')
+        self.shim("runtime/python", 'printf "runtime import\\n" >> "$CORE_LOG"\n')
+
+    def shim(self, relative, body):
+        path = os.path.join(self.tmp, relative)
+        with open(path, "w", newline="\n") as fh:
+            fh.write("#!/usr/bin/env bash\n" + body)
+        os.chmod(path, 0o755)
+
+    def run_core(self, fail=False):
+        if not shutil.which("bash"):
+            self.skipTest("bash is required for the lifecycle hook")
+        source = _read(os.path.join(ROOT, ".devcontainer/boot-mios-systems.sh"))
+        source = source.split('case "${1:-start}" in', 1)[0]
+        source = source.replace("local root=/workspaces/MiOS", f'local root="{self.root}"')
+        source = source.replace("local agent_pipe_python=/usr/lib/mios/agents/.venv/bin/python",
+                                f'local agent_pipe_python="{self.root}/runtime/python"')
+        prefix = (f'export PATH="{self.root}/bin:$PATH"\n'
+                  f'export CORE_LOG="{self.root}/calls.log"\n'
+                  f'export FAIL_BUILD={1 if fail else 0}\n')
+        # Send bytes: Windows text-mode pipes turn LF into CRLF, which Bash
+        # treats as part of option names (including pipefail).
+        result = subprocess.run(["bash", "-s"], input=(prefix + source + "\nmios_core\n").encode(),
+                                capture_output=True,
+                                env=dict(os.environ))
+        result.stdout = result.stdout.decode()
+        result.stderr = result.stderr.decode()
+        calls = _read(self.log).splitlines() if os.path.isfile(self.log) else []
+        return result, calls
+
+    def test_builds_both_workspaces_before_installing(self):
+        result, calls = self.run_core()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("runtime import", calls[0])
+        builds = [line for line in calls if line.startswith("cargo ")]
+        self.assertEqual(["cargo build --release",
+                          "cargo build --release --workspace --exclude mios-wallpaperd"], builds)
+        self.assertLess(calls.index(builds[-1]), next(i for i, line in enumerate(calls) if line.startswith("sudo ")))
+        self.assertEqual("miosd --help", calls[-1])
+
+    def test_build_failure_stops_before_install(self):
+        result, calls = self.run_core(fail=True)
+        self.assertEqual(71, result.returncode, result.stderr)
+        self.assertFalse(any(line.startswith("sudo ") for line in calls), calls)
+        self.assertEqual(1, sum(line.startswith("cargo ") for line in calls))
+
+    def test_missing_runtime_fails_before_build(self):
+        os.unlink(os.path.join(self.tmp, "runtime/python"))
+        result, calls = self.run_core()
+        self.assertEqual(1, result.returncode)
+        self.assertIn("Missing agent-pipe runtime", result.stderr)
+        self.assertEqual([], calls)
 
 
 class TestCodeServerBake(unittest.TestCase):
@@ -242,10 +317,10 @@ class TestDevImageWiring(unittest.TestCase):
         self.assertIn("custom-css extension install failed (exit", sh)
 
     def test_post_start_binds_loopback_from_ports(self):
-        sh = _read(os.path.join(ROOT, ".devcontainer/post-start.sh"))
+        sh = _read(os.path.join(ROOT, ".devcontainer/boot-mios-systems.sh"))
         self.assertIn("ports code_server", sh)
         self.assertIn("127.0.0.1", sh)
-        self.assertIsNone(re.search(r"\b8900\b|\b8080\b", sh), "a code-server port literal in post-start.sh")
+        self.assertIsNone(re.search(r"\b8900\b|\b8080\b", sh), "a code-server port literal in boot-mios-systems.sh")
 
 
 def containerfile_violations(text):
@@ -331,15 +406,19 @@ class TestBuilders(unittest.TestCase):
         body = re.search(r"(?ms)^resolve_build_args\(\) \{.*?^\}", _read(FIRSTBOOT)).group(0)
         with tempfile.TemporaryDirectory() as tmp:
             stub = os.path.join(tmp, "mios-toml-get")
-            with open(stub, "w") as f:
+            with open(stub, "w", newline="\n") as f:
                 f.write("#!/bin/sh\ncase \"$1 $2\" in\n")
                 for (section, key), v in values.items():
                     f.write(f"  '{section} {key}') printf '%s\\n' '{v}' ;;\n")
                 f.write("esac\n")
             os.chmod(stub, os.stat(stub).st_mode | stat.S_IXUSR)
-            script = (f'set -euo pipefail\nTOML_GET={stub}\nlog() {{ echo "$*" >&2; }}\n{body}\n'
+            shell_stub = _bash_directory(tmp) + "/mios-toml-get"
+            script = (f'set -euo pipefail\nTOML_GET="{shell_stub}"\nlog() {{ echo "$*" >&2; }}\n{body}\n'
                       'resolve_build_args\nprintf "%s\\n" "${BUILD_ARGS[@]}"\n')
-            return subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+            result = subprocess.run(["bash", "-s"], input=script.encode(), capture_output=True)
+            result.stdout = result.stdout.decode()
+            result.stderr = result.stderr.decode()
+            return result
 
     def test_firstboot_resolves_ssot_values(self):
         with open(TOML, "rb") as f:

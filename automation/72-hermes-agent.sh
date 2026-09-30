@@ -9,6 +9,7 @@ source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
     mios_warn "Lib/common.sh unavailable"
     exit 0
 }
+source "$(dirname "$0")/lib/packages.sh"
 
 HERMES_REPO="${MIOS_HERMES_AGENT_REPO:-https://github.com/NousResearch/hermes-agent.git}"
 HERMES_REF="${MIOS_HERMES_AGENT_REF:-main}"
@@ -112,17 +113,23 @@ fi
 
 "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check setuptools wheel 2>/dev/null || true
 
-_REQ_FILE="/usr/lib/mios/agent-pipe/requirements.txt"
-_REQ_ARG=""; [ -f "${_REQ_FILE}" ] && _REQ_ARG="-r ${_REQ_FILE}"
+_REQ_ARGS=()
+_REQ_FILES="$(get_package_list_setting ai python_requirements)"
+[[ -n "${_REQ_FILES// }" ]] || { mios_err "[packages.ai].python_requirements is empty"; exit 1; }
+for _req in ${_REQ_FILES}; do
+    _req="/${_req#/}"
+    [[ -f "$_req" ]] || { mios_err "Missing agent runtime requirements: $_req"; exit 1; }
+    _REQ_ARGS+=(-r "$_req")
+done
 _venv_pip_ok=""
 _PIP_ARGS_ONLINE="${PIP_OFFLINE_ARGS//--no-index/}"
 for _venv_attempt in 1 2 3; do
     _pa="${PIP_OFFLINE_ARGS}"
     [ "${_venv_attempt}" -ge 2 ] && _pa="${_PIP_ARGS_ONLINE}"
     if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check --ignore-requires-python --no-build-isolation ${_pa} ${PIP_CONSTRAINTS_ARG} \
-            ${INSTALL_TARGET} ${_REQ_ARG} \
+            ${INSTALL_TARGET} "${_REQ_ARGS[@]}" \
             aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" "firecrawl-py" \
-            "smolagents>=1.0.0" "litellm>=1.0.0" "mcp" 2>&1 | tail -8; then
+            "smolagents>=1.0.0" "litellm>=1.0.0" "mcp>=2.1.1,<3" 2>&1 | tail -8; then
         _venv_pip_ok=1; break
     fi
     if [ "${_venv_attempt}" -eq 1 ]; then
@@ -227,8 +234,8 @@ if ! "${VENV_DIR}/bin/python3" -c "import fastapi, uvicorn, ptyprocess" 2>/dev/n
     fi
 fi
 
-if ! "${VENV_DIR}/bin/python3" -c "import mcp" 2>/dev/null; then
-    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} "mcp>=1.0" 2>&1 | tail -3; then
+if ! "${VENV_DIR}/bin/python3" -c "from importlib.metadata import version; assert int(version('mcp').split('.')[0]) >= 2" 2>/dev/null; then
+    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} "mcp>=2.1.1,<3" 2>&1 | tail -3; then
         mios_ok "Installed mcp SDK into venv"
     else
         mios_warn "Mcp SDK install failed"

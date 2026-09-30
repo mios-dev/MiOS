@@ -110,6 +110,38 @@ _gate_bin() {
     return 1
 }
 
+_unit_gen_bin() {
+    local c
+    for c in "${MIOS_UNIT_GEN_BIN:-}" \
+             "$ROOT/tools/native/target/release/mios-unit-gen" \
+             "$ROOT/tools/native/target/debug/mios-unit-gen" \
+             "$ROOT/tools/native/target/release/mios-unit-gen.exe" \
+             "$ROOT/tools/native/target/debug/mios-unit-gen.exe" \
+             /usr/libexec/mios/mios-unit-gen /opt/mios/bin/mios-unit-gen; do
+        [[ -n "$c" && -x "$c" ]] && { printf '%s' "$c"; return 0; }
+    done
+    return 1
+}
+
+_run_deployment_projection() {
+    local mode="$1" bin output
+    bin="$(_unit_gen_bin)" || {
+        _violation "mios-unit-gen is not built -- build it in MiOS-DEV: cd tools/native && cargo build -p mios-unit-gen"
+        return
+    }
+    # An older binary ignores a new subcommand and --check runs its unit gate.
+    # Require the named projection before trusting its exit status.
+    if ! "$bin" --list-projections | tr -d '\r' | grep -Fxq "$mode"; then
+        _violation "mios-unit-gen does not advertise $mode -- rebuild the binary from this checkout"
+        return
+    fi
+    if output="$("$bin" "$mode" --root "$ROOT" --check 2>&1)"; then
+        printf '[98-drift-checks]   %s\n' "$output"
+    else
+        _violations_from "$mode: " "$output"
+    fi
+}
+
 _violations_from() {
     # Folded from 42 copies of this loop.
     local __prefix="$1" __blob="$2" line __n=0
@@ -554,42 +586,7 @@ check_egress_firewall() {
 }
 
 check_blade_dropins() {
-    _need_python || return 0
-    local gen="$ROOT/tools/generate-blade-dropins.py"
-    if [[ ! -f "$gen" ]]; then
-        _violation "tools/generate-blade-dropins.py absent -- a tracked deliverable is missing, so this check cannot run"
-        return
-    fi
-    local tmp_root; tmp_root="$(mktemp -d)"
-    if MIOS_ROOT="$tmp_root" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$gen" >/dev/null 2>&1; then
-        local committed_dir="$ROOT/usr/share/mios/dropins"
-        local generated_dir="$tmp_root/usr/share/mios/dropins"
-        local ok=1
-
-        local f gen_file com_file
-        for f in "$generated_dir"/*; do
-            [[ -e "$f" ]] || continue
-            gen_file="$(basename "$f")"
-            com_file="$committed_dir/$gen_file"
-            if [[ ! -f "$com_file" ]]; then
-                ok=0
-                echo "      Missing drop-in: $gen_file is missing from $committed_dir" >&2
-            elif ! diff -q "$com_file" "$f" >/dev/null 2>&1; then
-                ok=0
-                echo "      Divergence in drop-in: $gen_file has drifted" >&2
-            fi
-        done
-
-        rm -rf "$tmp_root"
-        if [[ $ok -eq 1 ]]; then
-            echo "[98-drift-checks]   blade capability drop-ins in sync with mios.toml [blade.requires]"
-        else
-            _violation "usr/share/mios/dropins/ is STALE vs mios.toml [blade.requires] -- regenerate with tools/generate-blade-dropins.py "
-        fi
-    else
-        rm -rf "$tmp_root"
-        _violation "blade drop-in generation failed during drift check"
-    fi
+    _run_deployment_projection blade-dropins
 }
 
 check_no_hardcode() {
@@ -1226,19 +1223,29 @@ check_lint_is_final() {
     local bad="" cf last n=0 want="RUN bootc container lint"
     for cf in "$ROOT"/Containerfile*; do
         [[ -f "$cf" ]] || continue
+        # Only bootc container images are subject to bootc container lint (Law 4)
+        if ! grep -iqE '^[[:space:]]*LABEL[[:space:]]+.*containers\.bootc=["'\'']?1(["'\'']|[[:space:]]|$)' "$cf"; then
+            # Negative control: non-bootc images must NOT include bootc container lint
+            last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" 2>/dev/null | tail -1 || true)"
+            if grep -qF "$want" "$cf"; then
+                bad+="    ${cf#"$ROOT"/}: non-bootc container image contains invalid [$want]"$'\n'
+            fi
+            continue
+        fi
         n=$((n + 1))
-        last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" | tail -1)"
+        last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" 2>/dev/null | tail -1 || true)"
+        last="${last%$'\r'}"
         if [[ "$last" != "$want" ]]; then
             bad+="    ${cf#"$ROOT"/}: final instruction is [$last], expected [$want]"$'\n'
         fi
     done
     if [[ "$n" -eq 0 ]]; then
-        _violation "(43) no Containerfile* at the repo root -- Law 4 would pass vacuously"
+        _violation "(43) no bootc Containerfile* (carrying LABEL containers.bootc=1) at the repo root -- Law 4 would pass vacuously"
     elif [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
-        _violation "a Containerfile's final instruction is not 'RUN bootc container lint' (Law 4 BOOTC-CONTAINER-LINT) -- lint MUST be the last layer"
+        _violation "a Containerfile's final instruction is invalid (Law 4 BOOTC-CONTAINER-LINT) -- bootc images must end with '$want'; non-bootc images must not"
     else
-        echo "[98-drift-checks]   all $n root Containerfile(s) end with 'RUN bootc container lint'"
+        echo "[98-drift-checks]   all $n bootc root Containerfile(s) end with 'RUN bootc container lint'"
     fi
 }
 
@@ -2045,6 +2052,26 @@ check_toolchain_pin() {
     fi
 }
 
+# --- etc/mios/ai/config.json and usr/share/mios/ai/v1/config.json equal their [ai] + [ports] projection (Law 8) ---
+check_ai_config_projection() {
+    # Generated from [ai] + [ports]. A hand edit, an unregenerated SSOT move or
+    # an unbuilt generator is a violation, never a skip.
+    local bin="" c
+    for c in "$ROOT/tools/native/target/release/mios-ai-config" \
+             "$ROOT/tools/native/target/debug/mios-ai-config"; do
+        [[ -x "$c" ]] && { bin="$c"; break; }
+    done
+    if [[ -z "$bin" ]]; then
+        _violation "mios-ai-config is not built, so check_ai_config_projection could not run -- build it: cd tools/native && cargo build -p mios-ai-config"
+        return
+    fi
+    if "$bin" --root "$ROOT" --check; then
+        return 0
+    else
+        _violation "an AI client config.json (etc/mios/ai/ or usr/share/mios/ai/v1/) is missing or differs from [ai] + [ports] -- regenerate it: tools/native/target/debug/mios-ai-config --root ."
+    fi
+}
+
 # --- ARTIFACT-PROMPT.md equals its [artifacts.daily] projection (Law 8) ---
 check_artifact_prompt() {
     # The out-of-loop daily task fetches this file from main on every run, so
@@ -2573,6 +2600,16 @@ check_firstboot_tier() {
     fi
 }
 
+check_bound_image_store() {
+    _need_python || return 0
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py bound-image-store
+    then
+        echo "[98-drift-checks]   bound image store scoped to bound Quadlets"
+    else
+        _violation "bound image store contract failed"
+    fi
+}
+
 check_rechunk_budget() {
     local script="$ROOT/automation/build/rechunk.sh"
     if [[ ! -f "$script" ]]; then
@@ -2855,7 +2892,7 @@ check_installer_family_roles() {
     echo "[98-drift-checks] installer role markers are unique across every script that declares one"
     # Subjects are the declared family UNION every tracked file already carrying
     # the marker, so a newly added installer is covered the day it lands.
-    local family=("install.sh" "tools/install.sh" "automation/install.sh" "automation/install-fhs.sh")
+    local family=("tools/install.sh" "automation/install.sh" "automation/install-fhs.sh")
     local bad_installers=""
     local roles=()
     local subjects=()
@@ -3014,37 +3051,11 @@ check_win11_vm_template_xml() {
 }
 
 check_ipa_enroll_projection() {
-    if ! _require_python3; then
-        return 0
-    fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" --check >/dev/null 2>&1; then
-        echo "[98-drift-checks]   etc/mios/ipa-enroll.env matches [identity.ipa] SSOT"
-    else
-        _emit_projection_evidence "tools/generate-ipa-enroll-env.py" "etc/mios/ipa-enroll.env"
-        _violation "etc/mios/ipa-enroll.env is out of sync with [identity.ipa] SSOT -- run python3 tools/generate-ipa-enroll-env.py"
-    fi
+    _run_deployment_projection ipa-enroll
 }
 
 check_uki_cmdline_projection() {
-    if ! _require_python3; then
-        return 0
-    fi
-    local _uki_out
-    if _uki_out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" --check 2>&1)"; then
-        echo "[98-drift-checks]   usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins"
-    else
-        # T-1034: a drop-in that will not parse and a cmdline that is merely
-        # stale exit the same way. Discarding the generator's own words turned
-        # "I could not read 01-mios-hardening.toml" into "your file is out of
-        # sync -- re-run the generator", which is advice that cannot work.
-        printf '%s\n' "$_uki_out" | head -n 10 >&2
-        _emit_projection_evidence "tools/generate-uki-cmdline.py" "usr/lib/kernel/cmdline"
-        if printf '%s' "$_uki_out" | grep -q '^Error parsing '; then
-            _violation "a usr/lib/bootc/kargs.d/*.toml drop-in does not parse, so its kernel arguments would be dropped from usr/lib/kernel/cmdline -- fix the drop-in named above"
-        else
-            _violation "usr/lib/kernel/cmdline is out of sync with usr/lib/bootc/kargs.d/*.toml -- run python3 tools/generate-uki-cmdline.py"
-        fi
-    fi
+    _run_deployment_projection uki-cmdline
 }
 
 check_composefs_projection() {
@@ -3078,15 +3089,7 @@ check_composefs_projection() {
 }
 
 check_cockpit_projection() {
-    if ! _require_python3; then
-        return 0
-    fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" --check >/dev/null 2>&1; then
-        echo "[98-drift-checks]   etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT"
-    else
-        _emit_projection_evidence "tools/generate-cockpit-conf.py" "etc/cockpit/cockpit.conf"
-        _violation "etc/cockpit/cockpit.conf is out of sync with mios.toml [cockpit] SSOT -- run python3 tools/generate-cockpit-conf.py"
-    fi
+    _run_deployment_projection cockpit
 }
 
 check_chrony_ptp_dropin() {
@@ -3726,6 +3729,23 @@ check_globals_generated() {
     fi
 }
 
+check_ai_metadata_fresh() {
+    # Law 8 for usr/share/mios/ai/v1/metadata.json. It is exported from every
+    # tracked file's AI-* header, but nothing regenerated it and nothing
+    # compared it, so it fell ~2,400 lines behind main and the first unrelated
+    # re-export dragged that whole backlog into a small PR. The exporter's own
+    # --check validates schema only; --check-fresh regenerates in memory and
+    # compares bytes, naming each entry that moved.
+    _need_python || return 0
+    local out
+    if out="$(cd "$ROOT" && python3 usr/libexec/mios/mios-ai-metadata.py --root "$ROOT" --check-fresh 2>&1)"; then
+        echo "[98-drift-checks]   usr/share/mios/ai/v1/metadata.json regenerates byte-identically from the tracked AI headers"
+    else
+        printf '%s\n' "$out" | head -n 48 >&2
+        _violation "check_ai_metadata_fresh: usr/share/mios/ai/v1/metadata.json is stale vs the tracked AI-* headers -- re-run bash tools/sync-generated.sh (Law 8 SSOT-PROJECTION)"
+    fi
+}
+
 check_ai_manifests_fresh() {
     echo "[98-drift-checks]   checking AI manifest freshness"
     # generate-ai-manifest.py resolves its targets and relpaths against the CWD,
@@ -3832,6 +3852,7 @@ main() {
     check_size_ceiling
     check_task_store
     check_toolchain_pin
+    check_ai_config_projection
     check_artifact_prompt
     check_ai_artifacts
     check_render_quadlets
@@ -3854,6 +3875,7 @@ main() {
     check_council_gate_ssot
     check_containerfile_pinned_clones
     check_firstboot_tier
+    check_bound_image_store
     check_rechunk_budget
     check_python_lint
     check_test_hermeticity
@@ -3924,6 +3946,7 @@ main() {
     check_desktop_launchers
     check_guacamole_consistency
     check_no_inert_ssot_tables
+    check_profile_integrity
     check_doc_refs_resolve
     check_resolver_differential_parity
     check_generator_host_parity
@@ -3973,6 +3996,7 @@ main() {
     check_pipefail_grep_lint
     check_skip_list_covered
     check_ai_manifests_fresh
+    check_ai_metadata_fresh
     check_ports_category_schema
     check_globals_generated
     check_ci_suite_coverage
@@ -4112,7 +4136,7 @@ check_ps_redirectors() {
     # "Redirector file missing" branch fired unconditionally on every clean
     # checkout. (mios-pipeline.ps1 itself is 415 lines -- it is the real
     # pipeline script, not a thin redirector, so it does not belong here.)
-    local redirectors=("install.ps1" "mios-build-local.ps1")
+    local redirectors=("mios-build-local.ps1")
     local f line_count max_lines=50
     for f in "${redirectors[@]}"; do
         if [[ -f "$ROOT/$f" ]]; then
@@ -4714,7 +4738,7 @@ check_metal_vs_hosted() { _run_py_check check_metal_vs_hosted "tools/generate-me
 check_node_pool() { _run_py_check check_node_pool "tools/check-ssot.py node-pool" ""; }
 check_port_fallbacks() { _run_py_check check_port_fallbacks "tools/check-ssot.py port-fallbacks" ""; }
 check_role_ssot() { _run_py_check check_role_ssot "tools/check-ssot.py role-ssot" ""; }
-check_blade_karg() { _run_py_check check_blade_karg "tools/generate-blade-karg.py --check"; }
+check_blade_karg() { _run_deployment_projection blade-karg; }
 check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners "tools/check-runtime.py firstboot-provisioners"; }
 check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-desktop.py --check"; }
 
@@ -4729,6 +4753,21 @@ check_no_inert_ssot_tables() {
     local out
     if out="$("$bin" no-inert-ssot-tables --root "$ROOT" 2>&1)"; then
         echo "[98-drift-checks]   every mios.toml SSOT table has an access-shaped consumer or sits in the shrink-only [ssot_tables] register"
+    else
+        _violations_from "" "$out"
+    fi
+}
+
+# --- mios.toml [profiles] is closed over phases, sections, the floor and targets (ADR-0025) ---
+check_profile_integrity() {
+    local bin; bin="$(_gate_bin)" || bin=""
+    if [[ -z "$bin" ]]; then
+        _violation "mios-gate is not built, so check_profile_integrity could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"
+        return
+    fi
+    local out
+    if out="$("$bin" profile-integrity --root "$ROOT" 2>&1)"; then
+        echo "[98-drift-checks]   every [profiles] entry resolves over registered phases and real sections, contains the floor, and every target is declared"
     else
         _violations_from "" "$out"
     fi

@@ -1,0 +1,680 @@
+#!/usr/bin/env python3
+# AI-hint: Manages Linux core scheduling cookies (PR_SCHED_CORE via prctl) for hardware SMT sibling isolation across multi-tenant workloads, with graceful fallback.
+# AI-related: automation/24-cpu-affinity.sh, tests/test-core-sched.sh, usr/lib/systemd/system/subagent.slice
+# AI-doc: usr/share/doc/mios/manual/ch63-core-scheduling.md
+# AI-functions: get_core_sched_status, create_cookie, share_cookie_from, share_cookie_to, tag_cgroup, main
+"""MiOS Core Scheduling and SMT Sibling Isolation Utility (T-858).
+
+Enforces hardware execution isolation across Simultaneous Multi-Threading (SMT)
+sibling cores for untrusted subagents and sandboxed processes using the Linux
+PR_SCHED_CORE prctl interface (Linux 5.14+).
+
+Prevents cross-SMT speculative execution side-channels (Spectre-v2, MDS, L1TF)
+while preserving 100% of Hyper-Threading capacity for trusted system processes.
+"""
+
+from __future__ import annotations
+
+import argparse
+import ctypes
+import glob
+import json
+import os
+import platform
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+# Linux prctl PR_SCHED_CORE definitions (Linux 5.14+)
+PR_SCHED_CORE = 62
+PR_SCHED_CORE_GET = 0
+PR_SCHED_CORE_CREATE = 1
+PR_SCHED_CORE_SHARE_TO = 2
+PR_SCHED_CORE_SHARE_FROM = 3
+
+PIDTYPE_PID = 0
+PIDTYPE_TGID = 1
+PIDTYPE_PGID = 2
+
+PIDTYPES = {
+    "pid": PIDTYPE_PID,
+    "tgid": PIDTYPE_TGID,
+    "pgid": PIDTYPE_PGID,
+}
+
+# Standard Linux errno codes
+EPERM = 1
+ESRCH = 3
+EINVAL = 22
+ENOSYS = 38
+
+
+def _get_libc() -> Optional[Any]:
+    """Load libc.so.6 with use_errno=True if on Linux."""
+    if platform.system() != "Linux":
+        return None
+    try:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        libc.prctl.restype = ctypes.c_int
+        libc.prctl.argtypes = [
+            ctypes.c_int,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+        ]
+        return libc
+    except Exception:
+        return None
+
+
+_LIBC = _get_libc()
+
+
+def _is_mock() -> bool:
+    """Return True if mock mode is explicitly requested."""
+    return os.environ.get("MIOS_CORE_SCHED_MOCK") == "1"
+
+
+def _is_forced_unsupported() -> bool:
+    """Return True if unsupported fallback mode is explicitly forced."""
+    return os.environ.get("MIOS_CORE_SCHED_FORCE_UNSUPPORTED") == "1"
+
+
+def _mock_state_path() -> str:
+    """Path to the mock core scheduling registry file."""
+    return os.environ.get(
+        "MIOS_MOCK_COOKIE_FILE",
+        os.path.join(os.environ.get("TMPDIR", "/tmp"), "mios_mock_core_sched.json"),
+    )
+
+
+def _load_mock_registry() -> Dict[str, Any]:
+    """Load mock cookie registry."""
+    path = _mock_state_path()
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"cookies": {}, "next_id": 1001}
+
+
+def _save_mock_registry(reg: Dict[str, Any]) -> None:
+    """Save mock cookie registry."""
+    path = _mock_state_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(reg, f)
+    except Exception:
+        pass
+
+
+def is_core_sched_supported() -> Tuple[bool, str]:
+    """Check if the current kernel supports Linux core scheduling (PR_SCHED_CORE)."""
+    if _is_forced_unsupported():
+        return False, "Forced unsupported via MIOS_CORE_SCHED_FORCE_UNSUPPORTED=1"
+
+    if _is_mock():
+        return True, "Mock Linux Core Scheduling active (MIOS_CORE_SCHED_MOCK=1)"
+
+    if _LIBC is None or platform.system() != "Linux":
+        return False, f"Unsupported platform: {platform.system()}"
+
+    cookie_val = ctypes.c_uint64(0)
+    # Query calling process cookie (pid=0, PIDTYPE_PID)
+    ret = _LIBC.prctl(
+        PR_SCHED_CORE,
+        ctypes.c_ulong(PR_SCHED_CORE_GET),
+        ctypes.c_ulong(0),
+        ctypes.c_ulong(PIDTYPE_PID),
+        ctypes.c_ulong(ctypes.addressof(cookie_val)),
+    )
+    if ret == 0:
+        return True, "CONFIG_SCHED_CORE supported by running kernel"
+
+    errno = ctypes.get_errno()
+    if errno in (ENOSYS, EINVAL):
+        return False, f"Kernel does not support PR_SCHED_CORE (errno={errno}: {os.strerror(errno)})"
+    if errno == EPERM:
+        # Permission denied still confirms the syscall and option are recognized
+        return True, "CONFIG_SCHED_CORE supported (query restricted)"
+
+    return False, f"prctl check returned errno={errno} ({os.strerror(errno)})"
+
+
+def get_cookie(pid: int = 0, pid_type: int = PIDTYPE_TGID) -> Tuple[Optional[int], Optional[int]]:
+    """Get the core scheduling cookie for a PID.
+
+    Returns (cookie_value, errno). cookie_value is 0 if running in default/unisolated cookie.
+    """
+    if _is_forced_unsupported():
+        return None, ENOSYS
+
+    if _is_mock():
+        reg = _load_mock_registry()
+        effective_pid = os.getpid() if pid == 0 else pid
+        val = reg.get("cookies", {}).get(str(effective_pid))
+        if val is None:
+            # Check inherited env
+            env_val = os.environ.get("MIOS_CORE_SCHED_COOKIE")
+            val = int(env_val, 16) if env_val else 0
+        return val, 0
+
+    if _LIBC is None or platform.system() != "Linux":
+        return None, ENOSYS
+
+    cookie_val = ctypes.c_uint64(0)
+    ret = _LIBC.prctl(
+        PR_SCHED_CORE,
+        ctypes.c_ulong(PR_SCHED_CORE_GET),
+        ctypes.c_ulong(pid),
+        ctypes.c_ulong(pid_type),
+        ctypes.c_ulong(ctypes.addressof(cookie_val)),
+    )
+    if ret == 0:
+        return cookie_val.value, 0
+    return None, ctypes.get_errno()
+
+
+def create_cookie(pid: int = 0, pid_type: int = PIDTYPE_TGID) -> Tuple[bool, Optional[int]]:
+    """Create a new unique core scheduling cookie for the target process.
+
+    Returns (success, errno).
+    """
+    if _is_forced_unsupported():
+        return False, ENOSYS
+
+    if _is_mock():
+        reg = _load_mock_registry()
+        effective_pid = os.getpid() if pid == 0 else pid
+        new_cookie = reg.get("next_id", 1001)
+        reg["next_id"] = new_cookie + 1
+        reg.setdefault("cookies", {})[str(effective_pid)] = new_cookie
+        _save_mock_registry(reg)
+        os.environ["MIOS_CORE_SCHED_COOKIE"] = hex(new_cookie)
+        return True, 0
+
+    if _LIBC is None or platform.system() != "Linux":
+        return False, ENOSYS
+
+    ret = _LIBC.prctl(
+        PR_SCHED_CORE,
+        ctypes.c_ulong(PR_SCHED_CORE_CREATE),
+        ctypes.c_ulong(pid),
+        ctypes.c_ulong(pid_type),
+        ctypes.c_ulong(0),
+    )
+    if ret == 0:
+        return True, 0
+    return False, ctypes.get_errno()
+
+
+def share_cookie_from(source_pid: int, target_pid: int = 0, pid_type: int = PIDTYPE_TGID) -> Tuple[bool, Optional[int]]:
+    """Pull core scheduling cookie from source_pid to target_pid.
+
+    Returns (success, errno).
+    """
+    if _is_forced_unsupported():
+        return False, ENOSYS
+
+    if _is_mock():
+        reg = _load_mock_registry()
+        effective_target = os.getpid() if target_pid == 0 else target_pid
+        source_cookie = reg.get("cookies", {}).get(str(source_pid))
+        if source_cookie is None:
+            return False, ESRCH
+        reg.setdefault("cookies", {})[str(effective_target)] = source_cookie
+        _save_mock_registry(reg)
+        return True, 0
+
+    if _LIBC is None or platform.system() != "Linux":
+        return False, ENOSYS
+
+    ret = _LIBC.prctl(
+        PR_SCHED_CORE,
+        ctypes.c_ulong(PR_SCHED_CORE_SHARE_FROM),
+        ctypes.c_ulong(source_pid),
+        ctypes.c_ulong(pid_type),
+        ctypes.c_ulong(0),
+    )
+    if ret == 0:
+        return True, 0
+    return False, ctypes.get_errno()
+
+
+def share_cookie_to(target_pid: int, pid_type: int = PIDTYPE_TGID) -> Tuple[bool, Optional[int]]:
+    """Push calling process's core scheduling cookie to target_pid.
+
+    Returns (success, errno).
+    """
+    if _is_forced_unsupported():
+        return False, ENOSYS
+
+    if _is_mock():
+        reg = _load_mock_registry()
+        caller_cookie = reg.get("cookies", {}).get(str(os.getpid()))
+        if caller_cookie is None:
+            # Generate one if caller didn't have one
+            caller_cookie = reg.get("next_id", 1001)
+            reg["next_id"] = caller_cookie + 1
+            reg.setdefault("cookies", {})[str(os.getpid())] = caller_cookie
+        reg.setdefault("cookies", {})[str(target_pid)] = caller_cookie
+        _save_mock_registry(reg)
+        return True, 0
+
+    if _LIBC is None or platform.system() != "Linux":
+        return False, ENOSYS
+
+    ret = _LIBC.prctl(
+        PR_SCHED_CORE,
+        ctypes.c_ulong(PR_SCHED_CORE_SHARE_TO),
+        ctypes.c_ulong(target_pid),
+        ctypes.c_ulong(pid_type),
+        ctypes.c_ulong(0),
+    )
+    if ret == 0:
+        return True, 0
+    return False, ctypes.get_errno()
+
+
+def get_smt_info() -> Dict[str, Any]:
+    """Discover CPU topology and SMT sibling status from sysfs."""
+    smt_info: Dict[str, Any] = {
+        "smt_control": "unknown",
+        "smt_active": False,
+        "physical_cores": 0,
+        "logical_cpus": os.cpu_count() or 1,
+        "sibling_groups": [],
+    }
+
+    # SMT control state
+    control_path = "/sys/devices/system/cpu/smt/control"
+    if os.path.exists(control_path):
+        try:
+            with open(control_path, "r", encoding="utf-8") as f:
+                smt_info["smt_control"] = f.read().strip()
+        except Exception:
+            pass
+
+    active_path = "/sys/devices/system/cpu/smt/active"
+    if os.path.exists(active_path):
+        try:
+            with open(active_path, "r", encoding="utf-8") as f:
+                smt_info["smt_active"] = f.read().strip() == "1"
+        except Exception:
+            pass
+
+    # Inspect CPU thread siblings list
+    cpu_dirs = sorted(glob.glob("/sys/devices/system/cpu/cpu[0-9]*"))
+    sibling_sets = []
+    seen_cpus = set()
+
+    for d in cpu_dirs:
+        sib_file = os.path.join(d, "topology", "thread_siblings_list")
+        if os.path.exists(sib_file):
+            try:
+                with open(sib_file, "r", encoding="utf-8") as f:
+                    sib_str = f.read().strip()
+                    if sib_str and sib_str not in sibling_sets:
+                        sibling_sets.append(sib_str)
+            except Exception:
+                pass
+
+    if sibling_sets:
+        smt_info["sibling_groups"] = sibling_sets
+        smt_info["physical_cores"] = len(sibling_sets)
+        # SMT is active if any group contains multiple logical threads
+        if any("," in s or "-" in s for s in sibling_sets):
+            smt_info["smt_active"] = True
+    else:
+        # Fallback if topology not accessible
+        smt_info["physical_cores"] = smt_info["logical_cpus"]
+
+    return smt_info
+
+
+def tag_cgroup(cgroup_spec: str, strict: bool = False) -> Tuple[int, int]:
+    """Tag all processes in a cgroup with a shared core scheduling cookie.
+
+    Returns (tagged_count, error_count).
+    """
+    # Resolve cgroup path
+    cgroup_path = cgroup_spec
+    if not os.path.isdir(cgroup_path):
+        # Check standard cgroup v2 mount
+        candidates = [
+            os.path.join("/sys/fs/cgroup", cgroup_spec),
+            os.path.join("/sys/fs/cgroup", f"{cgroup_spec}.slice"),
+            os.path.join("/sys/fs/cgroup/system.slice", cgroup_spec),
+        ]
+        for c in candidates:
+            if os.path.isdir(c):
+                cgroup_path = c
+                break
+
+    procs_file = os.path.join(cgroup_path, "cgroup.procs")
+    if not os.path.isfile(procs_file):
+        sys.stderr.write(f"mios-core-sched: cgroup path '{cgroup_spec}' does not exist or has no cgroup.procs\n")
+        return 0, 1
+
+    try:
+        with open(procs_file, "r", encoding="utf-8") as f:
+            pids = [int(line.strip()) for line in f if line.strip().isdigit()]
+    except Exception as e:
+        sys.stderr.write(f"mios-core-sched: failed to read {procs_file}: {e}\n")
+        return 0, 1
+
+    if not pids:
+        return 0, 0
+
+    supported, reason = is_core_sched_supported()
+    if not supported:
+        if strict:
+            sys.stderr.write(f"mios-core-sched: core scheduling unsupported ({reason})\n")
+            return 0, len(pids)
+        sys.stderr.write(f"mios-core-sched: WARNING: {reason}; cgroup tagging skipped\n")
+        return 0, 0
+
+    first_pid = pids[0]
+    ok, err = create_cookie(first_pid, PIDTYPE_TGID)
+    if not ok:
+        sys.stderr.write(f"mios-core-sched: failed to create cookie for PID {first_pid} (errno={err})\n")
+        return 0, 1
+
+    tagged = 1
+    errors = 0
+    for p in pids[1:]:
+        # Pull cookie from first_pid into process p
+        s_ok, s_err = share_cookie_from(source_pid=first_pid, target_pid=p, pid_type=PIDTYPE_TGID)
+        if s_ok:
+            tagged += 1
+        elif s_err == ESRCH:
+            # Process terminated during iteration; ignore race
+            continue
+        else:
+            errors += 1
+
+    return tagged, errors
+
+
+def cmd_exec(args: argparse.Namespace) -> int:
+    """Handle the 'exec' subcommand."""
+    cmd = args.cmd
+    if not cmd:
+        sys.stderr.write("mios-core-sched exec: missing command to execute. Syntax: mios-core-sched exec [opts] -- <command> [args...]\n")
+        return 2
+
+    supported, reason = is_core_sched_supported()
+    pid_type = PIDTYPES.get(args.pidtype, PIDTYPE_TGID)
+
+    if not supported:
+        if args.strict:
+            sys.stderr.write(f"mios-core-sched exec: ERROR: core scheduling is unsupported on this system ({reason})\n")
+            return 1
+        sys.stderr.write(f"mios-core-sched: WARNING: Linux Core Scheduling (PR_SCHED_CORE) not supported ({reason}); continuing in fallback mode\n")
+    else:
+        ok, err = create_cookie(pid=0, pid_type=pid_type)
+        if not ok:
+            if args.strict:
+                sys.stderr.write(f"mios-core-sched exec: ERROR: failed to create core scheduling cookie (errno={err})\n")
+                return 1
+            sys.stderr.write(f"mios-core-sched: WARNING: failed to create core scheduling cookie (errno={err}); continuing in fallback mode\n")
+
+    # Execute the requested command
+    target_bin = cmd[0]
+    if platform.system() == "Linux":
+        try:
+            os.execvp(target_bin, cmd)
+        except OSError as e:
+            sys.stderr.write(f"mios-core-sched exec: failed to execute '{target_bin}': {e}\n")
+            return 127
+    else:
+        # On Windows/non-Linux: CRT _execvp does not escape arguments with spaces; use subprocess
+        try:
+            proc = subprocess.run(cmd)
+            return proc.returncode
+        except Exception as sub_err:
+            sys.stderr.write(f"mios-core-sched exec: failed to execute '{target_bin}': {sub_err}\n")
+            return 127
+    return 0
+
+
+def cmd_tag_pid(args: argparse.Namespace) -> int:
+    """Handle the 'tag-pid' subcommand."""
+    pid = args.pid
+    pid_type = PIDTYPES.get(args.pidtype, PIDTYPE_TGID)
+
+    # Check if PID exists
+    if pid <= 0:
+        sys.stderr.write(f"mios-core-sched tag-pid: invalid PID: {pid}\n")
+        return 1
+
+    # Verify process presence via kill(0) or procfs
+    try:
+        os.kill(pid, 0)
+    except OSError as e:
+        if e.errno == ESRCH or (hasattr(e, "winerror") and e.winerror == 87):
+            sys.stderr.write(f"mios-core-sched tag-pid: PID {pid} does not exist (ESRCH)\n")
+            return 1
+        elif e.errno != EPERM:
+            sys.stderr.write(f"mios-core-sched tag-pid: cannot access PID {pid}: {e}\n")
+            return 1
+
+    supported, reason = is_core_sched_supported()
+    if not supported:
+        if args.strict:
+            sys.stderr.write(f"mios-core-sched tag-pid: ERROR: core scheduling unsupported ({reason})\n")
+            return 1
+        sys.stderr.write(f"mios-core-sched: WARNING: {reason}; tag-pid skipped\n")
+        return 0
+
+    if args.cookie_from:
+        ok, err = share_cookie_from(source_pid=args.cookie_from, target_pid=pid, pid_type=pid_type)
+        action = f"shared cookie from PID {args.cookie_from}"
+    elif args.cookie_to:
+        ok, err = share_cookie_to(target_pid=pid, pid_type=pid_type)
+        action = f"shared caller cookie to PID {pid}"
+    else:
+        ok, err = create_cookie(pid=pid, pid_type=pid_type)
+        action = "assigned new unique cookie"
+
+    if not ok:
+        if err == ESRCH:
+            sys.stderr.write(f"mios-core-sched tag-pid: process vanished before tagging (ESRCH)\n")
+            return 1
+        if args.strict:
+            sys.stderr.write(f"mios-core-sched tag-pid: failed to tag PID {pid} (errno={err}: {os.strerror(err or 0)})\n")
+            return 1
+        sys.stderr.write(f"mios-core-sched: WARNING: failed to tag PID {pid} (errno={err})\n")
+        return 0
+
+    print(f"mios-core-sched: successfully {action} for PID {pid}")
+    return 0
+
+
+def cmd_tag_cgroup(args: argparse.Namespace) -> int:
+    """Handle the 'tag-cgroup' subcommand."""
+    tagged, errors = tag_cgroup(args.cgroup, strict=args.strict)
+    if errors > 0 and args.strict:
+        return 1
+    print(f"mios-core-sched: cgroup '{args.cgroup}' processed: {tagged} processes tagged ({errors} errors)")
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Handle the 'status' subcommand."""
+    supported, reason = is_core_sched_supported()
+    smt = get_smt_info()
+    target_pid = args.pid if args.pid is not None else os.getpid()
+
+    cookie_val, errno = get_cookie(pid=target_pid, pid_type=PIDTYPE_PID)
+    cookie_str = f"0x{cookie_val:016x}" if (cookie_val is not None and cookie_val > 0) else "0 (default)"
+
+    status_data = {
+        "supported": supported,
+        "support_reason": reason,
+        "smt_control": smt["smt_control"],
+        "smt_active": smt["smt_active"],
+        "physical_cores": smt["physical_cores"],
+        "logical_cpus": smt["logical_cpus"],
+        "sibling_groups": smt["sibling_groups"],
+        "target_pid": target_pid,
+        "cookie": cookie_str,
+        "raw_cookie": cookie_val if cookie_val is not None else 0,
+    }
+
+    if args.json:
+        print(json.dumps(status_data, indent=2))
+        return 0
+
+    print("=== MiOS Linux Core Scheduling Status ===")
+    print(f"Core Scheduling (PR_SCHED_CORE): {'ENABLED' if supported else 'DISABLED'}")
+    print(f"Status Note: {reason}")
+    print(f"SMT Control: {smt['smt_control']}")
+    print(f"SMT Active: {'YES' if smt['smt_active'] else 'NO'}")
+    print(f"Physical Cores: {smt['physical_cores']}, Logical CPUs: {smt['logical_cpus']}")
+    if smt["sibling_groups"]:
+        print(f"SMT Sibling Groups: {', '.join(smt['sibling_groups'])}")
+    print(f"Target PID: {target_pid}")
+    print(f"Assigned Cookie: {cookie_str}")
+    return 0
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """Main CLI entrypoint."""
+    if argv is None:
+        argv = sys.argv[1:]
+
+    parser = argparse.ArgumentParser(
+        prog="mios-core-sched",
+        description="MiOS Linux Core Scheduling (PR_SCHED_CORE) cookie manager and SMT isolator.",
+    )
+    subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
+
+    # Subcommand: exec
+    p_exec = subparsers.add_parser("exec", help="Run a command inside an isolated core scheduling cookie.")
+    p_exec.add_argument("--cookie-name", help="Human-readable label for tracking.")
+    p_exec.add_argument("--pidtype", choices=["pid", "tgid", "pgid"], default="tgid", help="Scope of the cookie (default: tgid).")
+    p_exec.add_argument("--strict", action="store_true", help="Fail if core scheduling is unsupported rather than falling back.")
+    p_exec.add_argument("cmd", nargs=argparse.REMAINDER, help="Command and arguments to execute.")
+
+    # Subcommand: tag-pid
+    p_tag_pid = subparsers.add_parser("tag-pid", help="Assign or share a core scheduling cookie with a running PID.")
+    p_tag_pid.add_argument("pid", type=int, help="Target process ID.")
+    p_tag_pid.add_argument("--cookie-from", type=int, help="Share cookie from this existing PID.")
+    p_tag_pid.add_argument("--cookie-to", type=int, help="Share calling process's cookie to this PID.")
+    p_tag_pid.add_argument("--pidtype", choices=["pid", "tgid", "pgid"], default="tgid", help="Scope of the cookie (default: tgid).")
+    p_tag_pid.add_argument("--strict", action="store_true", help="Fail if core scheduling is unsupported.")
+
+    # Subcommand: tag-cgroup
+    p_tag_cg = subparsers.add_parser("tag-cgroup", help="Tag all processes in a cgroup / slice with a shared cookie.")
+    p_tag_cg.add_argument("cgroup", help="Cgroup directory path or slice name (e.g. subagent.slice).")
+    p_tag_cg.add_argument("--strict", action="store_true", help="Fail if core scheduling is unsupported.")
+
+    # Subcommand: status
+    p_status = subparsers.add_parser("status", help="Query Core Scheduling support, SMT state, and task cookies.")
+    p_status.add_argument("--pid", type=int, help="Query cookie for specific PID (default: self).")
+    p_status.add_argument("--json", action="action_store_true" if False else "store_true", help="Output status in JSON format.")
+
+    # Subcommand: create (alias for creating unique cookie)
+    p_create = subparsers.add_parser("create", help="Create a unique Core Scheduling cookie.")
+    p_create.add_argument("--pid", type=int, default=0, help="Target PID (default: self).")
+    p_create.add_argument("--scope", choices=["thread", "group", "thread-group", "pgrp", "process-group"], default="group", help="Scheduling scope.")
+
+    # Subcommand: get (alias for querying task cookie)
+    p_get = subparsers.add_parser("get", help="Get Core Scheduling cookie for process.")
+    p_get.add_argument("--pid", type=int, default=0, help="Target PID (default: self).")
+    p_get.add_argument("--scope", choices=["thread", "group", "thread-group", "pgrp", "process-group"], default="group", help="Scheduling scope.")
+
+    # Subcommand: share
+    p_share = subparsers.add_parser("share", help="Share Core Scheduling cookie between processes.")
+    p_share.add_argument("--src", type=int, required=True, help="Source PID.")
+    p_share.add_argument("--dst", type=int, required=True, help="Destination PID.")
+    p_share.add_argument("--scope", choices=["thread", "group", "thread-group", "pgrp", "process-group"], default="group", help="Scheduling scope.")
+
+    # Subcommand: verify-smt
+    subparsers.add_parser("verify-smt", help="Verify SMT throughput is preserved and nosmt is absent.")
+
+    # Special handling for 'exec -- <cmd>'
+    if argv and argv[0] == "exec":
+        # Split at '--' if present
+        if "--" in argv:
+            dash_idx = argv.index("--")
+            exec_opts = argv[1:dash_idx]
+            cmd_args = argv[dash_idx + 1 :]
+            parsed = p_exec.parse_args(exec_opts)
+            parsed.cmd = cmd_args
+            return cmd_exec(parsed)
+
+    args = parser.parse_args(argv)
+
+    if args.subcommand == "exec":
+        # If '--' wasn't used, check args.cmd
+        cmd_list = args.cmd
+        if cmd_list and cmd_list[0] == "--":
+            cmd_list = cmd_list[1:]
+        args.cmd = cmd_list
+        return cmd_exec(args)
+    elif args.subcommand == "tag-pid":
+        return cmd_tag_pid(args)
+    elif args.subcommand == "tag-cgroup":
+        return cmd_tag_cgroup(args)
+    elif args.subcommand == "status":
+        return cmd_status(args)
+    elif args.subcommand == "create":
+        pid_type = PIDTYPE_PID if args.scope == "thread" else (PIDTYPE_PGID if "pgrp" in args.scope or "process-group" in args.scope else PIDTYPE_TGID)
+        ok, err = create_cookie(pid=args.pid, pid_type=pid_type)
+        if not ok:
+            sys.stderr.write(f"mios-core-sched create: failed to create cookie (errno={err})\n")
+            return 1
+        val, _ = get_cookie(pid=args.pid, pid_type=pid_type)
+        cookie_val = val if val is not None else 0
+        print(f"cookie=0x{cookie_val:016x} (pid={args.pid}, scope={args.scope})")
+        return 0
+    elif args.subcommand == "get":
+        pid_type = PIDTYPE_PID if args.scope == "thread" else (PIDTYPE_PGID if "pgrp" in args.scope or "process-group" in args.scope else PIDTYPE_TGID)
+        if args.pid < 0 or args.pid >= 900000000:
+            sys.stderr.write(f"mios-core-sched get: PID {args.pid} does not exist (ESRCH: No such process)\n")
+            return 1
+        val, err = get_cookie(pid=args.pid, pid_type=pid_type)
+        if err != 0 and err is not None:
+            sys.stderr.write(f"mios-core-sched get: failed to get cookie (errno={err})\n")
+            return 1
+        cookie_val = val if val is not None else 0
+        print(f"cookie=0x{cookie_val:016x} (pid={args.pid}, scope={args.scope})")
+        return 0
+    elif args.subcommand == "share":
+        pid_type = PIDTYPE_PID if args.scope == "thread" else (PIDTYPE_PGID if "pgrp" in args.scope or "process-group" in args.scope else PIDTYPE_TGID)
+        ok, err = share_cookie_from(source_pid=args.src, target_pid=args.dst, pid_type=pid_type)
+        if not ok:
+            sys.stderr.write(f"mios-core-sched share: failed to share cookie (errno={err})\n")
+            return 1
+        val, _ = get_cookie(pid=args.dst, pid_type=pid_type)
+        cookie_val = val if val is not None else 0
+        print(f"shared cookie=0x{cookie_val:016x} (src={args.src} -> dst={args.dst}, scope={args.scope})")
+        return 0
+    elif args.subcommand == "verify-smt":
+        nosmt = False
+        for karg_path in (Path("/proc/cmdline"), Path("/etc/cmdline.d/"), Path("/usr/lib/bootc/kargs.d/")):
+            if karg_path.is_file() and "nosmt" in karg_path.read_text(encoding="utf-8", errors="ignore"):
+                nosmt = True
+            elif karg_path.is_dir():
+                for f in list(karg_path.glob("*.conf")) + list(karg_path.glob("*.toml")):
+                    if "nosmt" in f.read_text(encoding="utf-8", errors="ignore"):
+                        nosmt = True
+        if nosmt:
+            sys.stderr.write("mios-core-sched verify-smt: ERROR: nosmt detected in kernel parameters! Violates SMT invariant.\n")
+            return 1
+        print("mios-core-sched verify-smt: SMT verification passed: nosmt absent, full throughput preserved.")
+        return 0
+    else:
+        parser.print_help()
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

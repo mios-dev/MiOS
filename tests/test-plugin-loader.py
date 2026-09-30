@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for dynamic plugin loader and subcommand discovery (T-514).
-# AI-doc: usr/share/doc/mios/manual/ch02-architecture.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 from __future__ import annotations
 
 import json

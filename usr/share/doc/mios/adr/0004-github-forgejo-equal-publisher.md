@@ -1,5 +1,5 @@
 <!-- AI-hint: GitHub Actions and the self-hosted Forgejo runner are EQUAL bit-for-bit build/publish environments; the CI PUBLISH env is a capacity gate (a standard runner can't hold the ~60GB bake), NOT a demotion — read before changing CI publish/bake logic or registry selection. -->
-<!-- AI-related: .github/workflows/mios-ci.yml, .forgejo/workflows/build-mios.yml, Containerfile MIOS_BAKE_BOUND_IMAGES, usr/share/mios/mios.toml [build].rechunk_max_layers + curl_trigger_fallback, /etc/mios/install.env -->
+<!-- AI-related: .github/workflows/mios-ci.yml, .forgejo/workflows/build-mios.yml, Containerfile MIOS_BAKE_BOUND_IMAGES, usr/share/mios/mios.toml ([build].rechunk_max_layers [build].curl_trigger_fallback), /etc/mios/install.env -->
 ---
 adr: 0004
 title: GitHub ≡ Forgejo equal-publisher release topology

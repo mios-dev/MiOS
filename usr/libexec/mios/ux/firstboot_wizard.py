@@ -174,7 +174,7 @@ class FirstBootWizardEngine:
         """Run automated wizard flow using preseed JSON dictionary."""
         self.step_welcome()
         self.step_identity_auth(
-            username=preseed_data.get("username", "mios"),
+            username=preseed_data.get("username", "user"),
             password=preseed_data.get("password", "mios"),
             ssh_key=preseed_data.get("ssh_key"),
         )

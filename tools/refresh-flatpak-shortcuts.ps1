@@ -49,11 +49,11 @@ foreach ($path in $desktopPaths) {
     $expected[$lnkName] = $true
     $lnkPath = Join-Path $startMenu $lnkName
 
-    # Translate Exec percent-codes -> WSLg @@u idiom that wslg.exe expects
-    $args_ = $exec `
-        -replace '@@u %U @@', '@@u' `
-        -replace '@@ %F @@', '@@u' `
-        -replace ' %[UFufNn]', ''
+    # Route every MiOS shortcut through the same GUI launcher that arms
+    # WSLg window centering before Flatpak maps its first window.
+    $appId = [IO.Path]::GetFileNameWithoutExtension($path)
+    if ($appId -notmatch '^[A-Za-z0-9_.-]+$') { continue }
+    $args_ = "/usr/libexec/mios/mios-gui $appId"
 
     if (Test-Path $lnkPath) {
         # Check if existing .lnk matches the current Args; rewrite if drifted

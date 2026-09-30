@@ -1,6 +1,6 @@
 <!-- AI-hint: Workload mobility across the blade mesh: scheduling, fallbacks, failover, and divergence. -->
 
-<!-- AI-related: usr/share/doc/mios/adr/0016-blade-node-topology.md, usr/share/mios/mios.toml [blade], [blade.archetypes], [blade.requires], [blades], [nodes], usr/libexec/mios/role-apply, tools/generate-blade-dropins.py -->
+<!-- AI-related: usr/share/doc/mios/adr/0016-blade-node-topology.md, usr/share/mios/mios.toml [blade], [blade.archetypes], [blade.requires], [blades], [nodes], usr/libexec/mios/role-apply, tools/native/mios-unit-gen/src/lib.rs -->
 ---
 adr: 0017
 title: "Blade workload mobility — placement ownership, degrade-not-refuse, local-first failover, and blade-only divergence"

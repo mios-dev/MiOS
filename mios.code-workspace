@@ -5,8 +5,16 @@
       "path": "."
     },
     {
-      "name": "mios-bootstrap",
       "path": "../mios-bootstrap"
+    },
+    {
+      "path": "../mios-micro"
+    },
+    {
+      "path": "../MiOS-RnD"
+    },
+    {
+      "path": "../-dev-loop"
     }
   ],
   "settings": {

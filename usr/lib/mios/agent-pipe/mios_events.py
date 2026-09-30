@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # AI-hint: Authenticated WebSocket real-time agent execution token stream hub (T-518).
-# AI-doc: usr/share/doc/mios/manual/ch02-architecture.md
+# AI-doc: usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md
 from __future__ import annotations
 
 import asyncio

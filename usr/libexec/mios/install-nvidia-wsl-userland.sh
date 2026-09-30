@@ -35,7 +35,7 @@ fi
 
 dnf config-manager addrepo --from-repofile="$repo_url" --overwrite >/dev/null 2>&1 || true
 
-dnf install -y --setopt=install_weak_deps=False \
+SYSTEMD_OFFLINE=1 dnf install -y --setopt=install_weak_deps=False \
     -x 'kmod-nvidia*' \
     -x 'akmod-nvidia*' \
     -x 'nvidia-driver-cuda' \

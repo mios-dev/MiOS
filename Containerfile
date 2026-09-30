@@ -20,6 +20,7 @@ COPY Justfile              /ctx/Justfile
 
 FROM docker.io/library/rust:slim AS rust-builder
 WORKDIR /build
+ENV CARGO_TARGET_DIR=/build/target
 COPY src/mios-rs /build/src/mios-rs
 COPY tools/native /build/tools/native
 # mios-wallpaperd is a WINDOWS-only daemon: it depends UNCONDITIONALLY on windows-service (no cfg
@@ -32,12 +33,17 @@ COPY tools/native /build/tools/native
 #   ships via dnf/flatpak from the base image and is entirely independent of this rust:slim stage.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/build/target \
-    cd /build/src/mios-rs && cargo build --release && \
+    cd /build/src/mios-rs && cargo build --release --workspace && \
     cd /build/tools/native && cargo build --release --workspace --exclude mios-wallpaperd && \
     mkdir -p /out && \
-    cp /build/src/mios-rs/target/release/miosd /build/src/mios-rs/target/release/mios-gate /build/src/mios-rs/target/release/mios-probe /build/src/mios-rs/target/release/mios-node /out/ 2>/dev/null || true && \
-    cp /build/tools/native/target/release/mios-* /out/ 2>/dev/null || true && \
-    cp /build/tools/native/target/release/generate-names-registry /out/ 2>/dev/null || true
+    cp /build/target/release/miosd \
+       /build/target/release/mios-gate \
+       /build/target/release/mios-probe \
+       /build/target/release/mios-node \
+       /build/target/release/generate-names-registry \
+       /out/ && \
+    cp /build/target/release/mios-* /out/ && \
+    rm -f /out/*.d
 
 FROM ${BASE_IMAGE}
 
@@ -47,7 +53,7 @@ ARG SOURCE_DATE_EPOCH
 ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 
 LABEL org.opencontainers.image.title="MiOS"
-LABEL org.opencontainers.image.description="\MiOS is a user defined, customisable Linux distro based on Fedora/uBlue/uCore"
+LABEL org.opencontainers.image.description="MiOS is a user defined, customisable Linux distro based on Fedora/uBlue/uCore"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.source="https://github.com/mios-dev/MiOS"
 LABEL org.opencontainers.image.version="v${MIOS_VERSION}"
@@ -55,14 +61,19 @@ LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
 
 COPY --from=rust-builder /out/* /usr/libexec/mios/
-
-CMD ["/sbin/init"]
+RUN chmod 0755 /usr/libexec/mios/* && \
+    ln -sf /usr/libexec/mios/miosd /usr/bin/miosd && \
+    ln -sf /usr/libexec/mios/mios-gate /usr/bin/mios-gate && \
+    ln -sf /usr/libexec/mios/mios-probe /usr/bin/mios-probe && \
+    ln -sf /usr/libexec/mios/mios-node /usr/bin/mios-node
 
 ARG MIOS_USER=mios
 ARG MIOS_HOSTNAME=mios
 ARG MIOS_FLATPAKS=
 ARG MIOS_AI_MODEL=qwen2.5-coder:7b
 ARG MIOS_AI_EMBED_MODEL=nomic-embed-text
+# ADR-0025 image profile ([profiles]); empty means [profiles].default.
+ARG MIOS_PROFILES_DEFAULT
 
 RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
@@ -99,7 +110,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     if [[ -n "${MIOS_FLATPAKS}" ]]; then \
         echo "${MIOS_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \
     fi; \
-    export MIOS_AI_MODEL MIOS_AI_EMBED_MODEL; \
+    export MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_PROFILES_DEFAULT; \
     bash /tmp/build/automation/01-system-files-overlay.sh; \
     chmod +x /tmp/build/automation/build.sh /tmp/build/automation/*.sh 2>/dev/null || true; \
     chmod +x /usr/libexec/mios/copy-build-log.sh 2>/dev/null || true; \
@@ -119,8 +130,8 @@ RUN --network=host set -ex; \
     fi
 
 
-# MIOS_BAKE_BOUND_IMAGES=0 skips the bake below. Baking 20+ sidecar images into
-# MIOS_BAKE_BOUND_IMAGES=0 skips the bake (PR / CI-validation builds; sidecars
+# MIOS_BAKE_BOUND_IMAGES=0 skips the bake below (for PR / CI-validation builds;
+# sidecars resolve at bootc deploy time instead of being pre-baked).
 ARG MIOS_BAKE_BOUND_IMAGES=1
 RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
     MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/57-mios-sys-build.sh
@@ -129,6 +140,8 @@ RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
 RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
     MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group extra
 RUN chmod 0755 /usr/lib/containers/storage
+
+CMD ["/sbin/init"]
 
 RUN ostree container commit
 RUN bootc container lint

@@ -26,7 +26,7 @@ def main():
         from psycopg.rows import dict_row
     except ImportError:
         log.error("psycopg not installed. Skipping materialization.")
-        return 0
+        return 2
 
     ctx_dir = os.environ.get("MIOS_BUILD_CTX", "/ctx")
     try:
@@ -67,6 +67,23 @@ def main():
                 with open(os.path.join(ctx_dir, "build_phases.json"), "w", encoding="utf-8") as fh:
                     json.dump(phases_out, fh, indent=2)
                 log.info("Materialized build_phases.json (%d phases)", len(phases_out))
+
+                toml_path = os.environ.get("TOML_PATH") or os.environ.get("MIOS_TOML") or os.environ.get("MIOS_TOML_PATH")
+                if not toml_path:
+                    for candidate in ["/etc/mios/mios.toml", "/usr/share/mios/mios.toml"]:
+                        if os.path.isfile(candidate):
+                            toml_path = candidate
+                            break
+                if toml_path:
+                    toml_dir = os.path.dirname(os.path.abspath(toml_path))
+                    if toml_dir and toml_dir != "/ctx" and os.path.abspath(toml_dir) != os.path.abspath(ctx_dir):
+                        try:
+                            os.makedirs(toml_dir, exist_ok=True)
+                            with open(os.path.join(toml_dir, "build_phases.json"), "w", encoding="utf-8") as fh:
+                                json.dump(phases_out, fh, indent=2)
+                            log.info("Also materialized build_phases.json to %s", toml_dir)
+                        except Exception as ex:
+                            log.warning("Could not write build_phases.json to %s: %s", toml_dir, ex)
 
                 cur.execute("SELECT name, policy_type, rules FROM debloat_policy ORDER BY name;")
                 policies = cur.fetchall()

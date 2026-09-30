@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Tests mios-bake-group against a stubbed podman and a throwaway image store, checking what it pulls.
 set -euo pipefail
 
 _self="${BASH_SOURCE[0]}"

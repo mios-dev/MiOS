@@ -200,8 +200,8 @@
     8500,
     8600
   ],
-  "postCreateCommand": "bash .devcontainer/post-create.sh && bash .devcontainer/platform-bootstrap.sh",
-  "postStartCommand": "bash .devcontainer/boot-mios-systems.sh && bash .devcontainer/post-start.sh",
+  "postCreateCommand": "bash .devcontainer/boot-mios-systems.sh create",
+  "postStartCommand": "bash .devcontainer/boot-mios-systems.sh start",
   "remoteUser": "mios-dev",
   "workspaceFolder": "/workspaces/MiOS",
   "hostRequirements": {

@@ -56,7 +56,21 @@ def render(members: list[str], version: str) -> str:
         "[workspace.package]\n"
         f'version = "{version}"\n'
         'edition = "2021"\n'
+        "\n"
+        "[workspace.dependencies]\n"
+        'clap = { version = "4.5", features = ["derive"] }\n'
+        'figment = { version = "0.10", features = ["toml", "env"] }\n'
+        'miette = { version = "5.10", features = ["fancy"] }\n'
+        'regex = "1.10"\n'
+        'serde = { version = "1.0", features = ["derive"] }\n'
+        'serde_json = "1.0"\n'
+        'sha2 = "0.10"\n'
+        'tempfile = "3.10"\n'
+        'thiserror = "1.0"\n'
+        'toml = "0.8"\n'
+        'walkdir = "2.4"\n'
     )
+
 
 def main(argv: list[str]) -> int:
     check_mode = "--check" in argv
@@ -89,7 +103,7 @@ def main(argv: list[str]) -> int:
               f"({len(members)} member(s), version {version})")
         return 0
 
-    with open(CARGO_TOML, "w", encoding="utf-8") as f:
+    with open(CARGO_TOML, "w", encoding="utf-8", newline="\n") as f:
         f.write(content)
     print(f"[generate-cargo-manifests] Projected tools/native/Cargo.toml with {len(members)} member(s) "
           f"and version {version} from SSOT")

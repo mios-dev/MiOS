@@ -1,0 +1,19 @@
+# AI-hint: Lightweight Python distroless container for agent-pipe microservice.
+# Stage 1: Build virtual environment with all runtime dependencies.
+# Stage 2: Packaging onto distroless base with non-root USER 65534:65534 and no shell.
+
+FROM python:3.13-slim AS builder
+RUN apt-get update && apt-get install -y gcc libsqlite3-dev
+RUN python -m venv /opt/venv
+COPY usr/lib/mios/agent-pipe/requirements.txt .
+RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+FROM gcr.io/distroless/python3-debian13
+COPY --from=builder /opt/venv /opt/venv
+COPY usr/lib/mios/agent-pipe/ /app/
+ENV PATH=/opt/venv/bin:$PATH
+ENV PYTHONPATH=/opt/venv/lib/python3.13/site-packages
+WORKDIR /app
+USER 65534:65534
+CMD ["/opt/venv/bin/uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8640", "--workers", "1", "--loop", "uvloop"]
+

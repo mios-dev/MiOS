@@ -163,10 +163,15 @@ case "$POSTURE" in
     *)      log "Auth posture: undetermined (${POSTURE_WHY:-no detail})" ;;
 esac
 
-PLACEMENT_INFO="$(_ssot_placement)"
+PLACEMENT_INFO="$(_ssot_placement 2>/dev/null || true)"
 P_FO="$(printf '%s\n' "$PLACEMENT_INFO" | sed -n 's/^failover_order=//p')"
 P_DWELL="$(printf '%s\n' "$PLACEMENT_INFO" | sed -n 's/^dwell_s=//p')"
 P_REC_DWELL="$(printf '%s\n' "$PLACEMENT_INFO" | sed -n 's/^recover_dwell_s=//p')"
+
+P_RES="$(_resolve_placement_failover "guest" "ok" 2>/dev/null || true)"
+PLACEMENT_TIER="${P_RES%%$'\t'*}"
+PLACEMENT_VERDICT="$(printf '%s\n' "$P_RES" | cut -f2)"
+log "Placement tier: ${PLACEMENT_TIER:-local} (${PLACEMENT_VERDICT:-assigned})"
 
 mkdir -p /run/mios
 cat > /run/mios/blade.env <<EOF
@@ -177,6 +182,7 @@ MIOS_BLADE_AI_ENDPOINT="$POSTURE_EP"
 MIOS_BLADE_FAILOVER_ORDER="${P_FO:-local localhost cluster}"
 MIOS_BLADE_DWELL_S="${P_DWELL:-30}"
 MIOS_BLADE_RECOVER_DWELL_S="${P_REC_DWELL:-120}"
+MIOS_BLADE_PLACEMENT_TIER="${PLACEMENT_TIER:-local}"
 EOF
 
 # Boot target. `set-default` decides the NEXT boot and starts nothing; the one

@@ -1,5 +1,5 @@
 // AI-hint: Async Tokio TCP frame reader, writer, stream buffer manager, and network actor for mios-node.
-// AI-related: src/mios-rs/mios-node/src/protocol.rs, src/mios-rs/mios-node/src/lib.rs, tests/test-node-async-net.py
+// AI-related: src/mios-rs/mios-node/src/protocol.rs, src/mios-rs/mios-node/src/lib.rs, tests/test-node-mesh.py
 //! MiOS Async TCP Frame Reader, Writer & Network Actor
 //!
 //! Implements high-concurrency, asynchronous TCP stream framing over the 16-byte fixed binary header

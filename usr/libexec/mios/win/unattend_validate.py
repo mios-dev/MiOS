@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated validation of Windows unattend XML schema against official Microsoft XSD rules.
-# AI-related: tests/test-unattend-validate.py, usr/libexec/mios/win/unattend_gen.py, autounattend.xml
+# AI-related: tests/test-unattend.py, usr/libexec/mios/win/unattend_gen.py, autounattend.xml
 # AI-functions: UnattendValidator, ValidationError, ValidationResult, ValidationSeverity, validate_unattend_xml, main
 """
 MiOS Windows Unattended Answer File (autounattend.xml) Schema Validator.

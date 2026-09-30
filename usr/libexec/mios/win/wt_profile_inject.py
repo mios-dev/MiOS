@@ -82,6 +82,10 @@ class TerminalProfile:
     hidden: bool = False
     padding: Optional[str] = None
     scrollbarState: Optional[str] = None
+    useAcrylic: Optional[bool] = None
+    opacity: Optional[int] = None
+    systemBackdrop: Optional[str] = None
+    font: Optional[Dict[str, Any]] = None
 
 class WindowsTerminalProfileInjector:
     """Non-destructive modifier for Windows Terminal settings.json."""
@@ -101,6 +105,16 @@ class WindowsTerminalProfileInjector:
             extra = [toml_config_path] if toml_config_path else []  # tier-major overlay (Law 13), no DB/native resolver
             data = mios_toml.load_merged(mios_toml.layer_paths() + extra)
         self.padding, self.scrollbar_state = wt_edge(data)
+        theme = mios_toml.section(data, "theme")
+        self.use_acrylic = bool(theme.get("acrylic", True))
+        self.opacity = int(theme.get("opacity", 50))
+        self.system_backdrop = str(theme.get("system_backdrop", "acrylic"))
+        font_cfg = mios_toml.section(data, "theme.font")
+        self.font = {
+            "face": str(font_cfg.get("family", "GeistMono Nerd Font Mono")),
+            "size": int(font_cfg.get("size", 12)),
+            "weight": str(font_cfg.get("weight", "normal")),
+        }
         self.settings_path = settings_path
         self.ssh_port = ssh_port
         self.ssh_user = ssh_user
@@ -223,7 +237,11 @@ class WindowsTerminalProfileInjector:
             ),
         ]
         for p in profiles:
+            p.font = dict(self.font)
             p.padding, p.scrollbarState = self.padding, self.scrollbar_state
+            p.useAcrylic = self.use_acrylic
+            p.opacity = self.opacity
+            p.systemBackdrop = self.system_backdrop
         return profiles
 
     def merge_profiles(self, settings: Dict[str, Any], profiles: List[TerminalProfile]) -> Tuple[int, int]:
@@ -251,10 +269,18 @@ class WindowsTerminalProfileInjector:
                 p_dict["startingDirectory"] = p.startingDirectory
             if p.icon:
                 p_dict["icon"] = p.icon
+            if p.font is not None:
+                p_dict["font"] = p.font
             if p.padding is not None:
                 p_dict["padding"] = p.padding
             if p.scrollbarState is not None:
                 p_dict["scrollbarState"] = p.scrollbarState
+            if p.useAcrylic is not None:
+                p_dict["useAcrylic"] = p.useAcrylic
+            if p.opacity is not None:
+                p_dict["opacity"] = p.opacity
+            if p.systemBackdrop is not None:
+                p_dict["systemBackdrop"] = p.systemBackdrop
 
             # Find matching profile by GUID or Name
             matched = False
@@ -324,8 +350,15 @@ class WindowsTerminalProfileInjector:
 def fixture_render() -> str:
     """The WSL terminal profile template, rendered from the vendor tier (WSL adds name and commandLine)."""
     injector = WindowsTerminalProfileInjector(mock=True, data=mios_toml.vendor_tree(_TREE))
-    profile = {"colorScheme": DEFAULT_MIOS_COLOR_SCHEME["name"], "padding": injector.padding,
-               "scrollbarState": injector.scrollbar_state}
+    profile = {
+        "colorScheme": DEFAULT_MIOS_COLOR_SCHEME["name"],
+        "font": injector.font,
+        "padding": injector.padding,
+        "scrollbarState": injector.scrollbar_state,
+        "useAcrylic": injector.use_acrylic,
+        "opacity": injector.opacity,
+        "systemBackdrop": injector.system_backdrop,
+    }
     return json.dumps({"profiles": [profile], "schemes": [DEFAULT_MIOS_COLOR_SCHEME]}, indent=4) + "\n"
 
 def main() -> int:

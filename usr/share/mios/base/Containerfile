@@ -7,12 +7,12 @@ LABEL org.opencontainers.image.title="mios-base"
 LABEL org.opencontainers.image.description="MiOS shared minimal Fedora base -- every MiOS service container derives FROM this so the bound-image store dedupes the base once."
 LABEL org.mios.consolidation.role="shared-service-base"
 
-RUN microdnf -y install \
+RUN dnf5 -y install \
         --setopt=install_weak_deps=0 \
         --setopt=tsflags=nodocs \
         --setopt=keepcache=0 \
         ca-certificates tzdata shadow-utils tini glibc-minimal-langpack \
-    && microdnf clean all \
+    && dnf5 clean all \
     && rm -rf /usr/share/doc /usr/share/man /usr/share/info \
               /usr/share/licenses /usr/share/locale/* /var/cache/* /var/log/* /tmp/* \
     && :

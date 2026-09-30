@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: A2A Agent-to-Agent mutual capability exchange and cryptographic attestation protocol engine.
-# AI-related: usr/lib/mios/agent-pipe/mios_pipe/federation/agentcard_sign.py, tests/test-a2a-attestation.py
+# AI-related: usr/lib/mios/agent-pipe/mios_pipe/federation/agentcard_sign.py, tests/test-a2a.py
 """
 MiOS Agent-to-Agent (A2A) Capability Attestation & Key Exchange Engine.
 

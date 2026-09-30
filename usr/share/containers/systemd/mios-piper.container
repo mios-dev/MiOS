@@ -1,29 +1,30 @@
-# AI-hint: Quadlet container unit for local Piper/Kokoro streaming text-to-speech engine (T-534, AGY-2132).
-# AI-doc: usr/share/doc/mios/manual/ch79-streaming-tts-piper.md
+# AI-hint: MiOS mios-piper container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-piper] in mios.toml.
 # /usr/share/containers/systemd/mios-piper.container
 
 [Unit]
+After=network-online.target mios-cdi-detect.service
 Description='MiOS' Piper/Kokoro Streaming TTS Engine (piper-http)
 Documentation=https://github.com/rhasspy/piper
-After=network-online.target mios-cdi-detect.service
 Wants=network-online.target
 
 [Container]
 ContainerName=mios-piper
-Image=ghcr.io/rhasspy/piper:latest
-Pod=mios-ai.pod
 Environment=PORT=${MIOS_PORT_PIPER:-8179}
 EnvironmentFile=/etc/mios/install.env
 Exec=--model /models/en_US-lessac-medium.onnx --port ${MIOS_PORT_PIPER:-8179} --host 0.0.0.0
-Volume=/usr/share/mios/piper/models:/models:ro,Z
-Volume=/run/mios:/run/mios:Z
+GlobalArgs=--storage-opt=additionalimagestore=/usr/lib/bootc/storage
 HealthCmd=curl -fsS http://localhost:${MIOS_PORT_PIPER:-8179}/health || exit 1
 HealthInterval=30s
 HealthRetries=3
 HealthStartPeriod=30s
 HealthTimeout=10s
+Image=ghcr.io/rhasspy/piper:latest
 Label=org.opencontainers.image.title=mios-piper
 Label=org.opencontainers.image.description="Local Piper/Kokoro streaming server for MiOS real-time speech synthesis"
+Pod=mios-ai.pod
+Volume=/usr/share/mios/piper/models:/models:ro,Z
+Volume=/run/mios:/run/mios:Z
 
 [Install]
 WantedBy=multi-user.target default.target

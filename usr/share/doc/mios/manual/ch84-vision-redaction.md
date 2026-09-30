@@ -11,13 +11,13 @@ This chapter details the architecture, accessibility tree inspection mechanics, 
 
 ### Table of Contents
 
-1. [Architectural Overview: Sensitive Data Leakage Prevention](#28_vision_redaction_overview)
-2. [ATSPI Accessibility Tree Discovery and Sensitive Field Classification](#28_atspi_sensitive_widget_discovery)
-3. [Screen Bounding Box Coordinate Mapping and Security Padding](#28_coordinate_mapping_and_geometry)
-4. [Blur and Pixelation Algorithms: Redaction Mechanics](#28_blur_and_pixelation_algorithms)
-5. [Wayland Frame Capture Integration & Pipeline Plumbing](#28_wayland_capture_integration)
-6. [CLI Subcommand Reference & Automation Integration](#28_cli_and_daemon_reference)
-7. [Privacy Guarantees and Verification Controls](#28_privacy_and_security_guarantees)
+1. [Architectural Overview: Sensitive Data Leakage Prevention](#84_vision_redaction_overview)
+2. [ATSPI Accessibility Tree Discovery and Sensitive Field Classification](#84_atspi_sensitive_widget_discovery)
+3. [Screen Bounding Box Coordinate Mapping and Security Padding](#84_coordinate_mapping_and_geometry)
+4. [Blur and Pixelation Algorithms: Redaction Mechanics](#84_blur_and_pixelation_algorithms)
+5. [Wayland Frame Capture Integration & Pipeline Plumbing](#84_wayland_capture_integration)
+6. [CLI Subcommand Reference & Automation Integration](#84_cli_and_daemon_reference)
+7. [Privacy Guarantees and Verification Controls](#84_privacy_and_security_guarantees)
 
 ---
 

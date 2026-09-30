@@ -1,0 +1,4 @@
+{
+  "name": "mios-mcp",
+  "description": "MiOS MCP server integration — exposes MiOS system verbs, recipes, and skills as MCP tools via stdio transport."
+}

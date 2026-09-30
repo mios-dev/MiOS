@@ -1,0 +1,14 @@
+# AI-hint: Cargo manifest for mios-ai-config native Rust configuration generator.
+# AI-related: automation/98-drift-checks.sh, tools/native/Cargo.toml
+[package]
+name = "mios-ai-config"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+serde_json.workspace = true

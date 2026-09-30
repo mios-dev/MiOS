@@ -5,9 +5,17 @@ param(
     [switch]$BootstrapOnly,
     [switch]$BuildOnly,
     [switch]$FullBuild,
+    [switch]$DeployPipeline,
 
     # -Unattended: take all defaults; no interactive prompts.
-    [switch]$Unattended
+    [switch]$Unattended,
+
+    # -ImportWsl: fast-path WSL import without full bootstrap build.
+    [switch]$ImportWsl,
+    [string]$WslArchive = '',
+    [string]$WslInstallDir = '',
+    [parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Passthrough = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,60 +45,66 @@ if (Test-Path $buildModuleDir) {
 }
 
 $script:_MiosTomlCache = @{}
-function Resolve-MiosTomlText {
-    if ($script:_MiosTomlCache['_text']) { return $script:_MiosTomlCache['_text'] }
+function Resolve-MiosTomlLayers {
+    if ($script:_MiosTomlCache.ContainsKey('_layers')) { return $script:_MiosTomlCache['_layers'] }
+    $layers = @()
     foreach ($p in @(
         (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
+        (Join-Path $env:APPDATA 'MiOS\mios.toml'),
         'M:\etc\mios\mios.toml',
         'M:\usr\share\mios\mios.toml'
         # C:\MiOS deliberately excluded -- dev working tree, not a consumer install path
     )) {
         if ($p -and (Test-Path -LiteralPath $p)) {
             try {
-                $script:_MiosTomlCache['_text']   = [IO.File]::ReadAllText($p, (New-Object System.Text.UTF8Encoding($false)))
-                $script:_MiosTomlCache['_source'] = $p
-                return $script:_MiosTomlCache['_text']
+                $layers += [pscustomobject]@{ Path = $p; Text = [IO.File]::ReadAllText($p, (New-Object System.Text.UTF8Encoding($false))) }
             } catch {
                 try {
-                    $script:_MiosTomlCache['_text']   = Get-Content -LiteralPath $p -Raw -Encoding UTF8 -ErrorAction Stop
-                    $script:_MiosTomlCache['_source'] = $p
-                    return $script:_MiosTomlCache['_text']
+                    $layers += [pscustomobject]@{ Path = $p; Text = Get-Content -LiteralPath $p -Raw -Encoding UTF8 -ErrorAction Stop }
                 } catch {}
             }
         }
     }
-    try {
-        $cb  = [int][double]::Parse((Get-Date -UFormat %s))
-        $ref = if ($null -ne $MiosRef) { $MiosRef } else { 'main' }
-        $url = "https://raw.githubusercontent.com/mios-dev/MiOS/$ref/usr/share/mios/mios.toml?cb=$cb"
-        $script:_MiosTomlCache['_text'] = Invoke-RestMethod -Uri $url `
-            -Headers @{ 'Cache-Control'='no-cache, no-store, max-age=0'; 'Pragma'='no-cache' } `
-            -ErrorAction Stop
-        return $script:_MiosTomlCache['_text']
-    } catch {
-        $script:_MiosTomlCache['_text'] = ''
-        return ''
+    if (-not (Test-Path -LiteralPath 'M:\usr\share\mios\mios.toml')) {
+        try {
+            $cb  = [int][double]::Parse((Get-Date -UFormat %s))
+            $ref = if ($null -ne $MiosRef) { $MiosRef } else { 'main' }
+            $url = "https://raw.githubusercontent.com/mios-dev/MiOS/$ref/usr/share/mios/mios.toml?cb=$cb"
+            $layers += [pscustomobject]@{ Path = $url; Text = (Invoke-RestMethod -Uri $url `
+                -Headers @{ 'Cache-Control'='no-cache, no-store, max-age=0'; 'Pragma'='no-cache' } `
+                -ErrorAction Stop) }
+        } catch {}
     }
+    $script:_MiosTomlCache['_layers'] = $layers
+    return $layers
+}
+function Resolve-MiosTomlText {
+    $layers = @(Resolve-MiosTomlLayers)
+    if ($layers.Count -gt 0) { return $layers[0].Text }
+    return ''
 }
 function Get-MiosTomlValue {
-    param([Parameter(Mandatory)][string]$Section, [Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)]$Default)
-    $txt = Resolve-MiosTomlText
-    if (-not $txt) { return $Default }
-    $rxSec = '(?ms)^\[' + [regex]::Escape($Section) + '\][ \t]*\r?\n(?<body>.*?)(?=^\[[^\]]+\]|\z)'
-    $mSec  = [regex]::Match($txt, $rxSec)
-    if (-not $mSec.Success) { return $Default }
-    $rxKey = '(?m)^[ \t]*' + [regex]::Escape($Key) + '[ \t]*=[ \t]*(?<val>.+?)[ \t]*(?:#.*)?$'
-    $mKey  = [regex]::Match($mSec.Groups['body'].Value, $rxKey)
-    if (-not $mKey.Success) { return $Default }
-    $raw = $mKey.Groups['val'].Value.Trim()
+    param([Parameter(Mandatory)][string]$Section, [Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][AllowEmptyString()]$Default,
+          [string]$SourcePath = '')
+    foreach ($layer in @(Resolve-MiosTomlLayers)) {
+        if ($SourcePath -and $layer.Path -ne $SourcePath) { continue }
+        $txt = $layer.Text
+        if (-not $txt) { continue }
+        $rxSec = '(?ms)^\[' + [regex]::Escape($Section) + '\][ \t]*\r?\n(?<body>.*?)(?=^\[[^\]]+\]|\z)'
+        $mSec  = [regex]::Match($txt, $rxSec)
+        if (-not $mSec.Success) { continue }
+        $rxKey = '(?m)^[ \t]*' + [regex]::Escape($Key) + '[ \t]*=[ \t]*(?<val>.+?)[ \t]*(?:#.*)?$'
+        $mKey  = [regex]::Match($mSec.Groups['body'].Value, $rxKey)
+        if (-not $mKey.Success) { continue }
+        $raw = $mKey.Groups['val'].Value.Trim()
     if ($Default -is [int]) {
         $n = 0; if ([int]::TryParse(($raw -replace '_',''), [ref]$n)) { return $n }
-        return $Default
+        continue
     }
     if ($Default -is [bool]) {
         if ($raw -match '^(?i)true$')  { return $true }
         if ($raw -match '^(?i)false$') { return $false }
-        return $Default
+        continue
     }
     if ($Default -is [array]) {
         if ($raw -match '^\[(.*)\]$') {
@@ -100,15 +114,17 @@ function Get-MiosTomlValue {
             })
             if ($Default.Length -gt 0 -and $Default[0] -is [int]) {
                 $coerced = @()
+                $valid = $true
                 foreach ($it in $items) {
                     $n = 0
-                    if ([int]::TryParse($it, [ref]$n)) { $coerced += $n } else { return $Default }
+                    if ([int]::TryParse($it, [ref]$n)) { $coerced += $n } else { $valid = $false; break }
                 }
-                return $coerced
+                if ($valid) { return $coerced }
+                continue
             }
             return $items
         }
-        return $Default
+        continue
     }
     if ($raw.Length -ge 2) {
         $first = $raw[0]; $last = $raw[$raw.Length - 1]
@@ -122,13 +138,32 @@ function Get-MiosTomlValue {
             $inner = $inner -replace '\\t', "`t"
             $inner = $inner -replace '\\r', "`r"
             $inner = $inner -replace [regex]::Escape($_bs), '\'
-            return $inner
+            if (-not [string]::IsNullOrWhiteSpace($inner)) { return $inner }
+            continue
         }
         if ($first -eq "'" -and $last -eq "'") {
-            return $raw.Substring(1, $raw.Length - 2)
+            $inner = $raw.Substring(1, $raw.Length - 2)
+            if (-not [string]::IsNullOrWhiteSpace($inner)) { return $inner }
+            continue
         }
     }
-    return $raw
+        if (-not [string]::IsNullOrWhiteSpace($raw)) { return $raw }
+    }
+    return $Default
+}
+
+function Resolve-MiosLoginCredential {
+    # Evaluate related auth keys within each layer before moving to the next.
+    # A host/user password must outrank a vendor password even when the keys differ.
+    foreach ($layer in @(Resolve-MiosTomlLayers)) {
+        $hash = [string](Get-MiosTomlValue -Section 'auth' -Key 'password_hash' -Default '' -SourcePath $layer.Path)
+        if ($hash) { return @{ Hash = $hash; Plain = '' } }
+        $plain = [string](Get-MiosTomlValue -Section 'auth' -Key 'password' -Default '' -SourcePath $layer.Path)
+        if ($plain) { return @{ Hash = ''; Plain = $plain } }
+        $plain = [string](Get-MiosTomlValue -Section 'identity' -Key 'default_password' -Default '' -SourcePath $layer.Path)
+        if ($plain) { return @{ Hash = ''; Plain = $plain } }
+    }
+    return @{ Hash = ''; Plain = 'mios' }
 }
 
 $script:MiosInstCols = Get-MiosTomlValue -Section 'terminal.install' -Key 'cols' -Default 80
@@ -163,18 +198,12 @@ $script:_PendingResizeLog = "console resize: before=$_resizeBefore after=$_resiz
 
 $script:_PendingResizeLog += " center-skip=amsi-bait-removed"
 
-if ($BuildOnly -or $FullBuild) {
-    Write-Host ""
-    Write-Host "  [warn] -BuildOnly / -FullBuild are deprecated -- the build pipeline now" -ForegroundColor Yellow
-    Write-Host "         runs INSIDE MiOS-DEV. Use the post-bootstrap menu (option 1) to" -ForegroundColor Yellow
-    Write-Host "         hand off to the dev distro after the Windows-side setup completes." -ForegroundColor Yellow
-    Write-Host ""
+# $BootstrapOnly is driven by the script parameter [switch]$BootstrapOnly (default $false).
+# Explicit switches (-FullBuild, -DeployPipeline, -BuildOnly) guarantee $BootstrapOnly is $false.
+if ($FullBuild -or $DeployPipeline -or $BuildOnly) {
+    $BootstrapOnly = $false
 }
-# Override any passed-in / default value: the Windows side is always
-# bootstrap-only from this commit forward. Note this is set at script scope
-# so the conditional PhaseNames block below picks up the forced value.
-$BootstrapOnly = $true
-$script:BootstrapOnly = $true
+$script:BootstrapOnly = [bool]$BootstrapOnly
 
 # Acknowledgment banner. Inlined (script is irm-piped). Respects
 # $env:MIOS_AGREEMENT_BANNER=quiet for unattended runs.
@@ -196,8 +225,6 @@ try {
 
 $MiosScope = if ($script:IsAdmin) { "AllUsers" } else { "CurrentUser" }
 
-$_v             = Get-MiosTomlValue -Section 'meta'      -Key 'mios_version'    -Default '0.2.4'
-$MiosVersion    = if ($_v -match '^v') { $_v } else { "v$_v" }
 $MiosRepoUrl    = Get-MiosTomlValue -Section 'bootstrap' -Key 'mios_repo'       -Default 'https://github.com/mios-dev/MiOS.git'
 $MiosBootstrapUrl = Get-MiosTomlValue -Section 'bootstrap' -Key 'bootstrap_repo' -Default 'https://github.com/mios-dev/mios-bootstrap.git'
 $MiosRef          = Get-MiosTomlValue -Section 'bootstrap' -Key 'mios_ref'       -Default 'main'
@@ -208,6 +235,17 @@ $MiosBootstrapRef = Get-MiosTomlValue -Section 'bootstrap' -Key 'bootstrap_ref' 
 $MiosRawBase      = (($MiosRepoUrl      -replace '^https://github\.com/', 'https://raw.githubusercontent.com/' -replace '\.git$', '') + "/$MiosRef")
 $MiosBootstrapRaw = (($MiosBootstrapUrl -replace '^https://github\.com/', 'https://raw.githubusercontent.com/' -replace '\.git$', '') + "/$MiosBootstrapRef")
 $MiosRepoOwner    = (($MiosRepoUrl -replace '^https://github\.com/', '') -split '/')[0]   # ghcr.io / GitHub owner namespace
+# Release number: VERSION beside this script, else $MiosRawBase/VERSION (irm | iex
+# has no PSScriptRoot), else [meta].mios_version, else 'unknown'. Never a literal.
+$_v = ''
+foreach ($_vroot in @($PSScriptRoot, $MiosRawBase)) {
+    if ($_v -or -not $_vroot) { continue }
+    try { $_v = if ($_vroot -match '^[A-Za-z]:|^[\\/]') { [IO.File]::ReadAllText((Join-Path $_vroot 'VERSION')) } else { [string](Invoke-WebRequest -Uri "$_vroot/VERSION" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop).Content } } catch { $_v = '' }
+    $_v = ([string]$_v).Trim(); if ($_v -notmatch '^v?\d+(\.\d+)+') { $_v = '' }
+}
+if (-not $_v) { $_v = Get-MiosTomlValue -Section 'meta' -Key 'mios_version' -Default '' }
+if (-not $_v) { $_v = 'unknown' }
+$MiosVersion    = if ($_v -match '^v') { $_v } else { "v$_v" }
 # Podman machine name. Backed by WSL distro `podman-MiOS-DEV` once `podman
 # machine init` runs. Locked per memory feedback_mios_distro_name_locked.md
 # (renaming breaks podman's distro discovery), so the TOML key carries
@@ -578,6 +616,264 @@ function Write-Log {
     if ($L -eq "WARN")  { $script:WarnCount++ }
 }
 
+function Start-MiosBuildMonitor {
+    if ($env:MIOS_NO_MONITOR -in @('1','true','yes','on') -or
+        $env:MIOS_HEADLESS -in @('1','true','yes','on')) { return }
+
+    $monitorCols = [int](Get-MiosTomlValue -Section 'terminal.install' -Key 'cols' -Default 80)
+    $monitorRows = [int](Get-MiosTomlValue -Section 'terminal.install' -Key 'rows' -Default 40)
+    $cellWidth = [int](Get-MiosTomlValue -Section 'theme.font' -Key 'cell_w_px' -Default 10)
+    $cellHeight = [int](Get-MiosTomlValue -Section 'theme.font' -Key 'cell_h_px' -Default 20)
+    $chromeWidth = [int](Get-MiosTomlValue -Section 'theme.font' -Key 'chrome_w_px' -Default 20)
+    $chromeHeight = [int](Get-MiosTomlValue -Section 'theme.font' -Key 'chrome_h_px' -Default 12)
+    $monitorWidthPx = ($monitorCols * $cellWidth) + $chromeWidth
+    $monitorHeightPx = ($monitorRows * $cellHeight) + $chromeHeight
+
+    $monitorScript = @(
+        $env:MIOS_MONITOR_SCRIPT,
+        'C:\MiOS\usr\libexec\mios\mios-mon.py',
+        'M:\usr\libexec\mios\mios-mon.py'
+    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
+    if (-not $monitorScript) {
+        Write-Log 'mios mon auto-launch skipped: mios-mon.py was not found' 'WARN'
+        return
+    }
+
+    try {
+        if (-not ([System.Management.Automation.PSTypeName]'MiosDeskLauncher').Type) {
+            $typeDef = @"
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class MiosDeskLauncher {
+    public delegate bool EnumDesktopWindowsProc(IntPtr hWnd, IntPtr lParam);
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct STARTUPINFO {
+        public int cb; public string lpReserved; public string lpDesktop; public string lpTitle;
+        public int dwX; public int dwY; public int dwXSize; public int dwYSize;
+        public int dwXCountChars; public int dwYCountChars; public int dwFillAttribute;
+        public int dwFlags; public short wShowWindow; public short cbReserved2;
+        public IntPtr lpReserved2; public IntPtr hStdInput; public IntPtr hStdOutput; public IntPtr hStdError;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PROCESS_INFORMATION {
+        public IntPtr hProcess; public IntPtr hThread; public int dwProcessId; public int dwThreadId;
+    }
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool CreateProcess(
+        string lpApp, string lpCmd, IntPtr pAttr, IntPtr tAttr, bool bInherit,
+        uint flags, IntPtr env, string dir, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr OpenDesktop(string lpszDesktop, uint dwFlags, bool fInherit, uint dwDesiredAccess);
+    [DllImport("user32.dll")] public static extern bool EnumDesktopWindows(IntPtr hDesktop, EnumDesktopWindowsProc lpfn, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr hDesktop);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, StringBuilder strText, int maxCount);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+    [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
+    [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint flags);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hWnd);
+    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] public struct MONITORINFO { public int cbSize; public RECT monitor; public RECT work; public uint flags; }
+    [DllImport("user32.dll", SetLastError=true)] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int w, int h, uint flags);
+
+    public static bool HasVisibleMonitorWindow() {
+        IntPtr hDesk = OpenDesktop("Default", 0, false, 0x01FF);
+        if (hDesk == IntPtr.Zero) return false;
+        bool found = false;
+        EnumDesktopWindows(hDesk, (hWnd, lParam) => {
+            if (IsWindowVisible(hWnd)) {
+                StringBuilder sb = new StringBuilder(256);
+                if (GetWindowText(hWnd, sb, 256) > 0) {
+                    if (sb.ToString().IndexOf("MiOS Build Monitor", StringComparison.OrdinalIgnoreCase) >= 0) {
+                        found = true;
+                        ShowWindow(hWnd, 9);
+                        BringWindowToTop(hWnd);
+                        SetForegroundWindow(hWnd);
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }, IntPtr.Zero);
+        CloseDesktop(hDesk);
+        return found;
+    }
+
+    public static bool CenterVisibleMonitorWindow(int wantedWidth, int wantedHeight) {
+        IntPtr hDesk = OpenDesktop("Default", 0, false, 0x01FF);
+        if (hDesk == IntPtr.Zero) return false;
+        bool found = false;
+        EnumDesktopWindows(hDesk, (hWnd, lParam) => {
+            if (IsWindowVisible(hWnd)) {
+                StringBuilder sb = new StringBuilder(256);
+                if (GetWindowText(hWnd, sb, 256) > 0 &&
+                    sb.ToString().IndexOf("MiOS Build Monitor", StringComparison.OrdinalIgnoreCase) >= 0) {
+                    ShowWindow(hWnd, 1);
+                    IntPtr oldDpi = IntPtr.Zero;
+                    try { oldDpi = SetThreadDpiAwarenessContext(new IntPtr(-4)); } catch (EntryPointNotFoundException) {}
+                    try {
+                        RECT rect;
+                        MONITORINFO info = new MONITORINFO();
+                        info.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
+                        IntPtr monitor = MonitorFromWindow(hWnd, 2);
+                        if (GetWindowRect(hWnd, out rect) && monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref info)) {
+                            uint dpi = 96;
+                            try { dpi = GetDpiForWindow(hWnd); } catch (EntryPointNotFoundException) {}
+                            int requestedWidth = (int)Math.Round(wantedWidth * dpi / 96.0);
+                            int requestedHeight = (int)Math.Round(wantedHeight * dpi / 96.0);
+                            int width = Math.Min(Math.Min(rect.Right - rect.Left, requestedWidth), info.work.Right - info.work.Left);
+                            int height = Math.Min(Math.Min(rect.Bottom - rect.Top, requestedHeight), info.work.Bottom - info.work.Top);
+                            if (width > 0 && height > 0) {
+                                int x = info.work.Left + ((info.work.Right - info.work.Left - width) / 2);
+                                int y = info.work.Top + ((info.work.Bottom - info.work.Top - height) / 2);
+                                BringWindowToTop(hWnd);
+                                SetForegroundWindow(hWnd);
+                                MoveWindow(hWnd, x, y, width, height, true);
+                            }
+                        }
+                    } finally { if (oldDpi != IntPtr.Zero) SetThreadDpiAwarenessContext(oldDpi); }
+                    found = true;
+                    return false;
+                }
+            }
+            return true;
+        }, IntPtr.Zero);
+        CloseDesktop(hDesk);
+        return found;
+    }
+
+    public static int Launch(string cmd, string title) {
+        STARTUPINFO si = new STARTUPINFO();
+        si.cb = Marshal.SizeOf(si);
+        si.lpDesktop = @"winsta0\default";
+        si.lpTitle = title;
+        PROCESS_INFORMATION pi;
+        if (CreateProcess(null, cmd, IntPtr.Zero, IntPtr.Zero, false, 0x00000010, IntPtr.Zero, null, ref si, out pi)) {
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            return pi.dwProcessId;
+        }
+        return -1;
+    }
+}
+"@
+            Add-Type -TypeDefinition $typeDef -ErrorAction SilentlyContinue
+        }
+
+        if (([System.Management.Automation.PSTypeName]'MiosDeskLauncher').Type) {
+            if ([MiosDeskLauncher]::CenterVisibleMonitorWindow($monitorWidthPx, $monitorHeightPx)) {
+                Write-Log "mios mon is already visible on interactive desktop; it will follow this unified log"
+                return
+            }
+        } else {
+            $runningProcs = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match '^python' -and $_.CommandLine -match 'mios-mon\.py' })
+            $hasActive = $false
+            foreach ($rp in $runningProcs) {
+                $p = Get-Process -Id $rp.ProcessId -ErrorAction SilentlyContinue
+                if ($p -and -not $p.HasExited) { $hasActive = $true; break }
+            }
+            if ($hasActive) {
+                Write-Log "mios mon is already running; it will follow this unified log"
+                return
+            }
+        }
+
+        $python = Get-Command python.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source
+        if (-not $python) {
+            foreach ($c in @(
+                'C:\Users\Administrator\AppData\Local\Programs\Python\Python314\python.exe',
+                'C:\Users\Administrator\AppData\Local\Programs\Python\Python313\python.exe',
+                'C:\Users\Administrator\AppData\Local\Programs\Python\Python312\python.exe',
+                'C:\Python314\python.exe',
+                'C:\Python312\python.exe'
+            )) { if (Test-Path -LiteralPath $c) { $python = $c; break } }
+        }
+        if (-not $python) { throw 'python.exe was not found on PATH' }
+
+        $wtExe = Get-Command wt.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source
+        if (-not $wtExe) {
+            foreach ($candidate in @(
+                "$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe",
+                "$env:ProgramFiles\WindowsApps\Microsoft.WindowsTerminal*\wt.exe"
+            )) {
+                $found = Get-Item $candidate -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($found) { $wtExe = $found.FullName; break }
+            }
+        }
+
+        $spawnedPid = -1
+        if ($wtExe -and (Test-Path -LiteralPath $wtExe)) {
+            $monitorProfile = [string](Get-MiosTomlValue -Section 'theme.terminal' -Key 'profile_name' -Default 'MiOS-WIN')
+            if ([string]::IsNullOrWhiteSpace($monitorProfile)) { $monitorProfile = 'MiOS-WIN' }
+            $monitorScheme = [string](Get-MiosTomlValue -Section 'theme.terminal' -Key 'scheme_name' -Default 'MiOS')
+            if ([string]::IsNullOrWhiteSpace($monitorScheme)) { $monitorScheme = 'MiOS' }
+            $monitorLaunchMode = [string](Get-MiosTomlValue -Section 'theme' -Key 'launch_mode' -Default 'focus')
+            $monitorX = 0; $monitorY = 0
+            $displayCols = $monitorCols; $displayRows = $monitorRows
+            try {
+                Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+                $cursor = [System.Windows.Forms.Cursor]::Position
+                $workArea = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
+                $displayCols = [math]::Min($monitorCols, [math]::Max(40, [math]::Floor(($workArea.Width - $chromeWidth - 28) / $cellWidth)))
+                $displayRows = [math]::Min($monitorRows, [math]::Max(12, [math]::Floor(($workArea.Height - $chromeHeight - 32) / $cellHeight)))
+                $monitorWidthPx = ($displayCols * $cellWidth) + $chromeWidth
+                $monitorHeightPx = ($displayRows * $cellHeight) + $chromeHeight
+                $monitorX = [int]($workArea.X + (($workArea.Width - $monitorWidthPx) / 2))
+                $monitorY = [int]($workArea.Y + (($workArea.Height - $monitorHeightPx) / 2))
+                if ($monitorX -lt $workArea.X) { $monitorX = $workArea.X }
+                if ($monitorY -lt $workArea.Y) { $monitorY = $workArea.Y }
+            } catch {}
+            $wtWindowArgs = switch ($monitorLaunchMode) {
+                'focus'          { @('--focus') }
+                'maximized'      { @('--maximized') }
+                'maximizedFocus' { @('--maximized','--focus') }
+                'fullscreen'     { @('--fullscreen') }
+                'focusFullscreen'{ @('--fullscreen','--focus') }
+                default          { @() }
+            }
+            $monitorCommand = "while (`$true) { & '$($python.Replace("'", "''"))' '$($monitorScript.Replace("'", "''"))' --pipeline; if (`$LASTEXITCODE -eq 0) { break }; Write-Host 'MiOS monitor exited unexpectedly; restarting in 2 seconds' -ForegroundColor Yellow; Start-Sleep -Seconds 2 }"
+            $monitorEncoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($monitorCommand))
+            $monitorShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+            $wtArgsString = "$($wtWindowArgs -join ' ') --pos `"$monitorX,$monitorY`" --size `"$displayCols,$displayRows`" -w `"MiOS-Monitor`" new-tab --profile `"$monitorProfile`" --colorScheme `"$monitorScheme`" --title `"MiOS Build Monitor`" `"$monitorShell`" -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $monitorEncoded"
+            $cmdLine = "`"$wtExe`" $wtArgsString"
+            if (([System.Management.Automation.PSTypeName]'MiosDeskLauncher').Type) {
+                $spawnedPid = [MiosDeskLauncher]::Launch($cmdLine, 'MiOS Build Monitor')
+            }
+            if ($spawnedPid -le 0) {
+                $monitorProcess = Start-Process -FilePath $wtExe `
+                    -ArgumentList $wtArgsString `
+                    -WindowStyle Normal -PassThru -ErrorAction SilentlyContinue
+                if ($monitorProcess) { $spawnedPid = $monitorProcess.Id }
+            }
+            if ($spawnedPid -gt 0 -and ([System.Management.Automation.PSTypeName]'MiosDeskLauncher').Type) {
+                $centerDeadline = (Get-Date).AddSeconds(6)
+                while ((Get-Date) -lt $centerDeadline) {
+                    [void][MiosDeskLauncher]::CenterVisibleMonitorWindow($monitorWidthPx, $monitorHeightPx)
+                    Start-Sleep -Milliseconds 250
+                }
+            }
+        }
+
+        if ($spawnedPid -gt 0) {
+            Write-Log "launched mios mon in Windows Terminal on interactive desktop (pid $spawnedPid); following $LogFile"
+        } else {
+            Write-Log 'mios mon auto-launch failed: SSOT Windows Terminal profile launch was unavailable' 'WARN'
+        }
+    } catch {
+        Write-Log "mios mon auto-launch failed: $($_.Exception.Message)" 'WARN'
+    }
+}
+
+Start-MiosBuildMonitor
+
 function Initialize-MiosGlobals {
     $script:MiosFrameW     = [int](Get-MiosTomlValue -Section 'terminal' -Key 'frame_width'     -Default 80)
     $script:MiosFrameH     = [int](Get-MiosTomlValue -Section 'terminal' -Key 'frame_height'    -Default 19)
@@ -927,7 +1223,8 @@ function Show-Dashboard {
     }
 
     } catch {
-        Write-Host "[$([datetime]::Now.ToString('HH:mm:ss.fff'))][WARN] dashboard render error: $_"
+        Write-Host "[$([datetime]::Now.ToString('HH:mm:ss.fff'))][WARN] dashboard render error: $_ -- falling back to linear log mode"
+        $script:DashboardMode = 'log'
     }
 }
 
@@ -1036,6 +1333,7 @@ function Set-Step([string]$T) {
 }
 
 function Log-Ok([string]$T)   { Write-Log $T;          Set-Step $T }
+function Log-Info([string]$T) { Write-Log $T;          Set-Step $T }
 function Log-Warn([string]$T) { Write-Log $T "WARN";  Set-Step "WARN: $T" }
 function Log-Fail([string]$T) { Write-Log $T "ERROR"; Set-Step "FAIL: $T" }
 
@@ -1055,41 +1353,89 @@ function Move-BelowDash {
 
 function Repair-WslConfig {
     $wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
-    if (-not (Test-Path $wslCfg)) { return }
-    # Keys that are valid in /etc/wsl.conf but NOT in .wslconfig's
-    # [wsl2] section. If we see any of these under [wsl2] we drop
-    # them (they were almost certainly written by an older bootstrap
-    # that confused the two config files, OR by a third-party tool).
     $bootSectionKeys = @('systemd', 'command', 'enabled', 'appendWindowsPath',
                          'default', 'options', 'mountFsTab',
                          'generateHosts', 'generateResolvConf', 'hostname')
-    $lines     = Get-Content $wslCfg
-    $inWsl2    = $false
-    $newLines  = [System.Collections.Generic.List[string]]::new()
-    $scrubbed  = 0
-    foreach ($line in $lines) {
+    $winBuild = [Environment]::OSVersion.Version.Build
+    $targetNetMode = if ($winBuild -ge 22621) { 'mirrored' } else { 'NAT' }
+
+    if (-not (Test-Path $wslCfg)) {
+        $initLines = @(
+            "[wsl2]",
+            "networkingMode=$targetNetMode"
+        )
+        [System.IO.File]::WriteAllLines($wslCfg, $initLines, (New-Object System.Text.UTF8Encoding($false)))
+        Log-Ok ".wslconfig: initialized with [wsl2] networkingMode=$targetNetMode (BOM-free UTF-8)"
+        return
+    }
+
+    $lines = Get-Content $wslCfg
+    $inWsl2 = $false
+    $hasWsl2 = $false
+    $hasNetMode = $false
+    $newLines = [System.Collections.Generic.List[string]]::new()
+    $scrubbed = 0
+    $modified = 0
+
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
         if ($line -match '^\s*\[wsl2\]\s*$') {
             $inWsl2 = $true
-            $newLines.Add($line); continue
+            $hasWsl2 = $true
+            $newLines.Add($line)
+            continue
         }
         if ($line -match '^\s*\[') {
-            # Any other section header closes [wsl2].
+            if ($inWsl2 -and -not $hasNetMode) {
+                $newLines.Add("networkingMode=$targetNetMode")
+                $hasNetMode = $true
+                $modified++
+            }
             $inWsl2 = $false
-            $newLines.Add($line); continue
+            $newLines.Add($line)
+            continue
         }
-        if ($inWsl2 -and $line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=') {
-            $key = $Matches[1]
-            if ($bootSectionKeys -contains $key) {
-                Write-Log "wslconfig-repair: dropped misplaced '$key=' line from [wsl2] (belongs in /etc/wsl.conf, not .wslconfig)" "WARN"
-                $scrubbed++
-                continue
+        if ($inWsl2) {
+            if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$') {
+                $key = $Matches[1]
+                $val = $Matches[2].Trim()
+                if ($bootSectionKeys -contains $key) {
+                    Write-Log "wslconfig-repair: dropped misplaced '$key=' line from [wsl2] (belongs in /etc/wsl.conf, not .wslconfig)" "WARN"
+                    $scrubbed++
+                    continue
+                }
+                if ($key -ieq 'networkingMode') {
+                    $hasNetMode = $true
+                    if ($winBuild -lt 22621 -and $val -ieq 'mirrored') {
+                        Write-Log "wslconfig-repair: rewriting networkingMode=mirrored to NAT for Windows 10 (Build $winBuild)" "INFO"
+                        $newLines.Add("networkingMode=NAT")
+                        $modified++
+                        continue
+                    } elseif ($winBuild -ge 22621 -and $val -ieq 'NAT') {
+                        Write-Log "wslconfig-repair: upgrading networkingMode=NAT to mirrored for Windows 11 22H2+ (Build $winBuild)" "INFO"
+                        $newLines.Add("networkingMode=mirrored")
+                        $modified++
+                        continue
+                    }
+                }
+                # Preserve user-configured memory, processors, swap, etc.
             }
         }
         $newLines.Add($line)
     }
-    if ($scrubbed -gt 0) {
-        [System.IO.File]::WriteAllLines($wslCfg, $newLines, (New-Object System.Text.UTF8Encoding($false)))
-        Log-Ok ".wslconfig: scrubbed $scrubbed misplaced /etc/wsl.conf key(s) from [wsl2]"
+
+    if ($hasWsl2 -and -not $hasNetMode) {
+        $newLines.Add("networkingMode=$targetNetMode")
+        $modified++
+    } elseif (-not $hasWsl2) {
+        $newLines.Add("[wsl2]")
+        $newLines.Add("networkingMode=$targetNetMode")
+        $modified++
+    }
+
+    [System.IO.File]::WriteAllLines($wslCfg, $newLines, (New-Object System.Text.UTF8Encoding($false)))
+    if ($scrubbed -gt 0 -or $modified -gt 0) {
+        Log-Ok ".wslconfig: repaired ($scrubbed misplaced keys dropped, $modified updates, BOM-free UTF-8)"
     }
 }
 
@@ -1309,59 +1655,34 @@ function Read-Model([string]$Default = "qwen3.5:2b") {
 }
 
 function Resolve-MiosTomlAiDefaults([string]$RepoDir) {
-    $defaults = @{
-        Model               = "qwen3.5:2b"
-        EmbedModel          = "nomic-embed-text"
-        BakeModels          = "qwen3.5:2b,nomic-embed-text"
-        LlamacppBakeModels  = "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
-        VllmBakeModel       = "Qwen/Qwen2.5-0.5B-Instruct"
+    return @{
+        Model              = [string](Get-MiosTomlValue -Section 'ai' -Key 'model' -Default 'qwen3.5:2b')
+        EmbedModel         = [string](Get-MiosTomlValue -Section 'ai' -Key 'embed_model' -Default 'nomic-embed-text')
+        BakeModels         = [string](Get-MiosTomlValue -Section 'ai' -Key 'bake_models' -Default 'qwen3.5:2b,nomic-embed-text')
+        LlamacppBakeModels = [string](Get-MiosTomlValue -Section 'llamacpp' -Key 'bake_models' -Default 'granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf')
+        VllmBakeModel      = [string](Get-MiosTomlValue -Section 'ai.vllm' -Key 'bake_model' -Default 'Qwen/Qwen2.5-0.5B-Instruct')
     }
-    $layers = @()
-    foreach ($p in @(
-        (Join-Path $RepoDir       "mios-bootstrap\mios.toml"),
-        (Join-Path $env:APPDATA   "MiOS\mios.toml"),
-        (Join-Path $env:USERPROFILE ".config\mios\mios.toml")
-    )) { if (Test-Path $p) { $layers += $p } }
+}
 
-    foreach ($card in $layers) {
-        try {
-            $text = Get-Content -Raw -Path $card -ErrorAction Stop
-        } catch { continue }
-
-        # 1. Parse [ai] section
-        $m = [regex]::Match($text, '(?ms)^\[ai\]\s*$(.*?)(?=^\[|\z)')
-        if ($m.Success) {
-            $body = $m.Groups[1].Value
-            foreach ($kv in @(
-                @{ Key='model';        Slot='Model' },
-                @{ Key='embed_model';  Slot='EmbedModel' },
-                @{ Key='bake_models';  Slot='BakeModels' }
-            )) {
-                $rx = [regex]::new('(?m)^\s*' + [regex]::Escape($kv.Key) + '\s*=\s*"([^"]*)"')
-                $hit = $rx.Match($body)
-                if ($hit.Success) { $defaults[$kv.Slot] = $hit.Groups[1].Value }
-            }
-        }
-
-        # 2. Parse [llamacpp] section
-        $m = [regex]::Match($text, '(?ms)^\[llamacpp\]\s*$(.*?)(?=^\[|\z)')
-        if ($m.Success) {
-            $body = $m.Groups[1].Value
-            $rx = [regex]::new('(?m)^\s*bake_models\s*=\s*"([^"]*)"')
-            $hit = $rx.Match($body)
-            if ($hit.Success) { $defaults['LlamacppBakeModels'] = $hit.Groups[1].Value }
-        }
-
-        # 3. Parse [ai.vllm] section
-        $m = [regex]::Match($text, '(?ms)^\[ai\.vllm\]\s*$(.*?)(?=^\[|\z)')
-        if ($m.Success) {
-            $body = $m.Groups[1].Value
-            $rx = [regex]::new('(?m)^\s*bake_model\s*=\s*"([^"]*)"')
-            $hit = $rx.Match($body)
-            if ($hit.Success) { $defaults['VllmBakeModel'] = $hit.Groups[1].Value }
-        }
+function New-SeededConfiguratorHtml {
+    param([string]$HtmlPath, [string]$TomlPath)
+    if (-not (Test-Path -LiteralPath $HtmlPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $TomlPath -PathType Leaf)) { return $HtmlPath }
+    try {
+        $htmlText = [IO.File]::ReadAllText($HtmlPath)
+        $tomlText = [IO.File]::ReadAllText($TomlPath, (New-Object System.Text.UTF8Encoding($false)))
+        $json = ConvertTo-Json -InputObject $tomlText -Compress
+        $json = $json.Replace('</', '<\/')
+        $seedTag = "<script>window.MIOS_BOOTSTRAP_TOML = $json;</script>`n"
+        $headEnd = $htmlText.LastIndexOf('</head>', [StringComparison]::OrdinalIgnoreCase)
+        if ($headEnd -lt 0) { return $HtmlPath }
+        $target = Join-Path $env:TEMP ('mios-configurator-seeded-' + [guid]::NewGuid().ToString('N') + '.html')
+        [IO.File]::WriteAllText($target, $htmlText.Insert($headEnd, $seedTag), (New-Object System.Text.UTF8Encoding($false)))
+        return $target
+    } catch {
+        Log-Warn "Could not stage actual mios.toml into standalone configurator: $($_.Exception.Message)"
+        return $HtmlPath
     }
-    return $defaults
 }
 
 function Open-Configurator([string]$RepoDir) {
@@ -1410,8 +1731,11 @@ function Open-ConfiguratorInDev([string]$RepoDir, [string]$Html) {
     # the highest-precedence existing layer; the bash side will copy it
     # into the dev VM's ~/Downloads/mios.toml as the working file.
     $sources = @(
+        (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
         (Join-Path $env:APPDATA "MiOS\mios.toml"),
-        (Join-Path $RepoDir "mios-bootstrap\mios.toml"),
+        'M:\usr\share\mios\mios.toml',
+        (Join-Path $RepoDir "usr\share\mios\mios.toml"),
+        'C:\MiOS\usr\share\mios\mios.toml',
         (Join-Path $RepoDir "mios\usr\share\mios\mios.toml")
     )
     $seedToml = $null
@@ -1421,6 +1745,9 @@ function Open-ConfiguratorInDev([string]$RepoDir, [string]$Html) {
         $sd = $seedToml.Substring(0,1).ToLower()
         $seedTomlWsl = "/mnt/$sd" + ($seedToml.Substring(2) -replace '\\','/')
     }
+    $html = New-SeededConfiguratorHtml -HtmlPath $html -TomlPath $seedToml
+    $htmlDrive = $html.Substring(0,1).ToLower()
+    $htmlWsl = "/mnt/$htmlDrive" + ($html.Substring(2) -replace '\\','/')
 
     Write-Host ""
     Write-Host "  Launching Epiphany on $wslDistro (user: $devUser) ..." -ForegroundColor Cyan
@@ -1508,18 +1835,12 @@ echo "[configurator] save target: $DL_DIR/mios.toml"
         return $true
     }
 
-    $userLayer = Join-Path $env:APPDATA "MiOS\mios.toml"
+    $userLayer = Join-Path $env:USERPROFILE '.config\mios\mios.toml'
     $userDir   = Split-Path -Parent $userLayer
     if (-not (Test-Path $userDir)) { New-Item -ItemType Directory -Path $userDir -Force | Out-Null }
     [System.IO.File]::WriteAllText($userLayer, $tomlContent, [Text.UTF8Encoding]::new($false))
 
-    $bootstrapToml = Join-Path $RepoDir "mios-bootstrap\mios.toml"
-    if (Test-Path (Split-Path -Parent $bootstrapToml)) {
-        [System.IO.File]::WriteAllText($bootstrapToml, $tomlContent, [Text.UTF8Encoding]::new($false))
-        Log-Ok "Saved mios.toml -> $userLayer + $bootstrapToml (build pipeline picks up on next pass)"
-    } else {
-        Log-Ok "Saved mios.toml -> $userLayer"
-    }
+    Log-Ok "Saved mios.toml -> $userLayer"
     return $true
 }
 
@@ -1529,8 +1850,11 @@ function Open-ConfiguratorOnWindows([string]$RepoDir, [string]$Html) {
     $stamp   = [datetime]::Now.ToString("yyyyMMdd-HHmmss")
     $staging = Join-Path $stagingDir "mios-$stamp.toml"
     $sources = @(
+        (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
         (Join-Path $env:APPDATA "MiOS\mios.toml"),
-        (Join-Path $RepoDir "mios-bootstrap\mios.toml"),
+        'M:\usr\share\mios\mios.toml',
+        (Join-Path $RepoDir "usr\share\mios\mios.toml"),
+        'C:\MiOS\usr\share\mios\mios.toml',
         (Join-Path $RepoDir "mios\usr\share\mios\mios.toml")
     )
     $src = $null
@@ -1538,8 +1862,9 @@ function Open-ConfiguratorOnWindows([string]$RepoDir, [string]$Html) {
     if ($src) { Copy-Item -Path $src -Destination $staging -Force }
     else      { New-Item -ItemType File -Path $staging -Force | Out-Null }
 
+    $seededHtml = New-SeededConfiguratorHtml -HtmlPath $Html -TomlPath $staging
     $stagingForUrl = ($staging -replace '\\', '/' -replace ' ', '%20')
-    $url = "file:///$($Html -replace '\\', '/' -replace ' ', '%20')?suggested_path=$stagingForUrl"
+    $url = "file:///$($seededHtml -replace '\\', '/' -replace ' ', '%20')?suggested_path=$stagingForUrl"
     Write-Host ""
     Write-Host "  Opening configurator: $url" -ForegroundColor Cyan
     Write-Host "  Staging file:         $staging" -ForegroundColor Cyan
@@ -1549,15 +1874,11 @@ function Open-ConfiguratorOnWindows([string]$RepoDir, [string]$Html) {
     $null = Read-Host "  Press Enter when finished editing in the browser"
 
     if ((Test-Path $staging) -and ((Get-Item $staging).Length -gt 0)) {
-        $userLayer = Join-Path $env:APPDATA "MiOS\mios.toml"
+        $userLayer = Join-Path $env:USERPROFILE '.config\mios\mios.toml'
         $userDir   = Split-Path -Parent $userLayer
         if (-not (Test-Path $userDir)) { New-Item -ItemType Directory -Path $userDir -Force | Out-Null }
         Copy-Item -Path $staging -Destination $userLayer -Force
-        $bootstrapToml = Join-Path $RepoDir "mios-bootstrap\mios.toml"
-        if (Test-Path (Split-Path -Parent $bootstrapToml)) {
-            Copy-Item -Path $staging -Destination $bootstrapToml -Force
-        }
-        Log-Ok "Staged $staging -> $userLayer (+ bootstrap clone if present)"
+        Log-Ok "Staged $staging -> $userLayer"
     }
 }
 
@@ -1644,8 +1965,10 @@ function Get-Hardware {
     # mios.toml by tools/lib/userenv.sh); fall back to sane defaults.
     $cpuReservePct = if ($env:MIOS_DEV_VM_CPU_RESERVE_PCT)    { [int]$env:MIOS_DEV_VM_CPU_RESERVE_PCT }    else { 15 }
     $cpuReserveMin = if ($env:MIOS_DEV_VM_CPU_RESERVE_MIN)    { [int]$env:MIOS_DEV_VM_CPU_RESERVE_MIN }    else { 2 }
-    $memReservePct = if ($env:MIOS_DEV_VM_MEMORY_RESERVE_PCT) { [int]$env:MIOS_DEV_VM_MEMORY_RESERVE_PCT } else { 15 }
-    $memReserveGB  = if ($env:MIOS_DEV_VM_MEMORY_RESERVE_GB)  { [int]$env:MIOS_DEV_VM_MEMORY_RESERVE_GB }  else { 4 }
+    $memReservePct = if ($env:MIOS_DEV_VM_MEMORY_RESERVE_PCT) { [int]$env:MIOS_DEV_VM_MEMORY_RESERVE_PCT } else { Get-MiosTomlValue -Section 'bootstrap.dev_vm.host_reserve' -Key 'memory_pct' -Default 50 }
+    $memReserveGB  = if ($env:MIOS_DEV_VM_MEMORY_RESERVE_GB)  { [int]$env:MIOS_DEV_VM_MEMORY_RESERVE_GB }  else { Get-MiosTomlValue -Section 'bootstrap.dev_vm.host_reserve' -Key 'memory_gb'  -Default 8 }
+    $memReservePct = [math]::Min(95, [math]::Max(0, $memReservePct))
+    $memReserveGB  = [math]::Max(0, $memReserveGB)
     $diskReserveGB = if ($env:MIOS_DEV_VM_DISK_RESERVE_GB)    { [int]$env:MIOS_DEV_VM_DISK_RESERVE_GB }    else { 32 }
 
     # Compute maximalist dev-VM allocation = host - reserve.
@@ -2131,6 +2454,15 @@ function New-BuilderDistro([hashtable]$HW) {
         }
         $MachineImage = $null  # force re-resolution below
     }
+    if ($machineRepo -eq 'quay.io/podman/machine-os' -and $machineTag -eq 'latest') {
+        $podmanVersion = (& podman --version 2>$null) -join ' '
+        if ($podmanVersion -match '(\d+)\.(\d+)') {
+            $machineTag = "$($Matches[1]).$($Matches[2])"
+            Log-Warn "machine-os has no latest tag; using installed Podman version tag $machineTag"
+        } else {
+            throw "machine-os:latest is unavailable and the installed Podman version could not be resolved"
+        }
+    }
     if (-not $MachineImage) {
         $machineCacheDir = Join-Path $script:MiosInstallDir 'machine-os'
         $MachineImage = $null
@@ -2512,7 +2844,7 @@ get_pkgs() {
 
 # Add Fedora-version-pinned RPMFusion (free + nonfree).
 fedver=$(rpm -E %fedora 2>/dev/null || echo 43)
-sudo dnf5 install -y --skip-unavailable \
+sudo env SYSTEMD_OFFLINE=1 dnf5 install -y --skip-unavailable \
     "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${fedver}.noarch.rpm" \
     "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${fedver}.noarch.rpm" \
     >"$LOG_DIR/00-rpmfusion.log" 2>&1 || true
@@ -2527,10 +2859,10 @@ install_section() {
     [[ -z "${pkgs// }" ]] && { echo "[mios-overlay] EMPTY $sec"; return; }
     echo "[mios-overlay] INSTALL $sec"
     # shellcheck disable=SC2086
-    sudo dnf5 install -y --skip-unavailable --skip-broken --allowerasing \
+    sudo env SYSTEMD_OFFLINE=1 dnf5 install -y --skip-unavailable --skip-broken --allowerasing \
         $pkgs >"$LOG_DIR/$sec.log" 2>&1
-    # rc=1 from terminal systemd scriptlets is benign on podman-machine
-    # WSL distros that lack a live system D-Bus -- packages still land.
+    # RPM scriptlet presets must operate on unit files without contacting the
+    # WSL machine's transitional systemd bus (SYSTEMD_OFFLINE survives sudo).
 }
 
 # Foundation (repos must be first), then user-selected sections.
@@ -2542,7 +2874,7 @@ done
 
 # Critical safe-subset (skip kernel-core/gdm/libvirt on WSL).
 echo "[mios-overlay] INSTALL critical (WSL-safe subset)"
-sudo dnf5 install -y --skip-unavailable --skip-broken --allowerasing \
+sudo env SYSTEMD_OFFLINE=1 dnf5 install -y --skip-unavailable --skip-broken --allowerasing \
     bootc chrony cockpit firewalld NetworkManager pipewire tuned \
     >"$LOG_DIR/critical.log" 2>&1 || true
 
@@ -2950,6 +3282,7 @@ for script in /automation/56-fonts.sh \
     fi
 done
 
+install_gnome_flatpaks() {
 echo "[quadlet-overlay] installing GNOME Flatpaks for WSLg portal (one-time, ~600MB)..."
 sudo install -d -m 0700 -o root -g root /run/user/0 2>/dev/null || true
 export XDG_RUNTIME_DIR=/run/user/0
@@ -2975,10 +3308,12 @@ sudo dnf config-manager setopt updates-testing.enabled=1 2>/dev/null || true
 # Refresh the appstream index so the install loop below can resolve
 # the app IDs. Without this step `flatpak install` errors with
 # "Nothing matches <ref> in remote <remote>" on a fresh remote.
-sudo flatpak update --system --appstream flathub 2>&1 | tail -3 || true
-sudo flatpak update --system --appstream flathub-beta 2>&1 | tail -3 || true
-sudo flatpak update --system --appstream fedora 2>&1 | tail -3 || true
-sudo flatpak update --system --appstream gnome-nightly 2>&1 | tail -3 || true
+for _remote in flathub flathub-beta fedora gnome-nightly; do
+    echo "[quadlet-overlay] appstream update: ${_remote}"
+    sudo env FLATPAK_FANCY_OUTPUT=0 FLATPAK_TTY_PROGRESS=0 \
+        flatpak update --system --appstream "$_remote" 2>&1 || \
+        echo "[quadlet-overlay] WARN: appstream update failed: ${_remote}"
+done
 declare -A FLATPAK_SHORT=(
     [app.devsuite.Ptyxis]=ptyxis
     [gnome-nightly:org.gnome.Nautilus.Devel]=nautilus
@@ -3041,6 +3376,7 @@ WRAPPER
         sudo chmod 0755 "/usr/local/bin/$short"
     fi
 done
+}
 
 DEV_USER=$(getent passwd 1000 | cut -d: -f1)
 [[ -z "$DEV_USER" ]] && DEV_USER=user
@@ -3060,14 +3396,20 @@ SUDO
 fi
 
 _mios_pw='__MIOS_LOGIN_PASSWORD__'
-echo "${DEV_USER}:${_mios_pw}" | sudo chpasswd 2>&1 \
-    && echo "[quadlet-overlay] ${DEV_USER} password set (length=${#_mios_pw})" \
-    || echo "[quadlet-overlay] WARN: chpasswd for ${DEV_USER} failed"
-echo "mios:${_mios_pw}" | sudo chpasswd 2>&1 \
-    && echo "[quadlet-overlay] mios password set (length=${#_mios_pw})" \
-    || echo "[quadlet-overlay] WARN: chpasswd for mios failed"
+_mios_pw_hash='__MIOS_LOGIN_PASSWORD_HASH__'
+for account in "$DEV_USER" mios; do
+    if [[ -n "$_mios_pw_hash" ]]; then
+        printf '%s:%s\n' "$account" "$_mios_pw_hash" | sudo chpasswd -e 2>&1 \
+            && echo "[quadlet-overlay] $account password hash applied" \
+            || echo "[quadlet-overlay] WARN: chpasswd -e for $account failed"
+    else
+        printf '%s:%s\n' "$account" "$_mios_pw" | sudo chpasswd 2>&1 \
+            && echo "[quadlet-overlay] $account password set" \
+            || echo "[quadlet-overlay] WARN: chpasswd for $account failed"
+    fi
+done
 
-if command -v python3 >/dev/null 2>&1; then
+if [[ -n "$_mios_pw" ]] && command -v python3 >/dev/null 2>&1; then
     if python3 - "${_mios_pw}" <<'PYVERIFY' 2>&1; then
 import pty, os, sys, select, time
 pw = sys.argv[1]
@@ -3192,7 +3534,7 @@ if [[ -f "$TOML_FILE" ]] && command -v awk >/dev/null 2>&1; then
             # output until the (20-40 min) transaction finishes AND masks dnf's
             # exit code (the `if` would see tail's 0 and mark success on failure).
             # shellcheck disable=SC2086
-            if sudo stdbuf -oL -eL dnf install -y --skip-unavailable $PKG_LIST 2>&1; then
+            if sudo env SYSTEMD_OFFLINE=1 stdbuf -oL -eL dnf install -y --skip-unavailable $PKG_LIST 2>&1; then
                 installed_via="dnf"
             fi
         fi
@@ -3202,7 +3544,7 @@ if [[ -f "$TOML_FILE" ]] && command -v awk >/dev/null 2>&1; then
             sudo rpm-ostree usroverlay 2>&1 | tail -3 || true
             # Stream live; no `tail` (see dnf note above -- buffers + masks exit).
             # shellcheck disable=SC2086
-            if sudo stdbuf -oL -eL dnf5 install -y --skip-unavailable $PKG_LIST 2>&1; then
+            if sudo env SYSTEMD_OFFLINE=1 stdbuf -oL -eL dnf5 install -y --skip-unavailable $PKG_LIST 2>&1; then
                 installed_via="dnf5"
             fi
         fi
@@ -3218,6 +3560,12 @@ if [[ -f "$TOML_FILE" ]] && command -v awk >/dev/null 2>&1; then
     fi
 else
     echo "[quadlet-overlay] WARN: $TOML_FILE absent or awk missing; cannot resolve package list"
+fi
+
+if command -v flatpak >/dev/null 2>&1; then
+    install_gnome_flatpaks
+else
+    echo "[quadlet-overlay] Flatpak is not installed after package provisioning; deferring desktop apps to the later installer pass"
 fi
 
 sudo install -d -m 0755 /var/lib/mios
@@ -3399,12 +3747,16 @@ echo "[quadlet-overlay] Ollama:         set MIOS_DEV_ENABLE_AI=1 then re-run for
     $cockpitPort = [int](Get-MiosTomlValue -Section 'ports' -Key 'cockpit' -Default 8090)
     $overlayScript = $overlayScript -replace '__MIOS_COCKPIT_PORT__', $cockpitPort
 
-    $_miosLoginPassword = [string](Get-MiosTomlValue -Section 'auth' -Key 'password' -Default 'mios')
-    if ([string]::IsNullOrWhiteSpace($_miosLoginPassword)) { $_miosLoginPassword = 'mios' }
+    $_loginCredential = Resolve-MiosLoginCredential
+    $_miosLoginPassword = [string]$_loginCredential.Plain
+    $_miosLoginHash = [string]$_loginCredential.Hash
     # Escape single-quote so the bash literal stays sound even if the
     # operator picks a password containing a quote character.
     $_miosLoginPasswordEsc = $_miosLoginPassword -replace "'", "'\''"
-    $overlayScript = $overlayScript -replace '__MIOS_LOGIN_PASSWORD__', $_miosLoginPasswordEsc
+    $_miosLoginHashEsc = $_miosLoginHash -replace "'", "'\''"
+    $overlayScript = $overlayScript.Replace('__MIOS_LOGIN_PASSWORD__', $_miosLoginPasswordEsc)
+    $overlayScript = $overlayScript.Replace('__MIOS_LOGIN_PASSWORD_HASH__', $_miosLoginHashEsc)
+    $_loginCredential = $null
 
     # CRLF -> LF: bash on Linux is allergic to \r in shebang lines /
     # heredoc terminators. The PowerShell here-string ships CRLF on
@@ -3610,28 +3962,77 @@ fi
     return $rc
 }
 
-function Export-WslTar([string]$OutFile) {
-    # Stream localhost/mios:latest filesystem from machine → Windows tar via podman socket API
-    Set-Step "Creating container snapshot of localhost/mios:latest..."
-    $contLines = (& podman create localhost/mios:latest /bin/true 2>$null)
+function Export-WslTar([string]$OutFile, [string]$Image = '') {
+    # Dynamically resolve image tag from mios.toml (localhost/mios:latest as fallback)
+    if ([string]::IsNullOrWhiteSpace($Image)) {
+        try {
+            $Image = Get-MiosTomlValue -Section 'image' -Key 'local_tag' -Default 'localhost/mios:latest'
+        } catch {
+            $Image = 'localhost/mios:latest'
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Image)) { $Image = 'localhost/mios:latest' }
+
+    Set-Step "Creating container snapshot of $Image..."
+    Write-Log "Creating export container snapshot from $Image..."
+
+    # Start podman create without entrypoint arguments (entrypoint command override removed to avoid conflicts)
+    $createPsi = New-Object System.Diagnostics.ProcessStartInfo
+    $createPsi.FileName               = "podman"
+    $createPsi.Arguments              = "create $Image"
+    $createPsi.RedirectStandardOutput = $true
+    $createPsi.RedirectStandardError  = $true
+    $createPsi.UseShellExecute        = $false
+    $createPsi.CreateNoWindow         = $true
+
+    $createProc = [System.Diagnostics.Process]::Start($createPsi)
+    # Asynchronously capture standard error to prevent OS pipe buffer deadlock
+    $createStderrTask = $createProc.StandardError.ReadToEndAsync()
+    $createOut  = $createProc.StandardOutput.ReadToEnd()
+    $createProc.WaitForExit()
+    $createErr  = if ($createStderrTask) {
+        try { $createStderrTask.Result } catch { "" }
+    } else { "" }
+
+    if ($createProc.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($createOut)) {
+        $errDetail = if (-not [string]::IsNullOrWhiteSpace($createErr)) { $createErr.Trim() } else { "exit code $($createProc.ExitCode)" }
+        Write-Log "podman create failed for ${Image}: $errDetail" "ERROR"
+        throw "podman create failed for ${Image}: $errDetail"
+    }
+
+    $contLines = $createOut -split "`r?`n"
     $contId = ($contLines | Where-Object { $_ -match '^[0-9a-f]{12,64}$' } | Select-Object -Last 1)
     if ([string]::IsNullOrWhiteSpace($contId)) {
-        $contId = ($contLines | Select-Object -Last 1)
+        $contId = ($contLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
     }
-    if ([string]::IsNullOrWhiteSpace($contId)) { throw "podman create returned no container ID" }
+    if ([string]::IsNullOrWhiteSpace($contId)) { throw "podman create returned no container ID (stdout: $createOut)" }
     $contId = $contId.Trim()
-    Write-Log "export container: $contId"
+    Write-Log "export container ID: $contId"
+
+    $proc = $null
     try {
         Set-Step "Streaming container filesystem -> $([System.IO.Path]::GetFileName($OutFile))..."
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName               = "podman"
         $psi.Arguments              = "export $contId"
         $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError  = $true
         $psi.UseShellExecute        = $false
         $psi.CreateNoWindow         = $true
+
         $proc = [System.Diagnostics.Process]::Start($psi)
-        $fs   = [System.IO.File]::Create($OutFile)
-        $sw   = [System.Diagnostics.Stopwatch]::StartNew()
+
+        # Asynchronously capture standard error to prevent OS pipe buffer deadlock
+        $stderrTask = $proc.StandardError.ReadToEndAsync()
+
+        # Ensure parent directory exists
+        $outParent = [System.IO.Path]::GetDirectoryName($OutFile)
+        if ($outParent -and -not (Test-Path -LiteralPath $outParent)) {
+            New-Item -ItemType Directory -Path $outParent -Force | Out-Null
+        }
+
+        $fs = [System.IO.File]::Create($OutFile)
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
         try {
             $buf    = New-Object byte[] 65536
             $stream = $proc.StandardOutput.BaseStream
@@ -3645,32 +4046,331 @@ function Export-WslTar([string]$OutFile) {
                     $sw.Restart()
                 }
             }
-        } finally { $fs.Close() }
+        } finally {
+            $fs.Close()
+        }
+
         $proc.WaitForExit()
-        if ($proc.ExitCode -ne 0) { throw "podman export exited $($proc.ExitCode)" }
+        $exportStderr = if ($stderrTask) {
+            try { $stderrTask.Result.Trim() } catch { "" }
+        } else { "" }
+
+        if ($proc.ExitCode -ne 0) {
+            # Stderr captured, logged, and diagnosed
+            Write-Log "podman export failed with exit code $($proc.ExitCode): $exportStderr" "ERROR"
+            $exportMsg = "podman export exited $($proc.ExitCode)"
+            if ($exportStderr) { $exportMsg += ": $exportStderr" }
+            throw $exportMsg
+        }
+
+        # Verify output file exists and is not empty
+        if (-not (Test-Path -LiteralPath $OutFile) -or (Get-Item -LiteralPath $OutFile).Length -eq 0) {
+            throw "podman export produced an empty or missing output file: $OutFile"
+        }
+
         return $true
+    } catch {
+        # Streaming failed: kill and dispose process to prevent hangs
+        if ($proc -and -not $proc.HasExited) {
+            try { $proc.Kill() } catch {}
+        }
+        # Delete partial archive to prevent corrupt artifacts
+        if (Test-Path -LiteralPath $OutFile) {
+            try { Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue } catch {}
+        }
+        throw
     } finally {
-        & podman rm $contId 2>$null | Out-Null
+        if ($proc) {
+            try {
+                if (-not $proc.HasExited) {
+                    $proc.Kill()
+                }
+            } catch {}
+            try { $proc.Dispose() } catch {}
+        }
+        # Guaranteed cleanup of transient export container with -f
+        if ($contId) {
+            try { & podman rm -f $contId 2>$null | Out-Null } catch {}
+        }
     }
 }
 
-function Import-MiosWsl([string]$TarFile, [string]$InstallDir) {
-    # Register WSL2 distro from tar (replaces existing 'MiOS' distro if present)
-    if (-not (Test-Path $TarFile)) { throw "WSL2 tar not found: $TarFile" }
-    try { & wsl.exe --unregister $MiosWslDistro 2>$null | Out-Null } catch {}
-    if (-not (Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }
-    Set-Step "wsl --import $MiosWslDistro ..."
-    & wsl.exe --import $MiosWslDistro $InstallDir $TarFile --version 2 2>&1 |
-        ForEach-Object { Write-Log "wsl-import: $_" }
+function Import-MiosWsl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0, Mandatory = $true)]
+        [Alias('TarFile', 'Path', 'File', 'ArchiveFile')]
+        [string]$Archive,
+
+        [Parameter(Position = 1)]
+        [string]$InstallDir = '',
+
+        [Parameter()]
+        [Alias('Distro')]
+        [string]$DistroName = '',
+
+        [Parameter()]
+        [switch]$Force,
+
+        [Parameter()]
+        [switch]$Vhd
+    )
+
+    if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+        throw "WSL is not installed or wsl.exe was not found in PATH."
+    }
+
+    if (-not (Test-Path $Archive)) { throw "WSL2 archive not found: $Archive" }
+
+    $targetDistro = if ($DistroName) { $DistroName } elseif ($MiosWslDistro) { $MiosWslDistro } else { 'MiOS' }
+
+    if (-not $InstallDir) {
+        $InstallDir = if ($script:MiosDistroDir) {
+            Join-Path $script:MiosDistroDir $targetDistro
+        } else {
+            Join-Path $env:LOCALAPPDATA "MiOS"
+        }
+    }
+
+    # Query WSL distros safely with null-byte and whitespace trimming
+    $wslRaw = & wsl.exe -l -v 2>$null
+    $distros = @{}
+    if ($wslRaw) {
+        $distroLines = $wslRaw | ForEach-Object { ($_ -replace "\x00", "").Trim() }
+        foreach ($line in $distroLines) {
+            if (-not $line -or $line -match '^\s*NAME\s+STATE\s+VERSION') { continue }
+            $cleanLine = $line -replace '^\*\s*', ''
+            if ($cleanLine -match '^(\S+)\s+(\S+)\s+(\d+)') {
+                $distros[$Matches[1]] = @{ State = $Matches[2]; Version = $Matches[3] }
+            }
+        }
+    }
+
+    # If distro already exists, check running state and terminate cleanly before unregister or import
+    $distroExists = $distros.ContainsKey($targetDistro)
+    if ($distroExists) {
+        $existingState = $distros[$targetDistro].State
+        Write-Log "Found pre-existing WSL distro '$targetDistro' (State: $existingState)." "INFO"
+        if ($existingState -ieq 'Running') {
+            Set-Step "Terminating running WSL distro '$targetDistro'..."
+            Write-Log "Terminating running WSL distro '$targetDistro' with wsl.exe --terminate..." "INFO"
+            & wsl.exe --terminate $targetDistro 2>&1 | ForEach-Object { Write-Log "wsl-terminate: $_" }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+
+    # Ensure target InstallDir exists
+    if (-not (Test-Path $InstallDir)) {
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    }
+
+    # Avoid WSL error 0x80070050: handle pre-existing ext4.vhdx in target InstallDir
+    $existingVhdx = Join-Path $InstallDir "ext4.vhdx"
+    if (Test-Path -LiteralPath $existingVhdx) {
+        $resolvedSource = try { (Resolve-Path -LiteralPath $Archive).Path } catch { $Archive }
+        $resolvedExisting = try { (Resolve-Path -LiteralPath $existingVhdx).Path } catch { $existingVhdx }
+        if ($resolvedSource -and $resolvedExisting -and ($resolvedSource -ieq $resolvedExisting)) {
+            $stagedSource = Join-Path $InstallDir "source_$((Get-Date).ToString('yyyyMMdd_HHmmss')).vhdx"
+            Write-Log "Archive is located at target ext4.vhdx. Renaming source to $stagedSource..." "INFO"
+            Move-Item -LiteralPath $Archive -Destination $stagedSource -Force
+            $Archive = $stagedSource
+        } else {
+            $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+            $backupVhdx = Join-Path $InstallDir "ext4.vhdx.bak"
+            $backupVhdxTimestamped = Join-Path $InstallDir "ext4.vhdx.bak_${timestamp}"
+            Write-Log "Target InstallDir already contains ext4.vhdx. Backing up to $backupVhdx to avoid 0x80070050..." "INFO"
+            try {
+                Copy-Item -LiteralPath $existingVhdx -Destination $backupVhdx -Force
+                Copy-Item -LiteralPath $existingVhdx -Destination $backupVhdxTimestamped -Force
+                Remove-Item -LiteralPath $existingVhdx -Force -ErrorAction Stop
+            } catch {
+                Write-Log "Remove-Item failed: $($_.Exception.Message). Moving file..." "WARN"
+                Move-Item -LiteralPath $existingVhdx -Destination $backupVhdxTimestamped -Force
+            }
+        }
+    }
+
+    # If distro is registered in WSL, unregister the registration after safe backup and termination
+    if ($distroExists) {
+        Write-Log "Unregistering existing WSL distro '$targetDistro' registration..." "INFO"
+        & wsl.exe --unregister $targetDistro 2>&1 | ForEach-Object { Write-Log "wsl-unregister: $_" }
+        Start-Sleep -Milliseconds 500
+
+        # Verify no orphaned ext4.vhdx remains after unregistering to prevent 0x80070050
+        if (Test-Path -LiteralPath $existingVhdx) {
+            $orphanedBak = Join-Path $InstallDir "ext4.vhdx.orphaned_$((Get-Date).ToString('yyyyMMdd_HHmmss'))"
+            Write-Log "Orphaned ext4.vhdx remained after unregister. Moving to $orphanedBak..." "WARN"
+            Move-Item -LiteralPath $existingVhdx -Destination $orphanedBak -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    # Import distro: detect .vhdx vs .tar
+    Set-Step "wsl --import $targetDistro ..."
+    $isVhd = ($Vhd.IsPresent -or ($Archive -match '\.vhdx?$'))
+    if ($isVhd) {
+        Write-Log "Importing VHDX archive '$Archive' via --vhd into '$InstallDir'..." "INFO"
+        & wsl.exe --import $targetDistro $InstallDir $Archive --vhd 2>&1 |
+            ForEach-Object { Write-Log "wsl-import: $_" }
+    } else {
+        Write-Log "Importing tar archive '$Archive' via --version 2 into '$InstallDir'..." "INFO"
+        & wsl.exe --import $targetDistro $InstallDir $Archive --version 2 2>&1 |
+            ForEach-Object { Write-Log "wsl-import: $_" }
+    }
     if ($LASTEXITCODE -ne 0) { throw "wsl --import exited $LASTEXITCODE" }
-    # Set [boot] systemd=true + [user] default=mios in the new distro.
-    # systemd=true is REQUIRED -- without it WSL boots without systemd
-    # as PID 1 and every Quadlet / service-coupled step downstream fails.
+
+    # Configure /etc/wsl.conf and /usr/lib/wsl.conf without duplicate sections
     try {
-        & wsl.exe -d $MiosWslDistro --user root --exec bash -c `
-            "if ! grep -q '^\[boot\]' /etc/wsl.conf 2>/dev/null; then printf '[boot]\nsystemd=true\n\n' >> /etc/wsl.conf; fi; id mios &>/dev/null && echo -e '[user]\ndefault=mios' >> /etc/wsl.conf || true" 2>$null | Out-Null
-    } catch {}
+        $sanitizePy = @'
+import os, re, shutil
+
+def sanitize_conf(filepath, has_user_mios):
+    if not os.path.exists(filepath):
+        content = "[boot]\nsystemd=true\n"
+        if has_user_mios:
+            content += "\n[user]\ndefault=mios\n"
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        return
+
+    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+        lines = f.read().splitlines()
+
+    seen_sections = set()
+    current_sec = None
+    sec_keys = {}
+    new_lines = []
+
+    for line in lines:
+        sm = re.match(r"^\s*\[([a-zA-Z0-9_-]+)\]\s*$", line)
+        if sm:
+            sec = sm.group(1).lower()
+            if sec in seen_sections:
+                current_sec = sec
+                continue
+            seen_sections.add(sec)
+            current_sec = sec
+            sec_keys[sec] = set()
+            new_lines.append(f"[{sec}]")
+            continue
+
+        km = re.match(r"^\s*([a-zA-Z0-9_.-]+)\s*=\s*(.*)$", line)
+        if km and current_sec:
+            k = km.group(1).lower()
+            v = km.group(2).strip()
+            if k in sec_keys[current_sec]:
+                continue
+            sec_keys[current_sec].add(k)
+            if current_sec == "boot" and k == "systemd":
+                new_lines.append("systemd=true")
+                continue
+            if current_sec == "user" and k == "default":
+                new_lines.append("default=mios" if has_user_mios else f"default={v}")
+                continue
+            new_lines.append(line)
+            continue
+
+        new_lines.append(line)
+
+    if "boot" not in seen_sections:
+        new_lines.append("[boot]")
+        new_lines.append("systemd=true")
+    elif "systemd" not in sec_keys.get("boot", set()):
+        idx = new_lines.index("[boot]") + 1
+        new_lines.insert(idx, "systemd=true")
+
+    if has_user_mios:
+        if "user" not in seen_sections:
+            new_lines.append("[user]")
+            new_lines.append("default=mios")
+        elif "default" not in sec_keys.get("user", set()):
+            idx = new_lines.index("[user]") + 1
+            new_lines.insert(idx, "default=mios")
+
+    output = "\n".join(new_lines).strip() + "\n"
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(output)
+
+has_mios = os.system("id mios >/dev/null 2>&1") == 0
+if os.path.exists("/usr/lib/wsl.conf"):
+    sanitize_conf("/usr/lib/wsl.conf", has_mios)
+    shutil.copyfile("/usr/lib/wsl.conf", "/etc/wsl.conf")
+    os.chmod("/etc/wsl.conf", 0o644)
+else:
+    sanitize_conf("/etc/wsl.conf", has_mios)
+'@
+        $pyB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($sanitizePy))
+        $bashCmd = "if command -v python3 >/dev/null 2>&1; then echo '$pyB64' | base64 -d | python3; else " +
+                   "if [ -f /usr/lib/wsl.conf ]; then " +
+                   "if ! grep -q '^\[boot\]' /usr/lib/wsl.conf 2>/dev/null; then printf '[boot]\nsystemd=true\n\n' >> /usr/lib/wsl.conf; fi; " +
+                   "if id mios >/dev/null 2>&1 && ! grep -q '^\[user\]' /usr/lib/wsl.conf 2>/dev/null; then printf '[user]\ndefault=mios\n\n' >> /usr/lib/wsl.conf; fi; " +
+                   "cp -f /usr/lib/wsl.conf /etc/wsl.conf; chmod 644 /etc/wsl.conf; " +
+                   "else " +
+                   "if ! grep -q '^\[boot\]' /etc/wsl.conf 2>/dev/null; then printf '[boot]\nsystemd=true\n\n' >> /etc/wsl.conf; " +
+                   "elif ! grep -qE '^[[:space:]]*systemd[[:space:]]*=' /etc/wsl.conf 2>/dev/null; then sed -i '/^\[boot\]/a systemd=true' /etc/wsl.conf; fi; " +
+                   "if id mios >/dev/null 2>&1; then if ! grep -q '^\[user\]' /etc/wsl.conf 2>/dev/null; then printf '[user]\ndefault=mios\n\n' >> /etc/wsl.conf; " +
+                   "elif ! grep -qE '^[[:space:]]*default[[:space:]]*=' /etc/wsl.conf 2>/dev/null; then sed -i '/^\[user\]/a default=mios' /etc/wsl.conf; fi; fi; fi; fi"
+        & wsl.exe -d $targetDistro --user root --exec bash -c $bashCmd 2>&1 | ForEach-Object { Write-Log "wsl-conf: $_" }
+    } catch {
+        Write-Log "WARN: /etc/wsl.conf configuration: $($_.Exception.Message)" "WARN"
+    }
+
+    # Reconcile mios user home directory, permissions, and system directory access
+    try {
+        $reconcileCmd = "if id mios >/dev/null 2>&1; then " +
+                        "mkdir -p /var/home/mios/.cache/oh-my-posh /var/home/mios/.config 2>/dev/null; " +
+                        "chown -R mios:mios /var/home/mios 2>/dev/null || true; " +
+                        "chmod 700 /var/home/mios/.cache 2>/dev/null || true; " +
+                        "if [ -d /home/mios ]; then chown -R mios:mios /home/mios 2>/dev/null || true; fi; " +
+                        "fi; " +
+                        "chmod 755 /etc/sudoers.d 2>/dev/null || true; " +
+                        "chmod 444 /etc/sudoers.d/* 2>/dev/null || true; " +
+                        "chmod 755 /etc/fapolicyd 2>/dev/null || true; " +
+                        "chmod 644 /etc/fapolicyd/fapolicyd.rules 2>/dev/null || true"
+        & wsl.exe -d $targetDistro --user root --exec bash -c $reconcileCmd 2>&1 | ForEach-Object { Write-Log "wsl-reconcile: $_" }
+    } catch {
+        Write-Log "WARN: mios home directory reconciliation: $($_.Exception.Message)" "WARN"
+    }
+
+    # Terminate distro so systemd boots as PID 1 on next launch with clean wsl.conf
+    Set-Step "Terminating WSL distro '$targetDistro' so systemd boots as PID 1..."
+    & wsl.exe --terminate $targetDistro 2>$null | Out-Null
+    Start-Sleep -Milliseconds 500
+
     return $true
+}
+
+if ($ImportWsl) {
+    Repair-WslConfig
+    $archive = $WslArchive
+    if (-not $archive) {
+        if ($Passthrough -and $Passthrough.Count -gt 0) {
+            foreach ($p in $Passthrough) {
+                if ($p -and (Test-Path $p)) { $archive = $p; break }
+            }
+        }
+    }
+    if (-not $archive) {
+        $candidates = @(
+            (Join-Path $script:MiosDistroDir "artifacts\mios-wsl2.tar"),
+            (Join-Path $PSScriptRoot "artifacts\mios-wsl2.tar"),
+            (Join-Path $PSScriptRoot "output\disk.wsl2"),
+            (Join-Path $PSScriptRoot "output\disk.vhdx"),
+            (Join-Path $PSScriptRoot "build\artifacts\mios-wsl2.tar"),
+            "M:\MiOS-images\mios-wsl2.tar"
+        )
+        foreach ($cand in $candidates) {
+            if ($cand -and (Test-Path $cand)) { $archive = $cand; break }
+        }
+    }
+    if (-not $archive -or -not (Test-Path $archive)) {
+        if ($Unattended) { throw "No pre-built WSL2 rootfs/vhdx archive found for unattended import." }
+        $archive = Read-Host "Path to pre-built MiOS WSL2 archive (.tar or .vhdx)"
+    }
+    if (-not (Test-Path $archive)) { throw "WSL2 archive not found: '$archive'" }
+    $destDir = if ($WslInstallDir) { $WslInstallDir } elseif ($script:MiosDistroDir) { Join-Path $script:MiosDistroDir $MiosWslDistro } else { Join-Path $env:LOCALAPPDATA "MiOS\distro" }
+    $null = Import-MiosWsl -Archive $archive -InstallDir $destDir
+    Log-Ok "WSL2 distro '$MiosWslDistro' successfully imported from '$archive' to '$destDir'."
+    exit 0
 }
 
 function Invoke-BibBuild([string[]]$Types, [string]$MachineOutDir, [int]$TimeoutMin = 60) {
@@ -3787,7 +4487,9 @@ function Invoke-DeployPipeline([hashtable]$HW) {
         End-Phase 10
     } catch {
         Log-Warn "WSL2 export: $_"
-        End-Phase 10 -Warn
+        End-Phase 10 -Fail
+        $script:ExitCode = 1
+        $ExitCode = 1
     }
 
     # ── Phase 11: Register WSL2 distro ────────────────────────────────────────
@@ -3799,11 +4501,15 @@ function Invoke-DeployPipeline([hashtable]$HW) {
             End-Phase 11
         } catch {
             Log-Warn "WSL2 import: $_"
-            End-Phase 11 -Warn
+            End-Phase 11 -Fail
+            $script:ExitCode = 1
+            $ExitCode = 1
         }
     } else {
-        Log-Warn "Skipped (no WSL2 tar)"
-        End-Phase 11 -Warn
+        Log-Warn "Skipped (no WSL2 tar due to export failure)"
+        End-Phase 11 -Fail
+        $script:ExitCode = 1
+        $ExitCode = 1
     }
 
     # ── Phase 12: BIB disk images (qcow2 + raw) ───────────────────────────────
@@ -3972,14 +4678,38 @@ function Invoke-DistroSh {
 }
 
 function Set-MiosWslConfig {
-    param([int]$RamGB, [int]$Cpus)
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0)]
+        [int]$RamGB = 0,
+
+        [Parameter(Position = 1)]
+        [int]$Cpus = 0,
+
+        [Parameter()]
+        [switch]$Force,
+
+        [Parameter()]
+        [switch]$NoShutdown
+    )
+
+    if ($RamGB -le 0) {
+        $RamGB = if ($script:HW -and $script:HW.RamGB) { $script:HW.RamGB } else { 8 }
+    }
+    if ($Cpus -le 0) {
+        $Cpus = if ($script:HW -and $script:HW.Cpus) { $script:HW.Cpus } else { [Math]::Max(2, [Environment]::ProcessorCount) }
+    }
 
     $wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
-    $requiredKeys = [ordered]@{
+    $winBuild = [Environment]::OSVersion.Version.Build
+    $isWin11_22H2 = ($winBuild -ge 22621)
+    $targetNetMode = if ($isWin11_22H2) { "mirrored" } else { "NAT" }
+
+    $defaultKeys = [ordered]@{
         memory              = "${RamGB}GB"
         processors          = "$Cpus"
         swap                = "4GB"
-        networkingMode      = "NAT"
+        networkingMode      = $targetNetMode
         localhostForwarding = "true"
         dnsTunneling        = "true"
         autoProxy           = "true"
@@ -3990,43 +4720,75 @@ function Set-MiosWslConfig {
 
     if ($cfgRaw -notmatch "\[wsl2\]") {
         $block = "`n[wsl2]`n# MiOS-managed -- host resources for MiOS-DEV`n"
-        foreach ($kv in $requiredKeys.GetEnumerator()) { $block += "$($kv.Key)=$($kv.Value)`n" }
-        Add-Content -Path $wslCfg -Value $block
-        Log-Ok ".wslconfig: wrote [wsl2] -- ${RamGB}GB RAM, $Cpus CPUs, mirrored"
+        foreach ($kv in $defaultKeys.GetEnumerator()) { $block += "$($kv.Key)=$($kv.Value)`n" }
+        $finalContent = if ($cfgRaw.Trim()) { $cfgRaw.TrimEnd() + "`n`n" + $block.TrimStart() } else { $block }
+        [System.IO.File]::WriteAllText($wslCfg, $finalContent, (New-Object System.Text.UTF8Encoding($false)))
+        Log-Ok ".wslconfig: wrote [wsl2] -- ${RamGB}GB RAM, $Cpus CPUs, $targetNetMode"
+        if (-not $NoShutdown) {
+            try { & wsl.exe --shutdown 2>$null | Out-Null } catch {}
+        }
         return
     }
 
     $deprecatedKeys = @('firewall')
+    $bootSectionKeys = @('systemd', 'command', 'enabled', 'appendWindowsPath',
+                         'default', 'options', 'mountFsTab',
+                         'generateHosts', 'generateResolvConf', 'hostname')
     $lines    = (Get-Content $wslCfg)
     $inWsl2   = $false
     $patched  = [System.Collections.Generic.List[string]]::new()
     $inserted = [System.Collections.Generic.HashSet[string]]::new()
+    $effectiveRam = "${RamGB}GB"
+    $effectiveCpus = "$Cpus"
+    $effectiveNetMode = $targetNetMode
+
     foreach ($line in $lines) {
-        if ($line -match "^\[wsl2\]") { $inWsl2 = $true }
-        elseif ($line -match "^\[")   { $inWsl2 = $false }
-        if ($inWsl2 -and $line -match "^(\w+)\s*=") {
+        if ($line -match "^\s*\[wsl2\]\s*$") { $inWsl2 = $true; $patched.Add($line); continue }
+        elseif ($line -match "^\s*\[")        { $inWsl2 = $false; $patched.Add($line); continue }
+        if ($inWsl2 -and $line -match "^\s*([A-Za-z0-9_.-]+)\s*=\s*(.*)$") {
             $key = $Matches[1]
-            if ($deprecatedKeys -contains $key) { continue }
-            if ($requiredKeys.Contains($key)) {
-                $patched.Add("$key=$($requiredKeys[$key])")
+            $val = $Matches[2].Trim()
+            if ($deprecatedKeys -contains $key -or $bootSectionKeys -contains $key) { continue }
+            if ($defaultKeys.Contains($key)) {
+                # Preserve existing memory and processors limits unless -Force is specified
+                if (-not $Force -and ($key -ieq 'memory' -or $key -ieq 'processors') -and $val) {
+                    $patched.Add("$key=$val")
+                    $null = $inserted.Add($key)
+                    if ($key -ieq 'memory') { $effectiveRam = $val }
+                    if ($key -ieq 'processors') { $effectiveCpus = $val }
+                    continue
+                }
+                # Reconcile networkingMode based on Windows build
+                if ($key -ieq 'networkingMode') {
+                    $patched.Add("networkingMode=$targetNetMode")
+                    $null = $inserted.Add($key)
+                    $effectiveNetMode = $targetNetMode
+                    continue
+                }
+                $patched.Add("$key=$($defaultKeys[$key])")
                 $null = $inserted.Add($key)
                 continue
             }
         }
         $patched.Add($line)
     }
-    $missing = $requiredKeys.Keys | Where-Object { -not $inserted.Contains($_) }
+
+    $missing = $defaultKeys.Keys | Where-Object { -not $inserted.Contains($_) }
     if ($missing) {
-        $insertIdx = ($patched | Select-String -Pattern "^\[wsl2\]" | Select-Object -First 1).LineNumber
+        $wsl2Match = ($patched | Select-String -Pattern "^\s*\[wsl2\]\s*$" | Select-Object -First 1)
+        $insertIdx = if ($wsl2Match) { $wsl2Match.LineNumber } else { 0 }
         $offset = 0
         foreach ($key in $missing) {
-            $patched.Insert($insertIdx + $offset, "$key=$($requiredKeys[$key])")
+            $patched.Insert($insertIdx + $offset, "$key=$($defaultKeys[$key])")
             $offset++
         }
     }
-    # BOM-free (see the scrub site above): a UTF-8 BOM makes WSL ignore [wsl2].
+    # BOM-free UTF-8: a UTF-8 BOM makes WSL ignore [wsl2].
     [System.IO.File]::WriteAllLines($wslCfg, $patched, (New-Object System.Text.UTF8Encoding($false)))
-    Log-Ok ".wslconfig: merged [wsl2] -- ${RamGB}GB RAM, $Cpus CPUs, mirrored"
+    Log-Ok ".wslconfig: merged [wsl2] -- $effectiveRam RAM, $effectiveCpus CPUs, $effectiveNetMode"
+    if (-not $NoShutdown) {
+        try { & wsl.exe --shutdown 2>$null | Out-Null } catch {}
+    }
 }
 
 function Set-MiosLanFirewallRules {
@@ -4979,7 +5741,7 @@ function Note {
     Write-Host "  $T" -ForegroundColor $muted
 }
 
-Clear-Host
+try { Clear-Host } catch {}
 Write-Host ''
 Write-Host ("  $([char]0x256D)" + ("$([char]0x2500)" * 74) + "$([char]0x256E)") -ForegroundColor $accent
 Write-Host "  $([char]0x2502)                   MiOS  --  Help / Verb Reference                        $([char]0x2502)" -ForegroundColor $accent
@@ -5300,6 +6062,33 @@ Start-Process $url | Out-Null
 '@
     Set-Content -Path $aiPath -Value $aiScript -Encoding UTF8
 
+    # mios-mon.ps1 -- the `mios mon` verb.
+    $monPath = Join-Path $MiosBinDir 'mios-mon.ps1'
+    $monScript = @'
+# <MiOSRoot>\bin\mios-mon.ps1 -- the `mios mon` verb.
+param([Parameter(ValueFromRemainingArguments)] $Args)
+$py = if (Get-Command python.exe -ErrorAction SilentlyContinue) { 'python.exe' } else { 'python3' }
+$mon = @('M:\usr\libexec\mios\mios-mon.py','C:\MiOS\usr\libexec\mios\mios-mon.py','M:\MiOS\repo\mios\usr\libexec\mios\mios-mon.py') | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($mon) {
+    if ($Args.Count -eq 0) {
+        & $py $mon --monitor
+    } else {
+        & $py $mon @Args
+    }
+} else {
+    Write-Host "  [!] mios mon: mios-mon.py not found on M:\ or C:\" -ForegroundColor Yellow
+}
+'@
+    Set-Content -Path $monPath -Value $monScript -Encoding UTF8
+
+    $monitorPath = Join-Path $MiosBinDir 'mios-monitor.ps1'
+    $monitorScript = @'
+# <MiOSRoot>\bin\mios-monitor.ps1 -- alias for `mios mon` verb.
+param([Parameter(ValueFromRemainingArguments)] $Args)
+& (Join-Path $PSScriptRoot 'mios-mon.ps1') @Args
+'@
+    Set-Content -Path $monitorPath -Value $monitorScript -Encoding UTF8
+
     # System verbs -- forward to the dev VM via wsl.exe.
     $systemVerbs = @('xbox','virt','vfio','tune','summary','profile','assess','iommu','theme','user')
     foreach ($v in $systemVerbs) {
@@ -5431,12 +6220,14 @@ try {
     $dashFn = @"
 $marker
 `$Global:MiosBin = "$miosBinForProfile"
-function mios-dev     { & (Join-Path `$Global:MiosBin 'mios-dev.ps1')    @args }
-function mios-pull    { & (Join-Path `$Global:MiosBin 'mios-pull.ps1')   @args }
-function mios-update  { & (Join-Path `$Global:MiosBin 'mios-update.ps1') @args }
-function mios-config  { & (Join-Path `$Global:MiosBin 'mios-config.ps1') @args }
-function mios-code    { & (Join-Path `$Global:MiosBin 'mios-code.ps1')   @args }
-function mios-ask     { & (Join-Path `$Global:MiosBin 'mios-ask.ps1')    @args }
+function mios-dev     { & (Join-Path `$Global:MiosBin 'mios-dev.ps1')     @args }
+function mios-pull    { & (Join-Path `$Global:MiosBin 'mios-pull.ps1')    @args }
+function mios-update  { & (Join-Path `$Global:MiosBin 'mios-update.ps1')  @args }
+function mios-config  { & (Join-Path `$Global:MiosBin 'mios-config.ps1')  @args }
+function mios-code    { & (Join-Path `$Global:MiosBin 'mios-code.ps1')    @args }
+function mios-mon     { & (Join-Path `$Global:MiosBin 'mios-mon.ps1')     @args }
+function mios-monitor { & (Join-Path `$Global:MiosBin 'mios-monitor.ps1') @args }
+function mios-ask     { & (Join-Path `$Global:MiosBin 'mios-ask.ps1')     @args }
 
 function Set-MiosWindow {
     [CmdletBinding()]
@@ -5675,8 +6466,18 @@ $endMark
         # total reference for all functions and calls".
         $_lnchCols = [int](Get-MiosTomlValue -Section 'terminal' -Key 'cols' -Default 80)
         $_lnchRows = [int](Get-MiosTomlValue -Section 'terminal' -Key 'rows' -Default 20)
+        $_lnchCellW = [int](Get-MiosTomlValue -Section 'theme.font' -Key 'cell_w_px' -Default 10)
+        $_lnchCellH = [int](Get-MiosTomlValue -Section 'theme.font' -Key 'cell_h_px' -Default 20)
+        $_lnchChromeW = [int](Get-MiosTomlValue -Section 'theme.font' -Key 'chrome_w_px' -Default 20)
+        $_lnchChromeH = [int](Get-MiosTomlValue -Section 'theme.font' -Key 'chrome_h_px' -Default 12)
+        $_lnchScheme = [string](Get-MiosTomlValue -Section 'theme.terminal' -Key 'scheme_name' -Default 'MiOS')
         $launcherSrc = $launcherSrc -replace '__MIOS_COLS__', [string]$_lnchCols
         $launcherSrc = $launcherSrc -replace '__MIOS_ROWS__', [string]$_lnchRows
+        $launcherSrc = $launcherSrc -replace '__MIOS_CELL_W__', [string]$_lnchCellW
+        $launcherSrc = $launcherSrc -replace '__MIOS_CELL_H__', [string]$_lnchCellH
+        $launcherSrc = $launcherSrc -replace '__MIOS_CHROME_W__', [string]$_lnchChromeW
+        $launcherSrc = $launcherSrc -replace '__MIOS_CHROME_H__', [string]$_lnchChromeH
+        $launcherSrc = $launcherSrc -replace '__MIOS_SCHEME__', $_lnchScheme
         $launcherSrc = $launcherSrc -replace '__MIOS_DRIVE__', $_stagingDrive
         if (-not (Test-Path $MiosBinDir)) { New-Item -ItemType Directory -Path $MiosBinDir -Force | Out-Null }
         Set-Content -Path $miosLauncher -Value $launcherSrc -Encoding UTF8
@@ -5862,11 +6663,11 @@ if (Get-Command podman -ErrorAction SilentlyContinue) {
         # Native .exe launcher with subsystem:Windows -- ZERO console
         # flash + post-launch SetWindowPos centering. Best of both worlds.
         $hubTarget = $miosLauncherExe
-        $hubArgs   = "MiOS $($script:MiosAppCols) $($script:MiosAppRows)"
+        $hubArgs   = "`"$($script:MiosProfileName)`" $($script:MiosAppCols) $($script:MiosAppRows) `"$($script:MiosSchemeName)`""
     } elseif ($wtExe) {
         # Fallback: wt.exe direct (no flash but no centering).
         $hubTarget = $wtExe
-        $hubArgs   = "-w MiOS --size $($script:MiosAppCols),$($script:MiosAppRows) --focus -p MiOS"
+        $hubArgs   = "-w MiOS --size $($script:MiosAppCols),$($script:MiosAppRows) --focus new-tab --profile `"$($script:MiosProfileName)`" --colorScheme `"$($script:MiosSchemeName)`" --title MiOS"
     } else {
         $hubTarget = $pwshExe
         $hubArgs   = "-NoExit -ExecutionPolicy Bypass -Command `"& { $hubResizePrelude; & '$hubPath' }`""
@@ -5973,10 +6774,12 @@ if (Get-Command podman -ErrorAction SilentlyContinue) {
             }
             $_lnk = Join-Path $linuxAppsDir ("{0}.lnk" -f $_friendly)
             $_isWslg = $wslExe -match 'wslg\.exe$'
+            # mios-gui dispatches through flatpak-launch, which arms the
+            # SSOT Windows window-centering observer before mapping WSLg UI.
             $_args   = if ($_isWslg) {
-                ("-d {0} --user mios --cd `"~`" -- /usr/bin/flatpak run {1}" -f $linuxDistro, $_appId)
+                ("-d {0} --user mios --cd `"~`" -- /usr/libexec/mios/mios-gui {1}" -f $linuxDistro, $_appId)
             } else {
-                ("-d {0} --user mios -- flatpak run {1}" -f $linuxDistro, $_appId)
+                ("-d {0} --user mios -- /usr/libexec/mios/mios-gui {1}" -f $linuxDistro, $_appId)
             }
             try {
                 New-Shortcut -Path $_lnk `
@@ -5993,17 +6796,15 @@ if (Get-Command podman -ErrorAction SilentlyContinue) {
         # System apps that aren't flatpaks but should still appear in
         # the Linux Apps folder (control center, system monitor).
         $sysApps = @(
-            @{ Name = 'System Monitor'; Cmd = 'btop' },
-            @{ Name = 'Settings';       Cmd = 'gnome-control-center' }
+            @{ Name = 'Settings'; Cmd = 'gnome-control-center' }
         )
         foreach ($_sa in $sysApps) {
             $_lnk = Join-Path $linuxAppsDir ("{0}.lnk" -f $_sa.Name)
             $_isWslg = $wslExe -match 'wslg\.exe$'
             $_sysArgs = if ($_isWslg) {
-                # wslg.exe needs the full bin path (no login shell).
-                ("-d {0} --user mios --cd `"~`" -- /usr/bin/bash -lc `"{1}`"" -f $linuxDistro, $_sa.Cmd)
+                ("-d {0} --user mios --cd `"~`" -- /usr/libexec/mios/mios-gui {1}" -f $linuxDistro, $_sa.Cmd)
             } else {
-                ("-d {0} --user mios -- bash -lc `"{1}`"" -f $linuxDistro, $_sa.Cmd)
+                ("-d {0} --user mios -- /usr/libexec/mios/mios-gui {1}" -f $linuxDistro, $_sa.Cmd)
             }
             try {
                 New-Shortcut -Path $_lnk `
@@ -6014,6 +6815,14 @@ if (Get-Command podman -ErrorAction SilentlyContinue) {
                 $linuxShortcutsCreated++
             } catch {}
         }
+
+        # btop is a TUI. Run its existing Windows-side MiOS verb in the
+        # centered, SSOT-themed Windows Terminal profile instead of WSLg.
+        $_btopLnk = Join-Path $linuxAppsDir 'System Monitor.lnk'
+        $_btopProfile = [string](Get-MiosTomlValue -Section 'theme.terminal' -Key 'profile_name' -Default 'MiOS-WIN')
+        $_btopArgs = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$miosLauncher`" -Profile `"$_btopProfile`" -Verb btop"
+        New-Shortcut -Path $_btopLnk -Target $pwshExe -ArgList $_btopArgs -Desc 'MiOS System Monitor (btop)' -Dir ([Environment]::GetFolderPath('Desktop'))
+        $linuxShortcutsCreated++
 
         Log-Ok ("MiOS Linux Apps: {0} Start Menu shortcuts -> {1}" -f $linuxShortcutsCreated, $linuxAppsDir)
     } catch {
@@ -6141,7 +6950,7 @@ $script:DashboardMode = if ($env:MIOS_DASHBOARD_MODE -eq 'interactive' -and (Tes
 }
 
 # ── Banner ───────────────────────────────────────────────────────────────────
-Clear-Host
+try { Clear-Host } catch {}
 $bTop = [char]0x256D + (([char]0x2500).ToString() * ($script:DW - 2)) + [char]0x256E
 $bBot = [char]0x2570 + (([char]0x2500).ToString() * ($script:DW - 2)) + [char]0x256F
 
@@ -6418,6 +7227,7 @@ function Invoke-GitFetchWithRetry {
 
 # ── Phase 1 -- Detecting existing build environment ──────────────────────────
 Start-Phase 1
+Start-MiosBuildMonitor
 $activeDistro = Find-ActiveDistro
 
 if ($activeDistro) {
@@ -6560,7 +7370,7 @@ $miosRepo = $MiosRepoDir
     # ── Phase 3 -- MiOS-DEV distro (formerly MiOS-BUILDER) ───────────────────
     Start-Phase 3
 
-    try { Set-MiosWslConfig -RamGB $HW.RamGB -Cpus $HW.Cpus } catch { Log-Warn "Set-MiosWslConfig (pre-Phase-3): $($_.Exception.Message)" }
+    try { Set-MiosWslConfig -RamGB $HW.RamGB -Cpus $HW.Cpus -Force } catch { Log-Warn "Set-MiosWslConfig (pre-Phase-3): $($_.Exception.Message)" }
     & wsl.exe --shutdown 2>&1 | ForEach-Object { Write-Log "wsl-shutdown-pre-phase3: $_" }
 
     $machineRunning = $false
@@ -6685,7 +7495,7 @@ $miosRepo = $MiosRepoDir
         }
     }
     if (-not $miosEssentials) {
-        $miosEssentials = 'mkpasswd whois openssl python3-passlib bootc git iptables nftables fastfetch oh-my-posh bash-completion'
+        $miosEssentials = 'mkpasswd whois openssl python3-passlib bootc git iptables nftables fastfetch oh-my-posh python3-rich python3-textual python3-psutil bash-completion'
         Log-Warn "Using fallback dev-VM essentials list (mios.toml [packages.dev_vm_essentials] not found / unparseable)"
     }
     $essentialsRc = -1
@@ -6836,7 +7646,7 @@ $miosRepo = $MiosRepoDir
                             if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
                                 $PSNativeCommandUseErrorActionPreference = $false
                             }
-                            & wsl.exe -d $_wslDistroForTerm --user root -- bash -c "dbus-run-session -- sh -c 'flatpak update --system --appstream flathub 2>&1 | tail -3 || true' 2>&1 | tail -20" 2>&1 |
+                            '' | & wsl.exe -d $_wslDistroForTerm --user root --exec env -u XDG_RUNTIME_DIR -u DBUS_SESSION_BUS_ADDRESS FLATPAK_FANCY_OUTPUT=0 FLATPAK_TTY_PROGRESS=0 dbus-run-session -- flatpak update --system --appstream flathub 2>&1 |
                                 ForEach-Object { Write-Log "mios-flatpak-runtime: $_" }
                         }
                         # Ensure ALL configured remotes are added before the
@@ -6857,9 +7667,12 @@ $miosRepo = $MiosRepoDir
                                 sudo flatpak remote-add --system --if-not-exists fedora oci+https://registry.fedoraproject.org 2>/dev/null || true
                                 sudo flatpak remote-add --system --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo 2>/dev/null || true
                                 sudo dnf config-manager setopt updates-testing.enabled=1 2>/dev/null || true
-                                sudo flatpak update --system --appstream flathub-beta 2>&1 | tail -2 || true
-                                sudo flatpak update --system --appstream fedora 2>&1 | tail -2 || true
-                                sudo flatpak update --system --appstream gnome-nightly 2>&1 | tail -2 || true
+                                echo '[appstream] updating flathub-beta'
+                                sudo env FLATPAK_FANCY_OUTPUT=0 FLATPAK_TTY_PROGRESS=0 flatpak update --system --appstream flathub-beta 2>&1 || echo '[appstream] WARN: flathub-beta update failed'
+                                echo '[appstream] updating fedora'
+                                sudo env FLATPAK_FANCY_OUTPUT=0 FLATPAK_TTY_PROGRESS=0 flatpak update --system --appstream fedora 2>&1 || echo '[appstream] WARN: fedora update failed'
+                                echo '[appstream] updating gnome-nightly'
+                                sudo env FLATPAK_FANCY_OUTPUT=0 FLATPAK_TTY_PROGRESS=0 flatpak update --system --appstream gnome-nightly 2>&1 || echo '[appstream] WARN: gnome-nightly update failed'
                             ") -replace "`r", ""
                             & wsl.exe -d $_wslDistroForTerm --user root -- bash -c $_remotesScript 2>&1 | ForEach-Object { Write-Log "mios-flatpak-remotes: $_" }
                         }
@@ -6873,14 +7686,17 @@ $miosRepo = $MiosRepoDir
                                 $_fp       = $_fpEntry
                             }
                             Set-Step ("[overlay] flatpak install {0}:{1}..." -f $_fpRemote, $_fp)
-                            $_fpStderrLog = New-Object System.Collections.Generic.List[string]
                             & {
                                 $ErrorActionPreference = 'Continue'
                                 if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
                                     $PSNativeCommandUseErrorActionPreference = $false
                                 }
-                                & wsl.exe -d $_wslDistroForTerm --user root -- bash -c "dbus-run-session -- flatpak install -y --noninteractive --or-update $_fpRemote $_fp 2>&1" 2>&1 |
-                                    ForEach-Object { Write-Log "mios-flatpak: $_"; [void]$_fpStderrLog.Add($_) }
+                                # --noninteractive selects Flatpak's quiet transaction and
+                                # suppresses progress. --assumeyes plus closed stdin keeps
+                                # automation unattended; plain output emits progress lines.
+                                # Root must not inherit WSLg's uid-1000 runtime/session bus.
+                                '' | & wsl.exe -d $_wslDistroForTerm --user root --exec env -u XDG_RUNTIME_DIR -u DBUS_SESSION_BUS_ADDRESS FLATPAK_FANCY_OUTPUT=0 FLATPAK_TTY_PROGRESS=0 dbus-run-session -- flatpak install --system --assumeyes --or-update $_fpRemote $_fp 2>&1 |
+                                    ForEach-Object { Write-Log "mios-flatpak: $_" }
                                 $script:_fpLastRc = $LASTEXITCODE
                             }
                             if ($script:_fpLastRc -eq 0) {
@@ -6894,7 +7710,7 @@ $miosRepo = $MiosRepoDir
                                     if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
                                         $PSNativeCommandUseErrorActionPreference = $false
                                     }
-                                    & wsl.exe -d $_wslDistroForTerm --user root -- bash -c "dbus-run-session -- flatpak install -y --noninteractive --or-update --system --arch=x86_64 -v $_fpRemote $_fp 2>&1" 2>&1 |
+                                    '' | & wsl.exe -d $_wslDistroForTerm --user root --exec env -u XDG_RUNTIME_DIR -u DBUS_SESSION_BUS_ADDRESS FLATPAK_FANCY_OUTPUT=0 FLATPAK_TTY_PROGRESS=0 dbus-run-session -- flatpak install --assumeyes --or-update --system --arch=x86_64 -v $_fpRemote $_fp 2>&1 |
                                         ForEach-Object { Write-Log "mios-flatpak-retry: $_"; [void]$_fpRetryLog.Add($_) }
                                     $script:_fpRetryRc = $LASTEXITCODE
                                 }
@@ -6902,23 +7718,17 @@ $miosRepo = $MiosRepoDir
                                     Log-Ok "[overlay] flatpak install OK on retry: $_fp"
                                     $_fpOk++
                                 } else {
-                                    # Dump verbose output to its own log file
-                                    # for grep-friendly diagnostic.
-                                    $_fpFailLog = Join-Path $MiosLogDir ("flatpak-fail-$($_fp -replace '[^A-Za-z0-9._-]','_')-$LogStamp.log")
-                                    try {
-                                        $_fpAllLines = @($_fpStderrLog) + @('---retry---') + @($_fpRetryLog)
-                                        Set-Content -LiteralPath $_fpFailLog -Value ($_fpAllLines -join "`n") -Encoding UTF8
-                                    } catch {}
                                     $_fpTail = ($_fpRetryLog | Select-Object -Last 5) -join ' | '
                                     Log-Warn "[overlay] flatpak install FAILED both attempts (last exit $($script:_fpRetryRc)): $_fp"
                                     Log-Warn "  diagnostic tail: $_fpTail"
-                                    Log-Warn "  full verbose log: $_fpFailLog"
+                                    Log-Warn "  full output is in the unified log: $LogFile"
                                     Log-Warn "  OCI image build (mios build -> automation/61-flatpak-bake.sh) retries at bake time; first-boot service mios-flatpak-install also retries on every host boot."
                                     $_fpFail++
                                 }
                             }
                         }
-                        Log-Ok "[desktop].flatpaks install pass: $_fpOk OK / $_fpFail failed (of $($_flatpaks.Count) total)"
+                        $_fpSummary = "[desktop].flatpaks install pass: $_fpOk OK / $_fpFail failed (of $($_flatpaks.Count) total)"
+                        if ($_fpFail -gt 0) { Log-Warn $_fpSummary } else { Log-Ok $_fpSummary }
                     }
                 }
             }
@@ -7233,7 +8043,7 @@ exit 0
     End-Phase 3
 
     Start-Phase 4
-    try { Set-MiosWslConfig -RamGB $HW.RamGB -Cpus $HW.Cpus } catch { Log-Warn "Set-MiosWslConfig (Phase-4 recheck): $($_.Exception.Message)" }
+    try { Set-MiosWslConfig -RamGB $HW.RamGB -Cpus $HW.Cpus -Force } catch { Log-Warn "Set-MiosWslConfig (Phase-4 recheck): $($_.Exception.Message)" }
 
     Set-Step "Adding Windows Firewall LAN inbound rules for MiOS service ports..."
     try { Set-MiosLanFirewallRules } catch { Log-Warn "Set-MiosLanFirewallRules: $($_.Exception.Message)" }
@@ -7348,50 +8158,32 @@ exit 0
     }
 
     Open-Configurator -RepoDir $MiosRepoDir
+    $script:_MiosTomlCache.Clear()  # configurator may have promoted a new layer
 
     # ── Phase 6 -- Identity ───────────────────────────────────────────────────
     Start-Phase 6
-    $script:CurStep = "Waiting for identity input..."
+    $script:CurStep = "Resolving identity from mios.toml..."
     Show-Dashboard -Force
-    # Re-resolve mios.toml [ai] defaults after the configurator step so
-    # the prompts seed from whatever the operator saved in the GUI.
-    $aiDefaultsPre = Resolve-MiosTomlAiDefaults -RepoDir $MiosRepoDir
-    $MiosUser     = Read-Line "Linux username" "mios"
-    $MiosHostname = Read-Line "Hostname"       "mios"
-    $pwPlain      = Read-Password "Password"
-    if ([string]::IsNullOrWhiteSpace($pwPlain)) { $pwPlain = "mios" }
-    $MiosHash     = Get-PasswordHash $pwPlain
-    # GitHub PAT is required to pull ghcr.io/ublue-os/ucore-hci (GHCR anon bearer token returns 403).
-    # Check env first; fall back to prompt so interactive installs work without pre-setting the var.
+    $MiosUser     = [string](Get-MiosTomlValue -Section 'identity' -Key 'username' -Default 'mios')
+    $MiosHostname = [string](Get-MiosTomlValue -Section 'identity' -Key 'hostname' -Default 'mios')
+    $loginCredential = Resolve-MiosLoginCredential
+    $MiosHash = $loginCredential.Hash
+    if (-not $MiosHash) { $MiosHash = Get-PasswordHash $loginCredential.Plain }
+    $loginCredential = $null
+    # Credentials come from the operator TOML, with environment override for automation.
     $script:GhcrToken = if ($env:MIOS_GITHUB_TOKEN) { $env:MIOS_GITHUB_TOKEN }
                         elseif ($env:GITHUB_TOKEN)   { $env:GITHUB_TOKEN }
-                        else { Read-Line "GitHub PAT for ghcr.io base image pull (github.com/settings/tokens)" "" }
+                        else { [string](Get-MiosTomlValue -Section 'auth' -Key 'github_pat' -Default '') }
     $tokStatus = if ($script:GhcrToken) { "provided (masked)" } else { "none -- anonymous pull (may fail)" }
 
-    # AI model selection (feature parity with build-mios.sh:prompt_model).
-    # Defaults seed from the layered mios.toml [ai] section so per-host
-    # overrides flow through automatically; Get-Hardware's RAM-driven
-    # suggestion is used as the fallback if mios.toml didn't supply one.
+    # The layered TOML fixes the model and bake set before installation.
     $aiDefaults = Resolve-MiosTomlAiDefaults -RepoDir $MiosRepoDir
     $defaultModel = if ($aiDefaults.Model) { $aiDefaults.Model } else { $HW.AiModel }
-    $MiosAiModel       = Read-Model -Default $defaultModel
-    $MiosAiEmbedModel  = Read-Line "AI embedding model" $aiDefaults.EmbedModel
+    $MiosAiModel       = $defaultModel
+    $MiosAiEmbedModel  = $aiDefaults.EmbedModel
     $MiosBakeModels = if ($aiDefaults.BakeModels) { $aiDefaults.BakeModels } else { "$defaultModel,$($aiDefaults.EmbedModel)" }
     $_bakeList = @($MiosBakeModels -split ',' | ForEach-Object { $_.Trim() })
-    # Make sure the embedding model the operator chose is in the set.
-    if ($MiosAiEmbedModel -and ($_bakeList -notcontains $MiosAiEmbedModel)) {
-        $MiosBakeModels = "$MiosBakeModels,$MiosAiEmbedModel"
-        $_bakeList += $MiosAiEmbedModel
-    }
-    if ($MiosAiModel -and ($_bakeList -notcontains $MiosAiModel)) {
-        $_ans = Read-Line "Also bake '$MiosAiModel' into the image? (larger image, fully offline) [y/N]" "N"
-        if ($_ans -match '^[Yy]') {
-            $MiosBakeModels = "$MiosBakeModels,$MiosAiModel"
-            Write-Host "  bake set: $MiosBakeModels" -ForegroundColor DarkGray
-        } else {
-            Write-Host "  bake set: $MiosBakeModels (minimal); '$MiosAiModel' first-boot-pulls" -ForegroundColor DarkGray
-        }
-    }
+    Write-Log "SSOT identity/model selected from layered mios.toml (user=$MiosUser host=$MiosHostname model=$MiosAiModel bake_count=$($_bakeList.Count))"
 
     Log-Ok "Identity: user=$MiosUser  host=$MiosHostname  password=(hashed)  ghcr=$tokStatus  ai=$MiosAiModel"
     $script:IdentInfo = "User:$MiosUser  Host:$MiosHostname  Base:$($HW.BaseImage -replace 'ghcr.io/ublue-os/ucore-hci:','')  Model:$MiosAiModel"
@@ -7893,14 +8685,20 @@ if (`$Purge) {
     End-Phase $script:AppRegPhaseId
 
     Start-Phase 9
-    $rc = Invoke-WslBuild -Distro $BuilderDistro -BaseImage $HW.BaseImage `
-                          -AiModel $MiosAiModel -EmbedModel $MiosAiEmbedModel `
-                          -BakeModels $MiosBakeModels `
-                          -MiosUser $MiosUser -MiosHostname $MiosHostname
-    if ($rc -eq 0) {
+    if ($DeployPipeline) {
+        Log-Ok "Skipping Phase 9 container build (-DeployPipeline requested)"
         End-Phase 9
         Invoke-DeployPipeline -HW $HW
-    } else { End-Phase 9 -Fail; $ExitCode = $rc }
+    } else {
+        $rc = Invoke-WslBuild -Distro $BuilderDistro -BaseImage $HW.BaseImage `
+                              -AiModel $MiosAiModel -EmbedModel $MiosAiEmbedModel `
+                              -BakeModels $MiosBakeModels `
+                              -MiosUser $MiosUser -MiosHostname $MiosHostname
+        if ($rc -eq 0) {
+            End-Phase 9
+            Invoke-DeployPipeline -HW $HW
+        } else { End-Phase 9 -Fail; $ExitCode = $rc }
+    }
 
 # end full-install branch
 

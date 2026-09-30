@@ -2214,6 +2214,13 @@
         Hover for description.
       </p>
       <div id="package-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px;"></div>
+      <p style="color: var(--muted); font-size: 12px; margin: 8px 0;">
+        Required package sections are installed together. Disabling a required
+        section makes its consumer fail with the section names instead of
+        producing an incomplete development environment.
+      </p>
+      <label for="f-retain-toolchain">retain_toolchain (keep MiOS self-development and self-build dependencies)</label>
+      <input type="text" id="f-retain-toolchain" data-key="packages.self-build.retain_toolchain" data-type="bool" placeholder="true">
     </fieldset>
   </div>
 </details>
@@ -2856,6 +2863,12 @@
         </div>
         <label for="f-theme-opacity">opacity (0-100; 50 = 50% transparency)</label>
         <input type="text" id="f-theme-opacity" data-key="theme.opacity" data-type="int" placeholder="50">
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-theme-unfocused-acrylic" data-key="theme.unfocused_acrylic">
+          <label for="f-theme-unfocused-acrylic">unfocused acrylic (off keeps Windows 11 transparency when another app is active)</label>
+        </div>
+        <label for="f-theme-unfocused-opacity">unfocused opacity (0-100; 50 = 50% transparency)</label>
+        <input type="text" id="f-theme-unfocused-opacity" data-key="theme.unfocused_opacity" data-type="int" placeholder="50">
         <label for="f-theme-backdrop">system_backdrop (WT 1.18+)</label>
         <select id="f-theme-backdrop" data-key="theme.system_backdrop">
           <option value="acrylic">acrylic</option>
@@ -4857,7 +4870,7 @@ spec_url       = "https://toml.io/en/v1.0.0"
 editor_url     = "/usr/share/mios/configurator/mios.html"
 
 [identity]
-username = "mios"
+username = "user"
 hostname = "mios"
 fullname = "MiOS User"
 location = ""
@@ -4992,7 +5005,27 @@ function applyEmbedContext() {
 // empty body degrades SILENTLY to the inline DEFAULTS_TOML already loaded
 // at boot. NEVER attempted under file:// (offline USB fallback, ADR-0008).
 function seedFromServer() {
-  if (!MIOS_EMBEDDED) return;                 // file:// -> inline defaults only
+  if (!MIOS_EMBEDDED) {
+    // The bootstrap embeds the exact TOML into its temporary standalone copy.
+    // This prevents file:// mode from silently presenting DEFAULTS_TOML as the
+    // operator's configuration.
+    const seed = window.MIOS_BOOTSTRAP_TOML;
+    if (typeof seed === "string" && seed.trim()) {
+      try {
+        const parsed = parseToml(seed);
+        if (!parsed || typeof parsed !== "object" || !Object.keys(parsed).length) {
+          throw new Error("empty config");
+        }
+        DATA = parsed;
+        refreshFromData();
+        snapshotLoaded();
+        showStatus("Loaded the staged mios.toml.", "ok");
+      } catch (err) {
+        showStatus(`Staged mios.toml could not be loaded: ${err.message}`, "err");
+      }
+    }
+    return;
+  }
   fetch("/portal/config", { credentials: "same-origin" })
     .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
     .then(text => {

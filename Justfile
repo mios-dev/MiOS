@@ -32,10 +32,25 @@ preflight:
         [ -n "$c" ] && [ -x "$c" ] && { bin="$c"; break; }; \
     done; \
     if [ -z "$bin" ]; then \
-        echo "[preflight] mios-probe is not built -- run: cd src/mios-rs && cargo build --release -p mios-probe" >&2; \
-        exit 2; \
+        if command -v cargo >/dev/null 2>&1 && [ -f "./src/mios-rs/Cargo.toml" ]; then \
+            echo "[preflight] mios-probe not found; attempting on-demand build via cargo..." >&2; \
+            (cd ./src/mios-rs && cargo build --release -p mios-probe >&2) || \
+            (cd ./src/mios-rs && cargo build -p mios-probe >&2) || true; \
+            for c in ./src/mios-rs/target/release/mios-probe ./src/mios-rs/target/debug/mios-probe; do \
+                [ -x "$c" ] && { bin="$c"; break; }; \
+            done; \
+        fi; \
     fi; \
-    "$bin" build --root .
+    if [ -z "$bin" ]; then \
+        if [ "${MIOS_BOOTSTRAP:-0}" = "1" ] || [ "${BOOTSTRAP:-0}" = "1" ] || [ "${MIOS_PREFLIGHT_FALLBACK:-0}" = "1" ] || [ -f "/etc/mios/install.env" ]; then \
+            echo "[preflight] WARNING: mios-probe is not available; continuing in fallback mode" >&2; \
+        else \
+            echo "[preflight] mios-probe is not built -- run: cd src/mios-rs && cargo build --release -p mios-probe" >&2; \
+            exit 2; \
+        fi; \
+    else \
+        "$bin" build --root .; \
+    fi
 
 check-build-urls:
     @./tools/check-build-urls.sh
@@ -78,6 +93,15 @@ ps-gate:
 # embed file CONTENT, so a stale one turns the gate red for the wrong reason.
 sync:
     bash ./tools/sync-generated.sh
+
+# Run the CI/CD pipeline automation suite (01-ingest, 02-distill, 03-build, 04-deploy, 05-run-agy-pipeline-agent).
+cicd:
+    @echo "[cicd] Executing full MiOS CI/CD pipeline automation suite..."
+    bash ./automation/cicd/01-ingest-daily-telemetry.sh
+    python3 ./automation/cicd/02-distill-agent-weights.py
+    bash ./automation/cicd/03-build-bootc-oci.sh
+    bash ./automation/cicd/04-deploy-atomic-switch.sh
+    bash ./automation/cicd/05-run-agy-pipeline-agent.sh
 
 drift-gate:
     @echo "[drift-gate] 97-ssot-lint.sh"

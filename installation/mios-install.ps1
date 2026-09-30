@@ -1,18 +1,25 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
+    [Alias('Verb')]
     [string]$Target = '',
     [string]$Type = '',
     [string]$Stage = '',
     [switch]$DryRun,
     [switch]$Unattended,
+    [string]$DriveLetter = '',
+    [int]$MinDiskGB = 0,
+    [int]$SimulatedDiskSizeGB = 0,
+    [double]$SimulatedFreeSpaceGB = 0,
+    [switch]$Extract,
+    [string]$ArchivePath = '',
     [parameter(ValueFromRemainingArguments=$true)][string[]]$Passthrough = @()
 )
 
 # AI-hint: Unified MiOS provisioning installer (Windows) -- the canonical `mios-install`.
 $ErrorActionPreference = 'Stop'
 $script:Root    = Split-Path -Parent $PSScriptRoot           # repo root (installation\ is one level down)
-$script:CatBat  = Join-Path $script:Root 'installation\MiOS-Cat.bat'
-if (-not (Test-Path $script:CatBat)) { $script:CatBat = Join-Path $script:Root 'cat\MiOS-Cat.bat' }
+$script:CatBat  = Join-Path $script:Root 'installation\MiOS-Field.bat'
+if (-not (Test-Path $script:CatBat)) { $script:CatBat = Join-Path $script:Root 'field\MiOS-Field.bat' }
 $script:BuildPs = Join-Path $script:Root 'build-mios.ps1'
 $script:AutoDir = Join-Path $script:Root 'field\autounattend'
 
@@ -39,7 +46,7 @@ function Show-MiosLogo {
 # ============================================================================
 function Get-MiosCatalog {
     [ordered]@{
-        'flash' = @{ title = 'Build a bootable MiOS-Cat USB'; platform='windows'; needsAdmin=$true; destructive=$true
+        'flash' = @{ title = 'Build a bootable MiOS-Field USB'; platform='windows'; needsAdmin=$true; destructive=$true
             what = 'Wipes a USB stick and forges a complete MiOS boot drive: Ventoy bootloader (SecureBoot/UEFI/GPT), Fedora + MiOS-Xbox installers, recovery tools, and offline MiOS repos.'
             produces = 'A USB you can boot on ANY PC to install or recover MiOS.'
             cost = '20-40 min'
@@ -64,6 +71,14 @@ function Get-MiosCatalog {
             what = 'Builds all export formats: WSL2, Hyper-V, QEMU qcow2, live ISO.'
             produces = 'All MiOS deployment artifacts.'
             cost = '45-90 min'; needs = 'WSL2 + podman + Administrator.' }
+        'wsl' = @{ title = 'Import pre-built MiOS WSL2 distro rootfs/VHDX'; platform='windows'; needsAdmin=$true; destructive=$false
+            what = 'Imports a pre-built MiOS rootfs tarball or .vhdx archive into WSL2 without running the full bootstrap compiler.'
+            produces = 'Registered MiOS WSL2 distribution.'
+            cost = '1-3 min'; needs = 'WSL2 + Administrator.' }
+        'import' = @{ title = 'Import pre-built MiOS WSL2 distro (alias for wsl)'; platform='windows'; needsAdmin=$true; destructive=$false
+            what = 'Imports a pre-built MiOS rootfs tarball or .vhdx archive into WSL2 without running the full bootstrap compiler.'
+            produces = 'Registered MiOS WSL2 distribution.'
+            cost = '1-3 min'; needs = 'WSL2 + Administrator.' }
         'configure' = @{ title = 'Open the MiOS Portal / configurator (edit SSOT)'; platform='windows'; needsAdmin=$false; destructive=$false; special='configure'
             what = 'Opens the MiOS Portal at http://localhost:<ports.agent_pipe>/configure to edit mios.toml.'
             produces = 'Live SSOT configurator.'
@@ -84,6 +99,14 @@ function Get-MiosCatalog {
             what = 'Opens the repository directories in Explorer.'
             produces = 'Explorer windows.'
             cost = 'instant'; needs = 'Explorer.' }
+        'stage' = @{ title = 'Stage MiOS-Data and MiOS-Repo bulk store'; platform='windows'; needsAdmin=$false; destructive=$false
+            what = 'Stages the lightweight config brain (MiOS-Repo) and bulk store (MiOS-Data) on disks meeting min_disk_gb gate.'
+            produces = 'MiOS-Repo and MiOS-Data partitions/directories with OCI archives and models.'
+            cost = '1-5 min'; needs = 'Target USB/disk.' }
+        'verify' = @{ title = 'Verify installation media layout and artifacts'; platform='windows'; needsAdmin=$false; destructive=$false
+            what = 'Validates MiOS-Repo and MiOS-Data layout, manifest checksums, and OCI image archives.'
+            produces = 'Verification pass/fail report.'
+            cost = 'instant'; needs = 'Target media path.' }
     }
 }
 
@@ -138,8 +161,9 @@ function Show-MiosTargetBrief {
 }
 
 function Confirm-MiosProceed {
-    param([hashtable]$Entry, [bool]$Unattended, [string]$Drive)
+    param([hashtable]$Entry, [bool]$Unattended, [string]$Drive, [string]$Target = '')
     if ($Unattended) { return $true }
+    if ($Target -in @('verify', 'stage')) { return $true }
     if (-not [Environment]::UserInteractive) { return $true }
     $wa=$script:Pal.warning; $cu=$script:Pal.cursor
     if ($Entry.destructive) {
@@ -158,9 +182,9 @@ function Resolve-Target {
     $ssot = if ($script:TomlPath) { $script:TomlPath } else { Join-Path $script:Root 'mios.toml' }
     $r = @{ Kind='ps'; Exe=$null; Args=@(); Env=@{}; NeedsAdmin=$false; Notes=@(); Platform='windows'; Drive='D:' }
     switch ($Target) {
-        { $_ -in 'live','flash','cat' } {
+        { $_ -in 'live','flash' } {
             $r.Kind='bat'; $r.NeedsAdmin=$true
-            $r.Exe=Join-Path $PSScriptRoot 'MiOS-Cat.bat'
+            $r.Exe=Join-Path $PSScriptRoot 'MiOS-Field.bat'
             $r.Args=$Passthrough
             if ($Unattended) { $r.Env['NONINTERACTIVE']='1' }
             $d = Get-MiosSsotValue -Section 'field' -Key 'drivepath'
@@ -185,6 +209,9 @@ function Resolve-Target {
             $r.Exe=$script:BuildPs; $r.NeedsAdmin=$true; $r.Args=@('-Unattended') + $Passthrough
         }
         'build' { $r.Exe=$script:BuildPs; $r.NeedsAdmin=$true; $r.Args=@('-Unattended') + $Passthrough }
+        { $_ -in 'wsl', 'import' } {
+            $r.Exe=$script:BuildPs; $r.NeedsAdmin=$true; $r.Args=@('-ImportWsl', '-Unattended') + $Passthrough
+        }
         'configure' {
             $r.Kind='special'; $r.Special='configure'
         }
@@ -193,6 +220,26 @@ function Resolve-Target {
         }
         'repos' {
             $r.Kind='special'; $r.Special='repos'
+        }
+        'stage' {
+            $r.Kind='internal'; $r.Fn='Invoke-MiosStage'; $r.NeedsAdmin=$false
+            $stageArgs = @()
+            if ($DriveLetter) { $stageArgs += @('-DriveLetter', "`"$DriveLetter`"") }
+            if ($MinDiskGB -gt 0) { $stageArgs += @('-MinDiskGB', $MinDiskGB) }
+            if ($SimulatedDiskSizeGB -gt 0) { $stageArgs += @('-SimulatedDiskSizeGB', $SimulatedDiskSizeGB) }
+            if ($SimulatedFreeSpaceGB -gt 0) { $stageArgs += @('-SimulatedFreeSpaceGB', $SimulatedFreeSpaceGB) }
+            if ($Extract) { $stageArgs += '-Extract' }
+            if ($ArchivePath) { $stageArgs += @('-ArchivePath', $ArchivePath) }
+            if ($Passthrough) { $stageArgs += $Passthrough }
+            $r.Args = $stageArgs
+        }
+        'verify' {
+            $r.Kind='internal'; $r.Fn='Invoke-MiosVerify'; $r.NeedsAdmin=$false
+            $verifyArgs = @()
+            if ($DriveLetter) { $verifyArgs += @('-DriveLetter', "`"$DriveLetter`"") }
+            if ($MinDiskGB -gt 0) { $verifyArgs += @('-MinDiskGB', $MinDiskGB) }
+            if ($Passthrough) { $verifyArgs += $Passthrough }
+            $r.Args = $verifyArgs
         }
         default  { throw "unknown target '$Target'." }
     }
@@ -250,24 +297,95 @@ if ($entry.Contains('special')) {
 }
 
 Show-MiosTargetBrief -Target $Target -Entry $entry -Type $Type -Stage $Stage
-if (-not (Confirm-MiosProceed -Entry $entry -Unattended $Unattended -Drive 'D:')) { exit 0 }
+if ($Target -notin @('verify', 'monitor') -and -not $DryRun -and -not (Confirm-MiosProceed -Entry $entry -Unattended $Unattended -Drive 'D:')) { exit 0 }
 
 # Consolidated installer surface: EVERY install/build target comes WITH the live monitor.
 # Launch mios mon (the unified TUI) in its own window so the operator watches the whole
-# pipeline live -- matches MiOS-Cat.bat's ensure_live_monitor. The 'monitor' target itself and
+# pipeline live -- matches MiOS-Field.bat's ensure_live_monitor. The 'monitor' target itself and
 # the early-exit special targets (configure/repos/update) never reach here. Suppressed by
 # MIOS_NO_MONITOR=1 (headless/CI/nested).
-if ($env:MIOS_NO_MONITOR -ne '1') {
-    $monScript = Resolve-MiosMonitorScript
-    if ($monScript) {
-        $monPy = if (Test-Path "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe") { "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe" } else { 'python' }
-        try { Start-Process -FilePath $monPy -ArgumentList "`"$monScript`"" -WindowStyle Normal; Write-MiosLine 'info' 'live monitor launched (mios mon) -- watching the install pipeline' }
-        catch { Write-MiosLine 'warn' "could not launch live monitor: $($_.Exception.Message)" }
+if ($env:MIOS_NO_MONITOR -ne '1' -and -not $DryRun -and $Target -notin @('stage', 'verify')) {
+    try {
+        $monProc = Start-MiosMonitor -Title 'MiOS Build Monitor'
+        if ($monProc) { Write-MiosLine 'info' 'live monitor launched in the SSOT Windows Terminal profile' }
+        else { Write-MiosLine 'warn' 'live monitor could not launch in Windows Terminal' }
+    } catch { Write-MiosLine 'warn' "could not launch live monitor: $($_.Exception.Message)" }
+}
+
+function Get-MiosElevateArgs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$BoundParameters,
+
+        [Parameter()]
+        [string]$Target = ''
+    )
+
+    $elevateArgs = @()
+    if (-not $BoundParameters.ContainsKey('Target') -and $Target) {
+        $elevateArgs += @('-Target', $Target)
     }
+
+    foreach ($entry in $BoundParameters.GetEnumerator()) {
+        $paramName = "-$($entry.Key)"
+        if ($entry.Value -is [switch] -or $entry.Value -is [bool]) {
+            if ($entry.Value) {
+                $elevateArgs += $paramName
+            }
+        } elseif ($entry.Key -ieq 'Passthrough') {
+            if ($entry.Value -is [System.Collections.IEnumerable] -and $entry.Value -isnot [string]) {
+                foreach ($p in $entry.Value) { $elevateArgs += [string]$p }
+            } else {
+                $elevateArgs += [string]$entry.Value
+            }
+        } elseif ($entry.Value -is [System.Collections.IEnumerable] -and $entry.Value -isnot [string]) {
+            $elevateArgs += $paramName
+            foreach ($val in $entry.Value) {
+                $elevateArgs += [string]$val
+            }
+        } else {
+            $elevateArgs += $paramName
+            $elevateArgs += [string]$entry.Value
+        }
+    }
+    return ,$elevateArgs
 }
 
 $plan = Resolve-Target -Target $Target -Type $Type -Stage $Stage -Unattended $Unattended -Passthrough $Passthrough
-if ($plan.NeedsAdmin) { Invoke-MiosSelfElevate -ArgList $PSBoundParameters.Values }
+if ($plan.NeedsAdmin) {
+    $elevateArgs = Get-MiosElevateArgs -BoundParameters $PSBoundParameters -Target $Target
+    if ($DryRun) {
+        return [PSCustomObject]@{
+            Plan        = $plan
+            ElevateArgs = $elevateArgs
+            NeedsAdmin  = $true
+        }
+    }
+    Invoke-MiosSelfElevate -ArgList $elevateArgs
+}
+
+if ($DryRun) {
+    return [PSCustomObject]@{
+        Plan        = $plan
+        ElevateArgs = @()
+        NeedsAdmin  = $false
+    }
+}
+
+if ($plan.Kind -eq 'internal') {
+    if ($Passthrough.Count -gt 0) { throw "Unsupported stage/verify arguments: $($Passthrough -join ' ')" }
+    $drive = if ($DriveLetter) { $DriveLetter } else { 'D' }
+    $res = if ($Target -eq 'stage') {
+        Invoke-MiosStage -DriveLetter $drive -MinDiskGB $MinDiskGB -SimulatedDiskSizeGB $SimulatedDiskSizeGB -SimulatedFreeSpaceGB $SimulatedFreeSpaceGB -Extract:$Extract -ArchivePath $ArchivePath
+    } else {
+        Invoke-MiosVerify -DriveLetter $drive -MinDiskGB $MinDiskGB
+    }
+    if ($res -eq $false -or $global:LASTEXITCODE -ne 0) {
+        exit 1
+    }
+    exit 0
+}
 
 if ($plan.Kind -eq 'ps') {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $plan.Exe @($plan.Args)
@@ -280,7 +398,7 @@ if ($plan.Kind -eq 'py') {
 }
 
 if ($Plan.Kind -eq 'bat') {
-    Write-MiosLine 'info' "Launching MiOS-Cat.bat stage"
+    Write-MiosLine 'info' "Launching MiOS-Field.bat stage"
     & cmd.exe /c "`"$($plan.Exe)`"" @($plan.Args)
     exit $LASTEXITCODE
 }

@@ -1,3 +1,5 @@
+# AI-hint: Login-shell hook from toolbox: shows the toolbox welcome hints once and tags the prompt when running inside a toolbox container.
+# shellcheck shell=bash
 
 [ "${BASH_VERSION:-}" != "" ] || [ "${ZSH_VERSION:-}" != "" ] || return 0
 [ "$PS1" != "" ] || return 0
@@ -6,7 +8,7 @@ toolbox_config="$HOME/.config/toolbox"
 host_welcome_stub="$toolbox_config/host-welcome-shown"
 toolbox_welcome_stub="$toolbox_config/toolbox-welcome-shown"
 
-eval $(
+eval "$(
           if [ -f /etc/os-release ]; then
               . /etc/os-release
           else
@@ -16,7 +18,7 @@ eval $(
           echo ID="$ID"
           echo PRETTY_NAME="\"$PRETTY_NAME\""
           echo VARIANT_ID="$VARIANT_ID"
-      )
+      )"
 
 if [ -f /run/ostree-booted ] \
    && ! [ -f "$host_welcome_stub" ] \

@@ -19,7 +19,7 @@ if [ "$ENABLED" != "true" ]; then
 fi
 
 _log "installing gnome-remote-desktop + gdm + winpr-utils + freerdp"
-sudo dnf install -y --skip-unavailable \
+sudo env SYSTEMD_OFFLINE=1 dnf install -y --skip-unavailable \
     gnome-remote-desktop \
     gdm \
     winpr-utils \

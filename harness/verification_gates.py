@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AI-hint: Embedded harness gate that runs every invariants/test_*.sh and fails closed: 0 is pass, 2 is skip (not a pass), anything else fails.
 """MiOS embedded harness verification gate evaluator.
 
 Discovers `invariants/test_*.sh` scripts and executes each one, instead of

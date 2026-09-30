@@ -2541,6 +2541,8 @@ from unittest.mock import patch
 ns__HERE = os.path.dirname(os.path.abspath(__file__))
 ns__ROOT = os.path.normpath(os.path.join(ns__HERE, ".."))
 ns__TARGET_PATH = os.path.join(ns__ROOT, "usr", "libexec", "mios", "sec", "net_segmentation.py")
+with open(os.path.join(ns__ROOT, "usr", "share", "mios", "mios.toml"), "rb") as _f:
+    ns__PORTS = tomllib.load(_f)["ports"]  # expected ports come from SSOT, never a literal
 
 ns_spec = importlib.util.spec_from_file_location("net_segmentation", ns__TARGET_PATH)
 if ns_spec and ns_spec.loader:
@@ -2549,6 +2551,14 @@ if ns_spec and ns_spec.loader:
     ns_spec.loader.exec_module(net_segmentation)
 else:
     raise ImportError(f"Could not load module from {ns__TARGET_PATH}")
+
+def _ns_ssot_ports() -> dict:
+    """[ports] from the SSOT, overridden by the resolved MIOS_PORT_* env."""
+    import tomllib
+    with open(os.path.join(ns__ROOT, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+        ports = tomllib.load(fh)["ports"]
+    return {k: int(os.environ.get("MIOS_PORT_" + k.upper()) or ports[k])
+            for k in ("hermes", "llm_light", "searxng")}
 
 class ns_TestNetSegmentation(unittest.TestCase):
     """Test suite for nftables isolation ruleset generation, pairing matrix validation, and apply/flush."""
@@ -2559,9 +2569,11 @@ class ns_TestNetSegmentation(unittest.TestCase):
         self.assertIn("table inet mios_isolation", rules)
         self.assertIn("chain forward_containers", rules)
         self.assertIn("policy drop", rules)
-        self.assertIn("dport 8642", rules)  # hermes
-        self.assertIn("dport 5432", rules)  # pgvector
-        self.assertIn("dport 11450", rules)  # llm-light
+        ports = net_segmentation.mios_toml.vendor_tree(os.environ.get("MIOS_TOML_ROOT") or ns__ROOT)["ports"]
+        for key in ("hermes", "pgvector", "llm_light", "searxng"):
+            self.assertIn(f"dport {ports[key]} accept", rules, key)
+        accepts = [ln for ln in rules.splitlines() if "dport" in ln]
+        self.assertEqual(len(accepts), len(set(accepts)), "duplicate accept line")
         self.assertIn("log prefix \"MIOS-NET-DROP: \"", rules)
 
     def test_validate_pairing_matrix_valid_default(self):
@@ -2580,6 +2592,13 @@ class ns_TestNetSegmentation(unittest.TestCase):
         self.assertFalse(valid)
         self.assertGreaterEqual(len(violations), 2)
         self.assertTrue(any("Direct UI-to-DB" in v for v in violations))
+
+    def test_the_database_port_guard_follows_the_ssot_port(self):
+        mgr = net_segmentation.NetSegmentationManager(mock=True)
+        db_port = int(net_segmentation.mios_toml.section(net_segmentation.mios_toml.load_merged(), "ports")["pgvector"])
+        valid, violations = mgr.validate_pairing_matrix([{"src": "open-webui", "dst": "db-proxy", "port": db_port}])
+        self.assertFalse(valid, "a pairing onto [ports].pgvector under another name must still be guarded")
+        self.assertTrue(any("database port %d" % db_port in v for v in violations), violations)
 
     def test_apply_and_flush_rules_mock(self):
         mgr = net_segmentation.NetSegmentationManager(mock=True)
@@ -3072,13 +3091,13 @@ class sp_TestSelinuxPolicy(unittest.TestCase):
         manager = selinux_policy.SelinuxPolicyManager(mock=True)
         te_src = manager.generate_te_source(
             module_name="mios_sidecar",
-            allowed_ports=[5432, 8642, 11450],
+            allowed_ports=[5432, 8600, 8720],
             allowed_dirs=["/var/lib/mios"],
         )
         self.assertIn("module mios_sidecar 1.0;", te_src)
         self.assertIn("type mios_sidecar_t;", te_src)
         self.assertIn("typeattribute mios_sidecar_t container_domain;", te_src)
-        self.assertIn("5432, 8642, 11450", te_src)
+        self.assertIn("5432, 8600, 8720", te_src)
 
     def test_compile_module_mock(self):
         manager = selinux_policy.SelinuxPolicyManager(mock=True)
@@ -3709,6 +3728,10 @@ if vs_spec and vs_spec.loader:
 else:
     raise ImportError(f"Could not load module from {vs__TARGET_PATH}")
 
+def _vs_quadlet_dir() -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                        "usr", "share", "containers", "systemd")
+
 class vs_TestVramSanitize(unittest.TestCase):
     """Test suite for multi-vendor GPU discovery, VRAM scrubbing, and Quadlet config audits."""
 
@@ -3733,7 +3756,9 @@ class vs_TestVramSanitize(unittest.TestCase):
 
     def test_audit_quadlet_configs_mock(self):
         sanitizer = vram_sanitize.VramSanitizer(mock=True)
-        audit_res = sanitizer.audit_quadlet_configs()
+        # The tree's own Quadlets, not whatever the host has installed.
+        audit_res = sanitizer.audit_quadlet_configs(quadlet_dir=_vs_quadlet_dir())
+        self.assertGreater(audit_res["containers_audited"], 0)
         self.assertTrue(audit_res["audit_passed"])
         self.assertEqual(len(audit_res["findings"]), 0)
 
@@ -3765,6 +3790,7 @@ class vs_TestVramSanitize(unittest.TestCase):
         test_args = [
             "vram_sanitize.py",
             "--audit-configs",
+            "--quadlet-dir", _vs_quadlet_dir(),
             "--mock",
             "--json",
         ]

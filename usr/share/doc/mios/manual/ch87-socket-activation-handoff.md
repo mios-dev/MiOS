@@ -9,7 +9,7 @@ This chapter documents the architecture, file descriptor passing protocols, conn
 ```mermaid
 flowchart TD
     subgraph SystemdPlane ["Systemd & Socket Activation"]
-        SystemdSocket["mios-agent-pipe.socket\n- TCP 127.0.0.1:8642\n- Unix /run/mios/agent-pipe.sock"]
+        SystemdSocket["mios-agent-pipe.socket\n- TCP 127.0.0.1:[ports].agent_pipe\n- Unix /run/mios/agent-pipe.sock"]
         KernelFds["Kernel Listen FDs\n(FD 3: TCP, FD 4: Unix)"]
     end
 
@@ -17,7 +17,7 @@ flowchart TD
         SwapCmd["mios-socket-swap swap\n--service agent-pipe\n--candidate <cmd>"]
         FDFetch["FD Inheritance / Control Query\n(SCM_RIGHTS or systemd fdstore)"]
         SpawnCandidate["Spawn Candidate Process\n(sd_listen_fds: LISTEN_FDS=2, LISTEN_PID=pid)"]
-        ProbeHealth{"Probe Candidate Health\n(GET http://127.0.0.1:8642/health)"}
+        ProbeHealth{"Probe Candidate Health\n(GET http://127.0.0.1:[ports].agent_pipe/health)"}
     end
 
     subgraph ProcessPlane ["Dual-Accepting Process Transition"]
@@ -50,7 +50,7 @@ Standard service restart paradigms (`systemctl restart`) close the listening soc
 ## 2. File Descriptor Inheritance & `sd_listen_fds`
 
 Under systemd socket activation, systemd binds and listens on specified endpoints before any service starts. When activated, file descriptors are passed starting at file descriptor index `3`:
-- `FD 3`: First listening socket (e.g. TCP `127.0.0.1:8642`).
+- `FD 3`: First listening socket (e.g. TCP `127.0.0.1:<[ports].agent_pipe>`).
 - `FD 4`: Second listening socket (e.g. Unix Domain Socket `/run/mios/agent-pipe.sock`).
 
 The `mios-socket-swap` daemon implements the systemd socket activation protocol:
@@ -62,7 +62,7 @@ The `mios-socket-swap` daemon implements the systemd socket activation protocol:
 
 Once spawned, the candidate process immediately calls `accept()` on the inherited file descriptors. Both the old and new processes temporarily accept connections concurrently:
 - New connections are distributed by the Linux kernel across both processes.
-- The swapper performs a health probe (`GET http://127.0.0.1:8642/health`).
+- The swapper performs a health probe (`GET http://127.0.0.1:[ports].agent_pipe/health`).
 - Upon probe confirmation, the swapper sends `SIGUSR1` to the old process.
 - The old process stops accepting new connections, allows in-flight HTTP/streaming requests to complete within the grace period (`--drain-timeout 30.0`), and exits cleanly.
 

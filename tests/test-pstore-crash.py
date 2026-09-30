@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for pstore ramoops kernel crash buffer manager and extractor (T-790).
-# AI-doc: usr/share/doc/mios/manual/ch13-kernel-panics-and-pstore-forensics.md
+# AI-doc: usr/share/doc/mios/manual/ch45-diagnostic-tools-and-profilers.md
 from __future__ import annotations
 
 import json

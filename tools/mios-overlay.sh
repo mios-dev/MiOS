@@ -62,7 +62,7 @@ log "Normalizing systemd unit permissions"
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" \) -exec chmod 644 {} + 2>/dev/null || true
 
 log "Normalizing shell script line endings"
-find /usr/bin /usr/libexec/mios -type f -exec sed -i 's/\r$//' {} + 2>/dev/null || true
+find /usr/bin /usr/libexec/mios -type f \( -name "*.sh" -o -name "*.py" -o -name "*.env" \) -exec sed -i 's/\r$//' {} + 2>/dev/null || true
 
 log "Normalizing libexec permissions"
 chmod 755 /usr/libexec/mios/* 2>/dev/null || true

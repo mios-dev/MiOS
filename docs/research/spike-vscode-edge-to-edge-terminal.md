@@ -1,3 +1,4 @@
+<!-- AI-hint: Research spike on why the VS Code edge-to-edge terminal styling kept reverting on remote hosts, and the dotfiles projection fix. -->
 # Technical Investigation & Research Spike: Edge-to-edge VS Code terminal keeps reverting
 
 **Spike ID:** `SPIKE-20260924-vscode-custom-css-remote-host`

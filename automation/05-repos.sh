@@ -144,3 +144,11 @@ $DNF_BIN clean metadata 2>/dev/null || true
 
 mios_log "Query installed versions of systemd glibc dbus-broker filesystem via rpm -q"
 rpm -q systemd glibc dbus-broker filesystem || true
+
+# Every image profile includes repos; the virt phase does not run in core.
+# Install selected build and service dependencies before native-build (phase
+# 55). Core also omits the browser-bake phase that otherwise installs ai.
+mios_log "Install selected MiOS self-development dependencies"
+for _build_section in containers build-toolchain self-build devcontainer ai utils; do
+    install_packages_strict "$_build_section"
+done

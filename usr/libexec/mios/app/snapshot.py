@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Per-app Flatpak state subvolume snapshotter and atomic rollback manager (T-645, T-646).
-# AI-related: usr/libexec/mios/app/snapshot.py, tests/test-app-snapshot.py, usr/lib/mios/cli/cmd_app.py
+# AI-related: usr/libexec/mios/app/snapshot.py, tests/test-app-snapshot.py
 """Per-app Flatpak state subvolume snapshotter and atomic rollback manager for MiOS.
 
 Manages dedicated application storage subvolumes at ~/.var/app/<app-id>/, creates read-only

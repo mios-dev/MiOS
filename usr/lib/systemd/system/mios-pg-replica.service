@@ -1,5 +1,5 @@
 # AI-hint: Systemd service for PostgreSQL hot-standby replication monitoring and state management.
-# AI-related: usr/libexec/mios/db/mios-pg-replica.py, tests/test-pg-replica.py, usr/share/containers/systemd/mios-pgvector.container
+# AI-related: usr/libexec/mios/db/mios-pg-replica.py, tests/test-db.py, usr/share/containers/systemd/mios-pgvector.container
 
 [Unit]
 Description=MiOS PostgreSQL Hot-Standby Streaming Replication Service

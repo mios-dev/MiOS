@@ -7,15 +7,25 @@ alias gp='git push'
 
 # Ensure Oh-My-Posh with MiOS theme is initialized in interactive shells
 if [ -t 1 ] && command -v oh-my-posh >/dev/null 2>&1; then
+    _posh_cache="${XDG_CACHE_HOME:-$HOME/.cache}/oh-my-posh"
+    if [ ! -d "$_posh_cache" ] || [ ! -w "$_posh_cache" ]; then
+        mkdir -p "$_posh_cache" 2>/dev/null || true
+    fi
+    if [ ! -w "$_posh_cache" ]; then
+        export POSH_CACHE_DIR="/tmp/posh-cache-${EUID:-$(id -u)}"
+        mkdir -p "$POSH_CACHE_DIR" 2>/dev/null || true
+    else
+        export POSH_CACHE_DIR="$_posh_cache"
+    fi
     _omp_cfg="${HOME:-/root}/.config/oh-my-posh/mios.omp.json"
     [ -r "$_omp_cfg" ] || _omp_cfg="/usr/share/mios/oh-my-posh/mios.omp.json"
     if [ -r "$_omp_cfg" ]; then
         if [ -n "${BASH_VERSION:-}" ]; then
-            eval "$(oh-my-posh init bash --config="$_omp_cfg")"
+            eval "$(oh-my-posh init bash --config="$_omp_cfg" --print)"
         elif [ -n "${ZSH_VERSION:-}" ]; then
-            eval "$(oh-my-posh init zsh --config="$_omp_cfg")"
+            eval "$(oh-my-posh init zsh --config="$_omp_cfg" --print)"
         fi
     fi
-    unset _omp_cfg
+    unset _omp_cfg _posh_cache
 fi
 

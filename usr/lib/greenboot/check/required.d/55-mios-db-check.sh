@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # AI-hint: Verifies database integrity across SQLite and PostgreSQL stores during greenboot startup.
-# AI-related: usr/libexec/mios/db/mios-db-doctor.py, tests/test-db-doctor.py
+# AI-related: usr/libexec/mios/db/mios-db-doctor.py, tests/test-db.py
 set -euo pipefail
 
 SCRIPT="/usr/libexec/mios/db/mios-db-doctor.py"

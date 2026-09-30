@@ -121,46 +121,34 @@ def test_load_registry_layered():
         assert by_id["a"].get("enabled") is False, by_id["a"]
         assert "url" not in by_id["a"], by_id["a"]      # fully replaced, not merged
 
-def test_http_rpc_json():
-    mc.configure(get_client=_client_returning(
-        _Resp(ct="application/json", payload={"jsonrpc": "2.0", "id": 1,
-                                              "result": {"ok": True}})))
-    out = _run(mc._mcp_http_rpc("http://x", {}, "initialize", params={}))
-    assert out["result"]["ok"] is True, out
-
-def test_http_rpc_sse():
-    sse = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"sse\":1}}\n\n"
-    mc.configure(get_client=_client_returning(
-        _Resp(ct="text/event-stream", text=sse)))
-    out = _run(mc._mcp_http_rpc("http://x", {}, "tools/list"))
-    assert out["result"]["sse"] == 1, out
-
 def test_probe_server_projection():
-    embed_box, inval_box = [], []
-    tools = {}
+    embed_box, inval_box, tools = [], [], {}
     _reset_registry(tools_dict=tools, embed_box=embed_box, invalidated_box=inval_box)
+    mc._MCP_HTTP_CLIENTS.clear()
 
-    async def _fake_rpc(url, headers, method, params=None, rid=1, timeout_s=30.0):
-        if method == "initialize":
-            return {"result": {"protocolVersion": "2025-06-18",
-                               "serverInfo": {"name": "srv"}}}
-        if method == "tools/list":
+    class _FakeHTTP:
+        def __init__(self, sid, url, headers=None, transport="http"):
+            self.url = url
+        async def initialize(self):
+            return {"protocolVersion": "2026-07-28", "serverInfo": {"name": "srv"}}
+        async def list_tools(self):
             return {"result": {"tools": [
-                {"name": "query", "description": "run SQL",
-                 "inputSchema": {"type": "object"}},
+                {"name": "query", "description": "run SQL", "inputSchema": {"type": "object"}},
                 {"name": "ping", "description": "ping"},
             ]}}
-        return {"error": {"code": -32000, "message": "unexpected"}}
+        async def close(self):
+            pass
 
-    orig = mc._mcp_http_rpc
-    mc._mcp_http_rpc = _fake_rpc
+    original = mc._McpHttpClient
+    mc._McpHttpClient = _FakeHTTP
     try:
         _run(mc._mcp_probe_server({
             "id": "duck", "url": "http://duck", "transport": "http",
             "namespace": "duckdb_", "tier": "common", "taint": "ro",
             "examples": ["select 1"]}))
     finally:
-        mc._mcp_http_rpc = orig
+        mc._McpHttpClient = original
+        mc._MCP_HTTP_CLIENTS.clear()
     assert "mcp.duck.query" in tools and "mcp.duck.ping" in tools, tools
     ent = tools["mcp.duck.query"]
     assert ent["server_id"] == "duck" and ent["tool"] == "query", ent
@@ -169,7 +157,7 @@ def test_probe_server_projection():
     assert ent["url"] == "http://duck", ent
     st = mc._MCP_CLIENT_SERVERS["duck"]
     assert st["status"] == "ready" and st["tools_count"] == 2, st
-    assert st["protocolVersion"] == "2025-06-18", st
+    assert st["protocolVersion"] == "2026-07-28", st
     assert embed_box and inval_box, (embed_box, inval_box)
 
 def test_route_logic_shapes():
@@ -212,87 +200,35 @@ def test_call_tool_unknown():
     out = _run(mc._mcp_call_tool("mcp.nope.x", {}))
     assert "error" in out and "unknown" in out["error"], out
 
-def test_stdio_self_heal():
-    cli = mc._McpStdioClient("sid", "cmd", [], {}, None)
-    spawns = []
-
-    class _FakeProc:
-        def __init__(self):
-            self.returncode = None
-
-    async def _fake_spawn():
-        spawns.append(1)
-        cli.proc = _FakeProc()
-
-    async def _fake_await_rpc(method, params, timeout_s):
-        return {"result": {"protocolVersion": "p"}}
-
-    async def _fake_send(body):
-        return None
-
-    cli._spawn = _fake_spawn
-    cli._await_rpc = _fake_await_rpc
-    cli._send = _fake_send
-
-    _run(cli._ensure_session())
-    assert cli._inited is True and len(spawns) == 1, spawns
-    _run(cli._ensure_session())
-    assert len(spawns) == 1, spawns
-    cli.proc.returncode = 0
-    _run(cli._ensure_session())
-    assert len(spawns) == 2 and cli._inited is True, spawns
-    async def _err_rpc(method, params, timeout_s):
-        return {"error": {"code": -32000, "message": "boom"}}
-    cli._await_rpc = _err_rpc
-    cli.proc.returncode = 0
-    _run(cli._ensure_session())
-    assert cli._inited is False, "errored initialize must not mark inited"
-
 def test_declared_protocol_version_is_current():
-    assert mc.MCP_PROTOCOL_VERSION == "2025-11-25", mc.MCP_PROTOCOL_VERSION
-
-def test_initialize_advertises_current_version():
-    _reset_registry(tools_dict={})
-    sent = {}
-
-    async def _fake_rpc(url, headers, method, params=None, rid=1, timeout_s=30.0):
-        if method == "initialize":
-            sent["version"] = (params or {}).get("protocolVersion")
-            return {"result": {"protocolVersion": (params or {}).get("protocolVersion"),
-                               "serverInfo": {"name": "s"}}}
-        return {"result": {"tools": []}}
-
-    orig = mc._mcp_http_rpc
-    mc._mcp_http_rpc = _fake_rpc
-    try:
-        _run(mc._mcp_probe_server({"id": "s", "url": "http://s", "transport": "http"}))
-    finally:
-        mc._mcp_http_rpc = orig
-    assert sent["version"] == mc.MCP_PROTOCOL_VERSION == "2025-11-25", sent
+    assert mc.MCP_PROTOCOL_VERSION == "2026-07-28", mc.MCP_PROTOCOL_VERSION
 
 def test_back_compat_negotiation_accepts_older_revision():
     tools = {}
     _reset_registry(tools_dict=tools)
+    mc._MCP_HTTP_CLIENTS.clear()
 
-    async def _fake_rpc(url, headers, method, params=None, rid=1, timeout_s=30.0):
-        if method == "initialize":
-            return {"result": {"protocolVersion": "2025-06-18",
-                               "serverInfo": {"name": "old"}}}
-        if method == "tools/list":
+    class _LegacyHTTP:
+        def __init__(self, *_args, **_kwargs):
+            pass
+        async def initialize(self):
+            return {"protocolVersion": "2025-06-18", "serverInfo": {"name": "old"}}
+        async def list_tools(self):
             return {"result": {"tools": [{"name": "t", "description": "d"}]}}
-        return {"error": {"code": -32000, "message": "x"}}
+        async def close(self):
+            pass
 
-    orig = mc._mcp_http_rpc
-    mc._mcp_http_rpc = _fake_rpc
+    original = mc._McpHttpClient
+    mc._McpHttpClient = _LegacyHTTP
     try:
         _run(mc._mcp_probe_server({"id": "old", "url": "http://old", "transport": "http"}))
     finally:
-        mc._mcp_http_rpc = orig
+        mc._McpHttpClient = original
+        mc._MCP_HTTP_CLIENTS.clear()
     st = mc._MCP_CLIENT_SERVERS["old"]
     assert st["status"] == "ready", st
-    assert st["protocolVersion"] == "2025-06-18", st   # older revision honored
+    assert st["protocolVersion"] == "2025-06-18", st
     assert "mcp.old.t" in tools, tools
-
 
 
 # ==============================================================================

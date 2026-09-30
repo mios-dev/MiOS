@@ -323,6 +323,82 @@ else:
     raise ImportError(f"Could not load materialize-config-toml module from {_MAT_PATH}")
 
 
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+_LIB_DIR = os.path.join(_ROOT, "usr", "lib", "mios")
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+import mios_toml
+import mios_db_config
+
+
+class _MockCursor:
+    def __init__(self, query_results):
+        self.query_results = query_results
+        self._current_result = []
+        self._iter = iter(self._current_result)
+
+    def execute(self, query, params=None):
+        q_lower = query.lower()
+        if "from config_kv" in q_lower:
+            if "key = '_defaults'" in q_lower:
+                res = self.query_results.get("verbs_defaults", [])
+            else:
+                if params and params[0] == 0:
+                    res = [r for r in self.query_results.get("config_kv", []) if r[3] == 0]
+                elif params and params[0] == 1:
+                    res = [r for r in self.query_results.get("config_kv", []) if r[3] == 1]
+                else:
+                    res = self.query_results.get("config_kv", [])
+        elif "from package_set" in q_lower:
+            if params and params[0] == 0:
+                res = [r for r in self.query_results.get("package_set", []) if r[4] == 0]
+            elif params and params[0] == 1:
+                res = [r for r in self.query_results.get("package_set", []) if r[4] == 1]
+            else:
+                res = self.query_results.get("package_set", [])
+        elif "from domain_verb" in q_lower:
+            res = self.query_results.get("domain_verb", [])
+        elif "from verb" in q_lower:
+            res = self.query_results.get("verb", [])
+        else:
+            res = []
+        self._current_result = res
+        self._iter = iter(self._current_result)
+
+    def fetchall(self):
+        return list(self._current_result)
+
+    def fetchone(self):
+        try:
+            return next(self._iter)
+        except StopIteration:
+            return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class _MockConnection:
+    def __init__(self, query_results):
+        self.query_results = query_results
+
+    def cursor(self):
+        return _MockCursor(self.query_results)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 class TestDBSSOTMaterialize(unittest.TestCase):
     """Validates TOML key escaping, value formatting, list/dict serialization, and integrity."""
 
@@ -339,6 +415,137 @@ class TestDBSSOTMaterialize(unittest.TestCase):
         self.assertEqual(mat.format_toml_value("test_val"), '"test_val"')
         self.assertEqual(mat.format_toml_value(["a", "b", 123]), '["a", "b", 123]')
         self.assertEqual(mat.format_toml_value({"port": 8640, "host": "127.0.0.1"}), '{host = "127.0.0.1", port = 8640}')
+
+    def _sample_db_data(self):
+        return {
+            "config_kv": [
+                ("ports", "forge_http", 8080, 0),
+                ("ports", "forge_http", 9090, 1),
+                ("identity", "username", "mios", 0),
+                ("identity", "username", "", 1),
+                ("packages", "sections", json.dumps(["base", "security", "dev_overlay"]), 0),
+                ("verbs", "_defaults", '{"tier": "common", "permission": "read"}', 0),
+            ],
+            "package_set": [
+                ("base", "System", json.dumps(["audit", "firewalld"]), True, 0, ""),
+                ("security", "Sec", json.dumps(["fapolicyd", "usbguard"]), True, 0, ""),
+                ("dev_overlay", "Dev", json.dumps(["base", "security", "utils"]), True, 0, ""),
+            ],
+            "domain_verb": [
+                ("fs", "Filesystem verbs", ["find_file", "file_edit"]),
+            ],
+            "verb": [
+                ("find_file", "find_file <query>", "Find files", "common", "read", "mios-find",
+                 json.dumps({"query": {"type": "string", "desc": "Search pattern"}}),
+                 "filesystem", json.dumps(["find_file foo"]), "qwen", False,
+                 json.dumps(["ff", "locate"]), "fs_read", 2, 1000),
+            ]
+        }
+
+    def test_materialize_roundtrip_complete(self):
+        """Asserts that all 160 sections are retained and packages contains all package sub-tables."""
+        conn = _MockConnection(self._sample_db_data())
+        cfg = mat.materialize_from_db(conn, merged=True)
+        toml_out = mat.emit_toml(cfg)
+        parsed = tomllib.loads(toml_out)
+
+        self.assertEqual(len(parsed), 160, f"Expected 160 top-level tables, got {len(parsed)}")
+        self.assertIn("packages", parsed)
+        self.assertGreaterEqual(len(parsed["packages"]), 53, "Packages must retain all 53 package entries")
+        self.assertIn("base", parsed["packages"])
+        self.assertEqual(parsed["packages"]["base"]["pkgs"], ["audit", "firewalld"])
+        self.assertIn("dev_overlay", parsed["packages"])
+        self.assertIn("sections", parsed["packages"]["dev_overlay"])
+        self.assertEqual(parsed["packages"]["dev_overlay"]["sections"], ["base", "security", "utils"])
+
+    def test_materialize_layering_override(self):
+        """Seed Layer 0 with forge_http = 8080 and Layer 1 with forge_http = 9090; assert 9090."""
+        conn = _MockConnection(self._sample_db_data())
+        cfg = mat.materialize_from_db(conn, merged=True)
+        self.assertEqual(cfg["ports"]["forge_http"], 9090)
+
+    def test_materialize_layer_specific(self):
+        """Asserts layer-specific materialization with --layer 0 vs --layer 1."""
+        conn = _MockConnection(self._sample_db_data())
+        cfg_0 = mat.materialize_from_db(conn, layer=0, merged=False)
+        self.assertEqual(cfg_0["ports"]["forge_http"], 8080)
+        cfg_1 = mat.materialize_from_db(conn, layer=1, merged=False)
+        self.assertEqual(cfg_1["ports"]["forge_http"], 9090)
+
+    def test_materialize_empty_string_no_clobber(self):
+        """Seed Layer 0 with username = 'mios' and Layer 1 with username = ''; assert 'mios' retained."""
+        conn = _MockConnection(self._sample_db_data())
+        cfg = mat.materialize_from_db(conn, merged=True)
+        self.assertEqual(cfg["identity"]["username"], "mios")
+
+    def test_verbs_no_crash_on_empty_or_string_defaults(self):
+        """Verify verbs serialize cleanly without AttributeError when _defaults is string-valued."""
+        bad_defaults_data = {
+            "config_kv": [
+                ("verbs", "_defaults", '"{}"', 0),
+            ],
+            "verb": [
+                ("simple_verb", "simple()", "Simple test verb", "common", "read", "echo 1",
+                 None, None, None, None, False, None, None, 0, 0),
+            ]
+        }
+        conn = _MockConnection(bad_defaults_data)
+        cfg = mat.materialize_from_db(conn, merged=True)
+        self.assertIn("verbs", cfg)
+        self.assertIn("simple_verb", cfg["verbs"])
+
+    def test_verb_fields_retention(self):
+        """Verify all verb metadata fields are retained upon materialization."""
+        conn = _MockConnection(self._sample_db_data())
+        cfg = mat.materialize_from_db(conn, merged=True)
+        self.assertIn("verbs", cfg)
+        self.assertIn("find_file", cfg["verbs"])
+        v = cfg["verbs"]["find_file"]
+        self.assertEqual(v["cmd"], "mios-find")
+        self.assertEqual(v["sig"], "find_file <query>")
+        self.assertEqual(v["desc"], "Find files")
+        self.assertEqual(v["section"], "filesystem")
+        self.assertEqual(v["examples"], ["find_file foo"])
+        self.assertEqual(v["model_name"], "qwen")
+        self.assertEqual(v["hidden_aliases"], ["ff", "locate"])
+        self.assertEqual(v["conflict_group"], "fs_read")
+        self.assertEqual(v["parallel_limit"], 2)
+        self.assertEqual(v["max_result_chars"], 1000)
+        self.assertIn("params", v)
+        self.assertIn("query", v["params"])
+
+    def test_materialize_offline_fallback(self):
+        """Verify graceful fallback to mios_toml.load_merged() produces valid 160-table TOML."""
+        fallback_toml = mat.materialize_fallback(merged=True)
+        self.assertGreater(len(fallback_toml), 1000)
+        parsed = tomllib.loads(fallback_toml)
+        self.assertEqual(len(parsed), 160)
+        self.assertIn("packages", parsed)
+        self.assertGreaterEqual(len(parsed["packages"]), 53)
+
+    def test_is_db_authoritative_preserves_packages_and_tables(self):
+        """Verify mios_toml.load_merged() preserves all 160 tables and package sets when db authoritative."""
+        old_auth = mios_db_config.is_db_authoritative
+        old_load = mios_db_config.load_db_config
+        try:
+            mios_db_config.is_db_authoritative = lambda: True
+            mios_db_config.load_db_config = lambda: {
+                "ports": {"categories": {"forge": {"base": 9200, "stride": 10, "members": ["forge_http"]}}},
+                "packages": {},
+            }
+            mios_toml.clear_cache()
+            merged = mios_toml.load_merged()
+            self.assertEqual(len(merged), 160)
+            self.assertIn("packages", merged)
+            self.assertGreaterEqual(len(merged["packages"]), 53)
+            self.assertIn("dev_overlay", merged["packages"])
+            self.assertIn("sections", merged["packages"]["dev_overlay"])
+            self.assertEqual(merged["ports"]["forge_http"], 9200)
+        finally:
+            mios_db_config.is_db_authoritative = old_auth
+            mios_db_config.load_db_config = old_load
+            mios_toml.clear_cache()
+
 
 
 # ======================================================================

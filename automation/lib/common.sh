@@ -43,6 +43,29 @@ warn() { printf '[%s] WARN: %s\n' "$(log_ts)" "$*" >&2; }
 die()  { printf '[%s] ERROR: %s\n' "$(log_ts)" "$*" >&2; exit 1; }
 diag() { printf '[%s] DIAG: %s\n' "$(log_ts)" "$*"; }
 
+# Native configuration projections share one resolver and fail on older tools.
+mios_project_config() {
+    local root="$1" mode="$2" candidate binary=""
+    shift 2
+    for candidate in "${MIOS_UNIT_GEN_BIN:-}" \
+        "$root/tools/native/target/release/mios-unit-gen" \
+        "$root/tools/native/target/debug/mios-unit-gen" \
+        "$root/tools/native/target/release/mios-unit-gen.exe" \
+        "$root/tools/native/target/debug/mios-unit-gen.exe" \
+        /usr/libexec/mios/mios-unit-gen /opt/mios/bin/mios-unit-gen; do
+        [[ -n "$candidate" && -x "$candidate" ]] && { binary="$candidate"; break; }
+    done
+    if [[ -z "$binary" ]]; then
+        echo "[projection] mios-unit-gen is required; build it in MiOS-DEV" >&2
+        return 1
+    fi
+    if ! "$binary" --list-projections | tr -d '\r' | grep -Fxq "$mode"; then
+        echo "[projection] mios-unit-gen does not advertise $mode; rebuild it from this checkout" >&2
+        return 1
+    fi
+    "$binary" "$mode" --root "$root" "$@"
+}
+
 if ! declare -f mios_log >/dev/null; then
     mios_log()  { log "$@"; }
     mios_ok()   { log "OK $*"; }

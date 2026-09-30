@@ -53,12 +53,7 @@ impl Check for BladeDropinsCheck {
         "Assert generated blade systemd dropins match committed files"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
-            ctx,
-            "tools/generate-blade-dropins.py",
-            &["usr/lib/systemd/system"],
-            &["--check"],
-        )
+        deployment_check(ctx, mios_unit_gen::DeploymentKind::BladeDropins)
     }
 }
 
@@ -125,15 +120,7 @@ impl Check for IPAEnrollProjectionCheck {
         "Assert IPA enroll projection matches committed script"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
-            ctx,
-            // Real generator is generate-ipa-enroll-ENV.py and it projects the
-            // env file, not a libexec binary. Under the old names the generator
-            // did not exist, so this check silently returned Skip and never ran.
-            "tools/generate-ipa-enroll-env.py",
-            &["etc/mios/ipa-enroll.env"],
-            &["--check"],
-        )
+        deployment_check(ctx, mios_unit_gen::DeploymentKind::IpaEnroll)
     }
 }
 
@@ -146,12 +133,14 @@ impl Check for UKICmdlineProjectionCheck {
         "Assert UKI kernel cmdline projection matches committed file"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
-            ctx,
-            "tools/generate-uki-cmdline.py",
-            &["usr/lib/kernel/cmdline"],
-            &["--check"],
-        )
+        deployment_check(ctx, mios_unit_gen::DeploymentKind::UkiCmdline)
+    }
+}
+
+fn deployment_check(ctx: &DriftCtx, kind: mios_unit_gen::DeploymentKind) -> Verdict {
+    match mios_unit_gen::project_deployment(&ctx.root, kind, true, None) {
+        Ok(count) => Verdict::Pass(format!("{kind:?}: {count} projection(s) match SSOT")),
+        Err(error) => Verdict::Fail(error.to_string()),
     }
 }
 
@@ -164,11 +153,6 @@ impl Check for CockpitProjectionCheck {
         "Assert Cockpit projection matches committed file"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
-            ctx,
-            "tools/generate-cockpit-conf.py",
-            &["etc/cockpit/cockpit.conf"],
-            &["--check"],
-        )
+        deployment_check(ctx, mios_unit_gen::DeploymentKind::Cockpit)
     }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Automated unit test suite for MOK livepatch signature gate and IMA logger (T-782, T-783).
-# AI-doc: usr/share/doc/mios/manual/ch17-kernel-livepatching-and-mok.md
+# AI-doc: usr/share/doc/mios/manual/ch41-machine-owner-key-management.md
 from __future__ import annotations
 
 import json

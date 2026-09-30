@@ -6,8 +6,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import pwd
 import sys
+try:
+    import pwd
+except ImportError:
+    pwd = None
 from typing import Any, Dict, List, Set, Tuple
 
 BASE_OFFSET = 100000
@@ -68,14 +71,15 @@ def sync_sub_ranges(
     # Discover regular users from /etc/passwd
     users_to_sync: List[Tuple[str, int]] = []
     seen_users: Set[str] = set()
-    try:
-        for user_entry in pwd.getpwall():
-            if MIN_UID <= user_entry.pw_uid < MAX_UID:
-                if user_entry.pw_name not in seen_users:
-                    users_to_sync.append((user_entry.pw_name, user_entry.pw_uid))
-                    seen_users.add(user_entry.pw_name)
-    except Exception:
-        pass
+    if pwd is not None:
+        try:
+            for user_entry in pwd.getpwall():
+                if MIN_UID <= user_entry.pw_uid < MAX_UID:
+                    if user_entry.pw_name not in seen_users:
+                        users_to_sync.append((user_entry.pw_name, user_entry.pw_uid))
+                        seen_users.add(user_entry.pw_name)
+        except Exception:
+            pass
 
     if "mios" not in seen_users:
         users_to_sync.append(("mios", 1000))

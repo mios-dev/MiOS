@@ -1,3 +1,4 @@
+<!-- AI-hint: Index of the tracked, non-secret MiOS prompt catalog and its primary report contract; shipped prompts live under usr/share/mios/prompts/. -->
 # MiOS prompt catalog
 
 `.prompts/` is the tracked, non-secret catalog for MiOS prompt contracts. It
@@ -25,6 +26,20 @@ research family is:
 - [`upstream-foss-patterns.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/model/upstream-foss-patterns.xml.md)
 - [`model-runtime-research.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/model/model-runtime-research.xml.md)
 - [`mios-cli-credential-contract.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/model/mios-cli-credential-contract.xml.md)
+- [`firstboot-gguf-artifact-manifest.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/model/firstboot-gguf-artifact-manifest.xml.md)
+
+The harvested upstream-question families answer open questions raised by a
+named repository path and revision. Each replies with one JSON object that
+validates against the strict OpenAI-format `response_format` schema embedded
+in the prompt:
+
+- FOSS/mesh:
+  - [`userspace-mesh-node-capabilities.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/mesh/userspace-mesh-node-capabilities.xml.md)
+  - [`self-hosted-mesh-coordinator.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/mesh/self-hosted-mesh-coordinator.xml.md)
+- FOSS/observability:
+  - [`tracing-backend-lifecycle.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/observability/tracing-backend-lifecycle.xml.md)
+- FOSS/supply-chain:
+  - [`telemetry-claim-corroboration.xml.md`](../usr/share/mios/prompts/upstream-researched-patterns/foss/supply-chain/telemetry-claim-corroboration.xml.md)
 
 Use those contracts for focused upstream research. Use
 `.mios/system-prompt.md` when the output must be a formal architecture,

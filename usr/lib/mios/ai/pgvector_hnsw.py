@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Quantized halfvec HNSW vector indexer and workspace table partitioner in pgvector (T-725, T-726).
-# AI-related: usr/lib/mios/ai/pgvector_hnsw.py, tests/test-pgvector-hnsw.py, usr/share/containers/systemd/mios-pgvector.container
+# AI-related: usr/lib/mios/ai/pgvector_hnsw.py, tests/test-db.py, usr/share/containers/systemd/mios-pgvector.container
 """Quantized halfvec HNSW vector indexer and workspace partitioner for MiOS PostgreSQL pgvector.
 
 Configures halfvec(1536) FP16 quantized vector columns, partitions memory tables by workspace_id,

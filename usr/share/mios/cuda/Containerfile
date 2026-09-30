@@ -1,6 +1,6 @@
 # AI-hint: Containerfile to build the unified localhost/mios-cuda image (WS-MIOSSYS).
 # AI-related: usr/share/mios/cuda/Containerfile, automation/57-mios-sys-build.sh
-ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia
+ARG BASE_IMAGE=localhost/mios-base:latest
 
 FROM ghcr.io/mostlygeek/llama-swap:cuda AS llamaswap-src
 

@@ -1,3 +1,4 @@
+<!-- AI-hint: Upstream audit of dev-loop and DevOps CI/CD patterns (bootc, greenboot, agent harnesses) and what MiOS should adopt from them. -->
 # Upstream Dependency & Pattern Audit — Dev-Loop & DevOps CI/CD Architectures for MiOS Systems
 
 **Audit ID:** `UPSTREAM-DEVLOOP-DEVOPS-2026-09`  
