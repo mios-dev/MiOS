@@ -81,7 +81,7 @@ else:
             for a in args:
                 print(str(a))
         def clear(self):
-            os.system('cls' if os.name == 'nt' else 'clear')
+            subprocess.run(["cmd.exe", "/c", "cls"] if os.name == "nt" else ["clear"], check=False)
     console = FallbackConsole()
 
 _SYS_INFO_CACHE = None
