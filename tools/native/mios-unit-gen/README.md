@@ -20,14 +20,24 @@ there is no golden copy of the shipped unit tree to refresh.
 | `blade-dropins` | `[blade.requires]` | Capability conditions, k3s selectors and tolerations, and Pacemaker rules in `usr/share/mios/dropins/` |
 | `blade-karg` | `[blade].type` and `[blade.archetypes]` | `usr/lib/bootc/kargs.d/05-mios-blade.toml` |
 | `uki-cmdline` | Ordered `usr/lib/bootc/kargs.d/*.toml` | `usr/lib/kernel/cmdline` |
+| `cockpit` | `[cockpit]` | `etc/cockpit/cockpit.conf` |
+| `ipa-enroll` | `[identity.ipa]` | `etc/mios/ipa-enroll.env` |
 
 Each mode accepts `--root DIR` and `--check`; check mode never writes.
-`--toml FILE` selects an independent SSOT input for the blade modes.
+`--toml FILE` selects an independent SSOT input for every TOML-backed mode.
 `--list-projections` advertises supported modes so callers can reject stale binaries.
 Run `uki-cmdline` after every karg producer. Invalid input fails before output is
 written. The selectors retain every capability and the location rules retain
 their conjunctions. The projection owns only the files it renders, leaving
 other service drop-ins in their existing locations.
+
+Service configuration reads the explicit defaults already present in the vendor
+SSOT. Missing keys and wrong types fail before replacing an output; the renderer
+does not invent a second set of defaults after a parse failure. FreeIPA values
+are quoted for the Bash consumer, with shell expansion characters escaped and
+control characters rejected. The OTP key is a variable name pointing to the
+separate credential file; the projection carries no credential value.
+Quoting follows the [Bash double-quote contract](https://www.gnu.org/software/bash/manual/html_node/Double-Quotes.html).
 
 ## Build and verify
 

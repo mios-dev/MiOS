@@ -1,8 +1,8 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3596,
-  "total_metadata_entries": 2958,
-  "total_hints": 2945,
+  "total_files_scanned": 3594,
+  "total_metadata_entries": 2956,
+  "total_hints": 2943,
   "total_functions_indexed": 1349,
   "total_related_links": 4638,
   "entries": [
@@ -2964,7 +2964,7 @@
     },
     {
       "path": "etc/cockpit/cockpit.conf",
-      "hint": "Cockpit web console settings projected from mios.toml [cockpit]; regenerate with tools/generate-cockpit-conf.py, never edit.",
+      "hint": "Cockpit web console settings projected from mios.toml [cockpit]; regenerate with mios-unit-gen cockpit, never edit.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -3128,7 +3128,7 @@
     },
     {
       "path": "etc/mios/ipa-enroll.env",
-      "hint": "FreeIPA zero-touch enrollment settings projected from mios.toml [identity.ipa]; regenerate with tools/generate-ipa-enroll-env.py, never edit.",
+      "hint": "FreeIPA zero-touch enrollment settings projected from mios.toml [identity.ipa]; regenerate with mios-unit-gen ipa-enroll, never edit.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -8609,15 +8609,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/generate-cockpit-conf.py",
-      "hint": "Renders etc/cockpit/cockpit.conf from usr/share/mios/mios.toml SSOT",
-      "related": [],
-      "functions": [],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/generate-cosign-policy.py",
       "hint": "Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT",
       "related": [],
@@ -8642,15 +8633,6 @@
       "functions": [
         "main"
       ],
-      "doc": null,
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/generate-ipa-enroll-env.py",
-      "hint": "Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT",
-      "related": [],
-      "functions": [],
       "doc": null,
       "comment_style": "hash",
       "has_shebang": true
@@ -9618,7 +9600,7 @@
     },
     {
       "path": "tools/native/mios-unit-gen/src/lib.rs",
-      "hint": "Unified systemd and deployment projection library: units, blade capability drop-ins, blade karg, and UKI cmdline from SSOT.",
+      "hint": "Unified systemd and deployment projection library: units, blade capabilities, kernel cmdline, Cockpit, and FreeIPA settings from SSOT.",
       "related": [],
       "functions": [],
       "doc": null,

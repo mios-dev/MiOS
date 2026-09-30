@@ -32,13 +32,8 @@ if (( CAP_FAIL > 0 )); then
 fi
 
 _ipa_root="$(cd "$(dirname "$0")/.." && pwd)"
-_ipa_gen="${_ipa_root}/tools/generate-ipa-enroll-env.py"
-if command -v python3 >/dev/null 2>&1 && [[ -f "${_ipa_gen}" ]]; then
-    mios_log "Rendering /etc/mios/ipa-enroll.env from mios.toml [identity.ipa] SSOT"
-    python3 "${_ipa_gen}"
-    install -D -m 0644 "${_ipa_root}/etc/mios/ipa-enroll.env" /etc/mios/ipa-enroll.env
-else
-    mios_warn "Python3 or generate-ipa-enroll-env.py unavailable"
-fi
+mios_log "Rendering /etc/mios/ipa-enroll.env from mios.toml [identity.ipa] SSOT"
+mios_project_config "$_ipa_root" ipa-enroll
+install -D -m 0644 "${_ipa_root}/etc/mios/ipa-enroll.env" /etc/mios/ipa-enroll.env
 
 systemctl enable mios-freeipa-enroll.service

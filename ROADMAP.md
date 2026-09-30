@@ -43,9 +43,9 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 3,596 | The reading surface. |
+| Tracked files | 3,594 | The reading surface. |
 | Tracked size | 243 MB | Two vendored assets are most of it. |
-| Shell / Python / PowerShell / Rust | 56k / 218k / 30k / 38k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 0.8x. |
+| Shell / Python / PowerShell / Rust | 56k / 218k / 30k / 39k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 0.8x. |
 | Drift checks | 225 | Falsifiability audited per check, not assumed. |
 | Units reproducing from SSOT | 15 faithful of 214 | 55 registered as drifting: the largest hole in part 1 of the thesis. |
 <!-- ROADMAP_METRICS_END -->
@@ -75,6 +75,12 @@ one dedicated test file were absorbed into the existing `mios-unit-gen` Rust
 component. Its CLI and the daemon share one renderer for all seven blade/UKI
 outputs; 23 native tests and stale-binary negative controls pass. The broader
 root and one-depth consolidation campaign remains active.
+
+**Service configuration follow-up (T-1127):** The Cockpit and FreeIPA producers
+also use the same native component, retiring two more scripts. Build phases
+share a dispatch helper and the daemon compares both outputs directly. Thirty-one
+renderer tests cover payload preservation, input validation, independent roots,
+and literal shell-value round trips.
 
 > The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` + `concepts/*` planning docs. Workstreams map to `T-*` records in TASKS.jsonl.
 

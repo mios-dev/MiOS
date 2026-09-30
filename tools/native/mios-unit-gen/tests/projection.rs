@@ -8,7 +8,8 @@
 
 use mios_unit_gen::{
     drift_register, project, project_deployment, render_blade_dropins, render_blade_karg,
-    render_uki_cmdline, DeploymentKind, BLADE_KARG, UKI_CMDLINE,
+    render_cockpit, render_ipa_enroll, render_uki_cmdline, DeploymentKind, BLADE_KARG,
+    COCKPIT_CONF, IPA_ENROLL_ENV, UKI_CMDLINE,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -341,7 +342,7 @@ fn deployment_cli_advertises_modes_and_rejects_incomplete_options() {
     assert!(advertised.status.success());
     assert_eq!(
         String::from_utf8(advertised.stdout).unwrap(),
-        "blade-dropins\nblade-karg\nuki-cmdline\n"
+        "blade-dropins\nblade-karg\nuki-cmdline\ncockpit\nipa-enroll\n"
     );
     let temp = tempfile::tempdir().unwrap();
     for options in [vec!["--root"], vec!["--toml", "--check"], vec!["--unknown"]] {
@@ -354,5 +355,195 @@ fn deployment_cli_advertises_modes_and_rejects_incomplete_options() {
         assert!(!result.status.success(), "accepted {options:?}");
         assert!(String::from_utf8_lossy(&result.stderr).contains(options[0]));
         assert!(!temp.path().join(BLADE_KARG).exists());
+    }
+}
+
+fn service_ssot() -> &'static str {
+    "[cockpit]\nallow_unencrypted = false\nlogin_to = true\nidle_timeout = 15\n\n[identity.ipa]\nenabled = true\nrealm = 'EXAMPLE.INTERNAL'\nserver = 'ipa.example.internal'\ndomain = 'example.internal'\nenroll_principal = 'admin'\notp_file = '/etc/mios/secrets.env'\notp_key = 'MIOS_IPA_OTP'\n"
+}
+
+#[test]
+fn cockpit_projects_every_declared_setting() {
+    let body = render_cockpit(service_ssot()).unwrap();
+    assert!(body.contains(
+        "[WebService]\nAllowUnencrypted = false\nLoginTo = true\n\n[Session]\nIdleTimeout = 15\n"
+    ));
+    assert!(body.contains("regenerate with mios-unit-gen cockpit"));
+}
+
+#[test]
+fn cockpit_rejects_missing_malformed_and_wrongly_typed_settings() {
+    for input in [
+        String::new(),
+        "[cockpit".into(),
+        service_ssot().replace("allow_unencrypted = false", "allow_unencrypted = 'false'"),
+        service_ssot().replace("idle_timeout = 15", "idle_timeout = -1"),
+        service_ssot().replace("idle_timeout = 15", "idle_timeout = '15'"),
+        service_ssot().replace("login_to = true\n", ""),
+    ] {
+        assert!(
+            render_cockpit(&input).is_err(),
+            "accepted invalid input: {input}"
+        );
+    }
+}
+
+#[test]
+fn ipa_projects_all_enrollment_fields_without_a_credential_value() {
+    let body = render_ipa_enroll(service_ssot()).unwrap();
+    for line in [
+        "MIOS_IPA_ENABLED=\"true\"",
+        "MIOS_IPA_REALM=\"EXAMPLE.INTERNAL\"",
+        "MIOS_IPA_SERVER=\"ipa.example.internal\"",
+        "MIOS_IPA_DOMAIN=\"example.internal\"",
+        "MIOS_IPA_ENROLL_PRINCIPAL=\"admin\"",
+        "MIOS_IPA_OTP_FILE=\"/etc/mios/secrets.env\"",
+        "MIOS_IPA_OTP_KEY=\"MIOS_IPA_OTP\"",
+    ] {
+        assert!(body.lines().any(|s| s == line), "missing {line}");
+    }
+    assert!(!body.contains("MIOS_IPA_PASSWORD="));
+}
+
+#[test]
+fn ipa_values_roundtrip_through_bash_without_expanding_shell_syntax() {
+    let realm = "quote\" slash\\ dollar$HOME $(printf injected) `printf injected`";
+    let input = service_ssot().replace(
+        "realm = 'EXAMPLE.INTERNAL'",
+        &format!("realm = {}", toml::Value::String(realm.into())),
+    );
+    let temp = tempfile::tempdir().unwrap();
+    write_fixture(
+        temp.path(),
+        "enroll.env",
+        &render_ipa_enroll(&input).unwrap(),
+    );
+    let result = std::process::Command::new("bash")
+        .args([
+            "-c",
+            "source \"$1\"; printf '%s' \"$MIOS_IPA_REALM\"",
+            "mios-test",
+        ])
+        .arg(temp.path().join("enroll.env"))
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(String::from_utf8(result.stdout).unwrap(), realm);
+}
+
+#[test]
+fn invalid_service_settings_do_not_overwrite_existing_outputs() {
+    let temp = tempfile::tempdir().unwrap();
+    for (kind, path, input) in [
+        (
+            DeploymentKind::Cockpit,
+            COCKPIT_CONF,
+            service_ssot().replace("idle_timeout = 15", "idle_timeout = false"),
+        ),
+        (
+            DeploymentKind::IpaEnroll,
+            IPA_ENROLL_ENV,
+            service_ssot().replace("otp_key = 'MIOS_IPA_OTP'", "otp_key = 'bad-key'"),
+        ),
+        (
+            DeploymentKind::IpaEnroll,
+            IPA_ENROLL_ENV,
+            service_ssot().replace("enabled = true", "enabled = 1"),
+        ),
+        (
+            DeploymentKind::IpaEnroll,
+            IPA_ENROLL_ENV,
+            service_ssot().replace("realm = 'EXAMPLE.INTERNAL'", "realm = \"bad\\nrealm\""),
+        ),
+        (
+            DeploymentKind::IpaEnroll,
+            IPA_ENROLL_ENV,
+            service_ssot().replace("domain = 'example.internal'\n", ""),
+        ),
+    ] {
+        write_fixture(temp.path(), path, "known-good\n");
+        write_fixture(temp.path(), "usr/share/mios/mios.toml", &input);
+        assert!(project_deployment(temp.path(), kind, false, None).is_err());
+        assert_eq!(
+            fs::read_to_string(temp.path().join(path)).unwrap(),
+            "known-good\n"
+        );
+    }
+}
+
+#[test]
+fn service_cli_projects_independent_roots_and_checks_corruption() {
+    let temp = tempfile::tempdir().unwrap();
+    write_fixture(temp.path(), "source.toml", service_ssot());
+    for (mode, path) in [("cockpit", COCKPIT_CONF), ("ipa-enroll", IPA_ENROLL_ENV)] {
+        let invoke = |check: bool| {
+            let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_mios-unit-gen"));
+            command
+                .arg(mode)
+                .arg("--root")
+                .arg(temp.path().join("output"))
+                .arg("--toml")
+                .arg(temp.path().join("source.toml"));
+            if check {
+                command.arg("--check");
+            }
+            command.output().unwrap()
+        };
+        assert!(invoke(false).status.success());
+        assert!(invoke(true).status.success());
+        write_fixture(&temp.path().join("output"), path, "corrupt\n");
+        let result = invoke(true);
+        assert!(!result.status.success());
+        assert!(String::from_utf8_lossy(&result.stderr).contains(path));
+        assert_eq!(
+            fs::read_to_string(temp.path().join("output").join(path)).unwrap(),
+            "corrupt\n"
+        );
+    }
+}
+
+#[test]
+fn committed_service_configs_match_ssot() {
+    for kind in [DeploymentKind::Cockpit, DeploymentKind::IpaEnroll] {
+        assert_eq!(project_deployment(&root(), kind, true, None).unwrap(), 1);
+    }
+}
+
+#[test]
+fn sync_lookup_selects_the_host_suffix_when_both_artifacts_exist() {
+    let source = fs::read_to_string(root().join("tools/sync-generated.sh")).unwrap();
+    let start = source.find("native_bin() {").unwrap();
+    let end = start + source[start..].find("\n}\n").unwrap() + 3;
+    let helper = &source[start..end];
+    let temp = tempfile::tempdir().unwrap();
+    for suffix in ["", ".exe"] {
+        let relative = format!("tools/native/target/debug/fixture-tool{suffix}");
+        write_fixture(temp.path(), &relative, "fixture\n");
+        let status = std::process::Command::new("chmod")
+            .arg("+x")
+            .arg(temp.path().join(relative))
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    for (platform, suffix) in [("Linux", ""), ("MINGW64_NT", ".exe"), ("MSYS_NT", ".exe")] {
+        let script =
+            format!("{helper}\nuname() {{ printf '%s' '{platform}'; }}\nnative_bin fixture-tool\n");
+        let result = std::process::Command::new("bash")
+            .args(["-c", &script])
+            .env("ROOT", temp.path())
+            .output()
+            .unwrap();
+        assert!(result.status.success());
+        assert_eq!(
+            String::from_utf8(result.stdout).unwrap(),
+            temp.path()
+                .join(format!("tools/native/target/debug/fixture-tool{suffix}"))
+                .to_string_lossy()
+        );
     }
 }

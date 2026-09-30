@@ -3051,15 +3051,7 @@ check_win11_vm_template_xml() {
 }
 
 check_ipa_enroll_projection() {
-    if ! _require_python3; then
-        return 0
-    fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" --check >/dev/null 2>&1; then
-        echo "[98-drift-checks]   etc/mios/ipa-enroll.env matches [identity.ipa] SSOT"
-    else
-        _emit_projection_evidence "tools/generate-ipa-enroll-env.py" "etc/mios/ipa-enroll.env"
-        _violation "etc/mios/ipa-enroll.env is out of sync with [identity.ipa] SSOT -- run python3 tools/generate-ipa-enroll-env.py"
-    fi
+    _run_deployment_projection ipa-enroll
 }
 
 check_uki_cmdline_projection() {
@@ -3097,15 +3089,7 @@ check_composefs_projection() {
 }
 
 check_cockpit_projection() {
-    if ! _require_python3; then
-        return 0
-    fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" --check >/dev/null 2>&1; then
-        echo "[98-drift-checks]   etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT"
-    else
-        _emit_projection_evidence "tools/generate-cockpit-conf.py" "etc/cockpit/cockpit.conf"
-        _violation "etc/cockpit/cockpit.conf is out of sync with mios.toml [cockpit] SSOT -- run python3 tools/generate-cockpit-conf.py"
-    fi
+    _run_deployment_projection cockpit
 }
 
 check_chrony_ptp_dropin() {

@@ -313,11 +313,9 @@ is generated, its generator is here.
 | `tools/generate-ai-manifest.py` | Parses Markdown files and metadata blocks to generate a JSON manifest of the project structure, providing agents with a searchable index of documentation, knowle... |
 | `tools/generate-bib-configs.py` | MiOS system and orchestration module providing generate-bib-configs capabilities. |
 | `tools/generate-cargo-manifests.py` | Generator that projects tools/native/Cargo.toml -- members enumerated from the crate directories, version from mios.toml [meta].mios_version SSOT. |
-| `tools/generate-cockpit-conf.py` | Renders etc/cockpit/cockpit.conf from usr/share/mios/mios.toml SSOT |
 | `tools/generate-cosign-policy.py` | Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT |
 | `tools/generate-egress-firewall.py` | Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation). |
 | `tools/generate-gate-index.py` | MiOS system and orchestration module providing generate-gate-index capabilities. |
-| `tools/generate-ipa-enroll-env.py` | Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT |
 | `tools/generate-metal-vs-hosted.py` | GENERATES usr/share/doc/mios/reference/metal-vs-hosted.md from mios.toml. |
 | `tools/generate-names-registry.py` | MiOS system and orchestration module providing generate-names-registry capabilities. |
 | `tools/generate-pipeline-index.py` | MiOS system and orchestration module providing generate-pipeline-index capabilities. |
@@ -368,7 +366,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 71 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 69 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

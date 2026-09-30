@@ -1438,19 +1438,24 @@ test_win11_vm_template_xml() {
     log "Test_win11_vm_template_xml negative test passed"
 }
 
+_restore_service_projection() (
+    source "$ROOT/automation/lib/common.sh"
+    mios_project_config "$ROOT" "$1"
+)
+
 test_ipa_enroll_projection() {
     log "Testing check_ipa_enroll_projection"
     local target_file="${ROOT}/etc/mios/ipa-enroll.env"
-    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true; }
+    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; _restore_service_projection ipa-enroll >/dev/null 2>&1 || die "Native ipa-enroll regeneration failed"; }
 
     echo 'MIOS_IPA_REALM="MUTATED.REALM"' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ipa_enroll_projection >/dev/null 2>&1; then
-        MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true
+        _restore_service_projection ipa-enroll >/dev/null 2>&1 || die "Native ipa-enroll regeneration failed"
         die "Check_ipa_enroll_projection passed despite mutated target file"
     fi
 
-    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true
+    _restore_service_projection ipa-enroll >/dev/null 2>&1 || die "Native ipa-enroll regeneration failed"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ipa_enroll_projection >/dev/null 2>&1 \
         || die "Check_ipa_enroll_projection failed after restoration"
     log "Test_ipa_enroll_projection negative test passed"
@@ -1504,16 +1509,16 @@ test_composefs_projection() {
 test_cockpit_projection() {
     log "Testing check_cockpit_projection"
     local target_file="${ROOT}/etc/cockpit/cockpit.conf"
-    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true; }
+    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; _restore_service_projection cockpit >/dev/null 2>&1 || die "Native cockpit regeneration failed"; }
 
     echo 'AllowUnencrypted = false' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cockpit_projection >/dev/null 2>&1; then
-        MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true
+        _restore_service_projection cockpit >/dev/null 2>&1 || die "Native cockpit regeneration failed"
         die "Check_cockpit_projection passed despite mutated cockpit.conf"
     fi
 
-    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true
+    _restore_service_projection cockpit >/dev/null 2>&1 || die "Native cockpit regeneration failed"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cockpit_projection >/dev/null 2>&1 \
         || die "Check_cockpit_projection failed after restoration"
     log "Test_cockpit_projection negative test passed"

@@ -19,14 +19,10 @@ done
 echo "[20-services] Fixed systemd unit file permissions"
 
 _mios_src_root="$(cd "$(dirname "$0")/.." && pwd)"
-_cockpit_gen="${_mios_src_root}/tools/generate-cockpit-conf.py"
-if [[ -f "$_cockpit_gen" ]] && command -v python3 >/dev/null 2>&1; then
-    python3 "$_cockpit_gen"
-    install -D -m 0644 "${_mios_src_root}/etc/cockpit/cockpit.conf" /etc/cockpit/cockpit.conf
-    echo "[20-services] projected /etc/cockpit/cockpit.conf from mios.toml [cockpit] SSOT"
-else
-    echo "[20-services] WARN: generate-cockpit-conf.py or python3 unavailable"
-fi
+source "${_mios_src_root}/automation/lib/common.sh"
+mios_project_config "$_mios_src_root" cockpit
+install -D -m 0644 "${_mios_src_root}/etc/cockpit/cockpit.conf" /etc/cockpit/cockpit.conf
+echo "[20-services] projected /etc/cockpit/cockpit.conf from mios.toml [cockpit] SSOT"
 
 echo "[20-services] WSL2/OCI service-skip drop-ins delivered via system_files overlay"
 

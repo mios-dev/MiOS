@@ -110,10 +110,10 @@
 109	check_bib_single_config_invariant	BIB recipes enforce single /config.toml mount and valid TOML syntax
 110	check_build_artifacts_output_dir	Justfile artifact recipes enforce SSOT output directory
 111	check_win11_vm_template_xml	Win11 VM template is well-formed XML and projects SSOT [vm.win11]
-112	check_ipa_enroll_projection	etc/mios/ipa-enroll.env matches [identity.ipa] SSOT
+112	check_ipa_enroll_projection	ipa enroll projection
 113	check_uki_cmdline_projection	uki cmdline projection
 114	check_composefs_projection	usr/lib/ostree/prepare-root.conf matches [security].composefs_mode SSOT
-115	check_cockpit_projection	etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT
+115	check_cockpit_projection	cockpit projection
 116	check_template_self_conformance	every template scaffolds to a self-conforming output
 117	check_native_lint	$ws workspace cargo check passed
 118	check_resolver_shell_equivalence	shell resolver logic is identical to python/PS SSOT resolvers

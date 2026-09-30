@@ -1,4 +1,4 @@
-// AI-hint: Unified systemd and deployment projection library: units, blade capability drop-ins, blade karg, and UKI cmdline from SSOT.
+// AI-hint: Unified systemd and deployment projection library: units, blade capabilities, kernel cmdline, Cockpit, and FreeIPA settings from SSOT.
 //! MiOS Systemd Unit Generator & Golden Master Deviance Oracle.
 
 use serde::Deserialize;
@@ -19,6 +19,8 @@ pub enum UnitGenError {
 
 pub const BLADE_KARG: &str = "usr/lib/bootc/kargs.d/05-mios-blade.toml";
 pub const UKI_CMDLINE: &str = "usr/lib/kernel/cmdline";
+pub const COCKPIT_CONF: &str = "etc/cockpit/cockpit.conf";
+pub const IPA_ENROLL_ENV: &str = "etc/mios/ipa-enroll.env";
 const SSOT: &str = "usr/share/mios/mios.toml";
 const DROPINS: &str = "usr/share/mios/dropins";
 
@@ -27,6 +29,89 @@ pub enum DeploymentKind {
     BladeDropins,
     BladeKarg,
     UkiCmdline,
+    Cockpit,
+    IpaEnroll,
+}
+
+fn config_value<'a>(
+    table: &'a toml::Value,
+    section: &str,
+    key: &str,
+) -> Result<&'a toml::Value, UnitGenError> {
+    table.get(key).ok_or_else(|| {
+        UnitGenError::GoldenMaster(format!("[{section}].{key} is missing from SSOT"))
+    })
+}
+
+fn config_bool(table: &toml::Value, section: &str, key: &str) -> Result<bool, UnitGenError> {
+    config_value(table, section, key)?
+        .as_bool()
+        .ok_or_else(|| UnitGenError::GoldenMaster(format!("[{section}].{key} must be a boolean")))
+}
+
+pub fn render_cockpit(ssot: &str) -> Result<String, UnitGenError> {
+    let doc: toml::Value = toml::from_str(ssot)?;
+    let config = config_value(&doc, "root", "cockpit")?;
+    let allow = config_bool(config, "cockpit", "allow_unencrypted")?;
+    let login = config_bool(config, "cockpit", "login_to")?;
+    let idle = config_value(config, "cockpit", "idle_timeout")?
+        .as_integer()
+        .filter(|v| *v >= 0)
+        .ok_or_else(|| {
+            UnitGenError::GoldenMaster(
+                "[cockpit].idle_timeout must be a nonnegative integer".into(),
+            )
+        })?;
+    Ok(format!("# AI-hint: Cockpit web console settings projected from mios.toml [cockpit]; regenerate with mios-unit-gen cockpit, never edit.\n# Cockpit configuration file\n[WebService]\nAllowUnencrypted = {allow}\nLoginTo = {login}\n\n[Session]\nIdleTimeout = {idle}\n"))
+}
+
+/// The enrollment consumer sources this file in Bash. Escape double-quote
+/// syntax rather than letting a TOML value become a shell expansion.
+pub fn render_ipa_enroll(ssot: &str) -> Result<String, UnitGenError> {
+    let doc: toml::Value = toml::from_str(ssot)?;
+    let identity = config_value(&doc, "root", "identity")?;
+    let config = config_value(identity, "identity", "ipa")?;
+    let enabled = config_bool(config, "identity.ipa", "enabled")?;
+    let mut out = format!("# AI-hint: FreeIPA zero-touch enrollment settings projected from mios.toml [identity.ipa]; regenerate with mios-unit-gen ipa-enroll, never edit.\n# FreeIPA Zero-Touch Enrollment Config\nMIOS_IPA_ENABLED=\"{enabled}\"\n");
+    for (key, variable) in [
+        ("realm", "MIOS_IPA_REALM"),
+        ("server", "MIOS_IPA_SERVER"),
+        ("domain", "MIOS_IPA_DOMAIN"),
+        ("enroll_principal", "MIOS_IPA_ENROLL_PRINCIPAL"),
+        ("otp_file", "MIOS_IPA_OTP_FILE"),
+        ("otp_key", "MIOS_IPA_OTP_KEY"),
+    ] {
+        let value = config_value(config, "identity.ipa", key)?
+            .as_str()
+            .ok_or_else(|| {
+                UnitGenError::GoldenMaster(format!("[identity.ipa].{key} must be a string"))
+            })?;
+        if value.chars().any(char::is_control) {
+            return Err(UnitGenError::GoldenMaster(format!(
+                "[identity.ipa].{key} must not contain control characters"
+            )));
+        }
+        if key == "otp_key"
+            && (value.is_empty()
+                || !value.bytes().enumerate().all(|(i, c)| {
+                    c.is_ascii_alphabetic() || c == b'_' || (i > 0 && c.is_ascii_digit())
+                }))
+        {
+            return Err(UnitGenError::GoldenMaster(
+                "[identity.ipa].otp_key must be a shell variable name".into(),
+            ));
+        }
+        out.push_str(variable);
+        out.push_str("=\"");
+        for c in value.chars() {
+            if matches!(c, '\\' | '"' | '$' | '`') {
+                out.push('\\');
+            }
+            out.push(c);
+        }
+        out.push_str("\"\n");
+    }
+    Ok(out)
 }
 
 /// Render only the capability files this projection owns; service drop-ins
@@ -203,6 +288,18 @@ pub fn project_deployment(
         DeploymentKind::UkiCmdline => {
             BTreeMap::from([(UKI_CMDLINE.to_owned(), render_uki_cmdline(root)?)])
         }
+        DeploymentKind::Cockpit => BTreeMap::from([(
+            COCKPIT_CONF.to_owned(),
+            render_cockpit(&fs::read_to_string(
+                toml_override.unwrap_or(&root.join(SSOT)),
+            )?)?,
+        )]),
+        DeploymentKind::IpaEnroll => BTreeMap::from([(
+            IPA_ENROLL_ENV.to_owned(),
+            render_ipa_enroll(&fs::read_to_string(
+                toml_override.unwrap_or(&root.join(SSOT)),
+            )?)?,
+        )]),
     };
     let mut drift = Vec::new();
     for (relative, body) in &files {

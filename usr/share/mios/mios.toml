@@ -2267,10 +2267,10 @@ surfaces = [
   { generator = "tools/generate-bib-configs.py", check = "check_bib_configs_projection", output = "config/artifacts/bib.toml, config/artifacts/iso.toml" },
   { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_blade_karg", output = "usr/lib/bootc/kargs.d/05-mios-blade.toml" },
   { generator = "tools/generate-cargo-manifests.py", check = "check_cargo_manifest_generated", output = "tools/native/Cargo.toml" },
-  { generator = "tools/generate-cockpit-conf.py", check = "check_cockpit_projection", output = "etc/cockpit/cockpit.conf" },
+  { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_cockpit_projection", output = "etc/cockpit/cockpit.conf" },
   { generator = "tools/generate-egress-firewall.py", check = "check_egress_firewall", output = "usr/share/mios/security/egress.nft" },
   { generator = "tools/generate-gate-index.py", check = "check_gate_index", output = "usr/share/mios/reference/drift-gate-index.tsv" },
-  { generator = "tools/generate-ipa-enroll-env.py", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
+  { generator = "tools/native/mios-unit-gen/src/lib.rs", check = "check_ipa_enroll_projection", output = "etc/mios/ipa-enroll.env" },
   { generator = "tools/generate-metal-vs-hosted.py", check = "check_metal_vs_hosted", output = "usr/share/doc/mios/reference/metal-vs-hosted.md" },
   { generator = "tools/generate-names-registry.py", check = "check_names_registry", output = "usr/share/mios/referenced_names.txt, usr/share/mios/names.generated.txt" },
   { generator = "tools/generate-pipeline-index.py", check = "check_pipeline_numbering", output = "usr/share/mios/reference/pipeline-index.tsv" },
@@ -12068,7 +12068,7 @@ max_tracked_files = 3434
 # (83% of the measurement, and Law 12 forbids shedding it) and re-baseline down
 # the way generated globals are excluded from the shell/PowerShell counts -- is
 # recorded in T-1051 with the numbers.
-max_tracked_mb    = 231
+max_tracked_mb    = 244
 # The allowance, and the only operator-tunable half: how far the tree may grow
 # between regenerations before the gate says anything. 0 makes the ceiling exact
 # and every MiB boundary a failure, which is the state T-1051 was filed about.

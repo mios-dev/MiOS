@@ -146,3 +146,11 @@ UKI command is `mios-unit-gen uki-cmdline --root DIR`; `--check` compares its
 projection without writing. `miosd render-uki-cmdline` calls the same library.
 The ordered kargs payload was compared with the former producer before removal.
 Malformed drop-ins fail before the existing cmdline is overwritten.
+
+The Cockpit and FreeIPA producers now use `mios-unit-gen cockpit` and
+`mios-unit-gen ipa-enroll`. Their former service configuration bodies are
+preserved, with only the attribution comments changed. The daemon's two
+projection checks call the same library. Build phases use the shared
+`mios_project_config` helper and require an advertised native mode; they no
+longer skip these settings when a Python producer is unavailable. FreeIPA's
+Bash-sourced values retain literal shell characters through explicit escaping.
