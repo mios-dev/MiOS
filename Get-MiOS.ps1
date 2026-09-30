@@ -538,23 +538,39 @@ if ($Action -ne 'Default') {
     if ($Action -eq 'FlashUSB') {
         Write-Host "[*] Action: FlashUSB. Staging and launching interactive MiOS-Field installer..." -ForegroundColor Cyan
         # 1. Locate source folder
-        $srcDir = Join-Path (Ensure-MiosBootstrapRepo) "field"
+        $sourceRoot = Ensure-MiosBootstrapRepo
+        $srcDir = Join-Path $sourceRoot "field"
         if (-not (Test-Path $srcDir)) {
             Write-Error "MiOS-Field (field) folder not found after fetch -- check network / GitHub access."
             exit 1
         }
         # 2. Resolve staging directory
         $v = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.SizeRemaining -gt 25GB } | Sort-Object SizeRemaining -Descending | Select-Object -First 1
-        $stageDir = if ($v) { Join-Path "$($v.DriveLetter):\" "MiOS\medicat_stage" } else { Join-Path $env:TEMP "medicat_stage" }
-        $targetDir = Join-Path $stageDir "cat"
+        $stageDir = if ($v) { Join-Path "$($v.DriveLetter):\" "MiOS\field_stage" } else { Join-Path $env:TEMP "field_stage" }
+        $targetDir = Join-Path $stageDir "field"
         Write-Host "    Staging directory: $targetDir" -ForegroundColor Cyan
 
-        # 3. Copy source files to staging directory
-        New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
-        Copy-Item -Path "$srcDir\*" -Destination $targetDir -Recurse -Force
+        # Preserve the repository layout required by the shared field backend.
+        # Stage only runtime source paths; never copy Git metadata or scratch files.
+        New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+        foreach ($relativePath in @('field', 'installation', 'automation', 'src', 'etc', 'usr', 'var',
+                'Get-MiOS.ps1', 'bootstrap.ps1', 'bootstrap.sh', 'build-mios.ps1', 'build-mios.sh',
+                'install.ps1', 'install.sh', 'seed-merge.ps1', 'seed-merge.sh', 'mios.toml',
+                'VERSION', 'system-prompt.md')) {
+            $sourcePath = Join-Path $sourceRoot $relativePath
+            if (Test-Path -LiteralPath $sourcePath) {
+                Copy-Item -LiteralPath $sourcePath -Destination $stageDir -Recurse -Force -ErrorAction Stop
+            }
+        }
 
         $fieldScript = Join-Path $targetDir "MiOS-Field.bat"
-        Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList "/c start `"MiOS-Field`" cmd.exe /k `"$fieldScript`""
+        foreach ($requiredPath in @($fieldScript, (Join-Path $stageDir 'installation\mios-common.ps1'),
+                (Join-Path $stageDir 'installation\MiOS-Field.bat'))) {
+            if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+                throw "MiOS-Field runtime file was not staged: $requiredPath"
+            }
+        }
+        Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList "/c start `"MiOS-Field`" cmd.exe /k `"$fieldScript`" flash"
         Write-Host "[+] Interactive MiOS-Field launcher spawned from staged directory." -ForegroundColor Green
         exit 0
     }
@@ -2796,6 +2812,51 @@ foreach ($mod in $psModules) {
                 Write-Host "  [+] Installed winget package: $pkg" -ForegroundColor Green
             }
         } catch {}
+    }
+}
+
+function Install-MiOSLLVMMinGW {
+    # Provision the SSOT-selected Windows interoperability toolchain only.
+    # MiOS-DEV owns compilation and tests; this host step never runs cargo,
+    # rustc, or a project build. Verify the linker and import-library tools
+    # together so a partial package registration cannot claim readiness.
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Host "  [!] winget not available; skipping LLVM-MinGW toolchain." -ForegroundColor Yellow
+        return
+    }
+    $_enable = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'install_llvm_mingw' -Default 'true')
+    if ($_enable -notin @('true', '1', 'yes')) {
+        Write-Host "  [-] install_llvm_mingw is disabled; skipping LLVM-MinGW toolchain." -ForegroundColor DarkGray
+        return
+    }
+    $_llvmPkg = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'llvm_mingw_pkg' -Default 'MartinStorsjo.LLVM-MinGW.MSVCRT')
+    Write-Host "  [*] Ensuring Windows LLVM-MinGW tooling ($_llvmPkg) for provisioning/handoff..." -ForegroundColor Cyan
+    try {
+        $_clang = $null
+        foreach ($_attempt in 1..2) {
+            # Registration alone is not proof: a partially-failed install
+            # registers the package without shipping binaries, and winget then
+            # reports "already installed, no upgrade". Verify the linker file
+            # and heal with --force when it is missing.
+            $_clang = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\${_llvmPkg}_*" -Recurse -Filter 'x86_64-w64-mingw32-clang.exe' -ErrorAction SilentlyContinue |
+                Where-Object { Test-Path -LiteralPath (Join-Path $_.DirectoryName 'llvm-dlltool.exe') -PathType Leaf } | Select-Object -First 1
+            if ($_clang -and $_clang.FullName) { break }
+            & winget install --id $_llvmPkg --exact --silent --force --accept-package-agreements --accept-source-agreements --source winget 2>&1 | ForEach-Object { Write-Host "  [LLVM-MinGW] $_" }
+            if ($LASTEXITCODE -ne 0) { Write-Host "  [!] LLVM-MinGW provisioning attempt $_attempt exited $LASTEXITCODE; rechecking binaries." -ForegroundColor Yellow }
+        }
+        if (-not ($_clang -and $_clang.FullName)) {
+            $_clang = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\${_llvmPkg}_*" -Recurse -Filter 'x86_64-w64-mingw32-clang.exe' -ErrorAction SilentlyContinue |
+                Where-Object { Test-Path -LiteralPath (Join-Path $_.DirectoryName 'llvm-dlltool.exe') -PathType Leaf } | Select-Object -First 1
+        }
+        if ($_clang -and $_clang.FullName) {
+            $_binDir = Split-Path -Parent $_clang.FullName
+            if (($env:Path -split ';') -notcontains $_binDir) { $env:Path = "$_binDir;$env:Path" }
+            Write-Host "  [+] LLVM-MinGW toolchain ready: $_binDir" -ForegroundColor Green
+        } else {
+            Write-Host "  [!] LLVM-MinGW linker/import-library tools remain incomplete after provisioning; the optional host toolchain is unavailable." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "  [!] LLVM-MinGW install failed: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
@@ -5257,6 +5318,7 @@ if ($true) {
     Write-Host "  $_msgStep5" -ForegroundColor Cyan
     Install-MiOSFastfetch           | Out-Null
     Write-Host "  $_msgStep6" -ForegroundColor Cyan
+    Install-MiOSLLVMMinGW           | Out-Null
     Update-MiOSOhMyPosh             | Out-Null
     Update-MiOSPSReadLine           | Out-Null
     Install-MiOSOhMyPoshTheme       | Out-Null
@@ -5626,7 +5688,7 @@ if ($_bootstrapExit -eq 0 -and -not $Unattended) {
                 Write-Host '  [*] Launching MiOS-Field (canonical .bat)...' -ForegroundColor Cyan
                 # Already elevated -- launch the canonical .bat directly in a new
                 # interactive console (no hardcoded-principal scheduled task).
-                Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList "/c start `"MiOS-Field`" cmd.exe /k `"$_fieldBat`""
+                Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList "/c start `"MiOS-Field`" cmd.exe /k `"$_fieldBat`" flash"
             } else {
                 Write-Host "  You can run it any time:  `"$_fieldBat`"" -ForegroundColor DarkGray
             }

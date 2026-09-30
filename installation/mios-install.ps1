@@ -18,8 +18,6 @@ param(
 # AI-hint: Unified MiOS provisioning installer (Windows) -- the canonical `mios-install`.
 $ErrorActionPreference = 'Stop'
 $script:Root    = Split-Path -Parent $PSScriptRoot           # repo root (installation\ is one level down)
-$script:CatBat  = Join-Path $script:Root 'installation\MiOS-Field.bat'
-if (-not (Test-Path $script:CatBat)) { $script:CatBat = Join-Path $script:Root 'field\MiOS-Field.bat' }
 $script:BuildPs = Join-Path $script:Root 'build-mios.ps1'
 $script:AutoDir = Join-Path $script:Root 'field\autounattend'
 

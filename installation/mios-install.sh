@@ -96,13 +96,13 @@ resolve_flash_or_live() {
     [[ -f "$MIOS_FIELD_SH" ]] || die "field/MiOS-Field.sh not found at ${MIOS_FIELD_SH}"
     FORBIDS_ROOT=1
     CMD=(env -C "$FIELD_DIR" bash ./MiOS-Field.sh "${PASSTHROUGH[@]}")
-    STAGE_NOTES+=("stage isolation: NONE -- MiOS-Field.sh is one monolithic interactive pipeline; --stage is documentation-only here.")
-    [[ -n "$STAGE" ]] && STAGE_NOTES+=("--stage ${STAGE} requested but not isolable; running the full pipeline.")
+    STAGE_NOTES+=("Linux flash/live opens the field media menu; this launcher does not partition a disk or install Ventoy. Use stage/verify for existing mounted media.")
+    [[ -n "$STAGE" ]] && STAGE_NOTES+=("--stage ${STAGE} requested but not isolable; opening the field menu.")
     if (( UNATTENDED )); then
-        STAGE_NOTES+=("--unattended requested but MiOS-Field.sh has no non-interactive mode on Linux -- it WILL prompt for the USB device, Medicat source, and partition-scheme choice.")
+        STAGE_NOTES+=("--unattended requested but flash/live opens an interactive field menu; use stage/verify with explicit media paths for unattended operations.")
     fi
     if [[ "$target_name" == "live" ]]; then
-        STAGE_NOTES+=("'live' and 'flash' resolve to the SAME call today -- MiOS-Field.sh has no lighter zero-install mode exposed via flag/env yet (documented open design question, not solved here).")
+        STAGE_NOTES+=("'live' and 'flash' both open the same field menu; this does not prove the media is bootable.")
     fi
 }
 resolve_live()  { resolve_flash_or_live live; }
