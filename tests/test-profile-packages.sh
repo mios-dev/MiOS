@@ -85,6 +85,19 @@ EOF
     printf '[{"name":"child","pkgs":["catalog-compiler"]},{"name":"parent","pkgs":["catalog-runtime"]}]\n' > "$fixture/package_sets.json"
     got="$(resolve get_packages parent)"
     [[ "$got" == "catalog-compiler catalog-runtime " ]] && pass "authoritative catalog retains declared dependency closure" || fail "catalog bypassed dependencies: $got"
+    mv "$fixture/package_sets.json" "$fixture/catalog.saved"
+    if resolve get_packages parent > "$TMP/resolved.log" 2> "$TMP/err.log"; then
+        fail "missing authoritative catalog silently fell back to TOML"
+    else
+        [[ ! -s "$TMP/resolved.log" ]] && grep -q 'authoritative package catalog is missing' "$TMP/err.log" && pass "missing authoritative catalog fails without fallback" || fail "missing catalog failure was not explicit"
+    fi
+    printf '{invalid json\n' > "$fixture/package_sets.json"
+    if resolve get_packages parent > "$TMP/resolved.log" 2> "$TMP/err.log"; then
+        fail "malformed authoritative catalog silently fell back to TOML"
+    else
+        [[ ! -s "$TMP/resolved.log" ]] && grep -q 'authoritative package_sets.json' "$TMP/err.log" && pass "malformed authoritative catalog fails without fallback" || fail "malformed catalog failure was not explicit"
+    fi
+    mv "$fixture/catalog.saved" "$fixture/package_sets.json"
     cp "$fixture/valid.toml" "$fixture/packages.toml"
     : > "$TMP/dnf.log"
     (
@@ -92,6 +105,15 @@ EOF
         bash "$fixture/91-strip-build-toolchain.sh"
     ) > "$TMP/out.log" 2>&1
     [[ ! -s "$TMP/dnf.log" ]] && grep -q 'Retaining build dependencies' "$TMP/out.log" && pass "retain_toolchain=true never invokes package removal" || fail "retention removed dependencies"
+    sed -i 's/retain_toolchain = true/retain_toolchain = false/' "$fixture/packages.toml"
+    # Execute only the real selection code, before destructive removal or
+    # symlink cleanup. Even with fake dnf, that cleanup must not touch the host.
+    awk '/^for grp in "\$\{BUILD_GROUPS\[@\]\}"; do/ { exit } { print }' "$fixture/91-strip-build-toolchain.sh" > "$fixture/strip-plan.sh"
+    printf '\nprintf "GROUP=%%s\\n" "${BUILD_GROUPS[@]}"\n' >> "$fixture/strip-plan.sh"
+    (export PATH="$TMP/bin:$PATH" MIOS_TOML="$fixture/packages.toml"; bash "$fixture/strip-plan.sh") > "$TMP/out.log" 2>&1
+    if grep -qx 'GROUP=build-toolchain' "$TMP/out.log" && ! grep -qx 'GROUP=self-build' "$TMP/out.log"; then pass "compiler opt-out preserves the self-build runtime group"; else fail "compiler opt-out selected the self-build runtime for removal"; fi
+    cp "$fixture/valid.toml" "$fixture/packages.toml"
+    : > "$TMP/dnf.log"
     sed -i '/retain_toolchain = true/d' "$fixture/packages.toml"
     if (export PATH="$TMP/bin:$PATH" MIOS_TOML="$fixture/packages.toml"; bash "$fixture/91-strip-build-toolchain.sh") > "$TMP/out.log" 2>&1; then
         fail "missing retention policy was accepted"
@@ -114,7 +136,75 @@ EOF
         done
         pass "$group includes the native compiler, static linker and development-check dependency closure"
     done
+    # Run the actual repos-phase install dispatch without repository or host
+    # mutations. Core omits both virt and the browser phase that install ai.
+    sed -n '/^for _build_section /,$p' "$ROOT/automation/05-repos.sh" > "$fixture/install-selected.sh"
+    : > "$TMP/dnf.log"
+    (
+        source "$fixture/lib/packages.sh"
+        export PATH="$TMP/bin:$PATH" MIOS_TOML="$ROOT/usr/share/mios/mios.toml"
+        export BUILD_PROFILE_SECTIONS='containers build-toolchain self-build ai utils'
+        source "$fixture/install-selected.sh"
+    ) > "$TMP/out.log" 2>&1
+    if grep -q 'python3-psycopg3' "$TMP/dnf.log" && grep -q 'python3-cryptography' "$TMP/dnf.log" && grep -q 'cargo' "$TMP/dnf.log"; then
+        pass "core install dispatch includes direct service and compiler dependencies"
+    else fail "core dependency declarations did not reach package installation"; fi
     unset -f resolve
+}
+
+native_build_checks() {
+    local fixture="$TMP/native-fixture" output
+    mkdir -p "$fixture/automation" "$fixture/tools/native" "$fixture/src/mios-rs" "$fixture/out"
+    cp "$ROOT/automation/55-native-build.sh" "$fixture/automation/55-native-build.sh"
+    printf '[workspace]\n' > "$fixture/src/mios-rs/Cargo.toml"
+    cat > "$TMP/bin/cargo" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+case "$PWD" in */tools/native) name=mios-test-native ;; *) name=mios-test-system ;; esac
+if [[ "$1" == metadata ]]; then
+    printf '{"workspace_members":["fixture"],"packages":[{"id":"fixture","name":"fixture","targets":[{"name":"%s","kind":["bin"]}]}]}\n' "$name"
+elif [[ "$1" == build ]]; then
+    printf '%s\n' "$*" >> "$MIOS_TEST_CARGO_LOG"
+    while (( $# )); do
+        if [[ "$1" == --target-dir ]]; then out="$2"; break; fi
+        shift
+    done
+    mkdir -p "$out/release"
+    if [[ "${MIOS_TEST_NATIVE_MODE:-}" != missing ]]; then
+        if [[ "${MIOS_TEST_NATIVE_MODE:-}" == foreign ]]; then printf 'MZfixture' > "$out/release/$name";
+        else printf '\177ELFfixture' > "$out/release/$name"; fi
+        chmod +x "$out/release/$name"
+    fi
+    printf 'sidecar' > "$out/release/$name.d"
+    printf 'MZforeign' > "$out/release/$name.exe"
+    chmod +x "$out/release/$name.d" "$out/release/$name.exe"
+else exit 1; fi
+EOF
+    chmod +x "$TMP/bin/cargo"
+    run_native() (
+        export PATH="$TMP/bin:$PATH" MIOS_NATIVE_DEST_DIR="$fixture/out" MIOS_TEST_CARGO_LOG="$TMP/cargo.log" CARGO_TARGET_DIR="$TMP/unrelated-output"
+        bash "$fixture/automation/55-native-build.sh"
+    )
+    output="$(run_native)"
+    if [[ -x "$fixture/out/mios-test-native" && -x "$fixture/out/mios-test-system" && ! -e "$fixture/out/mios-test-native.d" && ! -e "$fixture/out/mios-test-native.exe" ]]; then
+        pass "native installation follows Cargo binaries and excludes executable sidecars"
+    else fail "native artifact installation was incomplete or included foreign artifacts"; fi
+    if grep -q -- "--target-dir $fixture/tools/native/target" "$TMP/cargo.log" && [[ ! -e "$TMP/unrelated-output" ]]; then pass "native build controls its output despite inherited CARGO_TARGET_DIR"; else fail "native build used an unrelated target directory"; fi
+    for mode in foreign missing; do
+        rm -f "$fixture/tools/native/target/release/mios-test-native"
+        if MIOS_TEST_NATIVE_MODE="$mode" run_native > "$TMP/native.log" 2>&1; then fail "native build accepted $mode artifact";
+        elif grep -Eq 'not a Linux ELF|build did not produce' "$TMP/native.log"; then pass "native build rejects $mode artifact with named diagnostics";
+        else fail "native $mode failure lacked expected diagnostics"; fi
+    done
+    mv "$fixture/src/mios-rs/Cargo.toml" "$fixture/src/mios-rs/Cargo.toml.saved"
+    if run_native > "$TMP/native.log" 2>&1; then fail "partial bake context accepted missing prebuilt tools";
+    elif grep -q 'missing prebuilt' "$TMP/native.log"; then pass "partial bake context requires installed native tools";
+    else fail "partial bake failure lacked expected diagnostics"; fi
+    for name in miosd mios-gate mios-probe mios-node mios-resolver mios-unit-gen mios-render-quadlets mios-bake-plan; do
+        printf '\177ELFfixture' > "$fixture/out/$name"; chmod +x "$fixture/out/$name"
+    done
+    if run_native > "$TMP/native.log" 2>&1 && grep -q 'required prebuilt' "$TMP/native.log"; then pass "partial bake context uses prebuilt native tools without rebuilding"; else fail "prebuilt bake context was rejected"; fi
+    unset -f run_native
 }
 
 # $1 = BUILD_PROFILE_SECTIONS (or "unset"), $2 = install function, $3 = section; prints dnf call count.
@@ -134,6 +224,7 @@ calls() {
 
 main() {
     dependency_checks
+    native_build_checks
     if [[ "${1:-}" == --dependency-only ]]; then
         echo "[test-profile-packages] dependency failures: $fails"
         (( fails == 0 ))

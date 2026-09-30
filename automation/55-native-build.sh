@@ -5,24 +5,23 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+DEST_DIR="${MIOS_NATIVE_DEST_DIR:-/usr/libexec/mios}"
+if [[ "${EUID}" -ne 0 && -z "${MIOS_NATIVE_DEST_DIR:-}" ]]; then
+    DEST_DIR="${ROOT_DIR}/usr/libexec/mios"
+fi
 
 # The image bake copies tools/ but not src/mios-rs: its native artifacts were
 # already compiled by the Containerfile's rust-builder stage. Installing Cargo
 # must not trigger a partial second build from that incomplete source context.
 if [[ ! -f "${ROOT_DIR}/src/mios-rs/Cargo.toml" ]]; then
     for bin in miosd mios-gate mios-probe mios-node mios-resolver mios-unit-gen mios-render-quadlets mios-bake-plan; do
-        [[ -x "/usr/libexec/mios/${bin}" ]] || {
-            echo "[55-native-build] FATAL: incomplete source context and missing prebuilt /usr/libexec/mios/${bin}" >&2
+        [[ -x "${DEST_DIR}/${bin}" ]] || {
+            echo "[55-native-build] FATAL: incomplete source context and missing prebuilt ${DEST_DIR}/${bin}" >&2
             exit 1
         }
     done
-    echo "[55-native-build] Image bake uses the complete prebuilt native tool set."
+    echo "[55-native-build] Image bake uses the required prebuilt native tools."
     exit 0
-fi
-
-DEST_DIR="/usr/libexec/mios"
-if [[ "${EUID}" -ne 0 && -n "${DEST_DIR}" ]]; then
-    DEST_DIR="${ROOT_DIR}/usr/libexec/mios"
 fi
 
 mkdir -p "${DEST_DIR}"
@@ -49,7 +48,7 @@ if command -v cargo >/dev/null 2>&1; then
             echo "[55-native-build] Installing ${bin} to ${DEST_DIR}..."
             cp "${SRC_BIN}" "${DEST_DIR}/${bin}"
             chmod +x "${DEST_DIR}/${bin}"
-            if [[ "${EUID}" -eq 0 && -d /usr/bin ]]; then
+            if [[ "${EUID}" -eq 0 && "$DEST_DIR" == /usr/libexec/mios && -d /usr/bin ]]; then
                 ln -sf "${DEST_DIR}/${bin}" "/usr/bin/${bin}"
             fi
         done <<< "$binaries"

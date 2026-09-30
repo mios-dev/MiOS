@@ -1324,7 +1324,7 @@
     },
     {
       "path": "automation/91-strip-build-toolchain.sh",
-      "hint": "Removes build-toolchain packages (gcc, g++, cmake, etc.) from the final image via dnf to minimize attack surface, ensuring no compilers remain in the PATH after the build phase.",
+      "hint": "Retains MiOS self-development dependencies by default; strips build groups only when packages.self-build.retain_toolchain explicitly opts out.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -7417,7 +7417,7 @@
     },
     {
       "path": "tests/test-profile-packages.sh",
-      "hint": "ADR-0025 lane L3 -- install_packages* skip a [packages] section outside the build profile (BUILD_PROFILE_SECTIONS from miosd build --sections) and install it when the profile selects it or no profile is set.",
+      "hint": "Verifies package profile filtering, shared section dependency closures, strict retry failures and default toolchain retention without installing or removing host packages.",
       "related": [
         "automation/lib/packages.sh",
         "automation/build.sh",

@@ -2106,7 +2106,7 @@ to" / "let me know".
 : "${MIOS_PREFLIGHT_REQUIRE_ADMIN:=true}"
 : "${MIOS_PREFLIGHT_REQUIRE_VIRT:=true}"
 : "${MIOS_PROFILES_CORE_FLOOR:=true}"
-: "${MIOS_PROFILES_CORE_PACKAGE_SECTIONS:=repos,base,containers,build-toolchain,utils,ai,critical}"
+: "${MIOS_PROFILES_CORE_PACKAGE_SECTIONS:=repos,base,containers,build-toolchain,self-build,utils,ai,critical}"
 : "${MIOS_PROFILES_CORE_PHASES:=system-files-overlay,materialize-build-ctx,repos,locale-theme,user,hostname,subuid-alloc,generate-quadlets,render-quadlets,render-ports,services,mios-dropin-fanout,tools,finalize,cleanup,ssot-lint,drift-checks,postcheck}"
 : "${MIOS_PROFILES_CORE_SUMMARY:=the smallest MiOS that is still MiOS: SSOT, miosd, agent-pipe, the datastore, the verbs}"
 : "${MIOS_PROFILES_DEFAULT:=full}"

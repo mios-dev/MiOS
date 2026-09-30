@@ -146,9 +146,9 @@ mios_log "Query installed versions of systemd glibc dbus-broker filesystem via r
 rpm -q systemd glibc dbus-broker filesystem || true
 
 # Every image profile includes repos; the virt phase does not run in core.
-# Install the selected self-build closure here before native-build (phase 55).
-# Dependencies are declared once in [packages], including the developer image.
+# Install selected build and service dependencies before native-build (phase
+# 55). Core also omits the browser-bake phase that otherwise installs ai.
 mios_log "Install selected MiOS self-development dependencies"
-for _build_section in build-toolchain self-build devcontainer; do
+for _build_section in containers build-toolchain self-build devcontainer ai utils; do
     install_packages_strict "$_build_section"
 done

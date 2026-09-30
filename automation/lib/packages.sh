@@ -35,6 +35,10 @@ _get_package_list_from_toml() {
     if [[ "$auth" == "true" && "$field" == "pkgs" ]]; then
         local mat_json
         mat_json="$(dirname "$file")/package_sets.json"
+        if [[ ! -f "$mat_json" ]]; then
+            echo "[packages.sh] ERROR: authoritative package catalog is missing: $mat_json" >&2
+            return 2
+        fi
         if [[ -f "$mat_json" ]]; then
             local pkgs
             # Read the catalog over stdin: native Windows python3 cannot open a
@@ -163,10 +167,11 @@ _get_raw_packages() {
         [[ -n "$cand" && -f "$cand" ]] || continue
         if grep -q "^\[packages\.${category}\]" "$cand" 2>/dev/null; then
             local pkgs
-            pkgs=$(_get_pkgs_from_single_toml "$category" "$cand")
-            local inner_rc=$?
-            if (( inner_rc == 2 )); then
-                return 2
+            if pkgs=$(_get_pkgs_from_single_toml "$category" "$cand"); then
+                :
+            else
+                local inner_rc=$?
+                (( inner_rc != 2 )) || return 2
             fi
             if [[ -n "${pkgs// }" ]]; then
                 echo "$pkgs"
@@ -192,11 +197,13 @@ get_packages() {
     local toml_pkgs
     # Preserve the optional reader's empty result for an absent root section.
     # A declared root with a missing/disabled/cyclic dependency still fails.
-    _get_raw_packages "$category" >/dev/null
-    case $? in
-        2) return 2 ;;
-        1) return 0 ;;
-    esac
+    if _get_raw_packages "$category" >/dev/null; then
+        :
+    else
+        local inner_rc=$?
+        (( inner_rc != 1 )) || return 0
+        return "$inner_rc"
+    fi
     # Render the entire closure before printing so a broken dependency never
     # hands dnf a partial request. Preserve first occurrence order, deduplicated.
     toml_pkgs=$(get_packages_from_toml "$category") || return 1

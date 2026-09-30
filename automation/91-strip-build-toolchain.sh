@@ -27,6 +27,9 @@ TOML_FILE="$(_resolve_mios_toml 2>/dev/null || true)"
 DYNAMIC_BUILD_GROUPS=()
 if [[ -n "$TOML_FILE" && -f "$TOML_FILE" ]]; then
     while IFS= read -r grp; do
+        # Self-build also owns runtime Podman/bootc tools. Opting out of
+        # compiler retention must not remove the deployed service substrate.
+        [[ "$grp" == self-build ]] && continue
         [[ -n "$grp" ]] && DYNAMIC_BUILD_GROUPS+=("$grp")
     done < <(grep -E '^\[packages\..*-build\]' "$TOML_FILE" | sed -E 's/^\[packages\.([^]]+)\]/\1/')
 fi
