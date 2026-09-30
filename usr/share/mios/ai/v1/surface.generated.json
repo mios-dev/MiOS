@@ -64,6 +64,7 @@
     "GET /v1/self-improve/report -> selfimprove_report_ep",
     "GET /v1/storage/cephfs/health -> cephfs_health",
     "GET /v1/storage/cephfs/users -> cephfs_users",
+    "GET /v1/system/psi -> v1_system_psi",
     "GET /v1/tool-search -> tool_search",
     "GET /v1/tools -> list_tools",
     "GET /v1/trace -> trace_recent",
@@ -1436,10 +1437,11 @@
     "v1_incoming_webhook",
     "v1_peers",
     "v1_route",
+    "v1_system_psi",
     "websockets"
   ],
   "counts": {
-    "routes": 94,
-    "provided": 1341
+    "routes": 95,
+    "provided": 1342
   }
 }

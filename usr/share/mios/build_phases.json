@@ -1,0 +1,650 @@
+[
+  {
+    "ordinal": 1,
+    "script": "01-system-files-overlay.sh",
+    "stage": "container",
+    "deps": []
+  },
+  {
+    "ordinal": 2,
+    "script": "02-materialize-build-ctx.sh",
+    "stage": "container",
+    "deps": [
+      "01-system-files-overlay.sh"
+    ]
+  },
+  {
+    "ordinal": 2,
+    "script": "02-uki-bootloader.sh",
+    "stage": "container",
+    "deps": [
+      "02-materialize-build-ctx.sh"
+    ]
+  },
+  {
+    "ordinal": 4,
+    "script": "04-local-rpm-mirror.sh",
+    "stage": "container",
+    "deps": [
+      "02-uki-bootloader.sh"
+    ]
+  },
+  {
+    "ordinal": 5,
+    "script": "05-repos.sh",
+    "stage": "container",
+    "deps": [
+      "04-local-rpm-mirror.sh"
+    ]
+  },
+  {
+    "ordinal": 6,
+    "script": "06-enable-external-repos.sh",
+    "stage": "container",
+    "deps": [
+      "05-repos.sh"
+    ]
+  },
+  {
+    "ordinal": 7,
+    "script": "07-kernel.sh",
+    "stage": "container",
+    "deps": [
+      "06-enable-external-repos.sh"
+    ]
+  },
+  {
+    "ordinal": 10,
+    "script": "10-locale-theme.sh",
+    "stage": "container",
+    "deps": [
+      "07-kernel.sh"
+    ]
+  },
+  {
+    "ordinal": 11,
+    "script": "11-user.sh",
+    "stage": "container",
+    "deps": [
+      "10-locale-theme.sh"
+    ]
+  },
+  {
+    "ordinal": 12,
+    "script": "12-hostname.sh",
+    "stage": "container",
+    "deps": [
+      "11-user.sh"
+    ]
+  },
+  {
+    "ordinal": 13,
+    "script": "13-accounts-db.sh",
+    "stage": "container",
+    "deps": [
+      "12-hostname.sh"
+    ]
+  },
+  {
+    "ordinal": 14,
+    "script": "14-podman-machine-compat.sh",
+    "stage": "container",
+    "deps": [
+      "13-accounts-db.sh"
+    ]
+  },
+  {
+    "ordinal": 15,
+    "script": "15-freeipa-client.sh",
+    "stage": "container",
+    "deps": [
+      "14-podman-machine-compat.sh"
+    ]
+  },
+  {
+    "ordinal": 20,
+    "script": "20-hardware.sh",
+    "stage": "container",
+    "deps": [
+      "15-freeipa-client.sh"
+    ]
+  },
+  {
+    "ordinal": 21,
+    "script": "21-virt.sh",
+    "stage": "container",
+    "deps": [
+      "20-hardware.sh"
+    ]
+  },
+  {
+    "ordinal": 22,
+    "script": "22-akmod-guards.sh",
+    "stage": "container",
+    "deps": [
+      "21-virt.sh"
+    ]
+  },
+  {
+    "ordinal": 23,
+    "script": "23-gpu-passthrough.sh",
+    "stage": "container",
+    "deps": [
+      "22-akmod-guards.sh"
+    ]
+  },
+  {
+    "ordinal": 24,
+    "script": "24-cpu-affinity.sh",
+    "stage": "container",
+    "deps": [
+      "23-gpu-passthrough.sh"
+    ]
+  },
+  {
+    "ordinal": 24,
+    "script": "24-gpu-pv-shim.sh",
+    "stage": "container",
+    "deps": [
+      "24-cpu-affinity.sh"
+    ]
+  },
+  {
+    "ordinal": 25,
+    "script": "25-gpu-cdi-toolkits.sh",
+    "stage": "container",
+    "deps": [
+      "24-gpu-pv-shim.sh"
+    ]
+  },
+  {
+    "ordinal": 26,
+    "script": "26-nvidia-cdi-refresh.sh",
+    "stage": "container",
+    "deps": [
+      "25-gpu-cdi-toolkits.sh"
+    ]
+  },
+  {
+    "ordinal": 27,
+    "script": "27-vm-gating.sh",
+    "stage": "container",
+    "deps": [
+      "26-nvidia-cdi-refresh.sh"
+    ]
+  },
+  {
+    "ordinal": 28,
+    "script": "28-kdump-config.sh",
+    "stage": "container",
+    "deps": [
+      "27-vm-gating.sh"
+    ]
+  },
+  {
+    "ordinal": 30,
+    "script": "30-dns-config.sh",
+    "stage": "container",
+    "deps": [
+      "28-kdump-config.sh"
+    ]
+  },
+  {
+    "ordinal": 31,
+    "script": "31-subuid-alloc.sh",
+    "stage": "container",
+    "deps": [
+      "30-dns-config.sh"
+    ]
+  },
+  {
+    "ordinal": 33,
+    "script": "33-generate-quadlets.sh",
+    "stage": "container",
+    "deps": [
+      "31-subuid-alloc.sh"
+    ]
+  },
+  {
+    "ordinal": 34,
+    "script": "34-render-quadlets.sh",
+    "stage": "container",
+    "deps": [
+      "33-generate-quadlets.sh"
+    ]
+  },
+  {
+    "ordinal": 35,
+    "script": "35-render-ports.sh",
+    "stage": "container",
+    "deps": [
+      "34-render-quadlets.sh"
+    ]
+  },
+  {
+    "ordinal": 36,
+    "script": "36-ceph-k3s.sh",
+    "stage": "container",
+    "deps": [
+      "35-render-ports.sh"
+    ]
+  },
+  {
+    "ordinal": 37,
+    "script": "37-k3s-selinux.sh",
+    "stage": "container",
+    "deps": [
+      "36-ceph-k3s.sh"
+    ]
+  },
+  {
+    "ordinal": 38,
+    "script": "38-selinux.sh",
+    "stage": "container",
+    "deps": [
+      "37-k3s-selinux.sh"
+    ]
+  },
+  {
+    "ordinal": 39,
+    "script": "39-moby-engine.sh",
+    "stage": "container",
+    "deps": [
+      "38-selinux.sh"
+    ]
+  },
+  {
+    "ordinal": 40,
+    "script": "40-fapolicyd-trust.sh",
+    "stage": "container",
+    "deps": [
+      "39-moby-engine.sh"
+    ]
+  },
+  {
+    "ordinal": 41,
+    "script": "41-services.sh",
+    "stage": "container",
+    "deps": [
+      "40-fapolicyd-trust.sh"
+    ]
+  },
+  {
+    "ordinal": 42,
+    "script": "42-chrony-render.sh",
+    "stage": "container",
+    "deps": [
+      "41-services.sh"
+    ]
+  },
+  {
+    "ordinal": 43,
+    "script": "43-nut-render.sh",
+    "stage": "container",
+    "deps": [
+      "42-chrony-render.sh"
+    ]
+  },
+  {
+    "ordinal": 44,
+    "script": "44-firewall-ports.sh",
+    "stage": "container",
+    "deps": [
+      "43-nut-render.sh"
+    ]
+  },
+  {
+    "ordinal": 45,
+    "script": "45-firewall.sh",
+    "stage": "container",
+    "deps": [
+      "44-firewall-ports.sh"
+    ]
+  },
+  {
+    "ordinal": 46,
+    "script": "46-sshd-port.sh",
+    "stage": "container",
+    "deps": [
+      "45-firewall.sh"
+    ]
+  },
+  {
+    "ordinal": 47,
+    "script": "47-init-service.sh",
+    "stage": "container",
+    "deps": [
+      "46-sshd-port.sh"
+    ]
+  },
+  {
+    "ordinal": 48,
+    "script": "48-mios-dropin-fanout.sh",
+    "stage": "container",
+    "deps": [
+      "47-init-service.sh"
+    ]
+  },
+  {
+    "ordinal": 49,
+    "script": "49-cosign-policy.sh",
+    "stage": "container",
+    "deps": [
+      "48-mios-dropin-fanout.sh"
+    ]
+  },
+  {
+    "ordinal": 50,
+    "script": "50-uupd-installer.sh",
+    "stage": "container",
+    "deps": [
+      "49-cosign-policy.sh"
+    ]
+  },
+  {
+    "ordinal": 51,
+    "script": "51-hardening.sh",
+    "stage": "container",
+    "deps": [
+      "50-uupd-installer.sh"
+    ]
+  },
+  {
+    "ordinal": 52,
+    "script": "52-apply-boot-fixes.sh",
+    "stage": "container",
+    "deps": [
+      "51-hardening.sh"
+    ]
+  },
+  {
+    "ordinal": 53,
+    "script": "53-enable-log-copy-service.sh",
+    "stage": "container",
+    "deps": [
+      "52-apply-boot-fixes.sh"
+    ]
+  },
+  {
+    "ordinal": 54,
+    "script": "54-bake-coderun-sandbox.sh",
+    "stage": "container",
+    "deps": [
+      "53-enable-log-copy-service.sh"
+    ]
+  },
+  {
+    "ordinal": 55,
+    "script": "55-native-build.sh",
+    "stage": "container",
+    "deps": [
+      "54-bake-coderun-sandbox.sh"
+    ]
+  },
+  {
+    "ordinal": 56,
+    "script": "56-fonts.sh",
+    "stage": "container",
+    "deps": [
+      "55-native-build.sh"
+    ]
+  },
+  {
+    "ordinal": 57,
+    "script": "57-gnome.sh",
+    "stage": "container",
+    "deps": [
+      "56-fonts.sh"
+    ]
+  },
+  {
+    "ordinal": 58,
+    "script": "58-gnome-remote-desktop.sh",
+    "stage": "container",
+    "deps": [
+      "57-gnome.sh"
+    ]
+  },
+  {
+    "ordinal": 59,
+    "script": "59-tools.sh",
+    "stage": "container",
+    "deps": [
+      "58-gnome-remote-desktop.sh"
+    ]
+  },
+  {
+    "ordinal": 60,
+    "script": "60-flatpak-env.sh",
+    "stage": "container",
+    "deps": [
+      "59-tools.sh"
+    ]
+  },
+  {
+    "ordinal": 61,
+    "script": "61-flatpak-bake.sh",
+    "stage": "container",
+    "deps": [
+      "60-flatpak-env.sh"
+    ]
+  },
+  {
+    "ordinal": 62,
+    "script": "62-oh-my-posh.sh",
+    "stage": "container",
+    "deps": [
+      "61-flatpak-bake.sh"
+    ]
+  },
+  {
+    "ordinal": 65,
+    "script": "65-bake-hyprland.sh",
+    "stage": "container",
+    "deps": [
+      "62-oh-my-posh.sh"
+    ]
+  },
+  {
+    "ordinal": 66,
+    "script": "66-bake-quickshell.sh",
+    "stage": "container",
+    "deps": [
+      "65-bake-hyprland.sh"
+    ]
+  },
+  {
+    "ordinal": 67,
+    "script": "67-bake-surfer.sh",
+    "stage": "container",
+    "deps": [
+      "66-bake-quickshell.sh"
+    ]
+  },
+  {
+    "ordinal": 68,
+    "script": "68-bake-kvmfr.sh",
+    "stage": "container",
+    "deps": [
+      "67-bake-surfer.sh"
+    ]
+  },
+  {
+    "ordinal": 69,
+    "script": "69-bake-lookingglass-client.sh",
+    "stage": "container",
+    "deps": [
+      "68-bake-kvmfr.sh"
+    ]
+  },
+  {
+    "ordinal": 72,
+    "script": "72-hermes-agent.sh",
+    "stage": "container",
+    "deps": [
+      "69-bake-lookingglass-client.sh"
+    ]
+  },
+  {
+    "ordinal": 73,
+    "script": "73-model-prep.sh",
+    "stage": "container",
+    "deps": [
+      "72-hermes-agent.sh"
+    ]
+  },
+  {
+    "ordinal": 75,
+    "script": "75-kargs-render.sh",
+    "stage": "container",
+    "deps": [
+      "73-model-prep.sh"
+    ]
+  },
+  {
+    "ordinal": 76,
+    "script": "76-uki-render.sh",
+    "stage": "container",
+    "deps": [
+      "75-kargs-render.sh"
+    ]
+  },
+  {
+    "ordinal": 77,
+    "script": "77-composefs-verity.sh",
+    "stage": "container",
+    "deps": [
+      "76-uki-render.sh"
+    ]
+  },
+  {
+    "ordinal": 78,
+    "script": "78-greenboot.sh",
+    "stage": "container",
+    "deps": [
+      "77-composefs-verity.sh"
+    ]
+  },
+  {
+    "ordinal": 79,
+    "script": "79-boot-config.sh",
+    "stage": "container",
+    "deps": [
+      "78-greenboot.sh"
+    ]
+  },
+  {
+    "ordinal": 80,
+    "script": "80-distribution.sh",
+    "stage": "container",
+    "deps": [
+      "79-boot-config.sh"
+    ]
+  },
+  {
+    "ordinal": 85,
+    "script": "85-bake-plan.sh",
+    "stage": "container",
+    "deps": [
+      "80-distribution.sh"
+    ]
+  },
+  {
+    "ordinal": 86,
+    "script": "86-oscap-compliance.sh",
+    "stage": "container",
+    "deps": [
+      "85-bake-plan.sh"
+    ]
+  },
+  {
+    "ordinal": 88,
+    "script": "88-finalize.sh",
+    "stage": "container",
+    "deps": [
+      "86-oscap-compliance.sh"
+    ]
+  },
+  {
+    "ordinal": 90,
+    "script": "90-generate-sbom.sh",
+    "stage": "container",
+    "deps": [
+      "88-finalize.sh"
+    ]
+  },
+  {
+    "ordinal": 91,
+    "script": "91-strip-build-toolchain.sh",
+    "stage": "container",
+    "deps": [
+      "90-generate-sbom.sh"
+    ]
+  },
+  {
+    "ordinal": 92,
+    "script": "92-export-sbom.sh",
+    "stage": "container",
+    "deps": [
+      "91-strip-build-toolchain.sh"
+    ]
+  },
+  {
+    "ordinal": 93,
+    "script": "93-composefs-seal.sh",
+    "stage": "container",
+    "deps": [
+      "92-export-sbom.sh"
+    ]
+  },
+  {
+    "ordinal": 94,
+    "script": "94-cleanup.sh",
+    "stage": "container",
+    "deps": [
+      "93-composefs-seal.sh"
+    ]
+  },
+  {
+    "ordinal": 97,
+    "script": "97-ssot-lint.sh",
+    "stage": "container",
+    "deps": [
+      "94-cleanup.sh"
+    ]
+  },
+  {
+    "ordinal": 98,
+    "script": "98-drift-checks.sh",
+    "stage": "container",
+    "deps": [
+      "97-ssot-lint.sh"
+    ]
+  },
+  {
+    "ordinal": 99,
+    "script": "99-postcheck.sh",
+    "stage": "container",
+    "deps": [
+      "98-drift-checks.sh"
+    ]
+  },
+  {
+    "ordinal": null,
+    "script": "firstboot/mios-cephfs-mount-setup.sh",
+    "stage": "firstboot",
+    "deps": []
+  },
+  {
+    "ordinal": null,
+    "script": "firstboot/mios-conv-inference-setup.sh",
+    "stage": "firstboot",
+    "deps": []
+  },
+  {
+    "ordinal": null,
+    "script": "firstboot/mios-xdg-setup.sh",
+    "stage": "firstboot",
+    "deps": []
+  }
+]
