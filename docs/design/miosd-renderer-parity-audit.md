@@ -137,3 +137,12 @@ Nothing below was observed. Every one of these is a place where a conversion com
 - **01-system-files-overlay:** the full stage was never run (it tars `/ctx` over `/usr`, `chmod`s all of `/usr/lib/systemd`, can `rm -rf /home`, runs `restorecon -RFv`); only the verbatim LBI block was executed. Whether `/usr/share/containers/systemd` holds units beyond the repo tree at bake — in particular any emitted under `users/` by stages 14/34 — is unknown, and any such unit would also be lost to the flat `read_dir`.
 - **98 / aiplane-lint:** `tools/native` ships no prebuilt binary, so the tested artifact was compiled from current source at cargo 1.94.1, not what a bake produces. No genuinely unreadable `mios.toml` could be constructed (running as root); both sides *look* fail-closed by source reading only. Whether any consumer actually **reads** the value it finds — as opposed to merely mentioning the name — was never executed. Whether the 55 stub `Check` impls are intended placeholders was not investigated (no TASKS.md/ADR trace looked for).
 - **build.sh driver:** no full bake; the phase-selection block (lines 185-248) was extracted and sourced. The `build_catalog_authoritative=true` tier was never exercised live (needs a running `mios-pgvector`) — and note it is **doubly dead**: `materialize-build-ctx.py` writes `build_phases.json` to `$MIOS_BUILD_CTX` (default `/ctx`) while `build.sh:232` reads `$(dirname "$MIOS_TOML")/build_phases.json`. `cargo test -p mios-build` findings on `golden_harness.rs` are from reading the test source. Whether stages numbered above 55 behave differently once 55 has symlinked `miosd` into `/usr/bin` mid-run — a split-brain within a single bake — was noticed but not tested.
+
+## Producer consolidation follow-up
+
+The historical Python producer names in this audit have been replaced by the
+shared Rust library at `tools/native/mios-unit-gen/src/lib.rs`. The current
+UKI command is `mios-unit-gen uki-cmdline --root DIR`; `--check` compares its
+projection without writing. `miosd render-uki-cmdline` calls the same library.
+The ordered kargs payload was compared with the former producer before removal.
+Malformed drop-ins fail before the existing cmdline is overwritten.

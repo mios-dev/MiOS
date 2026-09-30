@@ -18,7 +18,6 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-GEN_SCRIPT="${ROOT}/tools/generate-uki-cmdline.py"
 KERNEL_CMDLINE_DST="/usr/lib/kernel/cmdline"
 install -d -m 0755 /usr/lib/kernel
 
@@ -33,23 +32,24 @@ for _c in "${MIOS_MIOSD_BIN:-}" \
     if [[ -n "$_c" && -x "$_c" ]]; then _miosd="$_c"; break; fi
 done
 
-if [[ ! -f "$GEN_SCRIPT" ]]; then
-    mios_err "authoritative UKI cmdline generator not found at $GEN_SCRIPT"
-    exit 1
-fi
-
-# Both paths run the same generator: miosd render-uki-cmdline execs
-# tools/generate-uki-cmdline.py, which is where the kargs.d parse actually
-# lives. The dispatch is about which side owns the invocation, not about two
-# implementations -- so there is no output to diff, only a root to get right.
-# miosd resolves the script against MIOS_ROOT, so pass it explicitly rather
-# than relying on the caller's cwd.
+# The daemon and CLI call the same Rust projection library. Pass the root
+# explicitly so the input directory and output file cannot follow the cwd.
 if [[ -n "$_miosd" ]]; then
     mios_log "Render UKI cmdline via miosd"
     MIOS_ROOT="$ROOT" "$_miosd" render-uki-cmdline
 else
-    mios_log "Render UKI cmdline via authoritative generator"
-    python3 "$GEN_SCRIPT"
+    _unit_gen=""
+    for _c in "${MIOS_UNIT_GEN_BIN:-}" /usr/libexec/mios/mios-unit-gen \
+              "${ROOT}/tools/native/target/release/mios-unit-gen" \
+              "${ROOT}/tools/native/target/debug/mios-unit-gen"; do
+        if [[ -n "$_c" && -x "$_c" ]]; then _unit_gen="$_c"; break; fi
+    done
+    if [[ -z "$_unit_gen" ]] || ! "$_unit_gen" --list-projections | grep -Fxq uki-cmdline; then
+        mios_err "mios-unit-gen with uki-cmdline support is required; rebuild it in MiOS-DEV"
+        exit 1
+    fi
+    mios_log "Render UKI cmdline via mios-unit-gen"
+    "$_unit_gen" uki-cmdline --root "$ROOT"
 fi
 
 if [[ "${ROOT}/usr/lib/kernel/cmdline" != "${KERNEL_CMDLINE_DST}" ]]; then

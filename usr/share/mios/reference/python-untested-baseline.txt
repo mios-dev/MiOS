@@ -8,7 +8,6 @@ tools/compile-templates.py
 tools/gen-pipe-boundary-manifest.py
 tools/generate-ai-manifest.py
 tools/generate-bib-configs.py
-tools/generate-blade-dropins.py
 tools/generate-cockpit-conf.py
 tools/generate-cosign-policy.py
 tools/generate-egress-firewall.py
@@ -17,7 +16,6 @@ tools/generate-manual.py
 tools/generate-names-registry.py
 tools/generate-pipeline-index.py
 tools/generate-pod-quadlets.py
-tools/generate-uki-cmdline.py
 tools/generate-unified-knowledge.py
 tools/journal-sync.py
 tools/pipe-parity-check.py

@@ -1,5 +1,5 @@
 <!-- AI-hint: The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Metal" currently names three different things. Establishes that base LINEAGE (which bootc base) and ROLE (what the machine does) are orthogonal axes, that service offload is a [urls] overlay rather than a code change because every pod is Network=host, and that the blade registry must key on something other than the port -- since port is currently the whole of a service's identity. Corrects the assumption that role selection is undecided: [blade] SINGULAR already implements one-image-role-by-flag and is a different axis from [blades] PLURAL. -->
-<!-- AI-related: usr/share/doc/mios/concepts/mios-metal-architecture.md, usr/share/mios/mios.toml [blade], [blade.planes], [urls], [ports], [blades], [nodes], [profile], usr/share/doc/mios/reference/metal-vs-hosted.md, tools/generate-metal-vs-hosted.py, usr/libexec/mios/role-apply, tools/generate-blade-dropins.py, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
+<!-- AI-related: usr/share/doc/mios/concepts/mios-metal-architecture.md, usr/share/mios/mios.toml [blade], [blade.planes], [urls], [ports], [blades], [nodes], [profile], usr/share/doc/mios/reference/metal-vs-hosted.md, tools/generate-metal-vs-hosted.py, usr/libexec/mios/role-apply, tools/native/mios-unit-gen/src/lib.rs, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
 ---
 adr: 0016
 title: "Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"
@@ -78,7 +78,7 @@ Measured, not assumed:
 | `[blade]` (singular) | **OS role** — what *this* machine activates | "am I a gpu-serving box or a controller?" | shipping |
 | `[blades]` (plural) | **Fleet** — which *other* machines serve me | "who else is out there and how big are they?" | empty |
 
-The `[blade]` chain is complete end to end: `[blade.requires]` → `tools/generate-blade-dropins.py`
+The `[blade]` chain is complete end to end: `[blade.requires]` → `tools/native/mios-unit-gen/src/lib.rs`
 → `usr/share/mios/dropins/blade-<cap>.conf` (each a bare `ConditionPathExists=/etc/mios/blade.d/<cap>`)
 → `automation/48-mios-dropin-fanout.sh` → `<unit>.service.d/50-blade-<cap>.conf`, with
 `usr/libexec/mios/role-apply` materializing the `/etc/mios/blade.d/*` markers and `/run/mios/blade.env`,
@@ -296,7 +296,7 @@ were not what they looked like.
   retired vars again.
 
 * **`05-mios-blade.toml` gets generated — and generating it broke three things.** The producer
-  landed as specified (`tools/generate-blade-karg.py`, gate `check_blade_karg`). But the karg it
+  landed as specified (`tools/native/mios-unit-gen/src/lib.rs`, gate `check_blade_karg`). But the karg it
   emits is on **every** cmdline, and `role-apply` guarded its remaining tiers with
   `if [[ -z "$ROLE" ]]`. With the vendor karg always present, `ROLE` was never empty, so in one
   commit and with no error anywhere:
@@ -1095,3 +1095,14 @@ an artifact of reading the plural key and not the singular one. Re-measured agai
 role axis is the most finished mechanism in scope and the open work on it is subtraction — retire
 `[profile]`, stop `role-apply` acting, generate the karg — not design. The unfinished axis is
 addressing, which is Decision 1.
+
+## Deployment projection consolidation
+
+The deployment producers share `tools/native/mios-unit-gen/src/lib.rs`.
+`mios-unit-gen blade-dropins` renders capability conditions, k3s selectors and
+tolerations, and Pacemaker location rules. `mios-unit-gen blade-karg` renders
+the declared archetype into `usr/lib/bootc/kargs.d/05-mios-blade.toml`.
+`mios-unit-gen uki-cmdline` flattens every kargs drop-in in filename order
+into `usr/lib/kernel/cmdline`; it runs after the karg producers. Each mode
+accepts `--root DIR` and `--check`. The daemon calls the same Rust library.
+The corresponding checks keep their existing names in the projection registry.

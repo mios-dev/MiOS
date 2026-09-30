@@ -43,7 +43,7 @@ are all in scope. Design ahead of hardware is legitimate here; presenting a
 | | Measured | Note |
 |---|---:|---|
 | Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
-| Tracked files | 3,600 | The reading surface. |
+| Tracked files | 3,596 | The reading surface. |
 | Tracked size | 243 MB | Two vendored assets are most of it. |
 | Shell / Python / PowerShell / Rust | 56k / 218k / 30k / 38k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 0.8x. |
 | Drift checks | 225 | Falsifiability audited per check, not assumed. |
@@ -69,6 +69,12 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
    distinct FHS destinations, registered build phases, and externally loaded
    contracts separate; measure the tracked-file reduction and update every
    path-based projection when a source file is retired.
+
+**Consolidation evidence (2026-09-30, T-1126):** Three deployment generators and
+one dedicated test file were absorbed into the existing `mios-unit-gen` Rust
+component. Its CLI and the daemon share one renderer for all seven blade/UKI
+outputs; 23 native tests and stale-binary negative controls pass. The broader
+root and one-depth consolidation campaign remains active.
 
 > The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` + `concepts/*` planning docs. Workstreams map to `T-*` records in TASKS.jsonl.
 
@@ -226,7 +232,7 @@ acceptance: |
 - **Files:** `usr/share/mios/mios.toml` (`[blade]`/`[blade.archetypes]`/`[blade.requires]`), `usr/libexec/mios/role-apply`, `usr/share/mios/dropins/blade-<cap>.conf` (generated), `automation/48-mios-dropin-fanout.sh`, `usr/lib/bootc/kargs.d/05-mios-blade.toml` (generated), `usr/lib/systemd/system/mios-{compute,endpoint,controller}.target`, `usr/lib/greenboot/check/required.d/10-mios-role.sh`, the `mios blade` verb.
 - **Accept:** one universal image; on a `controller` blade `systemctl status mios-llm-heavy.service` reports condition-skipped with zero VRAM touched, while a `gpu-serving` blade starts it; `mios blade add-capability gpu-serving` lights the unit hot (no reboot); the drop-in generator is drift-gated; `[blades.*]`/`[nodes.*]` fleet-dispatch (Axis B) stays orthogonal to `[blade]` OS-activation (Axis A).
 - **Deps:** none hard; complements WS-BAKEGATE (activation vs bake orthogonality) and WS-MIOSSYS (activation `Condition*` unchanged by consolidation).
-- **Closed (T-315).** All three named deliverables landed. The karg producer (`tools/generate-blade-karg.py` -> `usr/lib/bootc/kargs.d/05-mios-blade.toml`, gate `check_blade_karg`) exists; `[profile]` is retired outright rather than aliased, because measurement showed it was dead on both ends -- no reader, and its only writer emitted `Role` with a capital R; and `role-apply` is demoted to a resolver whose one remaining imperative act is conditional on the role having CHANGED. Two corrections to the plan are recorded in ADR-0016 Decision 4 and T-315: the `systemctl` calls could not simply be deleted (the image bakes `multi-user.target`, so on the first boot after install nothing else reaches the role target, and the default archetype's target requires `graphical.target`), and shipping the karg producer had silently disabled `/etc/mios/role.conf`, its `FEATURES=`, and the hardware fallbacks -- `mios blade set` did nothing and `mios blade add-capability` was erased on the next boot. Resolution is now a five-tier ladder, gated by `check_role_ssot`, with 14 fixture-driven assertions in `tests/test-role-apply-precedence.sh`. Two archetypes (`k3s-master`, `ha-node`) were added because `role-apply` already selected their targets while granting them zero capabilities, and the role targets now form a complete `Conflicts=` graph so day-2 switching actually stops the previous role. See ADR-0016.
+- **Closed (T-315).** All three named deliverables landed. The karg producer (`tools/native/mios-unit-gen/src/lib.rs` -> `usr/lib/bootc/kargs.d/05-mios-blade.toml`, gate `check_blade_karg`) exists; `[profile]` is retired outright rather than aliased, because measurement showed it was dead on both ends -- no reader, and its only writer emitted `Role` with a capital R; and `role-apply` is demoted to a resolver whose one remaining imperative act is conditional on the role having CHANGED. Two corrections to the plan are recorded in ADR-0016 Decision 4 and T-315: the `systemctl` calls could not simply be deleted (the image bakes `multi-user.target`, so on the first boot after install nothing else reaches the role target, and the default archetype's target requires `graphical.target`), and shipping the karg producer had silently disabled `/etc/mios/role.conf`, its `FEATURES=`, and the hardware fallbacks -- `mios blade set` did nothing and `mios blade add-capability` was erased on the next boot. Resolution is now a five-tier ladder, gated by `check_role_ssot`, with 14 fixture-driven assertions in `tests/test-role-apply-precedence.sh`. Two archetypes (`k3s-master`, `ha-node`) were added because `role-apply` already selected their targets while granting them zero capabilities, and the role targets now form a complete `Conflicts=` graph so day-2 switching actually stops the previous role. See ADR-0016.
 
 ## WS-MIOSSYS — MiOS-Sys shared-base consolidation of the sidecar fleet
 <!--
@@ -1223,7 +1229,7 @@ data once a peer exists). Both are accepted, not fixed. This workstream fixes th
 - **Files:** `usr/share/mios/mios.toml` (`[blades]`, `[metal.*]`, `[blade.archetypes]`,
   `[containers.mios-k3s]`, `[storage.ceph]`, `[ha]`), `usr/lib/systemd/system/mios-ha-bootstrap.service`,
   `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/containers/systemd/mios-k3s.container` (generated),
-  `tools/generate-blade-dropins.py`, `tools/generate-pod-quadlets.py`, `tools/check-fleet-safety.py`,
+  `tools/native/mios-unit-gen/src/lib.rs`, `tools/generate-pod-quadlets.py`, `tools/check-fleet-safety.py`,
   `tools/native/`.
 - **Accept:** each lane states its target shape for 2-6 nodes; `k3s-multi-server` and
   `pacemaker-unfenced` retire themselves from `[blades.hazards].accepted` because the detector

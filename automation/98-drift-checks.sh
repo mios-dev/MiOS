@@ -110,6 +110,38 @@ _gate_bin() {
     return 1
 }
 
+_unit_gen_bin() {
+    local c
+    for c in "${MIOS_UNIT_GEN_BIN:-}" \
+             "$ROOT/tools/native/target/release/mios-unit-gen" \
+             "$ROOT/tools/native/target/debug/mios-unit-gen" \
+             "$ROOT/tools/native/target/release/mios-unit-gen.exe" \
+             "$ROOT/tools/native/target/debug/mios-unit-gen.exe" \
+             /usr/libexec/mios/mios-unit-gen /opt/mios/bin/mios-unit-gen; do
+        [[ -n "$c" && -x "$c" ]] && { printf '%s' "$c"; return 0; }
+    done
+    return 1
+}
+
+_run_deployment_projection() {
+    local mode="$1" bin output
+    bin="$(_unit_gen_bin)" || {
+        _violation "mios-unit-gen is not built -- build it in MiOS-DEV: cd tools/native && cargo build -p mios-unit-gen"
+        return
+    }
+    # An older binary ignores a new subcommand and --check runs its unit gate.
+    # Require the named projection before trusting its exit status.
+    if ! "$bin" --list-projections | tr -d '\r' | grep -Fxq "$mode"; then
+        _violation "mios-unit-gen does not advertise $mode -- rebuild the binary from this checkout"
+        return
+    fi
+    if output="$("$bin" "$mode" --root "$ROOT" --check 2>&1)"; then
+        printf '[98-drift-checks]   %s\n' "$output"
+    else
+        _violations_from "$mode: " "$output"
+    fi
+}
+
 _violations_from() {
     # Folded from 42 copies of this loop.
     local __prefix="$1" __blob="$2" line __n=0
@@ -554,42 +586,7 @@ check_egress_firewall() {
 }
 
 check_blade_dropins() {
-    _need_python || return 0
-    local gen="$ROOT/tools/generate-blade-dropins.py"
-    if [[ ! -f "$gen" ]]; then
-        _violation "tools/generate-blade-dropins.py absent -- a tracked deliverable is missing, so this check cannot run"
-        return
-    fi
-    local tmp_root; tmp_root="$(mktemp -d)"
-    if MIOS_ROOT="$tmp_root" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$gen" >/dev/null 2>&1; then
-        local committed_dir="$ROOT/usr/share/mios/dropins"
-        local generated_dir="$tmp_root/usr/share/mios/dropins"
-        local ok=1
-
-        local f gen_file com_file
-        for f in "$generated_dir"/*; do
-            [[ -e "$f" ]] || continue
-            gen_file="$(basename "$f")"
-            com_file="$committed_dir/$gen_file"
-            if [[ ! -f "$com_file" ]]; then
-                ok=0
-                echo "      Missing drop-in: $gen_file is missing from $committed_dir" >&2
-            elif ! diff -q "$com_file" "$f" >/dev/null 2>&1; then
-                ok=0
-                echo "      Divergence in drop-in: $gen_file has drifted" >&2
-            fi
-        done
-
-        rm -rf "$tmp_root"
-        if [[ $ok -eq 1 ]]; then
-            echo "[98-drift-checks]   blade capability drop-ins in sync with mios.toml [blade.requires]"
-        else
-            _violation "usr/share/mios/dropins/ is STALE vs mios.toml [blade.requires] -- regenerate with tools/generate-blade-dropins.py "
-        fi
-    else
-        rm -rf "$tmp_root"
-        _violation "blade drop-in generation failed during drift check"
-    fi
+    _run_deployment_projection blade-dropins
 }
 
 check_no_hardcode() {
@@ -3066,25 +3063,7 @@ check_ipa_enroll_projection() {
 }
 
 check_uki_cmdline_projection() {
-    if ! _require_python3; then
-        return 0
-    fi
-    local _uki_out
-    if _uki_out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" --check 2>&1)"; then
-        echo "[98-drift-checks]   usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins"
-    else
-        # T-1034: a drop-in that will not parse and a cmdline that is merely
-        # stale exit the same way. Discarding the generator's own words turned
-        # "I could not read 01-mios-hardening.toml" into "your file is out of
-        # sync -- re-run the generator", which is advice that cannot work.
-        printf '%s\n' "$_uki_out" | head -n 10 >&2
-        _emit_projection_evidence "tools/generate-uki-cmdline.py" "usr/lib/kernel/cmdline"
-        if printf '%s' "$_uki_out" | grep -q '^Error parsing '; then
-            _violation "a usr/lib/bootc/kargs.d/*.toml drop-in does not parse, so its kernel arguments would be dropped from usr/lib/kernel/cmdline -- fix the drop-in named above"
-        else
-            _violation "usr/lib/kernel/cmdline is out of sync with usr/lib/bootc/kargs.d/*.toml -- run python3 tools/generate-uki-cmdline.py"
-        fi
-    fi
+    _run_deployment_projection uki-cmdline
 }
 
 check_composefs_projection() {
@@ -4775,7 +4754,7 @@ check_metal_vs_hosted() { _run_py_check check_metal_vs_hosted "tools/generate-me
 check_node_pool() { _run_py_check check_node_pool "tools/check-ssot.py node-pool" ""; }
 check_port_fallbacks() { _run_py_check check_port_fallbacks "tools/check-ssot.py port-fallbacks" ""; }
 check_role_ssot() { _run_py_check check_role_ssot "tools/check-ssot.py role-ssot" ""; }
-check_blade_karg() { _run_py_check check_blade_karg "tools/generate-blade-karg.py --check"; }
+check_blade_karg() { _run_deployment_projection blade-karg; }
 check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners "tools/check-runtime.py firstboot-provisioners"; }
 check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-desktop.py --check"; }
 

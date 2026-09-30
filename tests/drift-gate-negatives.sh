@@ -1459,16 +1459,22 @@ test_ipa_enroll_projection() {
 test_uki_cmdline_projection() {
     log "Testing check_uki_cmdline_projection"
     local target_file="${ROOT}/usr/lib/kernel/cmdline"
-    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true; }
+    local unit_gen="" candidate
+    for candidate in "${MIOS_UNIT_GEN_BIN:-}" "$ROOT/tools/native/target/release/mios-unit-gen" \
+            "$ROOT/tools/native/target/debug/mios-unit-gen" /usr/libexec/mios/mios-unit-gen; do
+        [[ -n "$candidate" && -x "$candidate" ]] && { unit_gen="$candidate"; break; }
+    done
+    [[ -n "$unit_gen" ]] || die "mios-unit-gen is required for the UKI negative control"
+    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; "$unit_gen" uki-cmdline --root "$ROOT" >/dev/null 2>&1 || true; }
 
     echo 'mutated_bogus_karg=1' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_uki_cmdline_projection >/dev/null 2>&1; then
-        MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true
+        "$unit_gen" uki-cmdline --root "$ROOT" >/dev/null 2>&1 || true
         die "Check_uki_cmdline_projection passed despite mutated cmdline"
     fi
 
-    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true
+    "$unit_gen" uki-cmdline --root "$ROOT" >/dev/null 2>&1 || true
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_uki_cmdline_projection >/dev/null 2>&1 \
         || die "Check_uki_cmdline_projection failed after restoration"
     log "Test_uki_cmdline_projection negative test passed"

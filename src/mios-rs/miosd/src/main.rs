@@ -2163,7 +2163,18 @@ fn run_render_chrony(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std:
 }
 
 fn run_render_uki_cmdline(check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    run_repo_generator("tools/generate-uki-cmdline.py", check, "render-uki-cmdline")
+    let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
+    let count = mios_unit_gen::project_deployment(
+        std::path::Path::new(&root),
+        mios_unit_gen::DeploymentKind::UkiCmdline,
+        check,
+        None,
+    )?;
+    println!(
+        "[render-uki-cmdline] {count} projection(s) {}",
+        if check { "match SSOT" } else { "written" }
+    );
+    Ok(())
 }
 
 fn run_generate_quadlets(check: bool) -> Result<(), Box<dyn std::error::Error>> {

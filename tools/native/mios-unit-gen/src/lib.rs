@@ -1,8 +1,8 @@
-// AI-hint: Systemd unit generator library projecting units from mios.toml SSOT.
+// AI-hint: Unified systemd and deployment projection library: units, blade capability drop-ins, blade karg, and UKI cmdline from SSOT.
 //! MiOS Systemd Unit Generator & Golden Master Deviance Oracle.
 
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 use thiserror::Error;
@@ -15,6 +15,215 @@ pub enum UnitGenError {
     Toml(#[from] toml::de::Error),
     #[error("Golden master verification error: {0}")]
     GoldenMaster(String),
+}
+
+pub const BLADE_KARG: &str = "usr/lib/bootc/kargs.d/05-mios-blade.toml";
+pub const UKI_CMDLINE: &str = "usr/lib/kernel/cmdline";
+const SSOT: &str = "usr/share/mios/mios.toml";
+const DROPINS: &str = "usr/share/mios/dropins";
+
+#[derive(Clone, Copy, Debug)]
+pub enum DeploymentKind {
+    BladeDropins,
+    BladeKarg,
+    UkiCmdline,
+}
+
+/// Render only the capability files this projection owns; service drop-ins
+/// maintained elsewhere under the same directory remain untouched.
+pub fn render_blade_dropins(ssot: &str) -> Result<BTreeMap<String, String>, UnitGenError> {
+    let doc: toml::Value = toml::from_str(ssot)?;
+    let mut requires = BTreeMap::<String, Vec<String>>::new();
+    if let Some(table) = doc.get("blade").and_then(|b| b.get("requires")) {
+        let table = table
+            .as_table()
+            .ok_or_else(|| UnitGenError::GoldenMaster("[blade.requires] must be a table".into()))?;
+        for (service, value) in table {
+            let values = match value {
+                toml::Value::String(s) => vec![s.clone()],
+                toml::Value::Array(values) => values
+                    .iter()
+                    .map(|v| {
+                        v.as_str().map(str::to_owned).ok_or_else(|| {
+                            UnitGenError::GoldenMaster(format!(
+                                "blade.requires.{service}: capabilities must be strings"
+                            ))
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                _ => {
+                    return Err(UnitGenError::GoldenMaster(format!(
+                        "blade.requires.{service}: expected a string or string array"
+                    )))
+                }
+            };
+            let caps: Vec<String> = values
+                .into_iter()
+                .map(|s| s.trim().to_owned())
+                .filter(|s| !s.is_empty())
+                .collect();
+            for cap in &caps {
+                if !cap
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+                {
+                    return Err(UnitGenError::GoldenMaster(format!(
+                        "blade.requires.{service}: unsafe capability {cap:?}"
+                    )));
+                }
+            }
+            requires.insert(service.clone(), caps);
+        }
+    }
+    let unique: BTreeSet<&String> = requires.values().flatten().collect();
+    let mut out = BTreeMap::new();
+    for cap in unique {
+        out.insert(format!("{DROPINS}/blade-{cap}.conf"), format!(
+            "# AI-hint: GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via mios-unit-gen blade-dropins.\n[Unit]\nConditionPathExists=/etc/mios/blade.d/{cap}\n"
+        ));
+    }
+    let mut selectors = String::from(
+        "# AI-hint: GENERATED k3s nodeSelectors/tolerations from mios.toml [blade.requires] SSOT (AGY-1595). DO NOT EDIT.\n# Rendered by mios-unit-gen blade-dropins.\nservices:\n"
+    );
+    let mut pcs = String::from(
+        "# AI-hint: GENERATED Pacemaker location constraint rules from mios.toml [blade.requires] SSOT (AGY-1595). DO NOT EDIT.\n# Rendered by mios-unit-gen blade-dropins.\n"
+    );
+    for (service, caps) in &requires {
+        selectors.push_str(&format!("  {service}:\n    nodeSelector:\n"));
+        for cap in caps {
+            selectors.push_str(&format!("      mios.capability/{cap}: \"true\"\n"));
+        }
+        selectors.push_str("    tolerations:\n");
+        for cap in caps {
+            selectors.push_str(&format!("      - key: \"mios.capability/{cap}\"\n        operator: \"Exists\"\n        effect: \"NoSchedule\"\n"));
+        }
+        if !caps.is_empty() {
+            let conditions = caps
+                .iter()
+                .map(|c| format!("mios-cap-{c} eq true"))
+                .collect::<Vec<_>>()
+                .join(" and ");
+            pcs.push_str(&format!(
+                "pcs constraint location {service} rule score=100 {conditions}\n"
+            ));
+        }
+    }
+    out.insert(format!("{DROPINS}/k3s-node-selectors.yaml"), selectors);
+    out.insert(format!("{DROPINS}/pcs-location-rules.pcs"), pcs);
+    Ok(out)
+}
+
+pub fn render_blade_karg(ssot: &str) -> Result<String, UnitGenError> {
+    let doc: toml::Value = toml::from_str(ssot)?;
+    let blade = doc.get("blade");
+    let kind = blade
+        .and_then(|b| b.get("type"))
+        .and_then(toml::Value::as_str)
+        .unwrap_or("")
+        .trim();
+    if kind.is_empty() {
+        return Err(UnitGenError::GoldenMaster(
+            "[blade].type is empty -- refusing to emit an empty blade karg".into(),
+        ));
+    }
+    if !blade
+        .and_then(|b| b.get("archetypes"))
+        .and_then(toml::Value::as_table)
+        .is_some_and(|a| a.contains_key(kind))
+    {
+        return Err(UnitGenError::GoldenMaster(format!(
+            "[blade].type = {kind:?} names no archetype in [blade.archetypes]"
+        )));
+    }
+    let token = toml::Value::String(format!("mios.blade={kind}"));
+    Ok(format!(
+        "# AI-hint: GENERATED from mios.toml [blade].type. DO NOT EDIT; regenerate via mios-unit-gen blade-karg. Installer, Butane kernel_arguments and `mios blade set` override it on the cmdline, where role-apply reads the LAST mios.blade= token.\n# AI-related: usr/share/mios/mios.toml, usr/libexec/mios/role-apply, tools/native/mios-unit-gen/src/lib.rs\n# bootc kargs.d: bare `kargs = [...]` only. NO [kargs] table header.\n\nkargs = [\n    {token}\n]\n"
+    ))
+}
+
+/// Preserve drop-in filename ordering and each file's token ordering. A bad
+/// drop-in aborts the projection before the existing command line is written.
+pub fn render_uki_cmdline(root: &Path) -> Result<String, UnitGenError> {
+    let directory = root.join("usr/lib/bootc/kargs.d");
+    let mut files = Vec::new();
+    for entry in fs::read_dir(&directory)? {
+        let path = entry?.path();
+        if path.extension().is_some_and(|e| e == "toml") {
+            files.push(path);
+        }
+    }
+    files.sort();
+    let mut tokens = Vec::new();
+    for file in files {
+        let doc: toml::Value = fs::read_to_string(&file)?
+            .parse()
+            .map_err(|e| UnitGenError::GoldenMaster(format!("{}: {e}", file.display())))?;
+        if let Some(value) = doc.get("kargs") {
+            let args = value.as_array().ok_or_else(|| {
+                UnitGenError::GoldenMaster(format!(
+                    "{}: kargs must be a string array",
+                    file.display()
+                ))
+            })?;
+            for arg in args {
+                tokens.push(
+                    arg.as_str()
+                        .ok_or_else(|| {
+                            UnitGenError::GoldenMaster(format!(
+                                "{}: kargs must contain strings",
+                                file.display()
+                            ))
+                        })?
+                        .to_owned(),
+                );
+            }
+        }
+    }
+    Ok(tokens.join(" ").trim().to_owned() + "\n")
+}
+
+/// Both the CLI and the daemon use this comparison, so neither can certify a
+/// different destination or a check that never renders its subject.
+pub fn project_deployment(
+    root: &Path,
+    kind: DeploymentKind,
+    check: bool,
+    toml_override: Option<&Path>,
+) -> Result<usize, UnitGenError> {
+    let files = match kind {
+        DeploymentKind::BladeDropins => render_blade_dropins(&fs::read_to_string(
+            toml_override.unwrap_or(&root.join(SSOT)),
+        )?)?,
+        DeploymentKind::BladeKarg => BTreeMap::from([(
+            BLADE_KARG.to_owned(),
+            render_blade_karg(&fs::read_to_string(
+                toml_override.unwrap_or(&root.join(SSOT)),
+            )?)?,
+        )]),
+        DeploymentKind::UkiCmdline => {
+            BTreeMap::from([(UKI_CMDLINE.to_owned(), render_uki_cmdline(root)?)])
+        }
+    };
+    let mut drift = Vec::new();
+    for (relative, body) in &files {
+        let path = root.join(relative);
+        if check {
+            match fs::read_to_string(&path) {
+                Ok(have) if have.replace("\r\n", "\n") == *body => {}
+                Ok(_) => drift.push(format!("{relative}: drifted from SSOT")),
+                Err(e) => drift.push(format!("{relative}: cannot read projection: {e}")),
+            }
+        } else {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, body)?;
+        }
+    }
+    if !drift.is_empty() {
+        return Err(UnitGenError::GoldenMaster(drift.join("\n")));
+    }
+    Ok(files.len())
 }
 
 #[derive(Deserialize, Debug, Clone)]

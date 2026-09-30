@@ -1,5 +1,5 @@
 // AI-hint: CLI driver for mios-unit-gen rendering systemd unit files from SSOT.
-use mios_unit_gen::{drift_register, project, render_units};
+use mios_unit_gen::{drift_register, project, project_deployment, render_units, DeploymentKind};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -32,7 +32,54 @@ fn read_ssot(root: &Path) -> String {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    let root = repo_root();
+    for option in ["--root", "--toml", "--render"] {
+        if let Some(i) = args.iter().position(|arg| arg == option) {
+            if args.get(i + 1).is_none_or(|value| value.starts_with("--")) {
+                return Err(format!("mios-unit-gen: {option} requires a value").into());
+            }
+        }
+    }
+    let root = args
+        .windows(2)
+        .find(|pair| pair[0] == "--root")
+        .map(|pair| PathBuf::from(&pair[1]))
+        .unwrap_or_else(repo_root);
+    if args.iter().any(|arg| arg == "--list-projections") {
+        println!("blade-dropins\nblade-karg\nuki-cmdline");
+        return Ok(());
+    }
+    let deployment = match args.get(1).map(String::as_str) {
+        Some("blade-dropins") => Some(DeploymentKind::BladeDropins),
+        Some("blade-karg") => Some(DeploymentKind::BladeKarg),
+        Some("uki-cmdline") => Some(DeploymentKind::UkiCmdline),
+        _ => None,
+    };
+    if let Some(kind) = deployment {
+        let mut i = 2;
+        while i < args.len() {
+            match args[i].as_str() {
+                "--root" | "--toml" => i += 2,
+                "--check" => i += 1,
+                other => {
+                    return Err(
+                        format!("mios-unit-gen: unknown projection option {other:?}").into(),
+                    )
+                }
+            }
+        }
+        let toml = args
+            .windows(2)
+            .find(|pair| pair[0] == "--toml")
+            .map(|pair| PathBuf::from(&pair[1]));
+        let check = args.iter().any(|arg| arg == "--check");
+        let count = project_deployment(&root, kind, check, toml.as_deref())?;
+        println!(
+            "[mios-unit-gen] {}: {count} projection(s) {}",
+            args[1],
+            if check { "match SSOT" } else { "written" }
+        );
+        return Ok(());
+    }
 
     // Render one unit, or list what [units.*] covers. This is how a drift entry
     // is diagnosed and drained: `--render x.service | diff - usr/lib/systemd/system/x.service`.
@@ -97,6 +144,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    println!("mios-unit-gen: --check | --list | --render <unit>");
+    println!("mios-unit-gen: --check | --list | --render <unit> | blade-dropins | blade-karg | uki-cmdline [--root DIR] [--toml FILE] [--check]");
     Ok(())
 }

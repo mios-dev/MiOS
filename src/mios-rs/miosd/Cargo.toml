@@ -16,7 +16,7 @@ tokio.workspace = true
 libc.workspace = true
 mios-build = { path = "../mios-build" }
 mios-config = { path = "../mios-config" }
+mios-unit-gen = { path = "../../../tools/native/mios-unit-gen" }
 
 [dev-dependencies]
 tempfile.workspace = true
-

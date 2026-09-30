@@ -1,5 +1,5 @@
 # AI-hint: GENERATED k3s nodeSelectors/tolerations from mios.toml [blade.requires] SSOT (AGY-1595). DO NOT EDIT.
-# Rendered by tools/generate-blade-dropins.py.
+# Rendered by mios-unit-gen blade-dropins.
 services:
   hermes-worker:
     nodeSelector:

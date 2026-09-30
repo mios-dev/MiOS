@@ -121,14 +121,25 @@ main() {
     step "4b2/6 native workspace manifest (members = the crate dirs on disk)"
     "$PY" tools/generate-cargo-manifests.py >/dev/null
 
-    step "4c/6 blade projections (drop-ins + the deploy-time karg)"
-    "$PY" tools/generate-blade-dropins.py >/dev/null
-    "$PY" tools/generate-blade-karg.py >/dev/null
-
-    # AFTER the kargs.d producers: the UKI cmdline is derived from every
-    # kargs.d/*.toml, and it was gated without ever being regenerated here.
-    step "4d/6 UKI cmdline (derived from kargs.d)"
-    "$PY" tools/generate-uki-cmdline.py >/dev/null
+    step "4c/6 native deployment projections (blade drop-ins + karg + UKI cmdline)"
+    _unit_gen=""
+    for _c in "${MIOS_UNIT_GEN_BIN:-}" tools/native/target/release/mios-unit-gen \
+            tools/native/target/debug/mios-unit-gen tools/native/target/release/mios-unit-gen.exe \
+            tools/native/target/debug/mios-unit-gen.exe /usr/libexec/mios/mios-unit-gen /opt/mios/bin/mios-unit-gen; do
+        [[ -n "$_c" && -x "$_c" ]] && { _unit_gen="$_c"; break; }
+    done
+    if [[ -z "$_unit_gen" ]]; then
+        echo "[sync-generated] FATAL: mios-unit-gen is required; build it in MiOS-DEV: cd tools/native && cargo build -p mios-unit-gen" >&2
+        return 1
+    fi
+    for _projection in blade-dropins blade-karg uki-cmdline; do
+        if ! "$_unit_gen" --list-projections | tr -d '\r' | grep -Fxq "$_projection"; then
+            echo "[sync-generated] FATAL: mios-unit-gen does not advertise $_projection; rebuild it from this checkout" >&2
+            return 1
+        fi
+        # The cmdline runs LAST: it consumes every kargs.d producer above.
+        "$_unit_gen" "$_projection" --root "$ROOT" >/dev/null
+    done
 
     # policy.json is derived from [security.sigstore] but was never regenerated
     # here, so its tracked form (compact) had drifted from what the generator

@@ -431,8 +431,19 @@ if [[ -f "${SCRIPT_DIR}/98-drift-checks.sh" ]]; then
         git -C "${_drift_root}" config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
         git -C "${_drift_root}" reset --hard HEAD -q 2>/dev/null || true
     fi
+    _unit_gen=""
+    for _c in "${MIOS_UNIT_GEN_BIN:-}" /usr/libexec/mios/mios-unit-gen \
+              "${_drift_root}/tools/native/target/release/mios-unit-gen" \
+              "${_drift_root}/tools/native/target/debug/mios-unit-gen"; do
+        if [[ -n "$_c" && -x "$_c" ]]; then _unit_gen="$_c"; break; fi
+    done
+    if [[ -z "$_unit_gen" ]] || ! "$_unit_gen" --list-projections | grep -Fxq uki-cmdline; then
+        echo "[reproject] ERROR: rebuild mios-unit-gen with uki-cmdline support" >&2
+        exit 1
+    fi
+    "$_unit_gen" uki-cmdline --root "$_drift_root"
     if command -v python3 >/dev/null 2>&1; then
-        for _proj in generate-ipa-enroll-env.py generate-uki-cmdline.py generate-cockpit-conf.py; do
+        for _proj in generate-ipa-enroll-env.py generate-cockpit-conf.py; do
             if [ -f "${_drift_root}/tools/${_proj}" ]; then
                 if python3 "${_drift_root}/tools/${_proj}" >/dev/null 2>&1; then
                     echo "[reproject] ${_proj}: OK"

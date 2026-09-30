@@ -1,5 +1,5 @@
-# AI-hint: GENERATED from mios.toml [blade].type. DO NOT EDIT; regenerate via tools/generate-blade-karg.py. Installer, Butane kernel_arguments and `mios blade set` override it on the cmdline, where role-apply reads the LAST mios.blade= token.
-# AI-related: usr/share/mios/mios.toml, usr/libexec/mios/role-apply, tools/generate-blade-karg.py
+# AI-hint: GENERATED from mios.toml [blade].type. DO NOT EDIT; regenerate via mios-unit-gen blade-karg. Installer, Butane kernel_arguments and `mios blade set` override it on the cmdline, where role-apply reads the LAST mios.blade= token.
+# AI-related: usr/share/mios/mios.toml, usr/libexec/mios/role-apply, tools/native/mios-unit-gen/src/lib.rs
 # bootc kargs.d: bare `kargs = [...]` only. NO [kargs] table header.
 
 kargs = [

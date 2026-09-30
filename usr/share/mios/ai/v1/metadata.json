@@ -1,10 +1,10 @@
 {
   "format": "openai_strict_schema_v1",
-  "total_files_scanned": 3600,
-  "total_metadata_entries": 2962,
-  "total_hints": 2949,
+  "total_files_scanned": 3596,
+  "total_metadata_entries": 2958,
+  "total_hints": 2945,
   "total_functions_indexed": 1349,
-  "total_related_links": 4641,
+  "total_related_links": 4638,
   "entries": [
     {
       "path": ".agents/rules/AGENTS.md",
@@ -8600,28 +8600,6 @@
       "has_shebang": true
     },
     {
-      "path": "tools/generate-blade-dropins.py",
-      "hint": "Generate systemd capability drop-in files, k3s nodeSelectors, and Pacemaker location rules from the mios.toml [blade.requires] SSOT (AGY-1595).",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/generate-blade-karg.py",
-      "hint": "Generate usr/lib/bootc/kargs.d/05-mios-blade.toml from the mios.toml [blade].type SSOT, so the karg role-apply already parses has a Law-8 pr...",
-      "related": [
-        "usr/share/mios/mios.toml",
-        "usr/libexec/mios/role-apply",
-        "tools/generate-blade-karg.py"
-      ],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
       "path": "tools/generate-cargo-manifests.py",
       "hint": "Generator that projects tools/native/Cargo.toml -- members enumerated from the crate directories, version from mios.toml [meta].mios_version SSOT.",
       "related": [],
@@ -8748,15 +8726,6 @@
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/generate-uki-cmdline.py",
-      "hint": "Flattens usr/lib/bootc/kargs.d/*.toml drop-ins into usr/lib/kernel/cmdline SSOT",
-      "related": [],
-      "functions": [],
-      "doc": null,
       "comment_style": "hash",
       "has_shebang": true
     },
@@ -9649,7 +9618,7 @@
     },
     {
       "path": "tools/native/mios-unit-gen/src/lib.rs",
-      "hint": "Systemd unit generator library projecting units from mios.toml SSOT.",
+      "hint": "Unified systemd and deployment projection library: units, blade capability drop-ins, blade karg, and UKI cmdline from SSOT.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -10071,15 +10040,6 @@
     {
       "path": "tools/test_generate-adr-index.py",
       "hint": "Sibling unit test for tools/generate-adr-index.py (T-265).",
-      "related": [],
-      "functions": [],
-      "doc": "usr/share/doc/mios/manual/tools.md",
-      "comment_style": "hash",
-      "has_shebang": true
-    },
-    {
-      "path": "tools/test_generate-blade-karg.py",
-      "hint": "Unit tests for tools/generate-blade-karg.py.",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/tools.md",
@@ -10601,11 +10561,11 @@
     },
     {
       "path": "usr/lib/bootc/kargs.d/05-mios-blade.toml",
-      "hint": "GENERATED from mios.toml [blade].type. DO NOT EDIT; regenerate via tools/generate-blade-karg.py. Installer, Butane kernel_arguments and `mios blade set` override it on the cmdline, where role-apply reads the LAST mios.blade= token.",
+      "hint": "GENERATED from mios.toml [blade].type. DO NOT EDIT; regenerate via mios-unit-gen blade-karg. Installer, Butane kernel_arguments and `mios blade set` override it on the cmdline, where role-apply reads the LAST mios.blade= token.",
       "related": [
         "usr/share/mios/mios.toml",
         "usr/libexec/mios/role-apply",
-        "tools/generate-blade-karg.py"
+        "tools/native/mios-unit-gen/src/lib.rs"
       ],
       "functions": [],
       "doc": null,
@@ -17039,7 +16999,7 @@
     },
     {
       "path": "usr/lib/systemd/system/mios-llm-heavy.service.d/50-blade-gpu-serving.conf",
-      "hint": "GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via tools/generate-blade-dropins.py.",
+      "hint": "GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via mios-unit-gen blade-dropins.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -17151,7 +17111,7 @@
     },
     {
       "path": "usr/lib/systemd/system/mios-mok-enroll.service",
-      "hint": "One-shot first-boot Machine Owner Key (MOK) enrollment so the baked signed-UKI (rendered by automation/76-uki-render.sh + tools/generate-uki-cmdline.py) verifies under ENFORCING Secure Boot on the INSTALLED disk; mirrors...",
+      "hint": "One-shot first-boot Machine Owner Key (MOK) enrollment so the baked signed-UKI (rendered by automation/76-uki-render.sh + tools/native/mios-unit-gen/src/lib.rs) verifies under ENFORCING Secure Boot on the INSTALLED disk; mirrors...",
       "related": [],
       "functions": [],
       "doc": "usr/share/doc/mios/manual/system.md",
@@ -27319,7 +27279,7 @@
         "usr/share/doc/mios/reference/metal-vs-hosted.md",
         "tools/generate-metal-vs-hosted.py",
         "usr/libexec/mios/role-apply",
-        "tools/generate-blade-dropins.py",
+        "tools/native/mios-unit-gen/src/lib.rs",
         "usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py",
         "usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py"
       ],
@@ -27339,7 +27299,7 @@
         "[blades]",
         "[nodes]",
         "usr/libexec/mios/role-apply",
-        "tools/generate-blade-dropins.py"
+        "tools/native/mios-unit-gen/src/lib.rs"
       ],
       "functions": [],
       "doc": null,
@@ -32462,7 +32422,7 @@
     },
     {
       "path": "usr/share/mios/dropins/blade-controller.conf",
-      "hint": "GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via tools/generate-blade-dropins.py.",
+      "hint": "GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via mios-unit-gen blade-dropins.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -32471,7 +32431,7 @@
     },
     {
       "path": "usr/share/mios/dropins/blade-gpu-serving.conf",
-      "hint": "GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via tools/generate-blade-dropins.py.",
+      "hint": "GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via mios-unit-gen blade-dropins.",
       "related": [],
       "functions": [],
       "doc": null,
@@ -32480,7 +32440,7 @@
     },
     {
       "path": "usr/share/mios/dropins/blade-service-plane.conf",
-      "hint": "GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via tools/generate-blade-dropins.py.",
+      "hint": "GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via mios-unit-gen blade-dropins.",
       "related": [],
       "functions": [],
       "doc": null,

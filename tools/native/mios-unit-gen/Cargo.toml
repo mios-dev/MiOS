@@ -8,3 +8,6 @@ edition.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 toml = { workspace = true, features = ["preserve_order"] }
+
+[dev-dependencies]
+tempfile.workspace = true
