@@ -9,6 +9,7 @@ description = "MiOS native drift-gate checks (ADR-0021 gate category)"
 [dependencies]
 regex = "1"
 serde_json = "1.0"
+sha2 = "0.10"
 toml = "0.8"
 
 [dev-dependencies]

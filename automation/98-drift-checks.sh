@@ -2045,26 +2045,6 @@ check_toolchain_pin() {
     fi
 }
 
-# --- etc/mios/ai/config.json and usr/share/mios/ai/v1/config.json equal their [ai] + [ports] projection (Law 8) ---
-check_ai_config_projection() {
-    # Generated from [ai] + [ports]. A hand edit, an unregenerated SSOT move or
-    # an unbuilt generator is a violation, never a skip.
-    local bin="" c
-    for c in "$ROOT/tools/native/target/release/mios-ai-config" \
-             "$ROOT/tools/native/target/debug/mios-ai-config"; do
-        [[ -x "$c" ]] && { bin="$c"; break; }
-    done
-    if [[ -z "$bin" ]]; then
-        _violation "mios-ai-config is not built, so check_ai_config_projection could not run -- build it: cd tools/native && cargo build -p mios-ai-config"
-        return
-    fi
-    if "$bin" --root "$ROOT" --check; then
-        return 0
-    else
-        _violation "an AI client config.json (etc/mios/ai/ or usr/share/mios/ai/v1/) is missing or differs from [ai] + [ports] -- regenerate it: tools/native/target/debug/mios-ai-config --root ."
-    fi
-}
-
 # --- ARTIFACT-PROMPT.md equals its [artifacts.daily] projection (Law 8) ---
 check_artifact_prompt() {
     # The out-of-loop daily task fetches this file from main on every run, so
@@ -2080,6 +2060,12 @@ check_artifact_prompt() {
     fi
     "$bin" artifact-prompt --root "$ROOT" --check && return 0
     _violation "ARTIFACT-PROMPT.md differs from [artifacts.daily] + usr/share/mios/templates/artifact-prompt, or could not be generated -- regenerate: cd tools/native && cargo run -q -p xtask -- artifact-prompt"
+}
+
+check_ai_artifacts() {
+    local bin; bin="$(_gate_bin)" || { _violation "mios-gate is not built, so check_ai_artifacts could not run -- build it: cd src/mios-rs && cargo build -p mios-gate"; return; }
+    "$bin" artifact --root "$ROOT" && echo "[98-drift-checks]   AI artifacts (ADR-0027): SFT/DPO datasets, weight headers, OCI closure with digests" \
+        || _violation "mios-gate artifact found AI-artifact violations (datasets, weight headers, or OCI descriptor closure) -- see its findings above"
 }
 
 check_ratchet_direction() {
@@ -2869,7 +2855,7 @@ check_installer_family_roles() {
     echo "[98-drift-checks] installer role markers are unique across every script that declares one"
     # Subjects are the declared family UNION every tracked file already carrying
     # the marker, so a newly added installer is covered the day it lands.
-    local family=("tools/install.sh" "automation/install.sh" "automation/install-fhs.sh")
+    local family=("install.sh" "tools/install.sh" "automation/install.sh" "automation/install-fhs.sh")
     local bad_installers=""
     local roles=()
     local subjects=()
@@ -3846,8 +3832,8 @@ main() {
     check_size_ceiling
     check_task_store
     check_toolchain_pin
-    check_ai_config_projection
     check_artifact_prompt
+    check_ai_artifacts
     check_render_quadlets
     check_render_extension_coverage
     check_bake_plan
@@ -4126,7 +4112,7 @@ check_ps_redirectors() {
     # "Redirector file missing" branch fired unconditionally on every clean
     # checkout. (mios-pipeline.ps1 itself is 415 lines -- it is the real
     # pipeline script, not a thin redirector, so it does not belong here.)
-    local redirectors=("mios-build-local.ps1")
+    local redirectors=("install.ps1" "mios-build-local.ps1")
     local f line_count max_lines=50
     for f in "${redirectors[@]}"; do
         if [[ -f "$ROOT/$f" ]]; then

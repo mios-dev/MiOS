@@ -295,6 +295,7 @@ fn extract_markdown_anchors(text: &str) -> Vec<String> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum RenameSuggestion {
     None,
     Exact(String),
@@ -305,6 +306,7 @@ pub enum RenameSuggestion {
 /// (`git log -1 --format=%H` + `git show -M --diff-filter=R --name-status`) and
 /// basename fallback across tracked files. Emits exactly one suggestion when
 /// unambiguous, or lists candidates without guessing when multiple match.
+#[allow(dead_code)]
 pub fn suggest_rename(root: &Path, stale_path: &str) -> RenameSuggestion {
     let stale = stale_path.trim_start_matches('/');
 

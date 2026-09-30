@@ -42,7 +42,7 @@ models:
       - mios-micro
       - micro
     cmd: >
-      /app/llama-server --model /models/mios-micro-1.5b.gguf
+      /app/llama-server --model /models-micro/models/mios-micro-1.5b.gguf
       --port ${PORT} --host 127.0.0.1
       --ctx-size 8192 --parallel 1 --cache-reuse 256
       --n-gpu-layers 999 --flash-attn on

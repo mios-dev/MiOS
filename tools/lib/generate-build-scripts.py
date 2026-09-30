@@ -29,6 +29,7 @@ LAYERS = [
          "preflight.sh",
          "push-to-github.ps1",
          "Get-MiOS.ps1",
+         "install.ps1",
      ]),
 
     ("Layer 4a -- Library (sourced helpers)",

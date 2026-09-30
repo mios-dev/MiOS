@@ -2,7 +2,6 @@
 [workspace]
 members = [
     "generate-names-registry",
-    "mios-ai-config",
     "mios-aiplane-lint",
     "mios-bake-plan",
     "mios-comment-lex",

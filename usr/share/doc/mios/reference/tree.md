@@ -42,8 +42,8 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   ├─ mios-pipeline.ps1         canonical 11-phase orchestrator (Windows host)
 │   ├─ Get-MiOS.ps1              Windows curl/iex bootstrap landing page (irm | iex entry)
 │   ├─ build-mios.ps1            Windows build orchestrator (worker for pipeline phases 1-8)
-│   ├─ install.ps1               Windows installer (worker for pipeline phases 9-10; owned by mios-bootstrap, overlaid by seed-merge)
-│   ├─ install.sh                Linux Phase-3 system installer (worker for pipeline phase 9; owned by mios-bootstrap, overlaid by seed-merge)
+│   ├─ install.ps1               Windows installer (worker for pipeline phases 9-10)
+│   ├─ install.sh                Linux Phase-3 system installer (worker for pipeline phase 9)
 │   ├─ install-mios-agents.sh    AI-agent CLI installer (Cline / Cursor / Claude Code wiring)
 │   ├─ preflight.ps1 / mios-probe           prerequisite checks (worker for pipeline phase 1)
 │   ├─ push-to-github.ps1        GHCR image push helper

@@ -89,7 +89,7 @@
     operator-facing entry point:
 
         build-mios.ps1            -> dispatched by Phase 1-8
-        bootstrap.ps1             -> dispatched by Phase 9-10 (mios-bootstrap)
+        install.ps1               -> dispatched by Phase 9-10
         Get-MiOS.ps1              -> dispatched by Phase 8 (image pull)
         preflight.ps1             -> dispatched by Phase 1 (prerequisite check)
         mios-build-local.ps1      -> redirector to build-mios.ps1 (kept for old URLs)
@@ -272,26 +272,15 @@ function Invoke-PhaseBuild     { Write-Host '[mios-pipeline] building OCI image 
 
 function Invoke-PhaseDeploy {
     Write-Host '[mios-pipeline] deploying host-compatible image...' -ForegroundColor Yellow
-    # -NoPrompt at the pipeline level implies "use defaults for
-    # everything"; export MIOS_AUTOINSTALL=1 for any worker that reads it.
-    # (bootstrap.ps1 -> field/MiOS-Cat.ps1 does not read it today.)
+    # install.ps1 has its own credential / hostname prompts that block
+    # background pipeline invocation. -NoPrompt at the pipeline level
+    # implies "use defaults for everything"; surface that to install.ps1
+    # via MIOS_AUTOINSTALL=1, which it already honors for password +
+    # hostname (and now also username + GHCR token).
     if ($NoPrompt -and -not $env:MIOS_AUTOINSTALL) {
         $env:MIOS_AUTOINSTALL = '1'
     }
-    # bootstrap.ps1 is called directly -- it is what mios.git's retired
-    # install.ps1 redirected to. On an overlaid M:\ it sits beside this
-    # script; on a bare mios.git checkout it is fetched from mios-bootstrap.
-    if (Test-Path (Join-Path -Path $PSScriptRoot -ChildPath 'bootstrap.ps1')) {
-        Invoke-LegacyScript -Script 'bootstrap.ps1' -ScriptArgs @()
-        return
-    }
-    # Run it in a child pwsh: bootstrap.ps1 ends with `exit`, which would
-    # end this pipeline before Phase 10 if run in-process.
-    $url = 'https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/bootstrap.ps1'
-    $tmp = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath 'mios-bootstrap.ps1'
-    Invoke-RestMethod -Uri $url -OutFile $tmp
-    & pwsh -NoProfile -ExecutionPolicy Bypass -File $tmp
-    if ($LASTEXITCODE -ne 0) { throw "bootstrap.ps1 failed with exit $LASTEXITCODE" }
+    Invoke-LegacyScript -Script 'install.ps1' -ScriptArgs @()
 }
 
 function Invoke-PhaseBoot {

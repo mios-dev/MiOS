@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: MiOS-Cat USB hybrid GPT/MBR partition formatter with FAT32 EFI + exFAT Data
-# AI-related: tests/test-usb-format.py, usr/share/mios/mios.toml, field/MiOS-Cat.sh
+# AI-related: tests/test-usb-format.py, usr/share/mios/mios.toml, cat/MiOS-Cat.sh
 # AI-functions: UsbFormatEngine, PartitionInfo, DeviceSafetyCheck, format_usb_media
 """
 MiOS-Cat Removable USB Media Partition Formatter.

@@ -14,6 +14,7 @@ impl Check for InstallerRolesCheck {
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
         let scripts = [
+            "install.sh",
             "tools/install.sh",
             "automation/install.sh",
             "automation/install-fhs.sh",

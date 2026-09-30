@@ -78,7 +78,7 @@ AI-functions: StorageVerifierEngine, AlignmentReport, FakeCapacityReport, verify
 
 !/usr/bin/env python3
 AI-hint: MiOS-Cat USB hybrid GPT/MBR partition formatter with FAT32 EFI + exFAT Data
-AI-related: tests/test-usb-format.py, usr/share/mios/mios.toml, field/MiOS-Cat.sh
+AI-related: tests/test-usb-format.py, usr/share/mios/mios.toml, cat/MiOS-Cat.sh
 AI-functions: UsbFormatEngine, PartitionInfo, DeviceSafetyCheck, format_usb_media
 
-<!-- mios-src:14e0725c0dd3 from usr/libexec/mios/deploy/usb_format.py:1-4 -->
+<!-- mios-src:05cc967c63ee from usr/libexec/mios/deploy/usb_format.py:1-4 -->
