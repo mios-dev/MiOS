@@ -4,14 +4,14 @@ $ErrorActionPreference = 'Stop'
 
 Describe "Adversarial Challenge: AST Syntax Validation" {
     $targetFiles = @(
-        @{ File = 'c:\mios-bootstrap\build-mios.ps1'; Name = 'c:\mios-bootstrap\build-mios.ps1' },
-        @{ File = 'c:\MiOS\build-mios.ps1'; Name = 'c:\MiOS\build-mios.ps1' },
-        @{ File = 'c:\MiOS\mios-windows-export.ps1'; Name = 'c:\MiOS\mios-windows-export.ps1' }
+        @{ File = (Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1'); Name = (Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1') },
+        @{ File = (Join-Path $PSScriptRoot '../../build-mios.ps1'); Name = (Join-Path $PSScriptRoot '../../build-mios.ps1') },
+        @{ File = (Join-Path $PSScriptRoot '../../mios-windows-export.ps1'); Name = (Join-Path $PSScriptRoot '../../mios-windows-export.ps1') }
     )
 
     Context "ParseFile on <Name>" -ForEach $targetFiles {
         BeforeAll {
-            $script:currentFile = $_.File
+            $script:currentFile = $File
             $script:tokens = $null
             $script:errors = $null
             $script:ast = [System.Management.Automation.Language.Parser]::ParseFile(

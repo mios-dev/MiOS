@@ -627,13 +627,13 @@ class es573_TestMcpGatewayStressAndBoundaries(unittest.IsolatedAsyncioTestCase):
             command=sys.executable,
             args=["-c", "import sys, time; time.sleep(100)"],
         )
-        await cli_hang._spawn()
         try:
-            init_res = await cli_hang._await_rpc("initialize", {}, timeout_s=0.5)
-            self.assertIn("error", init_res)
-            self.assertIn("timeout", init_res["error"]["message"])
+            with self.assertRaises(asyncio.TimeoutError):
+                await asyncio.wait_for(cli_hang.initialize(), timeout=0.5)
         finally:
             await cli_hang.close()
+        self.assertIsNone(cli_hang._sdk)
+        self.assertFalse(cli_hang._inited)
 
     def test_declarative_toml_parsing_boundaries(self):
         """Boundary: Parsing malformed TOML structures, missing server fields."""

@@ -2151,14 +2151,15 @@ def check_bound_image_store() -> int:
         for path in configs:
             if not os.path.isfile(path):
                 continue
+            rel = os.path.relpath(path, root).replace("\\", "/")
             try:
                 with open(path, "rb") as fh:
                     enabled = globally_enabled(tomllib.load(fh))
             except (OSError, tomllib.TOMLDecodeError) as exc:
-                bad.append(f"{os.path.relpath(path, root)}: cannot inspect storage config: {exc}")
+                bad.append(f"{rel}: cannot inspect storage config: {exc}")
                 continue
             if enabled:
-                bad.append(f"{os.path.relpath(path, root)}: bootc store must not be enabled globally")
+                bad.append(f"{rel}: bootc store must not be enabled globally")
     for item in sorted(bad):
         print(f"bound-image-store: {item}", file=sys.stderr)
     return 1 if bad else 0

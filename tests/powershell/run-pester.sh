@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Runner for Pester test suite across tests/powershell/*.Tests.ps1. Degrades open if pwsh/Pester is absent.
+# AI-hint: Runner for Pester tests with a native export fixture and explicit prerequisite failures.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,17 +17,17 @@ for candidate in pwsh powershell powershell.exe \
 done
 
 if [ -z "$PS_BIN" ]; then
-    echo "[run-pester] WARNING: pwsh/powershell is missing, skipping Pester test suite" >&2
-    exit 0
+    echo "[run-pester] ERROR: pwsh/powershell is required for the Pester test suite" >&2
+    exit 1
 fi
 
 # Check if Pester module is available
 HAS_PESTER=$("$PS_BIN" -NoProfile -NonInteractive -Command "
-    if (Get-Module -ListAvailable -Name Pester) {
+    if (Get-Module -ListAvailable -Name Pester | Where-Object { \$_.Version.Major -ge 5 }) {
         Write-Output 'YES'
     } else {
         try {
-            Install-Module -Name Pester -Scope CurrentUser -Force -SkipPublisherCheck -EA Stop
+            Install-Module -Name Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck -EA Stop
             Write-Output 'YES'
         } catch {
             Write-Output 'NO'
@@ -36,11 +36,28 @@ HAS_PESTER=$("$PS_BIN" -NoProfile -NonInteractive -Command "
 " 2>&1 || true)
 
 if ! echo "$HAS_PESTER" | grep -q "YES"; then
-    echo "[run-pester] WARNING: Pester module is missing and could not be provisioned, skipping Pester suite" >&2
-    exit 0
+    echo "[run-pester] ERROR: Pester 5+ could not be provisioned" >&2
+    exit 1
 fi
 
 echo "[run-pester] Running Pester tests in tests/powershell..."
+
+# The negative export controls launch a real native fixture, never Podman.
+if [[ -z "${MIOS_TEST_PODMAN_BIN:-}" ]]; then
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            echo "[run-pester] ERROR: provide MIOS_TEST_PODMAN_BIN built inside MiOS-DEV" >&2
+            exit 1 ;;
+    esac
+    command -v rustc >/dev/null || { echo "[run-pester] ERROR: rustc is required for the native export fixture" >&2; exit 1; }
+    fixture_dir="$(mktemp -d -t mios-pester.XXXXXX)"
+    trap 'rm -rf -- "$fixture_dir"' EXIT
+    rustc "$SCRIPT_DIR/mock_podman.rs" -o "$fixture_dir/podman"
+    export MIOS_TEST_PODMAN_BIN="$fixture_dir/podman"
+fi
+[[ -x "$MIOS_TEST_PODMAN_BIN" ]] || { echo "[run-pester] ERROR: native export fixture is not executable" >&2; exit 1; }
+export MIOS_BOOTSTRAP_ROOT="${MIOS_BOOTSTRAP_ROOT:-$ROOT/../mios-bootstrap}"
+[[ -f "$MIOS_BOOTSTRAP_ROOT/build-mios.ps1" ]] || { echo "[run-pester] ERROR: set MIOS_BOOTSTRAP_ROOT to the bootstrap checkout" >&2; exit 1; }
 
 win_test_dir="$ROOT/tests/powershell"
 if [[ "$win_test_dir" =~ ^/mnt/c/ ]]; then
@@ -57,16 +74,12 @@ OUT=$("$PS_BIN" -NoProfile -NonInteractive -Command "
     Import-Module Pester -MinimumVersion 5.0.0 -ErrorAction SilentlyContinue
     \$pesterVer = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
     if (-not \$pesterVer -or \$pesterVer.Major -lt 5) {
-        if (\$env:CI) {
-            Write-Output (\"PESTER_FAIL: Pester 5+ required, found '\" + \$pesterVer + \"'\")
-        } else {
-            Write-Output (\"PESTER_SKIP: Pester 5+ not installed (found '\" + \$pesterVer + \"') -- CI is authoritative\")
-        }
+        Write-Output (\"PESTER_FAIL: Pester 5+ required, found '\" + \$pesterVer + \"'\")
         exit 0
     }
     \$testFiles = Get-ChildItem -Path '${win_test_dir}' -Filter '*.Tests.ps1' -Recurse
     if (-not \$testFiles) {
-        Write-Output 'PESTER_PASS'
+        Write-Output 'PESTER_FAIL: no test files discovered'
         exit 0
     }
     try {

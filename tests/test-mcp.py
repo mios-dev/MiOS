@@ -30,6 +30,8 @@ if _AGENT_PIPE not in sys.path:
     sys.path.insert(0, _AGENT_PIPE)
 
 import mios_mcp
+import mios_mcp_transport
+import httpx2
 
 # Resolve sandbox path
 _LIBEXEC_MCP = os.path.join(_ROOT, "usr", "libexec", "mios", "mcp")
@@ -507,7 +509,8 @@ for line in sys.stdin:
                 cli = mios_mcp._MCP_STDIO_CLIENTS.get("calc_srv")
                 if cli is not None:
                     await cli.close()
-                    self.assertIsNone(cli.proc)
+                    self.assertIsNone(cli._sdk)
+                    self.assertFalse(cli._inited)
 
             _run_async(_run_test())
 
@@ -521,54 +524,30 @@ for line in sys.stdin:
 
     def test_http_sse_handshake_and_dispatch(self):
         """Verify HTTP/SSE JSON-RPC transport handshake, tools/list, and execution."""
-        class _MockHttpClient:
-            async def post(self, url, json=None, headers=None, timeout=30.0):
-                body = json or {}
-                method = body.get("method")
-                rid = body.get("id", 1)
-                params = body.get("params") or {}
+        def respond(request):
+            if request.method != "POST":
+                return httpx2.Response(405)
+            body = json.loads(request.content)
+            method, rid = body.get("method"), body.get("id")
+            params = body.get("params") or {}
+            if rid is None:
+                return httpx2.Response(202)
+            if method == "initialize":
+                result = {"protocolVersion": "2025-11-25", "capabilities": {"tools": {}},
+                          "serverInfo": {"name": "fixture-http-hub", "version": "1"}}
+            elif method == "tools/list":
+                result = {"tools": [{"name": "lookup_ip", "description": "Look up geolocation for IP address",
+                                     "inputSchema": {"type": "object", "properties": {"ip": {"type": "string"}}, "required": ["ip"]}}]}
+            elif method == "tools/call":
+                ip = params.get("arguments", {}).get("ip", "127.0.0.1")
+                result = {"content": [{"type": "text", "text": f"Loc: {ip} -> Localhost"}], "isError": False}
+            else:
+                return httpx2.Response(200, json={"jsonrpc": "2.0", "id": rid, "error": {"code": -32601, "message": "unknown method"}})
+            return httpx2.Response(200, json={"jsonrpc": "2.0", "id": rid, "result": result})
 
-                if method == "initialize":
-                    return mios_mcp.JSONResponse({
-                        "jsonrpc": "2.0",
-                        "id": rid,
-                        "result": {
-                            "protocolVersion": "2025-11-25",
-                            "serverInfo": {"name": "mock-sse-hub"},
-                        },
-                    })
-                elif method == "tools/list":
-                    return mios_mcp.JSONResponse({
-                        "jsonrpc": "2.0",
-                        "id": rid,
-                        "result": {
-                            "tools": [
-                                {
-                                    "name": "lookup_ip",
-                                    "description": "Look up geolocation for IP address",
-                                    "inputSchema": {
-                                        "type": "object",
-                                        "properties": {"ip": {"type": "string"}},
-                                        "required": ["ip"],
-                                    },
-                                }
-                            ]
-                        },
-                    })
-                elif method == "tools/call":
-                    ip = params.get("arguments", {}).get("ip", "127.0.0.1")
-                    return mios_mcp.JSONResponse({
-                        "jsonrpc": "2.0",
-                        "id": rid,
-                        "result": {
-                            "content": [{"type": "text", "text": f"Loc: {ip} -> Localhost"}],
-                            "isError": False,
-                        },
-                    })
-                return mios_mcp.JSONResponse({"jsonrpc": "2.0", "id": rid, "result": {}})
+        http_client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
 
         async def _run_test():
-            mios_mcp.configure(get_client=lambda: _MockHttpClient())
 
             server_cfg = {
                 "id": "geo_hub",
@@ -591,8 +570,10 @@ for line in sys.stdin:
             )
             self.assertNotIn("error", res)
             self.assertIn("192.168.1.1", res["content"][0]["text"])
+            await mios_mcp._MCP_HTTP_CLIENTS["geo_hub"].close()
 
-        _run_async(_run_test())
+        with mock.patch.object(mios_mcp_transport.httpx2, "AsyncClient", return_value=http_client):
+            _run_async(_run_test())
 
     # -----------------------------------------------------------------------
     # 5. Error Handling & Edge Cases
@@ -617,17 +598,15 @@ for line in sys.stdin:
         cli = mios_mcp._McpStdioClient("hang_srv", "dummy_cmd")
 
         async def _run_test():
-            async def _fake_send(body):
-                pass
-
-            cli.proc = mock.MagicMock()
-            cli._send = _fake_send
+            cli._sdk = mock.AsyncMock()
+            cli._sdk.call_tool.side_effect = TimeoutError("tool timeout")
             cli._inited = True
-
-            res = await cli._await_rpc("slow_method", {}, timeout_s=0.05)
+            res = await cli.call_tool("slow_tool", {}, timeout_s=0.05)
             self.assertIn("error", res)
             self.assertEqual(res["error"]["code"], -32000)
             self.assertIn("timeout", res["error"]["message"])
+            cli._sdk.call_tool.assert_awaited_once_with("slow_tool", {}, read_timeout_seconds=0.05)
+            await cli.close()
 
         _run_async(_run_test())
 
@@ -683,12 +662,12 @@ for line in sys.stdin:
     rid = req.get("id")
     method = req.get("method")
     if method == "initialize":
-        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": rid, "result": {"protocolVersion": "2025-11-25", "serverInfo": {"name": "filter-srv"}}}) + "\\n")
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": rid, "result": {"protocolVersion": "2025-11-25", "capabilities": {"tools": {}}, "serverInfo": {"name": "filter-srv", "version": "1"}}}) + "\\n")
         sys.stdout.flush()
     elif method == "notifications/initialized":
         pass
     elif method == "tools/list":
-        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": rid, "result": {"tools": [{"name": "allowed_one"}, {"name": "blocked_two"}]}}) + "\\n")
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": rid, "result": {"tools": [{"name": "allowed_one", "inputSchema": {"type": "object"}}, {"name": "blocked_two", "inputSchema": {"type": "object"}}]}}) + "\\n")
         sys.stdout.flush()
 """
         with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as f:

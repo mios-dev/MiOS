@@ -5,13 +5,16 @@
 import os
 import sys
 import asyncio
+import json
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 from unittest import mock
 
 import mios_cold_evict
 
-uid = os.getuid() if hasattr(os, "getuid") else 1000
-TEST_DIR = f"/tmp/cold-test-{uid}"
+TEST_DIR = None
 
 _fails = 0
 
@@ -45,8 +48,8 @@ async def test_export_to_cold_success():
         check("export: subprocess.run called once", mock_run.call_count == 1)
 
         args = mock_run.call_args[0][0]
-        check("export: level flag correct", "--level=3" in args)
-        check("export: zstd command matches", args[0] == "zstd")
+        check("export: level flag correct", "-3" in args)
+        check("export: resolved zstd command matches", args[0] == shutil.which("zstd"))
 
 async def test_export_to_cold_error_cleanup():
     pg = mock.Mock()
@@ -60,7 +63,22 @@ async def test_export_to_cold_error_cleanup():
             )
             check("cleanup: raised exception", False, "should have failed")
         except Exception:
-            check("cleanup: no tmp files left", True)
+            check("cleanup: no tmp files left", not list(Path(TEST_DIR).rglob("*.tmp")))
+
+async def test_real_compression_and_invalid_level():
+    pg = mock.Mock()
+    payload = {"id": 123, "q": "round-trip"}
+    pg.execute = AsyncMock(return_value=[{"row_to_json": payload}])
+    archive = await mios_cold_evict.export_to_cold(pg, [123], "knowledge", TEST_DIR, 3)
+    decoded = subprocess.run([shutil.which("zstd"), "-dc", str(archive)], check=True, capture_output=True, text=True).stdout
+    check("export: real zstd preserves JSON payload", json.loads(decoded) == payload)
+    for level in (0, 23, True, "3"):
+        try:
+            await mios_cold_evict.export_to_cold(pg, [123], "knowledge", TEST_DIR, level)
+        except ValueError:
+            check(f"export: invalid level {level!r} rejected", True)
+        else:
+            check(f"export: invalid level {level!r} rejected", False)
 
 async def test_cold_sweep():
     pg = mock.Mock()
@@ -90,9 +108,13 @@ async def test_cold_sweep():
         check("sweep: delete was run", any("DELETE FROM" in call[0] for call in execute_calls))
 
 async def main():
-    await test_export_to_cold_success()
-    await test_export_to_cold_error_cleanup()
-    await test_cold_sweep()
+    global TEST_DIR
+    with tempfile.TemporaryDirectory(prefix="mios-cold-test-") as temp:
+        TEST_DIR = temp
+        await test_export_to_cold_success()
+        await test_export_to_cold_error_cleanup()
+        await test_cold_sweep()
+        await test_real_compression_and_invalid_level()
     if _fails > 0:
         sys.exit(1)
     sys.exit(0)

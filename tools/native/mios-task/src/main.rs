@@ -49,19 +49,40 @@ fn load_config(root: &Path) -> Result<Config, String> {
             .ok_or(format!("[tasks.store].{k} is missing"))
     };
     let mut sources = Vec::new();
-    for e in st.get("sources").and_then(|v| v.as_array()).ok_or("[tasks.store].sources is missing")? {
+    for e in st
+        .get("sources")
+        .and_then(|v| v.as_array())
+        .ok_or("[tasks.store].sources is missing")?
+    {
         let g = |k: &str| e.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
         let fences = e.get("fences").and_then(|v| v.as_bool()).unwrap_or(false);
         let absorbed = e.get("absorbed").and_then(|v| v.as_bool()).unwrap_or(false);
-        sources.push(SourceDecl { repo: g("repo"), path: g("path"), kind: g("kind"), fences, absorbed });
+        sources.push(SourceDecl {
+            repo: g("repo"),
+            path: g("path"),
+            kind: g("kind"),
+            fences,
+            absorbed,
+        });
     }
     let mut distinct = Vec::new();
     if let Some(arr) = st.get("distinct").and_then(|v| v.as_array()) {
         for e in arr {
             distinct.push(Distinct {
-                id: e.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                source: e.get("source").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                nth: e.get("nth").and_then(|v| v.as_integer()).map(|n| n as usize),
+                id: e
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                source: e
+                    .get("source")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                nth: e
+                    .get("nth")
+                    .and_then(|v| v.as_integer())
+                    .map(|n| n as usize),
             });
         }
     }
@@ -97,9 +118,15 @@ fn heading_start(line: &str, roadmap: bool) -> Option<(usize, String)> {
     static H: OnceLock<Regex> = OnceLock::new();
     static R: OnceLock<Regex> = OnceLock::new();
     let rx = if roadmap {
-        re(&R, r"^(###) ([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+(?:\.\.\d+)?)(?:\s|$)")
+        re(
+            &R,
+            r"^(###) ([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+(?:\.\.\d+)?)(?:\s|$)",
+        )
     } else {
-        re(&H, &format!(r"^(#{{2,4}}) (?:\[FOLDED\] )?\[?({TASK_ID})\]?(?:[ :\]]|$)"))
+        re(
+            &H,
+            &format!(r"^(#{{2,4}}) (?:\[FOLDED\] )?\[?({TASK_ID})\]?(?:[ :\]]|$)"),
+        )
     };
     rx.captures(line).map(|c| (c[1].len(), c[2].to_string()))
 }
@@ -123,7 +150,11 @@ impl Fence {
         let indent = line.len() - line.trim_start_matches(' ').len();
         let t = &line[indent..];
         let ch = t.as_bytes().first().copied().unwrap_or(0);
-        let run = if ch == b'`' || ch == b'~' { t.bytes().take_while(|b| *b == ch).count() } else { 0 };
+        let run = if ch == b'`' || ch == b'~' {
+            t.bytes().take_while(|b| *b == ch).count()
+        } else {
+            0
+        };
         match self.0 {
             None => {
                 if indent <= 3 && run >= 3 && !(ch == b'`' && t[run..].contains('`')) {
@@ -144,7 +175,15 @@ impl Fence {
 
 type Unit = Option<(String, String, usize)>; // (kind, id, level); None = passthrough run
 
-fn flush(source: &str, data: &str, cur: &mut Unit, start: usize, end: usize, occs: &mut Vec<Occ>, pass: &mut Vec<(usize, String)>) {
+fn flush(
+    source: &str,
+    data: &str,
+    cur: &mut Unit,
+    start: usize,
+    end: usize,
+    occs: &mut Vec<Occ>,
+    pass: &mut Vec<(usize, String)>,
+) {
     let unit = cur.take();
     if end <= start {
         return;
@@ -166,7 +205,12 @@ fn flush(source: &str, data: &str, cur: &mut Unit, start: usize, end: usize, occ
 }
 
 /// Split a Markdown list into records and passthrough slices that tile the file exactly.
-fn parse_markdown(source: &str, data: &str, roadmap: bool, fences: bool) -> (Vec<Occ>, Vec<(usize, String)>) {
+fn parse_markdown(
+    source: &str,
+    data: &str,
+    roadmap: bool,
+    fences: bool,
+) -> (Vec<Occ>, Vec<(usize, String)>) {
     static ROW: OnceLock<Regex> = OnceLock::new();
     static ITEM: OnceLock<Regex> = OnceLock::new();
     let row = re(&ROW, r"^\| (T-\d+) \|");
@@ -233,7 +277,11 @@ fn parse_jsonl(source: &str, data: &str) -> Result<(Vec<Occ>, Vec<(usize, String
     let mut off = 0usize;
     for (n, line) in data.split_inclusive('\n').enumerate() {
         let v: Option<Value> = serde_json::from_str(line.trim_end()).ok();
-        match v.as_ref().and_then(|v| v.get("id")).and_then(|i| i.as_str()) {
+        match v
+            .as_ref()
+            .and_then(|v| v.get("id"))
+            .and_then(|i| i.as_str())
+        {
             Some(id) => occs.push(Occ {
                 source: source.into(),
                 off,
@@ -259,7 +307,13 @@ fn normalise_status(raw: &str) -> &'static str {
     let has = |w: &str| s.contains(w);
     if s.trim().is_empty() {
         "pending"
-    } else if has("retired") || has("supersed") || has("skip") || has("cancel") || has("wontfix") || has("obsolete") {
+    } else if has("retired")
+        || has("supersed")
+        || has("skip")
+        || has("cancel")
+        || has("wontfix")
+        || has("obsolete")
+    {
         "cancelled"
     } else if has("broken") || has("blocked") || has("gated-off") || has("deferred") {
         "incomplete"
@@ -285,7 +339,12 @@ fn heading_fields(kind: &str, first: &str) -> Vec<(String, Value)> {
     static FOLD: OnceLock<Regex> = OnceLock::new();
     let mut f: Vec<(String, Value)> = Vec::new();
     if kind == "table-row" {
-        let cells: Vec<&str> = first.trim().trim_matches('|').split('|').map(str::trim).collect();
+        let cells: Vec<&str> = first
+            .trim()
+            .trim_matches('|')
+            .split('|')
+            .map(str::trim)
+            .collect();
         if cells.len() >= 3 {
             f.push(("priority".into(), js(cells[1])));
             f.push(("status".into(), js(cells[2])));
@@ -303,12 +362,19 @@ fn heading_fields(kind: &str, first: &str) -> Vec<(String, Value)> {
         rest = rest.trim_start_matches("* ").to_string();
         let done = rest.starts_with("[x]") || rest.starts_with("[X]");
         f.push(("status".into(), js(if done { "[x]" } else { "[ ]" })));
-        rest = rest.get(3..).unwrap_or("").trim().trim_matches('*').to_string();
+        rest = rest
+            .get(3..)
+            .unwrap_or("")
+            .trim()
+            .trim_matches('*')
+            .to_string();
     }
     rest = rest.replacen("[FOLDED] ", "", 1);
     let sep = re(
         &SEP,
-        &format!(r"^\[?(?:{TASK_ID}|[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+(?:\.\.\d+)?)\]?(?:\s*\[[xX ]\])?\s*(?:--|—|:|-)?\s*"),
+        &format!(
+            r"^\[?(?:{TASK_ID}|[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+(?:\.\.\d+)?)\]?(?:\s*\[[xX ]\])?\s*(?:--|—|:|-)?\s*"
+        ),
     );
     if let Some(m) = sep.find(&rest) {
         let head = &rest[..m.end()];
@@ -334,7 +400,10 @@ fn heading_fields(kind: &str, first: &str) -> Vec<(String, Value)> {
         let at = c.get(0).map(|m| m.start()).unwrap_or(rest.len());
         rest.truncate(at);
     }
-    let ws = re(&WS, r"\s*\(([^()|]*?)\s*\|\s*(P\d)\s*\|\s*([A-Z]{1,3})\s*\)\s*$");
+    let ws = re(
+        &WS,
+        r"\s*\(([^()|]*?)\s*\|\s*(P\d)\s*\|\s*([A-Z]{1,3})\s*\)\s*$",
+    );
     if let Some(c) = ws.captures(&rest) {
         f.push(("workstream".into(), js(c[1].trim())));
         f.push(("priority".into(), js(&c[2])));
@@ -370,12 +439,22 @@ fn typed_name(key: &str) -> Option<&'static str> {
 fn body_fields(text: &str) -> Vec<(String, Value)> {
     static START: OnceLock<Regex> = OnceLock::new();
     static SPLIT: OnceLock<Regex> = OnceLock::new();
-    let start = re(&START, r"^(?:>\s*|[-*]\s+)?\*\*([A-Za-z][A-Za-z0-9 +/&'().-]{0,40}?):\*\*\s?(.*)$");
-    let split = re(&SPLIT, r"\s\|\s(\*\*[A-Za-z][A-Za-z0-9 +/&'().-]{0,40}?:\*\*)");
+    let start = re(
+        &START,
+        r"^(?:>\s*|[-*]\s+)?\*\*([A-Za-z][A-Za-z0-9 +/&'().-]{0,40}?):\*\*\s?(.*)$",
+    );
+    let split = re(
+        &SPLIT,
+        r"\s\|\s(\*\*[A-Za-z][A-Za-z0-9 +/&'().-]{0,40}?:\*\*)",
+    );
     let mut out: Vec<(String, String)> = Vec::new();
     let mut fence = Fence::default();
     for line in text.lines().skip(1) {
-        let c = if fence.step(line) { None } else { start.captures(line) };
+        let c = if fence.step(line) {
+            None
+        } else {
+            start.captures(line)
+        };
         match c {
             Some(c) => {
                 let seg = format!("**{}:** {}", &c[1], &c[2]);
@@ -397,7 +476,9 @@ fn body_fields(text: &str) -> Vec<(String, Value)> {
     out.into_iter()
         .map(|(k, v)| {
             let v = v.trim_end().to_string();
-            let name = typed_name(&k).map(str::to_string).unwrap_or_else(|| format!("extra:{k}"));
+            let name = typed_name(&k)
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("extra:{k}"));
             (name, js(&v))
         })
         .collect()
@@ -405,8 +486,13 @@ fn body_fields(text: &str) -> Vec<(String, Value)> {
 
 fn jsonl_fields(id: &str, text: &str) -> Vec<(String, Value)> {
     let v: Value = serde_json::from_str(text.trim_end()).unwrap_or(Value::Null);
-    let Some(obj) = v.as_object() else { return vec![] };
-    let has_legacy = obj.get("legacy_status").map(|x| x.is_string()).unwrap_or(false);
+    let Some(obj) = v.as_object() else {
+        return vec![];
+    };
+    let has_legacy = obj
+        .get("legacy_status")
+        .map(|x| x.is_string())
+        .unwrap_or(false);
     let mut f = Vec::new();
     for (k, val) in obj.iter() {
         match k.as_str() {
@@ -417,7 +503,9 @@ fn jsonl_fields(id: &str, text: &str) -> Vec<(String, Value)> {
             }
             "legacy_status" if val.is_string() => f.push(("status".into(), val.clone())),
             "status" if !has_legacy => f.push(("status".into(), val.clone())),
-            "owner" if val.as_str().map(|s| !s.is_empty()).unwrap_or(false) => f.push(("owner".into(), val.clone())),
+            "owner" if val.as_str().map(|s| !s.is_empty()).unwrap_or(false) => {
+                f.push(("owner".into(), val.clone()))
+            }
             "depends_on" => f.push(("deps".into(), val.clone())),
             "acceptance_criteria" => f.push(("done_when".into(), val.clone())),
             "type" => f.push(("type".into(), val.clone())),
@@ -439,17 +527,35 @@ fn id_refs(text: &str) -> Vec<String> {
     static IDS: OnceLock<Regex> = OnceLock::new();
     let rx = re(&IDS, r"\b(?:T|AGY|F|MON|M)-\d+\b");
     let mut seen = HashSet::new();
-    rx.find_iter(text).map(|m| m.as_str().to_string()).filter(|s| seen.insert(s.clone())).collect()
+    rx.find_iter(text)
+        .map(|m| m.as_str().to_string())
+        .filter(|s| seen.insert(s.clone()))
+        .collect()
 }
 
 fn as_lines(v: &Value) -> Vec<String> {
     match v {
         Value::String(s) => s
             .lines()
-            .map(|l| l.trim().trim_start_matches(['-', '*']).trim().trim_start_matches("[x] ").trim_start_matches("[ ] ").trim().to_string())
+            .map(|l| {
+                l.trim()
+                    .trim_start_matches(['-', '*'])
+                    .trim()
+                    .trim_start_matches("[x] ")
+                    .trim_start_matches("[ ] ")
+                    .trim()
+                    .to_string()
+            })
             .filter(|l| !l.is_empty())
             .collect(),
-        Value::Array(a) => a.iter().map(|x| x.as_str().map(str::to_string).unwrap_or_else(|| x.to_string())).collect(),
+        Value::Array(a) => a
+            .iter()
+            .map(|x| {
+                x.as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| x.to_string())
+            })
+            .collect(),
         _ => vec![],
     }
 }
@@ -458,9 +564,27 @@ fn source_key(repo: &str, path: &str) -> String {
     format!("{repo}:{path}")
 }
 
-const TYPED: [&str; 12] = ["title", "status", "priority", "size", "workstream", "domain", "owner", "goal", "what_how", "where", "why", "do_not"];
+const TYPED: [&str; 12] = [
+    "title",
+    "status",
+    "priority",
+    "size",
+    "workstream",
+    "domain",
+    "owner",
+    "goal",
+    "what_how",
+    "where",
+    "why",
+    "do_not",
+];
 
-fn build_record(key: &str, group: &mut [Occ], ids: &HashSet<String>, totals: &HashMap<String, (usize, String)>) -> Value {
+fn build_record(
+    key: &str,
+    group: &mut [Occ],
+    ids: &HashSet<String>,
+    totals: &HashMap<String, (usize, String)>,
+) -> Value {
     group.sort_by_key(|o| (o.prec, o.off));
     let head = group[0].clone();
     let mut val: BTreeMap<&str, String> = BTreeMap::new();
@@ -509,13 +633,18 @@ fn build_record(key: &str, group: &mut [Occ], ids: &HashSet<String>, totals: &Ha
                 }
                 kk => {
                     if let Some(name) = TYPED.iter().find(|n| **n == kk) {
-                        let s = v.as_str().map(str::to_string).unwrap_or_else(|| v.to_string());
+                        let s = v
+                            .as_str()
+                            .map(str::to_string)
+                            .unwrap_or_else(|| v.to_string());
                         match val.get(name) {
                             None => {
                                 val.insert(name, s);
                             }
-                            Some(prev) if *prev != s && !s.is_empty() => conflicts.push(json!({
-                                "field": kk, "source_file": o.source, "value_json": v.to_string()})),
+                            Some(prev) if *prev != s && !s.is_empty() => {
+                                conflicts.push(json!({
+                                "field": kk, "source_file": o.source, "value_json": v.to_string()}))
+                            }
                             _ => {}
                         }
                     }
@@ -535,7 +664,11 @@ fn build_record(key: &str, group: &mut [Occ], ids: &HashSet<String>, totals: &Ha
         .filter(|(t, _)| *t != head.id)
         .map(|(t, ty)| {
             // an undefined target cannot gate readiness
-            let ty = if ty == "blocks" && !ids.contains(&t) { "references" } else { ty };
+            let ty = if ty == "blocks" && !ids.contains(&t) {
+                "references"
+            } else {
+                ty
+            };
             json!({"id": t, "type": ty})
         })
         .collect();
@@ -558,10 +691,27 @@ fn build_record(key: &str, group: &mut [Occ], ids: &HashSet<String>, totals: &Ha
     m.insert("id".into(), js(&head.id));
     m.insert("origin".into(), js(&head.source));
     m.insert("type".into(), js(rtype));
-    m.insert("title".into(), val.get("title").map(|s| js(s)).unwrap_or(js("")));
+    m.insert(
+        "title".into(),
+        val.get("title").map(|s| js(s)).unwrap_or(js("")),
+    );
     m.insert("status".into(), js(status));
-    m.insert("status_raw".into(), raw.map(Value::String).unwrap_or(Value::Null));
-    for k in ["priority", "size", "workstream", "domain", "owner", "goal", "what_how", "where", "why", "do_not"] {
+    m.insert(
+        "status_raw".into(),
+        raw.map(Value::String).unwrap_or(Value::Null),
+    );
+    for k in [
+        "priority",
+        "size",
+        "workstream",
+        "domain",
+        "owner",
+        "goal",
+        "what_how",
+        "where",
+        "why",
+        "do_not",
+    ] {
         m.insert(k.into(), g(k));
     }
     m.insert("done_when".into(), json!(done_when));
@@ -569,7 +719,12 @@ fn build_record(key: &str, group: &mut [Occ], ids: &HashSet<String>, totals: &Ha
     m.insert("deps".into(), Value::Array(deps));
     m.insert(
         "extra".into(),
-        Value::Array(extra.into_iter().map(|(k, v)| json!({"key": k, "value_json": v.to_string()})).collect()),
+        Value::Array(
+            extra
+                .into_iter()
+                .map(|(k, v)| json!({"key": k, "value_json": v.to_string()}))
+                .collect(),
+        ),
     );
     m.insert("conflicts".into(), Value::Array(conflicts));
     m.insert(
@@ -600,7 +755,10 @@ fn migrate(root: &Path, repos: &HashMap<String, PathBuf>, cfg: &Config) -> Resul
             continue; // one file, one parse: TASKS.md is declared once per kind
         }
         parsed.push(key.clone());
-        let base = repos.get(&d.repo).ok_or(format!("no checkout for repo {} (pass --repo {}=PATH)", d.repo, d.repo))?;
+        let base = repos.get(&d.repo).ok_or(format!(
+            "no checkout for repo {} (pass --repo {}=PATH)",
+            d.repo, d.repo
+        ))?;
         let p = base.join(&d.path);
         let data = if d.absorbed && p.exists() {
             return Err(format!("{key} was absorbed into {} but exists again; delete it (the store holds every byte)", cfg.store));
@@ -609,25 +767,45 @@ fn migrate(root: &Path, repos: &HashMap<String, PathBuf>, cfg: &Config) -> Resul
             rematerialize(&key, &stored).map_err(|e| format!("{key} is not on disk and {e}"))?
         } else {
             let bytes = fs::read(&p).map_err(|e| format!("{}: {e}", p.display()))?;
-            String::from_utf8(bytes).map_err(|_| format!("{key}: not UTF-8; refusing, a lossy decode would drop bytes"))?
+            String::from_utf8(bytes).map_err(|_| {
+                format!("{key}: not UTF-8; refusing, a lossy decode would drop bytes")
+            })?
         };
         totals.insert(key.clone(), (data.len(), sha(&data)));
         let (o, pt) = if d.path.ends_with(".jsonl") {
             parse_jsonl(&key, &data)?
         } else {
-            parse_markdown(&key, &data, d.repo == "MiOS" && d.path == "ROADMAP.md", d.fences)
+            parse_markdown(
+                &key,
+                &data,
+                d.repo == "MiOS" && d.path == "ROADMAP.md",
+                d.fences,
+            )
         };
         occs.extend(o);
         passthrough.extend(pt.into_iter().map(|(off, t)| (key.clone(), off, t)));
     }
     let mut nth: HashMap<(String, String, String), usize> = HashMap::new();
     for o in occs.iter_mut() {
-        let exact = cfg.sources.iter().position(|d| source_key(&d.repo, &d.path) == o.source && d.kind == o.kind);
+        let exact = cfg
+            .sources
+            .iter()
+            .position(|d| source_key(&d.repo, &d.path) == o.source && d.kind == o.kind);
         o.prec = exact
-            .or_else(|| cfg.sources.iter().position(|d| source_key(&d.repo, &d.path) == o.source))
+            .or_else(|| {
+                cfg.sources
+                    .iter()
+                    .position(|d| source_key(&d.repo, &d.path) == o.source)
+            })
             .unwrap_or(usize::MAX);
-        let class = if o.kind == "banner" { "section".to_string() } else { o.kind.clone() };
-        let c = nth.entry((o.source.clone(), class, o.id.clone())).or_insert(0);
+        let class = if o.kind == "banner" {
+            "section".to_string()
+        } else {
+            o.kind.clone()
+        };
+        let c = nth
+            .entry((o.source.clone(), class, o.id.clone()))
+            .or_insert(0);
         *c += 1;
         o.nth = *c;
         let first = o.text.lines().next().unwrap_or("").to_string();
@@ -661,10 +839,26 @@ fn migrate(root: &Path, repos: &HashMap<String, PathBuf>, cfg: &Config) -> Resul
     // Non-task text rides on the record before it (or the first record of its file), so one file holds every byte.
     for (src, off, text) in &passthrough {
         let same: Vec<&Occ> = occs.iter().filter(|o| o.source == *src).collect();
-        let host = same.iter().filter(|o| o.off < *off).max_by_key(|o| o.off).or_else(|| same.iter().min_by_key(|o| o.off));
-        let Some(host) = host else { return Err(format!("{src} has no task record to carry its non-task text")) };
-        let o = Occ { source: src.clone(), off: *off, text: text.clone(), kind: "passthrough".into(), id: host.id.clone(),
-                      prec: usize::MAX, nth: 0, fields: vec![] };
+        let host = same
+            .iter()
+            .filter(|o| o.off < *off)
+            .max_by_key(|o| o.off)
+            .or_else(|| same.iter().min_by_key(|o| o.off));
+        let Some(host) = host else {
+            return Err(format!(
+                "{src} has no task record to carry its non-task text"
+            ));
+        };
+        let o = Occ {
+            source: src.clone(),
+            off: *off,
+            text: text.clone(),
+            kind: "passthrough".into(),
+            id: host.id.clone(),
+            prec: usize::MAX,
+            nth: 0,
+            fields: vec![],
+        };
         groups.entry(key_of(host)).or_default().push(o);
     }
     let mut records: Vec<((usize, usize), Value)> = groups
@@ -674,14 +868,20 @@ fn migrate(root: &Path, repos: &HashMap<String, PathBuf>, cfg: &Config) -> Resul
             ((g[0].prec, g[0].off), r)
         })
         .collect();
-    records.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1["key"].as_str().cmp(&b.1["key"].as_str())));
+    records.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then_with(|| a.1["key"].as_str().cmp(&b.1["key"].as_str()))
+    });
     let mut out = String::new();
     for (_, v) in &records {
         out.push_str(&serde_json::to_string(v).map_err(|e| e.to_string())?);
         out.push('\n');
     }
     write_atomic(&root.join(&cfg.store), &out)?;
-    let conflicts: usize = records.iter().map(|r| r.1["conflicts"].as_array().map_or(0, |a| a.len())).sum();
+    let conflicts: usize = records
+        .iter()
+        .map(|r| r.1["conflicts"].as_array().map_or(0, |a| a.len()))
+        .sum();
     println!(
         "migrate: {} record(s) from {} occurrence(s) in {} source(s); {} non-task slice(s) carried; {} conflict(s) listed",
         records.len(),
@@ -708,7 +908,9 @@ fn read_jsonl(p: &Path) -> Result<Vec<Value>, String> {
     let t = fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?;
     t.lines()
         .enumerate()
-        .map(|(n, l)| serde_json::from_str(l).map_err(|e| format!("{}:{}: {e}", p.display(), n + 1)))
+        .map(|(n, l)| {
+            serde_json::from_str(l).map_err(|e| format!("{}:{}: {e}", p.display(), n + 1))
+        })
         .collect()
 }
 
@@ -722,14 +924,16 @@ fn stored_slices(store: &Path) -> Result<Slices, String> {
     for r in read_jsonl(store)? {
         let key = r["key"].as_str().unwrap_or("?").to_string();
         for s in r["sources"].as_array().cloned().unwrap_or_default() {
-            out.entry(s["source_file"].as_str().unwrap_or("").to_string()).or_default().push((
-                s["byte_offset"].as_u64().unwrap_or(0) as usize,
-                s["text"].as_str().unwrap_or("").to_string(),
-                s["sha256"].as_str().unwrap_or("").to_string(),
-                key.clone(),
-                s["source_bytes"].as_u64().unwrap_or(0) as usize,
-                s["source_sha256"].as_str().unwrap_or("").to_string(),
-            ));
+            out.entry(s["source_file"].as_str().unwrap_or("").to_string())
+                .or_default()
+                .push((
+                    s["byte_offset"].as_u64().unwrap_or(0) as usize,
+                    s["text"].as_str().unwrap_or("").to_string(),
+                    s["sha256"].as_str().unwrap_or("").to_string(),
+                    key.clone(),
+                    s["source_bytes"].as_u64().unwrap_or(0) as usize,
+                    s["source_sha256"].as_str().unwrap_or("").to_string(),
+                ));
         }
     }
     Ok(out)
@@ -737,30 +941,44 @@ fn stored_slices(store: &Path) -> Result<Slices, String> {
 
 /// Rebuild one source list byte-for-byte from its slices; any gap, overlap or hash mismatch is an error naming it.
 fn rematerialize(src: &str, all: &Slices) -> Result<String, String> {
-    let mut v = all.get(src).cloned().ok_or(format!("the store holds no slice of {src}"))?;
+    let mut v = all
+        .get(src)
+        .cloned()
+        .ok_or(format!("the store holds no slice of {src}"))?;
     v.sort_by_key(|x| x.0);
     let (want, want_sha) = (v[0].4, v[0].5.clone());
     let (mut pos, mut prev, mut out) = (0usize, "(file start)".to_string(), String::new());
     for (off, text, s, owner, n, h) in &v {
         if (*n, h) != (want, &want_sha) {
-            return Err(format!("LOSSY: {src}: {owner} records a different size or hash for the source"));
+            return Err(format!(
+                "LOSSY: {src}: {owner} records a different size or hash for the source"
+            ));
         }
         if sha(text) != *s {
-            return Err(format!("LOSSY: {src}: {owner} slice at offset {off} fails its sha256"));
+            return Err(format!(
+                "LOSSY: {src}: {owner} slice at offset {off} fails its sha256"
+            ));
         }
         if *off != pos {
             let n = if *off > pos { off - pos } else { pos - off };
-            return Err(format!("LOSSY: {src}: {n} byte(s) at offset {pos} not covered (after {prev})"));
+            return Err(format!(
+                "LOSSY: {src}: {n} byte(s) at offset {pos} not covered (after {prev})"
+            ));
         }
         out.push_str(text);
         pos += text.len();
         prev = owner.clone();
     }
     if pos != want {
-        return Err(format!("LOSSY: {src}: {} byte(s) at offset {pos} not covered (after {prev})", want.saturating_sub(pos)));
+        return Err(format!(
+            "LOSSY: {src}: {} byte(s) at offset {pos} not covered (after {prev})",
+            want.saturating_sub(pos)
+        ));
     }
     if sha(&out) != want_sha {
-        return Err(format!("LOSSY: {src}: the rebuilt bytes differ from the recorded sha256"));
+        return Err(format!(
+            "LOSSY: {src}: the rebuilt bytes differ from the recorded sha256"
+        ));
     }
     Ok(out)
 }
@@ -786,16 +1004,25 @@ fn check_lossless(root: &Path, cfg: &Config) -> Result<bool, String> {
         if !seen.insert(key.clone()) {
             continue;
         }
-        let want = all.get(&key).and_then(|v| v.first()).map(|x| x.5.clone()).unwrap_or_default();
+        let want = all
+            .get(&key)
+            .and_then(|v| v.first())
+            .map(|x| x.5.clone())
+            .unwrap_or_default();
         match (d.absorbed, fs::read(root.join(&d.path))) {
             (true, Ok(_)) => {
-                println!("REAPPEARED: {key} exists again -- its tasks live in {}; delete it", cfg.store);
+                println!(
+                    "REAPPEARED: {key} exists again -- its tasks live in {}; delete it",
+                    cfg.store
+                );
                 ok = false;
             }
             (true, Err(_)) => {}
             (false, Ok(b)) if format!("{:x}", Sha256::digest(&b)) == want => {}
             (false, Ok(_)) => {
-                println!("STALE: {key} changed after the store was migrated -- rerun: mios-task migrate");
+                println!(
+                    "STALE: {key} changed after the store was migrated -- rerun: mios-task migrate"
+                );
                 ok = false;
             }
             (false, Err(_)) => {
@@ -869,11 +1096,15 @@ fn conforms(v: &Value, s: &Value, path: &str, errs: &mut Vec<String>) {
 }
 
 fn validate(root: &Path, cfg: &Config) -> Result<bool, String> {
-    let stext = fs::read_to_string(root.join(&cfg.schema)).map_err(|e| format!("{}: {e}", cfg.schema))?;
+    let stext =
+        fs::read_to_string(root.join(&cfg.schema)).map_err(|e| format!("{}: {e}", cfg.schema))?;
     let doc: Value = serde_json::from_str(&stext).map_err(|e| e.to_string())?;
     let schema = &doc["schema"];
     let recs = read_jsonl(&root.join(&cfg.store))?;
-    let ids: HashSet<String> = recs.iter().filter_map(|r| r["id"].as_str().map(str::to_string)).collect();
+    let ids: HashSet<String> = recs
+        .iter()
+        .filter_map(|r| r["id"].as_str().map(str::to_string))
+        .collect();
     let mut keys = HashSet::new();
     let mut ok = true;
     for r in &recs {
@@ -902,7 +1133,11 @@ fn validate(root: &Path, cfg: &Config) -> Result<bool, String> {
         }
     }
     if ok {
-        println!("valid: {} record(s), {} unique key(s)", recs.len(), keys.len());
+        println!(
+            "valid: {} record(s), {} unique key(s)",
+            recs.len(),
+            keys.len()
+        );
     }
     Ok(ok)
 }
@@ -925,7 +1160,10 @@ fn ready(root: &Path, cfg: &Config, as_json: bool) -> Result<(), String> {
         .map(|r| json!({"key": r["key"], "id": r["id"], "priority": r["priority"], "title": r["title"]}))
         .collect();
     if as_json {
-        println!("{}", serde_json::to_string(&out).map_err(|e| e.to_string())?);
+        println!(
+            "{}",
+            serde_json::to_string(&out).map_err(|e| e.to_string())?
+        );
     } else {
         for r in &out {
             println!(
@@ -948,7 +1186,9 @@ fn usage() -> ExitCode {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let Some(cmd) = args.first().cloned() else { return usage() };
+    let Some(cmd) = args.first().cloned() else {
+        return usage();
+    };
     let mut root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let mut repos: HashMap<String, PathBuf> = HashMap::new();
     let mut as_json = false;
@@ -996,10 +1236,12 @@ fn main() -> ExitCode {
         "source" => {
             // Print one merged list exactly as it was, e.g. `mios-task source MiOS:TASKS.md`.
             let Some(src) = src_arg else { return usage() };
-            stored_slices(&root.join(&cfg.store)).and_then(|all| rematerialize(&src, &all)).map(|b| {
-                print!("{b}");
-                true
-            })
+            stored_slices(&root.join(&cfg.store))
+                .and_then(|all| rematerialize(&src, &all))
+                .map(|b| {
+                    print!("{b}");
+                    true
+                })
         }
         _ => return usage(),
     };
@@ -1031,9 +1273,15 @@ mod tests {
         let (occ, pass) = parse_markdown("MiOS:X.md", SAMPLE, false, false);
         assert_eq!(tile(&occ, &pass), SAMPLE);
         let ids: Vec<&str> = occ.iter().map(|o| o.id.as_str()).collect();
-        assert_eq!(ids, ["T-001", "T-002", "T-001", "T-777", "AGY-5", "AGY-6", "M-01", "M-02"]);
+        assert_eq!(
+            ids,
+            ["T-001", "T-002", "T-001", "T-777", "AGY-5", "AGY-6", "M-01", "M-02"]
+        );
         let (occ, _) = parse_markdown("MiOS:X.md", SAMPLE, false, true);
-        assert!(!occ.iter().any(|o| o.id == "T-777"), "a fenced heading must stay body text when fences are honoured");
+        assert!(
+            !occ.iter().any(|o| o.id == "T-777"),
+            "a fenced heading must stay body text when fences are honoured"
+        );
     }
 
     #[test]
@@ -1049,25 +1297,51 @@ mod tests {
     #[test]
     fn headings_rows_and_items_parse_their_decorations() {
         let f = heading_fields("section", "## AGY-5 -- Fifth  (WS-B | P2 | S)**[DONE]**");
-        let get = |k: &str| f.iter().find(|x| x.0 == k).map(|x| x.1.as_str().unwrap_or("").to_string());
+        let get = |k: &str| {
+            f.iter()
+                .find(|x| x.0 == k)
+                .map(|x| x.1.as_str().unwrap_or("").to_string())
+        };
         assert_eq!(get("title").as_deref(), Some("Fifth"));
         assert_eq!(get("status").as_deref(), Some("**[DONE]**"));
-        assert_eq!((get("workstream").as_deref(), get("priority").as_deref(), get("size").as_deref()), (Some("WS-B"), Some("P2"), Some("S")));
+        assert_eq!(
+            (
+                get("workstream").as_deref(),
+                get("priority").as_deref(),
+                get("size").as_deref()
+            ),
+            (Some("WS-B"), Some("P2"), Some("S"))
+        );
         let r = heading_fields("table-row", "| T-259 | P1 | open | Dom | a | b |");
         assert_eq!(r.last().unwrap().1, "a | b");
         let m = heading_fields("list-item", "* [x] **M-01: micro**");
         assert_eq!(m[0].1, "[x]");
         assert_eq!(m.last().unwrap().1, "micro");
-        let body = body_fields("h\n**Status:** done | **Domain:** D | **Who:** ops\n**Goal:** a\nb\n");
-        assert_eq!(body.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), ["status", "domain", "owner", "goal"]);
+        let body =
+            body_fields("h\n**Status:** done | **Domain:** D | **Who:** ops\n**Goal:** a\nb\n");
+        assert_eq!(
+            body.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(),
+            ["status", "domain", "owner", "goal"]
+        );
         assert_eq!(body[3].1, "a\nb");
     }
 
     #[test]
     fn statuses_normalise_to_the_openai_words() {
-        for (raw, want) in [("done-by-code", "completed"), ("**[DONE]**", "completed"), ("[x]", "completed"), ("open", "pending"),
-                            ("planned", "pending"), ("in-progress", "in_progress"), ("partial", "in_progress"), ("[BROKEN]", "incomplete"),
-                            ("built-gated-off", "incomplete"), ("retired", "cancelled"), ("SUPERSEDED / SKIP", "cancelled"), ("", "pending")] {
+        for (raw, want) in [
+            ("done-by-code", "completed"),
+            ("**[DONE]**", "completed"),
+            ("[x]", "completed"),
+            ("open", "pending"),
+            ("planned", "pending"),
+            ("in-progress", "in_progress"),
+            ("partial", "in_progress"),
+            ("[BROKEN]", "incomplete"),
+            ("built-gated-off", "incomplete"),
+            ("retired", "cancelled"),
+            ("SUPERSEDED / SKIP", "cancelled"),
+            ("", "pending"),
+        ] {
             assert_eq!(normalise_status(raw), want, "{raw}");
         }
     }
@@ -1077,8 +1351,13 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(d.join("usr/share/mios")).unwrap();
         fs::create_dir_all(d.join("usr/lib/mios/schemas")).unwrap();
-        let schema = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../usr/lib/mios/schemas/task-record.schema.json");
-        fs::copy(schema, d.join("usr/lib/mios/schemas/task-record.schema.json")).unwrap();
+        let schema = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../usr/lib/mios/schemas/task-record.schema.json");
+        fs::copy(
+            schema,
+            d.join("usr/lib/mios/schemas/task-record.schema.json"),
+        )
+        .unwrap();
         fs::write(d.join("usr/share/mios/mios.toml"), "[tasks.store]\npath = \"TASKS.jsonl\"\nschema = \"usr/lib/mios/schemas/task-record.schema.json\"\nsources = [ { repo = \"MiOS\", path = \"TASKS.md\", kind = \"section\" } ]\n").unwrap();
         fs::write(d.join("TASKS.md"), SAMPLE).unwrap();
         d
@@ -1120,20 +1399,33 @@ mod tests {
             })
             .collect();
         fs::write(&p, planted.join("\n") + "\n").unwrap();
-        assert!(!check_lossless(&d, &cfg).unwrap(), "a slice planted short must be LOSSY");
+        assert!(
+            !check_lossless(&d, &cfg).unwrap(),
+            "a slice planted short must be LOSSY"
+        );
     }
 
     #[test]
     fn an_edited_source_is_stale_and_a_duplicate_key_is_invalid() {
         let d = sandbox("stale");
         let cfg = run(&d);
-        fs::write(d.join("TASKS.md"), format!("{SAMPLE}| T-009 | P3 | open | D | planted |\n")).unwrap();
-        assert!(!check_lossless(&d, &cfg).unwrap(), "an edit after migrate must be STALE");
+        fs::write(
+            d.join("TASKS.md"),
+            format!("{SAMPLE}| T-009 | P3 | open | D | planted |\n"),
+        )
+        .unwrap();
+        assert!(
+            !check_lossless(&d, &cfg).unwrap(),
+            "an edit after migrate must be STALE"
+        );
         let p = d.join(&cfg.store);
         let t = fs::read_to_string(&p).unwrap();
         let first = t.lines().next().unwrap().to_string();
         fs::write(&p, format!("{t}{first}\n")).unwrap();
-        assert!(!validate(&d, &cfg).unwrap(), "a duplicate key must be INVALID");
+        assert!(
+            !validate(&d, &cfg).unwrap(),
+            "a duplicate key must be INVALID"
+        );
     }
 
     #[test]
@@ -1142,13 +1434,23 @@ mod tests {
         run(&d);
         fs::remove_file(d.join("TASKS.md")).unwrap();
         let toml = d.join("usr/share/mios/mios.toml");
-        let t = fs::read_to_string(&toml).unwrap().replace("kind = \"section\" }", "kind = \"section\", absorbed = true }");
+        let t = fs::read_to_string(&toml).unwrap().replace(
+            "kind = \"section\" }",
+            "kind = \"section\", absorbed = true }",
+        );
         fs::write(&toml, t).unwrap();
         let cfg = run(&d); // re-migrates from the store's own slices
         assert!(check_lossless(&d, &cfg).unwrap());
         let all = stored_slices(&d.join(&cfg.store)).unwrap();
-        assert_eq!(rematerialize("MiOS:TASKS.md", &all).unwrap(), SAMPLE, "the absorbed list must come back byte-identical");
+        assert_eq!(
+            rematerialize("MiOS:TASKS.md", &all).unwrap(),
+            SAMPLE,
+            "the absorbed list must come back byte-identical"
+        );
         fs::write(d.join("TASKS.md"), "stub\n").unwrap();
-        assert!(!check_lossless(&d, &cfg).unwrap(), "a re-created absorbed list must be REAPPEARED");
+        assert!(
+            !check_lossless(&d, &cfg).unwrap(),
+            "a re-created absorbed list must be REAPPEARED"
+        );
     }
 }

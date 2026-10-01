@@ -7,7 +7,7 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
     Context "Suite 1: Pipe Deadlock Handling (Positive & Negative Controls)" {
         BeforeAll {
             $script:pyHarness = Join-Path $PSScriptRoot 'pipe_deadlock_generator.py'
-            $script:testDir = Join-Path $env:TEMP ("pester_m2_" + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+            $script:testDir = Join-Path ([System.IO.Path]::GetTempPath()) ("pester_m2_" + [Guid]::NewGuid().ToString('N').Substring(0, 8))
             New-Item -ItemType Directory -Path $script:testDir -Force | Out-Null
         }
 
@@ -31,21 +31,15 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
             $buf = New-Object byte[] 4096
             $stream = $proc.StandardOutput.BaseStream
 
-            $readTask = [System.Threading.Tasks.Task]::Run([System.Action]{
-                param()
-                try {
-                    while ($true) {
-                        $n = $stream.Read($buf, 0, $buf.Length)
-                        if ($n -le 0) { break }
-                    }
-                } catch {}
-            })
+            $readTask = $stream.CopyToAsync([System.IO.Stream]::Null)
 
             $waitOk = $proc.WaitForExit(2000)
             if (-not $waitOk) {
                 $timedOut = $true
                 try { $proc.Kill() } catch {}
             }
+            $readTask.Wait(2000) | Should -BeTrue
+            $proc.Dispose()
             $timedOut | Should -BeTrue
         }
 
@@ -120,19 +114,19 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
 
     Context "Suite 2: Intermediate NTFS Unpacking Prevention & POSIX Preservation" {
         It "Merge-LayersToTar throws deprecation exception forbidding NTFS extraction" {
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile('c:\MiOS\mios-windows-export.ps1', [ref]$null, [ref]$null)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../../mios-windows-export.ps1'), [ref]$null, [ref]$null)
             $funcAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Merge-LayersToTar' }, $true)
             $funcAst | Should -Not -BeNullOrEmpty
 
             function global:Write-Warn { param([string]$msg) }
             . ([scriptblock]::Create($funcAst.Extent.Text))
 
-            { Merge-LayersToTar -LayerFiles @('dummy') -StagingDir 'c:\temp' -OutTar 'c:\temp\out.tar' } | `
+            { Merge-LayersToTar -LayerFiles @('dummy') -StagingDir 'unused' -OutTar 'unused.tar' } | `
                 Should -Throw "*intermediate extraction to NTFS strips Linux POSIX file modes*"
         }
 
         It "Export-WslTar in all scripts streams directly from container storage without NTFS extraction" {
-            $scripts = @('c:\MiOS\build-mios.ps1', 'c:\mios-bootstrap\build-mios.ps1', 'c:\MiOS\mios-windows-export.ps1')
+            $scripts = @((Join-Path $PSScriptRoot '../../build-mios.ps1'), (Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1'), (Join-Path $PSScriptRoot '../../mios-windows-export.ps1'))
             foreach ($s in $scripts) {
                 $ast = [System.Management.Automation.Language.Parser]::ParseFile($s, [ref]$null, [ref]$null)
                 $exportFunc = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Export-WslTar' }, $true)
@@ -149,13 +143,13 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
 
     Context "Suite 3: Deprecation of .tar.zst for WSL2 Targets" {
         It "Compress-WithZstd documents WSL2 error 0x80070057 and deprecation" {
-            $content = Get-Content -LiteralPath 'c:\MiOS\mios-windows-export.ps1' -Raw
+            $content = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../../mios-windows-export.ps1') -Raw
             $content | Should -Match '0x80070057'
             $content | Should -Match 'DEPRECATED: \.tar\.zst compression is incompatible'
         }
 
         It "Export-WslTar emits uncompressed .tar without zstd compression" {
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile('c:\MiOS\mios-windows-export.ps1', [ref]$null, [ref]$null)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../../mios-windows-export.ps1'), [ref]$null, [ref]$null)
             $func = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Export-WslTar' }, $true)
             $text = $func.Extent.Text
 
@@ -166,14 +160,16 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
 
     Context "Suite 4: Dynamic Tag Resolution from mios.toml" {
         BeforeAll {
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile('c:\MiOS\build-mios.ps1', [ref]$null, [ref]$null)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../../build-mios.ps1'), [ref]$null, [ref]$null)
             $resolveAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Resolve-MiosTomlText' }, $true)
+            $layersAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Resolve-MiosTomlLayers' }, $true)
+            . ([scriptblock]::Create($layersAst.Extent.Text))
             $getTomlAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Get-MiosTomlValue' }, $true)
             . ([scriptblock]::Create($resolveAst.Extent.Text))
             . ([scriptblock]::Create($getTomlAst.Extent.Text))
 
             function script:Resolve-Image([string]$Passed, [string]$Toml) {
-                $script:_MiosTomlCache = @{ '_text' = $Toml; '_source' = 'test' }
+                $script:_MiosTomlCache = @{ '_layers' = @([pscustomobject]@{ Text = $Toml; Path = 'fixture' }) }
                 $res = $Passed
                 if ([string]::IsNullOrWhiteSpace($res)) {
                     try {
@@ -210,7 +206,7 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
 
     Context "Suite 5: Error Propagation and Trap Elimination" {
         It "Phase 10 and Phase 11 propagate failures with exit code 1" {
-            foreach ($s in @('c:\MiOS\build-mios.ps1', 'c:\mios-bootstrap\build-mios.ps1')) {
+            foreach ($s in @((Join-Path $PSScriptRoot '../../build-mios.ps1'), (Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1'))) {
                 $ast = [System.Management.Automation.Language.Parser]::ParseFile($s, [ref]$null, [ref]$null)
                 $deployFunc = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Invoke-DeployPipeline' }, $true)
                 $text = $deployFunc.Extent.Text
@@ -224,7 +220,7 @@ Describe "Milestone 2 Adversarial Stress & Verification Tests" {
         }
 
         It "Dead-code trap unconditional `$BootstrapOnly = `$true is removed" {
-            foreach ($s in @('c:\MiOS\build-mios.ps1', 'c:\mios-bootstrap\build-mios.ps1')) {
+            foreach ($s in @((Join-Path $PSScriptRoot '../../build-mios.ps1'), (Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1'))) {
                 $content = Get-Content -LiteralPath $s -Raw
                 $content | Should -Not -Match '(?m)^\s*\$BootstrapOnly\s*=\s*\$true'
                 $content | Should -Not -Match '(?m)^\s*\$script:BootstrapOnly\s*=\s*\$true'

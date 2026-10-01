@@ -13,6 +13,8 @@ import mios_evict
 async def export_to_cold(pg, row_ids: list[int], table: str, dest_dir: str, zstd_level: int) -> Path:
     if not row_ids:
         return None
+    if isinstance(zstd_level, bool) or not isinstance(zstd_level, int) or not 1 <= zstd_level <= 22:
+        raise ValueError("zstd compression level must be an integer from 1 to 22")
 
     now = datetime.datetime.now(datetime.timezone.utc)
     yyyy = now.strftime("%Y")
@@ -45,7 +47,7 @@ async def export_to_cold(pg, row_ids: list[int], table: str, dest_dir: str, zstd
         if not _zstd:
             raise RuntimeError("zstd binary not found on system PATH; cannot compress cold tier")
         subprocess.run(
-            [_zstd, f"--level={zstd_level}", "-o", str(zst_path), str(tmp_path)],
+            [_zstd, *(["--ultra"] if zstd_level > 19 else []), f"-{zstd_level}", "-o", str(zst_path), str(tmp_path)],
             check=True,
             capture_output=True
         )

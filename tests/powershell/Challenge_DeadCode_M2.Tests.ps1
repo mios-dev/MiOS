@@ -5,13 +5,13 @@ $ErrorActionPreference = 'Stop'
 
 Describe "Adversarial Challenge: Dead-Code Parameter & Scoping" {
     $targetFiles = @(
-        @{ File = 'c:\mios-bootstrap\build-mios.ps1'; Name = 'mios-bootstrap' },
-        @{ File = 'c:\MiOS\build-mios.ps1'; Name = 'MiOS' }
+        @{ File = (Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1'); Name = 'mios-bootstrap' },
+        @{ File = (Join-Path $PSScriptRoot '../../build-mios.ps1'); Name = 'MiOS' }
     )
 
     Context "Target <Name>" -ForEach $targetFiles {
         BeforeAll {
-            $script:currentFile = $_.File
+            $script:currentFile = $File
             $script:rawContent = Get-Content -LiteralPath $script:currentFile -Raw
         }
 

@@ -5563,7 +5563,7 @@
     },
     {
       "path": "tests/powershell/run-pester.sh",
-      "hint": "Runner for Pester test suite across tests/powershell/*.Tests.ps1. Degrades open if pwsh/Pester is absent.",
+      "hint": "Runner for Pester tests with a native export fixture and explicit prerequisite failures.",
       "related": [],
       "functions": [],
       "doc": null,

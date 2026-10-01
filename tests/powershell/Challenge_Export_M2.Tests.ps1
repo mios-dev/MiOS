@@ -15,11 +15,11 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
         $script:tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("mios_challenger_" + [System.Guid]::NewGuid().ToString("N"))
         New-Item -ItemType Directory -Path $script:tempDir -Force | Out-Null
         $script:mockLog = Join-Path $script:tempDir "mock_podman.log"
-        $script:mockBin = Join-Path $script:tempDir "podman.exe"
-        Copy-Item -LiteralPath "c:\MiOS\tests\powershell\mock_podman.exe" -Destination $script:mockBin -Force
+        $script:mockBin = $env:MIOS_TEST_PODMAN_BIN
+        if (-not $script:mockBin -or -not (Test-Path -LiteralPath $script:mockBin)) { throw 'The compiled Podman test fixture is required.' }
         
         $script:oldPath = $env:PATH
-        $env:PATH = "$script:tempDir;$($env:PATH)"
+        $env:PATH = [System.IO.Path]::GetDirectoryName($script:mockBin) + [System.IO.Path]::PathSeparator + $env:PATH
         $env:MOCK_PODMAN_LOG = $script:mockLog
     }
 
@@ -39,7 +39,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
         }
 
         It "Export-WslTar throws detailed exception, deletes partial file, and runs podman rm -f" {
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile("c:\mios-bootstrap\build-mios.ps1", [ref]$null, [ref]$null)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1'), [ref]$null, [ref]$null)
             $funcAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq "Export-WslTar" }, $true)
             
             $helperStub = @'
@@ -51,7 +51,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
 '@
             $testScript = $helperStub + "`n" + $funcAst.Extent.Text + @"
 
-                `$outFile = Join-Path '$($script:tempDir -replace '\\','\\')' 'test_partial_export.tar'
+                `$outFile = Join-Path '$($script:tempDir.Replace("'", "''"))' 'test_partial_export.tar'
                 `$thrown = `$false
                 `$exMsg = ''
                 try {
@@ -67,7 +67,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
                     FileExists = (Test-Path -LiteralPath `$outFile)
                 } | ConvertTo-Json -Compress
 "@
-            $raw = powershell -NoProfile -Command $testScript
+            $raw = & (Get-Process -Id $PID).Path -NoProfile -Command $testScript
             $res = $raw | ConvertFrom-Json
             
             $res.Thrown | Should -Be $true
@@ -80,8 +80,8 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
             $logContent | Should -Match 'rm -f e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
         }
 
-        It "c:\MiOS\build-mios.ps1 - Export-WslTar throws detailed exception, deletes partial file, and runs podman rm -f" {
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile("c:\MiOS\build-mios.ps1", [ref]$null, [ref]$null)
+        It "System build - Export-WslTar throws detailed exception, deletes partial file, and runs podman rm -f" {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../../build-mios.ps1'), [ref]$null, [ref]$null)
             $funcAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq "Export-WslTar" }, $true)
             
             $helperStub = @'
@@ -93,7 +93,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
 '@
             $testScript = $helperStub + "`n" + $funcAst.Extent.Text + @"
 
-                `$outFile = Join-Path '$($script:tempDir -replace '\\','\\')' 'test_partial_export_mios.tar'
+                `$outFile = Join-Path '$($script:tempDir.Replace("'", "''"))' 'test_partial_export_mios.tar'
                 `$thrown = `$false
                 `$exMsg = ''
                 try {
@@ -109,7 +109,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
                     FileExists = (Test-Path -LiteralPath `$outFile)
                 } | ConvertTo-Json -Compress
 "@
-            $raw = powershell -NoProfile -Command $testScript
+            $raw = & (Get-Process -Id $PID).Path -NoProfile -Command $testScript
             $res = $raw | ConvertFrom-Json
             
             $res.Thrown | Should -Be $true
@@ -118,8 +118,8 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
             $res.FileExists | Should -Be $false
         }
 
-        It "c:\MiOS\mios-windows-export.ps1 - Export-WslTar cleans partial archive and runs podman rm -f" {
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile("c:\MiOS\mios-windows-export.ps1", [ref]$null, [ref]$null)
+        It "Windows export - Export-WslTar cleans partial archive and runs podman rm -f" {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../../mios-windows-export.ps1'), [ref]$null, [ref]$null)
             $funcAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq "Export-WslTar" }, $true)
             
             $helperStub = @'
@@ -131,7 +131,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
 '@
             $testScript = $helperStub + "`n" + $funcAst.Extent.Text + @"
 
-                `$outDir = '$($script:tempDir -replace '\\','\\')'
+                `$outDir = '$($script:tempDir.Replace("'", "''"))'
                 `$expectedTar = Join-Path `$outDir 'mios.wsl.tar'
                 `$thrown = `$false
                 `$exMsg = ''
@@ -148,7 +148,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
                     FileExists = (Test-Path -LiteralPath `$expectedTar)
                 } | ConvertTo-Json -Compress
 "@
-            $raw = powershell -NoProfile -Command $testScript
+            $raw = & (Get-Process -Id $PID).Path -NoProfile -Command $testScript
             $res = $raw | ConvertFrom-Json
             
             $res.Thrown | Should -Be $true
@@ -164,7 +164,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
         }
 
         It "Drains 128KB stderr asynchronously without deadlock within timeout" {
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile("c:\mios-bootstrap\build-mios.ps1", [ref]$null, [ref]$null)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $env:MIOS_BOOTSTRAP_ROOT 'build-mios.ps1'), [ref]$null, [ref]$null)
             $funcAst = $ast.Find({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq "Export-WslTar" }, $true)
             
             $helperStub = @'
@@ -176,7 +176,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
 '@
             $testScript = $helperStub + "`n" + $funcAst.Extent.Text + @"
 
-                `$outFile = Join-Path '$($script:tempDir -replace '\\','\\')' 'test_deadlock.tar'
+                `$outFile = Join-Path '$($script:tempDir.Replace("'", "''"))' 'test_deadlock.tar'
                 `$sw = [System.Diagnostics.Stopwatch]::StartNew()
                 `$thrown = `$false
                 `$errLen = 0
@@ -194,7 +194,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
                     ErrorLength = `$errLen
                 } | ConvertTo-Json -Compress
 "@
-            $raw = powershell -NoProfile -Command $testScript
+            $raw = & (Get-Process -Id $PID).Path -NoProfile -Command $testScript
             $res = $raw | ConvertFrom-Json
             $res.Thrown | Should -Be $true
             # With async drain, completes in < 8000ms and captures all > 65536 bytes
@@ -222,7 +222,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
                     return `$true
                 }
 
-                `$MiosDistroDir = '$($script:tempDir -replace '\\','\\')'
+                `$MiosDistroDir = '$($script:tempDir.Replace("'", "''"))'
                 `$MiosWslDistro = 'MiOS'
 
                 `$artifactDir = Join-Path `$MiosDistroDir "artifacts"
@@ -273,7 +273,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
                     Phase11Status = `$script:PhStat[11]
                 } | ConvertTo-Json -Compress
 "@
-            $raw = powershell -NoProfile -Command $pipelineTest
+            $raw = & (Get-Process -Id $PID).Path -NoProfile -Command $pipelineTest
             $res = $raw | ConvertFrom-Json
             $res.ExitCode | Should -Be 1
             $res.ScriptExitCode | Should -Be 1
@@ -284,7 +284,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
 
     Context "Scenario 4: POSIX preservation & deprecations in mios-windows-export.ps1" {
         BeforeAll {
-            $script:exportScript = "c:\MiOS\mios-windows-export.ps1"
+            $script:exportScript = (Join-Path $PSScriptRoot '../../mios-windows-export.ps1')
         }
 
         It "Throws deprecation error on Merge-LayersToTar to protect POSIX permissions" {
@@ -297,7 +297,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
                 `$thrown = `$false
                 `$msg = ''
                 try {
-                    Merge-LayersToTar -LayerFiles @('dummy') -StagingDir 'c:\temp' -OutTar 'c:\temp\out.tar'
+                    Merge-LayersToTar -LayerFiles @('dummy') -StagingDir 'unused' -OutTar 'unused.tar'
                 } catch {
                     `$thrown = `$true
                     `$msg = `$_.Exception.Message
@@ -307,7 +307,7 @@ Describe "Adversarial Challenge: Container Export Failure & Cleanup" {
                     Message = `$msg
                 } | ConvertTo-Json -Compress
 "@
-            $raw = powershell -NoProfile -Command $testScript
+            $raw = & (Get-Process -Id $PID).Path -NoProfile -Command $testScript
             $res = $raw | ConvertFrom-Json
             $res.Thrown | Should -Be $true
             $res.Message | Should -Match 'Merge-LayersToTar is deprecated and disabled'

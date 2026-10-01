@@ -294,6 +294,13 @@ services:
       - key: "mios.capability/service-plane"
         operator: "Exists"
         effect: "NoSchedule"
+  mios-piper:
+    nodeSelector:
+      mios.capability/service-plane: "true"
+    tolerations:
+      - key: "mios.capability/service-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
   mios-policy-arbiter:
     nodeSelector:
       mios.capability/service-plane: "true"
@@ -354,6 +361,13 @@ services:
       - key: "mios.capability/service-plane"
         operator: "Exists"
         effect: "NoSchedule"
+  mios-sunshine:
+    nodeSelector:
+      mios.capability/service-plane: "true"
+    tolerations:
+      - key: "mios.capability/service-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
   mios-sys-env-refresh:
     nodeSelector:
       mios.capability/service-plane: "true"
@@ -397,6 +411,13 @@ services:
         operator: "Exists"
         effect: "NoSchedule"
   mios-webtools-redis:
+    nodeSelector:
+      mios.capability/service-plane: "true"
+    tolerations:
+      - key: "mios.capability/service-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+  mios-whisper:
     nodeSelector:
       mios.capability/service-plane: "true"
     tolerations:

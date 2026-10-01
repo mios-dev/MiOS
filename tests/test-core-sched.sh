@@ -21,10 +21,8 @@ trap 'rm -rf "$TMP"' EXIT
 # Normalize binary path for Windows Python if cygpath is available
 if command -v cygpath &>/dev/null; then
     PY_BIN="$(cygpath -w "$BIN")"
-    PY_TMP="$(cygpath -w "$TMP")"
 else
     PY_BIN="$BIN"
-    PY_TMP="$TMP"
 fi
 
 TESTS_RUN=0
@@ -98,11 +96,11 @@ else
 fi
 
 # Test 2.3: Child process inheritance across process fork/clone
-inherit_check=$(python3 "$BIN" exec -- python3 -c '
+python3 "$BIN" exec -- python3 -c '
 import subprocess, sys
 res = subprocess.run([sys.executable, "-c", "import os; print(os.environ.get(\"MIOS_CORE_SCHED_COOKIE\", \"NONE\"))"], capture_output=True, text=True)
 sys.exit(0 if res.stdout.strip().startswith("0x") else 1)
-')
+'
 pass_test "Cookie environment is inherited by grandchild subprocesses"
 
 # Test 2.4: Distinct isolation cookies across independent exec runs
@@ -227,7 +225,7 @@ set +e
 python3 "$BIN" tag-cgroup "/nonexistent/path/for/cgroup" --strict 2>"${TMP}/err_cg_missing.log"
 rc_cg_missing=$?
 set -e
-if [[ "$rc_cg_missing" -ne 0 ]] && grep -q "cgroup.procs not found" "${TMP}/err_cg_missing.log"; then
+if [[ "$rc_cg_missing" -ne 0 ]] && grep -q "does not exist or has no cgroup.procs" "${TMP}/err_cg_missing.log"; then
     pass_test "tag-cgroup --strict rejects non-existent cgroup path ($rc_cg_missing)"
 else
     fail_test "tag-cgroup --strict did not properly reject non-existent cgroup path"
