@@ -10,9 +10,8 @@ if [[ "${EUID}" -ne 0 && -z "${MIOS_NATIVE_DEST_DIR:-}" ]]; then
     DEST_DIR="${ROOT_DIR}/usr/libexec/mios"
 fi
 
-# The image bake copies tools/ but not src/mios-rs: its native artifacts were
-# already compiled by the Containerfile's rust-builder stage. Installing Cargo
-# must not trigger a partial second build from that incomplete source context.
+# The image bake reuses the rust-builder artifacts; build.sh excludes this phase.
+# A direct invocation from an incomplete source context requires prebuilt tools.
 if [[ ! -f "${ROOT_DIR}/src/mios-rs/Cargo.toml" ]]; then
     for bin in miosd mios-gate mios-probe mios-node mios-resolver mios-unit-gen mios-render-quadlets mios-bake-plan; do
         [[ -x "${DEST_DIR}/${bin}" ]] || {

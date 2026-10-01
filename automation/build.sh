@@ -185,7 +185,7 @@ if [[ ! -f "$MIOS_TOML" ]]; then
     exit 1
 fi
 
-CONTAINERFILE_SCRIPTS="01-system-files-overlay.sh 97-ssot-lint.sh 98-drift-checks.sh 99-postcheck.sh"
+CONTAINERFILE_SCRIPTS="01-system-files-overlay.sh 55-native-build.sh 97-ssot-lint.sh 98-drift-checks.sh 99-postcheck.sh"
 
 NON_FATAL_SCRIPTS="
   06-enable-external-repos.sh

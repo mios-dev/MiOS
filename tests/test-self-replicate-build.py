@@ -37,6 +37,10 @@ def test_build_context_preserves_tracked_sources():
     restore = "git -C /tmp/build ls-files --deleted -z | git -C /tmp/build checkout-index -z --stdin"
     assert restore in recipe, "partial image context must restore omitted tracked consumers"
     assert recipe.index(restore) < recipe.index("miosd drift-check"), "restore sources before evaluating drift"
+    runner = (root / "automation/build.sh").read_text()
+    completed = next(line for line in runner.splitlines() if line.startswith("CONTAINERFILE_SCRIPTS="))
+    assert "55-native-build.sh" in completed, "reuse rust-builder outputs when restored sources are present"
+    assert "MIOS_NATIVE_INSTALL_ROOT=/out bash /build/automation/55-native-build.sh" in recipe, "native compilation must precede the image bake"
     with tempfile.TemporaryDirectory() as directory:
         fixture = Path(directory)
         subprocess.run(["git", "init", "--quiet", directory], check=True)
