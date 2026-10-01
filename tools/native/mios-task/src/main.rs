@@ -174,6 +174,7 @@ impl Fence {
 }
 
 type Unit = Option<(String, String, usize)>; // (kind, id, level); None = passthrough run
+type ParsedSource = (Vec<Occ>, Vec<(usize, String)>);
 
 fn flush(
     source: &str,
@@ -205,12 +206,7 @@ fn flush(
 }
 
 /// Split a Markdown list into records and passthrough slices that tile the file exactly.
-fn parse_markdown(
-    source: &str,
-    data: &str,
-    roadmap: bool,
-    fences: bool,
-) -> (Vec<Occ>, Vec<(usize, String)>) {
+fn parse_markdown(source: &str, data: &str, roadmap: bool, fences: bool) -> ParsedSource {
     static ROW: OnceLock<Regex> = OnceLock::new();
     static ITEM: OnceLock<Regex> = OnceLock::new();
     let row = re(&ROW, r"^\| (T-\d+) \|");
@@ -271,7 +267,7 @@ fn parse_markdown(
     (occs, pass)
 }
 
-fn parse_jsonl(source: &str, data: &str) -> Result<(Vec<Occ>, Vec<(usize, String)>), String> {
+fn parse_jsonl(source: &str, data: &str) -> Result<ParsedSource, String> {
     let mut occs = Vec::new();
     let mut pass = Vec::new();
     let mut off = 0usize;
@@ -1153,7 +1149,7 @@ fn ready(root: &Path, cfg: &Config, as_json: bool) -> Result<(), String> {
         .iter()
         .filter(|r| r["status"] == "pending")
         .filter(|r| {
-            r["deps"].as_array().map_or(true, |d| {
+            r["deps"].as_array().is_none_or(|d| {
                 d.iter().all(|e| e["type"] != "blocks" || done.contains(e["id"].as_str().unwrap_or("")))
             })
         })
