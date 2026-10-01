@@ -1632,3 +1632,18 @@ so long. Let a run finish.
 - incident: sourcing tests/drift-gate-negatives.sh outside main() ran its leak cleanup and deleted 94 tracked files in the #47 worktree; restored from git, nothing pushed. Run negative tests only through the script's main.
 - next: retarget #49 to main after #47 merges; watch CI on #47 7df34b64c and #49
 - unverified: CI on both heads; the Mount=type=image .image resolution needs podman >= 5 (documented upstream; this container has 4.9)
+
+## 2026-10-01 22:40 · de73f459 · pre-compact
+- objective: context compaction
+- done: see git log -5
+- next: re-read AGENTS.md, TASKS.md, this ledger; continue the in_progress task
+- blockers: -
+- unverified: anything not yet committed: 0 dirty path(s)
+
+## 2026-10-01 22:50 · b5b10bc4 · cycle 4 (SSOT at run/build time)
+- objective: Rust binaries resolve the layered SSOT at run/build time; shipped projections render in the build
+- done: de73f459 in-build projection regen + resolver twin parity; bf417edb mios-probe six-tier [preflight]; b5b10bc4 miosd config-server serves resolve_merged, port from [ports].agent_pipe
+- controls: mios-probe host-override test fails on old code / passes on new; config-server unit + live e2e (8700, env 9123, valid TOML 160 tables)
+- next: configurator save target decision (profile.toml is not an SSOT tier); mios-config/palette/wallpaperd literals; static-pie hardening checks
+- blockers: criteria 5/6/9 need a bootc host and a Windows host (none here)
+- unverified: mios-ci for b5b10bc4 (pending at 22:45Z)
