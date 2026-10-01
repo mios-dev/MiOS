@@ -7,8 +7,10 @@ source /usr/lib/mios/paths.sh
 
 _log()  { logger -t mios-mcp "$*" 2>/dev/null || true; echo "[mcp] $*" >&2; }
 
-: "${MIOS_AI_ENDPOINT:=http://localhost:8700/v1}"
-: "${MIOS_MCP_PORT:=${MIOS_PORTS_MCP}}"
+# Both come from the resolver-rendered /etc/mios/install.env (the unit's
+# EnvironmentFile=); an unresolved value is a named error, never a literal.
+: "${MIOS_AI_ENDPOINT:?MIOS_AI_ENDPOINT is unset -- /etc/mios/install.env is missing or stale}"
+: "${MIOS_MCP_PORT:=${MIOS_PORT_MCP:?MIOS_PORT_MCP is unset -- /etc/mios/install.env is missing or stale}}"
 : "${MIOS_MCP_LOG_DIR:=/var/log/mios/mcp}"
 : "${MIOS_WRITE_ALLOWED_PATHS:=/tmp/mios-mcp:/var/lib/mios/ai}"
 : "${MIOS_MCP_SANDBOX:=false}"

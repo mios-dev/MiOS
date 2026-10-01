@@ -14,6 +14,9 @@ Wants=redis.service
 Type=simple
 User=mios-ai
 Group=mios-ai
+# The runner reads MIOS_PORT_MCP and MIOS_AI_ENDPOINT under set -u; the
+# resolver-rendered install.env is where they come from.
+EnvironmentFile=-/etc/mios/install.env
 # Execution wrapper that verifies SQLite vaults exist before starting the MCP listener
 ExecStartPre=/usr/libexec/mios/mcp-init.sh
 ExecStart=/usr/libexec/mios/mcp-server-runner
