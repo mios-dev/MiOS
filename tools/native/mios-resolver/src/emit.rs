@@ -82,6 +82,18 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
         }
     }
 
+    // MIOS_COLOR_<name> for every palette entry ([colors] over the palette
+    // table), never overriding a walked key -- mios_toml.emit_exports' setdefault.
+    for (name, value) in crate::palette::resolve(merged) {
+        let upper = name.to_uppercase();
+        let key = if upper.starts_with("MIOS_COLOR_") {
+            upper
+        } else {
+            format!("MIOS_COLOR_{}", upper)
+        };
+        exports.entry(sanitize(&key)).or_insert(value);
+    }
+
     exports
 }
 

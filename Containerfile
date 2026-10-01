@@ -66,6 +66,10 @@ ARG MIOS_AI_EMBED_MODEL
 # ADR-0025 image profile ([profiles]); empty means [profiles].default.
 ARG MIOS_PROFILES_DEFAULT
 
+# Every SSOT projection the image ships is rendered inside this RUN from the
+# build's own mios.toml by tools/sync-generated.sh, the entry point CI's
+# generated-artifacts step runs. miosd drift-check runs first, so a derived
+# surface edited by hand still fails the build (Law 8) before it is overwritten.
 # Source drift checks need every tracked consumer, including tests and CI.
 # Restore omitted index entries after provisioning; retain copied edits and exclude caches.
 RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
@@ -113,10 +117,11 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
         echo "[build] ${_v}=${!_v}"; \
     done; \
     export MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_PROFILES_DEFAULT; \
+    /usr/libexec/mios/miosd drift-check --root /tmp/build; \
+    MIOS_ROOT=/tmp/build bash /tmp/build/tools/sync-generated.sh; \
     bash /tmp/build/automation/01-system-files-overlay.sh; \
     chmod +x /tmp/build/automation/build.sh /tmp/build/automation/*.sh 2>/dev/null || true; \
     chmod +x /usr/libexec/mios/copy-build-log.sh 2>/dev/null || true; \
-    /usr/libexec/mios/miosd drift-check --root /tmp/build; \
     CTX=/tmp/build /tmp/build/automation/build.sh; \
     dnf clean all; \
     rm -rf /tmp/build; \

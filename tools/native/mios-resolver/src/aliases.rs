@@ -368,9 +368,49 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
             .to_uppercase()
             .replace(['.', '-', '/'], "_");
         aliases.push(format!("MIOS_FIND_{}", key));
+    } else if let Some(rest) = dotted_path.strip_prefix("code_server.") {
+        aliases.push(format!("MIOS_CODE_SERVER_{}", py_key(rest)));
+    } else if let Some(rest) = dotted_path
+        .strip_prefix("postgres.")
+        .or_else(|| dotted_path.strip_prefix("db."))
+    {
+        let key = py_key(rest);
+        for family in ["DB", "POSTGRES", "PG", "PGVECTOR"] {
+            aliases.push(format!("MIOS_{}_{}", family, key));
+        }
+    } else if let Some(rest) = dotted_path.strip_prefix("mios.") {
+        aliases.push(format!("MIOS_{}", py_key(rest)));
+    } else if let Some(rest) = dotted_path
+        .strip_prefix("offline.backup_")
+        .or_else(|| dotted_path.strip_prefix("offline.backup."))
+    {
+        let key = py_key(rest.trim_start_matches(['_', '.']));
+        aliases.push(format!("MIOS_PG_BACKUP_{}", key));
+        aliases.push(format!("MIOS_OFFLINE_BACKUP_{}", key));
+    } else if let Some(rest) = dotted_path.strip_prefix("units.") {
+        // Unit names carry '-' and '.', neither legal in a shell identifier.
+        let tail: String = rest
+            .to_uppercase()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        aliases.push(format!("MIOS_UNIT_{}", tail));
+    } else if let Some(rest) = dotted_path.strip_prefix("urls.") {
+        // [urls].forge -> MIOS_FORGE_URL; non_addressable lists port KEYS, not a URL.
+        let name = rest.to_uppercase();
+        if name == "LOCAL_FORGE_REPO" {
+            aliases.push("MIOS_LOCAL_FORGE_REPO".into());
+        } else if name != "NON_ADDRESSABLE" {
+            aliases.push(format!("MIOS_{}_URL", name));
+        }
     }
 
     aliases
+}
+
+/// mios_toml.py's key transform for these families: upper-case, '.' and '-' to '_'.
+fn py_key(rest: &str) -> String {
+    rest.to_uppercase().replace(['.', '-'], "_")
 }
 
 #[cfg(test)]
@@ -401,6 +441,41 @@ mod tests {
         );
         assert!(get_aliases("ports.categories.agent.base").is_empty());
         assert!(get_aliases("ports.categories.edge.members").is_empty());
+    }
+
+    #[test]
+    fn test_families_ported_from_mios_toml_py() {
+        assert_eq!(
+            get_aliases("urls.code_server"),
+            vec!["MIOS_CODE_SERVER_URL"]
+        );
+        assert_eq!(
+            get_aliases("urls.local_forge_repo"),
+            vec!["MIOS_LOCAL_FORGE_REPO"]
+        );
+        assert!(get_aliases("urls.non_addressable").is_empty());
+        assert_eq!(
+            get_aliases("units.var-lib-nfs.mount"),
+            vec!["MIOS_UNIT_VAR_LIB_NFS_MOUNT"]
+        );
+        assert_eq!(
+            get_aliases("offline.backup_keep"),
+            vec!["MIOS_PG_BACKUP_KEEP", "MIOS_OFFLINE_BACKUP_KEEP"]
+        );
+        assert_eq!(
+            get_aliases("db.host"),
+            vec![
+                "MIOS_DB_HOST",
+                "MIOS_POSTGRES_HOST",
+                "MIOS_PG_HOST",
+                "MIOS_PGVECTOR_HOST"
+            ]
+        );
+        assert_eq!(
+            get_aliases("code_server.bind"),
+            vec!["MIOS_CODE_SERVER_BIND"]
+        );
+        assert_eq!(get_aliases("mios.repo-root"), vec!["MIOS_REPO_ROOT"]);
     }
 
     #[test]
