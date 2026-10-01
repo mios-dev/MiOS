@@ -13,27 +13,26 @@ pub struct ConfigServerConfig {
     pub bind_addr: String,
     pub html_path: PathBuf,
     pub profile_path: PathBuf,
-    pub vendor_toml_path: PathBuf,
-    pub host_toml_path: PathBuf,
-}
-
-impl Default for ConfigServerConfig {
-    fn default() -> Self {
-        Self::resolve(None, None)
-    }
+    /// Root the six-tier SSOT resolves under; None is the installed FHS tiers
+    /// (or the source tree's vendor file when MiOS is not installed).
+    pub ssot_root: Option<PathBuf>,
 }
 
 impl ConfigServerConfig {
-    pub fn resolve(bind: Option<String>, port: Option<u16>) -> Self {
-        let port_str = port
-            .map(|p| p.to_string())
-            .or_else(|| std::env::var("MIOS_PORT_AGENT_PIPE").ok())
-            .unwrap_or_else(|| "8700".to_string());
-
-        let bind_addr = bind.unwrap_or_else(|| {
-            std::env::var("MIOS_CONFIG_BIND_ADDR")
-                .unwrap_or_else(|_| format!("127.0.0.1:{}", port_str))
-        });
+    /// The listen port is `[ports].agent_pipe` (the route agent-pipe's portal
+    /// serves) unless given; an unresolvable port is an error, never a literal.
+    pub fn resolve(bind: Option<String>, port: Option<u16>) -> Result<Self, String> {
+        let bind_addr = match bind.or_else(|| std::env::var("MIOS_CONFIG_BIND_ADDR").ok()) {
+            Some(b) => b,
+            None => {
+                let port = match port {
+                    Some(p) => p,
+                    None => mios_resolver::runtime::require_port("MIOS_PORT_AGENT_PIPE")
+                        .map_err(|e| e.to_string())?,
+                };
+                format!("127.0.0.1:{port}")
+            }
+        };
 
         let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
         let root_path = Path::new(&root);
@@ -58,29 +57,17 @@ impl ConfigServerConfig {
             Path::new(&home).join(".config/mios/profile.toml")
         };
 
-        let vendor_toml_path = if Path::new("/usr/share/mios/mios.toml").is_file() {
-            PathBuf::from("/usr/share/mios/mios.toml")
-        } else if root_path.join("usr/share/mios/mios.toml").is_file() {
-            root_path.join("usr/share/mios/mios.toml")
-        } else {
-            PathBuf::from("usr/share/mios/mios.toml")
-        };
+        let ssot_root = std::env::var("MIOS_ROOT")
+            .ok()
+            .filter(|r| !r.is_empty())
+            .map(PathBuf::from);
 
-        let host_toml_path = if Path::new("/etc/mios/mios.toml").is_file() {
-            PathBuf::from("/etc/mios/mios.toml")
-        } else if root_path.join("etc/mios/mios.toml").is_file() {
-            root_path.join("etc/mios/mios.toml")
-        } else {
-            PathBuf::from("etc/mios/mios.toml")
-        };
-
-        Self {
+        Ok(Self {
             bind_addr,
             html_path,
             profile_path,
-            vendor_toml_path,
-            host_toml_path,
-        }
+            ssot_root,
+        })
     }
 }
 
@@ -220,36 +207,21 @@ pub fn parse_http_request(raw: &[u8]) -> Option<HttpRequest> {
     })
 }
 
-pub fn read_layered_toml(config: &ConfigServerConfig) -> String {
-    let mut combined = String::new();
-
-    if let Ok(vendor_content) = fs::read_to_string(&config.vendor_toml_path) {
-        combined = vendor_content;
+/// The live configuration: the resolver's six-tier merge (vendor < vendor.d <
+/// host < host.d < user < user.d, [ports] derived), then the configurator's
+/// own profile save on top, serialized as one valid TOML document. Splicing
+/// the tier files' text together produced duplicate tables whenever a host
+/// override repeated a vendor table, which the configurator could not parse.
+pub fn read_layered_toml(config: &ConfigServerConfig) -> Result<String, String> {
+    let mut merged = mios_resolver::resolve_merged(config.ssot_root.as_deref(), false)
+        .map_err(|e| format!("the layered mios.toml did not resolve: {e}"))?;
+    if let Ok(text) = fs::read_to_string(&config.profile_path) {
+        let profile = text
+            .parse::<toml::Value>()
+            .map_err(|e| format!("{} did not parse: {e}", config.profile_path.display()))?;
+        mios_resolver::merge::deep_merge(&mut merged, profile);
     }
-
-    if let Ok(host_content) = fs::read_to_string(&config.host_toml_path) {
-        if combined.is_empty() {
-            combined = host_content;
-        } else {
-            combined.push_str("\n\n# --- Host Overrides ---\n");
-            combined.push_str(&host_content);
-        }
-    }
-
-    if let Ok(profile_content) = fs::read_to_string(&config.profile_path) {
-        if combined.is_empty() {
-            combined = profile_content;
-        } else {
-            combined.push_str("\n\n# --- User Profile Overrides ---\n");
-            combined.push_str(&profile_content);
-        }
-    }
-
-    if combined.is_empty() {
-        "# Empty MiOS SSOT Configuration\n".to_string()
-    } else {
-        combined
-    }
+    toml::to_string(&merged).map_err(|e| format!("the merged config did not serialize: {e}"))
 }
 
 pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpResponse {
@@ -291,10 +263,14 @@ pub fn handle_request(req: &HttpRequest, config: &ConfigServerConfig) -> HttpRes
             }
         }
 
-        ("GET", "/portal/config") | ("HEAD", "/portal/config") => {
-            let toml_data = read_layered_toml(config);
-            cors_resp(HttpResponse::toml(200, "OK", toml_data))
-        }
+        ("GET", "/portal/config") | ("HEAD", "/portal/config") => match read_layered_toml(config) {
+            Ok(toml_data) => cors_resp(HttpResponse::toml(200, "OK", toml_data)),
+            Err(e) => cors_resp(HttpResponse::json(
+                500,
+                "Internal Server Error",
+                serde_json::json!({ "errors": [e] }).to_string(),
+            )),
+        },
 
         ("POST", "/portal/config") => {
             let body_str = match std::str::from_utf8(&req.body) {
@@ -484,6 +460,43 @@ mod tests {
         assert!(s.ends_with("\r\n\r\n<h1>Test</h1>"));
     }
 
+    #[test]
+    fn test_get_config_is_the_merged_ssot_as_valid_toml() {
+        let tmp_dir = tempfile::tempdir().unwrap_or_else(|e| panic!("{}", e));
+        let root = tmp_dir.path();
+        fs::create_dir_all(root.join("usr/share/mios")).unwrap_or_else(|e| panic!("{}", e));
+        fs::create_dir_all(root.join("etc/mios")).unwrap_or_else(|e| panic!("{}", e));
+        fs::write(
+            root.join("usr/share/mios/mios.toml"),
+            "[ai]\nendpoint = \"vendor\"\nagent_model = \"m\"\n",
+        )
+        .unwrap_or_else(|e| panic!("{}", e));
+        // The host tier repeats [ai]: spliced text would be a duplicate table.
+        fs::write(
+            root.join("etc/mios/mios.toml"),
+            "[ai]\nendpoint = \"host\"\n",
+        )
+        .unwrap_or_else(|e| panic!("{}", e));
+        let config = ConfigServerConfig {
+            bind_addr: String::new(),
+            html_path: root.join("mios.html"),
+            profile_path: root.join("no-profile.toml"),
+            ssot_root: Some(root.to_path_buf()),
+        };
+        let req = HttpRequest {
+            method: "GET".to_string(),
+            path: "/portal/config".to_string(),
+            headers: HashMap::new(),
+            body: Vec::new(),
+        };
+        let resp = handle_request(&req, &config);
+        assert_eq!(resp.status_code, 200);
+        let body = String::from_utf8_lossy(&resp.body);
+        let parsed: toml::Value = body.parse().unwrap_or_else(|e| panic!("{e}: {body}"));
+        assert_eq!(parsed["ai"]["endpoint"].as_str(), Some("host"));
+        assert_eq!(parsed["ai"]["agent_model"].as_str(), Some("m"));
+    }
+
     #[tokio::test]
     async fn test_server_loopback_health() {
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -500,8 +513,7 @@ mod tests {
             bind_addr: local_addr.to_string(),
             html_path: html_file,
             profile_path: tmp_dir.path().join("profile.toml"),
-            vendor_toml_path: tmp_dir.path().join("vendor.toml"),
-            host_toml_path: tmp_dir.path().join("host.toml"),
+            ssot_root: Some(tmp_dir.path().to_path_buf()),
         };
 
         let cfg_arc = Arc::new(config);

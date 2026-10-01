@@ -1169,7 +1169,13 @@ async fn main() {
             }
         }
         Commands::ConfigServer { bind, port } => {
-            let config = miosd::server::ConfigServerConfig::resolve(bind.clone(), *port);
+            let config = match miosd::server::ConfigServerConfig::resolve(bind.clone(), *port) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("[miosd config-server] {e}");
+                    std::process::exit(1);
+                }
+            };
             println!(
                 "[miosd] Starting MiOS Config Server at http://{}",
                 config.bind_addr
