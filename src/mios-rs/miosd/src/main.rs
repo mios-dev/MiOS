@@ -909,14 +909,25 @@ async fn main() {
             }
         }
         Commands::Resolve { shell } => {
-            let config = mios_config::MiosConfig::load_default().unwrap_or_default();
             if *shell {
-                println!("export MIOS_USER=\"{}\"", config.identity.username);
-                println!("export MIOS_USER_FULLNAME=\"{}\"", config.identity.fullname);
-                println!("export MIOS_HOSTNAME=\"{}\"", config.identity.hostname);
-                println!("export MIOS_USER_SHELL=\"{}\"", config.identity.shell);
-                println!("export MIOS_VERSION=\"{}\"", config.meta.mios_version);
+                // The whole resolved environment, as userenv.sh's fallback expects.
+                match mios_resolver::resolve_env(None) {
+                    Ok(env) => {
+                        for (k, v) in env {
+                            println!(
+                                "export {}={}",
+                                k,
+                                mios_resolver::emit_shell::shlex_quote(&v)
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[miosd] resolve: {}", e);
+                        std::process::exit(1);
+                    }
+                }
             } else {
+                let config = mios_config::MiosConfig::load_default().unwrap_or_default();
                 println!("{:#?}", config);
             }
         }

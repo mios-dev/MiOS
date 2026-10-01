@@ -165,14 +165,17 @@ impl MiosConfig {
             })
     }
 
+    /// The six-tier SSOT (vendor < vendor.d < host < host.d < user < user.d)
+    /// through mios-resolver, rooted at MIOS_ROOT when set and at the
+    /// installed FHS tiers otherwise, then MIOS_* environment overrides.
     pub fn load_default() -> Result<Self, ConfigError> {
-        let root = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
-        let primary = Path::new(&root).join("usr/share/mios/mios.toml");
-        if primary.exists() {
-            Self::load_from_path(primary)
-        } else {
-            Ok(Self::default())
-        }
+        let root = std::env::var("MIOS_ROOT").ok().filter(|r| !r.is_empty());
+        mios_resolver::layers::create_figment(root.as_deref().map(Path::new))
+            .merge(Env::prefixed("MIOS_"))
+            .extract()
+            .map_err(|e| ConfigError {
+                message: e.to_string(),
+            })
     }
 
     pub fn section(&self, name: &str) -> Option<&toml::Value> {

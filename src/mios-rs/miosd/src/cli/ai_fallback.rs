@@ -36,17 +36,26 @@ struct ChatCompletionResponse {
 pub struct AiFallback;
 
 impl AiFallback {
-    pub fn resolve_endpoint() -> (String, String) {
-        let ep = std::env::var("MIOS_AI_ENDPOINT")
-            .unwrap_or_else(|_| "http://localhost:8640/v1".to_string());
-        let model = std::env::var("MIOS_AI_MODEL")
-            .or_else(|_| std::env::var("MIOS_AI_GATEWAY_MODEL"))
-            .unwrap_or_else(|_| "MiOS AI".to_string());
-        (ep, model)
+    /// MIOS_AI_ENDPOINT and the model, from the environment or the resolved SSOT.
+    pub fn resolve_endpoint() -> Result<(String, String), String> {
+        use mios_resolver::runtime::{get, require};
+        let ep = require("MIOS_AI_ENDPOINT").map_err(|e| e.to_string())?;
+        let model = get("MIOS_AI_MODEL")
+            .or_else(|| get("MIOS_AI_GATEWAY_MODEL"))
+            .ok_or_else(|| {
+                "neither MIOS_AI_MODEL nor MIOS_AI_GATEWAY_MODEL resolves".to_string()
+            })?;
+        Ok((ep, model))
     }
 
     pub fn execute_prompt(prompt: &str) -> i32 {
-        let (endpoint, model) = Self::resolve_endpoint();
+        let (endpoint, model) = match Self::resolve_endpoint() {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("mios: {}", e);
+                return 1;
+            }
+        };
         println!(
             "[mios] Connecting to AI endpoint: {} (model: {})",
             endpoint, model
@@ -82,11 +91,22 @@ impl AiFallback {
         };
         let full_path = format!("{}/chat/completions", path_prefix.trim_end_matches('/'));
 
+        let default_port = if endpoint.starts_with("https://") {
+            443
+        } else {
+            80
+        };
         let (host, port) = if host_port.contains(':') {
             let hp: Vec<&str> = host_port.split(':').collect();
-            (hp[0], hp[1].parse::<u16>().unwrap_or(8640))
+            match hp[1].parse::<u16>() {
+                Ok(p) => (hp[0], p),
+                Err(_) => {
+                    eprintln!("mios: MIOS_AI_ENDPOINT '{}' has an invalid port", endpoint);
+                    return 1;
+                }
+            }
         } else {
-            (host_port, 80)
+            (host_port, default_port)
         };
 
         let stream_res = TcpStream::connect((host, port));

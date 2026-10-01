@@ -63,3 +63,123 @@ pub fn resolve_env(root_dir: Option<&Path>) -> Result<BTreeMap<String, String>, 
     emit::resolve_cross_references(&mut exports);
     Ok(exports)
 }
+
+/// Run-time SSOT lookup for native programs: the process environment (a
+/// unit's Environment=, the operator) wins, then the resolved six-tier
+/// mios.toml. A name neither provides is an error that names it -- callers
+/// never substitute a compiled-in value.
+pub mod runtime {
+    use crate::error::ResolverError;
+    use std::collections::BTreeMap;
+    use std::sync::OnceLock;
+
+    static RESOLVED: OnceLock<BTreeMap<String, String>> = OnceLock::new();
+
+    /// `name` from `env`, else from `resolved`; empty strings count as unset.
+    pub fn lookup_in(
+        name: &str,
+        env: impl Fn(&str) -> Option<String>,
+        resolved: &BTreeMap<String, String>,
+    ) -> Option<String> {
+        env(name)
+            .filter(|v| !v.is_empty())
+            .or_else(|| resolved.get(name).filter(|v| !v.is_empty()).cloned())
+    }
+
+    fn resolved() -> &'static BTreeMap<String, String> {
+        RESOLVED.get_or_init(|| crate::resolve_env(None).unwrap_or_default())
+    }
+
+    pub fn get(name: &str) -> Option<String> {
+        lookup_in(name, |n| std::env::var(n).ok(), resolved())
+    }
+
+    fn missing(name: &str) -> ResolverError {
+        ResolverError::TypeShape {
+            msg: format!("{name} is unset and the layered mios.toml does not resolve it"),
+        }
+    }
+
+    pub fn require(name: &str) -> Result<String, ResolverError> {
+        get(name).ok_or_else(|| missing(name))
+    }
+
+    pub fn require_port(name: &str) -> Result<u16, ResolverError> {
+        let raw = require(name)?;
+        raw.parse::<u16>()
+            .map_err(|_| ResolverError::InvalidPortValue {
+                key: name.to_string(),
+                value: raw,
+            })
+    }
+
+    /// Replace every `${MIOS_*}` in `text` through `lookup`; an unresolved
+    /// reference is an error rather than an empty string.
+    pub fn expand_refs_with(
+        text: &str,
+        lookup: impl Fn(&str) -> Option<String>,
+    ) -> Result<String, ResolverError> {
+        let mut out = String::with_capacity(text.len());
+        let mut rest = text;
+        while let Some(start) = rest.find("${") {
+            out.push_str(&rest[..start]);
+            let after = &rest[start + 2..];
+            let Some(end) = after.find('}') else {
+                out.push_str(&rest[start..]);
+                return Ok(out);
+            };
+            let name = &after[..end];
+            out.push_str(&lookup(name).ok_or_else(|| missing(name))?);
+            rest = &after[end + 1..];
+        }
+        out.push_str(rest);
+        Ok(out)
+    }
+
+    pub fn expand_refs(text: &str) -> Result<String, ResolverError> {
+        expand_refs_with(text, get)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn ssot() -> BTreeMap<String, String> {
+            BTreeMap::from([("MIOS_PORT_NODE".to_string(), "8650".to_string())])
+        }
+
+        #[test]
+        fn environment_wins_over_the_resolved_ssot() {
+            let env = |_: &str| Some("9100".to_string());
+            assert_eq!(
+                lookup_in("MIOS_PORT_NODE", env, &ssot()).as_deref(),
+                Some("9100")
+            );
+        }
+
+        #[test]
+        fn empty_environment_falls_back_to_the_ssot() {
+            let env = |_: &str| Some(String::new());
+            assert_eq!(
+                lookup_in("MIOS_PORT_NODE", env, &ssot()).as_deref(),
+                Some("8650")
+            );
+        }
+
+        #[test]
+        fn a_name_nothing_provides_is_none() {
+            assert_eq!(lookup_in("MIOS_PORT_MISSING", |_| None, &ssot()), None);
+        }
+
+        #[test]
+        fn references_expand_and_unresolved_ones_fail() {
+            let look = |n: &str| (n == "MIOS_PORT_A").then(|| "8900".to_string());
+            assert_eq!(
+                expand_refs_with("http://localhost:${MIOS_PORT_A}/", look).unwrap(),
+                "http://localhost:8900/"
+            );
+            assert!(expand_refs_with("http://localhost:${MIOS_PORT_B}/", look).is_err());
+            assert_eq!(expand_refs_with("no refs", look).unwrap(), "no refs");
+        }
+    }
+}

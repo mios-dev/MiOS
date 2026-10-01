@@ -6,6 +6,7 @@ edition.workspace = true
 description = "Typed figment-based configuration resolver for MiOS"
 
 [dependencies]
+mios-resolver = { path = "../../../tools/native/mios-resolver" }
 serde.workspace = true
 serde_json.workspace = true
 figment.workspace = true

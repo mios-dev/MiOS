@@ -856,6 +856,7 @@ version = "0.3.0"
 dependencies = [
  "figment",
  "miette 7.6.0",
+ "mios-resolver",
  "serde",
  "serde_json",
  "thiserror 2.0.19",
@@ -942,6 +943,7 @@ dependencies = [
  "libc",
  "mios-build",
  "mios-config",
+ "mios-resolver",
  "mios-unit-gen",
  "regex",
  "serde",

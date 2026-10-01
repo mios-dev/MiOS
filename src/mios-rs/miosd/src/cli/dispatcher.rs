@@ -14,8 +14,14 @@ pub static KNOWN_VERBS: &[(&str, &[&str])] = &[
         &["/usr/libexec/mios/mios-dashboard.sh", "--monitor"],
     ),
     ("config", &["/usr/libexec/mios/mios-configurator-launch"]),
-    ("code", &["xdg-open", "http://localhost:8080/"]),
-    ("ai", &["xdg-open", "http://localhost:3030/"]),
+    (
+        "code",
+        &["xdg-open", "http://localhost:${MIOS_PORT_CODE_SERVER}/"],
+    ),
+    (
+        "ai",
+        &["xdg-open", "http://localhost:${MIOS_PORT_OPEN_WEBUI}/"],
+    ),
     ("xbox", &["/usr/libexec/mios/xbox-repair.sh"]),
     ("virt", &["/usr/libexec/mios/virt-apply.sh"]),
     ("vfio", &["/usr/libexec/mios/vfio-config.sh"]),
@@ -88,9 +94,21 @@ impl CliDispatcher {
         }
         let target_raw = cmd_spec[0];
         let resolved = Self::resolve_target(target_raw);
+        // ${MIOS_*} in a verb's arguments resolve from the SSOT at dispatch time.
+        let spec_args: Vec<String> = match cmd_spec[1..]
+            .iter()
+            .map(|a| mios_resolver::runtime::expand_refs(a))
+            .collect()
+        {
+            Ok(args) => args,
+            Err(e) => {
+                eprintln!("mios: cannot resolve '{}': {}", target_raw, e);
+                return 1;
+            }
+        };
 
         let mut cmd = Command::new(&resolved);
-        for arg in &cmd_spec[1..] {
+        for arg in &spec_args {
             cmd.arg(arg);
         }
         for arg in extra_args {
@@ -103,7 +121,7 @@ impl CliDispatcher {
                 // If direct execution failed and target wasn't found, try running as PATH command
                 if e.kind() == std::io::ErrorKind::NotFound {
                     let mut fallback = Command::new(target_raw);
-                    for arg in &cmd_spec[1..] {
+                    for arg in &spec_args {
                         fallback.arg(arg);
                     }
                     for arg in extra_args {
