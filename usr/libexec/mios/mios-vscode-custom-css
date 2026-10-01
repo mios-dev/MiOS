@@ -25,6 +25,12 @@ EXT_DIR_PATTERNS = [
     ".local/share/code-server/extensions",
 ]
 
+# Global extensions dirs an administrator may provide. Used only when they
+# already exist: code-server reads user extensions from
+# ~/.local/share/code-server/extensions, and its RPM creates /usr/lib/code-server
+# without an extensions dir, so inventing one there failed every non-root install.
+GLOBAL_EXT_DIRS = ["/usr/lib/code-server/extensions", "/usr/share/code-server/extensions"]
+
 # Known settings file paths relative to home / roots
 SETTINGS_PATTERNS = [
     ".vscode-remote/data/Machine/settings.json",
@@ -167,9 +173,8 @@ def locate_ext_dirs(homes, explicit_target=None):
             if os.path.isdir(target) or os.path.isdir(os.path.dirname(target)):
                 dirs.add(target)
 
-    # Global code-server extensions dir if present
-    for g in ["/usr/lib/code-server/extensions", "/usr/share/code-server/extensions"]:
-        if os.path.isdir(g) or os.path.isdir(os.path.dirname(g)):
+    for g in GLOBAL_EXT_DIRS:
+        if os.path.isdir(g):
             dirs.add(g)
 
     return sorted(list(dirs))

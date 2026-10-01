@@ -290,6 +290,38 @@ class TestCodeServerBake(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(ROOT, "usr/share/mios/theme/code-server-terminal.css")))
 
 
+class TestExtensionDirs(unittest.TestCase):
+    """A global extensions dir is used only when it exists; it is never invented under an install root."""
+
+    def setUp(self):
+        self.tool = _load_tool()
+        self.tmp = tempfile.mkdtemp(prefix="ext-dirs-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.install_root = os.path.join(self.tmp, "usr/lib/code-server")
+        os.makedirs(self.install_root)
+        self.home = os.path.join(self.tmp, "home")
+        os.makedirs(os.path.join(self.home, ".local/share/code-server"))
+        self.tool.GLOBAL_EXT_DIRS = [os.path.join(self.install_root, "extensions")]
+        # The repo's own extension sources, not whatever a host overlay installed.
+        self.tool.EXT_SRC_DIR = os.path.join(ROOT, "usr/share/mios/extensions/be5invis.vscode-custom-css")
+        self.tool.THEME_SRC_DIR = os.path.join(ROOT, "usr/share/mios/extensions/mios-theme-mobile")
+
+    def test_missing_global_dir_is_not_a_target(self):
+        dirs = self.tool.locate_ext_dirs([self.home])
+        self.assertNotIn(os.path.join(self.install_root, "extensions"), dirs)
+        self.assertIn(os.path.join(self.home, ".local/share/code-server/extensions"), dirs)
+
+    def test_existing_global_dir_is_a_target(self):
+        os.makedirs(os.path.join(self.install_root, "extensions"))
+        self.assertIn(os.path.join(self.install_root, "extensions"), self.tool.locate_ext_dirs([self.home]))
+
+    def test_user_install_succeeds_beside_an_unwritable_install_root(self):
+        os.chmod(self.install_root, 0o555)
+        self.addCleanup(os.chmod, self.install_root, 0o755)
+        dirs = self.tool.locate_ext_dirs([self.home])
+        self.assertTrue(self.tool.install_extension(dirs), dirs)
+
+
 class TestDevImageWiring(unittest.TestCase):
 
     def test_containerfile_bakes_pinned_release(self):
