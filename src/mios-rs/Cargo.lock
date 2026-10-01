@@ -902,6 +902,7 @@ dependencies = [
 name = "mios-probe"
 version = "0.3.0"
 dependencies = [
+ "mios-resolver",
  "serde_json",
  "tempfile",
  "toml",

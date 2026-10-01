@@ -4,6 +4,9 @@
 use crate::report::{Probe, Report, Verdict};
 use std::path::Path;
 
+/// The resolved six-tier SSOT under `root` (vendor < vendor.d < host <
+/// host.d < user < user.d), so an operator's [preflight] override is the
+/// threshold probed. A missing vendor file is still a hard stop.
 fn ssot(root: &Path) -> Result<toml::Value, String> {
     let p = root.join("usr/share/mios/mios.toml");
     if !p.is_file() {
@@ -12,10 +15,12 @@ fn ssot(root: &Path) -> Result<toml::Value, String> {
             p.display()
         ));
     }
-    let text = std::fs::read_to_string(&p)
-        .map_err(|e| format!("{} could not be read: {e}", p.display()))?;
-    text.parse::<toml::Value>()
-        .map_err(|e| format!("{} did not parse: {e}", p.display()))
+    mios_resolver::resolve_merged(Some(root), false).map_err(|e| {
+        format!(
+            "the layered mios.toml under {} did not parse: {e}",
+            root.display()
+        )
+    })
 }
 
 fn cannot_run(why: String) -> Report {

@@ -35,6 +35,10 @@ fn run(dir: &Path, args: &[&str]) -> (i32, String) {
         .arg("--root")
         .arg(dir)
         .arg("--no-color")
+        // The caller's own user tier must not leak into a fixture tree.
+        .env("MIOS_USER_TOML", dir.join("no-user/mios.toml"))
+        .env_remove("MIOS_VENDOR_TOML")
+        .env_remove("MIOS_HOST_TOML")
         .output()
         .unwrap();
     let mut s = String::from_utf8_lossy(&out.stdout).to_string();
@@ -54,6 +58,22 @@ fn a_satisfied_build_host_is_clean() {
         out.contains("v9.9.9"),
         "the VERSION file is the title's source: {out}"
     );
+}
+
+#[test]
+fn a_host_tier_override_is_the_threshold_probed() {
+    let d = tempfile::tempdir().unwrap();
+    tree(d.path(), FULL);
+    fs::write(d.path().join("Containerfile"), "FROM scratch\n").unwrap();
+    fs::create_dir_all(d.path().join("etc/mios")).unwrap();
+    fs::write(
+        d.path().join("etc/mios/mios.toml"),
+        "[preflight.build]\nrequired_files = [\"Containerfile\", \"host-only-file\"]\n",
+    )
+    .unwrap();
+    let (code, out) = run(d.path(), &["build"]);
+    assert_eq!(1, code, "{out}");
+    assert!(out.contains("host-only-file missing"), "{out}");
 }
 
 #[test]
