@@ -68,7 +68,7 @@ ARG MIOS_PROFILES_DEFAULT
 
 # Every SSOT projection the image ships is rendered inside this RUN from the
 # build's own mios.toml by tools/sync-generated.sh, the entry point CI's
-# generated-artifacts step runs. miosd drift-check runs first, so a derived
+# generated-artifacts step runs. The drift check runs before it, so a derived
 # surface edited by hand still fails the build (Law 8) before it is overwritten.
 # Source drift checks need every tracked consumer, including tests and CI.
 # Restore omitted index entries after provisioning; retain copied edits and exclude caches.

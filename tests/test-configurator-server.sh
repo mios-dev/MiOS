@@ -69,7 +69,7 @@ fi
 echo "[test-configurator-server] Test 2: Starting embedded Rust config-server on port ${TEST_PORT}"
 MIOS_ROOT="$REPO_ROOT" \
 MIOS_CONFIGURATOR_HTML="$HTML_PATH" \
-MIOS_PROFILE_TOML="$TEST_PROFILE" \
+MIOS_USER_TOML="$TEST_PROFILE" \
 "$MIOSD" config-server --port "$TEST_PORT" > "${TMP_DIR}/server.log" 2>&1 &
 SERVER_PID=$!
 
@@ -135,25 +135,28 @@ else
     _fail "GET /portal/config did not return expected TOML sections"
 fi
 
-# Test 8: Positive Control - Save valid user profile TOML (POST /portal/config)
-echo "[test-configurator-server] Test 8: Save valid user profile TOML (POST /portal/config)"
-VALID_PAYLOAD='[meta]
-mios_version = "0.3.0"
-fedora_version = "44"
-
-[identity]
-username = "test-operator"
-fullname = "Test Operator"
-hostname = "test-host"
-shell = "/bin/bash"
-
-[theme]
-mode = "dark"
-'
+# Test 8: Positive Control - Save an edit into the user tier (POST /portal/config)
+# The configurator posts the whole live config back with its edits; the save
+# keeps only what differs from the lower tiers. MIOS_USER_TOML points the user
+# tier at the test's temp dir so the runner's own ~/.config is never touched.
+echo "[test-configurator-server] Test 8: Save an edit into the user tier (POST /portal/config)"
+VALID_PAYLOAD="${TMP_DIR}/edited.toml"
+curl -s "http://127.0.0.1:${TEST_PORT}/portal/config" | python3 -c '
+import sys
+lines = sys.stdin.read().split("\n")
+start = lines.index("[identity]")
+for i in range(start + 1, len(lines)):
+    if lines[i].startswith("["):
+        sys.exit("no username in [identity]")
+    if lines[i].startswith("username = "):
+        lines[i] = "username = \"test-operator\""
+        break
+print("\n".join(lines), end="")
+' > "$VALID_PAYLOAD"
 
 SAVE_RESP="$(curl -s -w "\n%{http_code}" -X POST \
     -H "Content-Type: application/toml" \
-    --data-binary "$VALID_PAYLOAD" \
+    --data-binary "@${VALID_PAYLOAD}" \
     "http://127.0.0.1:${TEST_PORT}/portal/config")"
 
 HTTP_STATUS="$(echo "$SAVE_RESP" | tail -n1)"
@@ -162,9 +165,14 @@ BODY_RESP="$(echo "$SAVE_RESP" | sed '$d')"
 if [[ "$HTTP_STATUS" == "200" ]] && [[ -f "$TEST_PROFILE" ]]; then
     _pass "POST /portal/config succeeded with HTTP 200 and created $TEST_PROFILE"
     if grep -q "test-operator" "$TEST_PROFILE"; then
-        _pass "Persisted profile contains exact submitted values"
+        _pass "Persisted user tier contains the edited value"
     else
-        _fail "Persisted profile missing submitted values"
+        _fail "Persisted user tier missing the edited value"
+    fi
+    if grep -q '^\[ports\]' "$TEST_PROFILE"; then
+        _fail "Unchanged [ports] were copied into the user tier"
+    else
+        _pass "Only the edit was persisted; unchanged sections stay in lower tiers"
     fi
 else
     _fail "POST /portal/config failed with HTTP $HTTP_STATUS: $BODY_RESP"
