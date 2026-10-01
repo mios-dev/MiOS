@@ -5,6 +5,7 @@
 import sys
 import subprocess
 import tempfile
+import tomllib
 from pathlib import Path
 sys.path.insert(0, "usr/libexec/mios/deploy")
 from self_replicate import SelfReplicationDaemon
@@ -59,7 +60,25 @@ def test_build_context_preserves_tracked_sources():
         assert retained.read_text() == "copied operator edit", "restoration must retain copied edits"
         assert private.read_text() == "untracked cache", "restoration must not modify untracked files"
 
+def test_node_daemon_unit_command():
+    """The installed unit invokes the daemon CLI with a supplied SSOT port."""
+    root = Path(__file__).resolve().parents[1]
+    config = tomllib.loads((root / "usr/share/mios/mios.toml").read_text())
+    service = config["units"]["mios-node.service"]["Service"]
+    command = service["ExecStart"].split()
+    assert command[:2] == ["/usr/bin/mios-node", "run"], "node unit must invoke the run subcommand"
+    assert command[2::2] == ["--node-id", "--port"], "node unit must use named CLI arguments"
+    assert command[-1] == "${MIOS_PORT_NODE}", "node port must remain SSOT driven"
+    assert "MIOS_PORT_NODE=${MIOS_PORT_NODE}" in service["Environment"], "node unit must supply its runtime port"
+    assert not any(":-" in value for value in [service["ExecStart"], *service["Environment"]]), "node unit must carry no shell default expressions"
+    unit = (root / "usr/lib/systemd/system/mios-node.service").read_text()
+    assert f"ExecStart={service['ExecStart']}" in unit, "node unit must match SSOT"
+    for value in service["Environment"]:
+        assert f"Environment={value}" in unit, "node environment must match SSOT"
+
+
 if __name__ == "__main__":
+    test_node_daemon_unit_command()
     test_build_context_ignores_generated_artifacts()
     test_build_context_preserves_tracked_sources()
     test_self_replication_build_and_digest()
