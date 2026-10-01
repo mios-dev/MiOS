@@ -43,6 +43,7 @@ struct NativeLinux {
     targets: std::collections::BTreeMap<String, String>,
     linker: String,
     rustflags: Vec<String>,
+    pie: std::collections::BTreeMap<String, bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -51,6 +52,8 @@ pub struct NativeLinuxTarget {
     pub target: String,
     pub linker: String,
     pub rustflags: Vec<String>,
+    /// [build.native.linux].pie for this architecture: the artifact must be static-pie.
+    pub pie: bool,
 }
 
 /// Resolve build policy from the same catalog used for executable discovery.
@@ -69,17 +72,26 @@ fn linux_target(config: &NativeConfig, arch: &str) -> Result<NativeLinuxTarget, 
         .targets
         .get(arch)
         .ok_or_else(|| format!("SSOT has no native Linux target for {arch}"))?;
+    let pie = *config
+        .linux
+        .pie
+        .get(arch)
+        .ok_or_else(|| format!("SSOT has no [build.native.linux].pie entry for {arch}"))?;
     Ok(NativeLinuxTarget {
         jobs: config.linux.jobs,
         target: target.clone(),
         linker: config.linux.linker.clone(),
         rustflags: config.linux.rustflags.clone(),
+        pie,
     })
 }
 
 /// Inspect ELF rather than trusting its filename, executable bit or Cargo exit.
 /// Static PIE may have relocation tables; it must not need a loader or DSOs.
-pub fn verify_static_elf(data: &[u8], arch: &str) -> Result<(), String> {
+/// With `require_pie` the file must be ET_DYN carrying DT_FLAGS_1 & DF_1_PIE,
+/// which also refuses a dependency-free shared object and a silent -static
+/// fallback that drops ASLR.
+pub fn verify_static_elf(data: &[u8], arch: &str, require_pie: bool) -> Result<(), String> {
     fn word(data: &[u8], offset: usize, width: usize) -> Result<u64, String> {
         let end = offset.checked_add(width).ok_or("ELF offset overflow")?;
         let bytes = data.get(offset..end).ok_or("truncated ELF table")?;
@@ -117,6 +129,8 @@ pub fn verify_static_elf(data: &[u8], arch: &str) -> Result<(), String> {
         return Err("invalid ELF program header dimensions".into());
     }
     let entry_point = word(data, 24, 8)?;
+    let elf_type = word(data, 16, 2)?;
+    let mut flags_1 = 0_u64;
     let mut executable_entry = false;
     for index in 0..count {
         let base = index
@@ -169,6 +183,7 @@ pub fn verify_static_elf(data: &[u8], arch: &str) -> Result<(), String> {
                                 "static policy rejects dynamic dependency (DT_NEEDED)".into()
                             )
                         }
+                        0x6fff_fffb => flags_1 = word(data, entry + 8, 8)?,
                         _ => {}
                     }
                 }
@@ -178,6 +193,12 @@ pub fn verify_static_elf(data: &[u8], arch: &str) -> Result<(), String> {
     }
     if !executable_entry {
         return Err("ELF has no executable load segment containing its entry point".into());
+    }
+    if require_pie && (elf_type != 3 || flags_1 & 0x0800_0000 == 0) {
+        return Err(
+            "[build.native.linux].pie requires a static-pie executable (ET_DYN with DF_1_PIE)"
+                .into(),
+        );
     }
     Ok(())
 }
@@ -221,6 +242,9 @@ fn native_config(ssot: &str) -> Result<NativeConfig, String> {
         })
     {
         return Err("native Linux targets must declare supported architecture/musl pairs".into());
+    }
+    if config.linux.targets.keys().ne(config.linux.pie.keys()) {
+        return Err("[build.native.linux].pie must name exactly the target architectures".into());
     }
     if config.linux.linker != "rust-lld"
         || config.linux.rustflags != ["-C", "target-feature=+crt-static"]
@@ -456,37 +480,59 @@ mod native_catalog_tests {
             native_config(&CATALOG.replace("unknown-linux-musl", "unknown-linux-gnu")).is_err()
         );
         assert!(native_config(&CATALOG.replace("+crt-static", "-crt-static")).is_err());
+        assert!(linux_target(&config, "x86_64").unwrap().pie);
+        assert!(!linux_target(&config, "aarch64").unwrap().pie);
+        assert!(native_config(&CATALOG.replace(", aarch64 = false }", " }")).is_err());
     }
     #[test]
     fn static_elf_accepts_executables_and_static_pie_relocations() {
-        verify_static_elf(&elf(0), "x86_64").unwrap();
+        verify_static_elf(&elf(0), "x86_64", false).unwrap();
         let mut pie = elf(2);
         pie[16..18].copy_from_slice(&3_u16.to_le_bytes());
         pie[224..232].copy_from_slice(&7_u64.to_le_bytes());
-        verify_static_elf(&pie, "x86_64").unwrap();
+        verify_static_elf(&pie, "x86_64", false).unwrap();
+    }
+    fn static_pie() -> Vec<u8> {
+        let mut pie = elf(2);
+        pie[16..18].copy_from_slice(&3_u16.to_le_bytes());
+        pie[224..232].copy_from_slice(&0x6fff_fffb_u64.to_le_bytes());
+        pie[232..240].copy_from_slice(&0x0800_0001_u64.to_le_bytes());
+        pie
+    }
+    #[test]
+    fn required_pie_accepts_only_static_pie() {
+        verify_static_elf(&static_pie(), "x86_64", true).unwrap();
+        // A non-PIE static executable: what a silent -static fallback produces.
+        assert!(verify_static_elf(&elf(0), "x86_64", true)
+            .unwrap_err()
+            .contains("static-pie"));
+        // ET_DYN without DF_1_PIE: a dependency-free shared object.
+        let mut shared = static_pie();
+        shared[232..240].copy_from_slice(&1_u64.to_le_bytes());
+        assert!(verify_static_elf(&shared, "x86_64", true).is_err());
     }
     #[test]
     fn static_elf_rejects_loader_and_dynamic_dependencies() {
-        assert!(verify_static_elf(&elf(3), "x86_64")
+        assert!(verify_static_elf(&elf(3), "x86_64", false)
             .unwrap_err()
             .contains("PT_INTERP"));
         let mut dynamic = elf(2);
         dynamic[224..232].copy_from_slice(&1_u64.to_le_bytes());
-        assert!(verify_static_elf(&dynamic, "x86_64")
+        assert!(verify_static_elf(&dynamic, "x86_64", false)
             .unwrap_err()
             .contains("DT_NEEDED"));
     }
     #[test]
     fn static_elf_rejects_foreign_and_truncated_artifacts() {
-        assert!(verify_static_elf(b"MZ", "x86_64").is_err());
-        assert!(verify_static_elf(&elf(0), "aarch64").is_err());
-        assert!(verify_static_elf(&elf(0)[..100], "x86_64").is_err());
+        assert!(verify_static_elf(b"MZ", "x86_64", false).is_err());
+        assert!(verify_static_elf(&elf(0), "aarch64", false).is_err());
+        assert!(verify_static_elf(&elf(0)[..100], "x86_64", false).is_err());
         let mut invalid = elf(0);
         invalid[32..40].copy_from_slice(&u64::MAX.to_le_bytes());
-        assert!(verify_static_elf(&invalid, "x86_64").is_err());
+        assert!(verify_static_elf(&invalid, "x86_64", false).is_err());
         let mut no_entry = elf(0);
         no_entry[24..32].copy_from_slice(&0_u64.to_le_bytes());
-        assert!(verify_static_elf(&no_entry, "x86_64").is_err());
+        assert!(verify_static_elf(&no_entry, "x86_64", false).is_err());
     }
     const CATALOG: &str = r#"
 [build.native]
@@ -497,6 +543,7 @@ jobs = 2
 targets = { x86_64 = "x86_64-unknown-linux-musl", aarch64 = "aarch64-unknown-linux-musl" }
 linker = "rust-lld"
 rustflags = ["-C", "target-feature=+crt-static"]
+pie = { x86_64 = true, aarch64 = false }
 [build.native.categories.cli]
 binaries = ["tool"]
 install_dir = "/usr/bin"

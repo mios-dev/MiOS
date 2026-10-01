@@ -33,6 +33,9 @@ enum Commands {
         path: String,
         #[arg(long, default_value = std::env::consts::ARCH)]
         arch: String,
+        /// Tree whose [build.native.linux] policy (e.g. pie) the artifact must meet.
+        #[arg(long, default_value = ".")]
+        root: String,
     },
     /// List SSOT-categorized native executables using both Cargo workspaces
     NativeTargets {
@@ -843,10 +846,13 @@ async fn main() {
                 }
             }
         }
-        Commands::NativeArtifactCheck { path, arch } => {
-            let result = std::fs::read(path)
-                .map_err(|e| format!("cannot read artifact: {e}"))
-                .and_then(|data| mios_build::verify_static_elf(&data, arch));
+        Commands::NativeArtifactCheck { path, arch, root } => {
+            let result = mios_build::native_linux_target(std::path::Path::new(root), arch)
+                .and_then(|policy| {
+                    std::fs::read(path)
+                        .map_err(|e| format!("cannot read artifact: {e}"))
+                        .and_then(|data| mios_build::verify_static_elf(&data, arch, policy.pie))
+                });
             if let Err(error) = result {
                 eprintln!("[miosd] Artifact {path}: {error}");
                 std::process::exit(1);

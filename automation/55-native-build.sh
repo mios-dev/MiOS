@@ -57,7 +57,7 @@ if command -v cargo >/dev/null 2>&1; then
             (cd "${ROOT_DIR}/${workspace}" && cargo build --release --locked -p "$package" --bin "$bin" --target "$target" --target-dir "$TARGET_DIR")
             SRC_BIN="${TARGET_DIR}/${target}/release/${bin}"
             [[ -f "$SRC_BIN" && -x "$SRC_BIN" ]] || { echo "[55-native-build] FATAL: build did not produce ${SRC_BIN}" >&2; exit 1; }
-            "$builder" native-artifact-check "$SRC_BIN" --arch "$arch"
+            "$builder" native-artifact-check "$SRC_BIN" --arch "$arch" --root "$ROOT_DIR"
             prefix="${MIOS_NATIVE_INSTALL_ROOT:-}"
             [[ -n "$prefix" || "$EUID" -eq 0 ]] || prefix="$ROOT_DIR"
             if [[ -n "${MIOS_NATIVE_DEST_DIR:-}" ]]; then destination="$DEST_DIR"

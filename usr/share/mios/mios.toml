@@ -1874,6 +1874,12 @@ jobs = 2
 targets = { x86_64 = "x86_64-unknown-linux-musl", aarch64 = "aarch64-unknown-linux-musl" }
 linker = "rust-lld"
 rustflags = ["-C", "target-feature=+crt-static"]
+# Required ELF shape per target: true demands a static-pie (ET_DYN + DF_1_PIE,
+# so ASLR covers the image). x86_64-unknown-linux-musl links static-pie with
+# +crt-static since Rust 1.46 (rust-lang/rust#70740). aarch64-unknown-linux-musl
+# has no static-pie support upstream as of 1.99 (#158510 enabled gnu only), so
+# it links a non-PIE static executable; flip it when upstream does.
+pie = { x86_64 = true, aarch64 = false }
 
 [build.native.categories.cli]
 binaries = [
